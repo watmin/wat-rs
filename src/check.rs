@@ -20586,10 +20586,22 @@ fn register_builtins(env: &mut CheckEnv) {
     // fire-rules / insert / insert-all / fire-rules-explain are wat defns (first-class
     // Fn). Keyword-head calls are intercepted by rust. Do not register them here.
 
-    // Arc 278 — intern the rust ReteArm at compile-all (`DESIGN-STONE-arm-at-compile`).
+    // Arc 278 — intern the rust InternedNetwork at compile-all (`DESIGN-STONE-arm-at-compile`).
     // (:wat::rete::arm-session <session: :wat::rete::Session>) → :wat::rete::Session
     env.register(
         ":wat::rete::arm-session".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![TypeExpr::Path(":wat::rete::Session".into())],
+            ret: TypeExpr::Path(":wat::rete::Session".into()),
+            rest_param_type: None,
+        },
+    );
+
+    // Arc 278 — drop one intern lease (`DESIGN-STONE-intern-eviction`).
+    // (:wat::rete::release-session <session: :wat::rete::Session>) → :wat::rete::Session
+    env.register(
+        ":wat::rete::release-session".into(),
         TypeScheme {
             type_params: vec![],
             params: vec![TypeExpr::Path(":wat::rete::Session".into())],

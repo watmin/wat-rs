@@ -1,8 +1,8 @@
-//! (b) ShadowNode — index the armed `where` circuits.
+//! (b) WhereDiscNode — index the armed `where` circuits.
 //!
 //! Alpha already has `alpha_tree.rs` (fact → candidate alphas). This tree
-//! is the filter dual: token bindings → candidate TestNodes. The lab node
-//! is `ShadowNode` (equality fan-out + wildcard + unpopulated ranges).
+//! is the filter dual: token bindings → candidate TestNodes. The lab sketch
+//! is `ShadowNode` (ddos tree.rs); live type is `WhereDiscNode`.
 //! We use `Arc`, never `Rc`.
 //!
 //! ## Contract
@@ -32,6 +32,9 @@ use crate::rete::matcher::{compare_values, Bindings, CmpKind};
 use crate::rete::vocabulary::RETE_OPS;
 use crate::runtime::{EvalBreak, RuntimeError, RuntimeErrorKind, Value};
 use crate::span::Span;
+
+type EqBuckets = HashMap<Value, Vec<i64>>;
+type RangeBuckets = HashMap<(CmpKind, Value), Vec<i64>>;
 
 
 /// Canonical dim — slots rewritten to `?var` names so two TestNodes
@@ -72,17 +75,17 @@ enum DimCon {
 }
 
 /// One level: branch on a compiled dim. Equality fan-out + range guards + wildcard.
-pub(crate) struct ShadowNode {
+pub(crate) struct WhereDiscNode {
     dim: Option<DimKey>,
-    children: HashMap<Value, Arc<ShadowNode>>,
-    wildcard: Option<Arc<ShadowNode>>,
-    range_children: Vec<(RangeEdge, Arc<ShadowNode>)>,
+    children: HashMap<Value, Arc<WhereDiscNode>>,
+    wildcard: Option<Arc<WhereDiscNode>>,
+    range_children: Vec<(RangeEdge, Arc<WhereDiscNode>)>,
     leaves: Vec<i64>,
 }
 
 /// Discrimination tree over TestNode ids.
 pub(crate) struct WhereTree {
-    root: Arc<ShadowNode>,
+    root: Arc<WhereDiscNode>,
     /// Test ids this tree covers (every TestNode in the network).
     ids: HashSet<i64>,
     /// `where` is only `And` of dim-lit eq **or** range — skip `exec_where`
@@ -102,7 +105,7 @@ impl WhereTree {
     /// Empty tree — no TestNodes. `candidates` returns empty.
     pub(crate) fn empty() -> Self {
         WhereTree {
-            root: Arc::new(ShadowNode {
+            root: Arc::new(WhereDiscNode {
                 dim: None,
                 children: HashMap::new(),
                 wildcard: None,
@@ -177,11 +180,11 @@ fn build_node(
     disc: &HashMap<i64, HashMap<DimKey, DimCon>>,
     dims: &[DimKey],
     pos: usize,
-) -> Arc<ShadowNode> {
+) -> Arc<WhereDiscNode> {
     // Do not leaf on `len() <= 1`: a solo pure-cmp residue still has to
     // prove its remaining dims or `exec_where` is skipped on a lie.
     if pos >= dims.len() {
-        return Arc::new(ShadowNode {
+        return Arc::new(WhereDiscNode {
             dim: None,
             children: HashMap::new(),
             wildcard: None,
@@ -190,8 +193,8 @@ fn build_node(
         });
     }
     let dim = &dims[pos];
-    let mut buckets: HashMap<Value, Vec<i64>> = HashMap::new();
-    let mut range_buckets: HashMap<(CmpKind, Value), Vec<i64>> = HashMap::new();
+    let mut buckets: EqBuckets = HashMap::new();
+    let mut range_buckets: RangeBuckets = HashMap::new();
     let mut wild: Vec<i64> = Vec::new();
     for id in test_ids {
         match disc.get(&id).and_then(|m| m.get(dim)) {
@@ -206,11 +209,11 @@ fn build_node(
     if buckets.is_empty() && range_buckets.is_empty() {
         return build_node(wild, disc, dims, pos + 1);
     }
-    let children: HashMap<Value, Arc<ShadowNode>> = buckets
+    let children: HashMap<Value, Arc<WhereDiscNode>> = buckets
         .into_iter()
         .map(|(v, ids)| (v, build_node(ids, disc, dims, pos + 1)))
         .collect();
-    let range_children: Vec<(RangeEdge, Arc<ShadowNode>)> = range_buckets
+    let range_children: Vec<(RangeEdge, Arc<WhereDiscNode>)> = range_buckets
         .into_iter()
         .map(|((op, threshold), ids)| {
             (
@@ -224,7 +227,7 @@ fn build_node(
     } else {
         Some(build_node(wild, disc, dims, pos + 1))
     };
-    Arc::new(ShadowNode {
+    Arc::new(WhereDiscNode {
         dim: Some(dim.clone()),
         children,
         wildcard,
@@ -234,7 +237,7 @@ fn build_node(
 }
 
 fn walk<B: Bindings + ?Sized>(
-    node: &ShadowNode,
+    node: &WhereDiscNode,
     bindings: &B,
     span: &Span,
     proven: bool,

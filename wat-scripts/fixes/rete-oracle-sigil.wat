@@ -26,7 +26,7 @@
 ;; or freeze sees two bindings.
 ;;
 ;; Usage (one EDN vector of paths on stdin — list EVERY file with a dual-impl keyword):
-;;   printf '["wat/rete/oracle.wat" "tests/rete/….wat" …]\n' \
+;;   printf '["wat/rete/oracle/fire.wat" "tests/rete/….wat" …]\n' \
 ;;     | cargo wat ./wat-scripts/fixes/rete-oracle-sigil.wat
 ;;
 ;; Idempotent by construction: after a pass the old tokens are gone.

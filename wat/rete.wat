@@ -3,7 +3,7 @@
 ;; Records (Token / Element / Session / node kinds / Export / explain
 ;; substrate), the Node defenum, and render-dag. Compile lives in
 ;; wat/rete/compile.wat, acc::* in wat/rete/acc.wat, fire-spec in
-;; wat/rete/oracle.wat, query/defrule in wat/rete/syntax.wat. Native
+;; wat/rete/oracle/{insert,pass,accum-pass,fire,explain}.wat, query/defrule in wat/rete/syntax.wat. Native
 ;; fire is the unprimed public name (`fire-rules`); the wat reference is
 ;; `fire-rules$oracle`. Persistent collections throughout.
 ;; EDN-round-trippable.

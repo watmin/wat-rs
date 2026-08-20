@@ -144,7 +144,7 @@
               s2)"
         );
 
-        // Convert to a native WorkingMemory (empty memories — pre-fire).
+        // Convert to a native FireSession (empty memories — pre-fire).
         let mut wm = to_transient(&session_with_facts).expect("to_transient should succeed");
 
         // Clear memories (re-run-from-scratch, same as fire_once_session).
@@ -965,6 +965,7 @@
              pairs. PARENT rows still contain their children's share.\n"
         );
         for &(a, b) in sizes {
+            // rune:perspicere(read-once) — census sample bags; alias would be a one-site mumble.
             let mut samples: std::collections::HashMap<&'static str, Vec<u64>> =
                 std::collections::HashMap::new();
             let mut pairs: std::collections::HashMap<&'static str, u64> =
@@ -1373,7 +1374,7 @@
     #[test]
     fn node_share_filter_eval_census() {
         let mut table = String::from(
-            "\nnode-share — `where` evaluations vs passes (the (b) ShadowNode gate)\n\
+            "\nnode-share — `where` evaluations vs passes (the (b) WhereDiscNode gate)\n\
              \x20 rules  items |    evals    reuse    passes   wasted  waste%   evals/token\n\
              \x20 -----------------------------------------------------------------------------\n",
         );
@@ -1481,7 +1482,7 @@
 
         // Assert on the DATA, not the rendered text. A `table.contains("ROUND LOOP")` passes on a
         // table whose every number is zero. Non-vacuity: the axis fired, and `filter` still
-        // recorded (this world has TestNodes). ShadowNode already killed filter-dominates
+        // recorded (this world has TestNodes). WhereDiscNode already killed filter-dominates
         // (89.5% on 2026-08-01); do not wall-gate that share.
         let rows = node_share_phase_census(50, 200);
         let ns_of = |name: &str| -> u64 {
@@ -2341,6 +2342,7 @@
         );
         for (g, w) in [(25i64, 50i64), (50, 100), (100, 200), (200, 200)] {
             // phase -> the per-run nanosecond readings
+            // rune:perspicere(read-once) — census sample bags; alias would be a one-site mumble.
             let mut samples: std::collections::HashMap<&'static str, Vec<u64>> =
                 std::collections::HashMap::new();
             // phase -> mark pairs fired in ONE run (identical every run; used to subtract the
@@ -3089,6 +3091,182 @@
             after_overlay, builds_after_first,
             "fire on a facts overlay must not rebuild the arm"
         );
+    }
+
+    /// Stone 27 — intern index is thread-owned. N workers compile and fire
+    /// private Sessions without a process lock. Instance ids do not collide.
+    /// Second fire on the same thread HITs that thread's table.
+    #[test]
+    fn intern_index_thread_owned_workers_do_not_collide() {
+        use super::{fire_fixpoint_delta, network_identity, rete_arm_lookup};
+        const N: usize = 8;
+        let handles: Vec<_> = (0..N)
+            .map(|i| {
+                std::thread::spawn(move || {
+                    let (world, fired) = fire_cascade(2, 2);
+                    let id = match &fired {
+                        Value::Aggregate(a) if a.nature != Nature::Struct => {
+                            network_identity(&a.fields.as_slice()[0])
+                        }
+                        _ => None,
+                    }
+                    .unwrap_or_else(|| panic!("thread {i}: fired session has no network identity"));
+                    assert!(
+                        rete_arm_lookup(id).is_some(),
+                        "thread {i}: first fire must intern on this thread"
+                    );
+                    fire_fixpoint_delta(&fired, world.symbols(), None).unwrap_or_else(|e| {
+                        panic!("thread {i}: second fire: {e:?}")
+                    });
+                    assert!(
+                        rete_arm_lookup(id).is_some(),
+                        "thread {i}: second fire must HIT this thread's intern"
+                    );
+                    id
+                })
+            })
+            .collect();
+        let mut ids = Vec::with_capacity(N);
+        for (i, h) in handles.into_iter().enumerate() {
+            ids.push(
+                h.join()
+                    .unwrap_or_else(|_| panic!("thread {i} panicked")),
+            );
+        }
+        let minted = ids.len();
+        ids.sort_unstable();
+        ids.dedup();
+        assert_eq!(
+            ids.len(),
+            minted,
+            "instance rust_identity is per compile-all; got {ids:?}"
+        );
+        assert_eq!(ids.len(), N, "N workers minted N instance ids; got {ids:?}");
+    }
+
+    fn session_net_id(session: &Value) -> Option<u64> {
+        match session {
+            Value::Aggregate(a) if a.nature != Nature::Struct => {
+                super::network_identity(&a.fields.as_slice()[0])
+            }
+            _ => None,
+        }
+    }
+
+    /// Stone 28 — compile leases; fire HIT does not; release drops; next fire rebuilds.
+    #[test]
+    fn intern_release_drops_arm_and_next_fire_rebuilds() {
+        use super::{
+            fire_fixpoint_delta, rete_arm_leases, rete_arm_lookup, rete_arm_release, ARM_BUILDS,
+        };
+        let (world, fired) = fire_cascade(2, 2);
+        let id = session_net_id(&fired).expect("fired session has a network identity");
+        assert_eq!(
+            rete_arm_leases(id),
+            Some(1),
+            "compile-all leases 1; fire HIT does not add a lease"
+        );
+        let builds = ARM_BUILDS.load(std::sync::atomic::Ordering::Relaxed);
+        fire_fixpoint_delta(&fired, world.symbols(), None).expect("second fire HIT");
+        assert_eq!(
+            ARM_BUILDS.load(std::sync::atomic::Ordering::Relaxed),
+            builds,
+            "fire HIT must not rebuild"
+        );
+        rete_arm_release(id);
+        assert!(
+            rete_arm_lookup(id).is_none(),
+            "last lease drop removes the intern"
+        );
+        fire_fixpoint_delta(&fired, world.symbols(), None).expect("fire after release");
+        assert_eq!(
+            ARM_BUILDS.load(std::sync::atomic::Ordering::Relaxed),
+            builds + 1,
+            "next fire after release must rebuild"
+        );
+        assert_eq!(
+            rete_arm_leases(id),
+            Some(1),
+            "fire MISS intern's with leases=1"
+        );
+    }
+
+    /// Stone 28 — two compile-alls are two instance ids. Release one; the other HIT.
+    #[test]
+    fn intern_release_one_session_leaves_the_other() {
+        use super::{
+            fire_fixpoint_delta, rete_arm_leases, rete_arm_lookup, rete_arm_release, ARM_BUILDS,
+        };
+        let (_world_a, a) = fire_cascade(2, 2);
+        let (world_b, b) = fire_cascade(2, 2);
+        let id_a = session_net_id(&a).expect("a");
+        let id_b = session_net_id(&b).expect("b");
+        assert_ne!(id_a, id_b, "independent compile-all mints a new instance id");
+        assert_eq!(rete_arm_leases(id_a), Some(1));
+        assert_eq!(rete_arm_leases(id_b), Some(1));
+        let builds = ARM_BUILDS.load(std::sync::atomic::Ordering::Relaxed);
+        rete_arm_release(id_a);
+        assert!(rete_arm_lookup(id_a).is_none());
+        assert_eq!(rete_arm_leases(id_b), Some(1));
+        fire_fixpoint_delta(&b, world_b.symbols(), None).expect("b still HIT");
+        assert_eq!(
+            ARM_BUILDS.load(std::sync::atomic::Ordering::Relaxed),
+            builds,
+            "releasing A must not force B to rebuild"
+        );
+    }
+
+    /// Stone 28 — overlay shares rust_identity and is not a second lease.
+    /// Overlay fire after release of the armed Session rebuilds. Do not
+    /// release mid-connection.
+    #[test]
+    fn intern_overlay_is_not_a_second_lease() {
+        use super::{
+            fire_fixpoint_delta, rete_arm_leases, rete_arm_lookup, rete_arm_release, session_facts,
+            session_with_facts, ARM_BUILDS,
+        };
+        let (world, fired) = fire_cascade(2, 2);
+        let id = session_net_id(&fired).expect("id");
+        let overlay = session_with_facts(&fired, session_facts(&fired));
+        assert_eq!(session_net_id(&overlay), Some(id));
+        assert_eq!(
+            rete_arm_leases(id),
+            Some(1),
+            "overlay insert is not a second lease"
+        );
+        let builds = ARM_BUILDS.load(std::sync::atomic::Ordering::Relaxed);
+        fire_fixpoint_delta(&overlay, world.symbols(), None).expect("overlay fire HIT");
+        assert_eq!(
+            ARM_BUILDS.load(std::sync::atomic::Ordering::Relaxed),
+            builds
+        );
+        rete_arm_release(id);
+        assert!(rete_arm_lookup(id).is_none());
+        fire_fixpoint_delta(&overlay, world.symbols(), None)
+            .expect("overlay fire after release rebuilds");
+        assert_eq!(
+            ARM_BUILDS.load(std::sync::atomic::Ordering::Relaxed),
+            builds + 1
+        );
+    }
+
+    /// Stone 28 — public `:wat::rete::release-session` mouth.
+    #[test]
+    fn intern_release_session_wat_mouth_drops_the_lease() {
+        use super::{rete_arm_leases, rete_arm_lookup};
+        let world = startup_from_source(DEPTH_SPLIT_WORLD, None, Arc::new(InMemoryLoader::new()))
+            .expect("depth-split world should freeze");
+        let src = "(:wat::rete::release-session (:wat::rete::compile (:dc::build-rules 2)))";
+        let ast = crate::parse_one!(src).expect("parse release-session");
+        let released = eval_in_frozen(&ast, &world, &Environment::new())
+            .unwrap_or_else(|e| panic!("release-session raised: {e:?}"))
+            .value_owned();
+        let id = session_net_id(&released).expect("released session has a network identity");
+        assert!(
+            rete_arm_lookup(id).is_none(),
+            "wat release-session must drop the compile lease"
+        );
+        assert_eq!(rete_arm_leases(id), None);
     }
 
     /// Every `Value::Aggregate` (non-`Struct`) fact in a fired session's final fact set —
@@ -4362,7 +4540,7 @@
             "compile+seed produced 0 facts — isolated loops would be vacuous"
         );
 
-        let reset = |wm: &mut super::WorkingMemory, d_alpha: &mut AlphaDelta| {
+        let reset = |wm: &mut super::FireSession, d_alpha: &mut AlphaDelta| {
             wm.alpha.clear();
             wm.bind_pool.clear();
             wm.bind_keys.clear();
@@ -4590,7 +4768,7 @@
             }
         }
 
-        let reset_pools = |wm: &mut super::WorkingMemory| {
+        let reset_pools = |wm: &mut super::FireSession| {
             wm.bind_pool.clear();
             wm.bind_keys.clear();
             wm.bind_vals.clear();
@@ -4779,7 +4957,7 @@
             "compile+seed produced 0 facts — isolated loops would be vacuous"
         );
 
-        let reset = |wm: &mut super::WorkingMemory| {
+        let reset = |wm: &mut super::FireSession| {
             wm.bind_pool.clear();
             wm.bind_keys.clear();
             wm.bind_vals.clear();
@@ -5264,7 +5442,7 @@
             "compile+seed produced 0 facts — isolated loops would be vacuous"
         );
 
-        let reset = |wm: &mut super::WorkingMemory, d_alpha: &mut AlphaDelta| {
+        let reset = |wm: &mut super::FireSession, d_alpha: &mut AlphaDelta| {
             wm.alpha.clear();
             wm.bind_pool.clear();
             wm.bind_keys.clear();
@@ -6308,6 +6486,7 @@
                 }
             });
             v += time_ns(|| {
+                // rune:perspicere(read-once) — gather microbench index; not a domain noun.
                 let mut idx: FxHashMap<Vec<Value>, Vec<usize>> = FxHashMap::default();
                 for (i, el) in els.iter().enumerate() {
                     let pairs = super::element_fact_bindings(el, &keys, &vals, &pool);
@@ -6317,6 +6496,7 @@
                 black_box(idx.len());
             });
             u += time_ns(|| {
+                // rune:perspicere(read-once) — gather microbench index; not a domain noun.
                 let mut idx: FxHashMap<Value, Vec<usize>> = FxHashMap::default();
                 for (i, el) in els.iter().enumerate() {
                     let pairs = super::element_fact_bindings(el, &keys, &vals, &pool);
@@ -6330,6 +6510,7 @@
                 black_box(super::build_gather_index(&els, &join_keys, &keys, &vals, &pool));
             });
             s += time_ns(|| {
+                // rune:perspicere(read-once) — gather microbench index; not a domain noun.
                 let mut idx: FxHashMap<Value, Vec<usize>> = FxHashMap::default();
                 for (i, el) in els.iter().enumerate() {
                     let pairs = super::element_fact_bindings(el, &keys, &vals, &pool);
@@ -6415,6 +6596,7 @@
         let mut b = 0.0;
         for _ in 0..RUNS {
             u += time_ns(|| {
+                // rune:perspicere(read-once) — gather microbench index; not a domain noun.
                 let mut idx: FxHashMap<Value, Vec<usize>> = FxHashMap::default();
                 for (i, el) in els.iter().enumerate() {
                     let pairs = super::element_fact_bindings(el, &keys, &vals, &pool);
@@ -6425,6 +6607,7 @@
                 black_box(idx.len());
             });
             iarm += time_ns(|| {
+                // rune:perspicere(read-once) — gather microbench index; not a domain noun.
                 let mut idx: FxHashMap<u32, Vec<usize>> = FxHashMap::default();
                 for (i, el) in els.iter().enumerate() {
                     let pairs = super::pool_slice(&pool, el.binds);
@@ -6506,6 +6689,7 @@
             binds: left_binds,
         };
 
+        // rune:perspicere(read-once) — gather microbench index; not a domain noun.
         let mut idx: HashMap<Vec<Value>, usize> = HashMap::new();
         idx.insert(vec![Value::i64(1)], 20);
 
@@ -7103,6 +7287,7 @@
             "the [50 100] cascade fixture produced no facts — the invariant would hold vacuously"
         );
 
+        // rune:perspicere(read-once) — STOP-2 field-name cache; one probe, not a domain noun.
         let mut field_names_cache: HashMap<String, Vec<String>> = HashMap::new();
         let mut checked = 0usize;
         for fact in &facts {
@@ -7248,10 +7433,10 @@
             let field_names = class_field_names(sym, class);
             for aid in ids {
                 let cond = &alpha_cond[aid];
-                let c = crate::rete::compiled_cond::compile_condition(cond, &field_names)
+                let c = crate::rete::compiled_cond::compile_alpha_ops(cond, &field_names)
                     .unwrap_or_else(|| {
                         panic!(
-                            "STOP-2: compile_condition returned None for a condition \
+                            "STOP-2: compile_alpha_ops returned None for a condition \
                              build_alpha_index already accepted: {cond:?}"
                         )
                     });
@@ -7285,6 +7470,7 @@
         );
 
         let compiled = compile_all(&alpha_by_type, &alpha_cond, sym);
+        // rune:perspicere(read-once) — STOP-2 field-name cache; one probe, not a domain noun.
         let mut field_names_cache: HashMap<String, Vec<String>> = HashMap::new();
         let mut scratch: SlotFrame = Vec::new();
         let mut checked = 0usize;
@@ -7427,6 +7613,7 @@
             }
         });
 
+        // rune:perspicere(read-once) — STOP-2 field-name cache; one probe, not a domain noun.
         let mut field_names_cache: HashMap<String, Vec<String>> = HashMap::new();
         let mut interp_calls = 0u64;
         let (_out, interp_rows) = super::with_count_census(|| {

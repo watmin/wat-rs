@@ -136,6 +136,33 @@ on this cell. Persist is still ~0 on a cold fire.
 | **24** | `DESIGN-STONE-alpha-tree-fxhash.md` — `Node.children` FxHashMap. | I−G 1.03 → **0.98** wash (predicted 0.4 missed). FIRE 19.04 → **18.75**. Kept (hasher family). | **LANDED, wash** |
 | **25** | `DESIGN-STONE-arm-kind-lists.md` — fire-path passes iterate kind lists on the arm. | A0 ROUND extra **+7.04 → +2.06**. Cascade FIRE 18.06 → **11.76**. Honest 13.25 → **7.32**. Hash-join extra **1.43** remains. | **LANDED** |
 | **26** | `DESIGN-STONE-dirty-join-parents.md` — hash-join skips idle same-kind parents. | Hash-join extra **1.43 → 0.08**. ROUND extra +2.06 → **+0.95**. Cascade FIRE 11.76 → **10.35**. Honest 7.32 → **6.72**. | **LANDED** |
+| **27** | `DESIGN-STONE-intern-zero-mutex.md` — intern index is thread-owned. Delete the Mutex. | `rg Mutex src/rete` empty. Overlay HIT stays. 8 workers, 8 ids, no deadlock. rete lib 100. | **LANDED** |
+| **28** | `DESIGN-STONE-intern-eviction.md` — `arm-session` leases; `release-session` drops; 0 removes the entry. | Release then rebuild ARM_BUILDS += 1. Two Sessions: release one, other HIT. Overlay not a second lease. rete lib 104. | **LANDED** |
+| **29** | `DESIGN-STONE-intern-content-address.md` — intern key is `hash(rules)`, not `rust_identity`. TLS + keeper. | Athena share. Conn A release while B fires is the sharing problem. | **REJECTED 2026-08-20** |
+
+## Intern trio (2026-08-20) — 29 rejected; recast vigilia next
+
+FIRE leftovers below stay ranked and parked. The 512-session
+protocol is one Session per connection, compile once, fire
+once, query N, disconnect; N workers. Connections are
+**discrete**. Identical rules do not share intern. Identical
+queries do not share intern. Query-memory is a Session field;
+query × N is a read of that connection. Overlay HIT is the
+same connection's network pointer, not Athena.
+
+1. **27 LANDED** Mutex out. Thread-owned index.
+2. **28 LANDED** Last lease drops **that** intern id.
+3. **29 REJECTED** Content-address / keeper / Athena.
+   Sharing makes hangup a cross-connection invariant.
+   Do not construct it.
+
+Then recast vigilia. Do not stamp `vigilatum`.
+
+Do not start 297. Do not service-ify. Do not intern
+`names`. Do not intern query encode. Do not intern
+scratch. BRIEF-arm-at-compile STOP-3 ("New intern table")
+is 297 — 27/28 changed the **door** of the existing
+table, not a second intern.
 
 ## After 26 — leftovers (ranked)
 

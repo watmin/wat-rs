@@ -40,6 +40,7 @@
 //! item's head may be a fn) is still not represented — `compile_rhs` returns
 //! `None` for a fn-headed item (`BRIEF-then-user-forms.md` STOP-3).
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::ast::WatAST;
@@ -90,6 +91,9 @@ pub(crate) enum CompiledRhs {
     /// Fn-headed `:then` item — the whole form is one `Program`.
     Call(Arc<crate::rete::expr_ir::Program>),
 }
+
+/// Rule name → compiled `:then` items. Interned with the network.
+pub(crate) type CompiledRhsByRule = HashMap<String, Vec<CompiledRhs>>;
 
 /// Compile one `(:Type arg…)` fact-form (arc 278 Stone A: no more `:wat::rete::insert`
 /// wrapper). All the validation `build_insert_fact` does per fact — fact-form shape,

@@ -1283,6 +1283,7 @@ impl OpExec {
 
 /// Index `RETE_OPS` once; fire matches `OpExec`, never the FQDN string.
 pub(crate) fn apply_op(op: u16, args: &[Value], span: &Span) -> Result<Value, EvalBreak> {
+    // rune:sequi(ambient-context) — opcode table interned once; not fire-domain state.
     static KINDS: OnceLock<Vec<OpExec>> = OnceLock::new();
     let kinds = KINDS.get_or_init(|| {
         RETE_OPS.iter().map(|r| OpExec::of(r.core_name)).collect()

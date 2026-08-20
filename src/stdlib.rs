@@ -374,12 +374,28 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/rete/acc.wat",
         source: include_str!("../wat/rete/acc.wat"),
     },
-    // Arc 278 — interpreted fire oracle (insert$oracle / fire-once$oracle / fire-rules$oracle /
-    // stratify / accumulate-pass). Dual of the native kernel. Loads AFTER compile
-    // (stratify calls compile) and acc::* (accumulate-pass calls the folds).
+    // Arc 278 — interpreted fire oracle, split like rete.wat / kernel/fire/.
+    // insert → pass (alpha/join/production) → accum-pass → fire (once/rules/stratify)
+    // → explain. Dual of the native kernel. Loads AFTER compile and acc::*.
     WatSource {
-        path: "wat/rete/oracle.wat",
-        source: include_str!("../wat/rete/oracle.wat"),
+        path: "wat/rete/oracle/insert.wat",
+        source: include_str!("../wat/rete/oracle/insert.wat"),
+    },
+    WatSource {
+        path: "wat/rete/oracle/pass.wat",
+        source: include_str!("../wat/rete/oracle/pass.wat"),
+    },
+    WatSource {
+        path: "wat/rete/oracle/accum-pass.wat",
+        source: include_str!("../wat/rete/oracle/accum-pass.wat"),
+    },
+    WatSource {
+        path: "wat/rete/oracle/fire.wat",
+        source: include_str!("../wat/rete/oracle/fire.wat"),
+    },
+    WatSource {
+        path: "wat/rete/oracle/explain.wat",
+        source: include_str!("../wat/rete/oracle/explain.wat"),
     },
     // Arc 278 — query / cond / defrule / defquery. query-read reads Session.
     // defmacro refs are order-free.

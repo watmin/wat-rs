@@ -71,7 +71,7 @@ pub(crate) fn fact_from_value(v: &Value) -> Option<Fact<'_>> {
 
 // ─── Bindings — read-only accessor over either binding representation ─────────
 //
-// Native fire stores Element/Token bindings as `BindSpan` into `WorkingMemory.bind_pool`;
+// Native fire stores Element/Token bindings as `BindSpan` into `FireSession.bind_pool`;
 // `BindView` is the borrowed reader. The oracle/differential still walks `PMap` and
 // `HashTrieMapSync`. `Bindings` is the one trait that lets those readers stay agnostic
 // without converting one representation into another.

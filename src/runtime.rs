@@ -5560,7 +5560,7 @@ fn dispatch_keyword_head_value(
         // Arc 278 Stone P2 — native Rust single-pass fire cycle (the differential harness).
         // (:wat::rete::fire-once <session>) → :wat::rete::Session
         // Observationally equivalent to the wat oracle's fire-once: same derived facts.
-        // Mutates a native WorkingMemory (sealed; never escapes to wat); returns a frozen Session.
+        // Mutates a native FireSession (sealed; never escapes to wat); returns a frozen Session.
         ":wat::rete::fire-once$native" | ":wat::rete::fire-once" => {
             crate::rete::kernel::eval_fire_once_native(args, list_span, env, sym)
         }
@@ -5569,10 +5569,15 @@ fn dispatch_keyword_head_value(
         ":wat::rete::fire-rules$native" | ":wat::rete::fire-rules" => {
             crate::rete::kernel::eval_fire_rules_native(args, list_span, env, sym)
         }
-        // Arc 278 — intern the rust ReteArm when compile-all returns a Session
+        // Arc 278 — intern the rust InternedNetwork when compile-all returns a Session
         // (`DESIGN-STONE-arm-at-compile`). Value unchanged. First fire-rules HIT.
         ":wat::rete::arm-session" => {
             crate::rete::kernel::eval_arm_session(args, list_span, env, sym)
+        }
+        // Arc 278 — drop one intern lease (`DESIGN-STONE-intern-eviction`).
+        // Value unchanged. Last lease removes the intern entry.
+        ":wat::rete::release-session" => {
+            crate::rete::kernel::eval_release_session(args, list_span, env, sym)
         }
         // Arc 278 — native `insert-all` (oracle is `insert-all$oracle`).
         // 2-ary `insert` is handled above (`eval_insert_public`).

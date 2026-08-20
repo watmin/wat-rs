@@ -24,7 +24,7 @@
 //!
 //! ## Consumes `classify_rete_clause`, adds no second parser
 //!
-//! [`compile_condition`] walks the exact same [`crate::rete::matcher::ReteClauseShape`] shapes
+//! [`compile_alpha_ops`] / [`compile_condition_local`] walk the exact same [`crate::rete::matcher::ReteClauseShape`] shapes
 //! `eval_clause` does (arc 294 item 9a's single grammar) — it does not re-derive "what shape is
 //! this form" from the raw `WatAST` a second time. What it does differently is WHEN it resolves
 //! each shape's parts: field names to `usize` indices, `?var` references to slot indices, and
@@ -39,8 +39,8 @@
 //! semantics whether written as one flat list or nested `and`s, so there is no runtime cost to
 //! flattening it away). `:wat::rete::or`/`:wat::rete::not` do not appear at the CLAUSE level
 //! anywhere in the corpus (`grep` confirms every hit is a top-level `:when`-entry wrapper,
-//! consumed by `compile-condition` in `wat/rete.wat` into a NegationNode long before
-//! `alpha_match_inner`/this compiler ever sees a clause list) — but [`compile_condition`] still
+//! consumed by `compile-condition` in `wat/rete/compile.wat` into a NegationNode long before
+//! `alpha_match_inner`/this compiler ever sees a clause list) — but [`compile_alpha_ops`] still
 //! compiles them correctly for STOP-1's sake: a branch's slot writes never survive the branch
 //! (mirroring `eval_clause`'s `Or`/`Not` arms, which always return the ENTRY bindings unchanged,
 //! discarding whatever a sub-clause bound), implemented via a scratch-slot clone-and-discard.
@@ -132,7 +132,7 @@ pub(crate) enum Op {
 pub(crate) type OrBranches = Vec<Vec<Op>>;
 
 /// A condition compiled once, at setup, from the immutable network — the pre-resolved dual of
-/// `alpha_match_inner`. Built by [`compile_condition`]; run by [`exec_compiled`].
+/// `alpha_match_inner`. Built by [`compile_condition_local`]; run by [`exec_compiled`].
 #[derive(Clone)]
 pub(crate) struct CompiledCond {
     /// The top-level clause sequence (nested `and` flattened in), in source order.
@@ -239,19 +239,20 @@ struct Ctx<'a> {
 ///
 /// Returns `None` only if `cond` is not the `(:Keyword clause…)` shape `build_alpha_index`
 /// already guarantees for every entry it puts in `alpha_cond` — i.e. never, for any condition
-/// this is actually called with in `kernel.rs`. Kept as `Option` (rather than assuming the
+/// this is actually called with in `kernel/arm.rs`. Kept as `Option` (rather than assuming the
 /// invariant) so a caller can fall back to `alpha_match_inner` instead of panicking if that
 /// invariant is ever violated.
 ///
 /// Strict: an unbound constraint `?var` is [`Op::Fail`]. Fire setup uses
 /// [`compile_condition_local`] (leftover-as-seed). This entry is the populate
-/// differential against `alpha_match_inner`.
+/// differential against `alpha_match_inner`. Test-only; wat `compile-condition`
+/// mints network nodes.
 #[cfg(test)]
-pub(crate) fn compile_condition(cond: &WatAST, field_names: &[String]) -> Option<CompiledCond> {
+pub(crate) fn compile_alpha_ops(cond: &WatAST, field_names: &[String]) -> Option<CompiledCond> {
     compile_condition_opts(cond, field_names, false)
 }
 
-/// Same as [`compile_condition`], but an unbound constraint `?var` becomes a
+/// Same as [`compile_alpha_ops`], but an unbound constraint `?var` becomes a
 /// seed slot + [`Op::SeedCmp`] (not omitted, not [`Op::Fail`]). Populate skips
 /// `SeedCmp`; rematch fills the slot from the token and runs the compare.
 /// One compile for every alpha at fire setup.
@@ -938,7 +939,7 @@ mod tests {
         let ast = crate::parse_one!("(:wjl::Wind (?w <- :kph) (:wat::rete::core::i64::> ?w ?c))")
             .expect("parse leftover cond");
         let fields = vec!["kph".to_string()];
-        let compiled = compile_condition(&ast, &fields).expect("strict compile");
+        let compiled = compile_alpha_ops(&ast, &fields).expect("strict compile");
         assert!(
             compiled.seed_reads.is_empty(),
             "strict compile must not seed leftover ?vars"

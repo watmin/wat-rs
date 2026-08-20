@@ -558,7 +558,7 @@
           ;; children: [?result-var, <-, acc-form, :from, inner]
           ;; Leading accumulate is legal (Clara test-count: empty world → count 0).
           ;; Empty parent-ids: accumulate-pass seeds one empty-binding token.
-          (:wat::core::let [;; result-var: strip the "?" prefix from head-nm to get the var name string
+          (:wat::core::let [;; result-var: stored WITH the `?` prefix (`head-nm` as bound).
                             result-var   head-nm
                             ;; acc-form: items[2]
                             acc-form     (:wat::core::Option/expect  
@@ -1145,7 +1145,7 @@
                     next-id  (:wat::rete::CompileState/next-id final-state)
                     empty-pm (:wat::core::PersistentMap)
                     empty-pv (:wat::core::PersistentVector)]
-    ;; Intern the rust ReteArm under the network identity so first fire-rules HIT
+    ;; Intern the rust InternedNetwork under the network identity so first fire-rules HIT
     ;; (`DESIGN-STONE-arm-at-compile`). Session bytes unchanged.
     (:wat::rete::arm-session
       (:wat::rete::Session

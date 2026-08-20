@@ -1,11 +1,11 @@
-//! Arc 278 Stone P1 — native `WorkingMemory` + fire kernel.
+//! Arc 278 Stone P1 — native `FireSession` + fire kernel.
 //!
 //! Split: `wm` types, `fire` loop, `arm` intern, `stratify` driver,
 //! `census` instrument, `insert` overlay. Tests are `tests.rs`.
 //!
 //! The mutable mirror of a `:wat::rete::Session` that the fire kernel (P2–P5) mutates
 //! during a fire pass. `to_transient` converts a frozen `Session` value into a native
-//! `WorkingMemory`; `to_persistent` rebuilds the frozen `Session` from it. The boundary
+//! `FireSession`; `to_persistent` rebuilds the frozen `Session` from it. The boundary
 //! is lossless: `to_persistent(to_transient(s)) == s` for every compiled / fired session.
 //!
 //! Both functions are `pub(crate)` — the transient mutation is sealed in Rust; no

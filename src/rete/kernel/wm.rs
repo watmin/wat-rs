@@ -1,4 +1,4 @@
-//! Transient Session: Token, Element, WorkingMemory, freeze boundary, node readers.
+//! Transient Session: Token, Element, FireSession, freeze boundary, node readers.
 
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
@@ -18,14 +18,14 @@ use super::{phase_end, phase_start};
 
 /// A cheap native token — the property-graph node for a rule's support chain.
 ///
-/// `Copy`: two `BindSpan`s. `matches` indexes `WorkingMemory.match_pool`
-/// (`(fact, alpha_id)` edges). `binds` indexes `WorkingMemory.bind_pool`
+/// `Copy`: two `BindSpan`s. `matches` indexes `FireSession.match_pool`
+/// (`(fact, alpha_id)` edges). `binds` indexes `FireSession.bind_pool`
 /// (`DESIGN-STONE-token-bind-pool`). Clone copies the spans, not the pairs.
 #[derive(Clone, Copy)]
 pub(crate) struct Token {
-    /// Span into `WorkingMemory.match_pool` (`DESIGN-STONE-match-pool`).
+    /// Span into `FireSession.match_pool` (`DESIGN-STONE-match-pool`).
     pub(crate) matches: BindSpan,
-    /// Span into `WorkingMemory.bind_pool` (`DESIGN-STONE-token-bind-pool`).
+    /// Span into `FireSession.bind_pool` (`DESIGN-STONE-token-bind-pool`).
     /// Root-join shares the Element span; `extend_token` appends.
     pub(crate) binds: BindSpan,
 }
@@ -40,7 +40,7 @@ pub(crate) struct Token {
 /// — costs ~3-4 heap allocations each, and alpha holds tens of thousands of these (80,200 at
 /// `G=200 W=200`).
 ///
-/// Bindings live in `WorkingMemory.bind_pool`. The span is `(off, len)`
+/// Bindings live in `FireSession.bind_pool`. The span is `(off, len)`
 /// (`DESIGN-STONE-bind-pool`). Clone copies the span, not the pairs.
 /// Tokens use the same pool (`DESIGN-STONE-token-bind-pool`).
 #[derive(Clone, Copy)]
@@ -57,7 +57,7 @@ pub(crate) struct BindSpan {
 pub(crate) struct Element {
     /// Index: `0..n_input` is `wm.facts`, else `derived_facts`.
     pub(crate) fact: u32,
-    /// Span into `WorkingMemory.bind_pool`.
+    /// Span into `FireSession.bind_pool`.
     pub(crate) binds: BindSpan,
 }
 
@@ -77,7 +77,7 @@ pub(crate) fn fact_at<'a>(facts: &'a Value, derived: &'a [Value], n_input: u32, 
     }
 }
 
-/// Shared intern + fact store for WorkingMemory → Session encode.
+/// Shared intern + fact store for FireSession → Session encode.
 /// Facts stay out of the bind intern (`DESIGN-STONE-fact-as-index`).
 pub(crate) struct EncodeView<'a> {
     pub(crate) keys: &'a [Value],
@@ -89,7 +89,7 @@ pub(crate) struct EncodeView<'a> {
     pub(crate) n_input: u32,
 }
 
-pub(crate) fn encode_view(wm: &WorkingMemory) -> EncodeView<'_> {
+pub(crate) fn encode_view(wm: &FireSession) -> EncodeView<'_> {
     EncodeView {
         keys: &wm.bind_keys,
         vals: &wm.bind_vals,
@@ -112,6 +112,12 @@ pub(crate) type JoinsFedBy = HashMap<i64, Vec<i64>>;
 pub(crate) type AlphasByType = HashMap<String, Vec<i64>>;
 pub(crate) type CondKeyIds = HashMap<i64, Vec<u32>>;
 pub(crate) type AlphaDelta = FxHashMap<i64, Vec<usize>>;
+/// P6 join index: join-key tuple → tokens/elements at one HashJoin.
+pub(crate) type JoinKeyMap<T> = HashMap<Vec<Value>, Vec<T>>;
+/// HashJoin id → left (token) index, persistent across rounds.
+pub(crate) type JoinLeftIndex = HashMap<i64, JoinKeyMap<Token>>;
+/// HashJoin id → right (element) index, persistent across rounds.
+pub(crate) type JoinRightIndex = HashMap<i64, JoinKeyMap<Element>>;
 
 /// The mutable fire-scoped mirror of a `:wat::rete::Session`.
 ///
@@ -120,7 +126,7 @@ pub(crate) type AlphaDelta = FxHashMap<i64, Vec<usize>>;
 /// native `HashMap` / `FxHashMap` give O(1) `entry().or_default().push`.
 /// `network`/`rules`/`facts`/`next_id` are inputs the fire phase reads but does not
 /// restructure — held as-is (passthroughs).
-pub(crate) struct WorkingMemory {
+pub(crate) struct FireSession {
     /// Passthrough — immutable input: node-id → Node network.
     pub(crate) network: Value,
     /// Passthrough — immutable input: ordered rule vector.
@@ -619,7 +625,7 @@ pub(crate) fn alpha_to_pm(alpha: AlphaMemory, view: &EncodeView<'_>) -> Value {
 
 // ─── Public boundary ──────────────────────────────────────────────────────────
 
-/// Convert a frozen `:wat::rete::Session` `Value` into a mutable `WorkingMemory`.
+/// Convert a frozen `:wat::rete::Session` `Value` into a mutable `FireSession`.
 ///
 /// Reads `struct_form` positions 0..7 in declaration order:
 /// `network, rules, alpha-memory, beta-memory, production-memory, facts, next-id, query-memory`.
@@ -631,7 +637,7 @@ pub(crate) fn alpha_to_pm(alpha: AlphaMemory, view: &EncodeView<'_>) -> Value {
 /// - any memory value is not a `Value::wat__core__PersistentVector`.
 ///
 /// Never panics.
-pub(crate) fn to_transient(session: &Value) -> Result<WorkingMemory, EvalBreak> {
+pub(crate) fn to_transient(session: &Value) -> Result<FireSession, EvalBreak> {
     const OP: &str = ":wat::rete::to_transient";
     let agg = match session {
         Value::Aggregate(a) if a.nature != Nature::Struct => a,
@@ -714,7 +720,7 @@ pub(crate) fn to_transient(session: &Value) -> Result<WorkingMemory, EvalBreak> 
         HashMap::new()
     };
 
-    Ok(WorkingMemory {
+    Ok(FireSession {
         network,
         rules,
         alpha,
@@ -818,14 +824,14 @@ pub(crate) fn query_memory_to_pm(query: QueryMemory) -> Value {
     Value::wat__core__PersistentMap(crate::value::pmap::PMap::from_pairs(pairs))
 }
 
-/// Convert a `WorkingMemory` back into a frozen `:wat::rete::Session` `Value`.
+/// Convert a `FireSession` back into a frozen `:wat::rete::Session` `Value`.
 ///
 /// Rebuilds each memory map into a `PersistentMap`, then constructs a
 /// `Value::Aggregate` record with `struct_form` in declaration order:
 /// `[network, rules, alpha-memory, beta-memory, production-memory, facts, next-id, query-memory]`.
 ///
 /// An empty memory map → an empty `PersistentMap` (never `nil`; the field is always present).
-pub(crate) fn to_persistent(wm: WorkingMemory) -> Value {
+pub(crate) fn to_persistent(wm: FireSession) -> Value {
     // Sub-split of the OUT phase. `OUT: to_persistent` is ~a third of fire, and which FIELD
     // that third belongs to decides whether the alpha-clear is worth a contract change or is
     // a rounding error. Attributing the whole to alpha without measuring the parts is the

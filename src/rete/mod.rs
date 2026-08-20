@@ -38,7 +38,7 @@ pub(crate) mod validate;
 // Stone 5b (collect.rs) — eval_collect_rules: reflect the symbol table for a namespace's defrule'd
 // zero-arg rule fns (ret_type :wat::rete::Rule), invoke each → PersistentVector<Rule>.
 pub(crate) mod collect;
-// Stone P1 (`kernel/`) — WorkingMemory + fire + arm intern + insert.
+// Stone P1 (`kernel/`) — FireSession + fire + arm intern + insert.
 // Sealed Rust. Fire kernel (P2–P5) mutates the transient Session.
 pub(crate) mod kernel;
 // Stone 6a (purity.rs) — default-deny purity classifier: is_pure_expr / is_pure_fn (transitive,
@@ -47,7 +47,7 @@ pub(crate) mod purity;
 // DESIGN-STONE-alpha-discrimination-tree.md — AlphaTree: prune-only candidate set.
 // Native authority is compiled exec; `alpha_match_inner` is the oracle / differential.
 pub(crate) mod alpha_tree;
-// (b) ShadowNode — armed `where` circuits. Token → candidate TestNodes.
+// (b) WhereDiscNode — armed `where` circuits. Token → candidate TestNodes.
 // Over-approx only. `exec_where` stays the authority.
 pub(crate) mod where_tree;
 // DESIGN-STONE-compiled-conditions.md — compiles each alpha condition ONCE at setup (beside the

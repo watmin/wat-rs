@@ -118,20 +118,37 @@ pub(crate) fn negate_types(form: &WatAST, out: &mut Vec<String>, under_not: bool
 /// re-fired. `:not` / `:where` are not positive reads. `:exists` inner and accumulate
 /// `:from` ARE — they were dropped as engine-form prefixes and the `:from` head
 /// leaked as `"?n"`. Walk via `classify_rete_clause`.
-/// The stratifier's dependency view of one rule:
-/// `(produced, negated, positively-consumed, bag)`.
+/// The stratifier's dependency view of one rule.
 /// `consumed` is task #94 — without it a rule that reads a higher-stratum fact sits too low.
 /// `bag` is exists-inner / acc `:from` (+1 like negation when the type is derived).
-pub(crate) type RuleDeps = (Vec<String>, Vec<String>, Vec<String>, Vec<String>);
+#[derive(Clone, Debug)]
+pub(crate) struct StratifyView {
+    pub produced: Vec<String>,
+    pub negated: Vec<String>,
+    pub consumed: Vec<String>,
+    pub bag: Vec<String>,
+}
 
-/// A compiled rule paired with its `RuleDeps`.
-pub(crate) type RuleParts = (
-    Value,
-    Vec<String>,
-    Vec<String>,
-    Vec<String>,
-    Vec<String>,
-);
+/// A compiled rule paired with its stratify view.
+#[derive(Clone)]
+pub(crate) struct RuleParts {
+    pub rule: Value,
+    pub produced: Vec<String>,
+    pub negated: Vec<String>,
+    pub consumed: Vec<String>,
+    pub bag: Vec<String>,
+}
+
+impl RuleParts {
+    pub(crate) fn view(&self) -> StratifyView {
+        StratifyView {
+            produced: self.produced.clone(),
+            negated: self.negated.clone(),
+            consumed: self.consumed.clone(),
+            bag: self.bag.clone(),
+        }
+    }
+}
 
 pub(crate) fn rule_consumes(lhs: &[WatAST]) -> Vec<String> {
     let mut out = Vec::new();
@@ -193,11 +210,11 @@ pub(crate) fn consume_types(form: &WatAST, out: &mut Vec<String>) {
 /// For each rule: `required = max(stratum[n]+1 for n in negated, default 0)`; for each produced
 /// type `p`: `stratum[p] = max(stratum[p], required)`. Returns `true` iff any stratum rose.
 /// Mirrors `stratify-sweep` (`wat/rete.wat:1599-1646`).
-pub(crate) fn native_stratify_sweep(rule_parts: &[RuleDeps], type_strata: &mut HashMap<String, i64>) -> bool {
+pub(crate) fn native_stratify_sweep(rule_parts: &[StratifyView], type_strata: &mut HashMap<String, i64>) -> bool {
     let mut changed = false;
-    for (produced, negated, consumed, bag) in rule_parts {
+    for view in rule_parts {
         let mut required = 0i64;
-        for n in negated {
+        for n in &view.negated {
             let v = *type_strata.get(n).unwrap_or(&0) + 1;
             if v > required {
                 required = v;
@@ -207,9 +224,9 @@ pub(crate) fn native_stratify_sweep(rule_parts: &[RuleDeps], type_strata: &mut H
         // Inserted-only bag types stay +0 so the unstratified path survives.
         // A rule that both produces and bags `b` (userfn-head gather that
         // returns the same type) is a self-cycle — do not count it as derived.
-        for b in bag {
-            let derived = rule_parts.iter().any(|(p, _, _, bag_r)| {
-                p.iter().any(|t| t == b) && !bag_r.iter().any(|t| t == b)
+        for b in &view.bag {
+            let derived = rule_parts.iter().any(|other| {
+                other.produced.iter().any(|t| t == b) && !other.bag.iter().any(|t| t == b)
             });
             let v = *type_strata.get(b).unwrap_or(&0) + i64::from(derived);
             if v > required {
@@ -218,13 +235,13 @@ pub(crate) fn native_stratify_sweep(rule_parts: &[RuleDeps], type_strata: &mut H
         }
         // req-pos: a positive consumer may share its input's stratum but never sit BELOW it.
         // NOT +1 — same-stratum forward chaining is ordinary and must stay allowed.
-        for c in consumed {
+        for c in &view.consumed {
             let v = *type_strata.get(c).unwrap_or(&0);
             if v > required {
                 required = v;
             }
         }
-        for p in produced {
+        for p in &view.produced {
             let cur = *type_strata.get(p).unwrap_or(&0);
             if required > cur {
                 type_strata.insert(p.clone(), required);
@@ -239,7 +256,7 @@ pub(crate) fn native_stratify_sweep(rule_parts: &[RuleDeps], type_strata: &mut H
 /// A negation cycle (non-terminating strata) raises the same "not stratifiable" error the
 /// oracle raises. Mirrors `stratify-fix` (`wat/rete.wat:1651-1667`).
 pub(crate) fn native_stratify_fix(
-    rule_parts: &[RuleDeps],
+    rule_parts: &[StratifyView],
     mut type_strata: HashMap<String, i64>,
     mut remaining: i64,
 ) -> Result<HashMap<String, i64>, EvalBreak> {
@@ -265,7 +282,7 @@ pub(crate) fn native_stratify_fix(
 
 /// Compute the type→stratum map for a rule set (`length(rules)+1` sweeps is always enough for
 /// a stratifiable set — same bound the oracle uses). Mirrors `stratify` (`wat/rete.wat:1707-1713`).
-pub(crate) fn native_stratify(rule_parts: &[RuleDeps]) -> Result<HashMap<String, i64>, EvalBreak> {
+pub(crate) fn native_stratify(rule_parts: &[StratifyView]) -> Result<HashMap<String, i64>, EvalBreak> {
     let bound = rule_parts.len() as i64 + 1;
     native_stratify_fix(rule_parts, HashMap::new(), bound)
 }
@@ -435,10 +452,10 @@ pub(crate) fn fire_rules_stratified(
         let mut active_ids: std::collections::HashSet<i64> = std::collections::HashSet::new();
         let mut frontier: Vec<i64> = Vec::new();
         let mut stratum_rule_names: HashSet<String> = HashSet::new();
-        for ((rule_val, _, _, _, _), stratum) in parts.iter().zip(rule_strata.iter()) {
+        for (part, stratum) in parts.iter().zip(rule_strata.iter()) {
             if *stratum == s {
-                stratum_pv.push_back_mut(rule_val.clone());
-                if let Some((_, rsf)) = node_record(rule_val) {
+                stratum_pv.push_back_mut(part.rule.clone());
+                if let Some((_, rsf)) = node_record(&part.rule) {
                     if let Value::String(rname) = &rsf[0] {
                         stratum_rule_names.insert(rname.to_string());
                         if let Some(&pid) = production_id_by_rule.get(rname.as_str()) {
@@ -697,19 +714,22 @@ pub(crate) fn eval_fire_rules_native(
         let negated = rule_negates(&lhs);
         let consumed = rule_consumes(&lhs);
         let bag = rule_bag_consumes(&lhs);
-        parts.push((r.clone(), produced, negated, consumed, bag));
+        parts.push(RuleParts {
+            rule: r.clone(),
+            produced,
+            negated,
+            consumed,
+            bag,
+        });
     }
 
-    let pn_only: Vec<RuleDeps> = parts
-        .iter()
-        .map(|(_, p, n, c, b)| (p.clone(), n.clone(), c.clone(), b.clone()))
-        .collect();
+    let pn_only: Vec<StratifyView> = parts.iter().map(RuleParts::view).collect();
     let type_strata = native_stratify(&pn_only)?;
 
     let mut max_s: i64 = 0;
     let mut rule_strata: Vec<i64> = Vec::with_capacity(parts.len());
-    for (_, produced, negated, _consumed, _bag) in &parts {
-        let s = native_rule_stratum(produced, negated, &type_strata);
+    for part in &parts {
+        let s = native_rule_stratum(&part.produced, &part.negated, &type_strata);
         rule_strata.push(s);
         if s > max_s {
             max_s = s;

@@ -1,14 +1,15 @@
-//! Interned compiled network (`ReteArm`) and the process-lifetime intern table.
+//! Interned compiled network (`InternedNetwork`) and the thread-owned intern table.
 
+use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::Arc;
 
 use crate::ast::WatAST;
 use crate::runtime::{EvalBreak, RuntimeError, RuntimeErrorKind, SymbolTable, Value};
 use crate::span::Span;
 use crate::types::Nature;
 
-use rustc_hash::FxHashSet;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use super::{
     alpha_cond_of, alpha_id_for_cond, cond_text, get_node, kind_of, node_children, node_record,
@@ -17,14 +18,15 @@ use super::{
 };
 use crate::runtime::ValueSnapshot;
 
-/// Residual stratify row: (name, produced, negated, consumed, bag).
-pub(crate) type RuleDep = (
-    String,
-    Vec<String>,
-    Vec<String>,
-    Vec<String>,
-    Vec<String>,
-);
+/// Residual stratify row for one named rule (Export ABI + interned network).
+#[derive(Clone, Debug)]
+pub(crate) struct RuleDep {
+    pub name: String,
+    pub produced: Vec<String>,
+    pub negated: Vec<String>,
+    pub consumed: Vec<String>,
+    pub bag: Vec<String>,
+}
 
 /// Rete control plane, specialized once at fire setup. The round loop
 /// matches this, never `classify_rete_clause`.
@@ -516,18 +518,18 @@ pub(crate) fn merge_sorted_ids(a: &[i64], b: &[i64]) -> Vec<i64> {
 
 /// Compiled circuits for one network. Interned by the network PMap's
 /// `rust_identity`; `insert` / clone share that identity and fire skips setup.
-/// Process-lifetime `Arc` per unique network. The Session is a fact overlay,
-/// not the owner of the circuits. Never EDN.
-pub(crate) struct ReteArm {
+/// Thread-owned `Arc` per unique network (`DESIGN-STONE-intern-zero-mutex`).
+/// The Session is a fact overlay, not the owner of the circuits. Never EDN.
+pub(crate) struct InternedNetwork {
     pub(crate) node_ids: Vec<i64>,
     pub(crate) kind_ids: KindIdLists,
     pub(crate) compiled_conds: HashMap<i64, crate::rete::compiled_cond::CompiledCond>,
     pub(crate) compiled_drivers: HashMap<i64, CondDriver>,
     pub(crate) compiled_wheres: HashMap<i64, crate::rete::expr_ir::Program>,
     pub(crate) compiled_acc_folds: HashMap<i64, AccFold>,
-    pub(crate) compiled_rhs: HashMap<String, Vec<crate::rete::compiled_rhs::CompiledRhs>>,
+    pub(crate) compiled_rhs: crate::rete::compiled_rhs::CompiledRhsByRule,
     pub(crate) alpha_tree: crate::rete::alpha_tree::AlphaTree,
-    /// (b) ShadowNode — armed `where` index. Built from `compiled_wheres`.
+    /// (b) WhereDiscNode — armed `where` index. Built from `compiled_wheres`.
     pub(crate) where_tree: crate::rete::where_tree::WhereTree,
     pub(crate) feeding_alpha_of: HashMap<i64, i64>,
     /// Invert of `feeding_alpha_of`: alpha id → HashJoin ids it feeds.
@@ -536,7 +538,7 @@ pub(crate) struct ReteArm {
     pub(crate) parents_of: ParentsOf,
     pub(crate) beta_readers: HashSet<i64>,
     pub(crate) compiled_max_slots: usize,
-    /// name → (produced, negated, consumed). Residual of stratify.
+    /// Residual stratify row per named rule (`RuleDep`).
     /// Import has no rule AST; fire-rules reads this instead.
     pub(crate) rule_deps: Vec<RuleDep>,
     pub(crate) alpha_class: HashMap<i64, String>,
@@ -549,12 +551,21 @@ pub(crate) fn network_identity(network: &Value) -> Option<u64> {
     }
 }
 
-// rune:sequi(ambient-context) — process-lifetime intern keyed by network
+/// Thread-owned intern entry. `leases` is the owner count (`DESIGN-STONE-intern-eviction`).
+/// Fire HIT does not lease. `arm-session` does. Last lease drop removes the row.
+struct InternEntry {
+    arm: Arc<InternedNetwork>,
+    leases: usize,
+}
+
+// rune:sequi(ambient-context) — thread-owned intern keyed by network
 // PMap rust_identity. The Session is a fact overlay; circuits live here, not
 // on the Session value. Lookup+build is the fire setup door (`rete_arm_get_or_build`).
-pub(crate) fn arm_table() -> &'static Mutex<HashMap<u64, Arc<ReteArm>>> {
-    static TABLE: OnceLock<Mutex<HashMap<u64, Arc<ReteArm>>>> = OnceLock::new();
-    TABLE.get_or_init(|| Mutex::new(HashMap::new()))
+// ZERO-MUTEX: RefCell is same-thread. N workers never take a lock and never
+// see each other's table (`DESIGN-STONE-intern-zero-mutex`).
+thread_local! {
+    static ARM_TABLE: RefCell<FxHashMap<u64, InternEntry>> =
+        RefCell::new(FxHashMap::default());
 }
 
 #[cfg(test)]
@@ -562,28 +573,83 @@ pub(crate) fn arm_table() -> &'static Mutex<HashMap<u64, Arc<ReteArm>>> {
 pub(crate) static ARM_BUILDS: std::sync::atomic::AtomicUsize =
     std::sync::atomic::AtomicUsize::new(0);
 
-pub(crate) fn rete_arm_lookup(id: u64) -> Option<Arc<ReteArm>> {
-    arm_table()
-        .lock()
-        .unwrap_or_else(|e| e.into_inner())
-        .get(&id)
-        .cloned()
+pub(crate) fn rete_arm_lookup(id: u64) -> Option<Arc<InternedNetwork>> {
+    ARM_TABLE.with(|t| t.borrow().get(&id).map(|e| Arc::clone(&e.arm)))
 }
 
-pub(crate) fn rete_arm_intern(id: u64, arm: &Arc<ReteArm>) {
-    arm_table()
-        .lock()
-        .unwrap_or_else(|e| e.into_inner())
-        .insert(id, Arc::clone(arm));
+#[cfg(test)]
+pub(crate) fn rete_arm_leases(id: u64) -> Option<usize> {
+    ARM_TABLE.with(|t| t.borrow().get(&id).map(|e| e.leases))
+}
+
+pub(crate) fn rete_arm_intern(id: u64, arm: &Arc<InternedNetwork>) {
+    ARM_TABLE.with(|t| {
+        let mut m = t.borrow_mut();
+        match m.get_mut(&id) {
+            Some(e) => e.arm = Arc::clone(arm),
+            None => {
+                m.insert(
+                    id,
+                    InternEntry {
+                        arm: Arc::clone(arm),
+                        leases: 1,
+                    },
+                );
+            }
+        }
+    });
+}
+
+/// Drop one lease. At zero the intern entry is gone. Missing id is a no-op
+/// (hangup after already deprovisioned).
+pub(crate) fn rete_arm_release(id: u64) {
+    ARM_TABLE.with(|t| {
+        let mut m = t.borrow_mut();
+        let drop = match m.get_mut(&id) {
+            Some(e) if e.leases <= 1 => true,
+            Some(e) => {
+                e.leases -= 1;
+                false
+            }
+            None => false,
+        };
+        if drop {
+            m.remove(&id);
+        }
+    });
 }
 
 pub(crate) fn rete_arm_get_or_build(
     network: &Value,
     rules: &Value,
     sym: &SymbolTable,
-) -> Result<Arc<ReteArm>, EvalBreak> {
+) -> Result<Arc<InternedNetwork>, EvalBreak> {
     if let Some(id) = network_identity(network) {
         if let Some(arm) = rete_arm_lookup(id) {
+            return Ok(arm);
+        }
+    }
+    let arm = Arc::new(build_rete_arm(network, rules, sym)?);
+    if let Some(id) = network_identity(network) {
+        rete_arm_intern(id, &arm);
+    }
+    Ok(arm)
+}
+
+/// `arm-session` door: HIT increments the lease; MISS intern's with leases=1.
+fn rete_arm_lease_or_build(
+    network: &Value,
+    rules: &Value,
+    sym: &SymbolTable,
+) -> Result<Arc<InternedNetwork>, EvalBreak> {
+    if let Some(id) = network_identity(network) {
+        let hit = ARM_TABLE.with(|t| {
+            t.borrow_mut().get_mut(&id).map(|e| {
+                e.leases = e.leases.saturating_add(1);
+                Arc::clone(&e.arm)
+            })
+        });
+        if let Some(arm) = hit {
             return Ok(arm);
         }
     }
@@ -598,7 +664,7 @@ pub(crate) fn build_rete_arm(
     network: &Value,
     rules: &Value,
     sym: &SymbolTable,
-) -> Result<ReteArm, EvalBreak> {
+) -> Result<InternedNetwork, EvalBreak> {
     #[cfg(test)]
     ARM_BUILDS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 
@@ -668,7 +734,7 @@ pub(crate) fn build_rete_arm(
         Value::wat__core__PersistentVector(pv) => pv.iter().cloned().collect(),
         _ => vec![],
     };
-    let mut compiled_rhs: HashMap<String, Vec<crate::rete::compiled_rhs::CompiledRhs>> =
+    let mut compiled_rhs: crate::rete::compiled_rhs::CompiledRhsByRule =
         HashMap::new();
     for r in &rule_vec {
         if let Some((_, rsf)) = node_record(r) {
@@ -705,7 +771,7 @@ pub(crate) fn build_rete_arm(
 
     let kind_ids = kind_id_lists(network, &node_ids);
     let joins_fed_by = invert_feeding_alpha(&feeding_alpha_of);
-    Ok(ReteArm {
+    Ok(InternedNetwork {
         node_ids,
         kind_ids,
         compiled_conds,
@@ -754,13 +820,13 @@ pub(crate) fn rule_deps_from_rules(rules: &Value, sym: &SymbolTable) -> Vec<Rule
         };
         let lhs = to_asts(&rsf[1]);
         let rhs = to_asts(&rsf[2]);
-        out.push((
+        out.push(RuleDep {
             name,
-            rule_produces(&rhs, sym),
-            rule_negates(&lhs),
-            rule_consumes(&lhs),
-            rule_bag_consumes(&lhs),
-        ));
+            produced: rule_produces(&rhs, sym),
+            negated: rule_negates(&lhs),
+            consumed: rule_consumes(&lhs),
+            bag: rule_bag_consumes(&lhs),
+        });
     }
     out
 }
@@ -768,11 +834,11 @@ pub(crate) fn rule_deps_from_rules(rules: &Value, sym: &SymbolTable) -> Vec<Rule
 /// Filter an armed network down to a stratum slice. The slice is a new
 /// PMap (new intern). Intern this so fire does not rebuild from empty AST.
 pub(crate) fn subset_rete_arm(
-    arm: &ReteArm,
+    arm: &InternedNetwork,
     active_ids: &HashSet<i64>,
     rule_names: &HashSet<String>,
     sliced_network: &Value,
-) -> Arc<ReteArm> {
+) -> Arc<InternedNetwork> {
     let node_ids: Vec<i64> = arm
         .node_ids
         .iter()
@@ -804,16 +870,16 @@ pub(crate) fn subset_rete_arm(
         .filter(|(id, _)| keep(id))
         .map(|(id, f)| (*id, f.clone()))
         .collect();
-    let compiled_rhs: HashMap<String, Vec<crate::rete::compiled_rhs::CompiledRhs>> = arm
+    let compiled_rhs: crate::rete::compiled_rhs::CompiledRhsByRule = arm
         .compiled_rhs
         .iter()
         .filter(|(n, _)| rule_names.contains(*n))
-        .map(|(n, r)| (n.clone(), r.clone()))
+        .map(|(n, r)| (n.clone(), r.to_vec()))
         .collect();
     let rule_deps: Vec<RuleDep> = arm
         .rule_deps
         .iter()
-        .filter(|(n, _, _, _, _)| rule_names.contains(n))
+        .filter(|d| rule_names.contains(&d.name))
         .cloned()
         .collect();
     let alpha_class: HashMap<i64, String> = arm
@@ -865,7 +931,7 @@ pub(crate) fn subset_rete_arm(
 
     let kind_ids = kind_id_lists(sliced_network, &node_ids);
     let joins_fed_by = invert_feeding_alpha(&feeding_alpha_of);
-    Arc::new(ReteArm {
+    Arc::new(InternedNetwork {
         node_ids,
         kind_ids,
         compiled_conds,
@@ -891,9 +957,9 @@ pub(crate) fn subset_rete_arm(
 /// `(:wat::rete::arm-session <session>) -> :wat::rete::Session`
 ///
 /// Item 12's contract: compile puts the arm next to the network. WAT
-/// `compile-all` builds the Session and did not intern the rust `ReteArm`;
+/// `compile-all` builds the Session and did not intern the rust `InternedNetwork`;
 /// first `fire-rules` paid the build (`DESIGN-STONE-arm-at-compile`).
-/// Value unchanged. Same process-lifetime table as `rete_arm_get_or_build`.
+/// Value unchanged. Takes one intern lease (`DESIGN-STONE-intern-eviction`).
 pub(crate) fn eval_arm_session(
     args: &[WatAST],
     list_span: &Span,
@@ -952,6 +1018,74 @@ pub(crate) fn eval_arm_session(
         )
         .into());
     }
-    rete_arm_get_or_build(network, rules, sym)?;
+    rete_arm_lease_or_build(network, rules, sym)?;
+    Ok(session)
+}
+
+/// `(:wat::rete::release-session <session>) -> :wat::rete::Session`
+///
+/// Drop one intern lease for this Session's network identity
+/// (`DESIGN-STONE-intern-eviction`). Value unchanged. Missing intern
+/// is a no-op. At zero the intern entry is gone.
+pub(crate) fn eval_release_session(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &crate::runtime::Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::rete::release-session";
+    if args.len() != 1 {
+        return Err(RuntimeError::new(
+            list_span.clone(),
+            RuntimeErrorKind::ArityMismatch {
+                op: OP.into(),
+                expected: 1,
+                got: args.len(),
+            },
+        )
+        .into());
+    }
+    let session = crate::runtime::eval_inner(&args[0], env, sym)?.value_owned();
+    let network = match &session {
+        Value::Aggregate(a) if a.nature != Nature::Struct => {
+            let sf = a.fields.as_slice();
+            if sf.is_empty() {
+                return Err(RuntimeError::new(
+                    list_span.clone(),
+                    RuntimeErrorKind::TypeMismatch {
+                        op: OP.into(),
+                        expected: ":wat::rete::Session",
+                        got: Box::new(ValueSnapshot::of(&session)),
+                    },
+                )
+                .into());
+            }
+            &sf[0]
+        }
+        other => {
+            return Err(RuntimeError::new(
+                list_span.clone(),
+                RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: ":wat::rete::Session",
+                    got: Box::new(ValueSnapshot::of(other)),
+                },
+            )
+            .into());
+        }
+    };
+    if let Some(id) = network_identity(network) {
+        rete_arm_release(id);
+    } else {
+        return Err(RuntimeError::new(
+            list_span.clone(),
+            RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: ":wat::core::PersistentMap network with intern identity",
+                got: Box::new(ValueSnapshot::of(network)),
+            },
+        )
+        .into());
+    }
     Ok(session)
 }

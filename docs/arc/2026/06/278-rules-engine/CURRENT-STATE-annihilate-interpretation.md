@@ -5,27 +5,55 @@
 > `wat/rete.wat`. If a stone below disagrees with a dated ruling here,
 > **this file wins** and the stone is stale.
 
-**Right now:** floor **GREEN** `.floor/2026-08-20T18-17-34Z/`
-(4839 passed, 19 skipped). Clippy `--all-targets -D warnings`
-silent. Grid `GRID-native-vs-clara-2026-08-20T18-03-32Z.txt`
+**Right now:** floor **GREEN** `.floor/2026-08-20T22-14-47Z/`
+(4844 passed, 19 skipped). Clippy `--all-targets -D warnings`
+silent. First floor this turn RED `.floor/2026-08-20T22-07-56Z/`
+five diagnostic goldens (`runtime.rs` 25361→25366,
+`release-session` shifted `apply_tracked_callee`); recaptured;
+do not treat 22-07-56Z as green. Grid
+`GRID-native-vs-clara-2026-08-20T22-21-52Z.txt`
 (`GRID_SKIP_ORACLE=1`, `GRID_RUNS=3`): **30/30 `:match`,
-30/30 `:us`**, wall **372s**. Closest **fanout `[40000]` ratio 4.00**
-(wat 60.5 ms). Cascade `[50 100]` 6.34 (wat 19.0 ms). Accum
-`[200 200]` 7.95 (wat 19.8 ms). Skip matches `fire-rules$oracle`
+30/30 `:us`**, wall **368s**. Closest **fanout `[40000]` ratio 3.35**
+(wat 53.0 ms). Cascade `[50 100]` 6.68 (wat 17.6 ms). Accum
+`[200 200]` 8.02 (wat 18.6 ms). Skip matches `fire-rules$oracle`
 (a leftover token fails the run). Do not treat 17-42-43Z as a
 measurement. GNU `/usr/bin/time` is not installed; bash `time`
 is a keyword (`which time` empty).
 insert-prime-split LANDED (insert − conj 1933 → 310 ns). Host
-encode/sort after query-read is compiled-wat, not rete. Queue:
-`NEXT-STRIKES-after-shadow.md`. grok-rete DR **e294a142**.
-Dirty: vigilia L1+L2 drive + `$oracle`/`$native` dual-impl +
-kernel split + FireCtx + rete.wat model/oracle split. Kernel is
-`wm` / `fire` / `arm` / `stratify` / `census` / `insert`.
-Public rete names are unprimed wat Fns. Rust is `$native`. The
-wat reference is `$oracle`. `$impl` is kwargs/bracket/service —
-not rete. Grid: fire-rules / fire-once / insert / insert-all /
-fire-rules-explain each have public + `$native` + `$oracle`.
-Prime `'` is not the rete kernel marker. Codemod:
+encode/sort after query-read is compiled-wat, not rete.
+Queue: **recast vigilia.** Stone **29 REJECTED**
+(2026-08-20): intern stays discrete per compile-all
+(`rust_identity`). Identical rules do not share. Identical
+queries do not share. Query-memory is per Session. Overlay
+HIT is the same connection. Athena content-address would
+make `release-session` a cross-connection invariant — do
+not construct it. `NEXT-STRIKES-after-shadow.md`. grok-rete
+DR **d0973fb1** (was e294a142; do not cite the old hash).
+Dirty: vigilia L1+L2 drive + intern-trio docs + stones
+27–28 + 29 reject. Kernel is `wm` / `fire` / `arm` /
+`stratify` / `census` / `insert`. Live names:
+`FireSession`, `InternedNetwork`, `WhereDiscNode`,
+`AlphaDiscNode`. Stratify is `StratifyView` / `RuleDep` /
+`RuleParts` structs, not tuples. Fire loop is
+`kernel/fire/mod.rs` (passes) + `kernel/fire/delta.rs`
+(fixpoint). Oracle is `wat/rete/oracle/` {insert,pass,
+accum-pass,fire,explain}. Sequi intern: arm table is
+thread-owned (`thread_local` `RefCell<FxHashMap>`; stone
+**27 LANDED**, `rg Mutex src/rete` empty) + exec arena
+runed `ambient-context`; census TLS runed
+`performance-counter`. Intern is a lease (`arm-session`
++1, `release-session` −1, 0 drops **that id**; stone
+**28 LANDED**). Perspicere: nested maps named
+(`JoinLeftIndex`, `CompiledRhsByRule`, `AlphasByType`,
+gather unary/nary). Census/microbench HashMaps runed
+`perspicere(read-once)`. Named L1/L2 from the last tape
+are closed on disk. Recast vigilia. Do not stamp until
+a live recast is 0+0. Public rete names are unprimed wat Fns. Rust is
+`$native`. The wat reference is `$oracle`. `$impl` is
+kwargs/bracket/service — not rete. Grid: fire-rules /
+fire-once / insert / insert-all / fire-rules-explain each
+have public + `$native` + `$oracle`. Prime `'` is not the
+rete kernel marker. Codemod:
 `wat-scripts/fixes/rete-oracle-sigil.wat`.
 Do not stamp `vigilatum`.
 
@@ -61,8 +89,11 @@ closed the interpreter verbs. Item 11 (`d774185c`) compiled
 the driver. Item 12 persists the arm: fire setup is
 get-or-build against the network intern. A Weak intern died
 when fire returned — the table holds a strong `Arc`.
-Process-lifetime per unique network. Not EDN. `(b)` indexes
-this armed network.
+Thread-owned intern (stone 27). Lease eviction (stone
+28): last `release-session` drops **that** entry. Not
+EDN. `(b)` indexes this armed network. Intern key stays
+instance `rust_identity`. Stone 29 (content-address /
+Athena share) **REJECTED** — connections are discrete.
 
 ### Item 11 — compile the rete driver (AST-free **fire**)
 

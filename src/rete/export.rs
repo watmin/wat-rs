@@ -9,12 +9,13 @@ use std::sync::{Arc, OnceLock};
 use crate::ast::WatAST;
 use crate::rete::alpha_tree::AlphaTree;
 use crate::rete::compiled_cond::{CompiledCond, Op};
-use crate::rete::compiled_rhs::{CompiledRhs, RhsOp};
+use crate::rete::compiled_rhs::{CompiledRhs, CompiledRhsByRule, RhsOp};
 use crate::rete::expr_ir::{Expr, Pat, Program};
 use crate::rete::kernel::{
     class_field_names, get_node, kind_of, network_identity, node_children, node_record,
     invert_feeding_alpha, kind_id_lists, rete_arm_get_or_build, rete_arm_intern,
-    rule_deps_from_rules, session_names, sorted_node_ids, AccFold, CondDriver, ReteArm, RuleDep,
+    rule_deps_from_rules, session_names, sorted_node_ids, AccFold, AlphasByType, CondDriver,
+    InternedNetwork, ParentsOf, RuleDep,
 };
 use crate::rete::matcher::{alpha_pattern, CmpKind};
 use crate::rete::vocabulary::RETE_OPS;
@@ -1370,13 +1371,13 @@ pub(crate) fn eval_export(
 }
 
 fn pack_deps(deps: &[RuleDep]) -> Value {
-    pv(deps.iter().map(|(name, produced, negated, consumed, bag)| {
+    pv(deps.iter().map(|d| {
         pv([
-            Value::String(Arc::new(name.clone())),
-            pv(produced.iter().map(|s| Value::String(Arc::new(s.clone())))),
-            pv(negated.iter().map(|s| Value::String(Arc::new(s.clone())))),
-            pv(consumed.iter().map(|s| Value::String(Arc::new(s.clone())))),
-            pv(bag.iter().map(|s| Value::String(Arc::new(s.clone())))),
+            Value::String(Arc::new(d.name.clone())),
+            pv(d.produced.iter().map(|s| Value::String(Arc::new(s.clone())))),
+            pv(d.negated.iter().map(|s| Value::String(Arc::new(s.clone())))),
+            pv(d.consumed.iter().map(|s| Value::String(Arc::new(s.clone())))),
+            pv(d.bag.iter().map(|s| Value::String(Arc::new(s.clone())))),
         ])
     }))
 }
@@ -1402,13 +1403,13 @@ fn unpack_deps(v: &Value) -> Result<Vec<RuleDep>, EvalBreak> {
         } else {
             Vec::new()
         };
-        out.push((
-            expect_str(&p[0], IMPORT_OP)?.to_string(),
-            unpack_string_list(&p[1])?,
-            unpack_string_list(&p[2])?,
-            unpack_string_list(&p[3])?,
+        out.push(RuleDep {
+            name: expect_str(&p[0], IMPORT_OP)?.to_string(),
+            produced: unpack_string_list(&p[1])?,
+            negated: unpack_string_list(&p[2])?,
+            consumed: unpack_string_list(&p[3])?,
             bag,
-        ));
+        });
     }
     Ok(out)
 }
@@ -1501,7 +1502,7 @@ fn import_export(export: &Value, sym: &SymbolTable) -> Result<Value, EvalBreak> 
 
     let nodes_pv = expect_seq(&sf[4], IMPORT_OP)?;
     let mut network_pairs = Vec::new();
-    let mut alpha_by_type: HashMap<String, Vec<i64>> = HashMap::new();
+    let mut alpha_by_type: AlphasByType = HashMap::new();
     let mut alpha_class: HashMap<i64, String> = HashMap::new();
     let mut max_id = 0i64;
     for n in nodes_pv.iter() {
@@ -1544,7 +1545,7 @@ fn import_export(export: &Value, sym: &SymbolTable) -> Result<Value, EvalBreak> 
         let p = expect_seq(&pair, IMPORT_OP)?;
         compiled_acc_folds.insert(expect_i64(&p[0], IMPORT_OP)?, unpack_fold(&p[1])?);
     }
-    let mut compiled_rhs = HashMap::new();
+    let mut compiled_rhs: CompiledRhsByRule = HashMap::new();
     for pair in expect_seq(&sf[9], IMPORT_OP)? {
         let p = expect_seq(&pair, IMPORT_OP)?;
         let name = expect_str(&p[0], IMPORT_OP)?.to_string();
@@ -1564,7 +1565,7 @@ fn import_export(export: &Value, sym: &SymbolTable) -> Result<Value, EvalBreak> 
 
     let node_ids = sorted_node_ids(&network);
     let mut feeding_alpha_of: HashMap<i64, i64> = HashMap::new();
-    let mut parents_of: HashMap<i64, Vec<i64>> = HashMap::new();
+    let mut parents_of: ParentsOf = HashMap::new();
     for node_id in &node_ids {
         let Some(node) = get_node(&network, *node_id) else {
             continue;
@@ -1596,7 +1597,7 @@ fn import_export(export: &Value, sym: &SymbolTable) -> Result<Value, EvalBreak> 
     let where_tree = crate::rete::where_tree::WhereTree::build(&compiled_wheres);
     let kind_ids = kind_id_lists(&network, &node_ids);
     let joins_fed_by = invert_feeding_alpha(&feeding_alpha_of);
-    let arm = Arc::new(ReteArm {
+    let arm = Arc::new(InternedNetwork {
         node_ids,
         kind_ids,
         compiled_conds,

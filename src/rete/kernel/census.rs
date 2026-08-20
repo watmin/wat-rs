@@ -78,6 +78,7 @@ pub(crate) struct RoundCensus {
 }
 
 #[cfg(test)]
+// rune:sequi(performance-counter) — test-only fire census; off unless with_fire_census.
 thread_local! {
     /// Enabled by `with_fire_census`; `None` means "do not record" (the default for every other
     /// test in the suite, so the instrument costs nothing it is not asked for).
@@ -98,6 +99,7 @@ thread_local! {
 pub(crate) type WhereSample = (WatAST, Vec<crate::value::pmap::PMap>);
 
 #[cfg(test)]
+// rune:sequi(performance-counter) — test-only where-sample slot; off unless armed.
 thread_local! {
     /// Armed by [`with_where_sample`]; the OUTER `None` means "do not record" (the default
     /// everywhere else), the inner one means "armed, nothing caught yet".
@@ -180,6 +182,7 @@ pub(crate) fn census_kind(kind: &str) -> &'static str {
 // load. A visit count cannot be faked by a scan: if the gather still scans, the count still scales
 // with the token count, whatever the machine was doing at the time.
 #[cfg(test)]
+// rune:sequi(performance-counter) — test-only gather visit count; honesty of the keyed-gather gate.
 thread_local! {
     /// Elements examined by an Accumulate/Negation/Exists gather since the counter was armed.
     pub(crate) static GATHER_VISITS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
@@ -236,6 +239,7 @@ type PhaseMark = std::time::Instant;
 pub(crate) struct PhaseMark;
 
 #[cfg(test)]
+// rune:sequi(performance-counter) — test-only phase clock; ~75ns/pair, subtracted via pair count.
 thread_local! {
     /// phase name → (nanoseconds, MARK PAIRS FIRED), summed over every round. `None` = not recording.
     ///
@@ -288,6 +292,7 @@ pub(crate) fn phase_end(_name: &'static str, _t: PhaseMark) {}
 // enclosing phase, counts give ns-per-operation without distorting the thing being measured.
 
 #[cfg(test)]
+// rune:sequi(performance-counter) — test-only op counts; Cell increment ~1-2ns vs timer tax.
 thread_local! {
     /// counter name → occurrences. `None` = not recording.
     pub(crate) static CENSUS_COUNTS: std::cell::RefCell<Option<HashMap<&'static str, u64>>> =
@@ -345,6 +350,7 @@ pub(crate) fn with_count_census<R>(f: impl FnOnce() -> R) -> (R, Vec<(&'static s
 // Per node: tokens written in, tokens read back out. A node with writes and zero reads is a
 // candidate; a node with reads is not. No timing here — this is a counting question.
 #[cfg(test)]
+// rune:sequi(performance-counter) — test-only beta write/read traffic; counting, not domain.
 thread_local! {
     /// node_id → (tokens written into `wm.beta`, tokens read back out). `None` = not recording.
     pub(crate) static BETA_TRAFFIC: std::cell::RefCell<Option<HashMap<i64, (u64, u64)>>> =

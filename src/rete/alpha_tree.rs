@@ -1,10 +1,10 @@
 //! Arc 278 — the alpha discrimination tree (DESIGN-STONE-alpha-discrimination-tree.md).
 //!
-//! Today's alpha-delta loop (`kernel.rs`, step 1) type-indexes (P8), then linearly probes
-//! **every** alpha of that type via `alpha_match_inner`. A depth-D cascade has D alphas per
-//! type where exactly one can succeed — `facts × D` calls, measured as 79% of the deep-cascade
-//! depth cost (`a0_depth_cost_split_at_equal_work`). This module replaces the linear scan with
-//! a per-type discrimination tree: a fact walks root-to-leaf, one declared field per level, and
+//! Native fire type-indexes (P8), then `exec_compiled_with_key_ids` on the
+//! candidate set this tree returns. A depth-D cascade has D alphas per type
+//! where exactly one can succeed — a linear probe was `facts × D` calls
+//! (79% of the deep-cascade depth cost, `a0_depth_cost_split_at_equal_work`).
+//! A fact walks this tree root-to-leaf, one declared field per level, and
 //! arrives at only the alphas it could possibly satisfy.
 //!
 //! ## ★ THE ONE CONTRACT DECISION
@@ -15,10 +15,10 @@
 //! For every fact, `candidates(fact) ⊇ { alphas that actually match }`.
 //!
 //! Any clause this analyzer cannot prove an equality discriminator for — `not=`, `or`, `not`, a
-//! computed operand, an unfamiliar shape, anything at all — costs nothing but a wasted
-//! `alpha_match_inner` call: it simply does not contribute a discriminator, so that alpha rides
-//! the **wildcard** edge at every level and is always walked. A conservative tree is a correct
-//! tree; this analyzer never guesses at a shape it does not recognise in order to prune it.
+//! computed operand, an unfamiliar shape, anything at all — rides the **wildcard** edge and
+//! is always walked (a wasted `exec_compiled` on native fire; `alpha_match_inner` is the
+//! oracle / differential). A conservative tree is a correct tree; this analyzer never
+//! guesses at a shape it does not recognise in order to prune it.
 //!
 //! The clause-shape analyzer **consumes** `classify_rete_clause` (`matcher.rs:365`) — the single
 //! source of "what shape is this form" that arc 294 item 9a extracted precisely to close a drift
@@ -43,40 +43,44 @@ use rustc_hash::FxHashMap;
 
 use crate::ast::WatAST;
 use crate::rete::matcher::{classify_constraint_head, classify_rete_clause, CmpKind, ReteClauseShape};
-use crate::rete::kernel::class_field_names;
+use crate::rete::kernel::{class_field_names, AlphasByType};
 use crate::runtime::{SymbolTable, Value};
 
+type EqBuckets = HashMap<Value, Vec<i64>>;
+type DimRequired = HashMap<usize, Value>;
+type AlphaDiscs = HashMap<i64, DimRequired>;
+
 /// One level of the discrimination tree: branch on field `dim` of the fact's own class.
-pub(crate) struct Node {
+pub(crate) struct AlphaDiscNode {
     /// Index into the class's declared field order (`class_field_names`). Meaningless on a
     /// leaf (empty `children`/`wildcard`), where it is never read.
     dim: usize,
     /// Equality fan-out: a field value this dim was proven to require, to the subtree of
     /// alphas that could still match. FxHash — SipHash of the field `Value` 40k
     /// times was the I−G walk (`DESIGN-STONE-alpha-tree-fxhash`).
-    children: FxHashMap<Value, Arc<Node>>,
+    children: FxHashMap<Value, Arc<AlphaDiscNode>>,
     /// Alphas that do not constrain `dim` by a provable equality — always walked.
-    wildcard: Option<Arc<Node>>,
+    wildcard: Option<Arc<AlphaDiscNode>>,
     /// Alpha ids terminating at this node (no further dimension left to discriminate on, or
     /// only one candidate remained).
     leaves: Vec<i64>,
 }
 
-/// Per-type discrimination tree over alpha conditions: fact class → root `Node`.
+/// Per-type discrimination tree over alpha conditions: fact class → root `AlphaDiscNode`.
 ///
 /// Built once at setup time (P8, alongside `alpha_by_type`/`alpha_cond`) from the immutable
 /// network; never rebuilt per round.
 pub(crate) struct AlphaTree {
     /// Linear over a handful of types (`DESIGN-STONE-alpha-class-lookup`).
     /// SipHash of the FQDN 40k times was 3.26 ms; `str` eq is not.
-    roots: Vec<(String, Arc<Node>)>,
+    roots: Vec<(String, Arc<AlphaDiscNode>)>,
 }
 
 impl AlphaTree {
     /// Build the tree from the setup-time alpha index. `alpha_by_type`/`alpha_cond` are exactly
-    /// P8's maps (`kernel.rs`); `sym` resolves each class's declared field order.
+    /// P8's maps (`kernel/arm.rs`); `sym` resolves each class's declared field order.
     pub(crate) fn build(
-        alpha_by_type: &HashMap<String, Vec<i64>>,
+        alpha_by_type: &AlphasByType,
         alpha_cond: &HashMap<i64, WatAST>,
         sym: &SymbolTable,
     ) -> Self {
@@ -85,7 +89,7 @@ impl AlphaTree {
             let field_names = class_field_names(sym, class);
 
             // Per-alpha provable equality discriminators: alpha id -> {dim -> required value}.
-            let mut disc: HashMap<i64, HashMap<usize, Value>> =
+            let mut disc: AlphaDiscs =
                 HashMap::with_capacity(alpha_ids.len());
             for aid in alpha_ids {
                 let clauses: &[WatAST] = match alpha_cond.get(aid) {
@@ -113,12 +117,12 @@ impl AlphaTree {
     /// Import-time tree: every alpha of a class is a candidate. Correct
     /// (a superset); unpruned. The residual does not carry WatAST, so
     /// `build` cannot re-derive discriminators. `(b)` indexes later.
-    pub(crate) fn unpruned(alpha_by_type: &HashMap<String, Vec<i64>>) -> Self {
+    pub(crate) fn unpruned(alpha_by_type: &AlphasByType) -> Self {
         let mut roots = Vec::with_capacity(alpha_by_type.len());
         for (class, alpha_ids) in alpha_by_type {
             roots.push((
                 class.clone(),
-                Arc::new(Node {
+                Arc::new(AlphaDiscNode {
                     dim: 0,
                     children: FxHashMap::default(),
                     wildcard: None,
@@ -149,7 +153,7 @@ impl AlphaTree {
         }
     }
 
-    fn root_for(&self, class: &str) -> Option<&Arc<Node>> {
+    fn root_for(&self, class: &str) -> Option<&Arc<AlphaDiscNode>> {
         self.roots.iter().find(|(c, _)| c == class).map(|(_, n)| n)
     }
 
@@ -168,9 +172,9 @@ fn build_node(
     disc: &HashMap<i64, HashMap<usize, Value>>,
     dims: &[usize],
     pos: usize,
-) -> Arc<Node> {
+) -> Arc<AlphaDiscNode> {
     if pos >= dims.len() || alpha_ids.len() <= 1 {
-        return Arc::new(Node {
+        return Arc::new(AlphaDiscNode {
             dim: 0,
             children: FxHashMap::default(),
             wildcard: None,
@@ -179,7 +183,7 @@ fn build_node(
     }
 
     let dim = dims[pos];
-    let mut buckets: HashMap<Value, Vec<i64>> = HashMap::new();
+    let mut buckets: EqBuckets = HashMap::new();
     let mut wild: Vec<i64> = Vec::new();
     for aid in alpha_ids {
         match disc.get(&aid).and_then(|m| m.get(&dim)) {
@@ -188,7 +192,7 @@ fn build_node(
         }
     }
 
-    let children: FxHashMap<Value, Arc<Node>> = buckets
+    let children: FxHashMap<Value, Arc<AlphaDiscNode>> = buckets
         .into_iter()
         .map(|(v, ids)| (v, build_node(ids, disc, dims, pos + 1)))
         .collect();
@@ -198,14 +202,14 @@ fn build_node(
         Some(build_node(wild, disc, dims, pos + 1))
     };
 
-    Arc::new(Node { dim, children, wildcard, leaves: Vec::new() })
+    Arc::new(AlphaDiscNode { dim, children, wildcard, leaves: Vec::new() })
 }
 
 /// Descend the tree for one fact: take the specific-value edge (if the fact's field at `dim`
 /// has a matching child) AND the wildcard edge (if present) — union their leaves. Both edges
 /// are walked because the wildcard side holds alphas that never constrained this dim at all, so
 /// they must be reached regardless of what value the fact carries there.
-fn walk(node: &Node, fields: &[Value], out: &mut Vec<i64>) {
+fn walk(node: &AlphaDiscNode, fields: &[Value], out: &mut Vec<i64>) {
     out.extend(node.leaves.iter().copied());
     if let Some(v) = fields.get(node.dim) {
         if let Some(child) = node.children.get(v) {
