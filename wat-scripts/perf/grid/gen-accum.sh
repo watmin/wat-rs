@@ -72,8 +72,19 @@ cat <<HEADER
         seeds  (concat groups reads)
         build  (fn [] (apply insert (mk-session 'accum :cache false) seeds))]
     (dotimes [_ 3] (count (all-codes (fire-rules (build)))))   ; JIT + compile warmup
-    (let [s (build) t0 (System/nanoTime) f (fire-rules s) t1 (System/nanoTime)
-          codes (all-codes f)]
+    (let [base (mk-session 'accum :cache false)
+          t0 (System/nanoTime)
+          s (apply insert base seeds)
+          t1 (System/nanoTime)
+          f (fire-rules s)
+          t2 (System/nanoTime)
+          codes (all-codes f)
+          t3 (System/nanoTime)]
       (println (str "#grid/Result {:axis \"accum\" :size [$G $W] :derived ["
-                     (clojure.string/join " " codes) "] :clara-ns " (- t1 t0) "}")))))
+                     (clojure.string/join " " codes)
+                     "] :clara-ns " (- t2 t1)
+                     " :insert-ns " (- t1 t0)
+                     " :fire-ns " (- t2 t1)
+                     " :query-ns " (- t3 t2)
+                     " :protocol-ns " (- t3 t0) "}")))))
 HEADER

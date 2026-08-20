@@ -52,7 +52,11 @@
    ;; THREE-WAY: the wat SPEC's own answer, so the runner can render :oracle-accuracy
    ;; (spec vs Clara) and :port-accuracy (spec vs native) instead of one verdict.
    oracle-derived <- :wat::core::PersistentVector<wat::core::i64>
-   oracle-ns      <- :wat::core::i64])
+   oracle-ns      <- :wat::core::i64
+   insert-ns      <- :wat::core::i64
+   fire-ns        <- :wat::core::i64
+   query-ns       <- :wat::core::i64
+   protocol-ns    <- :wat::core::i64])
 
 ;; ─── the five accumulate/exists rules (fixed structure; only the FACTS scale) ───
 ;; Structure mirrors the 8a/8b probe rule exactly: [anchor] [?n <- (acc) :from …] => insert.
@@ -151,16 +155,19 @@
     acc
     (:wat::core::range 0 W)))
 
+;; all-facts G W — Group(g) + its W Readings for every g. Construct only; insert is timed
+;; separately so protocol-ns is load+fire+query, not record allocation.
+(:wat::core::defn :acc::all-facts [G <- :wat::core::i64  W <- :wat::core::i64] -> :wat::core::PersistentVector<wat::core::Record>
+  (:wat::core::foldl
+    (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::Record>  g <- :wat::core::i64]
+                    -> :wat::core::PersistentVector<wat::core::Record>
+      (:acc::reading-facts (:wat::core::PersistentVector/conj acc (:acc::Group g)) g W))
+    (:wat::core::PersistentVector)
+    (:wat::core::range 0 G)))
+
 ;; seed session G W — stage Group(g) + its W Readings for every g in [0, G).
 (:wat::core::defn :acc::seed [session <- :wat::rete::Session  G <- :wat::core::i64  W <- :wat::core::i64] -> :wat::rete::Session
-  (:wat::rete::insert-all
-    session
-    (:wat::core::foldl
-      (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::Record>  g <- :wat::core::i64]
-                      -> :wat::core::PersistentVector<wat::core::Record>
-        (:acc::reading-facts (:wat::core::PersistentVector/conj acc (:acc::Group g)) g W))
-      (:wat::core::PersistentVector)
-      (:wat::core::range 0 G))))
+  (:wat::rete::insert-all session (:acc::all-facts G W)))
 
 ;; codes fired — every derived fact across all five types, canonically encoded, into a Vector<i64>.
 ;; Only five fixed types ⇒ no dispatch: five direct query+map+encode blocks folded into one Vector.
@@ -196,17 +203,24 @@
                     groups  (:wat::core::Option/expect  (:wat::core::get params 0) "stdin: [groups readings]")
                     reads   (:wat::core::Option/expect  (:wat::core::get params 1) "stdin: [groups readings]")
                     rules   (:wat::rete::collect-rules :acc)
-                    staged  (:acc::seed (:wat::rete::compile-all rules (:wat::core::PersistentVector (:acc::q-CountF) (:acc::q-SumF) (:acc::q-MinF) (:acc::q-MaxF) (:acc::q-ExistsF))) groups reads)
-                    ;; time the NATIVE production verb only (compile + seed are un-timed setup)
-                    n0      (:wat::time::now)
+                    session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:acc::q-CountF) (:acc::q-SumF) (:acc::q-MinF) (:acc::q-MaxF) (:acc::q-ExistsF)))
+                    facts   (:acc::all-facts groups reads)
+                    ;; protocol: insert + fire + query. Compile and fact-construct are setup.
+                    p0      (:wat::time::now)
+                    staged  (:wat::rete::insert-all session facts)
+                    i1      (:wat::time::now)
                     fired   (:wat::rete::fire-rules staged)
-                    n1      (:wat::time::now)
+                    f1      (:wat::time::now)
                     derived (:acc::derived-vector fired)
-                    nat-ns  (:acc::ns-between n0 n1)
+                    q1      (:wat::time::now)
+                    ins-ns  (:acc::ns-between p0 i1)
+                    fir-ns  (:acc::ns-between i1 f1)
+                    qry-ns  (:acc::ns-between f1 q1)
+                    proto-ns (:acc::ns-between p0 q1)
                     ;; ORACLE — fired on the SAME staged session. Value semantics make the
                     ;; two fires independent: `staged` is unchanged by either.
                     o0      (:wat::time::now)
                     ofired  (:wat::rete::fire-rules-spec staged)
                     o1      (:wat::time::now)]
     (:wat::kernel::println
-      (:grid::Result :axis "accum" :size (:wat::core::PersistentVector groups reads) :derived derived :native-ns nat-ns :oracle-derived (:acc::derived-vector ofired) :oracle-ns (:acc::ns-between o0 o1)))))
+      (:grid::Result :axis "accum" :size (:wat::core::PersistentVector groups reads) :derived derived :native-ns fir-ns :oracle-derived (:acc::derived-vector ofired) :oracle-ns (:acc::ns-between o0 o1) :insert-ns ins-ns :fire-ns fir-ns :query-ns qry-ns :protocol-ns proto-ns))))

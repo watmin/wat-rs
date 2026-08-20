@@ -70,10 +70,12 @@
   [n                <- :wat::core::i64
    baseline-ns      <- :wat::core::i64   ;; fold + construct + read a field
    conj-ns          <- :wat::core::i64   ;; fold + construct + PersistentVector/conj
-   insert-ns        <- :wat::core::i64   ;; fold + construct + :wat::rete::insert
+   insert-prime-ns  <- :wat::core::i64   ;; fold + construct + :wat::rete::insert' (native prime)
+   insert-ns        <- :wat::core::i64   ;; fold + construct + :wat::rete::insert (public defclause)
    baseline-sum     <- :wat::core::i64   ;; witness: must equal expected-sum
    expected-sum     <- :wat::core::i64
    conj-len         <- :wat::core::i64   ;; witness: must equal n
+   insert-prime-len <- :wat::core::i64   ;; witness: must equal n
    insert-len       <- :wat::core::i64]) ;; witness: must equal n
 
 (:wat::core::defn :ins::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> :wat::core::i64
@@ -98,7 +100,15 @@
     (:wat::core::PersistentVector)
     (:wat::core::range 0 n)))
 
-;; ── arm 3 — floor + the real `insert` ────────────────────────────────────────
+;; ── arm 3 — floor + the native prime `insert'` ───────────────────────────────
+(:wat::core::defn :ins::insert-prime [session <- :wat::rete::Session  n <- :wat::core::i64] -> :wat::rete::Session
+  (:wat::core::foldl
+    (:wat::core::fn [s <- :wat::rete::Session  i <- :wat::core::i64] -> :wat::rete::Session
+      (:wat::rete::insert' s (:ins::Reading :g 0 :v i)))
+    session
+    (:wat::core::range 0 n)))
+
+;; ── arm 4 — floor + the public `insert` (defclause → insert') ────────────────
 (:wat::core::defn :ins::insert-all [session <- :wat::rete::Session  n <- :wat::core::i64] -> :wat::rete::Session
   (:wat::core::foldl
     (:wat::core::fn [s <- :wat::rete::Session  i <- :wat::core::i64] -> :wat::rete::Session
@@ -126,6 +136,10 @@
                     cv      (:ins::conj-only n)
                     c1      (:wat::time::now)
 
+                    p0      (:wat::time::now)
+                    primed  (:ins::insert-prime session n)
+                    p1      (:wat::time::now)
+
                     i0      (:wat::time::now)
                     staged  (:ins::insert-all session n)
                     i1      (:wat::time::now)]
@@ -134,9 +148,11 @@
         :n            n
         :baseline-ns  (:ins::ns-between b0 b1)
         :conj-ns      (:ins::ns-between c0 c1)
+        :insert-prime-ns (:ins::ns-between p0 p1)
         :insert-ns    (:ins::ns-between i0 i1)
         :baseline-sum bsum
         ;; 0+1+…+(n-1) = n(n-1)/2 — computed, never eyeballed against a magic number.
         :expected-sum (:wat::core::i64::/ (:wat::core::i64::* n (:wat::core::i64::- n 1)) 2)
         :conj-len     (:wat::core::length cv)
+        :insert-prime-len (:wat::core::length (:wat::rete::Session/facts primed))
         :insert-len   (:wat::core::length (:wat::rete::Session/facts staged))))))

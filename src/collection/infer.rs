@@ -792,6 +792,67 @@ pub(crate) fn infer_map(
     if local_errors.is_empty() { CheckResult::ok(fallback_ty) } else { CheckResult::partial_with(fallback_ty, local_errors) }
 }
 
+/// Type-check `(:wat::core::mapv f xs)` — eager sibling of `map`. Same Seqable set;
+/// return is `Vector<U>` not `Stream<U>`.
+pub(crate) fn infer_mapv(
+    args: &[WatAST],
+    head_span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    const OP: &str = ":wat::core::mapv";
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    let fallback_ty = TypeExpr::Parametric { head: "wat::core::Vector".into(), args: vec![fresh.fresh()] };
+    if args.len() != 2 {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
+            callee: OP.into(), expected: 2, got: args.len()
+        }});
+        return CheckResult::partial_with(fallback_ty, local_errors);
+    }
+    let fn_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+    let coll_ty_opt = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+    if let Some(coll_ty) = coll_ty_opt {
+        let reduced = reduce(&coll_ty, subst, env.types());
+        match extract_lazyable_elem(&reduced, subst, fresh) {
+            Some(elem_ty) => {
+                let u_var = fresh.fresh();
+                let expected_fn_ty = TypeExpr::Fn {
+                    args: vec![elem_ty],
+                    ret: Box::new(u_var.clone()),
+                };
+                if let Some(f_ty) = fn_ty {
+                    if unify(&f_ty, &expected_fn_ty, subst, env.types()).is_err() {
+                        local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                            callee: OP.into(),
+                            param: "#1".into(),
+                            expected: format_type(&expected_fn_ty),
+                            got: format_type(&apply_subst(&f_ty, subst))
+                        }});
+                    }
+                }
+                let ret_ty = TypeExpr::Parametric { head: "wat::core::Vector".into(), args: vec![apply_subst(&u_var, subst)] };
+                return if local_errors.is_empty() {
+                    CheckResult::ok(ret_ty)
+                } else {
+                    CheckResult::partial_with(ret_ty, local_errors)
+                };
+            }
+            None if matches!(reduced, TypeExpr::Var(_)) => {}
+            None => {
+                local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                    callee: OP.into(),
+                    param: "#2".into(),
+                    expected: "Vector<T>, PersistentVector<T>, List<T>, or Stream<T>".into(),
+                    got: format_type(&reduced)
+                }});
+            }
+        }
+    }
+    if local_errors.is_empty() { CheckResult::ok(fallback_ty) } else { CheckResult::partial_with(fallback_ty, local_errors) }
+}
+
 /// Type-check `(:wat::core::filter pred xs)` — Arc-278 DESIGN-STONE seq-traversal-one-door,
 /// Strike 2a. `filter` is NATIVE now (`eval_filter`, `src/collection/transform.rs`),
 /// superseding the five wat `defclause` arms it used to have (`wat/seq.wat`).

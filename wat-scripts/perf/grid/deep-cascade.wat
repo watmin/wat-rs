@@ -41,7 +41,11 @@
    ;; THREE-WAY: the wat SPEC's own answer, so the runner can render :oracle-accuracy
    ;; (spec vs Clara) and :port-accuracy (spec vs native) instead of one verdict.
    oracle-derived <- :wat::core::PersistentVector<wat::core::i64>
-   oracle-ns      <- :wat::core::i64])
+   oracle-ns      <- :wat::core::i64
+   insert-ns      <- :wat::core::i64
+   fire-ns        <- :wat::core::i64
+   query-ns       <- :wat::core::i64
+   protocol-ns    <- :wat::core::i64])
 
 (:wat::rete::defquery :cascade::q-Node
   :params []
@@ -76,17 +80,18 @@
 
 ;; seed-level-0 session width — stage Node(0,i)+Tag(0,i) for i in [0, width), threading the session.
 ;; Staged with the BATCH verb — one `insert-all` (native, one rebuild) rather than `insert` x 2N.
+(:wat::core::defn :dc::level-0-facts [width <- :wat::core::i64] -> :wat::core::PersistentVector<wat::core::Record>
+  (:wat::core::foldl
+    (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::Record>  i <- :wat::core::i64]
+                    -> :wat::core::PersistentVector<wat::core::Record>
+      (:wat::core::PersistentVector/conj
+        (:wat::core::PersistentVector/conj acc (:cascade::Node :level 0 :id i))
+        (:cascade::Tag :level 0 :id i)))
+    (:wat::core::PersistentVector)
+    (:wat::core::range 0 width)))
+
 (:wat::core::defn :dc::seed-level-0 [session <- :wat::rete::Session  width <- :wat::core::i64] -> :wat::rete::Session
-  (:wat::rete::insert-all
-    session
-    (:wat::core::foldl
-      (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::Record>  i <- :wat::core::i64]
-                      -> :wat::core::PersistentVector<wat::core::Record>
-        (:wat::core::PersistentVector/conj
-          (:wat::core::PersistentVector/conj acc (:cascade::Node :level 0 :id i))
-          (:cascade::Tag :level 0 :id i)))
-      (:wat::core::PersistentVector)
-      (:wat::core::range 0 width))))
+  (:wat::rete::insert-all session (:dc::level-0-facts width)))
 
 ;; enc kind level id — canonical single-i64 witness for one derived fact (mirrors accum.wat's
 ;; :acc::enc: kind*1e15 + level*1e9 + id).
@@ -129,17 +134,23 @@
                     depth   (:wat::core::Option/expect (:wat::core::get params 0) "stdin: [depth width]")
                     width   (:wat::core::Option/expect (:wat::core::get params 1) "stdin: [depth width]")
                     rules   (:dc::build-rules depth)
-                    staged  (:dc::seed-level-0 (:wat::rete::compile-all rules (:wat::core::PersistentVector (:cascade::q-Node) (:cascade::q-Tag))) width)
-                    ;; time the NATIVE production verb only (compile + seed are un-timed setup)
-                    n0      (:wat::time::now)
+                    session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:cascade::q-Node) (:cascade::q-Tag)))
+                    facts   (:dc::level-0-facts width)
+                    p0      (:wat::time::now)
+                    staged  (:wat::rete::insert-all session facts)
+                    i1      (:wat::time::now)
                     fired   (:wat::rete::fire-rules staged)
-                    n1      (:wat::time::now)
+                    f1      (:wat::time::now)
                     derived (:dc::derived-vector fired)
-                    nat-ns  (:dc::ns-between n0 n1)
+                    q1      (:wat::time::now)
+                    ins-ns  (:dc::ns-between p0 i1)
+                    fir-ns  (:dc::ns-between i1 f1)
+                    qry-ns  (:dc::ns-between f1 q1)
+                    proto-ns (:dc::ns-between p0 q1)
                     ;; ORACLE — fired on the SAME staged session. Value semantics make the
                     ;; two fires independent: `staged` is unchanged by either.
                     o0      (:wat::time::now)
                     ofired  (:wat::rete::fire-rules-spec staged)
                     o1      (:wat::time::now)]
     (:wat::kernel::println
-      (:grid::Result :axis "deep-cascade" :size (:wat::core::PersistentVector depth width) :derived derived :native-ns nat-ns :oracle-derived (:dc::derived-vector ofired) :oracle-ns (:dc::ns-between o0 o1)))))
+      (:grid::Result :axis "deep-cascade" :size (:wat::core::PersistentVector depth width) :derived derived :native-ns fir-ns :oracle-derived (:dc::derived-vector ofired) :oracle-ns (:dc::ns-between o0 o1) :insert-ns ins-ns :fire-ns fir-ns :query-ns qry-ns :protocol-ns proto-ns))))

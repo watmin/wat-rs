@@ -473,6 +473,7 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             // therefore still fails — conditional purity, not blanket-allow.
             | ":wat::core::foldl"
             | ":wat::core::map"
+            | ":wat::core::mapv"
             | ":wat::core::filter"
             | ":wat::core::reduce"
             // ── 2026-08-01: the EXPRESSIVITY GAP, closed by hand ──────────────────────────────
@@ -707,7 +708,7 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             // `reverse`+`foldl` wearing a name borrowed from Haskell, where the verb is distinct
             // only because it is LAZY, a property strict wat cannot have. Its right-fold
             // replacement, `(reduce f init (reverse coll))`, is still covered here via `reduce`.
-            | ":wat::core::map" | ":wat::core::filter" | ":wat::core::reduce"
+            | ":wat::core::map" | ":wat::core::mapv" | ":wat::core::filter" | ":wat::core::reduce"
             // ── BRIEF-total-column-honest.md Direction 2 (2026-08-02) — the VSA seam ───────────
             //
             // `:wat::holon::presence?` — TRUE. `eval_algebra_presence_q` (`runtime.rs:18623`)
@@ -2206,7 +2207,7 @@ mod completeness_gate {
     ":wat::rete::alpha-match",
     ":wat::rete::alpha-match-local",
     ":wat::rete::alpha-match-under",
-    ":wat::rete::arm-session'",
+    ":wat::rete::arm-session'",  // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
     ":wat::rete::cond-has-deferred-constraint?",
     ":wat::rete::axis-violation",
     ":wat::rete::collect-rules",
@@ -2219,6 +2220,7 @@ mod completeness_gate {
     ":wat::rete::fire-rules'",  // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
     ":wat::rete::fire-rules-explain'",  // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
     ":wat::rete::insert'",  // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
+    ":wat::rete::insert",  // DESIGN-STONE-insert-prime-split — public 2-ary is insert'; 3+ is insert-all'
     ":wat::rete::insert-all'",  // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
     ":wat::rete::lower",
     ":wat::rete::primitive?",

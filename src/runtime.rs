@@ -4334,6 +4334,11 @@ fn eval_tail(ast: &WatAST, env: &Environment, sym: &SymbolTable) -> Result<Value
                 ":wat::core::and" => eval_and_tail(args, &list_span, env, sym),
                 ":wat::core::or" => eval_or_tail(args, &list_span, env, sym),
                 ":wat::core::ann-form" => eval_ann_form_tail(args, &list_span, env, sym),
+                // DESIGN-STONE-insert-prime-split — foldl's inner is tail; without this
+                // arm the defclause TCO path apply_function's the wat 2-ary wrapper (~1.2 µs).
+                ":wat::rete::insert" => {
+                    crate::rete::kernel::eval_insert_public(args, &list_span, env, sym)
+                }
                 // A user-defined function call in tail position — signal.
                 // Head resolves in sym.functions; anything else (kernel/
                 // algebra/config primitive, :rust:: shim) runs through
@@ -5271,6 +5276,11 @@ fn dispatch_keyword_head_value(
     // `rete_op_for`'s linear scan over the table runs on EVERY keyword dispatch in the runtime —
     // and this function is that dispatch, not the `where` path, so compiling `where` (#49a) would
     // never have removed the tax. Cheaper than the benchmark that would have justified caring.
+    // DESIGN-STONE-insert-prime-split — before the intrinsic registry and before
+    // the wat defclause in `sym`. 2-ary is insert'; 3+ is insert-all'.
+    if head == ":wat::rete::insert" {
+        return crate::rete::kernel::eval_insert_public(args, list_span, env, sym);
+    }
     if head.starts_with(crate::rete::vocabulary::RETE_PREFIX) {
         if let Some(op) = crate::rete::vocabulary::rete_op_for(head) {
             return dispatch_rete_op(op, head, args, list_span, env, sym);
@@ -5564,7 +5574,7 @@ fn dispatch_keyword_head_value(
         }
         // Arc 278 — intern the rust ReteArm when compile-all returns a Session
         // (`DESIGN-STONE-arm-at-compile`). Value unchanged. First fire-rules HIT.
-        ":wat::rete::arm-session'" => {
+        ":wat::rete::arm-session'" => { // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
             crate::rete::kernel::eval_arm_session(args, list_span, env, sym)
         }
         // Arc 278 — native Rust `insert` (the dual of `insert-spec`, the wat oracle).
@@ -6385,6 +6395,7 @@ fn dispatch_keyword_head_value(
             crate::collection::transform::eval_vec_sort_by(args, list_span, env, sym)
         }
         ":wat::core::map" => crate::collection::transform::eval_vec_map(args, list_span, env, sym),
+        ":wat::core::mapv" => crate::collection::transform::eval_mapv(args, list_span, env, sym),
         // Arc-278 DESIGN-STONE seq-traversal-one-door, Strike 1 — the private eager→lazy
         // normalizer, native now (was a wat `defclause`, `wat/seq.wat`, that stepped its
         // source via repeated `rest` — O(n^2) on every eager container). Steps by position;

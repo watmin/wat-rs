@@ -437,6 +437,100 @@ pub(crate) fn eval_vec_map(
     Ok(Value::wat__stream__Stream(lazy_map_stream(func, source)))
 }
 
+/// `(:wat::core::mapv f coll)` → `Vector<U>`. Eager. Walks Vector / PersistentVector /
+/// List by position (no lazy Stream cells). Stream input still maps lazily then drains.
+/// Fanout protocol query spent 288 ms in `(into [] (map f pv))` — 40k NativeThunk
+/// cons cells plus apply (`DESIGN-STONE-mapv-eager`).
+pub(crate) fn eval_mapv(
+    args: &[WatAST],
+    call_span: &Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::core::mapv";
+    if args.len() != 2 {
+        return Err(RuntimeError::new(
+            call_span.clone(),
+            RuntimeErrorKind::ArityMismatch {
+                op: OP.into(),
+                expected: 2,
+                got: args.len(),
+            },
+        )
+        .into());
+    }
+    let f = eval_inner(&args[0], env, sym)?.value_owned();
+    let coll = eval_inner(&args[1], env, sym)?.value_owned();
+    let func = match &f {
+        Value::wat__core__fn(func) => func.clone(),
+        other => {
+            return Err(RuntimeError::new(
+                args[0].span().clone(),
+                RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: "wat::core::fn",
+                    got: Box::new(ValueSnapshot::of(other)),
+                },
+            )
+            .into());
+        }
+    };
+    let apply_one = |x: &Value| -> Result<Value, EvalBreak> {
+        apply_function(func.clone(), vec![x.clone()], sym, call_span.clone()).map_err(EvalBreak::from)
+    };
+    match &coll {
+        Value::Vec(v) => {
+            let mut out = Vec::with_capacity(v.len());
+            for x in v.iter() {
+                out.push(apply_one(x)?);
+            }
+            Ok(Value::Vec(Arc::new(out)))
+        }
+        Value::wat__core__PersistentVector(v) => {
+            let mut out = Vec::with_capacity(v.len());
+            for x in v.iter() {
+                out.push(apply_one(x)?);
+            }
+            Ok(Value::Vec(Arc::new(out)))
+        }
+        Value::wat__core__List(v) => {
+            let mut out = Vec::with_capacity(v.len());
+            for x in v.iter() {
+                out.push(apply_one(x)?);
+            }
+            Ok(Value::Vec(Arc::new(out)))
+        }
+        Value::wat__stream__Stream(_) => {
+            let source = crate::stream::value_as_stream(&coll).expect("Stream value");
+            let mapped = lazy_map_stream(func, source);
+            let mut out = Vec::new();
+            let mut cur = mapped;
+            loop {
+                let realized = crate::stream::realize(&cur, sym, call_span)?;
+                match realized.as_ref() {
+                    crate::stream::Stream::Empty => return Ok(Value::Vec(Arc::new(out))),
+                    crate::stream::Stream::Cons { head, tail } => {
+                        out.push(head.clone());
+                        cur = Arc::clone(tail);
+                    }
+                    crate::stream::Stream::Thunk(_) | crate::stream::Stream::NativeThunk(_) => {
+                        unreachable!("realize returns Empty|Cons")
+                    }
+                }
+            }
+        }
+        other => Err(RuntimeError::new(
+            args[1].span().clone(),
+            RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: "wat::core::Vector, PersistentVector, List, or Stream",
+                got: Box::new(ValueSnapshot::of(other)),
+            },
+        )
+        .into()),
+    }
+}
+
 /// Build one deferred `map` cell: forcing it realizes `source` one step, applies `func` to
 /// the head (strictly, at force time — this IS the laziness: `func` runs on element N only
 /// when the caller pulls that far), and defers the rest via a recursive `NativeThunk`.

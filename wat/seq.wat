@@ -136,11 +136,9 @@
 ;; `(filterv pred (map f xs))` — `map` stays lazy, `filterv` is the pipeline's eager exit).
 ;; Extend with more clauses if a call site needs List/PersistentVector input directly (ride the
 ;; red — 118.2b+).
-(:wat::core::defclause :wat::core::mapv
-  ([f <- :wat::core::Fn(T)->U coll <- :wat::core::Vector<T>] -> :wat::core::Vector<U>
-    (:wat::core::into [] (:wat::core::map f coll)))
-  ([f <- :wat::core::Fn(T)->U coll <- :wat::stream::Stream<T>] -> :wat::core::Vector<U>
-    (:wat::core::into [] (:wat::core::map f coll))))
+;; mapv is native (`eval_mapv`). Eager walk of Vector / PersistentVector / List;
+;; Stream input maps then drains. Wat clauses retired so a PersistentVector of
+;; query answers type-checks (`DESIGN-STONE-mapv-eager`).
 
 (:wat::core::defclause :wat::core::filterv
   ([pred <- :wat::core::Fn(T)->wat::core::bool coll <- :wat::core::Vector<T>] -> :wat::core::Vector<T>

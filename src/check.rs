@@ -2383,6 +2383,7 @@ fn infer_rete_form(
         // AST head-substitution into `infer_list` rather than a direct call here.
         ":wat::core::foldl" => crate::collection::infer::infer_foldl(args, head_span, env, locals, fresh, subst),
         ":wat::core::map" => crate::collection::infer::infer_map(args, head_span, env, locals, fresh, subst),
+        ":wat::core::mapv" => crate::collection::infer::infer_mapv(args, head_span, env, locals, fresh, subst),
         ":wat::core::filter" => crate::collection::infer::infer_filter(args, head_span, env, locals, fresh, subst),
         // `reduce` — no bespoke inference fn exists for it (it dispatches via
         // `env.get_defclause_clauses`, reached from `infer_list`'s own defclause-dispatch
@@ -4372,6 +4373,14 @@ fn infer_list(
             // See docs/DISPATCH.md PARTITION doctrine: these are PROJECTIVE — DO NOT make clauses.
             ":wat::core::map" => {
                 let (val, mut errs) = crate::collection::infer::infer_map(args, head_span, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
+            ":wat::core::mapv" => {
+                let (val, mut errs) = crate::collection::infer::infer_mapv(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
                 return match val {
                     Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
@@ -19518,6 +19527,21 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
+    env.register(
+        ":wat::core::mapv".into(),
+        TypeScheme {
+            type_params: vec!["T".into(), "U".into()],
+            params: vec![
+                TypeExpr::Fn {
+                    args: vec![t_var()],
+                    ret: Box::new(u_var()),
+                },
+                vec_of(t_var()),
+            ],
+            ret: vec_of(u_var()),
+            rest_param_type: None,
+        },
+    );
     // Arc 247: fn-first — (foldl f init xs) -> Acc
     // Arc-278-0d NOTE: direct calls intercepted by infer_foldl; scheme retained for aliases
     // (:wat::seq::reduce, :wat::seq::fold) whose defalias derivation reads from this.
@@ -20524,7 +20548,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // Arc 278 — intern the rust ReteArm at compile-all (`DESIGN-STONE-arm-at-compile`).
     // (:wat::rete::arm-session' <session: :wat::rete::Session>) → :wat::rete::Session
     env.register(
-        ":wat::rete::arm-session'".into(),
+        ":wat::rete::arm-session'".into(), // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
         TypeScheme {
             type_params: vec![],
             params: vec![TypeExpr::Path(":wat::rete::Session".into())],

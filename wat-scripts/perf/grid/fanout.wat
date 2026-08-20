@@ -38,6 +38,12 @@
 (:wat::core::defrecord :fan::Right [key <- :wat::core::i64  rid <- :wat::core::i64])
 (:wat::core::defrecord :fan::Pair  [key <- :wat::core::i64  lid <- :wat::core::i64  rid <- :wat::core::i64])
 
+(:wat::core::defrecord :fan::QuerySplit
+  [read-ns   <- :wat::core::i64
+   encode-ns <- :wat::core::i64
+   sort-ns   <- :wat::core::i64
+   into-ns   <- :wat::core::i64])
+
 (:wat::core::defrecord :grid::Result
   [axis      <- :wat::core::String
    size      <- :wat::core::PersistentVector<wat::core::i64>
@@ -46,7 +52,11 @@
    ;; THREE-WAY: the wat SPEC's own answer, so the runner can render :oracle-accuracy
    ;; (spec vs Clara) and :port-accuracy (spec vs native) instead of one verdict.
    oracle-derived <- :wat::core::PersistentVector<wat::core::i64>
-   oracle-ns      <- :wat::core::i64])
+   oracle-ns      <- :wat::core::i64
+   insert-ns      <- :wat::core::i64
+   fire-ns        <- :wat::core::i64
+   query-ns       <- :wat::core::i64
+   protocol-ns    <- :wat::core::i64])
 
 (:wat::rete::defquery :fan::q-Pair
   :params []
@@ -66,18 +76,20 @@
     (:wat::core::PersistentVector)
     (:wat::core::range 0 fanout)))
 
+;; all-facts keys fanout — every key's F Lefts + F Rights. Construct only.
+(:wat::core::defn :fan::all-facts [keys <- :wat::core::i64  fanout <- :wat::core::i64] -> :wat::core::PersistentVector<wat::core::Record>
+  (:wat::core::foldl
+    (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::Record>  k <- :wat::core::i64]
+                    -> :wat::core::PersistentVector<wat::core::Record>
+      (:wat::core::PersistentVector/concat acc (:fan::facts-key k fanout)))
+    (:wat::core::PersistentVector)
+    (:wat::core::range 0 keys)))
+
 ;; seed s keys fanout — every key's F Lefts + F Rights, staged in ONE `insert-all` (which
 ;; delegates to the native `insert-all'`: one rebuild, not N). Order is preserved exactly —
 ;; ascending k, and within a key ascending f, Left before Right — so `:derived` is unchanged.
 (:wat::core::defn :fan::seed [s <- :wat::rete::Session  keys <- :wat::core::i64  fanout <- :wat::core::i64] -> :wat::rete::Session
-  (:wat::rete::insert-all
-    s
-    (:wat::core::foldl
-      (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::Record>  k <- :wat::core::i64]
-                      -> :wat::core::PersistentVector<wat::core::Record>
-        (:wat::core::PersistentVector/concat acc (:fan::facts-key k fanout)))
-      (:wat::core::PersistentVector)
-      (:wat::core::range 0 keys))))
+  (:wat::rete::insert-all s (:fan::all-facts keys fanout)))
 
 ;; enc key lid rid — canonical single-i64 witness for one derived Pair fact.
 (:wat::core::defn :fan::enc [key <- :wat::core::i64  lid <- :wat::core::i64  rid <- :wat::core::i64] -> :wat::core::i64
@@ -113,16 +125,44 @@
                     c2      (:wat::core::quote (:fan::Right (?k <- :key) (?r <- :rid)))
                     rhs     (:wat::core::quote (:fan::Pair ?k ?l ?r))
                     rule    (:wat::rete::Rule :name "fan" :lhs (:wat::core::PersistentVector c1 c2) :rhs (:wat::core::PersistentVector rhs))
-                    staged  (:fan::seed (:wat::rete::compile-all (:wat::core::PersistentVector rule) (:wat::core::PersistentVector (:fan::q-Pair))) keys fanout)
-                    n0      (:wat::time::now)
+                    session (:wat::rete::compile-all (:wat::core::PersistentVector rule) (:wat::core::PersistentVector (:fan::q-Pair)))
+                    facts   (:fan::all-facts keys fanout)
+                    p0      (:wat::time::now)
+                    staged  (:wat::rete::insert-all session facts)
+                    i1      (:wat::time::now)
                     fired   (:wat::rete::fire-rules staged)
-                    n1      (:wat::time::now)
-                    derived (:fan::derived-vector fired)
-                    nat-ns  (:fan::ns-between n0 n1)
+                    f1      (:wat::time::now)
+                    qr0     (:wat::time::now)
+                    raw     (:wat::rete::query fired (:fan::q-Pair))
+                    qr1     (:wat::time::now)
+                    enc0    (:wat::time::now)
+                    encoded (:wat::core::mapv
+                              (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64
+                                (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")]
+                                  (:fan::enc (:fan::Pair/key f) (:fan::Pair/lid f) (:fan::Pair/rid f))))
+                              raw)
+                    enc1    (:wat::time::now)
+                    srt0    (:wat::time::now)
+                    sorted  (:wat::core::sort encoded)
+                    srt1    (:wat::time::now)
+                    pv0     (:wat::time::now)
+                    derived (:fan::vec->pvec sorted)
+                    pv1     (:wat::time::now)
+                    q1      pv1
+                    ins-ns  (:fan::ns-between p0 i1)
+                    fir-ns  (:fan::ns-between i1 f1)
+                    qry-ns  (:fan::ns-between f1 q1)
+                    proto-ns (:fan::ns-between p0 q1)
+                    _split  (:wat::kernel::println
+                              (:fan::QuerySplit
+                                :read-ns   (:fan::ns-between qr0 qr1)
+                                :encode-ns (:fan::ns-between enc0 enc1)
+                                :sort-ns   (:fan::ns-between srt0 srt1)
+                                :into-ns   (:fan::ns-between pv0 pv1)))
                     ;; ORACLE — fired on the SAME staged session. Value semantics make the
                     ;; two fires independent: `staged` is unchanged by either.
                     o0      (:wat::time::now)
                     ofired  (:wat::rete::fire-rules-spec staged)
                     o1      (:wat::time::now)]
     (:wat::kernel::println
-      (:grid::Result :axis "fanout" :size (:wat::core::PersistentVector items) :derived derived :native-ns nat-ns :oracle-derived (:fan::derived-vector ofired) :oracle-ns (:fan::ns-between o0 o1)))))
+      (:grid::Result :axis "fanout" :size (:wat::core::PersistentVector items) :derived derived :native-ns fir-ns :oracle-derived (:fan::derived-vector ofired) :oracle-ns (:fan::ns-between o0 o1) :insert-ns ins-ns :fire-ns fir-ns :query-ns qry-ns :protocol-ns proto-ns))))

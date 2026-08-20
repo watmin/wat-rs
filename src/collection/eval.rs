@@ -778,10 +778,16 @@ pub(crate) fn vector_concat_inner(left: &Value, right: &Value) -> Result<Value, 
                         StreamContainer::PersistentVector => {
                             let Value::wat__core__PersistentVector(l) = left else { unreachable!("of_value⇒PersistentVector") };
                             let Value::wat__core__PersistentVector(r) = right else { unreachable!("of_value⇒PersistentVector") };
-                            let mut out: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
-                            for elem in l.iter() {
-                                out.push_back_mut(elem.clone());
+                            // empty ++ x = x (`DESIGN-STONE-insert-all-empty-identity`).
+                            // Clone-left then append-right shares the left tree; the old
+                            // rebuild-from-empty copied both sides into a new rpds Vector.
+                            if l.is_empty() {
+                                return Ok(right.clone());
                             }
+                            if r.is_empty() {
+                                return Ok(left.clone());
+                            }
+                            let mut out = l.clone();
                             for elem in r.iter() {
                                 out.push_back_mut(elem.clone());
                             }
@@ -1589,10 +1595,24 @@ pub(crate) fn persistentvector_concat_inner(to: &Value, from: &Value) -> Result<
             got: Box::new(ValueSnapshot::of(to))
         }).into());
     };
-    let mut out: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
-    for elem in l.iter() {
-        out.push_back_mut(elem.clone());
+    if l.is_empty() {
+        return match from {
+            Value::wat__core__PersistentVector(_) => Ok(from.clone()),
+            Value::Vec(r) => {
+                let mut out = rpds::VectorSync::new_sync();
+                for elem in r.iter() {
+                    out.push_back_mut(elem.clone());
+                }
+                Ok(Value::wat__core__PersistentVector(out))
+            }
+            other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: "Vector<T> or PersistentVector<T>",
+                got: Box::new(ValueSnapshot::of(other))
+            }).into()),
+        };
     }
+    let mut out = l.clone();
     match from {
         Value::wat__core__PersistentVector(r) => {
             for elem in r.iter() {

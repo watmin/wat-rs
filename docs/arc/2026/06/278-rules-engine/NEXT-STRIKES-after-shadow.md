@@ -150,12 +150,13 @@ pile of pieces under 1 (root-join 0.45, production 0.39).
    dirty-agenda root-join (0.45).
 5. clone 0.91 under.
 
-Grid `T03-32-37Z` (intern 7–26, `GRID_SKIP_ORACLE=1`):
-30/30 `:match`, 30/30 `:us`. Closest Clara cell is now
-**fanout `[40000]` ratio 3.59** (was cascade 3.34).
-Cascade `[50 100]` 3.34 → **6.92**. Fanout wat-ns 58.5 →
-52.8. Dominance leftover is fanout fire (OUT 4.53 refused;
-production 2p tax).
+Grid `T05-41-25Z` (post insert-prime-split, `GRID_SKIP_ORACLE=1`,
+`GRID_RUNS=3`): 30/30 `:match`, 30/30 `:us`. Closest Clara
+cell is still **fanout `[40000]` ratio 3.71** (wat 52.9 ms;
+T03-32-37Z was 3.59 / 52.8). Cascade `[50 100]` 6.69
+(wat 17.5). Accum `[200 200]` **8.09** (wat 18.4; was 6.07
+/ 24.9). Dominance leftover is fanout fire (OUT 4.53
+refused; production 2p tax).
 
 Parked: fact insertion (section below). Refused: intern
 `names`, facts in `bind_pool`, retry 2e/2o, persist gather
@@ -164,14 +165,24 @@ edges, `not=` as a range, two constraints on one dim as a
 conjunction, sample marks, retire `prod:compiled-rhs`,
 restore per-fact alpha timers.
 
-## Parked — fact insertion (after FIRE is exhausted)
+## Insertion — unparked (2026-08-20)
 
-Not this queue. Do not draw a stone until 2ae and the named
-FIRE leftovers are done.
+FIRE internable ≥ 1 is scratch STOP / OUT refused.
+`DESIGN-STONE-insert-facts-from-names` **LANDED, under
+bar:** insert − conj 2037 → **1650 ns/fact** (cut 387).
+`DESIGN-STONE-insert-all-empty-identity` **LANDED:**
+protocol insert 9.42 ms → **0.013 ms**. Concat rebuilt
+from empty; empty ++ x is identity.
+`DESIGN-STONE-insert-prime-split` **LANDED:** I − P
+**1474 ns** was `eval_tail` defclause TCO / apply_function.
+insert − conj **1933 → 310 ns**. P − C 459 under bar.
+`make_mut` STOP (foldl rc ≥ 2). Host query encode is
+Claude's compiled-wat horizon, not rete. Do not
+Session-`Vec`. Do not route 2-ary through insert-all.
 
 `probe-insert-cost-split.wat` on **c800d7d5** (release, one
 run per n; witnesses held). N chained `insert`, not
-`insert-all`. `insert − conj` is **flat ~2000 ns/fact**:
+`insert-all`. `insert − conj` was **flat ~2000 ns/fact**:
 
 | n | baseline | conj | insert | insert − conj |
 |---:|---:|---:|---:|---:|
@@ -190,10 +201,9 @@ Not seqable (`range` is still `Vec`; `foldl` still walks it).
 Not foldr. Not the aggregate-identity O(n²) leak (Session
 `identity = 0`; `value_is_shallow` bails on `network`).
 
-When chasing: add an `insert-all` arm to the same probe.
-Unweighed suspects: Reading stamp; `insert'` allocating
-`available: Vec<String>` per fact; Session 7 → 8 fields;
-`insert` as a `defclause` in front of `insert'`.
+`available` interned (this stone). Remaining suspects:
+Session rebuild, PV conj, `insert` defclause in front of
+`insert'`. Unique-owner `make_mut` if a split names ≥ 0.5 µs.
 
 Already on disk, **not** this queue:
 

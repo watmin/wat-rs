@@ -5,21 +5,19 @@
 > `wat/rete.wat`. If a stone below disagrees with a dated ruling here,
 > **this file wins** and the stone is stale.
 
-**Right now:** items 1–13, intern 1–26. **26 dirty
-join-parents.** Hash-join extra +1.43 → **+0.08**. A0
-ROUND extra +2.06 → **+0.95**. Cascade FIRE 11.76 →
-**10.35**, honest 7.32 → **6.72**. Grow-on-emit holds
-middle joins. Queue: `NEXT-STRIKES-after-shadow.md`.
-Next leftover: scratch 1.75 STOP. Accum honest ~19
-(alpha seed, pile < 1). Do not intern names. Do not
-intern on insert. Do not start 297. grok-rete DR this
-commit (intern 7–26; prior **c9d75104**). Fact insertion
-parked. Grid
-`T03-32-37Z` (intern 7–26): 30/30 `:match`, 30/30 `:us`.
-Closest ratio **fanout `[40000]` 3.59** (wat 52.8 ms).
-Cascade `[50 100]` 3.34 → **6.92** (wat 36.3 → **18.0**).
-Accum `[200 200]` 6.29 → 6.07 (wat 27.5 → 24.9). Dirty
-intern 7–26 not committed.
+**Right now:** floor **GREEN** `.floor/2026-08-20T05-36-05Z/`
+(4838 passed, 19 skipped). Clippy `--all-targets -D warnings`
+silent. Grid
+`GRID-native-vs-clara-2026-08-20T05-41-25Z.txt`
+(`GRID_SKIP_ORACLE=1`, `GRID_RUNS=3`): **30/30 `:match`,
+30/30 `:us`**. Closest still **fanout `[40000]` ratio 3.71**
+(wat 52.9 ms; was 3.59 / 52.8). Cascade `[50 100]` 6.69
+(wat 17.5 ms). Accum `[200 200]` **8.09** (wat 18.4 ms;
+tape T03-32-37Z was 6.07 / 24.9). insert-prime-split
+LANDED (insert − conj 1933 → 310 ns). Host encode/sort
+after query-read is compiled-wat, not rete. Queue:
+`NEXT-STRIKES-after-shadow.md`. grok-rete DR **494516f8**.
+Dirty, not committed.
 
 > ⛔ You did not live this. Run recolligere against the disk
 > before you act on any line above.

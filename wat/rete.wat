@@ -1588,7 +1588,11 @@
   -> :wat::rete::Session
   (:wat::rete::insert-all' session facts))
 
-;; insert — THE PUBLIC PRODUCTION VERB. A `defclause` of two arities:
+;; insert — THE PUBLIC PRODUCTION VERB. A `defclause` of two arities (the TYPE SURFACE).
+;; Runtime dispatch takes `:wat::rete::insert` in Rust first (`eval_insert_public`,
+;; DESIGN-STONE-insert-prime-split): 2-ary is `insert'` (no apply_function); 3+ collects
+;; into a PersistentVector and `insert-all'`s. The wat bodies below stay for the checker
+;; and as the spec of that split. They are not the 2-ary hot path.
 ;;
 ;;   2-ary   — UNCHANGED, byte for byte: delegates straight to the native `insert'`. This is the
 ;;             streaming hot path (the chaos engine takes facts ONE AT A TIME off a wire) and it
