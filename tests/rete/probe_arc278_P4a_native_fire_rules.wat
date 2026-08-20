@@ -29,7 +29,7 @@
      s0    (:wat::rete::compile-all (:wat::core::PersistentVector rule) (:wat::core::PersistentVector (:weather::q-ColdAndWindy) (:weather::q-WeatherAlert)))
      s1    (:wat::rete::insert s0 (:weather::Temperature :celsius 15 :location "Oslo"))
      s2    (:wat::rete::insert s1 (:weather::WindSpeed :kph 45 :location "Oslo"))
-     fired (:wat::rete::fire-rules' s2)]
+     fired (:wat::rete::fire-rules s2)]
     (:wat::core::length (:wat::rete::query fired (:weather::q-ColdAndWindy)))))
 
 (:wat::core::defn :user::single-wat-oslo [] -> :wat::core::i64
@@ -41,7 +41,7 @@
      s0    (:wat::rete::compile-all (:wat::core::PersistentVector rule) (:wat::core::PersistentVector (:weather::q-ColdAndWindy) (:weather::q-WeatherAlert)))
      s1    (:wat::rete::insert s0 (:weather::Temperature :celsius 15 :location "Oslo"))
      s2    (:wat::rete::insert s1 (:weather::WindSpeed :kph 45 :location "Oslo"))
-     fired (:wat::rete::fire-rules-spec s2)]
+     fired (:wat::rete::fire-rules$oracle s2)]
     (:wat::core::length (:wat::rete::query fired (:weather::q-ColdAndWindy)))))
 
 (:wat::core::defn :user::single-native-bergen [] -> :wat::core::i64
@@ -53,7 +53,7 @@
      s0    (:wat::rete::compile-all (:wat::core::PersistentVector rule) (:wat::core::PersistentVector (:weather::q-ColdAndWindy) (:weather::q-WeatherAlert)))
      s1    (:wat::rete::insert s0 (:weather::Temperature :celsius 15 :location "Oslo"))
      s2    (:wat::rete::insert s1 (:weather::WindSpeed :kph 45 :location "Bergen"))
-     fired (:wat::rete::fire-rules' s2)]
+     fired (:wat::rete::fire-rules s2)]
     (:wat::core::length (:wat::rete::query fired (:weather::q-ColdAndWindy)))))
 
 (:wat::core::defn :user::single-wat-bergen [] -> :wat::core::i64
@@ -65,7 +65,7 @@
      s0    (:wat::rete::compile-all (:wat::core::PersistentVector rule) (:wat::core::PersistentVector (:weather::q-ColdAndWindy) (:weather::q-WeatherAlert)))
      s1    (:wat::rete::insert s0 (:weather::Temperature :celsius 15 :location "Oslo"))
      s2    (:wat::rete::insert s1 (:weather::WindSpeed :kph 45 :location "Bergen"))
-     fired (:wat::rete::fire-rules-spec s2)]
+     fired (:wat::rete::fire-rules$oracle s2)]
     (:wat::core::length (:wat::rete::query fired (:weather::q-ColdAndWindy)))))
 
 ;; ── cascade: a fact DERIVED by ruleA unlocks ruleB across rounds (THE canary) ─────
@@ -84,7 +84,7 @@
      s0    (:wat::rete::compile-all (:wat::core::PersistentVector ruleA ruleB) (:wat::core::PersistentVector (:weather::q-ColdAndWindy) (:weather::q-WeatherAlert)))
      s1    (:wat::rete::insert s0 (:weather::Temperature :celsius 15 :location "Oslo"))
      s2    (:wat::rete::insert s1 (:weather::WindSpeed :kph 45 :location "Oslo"))
-     fired (:wat::rete::fire-rules' s2)]
+     fired (:wat::rete::fire-rules s2)]
     (:wat::core::length (:wat::rete::query fired (:weather::q-ColdAndWindy)))))
 
 (:wat::core::defn :user::cascade-wat-cw [] -> :wat::core::i64
@@ -99,7 +99,7 @@
      s0    (:wat::rete::compile-all (:wat::core::PersistentVector ruleA ruleB) (:wat::core::PersistentVector (:weather::q-ColdAndWindy) (:weather::q-WeatherAlert)))
      s1    (:wat::rete::insert s0 (:weather::Temperature :celsius 15 :location "Oslo"))
      s2    (:wat::rete::insert s1 (:weather::WindSpeed :kph 45 :location "Oslo"))
-     fired (:wat::rete::fire-rules-spec s2)]
+     fired (:wat::rete::fire-rules$oracle s2)]
     (:wat::core::length (:wat::rete::query fired (:weather::q-ColdAndWindy)))))
 
 (:wat::core::defn :user::cascade-native-wa [] -> :wat::core::i64
@@ -114,7 +114,7 @@
      s0    (:wat::rete::compile-all (:wat::core::PersistentVector ruleA ruleB) (:wat::core::PersistentVector (:weather::q-ColdAndWindy) (:weather::q-WeatherAlert)))
      s1    (:wat::rete::insert s0 (:weather::Temperature :celsius 15 :location "Oslo"))
      s2    (:wat::rete::insert s1 (:weather::WindSpeed :kph 45 :location "Oslo"))
-     fired (:wat::rete::fire-rules' s2)]
+     fired (:wat::rete::fire-rules s2)]
     (:wat::core::length (:wat::rete::query fired (:weather::q-WeatherAlert)))))
 
 (:wat::core::defn :user::cascade-wat-wa [] -> :wat::core::i64
@@ -129,5 +129,5 @@
      s0    (:wat::rete::compile-all (:wat::core::PersistentVector ruleA ruleB) (:wat::core::PersistentVector (:weather::q-ColdAndWindy) (:weather::q-WeatherAlert)))
      s1    (:wat::rete::insert s0 (:weather::Temperature :celsius 15 :location "Oslo"))
      s2    (:wat::rete::insert s1 (:weather::WindSpeed :kph 45 :location "Oslo"))
-     fired (:wat::rete::fire-rules-spec s2)]
+     fired (:wat::rete::fire-rules$oracle s2)]
     (:wat::core::length (:wat::rete::query fired (:weather::q-WeatherAlert)))))

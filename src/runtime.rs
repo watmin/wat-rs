@@ -5558,48 +5558,37 @@ fn dispatch_keyword_head_value(
         // Resolves ?var/literal fact-args via resolve_operand; raises on unresolved (no silent drop).
         ":wat::rete::eval-insert" => crate::rete::matcher::eval_insert(args, list_span, env, sym),
         // Arc 278 Stone P2 — native Rust single-pass fire cycle (the differential harness).
-        // (:wat::rete::fire-once' <session>) → :wat::rete::Session
+        // (:wat::rete::fire-once <session>) → :wat::rete::Session
         // Observationally equivalent to the wat oracle's fire-once: same derived facts.
         // Mutates a native WorkingMemory (sealed; never escapes to wat); returns a frozen Session.
-        ":wat::rete::fire-once'" => { // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
+        ":wat::rete::fire-once$native" | ":wat::rete::fire-once" => {
             crate::rete::kernel::eval_fire_once_native(args, list_span, env, sym)
         }
-        // Arc 278 Stone P4a — native Rust cascade fixpoint (re-run-from-scratch).
-        // (:wat::rete::fire-rules' <session>) → :wat::rete::Session
-        // Observationally equivalent to the wat oracle's fire-rules: same derived facts including
-        // multi-round cascade (derived facts re-enter the network until no new fact is produced).
-        // Returns a Session with facts = input only (derived live in production-memory).
-        ":wat::rete::fire-rules'" => { // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
+        // Public `fire-rules` is a wat Fn (first-class). Keyword-head and the
+        // Fn body both reach rust through `$native`.
+        ":wat::rete::fire-rules$native" | ":wat::rete::fire-rules" => {
             crate::rete::kernel::eval_fire_rules_native(args, list_span, env, sym)
         }
         // Arc 278 — intern the rust ReteArm when compile-all returns a Session
         // (`DESIGN-STONE-arm-at-compile`). Value unchanged. First fire-rules HIT.
-        ":wat::rete::arm-session'" => { // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
+        ":wat::rete::arm-session" => {
             crate::rete::kernel::eval_arm_session(args, list_span, env, sym)
         }
-        // Arc 278 — native Rust `insert` (the dual of `insert-spec`, the wat oracle).
-        // (:wat::rete::insert' <session> <fact>) → :wat::rete::Session
-        // Zero activation (rete.wat:828-830): stages `fact` into `facts`, resolved BY NAME
-        // through the class's RecordDef.field_names — never a positional index. The other six
-        // Session fields carry through untouched.
-        ":wat::rete::insert'" => crate::rete::kernel::eval_insert_native(args, list_span, env, sym), // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
-        // Arc 278 — native Rust `insert-all` (the dual of `insert-all-spec`, the wat oracle).
-        // (:wat::rete::insert-all' <session> <facts>) → :wat::rete::Session
-        // The batch sibling of `insert'`: extends `facts` (resolved BY NAME, never a positional
-        // index) by every element of the incoming PersistentVector in ONE concat, then rebuilds
-        // the Session ONCE — collapsing N reconstructions (`insert'` × N) into one.
-        ":wat::rete::insert-all'" => { // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
+        // Arc 278 — native `insert-all` (oracle is `insert-all$oracle`).
+        // 2-ary `insert` is handled above (`eval_insert_public`).
+        ":wat::rete::insert-all$native" | ":wat::rete::insert-all" => {
             crate::rete::kernel::eval_insert_all_native(args, list_span, env, sym)
         }
-        // Arc 278 Stone P12a — OPT-IN diagnostic fire; same closure as fire-rules' + support index.
-        // (:wat::rete::fire-rules-explain' <session>) → :wat::rete::Explained
-        ":wat::rete::fire-rules-explain'" => { // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
+        ":wat::rete::insert$native" => {
+            crate::rete::kernel::eval_insert_native(args, list_span, env, sym)
+        }
+        ":wat::rete::fire-rules-explain$native" | ":wat::rete::fire-rules-explain" => {
             crate::rete::kernel::eval_fire_rules_explain(args, list_span, env, sym)
         }
         // Arc 278 Stone P12c — per-edge explain payload builder.
-        // (:wat::rete::step-payload' session alpha-id bindings sfact supporting) → :wat::rete::DerivationStep
+        // (:wat::rete::step-payload session alpha-id bindings sfact supporting) → :wat::rete::DerivationStep
         // REUSES resolve_operand + the clause classifier from matcher.rs (faithful by construction).
-        ":wat::rete::step-payload'" => { // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
+        ":wat::rete::step-payload" => {
             crate::rete::matcher::eval_step_payload(args, list_span, env, sym)
         }
         ":wat::rete::collect-rules" => {
@@ -5607,18 +5596,20 @@ fn dispatch_keyword_head_value(
         }
         ":wat::rete::export" => crate::rete::export::eval_export(args, list_span, env, sym),
         ":wat::rete::import" => crate::rete::export::eval_import(args, list_span, env, sym),
-        // Arc 278 Stone 6a — the rete condition fence: two orthogonal classifiers, each default-deny
-        // + transitive over user-fn bodies. A rete condition must be (pure AND deterministic).
+        // Arc 278 Stone 6a — the rete condition fence: four orthogonal classifiers, each
+        // default-deny + transitive over user-fn bodies. A rete condition must be
+        // (pure AND deterministic AND total AND a rete primitive).
         //   pure?          = effect-free (no IO/mutation). Uuid/v4 IS pure (does no IO).
         //   deterministic? = same inputs → same output. Uuid/v4 is NOT (random); Uuid/v5 IS.
+        //   total?         = defined on all inputs. ARMED: `compile-condition` consults it.
         // (:wat::rete::pure? <quoted-expr: :wat::WatAST>) -> :wat::core::bool
         // (:wat::rete::deterministic? <quoted-expr: :wat::WatAST>) -> :wat::core::bool
         ":wat::rete::pure?" => crate::rete::purity::eval_pure_predicate(args, list_span, env, sym),
         ":wat::rete::deterministic?" => {
             crate::rete::purity::eval_deterministic_predicate(args, list_span, env, sym)
         }
-        // BRIEF-total-t1-the-axis-unarmed — the THIRD axis: domain-total (defined on all inputs)?
-        // UNARMED: callable, but `compile-condition` does not consult it this stone.
+        // The THIRD fence axis: domain-total (defined on all inputs)?
+        // ARMED: `compile-condition` consults it as the third conjunct.
         // (:wat::rete::total? <quoted-expr: :wat::WatAST>) -> :wat::core::bool
         ":wat::rete::total?" => {
             crate::rete::purity::eval_total_predicate(args, list_span, env, sym)
@@ -5629,13 +5620,14 @@ fn dispatch_keyword_head_value(
         }
         // Arc 278 #55 slice one — THE ADMISSION TEST's wat surface: classifies a HEAD NAME
         // against the rete-vocabulary module-set boundary alone (decoupled from pure/
-        // deterministic/total, which classify an EXPRESSION). UNARMED, same discipline.
+        // deterministic/total, which classify an EXPRESSION). Not the fence — Law A is
+        // `primitive?`.
         // (:wat::rete::vocabulary-admitted? <head: :wat::WatAST, a QUOTED keyword>) -> :wat::core::bool
         ":wat::rete::vocabulary-admitted?" => {
             crate::rete::vocabulary::eval_vocabulary_admitted_predicate(args, list_span, env, sym)
         }
         // BRIEF-the-fence-names-the-head — the SAME walk pure?/deterministic? run, surfacing the
-        // first violating leaf instead of discarding it. PROVISIONAL name, cast owed.
+        // first violating leaf instead of discarding it.
         // (:wat::rete::axis-violation <quoted-expr> <axis: :pure|:deterministic>) -> :wat::core::Option<wat::rete::AxisViolation>
         ":wat::rete::axis-violation" => {
             crate::rete::purity::eval_axis_violation(args, list_span, env, sym)

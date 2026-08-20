@@ -54,10 +54,11 @@
 //! necessary, not sufficient — an admitted namespace with an unminted verb still default-denies
 //! wherever it is consulted).
 //!
-//! UNARMED, same as `pure?`/`deterministic?`/`total?`: nothing in this slice wires the admission
-//! test into `compile-condition` (`wat/rete.wat:661` stays `(and is-pure is-det)`). It is built
-//! and unit-tested in isolation (`tests/rete/`), plus consulted as a fourth consideration inside
-//! `head_ok` (`rete/purity.rs`) — additive, never a replacement for the three existing ones.
+//! `vocabulary-admitted?` is NOT the fence. The fence is four conjuncts
+//! (`pure?` ∧ `deterministic?` ∧ `total?` ∧ `primitive?`). This module's admission
+//! test is built and unit-tested in isolation (`tests/rete/`), plus consulted as a
+//! consideration inside `head_ok` (`rete/purity.rs`) — additive, never a replacement
+//! for the four fence axes. The fence's Law A check is `primitive?`, not this predicate.
 //!
 //! ## The naming rule (BRIEF-one-naming-rule-then-first-nth-to-string.md, 2026-08-05)
 //!
@@ -240,9 +241,8 @@ pub(crate) struct ReteOp {
     pub(crate) meta: OpMeta,
 }
 
-/// THE ONE TABLE. Four rows: one of each mechanism class (the hardest-member-pins-the-shape
-/// rule from the design stone), plus nothing else — the other ~46 vocabulary names slot in as
-/// rows once this table exists (out of scope this slice).
+/// THE ONE TABLE. Every rete-vocabulary verb a `where` / `:then` / user accum fold may
+/// call. A row with `total: false` is a red build (`every_rete_row_is_total`).
 pub(crate) const RETE_OPS: &[ReteOp] = &[
     // ── Alias — the cheap path, and the table's baseline row. `total: true` mirrors
     // `:wat::core::i64::>`'s own hand-list entry (`purity.rs`'s `total` match, `i64::{> < >= <=}`
@@ -1409,7 +1409,7 @@ pub(crate) fn rete_vocabulary_admitted(head: &str) -> bool {
 /// ADMISSION TEST surfaced for wat callers and its own isolated probe (`tests/rete/`), decoupled
 /// from `pure?`/`deterministic?`/`total?` (which classify an EXPRESSION; this classifies a HEAD
 /// NAME against the module-set boundary alone, independent of whether that head is pure).
-/// UNARMED — not consulted by `compile-condition`.
+/// Not consulted by `compile-condition` — the fence's Law A check is `primitive?`.
 ///
 /// Takes a QUOTED keyword (`(:wat::rete::vocabulary-admitted? (:wat::core::quote
 /// :wat::rete::core::i64::>))`), mirroring `pure?`/`deterministic?`'s own `:wat::WatAST` argument

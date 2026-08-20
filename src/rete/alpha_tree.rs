@@ -9,10 +9,10 @@
 //!
 //! ## ★ THE ONE CONTRACT DECISION
 //!
-//! **The tree may OVER-approximate. It may never UNDER-approximate.** `alpha_match_inner`
-//! remains the sole authority on whether a condition holds and the sole producer of bindings;
-//! `AlphaTree::candidates` returns a **candidate set** that the matcher then runs on exactly as
-//! it does today. For every fact, `candidates(fact) ⊇ { alphas that actually match }`.
+//! **The tree may OVER-approximate. It may never UNDER-approximate.** Native fire
+//! runs `exec_compiled_with_key_ids` on the candidate set; `alpha_match_inner` is the
+//! oracle / differential matcher. `AlphaTree::candidates` returns a **candidate set**.
+//! For every fact, `candidates(fact) ⊇ { alphas that actually match }`.
 //!
 //! Any clause this analyzer cannot prove an equality discriminator for — `not=`, `or`, `not`, a
 //! computed operand, an unfamiliar shape, anything at all — costs nothing but a wasted
@@ -31,12 +31,10 @@
 //! Beta (the join network) is untouched — rules derive facts, so the beta network stays
 //! runtime, unlike the kernel's packet tree (`holon-lab-ddos/veth-lab/filter/src/tree.rs`),
 //! which bakes the whole rule in because nothing ever derives there. This tree only prunes
-//! which alphas of a fact's own type are worth match-testing; bindings still come from
-//! `alpha_match_inner`. `dim` indexes the class's own declared field order
-//! (`kernel::class_field_names`), not a fixed global order. `range_children` is present in the
-//! node shape (so a later stone can populate it without changing the shape) but is never
-//! populated by this one — `< > <= >=` constraints simply contribute no discriminator and ride
-//! the wildcard edge, which is correct and simply unpruned.
+//! which alphas of a fact's own type are worth match-testing; native bindings come from
+//! compiled exec. `dim` indexes the class's own declared field order
+//! (`kernel::class_field_names`), not a fixed global order. Range constraints
+//! (`< > <= >=`) contribute no discriminator and ride the wildcard edge.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -47,15 +45,6 @@ use crate::ast::WatAST;
 use crate::rete::matcher::{classify_constraint_head, classify_rete_clause, CmpKind, ReteClauseShape};
 use crate::rete::kernel::class_field_names;
 use crate::runtime::{SymbolTable, Value};
-
-/// A range-guarded edge, reserved for a later stone
-/// (`DESIGN-STONE-alpha-tree-range-edges`). Never populated by this one.
-#[derive(Debug)]
-#[allow(dead_code)]
-pub(crate) struct RangeEdge {
-    pub(crate) op: &'static str,
-    pub(crate) threshold: Value,
-}
 
 /// One level of the discrimination tree: branch on field `dim` of the fact's own class.
 pub(crate) struct Node {
@@ -68,9 +57,6 @@ pub(crate) struct Node {
     children: FxHashMap<Value, Arc<Node>>,
     /// Alphas that do not constrain `dim` by a provable equality — always walked.
     wildcard: Option<Arc<Node>>,
-    /// Reserved for range/mask edges (unpopulated this stone; see module docs).
-    #[allow(dead_code)]
-    range_children: Vec<(RangeEdge, Arc<Node>)>,
     /// Alpha ids terminating at this node (no further dimension left to discriminate on, or
     /// only one candidate remained).
     leaves: Vec<i64>,
@@ -136,7 +122,6 @@ impl AlphaTree {
                     dim: 0,
                     children: FxHashMap::default(),
                     wildcard: None,
-                    range_children: Vec::new(),
                     leaves: alpha_ids.clone(),
                 }),
             ));
@@ -189,7 +174,6 @@ fn build_node(
             dim: 0,
             children: FxHashMap::default(),
             wildcard: None,
-            range_children: Vec::new(),
             leaves: alpha_ids,
         });
     }
@@ -214,7 +198,7 @@ fn build_node(
         Some(build_node(wild, disc, dims, pos + 1))
     };
 
-    Arc::new(Node { dim, children, wildcard, range_children: Vec::new(), leaves: Vec::new() })
+    Arc::new(Node { dim, children, wildcard, leaves: Vec::new() })
 }
 
 /// Descend the tree for one fact: take the specific-value edge (if the fact's field at `dim`

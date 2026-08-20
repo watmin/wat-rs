@@ -119,7 +119,7 @@
                     ;; ORACLE — the wat spec, fired on the SAME staged session. Value semantics
                     ;; make the two fires independent: `staged` is unchanged by either.
                     o0      (:wat::time::now)
-                    ofired  (:wat::rete::fire-rules-spec staged)
+                    ofired  (:wat::rete::fire-rules$oracle staged)
                     o1      (:wat::time::now)]
     (:wat::kernel::println
       (:grid::Result :axis "neg-consumer"

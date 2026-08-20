@@ -16624,8 +16624,8 @@ fn register_builtins(env: &mut CheckEnv) {
     }
     // Arc 278 #55 slice one — the admission test's own wat surface (`tests/rete/` probe),
     // decoupled from `pure?`/`deterministic?`/`total?` above: classifies a HEAD NAME against the
-    // module-set boundary alone, independent of whether that head is pure. UNARMED, same
-    // discipline as its siblings.
+    // module-set boundary alone, independent of whether that head is pure. Not the fence —
+    // Law A is `primitive?`.
     env.register(
         ":wat::rete::vocabulary-admitted?".into(),
         TypeScheme {
@@ -20519,10 +20519,11 @@ fn register_builtins(env: &mut CheckEnv) {
     );
 
     // Arc 278 Stone P2 — native Rust single-pass fire cycle (the differential harness).
-    // (:wat::rete::fire-once' <session: :wat::rete::Session>) → :wat::rete::Session
+    // (:wat::rete::fire-once <session: :wat::rete::Session>) → :wat::rete::Session
     // Observationally equivalent to the wat oracle's fire-once: same derived facts.
+    // fire-once is a wat defn (first-class Fn). `$native` is the rust kernel.
     env.register(
-        ":wat::rete::fire-once'".into(),  // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
+        ":wat::rete::fire-once$native".into(),
         TypeScheme {
             type_params: vec![],
             params: vec![TypeExpr::Path(":wat::rete::Session".into())],
@@ -20531,12 +20532,9 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
-    // Arc 278 Stone P4a — native Rust cascade fixpoint (re-run-from-scratch).
-    // (:wat::rete::fire-rules' <session: :wat::rete::Session>) → :wat::rete::Session
-    // Observationally equivalent to the wat oracle's fire-rules: same derived facts including
-    // multi-round cascade. Returns Session with facts = input only (derived in production-memory).
+    // `$native` is the rust kernel the public wat Fn bodies call.
     env.register(
-        ":wat::rete::fire-rules'".into(),  // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
+        ":wat::rete::fire-rules$native".into(),
         TypeScheme {
             type_params: vec![],
             params: vec![TypeExpr::Path(":wat::rete::Session".into())],
@@ -20544,24 +20542,8 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
-
-    // Arc 278 — intern the rust ReteArm at compile-all (`DESIGN-STONE-arm-at-compile`).
-    // (:wat::rete::arm-session' <session: :wat::rete::Session>) → :wat::rete::Session
     env.register(
-        ":wat::rete::arm-session'".into(), // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
-        TypeScheme {
-            type_params: vec![],
-            params: vec![TypeExpr::Path(":wat::rete::Session".into())],
-            ret: TypeExpr::Path(":wat::rete::Session".into()),
-            rest_param_type: None,
-        },
-    );
-
-    // Arc 278 Stone P12a — OPT-IN diagnostic fire; same closure as fire-rules' + support index.
-    // (:wat::rete::fire-rules-explain' <session: :wat::rete::Session>) → :wat::rete::Explained
-    // EPHEMERAL result — re-derived per explain; never serialized.
-    env.register(
-        ":wat::rete::fire-rules-explain'".into(),  // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
+        ":wat::rete::fire-rules-explain$native".into(),
         TypeScheme {
             type_params: vec![],
             params: vec![TypeExpr::Path(":wat::rete::Session".into())],
@@ -20569,13 +20551,61 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
+    env.register(
+        ":wat::rete::insert$native".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![
+                TypeExpr::Path(":wat::rete::Session".into()),
+                TypeExpr::Path(":wat::core::Record".into()),
+            ],
+            ret: TypeExpr::Path(":wat::rete::Session".into()),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::rete::insert-all$native".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![
+                TypeExpr::Path(":wat::rete::Session".into()),
+                TypeExpr::Parametric {
+                    head: "wat::core::PersistentVector".into(),
+                    args: vec![TypeExpr::Path(":wat::core::Record".into())],
+                },
+            ],
+            ret: TypeExpr::Path(":wat::rete::Session".into()),
+            rest_param_type: None,
+        },
+    );
+
+    // Arc 278 Stone P4a — native Rust cascade fixpoint (re-run-from-scratch).
+    // (:wat::rete::fire-rules <session: :wat::rete::Session>) → :wat::rete::Session
+    // Observationally equivalent to the wat oracle's fire-rules: same derived facts including
+    // multi-round cascade. Returns Session with facts = input only (derived in production-memory).
+    // fire-rules / insert / insert-all / fire-rules-explain are wat defns (first-class
+    // Fn). Keyword-head calls are intercepted by rust. Do not register them here.
+
+    // Arc 278 — intern the rust ReteArm at compile-all (`DESIGN-STONE-arm-at-compile`).
+    // (:wat::rete::arm-session <session: :wat::rete::Session>) → :wat::rete::Session
+    env.register(
+        ":wat::rete::arm-session".into(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![TypeExpr::Path(":wat::rete::Session".into())],
+            ret: TypeExpr::Path(":wat::rete::Session".into()),
+            rest_param_type: None,
+        },
+    );
+
+    // fire-rules-explain is a wat defn (first-class Fn); rust intercepts the keyword head.
 
     // Arc 278 Stone P12c — per-edge explain payload builder.
-    // (:wat::rete::step-payload' session alpha-id bindings sfact supporting) → :wat::rete::DerivationStep
+    // (:wat::rete::step-payload session alpha-id bindings sfact supporting) → :wat::rete::DerivationStep
     // Reuses resolve_operand + the clause classifier from matcher.rs (faithful by construction).
     // EPHEMERAL — called from the explain walk in rete.wat; never serialized.
     env.register(
-        ":wat::rete::step-payload'".into(),  // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
+        ":wat::rete::step-payload".into(), 
         TypeScheme {
             type_params: vec![],
             params: vec![
@@ -20612,10 +20642,9 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
-    // BRIEF-total-t1-the-axis-unarmed — the THIRD axis predicate, mirroring pure?/deterministic?
-    // exactly (same signature shape, same default-deny). UNARMED: callable, but `compile-condition`
-    // does not consult it this stone — arming needs the `:undefined`-carrying total variants (T2/T3)
-    // to exist first, or a refused `first`/`i64::/` has nowhere to go.
+    // The THIRD fence axis, mirroring pure?/deterministic? exactly (same signature shape,
+    // same default-deny). ARMED: `compile-condition` consults it as the third conjunct.
+    // Partial core ops enter rete as `OpClass::Fallback` + `:undefined`.
     // (:wat::rete::total? <expr: :wat::WatAST>) -> :wat::core::bool — defined on all its inputs?
     env.register(
         ":wat::rete::total?".into(),
@@ -20648,15 +20677,11 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
-    // BRIEF-the-fence-names-the-head — a third sibling beside pure?/deterministic?, additive only
-    // (STOP-1: those two are UNCHANGED). Same walk, surfacing the violation instead of discarding
-    // it. `:wat::rete::AxisViolation` and `:wat::rete::Axis` are declared via `defrecord`/`defenum`
-    // in `wat/rete.wat` (mirrors `:wat::rete::DerivationStep` — no separate `register_builtin`
-    // needed for either type here). PROVISIONAL name, cast owed.
-    // Builder-ruled (CLOSED-SET RULE, REALIZATIONS.md:2676): the axis argument is the
-    // `:wat::rete::Axis` enum, not a free keyword — now a closed 3-member set
-    // (BRIEF-total-t1-the-axis-unarmed minted `:Total`); the `TypeScheme` below is unchanged by
-    // that growth, since it was always typed by the enum, not by an arm count.
+    // BRIEF-the-fence-names-the-head — same walk as the four fence predicates, surfacing the
+    // violation instead of discarding it. `:wat::rete::AxisViolation` and `:wat::rete::Axis`
+    // are declared via `defrecord`/`defenum` in `wat/rete.wat`. The axis argument is the
+    // `:wat::rete::Axis` enum — a closed 4-member set (Pure, Deterministic, Total,
+    // RetePrimitive).
     // (:wat::rete::axis-violation <expr: :wat::WatAST> <axis: :wat::rete::Axis>) -> :wat::core::Option<wat::rete::AxisViolation>
     env.register(
         ":wat::rete::axis-violation".into(),

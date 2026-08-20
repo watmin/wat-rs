@@ -71,11 +71,11 @@
 
 ;; oracle: batch via insert-all-spec (the wat reference / differential oracle).
 (:wat::core::defn :nia::seed-oracle [] -> :wat::rete::Session
-  (:wat::rete::insert-all-spec (:nia::base) (:nia::the-facts)))
+  (:wat::rete::insert-all$oracle (:nia::base) (:nia::the-facts)))
 
 ;; native: batch via insert-all' DIRECTLY (bypassing the public delegate — isolates the prime).
 (:wat::core::defn :nia::seed-native [] -> :wat::rete::Session
-  (:wat::rete::insert-all' (:nia::base) (:nia::the-facts)))
+  (:wat::rete::insert-all (:nia::base) (:nia::the-facts)))
 
 ;; ── witnesses, read off a seeded Session ──────────────────────────────────────
 
@@ -104,7 +104,7 @@
   (:wat::rete::insert (:nia::base) (:nia::Reading :g 7 :v 70)))
 
 (:wat::core::defn :nia::seed-single-native [] -> :wat::rete::Session
-  (:wat::rete::insert' (:nia::base) (:nia::Reading :g 7 :v 70)))
+  (:wat::rete::insert (:nia::base) (:nia::Reading :g 7 :v 70)))
 
 ;; ── entries (0-arity, called by name from the .rs) ────────────────────────────
 

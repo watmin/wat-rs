@@ -79,8 +79,8 @@ fn run(depth: usize, width: usize, fire_verb: &str) -> Value {
 #[test]
 fn deep_cascade_native_matches_wat_depth10() {
     let (depth, width) = (10, 3);
-    let native = run(depth, width, ":wat::rete::fire-rules'");
-    let wat = run(depth, width, ":wat::rete::fire-rules-spec");
+    let native = run(depth, width, ":wat::rete::fire-rules");
+    let wat = run(depth, width, ":wat::rete::fire-rules$oracle");
     assert_eq!(native, wat, "native must equal wat at depth {depth}; {native:?} vs {wat:?}");
     assert_eq!(native, Value::i64(width as i64), "full {depth}-deep closure → {width} Stage{depth}; got {native:?}");
 }
@@ -89,8 +89,8 @@ fn deep_cascade_native_matches_wat_depth10() {
 #[test]
 fn deep_cascade_native_matches_wat_depth20() {
     let (depth, width) = (20, 2);
-    let native = run(depth, width, ":wat::rete::fire-rules'");
-    let wat = run(depth, width, ":wat::rete::fire-rules-spec");
+    let native = run(depth, width, ":wat::rete::fire-rules");
+    let wat = run(depth, width, ":wat::rete::fire-rules$oracle");
     assert_eq!(native, wat, "native must equal wat at depth {depth}; {native:?} vs {wat:?}");
     assert_eq!(native, Value::i64(width as i64), "full {depth}-deep closure → {width} Stage{depth}; got {native:?}");
 }

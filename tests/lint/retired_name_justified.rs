@@ -55,8 +55,8 @@
 //! Each surviving hit carries a co-located (same-line) `// rune:lint(retired-name) — <reason>`.
 //! Two honest reasons earn standing (24t's taxonomy):
 //!   • **live dual-impl / macro pair** — `readln'` (the `readln` defmacro expands TO `readln'`,
-//!     same name two forms), `fire-rules'`/`fire-once'`/`fire-rules-explain'`/`step-payload'` (the
-//!     rete dual-impl: unprimed is the wat ORACLE, primed the native kernel — never collapsed).
+//!     same name two forms). Rete no longer uses `'` for the kernel: public names are native,
+//!     the wat reference is `$oracle`.
 //!   • **positional constructor idiom** — `Frame'` (the record is `Frame`, `Frame'` builds one).
 //! A rune of "it's just a message, nobody will notice" does NOT earn standing — that site is a
 //! FIX (drop the `'`), not a rune (excusare — the reason must earn it).
@@ -257,8 +257,6 @@ fn retired_names_are_justified() {
            • RUNE (earned, live prime): add a co-located, same-line\n\
              `// rune:lint(retired-name) — <reason>`. Honest reasons — 24t's taxonomy:\n\
                - `readln' — the readln defmacro expands to it; same name, two forms`\n\
-               - `fire-rules'/fire-once'/fire-rules-explain'/step-payload' — rete dual-impl,\n\
-                 unprimed is the wat ORACLE, primed the native kernel; never collapsed`\n\
                - `Frame' — positional constructor idiom (Frame is the record, Frame' builds one)`\n\
          A rune reason of \"it's just a message\" does NOT earn its standing — that site is a FIX,\n\
          not a rune (excusare — the reason must earn it).\n\

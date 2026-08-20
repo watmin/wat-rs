@@ -34,4 +34,4 @@
 
 (:wat::core::defn :user::spec-count [] -> :wat::core::i64
   (:wat::core::length
-    (:wat::rete::query (:wat::rete::fire-rules-spec (:user::stage)) (:tw::q-ColdWindy))))
+    (:wat::rete::query (:wat::rete::fire-rules$oracle (:user::stage)) (:tw::q-ColdWindy))))

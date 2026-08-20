@@ -150,7 +150,7 @@
                     ;; ORACLE — fired on the SAME staged session. Value semantics make the
                     ;; two fires independent: `staged` is unchanged by either.
                     o0      (:wat::time::now)
-                    ofired  (:wat::rete::fire-rules-spec staged)
+                    ofired  (:wat::rete::fire-rules$oracle staged)
                     o1      (:wat::time::now)]
     (:wat::kernel::println
       (:grid::Result :axis "deep-cascade" :size (:wat::core::PersistentVector depth width) :derived derived :native-ns fir-ns :oracle-derived (:dc::derived-vector ofired) :oracle-ns (:dc::ns-between o0 o1) :insert-ns ins-ns :fire-ns fir-ns :query-ns qry-ns :protocol-ns proto-ns))))

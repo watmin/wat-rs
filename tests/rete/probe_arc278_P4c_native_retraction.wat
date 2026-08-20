@@ -33,9 +33,9 @@
      sess0 (:wat::rete::compile-all (:wat::core::PersistentVector ruleA ruleB) (:wat::core::PersistentVector (:weather::q-ColdAndWindy) (:weather::q-WeatherAlert)))
      s1    (:wat::rete::insert sess0 (:weather::Temperature :celsius 15 :location "Oslo"))
      s2    (:wat::rete::insert s1 (:weather::WindSpeed :kph 45 :location "Oslo"))
-     f0    (:wat::rete::fire-rules' s2)
+     f0    (:wat::rete::fire-rules s2)
      s3    (:wat::rete::retract f0 (:weather::Temperature :celsius 15 :location "Oslo"))
-     fired (:wat::rete::fire-rules' s3)]
+     fired (:wat::rete::fire-rules s3)]
     (:wat::core::length (:wat::rete::query fired (:weather::q-ColdAndWindy)))))
 
 (:wat::core::defn :user::oracle-retract-drops-cw [] -> :wat::core::i64
@@ -50,9 +50,9 @@
      sess0 (:wat::rete::compile-all (:wat::core::PersistentVector ruleA ruleB) (:wat::core::PersistentVector (:weather::q-ColdAndWindy) (:weather::q-WeatherAlert)))
      s1    (:wat::rete::insert sess0 (:weather::Temperature :celsius 15 :location "Oslo"))
      s2    (:wat::rete::insert s1 (:weather::WindSpeed :kph 45 :location "Oslo"))
-     f0    (:wat::rete::fire-rules-spec s2)
+     f0    (:wat::rete::fire-rules$oracle s2)
      s3    (:wat::rete::retract f0 (:weather::Temperature :celsius 15 :location "Oslo"))
-     fired (:wat::rete::fire-rules-spec s3)]
+     fired (:wat::rete::fire-rules$oracle s3)]
     (:wat::core::length (:wat::rete::query fired (:weather::q-ColdAndWindy)))))
 
 ;; ── transitive: retract Temp → CW gone → WA (derived from CW) gone too ─────────────
@@ -68,9 +68,9 @@
      sess0 (:wat::rete::compile-all (:wat::core::PersistentVector ruleA ruleB) (:wat::core::PersistentVector (:weather::q-ColdAndWindy) (:weather::q-WeatherAlert)))
      s1    (:wat::rete::insert sess0 (:weather::Temperature :celsius 15 :location "Oslo"))
      s2    (:wat::rete::insert s1 (:weather::WindSpeed :kph 45 :location "Oslo"))
-     f0    (:wat::rete::fire-rules' s2)
+     f0    (:wat::rete::fire-rules s2)
      s3    (:wat::rete::retract f0 (:weather::Temperature :celsius 15 :location "Oslo"))
-     fired (:wat::rete::fire-rules' s3)]
+     fired (:wat::rete::fire-rules s3)]
     (:wat::core::length (:wat::rete::query fired (:weather::q-WeatherAlert)))))
 
 (:wat::core::defn :user::oracle-retract-cascade-wa [] -> :wat::core::i64
@@ -85,9 +85,9 @@
      sess0 (:wat::rete::compile-all (:wat::core::PersistentVector ruleA ruleB) (:wat::core::PersistentVector (:weather::q-ColdAndWindy) (:weather::q-WeatherAlert)))
      s1    (:wat::rete::insert sess0 (:weather::Temperature :celsius 15 :location "Oslo"))
      s2    (:wat::rete::insert s1 (:weather::WindSpeed :kph 45 :location "Oslo"))
-     f0    (:wat::rete::fire-rules-spec s2)
+     f0    (:wat::rete::fire-rules$oracle s2)
      s3    (:wat::rete::retract f0 (:weather::Temperature :celsius 15 :location "Oslo"))
-     fired (:wat::rete::fire-rules-spec s3)]
+     fired (:wat::rete::fire-rules$oracle s3)]
     (:wat::core::length (:wat::rete::query fired (:weather::q-WeatherAlert)))))
 
 ;; ── precise: retract Oslo's Temp; Bergen's independent derivation survives ─────────
@@ -105,9 +105,9 @@
      s2    (:wat::rete::insert s1 (:weather::WindSpeed :kph 45 :location "Oslo"))
      s3    (:wat::rete::insert s2 (:weather::Temperature :celsius 10 :location "Bergen"))
      s4    (:wat::rete::insert s3 (:weather::WindSpeed :kph 50 :location "Bergen"))
-     f0    (:wat::rete::fire-rules' s4)
+     f0    (:wat::rete::fire-rules s4)
      s5    (:wat::rete::retract f0 (:weather::Temperature :celsius 15 :location "Oslo"))
-     fired (:wat::rete::fire-rules' s5)]
+     fired (:wat::rete::fire-rules s5)]
     (:wat::core::length (:wat::rete::query fired (:weather::q-ColdAndWindy)))))
 
 (:wat::core::defn :user::native-retract-precise-wa [] -> :wat::core::i64
@@ -124,9 +124,9 @@
      s2    (:wat::rete::insert s1 (:weather::WindSpeed :kph 45 :location "Oslo"))
      s3    (:wat::rete::insert s2 (:weather::Temperature :celsius 10 :location "Bergen"))
      s4    (:wat::rete::insert s3 (:weather::WindSpeed :kph 50 :location "Bergen"))
-     f0    (:wat::rete::fire-rules' s4)
+     f0    (:wat::rete::fire-rules s4)
      s5    (:wat::rete::retract f0 (:weather::Temperature :celsius 15 :location "Oslo"))
-     fired (:wat::rete::fire-rules' s5)]
+     fired (:wat::rete::fire-rules s5)]
     (:wat::core::length (:wat::rete::query fired (:weather::q-WeatherAlert)))))
 
 (:wat::core::defn :user::oracle-retract-precise-cw [] -> :wat::core::i64
@@ -143,9 +143,9 @@
      s2    (:wat::rete::insert s1 (:weather::WindSpeed :kph 45 :location "Oslo"))
      s3    (:wat::rete::insert s2 (:weather::Temperature :celsius 10 :location "Bergen"))
      s4    (:wat::rete::insert s3 (:weather::WindSpeed :kph 50 :location "Bergen"))
-     f0    (:wat::rete::fire-rules-spec s4)
+     f0    (:wat::rete::fire-rules$oracle s4)
      s5    (:wat::rete::retract f0 (:weather::Temperature :celsius 15 :location "Oslo"))
-     fired (:wat::rete::fire-rules-spec s5)]
+     fired (:wat::rete::fire-rules$oracle s5)]
     (:wat::core::length (:wat::rete::query fired (:weather::q-ColdAndWindy)))))
 
 (:wat::core::defn :user::oracle-retract-precise-wa [] -> :wat::core::i64
@@ -162,7 +162,7 @@
      s2    (:wat::rete::insert s1 (:weather::WindSpeed :kph 45 :location "Oslo"))
      s3    (:wat::rete::insert s2 (:weather::Temperature :celsius 10 :location "Bergen"))
      s4    (:wat::rete::insert s3 (:weather::WindSpeed :kph 50 :location "Bergen"))
-     f0    (:wat::rete::fire-rules-spec s4)
+     f0    (:wat::rete::fire-rules$oracle s4)
      s5    (:wat::rete::retract f0 (:weather::Temperature :celsius 15 :location "Oslo"))
-     fired (:wat::rete::fire-rules-spec s5)]
+     fired (:wat::rete::fire-rules$oracle s5)]
     (:wat::core::length (:wat::rete::query fired (:weather::q-WeatherAlert)))))

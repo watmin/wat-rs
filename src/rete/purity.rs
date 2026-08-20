@@ -1,4 +1,5 @@
-//! Arc 278 Stone 6a — the rete condition fence: TWO orthogonal classifiers, `pure?` + `deterministic?`.
+//! Arc 278 Stone 6a — the rete condition fence: four orthogonal classifiers,
+//! `pure?` + `deterministic?` + `total?` + `primitive?`.
 //!
 //! A rete condition (a `where`/`:test` predicate, an accumulator fn) must be a **deterministic,
 //! effect-free function of the facts**. Those are two INDEPENDENT properties:
@@ -7,8 +8,9 @@
 //! - **deterministic** — referentially transparent: same inputs → same output (no randomness/clock).
 //!
 //! They are genuinely orthogonal. `:wat::core::Uuid/v4` does no IO and mutates nothing → it is PURE,
-//! yet it is random → NON-deterministic. The exposed rete check is therefore `(and (pure? f)
-//! (deterministic? f))`; each axis is its own predicate.
+//! yet it is random → NON-deterministic. The exposed rete check is therefore
+//! `(and (pure? f) (deterministic? f) (total? f) (primitive? f))`; each axis is
+//! its own predicate.
 //!
 //! ## Default-deny, and the hand-managed metadata map
 //!
@@ -37,22 +39,21 @@
 //! it — and threw that away to return a bare `false`. `classify_expr`/`head_ok`/`classify_fn` now
 //! return `Result<(), AxisViolation>` internally; `is_pure_expr`/`is_deterministic_expr` derive their
 //! (UNCHANGED) bools from `.is_ok()`, and the new `find_axis_violation` (wat surface:
-//! `:wat::rete::axis-violation`, PROVISIONAL name — cast owed) derives from `.err()`. One walk, two
+//! `:wat::rete::axis-violation`) derives from `.err()`. One walk, two
 //! surfaces. A `Span` rides along whenever the walk was still inside an inspectable call-site AST at
 //! the moment of failure; the one case it is not is a `FunctionBody::Native` head reached through
 //! transitive user-fn recursion (no body AST to point into — see `classify_fn`'s `Native` arm).
 //!
-//! ## A third axis, `Total` — UNARMED (BRIEF-total-t1-the-axis-unarmed.md)
+//! ## A third axis, `Total` — ARMED (BRIEF-total-t1-the-axis-unarmed.md minted the axis)
 //!
 //! `Total` asks a DIFFERENT question than the two above: is the op defined on all its inputs, not
 //! merely effect-free and referentially transparent? `first`/`i64::/`/`i64::mod` are all pure AND
-//! deterministic — the fence above admits them — yet all three are **partial** (undefined on an
-//! empty vector / a zero divisor), so a rule using one compiles clean and then aborts the entire
-//! `fire-rules` call the first time a poisoned token reaches it. `is_total_expr`/`eval_total_predicate`
-//! mirror the two siblings exactly (same walk, same `OpMeta` shape, same default-deny). **`total?` is
-//! callable but `compile-condition` does NOT consult it** — arming the fence needs the `:undefined`-
-//! carrying total variants (T2/T3) to exist first, or a refused `first` has nowhere to go. This stone
-//! only mints the axis and measures which verbs a live corpus row actually demands be classified.
+//! deterministic — yet all three are **partial** (undefined on an empty vector / a zero divisor),
+//! so a rule using a core-spelled one would compile clean and then abort `fire-rules` the first
+//! time a poisoned token reaches it. `is_total_expr`/`eval_total_predicate` mirror the two
+//! siblings exactly (same walk, same `OpMeta` shape, same default-deny). **`compile-condition`
+//! consults `total?`** as the third conjunct of the four-axis fence (pure ∧ det ∧ total ∧ rete).
+//! Partial core ops enter rete only as `OpClass::Fallback` + a mandatory `:undefined`.
 
 use crate::ast::WatAST;
 use crate::runtime::{
@@ -76,8 +77,8 @@ pub(crate) enum Axis {
     Pure,
     /// Referentially transparent: same inputs → same output.
     Deterministic,
-    /// Defined on all its inputs (domain-total) — UNARMED this stone (see module doc's "A third
-    /// axis, `Total`" section). `compile-condition` does not consult it yet.
+    /// Defined on all its inputs (domain-total). `compile-condition` consults it as the
+    /// third conjunct of the four-axis fence.
     Total,
     /// #57 LAW A — the head is a rete primitive. The builder's law, stated: *"the entire rete
     /// query language may only be composed from rete primitives."*
@@ -168,8 +169,7 @@ impl Axis {
 /// there — the ONE arm that cannot is `classify_fn`'s `FunctionBody::Native` case (and its sibling
 /// "name not registered" case): a native fn stub has no body AST to point into.
 ///
-/// Exists so `(:wat::rete::axis-violation …)` (the new wat-visible diagnostic surface — PROVISIONAL
-/// name, cast owed) can name WHAT failed instead of a bare `false`. See
+/// Exists so `(:wat::rete::axis-violation …)` can name WHAT failed instead of a bare `false`. See
 /// `docs/arc/2026/06/278-rules-engine/BRIEF-the-fence-names-the-head.md`.
 #[derive(Clone)]
 pub(crate) struct AxisViolation {
@@ -337,10 +337,8 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
     //       than removed (a program that reaches `fire-rules` at all has, by definition, already
     //       cleared freeze).
     //
-    // `total?` is still UNARMED at both `compile-condition` and `then-item-fence` (#57's own
-    // work), so this entry costs nothing operationally today either way — but it is recorded as
-    // `true` because it now genuinely IS, with both closures on the board, not because the axis
-    // happens not to be consulted yet.
+    // `total?` is ARMED at both `compile-condition` and `then-item-fence`. Recorded as
+    // `true` because it genuinely is, with both closures on the board.
     if head == ":wat::core::aggregate-new" || head == ":wat::core::kwargs-construct" {
         return Some(OpMeta { pure: true, deterministic: true, total: true });
     }
@@ -978,8 +976,8 @@ fn accessor_meta(head: &str, sym: &SymbolTable) -> Option<OpMeta> {
         }
     }
     // Enum-variant field accessors (tagged-variant field readers) are left to None here — their
-    // head shape is not the flat `Type/field` form resolved above (STOP-3); the RED gate covers
-    // records, and forcing the enum case is out of scope.
+    // head shape is not the flat `Type/field` form resolved above (STOP-3). The RED gate
+    // covers records. Enum accessors default-deny until a row names them.
     None
 }
 
@@ -1551,9 +1549,9 @@ pub(crate) fn is_deterministic_expr(ast: &WatAST, sym: &SymbolTable) -> bool {
     classify_expr(ast, Axis::Deterministic, sym, &mut HashSet::new()).is_ok()
 }
 
-/// Is `ast` domain-total (defined on all its inputs)? UNARMED (BRIEF-total-t1-the-axis-unarmed.md) —
-/// callable, but `compile-condition` does not consult it. `:wat::core::i64::/` is NOT (undefined at
-/// a zero divisor, and separately at the one input pair that overflows i64).
+/// Is `ast` domain-total (defined on all its inputs)? ARMED: `compile-condition` consults
+/// this as the third fence conjunct. `:wat::core::i64::/` is NOT (undefined at a zero
+/// divisor, and separately at the one input pair that overflows i64).
 pub(crate) fn is_total_expr(ast: &WatAST, sym: &SymbolTable) -> bool {
     classify_expr(ast, Axis::Total, sym, &mut HashSet::new()).is_ok()
 }
@@ -1569,7 +1567,7 @@ pub(crate) fn is_rete_primitive_expr(ast: &WatAST, sym: &SymbolTable) -> bool {
 /// Run the SAME walk `is_pure_expr`/`is_deterministic_expr` use, but keep the violation instead of
 /// collapsing it to `false`. `None` ⟺ `ast` satisfies `axis` (agrees with the bool predicates above
 /// by construction — same function, same recursion, only the return type differs). Backs the
-/// wat-visible `:wat::rete::axis-violation` diagnostic surface (PROVISIONAL name, cast owed).
+/// wat-visible `:wat::rete::axis-violation` diagnostic surface.
 pub(crate) fn find_axis_violation(ast: &WatAST, axis: Axis, sym: &SymbolTable) -> Option<AxisViolation> {
     classify_expr(ast, axis, sym, &mut HashSet::new()).err()
 }
@@ -1852,8 +1850,7 @@ pub(crate) fn eval_deterministic_predicate(
 }
 
 /// `(:wat::rete::total? <quoted-expr>) -> :bool` — domain-total (defined on all its inputs)?
-/// UNARMED (BRIEF-total-t1-the-axis-unarmed.md): callable, but NOT consulted by
-/// `compile-condition` this stone.
+/// ARMED: `compile-condition` consults this as the third fence conjunct.
 pub(crate) fn eval_total_predicate(
     args: &[WatAST],
     list_span: &Span,
@@ -1875,7 +1872,7 @@ pub(crate) fn eval_rete_primitive_predicate(
     eval_axis_predicate(":wat::rete::primitive?", is_rete_primitive_expr, args, list_span, env, sym)
 }
 
-::wat_source_derive::wat_field_names_from!(AXIS_VIOLATION_FIELDS, "wat/rete.wat", ":wat::rete::AxisViolation");
+::wat_source_derive::wat_field_names_from!(AXIS_VIOLATION_FIELDS, "wat/rete/compile.wat", ":wat::rete::AxisViolation");
 fn axis_violation_names() -> Arc<Vec<String>> {
     static N: std::sync::OnceLock<Arc<Vec<String>>> = std::sync::OnceLock::new();
     N.get_or_init(|| crate::value::value::names_arc_from_static(AXIS_VIOLATION_FIELDS)).clone()
@@ -1884,15 +1881,14 @@ fn axis_violation_names() -> Arc<Vec<String>> {
 /// `(:wat::rete::axis-violation <quoted-expr> <axis: :wat::rete::Axis>) ->
 /// :wat::core::Option<wat::rete::AxisViolation>`
 ///
-/// **PLACEHOLDER NAME** — orchestrator's scaffolding, cast owed (see
-/// `BRIEF-the-fence-names-the-head.md`). The SAME walk `pure?`/`deterministic?` run, surfacing the
+/// The SAME walk `pure?`/`deterministic?`/`total?`/`primitive?` run, surfacing the
 /// violation instead of discarding it: `:wat::core::None` ⟺ `(pure? e)` / `(deterministic? e)` would
 /// be `true` for the requested axis; `Some(v)` names the offending head (`v/head`), echoes the axis
 /// back (`v/axis`), and carries a `:wat::kernel::Location` when the walk was still inside an
 /// inspectable AST at the point of failure (`v/span`), `:wat::core::None` otherwise.
 ///
 /// Builder-ruled (CLOSED-SET RULE, REALIZATIONS.md:2676): the axis argument is the
-/// `:wat::rete::Axis` enum (a `defenum` in `wat/rete.wat`), decoded/encoded here directly as a
+/// `:wat::rete::Axis` enum (a `defenum` in `wat/rete/compile.wat`), decoded/encoded here directly as a
 /// `Value::Enum` — no keyword string map. `pure?`/`deterministic?` are UNCHANGED by this addition
 /// (STOP-1) — this is purely additive.
 pub(crate) fn eval_axis_violation(
@@ -2207,7 +2203,7 @@ mod completeness_gate {
     ":wat::rete::alpha-match",
     ":wat::rete::alpha-match-local",
     ":wat::rete::alpha-match-under",
-    ":wat::rete::arm-session'",  // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
+    ":wat::rete::arm-session",
     ":wat::rete::cond-has-deferred-constraint?",
     ":wat::rete::axis-violation",
     ":wat::rete::collect-rules",
@@ -2216,16 +2212,20 @@ mod completeness_gate {
     ":wat::rete::deterministic?",
     ":wat::rete::eval-insert",
     ":wat::rete::eval-test",
-    ":wat::rete::fire-once'",  // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
-    ":wat::rete::fire-rules'",  // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
-    ":wat::rete::fire-rules-explain'",  // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
-    ":wat::rete::insert'",  // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
-    ":wat::rete::insert",  // DESIGN-STONE-insert-prime-split — public 2-ary is insert'; 3+ is insert-all'
-    ":wat::rete::insert-all'",  // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
+    ":wat::rete::fire-once",
+    ":wat::rete::fire-once$native",
+    ":wat::rete::fire-rules",
+    ":wat::rete::fire-rules$native",
+    ":wat::rete::fire-rules-explain",
+    ":wat::rete::fire-rules-explain$native",
+    ":wat::rete::insert",  // DESIGN-STONE-insert-prime-split — 2-ary native; 3+ is insert-all
+    ":wat::rete::insert$native",
+    ":wat::rete::insert-all",
+    ":wat::rete::insert-all$native",
     ":wat::rete::lower",
     ":wat::rete::primitive?",
     ":wat::rete::pure?",
-    ":wat::rete::step-payload'",  // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
+    ":wat::rete::step-payload",
     ":wat::rete::total?",
     ":wat::rete::vocabulary-admitted?",
     ":wat::std::list::map-with-index",

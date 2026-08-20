@@ -66,6 +66,19 @@ use crate::rete::matcher::{
 };
 use crate::runtime::Value;
 
+pub(crate) type SlotFrame = Vec<Option<Value>>;
+pub(crate) type BindPairs = Option<Arc<[(Value, Value)]>>;
+
+/// Fire-scoped intern: keys / fillers / val-ids / pair pool travel as one
+/// place (`DESIGN-STONE-bind-pool`). Callers name the intern, not four
+/// positional `&mut`s.
+pub(crate) struct BindIntern<'a> {
+    pub keys: &'a mut Vec<Value>,
+    pub vals: &'a mut Vec<Value>,
+    pub ids: &'a mut ValIntern,
+    pub pool: &'a mut Vec<(u32, u32)>,
+}
+
 // ─── The compiled program ──────────────────────────────────────────────────────
 
 // The comparison operator is `matcher::CmpKind` — the SAME enum the grammar and the interpreter
@@ -80,7 +93,7 @@ use crate::runtime::Value;
 /// Flip 3 (CURRENT-STATE): `Cmp` operands are the one `Expr` core. Bind / BindCheck / Or /
 /// Not / Fail stay driver-level. A `:field` operand is prologue — a (possibly hidden) Bind
 /// into a slot — so `Expr` never grows a cond-only FactField arm. Lists stay uncompiled
-/// (`None` → `Fail`), matching `resolve_operand`; widening both sides together is later.
+/// (`None` → `Fail`), matching `resolve_operand` (a list operand is not a field/var/lit).
 #[derive(Clone, Debug)]
 pub(crate) enum Op {
     /// `(?v <- :field)`, first occurrence of `?v` in its scope: write the field's value into
@@ -103,7 +116,7 @@ pub(crate) enum Op {
     /// `(:wat::rete::or c1 c2 …)` — each branch is its OWN op sequence, tried against a scratch
     /// clone of the current slots (never the live slots): mirrors `eval_clause`'s `Or`, which
     /// always returns the pre-`or` bindings unchanged even on a successful branch.
-    Or(Vec<Vec<Op>>),
+    Or(OrBranches),
     /// `(:wat::rete::not inner)` — `inner`'s op sequence, run against a scratch clone; holds iff
     /// `inner` does NOT. Mirrors `eval_clause`'s `Not`, which never lets a negated branch's
     /// binds escape.
@@ -115,6 +128,8 @@ pub(crate) enum Op {
     /// `eval_clause`, not a silent narrowing of what it accepts.
     Fail,
 }
+
+pub(crate) type OrBranches = Vec<Vec<Op>>;
 
 /// A condition compiled once, at setup, from the immutable network — the pre-resolved dual of
 /// `alpha_match_inner`. Built by [`compile_condition`]; run by [`exec_compiled`].
@@ -529,39 +544,40 @@ fn compile_operand_expr(
 /// `(?p <- :Type …)`. Returns the span. Same keys/values/order as
 /// `alpha_match_inner` + `attach_fact` (STOP-1).
 #[cfg(test)]
+// rune:excusare(arity-is-the-pool) — test wrapper builds BindIntern; production
+// `exec_compiled_with_key_ids` takes the intern.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn exec_compiled(
     compiled: &CompiledCond,
     fact_fields: &[Value],
-    scratch: &mut Vec<Option<Value>>,
+    scratch: &mut SlotFrame,
     pool: &mut Vec<(u32, u32)>,
     keys: &mut Vec<Value>,
     vals: &mut Vec<Value>,
     val_ids: &mut ValIntern,
     fact: &Value,
 ) -> Option<(u32, u16)> {
+    let mut intern = BindIntern {
+        keys,
+        vals,
+        ids: val_ids,
+        pool,
+    };
     exec_compiled_with_key_ids(
         compiled,
         fact_fields,
         scratch,
-        pool,
-        keys,
-        vals,
-        val_ids,
+        &mut intern,
         fact,
         None,
     )
 }
 
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn exec_compiled_with_key_ids(
     compiled: &CompiledCond,
     fact_fields: &[Value],
-    scratch: &mut Vec<Option<Value>>,
-    pool: &mut Vec<(u32, u32)>,
-    keys: &mut Vec<Value>,
-    vals: &mut Vec<Value>,
-    val_ids: &mut ValIntern,
+    scratch: &mut SlotFrame,
+    intern: &mut BindIntern<'_>,
     fact: &Value,
     key_ids: Option<&[u32]>,
 ) -> Option<(u32, u16)> {
@@ -576,7 +592,7 @@ pub(crate) fn exec_compiled_with_key_ids(
     if !exec_ops(&compiled.ops, scratch, fact_fields, true) {
         return None;
     }
-    materialize_into(compiled, scratch, pool, keys, vals, val_ids, fact, key_ids)
+    materialize_into(compiled, scratch, intern, fact, key_ids)
 }
 
 pub(crate) fn intern_key(keys: &mut Vec<Value>, k: &Value) -> u32 {
@@ -668,18 +684,14 @@ pub(crate) fn intern_val(vals: &mut Vec<Value>, ids: &mut ValIntern, v: Value) -
     id
 }
 
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn materialize_into(
     compiled: &CompiledCond,
     scratch: &[Option<Value>],
-    pool: &mut Vec<(u32, u32)>,
-    keys: &mut Vec<Value>,
-    vals: &mut Vec<Value>,
-    val_ids: &mut ValIntern,
+    intern: &mut BindIntern<'_>,
     fact: &Value,
     key_ids: Option<&[u32]>,
 ) -> Option<(u32, u16)> {
-    let off = pool.len();
+    let off = intern.pool.len();
     let mut kid = 0usize;
     let next_key = |keys: &mut Vec<Value>, kid: &mut usize, fallback: &Value| -> u32 {
         if let Some(ids) = key_ids {
@@ -690,6 +702,12 @@ pub(crate) fn materialize_into(
             intern_key(keys, fallback)
         }
     };
+    let BindIntern {
+        keys,
+        vals,
+        ids: val_ids,
+        pool,
+    } = intern;
     if let Some(key) = &compiled.fact_bind {
         pool.push((
             next_key(keys, &mut kid, key),
@@ -723,9 +741,9 @@ pub(crate) fn materialize_into(
 pub(crate) fn exec_compiled_under(
     compiled: &CompiledCond,
     fact_fields: &[Value],
-    scratch: &mut Vec<Option<Value>>,
+    scratch: &mut SlotFrame,
     seed: &(impl Bindings + ?Sized),
-) -> Option<Arc<[(Value, Value)]>> {
+) -> BindPairs {
     crate::rete::kernel::census_count("rematch:compiled");
     scratch.clear();
     scratch.resize(compiled.n_slots, None);
@@ -741,7 +759,7 @@ pub(crate) fn exec_compiled_under(
 fn materialize(
     compiled: &CompiledCond,
     scratch: &[Option<Value>],
-) -> Option<Arc<[(Value, Value)]>> {
+) -> BindPairs {
     let mut out: Vec<(Value, Value)> = Vec::with_capacity(compiled.output_slots.len());
     for (i, &slot) in compiled.output_slots.iter().enumerate() {
         let v = match scratch.get(slot).and_then(|o| o.clone()) {
@@ -811,7 +829,7 @@ fn exec_op(op: &Op, slots: &mut [Option<Value>], fact_fields: &[Value], skip_see
         }
         Op::Or(branches) => {
             for branch in branches {
-                let mut clone: Vec<Option<Value>> = slots.to_vec();
+                let mut clone: SlotFrame = slots.to_vec();
                 if exec_ops(branch, &mut clone, fact_fields, skip_seed) {
                     return true;
                 }
@@ -819,7 +837,7 @@ fn exec_op(op: &Op, slots: &mut [Option<Value>], fact_fields: &[Value], skip_see
             false
         }
         Op::Not(sub) => {
-            let mut clone: Vec<Option<Value>> = slots.to_vec();
+            let mut clone: SlotFrame = slots.to_vec();
             !exec_ops(sub, &mut clone, fact_fields, skip_seed)
         }
     }

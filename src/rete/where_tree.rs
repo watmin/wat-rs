@@ -27,7 +27,7 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-use crate::rete::expr_ir::{apply_core, Expr, Program};
+use crate::rete::expr_ir::{apply_op, Expr, Program};
 use crate::rete::matcher::{compare_values, Bindings, CmpKind};
 use crate::rete::vocabulary::RETE_OPS;
 use crate::runtime::{EvalBreak, RuntimeError, RuntimeErrorKind, Value};
@@ -467,7 +467,7 @@ fn exec_dim<B: Bindings + ?Sized>(d: &DimKey, bindings: &B, span: &Span) -> Resu
             for a in args.iter() {
                 vs.push(exec_dim(a, bindings, span)?);
             }
-            apply_core(RETE_OPS[*op as usize].core_name, &vs, span)
+            apply_op(*op, &vs, span)
         }
         DimKey::CallFallback {
             op,
@@ -479,7 +479,7 @@ fn exec_dim<B: Bindings + ?Sized>(d: &DimKey, bindings: &B, span: &Span) -> Resu
             for a in args.iter() {
                 vs.push(exec_dim(a, bindings, span)?);
             }
-            match apply_core(row.core_name, &vs, span) {
+            match apply_op(*op, &vs, span) {
                 Ok(Value::f64(x)) if !x.is_finite() => exec_dim(fallback, bindings, span),
                 Ok(Value::Option(opt)) => match opt.as_ref() {
                     Some(v) => Ok(v.clone()),

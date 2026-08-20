@@ -1,7 +1,7 @@
 //! Arc 278 Stone 2a — `alpha-match`: the rete single-fact matcher.
 //!
 //! Given a condition form (DATA, a `:wat::WatAST`) and a fact (a `:wat::core::Record`
-//! — either `Value::wat__core__Record` or `Value::wat__holon__Record`), return
+//! — a `Value::Aggregate` whose `nature` is Record or HolonRecord), return
 //! `Some(bindings)` iff the fact's class matches the condition head AND every
 //! clause holds; `None` otherwise.
 //!
@@ -71,16 +71,10 @@ pub(crate) fn fact_from_value(v: &Value) -> Option<Fact<'_>> {
 
 // ─── Bindings — read-only accessor over either binding representation ─────────
 //
-// Arc 278 DESIGN-STONE-element-bindings-array + DESIGN-STONE-token-bindings-promoting.
-// `Element.bindings` is `Arc<[(Value, Value)]>` (built once by `alpha_match_inner`,
-// read/cloned/dropped forever after — never extended); `Token.bindings` is a `PMap` (array below
-// `PROMOTION_THRESHOLD`, trie above it — a Token DOES extend, via `PMap::extend`, one clone of
-// the backing storage rather than one clone per key). This matcher reads ALL THREE kinds —
-// `resolve_operand` (token-side at `build_insert_fact`/`eval_step_payload`, element-side inside
-// `eval_clause`'s own fold) and `eval_test_core` (token-side today; a `:test` clause can in
-// principle sit after either side of a join) — and kernel.rs's join code reads both too (`key_of`
-// walks a Token's `PMap` OR an Element's array depending on the caller). `Bindings` is the ONLY
-// thing that lets those readers stay agnostic without converting one representation into another.
+// Native fire stores Element/Token bindings as `BindSpan` into `WorkingMemory.bind_pool`;
+// `BindView` is the borrowed reader. The oracle/differential still walks `PMap` and
+// `HashTrieMapSync`. `Bindings` is the one trait that lets those readers stay agnostic
+// without converting one representation into another.
 //
 // The trait must NEVER grow an `insert`. The moment it does, the two representations are forced
 // through one interface again and the array is made to pay for the trie's one winning operation.
@@ -92,6 +86,9 @@ pub(crate) trait Bindings {
 /// Fire-scoped bind view: key ids into `bind_keys`, filler ids into
 /// `bind_vals` (`DESIGN-STONE-bind-key-intern`,
 /// `DESIGN-STONE-bind-value-intern`).
+pub(crate) type BindPairs = Option<Arc<[(Value, Value)]>>;
+pub(crate) type FieldNames = Arc<Vec<String>>;
+
 #[derive(Clone, Copy)]
 pub(crate) struct BindView<'a> {
     pub keys: &'a [Value],
@@ -117,7 +114,8 @@ impl Bindings for BindView<'_> {
 }
 
 impl BindView<'_> {
-    #[allow(dead_code)]
+    /// Binding-cardinality census in `fire_fixpoint_delta` (`#[cfg(test)]` only).
+    #[cfg(test)]
     pub(crate) fn len(self) -> usize {
         self.pairs.len()
     }
@@ -265,7 +263,7 @@ fn eval_alpha_match_kind(
         }
     };
 
-    // Evaluate fact: must be a record value (wat__core__Record, wat__holon__Record, or Struct).
+    // Evaluate fact: must be a record value (`Value::Aggregate`, nature Record/HolonRecord/Struct).
     let fact_val = crate::runtime::eval_inner(&args[1], env, sym)?.value_owned();
 
     // Resolve the fact's declared field names from the type registry.
@@ -305,7 +303,7 @@ fn eval_alpha_match_kind(
     pack_alpha_match_option(result)
 }
 
-fn pack_alpha_match_option(result: Option<Arc<[(Value, Value)]>>) -> Result<Value, EvalBreak> {
+fn pack_alpha_match_option(result: BindPairs) -> Result<Value, EvalBreak> {
     Ok(match result {
         // wat-contract boundary: this primitive's surface is `Option<PersistentMap>` — build one
         // from the array here (not the matcher hot path; this is a primitive dispatch, not
@@ -479,7 +477,7 @@ pub(crate) fn alpha_match_inner(
     fact_class: &str,
     fact_fields: &[Value],
     field_names: &[String],
-) -> Option<Arc<[(Value, Value)]>> {
+) -> BindPairs {
     alpha_match_inner_opts(cond, fact_class, fact_fields, field_names, &[], false)
 }
 
@@ -493,7 +491,7 @@ pub(crate) fn alpha_match_inner_local(
     fact_class: &str,
     fact_fields: &[Value],
     field_names: &[String],
-) -> Option<Arc<[(Value, Value)]>> {
+) -> BindPairs {
     alpha_match_inner_opts(cond, fact_class, fact_fields, field_names, &[], true)
 }
 
@@ -511,7 +509,7 @@ pub(crate) fn alpha_match_inner_seeded(
     fact_fields: &[Value],
     field_names: &[String],
     seed: &[(Value, Value)],
-) -> Option<Arc<[(Value, Value)]>> {
+) -> BindPairs {
     alpha_match_inner_opts(cond, fact_class, fact_fields, field_names, seed, false)
 }
 
@@ -522,7 +520,7 @@ fn alpha_match_inner_opts(
     field_names: &[String],
     seed: &[(Value, Value)],
     defer_unbound: bool,
-) -> Option<Arc<[(Value, Value)]>> {
+) -> BindPairs {
     let pat = alpha_pattern(cond)?;
     crate::rete::kernel::census_count("match:calls");
     if pat.type_head != fact_class {
@@ -641,12 +639,9 @@ fn eval_clauses(
 ///   design call 1 rules out). `eval_clause`'s new dispatch maps `Exists`/`Accumulate` to
 ///   `None` — identical to the pre-extraction default arm, since those shapes never reach it.
 ///
-/// `#[allow(dead_code)]`: `Where`'s payload and `Accumulate`'s `var`/`acc_form` are held for
-/// shape-completeness (a future consumer — e.g. a wider validator scope, room 7's own
-/// enumeration — reads them) even though today's two consumers (`eval_clause`, which always
-/// maps these shapes to `None`/skips the fields, and the validator, which only reads
-/// `Accumulate.from`) don't read every field.
-#[allow(dead_code)]
+/// `Where` payload is read by `compile_cond_driver`. `Accumulate.from` is read by
+/// stratify / validate. `var` / `acc_form` ride the shape so the classifier is total
+/// over the grammar (callers use `..`).
 pub(crate) enum ReteClauseShape<'a> {
     /// `(?v <- :field)` — a fresh/cross-condition-join bind.
     Bind { var: &'a str, field: &'a str },
@@ -675,7 +670,9 @@ pub(crate) enum ReteClauseShape<'a> {
     Where(&'a WatAST),
     /// `(?result-var <- (<acc-form>) :from (<inner>))` — top-level-only accumulate wrapper.
     Accumulate {
+        #[allow(dead_code)]
         var: &'a str,
+        #[allow(dead_code)]
         acc_form: &'a WatAST,
         from: &'a WatAST,
     },
@@ -683,6 +680,7 @@ pub(crate) enum ReteClauseShape<'a> {
     /// Discriminated from [`Self::Bind`] by a `::` in the type keyword; from
     /// [`Self::Accumulate`] by a keyword (not a list) after `<-`.
     FactBind {
+        #[allow(dead_code)]
         var: &'a str,
         type_head: &'a str,
         clauses: &'a [WatAST],
@@ -1055,7 +1053,7 @@ pub(crate) fn resolve_operand<B: Bindings>(
 ///
 /// Given `fact_form` and the token `bindings`, validates the form, resolves each fact-arg via
 /// `resolve_operand` (empty fact-fields/names: RHS has no current fact), and builds the
-/// `Value::wat__core__Record`.
+/// `Value::Aggregate` record.
 ///
 /// Called from `eval_insert` (after arg evaluation) and from the production pass in
 /// `kernel.rs` (which already has the form + bindings and calls this directly).
@@ -1406,7 +1404,7 @@ fn value_to_ast_literal(v: Value) -> Option<WatAST> {
     }
 }
 
-/// `(:wat::rete::step-payload' session alpha-id bindings sfact supporting) -> :wat::rete::DerivationStep`
+/// `(:wat::rete::step-payload session alpha-id bindings sfact supporting) -> :wat::rete::DerivationStep`
 ///
 /// Arc 278 Stone P12c — the explain payload builder. Given one (sfact, alpha-id) match edge
 /// from a Token's matches chain, builds the full `DerivationStep` payload:
@@ -1436,7 +1434,7 @@ pub(crate) fn eval_step_payload(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::rete::step-payload'";  // rune:lint(retired-name) — rete dual-impl: unprimed is the wat ORACLE, primed the native kernel; never collapsed
+    const OP: &str = ":wat::rete::step-payload"; 
 
     if args.len() != 5 {
         return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::ArityMismatch {
@@ -1681,7 +1679,7 @@ pub(crate) fn eval_step_payload(
 // Arc 296 G-1 — class C, missing from the brief's table: `DerivationStep` declared at
 // `wat/rete.wat:233`.
 ::wat_source_derive::wat_field_names_from!(DERIVATION_STEP_FIELDS, "wat/rete.wat", ":wat::rete::DerivationStep");
-fn derivation_step_names() -> Arc<Vec<String>> {
+fn derivation_step_names() -> FieldNames {
     static N: std::sync::OnceLock<Arc<Vec<String>>> = std::sync::OnceLock::new();
     N.get_or_init(|| crate::value::value::names_arc_from_static(DERIVATION_STEP_FIELDS)).clone()
 }

@@ -61,7 +61,7 @@ fn run_for(n: usize) {
         idx += 1;
     }
     let expr = format!(
-        "(:wat::core::let [{binds}\n fired (:wat::rete::fire-rules-spec s{prev})\n pmem (:wat::rete::Session/production-memory fired)]\
+        "(:wat::core::let [{binds}\n fired (:wat::rete::fire-rules$oracle s{prev})\n pmem (:wat::rete::Session/production-memory fired)]\
            (:wat::core::length (:wat::core::PersistentMap/keys pmem)))"
     );
     let ast = wat::parse_one!(&expr).expect("parse");
@@ -83,7 +83,7 @@ fn run_for(n: usize) {
 // ─── Native fire-once' join-scaling (the P3 curve-bend measure) ──────────────────
 // N Temps + N Winds at N DISTINCT locations → N same-loc joins out of N×N candidate pairs.
 // The native hash-join cost is the variable: P2 (cross) is O(N²); P3 (keyed) is O(N).
-// Times `(:wat::rete::fire-once' s)` — the per-fact us should stay ~flat under keying, climb under cross.
+// Times `(:wat::rete::fire-once s)` — the per-fact us should stay ~flat under keying, climb under cross.
 fn run_native(n: usize) {
     let world = startup_beside(file!()).expect("startup");
     let mut binds = String::from(
@@ -104,7 +104,7 @@ fn run_native(n: usize) {
         prev = idx; idx += 1;
     }
     let expr = format!(
-        "(:wat::core::let [{binds}\n fired (:wat::rete::fire-once' s{prev})\n pmem (:wat::rete::Session/production-memory fired)]\
+        "(:wat::core::let [{binds}\n fired (:wat::rete::fire-once s{prev})\n pmem (:wat::rete::Session/production-memory fired)]\
            (:wat::core::length (:wat::core::PersistentMap/keys pmem)))"
     );
     let ast = wat::parse_one!(&expr).expect("parse");

@@ -36,7 +36,7 @@
        session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:w::q-Watched)))
        session (:wat::rete::insert session (:w::Station :location "Oslo"))
        session (:wat::rete::insert session (:w::Reading :location "Oslo" :value 1))
-       fired   (:wat::rete::fire-rules-spec session)]
+       fired   (:wat::rete::fire-rules$oracle session)]
       (:wat::rete::query fired (:w::q-Watched)))))
 
 (:wat::core::defn :user::native-station-only [] -> :wat::core::i64
@@ -54,7 +54,7 @@
       [rules   (:wat::rete::collect-rules :w)
        session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:w::q-Watched)))
        session (:wat::rete::insert session (:w::Station :location "Oslo"))
-       fired   (:wat::rete::fire-rules-spec session)]
+       fired   (:wat::rete::fire-rules$oracle session)]
       (:wat::rete::query fired (:w::q-Watched)))))
 
 (:wat::core::defn :user::native-three-readings [] -> :wat::core::i64
@@ -78,7 +78,7 @@
        session (:wat::rete::insert session (:w::Reading :location "Oslo" :value 1))
        session (:wat::rete::insert session (:w::Reading :location "Oslo" :value 2))
        session (:wat::rete::insert session (:w::Reading :location "Oslo" :value 3))
-       fired   (:wat::rete::fire-rules-spec session)]
+       fired   (:wat::rete::fire-rules$oracle session)]
       (:wat::rete::query fired (:w::q-Watched)))))
 
 (:wat::core::defn :user::native-reading-elsewhere [] -> :wat::core::i64
@@ -98,6 +98,6 @@
        session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:w::q-Watched)))
        session (:wat::rete::insert session (:w::Station :location "Oslo"))
        session (:wat::rete::insert session (:w::Reading :location "Bergen" :value 1))
-       fired   (:wat::rete::fire-rules-spec session)]
+       fired   (:wat::rete::fire-rules$oracle session)]
       (:wat::rete::query fired (:w::q-Watched)))))
 

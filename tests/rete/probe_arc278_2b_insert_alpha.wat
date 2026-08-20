@@ -20,7 +20,7 @@
      sess0 (:wat::rete::compile (:wat::core::PersistentVector rule))
      sess1 (:wat::rete::insert sess0 (:user::Temp :value 25))
      sess2 (:wat::rete::insert sess1 (:user::Temp :value 15))
-     fired (:wat::rete::fire-once' sess2)
+     fired (:wat::rete::fire-once sess2)
      amem  (:wat::rete::Session/alpha-memory fired)]
     (:wat::core::length (:wat::core::PersistentMap/keys amem))))
 
@@ -32,7 +32,7 @@
      sess0 (:wat::rete::compile (:wat::core::PersistentVector rule))
      sess1 (:wat::rete::insert sess0 (:user::Temp :value 25))
      sess2 (:wat::rete::insert sess1 (:user::Temp :value 15))
-     fired (:wat::rete::fire-once' sess2)
+     fired (:wat::rete::fire-once sess2)
      amem  (:wat::rete::Session/alpha-memory fired)
      aid   (:wat::core::Option/expect (:wat::core::get (:wat::core::PersistentMap/keys amem) 0) "aid")
      elems (:wat::core::Option/expect (:wat::core::PersistentMap/get amem aid) "elems")]
@@ -46,7 +46,7 @@
      sess0 (:wat::rete::compile (:wat::core::PersistentVector rule))
      sess1 (:wat::rete::insert sess0 (:user::Temp :value 25))
      sess2 (:wat::rete::insert sess1 (:user::Temp :value 15))
-     fired (:wat::rete::fire-once' sess2)
+     fired (:wat::rete::fire-once sess2)
      amem  (:wat::rete::Session/alpha-memory fired)
      aid   (:wat::core::Option/expect (:wat::core::get (:wat::core::PersistentMap/keys amem) 0) "aid")
      elems (:wat::core::Option/expect (:wat::core::PersistentMap/get amem aid) "elems")

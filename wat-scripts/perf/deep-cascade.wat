@@ -79,11 +79,11 @@
                     staged  (:perf::seed-level-0 (:wat::rete::compile-all rules (:wat::core::PersistentVector (:cascade::q-Node))) width)
                     ;; time the wat SPEC engine fire-rules-spec (re-run-from-scratch reference)
                     w0      (:wat::time::now)
-                    fired-w (:wat::rete::fire-rules-spec staged)
+                    fired-w (:wat::rete::fire-rules$oracle staged)
                     w1      (:wat::time::now)
                     ;; time the native fire-rules' (P4a cascade fixpoint) on the SAME staged session
                     n0      (:wat::time::now)
-                    fired-n (:wat::rete::fire-rules' staged)
+                    fired-n (:wat::rete::fire-rules staged)
                     n1      (:wat::time::now)
                     deepest (:perf::count-at-level fired-n depth)
                     derived (:wat::core::i64::* 2 (:wat::core::i64::* depth width))

@@ -64,7 +64,7 @@ const SUM: &str = "(?n <- (:wat::rete::acc::sum ?v) :from (:w::Reading (?loc <- 
 /// Assert native fire == oracle fire == `expect` for the given accumulate rule + facts.
 fn diff(acc: &str, gate: &str, readings: &[(&str, i64)], expect: i64) {
     let native = busy_count("fire-rules", acc, gate, readings).expect("native");
-    let oracle = busy_count("fire-rules-spec", acc, gate, readings).expect("oracle");
+    let oracle = busy_count("fire-rules$oracle", acc, gate, readings).expect("oracle");
     assert_eq!(native, oracle, "native==oracle (acc={acc} gate={gate}); native={native} oracle={oracle}");
     assert_eq!(native, expect, "value (native); got {native} want {expect}");
 }

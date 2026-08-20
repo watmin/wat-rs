@@ -36,7 +36,7 @@
     [rules   (:wat::rete::collect-rules :cg)
      session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:cg::q-Outer)))
      session (:wat::rete::insert session (:cg::Anchor :x 0))
-     fired   (:wat::rete::fire-rules-spec session)
+     fired   (:wat::rete::fire-rules$oracle session)
      derived (:wat::rete::query fired (:cg::q-Outer))
      r       (:wat::core::first derived)]
     (:cg::Inner/x
@@ -50,8 +50,8 @@
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :cg)
      session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:cg::q-Outer)))
-     session (:wat::rete::insert' session (:cg::Anchor :x 0))
-     fired   (:wat::rete::fire-rules' session)
+     session (:wat::rete::insert session (:cg::Anchor :x 0))
+     fired   (:wat::rete::fire-rules session)
      derived (:wat::rete::query fired (:cg::q-Outer))
      r       (:wat::core::first derived)]
     (:cg::Inner/x

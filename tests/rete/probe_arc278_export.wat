@@ -38,7 +38,7 @@
                     s1 (:wat::rete::import (:wat::rete::export s0))]
     (:wat::core::length
       (:wat::rete::query
-        (:wat::rete::fire-rules-spec (:exp::seed s1))
+        (:wat::rete::fire-rules$oracle (:exp::seed s1))
         (:exp::q-Hit)))))
 
 (:wat::core::defn :user::import-hits [] -> :wat::core::i64

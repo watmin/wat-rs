@@ -23,7 +23,7 @@
       [rules   (:wat::rete::collect-rules :wg)
        session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:wg::q-Gate)))
        session (:wat::rete::insert session (:weather::Temperature :celsius 5 :location "Oslo"))
-       fired   (:wat::rete::fire-rules-spec session)]
+       fired   (:wat::rete::fire-rules$oracle session)]
       (:wat::rete::query fired (:wg::q-Gate)))))
 
 ;; 2 — the where BLOCKS: Temp(-5), (> -5 0) false → zero Gates (the filter actually filters).
@@ -33,6 +33,6 @@
       [rules   (:wat::rete::collect-rules :wg)
        session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:wg::q-Gate)))
        session (:wat::rete::insert session (:weather::Temperature :celsius -5 :location "Oslo"))
-       fired   (:wat::rete::fire-rules-spec session)]
+       fired   (:wat::rete::fire-rules$oracle session)]
       (:wat::rete::query fired (:wg::q-Gate)))))
 

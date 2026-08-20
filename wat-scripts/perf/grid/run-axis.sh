@@ -111,17 +111,23 @@ GEN_FILE="$GRID_DIR/gen-$AXIS.sh"
 [ -f "$GEN_FILE" ] || { echo "run-axis: missing $GEN_FILE" >&2; exit 1; }
 [ "$#" -ge 1 ] || { echo "run-axis: need at least one SIZE" >&2; exit 1; }
 
-# GRID_SKIP_ORACLE=1 — native vs Clara only. Axes still *compile* a fire-rules-spec
-# form after the timed native fire so :oracle-derived can be emitted; that is
-# not the engine ratio (:native-ns is fire-only) but it is the bulk of wat-wall
-# on the slow axes. Replace the spec call with the already-fired native session.
+# GRID_SKIP_ORACLE=1 — native vs Clara only. Axes fire `$oracle` after the timed
+# native fire so :oracle-derived can be emitted; that is not the engine ratio
+# (:native-ns is fire-only) but it is the bulk of wat-wall on the slow axes.
+# Replace the oracle call with the already-fired native session.
+# `$` is a perl metacharacter — escape it. The 2026-08-20 skip was a no-op
+# because it still matched `fire-rules-spec` after the `$oracle` rename.
 WAT_SRC="$WAT_FILE"
 ORACLE_TMP=""
 if [ -n "${GRID_SKIP_ORACLE:-}" ]; then
   ORACLE_TMP="$(mktemp --suffix=.wat)"
-  perl -pe 's/\(:wat::rete::fire-rules-spec\s+staged\)/fired/g' "$WAT_FILE" > "$ORACLE_TMP"
+  perl -pe 's/\(:wat::rete::fire-rules\$oracle\s+staged\)/fired/g' "$WAT_FILE" > "$ORACLE_TMP"
+  if grep -F -q 'fire-rules$oracle' "$ORACLE_TMP"; then
+    echo "run-axis: GRID_SKIP_ORACLE rewrite left a fire-rules\$oracle token — skip is a no-op" >&2
+    exit 2
+  fi
   WAT_SRC="$ORACLE_TMP"
-  echo "run-axis: GRID_SKIP_ORACLE=1 — fire-rules-spec not invoked (native vs Clara only)" >&2
+  echo "run-axis: GRID_SKIP_ORACLE=1 — fire-rules\$oracle not invoked (native vs Clara only)" >&2
 fi
 trap 'rm -f "$ORACLE_TMP"' EXIT
 

@@ -70,7 +70,7 @@ fn flagged_count(fire_fn: &str, gate: &str, readings: &[i64]) -> Result<i64, Str
 /// native == oracle == expect, for the given gate + readings.
 fn diff(gate: &str, readings: &[i64], expect: i64) {
     let native = flagged_count("fire-rules", gate, readings).expect("native");
-    let oracle = flagged_count("fire-rules-spec", gate, readings).expect("oracle");
+    let oracle = flagged_count("fire-rules$oracle", gate, readings).expect("oracle");
     assert_eq!(native, oracle, "native==oracle (gate={gate}); native={native} oracle={oracle}");
     assert_eq!(native, expect, "value (native); got {native} want {expect}");
 }

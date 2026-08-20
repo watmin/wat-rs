@@ -38,7 +38,7 @@
                     s1       (:wat::rete::insert s0 (:c::A 1))
                     s2       (:wat::rete::insert s1 (:c::A 2))
                     ;; Native delta engine (fire-rules')
-                    native   (:wat::rete::fire-rules' s2)
+                    native   (:wat::rete::fire-rules s2)
                     ;; Wat oracle (fire-fixpoint)
                     oracle   (:wat::rete::fire-fixpoint s2)
                     n-a      (:wat::core::length (:wat::rete::query native (:c::q-A)))

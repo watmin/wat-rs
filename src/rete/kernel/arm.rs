@@ -1,0 +1,957 @@
+//! Interned compiled network (`ReteArm`) and the process-lifetime intern table.
+
+use std::collections::{HashMap, HashSet};
+use std::sync::{Arc, Mutex, OnceLock};
+
+use crate::ast::WatAST;
+use crate::runtime::{EvalBreak, RuntimeError, RuntimeErrorKind, SymbolTable, Value};
+use crate::span::Span;
+use crate::types::Nature;
+
+use rustc_hash::FxHashSet;
+
+use super::{
+    alpha_cond_of, alpha_id_for_cond, cond_text, get_node, kind_of, node_children, node_record,
+    rule_bag_consumes, rule_consumes, rule_negates, rule_produces, sorted_node_ids, AlphaDelta,
+    AlphasByType, BetaMemory, JoinsFedBy, ParentsOf,
+};
+use crate::runtime::ValueSnapshot;
+
+/// Residual stratify row: (name, produced, negated, consumed, bag).
+pub(crate) type RuleDep = (
+    String,
+    Vec<String>,
+    Vec<String>,
+    Vec<String>,
+    Vec<String>,
+);
+
+/// Rete control plane, specialized once at fire setup. The round loop
+/// matches this, never `classify_rete_clause`.
+#[derive(Clone)]
+pub(crate) enum CondDriver {
+    Leaf(i64),
+    And(Vec<CondDriver>),
+    Or(Vec<CondDriver>),
+    Not(Box<CondDriver>),
+    Exists(Box<CondDriver>),
+    Where(Arc<crate::rete::expr_ir::Program>),
+}
+
+pub(crate) fn compile_cond_driver(
+    cond: &WatAST,
+    network: &Value,
+    sym: &SymbolTable,
+) -> Result<CondDriver, EvalBreak> {
+    use crate::rete::matcher::{classify_rete_clause, ReteClauseShape};
+    match classify_rete_clause(cond) {
+        ReteClauseShape::And(kids) => {
+            let mut out = Vec::with_capacity(kids.len());
+            for k in kids {
+                out.push(compile_cond_driver(k, network, sym)?);
+            }
+            Ok(CondDriver::And(out))
+        }
+        ReteClauseShape::Or(kids) => {
+            let mut out = Vec::with_capacity(kids.len());
+            for k in kids {
+                out.push(compile_cond_driver(k, network, sym)?);
+            }
+            Ok(CondDriver::Or(out))
+        }
+        ReteClauseShape::Not(inner) => Ok(CondDriver::Not(Box::new(compile_cond_driver(
+            inner, network, sym,
+        )?))),
+        ReteClauseShape::Exists(inner) => Ok(CondDriver::Exists(Box::new(compile_cond_driver(
+            inner, network, sym,
+        )?))),
+        ReteClauseShape::Where(expr) => {
+            let program = crate::rete::expr_ir::lower(expr, sym)
+                .map_err(crate::rete::expr_ir::LowerError::into_eval)?;
+            Ok(CondDriver::Where(Arc::new(program)))
+        }
+        _ => {
+            let id = alpha_id_for_cond(network, cond).ok_or_else(|| {
+                RuntimeError::new(
+                    cond.span().clone(),
+                    RuntimeErrorKind::MalformedForm {
+                        head: ":wat::rete::fire-rules".into(),
+                        reason: format!(
+                            "fact-shaped cond has no minted alpha — cannot compile driver: {}",
+                            cond_text(cond)
+                        ),
+                    },
+                )
+            })?;
+            Ok(CondDriver::Leaf(id))
+        }
+    }
+}
+
+pub(crate) fn compile_all_cond_drivers(
+    network: &Value,
+    node_ids: &[i64],
+    sym: &SymbolTable,
+) -> Result<HashMap<i64, CondDriver>, EvalBreak> {
+    let mut out = HashMap::new();
+    for id in node_ids {
+        let Some(node) = get_node(network, *id) else {
+            continue;
+        };
+        if kind_of(node) != "AlphaNode" {
+            continue;
+        }
+        let Some(cond) = alpha_cond_of(network, *id) else {
+            continue;
+        };
+        out.insert(*id, compile_cond_driver(&cond, network, sym)?);
+    }
+    Ok(out)
+}
+
+pub(crate) fn driver_leaf_ids(d: &CondDriver) -> Vec<i64> {
+    match d {
+        CondDriver::Leaf(id) => vec![*id],
+        CondDriver::And(ks) | CondDriver::Or(ks) => {
+            ks.iter().flat_map(driver_leaf_ids).collect()
+        }
+        CondDriver::Not(inner) | CondDriver::Exists(inner) => driver_leaf_ids(inner),
+        CondDriver::Where(_) => Vec::new(),
+    }
+}
+
+/// Built-in or user accumulate fold, specialized at setup. Fire does not
+/// read the `acc-form` AST.
+#[derive(Clone)]
+pub(crate) enum AccFold {
+    Count,
+    Sum(Value),
+    Min(Value),
+    Max(Value),
+    Mean(Value),
+    Distinct(Value),
+    All,
+    GroupBy(Value),
+    User { var: Value, program: Arc<crate::rete::expr_ir::Program> },
+}
+
+impl AccFold {
+    pub(crate) fn operand_keys(&self) -> Vec<Value> {
+        match self {
+            AccFold::Count | AccFold::All => Vec::new(),
+            AccFold::Sum(k)
+            | AccFold::Min(k)
+            | AccFold::Max(k)
+            | AccFold::Mean(k)
+            | AccFold::Distinct(k)
+            | AccFold::GroupBy(k)
+            | AccFold::User { var: k, .. } => vec![k.clone()],
+        }
+    }
+}
+
+pub(crate) fn compile_acc_fold(
+    acc_form: &WatAST,
+    compiled_user: Option<Arc<crate::rete::expr_ir::Program>>,
+) -> Result<AccFold, EvalBreak> {
+    let items = match acc_form {
+        WatAST::List(items, _) => items.as_slice(),
+        _ => {
+            return Err(RuntimeError::new(
+                crate::rust_caller_span!(),
+                RuntimeErrorKind::MalformedForm {
+                    head: ":wat::rete::fire-rules".into(),
+                    reason: "accumulate acc-form is not a list".into(),
+                },
+            )
+            .into());
+        }
+    };
+    let head = match items.first() {
+        Some(WatAST::Keyword(k, _)) => k.as_str(),
+        Some(WatAST::Symbol(s, _)) => s.as_str(),
+        _ => {
+            return Err(RuntimeError::new(
+                crate::rust_caller_span!(),
+                RuntimeErrorKind::MalformedForm {
+                    head: ":wat::rete::fire-rules".into(),
+                    reason: "accumulate acc-form has no head".into(),
+                },
+            )
+            .into());
+        }
+    };
+    let var_key = || -> Result<Value, EvalBreak> {
+        let name = match items.get(1) {
+            Some(WatAST::Symbol(s, _)) => s.as_str().to_string(),
+            Some(WatAST::Keyword(k, _)) => k.as_str().to_string(),
+            _ => {
+                return Err(RuntimeError::new(
+                    crate::rust_caller_span!(),
+                    RuntimeErrorKind::MalformedForm {
+                        head: head.into(),
+                        reason: format!("accumulate: value-fold {head} missing ?var arg"),
+                    },
+                )
+                .into());
+            }
+        };
+        Ok(Value::String(Arc::new(name)))
+    };
+    Ok(match head {
+        ":wat::rete::acc::count" => AccFold::Count,
+        ":wat::rete::acc::sum" => AccFold::Sum(var_key()?),
+        ":wat::rete::acc::min" => AccFold::Min(var_key()?),
+        ":wat::rete::acc::max" => AccFold::Max(var_key()?),
+        ":wat::rete::acc::mean" => AccFold::Mean(var_key()?),
+        ":wat::rete::acc::distinct" => AccFold::Distinct(var_key()?),
+        ":wat::rete::acc::all" => AccFold::All,
+        ":wat::rete::acc::group-by" => AccFold::GroupBy(var_key()?),
+        _ => {
+            let Some(program) = compiled_user else {
+                return Err(RuntimeError::new(
+                    crate::rust_caller_span!(),
+                    RuntimeErrorKind::MalformedForm {
+                        head: head.into(),
+                        reason: "user acc fold has no compiled Program — setup should have refused"
+                            .into(),
+                    },
+                )
+                .into());
+            };
+            AccFold::User {
+                var: var_key()?,
+                program,
+            }
+        }
+    })
+}
+
+pub(crate) fn build_alpha_index(
+    network: &Value,
+    node_ids: &[i64],
+) -> (AlphasByType, HashMap<i64, WatAST>) {
+    let mut alpha_by_type: AlphasByType = HashMap::new();
+    let mut alpha_cond: HashMap<i64, WatAST> = HashMap::new();
+    for node_id in node_ids {
+        // Group C: use &Value ref — no clone needed; only reads the network here.
+        let node = match get_node(network, *node_id) {
+            Some(n) => n,
+            None => continue,
+        };
+        if kind_of(node) != "AlphaNode" {
+            continue;
+        }
+        let (_, sf) = node_record(node).unwrap();
+        let cond_ast: WatAST = match &sf[1] {
+            Value::wat__core__PersistentVector(pv) => match pv.first() {
+                Some(Value::wat__WatAST(ast)) => (**ast).clone(),
+                _ => continue,
+            },
+            _ => continue,
+        };
+        // The condition's fact-type head (colon-free), exactly as alpha_match_inner reads it.
+        if let Some(pat) = crate::rete::matcher::alpha_pattern(&cond_ast) {
+            let ty = pat.type_head.to_string();
+            alpha_by_type.entry(ty).or_default().push(*node_id);
+            alpha_cond.insert(*node_id, cond_ast);
+        }
+    }
+    (alpha_by_type, alpha_cond)
+}
+
+/// Leftover-as-seed compile of every alpha. Populate skips `SeedCmp`; rematch
+/// requires it. A miss is a setup hole — refuse, do not walk `alpha_match_inner`.
+pub(crate) fn compile_alpha_conds_from_index(
+    alpha_by_type: &AlphasByType,
+    alpha_cond: &HashMap<i64, WatAST>,
+    sym: &SymbolTable,
+) -> Result<HashMap<i64, crate::rete::compiled_cond::CompiledCond>, EvalBreak> {
+    let mut compiled_conds = HashMap::with_capacity(alpha_cond.len());
+    for (class, ids) in alpha_by_type {
+        let field_names = class_field_names(sym, class);
+        for aid in ids {
+            let Some(cond) = alpha_cond.get(aid) else {
+                continue;
+            };
+            let compiled = crate::rete::compiled_cond::compile_condition_local(cond, &field_names)
+                .ok_or_else(|| {
+                    RuntimeError::new(
+                        crate::rust_caller_span!(),
+                        RuntimeErrorKind::MalformedForm {
+                            head: ":wat::rete::fire-rules".into(),
+                            reason: format!(
+                                "alpha {aid} cond did not compile — setup should compile every fact-shaped alpha"
+                            ),
+                        },
+                    )
+                })?;
+            compiled_conds.insert(*aid, compiled);
+        }
+    }
+    Ok(compiled_conds)
+}
+
+/// A `:then` item that `compile_rhs` cannot represent. Refuse — do not walk
+/// `build_insert_fact` on native fire.
+pub(crate) fn rhs_must_compile(
+    form: &WatAST,
+    sym: &SymbolTable,
+) -> Result<crate::rete::compiled_rhs::CompiledRhs, EvalBreak> {
+    crate::rete::compiled_rhs::compile_rhs(form, sym)?.ok_or_else(|| {
+        RuntimeError::new(
+            form.span().clone(),
+            RuntimeErrorKind::MalformedForm {
+                head: ":wat::rete::fire-rules".into(),
+                reason: "then item did not compile — fire does not walk build_insert_fact"
+                    .into(),
+            },
+        )
+        .into()
+    })
+}
+
+/// Declared field names for a fact class (colon-free), read from the frozen type registry.
+/// Shared by cond compile at fire setup and `alpha_tree::AlphaTree::build`
+/// (setup-time tree construction needs the exact same declared field order
+/// the compiled ops index fact fields by — one reader of the registry, not two).
+pub(crate) fn class_field_names(sym: &SymbolTable, class: &str) -> Vec<String> {
+    let type_key = format!(":{}", class);
+    sym.types()
+        .and_then(|t| match t.get(&type_key) {
+            Some(crate::types::TypeDef::Aggregate(a)) => {
+                Some(a.field_names().map(|s| s.to_string()).collect())
+            }
+            _ => None,
+        })
+        .unwrap_or_default()
+}
+
+/// Flip 5 — lower each AccumulateNode whose acc-form head is a user rete-defn.
+/// Built-in `:wat::rete::acc::*` heads are skipped. A `LowerError` refuses
+/// the fire (same door as `compile_test_programs`). The old
+/// `(user-fn __acc__)` / `eval_inner` arm is gone.
+pub(crate) fn compile_user_fold_programs(
+    network: &Value,
+    node_ids: &[i64],
+    sym: &SymbolTable,
+) -> Result<HashMap<i64, Arc<crate::rete::expr_ir::Program>>, EvalBreak> {
+    let mut out = HashMap::new();
+    for node_id in node_ids {
+        let node = match get_node(network, *node_id) {
+            Some(n) => n,
+            None => continue,
+        };
+        if kind_of(node) != "AccumulateNode" {
+            continue;
+        }
+        let (_, sf) = match node_record(node) {
+            Some(p) => p,
+            None => continue,
+        };
+        let acc_form = match &sf[2] {
+            Value::wat__WatAST(ast) => ast.as_ref(),
+            _ => continue,
+        };
+        let items = match acc_form {
+            WatAST::List(items, _) => items.as_slice(),
+            _ => continue,
+        };
+        let head = match items.first() {
+            Some(WatAST::Keyword(k, _)) => k.as_str(),
+            Some(WatAST::Symbol(s, _)) => s.as_str(),
+            _ => continue,
+        };
+        if head.starts_with(":wat::rete::acc::") {
+            continue;
+        }
+        let program = crate::rete::expr_ir::lower_named_rete_fn(head, sym)
+            .map_err(crate::rete::expr_ir::LowerError::into_eval)?;
+        out.insert(*node_id, program);
+    }
+    Ok(out)
+}
+
+/// Compile every TestNode's `:expr` once, beside `compiled_conds`.
+/// Compile-condition already refused anything `lower` cannot take; a miss here
+/// is a bug in that fence, not a fire-time interpreter door.
+pub(crate) fn compile_test_programs(
+    network: &Value,
+    node_ids: &[i64],
+    sym: &SymbolTable,
+) -> Result<HashMap<i64, crate::rete::expr_ir::Program>, EvalBreak> {
+    let mut out = HashMap::new();
+    for node_id in node_ids {
+        let node = match get_node(network, *node_id) {
+            Some(n) => n,
+            None => continue,
+        };
+        if kind_of(node) != "TestNode" {
+            continue;
+        }
+        let (_, sf) = match node_record(node) {
+            Some(p) => p,
+            None => continue,
+        };
+        let expr = match &sf[1] {
+            Value::wat__WatAST(ast) => ast.as_ref(),
+            _ => continue,
+        };
+        let program = crate::rete::expr_ir::lower(expr, sym)
+            .map_err(crate::rete::expr_ir::LowerError::into_eval)?;
+        out.insert(*node_id, program);
+    }
+    Ok(out)
+}
+
+// ── Item 12 — the arm, persisted next to the network ─────────────────────────
+
+/// Kind-partitioned node ids, each a subsequence of `node_ids` (topo).
+/// Fire-path passes iterate these instead of `node_ids` + `get_node` +
+/// `kind_of` (`DESIGN-STONE-arm-kind-lists`).
+pub(crate) struct KindIdLists {
+    pub(crate) alpha: Vec<i64>,
+    pub(crate) join_parent: Vec<i64>,
+    pub(crate) acc: Vec<i64>,
+    pub(crate) filter: Vec<i64>,
+    pub(crate) prod: Vec<i64>,
+    pub(crate) filter_or_acc: Vec<i64>,
+}
+
+pub(crate) fn kind_id_lists(network: &Value, node_ids: &[i64]) -> KindIdLists {
+    let mut alpha = Vec::new();
+    let mut join_parent = Vec::new();
+    let mut acc = Vec::new();
+    let mut filter = Vec::new();
+    let mut prod = Vec::new();
+    for &id in node_ids {
+        let Some(node) = get_node(network, id) else {
+            continue;
+        };
+        match kind_of(node) {
+            "AlphaNode" => alpha.push(id),
+            "RootJoinNode" | "HashJoinNode" => join_parent.push(id),
+            "AccumulateNode" => acc.push(id),
+            "TestNode" | "NegationNode" | "ExistsNode" => filter.push(id),
+            "ProductionNode" => prod.push(id),
+            _ => {}
+        }
+    }
+    let filter_or_acc = merge_sorted_ids(&filter, &acc);
+    KindIdLists {
+        alpha,
+        join_parent,
+        acc,
+        filter,
+        prod,
+        filter_or_acc,
+    }
+}
+
+pub(crate) fn invert_feeding_alpha(feeding_alpha_of: &HashMap<i64, i64>) -> ParentsOf {
+    let mut out: ParentsOf = HashMap::new();
+    for (join_id, alpha_id) in feeding_alpha_of {
+        out.entry(*alpha_id).or_default().push(*join_id);
+    }
+    out
+}
+
+/// Seed dirty join-parents: left `d_beta` or a HashJoin child whose
+/// feeding alpha has right-delta. The hash-join pass grows this set as
+/// it emits (middle joins: J1's tokens dirty J1 as parent of J2).
+pub(crate) fn seed_dirty_join_parents(
+    join_parent: &[i64],
+    d_beta: &BetaMemory,
+    d_alpha: &AlphaDelta,
+    joins_fed_by: &ParentsOf,
+    parents_of: &ParentsOf,
+) -> FxHashSet<i64> {
+    let mut dirty = FxHashSet::default();
+    for (pid, toks) in d_beta {
+        if !toks.is_empty() && join_parent.binary_search(pid).is_ok() {
+            dirty.insert(*pid);
+        }
+    }
+    for (aid, idxs) in d_alpha {
+        if idxs.is_empty() {
+            continue;
+        }
+        let Some(joins) = joins_fed_by.get(aid) else {
+            continue;
+        };
+        for j in joins {
+            let Some(ps) = parents_of.get(j) else {
+                continue;
+            };
+            for p in ps {
+                if join_parent.binary_search(p).is_ok() {
+                    dirty.insert(*p);
+                }
+            }
+        }
+    }
+    dirty
+}
+
+pub(crate) fn merge_sorted_ids(a: &[i64], b: &[i64]) -> Vec<i64> {
+    let mut out = Vec::with_capacity(a.len() + b.len());
+    let (mut i, mut j) = (0, 0);
+    while i < a.len() && j < b.len() {
+        if a[i] < b[j] {
+            out.push(a[i]);
+            i += 1;
+        } else if b[j] < a[i] {
+            out.push(b[j]);
+            j += 1;
+        } else {
+            out.push(a[i]);
+            i += 1;
+            j += 1;
+        }
+    }
+    out.extend_from_slice(&a[i..]);
+    out.extend_from_slice(&b[j..]);
+    out
+}
+
+/// Compiled circuits for one network. Interned by the network PMap's
+/// `rust_identity`; `insert` / clone share that identity and fire skips setup.
+/// Process-lifetime `Arc` per unique network. The Session is a fact overlay,
+/// not the owner of the circuits. Never EDN.
+pub(crate) struct ReteArm {
+    pub(crate) node_ids: Vec<i64>,
+    pub(crate) kind_ids: KindIdLists,
+    pub(crate) compiled_conds: HashMap<i64, crate::rete::compiled_cond::CompiledCond>,
+    pub(crate) compiled_drivers: HashMap<i64, CondDriver>,
+    pub(crate) compiled_wheres: HashMap<i64, crate::rete::expr_ir::Program>,
+    pub(crate) compiled_acc_folds: HashMap<i64, AccFold>,
+    pub(crate) compiled_rhs: HashMap<String, Vec<crate::rete::compiled_rhs::CompiledRhs>>,
+    pub(crate) alpha_tree: crate::rete::alpha_tree::AlphaTree,
+    /// (b) ShadowNode — armed `where` index. Built from `compiled_wheres`.
+    pub(crate) where_tree: crate::rete::where_tree::WhereTree,
+    pub(crate) feeding_alpha_of: HashMap<i64, i64>,
+    /// Invert of `feeding_alpha_of`: alpha id → HashJoin ids it feeds.
+    /// Dirty-join-parent construction (`DESIGN-STONE-dirty-join-parents`).
+    pub(crate) joins_fed_by: JoinsFedBy,
+    pub(crate) parents_of: ParentsOf,
+    pub(crate) beta_readers: HashSet<i64>,
+    pub(crate) compiled_max_slots: usize,
+    /// name → (produced, negated, consumed). Residual of stratify.
+    /// Import has no rule AST; fire-rules reads this instead.
+    pub(crate) rule_deps: Vec<RuleDep>,
+    pub(crate) alpha_class: HashMap<i64, String>,
+}
+
+pub(crate) fn network_identity(network: &Value) -> Option<u64> {
+    match network {
+        Value::wat__core__PersistentMap(m) => Some(m.rust_identity()),
+        _ => None,
+    }
+}
+
+// rune:sequi(ambient-context) — process-lifetime intern keyed by network
+// PMap rust_identity. The Session is a fact overlay; circuits live here, not
+// on the Session value. Lookup+build is the fire setup door (`rete_arm_get_or_build`).
+pub(crate) fn arm_table() -> &'static Mutex<HashMap<u64, Arc<ReteArm>>> {
+    static TABLE: OnceLock<Mutex<HashMap<u64, Arc<ReteArm>>>> = OnceLock::new();
+    TABLE.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+#[cfg(test)]
+// rune:sequi(performance-counter) — test-only intern-miss count; not fire domain.
+pub(crate) static ARM_BUILDS: std::sync::atomic::AtomicUsize =
+    std::sync::atomic::AtomicUsize::new(0);
+
+pub(crate) fn rete_arm_lookup(id: u64) -> Option<Arc<ReteArm>> {
+    arm_table()
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .get(&id)
+        .cloned()
+}
+
+pub(crate) fn rete_arm_intern(id: u64, arm: &Arc<ReteArm>) {
+    arm_table()
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .insert(id, Arc::clone(arm));
+}
+
+pub(crate) fn rete_arm_get_or_build(
+    network: &Value,
+    rules: &Value,
+    sym: &SymbolTable,
+) -> Result<Arc<ReteArm>, EvalBreak> {
+    if let Some(id) = network_identity(network) {
+        if let Some(arm) = rete_arm_lookup(id) {
+            return Ok(arm);
+        }
+    }
+    let arm = Arc::new(build_rete_arm(network, rules, sym)?);
+    if let Some(id) = network_identity(network) {
+        rete_arm_intern(id, &arm);
+    }
+    Ok(arm)
+}
+
+pub(crate) fn build_rete_arm(
+    network: &Value,
+    rules: &Value,
+    sym: &SymbolTable,
+) -> Result<ReteArm, EvalBreak> {
+    #[cfg(test)]
+    ARM_BUILDS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+
+    let node_ids = sorted_node_ids(network);
+    let (alpha_by_type, alpha_cond) = build_alpha_index(network, &node_ids);
+    let alpha_tree = crate::rete::alpha_tree::AlphaTree::build(&alpha_by_type, &alpha_cond, sym);
+    let compiled_conds = compile_alpha_conds_from_index(&alpha_by_type, &alpha_cond, sym)?;
+    let compiled_drivers = compile_all_cond_drivers(network, &node_ids, sym)?;
+    let compiled_max_slots = compiled_conds.values().map(|c| c.n_slots()).max().unwrap_or(0);
+    let compiled_wheres = compile_test_programs(network, &node_ids, sym)?;
+    let where_tree = crate::rete::where_tree::WhereTree::build(&compiled_wheres);
+    let compiled_user_folds = compile_user_fold_programs(network, &node_ids, sym)?;
+    let mut compiled_acc_folds: HashMap<i64, AccFold> = HashMap::new();
+    for node_id in &node_ids {
+        let Some(node) = get_node(network, *node_id) else {
+            continue;
+        };
+        if kind_of(node) != "AccumulateNode" {
+            continue;
+        }
+        let Some((_, sf)) = node_record(node) else {
+            continue;
+        };
+        let acc_form = match &sf[2] {
+            Value::wat__WatAST(ast) => ast.as_ref(),
+            _ => continue,
+        };
+        compiled_acc_folds.insert(
+            *node_id,
+            compile_acc_fold(acc_form, compiled_user_folds.get(node_id).cloned())?,
+        );
+    }
+
+    let mut feeding_alpha_of: HashMap<i64, i64> = HashMap::new();
+    let mut parents_of: ParentsOf = HashMap::new();
+    for node_id in &node_ids {
+        let node = match get_node(network, *node_id) {
+            Some(n) => n,
+            None => continue,
+        };
+        let is_alpha = kind_of(node) == "AlphaNode";
+        for child in node_children(node) {
+            if is_alpha {
+                feeding_alpha_of.insert(child, *node_id);
+            } else {
+                parents_of.entry(child).or_default().push(*node_id);
+            }
+        }
+    }
+
+    let mut beta_readers = HashSet::new();
+    for node_id in &node_ids {
+        let node = match get_node(network, *node_id) {
+            Some(n) => n,
+            None => continue,
+        };
+        for child in node_children(node) {
+            let child_kind = get_node(network, child).map(kind_of).unwrap_or("");
+            if child_kind == "HashJoinNode" || child_kind == "QueryNode" {
+                beta_readers.insert(*node_id);
+                break;
+            }
+        }
+    }
+
+    let rule_vec: Vec<Value> = match rules {
+        Value::wat__core__PersistentVector(pv) => pv.iter().cloned().collect(),
+        _ => vec![],
+    };
+    let mut compiled_rhs: HashMap<String, Vec<crate::rete::compiled_rhs::CompiledRhs>> =
+        HashMap::new();
+    for r in &rule_vec {
+        if let Some((_, rsf)) = node_record(r) {
+            let rname = match &rsf[0] {
+                Value::String(s) => s.as_str(),
+                _ => continue,
+            };
+            let rhs: Vec<WatAST> = match &rsf[2] {
+                Value::wat__core__PersistentVector(pv) => pv
+                    .iter()
+                    .filter_map(|v| match v {
+                        Value::wat__WatAST(ast) => Some((**ast).clone()),
+                        _ => None,
+                    })
+                    .collect(),
+                _ => vec![],
+            };
+            let mut compiled: Vec<crate::rete::compiled_rhs::CompiledRhs> =
+                Vec::with_capacity(rhs.len());
+            for f in &rhs {
+                compiled.push(rhs_must_compile(f, sym)?);
+            }
+            compiled_rhs.insert(rname.to_string(), compiled);
+        }
+    }
+
+    let mut alpha_class: HashMap<i64, String> = HashMap::new();
+    for (ty, ids) in &alpha_by_type {
+        for id in ids {
+            alpha_class.insert(*id, ty.clone());
+        }
+    }
+    let rule_deps = rule_deps_from_rules(rules, sym);
+
+    let kind_ids = kind_id_lists(network, &node_ids);
+    let joins_fed_by = invert_feeding_alpha(&feeding_alpha_of);
+    Ok(ReteArm {
+        node_ids,
+        kind_ids,
+        compiled_conds,
+        compiled_drivers,
+        compiled_wheres,
+        compiled_acc_folds,
+        compiled_rhs,
+        alpha_tree,
+        where_tree,
+        feeding_alpha_of,
+        joins_fed_by,
+        parents_of,
+        beta_readers,
+        compiled_max_slots,
+        rule_deps,
+        alpha_class,
+    })
+}
+
+/// Stratify inputs from the rule AST. Name, produced, negated, consumed.
+pub(crate) fn rule_deps_from_rules(rules: &Value, sym: &SymbolTable) -> Vec<RuleDep> {
+    let rule_vec: Vec<Value> = match rules {
+        Value::wat__core__PersistentVector(pv) => pv.iter().cloned().collect(),
+        _ => vec![],
+    };
+    let mut out = Vec::new();
+    for r in &rule_vec {
+        let Some((_, rsf)) = node_record(r) else {
+            continue;
+        };
+        let name = match &rsf[0] {
+            Value::String(s) => s.as_ref().clone(),
+            _ => continue,
+        };
+        let to_asts = |v: &Value| -> Vec<WatAST> {
+            match v {
+                Value::wat__core__PersistentVector(pv) => pv
+                    .iter()
+                    .filter_map(|x| match x {
+                        Value::wat__WatAST(ast) => Some((**ast).clone()),
+                        _ => None,
+                    })
+                    .collect(),
+                _ => vec![],
+            }
+        };
+        let lhs = to_asts(&rsf[1]);
+        let rhs = to_asts(&rsf[2]);
+        out.push((
+            name,
+            rule_produces(&rhs, sym),
+            rule_negates(&lhs),
+            rule_consumes(&lhs),
+            rule_bag_consumes(&lhs),
+        ));
+    }
+    out
+}
+
+/// Filter an armed network down to a stratum slice. The slice is a new
+/// PMap (new intern). Intern this so fire does not rebuild from empty AST.
+pub(crate) fn subset_rete_arm(
+    arm: &ReteArm,
+    active_ids: &HashSet<i64>,
+    rule_names: &HashSet<String>,
+    sliced_network: &Value,
+) -> Arc<ReteArm> {
+    let node_ids: Vec<i64> = arm
+        .node_ids
+        .iter()
+        .copied()
+        .filter(|id| active_ids.contains(id))
+        .collect();
+    let keep = |id: &i64| active_ids.contains(id);
+    let compiled_conds: HashMap<i64, crate::rete::compiled_cond::CompiledCond> = arm
+        .compiled_conds
+        .iter()
+        .filter(|(id, _)| keep(id))
+        .map(|(id, c)| (*id, c.clone()))
+        .collect();
+    let compiled_drivers: HashMap<i64, CondDriver> = arm
+        .compiled_drivers
+        .iter()
+        .filter(|(id, _)| keep(id))
+        .map(|(id, d)| (*id, d.clone()))
+        .collect();
+    let compiled_wheres: HashMap<i64, crate::rete::expr_ir::Program> = arm
+        .compiled_wheres
+        .iter()
+        .filter(|(id, _)| keep(id))
+        .map(|(id, p)| (*id, p.clone()))
+        .collect();
+    let compiled_acc_folds: HashMap<i64, AccFold> = arm
+        .compiled_acc_folds
+        .iter()
+        .filter(|(id, _)| keep(id))
+        .map(|(id, f)| (*id, f.clone()))
+        .collect();
+    let compiled_rhs: HashMap<String, Vec<crate::rete::compiled_rhs::CompiledRhs>> = arm
+        .compiled_rhs
+        .iter()
+        .filter(|(n, _)| rule_names.contains(*n))
+        .map(|(n, r)| (n.clone(), r.clone()))
+        .collect();
+    let rule_deps: Vec<RuleDep> = arm
+        .rule_deps
+        .iter()
+        .filter(|(n, _, _, _, _)| rule_names.contains(n))
+        .cloned()
+        .collect();
+    let alpha_class: HashMap<i64, String> = arm
+        .alpha_class
+        .iter()
+        .filter(|(id, _)| keep(id))
+        .map(|(id, c)| (*id, c.clone()))
+        .collect();
+    let mut by_type: AlphasByType = HashMap::new();
+    for (id, ty) in &alpha_class {
+        by_type.entry(ty.clone()).or_default().push(*id);
+    }
+    let alpha_tree = crate::rete::alpha_tree::AlphaTree::unpruned(&by_type);
+
+    let mut feeding_alpha_of: HashMap<i64, i64> = HashMap::new();
+    let mut parents_of: ParentsOf = HashMap::new();
+    for node_id in &node_ids {
+        let Some(node) = get_node(sliced_network, *node_id) else {
+            continue;
+        };
+        let is_alpha = kind_of(node) == "AlphaNode";
+        for child in node_children(node) {
+            if is_alpha {
+                feeding_alpha_of.insert(child, *node_id);
+            } else {
+                parents_of.entry(child).or_default().push(*node_id);
+            }
+        }
+    }
+    let mut beta_readers = HashSet::new();
+    for node_id in &node_ids {
+        let Some(node) = get_node(sliced_network, *node_id) else {
+            continue;
+        };
+        for child in node_children(node) {
+            let child_kind = get_node(sliced_network, child).map(kind_of).unwrap_or("");
+            if child_kind == "HashJoinNode" || child_kind == "QueryNode" {
+                beta_readers.insert(*node_id);
+                break;
+            }
+        }
+    }
+    let compiled_max_slots = compiled_conds
+        .values()
+        .map(|c: &crate::rete::compiled_cond::CompiledCond| c.n_slots())
+        .max()
+        .unwrap_or(0);
+    let where_tree = crate::rete::where_tree::WhereTree::build(&compiled_wheres);
+
+    let kind_ids = kind_id_lists(sliced_network, &node_ids);
+    let joins_fed_by = invert_feeding_alpha(&feeding_alpha_of);
+    Arc::new(ReteArm {
+        node_ids,
+        kind_ids,
+        compiled_conds,
+        compiled_drivers,
+        compiled_wheres,
+        compiled_acc_folds,
+        compiled_rhs,
+        alpha_tree,
+        where_tree,
+        feeding_alpha_of,
+        joins_fed_by,
+        parents_of,
+        beta_readers,
+        compiled_max_slots,
+        rule_deps,
+        alpha_class,
+    })
+}
+
+
+// ── Public entry: intern the arm at compile-all ──────────────────────────────
+
+/// `(:wat::rete::arm-session <session>) -> :wat::rete::Session`
+///
+/// Item 12's contract: compile puts the arm next to the network. WAT
+/// `compile-all` builds the Session and did not intern the rust `ReteArm`;
+/// first `fire-rules` paid the build (`DESIGN-STONE-arm-at-compile`).
+/// Value unchanged. Same process-lifetime table as `rete_arm_get_or_build`.
+pub(crate) fn eval_arm_session(
+    args: &[WatAST],
+    list_span: &Span,
+    env: &crate::runtime::Environment,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::rete::arm-session";
+    if args.len() != 1 {
+        return Err(RuntimeError::new(
+            list_span.clone(),
+            RuntimeErrorKind::ArityMismatch {
+                op: OP.into(),
+                expected: 1,
+                got: args.len(),
+            },
+        )
+        .into());
+    }
+    let session = crate::runtime::eval_inner(&args[0], env, sym)?.value_owned();
+    let (network, rules) = match &session {
+        Value::Aggregate(a) if a.nature != Nature::Struct => {
+            let sf = a.fields.as_slice();
+            if sf.len() < 2 {
+                return Err(RuntimeError::new(
+                    list_span.clone(),
+                    RuntimeErrorKind::TypeMismatch {
+                        op: OP.into(),
+                        expected: ":wat::rete::Session",
+                        got: Box::new(ValueSnapshot::of(&session)),
+                    },
+                )
+                .into());
+            }
+            (&sf[0], &sf[1])
+        }
+        other => {
+            return Err(RuntimeError::new(
+                list_span.clone(),
+                RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: ":wat::rete::Session",
+                    got: Box::new(ValueSnapshot::of(other)),
+                },
+            )
+            .into());
+        }
+    };
+    if network_identity(network).is_none() {
+        return Err(RuntimeError::new(
+            list_span.clone(),
+            RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: ":wat::core::PersistentMap network with intern identity",
+                got: Box::new(ValueSnapshot::of(network)),
+            },
+        )
+        .into());
+    }
+    rete_arm_get_or_build(network, rules, sym)?;
+    Ok(session)
+}

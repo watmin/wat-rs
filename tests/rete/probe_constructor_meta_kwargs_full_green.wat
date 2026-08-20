@@ -23,7 +23,7 @@
     [rules   (:wat::rete::collect-rules :cr2g)
      session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:cr2g::q-Rate)))
      session (:wat::rete::insert session (:cr2g::Anchor :x 0))
-     fired   (:wat::rete::fire-rules-spec session)
+     fired   (:wat::rete::fire-rules$oracle session)
      derived (:wat::rete::query fired (:cr2g::q-Rate))
      r       (:wat::core::first derived)]
     (:wat::core::i64::+
@@ -39,8 +39,8 @@
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :cr2g)
      session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:cr2g::q-Rate)))
-     session (:wat::rete::insert' session (:cr2g::Anchor :x 0))
-     fired   (:wat::rete::fire-rules' session)
+     session (:wat::rete::insert session (:cr2g::Anchor :x 0))
+     fired   (:wat::rete::fire-rules session)
      derived (:wat::rete::query fired (:cr2g::q-Rate))
      r       (:wat::core::first derived)]
     (:wat::core::i64::+

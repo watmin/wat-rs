@@ -23,6 +23,6 @@
       [rules   (:wat::rete::collect-rules :wf)
        session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:wf::q-Gate)))
        session (:wat::rete::insert session (:weather::Temperature :celsius 5 :location "Oslo"))
-       fired   (:wat::rete::fire-rules-spec session)]
+       fired   (:wat::rete::fire-rules$oracle session)]
       (:wat::rete::query fired (:wf::q-Gate)))))
 

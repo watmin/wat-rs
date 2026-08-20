@@ -5,19 +5,39 @@
 > `wat/rete.wat`. If a stone below disagrees with a dated ruling here,
 > **this file wins** and the stone is stale.
 
-**Right now:** floor **GREEN** `.floor/2026-08-20T05-36-05Z/`
-(4838 passed, 19 skipped). Clippy `--all-targets -D warnings`
-silent. Grid
-`GRID-native-vs-clara-2026-08-20T05-41-25Z.txt`
+**Right now:** floor **GREEN** `.floor/2026-08-20T18-17-34Z/`
+(4839 passed, 19 skipped). Clippy `--all-targets -D warnings`
+silent. Grid `GRID-native-vs-clara-2026-08-20T18-03-32Z.txt`
 (`GRID_SKIP_ORACLE=1`, `GRID_RUNS=3`): **30/30 `:match`,
-30/30 `:us`**. Closest still **fanout `[40000]` ratio 3.71**
-(wat 52.9 ms; was 3.59 / 52.8). Cascade `[50 100]` 6.69
-(wat 17.5 ms). Accum `[200 200]` **8.09** (wat 18.4 ms;
-tape T03-32-37Z was 6.07 / 24.9). insert-prime-split
-LANDED (insert − conj 1933 → 310 ns). Host encode/sort
-after query-read is compiled-wat, not rete. Queue:
-`NEXT-STRIKES-after-shadow.md`. grok-rete DR **494516f8**.
-Dirty, not committed.
+30/30 `:us`**, wall **372s**. Closest **fanout `[40000]` ratio 4.00**
+(wat 60.5 ms). Cascade `[50 100]` 6.34 (wat 19.0 ms). Accum
+`[200 200]` 7.95 (wat 19.8 ms). Skip matches `fire-rules$oracle`
+(a leftover token fails the run). Do not treat 17-42-43Z as a
+measurement. GNU `/usr/bin/time` is not installed; bash `time`
+is a keyword (`which time` empty).
+insert-prime-split LANDED (insert − conj 1933 → 310 ns). Host
+encode/sort after query-read is compiled-wat, not rete. Queue:
+`NEXT-STRIKES-after-shadow.md`. grok-rete DR **e294a142**.
+Dirty: vigilia L1+L2 drive + `$oracle`/`$native` dual-impl +
+kernel split + FireCtx + rete.wat model/oracle split. Kernel is
+`wm` / `fire` / `arm` / `stratify` / `census` / `insert`.
+Public rete names are unprimed wat Fns. Rust is `$native`. The
+wat reference is `$oracle`. `$impl` is kwargs/bracket/service —
+not rete. Grid: fire-rules / fire-once / insert / insert-all /
+fire-rules-explain each have public + `$native` + `$oracle`.
+Prime `'` is not the rete kernel marker. Codemod:
+`wat-scripts/fixes/rete-oracle-sigil.wat`.
+Do not stamp `vigilatum`.
+
+Session is **8 fields** (`query-memory` last). Fence is four
+conjuncts: `pure?` ∧ `deterministic?` ∧ `total?` ∧ `primitive?`.
+`total?` is ARMED. Every `RETE_OPS` row is `total: true`.
+Oracle `fire-rules-spec` refuses an imported Export (empty
+rules + ProductionNodes). Import checksums packed classes +
+`RETE_OPS` **and** host TypeEnv field-order. Museum gone:
+`make_token`, `token_matches_bindings`, `fire_fixpoint`,
+`exec_test`, wat `token-element-compatible?` / `node-parent`
+/ `test-pass`. `BindView::len` is `#[cfg(test)]` census only.
 
 > ⛔ You did not live this. Run recolligere against the disk
 > before you act on any line above.
@@ -56,7 +76,7 @@ from the record.”
 | Fire still asks the AST | Compiled stand-in |
 |---|---|
 | `classify_rete_clause` in `binding_extensions` / `exists_cond_under` | Driver enum: `And` / `Or` / `Not` / `Exists` / `Where(Program)` / `Leaf(alpha_id)` |
-| `exec_test(expr)` on a combinator `:where` | Stash `Program` (TestNode already does) |
+| combinator `:where` | Stash `Program`; fire runs `exec_where`. Museum `exec_test` deleted. |
 | `attach_fact_bind` | `?p` slot on `CompiledCond` (`alpha_pattern` already has it) |
 | `cond_text` / `alpha_id_for_cond` | The id. Do not stringify the form per rematch |
 | `acc-form` head + `acc_operand_keys` | `AccFold::Count` / `Sum` / … / `User(Program)` |
@@ -250,7 +270,7 @@ compiler item. Do not start it to dodge the hole.
 | Persist the arm across `fire-rules` | `3f415317` | local, not pushed |
 | `#wat.rete/Export` (compiled program on the wire) | this turn | **landed** — first disk program `datamancer.rete.edn` |
 | `(b)` ShadowNode | `where_tree.rs` | **landed** — 1.00 eval/token on node-share |
-| Keyed `?g` bucket | `DESIGN-STONE-keyed-gather.md` | **landed** (Acc + Not/Exists). Do not persist across rounds. |
+| Keyed `?g` bucket | `DESIGN-STONE-keyed-gather.md` | **landed** (Acc + Not/Exists). Persist-within-a-fire (`gather_cache` outside the round loop); drop at `fire_fixpoint_delta` end. Do not persist across `fire-rules` calls. |
 
 ## The endeavor, in one sentence
 
@@ -423,7 +443,7 @@ Floor after rebase: `.floor/2026-08-17T10-25-55Z/` —
 |---|---|
 | HOF fn-arg | **Settled (4Q).** Callee visible in the AST. Unknown `Function` at `foldl` does not load. |
 | Fn in a fact field | **Settled.** Facts are records; records are pure data. A function is not a fact field. Same class as HOF-lexical: it cannot arrive from WM. |
-| Depth / nodes / derived-fact explosion | **Later.** Near-term DoS is closed by no recursion. Cardinality explosion (MySQL/Athena-shaped client guard) is a different stone. `Program` may *record* measured depth/nodes; do not enforce a number we have not derived. |
+| Depth / nodes / derived-fact explosion | **Refused as a fifth axis.** Near-term DoS is closed by no recursion (`#87`). Cardinality (MySQL/Athena-shaped client guard) is not a rete fence axis; do not mint a number we have not derived. |
 | `(:Type/field ?var)` | **Settled — compile the index.** The class and field are **in the accessor head** (`:wfb::Temp/c` → type `Temp`, field `c`). `TypeEnv` gives the `usize` at rule-compile. The 2026-08-06 “we don’t know `?route`’s class” claim assumed a TestNode compiled from the expr *alone*. At rule-compile we have the form *and* `collect_rule_bind_types`. Carry-the-name is the worse residual, not the required one. |
 | `match` map-destructure field index | Only that arm. Possible; not specified. Not a v1 blocker. |
 
@@ -519,7 +539,10 @@ names it. Do not start 297.
 The round loop is AST-free. The arm is interned by the
 network's `rust_identity`. `insert` overlays facts and
 shares the id. A second `fire-rules` does not re-`lower`
-/ re-`classify`. Stratified slices still build (ephemeral
+the driver. Stratify still walks Rule lhs/rhs AST when
+rules are present (`rule_negates` / `rule_consumes`);
+an imported Export uses `arm.rule_deps` and skips that
+walk. Stratified slices still build (ephemeral
 `from_trie`).
 
 Prod no-token-clone **landed** (fanout FIRE 72.43 → 61.35).

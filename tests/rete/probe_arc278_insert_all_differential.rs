@@ -3,7 +3,7 @@
 //!
 //! Clara's primitive is the *batch* form and the single-fact call is sugar over it
 //! (`rules.cljc:11,17` — both delegate to `(eng/insert session facts)`). We shipped only the
-//! degenerate case (`insert'`, native, ~1.03 µs of pure 7-field Session rebuild per fact
+//! degenerate case (`insert'`, native, ~1.03 µs of pure 8-field Session rebuild per fact
 //! above a bare `conj` — `DESIGN-STONE-insert-all.md`). This gate is RED at HEAD: `insert-all` /
 //! `insert-all-spec` / `insert-all'` do not exist, so every entry below raises `UnknownFunction`
 //! at RUNTIME — `--check` alone would NOT catch an unknown callee
@@ -28,7 +28,7 @@
 //!       contract decision this stone exists to enforce) — every other assertion here would miss
 //!       it. Assertion 4 checks it by BEHAVIOUR: a lone 2-ary `insert` call must match `insert'`
 //!       called directly, fact for fact. (The companion form-level proof — that
-//!       `wat/rete.wat`'s 2-ary clause body is byte-for-byte `(:wat::rete::insert' session
+//!       `wat/rete.wat`'s 2-ary clause body is byte-for-byte `(:wat::rete::insert session
 //!       fact)` with no reference to `insert-all` — was read by hand against the source; a test
 //!       cannot introspect a `defclause`'s per-arm body without reproducing the checker.)
 //!

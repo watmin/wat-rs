@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# check-spec-native.sh — wat-oracle (`fire-rules-spec`) vs wat-native (`fire-rules`).
+# check-spec-native.sh — wat-oracle (`fire-rules$oracle`) vs wat-native (`fire-rules`).
 #
 # Same corpus as check-where-shapes.sh (every where-*.wat). Same row lines.
 # The .wat files call fire-rules. This script also runs a rewrite that calls
-# fire-rules-spec and diffs the two stdout streams byte-for-byte.
+# fire-rules$oracle and diffs the two stdout streams byte-for-byte.
 #
 # Empty diff  ⇒  spec == native on every row of that family.
 # A hunk      ⇒  it NAMES the row.
@@ -28,9 +28,9 @@ trap 'rm -rf "$OUT_DIR"' EXIT
 rewrite_to_spec() {
   local src="$1"
   local dst="$2"
-  # Production verb only. `(?!-spec)` so we never turn fire-rules-spec into
-  # fire-rules-spec-spec. fire-rules' / fire-rules-explain do not appear in this corpus.
-  perl -pe 's/:wat::rete::fire-rules(?!-spec)/:wat::rete::fire-rules-spec/g' \
+  # Production verb only. `(?!\$oracle)` so we never double-apply.
+  # `(?!-)` so fire-rules-explain is untouched.
+  perl -pe 's/:wat::rete::fire-rules(?!\$oracle)(?!-)/:wat::rete::fire-rules\$oracle/g' \
     < "$src" > "$dst"
 }
 

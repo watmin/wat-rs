@@ -39,3 +39,11 @@ fn support_tokens_carry_their_full_chains() {
     let n = call_beside_value(file!(), ":user::support-chains-total-length").expect("compute should run");
     assert!(matches!(n, Value::i64(3)), "support tokens must carry their real chains (ColdAndWindy 2 + WeatherAlert 1 = 3); got {n:?}");
 }
+
+/// 4. `$oracle` explain matches native support cardinality (the grid's missing cell).
+#[test]
+fn explain_oracle_matches_native_support_length() {
+    let native = call_beside_value(file!(), ":user::support-index-length").expect("native");
+    let oracle = call_beside_value(file!(), ":user::support-index-length-oracle").expect("oracle");
+    assert_eq!(native, oracle, "fire-rules-explain$oracle support length must equal native; native={native:?} oracle={oracle:?}");
+}

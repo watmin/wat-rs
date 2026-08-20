@@ -25,7 +25,7 @@
       [rules   (:wat::rete::collect-rules :wb)
        session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:wb::q-Gate)))
        session (:wat::rete::insert session (:weather::Temperature :celsius 150 :location "Oslo"))
-       fired   (:wat::rete::fire-rules-spec session)]
+       fired   (:wat::rete::fire-rules$oracle session)]
       (:wat::rete::query fired (:wb::q-Gate)))))
 
 ;; 3b — the same user-fn predicate blocks below threshold: big?(50) → zero.
@@ -35,6 +35,6 @@
       [rules   (:wat::rete::collect-rules :wb)
        session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:wb::q-Gate)))
        session (:wat::rete::insert session (:weather::Temperature :celsius 50 :location "Oslo"))
-       fired   (:wat::rete::fire-rules-spec session)]
+       fired   (:wat::rete::fire-rules$oracle session)]
       (:wat::rete::query fired (:wb::q-Gate)))))
 

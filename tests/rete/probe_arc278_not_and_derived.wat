@@ -40,7 +40,7 @@
 
 (:wat::core::defn :user::spec-counts [] -> :wat::core::PersistentVector<wat::core::i64>
   (:nad::counts
-    (:wat::rete::fire-rules-spec
+    (:wat::rete::fire-rules$oracle
       (:nad::seed
         (:wat::rete::compile-all
           (:wat::core::PersistentVector (:nad::mark-bad) (:nad::ok))

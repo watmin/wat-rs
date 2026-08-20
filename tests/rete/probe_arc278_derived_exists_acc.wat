@@ -68,5 +68,5 @@
 
 (:wat::core::defn :user::spec-counts [] -> :wat::core::PersistentVector<wat::core::i64>
   (:dea::counts
-    (:wat::rete::fire-rules-spec
+    (:wat::rete::fire-rules$oracle
       (:dea::seed (:wat::rete::compile-all (:dea::rules) (:dea::queries))))))

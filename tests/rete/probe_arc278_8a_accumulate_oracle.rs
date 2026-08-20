@@ -50,7 +50,7 @@ fn busy_count(acc: &str, gate: &str, readings: &[(&str, i64)]) -> Result<i64, St
              session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:w::q-Busy)))\n\
              session (:wat::rete::insert session (:w::Station \"Oslo\"))\n\
 {reading_inserts}\
-             fired   (:wat::rete::fire-rules-spec session)]\n\
+             fired   (:wat::rete::fire-rules$oracle session)]\n\
             (:wat::rete::query fired (:w::q-Busy))))"
     );
     let world_src = world(acc, gate);

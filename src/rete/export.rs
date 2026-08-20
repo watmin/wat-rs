@@ -978,9 +978,11 @@ fn unpack_rhs(v: &Value) -> Result<CompiledRhs, EvalBreak> {
 
 // ── topology ─────────────────────────────────────────────────────────────────
 
+type ClassFields = Vec<Vec<String>>;
+
 struct ClassIntern {
     names: Vec<String>,
-    fields: Vec<Vec<String>>,
+    fields: ClassFields,
     idx: HashMap<String, usize>,
 }
 
@@ -1008,7 +1010,7 @@ fn pack_children(node: &Value) -> impl Iterator<Item = Value> {
     node_children(node).into_iter().map(Value::i64)
 }
 
-fn pack_node(node: &Value, classes: &mut ClassIntern, _network: &Value, sym: &SymbolTable) -> Value {
+fn pack_node(node: &Value, classes: &mut ClassIntern, sym: &SymbolTable) -> Value {
     let id = match node_record(node) {
         Some((_, sf)) => match &sf[0] {
             Value::i64(n) => *n,
@@ -1329,7 +1331,7 @@ pub(crate) fn eval_export(
     let mut nodes = Vec::new();
     for id in sorted_node_ids(network) {
         if let Some(node) = get_node(network, id) {
-            nodes.push(pack_node(node, &mut classes, network, sym));
+            nodes.push(pack_node(node, &mut classes, sym));
         }
     }
     let conds = map_i64(&arm.compiled_conds, pack_compiled_cond);
@@ -1436,7 +1438,7 @@ pub(crate) fn eval_import(
     import_export(&export, sym)
 }
 
-fn import_export(export: &Value, _sym: &SymbolTable) -> Result<Value, EvalBreak> {
+fn import_export(export: &Value, sym: &SymbolTable) -> Result<Value, EvalBreak> {
     let agg = match export {
         Value::Aggregate(a) if a.nature != Nature::Struct && a.class.as_ref() == "wat::rete::Export" => a,
         other => {
@@ -1482,8 +1484,19 @@ fn import_export(export: &Value, _sym: &SymbolTable) -> Result<Value, EvalBreak>
     if stored_abi != expect_abi {
         return Err(malformed(
             IMPORT_OP,
-            "ABI mismatch — export is from a different TypeEnv/RETE_OPS",
+            "ABI mismatch — export is from a different packed-classes/RETE_OPS",
         ));
+    }
+    // Host TypeEnv field-order. Packed ABI can agree with itself and still
+    // disagree with this process's declared records.
+    for (c, packed) in classes.iter().zip(fields.iter()) {
+        let host = class_field_names(sym, c);
+        if !host.is_empty() && &host != packed {
+            return Err(malformed(
+                IMPORT_OP,
+                format!("ABI mismatch — host TypeEnv field-order for {c} differs from export"),
+            ));
+        }
     }
 
     let nodes_pv = expect_seq(&sf[4], IMPORT_OP)?;

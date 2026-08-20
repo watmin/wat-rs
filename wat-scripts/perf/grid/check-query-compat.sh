@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # check-query-compat.sh — query mouth, three ways.
 #
-#   Clara 0.24.0  |  wat-oracle (fire-rules-spec)  |  wat-native (fire-rules)
+#   Clara 0.24.0  |  wat-oracle (fire-rules$oracle)  |  wat-native (fire-rules)
 #
 # Same row lines from where-query-*.wat / where-fact-bind (query families).
 # Empty three-way diff ⇒ binding maps agree. A hunk names the row AND the pair.
@@ -48,7 +48,9 @@ OUT_DIR="$(mktemp -d)"
 trap 'rm -rf "$OUT_DIR"' EXIT
 
 rewrite_to_spec() {
-  perl -pe 's/:wat::rete::fire-rules(?!-spec)/:wat::rete::fire-rules-spec/g' \
+  # Production verb only. `(?!\$oracle)` so we never double-apply.
+  # `(?!-)` so fire-rules-explain is untouched.
+  perl -pe 's/:wat::rete::fire-rules(?!\$oracle)(?!-)/:wat::rete::fire-rules\$oracle/g' \
     < "$1" > "$2"
 }
 

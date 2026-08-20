@@ -362,6 +362,31 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/rete.wat",
         source: include_str!("../wat/rete.wat"),
     },
+    // Arc 278 — interpreted compile (rule-set → network). Dual of the native
+    // compiler. Loads AFTER wat/rete.wat (records, Node, Session).
+    WatSource {
+        path: "wat/rete/compile.wat",
+        source: include_str!("../wat/rete/compile.wat"),
+    },
+    // Arc 278 Stone 8-i — acc::* fold library. Loads AFTER wat/rete.wat (Element).
+    // Fire's accumulate-pass eval-depends on these names.
+    WatSource {
+        path: "wat/rete/acc.wat",
+        source: include_str!("../wat/rete/acc.wat"),
+    },
+    // Arc 278 — interpreted fire oracle (insert$oracle / fire-once$oracle / fire-rules$oracle /
+    // stratify / accumulate-pass). Dual of the native kernel. Loads AFTER compile
+    // (stratify calls compile) and acc::* (accumulate-pass calls the folds).
+    WatSource {
+        path: "wat/rete/oracle.wat",
+        source: include_str!("../wat/rete/oracle.wat"),
+    },
+    // Arc 278 — query / cond / defrule / defquery. query-read reads Session.
+    // defmacro refs are order-free.
+    WatSource {
+        path: "wat/rete/syntax.wat",
+        source: include_str!("../wat/rete/syntax.wat"),
+    },
     // Arc 278 stone S4 — :wat::query:: — the backend-agnostic storage CONTRACT (DynamoDB-shaped
     // narrow waist: (pk,sk,data) + named-GSI (ipk,isk), all keys EDN-form strings), on the
     // services-as-surfaces OPERATION MODEL (arc 293 Path B): `Store` is a `:nature

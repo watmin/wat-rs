@@ -35,7 +35,7 @@
       [rules   (:wat::rete::collect-rules :alert)
        session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:alert::q-Unattended)))
        session (:wat::rete::insert session (:weather::Temperature :celsius -5 :location "Oslo"))
-       fired   (:wat::rete::fire-rules-spec session)]
+       fired   (:wat::rete::fire-rules$oracle session)]
       (:wat::rete::query fired (:alert::q-Unattended)))))
 
 (:wat::core::defn :user::native-present-matching [] -> :wat::core::i64
@@ -55,7 +55,7 @@
        session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:alert::q-Unattended)))
        session (:wat::rete::insert session (:weather::Temperature :celsius -5 :location "Oslo"))
        session (:wat::rete::insert session (:ops::Maintenance :location "Oslo"))
-       fired   (:wat::rete::fire-rules-spec session)]
+       fired   (:wat::rete::fire-rules$oracle session)]
       (:wat::rete::query fired (:alert::q-Unattended)))))
 
 (:wat::core::defn :user::native-present-different [] -> :wat::core::i64
@@ -75,6 +75,6 @@
        session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:alert::q-Unattended)))
        session (:wat::rete::insert session (:weather::Temperature :celsius -5 :location "Oslo"))
        session (:wat::rete::insert session (:ops::Maintenance :location "Bergen"))
-       fired   (:wat::rete::fire-rules-spec session)]
+       fired   (:wat::rete::fire-rules$oracle session)]
       (:wat::rete::query fired (:alert::q-Unattended)))))
 

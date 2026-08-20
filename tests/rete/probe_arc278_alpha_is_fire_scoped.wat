@@ -36,7 +36,7 @@
 ;; 0: `fire-stratified` returns alpha-memory empty (rete.wat:1817-1820) — asserted here, not assumed.
 (:wat::core::defn :user::oracle-alpha-key-count [] -> :wat::core::i64
   (:wat::core::let
-    [fired (:wat::rete::fire-rules-spec (:afs::built))
+    [fired (:wat::rete::fire-rules$oracle (:afs::built))
      amem  (:wat::rete::Session/alpha-memory fired)]
     (:wat::core::length (:wat::core::PersistentMap/keys amem))))
 
@@ -45,7 +45,7 @@
 ;; over a workload that matches nothing. `fire-once'` is deliberately left untouched by this stone.
 (:wat::core::defn :user::single-pass-alpha-key-count [] -> :wat::core::i64
   (:wat::core::let
-    [fired (:wat::rete::fire-once' (:afs::built))
+    [fired (:wat::rete::fire-once (:afs::built))
      amem  (:wat::rete::Session/alpha-memory fired)]
     (:wat::core::length (:wat::core::PersistentMap/keys amem))))
 
@@ -55,4 +55,4 @@
   (:wat::core::length (:wat::rete::query (:wat::rete::fire-rules (:afs::built)) (:afs::q-Hot))))
 
 (:wat::core::defn :user::oracle-derived-count [] -> :wat::core::i64
-  (:wat::core::length (:wat::rete::query (:wat::rete::fire-rules-spec (:afs::built)) (:afs::q-Hot))))
+  (:wat::core::length (:wat::rete::query (:wat::rete::fire-rules$oracle (:afs::built)) (:afs::q-Hot))))

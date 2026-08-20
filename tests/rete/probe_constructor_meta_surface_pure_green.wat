@@ -30,7 +30,7 @@
     [rules   (:wat::rete::collect-rules :cg)
      session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:cg::q-Handle)))
      session (:wat::rete::insert session (:cg::Anchor :x 5))
-     fired   (:wat::rete::fire-rules-spec session)
+     fired   (:wat::rete::fire-rules$oracle session)
      derived (:wat::rete::query fired (:cg::q-Handle))
      r       (:wat::core::first derived)]
     (:wat::core::Option/expect

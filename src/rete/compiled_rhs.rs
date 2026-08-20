@@ -21,7 +21,8 @@
 //!
 //! This eliminates, per fact: the form validation, the kwargs detection, the class allocation
 //! (the class `String` itself is still allocated once per fact for `AggregateValue::record`,
-//! which takes an owned `String` — interning it is a different, out-of-scope stone), and both key
+//! which takes an owned `String` — `DESIGN-STONE-class-arc.md` interned the *class Arc* at
+//! compile; the per-fact `String` for `record` is the remaining copy), and both key
 //! allocations per field. It keeps, because they are irreducible: N trie lookups, N `Arc` bumps,
 //! the fields `Vec`, and the `AggregateValue`.
 //!
@@ -83,7 +84,7 @@ pub(crate) enum CompiledRhs {
     /// `(:Type field…)` constructor.
     Record {
         class: Arc<str>,
-        names: Arc<Vec<String>>,
+        names: crate::rete::kernel::FieldNames,
         ops: Vec<RhsOp>,
     },
     /// Fn-headed `:then` item — the whole form is one `Program`.

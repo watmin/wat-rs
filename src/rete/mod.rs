@@ -8,9 +8,8 @@
 //! (the session, beta network, join layer) rides on top.
 //!
 //! ## Stone map
-//! - **Stone 2a** (`matcher.rs`) — `eval_alpha_match`: given a condition form (DATA)
-//!   and a fact (record), return `Some(bindings)` iff the fact's type matches the
-//!   condition head AND every clause holds. Pure: no `Environment`, no `eval_inner`.
+//! - **Stone 2a** (`matcher.rs`) — `eval_alpha_match` is the oracle / differential
+//!   matcher. Native fire uses compiled exec (`exec_compiled_with_key_ids`).
 //! - Stone 2b — alpha-memory (`insert`); consumes `eval_alpha_match`.
 //! - Stone 3 — cross-fact join (beta network); builds on alpha-memory.
 //! - **Stone 4a** (`matcher.rs`) — `eval_insert`: given a fact form (DATA, a quoted
@@ -39,16 +38,14 @@ pub(crate) mod validate;
 // Stone 5b (collect.rs) — eval_collect_rules: reflect the symbol table for a namespace's defrule'd
 // zero-arg rule fns (ret_type :wat::rete::Rule), invoke each → PersistentVector<Rule>.
 pub(crate) mod collect;
-// Stone P1 (kernel.rs) — WorkingMemory: native mutable mirror of Session + to_transient/to_persistent
-// lossless boundary. Sealed Rust; no wat surface. Fire kernel (P2–P5) mutates this; user calls fire.
+// Stone P1 (`kernel/`) — WorkingMemory + fire + arm intern + insert.
+// Sealed Rust. Fire kernel (P2–P5) mutates the transient Session.
 pub(crate) mod kernel;
 // Stone 6a (purity.rs) — default-deny purity classifier: is_pure_expr / is_pure_fn (transitive,
 // cycle-safe) + eval_pure_predicate (the :wat::rete::pure? primitive entry point).
 pub(crate) mod purity;
-// DESIGN-STONE-alpha-discrimination-tree.md — AlphaTree: replaces the P8 linear
-// "every alpha of this fact's type" scan with a root-to-leaf walk over provable equality
-// discriminators. Prune-only (candidate set; `alpha_match_inner` stays the sole authority),
-// alpha-only (beta stays runtime), built once at setup from the immutable network.
+// DESIGN-STONE-alpha-discrimination-tree.md — AlphaTree: prune-only candidate set.
+// Native authority is compiled exec; `alpha_match_inner` is the oracle / differential.
 pub(crate) mod alpha_tree;
 // (b) ShadowNode — armed `where` circuits. Token → candidate TestNodes.
 // Over-approx only. `exec_where` stays the authority.

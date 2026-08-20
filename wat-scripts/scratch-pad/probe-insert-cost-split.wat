@@ -104,7 +104,7 @@
 (:wat::core::defn :ins::insert-prime [session <- :wat::rete::Session  n <- :wat::core::i64] -> :wat::rete::Session
   (:wat::core::foldl
     (:wat::core::fn [s <- :wat::rete::Session  i <- :wat::core::i64] -> :wat::rete::Session
-      (:wat::rete::insert' s (:ins::Reading :g 0 :v i)))
+      (:wat::rete::insert s (:ins::Reading :g 0 :v i)))
     session
     (:wat::core::range 0 n)))
 

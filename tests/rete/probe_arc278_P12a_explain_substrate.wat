@@ -67,3 +67,13 @@
       0
       (:wat::core::PersistentMap/values (:wat::rete::Explained/support ex)))))
 
+;; 4. ORACLE SIGIL — fire-rules-explain$oracle matches native support cardinality.
+(:wat::core::defn :user::support-index-length-oracle [] -> :wat::core::i64
+  (:wat::core::let
+    [rules   (:wat::rete::collect-rules :weather)
+     session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:weather::q-ColdAndWindy)))
+     session (:wat::rete::insert session (:weather::Temperature :celsius -5 :location "Oslo"))
+     session (:wat::rete::insert session (:weather::WindSpeed    :kph 40 :location "Oslo"))
+     ex      (:wat::rete::fire-rules-explain$oracle session)]
+    (:wat::core::PersistentMap/length (:wat::rete::Explained/support ex))))
+

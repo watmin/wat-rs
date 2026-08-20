@@ -26,7 +26,7 @@
       [rules   (:wat::rete::collect-rules :alert)
        session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:alert::q-Unattended)))
        session (:wat::rete::insert session (:weather::Temperature :celsius -5 :location "Oslo"))
-       fired   (:wat::rete::fire-rules-spec session)]
+       fired   (:wat::rete::fire-rules$oracle session)]
       (:wat::rete::query fired (:alert::q-Unattended)))))
 
 ;; 2 — `:not` BLOCKS when the negated fact is PRESENT and MATCHES: Temp(Oslo) + Maintenance(Oslo) → 0.
@@ -37,7 +37,7 @@
        session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:alert::q-Unattended)))
        session (:wat::rete::insert session (:weather::Temperature :celsius -5 :location "Oslo"))
        session (:wat::rete::insert session (:ops::Maintenance :location "Oslo"))
-       fired   (:wat::rete::fire-rules-spec session)]
+       fired   (:wat::rete::fire-rules$oracle session)]
       (:wat::rete::query fired (:alert::q-Unattended)))))
 
 ;; 3 — `:not` PASSES when a negated fact exists but at a DIFFERENT binding (the shared-var join-filter):
@@ -49,6 +49,6 @@
        session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:alert::q-Unattended)))
        session (:wat::rete::insert session (:weather::Temperature :celsius -5 :location "Oslo"))
        session (:wat::rete::insert session (:ops::Maintenance :location "Bergen"))
-       fired   (:wat::rete::fire-rules-spec session)]
+       fired   (:wat::rete::fire-rules$oracle session)]
       (:wat::rete::query fired (:alert::q-Unattended)))))
 

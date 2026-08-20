@@ -52,7 +52,7 @@
      session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:tf::q-Rate)))
      session (:wat::rete::insert session (:tf::Anchor :x 0))
      session (:wat::rete::insert session (:tf::Rate :count 5))
-     fired   (:wat::rete::fire-rules-spec session)
+     fired   (:wat::rete::fire-rules$oracle session)
      derived (:wat::rete::query fired (:tf::q-Rate))
      r       (:wat::core::first derived)]
     (:wat::core::Option/expect

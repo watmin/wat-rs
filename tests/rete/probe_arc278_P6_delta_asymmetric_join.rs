@@ -37,8 +37,8 @@ fn run_expr(expr: &str) -> Value {
 /// Run the same expression with BOTH `fire-rules'` (native delta) and `fire-rules-spec` (oracle),
 /// assert they agree, and return the common count.
 fn assert_native_eq_oracle(expr_template: &str, type_str: &str) -> i64 {
-    let native_expr = expr_template.replace("FIRE_VERB", ":wat::rete::fire-rules'");
-    let oracle_expr = expr_template.replace("FIRE_VERB", ":wat::rete::fire-rules-spec");
+    let native_expr = expr_template.replace("FIRE_VERB", ":wat::rete::fire-rules");
+    let oracle_expr = expr_template.replace("FIRE_VERB", ":wat::rete::fire-rules$oracle");
     let native = run_expr(&native_expr);
     let oracle = run_expr(&oracle_expr);
     assert_eq!(

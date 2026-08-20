@@ -4,8 +4,9 @@
 //! First consumer: `where` (rule-compile refuse + native filter exec).
 //! Oracle remains `eval_test_core`.
 
+use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use crate::ast::WatAST;
 use crate::rete::matcher::{compare_values, Bindings};
@@ -104,33 +105,60 @@ pub(crate) struct Program {
 }
 
 #[derive(Debug)]
-pub(crate) enum LowerError {
-    Unsupported { span: Span, reason: String },
-    NonLexicalCallee { span: Span },
-    Unbound { span: Span, name: String },
+pub(crate) struct LowerError {
+    pub(crate) span: Span,
+    pub(crate) kind: LowerErrorKind,
+}
+
+#[derive(Debug)]
+pub(crate) enum LowerErrorKind {
+    Unsupported { reason: String },
+    NonLexicalCallee,
+    Unbound { name: String },
 }
 
 impl LowerError {
+    pub(crate) fn unsupported(span: Span, reason: String) -> Self {
+        Self {
+            span,
+            kind: LowerErrorKind::Unsupported { reason },
+        }
+    }
+
+    pub(crate) fn non_lexical(span: Span) -> Self {
+        Self {
+            span,
+            kind: LowerErrorKind::NonLexicalCallee,
+        }
+    }
+
+    pub(crate) fn unbound(span: Span, name: String) -> Self {
+        Self {
+            span,
+            kind: LowerErrorKind::Unbound { name },
+        }
+    }
+
     pub(crate) fn into_eval(self) -> EvalBreak {
-        match self {
-            LowerError::Unsupported { span, reason } => RuntimeError::new(
-                span,
+        match self.kind {
+            LowerErrorKind::Unsupported { reason } => RuntimeError::new(
+                self.span,
                 RuntimeErrorKind::MalformedForm {
                     head: ":wat::rete::lower".into(),
                     reason,
                 },
             )
             .into(),
-            LowerError::NonLexicalCallee { span } => RuntimeError::new(
-                span,
+            LowerErrorKind::NonLexicalCallee => RuntimeError::new(
+                self.span,
                 RuntimeErrorKind::MalformedForm {
                     head: ":wat::rete::lower".into(),
                     reason: "HOF fn-arg must be a literal fn or a named rete-defn (callee visible in the AST)".into(),
                 },
             )
             .into(),
-            LowerError::Unbound { span, name } => RuntimeError::new(
-                span,
+            LowerErrorKind::Unbound { name } => RuntimeError::new(
+                self.span,
                 RuntimeErrorKind::UnboundSymbol(name),
             )
             .into(),
@@ -217,10 +245,7 @@ fn lower_expr(ast: &WatAST, cx: &mut LowerCx) -> Result<Expr, LowerError> {
             if name.starts_with('?') || cx.slots.contains_key(name) {
                 return Ok(Expr::Slot(cx.slot(name)));
             }
-            Err(LowerError::Unbound {
-                span: span.clone(),
-                name: name.to_string(),
-            })
+            Err(LowerError::unbound(span.clone(), name.to_string()))
         }
         WatAST::List(items, span) => lower_list(items, span, cx),
         WatAST::Vector(elems, _) => {
@@ -229,10 +254,7 @@ fn lower_expr(ast: &WatAST, cx: &mut LowerCx) -> Result<Expr, LowerError> {
                 match lower_expr(e, cx)? {
                     Expr::Lit(v) => out.push(v),
                     _ => {
-                        return Err(LowerError::Unsupported {
-                            span: e.span().clone(),
-                            reason: "vector literal in a where must be constant".into(),
-                        });
+                        return Err(LowerError::unsupported(e.span().clone(), "vector literal in a where must be constant".into()));
                     }
                 }
             }
@@ -240,10 +262,7 @@ fn lower_expr(ast: &WatAST, cx: &mut LowerCx) -> Result<Expr, LowerError> {
                 out.into_iter().collect(),
             )))
         }
-        other => Err(LowerError::Unsupported {
-            span: other.span().clone(),
-            reason: format!("cannot lower {}", other.span()),
-        }),
+        other => Err(LowerError::unsupported(other.span().clone(), format!("cannot lower {}", other.span()))),
     }
 }
 
@@ -260,15 +279,13 @@ fn lower_hof_callee(ast: &WatAST, cx: &mut LowerCx) -> Result<Expr, LowerError> 
             let head = match items.first() {
                 Some(WatAST::Keyword(k, _)) => k.as_str(),
                 _ => {
-                    return Err(LowerError::NonLexicalCallee {
-                        span: ast.span().clone(),
-                    });
+                    return Err(LowerError::non_lexical(ast.span().clone()));
                 }
             };
             if resolve_core_name(head) == ":wat::core::fn" {
                 return lower_fn(items, span, cx);
             }
-            Err(LowerError::NonLexicalCallee { span: span.clone() })
+            Err(LowerError::non_lexical(span.clone()))
         }
         WatAST::Keyword(k, span) => {
             if let Some(func) = cx.sym.get(k) {
@@ -282,11 +299,9 @@ fn lower_hof_callee(ast: &WatAST, cx: &mut LowerCx) -> Result<Expr, LowerError> 
                     }
                 }
             }
-            Err(LowerError::NonLexicalCallee { span: span.clone() })
+            Err(LowerError::non_lexical(span.clone()))
         }
-        other => Err(LowerError::NonLexicalCallee {
-            span: other.span().clone(),
-        }),
+        other => Err(LowerError::non_lexical(other.span().clone())),
     }
 }
 
@@ -294,16 +309,10 @@ fn lower_list(items: &[WatAST], span: &Span, cx: &mut LowerCx) -> Result<Expr, L
     let head = match items.first() {
         Some(WatAST::Keyword(k, _)) => k.as_str(),
         Some(other) => {
-            return Err(LowerError::Unsupported {
-                span: other.span().clone(),
-                reason: "call head must be a keyword".into(),
-            });
+            return Err(LowerError::unsupported(other.span().clone(), "call head must be a keyword".into()));
         }
         None => {
-            return Err(LowerError::Unsupported {
-                span: span.clone(),
-                reason: "empty list".into(),
-            });
+            return Err(LowerError::unsupported(span.clone(), "empty list".into()));
         }
     };
     let core = resolve_core_name(head);
@@ -315,10 +324,7 @@ fn lower_list(items: &[WatAST], span: &Span, cx: &mut LowerCx) -> Result<Expr, L
     }
     if core == ":wat::core::if" {
         if items.len() != 4 {
-            return Err(LowerError::Unsupported {
-                span: span.clone(),
-                reason: "if takes cond then else".into(),
-            });
+            return Err(LowerError::unsupported(span.clone(), "if takes cond then else".into()));
         }
         return Ok(Expr::If {
             cond: Box::new(lower_expr(&items[1], cx)?),
@@ -336,26 +342,17 @@ fn lower_list(items: &[WatAST], span: &Span, cx: &mut LowerCx) -> Result<Expr, L
         return lower_fn(items, span, cx);
     }
     if core == ":wat::core::quote" || core == ":wat::core::quasiquote" {
-        return Err(LowerError::Unsupported {
-            span: span.clone(),
-            reason: "quote is data, not a where expression".into(),
-        });
+        return Err(LowerError::unsupported(span.clone(), "quote is data, not a where expression".into()));
     }
     if core == ":wat::core::kwargs-construct" || core == ":wat::core::aggregate-new" {
         let type_kw = match items.get(1) {
             Some(WatAST::Keyword(k, _)) => k.as_str(),
             _ => {
-                return Err(LowerError::Unsupported {
-                    span: span.clone(),
-                    reason: "constructor needs a type keyword".into(),
-                });
+                return Err(LowerError::unsupported(span.clone(), "constructor needs a type keyword".into()));
             }
         };
         return lower_construct(type_kw, &items[1..], span, cx)?
-            .ok_or_else(|| LowerError::Unsupported {
-                span: span.clone(),
-                reason: format!("unknown aggregate {type_kw}"),
-            });
+            .ok_or_else(|| LowerError::unsupported(span.clone(), format!("unknown aggregate {type_kw}")));
     }
 
     // Vocabulary rows win over `:Type/field` — `PersistentVector/length` contains `/`
@@ -382,15 +379,9 @@ fn lower_list(items: &[WatAST], span: &Span, cx: &mut LowerCx) -> Result<Expr, L
     // Accessor `:ns::Type/field` — class and field are in the head.
     if let Some((cls, field)) = split_accessor(head) {
         if items.len() != 2 {
-            return Err(LowerError::Unsupported {
-                span: span.clone(),
-                reason: "accessor takes one receiver".into(),
-            });
+            return Err(LowerError::unsupported(span.clone(), "accessor takes one receiver".into()));
         }
-        let idx = field_index(cx.sym, cls, field).ok_or_else(|| LowerError::Unsupported {
-            span: span.clone(),
-            reason: format!("unknown accessor {head}"),
-        })?;
+        let idx = field_index(cx.sym, cls, field).ok_or_else(|| LowerError::unsupported(span.clone(), format!("unknown accessor {head}")))?;
         return Ok(Expr::Field {
             recv: Box::new(lower_expr(&items[1], cx)?),
             idx,
@@ -412,10 +403,7 @@ fn lower_list(items: &[WatAST], span: &Span, cx: &mut LowerCx) -> Result<Expr, L
         }
     }
 
-    Err(LowerError::Unsupported {
-        span: span.clone(),
-        reason: format!("cannot lower head {head}"),
-    })
+    Err(LowerError::unsupported(span.clone(), format!("cannot lower head {head}")))
 }
 
 fn lower_call_args(
@@ -452,19 +440,13 @@ fn lower_fallback(
     let row = &RETE_OPS[op as usize];
     let total = row.params.len();
     if args.len() != total {
-        return Err(LowerError::Unsupported {
-            span: span.clone(),
-            reason: format!("{} wants {total} args", row.rete_name),
-        });
+        return Err(LowerError::unsupported(span.clone(), format!("{} wants {total} args", row.rete_name)));
     }
     let marker = total.saturating_sub(2);
     match &args.get(marker) {
         Some(WatAST::Keyword(k, _)) if k == ":undefined" => {}
         _ => {
-            return Err(LowerError::Unsupported {
-                span: span.clone(),
-                reason: "fallback op requires literal :undefined".into(),
-            });
+            return Err(LowerError::unsupported(span.clone(), "fallback op requires literal :undefined".into()));
         }
     }
     let real = lower_call_args(&args[..marker], cx, hof)?;
@@ -480,19 +462,13 @@ fn lower_let(args: &[WatAST], span: &Span, cx: &mut LowerCx) -> Result<Expr, Low
     let (binds_ast, body) = match args {
         [binds, body] => (binds, body),
         _ => {
-            return Err(LowerError::Unsupported {
-                span: span.clone(),
-                reason: "let takes [binds] body".into(),
-            });
+            return Err(LowerError::unsupported(span.clone(), "let takes [binds] body".into()));
         }
     };
     let pairs = match binds_ast {
         WatAST::Vector(v, _) => v.as_slice(),
         _ => {
-            return Err(LowerError::Unsupported {
-                span: binds_ast.span().clone(),
-                reason: "let binds must be a vector".into(),
-            });
+            return Err(LowerError::unsupported(binds_ast.span().clone(), "let binds must be a vector".into()));
         }
     };
     let mut binds = Vec::new();
@@ -501,10 +477,7 @@ fn lower_let(args: &[WatAST], span: &Span, cx: &mut LowerCx) -> Result<Expr, Low
         let name = match &pairs[i] {
             WatAST::Symbol(id, _) => id.as_str().to_string(),
             other => {
-                return Err(LowerError::Unsupported {
-                    span: other.span().clone(),
-                    reason: "let binder must be a symbol".into(),
-                });
+                return Err(LowerError::unsupported(other.span().clone(), "let binder must be a symbol".into()));
             }
         };
         let val = lower_expr(&pairs[i + 1], cx)?;
@@ -520,10 +493,7 @@ fn lower_let(args: &[WatAST], span: &Span, cx: &mut LowerCx) -> Result<Expr, Low
 
 fn lower_match(args: &[WatAST], span: &Span, cx: &mut LowerCx) -> Result<Expr, LowerError> {
     if args.is_empty() {
-        return Err(LowerError::Unsupported {
-            span: span.clone(),
-            reason: "match needs a scrutinee".into(),
-        });
+        return Err(LowerError::unsupported(span.clone(), "match needs a scrutinee".into()));
     }
     let scrutinee = Box::new(lower_expr(&args[0], cx)?);
     let mut arms = Vec::new();
@@ -542,10 +512,7 @@ fn lower_match(args: &[WatAST], span: &Span, cx: &mut LowerCx) -> Result<Expr, L
                 arms.push((Pat::Lit(keyword_value(k, cx.sym)), Expr::Lit(Value::Unit)));
             }
             other => {
-                return Err(LowerError::Unsupported {
-                    span: other.span().clone(),
-                    reason: "malformed match arm".into(),
-                });
+                return Err(LowerError::unsupported(other.span().clone(), "malformed match arm".into()));
             }
         }
     }
@@ -584,17 +551,11 @@ fn lower_pat(ast: &WatAST, cx: &mut LowerCx) -> Result<Pat, LowerError> {
             let tag = match &items[0] {
                 WatAST::Keyword(k, _) => k.as_str(),
                 _ => {
-                    return Err(LowerError::Unsupported {
-                        span: span.clone(),
-                        reason: "match list pattern head must be a keyword".into(),
-                    });
+                    return Err(LowerError::unsupported(span.clone(), "match list pattern head must be a keyword".into()));
                 }
             };
             if tag.contains('{') || matches!(items[0], WatAST::Map(_, _)) {
-                return Err(LowerError::Unsupported {
-                    span: span.clone(),
-                    reason: "match map-destructure is not lowered in v1".into(),
-                });
+                return Err(LowerError::unsupported(span.clone(), "match map-destructure is not lowered in v1".into()));
             }
             let name = option_result_tag(tag).unwrap_or_else(|| tag.to_string());
             let payload = if items.len() > 1 {
@@ -604,14 +565,8 @@ fn lower_pat(ast: &WatAST, cx: &mut LowerCx) -> Result<Pat, LowerError> {
             };
             Ok(Pat::Variant { name, payload })
         }
-        WatAST::Map(_, span) => Err(LowerError::Unsupported {
-            span: span.clone(),
-            reason: "match map-destructure is not lowered in v1".into(),
-        }),
-        other => Err(LowerError::Unsupported {
-            span: other.span().clone(),
-            reason: "unsupported match pattern".into(),
-        }),
+        WatAST::Map(_, span) => Err(LowerError::unsupported(span.clone(), "match map-destructure is not lowered in v1".into())),
+        other => Err(LowerError::unsupported(other.span().clone(), "unsupported match pattern".into())),
     }
 }
 
@@ -620,20 +575,11 @@ fn lower_fn(items: &[WatAST], span: &Span, cx: &mut LowerCx) -> Result<Expr, Low
         .iter()
         .position(|it| matches!(it, WatAST::Symbol(s, _) if s.as_str() == "->"));
     let Some(arrow) = arrow else {
-        return Err(LowerError::Unsupported {
-            span: span.clone(),
-            reason: "fn needs ->".into(),
-        });
+        return Err(LowerError::unsupported(span.clone(), "fn needs ->".into()));
     };
-    let params_ast = items.get(1).ok_or_else(|| LowerError::Unsupported {
-        span: span.clone(),
-        reason: "fn needs a param vector".into(),
-    })?;
+    let params_ast = items.get(1).ok_or_else(|| LowerError::unsupported(span.clone(), "fn needs a param vector".into()))?;
     let body_forms = items.get(arrow + 2..).unwrap_or(&[]);
-    let body = body_forms.last().ok_or_else(|| LowerError::Unsupported {
-        span: span.clone(),
-        reason: "fn needs a body".into(),
-    })?;
+    let body = body_forms.last().ok_or_else(|| LowerError::unsupported(span.clone(), "fn needs a body".into()))?;
     let mut param_slots = Vec::new();
     if let WatAST::Vector(ps, _) = params_ast {
         let mut i = 0;
@@ -702,24 +648,15 @@ pub(crate) fn lower_named_rete_fn(
     let func = match sym.get(head) {
         Some(f) => f,
         None => {
-            return Err(LowerError::Unsupported {
-                span: crate::rust_caller_span!(),
-                reason: format!("unknown rete-defn {head}"),
-            });
+            return Err(LowerError::unsupported(crate::rust_caller_span!(), format!("unknown rete-defn {head}")));
         }
     };
     if func.rete.is_none() {
-        return Err(LowerError::Unsupported {
-            span: crate::rust_caller_span!(),
-            reason: format!("{head} is not a rete-defn"),
-        });
+        return Err(LowerError::unsupported(crate::rust_caller_span!(), format!("{head} is not a rete-defn")));
     }
     match &func.body {
         FunctionBody::Wat(body) => lower_rete_defn(func.as_ref(), body, sym),
-        _ => Err(LowerError::Unsupported {
-            span: crate::rust_caller_span!(),
-            reason: format!("{head} has no wat body"),
-        }),
+        _ => Err(LowerError::unsupported(crate::rust_caller_span!(), format!("{head} has no wat body"))),
     }
 }
 
@@ -798,14 +735,11 @@ fn lower_construct(
             fields.push(lower_expr(v, cx)?);
         }
         if fields.len() != names.len() {
-            return Err(LowerError::Unsupported {
-                span: span.clone(),
-                reason: format!(
+            return Err(LowerError::unsupported(span.clone(), format!(
                     "constructor {head} wants {} fields, got {}",
                     names.len(),
                     fields.len()
-                ),
-            });
+                )));
         }
         return Ok(Some(Expr::Construct {
             class,
@@ -834,13 +768,10 @@ fn lower_construct(
             };
             let args = &items[1..];
             if args.len() != arity {
-                return Err(LowerError::Unsupported {
-                    span: span.clone(),
-                    reason: format!(
+                return Err(LowerError::unsupported(span.clone(), format!(
                         "constructor {head} wants {arity} fields, got {}",
                         args.len()
-                    ),
-                });
+                    )));
             }
             let mut fields = Vec::with_capacity(args.len());
             for a in args {
@@ -870,7 +801,7 @@ pub(crate) fn exec_where<B: Bindings + ?Sized>(
         other => Err(RuntimeError::new(
             span.clone(),
             RuntimeErrorKind::TypeMismatch {
-                op: ":wat::rete::eval-test".into(),
+                op: ":wat::rete::where".into(),
                 expected: ":wat::core::bool (a where predicate must return bool)",
                 got: Box::new(ValueSnapshot::of(&other)),
             },
@@ -887,13 +818,48 @@ pub(crate) fn exec_value<B: Bindings + ?Sized>(
     sym: &SymbolTable,
     span: &Span,
 ) -> Result<Value, EvalBreak> {
-    let mut frame: Vec<Option<Value>> = vec![None; program.frame_len as usize];
-    for (k, slot) in program.reads.iter() {
-        if let Some(v) = bindings.get(k) {
-            frame[*slot as usize] = Some(v.clone());
+    with_exec_frame(program.frame_len as usize, |frame| {
+        for (k, slot) in program.reads.iter() {
+            if let Some(v) = bindings.get(k) {
+                frame[*slot as usize] = Some(v.clone());
+            }
         }
-    }
-    exec(&program.root, &mut frame, &program.names, sym, span)
+        exec(&program.root, frame, &program.names, sym, span)
+    })
+}
+
+// rune:sequi(ambient-context) — one thread, nested frames bump a high-water
+// arena so exec_where / CallUser / foldl do not allocate per token after warmup.
+thread_local! {
+    static EXEC_ARENA: RefCell<Vec<Option<Value>>> = const { RefCell::new(Vec::new()) };
+    static EXEC_SP: Cell<usize> = const { Cell::new(0) };
+}
+
+fn with_exec_frame<R>(len: usize, f: impl FnOnce(&mut [Option<Value>]) -> R) -> R {
+    EXEC_ARENA.with(|arena| {
+        match arena.try_borrow_mut() {
+            Ok(mut g) => {
+                let start = EXEC_SP.get();
+                let end = start + len;
+                if g.len() < end {
+                    g.resize(end, None);
+                }
+                for slot in &mut g[start..end] {
+                    *slot = None;
+                }
+                EXEC_SP.set(end);
+                let out = f(&mut g[start..end]);
+                EXEC_SP.set(start);
+                out
+            }
+            // Nested exec_where / CallUser / fold while the outer frame is live.
+            // Stack frame; the TLS arena stays with the outer caller.
+            Err(_) => {
+                let mut local = vec![None; len];
+                f(&mut local)
+            }
+        }
+    })
 }
 
 fn exec(
@@ -1051,15 +1017,14 @@ fn exec(
             .into())
         }
         Expr::Call { op, args } => {
-            let row = &RETE_OPS[*op as usize];
-            if row.core_name == ":wat::core::foldl" {
+            if RETE_OPS[*op as usize].core_name == ":wat::core::foldl" {
                 return exec_foldl(args, frame, names, sym, span);
             }
             let mut vs = Vec::with_capacity(args.len());
             for a in args.iter() {
                 vs.push(exec(a, frame, names, sym, span)?);
             }
-            apply_core(row.core_name, &vs, span)
+            apply_op(*op, &vs, span)
         }
         Expr::CallFallback { op, args, fallback } => {
             let row = &RETE_OPS[*op as usize];
@@ -1067,7 +1032,7 @@ fn exec(
             for a in args.iter() {
                 vs.push(exec(a, frame, names, sym, span)?);
             }
-            match apply_core(row.core_name, &vs, span) {
+            match apply_op(*op, &vs, span) {
                 Ok(Value::f64(x)) if !x.is_finite() => exec(fallback, frame, names, sym, span),
                 Ok(Value::Option(opt)) => match opt.as_ref() {
                     Some(v) => Ok(v.clone()),
@@ -1114,25 +1079,34 @@ fn exec_program_on(
     sym: &SymbolTable,
     span: &Span,
 ) -> Result<Value, EvalBreak> {
-    let n = (program.frame_len as usize).max(parent.map(|p| p.len()).unwrap_or(0));
-    let mut inner: Vec<Option<Value>> = vec![None; n];
-    if let Some(p) = parent {
-        for (i, v) in p.iter().enumerate() {
-            inner[i] = v.clone();
-        }
-    }
-    for (i, v) in args.iter().enumerate() {
-        if let Some(&slot) = program.params.get(i) {
-            let idx = slot as usize;
-            if idx >= inner.len() {
-                inner.resize(idx + 1, None);
+    let max_param = program
+        .params
+        .iter()
+        .copied()
+        .max()
+        .map(|s| s as usize + 1)
+        .unwrap_or(0);
+    let n = (program.frame_len as usize)
+        .max(parent.map(|p| p.len()).unwrap_or(0))
+        .max(max_param);
+    with_exec_frame(n, |inner| {
+        if let Some(p) = parent {
+            for (i, v) in p.iter().enumerate() {
+                inner[i] = v.clone();
             }
-            inner[idx] = Some(v.clone());
-        } else if i < inner.len() {
-            inner[i] = Some(v.clone());
         }
-    }
-    exec(&program.root, &mut inner, &program.names, sym, span)
+        for (i, v) in args.iter().enumerate() {
+            if let Some(&slot) = program.params.get(i) {
+                let idx = slot as usize;
+                if idx < inner.len() {
+                    inner[idx] = Some(v.clone());
+                }
+            } else if i < inner.len() {
+                inner[i] = Some(v.clone());
+            }
+        }
+        exec(&program.root, inner, &program.names, sym, span)
+    })
 }
 
 fn exec_foldl(
@@ -1238,42 +1212,127 @@ fn pat_matches(pat: &Pat, v: &Value, frame: &mut [Option<Value>]) -> bool {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+enum OpExec {
+    Eq, NotEq, Gt, Lt, Ge, Le,
+    I64Eq, I64NotEq, StrEq, StrNotEq,
+    StrLen, StartsWith, EndsWith, Contains, Not,
+    I64Add, I64Sub, I64Mul, I64Div, I64Rem, I64Mod, I64ToF64, I64ToStr,
+    F64Gt, F64Lt, F64Ge, F64Le, F64Eq, F64NotEq, F64Add, F64Sub, F64Mul, F64Div, F64ToStr,
+    BoolToStr, StrEmpty, StrConcat, StrTrim, StrLower, StrSubs,
+    PvLen, PvContains, PvGet, VecGet, ListGet, First, PvNew, VecNew, ListNew,
+    Unknown,
+}
+
+impl OpExec {
+    fn of(core: &str) -> Self {
+        match core {
+            ":wat::core::=" | ":wat::core::enum::=" => Self::Eq,
+            ":wat::core::not=" => Self::NotEq,
+            ":wat::core::i64::>" | ":wat::core::>" => Self::Gt,
+            ":wat::core::i64::<" | ":wat::core::<" => Self::Lt,
+            ":wat::core::i64::>=" | ":wat::core::>=" => Self::Ge,
+            ":wat::core::i64::<=" | ":wat::core::<=" => Self::Le,
+            ":wat::core::i64::=" => Self::I64Eq,
+            ":wat::core::i64::not=" => Self::I64NotEq,
+            ":wat::core::string::=" => Self::StrEq,
+            ":wat::core::string::not=" => Self::StrNotEq,
+            ":wat::core::string::length" => Self::StrLen,
+            ":wat::core::string::starts-with?" | ":wat::core::String/starts-with?" => Self::StartsWith,
+            ":wat::core::string::ends-with?" | ":wat::core::String/ends-with?" => Self::EndsWith,
+            ":wat::core::string::contains?" | ":wat::core::String/contains?" => Self::Contains,
+            ":wat::core::not" => Self::Not,
+            ":wat::core::i64::+" => Self::I64Add,
+            ":wat::core::i64::-" => Self::I64Sub,
+            ":wat::core::i64::*" => Self::I64Mul,
+            ":wat::core::i64::/" | ":wat::core::i64::quot" | ":wat::core::i64::div" => Self::I64Div,
+            ":wat::core::i64::rem" => Self::I64Rem,
+            ":wat::core::i64::mod" => Self::I64Mod,
+            ":wat::core::i64::to-f64" => Self::I64ToF64,
+            ":wat::core::i64::to-string" => Self::I64ToStr,
+            ":wat::core::f64::>" => Self::F64Gt,
+            ":wat::core::f64::<" => Self::F64Lt,
+            ":wat::core::f64::>=" => Self::F64Ge,
+            ":wat::core::f64::<=" => Self::F64Le,
+            ":wat::core::f64::=" => Self::F64Eq,
+            ":wat::core::f64::not=" => Self::F64NotEq,
+            ":wat::core::f64::+" => Self::F64Add,
+            ":wat::core::f64::-" => Self::F64Sub,
+            ":wat::core::f64::*" => Self::F64Mul,
+            ":wat::core::f64::/" => Self::F64Div,
+            ":wat::core::f64::to-string" => Self::F64ToStr,
+            ":wat::core::bool::to-string" => Self::BoolToStr,
+            ":wat::core::String/empty?" => Self::StrEmpty,
+            ":wat::core::String/concat" => Self::StrConcat,
+            ":wat::core::string::trim" => Self::StrTrim,
+            ":wat::core::string::to-lowercase" => Self::StrLower,
+            ":wat::core::string::subs" => Self::StrSubs,
+            ":wat::core::PersistentVector/length" => Self::PvLen,
+            ":wat::core::PersistentVector/contains?" => Self::PvContains,
+            ":wat::core::PersistentVector/get" => Self::PvGet,
+            ":wat::core::Vector/get" => Self::VecGet,
+            ":wat::core::List/get" => Self::ListGet,
+            ":wat::core::first" => Self::First,
+            ":wat::core::PersistentVector" => Self::PvNew,
+            ":wat::core::Vector" => Self::VecNew,
+            ":wat::core::List" => Self::ListNew,
+            _ => Self::Unknown,
+        }
+    }
+}
+
+/// Index `RETE_OPS` once; fire matches `OpExec`, never the FQDN string.
+pub(crate) fn apply_op(op: u16, args: &[Value], span: &Span) -> Result<Value, EvalBreak> {
+    static KINDS: OnceLock<Vec<OpExec>> = OnceLock::new();
+    let kinds = KINDS.get_or_init(|| {
+        RETE_OPS.iter().map(|r| OpExec::of(r.core_name)).collect()
+    });
+    apply_core_kind(kinds[op as usize], args, span)
+}
+
+/// FQDN door — `apply_op` is the fire path (index → `OpExec`). Tests and
+/// compile-time dim eval that hold a core name still enter here.
+#[allow(dead_code)]
 pub(crate) fn apply_core(core: &str, args: &[Value], span: &Span) -> Result<Value, EvalBreak> {
-    match (core, args) {
-        (":wat::core::=", [a, b]) | (":wat::core::enum::=", [a, b]) => Ok(Value::bool(a == b)),
-        (":wat::core::not=", [a, b]) => Ok(Value::bool(a != b)),
-        (":wat::core::i64::>", [a, b]) | (":wat::core::>", [a, b]) => {
+    apply_core_kind(OpExec::of(core), args, span)
+}
+
+fn apply_core_kind(kind: OpExec, args: &[Value], span: &Span) -> Result<Value, EvalBreak> {
+    match (kind, args) {
+        (OpExec::Eq, [a, b]) => Ok(Value::bool(a == b)),
+        (OpExec::NotEq, [a, b]) => Ok(Value::bool(a != b)),
+        (OpExec::Gt, [a, b]) => {
             ord(a, b, span, |o| o.is_gt())
         }
-        (":wat::core::i64::<", [a, b]) | (":wat::core::<", [a, b]) => {
+        (OpExec::Lt, [a, b]) => {
             ord(a, b, span, |o| o.is_lt())
         }
-        (":wat::core::i64::>=", [a, b]) | (":wat::core::>=", [a, b]) => {
+        (OpExec::Ge, [a, b]) => {
             ord(a, b, span, |o| !o.is_lt())
         }
-        (":wat::core::i64::<=", [a, b]) | (":wat::core::<=", [a, b]) => {
+        (OpExec::Le, [a, b]) => {
             ord(a, b, span, |o| !o.is_gt())
         }
-        (":wat::core::i64::=", [a, b]) => Ok(Value::bool(a == b)),
-        (":wat::core::i64::not=", [a, b]) => Ok(Value::bool(a != b)),
-        (":wat::core::string::=", [a, b]) => Ok(Value::bool(a == b)),
-        (":wat::core::string::not=", [a, b]) => Ok(Value::bool(a != b)),
-        (":wat::core::string::length", [Value::String(s)]) => {
+        (OpExec::I64Eq, [a, b]) => Ok(Value::bool(a == b)),
+        (OpExec::I64NotEq, [a, b]) => Ok(Value::bool(a != b)),
+        (OpExec::StrEq, [a, b]) => Ok(Value::bool(a == b)),
+        (OpExec::StrNotEq, [a, b]) => Ok(Value::bool(a != b)),
+        (OpExec::StrLen, [Value::String(s)]) => {
             Ok(Value::i64(s.chars().count() as i64))
         }
-        (":wat::core::string::starts-with?", [Value::String(s), Value::String(p)]) => {
+        (OpExec::StartsWith, [Value::String(s), Value::String(p)]) => {
             Ok(Value::bool(s.starts_with(p.as_str())))
         }
-        (":wat::core::string::ends-with?", [Value::String(s), Value::String(p)]) => {
+        (OpExec::EndsWith, [Value::String(s), Value::String(p)]) => {
             Ok(Value::bool(s.ends_with(p.as_str())))
         }
-        (":wat::core::string::contains?", [Value::String(s), Value::String(p)]) => {
+        (OpExec::Contains, [Value::String(s), Value::String(p)]) => {
             Ok(Value::bool(s.contains(p.as_str())))
         }
-        (":wat::core::f64::>", [a, b]) => ord(a, b, span, |o| o.is_gt()),
-        (":wat::core::f64::<", [a, b]) => ord(a, b, span, |o| o.is_lt()),
-        (":wat::core::not", [Value::bool(b)]) => Ok(Value::bool(!*b)),
-        (":wat::core::i64::+", [Value::i64(a), Value::i64(b)]) => match a.checked_add(*b) {
+        (OpExec::F64Gt, [a, b]) => ord(a, b, span, |o| o.is_gt()),
+        (OpExec::F64Lt, [a, b]) => ord(a, b, span, |o| o.is_lt()),
+        (OpExec::Not, [Value::bool(b)]) => Ok(Value::bool(!*b)),
+        (OpExec::I64Add, [Value::i64(a), Value::i64(b)]) => match a.checked_add(*b) {
             Some(n) => Ok(Value::i64(n)),
             None => Err(RuntimeError::new(
                 span.clone(),
@@ -1285,7 +1344,7 @@ pub(crate) fn apply_core(core: &str, args: &[Value], span: &Span) -> Result<Valu
             )
             .into()),
         },
-        (":wat::core::i64::-", [Value::i64(a), Value::i64(b)]) => match a.checked_sub(*b) {
+        (OpExec::I64Sub, [Value::i64(a), Value::i64(b)]) => match a.checked_sub(*b) {
             Some(n) => Ok(Value::i64(n)),
             None => Err(RuntimeError::new(
                 span.clone(),
@@ -1297,7 +1356,7 @@ pub(crate) fn apply_core(core: &str, args: &[Value], span: &Span) -> Result<Valu
             )
             .into()),
         },
-        (":wat::core::i64::*", [Value::i64(a), Value::i64(b)]) => match a.checked_mul(*b) {
+        (OpExec::I64Mul, [Value::i64(a), Value::i64(b)]) => match a.checked_mul(*b) {
             Some(n) => Ok(Value::i64(n)),
             None => Err(RuntimeError::new(
                 span.clone(),
@@ -1309,9 +1368,7 @@ pub(crate) fn apply_core(core: &str, args: &[Value], span: &Span) -> Result<Valu
             )
             .into()),
         },
-        (":wat::core::i64::/", [Value::i64(a), Value::i64(b)])
-        | (":wat::core::i64::quot", [Value::i64(a), Value::i64(b)])
-        | (":wat::core::i64::div", [Value::i64(a), Value::i64(b)]) => {
+        (OpExec::I64Div, [Value::i64(a), Value::i64(b)]) => {
             if *b == 0 {
                 return Err(
                     RuntimeError::new(span.clone(), RuntimeErrorKind::DivisionByZero).into(),
@@ -1330,7 +1387,7 @@ pub(crate) fn apply_core(core: &str, args: &[Value], span: &Span) -> Result<Valu
                 .into()),
             }
         }
-        (":wat::core::i64::rem", [Value::i64(a), Value::i64(b)]) => {
+        (OpExec::I64Rem, [Value::i64(a), Value::i64(b)]) => {
             if *b == 0 {
                 return Err(
                     RuntimeError::new(span.clone(), RuntimeErrorKind::DivisionByZero).into(),
@@ -1338,7 +1395,7 @@ pub(crate) fn apply_core(core: &str, args: &[Value], span: &Span) -> Result<Valu
             }
             Ok(Value::i64(a.checked_rem(*b).unwrap_or(0)))
         }
-        (":wat::core::i64::mod", [Value::i64(a), Value::i64(b)]) => {
+        (OpExec::I64Mod, [Value::i64(a), Value::i64(b)]) => {
             if *b == 0 {
                 return Err(
                     RuntimeError::new(span.clone(), RuntimeErrorKind::DivisionByZero).into(),
@@ -1351,44 +1408,35 @@ pub(crate) fn apply_core(core: &str, args: &[Value], span: &Span) -> Result<Valu
                 r
             }))
         }
-        (":wat::core::i64::to-f64", [Value::i64(n)]) => Ok(Value::f64(*n as f64)),
-        (":wat::core::i64::to-string", [Value::i64(n)]) => {
+        (OpExec::I64ToF64, [Value::i64(n)]) => Ok(Value::f64(*n as f64)),
+        (OpExec::I64ToStr, [Value::i64(n)]) => {
             Ok(Value::String(Arc::new(n.to_string())))
         }
-        (":wat::core::f64::to-string", [Value::f64(n)]) => {
+        (OpExec::F64ToStr, [Value::f64(n)]) => {
             Ok(Value::String(Arc::new(n.to_string())))
         }
-        (":wat::core::bool::to-string", [Value::bool(b)]) => {
+        (OpExec::BoolToStr, [Value::bool(b)]) => {
             Ok(Value::String(Arc::new(b.to_string())))
         }
-        (":wat::core::f64::+", [Value::f64(a), Value::f64(b)]) => Ok(Value::f64(*a + *b)),
-        (":wat::core::f64::-", [Value::f64(a), Value::f64(b)]) => Ok(Value::f64(*a - *b)),
-        (":wat::core::f64::*", [Value::f64(a), Value::f64(b)]) => Ok(Value::f64(*a * *b)),
-        (":wat::core::f64::/", [Value::f64(a), Value::f64(b)]) => Ok(Value::f64(*a / *b)),
-        (":wat::core::f64::>=", [a, b]) => ord(a, b, span, |o| !o.is_lt()),
-        (":wat::core::f64::<=", [a, b]) => ord(a, b, span, |o| !o.is_gt()),
-        (":wat::core::f64::=", [a, b]) => Ok(Value::bool(a == b)),
-        (":wat::core::f64::not=", [a, b]) => Ok(Value::bool(a != b)),
-        (":wat::core::String/starts-with?", [Value::String(s), Value::String(p)]) => {
-            Ok(Value::bool(s.starts_with(p.as_str())))
-        }
-        (":wat::core::String/ends-with?", [Value::String(s), Value::String(p)]) => {
-            Ok(Value::bool(s.ends_with(p.as_str())))
-        }
-        (":wat::core::String/contains?", [Value::String(s), Value::String(p)]) => {
-            Ok(Value::bool(s.contains(p.as_str())))
-        }
-        (":wat::core::String/empty?", [Value::String(s)]) => Ok(Value::bool(s.is_empty())),
-        (":wat::core::String/concat", [Value::String(a), Value::String(b)]) => {
+        (OpExec::F64Add, [Value::f64(a), Value::f64(b)]) => Ok(Value::f64(*a + *b)),
+        (OpExec::F64Sub, [Value::f64(a), Value::f64(b)]) => Ok(Value::f64(*a - *b)),
+        (OpExec::F64Mul, [Value::f64(a), Value::f64(b)]) => Ok(Value::f64(*a * *b)),
+        (OpExec::F64Div, [Value::f64(a), Value::f64(b)]) => Ok(Value::f64(*a / *b)),
+        (OpExec::F64Ge, [a, b]) => ord(a, b, span, |o| !o.is_lt()),
+        (OpExec::F64Le, [a, b]) => ord(a, b, span, |o| !o.is_gt()),
+        (OpExec::F64Eq, [a, b]) => Ok(Value::bool(a == b)),
+        (OpExec::F64NotEq, [a, b]) => Ok(Value::bool(a != b)),
+        (OpExec::StrEmpty, [Value::String(s)]) => Ok(Value::bool(s.is_empty())),
+        (OpExec::StrConcat, [Value::String(a), Value::String(b)]) => {
             Ok(Value::String(Arc::new(format!("{a}{b}"))))
         }
-        (":wat::core::string::trim", [Value::String(s)]) => {
+        (OpExec::StrTrim, [Value::String(s)]) => {
             Ok(Value::String(Arc::new(s.trim().to_string())))
         }
-        (":wat::core::string::to-lowercase", [Value::String(s)]) => {
+        (OpExec::StrLower, [Value::String(s)]) => {
             Ok(Value::String(Arc::new(s.to_lowercase())))
         }
-        (":wat::core::string::subs", [Value::String(s), Value::i64(start), Value::i64(end)]) => {
+        (OpExec::StrSubs, [Value::String(s), Value::i64(start), Value::i64(end)]) => {
             let char_len = s.chars().count() as i64;
             if *start < 0 || *end < 0 || *start > *end || *end > char_len {
                 return Err(RuntimeError::new(
@@ -1410,30 +1458,30 @@ pub(crate) fn apply_core(core: &str, args: &[Value], span: &Span) -> Result<Valu
                 .collect();
             Ok(Value::String(Arc::new(result)))
         }
-        (":wat::core::PersistentVector/length", [Value::wat__core__PersistentVector(pv)]) => {
+        (OpExec::PvLen, [Value::wat__core__PersistentVector(pv)]) => {
             Ok(Value::i64(pv.len() as i64))
         }
-        (":wat::core::PersistentVector/contains?", [Value::wat__core__PersistentVector(pv), x]) => {
+        (OpExec::PvContains, [Value::wat__core__PersistentVector(pv), x]) => {
             Ok(Value::bool(pv.iter().any(|y| y == x)))
         }
-        (":wat::core::PersistentVector/get", [pv, i]) => {
+        (OpExec::PvGet, [pv, i]) => {
             crate::collection::eval::persistentvector_get_inner(pv, i)
         }
-        (":wat::core::Vector/get", [v, i]) => crate::collection::eval::vector_get_inner(v, i),
-        (":wat::core::List/get", [v, i]) => crate::collection::eval::list_get_inner(v, i),
-        (":wat::core::first", [v]) => first_of(v, span),
-        (":wat::core::PersistentVector", args) => Ok(Value::wat__core__PersistentVector(
+        (OpExec::VecGet, [v, i]) => crate::collection::eval::vector_get_inner(v, i),
+        (OpExec::ListGet, [v, i]) => crate::collection::eval::list_get_inner(v, i),
+        (OpExec::First, [v]) => first_of(v, span),
+        (OpExec::PvNew, args) => Ok(Value::wat__core__PersistentVector(
             args.iter().cloned().collect(),
         )),
-        (":wat::core::Vector", args) => Ok(Value::Vec(Arc::new(args.to_vec()))),
-        (":wat::core::List", args) => Ok(Value::wat__core__List(Arc::new(
+        (OpExec::VecNew, args) => Ok(Value::Vec(Arc::new(args.to_vec()))),
+        (OpExec::ListNew, args) => Ok(Value::wat__core__List(Arc::new(
             args.iter().cloned().collect(),
         ))),
         _ => Err(RuntimeError::new(
             span.clone(),
             RuntimeErrorKind::MalformedForm {
-                head: core.into(),
-                reason: format!("compiled apply cannot dispatch {core} arity {}", args.len()),
+                head: ":wat::rete::apply".into(),
+                reason: format!("compiled apply cannot dispatch kind {kind:?} arity {}", args.len()),
             },
         )
         .into()),
@@ -1525,14 +1573,3 @@ pub(crate) fn eval_lower(
     Ok(Value::Unit)
 }
 
-/// Fire-path: lower (already proved at rule-compile) and exec.
-/// Oracle / differential helper. Native rematch uses a stashed `Program`.
-#[allow(dead_code)]
-pub(crate) fn exec_test<B: Bindings>(
-    expr: &WatAST,
-    bindings: &B,
-    sym: &SymbolTable,
-) -> Result<bool, EvalBreak> {
-    let program = lower(expr, sym).map_err(LowerError::into_eval)?;
-    exec_where(&program, bindings, sym, expr.span())
-}

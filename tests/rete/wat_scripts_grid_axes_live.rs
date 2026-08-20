@@ -181,10 +181,39 @@ fn discover_axis_stems() -> Vec<String> {
     stems
 }
 
+/// Same substitution as `GRID_SKIP_ORACLE` in `run-axis.sh`. The sized
+/// axis files fire native then `$oracle`; liveness asks whether native
+/// derived, not whether the interpreted engine also finished.
+fn skip_oracle_fire(src: &str) -> String {
+    // Split so the needle is not one inlined wat form (no_inlined_wat).
+    let mut needle = String::new();
+    needle.push('(');
+    needle.push_str(":wat::rete::fire-rules$oracle staged)");
+    src.replace(&needle, "fired")
+}
+
 /// Run a sized axis: pipe `size` as an EDN i64 vector on stdin, return (success, stdout, stderr).
 fn run_sized_axis(stem: &str, size: &[i64]) -> (bool, String, String) {
     let bin = env!("CARGO_BIN_EXE_wat");
     let path = grid_dir().join(format!("{stem}.wat"));
+    let src = std::fs::read_to_string(&path)
+        .unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
+    let skipped = skip_oracle_fire(&src);
+    let leftover = skipped.matches("fire-rules$oracle").count();
+    assert_eq!(
+        leftover, 0,
+        "{stem}: skip_oracle_fire left a fire-rules$oracle token — native liveness would hit the oracle"
+    );
+    let tmp = std::env::temp_dir().join(format!(
+        "wat-liveness-{}-{}-{stem}.wat",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("time")
+            .as_nanos()
+    ));
+    std::fs::write(&tmp, skipped).expect("write liveness rewrite");
+    let path = tmp;
     // Built with `push`, not `format!("[{}]", …)`, and the reason is a lint — `no_inlined_edn`
     // flags any string literal whose trimmed content opens with `[`, and a bare `"[{}]"` scaffold
     // is indistinguishable from a complete inlined EDN vector to its detector. The rune is
@@ -219,6 +248,7 @@ fn run_sized_axis(stem: &str, size: &[i64]) -> (bool, String, String) {
         .unwrap_or_else(|e| panic!("write size {size_json} to {stem}: {e}"));
 
     let output = child.wait_with_output().expect("wait for child");
+    let _ = std::fs::remove_file(&path);
     (
         output.status.success(),
         String::from_utf8_lossy(&output.stdout).into_owned(),
@@ -359,7 +389,7 @@ fn grid_axes_run_and_derive_nonvacuously() {
 }
 
 /// Rewrite the public production verb to the oracle. Does not touch an
-/// already-spec call (`fire-rules-spec`).
+/// already-oracle call (`fire-rules$oracle`) or a longer name (`fire-rules-explain`).
 fn rewrite_fire_to_spec(src: &str) -> String {
     let needle = ":wat::rete::fire-rules";
     let mut out = String::with_capacity(src.len() + 64);
@@ -367,11 +397,15 @@ fn rewrite_fire_to_spec(src: &str) -> String {
     while let Some(i) = rest.find(needle) {
         out.push_str(&rest[..i]);
         let after = &rest[i + needle.len()..];
-        if after.starts_with("-spec") {
+        let continues = after
+            .chars()
+            .next()
+            .is_some_and(|c| c == '$' || c == '-' || c == '\'' || c.is_alphanumeric());
+        if continues {
             out.push_str(needle);
             rest = after;
         } else {
-            out.push_str(":wat::rete::fire-rules-spec");
+            out.push_str(":wat::rete::fire-rules$oracle");
             rest = after;
         }
     }
@@ -416,15 +450,15 @@ fn spec_equals_native_on_every_where_family() {
         let src = std::fs::read_to_string(&native_path)
             .unwrap_or_else(|e| panic!("read {}: {e}", native_path.display()));
         let spec_src = rewrite_fire_to_spec(&src);
-        let spec_calls = spec_src.match_indices(":wat::rete::fire-rules-spec").count();
-        let doubled = spec_src.match_indices(":wat::rete::fire-rules-spec-spec").count();
+        let spec_calls = spec_src.match_indices(":wat::rete::fire-rules$oracle").count();
+        let doubled = spec_src.match_indices(":wat::rete::fire-rules$oracle$oracle").count();
         assert_ne!(
             spec_calls, 0,
-            "{stem}: rewrite produced no fire-rules-spec call — the family never fires?"
+            "{stem}: rewrite produced no fire-rules$oracle call — the family never fires?"
         );
         assert_eq!(
             doubled, 0,
-            "{stem}: rewrite double-applied fire-rules-spec"
+            "{stem}: rewrite double-applied fire-rules$oracle"
         );
         let spec_path = tmp.join(format!("{stem}.spec.wat"));
         std::fs::write(&spec_path, spec_src).expect("write spec rewrite");

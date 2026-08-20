@@ -23,7 +23,7 @@
      s0    (:wat::rete::compile-all (:wat::core::PersistentVector rule) (:wat::core::PersistentVector (:weather::q-ColdAndWindy)))
      s1    (:wat::rete::insert s0 (:weather::Temperature :celsius 15 :location "Oslo"))
      s2    (:wat::rete::insert s1 (:weather::WindSpeed :kph 45 :location "Oslo"))
-     fired (:wat::rete::fire-once' s2)]
+     fired (:wat::rete::fire-once s2)]
     (:wat::core::length (:wat::rete::collect-derived (:wat::rete::Session/production-memory fired)))))
 
 (:wat::core::defn :user::count-wat-oslo [] -> :wat::core::i64
@@ -35,7 +35,7 @@
      s0    (:wat::rete::compile-all (:wat::core::PersistentVector rule) (:wat::core::PersistentVector (:weather::q-ColdAndWindy)))
      s1    (:wat::rete::insert s0 (:weather::Temperature :celsius 15 :location "Oslo"))
      s2    (:wat::rete::insert s1 (:weather::WindSpeed :kph 45 :location "Oslo"))
-     fired (:wat::rete::fire-once s2)]
+     fired (:wat::rete::fire-once$oracle s2)]
     (:wat::core::length (:wat::rete::collect-derived (:wat::rete::Session/production-memory fired)))))
 
 (:wat::core::defn :user::count-native-bergen [] -> :wat::core::i64
@@ -47,7 +47,7 @@
      s0    (:wat::rete::compile-all (:wat::core::PersistentVector rule) (:wat::core::PersistentVector (:weather::q-ColdAndWindy)))
      s1    (:wat::rete::insert s0 (:weather::Temperature :celsius 15 :location "Oslo"))
      s2    (:wat::rete::insert s1 (:weather::WindSpeed :kph 45 :location "Bergen"))
-     fired (:wat::rete::fire-once' s2)]
+     fired (:wat::rete::fire-once s2)]
     (:wat::core::length (:wat::rete::collect-derived (:wat::rete::Session/production-memory fired)))))
 
 (:wat::core::defn :user::count-wat-bergen [] -> :wat::core::i64
@@ -59,7 +59,7 @@
      s0    (:wat::rete::compile-all (:wat::core::PersistentVector rule) (:wat::core::PersistentVector (:weather::q-ColdAndWindy)))
      s1    (:wat::rete::insert s0 (:weather::Temperature :celsius 15 :location "Oslo"))
      s2    (:wat::rete::insert s1 (:weather::WindSpeed :kph 45 :location "Bergen"))
-     fired (:wat::rete::fire-once s2)]
+     fired (:wat::rete::fire-once$oracle s2)]
     (:wat::core::length (:wat::rete::collect-derived (:wat::rete::Session/production-memory fired)))))
 
 ;; native_derives_the_right_fact — the native-derived fact is a ColdAndWindy at "Oslo" (content, not just count).
@@ -72,7 +72,7 @@
      s0    (:wat::rete::compile-all (:wat::core::PersistentVector rule) (:wat::core::PersistentVector (:weather::q-ColdAndWindy)))
      s1    (:wat::rete::insert s0 (:weather::Temperature :celsius 15 :location "Oslo"))
      s2    (:wat::rete::insert s1 (:weather::WindSpeed :kph 45 :location "Oslo"))
-     fired (:wat::rete::fire-once' s2)
+     fired (:wat::rete::fire-once s2)
      cw    (:wat::core::first
               (:wat::rete::collect-derived
                 (:wat::rete::Session/production-memory fired)))]
@@ -87,7 +87,7 @@
      s0    (:wat::rete::compile-all (:wat::core::PersistentVector rule) (:wat::core::PersistentVector (:weather::q-ColdAndWindy)))
      s1    (:wat::rete::insert s0 (:weather::Temperature :celsius 15 :location "Oslo"))
      s2    (:wat::rete::insert s1 (:weather::WindSpeed :kph 45 :location "Oslo"))
-     fired (:wat::rete::fire-once' s2)
+     fired (:wat::rete::fire-once s2)
      cw    (:wat::core::first
               (:wat::rete::collect-derived
                 (:wat::rete::Session/production-memory fired)))]
@@ -105,7 +105,7 @@
      s2    (:wat::rete::insert s1 (:weather::Temperature :celsius 10 :location "Bergen"))
      s3    (:wat::rete::insert s2 (:weather::WindSpeed :kph 45 :location "Oslo"))
      s4    (:wat::rete::insert s3 (:weather::WindSpeed :kph 50 :location "Bergen"))
-     fired (:wat::rete::fire-once' s4)]
+     fired (:wat::rete::fire-once s4)]
     (:wat::core::length (:wat::rete::collect-derived (:wat::rete::Session/production-memory fired)))))
 
 (:wat::core::defn :user::count-wat-2x2 [] -> :wat::core::i64
@@ -119,5 +119,5 @@
      s2    (:wat::rete::insert s1 (:weather::Temperature :celsius 10 :location "Bergen"))
      s3    (:wat::rete::insert s2 (:weather::WindSpeed :kph 45 :location "Oslo"))
      s4    (:wat::rete::insert s3 (:weather::WindSpeed :kph 50 :location "Bergen"))
-     fired (:wat::rete::fire-once s4)]
+     fired (:wat::rete::fire-once$oracle s4)]
     (:wat::core::length (:wat::rete::collect-derived (:wat::rete::Session/production-memory fired)))))

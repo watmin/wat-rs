@@ -63,7 +63,7 @@ fn count(world_src: &str, fire_fn: &str) -> Result<i64, String> {
 #[test]
 fn differential_where_passes() {
     let w = world(-50);
-    let oracle = count(&w, "fire-rules-spec").expect("oracle fire");
+    let oracle = count(&w, "fire-rules$oracle").expect("oracle fire");
     let native = count(&w, "fire-rules").expect("native fire");
     assert_eq!(native, oracle, "native must equal oracle (where passes); native={native} oracle={oracle}");
     assert_eq!(native, 1, "where (> -5 -50) true → exactly one ColdAndWindy; got {native}");
@@ -73,7 +73,7 @@ fn differential_where_passes() {
 #[test]
 fn differential_where_blocks() {
     let w = world(100);
-    let oracle = count(&w, "fire-rules-spec").expect("oracle fire");
+    let oracle = count(&w, "fire-rules$oracle").expect("oracle fire");
     let native = count(&w, "fire-rules").expect("native fire");
     assert_eq!(native, oracle, "native must equal oracle (where blocks); native={native} oracle={oracle}");
     assert_eq!(native, 0, "where (> -5 100) false → zero ColdAndWindy; got {native}");

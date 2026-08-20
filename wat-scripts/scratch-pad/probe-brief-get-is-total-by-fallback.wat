@@ -48,7 +48,7 @@
      s1    (:wat::rete::insert s0 (:g278get::PV (:wat::core::PersistentVector 7 8 9)))
      s2    (:wat::rete::insert s1 (:g278get::PV (:wat::core::PersistentVector 1 2 3)))
      s3    (:wat::rete::insert s2 (:g278get::PV (:wat::core::PersistentVector)))
-     fired (:wat::rete::fire-rules-spec s3)]
+     fired (:wat::rete::fire-rules$oracle s3)]
     (:wat::kernel::println
       (:wat::core::string::concat "row7 seam-composes Hit-count (expect 1) = "
         (:wat::core::str (:wat::core::length (:wat::rete::query fired (:g278get::q-Hit))))))))
