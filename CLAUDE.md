@@ -3,7 +3,7 @@
 Conventions specific to working in `wat-rs` (the Rust-hosted `wat` language).
 
 > ⚠ **This file is NOT auto-injected.** Verified 2026-07-21 (a subagent + the main session both
-> receive only `/home/john/work/holon/CLAUDE.md`). Nothing here reaches a fresh session or a spawned
+> receive only `~/work/holon/CLAUDE.md`). Nothing here reaches a fresh session or a spawned
 > rider on its own. The **load-bearing subset** (the wat-fix codemod doctrine, the release floor, the
 > scratch-`.wat` convention) is carried in `holon/CLAUDE.md` — the only injected copy. Keep them in
 > sync; for anything that MUST reach a fresh session/subagent, edit `holon/CLAUDE.md`. This file is the
