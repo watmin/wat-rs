@@ -168,6 +168,33 @@ shape rewrite — the types are already on the page. `(PersistentVector 1 2 3)` 
 `(PersistentVector [:wat::core::i64] 1 2 3)` requires *inferring* `i64`. **A form-aware codemod cannot
 do that.** wat-fix walks forms; it does not type-check.
 
+## ⊹ THE ONE PLACE INFERENCE SURVIVES — EDN LITERAL FORMS
+
+> Builder, 2026-08-20: *"this forced change is going to break a lot of shit — that's the point — we
+> are finding every heretic and annihilating the heresy… **the only place we support inference is for
+> edn forms**… `[1 2 3]` is a `(wat.type/Vector [wat.type/i64])` … we know how to do this already."*
+
+Measured at HEAD — it already works exactly this way:
+
+```
+[1 2 3]      → [1 2 3]        EDN literal, element type INFERRED
+{"a" 1}      → {"a" 1}
+#{1 2 3}     → #{2 1 3}
+(:user::f [1 2 3])  where f's param is (:wat::core::Vector [:wat::core::i64])  → 3
+```
+
+The line is principled, not a carve-out: **an EDN literal and a constructor call are two different
+acts, not two spellings of one thing.** The literal is the inference-bearing form; the constructor
+call is the explicit form and its type vector is mandatory. Inference therefore lives in exactly ONE
+place in the language, which is what makes "no ambiguity" true rather than aspirational.
+
+⚠ **UNMEASURED — do not scope ② on this either way.** Whether some of the 977 bracket-less
+constructor calls could instead be rewritten as EDN literals (rather than gaining an explicit type
+vector) is NOT known. A probe tried tagged literals — `#wat.core/PersistentVector [1 2 3]` — and they
+failed to read; **but the control failed too** (`#user/A {:x 1}`, a plain record, also did not read),
+so that probe measured the reader's tag support in general, not those types. The question stands open
+and needs a probe whose control fires.
+
 ## ★★ THE 977 BECOME MECHANICAL: THE CHECKER'S REFUSAL CARRIES THE TEXT TO INSERT
 
 Do NOT build a checker-driven rewriter. The checker already holds the answer at the exact moment it
