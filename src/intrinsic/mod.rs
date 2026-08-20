@@ -372,11 +372,14 @@ pub(crate) fn registry() -> &'static IntrinsicRegistry {
 }
 
 mod bytes;
+mod kernel_abort;
 mod kernel_ambient;
 mod kernel_error;
+mod kernel_identity;
 mod kernel_message;
-mod kernel_remainder;
 mod kernel_resource;
+mod kernel_serve;
+mod kernel_source;
 mod kernel_stdio;
 mod reflect;
 mod witness;
