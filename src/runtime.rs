@@ -6743,7 +6743,23 @@ fn dispatch_keyword_head_value(
         // Arc 255.1c-kernel-stdio — println/pprintln/eprintln/epprintln/readln'/read-frame
         // moved to the intrinsic registry (`src/intrinsic/kernel_stdio.rs`); dispatch now
         // reaches them via the registry lookup above, not a literal arm here.
+        // ⊘ `drop` is HELD BACK from home #7's carve — it is the one `:Resource` verb
+        // that could not be registered. Its only accepted argument types are
+        // `wat::kernel::Sender`/`Receiver` (see `eval_kernel_drop`'s match), and NOTHING
+        // IN THE WAT CORPUS CONSTRUCTS EITHER: `:wat::kernel::Channel<T>` is a
+        // TYPEALIAS (`wat/kernel/channel.wat:49`) naming the pair's type, not a verb
+        // that builds one. So `drop` is UNREACHABLE from the language, and
+        // `purity_mandated_examples` proved it — a Pure+Deterministic row owes a RUNNABLE
+        // `@example`, and no honest one can be written for a verb whose argument cannot
+        // exist. Registering it would place a row in the registry that nothing can
+        // exercise. Disposition is the builder's (retire the verb, or ship the missing
+        // channel constructor); until then the literal arm stays exactly as it was.
         ":wat::kernel::drop" => eval_kernel_drop(args, env, sym, list_span),
+        // Arc 255.1c-kernel-resource — HandlePool::{new,pop,finish}, pipe,
+        // spawn-thread, spawn-process, after, close, signal, listener, connect,
+        // accept, allow, deny (fifteen verbs, `:Resource`'s whole population) moved
+        // to the intrinsic registry (`src/intrinsic/kernel_resource.rs`); dispatch
+        // now reaches them via the registry lookup above, not a literal arm here.
         // :wat::kernel::spawn / :wat::kernel::join / :wat::kernel::join-result
         // retired in arc 114. spawn-thread + Thread/join-result are the
         // canonical replacements; the type-checker poisons every call site
@@ -6757,9 +6773,6 @@ fn dispatch_keyword_head_value(
         // ANNIHILATED with the run-sandboxed family (its only callers were the
         // deleted manual sandbox drivers; the primed peer wire delivers the
         // LociDiedError chain directly via recv' Lost, no stderr-scrape needed).
-        ":wat::kernel::HandlePool::new" => eval_handle_pool_new(args, env, sym, list_span),
-        ":wat::kernel::HandlePool::pop" => eval_handle_pool_pop(args, env, sym, list_span),
-        ":wat::kernel::HandlePool::finish" => eval_handle_pool_finish(args, env, sym, list_span),
         // Arc 105c — substrate `:wat::kernel::run-sandboxed` /
         // `-ast` dispatch arms are GONE. The wat-level defines in
         // `wat/kernel/sandbox.wat` (bundled in `src/stdlib.rs`) atop
@@ -6776,7 +6789,6 @@ fn dispatch_keyword_head_value(
         ":wat::kernel::raise!" => eval_kernel_raise(args, list_span, env, sym),
         // Arc 296 — returns the source coordinate of the `(here)` form itself.
         ":wat::kernel::here" => eval_kernel_here(args, list_span),
-        ":wat::kernel::pipe" => crate::io::eval_kernel_pipe(args, list_span).map_err(Into::into),
         // Arc 259 (forced-hand) Stone S1 — reify a fn value (anonymous or
         // named-by-reference) into shippable forms via `closure_extract`.
         // See `crate::closure_extract::eval_kernel_fn_forms` doc.
@@ -6791,18 +6803,6 @@ fn dispatch_keyword_head_value(
         // spawn-thread' : fn([Peer'<S,R>]) -> nil -> Thread'<R,S>
         // spawn-process' : forms -> Process'<I,O>
         // Both delegate to the shared spawn_thread_peer / spawn_process_peer helpers.
-        ":wat::kernel::spawn-thread" => {
-            crate::kernel::spawn::eval_kernel_spawn_thread_prime(args, list_span, env, sym)
-        }
-        ":wat::kernel::spawn-process" => {
-            crate::kernel::spawn::eval_kernel_spawn_process_prime(args, list_span, env, sym)
-        }
-        // Arc 292 — one-shot timer peer (thread tier).
-        // after : (locus: ThreadOpts, duration: Duration, msg: T) -> Thread'<nil, T>
-        // Returns a Thread' peer whose output fires once after `duration` delivering
-        // `msg`, and whose crash receiver never fires (sender immediately dropped).
-        // Drops cleanly into select' next to real Thread' peers — no select' changes.
-        ":wat::kernel::after" => eval_kernel_after(args, list_span, env, sym),
         // Arc 255.1c-kernel-message — send/try-send/recv/select/poll moved to the
         // intrinsic registry (`src/intrinsic/kernel_message.rs`); dispatch now
         // reaches them via the registry lookup above, not a literal arm here.
@@ -6811,12 +6811,10 @@ fn dispatch_keyword_head_value(
         // see docs/DISPATCH.md + check.rs ~4814 for the CLAUSE-vs-INTRINSIC
         // partition. Downcasts the peer RustOpaque by sentinel (Thread' first,
         // then Process', else TypeMismatch).
-        ":wat::kernel::close" => eval_peer_close_prime(args, list_span, env, sym),
         // DESIGN-STONE-process-signal-owner-to-child.md; BRIEF-process-signal-p2-mint.md
         // — owner-to-child signal delivery. STOP-1: Process<I,O> only, no shared
         // codegen with Thread'/Peer'. STOP-3: routes through Pidfd::send_signal, never
         // kill(pid, sig). See eval_signal.
-        ":wat::kernel::signal" => eval_signal(args, list_span, env, sym),
         // DESIGN-STONE-a-service-that-measures-itself.md A1 — un-erase the concrete
         // locus a Peer<I,O>-typed value already holds. Same runtime-tag read as
         // peer-pid, different projection (the peer value itself, not its pid). See
@@ -6839,19 +6837,14 @@ fn dispatch_keyword_head_value(
         // ships the server's raw halves over the rendezvous.
         // accept' receives the server's raw halves from the rendezvous, wraps the
         // server Peer' end on this thread.  No Peer' cell ever crosses a thread.
-        ":wat::kernel::listener" => eval_listener_prime(args, list_span, env, sym),
-        ":wat::kernel::connect" => eval_connect_prime(args, list_span, env, sym),
         // Arc 170 capability circuit, stone 2 — peer-pid: pure projection of the
         // far-end child pid off the peer. Process peer → (Some pid) read from the
         // Pidfd the bundle already holds; thread peer → :None (far end is a cell in
         // this process, no separate pid). Identity only; no signal, no effect.
         ":wat::kernel::peer-pid" => eval_peer_pid(args, list_span, env, sym),
-        ":wat::kernel::accept" => eval_accept_prime(args, list_span, env, sym),
         // Arc 209 C0b.3b-b — allow'/deny': mutate the SocketListener's allow-set.
         // allow' : (Listener'<S,R>, i64) -> nil  — insert pid; process-tier only.
         // deny'  : (Listener'<S,R>, i64) -> nil  — remove pid; process-tier only.
-        ":wat::kernel::allow" => eval_allow_prime(args, list_span, env, sym),
-        ":wat::kernel::deny" => eval_deny_prime(args, list_span, env, sym),
         // :wat::kernel::wait-child retired in arc 112 — replaced by
         // :wat::kernel::Process/join-result returning Result<(),
         // ProcessDiedError>. The orphaned eval body in src/fork.rs
@@ -26067,7 +26060,7 @@ fn eval_config_global_seed(
 ///
 /// The host value (args[0]) is evaluated at runtime to dispatch between tiers; arity is
 /// validated AFTER host dispatch (thread=3, process=2).
-fn eval_listener_prime(
+pub(crate) fn eval_listener_prime(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
@@ -26253,7 +26246,7 @@ fn bound_names() -> Arc<Vec<String>> {
 /// (Formerly two arms: thread tier dispatched on `Value::wat__kernel__Sender`;
 /// process tier dispatched on `SOCKET_ADDRESS_TYPE_PATH`. Both bodies moved verbatim
 /// into `ThreadAddress::connect` / `SocketAddress::connect` in `kernel/address.rs`.)
-fn eval_connect_prime(
+pub(crate) fn eval_connect_prime(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
@@ -26437,7 +26430,7 @@ fn wrap_connect_request(cr: Value, span: &Span) -> Result<Value, EvalBreak> {
 /// `&UnixListener`, call `.accept()` (blocks until a connection — the
 /// honest wire-wait), wrap the accepted stream as a unified `Peer'<R,S>`.
 /// Returns `Peer'<R,S>`.
-fn eval_accept_prime(
+pub(crate) fn eval_accept_prime(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
@@ -26487,7 +26480,7 @@ fn eval_accept_prime(
 ///
 /// Inserts `pid` into the `SocketListener`'s allow-set. Process-tier only: a
 /// `CrossbeamListener` has no allow-set (the crossbeam handle IS the grant).
-fn eval_allow_prime(
+pub(crate) fn eval_allow_prime(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
@@ -26566,7 +26559,7 @@ fn eval_allow_prime(
 ///
 /// Removes `pid` from the `SocketListener`'s allow-set (future accepts by that pid bounce).
 /// Process-tier only: a `CrossbeamListener` has no allow-set (the crossbeam handle IS the grant).
-fn eval_deny_prime(
+pub(crate) fn eval_deny_prime(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
@@ -26659,7 +26652,7 @@ fn eval_deny_prime(
 ///
 /// A proper `consume` semantic (atomic take + underlying drop) is a
 /// future refactor if userland programs need it before scope-end.
-fn eval_kernel_drop(
+pub(crate) fn eval_kernel_drop(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
@@ -26911,7 +26904,7 @@ fn eval_stat_stddev(
 /// is already gone so recv returns immediately on empty); `finish`
 /// checks the channel is empty. No Mutex; the channel's
 /// lock-free multi-consumer semantics are the synchronization.
-fn eval_handle_pool_new(
+pub(crate) fn eval_handle_pool_new(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
@@ -26980,7 +26973,7 @@ fn eval_handle_pool_new(
 /// the claimed value. If the pool is empty, returns a
 /// MalformedForm error naming the pool — callers are expected to
 /// pop exactly the count they committed to at construction.
-fn eval_handle_pool_pop(
+pub(crate) fn eval_handle_pool_pop(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
@@ -27037,7 +27030,7 @@ fn eval_handle_pool_pop(
 /// construction), returns a MalformedForm error naming the pool and
 /// the orphan count. This is the "claim or panic" discipline from
 /// FOUNDATION's Pipeline Discipline rule 2.
-fn eval_handle_pool_finish(
+pub(crate) fn eval_handle_pool_finish(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
@@ -31689,7 +31682,7 @@ pub(crate) fn eval_peer_recv_prime(
 // Arc 259 S2d — restricted to `:wat::kernel::` callers. Teardown is RAII Drop;
 // a :user:: fn calling close' is a check error. The user never holds the rope.
 #[restricted_to(":wat::kernel::close", ":wat::kernel::")]
-fn eval_peer_close_prime(
+pub(crate) fn eval_peer_close_prime(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
@@ -31855,7 +31848,7 @@ fn eval_peer_close_prime(
 /// is to call it on an already-closed peer, which is intercepted below
 /// (`"peer already closed"`) before the syscall ever runs. A live `signal`
 /// call cannot observe ESRCH.
-fn eval_signal(
+pub(crate) fn eval_signal(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
@@ -32920,7 +32913,7 @@ pub(crate) fn eval_peer_select_prime(
 /// - `args[0]`: peer-kind — must evaluate to `:wat::program::PeerKind` enum value.
 /// - `args[1]`: duration — must evaluate to `Value::Duration(nanos: i64)`, non-negative.
 /// - `args[2]`: msg — any `Value`; becomes the timer's output payload.
-fn eval_kernel_after(
+pub(crate) fn eval_kernel_after(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,

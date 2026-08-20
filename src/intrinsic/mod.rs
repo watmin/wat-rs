@@ -375,6 +375,7 @@ mod bytes;
 mod kernel_ambient;
 mod kernel_error;
 mod kernel_message;
+mod kernel_resource;
 mod kernel_stdio;
 mod reflect;
 mod witness;
@@ -484,6 +485,28 @@ mod tests {
             // below; no registered intrinsic returns one, so a spelling for that
             // case would be invented rather than verified.
             crate::types::TypeExpr::Tuple(items) if items.is_empty() => ":wat::core::nil".to_string(),
+            // ⊘ CORRECTED 2026-08-19 (255.1c-kernel-resource). The note above used to
+            // end: "Empty tuple only — a non-empty `Tuple` falls through to the fallback
+            // below; no registered intrinsic returns one, so a spelling for that case
+            // would be invented rather than verified." BOTH CLAUSES ARE NOW FALSE.
+            // `:wat::kernel::pipe` returns `(IOWriter, IOReader)` and is registered as of
+            // home #7 — the first row anywhere with a non-empty tuple return, which made
+            // this latent gap REACHABLE (the same shape as home #3, where the carve made
+            // the unit-type arm reachable for the first time).
+            //
+            // And the spelling is no longer invented — it is VERIFIED against the corpus:
+            // `wat/kernel/channel.wat:49` declares `:(wat::kernel::Sender<T>,wat::kernel::Receiver<T>)`
+            // and `wat/` carries `:(wat::core::i64,O)` sites. Elements use the TYPE-ARG
+            // spelling (no leading `:`), exactly as inside `<>`.
+            //
+            // Without this arm the fallback Debug-formats (`Tuple([Path(":wat::io::IOWriter"), …])`),
+            // which NO `@ret` string can ever equal — the doc grammar forbids whitespace in a
+            // type token — so the gate was unsatisfiable rather than merely failing.
+            crate::types::TypeExpr::Tuple(items) if !items.is_empty() => {
+                let items_str: Vec<String> =
+                    items.iter().map(typeexpr_to_type_arg_string).collect();
+                format!(":({})", items_str.join(","))
+            }
             crate::types::TypeExpr::Fn { args, ret } => {
                 let args_str: Vec<String> = args.iter().map(typeexpr_to_doc_string).collect();
                 format!(":wat::core::Fn({})->{}", args_str.join(","), typeexpr_to_doc_string(ret))
