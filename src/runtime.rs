@@ -6815,22 +6815,14 @@ fn dispatch_keyword_head_value(
         // `msg`, and whose crash receiver never fires (sender immediately dropped).
         // Drops cleanly into select' next to real Thread' peers — no select' changes.
         ":wat::kernel::after" => eval_kernel_after(args, list_span, env, sym),
-        // Arc 214 Stone 4.6a-ii — four peer verb intrinsics.
-        // PARTITION — CLAUSE vs INTRINSIC (see docs/DISPATCH.md + check.rs ~4814):
-        //   send'     — intrinsic (projective: I from peer<I,O>)
-        //   recv'     — intrinsic (projective: O from peer<I,O>)
-        //   close'    — intrinsic (∀-parametric: peer<∀I,∀O>)
-        // Each arm downcasts the peer RustOpaque by sentinel (Thread' first,
-        // then Process', else TypeMismatch). Thread' passes Value through;
-        // Process' bridges via EDN (value_to_edn + wat_edn::write / read_edn).
-        ":wat::kernel::send" => eval_peer_send_prime(args, list_span, env, sym),
-        // Arc 278 Stone 1a — try-send': best-effort NON-BLOCKING send. Same
-        // (peer<I,O>, payload<-I) -> nil contract as send', but a full channel /
-        // gone peer is a silent skip, never a block. The over-FOO `Rejected`
-        // serve-loop reply uses it so a client blocked mid-send cannot wedge the
-        // serve loop (the deadlock guard).
-        ":wat::kernel::try-send" => eval_peer_try_send_prime(args, list_span, env, sym),
-        ":wat::kernel::recv" => eval_peer_recv_prime(args, list_span, env, sym),
+        // Arc 255.1c-kernel-message — send/try-send/recv/select/poll moved to the
+        // intrinsic registry (`src/intrinsic/kernel_message.rs`); dispatch now
+        // reaches them via the registry lookup above, not a literal arm here.
+        //
+        // Arc 214 Stone 4.6a-ii — close': intrinsic (∀-parametric: peer<∀I,∀O>);
+        // see docs/DISPATCH.md + check.rs ~4814 for the CLAUSE-vs-INTRINSIC
+        // partition. Downcasts the peer RustOpaque by sentinel (Thread' first,
+        // then Process', else TypeMismatch).
         ":wat::kernel::close" => eval_peer_close_prime(args, list_span, env, sym),
         // DESIGN-STONE-process-signal-owner-to-child.md; BRIEF-process-signal-p2-mint.md
         // — owner-to-child signal delivery. STOP-1: Process<I,O> only, no shared
@@ -6853,12 +6845,6 @@ fn dispatch_keyword_head_value(
         ":wat::kernel::address-wire?" => eval_address_wire(args, list_span, env, sym),
         // 293.W.2f — check-time Wire door; runtime is identity.
         ":wat::kernel::require-wire-address" => eval_require_wire_address(args, list_span, env, sym),
-        // Arc 214 Stone 4.6b — select': first-ready multiplex over same-tier peers.
-        // select' : Vector<peer<I,O>> -> Tuple<i64, O>
-        ":wat::kernel::select" => eval_peer_select_prime(args, list_span, env, sym),
-        // Arc 209 Stone C0b.2e-i-c — poll': 3-arg service multiplexer.
-        // poll' : (self-peer, listener, peers) -> ServiceEvent<I,O>
-        ":wat::kernel::poll" => eval_poll_prime(args, list_span, env, sym),
         // Arc 209 Stone C0b.1 — thread-tier connection: listener'/connect'/accept'.
         // listener' mints the crossbeam rendezvous (Listener'=rx, Address'=tx).
         // connect' mints the connection pairs, wraps the client Peer' end locally,
@@ -31050,7 +31036,7 @@ fn is_mutation_head(head: &str) -> bool {
 /// Peer' thread-tier: `peer.send(value)` Value pass-through.
 /// Peer' socket-tier: encode with sym.types() in eval → `peer.send_wire(String)`.
 /// Returns `nil`.  Use-after-close (Option is None) → RuntimeError.
-fn eval_peer_send_prime(
+pub(crate) fn eval_peer_send_prime(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
@@ -31220,7 +31206,7 @@ fn eval_peer_send_prime(
 /// isn't reading its reply side, the reply is skipped (`WouldBlock`) and the
 /// connection is evicted regardless (the client learns via EPIPE on its own
 /// `send`), so one client can never wedge the loop — see `service.wat:1167`.
-fn eval_peer_try_send_prime(
+pub(crate) fn eval_peer_try_send_prime(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
@@ -31455,7 +31441,7 @@ fn reply_failed_reason(v: &Value) -> Option<String> {
     }
 }
 
-fn eval_peer_recv_prime(
+pub(crate) fn eval_peer_recv_prime(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
@@ -32232,7 +32218,7 @@ fn eval_require_wire_address(
 /// - Process tier: same with `comms::process::Select`; decodes EDN String → Value;
 ///   on EOF reads the err channel → `Lost`/`Closed`.
 /// - Shutdown fires → MalformedForm "select' interrupted by shutdown".
-fn eval_peer_select_prime(
+pub(crate) fn eval_peer_select_prime(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
@@ -33229,7 +33215,7 @@ fn eval_kernel_serve_dispatch_op(
     }
 }
 
-fn eval_poll_prime(
+pub(crate) fn eval_poll_prime(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
