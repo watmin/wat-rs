@@ -4250,14 +4250,6 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
-            ":wat::kernel::drop" => {
-                let (val, mut errs) = infer_drop(args, head_span, env, locals, fresh, subst).into_parts();
-                local_errors.append(&mut errs);
-                return match val {
-                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
-                    None => CheckResult::errs(local_errors),
-                };
-            }
             ":wat::core::first" => {
                 let (val, mut errs) = infer_positional_accessor(args, head_span, env, locals, fresh, subst, ":wat::core::first", 0).into_parts();
                 local_errors.append(&mut errs);
@@ -9440,51 +9432,6 @@ fn infer_nth(
     }
     // HARVEST (236.2): silent-by-intent — arg inference failed; return polymorphic placeholder.
     if local_errors.is_empty() { CheckResult::ok(fresh.fresh()) } else { CheckResult::partial_with(fresh.fresh(), local_errors) }
-}
-
-/// Type-check `(:wat::kernel::drop handle)`. The handle is either a
-/// `Sender<T>` or `Receiver<T>` — rank-1 HM can't express a union, so
-/// this is special-cased: accept either parametric head, produce `:()`.
-fn infer_drop(
-    args: &[WatAST],
-    head_span: &Span,
-    env: &CheckEnv,
-    locals: &HashMap<String, TypeExpr>,
-    fresh: &mut InferCtx,
-    subst: &mut Subst,
-) -> CheckResult<TypeExpr> {
-    let mut local_errors: Vec<CheckError> = Vec::new();
-    if args.len() != 1 {
-        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
-            callee: ":wat::kernel::drop".into(),
-            expected: 1,
-            got: args.len()
-        } });
-        // HARVEST (236.2): existing diagnostic; drop returns unit.
-        return CheckResult::partial_with(TypeExpr::Tuple(vec![]), local_errors);
-    }
-    let arg_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
-    if let Some(ty) = arg_ty {
-        // Reduce for the shape match; keep the surface-name form for
-        // the error display.
-        let reduced = reduce(&ty, subst, env.types());
-        let is_channel_handle = matches!(
-            &reduced,
-            TypeExpr::Parametric { head, .. }
-                if head == "rust::crossbeam_channel::Sender"
-                    || head == "rust::crossbeam_channel::Receiver"
-        );
-        if !is_channel_handle {
-            local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
-                callee: ":wat::kernel::drop".into(),
-                param: "#1".into(),
-                expected: "rust::crossbeam_channel::Sender<T> | rust::crossbeam_channel::Receiver<T>".into(),
-                got: format_type(&apply_subst(&ty, subst))
-            } });
-        }
-    }
-    // HARVEST (236.2): silent-by-intent — drop is a declaration; returns unit.
-    if local_errors.is_empty() { CheckResult::ok(TypeExpr::Tuple(vec![])) } else { CheckResult::partial_with(TypeExpr::Tuple(vec![]), local_errors) }
 }
 
 /// Arc 293.W.2d — validate that a `Peer'<I,O>` type argument is pure.

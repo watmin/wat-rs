@@ -1,5 +1,5 @@
 //! `:wat::kernel::` resource intrinsics — arc 255 home #7
-//! (255.1c-kernel-resource). Fifteen verbs — `drop`, `HandlePool::new`,
+//! (255.1c-kernel-resource). Fourteen verbs — `HandlePool::new`,
 //! `HandlePool::pop`, `HandlePool::finish`, `pipe`, `spawn-thread`,
 //! `spawn-process`, `after`, `close`, `signal`, `listener`, `connect`,
 //! `accept`, `allow`, `deny` — all `@Category Resource`: `:Resource`'s
@@ -7,8 +7,14 @@
 //! ~line 156-162): *"Acquires, releases, or ADMINISTERS a handle whose
 //! lifetime is tracked outside value scope … NOT what data moves through
 //! the handle (that is `:Message`), NOT where the handle came from."*
+//! `drop` — the fifteenth-named, never-registered candidate this doc
+//! used to carry a long held-back analysis for — was **retired**, not
+//! carved: stone 255.1c-retire-kernel-drop found it unreachable from
+//! wat (zero corpus callers in four months; its only accepted argument
+//! types have no live constructor). This home's fourteen rows are now
+//! `:Resource`'s whole population.
 //!
-//! **The bodies do NOT live here.** Fourteen of the fifteen delegate to
+//! **The bodies do NOT live here.** All fourteen delegate to
 //! the SAME `crate::runtime::eval_*` fn (or, for `pipe`,
 //! `crate::io::eval_kernel_pipe`; for `spawn-thread`/`spawn-process`,
 //! `crate::kernel::spawn::eval_kernel_spawn_*_prime`) that already existed
@@ -19,31 +25,12 @@
 //! fn that actually runs is unchanged; only the path that reaches it
 //! (registry lookup vs. a literal match arm) is different.
 //!
-//! ## ★★ THE STRAIN REPORT — fifteen bodies, the largest sample this
+//! ## ★★ THE STRAIN REPORT — fourteen bodies, the largest sample this
 //! taxonomy has faced
 //!
-//! Every row below was read at the body, not derived from the name. Two
-//! genuinely needed a paragraph before they landed:
+//! Every row below was read at the body, not derived from the name. One
+//! genuinely needed a paragraph before it landed:
 //!
-//! - **`drop`** (body `runtime.rs:26643`, deciding line: the `handle`
-//!   match arm is annotated *"Intentional no-op. The Arc we just evaluated
-//!   into `handle` drops here at end-of-scope … Close happens when the
-//!   caller's enclosing scope releases its own binding."*) — a verb that
-//!   ADMINISTERS NOTHING at runtime, filed under a category about
-//!   administering. It lands only via the third disjunct of the axis
-//!   ("ADMINISTERS a handle") read as a PROTOCOL step — a paired,
-//!   documented no-op that exists to mark "the program is done with this
-//!   handle" at the call site, discharging a lifecycle obligation the
-//!   category's prose explicitly anticipates (*"`drop` is a documented
-//!   NO-OP"* is in the axis's own sentence, not an omission this home
-//!   discovered). Reading the body confirms the NO-OP is total: no field
-//!   is mutated, no external call is made: `@Purity Pure`, the only Pure
-//!   row in this home, diverging from the other fourteen and from
-//!   `effectful_by_prefix`'s blanket `:wat::kernel::` guess (a NEW,
-//!   fifth-ish entry in `declared_purity_vs_effectful_by_prefix_census`,
-//!   alongside `kernel_ambient.rs`'s four — for a different reason: those
-//!   four are ambient READS with no effect, this one is a NO-OP marker
-//!   with no effect).
 //! - **`after`** (body `runtime.rs:32904`–`33057`) — the brief's framing
 //!   ("the handle is time itself, which no one holds") does not survive
 //!   the body-read and would have filed this WRONG if trusted. `after`
@@ -82,7 +69,7 @@
 //!   through the listener, not a value the caller can read back and
 //!   compare — a `:Resource` administration, not a `:Mutate` on data.
 //!
-//! The remaining eleven — `HandlePool::{new,pop,finish}`, `spawn-thread`,
+//! The remaining ten — `HandlePool::{new,pop,finish}`, `spawn-thread`,
 //! `spawn-process`, `close`, `signal`, `listener`, `connect`, `accept` —
 //! land as the textbook shape: mint, release, or operate on a handle the
 //! caller holds (or is handed) whose lifetime the runtime tracks outside
@@ -94,32 +81,24 @@
 //!
 //! ## ★ Gate coverage — CORRECTED from the design stone's claim
 //!
-//! The design stone states gate-LIVE as `pipe · drop ·
-//! HandlePool::{new,pop,finish}` (5). **Reading `check.rs` end to end
-//! shows `drop` has NO registered `TypeScheme`** — grep for
-//! `env.register(` against every `:wat::kernel::drop` occurrence in
-//! `check.rs` turns up none; `drop`'s ONLY check-time presence is the
-//! bespoke `infer_drop` arm (`check.rs:4253` dispatch, fn body
-//! `check.rs:9448`), which pattern-matches the reduced arg type against
-//! `rust::crossbeam_channel::Sender<T>` / `Receiver<T>` — a shape no
-//! fixed-arity `TypeScheme` can express (the same "rank-1 HM can't
-//! express a union" reason its own doc comment gives). So the true split
-//! is **gate LIVE (4): `pipe`, `HandlePool::{new,pop,finish}`** — plain
-//! registered `TypeScheme`s (`check.rs:18028,18169,18187,18199`) — **gate
-//! SKIPS (11): `drop` plus the ten already expected**
-//! (`listener`/`connect`/`accept`/`after`/`close`/`signal`/
-//! `spawn-thread`/`spawn-process`/`allow`/`deny`, bespoke `infer_list`
-//! arms, `check.rs:4003–4256`). `doc_arg_ret_types_match_checker_scheme`
-//! opens `None => continue`, so it silently skips all eleven; a green
-//! gate here verifies FOUR rows, not five. Likely provenance of the
-//! design stone's off-by-one: `eval_kernel_drop`'s own doc comment
-//! (`runtime.rs:26635`) says *"two registered schemes; runtime accepts
-//! either"* — true of `infer_drop`'s TWO accepted parametric heads, but
-//! neither is a `TypeScheme` struct; the comment's informal "scheme"
-//! reads as the checker's formal one at a skim. Each of the eleven below
-//! carries a `//` (not `///`) maintainer comment naming its `infer_*` fn
-//! as the real authority, per the `kernel_message.rs` shape. **No stub
-//! `TypeScheme`s were minted to manufacture coverage.**
+//! The design stone states gate-LIVE as `pipe ·
+//! HandlePool::{new,pop,finish}` (4). Reading `check.rs` end to end
+//! confirms the split: **gate LIVE (4): `pipe`, `HandlePool::{new,pop,
+//! finish}`** — plain registered `TypeScheme`s (`check.rs:18028,18169,
+//! 18187,18199`) — **gate SKIPS (10): `listener`/`connect`/`accept`/
+//! `after`/`close`/`signal`/`spawn-thread`/`spawn-process`/`allow`/`deny`**,
+//! bespoke `infer_list` arms (`check.rs:4003–4256`).
+//! `doc_arg_ret_types_match_checker_scheme` opens `None => continue`, so
+//! it silently skips all ten; a green gate here verifies FOUR rows, not
+//! fourteen. Each of the ten below carries a `//` (not `///`) maintainer
+//! comment naming its `infer_*` fn as the real authority, per the
+//! `kernel_message.rs` shape. **No stub `TypeScheme`s were minted to
+//! manufacture coverage.**
+//!
+//! (`drop` — retired by stone 255.1c-retire-kernel-drop — used to be
+//! this section's third case: check-time presence via a bespoke
+//! `infer_drop` arm no fixed-arity `TypeScheme` could express. That
+//! analysis is now moot; see the header note.)
 //!
 //! ## `spawn-thread` / `spawn-process` — NOT inline blocks
 //!
@@ -134,15 +113,22 @@
 //! lifting was required; this home wraps the existing `pub` fns exactly
 //! like every other row wraps its `runtime.rs` delegate.
 //!
-//! ## ⚠ Two residual `cfg(test)` gate failures — STOP-4, reported not fixed
+//! ## ⚠ One residual `cfg(test)` gate failure — STOP-4, reported not fixed
 //!
-//! Both are structural gaps in shared, pre-existing test infrastructure
-//! that this home is the FIRST to exercise — not a defect in the fifteen
-//! rows' registration or category placement, and both are outside the
-//! declared blast radius (`kernel_resource.rs` / one `mod.rs` line /
-//! `runtime.rs`'s arms+visibility). Neither was hacked around: no
-//! purity was falsified and no doc-string was contorted to force a
-//! match.
+//! A structural gap in shared, pre-existing test infrastructure that
+//! this home is the FIRST to exercise — not a defect in the fourteen
+//! rows' registration or category placement, and outside the declared
+//! blast radius (`kernel_resource.rs` / one `mod.rs` line /
+//! `runtime.rs`'s arms+visibility). Not hacked around: no purity was
+//! falsified and no doc-string was contorted to force a match.
+//!
+//! (This section used to carry a second item — `purity_mandated_examples`
+//! on `drop`, whose `@Purity Pure` mandated a RUNNABLE `@example` that
+//! could never be written because `drop`'s argument type had no live
+//! constructor reachable from wat source anywhere in the corpus. That
+//! body-read finding — "`drop` appears to be unreachable dead code at
+//! the wat-language level" — is what stone 255.1c-retire-kernel-drop
+//! acted on. The gate failure is now RESOLVED by deletion, not fixed.)
 //!
 //! 1. **`doc_arg_ret_types_match_checker_scheme` — `pipe`.** `pipe` is
 //!    the FIRST `#[wat_intrinsic]`-registered row anywhere in the
@@ -162,27 +148,9 @@
 //!    renderer that only a Tuple-rendering arm in `typeexpr_to_doc_string`
 //!    can close. That fn is outside this stone's declared blast radius
 //!    (`EDIT src/intrinsic/mod.rs — one mod kernel_resource; line`).
-//! 2. **`purity_mandated_examples` — `drop`.** Declaring `drop`
-//!    `@Purity Pure` + `@Determinism Deterministic` (the honest,
-//!    body-derived answer — see the strain report above) mandates ≥1
-//!    RUNNABLE `@example`. None can be written: `drop`'s argument type
-//!    (`rust::crossbeam_channel::Sender<T>` / `Receiver<T>`, aliased
-//!    `:wat::kernel::Sender<T>`/`Receiver<T>` in `wat/kernel/channel.wat`)
-//!    has NO live constructor reachable from wat source anywhere in this
-//!    corpus — confirmed by grep: no `.wat` file (stdlib, tests,
-//!    wat-scripts) ever produces one; the only `Value::wat__kernel__
-//!    Sender`/`Receiver` construction sites left in `runtime.rs` are
-//!    internal plumbing INSIDE `accept'`'s thread-tier rendezvous
-//!    handshake (`runtime.rs:26335`/`26372`), never returned to wat-level
-//!    code; and no `check.rs` `TypeScheme` returns either type. **`drop`
-//!    appears to be unreachable dead code at the wat-language level
-//!    today** — a finding this stone's body-read surfaced but cannot
-//!    resolve (minting a new constructor verb is far outside this
-//!    stone's scope, and would be the wrong fix even if it weren't:
-//!    a doc-gate should not drive new API surface).
 //!
 //! `cargo nextest run --release -E 'test(/intrinsic::tests::/)'` is RED
-//! on exactly these two; every other scoped test (including
+//! on exactly this one; every other scoped test (including
 //! `declared_purity_vs_effectful_by_prefix_census`,
 //! `all_see_fqdns_resolve_to_registered_intrinsics`, and
 //! `yields_type_matches_fn_arg_param`) is green.
@@ -580,7 +548,7 @@ pub(crate) fn eval_peer_close_prime(
 // `bundle.peer.pidfd.send_signal(sig_posix)`. Neither acquires nor
 // releases the handle — pure third-disjunct ADMINISTRATION of a handle
 // the caller already holds, delivered through the pidfd. See the module
-// doc's "remaining eleven" note — lands without argument.
+// doc's "remaining ten" note — lands without argument.
 //
 // Deciding line for `@Purity Effectful` / `@Determinism Nondeterministic`:
 // a real syscall against a live external process; whether it succeeds

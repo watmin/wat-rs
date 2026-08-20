@@ -156,10 +156,9 @@
   :Declaration
 ;; Acquires, releases, or ADMINISTERS a handle whose lifetime is tracked outside
 ;; value scope — `listener`, `connect`, `accept`, `pipe`, `spawn-thread`,
-;; `spawn-process`, `after`, `HandlePool::{new,pop,finish}`, `close`, `drop`,
+;; `spawn-process`, `after`, `HandlePool::{new,pop,finish}`, `close`,
 ;; `allow`, `deny`, `signal`. NOT what data moves through the handle (that is
-;; `:Message`), NOT where the handle came from. `drop` is a documented NO-OP —
-;; it does not force teardown while other references remain.
+;; `:Message`), NOT where the handle came from.
   :Resource
 ;; Delivers or receives a payload across a peer/channel boundary to another locus —
 ;; `send`, `try-send`, `recv`, `select`, `poll`. The locus is a TYPED VALUE (`peer<I,O>`)

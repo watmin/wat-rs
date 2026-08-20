@@ -6743,18 +6743,6 @@ fn dispatch_keyword_head_value(
         // Arc 255.1c-kernel-stdio — println/pprintln/eprintln/epprintln/readln'/read-frame
         // moved to the intrinsic registry (`src/intrinsic/kernel_stdio.rs`); dispatch now
         // reaches them via the registry lookup above, not a literal arm here.
-        // ⊘ `drop` is HELD BACK from home #7's carve — it is the one `:Resource` verb
-        // that could not be registered. Its only accepted argument types are
-        // `wat::kernel::Sender`/`Receiver` (see `eval_kernel_drop`'s match), and NOTHING
-        // IN THE WAT CORPUS CONSTRUCTS EITHER: `:wat::kernel::Channel<T>` is a
-        // TYPEALIAS (`wat/kernel/channel.wat:49`) naming the pair's type, not a verb
-        // that builds one. So `drop` is UNREACHABLE from the language, and
-        // `purity_mandated_examples` proved it — a Pure+Deterministic row owes a RUNNABLE
-        // `@example`, and no honest one can be written for a verb whose argument cannot
-        // exist. Registering it would place a row in the registry that nothing can
-        // exercise. Disposition is the builder's (retire the verb, or ship the missing
-        // channel constructor); until then the literal arm stays exactly as it was.
-        ":wat::kernel::drop" => eval_kernel_drop(args, env, sym, list_span),
         // Arc 255.1c-kernel-resource — HandlePool::{new,pop,finish}, pipe,
         // spawn-thread, spawn-process, after, close, signal, listener, connect,
         // accept, allow, deny (fifteen verbs, `:Resource`'s whole population) moved
@@ -26634,62 +26622,6 @@ pub(crate) fn eval_deny_prime(
     }
 }
 
-/// `(:wat::kernel::drop handle)` — declares the caller is done with a
-/// sender or receiver. Typed `∀T. Sender<T> -> :()` and
-/// `∀T. Receiver<T> -> :()` (two registered schemes; runtime accepts
-/// either). Returns `:()`.
-///
-/// **Close semantics are scope-based.** Following the lab's
-/// single-owner discipline, a sender/receiver is held by exactly one
-/// program's let-scope; when that scope ends, the underlying
-/// crossbeam handle drops and the channel-end disconnects. This
-/// primitive exists as a READABILITY MARKER at the call site — "the
-/// program is done with this handle" — but it does not force the
-/// channel to close while other references remain. The for-each-drop
-/// idiom in FOUNDATION's shutdown cascade works because the
-/// enclosing let-scope ends immediately after, releasing the Vec of
-/// handles that the for-each iterated over.
-///
-/// A proper `consume` semantic (atomic take + underlying drop) is a
-/// future refactor if userland programs need it before scope-end.
-pub(crate) fn eval_kernel_drop(
-    args: &[WatAST],
-    env: &Environment,
-    sym: &SymbolTable,
-    list_span: &Span,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::kernel::drop".into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let handle = eval_inner(&args[0], env, sym)?.value_owned();
-    match handle {
-        Value::wat__kernel__Sender(_) | Value::wat__kernel__Receiver(_) => {
-            // Intentional no-op. The Arc we just evaluated into
-            // `handle` drops here at end-of-scope, decrementing the
-            // refcount by one. Close happens when the caller's
-            // enclosing scope releases its own binding.
-            Ok(Value::Unit)
-        }
-        other => Err(RuntimeError::new(
-            args[0].span().clone(),
-            RuntimeErrorKind::TypeMismatch {
-                op: ":wat::kernel::drop".into(),
-                expected: "wat::kernel::Sender | wat::kernel::Receiver",
-                got: Box::new(ValueSnapshot::of(&other)),
-            },
-        )
-        .into()),
-    }
-}
-
 /// Shared implementation for the unary stdlib math calls —
 /// `:wat::std::math::ln`, `log`, `sin`, `cos`. Arity 1. Argument must
 /// evaluate to `:f64` (or `:i64` auto-promoted). `op_name` is the
@@ -38017,15 +37949,19 @@ mod tests {
         assert!(matches!(eval_expr(src).unwrap(), Value::i64(3)));
     }
 
-    // ─── drop ──────────────────────────────────────────────────────────
-
-    #[test]
-    fn drop_refuses_non_handle() {
-        let err = eval_expr("(:wat::kernel::drop 42)").unwrap_err();
-        assert!(
-            matches!(err, EvalBreak::Diagnostic(e) if matches!(e.kind(), RuntimeErrorKind::TypeMismatch { .. }))
-        );
-    }
+    // ─── drop — RETIRED 2026-08-19 (255.1c-retire-kernel-drop) ─────────
+    //
+    // `drop_refuses_non_handle` lived here and asserted that
+    // `(:wat::kernel::drop 42)` raises TypeMismatch. It is deleted WITH the verb,
+    // not to make a deletion compile: its entire subject was retired, because
+    // `:wat::kernel::drop` proved UNREACHABLE from wat — its only accepted
+    // arguments were `Sender`/`Receiver`, and nothing in the corpus constructs
+    // either (`:wat::kernel::Channel<T>` is a typealias, not a verb).
+    //
+    // The distinction matters and is the rule: deleting a test whose subject
+    // still LIVES, to make an unrelated change pass, is the forbidden move. A
+    // test for a deleted verb has no subject left to guard. The rider correctly
+    // hit STOP-3 and left this for a ruling rather than deleting it itself.
 
     // ─── spawn + join + join-result deleted in arc 114 ─────────────────
     //
