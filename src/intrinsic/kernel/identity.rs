@@ -20,12 +20,9 @@
 //! gaining nothing, since `:CheckGate`/`:Probe`/`:Projection` are each
 //! already true per-row via `@Category`.
 //!
-//! **The bodies do NOT live here.** All five delegate to a
-//! `crate::runtime::eval_*` fn that already existed as a literal-match arm
-//! in `runtime.rs` — this home is a thin `#[wat_intrinsic]`-annotated
-//! wrapper around the SAME delegate call. Registration does not change
-//! routing: the handler fn that actually runs is unchanged; only the path
-//! that reaches it (registry lookup vs. a literal match arm) is different.
+//! All five delegate to a `crate::runtime::eval_*` fn that already existed
+//! as a literal-match arm in `runtime.rs` — see `kernel/mod.rs` for the
+//! tier-wide "bodies do not live here" claim this home is an instance of.
 //!
 //! ## ★★ THE HEADLINE — `peer-pid` remains INVISIBLE to the type checker
 //!

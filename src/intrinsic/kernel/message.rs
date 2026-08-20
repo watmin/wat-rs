@@ -7,14 +7,10 @@
 //! caller-held value addresses) and `kernel_stdio.rs` (`:Io`: an ambient OS
 //! stream with no caller-held handle).
 //!
-//! **The bodies do NOT live here.** Every one of the five delegates to the
-//! SAME `crate::runtime::eval_*` fn that already existed as a literal-match
-//! arm in `runtime.rs` — this home is a thin `#[wat_intrinsic]`-annotated
-//! wrapper around the SAME delegate call, registering it so the intrinsic
-//! registry can look it up, document it, and reflect on it. Registration
-//! must not change routing: the handler fn that actually runs is unchanged;
-//! only the path that reaches it (registry lookup vs. a literal match arm)
-//! is different.
+//! Every one of the five delegates to the SAME `crate::runtime::eval_*` fn
+//! that already existed as a literal-match arm in `runtime.rs` — see
+//! `kernel/mod.rs` for the tier-wide "bodies do not live here" claim this
+//! home is an instance of.
 //!
 //! ## ★★ The first rows no gate can check
 //!

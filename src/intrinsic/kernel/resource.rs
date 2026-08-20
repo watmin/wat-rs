@@ -14,16 +14,11 @@
 //! types have no live constructor). This home's fourteen rows are now
 //! `:Resource`'s whole population.
 //!
-//! **The bodies do NOT live here.** All fourteen delegate to
-//! the SAME `crate::runtime::eval_*` fn (or, for `pipe`,
-//! `crate::io::eval_kernel_pipe`; for `spawn-thread`/`spawn-process`,
+//! All fourteen delegate to the SAME `crate::runtime::eval_*` fn (or, for
+//! `pipe`, `crate::io::eval_kernel_pipe`; for `spawn-thread`/`spawn-process`,
 //! `crate::kernel::spawn::eval_kernel_spawn_*_prime`) that already existed
-//! as a literal-match arm in `runtime.rs` — this home is a thin
-//! `#[wat_intrinsic]`-annotated wrapper around the SAME delegate call,
-//! registering it so the intrinsic registry can look it up, document it,
-//! and reflect on it. Registration does not change routing: the handler
-//! fn that actually runs is unchanged; only the path that reaches it
-//! (registry lookup vs. a literal match arm) is different.
+//! as a literal-match arm in `runtime.rs` — see `kernel/mod.rs` for the
+//! tier-wide "bodies do not live here" claim this home is an instance of.
 //!
 //! ## ★★ THE STRAIN REPORT — fourteen bodies, the largest sample this
 //! taxonomy has faced

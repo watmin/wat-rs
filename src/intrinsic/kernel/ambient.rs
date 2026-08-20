@@ -5,15 +5,10 @@
 //! process-global state that no value the caller holds addresses
 //! (`wat/runtime-meta.wat:163–169`).
 //!
-//! **The bodies do NOT live here.** Every one of the seven delegates to a
-//! `crate::runtime::eval_kernel_stopped` / `eval_user_signal_query` /
-//! `eval_user_signal_reset` fn that already existed as a literal-match arm
-//! in `runtime.rs` — this home is a thin `#[wat_intrinsic]`-annotated
-//! wrapper around the SAME delegate call, registering it so the intrinsic
-//! registry can look it up, document it, and reflect on it. Registration
-//! must not change routing: the handler fn that actually runs is
-//! unchanged; only the path that reaches it (registry lookup vs. a
-//! literal match arm) is different.
+//! Every one of the seven delegates to a `crate::runtime::eval_kernel_stopped`
+//! / `eval_user_signal_query` / `eval_user_signal_reset` fn that already
+//! existed as a literal-match arm in `runtime.rs` — see `kernel/mod.rs` for
+//! the tier-wide "bodies do not live here" claim this home is an instance of.
 //!
 //! ## The point of this home — a row the prefix rule gets WRONG
 //!

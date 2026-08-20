@@ -5,14 +5,10 @@
 //! (concurrency, networking, signals, errors, handles/capability, misc) are
 //! separate stones (see the DESIGN doc's table).
 //!
-//! **The bodies do NOT live here.** Every one of the six delegates to a
-//! `crate::services::eval_kernel_*` fn (`src/services/verbs.rs`) that already
-//! existed at `runtime.rs:5704–5714` as a literal-match arm — this home is a
-//! thin `#[wat_intrinsic]`-annotated wrapper around the SAME delegate call,
-//! registering it so the intrinsic registry can look it up, document it, and
-//! reflect on it. Registration must not change routing: the handler fn that
-//! actually runs is unchanged; only the path that reaches it (registry lookup
-//! vs. a literal match arm) is different.
+//! Every one of the six delegates to a `crate::services::eval_kernel_*` fn
+//! (`src/services/verbs.rs`) that already existed at `runtime.rs:5704–5714`
+//! as a literal-match arm — see `kernel/mod.rs` for the tier-wide "bodies do
+//! not live here" claim this home is an instance of.
 //!
 //! ## The point of this home — the registry's first `Effectful` rows
 //!

@@ -3,13 +3,11 @@
 //! verbs, ONE subject: a call that panics through the wat call stack and
 //! never returns a value to its caller. Both are `@Category ControlFlow`.
 //!
-//! **The bodies do NOT live here.** Both delegate to a `pub fn` that
-//! already existed before this carve (`crate::runtime::eval_kernel_raise`
-//! for `raise!`; `crate::assertion::eval_kernel_assertion_failed` for
-//! `assertion-failed!`) — this home is a thin `#[wat_intrinsic]`-annotated
-//! wrapper around the SAME delegate call. Registration does not change
-//! routing: the handler fn that actually runs is unchanged; only the path
-//! that reaches it (registry lookup vs. a literal match arm) is different.
+//! Both delegate to a `pub fn` that already existed before this carve
+//! (`crate::runtime::eval_kernel_raise` for `raise!`;
+//! `crate::assertion::eval_kernel_assertion_failed` for
+//! `assertion-failed!`) — see `kernel/mod.rs` for the tier-wide "bodies do
+//! not live here" claim this home is an instance of.
 //!
 //! ## Why `:ControlFlow`, not a body-read surprise
 //!

@@ -8,12 +8,10 @@
 //! here rather than deferred again — `retag-op` lands `:Transform`,
 //! `serve-dispatch-op` lands `:ControlFlow`.
 //!
-//! **The bodies do NOT live here.** `retag-op` delegates to
-//! `crate::runtime::eval_retag_op`, a `pub(crate) fn` that already existed
-//! as a literal-match arm — a thin `#[wat_intrinsic]`-annotated wrapper
-//! around the SAME delegate call, registration changing only the path that
-//! reaches it (registry lookup vs. literal match arm), not the handler.
-//! `serve-dispatch-op` is NOT a same-shape wrapper — see below.
+//! `retag-op` delegates to `crate::runtime::eval_retag_op`, a `pub(crate) fn`
+//! that already existed as a literal-match arm — an instance of `kernel/mod.rs`'s
+//! tier-wide "bodies do not live here" claim. `serve-dispatch-op` is NOT a
+//! same-shape wrapper — see below.
 //!
 //! ## `retag-op` — `:Transform`, ruled
 //!

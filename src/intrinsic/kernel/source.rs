@@ -5,15 +5,11 @@
 //! expansion, or a fn value's own reconstructible forms. All four are
 //! `@Category Reflection`.
 //!
-//! **The bodies do NOT live here.** All four delegate to a `pub fn` that
-//! already existed before this carve (`crate::runtime::eval_kernel_here`,
-//! `crate::runtime::eval_kernel_call_site`,
+//! All four delegate to a `pub fn` that already existed before this carve
+//! (`crate::runtime::eval_kernel_here`, `crate::runtime::eval_kernel_call_site`,
 //! `crate::runtime::eval_kernel_macro_call_site`, or, for `fn-forms`,
-//! `crate::closure_extract::eval_kernel_fn_forms`) — this home is a thin
-//! `#[wat_intrinsic]`-annotated wrapper around the SAME delegate call.
-//! Registration does not change routing: the handler fn that actually runs
-//! is unchanged; only the path that reaches it (registry lookup vs. a
-//! literal match arm) is different.
+//! `crate::closure_extract::eval_kernel_fn_forms`) — see `kernel/mod.rs` for
+//! the tier-wide "bodies do not live here" claim this home is an instance of.
 //!
 //! ## The four, and why each lands clean
 //!

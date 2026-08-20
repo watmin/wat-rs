@@ -4316,7 +4316,7 @@ fn eval_tail(ast: &WatAST, env: &Environment, sym: &SymbolTable) -> Result<Value
                 ":wat::core::match" => eval_match_tail(args, &list_span, env, sym),
                 // Arc 255.1c-kernel-remainder (home #8) — the `:wat::kernel::serve-dispatch-op`
                 // tail-position special-case that used to live HERE moved to the intrinsic
-                // registry (`src/intrinsic/kernel_remainder.rs`); the fallthrough `_ =>
+                // registry (`src/intrinsic/kernel/serve.rs`); the fallthrough `_ =>
                 // eval_inner(ast, env, sym)` arm at the bottom of this match now reaches it via
                 // registry lookup, which calls `crate::runtime::eval_kernel_serve_dispatch_op_tail`
                 // — the SAME delegate, still evaluating `body` via `eval_tail` internally, so the
@@ -5645,7 +5645,7 @@ fn dispatch_keyword_head_value(
         // position" per its own doc (codegen never places it there); with both literal arms
         // gone there is no second dispatch path left for it to be parity FOR, so it is
         // deleted rather than kept as unreachable duplicate code. See
-        // `src/intrinsic/kernel_remainder.rs`'s doc for the full derivation, including why
+        // `src/intrinsic/kernel/serve.rs`'s doc for the full derivation, including why
         // routing serve-dispatch-op through the registry via the TAIL delegate preserves
         // `serve`'s TCO (verified against `apply_function`'s trampoline loop).
         // Arc 109 slice 1j — § D' Option/Result method forms.
@@ -5668,7 +5668,7 @@ fn dispatch_keyword_head_value(
         ":wat::core::struct-field" => eval_struct_field(args, list_span, env, sym),
         ":wat::core::variant" => eval_variant(args, list_span, env, sym),
         // Arc 255.1c-kernel-remainder (home #8) — `:wat::kernel::retag-op` moved to the
-        // intrinsic registry (`src/intrinsic/kernel_remainder.rs`); dispatch now reaches
+        // intrinsic registry (`src/intrinsic/kernel/serve.rs`); dispatch now reaches
         // `eval_retag_op` (unchanged) via the registry lookup above, not a literal arm here.
         ":wat::core::first" => {
             eval_positional_accessor(args, list_span, env, sym, ":wat::core::first", 0)
@@ -6746,18 +6746,18 @@ fn dispatch_keyword_head_value(
         // Kernel primitives — channel IO + stop flag + user signals.
         // Arc 255.1c-kernel-ambient — stopped?/sigusr1?/sigusr2?/sighup?/reset-sigusr1!/
         // reset-sigusr2!/reset-sighup! moved to the intrinsic registry
-        // (`src/intrinsic/kernel_ambient.rs`); dispatch now reaches them via the
+        // (`src/intrinsic/kernel/ambient.rs`); dispatch now reaches them via the
         // registry lookup above, not a literal arm here.
         // Arc 255.1c-kernel-remainder (home #8) — call-site/macro-call-site moved to the
-        // intrinsic registry (`src/intrinsic/kernel_remainder.rs`); dispatch now reaches
+        // intrinsic registry (`src/intrinsic/kernel/source.rs`); dispatch now reaches
         // them via the registry lookup above, not a literal arm here.
         // Arc 255.1c-kernel-stdio — println/pprintln/eprintln/epprintln/readln'/read-frame
-        // moved to the intrinsic registry (`src/intrinsic/kernel_stdio.rs`); dispatch now
+        // moved to the intrinsic registry (`src/intrinsic/kernel/stdio.rs`); dispatch now
         // reaches them via the registry lookup above, not a literal arm here.
         // Arc 255.1c-kernel-resource — HandlePool::{new,pop,finish}, pipe,
         // spawn-thread, spawn-process, after, close, signal, listener, connect,
         // accept, allow, deny (fifteen verbs, `:Resource`'s whole population) moved
-        // to the intrinsic registry (`src/intrinsic/kernel_resource.rs`); dispatch
+        // to the intrinsic registry (`src/intrinsic/kernel/resource.rs`); dispatch
         // now reaches them via the registry lookup above, not a literal arm here.
         // :wat::kernel::spawn / :wat::kernel::join / :wat::kernel::join-result
         // retired in arc 114. spawn-thread + Thread/join-result are the
@@ -6766,7 +6766,7 @@ fn dispatch_keyword_head_value(
         // alongside the dispatch — no callers reach this layer post-poison.
         // Arc 255.1c-kernel-error — LociDiedError/message, Failure/message,
         // Failure/location, LociDiedError/to-failure moved to the intrinsic
-        // registry (`src/intrinsic/kernel_error.rs`); dispatch now reaches
+        // registry (`src/intrinsic/kernel/error.rs`); dispatch now reaches
         // them via the registry lookup above, not a literal arm here.
         // Arc 170 CULMINATION (arc 278 IPC de-prime) — `:wat::kernel::extract-panics`
         // ANNIHILATED with the run-sandboxed family (its only callers were the
@@ -6781,9 +6781,10 @@ fn dispatch_keyword_head_value(
         // wat-level helper is the only place collected-output-as-
         // Vec<String> survives, where it earns its keep as the
         // test assertion target.
-        // Arc 255.1c-kernel-remainder (home #8) — assertion-failed!/raise!/here/fn-forms
-        // moved to the intrinsic registry (`src/intrinsic/kernel_remainder.rs`); dispatch
-        // now reaches them via the registry lookup above, not a literal arm here.
+        // Arc 255.1c-kernel-remainder (home #8) — assertion-failed!/raise! moved to the
+        // intrinsic registry (`src/intrinsic/kernel/abort.rs`); here/fn-forms moved to
+        // (`src/intrinsic/kernel/source.rs`); dispatch now reaches them via the registry
+        // lookup above, not a literal arm here.
         // Arc 259 S2c-ii-b — spawn-program' is now a wat defclause in wat/spawn.wat.
         // The 3-arg Rust intrinsic is RETIRED; the defclause dispatches on the host
         // type (ThreadOpts → spawn-thread'; ProcessOpts → spawn-process').
@@ -6792,7 +6793,7 @@ fn dispatch_keyword_head_value(
         // spawn-process' : forms -> Process'<I,O>
         // Both delegate to the shared spawn_thread_peer / spawn_process_peer helpers.
         // Arc 255.1c-kernel-message — send/try-send/recv/select/poll moved to the
-        // intrinsic registry (`src/intrinsic/kernel_message.rs`); dispatch now
+        // intrinsic registry (`src/intrinsic/kernel/message.rs`); dispatch now
         // reaches them via the registry lookup above, not a literal arm here.
         //
         // Arc 214 Stone 4.6a-ii — close': intrinsic (∀-parametric: peer<∀I,∀O>);
@@ -6805,7 +6806,7 @@ fn dispatch_keyword_head_value(
         // kill(pid, sig). See eval_signal.
         // Arc 255.1c-kernel-remainder (home #8) — peer-process/peer-wire?/address-wire?/
         // require-wire-address moved to the intrinsic registry
-        // (`src/intrinsic/kernel_remainder.rs`); dispatch now reaches them via the
+        // (`src/intrinsic/kernel/identity.rs`); dispatch now reaches them via the
         // registry lookup above, not a literal arm here.
         // Arc 209 Stone C0b.1 — thread-tier connection: listener'/connect'/accept'.
         // listener' mints the crossbeam rendezvous (Listener'=rx, Address'=tx).
@@ -6814,7 +6815,7 @@ fn dispatch_keyword_head_value(
         // accept' receives the server's raw halves from the rendezvous, wraps the
         // server Peer' end on this thread.  No Peer' cell ever crosses a thread.
         // Arc 255.1c-kernel-remainder (home #8) — peer-pid moved to the intrinsic
-        // registry (`src/intrinsic/kernel_remainder.rs`); dispatch now reaches it via
+        // registry (`src/intrinsic/kernel/identity.rs`); dispatch now reaches it via
         // the registry lookup above, not a literal arm here. Still type-invisible to
         // `check.rs` (no scheme, no `infer_*` arm) — registration documents the verb,
         // it does not close that hole (task #110 / 255.1b-iv).
@@ -6827,7 +6828,7 @@ fn dispatch_keyword_head_value(
         // was removed in arc 214 Stone 6.2.
         // Arc 255.1c-kernel-ambient — sigusr1?/sigusr2?/sighup?/reset-sigusr1!/
         // reset-sigusr2!/reset-sighup! (plus stopped? above, near call-site) moved to
-        // the intrinsic registry (`src/intrinsic/kernel_ambient.rs`); dispatch now
+        // the intrinsic registry (`src/intrinsic/kernel/ambient.rs`); dispatch now
         // reaches them via the registry lookup above, not a literal arm here.
 
         // :wat::core::use! — resolve-pass declaration, no-op at runtime.
@@ -33080,7 +33081,7 @@ pub(crate) fn eval_kernel_serve_dispatch_op_tail(
 // `eval_kernel_serve_dispatch_op_tail` (unchanged, still above this comment) for the FQDN —
 // there is no second call shape remaining for a "non-tail companion" to be parity FOR.
 // Keeping it would have been unreachable duplicate code. See
-// `src/intrinsic/kernel_remainder.rs`'s doc for the full derivation, including why the tail
+// `src/intrinsic/kernel/serve.rs`'s doc for the full derivation, including why the tail
 // delegate is the correct (and only safe) choice to preserve `serve`'s TCO when reached
 // through the registry's generic fallback path.
 
