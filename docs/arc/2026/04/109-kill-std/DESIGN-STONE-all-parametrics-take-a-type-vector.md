@@ -142,6 +142,61 @@ node becomes a `List` node — not a text substitution within a node. wat-fix's 
 colon-quoted spellings the 255 seam counts. It changes ONE thing: how a parametric's type args are
 grouped. Keeping these apart is what makes each survivable.
 
+## ⊹⊹ RULED 2026-08-20 — THE TYPE VECTOR IS MANDATORY. NO INFERENCE.
+
+> Builder: *"yes — the vec-of-types param is mandatory for any parametric type. no inference — no
+> ambiguity — you say what it is. **the verbosity is our shield** — we are optimizing this for LLMs
+> not humans — when ambiguity is annihilated there's no guess work… same reason why everything is
+> fqdn all the time."*
+
+This is the project's own standing doctrine, not a new one: `wat/rete.wat:661` refuses to collapse its
+axis chain for the same reason — *"verbosity is our shield (R63/R65: the same exhaustiveness we pay
+for in keystrokes is what lets us change meaning later)"* — and FQDN-everywhere is arc 109's thesis.
+
+**Consequence, measured across `wat/` + `tests/` + `wat-scripts/`:**
+
+```
+2,138 constructor call sites
+  851  already carry a leading type keyword   → pure mechanical bracket insertion
+       Vector 702 · HashMap 149
+  977  carry NO type at all                   → ★ T must be INFERRED to write the bracket
+       PersistentVector 683 · Tuple 286 · PersistentMap 8
+```
+
+The 977 are a different kind of migration from the angle cut. `Head<K,V>` → `(Head [K V])` is a pure
+shape rewrite — the types are already on the page. `(PersistentVector 1 2 3)` →
+`(PersistentVector [:wat::core::i64] 1 2 3)` requires *inferring* `i64`. **A form-aware codemod cannot
+do that.** wat-fix walks forms; it does not type-check.
+
+## ★★ THE 977 BECOME MECHANICAL: THE CHECKER'S REFUSAL CARRIES THE TEXT TO INSERT
+
+Do NOT build a checker-driven rewriter. The checker already holds the answer at the exact moment it
+would refuse:
+
+- `infer_persistentvector_constructor` computes `t_ty` from the elements. `infer_tuple_constructor`
+  computes a type per position. `infer_persistentmap_constructor` computes K and V.
+- `CheckErrorKind::MalformedForm` already carries a structured **`remedies`** field
+  (`crate::remedy::Remedy`, `check.rs:378 remedies_for` / `type_error_remedies`) — errors in this
+  substrate already ship writable fixes, not prose hints.
+
+So at ③, a bracket-less constructor is an error **whose remedy is the literal text to write**:
+
+```
+:wat::core::PersistentVector requires a type vector; it was inferred as [:wat::core::i64]
+  remedy → (:wat::core::PersistentVector [:wat::core::i64] 1 2 3)
+```
+
+★ That converts 977 judgment-bearing sites into 977 **mechanical** ones. The compiler does not merely
+name the sites — it writes the fix. This is `SUBSTRATE-AS-TEACHER` at its sharpest: the fail-count is
+the worklist, and each entry arrives pre-filled.
+
+⚠ **Two things to measure before relying on it**, neither assumed here:
+1. That the inferred type is always *writable* — a fresh unresolved type variable has no spelling, and
+   an empty `(PersistentVector)` infers nothing. Those sites need a human or a declared default.
+2. That the inferred type is the one the author would have written. An inferred concrete type where a
+   supertype was intended ships silently, because the checker then accepts its own guess. This is the
+   ONLY place in the whole migration where a wrong answer can pass green — treat it as the risk.
+
 ## The strike order — the cut is TOTAL at ③
 
 ```
