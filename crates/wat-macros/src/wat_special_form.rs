@@ -81,7 +81,7 @@ pub(crate) fn emit(fqdn: &LitStr, item: &syn::ItemStruct) -> syn::Result<TokenSt
         wat_doc::Category::Reflection => quote! { ::wat_doc::Category::Reflection },
         wat_doc::Category::ControlFlow => quote! { ::wat_doc::Category::ControlFlow },
         wat_doc::Category::Binding => quote! { ::wat_doc::Category::Binding },
-        wat_doc::Category::Clock => quote! { ::wat_doc::Category::Clock },
+        wat_doc::Category::Entropic => quote! { ::wat_doc::Category::Entropic },
         wat_doc::Category::Arithmetic => quote! { ::wat_doc::Category::Arithmetic },
         wat_doc::Category::Io => quote! { ::wat_doc::Category::Io },
         wat_doc::Category::Probe => quote! { ::wat_doc::Category::Probe },

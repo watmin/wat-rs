@@ -69,7 +69,7 @@
 /// `Category::variants()`, so a new variant that forgets this line goes RED.
 /// (The proc-macro's two sibling messages DO derive — they are `format!`.)
 const CATEGORY_LEGAL_VALUES: &str =
-    "value must be one of: Transform, Reflection, ControlFlow, Binding, Clock, Arithmetic, Io, Probe, Combine, Declaration, Resource, Message, Ambient, Project, CheckGate";
+    "value must be one of: Transform, Reflection, ControlFlow, Binding, Entropic, Arithmetic, Io, Probe, Combine, Declaration, Resource, Message, Ambient, Project, CheckGate";
 
 // ⛔ `Category` IS GENERATED FROM wat — it is not written here.
 //
@@ -1156,7 +1156,7 @@ mod tests {
         // Exhaustive by construction — a new variant breaks THIS match first.
         let all = [
             Category::Transform, Category::Reflection, Category::ControlFlow,
-            Category::Binding, Category::Clock, Category::Arithmetic,
+            Category::Binding, Category::Entropic, Category::Arithmetic,
             Category::Io, Category::Probe, Category::Combine, Category::Declaration,
             Category::Resource, Category::Message, Category::Ambient,
             Category::Project, Category::CheckGate,
@@ -1167,7 +1167,7 @@ mod tests {
                 Category::Reflection => "Reflection",
                 Category::ControlFlow => "ControlFlow",
                 Category::Binding => "Binding",
-                Category::Clock => "Clock",
+                Category::Entropic => "Entropic",
                 Category::Arithmetic => "Arithmetic",
                 Category::Io => "Io",
                 Category::Probe => "Probe",

@@ -67,8 +67,8 @@
 ;;   :Reflection  — the program interrogating ITSELF (metadata-of, show-source)
 ;;   :ControlFlow — directs evaluation (if, and higher-order application)
 ;;   :Binding     — introduces a LOCAL, scoped name at runtime (let)
-;;   :Clock       — samples the wall clock (names WHICH external source a
-;;                  Nondeterministic verb draws from; entropy gets its own variant)
+;;   :Entropic    — samples an unpredictable external source and effects nothing
+;;                  (was :Clock; time::now, Uuid/v4 — measured by BOUNDING, not pinning)
 ;;   :Arithmetic  — math on numeric domain values
 ;;   :Io          — input/output on a stream
 ;;   :Probe       — interrogates a value, derives a FACT about it (empty?, length)
@@ -121,10 +121,18 @@
 ;; Introduces a LOCAL, scoped name at runtime — `let`. Contrast `:Declaration`,
 ;; which registers a program-level entity.
   :Binding
-;; Samples the wall clock. Names WHICH external source a Nondeterministic verb
-;; draws from — which `:Determinism` alone cannot say. Entropy gets its own
-;; variant when a random verb actually registers; do not widen this to cover it.
-  :Clock
+;; Samples an unpredictable external source and returns the sample — `now`,
+;; `Uuid/v4`. Effects NOTHING, so `@Purity` stays `Pure`; the value cannot be
+;; pinned, only BOUNDED, which is what makes conformance its measurement mode.
+;; WHICH DEVICE the entropy is drawn from — wall clock, CSPRNG, /dev/urandom,
+;; pid — is an implementation detail and NEVER the axis, the same way transport
+;; is not `:Message`'s axis. This variant was `:Clock` until 2026-08-19, which
+;; named the device and reserved a second slot for "random"; the builder ruled
+;; them one DOING: "Time.now and SecureRandom.uuid are the same category.. they
+;; are a syscall who is 'pure'". NOT `:Io`: Io moves DATA across the boundary in
+;; either direction and effects the world (`println` out, `readln'` in); entropy
+;; carries no data in, and leaves the world unchanged.
+  :Entropic
 ;; Math on numeric domain values. NOT string concatenation — `Vector/concat` is
 ;; not math, and that absurdity is what exposed the mistake (2026-08-15).
   :Arithmetic
@@ -162,8 +170,8 @@
   :Message
 ;; Reads or writes process-global state that no value the caller holds addresses —
 ;; `stopped?`, `sigusr1?`, `sigusr2?`, `sighup?`, `reset-sigusr1!`, `reset-sigusr2!`,
-;; `reset-sighup!`. NOT `:Clock`: three of seven members are writes, and `:Clock`'s
-;; axis is which source a read draws from. NOT `:Probe`: the `sig*?` queries take no
+;; `reset-sighup!`. NOT `:Entropic`: three of seven members are writes, and
+;; `:Entropic`'s axis is which source a read draws from. NOT `:Probe`: the `sig*?` queries take no
 ;; input value to interrogate — they read a global `AtomicBool`, not a fact about
 ;; something the caller holds.
   :Ambient

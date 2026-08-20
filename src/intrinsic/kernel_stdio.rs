@@ -35,8 +35,13 @@
 //!   write-then-terminate). `Deterministic`.
 //! - **Reads** (`readln'`, `read-frame`): the body reads fd 0, whose content
 //!   varies run to run — the returned value depends on ambient state outside
-//!   the call's arguments, exactly as `:wat::time::now` reading the wall
-//!   clock does. `Nondeterministic`.
+//!   the call's arguments. `Nondeterministic`. NOT "for the same reason"
+//!   `:wat::time::now` is (this doc used to say so; corrected 299.3-entropic):
+//!   `readln'`/`read-frame` are `:Io` — the world hands you DATA across a
+//!   stream, and a test injects it by feeding fd 0; `time::now` is
+//!   `:Entropic` — it samples an unpredictable source and the result can
+//!   only be bounded, never pinned. Different cells of the same
+//!   `Nondeterministic` row (`wat/runtime-meta.wat:135`, `:143`).
 //!
 //! ## Category — `Io`, minted mid-strike (builder ruling)
 //!
@@ -49,9 +54,9 @@
 //! `Bytes ⇄ hex`, `String ⇄ Instant`), and reading fd 0 is not the program
 //! interrogating its own state (`Reflection` is `call-site`/`show-source`/
 //! `metadata-of`; the same mistake a prior stone made calling a clock read
-//! `Reflection`, before `Clock` was minted to fix it). `Io` — "performs I/O
+//! `Reflection`, before `Clock` — since renamed `:Entropic` — was minted to fix it). `Io` — "performs I/O
 //! on a stream" — was minted instead, at the same level of abstraction as
-//! `Clock` ("samples the wall clock") and `Arithmetic` ("combines domain
+//! `Clock` (now `:Entropic`, "samples an unpredictable source") and `Arithmetic` ("combines domain
 //! values"): what KIND of computation this is, not what it happens to touch
 //! along the way. All six rows here land on it. `:wat::io::*` is its second
 //! tenant when that namespace carves (`is_effectful_op` already prefix-

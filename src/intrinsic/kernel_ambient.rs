@@ -35,16 +35,27 @@
 //! biconditional is `DESIGN-STONE-255.1c-kernel-ambient.md`'s "⊘ RULED
 //! 2026-08-19 — OPTION B: the registry is the authority".
 //!
-//! ⚠ **The `Pure` on these four rests on a precedent ARC 299 IS OPEN TO CHANGE.**
-//! `:wat::time::now` is declared `@Purity Pure` today and is the precedent cited
-//! above — but arc 299 (`entropic-values`, R1 *ENTROPIA MENSVRA PVRITATIS*) rules
-//! that what the substrate called determinism "was always entropy, hiding inside
-//! impurity beside effect", and its stone **299.3** refines `Purity` into
-//! `Pure | Effectful | Entropic`. When that lands, `time::now` is re-filed — and
-//! these four sit on a seam 299.3 must rule that `time`/`uuid` alone do not force:
-//! a signal flag is neither an effect nor entropy, it is ambient external state.
-//! Do not read the `Pure` here as settled; read it as the honest answer available
-//! under a three-variant `Purity` that 299 has already named as wrong.
+//! ⊘ **CORRECTED 2026-08-19, later the same day.** This block used to say arc 299's
+//! stone 299.3 "refines `Purity` into `Pure | Effectful | Entropic`", and that
+//! `time::now`'s `@Purity Pure` was therefore an unsettled precedent these four
+//! rows leaned on. **299.3 was redirected and no longer touches `Purity` at all**
+//! (`299/DESIGN-STONE-299.3-entropy-is-a-CATEGORY-Entropic.md`): entropy names
+//! WHICH SOURCE a nondeterministic verb draws from, and `Category` is that axis —
+//! `:Clock` was renamed `:Entropic` and widened to cover random, on the builder's
+//! ruling that `Time.now` and `SecureRandom.uuid` are one DOING, "a syscall who
+//! is 'pure'". So `time::now` keeps `@Purity Pure`, and the precedent these four
+//! rest on is NOT pending revision after all.
+//!
+//! ⚠ **What IS still open, and it is sharper than the old caveat:** `Category`
+//! now separates the two nondeterministic cells that this file and
+//! `kernel_stdio.rs` had been conflating — `:Io` (the world hands you DATA; you
+//! INJECT it in a test) versus `:Entropic` (you SAMPLE; you CONFORM it to a
+//! bound). **These four readers are neither.** A signal flag carries no data in,
+//! effects nothing, and is not drawn from an entropy source — it is process-global
+//! state a handler set, which is exactly what `:Ambient` says. The open question
+//! is whether `@Determinism Nondeterministic` is the right second axis for that,
+//! or whether ambient-observation deserves its own answer; `time`/`uuid` alone
+//! never forced it. Named here, not answered.
 //!
 //! The three writers — `reset-sigusr1!`, `reset-sigusr2!`, `reset-sighup!`
 //! — each `AtomicBool::store(false, ..)`: a genuine, observable side
@@ -56,8 +67,13 @@
 //!
 //! - **Readers** (`stopped?`, `sigusr1?`, `sigusr2?`, `sighup?`): the
 //!   returned value depends on ambient state outside the call's
-//!   arguments (whatever the flag currently holds) — `Nondeterministic`,
-//!   the same derivation as `:wat::time::now`.
+//!   arguments (whatever the flag currently holds) — `Nondeterministic`.
+//!   NOT "the same derivation as" `:wat::time::now` (this doc used to say
+//!   so; corrected 299.3-entropic): these read a flag a signal handler
+//!   SETS — the world hands you the value, `:Ambient`, not `:Entropic`;
+//!   `time::now` samples an unpredictable source and the result can only
+//!   be bounded, never pinned. Different cells of the same
+//!   `Nondeterministic` row.
 //! - **Writers** (`reset-sigusr1!`, `reset-sigusr2!`, `reset-sighup!`):
 //!   the body always performs the same store (`false`) regardless of
 //!   prior state and always returns the same `Unit` — `Deterministic`.
