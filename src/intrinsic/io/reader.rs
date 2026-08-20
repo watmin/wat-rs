@@ -414,12 +414,12 @@ pub(crate) fn eval_ioreader_read_frame(
 /// real stdin.
 ///
 /// @added         1.0.0
-/// @Purity        Effectful
+/// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Resource
 /// @arg     reader :wat::io::IOReader the reader to rewind
 /// @ret     :wat::core::nil always `:()` on success; a non-rewindable backing raises
-/// @example-norun (:wat::io::IOReader/rewind reader) #=> #wat.core/nil{}
+/// @example (:wat::io::IOReader/read-all-string (:wat::core::let [r (:wat::io::IOReader/from-string "hi") _ (:wat::io::IOReader/read-all r) _ (:wat::io::IOReader/rewind r)] r)) #=> "hi"
 // Registered `TypeScheme` — `check.rs:15807` — gate LIVE.
 //
 // Deciding line for `@Category Resource` — genuinely contested, see the
@@ -434,12 +434,47 @@ pub(crate) fn eval_ioreader_read_frame(
 // ("neither acquires nor releases the peer it is given … administering a
 // live handle"). Landed here on that precedent, not by elimination.
 //
-// Deciding line for `@Purity Effectful` / `@Determinism Deterministic`:
-// mutates (or raises from) internal reader state — a real, observable
-// effect. Unlike the read family, the OUTCOME is a pure function of the
-// handle's own concrete backing, never of unpredictable stream content:
-// `StringIoReader` always succeeds to cursor 0, `PipeReader` always raises
-// the same error, `RealStdin` always no-ops.
+// ⊘ `@Purity` RULED **Pure** by the builder, 2026-08-20, overturning this
+// row's shipped `Effectful`. The argument that decided it: *"that mutation
+// on a string… what's the effect on an immutable string in memory?"*
+// Read at the struct — `ReaderState { bytes: Vec<u8>, cursor: usize }`
+// (`io.rs:285`) — `bytes` is moved in at construction and NEVER written
+// again. `rewind` assigns `cursor = 0`. No syscall, no shared state,
+// nothing outside the value the caller holds.
+//
+// The axis already accepts that handle state is not the world: `to-bytes`/
+// `to-string` are `Pure` while reading mutable handle state
+// (`io/writer.rs`). `rewind` is the first verb in either io home that
+// WRITES handle state and touches nothing else, which is why it would not
+// classify. It is not `read-all`'s twin: `read-all` advances the cursor by
+// a content-dependent amount and can consume a real fd; `rewind` assigns a
+// constant. Hence the pairing —
+//     `to-bytes`  Pure · Nondeterministic  — reads state that VARIES
+//     `rewind`    Pure · Deterministic     — writes a FIXED state, always 0
+// Idempotent: calling it twice is calling it once.
+//
+// ⚠ The orchestrator argued `Effectful` partly to keep this row out of a
+// rete `where` fence. That was the purity axis used as ACCESS CONTROL
+// rather than as a description, and it is retracted: the registry declares
+// what is TRUE and consumers adapt — arc 255's whole thesis
+// (`[[feedback_name_the_property_not_the_symptom]]`).
+// The exposure is real and is filed, not resolved here: `compile-condition`
+// gates on pure ∧ deterministic ONLY — `wat/rete.wat:698` says in its own
+// words that `total?` is UNARMED at the fence — so nothing today stands
+// between a `Pure`+`Deterministic` nil-returning mutator and a `where`
+// clause. That is a gap in the FENCE, not a reason to mislabel this row.
+//
+// ⚠ PENDING, its own stone: the `@ret` line above says a non-rewindable
+// backing raises. `PipeReader` (`io.rs:582`) does. `RealStdin` (`io.rs:179`)
+// still returns `Ok(())` — silently succeeding while doing nothing, so a
+// read-all → rewind → read-all on real stdin yields the content then "",
+// with no error. Two backings, one physical impossibility, opposite
+// answers. Builder-ruled 2026-08-20: everything but the string backing
+// faults. Not applied in this stone — it is a behaviour change.
+//
+// `@Determinism Deterministic` is unchanged and was always right: unlike
+// the read family, the outcome is fixed by the handle's own backing, never
+// by unpredictable stream content.
 #[wat_intrinsic(":wat::io::IOReader/rewind")]
 pub(crate) fn eval_ioreader_rewind(
     reader: &WatAST,
