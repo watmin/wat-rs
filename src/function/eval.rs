@@ -11,7 +11,7 @@
 //! and routes through `parse_fn_signature_with_rest` to produce a `Function` value.
 
 use crate::ast::WatAST;
-use crate::function::metadata::peel_metadata_preamble;
+use crate::function::metadata::{peel_metadata_preamble, peel_type_binder};
 use crate::function::parse::{parse_fn_signature_with_rest, ParsedFnSignature};
 use crate::function::FN_HEAD;
 use crate::runtime::{Environment, Function, RuntimeError, RuntimeErrorKind, Value, synthesize_fn_body};
@@ -40,6 +40,9 @@ pub(crate) fn eval_fn(
     // time via try_parse_fn_shape_def's fn-embedded metadata path.
     // Note: sister sequence in `src/function/infer.rs` (infer_fn).
     let sig_args = peel_metadata_preamble(args);
+    // Arc 109 gamma-i — peel an optional `:- [T U ...]` type-param binder,
+    // immediately after metadata and before the args-vector.
+    let (binder, sig_args) = peel_type_binder(sig_args);
     if sig_args.len() < 3 {
         return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
             head: FN_HEAD.into(),
@@ -63,7 +66,7 @@ pub(crate) fn eval_fn(
     Ok(Value::wat__core__fn(Arc::new(Function {
         name: None,
         params,
-        type_params: Vec::new(),
+        type_params: binder.unwrap_or_default(),
         param_types,
         ret_type,
         rest_param,

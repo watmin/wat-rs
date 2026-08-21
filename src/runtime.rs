@@ -930,7 +930,7 @@ pub fn register_defines(
         // that pre-registered define forms is DELETED. Define forms now pass through
         // to the checker (step 8), which rejects them via the MalformedForm arm and
         // surfaces the retirement remedy pointing at :wat::core::defn.
-        if let Some((path, func, metadata_opt)) = try_parse_fn_shape_def(&form) {
+        if let Some((path, func, metadata_opt)) = try_parse_fn_shape_def(&form)? {
             // Arc 166 — `(:wat::core::def :name (:wat::core::fn sig body))`
             // pre-registers into `sym.functions` so the type checker resolves
             // recursive self-references inside the fn body. Form stays in
@@ -1368,7 +1368,7 @@ pub fn register_stdlib_defines(
         // Pre-register the fn-shape def into `sym` so the checker (step 8)
         // resolves recursive self-references. Bypasses the reserved-prefix
         // gate (stdlib is privileged — all names are under :wat::* by design).
-        if let Some((path, func, metadata_opt)) = try_parse_fn_shape_def(&form) {
+        if let Some((path, func, metadata_opt)) = try_parse_fn_shape_def(&form)? {
             if !sym.has_function(&path) {
                 sym.register_function(path.clone(), func);
             }
@@ -3384,21 +3384,27 @@ type FnShapeMetadata = HashMap<String, WatAST>;
 /// metadata clause was present and empty.
 type ParsedFnShapeDef = (String, Arc<Function>, Option<FnShapeMetadata>);
 
-/// Returns `(name, function, metadata_opt)` where `metadata_opt` is `Some(map)` if
-/// a `{...}` metadata-map clause was present, `None` if the 3-item form was used.
-fn try_parse_fn_shape_def(form: &WatAST) -> Option<ParsedFnShapeDef> {
+/// Returns `Ok(Some((name, function, metadata_opt)))` where `metadata_opt` is `Some(map)`
+/// if a `{...}` metadata-map clause was present, `None` if the 3-item form was used.
+/// `Ok(None)` means "not this shape" — load-bearing for the recognizer chain; callers
+/// fall through to the next parser. `Err` is reserved for a shape this fn DOES recognize
+/// as an fn-shape-def but that is internally contradictory (arc 109 row 3: BOTH a
+/// name-embedded `<T>` spelling and a `:- [...]` binder) — a case no other parser in the
+/// chain would recognize either, so returning `Ok(None)` here would silently drop the
+/// form instead of reporting the contradiction.
+fn try_parse_fn_shape_def(form: &WatAST) -> Result<Option<ParsedFnShapeDef>, RuntimeError> {
     let items = match form {
         WatAST::List(items, _) => items,
-        _ => return None,
+        _ => return Ok(None),
     };
     // Accept 3-item (no metadata) or 4-item (metadata at items[2]) forms.
     if items.len() != 3 && items.len() != 4 {
-        return None;
+        return Ok(None);
     }
     // Head must be :wat::core::def.
     match &items[0] {
         WatAST::Keyword(k, _) if k == ":wat::core::def" => {}
-        _ => return None,
+        _ => return Ok(None),
     }
     // First arg is the name keyword.
     // Arc 139 — split off `<T,...>` type params from the name (mirrors
@@ -3409,7 +3415,7 @@ fn try_parse_fn_shape_def(form: &WatAST) -> Option<ParsedFnShapeDef> {
     let (name, raw_type_params) = match &items[1] {
         WatAST::Keyword(k, _) => match split_name_and_type_params(k) {
             Ok(pair) => pair,
-            Err(_) => return None,
+            Err(_) => return Ok(None),
         },
         // Arc 300.1 — faithful-Clojure dual surface: a namespaced Symbol in
         // def-name position (`user/main`) is the keyword FQDN's twin. Convert
@@ -3423,19 +3429,19 @@ fn try_parse_fn_shape_def(form: &WatAST) -> Option<ParsedFnShapeDef> {
             );
             match split_name_and_type_params(&kw) {
                 Ok(pair) => pair,
-                Err(_) => return None,
+                Err(_) => return Ok(None),
             }
         }
-        _ => return None,
+        _ => return Ok(None),
     };
     // Stone 241.6 — if 4 items, items[2] must be a non-empty metadata-map;
     // items[3] is the fn-form. If 3 items, items[2] is the fn-form directly.
     let (fn_slot_idx, metadata_opt) = if items.len() == 4 {
         // items[2] must be a metadata-map (head :wat::core::HashMap).
         // If it's not a HashMap list, this is not the fn-shape-def path.
-        {
-            let meta = try_parse_metadata_map(&items[2])?; // items[2] is not a metadata-map; let other parsers handle
-            (3usize, Some(meta)) // metadata present; fn-form is at index 3
+        match try_parse_metadata_map(&items[2]) {
+            Some(meta) => (3usize, Some(meta)), // metadata present; fn-form is at index 3
+            None => return Ok(None), // items[2] is not a metadata-map; let other parsers handle
         }
     } else {
         (2usize, None) // 3-item form; fn-form is at index 2; no metadata
@@ -3456,14 +3462,14 @@ fn try_parse_fn_shape_def(form: &WatAST) -> Option<ParsedFnShapeDef> {
     // stored at the binding level (not at the fn level).
     let fn_items = match &items[fn_slot_idx] {
         WatAST::List(fn_items, _) => fn_items,
-        _ => return None,
+        _ => return Ok(None),
     };
-    match &fn_items.first()? {
-        WatAST::Keyword(k, _) if k == ":wat::core::fn" => {}
-        _ => return None,
+    match fn_items.first() {
+        Some(WatAST::Keyword(k, _)) if k == ":wat::core::fn" => {}
+        _ => return Ok(None),
     }
     if fn_items.len() < 4 {
-        return None;
+        return Ok(None);
     }
     // Stone 241.6 — detect fn-embedded metadata: fn_items[1] is a HashMap list
     // produced by defn macro expansion threading `{meta}` into the fn-form.
@@ -3475,7 +3481,7 @@ fn try_parse_fn_shape_def(form: &WatAST) -> Option<ParsedFnShapeDef> {
             Some(meta) if !meta.is_empty() => {
                 // fn has embedded metadata; sig starts at fn_items[2]
                 if fn_items.len() < 5 {
-                    return None; // not enough items after peeling
+                    return Ok(None); // not enough items after peeling
                 }
                 (2usize, Some(meta))
             }
@@ -3485,27 +3491,71 @@ fn try_parse_fn_shape_def(form: &WatAST) -> Option<ParsedFnShapeDef> {
         // 4-item def: explicit metadata-map already captured; fn has no embedded metadata.
         (1usize, metadata_opt)
     };
-    // Synthesize body via implicit-do over fn_items[(sig_start+3)..]. Empty
-    // trailing slice → :wat::core::nil keyword; single → pass-through;
-    // multiple → (:wat::core::do f1 f2 ... fN).
-    let body = synthesize_fn_body(&fn_items[(sig_start + 3)..]);
+    // Arc 109 gamma-i — peel an optional `:- [T U ...]` type-param binder,
+    // riding into the emitted `fn` (via defn's rest-binder splicing)
+    // immediately after the (already-peeled) fn-embedded metadata and
+    // before the args-vector.
+    let (binder, sig_slice) = crate::function::peel_type_binder(&fn_items[sig_start..]);
+    if sig_slice.len() < 3 {
+        return Ok(None);
+    }
+    // Arc 109 gamma-i row 3 — a declaration carrying BOTH a name-embedded
+    // `<T>` spelling (raw_type_params, non-empty) AND a `:- [...]` binder
+    // is a contradiction, never something to silently resolve. Mirrors
+    // `types.rs`'s `take_declared_binder`, which raises the identical
+    // message for the type-declarator heads (defrecord/defenum/etc). This
+    // fn recognizes the shape as an fn-shape-def by this point (head, name,
+    // fn-form all matched) — Ok(None) would silently drop a form no other
+    // parser in the chain recognizes either, masking the contradiction
+    // instead of reporting it.
+    if binder.is_some() && !raw_type_params.is_empty() {
+        return Err(RuntimeError::new(
+            items[1].span().clone(),
+            RuntimeErrorKind::MalformedForm {
+                head: ":wat::core::defn".into(),
+                reason: format!(
+                    "declaration carries BOTH a name-embedded `<...>` type-param spelling \
+                     ({:?}) and a `:- [...]` binder — pick one; a declaration with both is a \
+                     contradiction, never something to silently resolve",
+                    raw_type_params
+                ),
+            },
+        ));
+    }
+    // Synthesize body via implicit-do over the trailing forms after the
+    // 3-element signature prefix. Empty trailing slice → :wat::core::nil
+    // keyword; single → pass-through; multiple → (:wat::core::do f1 f2 ... fN).
+    let body = synthesize_fn_body(&sig_slice[3..]);
     // parse_fn_signature consumes the 3-element signature prefix:
     // ARGS-VECTOR / `->` / :RET-TYPE. Body is synthesized independently.
     let sig_args = [
-        fn_items[sig_start].clone(),
-        fn_items[sig_start + 1].clone(),
-        fn_items[sig_start + 2].clone(),
+        sig_slice[0].clone(),
+        sig_slice[1].clone(),
+        sig_slice[2].clone(),
     ];
-    let (params, param_types, ret_type) = crate::function::parse_fn_signature(&sig_args).ok()?;
+    let (params, param_types, ret_type) = match crate::function::parse_fn_signature(&sig_args) {
+        Ok(triple) => triple,
+        Err(_) => return Ok(None),
+    };
     // Stone 251.7 — union raw_type_params (from `<T,U>` name suffix) with any
     // free bare type-vars in the signature so bare-var forms auto-generalize.
+    // Arc 109 gamma-i — also union the fn's own `:- [T ...]` binder, if any.
+    // (The both-spellings contradiction is rejected above; by construction
+    // at most one of raw_type_params/binder is non-empty here.)
     let mut raw_type_params = raw_type_params;
+    if let Some(binder_names) = binder {
+        for tp in binder_names {
+            if !raw_type_params.contains(&tp) {
+                raw_type_params.push(tp);
+            }
+        }
+    }
     for fv in collect_free_type_vars(&param_types, &ret_type) {
         if !raw_type_params.contains(&fv) {
             raw_type_params.push(fv);
         }
     }
-    Some((
+    Ok(Some((
         name.clone(),
         Arc::new(Function {
             name: Some(name),
@@ -3524,7 +3574,7 @@ fn try_parse_fn_shape_def(form: &WatAST) -> Option<ParsedFnShapeDef> {
             synthesized_for: None,
         }),
         metadata_opt,
-    ))
+    )))
 }
 
 /// Stone 241.11 — detect variadic `(:wat::core::def :name (:wat::core::fn [...& xs...] -> :T body))`
@@ -3833,7 +3883,7 @@ fn preregister_fn_defs_in_do(
     // items is the children of a do form — i.e. items[0] is the :wat::core::do
     // keyword; items[1..] are the body children.
     for child in &items[1..] {
-        if let Some((path, func, metadata_opt)) = try_parse_fn_shape_def(child) {
+        if let Some((path, func, metadata_opt)) = try_parse_fn_shape_def(child)? {
             let existing = if sym.has_function(&path) {
                 crate::resolve::Existing::Equivalent
             } else {
@@ -3908,7 +3958,7 @@ fn preregister_fn_defs_in_let(
     // items[1] = bindings vector
     // items[2..] = body forms (arc 168 multi-form body)
     for child in items.get(2..).unwrap_or(&[]) {
-        if let Some((path, func, metadata_opt)) = try_parse_fn_shape_def(child) {
+        if let Some((path, func, metadata_opt)) = try_parse_fn_shape_def(child)? {
             let existing = if sym.has_function(&path) {
                 crate::resolve::Existing::Equivalent
             } else {

@@ -59,4 +59,5 @@ pub(in crate::function) const FN_HEAD: &str = ":wat::core::fn";
 
 pub(crate) use eval::eval_fn;
 pub(crate) use infer::infer_fn;
+pub(crate) use metadata::peel_type_binder;
 pub(crate) use parse::{parse_fn_signature, parse_fn_signature_for_check};

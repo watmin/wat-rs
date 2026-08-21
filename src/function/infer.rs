@@ -20,7 +20,7 @@ use crate::ast::WatAST;
 use crate::check::{
     apply_subst, assignable, format_type, infer, CheckEnv, CheckError, CheckErrorKind, CheckResult, InferCtx, Subst,
 };
-use crate::function::metadata::peel_metadata_preamble;
+use crate::function::metadata::{peel_metadata_preamble, peel_type_binder};
 use crate::argspec::ParseOptions;
 use crate::function::parse::{parse_fn_signature_prefix, ParseStepKind};
 use crate::function::FN_HEAD;
@@ -103,6 +103,10 @@ pub(crate) fn infer_fn(
     // binding_metadata by try_parse_fn_shape_def at register-defines time.
     // Note: sister sequence in `src/function/eval.rs` (eval_fn).
     let sig_args = peel_metadata_preamble(args);
+    // Arc 109 gamma-i — peel an optional `:- [T U ...]` type-param binder,
+    // immediately after metadata and before the args-vector. Sister
+    // sequence in `src/function/eval.rs` (eval_fn).
+    let (binder, sig_args) = peel_type_binder(sig_args);
     if sig_args.len() < 3 {
         // HARVEST (236.2): silent-by-intent — malformed fn form with < 3 args;
         // parse won't even call check for badly-formed fn. Return fresh placeholder.
@@ -112,7 +116,7 @@ pub(crate) fn infer_fn(
     // Safety: sig_args.len() >= 3 gated above; try_into on a 3-element prefix
     // cannot fail. The type guarantee eliminates the ArityMismatch class.
     let sig3: &[WatAST; 3] = sig_args[..3].try_into().expect("len >= 3 gated above");
-    let (param_names, param_types, ret_type, rest_param) = match parse_fn_signature_for_check_diag(sig3) {
+    let (param_names, mut param_types, mut ret_type, mut rest_param) = match parse_fn_signature_for_check_diag(sig3) {
         SigParse::Parsed(p, t, r, rest) => (p, t, r, rest),
         SigParse::SilentReject => {
             // Not fn-shaped at all — silent-by-intent; return a fresh placeholder.
@@ -120,6 +124,26 @@ pub(crate) fn infer_fn(
         }
         SigParse::Diagnosed(err) => return CheckResult::err(err),
     };
+
+    // Arc 109 gamma-i — generalize the binder's names into FRESH type
+    // variables for THIS check pass. `infer_fn` runs exactly once per
+    // `fn` AST node; the fresh Vars minted here let this ONE fn's body be
+    // checked soundly (x and y both `:- [T]` must agree on T within a
+    // single application). This is NOT let-polymorphism: it does not make
+    // separate call sites of the SAME let-bound value re-instantiate
+    // independently — that decision belongs to whatever resolves a Symbol
+    // reference to its type (`locals.get` in `crate::check::infer`'s
+    // Symbol arm), which stores one fixed `TypeExpr` per binding and is
+    // check.rs, out of this stone's declared blast radius.
+    if let Some(binder_names) = &binder {
+        let mapping: HashMap<String, TypeExpr> = binder_names
+            .iter()
+            .map(|tp| (tp.clone(), fresh.fresh()))
+            .collect();
+        param_types = param_types.iter().map(|t| crate::check::rename(t, &mapping)).collect();
+        ret_type = crate::check::rename(&ret_type, &mapping);
+        rest_param = rest_param.map(|(ident, ty)| (ident, crate::check::rename(&ty, &mapping)));
+    }
 
     // Check body against declared return type under extended locals.
     let mut body_locals = outer_locals.clone();

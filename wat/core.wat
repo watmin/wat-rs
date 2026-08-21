@@ -704,7 +704,69 @@
             (:wat::core::string::interpolate ":{name-raw}" :name-raw name-raw))]
          (:wat::core::keyword-node name-fqdn))
        name)
-     params-vec   (:wat::core::first rest)
+     ;; Arc 109 gamma-i row 6 — a `:- [T U ...]` binder MAY ride at the front of
+     ;; `rest`, immediately after the name (before the args-vector) — the same
+     ;; position the substrate's `fn`-form peel (`peel_type_binder`,
+     ;; `src/function/metadata.rs`) recognizes. `defn` never peeled it: the
+     ;; backward-compat branch forwards `rest` unchanged (`~@rest`, unaffected
+     ;; either way), but the KWARGS branch indexes `rest` positionally
+     ;; (params-vec/ret-type/body-forms), so an unpeeled binder shifts every
+     ;; index by 2 and the branch mis-reads `:-` itself as the args-vector.
+     ;; `rest2` is `rest` with the binder stripped — used ONLY where the kwargs
+     ;; branch below indexes positionally; `rest` itself is UNTOUCHED so the
+     ;; backward-compat branch's `~@rest` splice stays byte-identical.
+     has-binder   (:wat::core::if (:wat::core::i64::>= (:wat::core::length rest) 1)
+
+                    (:wat::core::let
+                      [b0 (:wat::core::Option/expect (:wat::core::get rest 0) "defn binder detect: b0")]
+                      (:wat::core::if (:wat::core::= (:wat::core::ast-kind b0) "keyword")
+                        (:wat::core::= (:wat::core::ast-name b0) ":-")
+                        false))
+                    false)
+     ;; the binder's bare type-param names, in source order (empty when no binder).
+     binder-names-ch
+                  (:wat::core::if has-binder
+                    (:wat::core::ast->children
+                      (:wat::core::Option/expect (:wat::core::get rest 1)
+                        "defn binder: `:-` must be followed by a `[...]` vector"))
+                    (:wat::core::Vector :wat::WatAST))
+     ;; the binder rendered as a `<T,U>` string SUFFIX — the exact shape `name-tp`
+     ;; already takes from a `<T,U>`-spelled name, so every downstream
+     ;; `{b}::Kwargs{p}` / `{b}$impl{p}` interpolation is unchanged by construction.
+     binder-tp    (:wat::core::if has-binder
+                    (:wat::core::string::concat "<"
+                      (:wat::core::string::concat
+                        (:wat::core::string::join ","
+                          (:wat::core::foldl
+                            (:wat::core::fn [acc <- :wat::core::Vector<wat::core::String> nd <- :wat::WatAST]
+                              -> :wat::core::Vector<wat::core::String>
+                              (:wat::core::conj acc (:wat::core::ast-name nd)))
+                            (:wat::core::Vector :wat::core::String)
+                            binder-names-ch))
+                        ">"))
+                    "")
+     rest2        (:wat::core::if has-binder
+                    (:wat::core::rest (:wat::core::rest rest))
+                    rest)
+     ;; Arc 109 gamma-i row 3 CORRECTION — a declaration carrying BOTH a name-embedded
+     ;; `<...>` type-param spelling AND a `:- [...]` binder is a contradiction, a property
+     ;; of the LANGUAGE, not of the kwargs branch alone. Checked HERE, in the outer let
+     ;; shared by BOTH branches below (kwargs AND backward-compat/plain), so one
+     ;; `macro-error` covers both paths from one place — the same door `defn` already
+     ;; uses for its other macro-time diagnostics (`:632`, `:838`). Mirrors the Rust-side
+     ;; message verbatim (`take_declared_binder` in `src/types.rs`; the mirrored check in
+     ;; `try_parse_fn_shape_def`, `src/runtime.rs`) so every spelling of the rule reads
+     ;; identically. `name-str` was already computed above as part of the name
+     ;; normalization; reused here rather than recomputed.
+     name-str-parametric? (:wat::core::string::ends-with? (:wat::core::keyword/to-string name) ">")
+     _binder-contradiction-check
+                  (:wat::core::if (:wat::core::if has-binder name-str-parametric? false)
+                    (:wat::core::macro-error
+                      (:wat::core::string::interpolate
+                        "defn: declaration `{name-str}` carries BOTH a name-embedded `<...>` type-param spelling and a `:- [...]` binder — pick one; a declaration with both is a contradiction, never something to silently resolve"
+                        :name-str (:wat::core::keyword/to-string name)))
+                    nil)
+     params-vec   (:wat::core::first rest2)
      params-ch    (:wat::core::ast->children params-vec)
      params-len   (:wat::core::length params-ch)
      ;; Detect `& [...]` tail: params-len >= 2 AND second-to-last is a Symbol named "&"
@@ -742,15 +804,29 @@
          ;; so every companion name is byte-identical to the pre-split concatenation.
          ;; DECLARED types/fns carry the params; CTOR / ACCESSOR / by-name-resolution
          ;; keywords (and the companion MACRO's own name) take the bare base.
-         name-parametric? (:wat::core::string::ends-with? name-str ">")
-         name-base       (:wat::core::if name-parametric?
+         ;;
+         ;; Arc 109 gamma-i row 6 — a `:- [T ...]` binder is the SECOND spelling of the
+         ;; same fact `name-str`'s `<T,U>` suffix already carries (`has-binder`/`binder-tp`,
+         ;; computed above from `rest`, before it was ever bound to a defstruct/defmacro
+         ;; splice). `name-str-parametric?` names the ORIGINAL name-suffix test so
+         ;; `name-base` (which strips a real `<T>` suffix off `name-str`) is unaffected by
+         ;; which spelling supplied the params. `name-tp` prefers the binder when present.
+         ;; `name-str-parametric?` itself is NOT rebound here — reused from the OUTER let
+         ;; (where `_binder-contradiction-check`, above, already rejected the both-spellings
+         ;; case for EVERY `defn`, kwargs or plain, before either branch is chosen) — so
+         ;; reaching this point with `has-binder` true guarantees `name-str-parametric?` is
+         ;; false, and the two never silently disagree here.
+         name-parametric? (:wat::core::if has-binder true name-str-parametric?)
+         name-base       (:wat::core::if name-str-parametric?
                            (:wat::core::first (:wat::core::string::split name-str "<"))
                            name-str)
-         name-tp         (:wat::core::if name-parametric?
-                           (:wat::core::string::subs name-str
-                             (:wat::core::string::length name-base)
-                             (:wat::core::string::length name-str))
-                           "")
+         name-tp         (:wat::core::if has-binder
+                           binder-tp
+                           (:wat::core::if name-str-parametric?
+                             (:wat::core::string::subs name-str
+                               (:wat::core::string::length name-base)
+                               (:wat::core::string::length name-str))
+                             ""))
          ;; the companion MACRO's own head — always the bare name (a macro takes no type args)
          name-base-node  (:wat::core::keyword-node
                            (:wat::core::string::interpolate ":{b}" :b name-base))
@@ -814,17 +890,20 @@
                              arrow-sym)
                            kwargs-ty-node)
          reshaped-params (:wat::core::with-children params-vec reshaped-ch)
-         ;; ret-type: rest[2] (after params-vec and ->)
-         ret-type        (:wat::core::Option/expect  
-                            (:wat::core::get rest 2)
+         ;; ret-type: rest2[2] (after params-vec and ->). Arc 109 gamma-i row 6 — reads
+         ;; `rest2` (binder-stripped), not `rest`, so a binder-spelled kwargs defn's
+         ;; indices realign the same way `params-vec` above already does.
+         ret-type        (:wat::core::Option/expect
+                            (:wat::core::get rest2 2)
                             "defn kwargs: no return type")
-         ;; body forms: rest[3..] (everything after params-vec -> ret-type)
+         ;; body forms: rest2[3..] (everything after params-vec -> ret-type)
          ;; Arc 118.2a — was `(:wat::core::drop rest 3)`. `drop` flipped LAZY; this is
          ;; `:wat::core::defn`'s own macro body (bootstrap-critical — see `base-ch` above) and
          ;; `body-forms` is unquote-spliced (`~@body-forms`) below, needing a concrete Vec.
-         ;; `rest` stays eager/container-preserving on a real Vector, so drop 3 via 3x `rest`
-         ;; (same trick as `:wat::rete::defrule`'s and `:wat::service::defservice`'s fixes).
-         body-forms      (:wat::core::rest (:wat::core::rest (:wat::core::rest rest)))
+         ;; `rest`/`rest2` stays eager/container-preserving on a real Vector, so drop 3 via
+         ;; 3x `rest` (same trick as `:wat::rete::defrule`'s and `:wat::service::defservice`'s
+         ;; fixes). Arc 109 gamma-i row 6 — reads `rest2`, see `ret-type` above.
+         body-forms      (:wat::core::rest (:wat::core::rest (:wat::core::rest rest2)))
          ;; Build destructure let-binder items:
          ;;   [field1-sym (:<name>::Kwargs/field1 __kwargs__)  field2-sym (…) …]
          ;; Arc 118.2a — `field-indices` (was `(:wat::core::map (fn [i] (* i 3)) (range 0 n-kw-fields))`)
