@@ -9,7 +9,7 @@
 
 ## GROUND FIRST
 
-> **Written against `169459247`.** Run **`git log --oneline a9168b851..HEAD`**. Empty → nothing moved.
+> **Written against `c889639aa`.** Run **`git log --oneline a9168b851..HEAD`**. Empty → nothing moved.
 > Non-empty → every commit in it outranks every line below.
 
 ⚠ `git status` FIRST. `pgrep -af 'cargo|nextest'`.
@@ -89,28 +89,28 @@ wat/service.wat            "<K,V>" as a STRING, re-attached as "{b}::Op{p}" — 
 ⛔ **Do NOT re-run the codemod on `wat/` until that is fixed.** It is not a partial-migration
 hazard — it is a red floor.
 
-✅ **RULED (2026-08-21) — γ-i is FULLY DECIDED and ready to BRIEF.**
-`109/DESIGN-STONE-gamma-i-defn-takes-the-binder.md`.
-**D1** γ-i goes first · **G3** **`fn` carries the binder; `def` derives; `defn` forwards into the
-emitted `fn`.** γ-i-b (the anonymous binder) is SUBSUMED — under G3 it IS the change.
+✅ **γ-i STRUCK — `c889639aa`.** `fn` takes the `:- [T …]` binder; `def` derives; `defn` forwards.
+Both builder forms check, `X` is a real variable (`(f 1 "s")` and `(takes-str (f 1 2))` reject), and
+the both-spellings contradiction fires across ALL FOUR cells of path × spelling plus the raw
+`(def :g<T> (fn :- [T] …))`. `check.rs` and `function/parse.rs` at ZERO diff — G3's premise held.
+Two flights; SCORE-STONE-gamma-i-flight-1.md (Mode B) and -flight-2.md.
 
-⚠ **G3 SUPERSEDED an earlier ruling (E2, "`def` consumes it"), and the correction came from the
-builder's question, not my checking.** What the measurement said: Stone 251.7 already unions the fn
-signature's free type-vars into the def's scheme, so a `defn` with **no param list at all** is
-generic and instantiates at two types; there are **zero** parametric `def`s whose value is not an fn;
-and the anonymous path is RIGID (`type_params: Vec::new()` at `function/eval.rs:66` →
-*"parameter #1 expects :T; got :wat::core::i64"*). The binder belongs to the thing that is generic.
+⚠ **Three of my own acceptance rows were defective, and every one went GREEN while broken:**
+row 2 demanded LET-POLYMORPHISM (a neighbouring mechanism — a rigid `:T` and a missing
+let-generalization fail it identically); row 3's probe exercised only the PLAIN path while the rule
+is a property of the language (the 3-of-6-constructors shape, same day); row 7 said "REGISTERS" and
+tested with a **declaration-only** probe, which cannot tell parsing from registering.
 
-★ **What G3 makes GO AWAY:** E2 needed `def`'s `(name [meta] expr)` arity widened in SEVEN
-hand-rolled guards (`check.rs:545,8445` · `runtime.rs:1291,2649,3395,3551,3671`), **every one of
-which skips SILENTLY** on an unexpected shape. Under G3 `def` is untouched; that hazard and the
-`split_def_form` consolidation invented to contain it both drop out, and `check.rs` leaves the blast
-radius.
-
-⛔ **The stone's real content — `infer_fn` builds NO SCHEME.** It binds params into `body_locals` and
-checks the body; there is no generalization step, which is exactly why an anonymous `:T` is rigid.
-The load-bearing acceptance row is an anonymous binder-carrying fn applied at **TWO** types — one
-instantiation proves nothing.
+★ **FILED OUT of γ-i, all three NAMED not deferred:**
+```
+generic variadic defn never REGISTERS   PRE-EXISTING (angle spelling fails on pristine HEAD too),
+                                        silent — error only at the CALL site. 0 corpus instances.
+                                        109/NOTE-a-generic-variadic-defn-never-registers.md
+anonymous-fn SILENT-ACCEPT              ANY stray token in the first slot → the whole fn
+                                        unconstrained, every call checks vacuously. Typo-reachable.
+let-polymorphism                        `locals` holds TypeExpr not TypeScheme;
+                                        derive_scheme_from_function gated `func.name.as_ref()?`.
+```
 
 ★ **ALSO AWAITING RULING —  `109/DESIGN-STONE-the-angle-string-is-not-a-type-identity.md`.**
 It carries the four questions on one shape, names a rival, and declares the population UNMEASURED
