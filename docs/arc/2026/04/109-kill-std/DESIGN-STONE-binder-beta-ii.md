@@ -157,3 +157,51 @@ test needed a comma variant (`"<T,"`) to paper over position.
 - ★ **`:wat::core::macro-error` EXISTS**, and is the established idiom (`wat/core.wat:632`, `:782`).
   That closes the open question in `NOTE-a-macro-cannot-diagnose-with-option-expect.md`: a macro CAN
   raise a structured error; `Option/expect` was simply the wrong tool. Recorded there.
+
+---
+
+## ★ AMENDMENT 2026-08-21 (2) — THE ~50 CONSUMERS ARE THREE KINDS, AND THE BIGGEST KIND IS A DELETION
+
+Censused after β-ii-a′ landed. The `fqdn-tp` consumers are not one population:
+
+```
+~20  FUNCTION names   {b}::init{p} · {b}::serve{p} · {b}/start{p} · {b}/stop{p} · {b}/resume{p}
+                      {b}/grant{p} · {b}/revoke{p} · {b}/start$impl{p} · {b}::dispatch-admin{p} …
+  5  TYPE names       {b}::State{p} · {b}::Record{p} · {b}::Handle{p} · {b}::Admin{p} · {b}::Op{p}
+ ~7  SUBSTRING tests  contains? fqdn-tp "<T>" / "<T," / ",T>"  ·  subs fqdn-tp 0 N
+```
+
+### The ~20 function names are a DELETION, not a conversion
+
+A function's name-embedded type params are **not authoritative**. `split_name_and_type_params`
+(`runtime.rs:4156`) parses them, and Stone 251.7 (`runtime.rs:~3614`) then **unions them with the
+free bare type-vars found in the signature**:
+
+> *"Stone 251.7 — union raw_type_params with free bare type-vars in the signature."*
+
+That is why `(defn :user::id<ZZZ> [x <- T] -> T x)` type-checks and runs — `ZZZ` is added to the
+set, `T` is *also* discovered free, and both get quantified. Measured this session.
+
+**So `{p}` on a generated FUNCTION name contributes nothing, provided every param appears in that
+function's signature** — which is the case by construction here, since these functions take and
+return the service's own parametric types. They can simply drop it.
+
+⚠ **Not a general licence.** A function whose type param appears ONLY in its body, never in its
+signature, would lose that param. That is why the drop is verified per-function rather than assumed,
+and why `wat-tests/service-cache-lru.wat` — which starts `lru-svc<K,V>`, dials two clients and
+exercises put/get end to end — is the acceptance instrument rather than the floor alone.
+
+### The revised decomposition
+
+- **β-ii-b — drop `{p}` from the ~20 generated FUNCTION names.** The largest group and the cheapest:
+  a deletion, not a port. No forms, no new vocabulary.
+- **β-ii-c — the 5 TYPE names become forms**, plus the 10 `proto-tp` sites, which are the same kind
+  (`{b}::Op{p}` / `{b}::Reply{p}` on the satisfied surface).
+- **β-ii-d — the substring cluster.** `contains? fqdn-tp "<T>"`, `"<T,"`, `",T>"` — three variants to
+  catch `T` first, middle, or last — is a substring test approximating *"is `T` among the params?"*,
+  which over `fqdn-tp-syms` is ONE membership check. Plus the `subs fqdn-tp 0 N` truncations, which
+  are `take`/`butlast` over a list. Still a ruling, but a much smaller one now that the list exists.
+
+★ The earlier framing — "~50 emissions become forms" — was wrong in the same direction as the three
+size estimates before it: it treated one population as homogeneous because they shared a variable
+name. Five become forms. Twenty are deleted. Seven are a different question entirely.
