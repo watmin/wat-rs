@@ -17,7 +17,7 @@ applied to wat/, verified byte-identical to the dry-run diff
 
 Then the floor, four times, each on a smaller held-back set. Each round named the next blocker.
 
-## The three blockers, in the order the floor surfaced them
+## The blockers — three the floor surfaced, and a FOURTH it could not reach
 
 ### 1 — `wat_source_derive` reads the corpus with a keyword-only parser  *(FIXED, shipped)*
 
@@ -64,6 +64,45 @@ The floor named that last one exactly: *"`:peers` declares surface `:wat::query:
 `:ephemeral` field is typed `:wat::kernel::Peer<wat::query::Store::Op,…>`"* — **a string comparison
 with one side built in the angle form and the other read from a migrated corpus.** The recurring
 class this arc already named three times, now load-bearing for a whole subsystem.
+
+### 4 — ⛔ `defn` / `fn` REJECT the `:- [T …]` binder  *(NEW, and on the critical path)*
+
+**The floor never reached this one.** The cascade died at `extend-type` in `cache.wat` /
+`journal.wat` / `seq.wat` before a single migrated `defn` was evaluated. Surfaced 2026-08-21 by the
+builder stating the function-type/declaration correspondence:
+
+```clojure
+[:-> X]            0-arity      (wat.core/fn :- [X]         []                  :- X …)
+[A :-> X]          1-arity      (wat.core/fn :- [A X]       [a :- A]            :- X …)
+[A B C D E :-> X]  5-arity      (wat.core/fn :- [A B C D E X] [a :- A …]        :- X …)
+```
+
+The binder lists EVERY type var, the return's included. Probed against the disk:
+
+```
+(:wat::core::defn :user::f :- [T] [x <- :T] -> :T x)
+  ⛔ "fn signature: expected a vector `[name <- :T ...]` as the args-vector; got keyword"
+(:wat::core::defn :user::f<T>   [x <- :T] -> :T x)   ✅ clean
+```
+
+`take_declared_binder` has SEVEN callers — all TYPE declarators. `defn` and `fn` are not among them.
+Every other head in the codemod's list accepts the binder; probed one by one: `defenum`,
+`defrecord`, `holon::defrecord`, `defstruct`, `defsurface`, `typealias`, `newtype`, `typeunion` —
+all ACCEPT. **`defn` alone rejects.** Population: **40** parametric `defn`/`fn` declarations in
+`wat/` (`test`, `spawn`, `bracket`, `io`, `seq`, `cache`), 57 corpus-wide.
+
+★ **And this is `[[feedback_scope_the_check_from_the_rule_not_the_diff]]` recurring inside the very
+stone that fixed it.** `a9168b851`'s SCORE records: *"Six added … each destination verified against
+α to accept `name :- [T…]` **before** being listed."* The verification was real — and it was applied
+to the SIX THE DIFF ADDED. `defn` was in the ORIGINAL list, so it was never probed. A full green
+over the additions reads exactly like a full green over the list.
+
+⚠ And dropping `defn` from the list is not the fix: an unlisted head renders its name as a
+REFERENCE, so `(:wat::core::defn (:wat::core::foldl-spec :- [T U]) …)` — the silent corruption
+`a9168b851` exists to prevent, verbatim.
+
+This is the seam's **γ**, first half, and it is the SMALLEST blocker on ②-iii's path: one head joins
+the seven that already call `take_declared_binder`.
 
 ## What this means for ② and ③
 

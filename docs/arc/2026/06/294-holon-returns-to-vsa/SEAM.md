@@ -66,7 +66,8 @@ codemod THE SLOT RULE — a declaration name is a binder, not a reference       
 **Read `109/NOTE-2iii-is-blocked-the-angle-string-is-the-type-identity.md` before touching this.**
 The codemod ran over all 52 stdlib files, changed 36 (899 lines, 992 tokens), was byte-identically
 idempotent, and matched its reviewed dry-run exactly. The stdlib then failed to load — because in
-three subsystems the substrate uses the **rendered string `Head<A,B>` as a type's IDENTITY**:
+three subsystems the substrate uses the **rendered string `Head<A,B>` as a type's IDENTITY** — and
+in a FOURTH place the floor never reached, `defn` simply refuses the binder the codemod writes:
 
 ```
 register_subtype        stores the string VERBATIM — the edge key IS ":…::Seqable<T>"
@@ -74,6 +75,10 @@ transport_satisfier_heads  format!("{fq}<T>") / ("{fq}<Xt>")
 satisfies_bare_surface     format!("{surface}<") — a PREFIX match
 wat/service.wat            "<K,V>" as a STRING, re-attached as "{b}::Op{p}" — and EMITTED,
                            so a migrated corpus regrows the angle form at every expansion
+⛔ defn / fn            REJECT `:- [T …]`. take_declared_binder has 7 callers, all TYPE
+                           declarators. Probed: every other codemod head ACCEPTS; defn alone
+                           does not. 40 parametric defn/fn in wat/, 57 corpus-wide.
+                           = the seam's γ, first half — the SMALLEST blocker on the path.
 ```
 
 ⛔ **Do NOT re-run the codemod on `wat/` until that is fixed.** It is not a partial-migration
@@ -88,8 +93,11 @@ the compiler). One stone or three? Which shape? No rider flies until it is ruled
 
 - **β-ii-d** — `defservice`'s substring transport test (`contains? fqdn-tp "<T>"` / `"<T,"` / `",T>"`,
   three variants approximating one membership check). Cheap now: `fqdn-tp-syms` exists.
-- **γ** — `defn`. TWO capabilities: the declaration binder, and **call-site type application**
-  (`(ns/f :- [wat.type/i64] 42)`), which is REJECTED today and whose site count is **UNMEASURED**.
+- **γ** — `defn`. TWO capabilities. (i) the declaration BINDER — now MEASURED and on ②-iii's
+  critical path (see the blocker list above); the builder's spec, 2026-08-21: the binder lists every
+  type var INCLUDING the return's — `[:-> X]` ⇔ `(wat.core/fn :- [X] [] :- X …)`,
+  `[A B :-> X]` ⇔ `(wat.core/fn :- [A B X] [a :- A b :- B] :- X …)`. (ii) **call-site type
+  application** (`(ns/f :- [wat.type/i64] 42)`), REJECTED today, site count still **UNMEASURED**.
 - ⛔ **A user parametric type has NO working FORM spelling.** `(:user::Box :- [i64])` fails where
   `(:wat::core::Vector :- [i64])` works — because `defrecord` mints a *macro* under the record's own
   bare name (`wat/Record.wat:197`), so the list is macro-expanded before the checker sees it.
@@ -125,6 +133,12 @@ the compiler). One stone or three? Which shape? No rider flies until it is ruled
 > new wall would find zero violations. It found three real defects — one in GENERATED code that
 > appears in no file, four hand-written, and one FALSE LAW in a comment claiming "checker-locked"
 > for a rule the checker never had.
+>
+> ⚠ **A VERIFICATION APPLIED TO WHAT THE DIFF ADDED IS NOT A VERIFICATION OF THE LIST.**
+> `a9168b851`'s SCORE records six declarator heads *"each destination verified against α to accept
+> `name :- [T…]` before being listed."* True — and only the six the diff added. `defn` was in the
+> ORIGINAL list, never probed, and it REJECTS. `[[feedback_scope_the_check_from_the_rule_not_the_diff]]`
+> recurring inside the stone that fixed it.
 >
 > ⚠ **I AM THE INQUISITOR; A SHADOWDANCER EXECUTES.** Builder, 2026-08-21, mid-strike: *"we
 > construct the documents for a shadowdancer to execute… we do small, trivial fixes here.. anything
