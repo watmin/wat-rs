@@ -19,15 +19,17 @@ own independent re-run; the rider's report does not move them.
 Row 1's expected output, predicted exactly:
 
 ```
-1 nil bare      : :wat::core::nil
-2 nil nested    : (:wat::core::Result [:wat::core::nil :wat::core::String])
-3 tuple 3-ary   : (:wat::core::Tuple [:wat::core::i64 :wat::core::i64 :wat::core::String])
-4 tuple empty   : (:wat::core::Tuple [])
-5 control parm  : (:wat::core::Vector [:wat::core::i64])
+1 nil bare       : :wat::core::nil
+2 nil nested     : (:wat::core::Result [:wat::core::nil :wat::core::String])
+3 tuple 3-ary    : (:wat::core::Tuple [:wat::core::i64 :wat::core::i64 :wat::core::String])
+4 tuple 1-ary    : (:wat::core::Tuple [:wat::core::i64])
+5 tuple empty    : (:wat::core::Tuple [])
+6 control parm   : (:wat::core::Vector [:wat::core::i64])
 ```
 
-Row 5 must be byte-identical to today — it is the control. If it moves, half (a) reached further
-than `nil` and STOP-2 fired.
+Row 6 must be byte-identical to today — it is the control. If it moves, half (a) reached further
+than `nil` and STOP-2 fired. Rows 3, 4 and 5 are the arity ladder: **no rung may emit a bare head,
+and none may be special-cased in the code** — one path, `args.len()` never consulted.
 
 ## Independent prediction
 

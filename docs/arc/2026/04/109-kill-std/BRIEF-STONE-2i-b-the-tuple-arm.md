@@ -55,13 +55,27 @@ The head becomes mode-dependent, mirroring the `Parametric` arm's case 1:
 - `TypeFormHeadMode::Colon` → `WatAST::Keyword(":wat::core::Tuple")`
 
 and the items go into ONE `WatAST::Vector` in the list's second position, unconditionally in both
-modes, including when there are zero of them:
+modes, **at every arity including zero and one**. The full ladder, as the builder set it down — a
+bare head is ILLEGAL at the top of it, and that is the whole point:
 
 ```
-(wat.type/Tuple [wat.type/i64 wat.type/String])        Clojure
-(:wat::core::Tuple [:wat::core::i64 :wat::core::String])  Colon
-(wat.type/Tuple [])                                     the empty tuple — a bracket, always
+(:wat::core::Tuple)                                        ILLEGAL — never emit a bare head
+(:wat::core::Tuple [])                                     empty
+(:wat::core::Tuple [:wat::core::i64])                      1-ary
+(:wat::core::Tuple [:wat::core::i64 :wat::core::String])   2-ary
+
+(wat.type/Tuple [])
+(wat.type/Tuple [wat.type/i64])
+(wat.type/Tuple [wat.type/i64 wat.type/String])
 ```
+
+The empty rung is a **first-class member of that ladder, not a defensive case**: `(wat.type/Tuple [])`
+is legal, writable source today and the committed reader probe exercises it. (Only the KEYWORD
+spelling `:()` is retired; that retirement is about a spelling, not about the type.)
+
+The 1-ary rung is real and distinct — measured, passing a bare `7` to a
+`(wat.type/Tuple [wat.type/i64])` param is a TypeMismatch. Do not special-case it, and do not
+special-case zero either: one code path, `args.len()` never consulted.
 
 The builder's ruling, verbatim, 2026-08-20:
 

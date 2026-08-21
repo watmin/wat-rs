@@ -13,7 +13,11 @@
 ;;
 ;; So the fix has two halves and this probe measures both:
 ;;   (a) `nil` must render back as `:wat::core::nil`, NOT as any Tuple form  → rows 1, 2
-;;   (b) a real tuple must BRACKET its members, and honour the COLON head    → rows 3, 4
+;;   (b) EVERY tuple arity brackets its members and honours the COLON head   → rows 3, 4, 5
+;;
+;; The arity ladder is the whole point and the empty rung is a FIRST-CLASS member of it, not a
+;; defensive case: `(wat.type/Tuple [])` is legal, writable source TODAY (see the sibling probe
+;; arc109-tuple-bracket-reader.wat). Only the KEYWORD spelling `:()` is retired.
 ;;
 ;; Read through `ast->source` (byte-verbatim), NEVER `write-forms` (Carriage::Display re-spells
 ;; every `::`-keyword to EDN-dotted form and would hide the very thing under test).
@@ -29,6 +33,7 @@
     (:user::show "1 nil bare      " ":wat::core::nil")
     (:user::show "2 nil nested    " ":wat::core::Result<wat::core::nil,wat::core::String>")
     (:user::show "3 tuple 3-ary   " ":(wat::core::i64,wat::core::i64,wat::core::String)")
-    (:user::show "4 tuple empty   " ":()")
-    (:user::show "5 control parm  " ":wat::core::Vector<wat::core::i64>")
+    (:user::show "4 tuple 1-ary   " ":(wat::core::i64,)")
+    (:user::show "5 tuple empty   " ":()")
+    (:user::show "6 control parm  " ":wat::core::Vector<wat::core::i64>")
     nil))

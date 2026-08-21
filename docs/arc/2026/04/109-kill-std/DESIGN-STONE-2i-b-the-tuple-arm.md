@@ -20,17 +20,19 @@ the measurement. This stone closes it.
 `wat-scripts/scratch-pad/arc109-tuple-arm-faults.wat`:
 
 ```
-1 nil bare      : (wat.type/Tuple)
-2 nil nested    : (:wat::core::Result [(wat.type/Tuple) :wat::core::String])
-3 tuple 3-ary   : (wat.type/Tuple :wat::core::i64 :wat::core::i64 :wat::core::String)
-4 tuple empty   : (wat.type/Tuple)
-5 control parm  : (:wat::core::Vector [:wat::core::i64])
+1 nil bare       : (wat.type/Tuple)
+2 nil nested     : (:wat::core::Result [(wat.type/Tuple) :wat::core::String])
+3 tuple 3-ary    : (wat.type/Tuple :wat::core::i64 :wat::core::i64 :wat::core::String)
+4 tuple 1-ary    : (wat.type/Tuple :wat::core::i64)
+5 tuple empty    : (wat.type/Tuple)
+6 control parm   : (:wat::core::Vector [:wat::core::i64])
 ```
 
 Three faults: wrong head spelling in COLON mode · mixed spelling inside one otherwise-correct form ·
-args spliced FLAT instead of bracketed. Row 5 is the control — `Parametric` is already right.
+args spliced FLAT instead of bracketed, at every arity. Row 6 is the control — `Parametric` is
+already right.
 
-**Rows 1 and 4 are the finding: `nil` and `:()` render IDENTICALLY.**
+**Rows 1 and 5 are the finding: `nil` and `:()` render IDENTICALLY.**
 
 ## The correction this stone rests on
 
@@ -46,17 +48,27 @@ body exits 1. The exit code was right; the inference was not. The error text say
 
 Two consequences:
 
-- **It shrinks the strike.** `:()` appears **0 times** as a type annotation in the corpus (the only
-  three `:()` hits are a string fed to the verb in a fixture, a comment, and this stone's own probe).
-  An empty Tuple is unreachable from legal source; the empty case is defensive. The real corpus work
-  is the non-empty tuples: **243 occurrences** — `wat/` 52 · `wat-scripts/` 165 · `tests/` 26.
+- **It bounds the corpus work.** `:()` appears **0 times** as a type annotation in the corpus (the
+  only three `:()` hits are a string fed to the verb in a fixture, a comment, and this stone's own
+  probe). The corpus work is the non-empty tuples: **243 occurrences** — `wat/` 52 · `wat-scripts/`
+  165 · `tests/` 26.
   ⚠ The NOTE's "30 standalone tuples" is a DIFFERENT measurement — what the codemod's guard skipped
   on the paths it ran, not a corpus census. Neither number is wrong; they answer different questions.
-- **It enlarges the builder's ruling.** `nil != ()` is not what the substrate says today — slice 1d
-  retired the empty-tuple spelling BY ALIASING IT TO UNIT. Making `(Tuple [])` writable as a thing
-  distinct from `nil` means un-retiring it against those ~30 checker sites. **That is a separate,
-  larger question and it is the builder's.** It does not block this stone: keeping `nil` as
-  `Path(":wat::core::nil")` at parse time is correct under either future.
+
+  ⛔ **CORRECTED 2026-08-20, same day, builder's catch.** An earlier draft of this design read that
+  census as *"an empty Tuple is unreachable from legal source; the empty case is defensive."*
+  **That is false.** The census saw the KEYWORD spelling `:()` and I generalised it to the type.
+  The FORM spelling is legal, writable source today — `(wat.type/Tuple [])` type-checks as a param
+  type and as a return type, measured in this stone's own reader probe, which I had already run.
+  The retirement was of one *spelling*, not of the empty tuple. The empty rung is a first-class
+  member of the arity ladder and this stone must treat it as one.
+  `[[feedback_state_what_the_instrument_can_see_before_quoting_it]]`
+- **It leaves the builder's ruling one step short.** `(Tuple [])` is already WRITABLE; what it is
+  not yet is a *distinct type*. Measured: a `nil` argument satisfies a `(wat.type/Tuple [])` param
+  AND a `:wat::core::nil` param in the same file, `--check` EXIT 0. Both are `TypeExpr::Tuple(vec![])`
+  internally, load-bearing at ~30 checker sites. So `nil != ()` is a **type-identity split**, not a
+  syntax question — and it is a separate, larger stone, and the builder's. It does not block this
+  one: keeping `nil` as `Path(":wat::core::nil")` at parse time is correct under either future.
 
 ## The change
 
@@ -70,10 +82,30 @@ The one other thing that flag governs is the `:wat::type::` → `:wat::core::` a
 `type-shaped-keyword?` never selects it (no matching `<…>`). Preserving its spelling is *more*
 faithful, not less. The flip is clean.
 
-**(b) The Tuple arm brackets and honours the mode** — exactly what `Parametric` got in ②-i.
-`(:wat::core::Tuple [:wat::core::i64 …])` in COLON, `(wat.type/Tuple [wat.type/i64 …])` in Clojure,
-and the empty tuple is `(:wat::core::Tuple [])` — head always takes a bracket, even empty. This is
-the builder's ruling, 2026-08-20:
+**(b) The Tuple arm brackets and honours the mode** — exactly what `Parametric` got in ②-i. The
+head always takes a bracket, at EVERY arity including zero. The full ladder, both spellings, as the
+builder set it down:
+
+```
+(:wat::core::Tuple)                                        ILLEGAL — a bare head is not a form
+(:wat::core::Tuple [])                                     empty
+(:wat::core::Tuple [:wat::core::i64])                      1-ary
+(:wat::core::Tuple [:wat::core::i64 :wat::core::String])   2-ary
+
+(wat.type/Tuple [])
+(wat.type/Tuple [wat.type/i64])
+(wat.type/Tuple [wat.type/i64 wat.type/String])
+```
+
+★ **The 1-ary rung is where the form surface is strictly better than the keyword surface,** and it
+is worth stating because it is the reason the arity ladder has to be spelled out rather than
+summarised as "bracket the args". On the keyword surface `:(A)` is Rust GROUPING and collapses to
+`A`; a 1-tuple can only be spelled `:(A,)`, with a trailing comma carrying the entire distinction.
+The form surface has no such ambiguity — `(wat.type/Tuple [A])` is a 1-tuple and nothing else.
+Measured distinct from a scalar: passing a bare `7` to a `(wat.type/Tuple [wat.type/i64])` param is
+a TypeMismatch.
+
+This is the builder's ruling, 2026-08-20:
 
 > *"nil is rust's unit… but `nil != ()` in wat. nil is not an empty list. `(wat.type/Tuple)` is
 > illegal, it'd be `(wat.type/Tuple [])` to be an empty tuple."*
@@ -110,5 +142,12 @@ So the round-trip is safe and **the writer is the only side that changes.**
   introduces, and closing it requires the substrate split named above — the builder's call.
   Measured: **no golden currently renders a nil return through that path** (`(wat.type/Tuple)`
   appears in exactly one golden, contract-07, which feeds `:()`).
+- **Diagnostics still speak the retiring dialect.** `check::format_type` renders a tuple type in
+  the KEYWORD spelling inside error messages — measured: `":user::one-ary: parameter #1 expects
+  :(wat::core::i64,); got :wat::core::i64"`. That is a fifth surface, it is not this renderer, and
+  after this stone a type the user wrote as `(wat.type/Tuple [wat.type/i64])` will still be quoted
+  back at them as `:(wat::core::i64,)`. Out of ②-i-b's scope because it is a different function with
+  a different call graph; it belongs with ③, whose whole subject is the checker writing a `remedy`
+  in the surface spelling the user is required to use.
 - **The corpus migration of the 243 tuple sites** is ②-iii's job, not this stone's. This stone
   unblocks it by making the codemod's guard stop firing.

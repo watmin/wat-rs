@@ -12,6 +12,12 @@
 ;; This file type-checking AT ALL is the whole assertion — every type annotation below is a
 ;; bracketed Tuple form in a position the checker must resolve.
 
+;; 1-ary bracketed tuple — the rung the keyword surface can only spell with a trailing comma
+;; (`:(wat::core::i64,)`; bare `:(A)` is Rust GROUPING and collapses to `A`). The form surface has
+;; no such ambiguity. Measured distinct from a scalar: passing a bare 7 here is a TypeMismatch.
+(:wat::core::defn :user::one-ary [p <- (wat.type/Tuple [wat.type/i64])] -> :wat::core::i64
+  0)
+
 ;; 2-ary bracketed tuple as a PARAM type
 (:wat::core::defn :user::takes-pair [p <- (wat.type/Tuple [wat.type/i64 wat.type/String])] -> :wat::core::i64
   1)
@@ -20,8 +26,10 @@
 (:wat::core::defn :user::nested [] -> (wat.type/Tuple [(wat.type/Vector [wat.type/i64]) wat.type/String])
   (:wat::core::Tuple (:wat::core::Vector [:wat::core::i64] 1 2) "s"))
 
-;; EMPTY bracketed tuple — `(wat.type/Tuple [])`. Today `:wat::core::nil` canonicalizes to the
-;; 0-tuple, so this return type must unify with a nil-returning body.
+;; EMPTY bracketed tuple — `(wat.type/Tuple [])`. This is LEGAL, WRITABLE source: the form surface
+;; can spell the empty tuple even though the keyword surface `:()` is retired. Today it is still the
+;; SAME TYPE as `nil` (measured: a `nil` argument satisfies both a `(wat.type/Tuple [])` param and a
+;; `:wat::core::nil` param), which is exactly the identity the builder's `nil != ()` ruling splits.
 (:wat::core::defn :user::empty-tuple [] -> (wat.type/Tuple [])
   (:wat::kernel::println "e"))
 
