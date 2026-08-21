@@ -19,27 +19,34 @@ const HEAD: &str = ":wat::core::defstruct";
 ///
 /// Legal: 2 (name + fields) or 3 (name + metadata + fields). Returns `Ok(())`
 /// if the count is in range; returns a `MalformedDecl` error otherwise.
-fn validate_defstruct_arity(args_len: usize, decl_span: &Span) -> Result<(), TypeError> {
-    if args_len < 2 {
+///
+/// Arc 109 binder strike α — `arg_count` is the RAW `args.len()` (kept only
+/// for the diagnostic text, unchanged for the no-binder case); `remaining`
+/// is what's left of the iterator AFTER name + optional `:- [T …]` binder
+/// are peeled off. Gating on `arg_count` directly would misfire "too many
+/// args" on a legal binder-bearing form — a binder widens the raw count by
+/// 2 (`:-` keyword + its `[…]` vector) before any of it is consumed.
+fn validate_defstruct_arity(arg_count: usize, remaining: usize, decl_span: &Span) -> Result<(), TypeError> {
+    if remaining == 0 {
         return Err(TypeError::new(
             decl_span.clone(),
             TypeErrorKind::MalformedDecl {
                 head: HEAD.into(),
                 reason: format!(
                     "expected (:wat::core::defstruct :Name [fields]) or with optional metadata-map; got {} args after head",
-                    args_len
+                    arg_count
                 ),
             },
         ));
     }
-    if args_len > 3 {
+    if remaining > 2 {
         return Err(TypeError::new(
             decl_span.clone(),
             TypeErrorKind::MalformedDecl {
                 head: HEAD.into(),
                 reason: format!(
                     "too many args: expected 2 (name + fields) or 3 (name + metadata + fields); got {}",
-                    args_len
+                    arg_count
                 ),
             },
         ));
@@ -511,13 +518,27 @@ fn flush_field_run(
 /// Field-vector is parsed by `parse_argspec_triples` with
 /// `ParseOptions { allow_rest_binder: false }`.
 pub(crate) fn parse_defstruct(args: Vec<WatAST>, decl_span: Span, env: &TypeEnv) -> Result<TypeDef, TypeError> {
-    validate_defstruct_arity(args.len(), &decl_span)?;
-
-    let mut iter = args.into_iter();
+    // Arc 109 binder strike α — `arg_count` kept for the diagnostic text
+    // (unchanged for the no-binder case); the arity gate itself moves past
+    // name + binder extraction, see `validate_defstruct_arity`'s doc.
+    let arg_count = args.len();
+    let mut iter = args.into_iter().peekable();
 
     // Slot 0 — name keyword.
-    let name_kw = iter.next().unwrap();
-    let (name, type_params) = super::parse_declared_name(HEAD, &name_kw, &decl_span)?;
+    let name_kw = iter.next().ok_or_else(|| TypeError::new(
+        decl_span.clone(),
+        TypeErrorKind::MalformedDecl {
+            head: HEAD.into(),
+            reason: format!(
+                "expected (:wat::core::defstruct :Name [fields]) or with optional metadata-map; got {} args after head",
+                arg_count
+            ),
+        },
+    ))?;
+    let (name, name_params) = super::parse_declared_name(HEAD, &name_kw, &decl_span)?;
+    let type_params = super::take_declared_binder(HEAD, name_params, name_kw.span(), &mut iter)?;
+
+    validate_defstruct_arity(arg_count, iter.len(), &decl_span)?;
 
     // Discriminate: 2-arg form vs 3-arg form.
     let (metadata_node_opt, fields_node) = if iter.len() == 1 {

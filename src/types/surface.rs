@@ -527,7 +527,8 @@ pub(crate) fn parse_defsurface(args: Vec<WatAST>, decl_span: Span) -> Result<Typ
             reason: "expected :Name after (:wat::core::defsurface ...)".into(),
         },
     ))?;
-    let (name, type_params) = super::parse_declared_name(HEAD, &name_kw, &decl_span)?;
+    let (name, name_params) = super::parse_declared_name(HEAD, &name_kw, &decl_span)?;
+    let type_params = super::take_declared_binder(HEAD, name_params, name_kw.span(), &mut iter)?;
 
     // `:nature :<root>` — MANDATORY.
     let next = iter.next().ok_or_else(|| TypeError::new(

@@ -3775,11 +3775,12 @@ fn parse_defenum(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeErro
         ));
     }
 
-    let mut iter = args.into_iter();
+    let mut iter = args.into_iter().peekable();
 
     // Slot 0 — name keyword.
     let name_kw = iter.next().unwrap();
-    let (name, type_params) = parse_declared_name(HEAD, &name_kw, &decl_span)?;
+    let (name, name_params) = parse_declared_name(HEAD, &name_kw, &decl_span)?;
+    let type_params = take_declared_binder(HEAD, name_params, name_kw.span(), &mut iter)?;
 
     // Slot 1 — MANDATORY purity marker (arc 293.W.2b): the enum DECLARES whether its values are pure
     // (hold only data, fully EDN-reconstructable anywhere) or impure (hold live resources, bound to
@@ -3954,22 +3955,32 @@ fn parse_defenum(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeErro
 }
 
 fn parse_newtype(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeError> {
-    if args.len() != 2 {
-        return Err(TypeError::new(
-            decl_span,
+    // Arc 109 binder strike α — the exact-2 gate can no longer fire on the raw
+    // `args.len()` upfront: a binder-bearing form is 4 args (name, `:-`, `[T]`,
+    // inner) wide before any of it is consumed. Count the raw len for the
+    // diagnostic text (unchanged for the no-binder case), but gate on what
+    // remains AFTER the name + binder are peeled off.
+    let arg_count = args.len();
+    let arity_err = |sp: Span| {
+        TypeError::new(
+            sp,
             TypeErrorKind::MalformedDecl {
                 head: "newtype".into(),
                 reason: format!(
                     "expected (:wat::core::newtype :name :InnerType); got {} args",
-                    args.len()
+                    arg_count
                 ),
             },
-        ));
+        )
+    };
+    let mut iter = args.into_iter().peekable();
+    let name_kw = iter.next().ok_or_else(|| arity_err(decl_span.clone()))?;
+    let (name, name_params) = parse_declared_name("newtype", &name_kw, &decl_span)?;
+    let type_params = take_declared_binder("newtype", name_params, name_kw.span(), &mut iter)?;
+    let inner_kw = iter.next().ok_or_else(|| arity_err(decl_span.clone()))?;
+    if iter.peek().is_some() {
+        return Err(arity_err(decl_span));
     }
-    let mut iter = args.into_iter();
-    let name_kw = iter.next().unwrap();
-    let inner_kw = iter.next().unwrap();
-    let (name, type_params) = parse_declared_name("newtype", &name_kw, &decl_span)?;
     // Arc 251.3a — accept Keyword, Symbol (wat.type/X), or List (parametric form).
     let inner = match &inner_kw {
         WatAST::Keyword(_, _) | WatAST::Symbol(_, _) | WatAST::List(_, _) | WatAST::Vector(_, _) => {
@@ -3996,22 +4007,30 @@ fn parse_newtype(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeErro
 }
 
 fn parse_typealias(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeError> {
-    if args.len() != 2 {
-        return Err(TypeError::new(
-            decl_span,
+    // Arc 109 binder strike α — see parse_newtype's comment: the exact-2 gate
+    // moves from the raw `args.len()` (a binder widens it to 4) to what
+    // remains after name + binder are peeled off.
+    let arg_count = args.len();
+    let arity_err = |sp: Span| {
+        TypeError::new(
+            sp,
             TypeErrorKind::MalformedDecl {
                 head: "typealias".into(),
                 reason: format!(
                     "expected (:wat::core::typealias :name :Expr); got {} args",
-                    args.len()
+                    arg_count
                 ),
             },
-        ));
+        )
+    };
+    let mut iter = args.into_iter().peekable();
+    let name_kw = iter.next().ok_or_else(|| arity_err(decl_span.clone()))?;
+    let (name, name_params) = parse_declared_name("typealias", &name_kw, &decl_span)?;
+    let type_params = take_declared_binder("typealias", name_params, name_kw.span(), &mut iter)?;
+    let expr_kw = iter.next().ok_or_else(|| arity_err(decl_span.clone()))?;
+    if iter.peek().is_some() {
+        return Err(arity_err(decl_span));
     }
-    let mut iter = args.into_iter();
-    let name_kw = iter.next().unwrap();
-    let expr_kw = iter.next().unwrap();
-    let (name, type_params) = parse_declared_name("typealias", &name_kw, &decl_span)?;
     // Arc 251.3a — accept Keyword, Symbol (wat.type/X), or List (parametric form).
     let expr = match &expr_kw {
         WatAST::Keyword(_, _) | WatAST::Symbol(_, _) | WatAST::List(_, _) | WatAST::Vector(_, _) => {
@@ -4047,22 +4066,30 @@ fn parse_typealias(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeEr
 /// Empty Vector → `EmptyUnion`; single-element → `SingleMemberUnion`; member
 /// shape validation occurs at registration time (in `validate_union_members`).
 fn parse_typeunion(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeError> {
-    if args.len() != 2 {
-        return Err(TypeError::new(
-            decl_span,
+    // Arc 109 binder strike α — see parse_newtype's comment: the exact-2 gate
+    // moves from the raw `args.len()` (a binder widens it to 4) to what
+    // remains after name + binder are peeled off.
+    let arg_count = args.len();
+    let arity_err = |sp: Span| {
+        TypeError::new(
+            sp,
             TypeErrorKind::MalformedDecl {
                 head: "typeunion".into(),
                 reason: format!(
                     "expected (:wat::core::typeunion :Name [:T1 :T2 ...]); got {} args",
-                    args.len()
+                    arg_count
                 ),
             },
-        ));
+        )
+    };
+    let mut iter = args.into_iter().peekable();
+    let name_kw = iter.next().ok_or_else(|| arity_err(decl_span.clone()))?;
+    let (name, name_params) = parse_declared_name("typeunion", &name_kw, &decl_span)?;
+    let type_params = take_declared_binder("typeunion", name_params, name_kw.span(), &mut iter)?;
+    let members_ast = iter.next().ok_or_else(|| arity_err(decl_span.clone()))?;
+    if iter.peek().is_some() {
+        return Err(arity_err(decl_span));
     }
-    let mut iter = args.into_iter();
-    let name_kw = iter.next().unwrap();
-    let members_ast = iter.next().unwrap();
-    let (name, type_params) = parse_declared_name("typeunion", &name_kw, &decl_span)?;
     let member_items = match members_ast {
         WatAST::Vector(items, _) => items,
         other => {
@@ -4114,12 +4141,25 @@ fn parse_typeunion(args: Vec<WatAST>, decl_span: Span) -> Result<TypeDef, TypeEr
 /// Injects `:wat::core::Struct` as `parent` at position [1] and delegates to `parse_aggregate`.
 fn parse_structtype(args: Vec<WatAST>, decl_span: Span, env: &TypeEnv) -> Result<TypeDef, TypeError> {
     let mut new_args = Vec::with_capacity(args.len() + 1);
-    let mut iter = args.into_iter();
+    let mut iter = args.into_iter().peekable();
     // name kw at [0] stays first.
     if let Some(name_kw) = iter.next() {
         new_args.push(name_kw);
     }
-    // Inject :wat::core::Struct as the parent at [1].
+    // Arc 109 binder strike α — CARRY a `:- [T…]` binder across the injection.
+    // The binder's contract is "immediately after the name"; injecting the parent
+    // ahead of it would displace it, and `parse_aggregate` would then swallow the
+    // `:-` into its trailing-arity error instead of reading it. Measured before the
+    // fix: `(:wat::core::structtype :S :- [T] [f :- T])` and the `defstruct` macro
+    // that lowers into this head both died on "expected (:structtype :Name :Parent
+    // [fields]); got 5 args" while their `<T>`-spelled twins passed.
+    if iter.peek().is_some_and(is_binder_marker) {
+        new_args.push(iter.next().unwrap());
+        if let Some(vec_node) = iter.next() {
+            new_args.push(vec_node);
+        }
+    }
+    // Inject :wat::core::Struct as the parent, AFTER the name (and its binder, if any).
     new_args.push(WatAST::Keyword(":wat::core::Struct".to_string(), crate::rust_caller_span!()));
     // Remaining args (optional metadata + fields).
     new_args.extend(iter);
@@ -4149,23 +4189,31 @@ fn parse_structtype(args: Vec<WatAST>, decl_span: Span, env: &TypeEnv) -> Result
 /// `head` is the caller-supplied surface form name used in error messages ("aggregatetype",
 /// "structtype", "recordtype") — preserves existing error text for each alias.
 fn parse_aggregate(args: Vec<WatAST>, decl_span: Span, head: &'static str, env: &TypeEnv) -> Result<TypeDef, TypeError> {
-    if args.len() < 3 || args.len() > 4 {
-        return Err(TypeError::new(
-            decl_span,
+    // Arc 109 binder strike α — the 3..=4 gate can no longer fire on the raw
+    // `args.len()` upfront: a binder-bearing form widens by 2 (name, `:-`,
+    // `[T]`, parent, [meta], fields) before any of it is consumed. Count the
+    // raw len for the diagnostic text (unchanged for the no-binder case), but
+    // gate on what remains after name + binder + parent are peeled off.
+    let arg_count = args.len();
+    let arity_err = |sp: Span| {
+        TypeError::new(
+            sp,
             TypeErrorKind::MalformedDecl {
                 head: head.into(),
                 reason: format!(
                     "expected (:{} :Name :Parent [fields]) or with optional metadata-map; got {} args",
-                    head, args.len()
+                    head, arg_count
                 ),
             },
-        ));
-    }
-    let mut iter = args.into_iter();
-    let name_kw = iter.next().unwrap();
-    let parent_kw = iter.next().unwrap();
+        )
+    };
+    let mut iter = args.into_iter().peekable();
+    let name_kw = iter.next().ok_or_else(|| arity_err(decl_span.clone()))?;
 
-    let (name, type_params) = parse_declared_name(head, &name_kw, &decl_span)?;
+    let (name, name_params) = parse_declared_name(head, &name_kw, &decl_span)?;
+    let type_params = take_declared_binder(head, name_params, name_kw.span(), &mut iter)?;
+
+    let parent_kw = iter.next().ok_or_else(|| arity_err(decl_span.clone()))?;
 
     let parent = match &parent_kw {
         WatAST::Keyword(k, _) => k.clone(),
@@ -4197,6 +4245,9 @@ fn parse_aggregate(args: Vec<WatAST>, decl_span: Span, head: &'static str, env: 
     ))?;
 
     // Discriminate: 1 remaining arg (just fields) vs 2 remaining (metadata + fields).
+    if iter.len() == 0 || iter.len() > 2 {
+        return Err(arity_err(decl_span));
+    }
     let (metadata_node_opt, fields_node) = if iter.len() == 1 {
         (None, iter.next().unwrap())
     } else {
@@ -4311,6 +4362,111 @@ fn parse_declared_name(
             Ok((stored_name, params))
         }
     }
+}
+
+/// Arc 109 binder strike α — is this node the `:-` binder MARKER?
+///
+/// ONE spelling of that question, for the same reason `Identifier::is_reference`
+/// is one spelling of "is this symbol a binder NAME" (stone 251.8a collapsed four
+/// hand-rolls of that one into a single door). Two callers: [`take_declared_binder`]
+/// peeks it, and `parse_structtype` must CARRY it across its synthetic-parent
+/// injection so the binder stays adjacent to the name.
+fn is_binder_marker(node: &WatAST) -> bool {
+    matches!(node, WatAST::Keyword(k, _) if k == ":-")
+}
+
+/// Arc 109 binder strike α — consume an optional `:- [T …]` binder from the
+/// arg stream, immediately after the name. `name_params` is what
+/// `parse_declared_name` read from the name's `<…>` spelling; `name_span` is
+/// that name keyword's span, used to locate the both-spellings contradiction.
+///
+/// - No binder present (`iter.peek()` isn't the `:-` keyword) → `name_params`
+///   returned unchanged; every existing `<T>`-or-bare form is untouched.
+/// - Binder present → consume the `:-` keyword AND the `Vector` that must
+///   follow it; the vector's entries become the params.
+/// - Both present (`name_params` non-empty AND a binder) → `TypeError`. Two
+///   spellings of type-params on one declaration is a contradiction that
+///   arises only from a half-applied codemod, never from someone writing it
+///   by hand — it must not silently pick one.
+/// - Each binder entry must be a bare `Symbol` whose `Identifier::is_reference()`
+///   is `false` (no `/`, so `namespace()` reads `$bound`) — the one door
+///   251.8a consolidated four hand-rolled checks into. Rejects keyword values,
+///   function types, and nested field vectors with one diagnostic.
+/// - Returns BARE names — never the `$bound/T`-derived spelling.
+///   `identifier.rs:145`'s own doc: the namespace is derived from the
+///   spelling today; 251.8b is where derived swaps for stored, and writing
+///   the derived form into `type_params` now would pre-encode that artifact.
+fn take_declared_binder<I: Iterator<Item = WatAST>>(
+    head: &str,
+    name_params: Vec<String>,
+    name_span: &Span,
+    iter: &mut std::iter::Peekable<I>,
+) -> Result<Vec<String>, TypeError> {
+    let has_binder = iter.peek().is_some_and(is_binder_marker);
+    if !has_binder {
+        return Ok(name_params);
+    }
+    let binder_kw = iter.next().unwrap();
+    if !name_params.is_empty() {
+        return Err(TypeError::new(
+            name_span.clone(),
+            TypeErrorKind::MalformedDecl {
+                head: head.into(),
+                reason: format!(
+                    "declaration carries BOTH a name-embedded `<...>` type-param spelling \
+                     ({:?}) and a `:- [...]` binder — pick one; a declaration with both is a \
+                     contradiction, never something to silently resolve",
+                    name_params
+                ),
+            },
+        ));
+    }
+    let vec_node = iter.next().ok_or_else(|| TypeError::new(
+        binder_kw.span().clone(),
+        TypeErrorKind::MalformedDecl {
+            head: head.into(),
+            reason: "`:-` binder must be followed by a `[...]` vector of type-parameter names"
+                .into(),
+        },
+    ))?;
+    let items = match vec_node {
+        WatAST::Vector(items, _) => items,
+        other => {
+            return Err(TypeError::new(
+                other.span().clone(),
+                TypeErrorKind::MalformedDecl {
+                    head: head.into(),
+                    reason: format!(
+                        "`:-` binder must be followed by a `[...]` vector of type-parameter \
+                         names; got {}",
+                        other.variant_name()
+                    ),
+                },
+            ));
+        }
+    };
+    let mut params = Vec::with_capacity(items.len());
+    for item in items {
+        match &item {
+            WatAST::Symbol(id, _) if !id.is_reference() => {
+                params.push(id.as_str().to_string());
+            }
+            other => {
+                return Err(TypeError::new(
+                    other.span().clone(),
+                    TypeErrorKind::MalformedDecl {
+                        head: head.into(),
+                        reason: format!(
+                            "binder entry must be a bare type-parameter name (a Symbol with no \
+                             `/`); got {}",
+                            other.variant_name()
+                        ),
+                    },
+                ));
+            }
+        }
+    }
+    Ok(params)
 }
 
 /// Parse a type-expression keyword into a structured [`TypeExpr`].
