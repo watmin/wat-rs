@@ -202,7 +202,7 @@
 ;;      advancing to the next, threading the accumulated facts forward so
 ;;      higher-stratum rules see the complete lower-stratum derivation.
 ;;
-;; WHY this location: immediately before fire-rules-spec which it replaces.
+;; WHY this location: immediately before fire-rules$oracle which it replaces.
 ;; WHY fire-fixpoint unchanged: it is correct within a stratum (monotone,
 ;; finite, no negation-ordering hazard). Stratification is the ordering layer.
 
@@ -611,7 +611,7 @@
       :next-id (:wat::rete::Session/next-id session)
       :query-memory (:wat::rete::Session/query-memory q-fired))))
 
-;; fire-rules-spec — the wat reference engine (the SPEC / differential oracle).
+;; fire-rules$oracle — the wat reference engine (the SPEC / differential oracle).
 ;; Now delegates to fire-stratified (which handles negation-over-derived correctly)
 ;; instead of a bare fire-fixpoint. Within each stratum fire-stratified still uses
 ;; fire-fixpoint — the per-stratum logic is unchanged, only the ordering is fixed.
@@ -650,7 +650,7 @@
                                   false)
                                 :wat::core::None
                                 (:wat::core::Some nil))
-                              "fire-rules-spec: oracle cannot consume an Export — empty rules, live network")
+                              "fire-rules$oracle: oracle cannot consume an Export — empty rules, live network")
                     fired (:wat::rete::fire-stratified session)]
     (:wat::rete::Session
       :network (:wat::rete::Session/network           fired)

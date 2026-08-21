@@ -169,7 +169,7 @@ impl AlphaTree {
 /// remain — to the wildcard subtree, so a later dim still gets a chance to discriminate it.
 fn build_node(
     alpha_ids: Vec<i64>,
-    disc: &HashMap<i64, HashMap<usize, Value>>,
+    disc: &AlphaDiscs,
     dims: &[usize],
     pos: usize,
 ) -> Arc<AlphaDiscNode> {

@@ -12,7 +12,9 @@ use crate::span::Span;
 use crate::value::value::AggregateValue;
 
 /// Acc `:from` leftover binds → elements in that group.
-type AccGroupBuckets<'a> = HashMap<Vec<(Value, Value)>, Vec<&'a Element>>;
+type AccGroupKey = Vec<(Value, Value)>;
+type AccGroupBuckets<'a> = HashMap<AccGroupKey, Vec<&'a Element>>;
+type AccGroupOrder<'a> = Vec<(crate::value::pmap::PMap, Vec<&'a Element>)>;
 
 /// Semi-naive delta fixpoint: persistent memories, per-round delta sets, linear depth.
 ///
@@ -99,7 +101,18 @@ pub(crate) fn seen_insert(ids: &mut FxHashSet<u64>, rest: &mut FxHashSet<Value>,
 pub(crate) fn fire_fixpoint_delta(
     session: &Value,
     sym: &SymbolTable,
+    support: Option<&mut HashMap<Value, (String, Value)>>,
+) -> Result<Value, EvalBreak> {
+    fire_fixpoint_delta_armed(session, sym, support, None)
+}
+
+/// Same as [`fire_fixpoint_delta`], with a prebuilt arm. Stratify holds the
+/// slice `Arc` as a value and does not intern the slice network.
+pub(crate) fn fire_fixpoint_delta_armed(
+    session: &Value,
+    sym: &SymbolTable,
     mut support: Option<&mut HashMap<Value, (String, Value)>>,
+    pre_arm: Option<Arc<crate::rete::kernel::InternedNetwork>>,
 ) -> Result<Value, EvalBreak> {
     let __in = phase_start();
     let mut wm = to_transient(session)?;
@@ -144,9 +157,12 @@ pub(crate) fn fire_fixpoint_delta(
 
     // Item 12 — the arm lives next to the network. Hit: skip lower/classify.
     // Miss: build once, intern under the network's rust identity. insert/clone
-    // share that identity (facts overlay).
+    // share that identity (facts overlay). Stratify passes a prebuilt slice arm.
     let __arm = phase_start();
-    let arm = rete_arm_get_or_build(&wm.network, &wm.rules, sym)?;
+    let arm = match pre_arm {
+        Some(a) => a,
+        None => rete_arm_get_or_build(&wm.network, &wm.rules, sym)?,
+    };
     phase_end("  ├ setup:arm", __arm);
     let node_ids = arm.node_ids.clone();
     let kind_ids = &arm.kind_ids;
@@ -168,7 +184,7 @@ pub(crate) fn fire_fixpoint_delta(
     // join_keys[J]: the sorted shared-variable list (cached lazily on first use)
     let mut left_idx: JoinLeftIndex = HashMap::new();
     let mut right_idx: JoinRightIndex = HashMap::new();
-    let mut join_keys_cache: ProductionMemory = HashMap::new();
+    let mut join_keys_cache: JoinKeysCache = HashMap::new();
     // P6-for-gathers: persist across rounds, append d_alpha
     // (`DESIGN-STONE-persist-gather-across-rounds`). Not a Session field.
     let mut gather_cache: GatherCache = FxHashMap::default();
@@ -812,14 +828,14 @@ pub(crate) fn fire_fixpoint_delta(
                 // One fold of the whole gather when the token already holds every
                 // `:from` bind (or the `:from` binds none). Otherwise group by the
                 // leftover binds; empty gather + leftover keys is not a bag-wide 0.
-                let groups: Vec<(crate::value::pmap::PMap, Vec<&Element>)> = if group_keys
+                let groups: AccGroupOrder<'_> = if group_keys
                     .is_empty()
                 {
                     vec![(pmap_from_span(tok.binds, &wm.bind_keys, &wm.bind_vals, &wm.bind_pool), gathered)]
                 } else if gathered.is_empty() {
                     Vec::new()
                 } else {
-                    let mut order: Vec<Vec<(Value, Value)>> = Vec::new();
+                    let mut order: Vec<AccGroupKey> = Vec::new();
                     let mut buckets: AccGroupBuckets<'_> = HashMap::new();
                     for el in gathered {
                         let el_b = element_fact_bindings(el, &wm.bind_keys, &wm.bind_vals, &wm.bind_pool);
@@ -1377,7 +1393,7 @@ pub(crate) fn fire_fixpoint_delta(
                 seen_ids.reserve(ts.len().saturating_mul(compiled_rhs_forms.len()));
 
                 let first = bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, ts[0].binds);
-                let slot_tables: Vec<Vec<Option<usize>>> = compiled_rhs_forms
+                let slot_tables: crate::rete::compiled_rhs::RhsSlotTables = compiled_rhs_forms
                     .iter()
                     .map(|c| crate::rete::compiled_rhs::rhs_bind_slots(c, &first))
                     .collect();
@@ -1531,7 +1547,7 @@ pub(crate) fn fire_fixpoint_delta(
     }
 
     // Drop alpha elements before freeze — alpha is fire-scoped scratch, not session state.
-    // The wat oracle's fire-rules-spec returns an EMPTY alpha (fire-stratified, rete.wat:1817),
+    // The wat oracle's fire-rules$oracle returns an EMPTY alpha (fire-stratified),
     // so carrying one here is a divergence as well as a cost: both engines rebuild alpha from
     // `facts` every fire and never read a frozen one. It was ~31% of fire to serialize.
     // (fire_once_session deliberately keeps its alpha — it mirrors the oracle's fire-once,
@@ -1615,17 +1631,19 @@ pub(crate) fn fire_fixpoint_delta(
     __res
 }
 
-// ── Public entry: native fire-rules-explain' ─────────────────────────────────
+// ── Public entry: native fire-rules-explain ──────────────────────────────────
 
 /// `(:wat::rete::fire-rules-explain <session>) -> :wat::rete::Explained`
 ///
-/// P12a: OPT-IN diagnostic fire. Runs the EXACT same delta fixpoint as `fire-rules'` but
-/// additionally records, for each derived fact, the token that produced it (and the rule name).
-/// Returns `Explained { session, support }` — `session` is the same frozen Session the fast path
-/// produces; `support` is a `PersistentMap<derived-fact, Support>`.
+/// P12a: OPT-IN diagnostic fire. Runs the EXACT same delta fixpoint as `fire-rules`
+/// but additionally records, for each derived fact, the token that produced it
+/// (and the rule name). Returns `Explained { session, support }` — `session` is
+/// the same frozen Session the fast path produces; `support` is a
+/// `PersistentMap<derived-fact, Support>`.
 ///
-/// The fast `fire-rules'` / `fire-rules-spec` are byte-for-byte behaviorally identical — this is
-/// purely additive (the `None`-param path is unchanged; the `Some`-param path adds provenance).
+/// The fast `fire-rules` / `fire-rules$oracle` are byte-for-byte behaviorally
+/// identical — this is purely additive (the `None`-param path is unchanged; the
+/// `Some`-param path adds provenance).
 pub(crate) fn eval_fire_rules_explain(
     args: &[WatAST],
     list_span: &Span,

@@ -9,10 +9,12 @@ use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 
 use crate::ast::WatAST;
-use crate::rete::matcher::{compare_values, Bindings};
+use crate::rete::matcher::{compare_values, Bindings, FieldNames};
 use crate::rete::vocabulary::{resolve_core_name, rete_op_for, OpClass, RETE_OPS};
 use crate::runtime::{
-    EvalBreak, FunctionBody, RuntimeError, RuntimeErrorKind, SymbolTable, Value, ValueSnapshot,
+    coincident_q_from_values, cosine_outcome_from_values, dot_outcome_from_values,
+    presence_q_from_values, project_holon_rete_fallback, EvalBreak, FunctionBody, HolonReteProject,
+    RuntimeError, RuntimeErrorKind, SymbolTable, Value, ValueSnapshot,
 };
 use crate::span::Span;
 use crate::types::{EnumVariant, TypeDef};
@@ -46,14 +48,14 @@ pub(crate) enum Expr {
     /// (fn-headed `:then` fallbacks, e.g. `(:tf::Rate :count 0)`).
     Construct {
         class: String,
-        names: Arc<Vec<String>>,
+        names: FieldNames,
         fields: Box<[Expr]>,
     },
     /// `(:ns::Type::Variant field…)` — tagged or unit enum constructor.
     Variant {
         type_path: String,
         variant_name: String,
-        names: Arc<Vec<String>>,
+        names: FieldNames,
         fields: Box<[Expr]>,
     },
     If {
@@ -86,6 +88,9 @@ pub(crate) enum Pat {
     },
 }
 
+pub(crate) type SlotNames = Box<[Option<Arc<str>>]>;
+type ExecArena = Vec<Option<Value>>;
+
 #[derive(Clone, Debug)]
 pub(crate) struct Program {
     pub(crate) frame_len: u16,
@@ -99,7 +104,7 @@ pub(crate) struct Program {
     /// Slot → binder name (`?x`, `acc`, …). Unbound-slot errors use this so
     /// `exec` and `eval_inner` raise the same `UnboundSymbol` kind (flip 4
     /// RHS differential). Missing entries render as `slot N`.
-    pub(crate) names: Box<[Option<Arc<str>>]>,
+    pub(crate) names: SlotNames,
     /// Source span of the original expr — exec errors name this, not rust-caller.
     pub(crate) span: Span,
 }
@@ -215,7 +220,7 @@ pub(crate) fn lower(expr: &WatAST, sym: &SymbolTable) -> Result<Program, LowerEr
     })
 }
 
-fn slot_names(cx: &LowerCx<'_>) -> Box<[Option<Arc<str>>]> {
+fn slot_names(cx: &LowerCx<'_>) -> SlotNames {
     let mut names = vec![None; cx.next as usize];
     for (name, &slot) in &cx.slots {
         if let Some(slot_name) = names.get_mut(slot as usize) {
@@ -831,7 +836,7 @@ pub(crate) fn exec_value<B: Bindings + ?Sized>(
 // rune:sequi(ambient-context) — one thread, nested frames bump a high-water
 // arena so exec_where / CallUser / foldl do not allocate per token after warmup.
 thread_local! {
-    static EXEC_ARENA: RefCell<Vec<Option<Value>>> = const { RefCell::new(Vec::new()) };
+    static EXEC_ARENA: RefCell<ExecArena> = const { RefCell::new(Vec::new()) };
     static EXEC_SP: Cell<usize> = const { Cell::new(0) };
 }
 
@@ -1024,7 +1029,7 @@ fn exec(
             for a in args.iter() {
                 vs.push(exec(a, frame, names, sym, span)?);
             }
-            apply_op(*op, &vs, span)
+            apply_op(*op, &vs, span, Some(sym))
         }
         Expr::CallFallback { op, args, fallback } => {
             let row = &RETE_OPS[*op as usize];
@@ -1032,13 +1037,17 @@ fn exec(
             for a in args.iter() {
                 vs.push(exec(a, frame, names, sym, span)?);
             }
-            match apply_op(*op, &vs, span) {
+            match apply_op(*op, &vs, span, Some(sym)) {
                 Ok(Value::f64(x)) if !x.is_finite() => exec(fallback, frame, names, sym, span),
                 Ok(Value::Option(opt)) => match opt.as_ref() {
                     Some(v) => Ok(v.clone()),
                     None => exec(fallback, frame, names, sym, span),
                 },
-                Ok(v) => Ok(v),
+                Ok(v) => match project_holon_rete_fallback(&v, row.rete_name, span)? {
+                    HolonReteProject::Scalar(x) => Ok(Value::f64(x)),
+                    HolonReteProject::Fallback => exec(fallback, frame, names, sym, span),
+                    HolonReteProject::NotHolon => Ok(v),
+                },
                 Err(EvalBreak::Diagnostic(e))
                     if matches!(
                         e.kind(),
@@ -1221,6 +1230,7 @@ enum OpExec {
     F64Gt, F64Lt, F64Ge, F64Le, F64Eq, F64NotEq, F64Add, F64Sub, F64Mul, F64Div, F64ToStr,
     BoolToStr, StrEmpty, StrConcat, StrTrim, StrLower, StrSubs,
     PvLen, PvContains, PvGet, VecGet, ListGet, First, PvNew, VecNew, ListNew,
+    Cosine, Dot, Coincident, Presence,
     Unknown,
 }
 
@@ -1276,29 +1286,38 @@ impl OpExec {
             ":wat::core::PersistentVector" => Self::PvNew,
             ":wat::core::Vector" => Self::VecNew,
             ":wat::core::List" => Self::ListNew,
+            ":wat::holon::cosine" => Self::Cosine,
+            ":wat::holon::dot" => Self::Dot,
+            ":wat::holon::coincident?" => Self::Coincident,
+            ":wat::holon::presence?" => Self::Presence,
             _ => Self::Unknown,
         }
     }
 }
 
 /// Index `RETE_OPS` once; fire matches `OpExec`, never the FQDN string.
-pub(crate) fn apply_op(op: u16, args: &[Value], span: &Span) -> Result<Value, EvalBreak> {
+/// `sym` is required for holon rows (encoding ctx). The where-tree dim
+/// walker may pass `None` and treat a holon miss as over-approx.
+pub(crate) fn apply_op(
+    op: u16,
+    args: &[Value],
+    span: &Span,
+    sym: Option<&SymbolTable>,
+) -> Result<Value, EvalBreak> {
     // rune:sequi(ambient-context) — opcode table interned once; not fire-domain state.
     static KINDS: OnceLock<Vec<OpExec>> = OnceLock::new();
     let kinds = KINDS.get_or_init(|| {
         RETE_OPS.iter().map(|r| OpExec::of(r.core_name)).collect()
     });
-    apply_core_kind(kinds[op as usize], args, span)
+    apply_core_kind(kinds[op as usize], args, span, sym)
 }
 
-/// FQDN door — `apply_op` is the fire path (index → `OpExec`). Tests and
-/// compile-time dim eval that hold a core name still enter here.
-#[allow(dead_code)]
-pub(crate) fn apply_core(core: &str, args: &[Value], span: &Span) -> Result<Value, EvalBreak> {
-    apply_core_kind(OpExec::of(core), args, span)
-}
-
-fn apply_core_kind(kind: OpExec, args: &[Value], span: &Span) -> Result<Value, EvalBreak> {
+fn apply_core_kind(
+    kind: OpExec,
+    args: &[Value],
+    span: &Span,
+    sym: Option<&SymbolTable>,
+) -> Result<Value, EvalBreak> {
     match (kind, args) {
         (OpExec::Eq, [a, b]) => Ok(Value::bool(a == b)),
         (OpExec::NotEq, [a, b]) => Ok(Value::bool(a != b)),
@@ -1478,6 +1497,54 @@ fn apply_core_kind(kind: OpExec, args: &[Value], span: &Span) -> Result<Value, E
         (OpExec::ListNew, args) => Ok(Value::wat__core__List(Arc::new(
             args.iter().cloned().collect(),
         ))),
+        (OpExec::Cosine, [a, b]) => {
+            let Some(sym) = sym else {
+                return Err(RuntimeError::new(
+                    span.clone(),
+                    RuntimeErrorKind::NoEncodingCtx {
+                        op: ":wat::holon::cosine".into(),
+                    },
+                )
+                .into());
+            };
+            cosine_outcome_from_values(a.clone(), b.clone(), span, sym)
+        }
+        (OpExec::Dot, [a, b]) => {
+            let Some(sym) = sym else {
+                return Err(RuntimeError::new(
+                    span.clone(),
+                    RuntimeErrorKind::NoEncodingCtx {
+                        op: ":wat::holon::dot".into(),
+                    },
+                )
+                .into());
+            };
+            dot_outcome_from_values(a.clone(), b.clone(), span, sym)
+        }
+        (OpExec::Coincident, [a, b]) => {
+            let Some(sym) = sym else {
+                return Err(RuntimeError::new(
+                    span.clone(),
+                    RuntimeErrorKind::NoEncodingCtx {
+                        op: ":wat::holon::coincident?".into(),
+                    },
+                )
+                .into());
+            };
+            coincident_q_from_values(a.clone(), b.clone(), span, sym)
+        }
+        (OpExec::Presence, [a, b]) => {
+            let Some(sym) = sym else {
+                return Err(RuntimeError::new(
+                    span.clone(),
+                    RuntimeErrorKind::NoEncodingCtx {
+                        op: ":wat::holon::presence?".into(),
+                    },
+                )
+                .into());
+            };
+            presence_q_from_values(a.clone(), b.clone(), span, sym)
+        }
         _ => Err(RuntimeError::new(
             span.clone(),
             RuntimeErrorKind::MalformedForm {
@@ -1572,5 +1639,30 @@ pub(crate) fn eval_lower(
     };
     lower(&ast, sym).map_err(LowerError::into_eval)?;
     Ok(Value::Unit)
+}
+
+#[cfg(test)]
+mod rete_ops_native_coverage {
+    use super::*;
+
+    /// BRIEF-native-where-vsa-ops: the four holon rows native-lower to
+    /// Call / CallFallback and must have an `OpExec` arm. Alias/Fallback
+    /// coverage beyond holon is a different census (`PersistentMap/contains-key?`
+    /// is still Unknown — do not widen this gate into that hole).
+    #[test]
+    fn holon_rete_ops_have_opexec() {
+        let mut missing = Vec::new();
+        for row in RETE_OPS {
+            if row.rete_name.starts_with(":wat::rete::holon::")
+                && matches!(OpExec::of(row.core_name), OpExec::Unknown)
+            {
+                missing.push(row.rete_name);
+            }
+        }
+        assert!(
+            missing.is_empty(),
+            "native apply_op has no OpExec for holon row {missing:?}"
+        );
+    }
 }
 

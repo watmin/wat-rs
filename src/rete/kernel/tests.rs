@@ -721,7 +721,7 @@
     /// Compile N node-share rules, seed M×2 facts, fire through the NATIVE path, return the census.
     ///
     /// Fires `:wat::rete::fire-rules` — the public production verb, which delegates to the native
-    /// `fire-rules'` (`wat/rete.wat:1835`) — so this is the same path the grid harness times.
+    /// `fire-rules` (`wat/rete.wat`) — so this is the same path the grid harness times.
     fn node_share_census(n: i64, m: i64) -> Vec<super::RoundCensus> {
         let world = startup_from_source(NODE_SHARE_WORLD, None, Arc::new(InMemoryLoader::new()))
             .expect("node-share world should freeze");
@@ -1942,6 +1942,7 @@
                 .map(|i| (Value::i64(i as i64), Value::i64(i as i64)))
                 .collect();
 
+            // rune:perspicere(read-once) — microbench sink; alias would be a mumble.
             let mut sink: Vec<rpds::HashTrieMapSync<Value, Value>> = Vec::with_capacity(N);
             let t = Instant::now();
             for _ in 0..N {
@@ -1955,6 +1956,7 @@
             let ms = sink[0].clone();
             drop(sink);
 
+            // rune:perspicere(read-once) — microbench sink; alias would be a mumble.
             let mut sink: Vec<rpds::HashTrieMapSync<Value, Value>> = Vec::with_capacity(N);
             let t = Instant::now();
             for _ in 0..N {
@@ -2055,6 +2057,7 @@
             let extra = (Value::String(Arc::new("?zz".to_string())), Value::i64(99));
 
             // ── build (construct into a reserved Vec; drop timed separately) ──
+            // rune:perspicere(read-once) — microbench sink; alias would be a mumble.
             let mut sink_a: Vec<rpds::HashTrieMapSync<Value, Value>> = Vec::with_capacity(N);
             let t = Instant::now();
             for _ in 0..N {
@@ -2066,6 +2069,7 @@
             }
             let build_a = t.elapsed().as_nanos() as f64 / N as f64;
 
+            // rune:perspicere(read-once) — microbench sink; alias would be a mumble.
             let mut sink_b: Vec<Arc<Vec<(Value, Value)>>> = Vec::with_capacity(N);
             let t = Instant::now();
             for _ in 0..N {
@@ -2093,12 +2097,14 @@
             let look_b = t.elapsed().as_nanos() as f64 / N as f64;
 
             // ── clone ──
+            // rune:perspicere(read-once) — microbench sink; alias would be a mumble.
             let mut ca: Vec<rpds::HashTrieMapSync<Value, Value>> = Vec::with_capacity(N);
             let t = Instant::now();
             for _ in 0..N {
                 ca.push(ma.clone());
             }
             let clone_a = t.elapsed().as_nanos() as f64 / N as f64;
+            // rune:perspicere(read-once) — microbench sink; alias would be a mumble.
             let mut cb: Vec<Arc<Vec<(Value, Value)>>> = Vec::with_capacity(N);
             let t = Instant::now();
             for _ in 0..N {
@@ -2109,12 +2115,14 @@
             drop(cb);
 
             // ── extend (extend_token: derive a new map with one more binding) ──
+            // rune:perspicere(read-once) — microbench sink; alias would be a mumble.
             let mut ea: Vec<rpds::HashTrieMapSync<Value, Value>> = Vec::with_capacity(N);
             let t = Instant::now();
             for _ in 0..N {
                 ea.push(ma.insert(extra.0.clone(), extra.1.clone()));
             }
             let ext_a = t.elapsed().as_nanos() as f64 / N as f64;
+            // rune:perspicere(read-once) — microbench sink; alias would be a mumble.
             let mut eb: Vec<Arc<Vec<(Value, Value)>>> = Vec::with_capacity(N);
             let t = Instant::now();
             for _ in 0..N {
@@ -5324,6 +5332,7 @@
             Value::wat__core__PersistentVector(pv) => pv.iter().cloned().collect(),
             _ => panic!("seeded session facts are a PersistentVector"),
         };
+        // rune:perspicere(read-once) — one census collect; alias would be a mumble.
         let classes: Vec<Arc<str>> = facts
             .iter()
             .filter_map(|f| match f {
@@ -7133,6 +7142,7 @@
 
             // Each child contributes one shared key (skipped) + one new key — the real shape:
             // a join key already bound by the parent, plus the element's own variable.
+            // rune:perspicere(read-once) — microbench fanout rows; alias would be a mumble.
             let el: Vec<Vec<(Value, Value)>> =
                 (0..FANOUT).map(|f| vec![kv(0), kv(1000 + f)]).collect();
 

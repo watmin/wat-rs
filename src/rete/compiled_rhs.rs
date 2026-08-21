@@ -78,6 +78,11 @@ pub(crate) enum RhsOp {
     Expr(Arc<crate::rete::expr_ir::Program>),
 }
 
+/// Slot of each `RhsOp::Bind` on one parent's first token.
+pub(crate) type RhsBindSlots = Vec<Option<usize>>;
+/// Per-form slot tables for one production parent.
+pub(crate) type RhsSlotTables = Vec<RhsBindSlots>;
+
 /// An insert-form compiled once, at setup, from the immutable rule set — the pre-resolved dual of
 /// `build_insert_fact`. Built by [`compile_rhs`]; run by [`exec_compiled_rhs`].
 #[derive(Clone)]
@@ -269,7 +274,7 @@ fn unbound_operand(ast_debug: &str) -> EvalBreak {
 pub(crate) fn rhs_bind_slots(
     c: &CompiledRhs,
     pairs: &(impl crate::rete::matcher::Bindings + ?Sized),
-) -> Vec<Option<usize>> {
+) -> RhsBindSlots {
     match c {
         CompiledRhs::Call(_) => Vec::new(),
         CompiledRhs::Record { ops, .. } => ops

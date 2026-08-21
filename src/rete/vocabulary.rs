@@ -171,9 +171,8 @@ pub(crate) enum ParamType {
     // REMOVED: `get` converted to `Fallback` (ret: `Var("T")`, the hole unwrapped by
     // `dispatch_rete_op`'s new `Value::Option` arm, never surfaced to the rete caller), and
     // nothing else in this table ever constructed it — `cargo clippy` flagged it dead the moment
-    // that conversion landed. Re-mint it here if a future row needs to spell `Option<T>` again
-    // (STOP-4: core itself is untouched and keeps returning `Option<T>` for ordinary wat code —
-    // only the rete surface's spelling of `get` changed shape).
+    // that conversion landed. STOP-4: core still returns `Option<T>` for ordinary wat
+    // code — only the rete surface's spelling of `get` changed shape.
     /// Arc 278 the VSA seam opens — a holon AST value. Spells the exact `TypeExpr` `check.rs`'s
     /// own `holon_ty` closure (`check.rs:14974`, `TypeExpr::Path(":wat::holon::HolonAST")`)
     /// already builds for the hand-written holon intrinsic signatures — needed here to declare
@@ -503,18 +502,9 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // even sees a match head, because `rete/purity.rs`'s `classify_expr` intercepts a match FORM
     // structurally (skip the scrutinee's pattern positions, walk only the arm BODIES) before the
     // generic call-shape arm that would call `head_ok` ever runs. That structural guard matched
-    // the literal core keyword only; widening it to also recognise this row's `rete_name` (by
-    // resolving to `core_name` first — the table's own field, never a duplicated arm body) is a
-    // SEPARATE edit from minting this row (STOP-4), and this row alone does nothing until that
-    // widening lands.
-    //
-    // `meta` is therefore closer to VESTIGIAL than load-bearing for this specific row: nothing
-    // reads it for an ordinary `(:wat::rete::core::match ...)` expression, because `classify_expr`
-    // decides that expression's purity/determinism structurally (recursing into each arm body,
-    // never consulting `head_ok`/`RETE_OPS.meta` for the match head itself) — `head_ok`'s
-    // admission branch (which DOES read `meta`) is reachable for this head only if the structural
-    // guard were somehow bypassed, which the widening below prevents. Kept accurate anyway, for
-    // STOP-2 completeness and any future direct consumer.
+    // the literal core keyword and this row's `rete_name` (via `core_name`).
+    // `classify_expr` decides match purity structurally (arm bodies), not via
+    // this row's `meta`. `meta` is kept accurate for STOP-2 completeness.
     //
     // ⛔ CORRECTED 2026-08-05 (task #80): was `total: false`, justified as "a non-exhaustive match
     // raises `NoMatchingArm` — genuinely partial". REFUTED TWICE, by run:
@@ -564,7 +554,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // `dispatch_keyword_head_value` eval arm), `cond` has ZERO runtime arm. Builder's ruling:
     // "i think we need rete's cond to just be a macro itself that expands into rete's if?".
     //
-    // `:wat::rete::core::cond` is now its OWN `defmacro` (`wat/rete.wat`, right after the
+    // `:wat::rete::core::cond` is now its OWN `defmacro` (`wat/rete/syntax.wat`, right after the
     // `query` macro) — a copy of core's `cond` template (`wat/core.wat:1237`) with the emitted
     // head keywords moved to the rete namespace: every backtick-quoted `if` it emits is
     // `:wat::rete::core::if`, and every recursive call is `:wat::rete::core::cond`. This
@@ -579,8 +569,8 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     //
     // ⚠ GROUNDED GAP, not fixed by this row or the macro above: a `(:wat::rete::where ...)`
     // clause is never macro-expanded at all — `defrule`'s macro quotes `:when`/`:then`
-    // VERBATIM (`wat/rete.wat:2295`'s `defrule`, `(:wat::core::quote ~when-vec)` at `:2315`), and
-    // `eval_test_core` (`src/rete/matcher.rs:1237`) evaluates that raw AST by calling
+    // VERBATIM (`wat/rete/syntax.wat` `defrule`, `(:wat::core::quote ~when-vec)`), and
+    // `eval_test_core` (`src/rete/matcher.rs`) evaluates that raw AST by calling
     // `runtime::eval_inner` directly — the expander (`src/macros/expand.rs:441`) never
     // descends into `:wat::core::quote`. A `cond` written literally inside a `where` —
     // core-spelled OR rete-spelled — therefore still raises `UnknownFunction` at fire time,
@@ -1185,11 +1175,12 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // `:wat::holon::` verbs the builder ruled pure∧det∧total on 2026-08-01
     // (`purity.rs`'s VSA-seam block) get their `RETE_OPS` rows, arming the seam R4's
     // design named and #55/#57 left unarmed. `cosine`/`dot` are `Fallback`: core returns
-    // an outcome ENUM (`CosineOutcome`/`DotOutcome`), a THIRD failure mode `dispatch_rete_op`'s
-    // `Fallback` arm now faces beside i64's raise and f64's non-finite scalar — it inspects the
-    // returned Value's ENUM VARIANT and unwraps the happy payload to the f64 this row's `ret`
-    // promises, taking the caller's `:undefined` value on every other variant (`Degenerate`,
-    // and both enums' `DimensionMismatch`). `presence?` is `Alias` (already returns a plain
+    // an outcome ENUM (`CosineOutcome`/`DotOutcome`), a THIRD failure mode
+    // `project_holon_rete_fallback` faces beside i64's raise and f64's non-finite
+    // scalar — `dispatch_rete_op` AND native `CallFallback` share that projection:
+    // happy payload unwraps to the f64 this row's `ret` promises, taking the
+    // caller's `:undefined` on every other variant (`Degenerate`, and both enums'
+    // `DimensionMismatch`). `presence?` is `Alias` (already returns a plain
     // `bool`, needs no fallback — STOP-1, the builder's 2026-08-02 predicate ruling).
     // `coincident?` is `Redispatch`: it keeps core's `HolonAST | Vector` polymorphism (arc
     // 052/061), so it cannot be spelled as a rank-1 `params`/`ret` scheme — `params`/`ret`

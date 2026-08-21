@@ -1,7 +1,7 @@
 ;; wat/rete/compile.wat — interpreted compile (rule-set → network).
 ;;
 ;; compile-condition / compile-rule / compile-all, Axis / AxisViolation.
-;; Loads after wat/rete.wat (records). Native compile is the primed Rust
+;; Loads after wat/rete.wat (records). Native compile is the Rust `$native`
 ;; dual; this file keeps it honest.
 ;;
 ;; Namespace: :wat::rete::
@@ -82,7 +82,7 @@
 ;; exists-uses-alpha-probe? — a fact-shaped inner (Reading(?g), Maintenance(?loc))
 ;; is what alpha already stored. `:where` / `:and` / `:or` / `:not` / `:exists`
 ;; stay on exists-cond-under (where-not-where is eval-test; leftover `?v < ?m`
-;; after accum is a where, not a reason to scan WM for the fact-shaped case).
+;; after accum is a where, not a reason to scan facts for the fact-shaped case).
 (:wat::core::defn :wat::rete::exists-uses-alpha-probe?
   [cond <- :wat::WatAST] -> :wat::core::bool
   (:wat::core::let [head-nm (:wat::core::ast-name

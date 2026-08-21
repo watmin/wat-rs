@@ -419,7 +419,7 @@ fn compile_one(
             // the Or, exactly like `eval_clause`'s `Or` arm returning the pre-`or` `entry`).
             // `field_slots` is cloned the same way: a hidden `:field` Bind in one arm must
             // not satisfy a sibling that never wrote that slot.
-            let branches: Vec<Vec<Op>> = subs
+            let branches: OrBranches = subs
                 .iter()
                 .map(|sub| {
                     let mut sub_scope = scope.clone();
@@ -532,7 +532,7 @@ fn compile_operand_expr(
 // ─── The executor ───────────────────────────────────────────────────────────────
 
 /// Run a compiled condition against one fact's fields. `scratch` is a caller-owned, caller-
-/// reused `Vec<Option<Value>>` — `kernel.rs` allocates it once (sized to the largest
+/// reused `Vec<Option<Value>>` — `kernel/` allocates it once (sized to the largest
 /// `CompiledCond::n_slots` across every compiled alpha) before the round loop starts, so this
 /// function's own body never allocates on the Bind/Constraint (+ flattened `and`) path: `clear`
 /// followed by `resize` back up to `compiled.n_slots` never reallocates once `scratch`'s
@@ -584,7 +584,7 @@ pub(crate) fn exec_compiled_with_key_ids(
 ) -> Option<(u32, u16)> {
     // Arc 278 DESIGN-STONE-compiled-conditions.md — the compiled path's call counter, parallel to
     // `alpha_match_inner`'s `match:calls`. Since this stone re-points the round loop's step 1 at
-    // this function (`kernel.rs`), `match:calls` alone would read zero on a real fire from here
+    // this function (`kernel/`), `match:calls` alone would read zero on a real fire from here
     // on; this is what a diagnostic census reads instead to see the production path is live.
     crate::rete::kernel::census_count("compiled:calls");
     scratch.clear();

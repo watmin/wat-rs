@@ -32,11 +32,11 @@
 //! `where` fence and an `accumulate`'s `:from` inner get OUTER-SHAPE + fact-type-head
 //! validation ONLY — their arbitrary interior (a `where` predicate expr, an accumulate
 //! reducer body, or the `:from` condition's own clauses) is explicitly OUT of this wall's
-//! scope; a wider wall is a named follow-on, not a half-wall on this corruption class.
+//! scope. Outer-shape only — not a half-wall on this corruption class.
 //!
 //! ## What this does NOT touch
 //!
-//! The wat oracle (`wat/rete.wat`) and the native kernel (`src/rete/kernel.rs`) are UNMOVED —
+//! The wat oracle (`wat/rete/oracle/`) and the native kernel (`src/rete/kernel/`) are UNMOVED —
 //! this is a freeze-time validator bolted on ahead of the engine, not an engine change.
 
 use std::fmt;
@@ -508,7 +508,7 @@ fn quote_vector(form: Option<&WatAST>) -> Option<&[WatAST]> {
 // ─── :when validation ─────────────────────────────────────────────────────────────────────────
 
 /// Dispatch one top-level `:when`-entry — mirrors `compile-condition`'s own dispatch
-/// (`wat/rete.wat`: is-where / is-not / is-exists / is-accumulate / else-plain), via the
+/// (`wat/rete/compile.wat`: is-where / is-not / is-exists / is-accumulate / else-plain), via the
 /// SHARED classifier so this never drifts into a second hand-rolled grammar.
 fn validate_when_entry(
     cond: &WatAST,
@@ -621,7 +621,7 @@ fn validate_typed_clauses(
 /// bind/constraint field-ref against `field_names`. The free `?var` side is never checked.
 /// Everything a clause check needs about the CONDITION it sits in — invariant across the clause
 /// walk, so it travels as one value rather than seven positional arguments. A struct over an alias
-/// for the reason `AlphaTreeFixture` is one (`kernel.rs`): the call sites read by NAME, and the
+/// for the reason `AlphaTreeFixture` is one (`kernel/`): the call sites read by NAME, and the
 /// alternative here was an `#[allow(clippy::too_many_arguments)]`, which silences the signal
 /// instead of answering it.
 pub(crate) struct ClauseCtx<'a> {

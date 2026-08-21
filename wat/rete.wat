@@ -2,10 +2,12 @@
 ;;
 ;; Records (Token / Element / Session / node kinds / Export / explain
 ;; substrate), the Node defenum, and render-dag. Compile lives in
-;; wat/rete/compile.wat, acc::* in wat/rete/acc.wat, fire-spec in
+;; wat/rete/compile.wat, acc::* in wat/rete/acc.wat, $oracle in
 ;; wat/rete/oracle/{insert,pass,accum-pass,fire,explain}.wat, query/defrule in wat/rete/syntax.wat. Native
 ;; fire is the unprimed public name (`fire-rules`); the wat reference is
-;; `fire-rules$oracle`. Persistent collections throughout.
+;; `fire-rules$oracle`. VSA seam (`holon::cosine`/`dot`/`coincident?`/`presence?`)
+;; fires on both mouths — see `probe_arc278_vsa_where_native_differential`.
+;; Persistent collections throughout.
 ;; EDN-round-trippable.
 ;;
 ;; Names by the 3rd intueri cast (2026-06-17):
@@ -63,8 +65,9 @@
    params <- :wat::core::PersistentVector<wat::core::String>
    lhs    <- :wat::core::PersistentVector<wat::WatAST>])
 
-;; ─── the network nodes (MVP set) ────────────────────────────────────────────
-;; Negation / Test / Accumulate / ExpressionJoin nodes arrive at stones 6–8.
+;; ─── the network nodes ──────────────────────────────────────────────────────
+;; Alpha, RootJoin, HashJoin, Test, Negation, Exists, Accumulate, Production,
+;; Query. ExpressionJoinNode stayed banked (`DESIGN-STONE-6b-where-test`).
 
 ;; AlphaNode — filters facts by structural tests; fans out to beta joins.
 ;; id:       unique node id (i64).
@@ -182,11 +185,12 @@
 ;;   alpha-memory:      node-id → {join-bindings → [Element …]}
 ;;                      FIRE-SCOPED — write-only scratch, rebuilt from `facts` on every fire, never
 ;;                      read from a frozen Session. Population depends on which fire verb produced
-;;                      this Session (`fire-once`/`fire-once'` populate it; `fire-rules`/
-;;                      `fire-rules-spec` return it empty — arc 278 "alpha is fire-scoped").
+;;                      this Session (`fire-once` / `fire-once$native` populate it;
+;;                      `fire-rules` / `fire-rules$oracle` return it empty — arc 278
+;;                      "alpha is fire-scoped").
 ;;   beta-memory:       node-id → {join-bindings → [Token …]}
-;;                      FIRE-SCOPED — same treatment; `fire-once` populates it, `fire-rules`/
-;;                      `fire-rules-spec`/`fire-once'` all return it empty.
+;;                      FIRE-SCOPED — same treatment; `fire-once` populates it,
+;;                      `fire-rules` / `fire-rules$oracle` return it empty.
 ;;   production-memory: node-id → PV<:wat::core::Record>  flat derived facts in 4a; grows to the {token → [facts]} support store in 4c (TM)
 ;;   facts:             PersistentVector of asserted facts.
 ;;   next-id:           the next free node id (i64).
@@ -392,11 +396,10 @@
                           id-s  (:wat::core::i64::to-string k)
                           edge  (:wat::rete::children-ids-text
                                    (:wat::rete::node-children-ids node))
-                          ;; DELIBERATE proof-by-diff FIXTURE (arc 278): this nested string::concat is
-                          ;; below-bar (it should be one `format`), but it is left intentionally — the
-                          ;; arc-277 auto-fix is bare-symbol-only and CANNOT reach this COMPOUND/nested
-                          ;; case (deferred to RETE). The wat-rete engine's own `compound-concat-collapse`
-                          ;; rule will clean it; that diff is the proof the rule works. Do NOT hand-fix.
+                          ;; rune:exigere(scope-affirmative) — arc 278 proof-by-diff fixture:
+                          ;; nested string::concat is left intentionally. The arc-277 auto-fix
+                          ;; is bare-symbol-only and cannot reach this compound case.
+                          ;; Do NOT hand-fix.
                           line  (:wat::core::string::concat
                                    "  "
                                    (:wat::core::string::concat

@@ -227,7 +227,7 @@
         :wat::core::None))))
 
 ;; alpha-els-for-cond — Some(els) if that cond has an alpha (possibly empty);
-;; None if no alpha was minted (legacy WM-scan fallback).
+;; None if no alpha was minted (legacy facts-scan fallback).
 (:wat::core::defn :wat::rete::alpha-els-for-cond
   [network   <- :wat::core::PersistentMap
    alpha-mem <- :wat::core::PersistentMap
@@ -492,7 +492,7 @@
       parent-ids)))
 
 ;; binding-extensions — every binding map that satisfies `cond` under `bindings`.
-;; Fact: each matching WM fact. `:and`: backtrack. `:or`: concat arms. `:where`: keep or drop.
+;; Fact: each matching fact. `:and`: backtrack. `:or`: concat arms. `:where`: keep or drop.
 (:wat::core::defn :wat::rete::binding-extensions
   [cond      <- :wat::WatAST
    facts     <- :wat::core::PersistentVector

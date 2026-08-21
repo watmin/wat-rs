@@ -17,7 +17,7 @@ use crate::value::value::AggregateValue;
 
 use super::*;
 
-/// Split-borrow of the fire working-set. Token/Element are Copy; we cannot
+/// Split-borrow of `FireSession`. Token/Element are Copy; we cannot
 /// hold `&mut FireSession` while walking beta/alpha. Facts stay out of
 /// the bind intern (`DESIGN-STONE-fact-as-index`).
 pub(crate) struct FireCtx<'a> {
@@ -56,7 +56,7 @@ fn acc_view(wm: &FireSession) -> AccView<'_> {
 // ── Pass 1: Alpha pass ────────────────────────────────────────────────────────
 
 /// `activate-alpha` + `activate-fact` — type-index each fact, `exec_compiled`
-/// against that type's alphas. Mirrors `wat/rete.wat:513-537` + `wat/rete.wat:489-508`.
+/// against that type's alphas. Mirrors `wat/rete/oracle/pass.wat`.
 /// A missing compiled cond refuses — do not walk `alpha_match_inner`.
 pub(crate) fn alpha_pass(wm: &mut FireSession, arm: &InternedNetwork) -> Result<(), EvalBreak> {
     let mut match_scratch: SlotFrame = Vec::with_capacity(arm.compiled_max_slots);
@@ -112,7 +112,7 @@ pub(crate) fn alpha_pass(wm: &mut FireSession, arm: &InternedNetwork) -> Result<
 
 /// `root-join-pass` / `seed-root-join-children` / `seed-token` / `append-token` —
 /// for each AlphaNode with Elements, seed one Token per Element into each RootJoinNode child's beta.
-/// Mirrors `wat/rete.wat:544-621`.
+/// Mirrors `wat/rete/oracle/pass.wat`.
 pub(crate) fn root_join_pass(wm: &mut FireSession) {
     let node_ids = sorted_node_ids(&wm.network);
 
@@ -160,7 +160,7 @@ pub(crate) fn root_join_pass(wm: &mut FireSession) {
 // ── Pass 3: Hash-join pass ────────────────────────────────────────────────────
 
 /// `alpha-feeding` — find the AlphaNode id whose `children` contains `hj_id`.
-/// Mirrors `wat/rete.wat:629-650`. Returns -1 if not found.
+/// Mirrors `wat/rete/oracle/pass.wat`. Returns -1 if not found.
 fn alpha_feeding(hj_id: i64, network: &Value) -> i64 {
     let node_ids: Vec<i64> = match network {
         Value::wat__core__PersistentMap(m) => m
@@ -677,7 +677,7 @@ fn keyed_join(
 /// `hash-join-pass` / `cross-join-node` — propagate tokens from a left-parent to
 /// its HashJoinNode children, in ascending node-id order (topological).
 /// Left parents: RootJoin / HashJoin / Test / Negation / Exists / Accumulate.
-/// Mirrors `wat/rete.wat` hash-join-pass (A1: a TestNode may parent a HashJoin).
+/// Mirrors `wat/rete/oracle/pass.wat` hash-join-pass (A1: a TestNode may parent a HashJoin).
 pub(crate) fn hash_join_pass(wm: &mut FireSession, arm: &InternedNetwork) -> Result<(), EvalBreak> {
     let node_ids = &arm.node_ids;
     let mut match_scratch: SlotFrame = Vec::with_capacity(arm.compiled_max_slots);
@@ -788,7 +788,7 @@ fn node_parents(child_id: i64, network: &Value) -> Vec<i64> {
 
 /// `production-pass` / `fire-production` — for each ProductionNode, find its parent's beta tokens,
 /// for each token × each compiled `:then` form, `exec_compiled_rhs`, push to `production[prod_id]`.
-/// Mirrors `wat/rete.wat:867-881` + `wat/rete.wat:828-865`.
+/// Mirrors `wat/rete/oracle/pass.wat`.
 pub(crate) fn production_pass(wm: &mut FireSession, arm: &InternedNetwork, sym: &SymbolTable) -> Result<(), EvalBreak> {
     let node_ids = &arm.node_ids;
 
@@ -824,7 +824,7 @@ pub(crate) fn production_pass(wm: &mut FireSession, arm: &InternedNetwork, sym: 
                 continue;
             }
             let first = bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, ts[0].binds);
-            let slot_tables: Vec<Vec<Option<usize>>> = compiled_rhs
+            let slot_tables: crate::rete::compiled_rhs::RhsSlotTables = compiled_rhs
                 .iter()
                 .map(|c| crate::rete::compiled_rhs::rhs_bind_slots(c, &first))
                 .collect();
@@ -846,9 +846,10 @@ pub(crate) fn production_pass(wm: &mut FireSession, arm: &InternedNetwork, sym: 
 
 /// Pure single-pass fire: `to_transient` → clear memories → four passes → `to_persistent`.
 ///
-/// `fire-once'` evaluates its AST then delegates here. `fire-rules'` does **not**
-/// re-run this; it calls `fire_fixpoint_delta` (or the stratified driver wrapping it).
-/// Mirrors `fire-once` (`wat/rete.wat`): re-run-from-scratch each call (memories cleared).
+/// Public `fire-once` evaluates its AST then delegates here. `fire-rules` does
+/// **not** re-run this; it calls `fire_fixpoint_delta` (or the stratified
+/// driver wrapping it). Mirrors `fire-once$oracle` (`wat/rete/oracle/fire.wat`):
+/// re-run-from-scratch each call (memories cleared).
 pub(crate) fn fire_once_session(session: &Value, sym: &SymbolTable) -> Result<Value, EvalBreak> {
     let mut wm = to_transient(session)?;
     let rules_empty = matches!(&wm.rules, Value::wat__core__PersistentVector(pv) if pv.is_empty());
@@ -917,13 +918,12 @@ fn harvest_query_memory(wm: &mut FireSession) {
     }
 }
 
-// ── Public entry: native fire-once' ──────────────────────────────────────────
+// ── Public entry: native fire-once ───────────────────────────────────────────
 
 /// `(:wat::rete::fire-once <session>) -> :wat::rete::Session`
 ///
 /// Native Rust single-pass fire cycle: alpha → root-join → hash-join → production.
-/// Observationally equivalent to the wat oracle's `fire-once`:
-/// `query(fire-once' s, T) ≡ query(fire-once s, T)` for every type T.
+/// Observationally equivalent to the wat oracle's `fire-once$oracle`.
 ///
 /// Dispatch entry called from `runtime.rs:dispatch_keyword_head_value`.
 /// Evaluates the single argument (must be `:wat::rete::Session`), runs the four passes
@@ -958,7 +958,7 @@ pub(crate) fn eval_fire_once_native(
 ///
 /// `production-memory` is a `PersistentMap<node-id, PV<Record>>`. The outer pass visits
 /// each node's PV; the inner pass collects each Record. Mirrors `collect-derived`
-/// (`wat/rete.wat:940-955`).
+/// (`wat/rete/oracle/fire.wat`).
 ///
 /// Used by the 7-strat-native stratified driver (`fire_rules_stratified`) to collect
 /// each stratum's derived facts.
@@ -982,11 +982,11 @@ pub(crate) fn collect_derived(production_pm: &Value) -> Vec<Value> {
 /// The dedup is the termination guard: if every derived fact is already in `facts`, the
 /// result length equals `facts` length → the fixpoint loop exits. Re-adding a present
 /// fact would grow `facts` every round and spin forever. Mirrors `merge-facts`
-/// (`wat/rete.wat:960-972`).
+/// (`wat/rete/oracle/fire.wat`).
 ///
 /// Used by the 7-strat-native stratified driver (`fire_rules_stratified`) — R18: the cross-stratum
 /// derived-fact accumulation MUST value-dedup (mirrors the oracle's `merge-facts`,
-/// `wat/rete.wat:1752`), not concat, or a fact produced by more than one stratum's
+/// `wat/rete/oracle/fire.wat`), not concat, or a fact produced by more than one stratum's
 /// query is double-counted.
 ///
 /// P9 perf: membership is checked via a `HashSet` mirror of `pv`'s contents, not a linear
@@ -1016,7 +1016,7 @@ pub(crate) fn merge_facts(facts_pv: &Value, derived: &[Value]) -> Value {
 ///
 /// Used in the fixpoint to carry `new_facts` into the next round and in `eval_fire_rules_native`
 /// to restore `facts = input` before returning. Mirrors the Session reconstruction in
-/// `fire-fixpoint` (`wat/rete.wat:991-998`) and `fire-rules` (`wat/rete.wat:1011-1018`).
+/// `fire-fixpoint` (`wat/rete/oracle/fire.wat`) and `fire-rules` (`wat/rete/oracle/fire.wat`).
 pub(crate) fn session_with_facts(fired: &Value, new_facts: Value) -> Value {
     match fired {
         Value::Aggregate(a) if a.nature != Nature::Struct => {
@@ -1057,11 +1057,8 @@ pub(crate) fn session_facts(session: &Value) -> Value {
     }
 }
 
-/// Read the `rules` field (position 1) from a frozen Session Value. Mirrors `session_facts`
-/// (position 5) — same field-reading convention as `to_transient` (`wat/rete.wat:124-131`
-/// declaration order: network(0) rules(1) alpha-memory(2) beta-memory(3) production-memory(4)
-/// facts(5) next-id(6)). Used by `eval_fire_rules_native` to read the rule set once, before
-/// deciding fast-path vs stratified dispatch.
+/// Read the `network` field (position 0) from a frozen Session Value.
+/// Declaration order: network(0) rules(1) … facts(5) next-id(6) query-memory(7).
 pub(crate) fn session_network(session: &Value) -> Option<&Value> {
     match session {
         Value::Aggregate(a) if a.nature != Nature::Struct => a.fields.as_slice().first(),

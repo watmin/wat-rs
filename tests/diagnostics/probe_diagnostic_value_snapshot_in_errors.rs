@@ -65,9 +65,9 @@ fn probe_1_not_callable_renders_offending_keyword() {
             // 296 recapture: staleness — EDN face (Stone B), same type_name/rendered/
             // provenance/binding-span/head-span values as the pre-stone-B Debug face;
             // additive :message/:causes. The outer src/runtime.rs span moved internally
-            // (line 18900→21351→25369→25361→25366) — an internal src/*.rs span
-            // move is staleness, recaptured and kept pinned. (`release-session`
-            // intercept shifted apply_tracked_callee.)
+            // (line 18900→21351→25369→25361→25366→25429) — an internal src/*.rs span
+            // move is staleness, recaptured and kept pinned. (`cosine_outcome_from_values`
+            // helpers shifted apply_tracked_callee.)
             wat::assert_edn_matches_file!(
                 e.trim_start_matches("eval: ").to_string(),
                 "probe_diagnostic_value_snapshot_in_errors__probe_1_not_callable_renders_offending_keyword.edn",

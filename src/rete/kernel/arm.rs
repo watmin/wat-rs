@@ -329,6 +329,8 @@ pub(crate) fn class_field_names(sym: &SymbolTable, class: &str) -> Vec<String> {
         .unwrap_or_default()
 }
 
+pub(crate) type UserFoldPrograms = HashMap<i64, Arc<crate::rete::expr_ir::Program>>;
+
 /// Flip 5 — lower each AccumulateNode whose acc-form head is a user rete-defn.
 /// Built-in `:wat::rete::acc::*` heads are skipped. A `LowerError` refuses
 /// the fire (same door as `compile_test_programs`). The old
@@ -337,7 +339,7 @@ pub(crate) fn compile_user_fold_programs(
     network: &Value,
     node_ids: &[i64],
     sym: &SymbolTable,
-) -> Result<HashMap<i64, Arc<crate::rete::expr_ir::Program>>, EvalBreak> {
+) -> Result<UserFoldPrograms, EvalBreak> {
     let mut out = HashMap::new();
     for node_id in node_ids {
         let node = match get_node(network, *node_id) {
@@ -450,8 +452,8 @@ pub(crate) fn kind_id_lists(network: &Value, node_ids: &[i64]) -> KindIdLists {
     }
 }
 
-pub(crate) fn invert_feeding_alpha(feeding_alpha_of: &HashMap<i64, i64>) -> ParentsOf {
-    let mut out: ParentsOf = HashMap::new();
+pub(crate) fn invert_feeding_alpha(feeding_alpha_of: &HashMap<i64, i64>) -> JoinsFedBy {
+    let mut out: JoinsFedBy = HashMap::new();
     for (join_id, alpha_id) in feeding_alpha_of {
         out.entry(*alpha_id).or_default().push(*join_id);
     }
@@ -465,7 +467,7 @@ pub(crate) fn seed_dirty_join_parents(
     join_parent: &[i64],
     d_beta: &BetaMemory,
     d_alpha: &AlphaDelta,
-    joins_fed_by: &ParentsOf,
+    joins_fed_by: &JoinsFedBy,
     parents_of: &ParentsOf,
 ) -> FxHashSet<i64> {
     let mut dirty = FxHashSet::default();
@@ -619,6 +621,18 @@ pub(crate) fn rete_arm_release(id: u64) {
     });
 }
 
+fn rete_arm_build_put(
+    network: &Value,
+    rules: &Value,
+    sym: &SymbolTable,
+) -> Result<Arc<InternedNetwork>, EvalBreak> {
+    let arm = Arc::new(build_rete_arm(network, rules, sym)?);
+    if let Some(id) = network_identity(network) {
+        rete_arm_intern(id, &arm);
+    }
+    Ok(arm)
+}
+
 pub(crate) fn rete_arm_get_or_build(
     network: &Value,
     rules: &Value,
@@ -629,11 +643,7 @@ pub(crate) fn rete_arm_get_or_build(
             return Ok(arm);
         }
     }
-    let arm = Arc::new(build_rete_arm(network, rules, sym)?);
-    if let Some(id) = network_identity(network) {
-        rete_arm_intern(id, &arm);
-    }
-    Ok(arm)
+    rete_arm_build_put(network, rules, sym)
 }
 
 /// `arm-session` door: HIT increments the lease; MISS intern's with leases=1.
@@ -653,11 +663,7 @@ fn rete_arm_lease_or_build(
             return Ok(arm);
         }
     }
-    let arm = Arc::new(build_rete_arm(network, rules, sym)?);
-    if let Some(id) = network_identity(network) {
-        rete_arm_intern(id, &arm);
-    }
-    Ok(arm)
+    rete_arm_build_put(network, rules, sym)
 }
 
 pub(crate) fn build_rete_arm(
@@ -832,7 +838,7 @@ pub(crate) fn rule_deps_from_rules(rules: &Value, sym: &SymbolTable) -> Vec<Rule
 }
 
 /// Filter an armed network down to a stratum slice. The slice is a new
-/// PMap (new intern). Intern this so fire does not rebuild from empty AST.
+/// PMap. The caller holds the `Arc`; fire does not intern the slice.
 pub(crate) fn subset_rete_arm(
     arm: &InternedNetwork,
     active_ids: &HashSet<i64>,

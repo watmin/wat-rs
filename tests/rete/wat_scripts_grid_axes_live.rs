@@ -199,10 +199,14 @@ fn run_sized_axis(stem: &str, size: &[i64]) -> (bool, String, String) {
     let src = std::fs::read_to_string(&path)
         .unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
     let skipped = skip_oracle_fire(&src);
-    let leftover = skipped.matches("fire-rules$oracle").count();
+    // Count leftover CALLS, not comment mentions of the token.
+    let mut call = String::new();
+    call.push('(');
+    call.push_str(":wat::rete::fire-rules$oracle staged)");
+    let leftover = skipped.matches(&call).count();
     assert_eq!(
         leftover, 0,
-        "{stem}: skip_oracle_fire left a fire-rules$oracle token — native liveness would hit the oracle"
+        "{stem}: skip_oracle_fire left a fire-rules$oracle call — native liveness would hit the oracle"
     );
     let tmp = std::env::temp_dir().join(format!(
         "wat-liveness-{}-{}-{stem}.wat",

@@ -632,7 +632,7 @@ fn eval_clauses(
 /// - within-condition CLAUSES (`Bind`, `Constraint`, `And`, `Or`, `Not`, `Where`) — the
 ///   shapes `eval_clause` classifies today (this extraction is behavior-identical).
 /// - top-level `:when`-entry WRAPPERS (`Not`, `Exists`, `Where`, `Accumulate`) — shapes
-///   `eval_clause` never actually receives (compile-condition, `wat/rete.wat`, consumes
+///   `eval_clause` never actually receives (compile-condition, `wat/rete/compile.wat`, consumes
 ///   them into NegationNode/ExistsNode/AccumulateNode/TestNode topology before alpha-match
 ///   ever runs), but the validator's top-level `:when` walk needs to recognize them too, via
 ///   this SAME function, rather than a second hand-rolled keyword-matcher (the drift risk
@@ -670,8 +670,10 @@ pub(crate) enum ReteClauseShape<'a> {
     Where(&'a WatAST),
     /// `(?result-var <- (<acc-form>) :from (<inner>))` — top-level-only accumulate wrapper.
     Accumulate {
+        // rune:purgare(trait-contract) — grammar shape; fire reads `from`.
         #[allow(dead_code)]
         var: &'a str,
+        // rune:purgare(trait-contract) — grammar shape; fire reads `from`.
         #[allow(dead_code)]
         acc_form: &'a WatAST,
         from: &'a WatAST,
@@ -680,6 +682,7 @@ pub(crate) enum ReteClauseShape<'a> {
     /// Discriminated from [`Self::Bind`] by a `::` in the type keyword; from
     /// [`Self::Accumulate`] by a keyword (not a list) after `<-`.
     FactBind {
+        // rune:purgare(trait-contract) — grammar shape; fire reads `type_head`.
         #[allow(dead_code)]
         var: &'a str,
         type_head: &'a str,
@@ -979,7 +982,7 @@ fn eval_clause(
         ReteClauseShape::Where(_) => None,
 
         // `exists`/`accumulate` are top-level `:when`-entry wrappers, consumed entirely by
-        // compile-condition (wat/rete.wat) before alpha-match runs — they never legitimately
+        // compile-condition (wat/rete/compile.wat) before alpha-match runs — they never legitimately
         // reach a condition's clause list. Matches the pre-extraction default-arm outcome.
         ReteClauseShape::Exists(_)
         | ReteClauseShape::Accumulate { .. }
@@ -1056,7 +1059,7 @@ pub(crate) fn resolve_operand<B: Bindings>(
 /// `Value::Aggregate` record.
 ///
 /// Called from `eval_insert` (after arg evaluation) and from the production pass in
-/// `kernel.rs` (which already has the form + bindings and calls this directly).
+/// `kernel/` (which already has the form + bindings and calls this directly).
 ///
 /// Arc 278 Stone B (DESIGN-STONE-then-is-a-vector-of-singular-facts.md § "Stone B") — takes
 /// `sym` now: widening (a) means `fact_items[0]` may name a plain fn instead of a fact-type
@@ -1130,8 +1133,7 @@ pub(crate) fn build_insert_fact(
     // is a pure fire-time fn with no type registry, so for the kwargs form it takes the
     // VALUES in written order, skipping the :field keywords — fields are authored in the
     // type's declaration order (both the kwargs migration and the macro companion emit
-    // declaration order). Follow-up: compile-time reorder-by-name (field-names-of) would make
-    // an out-of-declaration-order kwargs RHS correct rather than positionally mapped.
+    // declaration order). Out-of-declaration-order kwargs map positionally.
     let args = &fact_items[1..];
     let is_kwargs = args.len() >= 2
         && args.len() % 2 == 0
@@ -1677,7 +1679,7 @@ pub(crate) fn eval_step_payload(
 }
 
 // Arc 296 G-1 — class C, missing from the brief's table: `DerivationStep` declared at
-// `wat/rete.wat:233`.
+// `wat/rete.wat`.
 ::wat_source_derive::wat_field_names_from!(DERIVATION_STEP_FIELDS, "wat/rete.wat", ":wat::rete::DerivationStep");
 fn derivation_step_names() -> FieldNames {
     static N: std::sync::OnceLock<Arc<Vec<String>>> = std::sync::OnceLock::new();

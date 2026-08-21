@@ -82,6 +82,7 @@ pub(crate) struct RoundCensus {
 thread_local! {
     /// Enabled by `with_fire_census`; `None` means "do not record" (the default for every other
     /// test in the suite, so the instrument costs nothing it is not asked for).
+    // rune:perspicere(read-once) — test-only census TLS; alias would be a mumble.
     pub(crate) static FIRE_CENSUS: std::cell::RefCell<Option<Vec<RoundCensus>>> =
         const { std::cell::RefCell::new(None) };
 }
@@ -103,6 +104,7 @@ pub(crate) type WhereSample = (WatAST, Vec<crate::value::pmap::PMap>);
 thread_local! {
     /// Armed by [`with_where_sample`]; the OUTER `None` means "do not record" (the default
     /// everywhere else), the inner one means "armed, nothing caught yet".
+    // rune:perspicere(read-once) — test-only sample slot; alias would be a mumble.
     pub(crate) static WHERE_SAMPLE: std::cell::RefCell<Option<Option<WhereSample>>> =
         const { std::cell::RefCell::new(None) };
 }
@@ -250,6 +252,7 @@ thread_local! {
     /// THREE of alpha's five children (candidates/element/fieldnames) were individually SMALLER
     /// than their own instrument, i.e. their rows measured nothing but themselves. Without the
     /// count there is no way to say that from the table; with it, the table subtracts.
+    // rune:perspicere(read-once) — test-only phase map; alias would be a mumble.
     pub(crate) static PHASE_NANOS: std::cell::RefCell<Option<HashMap<&'static str, (u64, u64)>>> =
         const { std::cell::RefCell::new(None) };
 }
@@ -295,6 +298,7 @@ pub(crate) fn phase_end(_name: &'static str, _t: PhaseMark) {}
 // rune:sequi(performance-counter) — test-only op counts; Cell increment ~1-2ns vs timer tax.
 thread_local! {
     /// counter name → occurrences. `None` = not recording.
+    // rune:perspicere(read-once) — test-only op counts; alias would be a mumble.
     pub(crate) static CENSUS_COUNTS: std::cell::RefCell<Option<HashMap<&'static str, u64>>> =
         const { std::cell::RefCell::new(None) };
 }
@@ -353,6 +357,7 @@ pub(crate) fn with_count_census<R>(f: impl FnOnce() -> R) -> (R, Vec<(&'static s
 // rune:sequi(performance-counter) — test-only beta write/read traffic; counting, not domain.
 thread_local! {
     /// node_id → (tokens written into `wm.beta`, tokens read back out). `None` = not recording.
+    // rune:perspicere(read-once) — test-only beta traffic; alias would be a mumble.
     pub(crate) static BETA_TRAFFIC: std::cell::RefCell<Option<HashMap<i64, (u64, u64)>>> =
         const { std::cell::RefCell::new(None) };
 }

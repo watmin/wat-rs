@@ -1,16 +1,16 @@
 ;; wat/rete/oracle/insert.wat — interpreted insert / retract oracle.
 ;;
 ;; insert$oracle / insert-all$oracle / public insert / retract.
-;; Zero activation: WM stays open until fire-rules. Loads after wat/rete.wat
+;; Zero activation: facts stay staged until fire-rules. Loads after wat/rete.wat
 ;; (Session). Public names call $native.
 ;;
 ;; Namespace: :wat::rete::
 
 ;; ─── insert + retract ────────────────────────────────────────────────────────
 
-;; insert-spec — the wat reference engine (the SPEC / differential oracle). Stages a fact into
-;; the session's working memory. Zero activation.
-;; WHY zero activation: the WM stays open while the caller stages multiple facts;
+;; insert$oracle — the wat reference engine (the SPEC / differential oracle). Stages a fact into
+;; the session's `facts` vector. Zero activation.
+;; WHY zero activation: facts stay staged while the caller inserts multiple facts;
 ;; fire-rules is the lock that runs them through the network all at once.
 ;; WHY reconstruct Session: Record/assoc returns the base :wat::core::Record type; the
 ;; typed Session constructor preserves the concrete return type for the checker.
@@ -28,10 +28,10 @@
     :next-id (:wat::rete::Session/next-id           session)
     :query-memory (:wat::rete::Session/query-memory session)))
 
-;; insert-all-spec — the wat reference engine (the SPEC / differential oracle) for BATCH insert.
-;; Stages every fact in `facts` into the session's working memory: N chained insert-spec calls,
-;; folded left→right so caller order is preserved. Zero activation — the exact insert-spec
-;; contract, N times over (rete.wat:828-830 — WM stays open until fire-rules).
+;; insert-all$oracle — the wat reference engine (the SPEC / differential oracle) for BATCH insert.
+;; Stages every fact in `facts`: N chained insert$oracle calls, folded left→right so caller
+;; order is preserved. Zero activation — the exact insert$oracle contract, N times over
+;; (facts stay staged until fire-rules).
 (:wat::core::defn :wat::rete::insert-all$oracle
   [session <- :wat::rete::Session
    facts   <- :wat::core::PersistentVector<wat::core::Record>]
@@ -71,7 +71,7 @@
 ;; Symmetric with insert: the caller re-fires (fire-rules recomputes from the reduced input).
 ;; WHY foldl + not-equals guard: mirrors merge-facts' foldl + contains? idiom; structural = on
 ;; records makes removal type-safe and value-precise (not identity/pointer removal).
-;; WHY stage-only (no fire): same discipline as insert — the WM stays open for multiple staged
+;; WHY stage-only (no fire): same discipline as insert — facts stay staged for multiple
 ;; removals before the caller locks them in with fire-rules.
 (:wat::core::defn :wat::rete::retract
   [session <- :wat::rete::Session

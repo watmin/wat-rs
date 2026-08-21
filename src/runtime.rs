@@ -9871,71 +9871,34 @@ fn dispatch_rete_op(
                 Ok(Value::f64(x)) if matches!(op.ret, ParamType::F64) && !x.is_finite() => {
                     eval_inner(&args[fallback_idx], env, sym).map(|tv| tv.value_owned())
                 }
-                // DESIGN-STONE-the-vsa-seam-opens.md (2026-08-05) — the THIRD failure mode,
-                // shaped like neither the i64 raise nor the f64 non-finite-scalar above: the
-                // holon family (`:wat::holon::cosine`/`:wat::holon::dot`) fails by RETURNING a
-                // named outcome ENUM (`CosineOutcome`/`DotOutcome`, `types.rs`), never by
-                // raising and never as a bare f64. This is not a wider match on the two arms
-                // above — it PROJECTS a field out of the wrapper: the happy variant's payload
-                // becomes the f64 this row's `ret: ParamType::F64` promises the rete surface,
-                // while every OTHER variant (a zero-magnitude operand's `Degenerate`, or either
-                // enum's `DimensionMismatch`) is this family's undefined point and takes the
-                // caller's `:undefined` value, exactly like the two arms above. Keyed off the
-                // returned VALUE's own `type_path` (never `op.ret`, which is `F64` for both this
-                // family and the f64-arithmetic family above and so cannot distinguish them) —
-                // the two enums do NOT share variant/field names (`Similarity`/`similarity` vs
-                // `Computed`/`product`; only `CosineOutcome` has `Degenerate`), so each gets its
-                // own arm rather than one merged match. No `_` wildcard: every variant either
-                // enum can construct is named explicitly, and an enum shape neither this arm nor
-                // `types.rs`'s registration recognises is a bug in this arm's own authoring, not
-                // a value to route around silently.
-                Ok(Value::Enum(ev)) if ev.type_path == COSINE_OUTCOME_TYPE => {
-                    match (ev.variant_name.as_str(), ev.fields.as_slice()) {
-                        ("Similarity", [Value::f64(similarity)]) => Ok(Value::f64(*similarity)),
-                        ("Degenerate", [_]) | ("DimensionMismatch", [_, _]) => {
-                            eval_inner(&args[fallback_idx], env, sym).map(|tv| tv.value_owned())
-                        }
-                        (variant, fields) => Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
-                            head: head.into(),
-                            reason: format!(
-                                "rete Fallback arm's holon mode has no route for CosineOutcome::{variant} ({} field(s)) — add one before shipping this shape",
-                                fields.len()
-                            ),
-                        }).into()),
-                    }
-                }
-                Ok(Value::Enum(ev)) if ev.type_path == DOT_OUTCOME_TYPE => {
-                    match (ev.variant_name.as_str(), ev.fields.as_slice()) {
-                        ("Computed", [Value::f64(product)]) => Ok(Value::f64(*product)),
-                        ("DimensionMismatch", [_, _]) => {
-                            eval_inner(&args[fallback_idx], env, sym).map(|tv| tv.value_owned())
-                        }
-                        (variant, fields) => Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
-                            head: head.into(),
-                            reason: format!(
-                                "rete Fallback arm's holon mode has no route for DotOutcome::{variant} ({} field(s)) — add one before shipping this shape",
-                                fields.len()
-                            ),
-                        }).into()),
-                    }
-                }
                 // BRIEF-get-is-total-by-fallback.md (2026-08-05) — the FOURTH failure mode,
                 // shaped like none of the three above: a core op that signals its domain hole by
                 // RETURNING `Value::Option(None)` (`PersistentVector/get`/`Vector/get`/`List/get`
                 // today; any future `Option<T>`-returning verb tomorrow, per STOP-1 — this arm is
                 // written generically over `Value::Option`, never special-cased to `get`).
                 // ⚠ `Option` is `Value::Option(_)`, NOT `Value::Enum` (`runtime.rs`'s own
-                // `val_type_path`: `Value::Option(_) => ":wat::core::Option"`) — the two holon
-                // arms above match `Value::Enum` and do not and cannot fire on this shape; it
-                // needs its own arm. `Some(v)` unwraps the payload (a clone off the `Arc<Option<
-                // Value>>` — `Value` is Clone throughout this file, same as every other arm's
-                // `.value_owned()`); `None` is this family's undefined point and takes the
-                // caller's `:undefined` value, exactly like the three arms above.
+                // `val_type_path`: `Value::Option(_) => ":wat::core::Option"`) — the holon
+                // projection below matches `Value::Enum` and does not and cannot fire on this
+                // shape; it needs its own arm. `Some(v)` unwraps the payload (a clone off the
+                // `Arc<Option<Value>>` — `Value` is Clone throughout this file, same as every
+                // other arm's `.value_owned()`); `None` is this family's undefined point and
+                // takes the caller's `:undefined` value, exactly like the arms above.
                 Ok(Value::Option(opt)) => match opt.as_ref() {
                     Some(v) => Ok(v.clone()),
                     None => eval_inner(&args[fallback_idx], env, sym).map(|tv| tv.value_owned()),
                 },
-                Ok(v) => Ok(v),
+                // DESIGN-STONE-the-vsa-seam-opens.md (2026-08-05) — the THIRD failure mode.
+                // Shared with native CallFallback via `project_holon_rete_fallback`: one
+                // projection, two mouths. Happy payload → f64; Degenerate /
+                // DimensionMismatch → the caller's `:undefined`. NotHolon is every other
+                // Ok value this arm already returned unchanged.
+                Ok(v) => match project_holon_rete_fallback(&v, head, list_span)? {
+                    HolonReteProject::Scalar(x) => Ok(Value::f64(x)),
+                    HolonReteProject::Fallback => {
+                        eval_inner(&args[fallback_idx], env, sym).map(|tv| tv.value_owned())
+                    }
+                    HolonReteProject::NotHolon => Ok(v),
+                },
                 // With the args already checked as (i64, i64), the i64 arithmetic family raises
                 // exactly two domain failures and no third: overflow (+ - * and the MIN/-1
                 // division edge) and division by zero (/ mod rem quot). Both are the undefined
@@ -22698,6 +22661,47 @@ fn cosine_outcome_dimension_mismatch(expected: i64, got: i64) -> Value {
     }))
 }
 
+/// Value-in cosine. Shared by `eval_algebra_cosine` (AST eval) and native
+/// `apply_op` (compiled `where`). One measurement; two mouths.
+pub(crate) fn cosine_outcome_from_values(
+    a: Value,
+    b: Value,
+    list_span: &Span,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    let (vt, vr) = match pair_values_to_vectors(":wat::holon::cosine", a, b, sym, list_span)? {
+        PairedVectors::DimensionMismatch { expected, got } => {
+            return Ok(cosine_outcome_dimension_mismatch(expected, got));
+        }
+        PairedVectors::Paired(vt, vr) => (vt, vr),
+    };
+    // Arc 278 the cosine outcome wall — face the zero-magnitude case BEFORE
+    // calling `Similarity::cosine`, rather than letting holon-rs's guarded
+    // `0.0` sail through as data. `holon::Vector::norm()` is pub for exactly
+    // this: test each operand's own norm, decide which side (if any) is
+    // degenerate, and answer with the fact instead of a fabricated measurement.
+    let (na, nb) = (vt.norm(), vr.norm());
+    let side = match (na < DEGENERATE_EPSILON, nb < DEGENERATE_EPSILON) {
+        (true, true) => Some(degenerate_side_both()),
+        (true, false) => Some(degenerate_side_target()),
+        (false, true) => Some(degenerate_side_reference()),
+        (false, false) => None,
+    };
+    match side {
+        Some(side) => Ok(cosine_outcome_degenerate(side)),
+        None => {
+            // Clamp to [-1, 1]: cosine similarity is mathematically bounded to
+            // this range, but floating-point arithmetic can produce values
+            // slightly outside (e.g., 1.0000000000000002 for identical
+            // vectors). Clamping is the honest substrate-level fix — the VSA
+            // semantics are defined on [-1, 1].
+            Ok(cosine_outcome_similarity(
+                Similarity::cosine(&vt, &vr).clamp(-1.0, 1.0),
+            ))
+        }
+    }
+}
+
 /// `(:wat::holon::cosine target reference) -> :wat::holon::CosineOutcome` —
 /// cosine measurement, TOTAL since arc 278 the cosine outcome wall
 /// (`BRIEF-cosine-outcome-wall.md`). Polymorphic since arc 052: accepts
@@ -22735,37 +22739,7 @@ fn eval_algebra_cosine(
     }
     let a = eval_inner(&args[0], env, sym)?.value_owned();
     let b = eval_inner(&args[1], env, sym)?.value_owned();
-    let (vt, vr) = match pair_values_to_vectors(":wat::holon::cosine", a, b, sym, list_span)? {
-        PairedVectors::DimensionMismatch { expected, got } => {
-            return Ok(cosine_outcome_dimension_mismatch(expected, got));
-        }
-        PairedVectors::Paired(vt, vr) => (vt, vr),
-    };
-    // Arc 278 the cosine outcome wall — face the zero-magnitude case BEFORE
-    // calling `Similarity::cosine`, rather than letting holon-rs's guarded
-    // `0.0` sail through as data. `holon::Vector::norm()` is pub for exactly
-    // this: test each operand's own norm, decide which side (if any) is
-    // degenerate, and answer with the fact instead of a fabricated measurement.
-    let (na, nb) = (vt.norm(), vr.norm());
-    let side = match (na < DEGENERATE_EPSILON, nb < DEGENERATE_EPSILON) {
-        (true, true) => Some(degenerate_side_both()),
-        (true, false) => Some(degenerate_side_target()),
-        (false, true) => Some(degenerate_side_reference()),
-        (false, false) => None,
-    };
-    match side {
-        Some(side) => Ok(cosine_outcome_degenerate(side)),
-        None => {
-            // Clamp to [-1, 1]: cosine similarity is mathematically bounded to
-            // this range, but floating-point arithmetic can produce values
-            // slightly outside (e.g., 1.0000000000000002 for identical
-            // vectors). Clamping is the honest substrate-level fix — the VSA
-            // semantics are defined on [-1, 1].
-            Ok(cosine_outcome_similarity(
-                Similarity::cosine(&vt, &vr).clamp(-1.0, 1.0),
-            ))
-        }
-    }
+    cosine_outcome_from_values(a, b, list_span, sym)
 }
 
 /// `(:wat::holon::presence? target reference) -> :bool` — boolean
@@ -22798,14 +22772,20 @@ fn eval_algebra_presence_q(
         )
         .into());
     }
-    let target = require_holon(
-        ":wat::holon::presence?",
-        eval_inner(&args[0], env, sym)?.value_owned(),
-    )?;
-    let reference = require_holon(
-        ":wat::holon::presence?",
-        eval_inner(&args[1], env, sym)?.value_owned(),
-    )?;
+    let target = eval_inner(&args[0], env, sym)?.value_owned();
+    let reference = eval_inner(&args[1], env, sym)?.value_owned();
+    presence_q_from_values(target, reference, list_span, sym)
+}
+
+/// Value-in `presence?`. Shared by AST eval and native `apply_op`.
+pub(crate) fn presence_q_from_values(
+    target: Value,
+    reference: Value,
+    list_span: &Span,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    let target = require_holon(":wat::holon::presence?", target)?;
+    let reference = require_holon(":wat::holon::presence?", reference)?;
     let ctx = require_encoding_ctx(":wat::holon::presence?", sym, list_span)?;
 
     // Arc 037 slice 3: normalize UP via ambient router. Presence
@@ -22865,6 +22845,17 @@ fn eval_algebra_coincident_q(
     }
     let a = eval_inner(&args[0], env, sym)?.value_owned();
     let b = eval_inner(&args[1], env, sym)?.value_owned();
+    coincident_q_from_values(a, b, list_span, sym)
+}
+
+/// Value-in `coincident?`. Shared by AST eval and native `apply_op`.
+pub(crate) fn coincident_q_from_values(
+    a: Value,
+    b: Value,
+    list_span: &Span,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::holon::coincident?";
     // Arc 061 — polymorphic over (HolonAST, Vector) pairs in any
     // combination, mirroring arc 052's `cosine` shape. Pre-encoded
     // Vector inputs short-circuit the encoding step; mixed inputs
@@ -23405,6 +23396,68 @@ fn dot_outcome_dimension_mismatch(expected: i64, got: i64) -> Value {
     }))
 }
 
+/// Shared rete Fallback projection of holon outcome enums.
+/// `dispatch_rete_op` and native `CallFallback` both face the third failure
+/// mode through this one arm — happy payload becomes `f64`, every other
+/// named variant takes the caller's `:undefined`. The two enums do NOT
+/// share variant/field names (`Similarity`/`similarity` vs `Computed`/`product`;
+/// only cosine has `Degenerate`), so each is named explicitly. No `_`
+/// wildcard on a recognised type_path.
+pub(crate) enum HolonReteProject {
+    /// Not a holon outcome enum — caller continues with other Fallback modes.
+    NotHolon,
+    Scalar(f64),
+    Fallback,
+}
+
+pub(crate) fn project_holon_rete_fallback(
+    v: &Value,
+    head: &str,
+    span: &Span,
+) -> Result<HolonReteProject, EvalBreak> {
+    match v {
+        Value::Enum(ev) if ev.type_path == COSINE_OUTCOME_TYPE => {
+            match (ev.variant_name.as_str(), ev.fields.as_slice()) {
+                ("Similarity", [Value::f64(similarity)]) => {
+                    Ok(HolonReteProject::Scalar(*similarity))
+                }
+                ("Degenerate", [_]) | ("DimensionMismatch", [_, _]) => {
+                    Ok(HolonReteProject::Fallback)
+                }
+                (variant, fields) => Err(RuntimeError::new(
+                    span.clone(),
+                    RuntimeErrorKind::MalformedForm {
+                        head: head.into(),
+                        reason: format!(
+                            "rete Fallback arm's holon mode has no route for CosineOutcome::{variant} ({} field(s)) — add one before shipping this shape",
+                            fields.len()
+                        ),
+                    },
+                )
+                .into()),
+            }
+        }
+        Value::Enum(ev) if ev.type_path == DOT_OUTCOME_TYPE => {
+            match (ev.variant_name.as_str(), ev.fields.as_slice()) {
+                ("Computed", [Value::f64(product)]) => Ok(HolonReteProject::Scalar(*product)),
+                ("DimensionMismatch", [_, _]) => Ok(HolonReteProject::Fallback),
+                (variant, fields) => Err(RuntimeError::new(
+                    span.clone(),
+                    RuntimeErrorKind::MalformedForm {
+                        head: head.into(),
+                        reason: format!(
+                            "rete Fallback arm's holon mode has no route for DotOutcome::{variant} ({} field(s)) — add one before shipping this shape",
+                            fields.len()
+                        ),
+                    },
+                )
+                .into()),
+            }
+        }
+        _ => Ok(HolonReteProject::NotHolon),
+    }
+}
+
 /// `(:wat::holon::dot target reference) -> :wat::holon::DotOutcome` — raw dot
 /// product, TOTAL since arc 278 the cosine outcome wall. Arc 052: polymorphic
 /// input, HolonAST or Vector in either position. Same dim-resolution rule as
@@ -23433,6 +23486,16 @@ fn eval_algebra_dot(
     // position. Same dim-resolution rule as cosine.
     let a = eval_inner(&args[0], env, sym)?.value_owned();
     let b = eval_inner(&args[1], env, sym)?.value_owned();
+    dot_outcome_from_values(a, b, list_span, sym)
+}
+
+/// Value-in `dot`. Shared by AST eval and native `apply_op`.
+pub(crate) fn dot_outcome_from_values(
+    a: Value,
+    b: Value,
+    list_span: &Span,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
     let (vx, vy) = match pair_values_to_vectors(":wat::holon::dot", a, b, sym, list_span)? {
         PairedVectors::DimensionMismatch { expected, got } => {
             return Ok(dot_outcome_dimension_mismatch(expected, got));

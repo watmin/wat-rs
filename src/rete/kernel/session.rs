@@ -109,6 +109,8 @@ pub(crate) type SlotFrame = Vec<Option<Value>>;
 pub(crate) type FieldNames = Arc<Vec<String>>;
 pub(crate) type ParentsOf = HashMap<i64, Vec<i64>>;
 pub(crate) type JoinsFedBy = HashMap<i64, Vec<i64>>;
+/// HashJoin id → cached join-key names. Not production memory.
+pub(crate) type JoinKeysCache = HashMap<i64, Vec<Value>>;
 pub(crate) type AlphasByType = HashMap<String, Vec<i64>>;
 pub(crate) type CondKeyIds = HashMap<i64, Vec<u32>>;
 pub(crate) type AlphaDelta = FxHashMap<i64, Vec<usize>>;
@@ -121,11 +123,10 @@ pub(crate) type JoinRightIndex = HashMap<i64, JoinKeyMap<Element>>;
 
 /// The mutable fire-scoped mirror of a `:wat::rete::Session`.
 ///
-/// Not rete "working memory" (that is `facts`). Freeze rebuilds the 8-field Session.
-/// The memory maps (`alpha`, `beta`, `production`, `query`) are hot during fire:
-/// native `HashMap` / `FxHashMap` give O(1) `entry().or_default().push`.
-/// `network`/`rules`/`facts`/`next_id` are inputs the fire phase reads but does not
-/// restructure — held as-is (passthroughs).
+/// Freeze rebuilds the 8-field Session. The memory maps (`alpha`, `beta`,
+/// `production`, `query`) are hot during fire: native `HashMap` / `FxHashMap`
+/// give O(1) `entry().or_default().push`. `network`/`rules`/`facts`/`next_id`
+/// are inputs the fire phase reads but does not restructure.
 pub(crate) struct FireSession {
     /// Passthrough — immutable input: node-id → Node network.
     pub(crate) network: Value,
@@ -884,7 +885,7 @@ pub(crate) fn session_names() -> FieldNames {
 // ── Node-kind helpers ─────────────────────────────────────────────────────────
 
 /// Extract the last `::` segment from a class FQDN string.
-/// Mirrors `node-kind-label` (`wat/rete.wat:139`).
+/// Mirrors `node-kind-label` (`wat/rete.wat`).
 /// "wat::rete::AlphaNode" → "AlphaNode".
 pub(crate) fn node_kind_label(class_fqdn: &str) -> &str {
     class_fqdn.rsplit("::").next().unwrap_or(class_fqdn)
@@ -910,7 +911,7 @@ pub(crate) fn kind_of(node: &Value) -> &str {
 }
 
 /// Read the children PV (a `Value::wat__core__PersistentVector<i64>`) from a node.
-/// Mirrors `node-children-ids` (`wat/rete.wat:155`).
+/// Mirrors `node-children-ids` (`wat/rete.wat`).
 /// Children field by kind: Alpha/Test/Negation/Exists at `[2]`, RootJoin/HashJoin
 /// at `[1]`, Accumulate at `[4]`. Production / Query → empty (leaves).
 pub(crate) fn node_children(node: &Value) -> Vec<i64> {
@@ -950,10 +951,10 @@ pub(crate) fn node_children(node: &Value) -> Vec<i64> {
 /// any unrecognized kind) has no children field and passes through unchanged.
 ///
 /// Used ONLY by `fire_rules_stratified`'s per-stratum network slice (P9): the wat compiler
-/// (`find-or-mint-alpha`/`find-or-mint-root-join`, `wat/rete.wat`) dedups the NODE when two
+/// (`find-or-mint-alpha`/`find-or-mint-root-join`, `wat/rete/compile.wat`) dedups the NODE when two
 /// rules share an identical condition, but the wiring call (`network-add-child`) that follows
 /// is unconditional — so a shared Alpha/RootJoin ends up with one literal duplicate `children`
-/// entry PER RULE sharing that condition (the doc-commented `wat/rete.wat:1772-1775`
+/// entry PER RULE sharing that condition (the doc-commented `wat/rete/compile.wat`
 /// shared-alpha hazard). Reusing that one already-compiled network across every stratum (no
 /// recompile) would otherwise replay each token once per duplicate entry — never a WRONG
 /// final fact (production still dedups by value) but a real N× per-round blow-up. This
@@ -1113,11 +1114,8 @@ pub(crate) fn make_element(fact: u32, off: u32, len: u16) -> Element {
     }
 }
 
-/// Destructure an Element: (fact, bindings).
-/// Group C: returns borrows — no clone of the bindings map per match.
-/// A native `Element` cannot be malformed — the two `panic!` arms this used to have (for a
-/// non-Record Value or a non-PersistentMap bindings field) are gone; the one place a malformed
-/// Value could arrive is now `value_to_element`, which returns a `Result` like `value_to_token`.
+/// Intern a bind-variable key into the fire-scoped `bind_keys` table.
+/// Returns the existing id on HIT; clones `k` once on MISS.
 pub(crate) fn intern_key(keys: &mut Vec<Value>, k: &Value) -> u32 {
     if let Some(i) = keys.iter().position(|x| x == k) {
         return i as u32;

@@ -30,7 +30,9 @@ use std::sync::Arc;
 use crate::rete::expr_ir::{apply_op, Expr, Program};
 use crate::rete::matcher::{compare_values, Bindings, CmpKind};
 use crate::rete::vocabulary::RETE_OPS;
-use crate::runtime::{EvalBreak, RuntimeError, RuntimeErrorKind, Value};
+use crate::runtime::{
+    project_holon_rete_fallback, EvalBreak, HolonReteProject, RuntimeError, RuntimeErrorKind, Value,
+};
 use crate::span::Span;
 
 type EqBuckets = HashMap<Value, Vec<i64>>;
@@ -73,6 +75,9 @@ enum DimCon {
     Eq(Value),
     Range(CmpKind, Value),
 }
+
+type DimCons = HashMap<DimKey, DimCon>;
+type WhereDiscs = HashMap<i64, DimCons>;
 
 /// One level: branch on a compiled dim. Equality fan-out + range guards + wildcard.
 pub(crate) struct WhereDiscNode {
@@ -121,7 +126,7 @@ impl WhereTree {
         if compiled_wheres.is_empty() {
             return Self::empty();
         }
-        let mut disc: HashMap<i64, HashMap<DimKey, DimCon>> =
+        let mut disc: WhereDiscs =
             HashMap::with_capacity(compiled_wheres.len());
         let mut dim_set: HashSet<DimKey> = HashSet::new();
         for (id, prog) in compiled_wheres {
@@ -177,7 +182,7 @@ impl WhereTree {
 
 fn build_node(
     test_ids: Vec<i64>,
-    disc: &HashMap<i64, HashMap<DimKey, DimCon>>,
+    disc: &WhereDiscs,
     dims: &[DimKey],
     pos: usize,
 ) -> Arc<WhereDiscNode> {
@@ -470,7 +475,7 @@ fn exec_dim<B: Bindings + ?Sized>(d: &DimKey, bindings: &B, span: &Span) -> Resu
             for a in args.iter() {
                 vs.push(exec_dim(a, bindings, span)?);
             }
-            apply_op(*op, &vs, span)
+            apply_op(*op, &vs, span, None)
         }
         DimKey::CallFallback {
             op,
@@ -482,13 +487,17 @@ fn exec_dim<B: Bindings + ?Sized>(d: &DimKey, bindings: &B, span: &Span) -> Resu
             for a in args.iter() {
                 vs.push(exec_dim(a, bindings, span)?);
             }
-            match apply_op(*op, &vs, span) {
+            match apply_op(*op, &vs, span, None) {
                 Ok(Value::f64(x)) if !x.is_finite() => exec_dim(fallback, bindings, span),
                 Ok(Value::Option(opt)) => match opt.as_ref() {
                     Some(v) => Ok(v.clone()),
                     None => exec_dim(fallback, bindings, span),
                 },
-                Ok(v) => Ok(v),
+                Ok(v) => match project_holon_rete_fallback(&v, row.rete_name, span)? {
+                    HolonReteProject::Scalar(x) => Ok(Value::f64(x)),
+                    HolonReteProject::Fallback => exec_dim(fallback, bindings, span),
+                    HolonReteProject::NotHolon => Ok(v),
+                },
                 Err(EvalBreak::Diagnostic(e))
                     if matches!(
                         e.kind(),

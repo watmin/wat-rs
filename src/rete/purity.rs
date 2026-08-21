@@ -17,9 +17,9 @@
 //! Both classifiers are DEFAULT-DENY: a head's property holds only if PROVEN (a known intrinsic whose
 //! metadata declares it, or a user fn whose body transitively holds it); anything unproven is rejected.
 //! The per-op metadata is a small HAND-MANAGED map (`intrinsic_meta`) — the explicit v1 projection of
-//! the queryable registry that arc 255 will eventually own (see
-//! `docs/arc/2026/06/255-builtin-registry/NOTE-purity-is-definition-time-queryable-metadata.md`). When
-//! 255 lands, delete this map and have the predicates query `metadata-of` instead.
+//! the queryable registry (arc 255; see
+//! `docs/arc/2026/06/255-builtin-registry/NOTE-purity-is-definition-time-queryable-metadata.md`).
+//! This file is the v1 hand map. rune:exigere(attested-arc) — registry is arc 255.
 //!
 //! ## Entry points
 //!
@@ -90,7 +90,7 @@ pub(crate) enum Axis {
     /// `[[feedback_a_gates_name_is_where_the_lie_lives]]`
     ///
     /// ★ THE NAME IS A WORD IN A SENTENCE, not a label. `axis-violation-message`
-    /// (`wat/rete.wat:603-632`) builds the user-facing refusal by literal `string::concat` per
+    /// (`wat/rete/compile.wat`) builds the user-facing refusal by literal `string::concat` per
     /// arm — "is not pure" / "is not deterministic" / "is not total" — so this variant's fourth
     /// arm reads **"'<head>' is not a rete primitive"**, which is the law itself, and tells the
     /// author what to do without a lookup. (An earlier spelling, `Vocabulary`, was cast to
@@ -188,8 +188,8 @@ impl AxisViolation {
 
 // ─── The hand-managed per-op metadata map (v1 projection of arc 255) ───────────
 
-/// Declared properties of a known intrinsic. The single hand source of truth until arc 255 lifts it
-/// to a queryable registry. DEFAULT-DENY: a head NOT covered here returns `None` ⇒ neither property.
+/// Declared properties of a known intrinsic. The v1 hand source of truth
+/// (arc 255 is the registry). DEFAULT-DENY: a head NOT covered here returns `None` ⇒ neither property.
 /// `pub(crate)` (arc 278 #55 slice one): `rete::vocabulary::ReteOp` embeds this type directly
 /// (its `meta` field) so the table's rows can declare their whitelist entry inline — "reuse
 /// purity.rs's type" per the design stone's own sketch, rather than a second, parallel struct.
@@ -211,7 +211,7 @@ pub(crate) struct OpMeta {
 /// ⚠ **HAND-MANAGED IS THE DEFECT, and it is a STEM fix — the root is arc 255.** This is one list
 /// transcribed from another, so a verb minted in `dispatch_keyword_head_value` is silently
 /// *unclassified* here, and unclassified means a rule that uses it **cannot compile**
-/// (`compile-condition` panics on `pure? = false`, `wat/rete.wat:566`). Nothing detects that; only
+/// (`compile-condition` panics on `pure? = false`, `wat/rete/compile.wat`). Nothing detects that; only
 /// a user hitting it does. The 2026-08-01 sweep below closed 35 such verbs, including the entire
 /// `String/` family. **The wall is purity declared where the verb is DEFINED**, so a verb cannot
 /// exist unclassified — arc 255's builtin registry, already named as this recognizer's successor in
@@ -484,7 +484,7 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             // nothing ever tripped it.
             //
             // The cost was real and hard: `compile-condition` PANICS on `pure? = false`
-            // (`wat/rete.wat:566`), so `(:wat::rete::where (:wat::core::i64::> ?bytes 10000))` and
+            // (`wat/rete/compile.wat`), so `(:wat::rete::where (:wat::core::i64::> ?bytes 10000))` and
             // `(:wat::rete::where (:wat::core::String/starts-with? ?path "/adm"))` were BOTH
             // uncompilable — and the same gate fences the sift `Sieve::Predicate` form, so this
             // constrained the chaos engine's server-side filter too, not just rete rules. It also
@@ -838,7 +838,7 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
 /// names, and (b) `freeze::validate_holon_record_capacity` validates a HolonRecord's dim budget
 /// — both running whenever the CONSTRUCTING CODE (a `defn` body) is itself type-checked. The
 /// surface form's problem was structural, not a missing check to port: a `:then`/`:when` item is
-/// captured under `(:wat::core::quote …)` by `defrule`'s macro template (`wat/rete.wat:2251`),
+/// captured under `(:wat::core::quote …)` by `defrule`'s macro template (`wat/rete/syntax.wat`),
 /// and `expand_form`'s recursive macro-expansion walk stops dead at that `quote` boundary
 /// (`src/macros/expand.rs:436-444`) — so the bare surface head is what a `:then`/`:when` item
 /// carries forever, and `--check`'s `infer` does not recurse into quoted data either
@@ -897,8 +897,8 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
 /// own wiring newly exposed) now has a freeze-time wall naming it, in place of a fire-time
 /// surprise naming only the reader that tripped over it.
 ///
-/// INTERIM recognizer keyed on the frozen TypeEnv, until arc 255's builtin-registry becomes the
-/// single queryable purity/totality source and subsumes it.
+/// INTERIM recognizer keyed on the frozen TypeEnv. Arc 255 is the registry
+/// (`docs/arc/2026/06/255-builtin-registry/`).
 /// Is `items` a MACRO-LOWERED construction of a **declared** aggregate?
 ///
 /// `(:wat::core::kwargs-construct :cg::Rate :count c …)` / `(:wat::core::aggregate-new :cg::Rate c …)`
@@ -953,8 +953,8 @@ fn constructor_meta(head: &str, sym: &SymbolTable) -> Option<OpMeta> {
 /// Record/HolonRecord accessor is pure ∧ deterministic, a Struct accessor is impure (a struct can
 /// hold a live resource, arc 293.W) — the exact declaration `constructor_meta` / `is_pure_type`
 /// reads. Declaration-read from the frozen TypeEnv (resolve the type, don't string-match), so it
-/// covers every user record; NOT a hand-list. INTERIM recognizer keyed on the frozen TypeEnv, until
-/// arc 255's builtin-registry becomes the single queryable purity source and subsumes it.
+/// covers every user record; NOT a hand-list. INTERIM recognizer keyed on the frozen TypeEnv.
+/// Arc 255 is the registry.
 fn accessor_meta(head: &str, sym: &SymbolTable) -> Option<OpMeta> {
     let types = sym.types_deref()?;
     // Accessors register as `{agg.name}/{field}` (runtime.rs); `agg.name` carries the leading
@@ -982,7 +982,7 @@ fn accessor_meta(head: &str, sym: &SymbolTable) -> Option<OpMeta> {
 }
 
 /// Does `head` satisfy `axis`? Data constructors and field accessors are recognized first
-/// (pure-by-declaration, interim pre-255); then user fns recurse transitively; intrinsics consult
+/// (pure-by-declaration); then user fns recurse transitively; intrinsics consult
 /// `intrinsic_meta`; unknown heads default-deny.
 fn head_ok(head: &str, axis: Axis, sym: &SymbolTable, seen: &mut HashSet<String>) -> Result<(), AxisViolation> {
     // Data constructor (record/holon/enum-variant pure; struct impure) — recognized BEFORE the
@@ -1978,7 +1978,7 @@ pub(crate) fn eval_axis_violation(
 /// `intrinsic_meta` is, by its own doc, "hand-managed (enumerated from
 /// `dispatch_keyword_head_value`)" — one list transcribed from another. A verb minted in the
 /// dispatch table is therefore silently *unclassified* here, and unclassified is not a harmless
-/// default: `compile-condition` **panics** on `pure? = false` (`wat/rete.wat:566`), so a rule using
+/// default: `compile-condition` **panics** on `pure? = false` (`wat/rete/compile.wat`), so a rule using
 /// it **cannot compile**. Nothing detected that. On 2026-08-01 it had accumulated to 35 verbs,
 /// including every `i64`/`f64` comparison, the entire `String/` family, and all 105
 /// `:wat::holon::` verbs — which welded shut R4's designed VSA seam. It was found by a user-shaped
@@ -2002,7 +2002,7 @@ pub(crate) fn eval_axis_violation(
 /// dispositions; it never proposes deleting a verb.
 ///
 /// The root remains arc 255 — purity declared where the verb is *defined*, so the transcription
-/// step disappears. This gate is what holds the line until then.
+/// step disappears. This gate holds the line while the hand map is v1.
 #[cfg(test)]
 mod completeness_gate {
     use super::intrinsic_meta;
@@ -2332,11 +2332,13 @@ mod completeness_gate {
 
         // The worklist, grouped by namespace — the INVENTORY is the deliverable, not the count
         // (`UNADOPTED.md`). A bare number tells nobody where to start.
+        // rune:perspicere(read-once) — completeness print grouping; alias would be a mumble.
         let mut by_ns: std::collections::BTreeMap<String, Vec<&String>> = Default::default();
         for v in &unreviewed {
             let ns = v.rsplit_once("::").map(|(a, _)| a.to_string()).unwrap_or_else(|| v.clone());
             by_ns.entry(ns).or_default().push(v);
         }
+        // rune:perspicere(read-once) — completeness print rows; alias would be a mumble.
         let mut rows: Vec<(usize, String, Vec<&String>)> =
             by_ns.into_iter().map(|(k, v)| (v.len(), k, v)).collect();
         rows.sort_by(|a, b| b.0.cmp(&a.0).then(a.1.cmp(&b.1)));

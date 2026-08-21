@@ -25,9 +25,9 @@
 ;; free scale dial (the derived-set-size driver), `strata` (N) proves genuine chain depth up to
 ;; the ceiling — matching the axis note "N strata x M items so the derived set is large".
 ;;
-;; Fires the NATIVE production verb `:wat::rete::fire-rules` (delegates to `fire-rules'`, which
-;; gained native stratification natively per arc278 stone 7-strat-native — the differential-tested
-;; fast path; NOT the wat oracle `fire-rules-spec`).
+;; Fires the NATIVE production verb `:wat::rete::fire-rules` (native stratification,
+;; arc278 stone 7-strat-native — the differential-tested fast path; NOT
+;; `fire-rules$oracle`).
 ;;
 ;; :derived is the FULL SORTED derived-fact set, canonicalized as a single i64 per fact
 ;; (stratum * 1,000,000 + k) so it can be compared byte-for-byte against Clara's rendering of the

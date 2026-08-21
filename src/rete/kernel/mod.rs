@@ -1,6 +1,6 @@
 //! Arc 278 Stone P1 — native `FireSession` + fire kernel.
 //!
-//! Split: `wm` types, `fire` loop, `arm` intern, `stratify` driver,
+//! Split: `session` types, `fire` loop, `arm` intern, `stratify` driver,
 //! `census` instrument, `insert` overlay. Tests are `tests.rs`.
 //!
 //! The mutable mirror of a `:wat::rete::Session` that the fire kernel (P2–P5) mutates
@@ -9,8 +9,8 @@
 //! is lossless: `to_persistent(to_transient(s)) == s` for every compiled / fired session.
 //!
 //! Both functions are `pub(crate)` — the transient mutation is sealed in Rust; no
-//! mutation primitive is exposed to the wat language surface. The user calls `fire`
-//! (P5), never the transient.
+//! mutation primitive is exposed to the wat language surface. The user calls
+//! `fire-rules` / `fire-once`, never the transient.
 //!
 //! ## Session record (8 fields, declaration order — `wat/rete.wat` `defrecord Session`)
 //! ```text
@@ -24,8 +24,8 @@
 //! query-memory      <- :wat::core::PersistentMap
 //! ```
 
-mod wm;
-pub(crate) use wm::*;
+mod session;
+pub(crate) use session::*;
 mod census;
 pub(crate) use census::*;
 mod arm;

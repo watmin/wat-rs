@@ -21,16 +21,34 @@ measurement. GNU `/usr/bin/time` is not installed; bash `time`
 is a keyword (`which time` empty).
 insert-prime-split LANDED (insert − conj 1933 → 310 ns). Host
 encode/sort after query-read is compiled-wat, not rete.
-Queue: **recast vigilia.** Stone **29 REJECTED**
+Queue: **intueri comment-geography leftovers; other wards CONVERGED twice.**
+Stone **29 REJECTED**
 (2026-08-20): intern stays discrete per compile-all
 (`rust_identity`). Identical rules do not share. Identical
 queries do not share. Query-memory is per Session. Overlay
 HIT is the same connection. Athena content-address would
 make `release-session` a cross-connection invariant — do
 not construct it. `NEXT-STRIKES-after-shadow.md`. grok-rete
-DR **d0973fb1** (was e294a142; do not cite the old hash).
+DR **82b9b551** (was d0973fb1; do not cite the old hash).
+Inward vigilia recast **DIVERGED**; L1+L2 drive is on disk (this tree,
+dirty after `82b9b551`). `wm.rs` → `session.rs`. Stratify holds the
+slice arm as a value (`fire_fixpoint_delta_armed`). Primed public-entry
+docs gone. `JoinKeysCache` / `RhsSlotTables` / `AlphaDiscs` /
+`OrBranches` / `WhereDiscs` used at construction. `intern_key` doc
+names the intern. Exigere `Follow-up` and stones 6–8 present-tense.
+Intern doors share `rete_arm_build_put`. rete lib **104**. clippy
+`-D warnings` (`--lib`) silent. Recast to confirm CONVERGES. Do not
+stamp `vigilatum` until a live recast is 0+0.
+Circumspicere (this turn): shipped-claim lies closed
+(`kernel is wm` → `session`; Session comments still said
+`fire-once'` / `fire-rules-spec`). Negative space: slice-arm
+as value had no rete-lib weigh after intern-put removal —
+`probe_arc278_7strat*` + `probe_arc278_not_and*` **6/6**
+green. TLS intern still requires connection affinity (stone
+27). `release-session` is hangup, not Drop (stone 28).
+Do not stamp.
 Dirty: vigilia L1+L2 drive + intern-trio docs + stones
-27–28 + 29 reject. Kernel is `wm` / `fire` / `arm` /
+27–28 + 29 reject. Kernel is `session` / `fire` / `arm` /
 `stratify` / `census` / `insert`. Live names:
 `FireSession`, `InternedNetwork`, `WhereDiscNode`,
 `AlphaDiscNode`. Stratify is `StratifyView` / `RuleDep` /

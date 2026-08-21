@@ -4,8 +4,8 @@
 //!
 //! Arc 278 — the rules engine. The rete home mirrors `src/collection/` in layout:
 //! a `mod.rs` warding the home boundary + a `matcher.rs` carrying the single-fact
-//! alpha-match primitive. New rete Rust primitives land here; the WAT-level engine
-//! (the session, beta network, join layer) rides on top.
+//! alpha-match primitive (oracle / differential). Native fire is `kernel/`.
+//! The wat files are compile + `$oracle` reference, not the production fire path.
 //!
 //! ## Stone map
 //! - **Stone 2a** (`matcher.rs`) — `eval_alpha_match` is the oracle / differential
@@ -39,7 +39,7 @@ pub(crate) mod validate;
 // zero-arg rule fns (ret_type :wat::rete::Rule), invoke each → PersistentVector<Rule>.
 pub(crate) mod collect;
 // Stone P1 (`kernel/`) — FireSession + fire + arm intern + insert.
-// Sealed Rust. Fire kernel (P2–P5) mutates the transient Session.
+// Sealed Rust. Fire kernel (P2–P5) mutates `FireSession`.
 pub(crate) mod kernel;
 // Stone 6a (purity.rs) — default-deny purity classifier: is_pure_expr / is_pure_fn (transitive,
 // cycle-safe) + eval_pure_predicate (the :wat::rete::pure? primitive entry point).

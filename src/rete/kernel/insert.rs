@@ -1,4 +1,4 @@
-//! Native `insert'` / `insert-all'`. Session overlay by field name.
+//! Native `insert` / `insert-all`. Session overlay by field name.
 
 use std::sync::Arc;
 
@@ -8,7 +8,7 @@ use crate::span::Span;
 use crate::types::Nature;
 use crate::value::value::AggregateValue;
 
-// ── Public entry: native insert' ──────────────────────────────────────────────
+// ── Public entry: native insert ───────────────────────────────────────────────
 
 /// `facts` slot from the Aggregate's carried names (arc 296 G).
 /// TypeEnv is not on this path (`DESIGN-STONE-insert-facts-from-names`).
@@ -33,9 +33,9 @@ fn session_facts_idx(
 
 /// `(:wat::rete::insert <session> <fact>) -> :wat::rete::Session`
 ///
-/// Native dual of the wat oracle `insert-spec` (`wat/rete.wat:833`, renamed from `insert`).
-/// Stages `fact` into the Session's `facts` field. ZERO activation, mirroring `rete.wat:828-830`:
-/// the working memory stays open until `fire-rules`, so this touches no memory and walks no
+/// Native dual of the wat oracle `insert$oracle` (`wat/rete/oracle/insert.wat`).
+/// Stages `fact` into the Session's `facts` field. ZERO activation:
+/// facts stay staged until `fire-rules`, so this touches no memory and walks no
 /// network. The other Session fields carry through untouched.
 ///
 /// ★ Contract: `facts` is resolved BY NAME from `agg.names` — never by positional
@@ -67,9 +67,9 @@ pub(crate) fn eval_insert_native(
 
 /// Public `:wat::rete::insert` (`DESIGN-STONE-insert-prime-split`).
 ///
-/// 2-ary is the streaming hot path — same native body as `insert'`, not a
+/// 2-ary is the streaming hot path — same native body as `insert`, not a
 /// one-element PersistentVector through `insert-all`. 3+ sugar collects
-/// the facts into one PV and rebuilds the Session once (`insert-all'`).
+/// the facts into one PV and rebuilds the Session once (`insert-all`).
 /// The wat `defclause` remains the type surface; runtime dispatch takes
 /// this arm first so the 2-ary body is not `apply_function`'d.
 pub(crate) fn eval_insert_public(
@@ -186,7 +186,7 @@ fn insert_facts_on_session(
 
     // Extend the resolved `facts` PersistentVector by every element of `new_facts_vec` in ONE
     // concat; every other field carries through unchanged (structural clone). This single
-    // concat + single Session rebuild (below) is the whole win over N `insert'` calls.
+    // concat + single Session rebuild (below) is the whole win over N `insert` calls.
     let facts_val = &agg.fields[facts_idx];
     let new_facts = crate::collection::eval::vector_concat_inner(facts_val, &new_facts_vec)?;
 
@@ -200,17 +200,17 @@ fn insert_facts_on_session(
     ))))
 }
 
-// ── Public entry: native insert-all' ───────────────────────────────────────────
+// ── Public entry: native insert-all ────────────────────────────────────────────
 
 /// `(:wat::rete::insert-all <session> <facts>) -> :wat::rete::Session`
 ///
-/// The batch sibling of `insert'` — native dual of the wat oracle `insert-all-spec`
-/// (`wat/rete.wat`). Stages every element of `facts` (a `PersistentVector<Record>`) into the
-/// Session's `facts` field in ONE rebuild, instead of N rebuilds (`insert'` × N). ZERO
-/// activation, same contract as `insert'` (`rete.wat:828-830`): the working memory stays open
-/// until `fire-rules`. The other seven `Session` fields carry through untouched.
+/// The batch sibling of `insert` — native dual of the wat oracle `insert-all$oracle`
+/// (`wat/rete/oracle/insert.wat`). Stages every element of `facts` (a `PersistentVector<Record>`) into the
+/// Session's `facts` field in ONE rebuild, instead of N rebuilds (`insert` × N). ZERO
+/// activation, same contract as `insert`: facts stay staged until `fire-rules`.
+/// The other seven `Session` fields carry through untouched.
 ///
-/// ★ This is the entire point of the stone: `insert'` reconstructs the 8-field `Session` once
+/// ★ This is the entire point of the stone: `insert` reconstructs the 8-field `Session` once
 /// PER FACT (~1.03 µs of pure rebuild above a bare `conj`, measured in
 /// `DESIGN-STONE-insert-all.md`); this extends the resolved `facts` PersistentVector by N
 /// elements via one `Vector/concat` and rebuilds the `Session` exactly once.
