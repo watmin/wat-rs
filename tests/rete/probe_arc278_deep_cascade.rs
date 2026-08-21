@@ -6,9 +6,9 @@
 //! script's single-Node-type shape). `Stage{N}` is reachable ONLY after N cascade rounds.
 //!
 //! The contract: native `fire-rules` and wat `fire-rules$oracle` derive the SAME deepest-level count (== width =
-//! full closure), at depth where the re-run-vs-delta distinction bites. GREEN now under P4a (both re-run);
-//! P4b converts the native side to delta-incremental IN PLACE — this gate must STAY green (the proof delta ==
-//! re-run at depth), while the wat perf bench shows the O(depth²)→linear bend.
+//! full closure). Native is semi-naive delta (`fire_fixpoint_delta`); `$oracle` is re-run-from-scratch.
+//! This gate stays green as the proof that delta == oracle at depth, while the wat perf bench shows
+//! the O(depth²)→linear bend.
 //!
 //! Run: cargo test --release -p wat --test probe_arc278_deep_cascade
 

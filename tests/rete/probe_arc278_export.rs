@@ -293,6 +293,78 @@ fn poke_named(exp: Value, field: &str, v: Value) -> Value {
     }
 }
 
+fn seq_values(v: &Value) -> Vec<Value> {
+    match v {
+        Value::Vec(xs) => xs.as_ref().clone(),
+        Value::wat__core__PersistentVector(pv) => pv.iter().cloned().collect(),
+        other => panic!("expected seq, got {other:?}"),
+    }
+}
+
+fn seq_strings(v: &Value) -> Vec<String> {
+    seq_values(v)
+        .into_iter()
+        .map(|x| match x {
+            Value::String(s) => (*s).clone(),
+            other => panic!("expected string, got {other:?}"),
+        })
+        .collect()
+}
+
+fn strings_value(ss: &[String]) -> Value {
+    Value::Vec(Arc::new(
+        ss.iter()
+            .map(|s| Value::String(Arc::new(s.clone())))
+            .collect(),
+    ))
+}
+
+fn rows_value(rows: &[Vec<String>]) -> Value {
+    Value::Vec(Arc::new(rows.iter().map(|r| strings_value(r)).collect()))
+}
+
+fn fnv1a(s: &str) -> u64 {
+    let mut h = 0xcbf29ce484222325;
+    for b in s.as_bytes() {
+        h ^= u64::from(*b);
+        h = h.wrapping_mul(0x100000001b3);
+    }
+    h
+}
+
+/// Mirror of `export.rs::abi_of`. Integration tests cannot see `pub(crate)`.
+/// Names come from the RETE_OPS table in source order; a stale parse fails
+/// the honest-pack equality assert before Import is asked.
+fn abi_of(classes: &[String], fields: &[Vec<String>]) -> String {
+    let mut s = String::from("v1");
+    for (c, fs) in classes.iter().zip(fields.iter()) {
+        s.push(';');
+        s.push_str(c);
+        s.push('[');
+        s.push_str(&fs.join(","));
+        s.push(']');
+    }
+    s.push_str(";ops:");
+    for (i, op) in rete_ops_names().iter().enumerate() {
+        if i > 0 {
+            s.push(',');
+        }
+        s.push_str(op);
+    }
+    format!("v1:{:016x}", fnv1a(&s))
+}
+
+fn rete_ops_names() -> Vec<&'static str> {
+    include_str!("../../src/rete/vocabulary.rs")
+        .lines()
+        .filter_map(|line| {
+            let rest = line.trim().strip_prefix("rete_name: \"")?;
+            rest.strip_suffix("\",")
+                .or_else(|| rest.strip_suffix('"'))
+        })
+        .collect()
+}
+
 fn poke_first_call_op(v: &mut Value, op: i64) -> bool {
     match v {
         Value::Vec(items) => {
@@ -351,6 +423,61 @@ fn import_refuses_classes_fields_len_mismatch() {
     assert!(
         msg.contains("classes length"), // rune:lint(loose-assert) — MalformedForm wraps rust_caller_span; zip wall is the contract
         "import must name classes/fields length mismatch, got {msg}"
+    );
+}
+
+#[test]
+// rune:vocare(vantage-bypass-test) — host TypeEnv field-order refuse is a fields-row poke + abi restamp; wat has no Export setter
+fn import_refuses_host_typeenv_field_order() {
+    let world = startup_beside(file!()).expect("freeze");
+    let exp = call_beside_value(file!(), ":user::cool-export").expect("export");
+    let tampered = match exp {
+        Value::Aggregate(a) => {
+            let mut rec = a.fields.as_ref().clone();
+            let classes_i = a.names.iter().position(|n| n == "classes").expect("classes");
+            let fields_i = a.names.iter().position(|n| n == "fields").expect("fields");
+            let abi_i = a.names.iter().position(|n| n == "abi").expect("abi");
+            let classes = seq_strings(&rec[classes_i]);
+            let mut fields: Vec<Vec<String>> = seq_values(&rec[fields_i])
+                .iter()
+                .map(seq_strings)
+                .collect();
+            let orig_abi = match &rec[abi_i] {
+                Value::String(s) => (**s).clone(),
+                other => panic!("expected abi string, got {other:?}"),
+            };
+            assert_eq!(
+                abi_of(&classes, &fields),
+                orig_abi,
+                "test abi_of must match packed abi (RETE_OPS parse order)"
+            );
+            let temp_i = classes
+                .iter()
+                .position(|c| c == "exp::Temp")
+                .expect("cool-export packs exp::Temp");
+            let row = fields
+                .get_mut(temp_i)
+                .expect("fields row for exp::Temp");
+            let c_i = row
+                .iter()
+                .position(|f| f == "c")
+                .expect("exp::Temp packed field c");
+            row[c_i] = "renamed".to_string();
+            rec[fields_i] = rows_value(&fields);
+            rec[abi_i] = Value::String(Arc::new(abi_of(&classes, &fields)));
+            Value::Aggregate(Arc::new(AggregateValue::record(
+                a.class.to_string(),
+                a.names.clone(),
+                Arc::new(rec),
+            )))
+        }
+        other => panic!("expected Export, got {other:?}"),
+    };
+    let err = import_one(&world, tampered).expect_err("host TypeEnv field-order miss must refuse");
+    let msg = format!("{err:?}");
+    assert!(
+        msg.contains("host TypeEnv field-order"), // rune:lint(loose-assert) — MalformedForm wraps rust_caller_span; host conjunct is the contract
+        "import must name host TypeEnv field-order, got {msg}"
     );
 }
 

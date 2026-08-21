@@ -13,7 +13,7 @@
 ;; (`then-item-fence`, `wat/rete/compile.wat`), which judges it on purity/determinism/composition, not
 ;; shape. What this wall STILL catches — because it can never resolve under ANY fence, at ANY
 ;; layer — is a bare non-`?` symbol: not a literal, not a `?var`, not a call. See
-;; `probe_arc278_then_user_forms_expr_widening.wat` for the now-legal nested-form sibling of
+;; `probe_arc278_then_user_forms_expr.wat` for the now-legal nested-form sibling of
 ;; this fixture.
 (:wat::core::defrecord :nf::In  [a <- :wat::core::i64])
 (:wat::core::defrecord :nf::Out [a <- :wat::core::i64])
