@@ -1,6 +1,39 @@
-# DESIGN — arc 109 Stone ②-i-b: the Tuple arm (finishing what ②-i scoped out)
+# DESIGN — arc 109 Stone ②-i-b: `:-`, the parameterization operator (+ the Tuple arm)
 
-**Status: DRAWN 2026-08-20.** Blocks ②-iii. Written against `e89821450`.
+**Status: RE-DRAWN 2026-08-20 after the builder's ruling on `:-`.** Blocks ②-iii.
+Written against `c557e34b5`.
+
+## ★ THE RULING — `:-` is one operator with one meaning, in every declaration position
+
+> Builder: *"the symbol ` :- ` is declaring **'this thing on the left is parameterized by the thing
+> on the right'**"* … *"this is the same as arg-spec and ret-type in my mind — they declare what
+> they are explicitly."*
+
+```clojure
+(wat.core/defn user/some-fn
+  [n :- wat.type/i64]                       ; arg-spec      — n is parameterized by i64
+  :- wat.type/i64                           ; ret-type      — the fn is parameterized by i64
+  (wat.core/+ n 1))
+
+(wat.type/Vector :- [wat.type/i64])         ; type args     — Vector is parameterized by [i64]
+(wat.type/Vector :- [wat.type/i64] 1 2 3)   ; constructor   — same head, values follow
+```
+
+**Why this is not a redundant marker, which is what I argued twice and was wrong about twice.** I
+read `:-` as a *position marker* — "a type follows here" — which is redundant wherever position
+already decides, and the mandatory type-vector (`3821db4ba`) means position always decides. That
+analysis was correct about a delimiter and simply not about `:-`. A **relation** is never redundant
+with position, because position can encode at most ONE relation implicitly, and they nest:
+
+```clojure
+[xs :- (wat.type/Vector :- [wat.type/i64])]
+     └── xs is parameterized by that type
+                             └── Vector is parameterized by [i64]
+```
+
+Two distinct facts, one operator. That is compositionality, not verbosity — and it is the same axis
+FQDN-everywhere sits on: the resolver could always find the bare name; FQDN exists so nothing is
+inferred from context. **Juxtaposition is context.**
 
 ## Why
 
@@ -70,6 +103,37 @@ Two consequences:
   syntax question — and it is a separate, larger stone, and the builder's. It does not block this
   one: keeping `nil` as `Path(":wat::core::nil")` at parse time is correct under either future.
 
+## ★★ THE MEASURED PAYOFF — `:-` retires a heuristic that GUESSES
+
+This is the part that makes the operator a correctness change and not an aesthetic one, and it was
+written down in the substrate by step ①b's own rider, who named the cure without knowing it had one:
+
+> `src/check.rs:12027`, `is_type_bracket_candidate`'s doc: *"This does not distinguish a bracket
+> from a data-vector-of-KEYWORDS, e.g. `[:a :b]` … so the ambiguity is real but currently vacuous;
+> **a future literal vector-of-keyword-VALUES in this exact position would need a different
+> production to stay unambiguous.**"*
+
+`:-` **is** that production. And the hazard is not hypothetical — measured at HEAD:
+
+```
+(:wat::core::Tuple [:a :b])          → ArityMismatch: expected 2 argument(s); got 0
+(:wat::core::Tuple "tag" [:a :b])    → ["tag" [:a :b]]        ← same vector, slot 2, fine
+```
+
+A 1-tuple whose single value is a vector of two keywords is **unwritable today**. The bracket is
+sniffed by `is_type_bracket_candidate` — a function whose entire job is to GUESS whether a bracket
+is types or data by inspecting its contents — and guessed wrong. That is the middle rung of the
+extirpare ladder: a check that runs and can be wrong. With `:-`, slot 1 is a value ALWAYS unless
+`:-` precedes it, the guess has nothing left to decide, and **`is_type_bracket_candidate` can be
+deleted outright.**
+
+⚠ **The deletion is ③'s, not this stone's**, and the sequencing is the campaign's existing rhythm:
+② ADDS the spelling (dual-read — both `(Head [T])` and `(Head :- [T])` parse), ③ makes the old ones
+illegal. While the unmarked bracket is still accepted the heuristic must stay, so
+`(:wat::core::Tuple [:a :b])` stays broken until ③. **③'s scope therefore grows by one line:
+delete `is_type_bracket_candidate` and its three call sites, and the keyword-vector value becomes
+writable as a side-effect of the hard-cut.**
+
 ## The change
 
 **(a) The verb stops canonicalizing.** `eval_keyword_to_type_form_impl` (`src/edn_shim.rs:1364`)
@@ -82,19 +146,23 @@ The one other thing that flag governs is the `:wat::type::` → `:wat::core::` a
 `type-shaped-keyword?` never selects it (no matching `<…>`). Preserving its spelling is *more*
 faithful, not less. The flip is clean.
 
-**(b) The Tuple arm brackets and honours the mode** — exactly what `Parametric` got in ②-i. The
+**(b) `:-` is ACCEPTED before the type-vector, and EMITTED by the renderer** — in the `Parametric`
+arm and the `Tuple` arm alike, in both head-spelling modes (`:-` is a Keyword and is mode-independent).
+The unmarked bracket keeps parsing; only the emitted form changes.
+
+**(c) The Tuple arm brackets and honours the mode** — exactly what `Parametric` got in ②-i. The
 head always takes a bracket, at EVERY arity including zero. The full ladder, both spellings, as the
-builder set it down:
+builder set it down, now carrying the operator:
 
 ```
-(:wat::core::Tuple)                                        ILLEGAL — a bare head is not a form
-(:wat::core::Tuple [])                                     empty
-(:wat::core::Tuple [:wat::core::i64])                      1-ary
-(:wat::core::Tuple [:wat::core::i64 :wat::core::String])   2-ary
+(:wat::core::Tuple)                                           ILLEGAL — a bare head is not a form
+(:wat::core::Tuple :- [])                                     empty
+(:wat::core::Tuple :- [:wat::core::i64])                      1-ary
+(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String])   2-ary
 
-(wat.type/Tuple [])
-(wat.type/Tuple [wat.type/i64])
-(wat.type/Tuple [wat.type/i64 wat.type/String])
+(wat.type/Tuple :- [])
+(wat.type/Tuple :- [wat.type/i64])
+(wat.type/Tuple :- [wat.type/i64 wat.type/String])
 ```
 
 ★ **The 1-ary rung is where the form surface is strictly better than the keyword surface,** and it
@@ -110,9 +178,21 @@ This is the builder's ruling, 2026-08-20:
 > *"nil is rust's unit… but `nil != ()` in wat. nil is not an empty list. `(wat.type/Tuple)` is
 > illegal, it'd be `(wat.type/Tuple [])` to be an empty tuple."*
 
+## The transitional spelling, named
+
+The corpus still writes `<-` (7,488) and `->` (6,797) for arg-spec and ret-type; `:-` appears 66
+times. Arc 251.4a made `:-` a dual-read alias for both and 251.5 hard-cuts the arrows. So a
+mid-transition site reads `[xs <- (:wat::core::Vector :- [:wat::core::i64])]` — mixed, and that is
+FINE: dual-read holds and 251.5's sweep catches the arrows up. The parametric operator lands as
+`:-` directly and never as `<-`, because `<-` contains the very glyph this arc is annihilating.
+
 ## The contract decision, pinned
 
-`pub fn parse_type_expr_preserving_with_span(kw: &str, span: &Span) -> Result<TypeExpr, TypeError>`
+**Two, and they are independent.**
+
+1. The args-tail production in `parse_type_node` (`src/types.rs:4528`) accepts BOTH
+   `[Vector(inner)]` (today) and `[Keyword(":-"), Vector(inner)]` (new). Dual-read; ③ cuts the first.
+2. `pub fn parse_type_expr_preserving_with_span(kw: &str, span: &Span) -> Result<TypeExpr, TypeError>`
 — byte-identical to `parse_type_expr_with_span` (`src/types.rs:4334`) except `canonicalize=false`.
 It **still calls `reject_any`**. It returns `Result`, NEVER `Option` — the verb surfaces parse
 errors and `parse_type_expr_audit` (the existing `canonicalize=false` path) swallows them, which is
