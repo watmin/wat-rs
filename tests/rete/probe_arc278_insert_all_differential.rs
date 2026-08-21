@@ -95,17 +95,17 @@ fn non_vacuity_n_greater_than_one_and_exact() {
 }
 
 /// 4 — THE 2-ARY PATH IS UNTOUCHED (STOP-1): a single 2-ary `insert` call must still match
-/// `insert'` called directly, fact for fact — proving the hot path was not silently re-routed
+/// `insert$native` called directly, fact for fact — proving the hot path was not silently re-routed
 /// through the new batch primitive.
 #[test]
 fn two_ary_insert_is_not_rerouted_through_insert_all() {
     let public_staged = count(":user::single-public-staged").expect("public staged");
     let native_staged = count(":user::single-native-staged").expect("native staged");
-    assert_eq!(public_staged, native_staged, "2-ary insert==insert' (staged); public={public_staged} native={native_staged}");
+    assert_eq!(public_staged, native_staged, "2-ary insert==insert$native (staged); public={public_staged} native={native_staged}");
     assert_eq!(public_staged, 1, "a single 2-ary insert must stage exactly one fact; got {public_staged}");
 
     let public_fired = count(":user::single-public-fired").expect("public fired");
     let native_fired = count(":user::single-native-fired").expect("native fired");
-    assert_eq!(public_fired, native_fired, "2-ary insert==insert' (fired); public={public_fired} native={native_fired}");
+    assert_eq!(public_fired, native_fired, "2-ary insert==insert$native (fired); public={public_fired} native={native_fired}");
     assert_eq!(public_fired, 1, "a single 2-ary insert must derive exactly one Out; got {public_fired}");
 }

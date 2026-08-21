@@ -7,8 +7,8 @@
 //!   1. **A record accessor without an `Environment`.** The corpus's most common non-arithmetic
 //!      shape is `(:arena::Route/status ?route)`. Today that reaches `eval_inner`'s head dispatch,
 //!      misses user-fn lookup / def-bound / sandbox, and lands in the LAST arm — the
-//!      keyword-as-accessor fall-through (`runtime.rs:6053-6097`), which calls
-//!      `keyword_accessor_record` (`:6119`) and LINEAR-SCANS the field names. The compiled executor
+//!      keyword-as-accessor fall-through (LAST arm of `eval_inner`), which calls
+//!      `keyword_accessor_record` and LINEAR-SCANS the field names. The compiled executor
 //!      must reach that value with no `Environment` and no head dispatch. `keyword_accessor_record`
 //!      is a PRIVATE fn in `runtime.rs`, so this probe measures whether the value is reachable at
 //!      all from outside — and by what door.

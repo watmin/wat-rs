@@ -442,10 +442,7 @@ pub(crate) fn value_token_to_native(
             len: (match_pool.len() - match_off) as u16,
         },
         binds: span_from_pairs(
-            intern.keys,
-            intern.vals,
-            intern.ids,
-            intern.pool,
+            intern,
             bindings.iter().map(|(k, v)| (k.clone(), v.clone())),
         ),
     })
@@ -1163,7 +1160,7 @@ pub(crate) fn push_element(
     fact: u32,
     pairs: impl IntoIterator<Item = (Value, Value)>,
 ) -> Element {
-    let binds = span_from_pairs(intern.keys, intern.vals, intern.ids, intern.pool, pairs);
+    let binds = span_from_pairs(intern, pairs);
     Element { fact, binds }
 }
 
@@ -1219,19 +1216,19 @@ pub(crate) fn pool_slice(pool: &[(u32, u32)], span: BindSpan) -> &[(u32, u32)] {
 }
 
 pub(crate) fn span_from_pairs(
-    keys: &mut Vec<Value>,
-    vals: &mut Vec<Value>,
-    ids: &mut crate::rete::compiled_cond::ValIntern,
-    pool: &mut Vec<(u32, u32)>,
+    intern: &mut BindIntern<'_>,
     pairs: impl IntoIterator<Item = (Value, Value)>,
 ) -> BindSpan {
-    let off = pool.len();
+    let off = intern.pool.len();
     for (k, v) in pairs {
-        pool.push((intern_key(keys, &k), intern_val(vals, ids, v)));
+        intern.pool.push((
+            intern_key(intern.keys, &k),
+            intern_val(intern.vals, intern.ids, v),
+        ));
     }
     BindSpan {
         off: off as u32,
-        len: (pool.len() - off) as u16,
+        len: (intern.pool.len() - off) as u16,
     }
 }
 

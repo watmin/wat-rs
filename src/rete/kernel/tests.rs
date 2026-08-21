@@ -6117,10 +6117,12 @@
                 let g = Value::i64((i / 200) as i64);
                 let v = Value::i64((i % 200) as i64);
                 let binds = super::span_from_pairs(
-                    &mut keys,
-                    &mut vals,
-                    &mut ids,
-                    &mut pool,
+                    &mut crate::rete::compiled_cond::BindIntern {
+                        keys: &mut keys,
+                        vals: &mut vals,
+                        ids: &mut ids,
+                        pool: &mut pool,
+                    },
                     [(gkey.clone(), g), (vkey.clone(), v)],
                 );
                 alpha.push(super::Element {
@@ -6234,10 +6236,12 @@
             let g = Value::i64((i / 200) as i64);
             let v = Value::i64((i % 200) as i64);
             let binds = super::span_from_pairs(
-                &mut keys,
-                &mut vals,
-                &mut ids,
-                &mut pool,
+                &mut crate::rete::compiled_cond::BindIntern {
+                    keys: &mut keys,
+                    vals: &mut vals,
+                    ids: &mut ids,
+                    pool: &mut pool,
+                },
                 [(gkey.clone(), g), (vkey.clone(), v)],
             );
             els.push(super::Element {
@@ -6364,10 +6368,12 @@
             let g = Value::i64((i / 200) as i64);
             let v = Value::i64((i % 200) as i64);
             let binds = super::span_from_pairs(
-                &mut keys,
-                &mut vals,
-                &mut ids,
-                &mut pool,
+                &mut crate::rete::compiled_cond::BindIntern {
+                    keys: &mut keys,
+                    vals: &mut vals,
+                    ids: &mut ids,
+                    pool: &mut pool,
+                },
                 [(gkey.clone(), g), (vkey.clone(), v)],
             );
             els.push(super::Element { fact: 0, binds });
@@ -6461,17 +6467,21 @@
         let mut bind_pool: Vec<(u32, u32)> = Vec::new();
         let mut match_pool: Vec<(u32, i64)> = Vec::new();
         let left_binds = super::span_from_pairs(
-            &mut keys,
-            &mut vals,
-            &mut ids,
-            &mut bind_pool,
+            &mut crate::rete::compiled_cond::BindIntern {
+                keys: &mut keys,
+                vals: &mut vals,
+                ids: &mut ids,
+                pool: &mut bind_pool,
+            },
             [(k.clone(), Value::i64(1)), (l.clone(), Value::i64(2))],
         );
         let right_binds = super::span_from_pairs(
-            &mut keys,
-            &mut vals,
-            &mut ids,
-            &mut bind_pool,
+            &mut crate::rete::compiled_cond::BindIntern {
+                keys: &mut keys,
+                vals: &mut vals,
+                ids: &mut ids,
+                pool: &mut bind_pool,
+            },
             [(k.clone(), Value::i64(1)), (r.clone(), Value::i64(3))],
         );
         let left_matches = super::push_match(&mut match_pool, 0, 1);
@@ -6638,17 +6648,21 @@
         let mut bind_pool: Vec<(u32, u32)> = Vec::new();
         let mut match_pool: Vec<(u32, i64)> = Vec::new();
         let left_binds = super::span_from_pairs(
-            &mut keys,
-            &mut vals,
-            &mut ids,
-            &mut bind_pool,
+            &mut crate::rete::compiled_cond::BindIntern {
+                keys: &mut keys,
+                vals: &mut vals,
+                ids: &mut ids,
+                pool: &mut bind_pool,
+            },
             [(k.clone(), Value::i64(1)), (l.clone(), Value::i64(2))],
         );
         let right_binds = super::span_from_pairs(
-            &mut keys,
-            &mut vals,
-            &mut ids,
-            &mut bind_pool,
+            &mut crate::rete::compiled_cond::BindIntern {
+                keys: &mut keys,
+                vals: &mut vals,
+                ids: &mut ids,
+                pool: &mut bind_pool,
+            },
             [(k.clone(), Value::i64(1)), (r.clone(), Value::i64(3))],
         );
         let left_matches = super::push_match(&mut match_pool, 0, 1);

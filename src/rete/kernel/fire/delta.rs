@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 use rustc_hash::{FxHashMap, FxHashSet};
 
+use crate::rete::compiled_cond::BindIntern;
 use crate::ast::WatAST;
 use crate::runtime::{EvalBreak, RuntimeError, RuntimeErrorKind, SymbolTable, Value};
 use crate::span::Span;
@@ -776,10 +777,12 @@ pub(crate) fn fire_fixpoint_delta_armed(
                             &tok,
                             result_var.clone(),
                             aggregate,
-                            &mut wm.bind_keys,
-                            &mut wm.bind_vals,
-                            &mut wm.bind_val_ids,
-                            &mut wm.bind_pool,
+                            &mut BindIntern {
+                                keys: &mut wm.bind_keys,
+                                vals: &mut wm.bind_vals,
+                                ids: &mut wm.bind_val_ids,
+                                pool: &mut wm.bind_pool,
+                            },
                         );
                         if beta_readers.contains(node_id) {
                             beta_written(*node_id, 1);
@@ -863,10 +866,12 @@ pub(crate) fn fire_fixpoint_delta_armed(
                         let new_tok = Token {
                             matches: tok.matches,
                             binds: span_from_pairs(
-                                &mut wm.bind_keys,
-                                &mut wm.bind_vals,
-                                &mut wm.bind_val_ids,
-                                &mut wm.bind_pool,
+                                &mut BindIntern {
+                                    keys: &mut wm.bind_keys,
+                                    vals: &mut wm.bind_vals,
+                                    ids: &mut wm.bind_val_ids,
+                                    pool: &mut wm.bind_pool,
+                                },
                                 new_bindings.iter().map(|(k, v)| (k.clone(), v.clone())),
                             ),
                                             };
@@ -976,10 +981,12 @@ pub(crate) fn fire_fixpoint_delta_armed(
                     let tok = Token {
                         matches: empty_span(),
                         binds: span_from_pairs(
-                            &mut wm.bind_keys,
-                            &mut wm.bind_vals,
-                            &mut wm.bind_val_ids,
-                            &mut wm.bind_pool,
+                            &mut BindIntern {
+                                keys: &mut wm.bind_keys,
+                                vals: &mut wm.bind_vals,
+                                ids: &mut wm.bind_val_ids,
+                                pool: &mut wm.bind_pool,
+                            },
                             ext.iter().map(|(k, v)| (k.clone(), v.clone())),
                         ),
                     };

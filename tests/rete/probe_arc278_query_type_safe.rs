@@ -1,15 +1,13 @@
-//! Arc 278 query (a) — RED gate for the restored type-safe front door
-//! `(:wat::rete::query fired :Type)` (wat/rete.wat's `query`, now a `defmacro` over the PRIME
-//! type-ref) and the check-time type-existence validation it depends on
-//! (src/check.rs's `:wat::runtime::return-type-of` special-case).
+//! Arc 278 query (a) — type-safe `query` mouth.
 //!
+//! Live grammar: `(:wat::rete::query session Query [kwargs…])` (`wat/rete/syntax.wat`).
 //! GREEN: `query` type-checks and returns the derived-fact count at both rule-
 //! construction shapes: the `defrule`-macro-generated defn path, and a hand-built
 //! inline `Rule` literal path. `query-by-type-string` is retired.
 //!
-//! RED->caught: a typo'd type keyword at a `query` call site
+//! RED->caught: a typo'd Query at a `query` call site
 //! (`probe_arc278_query_type_safe_typo.wat.bad`, which must NEVER start up) is a CHECK-TIME
-//! `CheckErrorKind::UnknownCallee`, not a silent 0.
+//! `TypeMismatch` (`query-read` wants Query), not a silent 0.
 //!
 //! The sibling `return-type-of` de-masking (a bare `(:wat::runtime::return-type-of <keyword>)`
 //! on an undefined type must RAISE at runtime, not echo) is covered by

@@ -1,6 +1,6 @@
-//! Arc 278 stone 5a — `defrule` (rule macro) + `query` (read facts of a type).
+//! Arc 278 stone 5a — `defrule` (rule macro) + `query` (harvest a Query).
 //!
-//! `query` reads facts of a type out of a fired session; `defrule` expands the readable rule form
+//! `query` harvests a Query out of a fired session; `defrule` expands the readable rule form
 //! into a zero-arg `defn` returning a `Rule`. The reflection that auto-gathers rules (`collect-rules`)
 //! is 5b — here the one rule is collected manually by calling its fn. Live mouths: `defrule`,
 //! `query`, `compile-all`, `insert`, `fire-rules`.

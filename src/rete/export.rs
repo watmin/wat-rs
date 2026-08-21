@@ -685,6 +685,17 @@ fn unpack_expr(v: &Value, span: &Span) -> Result<Expr, EvalBreak> {
             for x in items.iter().skip(4) {
                 fields.push(unpack_expr(x, span)?);
             }
+            if ns.len() != fields.len() {
+                return Err(malformed(
+                    span,
+                    IMPORT_OP,
+                    format!(
+                        "variant names length {} != fields length {}",
+                        ns.len(),
+                        fields.len()
+                    ),
+                ));
+            }
             Ok(Expr::Variant {
                 type_path,
                 variant_name,
@@ -1714,6 +1725,17 @@ fn import_export(export: &Value, span: &Span, sym: &SymbolTable) -> Result<Value
             fs.push(expect_str(f, IMPORT_OP, span)?.to_string());
         }
         fields.push(fs);
+    }
+    if classes.len() != fields.len() {
+        return Err(malformed(
+            span,
+            IMPORT_OP,
+            format!(
+                "classes length {} != fields length {}",
+                classes.len(),
+                fields.len()
+            ),
+        ));
     }
     let expect_abi = abi_of(&classes, &fields);
     if stored_abi != expect_abi {

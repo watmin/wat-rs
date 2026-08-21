@@ -5,7 +5,7 @@
 ;; `(:arena::Route/status ?route)`. The compiled executor must reach that field's value with no
 ;; `Environment` and no head dispatch. This fixture supplies the two halves the probe compares:
 ;; the value AS THE INTERPRETER PRODUCES IT (through the keyword-as-accessor fall-through, the LAST
-;; arm of eval_inner's head dispatch — runtime.rs:6053-6097), and the record itself, so the probe
+;; arm of eval_inner's head dispatch — keyword_accessor_record), and the record itself, so the probe
 ;; can read field 0 directly the way a compiled `Op::Field` would.
 ;;
 ;; Kept deliberately minimal: this proves a MECHANISM is reachable, not a behaviour.

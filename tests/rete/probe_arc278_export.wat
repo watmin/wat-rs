@@ -44,6 +44,16 @@
         (:wat::rete::fire-rules$oracle (:exp::seed s1))
         (:exp::q-Hit)))))
 
+(:wat::core::defn :user::spec-once-on-import [] -> :wat::core::i64
+  (:wat::core::let [s0 (:wat::rete::compile-all
+                         (:wat::core::PersistentVector (:exp::cool))
+                         (:wat::core::PersistentVector (:exp::q-Hit)))
+                    s1 (:wat::rete::import (:wat::rete::export s0))]
+    (:wat::core::length
+      (:wat::rete::query
+        (:wat::rete::fire-once$oracle (:exp::seed s1))
+        (:exp::q-Hit)))))
+
 (:wat::core::defn :user::import-hits [] -> :wat::core::i64
   (:wat::core::let [s0 (:wat::rete::compile-all
                          (:wat::core::PersistentVector (:exp::cool))

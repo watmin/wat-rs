@@ -29,7 +29,7 @@
 //!
 //! **This probe does not cover site 4 of the four** — `alpha_tree.rs:243`'s equality fan-out —
 //! because it does not need to. `alpha_tree_discriminates_candidates_to_about_one_at_50_100`
-//! (`kernel.rs:6775`) already gates it and is MUTATION-PROVEN: breaking that literal takes mean
+//! (`kernel/tests.rs`) already gates it and is MUTATION-PROVEN: breaking that literal takes mean
 //! candidates/fact from 1.000 to 50.000 and the row fails naming the exact mode ("the tree is
 //! correct but discriminates nothing").
 //!

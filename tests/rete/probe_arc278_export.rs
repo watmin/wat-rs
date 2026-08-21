@@ -33,6 +33,26 @@ fn spec_refuses_imported_export() {
 }
 
 #[test]
+fn spec_once_refuses_imported_export() {
+    let panicked = std::panic::catch_unwind(|| {
+        call_beside_value(file!(), ":user::spec-once-on-import")
+    });
+    match panicked {
+        Err(_) => {}
+        Ok(Ok(v)) => panic!(
+            "fire-once$oracle must refuse an Export, not return {v:?} (silent empty is the lie)"
+        ),
+        Ok(Err(e)) => {
+            let msg = format!("{e:?}");
+            assert!(
+                msg.contains("oracle cannot consume") || msg.contains("Export"), // rune:lint(loose-assert) — MalformedForm wraps rust_caller_span line; wall name is the contract
+                "refuse must name the wall, got {msg}"
+            );
+        }
+    }
+}
+
+#[test]
 fn imported_export_derives_the_same_hit() {
     let v = call_beside_value(file!(), ":user::import-hits").expect("import fire");
     assert_eq!(

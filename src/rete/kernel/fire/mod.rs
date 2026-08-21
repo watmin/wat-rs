@@ -6,7 +6,7 @@ use std::sync::Arc;
 use rustc_hash::FxHashMap;
 
 use crate::ast::WatAST;
-use crate::rete::compiled_cond::ValIntern;
+use crate::rete::compiled_cond::{BindIntern, ValIntern};
 use crate::rete::matcher::Bindings;
 use crate::runtime::{
     EvalBreak, RuntimeError, RuntimeErrorKind, SymbolTable, Value,
@@ -477,32 +477,29 @@ fn token_assoc(
     tok: &Token,
     k: Value,
     v: Value,
-    keys: &mut Vec<Value>,
-    vals: &mut Vec<Value>,
-    ids: &mut crate::rete::compiled_cond::ValIntern,
-    pool: &mut Vec<(u32, u32)>,
+    intern: &mut BindIntern<'_>,
 ) -> Token {
-    let key_id = intern_key(keys, &k);
-    let vid = intern_val(vals, ids, v);
-    let pairs: Vec<(u32, u32)> = pool_slice(pool, tok.binds).to_vec();
-    let start = pool.len();
+    let key_id = intern_key(intern.keys, &k);
+    let vid = intern_val(intern.vals, intern.ids, v);
+    let pairs: Vec<(u32, u32)> = pool_slice(intern.pool, tok.binds).to_vec();
+    let start = intern.pool.len();
     let mut found = false;
     for (ek, ev) in pairs {
         if ek == key_id {
-            pool.push((ek, vid));
+            intern.pool.push((ek, vid));
             found = true;
         } else {
-            pool.push((ek, ev));
+            intern.pool.push((ek, ev));
         }
     }
     if !found {
-        pool.push((key_id, vid));
+        intern.pool.push((key_id, vid));
     }
     Token {
         matches: tok.matches,
         binds: BindSpan {
             off: start as u32,
-            len: (pool.len() - start) as u16,
+            len: (intern.pool.len() - start) as u16,
         },
     }
 }
