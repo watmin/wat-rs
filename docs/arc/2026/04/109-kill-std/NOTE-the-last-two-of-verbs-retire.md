@@ -39,7 +39,17 @@ Confirmed neither replacement head exists yet: `(:wat::core::List 1 2 3)` and
 `(:wat::core::char "x")` both return `UnknownFunction`. This is a rename that must MINT the new
 head, exactly as 1f and 1g did, not a redirect to something already there.
 
-## The two halves are NOT the same size
+## The two halves are NOT the same size — BUILDER-CONFIRMED 2026-08-20
+
+> Builder, on reading the split: *"yeah.... char may only hold a single type.. i agree.. **List need
+> the param-spec declaration**"*
+
+Recorded as a ruling, not as my inference, because the two carry different weight: the split below
+was derived from the disk by the orchestrator and is now confirmed at the source. Cite the ruling,
+not the derivation, for the `List` half; the `char` half rests on `char` being monomorphic, which
+the disk shows and anyone can re-check.
+`[[feedback_the_authority_you_cite_decides_who_can_catch_you]]`
+
 
 - **`char/of` → `char`** is a pure rename. `char` is not parametric, so no param-spec, no
   `split_type_param_bracket`, nothing from ②-i-b. It could ship at any time.
