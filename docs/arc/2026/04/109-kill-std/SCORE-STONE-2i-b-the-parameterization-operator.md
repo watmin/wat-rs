@@ -84,3 +84,57 @@ existing unformatted regions in two. Zero drift added; the count was not the mea
   inside `split_type_param_bracket` — so ③ deletes one door, not six call sites.
 - The `def*` name-slot binder (`:- [T …]`), the codemod's slot rule, and `List/of` — all filed as
   their own notes, all sequenced behind this stone.
+
+---
+
+## ⛔ AMENDMENT 2026-08-21 — ②-i-b SHIPPED THE OPERATOR FOR THREE CONSTRUCTORS AND NOT THE OTHER THREE. I SCORED IT GREEN.
+
+Found while answering a builder question about `(wat.type/HashSet :- [I] …)` — **the form did not
+work**, four commits after this stone was scored ✅.
+
+```
+Tuple · PersistentMap · PersistentVector      :-  WORKED     (split_type_param_bracket)
+Vector · HashSet · HashMap                    :-  REJECTED   (unwrap_type_param_bracket)
+```
+
+The symptom is a confusing one, because the operator is read as a VALUE:
+
+```
+(:wat::core::HashSet :- [:wat::core::i64] 1 2)
+  → "HashSet: parameter element #1 expects :-; got :wat::core::i64"
+```
+
+**The brief asked for it.** `BRIEF-STONE-2i-b`, room 2, verbatim: *"`src/check.rs:11993`
+`unwrap_type_param_bracket` — the UNCONDITIONAL splice used by `Vector`/`HashMap`/`HashSet`. …
+Adding a leading-`:-` arm here is internal; no call site changes."* The rider's report described
+the new door and the three re-pointed call sites and never claimed to have touched
+`unwrap_type_param_bracket` — so the omission was visible in its own report.
+
+★ **And my scoring is what let it through.** Look at what I ran: I exercised
+`(Tuple :- [])`, `(Tuple :- [kw kw] :a :b)`, `(PersistentVector :- […])`, `(PersistentMap :- […])`
+— all three CONDITIONAL heads — and for the unconditional three I ran only
+`(Vector [i64] 1 2 3)` and `(Vector :i64 1 2 3)`, which are the OLD spellings, as additive controls.
+
+**Every new-spelling row I wrote landed on the half the rider had changed, and every row on the
+other half tested the half that could not break.** The controls were real controls; they just
+answered a different question than the one the stone was about, and a full green over that split
+reads exactly like a full green over everything.
+`[[feedback_a_pass_answers_only_the_question_the_instrument_asks]]`
+
+**Fixed 2026-08-21.** `unwrap_type_param_bracket` now matches on the whole arg slice with two arms
+— `[Keyword(":-"), Vector, rest…]` and `[Vector, rest…]` — mirroring `split_type_param_bracket`,
+including the deliberate absence of any content sniffing or `!is_empty()` guard on the `:-` arm.
+Verified by running all six constructors in the new spelling and all three old spellings:
+
+```
+Vector :- […]  → [1 2]        Tuple :- […]            → [1]
+HashSet :- […] → #{2 1}       PersistentVector :- […] → #wat.core/PersistentVector [1 2]
+HashMap :- […] → {"a" 1}      PersistentMap :- […]    → #wat.core/PersistentMap {1 "a"}
+```
+
+Floor 4855/4855, clippy 0. Two `check.rs` line-pin fixtures moved with the insert
+(13630→13651, 13612→13633), each re-verified to land on a `rust_caller_span!()`.
+
+⚠ **The lesson for the next scorecard: when a stone touches N members of a family, the acceptance
+rows must name all N.** Mine named the ones the rider's diff had touched — which is the set that
+cannot expose a missed member.

@@ -11991,11 +11991,32 @@ fn process_let_binding(
 /// at the three runtime dispatch arms follows that existing idiom: the splice logic
 /// is written once here and reused, not duplicated, across the check/runtime boundary.
 pub(crate) fn unwrap_type_param_bracket(args: &[WatAST]) -> Cow<'_, [WatAST]> {
-    match args.first() {
-        Some(WatAST::Vector(inner, _)) => {
-            let mut spliced = Vec::with_capacity(inner.len() + args.len() - 1);
+    // Arc 109 Stone ②-i-b — BOTH spellings, `[T…]` and `:- [T…]`.
+    //
+    // ⚠ Filed as a scoring gap on ②-i-b: that stone gave the `:-` operator to the three
+    // CONDITIONAL heads (Tuple / PersistentMap / PersistentVector, via
+    // `split_type_param_bracket`) and left these three — Vector / HashMap / HashSet — accepting
+    // only the unmarked bracket. Measured symptom, and it is a confusing one because the `:-`
+    // reads as a VALUE: `(:wat::core::HashSet :- [:wat::core::i64] 1 2)` →
+    // "HashSet: parameter element #1 expects :-; got …". Six constructors, one operator: a form
+    // that works on `Tuple` and not on `Vector` is the two-ways-to-say-one-thing defect this
+    // whole campaign exists to remove.
+    //
+    // No content sniffing on the `:-` arm and no `!inner.is_empty()` guard, for the same reason
+    // as `split_type_param_bracket`: under `:-` the bracket is a param-spec BY DECLARATION, and
+    // the position was never allowed to hold data. The unmarked arm is unchanged (dual-read;
+    // ③ deletes it).
+    match args {
+        [WatAST::Keyword(k, _), WatAST::Vector(inner, _), rest @ ..] if k == ":-" => {
+            let mut spliced = Vec::with_capacity(inner.len() + rest.len());
             spliced.extend(inner.iter().cloned());
-            spliced.extend(args[1..].iter().cloned());
+            spliced.extend(rest.iter().cloned());
+            Cow::Owned(spliced)
+        }
+        [WatAST::Vector(inner, _), rest @ ..] => {
+            let mut spliced = Vec::with_capacity(inner.len() + rest.len());
+            spliced.extend(inner.iter().cloned());
+            spliced.extend(rest.iter().cloned());
             Cow::Owned(spliced)
         }
         _ => Cow::Borrowed(args),
