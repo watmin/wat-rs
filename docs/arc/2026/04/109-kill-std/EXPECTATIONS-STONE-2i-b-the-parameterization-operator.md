@@ -16,7 +16,11 @@ re-run; the rider's report does not move a row.
 | 7 | the constructor takes the operator | `(:wat::core::Tuple :- [:wat::core::keyword :wat::core::keyword] :some :keyword)` | a built 2-tuple of keywords |
 | 8 | the verb's contract suite | `cargo nextest run --release -E 'test(contract_0)'` | 9 pass, 0 fail |
 | 9 | the floor | `scripts/floor.sh` | **0 FAIL** after the goldens the floor itself named are updated |
-| 10 | clippy | `cargo clippy --all-targets -- -D warnings` | 0 |
+| 10 | ★ a literal in a TYPE slot is a NAMED error | `--check` `[p :- (wat.type/Tuple :- [wat.type/i64] 42)]` | a diagnostic naming *a literal in a type position* — NOT "function-type bracket needs a `:->` arrow" |
+| 11 | ★ the same form in a VALUE slot is legal | `(:wat::core::Tuple :- [:wat::core::i64 :wat::core::keyword] 42 :some-keyword)` | a built 2-tuple |
+| 12 | ★ the EMPTY tuple LITERAL is writable | `(:wat::core::Tuple :- [])` in value position | an empty tuple — **not** `[[]]`, which is what `(:wat::core::Tuple [])` gives today |
+| 13 | a 2-tuple of keyword VALUES is writable | `(:wat::core::Tuple :- [:wat::core::keyword :wat::core::keyword] :a :b)` | a built 2-tuple — today `(Tuple [:a :b])` dies on `expected 2, got 0` |
+| 14 | clippy | `cargo clippy --all-targets -- -D warnings` | 0 |
 
 Row 2's expected output, predicted exactly:
 
@@ -59,6 +63,10 @@ one-door helper means the twelve sites are a re-point, not twelve judgments.
    on the renderer path, and the floor would not necessarily catch it.
 5. **The empty rung.** `(:wat::core::Tuple :- [])` is a first-class rung, not a defensive branch.
    A special-case `if args.is_empty()` anywhere in the arm is a defect even if it prints correctly.
+6. ★ **The sniff's `!items.is_empty()` guard leaking into the `:-` arm.** Rows 12 and 13 both die
+   if it does, and row 12 dies SILENTLY — `(Tuple :- [])` would keep meaning `[[]]` while every
+   other row goes green. The two arms cannot share one rule; verify by reading
+   `split_type_param_bracket`, not by reading the floor.
 
 ## What makes this a Mode B
 

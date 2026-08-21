@@ -103,6 +103,51 @@ Two consequences:
   syntax question — and it is a separate, larger stone, and the builder's. It does not block this
   one: keeping `nil` as `Path(":wat::core::nil")` at parse time is correct under either future.
 
+## ★ THE DISCRIMINATION RULE — builder, 2026-08-20
+
+> *"`(:wat::core::Tuple :- [])` — in an arg-spec or type-spec (any spec that prefixes their
+> receiving type with ` :- `) this is a **type declaration** for a tuple that has no member; in any
+> other location its a **tuple literal** with no members."*
+>
+> *"`(:wat::core::Tuple :- [:wat::core::i64 :wat::core::keyword] 42 :some-keyword)` — this is
+> **illegal in an argspec**, as its a literal.. param-spec must never have any initial values for a
+> type declaration, param-spec may have initial members in any other location."*
+
+Two rules, and they compose with the 2026-08-15 closure rather than restating it:
+
+1. **Position discriminates type from literal.** The same bytes are a type declaration inside a
+   `:-`-prefixed spec and a literal everywhere else. This is the 2026-08-15 closure — a type is
+   unreachable except through `:-` — and it needs no new machinery, because the two positions are
+   different productions.
+2. **★ INITIAL VALUES MAKE IT A LITERAL, AND A LITERAL IS ILLEGAL IN A SPEC.** This one is NEW and
+   it is a WALL: `(Head :- [types] v…)` in a type position must be a clean, named error. The values
+   are the discriminator — a spec's receiving type never carries them.
+
+**Today that misuse produces a misleading diagnostic.** Measured:
+
+```
+[p <- (wat.type/Tuple [wat.type/i64 wat.type/keyword] 42 :k)]
+→ "malformed type expression \"[…]\": function-type bracket needs a `:->` arrow: `[arg… :-> ret]`"
+```
+
+The checker says the bracket is a malformed FUNCTION TYPE. It is not — the author wrote a literal
+in a type slot. A stone that ships the `:-` production owns the diagnostic for misusing it, so the
+wall lands here rather than in ③.
+
+## ★★ THREE UNWRITABLE FORMS BECOME WRITABLE
+
+The operator is not only a spelling change; it closes three live holes, each measured at HEAD:
+
+| you want | today | after |
+|---|---|---|
+| a 2-tuple of keyword values | `(:wat::core::Tuple [:a :b])` → `ArityMismatch: expected 2, got 0` — the bracket is sniffed as types | `(:wat::core::Tuple :- [:wat::core::keyword :wat::core::keyword] :a :b)` |
+| an EMPTY tuple literal | `(:wat::core::Tuple [])` → **`[[]]`** — a 1-tuple holding an empty vector, because the sniff requires a NON-empty bracket | `(:wat::core::Tuple :- [])` |
+| a 1-tuple holding a keyword vector | unreachable — slot 1 is always sniffed | `(:wat::core::Tuple [:a :b])` once ③ cuts the unmarked form |
+
+★ The middle row is the one I did not predict and it sharpens the case: the sniff's
+`!items.is_empty()` guard means an empty bracket is *already* treated as a value, so today
+`(Tuple [])` and `(Tuple :- [])` would mean different things — and only the second is sayable.
+
 ## ★★ THE MEASURED PAYOFF — `:-` retires a heuristic that GUESSES
 
 This is the part that makes the operator a correctness change and not an aesthetic one, and it was

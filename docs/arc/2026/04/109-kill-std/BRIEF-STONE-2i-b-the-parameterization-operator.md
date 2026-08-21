@@ -57,6 +57,44 @@ function-type production. That error text is your before-picture.
 7. **`src/edn_shim.rs:1364`** — the one parse call that switches to the preserving entry point.
 8. **`src/types.rs:4334`** — `parse_type_expr_with_span`; the preserving sibling goes beside it.
 
+## The discrimination rule, and the ONE new wall
+
+The builder's rule, verbatim:
+
+> *"`(:wat::core::Tuple :- [])` — in an arg-spec or type-spec (any spec that prefixes their
+> receiving type with ` :- `) this is a **type declaration** for a tuple that has no member; in any
+> other location its a **tuple literal** with no members."*
+>
+> *"`(:wat::core::Tuple :- [:wat::core::i64 :wat::core::keyword] 42 :some-keyword)` — this is
+> **illegal in an argspec**, as its a literal.. param-spec must never have any initial values for a
+> type declaration, param-spec may have initial members in any other location."*
+
+The first half needs no code: the two positions are already different productions, so the same bytes
+mean a type inside a `:-`-prefixed spec and a literal everywhere else, exactly as `[a b]` is a
+binding vector in `let` and a literal elsewhere.
+
+**The second half is a WALL and it is yours to build.** In `parse_type_node` (`src/types.rs:4460`+),
+when the head is a parametric and the args tail is `[Keyword(":-"), Vector(inner), …rest]` with
+`rest` NON-EMPTY, that is a literal sitting in a type slot. Emit a clean `MalformedTypeExpr` naming
+exactly that — do not fall through to the positional arm.
+
+Today the fall-through gives a diagnostic that names the wrong defect entirely:
+
+```
+[p <- (wat.type/Tuple [wat.type/i64 wat.type/keyword] 42 :k)]
+→ "malformed type expression \"[…]\": function-type bracket needs a `:->` arrow: `[arg… :-> ret]`"
+```
+
+The author wrote a literal in a type slot; the checker told them their function type is malformed.
+The new error must say what happened and what to do — carry a `remedy` if the surrounding error
+shape supports one (see `crate::remedy::Remedy`, `src/check.rs:378`), otherwise a plain reason:
+
+> a type declaration cannot carry initial values — `(Head :- [types] v…)` is a LITERAL, and a
+> literal is not a type. Drop the values here, or move the form out of the type position.
+
+★ **Do not build the mirror wall.** A literal with values in a VALUE position is legal and is the
+whole point of the constructor form; nothing rejects it.
+
 ## The contract decisions, pinned
 
 **One — a single door for the type-param bracket.** Do NOT add a `:-` arm to six pattern-matches.
@@ -99,6 +137,20 @@ Result<nil,String>                  →  (:wat::core::Result :- [:wat::core::nil
 No rung emits a bare head. No rung is special-cased — one path, `args.len()` never consulted.
 `:-` is a Keyword and is identical in both head-spelling modes.
 
+## Three forms that are unwritable today and must be writable after
+
+Each measured at HEAD. These are acceptance rows, not motivation:
+
+| you want | today | after |
+|---|---|---|
+| a 2-tuple of keyword values | `(:wat::core::Tuple [:a :b])` → `ArityMismatch: expected 2, got 0` | `(:wat::core::Tuple :- [:wat::core::keyword :wat::core::keyword] :a :b)` |
+| an EMPTY tuple literal | `(:wat::core::Tuple [])` → **`[[]]`**, a 1-tuple holding an empty vector | `(:wat::core::Tuple :- [])` |
+
+⚠ The second row is why `split_type_param_bracket`'s `:-` arm must NOT inherit the sniff's
+`!items.is_empty()` guard. Under `:-`, an EMPTY bracket is a type-param list of length zero — a
+declaration — and the empty tuple literal it declares is a real value. Under the unmarked arm the
+old guard stays exactly as it is (dual-read), which is why the two arms cannot share one rule.
+
 ## The goldens — do NOT grep for them
 
 The renderer's output is pinned by golden files across `tests/`, and **the honest instrument for
@@ -133,6 +185,10 @@ gain `:-` rows.
    anything other than a `nil`-derived type, STOP and report the input and both spellings.
 4. **STOP-4** — if you find yourself writing a rule that decides "types or values" by inspecting a
    bracket's CONTENTS anywhere `:-` is present, STOP. That is the guess this stone exists to remove.
+5. **STOP-5** — if the new wall (values in a type slot) cannot be raised inside `parse_type_node`
+   without also rejecting the legal VALUE-position constructor `(Head :- [types] v…)`, STOP and
+   report. The two live in different productions and must not need a flag threaded between them; if
+   they do, the shape is wrong and the orchestrator re-plans.
 
 ## How this lands
 
