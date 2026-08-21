@@ -1178,26 +1178,55 @@ pub fn eval_keyword_to_symbol(
     ))
 }
 
+/// Arc 109 Stone ②-i — head-spelling mode for [`type_expr_to_clojure_form`]. Threaded through
+/// the 4-way ladder (the `Path` arm and the `Parametric` head arm) so the SAME renderer serves
+/// both spellings — a second copy is how the two spellings drift apart (DESIGN-STONE-2, "do not
+/// fork it").
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum TypeFormHeadMode {
+    /// `wat.type/Vector` — today's faithful-Clojure spelling. The later Clojure-flip's target;
+    /// this is the mode `eval_keyword_to_type_form` has always used and keeps using.
+    Clojure,
+    /// `:wat::core::Vector` — the rust-ish keyword spelling, rendered as a `WatAST::Keyword`
+    /// (a node-KIND difference from `Clojure`'s `Symbol`, not just a different string). Arc 109
+    /// step ② needs this: the corpus codemod moves `Head<…>` → `(Head [types])` while keeping
+    /// the `:wat::core::` head spelling — the Clojure head-flip is separate and later.
+    Colon,
+}
+
 /// Arc 251 type-position rendering — convert a closed [`crate::types::TypeExpr`] into a
-/// faithful WatAST node for the type FORM surface:
+/// faithful WatAST node for the type FORM surface. `mode` selects the head spelling (Room 2,
+/// arc 109 Stone ②-i); the bracketing below is unconditional in BOTH modes (Room 1).
 ///
-/// 4-way discriminator (Path; Parametric head mirrors it):
-/// 1. core FQDN (`wat::core::X`) — flat reserved `wat.type/X`.
-/// 2. bare legacy primitive (`:i64`, `:String`, ...) — `wat.type/X`.
-/// 3. user/library type (has `::`, not core) — namespace-preserving (`wat.holon/HolonAST`).
-/// 4. type-var (no `::`, not a primitive) — bare symbol (`T`, `K`, `V`).
-/// - `Parametric{head,args}`: same 4-way ladder on head; recurse on args.
-/// - `Fn{args,ret}`: `Vector([…args, Keyword(":->"), ret])`.
-/// - `Tuple(items)`: `List([Symbol("wat.type/Tuple"), …rendered-items])`. The empty `:()`
-///   renders as `(wat.type/Tuple)` — a distinct zero-arity product, NOT unit (`nil` is wat's
-///   unit, Rust's `()`; wat's `()` empty list is distinct from `nil`).
+/// 4-way discriminator (Path; Parametric head mirrors it) — `mode` only changes cases 1-3;
+/// case 4 (type-var) has no colon form (a type-var was never namespace-qualified in ANY
+/// spelling — `T`/`K`/`V` are lexically-scoped identifiers, not keywords) and stays a bare
+/// symbol in both modes:
+/// 1. core FQDN (`wat::core::X`) — Clojure: `wat.type/X` Symbol. Colon: `:wat::core::X` Keyword.
+/// 2. bare legacy primitive (`:i64`, `:String`, ...) — Clojure: `wat.type/X` Symbol. Colon: the
+///    primitive's own core FQDN, `:wat::core::X` Keyword.
+/// 3. user/library type (has `::`, not core) — Clojure: namespace-preserving Symbol
+///    (`wat.holon/HolonAST`). Colon: the FQDN Keyword unchanged (`:wat::holon::HolonAST`).
+/// 4. type-var (no `::`, not a primitive) — bare symbol (`T`, `K`, `V`), both modes.
+/// - `Parametric{head,args}`: same 4-way ladder on head; args bracket into ONE `WatAST::Vector`
+///   in the list's second position (`(Head [a b])`, both modes, Room 1); recurse on each arg
+///   with the SAME `mode`.
+/// - `Fn{args,ret}`: `Vector([…args, Keyword(":->"), ret])` — UNCHANGED by this stone; args/ret
+///   recurse with `mode`, but the `:->` keyword and the Vector shape are fixed either way.
+/// - `Tuple(items)`: `List([Symbol("wat.type/Tuple"), …rendered-items])` — the head is OUT OF
+///   SCOPE for `mode` (Room 2 scopes the ladder to the Path/Parametric arms only; nothing in
+///   the acceptance criteria or the contract suite exercises a Colon-mode Tuple), so it stays
+///   the `wat.type/Tuple` Symbol in both modes; items still recurse with `mode`. The empty
+///   `:()` renders as `(wat.type/Tuple)` — a distinct zero-arity product, NOT unit (`nil` is
+///   wat's unit, Rust's `()`; wat's `()` empty list is distinct from `nil`).
 /// - `Var`: synthetic — NEVER produced by parsing source (the `TypeExpr` doc guarantees it).
 ///
 /// Fallible: the two unmodeled shapes (a malformed trailing-`::` path, and a bare/higher-kinded
-/// Parametric head like `(Stream …)`/`(T …)`) return a clean `Err` — NEVER a panic. This renderer
-/// backs the runtime verb `keyword/to-type-form` AND the corpus drive; both shapes are reachable
+/// Parametric head like `(Stream …)`/`(T …)`) return a clean `Err` — NEVER a panic, in EITHER
+/// mode. This renderer backs the runtime verbs `keyword/to-type-form` (Clojure) and
+/// `keyword/to-type-form-colon` (Colon) AND the corpus drive; both error shapes are reachable
 /// (`parse_type_expr` accepts `:foo::` and `:Stream<i64>`), so a panic would crash wat / the drive.
-pub(crate) fn type_expr_to_clojure_form(t: &crate::types::TypeExpr) -> Result<WatAST, String> {
+pub(crate) fn type_expr_to_clojure_form(t: &crate::types::TypeExpr, mode: TypeFormHeadMode) -> Result<WatAST, String> {
     use crate::types::TypeExpr;
     let unk = crate::rust_caller_span!();
     Ok(match t {
@@ -1205,68 +1234,101 @@ pub(crate) fn type_expr_to_clojure_form(t: &crate::types::TypeExpr) -> Result<Wa
             // 4-way ladder: core FQDN > bare primitive > user type (::) > type-var.
             let body = s.strip_prefix(':').unwrap_or(s);
             if let Some(tail) = body.strip_prefix("wat::core::") {
-                // Case 1: core FQDN -> flat wat.type/ namespace.
-                WatAST::Symbol(Identifier::bare(format!("wat.type/{tail}")), unk)
-            } else if crate::check::BARE_PRIMITIVES.iter().any(|(bare, _)| *bare == format!(":{body}").as_str()) {
-                // Case 2: bare legacy primitive (:i64, :String, ...) -> wat.type/{body}.
-                WatAST::Symbol(Identifier::bare(format!("wat.type/{body}")), unk)
+                // Case 1: core FQDN -> flat wat.type/ namespace (Clojure) or :wat::core:: keyword (Colon).
+                match mode {
+                    TypeFormHeadMode::Clojure => WatAST::Symbol(Identifier::bare(format!("wat.type/{tail}")), unk),
+                    TypeFormHeadMode::Colon => WatAST::Keyword(format!(":wat::core::{tail}"), unk),
+                }
+            } else if let Some((_bare, fqdn)) = crate::check::BARE_PRIMITIVES.iter().find(|(bare, _)| *bare == format!(":{body}").as_str()) {
+                // Case 2: bare legacy primitive (:i64, :String, ...) -> wat.type/{body} (Clojure)
+                // or the primitive's own core FQDN keyword, `fqdn` (Colon; already colon-prefixed).
+                match mode {
+                    TypeFormHeadMode::Clojure => WatAST::Symbol(Identifier::bare(format!("wat.type/{body}")), unk),
+                    TypeFormHeadMode::Colon => WatAST::Keyword((*fqdn).to_string(), unk),
+                }
             } else if body.contains("::") {
-                // Case 3: user/library type -> namespace-preserving. `None` only on a malformed
-                // trailing-`::` path (e.g. `:foo::`) -> clean error, never panic.
-                let sym = wat_keyword_to_clojure_symbol(&format!(":{body}")).ok_or_else(|| {
+                // Case 3: user/library type -> namespace-preserving Symbol (Clojure) or the FQDN
+                // keyword unchanged (Colon). `wat_keyword_to_clojure_symbol` is also the ONLY
+                // validation this shape gets (malformed trailing `::`/empty segment) — reuse it
+                // in BOTH modes so a malformed path errors identically either way.
+                let clojure_sym = wat_keyword_to_clojure_symbol(&format!(":{body}")).ok_or_else(|| {
                     format!("cannot render type `:{body}` to a faithful form (malformed namespaced path — trailing `::` or empty segment)")
                 })?;
-                WatAST::Symbol(Identifier::bare(sym), unk)
+                match mode {
+                    TypeFormHeadMode::Clojure => WatAST::Symbol(Identifier::bare(clojure_sym), unk),
+                    TypeFormHeadMode::Colon => WatAST::Keyword(format!(":{body}"), unk),
+                }
             } else {
-                // Case 4: type-var -- stays as a bare symbol (T, K, V, ...).
+                // Case 4: type-var -- stays as a bare symbol (T, K, V, ...), SAME in both modes:
+                // a type-var was never colon-spelled in any surface.
                 WatAST::Symbol(Identifier::bare(body.to_string()), unk)
             }
         }
         TypeExpr::Parametric { head, args } => {
             // head is stored WITHOUT a leading colon (e.g. "wat::core::Vector").
             // 4-way ladder mirrors Path.
-            let sym = if let Some(tail) = head.strip_prefix("wat::core::") {
-                // Case 1: core FQDN -> flat wat.type/ namespace.
-                format!("wat.type/{tail}")
+            let head_node: WatAST = if let Some(tail) = head.strip_prefix("wat::core::") {
+                // Case 1: core FQDN -> flat wat.type/ namespace (Clojure) or :wat::core:: keyword (Colon).
+                match mode {
+                    TypeFormHeadMode::Clojure => WatAST::Symbol(Identifier::bare(format!("wat.type/{tail}")), unk.clone()),
+                    TypeFormHeadMode::Colon => WatAST::Keyword(format!(":wat::core::{tail}"), unk.clone()),
+                }
             } else if let Some((_bare, fqdn)) = crate::check::BARE_CONTAINER_HEADS.iter().find(|(bare, _)| *bare == head.as_str()) {
-                // Case 2: bare container head (Option, Vec, ...) -> use canonical FQDN's last segment.
-                // Note: Vec -> wat::core::Vector (rename), so we use the FQDN tail, not `head`.
-                let tail = fqdn.rsplit("::").next().unwrap();
-                format!("wat.type/{tail}")
+                // Case 2: bare container head (Option, Vec, ...) -> canonical FQDN. Clojure uses
+                // the FQDN's last segment (Vec -> wat::core::Vector rename, so the FQDN tail, not
+                // `head`); Colon uses the whole FQDN as a keyword.
+                match mode {
+                    TypeFormHeadMode::Clojure => {
+                        let tail = fqdn.rsplit("::").next().unwrap();
+                        WatAST::Symbol(Identifier::bare(format!("wat.type/{tail}")), unk.clone())
+                    }
+                    TypeFormHeadMode::Colon => WatAST::Keyword(format!(":{fqdn}"), unk.clone()),
+                }
             } else if head.contains("::") {
-                // Case 3: user/library type -> namespace-preserving.
-                wat_keyword_to_clojure_symbol(&crate::types::parametric_head_fqdn(head)).ok_or_else(|| {
+                // Case 3: user/library type -> namespace-preserving Symbol (Clojure) or the FQDN
+                // keyword unchanged (Colon). Validate via wat_keyword_to_clojure_symbol in BOTH
+                // modes, same reasoning as the Path arm's case 3.
+                let fqdn = crate::types::parametric_head_fqdn(head);
+                let clojure_sym = wat_keyword_to_clojure_symbol(&fqdn).ok_or_else(|| {
                     format!("cannot render parametric head `:{head}` (malformed namespaced path)")
-                })?
+                })?;
+                match mode {
+                    TypeFormHeadMode::Clojure => WatAST::Symbol(Identifier::bare(clojure_sym), unk.clone()),
+                    TypeFormHeadMode::Colon => WatAST::Keyword(fqdn, unk.clone()),
+                }
             } else {
                 // Case 4: bare/higher-kinded head (`(Stream …)`, `(T …)`) — not in the model.
-                // Clean error (the source should use the FQDN form), never panic.
+                // Clean error (the source should use the FQDN form), never panic — same in both modes.
                 return Err(format!(
                     "cannot render parametric type with bare head `{head}` — not a core container and not FQDN; \
                      use the fully-qualified type name (bare/higher-kinded heads are unsupported)"
                 ));
             };
-            let mut items = vec![WatAST::Symbol(Identifier::bare(sym), unk.clone())];
+            // Room 1 — args bracket into ONE WatAST::Vector in the list's second position,
+            // UNCONDITIONALLY, in both modes: `(Head [a b])`. Was flat-spliced `(Head a b)`.
+            let mut arg_items: Vec<WatAST> = Vec::with_capacity(args.len());
             for a in args {
-                items.push(type_expr_to_clojure_form(a)?);
+                arg_items.push(type_expr_to_clojure_form(a, mode)?);
             }
-            WatAST::List(items, unk)
+            WatAST::List(vec![head_node, WatAST::Vector(arg_items, unk.clone())], unk)
         }
         TypeExpr::Fn { args, ret } => {
             let mut items: Vec<WatAST> = Vec::with_capacity(args.len() + 2);
             for a in args {
-                items.push(type_expr_to_clojure_form(a)?);
+                items.push(type_expr_to_clojure_form(a, mode)?);
             }
             items.push(WatAST::Keyword(":->".into(), unk.clone()));
-            items.push(type_expr_to_clojure_form(ret)?);
+            items.push(type_expr_to_clojure_form(ret, mode)?);
             WatAST::Vector(items, unk)
         }
         TypeExpr::Tuple(items) => {
-            // Faithful form `(wat.type/Tuple …items)`. Empty `:()` → `(wat.type/Tuple)`, a
-            // distinct zero-arity product (NOT unit — `nil` is wat's unit).
+            // Faithful form `(wat.type/Tuple …items)`. Head is OUT OF SCOPE for `mode` (see the
+            // fn doc) — stays the wat.type/Tuple Symbol in both modes; items recurse with `mode`.
+            // Empty `:()` → `(wat.type/Tuple)`, a distinct zero-arity product (NOT unit — `nil`
+            // is wat's unit).
             let mut elems = vec![WatAST::Symbol(Identifier::bare("wat.type/Tuple".to_string()), unk.clone())];
             for it in items {
-                elems.push(type_expr_to_clojure_form(it)?);
+                elems.push(type_expr_to_clojure_form(it, mode)?);
             }
             WatAST::List(elems, unk)
         }
@@ -1276,11 +1338,47 @@ pub(crate) fn type_expr_to_clojure_form(t: &crate::types::TypeExpr) -> Result<Wa
     })
 }
 
+/// Shared body for [`eval_keyword_to_type_form`] and [`eval_keyword_to_type_form_colon`] —
+/// arc 109 Stone ②-i, Room 3. Parameterized on `OP` (for error messages/provenance) and `mode`
+/// (Room 2's head-spelling mode); do NOT fork this into two copies, per DESIGN-STONE-2.
+fn eval_keyword_to_type_form_impl(
+    op: &'static str,
+    mode: TypeFormHeadMode,
+    args: &[WatAST],
+    list_span: &crate::span::Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<crate::value::TrackedValue, RuntimeError> {
+    let v = require_one_arg(op, args, env, sym, list_span)?;
+    let kw: String = match &v {
+        Value::wat__WatAST(a) => match a.as_ref() {
+            WatAST::Keyword(s, _) => s.clone(),
+            _ => return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
+                head: op.into(),
+                reason: "keyword/to-type-form requires a Keyword node".to_string(),
+            })),
+        },
+        other => return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
+            op: op.into(), expected: ":wat::WatAST", got: Box::new(crate::runtime::ValueSnapshot::of(other)) })),
+    };
+    let te = crate::types::parse_type_expr(&kw).map_err(|e| RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
+            head: op.into(),
+            reason: format!("type-keyword parse failed: {:?}", e.kind()),
+        }))?;
+    let node = type_expr_to_clojure_form(&te, mode).map_err(|reason| RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm { head: op.into(), reason }))?;
+    Ok(crate::value::TrackedValue::new(
+        Value::wat__WatAST(std::sync::Arc::new(node)),
+        crate::value::Provenance::RuntimeBuilt { producer: op, call_span: list_span.clone() },
+    ))
+}
+
 /// `(:wat::core::keyword/to-type-form <keyword-node>)` — arc 251 type-position rendering.
 /// Convert an old rust-scheme TYPE keyword (`:wat::core::Vector<wat::core::i64>`) into the
-/// faithful-Clojure type FORM (`(wat.type/Vector wat.type/i64)`). Parses the keyword string
+/// faithful-Clojure type FORM (`(wat.type/Vector [wat.type/i64])`). Parses the keyword string
 /// via the EXISTING type parser ([`crate::types::parse_type_expr_with_span`] → `TypeExpr`),
-/// then renders the closed `TypeExpr` enum via [`type_expr_to_clojure_form`].
+/// then renders the closed `TypeExpr` enum via [`type_expr_to_clojure_form`] in
+/// [`TypeFormHeadMode::Clojure`] — UNCHANGED head spelling; only the bracketing moved (Room 1,
+/// arc 109 Stone ②-i).
 pub fn eval_keyword_to_type_form(
     args: &[WatAST],
     list_span: &crate::span::Span,
@@ -1288,27 +1386,22 @@ pub fn eval_keyword_to_type_form(
     sym: &SymbolTable,
 ) -> Result<crate::value::TrackedValue, RuntimeError> {
     const OP: &str = ":wat::core::keyword/to-type-form";
-    let v = require_one_arg(OP, args, env, sym, list_span)?;
-    let kw: String = match &v {
-        Value::wat__WatAST(a) => match a.as_ref() {
-            WatAST::Keyword(s, _) => s.clone(),
-            _ => return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
-                head: OP.into(),
-                reason: "keyword/to-type-form requires a Keyword node".to_string(),
-            })),
-        },
-        other => return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
-            op: OP.into(), expected: ":wat::WatAST", got: Box::new(crate::runtime::ValueSnapshot::of(other)) })),
-    };
-    let te = crate::types::parse_type_expr(&kw).map_err(|e| RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
-            head: OP.into(),
-            reason: format!("type-keyword parse failed: {:?}", e.kind()),
-        }))?;
-    let node = type_expr_to_clojure_form(&te).map_err(|reason| RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm { head: OP.into(), reason }))?;
-    Ok(crate::value::TrackedValue::new(
-        Value::wat__WatAST(std::sync::Arc::new(node)),
-        crate::value::Provenance::RuntimeBuilt { producer: OP, call_span: list_span.clone() },
-    ))
+    eval_keyword_to_type_form_impl(OP, TypeFormHeadMode::Clojure, args, list_span, env, sym)
+}
+
+/// `(:wat::core::keyword/to-type-form-colon <keyword-node>)` — arc 109 Stone ②-i, Room 3 sibling
+/// of [`eval_keyword_to_type_form`]. Same parse + render pipeline, [`TypeFormHeadMode::Colon`]:
+/// `:wat::core::Vector<wat::core::i64>` → `(:wat::core::Vector [:wat::core::i64])` — a colon-
+/// quoted Keyword head, bracketed args, the rust-ish spelling step ②'s corpus codemod needs
+/// (the Clojure head-flip is separate and later).
+pub fn eval_keyword_to_type_form_colon(
+    args: &[WatAST],
+    list_span: &crate::span::Span,
+    env: &Environment,
+    sym: &SymbolTable,
+) -> Result<crate::value::TrackedValue, RuntimeError> {
+    const OP: &str = ":wat::core::keyword/to-type-form-colon";
+    eval_keyword_to_type_form_impl(OP, TypeFormHeadMode::Colon, args, list_span, env, sym)
 }
 
 /// Errors surfaced by [`read_edn`] / [`edn_to_value`] when an EDN

@@ -11,7 +11,7 @@
 //! Tuple, or Fn — renders to the canonical `wat.type/` WatAST form (via
 //! `holon_type_ast_to_wat_type_form`, structurally mirroring
 //! `crate::edn_shim::type_expr_to_clojure_form`, e.g.
-//! `(wat.type/Vector wat.type/i64)`), NOT a mangled single keyword and NOT
+//! `(wat.type/Vector [wat.type/i64])`), NOT a mangled single keyword and NOT
 //! a HolonAST subtree.
 //!
 //! Originating consumer: `run-threads` macro (since retired) needed I

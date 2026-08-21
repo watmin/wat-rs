@@ -5215,6 +5215,10 @@ fn dispatch_keyword_head(
             return crate::edn_shim::eval_keyword_to_type_form(args, list_span, env, sym)
                 .map_err(Into::into)
         }
+        ":wat::core::keyword/to-type-form-colon" => {
+            return crate::edn_shim::eval_keyword_to_type_form_colon(args, list_span, env, sym)
+                .map_err(Into::into)
+        }
         // Arc 258 Stone 258.2b — first-class macro-abort. Evaluates the one String arg and
         // returns Err(MacroAbort) so the macro engine (macro_eval_pre_validated) wraps it into
         // a clean MacroError without "runtime::eval failed:" prefix noise. Macro-body-only.
@@ -13027,7 +13031,7 @@ fn type_expr_to_ast(ty: &crate::types::TypeExpr) -> WatAST {
         crate::types::TypeExpr::Var(id) => {
             WatAST::Symbol(crate::scope::Identifier::bare(format!("t{id}")), span)
         }
-        other => match crate::edn_shim::type_expr_to_clojure_form(other) {
+        other => match crate::edn_shim::type_expr_to_clojure_form(other, crate::edn_shim::TypeFormHeadMode::Clojure) {
             Ok(node) => node,
             // Unmodeled shape (malformed trailing-`::` path, or a
             // bare/higher-kinded parametric head) — never reachable from a
@@ -14642,7 +14646,7 @@ fn eval_field_types_of(
 
     let mut types: Vec<Value> = Vec::with_capacity(agg.fields.len());
     for (_, ty) in agg.fields.iter() {
-        let node = crate::edn_shim::type_expr_to_clojure_form(ty).map_err(|reason| {
+        let node = crate::edn_shim::type_expr_to_clojure_form(ty, crate::edn_shim::TypeFormHeadMode::Clojure).map_err(|reason| {
             RuntimeError::new(
                 list_span.clone(),
                 RuntimeErrorKind::MalformedForm {

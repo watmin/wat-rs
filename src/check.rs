@@ -18796,8 +18796,15 @@ fn register_builtins(env: &mut CheckEnv) {
         type_params: vec![], params: vec![TypeExpr::Path(":wat::WatAST".into())],
         ret: TypeExpr::Path(":wat::WatAST".into()), rest_param_type: None });
     // Arc 251 type-position rendering — a rust-scheme TYPE Keyword node → the faithful-Clojure
-    // type FORM node (`:wat::core::Vector<wat::core::i64>` → `(wat.type/Vector wat.type/i64)`).
+    // type FORM node (`:wat::core::Vector<wat::core::i64>` → `(wat.type/Vector [wat.type/i64])`).
     env.register(":wat::core::keyword/to-type-form".into(), TypeScheme {
+        type_params: vec![], params: vec![TypeExpr::Path(":wat::WatAST".into())],
+        ret: TypeExpr::Path(":wat::WatAST".into()), rest_param_type: None });
+    // Arc 109 Stone ②-i — Colon-mode sibling of `keyword/to-type-form`: same parse+render, the
+    // rust-ish `:wat::core::` head spelling instead of the Clojure `wat.type/` flip
+    // (`:wat::core::Vector<wat::core::i64>` → `(:wat::core::Vector [:wat::core::i64])`). Step ②'s
+    // corpus codemod needs this spelling; the Clojure head-flip is separate and later.
+    env.register(":wat::core::keyword/to-type-form-colon".into(), TypeScheme {
         type_params: vec![], params: vec![TypeExpr::Path(":wat::WatAST".into())],
         ret: TypeExpr::Path(":wat::WatAST".into()), rest_param_type: None });
     // Arc 170 slice 1f-α / 1f-ι — thread-aware stdio helpers.

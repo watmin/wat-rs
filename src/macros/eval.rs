@@ -665,6 +665,9 @@ fn is_pure_total(head: &str) -> bool {
         | ":wat::core::keyword-node"
         | ":wat::core::keyword/to-symbol"
         | ":wat::core::keyword/to-type-form"
+        // Arc 109 Stone ②-i — Colon-mode sibling of keyword/to-type-form (Room 3); same
+        // pure/deterministic category, just the rust-ish `:wat::core::` head spelling.
+        | ":wat::core::keyword/to-type-form-colon"
 
         // ── Form-shape predicates (pure over WatAST form-values) ──────
         // core form-shape predicate over WatAST::List; distinct from
