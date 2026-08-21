@@ -75,6 +75,11 @@ transport_satisfier_heads  format!("{fq}<T>") / ("{fq}<Xt>")
 satisfies_bare_surface     format!("{surface}<") — a PREFIX match
 wat/service.wat            "<K,V>" as a STRING, re-attached as "{b}::Op{p}" — and EMITTED,
                            so a migrated corpus regrows the angle form at every expansion
+⛔ defrecord/defstruct  mint a COMPANION defmacro under the bare name (wat/Record.wat:197),
+                           so `(:wat::cache::Entry :- [K V])` macro-expands before the checker
+                           sees it. MEASURED four ways: builtin ✅ typealias ✅ defenum ✅
+                           defrecord ⛔ defstruct ⛔ — it is the COMPANION MACRO, not
+                           user-vs-stdlib. 6 types / 5 breaking refs in wat/. Root 251.8.
 ⛔ defn / fn            REJECT `:- [T …]`. take_declared_binder has 7 callers, all TYPE
                            declarators. Probed: every other codemod head ACCEPTS; defn alone
                            does not. 40 parametric defn/fn in wat/, 57 corpus-wide.
@@ -104,11 +109,11 @@ the compiler). One stone or three? Which shape? No rider flies until it is ruled
   type var INCLUDING the return's — `[:-> X]` ⇔ `(wat.core/fn :- [X] [] :- X …)`,
   `[A B :-> X]` ⇔ `(wat.core/fn :- [A B X] [a :- A b :- B] :- X …)`. (ii) **call-site type
   application** (`(ns/f :- [wat.type/i64] 42)`), REJECTED today, site count still **UNMEASURED**.
-- ⛔ **A user parametric type has NO working FORM spelling.** `(:user::Box :- [i64])` fails where
-  `(:wat::core::Vector :- [i64])` works — because `defrecord` mints a *macro* under the record's own
-  bare name (`wat/Record.wat:197`), so the list is macro-expanded before the checker sees it.
-  Measured: it works when referenced BEFORE the declaration. Blocks any stone that emits a form for
-  a user type. Root is 251.8's one-node-two-roles.
+- ⛔ **`defrecord`/`defstruct` types have no parametric FORM reference** — the companion `defmacro`
+  at `wat/Record.wat:197` expands the form before the checker sees it. **Narrower than previously
+  recorded**: probed 2026-08-21, builtin ✅ · typealias ✅ · defenum ✅ · defrecord ⛔ · defstruct ⛔.
+  It is the COMPANION MACRO, not user-vs-stdlib. ②-iii blocker 5; 6 types / 5 breaking refs in
+  `wat/`. Root is 251.8's one-node-two-roles. **Needs a DESIGN before it can be ruled.**
 - **③** — angle form ILLEGAL · delete `is_type_bracket_candidate` (ONE caller now). Its REAL
   prerequisite is the identity stone above, NOT ②a's 244 bare heads as the ② DESIGN said.
 - **The `Fn`/`Tuple` scope question** — the codemod migrates `Fn(args)->ret` (42 in `wat/`) and

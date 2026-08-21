@@ -17,7 +17,7 @@ applied to wat/, verified byte-identical to the dry-run diff
 
 Then the floor, four times, each on a smaller held-back set. Each round named the next blocker.
 
-## The blockers — three the floor surfaced, and a FOURTH it could not reach
+## The blockers — three the floor surfaced, and TWO more it could not reach
 
 ### 1 — `wat_source_derive` reads the corpus with a keyword-only parser  *(FIXED, shipped)*
 
@@ -103,6 +103,37 @@ REFERENCE, so `(:wat::core::defn (:wat::core::foldl-spec :- [T U]) …)` — the
 
 This is the seam's **γ**, first half, and it is the SMALLEST blocker on ②-iii's path: one head joins
 the seven that already call `take_declared_binder`.
+
+### 5 — ⛔ `defrecord` / `defstruct` types have no working parametric FORM reference
+
+The seam already carried this as a ⛔ with 251.8 named as its root. ②-iii puts it ON THE PATH, and
+probing pinned the discriminator, which is narrower than the seam's wording implied:
+
+```
+(:wat::core::Vector      :- [:wat::core::i64])            builtin      ✅ WORKS
+(:wat::cache::Lru        :- [:i64 :i64])                  typealias    ✅ WORKS
+(:wat::spawn::ServiceEvent :- [:i64 :i64 :i64])           defenum      ✅ WORKS
+(:wat::cache::Entry      :- [:i64 :i64])                  defrecord    ⛔ FAILS
+(:wat::spawn::Launched   :- [:i64 :i64 :i64 :i64])        defstruct    ⛔ FAILS
+```
+
+`wat/Record.wat:197` — `defrecord` emits *"a `do` of TWO forms: the `recordtype` decl + a companion
+`defmacro`"* under `~fqdn-bare-kw`, the record's own bare name. So `(:wat::cache::Entry :- [K V])` is
+**macro-expanded before the checker sees it**, and the `[K V]` binder vector is then read as a
+function-type bracket: *"function-type bracket needs a `:->` arrow"*. `defenum` and `typealias` mint
+no companion, which is exactly why they pass. **It is the companion macro, not user-vs-stdlib and not
+the resolver in general.**
+
+Population in `wat/`: six types — `Cache::GetRequest`, `Cache::PutRequest`, `Entry`, `Alarm`
+(defrecord), `Bound`, `Launched` (defstruct) — 11 name occurrences, of which 6 are the declarations
+themselves (which migrate FINE, as binders) and **5 are references that break**.
+
+⚠ **A CONTROL CAUGHT ME HERE.** My first pass ran a `typealias` control that ALSO failed, and I was
+one step from reporting *"no USER type has a working form spelling"* — a claim twice as wide as the
+truth. The control's failure meant the instrument was not measuring what I thought; re-probing
+against STDLIB types of each head gave the clean four-way split above.
+`[[feedback_a_green_test_can_prove_nothing]]` has a mirror: **a failing control invalidates the
+subject's result too.**
 
 ## What this means for ② and ③
 
