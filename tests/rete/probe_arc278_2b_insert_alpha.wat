@@ -21,6 +21,7 @@
      sess1 (:wat::rete::insert sess0 (:user::Temp :value 25))
      sess2 (:wat::rete::insert sess1 (:user::Temp :value 15))
      fired (:wat::rete::fire-once sess2)
+     ;; rune:vocare(vantage-bypass-test) — empty :rhs so the caller mouth cannot see the match; implementer alpha layout
      amem  (:wat::rete::Session/alpha-memory fired)]
     (:wat::core::length (:wat::core::PersistentMap/keys amem))))
 
@@ -33,6 +34,7 @@
      sess1 (:wat::rete::insert sess0 (:user::Temp :value 25))
      sess2 (:wat::rete::insert sess1 (:user::Temp :value 15))
      fired (:wat::rete::fire-once sess2)
+     ;; rune:vocare(vantage-bypass-test) — empty :rhs so the caller mouth cannot see the match; implementer alpha layout
      amem  (:wat::rete::Session/alpha-memory fired)
      aid   (:wat::core::Option/expect (:wat::core::get (:wat::core::PersistentMap/keys amem) 0) "aid")
      elems (:wat::core::Option/expect (:wat::core::PersistentMap/get amem aid) "elems")]
@@ -47,6 +49,7 @@
      sess1 (:wat::rete::insert sess0 (:user::Temp :value 25))
      sess2 (:wat::rete::insert sess1 (:user::Temp :value 15))
      fired (:wat::rete::fire-once sess2)
+     ;; rune:vocare(vantage-bypass-test) — empty :rhs so the caller mouth cannot see the match; implementer alpha layout
      amem  (:wat::rete::Session/alpha-memory fired)
      aid   (:wat::core::Option/expect (:wat::core::get (:wat::core::PersistentMap/keys amem) 0) "aid")
      elems (:wat::core::Option/expect (:wat::core::PersistentMap/get amem aid) "elems")

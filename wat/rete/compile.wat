@@ -291,15 +291,19 @@
 (:wat::core::defn :wat::rete::first-failing-axis
   [is-pure  <- :wat::core::bool
    is-det   <- :wat::core::bool
-   is-total <- :wat::core::bool]
+   is-total <- :wat::core::bool
+   is-rete  <- :wat::core::bool]
   -> :wat::rete::Axis
   ;; `cond`, not a nested-`if` ladder — the chain reads top-to-bottom in the SAME order the
   ;; conjunction short-circuits, so the code and the law have one shape. (A nested `if` here would
   ;; also trip our own `lint_finds_the_nested_if_ladder`.) Builder: *"use cond over if chaining."*
+  ;; Fourth argument is Law A: `:else` is RetePrimitive, never Total. A wrap that names
+  ;; RetePrimitive outside this fn can drop and a core `i64::>` where is refused as Total.
   (:wat::core::cond
-    ((:wat::core::not is-pure) :wat::rete::Axis::Pure)
-    ((:wat::core::not is-det)  :wat::rete::Axis::Deterministic)
-    (:else                     :wat::rete::Axis::Total)))
+    ((:wat::core::not is-pure)  :wat::rete::Axis::Pure)
+    ((:wat::core::not is-det)   :wat::rete::Axis::Deterministic)
+    ((:wat::core::not is-total) :wat::rete::Axis::Total)
+    (:else                      :wat::rete::Axis::RetePrimitive)))
 
 ;; axis-violation-message — build a human-actionable fence message from an ALREADY-DECIDED
 ;; rejection. `context` names the fenced site ("where" / "accumulator"); `failing-axis` is the axis
@@ -460,11 +464,9 @@
                                         (:wat::core::Some nil)
                                         :wat::core::None)
                                       (:wat::rete::axis-violation-message "where" expr
-                                        ;; the axis is EXACT, never a default: if the first three
-                                        ;; conjuncts held, the only one left to have failed is law A.
-                                        (:wat::core::if (:wat::core::and is-pure is-det is-total)
-                                          :wat::rete::Axis::RetePrimitive
-                                          (:wat::rete::first-failing-axis is-pure is-det is-total))))
+                                        ;; the axis is EXACT: first-failing-axis walks all four
+                                        ;; conjuncts; `:else` is Law A (RetePrimitive), never Total.
+                                        (:wat::rete::first-failing-axis is-pure is-det is-total is-rete)))
                         ;; #49 — lower at rule-compile. A form that cannot lower never
                         ;; enters the network. Fire only executes the circuit.
                         _lowered  (:wat::rete::lower expr)
@@ -564,19 +566,21 @@
                                              (:wat::core::get cond-ch 2)
                                              "compile-condition: accumulate missing acc-form")
                             ;; 8-custom FENCE: the acc-form head selects the fold. A built-in
-                            ;; head (:wat::rete::acc::*) is trusted (skip the fence). Any other
-                            ;; head is a USER fold fn → assert it is pure∧det (the same 6a fence
-                            ;; `where` uses), else raise at compile. Build a synthetic call
-                            ;; `(<acc-hd> __acc__)` and run pure?/deterministic? on it — head_ok
-                            ;; classifies the user fn transitively (purity.rs:classify_fn).
+                            ;; head (:wat::rete::acc::*) is trusted (skip the fence wholesale).
+                            ;; Any other head is a USER fold fn → the same four-axis check
+                            ;; `where` / `:then` use: pure ∧ det ∧ total ∧ rete. Build a
+                            ;; synthetic call `(<acc-hd> __acc__)` and run the four predicates
+                            ;; on it — head_ok classifies the user fn transitively
+                            ;; (purity.rs:classify_fn).
                             acc-ch       (:wat::core::ast->children acc-form)
                             acc-hd       (:wat::core::first acc-ch)
                             acc-hd-nm    (:wat::core::ast-name acc-hd)
                             is-builtin   (:wat::core::string::starts-with? acc-hd-nm ":wat::rete::acc::")
                             fence-call   (:wat::core::quasiquote
                                             ((:wat::core::unquote acc-hd) __acc__))
-                            ;; fence: pure ∧ deterministic (skipped for :wat::rete::acc::* builtins,
-                            ;; which are trusted). is-pure/is-det are computed unconditionally — same
+                            ;; fence: pure ∧ det ∧ total ∧ rete (skipped for :wat::rete::acc::*
+                            ;; builtins, which are trusted). The four predicates are computed
+                            ;; unconditionally — same
                             ;; shape as the `where` fence above — which is safe even for a builtin
                             ;; acc-hd: pure?/deterministic? default-deny gracefully on an unrecognized
                             ;; head, never panic. The message names the offending head + axis
@@ -608,12 +612,9 @@
                                                  (:wat::core::Some nil)
                                                  :wat::core::None))
                                              (:wat::rete::axis-violation-message "accumulator" fence-call
-                                               ;; the axis is EXACT, never a default — the same rule the
-                                               ;; `where` fence uses: if the first three conjuncts held,
-                                               ;; the only one left to have failed is law A.
-                                               (:wat::core::if (:wat::core::and is-pure is-det is-total)
-                                                 :wat::rete::Axis::RetePrimitive
-                                                 (:wat::rete::first-failing-axis is-pure is-det is-total))))
+                                               ;; the axis is EXACT: first-failing-axis walks all four
+                                               ;; conjuncts; `:else` is Law A (RetePrimitive), never Total.
+                                               (:wat::rete::first-failing-axis is-pure is-det is-total is-rete)))
                             ;; assert items[3] is :from (structural validation)
                             from-kw      (:wat::core::Option/expect  
                                              (:wat::core::get cond-ch 3)
@@ -765,11 +766,9 @@
                                     (:wat::core::Some nil)
                                     :wat::core::None)
                                   (:wat::rete::axis-violation-message "then" item
-                                    ;; exact, never a default: if the first three held, law A is
-                                    ;; the only conjunct left to have failed.
-                                    (:wat::core::if (:wat::core::and is-pure is-det is-total)
-                                      :wat::rete::Axis::RetePrimitive
-                                      (:wat::rete::first-failing-axis is-pure is-det is-total))))
+                                    ;; exact: first-failing-axis walks all four conjuncts;
+                                    ;; `:else` is Law A (RetePrimitive), never Total.
+                                    (:wat::rete::first-failing-axis is-pure is-det is-total is-rete)))
                     item-ch   (:wat::core::ast->children item)
                     head      (:wat::core::first item-ch)
                     head-val0 (:wat::core::Result/expect

@@ -7,15 +7,13 @@ use crate::rete::matcher::Bindings;
 use crate::runtime::{EvalBreak, Environment, RuntimeError, RuntimeErrorKind, SymbolTable, TrackedValue, Value, ValueSnapshot};
 use crate::span::Span;
 
-/// Arc 278 Stone B — evaluate a fenced `:then` expression (an operand, or — via
-/// `compiled_rhs::RhsOp::Expr` — the compiled path's own third op) against one token's bindings.
-/// Shared by the interpreted path ([`resolve_rhs_value`]) and the compiled path
-/// (`compiled_rhs::exec_compiled_rhs`) so the two can never independently drift — the "shared
-/// kernel, two surfaces" law (`DESIGN-STONE-where-admits-only-rete-ops.md` § "the implementation
-/// law"). Mirrors [`build_test_env`]'s own child-`Environment`-over-`bindings` construction
-/// exactly (the same one `eval_test_core` uses for a `where` predicate): a fresh base
-/// `Environment` is correct here for the same reason it is there — the only names a fenced
-/// `:then` expression may reference are its `?vars` and `sym`'s registered functions.
+/// Interpreter / differential for a fenced `:then` operand against one token's bindings.
+/// Live caller is [`resolve_rhs_value`]. Compiled `RhsOp::Expr` runs `expr_ir::exec_value`
+/// (`compiled_rhs::exec_compiled_rhs` never calls this). Mirrors [`build_test_env`]'s own
+/// child-`Environment`-over-`bindings` construction exactly (the same one `eval_test_core`
+/// uses for a `where` predicate): a fresh base `Environment` is correct here for the same
+/// reason it is there — the only names a fenced `:then` expression may reference are its
+/// `?vars` and `sym`'s registered functions.
 pub(crate) fn eval_rhs_expr(
     expr: &WatAST,
     bindings: &crate::value::pmap::PMap,
@@ -105,8 +103,8 @@ pub(crate) fn eval_test_core<B: Bindings + ?Sized>(
 /// then delegates to `eval_test_core`. No behavior change from the previous monolithic
 /// implementation — the core extraction is a refactor only.
 ///
-/// Because the 6a fence (pure ∧ deterministic) proves safety at compile time,
-/// no runtime purity mode is needed here.
+/// Because the four-axis compile-condition fence (pure ∧ det ∧ total ∧ rete)
+/// proves safety at compile time, eval-test does not re-run it.
 pub(crate) fn eval_test(
     args: &[WatAST],
     list_span: &Span,

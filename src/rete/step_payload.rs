@@ -2,9 +2,9 @@
 
 use crate::ast::WatAST;
 use crate::rete::kernel::{alpha_cond_of, session_network};
+use crate::rete::clause::{classify_constraint_head, classify_rete_clause, ReteClauseShape};
 use crate::rete::matcher::{
-    alpha_pattern, class_field_names, classify_constraint_head, classify_rete_clause, fact_from_value,
-    resolve_operand, FieldNames, ReteClauseShape,
+    alpha_pattern, class_field_names, fact_from_value, resolve_operand, FieldNames,
 };
 use crate::runtime::{EvalBreak, Environment, RuntimeError, RuntimeErrorKind, SymbolTable, Value, ValueSnapshot};
 use crate::span::Span;

@@ -42,7 +42,7 @@ use std::sync::Arc;
 use rustc_hash::FxHashMap;
 
 use crate::ast::WatAST;
-use crate::rete::matcher::{classify_constraint_head, classify_rete_clause, CmpKind, ReteClauseShape};
+use crate::rete::clause::{classify_constraint_head, classify_rete_clause, CmpKind, ReteClauseShape};
 use crate::rete::kernel::{class_field_names, AlphasByType};
 use crate::runtime::{SymbolTable, Value};
 
@@ -116,11 +116,8 @@ impl AlphaTree {
         AlphaTree { roots }
     }
 
-    /// Import-time tree: every alpha of a class is a candidate. Correct
-    /// (a superset); unpruned. The residual does not carry WatAST, so
-    /// `build` cannot re-derive discriminators. `(b)` indexes later.
     /// Keep only alphas in `keep`. Used by `subset_rete_arm` so a stratum
-    /// slice does not walk every alpha of the type (`unpruned` is import-only).
+    /// slice does not walk every alpha of the type.
     pub(crate) fn restrict(&self, keep: &HashSet<i64>) -> Self {
         let roots = self
             .roots
@@ -132,6 +129,10 @@ impl AlphaTree {
         AlphaTree { roots }
     }
 
+    /// Import-time tree: every alpha of a class is a candidate. Correct
+    /// (a superset); unpruned. The residual does not carry WatAST, so
+    /// `build` cannot re-derive discriminators. `(b)` indexes later.
+    /// Import-only — `restrict` is the stratum slice.
     pub(crate) fn unpruned(alpha_by_type: &AlphasByType) -> Self {
         let mut roots = Vec::with_capacity(alpha_by_type.len());
         for (class, alpha_ids) in alpha_by_type {
@@ -307,7 +308,7 @@ fn collect_equalities(
 ) {
     for clause in clauses {
         match classify_rete_clause(clause) {
-            // The ONE DOOR (`matcher::classify_constraint_head`) — an EQUALITY at any spelling, so
+            // The ONE DOOR (`clause::classify_constraint_head`) — an EQUALITY at any spelling, so
             // the per-type rete rows feed the discrimination tree exactly as the generic core `=`
             // used to. Matching a literal string here is what made this arm a silent
             // migration hazard: `_ => {}` below would have quietly stopped collecting
@@ -359,11 +360,5 @@ fn field_literal_pair(
 /// is deliberately excluded: in operand position it is always a field reference (see
 /// `resolve_operand`), never a literal keyword value.
 fn literal_value(ast: &WatAST) -> Option<Value> {
-    match ast {
-        WatAST::IntLit(n, _) => Some(Value::i64(*n)),
-        WatAST::FloatLit(x, _) => Some(Value::f64(*x)),
-        WatAST::BoolLit(b, _) => Some(Value::bool(*b)),
-        WatAST::StringLit(s, _) => Some(Value::String(std::sync::Arc::new(s.clone()))),
-        _ => None,
-    }
+    crate::rete::matcher::ast_literal_value(ast)
 }

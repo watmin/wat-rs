@@ -10,10 +10,11 @@ use crate::span::Span;
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use super::{
-    alpha_cond_from_node, alpha_cond_of, alpha_id_for_cond, cond_text, get_node, kind_of, node_children,
-    node_record, session_named_field, session_network,
-    rule_bag_consumes, rule_consumes, rule_negates, rule_produces, sorted_node_ids, AlphaDelta,
-    AlphasByType, BetaMemory, JoinsFedBy, ParentsOf, TestChildren, TestSibs,
+    alpha_cond_from_node, alpha_cond_of, cond_text, get_node, kind_of, node_children,
+    node_named_ast, node_record, session_named_field,
+    session_network, rule_bag_consumes, rule_consumes, rule_negates, rule_produces, sorted_node_ids,
+    AlphaDelta, AlphasByType, BetaMemory, ChildrenOf, JoinsFedBy, NodeKind, ParentsOf, TestChildren,
+    TestSibs,
 };
 use crate::runtime::ValueSnapshot;
 
@@ -42,30 +43,30 @@ pub(crate) enum CondDriver {
 
 pub(crate) fn compile_cond_driver(
     cond: &WatAST,
-    network: &Value,
+    alpha_by_text: &HashMap<String, i64>,
     sym: &SymbolTable,
 ) -> Result<CondDriver, EvalBreak> {
-    use crate::rete::matcher::{classify_rete_clause, ReteClauseShape};
+    use crate::rete::clause::{classify_rete_clause, ReteClauseShape};
     match classify_rete_clause(cond) {
         ReteClauseShape::And(kids) => {
             let mut out = Vec::with_capacity(kids.len());
             for k in kids {
-                out.push(compile_cond_driver(k, network, sym)?);
+                out.push(compile_cond_driver(k, alpha_by_text, sym)?);
             }
             Ok(CondDriver::And(out))
         }
         ReteClauseShape::Or(kids) => {
             let mut out = Vec::with_capacity(kids.len());
             for k in kids {
-                out.push(compile_cond_driver(k, network, sym)?);
+                out.push(compile_cond_driver(k, alpha_by_text, sym)?);
             }
             Ok(CondDriver::Or(out))
         }
         ReteClauseShape::Not(inner) => Ok(CondDriver::Not(Box::new(compile_cond_driver(
-            inner, network, sym,
+            inner, alpha_by_text, sym,
         )?))),
         ReteClauseShape::Exists(inner) => Ok(CondDriver::Exists(Box::new(compile_cond_driver(
-            inner, network, sym,
+            inner, alpha_by_text, sym,
         )?))),
         ReteClauseShape::Where(expr) => {
             let program = crate::rete::expr_ir::lower(expr, sym)
@@ -73,7 +74,7 @@ pub(crate) fn compile_cond_driver(
             Ok(CondDriver::Where(Arc::new(program)))
         }
         _ => {
-            let id = alpha_id_for_cond(network, cond).ok_or_else(|| {
+            let id = alpha_by_text.get(&cond_text(cond)).copied().ok_or_else(|| {
                 RuntimeError::new(
                     cond.span().clone(),
                     RuntimeErrorKind::MalformedForm {
@@ -90,23 +91,41 @@ pub(crate) fn compile_cond_driver(
     }
 }
 
-pub(crate) fn compile_all_cond_drivers(
-    network: &Value,
-    node_ids: &[i64],
-    sym: &SymbolTable,
-) -> Result<HashMap<i64, CondDriver>, EvalBreak> {
+fn alpha_index_by_cond_text(network: &Value, node_ids: &[i64]) -> HashMap<String, i64> {
     let mut out = HashMap::new();
     for id in node_ids {
         let Some(node) = get_node(network, *id) else {
             continue;
         };
-        if kind_of(node) != "AlphaNode" {
+        if kind_of(node) != NodeKind::Alpha {
+            continue;
+        }
+        let Some(stored) = alpha_cond_of(network, *id) else {
+            continue;
+        };
+        out.insert(cond_text(&stored), *id);
+    }
+    out
+}
+
+pub(crate) fn compile_all_cond_drivers(
+    network: &Value,
+    node_ids: &[i64],
+    sym: &SymbolTable,
+) -> Result<HashMap<i64, CondDriver>, EvalBreak> {
+    let alpha_by_text = alpha_index_by_cond_text(network, node_ids);
+    let mut out = HashMap::new();
+    for id in node_ids {
+        let Some(node) = get_node(network, *id) else {
+            continue;
+        };
+        if kind_of(node) != NodeKind::Alpha {
             continue;
         }
         let Some(cond) = alpha_cond_of(network, *id) else {
             continue;
         };
-        out.insert(*id, compile_cond_driver(&cond, network, sym)?);
+        out.insert(*id, compile_cond_driver(&cond, &alpha_by_text, sym)?);
     }
     Ok(out)
 }
@@ -241,7 +260,7 @@ pub(crate) fn build_alpha_index(
             Some(n) => n,
             None => continue,
         };
-        if kind_of(node) != "AlphaNode" {
+        if kind_of(node) != NodeKind::Alpha {
             continue;
         }
         let Some(cond_ast) = alpha_cond_from_node(node) else {
@@ -327,16 +346,11 @@ pub(crate) fn compile_user_fold_programs(
             Some(n) => n,
             None => continue,
         };
-        if kind_of(node) != "AccumulateNode" {
+        if kind_of(node) != NodeKind::Accumulate {
             continue;
         }
-        let (_, sf) = match node_record(node) {
-            Some(p) => p,
-            None => continue,
-        };
-        let acc_form = match &sf[2] {
-            Value::wat__WatAST(ast) => ast.as_ref(),
-            _ => continue,
+        let Some(acc_form) = node_named_ast(node, "acc-form") else {
+            continue;
         };
         let items = match acc_form {
             WatAST::List(items, _) => items.as_slice(),
@@ -350,7 +364,7 @@ pub(crate) fn compile_user_fold_programs(
         if head.starts_with(":wat::rete::acc::") {
             continue;
         }
-        let program = crate::rete::expr_ir::lower_named_rete_fn(head, sym)
+        let program = crate::rete::expr_ir::lower_named_rete_fn(head, acc_form.span(), sym)
             .map_err(crate::rete::expr_ir::LowerError::into_eval)?;
         out.insert(*node_id, program);
     }
@@ -371,16 +385,11 @@ pub(crate) fn compile_test_programs(
             Some(n) => n,
             None => continue,
         };
-        if kind_of(node) != "TestNode" {
+        if kind_of(node) != NodeKind::Test {
             continue;
         }
-        let (_, sf) = match node_record(node) {
-            Some(p) => p,
-            None => continue,
-        };
-        let expr = match &sf[1] {
-            Value::wat__WatAST(ast) => ast.as_ref(),
-            _ => continue,
+        let Some(expr) = node_named_ast(node, "expr") else {
+            continue;
         };
         let program = crate::rete::expr_ir::lower(expr, sym)
             .map_err(crate::rete::expr_ir::LowerError::into_eval)?;
@@ -401,6 +410,7 @@ pub(crate) struct KindIdLists {
     pub(crate) filter: Vec<i64>,
     pub(crate) prod: Vec<i64>,
     pub(crate) filter_or_acc: Vec<i64>,
+    pub(crate) query: Vec<i64>,
 }
 
 pub(crate) fn kind_id_lists(network: &Value, node_ids: &[i64]) -> KindIdLists {
@@ -409,17 +419,18 @@ pub(crate) fn kind_id_lists(network: &Value, node_ids: &[i64]) -> KindIdLists {
     let mut acc = Vec::new();
     let mut filter = Vec::new();
     let mut prod = Vec::new();
+    let mut query = Vec::new();
     for &id in node_ids {
         let Some(node) = get_node(network, id) else {
             continue;
         };
         match kind_of(node) {
-            "AlphaNode" => alpha.push(id),
-            "RootJoinNode" | "HashJoinNode" => join_parent.push(id),
-            "AccumulateNode" => acc.push(id),
-            "TestNode" | "NegationNode" | "ExistsNode" => filter.push(id),
-            "ProductionNode" => prod.push(id),
-            _ => {}
+            NodeKind::Alpha => alpha.push(id),
+            NodeKind::RootJoin | NodeKind::HashJoin => join_parent.push(id),
+            NodeKind::Accumulate => acc.push(id),
+            NodeKind::Test | NodeKind::Negation | NodeKind::Exists => filter.push(id),
+            NodeKind::Production => prod.push(id),
+            NodeKind::Query => query.push(id),
         }
     }
     let filter_or_acc = merge_sorted_ids(&filter, &acc);
@@ -430,6 +441,7 @@ pub(crate) fn kind_id_lists(network: &Value, node_ids: &[i64]) -> KindIdLists {
         filter,
         prod,
         filter_or_acc,
+        query,
     }
 }
 
@@ -530,7 +542,7 @@ pub(crate) struct InternedNetwork {
     /// Node id → TestNode children (filter-after-join sibling walk).
     pub(crate) test_children: TestChildren,
     /// Node id → children ids interned at arm build (fire does not re-scan names).
-    pub(crate) children_of: HashMap<i64, Vec<i64>>,
+    pub(crate) children_of: ChildrenOf,
 }
 
 pub(crate) fn network_identity(network: &Value) -> Option<u64> {
@@ -679,15 +691,11 @@ pub(crate) fn build_rete_arm(
         let Some(node) = get_node(network, *node_id) else {
             continue;
         };
-        if kind_of(node) != "AccumulateNode" {
+        if kind_of(node) != NodeKind::Accumulate {
             continue;
         }
-        let Some((_, sf)) = node_record(node) else {
+        let Some(acc_form) = node_named_ast(node, "acc-form") else {
             continue;
-        };
-        let acc_form = match &sf[2] {
-            Value::wat__WatAST(ast) => ast.as_ref(),
-            _ => continue,
         };
         compiled_acc_folds.insert(
             *node_id,
@@ -697,7 +705,7 @@ pub(crate) fn build_rete_arm(
 
     let mut feeding_alpha_of: HashMap<i64, i64> = HashMap::new();
     let mut parents_of: ParentsOf = HashMap::new();
-    let mut children_of: HashMap<i64, Vec<i64>> = HashMap::new();
+    let mut children_of: ChildrenOf = HashMap::new();
     for node_id in &node_ids {
         let node = match get_node(network, *node_id) {
             Some(n) => n,
@@ -705,7 +713,7 @@ pub(crate) fn build_rete_arm(
         };
         let kids = node_children(node);
         children_of.insert(*node_id, kids.clone());
-        let is_alpha = kind_of(node) == "AlphaNode";
+        let is_alpha = kind_of(node) == NodeKind::Alpha;
         for child in kids {
             if is_alpha {
                 feeding_alpha_of.insert(child, *node_id);
@@ -722,10 +730,12 @@ pub(crate) fn build_rete_arm(
             None => continue,
         };
         for child in node_children(node) {
-            let child_kind = get_node(network, child).map(kind_of).unwrap_or("");
-            if child_kind == "HashJoinNode" || child_kind == "QueryNode" {
-                beta_readers.insert(*node_id);
-                break;
+            if let Some(child_node) = get_node(network, child) {
+                let k = kind_of(child_node);
+                if k == NodeKind::HashJoin || k == NodeKind::Query {
+                    beta_readers.insert(*node_id);
+                    break;
+                }
             }
         }
     }
@@ -808,7 +818,7 @@ pub(crate) fn build_test_sibs(
         let Some(node) = get_node(network, id) else {
             continue;
         };
-        if kind_of(node) != "TestNode" {
+        if kind_of(node) != NodeKind::Test {
             continue;
         }
         let mut p = parents_of.get(&id).cloned().unwrap_or_default();
@@ -835,7 +845,7 @@ pub(crate) fn build_test_children(network: &Value, node_ids: &[i64]) -> TestChil
             .into_iter()
             .filter(|&c| {
                 get_node(network, c)
-                    .map(|n| kind_of(n) == "TestNode")
+                    .map(|n| kind_of(n) == NodeKind::Test)
                     .unwrap_or(false)
             })
             .collect();
@@ -947,14 +957,14 @@ pub(crate) fn subset_rete_arm(
 
     let mut feeding_alpha_of: HashMap<i64, i64> = HashMap::new();
     let mut parents_of: ParentsOf = HashMap::new();
-    let mut children_of: HashMap<i64, Vec<i64>> = HashMap::new();
+    let mut children_of: ChildrenOf = HashMap::new();
     for node_id in &node_ids {
         let Some(node) = get_node(sliced_network, *node_id) else {
             continue;
         };
         let kids = node_children(node);
         children_of.insert(*node_id, kids.clone());
-        let is_alpha = kind_of(node) == "AlphaNode";
+        let is_alpha = kind_of(node) == NodeKind::Alpha;
         for child in kids {
             if is_alpha {
                 feeding_alpha_of.insert(child, *node_id);
@@ -969,10 +979,12 @@ pub(crate) fn subset_rete_arm(
             continue;
         };
         for child in node_children(node) {
-            let child_kind = get_node(sliced_network, child).map(kind_of).unwrap_or("");
-            if child_kind == "HashJoinNode" || child_kind == "QueryNode" {
-                beta_readers.insert(*node_id);
-                break;
+            if let Some(child_node) = get_node(sliced_network, child) {
+                let k = kind_of(child_node);
+                if k == NodeKind::HashJoin || k == NodeKind::Query {
+                    beta_readers.insert(*node_id);
+                    break;
+                }
             }
         }
     }

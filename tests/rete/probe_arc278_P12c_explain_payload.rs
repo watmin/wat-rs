@@ -19,6 +19,13 @@ fn nav(fn_name: &str) -> Value {
     call_beside_value(file!(), fn_name).expect("compute should run")
 }
 
+/// The shared prefix yields a DerivationNode whose via is non-empty (Temperature ⋈ WindSpeed).
+#[test]
+fn explain_cw_root_has_nonempty_via() {
+    let v = nav(":user::explain-cw-via-length");
+    assert!(matches!(v, Value::i64(n) if n > 0), "explain-cw-root via must be non-empty; got {v:?}");
+}
+
 /// PATTERN — the first step matched a Temperature condition.
 #[test]
 fn step_pattern_is_the_matched_type() {

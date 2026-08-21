@@ -16,25 +16,10 @@ type AccGroupKey = Vec<(Value, Value)>;
 type AccGroupBuckets<'a> = HashMap<AccGroupKey, Vec<&'a Element>>;
 type AccGroupOrder<'a> = Vec<(crate::value::pmap::PMap, Vec<&'a Element>)>;
 
-/// Semi-naive delta fixpoint: persistent memories, per-round delta sets, linear depth.
-///
-/// Implements the algorithm from DESIGN-STONE-P4b-delta-fire.md:
-/// - Memories (`wm.alpha`, `wm.beta`, `wm.production`) accumulate across rounds (never cleared).
-/// - Each round propagates only `delta_facts` (the facts derived last round).
-/// - Hash-join uses the semi-naive formula:
-///   `Δbeta[J] = (Δbeta[P] ⋈ all wm.alpha[A]) ∪ (old_left[P] ⋈ Δalpha[A])`
-///   where `old_left[P] = wm.beta[P]` before this round's root-join/hash-join appends.
-/// - Terminates when `next_delta_facts` is empty (monotone-finite / datalog).
-/// - Returns the persistent session with `facts = input` (same contract as P4a).
-///
-/// Observationally identical to a naive re-run fixpoint: same token multiset produced,
-/// same `wm.production` multiset → identical `query` counts. O(depth²) → linear.
-///
-/// P6: the hash-join delta step uses persistent per-node `left_idx`/`right_idx`/`join_keys`
-/// maintained incrementally across rounds (never rebuilt) — same observable result, O(1)
-/// probe cost per match instead of O(W) rebuild per round per node.
 /// Step-1 alpha activate for one fact. Shared by the seed worklist (`wm.facts`)
-/// and later owned deltas (`DESIGN-STONE-setup-seen-once`).
+/// and later owned deltas (`DESIGN-STONE-setup-seen-once`). Split-borrow bundle:
+/// the refs one fact-activate needs. The P4b/P6 round loop lives on
+/// [`fire_fixpoint_delta_armed`].
 pub(crate) struct AlphaHit<'a> {
     pub(crate) wm: &'a mut FireSession,
     pub(crate) d_alpha: &'a mut AlphaDelta,
@@ -107,10 +92,27 @@ pub(crate) enum FireKind {
     Once,
 }
 
+/// Semi-naive delta fixpoint: persistent memories, per-round delta sets, linear depth.
+///
+/// Implements the algorithm from DESIGN-STONE-P4b-delta-fire.md:
+/// - Memories (`wm.alpha`, `wm.beta`, `wm.production`) accumulate across rounds (never cleared).
+/// - Each round propagates only `delta_facts` (the facts derived last round).
+/// - Hash-join uses the semi-naive formula:
+///   `Δbeta[J] = (Δbeta[P] ⋈ all wm.alpha[A]) ∪ (old_left[P] ⋈ Δalpha[A])`
+///   where `old_left[P] = wm.beta[P]` before this round's root-join/hash-join appends.
+/// - Terminates when `next_delta_facts` is empty (monotone-finite / datalog).
+/// - Returns the persistent session with `facts = input` (same contract as P4a).
+///
+/// Observationally identical to a naive re-run fixpoint: same token multiset produced,
+/// same `wm.production` multiset → identical `query` counts. O(depth²) → linear.
+///
+/// P6: the hash-join delta step uses persistent per-node `left_idx`/`right_idx`/`join_keys`
+/// maintained incrementally across rounds (never rebuilt) — same observable result, O(1)
+/// probe cost per match instead of O(W) rebuild per round per node.
 pub(crate) fn fire_fixpoint_delta(
     session: &Value,
     sym: &SymbolTable,
-    support: Option<&mut HashMap<Value, (String, Value)>>,
+    support: Option<&mut ExplainSupport>,
 ) -> Result<Value, EvalBreak> {
     fire_fixpoint_delta_armed(session, sym, support, None, FireKind::Rules)
 }
@@ -120,7 +122,7 @@ pub(crate) fn fire_fixpoint_delta(
 pub(crate) fn fire_fixpoint_delta_armed(
     session: &Value,
     sym: &SymbolTable,
-    mut support: Option<&mut HashMap<Value, (String, Value)>>,
+    mut support: Option<&mut ExplainSupport>,
     pre_arm: Option<Arc<crate::rete::kernel::InternedNetwork>>,
     kind: FireKind,
 ) -> Result<Value, EvalBreak> {
@@ -309,7 +311,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
                     Some(n) => n,
                     None => continue,
                 };
-                if kind_of(child_node) != "RootJoinNode" {
+                if kind_of(child_node) != NodeKind::RootJoin {
                     continue;
                 }
                 for &ei in new_idxs {
@@ -362,25 +364,20 @@ pub(crate) fn fire_fixpoint_delta_armed(
             if !dirty_parents.contains(node_id) {
                 continue;
             }
-            // Group C: use &Value ref (wm.network borrow) — no clone; kind_of/node_children take &Value.
-            let node = match get_node(&wm.network, *node_id) {
-                Some(n) => n,
-                None => continue,
-            };
-            let kind = kind_of(node);
-            if kind != "RootJoinNode" && kind != "HashJoinNode" {
-                continue;
-            }
-
-            let child_ids = node_children(node);
-            // node's last use is node_children above; wm.network borrow for `node` ends here (NLL).
-            for child_id in &child_ids {
+            // kind_ids.join_parent already filtered; children interned so fire
+            // does not re-scan names (`InternedNetwork.children_of`).
+            let child_ids: &[i64] = arm
+                .children_of
+                .get(node_id)
+                .map(|v| v.as_slice())
+                .unwrap_or(&[]);
+            for child_id in child_ids {
                 // Group C: child_node ref — only used for kind_of; borrow ends before wm mutations.
                 let child_node = match get_node(&wm.network, *child_id) {
                     Some(n) => n,
                     None => continue,
                 };
-                if kind_of(child_node) != "HashJoinNode" {
+                if kind_of(child_node) != NodeKind::HashJoin {
                     continue;
                 }
                 let alpha_id = feeding_alpha_of.get(child_id).copied().unwrap_or(-1);
@@ -694,14 +691,14 @@ pub(crate) fn fire_fixpoint_delta_armed(
                 Some(n) => n,
                 None => continue,
             };
-            if kind_of(node) != "AccumulateNode" {
+            if kind_of(node) != NodeKind::Accumulate {
                 continue;
             }
-            // AccumulateNode struct_form: id(0), result-var(1), acc-form(2), from-alpha-id(3), children(4).
-            let (_, sf) = node_record(node).expect("accumulate-pass: node must be a Record");
-            let result_var = match &sf[1] {
-                Value::String(s) => Value::String(s.clone()),
-                _ => continue, // malformed: skip
+            let Some(result_var) = node_named_field(node, "result-var")
+                .cloned()
+                .filter(|v| matches!(v, Value::String(_)))
+            else {
+                continue;
             };
             let Some(acc_fold) = compiled_acc_folds.get(node_id) else {
                 return Err(RuntimeError::new(
@@ -715,9 +712,8 @@ pub(crate) fn fire_fixpoint_delta_armed(
                 )
                 .into());
             };
-            let from_alpha_id: i64 = match &sf[3] {
-                Value::i64(n) => *n,
-                _ => continue, // malformed: skip
+            let Some(from_alpha_id) = node_named_i64(node, "from-alpha-id") else {
+                continue;
             };
             // NEW tokens at EVERY parent (clone to avoid the d_beta read/write borrow conflict).
             // Leading accumulate (Clara test-count): no parent — seed one empty token.
@@ -923,10 +919,9 @@ pub(crate) fn fire_fixpoint_delta_armed(
                 None => continue,
             };
             let kind = kind_of(node);
-            if kind != "TestNode" && kind != "NegationNode" && kind != "ExistsNode" {
+            if kind != NodeKind::Test && kind != NodeKind::Negation && kind != NodeKind::Exists {
                 continue;
             }
-            let (_, sf) = node_record(node).expect("filter-pass: node must be a Record");
             // Clone the new-this-round tokens at EVERY parent to avoid a simultaneous
             // borrow conflict (reading d_beta[parent] while writing d_beta[*node_id]).
             // A Test/:not/:exists after condition `:or` has N parents.
@@ -934,7 +929,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
             let mut new_tokens: Vec<Token> = d_beta_from_parents(parents_of, &d_beta, *node_id);
             // Leading :not has no parent — Clara matches the empty world with one
             // empty-binding token. Do not seed when parents exist but produced nothing.
-            if pids.is_empty() && kind == "NegationNode" {
+            if pids.is_empty() && kind == NodeKind::Negation {
                 new_tokens = vec![Token {
                     matches: empty_span(),
                     binds: empty_span(),
@@ -943,10 +938,9 @@ pub(crate) fn fire_fixpoint_delta_armed(
             // Leading :exists: one token per DISTINCT inner binding (Clara
             // test-simple-exists — two Winds at MCI → one {?loc MCI}), not an
             // empty seed. Mid-chain exists still filters parent tokens below.
-            if pids.is_empty() && kind == "ExistsNode" {
-                let alpha_id: i64 = match &sf[1] {
-                    Value::i64(n) => *n,
-                    _ => continue,
+            if pids.is_empty() && kind == NodeKind::Exists {
+                let Some(alpha_id) = node_ref_alpha_id(node) else {
+                    continue;
                 };
                 let driver = driver_of(compiled_drivers, alpha_id)?;
                 let mut seen = std::collections::HashSet::new();
@@ -999,15 +993,15 @@ pub(crate) fn fire_fixpoint_delta_armed(
             if new_tokens.is_empty() {
                 continue;
             }
-            if kind == "TestNode" {
+            if kind == NodeKind::Test {
                 if tests_done.contains(node_id) {
                     continue;
                 }
                 // DESIGN-STONE-compiled-where Step 0 — capture the FIRST (expr, tokens) this loop
                 // handles. Census only; production never reads `:expr`.
                 #[cfg(test)]
-                if let Value::wat__WatAST(ast) = &sf[1] {
-                    capture_where_sample(ast.as_ref(), &new_tokens, &wm.bind_keys, &wm.bind_vals, &wm.bind_pool);
+                if let Some(ast) = node_named_ast(node, "expr") {
+                    capture_where_sample(ast, &new_tokens, &wm.bind_keys, &wm.bind_vals, &wm.bind_pool);
                 }
                 // Siblings that share this TestNode's parent set see the same token
                 // stream — dispatch once through the interned where-tree groups.
@@ -1034,10 +1028,9 @@ pub(crate) fn fire_fixpoint_delta_armed(
                 // Verdict inverts by kind: NegationNode passes iff ZERO compatible, ExistsNode
                 // iff ≥1. The index is over FULL cumulative wm.alpha (step 1 ran first).
                 // ExistsNode binds nothing and passes the token at most ONCE (no multiplicity).
-                let is_exists = kind == "ExistsNode";
-                let alpha_id: i64 = match &sf[1] {
-                    Value::i64(n) => *n,
-                    _ => continue, // malformed Negation/Exists node: skip
+                let is_exists = kind == NodeKind::Exists;
+                let Some(alpha_id) = node_ref_alpha_id(node) else {
+                    continue;
                 };
                 let driver = driver_of(compiled_drivers, alpha_id)?;
                 for tok in new_tokens {
@@ -1079,10 +1072,10 @@ pub(crate) fn fire_fixpoint_delta_armed(
                 None => continue,
             };
             let kind = kind_of(node);
-            if kind != "TestNode"
-                && kind != "NegationNode"
-                && kind != "ExistsNode"
-                && kind != "AccumulateNode"
+            if kind != NodeKind::Test
+                && kind != NodeKind::Negation
+                && kind != NodeKind::Exists
+                && kind != NodeKind::Accumulate
             {
                 continue;
             }
@@ -1090,13 +1083,17 @@ pub(crate) fn fire_fixpoint_delta_armed(
                 Some(ts) if !ts.is_empty() => ts.clone(),
                 _ => continue,
             };
-            let child_ids = node_children(node);
-            for child_id in &child_ids {
+            let child_ids: &[i64] = arm
+                .children_of
+                .get(node_id)
+                .map(|v| v.as_slice())
+                .unwrap_or(&[]);
+            for child_id in child_ids {
                 let child_node = match get_node(&wm.network, *child_id) {
                     Some(n) => n,
                     None => continue,
                 };
-                if kind_of(child_node) != "HashJoinNode" {
+                if kind_of(child_node) != NodeKind::HashJoin {
                     continue;
                 }
                 let alpha_id = feeding_alpha_of.get(child_id).copied().unwrap_or(-1);
@@ -1166,14 +1163,14 @@ pub(crate) fn fire_fixpoint_delta_armed(
                         None => continue,
                     };
                     let fkind = kind_of(filter_node);
-                    if fkind != "TestNode" && fkind != "NegationNode" && fkind != "ExistsNode" {
+                    if fkind != NodeKind::Test && fkind != NodeKind::Negation && fkind != NodeKind::Exists {
                         continue;
                     }
                     let new_tokens: Vec<Token> = match d_beta.get(&hj_id) {
                         Some(ts) if !ts.is_empty() => ts.clone(),
                         _ => continue,
                     };
-                    if fkind == "TestNode" {
+                    if fkind == NodeKind::Test {
                         if !tests_dispatched {
                             let empty: Vec<i64> = Vec::new();
                             let test_sibs = test_children.get(&hj_id).unwrap_or(&empty);
@@ -1192,14 +1189,9 @@ pub(crate) fn fire_fixpoint_delta_armed(
                             tests_dispatched = true;
                         }
                     } else {
-                        let (_, sf) = match node_record(filter_node) {
-                            Some(p) => p,
-                            None => continue,
-                        };
-                        let is_exists = fkind == "ExistsNode";
-                        let alpha_id: i64 = match &sf[1] {
-                            Value::i64(n) => *n,
-                            _ => continue,
+                        let is_exists = fkind == NodeKind::Exists;
+                        let Some(alpha_id) = node_ref_alpha_id(filter_node) else {
+                            continue;
                         };
                         if new_tokens.is_empty() {
                             continue;
@@ -1262,10 +1254,10 @@ pub(crate) fn fire_fixpoint_delta_armed(
                                 None => continue,
                             };
                             let gkind = kind_of(gc);
-                            if gkind == "TestNode" {
+                            if gkind == NodeKind::Test {
                                 continue;
                             }
-                            if gkind == "HashJoinNode" {
+                            if gkind == NodeKind::HashJoin {
                                 let alpha_id = feeding_alpha_of.get(&gc_id).copied().unwrap_or(-1);
                                 let elements = match wm.alpha.get(&alpha_id) {
                                     Some(els) if !els.is_empty() => els.as_slice(),
@@ -1308,17 +1300,12 @@ pub(crate) fn fire_fixpoint_delta_armed(
                                 next_frontier.push(gc_id);
                                 continue;
                             }
-                            if gkind != "NegationNode" && gkind != "ExistsNode" {
+                            if gkind != NodeKind::Negation && gkind != NodeKind::Exists {
                                 continue;
                             }
-                            let (_, gsf) = match node_record(gc) {
-                                Some(p) => p,
-                                None => continue,
-                            };
-                            let is_exists = gkind == "ExistsNode";
-                            let alpha_id: i64 = match &gsf[1] {
-                                Value::i64(n) => *n,
-                                _ => continue,
+                            let is_exists = gkind == NodeKind::Exists;
+                            let Some(alpha_id) = node_ref_alpha_id(gc) else {
+                                continue;
                             };
                             let driver = driver_of(compiled_drivers, alpha_id)?;
                             for tok in &parent_toks {
@@ -1357,13 +1344,11 @@ pub(crate) fn fire_fixpoint_delta_armed(
                 Some(n) => n,
                 None => continue,
             };
-            if kind_of(node) != "ProductionNode" {
+            if kind_of(node) != NodeKind::Production {
                 continue;
             }
-            let (_, sf) = node_record(node).unwrap();
-            let rule_name = match &sf[1] {
-                Value::String(s) => s.as_str(),
-                _ => continue,
+            let Some(rule_name) = node_named_string(node, "rule-name") else {
+                continue;
             };
             // Production gate: rule name must be in this arm's compiled :then
             // (stratified slices pass a rules subset — a ProductionNode whose

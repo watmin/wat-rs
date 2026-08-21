@@ -21,6 +21,21 @@ fn call(fn_name: &str) -> Value {
 // ─── Single rule: fire-rules' on a one-round derivation == fire-rules ──────────────
 
 #[test]
+fn compile_cw_fires_nothing() {
+    assert_eq!(call(":user::compile-cw-fires-nothing"), Value::i64(0), "single-rule compile+fire with no facts derives nothing");
+}
+
+#[test]
+fn compile_ab_fires_nothing() {
+    assert_eq!(call(":user::compile-ab-fires-nothing"), Value::i64(0), "two-rule compile+fire with no facts derives nothing");
+}
+
+#[test]
+fn seed_oslo_session_builds() {
+    let _ = call(":user::seed-oslo-session");
+}
+
+#[test]
 fn native_matches_wat_single_rule_match() {
     let native = call(":user::single-native-oslo");
     let wat = call(":user::single-wat-oslo");

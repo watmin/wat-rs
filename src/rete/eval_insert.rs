@@ -194,14 +194,15 @@ fn build_insert_fact_call(
     }
     let result = crate::runtime::apply_function(func, vals, sym, fact_form.span().clone())
         .map_err(EvalBreak::from)?;
-    match result {
-        Value::Aggregate(_) => Ok(result),
-        other => Err(RuntimeError::new(fact_form.span().clone(), RuntimeErrorKind::TypeMismatch {
+    if crate::rete::matcher::is_record_fact(&result) {
+        Ok(result)
+    } else {
+        Err(RuntimeError::new(fact_form.span().clone(), RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
-            expected: "the fn to return a fact (a Record/Struct) — the rule-compile fence should \
+            expected: "the fn to return a fact (a Record) — the rule-compile fence should \
                        have refused a non-fact return type",
-            got: Box::new(ValueSnapshot::of(&other)),
-        }).into()),
+            got: Box::new(ValueSnapshot::of(&result)),
+        }).into())
     }
 }
 
@@ -212,9 +213,9 @@ fn build_insert_fact_call(
 /// (`BRIEF-then-user-forms.md` STOP-5: "Do NOT touch `:when`").
 ///
 /// The freeze-time wat fence (`then-item-fence`) has already proven any `List` reaching here is
-/// pure ∧ deterministic and rete-namespaced-or-composed — the SAME warrant `eval_test_core`
-/// already relies on for a `where` predicate. [`eval_rhs_expr`] is that same evaluation, reused,
-/// not a second implementation.
+/// pure ∧ deterministic ∧ total ∧ rete-primitive (declaration-derived constructors still admitted
+/// via `head_ok`'s first door) — the SAME four-axis warrant `eval_test_core` already relies on
+/// for a `where` predicate. [`eval_rhs_expr`] is the interpreter half of that evaluation.
 pub(crate) fn resolve_rhs_value(
     arg: &WatAST,
     bindings: &crate::value::pmap::PMap,

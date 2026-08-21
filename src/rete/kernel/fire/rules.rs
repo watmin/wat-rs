@@ -45,7 +45,7 @@ pub(crate) fn fire_rules_stratified(
     rule_strata: &[i64],
     max_s: i64,
     sym: &SymbolTable,
-    mut support: Option<&mut HashMap<Value, (String, Value)>>,
+    mut support: Option<&mut ExplainSupport>,
 ) -> Result<Value, EvalBreak> {
     let input_facts = session_facts(session);
 
@@ -85,11 +85,9 @@ pub(crate) fn fire_rules_stratified(
             Some(n) => n,
             None => continue,
         };
-        if kind_of(node) == "ProductionNode" {
-            if let Some((_, sf)) = node_record(node) {
-                if let Value::String(rname) = &sf[1] {
-                    production_id_by_rule.insert(rname.to_string(), *id);
-                }
+        if kind_of(node) == NodeKind::Production {
+            if let Some(rname) = node_named_string(node, "rule-name") {
+                production_id_by_rule.insert(rname.to_string(), *id);
             }
         }
         for child in node_children(node) {
@@ -109,18 +107,8 @@ pub(crate) fn fire_rules_stratified(
     // Those leaves have no children edge and no id field. Dropping them
     // forced a facts-scan fallback; rematch now refuses. Follow the cond.
     let ref_alpha_of = |node: &Value| -> Option<i64> {
-        let (fqdn, sf) = node_record(node)?;
-        match node_kind_label(fqdn) {
-            "NegationNode" | "ExistsNode" => match &sf[1] {
-                Value::i64(n) => Some(*n),
-                _ => None,
-            },
-            "AccumulateNode" => match &sf[3] {
-                Value::i64(n) => Some(*n),
-                _ => None,
-            },
-            _ => None,
-        }
+        let _ = node_record(node)?;
+        node_ref_alpha_id(node)
     };
 
     let orig_rules = session_rules(session);
@@ -129,6 +117,7 @@ pub(crate) fn fire_rules_stratified(
 
     let mut acc_facts: Value = input_facts.clone();
     let mut acc_derived: Vec<Value> = Vec::new();
+    let mut acc_derived_set: HashSet<Value> = HashSet::new();
 
     for s in 0..=max_s {
         // Filter the original typed rule set to this stratum (same filter the oracle's
@@ -174,7 +163,7 @@ pub(crate) fn fire_rules_stratified(
                         frontier.push(alpha_id);
                     }
                 }
-                if kind_of(node) == "AlphaNode" {
+                if kind_of(node) == NodeKind::Alpha {
                     if let Some(d) = slice_drivers.get(&id) {
                         for leaf_id in driver_leaf_ids(d) {
                             if leaf_id != id && active_ids.insert(leaf_id) {
@@ -263,15 +252,11 @@ pub(crate) fn fire_rules_stratified(
         acc_facts = merge_facts(&acc_facts, &new_derived);
 
         // acc_derived := value-dedup union across strata (mirrors `merge-facts`, R18 — NOT concat).
-        let acc_derived_pv: rpds::VectorSync<Value> = acc_derived.iter().cloned().collect();
-        let merged = merge_facts(
-            &Value::wat__core__PersistentVector(acc_derived_pv),
-            &new_derived,
-        );
-        acc_derived = match merged {
-            Value::wat__core__PersistentVector(pv) => pv.iter().cloned().collect(),
-            _ => acc_derived,
-        };
+        for d in &new_derived {
+            if acc_derived_set.insert(d.clone()) {
+                acc_derived.push(d.clone());
+            }
+        }
     }
 
     // Pack derived facts into production-memory {0: acc_derived} (mirrors fire-stratified's
@@ -290,10 +275,15 @@ pub(crate) fn fire_rules_stratified(
 
     // Oracle fire-stratified does a throwaway fire-once on the ORIGINAL network + closed
     // facts so QueryNodes (absent from per-stratum slices) fill query-memory.
-    let q_fired = fire_once_session(&session_with_facts(session, acc_facts.clone()), sym)?;
-    let qmem = session_named_field(&q_fired, "query-memory")
-        .cloned()
-        .unwrap_or_else(|| Value::wat__core__PersistentMap(crate::value::pmap::PMap::new()));
+    // Skip when the full arm has no QueryNode.
+    let qmem = if full_arm.kind_ids.query.is_empty() {
+        Value::wat__core__PersistentMap(crate::value::pmap::PMap::new())
+    } else {
+        let q_fired = fire_once_session(&session_with_facts(session, acc_facts.clone()), sym)?;
+        session_named_field(&q_fired, "query-memory")
+            .cloned()
+            .unwrap_or_else(|| Value::wat__core__PersistentMap(crate::value::pmap::PMap::new()))
+    };
 
     let empty_pm = Value::wat__core__PersistentMap(crate::value::pmap::PMap::new());
     Ok(session_with_fields(
@@ -320,7 +310,11 @@ pub(crate) fn fire_rules_stratified(
 /// or to `fire_rules_stratified` when a rule negates a same-or-lower-stratum type.
 /// Restores `facts = input` before returning.
 ///
-/// Observationally equivalent to the wat oracle's `fire-rules$oracle`.
+/// Observationally equivalent to the wat oracle's `fire-rules$oracle` on AST
+/// Sessions (non-empty Rule/Query forms). Export is native-only: the oracle
+/// refuses an imported Export (`wat/rete.wat` bounds Export as "Native fire
+/// only"; `wat/rete/oracle/fire.wat` fire-rules$oracle / fire-once$oracle).
+/// Native fires that Export when the interned arm has `rule_deps`.
 pub(crate) fn eval_fire_rules_native(
     args: &[WatAST],
     list_span: &Span,
@@ -350,7 +344,7 @@ pub(crate) fn eval_fire_rules_native(
 pub(crate) fn fire_rules_on_session(
     session: &Value,
     sym: &SymbolTable,
-    support: Option<&mut HashMap<Value, (String, Value)>>,
+    support: Option<&mut ExplainSupport>,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::rete::fire-rules";
     // 7-strat-native: read the rule set once and compute each rule's stratum (port of the

@@ -18,6 +18,24 @@ use wat::runtime::Value;
 // ── Part A — the fact-model fix: fire keeps INPUT distinct from DERIVED ──────────
 
 #[test]
+fn compile_ab_rules_fires_nothing() {
+    assert_eq!(call_beside_value(file!(), ":user::compile-ab-rules-fires-nothing").expect("eval"), Value::i64(0),
+        "two-rule compile+fire with no facts derives nothing");
+}
+
+#[test]
+fn seed_oslo_then_fire_cw() {
+    assert_eq!(call_beside_value(file!(), ":user::seed-oslo-then-fire-cw").expect("eval"), Value::i64(1),
+        "Oslo Temp+Wind fire derives one ColdAndWindy");
+}
+
+#[test]
+fn seed_bergen_then_fire_cw() {
+    assert_eq!(call_beside_value(file!(), ":user::seed-bergen-then-fire-cw").expect("eval"), Value::i64(1),
+        "Bergen Temp+Wind fire derives one ColdAndWindy");
+}
+
+#[test]
 fn fire_keeps_input_facts_distinct_from_derived() {
     // assert Temp+Wind at Oslo, fire. Session.facts must hold the 2 INPUT facts and NO derived ColdAndWindy.
     // input facts present (Temperature kept):

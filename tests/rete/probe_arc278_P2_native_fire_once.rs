@@ -18,6 +18,26 @@ fn call(fn_name: &str) -> Value {
 }
 
 #[test]
+fn compile_cw_fires_once_nothing() {
+    assert_eq!(call(":user::compile-cw-fires-once-nothing"), Value::i64(0), "compile+fire-once with no facts derives nothing");
+}
+
+#[test]
+fn staged_oslo_builds() {
+    let _ = call(":test::staged-oslo");
+}
+
+#[test]
+fn staged_bergen_builds() {
+    let _ = call(":test::staged-bergen");
+}
+
+#[test]
+fn staged_2x2_builds() {
+    let _ = call(":test::staged-2x2");
+}
+
+#[test]
 fn native_matches_wat_on_a_match() {
     let native = call(":user::count-native-oslo");
     let wat = call(":user::count-wat-oslo");

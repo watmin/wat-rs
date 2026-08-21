@@ -2473,25 +2473,22 @@ pub fn register_runtime_defs(
         register_runtime_defs_form(form, env, sym)?;
         match crate::rete::purity::apply_rete_defn_contracts(sym, declared_rete_defns) {
             crate::rete::purity::ReteDefnCheckOutcome::Ok => {}
-            crate::rete::purity::ReteDefnCheckOutcome::AxisViolation {
-                name,
-                axis,
-                head,
-                span,
-            } => {
-                return Err(RuntimeError::new(
-                    span,
-                    RuntimeErrorKind::ReteDefnAxisViolation { name, axis, head },
-                )
-                .into());
-            }
-            crate::rete::purity::ReteDefnCheckOutcome::Recursive { name, head, span } => {
-                return Err(RuntimeError::new(
-                    span,
-                    RuntimeErrorKind::ReteDefnRecursive { name, head },
-                )
-                .into());
-            }
+            crate::rete::purity::ReteDefnCheckOutcome::Err(err) => match err.kind {
+                crate::rete::purity::ReteDefnCheckErrorKind::AxisViolation { name, axis, head } => {
+                    return Err(RuntimeError::new(
+                        err.span,
+                        RuntimeErrorKind::ReteDefnAxisViolation { name, axis, head },
+                    )
+                    .into());
+                }
+                crate::rete::purity::ReteDefnCheckErrorKind::Recursive { name, head } => {
+                    return Err(RuntimeError::new(
+                        err.span,
+                        RuntimeErrorKind::ReteDefnRecursive { name, head },
+                    )
+                    .into());
+                }
+            },
         }
     }
     Ok(())

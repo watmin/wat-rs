@@ -13,11 +13,13 @@ use crate::rete::compiled_rhs::{CompiledRhs, CompiledRhsByRule, RhsOp};
 use crate::rete::expr_ir::{Expr, Pat, Program};
 use crate::rete::kernel::{
     alpha_cond_from_node, class_field_names, get_node, kind_of, network_identity, node_children,
-    node_record, invert_feeding_alpha, kind_id_lists, rete_arm_get_or_build, rete_arm_intern,
-    rule_deps_from_rules, session_named_field, session_network, session_names, sorted_node_ids,
-    AccFold, AlphasByType, CondDriver, InternedNetwork, ParentsOf, RuleDep,
+    node_named_field, node_named_i64, node_named_string, invert_feeding_alpha,
+    kind_id_lists, rete_arm_get_or_build, rete_arm_intern, rule_deps_from_rules,
+    session_named_field, session_network, session_names, sorted_node_ids, AccFold, AlphasByType,
+    ChildrenOf, CondDriver, InternedNetwork, NodeKind, ParentsOf, RuleDep,
 };
-use crate::rete::matcher::{alpha_pattern, CmpKind};
+use crate::rete::clause::CmpKind;
+use crate::rete::matcher::alpha_pattern;
 use crate::rete::vocabulary::RETE_OPS;
 use crate::runtime::{
     EvalBreak, RuntimeError, RuntimeErrorKind, SymbolTable, Value, ValueSnapshot,
@@ -786,32 +788,32 @@ fn pack_compiled_cond(c: &CompiledCond) -> Value {
 
 fn unpack_compiled_cond(v: &Value, span: &Span) -> Result<CompiledCond, EvalBreak> {
     let items = expect_seq(v, IMPORT_OP, span)?;
-    if expect_kw(items.first().unwrap(), IMPORT_OP, span)? != ":cond" {
+    if expect_kw(expect_at(&items, 0, span, ":cond tag")?, IMPORT_OP, span)? != ":cond" {
         return Err(malformed(span, IMPORT_OP, "expected :cond"));
     }
-    let n_slots = expect_i64(items.get(1).unwrap(), IMPORT_OP, span)? as usize;
-    let fact_bind = match items.get(2) {
-        Some(Value::String(_)) => Some(items.get(2).unwrap().clone()),
+    let n_slots = expect_i64(expect_at(&items, 1, span, "n_slots")?, IMPORT_OP, span)? as usize;
+    let fact_bind = match expect_at(&items, 2, span, "fact_bind")? {
+        Value::String(_) => Some(items[2].clone()),
         _ => None,
     };
-    let keys_pv = expect_seq(items.get(3).unwrap(), IMPORT_OP, span)?;
+    let keys_pv = expect_seq(expect_at(&items, 3, span, "slot_keys")?, IMPORT_OP, span)?;
     let slot_keys: Arc<[Value]> = keys_pv.into();
-    let slots_pv = expect_seq(items.get(4).unwrap(), IMPORT_OP, span)?;
+    let slots_pv = expect_seq(expect_at(&items, 4, span, "output_slots")?, IMPORT_OP, span)?;
     let output_slots: Arc<[usize]> = slots_pv
         .iter()
         .map(|x| expect_i64(x, IMPORT_OP, span).map(|n| n as usize))
         .collect::<Result<Vec<_>, _>>()?
         .into();
-    let seeds_pv = expect_seq(items.get(5).unwrap(), IMPORT_OP, span)?;
+    let seeds_pv = expect_seq(expect_at(&items, 5, span, "seed_reads")?, IMPORT_OP, span)?;
     let mut seed_reads = Vec::new();
     for x in seeds_pv.iter() {
         let p = expect_seq(x, IMPORT_OP, span)?;
         seed_reads.push((
-            p.first().unwrap().clone(),
-            expect_i64(p.get(1).unwrap(), IMPORT_OP, span)? as usize,
+            expect_at(&p, 0, span, "seed key")?.clone(),
+            expect_i64(expect_at(&p, 1, span, "seed slot")?, IMPORT_OP, span)? as usize,
         ));
     }
-    let ops_pv = expect_seq(items.get(6).unwrap(), IMPORT_OP, span)?;
+    let ops_pv = expect_seq(expect_at(&items, 6, span, "ops")?, IMPORT_OP, span)?;
     let mut ops = Vec::new();
     for x in ops_pv.iter() {
         ops.push(unpack_cond_op(x, span)?);
@@ -847,8 +849,12 @@ fn pack_driver(d: &CondDriver) -> Value {
 
 fn unpack_driver(v: &Value, span: &Span) -> Result<CondDriver, EvalBreak> {
     let items = expect_seq(v, IMPORT_OP, span)?;
-    match expect_kw(items.first().unwrap(), IMPORT_OP, span)? {
-        ":leaf" => Ok(CondDriver::Leaf(expect_i64(items.get(1).unwrap(), IMPORT_OP, span)?)),
+    match expect_kw(expect_at(&items, 0, span, "driver tag")?, IMPORT_OP, span)? {
+        ":leaf" => Ok(CondDriver::Leaf(expect_i64(
+            expect_at(&items, 1, span, "leaf id")?,
+            IMPORT_OP,
+            span,
+        )?)),
         ":and" => {
             let mut ks = Vec::new();
             for x in items.iter().skip(1) {
@@ -863,12 +869,18 @@ fn unpack_driver(v: &Value, span: &Span) -> Result<CondDriver, EvalBreak> {
             }
             Ok(CondDriver::Or(ks))
         }
-        ":not" => Ok(CondDriver::Not(Box::new(unpack_driver(items.get(1).unwrap(), span)?))),
-        ":exists" => Ok(CondDriver::Exists(Box::new(unpack_driver(
-            items.get(1).unwrap(),
+        ":not" => Ok(CondDriver::Not(Box::new(unpack_driver(
+            expect_at(&items, 1, span, "not inner")?,
             span,
         )?))),
-        ":where" => Ok(CondDriver::Where(Arc::new(unpack_prog(items.get(1).unwrap(), span)?))),
+        ":exists" => Ok(CondDriver::Exists(Box::new(unpack_driver(
+            expect_at(&items, 1, span, "exists inner")?,
+            span,
+        )?))),
+        ":where" => Ok(CondDriver::Where(Arc::new(unpack_prog(
+            expect_at(&items, 1, span, "where program")?,
+            span,
+        )?))),
         other => Err(malformed(span, IMPORT_OP, format!("unknown driver {other}"))),
     }
 }
@@ -889,18 +901,18 @@ fn pack_fold(f: &AccFold) -> Value {
 
 fn unpack_fold(v: &Value, span: &Span) -> Result<AccFold, EvalBreak> {
     let items = expect_seq(v, IMPORT_OP, span)?;
-    match expect_kw(items.first().unwrap(), IMPORT_OP, span)? {
+    match expect_kw(expect_at(&items, 0, span, "fold tag")?, IMPORT_OP, span)? {
         ":count" => Ok(AccFold::Count),
-        ":sum" => Ok(AccFold::Sum(items.get(1).unwrap().clone())),
-        ":min" => Ok(AccFold::Min(items.get(1).unwrap().clone())),
-        ":max" => Ok(AccFold::Max(items.get(1).unwrap().clone())),
-        ":mean" => Ok(AccFold::Mean(items.get(1).unwrap().clone())),
-        ":distinct" => Ok(AccFold::Distinct(items.get(1).unwrap().clone())),
+        ":sum" => Ok(AccFold::Sum(expect_at(&items, 1, span, "sum key")?.clone())),
+        ":min" => Ok(AccFold::Min(expect_at(&items, 1, span, "min key")?.clone())),
+        ":max" => Ok(AccFold::Max(expect_at(&items, 1, span, "max key")?.clone())),
+        ":mean" => Ok(AccFold::Mean(expect_at(&items, 1, span, "mean key")?.clone())),
+        ":distinct" => Ok(AccFold::Distinct(expect_at(&items, 1, span, "distinct key")?.clone())),
         ":all" => Ok(AccFold::All),
-        ":group" => Ok(AccFold::GroupBy(items.get(1).unwrap().clone())),
+        ":group" => Ok(AccFold::GroupBy(expect_at(&items, 1, span, "group key")?.clone())),
         ":ufold" => Ok(AccFold::User {
-            var: items.get(1).unwrap().clone(),
-            program: Arc::new(unpack_prog(items.get(2).unwrap(), span)?),
+            var: expect_at(&items, 1, span, "ufold var")?.clone(),
+            program: Arc::new(unpack_prog(expect_at(&items, 2, span, "ufold program")?, span)?),
         }),
         other => Err(malformed(span, IMPORT_OP, format!("unknown fold {other}"))),
     }
@@ -959,10 +971,10 @@ fn pack_rhs(r: &CompiledRhs) -> Value {
 
 fn unpack_rhs(v: &Value, span: &Span) -> Result<CompiledRhs, EvalBreak> {
     let items = expect_seq(v, IMPORT_OP, span)?;
-    match expect_kw(items.first().unwrap(), IMPORT_OP, span)? {
+    match expect_kw(expect_at(&items, 0, span, "tag")?, IMPORT_OP, span)? {
         ":rec" => {
-            let class: Arc<str> = expect_str(items.get(1).unwrap(), IMPORT_OP, span)?.into();
-            let names_pv = expect_seq(items.get(2).unwrap(), IMPORT_OP, span)?;
+            let class: Arc<str> = expect_str(expect_at(&items, 1, span, "slot 1")?, IMPORT_OP, span)?.into();
+            let names_pv = expect_seq(expect_at(&items, 2, span, "slot 2")?, IMPORT_OP, span)?;
             let mut ns = Vec::new();
             for n in names_pv.iter() {
                 ns.push(expect_str(n, IMPORT_OP, span)?.to_string());
@@ -977,7 +989,7 @@ fn unpack_rhs(v: &Value, span: &Span) -> Result<CompiledRhs, EvalBreak> {
                 ops,
             })
         }
-        ":rcall" => Ok(CompiledRhs::Call(Arc::new(unpack_prog(items.get(1).unwrap(), span)?))),
+        ":rcall" => Ok(CompiledRhs::Call(Arc::new(unpack_prog(expect_at(&items, 1, span, "slot 1")?, span)?))),
         other => Err(malformed(span, IMPORT_OP, format!("unknown rhs {other}"))),
     }
 }
@@ -1017,15 +1029,9 @@ fn pack_children(node: &Value) -> impl Iterator<Item = Value> {
 }
 
 fn pack_node(node: &Value, classes: &mut ClassIntern, sym: &SymbolTable) -> Value {
-    let id = match node_record(node) {
-        Some((_, sf)) => match &sf[0] {
-            Value::i64(n) => *n,
-            _ => -1,
-        },
-        None => -1,
-    };
+    let id = node_named_i64(node, "id").unwrap_or(-1);
     match kind_of(node) {
-        "AlphaNode" => {
+        NodeKind::Alpha => {
             let class_idx = alpha_cond_from_node(node)
                 .and_then(|ast| alpha_pattern(&ast).map(|p| {
                     let ty = p.type_head.to_string();
@@ -1037,70 +1043,44 @@ fn pack_node(node: &Value, classes: &mut ClassIntern, sym: &SymbolTable) -> Valu
             xs.extend(pack_children(node));
             pv(xs)
         }
-        "RootJoinNode" => {
+        NodeKind::RootJoin => {
             let mut xs = vec![kw(":j"), Value::i64(id)];
             xs.extend(pack_children(node));
             pv(xs)
         }
-        "HashJoinNode" => {
+        NodeKind::HashJoin => {
             let mut xs = vec![kw(":h"), Value::i64(id)];
             xs.extend(pack_children(node));
             pv(xs)
         }
-        "ProductionNode" => {
-            let name = match node_record(node) {
-                Some((_, sf)) => match &sf[1] {
-                    Value::String(s) => s.as_ref().clone(),
-                    _ => String::new(),
-                },
-                None => String::new(),
-            };
+        NodeKind::Production => {
+            let name = node_named_string(node, "rule-name")
+                .unwrap_or("")
+                .to_string();
             pv([kw(":p"), Value::i64(id), Value::String(Arc::new(name))])
         }
-        "TestNode" => {
+        NodeKind::Test => {
             let mut xs = vec![kw(":t"), Value::i64(id)];
             xs.extend(pack_children(node));
             pv(xs)
         }
-        "NegationNode" => {
-            let aid = match node_record(node) {
-                Some((_, sf)) => match &sf[1] {
-                    Value::i64(n) => *n,
-                    _ => -1,
-                },
-                None => -1,
-            };
+        NodeKind::Negation => {
+            let aid = node_named_i64(node, "negated-alpha-id").unwrap_or(-1);
             let mut xs = vec![kw(":n"), Value::i64(id), Value::i64(aid)];
             xs.extend(pack_children(node));
             pv(xs)
         }
-        "ExistsNode" => {
-            let aid = match node_record(node) {
-                Some((_, sf)) => match &sf[1] {
-                    Value::i64(n) => *n,
-                    _ => -1,
-                },
-                None => -1,
-            };
+        NodeKind::Exists => {
+            let aid = node_named_i64(node, "exists-alpha-id").unwrap_or(-1);
             let mut xs = vec![kw(":e"), Value::i64(id), Value::i64(aid)];
             xs.extend(pack_children(node));
             pv(xs)
         }
-        "AccumulateNode" => {
-            let (var, aid) = match node_record(node) {
-                Some((_, sf)) => {
-                    let var = match &sf[1] {
-                        Value::String(s) => s.as_ref().clone(),
-                        _ => String::new(),
-                    };
-                    let aid = match &sf[3] {
-                        Value::i64(n) => *n,
-                        _ => -1,
-                    };
-                    (var, aid)
-                }
-                None => (String::new(), -1),
-            };
+        NodeKind::Accumulate => {
+            let var = node_named_string(node, "result-var")
+                .unwrap_or("")
+                .to_string();
+            let aid = node_named_i64(node, "from-alpha-id").unwrap_or(-1);
             let mut xs = vec![
                 kw(":acc"),
                 Value::i64(id),
@@ -1110,26 +1090,18 @@ fn pack_node(node: &Value, classes: &mut ClassIntern, sym: &SymbolTable) -> Valu
             xs.extend(pack_children(node));
             pv(xs)
         }
-        "QueryNode" => {
-            let (name, params) = match node_record(node) {
-                Some((_, sf)) => {
-                    let name = match &sf[1] {
-                        Value::String(s) => s.as_ref().clone(),
-                        _ => String::new(),
-                    };
-                    let params = match &sf[2] {
-                        Value::wat__core__PersistentVector(pv) => pv.iter().cloned().collect(),
-                        _ => vec![],
-                    };
-                    (name, params)
-                }
-                None => (String::new(), vec![]),
+        NodeKind::Query => {
+            let name = node_named_string(node, "query-name")
+                .unwrap_or("")
+                .to_string();
+            let params = match node_named_field(node, "param-keys") {
+                Some(Value::wat__core__PersistentVector(pv)) => pv.iter().cloned().collect(),
+                _ => vec![],
             };
             let mut xs = vec![kw(":q"), Value::i64(id), Value::String(Arc::new(name))];
             xs.extend(params);
             pv(xs)
         }
-        _ => pv([kw(":x"), Value::i64(id)]),
     }
 }
 
@@ -1153,11 +1125,11 @@ type UnpackedNode = (i64, Value, Option<(String, i64)>);
 
 fn unpack_node(v: &Value, span: &Span) -> Result<UnpackedNode, EvalBreak> {
     let items = expect_seq(v, IMPORT_OP, span)?;
-    let tag = expect_kw(items.first().unwrap(), IMPORT_OP, span)?;
+    let tag = expect_kw(expect_at(&items, 0, span, "tag")?, IMPORT_OP, span)?;
     match tag {
         ":a" => {
-            let id = expect_i64(items.get(1).unwrap(), IMPORT_OP, span)?;
-            let class_idx = expect_i64(items.get(2).unwrap(), IMPORT_OP, span)?;
+            let id = expect_i64(expect_at(&items, 1, span, "slot 1")?, IMPORT_OP, span)?;
+            let class_idx = expect_i64(expect_at(&items, 2, span, "slot 2")?, IMPORT_OP, span)?;
             let kids = unpack_i64s(&items, 3, span)?;
             let rec = record(
                 "wat::rete::AlphaNode",
@@ -1172,7 +1144,7 @@ fn unpack_node(v: &Value, span: &Span) -> Result<UnpackedNode, EvalBreak> {
             Ok((id, rec, class))
         }
         ":j" => {
-            let id = expect_i64(items.get(1).unwrap(), IMPORT_OP, span)?;
+            let id = expect_i64(expect_at(&items, 1, span, "slot 1")?, IMPORT_OP, span)?;
             let kids = unpack_i64s(&items, 2, span)?;
             let rec = record(
                 "wat::rete::RootJoinNode",
@@ -1182,7 +1154,7 @@ fn unpack_node(v: &Value, span: &Span) -> Result<UnpackedNode, EvalBreak> {
             Ok((id, rec, None))
         }
         ":h" => {
-            let id = expect_i64(items.get(1).unwrap(), IMPORT_OP, span)?;
+            let id = expect_i64(expect_at(&items, 1, span, "slot 1")?, IMPORT_OP, span)?;
             let kids = unpack_i64s(&items, 2, span)?;
             let rec = record(
                 "wat::rete::HashJoinNode",
@@ -1192,8 +1164,8 @@ fn unpack_node(v: &Value, span: &Span) -> Result<UnpackedNode, EvalBreak> {
             Ok((id, rec, None))
         }
         ":p" => {
-            let id = expect_i64(items.get(1).unwrap(), IMPORT_OP, span)?;
-            let name = expect_str(items.get(2).unwrap(), IMPORT_OP, span)?.to_string();
+            let id = expect_i64(expect_at(&items, 1, span, "slot 1")?, IMPORT_OP, span)?;
+            let name = expect_str(expect_at(&items, 2, span, "slot 2")?, IMPORT_OP, span)?.to_string();
             let rec = record(
                 "wat::rete::ProductionNode",
                 PROD_FIELDS,
@@ -1202,7 +1174,7 @@ fn unpack_node(v: &Value, span: &Span) -> Result<UnpackedNode, EvalBreak> {
             Ok((id, rec, None))
         }
         ":t" => {
-            let id = expect_i64(items.get(1).unwrap(), IMPORT_OP, span)?;
+            let id = expect_i64(expect_at(&items, 1, span, "slot 1")?, IMPORT_OP, span)?;
             let kids = unpack_i64s(&items, 2, span)?;
             let rec = record(
                 "wat::rete::TestNode",
@@ -1212,8 +1184,8 @@ fn unpack_node(v: &Value, span: &Span) -> Result<UnpackedNode, EvalBreak> {
             Ok((id, rec, None))
         }
         ":n" => {
-            let id = expect_i64(items.get(1).unwrap(), IMPORT_OP, span)?;
-            let aid = expect_i64(items.get(2).unwrap(), IMPORT_OP, span)?;
+            let id = expect_i64(expect_at(&items, 1, span, "slot 1")?, IMPORT_OP, span)?;
+            let aid = expect_i64(expect_at(&items, 2, span, "slot 2")?, IMPORT_OP, span)?;
             let kids = unpack_i64s(&items, 3, span)?;
             let rec = record(
                 "wat::rete::NegationNode",
@@ -1223,8 +1195,8 @@ fn unpack_node(v: &Value, span: &Span) -> Result<UnpackedNode, EvalBreak> {
             Ok((id, rec, None))
         }
         ":e" => {
-            let id = expect_i64(items.get(1).unwrap(), IMPORT_OP, span)?;
-            let aid = expect_i64(items.get(2).unwrap(), IMPORT_OP, span)?;
+            let id = expect_i64(expect_at(&items, 1, span, "slot 1")?, IMPORT_OP, span)?;
+            let aid = expect_i64(expect_at(&items, 2, span, "slot 2")?, IMPORT_OP, span)?;
             let kids = unpack_i64s(&items, 3, span)?;
             let rec = record(
                 "wat::rete::ExistsNode",
@@ -1234,9 +1206,9 @@ fn unpack_node(v: &Value, span: &Span) -> Result<UnpackedNode, EvalBreak> {
             Ok((id, rec, None))
         }
         ":acc" => {
-            let id = expect_i64(items.get(1).unwrap(), IMPORT_OP, span)?;
-            let var = expect_str(items.get(2).unwrap(), IMPORT_OP, span)?.to_string();
-            let aid = expect_i64(items.get(3).unwrap(), IMPORT_OP, span)?;
+            let id = expect_i64(expect_at(&items, 1, span, "slot 1")?, IMPORT_OP, span)?;
+            let var = expect_str(expect_at(&items, 2, span, "slot 2")?, IMPORT_OP, span)?.to_string();
+            let aid = expect_i64(expect_at(&items, 3, span, "slot 3")?, IMPORT_OP, span)?;
             let kids = unpack_i64s(&items, 4, span)?;
             let rec = record(
                 "wat::rete::AccumulateNode",
@@ -1252,8 +1224,8 @@ fn unpack_node(v: &Value, span: &Span) -> Result<UnpackedNode, EvalBreak> {
             Ok((id, rec, None))
         }
         ":q" => {
-            let id = expect_i64(items.get(1).unwrap(), IMPORT_OP, span)?;
-            let name = expect_str(items.get(2).unwrap(), IMPORT_OP, span)?.to_string();
+            let id = expect_i64(expect_at(&items, 1, span, "slot 1")?, IMPORT_OP, span)?;
+            let name = expect_str(expect_at(&items, 2, span, "slot 2")?, IMPORT_OP, span)?.to_string();
             let mut params = rpds::VectorSync::new_sync();
             for x in items.iter().skip(3) {
                 params.push_back_mut(x.clone());
@@ -1566,14 +1538,14 @@ fn import_export(export: &Value, span: &Span, sym: &SymbolTable) -> Result<Value
     let node_ids = sorted_node_ids(&network);
     let mut feeding_alpha_of: HashMap<i64, i64> = HashMap::new();
     let mut parents_of: ParentsOf = HashMap::new();
-    let mut children_of: HashMap<i64, Vec<i64>> = HashMap::new();
+    let mut children_of: ChildrenOf = HashMap::new();
     for node_id in &node_ids {
         let Some(node) = get_node(&network, *node_id) else {
             continue;
         };
         let kids = node_children(node);
         children_of.insert(*node_id, kids.clone());
-        let is_alpha = kind_of(node) == "AlphaNode";
+        let is_alpha = kind_of(node) == NodeKind::Alpha;
         for child in kids {
             if is_alpha {
                 feeding_alpha_of.insert(child, *node_id);
@@ -1588,10 +1560,12 @@ fn import_export(export: &Value, span: &Span, sym: &SymbolTable) -> Result<Value
             continue;
         };
         for child in node_children(node) {
-            let child_kind = get_node(&network, child).map(kind_of).unwrap_or("");
-            if child_kind == "HashJoinNode" || child_kind == "QueryNode" {
-                beta_readers.insert(*node_id);
-                break;
+            if let Some(child_node) = get_node(&network, child) {
+                let k = kind_of(child_node);
+                if k == NodeKind::HashJoin || k == NodeKind::Query {
+                    beta_readers.insert(*node_id);
+                    break;
+                }
             }
         }
     }

@@ -159,19 +159,8 @@ pub(crate) fn with_fire_census<R>(f: impl FnOnce() -> R) -> (R, Vec<RoundCensus>
 /// borrow of the network. Any kind the compiler can emit that is not listed reads as `"?"` — an
 /// unrecognised kind must be visible in the output, never silently folded into a neighbour.
 #[cfg(test)]
-pub(crate) fn census_kind(kind: &str) -> &'static str {
-    match kind {
-        "AlphaNode" => "Alpha",
-        "RootJoinNode" => "RootJoin",
-        "HashJoinNode" => "HashJoin",
-        "TestNode" => "Test",
-        "NegationNode" => "Negation",
-        "ExistsNode" => "Exists",
-        "AccumulateNode" => "Accumulate",
-        "ProductionNode" => "Production",
-        "QueryNode" => "Query",
-        _ => "?",
-    }
+pub(crate) fn census_kind(kind: crate::rete::kernel::NodeKind) -> &'static str {
+    kind.as_str().strip_suffix("Node").unwrap_or(kind.as_str())
 }
 
 // Test-only instrument: one element EXAMINED by an Accumulate / Negation / Exists gather.

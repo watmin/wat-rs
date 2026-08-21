@@ -29,6 +29,7 @@
 (:wat::core::defn :user::native-alpha-key-count [] -> :wat::core::i64
   (:wat::core::let
     [fired (:wat::rete::fire-rules (:afs::built))
+     ;; rune:vocare(vantage-bypass-test) — fire-scoped alpha is implementer layout, not query
      amem  (:wat::rete::Session/alpha-memory fired)]
     (:wat::core::length (:wat::core::PersistentMap/keys amem))))
 
@@ -37,6 +38,7 @@
 (:wat::core::defn :user::oracle-alpha-key-count [] -> :wat::core::i64
   (:wat::core::let
     [fired (:wat::rete::fire-rules$oracle (:afs::built))
+     ;; rune:vocare(vantage-bypass-test) — fire-scoped alpha is implementer layout, not query
      amem  (:wat::rete::Session/alpha-memory fired)]
     (:wat::core::length (:wat::core::PersistentMap/keys amem))))
 
@@ -46,6 +48,7 @@
 (:wat::core::defn :user::single-pass-alpha-key-count [] -> :wat::core::i64
   (:wat::core::let
     [fired (:wat::rete::fire-once (:afs::built))
+     ;; rune:vocare(vantage-bypass-test) — fire-scoped alpha is implementer layout, not query
      amem  (:wat::rete::Session/alpha-memory fired)]
     (:wat::core::length (:wat::core::PersistentMap/keys amem))))
 

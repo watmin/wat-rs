@@ -33,32 +33,12 @@ pub(crate) struct FireCtx<'a> {
     pub(crate) n_input: u32,
 }
 
-/// Shared intern + fact store for accumulate folds (no pool mutation).
-struct AccView<'a> {
-    keys: &'a [Value],
-    vals: &'a [Value],
-    pool: &'a [(u32, u32)],
-    facts: &'a Value,
-    derived: &'a [Value],
-    n_input: u32,
-}
-
-fn acc_view(wm: &FireSession) -> AccView<'_> {
-    AccView {
-        keys: &wm.bind_keys,
-        vals: &wm.bind_vals,
-        pool: &wm.bind_pool,
-        facts: &wm.facts,
-        derived: &wm.derived_facts,
-        n_input: wm.n_input,
-    }
-}
-
 // ── Pass 1: Alpha pass ────────────────────────────────────────────────────────
 
-/// `activate-alpha` + `activate-fact` — type-index each fact, `exec_compiled`
-/// against that type's alphas. Mirrors `wat/rete/oracle/pass.wat`.
-/// A missing compiled cond refuses — do not walk `alpha_match_inner`.
+/// `activate-alpha` + `activate-fact` — type-index each fact,
+/// `exec_compiled_with_key_ids` against that type's alphas. Mirrors
+/// `wat/rete/oracle/pass.wat`. A missing compiled cond refuses — do not walk
+/// `alpha_match_inner`.
 #[cfg(test)]
 pub(crate) fn alpha_pass(wm: &mut FireSession, arm: &InternedNetwork) -> Result<(), EvalBreak> {
     let mut match_scratch: SlotFrame = Vec::with_capacity(arm.compiled_max_slots);
@@ -125,7 +105,7 @@ pub(crate) fn root_join_pass(wm: &mut FireSession) {
             Some(n) => n,
             None => continue,
         };
-        if kind_of(node) != "AlphaNode" {
+        if kind_of(node) != NodeKind::Alpha {
             continue;
         }
         let child_ids = node_children(node);
@@ -143,7 +123,7 @@ pub(crate) fn root_join_pass(wm: &mut FireSession) {
                 Some(n) => n,
                 None => continue,
             };
-            if kind_of(child_node) != "RootJoinNode" {
+            if kind_of(child_node) != NodeKind::RootJoin {
                 continue;
             }
             // Seed one native Token per Element into beta[child_id].
@@ -283,6 +263,19 @@ pub(crate) fn rematch_compiled(
         )
         .into()
     })
+}
+
+fn fact_holds_under<B: Bindings + ?Sized>(
+    fact: &Value,
+    seed: &B,
+    compiled: &crate::rete::compiled_cond::CompiledCond,
+    scratch: &mut SlotFrame,
+) -> bool {
+    let fact_fields = match fact {
+        Value::Aggregate(a) if a.nature != Nature::Struct => a.fields.as_slice(),
+        _ => return false,
+    };
+    crate::rete::compiled_cond::exec_compiled_under_holds(compiled, fact_fields, scratch, seed)
 }
 
 fn fact_bindings_under<B: Bindings + ?Sized>(
@@ -552,13 +545,12 @@ pub(crate) fn join_extend(
     // No leftover SeedCmp: the keyed bucket is the join (same contract as
     // fold-the-wall). Rematch cannot reject a member (`DESIGN-STONE-join-extend-no-leftover`).
     if compiled.has_seed_cmp()
-        && fact_bindings_under(
+        && !fact_holds_under(
             fact_at(ctx.facts, ctx.derived, ctx.n_input, el.fact),
             &bind_view(ctx.keys, ctx.vals, ctx.pool, tok.binds),
             compiled,
             ctx.scratch,
         )
-        .is_none()
     {
         return Ok(None);
     }
@@ -734,12 +726,12 @@ pub(crate) fn hash_join_pass(wm: &mut FireSession, arm: &InternedNetwork) -> Res
             None => continue,
         };
         let kind = kind_of(node);
-        if kind != "RootJoinNode"
-            && kind != "HashJoinNode"
-            && kind != "TestNode"
-            && kind != "NegationNode"
-            && kind != "ExistsNode"
-            && kind != "AccumulateNode"
+        if kind != NodeKind::RootJoin
+            && kind != NodeKind::HashJoin
+            && kind != NodeKind::Test
+            && kind != NodeKind::Negation
+            && kind != NodeKind::Exists
+            && kind != NodeKind::Accumulate
         {
             continue;
         }
@@ -759,7 +751,7 @@ pub(crate) fn hash_join_pass(wm: &mut FireSession, arm: &InternedNetwork) -> Res
                 Some(n) => n,
                 None => continue,
             };
-            if kind_of(child_node) != "HashJoinNode" {
+            if kind_of(child_node) != NodeKind::HashJoin {
                 continue;
             }
             let Some(&alpha_id) = arm.feeding_alpha_of.get(child_id) else {
@@ -813,14 +805,11 @@ pub(crate) fn production_pass(wm: &mut FireSession, arm: &InternedNetwork, sym: 
             Some(n) => n,
             None => continue,
         };
-        if kind_of(node) != "ProductionNode" {
+        if kind_of(node) != NodeKind::Production {
             continue;
         }
-        // ProductionNode: id(0), rule-name(1)
-        let (_, sf) = node_record(node).unwrap();
-        let rule_name = match &sf[1] {
-            Value::String(s) => s.as_str(),
-            _ => continue,
+        let Some(rule_name) = node_named_string(node, "rule-name") else {
+            continue;
         };
 
         let Some(compiled_rhs) = arm.compiled_rhs.get(rule_name) else {
@@ -888,16 +877,11 @@ fn harvest_query_memory(wm: &mut FireSession, parents_of: &ParentsOf) {
             Some(n) => n,
             None => continue,
         };
-        if kind_of(node) != "QueryNode" {
+        if kind_of(node) != NodeKind::Query {
             continue;
         }
-        let (_, sf) = match node_record(node) {
-            Some(p) => p,
-            None => continue,
-        };
-        let qname = match &sf[1] {
-            Value::String(s) => s.as_ref().clone(),
-            _ => continue,
+        let Some(qname) = node_named_string(node, "query-name").map(str::to_string) else {
+            continue;
         };
         let mut maps: Vec<crate::value::pmap::PMap> = Vec::new();
         let pids = parents_of.get(&node_id).map(|v| v.as_slice()).unwrap_or(&[]);
@@ -915,8 +899,10 @@ fn harvest_query_memory(wm: &mut FireSession, parents_of: &ParentsOf) {
 /// `(:wat::rete::fire-once <session>) -> :wat::rete::Session`
 ///
 /// Native Rust single-pass fire cycle: the delta walk, one round, no cascade.
-/// Observationally equivalent to the wat oracle's `fire-once$oracle`
-/// (alpha → root-join → accum/filter/hash-join in id order → production).
+/// Observationally equivalent to the wat oracle's `fire-once$oracle` on AST
+/// Sessions (alpha → root-join → accum/filter/hash-join in id order → production).
+/// Export is native-only: the oracle refuses an imported Export
+/// (`wat/rete.wat`; `wat/rete/oracle/fire.wat` fire-once$oracle).
 ///
 /// Dispatch entry called from `runtime.rs:dispatch_keyword_head_value`.
 /// Evaluates the single argument (must be `:wat::rete::Session`) and returns
@@ -1008,7 +994,7 @@ pub(crate) fn merge_facts(facts_pv: &Value, derived: &[Value]) -> Value {
 pub(crate) fn network_has_production(network: &Value) -> bool {
     sorted_node_ids(network)
         .iter()
-        .any(|&id| get_node(network, id).is_some_and(|n| kind_of(n) == "ProductionNode"))
+        .any(|&id| get_node(network, id).is_some_and(|n| kind_of(n) == NodeKind::Production))
 }
 
 pub(crate) fn refuse_export_without_arm(op: &'static str, span: &Span) -> EvalBreak {
@@ -1054,7 +1040,7 @@ pub(crate) fn fire_rules_from_deps(
     session: &Value,
     deps: &[RuleDep],
     sym: &SymbolTable,
-    support: Option<&mut HashMap<Value, (String, Value)>>,
+    support: Option<&mut ExplainSupport>,
 ) -> Result<Value, EvalBreak> {
     let mut parts: Vec<RuleParts> = Vec::with_capacity(deps.len());
     for d in deps {
@@ -1239,8 +1225,10 @@ impl GatherIndex {
     }
 }
 
-/// Fire-scoped cache: `(alpha_id, join_keys) -> index`. Buckets are indices
-/// into `wm.alpha[alpha_id]` (`DESIGN-STONE-gather-no-snapshot`).
+/// Fire-scoped cache: `(alpha_id, join_keys) -> index`. Join keys are the
+/// intersection of this sample token's keys with the alpha's elements — they
+/// are NOT a property of the alpha alone (query params vs empty parent).
+/// Buckets are indices into `wm.alpha[alpha_id]` (`DESIGN-STONE-gather-no-snapshot`).
 /// Persists across rounds; `append` takes `d_alpha`
 /// (`DESIGN-STONE-persist-gather-across-rounds`). Not a Session field.
 type GatherCache = FxHashMap<(i64, Vec<Value>), GatherIndex>;
@@ -1329,7 +1317,14 @@ fn ensure_gather<B: Bindings + ?Sized>(
     cache.entry(cache_key).or_insert_with(|| {
         census_count("accum:index-builds");
         census_count_n("accum:index-elements", els.len() as u64);
-        build_gather_index(els, &join_keys, &wm.bind_keys, &wm.bind_vals, &wm.bind_pool, &wm.bind_val_ids)
+        build_gather_index(
+            els,
+            &join_keys,
+            &wm.bind_keys,
+            &wm.bind_vals,
+            &wm.bind_pool,
+            &wm.bind_val_ids,
+        )
     });
     join_keys
 }
@@ -1414,196 +1409,6 @@ fn seeded_bindings_keyed(
             )
         })
         .collect()
-}
-
-// ── Accumulate folds (8-b) — native mirrors of the wat acc::* fold library ────
-
-/// Read an element's bound `?var` value as an i64 (the value-folds' arg).
-/// Mirrors `(Option/expect (PersistentMap/get (Element/bindings e) var) ...)`.
-/// Panics on an unbound var or a non-i64 value (a compile-time-impossible shape).
-fn acc_var_i64(
-    el: &Element,
-    var: &Value,
-    bind_keys: &[Value],
-    vals: &[Value],
-    pool: &[(u32, u32)],
-) -> i64 {
-    let bindings = element_fact_bindings(el, bind_keys, vals, pool);
-    match Bindings::get(&bindings, var) {
-        Some(Value::i64(n)) => *n,
-        Some(other) => panic!("accumulate: var bound to non-i64 {other:?}"),
-        None => panic!("accumulate: var {var:?} unbound in element bindings"),
-    }
-}
-
-/// Slot of `var` on the first bucket element. Empty bucket → None (count/sum
-/// emit identity; min/max/mean drop). Derived from a live Element, never stored
-/// on the interned `AccFold` (`DESIGN-STONE-accum-fold-the-wall`).
-fn operand_slot(
-    elements: &[Element],
-    bucket: &[usize],
-    var: &Value,
-    bind_keys: &[Value],
-    pool: &[(u32, u32)],
-) -> Option<usize> {
-    let &i = bucket.first()?;
-    pool_slice(pool, elements[i].binds)
-        .iter()
-        .position(|(id, _)| bind_keys.get(*id as usize) == Some(var))
-}
-
-fn slot_i64(el: &Element, slot: usize, vals: &[Value], pool: &[(u32, u32)]) -> i64 {
-    match pool_slice(pool, el.binds).get(slot) {
-        Some((_, vid)) => match vals.get(*vid as usize) {
-            Some(Value::i64(n)) => *n,
-            Some(other) => panic!("accumulate: slot bound to non-i64 {other:?}"),
-            None => panic!("accumulate: slot {slot} filler id {vid} missing"),
-        },
-        None => panic!("accumulate: slot {slot} missing in element bindings"),
-    }
-}
-
-/// Numeric AccFold algebra — one match, two gather representations.
-fn fold_i64s(fold: &AccFold, vals: impl Iterator<Item = i64>, n: usize) -> Option<Value> {
-    match fold {
-        AccFold::Count => Some(Value::i64(n as i64)),
-        AccFold::Sum(_) => Some(Value::i64(vals.sum())),
-        AccFold::Min(_) => vals.min().map(Value::i64),
-        AccFold::Max(_) => vals.max().map(Value::i64),
-        AccFold::Mean(_) => {
-            if n == 0 {
-                None
-            } else {
-                Some(Value::i64(vals.sum::<i64>() / n as i64))
-            }
-        }
-        AccFold::Distinct(_) | AccFold::All | AccFold::GroupBy(_) | AccFold::User { .. } => None,
-    }
-}
-
-/// Fold a keyed bucket with no leftover `SeedCmp`. The bucket IS the gather
-/// (join-key equality ≡ `token_element_compatible`). Count is `len`; value
-/// folds read `bindings[slot]`.
-fn fold_bucket(
-    fold: &AccFold,
-    elements: &[Element],
-    bucket: &[usize],
-    sym: &SymbolTable,
-    view: &AccView<'_>,
-) -> Result<Option<Value>, EvalBreak> {
-    match fold {
-        AccFold::Count => Ok(fold_i64s(fold, std::iter::empty(), bucket.len())),
-        AccFold::Sum(var) => {
-            let Some(slot) = operand_slot(elements, bucket, var, view.keys, view.pool) else {
-                return Ok(Some(Value::i64(0)));
-            };
-            Ok(fold_i64s(
-                fold,
-                bucket.iter().map(|&i| {
-                    census_gather_visit();
-                    slot_i64(&elements[i], slot, view.vals, view.pool)
-                }),
-                bucket.len(),
-            ))
-        }
-        AccFold::Min(var) | AccFold::Max(var) | AccFold::Mean(var) => {
-            let Some(slot) = operand_slot(elements, bucket, var, view.keys, view.pool) else {
-                return Ok(None);
-            };
-            Ok(fold_i64s(
-                fold,
-                bucket.iter().map(|&i| {
-                    census_gather_visit();
-                    slot_i64(&elements[i], slot, view.vals, view.pool)
-                }),
-                bucket.len(),
-            ))
-        }
-        AccFold::Distinct(_)
-        | AccFold::All
-        | AccFold::GroupBy(_)
-        | AccFold::User { .. } => {
-            let gathered: Vec<&Element> = bucket.iter().map(|&i| &elements[i]).collect();
-            accumulate_value(fold, &gathered, sym, view)
-        }
-    }
-}
-
-fn project_group_keys<B: Bindings + ?Sized>(
-    el_bindings: &B,
-    keys: &[Value],
-) -> Vec<(Value, Value)> {
-    keys.iter()
-        .filter_map(|k| el_bindings.get(k).map(|v| (k.clone(), v.clone())))
-        .collect()
-}
-
-fn accumulate_value(
-    fold: &AccFold,
-    gathered: &[&Element],
-    sym: &SymbolTable,
-    view: &AccView<'_>,
-) -> Result<Option<Value>, EvalBreak> {
-    Ok(match fold {
-        AccFold::Count => fold_i64s(fold, std::iter::empty(), gathered.len()),
-        AccFold::Sum(var) | AccFold::Min(var) | AccFold::Max(var) | AccFold::Mean(var) => {
-            fold_i64s(
-                fold,
-                gathered
-                    .iter()
-                    .map(|el| acc_var_i64(el, var, view.keys, view.vals, view.pool)),
-                gathered.len(),
-            )
-        }
-        AccFold::Distinct(var) => {
-            let mut seen: HashSet<i64> = HashSet::new();
-            let mut pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
-            for el in gathered {
-                let n = acc_var_i64(el, var, view.keys, view.vals, view.pool);
-                if seen.insert(n) {
-                    pv.push_back_mut(Value::i64(n));
-                }
-            }
-            Some(Value::wat__core__PersistentVector(pv))
-        }
-        AccFold::All => {
-            let mut pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
-            for el in gathered {
-                pv.push_back_mut(fact_at(view.facts, view.derived, view.n_input, el.fact).clone());
-            }
-            Some(Value::wat__core__PersistentVector(pv))
-        }
-        AccFold::GroupBy(var) => {
-            type GroupByMap = HashMap<i64, rpds::VectorSync<Value>>;
-            let mut groups: GroupByMap = HashMap::new();
-            for el in gathered {
-                let fact = fact_at(view.facts, view.derived, view.n_input, el.fact).clone();
-                let k = acc_var_i64(el, var, view.keys, view.vals, view.pool);
-                groups
-                    .entry(k)
-                    .or_insert_with(rpds::VectorSync::new_sync)
-                    .push_back_mut(fact);
-            }
-            Some(Value::wat__core__PersistentMap(
-                crate::value::pmap::PMap::from_pairs(groups.into_iter().map(|(k, pv)| {
-                    (Value::i64(k), Value::wat__core__PersistentVector(pv))
-                })),
-            ))
-        }
-        AccFold::User { var, program } => {
-            let mut pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
-            for el in gathered {
-                pv.push_back_mut(Value::i64(acc_var_i64(el, var, view.keys, view.vals, view.pool)));
-            }
-            let gathered_pv = Value::wat__core__PersistentVector(pv);
-            Some(crate::rete::expr_ir::exec_call(
-                program,
-                &[gathered_pv],
-                sym,
-                &crate::rust_caller_span!(),
-            )?)
-        }
-    })
 }
 
 fn exec_stashed_where(
@@ -1706,6 +1511,8 @@ fn dispatch_where_tests(
     Ok(())
 }
 
+mod acc;
+use acc::*;
 mod delta;
 pub(crate) use delta::*;
 mod rules;

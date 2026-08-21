@@ -73,9 +73,10 @@ pub(crate) enum RhsOp {
     Lit(Value),
     /// Flip 4 — a value-position call form, lowered once onto the one `Expr` core.
     /// The freeze-time wat fence (`then-item-fence`) has already proven it pure ∧
-    /// deterministic and rete-namespaced-or-composed. `lower` failing is `Err`
-    /// (fire refuse). Executed via `exec_value` — prologue is token bindings →
-    /// slots; the `Value` becomes the field.
+    /// deterministic ∧ total ∧ rete-primitive (declaration-derived constructors still
+    /// admitted via `head_ok`'s first door). `lower` failing is `Err` (fire refuse).
+    /// Executed via `exec_value` — prologue is token bindings → slots; the `Value`
+    /// becomes the field.
     Expr(Arc<crate::rete::expr_ir::Program>),
 }
 
@@ -159,10 +160,6 @@ pub(crate) fn compile_rhs(
                 // the two paths indistinguishable to a caller who hits the unbound-var case.
                 format!("{arg:?}"),
             ),
-            WatAST::IntLit(n, _) => RhsOp::Lit(Value::i64(*n)),
-            WatAST::FloatLit(x, _) => RhsOp::Lit(Value::f64(*x)),
-            WatAST::BoolLit(b, _) => RhsOp::Lit(Value::bool(*b)),
-            WatAST::StringLit(s, _) => RhsOp::Lit(Value::String(Arc::new(s.clone()))),
             // Flip 4 — a fenced call form MUST lower. A LowerError is a fire
             // refuse, not a walk of the WatAST. `None` below is only the
             // unrepresentable shapes (`:field`, Vector/Map/Set, bare non-`?` symbol).
@@ -171,11 +168,14 @@ pub(crate) fn compile_rhs(
                     .map_err(crate::rete::expr_ir::LowerError::into_eval)?;
                 RhsOp::Expr(Arc::new(program))
             }
-            // A bare non-`?` symbol, a `:field` keyword (RHS has no current fact), or a
-            // Vector/Map/Set literal — this stone's op model does not represent them.
-            // `Ok(None)` is a setup refuse (`rhs_must_compile`); native fire never walks
-            // `build_insert_fact` on this arm. The interpreter remains the differential only.
-            _ => return Ok(None),
+            other => match crate::rete::matcher::ast_literal_value(other) {
+                Some(v) => RhsOp::Lit(v),
+                // A bare non-`?` symbol, a `:field` keyword (RHS has no current fact), or a
+                // Vector/Map/Set literal — this stone's op model does not represent them.
+                // `Ok(None)` is a setup refuse (`rhs_must_compile`); native fire never walks
+                // `build_insert_fact` on this arm. The interpreter remains the differential only.
+                None => return Ok(None),
+            },
         };
         ops.push(op);
     }
@@ -206,18 +206,20 @@ pub(crate) fn exec_compiled_rhs<B: crate::rete::matcher::Bindings + ?Sized>(
     const OP: &str = ":wat::rete::eval-insert";
     match c {
         CompiledRhs::Call(program) => {
-            match crate::rete::expr_ir::exec_value(program, bindings, sym, &program.span)? {
-                v @ Value::Aggregate(_) => Ok(v),
-                other => Err(RuntimeError::new(
+            let v = crate::rete::expr_ir::exec_value(program, bindings, sym, &program.span)?;
+            if crate::rete::matcher::is_record_fact(&v) {
+                Ok(v)
+            } else {
+                Err(RuntimeError::new(
                     program.span.clone(),
                     RuntimeErrorKind::TypeMismatch {
                         op: OP.into(),
-                        expected: "the fn to return a fact (a Record/Struct) — the rule-compile fence should \
+                        expected: "the fn to return a fact (a Record) — the rule-compile fence should \
                                    have refused a non-fact return type",
-                        got: Box::new(ValueSnapshot::of(&other)),
+                        got: Box::new(ValueSnapshot::of(&v)),
                     },
                 )
-                .into()),
+                .into())
             }
         }
         CompiledRhs::Record { class, names, ops } => {
@@ -283,7 +285,7 @@ pub(crate) fn rhs_bind_slots(
 /// mismatch fall back to [`exec_compiled_rhs`]. Token stays a BindSpan.
 pub(crate) fn exec_compiled_rhs_at(
     c: &CompiledRhs,
-    pairs: crate::rete::matcher::BindView<'_>,
+    pairs: crate::rete::kernel::BindView<'_>,
     slots: &[Option<usize>],
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
@@ -666,7 +668,7 @@ mod tests {
             .map(|(i, _)| (i as u32, i as u32))
             .collect();
         let view_vals: Vec<Value> = pairs.iter().map(|(_, v)| v.clone()).collect();
-        let view = crate::rete::matcher::BindView {
+        let view = crate::rete::kernel::BindView {
             keys: &view_keys,
             vals: &view_vals,
             pairs: &view_pairs,

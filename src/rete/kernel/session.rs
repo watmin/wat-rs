@@ -7,12 +7,49 @@ use rustc_hash::FxHashMap;
 
 use crate::ast::WatAST;
 use crate::rete::compiled_cond::BindIntern;
-use crate::rete::matcher::{BindView, Bindings};
+use crate::rete::matcher::Bindings;
 use crate::runtime::{EvalBreak, RuntimeError, RuntimeErrorKind, Value, ValueSnapshot};
 use crate::types::Nature;
 use crate::value::value::AggregateValue;
 
 use super::{phase_end, phase_start};
+
+/// Fire-scoped bind view: key ids into `bind_keys`, filler ids into
+/// `bind_vals` (`DESIGN-STONE-bind-key-intern`,
+/// `DESIGN-STONE-bind-value-intern`). Intern reader lives with Token/Element/BindSpan.
+// rune:struere(lifetime-coupling) — fire-scoped Copy spans; a BindView must not
+// outlive its pool (`DESIGN-STONE-bind-pool`, `DESIGN-STONE-bind-value-intern`).
+#[derive(Clone, Copy)]
+pub(crate) struct BindView<'a> {
+    pub keys: &'a [Value],
+    pub vals: &'a [Value],
+    pub pairs: &'a [(u32, u32)],
+}
+
+impl Bindings for BindView<'_> {
+    fn get(&self, k: &Value) -> Option<&Value> {
+        self.pairs.iter().find_map(|(i, vid)| {
+            (self.keys.get(*i as usize) == Some(k))
+                .then(|| self.vals.get(*vid as usize))
+                .flatten()
+        })
+    }
+    fn iter(&self) -> impl Iterator<Item = (&Value, &Value)> {
+        self.pairs.iter().filter_map(|(i, vid)| {
+            let k = self.keys.get(*i as usize)?;
+            let v = self.vals.get(*vid as usize)?;
+            Some((k, v))
+        })
+    }
+}
+
+impl BindView<'_> {
+    /// Binding-cardinality census in `fire_fixpoint_delta` (`#[cfg(test)]` only).
+    #[cfg(test)]
+    pub(crate) fn len(self) -> usize {
+        self.pairs.len()
+    }
+}
 
 // ─── Native token (P11) ───────────────────────────────────────────────────────
 
@@ -110,9 +147,12 @@ pub(crate) type QueryMemory = HashMap<String, Vec<crate::value::pmap::PMap>>;
 pub(crate) type SlotFrame = Vec<Option<Value>>;
 pub(crate) type FieldNames = Arc<Vec<String>>;
 pub(crate) type ParentsOf = HashMap<i64, Vec<i64>>;
+pub(crate) type ChildrenOf = HashMap<i64, Vec<i64>>;
 pub(crate) type JoinsFedBy = HashMap<i64, Vec<i64>>;
 pub(crate) type TestSibs = HashMap<i64, Vec<i64>>;
 pub(crate) type TestChildren = HashMap<i64, Vec<i64>>;
+/// Explain index: derived fact → (rule name, token as Value).
+pub(crate) type ExplainSupport = HashMap<Value, (String, Value)>;
 /// HashJoin id → cached join-key names. Not production memory.
 pub(crate) type JoinKeysCache = HashMap<i64, Vec<Value>>;
 pub(crate) type AlphasByType = HashMap<String, Vec<i64>>;
@@ -304,6 +344,17 @@ pub(crate) fn value_token_to_native(
             .into())
         }
     };
+    if struct_form.len() < 2 {
+        return Err(RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: ":wat::rete::Token with matches and bindings fields",
+                got: Box::new(ValueSnapshot::of(tok)),
+            },
+        )
+        .into());
+    }
     // Decode matches: PV<Tuple(fact, i64)> → Vec<(Value, i64)>
     let matches_vec = match &struct_form[0] {
         Value::wat__core__PersistentVector(pv) => {
@@ -312,6 +363,17 @@ pub(crate) fn value_token_to_native(
                 match entry {
                     Value::Tuple(elems) => {
                         let es = elems.as_slice();
+                        if es.len() < 2 {
+                            return Err(RuntimeError::new(
+                                crate::rust_caller_span!(),
+                                RuntimeErrorKind::TypeMismatch {
+                                    op: OP.into(),
+                                    expected: "match tuple [fact, alpha-id]",
+                                    got: Box::new(ValueSnapshot::of(entry)),
+                                },
+                            )
+                            .into());
+                        }
                         let alpha_id = match &es[1] {
                             Value::i64(n) => *n,
                             other => {
@@ -521,6 +583,17 @@ pub(crate) fn value_to_element(
             .into())
         }
     };
+    if struct_form.len() < 2 {
+        return Err(RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: ":wat::rete::Element with fact and bindings fields",
+                got: Box::new(ValueSnapshot::of(el)),
+            },
+        )
+        .into());
+    }
     let fact_idx = n_input + derived.len() as u32;
     derived.push(struct_form[0].clone());
     // Value-boundary decode: PM -> array. One-time per element at session decode (to_transient),
@@ -655,7 +728,9 @@ pub(crate) fn alpha_to_pm(alpha: AlphaMemory, view: &EncodeView<'_>) -> Value {
 /// - any memory key is not `Value::i64`, or
 /// - any memory value is not a `Value::wat__core__PersistentVector`.
 ///
-/// Never panics.
+/// Never panics: malformed Token/Element records and short match tuples
+/// return `TypeMismatch` (length-checked in `value_token_to_native` /
+/// `value_to_element`).
 pub(crate) fn to_transient(session: &Value) -> Result<FireSession, EvalBreak> {
     const OP: &str = ":wat::rete::to_transient";
     let agg = match session {
@@ -987,16 +1062,92 @@ pub(crate) fn node_record(node: &Value) -> Option<(&str, &[Value])> {
     }
 }
 
-/// Return the node kind label (last `::` segment of the class FQDN).
-/// Closed set: Alpha / RootJoin / HashJoin / Test / Negation / Exists /
-/// Accumulate / Production / Query. Panics on a malformed node.
-pub(crate) fn kind_of(node: &Value) -> &str {
+/// Closed set of network node kinds. Exhaustiveness, not a comment.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum NodeKind {
+    Alpha,
+    RootJoin,
+    HashJoin,
+    Test,
+    Negation,
+    Exists,
+    Accumulate,
+    Production,
+    Query,
+}
+
+impl NodeKind {
+    #[allow(dead_code)] // census_kind (cfg(test)) and pack/debug labels
+    pub(crate) fn as_str(self) -> &'static str {
+        match self {
+            Self::Alpha => "AlphaNode",
+            Self::RootJoin => "RootJoinNode",
+            Self::HashJoin => "HashJoinNode",
+            Self::Test => "TestNode",
+            Self::Negation => "NegationNode",
+            Self::Exists => "ExistsNode",
+            Self::Accumulate => "AccumulateNode",
+            Self::Production => "ProductionNode",
+            Self::Query => "QueryNode",
+        }
+    }
+}
+
+/// Return the node kind. Closed set is [`NodeKind`].
+/// Panics on a malformed node or an unknown class.
+// rune:struere(invariant-coupling) — a well-formed network node is one of the
+// nine kinds; Option would force every walk to invent a fallback the compiler
+// already refuses.
+pub(crate) fn kind_of(node: &Value) -> NodeKind {
     let (fqdn, _) = node_record(node).expect("kind_of: node must be a Record");
-    node_kind_label(fqdn)
+    match node_kind_label(fqdn) {
+        "AlphaNode" => NodeKind::Alpha,
+        "RootJoinNode" => NodeKind::RootJoin,
+        "HashJoinNode" => NodeKind::HashJoin,
+        "TestNode" => NodeKind::Test,
+        "NegationNode" => NodeKind::Negation,
+        "ExistsNode" => NodeKind::Exists,
+        "AccumulateNode" => NodeKind::Accumulate,
+        "ProductionNode" => NodeKind::Production,
+        "QueryNode" => NodeKind::Query,
+        other => panic!("kind_of: unknown node kind {other}"),
+    }
 }
 
 pub(crate) fn node_named_field<'a>(node: &'a Value, name: &str) -> Option<&'a Value> {
     agg_named_field(node, name)
+}
+
+pub(crate) fn node_named_i64(node: &Value, name: &str) -> Option<i64> {
+    match node_named_field(node, name) {
+        Some(Value::i64(n)) => Some(*n),
+        _ => None,
+    }
+}
+
+pub(crate) fn node_named_string<'a>(node: &'a Value, name: &str) -> Option<&'a str> {
+    match node_named_field(node, name) {
+        Some(Value::String(s)) => Some(s.as_str()),
+        _ => None,
+    }
+}
+
+pub(crate) fn node_named_ast<'a>(node: &'a Value, name: &str) -> Option<&'a WatAST> {
+    match node_named_field(node, name) {
+        Some(Value::wat__WatAST(ast)) => Some(ast.as_ref()),
+        _ => None,
+    }
+}
+
+/// Reference-field alpha id: Negation `negated-alpha-id`, Exists `exists-alpha-id`,
+/// Accumulate `from-alpha-id`. None for other kinds.
+pub(crate) fn node_ref_alpha_id(node: &Value) -> Option<i64> {
+    match kind_of(node) {
+        NodeKind::Negation => node_named_i64(node, "negated-alpha-id"),
+        NodeKind::Exists => node_named_i64(node, "exists-alpha-id"),
+        NodeKind::Accumulate => node_named_i64(node, "from-alpha-id"),
+        _ => None,
+    }
 }
 
 /// Read the children PV (a `Value::wat__core__PersistentVector<i64>`) from a node.
@@ -1269,13 +1420,15 @@ pub(crate) fn cond_text(cond: &WatAST) -> String {
     wat_edn::write(&crate::wat_edn_bridge::watast_to_edn(cond))
 }
 
+/// One-shot lookup. Fire compile uses `alpha_index_by_cond_text` (linear).
+#[allow(dead_code)]
 pub(crate) fn alpha_id_for_cond(network: &Value, cond: &WatAST) -> Option<i64> {
     let want = cond_text(cond);
     for node_id in sorted_node_ids(network) {
         let Some(node) = get_node(network, node_id) else {
             continue;
         };
-        if kind_of(node) != "AlphaNode" {
+        if kind_of(node) != NodeKind::Alpha {
             continue;
         }
         let Some(stored) = alpha_cond_of(network, node_id) else {

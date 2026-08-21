@@ -28,7 +28,8 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use crate::rete::expr_ir::{apply_op, Expr, Program};
-use crate::rete::matcher::{compare_values, Bindings, CmpKind};
+use crate::rete::clause::CmpKind;
+use crate::rete::matcher::{compare_values, Bindings};
 use crate::rete::vocabulary::RETE_OPS;
 use crate::runtime::{
     project_holon_rete_fallback, EvalBreak, HolonReteProject, RuntimeError, RuntimeErrorKind, Value,

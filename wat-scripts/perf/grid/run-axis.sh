@@ -122,7 +122,8 @@ ORACLE_TMP=""
 if [ -n "${GRID_SKIP_ORACLE:-}" ]; then
   ORACLE_TMP="$(mktemp --suffix=.wat)"
   perl -pe 's/\(:wat::rete::fire-rules\$oracle\s+staged\)/fired/g' "$WAT_FILE" > "$ORACLE_TMP"
-  if grep -F -q 'fire-rules$oracle' "$ORACLE_TMP"; then
+  # Match the CALL form, not a comment that names `$oracle` (strat-neg's header does).
+  if grep -F -q '(:wat::rete::fire-rules$oracle' "$ORACLE_TMP"; then
     echo "run-axis: GRID_SKIP_ORACLE rewrite left a fire-rules\$oracle token — skip is a no-op" >&2
     exit 2
   fi

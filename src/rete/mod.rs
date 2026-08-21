@@ -28,6 +28,8 @@
 //!   `eval-insert`: `[:wat::WatAST, :wat::core::PersistentMap] -> :wat::core::Record`.
 
 pub(crate) mod matcher;
+// Rete-DSL clause grammar — compile/validate/stratify consume this, not the oracle matcher.
+pub(crate) mod clause;
 // `:then` fact construction (interpreter / differential). Native fire uses compiled_rhs.
 pub(crate) mod eval_insert;
 // Fenced `where` / RHS expr eval under token bindings.
@@ -38,7 +40,7 @@ pub(crate) mod step_payload;
 // every rule's quoted :when/:then against the type registry (post-register) and reorders
 // :then kwargs to declaration order, so the 9a-corruption class (unrecognized clause /
 // unknown field-ref / scrambled kwargs RHS) becomes a LOCATED freeze error instead of a
-// silent runtime `None` or scrambled fact. Shares its clause grammar with `matcher.rs`'s
+// silent runtime `None` or scrambled fact. Shares its clause grammar with `clause.rs`'s
 // `classify_rete_clause` — one grammar, two consumers (design call 1).
 pub(crate) mod validate;
 // Stone 5b (collect.rs) — eval_collect_rules: reflect the symbol table for a namespace's defrule'd

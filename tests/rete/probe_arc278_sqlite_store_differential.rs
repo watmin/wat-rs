@@ -12,6 +12,13 @@
 use wat::freeze::call_beside;
 
 #[test]
+fn run_ops_on_mem_store() {
+    call_beside(file!(), ":user::run-ops-on-mem-store").expect_passed(
+        "run-ops against mem-store' alone must match the S-mem gate shape (page1=2, page3 cursor None, ipage=2)",
+    );
+}
+
+#[test]
 fn sqlite_store_differential() {
     // Arc 278 the vacuous-gate wall — was `call_beside(..).is_ok()`, which certified only
     // that the fixture froze and ran; every assert-eq inside it was decoration.

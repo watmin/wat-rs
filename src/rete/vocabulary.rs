@@ -7,8 +7,8 @@
 //! this file, not three edits across three files (STOP-2: an op named in more than one place is
 //! the stone failing, not a detail).
 //!
-//! ## The three mechanism classes (grounded — see the design stone's "class table, corrected
-//! twice by grounding")
+//! ## The four mechanism classes (grounded — see the design stone's "class table, corrected
+//! twice by grounding", plus #57 Redispatch)
 //!
 //! - **`Alias`** — a plain strict fn: rete name, same routine as `core_name`, zero new logic.
 //!   Gets a `TypeScheme` (fed from `params`/`ret` below) AND a dispatch arm — but the dispatch
@@ -43,6 +43,10 @@
 //!   own routine would otherwise produce. See `runtime.rs`'s `dispatch_rete_op`, `OpClass::Fallback`
 //!   arm, for the exact mechanism and why it needed NEITHER the `:9753` substrate kernel NOR a
 //!   `:4829` refactor (STOP-3 did not fire — see that arm's doc).
+//! - **`Redispatch`** — an ordinary fn whose type cannot be stated as a rank-1 `TypeScheme`
+//!   (polymorphic over the container constructor). Named for HOW the type is answered
+//!   (checker re-dispatches to core's own bespoke inference). No `TypeScheme`; runtime is
+//!   the same generic re-dispatch `Alias`/`Form` already use. See `OpClass::Redispatch`.
 //!
 //! ## The admission test — module-set, NOT a bare prefix (STOP-1)
 //!
@@ -566,17 +570,12 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // and the naming-rule tests need; it does no expansion work itself — the wat-source
     // `defmacro` does.
     //
-    // Present: a `(:wat::rete::where ...)` clause is never macro-expanded —
-    // `defrule`'s macro quotes `:when`/`:then` VERBATIM (`wat/rete/syntax.wat` `defrule`,
-    // `(:wat::core::quote ~when-vec)`), and `eval_test_core` (`src/rete/eval_test.rs`)
-    // evaluates that raw AST by calling `runtime::eval_inner` directly — the expander
-    // (`src/macros/expand.rs`) never descends into `:wat::core::quote`. A `cond` written
-    // literally inside a `where` — core-spelled OR rete-spelled — therefore raises
-    // `UnknownFunction` at fire time, not compile time. Proven both ways on the current
-    // tree (`wat-scripts/scratch-pad/probe-cond-in-where-baseline.wat`,
-    // `probe-cond-rete-where.wat`). The purity-guard widening below (classify_expr) lets
-    // such a `where` PASS the pure∧det fence and compile a `TestNode`; it cannot make that
-    // `TestNode` evaluate. Outside a `where` (ordinary macro-expanded code — the
+    // Present: the expander does not descend into `:wat::core::quote` in general, but
+    // `make-rule`'s `:when` is a classified boundary (`src/resolve/boundary.rs`
+    // `Boundary::MakeRule`; `src/macros/expand.rs` `expand_make_rule` /
+    // `expand_make_rule_when`) that expands each `where` body. A `cond` written inside
+    // a `where` is legal and expands to rete `if` (`wat-scripts/scratch-pad/probe-cond-rete-where.wat`
+    // is the positive control). Outside a `where` (ordinary macro-expanded code — the
     // tier-ladder shape the brief's scorecard row 2 exercises), `cond` works identically
     // to its core twin, fully rete-spelled all the way down.
     //

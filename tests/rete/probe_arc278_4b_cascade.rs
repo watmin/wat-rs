@@ -24,6 +24,17 @@ use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 #[test]
+fn compile_ab_fires_nothing() {
+    let got = call_beside_value(file!(), ":user::compile-ab-fires-nothing").expect("eval");
+    assert_eq!(got, Value::i64(0), "two-rule compile+fire with no facts derives nothing; got {got:?}");
+}
+
+#[test]
+fn cascade_fired_session_builds() {
+    let _ = call_beside_value(file!(), ":test::cascade-fired-session").expect("eval");
+}
+
+#[test]
 fn cascade_fires_rule_b_on_rule_a_output() {
     // THE HEART of 4b: rule B fires on the fact rule A derived. RED at HEAD (single-pass — B never fires).
     let got = call_beside_value(file!(), ":user::weatheralert-count-oslo").expect("eval");

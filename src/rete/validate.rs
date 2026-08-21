@@ -19,7 +19,7 @@
 //! ## One grammar, shared (design call 1)
 //!
 //! Both the runtime matcher (`eval_clause`) and this validator classify rete-DSL shapes via
-//! the SAME [`crate::rete::matcher::classify_rete_clause`] (S1). A second hand-written
+//! the SAME [`crate::rete::clause::classify_rete_clause`] (S1). A second hand-written
 //! grammar here would be exactly the drift that bred the 9a corruption class in the first
 //! place.
 //!
@@ -43,7 +43,7 @@ use std::fmt;
 use wat_edn::{Keyword, OwnedValue, Tag};
 
 use crate::ast::WatAST;
-use crate::rete::matcher::{classify_constraint_head, classify_rete_clause, ConstraintSpelling, ReteClauseShape};
+use crate::rete::clause::{classify_constraint_head, classify_rete_clause, ConstraintSpelling, ReteClauseShape};
 use crate::span::Span;
 use crate::types::{EnumVariant, TypeDef, TypeEnv};
 

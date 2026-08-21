@@ -84,10 +84,11 @@ pub(crate) enum Pat {
     /// `(Some p)` / `(Ok p)` / `(Err p)` / unit `:None`.
     Variant {
         name: String,
-        payload: Option<Box<Pat>>,
+        payload: PatPayload,
     },
 }
 
+pub(crate) type PatPayload = Option<Box<Pat>>;
 pub(crate) type SlotName = Option<Arc<str>>;
 pub(crate) type SlotNames = Box<[SlotName]>;
 type ExecArena = Vec<Option<Value>>;
@@ -240,10 +241,9 @@ fn lower_expr(ast: &WatAST, cx: &mut LowerCx) -> Result<Expr, LowerError> {
         return lower_hof_callee(ast, cx);
     }
     match ast {
-        WatAST::IntLit(n, _) => Ok(Expr::Lit(Value::i64(*n))),
-        WatAST::FloatLit(n, _) => Ok(Expr::Lit(Value::f64(*n))),
-        WatAST::BoolLit(b, _) => Ok(Expr::Lit(Value::bool(*b))),
-        WatAST::StringLit(s, _) => Ok(Expr::Lit(Value::String(Arc::new(s.clone())))),
+        ast if crate::rete::matcher::ast_literal_value(ast).is_some() => {
+            Ok(Expr::Lit(crate::rete::matcher::ast_literal_value(ast).unwrap()))
+        }
         WatAST::Keyword(k, _) => Ok(Expr::Lit(keyword_value(k, cx.sym))),
         WatAST::NilLit(_) => Ok(Expr::Lit(Value::Unit)),
         WatAST::Symbol(id, span) => {
@@ -649,20 +649,21 @@ fn lower_rete_defn(
 /// The callee is in the closed language; this is a call boundary, not a hatch.
 pub(crate) fn lower_named_rete_fn(
     head: &str,
+    span: &Span,
     sym: &SymbolTable,
 ) -> Result<Arc<Program>, LowerError> {
     let func = match sym.get(head) {
         Some(f) => f,
         None => {
-            return Err(LowerError::unsupported(crate::rust_caller_span!(), format!("unknown rete-defn {head}")));
+            return Err(LowerError::unsupported(span.clone(), format!("unknown rete-defn {head}")));
         }
     };
     if func.rete.is_none() {
-        return Err(LowerError::unsupported(crate::rust_caller_span!(), format!("{head} is not a rete-defn")));
+        return Err(LowerError::unsupported(span.clone(), format!("{head} is not a rete-defn")));
     }
     match &func.body {
         FunctionBody::Wat(body) => lower_rete_defn(func.as_ref(), body, sym),
-        _ => Err(LowerError::unsupported(crate::rust_caller_span!(), format!("{head} has no wat body"))),
+        _ => Err(LowerError::unsupported(span.clone(), format!("{head} has no wat body"))),
     }
 }
 

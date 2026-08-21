@@ -9,7 +9,7 @@
 //! `compile-condition` (`wat/rete.wat:679`) branches on four shapes — `where` / `not` / `exists` /
 //! `accumulate` — and a keyword-headed constraint matches none of them, so it falls to the
 //! fact-pattern branch. The pattern's children are then classified by a **separate grammar in
-//! Rust**, `classify_rete_clause` (`matcher.rs:331`), which matches six literal strings:
+//! Rust**, `classify_rete_clause` (`clause.rs`), which matches six literal strings:
 //! `:wat::core::{= not= < > <= >=}`. Nothing on that path consults `pure?` / `deterministic?` /
 //! `total?` / `primitive?`. **Law A never sees it.**
 //!

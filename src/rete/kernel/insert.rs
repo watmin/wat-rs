@@ -129,17 +129,18 @@ fn require_session_agg<'a>(
 }
 
 fn require_record_fact(fact: &Value, op: &'static str, list_span: &Span) -> Result<(), EvalBreak> {
-    match fact {
-        Value::Aggregate(a) if a.nature != Nature::Struct => Ok(()),
-        other => Err(RuntimeError::new(
+    if crate::rete::matcher::is_record_fact(fact) {
+        Ok(())
+    } else {
+        Err(RuntimeError::new(
             list_span.clone(),
             RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
                 expected: ":wat::core::Record (a fact)",
-                got: Box::new(ValueSnapshot::of(other)),
+                got: Box::new(ValueSnapshot::of(fact)),
             },
         )
-        .into()),
+        .into())
     }
 }
 

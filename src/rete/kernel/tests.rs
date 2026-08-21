@@ -166,7 +166,7 @@
             .iter()
             .find(|&&id| {
                 get_node(&wm.network, id)
-                    .map(|n| kind_of(n) == "HashJoinNode")
+                    .map(|n| kind_of(n) == NodeKind::HashJoin)
                     .unwrap_or(false)
             })
             .copied()
@@ -177,7 +177,7 @@
             .iter()
             .filter(|&&id| {
                 get_node(&wm.network, id)
-                    .map(|n| kind_of(n) == "AlphaNode")
+                    .map(|n| kind_of(n) == NodeKind::Alpha)
                     .unwrap_or(false)
             })
             .copied()
@@ -401,7 +401,7 @@
             .iter()
             .find(|&&id| {
                 get_node(&wm.network, id)
-                    .map(|n| kind_of(n) == "HashJoinNode")
+                    .map(|n| kind_of(n) == NodeKind::HashJoin)
                     .unwrap_or(false)
             })
             .copied()
@@ -505,7 +505,7 @@
             .iter()
             .find(|&&id| {
                 get_node(&wm.network, id)
-                    .map(|n| kind_of(n) == "HashJoinNode")
+                    .map(|n| kind_of(n) == NodeKind::HashJoin)
                     .unwrap_or(false)
             })
             .copied()
@@ -572,7 +572,7 @@
             .iter()
             .find(|&&id| {
                 get_node(&wm.network, id)
-                    .map(|n| kind_of(n) == "HashJoinNode")
+                    .map(|n| kind_of(n) == NodeKind::HashJoin)
                     .unwrap_or(false)
             })
             .copied()

@@ -114,11 +114,12 @@
 ;; `wat-scripts/scratch-pad/probe-rete-if-in-where.wat` (`hits=1`). Expanding into rete `if`
 ;; is therefore a correct target, not a hope.
 ;;
-;; Present: a `(:wat::rete::where …)` clause is never macro-expanded
-;; (`defrule` quotes `:when`/`:then` verbatim; `eval_test.rs`'s `eval_test_core` evaluates
-;; that raw AST directly, never touching the macro registry). This macro expands rete
-;; `cond` in ordinary (non-quoted) code. A `cond` written inside a quoted `where` body
-;; still raises `UnknownFunction` at fire time — STOP-2 of BRIEF-rete-cond-is-its-own-macro.md.
+;; Present: `defrule` still quotes `:when`/`:then` vectors, but `expand_form` on
+;; `make-rule` (`src/macros/expand.rs` `expand_make_rule` / `expand_make_rule_when`,
+;; `src/resolve/boundary.rs` `Boundary::MakeRule`) expands only each `where` body's
+;; code — not fact patterns, not `:then`. A `cond` written inside a `where` is legal
+;; and expands to rete `if`. This macro is that expansion. Ordinary (non-quoted) rete
+;; `cond` uses the same template.
 (:wat::core::defmacro :wat::rete::core::cond
   [& clauses <- :wat::core::Vector<wat::WatAST>]
   -> :wat::WatAST

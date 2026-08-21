@@ -24,7 +24,7 @@
 //!
 //! ## Consumes `classify_rete_clause`, adds no second parser
 //!
-//! [`compile_alpha_ops`] / [`compile_condition_local`] walk the exact same [`crate::rete::matcher::ReteClauseShape`] shapes
+//! [`compile_alpha_ops`] / [`compile_condition_local`] walk the exact same [`crate::rete::clause::ReteClauseShape`] shapes
 //! `eval_clause` does (arc 294 item 9a's single grammar) — it does not re-derive "what shape is
 //! this form" from the raw `WatAST` a second time. What it does differently is WHEN it resolves
 //! each shape's parts: field names to `usize` indices, `?var` references to slot indices, and
@@ -60,10 +60,10 @@ use rustc_hash::FxHashMap;
 
 use crate::ast::WatAST;
 use crate::rete::expr_ir::Expr;
-use crate::rete::matcher::{
-    classify_constraint_head, classify_rete_clause, compare_values, Bindings, CmpKind,
-    ConstraintSpelling, ReteClauseShape,
+use crate::rete::clause::{
+    classify_constraint_head, classify_rete_clause, CmpKind, ConstraintSpelling, ReteClauseShape,
 };
+use crate::rete::matcher::{compare_values, Bindings};
 use crate::runtime::Value;
 
 pub(crate) type SlotFrame = Vec<Option<Value>>;
@@ -81,7 +81,7 @@ pub(crate) struct BindIntern<'a> {
 
 // ─── The compiled program ──────────────────────────────────────────────────────
 
-// The comparison operator is `matcher::CmpKind` — the SAME enum the grammar and the interpreter
+// The comparison operator is `clause::CmpKind` — the SAME enum the grammar and the interpreter
 // read, decided once here at compile time instead of re-matched on every call. This file used to
 // declare its own identical `CmpKind`; two enums meant two places a new comparison had to be added,
 // which is the duplication the ONE DOOR exists to delete.
@@ -90,10 +90,12 @@ pub(crate) struct BindIntern<'a> {
 /// (the first `Op` that fails to hold ends the whole match), mirroring `eval_clauses`'s
 /// left-to-right fold exactly — `Or`/`Not` are the only ops that recurse into a sub-sequence.
 ///
-/// Flip 3 (CURRENT-STATE): `Cmp` operands are the one `Expr` core. Bind / BindCheck / Or /
-/// Not / Fail stay driver-level. A `:field` operand is prologue — a (possibly hidden) Bind
-/// into a slot — so `Expr` never grows a cond-only FactField arm. Lists stay uncompiled
-/// (`None` → `Fail`), matching `resolve_operand` (a list operand is not a field/var/lit).
+/// Flip 3 (CURRENT-STATE), same taxonomy as `Lands` next to `Op` in this file:
+/// Driver = slot population (`Bind` only). BindCheck / Cmp / SeedCmp / Or / Not / Fail
+/// are the expression core (they are still `Op` variants, not `Expr`). A `:field`
+/// operand is prologue — a (possibly hidden) Bind into a slot — so `Expr` never grows
+/// a cond-only FactField arm. Lists stay uncompiled (`None` → `Fail`), matching
+/// `resolve_operand` (a list operand is not a field/var/lit).
 #[derive(Clone, Debug)]
 pub(crate) enum Op {
     /// `(?v <- :field)`, first occurrence of `?v` in its scope: write the field's value into
@@ -132,7 +134,8 @@ pub(crate) enum Op {
 pub(crate) type OrBranches = Vec<Vec<Op>>;
 
 /// A condition compiled once, at setup, from the immutable network — the pre-resolved dual of
-/// `alpha_match_inner`. Built by [`compile_condition_local`]; run by [`exec_compiled`].
+/// `alpha_match_inner`. Built by [`compile_condition_local`]; fire runs
+/// [`exec_compiled_with_key_ids`]. [`exec_compiled`] is the `#[cfg(test)]` door.
 #[derive(Clone)]
 pub(crate) struct CompiledCond {
     /// The top-level clause sequence (nested `and` flattened in), in source order.
@@ -392,8 +395,8 @@ fn compile_one(
             }
         }
         ReteClauseShape::Constraint { op, lhs, rhs } => {
-            // The ONE DOOR (`matcher::classify_constraint_head`) — the constraint vocabulary is
-            // written down once, in `matcher.rs`, and read here rather than re-listed. A `None`
+            // The ONE DOOR (`clause::classify_constraint_head`) — the constraint vocabulary is
+            // written down once, in `clause.rs`, and read here rather than re-listed. A `None`
             // means this file and the grammar disagree, which is our bug, not the caller's.
             let (cmp, spelling) = classify_constraint_head(op).unwrap_or_else(|| {
                 unreachable!(
@@ -538,11 +541,7 @@ fn compile_operand_expr(
             ops.push(Op::Bind { field_idx, slot });
             expr_slot(slot)
         }
-        WatAST::IntLit(n, _) => Some(Expr::Lit(Value::i64(*n))),
-        WatAST::FloatLit(x, _) => Some(Expr::Lit(Value::f64(*x))),
-        WatAST::BoolLit(b, _) => Some(Expr::Lit(Value::bool(*b))),
-        WatAST::StringLit(s, _) => Some(Expr::Lit(Value::String(Arc::new(s.clone())))),
-        _ => None,
+        other => crate::rete::matcher::ast_literal_value(other).map(Expr::Lit),
     }
 }
 
@@ -744,15 +743,25 @@ pub(crate) fn exec_compiled_under(
     seed: &(impl Bindings + ?Sized),
 ) -> BindPairs {
     crate::rete::kernel::census_count("rematch:compiled");
+    if !exec_compiled_under_holds(compiled, fact_fields, scratch, seed) {
+        return None;
+    }
+    materialize(compiled, scratch)
+}
+
+/// Seed `seed_reads`, run ops including [`Op::SeedCmp`]. No materialize / no PMap.
+pub(crate) fn exec_compiled_under_holds(
+    compiled: &CompiledCond,
+    fact_fields: &[Value],
+    scratch: &mut SlotFrame,
+    seed: &(impl Bindings + ?Sized),
+) -> bool {
     scratch.clear();
     scratch.resize(compiled.n_slots, None);
     for (key, slot) in compiled.seed_reads.iter() {
         scratch[*slot] = seed.get(key).cloned();
     }
-    if !exec_ops(&compiled.ops, scratch, fact_fields, false) {
-        return None;
-    }
-    materialize(compiled, scratch)
+    exec_ops(&compiled.ops, scratch, fact_fields, false)
 }
 
 fn materialize(
@@ -1021,7 +1030,7 @@ mod tests {
     #[test]
     fn every_op_variant_lands_in_core_or_driver() {
         let lit = crate::rete::expr_ir::Expr::Lit(Value::i64(0));
-        let cmp = crate::rete::matcher::CmpKind::Gt;
+        let cmp = crate::rete::clause::CmpKind::Gt;
         let variants = [
             Op::Bind {
                 field_idx: 0,

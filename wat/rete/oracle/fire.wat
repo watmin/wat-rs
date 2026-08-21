@@ -49,8 +49,9 @@
       (:wat::rete::walk-beta-ids network amem ids
         (:wat::core::i64::+ i 1) acc1))))
 
-;; walk-filter-ids — populate-then-emit: accumulate-pass, then filter-pass, then
-;; hash-join-pass. Reads facts+amem; threads beta. acc: node-id → PV<Token>.
+;; walk-filter-ids — populate-then-emit walk (accumulate-pass, then filter-pass,
+;; then hash-join-pass). Name is historical; the body is all three passes, not
+;; filter alone. Reads facts+amem; threads beta. acc: node-id → PV<Token>.
 (:wat::core::defn :wat::rete::walk-filter-ids
   [facts   <- :wat::core::PersistentVector
    network <- :wat::core::PersistentMap

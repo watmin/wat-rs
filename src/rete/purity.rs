@@ -1597,20 +1597,28 @@ pub(crate) enum ReteDefnCheckOutcome {
     /// Every declared rete-defn in this registration batch proved all four axes
     /// and has no call-graph cycle; `Function::rete` has been stamped for each.
     Ok,
+    Err(ReteDefnCheckError),
+}
+
+/// Pattern A: location on the outer error, kind variants carry no span.
+pub(crate) struct ReteDefnCheckError {
+    pub span: Span,
+    pub kind: ReteDefnCheckErrorKind,
+}
+
+pub(crate) enum ReteDefnCheckErrorKind {
     /// The 400-class sibling of `RequestMalformed`: a declared rete-defn's body failed
-    /// `axis`, at `head` — located (`span`), structured, never prose standing in for it.
+    /// `axis`, at `head` — located (`span` on the outer error), structured.
     AxisViolation {
         name: String,
         axis: &'static str,
         head: String,
-        span: Span,
     },
     /// #87 — the body (transitively) calls itself. Not an axis: a cycle is still
     /// pure ∧ det ∧ total ∧ rete. eBPF-shaped static refusal at LOAD.
     Recursive {
         name: String,
         head: String,
-        span: Span,
     },
 }
 
@@ -1676,20 +1684,24 @@ pub(crate) fn apply_rete_defn_contracts(
             let mut seen: HashSet<String> = declared.clone();
             seen.insert(name.clone());
             if let Some(v) = classify_expr(body_ast.as_ref(), axis, sym, &mut seen).err() {
-                return ReteDefnCheckOutcome::AxisViolation {
-                    name: name.clone(),
-                    axis: axis.variant_name(),
-                    head: v.head,
+                return ReteDefnCheckOutcome::Err(ReteDefnCheckError {
                     span: v.span,
-                };
+                    kind: ReteDefnCheckErrorKind::AxisViolation {
+                        name: name.clone(),
+                        axis: axis.variant_name(),
+                        head: v.head,
+                    },
+                });
             }
         }
         if let Some((head, span)) = rete_defn_cycle(name, body_ast.as_ref(), sym) {
-            return ReteDefnCheckOutcome::Recursive {
-                name: name.clone(),
-                head,
+            return ReteDefnCheckOutcome::Err(ReteDefnCheckError {
                 span,
-            };
+                kind: ReteDefnCheckErrorKind::Recursive {
+                    name: name.clone(),
+                    head,
+                },
+            });
         }
         let mut declared_func = (*func).clone();
         declared_func.rete = Some(crate::value::ReteContract::default());

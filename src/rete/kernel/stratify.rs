@@ -4,7 +4,7 @@
 use std::collections::HashMap;
 
 use crate::ast::WatAST;
-use crate::rete::matcher::{classify_rete_clause, ReteClauseShape};
+use crate::rete::clause::{classify_rete_clause, ReteClauseShape};
 use crate::runtime::{EvalBreak, RuntimeError, RuntimeErrorKind, SymbolTable, Value};
 
 // ── Arc 278 Stone 7-strat-native: STRATIFIED negation, native port ──────────────

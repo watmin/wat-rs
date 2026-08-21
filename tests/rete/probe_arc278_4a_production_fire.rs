@@ -22,6 +22,22 @@ use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 #[test]
+fn compile_cw_fires_nothing() {
+    let got = call_beside_value(file!(), ":user::compile-cw-fires-nothing").expect("eval");
+    assert_eq!(got, Value::i64(0), "compile+fire with no facts derives nothing; got {got:?}");
+}
+
+#[test]
+fn fired_oslo_builds() {
+    let _ = call_beside_value(file!(), ":test::fired-oslo").expect("eval");
+}
+
+#[test]
+fn fired_bergen_builds() {
+    let _ = call_beside_value(file!(), ":test::fired-bergen").expect("eval");
+}
+
+#[test]
 fn production_fires_one_fact_on_matching_loc() {
     let got = call_beside_value(file!(), ":user::pfacts-length-oslo").expect("eval");
     assert_eq!(got, Value::i64(1), "Temp+Wind at the same loc → the RHS fires once → one derived fact; got {got:?}");
