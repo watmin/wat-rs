@@ -89,11 +89,22 @@ wat/service.wat            "<K,V>" as a STRING, re-attached as "{b}::Op{p}" — 
 ⛔ **Do NOT re-run the codemod on `wat/` until that is fixed.** It is not a partial-migration
 hazard — it is a red floor.
 
-✅ **RULED D1 (2026-08-21): γ-i goes FIRST** — `defn`/`fn` take the binder, before the identity
-stone. `109/DESIGN-STONE-gamma-i-defn-takes-the-binder.md`. ⛔ ONE FORK STILL OPEN INSIDE IT
-(decision E: is the binder consumed by the `defn` MACRO as a surface alias, or first-class in
-`def`/`fn`? E1 fails Honest — it would make the macro MANUFACTURE the angle form ③ retires, which
-is blocker 3's disease adopted on purpose). **No brief until E is ruled; E decides the rooms.**
+✅ **RULED (2026-08-21) — γ-i is FULLY DECIDED and ready to BRIEF.**
+`109/DESIGN-STONE-gamma-i-defn-takes-the-binder.md`.
+**D1** γ-i goes first · **E₀-b** only the `def` name-binder (the anonymous `fn` binder is **γ-i-b**,
+a named stone, never a deferral — the form is currently unwritable, so zero corpus sites) ·
+**E2** `def` consumes the binder first-class; the `defn` macro forwards it there.
+
+The macroexpansion is what decided it — `(:wat.core/def :user/f<T,U> (:wat.core/fn …))`: **the type
+params ride the DEF NAME; the fn gets none.** `fn` is only where the error SURFACES.
+⚠ My first DESIGN named `fn` and listed `src/function/*` — reasoned from the error message instead
+of the expansion. **R4: READ THE EXPANDED FORM FIRST.**
+
+⛔ **The hazard the brief must carry:** `def`'s `(name [meta] expr)` shape is hand-rolled in SEVEN
+places (`check.rs:545,8445` · `runtime.rs:1291,2649,3395,3551,3671`) and **every one skips SILENTLY
+on an unexpected arity** — so a 5/6-item `def` a guard has not learned is a binding that never
+registers, with no error. The contract decision is ONE `split_def_form` door replacing all seven —
+the same consolidation `is_binder_marker`'s doc credits to 251.8a.
 
 ★ **ALSO AWAITING RULING —  `109/DESIGN-STONE-the-angle-string-is-not-a-type-identity.md`.**
 It carries the four questions on one shape, names a rival, and declares the population UNMEASURED
