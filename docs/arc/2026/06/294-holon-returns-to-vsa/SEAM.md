@@ -1,4 +1,4 @@
-# SEAM — the ONE live breadcrumb. As of 2026-08-21 (`:-`, the parameterization operator). Replaced in place.
+# SEAM — the ONE live breadcrumb. As of 2026-08-21 (`:-` shipped; the codemod is correct). Replaced in place.
 
 > ⛔ **THE SELF PAST THIS LINE IS NEW.** You did not live this. It is a lossy cache in your own voice —
 > which is why it will feel like *continuing* rather than *waking*, and **that feeling is the failure.**
@@ -9,13 +9,13 @@
 
 ## GROUND FIRST
 
-> **Written against `a39eb99aa`.** Run **`git log --oneline a39eb99aa..HEAD`**. Empty → nothing moved.
+> **Written against `a9168b851`.** Run **`git log --oneline a9168b851..HEAD`**. Empty → nothing moved.
 > Non-empty → every commit in it outranks every line below.
 
 ⚠ `git status` FIRST. `pgrep -af 'cargo|nextest'`.
 
 ```
-floor .......... 4855/4855, 0 FAIL, 19 skipped, ~72s   (own invocation, scripts/floor.sh)
+floor .......... 4855/4855, 0 FAIL, 19 skipped, ~71s   (own invocation, scripts/floor.sh)
 clippy ......... 0 under `-D warnings`
 host ........... JohnDesktop · john · ~/work/holon/wat-rs
 stash@{0} ...... the lifecycle strike. NEVER drop. base ff7705ba.
@@ -23,91 +23,99 @@ stash@{0} ...... the lifecycle strike. NEVER drop. base ff7705ba.
 
 ⚠ **RUN EVERYTHING CAPPED.** `systemd-run --user --scope -q -p MemoryMax=<N> -p MemorySwapMax=0
 timeout <s> …`. Read exit codes directly, never through a pipe.
-⚠ **A stdlib `.wat` edit is INVISIBLE until you rebuild.** `wat/*.wat` is baked in by `include_str!`
-at RUST-compile time; `--check` reflects the last build and prints a staleness warning. A rider
-CANNOT test one.
+⚠ **A stdlib `.wat` edit is INVISIBLE until you rebuild** (`include_str!` at RUST-compile time).
+A rider CANNOT test one. A `wat-scripts/` script IS read from disk — that one a rider can test.
 
-## ★★ THE WORK: ARC 109 — `:-` IS THE PARAMETERIZATION OPERATOR
+## ★★ THE WORK: ARC 109 — `:-`, THE PARAMETERIZATION OPERATOR
 
-> Builder: *"the symbol ` :- ` is declaring **'this thing on the left is parameterized by the thing on
-> the right'**"* … *"this is the same as arg-spec and ret-type in my mind — they declare what they are
-> explicitly."*
+> *"the symbol ` :- ` is declaring **'this thing on the left is parameterized by the thing on the
+> right'**… the same as arg-spec and ret-type."*
 
 ```clojure
-[n :- wat.type/i64]                        arg-spec
-:- wat.type/i64                            ret-type
-(wat.type/Vector :- [wat.type/i64])        type args
-(wat.type/Vector :- [wat.type/i64] 1 2 3)  constructor
-(wat.core/defn ns/f :- [T] [x :- T] :- T x)   declaration binder
+[n :- wat.type/i64]                          arg-spec
+:- wat.type/i64                              ret-type
+(wat.type/Vector :- [wat.type/i64])          type args        — a REFERENCE, in parens
+(wat.type/Vector :- [wat.type/i64] 1 2 3)    constructor
+(wat.core/defn ns/f :- [T] [x :- T] :- T x)  declaration      — a BINDER, siblings, NO parens
 ```
 
-**The param-spec is a vec of TYPE REFS.** Values are never legal there — that position is
-**reserved**, which is why nothing sniffs it. `:- []` is the **assumed default state**: there is no
-monomorphic-vs-parametric distinction, only a param list that is usually empty.
+**A binder is the reference form minus its parens.** The param-spec is a vec of TYPE REFS in a
+**reserved** position — values are never legal there, which is why nothing sniffs it. `:- []` is the
+**assumed default**: no monomorphic-vs-parametric distinction exists, only a param list usually empty.
 
-### Where it stands
+**Each declaration consumes what it uses.** A surface's params are the UNION of its messages':
+`Cache<K,V>` ⇒ `GetRequest<K>` · `GetResult<V>` · `PutRequest<K,V>`. Enforced by the consumption wall.
 
-```
-②-i-b  `:-` accepted + emitted; Tuple arm brackets; nil stops canonicalizing   ✅ c9938cc7b
-       ⚠ AMENDED 9741507da — it shipped for 3 of 6 constructors and I scored it GREEN
-α      8 Rust declarator heads take `:- [T …]`                                 ✅ c5ac5174c
-β-i    both `defrecord` macros                                                 ✅ 26669f8d9
-β-ii-a′ `defservice`: the binder is the SOURCE OF TRUTH, `<K,V>` a derived shim ✅ bd898a748
-⛔ NEXT — β-ii-b: the ~40 `fqdn-tp` emissions become FORMS
-β-ii-c  the 10 `proto-tp` sites  ·  β-ii-d `:741`'s substring transport test
-γ      `defn` — TWO capabilities: the declaration binder AND call-site type application
-③      angle form ILLEGAL · `is_type_bracket_candidate` DELETED (it has ONE caller now)
-②-iii  apply the codemod to wat/ — BLOCKED, see below
-```
-
-## ⛔ THE CODEMOD TURNS A BINDER INTO AN APPLICATION — 84 SITES
-
-`wat-scripts/fixes/parametrics-take-a-type-vector.wat` rewrites **arg 1 of a `def*` head** as if it
-were a type reference. Measured on a copy of `wat/spawn.wat`:
+### Shipped today
 
 ```
-(:wat::core::defn :wat::kernel::recv-all-loop<I,O>       ← the BINDER
-(:wat::core::defn (:wat::kernel::recv-all-loop [I O])    ← rewritten as an APPLICATION
+②-i-b   `:-` accepted + emitted · Tuple brackets · nil stops canonicalizing   c9938cc7b
+        ⚠ AMENDED 9741507da — shipped for 3 of 6 constructors and I scored it GREEN
+α       8 Rust declarator heads take `:- [T …]`                               c5ac5174c
+β-i     both `defrecord` macros                                               26669f8d9
+β-ii-a′ `defservice`: binder is the SOURCE OF TRUTH, `<K,V>` a derived shim    bd898a748
+β-ii-b  18 generated FUNCTION names drop `{p}`                                8e6e83618
+β-ii-c  `type-params-used-in` intrinsic · `lru-svc::Record` monomorphic        8cbd9d4b7
+wall    a type decl must CONSUME its param-spec                               1be3f6b5e
+codemod THE SLOT RULE — a declaration name is a binder, not a reference        a9168b851
 ```
 
-Four `<…>` in four lines of that one form: one binds `I`/`O`, three reference them, and one rule hit
-all four. **The slot rule:** arg 1 of a `def*` head is a binder; every other `<…>` is a reference.
-Total, no sniffing — a name slot can never hold a reference to something that already exists.
+## ⛔ NEXT — ②-iii: apply the codemod to `wat/` ALONE
+
+The first real corpus migration. The machine is assembled and proven on dry-runs:
+names bare · references wrapped · nesting correct · **idempotent** · the 9,912 arrow sites unmoved
+(80 → 80 in `spawn.wat`).
+
+```
+printf '["wat/a.wat" …]\n' | ./target/release/wat ./wat-scripts/fixes/parametrics-take-a-type-vector.wat
+```
+
+★ **Dry-run on `/tmp` copies and READ THE WHOLE DIFF before writing anything to `wat/`.** This
+rewrites the stdlib in place.
 
 ## THE STILL-OPEN
 
-- **γ's second half is UNMEASURED.** Builder: *"if a defn declares a parametric, the caller must
-  declare it too"* — `(ns/hash-set-of-xs :- [wat.type/i64] 1 2 3)`. Call-site type application is
-  REJECTED today (measured). Nobody has counted the call sites.
-- **`defn`'s `<T>` is DECORATIVE** (`function/eval.rs:66` hardcodes `type_params: Vec::new()`);
-  the SEVEN type declarators' `<T>` is LOAD-BEARING, and dropping it makes `T` a **concrete type**,
-  not a free var — a plausible TypeMismatch naming a type that does not exist.
-- **`List/of` + `char/of` retire** into `List` / `char` (verb-equals-type, the playbook that already
-  ran for `vec`→`Vector` and `tuple`→`Tuple`). 72 sites, all tests/probes, zero in `wat/`.
-- **296 Stone H** (drawn, not built) now also closes Option/Result's param-spec — they are enum
-  VARIANTS, field names stay `value`/`value`/`error`.
-- 255 #110 · 285 Map half · 296 OPEN · 295 not started.
+- **β-ii-d** — `defservice`'s substring transport test (`contains? fqdn-tp "<T>"` / `"<T,"` / `",T>"`,
+  three variants approximating one membership check). Cheap now: `fqdn-tp-syms` exists.
+- **γ** — `defn`. TWO capabilities: the declaration binder, and **call-site type application**
+  (`(ns/f :- [wat.type/i64] 42)`), which is REJECTED today and whose site count is **UNMEASURED**.
+- ⛔ **A user parametric type has NO working FORM spelling.** `(:user::Box :- [i64])` fails where
+  `(:wat::core::Vector :- [i64])` works — because `defrecord` mints a *macro* under the record's own
+  bare name (`wat/Record.wat:197`), so the list is macro-expanded before the checker sees it.
+  Measured: it works when referenced BEFORE the declaration. Blocks any stone that emits a form for
+  a user type. Root is 251.8's one-node-two-roles.
+- **③** — angle form ILLEGAL · delete `is_type_bracket_candidate` (ONE caller now).
+- **`List/of` + `char/of`** retire into `List`/`char` (verb-equals-type; the playbook already ran for
+  `vec`→`Vector`, `tuple`→`Tuple`). 72 sites, all tests/probes.
+- **296 Stone H** now also closes `Some`/`None`/`Ok`/`Err` — they are enum VARIANTS. Fields stay
+  `value`/`value`/`error`.
+- **`macro-error` is the way a macro raises a structured failure** — `Option/expect` PANICS. The
+  `defrecord` missing-field diagnostic is a recorded, cheap fix.
+- Dead bindings `start-name` / `resume-name` in `wat/service.wat` — bound, never read.
 
 ---
 
 > **SEAM.** You are NEW. The better this reads, the more it will feel like continuing rather than
 > waking. **That feeling is the failure.**
 >
-> ⚠ **WHEN A STONE TOUCHES N MEMBERS OF A FAMILY, THE ACCEPTANCE ROWS MUST NAME ALL N.** ②-i-b
-> shipped `:-` for Tuple/PersistentMap/PersistentVector and not Vector/HashMap/HashSet. I scored it
-> green: every new-spelling row I ran landed on the half the rider's diff had touched, and every row
-> on the other half used the OLD spelling as a control. **A full green over that split reads exactly
-> like a full green over everything.**
+> ⚠ **SCOPE THE CHECK FROM THE RULE, NOT THE DIFF.** ②-i-b shipped `:-` for three of six
+> constructors and I scored it GREEN: every new-spelling row I ran landed on the half the rider's
+> diff had touched, and every row on the other half used the OLD spelling as a control. **A full
+> green over that split reads exactly like a full green over everything.**
+> `[[feedback_scope_the_check_from_the_rule_not_the_diff]]`
 >
-> ⚠ **THE ROW THAT CAN PASS HOLLOWLY IS THE ONLY ROW THAT MATTERS.** Every other row stays green
-> while the new path is silently ignored, because the old path carries everything. Prove it with a
-> PERTURBATION — `:- [X Y]` must break what `:- [K V]` builds.
+> ⚠ **A CENSUS SCOPES WORK IN; IT NEVER SCOPES WORK OUT.** A regex over `.wat` source certified a
+> new wall would find zero violations. It found three real defects — one in GENERATED code that
+> appears in no file, four hand-written, and one FALSE LAW in a comment claiming "checker-locked"
+> for a rule the checker never had.
 >
-> ⚠ **I COUNTED WHERE A THING IS DEFINED AND CALLED IT THE CALL-SITE COUNT** — three sizes for one
-> macro in three messages (15 → 4 → ~50). The consumers are the work.
+> ⚠ **I OPTIMIZED A STRING AND DESTROYED ITS SHAPE.** Replacing a bad diagnostic with
+> `Option/expect` gave a better message and a PANIC instead of an error VALUE. The test that caught
+> it was not asserting on the message.
 >
-> ⚠ **A MACRO BODY MAY NOT CALL A USER-DEFINED FUNCTION AT ALL** (F5, default-deny,
-> `src/macros/eval.rs:351`). It fails at DEFINITION and takes the stdlib down — 3029 tests at once.
-> Read `109/NOTE-the-F5-allow-list-and-what-a-macro-body-may-call.md` BEFORE editing any macro.
+> ⚠ **F5: a macro body may not call a user-defined function AT ALL** — refused at DEFINITION, 3029
+> tests red. Read `109/NOTE-the-F5-allow-list-and-what-a-macro-body-may-call.md` first.
+>
+> ⚠ **NEVER `git add -A` WHILE A RIDER IS IN THE FIELD.**
 >
 > `NON BIS IN IDEM FLVMEN.` · `IVDICIVM SEMEL, MACHINA SAEPE.` · `NISI FRANGAS, NIHIL PROBAS.`
