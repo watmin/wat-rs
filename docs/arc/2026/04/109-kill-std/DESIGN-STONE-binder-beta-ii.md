@@ -103,3 +103,57 @@ the corpus at ②-iii.
   belong to ③'s general cut, not to the binder.
 - **`defn`** — γ, and now known to be two capabilities: the declaration binder and call-site type
   application, the second unmeasured.
+
+---
+
+## ⛔ AMENDMENT 2026-08-21 — THE DECOMPOSITION WAS BACKWARDS, AND THE INTRINSIC IT NEEDED SHOULD NOT EXIST
+
+β-ii-a as briefed built a param LIST *from* the bracketed string. It was struck, and it failed
+twice, and the second failure is what exposed the design error.
+
+**Failure 1 — the F5 gate refuses a wat-level helper outright.** The rider added a top-level
+`defn` (the first option my brief offered) and the whole stdlib went down — 3029 failures:
+
+> *"malformed defmacro: program-body macro purity check failed at definition: keyword head
+> `:wat::service::tp-suffix->syms` refused at macro expand time — not on the pure-combinator
+> allow-list (default-deny F5 gate, arc 249 stone 249.2b-i)"*
+
+**Failure 2 — a closure does not rescue it.** Rebound as a `let`-bound `fn` inside the macro's own
+`let`, it passed definition and then failed during expansion of `lru-svc<K,V>`:
+`TypeMismatch … :expected "wat::core::fn"` — `mapv` will not take a bare builtin-primitive keyword
+as a value in this position.
+
+So **every wat-level spelling of that helper is blocked**: a `defn` is refused at definition, a
+closure at use. On the original decomposition the only way out was a new INTRINSIC.
+
+### ★ The builder's question — "what needs to become an intrinsic?" — is what broke it open
+
+**Nothing does.** The string derivation exists only because the params live INSIDE A NAME. Once they
+arrive as `:- [K V]`, extracting them is `ast->children` on the bracket — and `ast->children` is
+already allow-listed for macro bodies (**145 uses**), as is `ast-name` (**131**). The intrinsic I
+was about to draw would have propped up the representation this arc is deleting.
+
+### The inverted decomposition
+
+| | old (struck) | new |
+|---|---|---|
+| a | build the LIST from the string | **accept `:- [K V]`; params via `ast->children`. DERIVE the legacy string from the list** |
+| b | convert ~50 emissions, list bolted on | consumers move to forms in batches; the derived string shrinks as they go |
+| c | proto sites | the last consumer goes; string and name-splitting die together |
+
+The list becomes the source of truth immediately and the string becomes a **compatibility shim** —
+so the thing that gets deleted is the shim, not a bolt-on that has to be threaded in later. All ~50
+consumers keep working untouched throughout, because they still read a string.
+
+★ It also kills `:741` naturally. `(string::contains? fqdn-tp "<T>")` becomes a membership test over
+a list of symbols — the question the macro was always actually asking, which is why the substring
+test needed a comma variant (`"<T,"`) to paper over position.
+
+### Two hazards measured while grounding this
+
+- **The clause fold rejects unknown keys.** `defservice` folds `[:key val …]` and calls
+  `macro-error` on anything not in `known-clauses` (`:290`). A leading `:-` must be peeled from
+  `clauses` BEFORE the fold, or it is rejected as an unknown clause.
+- ★ **`:wat::core::macro-error` EXISTS**, and is the established idiom (`wat/core.wat:632`, `:782`).
+  That closes the open question in `NOTE-a-macro-cannot-diagnose-with-option-expect.md`: a macro CAN
+  raise a structured error; `Option/expect` was simply the wrong tool. Recorded there.
