@@ -34,16 +34,10 @@ pub(crate) fn eval_rhs_expr(
 /// (`[[feedback_feasibility_probe_must_exercise_the_exact_mechanism]]` — a probe that does not walk
 /// the exact substrate path production uses proves nothing). Pure extraction: no behaviour change.
 ///
-/// COUNTED, because this is the hot path: it runs for EVERY token × EVERY TestNode — 10,000 times
-/// on node-share `[50 200]`, of which 98% are about to FAIL — and each pass allocates a child
-/// `Environment` (`Arc<EnvCell>` + a `HashMap`) plus, per binding, a fresh `String` (`.to_string()`
-/// on a key FIXED at rule-compile time), a `Span`, and a `Value` clone. Exactly the waste
-/// `compiled_cond` was built to remove from the alpha path: *"two heap allocations rebuilding the
-/// constant binding key on every call, including every call that is about to fail."*
-///
-/// Measured (Step 0, 2026-08-01): **122.5 ns/eval — 22.7% of a `where` evaluation.** The other
-/// 77.3% is the `eval_inner` walk, which is why the stone is a full expression IR and not just
-/// this block.
+/// Measured (Step 0, 2026-08-01): **122.5 ns/eval — 22.7% of a `where` evaluation** when this
+/// interpreter was the TestNode path. Native TestNode fire is `exec_where` over `BindSpan`
+/// (matching [`eval_test_core`]). Live callers: [`eval_test`] (dispatch), [`eval_rhs_expr`],
+/// and kernel tests' differential.
 pub(crate) fn build_test_env<B: Bindings + ?Sized>(bindings: &B, env: &Environment) -> Environment {
     crate::rete::kernel::census_count("filter:test-env-builds");
     let mut b = env.child();
