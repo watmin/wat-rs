@@ -521,11 +521,67 @@
                               "defservice: :max-frame-bytes needs a value")
                             `524288)
 
+     ;; ── Arc 109 β-ii-c: per-type param CONSUMPTION — a generated companion carries only
+     ;; the params ITS OWN field/member vector actually mentions, not the service's full
+     ;; declared list (`fqdn-tp`/`fqdn-tp-syms`). `type-params-used-in` (arc 109 β-ii-c
+     ;; intrinsic) answers "which of `fqdn-tp-syms` appear anywhere in this AST?"; each
+     ;; "-tp-syms" below is that SUBSET, in the same order, and each "-tp" re-renders it as
+     ;; a bracket suffix — the identical fold+join+concat `fqdn-tp` itself uses above (line
+     ;; ~314), just over the narrower list. An empty subset renders "" (monomorphic),
+     ;; matching `fqdn-tp`'s own empty case — the byte-identity property, one level down.
+     ;;
+     ;; Record's own field vector is `durable-fields` verbatim (no union needed).
+     record-tp-syms (:wat::core::type-params-used-in fqdn-tp-syms durable-fields)
+     record-tp      (:wat::core::if (:wat::core::empty? record-tp-syms)
+
+                       ""
+                       (:wat::core::string::concat "<"
+                         (:wat::core::string::concat
+                           (:wat::core::string::join ","
+                             (:wat::core::foldl
+                               (:wat::core::fn [acc <- :wat::core::Vector<wat::core::String>
+                                                a   <- :wat::WatAST]
+                                 -> :wat::core::Vector<wat::core::String>
+                                 (:wat::core::conj acc (:wat::core::ast-name a)))
+                               (:wat::core::Vector :wat::core::String)
+                               record-tp-syms))
+                           ">")))
+     ;; State wraps the durable ref + its own ephemeral fields — search the union of the
+     ;; RAW `durable-fields`/`ephemeral-fields` (not the derived `record-ty`, so this has
+     ;; no ordering dependency on it) built via the same ast->children/with-children idiom
+     ;; the REAL `state-field-vec` below uses. This is a separate, EARLIER search node —
+     ;; the real one is not assembled until after `record-ty` (it prepends `record-ty`
+     ;; itself, downstream); searching the raw durable field types directly finds the same
+     ;; params, since whatever reaches `record-ty`'s own text came from `durable-fields`.
+     state-search-items (:wat::core::foldl
+                           (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST>
+                                            item <- :wat::WatAST]
+                             -> :wat::core::Vector<wat::WatAST>
+                             (:wat::core::conj acc item))
+                           (:wat::core::ast->children durable-fields)
+                           (:wat::core::ast->children ephemeral-fields))
+     state-search-node (:wat::core::with-children empty-vec state-search-items)
+     state-tp-syms  (:wat::core::type-params-used-in fqdn-tp-syms state-search-node)
+     state-tp       (:wat::core::if (:wat::core::empty? state-tp-syms)
+
+                       ""
+                       (:wat::core::string::concat "<"
+                         (:wat::core::string::concat
+                           (:wat::core::string::join ","
+                             (:wat::core::foldl
+                               (:wat::core::fn [acc <- :wat::core::Vector<wat::core::String>
+                                                a   <- :wat::WatAST]
+                                 -> :wat::core::Vector<wat::core::String>
+                                 (:wat::core::conj acc (:wat::core::ast-name a)))
+                               (:wat::core::Vector :wat::core::String)
+                               state-tp-syms))
+                           ">")))
+
      ;; ── 4b-ii: mint state-ty as :<fqdn>::State, record-ty as :<fqdn>::Record ──
-     state-ty-str   (:wat::core::string::interpolate "{b}::State{p}" :b fqdn-base :p fqdn-tp)
+     state-ty-str   (:wat::core::string::interpolate "{b}::State{p}" :b fqdn-base :p state-tp)
      state-ty       (:wat::core::keyword/from-string state-ty-str)
      record-ty      (:wat::core::keyword/from-string
-                      (:wat::core::string::interpolate "{b}::Record{p}" :b fqdn-base :p fqdn-tp))
+                      (:wat::core::string::interpolate "{b}::Record{p}" :b fqdn-base :p record-tp))
 
      ;; ── 4b-ii: :init option ────────────────────────────────────────────────────
      ;; :init : Record → State. Default (fn [d <- ::Record] -> ::State (::State d))
@@ -912,7 +968,26 @@
      ;;   matches Status::Started, returns the Address. Passed to launch as
      ;;   lu-addr-kw so the generic ProcessOpts impl can extract addr without
      ;;   naming per-service types.
-     admin-ty-str   (:wat::core::string::interpolate "{b}::Admin{p}" :b fqdn-base :p fqdn-tp)
+     ;; Arc 109 β-ii-c — Admin's own field set: :Init/:Resume both carry `init-params-vec`
+     ;; verbatim (the user's :init signature, already available here — β-ii-a′); :Stop/
+     ;; :Hibernate are nullary and :AllowPeer/:DenyPeer carry `Vector<i64>` (concrete), so
+     ;; neither contributes a param. Searching `init-params-vec` alone is therefore exact.
+     admin-tp-syms  (:wat::core::type-params-used-in fqdn-tp-syms init-params-vec)
+     admin-tp       (:wat::core::if (:wat::core::empty? admin-tp-syms)
+
+                       ""
+                       (:wat::core::string::concat "<"
+                         (:wat::core::string::concat
+                           (:wat::core::string::join ","
+                             (:wat::core::foldl
+                               (:wat::core::fn [acc <- :wat::core::Vector<wat::core::String>
+                                                a   <- :wat::WatAST]
+                                 -> :wat::core::Vector<wat::core::String>
+                                 (:wat::core::conj acc (:wat::core::ast-name a)))
+                               (:wat::core::Vector :wat::core::String)
+                               admin-tp-syms))
+                           ">")))
+     admin-ty-str   (:wat::core::string::interpolate "{b}::Admin{p}" :b fqdn-base :p admin-tp)
      admin-ty       (:wat::core::keyword/from-string admin-ty-str)
      ;; 293.W.2f — Status<T> so Started's addr-ty T is a real type parameter
      ;; (not a rigid leftover name). Process launch unifies T:=Wire; thread T:=Shared.

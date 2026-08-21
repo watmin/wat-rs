@@ -658,6 +658,12 @@ fn is_pure_total(head: &str) -> bool {
         | ":wat::core::ast-name"
         | ":wat::core::ast-span"
         | ":wat::core::ast-end-span"
+        // Arc 109 β-ii-c — same category as its ast-* siblings just above (pure,
+        // total, structural node walk; no IO): "which of these type-param name
+        // nodes appear anywhere in this AST?" `defservice` calls it at expand
+        // time to compute each generated companion type's OWN param subset
+        // instead of stamping the service's full param list onto every one.
+        | ":wat::core::type-params-used-in"
         | ":wat::core::symbol-node"
         // Arc 274.1 — capture-proof binder for program-body macros. A macro needs it to create
         // scoped symbols that cannot collide with caller variables. "Does a macro need it?" → YES.

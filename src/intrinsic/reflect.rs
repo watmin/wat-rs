@@ -18,6 +18,7 @@
 //! Arc 255.1b-v adds `show-source` and `render-doc` — the reflection surface
 //! over the intrinsic registry, proven on the `core::Bytes` pilot.
 
+use std::borrow::Cow;
 use std::sync::Arc;
 
 use wat_macros::wat_intrinsic;
@@ -426,4 +427,150 @@ pub(crate) fn eval_render_doc(
     }
 
     Ok(Value::String(Arc::new(out)))
+}
+
+// ─── Arc 109 β-ii-c: type-params-used-in ─────────────────────────────────────
+
+/// Does `param_name` appear as a whole TOKEN inside `content` (a Keyword's text with any
+/// leading `:` already stripped, or a bare Symbol's text)? Splits on the type-parameter
+/// boundary characters `<`, `,`, `>` — never a bare substring test — so `content.split(...)`
+/// yields the run of characters between two boundaries (or a boundary and the string's own
+/// start/end), and `param_name` must equal one of those runs exactly. This is what keeps `K`
+/// from matching inside `Key` or `KV`: `"wat::cache::Lru<K,V>"` splits (on `<`/`,`/`>`) into
+/// `["wat::cache::Lru", "K", "V", ""]`; a bare `"V"` (no brackets, the whole stripped token)
+/// splits into the single run `["V"]`.
+fn token_names_param(content: &str, param_name: &str) -> bool {
+    content
+        .split(['<', ',', '>'])
+        .any(|segment| segment == param_name)
+}
+
+/// Does `param_name` appear anywhere within `node` — walking every List/Vector/Set item and
+/// every Map key+value, and at each Keyword or Symbol LEAF matching the param as a bounded
+/// token (never a bare substring)? A type parameter can live INSIDE a token: with today's
+/// keyword type spelling, `:wat::cache::Lru<K,V>` is ONE `Keyword` node whose text carries `K`
+/// and `V` as substrings, so a children-only walk would silently find nothing.
+fn param_appears_in(param_name: &str, node: &WatAST) -> bool {
+    match node {
+        WatAST::Keyword(s, _) => {
+            let content = s.strip_prefix(':').unwrap_or(s.as_str());
+            token_names_param(content, param_name)
+        }
+        WatAST::Symbol(ident, _) => ident.as_str() == param_name,
+        WatAST::List(items, _) | WatAST::Vector(items, _) | WatAST::Set(items, _) => {
+            items.iter().any(|c| param_appears_in(param_name, c))
+        }
+        WatAST::Map(pairs, _) => pairs
+            .iter()
+            .any(|(k, v)| param_appears_in(param_name, k) || param_appears_in(param_name, v)),
+        _ => false,
+    }
+}
+
+/// Extract a type-param's bare name text from its `params`-element node: a `Symbol` (the usual
+/// shape — `fqdn-tp-syms` mints these via `symbol-node`) or a `Keyword` (its text with any
+/// leading `:` stripped), so a caller may pass either spelling.
+fn param_name_of<'a>(node: &'a WatAST, op: &'static str) -> Result<Cow<'a, str>, RuntimeError> {
+    match node {
+        WatAST::Symbol(ident, _) => Ok(Cow::Borrowed(ident.as_str())),
+        WatAST::Keyword(s, _) => Ok(Cow::Borrowed(s.strip_prefix(':').unwrap_or(s.as_str()))),
+        other => Err(RuntimeError::new(other.span().clone(), RuntimeErrorKind::TypeMismatch {
+            op: op.into(),
+            expected: ":wat::WatAST (a Symbol or Keyword naming a type param)",
+            got: Box::new(crate::runtime::ValueSnapshot::unavailable(
+                "non-name AST node in `params`",
+            )),
+        })),
+    }
+}
+
+/// Return the subset of `params` — in the order given — that appear anywhere within `node`.
+///
+/// A pure, total, structural AST search: no allocation-order dependence, no evaluation of
+/// `node`'s content beyond walking its shape. Built for `defservice` (arc 109 β-ii-c) so a
+/// generated companion type can carry only the type params its own field/member vector
+/// actually mentions, instead of the service's FULL declared param list stamped onto every
+/// companion regardless of use — but the question ("which of these params does this AST
+/// mention?") is general; any future declarator macro needing the same answer can reuse it.
+///
+/// A program-body macro cannot express this search itself: no recursion (`foldl` walks one
+/// level only), no helper `defn` (the F5 pure-combinator allow-list refuses a user-defined head
+/// AT DEFINITION), no `mapv` over a bare primitive keyword. See
+/// `NOTE-the-F5-allow-list-and-what-a-macro-body-may-call.md`.
+///
+/// ⚠ A type parameter can live INSIDE a single token. With today's keyword type spelling,
+/// `:wat::cache::Lru<K,V>` is ONE `Keyword` node whose *name* carries `K` and `V` as text — a
+/// walk that only descends into children (never inspecting a leaf's own text) finds nothing.
+/// This walks every List/Vector/Set item and every Map key+value, and at each Keyword/Symbol
+/// leaf matches a param name against a token bounded by `<`, `,`, `>`, and the text's own
+/// start/end — never a bare substring, so `K` does not match inside `Key` or `KV`.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Category      Reflection
+/// @arg params :wat::core::Vector<wat::WatAST> the candidate type-param name nodes (Symbols, or Keywords), in declaration order
+/// @arg node :wat::WatAST the AST subtree to search — typically a field/member vector
+/// @ret :wat::core::Vector<wat::WatAST> the subset of `params`, in the order given, that appear anywhere in `node`
+/// @example (:wat::core::type-params-used-in (:wat::core::Vector :wat::WatAST (:wat::core::symbol-node "K") (:wat::core::symbol-node "V")) (:wat::core::keyword-node ":wat::core::Vector<K>")) #=> [K]
+/// @example (:wat::core::type-params-used-in (:wat::core::Vector :wat::WatAST (:wat::core::symbol-node "K") (:wat::core::symbol-node "V")) (:wat::core::keyword-node ":wat::core::HashMap<Key,KV>")) #=> []
+/// @example-norun (:wat::core::type-params-used-in (:wat::core::Vector (:wat::core::symbol-node "K") (:wat::core::symbol-node "V")) (:wat::core::read-string "[cache <- :wat::cache::Lru<K,V>]")) #=> Vector[Symbol(K), Symbol(V)]
+/// @example-norun (:wat::core::type-params-used-in (:wat::core::Vector (:wat::core::symbol-node "K") (:wat::core::symbol-node "V")) (:wat::core::read-string "[capacity <- :wat::core::i64]")) #=> Vector[]
+#[wat_intrinsic(":wat::core::type-params-used-in")]
+pub(crate) fn eval_type_params_used_in(
+    params: &WatAST,
+    node: &WatAST,
+    env: &Environment,
+    sym: &SymbolTable,
+    span: &Span,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::core::type-params-used-in";
+    let _ = span;
+
+    let params_v = crate::runtime::eval_inner(params, env, sym)?.value_owned();
+    let param_vals: &Vec<Value> = match &params_v {
+        Value::Vec(v) => v.as_ref(),
+        other => {
+            return Err(RuntimeError::new(params.span().clone(), RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: ":wat::core::Vector<wat::WatAST>",
+                    got: Box::new(crate::runtime::ValueSnapshot::of(other)),
+                })
+            .into());
+        }
+    };
+
+    let node_v = crate::runtime::eval_inner(node, env, sym)?.value_owned();
+    let node_ast: &WatAST = match &node_v {
+        Value::wat__WatAST(a) => a.as_ref(),
+        other => {
+            return Err(RuntimeError::new(node.span().clone(), RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: ":wat::WatAST",
+                    got: Box::new(crate::runtime::ValueSnapshot::of(other)),
+                })
+            .into());
+        }
+    };
+
+    let mut out: Vec<Value> = Vec::with_capacity(param_vals.len());
+    for pv in param_vals.iter() {
+        let pv_ast: &WatAST = match pv {
+            Value::wat__WatAST(a) => a.as_ref(),
+            other => {
+                return Err(RuntimeError::new(params.span().clone(), RuntimeErrorKind::TypeMismatch {
+                        op: OP.into(),
+                        expected: ":wat::core::Vector<wat::WatAST> of param name nodes",
+                        got: Box::new(crate::runtime::ValueSnapshot::of(other)),
+                    })
+                .into());
+            }
+        };
+        let name = param_name_of(pv_ast, OP)?;
+        if param_appears_in(&name, node_ast) {
+            out.push(pv.clone());
+        }
+    }
+
+    Ok(Value::Vec(Arc::new(out)))
 }

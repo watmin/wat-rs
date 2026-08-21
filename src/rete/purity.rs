@@ -342,6 +342,15 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
     if head == ":wat::core::aggregate-new" || head == ":wat::core::kwargs-construct" {
         return Some(OpMeta { pure: true, deterministic: true, total: true });
     }
+    // Arc 109 β-ii-c — `type-params-used-in` is a structural SEARCH over an AST: it reads the
+    // node, allocates nothing observable, touches no world state, and returns a subset of its own
+    // first argument in the order given. Pure ∧ deterministic ∧ total, and RULED here rather than
+    // parked in `KNOWN_UNREVIEWED` — the gate's own remedy says parking "is the LAST resort and is
+    // only honest for a verb whose ruling is genuinely open", and this one's is not. It is the
+    // first `#[wat_intrinsic]` verb to be classified rather than left to 255.3.
+    if head == ":wat::core::type-params-used-in" {
+        return Some(OpMeta { pure: true, deterministic: true, total: true });
+    }
     // Pure ∧ deterministic explicit `:wat::core::` ops.
     let pure_det = matches!(
         head,
