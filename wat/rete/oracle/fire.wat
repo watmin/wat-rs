@@ -1,45 +1,94 @@
 ;; wat/rete/oracle/fire.wat — interpreted fire-once / fire-rules / stratify.
 ;;
-;; walk-sorted-ids, fire-once$oracle, fire-fixpoint, fire-stratified,
+;; walk-alpha-ids / walk-beta-ids / walk-filter-ids / walk-prod-ids,
+;; fire-once$oracle, fire-fixpoint, fire-stratified,
 ;; fire-rules$oracle, public fire-rules / fire-once / fire-rules-explain.
-;; Loads after accum-pass.wat (phase-2 calls accumulate-pass).
+;; Loads after accum-pass.wat (walk-filter-ids calls accumulate-pass).
 ;;
 ;; Namespace: :wat::rete::
 
-;; walk-sorted-ids — TCO over a Vector of node-ids. Vector-foldl instantiates
-;; PersistentMap as PersistentMap<K,V> and then rejects the existing pass fns
-;; (typed bare PersistentMap). Walking by index keeps Acc unparameterized.
-;; phase: 0 alpha, 1 root-join, 2 populate-then-emit, 3 production.
-(:wat::core::defn :wat::rete::walk-sorted-ids
-  [phase   <- :wat::core::i64
-   facts   <- :wat::core::PersistentVector
+;; Four monomorphic TCO walkers. `walk-sorted-ids` used to take a `phase <- i64`
+;; and `cond` across four bodies that return three different memory types
+;; through one `acc`. Every call site passed a literal phase; the recursive
+;; self-call threaded it unchanged. Split: each walker recurses on itself,
+;; `acc` is the memory that walker actually writes, `phase`/`cond` are gone.
+
+;; walk-alpha-ids — activate-alpha over sorted node-ids.
+;; acc: node-id → PV<Element> (FLAT — assoc under alpha-id, not nested by bindings).
+(:wat::core::defn :wat::rete::walk-alpha-ids
+  [facts   <- :wat::core::PersistentVector
    network <- :wat::core::PersistentMap
-   rules   <- :wat::core::PersistentVector<wat::rete::Rule>
-   amem    <- :wat::core::PersistentMap
-   bmem    <- :wat::core::PersistentMap
    ids     <- :wat::core::Vector<wat::core::i64>
    i       <- :wat::core::i64
-   acc     <- :wat::core::PersistentMap]
-  -> :wat::core::PersistentMap
+   acc     <- :wat::core::PersistentMap<wat::core::i64,wat::core::PersistentVector<wat::rete::Element>>]
+  -> :wat::core::PersistentMap<wat::core::i64,wat::core::PersistentVector<wat::rete::Element>>
   (:wat::core::if (:wat::core::i64::>= i (:wat::core::length ids))
     acc
     (:wat::core::let [node-id (:wat::core::Option/expect
                                  (:wat::core::get ids i)
-                                 "walk-sorted-ids: id")
-                      acc1    (:wat::core::cond
-                                ((:wat::core::= phase 0)
-                                 (:wat::rete::activate-alpha facts network acc node-id))
-                                ((:wat::core::= phase 1)
-                                 (:wat::rete::root-join-pass amem network acc node-id))
-                                ((:wat::core::= phase 2)
-                                 (:wat::rete::hash-join-pass amem network
-                                   (:wat::rete::filter-pass network amem facts
-                                     (:wat::rete::accumulate-pass network amem acc node-id)
-                                     node-id)
-                                   node-id))
-                                (:else
-                                 (:wat::rete::production-pass network bmem rules acc node-id)))]
-      (:wat::rete::walk-sorted-ids phase facts network rules amem bmem ids
+                                 "walk-alpha-ids: id")
+                      acc1    (:wat::rete::activate-alpha facts network acc node-id)]
+      (:wat::rete::walk-alpha-ids facts network ids
+        (:wat::core::i64::+ i 1) acc1))))
+
+;; walk-beta-ids — root-join-pass over sorted node-ids. Reads amem; writes beta.
+;; acc: node-id → PV<Token>.
+(:wat::core::defn :wat::rete::walk-beta-ids
+  [network <- :wat::core::PersistentMap
+   amem    <- :wat::core::PersistentMap<wat::core::i64,wat::core::PersistentVector<wat::rete::Element>>
+   ids     <- :wat::core::Vector<wat::core::i64>
+   i       <- :wat::core::i64
+   acc     <- :wat::core::PersistentMap<wat::core::i64,wat::core::PersistentVector<wat::rete::Token>>]
+  -> :wat::core::PersistentMap<wat::core::i64,wat::core::PersistentVector<wat::rete::Token>>
+  (:wat::core::if (:wat::core::i64::>= i (:wat::core::length ids))
+    acc
+    (:wat::core::let [node-id (:wat::core::Option/expect
+                                 (:wat::core::get ids i)
+                                 "walk-beta-ids: id")
+                      acc1    (:wat::rete::root-join-pass amem network acc node-id)]
+      (:wat::rete::walk-beta-ids network amem ids
+        (:wat::core::i64::+ i 1) acc1))))
+
+;; walk-filter-ids — populate-then-emit: accumulate-pass, then filter-pass, then
+;; hash-join-pass. Reads facts+amem; threads beta. acc: node-id → PV<Token>.
+(:wat::core::defn :wat::rete::walk-filter-ids
+  [facts   <- :wat::core::PersistentVector
+   network <- :wat::core::PersistentMap
+   amem    <- :wat::core::PersistentMap<wat::core::i64,wat::core::PersistentVector<wat::rete::Element>>
+   ids     <- :wat::core::Vector<wat::core::i64>
+   i       <- :wat::core::i64
+   acc     <- :wat::core::PersistentMap<wat::core::i64,wat::core::PersistentVector<wat::rete::Token>>]
+  -> :wat::core::PersistentMap<wat::core::i64,wat::core::PersistentVector<wat::rete::Token>>
+  (:wat::core::if (:wat::core::i64::>= i (:wat::core::length ids))
+    acc
+    (:wat::core::let [node-id (:wat::core::Option/expect
+                                 (:wat::core::get ids i)
+                                 "walk-filter-ids: id")
+                      acc1    (:wat::rete::hash-join-pass amem network
+                                (:wat::rete::filter-pass network amem facts
+                                  (:wat::rete::accumulate-pass network amem acc node-id)
+                                  node-id)
+                                node-id)]
+      (:wat::rete::walk-filter-ids facts network amem ids
+        (:wat::core::i64::+ i 1) acc1))))
+
+;; walk-prod-ids — production-pass over sorted node-ids. Reads bmem+rules; writes
+;; production. acc: node-id → PV<Record>.
+(:wat::core::defn :wat::rete::walk-prod-ids
+  [network <- :wat::core::PersistentMap
+   bmem    <- :wat::core::PersistentMap<wat::core::i64,wat::core::PersistentVector<wat::rete::Token>>
+   rules   <- :wat::core::PersistentVector<wat::rete::Rule>
+   ids     <- :wat::core::Vector<wat::core::i64>
+   i       <- :wat::core::i64
+   acc     <- :wat::core::PersistentMap<wat::core::i64,wat::core::PersistentVector<wat::core::Record>>]
+  -> :wat::core::PersistentMap<wat::core::i64,wat::core::PersistentVector<wat::core::Record>>
+  (:wat::core::if (:wat::core::i64::>= i (:wat::core::length ids))
+    acc
+    (:wat::core::let [node-id (:wat::core::Option/expect
+                                 (:wat::core::get ids i)
+                                 "walk-prod-ids: id")
+                      acc1    (:wat::rete::production-pass network bmem rules acc node-id)]
+      (:wat::rete::walk-prod-ids network bmem rules ids
         (:wat::core::i64::+ i 1) acc1))))
 
 ;; collect-query-memory — QueryNode name → parent-token bindings (the fire's answers).
@@ -101,11 +150,13 @@
                     node-ids (:wat::core::sort
                                 (:wat::core::into (:wat::core::Vector :wat::core::i64)
                                   (:wat::core::PersistentMap/keys network)))
-                    empty    (:wat::core::PersistentMap)
-                    new-amem (:wat::rete::walk-sorted-ids 0 facts network rules empty empty node-ids 0 empty)
-                    new-bmem (:wat::rete::walk-sorted-ids 1 facts network rules new-amem empty node-ids 0 empty)
-                    filtered-bmem (:wat::rete::walk-sorted-ids 2 facts network rules new-amem new-bmem node-ids 0 new-bmem)
-                    new-pmem (:wat::rete::walk-sorted-ids 3 facts network rules new-amem filtered-bmem node-ids 0 empty)
+                    new-amem (:wat::rete::walk-alpha-ids facts network node-ids 0
+                                 (:wat::core::PersistentMap))
+                    new-bmem (:wat::rete::walk-beta-ids network new-amem node-ids 0
+                                 (:wat::core::PersistentMap))
+                    filtered-bmem (:wat::rete::walk-filter-ids facts network new-amem node-ids 0 new-bmem)
+                    new-pmem (:wat::rete::walk-prod-ids network filtered-bmem rules node-ids 0
+                                 (:wat::core::PersistentMap))
                     qmem     (:wat::rete::collect-query-memory network filtered-bmem)]
     (:wat::rete::Session
       :network (:wat::rete::Session/network session)

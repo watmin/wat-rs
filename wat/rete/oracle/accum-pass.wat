@@ -1,7 +1,7 @@
 ;; wat/rete/oracle/accum-pass.wat — interpreted accumulate-pass.
 ;;
 ;; accumulate-pass-for-token / accumulate-pass. Loads after acc.wat (acc::* folds)
-;; and pass.wat (tokens-from-parents / extend-token). walk-sorted-ids eval-depends
+;; and pass.wat (tokens-from-parents / extend-token). walk-filter-ids eval-depends
 ;; on accumulate-pass, so this file loads BEFORE fire.wat.
 ;;
 ;; Namespace: :wat::rete::
