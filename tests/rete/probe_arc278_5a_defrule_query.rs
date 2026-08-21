@@ -28,15 +28,15 @@ fn call(w: &FrozenWorld, fn_name: &str) -> Value {
 // ── query ───────────────────────────────────────────────────────────────────
 
 #[test]
-fn query_reads_derived_facts_by_type() {
+fn query_reads_derived_coldandwindy() {
     let got = call(&world(WORLD_PLAIN_PATH), ":user::query-coldandwindy-count");
-    assert_eq!(got, Value::i64(1), "query returns the one derived ColdAndWindy; got {got:?}");
+    assert_eq!(got, Value::i64(1), "query harvests q-ColdAndWindy; one derived fact; got {got:?}");
 }
 
 #[test]
-fn query_empty_for_absent_type() {
+fn query_reads_inserted_windspeed() {
     let got = call(&world(WORLD_PLAIN_PATH), ":user::query-windspeed-count");
-    assert_eq!(got, Value::i64(1), "WindSpeed was inserted; query reads the session, not derived-only; got {got:?}");
+    assert_eq!(got, Value::i64(1), "query harvests q-WindSpeed; one inserted fact; got {got:?}");
 }
 
 // ── defrule ───────────────────────────────────────────────────────────────────

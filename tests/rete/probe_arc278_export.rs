@@ -317,6 +317,44 @@ fn poke_first_call_op(v: &mut Value, op: i64) -> bool {
 }
 
 #[test]
+// rune:vocare(vantage-bypass-test) — classes/fields zip refuse is a host Aggregate.fields poke
+fn import_refuses_classes_fields_len_mismatch() {
+    let world = startup_beside(file!()).expect("freeze");
+    let exp = call_beside_value(file!(), ":user::cool-export").expect("export");
+    let tampered = match exp {
+        Value::Aggregate(a) => {
+            let mut fields = a.fields.as_ref().clone();
+            let i = a
+                .names
+                .iter()
+                .position(|n| n == "classes")
+                .expect("classes");
+            let extra = match &fields[i] {
+                Value::Vec(xs) => {
+                    let mut v = xs.as_ref().clone();
+                    v.push(Value::String(Arc::new("bogus::Class".into())));
+                    Value::Vec(Arc::new(v))
+                }
+                other => panic!("expected packed classes Vec, got {other:?}"),
+            };
+            fields[i] = extra;
+            Value::Aggregate(Arc::new(AggregateValue::record(
+                a.class.to_string(),
+                a.names.clone(),
+                Arc::new(fields),
+            )))
+        }
+        other => panic!("expected Export, got {other:?}"),
+    };
+    let err = import_one(&world, tampered).expect_err("classes/fields zip miss must refuse");
+    let msg = format!("{err:?}");
+    assert!(
+        msg.contains("classes length"), // rune:lint(loose-assert) — MalformedForm wraps rust_caller_span; zip wall is the contract
+        "import must name classes/fields length mismatch, got {msg}"
+    );
+}
+
+#[test]
 // rune:vocare(vantage-bypass-test) — FORMAT_V refuse is a host Aggregate.fields poke
 fn import_refuses_unsupported_version() {
     let world = startup_beside(file!()).expect("freeze");

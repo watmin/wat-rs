@@ -1,5 +1,5 @@
-;; tests/rete/probe_arc278_query_type_safe_typo.wat.bad — the UNSOUND shape: a typo'd type
-;; keyword at a `query` call site. Must NEVER start up — the `.wat.bad` extension keeps it out
+;; tests/rete/probe_arc278_query_type_safe_typo.wat.bad — the UNSOUND shape: a type keyword
+;; where `query` wants a Query. Must NEVER start up — the `.wat.bad` extension keeps it out
 ;; of any full-corpus sweep. Loaded explicitly (via `startup_from_file`, an exact literal path,
 ;; NOT `startup_beside`/`call_beside`) by probe_arc278_query_type_safe.rs's
 ;; `query_typo_is_a_compile_error` test.
@@ -18,6 +18,6 @@
      s1    (:wat::rete::insert sess0 (:weather::Temperature :celsius 15 :location "Oslo"))
      s2    (:wat::rete::insert s1 (:weather::WindSpeed :kph 45 :location "Oslo"))
      fired (:wat::rete::fire-rules s2)]
-    ;; TYPO — no such type as weather::ColdAndWndy. Must be a compile-time check error
-    ;; (unknown type), never a silent 0.
+    ;; TYPO — a type keyword is not a Query. Must be a compile-time TypeMismatch
+    ;; (`query-read` wants Query), never a silent 0.
     (:wat::core::length (:wat::rete::query fired :weather::ColdAndWndy))))

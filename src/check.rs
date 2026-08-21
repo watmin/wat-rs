@@ -20938,12 +20938,12 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
-    // Arc 278 Stone P4a — native Rust cascade fixpoint (re-run-from-scratch).
-    // (:wat::rete::fire-rules <session: :wat::rete::Session>) → :wat::rete::Session
-    // Equivalent to fire-rules$oracle on AST Sessions (non-empty Rule/Query forms);
-    // Export is native-only. Returns Session with facts = input only (derived in
-    // production-memory). fire-rules / insert / insert-all / fire-rules-explain are
-    // wat defns (first-class Fn). Keyword-head calls are intercepted by rust. Do not
+    // Arc 278 Stone P4a — native fire-rules is semi-naive delta (stratified when a
+    // rule negates derived). Observationally equivalent to fire-rules$oracle on AST
+    // Sessions; re-run-from-scratch is the $oracle mouth. Export is native-only.
+    // Returns Session with facts = input only (derived in production-memory).
+    // fire-rules / insert / insert-all / fire-rules-explain are wat defns
+    // (first-class Fn). Keyword-head calls are intercepted by rust. Do not
     // register them here.
 
     // Arc 278 — intern the rust InternedNetwork at compile-all (`DESIGN-STONE-arm-at-compile`).

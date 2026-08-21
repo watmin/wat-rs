@@ -725,8 +725,9 @@
 ;;
 ;; A bare record-type keyword (e.g. `:usr::Rate`) evaluates to a KEYWORD, not its constructor fn
 ;; (arc 294 item 9a's construction flip — `runtime.rs::eval_return_type_of`'s own doc) — resolve
-;; through the PRIME `:T'` in that case, the exact `:wat::rete::query` macro idiom
-;; ("types-as-forms"). A plain `:wat::core::defn` has no such indirection and already resolved to
+;; through the PRIME `:T'` in that case, the :then constructor door only (`return-type-of`).
+;; `query` is a defmacro over `query-read`; q is a Query, no type-keyword, no T'.
+;; A plain `:wat::core::defn` has no such indirection and already resolved to
 ;; a fn on the bare read.
 ;;
 ;; foldl-compatible: `(acc, item) -> acc`, so `compile-rule` folds this straight over `rhs`

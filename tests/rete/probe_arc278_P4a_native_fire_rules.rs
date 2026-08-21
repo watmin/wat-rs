@@ -3,7 +3,7 @@
 //!
 //! `fire-rules` is to `fire-once` what `fire-rules$oracle` is to `fire-once$oracle`: a fixpoint that lets derived
 //! facts re-enter the network until no new fact is produced. The contract is OBSERVABLE —
-//! `query(fire-rules s, T) == query(fire-rules$oracle s, T)` for every type T — NOT raw Session equality
+//! `query(fire-rules s, Q) == query(fire-rules$oracle s, Q)` for every Query Q — NOT raw Session equality
 //! (P4b restructures memories by design). The cascade case is the canary: a fact DERIVED by a lower
 //! rule must unlock a higher rule across rounds (forward chaining), and native must match the oracle.
 //!
@@ -12,7 +12,7 @@
 use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
-// just-eval (rubric): wind_loc / query type and the fire verb are each small-valued and every
+// just-eval (rubric): wind_loc / Query and the fire verb are each small-valued and every
 // combination a #[test] needs is a fixed, enumerable named entry in the co-located fixture.
 fn call(fn_name: &str) -> Value {
     call_beside_value(file!(), fn_name).unwrap_or_else(|e| panic!("eval raised: {e:?}"))
