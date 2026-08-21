@@ -137,7 +137,23 @@ Result<nil,String>                  →  (:wat::core::Result :- [:wat::core::nil
 No rung emits a bare head. No rung is special-cased — one path, `args.len()` never consulted.
 `:-` is a Keyword and is identical in both head-spelling modes.
 
-## Three forms that are unwritable today and must be writable after
+## The param-spec is a vector of TYPE REFS — never values
+
+> Builder: *"only type refs are [allowed]..... type values are not allowed in the param-spec
+> declaration.. **param-spec is a vec of type refs that parameterize**"*
+
+The bracket in the param-spec position is never a value slot, in any spelling. `(Head [:a :b])` is
+an illegal param-spec — `:a`/`:b` are keyword VALUES — not "a 1-tuple holding a keyword vector."
+To carry a keyword vector as a value, declare the param-spec and put the value after it:
+
+```clojure
+(:wat::core::Tuple :- [(:wat::core::Vector :- [:wat::core::keyword])] [:a :b])
+```
+
+★ **This is why `split_type_param_bracket`'s `:-` arm does no sniffing at all** — not because a
+marker beats a heuristic, but because the position it guards was never allowed to hold data.
+
+## Two forms that are unwritable today and must be writable after
 
 Each measured at HEAD. These are acceptance rows, not motivation:
 

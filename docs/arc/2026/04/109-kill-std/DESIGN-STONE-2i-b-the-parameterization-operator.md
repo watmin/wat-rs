@@ -103,6 +103,27 @@ Two consequences:
   syntax question — and it is a separate, larger stone, and the builder's. It does not block this
   one: keeping `nil` as `Path(":wat::core::nil")` at parse time is correct under either future.
 
+## ★ THE PARAM-SPEC IS A VECTOR OF TYPE REFS — never values
+
+> Builder, 2026-08-20: *"`:a` and `:b` are keywords.... keywords are not allowed here.. only type
+> refs are..... type values are not allowed in the param-spec declaration.. **param-spec is a vec of
+> type refs that parameterize**"*
+
+So the bracket in the param-spec position is **never** a value slot, in any spelling, before or
+after ③. `(:wat::core::Tuple [:a :b])` is not "a 1-tuple holding a keyword vector" — it is an
+illegal param-spec, because `:a`/`:b` are keyword VALUES and only type refs may parameterize.
+
+★ This is stronger than "a different production disambiguates it," which is how
+`is_type_bracket_candidate`'s doc frames the hole, and how I framed it. **The position is
+RESERVED.** Nothing has to decide whether the bracket is types or data, because data was never
+allowed there. To hold a vector of keywords as a VALUE, the param-spec comes first and the value
+follows it:
+
+```clojure
+(:wat::core::Tuple :- [(:wat::core::Vector :- [:wat::core::keyword])] [:a :b])
+;;                    ^ param-spec: type refs only        ^ the value
+```
+
 ## ★ THE DISCRIMINATION RULE — builder, 2026-08-20
 
 > *"`(:wat::core::Tuple :- [])` — in an arg-spec or type-spec (any spec that prefixes their
@@ -134,15 +155,14 @@ The checker says the bracket is a malformed FUNCTION TYPE. It is not — the aut
 in a type slot. A stone that ships the `:-` production owns the diagnostic for misusing it, so the
 wall lands here rather than in ③.
 
-## ★★ THREE UNWRITABLE FORMS BECOME WRITABLE
+## ★★ TWO UNWRITABLE FORMS BECOME WRITABLE
 
-The operator is not only a spelling change; it closes three live holes, each measured at HEAD:
+The operator is not only a spelling change; it closes two live holes, each measured at HEAD:
 
 | you want | today | after |
 |---|---|---|
 | a 2-tuple of keyword values | `(:wat::core::Tuple [:a :b])` → `ArityMismatch: expected 2, got 0` — the bracket is sniffed as types | `(:wat::core::Tuple :- [:wat::core::keyword :wat::core::keyword] :a :b)` |
 | an EMPTY tuple literal | `(:wat::core::Tuple [])` → **`[[]]`** — a 1-tuple holding an empty vector, because the sniff requires a NON-empty bracket | `(:wat::core::Tuple :- [])` |
-| a 1-tuple holding a keyword vector | unreachable — slot 1 is always sniffed | `(:wat::core::Tuple [:a :b])` once ③ cuts the unmarked form |
 
 ★ The middle row is the one I did not predict and it sharpens the case: the sniff's
 `!items.is_empty()` guard means an empty bracket is *already* treated as a value, so today

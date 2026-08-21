@@ -20,6 +20,7 @@ re-run; the rider's report does not move a row.
 | 11 | ★ the same form in a VALUE slot is legal | `(:wat::core::Tuple :- [:wat::core::i64 :wat::core::keyword] 42 :some-keyword)` | a built 2-tuple |
 | 12 | ★ the EMPTY tuple LITERAL is writable | `(:wat::core::Tuple :- [])` in value position | an empty tuple — **not** `[[]]`, which is what `(:wat::core::Tuple [])` gives today |
 | 13 | a 2-tuple of keyword VALUES is writable | `(:wat::core::Tuple :- [:wat::core::keyword :wat::core::keyword] :a :b)` | a built 2-tuple — today `(Tuple [:a :b])` dies on `expected 2, got 0` |
+| 15 | ★ a param-spec holding VALUES is rejected | `--check` `[p :- (wat.type/Tuple :- [:a :b])]` | an error — a param-spec takes type refs only; `:a`/`:b` are keyword values |
 | 14 | clippy | `cargo clippy --all-targets -- -D warnings` | 0 |
 
 Row 2's expected output, predicted exactly:
