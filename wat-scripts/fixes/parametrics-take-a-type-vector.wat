@@ -100,14 +100,76 @@
   [rendered <- :wat::core::String] -> :wat::core::bool
   (:wat::core::not (:wat::core::string::contains? rendered "wat.type/")))
 
+;; declarator-head-keyword? — node is a keyword leaf whose full name (":wat::core::defn" etc.)
+;; is one of the heads that open a declaration form whose OWN name sits at index 1 — a binder,
+;; not a reference. The set is every head that HAS such a slot, NOT merely those carrying a
+;; parametric name in today's corpus: an unlisted head is silently rendered as a reference, so a
+;; short list is a latent corruption rather than a smaller change. Note
+;; `:wat::rete::core::defn` (the rete-DSL `defn` variant) is deliberately NOT in this set — it
+;; is a real, distinct head in the corpus, but census confirmed it never carries a parametric
+;; name, so leaving it out changes nothing observable; if that ever stops being true the walk
+;; below renders it as a REFERENCE (parens kept), same as any other unlisted head — never
+;; silently as a binder.
+(:wat::core::defn :user::declarator-head-keyword?
+  [node <- :wat::WatAST] -> :wat::core::bool
+  (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "keyword")
+    (:wat::core::contains?
+      (:wat::core::HashSet :wat::type::Infer
+        ":wat::core::defn"
+        ":wat::core::defenum"
+        ":wat::core::defsurface"
+        ":wat::core::defrecord"
+        ":wat::holon::defrecord"
+        ":wat::core::defstruct"
+        ":wat::service::defservice"
+        ;; ⚠ ADDED by the orchestrator during scoring, and the reason is the failure mode above:
+        ;; an UNLISTED declarator head does not fail loudly — its name slot is rendered as a
+        ;; REFERENCE and silently corrupted, which is the exact defect this stone exists to fix.
+        ;; Measured: `(:wat::core::typealias :wat::cache::Lru<K,V> …)` (wat/cache.wat:68) became
+        ;; `(:wat::core::typealias (:wat::cache::Lru :- [K V]) …)` before these were added.
+        ;; So the set is now every head that HAS a declaration-name slot — a property of the
+        ;; LANGUAGE — rather than every head that happens to carry a parametric name today — a
+        ;; property of this corpus. Each destination verified to accept `name :- [T…]` (strike α)
+        ;; before being listed here; the last five have zero parametric sites at present and cost
+        ;; nothing to include. [[feedback_a_gate_freezes_names_never_a_count]]
+        ":wat::core::typealias"
+        ":wat::core::newtype"
+        ":wat::core::typeunion"
+        ":wat::core::recordtype"
+        ":wat::core::aggregatetype"
+        ":wat::core::structtype")
+      (:wat::core::ast-name node))
+    false))
+
+;; strip-outer-parens — a binder is the reference form WITHOUT the application: the exact same
+;; rendered text (:wat::core::keyword/to-type-form-colon + :wat::core::ast->source, the SAME
+;; path the reference case uses), minus its leading `(` and trailing `)`. Never a second
+;; renderer — a second renderer is a second thing to drift from the first. If the rendering
+;; ever isn't application-shaped here, that is this stone's own invariant breaking, not a
+;; corpus shape to paper over — STOP via assertion-failed! rather than emit a guess.
+(:wat::core::defn :user::strip-outer-parens
+  [rendered <- :wat::core::String] -> :wat::core::String
+  (:wat::core::if (:wat::core::if (:wat::core::= (:wat::core::string::subs rendered 0 1) "(")
+                    (:wat::core::string::ends-with? rendered ")")
+                    false)
+    (:wat::core::string::subs rendered 1 (:wat::core::i64::- (:wat::core::string::length rendered) 1))
+    (:wat::kernel::assertion-failed!
+      (:wat::core::string::concat "parametrics-take-a-type-vector: declarator-name rendering is not application-shaped: " rendered)
+      :wat::core::None :wat::core::None)))
+
 ;; leaf-edits — a keyword leaf gets ONE edit iff it is structurally type-shaped
 ;; (:wat::fix::type-shaped-keyword?) AND its rendering is safe (:user::safe-colon-rendering?);
 ;; every other leaf (symbols incl. arrows, head keywords, bare data keywords, literals) is
 ;; left alone, and a type-shaped keyword whose rendering the converter cannot yet do
 ;; correctly in Colon mode is left untouched rather than landing a mixed-mode spelling.
+;; `prev-decl-head?` (threaded by seq-edits) says the immediately preceding sibling was an
+;; index-0 declarator-head keyword — i.e. THIS node is the declaration's own name, a binder,
+;; not a reference — so its rendering gets the outer parens stripped (:user::strip-outer-parens)
+;; instead of the reference form's wrapping `(...)`.
 (:wat::core::defn :user::leaf-edits
   [node  <- :wat::WatAST
-   lines <- :wat::core::Vector<wat::core::String>]
+   lines <- :wat::core::Vector<wat::core::String>
+   prev-decl-head? <- :wat::core::bool]
   -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
   (:wat::core::if (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "keyword")
                     (:wat::fix::type-shaped-keyword? node)
@@ -117,33 +179,50 @@
         (:wat::core::let [span    (:wat::core::ast-span node)
                           off     (:wat::fix::fix-text-offset-of span lines)
                           nm      (:wat::core::ast-name node)
-                          old-len (:wat::core::string::length nm)]
+                          old-len (:wat::core::string::length nm)
+                          text    (:wat::core::if prev-decl-head?
+                                    (:user::strip-outer-parens rendered)
+                                    rendered)]
           (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)
-            (:wat::core::Tuple off old-len rendered)))
+            (:wat::core::Tuple off old-len text)))
         (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))))
     (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))))
 
-;; node-edits — structural nodes recurse (via struct-edits); leaves go to leaf-edits.
+;; node-edits — structural nodes recurse (via seq-edits, fresh at index 0 of THEIR OWN
+;; children); leaves go to leaf-edits, carrying whatever prev-decl-head? seq-edits computed
+;; for this position in the PARENT's child list.
 (:wat::core::defn :user::node-edits
   [node  <- :wat::WatAST
-   lines <- :wat::core::Vector<wat::core::String>]
+   lines <- :wat::core::Vector<wat::core::String>
+   prev-decl-head? <- :wat::core::bool]
   -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
   (:wat::core::if (:wat::fix::structural? node)
-    (:user::seq-edits (:wat::core::ast->children node) lines)
-    (:user::leaf-edits node lines)))
+    (:user::seq-edits (:wat::core::ast->children node) lines true false)
+    (:user::leaf-edits node lines prev-decl-head?)))
 
 ;; seq-edits — left-to-right walk over a child vector, collecting edits in ascending offset
-;; order (no position-tracking needed: type-shaped-keyword? fires the same regardless of
-;; where the keyword sits, so there is no state to thread between siblings).
+;; order. Position-AWARE, copying the shape of :wat::fix::fix-seq (wat/fix.wat:123), which
+;; already proves context-threading works over exactly this recursive sibling shape.
+;; `type-shaped-keyword?` alone fires the same regardless of where the keyword sits — but
+;; WHERE it sits still decides HOW it renders: index 0 of a structural node names the
+;; declaration being made (one of :user::declarator-head-keyword?'s heads), and that
+;; declaration's own name at index 1 is a BINDER, not a reference. So two flags thread through:
+;; `is-first?` — this call's head item sits at index 0 of its node — and `prev-decl-head?` —
+;; the immediately preceding sibling WAS an index-0 declarator-head keyword. leaf-edits reads
+;; `prev-decl-head?` to choose the binder rendering over the reference one.
 (:wat::core::defn :user::seq-edits
-  [items <- :wat::core::Vector<wat::WatAST>
-   lines <- :wat::core::Vector<wat::core::String>]
+  [items           <- :wat::core::Vector<wat::WatAST>
+   lines           <- :wat::core::Vector<wat::core::String>
+   is-first?       <- :wat::core::bool
+   prev-decl-head? <- :wat::core::bool]
   -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
   (:wat::core::if (:wat::core::empty? items)
     (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
-    (:wat::core::concat
-      (:user::node-edits (:wat::core::first items) lines)
-      (:user::seq-edits (:wat::core::rest items) lines))))
+    (:wat::core::let [h               (:wat::core::first items)
+                      this-decl-head? (:wat::core::if is-first? (:user::declarator-head-keyword? h) false)]
+      (:wat::core::concat
+        (:user::node-edits h lines prev-decl-head?)
+        (:user::seq-edits (:wat::core::rest items) lines false this-decl-head?)))))
 
 ;; convert — src string -> migrated-src string. Parses, walks top-level forms for edits
 ;; (ascending offset), reverses to right-to-left, splices the ORIGINAL text via
@@ -154,7 +233,7 @@
   (:wat::core::let [lines     (:wat::core::string::split src "\n")
                     tree      (:wat::core::match (:wat::core::read-string src) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)))
                     forms     (:wat::core::ast->children tree)
-                    all-edits (:user::seq-edits forms lines)
+                    all-edits (:user::seq-edits forms lines true false)
                     rev-edits (:wat::core::reverse all-edits)]
     (:wat::fix::fix-text-apply src rev-edits)))
 
