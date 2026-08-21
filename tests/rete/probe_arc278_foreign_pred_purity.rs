@@ -38,6 +38,15 @@ fn foreign_pred_is_deterministic() {
     );
 }
 
+/// The same predicate is total — `read-foreign` returns Outcome, `get` returns Option.
+#[test]
+fn foreign_pred_is_total() {
+    assert!(
+        classify(":user::foreign-pred-is-total"),
+        "a read-foreign + ForeignRecord/get predicate is total"
+    );
+}
+
 /// GUARD: an effectful body (println on the decoded field) must STILL be rejected — the
 /// `:wat::edn::` fix is not a blanket-allow; the impure op's impurity must still propagate.
 #[test]

@@ -1188,6 +1188,30 @@ fn register_builtin_types(env: &mut TypeEnv) {
         ],
     }));
 
+    // `:wat::edn::ReadForeignOutcome<T>` — what `:wat::edn::read-foreign` returns.
+    // Twin of `ReadJsonOutcome<T>`: the verb's input is an untrusted String (a journal
+    // Log/message from another universe, a scratch payload), so a malformed byte must
+    // not raise. Same two variants, same parametric T (the caller's binding pins it;
+    // a ForeignRecord consumer unifies T with `:wat::edn::ForeignRecord`).
+    //
+    //   :Value     [value <- T] — the decoded value (ForeignRecord / ForeignVariant / typed)
+    //   :Malformed [cause]      — the EDN text did not parse, or did not decode
+    env.register_builtin(TypeDef::Enum(EnumDef {
+        name: ":wat::edn::ReadForeignOutcome".into(),
+        type_params: vec!["T".into()],
+        purity: Purity::Pure,
+        variants: vec![
+            EnumVariant::Tagged {
+                name: "Value".into(),
+                fields: vec![("value".into(), TypeExpr::Path("T".into()))],
+            },
+            EnumVariant::Tagged {
+                name: "Malformed".into(),
+                fields: vec![("cause".into(), TypeExpr::Path(":wat::core::Error".into()))],
+            },
+        ],
+    }));
+
     // Arc 170 — :wat::kernel::ReadFrameOutcome — what `:wat::kernel::read-frame` returns.
     //
     // A FRAME, not a line, and the name is load-bearing: `read_framed_edn`

@@ -20,7 +20,7 @@
 //! oracle / differential). A conservative tree is a correct tree; this analyzer never
 //! guesses at a shape it does not recognise in order to prune it.
 //!
-//! The clause-shape analyzer **consumes** `classify_rete_clause` (`matcher.rs:365`) — the single
+//! The clause-shape analyzer **consumes** `classify_rete_clause` — the single
 //! source of "what shape is this form" that arc 294 item 9a extracted precisely to close a drift
 //! hole between the matcher and the validator. This module adds no second parser for clause
 //! shapes; it only inspects the WatAST *literal* variants inside an already-classified
@@ -36,7 +36,7 @@
 //! (`kernel::class_field_names`), not a fixed global order. Range constraints
 //! (`< > <= >=`) contribute no discriminator and ride the wildcard edge.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use rustc_hash::FxHashMap;
@@ -49,6 +49,8 @@ use crate::runtime::{SymbolTable, Value};
 type EqBuckets = HashMap<Value, Vec<i64>>;
 type DimRequired = HashMap<usize, Value>;
 type AlphaDiscs = HashMap<i64, DimRequired>;
+type EqChildren = FxHashMap<Value, Arc<AlphaDiscNode>>;
+type AlphaRoots = Vec<(String, Arc<AlphaDiscNode>)>;
 
 /// One level of the discrimination tree: branch on field `dim` of the fact's own class.
 pub(crate) struct AlphaDiscNode {
@@ -58,7 +60,7 @@ pub(crate) struct AlphaDiscNode {
     /// Equality fan-out: a field value this dim was proven to require, to the subtree of
     /// alphas that could still match. FxHash — SipHash of the field `Value` 40k
     /// times was the I−G walk (`DESIGN-STONE-alpha-tree-fxhash`).
-    children: FxHashMap<Value, Arc<AlphaDiscNode>>,
+    children: EqChildren,
     /// Alphas that do not constrain `dim` by a provable equality — always walked.
     wildcard: Option<Arc<AlphaDiscNode>>,
     /// Alpha ids terminating at this node (no further dimension left to discriminate on, or
@@ -73,7 +75,7 @@ pub(crate) struct AlphaDiscNode {
 pub(crate) struct AlphaTree {
     /// Linear over a handful of types (`DESIGN-STONE-alpha-class-lookup`).
     /// SipHash of the FQDN 40k times was 3.26 ms; `str` eq is not.
-    roots: Vec<(String, Arc<AlphaDiscNode>)>,
+    roots: AlphaRoots,
 }
 
 impl AlphaTree {
@@ -117,6 +119,19 @@ impl AlphaTree {
     /// Import-time tree: every alpha of a class is a candidate. Correct
     /// (a superset); unpruned. The residual does not carry WatAST, so
     /// `build` cannot re-derive discriminators. `(b)` indexes later.
+    /// Keep only alphas in `keep`. Used by `subset_rete_arm` so a stratum
+    /// slice does not walk every alpha of the type (`unpruned` is import-only).
+    pub(crate) fn restrict(&self, keep: &HashSet<i64>) -> Self {
+        let roots = self
+            .roots
+            .iter()
+            .filter_map(|(class, root)| {
+                restrict_node(root, keep).map(|n| (class.clone(), n))
+            })
+            .collect();
+        AlphaTree { roots }
+    }
+
     pub(crate) fn unpruned(alpha_by_type: &AlphasByType) -> Self {
         let mut roots = Vec::with_capacity(alpha_by_type.len());
         for (class, alpha_ids) in alpha_by_type {
@@ -163,6 +178,25 @@ impl AlphaTree {
     }
 }
 
+fn restrict_node(n: &AlphaDiscNode, keep: &HashSet<i64>) -> Option<Arc<AlphaDiscNode>> {
+    let leaves: Vec<i64> = n.leaves.iter().copied().filter(|id| keep.contains(id)).collect();
+    let children: EqChildren = n
+        .children
+        .iter()
+        .filter_map(|(k, c)| restrict_node(c, keep).map(|c| (k.clone(), c)))
+        .collect();
+    let wildcard = n.wildcard.as_ref().and_then(|w| restrict_node(w, keep));
+    if leaves.is_empty() && children.is_empty() && wildcard.is_none() {
+        return None;
+    }
+    Some(Arc::new(AlphaDiscNode {
+        dim: n.dim,
+        children,
+        wildcard,
+        leaves,
+    }))
+}
+
 /// Recursively partition `alpha_ids` over the remaining dims. Each alpha with a proven
 /// discriminator at `dims[pos]` goes to that value's child; every alpha without one (including
 /// every alpha once `pos` runs off the end of `dims`) goes to `leaves` directly, or — while dims
@@ -192,7 +226,7 @@ fn build_node(
         }
     }
 
-    let children: FxHashMap<Value, Arc<AlphaDiscNode>> = buckets
+    let children: EqChildren = buckets
         .into_iter()
         .map(|(v, ids)| (v, build_node(ids, disc, dims, pos + 1)))
         .collect();

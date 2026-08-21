@@ -9,17 +9,37 @@
   (:wat::rete::pure?
     (:wat::core::quote
       (:wat::core::fn [log <- :wat::telemetry::Log] -> :wat::core::bool
-        (:wat::core::=
-          (:wat::edn::ForeignRecord/get (:wat::edn::read-foreign (:wat::telemetry::Log/message log)) :severity)
-          "high")))))
+        (:wat::core::match
+          (:wat::edn::read-foreign (:wat::telemetry::Log/message log))
+          ((:wat::edn::ReadForeignOutcome::Value fr)
+            (:wat::core::match (:wat::edn::ForeignRecord/get fr :severity)
+              ((:wat::core::Some s) (:wat::core::= s "high"))
+              (:wat::core::None false)))
+          ((:wat::edn::ReadForeignOutcome::Malformed _) false))))))
 
 (:wat::core::defn :user::foreign-pred-is-deterministic [] -> :wat::core::bool
   (:wat::rete::deterministic?
     (:wat::core::quote
       (:wat::core::fn [log <- :wat::telemetry::Log] -> :wat::core::bool
-        (:wat::core::=
-          (:wat::edn::ForeignRecord/get (:wat::edn::read-foreign (:wat::telemetry::Log/message log)) :severity)
-          "high")))))
+        (:wat::core::match
+          (:wat::edn::read-foreign (:wat::telemetry::Log/message log))
+          ((:wat::edn::ReadForeignOutcome::Value fr)
+            (:wat::core::match (:wat::edn::ForeignRecord/get fr :severity)
+              ((:wat::core::Some s) (:wat::core::= s "high"))
+              (:wat::core::None false)))
+          ((:wat::edn::ReadForeignOutcome::Malformed _) false))))))
+
+(:wat::core::defn :user::foreign-pred-is-total [] -> :wat::core::bool
+  (:wat::rete::total?
+    (:wat::core::quote
+      (:wat::core::fn [log <- :wat::telemetry::Log] -> :wat::core::bool
+        (:wat::core::match
+          (:wat::edn::read-foreign (:wat::telemetry::Log/message log))
+          ((:wat::edn::ReadForeignOutcome::Value fr)
+            (:wat::core::match (:wat::edn::ForeignRecord/get fr :severity)
+              ((:wat::core::Some s) (:wat::core::= s "high"))
+              (:wat::core::None false)))
+          ((:wat::edn::ReadForeignOutcome::Malformed _) false))))))
 
 ;; GUARD: the SAME predicate with an impure op (println) in the body must STILL be rejected — the
 ;; edn namespace fix is not a blanket-allow; the impure op's impurity must still propagate.

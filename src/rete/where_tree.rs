@@ -43,7 +43,7 @@ type RangeBuckets = HashMap<(CmpKind, Value), Vec<i64>>;
 /// with independent slot tables still share a level.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum DimKey {
-    Bind(String),
+    Bind(Value),
     Lit(Value),
     Call {
         op: u16,
@@ -78,13 +78,15 @@ enum DimCon {
 
 type DimCons = HashMap<DimKey, DimCon>;
 type WhereDiscs = HashMap<i64, DimCons>;
+type EqChildren = HashMap<Value, Arc<WhereDiscNode>>;
+type RangeChildren = Vec<(RangeEdge, Arc<WhereDiscNode>)>;
 
 /// One level: branch on a compiled dim. Equality fan-out + range guards + wildcard.
 pub(crate) struct WhereDiscNode {
     dim: Option<DimKey>,
-    children: HashMap<Value, Arc<WhereDiscNode>>,
+    children: EqChildren,
     wildcard: Option<Arc<WhereDiscNode>>,
-    range_children: Vec<(RangeEdge, Arc<WhereDiscNode>)>,
+    range_children: RangeChildren,
     leaves: Vec<i64>,
 }
 
@@ -214,11 +216,11 @@ fn build_node(
     if buckets.is_empty() && range_buckets.is_empty() {
         return build_node(wild, disc, dims, pos + 1);
     }
-    let children: HashMap<Value, Arc<WhereDiscNode>> = buckets
+    let children: EqChildren = buckets
         .into_iter()
         .map(|(v, ids)| (v, build_node(ids, disc, dims, pos + 1)))
         .collect();
-    let range_children: Vec<(RangeEdge, Arc<WhereDiscNode>)> = range_buckets
+    let range_children: RangeChildren = range_buckets
         .into_iter()
         .map(|((op, threshold), ids)| {
             (
@@ -426,7 +428,10 @@ fn collect_cons(
 fn to_dim(e: &Expr, slots: &HashMap<u16, String>) -> Option<DimKey> {
     match e {
         Expr::Lit(v) => Some(DimKey::Lit(v.clone())),
-        Expr::Slot(s) => slots.get(s).cloned().map(DimKey::Bind),
+        Expr::Slot(s) => slots
+            .get(s)
+            .cloned()
+            .map(|name| DimKey::Bind(Value::String(Arc::new(name)))),
         Expr::Call { op, args } => {
             let mut out = Vec::with_capacity(args.len());
             for a in args.iter() {
@@ -463,11 +468,13 @@ fn to_dim(e: &Expr, slots: &HashMap<u16, String>) -> Option<DimKey> {
 fn exec_dim<B: Bindings + ?Sized>(d: &DimKey, bindings: &B, span: &Span) -> Result<Value, EvalBreak> {
     match d {
         DimKey::Lit(v) => Ok(v.clone()),
-        DimKey::Bind(name) => {
-            let k = Value::String(Arc::new(name.clone()));
-            bindings.get(&k).cloned().ok_or_else(|| {
-                RuntimeError::new(span.clone(), RuntimeErrorKind::UnboundSymbol(name.clone()))
-                    .into()
+        DimKey::Bind(k) => {
+            bindings.get(k).cloned().ok_or_else(|| {
+                let name = match k {
+                    Value::String(s) => s.as_ref().clone(),
+                    _ => format!("{k:?}"),
+                };
+                RuntimeError::new(span.clone(), RuntimeErrorKind::UnboundSymbol(name)).into()
             })
         }
         DimKey::Call { op, args } => {

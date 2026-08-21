@@ -18579,16 +18579,21 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
-    // Arc 278 Stone A — `(:wat::edn::read-foreign s)` → `:T`. The DATA-MODE
-    // sibling of `read`: unknown tag → a self-describing dynamic value
-    // (ForeignRecord / ForeignVariant). Same polymorphic-fresh-var return so
-    // the caller's binding unifies with whatever dynamic value shape lands.
+    // Arc 278 Stone A — `(:wat::edn::read-foreign s)` → `:wat::edn::ReadForeignOutcome<T>`.
+    // The DATA-MODE sibling of `read`: unknown tag → a self-describing dynamic
+    // value (ForeignRecord / ForeignVariant). TOTAL twin of `read-json`: parse/
+    // decode failure is `:Malformed`, never a raise. Parametric T so the
+    // caller's binding pins the payload (a ForeignRecord consumer unifies T
+    // with `:wat::edn::ForeignRecord`).
     env.register(
         ":wat::edn::read-foreign".into(),
         TypeScheme {
             type_params: vec!["T".into()],
             params: vec![TypeExpr::Path(":wat::core::String".into())],
-            ret: t_var(),
+            ret: TypeExpr::Parametric {
+                head: "wat::edn::ReadForeignOutcome".into(),
+                args: vec![t_var()],
+            },
             rest_param_type: None,
         },
     );
@@ -18598,7 +18603,8 @@ fn register_builtins(env: &mut CheckEnv) {
     // `:wat::edn::ForeignRecord` / `:wat::edn::ForeignVariant` are opaque nominal
     // Paths (Pattern B, per the Uuid/Instant precedent) — they resolve in
     // annotations/returns and unify by name.
-    //   ForeignRecord/get       : (ForeignRecord, keyword) -> Value
+    //   ForeignRecord/get       : (ForeignRecord, keyword) -> Option<Value>
+    //   miss is None, never a raise — HashMap/get's contract.
     env.register(
         ":wat::edn::ForeignRecord/get".into(),
         TypeScheme {
@@ -18607,7 +18613,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 TypeExpr::Path(":wat::edn::ForeignRecord".into()),
                 TypeExpr::Path(":wat::core::keyword".into()),
             ],
-            ret: TypeExpr::Path(":wat::core::Value".into()),
+            ret: opt(TypeExpr::Path(":wat::core::Value".into())),
             rest_param_type: None,
         },
     );

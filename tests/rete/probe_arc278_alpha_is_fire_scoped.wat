@@ -17,7 +17,7 @@
 ;; :afs::Hot from the matching fact only.
 (:wat::core::defn :afs::built [] -> :wat::rete::Session
   (:wat::core::let
-    [cond  (:wat::core::quote (:afs::Temp (?t <- :value) (:wat::core::> ?t 20)))
+    [cond  (:wat::core::quote (:afs::Temp (?t <- :value) (:wat::rete::core::i64::> ?t 20)))
      rhs1  (:wat::core::quote (:afs::Hot ?t))
      rule  (:wat::rete::Rule :name "afs" :lhs (:wat::core::PersistentVector cond) :rhs (:wat::core::PersistentVector rhs1))
      sess0 (:wat::rete::compile-all (:wat::core::PersistentVector rule) (:wat::core::PersistentVector (:afs::q-Hot)))

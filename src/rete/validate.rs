@@ -14,8 +14,7 @@
 //! `src/freeze/env.rs`), validates `:when` conditions against the type registry (unrecognized
 //! clause shape / unknown field-ref → a LOCATED `#wat.rete/*` error), and validates + REORDERS
 //! `:then` kwargs to declaration order (rewriting the quoted form in the residue in place, so
-//! `build_insert_fact` receives declaration order at fire time — retiring the
-//! `matcher.rs:451`-era follow-up).
+//! `build_insert_fact` receives declaration order at fire time).
 //!
 //! ## One grammar, shared (design call 1)
 //!
@@ -99,7 +98,7 @@ pub enum ReteCheckErrorKind {
     /// (R18 `NEGATIO COMPLETVM POSCIT` — "the ill-defined program given no form"), a lying
     /// `extend-type` is a compile error (R28 `SOLVIMVS NE MENTIRETVR`), and `()` stopped being a
     /// value (arc 179) because a second spelling walks around every wall built on the first.
-    /// `validate_and_reorder_then` already checked the fact-form's SHAPE — fact type, field
+    /// `validate_then_form` already checked the fact-form's SHAPE — fact type, field
     /// names, positional arity — and stopped short of looking *inside* an argument, which is why
     /// `(:Out (:wat::core::+ ?a 1))` passed `--check` with arity 1 == 1 field and then exploded
     /// mid-fire.
@@ -108,7 +107,7 @@ pub enum ReteCheckErrorKind {
     /// equally a compile-time property but needs binder analysis over `:when` (an `Or` arm binds
     /// conditionally, `exists` binds nothing outward, `accumulate` binds its result var) — and
     /// under-collecting that set would reject LEGAL rules, which is the one failure a wall must
-    /// not have. Tracked separately; this variant carries no binder claim.
+    /// not have. This variant carries no binder claim.
     RhsUnresolvableOperand {
         rule: String,
         fact_type: String,
@@ -123,7 +122,7 @@ pub enum ReteCheckErrorKind {
     /// "pre-existing behavior, unchanged" (a supplied-fewer-than-all kwargs RHS silently built a
     /// short record); STOP-A (the audit that grounded this wall) found no `:then` in the corpus
     /// that actually relies on it — the doc line was describing an accident nobody depended on.
-    /// `build_insert_fact`'s kwargs fast path (`matcher.rs`) has no independent arity check, so
+    /// `build_insert_fact`'s kwargs fast path (`eval_insert.rs`) has no independent arity check, so
     /// the malformed record used to construct silently and raise only when something later read
     /// the missing field by name (`Record/field-at`, an index-out-of-bounds `TypeMismatch`) —
     /// this wall names the RULE, the TYPE, and the missing fields by NAME, at freeze, instead.
@@ -386,10 +385,10 @@ fn render_form(ast: &WatAST) -> String {
 /// caller can build its own contextual error. Full coverage is each CALLER's job, and both
 /// callers now enforce it: `eval_kwargs_construct` (runtime.rs) relies on `construct_aggregate`'s
 /// arity check plus check.rs's `infer_kwargs_construct_check` (the macro-expanded form); the
-/// surface-form caller below, `validate_and_reorder_then`, used to be the one caller that did
+/// surface-form caller below, `validate_rule_when_and_reorder_then`, used to be the one caller that did
 /// NOT — arc 278 BRIEF-construction-total-three-walls.md #2 closed that: STOP-A audited the
 /// whole corpus for a `:then` that under-supplies (none found — the old "pre-existing,
-/// unchanged" note here described an accident nobody depended on) and `validate_and_reorder_then`
+/// unchanged" note here described an accident nobody depended on) and `validate_then_form`
 /// now rejects an under-supplied kwargs RHS before ever reaching this reorder (`RhsMissingFields`).
 pub(crate) fn reorder_kwargs_by_field_name(
     field_order: &[&str],
@@ -411,10 +410,12 @@ pub(crate) fn reorder_kwargs_by_field_name(
 
 // ─── The validator (S2 + S3) ──────────────────────────────────────────────────────────────────
 
-/// Post-register freeze pass: walk every `defrule`'s expanded `make-rule` call reachable in
-/// `residue`, validate its `:when` conditions and `:then` inserts against `types`, and
-/// REWRITE `:then` kwargs to declaration order in place. Returns every finding batched
-/// (like `check_program`); an empty batch is `Ok(())`.
+/// Post-register freeze pass: walk every live `make-rule` / `make-query` reachable in
+/// `residue`, validate `:when`/`:then` (rules) and `:when` (queries) against `types`,
+/// and rewrite `:then` kwargs to declaration order in place. Quoted / forms / literal
+/// payloads are data (`Boundary::AllData`) and are not validated against this world's
+/// type registry. Returns every finding batched (like `check_program`); an empty batch
+/// is `Ok(())`.
 ///
 /// Hook site: `src/freeze/env.rs::build_env`, immediately after `resolve_references` (step
 /// 7) — the same seam the `rete_wall_probe` proves reachable, on the SAME resolved user
@@ -422,6 +423,7 @@ pub(crate) fn reorder_kwargs_by_field_name(
 pub(crate) fn validate_rete_rules(residue: &mut [WatAST], types: &TypeEnv) -> Result<(), ReteCheckErrors> {
     let mut errors: Vec<ReteCheckError> = Vec::new();
     walk_for_make_rule(residue, types, &mut errors);
+    walk_for_make_query(residue, types, &mut errors);
     if errors.is_empty() {
         Ok(())
     } else {
@@ -446,17 +448,34 @@ inventory::submit! {
     }
 }
 
+/// True when this list is captured as data — `quote` / `forms` / `holon::literal`
+/// (`Boundary::AllData`) or a quasiquote template. A `make-query` / `make-rule`
+/// sitting inside is a payload for another world, not a live form in *this* freeze.
+fn rete_walk_skips_children(items: &[WatAST]) -> bool {
+    match items.first() {
+        Some(WatAST::Keyword(k, _)) => matches!(
+            crate::resolve::boundary::quote_boundary(k),
+            crate::resolve::boundary::Boundary::AllData
+                | crate::resolve::boundary::Boundary::Quasiquote
+        ),
+        _ => false,
+    }
+}
+
 /// Recursive descent for `(:wat::rete::make-rule name (quote [:when…]) (quote [:then…]))`
 /// calls — mirrors `find_make_rule` in the `rete_wall_probe` (`src/freeze/env.rs`), but
-/// mutable (S3 rewrites `:then` in place) and exhaustive (every rule in `forms`, not just
-/// the first).
+/// mutable (S3 rewrites `:then` in place) and exhaustive (every *live* rule in `forms`,
+/// not just the first). Does not descend into AllData / quasiquote payloads.
 fn walk_for_make_rule(forms: &mut [WatAST], types: &TypeEnv, errors: &mut Vec<ReteCheckError>) {
     for f in forms.iter_mut() {
         if let WatAST::List(items, _) = f {
             let is_make_rule =
                 matches!(items.first(), Some(WatAST::Keyword(k, _)) if k == ":wat::rete::make-rule");
             if is_make_rule {
-                validate_and_reorder_rule(items, types, errors);
+                validate_rule_when_and_reorder_then(items, types, errors);
+                continue;
+            }
+            if rete_walk_skips_children(items) {
                 continue;
             }
             walk_for_make_rule(items, types, errors);
@@ -464,8 +483,45 @@ fn walk_for_make_rule(forms: &mut [WatAST], types: &TypeEnv, errors: &mut Vec<Re
     }
 }
 
+/// `(:wat::rete::make-query name (quote [:params…]) (quote [:when…]))` — same `:when`
+/// grammar as `make-rule`, no `:then` reorder. Live `defquery` / `make-query` is
+/// validated; a quoted payload (the scratch-pad "ship the forms" probes) is not.
+fn walk_for_make_query(forms: &[WatAST], types: &TypeEnv, errors: &mut Vec<ReteCheckError>) {
+    for f in forms {
+        if let WatAST::List(items, _) = f {
+            let is_make_query =
+                matches!(items.first(), Some(WatAST::Keyword(k, _)) if k == ":wat::rete::make-query");
+            if is_make_query {
+                validate_query_when(items, types, errors);
+                continue;
+            }
+            if rete_walk_skips_children(items) {
+                continue;
+            }
+            walk_for_make_query(items, types, errors);
+        }
+    }
+}
+
+fn validate_query_when(mq: &[WatAST], types: &TypeEnv, errors: &mut Vec<ReteCheckError>) {
+    let qname = match mq.get(1) {
+        Some(WatAST::StringLit(s, _)) => s.clone(),
+        other => other.map(render_form).unwrap_or_else(|| "<unknown-query>".to_string()),
+    };
+    if let Some(when_conds) = quote_vector(mq.get(3)) {
+        let binds = collect_rule_bind_types(when_conds, types);
+        for cond in when_conds {
+            validate_when_entry(cond, &qname, types, &binds, errors);
+        }
+    }
+}
+
 /// `mr` = the full `make-rule` call's items: `[kw, name-lit, when-quote, then-quote]`.
-fn validate_and_reorder_rule(mr: &mut [WatAST], types: &TypeEnv, errors: &mut Vec<ReteCheckError>) {
+fn validate_rule_when_and_reorder_then(
+    mr: &mut [WatAST],
+    types: &TypeEnv,
+    errors: &mut Vec<ReteCheckError>,
+) {
     let rule_name = match mr.get(1) {
         Some(WatAST::StringLit(s, _)) => s.clone(),
         other => other.map(render_form).unwrap_or_else(|| "<unknown-rule>".to_string()),
@@ -483,12 +539,12 @@ fn validate_and_reorder_rule(mr: &mut [WatAST], types: &TypeEnv, errors: &mut Ve
         }
     }
 
-    // :then (mr[3] = (quote [<fact-form>…])) — validate + reorder in place. Arc 278 Stone A:
+    // :then (mr[3] = (quote [<fact-form>…])) — validate, then reorder kwargs. Arc 278 Stone A:
     // each member is a bare fact-form, no more `insert` wrapper.
     if let Some(WatAST::List(quote_items, _)) = mr.get_mut(3) {
         if let Some(WatAST::Vector(then_forms, _)) = quote_items.get_mut(1) {
             for fact_form in then_forms.iter_mut() {
-                validate_and_reorder_then(fact_form, &rule_name, types, errors);
+                validate_then_form(fact_form, &rule_name, types, errors);
             }
         }
     }
@@ -742,7 +798,7 @@ fn validate_fact_type_head_only(cond: &WatAST, rule_name: &str, types: &TypeEnv,
 }
 
 /// Registry lookup — the SAME colon-prefixed key + `field_names()` accessor the runtime
-/// matcher uses (`matcher.rs:126-135`, proven reachable by the `rete_wall_probe`).
+/// matcher uses (proven reachable by the `rete_wall_probe`).
 fn lookup_fields(types: &TypeEnv, fact_type: &str) -> Option<Vec<String>> {
     let type_key = format!(":{fact_type}");
     match types.get(&type_key) {
@@ -1037,12 +1093,7 @@ fn malformed(span: Span, rule_name: &str, fact_type: &str, clause: &WatAST) -> R
 
 // ─── :then validation + reorder (S3) ─────────────────────────────────────────────────────────
 
-/// `fact_form` = `(:Type arg…)` — a `:then` vector member (arc 278 Stone A: no more
-/// `:wat::rete::insert` wrapper; every member IS the fact-form directly). Validates the
-/// fact-type head and, for a kwargs RHS, every `:field` name — then REWRITES the fact-form's
-/// args to declaration order in place (mutating `residue`, so `build_insert_fact` sees
-/// declaration order at fire time). A positional RHS is checked for arity only (unchanged
-/// shape; no rewrite needed). A `:then` value-position operand that can NEVER resolve at fire
+/// A `:then` value-position operand that can NEVER resolve at fire
 /// time — whatever the bindings.
 ///
 /// Mirrors `resolve_operand`'s accepted set (`matcher.rs`) exactly, minus the `?var` case whose
@@ -1104,7 +1155,7 @@ fn check_rhs_operands(
 /// Two constructor heads are recognized (both invisible to `lookup_fields`, which resolves only
 /// `TypeDef::Aggregate` by NAME, not by asking "is this keyword any kind of constructor head"):
 ///   - a bare aggregate-type keyword (`:usr::Inner`) — validated with the SAME kwargs-coverage /
-///     positional-shape rules `validate_and_reorder_then` gives a `:then` item's own top-level
+///     positional-shape rules `validate_then_form` gives a `:then` item's own top-level
 ///     shape (#2's fix, generalized: unknown field, missing field, or — the shape #2's top-level
 ///     branch never has to consider, since `build_insert_fact`'s top-level fast path supports
 ///     legacy positional unconditionally — a RETIRED multi-arg positional call, since a NESTED
@@ -1131,9 +1182,7 @@ fn walk_nested_constructors(
         if let Some(TypeDef::Aggregate(_)) = types.get(head) {
             let nested_type = head.trim_start_matches(':').to_string();
             let field_names = lookup_fields(types, &nested_type).unwrap_or_default();
-            let is_kwargs = args.len() >= 2
-                && args.len() % 2 == 0
-                && args.iter().step_by(2).all(|a| matches!(a, WatAST::Keyword(_, _)));
+            let is_kwargs = crate::rete::eval_insert::rete_is_kwargs(args);
             if is_kwargs {
                 let mut supplied: Vec<String> = Vec::with_capacity(args.len() / 2);
                 for pair in args.chunks(2) {
@@ -1234,7 +1283,9 @@ fn walk_nested_constructors(
     }
 }
 
-fn validate_and_reorder_then(
+/// Validates a `:then` fact-form: fact-type head and, for kwargs, every `:field` name.
+/// `reorder_then_kwargs` then rewrites kwargs args to declaration order in place.
+fn validate_then_form(
     fact_form: &mut WatAST,
     rule_name: &str,
     types: &TypeEnv,
@@ -1267,19 +1318,17 @@ fn validate_and_reorder_then(
         // validator carries `types: &TypeEnv` but not `sym` (no `sym.functions`, so it cannot
         // classify a fn head or its transitively-composed body — threading `sym` through the
         // whole static validate.rs call tree is the param cascade `BRIEF-then-user-forms.md`'s
-        // STOP-1 forbids). The wat-side fence (`wat/rete.wat`'s `then-item-fence`, wired into
+        // STOP-1 forbids). The wat-side fence (`wat/rete/compile.wat`'s `then-item-fence`, wired into
         // `compile-rule`) takes over enforcing head-legality, the three axes, and
         // "returns-a-fact" for this item — at rule-COMPILE time, same as `where`'s fence. A
         // genuinely unknown/malformed head still surfaces there, just not from this function.
         None => return,
     };
 
-    // Arc 294 item 9a — the SAME kwargs-shape test `build_insert_fact` uses
-    // (`matcher.rs:454-456`): even arity, ≥2 args, a keyword at every even index.
+    // Arc 294 item 9a — the SAME kwargs-shape test `build_insert_fact` uses:
+    // even arity, ≥2 args, a keyword at every even index.
     let args = &fact_items[1..];
-    let is_kwargs = args.len() >= 2
-        && args.len() % 2 == 0
-        && args.iter().step_by(2).all(|a| matches!(a, WatAST::Keyword(_, _)));
+    let is_kwargs = crate::rete::eval_insert::rete_is_kwargs(args);
 
     if is_kwargs {
         let mut kv_pairs: Vec<(String, WatAST)> = Vec::with_capacity(args.len() / 2);
@@ -1338,26 +1387,7 @@ fn validate_and_reorder_then(
             walk_nested_constructors(v, rule_name, types, errors);
         }
 
-        let field_order: Vec<&str> = field_names.iter().map(|s| s.as_str()).collect();
-        let kv_ref: Vec<(&str, WatAST)> = kv_pairs.iter().map(|(k, v)| (k.as_str(), v.clone())).collect();
-        match reorder_kwargs_by_field_name(&field_order, &kv_ref) {
-            Ok(reordered) => {
-                fact_items.truncate(1); // keep the type keyword; replace the args
-                fact_items.extend(reordered);
-            }
-            Err(bad_field) => {
-                // Unreachable given the all_known check above; stay honest if it ever isn't.
-                errors.push(ReteCheckError {
-                    span: fact_span,
-                    kind: ReteCheckErrorKind::UnknownField {
-                        rule: rule_name.to_string(),
-                        fact_type,
-                        field: bad_field,
-                        available_fields: field_names,
-                    },
-                });
-            }
-        }
+        reorder_then_kwargs(fact_items, &field_names, &kv_pairs, &fact_span, rule_name, &fact_type, errors);
     } else {
         // The wall, positional side. Independent of the arity verdict below: a rule can be both
         // wrong-arity AND carry an unresolvable operand, and batching every finding is this
@@ -1377,6 +1407,36 @@ fn validate_and_reorder_then(
                     fact_type,
                     expected: field_names.len(),
                     got: args.len(),
+                },
+            });
+        }
+    }
+}
+
+fn reorder_then_kwargs(
+    fact_items: &mut Vec<WatAST>,
+    field_names: &[String],
+    kv_pairs: &[(String, WatAST)],
+    fact_span: &crate::span::Span,
+    rule_name: &str,
+    fact_type: &str,
+    errors: &mut Vec<ReteCheckError>,
+) {
+    let field_order: Vec<&str> = field_names.iter().map(|s| s.as_str()).collect();
+    let kv_ref: Vec<(&str, WatAST)> = kv_pairs.iter().map(|(k, v)| (k.as_str(), v.clone())).collect();
+    match reorder_kwargs_by_field_name(&field_order, &kv_ref) {
+        Ok(reordered) => {
+            fact_items.truncate(1);
+            fact_items.extend(reordered);
+        }
+        Err(bad_field) => {
+            errors.push(ReteCheckError {
+                span: fact_span.clone(),
+                kind: ReteCheckErrorKind::UnknownField {
+                    rule: rule_name.to_string(),
+                    fact_type: fact_type.to_string(),
+                    field: bad_field,
+                    available_fields: field_names.to_vec(),
                 },
             });
         }
@@ -1522,6 +1582,42 @@ mod tests {
         // build_env hooks validate_rete_rules internally (step 7.8) — a well-formed rule
         // must not turn a clean build_env into an error.
         build_env(forms).expect("a well-formed rule freezes clean");
+    }
+
+    /// A quoted `make-query` is payload data (`Boundary::AllData`), not a live query
+    /// in this freeze. The scratch-pad "ship the forms" probes freeze a quoted
+    /// evaluand whose fact types exist only on the far side.
+    #[test]
+    fn quoted_make_query_of_unregistered_type_is_data_not_a_freeze_error() {
+        let src = r#"
+(:wat::core::defn :probe::evaluand [] -> :wat::WatAST
+  (:wat::core::quote
+    (:wat::rete::make-query "usr::Hot"
+      (:wat::core::quote [])
+      (:wat::core::quote [(:usr::Hot)]))))
+"#;
+        let forms = crate::parse_all!(src).expect("parse");
+        build_env(forms).expect("quoted make-query is data; unknown :usr::Hot must not freeze-fail");
+    }
+
+    /// A *live* `defquery` of an unregistered fact type is the wall's job.
+    #[test]
+    fn live_defquery_of_unregistered_type_is_unknown_fact_type() {
+        let src = r#"
+(:wat::rete::defquery :usr::hot-q
+  :params []
+  :when [(:usr::Hot)])
+"#;
+        let forms = crate::parse_all!(src).expect("parse");
+        let boxed = match build_env(forms) {
+            Err(crate::freeze::StartupError::Validator(e)) => e,
+            Err(other) => panic!("expected StartupError::Validator; got {other:?}"),
+            Ok(_) => panic!("live defquery of :usr::Hot must be a freeze error"),
+        };
+        let edn = wat_edn::write(&boxed.to_edn());
+        let e = rete_error(&edn, "UnknownFactType");
+        assert_eq!(field_str(&e, "fact-type"), "usr::Hot");
+        assert!(rete_error_is_located(&e), "the wall's errors are LOCATED; got: {edn}");
     }
 
     /// An unknown field-ref in a bind clause is a located `UnknownField` error naming the

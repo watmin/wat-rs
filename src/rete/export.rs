@@ -12,10 +12,10 @@ use crate::rete::compiled_cond::{CompiledCond, Op};
 use crate::rete::compiled_rhs::{CompiledRhs, CompiledRhsByRule, RhsOp};
 use crate::rete::expr_ir::{Expr, Pat, Program};
 use crate::rete::kernel::{
-    class_field_names, get_node, kind_of, network_identity, node_children, node_record,
-    invert_feeding_alpha, kind_id_lists, rete_arm_get_or_build, rete_arm_intern,
-    rule_deps_from_rules, session_names, sorted_node_ids, AccFold, AlphasByType, CondDriver,
-    InternedNetwork, ParentsOf, RuleDep,
+    alpha_cond_from_node, class_field_names, get_node, kind_of, network_identity, node_children,
+    node_record, invert_feeding_alpha, kind_id_lists, rete_arm_get_or_build, rete_arm_intern,
+    rule_deps_from_rules, session_named_field, session_network, session_names, sorted_node_ids,
+    AccFold, AlphasByType, CondDriver, InternedNetwork, ParentsOf, RuleDep,
 };
 use crate::rete::matcher::{alpha_pattern, CmpKind};
 use crate::rete::vocabulary::RETE_OPS;
@@ -66,12 +66,12 @@ const FORMAT_V: i64 = 1;
 );
 ::wat_source_derive::wat_field_names_from!(QUERY_FIELDS, "wat/rete.wat", ":wat::rete::QueryNode");
 
-fn names(fields: &'static [&'static str]) -> Arc<Vec<String>> {
+fn names(fields: &'static [&'static str]) -> crate::rete::kernel::FieldNames {
     crate::value::value::names_arc_from_static(fields)
 }
 
-fn export_names() -> Arc<Vec<String>> {
-    static N: OnceLock<Arc<Vec<String>>> = OnceLock::new();
+fn export_names() -> crate::rete::kernel::FieldNames {
+    static N: OnceLock<crate::rete::kernel::FieldNames> = OnceLock::new();
     N.get_or_init(|| names(EXPORT_FIELDS)).clone()
 }
 
@@ -91,13 +91,13 @@ fn empty_pm() -> Value {
     Value::wat__core__PersistentMap(PMap::new())
 }
 
-fn dummy_ast() -> Value {
-    Value::wat__WatAST(Arc::new(WatAST::List(Vec::new(), crate::rust_caller_span!())))
+fn dummy_ast(span: &Span) -> Value {
+    Value::wat__WatAST(Arc::new(WatAST::List(Vec::new(), span.clone())))
 }
 
-fn malformed(op: &str, reason: impl Into<String>) -> EvalBreak {
+fn malformed(span: &Span, op: &str, reason: impl Into<String>) -> EvalBreak {
     RuntimeError::new(
-        crate::rust_caller_span!(),
+        span.clone(),
         RuntimeErrorKind::MalformedForm {
             head: op.into(),
             reason: reason.into(),
@@ -106,11 +106,17 @@ fn malformed(op: &str, reason: impl Into<String>) -> EvalBreak {
     .into()
 }
 
-fn expect_kw<'a>(v: &'a Value, op: &str) -> Result<&'a str, EvalBreak> {
+fn expect_at<'a>(items: &'a [Value], i: usize, span: &Span, what: &str) -> Result<&'a Value, EvalBreak> {
+    items
+        .get(i)
+        .ok_or_else(|| malformed(span, IMPORT_OP, format!("{what} missing slot {i}")))
+}
+
+fn expect_kw<'a>(v: &'a Value, op: &str, span: &Span) -> Result<&'a str, EvalBreak> {
     match v {
         Value::wat__core__keyword(s) => Ok(s.as_str()),
         other => Err(RuntimeError::new(
-            crate::rust_caller_span!(),
+            span.clone(),
             RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
                 expected: "keyword tag",
@@ -121,11 +127,11 @@ fn expect_kw<'a>(v: &'a Value, op: &str) -> Result<&'a str, EvalBreak> {
     }
 }
 
-fn expect_i64(v: &Value, op: &str) -> Result<i64, EvalBreak> {
+fn expect_i64(v: &Value, op: &str, span: &Span) -> Result<i64, EvalBreak> {
     match v {
         Value::i64(n) => Ok(*n),
         other => Err(RuntimeError::new(
-            crate::rust_caller_span!(),
+            span.clone(),
             RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
                 expected: "i64",
@@ -136,11 +142,11 @@ fn expect_i64(v: &Value, op: &str) -> Result<i64, EvalBreak> {
     }
 }
 
-fn expect_str<'a>(v: &'a Value, op: &str) -> Result<&'a str, EvalBreak> {
+fn expect_str<'a>(v: &'a Value, op: &str, span: &Span) -> Result<&'a str, EvalBreak> {
     match v {
         Value::String(s) => Ok(s.as_str()),
         other => Err(RuntimeError::new(
-            crate::rust_caller_span!(),
+            span.clone(),
             RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
                 expected: "string",
@@ -151,12 +157,12 @@ fn expect_str<'a>(v: &'a Value, op: &str) -> Result<&'a str, EvalBreak> {
     }
 }
 
-fn expect_seq(v: &Value, op: &str) -> Result<Vec<Value>, EvalBreak> {
+fn expect_seq(v: &Value, op: &str, span: &Span) -> Result<Vec<Value>, EvalBreak> {
     match v {
         Value::Vec(xs) => Ok((**xs).clone()),
         Value::wat__core__PersistentVector(pv) => Ok(pv.iter().cloned().collect()),
         other => Err(RuntimeError::new(
-            crate::rust_caller_span!(),
+            span.clone(),
             RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
                 expected: "vector",
@@ -218,15 +224,15 @@ fn pack_cmp(k: CmpKind) -> Value {
     })
 }
 
-fn unpack_cmp(v: &Value) -> Result<CmpKind, EvalBreak> {
-    match expect_kw(v, IMPORT_OP)? {
+fn unpack_cmp(v: &Value, span: &Span) -> Result<CmpKind, EvalBreak> {
+    match expect_kw(v, IMPORT_OP, span)? {
         ":eq" => Ok(CmpKind::Eq),
         ":neq" => Ok(CmpKind::NotEq),
         ":lt" => Ok(CmpKind::Lt),
         ":gt" => Ok(CmpKind::Gt),
         ":le" => Ok(CmpKind::Le),
         ":ge" => Ok(CmpKind::Ge),
-        other => Err(malformed(IMPORT_OP, format!("unknown cmp {other}"))),
+        other => Err(malformed(span, IMPORT_OP, format!("unknown cmp {other}"))),
     }
 }
 
@@ -245,14 +251,14 @@ fn pack_pat(p: &Pat) -> Value {
     }
 }
 
-fn unpack_pat(v: &Value) -> Result<Pat, EvalBreak> {
-    let items = expect_seq(v, IMPORT_OP)?;
-    let tag = items.first().ok_or_else(|| malformed(IMPORT_OP, "empty pat"))?;
-    match expect_kw(tag, IMPORT_OP)? {
+fn unpack_pat(v: &Value, span: &Span) -> Result<Pat, EvalBreak> {
+    let items = expect_seq(v, IMPORT_OP, span)?;
+    let tag = items.first().ok_or_else(|| malformed(span, IMPORT_OP, "empty pat"))?;
+    match expect_kw(tag, IMPORT_OP, span)? {
         ":plit" => {
             let lit = items
                 .get(1)
-                .ok_or_else(|| malformed(IMPORT_OP, "plit missing value"))?
+                .ok_or_else(|| malformed(span, IMPORT_OP, "plit missing value"))?
                 .clone();
             Ok(Pat::Lit(lit))
         }
@@ -261,26 +267,25 @@ fn unpack_pat(v: &Value) -> Result<Pat, EvalBreak> {
             let n = expect_i64(
                 items
                     .get(1)
-                    .ok_or_else(|| malformed(IMPORT_OP, "pbind missing slot"))?,
-                IMPORT_OP,
-            )?;
+                    .ok_or_else(|| malformed(span, IMPORT_OP, "pbind missing slot"))?, IMPORT_OP, span)?;
             Ok(Pat::Bind(n as u16))
         }
         ":pvar" => {
             let name = expect_str(
                 items
                     .get(1)
-                    .ok_or_else(|| malformed(IMPORT_OP, "pvar missing name"))?,
+                    .ok_or_else(|| malformed(span, IMPORT_OP, "pvar missing name"))?,
                 IMPORT_OP,
+                span,
             )?
             .to_string();
             let payload = match items.get(2) {
-                Some(inner) => Some(Box::new(unpack_pat(inner)?)),
+                Some(inner) => Some(Box::new(unpack_pat(inner, span)?)),
                 None => None,
             };
             Ok(Pat::Variant { name, payload })
         }
-        other => Err(malformed(IMPORT_OP, format!("unknown pat {other}"))),
+        other => Err(malformed(span, IMPORT_OP, format!("unknown pat {other}"))),
     }
 }
 
@@ -360,35 +365,29 @@ fn pack_expr(e: &Expr) -> Value {
     }
 }
 
-fn unpack_expr(v: &Value) -> Result<Expr, EvalBreak> {
-    let items = expect_seq(v, IMPORT_OP)?;
-    let tag = items.first().ok_or_else(|| malformed(IMPORT_OP, "empty expr"))?;
-    match expect_kw(tag, IMPORT_OP)? {
+fn unpack_expr(v: &Value, span: &Span) -> Result<Expr, EvalBreak> {
+    let items = expect_seq(v, IMPORT_OP, span)?;
+    let tag = items.first().ok_or_else(|| malformed(span, IMPORT_OP, "empty expr"))?;
+    match expect_kw(tag, IMPORT_OP, span)? {
         ":lit" => Ok(Expr::Lit(
             items
                 .get(1)
-                .ok_or_else(|| malformed(IMPORT_OP, "lit missing value"))?
+                .ok_or_else(|| malformed(span, IMPORT_OP, "lit missing value"))?
                 .clone(),
         )),
         ":slot" => {
-            let n = expect_i64(
-                items
+            let n = expect_i64(items
                     .get(1)
-                    .ok_or_else(|| malformed(IMPORT_OP, "slot missing n"))?,
-                IMPORT_OP,
-            )?;
+                    .ok_or_else(|| malformed(span, IMPORT_OP, "slot missing n"))?, IMPORT_OP, span)?;
             Ok(Expr::Slot(n as u16))
         }
         ":call" => {
-            let op = expect_i64(
-                items
+            let op = expect_i64(items
                     .get(1)
-                    .ok_or_else(|| malformed(IMPORT_OP, "call missing op"))?,
-                IMPORT_OP,
-            )? as u16;
+                    .ok_or_else(|| malformed(span, IMPORT_OP, "call missing op"))?, IMPORT_OP, span)? as u16;
             let mut args = Vec::new();
             for x in items.iter().skip(2) {
-                args.push(unpack_expr(x)?);
+                args.push(unpack_expr(x, span)?);
             }
             Ok(Expr::Call {
                 op,
@@ -396,18 +395,15 @@ fn unpack_expr(v: &Value) -> Result<Expr, EvalBreak> {
             })
         }
         ":call-fb" => {
-            let op = expect_i64(
-                items
+            let op = expect_i64(items
                     .get(1)
-                    .ok_or_else(|| malformed(IMPORT_OP, "call-fb missing op"))?,
-                IMPORT_OP,
-            )? as u16;
+                    .ok_or_else(|| malformed(span, IMPORT_OP, "call-fb missing op"))?, IMPORT_OP, span)? as u16;
             let fallback = Box::new(unpack_expr(items.get(2).ok_or_else(|| {
-                malformed(IMPORT_OP, "call-fb missing fallback")
-            })?)?);
+                malformed(span, IMPORT_OP, "call-fb missing fallback")
+            })?, span)?);
             let mut args = Vec::new();
             for x in items.iter().skip(3) {
-                args.push(unpack_expr(x)?);
+                args.push(unpack_expr(x, span)?);
             }
             Ok(Expr::CallFallback {
                 op,
@@ -419,11 +415,12 @@ fn unpack_expr(v: &Value) -> Result<Expr, EvalBreak> {
             let program = Arc::new(unpack_prog(
                 items
                     .get(1)
-                    .ok_or_else(|| malformed(IMPORT_OP, "user missing prog"))?,
+                    .ok_or_else(|| malformed(span, IMPORT_OP, "user missing prog"))?,
+                span,
             )?);
             let mut args = Vec::new();
             for x in items.iter().skip(2) {
-                args.push(unpack_expr(x)?);
+                args.push(unpack_expr(x, span)?);
             }
             Ok(Expr::CallUser {
                 program,
@@ -434,36 +431,36 @@ fn unpack_expr(v: &Value) -> Result<Expr, EvalBreak> {
             recv: Box::new(unpack_expr(
                 items
                     .get(1)
-                    .ok_or_else(|| malformed(IMPORT_OP, "field missing recv"))?,
+                    .ok_or_else(|| malformed(span, IMPORT_OP, "field missing recv"))?,
+                span,
             )?),
-            idx: expect_i64(
-                items
+            idx: expect_i64(items
                     .get(2)
-                    .ok_or_else(|| malformed(IMPORT_OP, "field missing idx"))?,
-                IMPORT_OP,
-            )? as usize,
+                    .ok_or_else(|| malformed(span, IMPORT_OP, "field missing idx"))?, IMPORT_OP, span)? as usize,
         }),
         ":ctor" => {
             let class = expect_str(
                 items
                     .get(1)
-                    .ok_or_else(|| malformed(IMPORT_OP, "ctor missing class"))?,
+                    .ok_or_else(|| malformed(span, IMPORT_OP, "ctor missing class"))?,
                 IMPORT_OP,
+                span,
             )?
             .to_string();
             let names_pv = expect_seq(
                 items
                     .get(2)
-                    .ok_or_else(|| malformed(IMPORT_OP, "ctor missing names"))?,
+                    .ok_or_else(|| malformed(span, IMPORT_OP, "ctor missing names"))?,
                 IMPORT_OP,
+                span,
             )?;
             let mut ns = Vec::new();
             for n in names_pv.iter() {
-                ns.push(expect_str(n, IMPORT_OP)?.to_string());
+                ns.push(expect_str(n, IMPORT_OP, span)?.to_string());
             }
             let mut fields = Vec::new();
             for x in items.iter().skip(3) {
-                fields.push(unpack_expr(x)?);
+                fields.push(unpack_expr(x, span)?);
             }
             Ok(Expr::Construct {
                 class,
@@ -475,30 +472,33 @@ fn unpack_expr(v: &Value) -> Result<Expr, EvalBreak> {
             let type_path = expect_str(
                 items
                     .get(1)
-                    .ok_or_else(|| malformed(IMPORT_OP, "variant missing type"))?,
+                    .ok_or_else(|| malformed(span, IMPORT_OP, "variant missing type"))?,
                 IMPORT_OP,
+                span,
             )?
             .to_string();
             let variant_name = expect_str(
                 items
                     .get(2)
-                    .ok_or_else(|| malformed(IMPORT_OP, "variant missing name"))?,
+                    .ok_or_else(|| malformed(span, IMPORT_OP, "variant missing name"))?,
                 IMPORT_OP,
+                span,
             )?
             .to_string();
             let names_pv = expect_seq(
                 items
                     .get(3)
-                    .ok_or_else(|| malformed(IMPORT_OP, "variant missing names"))?,
+                    .ok_or_else(|| malformed(span, IMPORT_OP, "variant missing names"))?,
                 IMPORT_OP,
+                span,
             )?;
             let mut ns = Vec::new();
             for n in names_pv.iter() {
-                ns.push(expect_str(n, IMPORT_OP)?.to_string());
+                ns.push(expect_str(n, IMPORT_OP, span)?.to_string());
             }
             let mut fields = Vec::new();
             for x in items.iter().skip(4) {
-                fields.push(unpack_expr(x)?);
+                fields.push(unpack_expr(x, span)?);
             }
             Ok(Expr::Variant {
                 type_path,
@@ -509,26 +509,29 @@ fn unpack_expr(v: &Value) -> Result<Expr, EvalBreak> {
         }
         ":if" => Ok(Expr::If {
             cond: Box::new(unpack_expr(
-                items.get(1).ok_or_else(|| malformed(IMPORT_OP, "if"))?,
+                items.get(1).ok_or_else(|| malformed(span, IMPORT_OP, "if"))?,
+                span,
             )?),
             then_: Box::new(unpack_expr(
-                items.get(2).ok_or_else(|| malformed(IMPORT_OP, "if"))?,
+                items.get(2).ok_or_else(|| malformed(span, IMPORT_OP, "if"))?,
+                span,
             )?),
             else_: Box::new(unpack_expr(
-                items.get(3).ok_or_else(|| malformed(IMPORT_OP, "if"))?,
+                items.get(3).ok_or_else(|| malformed(span, IMPORT_OP, "if"))?,
+                span,
             )?),
         }),
         ":and" => {
             let mut xs = Vec::new();
             for x in items.iter().skip(1) {
-                xs.push(unpack_expr(x)?);
+                xs.push(unpack_expr(x, span)?);
             }
             Ok(Expr::And(xs.into_boxed_slice()))
         }
         ":or" => {
             let mut xs = Vec::new();
             for x in items.iter().skip(1) {
-                xs.push(unpack_expr(x)?);
+                xs.push(unpack_expr(x, span)?);
             }
             Ok(Expr::Or(xs.into_boxed_slice()))
         }
@@ -536,17 +539,15 @@ fn unpack_expr(v: &Value) -> Result<Expr, EvalBreak> {
             let binds_pv = expect_seq(
                 items
                     .get(1)
-                    .ok_or_else(|| malformed(IMPORT_OP, "let missing binds"))?,
+                    .ok_or_else(|| malformed(span, IMPORT_OP, "let missing binds"))?,
                 IMPORT_OP,
+                span,
             )?;
             let mut binds = Vec::new();
             for pair in binds_pv.iter() {
-                let p = expect_seq(pair, IMPORT_OP)?;
-                let slot = expect_i64(
-                    p.first().ok_or_else(|| malformed(IMPORT_OP, "let bind"))?,
-                    IMPORT_OP,
-                )? as u16;
-                let e = unpack_expr(p.get(1).ok_or_else(|| malformed(IMPORT_OP, "let bind"))?)?;
+                let p = expect_seq(pair, IMPORT_OP, span)?;
+                let slot = expect_i64(p.first().ok_or_else(|| malformed(span, IMPORT_OP, "let bind"))?, IMPORT_OP, span)? as u16;
+                let e = unpack_expr(p.get(1).ok_or_else(|| malformed(span, IMPORT_OP, "let bind"))?, span)?;
                 binds.push((slot, e));
             }
             Ok(Expr::Let {
@@ -554,7 +555,8 @@ fn unpack_expr(v: &Value) -> Result<Expr, EvalBreak> {
                 body: Box::new(unpack_expr(
                     items
                         .get(2)
-                        .ok_or_else(|| malformed(IMPORT_OP, "let missing body"))?,
+                        .ok_or_else(|| malformed(span, IMPORT_OP, "let missing body"))?,
+                    span,
                 )?),
             })
         }
@@ -562,20 +564,22 @@ fn unpack_expr(v: &Value) -> Result<Expr, EvalBreak> {
             let scrutinee = Box::new(unpack_expr(
                 items
                     .get(1)
-                    .ok_or_else(|| malformed(IMPORT_OP, "match missing scrut"))?,
+                    .ok_or_else(|| malformed(span, IMPORT_OP, "match missing scrut"))?,
+                span,
             )?);
             let arms_pv = expect_seq(
                 items
                     .get(2)
-                    .ok_or_else(|| malformed(IMPORT_OP, "match missing arms"))?,
+                    .ok_or_else(|| malformed(span, IMPORT_OP, "match missing arms"))?,
                 IMPORT_OP,
+                span,
             )?;
             let mut arms = Vec::new();
             for a in arms_pv.iter() {
-                let p = expect_seq(a, IMPORT_OP)?;
+                let p = expect_seq(a, IMPORT_OP, span)?;
                 arms.push((
-                    unpack_pat(p.first().ok_or_else(|| malformed(IMPORT_OP, "arm"))?)?,
-                    unpack_expr(p.get(1).ok_or_else(|| malformed(IMPORT_OP, "arm"))?)?,
+                    unpack_pat(p.first().ok_or_else(|| malformed(span, IMPORT_OP, "arm"))?, span)?,
+                    unpack_expr(p.get(1).ok_or_else(|| malformed(span, IMPORT_OP, "arm"))?, span)?,
                 ));
             }
             Ok(Expr::Match {
@@ -583,7 +587,7 @@ fn unpack_expr(v: &Value) -> Result<Expr, EvalBreak> {
                 arms: arms.into_boxed_slice(),
             })
         }
-        other => Err(malformed(IMPORT_OP, format!("unknown expr {other}"))),
+        other => Err(malformed(span, IMPORT_OP, format!("unknown expr {other}"))),
     }
 }
 
@@ -604,39 +608,36 @@ fn pack_prog(p: &Program) -> Value {
     ])
 }
 
-fn unpack_prog(v: &Value) -> Result<Program, EvalBreak> {
-    let items = expect_seq(v, IMPORT_OP)?;
+fn unpack_prog(v: &Value, span: &Span) -> Result<Program, EvalBreak> {
+    let items = expect_seq(v, IMPORT_OP, span)?;
     if expect_kw(
         items
             .first()
-            .ok_or_else(|| malformed(IMPORT_OP, "empty prog"))?,
+            .ok_or_else(|| malformed(span, IMPORT_OP, "empty prog"))?,
         IMPORT_OP,
+        span,
     )? != ":prog"
     {
-        return Err(malformed(IMPORT_OP, "expected :prog"));
+        return Err(malformed(span, IMPORT_OP, "expected :prog"));
     }
-    let frame_len = expect_i64(
-        items
+    let frame_len = expect_i64(items
             .get(1)
-            .ok_or_else(|| malformed(IMPORT_OP, "prog frame"))?,
-        IMPORT_OP,
-    )? as u16;
+            .ok_or_else(|| malformed(span, IMPORT_OP, "prog frame"))?, IMPORT_OP, span)? as u16;
     let params_pv = expect_seq(
         items
             .get(2)
-            .ok_or_else(|| malformed(IMPORT_OP, "prog params"))?,
+            .ok_or_else(|| malformed(span, IMPORT_OP, "prog params"))?,
         IMPORT_OP,
+        span,
     )?;
     let mut params = Vec::new();
     for x in params_pv.iter() {
-        params.push(expect_i64(x, IMPORT_OP)? as u16);
+        params.push(expect_i64(x, IMPORT_OP, span)? as u16);
     }
     let names_pv = expect_seq(
         items
             .get(3)
-            .ok_or_else(|| malformed(IMPORT_OP, "prog names"))?,
-        IMPORT_OP,
-    )?;
+            .ok_or_else(|| malformed(span, IMPORT_OP, "prog names"))?, IMPORT_OP, span)?;
     let mut names = Vec::new();
     for x in names_pv.iter() {
         names.push(match x {
@@ -647,26 +648,25 @@ fn unpack_prog(v: &Value) -> Result<Program, EvalBreak> {
     let reads_pv = expect_seq(
         items
             .get(4)
-            .ok_or_else(|| malformed(IMPORT_OP, "prog reads"))?,
+            .ok_or_else(|| malformed(span, IMPORT_OP, "prog reads"))?,
         IMPORT_OP,
+        span,
     )?;
     let mut reads = Vec::new();
     for x in reads_pv.iter() {
-        let p = expect_seq(x, IMPORT_OP)?;
+        let p = expect_seq(x, IMPORT_OP, span)?;
         reads.push((
             p.first()
-                .ok_or_else(|| malformed(IMPORT_OP, "read key"))?
+                .ok_or_else(|| malformed(span, IMPORT_OP, "read key"))?
                 .clone(),
-            expect_i64(
-                p.get(1).ok_or_else(|| malformed(IMPORT_OP, "read slot"))?,
-                IMPORT_OP,
-            )? as u16,
+            expect_i64(p.get(1).ok_or_else(|| malformed(span, IMPORT_OP, "read slot"))?, IMPORT_OP, span)? as u16,
         ));
     }
     let root = unpack_expr(
         items
             .get(5)
-            .ok_or_else(|| malformed(IMPORT_OP, "prog root"))?,
+            .ok_or_else(|| malformed(span, IMPORT_OP, "prog root"))?,
+        span,
     )?;
     Ok(Program {
         frame_len,
@@ -674,7 +674,7 @@ fn unpack_prog(v: &Value) -> Result<Program, EvalBreak> {
         reads: reads.into(),
         params: params.into_boxed_slice(),
         names: names.into_boxed_slice(),
-        span: crate::rust_caller_span!(),
+        span: span.clone(),
     })
 }
 
@@ -710,39 +710,40 @@ fn pack_cond_op(op: &Op) -> Value {
     }
 }
 
-fn unpack_cond_op(v: &Value) -> Result<Op, EvalBreak> {
-    let items = expect_seq(v, IMPORT_OP)?;
+fn unpack_cond_op(v: &Value, span: &Span) -> Result<Op, EvalBreak> {
+    let items = expect_seq(v, IMPORT_OP, span)?;
     match expect_kw(
         items
             .first()
-            .ok_or_else(|| malformed(IMPORT_OP, "empty cond-op"))?,
+            .ok_or_else(|| malformed(span, IMPORT_OP, "empty cond-op"))?,
         IMPORT_OP,
+        span,
     )? {
         ":bind" => Ok(Op::Bind {
-            field_idx: expect_i64(items.get(1).unwrap(), IMPORT_OP)? as usize,
-            slot: expect_i64(items.get(2).unwrap(), IMPORT_OP)? as usize,
+            field_idx: expect_i64(expect_at(&items, 1, span, "bind field_idx")?, IMPORT_OP, span)? as usize,
+            slot: expect_i64(expect_at(&items, 2, span, "bind slot")?, IMPORT_OP, span)? as usize,
         }),
         ":bchk" => Ok(Op::BindCheck {
-            field_idx: expect_i64(items.get(1).unwrap(), IMPORT_OP)? as usize,
-            slot: expect_i64(items.get(2).unwrap(), IMPORT_OP)? as usize,
+            field_idx: expect_i64(expect_at(&items, 1, span, "bchk field_idx")?, IMPORT_OP, span)? as usize,
+            slot: expect_i64(expect_at(&items, 2, span, "bchk slot")?, IMPORT_OP, span)? as usize,
         }),
         ":cmp" => Ok(Op::Cmp {
-            op: unpack_cmp(items.get(1).unwrap())?,
-            lhs: unpack_expr(items.get(2).unwrap())?,
-            rhs: unpack_expr(items.get(3).unwrap())?,
+            op: unpack_cmp(expect_at(&items, 1, span, "cmp op")?, span)?,
+            lhs: unpack_expr(expect_at(&items, 2, span, "cmp lhs")?, span)?,
+            rhs: unpack_expr(expect_at(&items, 3, span, "cmp rhs")?, span)?,
         }),
         ":scmp" => Ok(Op::SeedCmp {
-            op: unpack_cmp(items.get(1).unwrap())?,
-            lhs: unpack_expr(items.get(2).unwrap())?,
-            rhs: unpack_expr(items.get(3).unwrap())?,
+            op: unpack_cmp(expect_at(&items, 1, span, "scmp op")?, span)?,
+            lhs: unpack_expr(expect_at(&items, 2, span, "scmp lhs")?, span)?,
+            rhs: unpack_expr(expect_at(&items, 3, span, "scmp rhs")?, span)?,
         }),
         ":or-c" => {
             let mut branches = Vec::new();
             for b in items.iter().skip(1) {
-                let bp = expect_seq(b, IMPORT_OP)?;
+                let bp = expect_seq(b, IMPORT_OP, span)?;
                 let mut ops = Vec::new();
                 for x in bp.iter() {
-                    ops.push(unpack_cond_op(x)?);
+                    ops.push(unpack_cond_op(x, span)?);
                 }
                 branches.push(ops);
             }
@@ -751,12 +752,12 @@ fn unpack_cond_op(v: &Value) -> Result<Op, EvalBreak> {
         ":not-c" => {
             let mut inner = Vec::new();
             for x in items.iter().skip(1) {
-                inner.push(unpack_cond_op(x)?);
+                inner.push(unpack_cond_op(x, span)?);
             }
             Ok(Op::Not(inner))
         }
         ":fail" => Ok(Op::Fail),
-        other => Err(malformed(IMPORT_OP, format!("unknown cond-op {other}"))),
+        other => Err(malformed(span, IMPORT_OP, format!("unknown cond-op {other}"))),
     }
 }
 
@@ -783,37 +784,37 @@ fn pack_compiled_cond(c: &CompiledCond) -> Value {
     ])
 }
 
-fn unpack_compiled_cond(v: &Value) -> Result<CompiledCond, EvalBreak> {
-    let items = expect_seq(v, IMPORT_OP)?;
-    if expect_kw(items.first().unwrap(), IMPORT_OP)? != ":cond" {
-        return Err(malformed(IMPORT_OP, "expected :cond"));
+fn unpack_compiled_cond(v: &Value, span: &Span) -> Result<CompiledCond, EvalBreak> {
+    let items = expect_seq(v, IMPORT_OP, span)?;
+    if expect_kw(items.first().unwrap(), IMPORT_OP, span)? != ":cond" {
+        return Err(malformed(span, IMPORT_OP, "expected :cond"));
     }
-    let n_slots = expect_i64(items.get(1).unwrap(), IMPORT_OP)? as usize;
+    let n_slots = expect_i64(items.get(1).unwrap(), IMPORT_OP, span)? as usize;
     let fact_bind = match items.get(2) {
         Some(Value::String(_)) => Some(items.get(2).unwrap().clone()),
         _ => None,
     };
-    let keys_pv = expect_seq(items.get(3).unwrap(), IMPORT_OP)?;
+    let keys_pv = expect_seq(items.get(3).unwrap(), IMPORT_OP, span)?;
     let slot_keys: Arc<[Value]> = keys_pv.into();
-    let slots_pv = expect_seq(items.get(4).unwrap(), IMPORT_OP)?;
+    let slots_pv = expect_seq(items.get(4).unwrap(), IMPORT_OP, span)?;
     let output_slots: Arc<[usize]> = slots_pv
         .iter()
-        .map(|x| expect_i64(x, IMPORT_OP).map(|n| n as usize))
+        .map(|x| expect_i64(x, IMPORT_OP, span).map(|n| n as usize))
         .collect::<Result<Vec<_>, _>>()?
         .into();
-    let seeds_pv = expect_seq(items.get(5).unwrap(), IMPORT_OP)?;
+    let seeds_pv = expect_seq(items.get(5).unwrap(), IMPORT_OP, span)?;
     let mut seed_reads = Vec::new();
     for x in seeds_pv.iter() {
-        let p = expect_seq(x, IMPORT_OP)?;
+        let p = expect_seq(x, IMPORT_OP, span)?;
         seed_reads.push((
             p.first().unwrap().clone(),
-            expect_i64(p.get(1).unwrap(), IMPORT_OP)? as usize,
+            expect_i64(p.get(1).unwrap(), IMPORT_OP, span)? as usize,
         ));
     }
-    let ops_pv = expect_seq(items.get(6).unwrap(), IMPORT_OP)?;
+    let ops_pv = expect_seq(items.get(6).unwrap(), IMPORT_OP, span)?;
     let mut ops = Vec::new();
     for x in ops_pv.iter() {
-        ops.push(unpack_cond_op(x)?);
+        ops.push(unpack_cond_op(x, span)?);
     }
     Ok(CompiledCond::from_parts(
         ops,
@@ -844,30 +845,31 @@ fn pack_driver(d: &CondDriver) -> Value {
     }
 }
 
-fn unpack_driver(v: &Value) -> Result<CondDriver, EvalBreak> {
-    let items = expect_seq(v, IMPORT_OP)?;
-    match expect_kw(items.first().unwrap(), IMPORT_OP)? {
-        ":leaf" => Ok(CondDriver::Leaf(expect_i64(items.get(1).unwrap(), IMPORT_OP)?)),
+fn unpack_driver(v: &Value, span: &Span) -> Result<CondDriver, EvalBreak> {
+    let items = expect_seq(v, IMPORT_OP, span)?;
+    match expect_kw(items.first().unwrap(), IMPORT_OP, span)? {
+        ":leaf" => Ok(CondDriver::Leaf(expect_i64(items.get(1).unwrap(), IMPORT_OP, span)?)),
         ":and" => {
             let mut ks = Vec::new();
             for x in items.iter().skip(1) {
-                ks.push(unpack_driver(x)?);
+                ks.push(unpack_driver(x, span)?);
             }
             Ok(CondDriver::And(ks))
         }
         ":or" => {
             let mut ks = Vec::new();
             for x in items.iter().skip(1) {
-                ks.push(unpack_driver(x)?);
+                ks.push(unpack_driver(x, span)?);
             }
             Ok(CondDriver::Or(ks))
         }
-        ":not" => Ok(CondDriver::Not(Box::new(unpack_driver(items.get(1).unwrap())?))),
+        ":not" => Ok(CondDriver::Not(Box::new(unpack_driver(items.get(1).unwrap(), span)?))),
         ":exists" => Ok(CondDriver::Exists(Box::new(unpack_driver(
             items.get(1).unwrap(),
+            span,
         )?))),
-        ":where" => Ok(CondDriver::Where(Arc::new(unpack_prog(items.get(1).unwrap())?))),
-        other => Err(malformed(IMPORT_OP, format!("unknown driver {other}"))),
+        ":where" => Ok(CondDriver::Where(Arc::new(unpack_prog(items.get(1).unwrap(), span)?))),
+        other => Err(malformed(span, IMPORT_OP, format!("unknown driver {other}"))),
     }
 }
 
@@ -885,9 +887,9 @@ fn pack_fold(f: &AccFold) -> Value {
     }
 }
 
-fn unpack_fold(v: &Value) -> Result<AccFold, EvalBreak> {
-    let items = expect_seq(v, IMPORT_OP)?;
-    match expect_kw(items.first().unwrap(), IMPORT_OP)? {
+fn unpack_fold(v: &Value, span: &Span) -> Result<AccFold, EvalBreak> {
+    let items = expect_seq(v, IMPORT_OP, span)?;
+    match expect_kw(items.first().unwrap(), IMPORT_OP, span)? {
         ":count" => Ok(AccFold::Count),
         ":sum" => Ok(AccFold::Sum(items.get(1).unwrap().clone())),
         ":min" => Ok(AccFold::Min(items.get(1).unwrap().clone())),
@@ -898,9 +900,9 @@ fn unpack_fold(v: &Value) -> Result<AccFold, EvalBreak> {
         ":group" => Ok(AccFold::GroupBy(items.get(1).unwrap().clone())),
         ":ufold" => Ok(AccFold::User {
             var: items.get(1).unwrap().clone(),
-            program: Arc::new(unpack_prog(items.get(2).unwrap())?),
+            program: Arc::new(unpack_prog(items.get(2).unwrap(), span)?),
         }),
-        other => Err(malformed(IMPORT_OP, format!("unknown fold {other}"))),
+        other => Err(malformed(span, IMPORT_OP, format!("unknown fold {other}"))),
     }
 }
 
@@ -914,16 +916,16 @@ fn pack_rhs_op(op: &RhsOp) -> Value {
     }
 }
 
-fn unpack_rhs_op(v: &Value) -> Result<RhsOp, EvalBreak> {
-    let items = expect_seq(v, IMPORT_OP)?;
-    match expect_kw(items.first().unwrap(), IMPORT_OP)? {
+fn unpack_rhs_op(v: &Value, span: &Span) -> Result<RhsOp, EvalBreak> {
+    let items = expect_seq(v, IMPORT_OP, span)?;
+    match expect_kw(expect_at(&items, 0, span, "rhs-op tag")?, IMPORT_OP, span)? {
         ":rbind" => {
             let k = items
                 .get(1)
-                .ok_or_else(|| malformed(IMPORT_OP, "rbind missing key"))?
+                .ok_or_else(|| malformed(span, IMPORT_OP, "rbind missing key"))?
                 .clone();
             let dbg = match items.get(2) {
-                Some(v) => expect_str(v, IMPORT_OP)?.to_string(),
+                Some(v) => expect_str(v, IMPORT_OP, span)?.to_string(),
                 None => match &k {
                     Value::String(s) => s.as_ref().clone(),
                     _ => String::new(),
@@ -931,9 +933,12 @@ fn unpack_rhs_op(v: &Value) -> Result<RhsOp, EvalBreak> {
             };
             Ok(RhsOp::Bind(k, dbg))
         }
-        ":rlit" => Ok(RhsOp::Lit(items.get(1).unwrap().clone())),
-        ":rexpr" => Ok(RhsOp::Expr(Arc::new(unpack_prog(items.get(1).unwrap())?))),
-        other => Err(malformed(IMPORT_OP, format!("unknown rhs-op {other}"))),
+        ":rlit" => Ok(RhsOp::Lit(expect_at(&items, 1, span, "rlit value")?.clone())),
+        ":rexpr" => Ok(RhsOp::Expr(Arc::new(unpack_prog(
+            expect_at(&items, 1, span, "rexpr prog")?,
+            span,
+        )?))),
+        other => Err(malformed(span, IMPORT_OP, format!("unknown rhs-op {other}"))),
     }
 }
 
@@ -952,19 +957,19 @@ fn pack_rhs(r: &CompiledRhs) -> Value {
     }
 }
 
-fn unpack_rhs(v: &Value) -> Result<CompiledRhs, EvalBreak> {
-    let items = expect_seq(v, IMPORT_OP)?;
-    match expect_kw(items.first().unwrap(), IMPORT_OP)? {
+fn unpack_rhs(v: &Value, span: &Span) -> Result<CompiledRhs, EvalBreak> {
+    let items = expect_seq(v, IMPORT_OP, span)?;
+    match expect_kw(items.first().unwrap(), IMPORT_OP, span)? {
         ":rec" => {
-            let class: Arc<str> = expect_str(items.get(1).unwrap(), IMPORT_OP)?.into();
-            let names_pv = expect_seq(items.get(2).unwrap(), IMPORT_OP)?;
+            let class: Arc<str> = expect_str(items.get(1).unwrap(), IMPORT_OP, span)?.into();
+            let names_pv = expect_seq(items.get(2).unwrap(), IMPORT_OP, span)?;
             let mut ns = Vec::new();
             for n in names_pv.iter() {
-                ns.push(expect_str(n, IMPORT_OP)?.to_string());
+                ns.push(expect_str(n, IMPORT_OP, span)?.to_string());
             }
             let mut ops = Vec::new();
             for x in items.iter().skip(3) {
-                ops.push(unpack_rhs_op(x)?);
+                ops.push(unpack_rhs_op(x, span)?);
             }
             Ok(CompiledRhs::Record {
                 class,
@@ -972,8 +977,8 @@ fn unpack_rhs(v: &Value) -> Result<CompiledRhs, EvalBreak> {
                 ops,
             })
         }
-        ":rcall" => Ok(CompiledRhs::Call(Arc::new(unpack_prog(items.get(1).unwrap())?))),
-        other => Err(malformed(IMPORT_OP, format!("unknown rhs {other}"))),
+        ":rcall" => Ok(CompiledRhs::Call(Arc::new(unpack_prog(items.get(1).unwrap(), span)?))),
+        other => Err(malformed(span, IMPORT_OP, format!("unknown rhs {other}"))),
     }
 }
 
@@ -1021,20 +1026,12 @@ fn pack_node(node: &Value, classes: &mut ClassIntern, sym: &SymbolTable) -> Valu
     };
     match kind_of(node) {
         "AlphaNode" => {
-            let class_idx = node_record(node)
-                .and_then(|(_, sf)| match &sf[1] {
-                    Value::wat__core__PersistentVector(pv) => {
-                        pv.first().and_then(|v| match v {
-                            Value::wat__WatAST(ast) => alpha_pattern(ast).map(|p| {
-                                let ty = p.type_head.to_string();
-                                let fs = class_field_names(sym, &ty);
-                                classes.intern(&ty, fs)
-                            }),
-                            _ => None,
-                        })
-                    }
-                    _ => None,
-                })
+            let class_idx = alpha_cond_from_node(node)
+                .and_then(|ast| alpha_pattern(&ast).map(|p| {
+                    let ty = p.type_head.to_string();
+                    let fs = class_field_names(sym, &ty);
+                    classes.intern(&ty, fs)
+                }))
                 .unwrap_or(-1);
             let mut xs = vec![kw(":a"), Value::i64(id), Value::i64(class_idx)];
             xs.extend(pack_children(node));
@@ -1136,10 +1133,10 @@ fn pack_node(node: &Value, classes: &mut ClassIntern, sym: &SymbolTable) -> Valu
     }
 }
 
-fn unpack_i64s(items: &[Value], skip: usize) -> Result<Vec<i64>, EvalBreak> {
+fn unpack_i64s(items: &[Value], skip: usize, span: &Span) -> Result<Vec<i64>, EvalBreak> {
     let mut out = Vec::new();
     for x in items.iter().skip(skip) {
-        out.push(expect_i64(x, IMPORT_OP)?);
+        out.push(expect_i64(x, IMPORT_OP, span)?);
     }
     Ok(out)
 }
@@ -1154,14 +1151,14 @@ fn i64_pv(ids: &[i64]) -> Value {
 
 type UnpackedNode = (i64, Value, Option<(String, i64)>);
 
-fn unpack_node(v: &Value) -> Result<UnpackedNode, EvalBreak> {
-    let items = expect_seq(v, IMPORT_OP)?;
-    let tag = expect_kw(items.first().unwrap(), IMPORT_OP)?;
+fn unpack_node(v: &Value, span: &Span) -> Result<UnpackedNode, EvalBreak> {
+    let items = expect_seq(v, IMPORT_OP, span)?;
+    let tag = expect_kw(items.first().unwrap(), IMPORT_OP, span)?;
     match tag {
         ":a" => {
-            let id = expect_i64(items.get(1).unwrap(), IMPORT_OP)?;
-            let class_idx = expect_i64(items.get(2).unwrap(), IMPORT_OP)?;
-            let kids = unpack_i64s(&items, 3)?;
+            let id = expect_i64(items.get(1).unwrap(), IMPORT_OP, span)?;
+            let class_idx = expect_i64(items.get(2).unwrap(), IMPORT_OP, span)?;
+            let kids = unpack_i64s(&items, 3, span)?;
             let rec = record(
                 "wat::rete::AlphaNode",
                 ALPHA_FIELDS,
@@ -1175,28 +1172,28 @@ fn unpack_node(v: &Value) -> Result<UnpackedNode, EvalBreak> {
             Ok((id, rec, class))
         }
         ":j" => {
-            let id = expect_i64(items.get(1).unwrap(), IMPORT_OP)?;
-            let kids = unpack_i64s(&items, 2)?;
+            let id = expect_i64(items.get(1).unwrap(), IMPORT_OP, span)?;
+            let kids = unpack_i64s(&items, 2, span)?;
             let rec = record(
                 "wat::rete::RootJoinNode",
                 ROOT_FIELDS,
-                vec![Value::i64(id), i64_pv(&kids), empty_pv()],
+                vec![Value::i64(id), i64_pv(&kids)],
             );
             Ok((id, rec, None))
         }
         ":h" => {
-            let id = expect_i64(items.get(1).unwrap(), IMPORT_OP)?;
-            let kids = unpack_i64s(&items, 2)?;
+            let id = expect_i64(items.get(1).unwrap(), IMPORT_OP, span)?;
+            let kids = unpack_i64s(&items, 2, span)?;
             let rec = record(
                 "wat::rete::HashJoinNode",
                 HASH_FIELDS,
-                vec![Value::i64(id), i64_pv(&kids), empty_pv()],
+                vec![Value::i64(id), i64_pv(&kids)],
             );
             Ok((id, rec, None))
         }
         ":p" => {
-            let id = expect_i64(items.get(1).unwrap(), IMPORT_OP)?;
-            let name = expect_str(items.get(2).unwrap(), IMPORT_OP)?.to_string();
+            let id = expect_i64(items.get(1).unwrap(), IMPORT_OP, span)?;
+            let name = expect_str(items.get(2).unwrap(), IMPORT_OP, span)?.to_string();
             let rec = record(
                 "wat::rete::ProductionNode",
                 PROD_FIELDS,
@@ -1205,19 +1202,19 @@ fn unpack_node(v: &Value) -> Result<UnpackedNode, EvalBreak> {
             Ok((id, rec, None))
         }
         ":t" => {
-            let id = expect_i64(items.get(1).unwrap(), IMPORT_OP)?;
-            let kids = unpack_i64s(&items, 2)?;
+            let id = expect_i64(items.get(1).unwrap(), IMPORT_OP, span)?;
+            let kids = unpack_i64s(&items, 2, span)?;
             let rec = record(
                 "wat::rete::TestNode",
                 TEST_FIELDS,
-                vec![Value::i64(id), dummy_ast(), i64_pv(&kids)],
+                vec![Value::i64(id), dummy_ast(span), i64_pv(&kids)],
             );
             Ok((id, rec, None))
         }
         ":n" => {
-            let id = expect_i64(items.get(1).unwrap(), IMPORT_OP)?;
-            let aid = expect_i64(items.get(2).unwrap(), IMPORT_OP)?;
-            let kids = unpack_i64s(&items, 3)?;
+            let id = expect_i64(items.get(1).unwrap(), IMPORT_OP, span)?;
+            let aid = expect_i64(items.get(2).unwrap(), IMPORT_OP, span)?;
+            let kids = unpack_i64s(&items, 3, span)?;
             let rec = record(
                 "wat::rete::NegationNode",
                 NEG_FIELDS,
@@ -1226,9 +1223,9 @@ fn unpack_node(v: &Value) -> Result<UnpackedNode, EvalBreak> {
             Ok((id, rec, None))
         }
         ":e" => {
-            let id = expect_i64(items.get(1).unwrap(), IMPORT_OP)?;
-            let aid = expect_i64(items.get(2).unwrap(), IMPORT_OP)?;
-            let kids = unpack_i64s(&items, 3)?;
+            let id = expect_i64(items.get(1).unwrap(), IMPORT_OP, span)?;
+            let aid = expect_i64(items.get(2).unwrap(), IMPORT_OP, span)?;
+            let kids = unpack_i64s(&items, 3, span)?;
             let rec = record(
                 "wat::rete::ExistsNode",
                 EXISTS_FIELDS,
@@ -1237,17 +1234,17 @@ fn unpack_node(v: &Value) -> Result<UnpackedNode, EvalBreak> {
             Ok((id, rec, None))
         }
         ":acc" => {
-            let id = expect_i64(items.get(1).unwrap(), IMPORT_OP)?;
-            let var = expect_str(items.get(2).unwrap(), IMPORT_OP)?.to_string();
-            let aid = expect_i64(items.get(3).unwrap(), IMPORT_OP)?;
-            let kids = unpack_i64s(&items, 4)?;
+            let id = expect_i64(items.get(1).unwrap(), IMPORT_OP, span)?;
+            let var = expect_str(items.get(2).unwrap(), IMPORT_OP, span)?.to_string();
+            let aid = expect_i64(items.get(3).unwrap(), IMPORT_OP, span)?;
+            let kids = unpack_i64s(&items, 4, span)?;
             let rec = record(
                 "wat::rete::AccumulateNode",
                 ACC_FIELDS,
                 vec![
                     Value::i64(id),
                     Value::String(Arc::new(var)),
-                    dummy_ast(),
+                    dummy_ast(span),
                     Value::i64(aid),
                     i64_pv(&kids),
                 ],
@@ -1255,8 +1252,8 @@ fn unpack_node(v: &Value) -> Result<UnpackedNode, EvalBreak> {
             Ok((id, rec, None))
         }
         ":q" => {
-            let id = expect_i64(items.get(1).unwrap(), IMPORT_OP)?;
-            let name = expect_str(items.get(2).unwrap(), IMPORT_OP)?.to_string();
+            let id = expect_i64(items.get(1).unwrap(), IMPORT_OP, span)?;
+            let name = expect_str(items.get(2).unwrap(), IMPORT_OP, span)?.to_string();
             let mut params = rpds::VectorSync::new_sync();
             for x in items.iter().skip(3) {
                 params.push_back_mut(x.clone());
@@ -1272,24 +1269,24 @@ fn unpack_node(v: &Value) -> Result<UnpackedNode, EvalBreak> {
             );
             Ok((id, rec, None))
         }
-        other => Err(malformed(IMPORT_OP, format!("unknown node {other}"))),
+        other => Err(malformed(span, IMPORT_OP, format!("unknown node {other}"))),
     }
 }
 
 // ── Session field readers ────────────────────────────────────────────────────
 
-fn session_network_rules(session: &Value) -> Result<(&Value, &Value), EvalBreak> {
-    match session {
-        Value::Aggregate(a) if a.nature != Nature::Struct && a.class.as_ref() == "wat::rete::Session" => {
-            let sf = a.fields.as_slice();
-            Ok((&sf[0], &sf[1]))
-        }
-        other => Err(RuntimeError::new(
-            crate::rust_caller_span!(),
+fn session_network_rules<'a>(
+    session: &'a Value,
+    span: &Span,
+) -> Result<(&'a Value, &'a Value), EvalBreak> {
+    match (session_network(session), session_named_field(session, "rules")) {
+        (Some(network), Some(rules)) => Ok((network, rules)),
+        _ => Err(RuntimeError::new(
+            span.clone(),
             RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: ":wat::rete::Session",
-                got: Box::new(ValueSnapshot::of(other)),
+                got: Box::new(ValueSnapshot::of(session)),
             },
         )
         .into()),
@@ -1326,7 +1323,7 @@ pub(crate) fn eval_export(
         .into());
     }
     let session = crate::runtime::eval_inner(&args[0], env, sym)?.value_owned();
-    let (network, rules) = session_network_rules(&session)?;
+    let (network, rules) = session_network_rules(&session, list_span)?;
     let arm = rete_arm_get_or_build(network, rules, sym)?;
     let mut classes = ClassIntern::new();
     let mut nodes = Vec::new();
@@ -1377,38 +1374,38 @@ fn pack_deps(deps: &[RuleDep]) -> Value {
             pv(d.produced.iter().map(|s| Value::String(Arc::new(s.clone())))),
             pv(d.negated.iter().map(|s| Value::String(Arc::new(s.clone())))),
             pv(d.consumed.iter().map(|s| Value::String(Arc::new(s.clone())))),
-            pv(d.bag.iter().map(|s| Value::String(Arc::new(s.clone())))),
+            pv(d.exists_and_from_types.iter().map(|s| Value::String(Arc::new(s.clone())))),
         ])
     }))
 }
 
-fn unpack_string_list(v: &Value) -> Result<Vec<String>, EvalBreak> {
-    let xs = expect_seq(v, IMPORT_OP)?;
+fn unpack_string_list(v: &Value, span: &Span) -> Result<Vec<String>, EvalBreak> {
+    let xs = expect_seq(v, IMPORT_OP, span)?;
     let mut out = Vec::new();
     for x in xs {
-        out.push(expect_str(&x, IMPORT_OP)?.to_string());
+        out.push(expect_str(&x, IMPORT_OP, span)?.to_string());
     }
     Ok(out)
 }
 
-fn unpack_deps(v: &Value) -> Result<Vec<RuleDep>, EvalBreak> {
+fn unpack_deps(v: &Value, span: &Span) -> Result<Vec<RuleDep>, EvalBreak> {
     let mut out = Vec::new();
-    for row in expect_seq(v, IMPORT_OP)? {
-        let p = expect_seq(&row, IMPORT_OP)?;
+    for row in expect_seq(v, IMPORT_OP, span)? {
+        let p = expect_seq(&row, IMPORT_OP, span)?;
         if p.len() < 4 {
-            return Err(malformed(IMPORT_OP, "deps row needs name + 3 lists"));
+            return Err(malformed(span, IMPORT_OP, "deps row needs name + 3 lists"));
         }
         let bag = if p.len() >= 5 {
-            unpack_string_list(&p[4])?
+            unpack_string_list(&p[4], span)?
         } else {
             Vec::new()
         };
         out.push(RuleDep {
-            name: expect_str(&p[0], IMPORT_OP)?.to_string(),
-            produced: unpack_string_list(&p[1])?,
-            negated: unpack_string_list(&p[2])?,
-            consumed: unpack_string_list(&p[3])?,
-            bag,
+            name: expect_str(&p[0], IMPORT_OP, span)?.to_string(),
+            produced: unpack_string_list(&p[1], span)?,
+            negated: unpack_string_list(&p[2], span)?,
+            consumed: unpack_string_list(&p[3], span)?,
+            exists_and_from_types: bag,
         });
     }
     Ok(out)
@@ -1417,7 +1414,7 @@ fn unpack_deps(v: &Value) -> Result<Vec<RuleDep>, EvalBreak> {
 /// `(:wat::rete::import <export>) -> :wat::rete::Session`
 ///
 /// Slim topology, interned arm, empty facts. Fire does not lower.
-/// Stratify schedule is `:deps` (produced / negated / consumed class names).
+/// Stratify schedule is `:deps` (produced / negated / consumed / exists-and-from class names).
 pub(crate) fn eval_import(
     args: &[WatAST],
     list_span: &Span,
@@ -1436,15 +1433,15 @@ pub(crate) fn eval_import(
         .into());
     }
     let export = crate::runtime::eval_inner(&args[0], env, sym)?.value_owned();
-    import_export(&export, sym)
+    import_export(&export, list_span, sym)
 }
 
-fn import_export(export: &Value, sym: &SymbolTable) -> Result<Value, EvalBreak> {
+fn import_export(export: &Value, span: &Span, sym: &SymbolTable) -> Result<Value, EvalBreak> {
     let agg = match export {
         Value::Aggregate(a) if a.nature != Nature::Struct && a.class.as_ref() == "wat::rete::Export" => a,
         other => {
             return Err(RuntimeError::new(
-                crate::rust_caller_span!(),
+                span.clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: IMPORT_OP.into(),
                     expected: ":wat::rete::Export",
@@ -1456,34 +1453,36 @@ fn import_export(export: &Value, sym: &SymbolTable) -> Result<Value, EvalBreak> 
     };
     let sf = agg.fields.as_slice();
     if sf.len() < 10 {
-        return Err(malformed(IMPORT_OP, "Export missing fields"));
+        return Err(malformed(span, IMPORT_OP, "Export missing fields"));
     }
-    let v = expect_i64(&sf[0], IMPORT_OP)?;
+    let v = expect_i64(&sf[0], IMPORT_OP, span)?;
     if v != FORMAT_V {
         return Err(malformed(
+            span,
             IMPORT_OP,
             format!("unsupported Export version {v}"),
         ));
     }
-    let stored_abi = expect_str(&sf[1], IMPORT_OP)?;
-    let classes_pv = expect_seq(&sf[2], IMPORT_OP)?;
+    let stored_abi = expect_str(&sf[1], IMPORT_OP, span)?;
+    let classes_pv = expect_seq(&sf[2], IMPORT_OP, span)?;
     let mut classes = Vec::new();
     for c in classes_pv.iter() {
-        classes.push(expect_str(c, IMPORT_OP)?.to_string());
+        classes.push(expect_str(c, IMPORT_OP, span)?.to_string());
     }
-    let fields_pv = expect_seq(&sf[3], IMPORT_OP)?;
+    let fields_pv = expect_seq(&sf[3], IMPORT_OP, span)?;
     let mut fields = Vec::new();
     for row in fields_pv.iter() {
-        let rp = expect_seq(row, IMPORT_OP)?;
+        let rp = expect_seq(row, IMPORT_OP, span)?;
         let mut fs = Vec::new();
         for f in rp.iter() {
-            fs.push(expect_str(f, IMPORT_OP)?.to_string());
+            fs.push(expect_str(f, IMPORT_OP, span)?.to_string());
         }
         fields.push(fs);
     }
     let expect_abi = abi_of(&classes, &fields);
     if stored_abi != expect_abi {
         return Err(malformed(
+            span,
             IMPORT_OP,
             "ABI mismatch — export is from a different packed-classes/RETE_OPS",
         ));
@@ -1494,19 +1493,20 @@ fn import_export(export: &Value, sym: &SymbolTable) -> Result<Value, EvalBreak> 
         let host = class_field_names(sym, c);
         if !host.is_empty() && &host != packed {
             return Err(malformed(
+                span,
                 IMPORT_OP,
                 format!("ABI mismatch — host TypeEnv field-order for {c} differs from export"),
             ));
         }
     }
 
-    let nodes_pv = expect_seq(&sf[4], IMPORT_OP)?;
+    let nodes_pv = expect_seq(&sf[4], IMPORT_OP, span)?;
     let mut network_pairs = Vec::new();
     let mut alpha_by_type: AlphasByType = HashMap::new();
     let mut alpha_class: HashMap<i64, String> = HashMap::new();
     let mut max_id = 0i64;
     for n in nodes_pv.iter() {
-        let (id, rec, class_hint) = unpack_node(n)?;
+        let (id, rec, class_hint) = unpack_node(n, span)?;
         if id > max_id {
             max_id = id;
         }
@@ -1523,42 +1523,42 @@ fn import_export(export: &Value, sym: &SymbolTable) -> Result<Value, EvalBreak> 
     let network = Value::wat__core__PersistentMap(PMap::from_pairs(network_pairs));
 
     let mut compiled_conds = HashMap::new();
-    for pair in expect_seq(&sf[5], IMPORT_OP)? {
-        let p = expect_seq(&pair, IMPORT_OP)?;
+    for pair in expect_seq(&sf[5], IMPORT_OP, span)? {
+        let p = expect_seq(&pair, IMPORT_OP, span)?;
         compiled_conds.insert(
-            expect_i64(&p[0], IMPORT_OP)?,
-            unpack_compiled_cond(&p[1])?,
+            expect_i64(&p[0], IMPORT_OP, span)?,
+            unpack_compiled_cond(&p[1], span)?,
         );
     }
     let mut compiled_drivers = HashMap::new();
-    for pair in expect_seq(&sf[6], IMPORT_OP)? {
-        let p = expect_seq(&pair, IMPORT_OP)?;
-        compiled_drivers.insert(expect_i64(&p[0], IMPORT_OP)?, unpack_driver(&p[1])?);
+    for pair in expect_seq(&sf[6], IMPORT_OP, span)? {
+        let p = expect_seq(&pair, IMPORT_OP, span)?;
+        compiled_drivers.insert(expect_i64(&p[0], IMPORT_OP, span)?, unpack_driver(&p[1], span)?);
     }
     let mut compiled_wheres = HashMap::new();
-    for pair in expect_seq(&sf[7], IMPORT_OP)? {
-        let p = expect_seq(&pair, IMPORT_OP)?;
-        compiled_wheres.insert(expect_i64(&p[0], IMPORT_OP)?, unpack_prog(&p[1])?);
+    for pair in expect_seq(&sf[7], IMPORT_OP, span)? {
+        let p = expect_seq(&pair, IMPORT_OP, span)?;
+        compiled_wheres.insert(expect_i64(&p[0], IMPORT_OP, span)?, unpack_prog(&p[1], span)?);
     }
     let mut compiled_acc_folds = HashMap::new();
-    for pair in expect_seq(&sf[8], IMPORT_OP)? {
-        let p = expect_seq(&pair, IMPORT_OP)?;
-        compiled_acc_folds.insert(expect_i64(&p[0], IMPORT_OP)?, unpack_fold(&p[1])?);
+    for pair in expect_seq(&sf[8], IMPORT_OP, span)? {
+        let p = expect_seq(&pair, IMPORT_OP, span)?;
+        compiled_acc_folds.insert(expect_i64(&p[0], IMPORT_OP, span)?, unpack_fold(&p[1], span)?);
     }
     let mut compiled_rhs: CompiledRhsByRule = HashMap::new();
-    for pair in expect_seq(&sf[9], IMPORT_OP)? {
-        let p = expect_seq(&pair, IMPORT_OP)?;
-        let name = expect_str(&p[0], IMPORT_OP)?.to_string();
-        let items = expect_seq(&p[1], IMPORT_OP)?;
+    for pair in expect_seq(&sf[9], IMPORT_OP, span)? {
+        let p = expect_seq(&pair, IMPORT_OP, span)?;
+        let name = expect_str(&p[0], IMPORT_OP, span)?.to_string();
+        let items = expect_seq(&p[1], IMPORT_OP, span)?;
         let mut rs = Vec::new();
         for x in &items {
-            rs.push(unpack_rhs(x)?);
+            rs.push(unpack_rhs(x, span)?);
         }
         compiled_rhs.insert(name, rs);
     }
 
     let rule_deps = if sf.len() > 10 {
-        unpack_deps(&sf[10])?
+        unpack_deps(&sf[10], span)?
     } else {
         Vec::new()
     };
@@ -1566,12 +1566,15 @@ fn import_export(export: &Value, sym: &SymbolTable) -> Result<Value, EvalBreak> 
     let node_ids = sorted_node_ids(&network);
     let mut feeding_alpha_of: HashMap<i64, i64> = HashMap::new();
     let mut parents_of: ParentsOf = HashMap::new();
+    let mut children_of: HashMap<i64, Vec<i64>> = HashMap::new();
     for node_id in &node_ids {
         let Some(node) = get_node(&network, *node_id) else {
             continue;
         };
+        let kids = node_children(node);
+        children_of.insert(*node_id, kids.clone());
         let is_alpha = kind_of(node) == "AlphaNode";
-        for child in node_children(node) {
+        for child in kids {
             if is_alpha {
                 feeding_alpha_of.insert(child, *node_id);
             } else {
@@ -1597,6 +1600,8 @@ fn import_export(export: &Value, sym: &SymbolTable) -> Result<Value, EvalBreak> 
     let where_tree = crate::rete::where_tree::WhereTree::build(&compiled_wheres);
     let kind_ids = kind_id_lists(&network, &node_ids);
     let joins_fed_by = invert_feeding_alpha(&feeding_alpha_of);
+    let test_sibs = crate::rete::kernel::build_test_sibs(&network, &node_ids, &parents_of);
+    let test_children = crate::rete::kernel::build_test_children(&network, &node_ids);
     let arm = Arc::new(InternedNetwork {
         node_ids,
         kind_ids,
@@ -1614,6 +1619,9 @@ fn import_export(export: &Value, sym: &SymbolTable) -> Result<Value, EvalBreak> 
         compiled_max_slots,
         rule_deps,
         alpha_class,
+        test_sibs,
+        test_children,
+        children_of,
     });
     if let Some(id) = network_identity(&network) {
         rete_arm_intern(id, &arm);

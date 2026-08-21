@@ -98,12 +98,21 @@ pub(crate) fn seen_insert(ids: &mut FxHashSet<u64>, rest: &mut FxHashSet<Value>,
     }
 }
 
+/// fire-rules vs fire-once share the delta walk. Once is one round and
+/// keeps alpha/beta (oracle `fire-once$oracle`); Rules cascades and drops
+/// scratch memories before freeze.
+#[derive(Clone, Copy)]
+pub(crate) enum FireKind {
+    Rules,
+    Once,
+}
+
 pub(crate) fn fire_fixpoint_delta(
     session: &Value,
     sym: &SymbolTable,
     support: Option<&mut HashMap<Value, (String, Value)>>,
 ) -> Result<Value, EvalBreak> {
-    fire_fixpoint_delta_armed(session, sym, support, None)
+    fire_fixpoint_delta_armed(session, sym, support, None, FireKind::Rules)
 }
 
 /// Same as [`fire_fixpoint_delta`], with a prebuilt arm. Stratify holds the
@@ -113,6 +122,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
     sym: &SymbolTable,
     mut support: Option<&mut HashMap<Value, (String, Value)>>,
     pre_arm: Option<Arc<crate::rete::kernel::InternedNetwork>>,
+    kind: FireKind,
 ) -> Result<Value, EvalBreak> {
     let __in = phase_start();
     let mut wm = to_transient(session)?;
@@ -164,7 +174,8 @@ pub(crate) fn fire_fixpoint_delta_armed(
         None => rete_arm_get_or_build(&wm.network, &wm.rules, sym)?,
     };
     phase_end("  ├ setup:arm", __arm);
-    let node_ids = arm.node_ids.clone();
+    #[cfg(test)]
+    let node_ids = arm.node_ids.as_slice();
     let kind_ids = &arm.kind_ids;
     let compiled_conds = &arm.compiled_conds;
     let compiled_drivers = &arm.compiled_drivers;
@@ -176,6 +187,8 @@ pub(crate) fn fire_fixpoint_delta_armed(
     let feeding_alpha_of = &arm.feeding_alpha_of;
     let parents_of = &arm.parents_of;
     let beta_readers = &arm.beta_readers;
+    let test_sibs_of = &arm.test_sibs;
+    let test_children = &arm.test_children;
 
     // P6 — persistent join indexes, maintained ACROSS rounds (never rebuilt).
     // Keyed by HashJoinNode id J.
@@ -185,6 +198,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
     let mut left_idx: JoinLeftIndex = HashMap::new();
     let mut right_idx: JoinRightIndex = HashMap::new();
     let mut join_keys_cache: JoinKeysCache = HashMap::new();
+    let mut right_idx_n: HashMap<i64, usize> = HashMap::new();
     // P6-for-gathers: persist across rounds, append d_alpha
     // (`DESIGN-STONE-persist-gather-across-rounds`). Not a Session field.
     let mut gather_cache: GatherCache = FxHashMap::default();
@@ -279,22 +293,17 @@ pub(crate) fn fire_fixpoint_delta_armed(
         // ── 2. Root-join delta: seed tokens from NEW elements (d_alpha) only. ───
         let __pt1 = phase_start();
         for node_id in &kind_ids.alpha {
-            // Group C: use &Value ref — no clone; kind_of/node_children take &Value.
-            let node = match get_node(&wm.network, *node_id) {
-                Some(n) => n,
-                None => continue,
-            };
-            if kind_of(node) != "AlphaNode" {
-                continue;
-            }
             // New this round: indices into wm.alpha[node_id].
             let new_idxs = match d_alpha.get(node_id) {
                 Some(ix) if !ix.is_empty() => ix.as_slice(),
                 _ => continue,
             };
-            let child_ids = node_children(node);
-            // node's last use is node_children above; wm.network borrow for `node` ends here (NLL).
-            for child_id in &child_ids {
+            let child_ids: &[i64] = arm
+                .children_of
+                .get(node_id)
+                .map(|v| v.as_slice())
+                .unwrap_or(&[]);
+            for child_id in child_ids {
                 // Group C: child_node ref — only used for kind_of; borrow ends before wm mutations.
                 let child_node = match get_node(&wm.network, *child_id) {
                     Some(n) => n,
@@ -446,7 +455,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
                         let ridx = right_idx.entry(*child_id).or_default();
                         for el in &all_right {
                             let el_b = element_fact_bindings(el, &wm.bind_keys, &wm.bind_vals, &wm.bind_pool);
-                            let k = key_of(&el_b, jk);
+                            let k = key_of(&el_b, jk, &wm.bind_val_ids);
                             ridx.entry(k).or_default().push(*el);
                         }
                     }
@@ -466,7 +475,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
                     let mut new_tokens: Vec<Token> = Vec::with_capacity(n_join);
                     if let Some(ridx) = right_idx.get(child_id) {
                         for tok in &all_left {
-                            let k = key_of(&bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds), jk);
+                            let k = key_of(&bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds), jk, &wm.bind_val_ids);
                             if let Some(bucket) = ridx.get(&k) {
                                 for el in bucket {
                                     if let Some(new_tok) = join_extend(
@@ -480,6 +489,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
                                             match_pool: &mut wm.match_pool,
                                             keys: &wm.bind_keys,
                                             vals: &wm.bind_vals,
+                                            val_ids: &wm.bind_val_ids,
                                             facts: &wm.facts,
                                             derived: &wm.derived_facts,
                                             n_input: wm.n_input,
@@ -497,7 +507,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
                     {
                         let lidx = left_idx.entry(*child_id).or_default();
                         for tok in all_left {
-                            let k = key_of(&bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds), jk);
+                            let k = key_of(&bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds), jk, &wm.bind_val_ids);
                             lidx.entry(k).or_default().push(tok);
                         }
                     }
@@ -550,7 +560,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
                     for &ei in dr {
                         let el = &right_mem[ei];
                         let el_b = element_fact_bindings(el, &wm.bind_keys, &wm.bind_vals, &wm.bind_pool);
-                        let k = key_of(&el_b, jk);
+                        let k = key_of(&el_b, jk, &wm.bind_val_ids);
                         ridx.entry(k).or_default().push(*el);
                     }
                 }
@@ -563,7 +573,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
                 if !dl.is_empty() {
                     if let Some(ridx) = right_idx.get(child_id) {
                         for tok in dl {
-                            let k = key_of(&bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds), jk);
+                            let k = key_of(&bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds), jk, &wm.bind_val_ids);
                             if let Some(bucket) = ridx.get(&k) {
                                 for el in bucket {
                                     if let Some(new_tok) = join_extend(
@@ -577,6 +587,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
                                             match_pool: &mut wm.match_pool,
                                             keys: &wm.bind_keys,
                                             vals: &wm.bind_vals,
+                                            val_ids: &wm.bind_val_ids,
                                             facts: &wm.facts,
                                             derived: &wm.derived_facts,
                                             n_input: wm.n_input,
@@ -601,7 +612,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
                         for &ei in dr {
                             let el = &right_mem[ei];
                             let el_b = element_fact_bindings(el, &wm.bind_keys, &wm.bind_vals, &wm.bind_pool);
-                            let k = key_of(&el_b, jk);
+                            let k = key_of(&el_b, jk, &wm.bind_val_ids);
                             if let Some(bucket) = lidx.get(&k) {
                                 for tok in bucket {
                                     if let Some(new_tok) = join_extend(
@@ -615,6 +626,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
                                             match_pool: &mut wm.match_pool,
                                             keys: &wm.bind_keys,
                                             vals: &wm.bind_vals,
+                                            val_ids: &wm.bind_val_ids,
                                             facts: &wm.facts,
                                             derived: &wm.derived_facts,
                                             n_input: wm.n_input,
@@ -635,7 +647,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
                 {
                     let lidx = left_idx.entry(*child_id).or_default();
                     for tok in dl {
-                        let k = key_of(&bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds), jk);
+                        let k = key_of(&bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds), jk, &wm.bind_val_ids);
                         lidx.entry(k).or_default().push(*tok);
                     }
                 }
@@ -749,8 +761,8 @@ pub(crate) fn fire_fixpoint_delta_armed(
             let operand_keys = acc_fold.operand_keys();
             let __fd = phase_start();
             for tok in new_tokens {
-                let key = key_of(&bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds), &join_keys);
-                let bucket: &[usize] = index.bucket(&key, &wm.bind_val_ids);
+                let key = key_of(&bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds), &join_keys, &wm.bind_val_ids);
+                let bucket: &[usize] = index.bucket(&key);
                 let group_keys: Vec<Value> = from_keys
                     .iter()
                     .filter(|k| {
@@ -998,25 +1010,13 @@ pub(crate) fn fire_fixpoint_delta_armed(
                     capture_where_sample(ast.as_ref(), &new_tokens, &wm.bind_keys, &wm.bind_vals, &wm.bind_pool);
                 }
                 // Siblings that share this TestNode's parent set see the same token
-                // stream — dispatch once through the where-tree (b).
-                let pkey = sorted_parents_of(parents_of, *node_id);
-                let mut sibs: Vec<i64> = Vec::new();
-                for oid in &node_ids {
-                    if tests_done.contains(oid) {
-                        continue;
-                    }
-                    let Some(on) = get_node(&wm.network, *oid) else {
-                        continue;
-                    };
-                    if kind_of(on) != "TestNode" {
-                        continue;
-                    }
-                    if sorted_parents_of(parents_of, *oid) == pkey {
-                        sibs.push(*oid);
-                    }
-                }
+                // stream — dispatch once through the interned where-tree groups.
+                let sibs: &[i64] = test_sibs_of
+                    .get(node_id)
+                    .map(|v| v.as_slice())
+                    .unwrap_or(std::slice::from_ref(node_id));
                 dispatch_where_tests(
-                    &sibs,
+                    sibs,
                     &new_tokens,
                     &mut WhereSink {
                         where_tree,
@@ -1104,10 +1104,16 @@ pub(crate) fn fire_fixpoint_delta_armed(
                     Some(els) if !els.is_empty() => els.as_slice(),
                     _ => continue,
                 };
-                let joined = keyed_join(
+                let joined = keyed_join_persistent(
                     &new_tokens,
                     elements,
                     alpha_id,
+                    *child_id,
+                    &mut FilterJoinIdx {
+                        right_idx: &mut right_idx,
+                        join_keys_cache: &mut join_keys_cache,
+                        indexed_n: &mut right_idx_n,
+                    },
                     &mut FireCtx {
                         compiled_conds,
                         scratch: &mut match_scratch,
@@ -1115,6 +1121,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
                         match_pool: &mut wm.match_pool,
                         keys: &wm.bind_keys,
                         vals: &wm.bind_vals,
+                        val_ids: &wm.bind_val_ids,
                         facts: &wm.facts,
                         derived: &wm.derived_facts,
                         n_input: wm.n_input,
@@ -1168,17 +1175,10 @@ pub(crate) fn fire_fixpoint_delta_armed(
                     };
                     if fkind == "TestNode" {
                         if !tests_dispatched {
-                            let test_sibs: Vec<i64> = filter_kids
-                                .iter()
-                                .copied()
-                                .filter(|id| {
-                                    get_node(&wm.network, *id)
-                                        .map(|n| kind_of(n) == "TestNode")
-                                        .unwrap_or(false)
-                                })
-                                .collect();
+                            let empty: Vec<i64> = Vec::new();
+                            let test_sibs = test_children.get(&hj_id).unwrap_or(&empty);
                             dispatch_where_tests(
-                                &test_sibs,
+                                test_sibs,
                                 &new_tokens,
                                 &mut WhereSink {
                                     where_tree,
@@ -1239,18 +1239,11 @@ pub(crate) fn fire_fixpoint_delta_armed(
                             _ => continue,
                         };
                         let kids = node_children(fnode);
-                        let test_sibs: Vec<i64> = kids
-                            .iter()
-                            .copied()
-                            .filter(|id| {
-                                get_node(&wm.network, *id)
-                                    .map(|n| kind_of(n) == "TestNode")
-                                    .unwrap_or(false)
-                            })
-                            .collect();
+                        let empty: Vec<i64> = Vec::new();
+                        let test_sibs = test_children.get(&fid).unwrap_or(&empty);
                         if !test_sibs.is_empty() {
                             dispatch_where_tests(
-                                &test_sibs,
+                                test_sibs,
                                 &parent_toks,
                                 &mut WhereSink {
                                     where_tree,
@@ -1278,10 +1271,16 @@ pub(crate) fn fire_fixpoint_delta_armed(
                                     Some(els) if !els.is_empty() => els.as_slice(),
                                     _ => continue,
                                 };
-                                let joined = keyed_join(
+                                let joined = keyed_join_persistent(
                                     &parent_toks,
                                     elements,
                                     alpha_id,
+                                    gc_id,
+                                    &mut FilterJoinIdx {
+                                        right_idx: &mut right_idx,
+                                        join_keys_cache: &mut join_keys_cache,
+                                        indexed_n: &mut right_idx_n,
+                                    },
                                     &mut FireCtx {
                                         compiled_conds,
                                         scratch: &mut match_scratch,
@@ -1289,6 +1288,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
                                         match_pool: &mut wm.match_pool,
                                         keys: &wm.bind_keys,
                                         vals: &wm.bind_vals,
+                                        val_ids: &wm.bind_val_ids,
                                         facts: &wm.facts,
                                         derived: &wm.derived_facts,
                                         n_input: wm.n_input,
@@ -1460,7 +1460,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
             let mut beta_by_node: Vec<(i64, &'static str, usize)> = Vec::new();
             let mut beta_tokens: usize = 0;
             let mut beta_token_matches: usize = 0;
-            for node_id in &node_ids {
+            for node_id in node_ids {
                 let toks = match wm.beta.get(node_id) {
                     Some(t) if !t.is_empty() => t,
                     _ => continue,
@@ -1485,7 +1485,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
             // `d_beta` is also the more honest instrument for "did this join re-run per rule?" —
             // it is what the node PRODUCED, where beta was a cumulative copy of the same tokens.
             let mut d_beta_by_node: Vec<(i64, &'static str, usize)> = Vec::new();
-            for node_id in &node_ids {
+            for node_id in node_ids {
                 let toks = match d_beta.get(node_id) {
                     Some(t) if !t.is_empty() => t,
                     _ => continue,
@@ -1541,7 +1541,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
             owned_delta = next_delta;
         }
         phase_end("  └ round:epilogue", __ep);
-        if __done {
+        if __done || matches!(kind, FireKind::Once) {
             break;
         }
     }
@@ -1604,18 +1604,20 @@ pub(crate) fn fire_fixpoint_delta_armed(
         }
     }
 
-    harvest_query_memory(&mut wm);
+    harvest_query_memory(&mut wm, parents_of);
     let __drop = phase_start();
-    wm.alpha.clear();
-    // Drop ephemeral beta tokens before freeze — derived facts live in production-memory.
-    // (Re-generated on every fire; never read from a frozen Session's beta-memory by native fire.)
-    wm.beta.clear();
-    // Pairs last — Element spans must not dangle (`DESIGN-STONE-bind-pool`).
-    wm.bind_pool.clear();
-    wm.bind_keys.clear();
-    wm.bind_vals.clear();
-    wm.bind_val_ids.clear();
-    wm.match_pool.clear();
+    if matches!(kind, FireKind::Rules) {
+        wm.alpha.clear();
+        // Drop ephemeral beta tokens before freeze — derived facts live in production-memory.
+        // (Re-generated on every fire; never read from a frozen Session's beta-memory by native fire.)
+        wm.beta.clear();
+        // Pairs last — Element spans must not dangle (`DESIGN-STONE-bind-pool`).
+        wm.bind_pool.clear();
+        wm.bind_keys.clear();
+        wm.bind_vals.clear();
+        wm.bind_val_ids.clear();
+        wm.match_pool.clear();
+    }
     phase_end("  └ round:drop-memories", __drop);
     phase_end("ROUND LOOP", __rounds);
 
@@ -1635,15 +1637,11 @@ pub(crate) fn fire_fixpoint_delta_armed(
 
 /// `(:wat::rete::fire-rules-explain <session>) -> :wat::rete::Explained`
 ///
-/// P12a: OPT-IN diagnostic fire. Runs the EXACT same delta fixpoint as `fire-rules`
-/// but additionally records, for each derived fact, the token that produced it
-/// (and the rule name). Returns `Explained { session, support }` — `session` is
-/// the same frozen Session the fast path produces; `support` is a
+/// P12a: OPT-IN diagnostic fire. Enters the same stratify-or-delta door as
+/// `fire-rules` and additionally records, for each derived fact, the token
+/// that produced it (and the rule name). Returns `Explained { session, support }`
+/// — `session` is the same frozen Session the fast path produces; `support` is a
 /// `PersistentMap<derived-fact, Support>`.
-///
-/// The fast `fire-rules` / `fire-rules$oracle` are byte-for-byte behaviorally
-/// identical — this is purely additive (the `None`-param path is unchanged; the
-/// `Some`-param path adds provenance).
 pub(crate) fn eval_fire_rules_explain(
     args: &[WatAST],
     list_span: &Span,
@@ -1666,9 +1664,9 @@ pub(crate) fn eval_fire_rules_explain(
     // Evaluate the session argument (mirrors eval_fire_rules_native).
     let session = crate::runtime::eval_inner(&args[0], env, sym)?.value_owned();
 
-    // Run the fixpoint with the support index recording enabled.
+    // Same stratify-or-delta door as fire-rules; support records on both arms.
     let mut idx: HashMap<Value, (String, Value)> = HashMap::new();
-    let session_out = fire_fixpoint_delta(&session, sym, Some(&mut idx))?;
+    let session_out = fire_rules_on_session(&session, sym, Some(&mut idx))?;
 
     // Build the support PersistentMap: derived-fact → Support{rule, token_value}.
     let mut support_pm: rpds::HashTrieMapSync<Value, Value> = rpds::HashTrieMapSync::new_sync();

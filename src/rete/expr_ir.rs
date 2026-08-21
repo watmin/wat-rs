@@ -88,7 +88,8 @@ pub(crate) enum Pat {
     },
 }
 
-pub(crate) type SlotNames = Box<[Option<Arc<str>>]>;
+pub(crate) type SlotName = Option<Arc<str>>;
+pub(crate) type SlotNames = Box<[SlotName]>;
 type ExecArena = Vec<Option<Value>>;
 
 #[derive(Clone, Debug)]
@@ -724,17 +725,7 @@ fn lower_construct(
         let names = a.names_arc();
         let class = head.strip_prefix(':').unwrap_or(head).to_string();
         let args = &items[1..];
-        let is_kwargs = args.len() >= 2
-            && args.len().is_multiple_of(2)
-            && args
-                .iter()
-                .step_by(2)
-                .all(|a| matches!(a, WatAST::Keyword(_, _)));
-        let value_asts: Vec<&WatAST> = if is_kwargs {
-            args.iter().skip(1).step_by(2).collect()
-        } else {
-            args.iter().collect()
-        };
+        let value_asts = crate::rete::eval_insert::rete_kwargs_value_asts(args);
         let mut fields = Vec::with_capacity(value_asts.len());
         for v in value_asts {
             fields.push(lower_expr(v, cx)?);
@@ -870,7 +861,7 @@ fn with_exec_frame<R>(len: usize, f: impl FnOnce(&mut [Option<Value>]) -> R) -> 
 fn exec(
     e: &Expr,
     frame: &mut [Option<Value>],
-    names: &[Option<Arc<str>>],
+    names: &[SlotName],
     sym: &SymbolTable,
     span: &Span,
 ) -> Result<Value, EvalBreak> {
@@ -1084,6 +1075,7 @@ fn exec(
 fn exec_program_on(
     program: &Program,
     args: &[Value],
+    // rune:perspicere(intentional-structure) — SlotFrame row; alias body would hide the slot layout
     parent: Option<&[Option<Value>]>,
     sym: &SymbolTable,
     span: &Span,
@@ -1121,7 +1113,7 @@ fn exec_program_on(
 fn exec_foldl(
     args: &[Expr],
     frame: &mut [Option<Value>],
-    names: &[Option<Arc<str>>],
+    names: &[SlotName],
     sym: &SymbolTable,
     span: &Span,
 ) -> Result<Value, EvalBreak> {
@@ -1237,7 +1229,7 @@ enum OpExec {
 impl OpExec {
     fn of(core: &str) -> Self {
         match core {
-            ":wat::core::=" | ":wat::core::enum::=" => Self::Eq,
+            ":wat::core::=" => Self::Eq,
             ":wat::core::not=" => Self::NotEq,
             ":wat::core::i64::>" | ":wat::core::>" => Self::Gt,
             ":wat::core::i64::<" | ":wat::core::<" => Self::Lt,
@@ -1255,7 +1247,7 @@ impl OpExec {
             ":wat::core::i64::+" => Self::I64Add,
             ":wat::core::i64::-" => Self::I64Sub,
             ":wat::core::i64::*" => Self::I64Mul,
-            ":wat::core::i64::/" | ":wat::core::i64::quot" | ":wat::core::i64::div" => Self::I64Div,
+            ":wat::core::i64::/" | ":wat::core::i64::quot" => Self::I64Div,
             ":wat::core::i64::rem" => Self::I64Rem,
             ":wat::core::i64::mod" => Self::I64Mod,
             ":wat::core::i64::to-f64" => Self::I64ToF64,
@@ -1548,7 +1540,7 @@ fn apply_core_kind(
         _ => Err(RuntimeError::new(
             span.clone(),
             RuntimeErrorKind::MalformedForm {
-                head: ":wat::rete::apply".into(),
+                head: "compiled-exec".into(),
                 reason: format!("compiled apply cannot dispatch kind {kind:?} arity {}", args.len()),
             },
         )
@@ -1595,7 +1587,7 @@ fn ord(
         None => Err(RuntimeError::new(
             span.clone(),
             RuntimeErrorKind::TypeMismatch {
-                op: ":wat::rete::core::cmp".into(),
+                op: "compiled-compare".into(),
                 expected: "comparable pair",
                 got: Box::new(ValueSnapshot::of(a)),
             },

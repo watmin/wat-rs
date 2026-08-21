@@ -1,8 +1,9 @@
 # DESIGN-STONE — intern index is thread-owned (ZERO-MUTEX)
 
 > **Origin (2026-08-20).** The 512-session protocol is one Session
-> per connection, compile once, fire once, query N, disconnect.
-> N workers run bespoke rete side by side. `InternedNetwork` is
+> per connection, compile once, `fire-rules` once, query N, disconnect
+> (`release-session`). Connection-thread affinity is the contract:
+> each connection lives on the thread that armed it. `InternedNetwork` is
 > already tier 1 (`Arc`, frozen after `build_rete_arm`). The
 > **index** that names those Arcs is
 > `OnceLock<Mutex<HashMap<u64, Arc<InternedNetwork>>>>` in

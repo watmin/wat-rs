@@ -12,10 +12,10 @@
 //!   matcher. Native fire uses compiled exec (`exec_compiled_with_key_ids`).
 //! - Stone 2b — alpha-memory (`insert`); consumes `eval_alpha_match`.
 //! - Stone 3 — cross-fact join (beta network); builds on alpha-memory.
-//! - **Stone 4a** (`matcher.rs`) — `eval_insert`: given a fact form (DATA, a quoted
+//! - **Stone 4a** (`eval_insert.rs`) — `eval_insert`: given a fact form (DATA, a quoted
 //!   `(:RecordType arg…)` — arc 278 Stone A dropped the `insert` RHS-marker wrapper) and a
-//!   token's bindings map, resolve each fact-arg via `resolve_operand` (?var + literal only;
-//!   no current fact) and return the
+//!   token's bindings map, resolve each fact-arg via `resolve_rhs_value` (`?var`, literal, or
+//!   fenced List; fn-headed items are `CompiledRhs::Call` / `build_insert_fact_call`) and return the
 //!   derived `:wat::core::Record`. The RHS dual of `eval_alpha_match`. Raises on malformed form /
 //!   unresolved operand (never silently drops).
 //!
@@ -28,6 +28,12 @@
 //!   `eval-insert`: `[:wat::WatAST, :wat::core::PersistentMap] -> :wat::core::Record`.
 
 pub(crate) mod matcher;
+// `:then` fact construction (interpreter / differential). Native fire uses compiled_rhs.
+pub(crate) mod eval_insert;
+// Fenced `where` / RHS expr eval under token bindings.
+pub(crate) mod eval_test;
+// Explain DerivationStep payload (`step-payload`).
+pub(crate) mod step_payload;
 // Arc 294 item 9a (DESIGN-rete-defrule-wall.md) — the freeze-time `defrule` wall: validates
 // every rule's quoted :when/:then against the type registry (post-register) and reorders
 // :then kwargs to declaration order, so the 9a-corruption class (unrecognized clause /
@@ -57,9 +63,10 @@ pub(crate) mod where_tree;
 // the differential's other half; this is the mechanism that stops it being re-derived dynamically.
 pub(crate) mod compiled_cond;
 // DESIGN-STONE-compiled-rhs.md — compiles each rule's :then insert-form(s) ONCE at setup (beside
-// compiled_conds) into a pre-resolved {class, Vec<RhsOp>} program (no per-fact form re-validation,
-// no per-fact kwargs re-detection, no per-fact ?var key re-allocation). `build_insert_fact` remains
-// the reference implementation and the differential's other half; this is the mechanism that stops
+// compiled_conds) into `CompiledRhs::Record { class, names, ops }` or `CompiledRhs::Call(Program)`
+// (no per-fact form re-validation, no per-fact kwargs re-detection, no per-fact ?var key
+// re-allocation). `compile_rhs` returning `None` is a setup refuse (`rhs_must_compile`);
+// `build_insert_fact` remains the interpreter / differential. This is the mechanism that stops
 // the RHS's static program being re-derived dynamically.
 pub(crate) mod compiled_rhs;
 // DESIGN-STONE-the-one-expression-core — one Expr DAG, three adjacent flips.

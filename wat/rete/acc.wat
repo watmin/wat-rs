@@ -139,11 +139,11 @@
 (:wat::core::defn :wat::rete::acc::group-by
   [var <- :wat::core::String
    els <- :wat::core::PersistentVector<wat::rete::Element>]
-  -> :wat::core::PersistentMap<wat::core::i64,wat::core::PersistentVector<wat::core::Record>>
+  -> :wat::rete::GroupByMap
   (:wat::core::foldl
-    (:wat::core::fn [acc  <- :wat::core::PersistentMap<wat::core::i64,wat::core::PersistentVector<wat::core::Record>>
+    (:wat::core::fn [acc  <- :wat::rete::GroupByMap
                      e    <- :wat::rete::Element]
-      -> :wat::core::PersistentMap<wat::core::i64,wat::core::PersistentVector<wat::core::Record>>
+      -> :wat::rete::GroupByMap
       (:wat::core::let [k    (:wat::core::Option/expect  
                                 (:wat::core::PersistentMap/get (:wat::rete::Element/bindings e) var)
                                 "acc: var unbound")

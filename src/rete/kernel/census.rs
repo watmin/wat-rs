@@ -47,9 +47,10 @@ pub(crate) struct RoundCensus {
     /// Distinct node-ids holding beta tokens, and the total token count across them.
     pub(crate) beta_nodes: usize,
     pub(crate) beta_tokens: usize,
-    /// Σ over every beta token of `matches.len()` — the per-token support-chain edges. This is the
-    /// real memory driver (a Token owns its `Vec<(Value, i64)>`), so it separates "N× more tokens"
-    /// from "same tokens carrying N× longer chains".
+    /// Σ over every beta token of `matches.len()` — the per-token support-chain edges
+    /// (`Token.matches` is a `BindSpan` into `FireSession.match_pool`; the census sums
+    /// those span lengths). Separates "N× more tokens" from "same tokens carrying N×
+    /// longer chains".
     pub(crate) beta_token_matches: usize,
     /// The per-round delta (new-this-round tokens), same two measures.
     pub(crate) d_beta_nodes: usize,

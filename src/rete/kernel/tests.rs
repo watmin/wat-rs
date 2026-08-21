@@ -31,12 +31,27 @@
 
     /// Eval a `src` expression in the cold-and-windy frozen world; panics on error.
     fn ev(src: &str) -> Value {
-        let world = startup_from_source(WORLD, None, Arc::new(InMemoryLoader::new()))
-            .expect("world should freeze");
+        eval_in(&freeze_src(WORLD), src)
+    }
+
+    fn freeze_src(src: &str) -> crate::freeze::FrozenWorld {
+        startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
+            .expect("world should freeze")
+    }
+
+    fn eval_in(world: &crate::freeze::FrozenWorld, src: &str) -> Value {
         let ast = crate::parse_one!(src).expect("parse");
-        eval_in_frozen(&ast, &world, &Environment::new())
+        eval_in_frozen(&ast, world, &Environment::new())
             .unwrap_or_else(|e| panic!("eval raised: {e:?}"))
             .value_owned()
+    }
+
+    fn scratch_wm(session: &Value) -> FireSession {
+        let mut wm = to_transient(session).expect("to_transient should succeed");
+        wm.alpha.clear();
+        wm.beta.clear();
+        wm.production.clear();
+        wm
     }
 
     /// Round-trip a fired `Session` (populated production memory; alpha/beta are fire-scoped
@@ -114,28 +129,18 @@
     ///
     /// Proves the cheap native repr keeps the support chain walkable (the guiding-light invariant).
     /// Runs the four passes directly — NOT via `fire_once_session` (which clears beta before freeze).
+    // rune:complectens(proof-stepping-stones) — P11 kernel proofs document the four-pass
+    // contract; collapsing them would destroy the pass-by-pass diagnostic.
     #[test]
     fn guiding_light_matches_carry_support_chain() {
         use super::{
             alpha_pass, get_node, hash_join_pass, kind_of, production_pass, rete_arm_get_or_build,
             root_join_pass, sorted_node_ids,
         };
-        use crate::freeze::{eval_in_frozen, startup_from_source};
-        use crate::load::InMemoryLoader;
-        use crate::runtime::Environment;
-
         // Build the frozen world and compile + insert facts.
-        let world = startup_from_source(WORLD, None, Arc::new(InMemoryLoader::new()))
-            .expect("world should freeze");
-        let parse_and_eval = |src: &str| -> Value {
-            let ast = crate::parse_one!(src).expect("parse");
-            eval_in_frozen(&ast, &world, &Environment::new())
-                .unwrap_or_else(|e| panic!("eval raised: {e:?}"))
-                .value_owned()
-        };
-
-        // Build a compiled session with two matching facts inserted.
-        let session_with_facts = parse_and_eval(
+        let world = freeze_src(WORLD);
+        let session_with_facts = eval_in(
+            &world,
             "(:wat::core::let \
                [rules (:wat::rete::collect-rules :weather)\
                 s0    (:wat::rete::compile rules)\
@@ -144,15 +149,9 @@
               s2)"
         );
 
-        // Convert to a native FireSession (empty memories — pre-fire).
-        let mut wm = to_transient(&session_with_facts).expect("to_transient should succeed");
+        let mut wm = scratch_wm(&session_with_facts);
 
-        // Clear memories (re-run-from-scratch, same as fire_once_session).
-        wm.alpha.clear();
-        wm.beta.clear();
-        wm.production.clear();
-
-        // Run the four passes (but do NOT call fire_once_session — that clears beta before returning).
+        // Run the four passes (inspect native beta; freeze would drop it).
         let sym = world.symbols();
         let arm = rete_arm_get_or_build(&wm.network, &wm.rules, sym).expect("arm");
         alpha_pass(&mut wm, &arm).expect("alpha_pass");
@@ -283,27 +282,18 @@
     #[test]
     fn root_join_seeds_one_token_per_element() {
         use super::{alpha_pass, rete_arm_get_or_build, root_join_pass};
-        use crate::freeze::{eval_in_frozen, startup_from_source};
-        use crate::load::InMemoryLoader;
-        use crate::runtime::Environment;
 
         // 1-condition world: only the Temp record type + main fn (no defrule).
         const TEMP_WORLD: &str = "\
 (:wat::core::defrecord :user::Temp [value <- :wat::core::i64])\n\
 ";
 
-        let world = startup_from_source(TEMP_WORLD, None, Arc::new(InMemoryLoader::new()))
-            .expect("world should freeze");
-        let parse_and_eval = |src: &str| -> Value {
-            let ast = crate::parse_one!(src).expect("parse");
-            eval_in_frozen(&ast, &world, &Environment::new())
-                .unwrap_or_else(|e| panic!("eval raised: {e:?}"))
-                .value_owned()
-        };
+        let world = freeze_src(TEMP_WORLD);
 
         // Build a compiled session with one matching Temp fact. Mirrors the 3a integration setup:
         // a raw Rule with a single condition + empty RHS, compiled and one fact inserted.
-        let session = parse_and_eval(
+        let session = eval_in(
+            &world,
             "(:wat::core::let \
                [cond  (:wat::core::quote (:user::Temp (?t <- :value) (:wat::rete::core::i64::> ?t 20)))\
                 rule  (:wat::rete::Rule :name \"r\" :lhs (:wat::core::PersistentVector cond) :rhs (:wat::core::PersistentVector))\
@@ -312,10 +302,7 @@
               sess1)"
         );
 
-        let mut wm = to_transient(&session).expect("to_transient should succeed");
-        wm.alpha.clear();
-        wm.beta.clear();
-        wm.production.clear();
+        let mut wm = scratch_wm(&session);
 
         let sym = world.symbols();
         let arm = rete_arm_get_or_build(&wm.network, &wm.rules, sym).expect("arm");
@@ -379,27 +366,17 @@
             alpha_pass, get_node, hash_join_pass, kind_of, rete_arm_get_or_build, root_join_pass,
             sorted_node_ids,
         };
-        use crate::freeze::{eval_in_frozen, startup_from_source};
-        use crate::load::InMemoryLoader;
-        use crate::runtime::Environment;
-
         // 2-condition world: Temperature + WindSpeed (no defrule — raw Rule).
         const JOIN_WORLD: &str = "\
 (:wat::core::defrecord :user::Temperature [celsius  <- :wat::core::i64  location <- :wat::core::String])\n\
 (:wat::core::defrecord :user::WindSpeed    [kph      <- :wat::core::i64  location <- :wat::core::String])\n\
 ";
 
-        let world = startup_from_source(JOIN_WORLD, None, Arc::new(InMemoryLoader::new()))
-            .expect("world should freeze");
-        let parse_and_eval = |src: &str| -> Value {
-            let ast = crate::parse_one!(src).expect("parse");
-            eval_in_frozen(&ast, &world, &Environment::new())
-                .unwrap_or_else(|e| panic!("eval raised: {e:?}"))
-                .value_owned()
-        };
+        let world = freeze_src(JOIN_WORLD);
 
         // Same location → should produce 1 joined token.
-        let session = parse_and_eval(
+        let session = eval_in(
+            &world,
             "(:wat::core::let \
                [c1    (:wat::core::quote (:user::Temperature (?loc <- :location) (?t <- :celsius)))\
                 c2    (:wat::core::quote (:user::WindSpeed (?loc <- :location) (?w <- :kph)))\
@@ -410,10 +387,7 @@
               sess2)"
         );
 
-        let mut wm = to_transient(&session).expect("to_transient should succeed");
-        wm.alpha.clear();
-        wm.beta.clear();
-        wm.production.clear();
+        let mut wm = scratch_wm(&session);
 
         let sym = world.symbols();
         let arm = rete_arm_get_or_build(&wm.network, &wm.rules, sym).expect("arm");
@@ -497,26 +471,16 @@
             alpha_pass, get_node, hash_join_pass, kind_of, rete_arm_get_or_build, root_join_pass,
             sorted_node_ids,
         };
-        use crate::freeze::{eval_in_frozen, startup_from_source};
-        use crate::load::InMemoryLoader;
-        use crate::runtime::Environment;
-
         const JOIN_WORLD: &str = "\
 (:wat::core::defrecord :user::Temperature [celsius  <- :wat::core::i64  location <- :wat::core::String])\n\
 (:wat::core::defrecord :user::WindSpeed    [kph      <- :wat::core::i64  location <- :wat::core::String])\n\
 ";
 
-        let world = startup_from_source(JOIN_WORLD, None, Arc::new(InMemoryLoader::new()))
-            .expect("world should freeze");
-        let parse_and_eval = |src: &str| -> Value {
-            let ast = crate::parse_one!(src).expect("parse");
-            eval_in_frozen(&ast, &world, &Environment::new())
-                .unwrap_or_else(|e| panic!("eval raised: {e:?}"))
-                .value_owned()
-        };
+        let world = freeze_src(JOIN_WORLD);
 
         // Different locations → no joined tokens.
-        let session = parse_and_eval(
+        let session = eval_in(
+            &world,
             "(:wat::core::let \
                [c1    (:wat::core::quote (:user::Temperature (?loc <- :location) (?t <- :celsius)))\
                 c2    (:wat::core::quote (:user::WindSpeed (?loc <- :location) (?w <- :kph)))\
@@ -527,10 +491,7 @@
               sess2)"
         );
 
-        let mut wm = to_transient(&session).expect("to_transient should succeed");
-        wm.alpha.clear();
-        wm.beta.clear();
-        wm.production.clear();
+        let mut wm = scratch_wm(&session);
 
         let sym = world.symbols();
         let arm = rete_arm_get_or_build(&wm.network, &wm.rules, sym).expect("arm");
@@ -575,26 +536,16 @@
             alpha_pass, get_node, hash_join_pass, kind_of, rete_arm_get_or_build, root_join_pass,
             sorted_node_ids,
         };
-        use crate::freeze::{eval_in_frozen, startup_from_source};
-        use crate::load::InMemoryLoader;
-        use crate::runtime::Environment;
-
         const JOIN_WORLD: &str = "\
 (:wat::core::defrecord :user::Temperature [celsius  <- :wat::core::i64  location <- :wat::core::String])\n\
 (:wat::core::defrecord :user::WindSpeed    [kph      <- :wat::core::i64  location <- :wat::core::String])\n\
 ";
 
-        let world = startup_from_source(JOIN_WORLD, None, Arc::new(InMemoryLoader::new()))
-            .expect("world should freeze");
-        let parse_and_eval = |src: &str| -> Value {
-            let ast = crate::parse_one!(src).expect("parse");
-            eval_in_frozen(&ast, &world, &Environment::new())
-                .unwrap_or_else(|e| panic!("eval raised: {e:?}"))
-                .value_owned()
-        };
+        let world = freeze_src(JOIN_WORLD);
 
         // 2 Temps (Oslo 15, Bergen 10) × 2 Winds (Oslo 45, Bergen 50): same-loc joins only.
-        let session = parse_and_eval(
+        let session = eval_in(
+            &world,
             "(:wat::core::let \
                [c1 (:wat::core::quote (:user::Temperature (?loc <- :location) (?t <- :celsius)))\
                 c2 (:wat::core::quote (:user::WindSpeed (?loc <- :location) (?w <- :kph)))\
@@ -607,10 +558,7 @@
               s4)"
         );
 
-        let mut wm = to_transient(&session).expect("to_transient should succeed");
-        wm.alpha.clear();
-        wm.beta.clear();
-        wm.production.clear();
+        let mut wm = scratch_wm(&session);
 
         let sym = world.symbols();
         let arm = rete_arm_get_or_build(&wm.network, &wm.rules, sym).expect("arm");
@@ -720,8 +668,9 @@
 
     /// Compile N node-share rules, seed M×2 facts, fire through the NATIVE path, return the census.
     ///
-    /// Fires `:wat::rete::fire-rules` — the public production verb, which delegates to the native
-    /// `fire-rules` (`wat/rete.wat`) — so this is the same path the grid harness times.
+    /// Fires `:wat::rete::fire-rules` — the public production verb, which delegates to
+    /// `fire-rules$native` (`wat/rete/oracle/fire.wat`) — so this is the same path the
+    /// grid harness times.
     fn node_share_census(n: i64, m: i64) -> Vec<super::RoundCensus> {
         let world = startup_from_source(NODE_SHARE_WORLD, None, Arc::new(InMemoryLoader::new()))
             .expect("node-share world should freeze");
@@ -1097,6 +1046,8 @@
     /// STOP-0 (in the stone): if `walk ≫ env`, the seam's gate (`env-builds → 0`) is a mechanism
     /// win with no timing behind it and the stone's shape is wrong.
     /// STOP-0b: if `clone` is comparable to `env + walk`, task #50 is a peer cost and cheaper.
+    // rune:complectens(inline-fixtures) — interleaved timing arms ARE the measurement fixture;
+    // extracting them would collapse the A–F reconstruction this probe exists to document.
     #[test]
     fn node_share_where_cost_decomposition() {
         use std::hint::black_box;
@@ -1139,7 +1090,7 @@
         let verdicts: Vec<bool> = tokens
             .iter()
             .map(|t| {
-                crate::rete::matcher::eval_test_core(
+                crate::rete::eval_test::eval_test_core(
                     &expr,
                     t,
                     &Environment::new(),
@@ -1196,7 +1147,7 @@
             crate::parse_one!(const_src).expect("parse the var-free control predicate");
         // The control must actually EVALUATE, or arm D measures an error path, not a walk.
         assert!(
-            crate::rete::matcher::eval_test_core(
+            crate::rete::eval_test::eval_test_core(
                 &const_expr,
                 &tokens[0],
                 &empty,
@@ -1215,7 +1166,7 @@
             // A — the env build alone.
             let t = Instant::now();
             for i in 0..evals_per_round {
-                let e = crate::rete::matcher::build_test_env(
+                let e = crate::rete::eval_test::build_test_env(
                     &tokens[i % tokens.len()],
                     &empty,
                 );
@@ -1226,7 +1177,7 @@
             // B — the env build PLUS the eval_inner walk (the whole of `eval_test_core`).
             let t = Instant::now();
             for i in 0..evals_per_round {
-                let v = crate::rete::matcher::eval_test_core(
+                let v = crate::rete::eval_test::eval_test_core(
                     &expr,
                     &tokens[i % tokens.len()],
                     &empty,
@@ -1247,7 +1198,7 @@
             // D — env build + walk of the VAR-FREE control (same nodes, no name lookups).
             let t = Instant::now();
             for i in 0..evals_per_round {
-                let v = crate::rete::matcher::eval_test_core(
+                let v = crate::rete::eval_test::eval_test_core(
                     &const_expr,
                     &tokens[i % tokens.len()],
                     &empty,
@@ -1899,7 +1850,7 @@
 
     /// Microbenchmark — how much of a binding-map operation is the STRING KEY?
     ///
-    /// Binding keys are `Value::String(Arc<String>)` (`matcher.rs:351`) — a fresh heap String per
+    /// Binding keys are `Value::String(Arc<String>)` — a fresh heap String per
     /// bind, hashed and memcmp'd on every lookup. **Clara's are interned Clojure keywords**
     /// (`engine.cljc:23` "a map of keyword-to-values"; `compiler.clj:293` assoc's `(keyword var)`),
     /// which carry a CACHED hash and compare by pointer.
@@ -2319,195 +2270,57 @@
             "  └ round:drop-memories",
         ];
 
-        // ── The instrument declares its own cost ─────────────────────────────────────────────
-        //
-        // The accum:* marks fire once per node per round (negligible). The alpha:* marks fire PER
-        // FACT — up to four pairs each — so at 20k facts the instrument is doing ~80k clock reads
-        // inside the very phase it is measuring. An instrument that supplies a material part of
-        // its own result is not a measurement, so it is calibrated and the number is printed
-        // beside the table rather than left for the reader to wonder about.
-        const CAL_N: u64 = 200_000;
-        let cal_t0 = std::time::Instant::now();
-        super::with_phase_census(|| {
-            for _ in 0..CAL_N {
-                let m = super::phase_start();
-                super::phase_end("cal", m);
-            }
-        });
-        let cal_ns_per_pair = cal_t0.elapsed().as_nanos() as f64 / CAL_N as f64;
-
-        // Each size is run GRID-style: repeatedly, reporting mean AND spread. A single run of
-        // this census read `accumulate` at 22.7 / 71.2 / 32.5 ms across three tries at the SAME
-        // size — a 3.1x swing — so a one-shot table cannot tell "accumulate fell 15%" from
-        // "accumulate wandered". The spread is printed beside the mean for the same reason the
-        // grid runner prints min/max: a bare mean conceals exactly that.
-        const RUNS: usize = 3;
-
-        let mut table = format!(
-            "\naccum fire — per-phase split (native fire-rules only), mean of {RUNS} runs\n\
-             instrument: ~{cal_ns_per_pair:.1} ns per mark pair; the alpha:* rows fire PER FACT, so \
-             read them as PROPORTIONS\n"
+        let table = render_phase_table(
+            "accum fire",
+            &[(25, 50), (50, 100), (100, 200), (200, 200)],
+            &TOP,
+            &REQUIRED_PHASES,
+            |g, w| g * (w + 1),
+            accum_phase_census,
         );
-        for (g, w) in [(25i64, 50i64), (50, 100), (100, 200), (200, 200)] {
-            // phase -> the per-run nanosecond readings
-            // rune:perspicere(read-once) — census sample bags; alias would be a one-site mumble.
-            let mut samples: std::collections::HashMap<&'static str, Vec<u64>> =
-                std::collections::HashMap::new();
-            // phase -> mark pairs fired in ONE run (identical every run; used to subtract the
-            // instrument from that row rather than merely warn about it).
-            let mut pairs: std::collections::HashMap<&'static str, u64> =
-                std::collections::HashMap::new();
-            // DISCOVERED display order: every phase the run actually recorded, in the order its
-            // mark first fired. Not a hardcoded list — a mark added tomorrow appears tomorrow.
-            let mut order: Vec<&'static str> = Vec::new();
-            for _ in 0..RUNS {
-                let rows = accum_phase_census(g, w);
-                assert!(
-                    !rows.is_empty(),
-                    "phase census recorded NOTHING at G={g} W={w} — the instrument never fired, so \
-                     any apportionment taken from it would be an artifact, not a measurement"
-                );
-                for (name, ns, k) in rows {
-                    if !samples.contains_key(name) {
-                        order.push(name);
-                    }
-                    samples.entry(name).or_default().push(ns);
-                    pairs.insert(name, k);
-                }
-            }
-            // The floor: every phase we KNOW must exist still does. Discovery adds rows; this
-            // stops one from silently disappearing.
-            let missing: Vec<&str> = REQUIRED_PHASES
-                .iter()
-                .copied()
-                .filter(|p| !samples.contains_key(p))
-                .collect();
-            assert!(
-                missing.is_empty(),
-                "phase(s) {missing:?} never recorded at G={g} W={w} — their marks were not reached, \
-                 and their share would land silently on the other phases"
-            );
-
-            let stat = |xs: &[u64]| -> (f64, u64, u64) {
-                let sum: u64 = xs.iter().sum();
-                (
-                    sum as f64 / xs.len() as f64,
-                    *xs.iter().min().expect("non-empty"),
-                    *xs.iter().max().expect("non-empty"),
-                )
-            };
-
-            // Sub-phases (indented names) are INSIDE their parent — summing them into the total
-            // would double-count that phase. The total is the six top-level phases only.
-            let total_mean: f64 = TOP
-                .iter()
-                .filter_map(|k| samples.get(k).map(|xs| stat(xs).0))
-                .sum();
-            assert!(
-                total_mean > 0.0,
-                "phase census total is zero at G={g} W={w}"
-            );
-            // The denominator must be net too, or every share is computed against a total that
-            // includes ~20ms of clock reads and each row's percentage is quietly deflated.
-            let total_net: f64 = TOP
-                .iter()
-                .filter_map(|k| {
-                    samples
-                        .get(k)
-                        .map(|xs| stat(xs).0 - *pairs.get(k).unwrap_or(&0) as f64 * cal_ns_per_pair)
-                })
-                .sum();
-
-            let whole_mean = samples
-                .get("WHOLE EVAL (compile+seed+fire)")
-                .map(|xs| stat(xs).0)
-                .unwrap_or(0.0);
-            // The instrument's TOTAL weight, so the header states it once as a number rather
-            // than leaving it to be re-derived per row. ⚠ HONEST LIMIT: `net` is subtracted
-            // PER ROW only. A parent row (alpha, ROUND LOOP, the FIRE total) still CONTAINS its
-            // descendants' clock reads, because nesting is encoded in the row's indent glyph and
-            // not in data — inferring it from the glyph would be a convention, not a fact.
-            // Cross-checked against a no-sub-marks control build (2026-08-01): fire 78.5ms
-            // instrumented vs 58.2ms bare, alpha 40.8 vs 23.5 — i.e. alpha's TRUE share is ~40%,
-            // not the ~55% its raw row shows. Read parents with that correction in hand.
-            let total_instrument: f64 = pairs.values().map(|k| *k as f64 * cal_ns_per_pair).sum();
-            table.push_str(&format!(
-                "\n  G={g} W={w}  ({} facts)   FIRE {:.2} ms (the four outer marks)   \
-                 whole eval {:.2} ms   → seed+compile ≈ {:.2} ms\n\
-                 \x20   instrument total {:.2} ms across {} mark pairs — PARENT rows still \
-                 contain their children's share\n",
-                g * (w + 1),
-                total_mean / 1e6,
-                whole_mean / 1e6,
-                (whole_mean - total_mean) / 1e6,
-                total_instrument / 1e6,
-                pairs.values().sum::<u64>(),
-            ));
-            for phase in &order {
-                if *phase == "WHOLE EVAL (compile+seed+fire)" {
-                    continue; // reported in the header line above, not as a row inside the fire
-                }
-                let xs = samples
-                    .get(phase)
-                    .expect("discovered from samples, so present");
-                let (mean, lo, hi) = stat(xs);
-                // ★ SUBTRACT THE INSTRUMENT. Each row cost (pairs x cal_ns_per_pair) in clock
-                // reads that landed INSIDE its own measurement. Warning the reader to "treat
-                // these as proportions" left three alpha children reading 2ms when their true
-                // cost was ~0 — the row was measuring itself. Reporting `net` makes that visible
-                // as a NEGATIVE, which is the honest rendering of "smaller than its instrument".
-                let k = *pairs.get(phase).unwrap_or(&0);
-                let inst = k as f64 * cal_ns_per_pair;
-                let net = mean - inst;
-                let flag = if net <= 0.0 {
-                    "  ⚠ BELOW ITS OWN INSTRUMENT"
-                } else {
-                    ""
-                };
-                table.push_str(&format!(
-                    "    {:<20} {:>8.2} ms raw  {:>8.2} net  {:>5.1}%  [{:.2}–{:.2}]  {}x{}\n",
-                    phase,
-                    mean / 1e6,
-                    net / 1e6,
-                    100.0 * net / total_net,
-                    lo as f64 / 1e6,
-                    hi as f64 / 1e6,
-                    k,
-                    flag,
-                ));
-            }
-            if g == 200 && w == 200 {
-                let fold_mean = samples
-                    .get("  └ accum:fold")
-                    .map(|xs| stat(xs).0)
-                    .unwrap_or(0.0);
-                assert!(
-                    fold_mean > 0.0,
-                    "accum:fold at [200 200] recorded zero — the mark moved"
-                );
-                let fold_ms = fold_mean / 1e6;
-                assert!(
-                    fold_ms < 25.0,
-                    "accum:fold at [200 200] is {fold_ms:.2} ms — DESIGN-STONE-accum-fold-the-wall \
-                     requires < 25 ms (was 68.49).{table}"
-                );
-                let snap_mean = samples
-                    .get("  ├ accum:snapshot")
-                    .map(|xs| stat(xs).0)
-                    .unwrap_or(0.0);
-                assert!(
-                    snap_mean > 0.0,
-                    "accum:snapshot at [200 200] recorded zero — the mark was deleted"
-                );
-                let snap_ms = snap_mean / 1e6;
-                assert!(
-                    snap_ms < 1.0,
-                    "accum:snapshot at [200 200] is {snap_ms:.2} ms — \
-                     DESIGN-STONE-gather-no-snapshot requires < 1 ms (was 5.56).{table}"
-                );
-            }
-        }
         println!("{table}");
+        let rows = accum_phase_census(200, 200);
+        let ns_of = |name: &str| -> u64 {
+            rows.iter()
+                .find(|(n, _, _)| *n == name)
+                .map(|(_, ns, _)| *ns)
+                .unwrap_or(0)
+        };
+        let fold_ms = ns_of("  └ accum:fold") as f64 / 1e6;
+        assert!(
+            fold_ms > 0.0,
+            "accum:fold at [200 200] recorded zero — the mark moved"
+        );
+        assert!(
+            fold_ms < 25.0,
+            "accum:fold at [200 200] is {fold_ms:.2} ms — DESIGN-STONE-accum-fold-the-wall \
+             requires < 25 ms (was 68.49).{table}"
+        );
+        let snap_ms = ns_of("  ├ accum:snapshot") as f64 / 1e6;
+        assert!(
+            snap_ms > 0.0,
+            "accum:snapshot at [200 200] recorded zero — the mark was deleted"
+        );
+        assert!(
+            snap_ms < 1.0,
+            "accum:snapshot at [200 200] is {snap_ms:.2} ms — \
+             DESIGN-STONE-gather-no-snapshot requires < 1 ms (was 5.56).{table}"
+        );
+    }
+
+    #[test]
+    fn render_phase_table_proves_missing_phase_and_zero_total() {
+        let boom = std::panic::catch_unwind(|| {
+            render_phase_table(
+                "fake",
+                &[(1, 1)],
+                &["IN: to_transient"],
+                &["ROUND LOOP"],
+                |_, _| 0,
+                |_, _| vec![("IN: to_transient", 1, 1)],
+            )
+        });
+        assert!(boom.is_err(), "missing required phase must panic");
     }
 
     /// The keyed-gather gate — RED until the Accumulate/Negation/Exists gathers are keyed.
@@ -2745,6 +2558,86 @@
             .map(|(n, ns, _)| (n, ns))
             .collect()
     }
+
+    // ── The fact-heavy, rule-LIGHT census (arc 278, 2026-08-01) ───────────────────────────────
+    //
+    // The depth-split probe answers "what does DEPTH cost" on a rule-heavy cascade. This one
+    // answers the complementary question the compiled-conditions stone needs: what does a match
+    // cost PER FACT when the discrimination tree buys nothing?
+    //
+    // Fanout is that shape — ONE rule, two conditions, two fact types, so D=1 per type and the
+    // tree has nothing to prune. Every millisecond in `alpha:match` here is per-CALL cost, not
+    // per-candidate: the redundant head compare, `classify_rete_clause` on a static AST, the
+    // linear field-name scan, and the two heap allocations that rebuild a constant binding key.
+    //
+    // Sizing the stone off the CASCADE's per-fact rate would be extrapolating across workload
+    // shapes, which is the error that has cost this arc twice today. Measure the shape you mean.
+
+    const FANOUT_CENSUS_WORLD: &str = "\
+(:wat::core::defrecord :fan::Left  [key <- :wat::core::i64  lid <- :wat::core::i64])\n\
+(:wat::core::defrecord :fan::Right [key <- :wat::core::i64  rid <- :wat::core::i64])\n\
+(:wat::core::defrecord :fan::Pair  [key <- :wat::core::i64  lid <- :wat::core::i64  rid <- :wat::core::i64])\n\
+\n\
+(:wat::core::defn :fan::seed-key [s <- :wat::rete::Session  k <- :wat::core::i64  fanout <- :wat::core::i64] -> :wat::rete::Session\n\
+  (:wat::core::foldl\n\
+    (:wat::core::fn [acc <- :wat::rete::Session  f <- :wat::core::i64] -> :wat::rete::Session\n\
+      (:wat::rete::insert (:wat::rete::insert acc (:fan::Left :key k :lid f)) (:fan::Right :key k :rid f)))\n\
+    s\n\
+    (:wat::core::range 0 fanout)))\n\
+\n\
+(:wat::core::defn :fan::seed [s <- :wat::rete::Session  keys <- :wat::core::i64  fanout <- :wat::core::i64] -> :wat::rete::Session\n\
+  (:wat::core::foldl\n\
+    (:wat::core::fn [acc <- :wat::rete::Session  k <- :wat::core::i64] -> :wat::rete::Session\n\
+      (:fan::seed-key acc k fanout))\n\
+    s\n\
+    (:wat::core::range 0 keys)))\n\
+\n\
+(:wat::rete::defrule :fan::fan-rule\n\
+  :when\n\
+  [(:fan::Left  (?k <- :key) (?l <- :lid))\n\
+   (:fan::Right (?k <- :key) (?r <- :rid))]\n\
+  :then\n\
+  [(:fan::Pair ?k ?l ?r)])\n";
+
+    /// THREE conditions — the shape neither the fanout nor the cascade produces.
+    ///
+    /// Two conditions give `root-join -> J` where `J` is terminal, so every hash-join in those
+    /// worlds is a leaf. Three give `root-join -> J1 -> J2`, and **J1 is a MIDDLE join**: its beta
+    /// is the left input of J2's catch-up, so it must be READ. Without this world the beta-traffic
+    /// probe can only observe leaves, and "a hash-join's beta is never read" would be an
+    /// over-generalisation from a corpus that contains no counter-example — the exact shape of
+    /// claim this arc keeps having to retract.
+    ///
+    /// `keys=10 x fanout=5`: 50 of each record, A⋈B = 250 pairs, A⋈B⋈C = 1250 triples.
+    const TRI_CENSUS_WORLD: &str = "\
+(:wat::core::defrecord :tri::A [key <- :wat::core::i64  a <- :wat::core::i64])\n\
+(:wat::core::defrecord :tri::B [key <- :wat::core::i64  b <- :wat::core::i64])\n\
+(:wat::core::defrecord :tri::C [key <- :wat::core::i64  c <- :wat::core::i64])\n\
+(:wat::core::defrecord :tri::Trip [key <- :wat::core::i64  a <- :wat::core::i64  b <- :wat::core::i64  c <- :wat::core::i64])\n\
+\n\
+(:wat::core::defn :tri::seed-key [s <- :wat::rete::Session  k <- :wat::core::i64  fanout <- :wat::core::i64] -> :wat::rete::Session\n\
+  (:wat::core::foldl\n\
+    (:wat::core::fn [acc <- :wat::rete::Session  f <- :wat::core::i64] -> :wat::rete::Session\n\
+      (:wat::rete::insert (:wat::rete::insert (:wat::rete::insert acc (:tri::A :key k :a f)) (:tri::B :key k :b f)) (:tri::C :key k :c f)))\n\
+    s\n\
+    (:wat::core::range 0 fanout)))\n\
+\n\
+(:wat::core::defn :tri::seed [s <- :wat::rete::Session  keys <- :wat::core::i64  fanout <- :wat::core::i64] -> :wat::rete::Session\n\
+  (:wat::core::foldl\n\
+    (:wat::core::fn [acc <- :wat::rete::Session  k <- :wat::core::i64] -> :wat::rete::Session\n\
+      (:tri::seed-key acc k fanout))\n\
+    s\n\
+    (:wat::core::range 0 keys)))\n\
+\n\
+(:wat::rete::defrule :tri::tri-rule\n\
+  :when\n\
+  [(:tri::A (?k <- :key) (?a <- :a))\n\
+   (:tri::B (?k <- :key) (?b <- :b))\n\
+   (:tri::C (?k <- :key) (?c <- :c))]\n\
+  :then\n\
+  [(:tri::Trip ?k ?a ?b ?c)])\n";
+
+
 
     /// ★ Does the fire ever READ the beta memory it writes?
     ///
@@ -3286,84 +3179,6 @@
         }
     }
 
-    // ── The fact-heavy, rule-LIGHT census (arc 278, 2026-08-01) ───────────────────────────────
-    //
-    // The depth-split probe answers "what does DEPTH cost" on a rule-heavy cascade. This one
-    // answers the complementary question the compiled-conditions stone needs: what does a match
-    // cost PER FACT when the discrimination tree buys nothing?
-    //
-    // Fanout is that shape — ONE rule, two conditions, two fact types, so D=1 per type and the
-    // tree has nothing to prune. Every millisecond in `alpha:match` here is per-CALL cost, not
-    // per-candidate: the redundant head compare, `classify_rete_clause` on a static AST, the
-    // linear field-name scan, and the two heap allocations that rebuild a constant binding key.
-    //
-    // Sizing the stone off the CASCADE's per-fact rate would be extrapolating across workload
-    // shapes, which is the error that has cost this arc twice today. Measure the shape you mean.
-
-    const FANOUT_CENSUS_WORLD: &str = "\
-(:wat::core::defrecord :fan::Left  [key <- :wat::core::i64  lid <- :wat::core::i64])\n\
-(:wat::core::defrecord :fan::Right [key <- :wat::core::i64  rid <- :wat::core::i64])\n\
-(:wat::core::defrecord :fan::Pair  [key <- :wat::core::i64  lid <- :wat::core::i64  rid <- :wat::core::i64])\n\
-\n\
-(:wat::core::defn :fan::seed-key [s <- :wat::rete::Session  k <- :wat::core::i64  fanout <- :wat::core::i64] -> :wat::rete::Session\n\
-  (:wat::core::foldl\n\
-    (:wat::core::fn [acc <- :wat::rete::Session  f <- :wat::core::i64] -> :wat::rete::Session\n\
-      (:wat::rete::insert (:wat::rete::insert acc (:fan::Left :key k :lid f)) (:fan::Right :key k :rid f)))\n\
-    s\n\
-    (:wat::core::range 0 fanout)))\n\
-\n\
-(:wat::core::defn :fan::seed [s <- :wat::rete::Session  keys <- :wat::core::i64  fanout <- :wat::core::i64] -> :wat::rete::Session\n\
-  (:wat::core::foldl\n\
-    (:wat::core::fn [acc <- :wat::rete::Session  k <- :wat::core::i64] -> :wat::rete::Session\n\
-      (:fan::seed-key acc k fanout))\n\
-    s\n\
-    (:wat::core::range 0 keys)))\n\
-\n\
-(:wat::rete::defrule :fan::fan-rule\n\
-  :when\n\
-  [(:fan::Left  (?k <- :key) (?l <- :lid))\n\
-   (:fan::Right (?k <- :key) (?r <- :rid))]\n\
-  :then\n\
-  [(:fan::Pair ?k ?l ?r)])\n";
-
-    /// THREE conditions — the shape neither the fanout nor the cascade produces.
-    ///
-    /// Two conditions give `root-join -> J` where `J` is terminal, so every hash-join in those
-    /// worlds is a leaf. Three give `root-join -> J1 -> J2`, and **J1 is a MIDDLE join**: its beta
-    /// is the left input of J2's catch-up, so it must be READ. Without this world the beta-traffic
-    /// probe can only observe leaves, and "a hash-join's beta is never read" would be an
-    /// over-generalisation from a corpus that contains no counter-example — the exact shape of
-    /// claim this arc keeps having to retract.
-    ///
-    /// `keys=10 x fanout=5`: 50 of each record, A⋈B = 250 pairs, A⋈B⋈C = 1250 triples.
-    const TRI_CENSUS_WORLD: &str = "\
-(:wat::core::defrecord :tri::A [key <- :wat::core::i64  a <- :wat::core::i64])\n\
-(:wat::core::defrecord :tri::B [key <- :wat::core::i64  b <- :wat::core::i64])\n\
-(:wat::core::defrecord :tri::C [key <- :wat::core::i64  c <- :wat::core::i64])\n\
-(:wat::core::defrecord :tri::Trip [key <- :wat::core::i64  a <- :wat::core::i64  b <- :wat::core::i64  c <- :wat::core::i64])\n\
-\n\
-(:wat::core::defn :tri::seed-key [s <- :wat::rete::Session  k <- :wat::core::i64  fanout <- :wat::core::i64] -> :wat::rete::Session\n\
-  (:wat::core::foldl\n\
-    (:wat::core::fn [acc <- :wat::rete::Session  f <- :wat::core::i64] -> :wat::rete::Session\n\
-      (:wat::rete::insert (:wat::rete::insert (:wat::rete::insert acc (:tri::A :key k :a f)) (:tri::B :key k :b f)) (:tri::C :key k :c f)))\n\
-    s\n\
-    (:wat::core::range 0 fanout)))\n\
-\n\
-(:wat::core::defn :tri::seed [s <- :wat::rete::Session  keys <- :wat::core::i64  fanout <- :wat::core::i64] -> :wat::rete::Session\n\
-  (:wat::core::foldl\n\
-    (:wat::core::fn [acc <- :wat::rete::Session  k <- :wat::core::i64] -> :wat::rete::Session\n\
-      (:tri::seed-key acc k fanout))\n\
-    s\n\
-    (:wat::core::range 0 keys)))\n\
-\n\
-(:wat::rete::defrule :tri::tri-rule\n\
-  :when\n\
-  [(:tri::A (?k <- :key) (?a <- :a))\n\
-   (:tri::B (?k <- :key) (?b <- :b))\n\
-   (:tri::C (?k <- :key) (?c <- :c))]\n\
-  :then\n\
-  [(:tri::Trip ?k ?a ?b ?c)])\n";
-
     fn fanout_phase_census(keys: i64, fanout: i64) -> Vec<(&'static str, u64, u64)> {
         let world = startup_from_source(FANOUT_CENSUS_WORLD, None, Arc::new(InMemoryLoader::new()))
             .expect("fanout census world should freeze");
@@ -3809,7 +3624,7 @@
             black_box(pv);
             let mut map: ProductionMemory = HashMap::new();
             map.insert(1, facts.clone());
-            black_box(super::hashmap_to_pm(map));
+            black_box(super::production_to_pm(map));
             let collected: rpds::VectorSync<Value> = facts.clone().into_iter().collect();
             black_box(collected);
         }
@@ -3832,7 +3647,7 @@
             h += time_ns(1, || {
                 let mut map: ProductionMemory = HashMap::new();
                 map.insert(1, facts.clone());
-                black_box(super::hashmap_to_pm(map));
+                black_box(super::production_to_pm(map));
             });
             i += time_ns(1, || {
                 let collected: rpds::VectorSync<Value> = facts.clone().into_iter().collect();
@@ -3844,7 +3659,7 @@
         v /= runs;
         h /= runs;
         i /= runs;
-        assert!(h > 0.0, "hashmap_to_pm recorded 0 ns — the loop never ran");
+        assert!(h > 0.0, "production_to_pm recorded 0 ns — the loop never ran");
 
         let ms = |ns: f64| ns / 1e6;
         println!(
@@ -3853,7 +3668,7 @@
              \n\
              C  clone 40k Vec                      {:>7.2} ms\n\
              V  clone + push_back_mut              {:>7.2} ms\n\
-             H  clone + hashmap_to_pm (authority)  {:>7.2} ms\n\
+             H  clone + production_to_pm (authority)  {:>7.2} ms\n\
              I  clone + VectorSync::from_iter      {:>7.2} ms\n\
              \n\
              V−C  node-per-fact                    {:>7.2} ms\n\
@@ -4610,10 +4425,7 @@
                             compiled,
                             ag.fields.as_slice(),
                             &mut scratch,
-                            &mut wm.bind_pool,
-                            &mut wm.bind_keys,
-                            &mut wm.bind_vals,
-                            &mut wm.bind_val_ids,
+                            &mut wm.bind_intern(),
                             f,
                         ));
                     }
@@ -4835,10 +4647,7 @@
                             compiled,
                             ag.fields.as_slice(),
                             &mut scratch,
-                            &mut wm.bind_pool,
-                            &mut wm.bind_keys,
-                            &mut wm.bind_vals,
-                            &mut wm.bind_val_ids,
+                            &mut wm.bind_intern(),
                             f,
                         ));
                     }
@@ -4858,15 +4667,12 @@
                     let compiled =
                         super::rematch_compiled(&arm.compiled_conds, *aid).expect("compiled cond");
                     let _ = crate::rete::compiled_cond::exec_compiled(
-                        compiled,
-                        ag.fields.as_slice(),
-                        &mut scratch,
-                        &mut wm.bind_pool,
-                        &mut wm.bind_keys,
-                        &mut wm.bind_vals,
-                        &mut wm.bind_val_ids,
-                        f,
-                    );
+                            compiled,
+                            ag.fields.as_slice(),
+                            &mut scratch,
+                            &mut wm.bind_intern(),
+                            f,
+                        );
                 }
             }
             for _ in 0..RUNS {
@@ -4884,15 +4690,12 @@
                             let compiled = super::rematch_compiled(&arm.compiled_conds, *aid)
                                 .expect("compiled cond");
                             black_box(crate::rete::compiled_cond::exec_compiled(
-                                compiled,
-                                ag.fields.as_slice(),
-                                &mut scratch,
-                                &mut wm.bind_pool,
-                                &mut wm.bind_keys,
-                                &mut wm.bind_vals,
-                                &mut wm.bind_val_ids,
-                                f,
-                            ));
+                            compiled,
+                            ag.fields.as_slice(),
+                            &mut scratch,
+                            &mut wm.bind_intern(),
+                            f,
+                        ));
                         }
                     }
                 });
@@ -5482,10 +5285,7 @@
                             compiled,
                             ag.fields.as_slice(),
                             &mut scratch,
-                            &mut wm.bind_pool,
-                            &mut wm.bind_keys,
-                            &mut wm.bind_vals,
-                            &mut wm.bind_val_ids,
+                            &mut wm.bind_intern(),
                             f,
                         ));
                     }
@@ -5508,10 +5308,7 @@
                             compiled,
                             ag.fields.as_slice(),
                             &mut scratch,
-                            &mut wm.bind_pool,
-                            &mut wm.bind_keys,
-                            &mut wm.bind_vals,
-                            &mut wm.bind_val_ids,
+                            &mut wm.bind_intern(),
                             f,
                         )
                         .is_some()
@@ -5538,10 +5335,7 @@
                             compiled,
                             ag.fields.as_slice(),
                             &mut scratch,
-                            &mut wm.bind_pool,
-                            &mut wm.bind_keys,
-                            &mut wm.bind_vals,
-                            &mut wm.bind_val_ids,
+                            &mut wm.bind_intern(),
                             f,
                         ) {
                             let el = super::make_element(i as u32, off, len);
@@ -5567,10 +5361,7 @@
                             compiled,
                             ag.fields.as_slice(),
                             &mut scratch,
-                            &mut wm.bind_pool,
-                            &mut wm.bind_keys,
-                            &mut wm.bind_vals,
-                            &mut wm.bind_val_ids,
+                            &mut wm.bind_intern(),
                             f,
                         ) {
                             let el = super::make_element(i as u32, off, len);
@@ -6480,7 +6271,7 @@
             t0.elapsed().as_nanos() as f64
         }
 
-        black_box(super::build_gather_index(&els, &join_keys, &keys, &vals, &pool));
+        black_box(super::build_gather_index(&els, &join_keys, &keys, &vals, &pool, &ids));
 
         let mut k = 0.0;
         let mut v = 0.0;
@@ -6491,15 +6282,15 @@
             k += time_ns(|| {
                 for el in &els {
                     let pairs = super::element_fact_bindings(el, &keys, &vals, &pool);
-                    black_box(super::key_of(&pairs, &join_keys));
+                    black_box(super::key_of(&pairs, &join_keys, &ids));
                 }
             });
             v += time_ns(|| {
                 // rune:perspicere(read-once) — gather microbench index; not a domain noun.
-                let mut idx: FxHashMap<Vec<Value>, Vec<usize>> = FxHashMap::default();
+                let mut idx: FxHashMap<super::JoinKey, Vec<usize>> = FxHashMap::default();
                 for (i, el) in els.iter().enumerate() {
                     let pairs = super::element_fact_bindings(el, &keys, &vals, &pool);
-                    let key = super::key_of(&pairs, &join_keys);
+                    let key = super::key_of(&pairs, &join_keys, &ids);
                     idx.entry(key).or_default().push(i);
                 }
                 black_box(idx.len());
@@ -6516,7 +6307,7 @@
                 black_box(idx.len());
             });
             b += time_ns(|| {
-                black_box(super::build_gather_index(&els, &join_keys, &keys, &vals, &pool));
+                black_box(super::build_gather_index(&els, &join_keys, &keys, &vals, &pool, &ids));
             });
             s += time_ns(|| {
                 // rune:perspicere(read-once) — gather microbench index; not a domain noun.
@@ -6628,7 +6419,7 @@
             });
             b += time_ns(|| {
                 black_box(super::build_gather_index(
-                    &els, &join_keys, &keys, &vals, &pool,
+                    &els, &join_keys, &keys, &vals, &pool, &ids,
                 ));
             });
         }
@@ -6722,7 +6513,7 @@
                 &mut bp,
                 &mut mp,
             ));
-            black_box(super::key_of(&super::bind_view(&keys, &vals, &bind_pool, left_binds), &join_keys));
+            black_box(super::key_of(&super::bind_view(&keys, &vals, &bind_pool, left_binds), &join_keys, &ids));
             black_box(idx.get(&vec![Value::i64(1)]));
         }
 
@@ -6786,6 +6577,7 @@
                 black_box(super::key_of(
                     &super::bind_view(&keys, &vals, &bind_pool, left_binds),
                     &join_keys,
+                    &ids,
                 ));
             });
 
@@ -6933,6 +6725,7 @@
                         match_pool: &mut mp,
                         keys: &keys,
                         vals: &vals,
+                        val_ids: &ids,
                         facts: &facts_pv,
                         derived: &derived,
                         n_input: 0,
@@ -6994,6 +6787,7 @@
                             match_pool: &mut mp,
                             keys: &keys,
                             vals: &vals,
+                            val_ids: &ids,
                             facts: &facts_pv,
                             derived: &derived,
                             n_input: 0,
@@ -7512,14 +7306,17 @@
                 let mut bkeys = Vec::new();
                 let mut bvals = Vec::new();
                 let mut bids = crate::rete::compiled_cond::ValIntern::default();
+                let mut intern = crate::rete::compiled_cond::BindIntern {
+                    keys: &mut bkeys,
+                    vals: &mut bvals,
+                    ids: &mut bids,
+                    pool: &mut pool,
+                };
                 let via_compiled = exec_compiled(
                     &compiled[aid],
                     fact_fields,
                     &mut scratch,
-                    &mut pool,
-                    &mut bkeys,
-                    &mut bvals,
-                    &mut bids,
+                    &mut intern,
                     fact,
                 );
 
@@ -7605,14 +7402,21 @@
                 };
                 for aid in alpha_by_type.get(fact_class).into_iter().flatten() {
                     calls += 1;
+                    let mut pool = Vec::new();
+                    let mut keys = Vec::new();
+                    let mut vals = Vec::new();
+                    let mut ids = crate::rete::compiled_cond::ValIntern::default();
+                    let mut intern = crate::rete::compiled_cond::BindIntern {
+                        keys: &mut keys,
+                        vals: &mut vals,
+                        ids: &mut ids,
+                        pool: &mut pool,
+                    };
                     if exec_compiled(
                         &compiled[aid],
                         fact_fields,
                         &mut scratch,
-                        &mut Vec::new(),
-                        &mut Vec::new(),
-                        &mut Vec::new(),
-                        &mut crate::rete::compiled_cond::ValIntern::default(),
+                        &mut intern,
                         fact,
                     )
                     .is_none()

@@ -9,8 +9,8 @@
 //! at RUNTIME — `--check` alone would NOT catch an unknown callee
 //! (`reference_check_is_not_a_complete_red_arbiter`), which is why this gate must RUN.
 //!
-//! The trio this extends (`runtime.rs:4706` — "unprimed is the wat ORACLE, primed the native
-//! kernel; never collapsed"):
+//! The trio this extends (unprimed fire-rules / insert-all / fire-once are native;
+//! `$oracle` is the reference — `wat/rete.wat`):
 //!   `insert-spec` / `insert'` / `insert`  ->  `insert-all-spec` / `insert-all'` / `insert-all`
 //!
 //! What would turn this red once it is green — the R59 question, answered before the assertions

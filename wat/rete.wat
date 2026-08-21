@@ -1,7 +1,7 @@
 ;; wat/rete.wat — the rete data model.
 ;;
 ;; Records (Token / Element / Session / node kinds / Export / explain
-;; substrate), the Node defenum, and render-dag. Compile lives in
+;; substrate) and render-dag. Compile lives in
 ;; wat/rete/compile.wat, acc::* in wat/rete/acc.wat, $oracle in
 ;; wat/rete/oracle/{insert,pass,accum-pass,fire,explain}.wat, query/defrule in wat/rete/syntax.wat. Native
 ;; fire is the unprimed public name (`fire-rules`); the wat reference is
@@ -12,7 +12,6 @@
 ;;
 ;; Names by the 3rd intueri cast (2026-06-17):
 ;;   NOT WorkingMemory → Session
-;;   production-id (NOT node-id) on Activation
 ;;
 ;; Namespace: :wat::rete::
 ;;
@@ -40,18 +39,11 @@
   [fact     <- :wat::core::Record
    bindings <- :wat::core::PersistentMap])
 
-;; Activation — a ProductionNode queued to fire.
-;; production-id: the id of the ProductionNode to fire (intueri: NOT node-id).
-;; token: the matching Token that triggered this activation.
-(:wat::core::defrecord :wat::rete::Activation
-  [production-id <- :wat::core::i64
-   token         <- :wat::rete::Token])
-
 ;; ─── rules as data ──────────────────────────────────────────────────────────
 
 ;; Rule — a rule as pure data (not yet compiled into network nodes).
 ;; name: the namespaced rule name.
-;; lhs:  conditions (form::matches?-shaped clauses) — PersistentVector<WatAST> so foldl works.
+;; lhs:  rete `:when` conditions (`<-`, FQDN ops, `:wat::rete::and/or/not`) — PersistentVector<WatAST> so foldl works.
 ;; rhs:  consequence forms (data; pure — applied by a consumer).
 (:wat::core::defrecord :wat::rete::Rule
   [name <- :wat::core::String
@@ -71,7 +63,7 @@
 
 ;; AlphaNode — filters facts by structural tests; fans out to beta joins.
 ;; id:       unique node id (i64).
-;; tests:    PersistentVector of test forms (form::matches? clauses) — typed for foldl.
+;; tests:    PersistentVector of rete alpha conditions — typed for foldl.
 ;; children: PersistentVector of child node ids — typed as i64 for foldl.
 (:wat::core::defrecord :wat::rete::AlphaNode
   [id       <- :wat::core::i64
@@ -81,20 +73,16 @@
 ;; RootJoinNode — the leftmost beta join (no left memory needed; seeds the token).
 ;; id:           unique node id.
 ;; children:     PersistentVector of child node ids — typed as i64 for foldl.
-;; binding-keys: PersistentVector of variable keys (Strings) bound at this join.
 (:wat::core::defrecord :wat::rete::RootJoinNode
-  [id           <- :wat::core::i64
-   children     <- :wat::core::PersistentVector<wat::core::i64>
-   binding-keys <- :wat::core::PersistentVector<wat::core::String>])
+  [id       <- :wat::core::i64
+   children <- :wat::core::PersistentVector<wat::core::i64>])
 
 ;; HashJoinNode — a standard two-input beta join node.
 ;; id:           unique node id.
 ;; children:     PersistentVector of child node ids — typed as i64 for foldl.
-;; binding-keys: PersistentVector of join-key variable names (Strings).
 (:wat::core::defrecord :wat::rete::HashJoinNode
-  [id           <- :wat::core::i64
-   children     <- :wat::core::PersistentVector<wat::core::i64>
-   binding-keys <- :wat::core::PersistentVector<wat::core::String>])
+  [id       <- :wat::core::i64
+   children <- :wat::core::PersistentVector<wat::core::i64>])
 
 ;; ProductionNode — the terminal node; triggers an activation on a full token.
 ;; id:        unique node id.
@@ -139,10 +127,11 @@
 
 ;; AccumulateNode — a left-input aggregate join node (stone 8-a): for each parent token,
 ;; gathers the token-compatible elements from from-alpha-id's alpha-memory, folds them with
-;; apply-accumulator (over the 8-i acc::* folds), and extends the token with result-var → aggregate.
+;; accumulate-pass-for-token (compiled AccFold over the 8-i acc::* folds), and extends the
+;; token with result-var → aggregate.
 ;; Pure replay: re-accumulates on every fire (no retract-fn needed).
 ;; id:            unique node id.
-;; result-var:    the ?var name (String, WITHOUT the "?" prefix? — stored as full "?n") bound to the aggregate.
+;; result-var:    the ?var name stored WITH the "?" prefix (`head-nm` as bound).
 ;; acc-form:      the accumulator form (WatAST), e.g. (:wat::rete::acc::count) or (:wat::rete::acc::sum ?v).
 ;; from-alpha-id: the AlphaNode id whose alpha-memory holds the :from facts.
 ;; children:      PersistentVector of child node ids (ProductionNode, TestNode, NegationNode, etc.).
@@ -162,36 +151,26 @@
    query-name <- :wat::core::String
    param-keys <- :wat::core::PersistentVector<wat::core::String>])
 
-;; Node — the sum type over all MVP node records (exact defenum syntax per wat/service.wat).
-;; Variants wrap their respective record. Used by compile + fire (stones 1b+);
-;; the Session.network stores raw node records in v1 (the probe hand-builds with raw records).
-(:wat::core::defenum :wat::rete::Node :wat::enum::Pure
-  :AlphaNode       [node <- :wat::rete::AlphaNode]
-  :RootJoinNode    [node <- :wat::rete::RootJoinNode]
-  :HashJoinNode    [node <- :wat::rete::HashJoinNode]
-  :ProductionNode  [node <- :wat::rete::ProductionNode]
-  :TestNode        [node <- :wat::rete::TestNode]
-  :NegationNode    [node <- :wat::rete::NegationNode]
-  :ExistsNode      [node <- :wat::rete::ExistsNode]
-  :AccumulateNode  [node <- :wat::rete::AccumulateNode]
-  :QueryNode       [node <- :wat::rete::QueryNode])
-
 ;; ─── the session (the whole engine state) ───────────────────────────────────
 ;; intueri: NOT WorkingMemory — Session names the whole caller-facing engine state.
 
+(:wat::core::typealias :wat::rete::AlphaMemory
+  :wat::core::PersistentMap<wat::core::i64,wat::core::PersistentVector<wat::rete::Element>>)
+(:wat::core::typealias :wat::rete::BetaMemory
+  :wat::core::PersistentMap<wat::core::i64,wat::core::PersistentVector<wat::rete::Token>>)
+(:wat::core::typealias :wat::rete::ProductionMemory
+  :wat::core::PersistentMap<wat::core::i64,wat::core::PersistentVector<wat::core::Record>>)
+
 ;; Session — the complete rete engine state; the caller-facing handle.
-;;   network:           id → Node (raw node records) — the compiled DAG, id-indexed.
+;;   network:           id → raw node record — the compiled DAG, id-indexed.
 ;;   rules:             PersistentVector of Rule (the rule-set as data).
-;;   alpha-memory:      node-id → {join-bindings → [Element …]}
-;;                      FIRE-SCOPED — write-only scratch, rebuilt from `facts` on every fire, never
-;;                      read from a frozen Session. Population depends on which fire verb produced
-;;                      this Session (`fire-once` / `fire-once$native` populate it;
-;;                      `fire-rules` / `fire-rules$oracle` return it empty — arc 278
-;;                      "alpha is fire-scoped").
-;;   beta-memory:       node-id → {join-bindings → [Token …]}
-;;                      FIRE-SCOPED — same treatment; `fire-once` populates it,
-;;                      `fire-rules` / `fire-rules$oracle` return it empty.
-;;   production-memory: node-id → PV<:wat::core::Record>  flat derived facts in 4a; grows to the {token → [facts]} support store in 4c (TM)
+;;   alpha-memory:      PersistentMap — flat `node-id → PV<Element>` (AlphaMemory is the
+;;                      walker view; freeze fields stay unparameterized PersistentMap).
+;;                      FIRE-SCOPED scratch, rebuilt from `facts` on every fire.
+;;                      `fire-once` populates it; `fire-rules` returns it empty.
+;;   beta-memory:       PersistentMap — flat `node-id → PV<Token>` (BetaMemory walker view).
+;;   production-memory: PersistentMap — flat `node-id → PV<Record>` of derived facts
+;;                      (ProductionMemory walker view). Support lives on Explained.
 ;;   facts:             PersistentVector of asserted facts.
 ;;   next-id:           the next free node id (i64).
 ;;   query-memory:      query-name → PV of binding maps (QueryNode answers; survives fire).
@@ -204,6 +183,10 @@
    facts             <- :wat::core::PersistentVector
    next-id           <- :wat::core::i64
    query-memory      <- :wat::core::PersistentMap])
+(:wat::core::typealias :wat::rete::GroupByMap
+  :wat::core::PersistentMap<wat::core::i64,wat::core::PersistentVector<wat::core::Record>>)
+(:wat::core::typealias :wat::rete::ClassFields
+  :wat::core::PersistentVector<wat::core::PersistentVector<wat::core::String>>)
 
 ;; Export — the compiled program as one EDN value. Not a Session.
 ;; No facts, no memories, no source forms. Native fire only.
@@ -213,13 +196,13 @@
 ;;   fields:  per-class declared field names (parallel to classes).
 ;;   nodes:   packed topology (kind, id, edges). No WatAST.
 ;;   conds / drivers / progs / folds / rhs: packed circuits.
-;;   deps:   [name [produced…] [negated…] [consumed…]] — stratify schedule.
+;;   deps:   [name [produced…] [negated…] [consumed…] [exists-and-from…]] — stratify schedule.
 ;;           Residual, not source forms. Import without this takes max_s=0.
 (:wat::core::defrecord :wat::rete::Export
   [v       <- :wat::core::i64
    abi     <- :wat::core::String
    classes <- :wat::core::PersistentVector<wat::core::String>
-   fields  <- :wat::core::PersistentVector<wat::core::PersistentVector<wat::core::String>>
+   fields  <- :wat::rete::ClassFields
    nodes   <- :wat::core::PersistentVector
    conds   <- :wat::core::PersistentVector
    drivers <- :wat::core::PersistentVector
@@ -333,7 +316,8 @@
       fqdn)))
 
 ;; node-children-ids — read the children PersistentVector from a raw node record.
-;; Dispatches on kind label: Alpha/RootJoin/HashJoin have children; leaves return empty.
+;; Dispatches on kind label: Alpha/RootJoin/HashJoin/Test/Negation/Exists/Accumulate
+;; have children; Production/Query return empty.
 ;; WHY: record accessors are class-guarded at runtime; dispatch ensures we only call
 ;; AlphaNode/children when the node IS an AlphaNode, satisfying the guard.
 (:wat::core::defn :wat::rete::node-children-ids

@@ -62,7 +62,7 @@ use crate::ast::WatAST;
 use crate::rete::expr_ir::Expr;
 use crate::rete::matcher::{
     classify_constraint_head, classify_rete_clause, compare_values, Bindings, CmpKind,
-    ReteClauseShape,
+    ConstraintSpelling, ReteClauseShape,
 };
 use crate::runtime::Value;
 
@@ -156,6 +156,8 @@ pub(crate) struct CompiledCond {
     /// `(?p <- :Type …)` — the fact itself, not a field. Set at compile from
     /// `alpha_pattern`; fire attaches without walking the cond AST.
     fact_bind: Option<Value>,
+    /// Frozen leftover bit — `join_extend` reads this, never re-walks `ops`.
+    has_seed_cmp: bool,
 }
 
 impl CompiledCond {
@@ -187,6 +189,7 @@ impl CompiledCond {
         seed_reads: Arc<[(Value, usize)]>,
         fact_bind: Option<Value>,
     ) -> Self {
+        let has_seed_cmp = !seed_reads.is_empty() || ops_have_seed_cmp(&ops);
         CompiledCond {
             ops,
             slot_keys,
@@ -194,6 +197,7 @@ impl CompiledCond {
             n_slots,
             seed_reads,
             fact_bind,
+            has_seed_cmp,
         }
     }
 
@@ -201,7 +205,7 @@ impl CompiledCond {
     /// `SeedCmp`; rematch must still run. Absence is a proof the Element
     /// already holds every bind the fold will read (`DESIGN-STONE-accum-fold-the-wall`).
     pub(crate) fn has_seed_cmp(&self) -> bool {
-        !self.seed_reads.is_empty() || ops_have_seed_cmp(&self.ops)
+        self.has_seed_cmp
     }
 
     /// `?var`s this cond binds, including `(?p <- :Type …)`.
@@ -226,7 +230,7 @@ fn ops_have_seed_cmp(ops: &[Op]) -> bool {
 
 // ─── The compiler ───────────────────────────────────────────────────────────────
 
-struct Ctx<'a> {
+struct AlphaCompileCx<'a> {
     field_names: &'a [String],
     next_slot: usize,
     defer_unbound: bool,
@@ -240,8 +244,8 @@ struct Ctx<'a> {
 /// Returns `None` only if `cond` is not the `(:Keyword clause…)` shape `build_alpha_index`
 /// already guarantees for every entry it puts in `alpha_cond` — i.e. never, for any condition
 /// this is actually called with in `kernel/arm.rs`. Kept as `Option` (rather than assuming the
-/// invariant) so a caller can fall back to `alpha_match_inner` instead of panicking if that
-/// invariant is ever violated.
+/// invariant). Fire setup calls `compile_condition_local` and refuses a miss ("alpha N cond
+/// did not compile"); it does not fall back to `alpha_match_inner`.
 ///
 /// Strict: an unbound constraint `?var` is [`Op::Fail`]. Fire setup uses
 /// [`compile_condition_local`] (leftover-as-seed). This entry is the populate
@@ -271,7 +275,7 @@ fn compile_condition_opts(
     let pat = crate::rete::matcher::alpha_pattern(cond)?;
     let clauses = pat.clauses;
 
-    let mut ctx = Ctx {
+    let mut ctx = AlphaCompileCx {
         field_names,
         next_slot: 0,
         defer_unbound,
@@ -281,14 +285,18 @@ fn compile_condition_opts(
     let mut field_slots: HashMap<usize, usize> = HashMap::new();
     let mut order: Vec<(String, usize)> = Vec::new();
     let mut ops: Vec<Op> = Vec::new();
-    compile_seq(
+    if !compile_seq(
         clauses,
         &mut ctx,
         &mut scope,
         &mut field_slots,
         &mut order,
         &mut ops,
-    );
+    ) {
+        // Law A: a CoreGeneric comparator is freeze-walled on defrule; compile-all /
+        // compile-condition must refuse the same head (circumspicere 2026-08-20).
+        return None;
+    }
 
     let slot_keys: Arc<[Value]> = order
         .iter()
@@ -305,14 +313,14 @@ fn compile_condition_opts(
         .fact_var
         .map(|v| Value::String(Arc::new(v.to_string())));
 
-    Some(CompiledCond {
+    Some(CompiledCond::from_parts(
         ops,
         slot_keys,
         output_slots,
-        n_slots: ctx.next_slot,
+        ctx.next_slot,
         seed_reads,
         fact_bind,
-    })
+    ))
 }
 
 /// Put the matched fact on `?p` when this cond is `(?p <- :Type …)`.
@@ -337,15 +345,18 @@ pub(crate) fn attach_fact(
 /// enclosing sequential scope exactly).
 fn compile_seq(
     clauses: &[WatAST],
-    ctx: &mut Ctx,
+    ctx: &mut AlphaCompileCx,
     scope: &mut HashMap<String, usize>,
     field_slots: &mut HashMap<usize, usize>,
     order: &mut Vec<(String, usize)>,
     ops: &mut Vec<Op>,
-) {
+) -> bool {
     for clause in clauses {
-        compile_one(clause, ctx, scope, field_slots, order, ops);
+        if !compile_one(clause, ctx, scope, field_slots, order, ops) {
+            return false;
+        }
     }
+    true
 }
 
 /// Compile one clause, appending to `ops`. `scope`/`order` are the CALLER's — for `and` (and the
@@ -353,12 +364,12 @@ fn compile_seq(
 /// a throwaway clone/scratch (see below), matching `eval_clause`'s discard of branch-local binds.
 fn compile_one(
     clause: &WatAST,
-    ctx: &mut Ctx,
+    ctx: &mut AlphaCompileCx,
     scope: &mut HashMap<String, usize>,
     field_slots: &mut HashMap<usize, usize>,
     order: &mut Vec<(String, usize)>,
     ops: &mut Vec<Op>,
-) {
+) -> bool {
     match classify_rete_clause(clause) {
         ReteClauseShape::Bind { var, field } => {
             match ctx.field_names.iter().position(|n| n == field) {
@@ -384,11 +395,14 @@ fn compile_one(
             // The ONE DOOR (`matcher::classify_constraint_head`) — the constraint vocabulary is
             // written down once, in `matcher.rs`, and read here rather than re-listed. A `None`
             // means this file and the grammar disagree, which is our bug, not the caller's.
-            let (cmp, _spelling) = classify_constraint_head(op).unwrap_or_else(|| {
+            let (cmp, spelling) = classify_constraint_head(op).unwrap_or_else(|| {
                 unreachable!(
                     "classify_rete_clause admitted a Constraint head the ONE DOOR rejects: {op}"
                 )
             });
+            if matches!(spelling, ConstraintSpelling::CoreGeneric) {
+                return false;
+            }
             // An operand that cannot be resolved AT ALL (an unbound `?var` — statically proven
             // unbound by this point in the scope, since nothing earlier in this exact walk
             // recorded it; or a `:field` this class does not declare) makes `resolve_operand`
@@ -411,7 +425,7 @@ fn compile_one(
                 _ => ops.push(Op::Fail),
             }
         }
-        ReteClauseShape::And(subs) => compile_seq(subs, ctx, scope, field_slots, order, ops),
+        ReteClauseShape::And(subs) => return compile_seq(subs, ctx, scope, field_slots, order, ops),
         ReteClauseShape::Or(subs) => {
             // Each branch compiles against its OWN clone of the current scope (so a bind made by
             // one branch is never visible to a sibling), and its binds are recorded into a
@@ -419,24 +433,24 @@ fn compile_one(
             // the Or, exactly like `eval_clause`'s `Or` arm returning the pre-`or` `entry`).
             // `field_slots` is cloned the same way: a hidden `:field` Bind in one arm must
             // not satisfy a sibling that never wrote that slot.
-            let branches: OrBranches = subs
-                .iter()
-                .map(|sub| {
-                    let mut sub_scope = scope.clone();
-                    let mut sub_fields = field_slots.clone();
-                    let mut scratch_order = Vec::new();
-                    let mut sub_ops = Vec::new();
-                    compile_one(
-                        sub,
-                        ctx,
-                        &mut sub_scope,
-                        &mut sub_fields,
-                        &mut scratch_order,
-                        &mut sub_ops,
-                    );
-                    sub_ops
-                })
-                .collect();
+            let mut branches: OrBranches = Vec::with_capacity(subs.len());
+            for sub in subs {
+                let mut sub_scope = scope.clone();
+                let mut sub_fields = field_slots.clone();
+                let mut scratch_order = Vec::new();
+                let mut sub_ops = Vec::new();
+                if !compile_one(
+                    sub,
+                    ctx,
+                    &mut sub_scope,
+                    &mut sub_fields,
+                    &mut scratch_order,
+                    &mut sub_ops,
+                ) {
+                    return false;
+                }
+                branches.push(sub_ops);
+            }
             ops.push(Op::Or(branches));
         }
         ReteClauseShape::Not(sub) => {
@@ -444,14 +458,16 @@ fn compile_one(
             let mut sub_fields = field_slots.clone();
             let mut scratch_order = Vec::new();
             let mut sub_ops = Vec::new();
-            compile_one(
+            if !compile_one(
                 sub,
                 ctx,
                 &mut sub_scope,
                 &mut sub_fields,
                 &mut scratch_order,
                 &mut sub_ops,
-            );
+            ) {
+                return false;
+            }
             ops.push(Op::Not(sub_ops));
         }
         ReteClauseShape::Where(_)
@@ -460,6 +476,7 @@ fn compile_one(
         | ReteClauseShape::FactBind { .. }
         | ReteClauseShape::Unrecognized => ops.push(Op::Fail),
     }
+    true
 }
 
 /// Resolve one operand AST node to an [`Expr`] at compile time — the same three shapes
@@ -486,7 +503,7 @@ fn compile_operand_expr(
     operand: &WatAST,
     scope: &mut HashMap<String, usize>,
     field_slots: &mut HashMap<usize, usize>,
-    ctx: &mut Ctx<'_>,
+    ctx: &mut AlphaCompileCx<'_>,
     ops: &mut Vec<Op>,
 ) -> Option<Expr> {
     match operand {
@@ -545,33 +562,14 @@ fn compile_operand_expr(
 /// `(?p <- :Type …)`. Returns the span. Same keys/values/order as
 /// `alpha_match_inner` + `attach_fact` (STOP-1).
 #[cfg(test)]
-// rune:excusare(arity-is-the-pool) — test wrapper builds BindIntern; production
-// `exec_compiled_with_key_ids` takes the intern.
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn exec_compiled(
     compiled: &CompiledCond,
     fact_fields: &[Value],
     scratch: &mut SlotFrame,
-    pool: &mut Vec<(u32, u32)>,
-    keys: &mut Vec<Value>,
-    vals: &mut Vec<Value>,
-    val_ids: &mut ValIntern,
+    intern: &mut BindIntern<'_>,
     fact: &Value,
 ) -> Option<(u32, u16)> {
-    let mut intern = BindIntern {
-        keys,
-        vals,
-        ids: val_ids,
-        pool,
-    };
-    exec_compiled_with_key_ids(
-        compiled,
-        fact_fields,
-        scratch,
-        &mut intern,
-        fact,
-        None,
-    )
+    exec_compiled_with_key_ids(compiled, fact_fields, scratch, intern, fact, None)
 }
 
 pub(crate) fn exec_compiled_with_key_ids(
@@ -896,15 +894,22 @@ mod tests {
 
         let fact = [Value::i64(20)];
         let mut scratch = Vec::new();
+        let mut pool = Vec::new();
+        let mut keys = Vec::new();
+        let mut vals = Vec::new();
+        let mut ids = ValIntern::default();
+        let mut intern = BindIntern {
+            keys: &mut keys,
+            vals: &mut vals,
+            ids: &mut ids,
+            pool: &mut pool,
+        };
         assert!(
             exec_compiled(
                 &compiled,
                 &fact,
                 &mut scratch,
-                &mut Vec::new(),
-                &mut Vec::new(),
-                &mut Vec::new(),
-                &mut ValIntern::default(),
+                &mut intern,
                 &Value::i64(20),
             )
                 .is_some(),
@@ -945,15 +950,22 @@ mod tests {
             "strict compile must not seed leftover ?vars"
         );
         let mut scratch = Vec::new();
+        let mut pool = Vec::new();
+        let mut keys = Vec::new();
+        let mut vals = Vec::new();
+        let mut ids = ValIntern::default();
+        let mut intern = BindIntern {
+            keys: &mut keys,
+            vals: &mut vals,
+            ids: &mut ids,
+            pool: &mut pool,
+        };
         assert!(
             exec_compiled(
                 &compiled,
                 &[Value::i64(20)],
                 &mut scratch,
-                &mut Vec::new(),
-                &mut Vec::new(),
-                &mut Vec::new(),
-                &mut ValIntern::default(),
+                &mut intern,
                 &Value::i64(20),
             )
             .is_none(),
@@ -984,5 +996,64 @@ mod tests {
                 "compile_condition_local must not return None for {src}"
             );
         }
+    }
+
+    /// Freeze next to `Op`: a new variant that does not compile is a red build.
+    /// Driver = slot population (`Bind`). Everything else is the expression core.
+    #[derive(Debug, PartialEq, Eq)]
+    enum Lands {
+        Core,
+        Driver,
+    }
+
+    fn lands(op: &Op) -> Lands {
+        match op {
+            Op::Bind { .. } => Lands::Driver,
+            Op::BindCheck { .. }
+            | Op::Cmp { .. }
+            | Op::SeedCmp { .. }
+            | Op::Or(_)
+            | Op::Not(_)
+            | Op::Fail => Lands::Core,
+        }
+    }
+
+    #[test]
+    fn every_op_variant_lands_in_core_or_driver() {
+        let lit = crate::rete::expr_ir::Expr::Lit(Value::i64(0));
+        let cmp = crate::rete::matcher::CmpKind::Gt;
+        let variants = [
+            Op::Bind {
+                field_idx: 0,
+                slot: 0,
+            },
+            Op::BindCheck {
+                field_idx: 0,
+                slot: 0,
+            },
+            Op::Cmp {
+                op: cmp,
+                lhs: lit.clone(),
+                rhs: lit.clone(),
+            },
+            Op::SeedCmp {
+                op: cmp,
+                lhs: lit.clone(),
+                rhs: lit.clone(),
+            },
+            Op::Or(vec![]),
+            Op::Not(vec![]),
+            Op::Fail,
+        ];
+        let driver: Vec<_> = variants.iter().filter(|op| lands(op) == Lands::Driver).collect();
+        let core: Vec<_> = variants.iter().filter(|op| lands(op) == Lands::Core).collect();
+        assert!(
+            core.len() >= 4,
+            "only {} of {} variants reach the shared core",
+            core.len(),
+            variants.len()
+        );
+        assert_eq!(driver.len(), 1, "driver must be exactly Bind, got {driver:?}");
+        assert!(matches!(driver[0], Op::Bind { .. }));
     }
 }

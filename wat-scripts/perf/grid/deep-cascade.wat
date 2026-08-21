@@ -62,8 +62,8 @@
 ;; quasiquote/unquote (byte-identical in shape to the legacy file's :perf::build-rule).
 (:wat::core::defn :dc::build-rule [k <- :wat::core::i64] -> :wat::rete::Rule
   (:wat::core::let [prev (:wat::core::i64::- k 1)
-                    c1 (:wat::core::quasiquote (:cascade::Node (?id <- :id) (?l <- :level) (:wat::core::= ?l (:wat::core::unquote prev))))
-                    c2 (:wat::core::quasiquote (:cascade::Tag  (?id <- :id) (?m <- :level) (:wat::core::= ?m (:wat::core::unquote prev))))
+                    c1 (:wat::core::quasiquote (:cascade::Node (?id <- :id) (?l <- :level) (:wat::rete::core::i64::= ?l (:wat::core::unquote prev))))
+                    c2 (:wat::core::quasiquote (:cascade::Tag  (?id <- :id) (?m <- :level) (:wat::rete::core::i64::= ?m (:wat::core::unquote prev))))
                     t1 (:wat::core::quasiquote (:cascade::Node (:wat::core::unquote k) ?id))
                     t2 (:wat::core::quasiquote (:cascade::Tag  (:wat::core::unquote k) ?id))]
     (:wat::rete::Rule :name (:wat::core::i64::to-string k)

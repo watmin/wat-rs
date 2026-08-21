@@ -291,9 +291,11 @@
        (:wat::service::Outcome::Reply s qresp)))
 
    ;; sift-logs — arc 278 Stone 2: query-logs + server-side filtering. The predicate (a `Sieve`'s
-   ;; `::`-source) is compiled ONCE (read-string -> unwrap -> verify pure?/deterministic? ->
-   ;; eval-ast!), outside the foldl; applied PER ROW inside it. An impure/non-deterministic
-   ;; predicate is REJECTED — `::Fatal` with a Fault, never a silent pass (no-hidden-failures).
+   ;; `::`-source) is compiled ONCE (read-string -> unwrap -> verify
+   ;; pure?/deterministic?/total? -> eval-ast!), outside the foldl; applied PER ROW
+   ;; inside it. An impure/non-deterministic/partial predicate is REJECTED — `::Fatal`
+   ;; with a Fault, never a silent pass (no-hidden-failures). `total?` is the third
+   ;; language axis (DESIGN-STONE-total-the-third-axis); journal is a consumer beyond rete.
    (sift-logs [s ctx req]
      (:wat::core::let
        [store    (:wat::telemetry::journal::State/store s)
@@ -302,7 +304,8 @@
         pform    (:wat::core::first (:wat::core::ast->children (:wat::core::match (:wat::core::read-string pred-src) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)))))
         purep    (:wat::rete::pure? pform)
         detp     (:wat::rete::deterministic? pform)
-        qresp    (:wat::core::if (:wat::core::and purep detp)
+        totp     (:wat::rete::total? pform)
+        qresp    (:wat::core::if (:wat::core::and purep (:wat::core::and detp totp))
                    (:wat::core::let
                      [pfn  (:wat::core::Result/expect (:wat::eval-ast! pform) "sift-logs: eval predicate")
                       ns   (:wat::telemetry::Journal::SiftLogsRequest/namespace req)
@@ -355,7 +358,7 @@
                            (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: store peer closed"))))))
                    (:wat::telemetry::Journal::SiftLogsResponse::Fatal
                      (:wat::query::Fatal :reason
-                       (:wat::query::Fault :message "sift-logs: predicate must be pure and deterministic"))))]
+                       (:wat::query::Fault :message "sift-logs: predicate must be pure, deterministic, and total"))))]
        (:wat::service::Outcome::Reply s qresp)))
 
    ;; sift-metrics — the mechanical twin, over the Metric partition.
@@ -367,7 +370,8 @@
         pform    (:wat::core::first (:wat::core::ast->children (:wat::core::match (:wat::core::read-string pred-src) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)))))
         purep    (:wat::rete::pure? pform)
         detp     (:wat::rete::deterministic? pform)
-        qresp    (:wat::core::if (:wat::core::and purep detp)
+        totp     (:wat::rete::total? pform)
+        qresp    (:wat::core::if (:wat::core::and purep (:wat::core::and detp totp))
                    (:wat::core::let
                      [pfn  (:wat::core::Result/expect (:wat::eval-ast! pform) "sift-metrics: eval predicate")
                       ns   (:wat::telemetry::Journal::SiftMetricsRequest/namespace req)
@@ -420,5 +424,5 @@
                            (:wat::query::Fatal :reason (:wat::query::Fault :message "journal.wat: store peer closed"))))))
                    (:wat::telemetry::Journal::SiftMetricsResponse::Fatal
                      (:wat::query::Fatal :reason
-                       (:wat::query::Fault :message "sift-metrics: predicate must be pure and deterministic"))))]
+                       (:wat::query::Fault :message "sift-metrics: predicate must be pure, deterministic, and total"))))]
        (:wat::service::Outcome::Reply s qresp)))])

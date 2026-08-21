@@ -5557,7 +5557,7 @@ fn dispatch_keyword_head_value(
         // Arc 278 Stone 4a — rete RHS insert evaluator (the dual of alpha-match).
         // Pure data-in/data-out: insert-form (WatAST) × bindings (PersistentMap) → Record.
         // Resolves ?var/literal fact-args via resolve_operand; raises on unresolved (no silent drop).
-        ":wat::rete::eval-insert" => crate::rete::matcher::eval_insert(args, list_span, env, sym),
+        ":wat::rete::eval-insert" => crate::rete::eval_insert::eval_insert(args, list_span, env, sym),
         // Arc 278 Stone P2 — native Rust single-pass fire cycle (the differential harness).
         // (:wat::rete::fire-once <session>) → :wat::rete::Session
         // Observationally equivalent to the wat oracle's fire-once: same derived facts.
@@ -5586,7 +5586,7 @@ fn dispatch_keyword_head_value(
             crate::rete::kernel::eval_insert_all_native(args, list_span, env, sym)
         }
         ":wat::rete::insert$native" => {
-            crate::rete::kernel::eval_insert_native(args, list_span, env, sym)
+            crate::rete::kernel::eval_session_insert(args, list_span, env, sym)
         }
         ":wat::rete::fire-rules-explain$native" | ":wat::rete::fire-rules-explain" => {
             crate::rete::kernel::eval_fire_rules_explain(args, list_span, env, sym)
@@ -5595,7 +5595,7 @@ fn dispatch_keyword_head_value(
         // (:wat::rete::step-payload session alpha-id bindings sfact supporting) → :wat::rete::DerivationStep
         // REUSES resolve_operand + the clause classifier from matcher.rs (faithful by construction).
         ":wat::rete::step-payload" => {
-            crate::rete::matcher::eval_step_payload(args, list_span, env, sym)
+            crate::rete::step_payload::eval_step_payload(args, list_span, env, sym)
         }
         ":wat::rete::collect-rules" => {
             crate::rete::collect::eval_collect_rules(args, list_span, env, sym)
@@ -5634,13 +5634,13 @@ fn dispatch_keyword_head_value(
         }
         // BRIEF-the-fence-names-the-head — the SAME walk pure?/deterministic? run, surfacing the
         // first violating leaf instead of discarding it.
-        // (:wat::rete::axis-violation <quoted-expr> <axis: :pure|:deterministic>) -> :wat::core::Option<wat::rete::AxisViolation>
+        // (:wat::rete::axis-violation <quoted-expr> <axis: :wat::rete::Axis>) -> :wat::core::Option<wat::rete::AxisViolation>
         ":wat::rete::axis-violation" => {
             crate::rete::purity::eval_axis_violation(args, list_span, env, sym)
         }
         // Arc 278 Stone 6b-i — the runtime evaluator for where/:test predicates.
         // (:wat::rete::eval-test <quoted-expr: :wat::WatAST> <bindings: :wat::core::PersistentMap>) -> :wat::core::bool
-        ":wat::rete::eval-test" => crate::rete::matcher::eval_test(args, list_span, env, sym),
+        ":wat::rete::eval-test" => crate::rete::eval_test::eval_test(args, list_span, env, sym),
         // #49 — rule-compile refuse: lower the where expr or raise. Returns nil on success.
         ":wat::rete::lower" => crate::rete::expr_ir::eval_lower(args, list_span, env, sym),
         ":wat::core::forms" => Ok(eval_forms(args, list_span)?),

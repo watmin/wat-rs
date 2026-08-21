@@ -51,7 +51,7 @@
 
 ;; insert — public production verb. Runtime intercepts the keyword head
 ;; (`eval_insert_public`: 2-ary native, 3+ insert-all). This defclause is the
-;; type surface and the first-class Fn; bodies re-enter the keyword head.
+;; type surface and the first-class Fn; bodies call `$native`.
 (:wat::core::defclause :wat::rete::insert
   ([session <- :wat::rete::Session
     fact    <- :T] -> :wat::rete::Session

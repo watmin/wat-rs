@@ -15,7 +15,7 @@
 ;; (1) exactly one AlphaNode populated (one condition; one of two staged facts matches).
 (:wat::core::defn :user::alpha-populated-count [] -> :wat::core::i64
   (:wat::core::let
-    [cond  (:wat::core::quote (:user::Temp (?t <- :value) (:wat::core::> ?t 20)))
+    [cond  (:wat::core::quote (:user::Temp (?t <- :value) (:wat::rete::core::i64::> ?t 20)))
      rule  (:wat::rete::Rule :name "r" :lhs (:wat::core::PersistentVector cond) :rhs (:wat::core::PersistentVector))
      sess0 (:wat::rete::compile (:wat::core::PersistentVector rule))
      sess1 (:wat::rete::insert sess0 (:user::Temp :value 25))
@@ -27,7 +27,7 @@
 ;; (2) the populated alpha holds ONE Element — 15 was rejected by (> ?t 20).
 (:wat::core::defn :user::alpha-matching-element-count [] -> :wat::core::i64
   (:wat::core::let
-    [cond  (:wat::core::quote (:user::Temp (?t <- :value) (:wat::core::> ?t 20)))
+    [cond  (:wat::core::quote (:user::Temp (?t <- :value) (:wat::rete::core::i64::> ?t 20)))
      rule  (:wat::rete::Rule :name "r" :lhs (:wat::core::PersistentVector cond) :rhs (:wat::core::PersistentVector))
      sess0 (:wat::rete::compile (:wat::core::PersistentVector rule))
      sess1 (:wat::rete::insert sess0 (:user::Temp :value 25))
@@ -41,7 +41,7 @@
 ;; (3) the stored Element's bindings carry ?t = 25 — bindings flow from alpha-match into the Element.
 (:wat::core::defn :user::alpha-element-t-binding [] -> :wat::core::Option<wat::core::i64>
   (:wat::core::let
-    [cond  (:wat::core::quote (:user::Temp (?t <- :value) (:wat::core::> ?t 20)))
+    [cond  (:wat::core::quote (:user::Temp (?t <- :value) (:wat::rete::core::i64::> ?t 20)))
      rule  (:wat::rete::Rule :name "r" :lhs (:wat::core::PersistentVector cond) :rhs (:wat::core::PersistentVector))
      sess0 (:wat::rete::compile (:wat::core::PersistentVector rule))
      sess1 (:wat::rete::insert sess0 (:user::Temp :value 25))

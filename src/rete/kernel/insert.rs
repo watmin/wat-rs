@@ -1,25 +1,25 @@
 //! Native `insert` / `insert-all`. Session overlay by field name.
 
-use std::sync::Arc;
-
 use crate::ast::WatAST;
 use crate::runtime::{EvalBreak, RuntimeError, RuntimeErrorKind, SymbolTable, Value, ValueSnapshot};
 use crate::span::Span;
 use crate::types::Nature;
 use crate::value::value::AggregateValue;
 
+use super::{session_named_field, session_with_facts};
+
 // ── Public entry: native insert ───────────────────────────────────────────────
 
 /// `facts` slot from the Aggregate's carried names (arc 296 G).
 /// TypeEnv is not on this path (`DESIGN-STONE-insert-facts-from-names`).
 /// `available` is allocated only on miss.
-fn session_facts_idx(
+fn require_session_facts<'a>(
+    session: &'a Value,
     agg: &AggregateValue,
     list_span: &Span,
-) -> Result<usize, EvalBreak> {
-    match agg.names.iter().position(|n| n == "facts") {
-        Some(i) => Ok(i),
-        None => Err(RuntimeError::new(
+) -> Result<&'a Value, EvalBreak> {
+    session_named_field(session, "facts").ok_or_else(|| {
+        RuntimeError::new(
             list_span.clone(),
             RuntimeErrorKind::UnknownField {
                 record_class: agg.class.to_string(),
@@ -27,8 +27,8 @@ fn session_facts_idx(
                 available: agg.names.as_ref().clone(),
             },
         )
-        .into()),
-    }
+        .into()
+    })
 }
 
 /// `(:wat::rete::insert <session> <fact>) -> :wat::rete::Session`
@@ -40,7 +40,7 @@ fn session_facts_idx(
 ///
 /// ★ Contract: `facts` is resolved BY NAME from `agg.names` — never by positional
 /// index (`DESIGN-STONE-insert-facts-from-names`). TypeEnv is not on the hot path.
-pub(crate) fn eval_insert_native(
+pub(crate) fn eval_session_insert(
     args: &[WatAST],
     list_span: &Span,
     env: &crate::runtime::Environment,
@@ -80,7 +80,7 @@ pub(crate) fn eval_insert_public(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::rete::insert";
     match args.len() {
-        2 => eval_insert_native(args, list_span, env, sym),
+        2 => eval_session_insert(args, list_span, env, sym),
         0 | 1 => Err(RuntimeError::new(
             list_span.clone(),
             RuntimeErrorKind::ArityMismatch {
@@ -152,21 +152,9 @@ fn insert_one_on_session(
     require_record_fact(&fact, OP, list_span)?;
     let agg = require_session_agg(&session, OP, list_span)?;
 
-    let facts_idx = session_facts_idx(agg, list_span)?;
-
-    // Conj the fact onto the resolved `facts` PersistentVector; every other field carries
-    // through unchanged (structural clone).
-    let facts_val = &agg.fields[facts_idx];
+    let facts_val = require_session_facts(&session, agg, list_span)?;
     let new_facts = crate::collection::eval::persistentvector_conj_inner(facts_val, &fact)?;
-
-    let mut new_fields: Vec<Value> = agg.fields.as_ref().clone();
-    new_fields[facts_idx] = new_facts;
-
-    Ok(Value::Aggregate(Arc::new(AggregateValue::record_arc(
-        agg.class.clone(),
-        agg.names.clone(),
-        Arc::new(new_fields),
-    ))))
+    Ok(session_with_facts(&session, new_facts))
 }
 
 fn insert_facts_on_session(
@@ -182,22 +170,9 @@ fn insert_facts_on_session(
         }
     }
 
-    let facts_idx = session_facts_idx(agg, list_span)?;
-
-    // Extend the resolved `facts` PersistentVector by every element of `new_facts_vec` in ONE
-    // concat; every other field carries through unchanged (structural clone). This single
-    // concat + single Session rebuild (below) is the whole win over N `insert` calls.
-    let facts_val = &agg.fields[facts_idx];
+    let facts_val = require_session_facts(&session, agg, list_span)?;
     let new_facts = crate::collection::eval::vector_concat_inner(facts_val, &new_facts_vec)?;
-
-    let mut new_fields: Vec<Value> = agg.fields.as_ref().clone();
-    new_fields[facts_idx] = new_facts;
-
-    Ok(Value::Aggregate(Arc::new(AggregateValue::record_arc(
-        agg.class.clone(),
-        agg.names.clone(),
-        Arc::new(new_fields),
-    ))))
+    Ok(session_with_facts(&session, new_facts))
 }
 
 // ── Public entry: native insert-all ────────────────────────────────────────────
@@ -216,7 +191,7 @@ fn insert_facts_on_session(
 /// elements via one `Vector/concat` and rebuilds the `Session` exactly once.
 ///
 /// ★ Contract: `facts` is resolved BY NAME from `agg.names` — never by positional
-/// index — exactly mirroring `eval_insert_native` (`DESIGN-STONE-insert-facts-from-names`).
+/// index — exactly mirroring `eval_session_insert` (`DESIGN-STONE-insert-facts-from-names`).
 pub(crate) fn eval_insert_all_native(
     args: &[WatAST],
     list_span: &Span,
@@ -236,7 +211,7 @@ pub(crate) fn eval_insert_all_native(
         .into());
     }
 
-    // Evaluate both arguments (mirrors eval_insert_native's session/fact eval).
+    // Evaluate both arguments (mirrors eval_session_insert's session/fact eval).
     let session = crate::runtime::eval_inner(&args[0], env, sym)?.value_owned();
     let new_facts_vec = crate::runtime::eval_inner(&args[1], env, sym)?.value_owned();
     insert_facts_on_session(session, new_facts_vec, list_span)

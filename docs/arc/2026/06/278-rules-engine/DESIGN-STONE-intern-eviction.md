@@ -99,8 +99,11 @@ two entries and two leases.
 
 ## Predicted win
 
-Not a FIRE cut. The product door: disconnect deprovisions.
-512 hangups do not keep 512 interned networks.
+Not a FIRE cut. The product door: `release-session` deprovisions.
+Session Drop does not (stone 29: no intern handle on Session).
+A hangup that only drops the Value leaks the lease until thread end.
+`wat/query.wat` `:stop` already calls `release-session`.
+512 connections that hang up without that call keep 512 interned networks.
 
 ## Blast radius
 
