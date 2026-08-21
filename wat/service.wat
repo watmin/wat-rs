@@ -440,11 +440,20 @@
      ;; THE IDENTITY PROPERTY: a monomorphic surface has `proto-tp` = "" and `proto-base` IS
      ;; `proto-str`, so every derived string is byte-identical to the pre-split concatenation.
      ;;
-     ;; THE MESSAGE CONVENTION (checker-locked in `synthesize_surface_protocol`, src/types.rs):
-     ;; a parametric surface's `:messages` are parametric in ALL of the surface's params, in
-     ;; order — `PCache<K,V>` ⇒ `PCache::GetRequest<K,V>`, `PCache::GetResponse<K,V>`, even when
-     ;; a given message uses only some (or none) of them. This is the SAME convention the
-     ;; generated companions already ride: `::Status<K,V>` names neither K nor V in any variant.
+     ;; ⛔ RETIRED 2026-08-21 — "THE MESSAGE CONVENTION" said a parametric surface's `:messages` are
+     ;; parametric in ALL of the surface's params "even when a given message uses only some (or none)
+     ;; of them", and called itself checker-locked in `synthesize_surface_protocol`. BOTH HALVES WERE
+     ;; FALSE. Nothing locked it: `wat/cache.wat:169` declares `Cache<K,V>` and `:171` declares
+     ;; `Cache::GetRequest<K>` — one param, not all — and the stdlib loads and passes.
+     ;;
+     ;; THE RULE, builder 2026-08-21: a surface declares its own params; each MESSAGE declares only
+     ;; what IT consumes, and the surface's list is the union rather than a quota each must restate.
+     ;; `cache.wat` already reads exactly that way and is the exemplar:
+     ;;   Cache<K,V>  ⇒  Cache::GetRequest<K>   (keys)      Cache::GetResult<V>   (values)
+     ;;                  Cache::GetResponse<V>  (values)    Cache::PutRequest<K,V> (Entry<K,V>, both)
+     ;; Enforced by the param-spec consumption wall: a declared param no member type mentions is
+     ;; illegal. `[[feedback_a_comment_can_ship_a_gap_as_a_law]]` — this comment asserted a lock
+     ;; that did not exist, and the corpus it cited as conformant was the deviation.
      ;; It is what gives the derivation below a representation for a message's type arguments —
      ;; the surface's own params — where before there was none, and it is what keeps the
      ;; surface's `<S>::Op` and this service's `<fqdn>::Op` superset field-for-field identical

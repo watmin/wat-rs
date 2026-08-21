@@ -53,7 +53,7 @@
 ;;
 ;; ── the message-params rule (checker-locked) ────────────────────────────────────────────────
 ;; A parametric serviceable surface's `:messages` must be declared parametric in EXACTLY the
-;; surface's params, in order. Here that is honest — `GetRequest<K,V>`'s field IS `Vector<K>` and
+;; surface's params. RETIRED 2026-08-21 — each message declares only what IT consumes, so and
 ;; `GetResponse<K,V>` names both — but the rule holds even for a message that names none of them
 ;; (see the two sibling gates), because the derivation is a MACRO: freeze runs `expand_all` before
 ;; `register_types`, so at the moment `wat/service.wat` builds those names the type registry is
@@ -63,7 +63,7 @@
 ;; ── the surface: messages PARAMETRIC, K and V in the payload ────────────────────────────────
 (:wat::core::defsurface :wat-tests::PCache<K,V> :nature :wat::kernel::Peer
   :messages
-  [(:wat::core::defrecord :wat-tests::PCache::GetRequest<K,V>
+  [(:wat::core::defrecord :wat-tests::PCache::GetRequest<K>
      ;; ONE type-param field and ONE concrete field, deliberately side by side: the request-shape
      ;; wall's reach is exactly the difference between them, and probes (2) and (3) below MEASURE
      ;; that difference instead of asserting it.
@@ -82,7 +82,7 @@
      :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   ;; Stone 16.3 — `:max-request-bytes` is MANDATORY on a `:nature :Peer'` op.
-  [(get [self <- :wat-tests::PCache<K,V>  req <- :wat-tests::PCache::GetRequest<K,V>]
+  [(get [self <- :wat-tests::PCache<K,V>  req <- :wat-tests::PCache::GetRequest<K>]
      -> :wat-tests::PCache::GetResponse<K,V> :max-request-bytes 1024)])
 
 ;; ── the two-parameter service ───────────────────────────────────────────────────────────────

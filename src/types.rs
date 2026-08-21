@@ -3697,6 +3697,94 @@ fn classify_type_decl(form: &WatAST) -> Option<&'static str> {
     None
 }
 
+/// Arc 109 (DESIGN-STONE-a-param-spec-must-be-consumed) — every entry in a `TypeDef`'s
+/// `type_params` must be reachable from at least one member `TypeExpr` the def carries.
+///
+/// Runs ONCE, over the fully-built `TypeDef`, rather than being threaded into each of the
+/// seven declarator parsers — all six variants carry `type_params`, so one check here covers
+/// every declaration head `parse_type_decl` dispatches to. Empty `type_params` is a no-op
+/// (monomorphic declarations, and every non-parametric declaration, are untouched).
+///
+/// Member-type reachability per variant (see `TypeDef`'s six variants above):
+/// - `Aggregate` — every field's type.
+/// - `Enum` — every `Tagged` variant's field types (`Unit` variants carry none).
+/// - `Newtype` — the inner type.
+/// - `Alias` — the body expression.
+/// - `Union` — every member type.
+/// - `Surface` — every `Field` member's type, AND every `Method` member's fixed-param types,
+///   rest-param type (if any), and return type. The design/brief docs shorthand this variant's
+///   row as "surface fields", but the corpus's own parametric surfaces (`Seqable<T>`,
+///   `Dialable<S,R>`, `TypedCapability<S,R>`, `Holds<T>`, `Cache<K,V>`, `Pair<A,B>`, …) declare
+///   ZERO plain `Field` members — every one of them consumes its type params exclusively
+///   through `:features` method signatures (typically the `self <- :Name<T,...>` restatement,
+///   sometimes the return type, e.g. `Holds<T>`'s `get [self] -> :T`). A check that read only
+///   `Field` members would reject all of them; walking `Method` args + ret is required for the
+///   wall to be sound against the surface declarations that already exist.
+///
+/// Consumption itself walks NESTED type expressions — delegated to
+/// `crate::runtime::collect_free_type_vars_in`, which already recurses through `Parametric`,
+/// `Fn`, and `Tuple` (stone 251.8a's single door; this reuses it rather than re-walking).
+fn check_type_params_consumed(def: &TypeDef, decl_span: &Span) -> Result<(), TypeError> {
+    let type_params: &[String] = match def {
+        TypeDef::Aggregate(a) => &a.type_params,
+        TypeDef::Enum(e) => &e.type_params,
+        TypeDef::Newtype(n) => &n.type_params,
+        TypeDef::Alias(a) => &a.type_params,
+        TypeDef::Union(u) => &u.type_params,
+        TypeDef::Surface(s) => &s.type_params,
+    };
+    if type_params.is_empty() {
+        return Ok(());
+    }
+
+    let member_types: Vec<TypeExpr> = match def {
+        TypeDef::Aggregate(a) => a.fields.iter().map(|(_, t)| t.clone()).collect(),
+        TypeDef::Enum(e) => e
+            .variants
+            .iter()
+            .flat_map(|v| match v {
+                EnumVariant::Unit(_) => Vec::new(),
+                EnumVariant::Tagged { fields, .. } => {
+                    fields.iter().map(|(_, t)| t.clone()).collect()
+                }
+            })
+            .collect(),
+        TypeDef::Newtype(n) => vec![n.inner.clone()],
+        TypeDef::Alias(a) => vec![a.expr.clone()],
+        TypeDef::Union(u) => u.members.clone(),
+        TypeDef::Surface(s) => s
+            .members
+            .iter()
+            .flat_map(|m| match m {
+                SurfaceMember::Field { ty, .. } => vec![ty.clone()],
+                SurfaceMember::Method { args, ret, .. } => {
+                    let mut v: Vec<TypeExpr> =
+                        args.fixed_params.iter().map(|(_, t)| t.clone()).collect();
+                    if let Some((_, t)) = &args.rest_param {
+                        v.push(t.clone());
+                    }
+                    v.push(ret.clone());
+                    v
+                }
+            })
+            .collect(),
+    };
+
+    let consumed = crate::runtime::collect_free_type_vars_in(&member_types);
+    for p in type_params {
+        if !consumed.contains(p) {
+            return Err(TypeError::new(
+                decl_span.clone(),
+                TypeErrorKind::UnconsumedTypeParam {
+                    decl: def.name().to_string(),
+                    param: p.clone(),
+                },
+            ));
+        }
+    }
+    Ok(())
+}
+
 fn parse_type_decl(
     head: &str,
     form: WatAST,
@@ -3717,25 +3805,29 @@ fn parse_type_decl(
     };
     let mut iter = items.into_iter();
     let _head_kw = iter.next();
-    match head {
+    let def = match head {
         // Stone 241.8 — defstruct replaces struct + struct-restricted (HARD CUT).
-        "defstruct" => parse_defstruct(iter.collect(), decl_span, env),
+        "defstruct" => parse_defstruct(iter.collect(), decl_span.clone(), env),
         // Arc 293.2-parity — structtype: thin alias → parse_aggregate with injected :wat::core::Struct parent.
-        "structtype" => parse_structtype(iter.collect(), decl_span, env),
+        "structtype" => parse_structtype(iter.collect(), decl_span.clone(), env),
         // Stone 241.9 — defenum replaces enum (HARD CUT).
-        "defenum" => parse_defenum(iter.collect(), decl_span),
-        "newtype" => parse_newtype(iter.collect(), decl_span),
-        "typealias" => parse_typealias(iter.collect(), decl_span),
+        "defenum" => parse_defenum(iter.collect(), decl_span.clone()),
+        "newtype" => parse_newtype(iter.collect(), decl_span.clone()),
+        "typealias" => parse_typealias(iter.collect(), decl_span.clone()),
         // Stone 237.1 — named bounded set of types.
-        "typeunion" => parse_typeunion(iter.collect(), decl_span),
+        "typeunion" => parse_typeunion(iter.collect(), decl_span.clone()),
         // Stone S-B.1 — record class as a real TypeDef; thin alias → parse_aggregate.
-        "recordtype" => parse_aggregate(iter.collect(), decl_span, "recordtype", env),
+        "recordtype" => parse_aggregate(iter.collect(), decl_span.clone(), "recordtype", env),
         // Arc 293 decl-a — ONE type-reg primitive; nature derived from parent root.
-        "aggregatetype" => parse_aggregate(iter.collect(), decl_span, "aggregatetype", env),
+        "aggregatetype" => parse_aggregate(iter.collect(), decl_span.clone(), "aggregatetype", env),
         // Arc 293.3-core — structural surface.
-        "defsurface" => parse_defsurface(iter.collect(), decl_span),
+        "defsurface" => parse_defsurface(iter.collect(), decl_span.clone()),
         _ => unreachable!(),
-    }
+    }?;
+    // Arc 109 (param-spec-must-be-consumed) — ONE check, here, after every declarator has
+    // returned its built TypeDef, rather than seven checks threaded into seven parsers.
+    check_type_params_consumed(&def, &decl_span)?;
+    Ok(def)
 }
 
 

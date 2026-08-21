@@ -12,7 +12,7 @@
 ;; `proto-base` is the surface name with its type args STRIPPED (service.wat:268),
 ;; and `variant-pascal` is `kebab->pascal-in surface-kw op-str` (service.wat:890).
 ;; So for a surface `:probe::PCtor<K,V>` whose op `get` returns
-;; `:probe::PCtor::GetResponse<K,V>`, the macro would splice the BARE base name
+;; `:probe::PCtor::GetResponse<V>`, the macro would splice the BARE base name
 ;; `:probe::PCtor::GetResponse::RequestTooLarge` — with no `<K,V>` anywhere.
 ;;
 ;; `wat-tests/service-parametric-messages.wat`'s header CLAIMS this is fine
@@ -27,35 +27,35 @@
 ;; (Two form-corrections the checker taught while writing this, kept visible:
 ;;  `defrecord` not `recordtype`; and a parametric surface's `:messages` must be
 ;;  declared parametric in EXACTLY the surface's params, in order — so the
-;;  response is `GetResponse<K,V>`, never `GetResponse<V>`.)
+;;  response is `GetResponse<V>` — it names only V, which is all its fields use (rule retired 2026-08-21).)
 
 ;; ── the SUBJECT: a parametric serviceable surface, params load-bearing in BOTH
 ;;    the request and the response payload (the shape service-parametric-messages
 ;;    proved on the wire).
 (:wat::core::defsurface :probe::PCtor<K,V> :nature :wat::kernel::Peer
   :messages
-  [(:wat::core::defrecord :probe::PCtor::GetRequest<K,V>
+  [(:wat::core::defrecord :probe::PCtor::GetRequest<K>
      [probes <- :wat::core::Vector<K>
       limit  <- :wat::core::i64])
-   (:wat::core::defenum :probe::PCtor::GetResponse<K,V> :wat::enum::Pure
+   (:wat::core::defenum :probe::PCtor::GetResponse<V> :wat::enum::Pure
      :Ok               [results <- :wat::core::Vector<V>]
      :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
      :RequestMalformed [path     <- :wat::core::Vector<wat::core::String>
                         expected <- :wat::core::String
                         got      <- :wat::core::String])]
   :features
-  [(get [self <- :probe::PCtor<K,V>  req <- :probe::PCtor::GetRequest<K,V>]
-     -> :probe::PCtor::GetResponse<K,V> :max-request-bytes 1024)])
+  [(get [self <- :probe::PCtor<K,V>  req <- :probe::PCtor::GetRequest<K>]
+     -> :probe::PCtor::GetResponse<V> :max-request-bytes 1024)])
 
 ;; ★ THE CLAIM UNDER TEST — a LITERAL ctor call naming the BARE base of a
 ;;   PARAMETRIC response enum, in exactly the position the macro will splice it.
 (:wat::core::defn :probe::mk-rtl-parametric []
-    -> :probe::PCtor::GetResponse<wat::core::String,wat::core::i64>
+    -> :probe::PCtor::GetResponse<wat::core::i64>
   (:probe::PCtor::GetResponse::RequestTooLarge 9999 1024))
 
 ;; The RequestMalformed twin — the same strike lands on it, so it is under test too.
 (:wat::core::defn :probe::mk-rm-parametric []
-    -> :probe::PCtor::GetResponse<wat::core::String,wat::core::i64>
+    -> :probe::PCtor::GetResponse<wat::core::i64>
   (:probe::PCtor::GetResponse::RequestMalformed
     (:wat::core::Vector :wat::core::String "limit") "i64" "String"))
 

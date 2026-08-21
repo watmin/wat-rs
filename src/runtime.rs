@@ -4214,47 +4214,73 @@ pub(crate) fn is_type_var_path(p: &str) -> bool {
 /// Recursion mirrors `check::rename`: `Parametric.args`, `Fn.args`,
 /// `Fn.ret`, `Tuple` elements.  `Var(_)` is synthetic (never parsed) —
 /// ignored.  `Path` with no match also ignored.
+///
+/// Arc 109 (param-spec-must-be-consumed) — the single recursive walk lives
+/// in the free fn [`walk_free_type_vars`] below, hoisted out of this
+/// function so [`collect_free_type_vars_in`] can share it without a second
+/// walker. This function is now a thin wrapper: walk `param_types` via the
+/// slice-taking sibling, then walk `ret_type` with the same accumulator.
 pub(crate) fn collect_free_type_vars(
     param_types: &[crate::types::TypeExpr],
     ret_type: &crate::types::TypeExpr,
 ) -> Vec<String> {
-    fn walk(ty: &crate::types::TypeExpr, seen: &mut Vec<String>) {
-        use crate::types::TypeExpr;
-        match ty {
-            TypeExpr::Path(p) => {
-                if is_type_var_path(p) {
-                    let name = p.strip_prefix(':').unwrap_or(p).to_string();
-                    if !seen.contains(&name) {
-                        seen.push(name);
-                    }
-                }
-            }
-            TypeExpr::Parametric { args, .. } => {
-                for a in args {
-                    walk(a, seen);
-                }
-            }
-            TypeExpr::Fn { args, ret } => {
-                for a in args {
-                    walk(a, seen);
-                }
-                walk(ret, seen);
-            }
-            TypeExpr::Tuple(elements) => {
-                for e in elements {
-                    walk(e, seen);
-                }
-            }
-            TypeExpr::Var(_) => {}
-        }
-    }
-
-    let mut seen = Vec::new();
-    for ty in param_types {
-        walk(ty, &mut seen);
-    }
-    walk(ret_type, &mut seen);
+    let mut seen = collect_free_type_vars_in(param_types);
+    walk_free_type_vars(ret_type, &mut seen);
     seen
+}
+
+/// Arc 109 (param-spec-must-be-consumed) — sibling entry point over a plain
+/// slice of `TypeExpr`, with no function-shaped `(param_types, ret_type)`
+/// split. Used by the type-declaration consumption wall (`types.rs`,
+/// `parse_type_decl`), which has no "return type" — every declared
+/// `type_params` entry must appear somewhere in the def's member types
+/// (fields, variants, inner/body/members), and this is where "somewhere"
+/// is decided. Delegates to the same [`walk_free_type_vars`] recursion
+/// [`collect_free_type_vars`] uses, so nested consumption
+/// (`[x :- (Vector :- [T])]`) is handled identically in both callers —
+/// deliberately not a second walker (stone 251.8a already collapsed four
+/// hand-rolled versions of this question into one door).
+pub(crate) fn collect_free_type_vars_in(types: &[crate::types::TypeExpr]) -> Vec<String> {
+    let mut seen = Vec::new();
+    for ty in types {
+        walk_free_type_vars(ty, &mut seen);
+    }
+    seen
+}
+
+/// The one recursive walk shared by [`collect_free_type_vars`] and
+/// [`collect_free_type_vars_in`]. See both callers' docs for the var test
+/// and the recursion shape (`Parametric.args`, `Fn.args`/`Fn.ret`, `Tuple`
+/// elements; `Var(_)` synthetic, ignored).
+fn walk_free_type_vars(ty: &crate::types::TypeExpr, seen: &mut Vec<String>) {
+    use crate::types::TypeExpr;
+    match ty {
+        TypeExpr::Path(p) => {
+            if is_type_var_path(p) {
+                let name = p.strip_prefix(':').unwrap_or(p).to_string();
+                if !seen.contains(&name) {
+                    seen.push(name);
+                }
+            }
+        }
+        TypeExpr::Parametric { args, .. } => {
+            for a in args {
+                walk_free_type_vars(a, seen);
+            }
+        }
+        TypeExpr::Fn { args, ret } => {
+            for a in args {
+                walk_free_type_vars(a, seen);
+            }
+            walk_free_type_vars(ret, seen);
+        }
+        TypeExpr::Tuple(elements) => {
+            for e in elements {
+                walk_free_type_vars(e, seen);
+            }
+        }
+        TypeExpr::Var(_) => {}
+    }
 }
 
 /// Evaluate `ast` in **tail position** with respect to the innermost

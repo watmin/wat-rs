@@ -252,6 +252,22 @@ pub enum TypeErrorKind {
         field_count: usize,
         budget: usize,
     },
+
+    /// Arc 109 (DESIGN-STONE-a-param-spec-must-be-consumed) — a type declaration's param-spec
+    /// named a type parameter that no member type (field, variant, newtype inner, alias body,
+    /// union member, or surface field/method) reaches. This is a WALL, not a soundness fix — an
+    /// unused param still discriminates types (nominal tagging, `PhantomData`'s use case); the
+    /// declaration is rejected for READABILITY: a reader cannot tell a deliberate tag from a
+    /// leftover edit unless every param is written into the shape somewhere. Consumption walks
+    /// nested type expressions (`crate::runtime::collect_free_type_vars_in`), so
+    /// `[x <- (Vector <- [T])]` counts as consuming `T` — only a param absent from EVERY
+    /// reachable type expression, at any depth, fires this.
+    UnconsumedTypeParam {
+        /// The declaration's own name (`TypeDef::name()`), e.g. `:user::R`.
+        decl: String,
+        /// The offending param's bare name (no leading colon), e.g. `"O"`.
+        param: String,
+    },
 }
 
 
@@ -390,6 +406,15 @@ impl fmt::Display for TypeErrorKind {
                  dimension) — every construction of this type would fail this same capacity check \
                  at runtime; reduce the field count or raise the encoding dimension \
                  (:wat::config::set-dim-count!)."
+            ),
+            TypeErrorKind::UnconsumedTypeParam { decl, param } => write!(
+                f,
+                "type parameter \"{param}\" in {decl}'s param-spec is declared but never used — \
+                 every parameter in a type declaration's param-spec must be consumed by a field, \
+                 variant, or body type (direct, e.g. `x <- {param}`, or nested, e.g. \
+                 `x <- (Vector <- [{param}])`) — an unused parameter still discriminates types, \
+                 but that discrimination must be written, not inferred. Remove \"{param}\" from \
+                 {decl}'s param-spec, or use it."
             ),
         }
     }

@@ -90,3 +90,64 @@ exemplary without checking whether a rule said otherwise.
 - **STOP-3'd by the rider, correctly**: `Op` ×2 and `Handle` — their field vectors are assembled
   hundreds of lines after their names are built. The wall's silence on them proves they were never
   over-stamping; they genuinely consume their params.
+
+---
+
+## ⛔ THE HALT IS RESOLVED — the builder ruled, and the corpus already agreed
+
+> Builder, 2026-08-21: *"the surface must declare its parameterized bindings… however the V is
+> dropped… because it must be declared on the GetResponse… the K is on the request and the V is on
+> the response."*
+
+**Each message declares only what IT consumes; the surface's list is the UNION, not a quota each
+message must restate.** And `wat/cache.wat` was already written exactly that way — the exemplar,
+not the deviation:
+
+```clojure
+Cache<K,V>  ⇒  Cache::GetRequest<K>    (keys)     Cache::GetResult<V>    (values)
+               Cache::GetResponse<V>   (values)   Cache::PutRequest<K,V> (Entry<K,V> — both)
+```
+
+So the wall ships as ruled, and the retired convention was the thing that was wrong.
+
+### What changed to land it
+
+- **`wat/service.wat:443`** — "THE MESSAGE CONVENTION" retired in place, with **both** of its false
+  claims named: it was never checker-locked, and the file it cited as conformant
+  (`cache.wat`) was the deviation from *it*, not from the rule.
+- **Four over-stamped messages fixed**, each verified field-by-field first:
+  ```
+  wat-tests::PCache::GetRequest<K,V>  →  <K>    probes <- Vector<K>, limit <- i64   (V unused)
+  probe::PCache::GetRequest<K,V>      →  <K>    probes <- Vector<K>                 (V unused)
+  probe::PCtor::GetRequest<K,V>       →  <K>    probes <- Vector<K>, limit <- i64   (V unused)
+  probe::PCtor::GetResponse<K,V>      →  <V>    results <- Vector<V>                (K unused)
+  ```
+  ★ The fourth I would have missed — the two probes' `GetResponse`s differ: `PCache`'s echoes the
+  request (`echo <- Vector<K>`, `results <- Vector<V>`) so it legitimately keeps `<K,V>`, while
+  `PCtor`'s carries only `results <- Vector<V>`. Same name, same file family, opposite verdicts.
+  Reading the fields is the only thing that separates them.
+- **Two concrete instantiations shrank with it** —
+  `PCtor::GetResponse<wat::core::String,wat::core::i64>` → `<wat::core::i64>`.
+- **Three probe headers** that asserted the old rule were corrected rather than left to rot.
+
+### Final state
+
+```
+floor ......... 4855/4855, 0 FAIL          clippy ........ 0 under -D warnings
+```
+
+The wall is IN, no longer a patch. Live behaviour, re-run by hand:
+
+```
+(defrecord :user::R<T> [])                        REJECTED — named
+(defrecord :user::R<T,U> [x <- T])                REJECTED — names U
+(defenum :user::E<T> … [f <- i64])                REJECTED — named
+(defrecord :user::R<T> [x <- Vector<T>])          clean  ← NESTED consumption
+(defrecord :user::R [x <- i64])                   clean  ← monomorphic
+(defn :user::f<T> [x <- i64] -> i64 x)            clean  ← functions out of scope, by ruling
+(defsurface :user::S<K,V> … Req<K> … Resp<V> …)   clean  ← the ruled surface shape
+```
+
+★ **The wall found three real defects across its life** — one generated (`lru-svc::Record`), four
+hand-written, and one false law (`service.wat:443`). None of them was visible to the regex census
+that predicted zero violations.
