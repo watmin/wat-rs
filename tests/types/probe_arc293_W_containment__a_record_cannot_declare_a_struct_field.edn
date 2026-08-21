@@ -2,7 +2,7 @@
   :message "containment rule (arc 293.W): pure aggregate \":w::Bad\" may only hold pure fields — field \"c\" has impure (struct) type \":w::Conn\". A struct cannot be reconstructed from EDN bytes across a comms boundary; a record or holon holding a struct field could never cross — it must not exist."
   :location #wat.core/Span {
     :file "src/check.rs"
-    :line 13576
+    :line 13612
     :col 29
     :end #wat.core.Option/None []
   }

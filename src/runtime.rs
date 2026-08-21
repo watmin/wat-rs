@@ -6240,27 +6240,46 @@ fn dispatch_keyword_head_value(
         // `:wat::core::tuple` arm retired; Pattern 2 poison in
         // check.rs handles any remaining consumer sites at type-check.
         //
-        // Arc 109 step ①b Room 3 — accept `(Tuple [T1 T2 …] …)` too. Still NOT wired to
+        // Arc 109 step ①b Room 3 — accept `(Tuple [T1 T2 …] …)` too, and, since
+        // Stone ②-i-b, `(Tuple :- [T1 T2 …] …)`. Still NOT wired to
         // `crate::check::unwrap_type_param_bracket` (splicing would evaluate the bracket's
         // type keywords as VALUES — same reasoning as step ①'s STOP-3, unchanged). Instead:
-        // strip a genuine leading bracket via `crate::check::is_type_bracket_candidate` —
+        // strip a genuine leading bracket via `crate::check::split_type_param_bracket` —
         // the SAME discriminator check.rs's `infer_tuple_constructor` uses, so check and
         // eval never disagree on which forms have a bracket. A literal `WatAST::Vector`
         // that is NOT a type-keyword bracket (e.g. `(Tuple [1 2 3] "tag")`,
         // `tests/collection/probe_arc216_stone7_tuple_roundtrip.rs`) is left as an ordinary
         // first element, unchanged. Types are erased at runtime (mirrors `eval_ann_form`) —
         // once check.rs has validated the bracket, only the VALUES matter here.
-        // `eval_tuple_ctor` itself stays untouched.
+        //
+        // Stone ②-i-b — one case `eval_tuple_ctor` cannot take: a `:-`-declared EMPTY
+        // bracket (`(Tuple :- [])`) strips to zero values, and `eval_tuple_ctor` treats
+        // `args.is_empty()` as the illegal bare `(Tuple)` head (previously the ONLY way an
+        // unmarked/no-bracket call could reach it with zero args — an unmarked empty
+        // bracket `[]` fails `is_type_bracket_candidate`'s non-empty guard and is left as an
+        // ordinary value, never stripped). A `:-`-declared empty bracket is different: it
+        // is the empty tuple VALUE this stone makes writable (measured: today
+        // `(Tuple [])` builds `[[]]`, a 1-tuple holding an empty vector — see the design's
+        // "two unwritable forms" table). Build it directly here rather than teaching
+        // `eval_tuple_ctor` to disambiguate "no bracket, zero args" from "bracket, zero
+        // args" — it cannot, by the time it sees only `values`.
         ":wat::core::Tuple" => {
-            let values = match args.first() {
-                Some(WatAST::Vector(inner, _))
-                    if crate::check::is_type_bracket_candidate(inner) =>
-                {
-                    &args[1..]
+            match crate::check::split_type_param_bracket(args) {
+                // The empty tuple is a ZERO-LENGTH param-spec with zero values —
+                // `(Tuple :- [])`. Guard on `inner` too, not `rest` alone: a
+                // declared-but-unpopulated `(Tuple :- [A B])` is an arity mismatch
+                // (check.rs `infer_tuple_constructor` checks bracket arity against
+                // VALUE arity), and answering it with an empty tuple here would be a
+                // check-says-no / runtime-says-yes divergence — the exact class step
+                // ①b's Room 3 was found by. `inner.is_empty()` also confines this arm
+                // to the `:-` spelling for free: the unmarked arm cannot produce an
+                // empty `inner` (`is_type_bracket_candidate` requires non-empty).
+                Some((inner, _bspan, rest)) if inner.is_empty() && rest.is_empty() => {
+                    Ok(Value::Tuple(Arc::new(vec![])))
                 }
-                _ => args,
-            };
-            eval_tuple_ctor(values, list_span, env, sym)
+                Some((_inner, _bspan, rest)) => eval_tuple_ctor(rest, list_span, env, sym),
+                None => eval_tuple_ctor(args, list_span, env, sym),
+            }
         }
         // ═══ PARTITION (runtime side) — see the CLAUSE vs INTRINSIC marker in
         // check.rs `infer_list`. INTRINSIC = type-level computation; two flavors.
@@ -6466,36 +6485,30 @@ fn dispatch_keyword_head_value(
             let spliced_args = crate::check::unwrap_type_param_bracket(args);
             crate::collection::eval::eval_hashmap_ctor(&spliced_args, list_span, env, sym)
         }
-        // Arc 109 step ①b Room 3 — accept `(PersistentMap [K V] …)` too. Still NOT wired
+        // Arc 109 step ①b Room 3 — accept `(PersistentMap [K V] …)` too, and, since
+        // Stone ②-i-b, `(PersistentMap :- [K V] …)`. Still NOT wired
         // to `crate::check::unwrap_type_param_bracket` (splicing would misalign the
         // `args.chunks(2)` pairing, same as check-time — unchanged reasoning). Instead:
-        // strip a genuine leading bracket via `crate::check::is_type_bracket_candidate`,
+        // strip a genuine leading bracket via `crate::check::split_type_param_bracket`,
         // the same discriminator `infer_persistentmap_constructor` uses at check time, so
         // check and eval agree on which forms have a bracket. Types are erased at
         // runtime; `eval_persistentmap_ctor` itself stays untouched.
         ":wat::core::PersistentMap" => {
-            let values = match args.first() {
-                Some(WatAST::Vector(inner, _))
-                    if crate::check::is_type_bracket_candidate(inner) =>
-                {
-                    &args[1..]
-                }
-                _ => args,
+            let values = match crate::check::split_type_param_bracket(args) {
+                Some((_inner, _bspan, rest)) => rest,
+                None => args,
             };
             crate::collection::eval::eval_persistentmap_ctor(values, list_span, env, sym)
         }
-        // Arc 109 step ①b Room 3 — accept `(PersistentVector [T] …)` too. Same reasoning
+        // Arc 109 step ①b Room 3 — accept `(PersistentVector [T] …)` too, and, since
+        // Stone ②-i-b, `(PersistentVector :- [T] …)`. Same reasoning
         // and mechanism as `PersistentMap` above: strip a genuine leading bracket via
-        // `crate::check::is_type_bracket_candidate`; `eval_persistentvector_ctor` itself
+        // `crate::check::split_type_param_bracket`; `eval_persistentvector_ctor` itself
         // stays untouched.
         ":wat::core::PersistentVector" => {
-            let values = match args.first() {
-                Some(WatAST::Vector(inner, _))
-                    if crate::check::is_type_bracket_candidate(inner) =>
-                {
-                    &args[1..]
-                }
-                _ => args,
+            let values = match crate::check::split_type_param_bracket(args) {
+                Some((_inner, _bspan, rest)) => rest,
+                None => args,
             };
             crate::collection::eval::eval_persistentvector_ctor(values, list_span, env, sym)
         }

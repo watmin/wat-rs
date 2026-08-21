@@ -1,1 +1,1 @@
-(wat.type/Vector [T])
+(wat.type/Vector :- [T])

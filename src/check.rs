@@ -12028,6 +12028,42 @@ pub(crate) fn is_type_bracket_candidate(items: &[WatAST]) -> bool {
     !items.is_empty() && items.iter().all(|e| matches!(e, WatAST::Keyword(_, _)))
 }
 
+/// Arc 109 Stone ②-i-b — the ONE door for reading `Tuple` / `PersistentMap` /
+/// `PersistentVector`'s leading type-param bracket, both spellings. Replaces
+/// six per-call-site matches on `is_type_bracket_candidate` (`check.rs:14062,
+/// 14165, 14330`; `runtime.rs:6257, 6479, 6494`) with a single production, so
+/// ③'s hard cut is one door to delete rather than six call sites to re-audit.
+///
+/// Split a constructor's args into (type-param bracket, its span, the values).
+/// - `:-`-marked (`(Head :- [types] v…)`) → the bracket is types BY
+///   DECLARATION. NO content sniffing — the param-spec position is reserved
+///   for type refs; data was never legal there, so there is nothing to guess
+///   about. An EMPTY `:-`-marked bracket (`(Head :- [])`) is a legitimate
+///   zero-length param-spec, not a non-candidate.
+/// - unmarked (`(Head [types] v…)`) → falls back to `is_type_bracket_candidate`
+///   (dual-read; ③ deletes this arm and the helper it calls).
+///
+/// ★ The two arms do NOT share a rule and must not be unified into one: the
+/// `:-` arm never inherits `is_type_bracket_candidate`'s `!items.is_empty()`
+/// guard. Under `:-`, an empty bracket is a declared param-spec of length
+/// zero and the empty tuple/etc. it declares is a real, distinct value
+/// (`(Tuple :- [])` → an empty tuple). Under the unmarked arm the old guard
+/// stays exactly as it is — `(Tuple [])` keeps meaning a 1-tuple holding an
+/// empty vector, dual-read, unchanged by this stone.
+pub(crate) fn split_type_param_bracket(
+    args: &[WatAST],
+) -> Option<(&[WatAST], &Span, &[WatAST])> {
+    match args {
+        [WatAST::Keyword(k, _), WatAST::Vector(inner, bspan), rest @ ..] if k == ":-" => {
+            Some((inner.as_slice(), bspan, rest))
+        }
+        [WatAST::Vector(inner, bspan), rest @ ..] if is_type_bracket_candidate(inner) => {
+            Some((inner.as_slice(), bspan, rest))
+        }
+        _ => None,
+    }
+}
+
 /// Arc 109 step ①b — parse one keyword token from inside a leading
 /// `[T]` / `[K V]` / `[T1 T2 …]` bracket into a `TypeExpr`. Shared by
 /// `infer_tuple_constructor`, `infer_persistentmap_constructor`, and
@@ -14047,8 +14083,9 @@ fn infer_hashmap_constructor(
 /// (:user::A :x 1) 1 (:user::B :y "s"))`) now builds. `unwrap_type_param_bracket`
 /// is bypassed (see its doc comment): this fn has no leading-type-arg read
 /// path, so a spliced bare type keyword would flow into the elementwise
-/// `infer()` calls below and trip Doctrine-1. `is_type_bracket_candidate` /
-/// `parse_bracket_type_keyword` detect + parse the bracket directly instead.
+/// `infer()` calls below and trip Doctrine-1. `split_type_param_bracket`
+/// (Arc 109 Stone ②-i-b) detects + `parse_bracket_type_keyword` parses the
+/// bracket directly instead — both spellings, `[K V]` and `:- [K V]`.
 fn infer_persistentmap_constructor(
     args: &[WatAST],
     head_span: &Span,
@@ -14058,9 +14095,8 @@ fn infer_persistentmap_constructor(
     subst: &mut Subst,
 ) -> CheckResult<TypeExpr> {
     let mut local_errors: Vec<CheckError> = Vec::new();
-    let (declared, values): (Option<(TypeExpr, TypeExpr)>, &[WatAST]) = match args.first() {
-        Some(WatAST::Vector(inner, bspan)) if is_type_bracket_candidate(inner) => {
-            let rest = &args[1..];
+    let (declared, values): (Option<(TypeExpr, TypeExpr)>, &[WatAST]) = match split_type_param_bracket(args) {
+        Some((inner, bspan, rest)) => {
             if inner.len() != 2 {
                 local_errors.push(CheckError { span: bspan.clone(), kind: CheckErrorKind::MalformedForm {
                     head: ":wat::core::PersistentMap".into(),
@@ -14074,7 +14110,7 @@ fn infer_persistentmap_constructor(
                 (Some((k_t, v_t)), rest)
             }
         }
-        _ => (None, args),
+        None => (None, args),
     };
     // Arity must be even (alternating k/v pairs); zero is valid (empty PersistentMap,
     // including a declared-but-empty `(PersistentMap [K V])`).
@@ -14161,9 +14197,8 @@ fn infer_persistentvector_constructor(
     subst: &mut Subst,
 ) -> CheckResult<TypeExpr> {
     let mut local_errors: Vec<CheckError> = Vec::new();
-    let (declared_t, values): (Option<TypeExpr>, &[WatAST]) = match args.first() {
-        Some(WatAST::Vector(inner, bspan)) if is_type_bracket_candidate(inner) => {
-            let rest = &args[1..];
+    let (declared_t, values): (Option<TypeExpr>, &[WatAST]) = match split_type_param_bracket(args) {
+        Some((inner, bspan, rest)) => {
             if inner.len() != 1 {
                 local_errors.push(CheckError { span: bspan.clone(), kind: CheckErrorKind::MalformedForm {
                     head: ":wat::core::PersistentVector".into(),
@@ -14176,7 +14211,7 @@ fn infer_persistentvector_constructor(
                 (Some(t), rest)
             }
         }
-        _ => (None, args),
+        None => (None, args),
     };
     // Bracket-less: T is a free type variable — inferred from the first element
     // (if any), then unified against the rest. An empty ctor produces
@@ -14312,8 +14347,9 @@ fn infer_tuple_constructor(
     subst: &mut Subst,
 ) -> CheckResult<TypeExpr> {
     let mut local_errors: Vec<CheckError> = Vec::new();
-    // Arc 109 step ①b — optional leading `[T1 T2 … Tn]` bracket. Tuple is the
-    // odd shape among the three this stone lifts: it has no single declared
+    // Arc 109 step ①b — optional leading `[T1 T2 … Tn]` bracket, both spellings
+    // (`[T…]` and, since Stone ②-i-b, `:- [T…]`) via `split_type_param_bracket`.
+    // Tuple is the odd shape among the three this stone lifts: it has no single declared
     // element type to unify against — it's heterogeneous BY CONSTRUCTION, one
     // type per POSITION — so the bracket's arity is checked against the VALUE
     // arity, not folded into a single target. A mismatch is a hard
@@ -14324,21 +14360,19 @@ fn infer_tuple_constructor(
     // `check_compound_against_expected` dispatcher already uses for a Tuple
     // ctor call sitting in an expected-`Tuple<...>` position, so this is the
     // second caller of existing machinery, not a second implementation of it.
-    if let Some(WatAST::Vector(inner, _)) = args.first() {
-        // arity-mismatch errors below locate at the whole form via `head_span`,
-        // matching `check_tuple_constructor_against`'s own convention.
-        if is_type_bracket_candidate(inner) {
-            let mut expected: Vec<TypeExpr> = Vec::with_capacity(inner.len());
-            for node in inner.iter() {
-                expected.push(parse_bracket_type_keyword(":wat::core::Tuple", node, fresh, &mut local_errors));
-            }
-            let (val, mut errs) = check_tuple_constructor_against(&args[1..], &expected, head_span, env, locals, fresh, subst).into_parts();
-            local_errors.append(&mut errs);
-            return match val {
-                Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
-                None => CheckResult::errs(local_errors),
-            };
+    // arity-mismatch errors below locate at the whole form via `head_span`,
+    // matching `check_tuple_constructor_against`'s own convention.
+    if let Some((inner, _bspan, rest)) = split_type_param_bracket(args) {
+        let mut expected: Vec<TypeExpr> = Vec::with_capacity(inner.len());
+        for node in inner.iter() {
+            expected.push(parse_bracket_type_keyword(":wat::core::Tuple", node, fresh, &mut local_errors));
         }
+        let (val, mut errs) = check_tuple_constructor_against(rest, &expected, head_span, env, locals, fresh, subst).into_parts();
+        local_errors.append(&mut errs);
+        return match val {
+            Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+            None => CheckResult::errs(local_errors),
+        };
     }
     if args.is_empty() {
         local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {

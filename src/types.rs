@@ -4344,6 +4344,32 @@ pub fn parse_type_expr_with_span(kw: &str, span: &Span) -> Result<TypeExpr, Type
     Ok(expr)
 }
 
+/// Arc 109 Stone ②-i-b — span-carrying, NON-canonicalizing sibling of
+/// [`parse_type_expr_with_span`]. Byte-identical except `canonicalize=false`:
+/// preserves the source spelling — `:wat::core::nil` stays `Path(":wat::core::nil")`
+/// instead of collapsing to `Tuple(vec![])` (`parse_type_inner`'s `canonicalize &&
+/// raw_path == ":wat::core::nil"` arm below), so the renderer can round-trip what
+/// the user actually wrote instead of a type it already lost. Still calls
+/// `reject_any` — the `:Any` ban applies on every path, canonicalizing or not.
+///
+/// Returns `Result`, NEVER `Option` — the caller (the `keyword/to-type-form*`
+/// verbs) must surface a genuine parse error to the user. [`parse_type_expr_audit`]
+/// is a DIFFERENT existing `canonicalize=false` entry point that swallows errors
+/// into `None` for best-effort audit scanning; that silence is why it cannot be
+/// reused here.
+pub fn parse_type_expr_preserving_with_span(kw: &str, span: &Span) -> Result<TypeExpr, TypeError> {
+    let stripped = kw.strip_prefix(':').ok_or_else(|| TypeError::new(
+        span.clone(),
+        TypeErrorKind::MalformedTypeExpr {
+            raw: kw.into(),
+            reason: "type expression keyword must begin with ':'".into(),
+        },
+    ))?;
+    let expr = parse_type_inner(stripped, kw, false, span)?;
+    reject_any(&expr, kw, span)?;
+    Ok(expr)
+}
+
 /// Arc 251.3a — dispatch a `WatAST` node in a type-annotation slot.
 ///
 /// Accepts the three node shapes that can appear in a type slot after the
@@ -4526,7 +4552,38 @@ pub(crate) fn parse_type_form(node: &WatAST) -> Result<TypeExpr, TypeError> {
     // when a bracket is parsed as a top-level type node on its own, never here,
     // where a bracket is one argument of a parametric head. Position — head vs.
     // standalone — already distinguishes the two; nothing here changes that.
+    //
+    // Arc 109 Stone ②-i-b — the `:-`-marked spelling: `(Head :- [type…])`. `:-`
+    // declares "the thing on the left is parameterized by the thing on the right"
+    // (the same relation the arg-spec and ret-type arrows already carry); the
+    // bracket after it is a type-param list BY DECLARATION, never sniffed —
+    // unlike the unmarked arm below, there is no `!inner.is_empty()` guard here,
+    // because under `:-` an empty bracket is a legitimate zero-length param-spec
+    // (`(Tuple :- [])`), not something to guess about.
+    //
+    // The builder's second rule: initial values after the bracket
+    // (`(Head :- [types] v…)`) make the form a LITERAL, and a literal is not a
+    // type — reserved-position violation, not a different production to fall
+    // through to. Emit a clean, named error here rather than letting it fall
+    // through to the standalone function-type-bracket arm (`parse_fn_type_bracket`),
+    // which would misreport it as a malformed `[arg… :-> ret]`.
     let args: Result<Vec<TypeExpr>, TypeError> = match &items[1..] {
+        [WatAST::Keyword(k, _), WatAST::Vector(inner, _), rest @ ..] if k == ":-" => {
+            if !rest.is_empty() {
+                return Err(TypeError::new(
+                    span.clone(),
+                    TypeErrorKind::MalformedTypeExpr {
+                        raw: format!("({} :- […] …)", raw_head),
+                        reason: "a type declaration cannot carry initial values — \
+                                  `(Head :- [types] v…)` is a LITERAL, and a literal is not a \
+                                  type. Drop the values here, or move the form out of the type \
+                                  position."
+                            .into(),
+                    },
+                ));
+            }
+            inner.iter().map(parse_type_node).collect()
+        }
         [WatAST::Vector(inner, _)] => inner.iter().map(parse_type_node).collect(),
         rest => rest.iter().map(parse_type_node).collect(),
     };

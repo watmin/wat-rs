@@ -1196,7 +1196,10 @@ pub(crate) enum TypeFormHeadMode {
 
 /// Arc 251 type-position rendering — convert a closed [`crate::types::TypeExpr`] into a
 /// faithful WatAST node for the type FORM surface. `mode` selects the head spelling (Room 2,
-/// arc 109 Stone ②-i); the bracketing below is unconditional in BOTH modes (Room 1).
+/// arc 109 Stone ②-i); the bracketing below is unconditional in BOTH modes (Room 1), and, since
+/// Stone ②-i-b, prefixed with the `:-` parameterization operator (Room 1 again): `(Head :- [a
+/// b])`, never a bare `(Head [a b])` — `:-` declares "the thing on the left is parameterized by
+/// the thing on the right", the same relation the arg-spec and ret-type arrows already carry.
 ///
 /// 4-way discriminator (Path; Parametric head mirrors it) — `mode` only changes cases 1-3;
 /// case 4 (type-var) has no colon form (a type-var was never namespace-qualified in ANY
@@ -1209,16 +1212,19 @@ pub(crate) enum TypeFormHeadMode {
 ///    (`wat.holon/HolonAST`). Colon: the FQDN Keyword unchanged (`:wat::holon::HolonAST`).
 /// 4. type-var (no `::`, not a primitive) — bare symbol (`T`, `K`, `V`), both modes.
 /// - `Parametric{head,args}`: same 4-way ladder on head; args bracket into ONE `WatAST::Vector`
-///   in the list's second position (`(Head [a b])`, both modes, Room 1); recurse on each arg
-///   with the SAME `mode`.
+///   behind the `:-` operator, in the list's third position (`(Head :- [a b])`, both modes, Room
+///   1); recurse on each arg with the SAME `mode`.
 /// - `Fn{args,ret}`: `Vector([…args, Keyword(":->"), ret])` — UNCHANGED by this stone; args/ret
 ///   recurse with `mode`, but the `:->` keyword and the Vector shape are fixed either way.
-/// - `Tuple(items)`: `List([Symbol("wat.type/Tuple"), …rendered-items])` — the head is OUT OF
-///   SCOPE for `mode` (Room 2 scopes the ladder to the Path/Parametric arms only; nothing in
-///   the acceptance criteria or the contract suite exercises a Colon-mode Tuple), so it stays
-///   the `wat.type/Tuple` Symbol in both modes; items still recurse with `mode`. The empty
-///   `:()` renders as `(wat.type/Tuple)` — a distinct zero-arity product, NOT unit (`nil` is
-///   wat's unit, Rust's `()`; wat's `()` empty list is distinct from `nil`).
+/// - `Tuple(items)`: `List([head, Keyword(":-"), Vector(…rendered-items)])`. As of Stone
+///   ②-i-b the head is NO LONGER out of scope for `mode` — it now runs the SAME 4-way ladder
+///   Parametric's head does, except only case 1 can ever fire (Tuple's implicit head is always
+///   the core FQDN `wat::core::Tuple`; there is no user/bare/type-var Tuple head): Clojure ->
+///   `wat.type/Tuple` Symbol, Colon -> `:wat::core::Tuple` Keyword. Items still recurse with
+///   `mode`. Args bracket UNCONDITIONALLY behind `:-`, at every arity including zero — the
+///   empty tuple renders `(Head :- [])`, a first-class rung of the arity ladder (NOT the
+///   `(wat.type/Tuple)` bare-head spelling this stone retires), and distinct from `nil` (wat's
+///   unit) — wat's `()` empty tuple is not `nil`.
 /// - `Var`: synthetic — NEVER produced by parsing source (the `TypeExpr` doc guarantees it).
 ///
 /// Fallible: the two unmodeled shapes (a malformed trailing-`::` path, and a bare/higher-kinded
@@ -1304,13 +1310,18 @@ pub(crate) fn type_expr_to_clojure_form(t: &crate::types::TypeExpr, mode: TypeFo
                      use the fully-qualified type name (bare/higher-kinded heads are unsupported)"
                 ));
             };
-            // Room 1 — args bracket into ONE WatAST::Vector in the list's second position,
-            // UNCONDITIONALLY, in both modes: `(Head [a b])`. Was flat-spliced `(Head a b)`.
+            // Room 1 — args bracket into ONE WatAST::Vector, UNCONDITIONALLY, in both modes,
+            // behind the `:-` parameterization operator (Stone ②-i-b): `(Head :- [a b])`. Was
+            // flat-spliced `(Head a b)`, then bracketed bare `(Head [a b])` (Stone ②-i); `:-` is
+            // a Keyword and is mode-independent, so it is identical in both modes.
             let mut arg_items: Vec<WatAST> = Vec::with_capacity(args.len());
             for a in args {
                 arg_items.push(type_expr_to_clojure_form(a, mode)?);
             }
-            WatAST::List(vec![head_node, WatAST::Vector(arg_items, unk.clone())], unk)
+            WatAST::List(
+                vec![head_node, WatAST::Keyword(":-".into(), unk.clone()), WatAST::Vector(arg_items, unk.clone())],
+                unk,
+            )
         }
         TypeExpr::Fn { args, ret } => {
             let mut items: Vec<WatAST> = Vec::with_capacity(args.len() + 2);
@@ -1322,15 +1333,25 @@ pub(crate) fn type_expr_to_clojure_form(t: &crate::types::TypeExpr, mode: TypeFo
             WatAST::Vector(items, unk)
         }
         TypeExpr::Tuple(items) => {
-            // Faithful form `(wat.type/Tuple …items)`. Head is OUT OF SCOPE for `mode` (see the
-            // fn doc) — stays the wat.type/Tuple Symbol in both modes; items recurse with `mode`.
-            // Empty `:()` → `(wat.type/Tuple)`, a distinct zero-arity product (NOT unit — `nil`
-            // is wat's unit).
-            let mut elems = vec![WatAST::Symbol(Identifier::bare("wat.type/Tuple".to_string()), unk.clone())];
+            // Arc 109 Stone ②-i-b — the Tuple arm now honours `mode`, exactly what Parametric
+            // got at Stone ②-i (see the fn doc): the head runs the same 4-way ladder as
+            // Parametric's head, and only case 1 can ever fire — Tuple's implicit head is
+            // always the core FQDN `wat::core::Tuple`. Args bracket UNCONDITIONALLY behind the
+            // `:-` operator, at EVERY arity including zero — `(Head :- [a b …])`, never a bare
+            // head. The empty tuple renders `(Head :- [])`, a first-class rung of the arity
+            // ladder, distinct from `nil` (wat's unit; wat's `()` empty tuple is not `nil`).
+            let head_node: WatAST = match mode {
+                TypeFormHeadMode::Clojure => WatAST::Symbol(Identifier::bare("wat.type/Tuple".to_string()), unk.clone()),
+                TypeFormHeadMode::Colon => WatAST::Keyword(":wat::core::Tuple".into(), unk.clone()),
+            };
+            let mut arg_items: Vec<WatAST> = Vec::with_capacity(items.len());
             for it in items {
-                elems.push(type_expr_to_clojure_form(it, mode)?);
+                arg_items.push(type_expr_to_clojure_form(it, mode)?);
             }
-            WatAST::List(elems, unk)
+            WatAST::List(
+                vec![head_node, WatAST::Keyword(":-".into(), unk.clone()), WatAST::Vector(arg_items, unk.clone())],
+                unk,
+            )
         }
         // Var is synthetic — NEVER produced by parsing source (the TypeExpr doc guarantees it),
         // so this verb (which only ever sees parsed-from-source types) cannot reach it.
@@ -1361,7 +1382,11 @@ fn eval_keyword_to_type_form_impl(
         other => return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
             op: op.into(), expected: ":wat::WatAST", got: Box::new(crate::runtime::ValueSnapshot::of(other)) })),
     };
-    let te = crate::types::parse_type_expr(&kw).map_err(|e| RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
+    // Arc 109 Stone ②-i-b — the NON-canonicalizing preserving parse: keeps the source
+    // spelling (`:wat::core::nil` stays `Path`, not collapsed to `Tuple(vec![])`) so the
+    // renderer below can round-trip what was actually written instead of a type that
+    // canonicalization already erased. See `parse_type_expr_preserving_with_span`'s doc.
+    let te = crate::types::parse_type_expr_preserving_with_span(&kw, list_span).map_err(|e| RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
             head: op.into(),
             reason: format!("type-keyword parse failed: {:?}", e.kind()),
         }))?;

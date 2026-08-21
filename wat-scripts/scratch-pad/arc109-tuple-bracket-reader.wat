@@ -37,6 +37,29 @@
 (:wat::core::defn :user::flat-still-reads [p <- (wat.type/Tuple wat.type/i64 wat.type/String)] -> :wat::core::i64
   2)
 
+;; Arc 109 Stone ②-i-b — the `:-`-marked spelling of the same rungs above. `:-` declares "the
+;; thing on the left is parameterized by the thing on the right"; this is that production
+;; landing at Tuple's args-tail (`parse_type_form`'s new `[Keyword(":-"), Vector(inner), …]`
+;; arm, src/types.rs). Same rungs, `:-` this time — dual-read alongside the unmarked forms above.
+
+;; 1-ary bracketed tuple, `:-`-marked
+(:wat::core::defn :user::one-ary-colon [p <- (wat.type/Tuple :- [wat.type/i64])] -> :wat::core::i64
+  0)
+
+;; 2-ary bracketed tuple as a PARAM type, `:-`-marked
+(:wat::core::defn :user::takes-pair-colon [p <- (wat.type/Tuple :- [wat.type/i64 wat.type/String])] -> :wat::core::i64
+  1)
+
+;; bracketed tuple as a RETURN type, with a nested `:-`-marked parametric inside it
+(:wat::core::defn :user::nested-colon [] -> (wat.type/Tuple :- [(wat.type/Vector :- [wat.type/i64]) wat.type/String])
+  (:wat::core::Tuple (:wat::core::Vector [:wat::core::i64] 1 2) "s"))
+
+;; EMPTY `:-`-marked bracketed tuple — `(wat.type/Tuple :- [])`. The empty rung is a first-class
+;; member of the arity ladder, not a defensive branch — and, unlike the unmarked
+;; `(wat.type/Tuple [])` above, it is unambiguously a type declaration: `:-` never sniffs.
+(:wat::core::defn :user::empty-tuple-colon [] -> (wat.type/Tuple :- [])
+  (:wat::kernel::println "e"))
+
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::kernel::println (:wat::core::string::interpolate "pair={a} flat={b}"
     :a (:user::takes-pair (:wat::core::Tuple 1 "x"))

@@ -1,1 +1,1 @@
-(wat.type/Tuple)
+(wat.type/Tuple :- [])
