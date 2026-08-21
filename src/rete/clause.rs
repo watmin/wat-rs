@@ -60,10 +60,12 @@ pub(crate) enum ReteClauseShape<'a> {
     Where(&'a WatAST),
     /// `(?result-var <- (<acc-form>) :from (<inner>))` — top-level-only accumulate wrapper.
     Accumulate {
-        // rune:purgare(trait-contract) — grammar shape; stratify/validate read `from`.
+        // rune:purgare(trait-contract) — classifier names the full accumulate shape
+        // (`?var <- acc-form :from inner`); current consumers only walk `from`.
         #[allow(dead_code)]
         var: &'a str,
-        // rune:purgare(trait-contract) — grammar shape; stratify/validate read `from`.
+        // rune:purgare(trait-contract) — same grammar payload; fire reads acc-form
+        // off the AccumulateNode, not this parse field.
         #[allow(dead_code)]
         acc_form: &'a WatAST,
         from: &'a WatAST,
@@ -72,7 +74,8 @@ pub(crate) enum ReteClauseShape<'a> {
     /// Discriminated from [`Self::Bind`] by a `::` in the type keyword; from
     /// [`Self::Accumulate`] by a keyword (not a list) after `<-`.
     FactBind {
-        // rune:purgare(trait-contract) — grammar shape; stratify/validate read `type_head`.
+        // rune:purgare(trait-contract) — classifier names the bound `?p`; alpha_pattern
+        // still owns `fact_var` for the keyword-headed twin until that consumer switches.
         #[allow(dead_code)]
         var: &'a str,
         type_head: &'a str,

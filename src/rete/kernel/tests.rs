@@ -2958,12 +2958,7 @@
             "first fire-rules must have built an arm; got {builds_after_first}"
         );
 
-        let net_id = match &fired {
-            Value::Aggregate(a) if a.nature != Nature::Struct => {
-                network_identity(&a.fields.as_slice()[0])
-            }
-            _ => None,
-        };
+        let net_id = super::session_network(&fired).and_then(network_identity);
         assert!(net_id.is_some(), "fired session must have a network identity");
 
         fire_fixpoint_delta(&fired, world.symbols(), None)
@@ -2975,12 +2970,7 @@
         );
 
         let overlay = session_with_facts(&fired, session_facts(&fired));
-        let overlay_id = match &overlay {
-            Value::Aggregate(a) if a.nature != Nature::Struct => {
-                network_identity(&a.fields.as_slice()[0])
-            }
-            _ => None,
-        };
+        let overlay_id = super::session_network(&overlay).and_then(network_identity);
         assert_eq!(
             net_id, overlay_id,
             "insert/facts overlay must share the network intern"
@@ -3005,13 +2995,9 @@
             .map(|i| {
                 std::thread::spawn(move || {
                     let (world, fired) = fire_cascade(2, 2);
-                    let id = match &fired {
-                        Value::Aggregate(a) if a.nature != Nature::Struct => {
-                            network_identity(&a.fields.as_slice()[0])
-                        }
-                        _ => None,
-                    }
-                    .unwrap_or_else(|| panic!("thread {i}: fired session has no network identity"));
+                    let id = super::session_network(&fired)
+                        .and_then(network_identity)
+                        .unwrap_or_else(|| panic!("thread {i}: fired session has no network identity"));
                     assert!(
                         rete_arm_lookup(id).is_some(),
                         "thread {i}: first fire must intern on this thread"
@@ -3046,12 +3032,7 @@
     }
 
     fn session_net_id(session: &Value) -> Option<u64> {
-        match session {
-            Value::Aggregate(a) if a.nature != Nature::Struct => {
-                super::network_identity(&a.fields.as_slice()[0])
-            }
-            _ => None,
-        }
+        super::session_network(session).and_then(super::network_identity)
     }
 
     /// Stone 28 — compile leases; fire HIT does not; release drops; next fire rebuilds.
@@ -4447,7 +4428,7 @@
                     super::alpha_activate_fact(
                         fact,
                         i as u32,
-                        &mut super::AlphaHit {
+                        &mut super::AlphaActivateCx {
                             wm: &mut wm,
                             d_alpha: &mut d_alpha,
                             alpha_tree: &arm.alpha_tree,
@@ -5391,7 +5372,7 @@
                     super::alpha_activate_fact(
                         fact,
                         i as u32,
-                        &mut super::AlphaHit {
+                        &mut super::AlphaActivateCx {
                             wm: &mut wm,
                             d_alpha: &mut d_alpha,
                             alpha_tree: &arm.alpha_tree,

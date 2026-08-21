@@ -10,7 +10,7 @@ use std::sync::{Arc, OnceLock};
 
 use crate::ast::WatAST;
 use crate::rete::matcher::{compare_values, Bindings, FieldNames};
-use crate::rete::vocabulary::{resolve_core_name, rete_op_for, OpClass, RETE_OPS};
+use crate::rete::vocabulary::{resolve_core_name, OpClass, RETE_OPS};
 use crate::runtime::{
     coincident_q_from_values, cosine_outcome_from_values, dot_outcome_from_values,
     presence_q_from_values, project_holon_rete_fallback, EvalBreak, FunctionBody, HolonReteProject,
@@ -363,11 +363,9 @@ fn lower_list(items: &[WatAST], span: &Span, cx: &mut LowerCx) -> Result<Expr, L
 
     // Vocabulary rows win over `:Type/field` — `PersistentVector/length` contains `/`
     // but is a rete op, not a record accessor.
-    if let Some(row) = rete_op_for(head) {
-        let op = RETE_OPS
-            .iter()
-            .position(|r| r.rete_name == row.rete_name)
-            .expect("row is in RETE_OPS") as u16;
+    if let Some(op) = crate::rete::vocabulary::rete_op_index(head) {
+        let row = &RETE_OPS[op];
+        let op = op as u16;
         let hof = matches!(
             row.core_name,
             ":wat::core::foldl"
@@ -412,11 +410,13 @@ fn lower_list(items: &[WatAST], span: &Span, cx: &mut LowerCx) -> Result<Expr, L
     Err(LowerError::unsupported(span.clone(), format!("cannot lower head {head}")))
 }
 
+type ExprArgs = Box<[Expr]>;
+
 fn lower_call_args(
     args: &[WatAST],
     cx: &mut LowerCx,
     hof: bool,
-) -> Result<Box<[Expr]>, LowerError> {
+) -> Result<ExprArgs, LowerError> {
     let mut out = Vec::with_capacity(args.len());
     for (i, a) in args.iter().enumerate() {
         let prev = cx.hof_fn_pos;
@@ -428,7 +428,7 @@ fn lower_call_args(
     Ok(out.into_boxed_slice())
 }
 
-fn lower_args(args: &[WatAST], cx: &mut LowerCx) -> Result<Box<[Expr]>, LowerError> {
+fn lower_args(args: &[WatAST], cx: &mut LowerCx) -> Result<ExprArgs, LowerError> {
     let mut out = Vec::with_capacity(args.len());
     for a in args {
         out.push(lower_expr(a, cx)?);
@@ -529,11 +529,10 @@ fn lower_match(args: &[WatAST], span: &Span, cx: &mut LowerCx) -> Result<Expr, L
 }
 
 fn lower_pat(ast: &WatAST, cx: &mut LowerCx) -> Result<Pat, LowerError> {
+    if let Some(v) = crate::rete::matcher::ast_literal_value(ast) {
+        return Ok(Pat::Lit(v));
+    }
     match ast {
-        WatAST::IntLit(n, _) => Ok(Pat::Lit(Value::i64(*n))),
-        WatAST::FloatLit(n, _) => Ok(Pat::Lit(Value::f64(*n))),
-        WatAST::BoolLit(b, _) => Ok(Pat::Lit(Value::bool(*b))),
-        WatAST::StringLit(s, _) => Ok(Pat::Lit(Value::String(Arc::new(s.clone())))),
         WatAST::Keyword(k, _) => {
             if let Some(name) = option_result_tag(k) {
                 return Ok(Pat::Variant {

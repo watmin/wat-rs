@@ -1,15 +1,13 @@
-;; Arc 278 — native `insert'` vs the wat oracle `insert-spec`. RED at HEAD (`insert'` and
-;; `insert-spec` do not exist yet, so the native/spec entries raise UnknownFunction at RUNTIME —
-;; `--check` alone would NOT catch an unknown callee, which is why this gate must RUN).
+;; Arc 278 — native `insert$native` vs the wat oracle `insert$oracle`.
 ;;
-;; The dual-impl trio this mirrors (wat/rete.wat, runtime.rs:4706 — "unprimed is the wat ORACLE,
-;; primed the native kernel; never collapsed"):
-;;   fire-rules-spec  the wat oracle      ->  insert-spec
-;;   fire-rules'      the native kernel   ->  insert'
-;;   fire-rules       the public verb     ->  insert   (a one-line delegate to the prime)
+;; Dual-impl law: unprimed public names are native; `$oracle` is the spec mouth;
+;; `$native` is the kernel. Never collapsed. (wat/rete/oracle/insert.wat)
+;;   insert$oracle  the wat oracle
+;;   insert$native  the native kernel
+;;   insert         the public verb (delegate to insert$native)
 ;;
 ;; Every entry seeds the SAME five facts by a different verb, so any divergence is the verb.
-;; `fire-rules` (native) is used identically by all three — fire is not under test here; it is the
+;; `fire-rules` is used identically by all three — fire is not under test here; it is the
 ;; witness that the Session each path produced is structurally sound and holds the right facts.
 
 (:wat::core::defrecord :nin::Reading [g <- :wat::core::i64  v <- :wat::core::i64])
@@ -41,7 +39,7 @@
 (:wat::core::defn :nin::seed-native [n <- :wat::core::i64] -> :wat::rete::Session
   (:wat::core::foldl
     (:wat::core::fn [s <- :wat::rete::Session  i <- :wat::core::i64] -> :wat::rete::Session
-      (:wat::rete::insert s (:nin::Reading :g i :v (:wat::core::i64::* i 10))))
+      (:wat::rete::insert$native s (:nin::Reading :g i :v (:wat::core::i64::* i 10))))
     (:nin::base)
     (:wat::core::range 0 n)))
 

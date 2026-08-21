@@ -11,8 +11,9 @@ use rustc_hash::{FxHashMap, FxHashSet};
 
 use super::{
     alpha_cond_from_node, alpha_cond_of, cond_text, get_node, kind_of, node_children,
-    node_named_ast, node_record, session_named_field,
-    session_network, rule_bag_consumes, rule_consumes, rule_negates, rule_produces, sorted_node_ids,
+    node_named_ast, session_named_field,
+    session_network, rule_asts_field, rule_bag_consumes, rule_consumes, rule_name_of, rule_negates,
+    rule_produces, sorted_node_ids,
     AlphaDelta, AlphasByType, BetaMemory, ChildrenOf, JoinsFedBy, NodeKind, ParentsOf, TestChildren,
     TestSibs,
 };
@@ -536,7 +537,6 @@ pub(crate) struct InternedNetwork {
     /// Residual stratify row per named rule (`RuleDep`).
     /// Import has no rule AST; fire-rules reads this instead.
     pub(crate) rule_deps: Vec<RuleDep>,
-    pub(crate) alpha_class: HashMap<i64, String>,
     /// TestNode id → all TestNodes sharing its sorted parent-set (where-tree dispatch).
     pub(crate) test_sibs: TestSibs,
     /// Node id → TestNode children (filter-after-join sibling walk).
@@ -591,7 +591,10 @@ pub(crate) fn rete_arm_intern(id: u64, arm: &Arc<InternedNetwork>) {
     ARM_TABLE.with(|t| {
         let mut m = t.borrow_mut();
         match m.get_mut(&id) {
-            Some(e) => e.arm = Arc::clone(arm),
+            Some(e) => {
+                e.arm = Arc::clone(arm);
+                e.leases = e.leases.saturating_add(1);
+            }
             None => {
                 m.insert(
                     id,
@@ -747,21 +750,8 @@ pub(crate) fn build_rete_arm(
     let mut compiled_rhs: crate::rete::compiled_rhs::CompiledRhsByRule =
         HashMap::new();
     for r in &rule_vec {
-        if let Some((_, rsf)) = node_record(r) {
-            let rname = match &rsf[0] {
-                Value::String(s) => s.as_str(),
-                _ => continue,
-            };
-            let rhs: Vec<WatAST> = match &rsf[2] {
-                Value::wat__core__PersistentVector(pv) => pv
-                    .iter()
-                    .filter_map(|v| match v {
-                        Value::wat__WatAST(ast) => Some((**ast).clone()),
-                        _ => None,
-                    })
-                    .collect(),
-                _ => vec![],
-            };
+        if let Some(rname) = rule_name_of(r) {
+            let rhs = rule_asts_field(r, "rhs");
             let mut compiled: Vec<crate::rete::compiled_rhs::CompiledRhs> =
                 Vec::with_capacity(rhs.len());
             for f in &rhs {
@@ -771,12 +761,6 @@ pub(crate) fn build_rete_arm(
         }
     }
 
-    let mut alpha_class: HashMap<i64, String> = HashMap::new();
-    for (ty, ids) in &alpha_by_type {
-        for id in ids {
-            alpha_class.insert(*id, ty.clone());
-        }
-    }
     let rule_deps = rule_deps_from_rules(rules, sym);
 
     let kind_ids = kind_id_lists(network, &node_ids);
@@ -799,7 +783,6 @@ pub(crate) fn build_rete_arm(
         beta_readers,
         compiled_max_slots,
         rule_deps,
-        alpha_class,
         test_sibs,
         test_children,
         children_of,
@@ -864,27 +847,11 @@ pub(crate) fn rule_deps_from_rules(rules: &Value, sym: &SymbolTable) -> Vec<Rule
     };
     let mut out = Vec::new();
     for r in &rule_vec {
-        let Some((_, rsf)) = node_record(r) else {
+        let Some(name) = rule_name_of(r) else {
             continue;
         };
-        let name = match &rsf[0] {
-            Value::String(s) => s.as_ref().clone(),
-            _ => continue,
-        };
-        let to_asts = |v: &Value| -> Vec<WatAST> {
-            match v {
-                Value::wat__core__PersistentVector(pv) => pv
-                    .iter()
-                    .filter_map(|x| match x {
-                        Value::wat__WatAST(ast) => Some((**ast).clone()),
-                        _ => None,
-                    })
-                    .collect(),
-                _ => vec![],
-            }
-        };
-        let lhs = to_asts(&rsf[1]);
-        let rhs = to_asts(&rsf[2]);
+        let lhs = rule_asts_field(r, "lhs");
+        let rhs = rule_asts_field(r, "rhs");
         out.push(RuleDep {
             name,
             produced: rule_produces(&rhs, sym),
@@ -946,12 +913,6 @@ pub(crate) fn subset_rete_arm(
         .iter()
         .filter(|d| rule_names.contains(&d.name))
         .cloned()
-        .collect();
-    let alpha_class: HashMap<i64, String> = arm
-        .alpha_class
-        .iter()
-        .filter(|(id, _)| keep(id))
-        .map(|(id, c)| (*id, c.clone()))
         .collect();
     let alpha_tree = arm.alpha_tree.restrict(active_ids);
 
@@ -1015,7 +976,6 @@ pub(crate) fn subset_rete_arm(
         beta_readers,
         compiled_max_slots,
         rule_deps,
-        alpha_class,
         test_sibs,
         test_children,
         children_of,
@@ -1093,6 +1053,8 @@ pub(crate) fn eval_release_session(
     env: &crate::runtime::Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
+    // Keyword primitive (TypeScheme + runtime dispatch), not a dual-impl wat Fn.
+    // Bound in DESIGN-STONE-intern-eviction.md.
     const OP: &str = ":wat::rete::release-session";
     if args.len() != 1 {
         return Err(RuntimeError::new(

@@ -5557,8 +5557,8 @@ fn dispatch_keyword_head_value(
         ":wat::rete::eval-insert" => crate::rete::eval_insert::eval_insert(args, list_span, env, sym),
         // Arc 278 Stone P2 — native Rust single-pass fire cycle (the differential harness).
         // (:wat::rete::fire-once <session>) → :wat::rete::Session
-        // Observationally equivalent to the wat oracle's fire-once: same derived facts.
-        // Mutates a native FireSession (sealed; never escapes to wat); returns a frozen Session.
+        // Equivalent to fire-once$oracle on AST Sessions; Export is native-only
+        // (the oracle refuses an imported Export).
         ":wat::rete::fire-once$native" | ":wat::rete::fire-once" => {
             crate::rete::kernel::eval_fire_once_native(args, list_span, env, sym)
         }
@@ -5569,6 +5569,9 @@ fn dispatch_keyword_head_value(
         }
         // Arc 278 — intern the rust InternedNetwork when compile-all returns a Session
         // (`DESIGN-STONE-arm-at-compile`). Value unchanged. First fire-rules HIT.
+        // rune:circumspicere(accepted-by-design) — intern hangup mouths are keyword
+        // primitives (TypeScheme + runtime dispatch), not dual-impl wat Fns; bound in
+        // DESIGN-STONE-intern-eviction.md (arm-session / release-session).
         ":wat::rete::arm-session" => {
             crate::rete::kernel::eval_arm_session(args, list_span, env, sym)
         }
@@ -18579,15 +18582,15 @@ fn eval_kwargs_construct(
             };
             kv.push((fname, pair[1].clone()));
         }
-        let reordered = crate::rete::validate::reorder_kwargs_by_field_name(&field_order, &kv)
+        let reordered = crate::rete::validate::reorder_kwargs_by_field_name(&field_order, &kv, list_span)
             .map_err(|bad| {
                 RuntimeError::new(
-                    list_span.clone(),
+                    bad.span,
                     RuntimeErrorKind::MalformedForm {
                         head: OP.into(),
                         reason: format!(
                             "unknown field :{} for aggregate {} (declared fields: {})",
-                            bad,
+                            bad.field,
                             type_key,
                             field_order.join(", ")
                         ),

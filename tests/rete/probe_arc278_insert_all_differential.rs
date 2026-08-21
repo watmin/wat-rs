@@ -3,15 +3,13 @@
 //!
 //! Clara's primitive is the *batch* form and the single-fact call is sugar over it
 //! (`rules.cljc:11,17` — both delegate to `(eng/insert session facts)`). We shipped only the
-//! degenerate case (`insert'`, native, ~1.03 µs of pure 8-field Session rebuild per fact
-//! above a bare `conj` — `DESIGN-STONE-insert-all.md`). This gate is RED at HEAD: `insert-all` /
-//! `insert-all-spec` / `insert-all'` do not exist, so every entry below raises `UnknownFunction`
-//! at RUNTIME — `--check` alone would NOT catch an unknown callee
-//! (`reference_check_is_not_a_complete_red_arbiter`), which is why this gate must RUN.
+//! degenerate case (`insert$native`, ~1.03 µs of pure 8-field Session rebuild per fact
+//! above a bare `conj` — `DESIGN-STONE-insert-all.md`). Dual-impl mouths are live:
+//! `insert-all$oracle` / `insert-all$native` / `insert-all`.
 //!
 //! The trio this extends (unprimed fire-rules / insert-all / fire-once are native;
-//! `$oracle` is the reference — `wat/rete.wat`):
-//!   `insert-spec` / `insert'` / `insert`  ->  `insert-all-spec` / `insert-all'` / `insert-all`
+//! `$oracle` is the reference):
+//!   `insert$oracle` / `insert$native` / `insert`  ->  `insert-all$oracle` / `insert-all$native` / `insert-all`
 //!
 //! What would turn this red once it is green — the R59 question, answered before the assertions
 //! were written:
@@ -22,13 +20,13 @@
 //!       would both pass vacuously against an empty fact vector; assertion 3 (N > 1, `facts`
 //!       length == N exactly) is the ONLY thing that would catch it;
 //!   (c) the public `insert-all` drifting into a second implementation instead of a delegate to
-//!       `insert-all'` — invisible to a test that only ever calls the public verb, which is why
-//!       assertion 2 compares `insert-all-spec` to `insert-all'` directly;
+//!       `insert-all$native` — invisible to a test that only ever calls the public verb, which is why
+//!       assertion 2 compares `insert-all$oracle` to `insert-all$native` directly;
 //!   (d) the 2-ary `insert` being silently RE-ROUTED through `insert-all` (STOP-1, the ONE
 //!       contract decision this stone exists to enforce) — every other assertion here would miss
-//!       it. Assertion 4 checks it by BEHAVIOUR: a lone 2-ary `insert` call must match `insert'`
+//!       it. Assertion 4 checks it by BEHAVIOUR: a lone 2-ary `insert` call must match `insert$native`
 //!       called directly, fact for fact. (The companion form-level proof — that
-//!       `wat/rete.wat`'s 2-ary clause body is byte-for-byte `(:wat::rete::insert session
+//!       `wat/rete/oracle/insert.wat`'s 2-ary clause body is `(:wat::rete::insert$native session
 //!       fact)` with no reference to `insert-all` — was read by hand against the source; a test
 //!       cannot introspect a `defclause`'s per-arm body without reproducing the checker.)
 //!
@@ -66,7 +64,7 @@ fn equivalence_batch_matches_chained_insert() {
     assert_eq!(batch_sum, 10, "g of 0..4 sums to 10 — the CONTENT landed; got {batch_sum}");
 }
 
-/// 2 — THE ORACLE: `insert-all-spec` (the wat reference engine) == `insert-all'` (the native
+/// 2 — THE ORACLE: `insert-all$oracle` (the wat reference engine) == `insert-all$native` (the native
 /// prime) on the same input. The dual-impl is never skipped.
 #[test]
 fn oracle_matches_native_prime() {

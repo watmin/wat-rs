@@ -306,9 +306,9 @@
     (:else                      :wat::rete::Axis::RetePrimitive)))
 
 ;; axis-violation-message — build a human-actionable fence message from an ALREADY-DECIDED
-;; rejection. `context` names the fenced site ("where" / "accumulator"); `failing-axis` is the axis
-;; `first-failing-axis` picked. This function NEVER changes accept/reject (STOP-3) — both call sites
-;; reach it only after `(and is-pure is-det is-total is-rete)` was already false — it only names
+;; rejection. `context` names the fenced site ("where" / "accumulator" / "then"); `failing-axis` is the axis
+;; `first-failing-axis` picked. This function NEVER changes accept/reject (STOP-3) — the three call sites
+;; (where, accumulator, then-item-fence) reach it only after `(and is-pure is-det is-total is-rete)` was already false — it only names
 ;; the failure that was already found. `:wat::core::Option/expect`'s message argument is evaluated
 ;; lazily (only on the None/rejected branch — `expect_panic` in runtime.rs), so this walk never
 ;; runs on an accepted expr even though it is wired as a plain argument expression.

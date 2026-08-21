@@ -373,21 +373,18 @@ pub(crate) fn alpha_pattern(cond: &WatAST) -> Option<AlphaPattern<'_>> {
             type_head: k.trim_start_matches(':'),
             clauses: &items[1..],
         }),
-        WatAST::Symbol(s, _)
-            if s.as_str().starts_with('?')
-                && items.len() >= 3
-                && matches!(&items[1], WatAST::Symbol(a, _) if a.as_str() == "<-") =>
-        {
-            let kw = match &items[2] {
-                WatAST::Keyword(k, _) if k.contains("::") => k.as_str(),
-                _ => return None,
-            };
-            Some(AlphaPattern {
-                fact_var: Some(s.as_str()),
-                type_head: kw.trim_start_matches(':'),
-                clauses: &items[3..],
-            })
-        }
+        WatAST::Symbol(_, _) => match crate::rete::clause::classify_rete_clause(cond) {
+            crate::rete::clause::ReteClauseShape::FactBind {
+                var,
+                type_head,
+                clauses,
+            } => Some(AlphaPattern {
+                fact_var: Some(var),
+                type_head,
+                clauses,
+            }),
+            _ => None,
+        },
         _ => None,
     }
 }
@@ -610,8 +607,10 @@ fn eval_clause(
             }
         }
 
-        // ── constraint: (:wat::core::<op> a b) ───────────────────────────────
-        // FQDN comparison ops; operands resolved from {bindings, field, literal}.
+        // ── constraint: (:wat::rete::core::<ty>::<op> a b) ───────────────────
+        // Admissible spelling is the per-type rete primitive. CoreGeneric
+        // (`:wat::core::<op>`) is freeze-walled and compile_condition_local-refused.
+        // Operands resolved from {bindings, field, literal}.
         ReteClauseShape::Constraint { op, lhs, rhs } => {
             let a = resolve_operand(lhs, fact_fields, field_names, &bindings);
             let b = resolve_operand(rhs, fact_fields, field_names, &bindings);

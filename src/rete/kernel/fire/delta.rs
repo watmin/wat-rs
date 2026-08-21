@@ -1,7 +1,7 @@
 //! Semi-naive delta fixpoint and opt-in explain.
 
 use super::*;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -20,7 +20,7 @@ type AccGroupOrder<'a> = Vec<(crate::value::pmap::PMap, Vec<&'a Element>)>;
 /// and later owned deltas (`DESIGN-STONE-setup-seen-once`). Split-borrow bundle:
 /// the refs one fact-activate needs. The P4b/P6 round loop lives on
 /// [`fire_fixpoint_delta_armed`].
-pub(crate) struct AlphaHit<'a> {
+pub(crate) struct AlphaActivateCx<'a> {
     pub(crate) wm: &'a mut FireSession,
     pub(crate) d_alpha: &'a mut AlphaDelta,
     pub(crate) alpha_tree: &'a crate::rete::alpha_tree::AlphaTree,
@@ -33,7 +33,7 @@ pub(crate) struct AlphaHit<'a> {
 pub(crate) fn alpha_activate_fact(
     fact: &Value,
     fact_idx: u32,
-    hit: &mut AlphaHit<'_>,
+    hit: &mut AlphaActivateCx<'_>,
 ) -> Result<(), EvalBreak> {
     let (fact_class, fact_fields) = match fact {
         Value::Aggregate(a) if a.nature != Nature::Struct => {
@@ -226,9 +226,10 @@ pub(crate) fn fire_fixpoint_delta_armed(
     phase_end("SETUP: indexes", __setup);
     let __rounds = phase_start();
     loop {
-        // ROUND LOOP's six named passes cover only ~60% of it on an accumulate workload (root-join
-        // and hash-join do nothing there). These two marks bracket the loop's own scaffolding so
-        // the remainder has a name instead of being inferred from a parent/child subtraction.
+        // ROUND LOOP scaffolding. Named phases inside the body are Alpha, Root-join,
+        // Hash-join, Accumulate, Filter, Join-after-filter, Filter-after-join, Production,
+        // then terminate — not a fixed pass count. These two marks bracket the loop's
+        // own preamble so the remainder has a name instead of a parent/child subtraction.
         let __pre = phase_start();
         // Per-round delta sets (new elements/tokens created THIS round).
         // Indices into this round's wm.alpha[aid] (DESIGN-STONE-delta-alpha-indices).
@@ -255,7 +256,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
                 alpha_activate_fact(
                     fact,
                     i as u32,
-                    &mut AlphaHit {
+                    &mut AlphaActivateCx {
                         wm: &mut wm,
                         d_alpha: &mut d_alpha,
                         alpha_tree,
@@ -275,7 +276,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
                 alpha_activate_fact(
                     &fact,
                     idx,
-                    &mut AlphaHit {
+                    &mut AlphaActivateCx {
                         wm: &mut wm,
                         d_alpha: &mut d_alpha,
                         alpha_tree,
@@ -396,23 +397,13 @@ pub(crate) fn fire_fixpoint_delta_armed(
                     let sample_el = wm.alpha.get(&alpha_id).and_then(|v| v.first());
                     match (sample_tok, sample_el) {
                         (Some(tok), Some(el)) => {
-                            let el_b = element_fact_bindings(el, &wm.bind_keys, &wm.bind_vals, &wm.bind_pool);
-                            let mut keys: Vec<Value> = bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds)
-                                .iter()
-                                .map(|(k, _)| k.clone())
-                                .filter(|k| Bindings::get(&el_b, k).is_some())
-                                .collect();
-                            keys.sort_by(|a, b| {
-                                let a_str = match a {
-                                    Value::String(s) => s.as_str(),
-                                    _ => "",
-                                };
-                                let b_str = match b {
-                                    Value::String(s) => s.as_str(),
-                                    _ => "",
-                                };
-                                a_str.cmp(b_str)
-                            });
+                            let keys = gather_join_keys(
+                                &bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds),
+                                std::slice::from_ref(el),
+                                &wm.bind_keys,
+                                &wm.bind_vals,
+                                &wm.bind_pool,
+                            );
                             join_keys_cache.insert(*child_id, keys);
                             true // first keying: catch-up full-join needed
                         }
@@ -733,31 +724,32 @@ pub(crate) fn fire_fixpoint_delta_armed(
             // intersection) so the cache can be probed BEFORE paying for a snapshot clone or an
             // index build. Reads wm.alpha through a borrow, no clone yet.
             let __ix = phase_start();
-            let join_keys = ensure_gather(
+            let empty_index = GatherIndex::Nary(FxHashMap::default());
+            let empty_keys: Arc<[Value]> = Arc::from([]);
+            let gathered = ensure_gather(
                 &mut gather_cache,
                 &wm,
                 from_alpha_id,
                 &bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, new_tokens[0].binds),
             );
             phase_end("  ├ accum:index", __ix);
+            // Empty :from is not cached (unsampled [] ≠ cartesian []). Acc still
+            // walks grouping: ungrouped empty emits identity; grouped empty does not.
+            let (index, join_keys) = match gathered.as_ref() {
+                Some((idx, keys)) => (*idx, keys),
+                None => (&empty_index, &empty_keys),
+            };
             // No clone — indices name this round's wm.alpha[id] (step 1 is done).
             let __sn = phase_start();
             let from_elements = alpha_elements(&wm.alpha, from_alpha_id);
             phase_end("  ├ accum:snapshot", __sn);
-            let index = gather_cache
-                .get(&(from_alpha_id, join_keys.clone()))
-                .expect("ensure_gather just inserted");
-            let from_compiled = rematch_compiled(compiled_conds, from_alpha_id).ok();
-            let leftover = from_compiled
-                .map(crate::rete::compiled_cond::CompiledCond::has_seed_cmp)
-                .unwrap_or(false);
-            let from_keys = from_compiled
-                .map(|c| c.bind_keys())
-                .unwrap_or_default();
+            let from_compiled = rematch_compiled(compiled_conds, from_alpha_id)?;
+            let leftover = from_compiled.has_seed_cmp();
+            let from_keys = from_compiled.bind_keys();
             let operand_keys = acc_fold.operand_keys();
             let __fd = phase_start();
             for tok in new_tokens {
-                let key = key_of(&bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds), &join_keys, &wm.bind_val_ids);
+                let key = key_of(&bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds), join_keys.as_ref(), &wm.bind_val_ids);
                 let bucket: &[usize] = index.bucket(&key);
                 let group_keys: Vec<Value> = from_keys
                     .iter()
@@ -805,27 +797,17 @@ pub(crate) fn fire_fixpoint_delta_armed(
                     for &i in bucket {
                         let el = &from_elements[i];
                         census_gather_visit();
-                        let ok = match from_compiled {
-                            Some(compiled) => fact_bindings_under(
-                                fact_at(
-                                    &wm.facts,
-                                    &wm.derived_facts,
-                                    wm.n_input,
-                                    el.fact,
-                                ),
-                                &bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds),
-                                compiled,
-                                &mut match_scratch,
-                            )
-                            .is_some(),
-                            None => {
-                                let el_b = element_fact_bindings(el, &wm.bind_keys, &wm.bind_vals, &wm.bind_pool);
-                                token_element_compatible(
-                                    &bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds),
-                                    &el_b,
-                                )
-                            }
-                        };
+                        let ok = fact_holds_under(
+                            fact_at(
+                                &wm.facts,
+                                &wm.derived_facts,
+                                wm.n_input,
+                                el.fact,
+                            ),
+                            &bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds),
+                            from_compiled,
+                            &mut match_scratch,
+                        );
                         if ok {
                             gathered.push(el);
                         }
@@ -944,30 +926,41 @@ pub(crate) fn fire_fixpoint_delta_armed(
                 };
                 let driver = driver_of(compiled_drivers, alpha_id)?;
                 let mut seen = std::collections::HashSet::new();
-                let exts: Vec<crate::value::pmap::PMap> = if matches!(driver, CondDriver::Leaf(_)) {
-                    wm.alpha
+                if matches!(driver, CondDriver::Leaf(_)) {
+                    let candidates: Vec<(BindSpan, Vec<(u32, u32)>)> = wm
+                        .alpha
                         .get(&alpha_id)
                         .into_iter()
                         .flatten()
-                        .map(|el| {
-                            let eb = element_fact_bindings(el, &wm.bind_keys, &wm.bind_vals, &wm.bind_pool);
-                            crate::value::pmap::PMap::from_pairs(
-                                eb.iter().map(|(k, v)| (k.clone(), v.clone())),
-                            )
-                        })
-                        .collect()
-                } else {
-                    let empty = crate::value::pmap::PMap::new();
-                    binding_extensions(
-                        driver,
-                        &wm,
-                        &empty,
-                        compiled_conds,
-                        &mut match_scratch,
-                        sym,
-                        &mut gather_cache,
-                    )?
-                };
+                        .map(|el| (el.binds, pool_slice(&wm.bind_pool, el.binds).to_vec()))
+                        .collect();
+                    let mut seen_pairs: HashSet<Vec<(u32, u32)>> = HashSet::new();
+                    for (binds, pairs) in candidates {
+                        if !seen_pairs.insert(pairs) {
+                            continue;
+                        }
+                        let tok = Token {
+                            matches: empty_span(),
+                            binds,
+                        };
+                        if beta_readers.contains(node_id) {
+                            beta_written(*node_id, 1);
+                            wm.beta.entry(*node_id).or_default().push(tok);
+                        }
+                        d_beta.entry(*node_id).or_default().push(tok);
+                    }
+                    continue;
+                }
+                let empty = crate::value::pmap::PMap::new();
+                let exts = binding_extensions(
+                    driver,
+                    &wm,
+                    &empty,
+                    compiled_conds,
+                    &mut match_scratch,
+                    sym,
+                    &mut gather_cache,
+                )?;
                 for ext in exts {
                     if !seen.insert(ext.clone()) {
                         continue;
@@ -981,7 +974,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
                             &mut wm.bind_pool,
                             ext.iter().map(|(k, v)| (k.clone(), v.clone())),
                         ),
-                                    };
+                    };
                     if beta_readers.contains(node_id) {
                         beta_written(*node_id, 1);
                         wm.beta.entry(*node_id).or_default().push(tok);
@@ -1431,7 +1424,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
         }
 
         // ── A8 instrument: census this round BEFORE the terminate check. ─────────
-        // Placed here so the row reflects the round's cumulative totals after all five passes,
+        // Placed here so the row reflects the round's cumulative totals after the round body,
         // and so the LAST round is recorded too (the break below would otherwise skip it).
         // `delta_facts` still holds this round's INPUT — it is not reassigned until after the
         // terminate check, so `.len()` here is what entered, not what leaves.

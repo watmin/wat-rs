@@ -43,11 +43,12 @@ fn value_to_ast_literal(v: Value) -> Option<WatAST> {
 /// - **bindings** (per-step): the binder-clause vars that THIS condition bound, projected
 ///   from the token's accumulated bindings.
 /// - **constraints**: the rule's satisfied predicates with bound values substituted:
-///   `(:wat::core::< -5 0)` from `(:wat::core::< ?c 0)` with `?c=-5`.
+///   `(:wat::rete::core::i64::< -5 0)` from `(:wat::rete::core::i64::< ?c 0)` with `?c=-5`.
 ///
-/// **Faithfulness by construction**: both `resolve_operand` and the clause classifier are
-/// reused from `matcher.rs` — they are the same paths that fired during `alpha_match_inner`.
-/// The substituted constraint values cannot drift from what actually matched.
+/// **Faithfulness by construction**: `classify_rete_clause` + `resolve_operand` reconstruct
+/// the matched clause for the payload. Native fire matches via `exec_compiled_with_key_ids`
+/// (STOP-1), not `alpha_match_inner` (the oracle). Substituted values still cannot drift
+/// from the classifier's spelling of what matched.
 ///
 /// Arguments:
 ///   - `session`    — `:wat::rete::Session` (network via `session_network`)
@@ -193,7 +194,8 @@ pub(crate) fn eval_step_payload(
     //   pattern(1)    <- :wat::core::String
     //   bindings(2)   <- :wat::core::PersistentMap<String, Value>
     //   constraints(3)<- :wat::core::PersistentVector<WatAST>
-    static STEP_CLASS_FQDN: std::sync::OnceLock<Arc<String>> = std::sync::OnceLock::new();
+    type ClassFqdn = Arc<String>;
+    static STEP_CLASS_FQDN: std::sync::OnceLock<ClassFqdn> = std::sync::OnceLock::new();
     let step_class = STEP_CLASS_FQDN
         .get_or_init(|| Arc::new("wat::rete::DerivationStep".to_string()))
         .clone();

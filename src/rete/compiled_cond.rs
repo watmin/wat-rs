@@ -244,11 +244,10 @@ struct AlphaCompileCx<'a> {
 /// [`CompiledCond`] against `field_names` (that class's declared field order — the same list
 /// `alpha_match_inner`'s caller resolves via `class_field_names`).
 ///
-/// Returns `None` only if `cond` is not the `(:Keyword clause…)` shape `build_alpha_index`
-/// already guarantees for every entry it puts in `alpha_cond` — i.e. never, for any condition
-/// this is actually called with in `kernel/arm.rs`. Kept as `Option` (rather than assuming the
-/// invariant). Fire setup calls `compile_condition_local` and refuses a miss ("alpha N cond
-/// did not compile"); it does not fall back to `alpha_match_inner`.
+/// Returns `None` on a pattern miss (`alpha_pattern` refuses the cond) **or** when
+/// `compile_seq` hits a Law-A `ConstraintSpelling::CoreGeneric` head. Fire setup
+/// calls [`compile_condition_local`] and refuses a miss ("alpha N cond did not compile");
+/// it does not fall back to `alpha_match_inner`.
 ///
 /// Strict: an unbound constraint `?var` is [`Op::Fail`]. Fire setup uses
 /// [`compile_condition_local`] (leftover-as-seed). This entry is the populate
@@ -482,15 +481,7 @@ fn compile_one(
     true
 }
 
-/// Resolve one operand AST node to an [`Expr`] at compile time — the same three shapes
-/// `resolve_operand` distinguishes at runtime (`?var` from the scope-so-far, `:field` from the
-/// class's declared fields, or a bare literal). `:field` is prologue (a Bind into a slot,
-/// reused if this condition already bound that field), so the Cmp itself only sees `Expr`.
-/// Returns `None` exactly when `resolve_operand` would unconditionally return `None` for every
-/// fact of this class: an unbound `?var` (strict compile), an unknown field, or a nested list
-/// (lists are `where`-territory on both sides; do not compile them here alone).
-/// Leftover-as-seed (`defer_unbound`): an unbound `?var` allocates a seed slot and
-/// returns `Expr::Slot` so the Constraint arm can emit [`Op::SeedCmp`].
+/// True when `e` is a slot allocated as a leftover-as-seed read.
 fn expr_reads_seed(e: &Expr, seed_reads: &[(Value, usize)]) -> bool {
     match e {
         Expr::Slot(i) => seed_reads.iter().any(|(_, slot)| *slot == *i as usize),
@@ -502,6 +493,15 @@ fn expr_slot(slot: usize) -> Option<Expr> {
     u16::try_from(slot).ok().map(Expr::Slot)
 }
 
+/// Resolve one operand AST node to an [`Expr`] at compile time — the same three shapes
+/// `resolve_operand` distinguishes at runtime (`?var` from the scope-so-far, `:field` from the
+/// class's declared fields, or a bare literal). `:field` is prologue (a Bind into a slot,
+/// reused if this condition already bound that field), so the Cmp itself only sees `Expr`.
+/// Returns `None` exactly when `resolve_operand` would unconditionally return `None` for every
+/// fact of this class: an unbound `?var` (strict compile), an unknown field, or a nested list
+/// (lists are `where`-territory on both sides; do not compile them here alone).
+/// Leftover-as-seed (`defer_unbound`): an unbound `?var` allocates a seed slot and
+/// returns `Expr::Slot` so the Constraint arm can emit [`Op::SeedCmp`].
 fn compile_operand_expr(
     operand: &WatAST,
     scope: &mut HashMap<String, usize>,
@@ -831,7 +831,7 @@ fn exec_op(op: &Op, slots: &mut [Option<Value>], fact_fields: &[Value], skip_see
         },
         Op::Cmp { op, lhs, rhs } | Op::SeedCmp { op, lhs, rhs } => {
             match (eval_cmp_operand(lhs, slots), eval_cmp_operand(rhs, slots)) {
-                (Some(a), Some(b)) => eval_cmp(*op, &a, &b),
+                (Some(a), Some(b)) => eval_cmp(*op, a, b),
                 _ => false,
             }
         }
@@ -851,10 +851,10 @@ fn exec_op(op: &Op, slots: &mut [Option<Value>], fact_fields: &[Value], skip_see
     }
 }
 
-fn eval_cmp_operand(operand: &Expr, slots: &[Option<Value>]) -> Option<Value> {
+fn eval_cmp_operand<'a>(operand: &'a Expr, slots: &'a [Option<Value>]) -> Option<&'a Value> {
     match operand {
-        Expr::Lit(v) => Some(v.clone()),
-        Expr::Slot(i) => slots.get(*i as usize).and_then(|o| o.clone()),
+        Expr::Lit(v) => Some(v),
+        Expr::Slot(i) => slots.get(*i as usize).and_then(|o| o.as_ref()),
         // Flip 3 emits only Slot / Lit. Any other arm is a compiler bug — fail
         // closed, same as an unresolved operand.
         _ => None,

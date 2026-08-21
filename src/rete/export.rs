@@ -1296,6 +1296,7 @@ pub(crate) fn eval_export(
     }
     let session = crate::runtime::eval_inner(&args[0], env, sym)?.value_owned();
     let (network, rules) = session_network_rules(&session, list_span)?;
+    // Pack door: MISS intern's (`DESIGN-STONE-intern-eviction`); HIT reuses the compile lease.
     let arm = rete_arm_get_or_build(network, rules, sym)?;
     let mut classes = ClassIntern::new();
     let mut nodes = Vec::new();
@@ -1475,7 +1476,6 @@ fn import_export(export: &Value, span: &Span, sym: &SymbolTable) -> Result<Value
     let nodes_pv = expect_seq(&sf[4], IMPORT_OP, span)?;
     let mut network_pairs = Vec::new();
     let mut alpha_by_type: AlphasByType = HashMap::new();
-    let mut alpha_class: HashMap<i64, String> = HashMap::new();
     let mut max_id = 0i64;
     for n in nodes_pv.iter() {
         let (id, rec, class_hint) = unpack_node(n, span)?;
@@ -1486,7 +1486,6 @@ fn import_export(export: &Value, span: &Span, sym: &SymbolTable) -> Result<Value
             if class_idx >= 0 {
                 if let Some(name) = classes.get(class_idx as usize) {
                     alpha_by_type.entry(name.clone()).or_default().push(id);
-                    alpha_class.insert(id, name.clone());
                 }
             }
         }
@@ -1592,12 +1591,13 @@ fn import_export(export: &Value, span: &Span, sym: &SymbolTable) -> Result<Value
         beta_readers,
         compiled_max_slots,
         rule_deps,
-        alpha_class,
         test_sibs,
         test_children,
         children_of,
     });
     if let Some(id) = network_identity(&network) {
+        // Import is an arm-session equivalent: MISS leases=1, HIT increments
+        // (`DESIGN-STONE-intern-eviction`). Drop without release-session leaks until thread end.
         rete_arm_intern(id, &arm);
     }
 

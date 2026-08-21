@@ -38,6 +38,16 @@ fn scan_page1() {
 }
 
 #[test]
+fn scan_page2() {
+    call_beside(file!(), ":user::scan-page2").expect_passed("layer 3b: second scan page (2 rows, cursor Some(d))");
+}
+
+#[test]
+fn scan_page3() {
+    call_beside(file!(), ":user::scan-page3").expect_passed("layer 3c: third scan page (1 row, cursor None)");
+}
+
+#[test]
 fn scan_index() {
     call_beside(file!(), ":user::scan-index").expect_passed("layer 4: scan-index over GSI by-v");
 }

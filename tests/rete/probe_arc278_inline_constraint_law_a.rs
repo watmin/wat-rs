@@ -183,7 +183,7 @@ fn cross_type_constraint_is_refused_at_compile() {
     // be satisfied by guessing the implementer's wording — and a `rune:lint(loose-assert)` over a
     // guess is the launder the rune exists to prevent
     // (`[[feedback_wat_stdio_is_edn_assert_structure_not_loose_contains]]`).
-    // The requirement that the refusal NAME the offending side is real and is carried where it
-    // belongs — the stone's STOP-3, as an obligation on the strike. When the diagnostic exists,
-    // this row gains an exact `assert_eq!` on it and this comment goes away.
+    // rune:exigere(attested-arc) — STOP-3 teaching diagnostic (name the offending side) is
+    // tracked in docs/arc/2026/06/278-rules-engine/DESIGN-STONE-inline-constraint-admits-non-rete.md;
+    // this row pins absence-of-malformed-shape only until that diagnostic ships an exact assert_eq.
 }

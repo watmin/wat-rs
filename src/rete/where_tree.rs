@@ -81,12 +81,13 @@ type DimCons = HashMap<DimKey, DimCon>;
 type WhereDiscs = HashMap<i64, DimCons>;
 type EqChildren = HashMap<Value, Arc<WhereDiscNode>>;
 type RangeChildren = Vec<(RangeEdge, Arc<WhereDiscNode>)>;
+type WhereWildcard = Option<Arc<WhereDiscNode>>;
 
 /// One level: branch on a compiled dim. Equality fan-out + range guards + wildcard.
 pub(crate) struct WhereDiscNode {
     dim: Option<DimKey>,
     children: EqChildren,
-    wildcard: Option<Arc<WhereDiscNode>>,
+    wildcard: WhereWildcard,
     range_children: RangeChildren,
     leaves: Vec<i64>,
 }

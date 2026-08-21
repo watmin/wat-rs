@@ -12697,16 +12697,16 @@ fn infer_kwargs_construct_check(
                     kv.push((fk.strip_prefix(':').unwrap_or(fk.as_str()), pair[1].clone()));
                 }
             }
-            match crate::rete::validate::reorder_kwargs_by_field_name(&field_order, &kv) {
+            match crate::rete::validate::reorder_kwargs_by_field_name(&field_order, &kv, head_span) {
                 Ok(v) => v,
                 Err(bad) => {
                     local_errors.push(CheckError {
-                        span: head_span.clone(),
+                        span: bad.span,
                         kind: CheckErrorKind::MalformedForm {
                             head: CALLEE.into(),
                             reason: format!(
                                 "unknown field :{} for aggregate {} (declared fields: {})",
-                                bad, type_key, field_order.join(", ")
+                                bad.field, type_key, field_order.join(", ")
                             ),
                             remedies: vec![],
                         },
@@ -20879,7 +20879,7 @@ fn register_builtins(env: &mut CheckEnv) {
 
     // Arc 278 Stone P2 — native Rust single-pass fire cycle (the differential harness).
     // (:wat::rete::fire-once <session: :wat::rete::Session>) → :wat::rete::Session
-    // Observationally equivalent to the wat oracle's fire-once: same derived facts.
+    // Equivalent to fire-once$oracle on AST Sessions; Export is native-only.
     // fire-once is a wat defn (first-class Fn). `$native` is the rust kernel.
     env.register(
         ":wat::rete::fire-once$native".into(),
@@ -20940,10 +20940,11 @@ fn register_builtins(env: &mut CheckEnv) {
 
     // Arc 278 Stone P4a — native Rust cascade fixpoint (re-run-from-scratch).
     // (:wat::rete::fire-rules <session: :wat::rete::Session>) → :wat::rete::Session
-    // Observationally equivalent to the wat oracle's fire-rules: same derived facts including
-    // multi-round cascade. Returns Session with facts = input only (derived in production-memory).
-    // fire-rules / insert / insert-all / fire-rules-explain are wat defns (first-class
-    // Fn). Keyword-head calls are intercepted by rust. Do not register them here.
+    // Equivalent to fire-rules$oracle on AST Sessions (non-empty Rule/Query forms);
+    // Export is native-only. Returns Session with facts = input only (derived in
+    // production-memory). fire-rules / insert / insert-all / fire-rules-explain are
+    // wat defns (first-class Fn). Keyword-head calls are intercepted by rust. Do not
+    // register them here.
 
     // Arc 278 — intern the rust InternedNetwork at compile-all (`DESIGN-STONE-arm-at-compile`).
     // (:wat::rete::arm-session <session: :wat::rete::Session>) → :wat::rete::Session

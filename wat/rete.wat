@@ -93,7 +93,7 @@
 
 ;; TestNode — a left-only filter node (stone 6b-ii-a): keeps a token iff eval-test(expr, bindings) is true.
 ;; id:       unique node id.
-;; expr:     the pure∧deterministic WatAST predicate (stored as a value; fence checked at compile).
+;; expr:     the pure∧det∧total∧rete WatAST predicate (stored as a value; four-axis fence at compile).
 ;; children: PersistentVector of child node ids (ProductionNode or further TestNodes).
 (:wat::core::defrecord :wat::rete::TestNode
   [id       <- :wat::core::i64

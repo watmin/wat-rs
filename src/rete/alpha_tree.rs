@@ -51,6 +51,7 @@ type DimRequired = HashMap<usize, Value>;
 type AlphaDiscs = HashMap<i64, DimRequired>;
 type EqChildren = FxHashMap<Value, Arc<AlphaDiscNode>>;
 type AlphaRoots = Vec<(String, Arc<AlphaDiscNode>)>;
+type AlphaWildcard = Option<Arc<AlphaDiscNode>>;
 
 /// One level of the discrimination tree: branch on field `dim` of the fact's own class.
 pub(crate) struct AlphaDiscNode {
@@ -62,7 +63,7 @@ pub(crate) struct AlphaDiscNode {
     /// times was the I−G walk (`DESIGN-STONE-alpha-tree-fxhash`).
     children: EqChildren,
     /// Alphas that do not constrain `dim` by a provable equality — always walked.
-    wildcard: Option<Arc<AlphaDiscNode>>,
+    wildcard: AlphaWildcard,
     /// Alpha ids terminating at this node (no further dimension left to discriminate on, or
     /// only one candidate remained).
     leaves: Vec<i64>,
@@ -150,8 +151,9 @@ impl AlphaTree {
     }
 
     /// Walk `class`'s tree for a fact's field values, returning the **candidate set** of alpha
-    /// ids the caller must still run `alpha_match_inner` on. A superset of the alphas that
-    /// actually match — never a subset. Unknown class (no alpha of that type at all): empty.
+    /// ids the caller must still run compiled exec (`exec_compiled_with_key_ids`) on. A superset
+    /// of the alphas that actually match — never a subset. Unknown class: empty.
+    /// `alpha_match_inner` is the differential oracle, not the native fire path.
     #[cfg(test)]
     pub(crate) fn candidates(&self, class: &str, fields: &[Value]) -> Vec<i64> {
         let mut out = Vec::new();

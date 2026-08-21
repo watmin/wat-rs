@@ -375,13 +375,21 @@ fn render_form(ast: &WatAST) -> String {
 
 // ─── The shared reorder helper (S3, design call 2) ───────────────────────────────────────────
 
-/// `reorder_kwargs_by_field_name(field_order, kv_pairs) -> Vec<value_ast>` in declaration
+/// Unknown field at kwargs reorder. Span is required at construction — a spanless
+/// unknown-field is uncompilable (conformare Pattern A).
+#[derive(Debug)]
+pub(crate) struct KwargsReorderError {
+    pub span: Span,
+    pub field: String,
+}
+
+/// `reorder_kwargs_by_field_name(field_order, kv_pairs, span) -> Vec<value_ast>` in declaration
 /// order — ONE helper, single-sourced. The (C) spliced-construction reorder pass calls this
 /// too (a separate strike; not wired here) — do NOT inline this at either call site.
 ///
 /// The HELPER itself still does not require `kv_pairs` to cover every field in `field_order`
 /// — any field with no matching pair is simply absent from the output; every SUPPLIED field
-/// name, however, must be real: the first unknown name is returned as `Err(field_name)` so the
+/// name, however, must be real: the first unknown name is returned as `Err(KwargsReorderError)` so the
 /// caller can build its own contextual error. Full coverage is each CALLER's job, and both
 /// callers now enforce it: `eval_kwargs_construct` (runtime.rs) relies on `construct_aggregate`'s
 /// arity check plus check.rs's `infer_kwargs_construct_check` (the macro-expanded form); the
@@ -393,10 +401,14 @@ fn render_form(ast: &WatAST) -> String {
 pub(crate) fn reorder_kwargs_by_field_name(
     field_order: &[&str],
     kv_pairs: &[(&str, WatAST)],
-) -> Result<Vec<WatAST>, String> {
+    span: &Span,
+) -> Result<Vec<WatAST>, KwargsReorderError> {
     for (field, _) in kv_pairs {
         if !field_order.contains(field) {
-            return Err((*field).to_string());
+            return Err(KwargsReorderError {
+                span: span.clone(),
+                field: (*field).to_string(),
+            });
         }
     }
     let mut out = Vec::with_capacity(kv_pairs.len());
@@ -613,8 +625,9 @@ fn validate_when_entry(
                 validate_when_entry(arm, rule_name, types, binds, errors);
             }
         }
-        // Bind/Constraint/And/Unrecognized are not top-level :when entries — a
+        // Bind/Constraint/Unrecognized are not top-level :when entries — a
         // top-level entry that is not a wrapper must be `(:Type clause…)`.
+        // `And` is matched above as a Clara grouping wrapper.
         _ => validate_plain_condition(cond, rule_name, types, binds, errors),
     }
 }
@@ -799,7 +812,9 @@ fn validate_fact_type_head_only(cond: &WatAST, rule_name: &str, types: &TypeEnv,
 
 /// Registry lookup — the SAME colon-prefixed key + `field_names()` accessor the runtime
 /// matcher uses (proven reachable by the `rete_wall_probe`).
-fn lookup_fields(types: &TypeEnv, fact_type: &str) -> Option<Vec<String>> {
+type FieldList = Vec<String>;
+
+fn lookup_fields(types: &TypeEnv, fact_type: &str) -> Option<FieldList> {
     let type_key = format!(":{fact_type}");
     match types.get(&type_key) {
         Some(TypeDef::Aggregate(a)) => Some(a.field_names().map(|s| s.to_string()).collect()),
@@ -811,7 +826,7 @@ fn lookup_fields(types: &TypeEnv, fact_type: &str) -> Option<Vec<String>> {
 /// declaration order, so a per-type rete constraint can be checked against the field it reads.
 /// Kept beside its twin rather than folded into it: every existing caller wants only the names,
 /// and widening the shared return would make them all pay for a walk they do not use.
-fn lookup_field_types(types: &TypeEnv, fact_type: &str) -> Option<Vec<String>> {
+fn lookup_field_types(types: &TypeEnv, fact_type: &str) -> Option<FieldList> {
     let type_key = format!(":{fact_type}");
     match types.get(&type_key) {
         Some(TypeDef::Aggregate(a)) => {
@@ -1424,18 +1439,18 @@ fn reorder_then_kwargs(
 ) {
     let field_order: Vec<&str> = field_names.iter().map(|s| s.as_str()).collect();
     let kv_ref: Vec<(&str, WatAST)> = kv_pairs.iter().map(|(k, v)| (k.as_str(), v.clone())).collect();
-    match reorder_kwargs_by_field_name(&field_order, &kv_ref) {
+    match reorder_kwargs_by_field_name(&field_order, &kv_ref, fact_span) {
         Ok(reordered) => {
             fact_items.truncate(1);
             fact_items.extend(reordered);
         }
-        Err(bad_field) => {
+        Err(bad) => {
             errors.push(ReteCheckError {
-                span: fact_span.clone(),
+                span: bad.span,
                 kind: ReteCheckErrorKind::UnknownField {
                     rule: rule_name.to_string(),
                     fact_type: fact_type.to_string(),
-                    field: bad_field,
+                    field: bad.field,
                     available_fields: field_names.to_vec(),
                 },
             });
@@ -1694,7 +1709,8 @@ mod tests {
         let b = WatAST::Symbol(Identifier::bare("b"), crate::rust_caller_span!());
         let pairs = vec![("y", b.clone()), ("x", a.clone())];
         let order = ["x", "y"];
-        let out = reorder_kwargs_by_field_name(&order, &pairs).expect("both fields known");
+        let out = reorder_kwargs_by_field_name(&order, &pairs, &crate::rust_caller_span!())
+            .expect("both fields known");
         assert_eq!(out, vec![a, b]);
     }
 
@@ -1704,7 +1720,8 @@ mod tests {
         let v = WatAST::Symbol(Identifier::bare("v"), crate::rust_caller_span!());
         let pairs = vec![("nope", v)];
         let order = ["x", "y"];
-        let err = reorder_kwargs_by_field_name(&order, &pairs).expect_err("unknown field must error");
-        assert_eq!(err, "nope");
+        let err = reorder_kwargs_by_field_name(&order, &pairs, &crate::rust_caller_span!())
+            .expect_err("unknown field must error");
+        assert_eq!(err.field, "nope");
     }
 }

@@ -72,16 +72,16 @@ fn public_insert_delegates_to_the_prime() {
     assert_eq!(
         count(":user::public-staged").expect("public"),
         count(":user::native-staged").expect("native"),
-        "the public `insert` must forward to `insert'` (staged)"
+        "the public `insert` must forward to `insert$native` (staged)"
     );
     assert_eq!(
         count(":user::public-fired").expect("public"),
         count(":user::native-fired").expect("native"),
-        "the public `insert` must forward to `insert'` (fired)"
+        "the public `insert` must forward to `insert$native` (fired)"
     );
     assert_eq!(
         count(":user::public-sum").expect("public"),
         count(":user::native-sum").expect("native"),
-        "the public `insert` must forward to `insert'` (content)"
+        "the public `insert` must forward to `insert$native` (content)"
     );
 }

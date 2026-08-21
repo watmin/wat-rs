@@ -106,6 +106,9 @@
 //! one-off, it recurs whenever a core op is polymorphic across something the rete surface wants
 //! to monomorphise per-leaf (per-type for equality, per-container for `first`).
 
+use std::collections::HashMap;
+use std::sync::OnceLock;
+
 use crate::ast::WatAST;
 use crate::runtime::{
     EvalBreak, Environment, RuntimeError, RuntimeErrorKind, SymbolTable, Value, ValueSnapshot,
@@ -1366,8 +1369,22 @@ pub(crate) const RETE_MODULES: &[&str] = &[
 
 /// Look up `head`'s row, if it is a minted rete-vocabulary op. Exact match — never a prefix scan
 /// (STOP-1 applies here too: a prefix match would silently "admit" any typo under a real module).
+pub(crate) fn rete_op_index(head: &str) -> Option<usize> {
+    static BY_NAME: OnceLock<HashMap<&'static str, usize>> = OnceLock::new();
+    BY_NAME
+        .get_or_init(|| {
+            RETE_OPS
+                .iter()
+                .enumerate()
+                .map(|(i, op)| (op.rete_name, i))
+                .collect()
+        })
+        .get(head)
+        .copied()
+}
+
 pub(crate) fn rete_op_for(head: &str) -> Option<&'static ReteOp> {
-    RETE_OPS.iter().find(|op| op.rete_name == head)
+    rete_op_index(head).map(|i| &RETE_OPS[i])
 }
 
 /// Arc 278 #56 phase 2 — resolves a head to its `core_name` if it is a minted rete row,

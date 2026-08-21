@@ -31,7 +31,7 @@ use super::{pmap_from_span, Token};
 
 /// One round's census of every native structure the fire loop grows.
 ///
-/// Recorded at the END of each round, after all five passes and before the terminate check, so
+/// Recorded at the END of each round, after the round body and before the terminate check, so
 /// the counts are that round's cumulative totals. Fields are deliberately exhaustive: the point
 /// is to let the growth term name ITSELF rather than confirm a guess about which one it is.
 #[cfg(test)]

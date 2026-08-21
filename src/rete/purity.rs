@@ -805,7 +805,7 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
 /// caught independently, because `classify_expr`'s "General list" arm (below) recurses into
 /// EVERY argument of EVERY call form on the SAME axis, `head_ok`'s verdict at the outer head
 /// notwithstanding (`classify_expr`, the `WatAST::List` arm: `head_ok(...)?` then
-/// `for a in &items[1..] { classify_expr(a, axis, sym, seen)?; }` — unconditional, common code,
+/// `for a in &items[1..] { classify_expr(a, axes, sym, seen)?; }` — unconditional, common code,
 /// not specific to any one `head_ok` branch).
 ///
 /// That recursion is IDENTICAL regardless of which branch of `head_ok` admitted the outer head —
@@ -1103,7 +1103,24 @@ fn head_ok(head: &str, axis: Axis, sym: &SymbolTable, seen: &mut HashSet<String>
 
 /// Recursively classify an AST node against `axis`. The structure (quote-as-data, clause-aware
 /// `cond`/`match`, element-wise vectors/maps/sets) is identical for both axes; only `head_ok` differs.
-fn classify_expr(ast: &WatAST, axis: Axis, sym: &SymbolTable, seen: &mut HashSet<String>) -> Result<(), AxisViolation> {
+fn refuse_core_structural_on_multi(axes: &[Axis], items: &[WatAST]) -> Result<(), AxisViolation> {
+    if axes.len() <= 1 || !axes.contains(&Axis::RetePrimitive) {
+        return Ok(());
+    }
+    if let Some(WatAST::Keyword(k, s)) = items.first() {
+        if crate::rete::vocabulary::rete_op_for(k).is_none()
+            && matches!(
+                crate::rete::vocabulary::resolve_core_name(k),
+                ":wat::core::cond" | ":wat::core::match" | ":wat::core::fn"
+            )
+        {
+            return Err(AxisViolation::at(s.clone(), k.clone(), Axis::RetePrimitive));
+        }
+    }
+    Ok(())
+}
+
+fn classify_expr(ast: &WatAST, axes: &[Axis], sym: &SymbolTable, seen: &mut HashSet<String>) -> Result<(), AxisViolation> {
     match ast {
         // Non-list forms are pure, deterministic data.
         WatAST::IntLit(_, _)
@@ -1158,10 +1175,10 @@ fn classify_expr(ast: &WatAST, axis: Axis, sym: &SymbolTable, seen: &mut HashSet
         // recurse on the axis, so an impure or partial value inside a construction is caught at its
         // OWN head, exactly as before.
         WatAST::List(items, _)
-            if axis == Axis::RetePrimitive && is_declaration_derived_construction(items, sym) =>
+            if axes.contains(&Axis::RetePrimitive) && is_declaration_derived_construction(items, sym) =>
         {
             for arg in &items[1..] {
-                classify_expr(arg, axis, sym, seen)?;
+                classify_expr(arg, axes, sym, seen)?;
             }
             Ok(())
         }
@@ -1196,7 +1213,7 @@ fn classify_expr(ast: &WatAST, axis: Axis, sym: &SymbolTable, seen: &mut HashSet
         // check can see (`axis-violation`'s native decode; `matcher.rs`'s inline LHS `=`; these
         // guards). `holon/CLAUDE.md`: suspect a string comparison before the type system.
         WatAST::List(items, _)
-            if axis == Axis::RetePrimitive
+            if axes == [Axis::RetePrimitive]
                 && matches!(items.first(), Some(WatAST::Keyword(k, _))
                     if crate::rete::vocabulary::rete_op_for(k).is_none()
                         && matches!(
@@ -1208,7 +1225,7 @@ fn classify_expr(ast: &WatAST, axis: Axis, sym: &SymbolTable, seen: &mut HashSet
                 Some(WatAST::Keyword(k, s)) => (k.clone(), s.clone()),
                 _ => (String::from("<structural form>"), ast.span().clone()),
             };
-            Err(AxisViolation::at(span, head, axis))
+            Err(AxisViolation::at(span, head, Axis::RetePrimitive))
         }
 
         // quote / quasiquote / holon-literal sub-forms are DATA — do not recurse into them as calls.
@@ -1231,13 +1248,14 @@ fn classify_expr(ast: &WatAST, axis: Axis, sym: &SymbolTable, seen: &mut HashSet
                 match clause {
                     WatAST::List(parts, _) => {
                         for e in parts {
-                            classify_expr(e, axis, sym, seen)?;
+                            classify_expr(e, axes, sym, seen)?;
                         }
                     }
                     // malformed clause → deny, naming the malformed clause's own span.
-                    other => return Err(AxisViolation::at(other.span().clone(), "<malformed cond clause>", axis)),
+                    other => return Err(AxisViolation::at(other.span().clone(), "<malformed cond clause>", axes[0])),
                 }
             }
+            refuse_core_structural_on_multi(axes, items)?;
             Ok(())
         }
 
@@ -1255,29 +1273,30 @@ fn classify_expr(ast: &WatAST, axis: Axis, sym: &SymbolTable, seen: &mut HashSet
         // unchanged — zero behavior change for anything not in `RETE_OPS`.
         WatAST::List(items, list_span) if matches!(items.first(), Some(WatAST::Keyword(k, _)) if crate::rete::vocabulary::resolve_core_name(k) == ":wat::core::match") => {
             let scrut = items.get(1).ok_or_else(|| {
-                AxisViolation::at(list_span.clone(), "<malformed match: no scrutinee>", axis)
+                AxisViolation::at(list_span.clone(), "<malformed match: no scrutinee>", axes[0])
             })?;
-            classify_expr(scrut, axis, sym, seen)?;
+            classify_expr(scrut, axes, sym, seen)?;
             let arms = items.get(2..).ok_or_else(|| {
-                AxisViolation::at(list_span.clone(), "<malformed match: no arms>", axis)
+                AxisViolation::at(list_span.clone(), "<malformed match: no arms>", axes[0])
             })?;
             for arm in arms {
                 match arm {
                     // skip pattern (element 0); check body forms (1..).
                     WatAST::List(parts, _) => {
                         for e in parts.iter().skip(1) {
-                            classify_expr(e, axis, sym, seen)?;
+                            classify_expr(e, axes, sym, seen)?;
                         }
                     }
                     other => {
                         return Err(AxisViolation::at(
                             other.span().clone(),
                             "<malformed match arm>",
-                            axis,
+                            axes[0],
                         ))
                     }
                 }
             }
+            refuse_core_structural_on_multi(axes, items)?;
             Ok(())
         }
 
@@ -1296,15 +1315,16 @@ fn classify_expr(ast: &WatAST, axis: Axis, sym: &SymbolTable, seen: &mut HashSet
             match items.iter().position(|it| matches!(it, WatAST::Symbol(s, _) if s.as_str() == "->")) {
                 Some(i) => {
                     let body = items.get(i + 2..).ok_or_else(|| {
-                        AxisViolation::at(list_span.clone(), "<malformed fn: no body>", axis)
+                        AxisViolation::at(list_span.clone(), "<malformed fn: no body>", axes[0])
                     })?;
                     for e in body {
-                        classify_expr(e, axis, sym, seen)?;
+                        classify_expr(e, axes, sym, seen)?;
                     }
+                    refuse_core_structural_on_multi(axes, items)?;
                     Ok(())
                 }
                 // malformed fn (no `->`) → deny
-                None => Err(AxisViolation::at(list_span.clone(), "<malformed fn: no `->`>", axis)),
+                None => Err(AxisViolation::at(list_span.clone(), "<malformed fn: no `->`>", axes[0])),
             }
         }
 
@@ -1320,14 +1340,17 @@ fn classify_expr(ast: &WatAST, axis: Axis, sym: &SymbolTable, seen: &mut HashSet
                     return Err(AxisViolation::at(
                         other.span().clone(),
                         "<non-keyword/symbol head>",
-                        axis,
+                        axes[0],
                     ))
                 }
             };
             let at = head_node.map(|h| h.span().clone()).unwrap_or_else(|| ast.span().clone());
-            head_ok(head, axis, sym, seen, &at)?;
+            for &axis in axes {
+                let mut axis_seen = seen.clone();
+                head_ok(head, axis, sym, &mut axis_seen, &at)?;
+            }
             for a in &items[1..] {
-                classify_expr(a, axis, sym, seen)?;
+                classify_expr(a, axes, sym, seen)?;
             }
             Ok(())
         }
@@ -1335,20 +1358,20 @@ fn classify_expr(ast: &WatAST, axis: Axis, sym: &SymbolTable, seen: &mut HashSet
         // Vectors / maps / sets → recurse element-wise.
         WatAST::Vector(elems, _) => {
             for e in elems {
-                classify_expr(e, axis, sym, seen)?;
+                classify_expr(e, axes, sym, seen)?;
             }
             Ok(())
         }
         WatAST::Map(pairs, _) => {
             for (k, v) in pairs {
-                classify_expr(k, axis, sym, seen)?;
-                classify_expr(v, axis, sym, seen)?;
+                classify_expr(k, axes, sym, seen)?;
+                classify_expr(v, axes, sym, seen)?;
             }
             Ok(())
         }
         WatAST::Set(elems, _) => {
             for e in elems {
-                classify_expr(e, axis, sym, seen)?;
+                classify_expr(e, axes, sym, seen)?;
             }
             Ok(())
         }
@@ -1398,7 +1421,7 @@ fn classify_fn(fqdn: &str, axis: Axis, sym: &SymbolTable, seen: &mut HashSet<Str
             } else if matches!(axis, Axis::RetePrimitive) {
                 Err(AxisViolation::at(at.clone(), fqdn, axis))
             } else {
-                classify_expr(body_ast.as_ref(), axis, sym, seen)
+                classify_expr(body_ast.as_ref(), std::slice::from_ref(&axis), sym, seen)
             }
         }
         // A native builtin registered in sym.functions is opaque — its body cannot be inspected —
@@ -1549,19 +1572,19 @@ mod classify_native_fn_tests {
 
 /// Is `ast` effect-free (no IO/mutation/spawn)? `:wat::core::Uuid/v4` is pure (it does no IO).
 pub(crate) fn is_pure_expr(ast: &WatAST, sym: &SymbolTable) -> bool {
-    classify_expr(ast, Axis::Pure, sym, &mut HashSet::new()).is_ok()
+    classify_expr(ast, &[Axis::Pure], sym, &mut HashSet::new()).is_ok()
 }
 
 /// Is `ast` referentially transparent (same inputs → same output)? `:wat::core::Uuid/v4` is NOT.
 pub(crate) fn is_deterministic_expr(ast: &WatAST, sym: &SymbolTable) -> bool {
-    classify_expr(ast, Axis::Deterministic, sym, &mut HashSet::new()).is_ok()
+    classify_expr(ast, &[Axis::Deterministic], sym, &mut HashSet::new()).is_ok()
 }
 
 /// Is `ast` domain-total (defined on all its inputs)? ARMED: `compile-condition` consults
 /// this as the third fence conjunct. `:wat::core::i64::/` is NOT (undefined at a zero
 /// divisor, and separately at the one input pair that overflows i64).
 pub(crate) fn is_total_expr(ast: &WatAST, sym: &SymbolTable) -> bool {
-    classify_expr(ast, Axis::Total, sym, &mut HashSet::new()).is_ok()
+    classify_expr(ast, &[Axis::Total], sym, &mut HashSet::new()).is_ok()
 }
 
 /// LAW A — is every head in `ast`'s transitive walk a rete primitive? Armed on the
@@ -1569,7 +1592,7 @@ pub(crate) fn is_total_expr(ast: &WatAST, sym: &SymbolTable) -> bool {
 /// are freeze-walled on `defrule`. Same walk as the three predicates above; only the axis
 /// differs — a user fn is admitted iff its BODY is, at any depth.
 pub(crate) fn is_rete_primitive_expr(ast: &WatAST, sym: &SymbolTable) -> bool {
-    classify_expr(ast, Axis::RetePrimitive, sym, &mut HashSet::new()).is_ok()
+    classify_expr(ast, &[Axis::RetePrimitive], sym, &mut HashSet::new()).is_ok()
 }
 
 /// Run the SAME walk `is_pure_expr`/`is_deterministic_expr` use, but keep the violation instead of
@@ -1577,7 +1600,7 @@ pub(crate) fn is_rete_primitive_expr(ast: &WatAST, sym: &SymbolTable) -> bool {
 /// by construction — same function, same recursion, only the return type differs). Backs the
 /// wat-visible `:wat::rete::axis-violation` diagnostic surface.
 pub(crate) fn find_axis_violation(ast: &WatAST, axis: Axis, sym: &SymbolTable) -> Option<AxisViolation> {
-    classify_expr(ast, axis, sym, &mut HashSet::new()).err()
+    classify_expr(ast, std::slice::from_ref(&axis), sym, &mut HashSet::new()).err()
 }
 
 /// Arc 278 #88 v2 — THE DEFINITION-SITE CHECK's OUTCOME, as a matchable VALUE rather than a
@@ -1662,37 +1685,37 @@ pub(crate) fn apply_rete_defn_contracts(
             // `check_sigma_fn_contract`'s identical defensive arm (freeze.rs).
             FunctionBody::Native => continue,
         };
-        for axis in Axis::ALL {
-            // SEED `seen` WITH THE NAME BEING DECLARED. A self-call inside the very body we are
-            // proving would otherwise reach `classify_fn` while this name is still `rete: None`
-            // (the stamp happens below, after all four axes pass) and be denied on law A for
-            // calling ITSELF — which would LIE ("is not a rete primitive" about a rete-defn).
-            // The four axes stay silent on cycles; #87's refusal is the walk AFTER this loop.
-            //
-            // AND SEED IT WITH EVERY OTHER DECLARED NAME, for the same reason one step out.
-            // `declared` is a HashSet, so `for name in declared` runs in ARBITRARY, run-varying
-            // order. Seeding only `name` leaves a MUTUAL reference order-dependent: `where-nesting`
-            // declares `c1` then `c2`, and `c2` calls `c1` — if the loop happens to reach `c2`
-            // first, `c1` is not yet stamped and `c2` is refused; reach `c1` first and both pass.
-            // A check that answers differently depending on hash iteration order is not a check.
-            //
-            // Every member of `declared` is being proven in THIS pass, each independently against
-            // its own body, so a call from one to another is a back-edge within the declaration
-            // group — the identical assumption `classify_fn` already makes for a cycle, widened
-            // from self to the group. Soundness is unchanged: nobody is admitted without its own
-            // body passing all four axes; only the ORDER of proving stops mattering.
-            let mut seen: HashSet<String> = declared.clone();
-            seen.insert(name.clone());
-            if let Some(v) = classify_expr(body_ast.as_ref(), axis, sym, &mut seen).err() {
-                return ReteDefnCheckOutcome::Err(ReteDefnCheckError {
-                    span: v.span,
-                    kind: ReteDefnCheckErrorKind::AxisViolation {
-                        name: name.clone(),
-                        axis: axis.variant_name(),
-                        head: v.head,
-                    },
-                });
-            }
+        // SEED `seen` WITH THE NAME BEING DECLARED. A self-call inside the very body we are
+        // proving would otherwise reach `classify_fn` while this name is still `rete: None`
+        // (the stamp happens below, after all four axes pass) and be denied on law A for
+        // calling ITSELF — which would LIE ("is not a rete primitive" about a rete-defn).
+        // The four axes stay silent on cycles; #87's refusal is the walk AFTER this check.
+        //
+        // AND SEED IT WITH EVERY OTHER DECLARED NAME, for the same reason one step out.
+        // `declared` is a HashSet, so `for name in declared` runs in ARBITRARY, run-varying
+        // order. Seeding only `name` leaves a MUTUAL reference order-dependent: `where-nesting`
+        // declares `c1` then `c2`, and `c2` calls `c1` — if the loop happens to reach `c2`
+        // first, `c1` is not yet stamped and `c2` is refused; reach `c1` first and both pass.
+        // A check that answers differently depending on hash iteration order is not a check.
+        //
+        // Every member of `declared` is being proven in THIS pass, each independently against
+        // its own body, so a call from one to another is a back-edge within the declaration
+        // group — the identical assumption `classify_fn` already makes for a cycle, widened
+        // from self to the group. Soundness is unchanged: nobody is admitted without its own
+        // body passing all four axes; only the ORDER of proving stops mattering.
+        //
+        // One AST walk; first-failing axis at each call head (Pure → Det → Total → Rete).
+        let mut seen: HashSet<String> = declared.clone();
+        seen.insert(name.clone());
+        if let Some(v) = classify_expr(body_ast.as_ref(), &Axis::ALL, sym, &mut seen).err() {
+            return ReteDefnCheckOutcome::Err(ReteDefnCheckError {
+                span: v.span,
+                kind: ReteDefnCheckErrorKind::AxisViolation {
+                    name: name.clone(),
+                    axis: v.axis.variant_name(),
+                    head: v.head,
+                },
+            });
         }
         if let Some((head, span)) = rete_defn_cycle(name, body_ast.as_ref(), sym) {
             return ReteDefnCheckOutcome::Err(ReteDefnCheckError {

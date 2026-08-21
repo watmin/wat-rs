@@ -209,14 +209,9 @@ fn binding_extensions(
             Ok(out)
         }
         CondDriver::Where(program) => {
-            match crate::rete::expr_ir::exec_where(
-                program,
-                seed,
-                sym,
-                &crate::rust_caller_span!(),
-            ) {
-                Ok(true) => Ok(vec![seed.clone()]),
-                _ => Ok(vec![]),
+            match crate::rete::expr_ir::exec_where(program, seed, sym, &program.span)? {
+                true => Ok(vec![seed.clone()]),
+                false => Ok(vec![]),
             }
         }
         CondDriver::Not(inner) => {
@@ -380,13 +375,9 @@ fn exists_cond_under(
             }
             Ok(false)
         }
-        CondDriver::Where(program) => Ok(crate::rete::expr_ir::exec_where(
-            program,
-            seed,
-            sym,
-            &crate::rust_caller_span!(),
-        )
-        .unwrap_or(false)),
+        CondDriver::Where(program) => {
+            crate::rete::expr_ir::exec_where(program, seed, sym, &program.span)
+        }
         CondDriver::Not(inner) => Ok(!exists_cond_under(
             inner,
             wm,
@@ -419,24 +410,6 @@ fn exists_cond_under(
     }
 }
 
-
-/// Shared-variable agreement: if a key is in both maps with a DIFFERENT value → false.
-/// A variable only on one side never conflicts. The keyed hash-join does not call this
-/// in the hot path; the NegationNode / ExistsNode gather still does.
-fn token_element_compatible<B: Bindings + ?Sized, E: Bindings + ?Sized>(
-    tok_bindings: &B,
-    el_bindings: &E,
-) -> bool {
-    for (k, e_val) in el_bindings.iter() {
-        if let Some(t_val) = tok_bindings.get(k) {
-            if t_val != e_val {
-                return false;
-            }
-        }
-        // Key only in element bindings → no conflict (compatible).
-    }
-    true
-}
 
 /// Merge an Element's fact and bindings into a native `Token`.
 /// Concat left match-span + `(el_fact, alpha_id)` into `match_pool`; concat left
@@ -507,13 +480,13 @@ fn token_assoc(
     ids: &mut crate::rete::compiled_cond::ValIntern,
     pool: &mut Vec<(u32, u32)>,
 ) -> Token {
-    let kid = intern_key(keys, &k);
+    let key_id = intern_key(keys, &k);
     let vid = intern_val(vals, ids, v);
     let pairs: Vec<(u32, u32)> = pool_slice(pool, tok.binds).to_vec();
     let start = pool.len();
     let mut found = false;
     for (ek, ev) in pairs {
-        if ek == kid {
+        if ek == key_id {
             pool.push((ek, vid));
             found = true;
         } else {
@@ -521,7 +494,7 @@ fn token_assoc(
         }
     }
     if !found {
-        pool.push((kid, vid));
+        pool.push((key_id, vid));
     }
     Token {
         matches: tok.matches,
@@ -576,29 +549,13 @@ fn keyed_join(
     }
 
     // Step 1: compute join_keys = sorted shared variable names (intersection of binding key-sets).
-    let join_keys: Vec<Value> = {
-        let sample_tok_bindings = bind_view(ctx.keys, ctx.vals, ctx.pool, left_tokens[0].binds);
-        let sample_el_bindings = element_fact_bindings(&right_elements[0], ctx.keys, ctx.vals, ctx.pool);
-        let mut keys: Vec<Value> = sample_tok_bindings
-            .iter()
-            .map(|(k, _)| k.clone())
-            .filter(|k| Bindings::get(&sample_el_bindings, k).is_some())
-            .collect();
-        // Binding keys are Value::String (variable names like "?loc").
-        // Sort by their string content for a stable canonical order.
-        keys.sort_by(|a, b| {
-            let a_str = match a {
-                Value::String(s) => s.as_str(),
-                _ => "",
-            };
-            let b_str = match b {
-                Value::String(s) => s.as_str(),
-                _ => "",
-            };
-            a_str.cmp(b_str)
-        });
-        keys
-    };
+    let join_keys: Vec<Value> = gather_join_keys(
+        &bind_view(ctx.keys, ctx.vals, ctx.pool, left_tokens[0].binds),
+        right_elements,
+        ctx.keys,
+        ctx.vals,
+        ctx.pool,
+    );
 
     // Step 2: index RIGHT (elements) by join-key-value tuple.
     let mut index: JoinKeyMap<usize> = HashMap::new();
@@ -646,26 +603,13 @@ fn keyed_join_persistent(
         return Ok(vec![]);
     }
     idx.join_keys_cache.entry(join_id).or_insert_with(|| {
-        let sample_tok_bindings = bind_view(ctx.keys, ctx.vals, ctx.pool, left_tokens[0].binds);
-        let sample_el_bindings =
-            element_fact_bindings(&right_elements[0], ctx.keys, ctx.vals, ctx.pool);
-        let mut keys: Vec<Value> = sample_tok_bindings
-            .iter()
-            .map(|(k, _)| k.clone())
-            .filter(|k| Bindings::get(&sample_el_bindings, k).is_some())
-            .collect();
-        keys.sort_by(|a, b| {
-            let a_str = match a {
-                Value::String(s) => s.as_str(),
-                _ => "",
-            };
-            let b_str = match b {
-                Value::String(s) => s.as_str(),
-                _ => "",
-            };
-            a_str.cmp(b_str)
-        });
-        keys
+        gather_join_keys(
+            &bind_view(ctx.keys, ctx.vals, ctx.pool, left_tokens[0].binds),
+            right_elements,
+            ctx.keys,
+            ctx.vals,
+            ctx.pool,
+        )
     });
     let already = idx.indexed_n.get(&join_id).copied().unwrap_or(0);
     if already < right_elements.len() {
@@ -1013,13 +957,10 @@ pub(crate) fn rules_lack_ast(rules: &[Value]) -> bool {
     if rules.is_empty() {
         return true;
     }
-    rules.iter().all(|r| match node_record(r) {
-        Some((_, sf)) if sf.len() > 1 => match &sf[1] {
-            Value::wat__core__PersistentVector(pv) => {
-                !pv.iter().any(|x| matches!(x, Value::wat__WatAST(_)))
-            }
-            _ => true,
-        },
+    rules.iter().all(|r| match rule_named_field(r, "lhs") {
+        Some(Value::wat__core__PersistentVector(pv)) => {
+            !pv.iter().any(|x| matches!(x, Value::wat__WatAST(_)))
+        }
         _ => true,
     })
 }
@@ -1120,7 +1061,7 @@ pub(crate) fn key_of<B: Bindings + ?Sized>(
 /// Split out from the index build so a cache lookup can key on `(alpha_id, join_keys)` *before*
 /// paying for the expensive half (`build_gather_index`) — the gather-index cache's ordering
 /// constraint (`DESIGN-STONE-gather-index-cache.md`).
-fn gather_join_keys<B: Bindings + ?Sized>(
+pub(crate) fn gather_join_keys<B: Bindings + ?Sized>(
     sample_bindings: &B,
     elements: &[Element],
     bind_keys: &[Value],
@@ -1189,7 +1130,15 @@ impl GatherIndex {
         join_keys: &[Value],
         intern: GatherIntern<'_>,
     ) {
-        if new_idxs.is_empty() || elements.is_empty() || join_keys.is_empty() {
+        if new_idxs.is_empty() || elements.is_empty() {
+            return;
+        }
+        if join_keys.is_empty() {
+            if let Self::Nary(m) = self {
+                m.entry(JoinKey::Empty)
+                    .or_default()
+                    .extend(new_idxs.iter().copied());
+            }
             return;
         }
         let GatherIntern {
@@ -1200,7 +1149,7 @@ impl GatherIndex {
         } = intern;
         match self {
             Self::UnaryId(m) => {
-                let Some(kid) = bind_keys
+                let Some(key_id) = bind_keys
                     .iter()
                     .position(|k| k == &join_keys[0])
                     .map(|i| i as u32)
@@ -1209,7 +1158,7 @@ impl GatherIndex {
                 };
                 for &i in new_idxs {
                     let pairs = pool_slice(pool, elements[i].binds);
-                    if let Some((_, vid)) = pairs.iter().find(|(k, _)| *k == kid) {
+                    if let Some((_, vid)) = pairs.iter().find(|(k, _)| *k == key_id) {
                         m.entry(*vid).or_default().push(i);
                     }
                 }
@@ -1231,7 +1180,10 @@ impl GatherIndex {
 /// Buckets are indices into `wm.alpha[alpha_id]` (`DESIGN-STONE-gather-no-snapshot`).
 /// Persists across rounds; `append` takes `d_alpha`
 /// (`DESIGN-STONE-persist-gather-across-rounds`). Not a Session field.
-type GatherCache = FxHashMap<(i64, Vec<Value>), GatherIndex>;
+// rune:struere(lifetime-coupling) — indices into this fire's `wm.alpha`; a
+// GatherIndex must not outlive the alpha vec (`DESIGN-STONE-gather-no-snapshot`,
+// `DESIGN-STONE-persist-gather-across-rounds`).
+type GatherCache = FxHashMap<(i64, Arc<[Value]>), GatherIndex>;
 
 fn append_d_alpha(
     cache: &mut GatherCache,
@@ -1246,7 +1198,7 @@ fn append_d_alpha(
         idx.append(
             news,
             els,
-            join_keys,
+            join_keys.as_ref(),
             GatherIntern {
                 bind_keys: &wm.bind_keys,
                 vals: &wm.bind_vals,
@@ -1305,28 +1257,31 @@ pub(crate) fn build_gather_index(
 /// Get-or-build the fire-scoped gather index for `alpha_id` under `sample`'s shared keys.
 /// Acc, Negation, and Exists all miss through here so one pair is built once per fire
 /// and appended across rounds (`DESIGN-STONE-persist-gather-across-rounds`).
-fn ensure_gather<B: Bindings + ?Sized>(
-    cache: &mut GatherCache,
+fn ensure_gather<'a, B: Bindings + ?Sized>(
+    cache: &'a mut GatherCache,
     wm: &FireSession,
     alpha_id: i64,
     sample: &B,
-) -> Vec<Value> {
+) -> Option<(&'a GatherIndex, Arc<[Value]>)> {
     let els = alpha_elements(&wm.alpha, alpha_id);
-    let join_keys = gather_join_keys(sample, els, &wm.bind_keys, &wm.bind_vals, &wm.bind_pool);
-    let cache_key = (alpha_id, join_keys.clone());
-    cache.entry(cache_key).or_insert_with(|| {
+    if els.is_empty() {
+        return None;
+    }
+    let join_keys: Arc<[Value]> =
+        gather_join_keys(sample, els, &wm.bind_keys, &wm.bind_vals, &wm.bind_pool).into();
+    let index = cache.entry((alpha_id, Arc::clone(&join_keys))).or_insert_with(|| {
         census_count("accum:index-builds");
         census_count_n("accum:index-elements", els.len() as u64);
         build_gather_index(
             els,
-            &join_keys,
+            join_keys.as_ref(),
             &wm.bind_keys,
             &wm.bind_vals,
             &wm.bind_pool,
             &wm.bind_val_ids,
         )
     });
-    join_keys
+    Some((index, join_keys))
 }
 
 /// Exists/Not Leaf: probe the token's bucket. Empty bucket is absence (contract clause 2).
@@ -1338,11 +1293,10 @@ fn any_seeded_keyed<B: Bindings + ?Sized>(
     compiled: &crate::rete::compiled_cond::CompiledCond,
     scratch: &mut SlotFrame,
 ) -> bool {
-    let join_keys = ensure_gather(cache, wm, alpha_id, seed);
-    let key = key_of(seed, &join_keys, &wm.bind_val_ids);
-    let index = cache
-        .get(&(alpha_id, join_keys))
-        .expect("ensure_gather just inserted");
+    let Some((index, join_keys)) = ensure_gather(cache, wm, alpha_id, seed) else {
+        return false;
+    };
+    let key = key_of(seed, join_keys.as_ref(), &wm.bind_val_ids);
     let elements = alpha_elements(&wm.alpha, alpha_id);
     let bucket = index.bucket(&key);
     // No leftover SeedCmp: the keyed bucket is the exists/not (same contract as join_extend).
@@ -1351,13 +1305,12 @@ fn any_seeded_keyed<B: Bindings + ?Sized>(
     }
     bucket.iter().any(|&i| {
         census_gather_visit();
-        fact_bindings_under(
+        fact_holds_under(
             fact_at(&wm.facts, &wm.derived_facts, wm.n_input, elements[i].fact),
             seed,
             compiled,
             scratch,
         )
-        .is_some()
     })
 }
 
@@ -1370,11 +1323,10 @@ fn seeded_bindings_keyed(
     compiled: &crate::rete::compiled_cond::CompiledCond,
     scratch: &mut SlotFrame,
 ) -> Vec<crate::value::pmap::PMap> {
-    let join_keys = ensure_gather(cache, wm, alpha_id, seed);
-    let key = key_of(seed, &join_keys, &wm.bind_val_ids);
-    let index = cache
-        .get(&(alpha_id, join_keys))
-        .expect("ensure_gather just inserted");
+    let Some((index, join_keys)) = ensure_gather(cache, wm, alpha_id, seed) else {
+        return Vec::new();
+    };
+    let key = key_of(seed, join_keys.as_ref(), &wm.bind_val_ids);
     let elements = alpha_elements(&wm.alpha, alpha_id);
     let bucket = index.bucket(&key);
     if !compiled.has_seed_cmp() {

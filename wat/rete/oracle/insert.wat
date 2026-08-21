@@ -1,8 +1,9 @@
 ;; wat/rete/oracle/insert.wat — interpreted insert / retract oracle.
 ;;
-;; insert$oracle / insert-all$oracle / public insert / retract.
+;; insert$oracle / insert-all$oracle / public insert / insert-all.
+;; `retract` is a wat-only Session rebuild (no $oracle / $native pair yet).
 ;; Zero activation: facts stay staged until fire-rules. Loads after wat/rete.wat
-;; (Session). Public names call $native.
+;; (Session). insert / insert-all public names call $native.
 ;;
 ;; Namespace: :wat::rete::
 

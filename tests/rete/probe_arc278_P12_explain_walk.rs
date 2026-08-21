@@ -14,7 +14,10 @@
 //! `fire-rules-explain`, walk it — bit-identical to what prod did (purity). The AWS S3-triage workflow made
 //! principled.
 //!
-//! ## The worked surface this pins (nested `#rete/Why`, v1 — DAG-sharing for fan-in is a named follow-on)
+//! ## The worked surface this pins (nested `#rete/Why`, v1)
+//! rune:exigere(scope-affirmative) — Out of P12's scope; DAG-sharing for fan-in is rejected
+//! (first producing token only). Tracked as Out of scope in
+//! docs/arc/2026/06/278-rules-engine/DESIGN-STONE-P12-explain-walk.md.
 //! ```clojure
 //! (:wat::rete::explain (:wat::rete::fire-rules-explain staged) (:weather::ColdAndWindy -5 40))
 //! ;; → #rete/Why

@@ -376,24 +376,11 @@ pub(crate) fn fire_rules_on_session(
     }
     let mut parts: Vec<RuleParts> = Vec::with_capacity(rules.len());
     for r in &rules {
-        let (_, rsf) = match node_record(r) {
-            Some(x) => x,
-            None => continue,
-        };
-        let to_asts = |v: &Value| -> Vec<WatAST> {
-            match v {
-                Value::wat__core__PersistentVector(pv) => pv
-                    .iter()
-                    .filter_map(|x| match x {
-                        Value::wat__WatAST(ast) => Some((**ast).clone()),
-                        _ => None,
-                    })
-                    .collect(),
-                _ => vec![],
-            }
-        };
-        let lhs = to_asts(&rsf[1]);
-        let rhs = to_asts(&rsf[2]);
+        if rule_named_field(r, "name").is_none() {
+            continue;
+        }
+        let lhs = rule_asts_field(r, "lhs");
+        let rhs = rule_asts_field(r, "rhs");
         let produced = rule_produces(&rhs, sym);
         let negated = rule_negates(&lhs);
         let consumed = rule_consumes(&lhs);
