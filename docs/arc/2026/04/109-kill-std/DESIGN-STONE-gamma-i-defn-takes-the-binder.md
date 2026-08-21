@@ -1,14 +1,21 @@
-# DESIGN — arc 109 γ-i: `def` takes the `:- [T …]` binder
+# DESIGN — arc 109 γ-i: `fn` takes the `:- [T …]` binder
 
-> **RULED, builder 2026-08-21.** **D1** — γ-i goes FIRST, before the identity stone. **E₀-b** — γ-i
-> covers only the `def` name-binder; the anonymous `fn` binder is its own stone (γ-i-b). **E2** —
-> the binder is consumed by `def`, first-class; the `defn` macro forwards it there.
+> **RULED, builder 2026-08-21.**
+> **D1** — γ-i goes FIRST, before the identity stone.
+> **G3** — **`fn` carries the binder; `def` derives.** `defn` forwards it into the emitted `fn`.
 >
-> ⚠ **CORRECTED 2026-08-21 after macroexpanding.** The first draft of this DESIGN named `fn` as the
-> landing site and listed `src/function/*` as the blast radius. That was wrong, and it was wrong
-> because it reasoned from the ERROR MESSAGE (`"fn signature: …"`) instead of from the expansion.
-> `wat-rs/CLAUDE.md` R4: *Debugging a MACRO? READ THE EXPANDED FORM FIRST.* Recorded rather than
-> quietly fixed — the wrong version was the one that reached the builder.
+> ⚠ **RULING HISTORY — two premises expired under measurement, and both corrections came from the
+> builder's questions, not from my checking.** Kept visible because the lesson is the point.
+>
+> | ruled | superseded by | what the measurement said |
+> |---|---|---|
+> | **E2** `def` consumes the binder | **G3** | Stone 251.7 already unions the fn signature's free type-vars into the def's scheme, so the name-embedded list is nearly vestigial — and there are ZERO parametric `def`s whose value is not an fn. The binder belongs to the thing that is generic. |
+> | **E₀-b** the anonymous `fn` binder is a separate stone (γ-i-b) | **G3** | Under G3 the anonymous capability IS the change. γ-i and γ-i-b collapse into one. |
+>
+> The first draft of this DESIGN also named `fn` — for the WRONG reason (it reasoned from the error
+> message). The macroexpansion corrected it to `def`; the measurements below corrected it back to
+> `fn`. **Landing on the right answer by a wrong route is not the same as being right.**
+> `[[feedback_a_rulings_premise_expires_but_the_ruling_stands]]`
 
 ## The spec, from the builder
 
@@ -19,15 +26,12 @@
 [A B C D E :-> X]    5-arity                ⇔  (wat.core/fn :- [A B C D E X] [a :- A …]        :- X …)
 ```
 
-**The binder lists every type var, the return's included.** Two properties, both checked against the
-disk rather than assumed:
+**The binder lists every type var, the return's included** — `[:-> X]` binds `X` though `X` appears
+nowhere but the return. Arity is **structural** (the position of `:->` IS the arity), which is why
+nullary needs no special case: probed, `[:-> :wat::core::Record]` checks clean.
 
-- **An occurrence in RETURN position is consumption.** `check_type_params_consumed`'s `Surface` arm
-  already walks Method args AND ret; `def`/`defn` mint no `TypeDef`, so the wall never reaches them.
-  Nothing to change — recorded so it is not rediscovered.
-- **Arity is STRUCTURAL** — the position of `:->` IS the arity, so nullary needs no special case.
-  Probed: `[:-> :wat::core::Record]` checks clean; its two real sites (`wat/spawn.wat:51`, `:105`)
-  only CARRY the value, never apply it.
+An occurrence in RETURN position is consumption. `check_type_params_consumed`'s `Surface` arm already
+walks Method args AND ret; `fn` mints no `TypeDef`, so the wall never reaches it. Nothing to change.
 
 ## The gap, measured
 
@@ -39,103 +43,80 @@ disk rather than assumed:
 
 Every other head in the codemod's declarator list ACCEPTS the binder — probed one by one: `defenum`,
 `defrecord`, `holon::defrecord`, `defstruct`, `defsurface`, `typealias`, `newtype`, `typeunion`.
-**`defn` alone rejects.** Population: **40** parametric `defn`/`fn` in `wat/` (`test`, `spawn`,
-`bracket`, `io`, `seq`, `cache`), 57 corpus-wide — every one already rewritten into the binder form
-by the COMMITTED codemod.
+**`defn` alone rejects.** 40 parametric `defn`/`fn` in `wat/`, 57 corpus-wide, every one already
+rewritten into the binder form by the COMMITTED codemod.
 
-## ★ The expansion, which is what decides the stone
+## ★ The four measurements that decided G3
+
+**1 — the expansion.** `defn` is sugar; the params ride the def NAME, and `fn` gets none:
 
 ```clojure
 (:wat::core::defn :user::f<T,U> [x <- :T y <- :U] -> :T x)
-;; macroexpands to
-(:wat.core/def :user/f<T,U> (:wat.core/fn [x <- :T y <- :U] -> :T x))
+  →  (:wat.core/def :user/f<T,U> (:wat.core/fn [x <- :T y <- :U] -> :T x))
 ```
 
-**The type params ride the `def` NAME. The `fn` gets NONE** — `Function.type_params` is hardcoded
-`Vec::new()` at `src/function/eval.rs:66`. The error names `fn` only because the macro forwards the
-stray `:-` into the emitted `fn` form, where `parse_fn_signature_prefix` meets it in the args-vector
-slot. **`fn` is where the error surfaces; `def` is where the fix belongs.**
+**2 — `def` already hands the params to the fn, by CONSTRUCTION.** `try_parse_fn_shape_def`
+(`src/runtime.rs:3395`) reads them off the name and then, **Stone 251.7**, unions them with every free
+type-var in the fn's signature before stamping `Function.type_params`. The `fn` FORM never carries a
+list; the `def` PATH builds the `Function`.
+
+**3 — so the name-embedded list is already nearly vestigial.** Probed: a `defn` with **no param list
+at all** is generic and instantiates at two types.
+
+```clojure
+(:wat::core::defn :user::b [x <- :T] -> :T x)   ;; ✅ generic; applied at :i64 AND :String
+```
+
+**4 — and the ANONYMOUS path is rigid.** `src/function/eval.rs:66` hardcodes
+`type_params: Vec::new()` with no union, so an anonymous fn's `:T` is a concrete Path:
+
+```
+(:wat::core::fn [x <- :T] -> :T x)  applied to 1
+  ⛔ "(value head): parameter #1 expects :T; got :wat::core::i64"
+```
+
+**Plus: ZERO parametric `def`s whose value is not an fn**, corpus-wide. Only functions are generic —
+so the binder belongs on the function, and `def` needs nothing.
+
+## What G3 makes GO AWAY
+
+The E2 design required widening `def`'s `(name [meta] expr)` shape, hand-rolled with a
+`len() != 3 && len() != 4` guard in SEVEN places — `check.rs:545,8445` and
+`runtime.rs:1291,2649,3395,3551,3671` — **every one of which treats an unexpected arity as
+"malformed; the type checker already caught it" and silently `continue`s.** A 5/6-item `def` one
+guard had not learned would have been a binding that never registers, with no error.
+
+**Under G3 `def`'s shape is untouched.** That hazard, and the `split_def_form` consolidation invented
+to contain it, both drop out. `src/check.rs` leaves the blast radius entirely.
+
+## The mechanism
+
+```
+wat/core.wat            the defn macro peels `:- [T …]` after the name and forwards it INTO the
+                        emitted `fn` (not the `def`); name-tp/name-base learn the binder spelling
+src/function/metadata.rs  a binder peel beside peel_metadata_preamble — same shape, same two callers
+src/function/eval.rs:42   peel, then stamp Function.type_params (today: hardcoded Vec::new())
+src/function/infer.rs:105 peel, and GENERALIZE — see the risk below
+src/runtime.rs:3395     try_parse_fn_shape_def reads the fn's binder and unions it exactly where
+                        251.7 already unions the signature's free vars; :3551 / :3671 likewise
+```
 
 ⚠ `parse_fn_signature_prefix` (`src/function/parse.rs:145`) takes **`&[WatAST; 3]`** with its own
 doc — *"Arity is type-guaranteed — no runtime arity check required"* (Stone 243.4.1,
-`CONFORMARE.md`'s worked example of making arity type-impossible). That deliberate wall is a REASON
-NOT TO LAND THE BINDER THERE, not an obstacle to work around. Under E2 `fn` never sees a binder and
-the wall stands untouched.
+`CONFORMARE.md`'s worked example). **The binder is peeled BEFORE that slice**, exactly as metadata
+already is, so the wall stands untouched. Do not widen it.
 
-## ★★ The proven shape to copy — do NOT invent one
+## ⛔ THE RISK — `infer_fn` builds no scheme at all
 
-On the TYPE side, α paired two functions:
+`src/function/infer.rs` binds the params into `body_locals` and checks the body. **There is no
+generalization step**, which is precisely why an anonymous `:T` is rigid today. G3's anonymous
+capability is therefore NOT just a peel: the check side must introduce type VARIABLES for the
+binder's names and produce a polymorphic result at the binding site.
 
-```
-parse_declared_name      reads `<T,…>` off the name keyword                  src/types.rs:4390
-take_declared_binder     consumes an optional `:- [T …]`, and ERRORS when    src/types.rs, 7 callers,
-                         BOTH are present — "a contradiction, never          all TYPE declarators
-                         something to silently resolve"
-```
+**This is the stone's real content and its load-bearing acceptance row.** It is also why G3 subsumes
+γ-i-b rather than merely enabling it.
 
-On the `def` side, `split_name_and_type_params` (`src/runtime.rs:4156`) is `parse_declared_name`'s
-exact twin — and **has no `take_declared_binder`**. That single missing pairing is this stone.
-
-⚠ The both-spellings contradiction error is NOT garnish — it is what stops a half-applied codemod
-from silently picking one. Copy it.
-
-## ⛔ THE HAZARD — `def`'s shape is hand-rolled in SEVEN places, and every one fails SILENTLY
-
-`(def :name expr)` / `(def :name {meta} expr)` is validated by an open-coded `len() != 3 && len() != 4`
-guard at each of:
-
-```
-src/check.rs:545          src/runtime.rs:1291        src/runtime.rs:3395  try_parse_fn_shape_def
-src/check.rs:8445         src/runtime.rs:2649        src/runtime.rs:3551  try_parse_variadic_def_fn_form
-                                                     src/runtime.rs:3671  try_parse_user_variadic_def_fn_form
-```
-
-**Every one of them treats an unexpected arity as "malformed; the type checker already caught it"
-and `continue`s or returns `Ok(())`.** So a 5/6-item `def` that one guard has not learned is not an
-error — it is a binding that **silently fails to register**. Widening seven guards by hand is the
-same worklist shape that has produced every miss in this arc.
-
-### The ONE contract decision
-
-**A single `split_def_form(items) -> (name, type_params, metadata, expr)` door replaces all seven
-hand-rolls.** Adding a slot then touches one function, and a guard that has not learned the shape
-cannot exist because there is only one.
-
-This is not a novel proposal — it is the consolidation this arc already ran. `is_binder_marker`'s
-own doc: *"the one door 251.8a consolidated four hand-rolled checks into."* Same move, same arc,
-one level over.
-
-## ⚠ The trap E2 must not spring — the kwargs bundle
-
-`defn`'s kwargs path derives its bundle type as `{b}::Kwargs{p}`, where `{p}` is `name-tp` — the
-**string suffix taken off the name**. A `defn` written with the binder has an empty `name-tp`, so a
-parametric kwargs `defn` would silently mint a MONOMORPHIC `Kwargs` bundle. `defn` carries the same
-`name-parametric?` / `name-base` / `name-tp` string surgery `defservice` does, and re-attaches it in
-`{b}::Kwargs{p}` and `:{b}$impl{p}`.
-
-**Zero instances in `wat/` today** — which is exactly why it is an ACCEPTANCE ROW and not a corpus
-census. `[[feedback_scope_the_check_from_the_rule_not_the_diff]]`
-
-## Blast radius
-
-```
-src/runtime.rs     split_def_form (new, ONE door) + the split_name_and_type_params pairing;
-                   the five def-shape sites route through it
-src/check.rs       :545 and :8445 route through the same door
-wat/core.wat       the defn macro forwards `:- [T …]` into the emitted `def` rather than
-                   into the emitted `fn`; name-tp/name-base learn the binder spelling
-```
-
-**No `.wat` corpus migration** — the 40 sites keep `<T,U>` until ②-iii re-runs. **`src/function/*`
-is NOT touched**: `fn` never sees the binder.
-
-⚠ A stdlib `.wat` edit is INVISIBLE until a rebuild and **a rider cannot test one**. The
-`wat/core.wat` half is rider-edits, orchestrator-builds-and-floors.
-
-## Acceptance — the rows that must be PROVEN
-
-The load-bearing row is a generic whose body USES its params, in BOTH spellings — parsed is not
-enough:
+## Acceptance — the rows that must be PROVEN, not parsed
 
 ```clojure
 (:wat::core::defn :user::fold<T,U>     [f <- [U T :-> U] init <- :U] -> :U …)   ← control
@@ -143,15 +124,28 @@ enough:
 ```
 
 1. Both spellings check, and the body resolves `:T` / `:U` in each.
-2. BOTH on one declaration → the contradiction ERROR, not a silent pick.
-3. A parametric **kwargs** `defn` in binder spelling mints `Kwargs<T,U>`, not a monomorphic bundle.
-4. A **variadic** `defn` in binder spelling registers — the `try_parse_*_variadic_def_fn_form` paths.
-5. A `def` of a NON-fn value still registers (the door must not narrow `def` to fn-shapes).
-6. `[:-> X]` nullary stays clean; the anonymous `(:wat::core::fn :- [T] …)` stays REJECTED — that is
-   γ-i-b, and its rejection is the CONTROL proving γ-i did not silently widen.
+2. BOTH on one declaration → a contradiction ERROR, never a silent pick. (`take_declared_binder`'s
+   own rule: *"a contradiction, never something to silently resolve"*.)
+3. ★ **The load-bearing row** — an ANONYMOUS binder-carrying fn, bound in a `let`, applied at **TWO**
+   types: `(:wat::core::let [f (:wat::core::fn :- [T] [x <- :T] -> :T x) _ (f 1) __ (f "s")] …)`.
+   One instantiation proves nothing; two is what separates generalized from rigid.
+4. A `defn` with **no** param list stays generic (the 251.7 behaviour must not regress).
+5. A parametric **kwargs** `defn` in binder spelling mints `Kwargs<T,U>`, not a monomorphic bundle —
+   `defn` derives `{b}::Kwargs{p}` from `name-tp`, the string suffix off the NAME, which the binder
+   spelling empties. **Zero instances in `wat/`** — an acceptance row precisely because it is not a
+   census. `[[feedback_scope_the_check_from_the_rule_not_the_diff]]`
+6. A **variadic** `defn` in binder spelling registers — the `try_parse_*_variadic_def_fn_form` paths.
+7. A `def` of a NON-fn value still registers, and `def`'s arity is UNCHANGED — the negative control
+   proving G3 did not quietly widen `def`.
 
-⚠ **Scope the check from the RULE, not the diff** — this stone exists because a verification landed
-on the six heads a diff added and never touched the one already in the list.
+## Blast radius
+
+`wat/core.wat` · `src/function/{metadata,eval,infer}.rs` · `src/runtime.rs` (the three `def`-fn
+recognizers). **NOT `src/check.rs`. NOT `parse_fn_signature_prefix`'s `[WatAST; 3]`.**
+**No `.wat` corpus migration** — the 40 sites keep `<T,U>` until ②-iii re-runs.
+
+⚠ A stdlib `.wat` edit is INVISIBLE until a rebuild and **a rider cannot test one**. The
+`wat/core.wat` half is rider-edits, orchestrator-builds-and-floors.
 
 ## The four questions
 
@@ -159,44 +153,27 @@ on the six heads a diff added and never touched the one already in the list.
 
 - **Obvious?** YES — `defn` is the only declarator head refusing the operator every other head takes,
   and the committed codemod already writes the binder at 40 stdlib sites.
-- **Simple?** YES — one missing pairing, copied from a shape proven at seven call sites.
+- **Simple?** YES — one peel, at the place metadata is already peeled, plus the generalization the
+  anonymous path has always lacked.
 - **Honest?** YES — the alternative (dropping `defn` from the codemod's head list) renders a
   declaration NAME as a REFERENCE, the silent corruption `a9168b851` exists to prevent.
-- **Good UX?** YES — independent of the identity stone, so it lands and floors on its own.
+- **Good UX?** YES — it lands and floors independently of the identity stone, and it makes the
+  builder's own anonymous spelling legal.
 
-### E₀ — does γ-i include the anonymous `fn` binder?  **RULED: E₀-b**
-
-*Shared premise, and the measurement refutes it: that both capabilities are one stone.*
-
-| | Obvious | Simple | Honest | Good UX |
-|---|---|---|---|---|
-| **E₀-a** both — `def`'s name-binder AND anonymous `fn` binding its own vars | YES | **NO** | YES | — |
-| **E₀-b** only the `def` name-binder; the anonymous form is γ-i-b | YES | YES | YES | YES |
-
-**E₀-a fails Simple** — two unlike mechanisms. One is a parse-slot peel; the other is *generics for
-lambdas*: populating `Function.type_params` (hardcoded empty) and instantiating it per call site.
-
-**E₀-b's Obvious is measured:** all 40 sites are `defn` declarations, and **zero anonymous parametric
-`fn`s exist because the form is currently unwritable** — no name slot, no binder. The builder's
-anonymous spelling is a NEW capability, not a migration target. It is named to **γ-i-b**, never
-deferred.
-
-### E — where the binder is consumed.  **RULED: E2**
+### G — which form carries the binder.  **RULED: G3**
 
 | | Obvious | Simple | Honest | Good UX |
 |---|---|---|---|---|
-| **E1** the `defn` macro peels `:- [T U]` and re-emits `:user::f<T,U>` | YES | YES | **NO** | — |
-| **E2** `def` accepts the binder beside its name; `defn` forwards it there | YES | YES | YES | YES |
-| **E3** both | **NO** | **NO** | YES | — |
+| **G1** `def` only (the superseded E2) | YES | YES | YES | **NO** |
+| **G2** both; `defn` emits to each | YES | **NO** | **NO** | — |
+| **G3** `fn` only; `def` derives — which 251.7 already does | YES | YES | YES | YES |
 
-**E1 fails Honest, and the expansion is the proof** — it makes our own macro MANUFACTURE
-`:user/f<T,U>`, the exact spelling ③ makes illegal. Blocker 3's disease (`defservice` emitting the
-retired form so a migrated corpus regrows it) adopted deliberately, in the stone whose job is to
-retire it. ③ would then break on names our own macro minted. E1 is seductive precisely because
-`defn` already carries the `name-base`/`name-tp` split — machinery being there is a reason it would
-be cheap, never a reason it would be right.
+**G1 fails UX** — it leaves the builder's `(fn :- [A B X] …)` illegal, and pays the seven-guard
+silent-skip hazard on `def`'s arity to add a list the signature already yields.
 
-**E3 fails Obvious and Simple** — two peels for one spelling; a reader must work out which fires.
+**G2 fails Simple and Honest** — two lists for one fact, with `(def :f :- [T] (fn :- [U] …))` a
+REPRESENTABLE DISAGREEMENT. A structure that can hold two contradicting bindings can lie about what
+is bound; it is the exact state `take_declared_binder` refuses by erroring when both spellings appear.
 
-**E2 is where the params already attach** — the expansion shows them riding the `def` name, so the
-binder belongs where the params land.
+**G3** puts the binder on the thing that is generic — measured: only functions are — keeps ONE source
+of truth, leaves `def` untouched, and collapses γ-i-b into this stone.
