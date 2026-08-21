@@ -438,6 +438,7 @@ fn import_refuses_host_typeenv_field_order() {
             let fields_i = a.names.iter().position(|n| n == "fields").expect("fields");
             let abi_i = a.names.iter().position(|n| n == "abi").expect("abi");
             let classes = seq_strings(&rec[classes_i]);
+            // rune:perspicere(read-once) — one vantage-bypass poke; a test-local alias would be a one-site mumble
             let mut fields: Vec<Vec<String>> = seq_values(&rec[fields_i])
                 .iter()
                 .map(seq_strings)
