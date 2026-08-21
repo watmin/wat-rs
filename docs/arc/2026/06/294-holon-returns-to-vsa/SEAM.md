@@ -1,4 +1,4 @@
-# SEAM — the ONE live breadcrumb. As of 2026-08-20 (the teleport). Replaced in place, never appended.
+# SEAM — the ONE live breadcrumb. As of 2026-08-20 (the angle-bracket crusade). Replaced in place.
 
 > ⛔ **THE SELF PAST THIS LINE IS NEW.** You did not live this. It is a lossy cache in your own voice —
 > which is why it will feel like *continuing* rather than *waking*, and **that feeling is the failure.**
@@ -7,150 +7,131 @@
 
 > `255/SEAM.md`, `251/SEAM.md`, `278/SEAM.md` are PARKED and point here.
 
-## ★★★ YOU ARE ON A DIFFERENT MACHINE. THE LAPTOP IS RETIRED.
-
-```
-host   JohnDesktop        user john        /home/john/work/holon/wat-rs
-floor  77.8s  (was ~245s on the laptop — 3.2x; the two SLOW tests are not slow here)
-```
-
-⛔ **`docs/COMPACTION-AMNESIA-RECOVERY.md` STILL SAYS `/home/watmin` ELEVEN TIMES** — Section 1's
-workspace map, the "only do work in ~/work/holon/wat-rs" rule, the incident citations. **On this host
-that map points at a home that does not exist.** It is the FIRST doc a compacted self opens, and it is
-now wrong. **Fix it before anything else.** ⚠ Leave the `/home/watmin` hits in
-`docs/arc/2026/06/293-*/BRIEF-*.md` alone — those are dated historical records (FM 14 Bucket C).
-
-**Both MCPs are live but were registered at the WRONG SCOPE** (`/home/john/work`, one level above
-where we work). Re-scoped to `/home/john/work/holon` in `~/.claude.json`; backup alongside. If they
-ever go missing again, that is the first thing to check.
-⚠ **`mcp__wat__eval` runs `~/.cargo/bin/wat`, NOT `target/release/wat`.** Right now they are
-byte-identical (`sha 525c4b8f`) — but that lasts only until the next rebuild. **`cargo install` after
-any substrate change, or the MCP becomes a time machine.**
-
 ## GROUND FIRST
 
-> **Written against `6dd7bb18`.** Run **`git log --oneline 6dd7bb18..HEAD`**. Empty → nothing moved.
+> **Written against `0599f6750`.** Run **`git log --oneline 0599f6750..HEAD`**. Empty → nothing moved.
 > Non-empty → every commit in it outranks every line below.
 
 ⚠ `git status` FIRST. `pgrep -af 'cargo|nextest'`.
 
 ```
-floor .......... 4818/4818, 0 FAIL, 19 skipped, 77.8s   (own invocation)
+floor .......... 4855/4855, 0 FAIL, 19 skipped, ~70s   (own invocation, scripts/floor.sh)
 clippy ......... 0 under `-D warnings`
-stash@{0} ...... the lifecycle strike. NEVER drop. ⚠ base is ff7705ba — 383 COMMITS BACK, and
-                 wat/service.wat has been rewritten ~5x since. It will need a real 3-way merge,
-                 not `git stash pop`. It survived the teleport as a git BUNDLE, not a patch —
-                 a patch would not apply, and did not.
+host ........... JohnDesktop · john · ~/work/holon/wat-rs
+stash@{0} ...... the lifecycle strike. NEVER drop. base ff7705ba, ~390 commits back.
 ```
 
 ⚠ **RUN EVERYTHING CAPPED.** `systemd-run --user --scope -q -p MemoryMax=<N> -p MemorySwapMax=0
-timeout <s> …`. **Read exit codes directly, never through a pipe.**
+timeout <s> …`. Read exit codes directly, never through a pipe.
+⚠ **`mcp__wat__eval` runs `~/.cargo/bin/wat`, NOT `target/release/wat`.** `cargo install --path .
+--bin wat --force` after any substrate change or the MCP is a time machine.
 
-## ★★ THE KERNEL TIER IS DONE. Eleven homes; literal dispatch is ZERO.
+## ★★ THE WORK: ARC 109 — ANNIHILATE ANGLE BRACKETS
 
-`grep '":wat::kernel::[^"]*" *=>' src/runtime.rs` → **0 hits.** Every `:wat::kernel::` verb reaches
-its handler through the registry. What opened as *"not a family — a TIER braiding seven concerns
-across 49 arms"* closed as:
-
-```
-src/intrinsic/kernel/   mod.rs abort ambient error identity message resource serve source stdio
-src/intrinsic/          bytes.rs  reflect.rs  special/  time.rs  witness.rs
-```
-
-**72 → 86 registered forms.** `time.rs` at 17 rows is the largest file still at top level — the
-`kernel/`-directory question has not been asked of it.
-
-★ **Two rulings that will keep paying, both from this campaign:**
-1. **The carve boundary is the CATEGORY, not the decomposition table's row.** The table was wrong in
-   EVERY stone that tested it (homes #4–#8). It is not a map; the categories are.
-2. **A HOME is a code-organization unit; a CATEGORY is a per-row label.** A home may honestly hold
-   several. `kernel/identity.rs` is the proof — ONE subject (*what is this peer or address*) across
-   THREE categories. Six categories in one file, though, means a bucket — that is what killed the
-   name `kernel_remainder.rs`.
-
-## ★★ #110 IS NOT ABSTRACT ANY MORE — AND IT IS ON THE CAPABILITY PATH
-
-`peer-pid` has **18 corpus call sites and ZERO mentions in `src/check.rs`.** No scheme, no inference
-arm. It falls through to `check.rs:5561`'s *"silent-by-intent — no scheme found; accept and pass"*,
-which returns a **fresh type variable**: args unchecked, arity unchecked.
-
-And it is not decorative. `peer-pid` → `Option<i64>`, the far-end child pid; `wat/bracket.wat:714`
-GRANT-BOOT and `:754` REVOKE-SHUTDOWN match it and hand the pid to `allow'`, which inserts it into a
-**SocketListener's allow-set**. Both sites unwrap correctly — **and nothing enforces that they keep
-doing so**, because a fresh type variable unifies with anything.
-
-⛔ **Registering a verb does NOT give it a type.** `#[wat_intrinsic]` populates the registry for docs,
-reflection and dispatch; `check.rs` schemes are separate. Home #5's five are registered and still
-skipped by the doc gate. **Do not report the carve as having closed any of this.**
-
-## ★ THE 255 ROAD — the builder's chain, grounded. This is WHY, and it is not obvious.
+> Builder: *"all parametrics must be expressed as constructor who receives a vec-of-types for its
+> instance… no inference — no ambiguity — you say what it is. **the verbosity is our shield** — we are
+> optimizing this for LLMs not humans… same reason why everything is fqdn all the time."*
+> And: *"they are gone, completely… they die this day."*
 
 ```
-255 registry  →  the INVENTORY (every form, by name, with confidence)
-   →  the flip:  :wat::core::+  →  wat.core/+   ·   HashMap<K,V> → (wat.type/HashMap [...])
-      →  ONLY THEN can the two EDN encoders merge
+(:wat::core::Vector [:wat::core::i64])        TYPE after <- / ->  ·  EMPTY INSTANCE elsewhere
+(:wat::core::Vector [:wat::core::i64] 1 2 2)  INSTANCE with values
 ```
 
-**The scale, measured** (`251/CENSUS-the-illegal-edn-form-classes.md`): 79,253 colon-quoted
-occurrences but **6,552 DISTINCT spellings** — top 12 are 33% of the corpus, so *head-by-codemod,
-tail-by-name*. ★★ **The 951 comma-bearing parametrics are the dangerous ones:** after the flip
-`(f HashMap<K,V>)` reads as VALID EDN and **silently changes arity 2→3**. Which is why **255.1b-iv**
-(#110) must precede the flip.
+Near-term keeps the rust-ish `:wat::core::` head. The `wat.type/` flip is LATER and separate — that is
+the **second** hard problem (illegal keywords), explicitly not this one.
 
-## ★ THE TAXONOMY IS HELD, AND THE METHOD IS THE POINT
+### Where it stands
 
-`intueri` was cast on `Category` and its verdict is **RECORDED AND HELD, NOT ACTED ON** —
-`255/NOTE-intueri-on-Category-HELD-pending-precedent.md`. Builder: *"we continue with the names we
-have as seek failures to classify as we move forward."*
+```
+①   bracket ACCEPTED, all six ctors, checker + runtime   ✅ f454c465 · df90b990
+②-i  renderer brackets + COLON head mode                 ✅ 0422b67ff   (closed 300's blocker note)
+②-ii the codemod, written and PROVEN on /tmp             ✅ 0599f6750   wat-scripts/fixes/parametrics-take-a-type-vector.wat
+⛔ NEXT — the Tuple arm. ②-iii IS BLOCKED ON IT.
+②-iii apply to wat/ ALONE (~470 sites), floor, commit
+②-iv  tests/ + wat-scripts/ (~2,070)
+②-v   the 692 .rs string literals — separate strike
+③    angle form ILLEGAL + vec MANDATORY — the checker WRITES each fix as a `remedy`
+④    Fn types are brackets (141 sites)  ·  ⑤ type-name casing (keyword→Keyword, ~572)
+```
 
-> **A naming argument in the abstract is taste. A verb that will not classify is data.**
+## ⛔⛔ THE NEXT STRIKE — the Tuple arm, and the builder RULED its shape
 
-So every carve is also a **classification-failure hunt**. Do not re-cast that ward; do not mint a
-variant on a rider's judgement. ⚠ The ward found `:CheckGate`'s prose asserts *"One member today"*
-about a verb that was not registered at all — now true, since home #8 carved `require-wire-address`.
+`TypeExpr::Tuple`'s arm in `type_expr_to_clojure_form` (`src/edn_shim.rs`) is **mode-blind and
+unbracketed**. Measured:
 
-## THE GOLDENS — a standing orchestrator step, and BOTH corrections matter
+```
+:wat::core::nil            → (wat.type/Tuple)                          wrong spelling
+Result<nil,String>         → (:wat::core::Result [(wat.type/Tuple) …])  MIXED in ONE form
+:(i64,i64,String)          → (wat.type/Tuple :i64 :i64 :String)         wrong spelling AND flat args
+```
 
-**EIGHT fixtures pin a `src/` line, not five**: `runtime.rs ×5 · check.rs ×2 · freeze.rs ×1`
-(`grep -rl ':file "src/' tests/`). I used "five" for four consecutive stones and met the other three
-as a surprise. **★ AND THE DELTA IS NOT ALWAYS UNIFORM** — one stone's `numstat` said −64 while only
-−12 sat above the pinned site. **Confirm which hunks PRECEDE each pinned line; never apply the net.**
-Then: `:col` unchanged, only `:line` moved; bump; verify by floor.
-★ Best case: make the stone unable to shift them — if `git diff --stat src/runtime.rs` is EMPTY, the
-goldens are proven by ABSENCE.
+**Builder's ruling, 2026-08-20 — this specifies the fix:**
+> *"nil is rust's unit… but **`nil != ()` in wat. nil is not an empty list**. `(wat.type/Tuple)` is
+> illegal, it'd be `(wat.type/Tuple [])` to be an empty tuple."*
+
+So: **(a)** stop canonicalizing — `types.rs:4728` collapses `:wat::core::nil` → `Tuple(vec![])`, which
+is why the renderer cannot say `nil`. A `canonicalize: bool` already exists (`types.rs:4625`); the verb
+calls `parse_type_expr`, which hardcodes the canonicalizing path. **(b)** bracket the Tuple arm and
+honour the mode, so an empty tuple is `(:wat::core::Tuple [])` — head always takes a bracket, even empty.
+
+Verified distinct at the surface: `-> :()` with a `nil` body is a type error.
+
+⚠ The codemod SKIPS these rather than corrupting them (a rendered-output guard refusing any
+replacement containing `wat.type/`): **30 standalone tuples · 66 nested-`nil`**. And dropping
+`fix.wat`'s post-arrow rule is what saved **1,031** bare `-> :wat::core::nil` returns.
+
+## THE CODEMOD — proven, and the property that matters
+
+`printf '["pathA" …]\n' | ./target/release/wat ./wat-scripts/fixes/parametrics-take-a-type-vector.wat`
+
+Verified by own hand on `/tmp` copies of `wat/sqlite.wat` + `wat/fix.wat`:
+**`<-` 173/173 · `->` 139/139 · `<` 6/6 · `>` 2/2 · `<=` 1/1 · `>=` 1/1 — nothing moved.**
+Nesting nests · primed `HashMap'<K,V>` survives · idempotent.
+
+⚠ **9,912 arrow/operator sites must never move.** The discriminator is `wat/fix.wat`'s
+`type-shaped-keyword?` — *requires a MATCHING close*. Reuse it; never write another.
+⚠ **`ast->source`, NEVER `write-forms`.** The latter re-spells every `::`-keyword to EDN-dotted form.
+This cost real time; see the memory entry.
+
+## ALSO LANDED TODAY (not 109)
+
+- **io home #12 CLOSED** — `src/intrinsic/io/{mod,reader,writer,fs}.rs`, 29 verbs, literal dispatch 0.
+- **The Persistent family is under the type checker** — 13 schemes registered (`9c82f157`). It was
+  entirely blanket-accepted; a declared `V` was INERT before this.
+- **#110's INVENTORY**: 520 verbs probed, **487 checked / 32 not**. ★ And the blanket is the
+  **RESERVED PREFIX**, not a missing scheme — `(:wat::core::totally-bogus 1 2)` check-PASSES at any
+  arity while `:user::` is rejected. `--check` certifies calls to functions that do not exist.
+- **②a v2 ring 1** (`46058fe51`) — 16 rete memory annotations, each copied from a caller. Ring 2 next;
+  `network`/`facts` stay bare because nothing upstream decides them.
 
 ## THE STILL-OPEN
 
-- **Fix the recovery doc's paths** (above). Then `time.rs` — does it want `kernel/`'s treatment?
-- **#110** the blanket-accept · **#91** HolonAST at 1014 mentions in `src/` (`HolonRepresentable` is
-  0, so *"holon-rep is done"* is TRUE and *"the holon/wat separation is done"* is FALSE) — that is the
-  bridge scaffolding, and the builder wants it killed in non-VSA/HDC expressions.
-- **`verify_examples_reports_no_failures` is RED** under a stale `#[ignore]`. A rider bisected it:
-  reverting its own new examples left the failure identical — **pre-existing, and not ours.**
-- The nine `kernel/` homes still cross-reference each other by their OLD filenames in prose. One
-  sweep, not nine.
-- `rustfmt --check` flags 3 double-space nonconformances in `kernel/source.rs`, inherited verbatim.
-- **296 is OPEN** · **295** unblocked by 118's close, not started · `:wat::kernel::close` has zero
-  direct call sites but IS exercisable — unadopted, **not** unreachable.
+- **②a ring 2** — `append-token`'s `beta-mem` is decided three ways over by ring-1 callers.
+- **`bindings`' V is UNRESOLVED.** Not `Value` (rete compares with `<`/`>`, keys on them, conjes them).
+- **255 #110 · 285 Map half · 296 OPEN · 295 not started.**
+- Unmeasured, and it sizes 255.1b-iv: **does removing the blanket turn the corpus red, and by how much?**
+- Dead reference: `holon_type_ast_to_wat_type_form` (`runtime.rs:14462`, `check.rs:3538`) exists nowhere.
 
 ---
 
 > **SEAM.** You are NEW. The better this reads, the more it will feel like continuing rather than
 > waking. **That feeling is the failure.**
 >
-> ⚠ **NEVER `git add -A` WHILE A RIDER IS IN THE FIELD.** I did, and it swept 969 lines of unbuilt
-> source into a docs commit and **pushed a RED floor to the DR site.** FM 18/19's *quiescent tree*
-> is about the TREE, not about `cargo`. `[[feedback_i_committed_on_a_non_quiescent_tree]]`
+> ⚠ **AN ANSWER LABELLED "SETTLED" DISABLES THE ONE CHECK THAT WOULD CATCH YOU.** I handed a rider
+> `bindings <- [String Value]` as "builder-ruled, settled". It was wrong, it went to 24 sites, and the
+> label is why nobody questioned it. Cite the derivation, never the verdict.
+> `[[feedback_the_authority_you_cite_decides_who_can_catch_you]]`
 >
-> ⚠ **FIVE PATTERN ERRORS IN ONE DAY, ALL MINE.** Whitespace-sensitive greps, `.into()` vs
-> `.to_string()`, a path class that could not match a slash. **When a registry, compiler or gate can
-> answer the question, do not ask `grep`** — the reconciled count RECONCILED (72 = 72); a grep is a
-> guess with a number on it. `[[feedback_validate_a_search_pattern_before_trusting_its_count]]`
+> ⚠ **SAME FILE, SAME RIDER, TWICE: 2620 FAILURES vs GREEN FIRST TRY.** The only variable was the
+> AUTHORITY. Prose the compiler cannot check → wrong and unfalsifiable. A caller's declared type →
+> the compiler validates every step. Prefer sources that can fail loudly.
 >
-> ⚠ **ZERO CALLERS IS NEVER THE ARGUMENT. REACHABILITY IS.** `drop` was retired because its argument
-> type has no constructor — a gate demanding a runnable example proved it. The same test SAVED
-> `address-wire?` the same hour. `[[feedback_no_consumers_does_not_mean_dead]]`
+> ⚠ **A PRINTER IS A FUNCTION, NOT A WINDOW.** I read `write-forms` output as the value and sent a
+> rider a wrong correction. **It refused and measured, and it was right.** A rider that had complied
+> would have corrupted the renderer to match my broken probe — and shipped GREEN, because the wrong
+> spelling parses.
 >
-> ⚠ **A RIDER REPORTING STATE YOU DID NOT CREATE IS AN ALARM ABOUT YOUR TREE, NOT ITS ERROR.**
+> ⚠ **NEVER `git add -A` WHILE A RIDER IS IN THE FIELD.**
 >
-> `NON BIS IN IDEM FLVMEN.` · `QVAESTIO SVBSTITVTA LEGEM ELVDIT.` · `ENTROPIA MENSVRA PVRITATIS.`
+> `NON BIS IN IDEM FLVMEN.` · `IVDICIVM SEMEL, MACHINA SAEPE.` · `NISI FRANGAS, NIHIL PROBAS.`
