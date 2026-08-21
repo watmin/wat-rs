@@ -92,9 +92,9 @@ the registry boundary and keep the string*, which is cheaper and loses the arity
 ## Sequencing
 
 ```
-γ-i          `defn` / `fn` accept `:- [T …]` — the 8th caller of take_declared_binder.
-             40 sites in wat/ that the committed codemod already rewrites into a
-             REJECTED form. Smallest blocker on the path; independent of this stone.
+γ-i          `defn` / `fn` accept `:- [T …]`.  ✅ RULED FIRST (D1, builder 2026-08-21).
+             DESIGN-STONE-gamma-i-defn-takes-the-binder.md — one fork open inside it
+             (decision E: where the binder is consumed). Independent of this stone.
 this stone   the identity is a base + args; the string is a rendering       ← ruling needed
 ②-iii        re-run the codemod on wat/. Unchanged. Floor. Commit.
 ②-iv         tests/ + wat-scripts/  (~2,070 sites)
@@ -105,8 +105,6 @@ this stone   the identity is a base + args; the string is a rendering       ← 
 
 1. Is this one stone or three (subtype edges · satisfaction checks · `defservice`'s emission)?
 2. Does the rival shape (normalize to base name, keep the string) survive the four questions?
-3. Does γ-i go first? It is one head, the mechanism is proven at seven call sites, and until it
-   lands the committed codemod turns 40 stdlib declarations into forms the substrate refuses.
-4. `Fn(…)->ret` and `:(a,b,c)` — the ②-iii dry-run migrates both, which the ② DESIGN scoped out.
+3. `Fn(…)->ret` and `:(a,b,c)` — the ②-iii dry-run migrates both, which the ② DESIGN scoped out.
    Its exclusion was written when the `Tuple` renderer was mode-blind; ②-i-b closed that, and the
    destinations are probe-verified legal. Ride along, or add the discriminator the DESIGN forbids?

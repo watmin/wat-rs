@@ -84,7 +84,13 @@ wat/service.wat            "<K,V>" as a STRING, re-attached as "{b}::Op{p}" — 
 ⛔ **Do NOT re-run the codemod on `wat/` until that is fixed.** It is not a partial-migration
 hazard — it is a red floor.
 
-★ **NEXT — the builder's RULING on `109/DESIGN-STONE-the-angle-string-is-not-a-type-identity.md`.**
+✅ **RULED D1 (2026-08-21): γ-i goes FIRST** — `defn`/`fn` take the binder, before the identity
+stone. `109/DESIGN-STONE-gamma-i-defn-takes-the-binder.md`. ⛔ ONE FORK STILL OPEN INSIDE IT
+(decision E: is the binder consumed by the `defn` MACRO as a surface alias, or first-class in
+`def`/`fn`? E1 fails Honest — it would make the macro MANUFACTURE the angle form ③ retires, which
+is blocker 3's disease adopted on purpose). **No brief until E is ruled; E decides the rooms.**
+
+★ **ALSO AWAITING RULING —  `109/DESIGN-STONE-the-angle-string-is-not-a-type-identity.md`.**
 It carries the four questions on one shape, names a rival, and declares the population UNMEASURED
 on purpose (a grep cannot tell a type-identity concat from a RustOpaque render; the census must be
 the compiler). One stone or three? Which shape? No rider flies until it is ruled.
@@ -93,8 +99,8 @@ the compiler). One stone or three? Which shape? No rider flies until it is ruled
 
 - **β-ii-d** — `defservice`'s substring transport test (`contains? fqdn-tp "<T>"` / `"<T,"` / `",T>"`,
   three variants approximating one membership check). Cheap now: `fqdn-tp-syms` exists.
-- **γ** — `defn`. TWO capabilities. (i) the declaration BINDER — now MEASURED and on ②-iii's
-  critical path (see the blocker list above); the builder's spec, 2026-08-21: the binder lists every
+- **γ** — `defn`. TWO capabilities. (i) the declaration BINDER — MEASURED, RULED FIRST (D1), DESIGN
+  written, decision E open; the builder's spec, 2026-08-21: the binder lists every
   type var INCLUDING the return's — `[:-> X]` ⇔ `(wat.core/fn :- [X] [] :- X …)`,
   `[A B :-> X]` ⇔ `(wat.core/fn :- [A B X] [a :- A b :- B] :- X …)`. (ii) **call-site type
   application** (`(ns/f :- [wat.type/i64] 42)`), REJECTED today, site count still **UNMEASURED**.
