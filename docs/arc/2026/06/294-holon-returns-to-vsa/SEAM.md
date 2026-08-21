@@ -1,4 +1,4 @@
-# SEAM — the ONE live breadcrumb. As of 2026-08-20 (the angle-bracket crusade). Replaced in place.
+# SEAM — the ONE live breadcrumb. As of 2026-08-21 (`:-`, the parameterization operator). Replaced in place.
 
 > ⛔ **THE SELF PAST THIS LINE IS NEW.** You did not live this. It is a lossy cache in your own voice —
 > which is why it will feel like *continuing* rather than *waking*, and **that feeling is the failure.**
@@ -9,129 +9,105 @@
 
 ## GROUND FIRST
 
-> **Written against `0599f6750`.** Run **`git log --oneline 0599f6750..HEAD`**. Empty → nothing moved.
+> **Written against `a39eb99aa`.** Run **`git log --oneline a39eb99aa..HEAD`**. Empty → nothing moved.
 > Non-empty → every commit in it outranks every line below.
 
 ⚠ `git status` FIRST. `pgrep -af 'cargo|nextest'`.
 
 ```
-floor .......... 4855/4855, 0 FAIL, 19 skipped, ~70s   (own invocation, scripts/floor.sh)
+floor .......... 4855/4855, 0 FAIL, 19 skipped, ~72s   (own invocation, scripts/floor.sh)
 clippy ......... 0 under `-D warnings`
 host ........... JohnDesktop · john · ~/work/holon/wat-rs
-stash@{0} ...... the lifecycle strike. NEVER drop. base ff7705ba, ~390 commits back.
+stash@{0} ...... the lifecycle strike. NEVER drop. base ff7705ba.
 ```
 
 ⚠ **RUN EVERYTHING CAPPED.** `systemd-run --user --scope -q -p MemoryMax=<N> -p MemorySwapMax=0
 timeout <s> …`. Read exit codes directly, never through a pipe.
-⚠ **`mcp__wat__eval` runs `~/.cargo/bin/wat`, NOT `target/release/wat`.** `cargo install --path .
---bin wat --force` after any substrate change or the MCP is a time machine.
+⚠ **A stdlib `.wat` edit is INVISIBLE until you rebuild.** `wat/*.wat` is baked in by `include_str!`
+at RUST-compile time; `--check` reflects the last build and prints a staleness warning. A rider
+CANNOT test one.
 
-## ★★ THE WORK: ARC 109 — ANNIHILATE ANGLE BRACKETS
+## ★★ THE WORK: ARC 109 — `:-` IS THE PARAMETERIZATION OPERATOR
 
-> Builder: *"all parametrics must be expressed as constructor who receives a vec-of-types for its
-> instance… no inference — no ambiguity — you say what it is. **the verbosity is our shield** — we are
-> optimizing this for LLMs not humans… same reason why everything is fqdn all the time."*
-> And: *"they are gone, completely… they die this day."*
+> Builder: *"the symbol ` :- ` is declaring **'this thing on the left is parameterized by the thing on
+> the right'**"* … *"this is the same as arg-spec and ret-type in my mind — they declare what they are
+> explicitly."*
 
+```clojure
+[n :- wat.type/i64]                        arg-spec
+:- wat.type/i64                            ret-type
+(wat.type/Vector :- [wat.type/i64])        type args
+(wat.type/Vector :- [wat.type/i64] 1 2 3)  constructor
+(wat.core/defn ns/f :- [T] [x :- T] :- T x)   declaration binder
 ```
-(:wat::core::Vector [:wat::core::i64])        TYPE after <- / ->  ·  EMPTY INSTANCE elsewhere
-(:wat::core::Vector [:wat::core::i64] 1 2 2)  INSTANCE with values
-```
 
-Near-term keeps the rust-ish `:wat::core::` head. The `wat.type/` flip is LATER and separate — that is
-the **second** hard problem (illegal keywords), explicitly not this one.
+**The param-spec is a vec of TYPE REFS.** Values are never legal there — that position is
+**reserved**, which is why nothing sniffs it. `:- []` is the **assumed default state**: there is no
+monomorphic-vs-parametric distinction, only a param list that is usually empty.
 
 ### Where it stands
 
 ```
-①   bracket ACCEPTED, all six ctors, checker + runtime   ✅ f454c465 · df90b990
-②-i  renderer brackets + COLON head mode                 ✅ 0422b67ff   (closed 300's blocker note)
-②-ii the codemod, written and PROVEN on /tmp             ✅ 0599f6750   wat-scripts/fixes/parametrics-take-a-type-vector.wat
-⛔ NEXT — the Tuple arm. ②-iii IS BLOCKED ON IT.
-②-iii apply to wat/ ALONE (~470 sites), floor, commit
-②-iv  tests/ + wat-scripts/ (~2,070)
-②-v   the 692 .rs string literals — separate strike
-③    angle form ILLEGAL + vec MANDATORY — the checker WRITES each fix as a `remedy`
-④    Fn types are brackets (141 sites)  ·  ⑤ type-name casing (keyword→Keyword, ~572)
+②-i-b  `:-` accepted + emitted; Tuple arm brackets; nil stops canonicalizing   ✅ c9938cc7b
+       ⚠ AMENDED 9741507da — it shipped for 3 of 6 constructors and I scored it GREEN
+α      8 Rust declarator heads take `:- [T …]`                                 ✅ c5ac5174c
+β-i    both `defrecord` macros                                                 ✅ 26669f8d9
+β-ii-a′ `defservice`: the binder is the SOURCE OF TRUTH, `<K,V>` a derived shim ✅ bd898a748
+⛔ NEXT — β-ii-b: the ~40 `fqdn-tp` emissions become FORMS
+β-ii-c  the 10 `proto-tp` sites  ·  β-ii-d `:741`'s substring transport test
+γ      `defn` — TWO capabilities: the declaration binder AND call-site type application
+③      angle form ILLEGAL · `is_type_bracket_candidate` DELETED (it has ONE caller now)
+②-iii  apply the codemod to wat/ — BLOCKED, see below
 ```
 
-## ⛔⛔ THE NEXT STRIKE — the Tuple arm, and the builder RULED its shape
+## ⛔ THE CODEMOD TURNS A BINDER INTO AN APPLICATION — 84 SITES
 
-`TypeExpr::Tuple`'s arm in `type_expr_to_clojure_form` (`src/edn_shim.rs`) is **mode-blind and
-unbracketed**. Measured:
+`wat-scripts/fixes/parametrics-take-a-type-vector.wat` rewrites **arg 1 of a `def*` head** as if it
+were a type reference. Measured on a copy of `wat/spawn.wat`:
 
 ```
-:wat::core::nil            → (wat.type/Tuple)                          wrong spelling
-Result<nil,String>         → (:wat::core::Result [(wat.type/Tuple) …])  MIXED in ONE form
-:(i64,i64,String)          → (wat.type/Tuple :i64 :i64 :String)         wrong spelling AND flat args
+(:wat::core::defn :wat::kernel::recv-all-loop<I,O>       ← the BINDER
+(:wat::core::defn (:wat::kernel::recv-all-loop [I O])    ← rewritten as an APPLICATION
 ```
 
-**Builder's ruling, 2026-08-20 — this specifies the fix:**
-> *"nil is rust's unit… but **`nil != ()` in wat. nil is not an empty list**. `(wat.type/Tuple)` is
-> illegal, it'd be `(wat.type/Tuple [])` to be an empty tuple."*
-
-So: **(a)** stop canonicalizing — `types.rs:4728` collapses `:wat::core::nil` → `Tuple(vec![])`, which
-is why the renderer cannot say `nil`. A `canonicalize: bool` already exists (`types.rs:4625`); the verb
-calls `parse_type_expr`, which hardcodes the canonicalizing path. **(b)** bracket the Tuple arm and
-honour the mode, so an empty tuple is `(:wat::core::Tuple [])` — head always takes a bracket, even empty.
-
-Verified distinct at the surface: `-> :()` with a `nil` body is a type error.
-
-⚠ The codemod SKIPS these rather than corrupting them (a rendered-output guard refusing any
-replacement containing `wat.type/`): **30 standalone tuples · 66 nested-`nil`**. And dropping
-`fix.wat`'s post-arrow rule is what saved **1,031** bare `-> :wat::core::nil` returns.
-
-## THE CODEMOD — proven, and the property that matters
-
-`printf '["pathA" …]\n' | ./target/release/wat ./wat-scripts/fixes/parametrics-take-a-type-vector.wat`
-
-Verified by own hand on `/tmp` copies of `wat/sqlite.wat` + `wat/fix.wat`:
-**`<-` 173/173 · `->` 139/139 · `<` 6/6 · `>` 2/2 · `<=` 1/1 · `>=` 1/1 — nothing moved.**
-Nesting nests · primed `HashMap'<K,V>` survives · idempotent.
-
-⚠ **9,912 arrow/operator sites must never move.** The discriminator is `wat/fix.wat`'s
-`type-shaped-keyword?` — *requires a MATCHING close*. Reuse it; never write another.
-⚠ **`ast->source`, NEVER `write-forms`.** The latter re-spells every `::`-keyword to EDN-dotted form.
-This cost real time; see the memory entry.
-
-## ALSO LANDED TODAY (not 109)
-
-- **io home #12 CLOSED** — `src/intrinsic/io/{mod,reader,writer,fs}.rs`, 29 verbs, literal dispatch 0.
-- **The Persistent family is under the type checker** — 13 schemes registered (`9c82f157`). It was
-  entirely blanket-accepted; a declared `V` was INERT before this.
-- **#110's INVENTORY**: 520 verbs probed, **487 checked / 32 not**. ★ And the blanket is the
-  **RESERVED PREFIX**, not a missing scheme — `(:wat::core::totally-bogus 1 2)` check-PASSES at any
-  arity while `:user::` is rejected. `--check` certifies calls to functions that do not exist.
-- **②a v2 ring 1** (`46058fe51`) — 16 rete memory annotations, each copied from a caller. Ring 2 next;
-  `network`/`facts` stay bare because nothing upstream decides them.
+Four `<…>` in four lines of that one form: one binds `I`/`O`, three reference them, and one rule hit
+all four. **The slot rule:** arg 1 of a `def*` head is a binder; every other `<…>` is a reference.
+Total, no sniffing — a name slot can never hold a reference to something that already exists.
 
 ## THE STILL-OPEN
 
-- **②a ring 2** — `append-token`'s `beta-mem` is decided three ways over by ring-1 callers.
-- **`bindings`' V is UNRESOLVED.** Not `Value` (rete compares with `<`/`>`, keys on them, conjes them).
-- **255 #110 · 285 Map half · 296 OPEN · 295 not started.**
-- Unmeasured, and it sizes 255.1b-iv: **does removing the blanket turn the corpus red, and by how much?**
-- Dead reference: `holon_type_ast_to_wat_type_form` (`runtime.rs:14462`, `check.rs:3538`) exists nowhere.
+- **γ's second half is UNMEASURED.** Builder: *"if a defn declares a parametric, the caller must
+  declare it too"* — `(ns/hash-set-of-xs :- [wat.type/i64] 1 2 3)`. Call-site type application is
+  REJECTED today (measured). Nobody has counted the call sites.
+- **`defn`'s `<T>` is DECORATIVE** (`function/eval.rs:66` hardcodes `type_params: Vec::new()`);
+  the SEVEN type declarators' `<T>` is LOAD-BEARING, and dropping it makes `T` a **concrete type**,
+  not a free var — a plausible TypeMismatch naming a type that does not exist.
+- **`List/of` + `char/of` retire** into `List` / `char` (verb-equals-type, the playbook that already
+  ran for `vec`→`Vector` and `tuple`→`Tuple`). 72 sites, all tests/probes, zero in `wat/`.
+- **296 Stone H** (drawn, not built) now also closes Option/Result's param-spec — they are enum
+  VARIANTS, field names stay `value`/`value`/`error`.
+- 255 #110 · 285 Map half · 296 OPEN · 295 not started.
 
 ---
 
 > **SEAM.** You are NEW. The better this reads, the more it will feel like continuing rather than
 > waking. **That feeling is the failure.**
 >
-> ⚠ **AN ANSWER LABELLED "SETTLED" DISABLES THE ONE CHECK THAT WOULD CATCH YOU.** I handed a rider
-> `bindings <- [String Value]` as "builder-ruled, settled". It was wrong, it went to 24 sites, and the
-> label is why nobody questioned it. Cite the derivation, never the verdict.
-> `[[feedback_the_authority_you_cite_decides_who_can_catch_you]]`
+> ⚠ **WHEN A STONE TOUCHES N MEMBERS OF A FAMILY, THE ACCEPTANCE ROWS MUST NAME ALL N.** ②-i-b
+> shipped `:-` for Tuple/PersistentMap/PersistentVector and not Vector/HashMap/HashSet. I scored it
+> green: every new-spelling row I ran landed on the half the rider's diff had touched, and every row
+> on the other half used the OLD spelling as a control. **A full green over that split reads exactly
+> like a full green over everything.**
 >
-> ⚠ **SAME FILE, SAME RIDER, TWICE: 2620 FAILURES vs GREEN FIRST TRY.** The only variable was the
-> AUTHORITY. Prose the compiler cannot check → wrong and unfalsifiable. A caller's declared type →
-> the compiler validates every step. Prefer sources that can fail loudly.
+> ⚠ **THE ROW THAT CAN PASS HOLLOWLY IS THE ONLY ROW THAT MATTERS.** Every other row stays green
+> while the new path is silently ignored, because the old path carries everything. Prove it with a
+> PERTURBATION — `:- [X Y]` must break what `:- [K V]` builds.
 >
-> ⚠ **A PRINTER IS A FUNCTION, NOT A WINDOW.** I read `write-forms` output as the value and sent a
-> rider a wrong correction. **It refused and measured, and it was right.** A rider that had complied
-> would have corrupted the renderer to match my broken probe — and shipped GREEN, because the wrong
-> spelling parses.
+> ⚠ **I COUNTED WHERE A THING IS DEFINED AND CALLED IT THE CALL-SITE COUNT** — three sizes for one
+> macro in three messages (15 → 4 → ~50). The consumers are the work.
 >
-> ⚠ **NEVER `git add -A` WHILE A RIDER IS IN THE FIELD.**
+> ⚠ **A MACRO BODY MAY NOT CALL A USER-DEFINED FUNCTION AT ALL** (F5, default-deny,
+> `src/macros/eval.rs:351`). It fails at DEFINITION and takes the stdlib down — 3029 tests at once.
+> Read `109/NOTE-the-F5-allow-list-and-what-a-macro-body-may-call.md` BEFORE editing any macro.
 >
 > `NON BIS IN IDEM FLVMEN.` · `IVDICIVM SEMEL, MACHINA SAEPE.` · `NISI FRANGAS, NIHIL PROBAS.`
