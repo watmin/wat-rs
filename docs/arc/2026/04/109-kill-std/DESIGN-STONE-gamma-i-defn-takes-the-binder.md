@@ -118,25 +118,69 @@ binder's names and produce a polymorphic result at the binding site.
 
 ## Acceptance — the rows that must be PROVEN, not parsed
 
-```clojure
-(:wat::core::defn :user::fold<T,U>     [f <- [U T :-> U] init <- :U] -> :U …)   ← control
-(:wat::core::defn :user::fold :- [T U] [f <- [U T :-> U] init <- :U] -> :U …)   ← subject
+> ⛔ **CORRECTED 2026-08-21 after flight 1.** The original row 2 demanded that ONE let-bound value
+> apply at TWO different types. That is **let-polymorphism** — HM `let`-generalization, which needs
+> `locals` to hold `TypeScheme` instead of `TypeExpr` — and it has nothing to do with whether an
+> anonymous `fn` can declare its type params. I made it ★ load-bearing; it fired STOP-2 and killed a
+> stone that was already delivered. My justification (*"one instantiation proves nothing"*) was a
+> correct concern behind a wrong vehicle: **a rigid `:T` and a missing let-generalization fail that
+> row identically**, so it could never say which one it had found.
+> `[[feedback_a_gate_must_fire_the_mechanism_the_way_production_fires_it]]`
+
+The non-vacuity question is *"is `X` a real variable?"*, and it is answered WITHOUT let-polymorphism
+by whether `X` unifies across positions. Measured against flight 1's tree:
+
+| # | row | expected | flight 1 |
+|---|---|---|---|
+| 1 | `(:wat::core::defn :user::f :- [T] [x <- :T] -> :T x)` | checks | ✅ |
+| 2a | `(fn :- [X] [a <- :X b <- :X] -> :X …)` applied `(f 1 2)` | checks | ✅ |
+| 2b | …applied `(f 1 "s")` | **REJECTS** — `X` unifies across positions | ✅ |
+| 2c | …applied `(f "p" "q")` | checks — `X` is not pinned to the first use | ✅ |
+| 2d | …`(takes-str (f 1 2))` | **REJECTS** — the return is tied to `X` | ✅ |
+| 2e | the same fn passed DIRECTLY to a generic HOF | checks | ✅ |
+| 3 | a decl carrying BOTH `<T>` and `:- [T]` | a located contradiction ERROR | ⛔ silently checks |
+| 4 | a no-param-list `defn` stays generic (251.7 must not regress) | checks | ✅ |
+| 5 | the concrete-type HOF control (probe rung 4) | checks | ✅ |
+| 6 | a parametric **kwargs** `defn` in binder spelling | checks | ⛔ *"triple is incomplete"* |
+| 7 | a **variadic** `defn` in binder spelling | registers | ✅ |
+| 8 | `def` of a non-fn value; `git diff --stat src/check.rs` EMPTY | registers; zero changes | ✅ |
+
+★ **Rows 2a-2e together are the non-vacuity gate.** 2b and 2d are the ones that bite: they
+distinguish a real type VARIABLE from a rigid Path *and* from an unconstrained wildcard, which a
+single application cannot.
+
+### Row 3 — the message already exists; mirror it
+
+The TYPE side emits it today: *"declaration carries BOTH a name-embedded `<...>` type-param spelling
+… and a `:- [...]` binder — pick one; a declaration with both is a contradiction, never something to
+silently resolve."* `try_parse_fn_shape_def` returns `Option`, so it has no channel to carry a
+located error — that is the work.
+
+### Row 6 — and the `wat/core.wat` edit IS needed, for the kwargs branch
+
+Flight 1 measured that `defn`'s macro already forwards a stray `:- [T]` into the emitted `fn`, so no
+edit is needed for FORWARDING — my original sketch item was invented, and I deleted it. But an A/B
+with an identical argspec shows the kwargs path does break:
+
+```
+(defn :user::mk  :- [T] [a <- :T & [b <- :T]] …)  ⛔ "malformed :wat::core::fn form: triple is incomplete"
+(defn :user::mk2<T>     [a <- :T & [b <- :T]] …)  ✅ checks          ← same argspec, control
 ```
 
-1. Both spellings check, and the body resolves `:T` / `:U` in each.
-2. BOTH on one declaration → a contradiction ERROR, never a silent pick. (`take_declared_binder`'s
-   own rule: *"a contradiction, never something to silently resolve"*.)
-3. ★ **The load-bearing row** — an ANONYMOUS binder-carrying fn, bound in a `let`, applied at **TWO**
-   types: `(:wat::core::let [f (:wat::core::fn :- [T] [x <- :T] -> :T x) _ (f 1) __ (f "s")] …)`.
-   One instantiation proves nothing; two is what separates generalized from rigid.
-4. A `defn` with **no** param list stays generic (the 251.7 behaviour must not regress).
-5. A parametric **kwargs** `defn` in binder spelling mints `Kwargs<T,U>`, not a monomorphic bundle —
-   `defn` derives `{b}::Kwargs{p}` from `name-tp`, the string suffix off the NAME, which the binder
-   spelling empties. **Zero instances in `wat/`** — an acceptance row precisely because it is not a
-   census. `[[feedback_scope_the_check_from_the_rule_not_the_diff]]`
-6. A **variadic** `defn` in binder spelling registers — the `try_parse_*_variadic_def_fn_form` paths.
-7. A `def` of a NON-fn value still registers, and `def`'s arity is UNCHANGED — the negative control
-   proving G3 did not quietly widen `def`.
+`defn`'s kwargs branch keys on `name-parametric?` / `name-tp`, the string suffix taken off the NAME,
+which the binder spelling leaves empty. **So the edit returns, scoped to the kwargs branch only.**
+
+## Out of scope, by MEASUREMENT — named, never deferred
+
+- **let-polymorphism.** `check.rs:11757` infers a `let` RHS once and stores a `TypeExpr`;
+  `check.rs:2065` clones it per reference; `derive_scheme_from_function` (`:15977`) is gated
+  `func.name.as_ref()?` — anonymous fns get no scheme, by design and by its own doc. Making a
+  let-bound value polymorphic is its own arc. Until then an anonymous fn is monomorphic **at its
+  binding**, which is ordinary for ML-family languages lacking `let`-generalization.
+- **The anonymous-`fn` silent-accept.** `infer_fn`'s `SigParse::SilentReject` returns
+  `CheckResult::ok(fresh.fresh())`, so ANY junk in the first slot — `:foo`, `42`, `"s"` — makes the
+  whole fn unconstrained and every call to it check vacuously. Measured on the RELEASE binary from
+  before flight 1: **pre-existing on `main`, reachable by a typo, and silent.** Its own stone.
 
 ## Blast radius
 
