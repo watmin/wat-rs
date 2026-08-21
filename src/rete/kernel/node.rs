@@ -59,7 +59,6 @@ impl NodeKind {
         Self::Query,
     ];
 
-    #[allow(dead_code)] // census_kind (cfg(test)) and pack/debug labels
     pub(crate) fn as_str(self) -> &'static str {
         match self {
             Self::Alpha => "AlphaNode",
@@ -182,14 +181,11 @@ pub(crate) fn dedupe_filter_children(node: &Value, keep: &std::collections::Hash
     }
     let mut new_fields = a.fields.as_slice().to_vec();
     new_fields[child_idx] = Value::wat__core__PersistentVector(new_pv);
-    match node {
-        Value::Aggregate(a) => Value::Aggregate(Arc::new(AggregateValue::record_arc(
-            a.class.clone(),
-            a.names.clone(),
-            Arc::new(new_fields),
-        ))),
-        other => other.clone(),
-    }
+    Value::Aggregate(Arc::new(AggregateValue::record_arc(
+        a.class.clone(),
+        a.names.clone(),
+        Arc::new(new_fields),
+    )))
 }
 
 /// Get all node ids from a network PersistentMap, sorted ascending.

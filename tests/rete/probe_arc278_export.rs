@@ -66,6 +66,36 @@ fn export_edn_is_smaller_than_session() {
 }
 
 #[test]
+fn reexport_shape_matches_source_export() {
+    let v = call_beside_value(file!(), ":user::reexport-shape").expect("reexport shape");
+    let ns = match v {
+        Value::wat__core__PersistentVector(pv) => pv
+            .iter()
+            .map(|x| match x {
+                Value::i64(n) => *n,
+                other => panic!("expected i64, got {other:?}"),
+            })
+            .collect::<Vec<_>>(),
+        other => panic!("expected shape vector, got {other:?}"),
+    };
+    assert_eq!(ns.len(), 8, "deps/nodes/conds/rhs × 2");
+    assert_eq!(ns[0], ns[1], "deps length e1 vs e2: {ns:?}");
+    assert_eq!(ns[2], ns[3], "nodes length e1 vs e2: {ns:?}");
+    assert_eq!(ns[4], ns[5], "conds length e1 vs e2: {ns:?}");
+    assert_eq!(ns[6], ns[7], "rhs length e1 vs e2: {ns:?}");
+    assert!(ns[0] > 0 && ns[2] > 0 && ns[4] > 0, "export must pack live circuits: {ns:?}");
+}
+
+#[test]
+fn reexport_keeps_deps() {
+    let v = call_beside_value(file!(), ":user::reexport-deps-length").expect("reexport deps");
+    match v {
+        Value::i64(n) => assert!(n > 0, "export(import(e)) must pack arm.rule_deps, not empty rules AST; got {n}"),
+        other => panic!("expected i64 deps length, got {other:?}"),
+    }
+}
+
+#[test]
 fn imported_strat_neg_matches_source() {
     let src = call_beside_value(file!(), ":user::strat-source-counts").expect("source strat");
     let imp = call_beside_value(file!(), ":user::strat-import-counts").expect("import strat");
@@ -119,6 +149,70 @@ fn import_refuses_abi_mismatch() {
     assert!(
         msg.contains("ABI mismatch"), // rune:lint(loose-assert) — refuse wraps rust_caller_span; ABI mismatch is the contract
         "import must name ABI mismatch, got {msg}"
+    );
+}
+
+#[test]
+fn empty_deps_import_refuses_fire() {
+    let world = startup_beside(file!()).expect("freeze");
+    let exp = call_beside_value(file!(), ":user::cool-export").expect("export");
+    let emptied = match exp {
+        Value::Aggregate(a) => {
+            let mut fields = a.fields.as_ref().clone();
+            let i = a
+                .names
+                .iter()
+                .position(|n| n == "deps")
+                .expect("Export named deps field");
+            fields[i] = call_beside_value(file!(), ":user::empty-pv").expect("empty pv");
+            Value::Aggregate(Arc::new(AggregateValue::record(
+                a.class.to_string(),
+                a.names.clone(),
+                Arc::new(fields),
+            )))
+        }
+        other => panic!("expected Export, got {other:?}"),
+    };
+    let import = world
+        .symbols()
+        .get(":user::import-one")
+        .expect("import-one")
+        .clone();
+    let session = apply_function(
+        import,
+        vec![emptied],
+        world.symbols(),
+        wat::rust_caller_span!(),
+    )
+    .expect("empty-deps Export still imports (deps live on the arm)");
+    let seed = world
+        .symbols()
+        .get(":exp::seed")
+        .expect("seed")
+        .clone();
+    let seeded = apply_function(
+        seed,
+        vec![session],
+        world.symbols(),
+        wat::rust_caller_span!(),
+    )
+    .expect("seed");
+    let fire = world
+        .symbols()
+        .get(":wat::rete::fire-rules")
+        .expect("fire-rules")
+        .clone();
+    let err = apply_function(
+        fire,
+        vec![seeded],
+        world.symbols(),
+        wat::rust_caller_span!(),
+    )
+    .expect_err("empty-deps Import with live productions must refuse fire");
+    let msg = format!("{err:?}");
+    assert!(
+        msg.contains("cannot consume an Export without interned arm"), // rune:lint(loose-assert) — MalformedForm wraps rust_caller_span line; wall name is the contract
+        "empty-deps fire must refuse the Export-without-arm wall, got {msg}"
     );
 }
 

@@ -30,6 +30,9 @@ const WORLD_IMPURE_PATH: &str = "tests/rete/probe_arc278_6b_ii_a_where_oracle_im
 const WORLD_NONDET_PATH: &str = "tests/rete/probe_fence_names_the_head_nondet.wat";
 const WORLD_PARTIAL_PATH: &str = "tests/rete/probe_fence_names_the_head_partial.wat";
 const WORLD_CORE_OP_PATH: &str = "tests/rete/probe_fence_names_the_head_core_op.wat";
+const WORLD_THEN_PARTIAL_PATH: &str = "tests/rete/probe_fence_names_the_head_then_partial.wat";
+const WORLD_THEN_CORE_OP_PATH: &str = "tests/rete/probe_fence_names_the_head_then_core_op.wat";
+const WORLD_ACC_IMPURE_PATH: &str = "tests/rete/probe_fence_names_the_head_acc_impure.wat";
 
 /// Compile+run the world's zero-arg entry fn. The compile fence rejects by PANICKING
 /// (`Option/expect` → `panic_any(AssertionPayload)`), so catch the unwind and pull the human
@@ -104,5 +107,38 @@ fn core_op_where_names_law_a_not_total() {
     assert_eq!(
         msg,
         "compile-condition: where expr is not a rete primitive — ':wat::core::i64::>' is not a rete primitive; a where admits only :wat::rete:: ops"
+    );
+}
+
+/// `:then` Total — `i64::/` must be named as not total, not as not-pure.
+#[test]
+fn partial_then_names_the_offending_head_and_axis() {
+    let r = compile_message(WORLD_THEN_PARTIAL_PATH, ":user::run-compile");
+    let msg = r.expect_err("a partial (i64::/) then item must fail to compile");
+    assert_eq!(
+        msg,
+        "compile-condition: then expr is not total — ':wat::core::i64::/' is not total"
+    );
+}
+
+/// `:then` Law A — `i64::>` must be named as not a rete primitive, not as not-total.
+#[test]
+fn core_op_then_names_law_a_not_total() {
+    let r = compile_message(WORLD_THEN_CORE_OP_PATH, ":user::run-compile");
+    let msg = r.expect_err("a total core op in then must fail to compile on Law A");
+    assert_eq!(
+        msg,
+        "compile-condition: then expr is not a rete primitive — ':wat::core::i64::>' is not a rete primitive; a where admits only :wat::rete:: ops"
+    );
+}
+
+/// Accumulator user-fold Pure — IO in the fold body must name the fold head and :pure.
+#[test]
+fn impure_accumulator_names_the_offending_head_and_axis() {
+    let r = compile_message(WORLD_ACC_IMPURE_PATH, ":user::run-compile");
+    let msg = r.expect_err("an impure user fold must fail to compile");
+    assert_eq!(
+        msg,
+        "compile-condition: accumulator expr is not pure — ':wat::io::IOReader/open-file' is not pure"
     );
 }

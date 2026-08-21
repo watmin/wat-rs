@@ -50,8 +50,10 @@
         (:wat::core::i64::+ i 1) acc1))))
 
 ;; walk-filter-ids — populate-then-emit walk (accumulate-pass, then filter-pass,
-;; then hash-join-pass). Name is historical; the body is all three passes, not
-;; filter alone. Reads facts+amem; threads beta. acc: node-id → PV<Token>.
+;; then hash-join-pass). Reads facts+amem; threads beta. acc: node-id → PV<Token>.
+;; rune:intueri(naming) — oracle populate-then-emit walker (acc+filter+hash-join);
+;; the name is the historical walk-sorted-ids split, not filter-alone. Rename
+;; would fork every oracle fire caller.
 (:wat::core::defn :wat::rete::walk-filter-ids
   [facts   <- :wat::core::PersistentVector
    network <- :wat::core::PersistentMap

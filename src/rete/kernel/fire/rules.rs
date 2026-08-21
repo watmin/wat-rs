@@ -130,13 +130,11 @@ pub(crate) fn fire_rules_stratified(
         for (part, stratum) in parts.iter().zip(rule_strata.iter()) {
             if *stratum == s {
                 stratum_pv.push_back_mut(part.rule.clone());
-                if let Some((_, rsf)) = node_record(&part.rule) {
-                    if let Value::String(rname) = &rsf[0] {
-                        stratum_rule_names.insert(rname.to_string());
-                        if let Some(&pid) = production_id_by_rule.get(rname.as_str()) {
-                            if active_ids.insert(pid) {
-                                frontier.push(pid);
-                            }
+                if let Some(rname) = rule_name_of(&part.rule) {
+                    stratum_rule_names.insert(rname.clone());
+                    if let Some(&pid) = production_id_by_rule.get(rname.as_str()) {
+                        if active_ids.insert(pid) {
+                            frontier.push(pid);
                         }
                     }
                 }

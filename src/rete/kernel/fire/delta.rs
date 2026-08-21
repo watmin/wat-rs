@@ -33,7 +33,7 @@ pub(crate) struct AlphaActivateCx<'a> {
 pub(crate) fn alpha_activate_fact(
     fact: &Value,
     fact_idx: u32,
-    hit: &mut AlphaActivateCx<'_>,
+    cx: &mut AlphaActivateCx<'_>,
 ) -> Result<(), EvalBreak> {
     let (fact_class, fact_fields) = match fact {
         Value::Aggregate(a) if a.nature != Nature::Struct => {
@@ -41,34 +41,34 @@ pub(crate) fn alpha_activate_fact(
         }
         _ => return Ok(()),
     };
-    hit.alpha_tree
-        .candidates_into(fact_class, fact_fields, hit.cand_scratch);
-    if hit.cand_scratch.is_empty() {
+    cx.alpha_tree
+        .candidates_into(fact_class, fact_fields, cx.cand_scratch);
+    if cx.cand_scratch.is_empty() {
         return Ok(());
     }
-    for aid in hit.cand_scratch.iter().copied() {
-        let compiled = rematch_compiled(hit.compiled_conds, aid)?;
+    for aid in cx.cand_scratch.iter().copied() {
+        let compiled = rematch_compiled(cx.compiled_conds, aid)?;
         let matched = crate::rete::compiled_cond::exec_compiled_with_key_ids(
             compiled,
             fact_fields,
-            hit.match_scratch,
+            cx.match_scratch,
             &mut crate::rete::compiled_cond::BindIntern {
-                keys: &mut hit.wm.bind_keys,
-                vals: &mut hit.wm.bind_vals,
-                ids: &mut hit.wm.bind_val_ids,
-                pool: &mut hit.wm.bind_pool,
+                keys: &mut cx.wm.bind_keys,
+                vals: &mut cx.wm.bind_vals,
+                ids: &mut cx.wm.bind_val_ids,
+                pool: &mut cx.wm.bind_pool,
             },
             fact,
-            hit.cond_key_ids.get(&aid).map(|v| v.as_slice()),
+            cx.cond_key_ids.get(&aid).map(|v| v.as_slice()),
         );
         if let Some((off, len)) = matched {
             let el = make_element(fact_idx, off, len);
             let slot = {
-                let v = hit.wm.alpha.entry(aid).or_default();
+                let v = cx.wm.alpha.entry(aid).or_default();
                 v.push(el);
                 v.len() - 1
             };
-            hit.d_alpha.entry(aid).or_default().push(slot);
+            cx.d_alpha.entry(aid).or_default().push(slot);
         }
     }
     Ok(())
@@ -206,9 +206,9 @@ pub(crate) fn fire_fixpoint_delta_armed(
     let mut gather_cache: GatherCache = FxHashMap::default();
 
     // One scratch buffer, reused for every compiled-condition call this whole fire pass: sized
-    // once to the largest `n_slots` any compiled alpha needs, so `exec_compiled`'s `clear` +
-    // `resize` back up never reallocates after this point — the failure path it guards allocates
-    // nothing (row 2 of the DESIGN-STONE's scorecard).
+    // once to the largest `n_slots` any compiled alpha needs, so `exec_compiled_with_key_ids`'s
+    // `clear` + `resize` back up never reallocates after this point — the failure path it
+    // guards allocates nothing (row 2 of the DESIGN-STONE's scorecard).
     let mut match_scratch: SlotFrame = Vec::with_capacity(arm.compiled_max_slots);
     let mut cand_scratch: Vec<i64> = Vec::new();
     let mut cond_key_ids: CondKeyIds = HashMap::new();
@@ -883,15 +883,17 @@ pub(crate) fn fire_fixpoint_delta_armed(
 
         phase_end("accumulate", __pt3);
 
-        // ── 3.5 Filter-pass (7-a unified): dispatch TestNode + NegationNode. ─────
+        // ── 3.5 Filter-pass: dispatch TestNode, NegationNode, ExistsNode. ─────
         let __pt4 = phase_start();
-        // For each TestNode or NegationNode (in topological = ascending id order):
+        // For each TestNode, NegationNode, or ExistsNode (ascending id order):
         //   TestNode     → eval-test filter: pass the token iff expr evaluates true.
         //   NegationNode → negation filter: pass the un-extended token iff ZERO elements in
         //                  wm.alpha[neg_alpha_id] (the FULL cumulative alpha-memory) are
         //                  token-element-compatible with the token's bindings.
-        // New tokens still come from d_beta[parent] (the delta); only the absence check
-        // for NegationNode reads the full wm.alpha (populated in step 1 before this pass).
+        //   ExistsNode   → existence filter: pass iff ANY compatible element; leading exists
+        //                  seeds one token per distinct inner binding (no parent).
+        // New tokens still come from d_beta[parent] (the delta); only the absence/presence
+        // check reads the full wm.alpha (populated in step 1 before this pass).
         // Passing tokens are pushed to wm.beta[node_id] (cumulative) and d_beta[node_id]
         // (new-this-round, consumed by production in step 4).
         let mut tests_done: HashSet<i64> = HashSet::new();
@@ -927,6 +929,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
                 let driver = driver_of(compiled_drivers, alpha_id)?;
                 let mut seen = std::collections::HashSet::new();
                 if matches!(driver, CondDriver::Leaf(_)) {
+                    // rune:perspicere(read-once) — leading-exists distinct-bind row
                     let candidates: Vec<(BindSpan, Vec<(u32, u32)>)> = wm
                         .alpha
                         .get(&alpha_id)
@@ -934,6 +937,9 @@ pub(crate) fn fire_fixpoint_delta_armed(
                         .flatten()
                         .map(|el| (el.binds, pool_slice(&wm.bind_pool, el.binds).to_vec()))
                         .collect();
+                    // rune:perspicere(read-once) — content-keyed distinct set for this leaf
+                    // rune:temperare(simplicity-win) — distinct inner bindings require a
+                    // content-keyed set (Clara test-simple-exists); interned ids are a later stone
                     let mut seen_pairs: HashSet<Vec<(u32, u32)>> = HashSet::new();
                     for (binds, pairs) in candidates {
                         if !seen_pairs.insert(pairs) {

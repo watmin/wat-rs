@@ -9,8 +9,9 @@
 //! key `"?l"` on every call — including every call that is about to FAIL, which is most of
 //! them. This module compiles each alpha condition **once**, at the same setup site the alpha
 //! discrimination tree (`alpha_tree.rs`) is built, into a pre-resolved instruction sequence
-//! ([`Op`]) that an executor ([`exec_compiled`]) runs with array indexing and no per-call
-//! allocation on the failure path. The point is correctness (a static program should not be
+//! ([`Op`]) that fire runs via [`exec_compiled_with_key_ids`] with array indexing and no
+//! per-call allocation on the failure path. [`exec_compiled`] is the `#[cfg(test)]` door
+//! (no interned keys). The point is correctness (a static program should not be
 //! re-derived dynamically) and an allocation-pressure threat to this engine's jitter-free-tail
 //! claim — NOT a timing win; post-tree, `alpha:match` is 1.1% of a fact-heavy fire.
 //!
@@ -19,8 +20,8 @@
 //! **Slots internally; populate materializes into the fire-scoped bind pool
 //! ON SUCCESS ONLY** (`DESIGN-STONE-bind-pool`). Rematch still returns an
 //! `Arc` and becomes a `PMap`. The executor threads a `Vec<Option<Value>>`
-//! scratch buffer (reused call to call — see [`exec_compiled`]'s `scratch`
-//! parameter) indexed by slot. A failing populate never writes the pool.
+//! scratch buffer (reused call to call — see [`exec_compiled_with_key_ids`]'s
+//! `scratch` parameter) indexed by slot. A failing populate never writes the pool.
 //!
 //! ## Consumes `classify_rete_clause`, adds no second parser
 //!

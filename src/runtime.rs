@@ -5275,7 +5275,7 @@ fn dispatch_keyword_head_value(
     // and this function is that dispatch, not the `where` path, so compiling `where` (#49a) would
     // never have removed the tax. Cheaper than the benchmark that would have justified caring.
     // DESIGN-STONE-insert-prime-split — before the intrinsic registry and before
-    // the wat defclause in `sym`. 2-ary is insert'; 3+ is insert-all'.
+    // the wat defclause in `sym`. 2-ary is insert$native; 3+ is insert-all$native.
     if head == ":wat::rete::insert" {
         return crate::rete::kernel::eval_insert_public(args, list_span, env, sym);
     }

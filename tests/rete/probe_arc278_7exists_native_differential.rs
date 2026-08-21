@@ -20,6 +20,12 @@ fn count(entry: &str) -> Result<i64, String> {
     }
 }
 
+#[test]
+fn compile_watched_fires_nothing() {
+    assert_eq!(count(":user::compile-watched-fires-nothing").expect("eval"), 0,
+        "compile+fire with no facts derives no Watched");
+}
+
 /// 1 — DIFFERENTIAL, exists passes (≥1 match): native == oracle, both 1.
 #[test]
 fn differential_exists_present() {

@@ -62,11 +62,11 @@ pub(crate) enum ReteClauseShape<'a> {
     Accumulate {
         // rune:purgare(trait-contract) — classifier names the full accumulate shape
         // (`?var <- acc-form :from inner`); current consumers only walk `from`.
-        #[allow(dead_code)]
+        #[allow(dead_code)] // grammar payload; consumers walk `from` only
         var: &'a str,
         // rune:purgare(trait-contract) — same grammar payload; fire reads acc-form
         // off the AccumulateNode, not this parse field.
-        #[allow(dead_code)]
+        #[allow(dead_code)] // grammar payload; fire reads acc-form off AccumulateNode
         acc_form: &'a WatAST,
         from: &'a WatAST,
     },
@@ -74,9 +74,6 @@ pub(crate) enum ReteClauseShape<'a> {
     /// Discriminated from [`Self::Bind`] by a `::` in the type keyword; from
     /// [`Self::Accumulate`] by a keyword (not a list) after `<-`.
     FactBind {
-        // rune:purgare(trait-contract) — classifier names the bound `?p`; alpha_pattern
-        // still owns `fact_var` for the keyword-headed twin until that consumer switches.
-        #[allow(dead_code)]
         var: &'a str,
         type_head: &'a str,
         clauses: &'a [WatAST],

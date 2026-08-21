@@ -22,6 +22,9 @@
     (:wat::core::length
       (:wat::rete::query (:wat::rete::fire-rules (:exp::seed s0)) (:exp::q-Hit)))))
 
+(:wat::core::defn :user::empty-pv [] -> :wat::core::PersistentVector
+  (:wat::core::PersistentVector))
+
 (:wat::core::defn :user::cool-export [] -> :wat::rete::Export
   (:wat::rete::export
     (:wat::rete::compile-all
@@ -103,6 +106,31 @@
                     exp (:wat::rete::export s0)
                     s1 (:wat::rete::import exp)]
     (:sn::counts (:wat::rete::fire-rules (:sn::seed s1)))))
+
+(:wat::core::defn :user::reexport-shape [] -> :wat::core::PersistentVector<wat::core::i64>
+  (:wat::core::let [s0 (:wat::rete::compile-all
+                         (:wat::core::PersistentVector (:exp::cool))
+                         (:wat::core::PersistentVector (:exp::q-Hit)))
+                    e1 (:wat::rete::export s0)
+                    e2 (:wat::rete::export (:wat::rete::import e1))]
+    (:wat::core::PersistentVector
+      (:wat::core::length (:wat::rete::Export/deps e1))
+      (:wat::core::length (:wat::rete::Export/deps e2))
+      (:wat::core::length (:wat::rete::Export/nodes e1))
+      (:wat::core::length (:wat::rete::Export/nodes e2))
+      (:wat::core::length (:wat::rete::Export/conds e1))
+      (:wat::core::length (:wat::rete::Export/conds e2))
+      (:wat::core::length (:wat::rete::Export/rhs e1))
+      (:wat::core::length (:wat::rete::Export/rhs e2)))))
+
+(:wat::core::defn :user::reexport-deps-length [] -> :wat::core::i64
+  (:wat::core::let [s0 (:wat::rete::compile-all
+                         (:wat::core::PersistentVector (:exp::cool))
+                         (:wat::core::PersistentVector (:exp::q-Hit)))
+                    e1 (:wat::rete::export s0)
+                    s1 (:wat::rete::import e1)
+                    e2 (:wat::rete::export s1)]
+    (:wat::core::length (:wat::rete::Export/deps e2))))
 
 (:wat::core::defn :user::edn-roundtrip-hits [] -> :wat::core::i64
   (:wat::core::let [s0 (:wat::rete::compile-all

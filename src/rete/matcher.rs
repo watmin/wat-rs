@@ -750,6 +750,23 @@ pub(crate) fn ast_literal_value(ast: &WatAST) -> Option<Value> {
     }
 }
 
+/// Value → WatAST literal for explain substitution (`step_payload`).
+/// Keywords and Unit are included here; [`ast_literal_value`] excludes them
+/// because a keyword in operand position is a field ref, not a value.
+// rune:solvere(load-bearing-coupling) — encode includes keyword/unit; decode
+// for operands must not, or field refs become values.
+pub(crate) fn value_to_ast_literal(v: Value) -> Option<WatAST> {
+    match v {
+        Value::i64(n) => Some(WatAST::IntLit(n, crate::rust_caller_span!())),
+        Value::f64(x) => Some(WatAST::FloatLit(x, crate::rust_caller_span!())),
+        Value::bool(b) => Some(WatAST::BoolLit(b, crate::rust_caller_span!())),
+        Value::String(s) => Some(WatAST::StringLit((*s).clone(), crate::rust_caller_span!())),
+        Value::wat__core__keyword(k) => Some(WatAST::Keyword((*k).clone(), crate::rust_caller_span!())),
+        Value::Unit => Some(WatAST::NilLit(crate::rust_caller_span!())),
+        _ => None,
+    }
+}
+
 // ─── Field read ───────────────────────────────────────────────────────────────
 
 /// Read a named field from a fact's ordered field slice via the class's field

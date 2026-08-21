@@ -1,11 +1,11 @@
-//! Arc 278 stone P4a — disconfirming probe: the native Rust `fire-rules'` (cascade fixpoint) is
-//! OBSERVATIONALLY EQUIVALENT to the wat oracle `fire-rules`. RED at HEAD (`fire-rules'` is UnknownFunction).
+//! Arc 278 stone P4a — disconfirming probe: native `fire-rules` (cascade fixpoint) is
+//! observationally equivalent to `fire-rules$oracle`. Dual-impl: unprimed is native.
 //!
-//! `fire-rules'` is to `fire-once'` what the wat `fire-rules` is to `fire-once`: a fixpoint that lets derived
-//! facts re-enter the network until no new fact is produced. The contract is OBSERVABLE — `query(fire-rules' s,
-//! T) == query(fire-rules s, T)` for every type T — NOT raw Session equality (P4b restructures memories by
-//! design). The cascade case is the canary: a fact DERIVED by a lower rule must unlock a higher rule across
-//! rounds (forward chaining), and native must match wat exactly.
+//! `fire-rules` is to `fire-once` what `fire-rules$oracle` is to `fire-once$oracle`: a fixpoint that lets derived
+//! facts re-enter the network until no new fact is produced. The contract is OBSERVABLE —
+//! `query(fire-rules s, T) == query(fire-rules$oracle s, T)` for every type T — NOT raw Session equality
+//! (P4b restructures memories by design). The cascade case is the canary: a fact DERIVED by a lower
+//! rule must unlock a higher rule across rounds (forward chaining), and native must match the oracle.
 //!
 //! Run: cargo test --release -p wat --test probe_arc278_P4a_native_fire_rules -- --include-ignored
 

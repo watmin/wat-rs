@@ -140,8 +140,6 @@ pub(crate) fn root_join_pass(wm: &mut FireSession) {
     }
 }
 
-// ── Pass 3: Hash-join pass ────────────────────────────────────────────────────
-
 pub(crate) fn driver_of(
     drivers: &HashMap<i64, CondDriver>,
     alpha_id: i64,
@@ -171,6 +169,8 @@ fn binding_extensions(
     gather_cache: &mut GatherCache,
 ) -> Result<Vec<crate::value::pmap::PMap>, EvalBreak> {
     match driver {
+        // rune:temperare(simplicity-win) — And is sequential join of kid extensions;
+        // empty short-circuits. A specialized 2-kid path would duplicate the fold.
         CondDriver::And(kids) => {
             let mut exts = vec![seed.clone()];
             for kid in kids {
@@ -647,6 +647,7 @@ fn keyed_join_persistent(
 /// Left parents: RootJoin / HashJoin / Test / Negation / Exists / Accumulate.
 /// Mirrors `wat/rete/oracle/pass.wat` hash-join-pass (A1: a TestNode may parent a HashJoin).
 #[cfg(test)]
+// ── Pass 3: Hash-join pass ────────────────────────────────────────────────────
 pub(crate) fn hash_join_pass(wm: &mut FireSession, arm: &InternedNetwork) -> Result<(), EvalBreak> {
     let node_ids = &arm.node_ids;
     let mut match_scratch: SlotFrame = Vec::with_capacity(arm.compiled_max_slots);
@@ -715,8 +716,6 @@ pub(crate) fn hash_join_pass(wm: &mut FireSession, arm: &InternedNetwork) -> Res
     Ok(())
 }
 
-// ── Pass 4: Production pass ───────────────────────────────────────────────────
-
 /// Delta tokens at every non-alpha parent of `node_id`. Condition `:or` leaves
 /// N terminals; a later Test/:not/:exists/accum must see all of them.
 fn d_beta_from_parents(
@@ -735,6 +734,7 @@ fn d_beta_from_parents(
     out
 }
 
+// ── Pass 4: Production pass ───────────────────────────────────────────────────
 /// `production-pass` / `fire-production` — for each ProductionNode, find its parent's beta tokens,
 /// for each token × each compiled `:then` form, `exec_compiled_rhs`, push to `production[prod_id]`.
 /// Mirrors `wat/rete/oracle/pass.wat`.
@@ -1230,14 +1230,14 @@ pub(crate) fn build_gather_index(
 ) -> GatherIndex {
     if join_keys.len() == 1 {
         let mut index: GatherUnary = FxHashMap::default();
-        if let Some(kid) = bind_keys
+        if let Some(key_id) = bind_keys
             .iter()
             .position(|k| k == &join_keys[0])
             .map(|i| i as u32)
         {
             for (i, el) in elements.iter().enumerate() {
                 let pairs = pool_slice(pool, el.binds);
-                if let Some((_, vid)) = pairs.iter().find(|(k, _)| *k == kid) {
+                if let Some((_, vid)) = pairs.iter().find(|(k, _)| *k == key_id) {
                     index.entry(*vid).or_default().push(i);
                 }
             }

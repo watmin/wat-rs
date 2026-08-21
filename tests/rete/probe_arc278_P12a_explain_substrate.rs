@@ -16,6 +16,12 @@
 use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
+#[test]
+fn compile_weather_fires_nothing() {
+    let n = call_beside_value(file!(), ":user::compile-weather-fires-nothing").expect("compute should run");
+    assert!(matches!(n, Value::i64(0)), "compile+fire with no facts derives no ColdAndWindy; got {n:?}");
+}
+
 /// 1. CLOSURE FIDELITY — explain mode derives the same facts as the fast path: `Explained/session` is a real
 ///    fired session, and the ColdAndWindy closure count is 1 (diagnostics add provenance, never change WHAT fires).
 #[test]

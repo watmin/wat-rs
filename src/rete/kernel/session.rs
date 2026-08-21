@@ -82,6 +82,8 @@ pub(crate) struct Token {
 /// Bindings live in `FireSession.bind_pool`. The span is `(off, len)`
 /// (`DESIGN-STONE-bind-pool`). Clone copies the span, not the pairs.
 /// Tokens use the same pool (`DESIGN-STONE-token-bind-pool`).
+// rune:struere(lifetime-coupling) — Copy span into the fire-scoped pool; Clone
+// copies (off, len), not the pairs. Must not outlive `FireSession.bind_pool`.
 #[derive(Clone, Copy)]
 pub(crate) struct BindSpan {
     pub(crate) off: u32,
@@ -92,6 +94,8 @@ pub(crate) struct BindSpan {
 /// `Token.binds` is the same kind of span.
 /// `fact` is an index into the fire-lived store (`fact_at`) —
 /// DESIGN-STONE-fact-as-index. The Element does not own a clone.
+// rune:struere(lifetime-coupling) — Copy fact index + bind span; must not
+// outlive the fire-lived store and `bind_pool` (`DESIGN-STONE-fact-as-index`).
 #[derive(Clone, Copy)]
 pub(crate) struct Element {
     /// Index: `0..n_input` is `wm.facts`, else `derived_facts`.
@@ -144,7 +148,7 @@ pub(crate) type AlphaMemory = FxHashMap<i64, Vec<Element>>;
 pub(crate) type BetaMemory = HashMap<i64, Vec<Token>>;
 pub(crate) type ProductionMemory = HashMap<i64, Vec<Value>>;
 pub(crate) type QueryMemory = HashMap<String, Vec<crate::value::pmap::PMap>>;
-pub(crate) type SlotFrame = Vec<Option<Value>>;
+pub(crate) use crate::rete::compiled_cond::SlotFrame;
 pub(crate) type FieldNames = Arc<Vec<String>>;
 pub(crate) type ParentsOf = HashMap<i64, Vec<i64>>;
 pub(crate) type ChildrenOf = HashMap<i64, Vec<i64>>;

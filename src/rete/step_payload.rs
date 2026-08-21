@@ -4,7 +4,8 @@ use crate::ast::WatAST;
 use crate::rete::kernel::{alpha_cond_of, session_network};
 use crate::rete::clause::{classify_constraint_head, classify_rete_clause, ReteClauseShape};
 use crate::rete::matcher::{
-    alpha_pattern, class_field_names, fact_from_value, resolve_operand, FieldNames,
+    alpha_pattern, class_field_names, fact_from_value, resolve_operand, value_to_ast_literal,
+    FieldNames,
 };
 use crate::runtime::{EvalBreak, Environment, RuntimeError, RuntimeErrorKind, SymbolTable, Value, ValueSnapshot};
 use crate::span::Span;
@@ -12,27 +13,6 @@ use crate::value::value::AggregateValue;
 use std::sync::Arc;
 
 // ─── P12c: step-payload ───────────────────────────────────────────────────────
-
-/// Convert a resolved primitive `Value` to a literal `WatAST` node.
-///
-/// Used when rebuilding substituted constraint forms: each resolved operand
-/// (always a primitive at this point) must be expressed as a literal AST node
-/// so the resulting `(:op a' b')` list prints as `(:wat::core::< -5 0)` (the
-/// substituted form — not the unsubstituted `(:wat::core::< ?c 0)`).
-///
-/// Panics/returns None for non-primitive values (should not occur in a
-/// well-formed rete condition's operand position).
-fn value_to_ast_literal(v: Value) -> Option<WatAST> {
-    match v {
-        Value::i64(n) => Some(WatAST::IntLit(n, crate::rust_caller_span!())),
-        Value::f64(x) => Some(WatAST::FloatLit(x, crate::rust_caller_span!())),
-        Value::bool(b) => Some(WatAST::BoolLit(b, crate::rust_caller_span!())),
-        Value::String(s) => Some(WatAST::StringLit((*s).clone(), crate::rust_caller_span!())),
-        Value::wat__core__keyword(k) => Some(WatAST::Keyword((*k).clone(), crate::rust_caller_span!())),
-        Value::Unit => Some(WatAST::NilLit(crate::rust_caller_span!())),
-        _ => None,
-    }
-}
 
 /// `(:wat::rete::step-payload session alpha-id bindings sfact supporting) -> :wat::rete::DerivationStep`
 ///

@@ -1405,7 +1405,18 @@ fn apply_core_kind(
                     RuntimeError::new(span.clone(), RuntimeErrorKind::DivisionByZero).into(),
                 );
             }
-            Ok(Value::i64(a.checked_rem(*b).unwrap_or(0)))
+            match a.checked_rem(*b) {
+                Some(n) => Ok(Value::i64(n)),
+                None => Err(RuntimeError::new(
+                    span.clone(),
+                    RuntimeErrorKind::IntegerOverflow {
+                        op: "rem".into(),
+                        a: *a,
+                        b: *b,
+                    },
+                )
+                .into()),
+            }
         }
         (OpExec::I64Mod, [Value::i64(a), Value::i64(b)]) => {
             if *b == 0 {
@@ -1413,7 +1424,20 @@ fn apply_core_kind(
                     RuntimeError::new(span.clone(), RuntimeErrorKind::DivisionByZero).into(),
                 );
             }
-            let r = a.checked_rem(*b).unwrap_or(0);
+            let r = match a.checked_rem(*b) {
+                Some(n) => n,
+                None => {
+                    return Err(RuntimeError::new(
+                        span.clone(),
+                        RuntimeErrorKind::IntegerOverflow {
+                            op: "mod".into(),
+                            a: *a,
+                            b: *b,
+                        },
+                    )
+                    .into())
+                }
+            };
             Ok(Value::i64(if r != 0 && (r < 0) != (*b < 0) {
                 r + *b
             } else {

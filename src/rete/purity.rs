@@ -14,7 +14,7 @@
 //!
 //! ## Default-deny, and the hand-managed metadata map
 //!
-//! Both classifiers are DEFAULT-DENY: a head's property holds only if PROVEN (a known intrinsic whose
+//! The four classifiers are DEFAULT-DENY: a head's property holds only if PROVEN (a known intrinsic whose
 //! metadata declares it, or a user fn whose body transitively holds it); anything unproven is rejected.
 //! The per-op metadata is a small HAND-MANAGED map (`intrinsic_meta`) — the explicit v1 projection of
 //! the queryable registry (arc 255; see
@@ -1101,8 +1101,8 @@ fn head_ok(head: &str, axis: Axis, sym: &SymbolTable, seen: &mut HashSet<String>
 
 // ─── Shared structural walk (parameterized by axis) ─────────────────────────────
 
-/// Recursively classify an AST node against `axis`. The structure (quote-as-data, clause-aware
-/// `cond`/`match`, element-wise vectors/maps/sets) is identical for both axes; only `head_ok` differs.
+/// Recursively classify an AST node against `axes` (one or all four). One structural
+/// walk; `head_ok` per axis at each call head (Pure → Det → Total → Rete).
 fn refuse_core_structural_on_multi(axes: &[Axis], items: &[WatAST]) -> Result<(), AxisViolation> {
     if axes.len() <= 1 || !axes.contains(&Axis::RetePrimitive) {
         return Ok(());
@@ -1662,9 +1662,9 @@ pub(crate) enum ReteDefnCheckErrorKind {
 /// (`register_defines`'s existing fn-shape-def branch, unchanged), same symbol binding — the
 /// design stone's own framing, "does everything `defn` does."
 ///
-/// For each declared name, reuses the SAME four walks `is_pure_expr` / `is_deterministic_expr`
-/// / `is_total_expr` / `is_rete_primitive_expr` wrap (STOP-1: no second implementation) via
-/// `find_axis_violation`, which additionally names the violating head. A clean pass re-stamps
+/// For each declared name, one `classify_expr` walk over `Axis::ALL` (STOP-1: no second
+/// implementation). First failing axis at each call head names the violating head.
+/// `find_axis_violation` is the wat `axis-violation` door, not this stamp. A clean pass re-stamps
 /// the SAME `Function` with `rete: Some(ReteContract {})`; `classify_fn`'s `Wat` arm (above)
 /// consults that marker instead of re-walking — that consultation is the membrane.
 pub(crate) fn apply_rete_defn_contracts(
@@ -1717,6 +1717,8 @@ pub(crate) fn apply_rete_defn_contracts(
                 },
             });
         }
+        // rune:temperare(simplicity-win) — cycle is a second question (#87 recursion),
+        // not a fifth fence axis; merging it into classify_expr would complect them.
         if let Some((head, span)) = rete_defn_cycle(name, body_ast.as_ref(), sym) {
             return ReteDefnCheckOutcome::Err(ReteDefnCheckError {
                 span,

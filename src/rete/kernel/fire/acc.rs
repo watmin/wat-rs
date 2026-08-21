@@ -95,7 +95,9 @@ pub(super) fn fold_i64s(fold: &AccFold, vals: impl Iterator<Item = i64>, n: usiz
                 Some(Value::i64(vals.sum::<i64>() / n as i64))
             }
         }
-        AccFold::Distinct(_) | AccFold::All | AccFold::GroupBy(_) | AccFold::User { .. } => None,
+        AccFold::Distinct(_) | AccFold::All | AccFold::GroupBy(_) | AccFold::User { .. } => {
+            unreachable!("fold_i64s is numeric AccFold only")
+        }
     }
 }
 

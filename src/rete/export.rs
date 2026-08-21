@@ -14,7 +14,7 @@ use crate::rete::expr_ir::{Expr, Pat, Program};
 use crate::rete::kernel::{
     alpha_cond_from_node, class_field_names, get_node, kind_of, network_identity, node_children,
     node_named_field, node_named_i64, node_named_string, invert_feeding_alpha,
-    kind_id_lists, rete_arm_get_or_build, rete_arm_intern, rule_deps_from_rules,
+    kind_id_lists, rete_arm_get_or_build, rete_arm_intern,
     session_named_field, session_network, session_names, sorted_node_ids, AccFold, AlphasByType,
     ChildrenOf, CondDriver, InternedNetwork, NodeKind, ParentsOf, RuleDep,
 };
@@ -1312,7 +1312,10 @@ pub(crate) fn eval_export(
     let rhs = map_str(&arm.compiled_rhs, |items| {
         pv(items.iter().map(pack_rhs))
     });
-    let deps = pack_deps(&rule_deps_from_rules(rules, sym));
+    // Residual stratify schedule lives on the interned arm, not Session.rules
+    // (`wat/rete.wat` Export/deps). Import drops source forms; packing from
+    // `rule_deps_from_rules(session.rules)` wrote empty deps on re-export.
+    let deps = pack_deps(&arm.rule_deps);
     let abi = abi_of(&classes.names, &classes.fields);
     let class_pv = pv(classes
         .names
