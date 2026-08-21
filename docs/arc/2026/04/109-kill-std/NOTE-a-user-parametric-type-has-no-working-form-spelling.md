@@ -36,18 +36,33 @@ An **undeclared** type passes (the filed "type annotation names are unchecked in
 position" gap). A **declared** one fails. Prefix is irrelevant — `:user::` and `:my::` behave
 identically. Arity is irrelevant — the zero-param case fails too.
 
-## The mechanism — NAMED BUT NOT PROVEN
+## ★ THE MECHANISM — MEASURED, not guessed
 
-The most likely reading, and it should be confirmed before anyone builds on it: once the type is
-declared, its **constructor** is registered under the same keyword, so the list `(:user::Box …)`
-resolves as a CALL rather than a type form, and the bracket is then parsed as a standalone type.
-`:wat::kernel::Peer` would pass because it is an opaque handle with no constructor of that name.
+**A `defrecord` registers `:user::Box` as a CONSTRUCTOR function. Once a function of that name
+exists, the checker resolves the list `(:user::Box …)` as a CALL rather than a type — and the
+leftover bracket is then parsed as a standalone type, which is why the message is about
+function-type brackets.**
 
-That is 251.8's subject exactly — *"one node, two unrelated jobs — a value and a reference — with
-the node itself unable to say which"* — surfacing in the type-form surface rather than at call
-heads. ⚠ **I did not prove it.** What is measured is the trigger (declared vs not), not the cause.
-Whoever takes this should confirm the mechanism before designing the fix, because the obvious fix
-differs sharply between "the head resolves as a ctor" and "a validation pass re-parses annotations".
+Four independent measurements, and the last is the one that makes it certain:
+
+| probe | result | what it rules out |
+|---|---|---|
+| the AST of `(:user::Box [i64])` vs `(:wat::core::Vector [i64])` | **IDENTICAL** — `list(keyword, vector)` in both | a syntax/shape difference |
+| `typealias :user::Alias<T>` — mints NO ctor | **works** | "user namespaces are broken" |
+| `defenum :user::E<T>` — no ctor under its OWN name | **works** | "declared types are broken" |
+| `defrecord`, referenced BEFORE its own declaration | **works** | everything except ctor registration |
+
+The order test is decisive: byte-identical source, and the only variable is whether the constructor
+exists yet when the annotation is read. **A type annotation's meaning currently depends on
+declaration order.**
+
+Core containers escape it because the checker special-cases them. `typealias` and `defenum` escape
+it because neither mints a function under its own name.
+
+★ This is stone 251.8's subject — *"one node, two unrelated jobs — a value and a reference — with
+the node itself unable to say which"* — surfacing in the TYPE-FORM surface rather than at call
+heads. There the tiebreaker was context; here it is "does a function of this name happen to be
+registered yet."
 
 ## Why this blocks β-ii-c and not the stones before it
 
