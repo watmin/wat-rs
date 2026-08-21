@@ -577,7 +577,7 @@
                       (:wat::core::Vector :wat::WatAST)
                       (:wat::core::range 0 (:wat::core::i64::/ (:wat::core::length init-param) 3)))
      ;; init-name: :<fqdn>::init — the emitted defn's name keyword
-     init-name-str  (:wat::core::string::interpolate "{b}::init{p}" :b fqdn-base :p fqdn-tp)
+     init-name-str  (:wat::core::string::interpolate "{b}::init" :b fqdn-base)
      init-name      (:wat::core::keyword/from-string init-name-str)
      ;; init-def: the emitted top-level defn for init
      init-def       `(:wat::core::defn ~init-name ~init-params-vec -> ~state-ty ~init-body)
@@ -599,7 +599,7 @@
      resp-ty        (:wat::core::nth stop-fn-ch 3)
      stop-body      (:wat::core::nth stop-fn-ch 4)
      ;; stop-project-name: :<fqdn>::stop-project (distinct from <fqdn>/stop method)
-     stop-project-name-str (:wat::core::string::interpolate "{b}::stop-project{p}" :b fqdn-base :p fqdn-tp)
+     stop-project-name-str (:wat::core::string::interpolate "{b}::stop-project" :b fqdn-base)
      stop-project-name (:wat::core::keyword/from-string stop-project-name-str)
      ;; stop-project-def: the emitted top-level defn for stop projection
      stop-project-def `(:wat::core::defn ~stop-project-name ~stop-params-vec -> ~resp-ty ~stop-body)
@@ -627,7 +627,7 @@
                         nil
                         (:wat::core::macro-error
                           (:wat::core::string::interpolate "{fqdn-str}: :hibernate return type must be ::Record (the resume seed); declared a different type" :fqdn-str fqdn-str)))
-     hibernate-project-name-str (:wat::core::string::interpolate "{b}::hibernate-project{p}" :b fqdn-base :p fqdn-tp)
+     hibernate-project-name-str (:wat::core::string::interpolate "{b}::hibernate-project" :b fqdn-base)
      hibernate-project-name (:wat::core::keyword/from-string hibernate-project-name-str)
      hibernate-project-def `(:wat::core::defn ~hibernate-project-name ~hibernate-params-vec -> ~record-ty ~hibernate-body)
 
@@ -815,13 +815,13 @@
      reply-failed-kw (:wat::core::keyword/from-string
                        (:wat::core::string::interpolate "{proto-base}::Reply::Failed" :proto-base proto-base))
      serve-name    (:wat::core::keyword/from-string
-                     (:wat::core::string::interpolate "{b}::serve{p}" :b fqdn-base :p fqdn-tp))
+                     (:wat::core::string::interpolate "{b}::serve" :b fqdn-base))
      ;; Arc 209 host-parity-4a — the serve fqdn as a STRING, spliced into start's
      ;; `(keyword/from-string …)` so Locus/launch receives serve by a RUNTIME keyword
      ;; (a spliced literal `:fqdn::serve` would Arc-009-resolve to a Fn, not a keyword).
      serve-name-str (:wat::core::string::interpolate "{b}::serve" :b fqdn-base)
      start-name    (:wat::core::keyword/from-string
-                     (:wat::core::string::interpolate "{b}/start{p}" :b fqdn-base :p fqdn-tp))
+                     (:wat::core::string::interpolate "{b}/start" :b fqdn-base))
      ;; 293.W.2f — Handle<T> / Status<T> carry the transport marker (Shared | Wire).
      ;; Bare `::Handle{p}` / `::Status{p}` (T unknown) remain the residual.
      ;; Transport param is `T` unless the service already binds `T` (`box-svc<T>`),
@@ -975,9 +975,9 @@
      deny-acc-sym (:wat::core::symbol-node "acc")
      deny-pid-sym (:wat::core::symbol-node "pid")
      dispatch-admin-name-str (:wat::core::string::interpolate "{b}::dispatch-admin" :b fqdn-base)
-     dispatch-admin-name (:wat::core::keyword/from-string (:wat::core::string::interpolate "{b}::dispatch-admin{p}" :b fqdn-base :p fqdn-tp))
+     dispatch-admin-name (:wat::core::keyword/from-string (:wat::core::string::interpolate "{b}::dispatch-admin" :b fqdn-base))
      extract-addr-name-str (:wat::core::string::interpolate "{b}::extract-addr" :b fqdn-base)
-     extract-addr-name (:wat::core::keyword/from-string (:wat::core::string::interpolate "{b}::extract-addr{p}" :b fqdn-base :p fqdn-tp))
+     extract-addr-name (:wat::core::keyword/from-string (:wat::core::string::interpolate "{b}::extract-addr" :b fqdn-base))
 
      ;; ── arc 291 3a-ii-α: Admin + Status defenums ──────────────────────────
      ;; Admin: Init carries the seed (ship-ty); Stop is unit (3a-ii-β dispatches it).
@@ -1933,7 +1933,7 @@
      stop-discard-sym  (:wat::core::symbol-node "_")
      stop-r-sym        (:wat::core::symbol-node "r")
      stop-method-name  (:wat::core::keyword/from-string
-                         (:wat::core::string::interpolate "{b}/stop{p}" :b fqdn-base :p fqdn-tp))
+                         (:wat::core::string::interpolate "{b}/stop" :b fqdn-base))
      handle-handle-acc (:wat::core::keyword/from-string
                          (:wat::core::string::interpolate "{b}::Handle/handle" :b fqdn-base))
      stop-method-params `[h <- ~handle-bare-name]
@@ -1979,7 +1979,7 @@
      hib-discard-sym   (:wat::core::symbol-node "_")
      hib-r-sym         (:wat::core::symbol-node "r")
      hibernate-method-name (:wat::core::keyword/from-string
-                             (:wat::core::string::interpolate "{b}/hibernate{p}" :b fqdn-base :p fqdn-tp))
+                             (:wat::core::string::interpolate "{b}/hibernate" :b fqdn-base))
      hibernate-method-params `[h <- ~handle-bare-name]
      hibernate-method-body  `(:wat::core::let
                                ;; arc 278 the send'-outcome wall — a send-then-recv': the recv'
@@ -2022,7 +2022,7 @@
      grant-discard-sym (:wat::core::symbol-node "_")
      grant-r-sym       (:wat::core::symbol-node "r")
      grant-method-name (:wat::core::keyword/from-string
-                         (:wat::core::string::interpolate "{b}/grant{p}" :b fqdn-base :p fqdn-tp))
+                         (:wat::core::string::interpolate "{b}/grant" :b fqdn-base))
      ;; the BASE call name — the Capability/Dialable extend-type bodies invoke grant/revoke
      ;; with the receiver's own T already bound, so they name the bare fn (no turbofish).
      grant-call-name   (:wat::core::keyword/from-string
@@ -2075,7 +2075,7 @@
      revoke-discard-sym (:wat::core::symbol-node "_")
      revoke-r-sym       (:wat::core::symbol-node "r")
      revoke-method-name (:wat::core::keyword/from-string
-                          (:wat::core::string::interpolate "{b}/revoke{p}" :b fqdn-base :p fqdn-tp))
+                          (:wat::core::string::interpolate "{b}/revoke" :b fqdn-base))
      revoke-call-name   (:wat::core::keyword/from-string
                           (:wat::core::string::interpolate "{b}/revoke" :b fqdn-base))
      revoke-method-params `[h <- ~handle-bare-name  pids <- (:wat::core::Vector :wat::core::i64)]
@@ -2334,29 +2334,29 @@
      ;; so K,V infer from init args; the macro picks the impl from the `:locus` AST.
      ;; Abstract-locus (a symbol / `Locus`-typed value) is the residual — T stays unknown.
      start-impl-name (:wat::core::keyword/from-string
-                       (:wat::core::string::interpolate "{b}/start$impl{p}" :b fqdn-base :p fqdn-tp))
+                       (:wat::core::string::interpolate "{b}/start$impl" :b fqdn-base))
      start-impl-call (:wat::core::keyword/from-string
                        (:wat::core::string::interpolate "{b}/start$impl" :b fqdn-base))
      start-impl-thread-name (:wat::core::keyword/from-string
-                              (:wat::core::string::interpolate "{b}/start$impl-thread{p}" :b fqdn-base :p fqdn-tp))
+                              (:wat::core::string::interpolate "{b}/start$impl-thread" :b fqdn-base))
      start-impl-thread-call (:wat::core::keyword/from-string
                               (:wat::core::string::interpolate "{b}/start$impl-thread" :b fqdn-base))
      start-impl-process-name (:wat::core::keyword/from-string
-                               (:wat::core::string::interpolate "{b}/start$impl-process{p}" :b fqdn-base :p fqdn-tp))
+                               (:wat::core::string::interpolate "{b}/start$impl-process" :b fqdn-base))
      start-impl-process-call (:wat::core::keyword/from-string
                                (:wat::core::string::interpolate "{b}/start$impl-process" :b fqdn-base))
      start-macro-name (:wat::core::keyword/from-string
                         (:wat::core::string::interpolate "{b}/start" :b fqdn-base))
      resume-impl-name (:wat::core::keyword/from-string
-                        (:wat::core::string::interpolate "{b}/resume$impl{p}" :b fqdn-base :p fqdn-tp))
+                        (:wat::core::string::interpolate "{b}/resume$impl" :b fqdn-base))
      resume-impl-call (:wat::core::keyword/from-string
                         (:wat::core::string::interpolate "{b}/resume$impl" :b fqdn-base))
      resume-impl-thread-name (:wat::core::keyword/from-string
-                               (:wat::core::string::interpolate "{b}/resume$impl-thread{p}" :b fqdn-base :p fqdn-tp))
+                               (:wat::core::string::interpolate "{b}/resume$impl-thread" :b fqdn-base))
      resume-impl-thread-call (:wat::core::keyword/from-string
                                (:wat::core::string::interpolate "{b}/resume$impl-thread" :b fqdn-base))
      resume-impl-process-name (:wat::core::keyword/from-string
-                                (:wat::core::string::interpolate "{b}/resume$impl-process{p}" :b fqdn-base :p fqdn-tp))
+                                (:wat::core::string::interpolate "{b}/resume$impl-process" :b fqdn-base))
      resume-impl-process-call (:wat::core::keyword/from-string
                                 (:wat::core::string::interpolate "{b}/resume$impl-process" :b fqdn-base))
      resume-macro-name (:wat::core::keyword/from-string
@@ -2508,7 +2508,7 @@
      ;; launch is UNCHANGED — resume reuses the same machinery.
      ;; `snapshot` param binder: use a symbol-node (hygiene: Unquote at def time).
      resume-name    (:wat::core::keyword/from-string
-                      (:wat::core::string::interpolate "{b}/resume{p}" :b fqdn-base :p fqdn-tp))
+                      (:wat::core::string::interpolate "{b}/resume" :b fqdn-base))
      ;; 293.W.2f — resume is the same T-stamp as start (kwargs UX + impl + ann-form).
      resume-body    `(:wat::core::let
                        [~origin-sym (:wat::kernel::call-site)
