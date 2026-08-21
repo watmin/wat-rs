@@ -1,10 +1,9 @@
-//! Arc 278 stone 5b — disconfirming probe: `collect-rules` (namespace rule reflection). RED at HEAD.
+//! Arc 278 stone 5b — `collect-rules` (namespace rule reflection).
 //!
 //! `(:wat::rete::collect-rules :ns) -> PersistentVector<Rule>` reflects the symbol table for zero-arg fns
-//! returning `:wat::rete::Rule` (the `defrule` marker) whose name is in `:ns`, and invokes each. This is the
-//! last piece before the north star: `(compile (collect-rules :weather))`.
-//!
-//! RED at HEAD: `collect-rules` is UnknownFunction.
+//! returning `:wat::rete::Rule` (the `defrule` marker) whose name is in `:ns`, and invokes each. Two
+//! `:weather` rules (helper excluded); `:other` has one; `:nonexistent` is empty; names sort
+//! cold-and-windy then cold-temp. Live mouth: `collect-rules`.
 //!
 //! Run: cargo test --release -p wat --test probe_arc278_5b_collect_rules -- --include-ignored
 

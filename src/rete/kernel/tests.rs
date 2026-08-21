@@ -1838,7 +1838,7 @@
             .unwrap_or(0);
         assert!(
             calls > 0,
-            "compiled:calls is zero — exec_compiled was never entered"
+            "compiled:calls is zero — exec_compiled_with_key_ids was never entered"
         );
 
         let mut out = String::from("\naccum matcher ops — G=200 W=200 (40,200 facts)\n");

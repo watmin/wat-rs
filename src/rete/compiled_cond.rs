@@ -811,23 +811,27 @@ pub(crate) fn exec_ops(
 fn exec_op(op: &Op, slots: &mut [Option<Value>], fact_fields: &[Value], skip_seed: bool) -> bool {
     match op {
         Op::Fail => false,
-        Op::Bind { field_idx, slot } => match fact_fields.get(*field_idx) {
-            Some(v) => {
-                slots[*slot] = Some(v.clone());
+        Op::Bind { field_idx, slot } => match (fact_fields.get(*field_idx), slots.get_mut(*slot)) {
+            (Some(v), Some(dst)) => {
+                *dst = Some(v.clone());
                 true
             }
-            None => false,
+            _ => false,
         },
         Op::BindCheck { field_idx, slot } => match fact_fields.get(*field_idx) {
-            Some(v) => match &slots[*slot] {
-                Some(existing) => existing == v,
-                // Should not occur (a BindCheck's slot was, by construction, already written by
-                // the Bind that first introduced it) — fall back to a fresh bind rather than fail
-                // outright, matching eval_clause's own "None => fresh insert" arm.
-                None => {
-                    slots[*slot] = Some(v.clone());
-                    true
+            Some(v) => match slots.get_mut(*slot) {
+                Some(slot_cell) => {
+                    if slot_cell.is_none() {
+                        // Should not occur (a BindCheck's slot was, by construction, already written
+                        // by the Bind that first introduced it) — fall back to a fresh bind rather
+                        // than fail outright, matching eval_clause's own "None => fresh insert" arm.
+                        *slot_cell = Some(v.clone());
+                        true
+                    } else {
+                        slot_cell.as_ref() == Some(v)
+                    }
                 }
+                None => false,
             },
             None => false,
         },

@@ -1,12 +1,10 @@
-//! Arc 278 — Stone 7-exists: `:exists` (existential, the NegationNode sibling) — oracle + native + DIFFERENTIAL.
+//! Arc 278 stone 7-exists — `:exists` (existential, the NegationNode sibling); `fire-rules` == `fire-rules$oracle`.
+//! Dual-impl: the unprimed public Fn is native; `$oracle` is the spec mouth.
+//!
 //! `(:wat::rete::exists <inner>)` passes a token iff ≥1 element matches the inner condition for its bindings,
 //! binds NOTHING, and fires the token EXACTLY ONCE regardless of how many match (no multiplicity — the key
 //! difference from a join). It is NegationNode's filter predicate flipped: negation passes iff ZERO compatible;
-//! exists passes iff ≥1 compatible. RED at HEAD (`:exists` head is unrecognized → compile mis-handles it →
-//! native and/or oracle wrong). GREEN when 7-exists lands. Contract: DESIGN-STONE-7-exists.md.
-//!
-//! `fire-rules` = native (`fire-rules'`); `fire-rules-spec` = the wat oracle. For an `:exists` rule the two
-//! MUST agree.
+//! exists passes iff ≥1 compatible. Present → 1; absent → 0; three readings still fire once.
 //!
 //! Run: cargo test --release -p wat --test probe_arc278_7exists_native_differential
 

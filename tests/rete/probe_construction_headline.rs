@@ -9,7 +9,7 @@
 //!   - `probe_construction_headline_green.wat` — GREEN, the headline itself: a `defn` that
 //!     CONSTRUCTS and returns a fresh record from bound `:then` terms (not merely extracts an
 //!     existing one, unlike the prior stone's workaround fixture). Fired through BOTH the oracle
-//!     (`fire-rules-spec`) and the native kernel (`fire-rules`), same expected value.
+//!     (`fire-rules$oracle`) and the native kernel (`fire-rules`), same expected value.
 //!   - `probe_construction_headline_red.wat` — RED: the item's head fn BOTH constructs a record
 //!     AND touches a genuinely impure op. Classifying the two construction verbs pure must not
 //!     open a hole — the compile fence must still refuse it, naming the impure head.
@@ -63,7 +63,7 @@ fn construct_and_return_derives_via_oracle() {
 }
 
 /// GREEN, NATIVE path: same rule, same expected value, through the compiled RHS path
-/// (`fire-rules'`/`insert'`) instead of the interpreted oracle — proves compiled == interpreted.
+/// (`fire-rules`/`insert`) instead of the interpreted oracle — proves compiled == interpreted.
 #[test]
 fn construct_and_return_derives_via_native_kernel() {
     let r = run(WORLD_GREEN, ":user::run-native");

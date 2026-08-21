@@ -1,15 +1,11 @@
-//! Arc 278 — the 6a purity fence must read a generated field ACCESSOR's DECLARED purity, the
+//! Arc 278 — the 6a purity fence reads a generated field ACCESSOR's DECLARED purity, the
 //! same declaration `constructor_meta` already reads for constructors. A Record accessor
-//! (`Log/level`) is pure ∧ deterministic (`AggregateDef.nature.is_pure()`); today the accessor
-//! head falls PAST `constructor_meta` (its `rsplit_once("::")` yields a non-type) into a `Native`
-//! stub → `classify_fn` → default-deny. That rejects EVERY realistic sift predicate (they all read
-//! a field). RED at HEAD: `pure?`/`deterministic?` of a `Log`-accessor predicate → FALSE.
-//!
-//! GREEN when `head_ok` gains an `accessor_meta` sibling that resolves `Type/field` → the type's
-//! declared purity (Record accessor → pure via `nature.is_pure()`; enum accessor → its
-//! `:wat::enum::*` marker; Struct → impure), read from the frozen TypeEnv exactly as
-//! `constructor_meta` does. This is the declaration model (arc 255-aligned), NOT a hand-list.
-//! Guard: an effectful body must STILL be rejected — the accessor fix must not blanket-allow.
+//! (`Log/level`) is pure ∧ deterministic (`AggregateDef.nature.is_pure()`). `accessor_meta`
+//! resolves `Type/field` → the type's declared purity (Record accessor → pure via `nature.is_pure()`;
+//! enum accessor → its `:wat::enum::*` marker; Struct → impure), read from the frozen TypeEnv
+//! exactly as `constructor_meta` does. This is the declaration model (arc 255-aligned), NOT a
+//! hand-list. Guard: an effectful body is still rejected — the accessor path does not blanket-allow.
+//! Live mouths: `pure?`, `deterministic?`.
 //!
 //! Run: cargo test --release -p wat accessor_purity
 

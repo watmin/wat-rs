@@ -1590,9 +1590,10 @@ pub(crate) fn is_total_expr(ast: &WatAST, sym: &SymbolTable) -> bool {
 }
 
 /// LAW A — is every head in `ast`'s transitive walk a rete primitive? Armed on the
-/// `where` / accumulate / `:then` fences (`compile-condition`); fact-pattern constraints
-/// are freeze-walled on `defrule`. Same walk as the three predicates above; only the axis
-/// differs — a user fn is admitted iff its BODY is, at any depth.
+/// `where` / accumulate / `:then` fences (`compile-condition`); fact-pattern Law A is
+/// the freeze wall plus intern `compile_condition_local` (CoreGeneric → none). Same
+/// walk as the three predicates above; only the axis differs — a user fn is admitted
+/// iff its BODY is, at any depth.
 pub(crate) fn is_rete_primitive_expr(ast: &WatAST, sym: &SymbolTable) -> bool {
     classify_expr(ast, &[Axis::RetePrimitive], sym, &mut HashSet::new()).is_ok()
 }

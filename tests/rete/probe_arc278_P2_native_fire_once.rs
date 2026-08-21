@@ -41,7 +41,7 @@ fn staged_2x2_builds() {
 fn native_matches_wat_on_a_match() {
     let native = call(":user::count-native-oslo");
     let wat = call(":user::count-wat-oslo");
-    assert_eq!(native, wat, "native fire-once' must agree with wat fire-once (Oslo); native {native:?} vs wat {wat:?}");
+    assert_eq!(native, wat, "native fire-once must agree with fire-once$oracle (Oslo); native {native:?} vs wat {wat:?}");
     assert_eq!(native, Value::i64(1), "the match derives exactly one ColdAndWindy; got {native:?}");
 }
 

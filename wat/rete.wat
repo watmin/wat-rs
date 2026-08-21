@@ -33,7 +33,7 @@
    bindings <- :wat::core::PersistentMap])
 
 ;; Element — a fact presented to an alpha node; flows RIGHT into a join.
-;; fact: the record fact itself (type-preserving; no conversion needed for provenance/TM/query-by-type).
+;; fact: the record fact itself (type-preserving; no conversion needed for provenance/TM/query).
 ;; bindings: alpha-bindings extracted by the alpha node's tests.
 (:wat::core::defrecord :wat::rete::Element
   [fact     <- :wat::core::Record

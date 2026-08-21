@@ -126,7 +126,7 @@
 ;; fire-once — single-pass fire cycle: alpha → root-join → hash-join → production.
 ;; Pure value-semantics: takes a Session, returns a new frozen Session with fresh memories.
 ;; Recomputes all memories from Session.facts each call (re-run-from-scratch); derived facts
-;; go to production-memory only — they do not re-enter facts here (cascade is fire-rules' job).
+;; go to production-memory only — they do not re-enter facts here (cascade is `fire-rules`'s job).
 ;; WHY reconstruct Session: same reason as insert (Record/assoc returns :wat::core::Record).
 (:wat::core::defn :wat::rete::fire-once$oracle
   [session <- :wat::rete::Session]

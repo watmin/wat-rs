@@ -21,7 +21,7 @@ pub(crate) fn node_kind_label(class_fqdn: &str) -> &str {
     class_fqdn.rsplit("::").next().unwrap_or(class_fqdn)
 }
 
-/// Read the `class_fqdn` and `struct_form` from a node record Value.
+/// Read the class FQDN and named-fields slice from a node record Value.
 /// Returns `None` for non-record values (should never happen in a well-formed network).
 pub(crate) fn node_record(node: &Value) -> Option<(&str, &[Value])> {
     match node {

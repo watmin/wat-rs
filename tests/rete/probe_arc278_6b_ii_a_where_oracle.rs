@@ -1,12 +1,11 @@
-//! Arc 278 — Stone 6b-ii-a: `where`/TestNode in the ORACLE (`rete.wat` compile + fire) + the compile fence.
-//! RED at HEAD (no TestNode: compile-condition treats `(:wat::rete::where …)` as an unsatisfiable alpha →
-//! the rule never fires; and there is no pure∧det fence). GREEN when 6b-ii-a lands. Contract:
-//! DESIGN-STONE-6b-where-test.md.
+//! Arc 278 stone 6b-ii-a — `where`/TestNode in the oracle (`compile-condition` + `fire-rules$oracle`) + the compile fence.
+//! Dual-impl: the unprimed public Fn is native; `$oracle` is the spec mouth.
 //!
-//! Probed through the ORACLE (`fire-rules-spec`) — 6b-ii-a builds the oracle TestNode; the native kernel
-//! port + differential are 6b-ii-b. A `where` is a left-only filter: it keeps a token iff `eval-test`
-//! (6b-i) of its expr against the token's bindings is true. The compile fence rejects a `where` whose expr
-//! is not (pure ∧ deterministic).
+//! Probed through `fire-rules$oracle` — 6b-ii-a builds the oracle TestNode; the native kernel port +
+//! differential are 6b-ii-b. A `where` is a left-only filter: it keeps a token iff `eval-test` of its
+//! expr against the token's bindings is true. The compile fence rejects a `where` whose expr is not
+//! (pure ∧ deterministic ∧ total ∧ primitive?). Live mouths: `compile-all`, `fire-rules$oracle`,
+//! `query`, `eval-test`.
 //!
 //! Run: cargo test --release -p wat --test probe_arc278_6b_ii_a_where_oracle
 
@@ -64,8 +63,7 @@ fn where_with_user_fn_predicate_blocks() {
     assert!(matches!(r, Ok(Value::i64(0))), "where (big? 50) false → 0 Gates; got {r:?}");
 }
 
-/// 4 — the compile FENCE rejects an impure `where` (io): compiling the rule raises. (At HEAD there is no
-/// fence → compile succeeds → this fails RED.)
+/// 4 — the compile FENCE rejects an impure `where` (io): compiling the rule raises.
 #[test]
 fn fence_rejects_impure_where_at_compile() {
     let r = run_count(WORLD_IMPURE_PATH, ":user::run-gate-c5");

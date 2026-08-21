@@ -1,15 +1,15 @@
-//! Arc 278 — "alpha is fire-scoped" RED gate (v2): a natively-fired `Session` must not return an
-//! alpha-memory the oracle does not.
+//! Arc 278 — "alpha is fire-scoped": a natively-fired `Session` must not return an
+//! alpha-memory the oracle does not. Dual-impl: the unprimed public Fn is native; `$oracle` is the spec mouth.
 //!
-//! v1 of this gate assumed the oracle (`fire-rules-spec`) returns a populated alpha and re-pointed
+//! v1 of this gate assumed the oracle (`fire-rules$oracle`) returns a populated alpha and re-pointed
 //! everything at it; that assumption was FALSE and a rider's STOP-4 caught it before anything shipped
 //! (`fire-stratified`, `rete.wat:1817-1820`, explicitly zeroes alpha-memory/beta-memory when it packs
-//! its final `Session`). v2 inverts the framing: native `fire-rules` returns a POPULATED alpha while
-//! the oracle's `fire-rules-spec` returns EMPTY — they disagree today. `9d9a4e77` measured serializing
-//! that alpha at 31.3% of fire on its own. Clearing it in `fire_fixpoint_delta` (the one function both
-//! `fire-rules` and `fire-rules'` run) closes the divergence and removes the cost as a side effect.
+//! its final `Session`). Native `fire-rules` and `fire-rules$oracle` both return empty alpha.
+//! `9d9a4e77` measured serializing a populated alpha at 31.3% of fire on its own. Clearing it in
+//! `fire_fixpoint_delta` (the function unprimed `fire-rules` runs) closes the divergence and removes
+//! the cost as a side effect.
 //!
-//! `fire_once_session` is deliberately UNTOUCHED: native `fire-once'` mirrors the oracle's `fire-once`,
+//! `fire_once_session` is deliberately UNTOUCHED: native `fire-once` mirrors the oracle's `fire-once$oracle`,
 //! which genuinely fills alpha (`rete.wat:1462`) — narrowing the cut to the fixpoint verb only is what
 //! keeps that single-pass pair aligned, per DESIGN-STONE-alpha-is-fire-scoped.md v2.
 //!
@@ -53,12 +53,12 @@ fn native_alpha_is_cleared() {
     assert_eq!(native, 0, "native fixpoint fire must clear alpha before freeze; got {native} keys");
 }
 
-/// 2 + 3 — the oracle's own state, asserted not assumed: `fire-rules-spec` returns alpha empty, and
+/// 2 + 3 — the oracle's own state, asserted not assumed: `fire-rules$oracle` returns alpha empty, and
 /// that matches native's now-cleared alpha — the divergence this stone exists to close.
 #[test]
 fn oracle_alpha_matches_native_at_zero() {
     let oracle = count(":user::oracle-alpha-key-count");
-    assert_eq!(oracle, 0, "oracle fire-rules-spec must return alpha empty (fire-stratified); got {oracle} keys");
+    assert_eq!(oracle, 0, "oracle fire-rules$oracle must return alpha empty (fire-stratified); got {oracle} keys");
     let native = count(":user::native-alpha-key-count");
     assert_eq!(native, oracle, "the divergence must be closed: native==oracle (alpha); native={native} oracle={oracle}");
 }
@@ -69,7 +69,7 @@ fn oracle_alpha_matches_native_at_zero() {
 #[test]
 fn single_pass_alpha_is_the_anchor() {
     let single_pass = count(":user::single-pass-alpha-key-count");
-    assert!(single_pass > 0, "fire-once' must still populate alpha (untouched by this stone); got {single_pass} keys");
+    assert!(single_pass > 0, "fire-once must still populate alpha (untouched by this stone); got {single_pass} keys");
 }
 
 /// 5 — the RESULT is untouched: native and oracle derive the same non-zero count.

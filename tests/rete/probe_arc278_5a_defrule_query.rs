@@ -1,11 +1,9 @@
-//! Arc 278 stone 5a — disconfirming probe: `defrule` (rule macro) + `query` (read derived facts). RED at HEAD.
+//! Arc 278 stone 5a — `defrule` (rule macro) + `query` (read facts of a type).
 //!
-//! The wat half of the homoiconic surface. `query` reads derived facts of a type out of a fired session;
-//! `defrule` expands the readable rule form into a zero-arg `defn` returning a `Rule`. The reflection that
-//! auto-gathers rules (`collect-rules`) is 5b — here the one rule is collected manually by calling its fn.
-//!
-//! RED at HEAD: `query` is UnknownFunction; the `defrule` macro is undefined so a world containing it fails
-//! to freeze.
+//! `query` reads facts of a type out of a fired session; `defrule` expands the readable rule form
+//! into a zero-arg `defn` returning a `Rule`. The reflection that auto-gathers rules (`collect-rules`)
+//! is 5b — here the one rule is collected manually by calling its fn. Live mouths: `defrule`,
+//! `query`, `compile-all`, `insert`, `fire-rules`.
 //!
 //! Run: cargo test --release -p wat --test probe_arc278_5a_defrule_query -- --include-ignored
 

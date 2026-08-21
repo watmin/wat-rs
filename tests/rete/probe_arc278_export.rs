@@ -227,3 +227,23 @@ fn edn_write_read_import_fires() {
         "Export must survive edn write/read and still fire"
     );
 }
+
+#[test]
+fn reexport_edn_is_identical() {
+    let v = call_beside_value(file!(), ":user::reexport-edn-identical").expect("reexport edn");
+    assert_eq!(
+        v,
+        Value::bool(true),
+        "edn-write(e) must equal edn-write(export(import(e)))"
+    );
+}
+
+#[test]
+fn reexport_import_fires() {
+    let v = call_beside_value(file!(), ":user::reexport-import-fires").expect("reexport fire");
+    assert_eq!(
+        v,
+        Value::i64(1),
+        "import(export(import(e))) must fire the same Hit"
+    );
+}

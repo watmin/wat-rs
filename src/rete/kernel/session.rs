@@ -453,7 +453,7 @@ pub(crate) fn value_token_to_native(
 
 /// Encode a native `Token` → Value Token Record (lossless round-trip with `value_token_to_native`).
 ///
-/// Produces the same shape `make_token` did: `struct_form = [PV<Tuple(fact,i64)>, PM bindings]`.
+/// Named fields `matches` / `bindings` in `TOKEN_FIELDS` order.
 pub(crate) fn native_token_to_value(tok: Token, view: &EncodeView<'_>) -> Value {
     let mut matches_pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
     for (fact_idx, alpha_id) in match_slice(view.match_pool, tok.matches) {
@@ -613,7 +613,7 @@ pub(crate) fn value_to_element(
 
 /// Encode a native `Element` → Value Element Record (lossless round-trip with `value_to_element`).
 ///
-/// Produces the same shape `make_element` (pre-nativise) did: `struct_form = [fact, PM bindings]`.
+/// Named fields `fact` / `bindings` in `ELEMENT_FIELDS` order.
 /// Value-boundary encode: array -> PM. One-time per element at session encode (to_persistent) —
 /// the wat contract still needs a `PersistentMap`, so this walks the array and builds one
 /// (DESIGN-STONE-element-bindings-array read-order §3); it is not the matcher's hot read path.
@@ -724,7 +724,19 @@ pub(crate) fn alpha_to_pm(alpha: AlphaMemory, view: &EncodeView<'_>) -> Value {
 /// Never panics: malformed Token/Element records and short match tuples
 /// return `TypeMismatch` (length-checked in `value_token_to_native` /
 /// `value_to_element`).
+#[cfg(test)]
 pub(crate) fn to_transient(session: &Value) -> Result<FireSession, EvalBreak> {
+    to_transient_inner(session, true)
+}
+
+/// Fire-entry decode: network / rules / facts / next-id. Native fire never
+/// reads frozen memories (clears them immediately); full `to_transient`
+/// stays the lossless round-trip door for tests.
+pub(crate) fn to_transient_for_fire(session: &Value) -> Result<FireSession, EvalBreak> {
+    to_transient_inner(session, false)
+}
+
+fn to_transient_inner(session: &Value, decode_memories: bool) -> Result<FireSession, EvalBreak> {
     const OP: &str = ":wat::rete::to_transient";
     let agg = match session {
         Value::Aggregate(a) if a.nature != Nature::Struct => a,
@@ -795,25 +807,36 @@ pub(crate) fn to_transient(session: &Value) -> Result<FireSession, EvalBreak> {
         _ => 0,
     };
     let mut derived_facts = Vec::new();
-    let mut intern = BindIntern {
-        keys: &mut bind_keys,
-        vals: &mut bind_vals,
-        ids: &mut bind_val_ids,
-        pool: &mut bind_pool,
-    };
-    let alpha = pm_to_alpha(OP, alpha_pm, &mut intern, &mut derived_facts, n_input)?;
-    let beta = pm_to_beta(
-        OP,
-        beta_pm,
-        &mut intern,
-        &mut match_pool,
-        &mut derived_facts,
-        n_input,
-    )?;
-    let production = pm_to_production(OP, prod_pm)?;
-    let query = match session_named_field(session, "query-memory") {
-        Some(q) => pm_to_query_memory(OP, q)?,
-        None => HashMap::new(),
+    let (alpha, beta, production, query) = if decode_memories {
+        let mut intern = BindIntern {
+            keys: &mut bind_keys,
+            vals: &mut bind_vals,
+            ids: &mut bind_val_ids,
+            pool: &mut bind_pool,
+        };
+        let alpha = pm_to_alpha(OP, alpha_pm, &mut intern, &mut derived_facts, n_input)?;
+        let beta = pm_to_beta(
+            OP,
+            beta_pm,
+            &mut intern,
+            &mut match_pool,
+            &mut derived_facts,
+            n_input,
+        )?;
+        let production = pm_to_production(OP, prod_pm)?;
+        let query = match session_named_field(session, "query-memory") {
+            Some(q) => pm_to_query_memory(OP, q)?,
+            None => HashMap::new(),
+        };
+        (alpha, beta, production, query)
+    } else {
+        let _ = (alpha_pm, beta_pm, prod_pm);
+        (
+            FxHashMap::default(),
+            HashMap::new(),
+            HashMap::new(),
+            HashMap::new(),
+        )
     };
 
     Ok(FireSession {
@@ -923,8 +946,8 @@ pub(crate) fn query_memory_to_pm(query: QueryMemory) -> Value {
 /// Convert a `FireSession` back into a frozen `:wat::rete::Session` `Value`.
 ///
 /// Rebuilds each memory map into a `PersistentMap`, then constructs a
-/// `Value::Aggregate` record with `struct_form` in declaration order:
-/// `[network, rules, alpha-memory, beta-memory, production-memory, facts, next-id, query-memory]`.
+/// `Value::Aggregate` record with named fields in `SESSION_FIELDS` order:
+/// `network`, `rules`, `alpha-memory`, `beta-memory`, `production-memory`, `facts`, `next-id`, `query-memory`.
 ///
 /// An empty memory map → an empty `PersistentMap` (never `nil`; the field is always present).
 pub(crate) fn to_persistent(wm: FireSession) -> Value {
@@ -1187,6 +1210,9 @@ pub(crate) fn element_fact_bindings<'a>(
     bind_view(keys, vals, pool, el.binds)
 }
 
+// rune:struere(invariant-coupling) — well-formed fire: BindSpan is in-range in
+// this pool (off+len ≤ len). Option would force every walk to invent a miss.
+// Lifetime is BindSpan's rune (must not outlive the pool); this is the in-range half.
 pub(crate) fn pool_slice(pool: &[(u32, u32)], span: BindSpan) -> &[(u32, u32)] {
     let o = span.off as usize;
     &pool[o..o + span.len as usize]
@@ -1209,6 +1235,8 @@ pub(crate) fn span_from_pairs(
     }
 }
 
+// rune:struere(invariant-coupling) — well-formed fire: match BindSpan is in-range
+// in this pool. Same warrant as `pool_slice`.
 pub(crate) fn match_slice(pool: &[(u32, i64)], span: BindSpan) -> &[(u32, i64)] {
     let o = span.off as usize;
     &pool[o..o + span.len as usize]

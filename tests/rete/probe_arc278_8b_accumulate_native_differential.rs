@@ -1,9 +1,8 @@
-//! Arc 278 — Stone 8-b: the AccumulateNode in the NATIVE kernel + the DIFFERENTIAL (native==oracle).
-//! RED at HEAD (8-a taught the ORACLE + compile the AccumulateNode, but the native delta engine
-//! `fire_fixpoint_delta` has no accumulate-pass → the accumulate result-var is never bound → native
-//! under-derives → native ≠ oracle). GREEN when 8-b lands. Contract: DESIGN-STONE-8-accumulators.md.
+//! Arc 278 stone 8-b — the AccumulateNode in the native kernel; `fire-rules` == `fire-rules$oracle`.
+//! Dual-impl: the unprimed public Fn is native; `$oracle` is the spec mouth.
 //!
-//! `fire-rules` = native; `fire-rules-spec` = the wat oracle. For an `acc/` rule the two MUST agree.
+//! For an `acc/` rule the two mouths agree on the derived Busy facts. Live mouths: `collect-rules`,
+//! `compile-all`, `insert`, `fire-rules`, `fire-rules$oracle`, `query`.
 //!
 //! Run: cargo test --release -p wat --test probe_arc278_8b_accumulate_native_differential
 

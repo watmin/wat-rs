@@ -143,6 +143,26 @@
     (:wat::core::length
       (:wat::rete::query (:wat::rete::fire-rules (:exp::seed s1)) (:exp::q-Hit)))))
 
+;; One EDN value: write(e) == write(export(import(e))).
+(:wat::core::defn :user::reexport-edn-identical [] -> :wat::core::bool
+  (:wat::core::let [s0 (:wat::rete::compile-all
+                         (:wat::core::PersistentVector (:exp::cool))
+                         (:wat::core::PersistentVector (:exp::q-Hit)))
+                    e1 (:wat::rete::export s0)
+                    e2 (:wat::rete::export (:wat::rete::import e1))]
+    (:wat::core::= (:wat::edn::write e1) (:wat::edn::write e2))))
+
+;; Fire of import(export(import(e))) — the re-export, not the original export.
+(:wat::core::defn :user::reexport-import-fires [] -> :wat::core::i64
+  (:wat::core::let [s0 (:wat::rete::compile-all
+                         (:wat::core::PersistentVector (:exp::cool))
+                         (:wat::core::PersistentVector (:exp::q-Hit)))
+                    e1 (:wat::rete::export s0)
+                    e2 (:wat::rete::export (:wat::rete::import e1))
+                    s2 (:wat::rete::import e2)]
+    (:wat::core::length
+      (:wat::rete::query (:wat::rete::fire-rules (:exp::seed s2)) (:exp::q-Hit)))))
+
 ;; The compiled program as an EDN string — source of tests/rete/hello.rete.edn.
 (:wat::core::defn :user::export-edn [] -> :wat::core::String
   (:wat::core::let [s0 (:wat::rete::compile-all

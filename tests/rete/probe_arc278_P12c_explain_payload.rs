@@ -1,11 +1,11 @@
-//! Arc 278 — P12c: the EXPLAIN payload (`:constraints` / `:bindings` / `:pattern` / `rule`).
-//! RED at HEAD (`DerivationStep` + `DerivationNode/rule` + the payload accessors don't exist; via is still
-//! `PV<DerivationNode>`); GREEN when P12c lands. Contract: DESIGN-STONE-P12c-explain-payload.md.
+//! Arc 278 stone P12c — the EXPLAIN payload (`:constraints` / `:bindings` / `:pattern` / `rule`).
 //!
-//! The operator-legibility stone: each support edge (`DerivationStep`) carries the satisfied constraint
-//! predicates with concrete values substituted (`(:wat::core::< -5 0)`), the per-step bound vars, the matched
-//! type, and the node's rule. These assertions are on the cold-and-windy explain; `via[0]` is the Temperature
-//! step (first condition).
+//! Live mouths: `fire-rules-explain`, `explain`, `DerivationNode/via`, `DerivationNode/rule`,
+//! `DerivationStep/pattern`, `DerivationStep/bindings`, `DerivationStep/constraints`. Each support
+//! edge (`DerivationStep`) carries the satisfied constraint with concrete values substituted
+//! (`(:wat::core::< -5 0)`), the per-step bound vars, the matched type, and the node's rule.
+//! `via[0]` is the Temperature step: pattern `weather::Temperature`, `?c = -5`, one constraint.
+//! Root rule is Some("weather::cold-and-windy"); a base fact's rule is None.
 //!
 //! Run: cargo test --release -p wat --test probe_arc278_P12c_explain_payload -- --include-ignored
 

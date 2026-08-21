@@ -193,7 +193,8 @@ pub(crate) fn compile_rhs(
 /// binds exits 0 (`validate_then_form` / `reorder_then_kwargs` validate the SHAPE — insert head,
 /// fact type, field names, positional arity — and walk nested constructors, but still do not
 /// bind-check `?var`), so this
-/// surfaces at fire time rather than at compile time. Never panics.
+/// surfaces at fire time rather than at compile time. Does not panic on a
+/// program Import has accepted (`slot < frame_len`); an OOB slot is MalformedForm.
 ///
 /// Flip 4 — `RhsOp::Expr` is a compiled `Program`. `sym` is still required
 /// (`CallUser` / accessors). The interpreter (`build_insert_fact`) remains

@@ -1,17 +1,16 @@
-//! Arc 278 stone 2a — disconfirming probe: `:wat::rete::alpha-match`. RED at HEAD.
+//! Arc 278 stone 2a — `:wat::rete::alpha-match`.
 //!
 //! The rete single-fact matcher, purpose-built (NOT form::matches?): given a condition form (DATA) and a
 //! fact (record), return `Some(bindings)` iff the fact's type == the condition head AND every clause holds,
 //! else `None` (Clara no-error). Pure data-in/data-out — no Environment, no eval. Bindings = a PersistentMap
-//! keyed by the logic-var name string ("?t").
+//! keyed by the logic-var name string ("?t"). Binds `?t=25` and passes `(> ?t 20)`; failed constraint → None;
+//! wrong type → None.
 //!
 //! The DSL it interprets (its own classifier, NOT classify_clause):
 //!   (?v <- :field)              bind ?v to the fact's :field
 //!   (:wat::core::<op> a b)      FQDN constraint; operands ∈ {?var, :field, literal}, resolved purely
 //!   (:wat::rete::and/or/not …)  clause combinators
 //!   (:wat::rete::where …)       stone-6 escape (out of scope here)
-//!
-//! RED at HEAD: `:wat::rete::alpha-match` is unknown (Temp/quote/Option/PersistentMap all exist).
 //!
 //! Run: cargo test --release -p wat --test probe_arc278_2a_alpha_match -- --include-ignored
 

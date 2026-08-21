@@ -1,9 +1,10 @@
 //! Arc 278 — THE NORTH STAR: the cold-and-windy rule, end to end. The engine's acceptance test AND the
-//! executable spec of the rete DSL surface. RED at HEAD; GREEN at the stone-5 milestone (a working
-//! equality-join forward-chaining engine with truth maintenance — DESIGN.md decomposition step 5).
+//! executable spec of the rete DSL surface.
 //!
-//! Every per-stone strike builds toward THIS. It is the living contract for the DSL — if a surface detail
-//! is refined during a stone, update this test (curare), never let it drift.
+//! Live mouths: `defrule`, `defquery`, `collect-rules`, `compile-all`, `insert`, `fire-rules`, `query`.
+//! Temp 15<20 AND Wind 45>30 at the same location "Oslo" (equality join on `?loc`) derives exactly one
+//! ColdAndWindy. The living contract for the DSL — if a surface detail is refined, update this test
+//! (curare), never let it drift.
 //!
 //! The DSL it pins:
 //!   - facts are plain typed records.
@@ -15,7 +16,7 @@
 //!     (support = the firing token; auto-retracted if support vanishes); fact args may be pure exprs over the
 //!     bound ?vars. The engine COLLECTS the inserts at fire — pure: no IO, no retract, no insert-unconditional!,
 //!     no bang. A deliberate cut from Clara's general RHS: ours only ever inserts logical facts.
-//!   - lifecycle: collect-rules → compile → insert (value-threaded) → fire-rules (PURE, new frozen session) → query.
+//!   - lifecycle: collect-rules → compile-all → insert (value-threaded) → fire-rules (PURE, new frozen session) → query.
 //!
 //! Run: cargo test --release -p wat --test probe_arc278_northstar_cold_and_windy -- --include-ignored
 

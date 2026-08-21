@@ -1,40 +1,31 @@
-//! RED probe for `docs/arc/2026/06/278-rules-engine/DESIGN-STONE-inline-constraint-admits-non-rete.md`.
+//! GREEN gate for `docs/arc/2026/06/278-rules-engine/DESIGN-STONE-inline-constraint-admits-non-rete.md`.
 //!
-//! **THE GAP.** A fact pattern may carry an inline constraint clause beside its bindings:
+//! A fact pattern may carry an inline constraint clause beside its bindings:
 //!
 //! ```clojure
 //! (:probe::Reading (?loc <- :location) (:wat::core::> :value 10))
 //! ```
 //!
-//! `compile-condition` (`wat/rete.wat:679`) branches on four shapes — `where` / `not` / `exists` /
-//! `accumulate` — and a keyword-headed constraint matches none of them, so it falls to the
-//! fact-pattern branch. The pattern's children are then classified by a **separate grammar in
-//! Rust**, `classify_rete_clause` (`clause.rs`), which matches six literal strings:
-//! `:wat::core::{= not= < > <= >=}`. Nothing on that path consults `pure?` / `deterministic?` /
-//! `total?` / `primitive?`. **Law A never sees it.**
+//! Freeze classifies CoreGeneric as NonReteConstraint. Native `compile_condition_local` returns
+//! false on CoreGeneric. `compile-condition` lives at `wat/rete/compile.wat:364`;
+//! `classify_rete_clause` lives at `clause.rs:173`. The untyped-ordering fixture already names
+//! the freeze wall.
 //!
-//! Four of the six route through `compare_values` (`matcher.rs:453-456`), whose `?` propagates the
-//! incomparable-operands error — the generic comparator's domain hole, live on the LHS.
-//!
-//! **THE FIX** is the builder's, and it is the same act as round 1c (per-type equality): force the
-//! per-type rete spelling, so the user names the type they are comparing at. Monomorphising
+//! The rete surface is per-type: the user names the type they are comparing at. Monomorphising
 //! *deletes* the domain hole rather than handling it — `i64::>` has no incomparable case. Zero
 //! generic rete comparators exist, by ruling ("the rete surface is per-type, period").
 //!
-//! **WHAT EACH ROW PROVES** — rows 1-3 are RED today, row 4 is the payoff:
+//! **WHAT EACH ROW PROVES** — `expect_err` is the GREEN gate for rows 1, 2, and 4:
 //!
-//! | row | asserts | today |
+//! | row | asserts | gate |
 //! |---|---|---|
-//! | `untyped_ordering_constraint_is_refused` | generic `>` in a pattern is refused | **RED** — compiles + fires |
-//! | `untyped_equality_constraint_is_refused` | generic `=` likewise (the discrimination-tree op) | **RED** |
-//! | `per_type_constraint_is_admitted_and_discriminates` | `i64::>` compiles, fires, prunes | **RED** — grammar does not match it |
-//! | `cross_type_constraint_is_refused_at_compile` | `i64::>` on a `String` field is a COMPILE error | **RED** |
+//! | `untyped_ordering_constraint_is_refused` | generic `>` in a pattern is refused | `expect_err` (NonReteConstraint) |
+//! | `untyped_equality_constraint_is_refused` | generic `=` likewise (the discrimination-tree op) | `expect_err` |
+//! | `per_type_constraint_is_admitted_and_discriminates` | `i64::>` compiles, fires, prunes | count == 1 |
+//! | `cross_type_constraint_is_refused_at_compile` | `i64::>` on a `String` field is a COMPILE error | `expect_err` (ConstraintTypeMismatch) |
 //!
-//! Row 4 is why the fix is worth more than a rename: it makes the *unmeasured* runtime question
-//! (does a cross-type compare raise mid-fire, or silently answer false?) **stop existing** rather
-//! than get answered. Today that clause is admitted and its semantics are unproven — two earlier
-//! runs failed to distinguish the two outcomes because the harness could not tell them apart
-//! (`[[feedback_a_pass_answers_only_the_question_the_instrument_asks]]`).
+//! Row 4 makes the unmeasured runtime question (does a cross-type compare raise mid-fire, or
+//! silently answer false?) **stop existing** rather than get answered.
 //!
 //! **This probe does not cover site 4 of the four** — `alpha_tree.rs:243`'s equality fan-out —
 //! because it does not need to. `alpha_tree_discriminates_candidates_to_about_one_at_50_100`
@@ -105,8 +96,8 @@ fn assert_refusal_names_head(msg: &str, head: &str) {
     );
 }
 
-/// RED. Generic `>` inside a fact pattern must be refused — it is a non-rete head on the LHS,
-/// and it is PARTIAL (`compare_values`'s `?`).
+/// Generic `>` inside a fact pattern is refused — it is a non-rete head on the LHS
+/// (NonReteConstraint / Law A freeze wall).
 #[test]
 fn untyped_ordering_constraint_is_refused() {
     let r = run_fixture(UNTYPED_ORDERING);
@@ -117,7 +108,7 @@ fn untyped_ordering_constraint_is_refused() {
     assert_refusal_names_head(&msg, ":wat::core::>");
 }
 
-/// RED. Generic `=` likewise. Called out separately because `=` is the op the alpha
+/// Generic `=` likewise. Called out separately because `=` is the op the alpha
 /// discrimination tree keys on (`alpha_tree.rs:243`) — migrating it is the half with the silent
 /// failure mode, so it gets its own row rather than riding on the ordering one.
 #[test]
@@ -130,7 +121,7 @@ fn untyped_equality_constraint_is_refused() {
     assert_refusal_names_head(&msg, ":wat::core::=");
 }
 
-/// RED. The per-type spelling must be ADMITTED and must actually DISCRIMINATE.
+/// The per-type spelling is ADMITTED and actually DISCRIMINATEs.
 ///
 /// The count is the non-vacuity guard, and it is what makes this row worth more than "it compiled":
 /// two facts are staged (`value 42`, `value 3`) and exactly ONE satisfies `> 10`. A constraint that
@@ -147,12 +138,12 @@ fn per_type_constraint_is_admitted_and_discriminates() {
     );
 }
 
-/// RED, and this is the payoff row. `i64::>` against a `String` field must be a COMPILE error.
+/// The payoff row. `i64::>` against a `String` field is a COMPILE error.
 ///
-/// This is what makes the fix more than a rename: today the cross-type case is *admitted* and its
-/// runtime semantics are UNPROVEN (raise mid-fire, or silently answer false — the NaN-shaped mask).
-/// After the fix the question stops existing, because the clause cannot be written: the lhs is a
-/// field keyword of a declared `defrecord`, so its type is in hand at compile time.
+/// This is what makes the fix more than a rename: the cross-type question (raise mid-fire, or
+/// silently answer false — the NaN-shaped mask) stops existing, because the clause cannot be
+/// written: the lhs is a field keyword of a declared `defrecord`, so its type is in hand at
+/// compile time.
 #[test]
 fn cross_type_constraint_is_refused_at_compile() {
     let r = run_fixture(CROSS_TYPE);
@@ -160,11 +151,9 @@ fn cross_type_constraint_is_refused_at_compile() {
         "`(:wat::rete::core::i64::> :location 10)` on a String-typed field must be a COMPILE error \
          — the per-type surface is what deletes the incomparable-operands domain hole",
     );
-    // ⛔ NON-VACUITY. This row PASSED on its first run — for the wrong reason. Today the rete
-    // spelling is not in the grammar at all, so the clause is `Unrecognized` and validation emits
-    // `MalformedClause: … not a recognized :when shape`. That is a refusal, but it is not a TYPE
-    // check, and a row that accepts it would go green the moment the grammar was widened and stay
-    // green even if no type were ever checked — `[[feedback_a_green_test_can_prove_nothing]]`.
+    // ⛔ NON-VACUITY. The refusal must be a TYPE check, not a shape error. A `MalformedClause:
+    // … not a recognized :when shape` refusal would go green the moment the grammar was widened
+    // and stay green even if no type were ever checked — `[[feedback_a_green_test_can_prove_nothing]]`.
     // So: the refusal must NOT be the shape error. Name what would have to break.
     // rune:lint(loose-assert) — targeted ABSENCE of MalformedClause over a ReteCheckErrors blob
     // that still embeds an absolute Span path.

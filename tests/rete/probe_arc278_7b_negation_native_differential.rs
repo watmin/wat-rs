@@ -1,10 +1,8 @@
-//! Arc 278 — Stone 7-b: negation (`:not`/NegationNode) in the NATIVE kernel + the DIFFERENTIAL (native==oracle).
-//! RED at HEAD (7-a taught the ORACLE + compile the NegationNode, but the native delta engine
-//! `fire_fixpoint_delta` has no negation filter → native under-derives → native ≠ oracle).
-//! GREEN when 7-b lands. Contract: DESIGN-STONE-7-negation.md (the 7-b entry).
+//! Arc 278 stone 7-b — negation (`:not`/NegationNode) in the native kernel; `fire-rules` == `fire-rules$oracle`.
+//! Dual-impl: the unprimed public Fn is native; `$oracle` is the spec mouth.
 //!
-//! `fire-rules` = native (P5a → `fire-rules'`); `fire-rules-spec` = the wat oracle. For a `:not` rule the
-//! two MUST agree. Negation passes a token iff NO fact matches the negated condition for its bindings.
+//! For a `:not` rule the two mouths agree. Negation passes a token iff NO fact matches the negated
+//! condition for its bindings. Native and oracle: absent (1), present-matching (0), present-different (1).
 //!
 //! Run: cargo test --release -p wat --test probe_arc278_7b_negation_native_differential
 

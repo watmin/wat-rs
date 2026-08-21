@@ -127,7 +127,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
     kind: FireKind,
 ) -> Result<Value, EvalBreak> {
     let __in = phase_start();
-    let mut wm = to_transient(session)?;
+    let mut wm = to_transient_for_fire(session)?;
     phase_end("IN: to_transient", __in);
     let __setup = phase_start();
 
@@ -402,9 +402,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
                             let keys = gather_join_keys(
                                 &bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds),
                                 std::slice::from_ref(el),
-                                &wm.bind_keys,
-                                &wm.bind_vals,
-                                &wm.bind_pool,
+                                GatherIntern::from_wm(&wm),
                             );
                             join_keys_cache.insert(*child_id, keys);
                             true // first keying: catch-up full-join needed
@@ -1026,7 +1024,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
                 )?;
                 tests_done.extend(sibs);
             } else {
-                // NegationNode / ExistsNode struct_form: id(0), <kind>-alpha-id(1), children(2).
+                // NegationNode / ExistsNode: fire reads named fields via node_ref_alpha_id.
                 // Same gather as Acc: probe gather_cache for the token's join-key bucket.
                 // Verdict inverts by kind: NegationNode passes iff ZERO compatible, ExistsNode
                 // iff ≥1. The index is over FULL cumulative wm.alpha (step 1 ran first).
@@ -1592,7 +1590,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
         }
     }
 
-    harvest_query_memory(&mut wm, parents_of);
+    harvest_query_memory(&mut wm, parents_of, &arm.kind_ids.query);
     let __drop = phase_start();
     if matches!(kind, FireKind::Rules) {
         wm.alpha.clear();

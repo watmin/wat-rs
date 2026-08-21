@@ -18,7 +18,7 @@ fn call(fn_name: &str) -> Value {
     call_beside_value(file!(), fn_name).unwrap_or_else(|e| panic!("eval raised: {e:?}"))
 }
 
-// ─── Single rule: fire-rules' on a one-round derivation == fire-rules ──────────────
+// ─── Single rule: fire-rules on a one-round derivation == fire-rules$oracle ──────────────
 
 #[test]
 fn compile_cw_fires_nothing() {
@@ -39,7 +39,7 @@ fn seed_oslo_session_builds() {
 fn native_matches_wat_single_rule_match() {
     let native = call(":user::single-native-oslo");
     let wat = call(":user::single-wat-oslo");
-    assert_eq!(native, wat, "native fire-rules' must agree with wat fire-rules (Oslo); {native:?} vs {wat:?}");
+    assert_eq!(native, wat, "native fire-rules must agree with fire-rules$oracle (Oslo); {native:?} vs {wat:?}");
     assert_eq!(native, Value::i64(1), "the match derives exactly one ColdAndWindy; got {native:?}");
 }
 
@@ -66,7 +66,7 @@ fn native_matches_wat_cascade_first_rule() {
 #[test]
 fn native_matches_wat_cascade_second_rule() {
     // The forward-chain canary: WeatherAlert is derived ONLY if the round-1 ColdAndWindy re-entered the
-    // network and triggered ruleB. If fire-rules' didn't cascade, native would be 0 while wat is 1.
+    // network and triggered ruleB. If fire-rules didn't cascade, native would be 0 while wat is 1.
     let native = call(":user::cascade-native-wa");
     let wat = call(":user::cascade-wat-wa");
     assert_eq!(native, wat, "native must cascade derived→higher-rule like wat; {native:?} vs {wat:?}");

@@ -1,11 +1,9 @@
-//! Arc 278 — Stone 6b-i: `eval-test`, the runtime evaluator for `where`/`:test` predicates.
-//! RED at HEAD (`:wat::rete::eval-test` has no dispatch arm). GREEN when 6b-i lands.
-//! Contract: DESIGN-STONE-6b-where-test.md.
+//! Arc 278 stone 6b-i — `eval-test`, the runtime evaluator for `where`/`:test` predicates.
 //!
 //! `(:wat::rete::eval-test <quoted-expr: :wat::WatAST> <bindings: :wat::core::PersistentMap>) -> :bool`
-//! evaluates a boolean expr against a token's merged bindings (`?var → value`). It reaches ANY pure ∧
-//! deterministic op — comparisons, computed operands, string predicates, AND user fns (the whole point:
-//! "use their own fn for filtering"). A non-bool result is a TypeMismatch (a `where` is a predicate).
+//! evaluates a boolean expr against a token's merged bindings (`?var → value`). Comparisons, computed
+//! operands, string predicates, AND user fns (the whole point: "use their own fn for filtering").
+//! A non-bool result is a TypeMismatch (a `where` is a predicate). Live mouth: `eval-test`.
 //!
 //! Run: cargo test --release -p wat --test probe_arc278_6b_eval_test
 

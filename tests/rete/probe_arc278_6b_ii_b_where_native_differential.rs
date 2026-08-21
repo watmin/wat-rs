@@ -1,11 +1,9 @@
-//! Arc 278 — Stone 6b-ii-b: `where`/TestNode in the NATIVE kernel + the DIFFERENTIAL (native == oracle).
-//! RED at HEAD (6b-ii-a taught the ORACLE + compile the TestNode, but the native delta engine
-//! `fire_fixpoint_delta` has no test-pass → the native production reads an empty TestNode beta → native
-//! UNDER-derives → native ≠ oracle). GREEN when 6b-ii-b lands.
-//! Contract: DESIGN-STONE-6b-where-test.md (the 6b-ii-b entry).
+//! Arc 278 stone 6b-ii-b — `where`/TestNode in the native kernel; native `fire-rules` == `fire-rules$oracle`.
+//! Dual-impl: the unprimed public Fn is native; `$oracle` is the spec mouth.
 //!
-//! `fire-rules` is the PUBLIC native engine (P5a → native `fire-rules'`); `fire-rules-spec` is the wat
-//! oracle (the differential reference). For a rule with a `where`, the two MUST agree on the derived facts.
+//! For a rule with a `where`, both mouths agree: `(> -5 -50)` derives one ColdAndWindy; `(> -5 100)`
+//! derives zero. Live mouths: `collect-rules`, `compile-all`, `insert`, `fire-rules`, `fire-rules$oracle`,
+//! `query`.
 //!
 //! Run: cargo test --release -p wat --test probe_arc278_6b_ii_b_where_native_differential
 
@@ -37,7 +35,7 @@ fn world(threshold: i64) -> String {
     )
 }
 
-/// Fire the world through `fire_fn` (the oracle `fire-rules-spec` or the native `fire-rules`) and count
+/// Fire the world through `fire_fn` (the oracle `fire-rules$oracle` or the native `fire-rules`) and count
 /// the derived ColdAndWindy facts. Temperature(-5, Oslo) ⋈ WindSpeed(45, Oslo) → one joined token.
 fn count(world_src: &str, fire_fn: &str) -> Result<i64, String> {
     let run = format!(

@@ -15,7 +15,7 @@ use super::{
     session_network, rule_asts_field, rule_bag_consumes, rule_consumes, rule_name_of, rule_negates,
     rule_produces, sorted_node_ids,
     AlphaDelta, AlphasByType, BetaMemory, ChildrenOf, JoinsFedBy, NodeKind, ParentsOf, TestChildren,
-    TestSibs,
+    TestSibs, StratifyView,
 };
 use crate::runtime::ValueSnapshot;
 
@@ -23,11 +23,7 @@ use crate::runtime::ValueSnapshot;
 #[derive(Clone, Debug)]
 pub(crate) struct RuleDep {
     pub name: String,
-    pub produced: Vec<String>,
-    pub negated: Vec<String>,
-    pub consumed: Vec<String>,
-    /// Exists-inner / accumulate `:from` types (`rule_bag_consumes`).
-    pub exists_and_from_types: Vec<String>,
+    pub view: StratifyView,
 }
 
 /// Rete control plane, specialized once at fire setup. The round loop
@@ -454,6 +450,57 @@ pub(crate) fn invert_feeding_alpha(feeding_alpha_of: &HashMap<i64, i64>) -> Join
     out
 }
 
+/// One intern-topology decision: children / feeding-alpha / parents / beta-readers.
+/// `build_rete_arm`, `subset_rete_arm`, and Export import share this walk.
+pub(crate) struct NetworkEdges {
+    pub feeding_alpha_of: HashMap<i64, i64>,
+    pub parents_of: ParentsOf,
+    pub children_of: ChildrenOf,
+    pub beta_readers: HashSet<i64>,
+}
+
+pub(crate) fn index_network_edges(network: &Value, node_ids: &[i64]) -> NetworkEdges {
+    let mut feeding_alpha_of: HashMap<i64, i64> = HashMap::new();
+    let mut parents_of: ParentsOf = HashMap::new();
+    let mut children_of: ChildrenOf = HashMap::new();
+    for node_id in node_ids {
+        let Some(node) = get_node(network, *node_id) else {
+            continue;
+        };
+        let kids = node_children(node);
+        children_of.insert(*node_id, kids.clone());
+        let is_alpha = kind_of(node) == NodeKind::Alpha;
+        for child in kids {
+            if is_alpha {
+                feeding_alpha_of.insert(child, *node_id);
+            } else {
+                parents_of.entry(child).or_default().push(*node_id);
+            }
+        }
+    }
+    let mut beta_readers = HashSet::new();
+    for node_id in node_ids {
+        let Some(node) = get_node(network, *node_id) else {
+            continue;
+        };
+        for child in node_children(node) {
+            if let Some(child_node) = get_node(network, child) {
+                let k = kind_of(child_node);
+                if k == NodeKind::HashJoin || k == NodeKind::Query {
+                    beta_readers.insert(*node_id);
+                    break;
+                }
+            }
+        }
+    }
+    NetworkEdges {
+        feeding_alpha_of,
+        parents_of,
+        children_of,
+        beta_readers,
+    }
+}
+
 /// Seed dirty join-parents: left `d_beta` or a HashJoin child whose
 /// feeding alpha has right-delta. The hash-join pass grows this set as
 /// it emits (middle joins: J1's tokens dirty J1 as parent of J2).
@@ -706,42 +753,12 @@ pub(crate) fn build_rete_arm(
         );
     }
 
-    let mut feeding_alpha_of: HashMap<i64, i64> = HashMap::new();
-    let mut parents_of: ParentsOf = HashMap::new();
-    let mut children_of: ChildrenOf = HashMap::new();
-    for node_id in &node_ids {
-        let node = match get_node(network, *node_id) {
-            Some(n) => n,
-            None => continue,
-        };
-        let kids = node_children(node);
-        children_of.insert(*node_id, kids.clone());
-        let is_alpha = kind_of(node) == NodeKind::Alpha;
-        for child in kids {
-            if is_alpha {
-                feeding_alpha_of.insert(child, *node_id);
-            } else {
-                parents_of.entry(child).or_default().push(*node_id);
-            }
-        }
-    }
-
-    let mut beta_readers = HashSet::new();
-    for node_id in &node_ids {
-        let node = match get_node(network, *node_id) {
-            Some(n) => n,
-            None => continue,
-        };
-        for child in node_children(node) {
-            if let Some(child_node) = get_node(network, child) {
-                let k = kind_of(child_node);
-                if k == NodeKind::HashJoin || k == NodeKind::Query {
-                    beta_readers.insert(*node_id);
-                    break;
-                }
-            }
-        }
-    }
+    let NetworkEdges {
+        feeding_alpha_of,
+        parents_of,
+        children_of,
+        beta_readers,
+    } = index_network_edges(network, &node_ids);
 
     let rule_vec: Vec<Value> = match rules {
         Value::wat__core__PersistentVector(pv) => pv.iter().cloned().collect(),
@@ -854,10 +871,12 @@ pub(crate) fn rule_deps_from_rules(rules: &Value, sym: &SymbolTable) -> Vec<Rule
         let rhs = rule_asts_field(r, "rhs");
         out.push(RuleDep {
             name,
-            produced: rule_produces(&rhs, sym),
-            negated: rule_negates(&lhs),
-            consumed: rule_consumes(&lhs),
-            exists_and_from_types: rule_bag_consumes(&lhs),
+            view: StratifyView {
+                produced: rule_produces(&rhs, sym),
+                negated: rule_negates(&lhs),
+                consumed: rule_consumes(&lhs),
+                exists_and_from_types: rule_bag_consumes(&lhs),
+            },
         });
     }
     out
@@ -916,39 +935,12 @@ pub(crate) fn subset_rete_arm(
         .collect();
     let alpha_tree = arm.alpha_tree.restrict(active_ids);
 
-    let mut feeding_alpha_of: HashMap<i64, i64> = HashMap::new();
-    let mut parents_of: ParentsOf = HashMap::new();
-    let mut children_of: ChildrenOf = HashMap::new();
-    for node_id in &node_ids {
-        let Some(node) = get_node(sliced_network, *node_id) else {
-            continue;
-        };
-        let kids = node_children(node);
-        children_of.insert(*node_id, kids.clone());
-        let is_alpha = kind_of(node) == NodeKind::Alpha;
-        for child in kids {
-            if is_alpha {
-                feeding_alpha_of.insert(child, *node_id);
-            } else {
-                parents_of.entry(child).or_default().push(*node_id);
-            }
-        }
-    }
-    let mut beta_readers = HashSet::new();
-    for node_id in &node_ids {
-        let Some(node) = get_node(sliced_network, *node_id) else {
-            continue;
-        };
-        for child in node_children(node) {
-            if let Some(child_node) = get_node(sliced_network, child) {
-                let k = kind_of(child_node);
-                if k == NodeKind::HashJoin || k == NodeKind::Query {
-                    beta_readers.insert(*node_id);
-                    break;
-                }
-            }
-        }
-    }
+    let NetworkEdges {
+        feeding_alpha_of,
+        parents_of,
+        children_of,
+        beta_readers,
+    } = index_network_edges(sliced_network, &node_ids);
     let compiled_max_slots = compiled_conds
         .values()
         .map(|c: &crate::rete::compiled_cond::CompiledCond| c.n_slots())

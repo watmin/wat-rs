@@ -1,13 +1,11 @@
-//! Arc 278 stone 1a — disconfirming probe: the rete data model (RED at HEAD).
+//! Arc 278 stone 1a — nine rete node records + `Session`. No `:wat::rete::Node` defenum.
 //!
-//! Stone 1a mints `wat/rete.wat` with the engine's data records + the `Node` defenum + the `Session`
-//! record (the whole caller-facing engine state), on the stone-0 persistent collections. This probe builds
-//! a tiny network BY HAND — a RootJoinNode(id 0) → ProductionNode(id 1) — puts them in `Session.network`
-//! (a PersistentMap id→Node), and asserts (a) the network holds both nodes, (b) `render-dag` produces a
-//! non-empty inspectable string. No compile, no fire — just the data model standing as data.
-//!
-//! RED at HEAD: `:wat::rete::Session` / `RootJoinNode` / `render-dag` are unknown heads → eval error → the
-//! `expect`s panic. Compiles at HEAD (public API + wat strings); fails at RUNTIME on exactly the gap.
+//! `wat/rete.wat` holds nine node records (Alpha / RootJoin / HashJoin / Production / Test /
+//! Negation / Exists / Accumulate / Query) plus `Session`. This probe builds a tiny network BY
+//! HAND — a `RootJoinNode`(id 0) → `ProductionNode`(id 1) — puts them in `Session.network`
+//! (PersistentMap id→record), and asserts (a) the network holds both nodes, (b) `render-dag`
+//! produces a non-empty inspectable string. No compile, no fire — the data model standing as data.
+//! Live mouths: `Session`, `RootJoinNode`, `ProductionNode`, `render-dag`.
 //!
 //! Run: cargo test --release -p wat --test probe_arc278_1a_data_model -- --include-ignored
 

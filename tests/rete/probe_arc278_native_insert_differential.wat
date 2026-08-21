@@ -58,7 +58,7 @@
 (:wat::core::defn :nin::staged-count [s <- :wat::rete::Session] -> :wat::core::i64
   (:wat::core::length (:wat::rete::Session/facts s)))
 
-;; `query-by-type-string` returns a bare `PersistentVector` (untyped elements) — the checker said so
+;; `query` returns a bare `PersistentVector` (untyped elements) — the checker said so
 ;; on the first pass, and the accum grid axis reads it the same way (map a concretely-typed fn over
 ;; the result). Declaring `Vector<nin::Out>` here was my error, not the subject's.
 (:wat::core::defn :nin::fired-outs [s <- :wat::rete::Session] -> :wat::core::PersistentVector

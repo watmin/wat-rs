@@ -7,9 +7,9 @@
 ;; a non-matching one (15), fire-once, and inspect alpha-memory (the three probe assertions below).
 ;;
 ;; arc 278 "alpha is fire-scoped" (v2): fires via `fire-once` — native single-pass — not `fire-rules`.
-;; `fire-once` mirrors the oracle's `fire-once`, which genuinely populates alpha (rete.wat:1462), so
+;; `fire-once` mirrors the oracle's `fire-once$oracle`, which genuinely populates alpha (rete.wat:1462), so
 ;; it stays a truthful home; the fixpoint verb `fire-rules` now clears alpha before freeze (it agrees
-;; with the oracle's `fire-rules-spec`, which returns alpha empty via `fire-stratified`). The rule's
+;; with the oracle's `fire-rules$oracle`, which returns alpha empty via `fire-stratified`). The rule's
 ;; RHS is empty, so single-pass and fixpoint coincide for these three assertions regardless.
 
 (:wat::core::defn :test::compile-temp-rule [] -> :wat::rete::Session

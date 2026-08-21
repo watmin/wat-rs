@@ -1,6 +1,6 @@
 ;; Two standalone `:where` clauses — mid-chain AND trailing.
 ;;
-;; Native `fire-rules` used to derive nothing; `fire-rules-spec` derived Oslo.
+;; Native `fire-rules` used to derive nothing; `fire-rules$oracle` derived Oslo.
 ;; Spec is the oracle. Native is the user path. They must agree. Clara
 ;; where-join-order rows 5–6 are this chain (Test → HashJoin → Test).
 

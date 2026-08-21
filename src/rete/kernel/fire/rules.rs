@@ -374,7 +374,7 @@ pub(crate) fn fire_rules_on_session(
         }
     }
     // rune:temperare(simplicity-win) — AST sessions re-walk lhs/rhs to learn max_s; interned
-    // arm.rule_deps is the Export door. n rules is small; intern-first on AST is a later hoist.
+    // arm.rule_deps is the Export door. n rules is small.
     let mut parts: Vec<RuleParts> = Vec::with_capacity(rules.len());
     for r in &rules {
         if rule_named_field(r, "name").is_none() {
@@ -388,20 +388,22 @@ pub(crate) fn fire_rules_on_session(
         let exists_and_from_types = rule_bag_consumes(&lhs);
         parts.push(RuleParts {
             rule: r.clone(),
-            produced,
-            negated,
-            consumed,
-            exists_and_from_types,
+            view: StratifyView {
+                produced,
+                negated,
+                consumed,
+                exists_and_from_types,
+            },
         });
     }
 
-    let pn_only: Vec<StratifyView> = parts.iter().map(RuleParts::view).collect();
+    let pn_only: Vec<StratifyView> = parts.iter().map(|p| p.view.clone()).collect();
     let type_strata = native_stratify(&pn_only)?;
 
     let mut max_s: i64 = 0;
     let mut rule_strata: Vec<i64> = Vec::with_capacity(parts.len());
     for part in &parts {
-        let s = native_rule_stratum(&part.produced, &part.negated, &type_strata);
+        let s = native_rule_stratum(&part.view.produced, &part.view.negated, &type_strata);
         rule_strata.push(s);
         if s > max_s {
             max_s = s;

@@ -56,7 +56,7 @@
 (:wat::core::defn :user::seed-oslo-session [] -> :wat::rete::Session
   (:test::seed-oslo (:test::compile-cw)))
 
-;; ── single rule: fire-rules' on a one-round derivation == fire-rules-spec ──────────
+;; ── single rule: fire-rules (native) on a one-round derivation == fire-rules$oracle ──────────
 ;; wind_loc and the fire verb are each 2-valued and every combination a #[test] needs is a fixed,
 ;; enumerable named entry — no runtime parameterization.
 

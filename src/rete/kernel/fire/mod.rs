@@ -554,9 +554,7 @@ fn keyed_join(
     let join_keys: Vec<Value> = gather_join_keys(
         &bind_view(ctx.keys, ctx.vals, ctx.pool, left_tokens[0].binds),
         right_elements,
-        ctx.keys,
-        ctx.vals,
-        ctx.pool,
+        GatherIntern::from_ctx(ctx),
     );
 
     // Step 2: index RIGHT (elements) by join-key-value tuple.
@@ -608,9 +606,7 @@ fn keyed_join_persistent(
         gather_join_keys(
             &bind_view(ctx.keys, ctx.vals, ctx.pool, left_tokens[0].binds),
             right_elements,
-            ctx.keys,
-            ctx.vals,
-            ctx.pool,
+            GatherIntern::from_ctx(ctx),
         )
     });
     let already = idx.indexed_n.get(&join_id).copied().unwrap_or(0);
@@ -815,22 +811,21 @@ pub(crate) fn fire_once_session(session: &Value, sym: &SymbolTable) -> Result<Va
     fire_fixpoint_delta_armed(session, sym, None, None, FireKind::Once)
 }
 
-fn harvest_query_memory(wm: &mut FireSession, parents_of: &ParentsOf) {
+fn harvest_query_memory(wm: &mut FireSession, parents_of: &ParentsOf, query_ids: &[i64]) {
     wm.query.clear();
-    let node_ids = sorted_node_ids(&wm.network);
-    for node_id in node_ids {
-        let node = match get_node(&wm.network, node_id) {
+    if query_ids.is_empty() {
+        return;
+    }
+    for node_id in query_ids {
+        let node = match get_node(&wm.network, *node_id) {
             Some(n) => n,
             None => continue,
         };
-        if kind_of(node) != NodeKind::Query {
-            continue;
-        }
         let Some(qname) = node_named_string(node, "query-name").map(str::to_string) else {
             continue;
         };
         let mut maps: Vec<crate::value::pmap::PMap> = Vec::new();
-        let pids = parents_of.get(&node_id).map(|v| v.as_slice()).unwrap_or(&[]);
+        let pids = parents_of.get(node_id).map(|v| v.as_slice()).unwrap_or(&[]);
         for pid in pids {
             if let Some(ts) = wm.beta.get(pid) {
                 maps.extend(ts.iter().map(|t| pmap_from_span(t.binds, &wm.bind_keys, &wm.bind_vals, &wm.bind_pool)));
@@ -989,18 +984,15 @@ pub(crate) fn fire_rules_from_deps(
     for d in deps {
         parts.push(RuleParts {
             rule: synthetic_rule(&d.name),
-            produced: d.produced.clone(),
-            negated: d.negated.clone(),
-            consumed: d.consumed.clone(),
-            exists_and_from_types: d.exists_and_from_types.clone(),
+            view: d.view.clone(),
         });
     }
-    let pn_only: Vec<StratifyView> = parts.iter().map(RuleParts::view).collect();
+    let pn_only: Vec<StratifyView> = parts.iter().map(|p| p.view.clone()).collect();
     let type_strata = native_stratify(&pn_only)?;
     let mut max_s: i64 = 0;
     let mut rule_strata: Vec<i64> = Vec::with_capacity(parts.len());
     for part in &parts {
-        let s = native_rule_stratum(&part.produced, &part.negated, &type_strata);
+        let s = native_rule_stratum(&part.view.produced, &part.view.negated, &type_strata);
         rule_strata.push(s);
         if s > max_s {
             max_s = s;
@@ -1066,14 +1058,13 @@ pub(crate) fn key_of<B: Bindings + ?Sized>(
 pub(crate) fn gather_join_keys<B: Bindings + ?Sized>(
     sample_bindings: &B,
     elements: &[Element],
-    bind_keys: &[Value],
-    vals: &[Value],
-    pool: &[(u32, u32)],
+    intern: GatherIntern<'_>,
 ) -> Vec<Value> {
     if elements.is_empty() {
         return Vec::new();
     }
-    let sample_el_bindings = element_fact_bindings(&elements[0], bind_keys, vals, pool);
+    let sample_el_bindings =
+        element_fact_bindings(&elements[0], intern.bind_keys, intern.vals, intern.pool);
     let mut keys: Vec<Value> = sample_bindings
         .iter()
         .map(|(k, _)| k)
@@ -1100,12 +1091,32 @@ pub(crate) fn gather_join_keys<B: Bindings + ?Sized>(
 /// Unary when `join_keys.len() == 1` — no one-element `Vec` (`DESIGN-STONE-gather-unary-index`).
 type GatherUnary = FxHashMap<u32, Vec<usize>>;
 type GatherNary = FxHashMap<JoinKey, Vec<usize>>;
-/// Bind intern borrowed by gather append (avoids too-many-arguments).
-struct GatherIntern<'a> {
+/// Bind intern borrowed by gather (avoids too-many-arguments).
+pub(crate) struct GatherIntern<'a> {
     bind_keys: &'a [Value],
     vals: &'a [Value],
     pool: &'a [(u32, u32)],
     val_ids: &'a ValIntern,
+}
+
+impl<'a> GatherIntern<'a> {
+    fn from_ctx(ctx: &'a FireCtx<'_>) -> Self {
+        Self {
+            bind_keys: ctx.keys,
+            vals: ctx.vals,
+            pool: ctx.pool,
+            val_ids: ctx.val_ids,
+        }
+    }
+
+    pub(crate) fn from_wm(wm: &'a FireSession) -> Self {
+        Self {
+            bind_keys: &wm.bind_keys,
+            vals: &wm.bind_vals,
+            pool: &wm.bind_pool,
+            val_ids: &wm.bind_val_ids,
+        }
+    }
 }
 
 pub(crate) enum GatherIndex {
@@ -1270,7 +1281,7 @@ fn ensure_gather<'a, B: Bindings + ?Sized>(
         return None;
     }
     let join_keys: Arc<[Value]> =
-        gather_join_keys(sample, els, &wm.bind_keys, &wm.bind_vals, &wm.bind_pool).into();
+        gather_join_keys(sample, els, GatherIntern::from_wm(wm)).into();
     let index = cache.entry((alpha_id, Arc::clone(&join_keys))).or_insert_with(|| {
         census_count("accum:index-builds");
         census_count_n("accum:index-elements", els.len() as u64);

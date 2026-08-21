@@ -20992,9 +20992,11 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
-    // Arc 278 Stone 6a — the rete condition fence: two orthogonal predicates (pure ∧ deterministic).
+    // Arc 278 Stone 6a — the rete condition fence: four conjuncts (pure ∧ det ∧ total ∧ primitive?).
     // (:wat::rete::pure? <expr: :wat::WatAST>) -> :wat::core::bool          — effect-free?
     // (:wat::rete::deterministic? <expr: :wat::WatAST>) -> :wat::core::bool — referentially transparent?
+    // (:wat::rete::total? <expr: :wat::WatAST>) -> :wat::core::bool         — defined on all its inputs?
+    // (:wat::rete::primitive? <expr: :wat::WatAST>) -> :wat::core::bool     — composed only of rete primitives?
     // Default-deny: proven by intrinsic metadata or transitive user fn; everything else rejected.
     env.register(
         ":wat::rete::pure?".into(),

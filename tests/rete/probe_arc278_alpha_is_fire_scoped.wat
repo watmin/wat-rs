@@ -33,7 +33,7 @@
      amem  (:wat::rete::Session/alpha-memory fired)]
     (:wat::core::length (:wat::core::PersistentMap/keys amem))))
 
-;; (2) oracle-alpha-key-count — fired via `fire-rules-spec` (the wat ORACLE, never optimized). Expect
+;; (2) oracle-alpha-key-count — fired via `fire-rules$oracle` (the wat ORACLE, never optimized). Expect
 ;; 0: `fire-stratified` returns alpha-memory empty (rete.wat:1817-1820) — asserted here, not assumed.
 (:wat::core::defn :user::oracle-alpha-key-count [] -> :wat::core::i64
   (:wat::core::let
@@ -42,9 +42,9 @@
      amem  (:wat::rete::Session/alpha-memory fired)]
     (:wat::core::length (:wat::core::PersistentMap/keys amem))))
 
-;; (4) single-pass-alpha-key-count — fired via native `fire-once'` (single-pass). Expect > 0: THE
+;; (4) single-pass-alpha-key-count — fired via native `fire-once` (single-pass). Expect > 0: THE
 ;; ANCHOR — proves this workload really does populate alpha, so (1)/(2)/(3) are not vacuously true
-;; over a workload that matches nothing. `fire-once'` is deliberately left untouched by this stone.
+;; over a workload that matches nothing. `fire-once` is deliberately left untouched by this stone.
 (:wat::core::defn :user::single-pass-alpha-key-count [] -> :wat::core::i64
   (:wat::core::let
     [fired (:wat::rete::fire-once (:afs::built))

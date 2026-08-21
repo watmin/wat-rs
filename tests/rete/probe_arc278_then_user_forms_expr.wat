@@ -16,33 +16,35 @@
   :when [(:tf::Rate (?count <- :count))])
 
 
-;; Fires via the WAT ORACLE (fire-rules-spec) — mirrors probe_arc278_6b_ii_a_where_oracle.wat's
+(:wat::core::defn :test::compile-tf [] -> :wat::rete::Session
+  (:wat::rete::compile-all
+    (:wat::rete::collect-rules :tf)
+    (:wat::core::PersistentVector (:tf::q-Rate))))
+
+(:wat::core::defn :test::seed [s <- :wat::rete::Session] -> :wat::rete::Session
+  (:wat::rete::insert s (:tf::In :n 5)))
+
+(:wat::core::defn :test::count-rate [s <- :wat::rete::Session] -> :wat::core::i64
+  (:wat::core::Option/expect
+    (:wat::core::PersistentMap/get
+      (:wat::core::first (:wat::rete::query s (:tf::q-Rate)))
+      "?count")
+    "q-Rate: ?count"))
+
+(:wat::core::defn :test::run
+  [fire <- :wat::core::Fn(wat::rete::Session)->wat::rete::Session]
+  -> :wat::core::i64
+  (:test::count-rate (fire (:test::seed (:test::compile-tf)))))
+
+;; Fires via the WAT ORACLE (fire-rules$oracle) — mirrors probe_arc278_6b_ii_a_where_oracle.wat's
 ;; own entry-fn convention. Returns the derived Rate's `count` field: n=5 -> 6, an unconfounded
 ;; witness (no fact of count=6 could pre-exist; only the derivation can produce it).
 (:wat::core::defn :user::run-count-oracle [] -> :wat::core::i64
-  (:wat::core::let
-    [rules   (:wat::rete::collect-rules :tf)
-     session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:tf::q-Rate)))
-     session (:wat::rete::insert session (:tf::In :n 5))
-     fired   (:wat::rete::fire-rules$oracle session)
-     derived (:wat::rete::query fired (:tf::q-Rate))
-     r       (:wat::core::first derived)]
-    (:wat::core::Option/expect
-      (:wat::core::PersistentMap/get r "?count")
-      "q-Rate: ?count")))
+  (:test::run :wat::rete::fire-rules$oracle))
 
-;; The SAME rule, fired through the NATIVE delta kernel (fire-rules -> fire-rules') instead of the
+;; The SAME rule, fired through the NATIVE delta kernel (fire-rules) instead of the
 ;; oracle — this is compile_rhs's compiled `RhsOp::Expr` path (compiled_rhs.rs), not just the
 ;; interpreted `build_insert_fact` reference. Same expected value proves compiled == interpreted
 ;; end-to-end, not only in the compiled_rhs.rs unit differential.
 (:wat::core::defn :user::run-count-native [] -> :wat::core::i64
-  (:wat::core::let
-    [rules   (:wat::rete::collect-rules :tf)
-     session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:tf::q-Rate)))
-     session (:wat::rete::insert session (:tf::In :n 5))
-     fired   (:wat::rete::fire-rules session)
-     derived (:wat::rete::query fired (:tf::q-Rate))
-     r       (:wat::core::first derived)]
-    (:wat::core::Option/expect
-      (:wat::core::PersistentMap/get r "?count")
-      "q-Rate: ?count")))
+  (:test::run :wat::rete::fire-rules))

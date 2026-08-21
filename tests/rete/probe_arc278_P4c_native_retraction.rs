@@ -14,7 +14,7 @@
 use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
-// just-eval (rubric): the fire verb (native fire-rules' vs oracle fire-rules-spec) is 2-valued and
+// just-eval (rubric): the fire verb (native fire-rules vs oracle fire-rules$oracle) is 2-valued and
 // every scenario a #[test] needs is a fixed, enumerable named entry in the co-located fixture.
 fn call(fn_name: &str) -> Value {
     call_beside_value(file!(), fn_name).unwrap_or_else(|e| panic!("eval raised: {e:?}"))
@@ -24,8 +24,8 @@ fn call(fn_name: &str) -> Value {
 #[test]
 fn native_retract_drops_consequence_like_wat() {
     for (verb, fn_name) in [
-        ("fire-rules'", ":user::native-retract-drops-cw"),
-        ("fire-rules-spec", ":user::oracle-retract-drops-cw"),
+        ("fire-rules", ":user::native-retract-drops-cw"),
+        ("fire-rules$oracle", ":user::oracle-retract-drops-cw"),
     ] {
         assert_eq!(call(fn_name), Value::i64(0),
             "[{verb}] retracting Temperature drops the ColdAndWindy it supported");
@@ -36,8 +36,8 @@ fn native_retract_drops_consequence_like_wat() {
 #[test]
 fn native_retract_cascades_transitively_like_wat() {
     for (verb, fn_name) in [
-        ("fire-rules'", ":user::native-retract-cascade-wa"),
-        ("fire-rules-spec", ":user::oracle-retract-cascade-wa"),
+        ("fire-rules", ":user::native-retract-cascade-wa"),
+        ("fire-rules$oracle", ":user::oracle-retract-cascade-wa"),
     ] {
         assert_eq!(call(fn_name), Value::i64(0),
             "[{verb}] transitive TM: WeatherAlert (from derived ColdAndWindy) is gone too");
@@ -49,8 +49,8 @@ fn native_retract_cascades_transitively_like_wat() {
 fn native_retract_is_precise_like_wat() {
     let mut results = vec![];
     for (verb, cw_fn, wa_fn) in [
-        ("fire-rules'", ":user::native-retract-precise-cw", ":user::native-retract-precise-wa"),
-        ("fire-rules-spec", ":user::oracle-retract-precise-cw", ":user::oracle-retract-precise-wa"),
+        ("fire-rules", ":user::native-retract-precise-cw", ":user::native-retract-precise-wa"),
+        ("fire-rules$oracle", ":user::oracle-retract-precise-cw", ":user::oracle-retract-precise-wa"),
     ] {
         let cw = call(cw_fn);
         let wa = call(wa_fn);
@@ -58,5 +58,5 @@ fn native_retract_is_precise_like_wat() {
         assert_eq!(wa, Value::i64(1), "[{verb}] Bergen's WeatherAlert survives");
         results.push((cw, wa));
     }
-    assert_eq!(results[0], results[1], "native fire-rules' TM must equal wat fire-rules TM exactly");
+    assert_eq!(results[0], results[1], "native fire-rules TM must equal fire-rules$oracle TM exactly");
 }

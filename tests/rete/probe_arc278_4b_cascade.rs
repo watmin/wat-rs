@@ -1,8 +1,7 @@
-//! Arc 278 stone 4b — disconfirming probe: cascade-to-fixpoint. RED at HEAD.
+//! Arc 278 stone 4b — cascade-to-fixpoint: a derived fact re-enters the network.
 //!
-//! The second slice of stone 4. A derived fact must RE-ENTER the network so a rule that consumes it can fire.
 //! A 2-rule chain proves it: rule A derives ColdAndWindy from Temp+Wind; rule B fires on ColdAndWindy and
-//! derives WeatherAlert. Cold-and-windy alone (4a) can't show cascade — nothing consumes ColdAndWindy.
+//! derives WeatherAlert. Live mouths: `compile-all`, `insert`, `fire-rules`, `query`.
 //!
 //!   A :when [(:weather::Temperature (?loc <- :location) (?t <- :celsius) (:wat::core::< ?t 20))
 //!            (:weather::WindSpeed    (?loc <- :location) (?w <- :kph)     (:wat::core::> ?w 30))]
@@ -14,9 +13,6 @@
 //!   has exactly ONE ColdAndWindy + ONE WeatherAlert (no re-derivation inflation across rounds).
 //! - NO TRIGGER (diff loc): A never fires → no ColdAndWindy → B never fires → zero derived facts (and the
 //!   fixpoint terminates without spinning).
-//!
-//! RED at HEAD: `fire-rules` is single-pass (4a) — ColdAndWindy lands in production-memory but never re-enters,
-//! so rule B never fires and WeatherAlert is never derived.
 //!
 //! Run: cargo test --release -p wat --test probe_arc278_4b_cascade -- --include-ignored
 
@@ -36,7 +32,7 @@ fn cascade_fired_session_builds() {
 
 #[test]
 fn cascade_fires_rule_b_on_rule_a_output() {
-    // THE HEART of 4b: rule B fires on the fact rule A derived. RED at HEAD (single-pass — B never fires).
+    // THE HEART of 4b: rule B fires on the fact rule A derived.
     let got = call_beside_value(file!(), ":user::weatheralert-count-oslo").expect("eval");
     assert_eq!(got, Value::i64(1), "B should fire on A's derived ColdAndWindy → one WeatherAlert; got {got:?}");
 }

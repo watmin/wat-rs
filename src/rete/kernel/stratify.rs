@@ -113,21 +113,7 @@ pub(crate) struct StratifyView {
 #[derive(Clone)]
 pub(crate) struct RuleParts {
     pub rule: Value,
-    pub produced: Vec<String>,
-    pub negated: Vec<String>,
-    pub consumed: Vec<String>,
-    pub exists_and_from_types: Vec<String>,
-}
-
-impl RuleParts {
-    pub(crate) fn view(&self) -> StratifyView {
-        StratifyView {
-            produced: self.produced.clone(),
-            negated: self.negated.clone(),
-            consumed: self.consumed.clone(),
-            exists_and_from_types: self.exists_and_from_types.clone(),
-        }
-    }
+    pub view: StratifyView,
 }
 
 /// The fact types a rule reads POSITIVELY (task #94 — the input the stratifier never had).

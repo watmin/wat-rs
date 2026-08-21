@@ -806,6 +806,28 @@ pub(crate) fn exec_where<B: Bindings + ?Sized>(
     }
 }
 
+fn write_slot(
+    frame: &mut [Option<Value>],
+    slot: u16,
+    v: Value,
+    span: &Span,
+) -> Result<(), EvalBreak> {
+    match frame.get_mut(slot as usize) {
+        Some(s) => {
+            *s = Some(v);
+            Ok(())
+        }
+        None => Err(RuntimeError::new(
+            span.clone(),
+            RuntimeErrorKind::MalformedForm {
+                head: ":wat::rete::exec_value".into(),
+                reason: format!("slot {slot} is outside frame_len {}", frame.len()),
+            },
+        )
+        .into()),
+    }
+}
+
 /// Prologue (token bindings → slots) + eval. `where` requires bool;
 /// `compiled_rhs` takes the `Value` as a fact field.
 pub(crate) fn exec_value<B: Bindings + ?Sized>(
@@ -817,7 +839,7 @@ pub(crate) fn exec_value<B: Bindings + ?Sized>(
     with_exec_frame(program.frame_len as usize, |frame| {
         for (k, slot) in program.reads.iter() {
             if let Some(v) = bindings.get(k) {
-                frame[*slot as usize] = Some(v.clone());
+                write_slot(frame, *slot, v.clone(), span)?;
             }
         }
         exec(&program.root, frame, &program.names, sym, span)
@@ -993,7 +1015,7 @@ fn exec(
         Expr::Let { binds, body } => {
             for (slot, e) in binds.iter() {
                 let v = exec(e, frame, names, sym, span)?;
-                frame[*slot as usize] = Some(v);
+                write_slot(frame, *slot, v, span)?;
             }
             exec(body, frame, names, sym, span)
         }
@@ -1168,10 +1190,13 @@ fn exec_foldl(
 fn pat_matches(pat: &Pat, v: &Value, frame: &mut [Option<Value>]) -> bool {
     match pat {
         Pat::Wild => true,
-        Pat::Bind(s) => {
-            frame[*s as usize] = Some(v.clone());
-            true
-        }
+        Pat::Bind(s) => match frame.get_mut(*s as usize) {
+            Some(slot) => {
+                *slot = Some(v.clone());
+                true
+            }
+            None => false,
+        },
         Pat::Lit(lit) => v == lit,
         Pat::Variant { name, payload } => match v {
             Value::Option(opt) => match (name.as_str(), opt.as_ref()) {
