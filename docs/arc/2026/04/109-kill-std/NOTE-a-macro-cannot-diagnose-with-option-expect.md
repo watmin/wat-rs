@@ -52,7 +52,20 @@ from that string.
 So the precedent's friendly message was never doing anything, and the pattern was copied forward
 in good faith. Both `defrecord` macros now carry the same latent shape, with a comment saying so.
 
-## What a macro SHOULD use — open, not answered here
+## ⛔ ANSWERED 2026-08-21 — `:wat::core::macro-error` IS the mechanism
+
+Found while grounding β-ii-a′: `defservice`'s own clause fold uses it to reject an unknown clause
+key (`wat/service.wat:290`), and `wat/core.wat:632` / `:782` use it the same way. It produces a
+structured, catchable macro failure — exactly what `Option/expect` does not.
+
+So the open below is closed: a macro CAN diagnose properly; `Option/expect` was simply the wrong
+tool, and the "friendly string" in `defstruct` was never reachable. **The `defrecord` missing-field
+diagnostic recorded as a loss in this note is therefore fixable, and cheaply** — one `macro-error`
+call in each of the two macro bodies, guarded the way `wat/service.wat:519–529` guards its
+`init-fn-node` branch. Bounded to `wat/Record.wat`; the golden
+(`probe_arc227_stone2_defrecord__probe_two_arg_form_only_one_arg_errors.edn`) moves with it.
+
+## What a macro SHOULD use — the original open, kept for the record
 
 The honest diagnostic needs a wat-level way to raise a **structured** error from a macro body, the
 way the Rust declaration parsers raise `MalformedDecl`. `Option/expect` is not it. Candidates worth
