@@ -1,13 +1,8 @@
 ;; NEGATIVE FIXTURE — an UNTYPED inline alpha constraint using a generic ordering comparator.
 ;;
-;; `(:wat::core::> :value 10)` sits inside a fact pattern, where `classify_rete_clause`
-;; (matcher.rs:331) makes `Constraint` a sibling of `Bind`. `compile-condition` (wat/rete.wat:679)
-;; has no branch for it, so law A never sees it and this compiles + fires TODAY.
-;;
-;; Generic `>` routes through `compare_values`, whose `?` propagates the incomparable-operands
-;; error — the domain hole the per-type surface exists to delete.
-;;
-;; MUST BE REFUSED once the grammar forces the per-type rete spelling.
+;; `(:wat::core::> :value 10)` sits inside a fact pattern. Freeze wall
+;; (`validate.rs` CoreGeneric → NonReteConstraint) and intern
+;; `compile_condition_local` refuse it. Law A sees this spelling.
 ;; See DESIGN-STONE-inline-constraint-admits-non-rete.md.
 
 (:wat::core::defrecord :probe::Reading [location <- :wat::core::String  value <- :wat::core::i64])

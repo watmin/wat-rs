@@ -312,7 +312,8 @@ pub(crate) fn fire_rules_stratified(
 /// Sessions (non-empty Rule/Query forms). Export is native-only: the oracle
 /// refuses an imported Export (`wat/rete.wat` bounds Export as "Native fire
 /// only"; `wat/rete/oracle/fire.wat` fire-rules$oracle / fire-once$oracle).
-/// Native fires that Export when the interned arm has `rule_deps`.
+/// An imported Export has empty rules AST; stratify reads interned `arm.rule_deps`.
+/// A production network without those deps refuses (`refuse_export_without_arm`).
 pub(crate) fn eval_fire_rules_native(
     args: &[WatAST],
     list_span: &Span,
@@ -372,6 +373,8 @@ pub(crate) fn fire_rules_on_session(
             }
         }
     }
+    // rune:temperare(simplicity-win) — AST sessions re-walk lhs/rhs to learn max_s; interned
+    // arm.rule_deps is the Export door. n rules is small; intern-first on AST is a later hoist.
     let mut parts: Vec<RuleParts> = Vec::with_capacity(rules.len());
     for r in &rules {
         if rule_named_field(r, "name").is_none() {

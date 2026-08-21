@@ -1,8 +1,8 @@
-//! Arc 278 stone P2 — disconfirming probe: the native Rust `fire-once'` is OBSERVATIONALLY EQUIVALENT to the
-//! wat oracle `fire-once`. RED at HEAD (`fire-once'` is UnknownFunction).
+//! Arc 278 stone P2 — native `fire-once` is observationally equivalent to `fire-once$oracle`.
+//! Dual-impl: the unprimed public Fn is native; `$oracle` is the spec mouth.
 //!
-//! The differential harness for the perf close: for every input session, the native single-pass fire produces
-//! the SAME derived facts as the wat oracle's single pass — `query(fire-once' s) == query(fire-once s)`. NOT
+//! For every input session, native single-pass fire produces the SAME derived facts as the
+//! wat oracle's single pass — `query(fire-once s) == query(fire-once$oracle s)`. NOT
 //! raw Session equality (P3 restructures the memories by design); the durable contract is the derived facts.
 //!
 //! Run: cargo test --release -p wat --test probe_arc278_P2_native_fire_once -- --include-ignored

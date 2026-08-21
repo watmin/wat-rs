@@ -3,10 +3,9 @@
 //! type-ref) and the check-time type-existence validation it depends on
 //! (src/check.rs's `:wat::runtime::return-type-of` special-case).
 //!
-//! GREEN: `query` type-checks and returns the SAME derived-fact count as the untyped
-//! `query-by-type-string` escape hatch, on the SAME fired session — proven at both rule-
-//! construction shapes this rete surface supports: the `defrule`-macro-generated defn path,
-//! and a hand-built inline `Rule` literal path.
+//! GREEN: `query` type-checks and returns the derived-fact count at both rule-
+//! construction shapes: the `defrule`-macro-generated defn path, and a hand-built
+//! inline `Rule` literal path. `query-by-type-string` is retired.
 //!
 //! RED->caught: a typo'd type keyword at a `query` call site
 //! (`probe_arc278_query_type_safe_typo.wat.bad`, which must NEVER start up) is a CHECK-TIME
@@ -27,27 +26,15 @@ fn call(fn_name: &str) -> Value {
 }
 
 #[test]
-fn query_defrule_path_matches_query_by_type_string() {
+fn query_defrule_path_counts_one() {
     let via_query = call(":user::query-defrule-path");
-    let via_string = call(":user::query-by-type-string-defrule-path");
     assert_eq!(via_query, Value::i64(1), "one ColdAndWindy should have fired (Oslo equality join)");
-    assert_eq!(
-        via_query, via_string,
-        "type-safe `query` must return the SAME count as the untyped `query-by-type-string` \
-         escape hatch on the same fired session (defrule-generated Rule path)"
-    );
 }
 
 #[test]
-fn query_inline_path_matches_query_by_type_string() {
+fn query_inline_path_counts_one() {
     let via_query = call(":user::query-inline-path");
-    let via_string = call(":user::query-by-type-string-inline-path");
     assert_eq!(via_query, Value::i64(1), "one ColdAndWindy should have fired (Oslo equality join)");
-    assert_eq!(
-        via_query, via_string,
-        "type-safe `query` must return the SAME count as the untyped `query-by-type-string` \
-         escape hatch on the same fired session (hand-built inline Rule path)"
-    );
 }
 
 #[test]

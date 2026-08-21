@@ -67,7 +67,9 @@ gather unary/nary). Census/microbench HashMaps runed
 `perspicere(read-once)`. Named L1/L2 from the last tape
 are closed on disk. Recast vigilia. Do not stamp until
 a live recast is 0+0. Public rete names are unprimed wat Fns. Rust is
-`$native`. The wat reference is `$oracle`. `$impl` is
+`$native`. The wat reference is `$oracle`. Exception: intern hangup
+mouths `arm-session` / `release-session` are keyword primitives
+(native-only intern; oracle has no intern). `$impl` is
 kwargs/bracket/service — not rete. Grid: fire-rules /
 fire-once / insert / insert-all / fire-rules-explain each
 have public + `$native` + `$oracle`. Prime `'` is not the

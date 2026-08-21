@@ -330,6 +330,8 @@ fn token_exists_under<B: Bindings + ?Sized>(
                 scratch,
             ))
         }
+        // rune:temperare(simplicity-win) — combinator :not/:exists still PMap::from_pairs;
+        // leaf already uses BindView. n tokens with combinator inners is the rare path.
         other => {
             let seed = crate::value::pmap::PMap::from_pairs(
                 tok.iter().map(|(k, v)| (k.clone(), v.clone())),
@@ -946,7 +948,7 @@ pub(crate) fn refuse_export_without_arm(op: &'static str, span: &Span) -> EvalBr
         span.clone(),
         RuntimeErrorKind::MalformedForm {
             head: op.into(),
-            reason: "cannot consume an Export without interned arm — empty rules, live network"
+            reason: "cannot consume an Export without interned stratify schedule — empty rules, empty rule_deps, live productions"
                 .into(),
         },
     )

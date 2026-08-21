@@ -357,7 +357,7 @@
        ((:wat::core::Some v)
         (:wat::core::string::concat "compile-condition: " context " expr is not a rete primitive — '"
                                      (:wat::rete::AxisViolation/head v)
-                                     "' is not a rete primitive; a where admits only :wat::rete:: ops"))
+                                     "' is not a rete primitive; a " context " admits only :wat::rete:: ops"))
        (:wat::core::None
         (:wat::core::format "compile-condition: {context} expr is not a rete primitive (offending head could not be attributed)" :context context))))))
 

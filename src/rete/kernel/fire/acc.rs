@@ -10,6 +10,8 @@ use crate::runtime::{EvalBreak, SymbolTable, Value};
 use super::*;
 
 /// Shared intern + fact store for accumulate folds (no pool mutation).
+// rune:struere(host-constraint) — AccView is the intern bundle; acc_var_i64 still takes
+// keys/vals/pool because Bindings is not implemented on AccView (would duplicate BindView).
 pub(super) struct AccView<'a> {
     keys: &'a [Value],
     vals: &'a [Value],
@@ -85,6 +87,8 @@ pub(super) fn slot_i64(el: &Element, slot: usize, vals: &[Value], pool: &[(u32, 
 pub(super) fn fold_i64s(fold: &AccFold, vals: impl Iterator<Item = i64>, n: usize) -> Option<Value> {
     match fold {
         AccFold::Count => Some(Value::i64(n as i64)),
+        // rune:struere(performance-hotspot) — wrapping Iterator::sum matches wat acc::* wrap;
+        // apply_op checked overflow is the expression-core door, not the Acc fold.
         AccFold::Sum(_) => Some(Value::i64(vals.sum())),
         AccFold::Min(_) => vals.min().map(Value::i64),
         AccFold::Max(_) => vals.max().map(Value::i64),

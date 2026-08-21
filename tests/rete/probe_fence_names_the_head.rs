@@ -33,6 +33,8 @@ const WORLD_CORE_OP_PATH: &str = "tests/rete/probe_fence_names_the_head_core_op.
 const WORLD_THEN_PARTIAL_PATH: &str = "tests/rete/probe_fence_names_the_head_then_partial.wat";
 const WORLD_THEN_CORE_OP_PATH: &str = "tests/rete/probe_fence_names_the_head_then_core_op.wat";
 const WORLD_ACC_IMPURE_PATH: &str = "tests/rete/probe_fence_names_the_head_acc_impure.wat";
+const WORLD_ACC_PARTIAL_PATH: &str = "tests/rete/probe_fence_names_the_head_acc_partial.wat";
+const WORLD_ACC_CORE_OP_PATH: &str = "tests/rete/probe_fence_names_the_head_acc_core_op.wat";
 
 /// Compile+run the world's zero-arg entry fn. The compile fence rejects by PANICKING
 /// (`Option/expect` → `panic_any(AssertionPayload)`), so catch the unwind and pull the human
@@ -128,7 +130,7 @@ fn core_op_then_names_law_a_not_total() {
     let msg = r.expect_err("a total core op in then must fail to compile on Law A");
     assert_eq!(
         msg,
-        "compile-condition: then expr is not a rete primitive — ':wat::core::i64::>' is not a rete primitive; a where admits only :wat::rete:: ops"
+        "compile-condition: then expr is not a rete primitive — ':wat::core::i64::>' is not a rete primitive; a then admits only :wat::rete:: ops"
     );
 }
 
@@ -140,5 +142,27 @@ fn impure_accumulator_names_the_offending_head_and_axis() {
     assert_eq!(
         msg,
         "compile-condition: accumulator expr is not pure — ':wat::io::IOReader/open-file' is not pure"
+    );
+}
+
+/// Accumulator Total — `i64::/` in a user fold must be named as not total.
+#[test]
+fn partial_accumulator_names_the_offending_head_and_axis() {
+    let r = compile_message(WORLD_ACC_PARTIAL_PATH, ":user::run-compile");
+    let msg = r.expect_err("a partial (i64::/) user fold must fail to compile");
+    assert_eq!(
+        msg,
+        "compile-condition: accumulator expr is not total — ':wat::core::i64::/' is not total"
+    );
+}
+
+/// Accumulator Law A — `i64::>` in a user fold must be named as not a rete primitive.
+#[test]
+fn core_op_accumulator_names_law_a_not_total() {
+    let r = compile_message(WORLD_ACC_CORE_OP_PATH, ":user::run-compile");
+    let msg = r.expect_err("a total core op in a user fold must fail to compile on Law A");
+    assert_eq!(
+        msg,
+        "compile-condition: accumulator expr is not a rete primitive — ':wf::core-fold' is not a rete primitive; a accumulator admits only :wat::rete:: ops"
     );
 }

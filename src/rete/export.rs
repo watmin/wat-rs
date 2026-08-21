@@ -15,7 +15,7 @@ use crate::rete::kernel::{
     alpha_cond_from_node, class_field_names, get_node, kind_of, network_identity, node_children,
     node_named_field, node_named_i64, node_named_string, invert_feeding_alpha,
     kind_id_lists, rete_arm_get_or_build, rete_arm_intern,
-    session_named_field, session_network, session_names, sorted_node_ids, AccFold, AlphasByType,
+    agg_named_field, session_named_field, session_network, session_names, sorted_node_ids, AccFold, AlphasByType,
     ChildrenOf, CondDriver, InternedNetwork, NodeKind, ParentsOf, RuleDep,
 };
 use crate::rete::clause::CmpKind;
@@ -112,6 +112,11 @@ fn expect_at<'a>(items: &'a [Value], i: usize, span: &Span, what: &str) -> Resul
     items
         .get(i)
         .ok_or_else(|| malformed(span, IMPORT_OP, format!("{what} missing slot {i}")))
+}
+
+fn export_named<'a>(export: &'a Value, name: &'static str, span: &Span) -> Result<&'a Value, EvalBreak> {
+    agg_named_field(export, name)
+        .ok_or_else(|| malformed(span, IMPORT_OP, format!("Export missing field `{name}`")))
 }
 
 fn expect_kw<'a>(v: &'a Value, op: &str, span: &Span) -> Result<&'a str, EvalBreak> {
@@ -1028,7 +1033,12 @@ fn pack_children(node: &Value) -> impl Iterator<Item = Value> {
     node_children(node).into_iter().map(Value::i64)
 }
 
-fn pack_node(node: &Value, classes: &mut ClassIntern, sym: &SymbolTable) -> Value {
+fn pack_node(
+    node: &Value,
+    classes: &mut ClassIntern,
+    sym: &SymbolTable,
+    tree: &AlphaTree,
+) -> Value {
     let id = node_named_i64(node, "id").unwrap_or(-1);
     match kind_of(node) {
         NodeKind::Alpha => {
@@ -1038,6 +1048,12 @@ fn pack_node(node: &Value, classes: &mut ClassIntern, sym: &SymbolTable) -> Valu
                     let fs = class_field_names(sym, &ty);
                     classes.intern(&ty, fs)
                 }))
+                .or_else(|| {
+                    tree.class_for_alpha(id).map(|ty| {
+                        let fs = class_field_names(sym, ty);
+                        classes.intern(ty, fs)
+                    })
+                })
                 .unwrap_or(-1);
             let mut xs = vec![kw(":a"), Value::i64(id), Value::i64(class_idx)];
             xs.extend(pack_children(node));
@@ -1302,7 +1318,7 @@ pub(crate) fn eval_export(
     let mut nodes = Vec::new();
     for id in sorted_node_ids(network) {
         if let Some(node) = get_node(network, id) {
-            nodes.push(pack_node(node, &mut classes, sym));
+            nodes.push(pack_node(node, &mut classes, sym, &arm.alpha_tree));
         }
     }
     let conds = map_i64(&arm.compiled_conds, pack_compiled_cond);
@@ -1369,7 +1385,7 @@ fn unpack_deps(v: &Value, span: &Span) -> Result<Vec<RuleDep>, EvalBreak> {
     for row in expect_seq(v, IMPORT_OP, span)? {
         let p = expect_seq(&row, IMPORT_OP, span)?;
         if p.len() < 4 {
-            return Err(malformed(span, IMPORT_OP, "deps row needs name + 3 lists"));
+            return Err(malformed(span, IMPORT_OP, "deps row needs name + 4 lists (5th optional for old rows)"));
         }
         let bag = if p.len() >= 5 {
             unpack_string_list(&p[4], span)?
@@ -1427,11 +1443,8 @@ fn import_export(export: &Value, span: &Span, sym: &SymbolTable) -> Result<Value
             .into());
         }
     };
-    let sf = agg.fields.as_slice();
-    if sf.len() < 10 {
-        return Err(malformed(span, IMPORT_OP, "Export missing fields"));
-    }
-    let v = expect_i64(&sf[0], IMPORT_OP, span)?;
+    let _ = agg;
+    let v = expect_i64(export_named(export, "v", span)?, IMPORT_OP, span)?;
     if v != FORMAT_V {
         return Err(malformed(
             span,
@@ -1439,13 +1452,13 @@ fn import_export(export: &Value, span: &Span, sym: &SymbolTable) -> Result<Value
             format!("unsupported Export version {v}"),
         ));
     }
-    let stored_abi = expect_str(&sf[1], IMPORT_OP, span)?;
-    let classes_pv = expect_seq(&sf[2], IMPORT_OP, span)?;
+    let stored_abi = expect_str(export_named(export, "abi", span)?, IMPORT_OP, span)?;
+    let classes_pv = expect_seq(export_named(export, "classes", span)?, IMPORT_OP, span)?;
     let mut classes = Vec::new();
     for c in classes_pv.iter() {
         classes.push(expect_str(c, IMPORT_OP, span)?.to_string());
     }
-    let fields_pv = expect_seq(&sf[3], IMPORT_OP, span)?;
+    let fields_pv = expect_seq(export_named(export, "fields", span)?, IMPORT_OP, span)?;
     let mut fields = Vec::new();
     for row in fields_pv.iter() {
         let rp = expect_seq(row, IMPORT_OP, span)?;
@@ -1476,7 +1489,7 @@ fn import_export(export: &Value, span: &Span, sym: &SymbolTable) -> Result<Value
         }
     }
 
-    let nodes_pv = expect_seq(&sf[4], IMPORT_OP, span)?;
+    let nodes_pv = expect_seq(export_named(export, "nodes", span)?, IMPORT_OP, span)?;
     let mut network_pairs = Vec::new();
     let mut alpha_by_type: AlphasByType = HashMap::new();
     let mut max_id = 0i64;
@@ -1497,33 +1510,42 @@ fn import_export(export: &Value, span: &Span, sym: &SymbolTable) -> Result<Value
     let network = Value::wat__core__PersistentMap(PMap::from_pairs(network_pairs));
 
     let mut compiled_conds = HashMap::new();
-    for pair in expect_seq(&sf[5], IMPORT_OP, span)? {
+    for pair in expect_seq(export_named(export, "conds", span)?, IMPORT_OP, span)? {
         let p = expect_seq(&pair, IMPORT_OP, span)?;
         compiled_conds.insert(
-            expect_i64(&p[0], IMPORT_OP, span)?,
-            unpack_compiled_cond(&p[1], span)?,
+            expect_i64(expect_at(&p, 0, span, "cond id")?, IMPORT_OP, span)?,
+            unpack_compiled_cond(expect_at(&p, 1, span, "cond")?, span)?,
         );
     }
     let mut compiled_drivers = HashMap::new();
-    for pair in expect_seq(&sf[6], IMPORT_OP, span)? {
+    for pair in expect_seq(export_named(export, "drivers", span)?, IMPORT_OP, span)? {
         let p = expect_seq(&pair, IMPORT_OP, span)?;
-        compiled_drivers.insert(expect_i64(&p[0], IMPORT_OP, span)?, unpack_driver(&p[1], span)?);
+        compiled_drivers.insert(
+            expect_i64(expect_at(&p, 0, span, "driver id")?, IMPORT_OP, span)?,
+            unpack_driver(expect_at(&p, 1, span, "driver")?, span)?,
+        );
     }
     let mut compiled_wheres = HashMap::new();
-    for pair in expect_seq(&sf[7], IMPORT_OP, span)? {
+    for pair in expect_seq(export_named(export, "progs", span)?, IMPORT_OP, span)? {
         let p = expect_seq(&pair, IMPORT_OP, span)?;
-        compiled_wheres.insert(expect_i64(&p[0], IMPORT_OP, span)?, unpack_prog(&p[1], span)?);
+        compiled_wheres.insert(
+            expect_i64(expect_at(&p, 0, span, "prog id")?, IMPORT_OP, span)?,
+            unpack_prog(expect_at(&p, 1, span, "prog")?, span)?,
+        );
     }
     let mut compiled_acc_folds = HashMap::new();
-    for pair in expect_seq(&sf[8], IMPORT_OP, span)? {
+    for pair in expect_seq(export_named(export, "folds", span)?, IMPORT_OP, span)? {
         let p = expect_seq(&pair, IMPORT_OP, span)?;
-        compiled_acc_folds.insert(expect_i64(&p[0], IMPORT_OP, span)?, unpack_fold(&p[1], span)?);
+        compiled_acc_folds.insert(
+            expect_i64(expect_at(&p, 0, span, "fold id")?, IMPORT_OP, span)?,
+            unpack_fold(expect_at(&p, 1, span, "fold")?, span)?,
+        );
     }
     let mut compiled_rhs: CompiledRhsByRule = HashMap::new();
-    for pair in expect_seq(&sf[9], IMPORT_OP, span)? {
+    for pair in expect_seq(export_named(export, "rhs", span)?, IMPORT_OP, span)? {
         let p = expect_seq(&pair, IMPORT_OP, span)?;
-        let name = expect_str(&p[0], IMPORT_OP, span)?.to_string();
-        let items = expect_seq(&p[1], IMPORT_OP, span)?;
+        let name = expect_str(expect_at(&p, 0, span, "rhs name")?, IMPORT_OP, span)?.to_string();
+        let items = expect_seq(expect_at(&p, 1, span, "rhs items")?, IMPORT_OP, span)?;
         let mut rs = Vec::new();
         for x in &items {
             rs.push(unpack_rhs(x, span)?);
@@ -1531,10 +1553,9 @@ fn import_export(export: &Value, span: &Span, sym: &SymbolTable) -> Result<Value
         compiled_rhs.insert(name, rs);
     }
 
-    let rule_deps = if sf.len() > 10 {
-        unpack_deps(&sf[10], span)?
-    } else {
-        Vec::new()
+    let rule_deps = match agg_named_field(export, "deps") {
+        Some(d) => unpack_deps(d, span)?,
+        None => Vec::new(),
     };
 
     let node_ids = sorted_node_ids(&network);

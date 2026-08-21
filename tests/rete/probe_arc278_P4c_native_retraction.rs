@@ -1,8 +1,8 @@
-//! Arc 278 stone P4c — native truth maintenance: `retract` + native `fire-rules'` == the wat oracle.
+//! Arc 278 stone P4c — native truth maintenance: `retract` + native `fire-rules` == `fire-rules$oracle`.
 //!
 //! GROUNDING (the realization behind this stone): `retract` is engine-agnostic — it edits `Session.facts`
 //! (remove-by-value, stage-only). Truth maintenance then falls out of REPLAY: the native delta engine
-//! (`fire-rules'`, P4b) re-derives the closure from the reduced input, so a retracted fact's consequences
+//! (`fire-rules`, P4b) re-derives the closure from the reduced input, so a retracted fact's consequences
 //! simply are not re-derived — transitively and precisely. P4b already made that replay LINEAR. So there is
 //! NO separate "incremental support-store retract cascade" to build in the value-semantics surface (each
 //! `fire` rebuilds from facts; the support store only buys O(delta) retract for a PERSISTENT cross-fire

@@ -228,6 +228,7 @@
 
 ;; alpha-els-for-cond — Some(els) if that cond has an alpha (possibly empty);
 ;; None if no alpha was minted (legacy facts-scan fallback).
+;; rune:perspicere(intentional-structure) — Option vs empty-PV is the no-alpha door
 (:wat::core::defn :wat::rete::alpha-els-for-cond
   [network   <- :wat::core::PersistentMap
    alpha-mem <- :wat::core::PersistentMap

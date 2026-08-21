@@ -97,8 +97,7 @@ fn run_fixture(path: &str) -> Result<i64, String> {
 /// A refusal must NAME the offending head — R29 `RVINA ERVDIT`: the ruin is the lesson, so a
 /// diagnostic that merely says "no" teaches nothing. Substring rather than `assert_eq!` here
 /// *deliberately*: the exact wording is the implementer's to choose (stone STOP-3 requires only
-/// that it name the head and point at the per-type twin), and pinning prose that does not exist yet
-/// would be writing the fix's diagnostic for it. The head-name check is the load-bearing half.
+/// that it name the head and point at the per-type twin). The head-name check is the load-bearing half.
 fn assert_refusal_names_head(msg: &str, head: &str) {
     assert!(
         msg.contains(head),
@@ -112,8 +111,8 @@ fn assert_refusal_names_head(msg: &str, head: &str) {
 fn untyped_ordering_constraint_is_refused() {
     let r = run_fixture(UNTYPED_ORDERING);
     let msg = r.expect_err(
-        "an untyped generic `>` inline constraint must be REFUSED — it is a non-rete, partial head \
-         on the LHS, and law A does not reach it (matcher.rs:374-380)",
+        "an untyped generic `>` inline constraint must be REFUSED — it is a non-rete head \
+         (NonReteConstraint / Law A freeze wall)",
     );
     assert_refusal_names_head(&msg, ":wat::core::>");
 }
@@ -167,23 +166,19 @@ fn cross_type_constraint_is_refused_at_compile() {
     // check, and a row that accepts it would go green the moment the grammar was widened and stay
     // green even if no type were ever checked — `[[feedback_a_green_test_can_prove_nothing]]`.
     // So: the refusal must NOT be the shape error. Name what would have to break.
-    // rune:lint(loose-assert) — a targeted ABSENCE over a large output (the whole ReteCheckErrors
-    // EDN blob), which is the rubric's own named exempt shape. There is no exact form available:
-    // pinning the message would require the fix's diagnostic to exist, and it does not. This is
-    // deliberately the NEGATIVE half only — see the note below for why the positive half is absent.
+    // rune:lint(loose-assert) — targeted ABSENCE of MalformedClause over a ReteCheckErrors blob
+    // that still embeds an absolute Span path.
     assert!(
         !msg.contains("not a recognized :when shape") && !msg.contains("MalformedClause"),
         "VACUOUS: refused as a malformed SHAPE, not as a type mismatch. The grammar must first \
          ACCEPT `:wat::rete::core::i64::>`, and the checker must then reject it against a \
          String-typed field. Got:\n{msg}"
     );
-    // ⚠ NO POSITIVE ASSERTION HERE, ON PURPOSE. A first draft added
-    // `msg.contains(":location") || msg.contains("i64") || msg.contains("String")` and it was
-    // WRONG to write: it asserts the presence of prose nobody has authored, so it could only ever
-    // be satisfied by guessing the implementer's wording — and a `rune:lint(loose-assert)` over a
-    // guess is the launder the rune exists to prevent
-    // (`[[feedback_wat_stdio_is_edn_assert_structure_not_loose_contains]]`).
-    // rune:exigere(attested-arc) — STOP-3 teaching diagnostic (name the offending side) is
-    // tracked in docs/arc/2026/06/278-rules-engine/DESIGN-STONE-inline-constraint-admits-non-rete.md;
-    // this row pins absence-of-malformed-shape only until that diagnostic ships an exact assert_eq.
+    // rune:lint(loose-assert) — ConstraintTypeMismatch Display embeds a Span path; pin the
+    // teaching fields (field / op_type / field_type), not the whole blob.
+    assert!(
+        msg.contains("ConstraintTypeMismatch")
+            || (msg.contains(":location") && msg.contains("i64") && msg.contains("String")),
+        "STOP-3: refusal must name the type mismatch (field :location, op i64, declared String). Got:\n{msg}"
+    );
 }

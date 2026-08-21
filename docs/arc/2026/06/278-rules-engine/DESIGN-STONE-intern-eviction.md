@@ -57,10 +57,13 @@ fire get_or_build HIT:
 TLS drop (thread end) drops whatever remains.
 ```
 
-`release-session` is a public unprimed wat Fn. Rust is
-`$native`. Oracle is identity (no intern to drop). Do
-not put an intern handle on the Session. Do not Weak
-the table — the lease **is** the owner count.
+`arm-session` / `release-session` are public **keyword
+primitives** (TypeScheme + `runtime.rs` dispatch). Intern
+is native-only; there is no `$native` / `$oracle` wat Fn
+pair. Oracle has no intern to drop (omit, or a no-op if
+the keyword is still spelled). Do not put an intern handle
+on the Session. Do not Weak the table — the lease **is**
+the owner count.
 
 Double `arm-session` on one connection without release
 is two leases (protocol compiles once; tests that arm
@@ -111,8 +114,9 @@ A hangup that only drops the Value leaks the lease until thread end.
 `eval_release_session` next to `eval_arm_session`.
 `runtime.rs` dispatch. `check.rs` TypeScheme.
 `purity.rs` completeness if the op is fenced.
-`wat/rete.wat` public `release-session`. Oracle identity
-or omit (oracle has no intern). Tests in `kernel/tests.rs`.
+Keyword primitives `arm-session` / `release-session` (not
+dual-impl wat Fns). Oracle identity or omit (oracle has no
+intern). Tests in `kernel/tests.rs`.
 No 9th Session field. No Weak table. No `unsafe`.
 
 ## Out of scope = REJECTED

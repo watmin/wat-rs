@@ -113,6 +113,7 @@ fn imported_strat_neg_matches_source() {
 }
 
 #[test]
+// rune:vocare(vantage-bypass-test) — ABI refuse is a host Aggregate.fields poke; wat has no Export field setter
 fn import_refuses_abi_mismatch() {
     let world = startup_beside(file!()).expect("freeze");
     let exp = call_beside_value(file!(), ":user::cool-export").expect("export");
@@ -153,6 +154,7 @@ fn import_refuses_abi_mismatch() {
 }
 
 #[test]
+// rune:vocare(vantage-bypass-test) — empty-deps wall is proven by host Aggregate.fields swap; no wat Export setter
 fn empty_deps_import_refuses_fire() {
     let world = startup_beside(file!()).expect("freeze");
     let exp = call_beside_value(file!(), ":user::cool-export").expect("export");
@@ -211,7 +213,7 @@ fn empty_deps_import_refuses_fire() {
     .expect_err("empty-deps Import with live productions must refuse fire");
     let msg = format!("{err:?}");
     assert!(
-        msg.contains("cannot consume an Export without interned arm"), // rune:lint(loose-assert) — MalformedForm wraps rust_caller_span line; wall name is the contract
+        msg.contains("cannot consume an Export without interned stratify schedule"), // rune:lint(loose-assert) — MalformedForm wraps rust_caller_span line; wall name is the contract
         "empty-deps fire must refuse the Export-without-arm wall, got {msg}"
     );
 }

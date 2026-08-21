@@ -306,6 +306,8 @@ pub(crate) fn fire_fixpoint_delta_armed(
                 .get(node_id)
                 .map(|v| v.as_slice())
                 .unwrap_or(&[]);
+            // rune:temperare(simplicity-win) — kind_of filters mixed children_of; typed child
+            // lists at intern would drop the Value-network probe. n children × rounds is small.
             for child_id in child_ids {
                 // Group C: child_node ref — only used for kind_of; borrow ends before wm mutations.
                 let child_node = match get_node(&wm.network, *child_id) {
@@ -896,6 +898,8 @@ pub(crate) fn fire_fixpoint_delta_armed(
         // check reads the full wm.alpha (populated in step 1 before this pass).
         // Passing tokens are pushed to wm.beta[node_id] (cumulative) and d_beta[node_id]
         // (new-this-round, consumed by production in step 4).
+        // rune:temperare(simplicity-win) — 3.7 still get_node+node_children; 3.6 already
+        // walks arm.children_of. n HashJoin×filter descendants is small vs intern hoist.
         let mut tests_done: HashSet<i64> = HashSet::new();
         for node_id in &kind_ids.filter {
             let node = match get_node(&wm.network, *node_id) {
@@ -939,8 +943,8 @@ pub(crate) fn fire_fixpoint_delta_armed(
                         .collect();
                     // rune:perspicere(read-once) — content-keyed distinct set for this leaf
                     // rune:temperare(simplicity-win) — distinct inner bindings require a
-                    // content-keyed set (Clara test-simple-exists); interned ids are a later stone
-                    let mut seen_pairs: HashSet<Vec<(u32, u32)>> = HashSet::new();
+                    // content-keyed set of already-interned (u32,u32) pairs (Clara test-simple-exists)
+                    let mut seen_pairs: HashSet<Vec<(u32, u32)>> = HashSet::new(); // rune:perspicere(read-once) — one leaf; a name would be a mumble
                     for (binds, pairs) in candidates {
                         if !seen_pairs.insert(pairs) {
                             continue;

@@ -5,7 +5,7 @@
 //! type system itself proves each rule is unlocked only by the lower rule's output — complements the wat perf
 //! script's single-Node-type shape). `Stage{N}` is reachable ONLY after N cascade rounds.
 //!
-//! The contract: native `fire-rules'` and wat `fire-rules` derive the SAME deepest-level count (== width =
+//! The contract: native `fire-rules` and wat `fire-rules$oracle` derive the SAME deepest-level count (== width =
 //! full closure), at depth where the re-run-vs-delta distinction bites. GREEN now under P4a (both re-run);
 //! P4b converts the native side to delta-incremental IN PLACE — this gate must STAY green (the proof delta ==
 //! re-run at depth), while the wat perf bench shows the O(depth²)→linear bend.

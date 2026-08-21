@@ -24,7 +24,9 @@
 //! ## Entry points
 //!
 //! `(:wat::rete::pure? <quoted-expr>) -> :bool` · `(:wat::rete::deterministic? <quoted-expr>) -> :bool`
-//! Dispatched from `runtime.rs` beside the sibling rete primitives.
+//! · `(:wat::rete::total? <quoted-expr>) -> :bool` · `(:wat::rete::primitive? <quoted-expr>) -> :bool`
+//! Dispatched from `runtime.rs` beside the sibling rete primitives. Fact-pattern Law A is the
+//! freeze wall plus intern `compile_condition_local` (CoreGeneric → none).
 //!
 //! ## Cycle handling
 //!

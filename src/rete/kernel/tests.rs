@@ -1809,19 +1809,19 @@
     /// proportion to call count rather than cost. A `Cell` increment is ~1-2ns.
     ///
     /// Arc 278 DESIGN-STONE-compiled-conditions.md — a real fire's step 1 now runs the compiled
-    /// executor (`compiled_cond::exec_compiled`), not `alpha_match_inner`: `match:calls` (and its
-    /// `match:clause`/`match:bind-insert` siblings) are armed INSIDE `alpha_match_inner`'s own
-    /// body, so they read zero here now by construction, not by regression. `compiled:calls`
-    /// (armed inside `exec_compiled`) is what actually fires on this path.
+    /// executor (`compiled_cond::exec_compiled_with_key_ids`), not `alpha_match_inner`: `match:calls`
+    /// (and its `match:clause`/`match:bind-insert` siblings) are armed INSIDE `alpha_match_inner`'s
+    /// own body, so they read zero here now by construction, not by regression. `compiled:calls`
+    /// (armed inside `exec_compiled_with_key_ids`) is what actually fires on this path.
+    /// [`exec_compiled`] is the `#[cfg(test)]` door (no interned keys).
     ///
     /// `match:key-alloc` is printed but NOT asserted at zero here: this world's RHS insert forms
     /// (`build_insert_fact`, the production pass) resolve `?var` args through the SAME
     /// `resolve_operand` alpha-match uses. RHS is compiled (`DESIGN-STONE-compiled-rhs.md`);
     /// leftover `match:key-alloc` on this world is the oracle `build_insert_fact` path the
     /// differential still runs. So a real fire's `match:key-alloc` can be non-zero even with
-    /// the compiled path in place; the actual row-2 gate that isolates ALPHA-MATCH's failure path in
-    /// path fully in place; the actual row-2 gate that isolates ALPHA-MATCH's failure path in
-    /// isolation is `compiled_cond_failure_path_allocates_no_binding_keys_at_50_100`, which never
+    /// the compiled path in place; the actual row-2 gate that isolates ALPHA-MATCH's failure path
+    /// is `compiled_cond_failure_path_allocates_no_binding_keys_at_50_100`, which never
     /// touches RHS resolution.
     #[test]
     fn accum_matcher_op_census() {

@@ -113,7 +113,7 @@ pub(crate) enum Op {
     Cmp { op: CmpKind, lhs: Expr, rhs: Expr },
     /// Same comparison as [`Op::Cmp`], but one operand is a leftover `?var` not bound
     /// by this condition (a join / exists / not / accumulate-`:from` seed). Populate
-    /// ([`exec_compiled`]) skips it so the fact still enters alpha; rematch
+    /// ([`exec_compiled_with_key_ids`]) skips it so the fact still enters alpha; rematch
     /// ([`exec_compiled_under`]) fills the seed slot and runs the compare.
     SeedCmp { op: CmpKind, lhs: Expr, rhs: Expr },
     /// `(:wat::rete::or c1 c2 …)` — each branch is its OWN op sequence, tried against a scratch
@@ -165,7 +165,8 @@ pub(crate) struct CompiledCond {
 }
 
 impl CompiledCond {
-    /// The scratch-buffer length `exec_compiled` needs for this program.
+    /// The scratch-buffer length fire's [`exec_compiled_with_key_ids`] (and the
+    /// `#[cfg(test)]` [`exec_compiled`] door) needs for this program.
     pub(crate) fn n_slots(&self) -> usize {
         self.n_slots
     }

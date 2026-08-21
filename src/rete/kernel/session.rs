@@ -106,6 +106,8 @@ pub(crate) struct Element {
 
 /// Lookup for `Element.fact`. Input slots are the facts PersistentVector;
 /// derived slots are the append-only vec that outlives `drop-memories`.
+// rune:struere(invariant-coupling) — well-formed fire: input idx is in facts PV,
+// derived idx is in derived_facts; Option would force every walk to invent a miss.
 pub(crate) fn fact_at<'a>(facts: &'a Value, derived: &'a [Value], n_input: u32, idx: u32) -> &'a Value {
     let i = idx as usize;
     if i < n_input as usize {
@@ -320,12 +322,8 @@ pub(crate) fn production_to_pm(map: ProductionMemory) -> Value {
 }
 
 /// Decode a Value Token Record → native `Token` (lossless).
-///
-/// Value Token Record shape (from `make_token` / `wat::rete::Token`):
-///   struct_form[0] = `PV<Tuple(fact, i64)>`  — the matches
-///   struct_form[1] = `PM`                     — the bindings
-///
-/// Each `Tuple` is `Value::Tuple(Arc<Vec<Value>>)` with two elements: `[fact, Value::i64(alpha_id)]`.
+/// Named fields `matches` / `bindings` (`TOKEN_FIELDS`). Each match Tuple is
+/// `[fact, Value::i64(alpha_id)]`.
 pub(crate) fn value_token_to_native(
     tok: &Value,
     intern: &mut BindIntern<'_>,
@@ -334,33 +332,30 @@ pub(crate) fn value_token_to_native(
     n_input: u32,
 ) -> Result<Token, EvalBreak> {
     const OP: &str = ":wat::rete::to_transient (beta decode)";
-    let struct_form = match tok {
-        Value::Aggregate(a) if a.nature != Nature::Struct => a.fields.as_slice(),
-        other => {
-            return Err(RuntimeError::new(
-                crate::rust_caller_span!(),
-                RuntimeErrorKind::TypeMismatch {
-                    op: OP.into(),
-                    expected: ":wat::rete::Token (a wat::core::Record)",
-                    got: Box::new(ValueSnapshot::of(other)),
-                },
-            )
-            .into())
-        }
-    };
-    if struct_form.len() < 2 {
+    let Some(matches_v) = agg_named_field(tok, "matches") else {
         return Err(RuntimeError::new(
             crate::rust_caller_span!(),
             RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: ":wat::rete::Token with matches and bindings fields",
+                expected: ":wat::rete::Token with named matches field",
                 got: Box::new(ValueSnapshot::of(tok)),
             },
         )
         .into());
-    }
+    };
+    let Some(bindings_v) = agg_named_field(tok, "bindings") else {
+        return Err(RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: ":wat::rete::Token with named bindings field",
+                got: Box::new(ValueSnapshot::of(tok)),
+            },
+        )
+        .into());
+    };
     // Decode matches: PV<Tuple(fact, i64)> → Vec<(Value, i64)>
-    let matches_vec = match &struct_form[0] {
+    let matches_vec = match matches_v {
         Value::wat__core__PersistentVector(pv) => {
             let mut out: Vec<(u32, i64)> = Vec::with_capacity(pv.len());
             for entry in pv.iter() {
@@ -425,7 +420,7 @@ pub(crate) fn value_token_to_native(
     };
     // Decode bindings: PM → PMap. `Token.bindings` IS a `PMap` now (DESIGN-STONE-token-bindings-
     // promoting) — no conversion at this boundary, just take the value directly.
-    let bindings = match &struct_form[1] {
+    let bindings = match bindings_v {
         Value::wat__core__PersistentMap(m) => m.clone(),
         other => {
             return Err(RuntimeError::new(
@@ -562,10 +557,7 @@ pub(crate) fn beta_to_pm(beta: BetaMemory, view: &EncodeView<'_>) -> Value {
 }
 
 /// Decode a Value Element Record → native `Element` (lossless).
-///
-/// Value Element Record shape (from `native_element_to_value` / `wat::rete::Element`):
-///   struct_form[0] = fact  — the matched fact (a `wat::core::Record`)
-///   struct_form[1] = PM    — the bindings
+/// Named fields `fact` / `bindings` (`ELEMENT_FIELDS`).
 pub(crate) fn value_to_element(
     el: &Value,
     intern: &mut BindIntern<'_>,
@@ -573,36 +565,33 @@ pub(crate) fn value_to_element(
     n_input: u32,
 ) -> Result<Element, EvalBreak> {
     const OP: &str = ":wat::rete::to_transient (alpha decode)";
-    let struct_form = match el {
-        Value::Aggregate(a) if a.nature != Nature::Struct => a.fields.as_slice(),
-        other => {
-            return Err(RuntimeError::new(
-                crate::rust_caller_span!(),
-                RuntimeErrorKind::TypeMismatch {
-                    op: OP.into(),
-                    expected: ":wat::rete::Element (a wat::core::Record)",
-                    got: Box::new(ValueSnapshot::of(other)),
-                },
-            )
-            .into())
-        }
-    };
-    if struct_form.len() < 2 {
+    let Some(fact_v) = agg_named_field(el, "fact") else {
         return Err(RuntimeError::new(
             crate::rust_caller_span!(),
             RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: ":wat::rete::Element with fact and bindings fields",
+                expected: ":wat::rete::Element with named fact field",
                 got: Box::new(ValueSnapshot::of(el)),
             },
         )
         .into());
-    }
+    };
+    let Some(bindings_v) = agg_named_field(el, "bindings") else {
+        return Err(RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: ":wat::rete::Element with named bindings field",
+                got: Box::new(ValueSnapshot::of(el)),
+            },
+        )
+        .into());
+    };
     let fact_idx = n_input + derived.len() as u32;
-    derived.push(struct_form[0].clone());
+    derived.push(fact_v.clone());
     // Value-boundary decode: PM -> array. One-time per element at session decode (to_transient),
     // not the matcher's hot read path — see DESIGN-STONE-element-bindings-array read-order §3.
-    let bindings = match &struct_form[1] {
+    let bindings = match bindings_v {
         Value::wat__core__PersistentMap(m) => m
             .iter()
             .map(|(k, v)| (k.clone(), v.clone()))

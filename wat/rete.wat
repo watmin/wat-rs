@@ -197,7 +197,9 @@
 ;;   nodes:   packed topology (kind, id, edges). No WatAST.
 ;;   conds / drivers / progs / folds / rhs: packed circuits.
 ;;   deps:   [name [produced…] [negated…] [consumed…] [exists-and-from…]] — stratify schedule.
-;;           Residual, not source forms. Import without this takes max_s=0.
+;;           Residual, packed from interned arm.rule_deps (not Session.rules AST).
+;;           Import without deps refuses production fire — empty residual would
+;;           lie about negation-over-derived (not max_s=0).
 (:wat::core::defrecord :wat::rete::Export
   [v       <- :wat::core::i64
    abi     <- :wat::core::String

@@ -5571,7 +5571,7 @@ fn dispatch_keyword_head_value(
         // (`DESIGN-STONE-arm-at-compile`). Value unchanged. First fire-rules HIT.
         // rune:circumspicere(accepted-by-design) — intern hangup mouths are keyword
         // primitives (TypeScheme + runtime dispatch), not dual-impl wat Fns; bound in
-        // DESIGN-STONE-intern-eviction.md (arm-session / release-session).
+        // DESIGN-STONE-intern-eviction.md (keyword primitives; oracle has no intern).
         ":wat::rete::arm-session" => {
             crate::rete::kernel::eval_arm_session(args, list_span, env, sym)
         }

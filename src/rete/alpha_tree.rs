@@ -16,7 +16,7 @@
 //!
 //! Any clause this analyzer cannot prove an equality discriminator for — `not=`, `or`, `not`, a
 //! computed operand, an unfamiliar shape, anything at all — rides the **wildcard** edge and
-//! is always walked (a wasted `exec_compiled` on native fire; `alpha_match_inner` is the
+//! is always walked (a wasted `exec_compiled_with_key_ids` on native fire; `alpha_match_inner` is the
 //! oracle / differential). A conservative tree is a correct tree; this analyzer never
 //! guesses at a shape it does not recognise in order to prune it.
 //!
@@ -175,10 +175,27 @@ impl AlphaTree {
         self.roots.iter().find(|(c, _)| c == class).map(|(_, n)| n)
     }
 
+    /// Fact-class for an alpha id, from the interned tree (not Session tests AST).
+    /// Export of an imported Session has empty tests; class_idx must still pack.
+    pub(crate) fn class_for_alpha(&self, alpha_id: i64) -> Option<&str> {
+        for (class, root) in &self.roots {
+            if disc_contains(root, alpha_id) {
+                return Some(class.as_str());
+            }
+        }
+        None
+    }
+
     #[cfg(test)]
     pub(crate) fn has_class(&self, class: &str) -> bool {
         self.root_for(class).is_some()
     }
+}
+
+fn disc_contains(n: &AlphaDiscNode, id: i64) -> bool {
+    n.leaves.contains(&id)
+        || n.wildcard.as_ref().is_some_and(|w| disc_contains(w, id))
+        || n.children.values().any(|c| disc_contains(c, id))
 }
 
 fn restrict_node(n: &AlphaDiscNode, keep: &HashSet<i64>) -> Option<Arc<AlphaDiscNode>> {

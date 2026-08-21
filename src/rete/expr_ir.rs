@@ -1301,7 +1301,17 @@ pub(crate) fn apply_op(
     let kinds = KINDS.get_or_init(|| {
         RETE_OPS.iter().map(|r| OpExec::of(r.core_name)).collect()
     });
-    apply_core_kind(kinds[op as usize], args, span, sym)
+    let Some(&kind) = kinds.get(op as usize) else {
+        return Err(RuntimeError::new(
+            span.clone(),
+            RuntimeErrorKind::MalformedForm {
+                head: ":wat::rete::apply_op".into(),
+                reason: format!("op index {op} is outside RETE_OPS"),
+            },
+        )
+        .into());
+    };
+    apply_core_kind(kind, args, span, sym)
 }
 
 fn apply_core_kind(
