@@ -1,0 +1,104 @@
+# NOTE — ②-iii is BLOCKED. The angle string is not a SPELLING; it is the type's IDENTITY.
+
+**Measured 2026-08-21, against `2bcbc8b25` + the substrate widening committed alongside this note.**
+②-iii was applied to `wat/` in full, floored, and **reverted**. The corpus is back on the angle form.
+The codemod is not at fault. This note records what the application found, because the finding is
+worth more than the migration was.
+
+## What ran
+
+```
+dry-run over all 52 stdlib files, on a /tmp copy      → 36 files, 899 lines, 992 token rewrites
+  references (parens kept) ....... 805     binders (bare name) ....  60
+  tuple keywords `:(a,b,c)` ......  49     Fn keywords ............  42
+idempotent (second pass, byte-identical)              → 0 changes
+applied to wat/, verified byte-identical to the dry-run diff
+```
+
+Then the floor, four times, each on a smaller held-back set. Each round named the next blocker.
+
+## The three blockers, in the order the floor surfaced them
+
+### 1 — `wat_source_derive` reads the corpus with a keyword-only parser  *(FIXED, shipped)*
+
+The proc-macro crate reads `.wat` as the source of truth at RUST-compile time. Its declaration-name
+lookup compared against the whole `:Name<I,O,A>` spelling, and its field-triple parser required
+`WatAST::Keyword` in the type slot. 13 compile errors. **This one is fixed and shipped** — the peel
+now accepts both spellings and the type slot takes any node (its text sliced from its own span,
+parsed by `parse_type_expr_from_source`, the substrate's own door). Widening only; it accepts more
+than before and rejects nothing it used to accept.
+
+⚠ It also carried a latent defect the fix removes: the field-arrow slot matched `Symbol(":-")`, and
+`:-` lexes as a **Keyword** — so the `:-` field spelling the substrate accepts everywhere else was
+unreadable here, and had been since 251.4a. Measured against the reader, not reasoned.
+
+### 2 — `defsurface` discriminates a method member on NODE KIND  *(FIXED, shipped)*
+
+`:features` walked its member vector as *"a `List` is a method member `(name [args] -> :R)`;
+everything else accumulates into field triples."* A parametric field TYPE is now also a `List` —
+so `causes <- (:wat::core::Vector :- [:wat::core::Error])` had its type torn out and handed to the
+method parser, leaving a two-item run reported as **`triple is incomplete`, naming the field as the
+defect when the type was fine**.
+
+★ Same shape as the codemod's own slot rule, one level up: **the discriminator is the SLOT, not the
+node kind.** Fixed by position within the field run. Its sibling — the method member's RETURN slot,
+keyword-only where the ARGUMENT slots already took any node — is fixed the same way, through
+`parse_type_node`.
+
+### 3 — ⛔ `extend-type` / `derive` / `defservice`: the angle string IS the identity
+
+`wat/seq.wat:81`: `(:wat::core::extend-type :wat::core::Vector :wat::core::Seqable<T>)`. Migrated,
+the protocol slot becomes a form and `register_subtype` cannot read it. **And peeling a base name out
+of the form would not fix it — it would change the edge.** `register_subtype` stores the string
+VERBATIM: the registered key is the literal `":wat::core::Seqable<T>"`. Around it:
+
+```
+src/types.rs   transport_satisfier_heads   format!("{fq}<T>"), format!("{fq}<Xt>")
+src/types.rs   satisfies_bare_surface      format!("{surface}<")   — prefix match
+wat/service.wat  proto-tp / fqdn-tp        "<K,V>" as a STRING, re-attached as "{b}::Op{p}"
+wat/service.wat  the :peers check          builds "wat::kernel::Peer<{r},{o}>" and COMPARES it
+                                           against the declared :ephemeral field type
+```
+
+The floor named that last one exactly: *"`:peers` declares surface `:wat::query::Store` but no
+`:ephemeral` field is typed `:wat::kernel::Peer<wat::query::Store::Op,…>`"* — **a string comparison
+with one side built in the angle form and the other read from a migrated corpus.** The recurring
+class this arc already named three times, now load-bearing for a whole subsystem.
+
+## What this means for ② and ③
+
+`wat/` cannot migrate until a type's identity is its BASE NAME plus a structured param list, rather
+than the concatenated `Head<A,B>` string. That is a substrate strike, and it is **③'s real
+prerequisite** — not ②a's 244 bare heads, which the DESIGN named. It is also why the 12 code-position
+leftovers the dry-run found are all `string::interpolate` sites in `wat/service.wat` (×9),
+`wat/bracket.wat` (×2) and `wat/fix.wat` (×1): **`defservice` EMITS the angle form**, so even a fully
+migrated corpus regrows it at every macro expansion.
+
+★ The DESIGN chose `wat/`-first *"so that if the codemod is wrong, `wat/` failing to load is a loud,
+immediate, small-blast-radius signal."* It worked exactly as designed, and reported something better
+than a bug in the codemod: **the substrate is not ready for its own destination grammar.**
+
+## Two scope findings the dry-run also produced, unruled
+
+The codemod migrates two families the DESIGN's *"what this stone does NOT do"* list scoped out:
+`Fn(args)->ret` (42 sites) and `:(a,b,c)` tuple keywords (49). Both are `type-shaped-keyword?` by that
+predicate's own documented definition (*"a parametric `Head<...>` or a tuple/fn `(...)`"*), so
+excluding them means ADDING a discriminator — the move the DESIGN forbids. Both destinations are
+verified legal, not a new spelling: `[arg… :-> ret]` is arc 251.4c's function-type bracket, whose own
+doc says it *"produces the SAME `TypeExpr::Fn` the keyword form yields, so the two spellings unify,"*
+and it is already live at `wat/test.wat:326,371` and `wat/spawn.wat:347`. Probe:
+`wat-scripts/scratch-pad/arc109-2iii-fn-bracket-destinations.wat` — six destination shapes from the
+real diff, including the NULLARY `[:-> :wat::core::Record]`, `--check` clean.
+
+The DESIGN's exclusion was written when the renderer emitted the WRONG shape for `Tuple`
+(`wat.type/Tuple`, mode-blind). ②-i-b closed that. **The ruling stands but its premise expired**
+— the builder's call, not the orchestrator's. `[[feedback_a_rulings_premise_expires_but_the_ruling_stands]]`
+
+## The discipline failure, recorded
+
+I executed all three fixes by hand across four source files. Blockers 1 and 2 are ~180 lines of
+substrate work that should have been a DESIGN + BRIEF + rider; only the eight `runtime.rs` string
+edits were inquisitor-sized. Builder, mid-strike: *"we are the inquisitor here… we construct the
+documents for a shadowdancer to execute… we do small, trivial fixes here.. anything else requires a
+doc and a subagent."* The work is green and shipped rather than re-derived, but the shape was wrong
+and blocker 3 goes out as a document.

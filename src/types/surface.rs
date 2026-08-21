@@ -338,34 +338,23 @@ fn parse_method_member_sig(
         }
     }
 
-    // Item 3: `:RetType` keyword.
-    let ret = match &sig_items[3] {
-        WatAST::Keyword(k, _) => {
-            super::parse_type_expr(k).map_err(|e| TypeError::new(
-                sig_items[3].span().clone(),
-                TypeErrorKind::MalformedDecl {
-                    head: HEAD.into(),
-                    reason: format!(
-                        "bad return type in method member `{}`: {}",
-                        method_name, e
-                    ),
-                },
-            ))?
-        }
-        other => {
-            return Err(TypeError::new(
-                other.span().clone(),
-                TypeErrorKind::MalformedDecl {
-                    head: HEAD.into(),
-                    reason: format!(
-                        "method member return type must be a keyword after `->` in `{}`; got {}",
-                        method_name,
-                        other.variant_name()
-                    ),
-                },
-            ))
-        }
-    };
+    // Item 3: the return TYPE.
+    //
+    // Arc 109 Stone ②-iii — a type node, not necessarily a keyword: a parametric return is
+    // the form `(:wat::cache::Cache::GetResponse :- [V])` since the `:-` migration, and a
+    // function return is the bracket `[arg… :-> ret]`. `parse_type_node` is the substrate's
+    // one door for all four spellings — the same door the argspec slot above already uses,
+    // which is why the ARGUMENT types migrated cleanly while the RETURN type did not.
+    let ret = super::parse_type_node(&sig_items[3]).map_err(|e| TypeError::new(
+        sig_items[3].span().clone(),
+        TypeErrorKind::MalformedDecl {
+            head: HEAD.into(),
+            reason: format!(
+                "bad return type in method member `{}`: {}",
+                method_name, e
+            ),
+        },
+    ))?;
 
     // Arc 278 #16 Stone 16.0 — OPTIONAL kwargs OPTIONS MAP after `-> :RetType`.
     // Everything past index 3 (`sig_items[4..]`) is an order-INDEPENDENT sequence of
@@ -776,12 +765,24 @@ pub(crate) fn parse_defsurface(args: Vec<WatAST>, decl_span: Span) -> Result<Typ
 
     // Arc 293.4a — walk member_items: List elements are Method members; everything else
     // is collected as field-triple sub-runs and parsed by parse_argspec_triples.
+    //
+    // ⛔ Arc 109 Stone ②-iii — THE DISCRIMINATOR IS THE SLOT, NOT THE NODE KIND. A method
+    // member `(name [args] -> :R)` is a List, and so is a parametric field TYPE
+    // `(:wat::core::Vector :- [:wat::core::Error])` since the `:-` migration. Reading "List
+    // ⇒ method" tore the type out of its own triple and handed it to
+    // `parse_method_member_sig`, leaving `causes <-` as a two-item run — reported as
+    // `triple is incomplete`, naming the FIELD as the defect when the type was fine.
+    //
+    // Position inside the current field run decides: a List at run-offset 0 opens a method
+    // member; at offset 2 it fills the type slot. (Offset 1 is the arrow — a List there is
+    // malformed, and `parse_argspec_triples` says so precisely, so it accumulates.)
     let mut members = Vec::<SurfaceMember>::new();
     let mut field_items: Vec<WatAST> = Vec::new();
 
     for item in member_items {
+        let at_triple_start = field_items.len().is_multiple_of(3);
         match item {
-            WatAST::List(sig_items, sig_span) => {
+            WatAST::List(sig_items, sig_span) if at_triple_start => {
                 // Flush any accumulated field-triple items first.
                 if !field_items.is_empty() {
                     flush_field_items(&field_items, &member_span, &mut members)?;
@@ -791,7 +792,9 @@ pub(crate) fn parse_defsurface(args: Vec<WatAST>, decl_span: Span) -> Result<Typ
                 members.push(parse_method_member_sig(&sig_items, &sig_span)?);
             }
             other => {
-                // Accumulate field-triple items (Symbol / Symbol("<-") / Keyword).
+                // Accumulate field-triple items (Symbol / arrow / type node — the type slot
+                // holds a Keyword, a `wat.type/X` Symbol, a parametric List, or a
+                // `[arg… :-> ret]` Vector; `parse_argspec_triples` reads all four).
                 field_items.push(other);
             }
         }

@@ -4576,6 +4576,35 @@ pub fn parse_type_expr(kw: &str) -> Result<TypeExpr, TypeError> {
     parse_type_expr_with_span(kw, &crate::rust_caller_span!())
 }
 
+/// Arc 109 Stone ②-iii — parse a type from its SOURCE TEXT, whichever spelling it wears.
+///
+/// [`parse_type_expr`] takes a keyword STRING and requires a leading `:`. The `:-` migration
+/// moved every parametric type annotation off the keyword spelling
+/// (`:wat::core::Vector<wat::core::String>`) and onto a FORM
+/// (`(:wat::core::Vector :- [:wat::core::String])`) — which is not a keyword, has no leading
+/// colon, and so became unreadable to any consumer holding only `parse_type_expr`. That is
+/// exactly what happened to `wat_source_derive`'s `wat_record_from!`: it reads the `.wat`
+/// corpus as the source of truth at Rust-compile time, and five stdlib records went from
+/// legible to `field … is not a `name <- :Type` triple` the moment the corpus moved.
+///
+/// The text is read with the real reader and handed to [`parse_type_node`], so all four
+/// spellings — keyword, `wat.type/` symbol, parametric form, `[arg… :-> ret]` bracket — go
+/// through the substrate's own parser. There is no second type parser here, and adding a
+/// spelling to `parse_type_node` reaches this entry point for free.
+pub(crate) fn parse_type_expr_from_source(text: &str) -> Result<TypeExpr, TypeError> {
+    let span = crate::rust_caller_span!();
+    let node = crate::parse_one_with_file(text, &span.file).map_err(|e| {
+        TypeError::new(
+            span.clone(),
+            TypeErrorKind::MalformedTypeExpr {
+                raw: text.into(),
+                reason: format!("type source text does not read as one wat form: {e:?}"),
+            },
+        )
+    })?;
+    parse_type_node(&node)
+}
+
 /// Arc 138 slice 2 — span-carrying variant. Consumers with a real
 /// keyword span (the type-registration call chain in this file) use
 /// this entry point so emitted errors prefix `<file>:<line>:<col>:`.

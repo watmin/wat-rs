@@ -22395,43 +22395,43 @@ pub(crate) fn no_field_names() -> Arc<Vec<String>> {
 ::wat_source_derive::wat_enum_field_names_from!(
     SERVICE_EVENT_ADMIN_FIELDS,
     "wat/spawn.wat",
-    ":wat::spawn::ServiceEvent<I,O,A>",
+    ":wat::spawn::ServiceEvent",
     "Admin"
 );
 ::wat_source_derive::wat_enum_field_names_from!(
     SERVICE_EVENT_CONNECTION_FIELDS,
     "wat/spawn.wat",
-    ":wat::spawn::ServiceEvent<I,O,A>",
+    ":wat::spawn::ServiceEvent",
     "Connection"
 );
 ::wat_source_derive::wat_enum_field_names_from!(
     SERVICE_EVENT_MESSAGE_FIELDS,
     "wat/spawn.wat",
-    ":wat::spawn::ServiceEvent<I,O,A>",
+    ":wat::spawn::ServiceEvent",
     "Message"
 );
 ::wat_source_derive::wat_enum_field_names_from!(
     SERVICE_EVENT_CLOSED_FIELDS,
     "wat/spawn.wat",
-    ":wat::spawn::ServiceEvent<I,O,A>",
+    ":wat::spawn::ServiceEvent",
     "Closed"
 );
 ::wat_source_derive::wat_enum_field_names_from!(
     SERVICE_EVENT_LOST_FIELDS,
     "wat/spawn.wat",
-    ":wat::spawn::ServiceEvent<I,O,A>",
+    ":wat::spawn::ServiceEvent",
     "Lost"
 );
 ::wat_source_derive::wat_enum_field_names_from!(
     SERVICE_EVENT_MALFORMED_FIELDS,
     "wat/spawn.wat",
-    ":wat::spawn::ServiceEvent<I,O,A>",
+    ":wat::spawn::ServiceEvent",
     "Malformed"
 );
 ::wat_source_derive::wat_enum_field_names_from!(
     SERVICE_EVENT_REJECTED_FIELDS,
     "wat/spawn.wat",
-    ":wat::spawn::ServiceEvent<I,O,A>",
+    ":wat::spawn::ServiceEvent",
     "Rejected"
 );
 
@@ -26298,7 +26298,7 @@ pub(crate) fn eval_listener_prime(
 ::wat_source_derive::wat_field_names_from!(
     BOUND_FIELDS,
     "wat/spawn.wat",
-    ":wat::spawn::Bound<S,R,T>"
+    ":wat::spawn::Bound"
 );
 fn bound_names() -> Arc<Vec<String>> {
     static N: std::sync::OnceLock<Arc<Vec<String>>> = std::sync::OnceLock::new();

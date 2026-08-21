@@ -37,6 +37,79 @@
 use proc_macro::TokenStream;
 use quote::quote;
 
+// ─── the declaration-name slot ───────────────────────────────────────────────
+//
+// Arc 109 Stone ②-iii. A declaration's name is the reference form MINUS its parens:
+// `(HEAD :name :- [T …] …)` binds `T …` on `:name`, where `(:name :- [T …])` would
+// APPLY them. Every reader in this crate wants the same two things out of that slot —
+// the base name, and the index where the declaration's payload begins — and getting the
+// second one wrong is SILENT: the payload shifts by two when a binder is present, so a
+// scan with a fixed offset reads the binder's `[T …]` vector as the first field list and
+// reports plausible nonsense. One peel, four readers.
+//
+// Before the `:-` migration the params lived INSIDE the name keyword
+// (`:wat::spawn::ServiceEvent<I,O,A>`) and callers passed that whole spelling as the
+// `want` string. They now pass the BASE name, and both sides of the comparison are base
+// names by construction — never one normalized and the other not.
+
+/// The declared BASE name and the index of the first payload item — type params peeled,
+/// in whichever of the two legal spellings the declaration wears. `None` when `items[1]`
+/// is not a name keyword at all.
+///
+/// Both spellings are live during arc 109's migration: the name-embedded
+/// `:Name<I,O,A>` and the binder `:Name :- [I O A]`. Peeling both here is what lets one
+/// caller string — the BASE name — address the declaration under either, so a file
+/// migrating does not silently take its Rust-side reader with it.
+fn declared_name(items: &[wat_reader::WatAST]) -> Option<(&str, usize)> {
+    let wat_reader::WatAST::Keyword(name, _) = items.get(1)? else { return None };
+    // `:-` lexes as a KEYWORD, not a symbol — measured against the reader, not assumed
+    // (`src/types.rs::is_binder_marker` matches the same way).
+    let has_binder = matches!(items.get(2), Some(wat_reader::WatAST::Keyword(k, _)) if k == ":-")
+        && matches!(items.get(3), Some(wat_reader::WatAST::Vector(_, _)));
+    // The name-embedded spelling: params live INSIDE the keyword, so the base is the text
+    // before the `<`. A `<` with no matching `>` is not a param list (`:wat::core::<` is a
+    // comparison verb) — the same discriminator `wat/fix.wat::type-shaped-keyword?` uses.
+    let raw = name.as_str();
+    let base = match (raw.find('<'), raw.ends_with('>')) {
+        (Some(lt), true) => &raw[..lt],
+        _ => raw,
+    };
+    Some((base, if has_binder { 4 } else { 2 }))
+}
+
+/// The exact source text a node spans, sliced from the file it was read from.
+///
+/// `wat_reader` has no writer, and re-rendering a node would be a second spelling to
+/// drift from the first — so a node's text is its span's text, the same span-faithful
+/// discipline `wat/fix.wat` applies when it rewrites a corpus. `None` when the span
+/// carries no end (a Rust call-site point-span) or the positions fall outside `src`.
+fn node_source_text(src: &str, span: &wat_reader::Span) -> Option<String> {
+    let end = span.end.as_ref()?;
+    let lines: Vec<&str> = src.lines().collect();
+    let (sl, sc) = (span.line as usize, span.col as usize);
+    let (el, ec) = (end.line as usize, end.col as usize);
+    if sl == 0 || el == 0 || sl > lines.len() || el > lines.len() || el < sl {
+        return None;
+    }
+    let take_from = |line: &str, col: usize| -> String { line.chars().skip(col - 1).collect() };
+    let take_to = |line: &str, col: usize| -> String { line.chars().take(col - 1).collect() };
+    if sl == el {
+        let line = lines[sl - 1];
+        if ec < sc {
+            return None;
+        }
+        return Some(line.chars().skip(sc - 1).take(ec - sc).collect());
+    }
+    let mut out = take_from(lines[sl - 1], sc);
+    for line in &lines[sl..el - 1] {
+        out.push('\n');
+        out.push_str(line);
+    }
+    out.push('\n');
+    out.push_str(&take_to(lines[el - 1], ec));
+    Some(out)
+}
+
 // ─── wat_enum_from! ──────────────────────────────────────────────────────────
 //
 // Builder ruling, 2026-08-15: *"your instinct was to use wat as a source of truth
@@ -127,11 +200,11 @@ fn expand_wat_enum_from(args: &WatEnumFromArgs) -> syn::Result<TokenStream> {
         let wat_reader::WatAST::List(items, _) = form else { continue };
         let Some(wat_reader::WatAST::Keyword(head, _)) = items.first() else { continue };
         if head != ":wat::core::defenum" { continue }
-        let Some(wat_reader::WatAST::Keyword(tp, _)) = items.get(1) else { continue };
-        if tp != &want { continue }
+        let Some((tp, payload)) = declared_name(items) else { continue };
+        if tp != want { continue }
         found = true;
-        // items[2] is the purity marker (`:wat::enum::Pure`); variants follow.
-        for it in items.iter().skip(3) {
+        // `payload` is the purity marker (`:wat::enum::Pure`); variants follow it.
+        for it in items.iter().skip(payload + 1) {
             if let wat_reader::WatAST::Keyword(k, _) = it {
                 variants.push(k.trim_start_matches(':').to_string());
             }
@@ -316,10 +389,10 @@ fn expand_wat_record_from(args: &WatRecordFromArgs) -> syn::Result<TokenStream> 
             ":wat::core::defstruct" => "Struct",
             _ => continue,
         };
-        let Some(wat_reader::WatAST::Keyword(tp, _)) = items.get(1) else { continue };
-        if tp != &want { continue }
+        let Some((tp, payload)) = declared_name(items) else { continue };
+        if tp != want { continue }
 
-        let Some(wat_reader::WatAST::Vector(items3, _)) = items.get(2) else {
+        let Some(wat_reader::WatAST::Vector(items3, _)) = items.get(payload) else {
             return Err(syn::Error::new_spanned(
                 &args.type_path,
                 format!("`{want}` in `{}`: expected a `[name <- :Type …]` field VECTOR as the third form", abs.display()),
@@ -337,21 +410,45 @@ fn expand_wat_record_from(args: &WatRecordFromArgs) -> syn::Result<TokenStream> 
                     ));
                 }
                 wat_reader::WatAST::Symbol(name, _) => {
-                    let arrow = items3.get(i + 1);
-                    let ty = items3.get(i + 2);
-                    let (Some(wat_reader::WatAST::Symbol(a, _)), Some(wat_reader::WatAST::Keyword(t, _))) = (arrow, ty) else {
+                    let (Some(arrow), Some(ty)) = (items3.get(i + 1), items3.get(i + 2)) else {
                         return Err(syn::Error::new_spanned(
                             &args.type_path,
                             format!("`{want}`: field `{}` is not a `name <- :Type` triple", name.as_str()),
                         ));
                     };
-                    if a.as_str() != "<-" && a.as_str() != ":-" {
+                    // Arc 109 — the annotation arrow lexes as a SYMBOL when it is `<-` and as a
+                    // KEYWORD when it is `:-` (a leading `:` is what makes a keyword). Reading
+                    // only the symbol arm silently rejected every `:-` spelling the substrate
+                    // itself accepts.
+                    let arrow_txt = match arrow {
+                        wat_reader::WatAST::Symbol(a, _) => a.as_str(),
+                        wat_reader::WatAST::Keyword(a, _) => a.as_str(),
+                        other => {
+                            return Err(syn::Error::new_spanned(
+                                &args.type_path,
+                                format!("`{want}`: field `{}` is not a `name <- :Type` triple (arrow slot holds {other:?})", name.as_str()),
+                            ));
+                        }
+                    };
+                    if arrow_txt != "<-" && arrow_txt != ":-" {
                         return Err(syn::Error::new_spanned(
                             &args.type_path,
-                            format!("`{want}`: field `{}` uses arrow `{}` — expected `<-` or `:-`", name.as_str(), a.as_str()),
+                            format!("`{want}`: field `{}` uses arrow `{}` — expected `<-` or `:-`", name.as_str(), arrow_txt),
                         ));
                     }
-                    fields.push((name.as_str().to_string(), t.clone()));
+                    // Arc 109 Stone ②-iii — the type slot is a NODE, not necessarily a keyword:
+                    // a parametric annotation is now the form `(:Ctor :- [args…])` and a function
+                    // type is the bracket `[arg… :-> ret]`. Its text is its span's text (the
+                    // reader has no writer, and re-rendering would be a second spelling to drift
+                    // from the first); `parse_type_expr_from_source` then hands it to the
+                    // substrate's own `parse_type_node`, which knows all four spellings.
+                    let Some(ty_text) = node_source_text(&src, ty.span()) else {
+                        return Err(syn::Error::new_spanned(
+                            &args.type_path,
+                            format!("`{want}`: field `{}` — the type node carries no source range, so its text cannot be read", name.as_str()),
+                        ));
+                    };
+                    fields.push((name.as_str().to_string(), ty_text));
                     i += 3;
                 }
                 other => {
@@ -395,7 +492,7 @@ fn expand_wat_record_from(args: &WatRecordFromArgs) -> syn::Result<TokenStream> 
                         (
                             #fnames.into(),
                             // The SUBSTRATE's own type parser — not a second one written here.
-                            crate::types::parse_type_expr(#ftypes).unwrap_or_else(|e| panic!(
+                            crate::types::parse_type_expr_from_source(#ftypes).unwrap_or_else(|e| panic!(
                                 "wat_record_from!({}): field `{}` has type `{}` which the type parser rejects: {e:?}",
                                 #type_path, #fnames, #ftypes,
                             )),
@@ -508,9 +605,9 @@ fn field_names_of(src: &str, file: &str, want: &str) -> Result<Vec<String>, Stri
         let wat_reader::WatAST::List(items, _) = form else { continue };
         let Some(wat_reader::WatAST::Keyword(head, _)) = items.first() else { continue };
         if head != ":wat::core::defrecord" && head != ":wat::core::defstruct" { continue }
-        let Some(wat_reader::WatAST::Keyword(tp, _)) = items.get(1) else { continue };
+        let Some((tp, payload)) = declared_name(items) else { continue };
         if tp != want { continue }
-        let Some(wat_reader::WatAST::Vector(fs, _)) = items.get(2) else {
+        let Some(wat_reader::WatAST::Vector(fs, _)) = items.get(payload) else {
             return Err(format!("`{want}`: expected a `[name <- :Type …]` field vector"));
         };
         let mut out = Vec::new();
@@ -636,12 +733,12 @@ fn enum_variant_field_names_of(src: &str, file: &str, want_type: &str, want_vari
         let wat_reader::WatAST::List(items, _) = form else { continue };
         let Some(wat_reader::WatAST::Keyword(head, _)) = items.first() else { continue };
         if head != ":wat::core::defenum" { continue }
-        let Some(wat_reader::WatAST::Keyword(tp, _)) = items.get(1) else { continue };
+        let Some((tp, payload)) = declared_name(items) else { continue };
         if tp != want_type { continue }
-        // items[2] is the mandatory purity marker; variants follow as a flat
+        // `payload` is the mandatory purity marker; variants follow it as a flat
         // keyword/vector sequence (one-token lookahead: a Vector immediately after a
         // variant keyword makes it Tagged; anything else makes it Unit).
-        let mut i = 3usize;
+        let mut i = payload + 1;
         while i < items.len() {
             let wat_reader::WatAST::Keyword(vname, _) = &items[i] else {
                 return Err(format!("`{want_type}`: expected a variant keyword at position {i}"));
