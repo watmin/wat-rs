@@ -269,12 +269,20 @@ fn probe_defrecord_multi_segment_with_field() {
 
 // ─── v3 tests — Stone 227.2 v3 canonical instance shape + N>=2 fields ────────
 
-// EXPECTATIONS row 1: single-arg form errors at expand time (HARD CUT preserved)
+// EXPECTATIONS row 1: single-arg form errors at expand time (HARD CUT preserved).
+//
+// Arc 109 binder strike β-i — the ERROR CLASS changed and the intent did not. `defrecord` became
+// variadic (`[& args]`) so an optional `:- [T…]` binder can sit between the name and the field
+// vector, which retires the fixed-arity macro signature that used to raise `ArityMismatch`. A
+// one-arg form still fails AT EXPAND TIME, now as `ProgramBodyEvalFailed` wrapping the primitive
+// that could not proceed. ⚠ The message names `:wat::core::rest`, an internal — a real loss of
+// diagnosis quality, filed at `109/NOTE-a-macro-cannot-diagnose-with-option-expect.md` along with
+// the reason `Option/expect` cannot fix it (it panics rather than producing an error value).
 
 #[test]
 fn probe_two_arg_form_only_one_arg_errors() {
     let err = expect_startup_err("tests/types/probe_arc227_stone2_defrecord_onearg.wat.bad");
-    wat::assert_edn_matches_file!(err, "probe_arc227_stone2_defrecord__probe_two_arg_form_only_one_arg_errors.edn", "one-arg defrecord form: macro ArityMismatch");
+    wat::assert_edn_matches_file!(err, "probe_arc227_stone2_defrecord__probe_two_arg_form_only_one_arg_errors.edn", "one-arg defrecord form: expand-time failure (ProgramBodyEvalFailed since arc 109 β-i)");
 }
 
 // EXPECTATIONS row 3: N=0 canonical instance shape uses Bundle (not Atom(nil))

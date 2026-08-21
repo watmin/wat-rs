@@ -1,3 +1,3 @@
-;; Negative fixture: single-arg defrecord (no field list) must error with ArityMismatch.
+;; Negative fixture: single-arg defrecord must error AT EXPAND TIME (arc 109 β-i: class is ProgramBodyEvalFailed, not ArityMismatch — defrecord went variadic for the `:- [T...]` binder).
 (:wat::core::defrecord :test::Orphan)
 (:wat::core::defn :user::compute [] -> :wat::core::bool :wat::core::true)

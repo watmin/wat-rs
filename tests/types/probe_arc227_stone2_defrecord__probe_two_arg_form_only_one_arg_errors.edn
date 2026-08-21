@@ -1,5 +1,5 @@
-#wat.macro/ArityMismatch {
-  :message "macro :wat::core::defrecord expects 2 arguments; got 1"
+#wat.macro/ProgramBodyEvalFailed {
+  :message "macro :wat::core::defrecord — program body eval failed"
   :location #wat.core/Span {
     :file "tests/types/probe_arc227_stone2_defrecord_onearg.wat.bad"
     :line 2
@@ -12,7 +12,37 @@
     ]
   }
   :causes []
-  :name ":wat::core::defrecord"
-  :expected 2
-  :got 1
+  :macro-name ":wat::core::defrecord"
+  :cause #wat.macro/MacroEvalRuntimeFailed {
+    :message "macro_eval: runtime::eval failed"
+    :location #wat.core/Span {
+      :file "wat/Record.wat"
+      :line 145
+      :col 58
+      :end #wat.core.Option/Some [
+        #wat.core/Pos {
+          :line 145
+          :col 103
+        }
+      ]
+    }
+    :causes []
+    :cause #wat.runtime/MalformedForm {
+      :message "malformed :wat::core::rest form: cannot take rest of empty Vec"
+      :location #wat.core/Span {
+        :file "wat/Record.wat"
+        :line 145
+        :col 58
+        :end #wat.core.Option/Some [
+          #wat.core/Pos {
+            :line 145
+            :col 103
+          }
+        ]
+      }
+      :causes []
+      :head ":wat::core::rest"
+      :reason "cannot take rest of empty Vec"
+    }
+  }
 }

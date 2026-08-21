@@ -106,8 +106,7 @@
 ;; kwargs-lower itself) — a data-skip past the F5 purity gate, proven by the arc-294
 ;; de-risk (`derisk_agg_kwargs.wat`).
 (:wat::core::defmacro :wat::core::defrecord
-  [fqdn   <- :wat::WatAST
-   fields <- :wat::WatAST]
+  [& args <- :wat::core::Vector<wat::WatAST>]
   -> :wat::WatAST
   ;; Arc 293 surface-splice — the constructor `defn` is DELETED from this macro. The ctor
   ;; is now minted (for EVERY aggregate nature) in `register_aggregate_methods` (runtime.rs)
@@ -125,8 +124,26 @@
   ;; spliced) is minted later at type-registration for the prime ctor + accessors. Mirrors
   ;; the splice-node shape check in `parse_aggregate_fields_with_splices` / `splice_target`
   ;; (src/types/defstruct.rs:326 — `(:wat::core::unquote-splicing :Surface)`).
+  ;;
+  ;; Arc 109 β-i — the declaration binder. Fully variadic now, mirroring `:wat::core::defstruct`
+  ;; (wat/core.wat): slots are picked from the ENDS, never by counting. `fqdn` is the first
+  ;; arg, `fields` is the last; the optional `:- [T…]` binder pair (if present) is whatever
+  ;; sits between them — peeled off by dropping the front (`rest`) and dropping the back
+  ;; (`reverse`+`rest`+`reverse`), so it comes out `[]` for the ordinary
+  ;; `(defrecord :Name [fields])` call and `[:- [T…]]` for `(defrecord :Name :- [T…] [fields])`.
+  ;; No arity check anywhere in this body — that is the whole point of the stone.
   (:wat::core::let
-    [field-ch     (:wat::core::ast->children fields)
+    [fqdn         (:wat::core::first args)
+     ;; ⚠ Arc 109 β-i — `tail`/`Option::expect` was TRIED here for a friendlier missing-field
+     ;; message and REVERTED: `Option/expect` in a macro body PANICS (a `#wat.kernel/AssertionFailure`
+     ;; that aborts the thread) rather than producing a structured macro error, so
+     ;; `expect_startup_err` gets nothing to inspect. The shape below keeps the error a real
+     ;; VALUE — `ProgramBodyEvalFailed` wrapping the failing primitive — which is what every
+     ;; consumer of a macro error can actually read. See
+     ;; NOTE-a-macro-cannot-diagnose-with-option-expect.md.
+     fields       (:wat::core::Option/expect (:wat::core::last args) "defrecord: missing field-vector")
+     binder       (:wat::core::reverse (:wat::core::rest (:wat::core::reverse (:wat::core::rest args))))
+     field-ch     (:wat::core::ast->children fields)
      clean-field-ch
      (:wat::core::foldl
        (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST> i <- :wat::core::i64] -> :wat::core::Vector<wat::WatAST>
@@ -175,7 +192,7 @@
     ;; The macro now expands to `(do recordtype companion)` — NOT emptied by `register_types`
     ;; (which strips only the type decl from a `do` body): the companion `defmacro` survives.
     `(:wat::core::do
-       (:wat::core::recordtype ~fqdn :wat::core::Record
+       (:wat::core::recordtype ~fqdn ~@binder :wat::core::Record
          [~@field-ch])
        (:wat::core::defmacro ~fqdn-bare-kw
          [& ~call-args-sym <- :wat::core::Vector<wat::WatAST>]
@@ -205,14 +222,20 @@
 ;; only the `recordtype` parent differs: `:wat::holon::Record` vs `:wat::core::Record`).
 ;; See the BASE macro's comments for the full rationale + the splice-field known gap.
 (:wat::core::defmacro :wat::holon::defrecord
-  [fqdn   <- :wat::WatAST
-   fields <- :wat::WatAST]
+  [& args <- :wat::core::Vector<wat::WatAST>]
   -> :wat::WatAST
   ;; Arc 293 surface-splice — constructor `defn` DELETED (see the BASE macro above). The
   ;; holon ctor is minted in `register_aggregate_methods` from the registered fields; the
   ;; `aggregate-new` body is nature-blind and derives the hologram internally for HolonRecord.
+  ;;
+  ;; Arc 109 β-i — same variadic/ends-only binder shape as the BASE macro above; see there
+  ;; for the full rationale. `:wat::holon::defrecord` has zero parametric call sites in the
+  ;; corpus today, but both spellings (`<T>`-embedded and `:- [T…]`-binder) must work.
   (:wat::core::let
-    [field-ch     (:wat::core::ast->children fields)
+    [fqdn         (:wat::core::first args)
+     fields       (:wat::core::Option/expect (:wat::core::last args) "holon defrecord: missing field-vector")
+     binder       (:wat::core::reverse (:wat::core::rest (:wat::core::reverse (:wat::core::rest args))))
+     field-ch     (:wat::core::ast->children fields)
      ;; Arc 294 item 9a fix (surface-splice regression) — see the BASE macro above for the
      ;; full rationale: skip `~@:Surface` splice elements before the name/<-/type triple
      ;; walk, so the companion bakes only the record's OWN literal fields.
@@ -261,7 +284,7 @@
      ns-colon-str  (:wat::core::string::concat ":" (:wat::core::string::concat ns-joined "::"))
      call-args-sym (:wat::core::symbol-node "call-args")]
     `(:wat::core::do
-       (:wat::core::recordtype ~fqdn :wat::holon::Record
+       (:wat::core::recordtype ~fqdn ~@binder :wat::holon::Record
          [~@field-ch])
        (:wat::core::defmacro ~fqdn-bare-kw
          [& ~call-args-sym <- :wat::core::Vector<wat::WatAST>]
