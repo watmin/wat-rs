@@ -34,7 +34,7 @@
     (:wat::core::length (:wat::core::PersistentMap/keys amem))))
 
 ;; (2) oracle-alpha-key-count — fired via `fire-rules$oracle` (the wat ORACLE, never optimized). Expect
-;; 0: `fire-stratified` returns alpha-memory empty (rete.wat:1817-1820) — asserted here, not assumed.
+;; 0: `fire-stratified` returns alpha-memory empty (wat/rete/oracle/fire.wat:349) — asserted here, not assumed.
 (:wat::core::defn :user::oracle-alpha-key-count [] -> :wat::core::i64
   (:wat::core::let
     [fired (:wat::rete::fire-rules$oracle (:afs::built))

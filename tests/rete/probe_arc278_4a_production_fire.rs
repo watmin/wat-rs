@@ -1,13 +1,13 @@
 //! Arc 278 stone 4a — production-fire (token → RHS → derived fact).
 //!
 //! After the equality-join network matches, a Token reaching the ProductionNode FIREs the rule's RHS:
-//! evaluate `(:wat::rete::insert (:weather::ColdAndWindy ?loc))` with the token's bindings into a derived
+//! evaluate `(:weather::ColdAndWindy ?loc)` with the token's bindings into a derived
 //! `:weather::ColdAndWindy` record, stored in production-memory.
 //! Live mouths: `compile-all`, `insert`, `fire-rules`, `query`.
 //!
 //!   :when  [(:weather::Temperature (?loc <- :location) (?t <- :celsius))
 //!           (:weather::WindSpeed    (?loc <- :location) (?w <- :kph))]
-//!   :then  (:wat::rete::insert (:weather::ColdAndWindy ?loc))
+//!   :then  [(:weather::ColdAndWindy :location ?loc)]
 //!
 //! - MATCH (same loc): the join yields one Token → the RHS fires → ONE ColdAndWindy("Oslo") in production-memory.
 //! - NO JOIN (diff loc): zero tokens at the ProductionNode → zero derived facts.

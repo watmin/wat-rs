@@ -3,14 +3,14 @@
 //!
 //! v1 of this gate assumed the oracle (`fire-rules$oracle`) returns a populated alpha and re-pointed
 //! everything at it; that assumption was FALSE and a rider's STOP-4 caught it before anything shipped
-//! (`fire-stratified`, `rete.wat:1817-1820`, explicitly zeroes alpha-memory/beta-memory when it packs
+//! (`fire-stratified`, `wat/rete/oracle/fire.wat:349`, explicitly zeroes alpha-memory/beta-memory when it packs
 //! its final `Session`). Native `fire-rules` and `fire-rules$oracle` both return empty alpha.
 //! `9d9a4e77` measured serializing a populated alpha at 31.3% of fire on its own. Clearing it in
 //! `fire_fixpoint_delta` (the function unprimed `fire-rules` runs) closes the divergence and removes
 //! the cost as a side effect.
 //!
 //! `fire_once_session` is deliberately UNTOUCHED: native `fire-once` mirrors the oracle's `fire-once$oracle`,
-//! which genuinely fills alpha (`rete.wat:1462`) — narrowing the cut to the fixpoint verb only is what
+//! which genuinely fills alpha (`wat/rete/oracle/fire.wat:167`) — narrowing the cut to the fixpoint verb only is what
 //! keeps that single-pass pair aligned, per DESIGN-STONE-alpha-is-fire-scoped.md v2.
 //!
 //! Workload: `probe_arc278_2b_insert_alpha.wat`'s smallest alpha-populating shape (`:afs::Temp` +

@@ -14,11 +14,11 @@ use wat::runtime::Value;
 
 #[test]
 fn rete_data_model_constructs_and_renders() {
-    // (a) the network (id → Node) holds both nodes
+    // (a) the network (id → record) holds both nodes
     assert_eq!(
         call_beside_value(file!(), ":user::network-length").expect("network-length eval"),
         Value::i64(2),
-        "Session.network must hold both nodes"
+        "Session.network must hold both node records"
     );
 
     // (b) render-dag produces a non-empty inspectable string

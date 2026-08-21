@@ -726,6 +726,10 @@ pub(crate) fn materialize_into(
                 return None;
             }
         };
+        if i >= compiled.slot_keys.len() {
+            pool.truncate(off);
+            return None;
+        }
         pool.push((
             next_key(keys, &mut kid, &compiled.slot_keys[i]),
             intern_val(vals, val_ids, v),
@@ -786,7 +790,8 @@ fn materialize(
                 return None;
             }
         };
-        out.push((compiled.slot_keys[i].clone(), v));
+        let sk = compiled.slot_keys.get(i)?;
+        out.push((sk.clone(), v));
     }
     Some(out.into())
 }

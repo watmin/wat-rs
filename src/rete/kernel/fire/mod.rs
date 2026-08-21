@@ -1048,7 +1048,7 @@ pub(crate) fn key_of<B: Bindings + ?Sized>(
 }
 
 /// Derive the join-key tuple shared between `sample_bindings` and `elements` — the cheap half of
-/// `gather_index` (step 1 of the `keyed_join` (`:779-834`) shape): a sorted intersection of
+/// `gather_index` (step 1 of `keyed_join`): a sorted intersection of
 /// `sample_bindings`' keys and a sample element's keys, string-sorted for a stable canonical
 /// order, derived from `elements[0]` when non-empty. An empty `elements` slice yields `[]`.
 ///
@@ -1115,6 +1115,21 @@ impl<'a> GatherIntern<'a> {
             vals: &wm.bind_vals,
             pool: &wm.bind_pool,
             val_ids: &wm.bind_val_ids,
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn of(
+        bind_keys: &'a [Value],
+        vals: &'a [Value],
+        pool: &'a [(u32, u32)],
+        val_ids: &'a ValIntern,
+    ) -> Self {
+        Self {
+            bind_keys,
+            vals,
+            pool,
+            val_ids,
         }
     }
 }
@@ -1236,20 +1251,18 @@ fn alpha_elements(alpha: &AlphaMemory, alpha_id: i64) -> &[Element] {
 pub(crate) fn build_gather_index(
     elements: &[Element],
     join_keys: &[Value],
-    bind_keys: &[Value],
-    vals: &[Value],
-    pool: &[(u32, u32)],
-    val_ids: &ValIntern,
+    intern: GatherIntern<'_>,
 ) -> GatherIndex {
     if join_keys.len() == 1 {
         let mut index: GatherUnary = FxHashMap::default();
-        if let Some(key_id) = bind_keys
+        if let Some(key_id) = intern
+            .bind_keys
             .iter()
             .position(|k| k == &join_keys[0])
             .map(|i| i as u32)
         {
             for (i, el) in elements.iter().enumerate() {
-                let pairs = pool_slice(pool, el.binds);
+                let pairs = pool_slice(intern.pool, el.binds);
                 if let Some((_, vid)) = pairs.iter().find(|(k, _)| *k == key_id) {
                     index.entry(*vid).or_default().push(i);
                 }
@@ -1259,8 +1272,9 @@ pub(crate) fn build_gather_index(
     } else {
         let mut index: GatherNary = FxHashMap::default();
         for (i, el) in elements.iter().enumerate() {
-            let el_bindings = element_fact_bindings(el, bind_keys, vals, pool);
-            let key = key_of(&el_bindings, join_keys, val_ids);
+            let el_bindings =
+                element_fact_bindings(el, intern.bind_keys, intern.vals, intern.pool);
+            let key = key_of(&el_bindings, join_keys, intern.val_ids);
             index.entry(key).or_default().push(i);
         }
         GatherIndex::Nary(index)
@@ -1285,14 +1299,7 @@ fn ensure_gather<'a, B: Bindings + ?Sized>(
     let index = cache.entry((alpha_id, Arc::clone(&join_keys))).or_insert_with(|| {
         census_count("accum:index-builds");
         census_count_n("accum:index-elements", els.len() as u64);
-        build_gather_index(
-            els,
-            join_keys.as_ref(),
-            &wm.bind_keys,
-            &wm.bind_vals,
-            &wm.bind_pool,
-            &wm.bind_val_ids,
-        )
+        build_gather_index(els, join_keys.as_ref(), GatherIntern::from_wm(wm))
     });
     Some((index, join_keys))
 }

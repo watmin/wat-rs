@@ -640,6 +640,13 @@ fn unpack_expr(v: &Value, span: &Span) -> Result<Expr, EvalBreak> {
             for x in items.iter().skip(3) {
                 fields.push(unpack_expr(x, span)?);
             }
+            if ns.len() != fields.len() {
+                return Err(malformed(
+                    span,
+                    IMPORT_OP,
+                    format!("ctor names length {} != fields length {}", ns.len(), fields.len()),
+                ));
+            }
             Ok(Expr::Construct {
                 class,
                 names: Arc::new(ns),
@@ -1028,6 +1035,17 @@ fn unpack_compiled_cond(v: &Value, span: &Span) -> Result<CompiledCond, EvalBrea
             ));
         }
     }
+    if slot_keys.len() != output_slots.len() {
+        return Err(malformed(
+            span,
+            IMPORT_OP,
+            format!(
+                "slot_keys length {} != output_slots length {}",
+                slot_keys.len(),
+                output_slots.len()
+            ),
+        ));
+    }
     check_cond_ops(&ops, n_slots, span)?;
     Ok(CompiledCond::from_parts(
         ops,
@@ -1193,6 +1211,13 @@ fn unpack_rhs(v: &Value, span: &Span) -> Result<CompiledRhs, EvalBreak> {
             let mut ops = Vec::new();
             for x in items.iter().skip(3) {
                 ops.push(unpack_rhs_op(x, span)?);
+            }
+            if ns.len() != ops.len() {
+                return Err(malformed(
+                    span,
+                    IMPORT_OP,
+                    format!("rhs names length {} != ops length {}", ns.len(), ops.len()),
+                ));
             }
             Ok(CompiledRhs::Record {
                 class,

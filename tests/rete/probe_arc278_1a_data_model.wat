@@ -1,7 +1,7 @@
 ;; tests/rete/probe_arc278_1a_data_model.wat — co-located fixture for the sibling probe (.rs),
 ;; slurped via startup_beside(file!()). just-eval entry points — hand-build a 2-node Session
 ;; (RootJoinNode id0 -> ProductionNode id1) and expose the two probe assertions the sibling .rs
-;; makes on it. (No records needed; the stone-0 Session/Node data model is on rete.wat's own types.)
+;; makes on it. (No extra records: nine node records + Session live on rete.wat.)
 
 (:wat::core::defn :user::network-length [] -> :wat::core::i64
   (:wat::core::let

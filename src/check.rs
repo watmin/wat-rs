@@ -21053,7 +21053,7 @@ fn register_builtins(env: &mut CheckEnv) {
     );
     // BRIEF-the-fence-names-the-head — same walk as the four fence predicates, surfacing the
     // violation instead of discarding it. `:wat::rete::AxisViolation` and `:wat::rete::Axis`
-    // are declared via `defrecord`/`defenum` in `wat/rete.wat`. The axis argument is the
+    // are declared via `defrecord`/`defenum` in `wat/rete/compile.wat`. The axis argument is the
     // `:wat::rete::Axis` enum — a closed 4-member set (Pure, Deterministic, Total,
     // RetePrimitive).
     // (:wat::rete::axis-violation <expr: :wat::WatAST> <axis: :wat::rete::Axis>) -> :wat::core::Option<wat::rete::AxisViolation>

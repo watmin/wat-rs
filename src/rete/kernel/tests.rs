@@ -6252,7 +6252,11 @@
             t0.elapsed().as_nanos() as f64
         }
 
-        black_box(super::build_gather_index(&els, &join_keys, &keys, &vals, &pool, &ids));
+        black_box(super::build_gather_index(
+            &els,
+            &join_keys,
+            super::GatherIntern::of(&keys, &vals, &pool, &ids),
+        ));
 
         let mut k = 0.0;
         let mut v = 0.0;
@@ -6288,7 +6292,11 @@
                 black_box(idx.len());
             });
             b += time_ns(|| {
-                black_box(super::build_gather_index(&els, &join_keys, &keys, &vals, &pool, &ids));
+                black_box(super::build_gather_index(
+                    &els,
+                    &join_keys,
+                    super::GatherIntern::of(&keys, &vals, &pool, &ids),
+                ));
             });
             s += time_ns(|| {
                 // rune:perspicere(read-once) — gather microbench index; not a domain noun.
@@ -6400,7 +6408,9 @@
             });
             b += time_ns(|| {
                 black_box(super::build_gather_index(
-                    &els, &join_keys, &keys, &vals, &pool, &ids,
+                    &els,
+                    &join_keys,
+                    super::GatherIntern::of(&keys, &vals, &pool, &ids),
                 ));
             });
         }

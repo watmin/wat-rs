@@ -21,9 +21,9 @@
 //! ;;   {:fact (:weather::ColdAndWindy -5 40)
 //! ;;    :rule "weather::cold-and-windy"
 //! ;;    :via [ {:type :weather::Temperature :fact (:weather::Temperature -5 "Oslo") :bound {?c -5}
-//! ;;            :met [(:wat::core::< -5 0)]}      ;; (< ?c 0), ?c=-5 → -5 < 0 ✓  (no :why → base fact, leaf)
+//! ;;            :met [(:wat::rete::core::i64::< -5 0)]}      ;; (< ?c 0), ?c=-5 → -5 < 0 ✓  (no :why → base fact, leaf)
 //! ;;           {:type :weather::WindSpeed   :fact (:weather::WindSpeed 40 "Oslo")  :bound {?k 40}
-//! ;;            :met [(:wat::core::> 40 30)]} ]}  ;; (> ?k 30), ?k=40 → 40 > 30 ✓  (base fact, leaf)
+//! ;;            :met [(:wat::rete::core::i64::> 40 30)]} ]}  ;; (> ?k 30), ?k=40 → 40 > 30 ✓  (base fact, leaf)
 //! ;;
 //! ;; a cascade level — a derived supporting fact carries a nested :why (the tree recurses to inputs):
 //! (:wat::rete::explain fired (:weather::WeatherAlert -5 40))

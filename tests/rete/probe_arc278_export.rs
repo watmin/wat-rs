@@ -247,3 +247,104 @@ fn reexport_import_fires() {
         "import(export(import(e))) must fire the same Hit"
     );
 }
+
+fn import_one(world: &wat::freeze::FrozenWorld, exp: Value) -> Result<Value, wat::runtime::RuntimeError> {
+    let import = world
+        .symbols()
+        .get(":user::import-one")
+        .expect("import-one")
+        .clone();
+    apply_function(import, vec![exp], world.symbols(), wat::rust_caller_span!())
+}
+
+fn poke_named(exp: Value, field: &str, v: Value) -> Value {
+    match exp {
+        Value::Aggregate(a) => {
+            let mut fields = a.fields.as_ref().clone();
+            let i = a.names.iter().position(|n| n == field).expect(field);
+            fields[i] = v;
+            Value::Aggregate(Arc::new(AggregateValue::record(
+                a.class.to_string(),
+                a.names.clone(),
+                Arc::new(fields),
+            )))
+        }
+        other => panic!("expected Export, got {other:?}"),
+    }
+}
+
+fn poke_first_call_op(v: &mut Value, op: i64) -> bool {
+    match v {
+        Value::Vec(items) => {
+            let mut xs = items.as_ref().clone();
+            if matches!(xs.first(), Some(Value::wat__core__keyword(k)) if k.as_str() == ":call")
+                && xs.len() >= 2
+            {
+                xs[1] = Value::i64(op);
+                *v = Value::Vec(Arc::new(xs));
+                return true;
+            }
+            for x in &mut xs {
+                if poke_first_call_op(x, op) {
+                    *v = Value::Vec(Arc::new(xs));
+                    return true;
+                }
+            }
+            false
+        }
+        _ => false,
+    }
+}
+
+#[test]
+// rune:vocare(vantage-bypass-test) — FORMAT_V refuse is a host Aggregate.fields poke
+fn import_refuses_unsupported_version() {
+    let world = startup_beside(file!()).expect("freeze");
+    let exp = call_beside_value(file!(), ":user::cool-export").expect("export");
+    let tampered = poke_named(exp, "v", Value::i64(2));
+    let err = import_one(&world, tampered).expect_err("v=2 must refuse");
+    let msg = format!("{err:?}");
+    assert!(
+        msg.contains("unsupported Export version"), // rune:lint(loose-assert) — MalformedForm wraps rust_caller_span; version wall is the contract
+        "import must name unsupported Export version, got {msg}"
+    );
+}
+
+#[test]
+// rune:vocare(vantage-bypass-test) — opcode wrap refuse is a host poke of packed :call
+fn import_refuses_op_outside_rete_ops() {
+    let world = startup_beside(file!()).expect("freeze");
+    let exp = call_beside_value(file!(), ":user::cool-export").expect("export");
+    let tampered = match exp {
+        Value::Aggregate(a) => {
+            let mut fields = a.fields.as_ref().clone();
+            let mut poked = false;
+            for name in ["conds", "progs", "drivers"] {
+                if let Some(i) = a.names.iter().position(|n| n == name) {
+                    let mut packed = fields[i].clone();
+                    if poke_first_call_op(&mut packed, 65537) {
+                        fields[i] = packed;
+                        poked = true;
+                        break;
+                    }
+                }
+            }
+            assert!(
+                poked,
+                "cool-export must pack a :call so the wrap-into-range refuse is reachable"
+            );
+            Value::Aggregate(Arc::new(AggregateValue::record(
+                a.class.to_string(),
+                a.names.clone(),
+                Arc::new(fields),
+            )))
+        }
+        other => panic!("expected Export, got {other:?}"),
+    };
+    let err = import_one(&world, tampered).expect_err("op 65537 must refuse");
+    let msg = format!("{err:?}");
+    assert!(
+        msg.contains("outside RETE_OPS"), // rune:lint(loose-assert) — MalformedForm wraps rust_caller_span; opcode wall is the contract
+        "import must name outside RETE_OPS, got {msg}"
+    );
+}
