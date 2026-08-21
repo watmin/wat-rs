@@ -31,8 +31,8 @@
    result-var <- :wat::core::String
    tok        <- :wat::rete::Token
    node-id    <- :wat::core::i64
-   bm         <- :wat::core::PersistentMap]
-  -> :wat::core::PersistentMap
+   bm         <- :wat::core::PersistentMap<wat::core::i64,wat::core::PersistentVector<wat::rete::Token>>]
+  -> :wat::core::PersistentMap<wat::core::i64,wat::core::PersistentVector<wat::rete::Token>>
   (:wat::core::let [acc-ch (:wat::core::ast->children acc-form)
                     acc-hd (:wat::core::first acc-ch)
                     acc-nm (:wat::core::ast-name acc-hd)

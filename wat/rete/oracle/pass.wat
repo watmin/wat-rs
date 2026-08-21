@@ -40,9 +40,9 @@
 (:wat::core::defn :wat::rete::activate-alpha
   [facts     <- :wat::core::PersistentVector
    network   <- :wat::core::PersistentMap
-   alpha-mem <- :wat::core::PersistentMap
+   alpha-mem <- :wat::core::PersistentMap<wat::core::i64,wat::core::PersistentVector<wat::rete::Element>>
    node-id   <- :wat::core::i64]
-  -> :wat::core::PersistentMap
+  -> :wat::core::PersistentMap<wat::core::i64,wat::core::PersistentVector<wat::rete::Element>>
   (:wat::core::let [node (:wat::core::Option/expect  
                              (:wat::core::PersistentMap/get network node-id)
                              "activate-alpha: node not found")
@@ -131,11 +131,11 @@
 ;; root-join-pass — fold step for the root-join pass: for each network node id,
 ;; if it is an AlphaNode with Elements in alpha-memory, seed its RootJoinNode children.
 (:wat::core::defn :wat::rete::root-join-pass
-  [alpha-mem <- :wat::core::PersistentMap
+  [alpha-mem <- :wat::core::PersistentMap<wat::core::i64,wat::core::PersistentVector<wat::rete::Element>>
    network   <- :wat::core::PersistentMap
-   beta-mem  <- :wat::core::PersistentMap
+   beta-mem  <- :wat::core::PersistentMap<wat::core::i64,wat::core::PersistentVector<wat::rete::Token>>
    node-id   <- :wat::core::i64]
-  -> :wat::core::PersistentMap
+  -> :wat::core::PersistentMap<wat::core::i64,wat::core::PersistentVector<wat::rete::Token>>
   (:wat::core::let [node (:wat::core::Option/expect  
                              (:wat::core::PersistentMap/get network node-id)
                              "root-join-pass: node not found")]
@@ -324,11 +324,11 @@
 ;; now populate-then-emits per node (filter/accum first, then this pass), so a TestNode's
 ;; beta is already filled when we emit to its HashJoin children. DAG; monotone insertions only.
 (:wat::core::defn :wat::rete::hash-join-pass
-  [alpha-mem <- :wat::core::PersistentMap
+  [alpha-mem <- :wat::core::PersistentMap<wat::core::i64,wat::core::PersistentVector<wat::rete::Element>>
    network   <- :wat::core::PersistentMap
-   beta-mem  <- :wat::core::PersistentMap
+   beta-mem  <- :wat::core::PersistentMap<wat::core::i64,wat::core::PersistentVector<wat::rete::Token>>
    node-id   <- :wat::core::i64]
-  -> :wat::core::PersistentMap
+  -> :wat::core::PersistentMap<wat::core::i64,wat::core::PersistentVector<wat::rete::Token>>
   (:wat::core::let [node (:wat::core::Option/expect  
                              (:wat::core::PersistentMap/get network node-id)
                              "hash-join-pass: node not found")
@@ -678,11 +678,11 @@
 ;; filters" split made Join→Test→Join starve — the comment was true only for trailing filters.
 (:wat::core::defn :wat::rete::filter-pass
   [network   <- :wat::core::PersistentMap
-   alpha-mem <- :wat::core::PersistentMap
+   alpha-mem <- :wat::core::PersistentMap<wat::core::i64,wat::core::PersistentVector<wat::rete::Element>>
    facts     <- :wat::core::PersistentVector
-   beta-mem  <- :wat::core::PersistentMap
+   beta-mem  <- :wat::core::PersistentMap<wat::core::i64,wat::core::PersistentVector<wat::rete::Token>>
    node-id   <- :wat::core::i64]
-  -> :wat::core::PersistentMap
+  -> :wat::core::PersistentMap<wat::core::i64,wat::core::PersistentVector<wat::rete::Token>>
   (:wat::core::let [node (:wat::core::Option/expect  
                              (:wat::core::PersistentMap/get network node-id)
                              "filter-pass: node not found")
@@ -786,11 +786,11 @@
 ;; Mirrors hash-join-pass as a fold step over node-ids; seeds with the existing production-memory.
 (:wat::core::defn :wat::rete::production-pass
   [network  <- :wat::core::PersistentMap
-   beta-mem <- :wat::core::PersistentMap
+   beta-mem <- :wat::core::PersistentMap<wat::core::i64,wat::core::PersistentVector<wat::rete::Token>>
    rules    <- :wat::core::PersistentVector<wat::rete::Rule>
-   prod-mem <- :wat::core::PersistentMap
+   prod-mem <- :wat::core::PersistentMap<wat::core::i64,wat::core::PersistentVector<wat::core::Record>>
    node-id  <- :wat::core::i64]
-  -> :wat::core::PersistentMap
+  -> :wat::core::PersistentMap<wat::core::i64,wat::core::PersistentVector<wat::core::Record>>
   (:wat::core::let [node (:wat::core::Option/expect  
                              (:wat::core::PersistentMap/get network node-id)
                              "production-pass: node not found")]
