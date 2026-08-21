@@ -25,6 +25,64 @@ rename the string namespace      → but is `concat`/`join` even in it?
 
 ---
 
+## ⊘ TRUED UP 2026-08-19 — **THREE OF A's FOUR DEFECTS ARE ALREADY CLOSED, AND A's OWN AMENDMENT IS STALE**
+
+Measured against the disk this session. **Read this before striking anything below** — a reader
+working from the un-amended text would hunt three defects that no longer exist and honour a blocker
+that has evaporated.
+
+| the chain says | measured 2026-08-19 |
+|---|---|
+| **A** — tags hand-typed as `wat-edn.opaque` | ✅ **CLOSED.** Every arm carries its own namespace: `("wat.io","IOReader")`, `("wat.kernel","Sender")`, `("wat.holon","OnlineSubspace")`. `#wat-edn.` is down to **2** occurrences tree-wide, both in a **stale test doc comment**; `#wat.` is at 418. |
+| **A** — the `opaque` bucket | ✅ **DISSOLVED.** Per-type namespaces, exactly the `#wat.io/Reader nil` shape the builder specifies: *"a resource, a rust struct… anything that's not edn gets mapped to `#some.ns/SomeThing nil` … nil is the honest value."* |
+| **A** — silent degrade to `#wat-edn.opaque/unnamed` | ✅ **KILLED AND GATED** (`edn_shim.rs:4703`): *"tag_from_type_path must RAISE, not fabricate the opaque/unnamed placeholder."* |
+| **A** — "eighteen arms, each hand-typing its own tag" | ⬜ **16 remain.** THIS IS ALL THAT IS LEFT OF A. |
+| **B** — `#wat-edn.*` → `#wat.*/*`, opaque bucket dissolves | ✅ **DONE** (arc 294). |
+| **C** — `str` goes TOTAL | ✅ SHIPPED `25d9d015` (unchanged). |
+| **D** — `Seqable` as a nameable type | ✅ **SHIPPED. Arc 118 is INSCRIBED** (`ba3bd70c`, 2026-08-19). The *"← TOMORROW"* below is four months of tomorrows and it arrived. |
+
+### ★ A REDUCES TO ONE STRUCTURAL MOVE
+
+**The type declares its own tag, instead of a `match` arm declaring it on the type's behalf.**
+Sixteen arms → a `const TAG`. The naming is already right; the degrade is already fatal; the bucket
+is already gone. What is NOT yet enforced: the match is exhaustive, so a **new** `Value` variant fails
+to compile — but a **misspelled namespace still does not.** Nothing checks that `Value::io__IOReader`
+says `"wat.io"` and not `"wat.core"`.
+
+### ★★ A's OWN AMENDMENT (2026-08-16) IS NOW STALE — the blocker evaporated
+
+That amendment says A *"cannot be struck as written"* because `EdnRepresentable` is taken by the live
+comms wire trait, and notes the builder's intent: *"EdnRepresentable was meant to replace all
+HolonRepresentable."* **That replacement is COMPLETE:**
+
+```
+HolonRepresentable ......  0 sites          (arc 294.h deleted it)
+EdnRepresentable ........ 46 sites          (was "28 production bounds" when the amendment was written)
+```
+
+**Builder, 2026-08-19:** *"all holon-rep should have moved to edn-rep — we built holon first and
+seeded wat on holon's tooling (holon data == edn data, just holographically; same with holon-ast =>
+wat-ast). **holon must be only used for vsa/hdc things now.**"*
+
+So the question is no longer *"pick a different name."* It is: **do `TAG`/`PORTABLE` join
+`comms::EdnRepresentable` (`to_wire`/`from_wire`, the trait the builder wants everything on), or sit
+on `ToEdn` (`crates/wat-edn/src/lib.rs:125`, 74 impls)?** That is A's one real design decision and it
+is now answerable. `[[feedback_a_rulings_premise_expires_but_the_ruling_stands]]`
+
+### ⚠ WHAT IS STILL UNSCOPED — `PORTABLE`
+
+The `const PORTABLE: bool` half — *"the decoder refuses, by TYPE, not by prefix"* — is **not
+measured**. The decode side refuses via capability gating (arc 272 6a-i, `edn_shim.rs:1748`), but
+whether it keys on the tag's **prefix** or on the **type** was not established this session and must
+not be assumed from either. **Read it before drawing A.**
+
+### ⚠ AND THE HOLON→WAT MIGRATION IS NOT FINISHED, one layer over
+
+`HolonRepresentable` is 0, but **`HolonAST` is at 1014 mentions across `src/`** — still doing AST duty
+where the builder's ruling says holon is for VSA/HDC only. That is **task #91**'s population, it is
+large, and it is NOT this chain's work. Named here only so nobody reads "holon-rep is done" as
+"the holon/wat separation is done."
+
 ## A — `EdnRepresentable`: the type declares its tag AND its portability
 
 **The defect.** `edn_shim.rs:3726-3764` — eighteen arms, each hand-typing its own tag:

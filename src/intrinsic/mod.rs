@@ -263,10 +263,10 @@ pub(crate) struct IntrinsicEntry {
     pub see: &'static [&'static str],
     /// Restringified handler source (consumed by `show-source` / 255.1b-v).
     pub source: &'static str,
-    #[allow(dead_code)] // read by pure_declared_matches_is_effectful_op + purity_mandated_examples (cfg(test)) + eval_metadata_of + eval_render_doc
+    #[allow(dead_code)] // read by declared_purity_vs_effectful_by_prefix_census + purity_mandated_examples (cfg(test)) + eval_metadata_of + eval_render_doc + reflect.rs's eval_intrinsic_examples (arc 255.1c site 2)
     /// Declared purity — from `@Purity <Variant>` in the doc.
     pub purity: wat_doc::Purity,
-    #[allow(dead_code)] // read by purity_mandated_examples (cfg(test)) + eval_metadata_of + eval_render_doc
+    #[allow(dead_code)] // read by purity_mandated_examples (cfg(test)) + eval_metadata_of + eval_render_doc + reflect.rs's eval_intrinsic_examples (arc 255.1c site 2)
     /// Declared determinism — from `@Determinism <Variant>` in the doc.
     pub determinism: wat_doc::Determinism,
     /// `@Category <Variant>` — functional category.
@@ -372,7 +372,8 @@ pub(crate) fn registry() -> &'static IntrinsicRegistry {
 }
 
 mod bytes;
-mod kernel_stdio;
+mod io;
+mod kernel;
 mod reflect;
 mod witness;
 mod special;
@@ -481,6 +482,28 @@ mod tests {
             // below; no registered intrinsic returns one, so a spelling for that
             // case would be invented rather than verified.
             crate::types::TypeExpr::Tuple(items) if items.is_empty() => ":wat::core::nil".to_string(),
+            // ⊘ CORRECTED 2026-08-19 (255.1c-kernel-resource). The note above used to
+            // end: "Empty tuple only — a non-empty `Tuple` falls through to the fallback
+            // below; no registered intrinsic returns one, so a spelling for that case
+            // would be invented rather than verified." BOTH CLAUSES ARE NOW FALSE.
+            // `:wat::kernel::pipe` returns `(IOWriter, IOReader)` and is registered as of
+            // home #7 — the first row anywhere with a non-empty tuple return, which made
+            // this latent gap REACHABLE (the same shape as home #3, where the carve made
+            // the unit-type arm reachable for the first time).
+            //
+            // And the spelling is no longer invented — it is VERIFIED against the corpus:
+            // `wat/kernel/channel.wat:49` declares `:(wat::kernel::Sender<T>,wat::kernel::Receiver<T>)`
+            // and `wat/` carries `:(wat::core::i64,O)` sites. Elements use the TYPE-ARG
+            // spelling (no leading `:`), exactly as inside `<>`.
+            //
+            // Without this arm the fallback Debug-formats (`Tuple([Path(":wat::io::IOWriter"), …])`),
+            // which NO `@ret` string can ever equal — the doc grammar forbids whitespace in a
+            // type token — so the gate was unsatisfiable rather than merely failing.
+            crate::types::TypeExpr::Tuple(items) if !items.is_empty() => {
+                let items_str: Vec<String> =
+                    items.iter().map(typeexpr_to_type_arg_string).collect();
+                format!(":({})", items_str.join(","))
+            }
             crate::types::TypeExpr::Fn { args, ret } => {
                 let args_str: Vec<String> = args.iter().map(typeexpr_to_doc_string).collect();
                 format!(":wat::core::Fn({})->{}", args_str.join(","), typeexpr_to_doc_string(ret))
@@ -538,30 +561,67 @@ mod tests {
         }
     }
 
-    /// Arc 255.1b-firm: the declared `@Purity` in the doc must agree with
-    /// `is_effectful_op` — the runtime witness. A mismatch is a doc lie.
+    /// Arc 255.1c site 3 — was `pure_declared_matches_is_effectful_op`, a biconditional
+    /// between `entry.purity` and `is_effectful_op(entry.name)`. After the 255.1c site-1
+    /// split, `is_effectful_op` consults the registry FIRST, so for a registered row it
+    /// now *returns* `entry.purity` — comparing the two would be a gate reading a copy of
+    /// the truth, unable to fail for a registered row ever again
+    /// (`[[feedback_a_gate_over_two_hand_lists_is_a_hand_list]]`).
+    ///
+    /// Re-pointed per the ruling (`DESIGN-STONE-255.1c-kernel-ambient.md`, "⊘ RULED
+    /// 2026-08-19 — OPTION B"): the biconditional becomes a CENSUS against the genuinely
+    /// independent namespace guess (`effectful_by_prefix`, which never touches the
+    /// registry) — every disagreement is an inventory entry, not a failure, and it is the
+    /// four kernel-ambient readers (`stopped?`/`sigusr1?`/`sigusr2?`/`sighup?`) — Pure by
+    /// declaration, flagged effectful by the `:wat::kernel::` prefix rule, which cannot see
+    /// inside a body — that this census exists to surface. Collected into a `Vec`, never
+    /// `assert!`-ed inside the loop: the gate this replaces did exactly that over an
+    /// unordered `HashMap`, so it could only ever report ONE collision per run, and a
+    /// different one each time.
+    ///
+    /// One direction survives as a real assertion: `Effectful ⇒ effectful_by_prefix`. A
+    /// registered row that declares an effect the prefix guess would MISS is a doc that
+    /// could lie about an effect the runtime cannot refuse the moment that row is ever
+    /// judged by the prefix fallback alone — an as-yet-unregistered verb, or this very row
+    /// losing its `#[wat_intrinsic]` registration. That direction still has teeth and still
+    /// fails loud.
     #[test]
-    fn pure_declared_matches_is_effectful_op() {
+    fn declared_purity_vs_effectful_by_prefix_census() {
+        let mut census: Vec<(&'static str, wat_doc::Purity, bool)> = Vec::new();
+        let mut effectful_missed_by_prefix: Vec<&'static str> = Vec::new();
+
         for entry in super::registry().all_entries() {
-            let effectful = crate::runtime::is_effectful_op(entry.name);
-            // Pure/Preserving ⟺ !effectful; Effectful ⟺ effectful
-            match entry.purity {
-                wat_doc::Purity::Pure | wat_doc::Purity::Preserving => {
-                    assert!(
-                        !effectful,
-                        "intrinsic `{}` declares purity={:?} but is_effectful_op says effectful=true",
-                        entry.name, entry.purity
-                    );
-                }
-                wat_doc::Purity::Effectful => {
-                    assert!(
-                        effectful,
-                        "intrinsic `{}` declares purity=Effectful but is_effectful_op says effectful=false",
-                        entry.name
-                    );
-                }
+            let declared_effectful = matches!(entry.purity, wat_doc::Purity::Effectful);
+            let prefix_guess = crate::runtime::effectful_by_prefix(entry.name);
+
+            if declared_effectful != prefix_guess {
+                census.push((entry.name, entry.purity, prefix_guess));
+            }
+            if declared_effectful && !prefix_guess {
+                effectful_missed_by_prefix.push(entry.name);
             }
         }
+
+        census.sort_by_key(|(name, ..)| *name);
+        eprintln!(
+            "=== declared purity vs effectful_by_prefix census: {} disagreement(s) ===",
+            census.len()
+        );
+        for (name, purity, prefix_guess) in &census {
+            eprintln!(
+                "  {name}: declared={purity:?}, effectful_by_prefix={prefix_guess} (prefix \
+                 says {})",
+                if *prefix_guess { "effectful" } else { "not effectful" }
+            );
+        }
+
+        // The surviving direction — still able to fail.
+        assert!(
+            effectful_missed_by_prefix.is_empty(),
+            "row(s) declare purity=Effectful but effectful_by_prefix says false — the prefix \
+             fallback would silently treat these as safe the moment they are judged by it \
+             alone: {effectful_missed_by_prefix:?}"
+        );
     }
 
     /// Arc 255 spec-complete: for entries with `@yields`, the declared type must match

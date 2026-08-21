@@ -38,15 +38,15 @@ slow path. **The crawl IS the work.**
 
 ## Section 1 — The workspace map (READ FIRST, every session)
 
-The directory `/home/watmin/work/holon/` contains MULTIPLE PROJECTS. The
+The directory `~/work/holon/` contains MULTIPLE PROJECTS. The
 holon root happens to be a git repo BUT IT IS FROZEN. **Never touch the
-holon root git repo.** Treat `/home/watmin/work/holon/` as a directory
+holon root git repo.** Treat `~/work/holon/` as a directory
 that contains sub-projects.
 
 The active sub-projects (each its own git repo):
 
 ```
-/home/watmin/work/holon/
+~/work/holon/
 ├── algebraic-intelligence.dev/    — public website project
 ├── holon-lab-baseline/             — baseline traffic generation
 ├── holon-lab-ddos/                 — DDoS detection lab
@@ -63,13 +63,13 @@ operate on them.
 
 **Iron rules:**
 
-1. **Never `git add` / `git commit` / `git push` from `/home/watmin/work/holon/`** — that's the frozen root repo.
+1. **Never `git add` / `git commit` / `git push` from `~/work/holon/`** — that's the frozen root repo.
 2. **Always be inside a sub-project** (your cwd inside one of the project dirs above) when running git commands.
 3. If you need to operate on a sibling sub-project's repo from another cwd, use `git -C <sub-project-path> ...`.
 4. The Primary working directory in your prompt tells you where you are. Stay there.
 
 **Real incident, 2026-05-02:** The orchestrator created
-`COMPACTION-AMNESIA-RECOVERY.md` at `/home/watmin/work/holon/` (the
+`COMPACTION-AMNESIA-RECOVERY.md` at `~/work/holon/` (the
 frozen root) and attempted to commit it to that repo. User rejected:
 *"do not touch the holon root git repo at all - its frozen - it
 happens to be a git repo - the better understanding is that its a
@@ -554,12 +554,12 @@ Note "proven."
 where you should not — especially the holon root.
 
 **Reality check:** Always know which repo you're in. The holon root
-(`/home/watmin/work/holon/`) is FROZEN — never commit there. Use
+(`~/work/holon/`) is FROZEN — never commit there. Use
 `git -C <subproject> ...` if you need to operate cross-repo without
 changing cwd.
 
 **Real incident, 2026-05-02:** The orchestrator created
-`COMPACTION-AMNESIA-RECOVERY.md` at `/home/watmin/work/holon/` and
+`COMPACTION-AMNESIA-RECOVERY.md` at `~/work/holon/` and
 attempted to commit it to the holon root repo. User rejected:
 *"do not touch the holon root git repo at all - its frozen."*
 
@@ -616,7 +616,7 @@ locations are illegal."*
 **Prescription when spawning sub-Agents:**
 
 - Anchor the cwd EXPLICITLY in the agent prompt. Name the absolute
-  path the agent must operate in (e.g., `/home/watmin/work/holon/<project>/`).
+  path the agent must operate in (e.g., `~/work/holon/<project>/`).
 - Tell the agent to verify with `pwd` as its FIRST action; reject any
   reported path containing `.claude/worktrees/` as illegal and re-cd
   to the anchor.
@@ -1036,7 +1036,7 @@ remove slice 3; arc 159 closure proceeded on wat-rs scope alone).
    "slice N — do X" or "out of scope — Y"), grep memory for
    relevant project state:
    ```bash
-   ls ~/.claude/projects/-home-watmin-work-holon/memory/project_*.md
+   ls ~/.claude/projects/-home-*-work-holon/memory/project_*.md
    ```
    Skim titles for relevance to the section's domain.
 2. If memory has a `project_*.md` that contradicts the DESIGN's
@@ -1223,7 +1223,7 @@ the user pointed at the doc.
 ### Failure mode 16 — Briefing sonnet with tool-availability preamble
 
 **Signature:** the BRIEF mentions Bash availability ("Bash works",
-"Cargo is at /home/watmin/...", "If you hesitate, run `which cargo`")
+"Cargo is at ~/...", "If you hesitate, run `which cargo`")
 to preempt FM 7. Sonnet reads the meta-skepticism and hallucinates
 the denial anyway.
 
@@ -1674,8 +1674,8 @@ When you need to understand WHY a discipline exists, these are the
 canonical sources.
 
 ### Workspace + project setup
-- `/home/watmin/work/holon/CLAUDE.md` — workspace setup (auto-loaded)
-- `/home/watmin/work/holon/wat-rs/CLAUDE.md` — wat-rs guidance (if present)
+- `~/work/holon/CLAUDE.md` — workspace setup (auto-loaded)
+- `~/work/holon/wat-rs/CLAUDE.md` — wat-rs guidance (if present)
 
 ### wat-rs substrate doctrine
 - `wat-rs/docs/ZERO-MUTEX.md` — three tiers replacing Mutex
@@ -1731,7 +1731,7 @@ get updated.
   going forward. New violations land here when caught.
 
 ### Memory (already auto-loaded)
-- `~/.claude/projects/-home-watmin-work-holon/memory/MEMORY.md`
+- `~/.claude/projects/-home-*-work-holon/memory/MEMORY.md`
 - Specific memories of interest:
   - `feedback_compaction_protocols.md` (this protocol's auto-loaded sibling)
   - `feedback_no_speculation.md`

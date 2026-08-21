@@ -5,19 +5,16 @@
 //! (concurrency, networking, signals, errors, handles/capability, misc) are
 //! separate stones (see the DESIGN doc's table).
 //!
-//! **The bodies do NOT live here.** Every one of the six delegates to a
-//! `crate::services::eval_kernel_*` fn (`src/services/verbs.rs`) that already
-//! existed at `runtime.rs:5704–5714` as a literal-match arm — this home is a
-//! thin `#[wat_intrinsic]`-annotated wrapper around the SAME delegate call,
-//! registering it so the intrinsic registry can look it up, document it, and
-//! reflect on it. Registration must not change routing: the handler fn that
-//! actually runs is unchanged; only the path that reaches it (registry lookup
-//! vs. a literal match arm) is different.
+//! Every one of the six delegates to a `crate::services::eval_kernel_*` fn
+//! (`src/services/verbs.rs`) that already existed at `runtime.rs:5704–5714`
+//! as a literal-match arm — see `kernel/mod.rs` for the tier-wide "bodies do
+//! not live here" claim this home is an instance of.
 //!
 //! ## The point of this home — the registry's first `Effectful` rows
 //!
 //! Every row registered before this home is `Pure`/`Preserving`; nothing has
-//! ever been `Effectful`, so `pure_declared_matches_is_effectful_op`
+//! ever been `Effectful`, so the declared-vs-`is_effectful_op` cross-check (renamed
+//! `declared_purity_vs_effectful_by_prefix_census` by arc 255.1c site 3)
 //! (`src/intrinsic/mod.rs:601`, cross-checking the declared `@Purity` against
 //! `runtime::is_effectful_op`'s prefix classification) has never seen a row it
 //! could disagree with. All six here write fd 1/2 or read fd 0 — genuine
@@ -34,8 +31,13 @@
 //!   write-then-terminate). `Deterministic`.
 //! - **Reads** (`readln'`, `read-frame`): the body reads fd 0, whose content
 //!   varies run to run — the returned value depends on ambient state outside
-//!   the call's arguments, exactly as `:wat::time::now` reading the wall
-//!   clock does. `Nondeterministic`.
+//!   the call's arguments. `Nondeterministic`. NOT "for the same reason"
+//!   `:wat::time::now` is (this doc used to say so; corrected 299.3-entropic):
+//!   `readln'`/`read-frame` are `:Io` — the world hands you DATA across a
+//!   stream, and a test injects it by feeding fd 0; `time::now` is
+//!   `:Entropic` — it samples an unpredictable source and the result can
+//!   only be bounded, never pinned. Different cells of the same
+//!   `Nondeterministic` row (`wat/runtime-meta.wat:135`, `:143`).
 //!
 //! ## Category — `Io`, minted mid-strike (builder ruling)
 //!
@@ -48,9 +50,9 @@
 //! `Bytes ⇄ hex`, `String ⇄ Instant`), and reading fd 0 is not the program
 //! interrogating its own state (`Reflection` is `call-site`/`show-source`/
 //! `metadata-of`; the same mistake a prior stone made calling a clock read
-//! `Reflection`, before `Clock` was minted to fix it). `Io` — "performs I/O
+//! `Reflection`, before `Clock` — since renamed `:Entropic` — was minted to fix it). `Io` — "performs I/O
 //! on a stream" — was minted instead, at the same level of abstraction as
-//! `Clock` ("samples the wall clock") and `Arithmetic` ("combines domain
+//! `Clock` (now `:Entropic`, "samples an unpredictable source") and `Arithmetic` ("combines domain
 //! values"): what KIND of computation this is, not what it happens to touch
 //! along the way. All six rows here land on it. `:wat::io::*` is its second
 //! tenant when that namespace carves (`is_effectful_op` already prefix-

@@ -283,7 +283,7 @@ embedded (`feedback_spells_cast_via_subagent`):
   INSCRIPTION. `DESIGN-STONE-237.5.md` + `BRIEF-STONE-237.5.md` are a clean
   worked example of Phase 2–3; `DESIGN-RECORDS-AS-FIRST-CLASS-TYPES.md` is a
   full lair/traps/stepping-stones map.
-- Memory (`~/.claude/projects/-home-watmin-work-holon/memory/`):
+- Memory (`~/.claude/projects/-home-*-work-holon/memory/`):
   `feedback_sonnet_writes_substrate`, `feedback_stone_briefs_cite_prior_score`,
   `feedback_spawn_block_winding`, `project_party_comp_inquisitor_shadowdancer`,
   `project_failure_engineering`, `project_convergences`.

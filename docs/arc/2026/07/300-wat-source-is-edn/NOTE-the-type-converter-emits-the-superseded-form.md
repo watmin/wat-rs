@@ -123,3 +123,24 @@ is a type annotation or an empty typed literal. **Closed 2026-08-15** (addendum 
 grammar has exactly one production yielding a type form, `:- <type-form>`, so a type is unreachable
 by any other path. `:-`-preceded ⇒ type; everywhere else ⇒ data literal. **Every site the drive
 touches is therefore mechanically decidable — there is nothing for it to guess.**
+
+## ⊹ ADDENDUM 2026-08-20 — the claim HOLDS; the coordinates have DRIFTED
+
+Re-measured at HEAD `9b360374f`. Everything above is still true — the `TypeExpr::Parametric` arm still
+splices type args flat, and it is still the superseded 06-06 form. Only the line numbers moved since
+`0d43266e`:
+
+| this note says | today |
+|---|---|
+| `type_expr_to_clojure_form`, `edn_shim.rs:1183` | **`edn_shim.rs:1200`** |
+| the offending arm, `edn_shim.rs:1232–1236` | **`edn_shim.rs:1249–1253`** |
+
+⚠ **There is a second `for a in args` loop immediately below it (`:1255–1262`) and it is NOT this
+defect.** That is the `TypeExpr::Fn` arm, which splices into a `WatAST::Vector` with a `:->` keyword —
+the `[A :-> B]` function-type form, which is CORRECT per the grammar. This note names exactly one arm
+and is right to. (Recorded because the adjacent loop reads identically at a glance and was briefly
+mis-attributed here.)
+
+**Closed by:** `109/DESIGN-STONE-all-parametrics-take-a-type-vector.md`, which makes the bracketed
+form the one true parametric shape. This converter emits it as part of that stone rather than as a
+separate fix.

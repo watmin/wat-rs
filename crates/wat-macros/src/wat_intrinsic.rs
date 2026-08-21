@@ -377,12 +377,17 @@ pub(crate) fn emit(fqdn: &LitStr, item: &ItemFn) -> syn::Result<TokenStream2> {
         wat_doc::Category::Reflection => quote! { ::wat_doc::Category::Reflection },
         wat_doc::Category::ControlFlow => quote! { ::wat_doc::Category::ControlFlow },
         wat_doc::Category::Binding => quote! { ::wat_doc::Category::Binding },
-        wat_doc::Category::Clock => quote! { ::wat_doc::Category::Clock },
+        wat_doc::Category::Entropic => quote! { ::wat_doc::Category::Entropic },
         wat_doc::Category::Arithmetic => quote! { ::wat_doc::Category::Arithmetic },
         wat_doc::Category::Io => quote! { ::wat_doc::Category::Io },
         wat_doc::Category::Probe => quote! { ::wat_doc::Category::Probe },
         wat_doc::Category::Combine => quote! { ::wat_doc::Category::Combine },
         wat_doc::Category::Declaration => quote! { ::wat_doc::Category::Declaration },
+        wat_doc::Category::Resource => quote! { ::wat_doc::Category::Resource },
+        wat_doc::Category::Message => quote! { ::wat_doc::Category::Message },
+        wat_doc::Category::Ambient => quote! { ::wat_doc::Category::Ambient },
+        wat_doc::Category::Projection => quote! { ::wat_doc::Category::Projection },
+        wat_doc::Category::CheckGate => quote! { ::wat_doc::Category::CheckGate },
     };
 
     let yields_type_lit = match &doc.yields {

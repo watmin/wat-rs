@@ -69,7 +69,7 @@
 /// `Category::variants()`, so a new variant that forgets this line goes RED.
 /// (The proc-macro's two sibling messages DO derive — they are `format!`.)
 const CATEGORY_LEGAL_VALUES: &str =
-    "value must be one of: Transform, Reflection, ControlFlow, Binding, Clock, Arithmetic, Io, Probe, Combine, Declaration";
+    "value must be one of: Transform, Reflection, ControlFlow, Binding, Entropic, Arithmetic, Io, Probe, Combine, Declaration, Resource, Message, Ambient, Projection, CheckGate";
 
 // ⛔ `Category` IS GENERATED FROM wat — it is not written here.
 //
@@ -1137,9 +1137,13 @@ mod tests {
     /// `&'static str` (see `CATEGORY_LEGAL_VALUES`), so it cannot derive — this
     /// is the gate that makes the hand-copy safe. Add a variant, forget the
     /// message, go red.
-    /// ⛔ `variants()` and `CATEGORY_LEGAL_VALUES` are BOTH hand-written string
-    /// lists, so a test comparing only those two compares stale-to-stale and
-    /// passes while the ENUM has grown past both. That happened on 2026-08-15:
+    /// ⛔ `CATEGORY_LEGAL_VALUES` is a hand-written string list, so a test
+    /// comparing it against another hand-written list compares stale-to-stale and
+    /// passes while the ENUM has grown past both.
+    /// (CORRECTED 2026-08-19, 255.1c-taxonomy: this line used to say `variants()`
+    /// was hand-written too. It is DERIVE-GENERATED — `wat-source-derive/src/lib.rs:207`.
+    /// The comment warning about stale lists had itself gone stale about WHICH list.)
+    /// That happened on 2026-08-15:
     /// `Transform`/`Probe`/`Combine` were added to the enum and the gate stayed
     /// green because the two lists still agreed with each other.
     ///
@@ -1152,8 +1156,10 @@ mod tests {
         // Exhaustive by construction — a new variant breaks THIS match first.
         let all = [
             Category::Transform, Category::Reflection, Category::ControlFlow,
-            Category::Binding, Category::Clock, Category::Arithmetic,
+            Category::Binding, Category::Entropic, Category::Arithmetic,
             Category::Io, Category::Probe, Category::Combine, Category::Declaration,
+            Category::Resource, Category::Message, Category::Ambient,
+            Category::Projection, Category::CheckGate,
         ];
         for c in all {
             let name = match c {
@@ -1161,12 +1167,17 @@ mod tests {
                 Category::Reflection => "Reflection",
                 Category::ControlFlow => "ControlFlow",
                 Category::Binding => "Binding",
-                Category::Clock => "Clock",
+                Category::Entropic => "Entropic",
                 Category::Arithmetic => "Arithmetic",
                 Category::Io => "Io",
                 Category::Probe => "Probe",
                 Category::Combine => "Combine",
                 Category::Declaration => "Declaration",
+                Category::Resource => "Resource",
+                Category::Message => "Message",
+                Category::Ambient => "Ambient",
+                Category::Projection => "Projection",
+                Category::CheckGate => "CheckGate",
             };
             assert_eq!(c.as_str(), name, "as_str() disagrees for {name}");
             assert!(Category::variants().contains(&name),

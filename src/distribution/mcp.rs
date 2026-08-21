@@ -410,7 +410,8 @@ fn render_edn(v: &Value, types: Option<&crate::types::TypeEnv>) -> String {
 }
 
 /// The text the model actually reads. Harnesses (Grok measured 2026-08-16)
-/// forward `content[0].text` and drop envelope `gen`. A Turn that omits
+/// forward `content[0].text`; Grok also tolerated an envelope-level `gen`, but
+/// Claude Code (measured 2026-08-20) rejects the frame outright — see `with_gen`. A Turn that omits
 /// `:gen` or `:ticket` cannot be constructed from this function — the
 /// epoch and the rendezvous are mandatory.
 fn render_turn(gen: i64, defs: usize, ticket: i64, value_edn: &str) -> String {
@@ -427,11 +428,10 @@ fn result_frame(id: OwnedValue, result: OwnedValue, gen: i64) -> String {
         ("jsonrpc", OwnedValue::String("2.0".into())),
         ("id", id),
         ("result", with_gen(result, gen)),
-        ("gen", OwnedValue::Integer(gen)),
     ]))
 }
 
-fn error_frame(id: OwnedValue, code: i64, message: &str, gen: i64) -> String {
+fn error_frame(id: OwnedValue, code: i64, message: &str, _gen: i64) -> String {
     wat_edn::to_json_string(&map(vec![
         ("jsonrpc", OwnedValue::String("2.0".into())),
         ("id", id),
@@ -442,12 +442,17 @@ fn error_frame(id: OwnedValue, code: i64, message: &str, gen: i64) -> String {
                 ("message", OwnedValue::String(message.to_string().into())),
             ]),
         ),
-        ("gen", OwnedValue::Integer(gen)),
     ]))
 }
 
 /// Stamp `gen` onto a result map so a client that only forwards `result` still
-/// sees the epoch. The envelope also carries a top-level `gen` for the same reason.
+/// sees the epoch. This is the ONLY place `gen` rides the wire outside the Turn
+/// text: the JSON-RPC *envelope* must carry nothing but `jsonrpc`/`id`/
+/// `result`|`error`. Claude Code validates every inbound frame against the MCP
+/// SDK's `JSONRPCResponseSchema`, which is `.strict()` — one extra top-level key
+/// and the frame matches no arm of the message union, is dropped as a parse
+/// error, and the request hangs until it times out ("Failed to reconnect to
+/// wat: Request timed out"). `ResultSchema` is loose, so `gen` is legal HERE.
 fn with_gen(result: OwnedValue, gen: i64) -> OwnedValue {
     match result {
         OwnedValue::Map(mut entries) => {
