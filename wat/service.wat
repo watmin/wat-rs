@@ -214,17 +214,105 @@
      ;;     `::State/durable`, `::Admin::Init`, `"<fqdn>::serve"`) → BASE, no params:
      ;;     construction and by-name runtime resolution both key on the bare name
      ;;     (`split_name_and_type_params` registers a generic defn under its base).
-     fqdn-parametric? (:wat::core::string::ends-with? fqdn-str ">")
-     fqdn-base     (:wat::core::if fqdn-parametric?
+     ;; ── Arc 109 β-ii-a′: THE BINDER, peeled BEFORE the clause fold ─────────────
+     ;; A service may now declare its type params as a real binder, `:- [K V]`, arriving
+     ;; as the FIRST two elements of `clauses` (a `:-` keyword node, then a WatAST::Vector
+     ;; of symbol nodes). It MUST be peeled here — before the clause fold below (:290-ish)
+     ;; — because that fold calls `macro-error` on any key not in `known-clauses` and would
+     ;; reject `:-` as unrecognized (DESIGN-STONE-binder-beta-ii.md, "hazards measured").
+     ;;
+     ;; THE CONTRACT: the binder is the SOURCE OF TRUTH; the bracketed `<K,V>` string below
+     ;; (`fqdn-tp`) is DERIVED from it, never the reverse — two independent derivations off
+     ;; the name could disagree, and the disagreement would surface ~50 sites from the cause.
+     binder-present? (:wat::core::if (:wat::core::empty? clauses)
+
+                       false
+                       (:wat::core::= "-"
+                         (:wat::core::keyword/to-string (:wat::core::first clauses))))
+     ;; `clauses-body` is `clauses` with the `:-` pair stripped when present, unchanged
+     ;; otherwise. Every downstream reader of the rest-arg (the even-length guard, the
+     ;; clause-map fold) reads `clauses-body` — never the raw `clauses` param — from here on.
+     clauses-body   (:wat::core::if binder-present?
+
+                      (:wat::core::rest (:wat::core::rest clauses))
+                      clauses)
+     ;; DERIVED — the name with any `<…>` stripped. Uniform: it does not matter whether the
+     ;; params arrived via the binder (no brackets in the name) or the legacy suffix.
+     fqdn-base     (:wat::core::if (:wat::core::string::ends-with? fqdn-str ">")
 
                      (:wat::core::first (:wat::core::string::split fqdn-str "<"))
                      fqdn-str)
-     fqdn-tp       (:wat::core::if fqdn-parametric?
+     ;; ★ ONE SOURCE OF TRUTH: the param SYMBOL list. Everything else is derived from it.
+     ;;
+     ;; Builder, 2026-08-21: *"let's make the `:- []` assumed default state."* So there is no
+     ;; monomorphic-vs-parametric distinction to track — there is a param list, and it is
+     ;; usually empty. A declaration with no binder, a declaration written `:- []`, and a bare
+     ;; name are the SAME state, reached by the same path. `fqdn-parametric?` survives only as
+     ;; a DERIVED convenience for its 7 readers (β-ii-b retires them); it is not a concept.
+     ;;
+     ;; Dual-read on where the params come from — binder first, then the legacy name suffix:
+     ;;   `:- [K V]`        → ast->children of the binder vector.
+     ;;   `lru-svc<K,V>`    → parsed out of the name (③ retires this branch).
+     ;;   neither / `:- []` → empty.
+     fqdn-tp-syms   (:wat::core::if binder-present?
 
-                     (:wat::core::string::subs fqdn-str
-                       (:wat::core::string::length fqdn-base)
-                       (:wat::core::string::length fqdn-str))
-                     "")
+                      (:wat::core::if (:wat::core::empty? (:wat::core::rest clauses))
+
+                        (:wat::core::macro-error
+                          "defservice: :- binder must be followed by a parameter vector, e.g. :- [K V]")
+                        (:wat::core::ast->children
+                          (:wat::core::first (:wat::core::rest clauses))))
+                      (:wat::core::if (:wat::core::string::ends-with? fqdn-str ">")
+
+                        ;; Legacy name spelling: strip the brackets by INDEX (never split on
+                        ;; "<" — that leaves a leading "" and yields an empty-named symbol),
+                        ;; split on ",", trim, symbolize. `foldl`+`conj` rather than `mapv`:
+                        ;; a program-body macro may not pass a bare primitive keyword as a
+                        ;; value (measured: `expected "wat::core::fn"`), and this is the same
+                        ;; idiom `:wat::core::keyword/of` uses at core.wat:1328.
+                        (:wat::core::foldl
+                          (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST>
+                                           nm  <- :wat::core::String]
+                            -> :wat::core::Vector<wat::WatAST>
+                            (:wat::core::conj acc
+                              (:wat::core::symbol-node (:wat::core::string::trim nm))))
+                          (:wat::core::Vector :wat::WatAST)
+                          (:wat::core::string::split
+                            ;; The names lie between the brackets. `fqdn-base` is the name up to
+                            ;; "<", so its LENGTH is the "<" index — no `string::index-of`, which
+                            ;; the F5 pure-combinator allow-list refuses (measured: refused AT
+                            ;; DEFINITION, taking the whole stdlib down). This is the same
+                            ;; arithmetic the original suffix derivation used.
+                            (:wat::core::string::subs fqdn-str
+                              (:wat::core::i64::+ (:wat::core::string::length fqdn-base) 1)
+                              (:wat::core::i64::- (:wat::core::string::length fqdn-str) 1))
+                            ","))
+                        (:wat::core::Vector :wat::WatAST)))
+     ;; DERIVED — "has params", not "a binder was written". An empty binder (`:- []`) is the
+     ;; same first-class empty rung as `(Tuple :- [])` and lands where a bare name lands.
+     ;; Measured when this branched on binder-present? and answered plain `true`: `:- []`
+     ;; crashed the macro in `string::subs` — "index out of range: start=0, end=-1,
+     ;; char-length=0" — because a downstream reader trusted the flag and did bracket
+     ;; arithmetic on "".
+     fqdn-parametric? (:wat::core::if (:wat::core::empty? fqdn-tp-syms) false true)
+     ;; DERIVED — the bracketed suffix STRING, the COMPATIBILITY SHIM the ~50 existing
+     ;; consumers keep reading untouched (β-ii-b/c retire it, and the shim is what dies —
+     ;; not a bolt-on that has to be threaded in). ONE derivation now, from the list, for
+     ;; both spellings; a legacy name round-trips name → syms → "<K,V>" identically.
+     fqdn-tp       (:wat::core::if (:wat::core::empty? fqdn-tp-syms)
+
+                     ""
+                     (:wat::core::string::concat "<"
+                       (:wat::core::string::concat
+                         (:wat::core::string::join ","
+                           (:wat::core::foldl
+                             (:wat::core::fn [acc <- :wat::core::Vector<wat::core::String>
+                                              a   <- :wat::WatAST]
+                               -> :wat::core::Vector<wat::core::String>
+                               (:wat::core::conj acc (:wat::core::ast-name a)))
+                             (:wat::core::Vector :wat::core::String)
+                             fqdn-tp-syms))
+                         ">")))
 
      ;; ── 4b-ii: fold ALL clauses into a kwargs MAP (all-kwargs surface) ──────
      ;; clauses is the rest param: a flat [:key val :key val …] list. We fold it into a
@@ -268,7 +356,7 @@
                       ;; See serve-op-arms below: the request-SHAPE guard is generated for EVERY op
                       ;; of EVERY service, always.
                       "max-frame-bytes" true)
-     clauses-len    (:wat::core::length clauses)
+     clauses-len    (:wat::core::length clauses-body)
      n-clause-pairs (:wat::core::i64::/ clauses-len 2)
      ;; even-length guard
      _clauses-even  (:wat::core::if
@@ -286,12 +374,12 @@
                           [k   (:wat::core::i64::* i 2)
                            key (:wat::core::keyword/to-string
                                  (:wat::core::Option/expect
-                                   (:wat::core::get clauses k) "defservice: malformed clause key"))]
+                                   (:wat::core::get clauses-body k) "defservice: malformed clause key"))]
                           (:wat::core::if (:wat::core::HashMap/contains-key? known-clauses key)
-                            
+
                             (:wat::core::HashMap/assoc m key
                               (:wat::core::Option/expect
-                                (:wat::core::get clauses (:wat::core::i64::+ k 1))
+                                (:wat::core::get clauses-body (:wat::core::i64::+ k 1))
                                 "defservice: clause missing a value"))
                             (:wat::core::macro-error
                               (:wat::core::string::concat "defservice: unknown clause :"
