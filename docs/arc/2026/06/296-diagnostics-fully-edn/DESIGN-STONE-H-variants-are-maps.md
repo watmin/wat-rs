@@ -139,3 +139,60 @@ coerce, the foreign decode's shape test, and the deletion of `enum_variant_field
 
 Not 251's keyword→symbol flip. The wire form above is identical on both sides of that migration, so
 neither blocks the other.
+
+---
+
+## ★ AMENDMENT 2026-08-20 — the variant payload takes `:-`, and the field names DO NOT change
+
+Two rulings from arc 109's `:-` work land on this stone. H is still DRAWN, NOT BUILT; these amend
+the form it will build.
+
+**1 — the payload spec is a param-spec, so it takes the operator.** Arc 109 ruled `:-` as the one
+declaration operator: *"the symbol ` :- ` is declaring 'this thing on the left is parameterized by
+the thing on the right'… this is the same as arg-spec and ret-type."* A variant's payload is a
+declaration like any other, so H's variant line gains it — and a parametric enum gains the
+type-param binder in the same motion:
+
+```clojure
+;; H as drawn 2026-08-15
+(wat.core/defenum wat.telemetry/Numeric wat.enum/Pure
+  I64 [val :- wat.type/i64]
+  F64 [val :- wat.type/f64])
+
+;; H as amended — the payload is :--marked; a parametric enum binds its type params
+(wat.core/defenum wat.telemetry/Numeric wat.enum/Pure
+  I64 :- [val :- wat.type/i64]
+  F64 :- [val :- wat.type/f64])
+
+(wat.core/defenum wat.core/Option :- [T] wat.enum/Pure
+  Some :- [val :- T]
+  None :- [])
+```
+
+Builder, 2026-08-20, on `Some`/`None`/`Ok`/`Err`: *"those are all enums... they are being updated
+too... **we are now asserting they have param-spec as well**."*
+
+**2 — the field names stay `value` / `value` / `error`.** This one is a DECISION, not a
+transcription, and it is worth writing down precisely because it is a decision to change nothing.
+
+H repeals `src/types.rs`'s standing note that *"Field names are INTERNAL, not API: the wire form is
+positional — measured, `(:wat::core::Some 42)` prints `#wat.core.Option/Some [42]`."* Once a variant
+is a tagged map, the field name is **on the wire** (`{:value 42}`), so any rename here is a
+wire-format change, not a cosmetic one.
+
+A sketch in conversation used `val` / `ok` / `err`; the registered names (`src/types.rs`, the
+2026-08-05 Option/Result enum registration) are:
+
+| variant | field |
+|---|---|
+| `Option.Some` | `value` |
+| `Result.Ok` | `value` |
+| `Result.Err` | `error` |
+
+Builder: *"value, value, error are fine - i misremembered what we named them."* **So H ships with
+no field rename**, and the wire form for these three is `{:value …}` / `{:value …}` / `{:error …}`.
+
+★ Consequence for scope: this stone now ALSO closes the Option/Result half of
+`109/NOTE-six-parametric-constructors-never-got-the-bracket.md` — `Some`/`None`/`Ok`/`Err` are not
+a separate constructor-wiring stone, they are H's variants declaring their param-spec. Amend H;
+do not mint a sibling.
