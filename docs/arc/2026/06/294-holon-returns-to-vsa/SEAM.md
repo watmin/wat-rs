@@ -172,7 +172,27 @@ treated blocker 3 as one thing when the NOTE lists it as **five sub-sites**. The
    d  defservice EMITS "{b}::Op{p}" with {p} = "<K,V>" ... ⛔ OPEN  (a dozen sites; see below)
    e  the :peers check COMPARES a built angle string ..... ✅ CLOSED 2d25b4790
 4  defn / fn REJECT the `:- [T …]` binder .......... ✅ CLOSED (γ-i c889639aa — covers BOTH)
-5  defrecord/defstruct companion macro ............. ⛔ OPEN. **Needs a DESIGN.**
+5  defrecord/defstruct companion macro ............. ✅ CLOSED (b9df7a09a) — RE-MEASURED 08-22
+
+⛔⛔ **AND THE LEDGER ABOVE WAS ITSELF STALE WITHIN THE HOUR — blocker 5 is CLOSED.** I wrote it as
+OPEN from the NOTE, then read the disk: `b9df7a09a` is titled *"BLOCKER 5 STRUCK"*, postdates the
+NOTE, and teaches BOTH slots (`expand.rs:541`, `walk.rs:87`) to decline a form whose element 1 is the
+`:-` marker. Re-measured all five heads — builtin · typealias · defenum · **defrecord · defstruct** —
+all check clean. Probe kept: `wat-scripts/scratch-pad/arc109-blocker5-parametric-form-reference-by-head.wat`.
+
+⚠ **TWO SHAPES OF THAT PROBE RETURNED FIVE GREENS WHILE MEASURING NOTHING** before one earned the
+result. A bare `typealias` file exits 0 even for `(:wat::cache::NoSuchType :- [:i64])`; so does a
+`defn` signature naming an unresolvable type — `--check` does not resolve unknown names in that
+position. What earned it was a NEGATIVE control failing by the SAME mechanism (a function-type
+bracket with no arrow → *"function-type bracket needs a `:->` arrow"*, the NOTE's exact error).
+**A green is evidence only while a matching red is available.**
+
+★ **THE STANDING LESSON: `NOTE-2iii-is-blocked-*.md` IS A MEASUREMENT WITH A DATE ON IT.** It was
+produced by running the codemod and flooring; four of its five entries have had substrate shipped
+under them since, and I have now caught THREE of them stale by reading rather than running. **Do not
+write a DESIGN against that list.** The instrument that made it is the only instrument that can
+update it, and it is cheap: dry-run the codemod on a `/tmp` copy, diff, apply, floor, read what
+breaks NOW, revert. Last run it was one revert. `[[feedback_a_blocker_note_is_a_claim_with_a_date_on_it]]`
 ```
 
 ⚠ **3d is the one that makes a green corpus regrow the disease.** The `:peers` stone taught
