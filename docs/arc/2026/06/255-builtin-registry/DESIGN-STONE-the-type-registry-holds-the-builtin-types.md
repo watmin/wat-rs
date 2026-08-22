@@ -1,6 +1,6 @@
 # DESIGN — the type registry holds the BUILTIN types
 
-**Status: written 2026-08-22 against `8cc8c9a30`. Builder ruled A: *"we build it and fix the
+**Status: RULED 2026-08-22 — option E (builder tiebreak: narrow waists). Written against `8cc8c9a30`; C and D were proposed and are REJECTED below — the waist already existed.**
 checker."* The representation question below is the one thing still open.**
 
 Arc 255's thesis is ONE resolution path. This stone is the half 255's own DESIGN does not cover.
@@ -124,3 +124,92 @@ what the corpus rejects. `[[feedback_impose_the_check_and_read_the_screams]]`
    That is the point — it is the door, not the wall.
 4. ⛔ A negative control that FAILS: a name that is not a builtin type must still be Unknown. Without
    it, a registry that answers "yes" to everything passes rows 1-3.
+
+---
+
+## ⛔⛔ THE TIEBREAK KILLS BOTH C AND D — THE NARROW WAIST ALREADY EXISTS
+
+**Builder, 2026-08-22:** *"which solution is the long term endstate… we should be installing killing
+blows to bad practices and enabling strong evolutionary traits… narrow waists are the tie breaker."*
+
+Asked on that axis, I went looking for the waist and found it **already built**, in the file I had
+been reading all afternoon.
+
+`src/value/symbol_table.rs:244`, and its own comment calls it **THE DOOR**:
+
+```rust
+/// Every facet `name` is registered under, across all five registries.
+pub fn registrations(&self, name: &str) -> RegistrationSet
+```
+
+> *"One call answers 'what is registered under this name?' across every [registry] — so a
+> single-registry read is a DELIBERATE, greppable choice, never the default that happens because
+> four were forgotten."*
+
+```rust
+pub enum RegistryKind { Macro, Type, Function, UnitVariant, DefValue }
+```
+
+> *"⛔ EXHAUSTIVE BY LAW. The `_`-wildcard ban on enum scrutinees means adding a sixth registry turns
+> every consumer's match RED until it decides what the new kind means."*
+
+And its `Type` facet is answered by exactly the door this stone is about:
+
+```rust
+if self.types.as_ref().is_some_and(|t| t.contains(name)) { set.push(RegistryKind::Type); }
+```
+
+### What that means for C and D
+
+**Both are rejected, and D is the worse of the two.**
+
+**C — a side `HashSet` consulted by `contains`** — puts the Type facet's truth in two places, so the
+waist answers from a widened predicate. It widens the waist by one store per kind of thing we later
+remember. Anti-waist.
+
+**D — a new `classify()` door** — is worse, and the diagnosis is embarrassing: **it mints a rival to
+the function whose own comment names it THE DOOR.** Two doors answering "what is this name?" is not a
+narrow waist; it is no waist. I proposed it *because* it was the shape of a waist, without checking
+whether the waist existed — the same failure as the hand-list one level up, and the same failure as
+re-deriving a note filed on 2026-08-05.
+`[[feedback_search_for_the_mechanism_not_in_the_broken_callers_neighbourhood]]`
+
+### E — the endstate: populate `TypeEnv`; the existing waist becomes honest for free
+
+There is no new door, no new variant, no new predicate, and no list. `register_builtin_types` gains
+the ~30 names it never held, and:
+
+```
+registrations(":wat::core::i64")     →  {Type}      through the door that already exists
+registrations(":wat::kernel::Peer")  →  {Type}      "
+registrations(":user::NoSuchType")   →  {}          the honest answer, for the first time
+```
+
+Every waiting consumer is served through the interface it already uses — the type-reference wall,
+W1's capability keys, reflection, the undefined-func class. None of them learns a new API.
+
+| # | option | Obvious | Simple | Honest | Good UX | narrow waist? | verdict |
+|---|---|:---:|:---:|:---:|:---:|:---:|---|
+| A | `TypeDef::Builtin` variant | YES | NO | YES | NO | — | reject |
+| B | `Nature::Primitive` | NO | YES | NO | NO | — | reject |
+| C | side set + `\|\|` in `contains` | YES | YES | YES | YES | **NO — widens** | reject |
+| D | a new `classify()` door | YES | YES | YES | YES | **NO — a rival door** | reject |
+| **E** | **populate `TypeEnv`; the door already exists** | **YES** | **YES** | **YES** | **YES** | **YES** | **TAKE** |
+
+### Why E is the evolutionary shape, stated as traits rather than praise
+
+- **The waist is one call, five kinds, closed.** Everything above it (resolve, checker, W1,
+  reflection, diagnostics) and every registry below it evolves independently. That is the hourglass.
+- **Adding a new KIND of nameable thing is a compile-time wall** — the `_`-wildcard ban turns every
+  consumer red until it rules on the new kind. Adding a new INSTANCE is just registration. Cheap
+  where it should be cheap, loud where it should be loud.
+- **Two bad practices lose their form.** The *name-shape test* (255's ruled-out "B3 forgery" —
+  asking whether a string LOOKS like a type) has nothing left to do, because the door says what a
+  name IS. And the *private copy* (a resolver-local list of builtin names) has nowhere to live,
+  because the facet it would duplicate is already the answer.
+- **It is subtractive.** The stone deletes a category of future work rather than adding a mechanism:
+  after it, "is this name live?" has exactly one implementation for every kind of name.
+
+★ The whole cost of the missing feature was thirty unregistered names, and it produced a hand-list, a
+false DESIGN premise, a rejected second resolution path, and a wall that could not be built. **The
+waist was right; the data behind one of its facets was empty.**
