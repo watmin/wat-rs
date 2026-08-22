@@ -5,71 +5,48 @@
 > `wat/rete.wat`. If a stone below disagrees with a dated ruling here,
 > **this file wins** and the stone is stale.
 
-**Right now:** floor **GREEN** `.floor/2026-08-20T22-14-47Z/`
-(4844 passed, 19 skipped). Clippy `--all-targets -D warnings`
-silent. First floor this turn RED `.floor/2026-08-20T22-07-56Z/`
-five diagnostic goldens (`runtime.rs` 25361→25366,
-`release-session` shifted `apply_tracked_callee`); recaptured;
-do not treat 22-07-56Z as green. Grid
-`GRID-native-vs-clara-2026-08-20T22-21-52Z.txt`
-(`GRID_SKIP_ORACLE=1`, `GRID_RUNS=3`): **30/30 `:match`,
-30/30 `:us`**, wall **368s**. Closest **fanout `[40000]` ratio 3.35**
-(wat 53.0 ms). Cascade `[50 100]` 6.68 (wat 17.6 ms). Accum
-`[200 200]` 8.02 (wat 18.6 ms). Skip matches `fire-rules$oracle`
-(a leftover token fails the run). Do not treat 17-42-43Z as a
-measurement. GNU `/usr/bin/time` is not installed; bash `time`
-is a keyword (`which time` empty).
-insert-prime-split LANDED (insert − conj 1933 → 310 ns). Host
-encode/sort after query-read is compiled-wat, not rete.
-Queue: **intueri comment-geography leftovers; other wards CONVERGED twice.**
-Stone **29 REJECTED**
+**Right now:** floor **GREEN** `.floor/2026-08-21T23-24-13Z/`
+(4911 passed, 19 skipped). Clippy `--all-targets -D warnings`
+silent. grok-rete HEAD **`8839bb16`**. Vigilia recasts **12 and 13**
+both **0 L1 + 0 L2** (inward 17/17 + circumspicere) at that HEAD —
+the stop named as two back-to-back empty recasts. R68
+(`REALIZATIONS.md`) is the wrap of that watch. Do not stamp
+`vigilatum` until asked. Stone **29 REJECTED**
 (2026-08-20): intern stays discrete per compile-all
 (`rust_identity`). Identical rules do not share. Identical
 queries do not share. Query-memory is per Session. Overlay
 HIT is the same connection. Athena content-address would
 make `release-session` a cross-connection invariant — do
-not construct it. `NEXT-STRIKES-after-shadow.md`. grok-rete
-DR **82b9b551** (was d0973fb1; do not cite the old hash).
-Inward vigilia recast **DIVERGED**; L1+L2 drive is on disk (this tree,
-dirty after `82b9b551`). `wm.rs` → `session.rs`. Stratify holds the
-slice arm as a value (`fire_fixpoint_delta_armed`). Primed public-entry
-docs gone. `JoinKeysCache` / `RhsSlotTables` / `AlphaDiscs` /
-`OrBranches` / `WhereDiscs` used at construction. `intern_key` doc
-names the intern. Exigere `Follow-up` and stones 6–8 present-tense.
-Intern doors share `rete_arm_build_put`. rete lib **104**. clippy
-`-D warnings` (`--lib`) silent. Recast to confirm CONVERGES. Do not
-stamp `vigilatum` until a live recast is 0+0.
-Circumspicere (this turn): shipped-claim lies closed
-(`kernel is wm` → `session`; Session comments still said
-`fire-once'` / `fire-rules-spec`). Negative space: slice-arm
-as value had no rete-lib weigh after intern-put removal —
-`probe_arc278_7strat*` + `probe_arc278_not_and*` **6/6**
-green. TLS intern still requires connection affinity (stone
-27). `release-session` is hangup, not Drop (stone 28).
-Do not stamp.
-Dirty: vigilia L1+L2 drive + intern-trio docs + stones
-27–28 + 29 reject. Kernel is `session` / `fire` / `arm` /
-`stratify` / `census` / `insert`. Live names:
-`FireSession`, `InternedNetwork`, `WhereDiscNode`,
-`AlphaDiscNode`. Stratify is `StratifyView` / `RuleDep` /
-`RuleParts` structs, not tuples. Fire loop is
-`kernel/fire/mod.rs` (passes) + `kernel/fire/delta.rs`
-(fixpoint). Oracle is `wat/rete/oracle/` {insert,pass,
-accum-pass,fire,explain}. Sequi intern: arm table is
-thread-owned (`thread_local` `RefCell<FxHashMap>`; stone
-**27 LANDED**, `rg Mutex src/rete` empty) + exec arena
-runed `ambient-context`; census TLS runed
-`performance-counter`. Intern is a lease (`arm-session`
-+1, `release-session` −1, 0 drops **that id**; stone
-**28 LANDED**). Perspicere: nested maps named
-(`JoinLeftIndex`, `CompiledRhsByRule`, `AlphasByType`,
-gather unary/nary). Census/microbench HashMaps runed
-`perspicere(read-once)`. Named L1/L2 from the last tape
-are closed on disk. Recast vigilia. Do not stamp until
-a live recast is 0+0. Public rete names are unprimed wat Fns. Rust is
-`$native`. The wat reference is `$oracle`. Exception: intern hangup
-mouths `arm-session` / `release-session` are keyword primitives
-(native-only intern; oracle has no intern). `$impl` is
+not construct it. `NEXT-STRIKES-after-shadow.md`. `wm.rs` →
+`session.rs`. Stratify holds the slice arm as a value
+(`fire_fixpoint_delta_armed`). Primed public-entry docs gone.
+Intern doors share `rete_arm_build_put`. Grid
+`GRID-native-vs-clara-2026-08-20T22-21-52Z.txt`
+(`GRID_SKIP_ORACLE=1`, `GRID_RUNS=3`): **30/30 `:match`,
+30/30 `:us`**, wall **368s** — last weighed grid; do not
+treat a newer skip as a measurement. GNU `/usr/bin/time` is
+not installed; bash `time` is a keyword (`which time` empty).
+insert-prime-split LANDED (insert − conj 1933 → 310 ns). Host
+encode/sort after query-read is compiled-wat, not rete.
+TLS intern still requires connection affinity (stone 27).
+`release-session` is hangup, not Drop (stone 28). Kernel is
+`session` / `fire` / `arm` / `stratify` / `census` /
+`insert`. Live names: `FireSession`, `InternedNetwork`,
+`WhereDiscNode`, `AlphaDiscNode`. Stratify is
+`StratifyView` / `RuleDep` / `RuleParts` structs, not
+tuples. Fire loop is `kernel/fire/mod.rs` (passes) +
+`kernel/fire/delta.rs` (fixpoint). Oracle is
+`wat/rete/oracle/` {insert,pass,accum-pass,fire,explain}.
+Sequi intern: arm table is thread-owned (`thread_local`
+`RefCell<FxHashMap>`; stone **27 LANDED**, `rg Mutex src/rete`
+empty) + exec arena runed `ambient-context`;
+census TLS runed `performance-counter`. Intern is a lease
+(`arm-session` +1, `release-session` −1, 0 drops **that
+id**; stone **28 LANDED**). Public rete names are unprimed
+wat Fns. Rust is `$native`. The wat reference is
+`$oracle`. Exception: intern hangup mouths `arm-session` /
+`release-session` are keyword primitives (native-only
+intern; oracle has no intern). `$impl` is
 kwargs/bracket/service — not rete. Grid: fire-rules /
 fire-once / insert / insert-all / fire-rules-explain each
 have public + `$native` + `$oracle`. Prime `'` is not the
