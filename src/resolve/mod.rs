@@ -56,13 +56,9 @@
 //!   tracking is dynamic enough that the runtime catches those at
 //!   call time via `UnboundSymbol`; a static scope walker can layer
 //!   on later if strict startup-time errors are wanted.
-//! - It does NOT check INLINE type-position references (`let`/`match` ascriptions inside a
-//!   function body). Those are checked at use by the existing unifier (see [`crate::check`]).
-//!   Arc 109 (a-type-reference-must-resolve) added a SEPARATE sweep
-//!   ([`type_refs::sweep_type_references`], called from [`walk::resolve_references`]) for
-//!   DECLARED type positions — params, returns, fields, variant payloads, alias RHS, surface
-//!   members — which the checker only ever reaches at a USE site, never validating an uncalled
-//!   declaration at all.
+//! - It does NOT check type-position references. That's the type
+//!   checker's job (see [`crate::check`]); this pass treats type
+//!   annotations and field types as opaque.
 //! - It validates call-head references AND, since 251.1b, normalizes namespaced
 //!   symbol refs (`wat.core/+`) to their keyword FQDN via the [`normalize`] module.
 //!
@@ -91,12 +87,11 @@ mod quote;
 mod registration;
 mod reserved;
 mod rust_use;
-mod type_refs;
 mod walk;
 
 // Public API — re-exported for the external importers (freeze.rs, lib.rs,
 // macros/registry.rs, closure_extract.rs).
-pub use error::{ReferenceKind, ResolveError, UnresolvedReference};
+pub use error::{ResolveError, UnresolvedReference};
 pub use normalize::normalize_symbol_refs;
 pub use registration::{is_namespaced, register, Existing, Privilege, Registration, Rejection};
 pub use reserved::{is_reserved_prefix, reserved_prefix_list};
@@ -107,7 +102,6 @@ mod tests {
     use super::*;
     use crate::macros::{register_defmacros, MacroRegistry};
     use crate::runtime::{register_defines, Environment, SymbolTable};
-    use crate::types::TypeEnv;
 
     /// Full pipeline helper: parse → register-defmacros → expand → register-defines → resolve.
     ///
@@ -116,12 +110,6 @@ mod tests {
     /// that involve namespaced SYMBOL heads (`wat.core/+`), use
     /// [`normalize_resolve`] (full pipeline) or [`normalize_ast`] (inspect the
     /// rewritten AST) instead — `resolve_references` alone cannot see a symbol head.
-    ///
-    /// Arc 109 — also skips `register_types`, mirroring production's ORDER (step 5 precedes
-    /// step 7) with an intentionally-empty user type set; `TypeEnv::with_builtins()` still
-    /// seeds the same builtin `TypeDef`s a real freeze would carry, so a fixture's function
-    /// signature naming a builtin AGGREGATE type (not a bare/FQDN scalar — see the module
-    /// doc's primitives caveat) resolves exactly as it would in production.
     fn resolve(src: &str) -> Result<(), ResolveError> {
         let forms = crate::parse_all!(src).expect("parse ok");
         let mut macros = MacroRegistry::new();
@@ -132,8 +120,7 @@ mod tests {
             crate::macros::expand_all(rest, &mut macros, &env, &sym).expect("expand");
         let mut sym = SymbolTable::new();
         let rest = register_defines(expanded, &mut sym).expect("register defines");
-        let types = TypeEnv::with_builtins();
-        resolve_references(&rest, &sym, &macros, &types)
+        resolve_references(&rest, &sym, &macros)
     }
 
     /// Arc 251 stone 251.1b — normalize-then-resolve pipeline helper.
@@ -152,8 +139,7 @@ mod tests {
         let rest = register_defines(expanded, &mut sym).expect("register defines");
         // normalize first (arc 251.1b), then validate references.
         let normalized = normalize_symbol_refs(rest, &sym, &macros)?;
-        let types = TypeEnv::with_builtins();
-        resolve_references(&normalized, &sym, &macros, &types)
+        resolve_references(&normalized, &sym, &macros)
     }
 
     // ─── Happy paths ────────────────────────────────────────────────────
@@ -176,16 +162,9 @@ mod tests {
         // Stone 241.11 — the resolve() test helper does not load stdlib macros,
         // so `defn` (a macro) would not expand. Use `def` + `fn` (the post-expansion
         // form) to directly test the resolver without requiring macro expansion.
-        //
-        // Arc 109 — `:wat::core::i64` (FQDN), not bare `:i64`: bare primitives are a
-        // RETIRED spelling (`check::BARE_PRIMITIVES`, flagged by `walk_for_bare_primitives`
-        // at check time) that the new declared-type sweep also does not recognize — it
-        // isn't in `TypeEnv` OR the sweep's builtin-leaf allowlist, deliberately, since
-        // accepting it here would re-legitimize a spelling the corpus has been migrating
-        // away from.
         assert!(resolve(
             r#"
-            (:wat::core::def :my::app::inc (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ x 1)))
+            (:wat::core::def :my::app::inc (:wat::core::fn [x <- :i64] -> :i64 (:wat::core::i64::+ x 1)))
             (:my::app::inc 41)
             "#,
         )
@@ -212,8 +191,8 @@ mod tests {
         // since the resolve() test helper does not load stdlib macros.
         assert!(resolve(
             r#"
-            (:wat::core::def :my::app::add-one (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ x 1)))
-            (:wat::core::def :my::app::double (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::* x 2)))
+            (:wat::core::def :my::app::add-one (:wat::core::fn [x <- :i64] -> :i64 (:wat::core::i64::+ x 1)))
+            (:wat::core::def :my::app::double (:wat::core::fn [x <- :i64] -> :i64 (:wat::core::i64::* x 2)))
             (:my::app::add-one (:my::app::double 10))
             "#,
         )

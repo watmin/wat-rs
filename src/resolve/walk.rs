@@ -1,7 +1,7 @@
 //! Call-head resolution walk — the core of the name-resolution pass.
 //!
-//! [`resolve_references`] — the public entry point (three-pass: collect use!
-//! declarations, walk all call heads, then sweep declared type positions).
+//! [`resolve_references`] — the public entry point (two-pass: collect use!
+//! declarations, then walk all call heads).
 //! [`check_form`] — the recursive AST walker that resolves call heads.
 //! [`is_resolvable_call_head`] — the predicate that decides whether a keyword
 //! head is a valid call target.
@@ -9,18 +9,15 @@
 use crate::ast::WatAST;
 use crate::macros::MacroRegistry;
 use crate::runtime::SymbolTable;
-use crate::types::TypeEnv;
-use super::error::{ReferenceKind, ResolveError, UnresolvedReference};
+use super::error::{ResolveError, UnresolvedReference};
 use super::boundary::{is_where_form, quote_boundary, Boundary};
 use super::reserved::is_reserved_prefix;
 use super::rust_use::collect_use_declarations;
 use super::quote::check_quasiquote_template;
-use super::type_refs::sweep_type_references;
 
-/// Check that every call-position keyword-path reference in `forms` resolves somewhere, AND
-/// that every declared type-expression (in a registered type declaration or function signature)
-/// names either a registered type or a type variable bound by its enclosing declaration. Returns
-/// Ok iff all references are known; otherwise reports every failure at once.
+/// Check that every call-position keyword-path reference in `forms`
+/// resolves somewhere. Returns Ok iff all references are known;
+/// otherwise reports every failure at once.
 ///
 /// CALLER CONTRACT: `forms` must be the program's **top-level** form sequence
 /// (the freeze residue). Pass 1's `use!` scan is program-global precisely because
@@ -29,16 +26,10 @@ use super::type_refs::sweep_type_references;
 /// express this precondition — it is a caller obligation. The in-crate caller
 /// (`freeze.rs` step 7) honours it; this fn is also `pub`-exported, so any
 /// external caller owes the same contract.
-///
-/// `types` is the fully-populated [`TypeEnv`] from freeze step 5 (registration precedes this
-/// step-7 pass — see `freeze/env.rs`'s step ordering). Arc 109 (a-type-reference-must-resolve)
-/// added this parameter; the declared-type sweep (pass 3, below) needs the registry to know
-/// which names are real.
 pub fn resolve_references(
     forms: &[WatAST],
     sym: &SymbolTable,
     macros: &MacroRegistry,
-    types: &TypeEnv,
 ) -> Result<(), ResolveError> {
     let mut unresolved = Vec::new();
 
@@ -60,12 +51,6 @@ pub fn resolve_references(
     for form in forms {
         check_form(form, sym, macros, &use_decls, &mut unresolved);
     }
-
-    // Pass 3 (arc 109) — declared type positions. A REGISTRY sweep, not a form walk: type
-    // declaration forms are consumed at freeze step 5 and never reach this residue (see
-    // `type_refs`'s module doc).
-    sweep_type_references(sym, types, &mut unresolved);
-
     if unresolved.is_empty() {
         Ok(())
     } else {
@@ -108,10 +93,8 @@ pub(super) fn check_form(
                         "macro call survived expansion (expansion pass ran before this check?)"
                     } else {
                         "call head — not a builtin, not a registered function"
-                    }
-                    .to_string(),
+                    },
                     span: head_span.clone(),
-                    kind: ReferenceKind::CallHead,
                 });
             }
 
@@ -134,10 +117,8 @@ pub(super) fn check_form(
                     unresolved.push(UnresolvedReference {
                         path: head.clone(),
                         context:
-                            ":rust::* reference not covered by any (:wat::core::use! ...) declaration"
-                                .to_string(),
+                            ":rust::* reference not covered by any (:wat::core::use! ...) declaration",
                         span: head_span.clone(),
-                        kind: ReferenceKind::CallHead,
                     });
                 }
             }

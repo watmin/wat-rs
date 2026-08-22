@@ -314,7 +314,7 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
     // DEFERRED, not swallowed: an unresolved reference is very often the SYMPTOM of a
     // malformed definition that failed to register. Running `check_program` first lets the
     // located cause be reported; if check is clean, this error is re-raised unchanged.
-    let deferred_resolve = resolve_references(&residue, &symbols, &macros, &types).err();
+    let deferred_resolve = resolve_references(&residue, &symbols, &macros).err();
 
     // 7.6. Stone 237.8b (+ arc 209 host-parity-4a) — register stdlib
     //      defclause / extend-type / def forms into

@@ -6,22 +6,6 @@
 use crate::span::Span;
 use std::fmt;
 
-/// Arc 109 (a-type-reference-must-resolve) — which HALF of the resolve pass produced an
-/// [`UnresolvedReference`]: the original call-head walk (arc 251 and earlier), or the new
-/// declared-type-position sweep. Consulted ONLY by `freeze.rs`'s resolve/check precedence —
-/// see the doc there. Not serialized to EDN (`ResolveError::to_edn` omits it deliberately, so
-/// every existing golden keeps its shape byte-for-byte); it is a Rust-side discriminant, not a
-/// wire fact.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ReferenceKind {
-    /// A call-position keyword head, a `:rust::*` coverage gap, or a namespaced symbol ref —
-    /// the resolve pass's original subject.
-    CallHead,
-    /// A declared type position (param, return, field, variant payload, alias RHS, surface
-    /// member) naming something that is neither a registered type nor a bound type variable.
-    Type,
-}
-
 /// One unresolved reference, with context about where it appeared.
 /// Stone 243.7e: each reference carries its source span so the collection
 /// is location-complete without an outer span on [`ResolveError`].
@@ -30,16 +14,11 @@ pub struct UnresolvedReference {
     /// The keyword path that didn't resolve.
     pub path: String,
     /// Human-friendly context: a short phrase like "call head" or
-    /// "macro call (not expanded)", or — for a type reference — the specific declared slot
-    /// (`"type in the signature of :user::f, parameter #1"`). Arc 109 widened this from
-    /// `&'static str` to `String`: a type-reference context names the enclosing declaration
-    /// and slot, which cannot be known at compile time.
-    pub context: String,
+    /// "macro call (not expanded)".
+    pub context: &'static str,
     /// Source location of the offending keyword reference. `crate::rust_caller_span!()`
     /// when the site genuinely has no recoverable location.
     pub span: Span,
-    /// Arc 109 — which half of the pass produced this finding. See [`ReferenceKind`].
-    pub kind: ReferenceKind,
 }
 
 /// Name-resolution errors.
@@ -114,7 +93,7 @@ impl crate::to_edn::ToEdn for ResolveError {
                     .map(|r| {
                         let fields = vec![
                             (edn_kw("path"), edn_str(&r.path)),
-                            (edn_kw("context"), edn_str(&r.context)),
+                            (edn_kw("context"), edn_str(r.context)),
                             (edn_kw("span"), r.span.to_edn()),
                         ];
                         OwnedValue::Tagged(Tag::ns(crate::error_ns::RESOLVE, "UnresolvedReference"), Box::new(OwnedValue::Map(fields)))
