@@ -1,136 +1,107 @@
-# DESIGN — the subtype lattice keys on the BASE NAME. The args were never doing anything.
+# DESIGN — `is_subtype` answers TWO questions; give the second its own door
 
-> **RULED A-i, builder 2026-08-21.** The edge key is the base name; type args never enter the lattice.
+> **RULED S2, builder 2026-08-21.** `is_subtype` keeps EXACT-string semantics. A second, explicit
+> query — `family_extends(sub_base, sup_base)` — answers the arg-agnostic question that
+> `satisfies_bare_surface` was faking with a prefix match.
 >
-> **RULED B-3, builder 2026-08-21.** The identity work splits into THREE stones, each one mechanism
-> with its own floor and a green tree between:
-> ```
-> 1. THE LATTICE      this stone — a map key; ~4 fns, one file (src/types.rs)
-> 2. defservice       53 sites in one macro: 42 EMIT a name, 11 BUILD a string to COMPARE
-> 3. the one-offs     defn's 2 ({b}::Kwargs{p}, :{b}$impl{p}) · bracket.wat:514's ast-name
->                     surgery · fix.wat:502's replacement TEXT (a codemod, not substrate)
-> ```
-> B-4 — splitting by *"what ②-iii needs"* — failed **Honest**: that boundary requires knowing what
-> ②-iii needs, and the blocker list is explicitly uncertified (five found, four of them by questions
-> rather than by the floor). A split drawn from an uncertified list inherits its uncertainty.
->
-> ⚠ **THIS DESIGN PREVIOUSLY ARGUED THE OPPOSITE** — it recommended structured identity
-> `(base, args)`, on the theory that collapsing to the base would merge distinctions the corpus
-> relies on. Measurement refuted that, and the correction is kept visible because the route matters:
-> I recommended preserving, with care, the thing that turned out to be the defect.
+> **RULED B-3** — the identity work is three stones (lattice · `defservice`'s 53 sites · three
+> one-offs). This is stone 1.
 
-## What the measurement found
+## ⚠ THIS DESIGN HAS BEEN WRONG TWICE, AND THE HONEST SCOPE SHRANK EACH TIME
 
-```
-subtype_edges: HashMap<String, Vec<String>>      is_subtype(sub: &str, sup: &str, env)
-30 read sites (23 check.rs · 3 types.rs · 2 runtime.rs · 2 collection/map_container.rs)
- 8 write sites
-```
+| draft | claimed | refuted by |
+|---|---|---|
+| **A-ii** structured identity `(base, args)` | the args must be preserved, carefully | the corpus's own test header: the args in a key are a bound variable's NAME — `"<?454>" != "<T>", always` |
+| **A-i** the key is the base; args never enter the lattice | *"the args were never doing anything"* | **two negative-control tests went red.** The args WERE doing something — in one consumer, by accident |
+| **S2** *(this)* | two questions, two doors | — |
 
-★ **The args in an edge key are a BOUND VARIABLE'S NAME.** The corpus states it, in the header of
-`tests/types/probe_stone118_3b_seqable_parametric_satisfaction.wat`:
+★ Each rewrite made the stone smaller. That is the tell that the first two were designed from a
+reading rather than from the consumer. **The evidence for S2 was sitting in `check.rs`'s own comment
+the whole time — in a file the earlier drafts never opened.**
 
-> *the declared param name, e.g. `:sq::Seqable<T>` … against the CALL SITE's rendered expected type
-> (a fresh unification var, e.g. `:sq::Seqable<?454>`) — `"<?454>" != "<T>"`, **always***
+## What the two reds proved
 
-An edge asserts *"this type satisfies that surface."* The surface's params are the SURFACE's bound
-variables — they are not arguments of the edge. Putting a bound variable's *name* into a hash key
-cannot match anything, and the two helpers that surround the lattice are the scar tissue:
+`check.rs`'s `assignable`, `(Parametric, Parametric)` arm:
 
 ```rust
-transport_satisfier_heads(head) -> vec![fq, format!("{fq}<T>"), format!("{fq}<Xt>")]
-    // guesses THREE keys because the caller cannot know which declared param name was registered
-
-satisfies_bare_surface(sub, surface, env)
-    let prefix = format!("{surface}<");     // …and then IGNORES whatever is inside the brackets
+// the FAST PATH — sound ONLY because is_subtype compares full strings
+if ah != eh && transport_edge_keys(&a).any(|k| is_subtype(k, &format_type(&e), types)) {
+    return nature_floor_ok(&a, &parametric_head_fqdn(eh), types);
+}
+// …the ELSE branch, which is ALREADY CORRECT:
+else { … is_subtype(k, &bare) && aargs.zip(eargs).all(unify) … }
 ```
 
-**Both exist to work around args that should not be in the key.** Remove the args and
-`satisfies_bare_surface` collapses into `is_subtype`; `transport_satisfier_heads` collapses to one key.
+The exact-string compare was doing **two jobs**: *"does the edge exist"* and — accidentally, by
+failing to match — *"and do the args agree."* Base-stripping made it succeed on head alone, so it
+returned before the arg guard ran. Both reds are **negative controls** — arc 170's swap gate and
+118.B1a's — and the `else` branch's own comment names them:
 
-**Nothing merges.** Censused over `wat/` + `tests/` + `wat-scripts/`: the only base appearing both bare
-and parametric is `:sq::Seqable`, and that is two *separate scratch-pad probe files* each declaring
-its own — never loaded together. No base is used both ways within one program.
+> ★ *SOUNDNESS LIVES IN THE GUARDS BELOW, NOT IN THE GATE … enforced by UNIFY on the args … Both are
+> negative-control rows of 118.B1a's gate.*
 
-⚠ My first census missed this by dropping `wat-scripts/` from the path set while the earlier one
-included it, and the two disagreed. **Two instruments over different inputs are not a second
-opinion.** `[[feedback_two_instruments_agreeing_is_not_corroboration]]`
+**And the fast path cannot simply be deleted**: it serves 293.W.2f, where the arities DIFFER
+(`Handle<K,V,T>` vs `TypedCapability<S,R>`), while the `else` requires `aargs.len() == eargs.len()`.
+Both arms are load-bearing.
 
-## The strike
+## ★ What this means for the original complaint — it is mostly ALREADY SOLVED
 
-Both doors already exist — no new helper:
+The `<T>` vs `<?454>` mismatch is real, and **Stone 118.3-B already fixed it where it mattered**: the
+`else` branch queries by the BARE key and unifies args explicitly. So the lattice's "defect" is not
+that types cannot match across spellings — it is narrower:
+
+**`satisfies_bare_surface` fakes an arg-agnostic query with `format!("{surface}<")`, a prefix match.**
+That is the one remaining fake, and it is what this stone replaces.
+
+## The strike — honestly bounded
 
 ```
-TypeExpr::base_fqdn()          types.rs:131      node → head FQDN, args stripped
-                                                 (its own doc: "One implementation, two doors")
-split_type_params_pub(s)       runtime.rs:14266  &str → (base, suffix)
+REVERT   register_subtype / is_subtype base-stripping        keys stay EXACT; the fast path stays sound
+ADD      family_extends(sub_base, sup_base, env)             the arg-agnostic query, named and explicit
+REPLACE  satisfies_bare_surface's prefix match               → family_extends. 4 callers unchanged in shape.
+KEEP     extend-type's FORM-spelling acceptance              the rider's addition; ②-iii needs it
+KEEP     transport_satisfier_heads' guess list               it guesses at EXACT keys, which remain — sound
 ```
 
-```
-register_subtype(child, parent)      key both by BASE
-is_subtype(sub, sup, env)            compare by BASE
-satisfies_bare_surface(…)            DELETE — it becomes is_subtype
-transport_satisfier_heads(head)      DELETE — it becomes one key
-```
+## ⚠ WHAT THIS STONE DOES **NOT** DELIVER — stated because two drafts oversold it
 
-The 30 `is_subtype` call sites keep their `&str` signature untouched: the stripping happens at the
-lattice boundary, not at every caller.
+- **It does not remove `transport_satisfier_heads`' three-key guess**, nor `transport_edge_keys`'
+  hardcoded `["T","Xt"]` last-arg rewriting. Those guess at *exact* keys, and under S2 exact keys
+  remain. They are ugly and sound. Removing them requires the fast path to stop needing exact keys —
+  a different stone with its own ruling.
+- **It does not fix the `<T>`/`<?454>` mismatch.** 118.3-B already did, in the `else` branch.
+- **It does not touch `defservice`** — that is stone 2, 53 sites.
 
-## ⚠ It must accept BOTH spellings — this is what closes ②-iii's blocker 3
-
-After ②-iii, `extend-type`'s parent slot is a FORM — `(:wat::core::Seqable :- [T])` — not a keyword
-with a `<…>` suffix. So base extraction must take the head from either spelling. That is precisely
-②-iii blocker 3's lattice half, and this stone closes it.
-
-`defservice`'s `{b}::Op{p}` concatenation is **NOT closed by this stone** — those build type NAMES
-for emission, not lattice keys. That is a separate question and it re-shapes **decision B**.
-
-## ⚠ Named, NOT in scope: base extraction is hand-rolled 16+ times
-
-`grep` finds **sixteen inline `find('<')` sites** across `runtime.rs`, `types.rs`, `check.rs` and
-`types/surface.rs`, plus four named helpers (`base_fqdn`, `split_name_and_type_params`,
-`split_type_params`, `split_type_params_pub`). They do different jobs — rendering, accessor lookup,
-scheme naming — so consolidating all of them is its own stone, not this one.
-
-**But A-i's correctness depends on the LATTICE's extraction being singular**, so the four functions
-above must route through one door and be seen to. A second hand-roll inside the lattice would
-reintroduce exactly the inconsistency this stone removes.
+What it does deliver: **one fake becomes a named function**, and `extend-type` accepts the form
+spelling, which is ②-iii blocker 3's lattice half.
 
 ## The four questions
 
-*Shared premise: the lattice needs one comparable key. Holds — `is_subtype` walks a graph.*
+*Shared premise, and it is what the two reds refuted: that ONE lattice query can serve both callers.*
 
 | | Obvious | Simple | Honest | Good UX |
 |---|---|---|---|---|
-| **A-i** edge key is the BASE NAME; args never enter the lattice | YES | YES | YES | YES |
-| **A-ii** structured `(base, args)`, compared structurally | YES | **NO** | YES | — |
-| **A-iii** canonical string in the `:-` form `(Head :- [args])` | **NO** | **NO** | **NO** | — |
-| **A-iv** canonical string in the angle form | **NO** | **NO** | **NO** | — |
+| **S1** A-i stands; the fast path gains an explicit arg guard | YES | **NO** | YES | — |
+| **S2** two queries — `is_subtype` exact; add `family_extends` | YES | YES | YES | YES |
+| **S3** revert entirely; keep the prefix match | YES | YES | **NO** | — |
 
-**A-i** — *Obvious*: an edge is a satisfaction relation; the surface's binders are not part of which
-edge it is. *Simple*: it DELETES both workarounds rather than re-spelling them. *Honest*: measured to
-merge nothing, and today's key claims a precision it demonstrably lacks. *Good UX*: `is_subtype` keeps
-its signature; all 30 call sites are untouched.
+**S1 fails Simple** — it duplicates the `else`'s guard in a second place under different arity rules,
+so the swap-gate would be enforced twice, differently. Two enforcements of one invariant is how they
+drift apart.
 
-**A-ii fails Simple** — `Hash` on `TypeExpr`, 30 signature changes, and then it must implement
-`<T>` ≡ `<?454>` unification *inside the lattice* — the checker's job, which already lives there. It
-would carefully preserve the thing that should be deleted.
+**S3 fails Honest** — `format!("{surface}<")` is a prefix match standing in for a relation it never
+checks; leaving it means the code keeps claiming a question it is not asking.
 
-**A-iii / A-iv fail all three** — the key keeps args that every consumer then works to ignore, both
-workarounds survive re-spelled, and the `<T>`/`<?454>` mismatch persists in new clothes. A-iv also
-pins the internal truth to the spelling ③ makes illegal.
+## Acceptance
 
-## The risk the floor must answer
+1. ★ Both negative controls PASS — `probe_arc170_parametric_surface_param` and
+   `probe_stone_118_b1a_neg`. These are the two the A-i attempt broke; they are the gate.
+2. `satisfies_bare_surface` no longer exists; `format!("{surface}<")` returns nothing under grep.
+3. `family_extends` has exactly one implementation and the four ex-`satisfies_bare_surface` callers
+   route through it.
+4. `extend-type` accepts a FORM parent `(:Seqable :- [T])` — kept from the A-i attempt.
+5. `is_subtype`'s 30 call sites and its signature are unchanged.
+6. Floor **4854/4854**, clippy 0.
 
-`transport_satisfier_heads` guesses on the **sub** side as well as the sup side. Both get stripped
-under A-i, and only a floor run says whether something was leaning on that — arc 293's transport
-machinery (`Handle<Wire>` satisfying a bare `Dialable`) is the likeliest place. If it lights up, the
-finding is that some edge genuinely needed an instantiation, and the design gets a NAMED exception
-rather than a general one.
-
-## What this stone does NOT do
-
-- **No corpus migration** — ②-iii re-runs after, unchanged.
-- **No ③** — legality is untouched.
-- **No `defservice` emission change** — that is B's question.
-- **No 16-site consolidation** — named above, its own stone.
+⚠ Row 1 is the whole stone. A green floor without those two tests specifically re-run proves nothing:
+they were passing before the A-i attempt and must be passing after.
