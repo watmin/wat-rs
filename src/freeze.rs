@@ -914,6 +914,26 @@ fn is_unknown_callee(e: &crate::check::CheckError) -> bool {
     matches!(e.kind, crate::check::CheckErrorKind::UnknownCallee { .. })
 }
 
+/// Arc 109 (a-type-reference-must-resolve) — does `err` carry at least one declared-TYPE-
+/// position finding (as opposed to only call-head findings)?
+///
+/// The "cause outranks the symptom" precedence below was derived when the resolver's only
+/// finding was an unknown CALL HEAD — there, check's `UnknownCallee` carries the SAME fact,
+/// so it's the located, better-attributed twin and the two can be compared by outranking rule.
+/// For a phantom TYPE the roles are inverted: the resolver's finding (an unresolved name at the
+/// DECLARATION) is the cause; anything `check_program` reports as a consequence (`TypeMismatch`
+/// blaming a caller, `ReturnTypeMismatch` blaming a body) is a SYMPTOM with no located twin —
+/// check has no `CheckErrorKind` that says "this type name doesn't exist" (D1 rejected building
+/// one; that's this stone's own job, in the resolver). So a `TypeMismatch` is not comparable to
+/// `UnresolvedReference{kind: Type}` the way `UnknownCallee` is comparable to
+/// `UnresolvedReference{kind: CallHead}` — there is no "same fact, better attribution" relation,
+/// only "check found a downstream victim of a defect resolve already named". The type-kind
+/// finding therefore always wins, unconditionally — never gated on what `check_err` contains.
+fn resolve_error_names_a_phantom_type(err: &ResolveError) -> bool {
+    let ResolveError::UnresolvedReferences(refs) = err;
+    refs.iter().any(|r| r.kind == crate::resolve::ReferenceKind::Type)
+}
+
 pub fn startup_from_source(
     entry_src: &str,
     base_canonical: Option<&str>,
@@ -1293,6 +1313,13 @@ fn startup_from_forms_post_config(
     let check_result = check_program(&bundle.residue, &bundle.symbols, &bundle.types);
     match (check_result, bundle.deferred_resolve.take()) {
         (Err(check_err), Some(resolve_err)) => {
+            // Arc 109 — a phantom TYPE reference always wins: see
+            // `resolve_error_names_a_phantom_type`'s doc for why it isn't subject to the
+            // call-head outranking rule below at all (no located twin exists on the check
+            // side for it to be compared against).
+            if resolve_error_names_a_phantom_type(&resolve_err) {
+                return Err(resolve_err.into());
+            }
             // ★ THE CAUSE OUTRANKS THE SYMPTOM ONLY WHEN IT IS A DIFFERENT CAUSE.
             //
             // `check_program` ALSO reports unknown call heads (`UnknownCallee`) — the same
