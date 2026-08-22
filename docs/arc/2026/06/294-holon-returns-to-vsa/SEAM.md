@@ -24,11 +24,13 @@
 ⚠ `git status` FIRST. `pgrep -af 'cargo|nextest'`.
 
 ```
-floor .......... 4854/4854, 0 FAIL, 19 skipped, 77.1s  (own invocation, scripts/floor.sh, at 2d25b4790)
-                ⚠ 4855 → 4854 is CORRECT and accounted: the --check stone deleted
-                `infer_fn_non_vector_args_returns_silent_placeholder` and renamed one
-                other (2 removed, 1 added). A count that DROPS must be explained,
-                never observed — if you floor and see 4854, that is green.
+floor .......... 4859/4859, 0 FAIL, 19 skipped, 76.7s  (own invocation, scripts/floor.sh, at 2d32fd605)
+                ⚠ EVERY MOVE IN THIS COUNT IS ACCOUNTED, and a count that moves for an
+                unexamined reason is the thing this line exists to catch:
+                  4855 → 4854  the --check stone deleted one test, renamed another (−2 +1)
+                  4854 → 4859  the `:peers` negative controls added five (2d32fd605)
+                If you floor and see 4859, that is green. If you see anything else,
+                EXPLAIN it before you accept it.
 clippy ......... 0 under `-D warnings`
 host ........... JohnDesktop · john · ~/work/holon/wat-rs
 stash@{0} ...... the lifecycle strike. NEVER drop. base ff7705ba.
@@ -104,31 +106,41 @@ in a FOURTH place the floor never reached, `defn` simply refuses the binder the 
 ⛔ **Do NOT re-run the codemod on `wat/` until that is fixed.** It is not a partial-migration
 hazard — it is a red floor.
 
-## ✅ THE RIDER LANDED — `defservice` compares and destructures types as DATA · `2d25b4790`
+## ⚠⚠ A RIDER IS IN THE FIELD — `a type reference must RESOLVE`
 
-Scored: `109/SCORE-STONE-defservice-compares-types-as-data.md`. Floor 4854/4854, clippy 0. It fired
-**STOP-3 twice and was right both times** — my classification table was wrong at two of nine rows.
+**`git status` FIRST.** Brief: `109/BRIEF-STONE-a-type-reference-must-resolve.md` (DESIGN ruled
+D1-A · D2-A · D3-B). It touches `src/resolve/`, `src/freeze.rs`, `src/value/symbol_table.rs` and new
+`tests/`. If the tree is dirty, that is its work — uncommitted, unfloored, **UNSCORED**. Read the
+brief, then verify against the disk. Predicted 60-110 min; released ~19:20Z 2026-08-22.
 
-⚠ **It closed blocker 3e, NOT blocker 3.** See the ledger under NEXT.
+⚠ **Its row 2 is the one to check first.** `freeze.rs`'s precedence discards a deferred resolve error
+whenever any check error is not an `UnknownCallee` — so a phantom type WITH a caller keeps its old
+`TypeMismatch` while the UNCALLED case goes green. **Row 1 green + row 2 red is the predicted outcome
+of a correct pass with the precedence untouched, and it reads exactly like success.**
 
 ## ✅ SHIPPED — arc 109
 
 ```
-γ-i           `fn` AND `defn` take the `:- [T …]` binder (re-measured 08-22)          c889639aa
+γ-i           `fn` AND `defn` take the `:- [T …]` binder (re-measured 08-22)       c889639aa
 --check loud  a malformed fn no longer passes --check (an EXEMPTION deleted)       490c3c1e4
 identity 1/3  `family_extends` gets its own door — PROVABLY behaviour-neutral      edb7f66c7
 identity 2a   six DEAD bindings deleted (one a NAME COLLISION)                     41a3d0dd7
 identity 2b   each ROLE gets its own binding — expansion BYTE-IDENTICAL            0366b2f2b
-expr-slot     a type reference is not an EXPRESSION (expander + resolver)             b9df7a09a
-              ⚠ was labelled "blocker 5" here — a DIFFERENT list from the NOTE's, whose
-              blocker 5 is the defrecord COMPANION MACRO and is still OPEN. The collision
-              is what let this seam claim ②-iii was re-runnable.
+blocker 5     a type reference is not an EXPRESSION (expander + resolver)          b9df7a09a
+              ✅ this IS the NOTE's blocker 5 and it CLOSED it. An earlier line here
+              called it "a different list's numbering" — WRONG, and retracted: the
+              commit is titled "BLOCKER 5 STRUCK" and the mechanism matches (the
+              defrecord companion macro firing on a type reference). Re-measured
+              2026-08-22, all five heads clean.
 identity 2c   ALL 22 ANNOTATIONs emit the `:-` form                                073dda92c +2
 type-equal?   the missing door: types are data everywhere EXCEPT in a macro        c5b9b6552
-:peers        `defservice` READS + COMPARES types as data — NOTE blocker 3e only    2d25b4790
+:peers        `defservice` READS + COMPARES types as data — NOTE blocker 3e only   2d25b4790
+neg-controls  the `:peers` bijection keeps its negative controls (2x2 perturb)     2d32fd605
+blocker5 ✅   RE-MEASURED closed; probe kept in wat-scripts/scratch-pad/          faaec192b
 ```
 
 **RULED:** D1 · G3 · A-i→**S2** · **B-3** · 2a/2b/2c · **F1** · **DECL-NAME emits the new form** ·
+**a-type-reference-must-RESOLVE: D1-A (the resolver) · D2-A (declared positions) · D3-B (NO `:wat::*` exemption)** ·
 **RUNTIME-ARG is NOT a migration** (the runtime already strips the params — `canonical_callable_name`;
 drop them, β-ii-b's move, and they stay keywords because they are identity TAGS, not types).
 
