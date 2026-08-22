@@ -5,7 +5,7 @@
 //! rust-deps registry.
 
 use crate::ast::WatAST;
-use super::error::UnresolvedReference;
+use super::error::{ReferenceKind, UnresolvedReference};
 
 /// Scan top-level forms for `(:wat::core::use! :rust::...)` and record
 /// them in `use_decls`. Emits an `UnresolvedReference` if the requested
@@ -24,8 +24,10 @@ pub(super) fn collect_use_declarations(
                     unresolved.push(UnresolvedReference {
                         path: head.clone(),
                         context:
-                            "(:wat::core::use! :rust::Path) expects exactly one keyword argument",
+                            "(:wat::core::use! :rust::Path) expects exactly one keyword argument"
+                                .to_string(),
                         span: head_span.clone(),
+                        kind: ReferenceKind::CallHead,
                     });
                     return;
                 }
@@ -33,8 +35,10 @@ pub(super) fn collect_use_declarations(
                     if !registry.has_type(path) {
                         unresolved.push(UnresolvedReference {
                             path: path.clone(),
-                            context: "rust symbol not available in wat; declare it via its shim",
+                            context: "rust symbol not available in wat; declare it via its shim"
+                                .to_string(),
                             span: path_span.clone(),
+                            kind: ReferenceKind::CallHead,
                         });
                         return;
                     }
@@ -42,8 +46,10 @@ pub(super) fn collect_use_declarations(
                 } else {
                     unresolved.push(UnresolvedReference {
                         path: head.clone(),
-                        context: "(:wat::core::use! ...) argument must be a keyword path",
+                        context: "(:wat::core::use! ...) argument must be a keyword path"
+                            .to_string(),
                         span: head_span.clone(),
+                        kind: ReferenceKind::CallHead,
                     });
                 }
             }
