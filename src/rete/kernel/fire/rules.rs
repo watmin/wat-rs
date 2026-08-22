@@ -94,22 +94,8 @@ pub(crate) fn fire_rules_stratified(
             rev_children.entry(child).or_default().push(*id);
         }
     }
-    // A Negation/Exists/Accumulate node's own tested-fact-type alpha is a REFERENCE field
-    // (`negated-alpha-id` / `exists-alpha-id` / `from-alpha-id`), not a forward `children` edge
-    // — `rev_children` alone never reaches it, so the backward walk below follows this
-    // reference explicitly wherever it meets one of these three node kinds. Missing this would
-    // silently slice the referenced alpha OUT of the sub-network, leaving it permanently empty
-    // and making every negation vacuously pass (STOP-1 class bug — caught before shipping).
-    //
-    // `mint-leaf-alphas` is the same class one level down: a combinator inner
-    // (`:not` of `:and` of Wind+Temp) mints one dummy alpha for the wrapper
-    // (the reference field) plus an orphan AlphaNode per fact-shaped leaf.
-    // Those leaves have no children edge and no id field. Dropping them
-    // forced a facts-scan fallback; rematch now refuses. Follow the cond.
-    let ref_alpha_of = |node: &Value| -> Option<i64> {
-        let _ = node_record(node)?;
-        node_ref_alpha_id(node)
-    };
+    // Negation/Exists/Accumulate tested-alpha is a REFERENCE field, not a children
+    // edge — `close_upstream` follows `node_ref_alpha_id` plus combinator leaf alphas.
 
     let orig_rules = session_rules(session);
     let full_arm = rete_arm_get_or_build(&network, &orig_rules, sym)?;
@@ -147,31 +133,13 @@ pub(crate) fn fire_rules_stratified(
         // Negation/Exists/Accumulate node's own tested alpha reference), and
         // `mint_leaf_alpha_ids` (orphan fact-shaped leaves of a combinator ref
         // alpha) until no new node is discovered.
-        while let Some(id) = frontier.pop() {
-            if let Some(parents) = rev_children.get(&id) {
-                for &p in parents {
-                    if active_ids.insert(p) {
-                        frontier.push(p);
-                    }
-                }
-            }
-            if let Some(node) = get_node(&network, id) {
-                if let Some(alpha_id) = ref_alpha_of(node) {
-                    if active_ids.insert(alpha_id) {
-                        frontier.push(alpha_id);
-                    }
-                }
-                if kind_of(node) == NodeKind::Alpha {
-                    if let Some(d) = slice_drivers.get(&id) {
-                        for leaf_id in driver_leaf_ids(d) {
-                            if leaf_id != id && active_ids.insert(leaf_id) {
-                                frontier.push(leaf_id);
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        close_upstream(
+            &network,
+            &rev_children,
+            slice_drivers,
+            &mut active_ids,
+            &mut frontier,
+        );
 
         // Slice the shared network down to just `active_ids` — same node Records, no
         // recompile — EXCEPT each retained node's own `children` field is rewritten
@@ -185,19 +153,7 @@ pub(crate) fn fire_rules_stratified(
         // a WRONG final fact — `seen: HashSet<Value>` still dedups at production — but a
         // measured perf regression this fix removes). Cured entirely on this native COPY;
         // the oracle's own `network` Value is never mutated.
-        let sliced_network = match &network {
-            Value::wat__core__PersistentMap(m) => {
-                let mut nm = rpds::HashTrieMapSync::new_sync();
-                for id in &active_ids {
-                    if let Some(v) = m.get(&Value::i64(*id)) {
-                        nm.insert_mut(Value::i64(*id), dedupe_filter_children(v, &active_ids));
-                    }
-                }
-                // Never wrap a built trie directly — choose the arm by size.
-                Value::wat__core__PersistentMap(crate::value::pmap::PMap::from_trie(nm))
-            }
-            other => other.clone(),
-        };
+        let sliced_network = slice_active_network(&network, &active_ids);
 
         let slice_arm = subset_rete_arm(
             &full_arm,
@@ -271,16 +227,14 @@ pub(crate) fn fire_rules_stratified(
         Value::wat__core__PersistentVector(prod_pv),
     )]);
 
-    // Oracle fire-stratified does a throwaway fire-once on the ORIGINAL network + closed
-    // facts so QueryNodes (absent from per-stratum slices) fill query-memory.
-    // Skip when the full arm has no QueryNode.
+    // QueryNodes sit off the production chain, so stratum slices never contain them.
+    // Oracle pays a throwaway fire-once on the FULL network + closed facts
+    // (`wat/rete/oracle/fire.wat` q-seed). Native harvests on the QueryNode reverse-closure
+    // only — same answers, no second pass of the stratified join/negation chains.
     let qmem = if full_arm.kind_ids.query.is_empty() {
         Value::wat__core__PersistentMap(crate::value::pmap::PMap::new())
     } else {
-        let q_fired = fire_once_session(&session_with_facts(session, acc_facts.clone()), sym)?;
-        session_named_field(&q_fired, "query-memory")
-            .cloned()
-            .unwrap_or_else(|| Value::wat__core__PersistentMap(crate::value::pmap::PMap::new()))
+        harvest_stratified_queries(session, &full_arm, &rev_children, &acc_facts, sym)?
     };
 
     let empty_pm = Value::wat__core__PersistentMap(crate::value::pmap::PMap::new());
@@ -297,6 +251,111 @@ pub(crate) fn fire_rules_stratified(
             ("query-memory", qmem),
         ],
     ))
+}
+
+/// Reverse-close from `frontier`. Parent edges (`rev_children`) are not enough:
+/// Negation/Exists/Accumulate tested-alpha is a reference field, not a children
+/// edge — missing it slices the tested type OUT and every negation vacuously
+/// passes. Combinator `:not`/`:and`/`:or` mints orphan leaf alphas; follow
+/// `driver_leaf_ids` or rematch refuses.
+fn close_upstream(
+    network: &Value,
+    rev_children: &ParentsOf,
+    drivers: &HashMap<i64, CondDriver>,
+    active_ids: &mut HashSet<i64>,
+    frontier: &mut Vec<i64>,
+) {
+    while let Some(id) = frontier.pop() {
+        if let Some(parents) = rev_children.get(&id) {
+            for &p in parents {
+                if active_ids.insert(p) {
+                    frontier.push(p);
+                }
+            }
+        }
+        if let Some(node) = get_node(network, id) {
+            if let Some(alpha_id) = node_ref_alpha_id(node) {
+                if active_ids.insert(alpha_id) {
+                    frontier.push(alpha_id);
+                }
+            }
+            if kind_of(node) == NodeKind::Alpha {
+                if let Some(d) = drivers.get(&id) {
+                    for leaf_id in driver_leaf_ids(d) {
+                        if leaf_id != id && active_ids.insert(leaf_id) {
+                            frontier.push(leaf_id);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn slice_active_network(network: &Value, active_ids: &HashSet<i64>) -> Value {
+    match network {
+        Value::wat__core__PersistentMap(m) => {
+            let mut nm = rpds::HashTrieMapSync::new_sync();
+            for id in active_ids {
+                if let Some(v) = m.get(&Value::i64(*id)) {
+                    nm.insert_mut(Value::i64(*id), dedupe_filter_children(v, active_ids));
+                }
+            }
+            Value::wat__core__PersistentMap(crate::value::pmap::PMap::from_trie(nm))
+        }
+        other => other.clone(),
+    }
+}
+
+/// Fill query-memory after stratified fire. QueryNodes are absent from production
+/// slices; seed the closed fact bag through the QueryNode reverse-closure once.
+fn harvest_stratified_queries(
+    session: &Value,
+    full_arm: &InternedNetwork,
+    rev_children: &ParentsOf,
+    acc_facts: &Value,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    let Some(network) = session_network(session) else {
+        return Ok(Value::wat__core__PersistentMap(crate::value::pmap::PMap::new()));
+    };
+    let next_id = session_named_field(session, "next-id")
+        .cloned()
+        .unwrap_or(Value::i64(0));
+    let mut q_ids: HashSet<i64> = HashSet::new();
+    let mut q_front: Vec<i64> = Vec::new();
+    for &qid in &full_arm.kind_ids.query {
+        if q_ids.insert(qid) {
+            q_front.push(qid);
+        }
+    }
+    close_upstream(
+        network,
+        rev_children,
+        &full_arm.compiled_drivers,
+        &mut q_ids,
+        &mut q_front,
+    );
+    let q_net = slice_active_network(network, &q_ids);
+    let q_arm = subset_rete_arm(full_arm, &q_ids, &HashSet::new(), &q_net);
+    let empty_pm = Value::wat__core__PersistentMap(crate::value::pmap::PMap::new());
+    let empty_rules = Value::wat__core__PersistentVector(rpds::VectorSync::new_sync());
+    let q_sess = session_with_fields(
+        session,
+        &[
+            ("network", q_net),
+            ("rules", empty_rules),
+            ("alpha-memory", empty_pm.clone()),
+            ("beta-memory", empty_pm.clone()),
+            ("production-memory", empty_pm),
+            ("facts", acc_facts.clone()),
+            ("next-id", next_id),
+        ],
+    );
+    let q_fired = fire_fixpoint_delta_armed(&q_sess, sym, None, Some(q_arm), FireKind::Once)?;
+    Ok(session_named_field(&q_fired, "query-memory")
+        .cloned()
+        .unwrap_or_else(|| Value::wat__core__PersistentMap(crate::value::pmap::PMap::new())))
 }
 
 

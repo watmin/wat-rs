@@ -5,19 +5,20 @@
 > `wat/rete.wat`. If a stone below disagrees with a dated ruling here,
 > **this file wins** and the stone is stale.
 
-**Right now:** floor **GREEN** `.floor/2026-08-21T23-24-13Z/`
+**Right now:** floor **GREEN** `.floor/2026-08-22T02-40-11Z/`
 (4911 passed, 19 skipped). Clippy `--all-targets -D warnings`
-silent. grok-rete HEAD **`8839bb16`**. Vigilia recasts **12 and 13**
-both **0 L1 + 0 L2** (inward 17/17 + circumspicere) at that HEAD —
-the stop named as two back-to-back empty recasts. R68
-(`REALIZATIONS.md`) is the wrap of that watch. Do not stamp
-`vigilatum` until asked. Stone **29 REJECTED**
-(2026-08-20): intern stays discrete per compile-all
-(`rust_identity`). Identical rules do not share. Identical
-queries do not share. Query-memory is per Session. Overlay
-HIT is the same connection. Athena content-address would
-make `release-session` a cross-connection invariant — do
-not construct it. `NEXT-STRIKES-after-shadow.md`. `wm.rs` →
+silent. `harvest_stratified_queries` LANDED (QueryNode reverse-closure,
+not a second full fire).
+Vigilia recasts **12 and 13** both **0 L1 + 0 L2** (inward
+17/17 + circumspicere) at `8839bb16` — the stop named as two
+back-to-back empty recasts. R68 (`REALIZATIONS.md`) is the
+wrap of that watch. Do not stamp `vigilatum` until asked.
+Stone **29 REJECTED** (2026-08-20): intern stays discrete per
+compile-all (`rust_identity`). Identical rules do not share.
+Identical queries do not share. Query-memory is per Session.
+Overlay HIT is the same connection. Athena content-address
+would make `release-session` a cross-connection invariant —
+do not construct it. `NEXT-STRIKES-after-shadow.md`. `wm.rs` →
 `session.rs`. Stratify holds the slice arm as a value
 (`fire_fixpoint_delta_armed`). Primed public-entry docs gone.
 Intern doors share `rete_arm_build_put`. Grid
@@ -28,11 +29,17 @@ Intern doors share `rete_arm_build_put`. Grid
 `[40000]` ratio 3.40** (wat-ns 55.5 ms; 08-20T22 was 53.0 ms /
 3.35 — noise). Named leftover of cleanup: **min-finding `[2000]`
 wat-ns 11.6 ms (08-18) → 3.47 ms (08-20T00, ratio ~31) → 2.49 ms
-(this run, ratio 54 because Clara 136 ms vs 101 ms)**. Do not
+(that grid, ratio 54 because Clara 136 ms vs 101 ms)**. Do not
 cite 54× as a 10× engine cut; the engine cut is 11.6 → 2.49.
 **deep-cascade `[50 100]` wat-ns 17.6 → 15.0 ms. node-share
-`[50 200]` 1.22 → 0.94 ms.** strat-neg `[6 2000]` 35.6 → 47.5 ms
-(back toward 08-18's 58 ms; 08-21T08 already 44.5 — not glossed).
+`[50 200]` 1.22 → 0.94 ms.** strat-neg `[6 2000]` 35.6 → 47.5
+was the throwaway fire-once on the FULL network (QueryNodes
+sit off production slices; `strat-neg.wat` has 10 `defquery`).
+**LANDED:** QueryNode reverse-closure + `FireKind::Once` on
+that slice (`harvest_stratified_queries`). Named cell
+`GRID_SKIP_ORACLE=1 GRID_RUNS=3`: `[6 500]` 6.17 ms,
+`[6 1000]` 15.2 ms, `[6 2000]` **33.6 ms** (under 08-20's
+35.6), 3/3 `:match` `:us`. Oracle still pays the full q-seed.
 Accum `[200 200]` 18.6 → 18.3 ms. Skip matches
 `fire-rules$oracle` (a leftover token fails the run). Do not
 treat 17-42-43Z as a measurement. GNU `/usr/bin/time` is
