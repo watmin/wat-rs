@@ -9,7 +9,7 @@
 
 ## GROUND FIRST
 
-> **Written against `a4da7237a`.** Run **`git log --oneline a4da7237a..HEAD`**. Empty → nothing moved.
+> **Written against `f0d3fb2` (HEAD at write time).** Run **`git log --oneline <that>..HEAD`**. Empty → nothing moved.
 > Non-empty → every commit in it outranks every line below.
 
 ⚠ `git status` FIRST. `pgrep -af 'cargo|nextest'`.
@@ -93,40 +93,52 @@ wat/service.wat            "<K,V>" as a STRING, re-attached as "{b}::Op{p}" — 
 ⛔ **Do NOT re-run the codemod on `wat/` until that is fixed.** It is not a partial-migration
 hazard — it is a red floor.
 
-## ✅ SHIPPED SINCE THE BLOCKER LIST ABOVE WAS WRITTEN
+## ✅ SHIPPED — arc 109, two days
 
 ```
-γ-i              `fn` takes the `:- [T …]` binder; `def` derives; `defn` forwards   c889639aa
---check loud     an EXEMPTION deleted — a malformed fn no longer passes --check     490c3c1e4
-identity 1/3     `family_extends` gets its own door. PROVABLY behaviour-neutral     edb7f66c7
-TABLE            defservice's 94 built names classified by consumer ROLE            (committed)
+γ-i           `fn` takes the `:- [T …]` binder; `def` derives; `defn` forwards      c889639aa
+--check loud  an EXEMPTION deleted — a malformed fn no longer passes --check        490c3c1e4
+identity 1/3  `family_extends` gets its own door. PROVABLY behaviour-neutral        edb7f66c7
+identity 2a   six DEAD bindings deleted from defservice (one a NAME COLLISION)      41a3d0dd7
+identity 2b   each ROLE gets its own binding. Expansion BYTE-IDENTICAL              0366b2f2b
+blocker 5     a type reference is not an expression — the expander declines it      b9df7a09a
+identity 2c   19 of 22 ANNOTATIONs emit the `:-` form                               073dda92c +1
 ```
 
-**RULINGS LANDED:** D1 (γ-i first) · G3 (`fn` carries the binder) · **A-i then S2** (`is_subtype`
-stays EXACT; `family_extends` is the arg-agnostic door) · **B-3** (the identity work is THREE
-stones: lattice ✅ · `defservice` · three one-offs).
+**RULINGS:** D1 · G3 · A-i→**S2** · **B-3** (lattice · defservice · one-offs) · **2a/2b/2c** ·
+**F1** (blocker 5 before 2c).
 
-⚠ **THE IDENTITY DESIGN WAS WRONG TWICE AND THE HONEST SCOPE SHRANK EACH TIME** — A-ii "preserve the
-args carefully" → A-i "the args were never doing anything" (refuted by two RED NEGATIVE CONTROLS) →
-S2 "two questions, two doors". The evidence for S2 sat in `check.rs`'s own comment the whole time, in
-a file neither earlier draft opened. `[[feedback_a_rulings_premise_expires_but_the_ruling_stands]]`
+## ⛔ THE SHAPE THAT BIT THREE TIMES IN ONE DAY — read this before any `:-` work
 
-## ⛔ NEXT — stone 2 of 3: `defservice`. The TABLE is written; the brief is not.
+**A SLOT WITH TWO IMPLEMENTATIONS IS TWO SLOTS.** I verified a form was accepted *somewhere* and
+shipped "the slot accepts it" — three times, and each time a SECOND, independent reader had never
+been taught:
 
-`109/TABLE-defservice-type-name-sites.md` — 94 bindings, 36 in-scope, every consumption cited.
+```
+extend-type's surface arg    types.rs ✅ CHECK-time    runtime.rs:8226 ⛔ RUNTIME evaluator
+(Head :- [args])             expand.rs ✅ EXPANDER     resolve/walk.rs:76 ⛔ RESOLVER
+defservice's annotation      the slot ✅ accepts it    the macro READS ITS OWN EMISSION back
+```
 
-★ **The uniform wrap is DEAD, and the table is why.** `keyword/to-type-form-colon` is F5-admitted, so
-wrapping every `keyword/from-string` looked like a one-line fix. **SEVEN bindings are multi-role.**
-`admin-ty` and `status-ty` reach THREE roles each — a `defenum` NAME slot, a type ANNOTATION, and a
-RUNTIME ARG — both through the SAME `(self-peer ~status-ty ~admin-ty)` call at `service.wat:2304`.
-One conversion breaks one of them.
+**None surfaced where the defect was.** The resolver one reported *"call head — not a builtin, not a
+registered function"* — naming the TYPE as a missing function. The read-back one died at a
+`keyword/to-string` in unrelated code.
+`[[feedback_a_slot_with_two_implementations_is_two_slots]]`
 
-Also in the table: **4 DEAD bindings** (`reply-name` :868 · `peer-ty` :936 · `vector-ty` :944 ·
-`resp-ty` :1889 — the last a NAME COLLISION a name-only grep reads as live) and **2 OTHER** rows that
-fit no role (`surface-kw`, `launch-head-kw`).
+⚠ **AND A RIDER'S SCOPED RUN IS NOT THE FLOOR.** `binary_id(wat::services)` was **128/128 green**
+while the floor was **red by six**.
 
-⚠ **Stone 2 may split again.** Deleting 4 dead bindings and re-slotting 7 multi-role ones are
-different jobs.
+## ⛔ NEXT
+
+1. **identity 2c's remainder — 3 bindings, precisely named.** `handle-bare-name` (extend-type's
+   TARGET arg, `types.rs:3642`) and `dialable-ty`/`typedcap-ty` (extend-type's surface arg at the
+   RUNTIME evaluator, `runtime.rs:8226`). Both slots are Keyword-only. This is the SAME two-readers
+   shape — teach the second reader.
+2. **identity 3/3** — the one-offs: `defn`'s 2 (`{b}::Kwargs{p}`, `:{b}$impl{p}`),
+   `bracket.wat:514`'s `ast-name` surgery, `fix.wat:502`'s replacement TEXT (a codemod, not substrate).
+3. **defservice's 11 COMPARE sites** — it validates types by comparing RENDERED STRINGS. Unruled,
+   and the thing every spelling change breaks. `109/TABLE-defservice-type-name-sites.md` separates
+   them from the 42 EMIT sites.
 
 ## ⛔ STILL UNRULED
 
