@@ -74,8 +74,19 @@ pub(super) fn check_form(
     // Walker-specific List-head logic: call-head resolution and quote-family
     // boundary guards apply only to List forms with Keyword heads.
     if let WatAST::List(items, _) = form {
+        // Arc 109 — SIBLING of the guard at `src/macros/expand.rs`. A form whose element 1 is the
+        // `:-` binder marker is a TYPE REFERENCE — `(Head :- [args])` — never a call. The expander
+        // was taught this first; the resolver is a SECOND, INDEPENDENT consumer of the same shape
+        // and was not, so a type reference NESTED inside an annotation's argument vector —
+        // `[addr <- (:wat::kernel::Address :- [(:S::Op :- [T]) (:S::Reply :- [T])])]`, which
+        // `defservice` emits once its annotations carry the `:-` spelling — reached here and was
+        // reported as `call head — not a builtin, not a registered function`, naming the type as
+        // if it were a missing function. Same test, same helper (`types::is_binder_marker`:
+        // KEYWORD, never Symbol), because it is the same rule: `:-`'s param-spec sits in a
+        // RESERVED position where a value was never legal.
+        let is_type_reference = items.get(1).is_some_and(crate::types::is_binder_marker);
         if let Some(WatAST::Keyword(head, head_span)) = items.first() {
-            if !is_resolvable_call_head(head, sym, macros) {
+            if !is_type_reference && !is_resolvable_call_head(head, sym, macros) {
                 unresolved.push(UnresolvedReference {
                     path: head.clone(),
                     context: if macros.contains(head) {
