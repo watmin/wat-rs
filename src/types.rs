@@ -747,12 +747,22 @@ pub(crate) fn transport_satisfier_heads(head: &str) -> Vec<String> {
     vec![fq.clone(), format!("{fq}<T>"), format!("{fq}<Xt>")]
 }
 
-/// 293.W.2f — `Handle<Wire>` satisfies a bare surface `Dialable` if Handle
-/// or Handle<T> extend-types some `Dialable<S,R>`.
-pub(crate) fn satisfies_bare_surface(sub_head: &str, surface: &str, env: &TypeEnv) -> bool {
-    let prefix = format!("{surface}<");
-    for key in transport_satisfier_heads(sub_head) {
-        if is_subtype(&key, surface, env) {
+/// Does `sub`'s FAMILY extend `sup`'s family — existence only, arguments ignored?
+///
+/// The question the old deleted helper was asking with a `<`-suffixed string-prefix match:
+/// "is ANY instantiation of this surface reachable from this type?" Asking it by string
+/// prefix meant the code claimed a relation it never checked. This asks it directly: walk
+/// the `extend-type` edges from each of `sub`'s guessed keys ([`transport_satisfier_heads`]),
+/// and at each parent compare its BASE name (via [`split_type_params_pub`](crate::runtime::split_type_params_pub))
+/// against `sup`'s base name — the same base-extraction door `TypeExpr::base_fqdn` uses
+/// elsewhere, not a second hand-rolled extraction.
+///
+/// NOT a substitute for [`is_subtype`], which answers the EXACT question and whose exact-string
+/// compare is load-bearing for `assignable`'s transport fast path.
+pub(crate) fn family_extends(sub: &str, sup: &str, env: &TypeEnv) -> bool {
+    let sup_base = crate::runtime::split_type_params_pub(sup).0;
+    for key in transport_satisfier_heads(sub) {
+        if is_subtype(&key, sup, env) {
             return true;
         }
         let mut visited = std::collections::HashSet::new();
@@ -761,7 +771,7 @@ pub(crate) fn satisfies_bare_surface(sub_head: &str, surface: &str, env: &TypeEn
             .map(|p| p.to_vec())
             .unwrap_or_default();
         while let Some(p) = stack.pop() {
-            if p == surface || p.starts_with(&prefix) {
+            if crate::runtime::split_type_params_pub(&p).0 == sup_base {
                 return true;
             }
             if visited.insert(p.clone()) {
@@ -3643,14 +3653,33 @@ fn splice_type_decls(
                     ))
                 }
             };
+            // Arc 109 stone 1 — the protocol slot also accepts a parametric-type FORM
+            // (`(:Proto :- [T])`, ②-iii's eventual spelling) alongside the Keyword surface
+            // (`:Proto<T>`). Both go through the SAME two existing doors — `parse_type_node`
+            // (already parses `:-`-marked forms into `TypeExpr::Parametric`, no reader change
+            // needed) then `TypeExpr::base_fqdn()` — so the lattice's own extraction stays
+            // singular; this does not add a second hand-rolled `find('<')`.
             let protocol_name = match items.get(2) {
                 Some(WatAST::Keyword(k, _)) => k.clone(),
+                Some(node @ WatAST::List(_, _)) => parse_type_node(node)?.base_fqdn().ok_or_else(
+                    || {
+                        TypeError::new(
+                            decl_span.clone(),
+                            TypeErrorKind::MalformedDecl {
+                                head: "extend-type".into(),
+                                reason: "protocol type form at position 2 has no nameable head"
+                                    .into(),
+                            },
+                        )
+                    },
+                )?,
                 _ => {
                     return Err(TypeError::new(
                         decl_span,
                         TypeErrorKind::MalformedDecl {
                             head: "extend-type".into(),
-                            reason: "expected keyword protocol name at position 2".into(),
+                            reason: "expected keyword or type form protocol name at position 2"
+                                .into(),
                         },
                     ))
                 }

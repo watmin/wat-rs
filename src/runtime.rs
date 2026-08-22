@@ -8962,7 +8962,7 @@ fn value_matches_type_by_name(
                     if let Some(types) = sym.types_deref() {
                         let surface = crate::types::parametric_head_fqdn(p);
                         if matches!(types.get(&surface), Some(crate::types::TypeDef::Surface(_)))
-                            && crate::types::satisfies_bare_surface(val_type, &surface, types)
+                            && crate::types::family_extends(val_type, &surface, types)
                         {
                             return true;
                         }
@@ -9001,14 +9001,14 @@ fn value_matches_type_by_name(
             // for two different tops, is the finding — the arm enumerates concrete heads, so every
             // new top arrives as a fresh instance of the same bug.
             //
-            // ONE DOOR: `satisfies_bare_surface` (src/types.rs:752) is the CHECKER's own answer to
-            // "does this type satisfy this surface", walking the `extend-type` edges
+            // ONE DOOR: `family_extends` (src/types.rs) is the CHECKER's own answer to
+            // "does this type's family satisfy this surface", walking the `extend-type` edges
             // `register_subtype` laid down. The runtime now asks the same question of the same
             // registry instead of keeping a second, narrower opinion.
             if let Some(types) = sym.types_deref() {
                 let surface = crate::types::parametric_head_fqdn(head);
                 if matches!(types.get(&surface), Some(crate::types::TypeDef::Surface(_)))
-                    && crate::types::satisfies_bare_surface(val_type_path(val), &surface, types)
+                    && crate::types::family_extends(val_type_path(val), &surface, types)
                 {
                     return true;
                 }

@@ -15330,7 +15330,7 @@ pub(crate) fn assignable(
             || crate::types::is_subtype(&crate::types::parametric_head_fqdn(head), ep, types)
             || transport_edge_keys(&a)
                 .iter()
-                .any(|k| crate::types::satisfies_bare_surface(k, ep, types))
+                .any(|k| crate::types::family_extends(k, ep, types))
         {
             // Arc 293 K1b — an extend-type edge to a nature-bound surface must clear the floor.
             return nature_floor_ok(&a, ep, types);
@@ -15402,7 +15402,7 @@ pub(crate) fn assignable(
         // "<?454>" != "<T>", always. Bind instead of string-match: confirm `eh` resolves to a
         // registered SURFACE by its BARE key (`parametric_head_fqdn` — the same lookup arm 3,
         // 14800-14812, already uses), confirm the actual's family really does extend-type it
-        // (existence only, arg-agnostic — `satisfies_bare_surface`, the same helper arm 3
+        // (existence only, arg-agnostic — `family_extends`, the same helper arm 3
         // calls), then UNIFY — invariant, per this arm's own doctrine two paragraphs up — the
         // surface's declared params (already positionally == `eargs`) against the actual's own
         // args. `e` is already fully `reduce`d (this fn's top), so `eargs` needs no re-walk.
@@ -15429,7 +15429,7 @@ pub(crate) fn assignable(
         // (arm 4's comment, 14814-14822) is enforced by UNIFY on the args: two different concrete
         // instantiations do not unify, so `Vector<String>` is still refused against
         // `Seqable<i64>`, and a family with no extend-type edge is refused by
-        // `satisfies_bare_surface`. Both are negative-control rows of 118.B1a's gate.
+        // `family_extends`. Both are negative-control rows of 118.B1a's gate.
         else {
             let bare = crate::types::parametric_head_fqdn(eh);
             if let Some(crate::types::TypeDef::Surface(surf)) = types.get(&bare) {
@@ -15437,7 +15437,7 @@ pub(crate) fn assignable(
                     && aargs.len() == eargs.len()
                     && transport_edge_keys(&a)
                         .iter()
-                        .any(|k| crate::types::satisfies_bare_surface(k, &bare, types))
+                        .any(|k| crate::types::family_extends(k, &bare, types))
                     && aargs
                         .iter()
                         .zip(eargs.iter())
