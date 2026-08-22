@@ -865,8 +865,6 @@
      ;; TYPE-position spellings are `proto-op-ty-str` / `proto-reply-ty-str` below.
      enum-name     (:wat::core::keyword/from-string
                      (:wat::core::string::interpolate "{proto-base}::Op" :proto-base proto-base))
-     reply-name    (:wat::core::keyword/from-string
-                     (:wat::core::string::interpolate "{proto-base}::Reply" :proto-base proto-base))
      ;; The TYPE-position protocol spellings — base + the surface's type ARGS re-attached.
      ;; Monomorphic surface ⇒ proto-tp is "" ⇒ these ARE `{proto-base}::Op` / `::Reply`.
      proto-op-ty-str    (:wat::core::string::interpolate "{b}::Op{p}" :b proto-base :p proto-tp)
@@ -885,8 +883,6 @@
      ;; `(keyword/from-string …)` so Locus/launch receives serve by a RUNTIME keyword
      ;; (a spliced literal `:fqdn::serve` would Arc-009-resolve to a Fn, not a keyword).
      serve-name-str (:wat::core::string::interpolate "{b}::serve" :b fqdn-base)
-     start-name    (:wat::core::keyword/from-string
-                     (:wat::core::string::interpolate "{b}/start" :b fqdn-base))
      ;; 293.W.2f — Handle<T> / Status<T> carry the transport marker (Shared | Wire).
      ;; Bare `::Handle{p}` / `::Status{p}` (T unknown) remain the residual.
      ;; Transport param is `T` unless the service already binds `T` (`box-svc<T>`),
@@ -933,17 +929,11 @@
      ;; PROTOCOL's (proto-str), so a :satisfies service's serve/client peers share the
      ;; surface's uniform Address<S::Op,S::Reply>. (proto-str = fqdn-str for the :ops path.)
      ;; Peer<proto::Reply,proto::Op>
-     peer-ty       (:wat::core::keyword/from-string
-                     (:wat::core::string::interpolate "wat::kernel::Peer<{r},{o}>"
-                       :r proto-reply-ty-str :o proto-op-ty-str))
      ;; Listener<proto::Op,proto::Reply>
      listener-ty   (:wat::core::keyword/from-string
                      (:wat::core::string::interpolate "wat::kernel::Listener<{o},{r}>"
                        :o proto-op-ty-str :r proto-reply-ty-str))
      ;; Vector<Peer<proto::Reply,proto::Op>>
-     vector-ty     (:wat::core::keyword/from-string
-                     (:wat::core::string::interpolate "wat::core::Vector<wat::kernel::Peer<{r},{o}>>"
-                       :r proto-reply-ty-str :o proto-op-ty-str))
      ;; Address<proto::Op,proto::Reply,T> — T is Handle/Status's transport marker (293.W.2f).
      addr-ty       (:wat::core::keyword/from-string
                      (:wat::core::string::interpolate "wat::kernel::Address<{o},{r},{t}"
@@ -1886,7 +1876,6 @@
                                               :b proto-base :op-str op-str :p proto-tp))
                           resp-ty-str     (:wat::core::string::interpolate "{b}::{op-str}/Response{p}"
                                             :b proto-base :op-str op-str :p proto-tp)
-                          resp-ty         (:wat::core::keyword/from-string resp-ty-str)
                           ;; arc 278 the recv'-outcome wall — the CLIENT-FACING return type is
                           ;; `RecvOutcome<<Op>Response>` (a matchable value, never a raise). Built as
                           ;; the `:head<arg>` keyword-suffix form (arg = resp-ty-str, no leading
@@ -2591,8 +2580,6 @@
      ;; dispatch-admin routes Admin::Resume → (init snapshot) to rebuild the struct.
      ;; launch is UNCHANGED — resume reuses the same machinery.
      ;; `snapshot` param binder: use a symbol-node (hygiene: Unquote at def time).
-     resume-name    (:wat::core::keyword/from-string
-                      (:wat::core::string::interpolate "{b}/resume" :b fqdn-base))
      ;; 293.W.2f — resume is the same T-stamp as start (kwargs UX + impl + ann-form).
      resume-body    `(:wat::core::let
                        [~origin-sym (:wat::kernel::call-site)
