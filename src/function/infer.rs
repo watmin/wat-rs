@@ -22,23 +22,19 @@ use crate::check::{
 };
 use crate::function::metadata::{peel_metadata_preamble, peel_type_binder};
 use crate::argspec::ParseOptions;
-use crate::function::parse::{parse_fn_signature_prefix, ParseStepKind};
+use crate::function::parse::parse_fn_signature_prefix;
 use crate::function::FN_HEAD;
 use crate::runtime::synthesize_fn_body;
 use crate::types::TypeExpr;
 use crate::scope::Identifier;
 use std::collections::HashMap;
 
-/// Outcome of fn-signature diagnostic parsing — makes the silent-vs-diagnostic
-/// distinction structural (no `errors.is_empty()` side-channel inference).
+/// Outcome of fn-signature diagnostic parsing.
 enum SigParse {
     /// Parsed cleanly. Carries fixed-param (names, types), return type, and
     /// optional rest-binder (name, type) from `& name <- :T`.
     Parsed(Vec<String>, Vec<TypeExpr>, TypeExpr, Option<(Identifier, TypeExpr)>),
-    /// Outer form is not fn-shaped at all (ArgsVecNotVector) — silent: caller
-    /// returns a fresh placeholder, no diagnostic.
-    SilentReject,
-    /// Fn-shaped but malformed — carries the diagnostic to surface.
+    /// Malformed — carries the diagnostic to surface.
     Diagnosed(CheckError),
 }
 
@@ -53,8 +49,6 @@ fn parse_fn_signature_for_check_diag(args: &[WatAST; 3]) -> SigParse {
             let p = sig.params.iter().map(|id| crate::scope::resolution::env_key(id).into_owned()).collect();
             SigParse::Parsed(p, sig.param_types, sig.ret_type, sig.rest)
         }
-        Err(step) if matches!(step.kind, ParseStepKind::ArgsVecNotVector { .. }) =>
-            SigParse::SilentReject,
         Err(step) => SigParse::Diagnosed(CheckError {
             span: step.span,
             kind: CheckErrorKind::MalformedForm {
@@ -108,9 +102,30 @@ pub(crate) fn infer_fn(
     // sequence in `src/function/eval.rs` (eval_fn).
     let (binder, sig_args) = peel_type_binder(sig_args);
     if sig_args.len() < 3 {
-        // HARVEST (236.2): silent-by-intent — malformed fn form with < 3 args;
-        // parse won't even call check for badly-formed fn. Return fresh placeholder.
-        return CheckResult::ok(fresh.fresh());
+        // Mirrors the runtime twin verbatim (src/function/eval.rs, eval_fn) —
+        // same peel, same guard, same located MalformedForm. `infer_fn` is
+        // passed only `args` (no enclosing list span, mirroring the check.rs
+        // dispatch arm) — locate on the nearest surviving element post-peel,
+        // falling back through the pre-peel args, then a synthetic span for
+        // the truly-empty `(:wat::core::fn)` case (no source element to point
+        // at; same "no better span" idiom as `synthesize_fn_body`'s synthesized
+        // nodes below).
+        let span = sig_args
+            .first()
+            .or_else(|| args.first())
+            .map(|a| a.span().clone())
+            .unwrap_or_else(|| crate::rust_caller_span!());
+        return CheckResult::err(CheckError {
+            span,
+            kind: CheckErrorKind::MalformedForm {
+                head: FN_HEAD.into(),
+                reason: format!(
+                    "expected [name <- :T ...] -> :Ret body ...; got {} element(s)",
+                    sig_args.len()
+                ),
+                remedies: vec![],
+            },
+        });
     }
     let body_ast = synthesize_fn_body(&sig_args[3..]);
     // Safety: sig_args.len() >= 3 gated above; try_into on a 3-element prefix
@@ -118,10 +133,6 @@ pub(crate) fn infer_fn(
     let sig3: &[WatAST; 3] = sig_args[..3].try_into().expect("len >= 3 gated above");
     let (param_names, mut param_types, mut ret_type, mut rest_param) = match parse_fn_signature_for_check_diag(sig3) {
         SigParse::Parsed(p, t, r, rest) => (p, t, r, rest),
-        SigParse::SilentReject => {
-            // Not fn-shaped at all — silent-by-intent; return a fresh placeholder.
-            return CheckResult::ok(fresh.fresh());
-        }
         SigParse::Diagnosed(err) => return CheckResult::err(err),
     };
 
@@ -197,59 +208,44 @@ pub(crate) fn infer_fn(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::scope::Identifier;
     use crate::types::TypeEnv;
 
     fn make_env_fresh_subst() -> (TypeEnv, InferCtx, Subst) {
         (TypeEnv::default(), InferCtx::default(), HashMap::new())
     }
 
-    // ─── Line 109: infer_fn with fewer than 3 args after metadata peel ─────────
+    // ─── Line ~109: infer_fn with fewer than 3 args after metadata peel ────────
 
-    /// When `sig_args.len() < 3` (line 109), `infer_fn` silently returns a
-    /// fresh type variable rather than producing a diagnostic — the malformed fn
-    /// form is ill-shaped in a way that an earlier pass should have caught.
-    /// Asserts the result is `ok` (no errors) with a `Var(_)` placeholder.
+    /// When `sig_args.len() < 3`, `infer_fn` now mirrors the runtime twin
+    /// (`eval_fn`, `src/function/eval.rs`) verbatim: a located `MalformedForm`
+    /// with the same `reason` text, rather than a silent fresh placeholder.
     #[test]
-    fn infer_fn_fewer_than_3_args_returns_fresh_placeholder() {
+    fn infer_fn_fewer_than_3_args_returns_malformed_form() {
         let (types, mut fresh, mut subst) = make_env_fresh_subst();
         let check_env = crate::check::CheckEnv::with_builtins_and_types(&types);
         let locals: HashMap<String, TypeExpr> = HashMap::new();
         // Only 1 element — too few to be a valid fn-form signature.
         let args = &[WatAST::nil()];
         let result = infer_fn(args, &check_env, &locals, &mut fresh, &mut subst);
-        assert!(result.is_ok(), "expected ok result for < 3 args; got errors: {:?}", result.errors());
-        assert!(
-            matches!(result.value(), Some(TypeExpr::Var(_))),
-            "expected Var placeholder for < 3 args; got: {:?}",
-            result.value()
-        );
+        assert!(!result.is_ok(), "expected an error for < 3 args; got value: {:?}", result.value());
+        let errs = result.errors();
+        assert_eq!(errs.len(), 1, "expected exactly one error; got: {:?}", errs);
+        match &errs[0].kind {
+            CheckErrorKind::MalformedForm { head, reason, .. } => {
+                assert_eq!(head, FN_HEAD);
+                assert_eq!(reason, "expected [name <- :T ...] -> :Ret body ...; got 1 element(s)");
+            }
+            other => panic!("expected MalformedForm; got: {other:?}"),
+        }
     }
 
-    // ─── Lines 57 + 119: SilentReject path in parse_fn_signature_for_check_diag ─
-
-    /// When `sig[0]` is not a `WatAST::Vector`, `parse_fn_signature_for_check_diag`
-    /// returns `SigParse::SilentReject` (line 57), which causes `infer_fn` to
-    /// silently return a fresh placeholder (line 119). This path is intentionally
-    /// silent — the non-fn-shaped form is handled by other checker arms.
-    #[test]
-    fn infer_fn_non_vector_args_returns_silent_placeholder() {
-        let (types, mut fresh, mut subst) = make_env_fresh_subst();
-        let check_env = crate::check::CheckEnv::with_builtins_and_types(&types);
-        let locals: HashMap<String, TypeExpr> = HashMap::new();
-        let span = crate::rust_caller_span!();
-        // sig[0] is a Keyword, not a Vector → ArgsVecNotVector → SilentReject.
-        let args = &[
-            WatAST::Keyword(":not-a-vec".into(), span.clone()),
-            WatAST::Symbol(Identifier::bare("->"), span.clone()),
-            WatAST::Keyword(":wat::core::i64".into(), span.clone()),
-        ];
-        let result = infer_fn(args, &check_env, &locals, &mut fresh, &mut subst);
-        assert!(result.is_ok(), "expected ok (silent) result; got errors: {:?}", result.errors());
-        assert!(
-            matches!(result.value(), Some(TypeExpr::Var(_))),
-            "expected Var placeholder for SilentReject; got: {:?}",
-            result.value()
-        );
-    }
+    // ─── Lines 41-53: ArgsVecNotVector now diagnoses instead of silently
+    // rejecting — `parse_fn_signature_for_check_diag` falls through to the
+    // `Diagnosed` arm for every `Err(step)`; the enum's silent-reject variant
+    // is deleted entirely (there is no silent arm left to fall into).
+    // `infer_fn_non_vector_args_returns_silent_placeholder` pinned the removed
+    // behaviour and is deleted rather than updated: it called `infer_fn`
+    // directly with a synthetic array, so it proved nothing about what a real
+    // `--check` caller sees. The user-facing replacement is a `.wat` probe
+    // under `wat-scripts/scratch-pad/` that fails `--check` end to end.
 }
