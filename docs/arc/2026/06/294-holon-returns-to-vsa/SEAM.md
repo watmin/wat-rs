@@ -24,7 +24,7 @@
 ⚠ `git status` FIRST. `pgrep -af 'cargo|nextest'`.
 
 ```
-floor .......... 4854/4854, 0 FAIL, 19 skipped, ~72s   (own invocation, scripts/floor.sh)
+floor .......... 4854/4854, 0 FAIL, 19 skipped, 77.1s  (own invocation, scripts/floor.sh, at 2d25b4790)
                 ⚠ 4855 → 4854 is CORRECT and accounted: the --check stone deleted
                 `infer_fn_non_vector_args_returns_silent_placeholder` and renamed one
                 other (2 removed, 1 added). A count that DROPS must be explained,
@@ -83,43 +83,49 @@ three subsystems the substrate uses the **rendered string `Head<A,B>` as a type'
 in a FOURTH place the floor never reached, `defn` simply refuses the binder the codemod writes:
 
 ```
-register_subtype        stores the string VERBATIM — the edge key IS ":…::Seqable<T>"
-transport_satisfier_heads  format!("{fq}<T>") / ("{fq}<Xt>")
-satisfies_bare_surface     format!("{surface}<") — a PREFIX match
-wat/service.wat            "<K,V>" as a STRING, re-attached as "{b}::Op{p}" — and EMITTED,
-                           so a migrated corpus regrows the angle form at every expansion
+⛔ register_subtype     stores the string VERBATIM — the edge key IS ":…::Seqable<T>"     3a OPEN
+⛔ transport_satisfier_heads  format!("{fq}<T>") / ("{fq}<Xt>")                           3b OPEN
+✅ satisfies_bare_surface     format!("{surface}<") — a PREFIX match → family_extends      3c edb7f66c7
+⛔ wat/service.wat         "<K,V>" as a STRING, re-attached as "{b}::Op{p}" — and EMITTED, 3d OPEN
+                           so a migrated corpus regrows the angle form at every expansion.
+                           ⚠ 2d25b4790 taught it to READ a migrated type; it re-serializes
+                           the args straight back. Consumption done, EMISSION untouched.
+✅ the :peers check        built "Peer<{r},{o}>" and string-compared it                    3e 2d25b4790
 ⛔ defrecord/defstruct  mint a COMPANION defmacro under the bare name (wat/Record.wat:197),
                            so `(:wat::cache::Entry :- [K V])` macro-expands before the checker
                            sees it. MEASURED four ways: builtin ✅ typealias ✅ defenum ✅
                            defrecord ⛔ defstruct ⛔ — it is the COMPANION MACRO, not
                            user-vs-stdlib. 6 types / 5 breaking refs in wat/. Root 251.8.
-⛔ defn / fn            REJECT `:- [T …]`. take_declared_binder has 7 callers, all TYPE
-                           declarators. Probed: every other codemod head ACCEPTS; defn alone
-                           does not. 40 parametric defn/fn in wat/, 57 corpus-wide.
-                           = the seam's γ, first half — the SMALLEST blocker on the path.
+✅ defn / fn            NOW ACCEPT `:- [T …]` — γ-i (c889639aa) covers BOTH heads.
+                           Re-measured 2026-08-22 with the angle form as positive control;
+                           both exit 0. The line that said "defn alone rejects" is retired.
 ```
 
 ⛔ **Do NOT re-run the codemod on `wat/` until that is fixed.** It is not a partial-migration
 hazard — it is a red floor.
 
-## ⚠⚠ A RIDER WAS IN THE FIELD WHEN THIS WAS WRITTEN
+## ✅ THE RIDER LANDED — `defservice` compares and destructures types as DATA · `2d25b4790`
 
-**`defservice` compares and destructures types as DATA** — brief at
-`109/BRIEF-STONE-defservice-compares-types-as-data.md`. It may have left `wat/service.wat` edited.
-**`git status` FIRST.** If the tree is dirty, that is its work, uncommitted and unfloored — read the
-brief, then verify against the disk. It has NOT been scored.
+Scored: `109/SCORE-STONE-defservice-compares-types-as-data.md`. Floor 4854/4854, clippy 0. It fired
+**STOP-3 twice and was right both times** — my classification table was wrong at two of nine rows.
+
+⚠ **It closed blocker 3e, NOT blocker 3.** See the ledger under NEXT.
 
 ## ✅ SHIPPED — arc 109
 
 ```
-γ-i           `fn` takes the `:- [T …]` binder                                     c889639aa
+γ-i           `fn` AND `defn` take the `:- [T …]` binder (re-measured 08-22)          c889639aa
 --check loud  a malformed fn no longer passes --check (an EXEMPTION deleted)       490c3c1e4
 identity 1/3  `family_extends` gets its own door — PROVABLY behaviour-neutral      edb7f66c7
 identity 2a   six DEAD bindings deleted (one a NAME COLLISION)                     41a3d0dd7
 identity 2b   each ROLE gets its own binding — expansion BYTE-IDENTICAL            0366b2f2b
-blocker 5     a type reference is not an expression                                b9df7a09a
+expr-slot     a type reference is not an EXPRESSION (expander + resolver)             b9df7a09a
+              ⚠ was labelled "blocker 5" here — a DIFFERENT list from the NOTE's, whose
+              blocker 5 is the defrecord COMPANION MACRO and is still OPEN. The collision
+              is what let this seam claim ②-iii was re-runnable.
 identity 2c   ALL 22 ANNOTATIONs emit the `:-` form                                073dda92c +2
 type-equal?   the missing door: types are data everywhere EXCEPT in a macro        c5b9b6552
+:peers        `defservice` READS + COMPARES types as data — NOTE blocker 3e only    2d25b4790
 ```
 
 **RULED:** D1 · G3 · A-i→**S2** · **B-3** · 2a/2b/2c · **F1** · **DECL-NAME emits the new form** ·
@@ -147,14 +153,56 @@ six — all six in `binary_id(wat::kernel)`, where the `service-parametric-*` de
 `-E 'test(doctest)'` into a brief; it matches ZERO tests, and the runner is `#[ignore]`d. The defect
 it existed to catch was in the same diff.
 
-## ⛔ NEXT
+## ⛔ NEXT — and ②-iii is **NOT** re-runnable. Read the ledger, not the old line.
 
-1. **Score the in-flight rider** (above). It closes `:peers` — **②-iii's last blocker**.
+The previous seam said *"Blockers 1·2·4·5 closed; 3 closes with the rider above. Then ②-iii is
+re-runnable."* **That was wrong twice**, and both errors were in the record rather than on the disk:
+it counted blocker 5 as closed while its own STILL-UNRULED section said *"Needs a DESIGN"*, and it
+treated blocker 3 as one thing when the NOTE lists it as **five sub-sites**. The rider closed ONE.
+
+**Measured against the disk 2026-08-22**, `NOTE-2iii-is-blocked-*.md` being the authority:
+
+```
+1  wat_source_derive keyword-only parser ........... ✅ CLOSED (shipped)
+2  defsurface discriminates on NODE KIND ........... ✅ CLOSED (shipped)
+3  the angle string IS the type's identity ......... ⛔ PARTIAL — 2 of 5
+   a  register_subtype stores the edge key VERBATIM ...... ⛔ OPEN  (src/types.rs:716)
+   b  transport_satisfier_heads format!("{fq}<T>") ....... ⛔ OPEN  (src/types.rs:745-748)
+   c  satisfies_bare_surface's `{surface}<` prefix ....... ✅ CLOSED → family_extends, edb7f66c7
+   d  defservice EMITS "{b}::Op{p}" with {p} = "<K,V>" ... ⛔ OPEN  (a dozen sites; see below)
+   e  the :peers check COMPARES a built angle string ..... ✅ CLOSED 2d25b4790
+4  defn / fn REJECT the `:- [T …]` binder .......... ✅ CLOSED (γ-i c889639aa — covers BOTH)
+5  defrecord/defstruct companion macro ............. ⛔ OPEN. **Needs a DESIGN.**
+```
+
+⚠ **3d is the one that makes a green corpus regrow the disease.** The `:peers` stone taught
+`defservice` to READ a migrated type structurally — and it re-serializes the args straight back into
+a `<a,b>` suffix, because every downstream `string::interpolate` in the file still wants one. That
+was the brief's scope and it is correct work; it is **not** blocker 3. The NOTE says it plainly:
+*"`defservice` EMITS the angle form, so even a fully migrated corpus regrows it at every macro
+expansion."* Consumption and emission are two halves and only the first is done.
+
+**Probe that settles blocker 4 in one command each** (both green, so the check is not vacuous):
+
+```bash
+printf '(:wat::core::defn :user::f :- [T] [x <- :T] -> :T x)\n' > /tmp/b.wat   # binder → exit 0
+printf '(:wat::core::defn :user::g<T> [x <- :T] -> :T x)\n'     > /tmp/a.wat   # angle  → exit 0
+target/release/wat --check /tmp/b.wat   # read the exit DIRECTLY, never through a pipe
+```
+
+### The order
+
+1. **`tests/services/` keeps the `:peers` negative controls** — briefed:
+   `109/BRIEF-STONE-the-peers-bijection-keeps-its-negative-controls.md`. This is **debt from
+   2d25b4790**, not new capability: that stone's brief named row 4 load-bearing and then ordered its
+   evidence deleted, so nothing on disk records that the bijection still REJECTS.
 2. **`bracket.wat`** — briefed, unreleased, independent:
    `109/BRIEF-STONE-identity-3-bracket-reads-a-type-node.md`.
-3. **Then ②-iii is re-runnable.** Blockers 1·2·4·5 closed; 3 closes with the rider above.
-   ⛔ Re-read `109/NOTE-2iii-is-blocked-*.md` before re-running the codemod.
-
+3. **Blocker 5 needs a DESIGN** before it can be ruled. It is a substrate strike, not a stone.
+4. **Blocker 3's remaining three** (a · b · d) are one strike, not three: *a type's identity is its
+   BASE NAME plus a structured param list, never the concatenated `Head<A,B>` string.* The NOTE
+   calls this **③'s real prerequisite** — not ②a's 244 bare heads as ②'s DESIGN claimed.
+5. **Only then is ②-iii re-runnable.** ⛔ Re-read `109/NOTE-2iii-is-blocked-*.md` first.
 ## ⛔ STILL UNRULED
 
 - **C** — the codemod also migrates `Fn(args)->ret` (42 in `wat/`) and `:(a,b,c)` (49), which ②'s
