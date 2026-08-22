@@ -425,7 +425,13 @@
                         (:wat::core::HashMap/get clause-map "satisfies")
                         "defservice: :satisfies needs a surface")
                       fqdn)
-     proto-str      (:wat::core::keyword/to-string surface-node)
+     ;; BRIEF-STONE-defservice-compares-types-as-data.md — `surface-node` may be a Keyword
+     ;; (`:S<K,V>`) or already a form (`(S :- [K V])`); `keyword/to-type-form-colon` takes a
+     ;; Keyword only, so a List is branched on ast-kind and used as-is.
+     surface-form   (:wat::core::if (:wat::core::= (:wat::core::ast-kind surface-node) "keyword")
+
+                      (:wat::core::keyword/to-type-form-colon surface-node)
+                      surface-node)
      ;; ── Arc 278 THE PARAMETRIC PROTOCOL: the surface's base / type-ARG split ────────────
      ;; `:satisfies :S<K,V>` is the CHANNEL. The suffix is written at the satisfies site in the
      ;; SERVICE's own binders, so re-attaching it to a protocol-namespaced name yields exactly
@@ -438,7 +444,8 @@
      ;; `proto-tp` (the `<…>` suffix, "" when monomorphic) re-attaches in TYPE positions only.
      ;;
      ;; THE IDENTITY PROPERTY: a monomorphic surface has `proto-tp` = "" and `proto-base` IS
-     ;; `proto-str`, so every derived string is byte-identical to the pre-split concatenation.
+     ;; `keyword/to-string surface-node`, so every derived string is byte-identical to the
+     ;; pre-split concatenation.
      ;;
      ;; ⛔ RETIRED 2026-08-21 — "THE MESSAGE CONVENTION" said a parametric surface's `:messages` are
      ;; parametric in ALL of the surface's params "even when a given message uses only some (or none)
@@ -458,15 +465,41 @@
      ;; the surface's own params — where before there was none, and it is what keeps the
      ;; surface's `<S>::Op` and this service's `<fqdn>::Op` superset field-for-field identical
      ;; (the `derive` edge and `retag-op'` both require that).
-     proto-base     (:wat::core::if (:wat::core::string::ends-with? proto-str ">")
+     ;; STOP-3 fix (this stone): the old derivation rendered `surface-node` to a string and
+     ;; split on `"<"`/`","` — dead the moment `surface-node` is a form. Read head/args
+     ;; structurally instead: `surface-form` is a bare Keyword (non-parametric) or a List
+     ;; `(Head :- [args])`; `proto-tp` re-serializes the args vector back into the `<a,b>`
+     ;; suffix every downstream `string::interpolate`/`string::concat` call in this file expects.
+     proto-parametric? (:wat::core::= (:wat::core::ast-kind surface-form) "list")
+     proto-base     (:wat::core::if proto-parametric?
 
-                      (:wat::core::first (:wat::core::string::split proto-str "<"))
-                      proto-str)
-     proto-tp       (:wat::core::if (:wat::core::string::ends-with? proto-str ">")
+                      (:wat::core::keyword/to-string
+                        (:wat::core::first (:wat::core::ast->children surface-form)))
+                      (:wat::core::keyword/to-string surface-form))
+     proto-args     (:wat::core::if proto-parametric?
 
-                      (:wat::core::string::subs proto-str
-                        (:wat::core::string::length proto-base)
-                        (:wat::core::string::length proto-str))
+                      (:wat::core::ast->children
+                        (:wat::core::nth (:wat::core::ast->children surface-form) 2))
+                      (:wat::core::Vector :wat::WatAST))
+     ;; A type ARG may be a concrete FQDN (renders as a Keyword — `keyword/to-string` strips its
+     ;; leading colon) or a bare type-VARIABLE (`K`/`V`/`T` — renders as a Symbol, never
+     ;; colon-spelled at all; `ast-name` reads it as-is). `Cache<K,V>` exercises exactly this:
+     ;; both args are type-vars, not FQDNs.
+     proto-args-str (:wat::core::foldl
+                       (:wat::core::fn [acc <- :wat::core::String  arg <- :wat::WatAST]
+                         -> :wat::core::String
+                         (:wat::core::let
+                           [arg-str (:wat::core::if (:wat::core::= (:wat::core::ast-kind arg) "keyword")
+                                      (:wat::core::keyword/to-string arg)
+                                      (:wat::core::ast-name arg))]
+                           (:wat::core::if (:wat::core::= acc "")
+                             arg-str
+                             (:wat::core::string::concat acc (:wat::core::string::concat "," arg-str)))))
+                       ""
+                       proto-args)
+     proto-tp       (:wat::core::if proto-parametric?
+
+                      (:wat::core::string::concat "<" (:wat::core::string::concat proto-args-str ">"))
                       "")
      surface-kw     (:wat::core::keyword/from-string proto-base)
 
@@ -509,13 +542,16 @@
      ephemeral-len  (:wat::core::length (:wat::core::ast->children ephemeral-fields))
      has-ephemeral  (:wat::core::i64::> ephemeral-len 0)
 
-     ;; :durable-parent — optional, default :wat::core::Record
+     ;; :durable-parent — optional, default :wat::core::Record. The user-supplied branch is
+     ;; already a `:wat::WatAST` node (every clause value in this macro is); the default must
+     ;; be minted as one too — `type-equal?` (below) requires a node on both sides, unlike
+     ;; `keyword/to-string`'s old two-representation leniency.
      state-parent   (:wat::core::if (:wat::core::HashMap/contains-key? clause-map "durable-parent")
-                      
+
                       (:wat::core::Option/expect
                         (:wat::core::HashMap/get clause-map "durable-parent")
                         "defservice: :durable-parent needs a value")
-                      :wat::core::Record)
+                      (:wat::core::keyword-node ":wat::core::Record"))
 
      ;; ── Arc 278 Stone 1: :max-frame-bytes — the per-service hard frame limit `FOO` ──
      ;; Optional; default DEFAULT_MAX_FRAME_BYTES (512 KiB = 524288). The declared value
@@ -598,11 +634,16 @@
                       (:wat::core::string::interpolate "{b}::Record{p}" :b fqdn-base :p record-tp))
      ;; identity 2c: record-ty split by role — DECL-NAME (`defrecord`'s own name slot, :709/710)
      ;; stays the raw angle keyword; ANNOTATION (param/return/field types throughout) mints the
-     ;; reference FORM. STOP-2 (reported, not resolved here): :700 below consumes the bare
-     ;; keyword value as a macro-expand-time `keyword/to-string` argument (a type-identity string
-     ;; compare, same OTHER class as `surface-kw` in TABLE-defservice-type-name-sites.md) — it
-     ;; fits none of the four roles, so it stays pointed at record-ty-decl (unconverted); 2c does
-     ;; not resolve it.
+     ;; reference FORM.
+     ;;
+     ;; ✅ 2c's STOP-2 IS CLOSED (BRIEF-STONE-defservice-compares-types-as-data). It recorded that
+     ;; the `:hibernate` check below consumed this bare keyword through `keyword/to-string` as a
+     ;; type-identity STRING compare, fitting none of the four roles. That was the missing DOOR,
+     ;; not a missing role: the check now reads `type-equal? hib-ret-ty record-ty-ann` — two type
+     ;; NODES, spelling-agnostic — so nothing renders a type to compare it any more. The
+     ;; `keyword/to-string` on the next line is NOT that site: it is a representation BRIDGE
+     ;; (`keyword/from-string` yields a raw keyword VALUE; `keyword/to-type-form-colon` needs a
+     ;; `:wat::WatAST` node), and it compares nothing.
      record-ty-ann  (:wat::core::keyword/to-type-form-colon
                       (:wat::core::keyword-node
                         (:wat::core::string::concat ":" (:wat::core::keyword/to-string record-ty-decl))))
@@ -704,31 +745,24 @@
      ;; ⚠ GUARDED on the SAME predicate that chose the branch above. When the user supplies no
      ;; `:hibernate`, `hibernate-fn-node` is the DEFAULT this macro just emitted, whose return
      ;; slot IS `record-ty-ann` — so the check would be comparing the macro's own output against
-     ;; the macro's own value. Vacuous by construction, and it RAISES once the annotation is a
-     ;; form rather than a keyword (`keyword/to-string` takes a keyword): identity 2c turned
-     ;; `record-ty-ann` into `(Head :- [args])` and six `service-parametric-*` tests went red at
-     ;; the `keyword/to-string` below — every one of them a service declaring no `:hibernate`.
-     ;; `:stop` reads its own slot 3 the identical way (`resp-ty`, :679) and never broke, because
-     ;; it USES that node instead of string-comparing it.
+     ;; the macro's own value. Vacuous by construction; kept anyway as documentation of intent
+     ;; and because it costs nothing to skip the (also-vacuous) comparison in that branch.
      ;;
-     ;; The comparison itself is still a rendered-name equality and still only understands the
-     ;; keyword spelling — so a USER who writes `-> (::Record :- [K V])` after ②-iii will still
-     ;; fail here. That is `defservice`'s 11 COMPARE sites, which are their own stone; this guard
-     ;; does not pretend to fix them, it removes the half that was never a comparison at all.
+     ;; BRIEF-STONE-defservice-compares-types-as-data.md — this used to be `keyword/to-string`
+     ;; on both sides, RAISING the moment either side became a form (`(Head :- [args])`) rather
+     ;; than a bare keyword (identity 2c: six `service-parametric-*` tests went red here, every
+     ;; one a service declaring no `:hibernate`). `type-equal?` reads both sides AS TYPES —
+     ;; spelling-agnostic — so a user who writes `-> (::Record :- [K V])` after ②-iii now
+     ;; compares correctly too; this closes the caveat the old comment recorded here.
      hib-user-supplied? (:wat::core::HashMap/contains-key? clause-map "hibernate")
-     hib-ret-str      (:wat::core::if hib-user-supplied?
-                        
-                        (:wat::core::keyword/to-string hib-ret-ty)
-                        "")
-     record-ty-str    (:wat::core::if hib-user-supplied?
-                        
-                        (:wat::core::keyword/to-string record-ty-decl)
-                        "")
-     _hib-ty-check    (:wat::core::if (:wat::core::= hib-ret-str record-ty-str)
-                        
-                        nil
-                        (:wat::core::macro-error
-                          (:wat::core::string::interpolate "{fqdn-str}: :hibernate return type must be ::Record (the resume seed); declared a different type" :fqdn-str fqdn-str)))
+     _hib-ty-check    (:wat::core::if hib-user-supplied?
+
+                        (:wat::core::if (:wat::core::type-equal? hib-ret-ty record-ty-ann)
+
+                          nil
+                          (:wat::core::macro-error
+                            (:wat::core::string::interpolate "{fqdn-str}: :hibernate return type must be ::Record (the resume seed); declared a different type" :fqdn-str fqdn-str)))
+                        nil)
      hibernate-project-name-str (:wat::core::string::interpolate "{b}::hibernate-project" :b fqdn-base)
      hibernate-project-name (:wat::core::keyword/from-string hibernate-project-name-str)
      hibernate-project-def `(:wat::core::defn ~hibernate-project-name ~hibernate-params-vec -> ~record-ty-ann ~hibernate-body)
@@ -737,9 +771,12 @@
      ;; record-def: (:wat::core::Record::def ::Record [durable-fields]) (or holon parent)
      ;; state-def:  (:wat::core::defstruct ::State [durable <- ::Record <ephemeral-fields...>])
      ;;   The 3 tokens `durable <- ~record-ty` are prepended to ephemeral children.
-     state-parent-str (:wat::core::keyword/to-string state-parent)
-     record-def   (:wat::core::if (:wat::core::= state-parent-str "wat::holon::Record")
-                    
+     ;; BRIEF-STONE-defservice-compares-types-as-data.md — EQUALITY against a literal, via the
+     ;; door instead of a render+compare; `state-parent` is user-declared (`:durable-parent`
+     ;; clause, defaulted to `:wat::core::Record`) and, like any declared type, could in
+     ;; principle arrive as a form rather than a bare keyword.
+     record-def   (:wat::core::if (:wat::core::type-equal? state-parent (:wat::core::keyword-node ":wat::holon::Record"))
+
                     `(:wat::holon::defrecord ~record-ty-decl ~durable-fields)
                     `(:wat::core::defrecord ~record-ty-decl ~durable-fields))
      ;; Build the State struct field vector: prepend [durable <- ::Record] before ephemeral fields.
@@ -803,8 +840,15 @@
                       peers-children)
      ;; ephemeral-peer-surfaces: Vector<String> — the surface of each ROOT ephemeral peer field.
      ;; ephemeral-children is the flat token vec [name <- :Type name <- :Type …]; the type node
-     ;; of field i is at index i*3+2. A peer field's type is a keyword containing `wat::kernel::Peer<`
-     ;; whose first type-arg ends in `::Op`; the surface is that arg minus `::Op`.
+     ;; of field i is at index i*3+2.
+     ;;
+     ;; ★ BRIEF-STONE-defservice-compares-types-as-data.md — the site that blocked ②-iii. This
+     ;; used to hand-parse the type: render to a string, split on `"Peer<"`, split on `","`,
+     ;; strip 4 chars for `"::Op"`. Every step is structural instead: normalize to a form
+     ;; (branching on ast-kind, same as `surface-form` above — a Keyword needs
+     ;; `keyword/to-type-form-colon`, a List is already the form), read the head and first
+     ;; arg off `ast->children`, and check/strip the `"::Op"` suffix on the arg's OWN name —
+     ;; not on a hand-sliced substring of the whole rendered type.
      ephemeral-peer-surfaces
                     (:wat::core::foldl
                       (:wat::core::fn [acc <- :wat::core::Vector<wat::core::String>
@@ -814,22 +858,25 @@
                           [ty-node (:wat::core::Option/expect
                                      (:wat::core::get ephemeral-children
                                        (:wat::core::i64::+ (:wat::core::i64::* i 3) 2))
-                                     "defservice: ephemeral field type out of bounds")]
-                          (:wat::core::if (:wat::core::= (:wat::core::ast-kind ty-node) "keyword")
-                            
+                                     "defservice: ephemeral field type out of bounds")
+                           ty-form (:wat::core::if (:wat::core::= (:wat::core::ast-kind ty-node) "keyword")
+                                     (:wat::core::keyword/to-type-form-colon ty-node)
+                                     ty-node)]
+                          (:wat::core::if (:wat::core::= (:wat::core::ast-kind ty-form) "list")
+
                             (:wat::core::let
-                              [ty-str (:wat::core::keyword/to-string ty-node)]
-                              (:wat::core::if (:wat::core::string::contains? ty-str "wat::kernel::Peer<")
-                                
+                              [ty-ch    (:wat::core::ast->children ty-form)
+                               head-str (:wat::core::keyword/to-string (:wat::core::first ty-ch))]
+                              (:wat::core::if (:wat::core::= head-str "wat::kernel::Peer")
+
                                 (:wat::core::let
-                                  ;; tail := everything after the first "Peer<"; = "S::Op,S::Reply>"
-                                  [tail      (:wat::core::second (:wat::core::string::split ty-str "Peer<"))
-                                   first-arg (:wat::core::first (:wat::core::string::split tail ","))]
-                                  (:wat::core::if (:wat::core::string::ends-with? first-arg "::Op")
-                                    
+                                  [arg-ch        (:wat::core::ast->children (:wat::core::nth ty-ch 2))
+                                   first-arg-str (:wat::core::keyword/to-string (:wat::core::first arg-ch))]
+                                  (:wat::core::if (:wat::core::string::ends-with? first-arg-str "::Op")
+
                                     (:wat::core::conj acc
-                                      (:wat::core::string::subs first-arg 0
-                                        (:wat::core::i64::- (:wat::core::string::length first-arg) 4)))
+                                      (:wat::core::string::subs first-arg-str 0
+                                        (:wat::core::i64::- (:wat::core::string::length first-arg-str) 4)))
                                     acc))
                                 acc))
                             acc)))
