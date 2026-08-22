@@ -94,84 +94,106 @@ work that made the param-spec explicit is what makes this pass writable at all.
 
 ## Decisions
 
-### D1 — Where does the pass live: the resolver (step 7) or the checker (step 8)?
+Every option carries all four questions, flat YES/NO — including options already disqualified on an
+earlier axis. A lean that stops at the first NO hides WHICH axis decided, and forced enumeration is
+what surfaces the option that reads best and fails Honest.
+`[[feedback_four_questions_for_any_multi_option_decision]]`
 
-**Option A — the resolver, beside `is_resolvable_call_head`, emitting `UnresolvedReference`.**
-- *Obvious?* **YES.** A type reference is a reference. The struct already carries `path` + `context`,
-  and the context string is where "type position in the signature of :user::f" goes.
-- *Simple?* **YES.** One question — "does this name resolve?" — answered in the pass whose whole job
-  is that question, against a registry populated two steps earlier.
-- *Honest?* **YES.** It reports the phantom as an unresolved NAME at the declaration, which is what
-  it is, rather than as a mismatch at a caller.
-- *Good UX?* **YES.** One diagnostic kind for both halves of the pair; a reader who has seen
-  `UnresolvedReferences` for a call already knows how to read it for a type.
+### D1 — Where does the pass live?
 
-**Option B — the checker, as a new `CheckErrorKind::UnknownType`.**
-- *Obvious?* **YES.** Types are the checker's subject.
-- *Simple?* **NO.** The checker already walks these expressions to UNIFY them, so the phantom is
-  reachable there — but it is reachable at USE sites, which is exactly the behaviour being fixed. To
-  catch an uncalled declaration the checker would need a separate declaration sweep, i.e. Option A's
-  pass wearing the checker's coat.
-- Fails Simple → disqualified.
+| # | option | Obvious | Simple | Honest | Good UX | verdict |
+|---|---|:---:|:---:|:---:|:---:|---|
+| **A** | **the RESOLVER (step 7), emitting `UnresolvedReference`** | **YES** | **YES** | **YES** | **YES** | **TAKE** |
+| B | the CHECKER (step 8), new `CheckErrorKind::UnknownType` | YES | **NO** | YES | YES | reject — Simple |
+| C | a project lint under `tests/lint/` | **NO** | YES | **NO** | **NO** | reject — Obvious·Honest·UX |
+| D | validate inside `register_types` (step 5) | YES | **NO** | YES | **NO** | reject — Simple·UX |
 
-**Ruling sought: A.** The one thing that could overturn it: if step 7 cannot see declarations that
-step 8 can (e.g. surface/field types registered later than `register_types`). **Unverified —
-name it as the brief's first STOP.**
+**A.** *Obvious* — a type reference is a reference; the pass whose entire job is "does this name
+resolve" answers it, and `UnresolvedReference` already carries `path` + `context`. *Simple* — one
+question, one registry, already populated by step 5. *Honest* — reports the phantom as an unresolved
+NAME at the declaration, which is what it is. *Good UX* — one diagnostic family for both halves of
+the pair; a reader who has seen `UnresolvedReferences` for a call reads it for a type unchanged.
+
+**B.** *Obvious* YES — types are the checker's subject and that is where a reader looks for type
+errors. *Simple* **NO** — the checker reaches type expressions while UNIFYING, i.e. at use sites,
+which is precisely the behaviour being fixed; catching an uncalled declaration needs a separate
+declaration sweep, which is option A wearing the checker's coat. *Honest* YES — a
+`CheckErrorKind::UnknownType` at the declaration span would tell the truth; nothing about this option
+lies. *Good UX* YES — though it splits the pair across two diagnostic families, that is a cost, not a
+falsehood. **Decided on Simple alone.**
+
+**C.** *Obvious* **NO** — an unknown type is a language error, not a style rule; nobody expects
+"unknown type" to arrive from the test suite. *Simple* YES — the lint harness exists and is cheap,
+and this is the option's real attraction. *Honest* **NO** — a lint runs in OUR test suite only, so a
+consumer running `wat --check` on their own program gets nothing while the language appears to check
+it. *Good UX* **NO** — the error arrives from a test run rather than the compiler, and never at all
+for a downstream user.
+
+**D.** *Obvious* YES — validate a declaration as you register it is the naive first instinct and it
+reads well. *Simple* **NO**, and this one is MEASURED rather than argued: step 5 registers in file
+order, and **forward type references are legal**. `(defn :user::takes [x <- :user::Later] …)` above
+`(defrecord :user::Later …)` resolves — proven with a control, since exit 0 alone proves nothing
+while type refs go unresolved: passing a real `:user::Later` checks clean, passing an `i64` fails
+with *"parameter #1 expects :user::Later; got :wat::core::i64"*. So the type genuinely resolves.
+*Honest* YES. *Good UX* **NO** — validating in registration order would reject legal programs, and a
+false rejection is worse UX than the silent acceptance being fixed. Deferring to the end of step 5 to
+avoid that IS option A, one step early.
 
 ### D2 — Which type positions?
 
-**Option A — DECLARED positions only:** `defn`/`fn` parameter and return slots, record/struct field
-types, enum variant payloads, typealias right-hand sides, surface method signatures.
-- *Obvious?* **YES.** "A declaration may not name a type that does not exist" is one sentence.
-- *Simple?* **YES.** One list of slots, each already parsed into a `TypeExpr`.
-- *Honest?* **YES** — provided the diagnostic says which slot, and provided the stone does not claim
-  to cover inline ascriptions it did not walk.
-- *Good UX?* **YES.** The error lands where the author wrote the name.
+| # | option | Obvious | Simple | Honest | Good UX | verdict |
+|---|---|:---:|:---:|:---:|:---:|---|
+| **A** | **DECLARED positions only** (params, returns, fields, variant payloads, alias RHS, surface methods) | **YES** | **YES** | **YES** | **YES** | **TAKE** |
+| B | every type expression anywhere, incl. inline `let`/`match` ascriptions | YES | **NO** | YES | YES | reject — Simple |
 
-**Option B — every type expression anywhere, including inline `let` ascriptions and `match` arms.**
-- *Obvious?* **YES.**
-- *Simple?* **NO.** Inline positions are inside function BODIES, which means scope is no longer just
-  the declaration's `type_params` — it is whatever the enclosing expression has bound. That is a
-  different, larger mechanism.
-- Fails Simple → disqualified for this stone, and affirmatively **out of scope**: inline ascriptions
-  are checked at use by the existing unifier, which is the position that already works.
+**A.** *Obvious* — "a declaration may not name a type that does not exist" is one sentence. *Simple*
+— one list of slots, each already parsed into a `TypeExpr`. *Honest* — provided the diagnostic names
+the slot, and provided the stone does not claim coverage of inline positions it never walked.
+*Good UX* — the error lands where the author wrote the name.
 
-**Ruling sought: A.**
+**B.** *Obvious* YES. *Simple* **NO** — inline positions sit inside function BODIES, so scope is no
+longer the declaration's `type_params` but whatever the enclosing expression has bound; that is a
+different and larger mechanism. *Honest* YES. *Good UX* YES — strictly more coverage, which is the
+option's genuine appeal. **Decided on Simple.** Inline ascriptions are affirmatively OUT OF SCOPE,
+not deferred: they are checked at use by the existing unifier, and that position already works.
 
-### D3 — Does the reserved-prefix exemption carry over?
+### D3 — Does the reserved-prefix exemption carry over to types?
 
-**Option A — exempt `:wat::*` type references, mirroring `is_resolvable_call_head`.**
-- *Obvious?* **YES**, by symmetry with the call-head rule.
-- *Simple?* **YES.**
-- *Honest?* **NO.** The call-head exemption is earned by a deferral target that FIRES —
-  `UnknownFunction` at runtime. There is no equivalent for types: a phantom type in an uncalled
-  declaration raises nothing, ever, at any stage. Copying the exemption without copying the late
-  catch keeps the exact hole this stone exists to close, and `wat/` is precisely the corpus ②-iii
-  rewrites.
-- Fails Honest → disqualified.
+| # | option | Obvious | Simple | Honest | Good UX | verdict |
+|---|---|:---:|:---:|:---:|:---:|---|
+| A | exempt `:wat::*`, mirroring `is_resolvable_call_head` | YES | YES | **NO** | **NO** | reject — Honest |
+| **B** | **no exemption — every namespace** | **YES** | **YES** | **YES** | **YES** | **TAKE** |
+| C | no exemption, but stdlib violations are WARNINGS (a ratchet) | **NO** | **NO** | **NO** | **NO** | reject — all four |
 
-**Option B — every namespace, no exemption.**
-- *Obvious?* **YES.** *Simple?* **YES.** *Honest?* **YES** — it says what it checks and checks it.
-- *Good UX?* **YES**, with one cost: turning it on will surface whatever is already wrong in the
-  stdlib, and that is the point.
+**A** is the dangerous one, because it passes the first two and reads as principled symmetry.
+*Obvious* YES — it mirrors an existing documented rule. *Simple* YES — one prefix test, already
+written. *Honest* **NO** — the call-head exemption is EARNED by a deferral target that fires
+(`UnknownFunction` at runtime, verified this session rather than trusted from the comment); types
+have no late catch at any stage, so copying the exemption without copying the catch preserves exactly
+the hole this stone exists to close. *Good UX* **NO** — it aims the wall away from `wat/`, which is
+the corpus ②-iii rewrites, leaving unprotected the user most likely to be bitten.
 
-**Ruling sought: B.**
+**B.** *Obvious* — it says what it checks and checks it. *Simple* — no prefix logic at all, which is
+less code than A. *Honest* — no class of declaration is quietly exempt. *Good UX* — turning it on
+will surface whatever is already wrong in the stdlib, and that is the point, not a cost.
 
-⚠ **Do NOT pre-census the violations with grep.** Every count this arc has taken by pattern-matching
-`.wat` text has been wrong, and the one that mattered most was invisible to source entirely — a
-`defservice`-generated type that appears in no file. **Impose the wall and read the screams.**
-`[[feedback_impose_the_check_and_read_the_screams]]`
+**C** is the tempting "don't break the build" move and fails everything. *Obvious* **NO** — two
+severities for one defect makes every reader ask which one they are. *Simple* **NO** — two code
+paths, a severity policy, and a list to maintain. *Honest* **NO** — a warning nothing gates is a
+violation that ships, and this arc has already recorded that a count-based ratchet cannot distinguish
+"+1 new, −1 fixed" from "nothing happened" `[[feedback_a_gate_freezes_names_never_a_count]]`.
+*Good UX* **NO** — it trains readers to scroll past the diagnostic.
 
 ### D4 — Scope for type variables
 
-Not an option; a constraint (see above). The walk carries the enclosing declaration's `type_params`
-and treats a `Path` matching one as bound. The carriers already exist: `TypeScheme.type_params` for
-functions, `TypeDef`'s per-variant `type_params` for types.
+Not a decision; a constraint. Type variables parse as `TypeExpr::Path` (`src/types.rs:70-77`), so the
+walk MUST carry the enclosing declaration's `type_params` and treat a matching `Path` as bound.
+Carriers already exist: `TypeScheme.type_params` for functions, `TypeDef`'s per-variant `type_params`
+for types.
 
-The open sub-question the brief must settle by measurement, not assumption: **a `fn` nested inside a
-`defn` body** — does its own binder extend the outer scope or shadow it? The stone's answer must be
-whatever the checker already does, not a new rule.
-
+One sub-question the brief settles by MEASUREMENT, not assumption: **a `fn` nested inside a `defn`
+body** — does its binder extend the enclosing scope or shadow it? The stone's answer must be whatever
+the checker already does, not a new rule invented here.
 ## What this stone does NOT do
 
 - It does not touch `is_resolvable_call_head` or the reserved-prefix exemption for CALL heads. That
