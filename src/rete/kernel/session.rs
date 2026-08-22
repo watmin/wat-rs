@@ -244,8 +244,11 @@ pub(crate) struct FireSession {
 /// records stay on `exec_compiled_with_key_ids`.
 pub(crate) const I64_ROW_CAP: usize = 8;
 
-/// One fact's declared i64 fields and interned filler ids, packed on
-/// first alpha activate (`DESIGN-STONE-column-gather-fold`).
+/// One fact's declared i64 fields and interned filler ids. Packed at seed
+/// (leaf-fill) or first activate — not a SETUP walk
+/// (`DESIGN-STONE-column-gather-fold`).
+// rune:struere(lifetime-coupling) — vids must not outlive bind_vals; n is the
+// live prefix of fields/vids. Same warrant as BindSpan.
 #[derive(Clone, Copy)]
 pub(crate) struct I64Row {
     pub n: u8,
@@ -263,7 +266,8 @@ impl I64Row {
 
 /// Copy each i64 field and `intern_val` once. `None` if any field is
 /// not i64 or the row is empty / wider than [`I64_ROW_CAP`]. Called
-/// from first activate with fields already in hand — not a SETUP walk.
+/// from seed pack-all or first activate with fields already in hand —
+/// not a SETUP walk.
 pub(crate) fn pack_i64_row(
     fields: &[Value],
     vals: &mut Vec<Value>,

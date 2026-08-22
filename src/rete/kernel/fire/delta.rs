@@ -99,10 +99,11 @@ pub(crate) fn alpha_activate_fact(
     Ok(())
 }
 
-/// Compare leaf-set predicted occupancy to what activate installed this seed.
-/// Does not change memories (`DESIGN-STONE-occupancy-leaf-column` recolligere).
+/// Compare leaf-set predicted occupancy to what seed installed in `wm.alpha`
+/// (leaf-fill or activate). Does not change memories
+/// (`DESIGN-STONE-occupancy-leaf-column` recolligere).
 #[cfg(test)]
-fn record_seed_leaf_vs_activate(
+fn record_seed_leaf_vs_alpha(
     wm: &FireSession,
     alpha_tree: &crate::rete::alpha_tree::AlphaTree,
     compiled_conds: &HashMap<i64, crate::rete::compiled_cond::CompiledCond>,
@@ -435,6 +436,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
                     continue;
                 }
                 census_count_n("compiled:calls", ids.len() as u64 * aids.len() as u64);
+                // rune:perspicere(intentional-structure) — Arc vs owned Vec is the occupancy-share door
                 let els: Arc<Vec<Element>> = Arc::from(
                     ids.iter()
                         .map(|&idx| make_element(idx, 0, 0))
@@ -448,7 +450,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
             }
             phase_end("  ├ alpha:seed", __seed);
             #[cfg(test)]
-            record_seed_leaf_vs_activate(
+            record_seed_leaf_vs_alpha(
                 &wm,
                 alpha_tree,
                 compiled_conds,
@@ -1206,12 +1208,12 @@ pub(crate) fn fire_fixpoint_delta_armed(
                 let driver = driver_of(compiled_drivers, alpha_id)?;
                 let mut seen = std::collections::HashSet::new();
                 if matches!(driver, CondDriver::Leaf(_)) {
-                    // rune:perspicere(read-once) — leading-exists distinct-bind row
                     let els: Vec<Element> = wm
                         .alpha
                         .get(&alpha_id)
                         .map(|v| v.as_ref().clone())
                         .unwrap_or_default();
+                    // rune:perspicere(read-once) — one leaf; Clara test-simple-exists distinct inner binds; alias would be a mumble
                     let candidates: Vec<(BindSpan, Vec<(u32, u32)>)> = els
                         .iter()
                         .map(|el| {

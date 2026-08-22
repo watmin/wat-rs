@@ -155,7 +155,7 @@ pub(crate) fn with_fire_census<R>(f: impl FnOnce() -> R) -> (R, Vec<RoundCensus>
     (out, recorded.unwrap_or_default())
 }
 
-/// One fire's seed occupancy: leaf-set prediction vs what activate installed.
+/// One fire's seed occupancy: leaf-set prediction vs what seed installed in alpha.
 #[cfg(test)]
 #[derive(Debug, Clone, Default)]
 pub(crate) struct LeafOccDiff {
@@ -169,6 +169,7 @@ pub(crate) struct LeafOccDiff {
 
 #[cfg(test)]
 thread_local! {
+    // rune:perspicere(read-once) — test-only occupancy recolligere TLS; alias would be a mumble.
     static LEAF_OCC_DIFF: std::cell::RefCell<Option<Vec<LeafOccDiff>>> =
         const { std::cell::RefCell::new(None) };
 }

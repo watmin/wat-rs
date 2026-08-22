@@ -10,8 +10,9 @@ use crate::runtime::{EvalBreak, SymbolTable, Value};
 use super::*;
 
 /// Shared intern + fact store for accumulate folds (no pool mutation).
-// rune:struere(host-constraint) — AccView is the intern bundle; acc_var_i64 still takes
-// keys/vals/pool because Bindings is not implemented on AccView (would duplicate BindView).
+// rune:struere(host-constraint) — AccView is the intern bundle; acc_var_i64
+// reads keys/vals/pool through the view. Bindings is not implemented on
+// AccView (would duplicate BindView).
 pub(super) struct AccView<'a> {
     keys: &'a [Value],
     vals: &'a [Value],
@@ -93,8 +94,6 @@ pub(super) fn operand_slot(
         .position(|(id, _)| bind_keys.get(*id as usize) == Some(var))
 }
 
-// rune:struere(invariant-coupling) — AccFold compile proved i64; Option would
-// force every fold to invent a fallback the grammar already forbids.
 fn operand_field(var: &Value, view: &AccView<'_>) -> Option<u8> {
     if view.col_fields.is_empty() {
         return None;
@@ -116,6 +115,8 @@ fn packed_operand_field(var: &Value, view: &AccView<'_>, el: Option<&Element>) -
     Some(field)
 }
 
+// rune:struere(invariant-coupling) — AccFold compile proved packed i64; Option
+// would force every fold to invent a fallback the grammar already forbids.
 fn row_i64(el: &Element, field: u8, rows: &[Option<I64Row>]) -> i64 {
     match rows.get(el.fact as usize).and_then(|o| o.as_ref()) {
         Some(row) if (field as usize) < row.n as usize => row.fields[field as usize],
@@ -123,6 +124,8 @@ fn row_i64(el: &Element, field: u8, rows: &[Option<I64Row>]) -> i64 {
     }
 }
 
+// rune:struere(invariant-coupling) — AccFold compile proved i64; Option would
+// force every fold to invent a fallback the grammar already forbids.
 pub(super) fn slot_i64(el: &Element, slot: usize, vals: &[Value], pool: &[(u32, u32)]) -> i64 {
     match pool_slice(pool, el.binds).get(slot) {
         Some((_, vid)) => match vals.get(*vid as usize) {
@@ -199,9 +202,6 @@ pub(super) fn fold_bucket(
         AccFold::Min(var) | AccFold::Max(var) | AccFold::Mean(var) => {
             let sample = bucket.first().map(|&i| &elements[i]);
             if let Some(field) = packed_operand_field(var, view, sample) {
-                if bucket.is_empty() {
-                    return Ok(None);
-                }
                 return Ok(fold_i64s(
                     fold,
                     bucket.iter().map(|&i| {

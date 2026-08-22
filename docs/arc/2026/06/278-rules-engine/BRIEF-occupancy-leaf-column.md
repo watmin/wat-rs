@@ -27,7 +27,7 @@ shared occupant vec if green.
 - Pack-all + leaf fill. 7strat 3-stratum green.
 - FIRE **13.7** (was 17.8), seed **10.5**.
 - Arc shared occupant list. Clippy `--lib`
-  silent. Diagnostic `n3_leaf_set_vs_activate`
+  silent. Diagnostic `n3_leaf_set_vs_occupancy`
   stays.
 
 Leave dirty unless asked to commit.

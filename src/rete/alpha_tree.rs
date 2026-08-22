@@ -1,7 +1,7 @@
 //! Arc 278 — the alpha discrimination tree (DESIGN-STONE-alpha-discrimination-tree.md).
 //!
-//! Native fire type-indexes (P8), then `exec_compiled_with_key_ids` on the
-//! candidate set this tree returns. A depth-D cascade has D alphas per type
+//! Native fire type-indexes (P8), then matches the candidate set this tree
+//! returns (compiled exec, skip-span, or occupancy leaf-fill). A depth-D cascade has D alphas per type
 //! where exactly one can succeed — a linear probe was `facts × D` calls
 //! (79% of the deep-cascade depth cost, `a0_depth_cost_split_at_equal_work`).
 //! A fact walks this tree root-to-leaf, one declared field per level, and
@@ -10,9 +10,10 @@
 //! ## ★ THE ONE CONTRACT DECISION
 //!
 //! **The tree may OVER-approximate. It may never UNDER-approximate.** Native fire
-//! runs `exec_compiled_with_key_ids` on the candidate set; `alpha_match_inner` is the
-//! oracle / differential matcher. `AlphaTree::candidates` returns a **candidate set**.
-//! For every fact, `candidates(fact) ⊇ { alphas that actually match }`.
+//! matches the candidate set (compiled exec, skip-span, or occupancy leaf-fill);
+//! `alpha_match_inner` is the oracle / differential matcher. `AlphaTree::candidates`
+//! returns a **candidate set**. For every fact,
+//! `candidates(fact) ⊇ { alphas that actually match }`.
 //!
 //! Any clause this analyzer cannot prove an equality discriminator for — `not=`, `or`, `not`, a
 //! computed operand, an unfamiliar shape, anything at all — rides the **wildcard** edge and
@@ -151,8 +152,8 @@ impl AlphaTree {
     }
 
     /// Walk `class`'s tree for a fact's field values, returning the **candidate set** of alpha
-    /// ids the caller must still run compiled exec (`exec_compiled_with_key_ids`) on. A superset
-    /// of the alphas that actually match — never a subset. Unknown class: empty.
+    /// ids native fire still has to match (compiled exec, skip-span, or occupancy leaf-fill). A
+    /// superset of the alphas that actually match — never a subset. Unknown class: empty.
     /// `alpha_match_inner` is the differential oracle, not the native fire path.
     #[cfg(test)]
     pub(crate) fn candidates(&self, class: &str, fields: &[Value]) -> Vec<i64> {

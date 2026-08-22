@@ -1788,12 +1788,13 @@ fn accum_alpha_memory_shape() {
 /// mark pair costs ~52ns, so a timer would tax them 20-50% and — worse — unevenly, in
 /// proportion to call count rather than cost. A `Cell` increment is ~1-2ns.
 ///
-/// Arc 278 DESIGN-STONE-compiled-conditions.md — a real fire's step 1 now runs the compiled
-/// executor (`compiled_cond::exec_compiled_with_key_ids`), not `alpha_match_inner`: `match:calls`
-/// (and its `match:clause`/`match:bind-insert` siblings) are armed INSIDE `alpha_match_inner`'s
-/// own body, so they read zero here now by construction, not by regression. `compiled:calls`
-/// (armed inside `exec_compiled_with_key_ids`) is what actually fires on this path.
-/// [`exec_compiled`] is the `#[cfg(test)]` door (no interned keys).
+/// Arc 278 DESIGN-STONE-compiled-conditions.md — a real fire's step 1 no longer
+/// runs `alpha_match_inner`: `match:calls` (and its `match:clause`/`match:bind-insert`
+/// siblings) are armed INSIDE `alpha_match_inner`'s own body, so they read zero here
+/// now by construction, not by regression. `compiled:calls` is what actually fires
+/// on this path — occupancy leaf-fill, skip-span, and `exec_compiled_with_key_ids`
+/// all increment it (`DESIGN-STONE-occupancy-leaf-column`). [`exec_compiled`] is
+/// the `#[cfg(test)]` door (no interned keys).
 ///
 /// `match:key-alloc` is printed but NOT asserted at zero here: this world's RHS insert forms
 /// (`build_insert_fact`, the production pass) resolve `?var` args through the SAME
@@ -1818,7 +1819,7 @@ fn accum_matcher_op_census() {
         .unwrap_or(0);
     assert!(
         calls > 0,
-        "compiled:calls is zero — exec_compiled_with_key_ids was never entered"
+        "compiled:calls is zero — occupancy fill / skip-span / exec_compiled never counted"
     );
 
     let mut out = String::from("\naccum matcher ops — G=200 W=200 (40,200 facts)\n");
@@ -7822,10 +7823,10 @@ fn compiled_cond_failure_path_allocates_no_binding_keys_at_50_100() {
     );
 }
 
-/// Recolligere: leaf-set predicted occupancy vs activate, per stratified fire.
-/// Prints extra (fill ⊃ activate) and missing (activate \ fill). No intern.
+/// Recolligere: leaf-set predicted occupancy vs seed-installed `wm.alpha`.
+/// Prints extra (fill ⊃ actual) and missing (actual \ fill).
 #[test]
-fn n3_leaf_set_vs_activate_occupancy() {
+fn n3_leaf_set_vs_occupancy() {
     const N3: &str = "\
 (:wat::core::defrecord :n::A   [k <- :wat::core::i64])\n\
 (:wat::core::defrecord :n::Bad [k <- :wat::core::i64])\n\
@@ -7878,7 +7879,7 @@ fn n3_leaf_set_vs_activate_occupancy() {
     }
     safe_ks.sort_unstable();
     let mut out = format!(
-        "\nn3 leaf-set vs activate — {} fires, production Safe k={safe_ks:?}\n",
+        "\nn3 leaf-set vs occupancy — {} fires, production Safe k={safe_ks:?}\n",
         diffs.len()
     );
     for (i, d) in diffs.iter().enumerate() {

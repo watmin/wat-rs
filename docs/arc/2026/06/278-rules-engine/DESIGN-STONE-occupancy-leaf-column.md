@@ -78,7 +78,7 @@ install is a memory intern, not a FIRE intern.
 
 ## Recolligere (2026-08-22) — occupancy is not the miss
 
-`n3_leaf_set_vs_activate_occupancy` on the 7strat
+`n3_leaf_set_vs_occupancy` on the 7strat
 compile-all (n3 rules + n/n3 queries). Four
 fires (3 strata + query harvest). **extra=0
 missing=0** every stratum. Predicted leaf-set
