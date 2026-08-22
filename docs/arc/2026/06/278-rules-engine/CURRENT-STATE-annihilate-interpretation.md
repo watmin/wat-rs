@@ -21,10 +21,21 @@ not construct it. `NEXT-STRIKES-after-shadow.md`. `wm.rs` →
 `session.rs`. Stratify holds the slice arm as a value
 (`fire_fixpoint_delta_armed`). Primed public-entry docs gone.
 Intern doors share `rete_arm_build_put`. Grid
-`GRID-native-vs-clara-2026-08-20T22-21-52Z.txt`
-(`GRID_SKIP_ORACLE=1`, `GRID_RUNS=3`): **30/30 `:match`,
-30/30 `:us`**, wall **368s** — last weighed grid; do not
-treat a newer skip as a measurement. GNU `/usr/bin/time` is
+`GRID-native-vs-clara-2026-08-22T00-23-51Z.txt`
+(`GRID_SKIP_ORACLE=1`, `GRID_RUNS=3`, HEAD `4c437585`):
+**30/30 `:match`, 30/30 `:us`**. Rank **`wat-ns`**, not ratio
+(Clara jitters the ratio). Closest Clara cell still **fanout
+`[40000]` ratio 3.40** (wat-ns 55.5 ms; 08-20T22 was 53.0 ms /
+3.35 — noise). Named leftover of cleanup: **min-finding `[2000]`
+wat-ns 11.6 ms (08-18) → 3.47 ms (08-20T00, ratio ~31) → 2.49 ms
+(this run, ratio 54 because Clara 136 ms vs 101 ms)**. Do not
+cite 54× as a 10× engine cut; the engine cut is 11.6 → 2.49.
+**deep-cascade `[50 100]` wat-ns 17.6 → 15.0 ms. node-share
+`[50 200]` 1.22 → 0.94 ms.** strat-neg `[6 2000]` 35.6 → 47.5 ms
+(back toward 08-18's 58 ms; 08-21T08 already 44.5 — not glossed).
+Accum `[200 200]` 18.6 → 18.3 ms. Skip matches
+`fire-rules$oracle` (a leftover token fails the run). Do not
+treat 17-42-43Z as a measurement. GNU `/usr/bin/time` is
 not installed; bash `time` is a keyword (`which time` empty).
 insert-prime-split LANDED (insert − conj 1933 → 310 ns). Host
 encode/sort after query-read is compiled-wat, not rete.
