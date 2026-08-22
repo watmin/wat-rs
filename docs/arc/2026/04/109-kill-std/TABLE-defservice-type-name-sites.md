@@ -1,5 +1,19 @@
 # TABLE — `defservice`'s type-name sites (arc 109, identity stone 2, classification pass)
 
+> ⚠ **LINE NUMBERS BELOW ARE STALE.** Stone **2a** deleted 6 dead bindings (13 lines) and stone **2b**
+> split the 7 multi-role bindings, so every recorded line has moved. **Locate by binding NAME.**
+> The names, roles and consumer forms are still correct; the numbers are not.
+>
+> **TWO CORRECTIONS found by 2b, which re-grepped every site instead of trusting these numbers:**
+> - `state-ty` has **7** consumption sites, not 6 — the row set missed `dispatch-admin-def`'s
+>   RETURN-type slot (`-> ~state-ty`), on the same line as the `[ai <- ~admin-ty]` param this table
+>   *did* record under `admin-ty`. Classified ANNOTATION, unambiguous.
+> - `record-ty` has an **OTHER** consumption this table did not list:
+>   `(:wat::core::keyword/to-string record-ty)` — a macro-expand-time value read feeding a
+>   string-equality check on the user's `:hibernate` return type. Never spliced into emitted code.
+>   Same class as `surface-kw` / `launch-head-kw`. **Its destination is UNRESOLVED** and must be
+>   ruled before either `record-ty` alias's shape can move.
+
 **Deliverable of** `BRIEF-STONE-identity-2-classification-pass.md`. Measurement only — no source
 changed.
 

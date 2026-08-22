@@ -588,9 +588,20 @@
 
      ;; ── 4b-ii: mint state-ty as :<fqdn>::State, record-ty as :<fqdn>::Record ──
      state-ty-str   (:wat::core::string::interpolate "{b}::State{p}" :b fqdn-base :p state-tp)
-     state-ty       (:wat::core::keyword/from-string state-ty-str)
-     record-ty      (:wat::core::keyword/from-string
+     state-ty-decl  (:wat::core::keyword/from-string state-ty-str)
+     ;; identity 2b: state-ty split by role — DECL-NAME (`defstruct`'s own name slot, :731)
+     ;; vs ANNOTATION (param/return/field types throughout). Byte-identical alias.
+     state-ty-ann   state-ty-decl
+     record-ty-decl (:wat::core::keyword/from-string
                       (:wat::core::string::interpolate "{b}::Record{p}" :b fqdn-base :p record-tp))
+     ;; identity 2b: record-ty split by role — DECL-NAME (`defrecord`'s own name slot, :709/710)
+     ;; vs ANNOTATION (param/return/field types throughout). Byte-identical alias.
+     ;; STOP-2 (reported, not resolved here): :692 below consumes the bare keyword value as a
+     ;; macro-expand-time `keyword/to-string` argument (a type-identity string compare, same
+     ;; OTHER class as `surface-kw` in TABLE-defservice-type-name-sites.md) — it fits none of
+     ;; the four roles. Pointed at record-ty-decl (both aliases are byte-identical right now;
+     ;; 2c must decide where this site actually belongs before either alias's shape can move).
+     record-ty-ann  record-ty-decl
 
      ;; ── 4b-ii: :init option ────────────────────────────────────────────────────
      ;; :init : Record → State. Default (fn [d <- ::Record] -> ::State (::State d))
@@ -614,7 +625,7 @@
                         
                         (:wat::core::macro-error
                           (:wat::core::string::interpolate "{fqdn-str}: :ephemeral declares fields but no :init — the macro cannot construct ephemeral fields; provide :init : Record → State" :fqdn-str fqdn-str))
-                        `(:wat::core::fn [~d-sym <- ~record-ty] -> ~state-ty (~state-new-kw ~d-sym))))
+                        `(:wat::core::fn [~d-sym <- ~record-ty-ann] -> ~state-ty-ann (~state-new-kw ~d-sym))))
      ;; Extract the param vector children [name <- :T] from the init fn node
      ;; init-fn-node structure: (fn [params] -> :RetTy body) → ast->children = [fn,params,->,:RetTy,body]
      init-fn-ch     (:wat::core::ast->children init-fn-node)
@@ -645,7 +656,7 @@
      init-name-str  (:wat::core::string::interpolate "{b}::init" :b fqdn-base)
      init-name      (:wat::core::keyword/from-string init-name-str)
      ;; init-def: the emitted top-level defn for init
-     init-def       `(:wat::core::defn ~init-name ~init-params-vec -> ~state-ty ~init-body)
+     init-def       `(:wat::core::defn ~init-name ~init-params-vec -> ~state-ty-ann ~init-body)
 
      ;; ── 4b-ii: :stop option — projection hook ────────────────────────────────
      ;; Default: (fn [s <- ::State] -> ::Record (::State/durable s))
@@ -657,7 +668,7 @@
                       (:wat::core::Option/expect
                         (:wat::core::HashMap/get clause-map "stop")
                         "defservice: :stop needs a value")
-                      `(:wat::core::fn [~s-sym <- ~state-ty] -> ~record-ty (~state-durable-kw ~s-sym)))
+                      `(:wat::core::fn [~s-sym <- ~state-ty-ann] -> ~record-ty-ann (~state-durable-kw ~s-sym)))
      stop-fn-ch     (:wat::core::ast->children stop-fn-node)
      stop-params-vec (:wat::core::nth stop-fn-ch 1)
      ;; resp-ty: index 3 = the :RetTy node in [fn, params, ->, :RetTy, body]
@@ -678,7 +689,7 @@
                          (:wat::core::Option/expect
                            (:wat::core::HashMap/get clause-map "hibernate")
                            "defservice: :hibernate needs a value")
-                         `(:wat::core::fn [~s-sym <- ~state-ty] -> ~record-ty (~state-durable-kw ~s-sym)))
+                         `(:wat::core::fn [~s-sym <- ~state-ty-ann] -> ~record-ty-ann (~state-durable-kw ~s-sym)))
      hibernate-fn-ch  (:wat::core::ast->children hibernate-fn-node)
      hibernate-params-vec (:wat::core::nth hibernate-fn-ch 1)
      ;; hib-ret-ty: the declared return type of the hibernate fn
@@ -686,7 +697,7 @@
      hibernate-body   (:wat::core::nth hibernate-fn-ch 4)
      ;; Force the return type to ::Record — if user declared something else, macro-error
      hib-ret-str      (:wat::core::keyword/to-string hib-ret-ty)
-     record-ty-str    (:wat::core::keyword/to-string record-ty)
+     record-ty-str    (:wat::core::keyword/to-string record-ty-decl)
      _hib-ty-check    (:wat::core::if (:wat::core::= hib-ret-str record-ty-str)
                         
                         nil
@@ -694,7 +705,7 @@
                           (:wat::core::string::interpolate "{fqdn-str}: :hibernate return type must be ::Record (the resume seed); declared a different type" :fqdn-str fqdn-str)))
      hibernate-project-name-str (:wat::core::string::interpolate "{b}::hibernate-project" :b fqdn-base)
      hibernate-project-name (:wat::core::keyword/from-string hibernate-project-name-str)
-     hibernate-project-def `(:wat::core::defn ~hibernate-project-name ~hibernate-params-vec -> ~record-ty ~hibernate-body)
+     hibernate-project-def `(:wat::core::defn ~hibernate-project-name ~hibernate-params-vec -> ~record-ty-ann ~hibernate-body)
 
      ;; ── 4b-ii: emit the Record def + State defstruct ─────────────────────────
      ;; record-def: (:wat::core::Record::def ::Record [durable-fields]) (or holon parent)
@@ -703,13 +714,13 @@
      state-parent-str (:wat::core::keyword/to-string state-parent)
      record-def   (:wat::core::if (:wat::core::= state-parent-str "wat::holon::Record")
                     
-                    `(:wat::holon::defrecord ~record-ty ~durable-fields)
-                    `(:wat::core::defrecord ~record-ty ~durable-fields))
+                    `(:wat::holon::defrecord ~record-ty-decl ~durable-fields)
+                    `(:wat::core::defrecord ~record-ty-decl ~durable-fields))
      ;; Build the State struct field vector: prepend [durable <- ::Record] before ephemeral fields.
      ;; Strategy: use quasiquote to build the durable-field prefix vector `[durable <- ~record-ty]`,
      ;; extract its 3 children, then prepend them to the ephemeral children via foldl.
      ;; The quasiquote gives us WatAST nodes (incl. the `<-` keyword) rather than runtime values.
-     durable-prefix-vec `[durable <- ~record-ty]
+     durable-prefix-vec `[durable <- ~record-ty-ann]
      durable-prefix-children (:wat::core::ast->children durable-prefix-vec)
      ephemeral-children (:wat::core::ast->children ephemeral-fields)
      ;; Concatenate: durable-prefix-children ++ ephemeral-children
@@ -728,7 +739,7 @@
                          ephemeral-children)
      ;; Build the state field vector as a WatAST::Vector using with-children on empty-vec
      state-field-vec (:wat::core::with-children empty-vec state-field-items)
-     state-def    `(:wat::core::defstruct ~state-ty ~state-field-vec)
+     state-def    `(:wat::core::defstruct ~state-ty-decl ~state-field-vec)
 
      ;; ── Arc 278 S4d: :peers — the s2s dependency DAG + cross-fork manifest ──────────
      ;; A :satisfies service that DIALS another service holds a client Peer<S::Op,S::Reply>
@@ -914,8 +925,11 @@
                           "<wat::kernel::Wire>")
      handle-bare-name (:wat::core::keyword/from-string
                         (:wat::core::string::interpolate "{b}::Handle{p}" :b fqdn-base :p fqdn-tp))
-     handle-name   (:wat::core::keyword/from-string
+     handle-name-decl (:wat::core::keyword/from-string
                      (:wat::core::string::interpolate "{b}::Handle{s}" :b fqdn-base :s handle-t-suffix))
+     ;; identity 2b: handle-name split by role — DECL-NAME (Handle defstruct's own name slot,
+     ;; :2755) vs ANNOTATION (start/resume$impl return types). Byte-identical alias.
+     handle-name-ann handle-name-decl
      handle-shared-name (:wat::core::keyword/from-string
                           (:wat::core::string::interpolate "{b}::Handle{s}" :b fqdn-base :s handle-shared-suffix))
      handle-wire-name (:wat::core::keyword/from-string
@@ -987,11 +1001,20 @@
                                admin-tp-syms))
                            ">")))
      admin-ty-str   (:wat::core::string::interpolate "{b}::Admin{p}" :b fqdn-base :p admin-tp)
-     admin-ty       (:wat::core::keyword/from-string admin-ty-str)
+     admin-ty-decl  (:wat::core::keyword/from-string admin-ty-str)
+     ;; identity 2b: admin-ty split by role — DECL-NAME (`defenum`'s own name slot, :1077),
+     ;; ANNOTATION (dispatch-admin-def's param type), RUNTIME-ARG (`self-peer`'s arg, same
+     ;; call site as status-ty below). Byte-identical aliases; no conversion.
+     admin-ty-ann     admin-ty-decl
+     admin-ty-runtime admin-ty-decl
      ;; 293.W.2f — Status<T> so Started's addr-ty T is a real type parameter
      ;; (not a rigid leftover name). Process launch unifies T:=Wire; thread T:=Shared.
      status-ty-str (:wat::core::string::interpolate "{b}::Status{s}" :b fqdn-base :s handle-t-suffix)
-     status-ty  (:wat::core::keyword/from-string status-ty-str)
+     status-ty-decl  (:wat::core::keyword/from-string status-ty-str)
+     ;; identity 2b: status-ty — same three-way split as admin-ty (DECL-NAME :1087,
+     ;; ANNOTATION extract-addr's param type, RUNTIME-ARG the same `self-peer` call).
+     status-ty-ann     status-ty-decl
+     status-ty-runtime status-ty-decl
      ;; arc 291 3a-ii-β: the CHILD's lineage self-peer — sends Status UP, recvs Admin DOWN.
      ;; serve binds `self` to this (distinct from the client peer-ty Peer<Reply,Op>).
      ;; Arc 293.W.2d: serve's self is ThreadSelfPeer<Status,Admin> for thread-tier.
@@ -1063,7 +1086,7 @@
      ;;   Init and Resume both carry ::Record (not ::State — structs never cross the wire).
      ;; arc 278: Admin::AllowPeer[pids] — a vec of caller pids to grant to the accept-gate.
      ;; arc 293: Admin::DenyPeer[pids] — mirror, a vec of caller pids to revoke from it.
-     admin-enum-def `(:wat::core::defenum ~admin-ty :wat::enum::Pure
+     admin-enum-def `(:wat::core::defenum ~admin-ty-decl :wat::enum::Pure
                        :Init     ~init-params-vec
                        :Stop
                        :Hibernate
@@ -1073,10 +1096,10 @@
      ;; arc 291 4b-ii: Status::Hibernated carries ::Record (not ::State).
      ;; arc 278: Status::PeersAllowed (unit) — the AllowPeer request/reply ack.
      ;; arc 293: Status::PeersDenied (unit) — the DenyPeer request/reply ack.
-     status-enum-def `(:wat::core::defenum ~status-ty :wat::enum::Pure
+     status-enum-def `(:wat::core::defenum ~status-ty-decl :wat::enum::Pure
                              :Started   [addr     <- ~addr-ty]
                              :Stopped     [resp     <- ~resp-ty]
-                             :Hibernated [snapshot <- ~record-ty]
+                             :Hibernated [snapshot <- ~record-ty-ann]
                              :PeersAllowed
                              :PeersDenied)
 
@@ -1092,7 +1115,7 @@
      ;;   Resume(snapshot) → (init snapshot)   — resume: init rebuilds struct from saved record
      ;;   Stop             → assertion-failed! (not a startup message)
      ;;   Hibernate        → assertion-failed! (not a startup message)
-     dispatch-admin-def `(:wat::core::defn ~dispatch-admin-name [ai <- ~admin-ty] -> ~state-ty
+     dispatch-admin-def `(:wat::core::defn ~dispatch-admin-name [ai <- ~admin-ty-ann] -> ~state-ty-ann
                             (:wat::core::match ai 
                               ((~admin-init-kw ~@init-arg-names)   (~init-name ~@init-arg-names))
                               ((~admin-resume-kw ~@init-arg-names) (~init-name ~@init-arg-names))
@@ -1124,7 +1147,7 @@
      ;; can extract the Address without naming per-service Status types.
      lu-sym     (:wat::core::symbol-node "lu")
      extract-addr-def `(:wat::core::defn ~extract-addr-name
-                                  [lu <- ~status-ty] -> ~addr-ty
+                                  [lu <- ~status-ty-ann] -> ~addr-ty
                                   (:wat::core::match lu 
                                     ((~status-started-kw addr) addr)
                                     (_ (:wat::kernel::assertion-failed!
@@ -1152,7 +1175,11 @@
      ;; `service-op-str` stays BASE: it is the ctor/variant namespace, the `retag-op'` runtime
      ;; target, and the `derive` edge's child. Monomorphic ⇒ fqdn-tp is "" ⇒ the two coincide.
      service-op-ty-str (:wat::core::string::interpolate "{b}::Op{p}" :b fqdn-base :p fqdn-tp)
-     service-op-decl-kw (:wat::core::keyword/from-string service-op-ty-str)
+     service-op-decl-kw-decl (:wat::core::keyword/from-string service-op-ty-str)
+     ;; identity 2b: service-op-decl-kw split by role — DECL-NAME (above, `defenum`'s own
+     ;; name slot) vs RUNTIME-ARG (below, `retag-op`'s target-type argument). Byte-identical
+     ;; alias; no conversion. See TABLE-defservice-type-name-sites.md.
+     service-op-decl-kw-runtime service-op-decl-kw-decl
      ;; selectable-peer-ty: Peer<proto::Reply, service::Op> (the poll' element — superset O).
      selectable-peer-ty-str (:wat::core::string::interpolate "wat::kernel::Peer<{r},{o}>"
                                :r proto-reply-ty-str :o service-op-ty-str)
@@ -1176,7 +1203,11 @@
      ;; above survive only as the bare-peer PROJECTION poll'/serve-dispatch-op still need.
      selectable-entry-ty-str (:wat::core::string::interpolate "(wat::core::i64,{p})"
                                 :p selectable-peer-ty-str)
-     selectable-entry-ty (:wat::core::keyword/from-string selectable-entry-ty-str)
+     selectable-entry-ty-ann (:wat::core::keyword/from-string selectable-entry-ty-str)
+     ;; identity 2b: selectable-entry-ty split by role — ANNOTATION (the arm-fold's element
+     ;; param type, below) vs CTOR-ARG (`Vector`'s element-type argument, :2355). Byte-identical
+     ;; alias.
+     selectable-entry-ty-ctor selectable-entry-ty-ann
      selectable-entry-vec-ty-str (:wat::core::string::interpolate "wat::core::Vector<(wat::core::i64,{p})>"
                                     :p selectable-peer-ty-str)
      selectable-entry-vec-ty (:wat::core::keyword/from-string selectable-entry-vec-ty-str)
@@ -1190,7 +1221,7 @@
      ;; (outer macro scope) so `serve-body` below can splice it at both call sites.
      peers-acc-sym (:wat::core::symbol-node "pacc")
      peers-t-sym   (:wat::core::symbol-node "pt")
-     peers-fold-fn `(:wat::core::fn [~peers-acc-sym <- ~selectable-vec-ty  ~peers-t-sym <- ~selectable-entry-ty]
+     peers-fold-fn `(:wat::core::fn [~peers-acc-sym <- ~selectable-vec-ty  ~peers-t-sym <- ~selectable-entry-ty-ann]
                         -> ~selectable-vec-ty
                       (:wat::core::conj ~peers-acc-sym (:wat::core::second ~peers-t-sym)))
      peers-only-expr `(:wat::core::foldl ~peers-fold-fn (:wat::core::Vector ~selectable-peer-ty) selectables)
@@ -1235,7 +1266,7 @@
              (:wat::core::conj (:wat::core::conj acc variant-kw-node) field-vec)))
          (:wat::core::Vector :wat::WatAST)
          impl-clauses)
-     service-op-def `(:wat::core::defenum ~service-op-decl-kw :wat::enum::Pure ~@service-op-variant-items)
+     service-op-def `(:wat::core::defenum ~service-op-decl-kw-decl :wat::enum::Pure ~@service-op-variant-items)
      ;; ── Arc 278 reconciliation (b): surface-Op <: service-Op subtype edge ──────────────
      ;; The serve loop's `selectables` param is typed with the SUPERSET `<service>::Op`
      ;; (`selectable-peer-ty` above), but CLIENT peers speak the SURFACE `<proto>::Op` — a
@@ -1677,7 +1708,7 @@
                     l           <- ~listener-ty
                     selectables <- ~selectable-entry-vec-ty
                     next-id     <- :wat::core::i64
-                    state       <- ~state-ty]
+                    state       <- ~state-ty-ann]
 
      ;; ── serve body: the poll'/ServiceEvent dispatch loop ─────────────────────────
      ;; All literals (self, l, clients, state, peer, idx, _cause) are in match patterns
@@ -1786,7 +1817,7 @@
                          ;; the arms below dispatch over the instantiated `<service>::Op<K,V>`.
                          ;; `eval_retag_op` canonicalizes both to their base names (params are
                          ;; erased in a runtime `type_path`). Monomorphic ⇒ unchanged.
-                         (:wat::core::match (:wat::kernel::retag-op op ~proto-op-ty-kw ~service-op-decl-kw)
+                         (:wat::core::match (:wat::kernel::retag-op op ~proto-op-ty-kw ~service-op-decl-kw-runtime)
                            ~@serve-op-arms)))
                      ((:wat::spawn::ServiceEvent::Closed idx)
                        (~serve-name self l (:wat::std::list::remove-at selectables idx) next-id state))
@@ -2081,7 +2112,7 @@
                                    (:wat::kernel::assertion-failed!
                                      "defservice hibernate: service peer closed during hibernate"
                                      :wat::core::None :wat::core::None))))
-     hibernate-method  `(:wat::core::defn ~hibernate-method-name ~hibernate-method-params -> ~record-ty ~hibernate-method-body)
+     hibernate-method  `(:wat::core::defn ~hibernate-method-name ~hibernate-method-params -> ~record-ty-ann ~hibernate-method-body)
      ;; Extend methods with the owner-only hibernate (stop + hibernate, not per-op).
      methods           (:wat::core::conj methods hibernate-method)
 
@@ -2290,7 +2321,7 @@
                           ;; concrete fields around it are still decoded and enforced exactly.
                           [~cm-b-sym    (:wat::kernel::listener :user::spawn::service-locus
                                             ~proto-op-ty-kw ~proto-reply-ty-kw ~max-frame-bytes-node)
-                           ~cm-self-sym (:wat::program::self-peer ~status-ty ~admin-ty)
+                           ~cm-self-sym (:wat::program::self-peer ~status-ty-runtime ~admin-ty-runtime)
                            ~cm-ship-sym (:wat::core::match (:wat::kernel::recv ~cm-self-sym) 
                                             ((:wat::kernel::RecvOutcome::Message ~cm-shipmsg-sym) ~cm-shipmsg-sym)
                                             ;; arc 278 the recv'-outcome wall — the child lost/closed its
@@ -2328,7 +2359,7 @@
                           (:wat::core::apply
                             (:wat::core::keyword/from-string ~serve-name-str) ~cm-self-sym
                             (:wat::spawn::Bound/listener ~cm-b-sym)
-                            (:wat::core::Vector ~selectable-entry-ty)
+                            (:wat::core::Vector ~selectable-entry-ty-ctor)
                             0
                             ~cm-st-sym [])))
      ;; The transport-agnostic service-forms defn: Op/Reply/records/serve + agnostic child
@@ -2504,7 +2535,7 @@
                                       (:wat::core::keyword/from-string ~extract-addr-name-str)
                                       (:wat::core::keyword/from-string ~status-started-str))]
                            (:wat::core::ann-form ~start-handle-expr ~handle-wire-name))
-     start-impl-fn `(:wat::core::defn ~start-impl-name ~start-impl-params -> ~handle-name ~start-body)
+     start-impl-fn `(:wat::core::defn ~start-impl-name ~start-impl-params -> ~handle-name-ann ~start-body)
      start-impl-thread-fn `(:wat::core::defn ~start-impl-thread-name ~start-impl-thread-params -> ~handle-shared-name ~start-body-thread)
      start-impl-process-fn `(:wat::core::defn ~start-impl-process-name ~start-impl-process-params -> ~handle-wire-name ~start-body-process)
      start-fn      `(:wat::core::do
@@ -2628,7 +2659,7 @@
                                        (:wat::core::keyword/from-string ~extract-addr-name-str)
                                        (:wat::core::keyword/from-string ~status-started-str))]
                             (:wat::core::ann-form ~start-handle-expr ~handle-wire-name))
-     resume-impl-fn `(:wat::core::defn ~resume-impl-name ~start-impl-params -> ~handle-name ~resume-body)
+     resume-impl-fn `(:wat::core::defn ~resume-impl-name ~start-impl-params -> ~handle-name-ann ~resume-body)
      resume-impl-thread-fn `(:wat::core::defn ~resume-impl-thread-name ~start-impl-thread-params -> ~handle-shared-name ~resume-body-thread)
      resume-impl-process-fn `(:wat::core::defn ~resume-impl-process-name ~start-impl-process-params -> ~handle-wire-name ~resume-body-process)
      resume-fn      `(:wat::core::do
@@ -2728,7 +2759,7 @@
                           (:wat::core::string::concat ","
                             (:wat::core::string::concat status-ty-str ">")))))
      handle-fields `[handle <- ~handle-peer-ty addr <- ~addr-ty]
-     handle-record `(:wat::core::defstruct ~handle-name ~handle-fields)
+     handle-record `(:wat::core::defstruct ~handle-name-decl ~handle-fields)
 
      ;; ── arc 170: auto-emit the Capability extend-type ─────────────────────────────
      ;; Every <fqdn>::Handle uniformly satisfies :wat::capability::Capability (relocated to
