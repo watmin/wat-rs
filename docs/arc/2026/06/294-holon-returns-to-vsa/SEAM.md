@@ -9,13 +9,17 @@
 
 ## GROUND FIRST
 
-> **Written against `c889639aa`.** Run **`git log --oneline a9168b851..HEAD`**. Empty → nothing moved.
+> **Written against `a4da7237a`.** Run **`git log --oneline a4da7237a..HEAD`**. Empty → nothing moved.
 > Non-empty → every commit in it outranks every line below.
 
 ⚠ `git status` FIRST. `pgrep -af 'cargo|nextest'`.
 
 ```
-floor .......... 4855/4855, 0 FAIL, 19 skipped, ~73s   (own invocation, scripts/floor.sh)
+floor .......... 4854/4854, 0 FAIL, 19 skipped, ~72s   (own invocation, scripts/floor.sh)
+                ⚠ 4855 → 4854 is CORRECT and accounted: the --check stone deleted
+                `infer_fn_non_vector_args_returns_silent_placeholder` and renamed one
+                other (2 removed, 1 added). A count that DROPS must be explained,
+                never observed — if you floor and see 4854, that is green.
 clippy ......... 0 under `-D warnings`
 host ........... JohnDesktop · john · ~/work/holon/wat-rs
 stash@{0} ...... the lifecycle strike. NEVER drop. base ff7705ba.
@@ -89,33 +93,51 @@ wat/service.wat            "<K,V>" as a STRING, re-attached as "{b}::Op{p}" — 
 ⛔ **Do NOT re-run the codemod on `wat/` until that is fixed.** It is not a partial-migration
 hazard — it is a red floor.
 
-✅ **γ-i STRUCK — `c889639aa`.** `fn` takes the `:- [T …]` binder; `def` derives; `defn` forwards.
-Both builder forms check, `X` is a real variable (`(f 1 "s")` and `(takes-str (f 1 2))` reject), and
-the both-spellings contradiction fires across ALL FOUR cells of path × spelling plus the raw
-`(def :g<T> (fn :- [T] …))`. `check.rs` and `function/parse.rs` at ZERO diff — G3's premise held.
-Two flights; SCORE-STONE-gamma-i-flight-1.md (Mode B) and -flight-2.md.
+## ✅ SHIPPED SINCE THE BLOCKER LIST ABOVE WAS WRITTEN
 
-⚠ **Three of my own acceptance rows were defective, and every one went GREEN while broken:**
-row 2 demanded LET-POLYMORPHISM (a neighbouring mechanism — a rigid `:T` and a missing
-let-generalization fail it identically); row 3's probe exercised only the PLAIN path while the rule
-is a property of the language (the 3-of-6-constructors shape, same day); row 7 said "REGISTERS" and
-tested with a **declaration-only** probe, which cannot tell parsing from registering.
-
-★ **FILED OUT of γ-i, all three NAMED not deferred:**
 ```
-generic variadic defn never REGISTERS   PRE-EXISTING (angle spelling fails on pristine HEAD too),
-                                        silent — error only at the CALL site. 0 corpus instances.
-                                        109/NOTE-a-generic-variadic-defn-never-registers.md
-anonymous-fn SILENT-ACCEPT              ANY stray token in the first slot → the whole fn
-                                        unconstrained, every call checks vacuously. Typo-reachable.
-let-polymorphism                        `locals` holds TypeExpr not TypeScheme;
-                                        derive_scheme_from_function gated `func.name.as_ref()?`.
+γ-i              `fn` takes the `:- [T …]` binder; `def` derives; `defn` forwards   c889639aa
+--check loud     an EXEMPTION deleted — a malformed fn no longer passes --check     490c3c1e4
+identity 1/3     `family_extends` gets its own door. PROVABLY behaviour-neutral     edb7f66c7
+TABLE            defservice's 94 built names classified by consumer ROLE            (committed)
 ```
 
-★ **ALSO AWAITING RULING —  `109/DESIGN-STONE-the-angle-string-is-not-a-type-identity.md`.**
-It carries the four questions on one shape, names a rival, and declares the population UNMEASURED
-on purpose (a grep cannot tell a type-identity concat from a RustOpaque render; the census must be
-the compiler). One stone or three? Which shape? No rider flies until it is ruled.
+**RULINGS LANDED:** D1 (γ-i first) · G3 (`fn` carries the binder) · **A-i then S2** (`is_subtype`
+stays EXACT; `family_extends` is the arg-agnostic door) · **B-3** (the identity work is THREE
+stones: lattice ✅ · `defservice` · three one-offs).
+
+⚠ **THE IDENTITY DESIGN WAS WRONG TWICE AND THE HONEST SCOPE SHRANK EACH TIME** — A-ii "preserve the
+args carefully" → A-i "the args were never doing anything" (refuted by two RED NEGATIVE CONTROLS) →
+S2 "two questions, two doors". The evidence for S2 sat in `check.rs`'s own comment the whole time, in
+a file neither earlier draft opened. `[[feedback_a_rulings_premise_expires_but_the_ruling_stands]]`
+
+## ⛔ NEXT — stone 2 of 3: `defservice`. The TABLE is written; the brief is not.
+
+`109/TABLE-defservice-type-name-sites.md` — 94 bindings, 36 in-scope, every consumption cited.
+
+★ **The uniform wrap is DEAD, and the table is why.** `keyword/to-type-form-colon` is F5-admitted, so
+wrapping every `keyword/from-string` looked like a one-line fix. **SEVEN bindings are multi-role.**
+`admin-ty` and `status-ty` reach THREE roles each — a `defenum` NAME slot, a type ANNOTATION, and a
+RUNTIME ARG — both through the SAME `(self-peer ~status-ty ~admin-ty)` call at `service.wat:2304`.
+One conversion breaks one of them.
+
+Also in the table: **4 DEAD bindings** (`reply-name` :868 · `peer-ty` :936 · `vector-ty` :944 ·
+`resp-ty` :1889 — the last a NAME COLLISION a name-only grep reads as live) and **2 OTHER** rows that
+fit no role (`surface-kw`, `launch-head-kw`).
+
+⚠ **Stone 2 may split again.** Deleting 4 dead bindings and re-slotting 7 multi-role ones are
+different jobs.
+
+## ⛔ STILL UNRULED
+
+- **C** — the codemod also migrates `Fn(args)->ret` (42 in `wat/`) and `:(a,b,c)` (49), which ②'s
+  DESIGN scoped out when the `Tuple` renderer was mode-blind. ②-i-b closed that; destinations are
+  probe-verified. Gates ②-iii only.
+- **Blocker 5** — `defrecord`/`defstruct` mint a companion `defmacro` under the bare name, so a
+  parametric FORM reference macro-expands before the checker sees it. **Needs a DESIGN.**
+- **The PROBE MATRIX.** Of everything found today, the floor found three; QUESTIONS and CLASSIFICATION
+  PASSES found the rest. I still cannot certify the ②-iii blocker list is complete, and **B-4 was
+  ruled out precisely because a split drawn from an uncertified list inherits its uncertainty.**
 
 ## THE STILL-OPEN
 
