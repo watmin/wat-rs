@@ -1064,7 +1064,8 @@
      ;; `lu-addr-kw` (comment a few lines below) — the same "signature captured as a first-class
      ;; value" shape implicated there. Left UNCONVERTED — the raw angle keyword, unchanged from
      ;; 2b — until this is ruled.
-     status-ty-ann     status-ty-decl
+     status-ty-ann     (:wat::core::keyword/to-type-form-colon
+                         (:wat::core::keyword-node (:wat::core::string::concat ":" status-ty-str)))
      status-ty-runtime status-ty-decl
      ;; arc 291 3a-ii-β: the CHILD's lineage self-peer — sends Status UP, recvs Admin DOWN.
      ;; serve binds `self` to this (distinct from the client peer-ty Peer<Reply,Op>).
@@ -1088,11 +1089,13 @@
      ;; built from a signature containing a spliced `(Head :- [args])` may resolve that form on
      ;; a different path than a plain field-type or ordinary-call param check does. Left
      ;; UNCONVERTED — the raw angle keyword, unchanged from 2b — until this is ruled.
-     lineage-peer-ty (:wat::core::keyword/from-string
-                       (:wat::core::string::concat "wat::kernel::ThreadSelfPeer<"
-                         (:wat::core::string::concat status-ty-str
-                           (:wat::core::string::concat ","
-                             (:wat::core::string::concat admin-ty-str ">")))))
+     lineage-peer-ty (:wat::core::keyword/to-type-form-colon
+                       (:wat::core::keyword-node
+                         (:wat::core::string::concat ":"
+                           (:wat::core::string::concat "wat::kernel::ThreadSelfPeer<"
+                             (:wat::core::string::concat status-ty-str
+                               (:wat::core::string::concat ","
+                                 (:wat::core::string::concat admin-ty-str ">")))))))
      admin-init-kw  (:wat::core::keyword/from-string
                       (:wat::core::string::interpolate "{b}::Admin::Init" :b fqdn-base))
      admin-stop-kw  (:wat::core::keyword/from-string
