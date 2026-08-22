@@ -2,6 +2,18 @@
 
 > **RULED A-i, builder 2026-08-21.** The edge key is the base name; type args never enter the lattice.
 >
+> **RULED B-3, builder 2026-08-21.** The identity work splits into THREE stones, each one mechanism
+> with its own floor and a green tree between:
+> ```
+> 1. THE LATTICE      this stone — a map key; ~4 fns, one file (src/types.rs)
+> 2. defservice       53 sites in one macro: 42 EMIT a name, 11 BUILD a string to COMPARE
+> 3. the one-offs     defn's 2 ({b}::Kwargs{p}, :{b}$impl{p}) · bracket.wat:514's ast-name
+>                     surgery · fix.wat:502's replacement TEXT (a codemod, not substrate)
+> ```
+> B-4 — splitting by *"what ②-iii needs"* — failed **Honest**: that boundary requires knowing what
+> ②-iii needs, and the blocker list is explicitly uncertified (five found, four of them by questions
+> rather than by the floor). A split drawn from an uncertified list inherits its uncertainty.
+>
 > ⚠ **THIS DESIGN PREVIOUSLY ARGUED THE OPPOSITE** — it recommended structured identity
 > `(base, args)`, on the theory that collapsing to the base would merge distinctions the corpus
 > relies on. Measurement refuted that, and the correction is kept visible because the route matters:
