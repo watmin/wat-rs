@@ -9,8 +9,17 @@
 
 ## GROUND FIRST
 
-> **Written against `f0d3fb2` (HEAD at write time).** Run **`git log --oneline <that>..HEAD`**. Empty → nothing moved.
-> Non-empty → every commit in it outranks every line below.
+> **THE FRESHNESS PROBE — DERIVE IT, NEVER TYPE IT.** A hand-typed hash is an instrument that can be
+> wrong, and this one WAS: it read `f0d3fb2`, which is **not a valid object in this repository**, so
+> the first thing the next self runs could not run. Paste this — it has no hash to mistype:
+>
+> ```bash
+> S=docs/arc/2026/06/294-holon-returns-to-vsa/SEAM.md
+> git log --oneline "$(git log -1 --format=%H -- $S)..HEAD"
+> ```
+>
+> **Empty → nothing moved since this was written.** Non-empty → every commit listed outranks every
+> line below, and you re-read those before you trust a word of it.
 
 ⚠ `git status` FIRST. `pgrep -af 'cargo|nextest'`.
 
