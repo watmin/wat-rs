@@ -93,52 +93,58 @@ wat/service.wat            "<K,V>" as a STRING, re-attached as "{b}::Op{p}" — 
 ⛔ **Do NOT re-run the codemod on `wat/` until that is fixed.** It is not a partial-migration
 hazard — it is a red floor.
 
-## ✅ SHIPPED — arc 109, two days
+## ⚠⚠ A RIDER WAS IN THE FIELD WHEN THIS WAS WRITTEN
+
+**`defservice` compares and destructures types as DATA** — brief at
+`109/BRIEF-STONE-defservice-compares-types-as-data.md`. It may have left `wat/service.wat` edited.
+**`git status` FIRST.** If the tree is dirty, that is its work, uncommitted and unfloored — read the
+brief, then verify against the disk. It has NOT been scored.
+
+## ✅ SHIPPED — arc 109
 
 ```
-γ-i           `fn` takes the `:- [T …]` binder; `def` derives; `defn` forwards      c889639aa
---check loud  an EXEMPTION deleted — a malformed fn no longer passes --check        490c3c1e4
-identity 1/3  `family_extends` gets its own door. PROVABLY behaviour-neutral        edb7f66c7
-identity 2a   six DEAD bindings deleted from defservice (one a NAME COLLISION)      41a3d0dd7
-identity 2b   each ROLE gets its own binding. Expansion BYTE-IDENTICAL              0366b2f2b
-blocker 5     a type reference is not an expression — the expander declines it      b9df7a09a
-identity 2c   19 of 22 ANNOTATIONs emit the `:-` form                               073dda92c +1
+γ-i           `fn` takes the `:- [T …]` binder                                     c889639aa
+--check loud  a malformed fn no longer passes --check (an EXEMPTION deleted)       490c3c1e4
+identity 1/3  `family_extends` gets its own door — PROVABLY behaviour-neutral      edb7f66c7
+identity 2a   six DEAD bindings deleted (one a NAME COLLISION)                     41a3d0dd7
+identity 2b   each ROLE gets its own binding — expansion BYTE-IDENTICAL            0366b2f2b
+blocker 5     a type reference is not an expression                                b9df7a09a
+identity 2c   ALL 22 ANNOTATIONs emit the `:-` form                                073dda92c +2
+type-equal?   the missing door: types are data everywhere EXCEPT in a macro        c5b9b6552
 ```
 
-**RULINGS:** D1 · G3 · A-i→**S2** · **B-3** (lattice · defservice · one-offs) · **2a/2b/2c** ·
-**F1** (blocker 5 before 2c).
+**RULED:** D1 · G3 · A-i→**S2** · **B-3** · 2a/2b/2c · **F1** · **DECL-NAME emits the new form** ·
+**RUNTIME-ARG is NOT a migration** (the runtime already strips the params — `canonical_callable_name`;
+drop them, β-ii-b's move, and they stay keywords because they are identity TAGS, not types).
 
-## ⛔ THE SHAPE THAT BIT THREE TIMES IN ONE DAY — read this before any `:-` work
+## ⛔ THE SHAPE THAT BIT FOUR TIMES — read before any `:-` work
 
 **A SLOT WITH TWO IMPLEMENTATIONS IS TWO SLOTS.** I verified a form was accepted *somewhere* and
-shipped "the slot accepts it" — three times, and each time a SECOND, independent reader had never
-been taught:
+shipped "the slot accepts it":
 
 ```
-extend-type's surface arg    types.rs ✅ CHECK-time    runtime.rs:8226 ⛔ RUNTIME evaluator
-(Head :- [args])             expand.rs ✅ EXPANDER     resolve/walk.rs:76 ⛔ RESOLVER
-defservice's annotation      the slot ✅ accepts it    the macro READS ITS OWN EMISSION back
+extend-type's surface arg   types.rs ✅ CHECK-time      runtime.rs:8226 ⛔ RUNTIME
+(Head :- [args])            expand.rs ✅ EXPANDER       resolve/walk.rs ⛔ RESOLVER
+defservice's annotation     the slot ✅ accepts it      the macro READS ITS OWN EMISSION back
+extend-type's protocol slot A-i's base_fqdn SURVIVED the S2 revert — two spellings, two KEYS
 ```
 
-**None surfaced where the defect was.** The resolver one reported *"call head — not a builtin, not a
-registered function"* — naming the TYPE as a missing function. The read-back one died at a
-`keyword/to-string` in unrelated code.
-`[[feedback_a_slot_with_two_implementations_is_two_slots]]`
+**None surfaced where the defect was.** `[[feedback_a_slot_with_two_implementations_is_two_slots]]`
 
-⚠ **AND A RIDER'S SCOPED RUN IS NOT THE FLOOR.** `binary_id(wat::services)` was **128/128 green**
-while the floor was **red by six**.
+⚠ **A RIDER'S SCOPED RUN IS NOT THE FLOOR.** `binary_id(wat::services)` 128/128 green, floor red by
+six — all six in `binary_id(wat::kernel)`, where the `service-parametric-*` deftests live.
+
+⚠ **AN ACCEPTANCE ROW NAMING AN INSTRUMENT THAT CANNOT RUN IS WORSE THAN NO ROW.** I wrote
+`-E 'test(doctest)'` into a brief; it matches ZERO tests, and the runner is `#[ignore]`d. The defect
+it existed to catch was in the same diff.
 
 ## ⛔ NEXT
 
-1. **identity 2c's remainder — 3 bindings, precisely named.** `handle-bare-name` (extend-type's
-   TARGET arg, `types.rs:3642`) and `dialable-ty`/`typedcap-ty` (extend-type's surface arg at the
-   RUNTIME evaluator, `runtime.rs:8226`). Both slots are Keyword-only. This is the SAME two-readers
-   shape — teach the second reader.
-2. **identity 3/3** — the one-offs: `defn`'s 2 (`{b}::Kwargs{p}`, `:{b}$impl{p}`),
-   `bracket.wat:514`'s `ast-name` surgery, `fix.wat:502`'s replacement TEXT (a codemod, not substrate).
-3. **defservice's 11 COMPARE sites** — it validates types by comparing RENDERED STRINGS. Unruled,
-   and the thing every spelling change breaks. `109/TABLE-defservice-type-name-sites.md` separates
-   them from the 42 EMIT sites.
+1. **Score the in-flight rider** (above). It closes `:peers` — **②-iii's last blocker**.
+2. **`bracket.wat`** — briefed, unreleased, independent:
+   `109/BRIEF-STONE-identity-3-bracket-reads-a-type-node.md`.
+3. **Then ②-iii is re-runnable.** Blockers 1·2·4·5 closed; 3 closes with the rider above.
+   ⛔ Re-read `109/NOTE-2iii-is-blocked-*.md` before re-running the codemod.
 
 ## ⛔ STILL UNRULED
 
