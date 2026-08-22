@@ -471,17 +471,25 @@ impl TypeDef {
 #[derive(Debug, Default, Clone)]
 pub struct TypeEnv {
     types: HashMap<String, TypeDef>,
-    /// Stone 255-builtin-registry — names that have MEMBERSHIP but no STRUCTURE: primitives
-    /// (`:wat::core::i64`), built-in parametric container heads (`:wat::core::Vector`), and
-    /// opaque capability/handle types (`:wat::kernel::Peer`, `:rust::crossbeam_channel::Sender`)
-    /// — Rust structs exposed to wat with no `TypeDef` to hold, so registering them as an
-    /// `Aggregate`/`Alias`/etc. would fabricate a structure that does not exist (rejected
-    /// options A/B in `docs/arc/2026/06/255-builtin-registry/DESIGN-STONE-*`).
-    /// `contains` consults both `types` and this set; `get` deliberately does NOT — a builtin
-    /// leaf has membership, not structure, and `TypeEnv::get` must keep answering `None` for
-    /// these names so that asymmetry stays a queryable fact of the door rather than a
-    /// fabricated `TypeDef`. Populated once, in `register_builtin_types`.
-    builtin_names: std::collections::HashSet<String>,
+    /// Stone 255-builtin-registry, widened by stone "a derive marker is a type name" — every
+    /// name with MEMBERSHIP but no STRUCTURE, from any producer. Originally just the builtin
+    /// leaves: primitives (`:wat::core::i64`), built-in parametric container heads
+    /// (`:wat::core::Vector`), and opaque capability/handle types (`:wat::kernel::Peer`,
+    /// `:rust::crossbeam_channel::Sender`) — Rust structs exposed to wat with no `TypeDef` to
+    /// hold, so registering them as an `Aggregate`/`Alias`/etc. would fabricate a structure that
+    /// does not exist (rejected options A/B in
+    /// `docs/arc/2026/06/255-builtin-registry/DESIGN-STONE-*`). A second producer now writes
+    /// here too: `register_subtype`'s `derive`/`extend-type` edge endpoints — a
+    /// `(:wat::core::derive :t::A :t::Marker)` names `:t::Marker` as a type with no `TypeDef`
+    /// of its own, the marker/taxonomy axis rather than a declared structure, and belongs in
+    /// the same "membership, no structure" category rather than a second store (one door, many
+    /// producers — see the BRIEF's ruling note on option A vs B). More producers are expected.
+    /// `contains` consults both `types` and this set; `get` deliberately does NOT — a
+    /// structureless name has membership, not structure, and `TypeEnv::get` must keep answering
+    /// `None` for these names so that asymmetry stays a queryable fact of the door rather than a
+    /// fabricated `TypeDef`. Seeded once (builtins) in `register_builtin_types`, and grown
+    /// incrementally (edges) by `register_subtype`.
+    structureless_names: std::collections::HashSet<String>,
     /// Stone S-A — the `typesub` child→parent edge registry.
     /// Maps a child FQDN (e.g. `":wat::holon::Record"`) to the list of its direct
     /// parent FQDNs (e.g. `[":wat::core::Record"]`). Populated by `register_subtype`;
@@ -531,18 +539,19 @@ impl TypeEnv {
     }
 
     /// Answers MEMBERSHIP: is `name` a real type name, structured or not?
-    /// Consults both stores — `types` (has a `TypeDef`) and `builtin_names`
+    /// Consults both stores — `types` (has a `TypeDef`) and `structureless_names`
     /// (membership without structure; see the field doc). `get` intentionally
-    /// does NOT gain the same `||`: a builtin leaf's whole point is that it
-    /// has no structure to return.
+    /// does NOT gain the same `||`: a structureless name's whole point is that
+    /// it has no structure to return.
     pub fn contains(&self, name: &str) -> bool {
-        self.types.contains_key(name) || self.builtin_names.contains(name)
+        self.types.contains_key(name) || self.structureless_names.contains(name)
     }
 
-    /// Answers STRUCTURE. Deliberately unchanged by the builtin-leaf population
-    /// (stone 255-builtin-registry) — a primitive/container/opaque type has
-    /// membership (`contains` → true) but no `TypeDef` to return, so this stays
-    /// `None` for those names. See `builtin_names`'s field doc.
+    /// Answers STRUCTURE. Deliberately unchanged by the structureless-name population
+    /// (stone 255-builtin-registry, widened by "a derive marker is a type name") — a
+    /// primitive/container/opaque type or a derive-only marker has membership
+    /// (`contains` → true) but no `TypeDef` to return, so this stays `None` for those
+    /// names. See `structureless_names`'s field doc.
     pub fn get(&self, name: &str) -> Option<&TypeDef> {
         self.types.get(name)
     }
@@ -553,17 +562,49 @@ impl TypeEnv {
     /// CORRECTION): the door (`contains`) learns the name; `get` stays `None`
     /// for it. Not `pub`: only `register_builtin_types` seeds these, mirroring
     /// `register_builtin`'s privilege.
+    ///
+    /// ⛔ A STRUCTURED name here is LEGITIMATE, not a bug, and asserting on it
+    /// was a shipped defect (`10599eb36`). `:wat::core::Option` and
+    /// `:wat::core::Result` are BOTH structured `TypeDef::Enum`s (the
+    /// Option/Result-are-enums fix) AND entries in `BARE_CONTAINER_HEADS`, which
+    /// this function is seeded from — so the collision fires inside
+    /// `with_builtins()`, i.e. on EVERY debug build, while `--release` compiles
+    /// the assert out and the floor cannot see it. The name is already a member
+    /// via `types`; recording it as structureless is simply redundant, so the
+    /// honest response is to skip it and leave `get` answering the structure.
+    ///
+    /// The literal-duplicate assert BELOW is kept: two identical entries in a
+    /// hand-written list is a copy-paste bug worth catching, and unlike the
+    /// structured case it cannot arise legitimately.
     fn register_builtin_leaf(&mut self, name: impl Into<String>) {
         let name = name.into();
+        if self.types.contains_key(&name) {
+            return;
+        }
         debug_assert!(
-            !self.types.contains_key(&name),
-            "builtin leaf {name} already registered as a structured TypeDef"
-        );
-        debug_assert!(
-            !self.builtin_names.contains(&name),
+            !self.structureless_names.contains(&name),
             "builtin leaf {name} registered twice"
         );
-        self.builtin_names.insert(name);
+        self.structureless_names.insert(name);
+    }
+
+    /// Record `name` as a structureless name (membership, no `TypeDef`) if it is not
+    /// already a structured type. Used by `register_subtype` for both edge endpoints —
+    /// a `derive`/`extend-type` child or parent that has no declared `TypeDef` (a
+    /// marker, e.g. `:t::Marker` in `(:wat::core::derive :t::A :t::Marker)`) IS a type
+    /// name the moment it appears in the lattice. Idempotent by construction
+    /// (`HashSet::insert` on an existing member is a no-op) — unlike
+    /// `register_builtin_leaf`'s batch seeding, an edge endpoint legitimately recurs
+    /// (many types deriving the same parent), so re-recording it is normal, not a bug.
+    /// A structured `TypeDef` always wins: if `name` is already in `types`, this is a
+    /// silent no-op — no assert, because a declared type appearing as a derive/extend-type
+    /// endpoint (e.g. `:wat::kernel::Thread`, `:wat::core::Record`) is the common case,
+    /// not a defect. `contains`'s `||` already answers correctly for such a name via
+    /// `types` alone, and `get` must stay untouched for a name that already has structure.
+    fn note_structureless_name(&mut self, name: &str) {
+        if !self.types.contains_key(name) {
+            self.structureless_names.insert(name.to_string());
+        }
     }
 
     /// Arc 170 — the retained ORIGINAL source decl form for user type `name`,
@@ -752,6 +793,13 @@ impl TypeEnv {
     /// the `TypeDef` registry — a tag can derive regardless of whether it has a
     /// `TypeDef` entry. This mirrors Clojure's hierarchy being independent of what
     /// the tags ARE.
+    ///
+    /// Stone "a derive marker is a type name" — BOTH endpoints are also recorded as
+    /// structureless names (`note_structureless_name`), so a `derive`/`extend-type`-only
+    /// marker (no `TypeDef`, only a lattice edge — e.g. `:t::Marker` in
+    /// `(:wat::core::derive :t::A :t::Marker)`) becomes something `TypeEnv::contains`
+    /// answers for, same as a declared type. A name that already has a `TypeDef` is left
+    /// alone by that recording — see `note_structureless_name`.
     pub fn register_subtype(&mut self, child: &str, parent: &str, span: Span) -> Result<(), TypeError> {
         // Cycle check: if parent is already transitively is-a child, adding this
         // edge closes a cycle.
@@ -768,6 +816,8 @@ impl TypeEnv {
             .entry(child.to_string())
             .or_default()
             .push(parent.to_string());
+        self.note_structureless_name(child);
+        self.note_structureless_name(parent);
         Ok(())
     }
 
@@ -2628,7 +2678,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // records registered above. This is the door's `Type` facet becoming
     // honest for the rest of its own population. Storage is option C (see
     // the DESIGN's CORRECTION): `register_builtin_leaf` adds the name to
-    // `builtin_names` only — `get` stays `None`, because a primitive/opaque
+    // `structureless_names` only — `get` stays `None`, because a primitive/opaque
     // genuinely has no `TypeDef` to fabricate one for.
 
     // Groups 1 & 2 — DERIVED from the checker's own consts, never
@@ -2649,8 +2699,9 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // with no const to derive from: Rust structs (or Rust-checker literals)
     // exposed to wat with no `TypeDef`, a token rather than a structure.
     // Evidence for this list originates from a rider's convergence on branch
-    // `arc109-type-refs-parked` (`src/resolve/type_refs.rs`'s
-    // `known_builtin_leaf_types`), but every name below was RE-VERIFIED
+    // `arc109-type-refs-parked` (`src/resolve/type_refs.rs`'s original
+    // hand-written builtin-leaf-name closed-world function, since deleted —
+    // the door registered here superseded it), but every name below was RE-VERIFIED
     // against this tree's own corpus (`grep -rn <name> --include=*.wat .`,
     // excluding `target/`) before being registered — each citation is one
     // real occurrence, not the full count. `:wat::core::Never` is the one
@@ -3018,12 +3069,28 @@ fn synthesize_surface_protocol(
     // values, not Responses, so the RequestTooLarge lock does not apply to them.
     let enforce_rtl_lock = surface.nature == Some(Nature::Peer);
 
+    // Arc 109 fix — the protocol enums' `type_params` must ALSO include every method's OWN
+    // type params (`method<X,Y>`), not just the surface's `<K,V>`. Unlike the surface-minted
+    // alias below (one `AliasDef` per op, so "the union of the surface's and THAT method's
+    // own" is well-formed), `Op`/`Reply` are each a SINGLE `EnumDef` whose variants span EVERY
+    // op — there is no per-variant scope in the data model (`EnumVariant::Tagged` carries no
+    // binder of its own), so the only well-formed scope for the enum as a whole is the union
+    // across ALL of them, accumulated across this loop. (A collision — two methods binding the
+    // same letter to genuinely different type variables — would silently merge them under one
+    // enum-level binder; not observed in this corpus, but a real structural risk worth naming.)
+    let mut protocol_type_params = surface.type_params.clone();
+
     for member in &surface.members {
-        let SurfaceMember::Method { name, args, ret, max_request_bytes_explicit, .. } = member
+        let SurfaceMember::Method { name, args, ret, max_request_bytes_explicit, type_params: method_type_params, .. } = member
         else {
             continue; // Field members are data, not operations.
         };
         saw_method = true;
+        for tp in method_type_params {
+            if !protocol_type_params.contains(tp) {
+                protocol_type_params.push(tp.clone());
+            }
+        }
 
         // Arc 278 #16 Stone 16.3 — MANDATORY `:max-request-bytes` lock. Mirrors 16.1c's
         // RequestTooLarge lock immediately below: same gate (`enforce_rtl_lock` — ONLY a
@@ -3389,16 +3456,23 @@ fn synthesize_surface_protocol(
     // `surface.type_params == []`, so this clone is byte-for-byte the old `vec![]` — every one of the
     // nine concrete defservices is untouched. (Verified: `--check --check-output edn` over the whole
     // `.wat` corpus is byte-identical across this change.)
+    //
+    // Arc 109 — `protocol_type_params` (built above, across the member loop) widens this from
+    // "the surface's own params" to "the surface's own params UNION every method's own" — see
+    // the loop-header comment for why that's the only well-formed scope for a single EnumDef
+    // spanning every op. `protocol_type_params == surface.type_params.clone()` whenever no
+    // method declares params of its own, so the identity property above still holds for every
+    // surface that doesn't use this feature.
     Ok(vec![
         TypeDef::Enum(EnumDef {
             name: op_name,
-            type_params: surface.type_params.clone(),
+            type_params: protocol_type_params.clone(),
             purity: Purity::Pure,
             variants: op_variants,
         }),
         TypeDef::Enum(EnumDef {
             name: reply_name,
-            type_params: surface.type_params.clone(),
+            type_params: protocol_type_params,
             purity: Purity::Pure,
             variants: reply_variants,
         }),
@@ -3572,17 +3646,41 @@ fn register_types_impl(
                     // below: a message no longer needs to spell the surface's params to be
                     // nameable, because Rust — which DOES hold `:features` at registration time
                     // — mints the uniform alias name and the macro just names it.
+                    //
+                    // Arc 109 fix — the alias's `type_params` is the UNION of the surface's own
+                    // `<K,V>` and the METHOD's own (`SurfaceMember::Method.type_params`, parsed
+                    // from a `method<X,Y>` suffix), not the surface's alone. A method-level
+                    // generic (e.g. `:wat::spawn::Locus`'s `launch<S,R,St,Sh,Lu>` — the surface
+                    // itself has NO type params) previously became a free variable in the minted
+                    // alias's body, invisible until the arc 109 declared-type-position sweep
+                    // existed to catch it. Verified against the corpus both ways: `wat/cache.wat`'s
+                    // `Cache<K,V>.get`/`.put` have EMPTY method type_params, so the union
+                    // degenerates to the surface's own set exactly as before (no behavior change
+                    // for the common case); `wat/spawn.wat`'s `Locus.launch`/`.spawn-runner` have
+                    // an EMPTY surface set and a non-empty method set, so the union degenerates to
+                    // the method's own (the fix). Dedup keeps a name that happens to appear on
+                    // both lists (not observed in the corpus, but not disallowed by the grammar)
+                    // from doubling up in the bound set.
                     for member in &surf.members {
-                        if let SurfaceMember::Method { name: op_name, args, ret, .. } = member {
+                        if let SurfaceMember::Method {
+                            name: op_name, args, ret, type_params: method_type_params, ..
+                        } = member
+                        {
                             if let Some((_, request_ty)) = args.fixed_params.get(1) {
+                                let mut op_type_params = surf.type_params.clone();
+                                for tp in method_type_params {
+                                    if !op_type_params.contains(tp) {
+                                        op_type_params.push(tp.clone());
+                                    }
+                                }
                                 d.push(TypeDef::Alias(AliasDef {
                                     name: format!("{}::{}/Request", surf.name, op_name),
-                                    type_params: surf.type_params.clone(),
+                                    type_params: op_type_params.clone(),
                                     expr: request_ty.clone(),
                                 }));
                                 d.push(TypeDef::Alias(AliasDef {
                                     name: format!("{}::{}/Response", surf.name, op_name),
-                                    type_params: surf.type_params.clone(),
+                                    type_params: op_type_params,
                                     expr: ret.clone(),
                                 }));
                             }
@@ -6901,5 +6999,84 @@ mod tests {
              empty someone registered it; update this test deliberately, don't let it \
              happen by drift"
         );
+    }
+
+    /// Stone "a derive marker is a type name" — `register_subtype` records BOTH
+    /// endpoints as structureless names, so a `derive`-only marker (a lattice edge with
+    /// no `TypeDef`) becomes a name the registry knows, same as `probe_arc237_derive_verb`'s
+    /// `:t::Marker` and `probe_arc209_spawned_marker`'s `:wat::spawn::Spawned`. Uses
+    /// `SymbolTable::registrations`/`RegistryKind::Type` (THE DOOR) rather than `contains`
+    /// directly, matching the house rule against `assert!(x.contains("literal"))`.
+    #[test]
+    fn register_subtype_records_a_derive_only_marker_as_a_structureless_type_name() {
+        let mut env = TypeEnv::with_builtins();
+        env.register_subtype(":t::A", ":t::Marker", crate::rust_caller_span!())
+            .expect("fresh edge must not cycle");
+
+        let mut sym = crate::value::SymbolTable::new();
+        sym.set_types(std::sync::Arc::new(env));
+
+        assert!(
+            sym.registrations(":t::Marker")
+                .contains(crate::value::symbol_table::RegistryKind::Type),
+            "a derive-only marker with no TypeDef must still register as a Type"
+        );
+        // Membership, not structure — `get` stays `None` for the marker (mirrors the
+        // builtin-leaf contract; see `structureless_names`'s field doc).
+        assert_eq!(sym.types().unwrap().get(":t::Marker"), None);
+    }
+
+    /// STOP-2, isolated from `with_builtins()` — a debug build of `with_builtins()` hits an
+    /// UNRELATED, PRE-EXISTING debug-only panic (`register_builtin_leaf`'s own
+    /// double-registration assert fires on `:wat::core::Option`/`:wat::core::Result`, each
+    /// registered BOTH as a structured `TypeDef::Enum` — arc 2026-08-05's fix — AND via
+    /// `BARE_CONTAINER_HEADS`'s leaf loop; predates this stone, not introduced by it, not
+    /// touched by it — `git diff` confirms both sites are untouched). To test STOP-2's actual
+    /// claim (a structured name surviving `register_subtype`) without that unrelated crash,
+    /// build a `TypeEnv` from scratch and register only what this test needs.
+    #[test]
+    fn note_structureless_name_never_shadows_a_structured_type_even_in_debug() {
+        let mut env = TypeEnv::new();
+        env.register(TypeDef::Aggregate(AggregateDef {
+            nature: Nature::Struct,
+            name: ":user::Parent".into(),
+            type_params: vec![],
+            fields: vec![],
+            restrictions: None,
+        }))
+        .expect("fresh registration");
+        // child (unregistered marker) → parent (a real, structured TypeDef).
+        env.register_subtype(":user::Child", ":user::Parent", crate::rust_caller_span!())
+            .expect("fresh edge must not cycle"); // must not panic — this is the STOP-2 claim
+        assert!(matches!(env.get(":user::Parent"), Some(TypeDef::Aggregate(_))));
+        assert!(env.contains(":user::Parent"));
+        assert!(env.contains(":user::Child"));
+        assert_eq!(env.get(":user::Child"), None);
+
+        // Registering the SAME structured parent as an edge endpoint again — a second
+        // `derive`/`extend-type` naming it — must also not panic.
+        env.register_subtype(":user::Child2", ":user::Parent", crate::rust_caller_span!())
+            .expect("fresh edge must not cycle");
+        assert!(matches!(env.get(":user::Parent"), Some(TypeDef::Aggregate(_))));
+    }
+
+    /// STOP-2 — a name that ALREADY has a `TypeDef` (e.g. a builtin aggregate root) must
+    /// come through `register_subtype` unaffected: no double-registration `debug_assert`
+    /// firing, and `get` still returns its real structure rather than being shadowed by
+    /// `note_structureless_name`'s bookkeeping. `:wat::core::Struct` is exactly this case —
+    /// `register_builtin`'s own aggregate-root wiring (types.rs:762-771) already calls
+    /// `register_subtype` with builtin aggregates as both child and parent, so
+    /// `TypeEnv::with_builtins()` alone already exercises this path; this test asserts the
+    /// outcome explicitly rather than relying on construction not panicking.
+    #[test]
+    fn a_structured_type_used_as_a_subtype_edge_endpoint_is_unaffected() {
+        let env = TypeEnv::with_builtins();
+        // Row 5 of the acceptance table: a real TypeDef survives being an edge endpoint.
+        assert!(
+            matches!(env.get(":wat::core::Struct"), Some(TypeDef::Aggregate(_))),
+            "a structured builtin type must keep returning its TypeDef, not fall back to \
+             structureless membership"
+        );
+        assert!(env.contains(":wat::core::Struct"));
     }
 }

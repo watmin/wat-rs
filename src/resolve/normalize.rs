@@ -39,7 +39,7 @@ use crate::edn_shim::ns_to_wat_path;
 use crate::macros::MacroRegistry;
 use crate::runtime::SymbolTable;
 use super::boundary::{is_unquote_escape, is_where_form, quote_boundary, Boundary};
-use super::error::{ResolveError, UnresolvedReference};
+use super::error::{ReferenceKind, ResolveError, UnresolvedReference};
 use super::walk::is_resolvable_call_head;
 
 /// Normalize all namespaced symbol refs in `forms`.
@@ -435,7 +435,9 @@ fn resolve_namespaced_symbol(
     // Primary did not resolve → located error naming the unknown entity.
     Err(UnresolvedReference {
         path: primary.clone(),
-        context: "namespaced symbol ref — not a builtin, not a registered function (arc 251)",
+        context: "namespaced symbol ref — not a builtin, not a registered function (arc 251)"
+            .to_string(),
         span: span.clone(),
+        kind: ReferenceKind::CallHead,
     })
 }
