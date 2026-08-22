@@ -1,6 +1,6 @@
 # DESIGN — a type reference must RESOLVE
 
-**Status: written 2026-08-22, against `faaec192b`. Grounded, not yet ruled.**
+**Status: RULED 2026-08-22 — D1-A · D2-A · D3-B (builder). Written against `faaec192b`; three findings measured AFTER the ruling, below.**
 
 A declaration may name a type that does not exist, and nothing says so.
 
@@ -218,3 +218,69 @@ probe I ran today BOTH returned five greens while measuring nothing — a bare `
 `defn` signature naming an unresolvable type, each exiting 0 for reasons unrelated to the subject.
 **The acceptance must name a command that FAILS today and passes after, and the brief must run it
 before the work starts.** `[[feedback_a_green_test_can_prove_nothing]]`
+
+---
+
+## ⛔ GROUNDED AFTER THE RULING — three findings that change the SHAPE, not the decisions
+
+D1-A · D2-A · D3-B stand. But "the resolver walks forms and asks `contains`" is not implementable as
+written, and two of these would have wrecked a rider working from the prose above.
+
+### 1 — It is a REGISTRY SWEEP, not a form walk. Type declarations never reach step 7.
+
+`register_types_impl(forms: Vec<WatAST>) -> Result<Vec<WatAST>>` (`src/types.rs:3341`) returns only
+the forms it did NOT classify as type declarations. **A `defrecord`/`defstruct`/`defenum`/`typealias`
+form is CONSUMED at step 5 and is not in the residue** that step 7 walks. A form-walking pass would
+see `defn` bodies and nothing else — it would miss every field type, variant payload and alias RHS in
+D2-A's own list.
+
+The pass therefore iterates the REGISTRIES: `TypeEnv`'s own `types` map for `TypeDef`s, and the
+`SymbolTable`'s functions for `TypeScheme`s. This is better, not merely necessary — the registry is
+the registered TRUTH, it carries `type_params` on the same record as the types to walk, and it is
+independent of residue bookkeeping. Corroborating: `check_program(&bundle.residue, &bundle.symbols,
+&bundle.types)` already reads type information from the registry rather than from forms.
+
+### 2 — `resolve_references` does not receive the `TypeEnv`.
+
+`resolve_references(forms, sym, macros)` (`src/resolve/walk.rs:29`). It needs `&TypeEnv`. One
+parameter, one call site — `bundle.types` is already in scope at that point in `freeze.rs`, since
+step 8 passes it to `check_program` a few lines later.
+
+### 3 — ★★ THE PRECEDENCE RULE WILL SUPPRESS THE NEW DIAGNOSTIC IN THE CASE THAT MOTIVATES IT.
+
+`freeze.rs:1308`:
+
+```rust
+if check_err.0.iter().all(is_unknown_callee) {
+    return Err(resolve_err.into());   // resolve wins
+}
+return Err(check_err.into());          // check wins
+```
+
+Step 7's error is DEFERRED and re-raised only if every step-8 error is an `UnknownCallee`. That rule
+was derived when the only resolve error was an unknown CALL HEAD, where check carries the located
+cause and resolve carries the symptom. **For a phantom type the roles are exactly inverted:** the
+cause is the unresolved type at the declaration; the symptom is the `TypeMismatch` at the caller. A
+`TypeMismatch` is not an `UnknownCallee`, so the check error wins and the new diagnostic is
+discarded.
+
+Measured on today's binary, with a file carrying both a resolve error and a non-`UnknownCallee` check
+error — the report is `#wat.check/CheckErrors { TypeMismatch, UnknownCallee }`, and
+`#wat.resolve/UnresolvedReferences` does not appear at all.
+
+⚠ **The failure mode this creates is one that reads as success.** The uncalled case has no check
+error, so `(Ok, Some(resolve_err))` fires and the new pass works — a rider testing "an uncalled
+declaration is rejected" goes green and reports the stone shipped, while every CALLED phantom keeps
+its old misleading message. Both acceptance rows are mandatory for this reason.
+
+`[[feedback_a_rulings_premise_expires_but_the_ruling_stands]]` — the premise ("the only resolve error
+is an unknown call head") expires the moment this stone lands.
+
+### 4 — D4's sub-question is NOT probeable from outside, and must not be guessed
+
+Whether a nested `fn`'s binder extends or shadows the enclosing `defn`'s scope cannot be measured
+with today's binary: both spellings exit 0, and exit 0 proves nothing while type names go unresolved
+— acceptance IS the bug. The answer must be READ out of the checker's own scope construction
+(`check.rs:65` documents `type_params` as the ∀-bound list; instantiation is `fresh.fresh()` per
+param at call sites) and MIRRORED. If the checker has no nested-scope concept, the pass must not
+invent one — that is a STOP.
