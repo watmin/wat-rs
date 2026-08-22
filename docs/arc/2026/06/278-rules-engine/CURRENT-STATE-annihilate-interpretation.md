@@ -7,7 +7,7 @@
 
 **Right now:** floor **GREEN** `.floor/2026-08-22T02-40-11Z/`
 (4911 passed, 19 skipped). Clippy `--all-targets -D warnings`
-silent. `harvest_stratified_queries` LANDED (QueryNode reverse-closure,
+silent. grok-rete HEAD **`4a67a20d`**. `harvest_stratified_queries` LANDED (QueryNode reverse-closure,
 not a second full fire).
 Vigilia recasts **12 and 13** both **0 L1 + 0 L2** (inward
 17/17 + circumspicere) at `8839bb16` — the stop named as two
