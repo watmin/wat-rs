@@ -70,9 +70,20 @@ impl PMap {
     /// Build from an iterator, choosing the arm from the FINAL size — so a map built in one shot
     /// and the same map built by successive `assoc`s land in the same arm. Later duplicate keys
     /// win, matching `assoc`.
+    ///
+    /// Zero and one pair skip the growable accumulator: class-scan harvest
+    /// is 40k one-entry maps (`DESIGN-STONE-one-entry-pmap-harvest`).
     pub fn from_pairs<I: IntoIterator<Item = (Value, Value)>>(pairs: I) -> Self {
+        let mut iter = pairs.into_iter();
+        let Some(first) = iter.next() else {
+            return PMap::new();
+        };
+        let Some(second) = iter.next() else {
+            return PMap::Array(Arc::new(vec![first]), next_intern());
+        };
         let mut acc: Vec<(Value, Value)> = Vec::new();
-        for (k, v) in pairs {
+        acc.push(first);
+        for (k, v) in std::iter::once(second).chain(iter) {
             match acc.iter_mut().find(|(ek, _)| *ek == k) {
                 Some(slot) => slot.1 = v,
                 None => acc.push((k, v)),
@@ -394,6 +405,18 @@ mod tests {
             Some(&found),
             "a map-as-key entry must survive an EDN round trip and still be found from the other arm"
         );
+    }
+
+    #[test]
+    fn one_pair_from_pairs_is_the_array_arm_and_equals_assoc() {
+        let once = PMap::from_pairs([(k(1), k(2))]);
+        assert!(!once.is_trie());
+        assert_eq!(once.len(), 1);
+        let via_assoc = PMap::new().assoc(k(1), k(2));
+        assert_eq!(once, via_assoc);
+        assert_eq!(hash_of(&once), hash_of(&via_assoc));
+        let empty = PMap::from_pairs(std::iter::empty::<(Value, Value)>());
+        assert_eq!(empty, PMap::new());
     }
 
     /// Promotion must actually FIRE, and the two build paths must converge. A promotion test where

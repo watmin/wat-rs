@@ -1032,7 +1032,7 @@ pub(crate) fn to_persistent(wm: FireSession) -> Value {
     phase_end("  ├ out:beta", __ob);
     let __op = phase_start();
     let prod_pm = production_to_pm(wm.production);
-    phase_end("  └ out:production", __op);
+    phase_end("  ├ out:production", __op);
     let __oq = phase_start();
     let query_pm = query_memory_to_pm(wm.query);
     phase_end("  └ out:query", __oq);

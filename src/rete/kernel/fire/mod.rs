@@ -864,12 +864,25 @@ pub(crate) fn fire_once_session(session: &Value, sym: &SymbolTable) -> Result<Va
     fire_fixpoint_delta_armed(session, sym, None, None, FireKind::Once)
 }
 
+/// One class-scan query: `{var: fact}` from the closed bag
+/// (input ∪ derived), not production-memory
+/// (`DESIGN-STONE-query-class-scan-harvest`).
+struct QueryClassScan {
+    var: Value,
+    class: String,
+}
+
 /// Alphas that exist only to feed QueryNodes (Alpha → RootJoin → Query).
-/// `(?fact <- :Type)` with no field constraints. Production already holds
-/// those facts (`DESIGN-STONE-query-class-scan-harvest`).
-fn query_only_alpha_ids(arm: &InternedNetwork, network: &Value) -> HashSet<i64> {
+/// `(?fact <- :Type)` with no field constraints.
+fn query_class_scans(arm: &InternedNetwork, network: &Value) -> HashMap<i64, QueryClassScan> {
     let mut q_joins: HashSet<i64> = HashSet::new();
     for &jid in &arm.kind_ids.join_parent {
+        let Some(node) = get_node(network, jid) else {
+            continue;
+        };
+        if kind_of(node) != NodeKind::RootJoin {
+            continue;
+        }
         let Some(kids) = arm.children_of.get(&jid) else {
             continue;
         };
@@ -883,7 +896,7 @@ fn query_only_alpha_ids(arm: &InternedNetwork, network: &Value) -> HashSet<i64> 
             q_joins.insert(jid);
         }
     }
-    let mut q_alphas = HashSet::new();
+    let mut scans = HashMap::new();
     for &aid in &arm.kind_ids.alpha {
         let Some(kids) = arm.children_of.get(&aid) else {
             continue;
@@ -894,7 +907,10 @@ fn query_only_alpha_ids(arm: &InternedNetwork, network: &Value) -> HashSet<i64> 
         let Some(c) = arm.compiled_conds.get(&aid) else {
             continue;
         };
-        if c.fact_bind().is_none() || !c.ops().is_empty() {
+        let Some(var) = c.fact_bind() else {
+            continue;
+        };
+        if !c.ops().is_empty() {
             continue;
         }
         // Import/Export AlphaNode has no tests AST — class-scan cannot
@@ -905,34 +921,23 @@ fn query_only_alpha_ids(arm: &InternedNetwork, network: &Value) -> HashSet<i64> 
         let Some(cond) = alpha_cond_from_node(node) else {
             continue;
         };
-        if crate::rete::matcher::alpha_pattern(&cond).is_none() {
+        let Some(pat) = crate::rete::matcher::alpha_pattern(&cond) else {
             continue;
-        }
-        q_alphas.insert(aid);
+        };
+        scans.insert(
+            aid,
+            QueryClassScan {
+                var: var.clone(),
+                class: pat.type_head.to_string(),
+            },
+        );
     }
-    q_alphas
+    scans
 }
 
-fn harvest_class_scan(
-    wm: &FireSession,
-    alpha_id: i64,
-    compiled: &crate::rete::compiled_cond::CompiledCond,
-) -> Vec<crate::value::pmap::PMap> {
-    let Some(var) = compiled.fact_bind() else {
-        return Vec::new();
-    };
-    let Some(node) = get_node(&wm.network, alpha_id) else {
-        return Vec::new();
-    };
-    let Some(cond) = alpha_cond_from_node(node) else {
-        return Vec::new();
-    };
-    let Some(pat) = crate::rete::matcher::alpha_pattern(&cond) else {
-        return Vec::new();
-    };
-    let class = pat.type_head;
+fn harvest_class_scan(wm: &FireSession, scan: &QueryClassScan) -> Vec<crate::value::pmap::PMap> {
     let matches_class = |f: &Value| match f {
-        Value::Aggregate(a) if a.nature != Nature::Struct => a.class.as_ref() == class,
+        Value::Aggregate(a) if a.nature != Nature::Struct => a.class.as_ref() == scan.class,
         _ => false,
     };
     let mut facts: Vec<&Value> = Vec::new();
@@ -943,14 +948,18 @@ fn harvest_class_scan(
     let mut maps = Vec::with_capacity(facts.len());
     for f in facts {
         maps.push(crate::value::pmap::PMap::from_pairs([(
-            var.clone(),
+            scan.var.clone(),
             f.clone(),
         )]));
     }
     maps
 }
 
-fn harvest_query_memory(wm: &mut FireSession, arm: &InternedNetwork, q_only: &HashSet<i64>) {
+fn harvest_query_memory(
+    wm: &mut FireSession,
+    arm: &InternedNetwork,
+    scans: &HashMap<i64, QueryClassScan>,
+) {
     wm.query.clear();
     if arm.kind_ids.query.is_empty() {
         return;
@@ -971,13 +980,10 @@ fn harvest_query_memory(wm: &mut FireSession, arm: &InternedNetwork, q_only: &Ha
                 .unwrap_or(&[]);
             let scan = pids.iter().find_map(|pid| {
                 let aid = arm.feeding_alpha_of.get(pid)?;
-                if !q_only.contains(aid) {
-                    return None;
-                }
-                arm.compiled_conds.get(aid).map(|c| (*aid, c))
+                scans.get(aid)
             });
-            if let Some((aid, compiled)) = scan {
-                harvest_class_scan(wm, aid, compiled)
+            if let Some(scan) = scan {
+                harvest_class_scan(wm, scan)
             } else {
                 let mut maps: Vec<crate::value::pmap::PMap> = Vec::new();
                 for pid in pids {

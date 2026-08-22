@@ -298,7 +298,8 @@ pub(crate) fn fire_fixpoint_delta_armed(
     let beta_readers = &arm.beta_readers;
     let test_sibs_of = &arm.test_sibs;
     let test_children = &arm.test_children;
-    let q_only_alphas = query_only_alpha_ids(&arm, &wm.network);
+    let q_scans = query_class_scans(&arm, &wm.network);
+    let q_only_alphas: HashSet<i64> = q_scans.keys().copied().collect();
 
     // P6 — persistent join indexes, maintained ACROSS rounds (never rebuilt).
     // Keyed by HashJoinNode id J.
@@ -1919,7 +1920,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
     }
 
     let __hq = phase_start();
-    harvest_query_memory(&mut wm, &arm, &q_only_alphas);
+    harvest_query_memory(&mut wm, &arm, &q_scans);
     phase_end("  ├ harvest:query", __hq);
     let __drop = phase_start();
     if matches!(kind, FireKind::Rules) {

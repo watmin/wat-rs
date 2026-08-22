@@ -2221,7 +2221,7 @@ fn accum_fire_phase_census() {
     // and this array is asserted to be a SUBSET of what was discovered — so a mark that is
     // deleted or stops firing still fails loudly, while a mark that is ADDED shows up for
     // free. Both directions covered; neither can go quiet.
-    const REQUIRED_PHASES: [&str; 24] = [
+    const REQUIRED_PHASES: [&str; 25] = [
         "IN: to_transient",
         "SETUP: indexes",
         "  ├ setup:seen",
@@ -2242,7 +2242,8 @@ fn accum_fire_phase_census() {
         "OUT: to_persistent",
         "  ├ out:alpha",
         "  ├ out:beta",
-        "  └ out:production",
+        "  ├ out:production",
+        "  └ out:query",
         "  ├ round:preamble",
         "  └ round:epilogue",
         "  └ round:drop-memories",
@@ -3429,7 +3430,7 @@ fn fanout_three_leftover_split() {
     const CAL_N: u64 = 200_000;
     const RHS: &str = "  ├ prod:compiled-rhs";
     const HARVEST: &str = "  ├ harvest:query";
-    const OUT_PROD: &str = "  └ out:production";
+    const OUT_PROD: &str = "  ├ out:production";
     const OUT_QUERY: &str = "  └ out:query";
     const FIRE_PHASES: [&str; 4] = [
         "IN: to_transient",
