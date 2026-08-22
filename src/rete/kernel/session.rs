@@ -1033,6 +1033,9 @@ pub(crate) fn to_persistent(wm: FireSession) -> Value {
     let __op = phase_start();
     let prod_pm = production_to_pm(wm.production);
     phase_end("  └ out:production", __op);
+    let __oq = phase_start();
+    let query_pm = query_memory_to_pm(wm.query);
+    phase_end("  └ out:query", __oq);
 
     Value::Aggregate(Arc::new(AggregateValue::record(
         "wat::rete::Session".into(),
@@ -1045,7 +1048,7 @@ pub(crate) fn to_persistent(wm: FireSession) -> Value {
             prod_pm,
             wm.facts,
             Value::i64(wm.next_id),
-            query_memory_to_pm(wm.query),
+            query_pm,
         ]),
     )))
 }

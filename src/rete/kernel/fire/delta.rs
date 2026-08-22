@@ -32,6 +32,9 @@ pub(crate) struct AlphaActivateCx<'a> {
     /// Bind-only alphas: output field indexes into the packed row
     /// (`DESIGN-STONE-fire-i64-columns`). Absent → compiled exec.
     pub(crate) bind_only: &'a HashMap<i64, Vec<u8>>,
+    /// Query-only alphas: skip activate; harvest by class
+    /// (`DESIGN-STONE-query-class-scan-harvest`).
+    pub(crate) query_only_alphas: &'a HashSet<i64>,
 }
 
 pub(crate) fn alpha_activate_fact(
@@ -58,6 +61,9 @@ pub(crate) fn alpha_activate_fact(
     }
     let row = cx.wm.i64_by_fact[i];
     for aid in cx.cand_scratch.iter().copied() {
+        if cx.query_only_alphas.contains(&aid) {
+            continue;
+        }
         let compiled = rematch_compiled(cx.compiled_conds, aid)?;
         let key_ids = cx.cond_key_ids.get(&aid).map(|v| v.as_slice());
         let fields = cx.bind_only.get(&aid).map(Vec::as_slice);
@@ -292,6 +298,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
     let beta_readers = &arm.beta_readers;
     let test_sibs_of = &arm.test_sibs;
     let test_children = &arm.test_children;
+    let q_only_alphas = query_only_alpha_ids(&arm, &wm.network);
 
     // P6 — persistent join indexes, maintained ACROSS rounds (never rebuilt).
     // Keyed by HashJoinNode id J.
@@ -394,6 +401,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
                                 cand_scratch: &mut cand_scratch,
                                 cond_key_ids: &cond_key_ids,
                                 bind_only: &bind_only,
+                                query_only_alphas: &q_only_alphas,
                             },
                         )?;
                         continue;
@@ -425,6 +433,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
                         cand_scratch: &mut cand_scratch,
                         cond_key_ids: &cond_key_ids,
                         bind_only: &bind_only,
+                        query_only_alphas: &q_only_alphas,
                     },
                 )?;
             }
@@ -474,6 +483,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
                         cand_scratch: &mut cand_scratch,
                         cond_key_ids: &cond_key_ids,
                         bind_only: &bind_only,
+                        query_only_alphas: &q_only_alphas,
                     },
                 )?;
             }
@@ -1908,7 +1918,9 @@ pub(crate) fn fire_fixpoint_delta_armed(
         }
     }
 
-    harvest_query_memory(&mut wm, parents_of, &arm.kind_ids.query);
+    let __hq = phase_start();
+    harvest_query_memory(&mut wm, &arm, &q_only_alphas);
+    phase_end("  ├ harvest:query", __hq);
     let __drop = phase_start();
     if matches!(kind, FireKind::Rules) {
         wm.alpha.clear();

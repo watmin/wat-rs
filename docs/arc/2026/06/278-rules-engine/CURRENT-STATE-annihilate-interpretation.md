@@ -5,10 +5,17 @@
 > `wat/rete.wat`. If a stone below disagrees with a dated ruling here,
 > **this file wins** and the stone is stale.
 
-**Right now:** floor **GREEN** `.floor/2026-08-22T10-05-49Z/`
-(4913 passed, 19 skipped). Clippy `--all-targets -D warnings`
-silent. Grid `GRID-native-vs-clara-2026-08-22T09-39-43Z.txt`
-**30/30 `:match` `:us`**. Occupancy leaf-fill + join-index
+**Right now:** class-scan query harvest LANDED.
+Fanout `[40000]` wat-ns **58.1 → 42.8**. With-query
+FIRE **65.89 → 49.59**. Query-only Alpha→RootJoin
+skipped; `{?fact: fact}` from the closed bag.
+Leftover harvest:query **16.91** (40k one-entry
+PMaps). Grid `T20-37-11Z` 30/30 `:match` `:us` was
+pre-intern; fanout `[40000]` re-measured 42.8
+`:match` `:us`. Floor **GREEN**
+`.floor/2026-08-22T21-53-26Z/` (4914 passed, 19
+skipped). Grid `T21-37-57Z` 30/30 `:match` `:us`.
+Clippy `--all-targets -D warnings` silent. Occupancy leaf-fill + join-index
 span LANDED. Unary gather packed-then-BindSpan (7b string
 locations). Sum fold falls back when the i64 row is
 absent. grok-rete dirty intern on harvest HEAD **`ca9d9cc3`**. `harvest_stratified_queries` LANDED (QueryNode reverse-closure,

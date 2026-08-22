@@ -864,12 +864,98 @@ pub(crate) fn fire_once_session(session: &Value, sym: &SymbolTable) -> Result<Va
     fire_fixpoint_delta_armed(session, sym, None, None, FireKind::Once)
 }
 
-fn harvest_query_memory(wm: &mut FireSession, parents_of: &ParentsOf, query_ids: &[i64]) {
+/// Alphas that exist only to feed QueryNodes (Alpha → RootJoin → Query).
+/// `(?fact <- :Type)` with no field constraints. Production already holds
+/// those facts (`DESIGN-STONE-query-class-scan-harvest`).
+fn query_only_alpha_ids(arm: &InternedNetwork, network: &Value) -> HashSet<i64> {
+    let mut q_joins: HashSet<i64> = HashSet::new();
+    for &jid in &arm.kind_ids.join_parent {
+        let Some(kids) = arm.children_of.get(&jid) else {
+            continue;
+        };
+        if kids.is_empty() {
+            continue;
+        }
+        if kids
+            .iter()
+            .all(|&c| get_node(network, c).is_some_and(|n| kind_of(n) == NodeKind::Query))
+        {
+            q_joins.insert(jid);
+        }
+    }
+    let mut q_alphas = HashSet::new();
+    for &aid in &arm.kind_ids.alpha {
+        let Some(kids) = arm.children_of.get(&aid) else {
+            continue;
+        };
+        if kids.is_empty() || !kids.iter().all(|c| q_joins.contains(c)) {
+            continue;
+        }
+        let Some(c) = arm.compiled_conds.get(&aid) else {
+            continue;
+        };
+        if c.fact_bind().is_none() || !c.ops().is_empty() {
+            continue;
+        }
+        // Import/Export AlphaNode has no tests AST — class-scan cannot
+        // name the type. Leave the chain; beta harvest still works.
+        let Some(node) = get_node(network, aid) else {
+            continue;
+        };
+        let Some(cond) = alpha_cond_from_node(node) else {
+            continue;
+        };
+        if crate::rete::matcher::alpha_pattern(&cond).is_none() {
+            continue;
+        }
+        q_alphas.insert(aid);
+    }
+    q_alphas
+}
+
+fn harvest_class_scan(
+    wm: &FireSession,
+    alpha_id: i64,
+    compiled: &crate::rete::compiled_cond::CompiledCond,
+) -> Vec<crate::value::pmap::PMap> {
+    let Some(var) = compiled.fact_bind() else {
+        return Vec::new();
+    };
+    let Some(node) = get_node(&wm.network, alpha_id) else {
+        return Vec::new();
+    };
+    let Some(cond) = alpha_cond_from_node(node) else {
+        return Vec::new();
+    };
+    let Some(pat) = crate::rete::matcher::alpha_pattern(&cond) else {
+        return Vec::new();
+    };
+    let class = pat.type_head;
+    let matches_class = |f: &Value| match f {
+        Value::Aggregate(a) if a.nature != Nature::Struct => a.class.as_ref() == class,
+        _ => false,
+    };
+    let mut facts: Vec<&Value> = Vec::new();
+    if let Value::wat__core__PersistentVector(pv) = &wm.facts {
+        facts.extend(pv.iter().filter(|f| matches_class(f)));
+    }
+    facts.extend(wm.derived_facts.iter().filter(|f| matches_class(f)));
+    let mut maps = Vec::with_capacity(facts.len());
+    for f in facts {
+        maps.push(crate::value::pmap::PMap::from_pairs([(
+            var.clone(),
+            f.clone(),
+        )]));
+    }
+    maps
+}
+
+fn harvest_query_memory(wm: &mut FireSession, arm: &InternedNetwork, q_only: &HashSet<i64>) {
     wm.query.clear();
-    if query_ids.is_empty() {
+    if arm.kind_ids.query.is_empty() {
         return;
     }
-    for node_id in query_ids {
+    for node_id in &arm.kind_ids.query {
         let node = match get_node(&wm.network, *node_id) {
             Some(n) => n,
             None => continue,
@@ -877,17 +963,33 @@ fn harvest_query_memory(wm: &mut FireSession, parents_of: &ParentsOf, query_ids:
         let Some(qname) = node_named_string(node, "query-name").map(str::to_string) else {
             continue;
         };
-        let mut maps: Vec<crate::value::pmap::PMap> = Vec::new();
-        let pids = parents_of.get(node_id).map(|v| v.as_slice()).unwrap_or(&[]);
-        for pid in pids {
-            if let Some(ts) = wm.beta.get(pid) {
-                maps.extend(
-                    ts.iter().map(|t| {
-                        pmap_from_span(t.binds, &wm.bind_keys, &wm.bind_vals, &wm.bind_pool)
-                    }),
-                );
+        let maps = {
+            let pids = arm
+                .parents_of
+                .get(node_id)
+                .map(|v| v.as_slice())
+                .unwrap_or(&[]);
+            let scan = pids.iter().find_map(|pid| {
+                let aid = arm.feeding_alpha_of.get(pid)?;
+                if !q_only.contains(aid) {
+                    return None;
+                }
+                arm.compiled_conds.get(aid).map(|c| (*aid, c))
+            });
+            if let Some((aid, compiled)) = scan {
+                harvest_class_scan(wm, aid, compiled)
+            } else {
+                let mut maps: Vec<crate::value::pmap::PMap> = Vec::new();
+                for pid in pids {
+                    if let Some(ts) = wm.beta.get(pid) {
+                        maps.extend(ts.iter().map(|t| {
+                            pmap_from_span(t.binds, &wm.bind_keys, &wm.bind_vals, &wm.bind_pool)
+                        }));
+                    }
+                }
+                maps
             }
-        }
+        };
         wm.query.insert(qname, maps);
     }
 }

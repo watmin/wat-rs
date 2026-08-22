@@ -3416,6 +3416,231 @@ fn fanout_production_leftover_split() {
     );
 }
 
+/// Rank harvest / compiled-rhs / OUT freeze at fanout [100 20].
+/// Grid compile-alls `:fan::q-Pair`; `FANOUT_CENSUS_WORLD` does not
+/// (`DESIGN-STONE-fanout-three-leftover`).
+#[test]
+fn fanout_three_leftover_split() {
+    use std::time::Instant;
+
+    const KEYS: i64 = 100;
+    const FANOUT: i64 = 20;
+    const RUNS: usize = 3;
+    const CAL_N: u64 = 200_000;
+    const RHS: &str = "  ├ prod:compiled-rhs";
+    const HARVEST: &str = "  ├ harvest:query";
+    const OUT_PROD: &str = "  └ out:production";
+    const OUT_QUERY: &str = "  └ out:query";
+    const FIRE_PHASES: [&str; 4] = [
+        "IN: to_transient",
+        "SETUP: indexes",
+        "ROUND LOOP",
+        "OUT: to_persistent",
+    ];
+    const QUERY_TAIL: &str = "\n\
+(:wat::rete::defquery :fan::q-Pair\n\
+  :params []\n\
+  :when [(?fact <- :fan::Pair)])\n";
+
+    let cal_t0 = Instant::now();
+    super::with_phase_census(|| {
+        for _ in 0..CAL_N {
+            let m = super::phase_start();
+            super::phase_end("cal", m);
+        }
+    });
+    let cal = cal_t0.elapsed().as_nanos() as f64 / CAL_N as f64;
+
+    struct Shot {
+        wall: f64,
+        fire: f64,
+        harvest: f64,
+        out_query: f64,
+        rhs_raw: f64,
+        rhs_net: f64,
+        rhs_pairs: u64,
+        out_prod: f64,
+        query_maps: usize,
+    }
+
+    let query_map_count = |fired: &Value| -> usize {
+        match session_named_field(fired, "query-memory") {
+            Some(Value::wat__core__PersistentMap(pm)) => pm
+                .iter()
+                .map(|(_, v)| match v {
+                    Value::wat__core__PersistentVector(pv) => pv.len(),
+                    _ => 0,
+                })
+                .sum(),
+            _ => 0,
+        }
+    };
+
+    let shot = |with_query: bool| -> Shot {
+        let world_src = if with_query {
+            format!("{FANOUT_CENSUS_WORLD}{QUERY_TAIL}")
+        } else {
+            FANOUT_CENSUS_WORLD.to_string()
+        };
+        let world = startup_from_source(&world_src, None, Arc::new(InMemoryLoader::new()))
+            .expect("fanout three-leftover world should freeze");
+        let compile = if with_query {
+            "(:wat::rete::compile-all (:wat::rete::collect-rules :fan) \
+              (:wat::core::PersistentVector (:fan::q-Pair)))"
+        } else {
+            "(:wat::rete::compile (:wat::rete::collect-rules :fan))"
+        };
+        let seed_src = format!("(:fan::seed {compile} {KEYS} {FANOUT})");
+        let staged = eval_in_frozen(
+            &crate::parse_one!(seed_src.as_str()).expect("parse seed"),
+            &world,
+            &Environment::new(),
+        )
+        .unwrap_or_else(|e| panic!("seed raised: {e:?}"))
+        .value_owned();
+
+        let t0 = Instant::now();
+        let (fired, rows) = super::with_phase_census_counted(|| {
+            fire_rules_on_session(&staged, world.symbols(), None).unwrap_or_else(|e| {
+                panic!("fire-rules raised with_query={with_query}: {e:?}")
+            })
+        });
+        let wall = t0.elapsed().as_nanos() as f64;
+        let of = |name: &str| -> (u64, u64) {
+            rows.iter()
+                .find(|(n, _, _)| *n == name)
+                .map(|(_, ns, k)| (*ns, *k))
+                .unwrap_or((0, 0))
+        };
+        let fire: u64 = FIRE_PHASES.iter().map(|n| of(n).0).sum();
+        let (rhs_raw, rhs_pairs) = of(RHS);
+        let rhs_net = rhs_raw as f64 - rhs_pairs as f64 * cal;
+        Shot {
+            wall,
+            fire: fire as f64,
+            harvest: of(HARVEST).0 as f64,
+            out_query: of(OUT_QUERY).0 as f64,
+            rhs_raw: rhs_raw as f64,
+            rhs_net,
+            rhs_pairs,
+            out_prod: of(OUT_PROD).0 as f64,
+            query_maps: query_map_count(&fired),
+        }
+    };
+
+    let mut without = Shot {
+        wall: 0.0,
+        fire: 0.0,
+        harvest: 0.0,
+        out_query: 0.0,
+        rhs_raw: 0.0,
+        rhs_net: 0.0,
+        rhs_pairs: 0,
+        out_prod: 0.0,
+        query_maps: 0,
+    };
+    let mut with = Shot {
+        wall: 0.0,
+        fire: 0.0,
+        harvest: 0.0,
+        out_query: 0.0,
+        rhs_raw: 0.0,
+        rhs_net: 0.0,
+        rhs_pairs: 0,
+        out_prod: 0.0,
+        query_maps: 0,
+    };
+    for _ in 0..RUNS {
+        let a = shot(false);
+        let b = shot(true);
+        without.wall += a.wall;
+        without.fire += a.fire;
+        without.harvest += a.harvest;
+        without.out_query += a.out_query;
+        without.rhs_raw += a.rhs_raw;
+        without.rhs_net += a.rhs_net;
+        without.rhs_pairs = a.rhs_pairs;
+        without.out_prod += a.out_prod;
+        without.query_maps = a.query_maps;
+        with.wall += b.wall;
+        with.fire += b.fire;
+        with.harvest += b.harvest;
+        with.out_query += b.out_query;
+        with.rhs_raw += b.rhs_raw;
+        with.rhs_net += b.rhs_net;
+        with.rhs_pairs = b.rhs_pairs;
+        with.out_prod += b.out_prod;
+        with.query_maps = b.query_maps;
+    }
+    let r = RUNS as f64;
+    without.wall /= r;
+    without.fire /= r;
+    without.harvest /= r;
+    without.out_query /= r;
+    without.rhs_raw /= r;
+    without.rhs_net /= r;
+    without.out_prod /= r;
+    with.wall /= r;
+    with.fire /= r;
+    with.harvest /= r;
+    with.out_query /= r;
+    with.rhs_raw /= r;
+    with.rhs_net /= r;
+    with.out_prod /= r;
+
+    let ms = |ns: f64| ns / 1e6;
+    let a_harvest = with.harvest + with.out_query;
+    let delta = with.wall - without.wall;
+    let table = format!(
+        "\nfanout three leftover — [100 20], mean of {RUNS}\n\
+             instrument: {cal:.1} ns per mark pair\n\
+             \n\
+             without query          wall {:>7.2}  FIRE {:>7.2}  query-maps {}\n\
+             with    q-Pair         wall {:>7.2}  FIRE {:>7.2}  query-maps {}\n\
+             delta (A candidate)           {:>7.2} ms\n\
+             \n\
+             A  harvest:query              {:>7.2} ms\n\
+                out:query                  {:>7.2} ms\n\
+                A sum                      {:>7.2} ms\n\
+             B  compiled-rhs net           {:>7.2} ms   {:>6}x  (with-query)\n\
+             C  out:production             {:>7.2} ms   (with-query)\n",
+        ms(without.wall),
+        ms(without.fire),
+        without.query_maps,
+        ms(with.wall),
+        ms(with.fire),
+        with.query_maps,
+        ms(delta),
+        ms(with.harvest),
+        ms(with.out_query),
+        ms(a_harvest),
+        ms(with.rhs_net),
+        with.rhs_pairs,
+        ms(with.out_prod),
+    );
+    println!("{table}");
+    assert_eq!(
+        without.rhs_pairs, 40_000,
+        "without-query compiled-rhs pairs must be 40k:{table}"
+    );
+    assert_eq!(
+        with.rhs_pairs, 40_000,
+        "with-query compiled-rhs pairs must be 40k:{table}"
+    );
+    assert_eq!(
+        without.query_maps, 0,
+        "census world has no query — query-memory must be empty:{table}"
+    );
+    assert_eq!(
+        with.query_maps, 40_000,
+        "grid q-Pair must harvest 40k maps:{table}"
+    );
+    assert!(
+        with.fire > 0.0,
+        "with-query FIRE recorded 0 — the fire never ran:{table}"
+    );
+}
+
 /// Honest FIRE after 2s: strip the 80k test marks 2p named
 /// (`DESIGN-STONE-honest-fire-rank`).
 #[test]
@@ -4421,6 +4646,7 @@ fn accum_alpha_leftover_split() {
                         cand_scratch: &mut cand,
                         cond_key_ids: &cond_key_ids,
                         bind_only: &bind_only,
+                        query_only_alphas: &std::collections::HashSet::new(),
                     },
                 )
                 .expect("isolated activate");
@@ -4734,6 +4960,7 @@ fn accum_alpha_seed_after_fold_split() {
                         cand_scratch: &mut cand,
                         cond_key_ids: &cond_key_ids_a,
                         bind_only: &bind_only,
+                        query_only_alphas: &std::collections::HashSet::new(),
                     },
                 )
                 .expect("isolated activate");
@@ -5718,6 +5945,7 @@ fn accum_alpha_push_split() {
                         cand_scratch: &mut cand,
                         cond_key_ids: &cond_key_ids,
                         bind_only: &bind_only,
+                        query_only_alphas: &std::collections::HashSet::new(),
                     },
                 )
                 .expect("isolated activate");
