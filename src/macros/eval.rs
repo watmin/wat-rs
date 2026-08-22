@@ -664,6 +664,16 @@ fn is_pure_total(head: &str) -> bool {
         // time to compute each generated companion type's OWN param subset
         // instead of stamping the service's full param list onto every one.
         | ":wat::core::type-params-used-in"
+        // Arc 109 stone (`BRIEF-STONE-type-equal-the-missing-door.md`) — the missing door:
+        // `defservice` and its siblings live entirely in macro bodies and had no way to ask
+        // "are these two DECLARED type spellings the same type?" — `TypeExpr` derives `Eq` in
+        // Rust, at check time, but a macro body could not reach it and fell back to rendering
+        // both sides to strings and comparing text (the defect that blocked ②-iii's `:peers`
+        // migration). Pure ∧ deterministic ∧ total structural comparison via `parse_type_node`
+        // (raises on a non-type node rather than returning a silently-wrong `false`); same
+        // category as `type-params-used-in` immediately above. F5 is default-deny, so an
+        // intrinsic minted FOR a macro body but missing here is refused at DEFINITION.
+        | ":wat::core::type-equal?"
         | ":wat::core::symbol-node"
         // Arc 274.1 — capture-proof binder for program-body macros. A macro needs it to create
         // scoped symbols that cannot collide with caller variables. "Does a macro need it?" → YES.

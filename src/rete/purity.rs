@@ -351,6 +351,16 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
     if head == ":wat::core::type-params-used-in" {
         return Some(OpMeta { pure: true, deterministic: true, total: true });
     }
+    // Arc 109 stone (`BRIEF-STONE-type-equal-the-missing-door.md`) — `type-equal?` reads two AST
+    // nodes, parses each once via `parse_type_node` (the one door that reads all four type
+    // surfaces), and compares the resulting `TypeExpr`s (`PartialEq, Eq`-derived). It allocates
+    // nothing observable, touches no world state, and returns a bool — same category as
+    // `type-params-used-in` immediately above, and RULED here rather than parked in
+    // `KNOWN_UNREVIEWED`: the gate's own remedy says parking "is the LAST resort and is only
+    // honest for a verb whose ruling is genuinely open", and this one's is not.
+    if head == ":wat::core::type-equal?" {
+        return Some(OpMeta { pure: true, deterministic: true, total: true });
+    }
     // Pure ∧ deterministic explicit `:wat::core::` ops.
     let pure_det = matches!(
         head,

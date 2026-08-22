@@ -574,3 +574,101 @@ pub(crate) fn eval_type_params_used_in(
 
     Ok(Value::Vec(Arc::new(out)))
 }
+
+/// Do `a` and `b` denote the SAME type, whatever spelling each wears?
+///
+/// Arc 109 stone (`BRIEF-STONE-type-equal-the-missing-door.md`) — the missing door: `TypeExpr`
+/// already derives `PartialEq, Eq`, so structural type equality exists in Rust at check time, but
+/// a macro body (this crate's sole caller-of-record: `defservice`) had no way to reach it and was
+/// reduced to rendering both sides to strings and comparing text — a defect that breaks the moment
+/// either side's DECLARED spelling changes shape (`Peer<A,B>` vs `(Peer :- [A B])`) even though
+/// both denote the identical type. This verb parses each side once via [`crate::types::
+/// parse_type_node`] — the one door that reads all four surfaces (keyword, `wat.type/` symbol,
+/// parametric form, `[arg… :-> ret]` bracket) — and compares the resulting `TypeExpr`s directly.
+///
+/// Deliberately NOT: subtyping (`is_subtype` answers that, over the edge table); AST equality
+/// (`Peer<A,B>` and `(Peer :- [A B])` are different ASTs denoting the same type — that gap is the
+/// entire point); a checker-time answer (this compares DECLARED spellings at macro-expansion time,
+/// before inference; a fresh-unification-var mismatch like `<T>` vs `<?454>` is a different
+/// question `assignable`'s `else` branch already owns).
+///
+/// ★ Contract: given a node that does not parse as a type at all, this RAISES rather than
+/// returning `false`. *"These are not both types"* is a different fact from *"these are different
+/// types"* — collapsing them into `false` would make a malformed input indistinguishable from a
+/// legitimate mismatch, a silent pass at exactly the site meant to catch a mistake. Mirrors the
+/// `TypeMismatch` shape [`eval_type_params_used_in`] already uses for a bad argument, immediately
+/// above.
+///
+/// @added         1.0.0
+/// @Purity        Pure
+/// @Determinism   Deterministic
+/// @Category      Reflection
+/// @arg a :wat::WatAST a type-expression node — keyword, `wat.type/` symbol, parametric form `(Head :- [args])`, or fn-type bracket `[arg… :-> ret]`
+/// @arg b :wat::WatAST the other type-expression node, same surface set
+/// @ret :wat::core::bool true iff `a` and `b` denote the same type
+/// @example (:wat::core::type-equal? (:wat::core::keyword-node ":wat::kernel::Peer<A,B>") '(:wat::kernel::Peer :- [A B])) #=> true
+/// @example (:wat::core::type-equal? (:wat::core::keyword-node ":wat::core::Vector<wat::core::HashMap<K,V>>") '(:wat::core::Vector :- [(:wat::core::HashMap :- [K V])])) #=> true
+/// @example (:wat::core::type-equal? (:wat::core::keyword-node ":wat::kernel::Peer<A,B>") (:wat::core::keyword-node ":wat::kernel::Peer<B,A>")) #=> false
+/// @example (:wat::core::type-equal? (:wat::core::keyword-node ":wat::core::i64") (:wat::core::keyword-node ":wat::core::i64")) #=> true
+/// @example (:wat::core::type-equal? (:wat::core::keyword-node ":wat::core::i64") (:wat::core::keyword-node ":wat::core::String")) #=> false
+#[wat_intrinsic(":wat::core::type-equal?")]
+pub(crate) fn eval_type_equal(
+    a: &WatAST,
+    b: &WatAST,
+    env: &Environment,
+    sym: &SymbolTable,
+    span: &Span,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::core::type-equal?";
+    let _ = span;
+
+    let a_v = crate::runtime::eval_inner(a, env, sym)?.value_owned();
+    let a_ast: &WatAST = match &a_v {
+        Value::wat__WatAST(ast) => ast.as_ref(),
+        other => {
+            return Err(RuntimeError::new(a.span().clone(), RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: ":wat::WatAST",
+                    got: Box::new(crate::runtime::ValueSnapshot::of(other)),
+                })
+            .into());
+        }
+    };
+
+    let b_v = crate::runtime::eval_inner(b, env, sym)?.value_owned();
+    let b_ast: &WatAST = match &b_v {
+        Value::wat__WatAST(ast) => ast.as_ref(),
+        other => {
+            return Err(RuntimeError::new(b.span().clone(), RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: ":wat::WatAST",
+                    got: Box::new(crate::runtime::ValueSnapshot::of(other)),
+                })
+            .into());
+        }
+    };
+
+    let a_ty = crate::types::parse_type_node(a_ast).map_err(|e| {
+        RuntimeError::new(a_ast.span().clone(), RuntimeErrorKind::TypeMismatch {
+            op: OP.into(),
+            expected: ":wat::WatAST (a type expression: keyword, wat.type/ symbol, parametric form, or fn-type bracket)",
+            got: Box::new(crate::runtime::ValueSnapshot::described(
+                ":wat::WatAST",
+                format!("not a type: {e}"),
+            )),
+        })
+    })?;
+
+    let b_ty = crate::types::parse_type_node(b_ast).map_err(|e| {
+        RuntimeError::new(b_ast.span().clone(), RuntimeErrorKind::TypeMismatch {
+            op: OP.into(),
+            expected: ":wat::WatAST (a type expression: keyword, wat.type/ symbol, parametric form, or fn-type bracket)",
+            got: Box::new(crate::runtime::ValueSnapshot::described(
+                ":wat::WatAST",
+                format!("not a type: {e}"),
+            )),
+        })
+    })?;
+
+    Ok(Value::bool(a_ty == b_ty))
+}
