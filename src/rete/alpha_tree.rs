@@ -175,6 +175,21 @@ impl AlphaTree {
         self.roots.iter().find(|(c, _)| c == class).map(|(_, n)| n)
     }
 
+    /// Classes whose root has no equality fan-out: `leaves` is what
+    /// `candidates_into` returns for every fact of that class.
+    pub(crate) fn undiscriminated_leaves(&self) -> Vec<(&str, &[i64])> {
+        self.roots
+            .iter()
+            .filter_map(|(class, root)| {
+                if root.children.is_empty() && root.wildcard.is_none() && !root.leaves.is_empty() {
+                    Some((class.as_str(), root.leaves.as_slice()))
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+
     /// Fact-class for an alpha id, from the interned tree (not Session tests AST).
     /// Export of an imported Session has empty tests; class_idx must still pack.
     pub(crate) fn class_for_alpha(&self, alpha_id: i64) -> Option<&str> {

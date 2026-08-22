@@ -108,7 +108,12 @@ pub(crate) struct Element {
 /// derived slots are the append-only vec that outlives `drop-memories`.
 // rune:struere(invariant-coupling) — well-formed fire: input idx is in facts PV,
 // derived idx is in derived_facts; Option would force every walk to invent a miss.
-pub(crate) fn fact_at<'a>(facts: &'a Value, derived: &'a [Value], n_input: u32, idx: u32) -> &'a Value {
+pub(crate) fn fact_at<'a>(
+    facts: &'a Value,
+    derived: &'a [Value],
+    n_input: u32,
+    idx: u32,
+) -> &'a Value {
     let i = idx as usize;
     if i < n_input as usize {
         match facts {
@@ -146,7 +151,7 @@ pub(crate) fn encode_view(wm: &FireSession) -> EncodeView<'_> {
     }
 }
 
-pub(crate) type AlphaMemory = FxHashMap<i64, Vec<Element>>;
+pub(crate) type AlphaMemory = FxHashMap<i64, Arc<Vec<Element>>>;
 pub(crate) type BetaMemory = HashMap<i64, Vec<Token>>;
 pub(crate) type ProductionMemory = HashMap<i64, Vec<Value>>;
 pub(crate) type QueryMemory = HashMap<String, Vec<crate::value::pmap::PMap>>;
@@ -223,6 +228,60 @@ pub(crate) struct FireSession {
     /// Fire-scoped match edges. `Token.matches` is a span into this vec
     /// (`DESIGN-STONE-match-pool`).
     pub(crate) match_pool: Vec<(u32, i64)>,
+    /// Packed i64 fields per fact index (`DESIGN-STONE-fire-i64-columns`).
+    /// `None` = not all declared fields i64, or wider than [`I64_ROW_CAP`].
+    /// Fire-scoped; not a Session field. Cleared at fire start.
+    pub(crate) i64_by_fact: Vec<Option<I64Row>>,
+    /// Bind-only alphas: output field indexes into the packed row
+    /// (`DESIGN-STONE-column-gather-fold`). Fire-scoped.
+    pub(crate) bind_only: HashMap<i64, Vec<u8>>,
+    /// Interned cond keys, parallel to `bind_only` outputs after an
+    /// optional fact_bind (`DESIGN-STONE-column-gather-fold`).
+    pub(crate) cond_key_ids: CondKeyIds,
+}
+
+/// Cap on packed i64 fields (`DESIGN-STONE-fire-i64-columns`). Wider
+/// records stay on `exec_compiled_with_key_ids`.
+pub(crate) const I64_ROW_CAP: usize = 8;
+
+/// One fact's declared i64 fields and interned filler ids, packed on
+/// first alpha activate (`DESIGN-STONE-column-gather-fold`).
+#[derive(Clone, Copy)]
+pub(crate) struct I64Row {
+    pub n: u8,
+    pub fields: [i64; I64_ROW_CAP],
+    pub vids: [u32; I64_ROW_CAP],
+}
+
+impl I64Row {
+    pub const EMPTY: Self = Self {
+        n: 0,
+        fields: [0; I64_ROW_CAP],
+        vids: [0; I64_ROW_CAP],
+    };
+}
+
+/// Copy each i64 field and `intern_val` once. `None` if any field is
+/// not i64 or the row is empty / wider than [`I64_ROW_CAP`]. Called
+/// from first activate with fields already in hand — not a SETUP walk.
+pub(crate) fn pack_i64_row(
+    fields: &[Value],
+    vals: &mut Vec<Value>,
+    ids: &mut crate::rete::compiled_cond::ValIntern,
+) -> Option<I64Row> {
+    if fields.is_empty() || fields.len() > I64_ROW_CAP {
+        return None;
+    }
+    let mut row = I64Row::EMPTY;
+    for (i, v) in fields.iter().enumerate() {
+        let Value::i64(n) = v else {
+            return None;
+        };
+        row.fields[i] = *n;
+        row.vids[i] = intern_val(vals, ids, Value::i64(*n));
+    }
+    row.n = fields.len() as u8;
+    Some(row)
 }
 
 impl FireSession {
@@ -245,7 +304,10 @@ impl FireSession {
 /// A malformed key (not `Value::i64`) or a malformed value (not
 /// `Value::wat__core__PersistentVector`) → `RuntimeError::TypeMismatch`; entries are
 /// never silently dropped.
-pub(crate) fn pm_to_production(op: &'static str, pm: &Value) -> Result<ProductionMemory, EvalBreak> {
+pub(crate) fn pm_to_production(
+    op: &'static str,
+    pm: &Value,
+) -> Result<ProductionMemory, EvalBreak> {
     match pm {
         Value::wat__core__PersistentMap(m) => {
             let mut out: ProductionMemory = HashMap::with_capacity(m.len());
@@ -441,10 +503,7 @@ pub(crate) fn value_token_to_native(
             off: match_off as u32,
             len: (match_pool.len() - match_off) as u16,
         },
-        binds: span_from_pairs(
-            intern,
-            bindings.iter().map(|(k, v)| (k.clone(), v.clone())),
-        ),
+        binds: span_from_pairs(intern, bindings.iter().map(|(k, v)| (k.clone(), v.clone()))),
     })
 }
 
@@ -675,7 +734,7 @@ pub(crate) fn pm_to_alpha(
                         .into())
                     }
                 };
-                out.insert(node_id, elements);
+                out.insert(node_id, Arc::from(elements));
             }
             Ok(out)
         }
@@ -696,7 +755,7 @@ pub(crate) fn alpha_to_pm(alpha: AlphaMemory, view: &EncodeView<'_>) -> Value {
     let mut pm: rpds::HashTrieMapSync<Value, Value> = rpds::HashTrieMapSync::new_sync();
     for (node_id, elements) in alpha {
         let mut pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
-        for el in elements {
+        for el in elements.iter().copied() {
             pv.push_back_mut(native_element_to_value(el, view));
         }
         pm.insert_mut(Value::i64(node_id), Value::wat__core__PersistentVector(pv));
@@ -852,13 +911,13 @@ fn to_transient_inner(session: &Value, decode_memories: bool) -> Result<FireSess
         n_input,
         derived_facts,
         match_pool,
+        i64_by_fact: Vec::new(),
+        bind_only: HashMap::new(),
+        cond_key_ids: HashMap::new(),
     })
 }
 
-pub(crate) fn pm_to_query_memory(
-    op: &'static str,
-    pm: &Value,
-) -> Result<QueryMemory, EvalBreak> {
+pub(crate) fn pm_to_query_memory(op: &'static str, pm: &Value) -> Result<QueryMemory, EvalBreak> {
     match pm {
         Value::wat__core__PersistentMap(m) => {
             let mut out: QueryMemory = HashMap::new();
@@ -1261,4 +1320,3 @@ pub(crate) fn pmap_from_span(
             .map(|(k, v)| (k.clone(), v.clone())),
     )
 }
-

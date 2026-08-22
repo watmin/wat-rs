@@ -155,12 +155,8 @@ pub(crate) fn fire_rules_stratified(
         // the oracle's own `network` Value is never mutated.
         let sliced_network = slice_active_network(&network, &active_ids);
 
-        let slice_arm = subset_rete_arm(
-            &full_arm,
-            &active_ids,
-            &stratum_rule_names,
-            &sliced_network,
-        );
+        let slice_arm =
+            subset_rete_arm(&full_arm, &active_ids, &stratum_rule_names, &sliced_network);
 
         // Reuse the ALREADY-compiled (now stratum-sliced) network + next-id (no
         // `invoke_wat_compile` call); fresh empty alpha/beta/production memories (same
@@ -317,7 +313,9 @@ fn harvest_stratified_queries(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     let Some(network) = session_network(session) else {
-        return Ok(Value::wat__core__PersistentMap(crate::value::pmap::PMap::new()));
+        return Ok(Value::wat__core__PersistentMap(
+            crate::value::pmap::PMap::new(),
+        ));
     };
     let next_id = session_named_field(session, "next-id")
         .cloned()
@@ -357,7 +355,6 @@ fn harvest_stratified_queries(
         .cloned()
         .unwrap_or_else(|| Value::wat__core__PersistentMap(crate::value::pmap::PMap::new())))
 }
-
 
 // ── Public entry: native fire-rules ──────────────────────────────────────────
 
@@ -478,4 +475,3 @@ pub(crate) fn fire_rules_on_session(
     // Stratified drive — port of fire-stratified-loop, bottom→top.
     fire_rules_stratified(session, &parts, &rule_strata, max_s, sym, support)
 }
-

@@ -6,8 +6,8 @@ use std::sync::Arc;
 
 use rustc_hash::{FxHashMap, FxHashSet};
 
-use crate::rete::compiled_cond::BindIntern;
 use crate::ast::WatAST;
+use crate::rete::compiled_cond::BindIntern;
 use crate::runtime::{EvalBreak, RuntimeError, RuntimeErrorKind, SymbolTable, Value};
 use crate::span::Span;
 use crate::value::value::AggregateValue;
@@ -29,6 +29,9 @@ pub(crate) struct AlphaActivateCx<'a> {
     pub(crate) match_scratch: &'a mut SlotFrame,
     pub(crate) cand_scratch: &'a mut Vec<i64>,
     pub(crate) cond_key_ids: &'a CondKeyIds,
+    /// Bind-only alphas: output field indexes into the packed row
+    /// (`DESIGN-STONE-fire-i64-columns`). Absent → compiled exec.
+    pub(crate) bind_only: &'a HashMap<i64, Vec<u8>>,
 }
 
 pub(crate) fn alpha_activate_fact(
@@ -47,25 +50,46 @@ pub(crate) fn alpha_activate_fact(
     if cx.cand_scratch.is_empty() {
         return Ok(());
     }
+    let i = fact_idx as usize;
+    if i >= cx.wm.i64_by_fact.len() {
+        let packed = pack_i64_row(fact_fields, &mut cx.wm.bind_vals, &mut cx.wm.bind_val_ids);
+        cx.wm.i64_by_fact.resize(i, None);
+        cx.wm.i64_by_fact.push(packed);
+    }
+    let row = cx.wm.i64_by_fact[i];
     for aid in cx.cand_scratch.iter().copied() {
         let compiled = rematch_compiled(cx.compiled_conds, aid)?;
-        let matched = crate::rete::compiled_cond::exec_compiled_with_key_ids(
-            compiled,
-            fact_fields,
-            cx.match_scratch,
-            &mut crate::rete::compiled_cond::BindIntern {
+        let key_ids = cx.cond_key_ids.get(&aid).map(|v| v.as_slice());
+        let fields = cx.bind_only.get(&aid).map(Vec::as_slice);
+        let skip_span = compiled.fact_bind().is_none()
+            && match fields {
+                Some([]) => true,
+                Some(_) => row.is_some(),
+                None => false,
+            };
+        let matched = if skip_span {
+            census_count("compiled:calls");
+            Some((0u32, 0u16))
+        } else {
+            let mut intern = crate::rete::compiled_cond::BindIntern {
                 keys: &mut cx.wm.bind_keys,
                 vals: &mut cx.wm.bind_vals,
                 ids: &mut cx.wm.bind_val_ids,
                 pool: &mut cx.wm.bind_pool,
-            },
-            fact,
-            cx.cond_key_ids.get(&aid).map(|v| v.as_slice()),
-        );
+            };
+            crate::rete::compiled_cond::exec_compiled_with_key_ids(
+                compiled,
+                fact_fields,
+                cx.match_scratch,
+                &mut intern,
+                fact,
+                key_ids,
+            )
+        };
         if let Some((off, len)) = matched {
             let el = make_element(fact_idx, off, len);
             let slot = {
-                let v = cx.wm.alpha.entry(aid).or_default();
+                let v = Arc::make_mut(cx.wm.alpha.entry(aid).or_default());
                 v.push(el);
                 v.len() - 1
             };
@@ -75,9 +99,81 @@ pub(crate) fn alpha_activate_fact(
     Ok(())
 }
 
+/// Compare leaf-set predicted occupancy to what activate installed this seed.
+/// Does not change memories (`DESIGN-STONE-occupancy-leaf-column` recolligere).
+#[cfg(test)]
+fn record_seed_leaf_vs_activate(
+    wm: &FireSession,
+    alpha_tree: &crate::rete::alpha_tree::AlphaTree,
+    compiled_conds: &HashMap<i64, crate::rete::compiled_cond::CompiledCond>,
+    bind_only: &HashMap<i64, Vec<u8>>,
+    input_facts: &rpds::VectorSync<Value>,
+) {
+    if !crate::rete::kernel::census::leaf_occ_armed() {
+        return;
+    }
+    let mut predicted: FxHashSet<(i64, u32)> = FxHashSet::default();
+    let mut leaf_aids: Vec<i64> = Vec::new();
+    for (class, leaves) in alpha_tree.undiscriminated_leaves() {
+        let batchable = leaves.iter().all(|&id| {
+            compiled_conds
+                .get(&id)
+                .is_some_and(|c| c.fact_bind().is_none())
+                && bind_only.contains_key(&id)
+        });
+        if !batchable {
+            continue;
+        }
+        leaf_aids.extend_from_slice(leaves);
+        for (i, fact) in input_facts.iter().enumerate() {
+            let Value::Aggregate(a) = fact else {
+                continue;
+            };
+            if a.nature == Nature::Struct || a.class.as_ref() != class {
+                continue;
+            }
+            if wm
+                .i64_by_fact
+                .get(i)
+                .and_then(|o| o.as_ref())
+                .is_none()
+            {
+                continue;
+            }
+            for &aid in leaves {
+                predicted.insert((aid, i as u32));
+            }
+        }
+    }
+    let mut actual: FxHashSet<(i64, u32)> = FxHashSet::default();
+    for &aid in &leaf_aids {
+        if let Some(els) = wm.alpha.get(&aid) {
+            for el in els.iter() {
+                actual.insert((aid, el.fact));
+            }
+        }
+    }
+    let mut extra: Vec<(i64, u32)> = predicted.difference(&actual).copied().collect();
+    let mut missing: Vec<(i64, u32)> = actual.difference(&predicted).copied().collect();
+    extra.sort_unstable();
+    missing.sort_unstable();
+    crate::rete::kernel::census::record_leaf_occ_diff(crate::rete::kernel::census::LeafOccDiff {
+        predicted: predicted.len(),
+        actual: actual.len(),
+        extra,
+        missing,
+        n_facts: input_facts.len(),
+        n_leaf_aids: leaf_aids.len(),
+    });
+}
+
 /// Stamped Aggregates membership is the construction fingerprint
 /// (`DESIGN-STONE-seen-identity-set`). `identity == 0` still stores `Value`.
-pub(crate) fn seen_insert(ids: &mut FxHashSet<u64>, rest: &mut FxHashSet<Value>, v: &Value) -> bool {
+pub(crate) fn seen_insert(
+    ids: &mut FxHashSet<u64>,
+    rest: &mut FxHashSet<Value>,
+    v: &Value,
+) -> bool {
     match v {
         Value::Aggregate(a) if a.identity() != 0 => ids.insert(a.identity()),
         _ => rest.insert(v.clone()),
@@ -142,6 +238,9 @@ pub(crate) fn fire_fixpoint_delta_armed(
     wm.bind_val_ids.clear();
     wm.match_pool.clear();
     wm.derived_facts.clear();
+    wm.i64_by_fact.clear();
+    wm.bind_only.clear();
+    wm.cond_key_ids.clear();
 
     // `seen`: every fact ever in the working set. Seed with all input facts.
     // Mirrors `merge-facts`'s `contains?` guard — ensures each derived fact is processed once.
@@ -156,8 +255,8 @@ pub(crate) fn fire_fixpoint_delta_armed(
         _ => rpds::VectorSync::new_sync(),
     };
     wm.n_input = input_facts.len() as u32;
-    wm.bind_pool
-        .reserve(input_facts.len().saturating_mul(4));
+    wm.bind_pool.reserve(input_facts.len().saturating_mul(4));
+    wm.i64_by_fact.reserve(input_facts.len());
     let __seen = phase_start();
     let __seen_alloc = phase_start();
     let mut seen_ids: FxHashSet<u64> =
@@ -213,11 +312,32 @@ pub(crate) fn fire_fixpoint_delta_armed(
     let mut match_scratch: SlotFrame = Vec::with_capacity(arm.compiled_max_slots);
     let mut cand_scratch: Vec<i64> = Vec::new();
     let mut cond_key_ids: CondKeyIds = HashMap::new();
+    let mut bind_only: HashMap<i64, Vec<u8>> = HashMap::new();
     for (&id, c) in compiled_conds {
         cond_key_ids.insert(
             id,
             crate::rete::compiled_cond::intern_cond_keys(c, &mut wm.bind_keys),
         );
+        if let Some(fields) = crate::rete::compiled_cond::bind_only_fields(c) {
+            bind_only.insert(id, fields);
+        }
+    }
+    wm.bind_only.clone_from(&bind_only);
+    wm.cond_key_ids.clone_from(&cond_key_ids);
+
+    // Leaf-set fill: pack every fact (activate side effect), occupancy from
+    // the column (`DESIGN-STONE-occupancy-leaf-column` recolligere).
+    let mut leaf_aids: HashMap<String, Vec<i64>> = HashMap::new();
+    for (class, leaves) in alpha_tree.undiscriminated_leaves() {
+        let batchable = leaves.iter().all(|&id| {
+            compiled_conds
+                .get(&id)
+                .is_some_and(|c| c.fact_bind().is_none())
+                && bind_only.contains_key(&id)
+        });
+        if batchable {
+            leaf_aids.insert(class.to_string(), leaves.to_vec());
+        }
     }
 
     // A8 instrument: the round counter the census stamps its rows with (test-only).
@@ -250,10 +370,48 @@ pub(crate) fn fire_fixpoint_delta_armed(
         if seed_round {
             // Two pairs / fire, not per fact (`DESIGN-STONE-alpha-leftover-split`).
             let __seed = phase_start();
+            let mut class_ids: HashMap<String, Vec<u32>> = HashMap::new();
+            for class in leaf_aids.keys() {
+                class_ids.insert(class.clone(), Vec::with_capacity(input_facts.len()));
+            }
             for (i, fact) in input_facts.iter().enumerate() {
-                // Fold `seen_insert` into this walk (`DESIGN-STONE-fold-seen-into-seed`).
-                // Every input is in `seen` before production considers derived facts.
                 seen_insert(&mut seen_ids, &mut seen_rest, fact);
+                let (class, fields) = match fact {
+                    Value::Aggregate(a) if a.nature != Nature::Struct => {
+                        (a.class.as_ref(), a.fields.as_slice())
+                    }
+                    _ => {
+                        alpha_activate_fact(
+                            fact,
+                            i as u32,
+                            &mut AlphaActivateCx {
+                                wm: &mut wm,
+                                d_alpha: &mut d_alpha,
+                                alpha_tree,
+                                compiled_conds,
+                                match_scratch: &mut match_scratch,
+                                cand_scratch: &mut cand_scratch,
+                                cond_key_ids: &cond_key_ids,
+                                bind_only: &bind_only,
+                            },
+                        )?;
+                        continue;
+                    }
+                };
+                if wm.i64_by_fact.len() == i {
+                    wm.i64_by_fact.push(pack_i64_row(
+                        fields,
+                        &mut wm.bind_vals,
+                        &mut wm.bind_val_ids,
+                    ));
+                }
+                let packed = wm.i64_by_fact.get(i).and_then(|o| o.as_ref()).is_some();
+                if packed {
+                    if let Some(ids) = class_ids.get_mut(class) {
+                        ids.push(i as u32);
+                        continue;
+                    }
+                }
                 alpha_activate_fact(
                     fact,
                     i as u32,
@@ -265,10 +423,38 @@ pub(crate) fn fire_fixpoint_delta_armed(
                         match_scratch: &mut match_scratch,
                         cand_scratch: &mut cand_scratch,
                         cond_key_ids: &cond_key_ids,
+                        bind_only: &bind_only,
                     },
                 )?;
             }
+            for (class, aids) in &leaf_aids {
+                let Some(ids) = class_ids.get(class) else {
+                    continue;
+                };
+                if ids.is_empty() {
+                    continue;
+                }
+                census_count_n("compiled:calls", ids.len() as u64 * aids.len() as u64);
+                let els: Arc<Vec<Element>> = Arc::from(
+                    ids.iter()
+                        .map(|&idx| make_element(idx, 0, 0))
+                        .collect::<Vec<_>>(),
+                );
+                let slots: Vec<usize> = (0..ids.len()).collect();
+                for &aid in aids {
+                    wm.alpha.insert(aid, Arc::clone(&els));
+                    d_alpha.insert(aid, slots.clone());
+                }
+            }
             phase_end("  ├ alpha:seed", __seed);
+            #[cfg(test)]
+            record_seed_leaf_vs_activate(
+                &wm,
+                alpha_tree,
+                compiled_conds,
+                &bind_only,
+                &input_facts,
+            );
             seed_round = false;
         } else {
             let __delta = phase_start();
@@ -285,6 +471,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
                         match_scratch: &mut match_scratch,
                         cand_scratch: &mut cand_scratch,
                         cond_key_ids: &cond_key_ids,
+                        bind_only: &bind_only,
                     },
                 )?;
             }
@@ -319,12 +506,24 @@ pub(crate) fn fire_fixpoint_delta_armed(
                     continue;
                 }
                 for &ei in new_idxs {
-                    let el = &wm.alpha[node_id][ei];
+                    let el = wm.alpha[node_id][ei];
                     // Seed native Token: one matches edge (fact idx, alpha_id).
+                    let binds = if el.binds.len > 0 {
+                        seed_token_binds(&el)
+                    } else {
+                        span_from_row(
+                            &mut wm.bind_pool,
+                            &el,
+                            *node_id,
+                            &wm.i64_by_fact,
+                            &wm.bind_only,
+                            &wm.cond_key_ids,
+                        )
+                    };
                     let tok = Token {
                         matches: push_match(&mut wm.match_pool, el.fact, *node_id),
-                        binds: seed_token_binds(el),
-                                    };
+                        binds,
+                    };
                     if beta_readers.contains(child_id) {
                         beta_written(*child_id, 1);
                         wm.beta.entry(*child_id).or_default().push(tok);
@@ -403,7 +602,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
                             let keys = gather_join_keys(
                                 &bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds),
                                 std::slice::from_ref(el),
-                                GatherIntern::from_wm(&wm),
+                                GatherIntern::from_wm(&wm, alpha_id),
                             );
                             join_keys_cache.insert(*child_id, keys);
                             true // first keying: catch-up full-join needed
@@ -433,28 +632,42 @@ pub(crate) fn fire_fixpoint_delta_armed(
                 // this round's new elements — the catch-up covers historical AND current-round facts.
                 if first_keying {
                     // Clone to avoid split-borrow conflicts with later wm.beta/d_beta mutations.
-                    let all_right: Vec<Element> =
-                        wm.alpha.get(&alpha_id).cloned().unwrap_or_default();
+                    let all_right: Vec<Element> = wm
+                        .alpha
+                        .get(&alpha_id)
+                        .map(|v| v.as_ref().clone())
+                        .unwrap_or_default();
+                    let n_right = all_right.len();
                     let all_left: Vec<Token> = wm.beta.get(node_id).cloned().unwrap_or_default();
                     // READ #2 of 2: the parent's cumulative tokens, for the catch-up cross-join.
                     beta_read(*node_id, all_left.len() as u64);
-                    // Build right_idx[J] from ALL cumulative right elements.
+                    // Key from packed occupancy (empty binds), then write BindSpan
+                    // onto the indexed copy (`DESIGN-STONE-join-index-span`).
+                    // Keying after materialize used the binds-path JoinKey, which
+                    // missed token probes (7b/7exists/8b native=0).
                     let __cri = phase_start();
                     {
                         let ridx = right_idx.entry(*child_id).or_default();
-                        for el in &all_right {
-                            let el_b = element_fact_bindings(el, &wm.bind_keys, &wm.bind_vals, &wm.bind_pool);
-                            let k = key_of(&el_b, jk, &wm.bind_val_ids);
-                            ridx.entry(k).or_default().push(*el);
+                        for el in all_right {
+                            let k = key_of_el(&el, jk, &GatherIntern::from_wm(&wm, alpha_id));
+                            let el = element_with_row_span(
+                                el,
+                                &mut wm.bind_pool,
+                                alpha_id,
+                                &wm.i64_by_fact,
+                                &wm.bind_only,
+                                &wm.cond_key_ids,
+                            );
+                            ridx.entry(k).or_default().push(el);
                         }
                     }
                     phase_end("  ├ hj:catchup:right-idx", __cri);
                     // Reserve the 40k appends. Isolated unreserved extend paid
                     // G−E = 4.13 ms (`DESIGN-STONE-probe-gap-split`).
                     let n_join = match right_idx.get(child_id) {
-                        Some(idx) if !idx.is_empty() && !all_right.is_empty() => all_left
-                            .len()
-                            .saturating_mul(all_right.len() / idx.len()),
+                        Some(idx) if !idx.is_empty() && n_right > 0 => {
+                            all_left.len().saturating_mul(n_right / idx.len())
+                        }
                         _ => 0,
                     };
                     wm.bind_pool.reserve(n_join.saturating_mul(4));
@@ -464,7 +677,11 @@ pub(crate) fn fire_fixpoint_delta_armed(
                     let mut new_tokens: Vec<Token> = Vec::with_capacity(n_join);
                     if let Some(ridx) = right_idx.get(child_id) {
                         for tok in &all_left {
-                            let k = key_of(&bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds), jk, &wm.bind_val_ids);
+                            let k = key_of(
+                                &bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds),
+                                jk,
+                                &wm.bind_val_ids,
+                            );
                             if let Some(bucket) = ridx.get(&k) {
                                 for el in bucket {
                                     if let Some(new_tok) = join_extend(
@@ -482,6 +699,9 @@ pub(crate) fn fire_fixpoint_delta_armed(
                                             facts: &wm.facts,
                                             derived: &wm.derived_facts,
                                             n_input: wm.n_input,
+                                            i64_by_fact: &wm.i64_by_fact,
+                                            bind_only: &wm.bind_only,
+                                            cond_key_ids: &wm.cond_key_ids,
                                         },
                                     )? {
                                         new_tokens.push(new_tok);
@@ -496,7 +716,11 @@ pub(crate) fn fire_fixpoint_delta_armed(
                     {
                         let lidx = left_idx.entry(*child_id).or_default();
                         for tok in all_left {
-                            let k = key_of(&bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds), jk, &wm.bind_val_ids);
+                            let k = key_of(
+                                &bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds),
+                                jk,
+                                &wm.bind_val_ids,
+                            );
                             lidx.entry(k).or_default().push(tok);
                         }
                     }
@@ -542,15 +766,23 @@ pub(crate) fn fire_fixpoint_delta_armed(
 
                 // Step 2: add Δright (dr) to right_idx[J] FIRST.
                 // dr is indices into wm.alpha[A]; right_idx still owns Elements (P6).
+                // Span once onto the indexed copy (`DESIGN-STONE-join-index-span`).
                 let __s2 = phase_start();
                 {
                     let ridx = right_idx.entry(*child_id).or_default();
-                    let right_mem = wm.alpha.get(&alpha_id).map(Vec::as_slice).unwrap_or(&[]);
+                    let right_mem = wm.alpha.get(&alpha_id).map(|v| v.as_slice()).unwrap_or(&[]);
                     for &ei in dr {
-                        let el = &right_mem[ei];
-                        let el_b = element_fact_bindings(el, &wm.bind_keys, &wm.bind_vals, &wm.bind_pool);
-                        let k = key_of(&el_b, jk, &wm.bind_val_ids);
-                        ridx.entry(k).or_default().push(*el);
+                        let el = right_mem[ei];
+                        let k = key_of_el(&el, jk, &GatherIntern::from_wm(&wm, alpha_id));
+                        let el = element_with_row_span(
+                            el,
+                            &mut wm.bind_pool,
+                            alpha_id,
+                            &wm.i64_by_fact,
+                            &wm.bind_only,
+                            &wm.cond_key_ids,
+                        );
+                        ridx.entry(k).or_default().push(el);
                     }
                 }
                 phase_end("  ├ hj:step2-right-idx", __s2);
@@ -562,7 +794,11 @@ pub(crate) fn fire_fixpoint_delta_armed(
                 if !dl.is_empty() {
                     if let Some(ridx) = right_idx.get(child_id) {
                         for tok in dl {
-                            let k = key_of(&bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds), jk, &wm.bind_val_ids);
+                            let k = key_of(
+                                &bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds),
+                                jk,
+                                &wm.bind_val_ids,
+                            );
                             if let Some(bucket) = ridx.get(&k) {
                                 for el in bucket {
                                     if let Some(new_tok) = join_extend(
@@ -580,6 +816,9 @@ pub(crate) fn fire_fixpoint_delta_armed(
                                             facts: &wm.facts,
                                             derived: &wm.derived_facts,
                                             n_input: wm.n_input,
+                                            i64_by_fact: &wm.i64_by_fact,
+                                            bind_only: &wm.bind_only,
+                                            cond_key_ids: &wm.cond_key_ids,
                                         },
                                     )? {
                                         new_tokens.push(new_tok);
@@ -596,17 +835,23 @@ pub(crate) fn fire_fixpoint_delta_armed(
                 let __s4 = phase_start();
                 if !dr.is_empty() {
                     if let Some(lidx) = left_idx.get(child_id) {
-                        let right_mem =
-                            wm.alpha.get(&alpha_id).map(Vec::as_slice).unwrap_or(&[]);
+                        let right_mem = wm.alpha.get(&alpha_id).map(|v| v.as_slice()).unwrap_or(&[]);
                         for &ei in dr {
-                            let el = &right_mem[ei];
-                            let el_b = element_fact_bindings(el, &wm.bind_keys, &wm.bind_vals, &wm.bind_pool);
-                            let k = key_of(&el_b, jk, &wm.bind_val_ids);
+                            let el = right_mem[ei];
+                            let k = key_of_el(&el, jk, &GatherIntern::from_wm(&wm, alpha_id));
+                            let el = element_with_row_span(
+                                el,
+                                &mut wm.bind_pool,
+                                alpha_id,
+                                &wm.i64_by_fact,
+                                &wm.bind_only,
+                                &wm.cond_key_ids,
+                            );
                             if let Some(bucket) = lidx.get(&k) {
                                 for tok in bucket {
                                     if let Some(new_tok) = join_extend(
                                         tok,
-                                        el,
+                                        &el,
                                         alpha_id,
                                         &mut FireCtx {
                                             compiled_conds,
@@ -619,6 +864,9 @@ pub(crate) fn fire_fixpoint_delta_armed(
                                             facts: &wm.facts,
                                             derived: &wm.derived_facts,
                                             n_input: wm.n_input,
+                                            i64_by_fact: &wm.i64_by_fact,
+                                            bind_only: &wm.bind_only,
+                                            cond_key_ids: &wm.cond_key_ids,
                                         },
                                     )? {
                                         new_tokens.push(new_tok);
@@ -636,7 +884,11 @@ pub(crate) fn fire_fixpoint_delta_armed(
                 {
                     let lidx = left_idx.entry(*child_id).or_default();
                     for tok in dl {
-                        let k = key_of(&bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds), jk, &wm.bind_val_ids);
+                        let k = key_of(
+                            &bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds),
+                            jk,
+                            &wm.bind_val_ids,
+                        );
                         lidx.entry(k).or_default().push(*tok);
                     }
                 }
@@ -716,7 +968,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
                 new_tokens = vec![Token {
                     matches: empty_span(),
                     binds: empty_span(),
-                            }];
+                }];
             }
             if new_tokens.is_empty() {
                 continue;
@@ -731,7 +983,12 @@ pub(crate) fn fire_fixpoint_delta_armed(
                 &mut gather_cache,
                 &wm,
                 from_alpha_id,
-                &bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, new_tokens[0].binds),
+                &bind_view(
+                    &wm.bind_keys,
+                    &wm.bind_vals,
+                    &wm.bind_pool,
+                    new_tokens[0].binds,
+                ),
             );
             phase_end("  ├ accum:index", __ix);
             // Empty :from is not cached (unsampled [] ≠ cartesian []). Acc still
@@ -748,14 +1005,29 @@ pub(crate) fn fire_fixpoint_delta_armed(
             let leftover = from_compiled.has_seed_cmp();
             let from_keys = from_compiled.bind_keys();
             let operand_keys = acc_fold.operand_keys();
+            let col_keys = from_compiled.slot_keys();
+            let empty_fields: &[u8] = &[];
+            let col_fields = wm
+                .bind_only
+                .get(&from_alpha_id)
+                .map(Vec::as_slice)
+                .unwrap_or(empty_fields);
             let __fd = phase_start();
             for tok in new_tokens {
-                let key = key_of(&bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds), join_keys.as_ref(), &wm.bind_val_ids);
+                let key = key_of(
+                    &bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds),
+                    join_keys.as_ref(),
+                    &wm.bind_val_ids,
+                );
                 let bucket: &[usize] = index.bucket(&key);
                 let group_keys: Vec<Value> = from_keys
                     .iter()
                     .filter(|k| {
-                        Bindings::get(&bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds), k).is_none()
+                        Bindings::get(
+                            &bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds),
+                            k,
+                        )
+                        .is_none()
                             && !operand_keys.iter().any(|o| o == *k)
                     })
                     .cloned()
@@ -764,15 +1036,13 @@ pub(crate) fn fire_fixpoint_delta_armed(
                 // contract). Rematch cannot reject a member or bind anything the
                 // Element does not already hold. Count is len; value folds read a slot.
                 if !leftover && group_keys.is_empty() {
-                    if let Some(aggregate) =
-                        fold_bucket(
-                            acc_fold,
-                            from_elements,
-                            bucket,
-                            sym,
-                            &acc_view(&wm),
-                        )?
-                    {
+                    if let Some(aggregate) = fold_bucket(
+                        acc_fold,
+                        from_elements,
+                        bucket,
+                        sym,
+                        &acc_view(&wm, col_keys, col_fields),
+                    )? {
                         let new_tok = token_assoc(
                             &tok,
                             result_var.clone(),
@@ -801,12 +1071,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
                         let el = &from_elements[i];
                         census_gather_visit();
                         let ok = fact_holds_under(
-                            fact_at(
-                                &wm.facts,
-                                &wm.derived_facts,
-                                wm.n_input,
-                                el.fact,
-                            ),
+                            fact_at(&wm.facts, &wm.derived_facts, wm.n_input, el.fact),
                             &bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds),
                             from_compiled,
                             &mut match_scratch,
@@ -821,17 +1086,19 @@ pub(crate) fn fire_fixpoint_delta_armed(
                 // One fold of the whole gather when the token already holds every
                 // `:from` bind (or the `:from` binds none). Otherwise group by the
                 // leftover binds; empty gather + leftover keys is not a bag-wide 0.
-                let groups: AccGroupOrder<'_> = if group_keys
-                    .is_empty()
-                {
-                    vec![(pmap_from_span(tok.binds, &wm.bind_keys, &wm.bind_vals, &wm.bind_pool), gathered)]
+                let groups: AccGroupOrder<'_> = if group_keys.is_empty() {
+                    vec![(
+                        pmap_from_span(tok.binds, &wm.bind_keys, &wm.bind_vals, &wm.bind_pool),
+                        gathered,
+                    )]
                 } else if gathered.is_empty() {
                     Vec::new()
                 } else {
                     let mut order: Vec<AccGroupKey> = Vec::new();
                     let mut buckets: AccGroupBuckets<'_> = HashMap::new();
                     for el in gathered {
-                        let el_b = element_fact_bindings(el, &wm.bind_keys, &wm.bind_vals, &wm.bind_pool);
+                        let el_b =
+                            element_fact_bindings(el, &wm.bind_keys, &wm.bind_vals, &wm.bind_pool);
                         let proj = project_group_keys(&el_b, &group_keys);
                         buckets
                             .entry(proj.clone())
@@ -844,7 +1111,12 @@ pub(crate) fn fire_fixpoint_delta_armed(
                     order
                         .into_iter()
                         .map(|proj| {
-                            let mut nb = pmap_from_span(tok.binds, &wm.bind_keys, &wm.bind_vals, &wm.bind_pool);
+                            let mut nb = pmap_from_span(
+                                tok.binds,
+                                &wm.bind_keys,
+                                &wm.bind_vals,
+                                &wm.bind_pool,
+                            );
                             for (k, v) in &proj {
                                 nb = nb.assoc(k.clone(), v.clone());
                             }
@@ -854,14 +1126,12 @@ pub(crate) fn fire_fixpoint_delta_armed(
                         .collect()
                 };
                 for (group_bindings, group_els) in groups {
-                    if let Some(aggregate) =
-                        accumulate_value(
-                            acc_fold,
-                            &group_els,
-                            sym,
-                            &acc_view(&wm),
-                        )?
-                    {
+                    if let Some(aggregate) = accumulate_value(
+                        acc_fold,
+                        &group_els,
+                        sym,
+                        &acc_view(&wm, col_keys, col_fields),
+                    )? {
                         let new_bindings = group_bindings.assoc(result_var.clone(), aggregate);
                         let new_tok = Token {
                             matches: tok.matches,
@@ -874,7 +1144,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
                                 },
                                 new_bindings.iter().map(|(k, v)| (k.clone(), v.clone())),
                             ),
-                                            };
+                        };
                         if beta_readers.contains(node_id) {
                             beta_written(*node_id, 1);
                             wm.beta.entry(*node_id).or_default().push(new_tok);
@@ -924,7 +1194,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
                 new_tokens = vec![Token {
                     matches: empty_span(),
                     binds: empty_span(),
-                            }];
+                }];
             }
             // Leading :exists: one token per DISTINCT inner binding (Clara
             // test-simple-exists — two Winds at MCI → one {?loc MCI}), not an
@@ -937,12 +1207,28 @@ pub(crate) fn fire_fixpoint_delta_armed(
                 let mut seen = std::collections::HashSet::new();
                 if matches!(driver, CondDriver::Leaf(_)) {
                     // rune:perspicere(read-once) — leading-exists distinct-bind row
-                    let candidates: Vec<(BindSpan, Vec<(u32, u32)>)> = wm
+                    let els: Vec<Element> = wm
                         .alpha
                         .get(&alpha_id)
-                        .into_iter()
-                        .flatten()
-                        .map(|el| (el.binds, pool_slice(&wm.bind_pool, el.binds).to_vec()))
+                        .map(|v| v.as_ref().clone())
+                        .unwrap_or_default();
+                    let candidates: Vec<(BindSpan, Vec<(u32, u32)>)> = els
+                        .iter()
+                        .map(|el| {
+                            let binds = if el.binds.len > 0 {
+                                el.binds
+                            } else {
+                                span_from_row(
+                                    &mut wm.bind_pool,
+                                    el,
+                                    alpha_id,
+                                    &wm.i64_by_fact,
+                                    &wm.bind_only,
+                                    &wm.cond_key_ids,
+                                )
+                            };
+                            (binds, pool_slice(&wm.bind_pool, binds).to_vec())
+                        })
                         .collect();
                     // rune:perspicere(read-once) — content-keyed distinct set for this leaf
                     // rune:temperare(simplicity-win) — distinct inner bindings require a
@@ -1009,7 +1295,13 @@ pub(crate) fn fire_fixpoint_delta_armed(
                 // handles. Census only; production never reads `:expr`.
                 #[cfg(test)]
                 if let Some(ast) = node_named_ast(node, "expr") {
-                    capture_where_sample(ast, &new_tokens, &wm.bind_keys, &wm.bind_vals, &wm.bind_pool);
+                    capture_where_sample(
+                        ast,
+                        &new_tokens,
+                        &wm.bind_keys,
+                        &wm.bind_vals,
+                        &wm.bind_pool,
+                    );
                 }
                 // Siblings that share this TestNode's parent set see the same token
                 // stream — dispatch once through the interned where-tree groups.
@@ -1130,6 +1422,9 @@ pub(crate) fn fire_fixpoint_delta_armed(
                         facts: &wm.facts,
                         derived: &wm.derived_facts,
                         n_input: wm.n_input,
+                        i64_by_fact: &wm.i64_by_fact,
+                        bind_only: &wm.bind_only,
+                        cond_key_ids: &wm.cond_key_ids,
                     },
                 )?;
                 if joined.is_empty() {
@@ -1171,7 +1466,10 @@ pub(crate) fn fire_fixpoint_delta_armed(
                         None => continue,
                     };
                     let fkind = kind_of(filter_node);
-                    if fkind != NodeKind::Test && fkind != NodeKind::Negation && fkind != NodeKind::Exists {
+                    if fkind != NodeKind::Test
+                        && fkind != NodeKind::Negation
+                        && fkind != NodeKind::Exists
+                    {
                         continue;
                     }
                     let new_tokens: Vec<Token> = match d_beta.get(&hj_id) {
@@ -1292,6 +1590,9 @@ pub(crate) fn fire_fixpoint_delta_armed(
                                         facts: &wm.facts,
                                         derived: &wm.derived_facts,
                                         n_input: wm.n_input,
+                                        i64_by_fact: &wm.i64_by_fact,
+                                        bind_only: &wm.bind_only,
+                                        cond_key_ids: &wm.cond_key_ids,
                                     },
                                 )?;
                                 if joined.is_empty() {
@@ -1319,7 +1620,12 @@ pub(crate) fn fire_fixpoint_delta_armed(
                             for tok in &parent_toks {
                                 let any_compat = token_exists_under(
                                     driver,
-                                    &bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds),
+                                    &bind_view(
+                                        &wm.bind_keys,
+                                        &wm.bind_vals,
+                                        &wm.bind_pool,
+                                        tok.binds,
+                                    ),
                                     &wm,
                                     compiled_conds,
                                     &mut match_scratch,
@@ -1391,48 +1697,51 @@ pub(crate) fn fire_fixpoint_delta_armed(
                     .map(|c| crate::rete::compiled_rhs::rhs_bind_slots(c, &first))
                     .collect();
                 for tok in ts {
-                    let pairs = bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds);
                     for (compiled, slots) in compiled_rhs_forms.iter().zip(&slot_tables) {
-                    let __prhs = phase_start();
-                    let derived = crate::rete::compiled_rhs::exec_compiled_rhs_at(
-                        compiled, pairs, slots, sym,
-                    )?;
-                    phase_end("  ├ prod:compiled-rhs", __prhs);
-                    // Arc 278 — the LAST split probe. build_insert_fact's own four parts summed to
-                    // ~18ms instrumented while `production` read ~51ms, so ~30ms lives OUTSIDE the
-                    // function. This mark brackets the dedup-and-store block. One pair per
-                    // derivation, same tax as the four inside — so these five are comparable to
-                    // each other and to nothing else.
-                    //
-                    // It used to cost two full-aggregate hashes per derivation (`contains`, then
-                    // `insert`) on top of the resize ladder; both are gone — `insert` alone reports
-                    // newness, and the reserve above sizes the set once. Measured on the
-                    // 40,000-pair fanout cell, 3 runs each: 610 -> 489 (kill the second hash)
-                    // -> 244 (reserve) ns per derivation, ranges disjoint at every step.
-                    // ~120-165 ns of what remains is this mark pair itself, so the block is at
-                    // the instrument's resolution — measure something else before cutting here.
-                    let __pd = phase_start();
-                    census_count("prod:derivations");
-                    // Dedup + termination guard: only propagate truly new facts.
-                    if seen_insert(&mut seen_ids, &mut seen_rest, &derived) {
-                        // P12a: record the support index (first-producer-wins; or_insert_with).
-                        if let Some(ref mut idx) = support {
-                            idx.entry(derived.clone()).or_insert_with(|| {
-                                (
-                                    rule_name.to_string(),
-                                    native_token_to_value(*tok, &encode_view(&wm)),
-                                )
-                            });
+                        let __prhs = phase_start();
+                        let derived = {
+                            let pairs =
+                                bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds);
+                            crate::rete::compiled_rhs::exec_compiled_rhs_at(
+                                compiled, pairs, slots, sym,
+                            )?
+                        };
+                        phase_end("  ├ prod:compiled-rhs", __prhs);
+                        // Arc 278 — the LAST split probe. build_insert_fact's own four parts summed to
+                        // ~18ms instrumented while `production` read ~51ms, so ~30ms lives OUTSIDE the
+                        // function. This mark brackets the dedup-and-store block. One pair per
+                        // derivation, same tax as the four inside — so these five are comparable to
+                        // each other and to nothing else.
+                        //
+                        // It used to cost two full-aggregate hashes per derivation (`contains`, then
+                        // `insert`) on top of the resize ladder; both are gone — `insert` alone reports
+                        // newness, and the reserve above sizes the set once. Measured on the
+                        // 40,000-pair fanout cell, 3 runs each: 610 -> 489 (kill the second hash)
+                        // -> 244 (reserve) ns per derivation, ranges disjoint at every step.
+                        // ~120-165 ns of what remains is this mark pair itself, so the block is at
+                        // the instrument's resolution — measure something else before cutting here.
+                        let __pd = phase_start();
+                        census_count("prod:derivations");
+                        // Dedup + termination guard: only propagate truly new facts.
+                        if seen_insert(&mut seen_ids, &mut seen_rest, &derived) {
+                            // P12a: record the support index (first-producer-wins; or_insert_with).
+                            if let Some(ref mut idx) = support {
+                                idx.entry(derived.clone()).or_insert_with(|| {
+                                    (
+                                        rule_name.to_string(),
+                                        native_token_to_value(*tok, &encode_view(&wm)),
+                                    )
+                                });
+                            }
+                            wm.production
+                                .entry(*node_id)
+                                .or_default()
+                                .push(derived.clone());
+                            let idx = wm.n_input + wm.derived_facts.len() as u32;
+                            wm.derived_facts.push(derived);
+                            next_delta.push(idx);
                         }
-                        wm.production
-                            .entry(*node_id)
-                            .or_default()
-                            .push(derived.clone());
-                        let idx = wm.n_input + wm.derived_facts.len() as u32;
-                        wm.derived_facts.push(derived);
-                        next_delta.push(idx);
-                    }
-                    phase_end("  ├ prod:dedup-store", __pd);
+                        phase_end("  ├ prod:dedup-store", __pd);
                     }
                 }
             }
@@ -1493,7 +1802,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
                 round: round_no,
                 delta_facts_in: this_round_in,
                 alpha_nodes: wm.alpha.values().filter(|v| !v.is_empty()).count(),
-                alpha_elements: wm.alpha.values().map(Vec::len).sum(),
+                alpha_elements: wm.alpha.values().map(|v| v.len()).sum(),
                 beta_nodes: beta_by_node.len(),
                 beta_tokens,
                 beta_token_matches,
@@ -1583,7 +1892,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
             }
         }
         for els in wm.alpha.values() {
-            for el in els {
+            for el in els.iter() {
                 let b = element_fact_bindings(el, &wm.bind_keys, &wm.bind_vals, &wm.bind_pool);
                 census_count(ebucket(b.len()));
                 census_count("bind-card:ELEMENTS");

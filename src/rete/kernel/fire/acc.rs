@@ -19,9 +19,16 @@ pub(super) struct AccView<'a> {
     facts: &'a Value,
     derived: &'a [Value],
     n_input: u32,
+    i64_by_fact: &'a [Option<I64Row>],
+    col_keys: &'a [Value],
+    col_fields: &'a [u8],
 }
 
-pub(super) fn acc_view(wm: &FireSession) -> AccView<'_> {
+pub(super) fn acc_view<'a>(
+    wm: &'a FireSession,
+    col_keys: &'a [Value],
+    col_fields: &'a [u8],
+) -> AccView<'a> {
     AccView {
         keys: &wm.bind_keys,
         vals: &wm.bind_vals,
@@ -29,6 +36,9 @@ pub(super) fn acc_view(wm: &FireSession) -> AccView<'_> {
         facts: &wm.facts,
         derived: &wm.derived_facts,
         n_input: wm.n_input,
+        i64_by_fact: &wm.i64_by_fact,
+        col_keys,
+        col_fields,
     }
 }
 
@@ -39,18 +49,31 @@ pub(super) fn acc_view(wm: &FireSession) -> AccView<'_> {
 /// Panics on an unbound var or a non-i64 value (a compile-time-impossible shape).
 // rune:struere(invariant-coupling) — AccFold compile proved i64; Option would
 // force every fold to invent a fallback the grammar already forbids.
-pub(super) fn acc_var_i64(
-    el: &Element,
-    var: &Value,
-    bind_keys: &[Value],
-    vals: &[Value],
-    pool: &[(u32, u32)],
-) -> i64 {
-    let bindings = element_fact_bindings(el, bind_keys, vals, pool);
-    match Bindings::get(&bindings, var) {
-        Some(Value::i64(n)) => *n,
-        Some(other) => panic!("accumulate: var bound to non-i64 {other:?}"),
-        None => panic!("accumulate: var {var:?} unbound in element bindings"),
+pub(super) fn acc_var_i64(el: &Element, var: &Value, view: &AccView<'_>) -> i64 {
+    if el.binds.len > 0 {
+        let bindings = element_fact_bindings(el, view.keys, view.vals, view.pool);
+        return match Bindings::get(&bindings, var) {
+            Some(Value::i64(n)) => *n,
+            Some(other) => panic!("accumulate: var bound to non-i64 {other:?}"),
+            None => panic!("accumulate: var {var:?} unbound in element bindings"),
+        };
+    }
+    let pos = view
+        .col_keys
+        .iter()
+        .position(|k| k == var)
+        .unwrap_or_else(|| panic!("accumulate: var {var:?} not in packed slot_keys"));
+    let field = *view
+        .col_fields
+        .get(pos)
+        .unwrap_or_else(|| panic!("accumulate: packed field missing for {var:?}"));
+    match view
+        .i64_by_fact
+        .get(el.fact as usize)
+        .and_then(|o| o.as_ref())
+    {
+        Some(row) if (field as usize) < row.n as usize => row.fields[field as usize],
+        _ => panic!("accumulate: packed row missing for fact {}", el.fact),
     }
 }
 
@@ -72,6 +95,34 @@ pub(super) fn operand_slot(
 
 // rune:struere(invariant-coupling) — AccFold compile proved i64; Option would
 // force every fold to invent a fallback the grammar already forbids.
+fn operand_field(var: &Value, view: &AccView<'_>) -> Option<u8> {
+    if view.col_fields.is_empty() {
+        return None;
+    }
+    let pos = view.col_keys.iter().position(|k| k == var)?;
+    view.col_fields.get(pos).copied()
+}
+
+/// Packed fold only when the occupant actually has an i64 row. bind_only
+/// conds with a string field (location) still report col_fields, but
+/// `pack_i64_row` is None — `row_i64` must not panic (8b sum, where-accum-where).
+fn packed_operand_field(var: &Value, view: &AccView<'_>, el: Option<&Element>) -> Option<u8> {
+    let field = operand_field(var, view)?;
+    let el = el?;
+    view.i64_by_fact
+        .get(el.fact as usize)
+        .and_then(|o| o.as_ref())
+        .filter(|row| (field as usize) < row.n as usize)?;
+    Some(field)
+}
+
+fn row_i64(el: &Element, field: u8, rows: &[Option<I64Row>]) -> i64 {
+    match rows.get(el.fact as usize).and_then(|o| o.as_ref()) {
+        Some(row) if (field as usize) < row.n as usize => row.fields[field as usize],
+        _ => panic!("accumulate: packed row missing for fact {}", el.fact),
+    }
+}
+
 pub(super) fn slot_i64(el: &Element, slot: usize, vals: &[Value], pool: &[(u32, u32)]) -> i64 {
     match pool_slice(pool, el.binds).get(slot) {
         Some((_, vid)) => match vals.get(*vid as usize) {
@@ -84,7 +135,11 @@ pub(super) fn slot_i64(el: &Element, slot: usize, vals: &[Value], pool: &[(u32, 
 }
 
 /// Numeric AccFold algebra — one match, two gather representations.
-pub(super) fn fold_i64s(fold: &AccFold, vals: impl Iterator<Item = i64>, n: usize) -> Option<Value> {
+pub(super) fn fold_i64s(
+    fold: &AccFold,
+    vals: impl Iterator<Item = i64>,
+    n: usize,
+) -> Option<Value> {
     match fold {
         AccFold::Count => Some(Value::i64(n as i64)),
         // rune:struere(performance-hotspot) — wrapping Iterator::sum matches wat acc::* wrap;
@@ -118,6 +173,17 @@ pub(super) fn fold_bucket(
     match fold {
         AccFold::Count => Ok(fold_i64s(fold, std::iter::empty(), bucket.len())),
         AccFold::Sum(var) => {
+            let sample = bucket.first().map(|&i| &elements[i]);
+            if let Some(field) = packed_operand_field(var, view, sample) {
+                return Ok(fold_i64s(
+                    fold,
+                    bucket.iter().map(|&i| {
+                        census_gather_visit();
+                        row_i64(&elements[i], field, view.i64_by_fact)
+                    }),
+                    bucket.len(),
+                ));
+            }
             let Some(slot) = operand_slot(elements, bucket, var, view.keys, view.pool) else {
                 return Ok(Some(Value::i64(0)));
             };
@@ -131,6 +197,20 @@ pub(super) fn fold_bucket(
             ))
         }
         AccFold::Min(var) | AccFold::Max(var) | AccFold::Mean(var) => {
+            let sample = bucket.first().map(|&i| &elements[i]);
+            if let Some(field) = packed_operand_field(var, view, sample) {
+                if bucket.is_empty() {
+                    return Ok(None);
+                }
+                return Ok(fold_i64s(
+                    fold,
+                    bucket.iter().map(|&i| {
+                        census_gather_visit();
+                        row_i64(&elements[i], field, view.i64_by_fact)
+                    }),
+                    bucket.len(),
+                ));
+            }
             let Some(slot) = operand_slot(elements, bucket, var, view.keys, view.pool) else {
                 return Ok(None);
             };
@@ -143,10 +223,7 @@ pub(super) fn fold_bucket(
                 bucket.len(),
             ))
         }
-        AccFold::Distinct(_)
-        | AccFold::All
-        | AccFold::GroupBy(_)
-        | AccFold::User { .. } => {
+        AccFold::Distinct(_) | AccFold::All | AccFold::GroupBy(_) | AccFold::User { .. } => {
             let gathered: Vec<&Element> = bucket.iter().map(|&i| &elements[i]).collect();
             accumulate_value(fold, &gathered, sym, view)
         }
@@ -173,9 +250,7 @@ pub(super) fn accumulate_value(
         AccFold::Sum(var) | AccFold::Min(var) | AccFold::Max(var) | AccFold::Mean(var) => {
             fold_i64s(
                 fold,
-                gathered
-                    .iter()
-                    .map(|el| acc_var_i64(el, var, view.keys, view.vals, view.pool)),
+                gathered.iter().map(|el| acc_var_i64(el, var, view)),
                 gathered.len(),
             )
         }
@@ -183,7 +258,7 @@ pub(super) fn accumulate_value(
             let mut seen: HashSet<i64> = HashSet::new();
             let mut pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
             for el in gathered {
-                let n = acc_var_i64(el, var, view.keys, view.vals, view.pool);
+                let n = acc_var_i64(el, var, view);
                 if seen.insert(n) {
                     pv.push_back_mut(Value::i64(n));
                 }
@@ -202,22 +277,24 @@ pub(super) fn accumulate_value(
             let mut groups: GroupByMap = HashMap::new();
             for el in gathered {
                 let fact = fact_at(view.facts, view.derived, view.n_input, el.fact).clone();
-                let k = acc_var_i64(el, var, view.keys, view.vals, view.pool);
+                let k = acc_var_i64(el, var, view);
                 groups
                     .entry(k)
                     .or_insert_with(rpds::VectorSync::new_sync)
                     .push_back_mut(fact);
             }
             Some(Value::wat__core__PersistentMap(
-                crate::value::pmap::PMap::from_pairs(groups.into_iter().map(|(k, pv)| {
-                    (Value::i64(k), Value::wat__core__PersistentVector(pv))
-                })),
+                crate::value::pmap::PMap::from_pairs(
+                    groups
+                        .into_iter()
+                        .map(|(k, pv)| (Value::i64(k), Value::wat__core__PersistentVector(pv))),
+                ),
             ))
         }
         AccFold::User { var, program } => {
             let mut pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
             for el in gathered {
-                pv.push_back_mut(Value::i64(acc_var_i64(el, var, view.keys, view.vals, view.pool)));
+                pv.push_back_mut(Value::i64(acc_var_i64(el, var, view)));
             }
             let gathered_pv = Value::wat__core__PersistentVector(pv);
             Some(crate::rete::expr_ir::exec_call(
@@ -245,9 +322,6 @@ mod empty_case {
     #[test]
     fn min_empty_is_none() {
         let k = Value::String(std::sync::Arc::new("?x".into()));
-        assert_eq!(
-            fold_i64s(&AccFold::Min(k), std::iter::empty(), 0),
-            None
-        );
+        assert_eq!(fold_i64s(&AccFold::Min(k), std::iter::empty(), 0), None);
     }
 }

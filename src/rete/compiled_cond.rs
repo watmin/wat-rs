@@ -60,10 +60,10 @@ use std::sync::Arc;
 use rustc_hash::FxHashMap;
 
 use crate::ast::WatAST;
-use crate::rete::expr_ir::Expr;
 use crate::rete::clause::{
     classify_constraint_head, classify_rete_clause, CmpKind, ConstraintSpelling, ReteClauseShape,
 };
+use crate::rete::expr_ir::Expr;
 use crate::rete::matcher::{compare_values, Bindings};
 use crate::runtime::Value;
 
@@ -313,9 +313,7 @@ fn compile_condition_opts(
         .collect::<Vec<_>>()
         .into();
     let seed_reads: Arc<[(Value, usize)]> = ctx.seed_reads.into();
-    let fact_bind = pat
-        .fact_var
-        .map(|v| Value::String(Arc::new(v.to_string())));
+    let fact_bind = pat.fact_var.map(|v| Value::String(Arc::new(v.to_string())));
 
     Some(CompiledCond::from_parts(
         ops,
@@ -429,7 +427,9 @@ fn compile_one(
                 _ => ops.push(Op::Fail),
             }
         }
-        ReteClauseShape::And(subs) => return compile_seq(subs, ctx, scope, field_slots, order, ops),
+        ReteClauseShape::And(subs) => {
+            return compile_seq(subs, ctx, scope, field_slots, order, ops)
+        }
         ReteClauseShape::Or(subs) => {
             // Each branch compiles against its OWN clone of the current scope (so a bind made by
             // one branch is never visible to a sibling), and its binds are recorded into a
@@ -604,6 +604,28 @@ pub(crate) fn intern_key(keys: &mut Vec<Value>, k: &Value) -> u32 {
     i
 }
 
+/// Output field indexes iff every op is [`Op::Bind`] and each output
+/// slot's field fits [`crate::rete::kernel::I64_ROW_CAP`]. Empty ops
+/// (class-only) are bind-only with no fields
+/// (`DESIGN-STONE-fire-i64-columns`).
+pub(crate) fn bind_only_fields(compiled: &CompiledCond) -> Option<Vec<u8>> {
+    if !compiled.ops.iter().all(|op| matches!(op, Op::Bind { .. })) {
+        return None;
+    }
+    let mut out = Vec::with_capacity(compiled.output_slots.len());
+    for &slot in compiled.output_slots.iter() {
+        let fi = compiled.ops.iter().find_map(|op| match op {
+            Op::Bind { field_idx, slot: s } if *s == slot => Some(*field_idx),
+            _ => None,
+        })?;
+        if fi >= crate::rete::kernel::I64_ROW_CAP {
+            return None;
+        }
+        out.push(fi as u8);
+    }
+    Some(out)
+}
+
 /// Intern this cond's `fact_bind?` then `slot_keys` once
 /// (`DESIGN-STONE-cond-key-ids`). Fire SETUP, not per fact.
 pub(crate) fn intern_cond_keys(compiled: &CompiledCond, keys: &mut Vec<Value>) -> Vec<u32> {
@@ -770,10 +792,7 @@ pub(crate) fn exec_compiled_under_holds(
     exec_ops(&compiled.ops, scratch, fact_fields, false)
 }
 
-fn materialize(
-    compiled: &CompiledCond,
-    scratch: &[Option<Value>],
-) -> BindPairs {
+fn materialize(compiled: &CompiledCond, scratch: &[Option<Value>]) -> BindPairs {
     let mut out: Vec<(Value, Value)> = Vec::with_capacity(compiled.output_slots.len());
     for (i, &slot) in compiled.output_slots.iter().enumerate() {
         let v = match scratch.get(slot).and_then(|o| o.clone()) {
@@ -925,14 +944,7 @@ mod tests {
             pool: &mut pool,
         };
         assert!(
-            exec_compiled(
-                &compiled,
-                &fact,
-                &mut scratch,
-                &mut intern,
-                &Value::i64(20),
-            )
-                .is_some(),
+            exec_compiled(&compiled, &fact, &mut scratch, &mut intern, &Value::i64(20),).is_some(),
             "populate skips SeedCmp so the fact enters alpha"
         );
 
@@ -1065,15 +1077,25 @@ mod tests {
             Op::Not(vec![]),
             Op::Fail,
         ];
-        let driver: Vec<_> = variants.iter().filter(|op| lands(op) == Lands::Driver).collect();
-        let core: Vec<_> = variants.iter().filter(|op| lands(op) == Lands::Core).collect();
+        let driver: Vec<_> = variants
+            .iter()
+            .filter(|op| lands(op) == Lands::Driver)
+            .collect();
+        let core: Vec<_> = variants
+            .iter()
+            .filter(|op| lands(op) == Lands::Core)
+            .collect();
         assert!(
             core.len() >= 4,
             "only {} of {} variants reach the shared core",
             core.len(),
             variants.len()
         );
-        assert_eq!(driver.len(), 1, "driver must be exactly Bind, got {driver:?}");
+        assert_eq!(
+            driver.len(),
+            1,
+            "driver must be exactly Bind, got {driver:?}"
+        );
         assert!(matches!(driver[0], Op::Bind { .. }));
     }
 }

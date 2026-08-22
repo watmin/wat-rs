@@ -5,9 +5,13 @@
 > `wat/rete.wat`. If a stone below disagrees with a dated ruling here,
 > **this file wins** and the stone is stale.
 
-**Right now:** floor **GREEN** `.floor/2026-08-22T02-40-11Z/`
-(4911 passed, 19 skipped). Clippy `--all-targets -D warnings`
-silent. grok-rete HEAD **`4a67a20d`**. `harvest_stratified_queries` LANDED (QueryNode reverse-closure,
+**Right now:** floor **GREEN** `.floor/2026-08-22T10-05-49Z/`
+(4913 passed, 19 skipped). Clippy `--all-targets -D warnings`
+silent. Grid `GRID-native-vs-clara-2026-08-22T09-39-43Z.txt`
+**30/30 `:match` `:us`**. Occupancy leaf-fill + join-index
+span LANDED. Unary gather packed-then-BindSpan (7b string
+locations). Sum fold falls back when the i64 row is
+absent. grok-rete dirty intern on harvest HEAD **`ca9d9cc3`**. `harvest_stratified_queries` LANDED (QueryNode reverse-closure,
 not a second full fire).
 Vigilia recasts **12 and 13** both **0 L1 + 0 L2** (inward
 17/17 + circumspicere) at `8839bb16` — the stop named as two
@@ -22,25 +26,50 @@ do not construct it. `NEXT-STRIKES-after-shadow.md`. `wm.rs` →
 `session.rs`. Stratify holds the slice arm as a value
 (`fire_fixpoint_delta_armed`). Primed public-entry docs gone.
 Intern doors share `rete_arm_build_put`. Grid
-`GRID-native-vs-clara-2026-08-22T00-23-51Z.txt`
-(`GRID_SKIP_ORACLE=1`, `GRID_RUNS=3`, HEAD `4c437585`):
-**30/30 `:match`, 30/30 `:us`**. Rank **`wat-ns`**, not ratio
-(Clara jitters the ratio). Closest Clara cell still **fanout
-`[40000]` ratio 3.40** (wat-ns 55.5 ms; 08-20T22 was 53.0 ms /
-3.35 — noise). Named leftover of cleanup: **min-finding `[2000]`
-wat-ns 11.6 ms (08-18) → 3.47 ms (08-20T00, ratio ~31) → 2.49 ms
-(that grid, ratio 54 because Clara 136 ms vs 101 ms)**. Do not
-cite 54× as a 10× engine cut; the engine cut is 11.6 → 2.49.
-**deep-cascade `[50 100]` wat-ns 17.6 → 15.0 ms. node-share
-`[50 200]` 1.22 → 0.94 ms.** strat-neg `[6 2000]` 35.6 → 47.5
-was the throwaway fire-once on the FULL network (QueryNodes
-sit off production slices; `strat-neg.wat` has 10 `defquery`).
-**LANDED:** QueryNode reverse-closure + `FireKind::Once` on
-that slice (`harvest_stratified_queries`). Named cell
-`GRID_SKIP_ORACLE=1 GRID_RUNS=3`: `[6 500]` 6.17 ms,
-`[6 1000]` 15.2 ms, `[6 2000]` **33.6 ms** (under 08-20's
-35.6), 3/3 `:match` `:us`. Oracle still pays the full q-seed.
-Accum `[200 200]` 18.6 → 18.3 ms. Skip matches
+`GRID-native-vs-clara-2026-08-22T09-12-32Z.txt`
+(`GRID_SKIP_ORACLE=1`, `GRID_RUNS=3`, occupancy intern vs
+`T00-23-51Z` HEAD `4c437585`): **30/30 `:match`, 30/30 `:us`**.
+Rank **`wat-ns`**, not ratio. Occupancy cells (bind-only leaf
+fill): **accum `[200 200]` 18.26 → 13.66 ms** (FIRE 13.7
+holds); `[50 200]` 4.14 → 2.48; `[100 200]` 8.69 → 6.37.
+**negation `[1000]` 3.45 → 2.20. neg-consumer `[1000]` 7.07 →
+3.67.** Harvest cell held: **strat-neg `[6 2000]` 47.5 →
+33.75 ms** (named harvest was 33.6). Closest Clara cell
+**fanout `[40000]` ratio 2.91, wat-ns 61.7 ms** (was 55.5 /
+3.40 — skip-BindSpan rebuilt the span × 40k products).
+**deep-cascade `[50 100]` 15.0 → 16.4. asym-join
+`[2000]` 4.26 → 4.84.** node-share `[50 200]` 0.94 held.
+min-finding `[2000]` 2.49 → 2.66 (noise). Do not cite ratio
+as the engine cut. Oracle still pays the full q-seed.
+`DESIGN-STONE-join-index-span` LANDED: occupancy Arc
+stays empty; `right_idx` copy gets BindSpan once.
+Fanout probe **3.76 → 1.62 ms**. FIRE `[200 200]`
+**13.48** (held). Named cell `GRID_SKIP_ORACLE=1
+GRID_RUNS=3`: fanout `[40000]` **61.7 → 58.7 ms**
+(still above 55.5 — production 19.6 / 66% is the
+named leftover, 40k RHS). asym-join `[2000]` 4.84
+→ 4.72 (noise).
+`DESIGN-STONE-occupancy-leaf-column` LANDED:
+undiscriminated bind-only classes fill tree
+**leaves** from a fact-id column after **packing
+every fact** (skip-activate without pack was
+3-stratum red). Occupancy ≡ `candidates_into`.
+`AlphaMemory` is `Arc<Vec<Element>>` — sibling
+leaves share one occupant list. 7strat 3-stratum
+green. `DESIGN-STONE-fire-i64-columns` LANDED
+(bind-only skips `exec_ops`). Column gather/fold
+interned; skip BindSpan did not cut FIRE.
+Class-union fill reverted (3-stratum). Seed
+reserve+fill realloc cheat reverted (not ≥ 1 ms).
+SETUP PV walk inverted FIRE — do not pack at
+SETUP. Isolated E−K still the old
+`exec_compiled` door. Do not skip Token spans.
+Three packed-rows scouts stay reverted
+(`DESIGN-STONE-packed-fire-rows`): i64 exec E−K −0.80;
+populate-without-materialize E−K −3 **and FIRE 19→70**
+(accumulate 1.3→28 — intern re-paid on gather/fold).
+Scout 3 (cheap slots on Element): gather/fold stayed 1.3;
+seed 16.6→18.8; FIRE 19→23. Reverted. Skip matches
 `fire-rules$oracle` (a leftover token fails the run). Do not
 treat 17-42-43Z as a measurement. GNU `/usr/bin/time` is
 not installed; bash `time` is a keyword (`which time` empty).

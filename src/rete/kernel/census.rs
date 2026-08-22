@@ -155,6 +155,46 @@ pub(crate) fn with_fire_census<R>(f: impl FnOnce() -> R) -> (R, Vec<RoundCensus>
     (out, recorded.unwrap_or_default())
 }
 
+/// One fire's seed occupancy: leaf-set prediction vs what activate installed.
+#[cfg(test)]
+#[derive(Debug, Clone, Default)]
+pub(crate) struct LeafOccDiff {
+    pub extra: Vec<(i64, u32)>,
+    pub missing: Vec<(i64, u32)>,
+    pub predicted: usize,
+    pub actual: usize,
+    pub n_facts: usize,
+    pub n_leaf_aids: usize,
+}
+
+#[cfg(test)]
+thread_local! {
+    static LEAF_OCC_DIFF: std::cell::RefCell<Option<Vec<LeafOccDiff>>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+#[cfg(test)]
+pub(crate) fn leaf_occ_armed() -> bool {
+    LEAF_OCC_DIFF.with(|c| c.borrow().is_some())
+}
+
+#[cfg(test)]
+pub(crate) fn record_leaf_occ_diff(row: LeafOccDiff) {
+    LEAF_OCC_DIFF.with(|c| {
+        if let Some(rows) = c.borrow_mut().as_mut() {
+            rows.push(row);
+        }
+    });
+}
+
+#[cfg(test)]
+pub(crate) fn with_leaf_occ_diff<R>(f: impl FnOnce() -> R) -> (R, Vec<LeafOccDiff>) {
+    let prior = LEAF_OCC_DIFF.with(|c| c.borrow_mut().replace(Vec::new()));
+    let out = f();
+    let recorded = LEAF_OCC_DIFF.with(|c| std::mem::replace(&mut *c.borrow_mut(), prior));
+    (out, recorded.unwrap_or_default())
+}
+
 /// Map a node kind label onto a `&'static str` so a census row can be printed without holding a
 /// borrow of the network. Any kind the compiler can emit that is not listed reads as `"?"` — an
 /// unrecognised kind must be visible in the output, never silently folded into a neighbour.
