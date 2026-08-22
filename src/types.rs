@@ -4489,10 +4489,13 @@ fn parse_declared_name(
 ///
 /// ONE spelling of that question, for the same reason `Identifier::is_reference`
 /// is one spelling of "is this symbol a binder NAME" (stone 251.8a collapsed four
-/// hand-rolls of that one into a single door). Two callers: [`take_declared_binder`]
-/// peeks it, and `parse_structtype` must CARRY it across its synthetic-parent
-/// injection so the binder stays adjacent to the name.
-fn is_binder_marker(node: &WatAST) -> bool {
+/// hand-rolls of that one into a single door). Three callers: [`take_declared_binder`]
+/// peeks it, `parse_structtype` must CARRY it across its synthetic-parent
+/// injection so the binder stays adjacent to the name, and `pub(crate)` since
+/// arc 109 stone "a type reference is not an expression" — `macros::expand`'s
+/// macro-dispatch guard peeks it at index 1 to decline `(Head :- [args])` as a
+/// value expression before the head's registered companion macro can fire.
+pub(crate) fn is_binder_marker(node: &WatAST) -> bool {
     matches!(node, WatAST::Keyword(k, _) if k == ":-")
 }
 

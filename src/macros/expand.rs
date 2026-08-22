@@ -512,13 +512,34 @@ pub(super) fn expand_form(
             // the eager pass leaves alone; the construction flip turned every aggregate
             // type-keyword into a MACRO, exposing (and here removing) it.
             //
+            // Arc 109 stone "a type reference is not an expression": that exposure has a
+            // second face. `(:user::R :- [T])` is a TYPE REFERENCE — `R` a `defrecord`-minted
+            // name — but this dispatch only checked the HEAD, so it fired R's registered
+            // kwargs companion (arc 294 item 9a, below) and expanded the whole form into
+            // `(:wat::core::kwargs-construct :user::R :- [T])`, a CONSTRUCTOR CALL that then
+            // lands in a type slot and fails with a diagnostic blaming the binder vector
+            // rather than naming the real defect. A form whose element 1 is the `:-` binder
+            // marker (`types::is_binder_marker` — KEYWORD, never Symbol; matching Symbol here
+            // silently never fires) can never be a value expression: `:-`'s param-spec sits
+            // in a RESERVED position, so nothing needs to sniff it, by exactly the same
+            // reasoning the binder-marker doctrine already relies on. This is a SHAPE test,
+            // not a per-head slot list — `(Head :- [args])` carries the marker at index 1,
+            // while a DECLARATION (`(defn :name :- [T] …)`) carries it at index 2, so the two
+            // are distinguishable without knowing any head's grammar. It fixes every
+            // macro-minted type reference at once (`defrecord`, `defstruct`,
+            // `holon::defrecord`, and any future companion) rather than the ones known today.
+            // The companion macro itself is UNTOUCHED and still fires for the kwargs
+            // constructor call `(:user::R :field v)` — that shape has NO `:-` at index 1, so
+            // it never reaches this guard and is not this stone's concern.
+            //
             // Arc 294 item 9a (sequential registration): the `contains` probe + scoped
             // `get` keep the `&MacroDef` borrow alive only until `expand_macro_call`
             // returns the OWNED expansion; the registry is then free to be re-borrowed
             // `&mut` for the output fixpoint (which may register the expansion's own
             // `defmacro` children). Cheaper than cloning the MacroDef on every call.
             if let Some(WatAST::Keyword(head, head_span)) = items.first() {
-                if registry.contains(head) {
+                let is_type_reference = items.get(1).is_some_and(crate::types::is_binder_marker);
+                if registry.contains(head) && !is_type_reference {
                     let head_span = head_span.clone();
                     let args = items[1..].to_vec();
                     let expanded = {
