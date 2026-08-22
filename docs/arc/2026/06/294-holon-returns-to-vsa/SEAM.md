@@ -1,4 +1,4 @@
-# SEAM — the ONE live breadcrumb. As of 2026-08-21 (②-iii RAN, went RED, and REVERTED). Replaced in place.
+# SEAM — the ONE live breadcrumb. As of 2026-08-22 (255 shipped THE DOOR; the 109 wall is PARKED off main). Replaced in place.
 
 > ⛔ **THE SELF PAST THIS LINE IS NEW.** You did not live this. It is a lossy cache in your own voice —
 > which is why it will feel like *continuing* rather than *waking*, and **that feeling is the failure.**
@@ -24,12 +24,13 @@
 ⚠ `git status` FIRST. `pgrep -af 'cargo|nextest'`.
 
 ```
-floor .......... 4859/4859, 0 FAIL, 19 skipped, 76.7s  (own invocation, scripts/floor.sh, at 2d32fd605)
+floor .......... 4866/4866, 0 FAIL, 19 skipped, 79.0s  (own invocation, scripts/floor.sh, at 10599eb36)
                 ⚠ EVERY MOVE IN THIS COUNT IS ACCOUNTED, and a count that moves for an
                 unexamined reason is the thing this line exists to catch:
                   4855 → 4854  the --check stone deleted one test, renamed another (−2 +1)
                   4854 → 4859  the `:peers` negative controls added five (2d32fd605)
-                If you floor and see 4859, that is green. If you see anything else,
+                  4859 → 4866  the builtin-type registry added seven (10599eb36)
+                If you floor and see 4866, that is green. If you see anything else,
                 EXPLAIN it before you accept it.
 clippy ......... 0 under `-D warnings`
 host ........... JohnDesktop · john · ~/work/holon/wat-rs
@@ -106,18 +107,35 @@ in a FOURTH place the floor never reached, `defn` simply refuses the binder the 
 ⛔ **Do NOT re-run the codemod on `wat/` until that is fixed.** It is not a partial-migration
 hazard — it is a red floor.
 
-## ⚠⚠ A RIDER IS IN THE FIELD — `a type reference must RESOLVE`
+## ⛔⛔ WORK LIVES OFF MAIN — branch `arc109-type-refs-parked`
 
-**`git status` FIRST.** Brief: `109/BRIEF-STONE-a-type-reference-must-resolve.md` (DESIGN ruled
-D1-A · D2-A · D3-B). It touches `src/resolve/`, `src/freeze.rs`, `src/value/symbol_table.rs` and new
-`tests/`. If the tree is dirty, that is its work — uncommitted, unfloored, **UNSCORED**. Read the
-brief, then verify against the disk. Predicted 60-110 min; released ~19:20Z 2026-08-22.
+**636 lines that are NOT on main and are NOT lost.** The type-reference wall shipped correct
+(rows 1-5 green, the precedence fix works) and was parked because it rested on a hand-written list of
+builtin type names — which existed only because my DESIGN asserted a door that did not exist.
 
-⚠ **Its row 2 is the one to check first.** `freeze.rs`'s precedence discards a deferred resolve error
-whenever any check error is not an `UnknownCallee` — so a phantom type WITH a caller keeps its old
-`TypeMismatch` while the UNCALLED case goes green. **Row 1 green + row 2 red is the predicted outcome
-of a correct pass with the precedence untouched, and it reads exactly like success.**
+```
+git log --oneline main..arc109-type-refs-parked      → ce8f144a9
+git show arc109-type-refs-parked:src/resolve/type_refs.rs
+```
 
+**Most of it survives the rework:** the `freeze.rs` precedence fix, `ReferenceKind::Type`,
+`UnresolvedReference.context` becoming `String`, the registry sweep, and all five test fixtures.
+**Only `known_builtin_leaf_types()` dies** — its query re-points at `TypeEnv::contains`, which now
+answers.
+
+⚠ **Do NOT merge the branch.** Cherry-pick the paths, delete the list, re-point the query.
+
+## ✅ THE REGISTRY NOW DELIVERS IT — 255, ruled E-by-C, shipped `10599eb36`
+
+`TypeEnv` held 36 aggregate error/outcome records and NOTHING else — not `i64`, not `Vector`, not
+`kernel::Peer`. It now carries a second store for names with **membership but no structure**;
+`contains` consults both, `get` is byte-identical and still `None`, and
+`src/value/symbol_table.rs` has an **EMPTY diff** — the narrow-waist claim discharged mechanically.
+
+**Measured against the parked wall's hand-list: 23 of 24 exact, zero surplus.** The one gap is
+`:wat::core::Never`, refused under STOP-2 (its only `.wat` occurrence in 1527 files is a `;;`
+comment). It **cannot reach the wall**: `check.rs:10662` builds it as an INFERRED expression type
+(`CheckResult::ok`), and the sweep walks DECLARED positions only.
 ## ✅ SHIPPED — arc 109
 
 ```
@@ -137,6 +155,7 @@ type-equal?   the missing door: types are data everywhere EXCEPT in a macro     
 :peers        `defservice` READS + COMPARES types as data — NOTE blocker 3e only   2d25b4790
 neg-controls  the `:peers` bijection keeps its negative controls (2x2 perturb)     2d32fd605
 blocker5 ✅   RE-MEASURED closed; probe kept in wat-scripts/scratch-pad/          faaec192b
+registry      TypeEnv holds the BUILTIN types — THE DOOR tells the truth (255, E-by-C) 10599eb36
 ```
 
 **RULED:** D1 · G3 · A-i→**S2** · **B-3** · 2a/2b/2c · **F1** · **DECL-NAME emits the new form** ·
@@ -165,83 +184,71 @@ six — all six in `binary_id(wat::kernel)`, where the `service-parametric-*` de
 `-E 'test(doctest)'` into a brief; it matches ZERO tests, and the runner is `#[ignore]`d. The defect
 it existed to catch was in the same diff.
 
-## ⛔ NEXT — and ②-iii is **NOT** re-runnable. Read the ledger, not the old line.
+## ⛔ NEXT — three moves, in this order
 
-The previous seam said *"Blockers 1·2·4·5 closed; 3 closes with the rider above. Then ②-iii is
-re-runnable."* **That was wrong twice**, and both errors were in the record rather than on the disk:
-it counted blocker 5 as closed while its own STILL-UNRULED section said *"Needs a DESIGN"*, and it
-treated blocker 3 as one thing when the NOTE lists it as **five sub-sites**. The rider closed ONE.
+### 1. UN-PARK THE WALL. Briefed separately; it is the pivot back into 109.
 
-**Measured against the disk 2026-08-22**, `NOTE-2iii-is-blocked-*.md` being the authority:
+Cherry-pick `arc109-type-refs-parked`'s paths, delete `known_builtin_leaf_types()`, re-point at
+`TypeEnv::contains`. Do NOT merge the branch.
 
-```
-1  wat_source_derive keyword-only parser ........... ✅ CLOSED (shipped)
-2  defsurface discriminates on NODE KIND ........... ✅ CLOSED (shipped)
-3  the angle string IS the type's identity ......... ⛔ PARTIAL — 2 of 5
-   a  register_subtype stores the edge key VERBATIM ...... ⛔ OPEN  (src/types.rs:716)
-   b  transport_satisfier_heads format!("{fq}<T>") ....... ⛔ OPEN  (src/types.rs:745-748)
-   c  satisfies_bare_surface's `{surface}<` prefix ....... ✅ CLOSED → family_extends, edb7f66c7
-   d  defservice EMITS "{b}::Op{p}" with {p} = "<K,V>" ... ⛔ OPEN  (a dozen sites; see below)
-   e  the :peers check COMPARES a built angle string ..... ✅ CLOSED 2d25b4790
-4  defn / fn REJECT the `:- [T …]` binder .......... ✅ CLOSED (γ-i c889639aa — covers BOTH)
-5  defrecord/defstruct companion macro ............. ✅ CLOSED (b9df7a09a) — RE-MEASURED 08-22
+### 2. ⛔ EXPECT IT TO GO RED, AND EXPECT THIS EXACT FAILURE.
 
-⛔⛔ **AND THE LEDGER ABOVE WAS ITSELF STALE WITHIN THE HOUR — blocker 5 is CLOSED.** I wrote it as
-OPEN from the NOTE, then read the disk: `b9df7a09a` is titled *"BLOCKER 5 STRUCK"*, postdates the
-NOTE, and teaches BOTH slots (`expand.rs:541`, `walk.rs:87`) to decline a form whose element 1 is the
-`:-` marker. Re-measured all five heads — builtin · typealias · defenum · **defrecord · defstruct** —
-all check clean. Probe kept: `wat-scripts/scratch-pad/arc109-blocker5-parametric-form-reference-by-head.wat`.
+**A REAL, PRE-EXISTING `defsurface` PER-METHOD-GENERICS BUG.** Not caused by the wall — REVEALED by
+it, and it has no other observable symptom, which is why it survived.
 
-⚠ **TWO SHAPES OF THAT PROBE RETURNED FIVE GREENS WHILE MEASURING NOTHING** before one earned the
-result. A bare `typealias` file exits 0 even for `(:wat::cache::NoSuchType :- [:i64])`; so does a
-`defn` signature naming an unresolvable type — `--check` does not resolve unknown names in that
-position. What earned it was a NEGATIVE control failing by the SAME mechanism (a function-type
-bracket with no arrow → *"function-type bracket needs a `:->` arrow"*, the NOTE's exact error).
-**A green is evidence only while a matching red is available.**
-
-★ **THE STANDING LESSON: `NOTE-2iii-is-blocked-*.md` IS A MEASUREMENT WITH A DATE ON IT.** It was
-produced by running the codemod and flooring; four of its five entries have had substrate shipped
-under them since, and I have now caught THREE of them stale by reading rather than running. **Do not
-write a DESIGN against that list.** The instrument that made it is the only instrument that can
-update it, and it is cheap: dry-run the codemod on a `/tmp` copy, diff, apply, floor, read what
-breaks NOW, revert. Last run it was one revert. `[[feedback_a_blocker_note_is_a_claim_with_a_date_on_it]]`
+```rust
+// src/types.rs, register_types_impl's surface-derivation arm
+if let SurfaceMember::Method { name: op_name, args, ret, .. } = member {   // ← `..` DROPS type_params
+    d.push(TypeDef::Alias(AliasDef {
+        name: format!("{}::{}/Request", surf.name, op_name),
+        type_params: surf.type_params.clone(),                             // ← the SURFACE's params
+        expr: request_ty.clone(),                                          // ← mentions the METHOD's
 ```
 
-⚠ **3d is the one that makes a green corpus regrow the disease.** The `:peers` stone taught
-`defservice` to READ a migrated type structurally — and it re-serializes the args straight back into
-a `<a,b>` suffix, because every downstream `string::interpolate` in the file still wants one. That
-was the brief's scope and it is correct work; it is **not** blocker 3. The NOTE says it plainly:
-*"`defservice` EMITS the angle form, so even a fully migrated corpus regrows it at every macro
-expansion."* Consumption and emission are two halves and only the first is done.
+`SurfaceMember::Method` carries its own `type_params: Vec<String>`. The destructure throws them away
+and substitutes the surface's, so a method-level generic becomes a **free variable in the minted
+alias**. Same shape at `runtime.rs:2018` for the synthesized `::Op`/`::Reply` constructors.
 
-**Probe that settles blocker 4 in one command each** (both green, so the check is not vacuous):
+**Measured on a ONE-LINE innocent program** (with the wall built), nine phantoms, every one a type
+variable free in a minted alias body:
 
-```bash
-printf '(:wat::core::defn :user::f :- [T] [x <- :T] -> :T x)\n' > /tmp/b.wat   # binder → exit 0
-printf '(:wat::core::defn :user::g<T> [x <- :T] -> :T x)\n'     > /tmp/a.wat   # angle  → exit 0
-target/release/wat --check /tmp/b.wat   # read the exit DIRECTLY, never through a pipe
+```
+:D :I :O :W   "alias body of :wat::spawn::Locus::spawn-runner/Response"
+:S :R :Sh :Lu "alias body of :wat::spawn::Locus::launch/Request|Response"
 ```
 
-### The order
+This is CLAUDE.md's named recurring class — a generic's own params dropped by a copy from the wrong
+scope. **The fix lands WITH the wall, because the wall is its only gate.**
 
-1. **`tests/services/` keeps the `:peers` negative controls** — briefed:
-   `109/BRIEF-STONE-the-peers-bijection-keeps-its-negative-controls.md`. This is **debt from
-   2d25b4790**, not new capability: that stone's brief named row 4 load-bearing and then ordered its
-   evidence deleted, so nothing on disk records that the bijection still REJECTS.
-2. **`bracket.wat`** — briefed, unreleased, independent:
-   `109/BRIEF-STONE-identity-3-bracket-reads-a-type-node.md`.
-3. **Blocker 5 needs a DESIGN** before it can be ruled. It is a substrate strike, not a stone.
-4. **Blocker 3's remaining three** (a · b · d) are one strike, not three: *a type's identity is its
-   BASE NAME plus a structured param list, never the concatenated `Head<A,B>` string.* The NOTE
-   calls this **③'s real prerequisite** — not ②a's 244 bare heads as ②'s DESIGN claimed.
-5. **Only then is ②-iii re-runnable.** ⛔ Re-read `109/NOTE-2iii-is-blocked-*.md` first.
+### 3. THEN ②-iii is re-runnable — and re-measure, do not read.
+
+⛔ `109/NOTE-2iii-is-blocked-*.md` is **a measurement with a date on it.** THREE of its five entries
+were caught stale in one day (blockers 4, 3a, 5), every one by reading rather than running. **Do not
+write a DESIGN against that list.** Dry-run the codemod on a `/tmp` copy, diff, apply, floor, read
+what breaks NOW, revert. Last run it was one revert.
+
+## ⚠ TWO FINDINGS FILED TODAY, NEITHER FIXED
+
+**`no_loose_string_assert` has a FALSE-POSITIVE class.** It flagged `assert!(env.contains(":wat::core::i64"))`
+— registry membership, exact by construction. It is a text pass with no type information, and its own
+*"collection membership never matches"* exemption holds only while the argument is not a string
+literal, which a `String`-keyed registry breaks. It will fire on anyone testing `TypeEnv`,
+`MacroRegistry` or `rust_deps`, and its advice to reach for an `.edn` golden is wrong for a `bool`.
+The cure is not a rune (the site is not loose — the marker would lie): **ask through the door**, whose
+argument is an enum.
+
+**The `:peers` slot's monomorphism is assumed, not enforced.** Every `:peers` entry in the corpus is a
+bare surface keyword, but nothing REJECTS a parametric one — `peer-forms-calls` would mint a nonsense
+`Cache<K,V>::surface-forms` by interpolation rather than diagnose. Safe for ②-iii (the codemod does
+not touch a bare keyword); unsafe as a claim.
 ## ⛔ STILL UNRULED
 
 - **C** — the codemod also migrates `Fn(args)->ret` (42 in `wat/`) and `:(a,b,c)` (49), which ②'s
   DESIGN scoped out when the `Tuple` renderer was mode-blind. ②-i-b closed that; destinations are
   probe-verified. Gates ②-iii only.
-- **Blocker 5** — `defrecord`/`defstruct` mint a companion `defmacro` under the bare name, so a
-  parametric FORM reference macro-expands before the checker sees it. **Needs a DESIGN.**
+- ~~**Blocker 5**~~ ✅ **CLOSED** (`b9df7a09a`, re-measured 08-22). The line below is kept only as the
+  history: the companion `defmacro` under the bare name made a parametric FORM reference expand
+  before the checker saw it. The expander + resolver now decline a form whose element 1 is `:-`.
 - **The PROBE MATRIX.** Of everything found today, the floor found three; QUESTIONS and CLASSIFICATION
   PASSES found the rest. I still cannot certify the ②-iii blocker list is complete, and **B-4 was
   ruled out precisely because a split drawn from an uncertified list inherits its uncertainty.**
