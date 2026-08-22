@@ -3641,14 +3641,26 @@ fn splice_type_decls(
         // The form shape is `(:wat::core::extend-type :T :P (impl…)…)`.
         ":wat::core::extend-type" => {
             let decl_span = span.clone();
+            // Arc 109 identity 2c remainder — the TARGET slot also accepts a parametric-type
+            // FORM (`(Head :- [args])`) alongside the Keyword surface (`Head<args>`). Unlike
+            // the SATISFIED-SURFACE arm just below, this one does NOT reduce to `base_fqdn()`:
+            // `type_name` feeds `register_subtype`'s CHILD side, which `is_subtype` (below)
+            // walks with EXACT-string semantics, and `transport_edge_keys`/
+            // `transport_satisfier_heads` (check.rs) guess at the FULL `Head<T>`/`Head<Wire>`
+            // spelling verbatim — dropping args here would starve both. `check::format_type`
+            // is the substrate's ONE authoritative TypeExpr renderer (types.rs:1987), so
+            // re-render through it rather than hand-rolling a second stringifier.
             let type_name = match items.get(1) {
                 Some(WatAST::Keyword(k, _)) => k.clone(),
+                Some(node @ WatAST::List(_, _)) => {
+                    crate::check::format_type(&parse_type_node(node)?)
+                }
                 _ => {
                     return Err(TypeError::new(
                         decl_span,
                         TypeErrorKind::MalformedDecl {
                             head: "extend-type".into(),
-                            reason: "expected keyword type name at position 1".into(),
+                            reason: "expected keyword or type form type name at position 1".into(),
                         },
                     ))
                 }
@@ -3659,20 +3671,21 @@ fn splice_type_decls(
             // (already parses `:-`-marked forms into `TypeExpr::Parametric`, no reader change
             // needed) then `TypeExpr::base_fqdn()` — so the lattice's own extraction stays
             // singular; this does not add a second hand-rolled `find('<')`.
+            // ⛔ CORRECTED — this arm was added under ruling A-i ("the lattice keys on the BASE
+            // NAME") and survived the revert to S2 ("`is_subtype` keeps EXACT-string semantics")
+            // because flight 2's brief called it "orthogonal to S2". It was not: it left ONE site
+            // keying on the base while `register_subtype` stores VERBATIM, so
+            // `(extend-type :A :Proto<S,R>)` registered `":Proto<S,R>"` while
+            // `(extend-type :A (:Proto :- [S R]))` registered `":Proto"` — two spellings of one
+            // declaration, two different keys, and `is_subtype`'s exact-string query for the full
+            // name never found the second. Floor-green only because nothing fed a genuinely
+            // parametric protocol through the FORM spelling until `dialable-ty` would have.
+            // Renders the FULL name, exactly as the TARGET arm above now does.
             let protocol_name = match items.get(2) {
                 Some(WatAST::Keyword(k, _)) => k.clone(),
-                Some(node @ WatAST::List(_, _)) => parse_type_node(node)?.base_fqdn().ok_or_else(
-                    || {
-                        TypeError::new(
-                            decl_span.clone(),
-                            TypeErrorKind::MalformedDecl {
-                                head: "extend-type".into(),
-                                reason: "protocol type form at position 2 has no nameable head"
-                                    .into(),
-                            },
-                        )
-                    },
-                )?,
+                Some(node @ WatAST::List(_, _)) => {
+                    crate::check::format_type(&parse_type_node(node)?)
+                }
                 _ => {
                     return Err(TypeError::new(
                         decl_span,

@@ -8208,30 +8208,36 @@ pub(crate) fn parse_extend_type_form(
             },
         ));
     }
+    // Arc 109 identity 2c remainder — the TARGET slot also accepts a parametric-type FORM
+    // (`(Head :- [args])`, the ANNOTATION migration's spelling) alongside the Keyword surface
+    // (`:Head<args>`). Both go through the SAME door — `parse_type_node` — then rendered back
+    // through `check::format_type`, the ONE authoritative TypeExpr renderer (already crossing
+    // this exact runtime.rs/check.rs boundary elsewhere, e.g. line 8146) — so `type_name` stays
+    // the FULL identity string (base + args), byte-identical to what the Keyword arm always
+    // produced. Dropping to a base-only name here would silently starve `is_subtype`'s
+    // exact-string edge lookup (types.rs's `register_subtype`) and the `transport_edge_keys`
+    // guess-set, both of which key on the full `Head<T>`/`Head<Wire>` spelling verbatim.
     let type_name = match &items[1] {
         WatAST::Keyword(k, _) => k.clone(),
-        other => {
-            return Err(RuntimeError::new(
-                other.span().clone(),
-                RuntimeErrorKind::MalformedForm {
-                    head: HEAD.into(),
-                    reason: format!(
-                        "extend-type first arg must be a keyword type name; got {}",
-                        other.variant_name()
-                    ),
-                },
-            ))
+        node @ WatAST::List(_, _) => {
+            let te = crate::types::parse_type_node(node).map_err(|e| {
+                RuntimeError::new(
+                    node.span().clone(),
+                    RuntimeErrorKind::MalformedForm {
+                        head: HEAD.into(),
+                        reason: format!("extend-type first arg type form: {e}"),
+                    },
+                )
+            })?;
+            crate::check::format_type(&te)
         }
-    };
-    let protocol_name_raw = match &items[2] {
-        WatAST::Keyword(k, _) => k.clone(),
         other => {
             return Err(RuntimeError::new(
                 other.span().clone(),
                 RuntimeErrorKind::MalformedForm {
                     head: HEAD.into(),
                     reason: format!(
-                        "extend-type second arg must be a keyword protocol name; got {}",
+                        "extend-type first arg must be a keyword or type-form type name; got {}",
                         other.variant_name()
                     ),
                 },
@@ -8245,14 +8251,52 @@ pub(crate) fn parse_extend_type_form(
     // is unchanged, `protocol_type_args` is empty (the monomorphic no-op path).
     // Parse failure (should not happen for a well-formed keyword) falls back to the raw
     // keyword verbatim — preserves the prior behavior rather than fabricating a split.
-    let (protocol_name, protocol_type_args) =
-        match crate::types::parse_type_expr(&protocol_name_raw) {
-            Ok(crate::types::TypeExpr::Parametric { head, args }) => {
-                (crate::types::parametric_head_fqdn(&head), args)
-            }
-            Ok(crate::types::TypeExpr::Path(p)) => (p, Vec::new()),
-            _ => (protocol_name_raw.clone(), Vec::new()),
-        };
+    //
+    // Arc 109 identity 2c remainder — the SATISFIED-SURFACE slot also accepts the `:-` FORM.
+    // Both routes (Keyword string via `parse_type_expr`, List via `parse_type_node`) converge
+    // on the SAME `TypeExpr`, then the SAME match below splits it — one splitter, two doors in,
+    // so a List input keeps its `protocol_type_args` (no base-fqdn drop: `register_extend_type_
+    // surface_impls`'s `surface_type_subst` needs the real args to substitute the surface's own
+    // `<T>` in each impl's inherited signature).
+    // `protocol_name_raw` is only meaningful for the Keyword arm's own fallback (a keyword that
+    // fails to re-parse as a type expr — should not happen for well-formed input — falls back to
+    // itself verbatim, preserving the prior behavior rather than fabricating a split). The List
+    // arm has no analogous "raw string": a malformed List already errored out above via `?`.
+    let (protocol_te, protocol_name_raw) = match &items[2] {
+        WatAST::Keyword(k, _) => (crate::types::parse_type_expr(k).ok(), k.clone()),
+        node @ WatAST::List(_, _) => {
+            let te = crate::types::parse_type_node(node).map_err(|e| {
+                RuntimeError::new(
+                    node.span().clone(),
+                    RuntimeErrorKind::MalformedForm {
+                        head: HEAD.into(),
+                        reason: format!("extend-type second arg type form: {e}"),
+                    },
+                )
+            })?;
+            let raw = crate::check::format_type(&te);
+            (Some(te), raw)
+        }
+        other => {
+            return Err(RuntimeError::new(
+                other.span().clone(),
+                RuntimeErrorKind::MalformedForm {
+                    head: HEAD.into(),
+                    reason: format!(
+                        "extend-type second arg must be a keyword or type-form protocol name; got {}",
+                        other.variant_name()
+                    ),
+                },
+            ))
+        }
+    };
+    let (protocol_name, protocol_type_args) = match protocol_te {
+        Some(crate::types::TypeExpr::Parametric { head, args }) => {
+            (crate::types::parametric_head_fqdn(&head), args)
+        }
+        Some(crate::types::TypeExpr::Path(p)) => (p, Vec::new()),
+        _ => (protocol_name_raw, Vec::new()),
+    };
 
     let mut impl_clauses: std::collections::HashMap<String, crate::value::Clause> =
         std::collections::HashMap::new();

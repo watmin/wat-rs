@@ -949,8 +949,10 @@
                               (:wat::core::i64::- (:wat::core::string::length fqdn-tp) 1))
                             ",wat::kernel::Wire>")
                           "<wat::kernel::Wire>")
-     handle-bare-name (:wat::core::keyword/from-string
-                        (:wat::core::string::interpolate "{b}::Handle{p}" :b fqdn-base :p fqdn-tp))
+     handle-bare-name (:wat::core::keyword/to-type-form-colon
+                        (:wat::core::keyword-node
+                          (:wat::core::string::concat ":"
+                            (:wat::core::string::interpolate "{b}::Handle{p}" :b fqdn-base :p fqdn-tp))))
      handle-name-decl (:wat::core::keyword/from-string
                      (:wat::core::string::interpolate "{b}::Handle{s}" :b fqdn-base :s handle-t-suffix))
      ;; identity 2c: handle-name split by role — DECL-NAME (Handle defstruct's own name slot,
@@ -2891,9 +2893,11 @@
      ;; Reply> — so a wrong-service dial is a compile-time discrimination error. Mirrors
      ;; the hand-proven extend-type in scratchpad/probe-c2-typed-coordinate.wat. proto-str
      ;; (not fqdn-str) matches addr-ty's own Op/Reply namespace (arc 293 S2, line ~472).
-     dialable-ty (:wat::core::keyword/from-string
-                   (:wat::core::string::interpolate "wat::capability::Dialable<{o},{r}>"
-                     :o proto-op-ty-str :r proto-reply-ty-str))
+     dialable-ty (:wat::core::keyword/to-type-form-colon
+                   (:wat::core::keyword-node
+                     (:wat::core::string::concat ":"
+                       (:wat::core::string::interpolate "wat::capability::Dialable<{o},{r}>"
+                         :o proto-op-ty-str :r proto-reply-ty-str))))
      dialable-extend `(:wat::core::extend-type ~handle-bare-name ~dialable-ty
                          (coord [~grantable-self-sym] (~handle-addr-name ~grantable-self-sym)))
 
@@ -2905,9 +2909,11 @@
      ;; Capability+Dialable bodies above via that flat key. Mirrors dialable-ty's Op/Reply
      ;; wiring exactly (proto-str namespace, not fqdn-str — same reasoning as line ~1192).
      ;; Shape proven scratchpad/probe-v-bodiless.wat / probe-v-swap.wat / probe-v-run.wat.
-     typedcap-ty (:wat::core::keyword/from-string
-                   (:wat::core::string::interpolate "wat::capability::TypedCapability<{o},{r}>"
-                     :o proto-op-ty-str :r proto-reply-ty-str))
+     typedcap-ty (:wat::core::keyword/to-type-form-colon
+                   (:wat::core::keyword-node
+                     (:wat::core::string::concat ":"
+                       (:wat::core::string::interpolate "wat::capability::TypedCapability<{o},{r}>"
+                         :o proto-op-ty-str :r proto-reply-ty-str))))
      typedcap-extend `(:wat::core::extend-type ~handle-bare-name ~typedcap-ty)]
 
     ;; Assemble the final `do`:
