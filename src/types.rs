@@ -471,6 +471,17 @@ impl TypeDef {
 #[derive(Debug, Default, Clone)]
 pub struct TypeEnv {
     types: HashMap<String, TypeDef>,
+    /// Stone 255-builtin-registry — names that have MEMBERSHIP but no STRUCTURE: primitives
+    /// (`:wat::core::i64`), built-in parametric container heads (`:wat::core::Vector`), and
+    /// opaque capability/handle types (`:wat::kernel::Peer`, `:rust::crossbeam_channel::Sender`)
+    /// — Rust structs exposed to wat with no `TypeDef` to hold, so registering them as an
+    /// `Aggregate`/`Alias`/etc. would fabricate a structure that does not exist (rejected
+    /// options A/B in `docs/arc/2026/06/255-builtin-registry/DESIGN-STONE-*`).
+    /// `contains` consults both `types` and this set; `get` deliberately does NOT — a builtin
+    /// leaf has membership, not structure, and `TypeEnv::get` must keep answering `None` for
+    /// these names so that asymmetry stays a queryable fact of the door rather than a
+    /// fabricated `TypeDef`. Populated once, in `register_builtin_types`.
+    builtin_names: std::collections::HashSet<String>,
     /// Stone S-A — the `typesub` child→parent edge registry.
     /// Maps a child FQDN (e.g. `":wat::holon::Record"`) to the list of its direct
     /// parent FQDNs (e.g. `[":wat::core::Record"]`). Populated by `register_subtype`;
@@ -519,12 +530,40 @@ impl TypeEnv {
         env
     }
 
+    /// Answers MEMBERSHIP: is `name` a real type name, structured or not?
+    /// Consults both stores — `types` (has a `TypeDef`) and `builtin_names`
+    /// (membership without structure; see the field doc). `get` intentionally
+    /// does NOT gain the same `||`: a builtin leaf's whole point is that it
+    /// has no structure to return.
     pub fn contains(&self, name: &str) -> bool {
-        self.types.contains_key(name)
+        self.types.contains_key(name) || self.builtin_names.contains(name)
     }
 
+    /// Answers STRUCTURE. Deliberately unchanged by the builtin-leaf population
+    /// (stone 255-builtin-registry) — a primitive/container/opaque type has
+    /// membership (`contains` → true) but no `TypeDef` to return, so this stays
+    /// `None` for those names. See `builtin_names`'s field doc.
     pub fn get(&self, name: &str) -> Option<&TypeDef> {
         self.types.get(name)
+    }
+
+    /// Register a name that has membership but no structure — a primitive, a
+    /// built-in parametric container head, or an opaque capability/handle type.
+    /// Stone 255-builtin-registry, storage option C (see the DESIGN's
+    /// CORRECTION): the door (`contains`) learns the name; `get` stays `None`
+    /// for it. Not `pub`: only `register_builtin_types` seeds these, mirroring
+    /// `register_builtin`'s privilege.
+    fn register_builtin_leaf(&mut self, name: impl Into<String>) {
+        let name = name.into();
+        debug_assert!(
+            !self.types.contains_key(&name),
+            "builtin leaf {name} already registered as a structured TypeDef"
+        );
+        debug_assert!(
+            !self.builtin_names.contains(&name),
+            "builtin leaf {name} registered twice"
+        );
+        self.builtin_names.insert(name);
     }
 
     /// Arc 170 — the retained ORIGINAL source decl form for user type `name`,
@@ -2578,6 +2617,113 @@ fn register_builtin_types(env: &mut TypeEnv) {
             fields,
             restrictions: None,
         }));
+    }
+
+    // ── Stone 255-builtin-registry — names with MEMBERSHIP but no STRUCTURE ──
+    //
+    // `TypeEnv::contains` (through `SymbolTable::registrations`, THE DOOR at
+    // `src/value/symbol_table.rs:244`) has never answered for the scalar
+    // primitives, the built-in parametric container heads, or the opaque
+    // capability/handle types — only for the 36 aggregate error/outcome
+    // records registered above. This is the door's `Type` facet becoming
+    // honest for the rest of its own population. Storage is option C (see
+    // the DESIGN's CORRECTION): `register_builtin_leaf` adds the name to
+    // `builtin_names` only — `get` stays `None`, because a primitive/opaque
+    // genuinely has no `TypeDef` to fabricate one for.
+
+    // Groups 1 & 2 — DERIVED from the checker's own consts, never
+    // transcribed, so the registry cannot drift from `check.rs`'s source of
+    // truth. `BARE_CONTAINER_HEADS`'s FQDN column carries NO leading colon
+    // (it follows `TypeExpr::Parametric.head`'s convention) — add one back
+    // so every registered name is colon-prefixed like the rest of the
+    // registry (EXPECTATIONS' named trap-door: a naive iteration registers
+    // `wat::core::Vector` and row 2 half-passes on the container).
+    for (_bare, fqdn) in crate::check::BARE_PRIMITIVES {
+        env.register_builtin_leaf(*fqdn);
+    }
+    for (_bare, fqdn) in crate::check::BARE_CONTAINER_HEADS {
+        env.register_builtin_leaf(format!(":{fqdn}"));
+    }
+
+    // Group 3 — opaque capability/handle types and scalar/AST-leaf sentinels
+    // with no const to derive from: Rust structs (or Rust-checker literals)
+    // exposed to wat with no `TypeDef`, a token rather than a structure.
+    // Evidence for this list originates from a rider's convergence on branch
+    // `arc109-type-refs-parked` (`src/resolve/type_refs.rs`'s
+    // `known_builtin_leaf_types`), but every name below was RE-VERIFIED
+    // against this tree's own corpus (`grep -rn <name> --include=*.wat .`,
+    // excluding `target/`) before being registered — each citation is one
+    // real occurrence, not the full count. `:wat::core::Never` is the one
+    // name from that evidence list that did NOT clear this bar (see the
+    // rider's report) and is deliberately NOT registered here.
+    for name in [
+        // scalars — check.rs::infer literal construction (RationalLit,
+        // BigIntLit, keyword); e.g. `wat/core.wat:90` `[x <- :wat::core::bigint] ->
+        // :wat::core::bigint`, `wat/core.wat:118` (`rational`),
+        // `wat-scripts/scratch-pad/probe-timer-as-peer.wat:44` `-> :wat::core::keyword`.
+        ":wat::core::bigint",
+        ":wat::core::rational",
+        ":wat::core::keyword",
+        // AST leaves — `wat-tests/holon/Reject.wat:31` (`HolonAST` param+return),
+        // `wat-migrate/fix-decl.wat:27` `[kw <- :wat::WatAST] -> :wat::WatAST`.
+        ":wat::holon::HolonAST",
+        ":wat::WatAST",
+        // sentinels — `:wat::core::Value` is the universal top, genuinely used
+        // as a declared type: `tests/types/probe_arc278_value_universal_top_widen.wat:4`
+        // `(:wat::core::defrecord :my::Box [slot <- :wat::core::Value])`,
+        // `tests/collection/probe_map_container.wat:68` `-> (:wat::core::Option :wat::core::Value)`.
+        // `:wat::core::Never` is EXCLUDED — see the header note above.
+        ":wat::core::Value",
+        // container — no bare-legacy pairing to derive from; `wat/seq.wat:240`
+        // `coll <- :wat::core::List<T>`, `wat-scripts/scratch-pad/probe-seqable-to-stream-native-check.wat:17`
+        // `-> :wat::core::List<wat::core::i64>`.
+        ":wat::core::List",
+        // opaques — `wat/telemetry.wat:77` `uuid <- :wat::core::Uuid`;
+        // `wat/cache.wat:273` `[hologram <- :wat::holon::Hologram`;
+        // `tests/collection/vector_first_class.wat:19` `vec <- :wat::holon::Vector`
+        // (the algebra Vector, distinct from the container `:wat::core::Vector`
+        // derived from `BARE_CONTAINER_HEADS` above);
+        // `tests/rete/probe_arc278_6a_purity.wat:10` `-> :wat::io::IOReader`;
+        // `tests/program/wat_arc170_program_contracts_t1_legacy_3arg.wat:4`
+        // `stdout <- :wat::io::IOWriter`.
+        ":wat::core::Uuid",
+        ":wat::holon::Hologram",
+        ":wat::holon::Vector",
+        ":wat::io::IOReader",
+        ":wat::io::IOWriter",
+        // kernel opaques — `tests/kernel/probe_arc278_close_outcome_wall.wat:19`
+        // `-> :wat::kernel::Process<wat::core::i64,wat::core::i64>`;
+        // `wat-tests/test.wat:77` `self <- :wat::kernel::ThreadSelfPeer<...>`
+        // (also covers `Thread`, the family it self-identifies as);
+        // `wat-tests/service-parametric-messages.wat:116`
+        // `a <- :wat::kernel::Address<...>`;
+        // `wat-scripts/scratch-pad/probe-timer-as-peer.wat:28`
+        // `l <- :wat::kernel::Listener<wat::core::keyword,wat::core::nil>`;
+        // `wat-tests/service-parametric-messages.wat:117`
+        // `-> :wat::kernel::Peer<...>`.
+        ":wat::kernel::Process",
+        ":wat::kernel::Thread",
+        ":wat::kernel::Address",
+        ":wat::kernel::Listener",
+        ":wat::kernel::Peer",
+        ":wat::kernel::ThreadSelfPeer",
+        // stream — `wat-scripts/scratch-pad/probe-118B2-one-clause-lazy-producer.wat:34`
+        // `-> :wat::stream::Stream<U>`.
+        ":wat::stream::Stream",
+        // time — `wat/service.wat:56` `after <- :wat::time::Duration` (field
+        // type in the stdlib itself, not just a probe);
+        // `wat-scripts/scratch-pad/probe-derive-chain-split.wat:98`
+        // `t0 <- :wat::time::Instant`.
+        ":wat::time::Duration",
+        ":wat::time::Instant",
+        // rust-backed — the RHS of `:wat::kernel::Sender<T>` /
+        // `:wat::kernel::Receiver<T>`'s own typealiases in the stdlib:
+        // `wat/kernel/channel.wat:43` `:rust::crossbeam_channel::Sender<T>)`,
+        // `wat/kernel/channel.wat:46` `:rust::crossbeam_channel::Receiver<T>)`.
+        ":rust::crossbeam_channel::Sender",
+        ":rust::crossbeam_channel::Receiver",
+    ] {
+        env.register_builtin_leaf(name);
     }
 }
 
@@ -6593,6 +6739,167 @@ mod tests {
         assert!(
             matches!(env.get(":t::Ok1::Reply"), Some(TypeDef::Enum(_))),
             "the synthesized `::Reply` protocol enum must exist"
+        );
+    }
+
+    // ── Stone 255-builtin-registry — the door tells the truth for builtin leaves ──
+
+    /// Acceptance row 1★ — THE DOOR (`SymbolTable::registrations`), not the new
+    /// `TypeEnv` field. Testing `TypeEnv::contains` directly would prove only
+    /// that the store works, not that the door — the entire point of the
+    /// ruling — sees it.
+    #[test]
+    fn stone_255b_row1_door_answers_type_for_bare_primitive() {
+        let mut sym = crate::value::SymbolTable::new();
+        sym.set_types(std::sync::Arc::new(TypeEnv::with_builtins()));
+        let regs = sym.registrations(":wat::core::i64");
+        assert!(
+            regs.contains(crate::value::symbol_table::RegistryKind::Type),
+            "registrations(\":wat::core::i64\") = {regs:?}, expected it to contain Type"
+        );
+    }
+
+    /// Acceptance row 2 — a container (derived from `BARE_CONTAINER_HEADS`), an
+    /// opaque capability type, and a rust-backed type, all through THE DOOR.
+    #[test]
+    fn stone_255b_row2_door_answers_type_for_container_opaque_and_rust_backed() {
+        let mut sym = crate::value::SymbolTable::new();
+        sym.set_types(std::sync::Arc::new(TypeEnv::with_builtins()));
+        for name in [
+            ":wat::core::Vector",
+            ":wat::kernel::Peer",
+            ":rust::crossbeam_channel::Sender",
+        ] {
+            let regs = sym.registrations(name);
+            assert!(
+                regs.contains(crate::value::symbol_table::RegistryKind::Type),
+                "registrations({name:?}) = {regs:?}, expected it to contain Type"
+            );
+        }
+    }
+
+    /// Acceptance row 3★★ — the NEGATIVE control. This is the only row that can
+    /// distinguish a genuinely populated registry from a `contains` that says
+    /// yes to everything: rows 1, 2 and 5 are all positives.
+    #[test]
+    fn stone_255b_row3_negative_control_unknown_name_is_unregistered() {
+        let mut sym = crate::value::SymbolTable::new();
+        sym.set_types(std::sync::Arc::new(TypeEnv::with_builtins()));
+        let regs = sym.registrations(":user::NoSuchType");
+        assert!(
+            regs.is_empty(),
+            "registrations(\":user::NoSuchType\") = {regs:?}, expected empty — \
+             a non-empty result here means `contains` answers yes unconditionally"
+        );
+    }
+
+    /// Acceptance row 4★ — membership WITHOUT structure, asserted as a test
+    /// rather than left as a comment. This is also the guard against a future
+    /// "fix" that makes `get` fabricate a `TypeDef` for a builtin leaf — doing
+    /// so would be building option A (a new `TypeDef` variant) by accident,
+    /// which was rejected in the DESIGN.
+    #[test]
+    fn stone_255b_row4_get_stays_none_for_builtin_leaf() {
+        let mut sym = crate::value::SymbolTable::new();
+        sym.set_types(std::sync::Arc::new(TypeEnv::with_builtins()));
+        // Membership, asked through THE DOOR — the same way row 1 asks it, and the
+        // way the ruling says every consumer should. (It also keeps `contains` with a
+        // string-literal argument out of an `assert!`, which `no_loose_string_assert`
+        // cannot distinguish from `String::contains` — see the lint finding in this
+        // stone's SCORE.)
+        let regs = sym.registrations(":wat::core::i64");
+        assert!(
+            regs.contains(crate::value::symbol_table::RegistryKind::Type),
+            "membership must exist first; registrations = {regs:?}"
+        );
+        // …and STRUCTURE is still absent. This is the asymmetry the stone exists to
+        // make queryable, asserted rather than merely commented.
+        let env = TypeEnv::with_builtins();
+        assert_eq!(
+            env.get(":wat::core::i64"),
+            None,
+            "get must stay None — a builtin leaf has membership, not structure"
+        );
+    }
+
+    /// Acceptance row 5 — the DERIVED gate. Reads `BARE_PRIMITIVES` and
+    /// `BARE_CONTAINER_HEADS` directly (never a transcribed copy), so this test
+    /// cannot drift from `check.rs`'s own source of truth: any future addition
+    /// to either const is automatically covered.
+    #[test]
+    fn stone_255b_row5_every_bare_primitive_and_container_head_is_registered() {
+        let env = TypeEnv::with_builtins();
+        for (bare, fqdn) in crate::check::BARE_PRIMITIVES {
+            assert!(
+                env.contains(fqdn),
+                "BARE_PRIMITIVES entry {bare:?} -> {fqdn:?} must be contains-true"
+            );
+        }
+        for (bare, fqdn) in crate::check::BARE_CONTAINER_HEADS {
+            // BARE_CONTAINER_HEADS's FQDN column carries NO leading colon —
+            // TypeExpr::Parametric.head's convention, not the registry's.
+            let colon_fqdn = format!(":{fqdn}");
+            assert!(
+                env.contains(&colon_fqdn),
+                "BARE_CONTAINER_HEADS entry {bare:?} -> {fqdn:?} must be contains-true as {colon_fqdn:?}"
+            );
+        }
+    }
+
+    /// Every group-3 name this stone registers must answer `contains`-true and
+    /// `get`-None — the asymmetry holds uniformly, not just for the row-1/row-4
+    /// examples above. `:wat::core::Never` is deliberately absent from this
+    /// list (STOP-2: no genuine corpus type-position usage found).
+    #[test]
+    fn stone_255b_group3_opaques_are_membership_without_structure() {
+        let env = TypeEnv::with_builtins();
+        for name in [
+            ":wat::core::bigint",
+            ":wat::core::rational",
+            ":wat::core::keyword",
+            ":wat::holon::HolonAST",
+            ":wat::WatAST",
+            ":wat::core::Value",
+            ":wat::core::List",
+            ":wat::core::Uuid",
+            ":wat::holon::Hologram",
+            ":wat::holon::Vector",
+            ":wat::io::IOReader",
+            ":wat::io::IOWriter",
+            ":wat::kernel::Process",
+            ":wat::kernel::Thread",
+            ":wat::kernel::Address",
+            ":wat::kernel::Listener",
+            ":wat::kernel::Peer",
+            ":wat::kernel::ThreadSelfPeer",
+            ":wat::stream::Stream",
+            ":wat::time::Duration",
+            ":wat::time::Instant",
+            ":rust::crossbeam_channel::Sender",
+            ":rust::crossbeam_channel::Receiver",
+        ] {
+            assert!(env.contains(name), "{name:?} must be contains-true");
+            assert_eq!(env.get(name), None, "{name:?} must be get-None (membership, not structure)");
+        }
+    }
+
+    /// STOP-2 documented as a test: `:wat::core::Never` was evaluated against
+    /// the same corpus bar as every other group-3 name and did not clear it
+    /// (its only non-comment `.wat`-adjacent mention is a Rust-internal
+    /// synthesized `TypeExpr::Path`, never a user-written type position) — so
+    /// it is NOT registered, and this asserts that absence stays deliberate
+    /// rather than silently drifting true on a future, unrelated change.
+    #[test]
+    fn stone_255b_never_is_deliberately_unregistered() {
+        let mut sym = crate::value::SymbolTable::new();
+        sym.set_types(std::sync::Arc::new(TypeEnv::with_builtins()));
+        let regs = sym.registrations(":wat::core::Never");
+        assert!(
+            regs.is_empty(),
+            "`:wat::core::Never` was refused registration (STOP-2, no corpus \
+             type-position citation) — registrations = {regs:?}. If this is no longer \
+             empty someone registered it; update this test deliberately, don't let it \
+             happen by drift"
         );
     }
 }
