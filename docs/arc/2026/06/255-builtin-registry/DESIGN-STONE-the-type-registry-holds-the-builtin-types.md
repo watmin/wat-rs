@@ -1,6 +1,6 @@
 # DESIGN — the type registry holds the BUILTIN types
 
-**Status: RULED 2026-08-22 — option E (builder tiebreak: narrow waists). Written against `8cc8c9a30`; C and D were proposed and are REJECTED below — the waist already existed.**
+**Status: RULED 2026-08-22 — E (consumption: the existing door) implemented by C (storage). Builder tiebreak: narrow waists. See the CORRECTION at the end — E alone was not implementable.**
 checker."* The representation question below is the one thing still open.**
 
 Arc 255's thesis is ONE resolution path. This stone is the half 255's own DESIGN does not cover.
@@ -213,3 +213,46 @@ W1's capability keys, reflection, the undefined-func class. None of them learns 
 ★ The whole cost of the missing feature was thirty unregistered names, and it produced a hand-list, a
 false DESIGN premise, a rejected second resolution path, and a wall that could not be built. **The
 waist was right; the data behind one of its facets was empty.**
+
+---
+
+## ⛔ CORRECTION, same session — E CONFLATED TWO AXES. C IS NOT DEAD; IT IS THE MECHANISM UNDER E.
+
+Writing the brief exposed an error in how I presented the ruling. `TypeEnv`'s store is
+
+```rust
+types: HashMap<String, TypeDef>,
+```
+
+**A name cannot be registered without a `TypeDef` value.** So "populate `TypeEnv`" is not, by itself,
+an implementable instruction — it still has to answer *what is stored for `:wat::core::i64`*, which
+is the very question A/B/C were about. E did not dissolve that question; it answered a different one.
+
+The two axes, separated:
+
+| axis | question | status |
+|---|---|---|
+| **consumption** | which door do consumers ask? | **SETTLED by the waist tiebreak** — `SymbolTable::registrations` → `TypeEnv::contains`. **D is dead**: a rival `classify()` beside THE DOOR is a second waist. |
+| **storage** | what does `TypeEnv` hold for a name with no structure? | **still open — A vs B vs C**, and the waist argument does not reach it. |
+
+**What the tiebreak actually killed was D, and it killed it correctly.** C was never a rival door; C
+is a storage choice *behind* the same door, and it survives:
+
+- **A — a `TypeDef::Builtin` variant.** One store, but 311 `TypeDef::` sites, most of which gain an
+  arm about primitives they do not care about. Fails Simple and UX, unchanged.
+- **B — `Nature::Primitive` + zero-field Aggregate.** Still says `i64` is an aggregate. Fails
+  Obvious and Honest, unchanged.
+- **C — `TypeEnv` grows a second store of names-without-structure; `contains` consults both; `get`
+  still returns `None`.** Four-for-four, and now also the narrow-waist answer *at its own layer*:
+  `TypeEnv`'s interface (`contains` / `get`) is unchanged, so nothing above it — including THE DOOR —
+  learns anything new. The storage widens; the waist does not.
+
+**Ruling stands as E, implemented by C.** The honest statement of the stone is therefore: *the answer
+comes from the door that already exists; `TypeEnv` grows the store that lets that door tell the truth
+about names that have membership but no structure.*
+
+★ The distinction is exactly the one `registrations`' own comment draws — membership ("what is
+registered under this name?") versus structure ("give me its definition"). A primitive genuinely has
+the first and not the second, and C is the only option that lets the registry SAY that rather than
+fabricate a structure to satisfy a map's value type. Measured: **zero** call sites do
+contains-then-unwrap-`get`, so the asymmetry breaks nothing today.
