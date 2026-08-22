@@ -1,0 +1,32 @@
+#wat.macro/ProgramBodyEvalFailed {
+  :message "macro :wat::service::defservice — program body eval failed"
+  :location #wat.core/Span {
+    :file "tests/services/probe_arc278_peers_bijection_case4_form_missing.wat"
+    :line 44
+    :col 1
+    :end #wat.core.Option/Some [
+      #wat.core/Pos {
+        :line 70
+        :col 51
+      }
+    ]
+  }
+  :causes []
+  :macro-name ":wat::service::defservice"
+  :cause #wat.macro/MalformedTemplate {
+    :message "malformed template: probe::caller: :peers declares surface :probe::Bogus but no :ephemeral field is typed :wat::kernel::Peer<probe::Bogus::Op,…::Reply> — add the dialed peer as a root :ephemeral field, or drop it from :peers"
+    :location #wat.core/Span {
+      :file "wat/service.wat"
+      :line 892
+      :col 27
+      :end #wat.core.Option/Some [
+        #wat.core/Pos {
+          :line 899
+          :col 134
+        }
+      ]
+    }
+    :causes []
+    :reason "probe::caller: :peers declares surface :probe::Bogus but no :ephemeral field is typed :wat::kernel::Peer<probe::Bogus::Op,…::Reply> — add the dialed peer as a root :ephemeral field, or drop it from :peers"
+  }
+}

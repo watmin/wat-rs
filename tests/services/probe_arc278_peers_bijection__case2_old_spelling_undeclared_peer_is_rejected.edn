@@ -1,0 +1,32 @@
+#wat.macro/ProgramBodyEvalFailed {
+  :message "macro :wat::service::defservice — program body eval failed"
+  :location #wat.core/Span {
+    :file "tests/services/probe_arc278_peers_bijection_case2_old_extra.wat"
+    :line 44
+    :col 1
+    :end #wat.core.Option/Some [
+      #wat.core/Pos {
+        :line 68
+        :col 51
+      }
+    ]
+  }
+  :causes []
+  :macro-name ":wat::service::defservice"
+  :cause #wat.macro/MalformedTemplate {
+    :message "malformed template: probe::caller: :ephemeral holds a dialed Peer<probe::Echo::Op,…::Reply> but surface :probe::Echo is not declared in :peers — add :peers [… :probe::Echo …] (the explicit s2s dependency DAG)"
+    :location #wat.core/Span {
+      :file "wat/service.wat"
+      :line 909
+      :col 27
+      :end #wat.core.Option/Some [
+        #wat.core/Pos {
+          :line 917
+          :col 119
+        }
+      ]
+    }
+    :causes []
+    :reason "probe::caller: :ephemeral holds a dialed Peer<probe::Echo::Op,…::Reply> but surface :probe::Echo is not declared in :peers — add :peers [… :probe::Echo …] (the explicit s2s dependency DAG)"
+  }
+}
