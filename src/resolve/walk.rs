@@ -268,14 +268,12 @@ pub(super) fn is_resolvable_call_head(head: &str, sym: &SymbolTable, macros: &Ma
     if is_reserved_prefix(head) {
         return true;
     }
-    // Arc 139 — strip turbofish `<T,...>` before sym.get. The
-    // substrate registers user defines under the canonical name
-    // (sans turbofish); call sites that use turbofish resolve to
-    // the same function. See `canonical_callable_name` in runtime.rs
-    // for the full rationale (symmetric registration vs lookup).
-    let canonical = crate::runtime::canonical_callable_name(head);
+    // Arc 109 STONE reap-the-angle-machinery — this used to strip turbofish `<T,...>`
+    // via `canonical_callable_name` before `sym.get`. Angle-bracket type params are
+    // unexpressible now (arc 109 "annihilate the angle bracket"), so `head` itself can
+    // never carry a suffix to strip; look it up directly.
     // A user-registered function.
-    if sym.get(canonical).is_some() {
+    if sym.get(head).is_some() {
         return true;
     }
     // Stone 241.9 — unit enum variants are stored in `sym.unit_variants`
@@ -286,7 +284,7 @@ pub(super) fn is_resolvable_call_head(head: &str, sym: &SymbolTable, macros: &Ma
     // `defn` bodies that use unit variant match arms fail resolve (the `defn`
     // form stays in `residue` and is walked by step 7, unlike `define` bodies
     // which are consumed by `register_defines`).
-    if sym.has_unit_variant(canonical) {
+    if sym.has_unit_variant(head) {
         return true;
     }
     // A macro call — shouldn't survive expansion, but accept for

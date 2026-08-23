@@ -377,8 +377,8 @@ pub(crate) fn build_env(user_forms: Vec<WatAST>) -> Result<EnvBundle, super::Sta
     })
 }
 
-/// Arc 278 #88 — step 3b's SCAN half: collect the canonical (`<T,…>`-stripped) name of every
-/// TOP-LEVEL `(:wat::rete::core::defn :name [args] -> :Ret body…)` declaration in `forms`, before
+/// Arc 278 #88 — step 3b's SCAN half: collect the name of every TOP-LEVEL
+/// `(:wat::rete::core::defn :name [args] -> :Ret body…)` declaration in `forms`, before
 /// macro expansion touches anything. Top-level only — every corpus site the design stone
 /// measured is a bare top-level declaration (mirrors the fixture and every `where`-callee in
 /// the corpus); a form nested inside a macro-emitted `do`/`let` is out of this slice's scope.
@@ -395,9 +395,10 @@ fn extract_rete_defn_names(forms: &[WatAST]) -> std::collections::HashSet<String
             continue;
         }
         if let Some(WatAST::Keyword(name_kw, _)) = items.get(1) {
-            if let Ok((name, _type_params)) = crate::runtime::split_name_and_type_params(name_kw) {
-                declared.insert(name);
-            }
+            // STONE reap-the-angle-machinery (arc 109) — `name_kw` used to be run through
+            // `split_name_and_type_params` to strip a `<T,...>` suffix. Angle syntax is
+            // unexpressible now, so the name can never carry one; insert it directly.
+            declared.insert(name_kw.clone());
         }
     }
     declared

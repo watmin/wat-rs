@@ -820,20 +820,27 @@ pub(crate) fn transport_satisfier_heads(head: &str) -> Vec<String> {
     ]
 }
 
-/// Extract a RENDERED type string's base — the head before any parametric suffix, in
-/// either surviving spelling: `(Head :- [args])` (STONE-defservice-emits-the-binder, this
-/// stone) or the legacy `Head<args>` [`split_type_params_pub`](crate::runtime::split_type_params_pub)
-/// already handles (still the live spelling for a NAME's own turbofish — the SCORE doc's
-/// "finding 1" follow-on, untouched here). `family_extends`'s own base-extraction, below,
-/// is the ONE consumer that compares against a `check::format_type`-rendered string rather
-/// than a literal declared name, so it is the one taught the new form.
+/// Extract a RENDERED type string's base — the head before any parametric suffix.
+/// `check::format_type` has one surviving parametric spelling, `(Head :- [args])`
+/// (STONE-defservice-emits-the-binder); a non-parenthesized `s` has no suffix to strip.
+/// `family_extends`'s own base-extraction, below, is the ONE consumer that compares against a
+/// `check::format_type`-rendered string rather than a literal declared name, so it is the one
+/// taught the new form.
+///
+/// STONE reap-the-angle-machinery (arc 109) — this used to fall back to
+/// `crate::runtime::split_type_params_pub` for the legacy `Head<args>` spelling.
+/// `format_type` never renders that spelling any more (every `TypeExpr` arm emits either the
+/// `(Head :- [args])` form caught by the branch below, or a plain `<`-free string), and every
+/// `family_extends` caller passes a `sup`/`sub` that is itself always `<`-free (a
+/// `TypeExpr::Path` or `parametric_head_fqdn` output) — so a non-parenthesized `s` here was
+/// already bare; the strip was a no-op.
 fn base_of_rendered_type(s: &str) -> &str {
     if let Some(rest) = s.strip_prefix('(') {
         if let Some(sp) = rest.find(' ') {
             return &rest[..sp];
         }
     }
-    crate::runtime::split_type_params_pub(s).0
+    s
 }
 
 /// Does `sub`'s FAMILY extend `sup`'s family — existence only, arguments ignored?

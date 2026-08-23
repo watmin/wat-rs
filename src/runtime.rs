@@ -1152,7 +1152,11 @@ pub(crate) fn register_extend_type_surface_impls(
     let dispatch_type_base: String = match &ed.type_te {
         Some(crate::types::TypeExpr::Parametric { head, .. }) => format!(":{head}"),
         Some(crate::types::TypeExpr::Path(p)) => p.clone(),
-        _ => canonical_callable_name(&ed.type_name).to_string(),
+        // STONE reap-the-angle-machinery (arc 109) — this fallback used to strip a
+        // turbofish suffix off `ed.type_name` via `canonical_callable_name`. Angle-bracket
+        // syntax is unexpressible now, so a non-Parametric/non-Path `type_te` never leaves
+        // a suffix on `type_name` to strip; use it directly.
+        _ => ed.type_name.clone(),
     };
     for (method_name, clause) in &ed.impl_clauses {
         let method_key = format!("{}/{}", dispatch_type_base, method_name);
@@ -3434,26 +3438,19 @@ fn try_parse_fn_shape_def(form: &WatAST) -> Result<Option<ParsedFnShapeDef>, Run
         _ => return Ok(None),
     }
     // First arg is the name keyword.
-    // Arc 139 — split off `<T,...>` type params from the name (mirrors
-    // `parse_define_signature`'s `split_name_and_type_params` call).
-    // The canonical name (without `<T,...>`) is the storage key;
-    // type_params are stored in the Function struct so the type checker
-    // can instantiate them for generic functions.
-    let (name, raw_type_params) = match &items[1] {
-        WatAST::Keyword(k, _) => match split_name_and_type_params(k) {
-            Ok(pair) => pair,
-            Err(_) => return Ok(None),
-        },
+    // STONE reap-the-angle-machinery (arc 109) — this used to split off a `<T,...>` name
+    // suffix via `split_name_and_type_params` (arc 139). That suffix is unexpressible now
+    // (verified directly: `(def :foo<T> ...)` is a LEXER error, before this parser ever
+    // runs), so `raw_type_params` is always empty here; type params for a generic `defn`
+    // come from the `:- [T ...]` binder peeled below instead.
+    let (name, raw_type_params): (String, Vec<String>) = match &items[1] {
+        WatAST::Keyword(k, _) => (k.clone(), Vec::new()),
         // Arc 300.1 — faithful-Clojure dual surface: a namespaced Symbol in
         // def-name position (`user/main`) is the keyword FQDN's twin. Convert
         // to `:user::main` so the def registers under the SAME key the harness
         // and resolver look up. Additive — the Keyword arm above is unchanged.
         WatAST::Symbol(s, _) if s.is_reference() => {
-            let kw = crate::edn_shim::ns_to_wat_path(s.receiver(), s.method());
-            match split_name_and_type_params(&kw) {
-                Ok(pair) => pair,
-                Err(_) => return Ok(None),
-            }
+            (crate::edn_shim::ns_to_wat_path(s.receiver(), s.method()), Vec::new())
         }
         _ => return Ok(None),
     };
@@ -3625,11 +3622,11 @@ fn try_parse_variadic_def_fn_form(form: &WatAST) -> Option<(String, Arc<Function
         _ => return None,
     }
     // items[1] is the name keyword.
-    let (name, raw_type_params) = match &items[1] {
-        WatAST::Keyword(k, _) => match split_name_and_type_params(k) {
-            Ok(pair) => pair,
-            Err(_) => return None,
-        },
+    // STONE reap-the-angle-machinery (arc 109) — a `<T,...>` name suffix is unexpressible
+    // now, so the `split_name_and_type_params` strip this used to do is a no-op; use the
+    // keyword directly (empty type params, same as before every call this stdlib path saw).
+    let (name, raw_type_params): (String, Vec<String>) = match &items[1] {
+        WatAST::Keyword(k, _) => (k.clone(), Vec::new()),
         _ => return None,
     };
     // items[2] must be a `(:wat::core::fn ARGS-VECTOR -> :RET body...)` list.
@@ -3745,20 +3742,16 @@ fn try_parse_user_variadic_def_fn_form(
         _ => return Ok(None),
     }
     // items[1] is the name keyword.
-    let (name, raw_type_params) = match &items[1] {
-        WatAST::Keyword(k, _) => match split_name_and_type_params(k) {
-            Ok(pair) => pair,
-            Err(_) => return Ok(None),
-        },
+    // STONE reap-the-angle-machinery (arc 109) — this used to strip a `<T,...>` name
+    // suffix via `split_name_and_type_params`; unexpressible now, so it's a no-op — use
+    // the keyword directly (empty type params).
+    let (name, raw_type_params): (String, Vec<String>) = match &items[1] {
+        WatAST::Keyword(k, _) => (k.clone(), Vec::new()),
         // Arc 300.1 — faithful-Clojure dual surface (variadic twin of Site B):
         // a namespaced Symbol def-name (`my/fold`) → keyword FQDN so faithful
         // VARIADIC defs register too. Additive — Keyword arm above unchanged.
         WatAST::Symbol(s, _) if s.is_reference() => {
-            let kw = crate::edn_shim::ns_to_wat_path(s.receiver(), s.method());
-            match split_name_and_type_params(&kw) {
-                Ok(pair) => pair,
-                Err(_) => return Ok(None),
-            }
+            (crate::edn_shim::ns_to_wat_path(s.receiver(), s.method()), Vec::new())
         }
         _ => return Ok(None),
     };
@@ -4224,28 +4217,6 @@ fn parse_type_slot(ast: &WatAST) -> Result<crate::types::TypeExpr, EvalBreak> {
     }
 }
 
-/// Arc 139 — strip a turbofish-style `<T,U,...>` suffix from a
-/// callable's keyword path, returning the canonical registration
-/// name. Mirrors the symmetric strip that `parse_define_form` does
-/// at registration time via [`split_name_and_type_params`]. A
-/// keyword without a balanced `<...>` suffix returns the input
-/// unchanged.
-///
-/// Used by every site that looks up a user-defined function by
-/// keyword head: runtime dispatch (`eval_call`), resolve pass
-/// (`is_resolvable_call_head`), type checker (`infer_list`'s scheme
-/// lookup). Without symmetric strip-at-lookup, generic call sites
-/// like `(:my::helper<wat::core::i64> arg)` fail registration-name
-/// lookup even though the canonical `:my::helper` IS registered —
-/// asymmetric registration vs lookup; arc 139.
-///
-/// **Balanced-suffix rule**: only strip when the keyword ends in
-/// `>` AND contains a `<`. Comparison operators like
-/// `:wat::core::<` end with `<` (no closing `>`); they are NOT
-/// turbofish suffixes and must NOT be stripped. Substrate
-/// convention is `<T1,T2,...>` only as a balanced suffix after the
-/// identifier; the lexer admits both forms (depth tracking permits
-/// trailing unmatched `<`).
 /// Arc 109 — the lexer's type-head predicate, applied to a MINTED name.
 ///
 /// `<` opens a type head only when preceded by an identifier character (`Vector<`,
@@ -4276,16 +4247,6 @@ pub(crate) fn angle_minted_name_reason(name: &str) -> String {
     )
 }
 
-pub fn canonical_callable_name(kw: &str) -> &str {
-    if !kw.ends_with('>') {
-        return kw;
-    }
-    match kw.find('<') {
-        Some(i) => &kw[..i],
-        None => kw,
-    }
-}
-
 /// Arc 109 ③ — shape test for a runtime type-keyword ARG whose content this call site never
 /// actually consumes (`self-peer`, `listener'`'s socket-pair args): historically `WatAST::
 /// Keyword(_, _)` only, since a parametric arg always arrived as one angle-bracket keyword.
@@ -4294,38 +4255,6 @@ pub fn canonical_callable_name(kw: &str) -> &str {
 /// additive only (a bare Keyword still passes exactly as before).
 pub(crate) fn is_type_arg_shaped(a: &WatAST) -> bool {
     matches!(a, WatAST::Keyword(_, _) | WatAST::List(_, _))
-}
-
-/// Split a keyword like `:ns/foo<T,U>` into (`":ns/foo"`, `vec!["T","U"]`).
-/// A keyword with no `<` returns `(kw.to_string(), vec![])`.
-///
-/// `pub(crate)` (arc 278 #88) — `freeze/env.rs`'s pre-macro-expansion rete-defn name scan
-/// needs the SAME canonical-name derivation this fn already is, rather than a second spelling.
-pub(crate) fn split_name_and_type_params(kw: &str) -> Result<(String, Vec<String>), EvalBreak> {
-    let lt_index = match kw.find('<') {
-        Some(i) => i,
-        None => return Ok((kw.to_string(), Vec::new())),
-    };
-    if !kw.ends_with('>') {
-        // arc 138: no span — kw is a `&str` lifted from the keyword payload.
-        // Stone 241.16 — error head updated from `:wat::core::define` to `:wat::core::defn`.
-        return Err(RuntimeError::new(
-            crate::rust_caller_span!(),
-            RuntimeErrorKind::MalformedForm {
-                head: ":wat::core::defn".into(),
-                reason: format!("name keyword {:?} opens '<' but does not close '>'", kw),
-            },
-        )
-        .into());
-    }
-    let head = kw[..lt_index].to_string();
-    let inside = &kw[lt_index + 1..kw.len() - 1];
-    let params: Vec<String> = inside
-        .split(',')
-        .map(|s| s.trim().to_string())
-        .filter(|s| !s.is_empty())
-        .collect();
-    Ok((head, params))
 }
 
 /// Stone 251.7 — THE VAR TEST, extracted so every consumer asks it the same way.
@@ -7088,10 +7017,14 @@ fn dispatch_keyword_head_value(
 
             if other.contains('/') {
                 let protocol_fqdn = wat_reader::identifier::receiver(other);
-                let method_name_raw = wat_reader::identifier::method(other);
-                // Stone 6b-DEP — strip explicit type-args suffix `<T1,T2>` from the call-head
-                // so the member lookup uses the bare method name.  e.g. `mk<i64,i64>` → bare `mk`.
-                let (method_name, _explicit_suffix) = split_type_params(method_name_raw);
+                // STONE reap-the-angle-machinery (arc 109) — Stone 6b-DEP used to strip an
+                // explicit type-args suffix `<T1,T2>` off the call-head's method name here
+                // (`mk<i64,i64>` → bare `mk`). That embedded-in-the-call-head spelling is
+                // unexpressible now (a keyword containing `<` is a LEXER error, verified
+                // directly), and explicit type args travel as the separate `:- [T…]` marker
+                // peeled by `peel_param_spec` just above — so `method_name_raw` can never
+                // carry a suffix; use it directly.
+                let method_name = wat_reader::identifier::method(other);
 
                 // Arc 293.4b — surface-method dispatch.
                 // Arc 293.4c — also handles foreign types taught via `extend-type` (monkeypatch).
@@ -7429,8 +7362,12 @@ fn dispatch_keyword_head_value(
                             // Look up `:<T>/<method>` as a plain function in sym.functions.
                             // Arc 293.4c: extend-type on a surface also registers under this key,
                             // so both user-defn and extend-provided methods are found here.
+                            // STONE reap-the-angle-machinery (arc 109) — `method_key` used to be
+                            // stripped via `canonical_callable_name`; angle syntax is unexpressible
+                            // now, so neither `concrete_type_fqdn` nor `method_name` can carry a
+                            // suffix to strip — look it up directly.
                             let method_key = format!("{}/{}", concrete_type_fqdn, method_name);
-                            let func = match sym.get(canonical_callable_name(&method_key)) {
+                            let func = match sym.get(&method_key) {
                                 Some(f) => f.clone(),
                                 None => {
                                     return Err(RuntimeError::new(
@@ -7466,13 +7403,11 @@ fn dispatch_keyword_head_value(
             // the surface-method dispatch block above it does; neither extracts a
             // second time.
 
-            // Arc 139 — strip `<T,...>` from the head before lookup.
-            // The substrate registers user defines under the canonical
-            // name (sans turbofish); call sites that use turbofish
-            // resolve to the same function. Symmetric registration
-            // vs lookup.
-            let canonical = canonical_callable_name(other);
-            let func = match sym.get(canonical) {
+            // STONE reap-the-angle-machinery (arc 109) — this used to strip `<T,...>`
+            // turbofish from the head via `canonical_callable_name` before lookup. Angle
+            // syntax is unexpressible now, so `other` can never carry a suffix; look it up
+            // directly (`def_value(other)` just below already does, unstripped).
+            let func = match sym.get(other) {
                 Some(f) => f.clone(),
                 None => {
                     // Arc 157 — before the UnknownFunction path, check
@@ -7513,14 +7448,13 @@ fn dispatch_keyword_head_value(
                     // Inner-scope lookup missed; if this SymbolTable
                     // belongs to a sub-program (outer_symbols is
                     // attached at spawn time), check whether the
-                    // canonical name (sans `<T,...>`) resolves in the
-                    // outer scope. If yes — fire the teaching
-                    // SandboxScopeLeak diagnostic with both spans
-                    // (offending invocation + outer-scope define).
+                    // name resolves in the outer scope. If yes — fire
+                    // the teaching SandboxScopeLeak diagnostic with both
+                    // spans (offending invocation + outer-scope define).
                     // Otherwise fall through to the generic
                     // UnknownFunction.
                     if let Some(outer) = sym.outer_symbols.as_ref() {
-                        if let Some(outer_func) = outer.get(canonical) {
+                        if let Some(outer_func) = outer.get(other) {
                             // Stone 255.1a — Native builtins carry no span; use crate::rust_caller_span!().
                             let outer_define_span = match &outer_func.body {
                                 FunctionBody::Wat(ast) => ast.span().clone(),
@@ -8551,12 +8485,11 @@ pub(crate) fn parse_extend_type_form(
         }
         let method_name = match &impl_items[0] {
             WatAST::Symbol(s, _) => {
-                // Stone 6b-DEP — strip any `<T>` suffix from the impl method name so that
-                // impl_clauses is keyed by the BARE name (via split_name_and_type_params,
-                // the same splitter surface members use).  A bare impl name
-                // (no `<`) passes through unchanged (split_type_params returns ("name", "")).
-                let (bare, _suffix) = split_type_params(s.as_str());
-                bare.to_owned()
+                // STONE reap-the-angle-machinery (arc 109) — Stone 6b-DEP used to strip a
+                // `<T>` suffix from the impl method name here. A Symbol carrying `<` is a
+                // LEXER error now (verified directly), so `s` can never carry one; use it
+                // directly.
+                s.as_str().to_owned()
             }
             other => {
                 return Err(RuntimeError::new(
@@ -11372,8 +11305,11 @@ fn eval_apply(
 
     // Step 7 — dispatch (mirrors dispatch_keyword_head's `other` arm).
     // (a) User-defined function (defn / define registered in sym.functions).
-    let canonical = canonical_callable_name(head_kw.as_str());
-    if let Some(func) = sym.get(canonical) {
+    // STONE reap-the-angle-machinery (arc 109) — `head_kw` used to be stripped via
+    // `canonical_callable_name`; angle syntax is unexpressible now, so it can never carry
+    // a suffix — look it up directly (mirrors `def_value(head_kw.as_str())` just below,
+    // which was already unstripped).
+    if let Some(func) = sym.get(head_kw.as_str()) {
         return apply_function(func.clone(), combined, sym, list_span).map_err(Into::into);
     }
 
@@ -14553,25 +14489,6 @@ fn require_ast_children<'a>(
     }
 }
 
-/// Split a symbol string at the first `<`, returning `(base, suffix)`.
-/// `suffix` includes the `<` when present, or is empty when there are
-/// no type-params.
-///
-/// Example: `":wat::core::foldl<T,Acc>"` → `(":wat::core::foldl", "<T,Acc>")`
-/// Example: `":my::fn"` → `(":my::fn", "")`
-fn split_type_params(s: &str) -> (&str, &str) {
-    match s.find('<') {
-        Some(idx) => (&s[..idx], &s[idx..]),
-        None => (s, ""),
-    }
-}
-
-/// Public (crate-visible) re-export of [`split_type_params`] for use in `check.rs`
-/// (Stone 6b-DEP: strip explicit type-arg suffix from a protocol method call-head).
-pub(crate) fn split_type_params_pub(s: &str) -> (&str, &str) {
-    split_type_params(s)
-}
-
 /// `(:wat::runtime::rename-callable-name head from to) -> :wat::holon::HolonAST`
 ///
 /// Arc 143 slice 3. Takes a signature head AST (a `Bundle` whose first
@@ -14587,12 +14504,14 @@ pub(crate) fn split_type_params_pub(s: &str) -> (&str, &str) {
 /// Steps:
 /// 1. Eval all three args; verify arg types.
 /// 2. Destructure head into Bundle children (error if not Bundle).
-/// 3. Verify children[0] is a Keyword; split it at `<` to separate
-///    base name from type-param suffix.
-/// 4. Verify base == `from` keyword string (colon stripped from from_str). On
+/// 3. Verify children[0] is a Keyword — the bare name (STONE reap-the-angle-machinery,
+///    arc 109: a generic head's type params are `children[1..]`, the `:- [T ...]` binder
+///    siblings `binder_head_nodes` emits; children[0] never carries a suffix).
+/// 4. Verify children[0] == `from` keyword string (colon stripped from from_str). On
 ///    mismatch, error "rename-callable-name: head name does not match `from`".
-/// 5. Construct new first keyword: `to + suffix` via `HolonAST::keyword()`.
-/// 6. Rebuild Bundle with [new_keyword, children[1..]].
+/// 5. Construct new first keyword: `to` via `HolonAST::keyword()`.
+/// 6. Rebuild Bundle with [new_keyword, children[1..]] — the `:- [...]` binder, if any,
+///    rides along unchanged.
 fn eval_rename_callable_name(
     args: &[WatAST],
     list_span: &Span,
@@ -14694,9 +14613,19 @@ fn eval_rename_callable_name(
         )
         .into());
     }
-    // children[0] is a `WatAST::Keyword` — its stored string INCLUDES the
-    // leading colon (e.g. `:user::add-two<T>`).
-    let first_str = if let WatAST::Keyword(s, _) = &children[0] {
+    // children[0] is a `WatAST::Keyword` — its stored string INCLUDES the leading colon
+    // (e.g. `:user::add-two`). STONE reap-the-angle-machinery (arc 109) — this used to
+    // split the name at `<` to preserve a type-param SUFFIX embedded in this same Keyword
+    // (`:user::add-two<T>`). That spelling is retired: `binder_head_nodes` (this signature
+    // head's own builder, for both native primitives and user functions) emits a generic
+    // name's type params as SIBLINGS after the bare name Keyword — `[Keyword(name),
+    // Keyword(":-"), Vector([T ...])]` — never folded into the name string. So `children[0]`
+    // is always bare, and `children[1..]` (the `:-` binder, when present) already rides
+    // along unchanged through the `new_children.extend_from_slice(&children[1..])` rebuild
+    // below — confirmed against the live `foldl`→`reduce` golden
+    // (`wat_arc143_manipulation__reduce_head.edn`: `(:wat.list/reduce :- [T Acc] ...)`, type
+    // params preserved with NO suffix on the renamed head).
+    let base = if let WatAST::Keyword(s, _) = &children[0] {
         s.as_str()
     } else {
         return Err(RuntimeError::new(
@@ -14710,12 +14639,8 @@ fn eval_rename_callable_name(
         .into());
     };
 
-    // Split name at `<` to preserve type-param suffix.
-    let (base, suffix) = split_type_params(first_str);
-
-    // Both `base` (from the WatAST Keyword) and `from_str` (from
-    // name_from_keyword_or_fn / Value::wat__core__keyword) carry the leading
-    // colon; compare them directly.
+    // `base` (from the WatAST Keyword) and `from_str` (from name_from_keyword_or_fn /
+    // Value::wat__core__keyword) carry the leading colon; compare them directly.
     if base != from_str.as_str() {
         return Err(RuntimeError::new(
             args[1].span().clone(),
@@ -14730,10 +14655,10 @@ fn eval_rename_callable_name(
         .into());
     }
 
-    // Construct the new first Keyword. `to_str` (from name_from_keyword_or_fn)
-    // already includes the leading colon (e.g. `:bar::fn`); the WatAST Keyword
-    // payload keeps the colon, so `to_str + suffix` is the correct stored form.
-    let new_name = format!("{}{}", to_str, suffix);
+    // Construct the new first Keyword. `to_str` (from name_from_keyword_or_fn) already
+    // includes the leading colon (e.g. `:bar::fn`); the WatAST Keyword payload keeps the
+    // colon, so `to_str` alone is the correct stored form (no suffix to re-attach).
+    let new_name = to_str;
     let head_span = children[0].span().clone();
     let new_first = WatAST::Keyword(new_name, head_span);
 
@@ -16866,8 +16791,9 @@ pub(crate) fn eval_retag_op(
     // (`Cache::Op<K,V>`) can no longer arrive as a single angle-bracket Keyword; it arrives
     // as the reference FORM `(Head :- [args])`, a `WatAST::List` whose own head (items[0]) IS
     // the base path this fn needs — a runtime `type_path` is always the base (params erased),
-    // so there is nothing to strip here the way `canonical_callable_name` strips the Keyword
-    // arm's `<…>` suffix; the List arm's head is ALREADY bare.
+    // so there is nothing to strip here the way the (now-deleted, STONE reap-the-angle-
+    // machinery) `canonical_callable_name` used to strip the Keyword arm's `<…>` suffix;
+    // the List arm's head is ALREADY bare.
     let surface_path = match &args[1] {
         WatAST::Keyword(k, _) => k.clone(),
         WatAST::List(items, _) if matches!(items.first(), Some(WatAST::Keyword(_, _))) => {
@@ -16912,15 +16838,14 @@ pub(crate) fn eval_retag_op(
             .into());
         }
     };
-    // Arc 278 the parametric protocol — both path literals may arrive TURBOFISHED
-    // (`:S::Op<K,V>` / `:svc::Op<K,V>`): the `defservice` macro spells them at TYPE
-    // positions because `infer_retag_op` reads arg[2] as this form's result TYPE, and a
-    // parametric protocol's Op must be instantiated there. A runtime `EnumValue.type_path`
+    // STONE reap-the-angle-machinery (arc 109) — this used to re-strip `surface_path` /
+    // `service_path` via `canonical_callable_name` for a parametric protocol's turbofished
+    // `:S::Op<K,V>` spelling. That spelling is unexpressible now (see the arc 109 ③ comment
+    // on the match arms above: a parametric arg arrives as the `(Head :- [args])` List form,
+    // whose head is ALREADY bare), so both paths are always base names by construction — the
+    // strip below found nothing to do even before this stone. A runtime `EnumValue.type_path`
     // is always the BASE name (type params are erased), and `try_match_pattern` composes
     // `type_path::variant`, so both the discriminator and the re-tag target are the base.
-    // Monomorphic protocol ⇒ no suffix ⇒ this is the identity.
-    let surface_path = canonical_callable_name(&surface_path).to_string();
-    let service_path = canonical_callable_name(&service_path).to_string();
     let op_val = eval_inner(&args[0], env, sym)?.value_owned();
     match op_val {
         // Surface-tagged client op → embed into the service superset counterpart.
@@ -19106,8 +19031,11 @@ fn project_surface_attrs(
     let mut field_values = Vec::new();
     for member in &surface.members {
         if let crate::types::SurfaceMember::Field { name: fname, .. } = member {
+            // STONE reap-the-angle-machinery (arc 109) — `method_key` used to be stripped
+            // via `canonical_callable_name`; angle syntax is unexpressible now, so neither
+            // `concrete_type_fqdn` nor `fname` can carry a suffix — look it up directly.
             let method_key = format!("{}/{}", concrete_type_fqdn, fname);
-            let func = match sym.get(canonical_callable_name(&method_key)) {
+            let func = match sym.get(&method_key) {
                 Some(f) => f.clone(),
                 None => {
                     return Err(RuntimeError::new(

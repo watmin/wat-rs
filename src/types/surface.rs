@@ -186,46 +186,20 @@ where
     }
 }
 
-/// Split a bare Symbol name like `"make<T>"` into `("make", vec!["T"])`.
-/// A name with no `<` returns `(name.to_owned(), vec![])`.
-/// Returns `TypeError` (adapted from `split_name_and_type_params` in runtime.rs, which returns
-/// `EvalBreak` — not reachable from surface.rs; STOP-1 copy per the brief).
-fn split_method_name_type_params(name: &str, sig_span: &Span) -> Result<(String, Vec<String>), TypeError> {
-    match name.find('<') {
-        None => Ok((name.to_owned(), Vec::new())),
-        Some(lt_index) => {
-            if !name.ends_with('>') {
-                return Err(TypeError::new(
-                    sig_span.clone(),
-                    TypeErrorKind::MalformedDecl {
-                        head: HEAD.into(),
-                        reason: format!(
-                            "method member name {:?} opens '<' but does not close '>'",
-                            name
-                        ),
-                    },
-                ));
-            }
-            let bare = name[..lt_index].to_string();
-            let inside = &name[lt_index + 1..name.len() - 1];
-            let params: Vec<String> = inside
-                .split(',')
-                .map(|s| s.trim().to_string())
-                .filter(|s| !s.is_empty())
-                .collect();
-            Ok((bare, params))
-        }
-    }
-}
-
 /// Parse a method-member list `(name [args...] -> :RetType)` into a `SurfaceMember::Method`.
 ///
 /// Arc 293.4a — per-sig parsing adapted to `TypeError` (`defsurface` returns `TypeError`).
 ///
-/// Arc 293.4e-pre.ii — method names with type params (`make<T>`) are now split via
-/// `split_method_name_type_params` (a local copy of runtime.rs's `split_name_and_type_params`
-/// adapted to `TypeError` — STOP-1 per the brief). The bare name is stored; `type_params`
-/// carries the extracted param names (e.g. `["T"]`). Monomorphic methods store `vec![]`.
+/// A method with type params is spelled `(launch :- [S R] [args] -> ret)` — the `:-` binder,
+/// peeled via `crate::types::peel_param_spec`. The bare name is stored; `type_params` carries
+/// the extracted param names (e.g. `["S" "R"]`). Monomorphic methods store `vec![]`.
+///
+/// STONE reap-the-angle-machinery (arc 109) — the earlier inline `make<T>` angle spelling and
+/// its dedicated splitter `split_method_name_type_params` are gone: `<` opening a type head
+/// is a LEXER-level error since "annihilate the angle bracket" (verified directly —
+/// `(make<T> [self] -> :T)` fails at `crates/wat-reader/src/parser.rs` before this parser ever
+/// runs), so the `name_raw.contains('<')` branch that called it was unreachable, not merely
+/// unexercised.
 ///
 /// The argspec vector `[args...]` is parsed via `parse_argspec_triples`, keeping the full
 /// `ArgSpec` (not flattened to `Vec<TypeExpr>`). Arc 293 K0b — ALL binders must be typed
@@ -237,15 +211,10 @@ fn parse_method_member_sig(
     sig_items: &[WatAST],
     sig_span: &Span,
 ) -> Result<SurfaceMember, TypeError> {
-    // Two spellings for a generic method member, both `(name … [args] -> :R)`:
-    //   (make<T> [args] -> :R)              — inline angle form, single param (no comma:
-    //                                          the arc 109 symbol-comma wall still lexes this)
-    //   (launch :- [S R St Sh Lu] [args] -> ret)  — the `:-` binder, γ-i's shape (siblings,
-    //                                          NO parens around the params) — arc 109 stone
-    //                                          "the last comma lives in a symbol": a
-    //                                          multi-param method name can no longer carry
-    //                                          commas in its Symbol body, so this is now the
-    //                                          only spelling for 2+ type params.
+    // A generic method member is `(launch :- [S R St Sh Lu] [args] -> ret)` — the `:-`
+    // binder, γ-i's shape (siblings, NO parens around the params). The earlier inline
+    // `make<T>` angle spelling is gone (arc 109 "annihilate the angle bracket" — see the
+    // STOP-1 note on this function's doc comment).
     // sig_items[0] = method name (Symbol)
     // then EITHER `:- [T U ...]` (binder) OR nothing, followed by:
     //   argspec Vector [...], `->` (Symbol), :RetType.
@@ -263,8 +232,8 @@ fn parse_method_member_sig(
         ));
     }
 
-    // Item 0: method name (bare Symbol, possibly with a single inline type param e.g.
-    // `make<T>` — no comma, so it still lexes as one Symbol per the arc 109 symbol wall).
+    // Item 0: method name (a bare Symbol; type params, if any, come from the `:-` binder
+    // below, never from the name itself).
     let name_raw = match &sig_items[0] {
         WatAST::Symbol(s, _) => s.as_str(),
         other => {
@@ -281,51 +250,46 @@ fn parse_method_member_sig(
         }
     };
 
-    // Arc 109 stone "the last comma lives in a symbol" — teach the door the `:-` binder
+    // Arc 109 stone "the last comma lives in a symbol" — the door is the `:-` binder
     // (γ-i's shape, already used by `defn`/`fn`: `src/function/metadata.rs::peel_type_binder`).
-    // `name<T>` (no comma) still splits inline via `split_method_name_type_params`
-    // unchanged; a BARE name followed by `:- [T U ...]` peels the binder instead. Neither
-    // form present → monomorphic method, `type_params` stays empty.
+    // A BARE name followed by `:- [T U ...]` peels the binder; no binder → monomorphic
+    // method, `type_params` stays empty.
+    //
+    // STONE-finish-the-param-spec (arc 109) — routed through the one door
+    // (`crate::types::peel_param_spec`) rather than this site's own hand-rolled
+    // `k == ":-"` test + `[Vector, rest @ ..]` peel (found as a TENTH instance of
+    // the class this stone exists to close — not among the brief's original nine,
+    // but the exact same shape, so the rune below would refuse it either way).
+    let tail = &sig_items[1..];
+    let has_marker = tail.first().is_some_and(crate::types::is_binder_marker);
     let (method_name, type_params, rest): (String, Vec<String>, &[WatAST]) =
-        if name_raw.contains('<') {
-            let (bare, params) = split_method_name_type_params(name_raw, sig_span)?;
-            (bare, params, &sig_items[1..])
-        } else {
-            // STONE-finish-the-param-spec (arc 109) — routed through the one door
-            // (`crate::types::peel_param_spec`) rather than this site's own hand-rolled
-            // `k == ":-"` test + `[Vector, rest @ ..]` peel (found as a TENTH instance of
-            // the class this stone exists to close — not among the brief's original nine,
-            // but the exact same shape, so the rune below would refuse it either way).
-            let tail = &sig_items[1..];
-            let has_marker = tail.first().is_some_and(crate::types::is_binder_marker);
-            match crate::types::peel_param_spec(tail) {
-                (Some(items), after) => {
-                    // Mirrors `src/function/metadata.rs::peel_type_binder` (γ-i's shape) —
-                    // `!id.is_reference()` keeps only local binder names.
-                    let params: Vec<String> = items
-                        .iter()
-                        .filter_map(|item| match item {
-                            WatAST::Symbol(id, _) if !id.is_reference() => Some(id.as_str().to_string()),
-                            _ => None,
-                        })
-                        .collect();
-                    (name_raw.to_owned(), params, after)
-                }
-                (None, _) if has_marker => {
-                    return Err(TypeError::new(
-                        tail[0].span().clone(),
-                        TypeErrorKind::MalformedDecl {
-                            head: HEAD.into(),
-                            reason: format!(
-                                "method member `{}`: `:-` binder must be followed by a \
-                                 `[T U ...]` Vector of type-param names",
-                                name_raw
-                            ),
-                        },
-                    ));
-                }
-                (None, _) => (name_raw.to_owned(), Vec::new(), tail),
+        match crate::types::peel_param_spec(tail) {
+            (Some(items), after) => {
+                // Mirrors `src/function/metadata.rs::peel_type_binder` (γ-i's shape) —
+                // `!id.is_reference()` keeps only local binder names.
+                let params: Vec<String> = items
+                    .iter()
+                    .filter_map(|item| match item {
+                        WatAST::Symbol(id, _) if !id.is_reference() => Some(id.as_str().to_string()),
+                        _ => None,
+                    })
+                    .collect();
+                (name_raw.to_owned(), params, after)
             }
+            (None, _) if has_marker => {
+                return Err(TypeError::new(
+                    tail[0].span().clone(),
+                    TypeErrorKind::MalformedDecl {
+                        head: HEAD.into(),
+                        reason: format!(
+                            "method member `{}`: `:-` binder must be followed by a \
+                             `[T U ...]` Vector of type-param names",
+                            name_raw
+                        ),
+                    },
+                ));
+            }
+            (None, _) => (name_raw.to_owned(), Vec::new(), tail),
         };
 
     if rest.len() < 3 {
@@ -977,26 +941,31 @@ fn collect_message_form_type_refs(form: &WatAST, out: &mut Vec<String>) {
 
 /// Arc 278 — is a referenced protocol type path DECLARED in this surface's `:messages`?
 ///
-/// The two sides of this comparison spell a PARAMETRIC message differently, and the mismatch is
-/// the whole defect this helper exists to close (third in the series: `7336464e` box-svc<T>::Record,
-/// `10107da9` the flat type-arg split — each one side normalized and the other not):
+/// Originally, the two sides of this comparison spelled a PARAMETRIC message differently
+/// (third in the series: `7336464e` box-svc<T>::Record, `10107da9` the flat type-arg split —
+/// each one side normalized and the other not): the DECLARATION side stored the `:messages`
+/// slot-1 keyword VERBATIM, params included — `":ns::Cache::GetRequest<K>"` — while the
+/// REFERENCE side (a walked `TypeExpr`, via `collect_user_type_paths`) emitted a `Parametric`
+/// leaf as its HEAD alone — `":ns::Cache::GetRequest"`. Raw string equality reported a
+/// correctly-declared parametric message as undeclared, so this helper asked the question of
+/// the BASE name on both sides instead.
 ///
-/// - the DECLARATION side stores the `:messages` slot-1 keyword VERBATIM, params included —
-///   `":ns::Cache::GetRequest<K>"`;
-/// - the REFERENCE side is a walked `TypeExpr`, and `collect_user_type_paths` emits a
-///   `Parametric` leaf as its HEAD alone — `":ns::Cache::GetRequest"`.
-///
-/// Raw string equality therefore reports a correctly-declared parametric message as undeclared.
-/// Membership is a question about the type's IDENTITY, not its instantiation, so it is asked of
-/// the BASE name on both sides. A message with no type params has no `<` on either side, so
-/// base-normalization is the IDENTITY for it — every concrete surface is bit-for-bit unaffected.
+/// STONE reap-the-angle-machinery (arc 109) — EXAMINED per the brief's STOP-3. The base-strip
+/// (`split_type_params_pub`) is gone: the asymmetry above was CLOSED, not merely hidden, by
+/// arc 109 "annihilate the angle bracket" — a message's own declared name can no longer embed
+/// `<K>` either (a parametric message's params live in its own `:- [K]` binder, a separate form
+/// slot: `(defrecord :ns::Cache::GetRequest :- [K] [...])`, verified against `wat/cache.wat`'s
+/// live `Cache<K,V>` surface). So `message_names` (the raw declared name keyword) and
+/// `referenced` (always base-only by construction) are now BOTH unconditionally bare, and
+/// `split_type_params_pub(s).0` on a `<`-free `s` was already returning `s` itself — a no-op,
+/// not a wrong answer (confirmed with a positive/negative probe pair: a matching parametric
+/// message passes this wall, an undeclared one is still correctly refused). Plain equality is
+/// what the strip degenerated to; this is now written directly as that.
 ///
 /// Both walls (the direct feature-reference wall and WALL 2 — transitive completeness) route
 /// through this ONE helper so the twins cannot drift.
 fn message_is_declared(message_names: &[String], referenced: &str) -> bool {
-    let base = |s: &str| crate::runtime::split_type_params_pub(s).0.to_string();
-    let want = base(referenced);
-    message_names.iter().any(|mn| base(mn) == want)
+    message_names.iter().any(|mn| mn == referenced)
 }
 
 /// Arc 278 S4c — collect the type-path leaves of a `TypeExpr` (for the surface `:messages`

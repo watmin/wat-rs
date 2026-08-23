@@ -4852,7 +4852,11 @@ fn infer_list(
                 // scheme (the stub is removed by register_stdlib_defclauses) but DO
                 // have a defclause registration. Must NOT intercept those here; fall
                 // through to the defclause dispatch below.
-                && env.get_defclause_clauses(crate::runtime::canonical_callable_name(k)).is_none() =>
+                // STONE reap-the-angle-machinery (arc 109) — `k` used to be stripped via
+                // `canonical_callable_name`; angle syntax is unexpressible now, so a
+                // `:wat::kernel::*`/`:wat::std::*` head can never carry a suffix — look it
+                // up directly.
+                && env.get_defclause_clauses(k).is_none() =>
             {
                 // Unknown kernel / std path with no registered scheme or defclause —
                 // accept and recurse. Math lives at `:wat::std::math::*`
@@ -4961,14 +4965,15 @@ fn infer_list(
         // carries a `:- [T…]` param-spec is a property of the FORM; which arm handles
         // the call is a property of the CALLEE. The surface-method arm below used to
         // hand-roll its own extraction — reading the retired angle suffix off the call
-        // head via `split_type_params_pub` — which is exactly how "the call position"
-        // grew two implementations: emitting the binder at a surface-method call gave
-        // `ArityMismatch: expected 7 argument(s); got 9` because that arm never peeled
-        // the marker out of `args` at all. `args` shadows for every arm below (the
-        // surface-method arm, defclause dispatch, and the generic-call arm) — none of
-        // them extracts the marker itself anymore. `:- []` peels to `Some(&[])`, never
-        // `None` — the empty binder is *expressed*, not absent (this stone's blocker 2:
-        // `absent ≡ :- [] ≡ :- []`).
+        // head via a since-deleted helper (STONE reap-the-angle-machinery, arc 109, retired
+        // it along with the rest of the angle-parsing machinery it fed) — which is exactly
+        // how "the call position" grew two implementations: emitting the binder at a
+        // surface-method call gave `ArityMismatch: expected 7 argument(s); got 9` because
+        // that arm never peeled the marker out of `args` at all. `args` shadows for every
+        // arm below (the surface-method arm, defclause dispatch, and the generic-call arm)
+        // — none of them extracts the marker itself anymore. `:- []` peels to `Some(&[])`,
+        // never `None` — the empty binder is *expressed*, not absent (this stone's
+        // blocker 2: `absent ≡ :- [] ≡ :- []`).
         let (type_args_raw, args) = crate::types::peel_param_spec(args);
         let type_args: Option<Vec<TypeExpr>> = type_args_raw.map(|raw| {
             raw.iter()
@@ -5336,7 +5341,10 @@ fn infer_list(
         //     they agree, that's the resolved return type. If they don't,
         //     that's the soundness hole — emit a located compile error
         //     instead of silently picking the first one.
-        let canonical_k = crate::runtime::canonical_callable_name(k);
+        // STONE reap-the-angle-machinery (arc 109) — `k` used to be stripped via
+        // `canonical_callable_name` (arc 139 turbofish). Angle syntax is unexpressible now,
+        // so a call-head keyword can never carry a `<...>` suffix; `canonical_k` is `k`.
+        let canonical_k: &str = k;
         if let Some(clauses) = env.get_defclause_clauses(canonical_k) {
             let clauses = clauses.to_vec();
             // Infer each arg's type (side-effects + type collection).
@@ -5505,12 +5513,9 @@ fn infer_list(
         // hoist widened who benefits from the peel, not who is allowed to author one.
 
         // Normal call: look up scheme, instantiate, unify args.
-        // Arc 139 — strip turbofish `<T,...>` from the head before
-        // env.get. The substrate registers user defines under the
-        // canonical name (sans turbofish); call sites that use
-        // turbofish resolve to the same scheme. Symmetric registration
-        // vs lookup. See `runtime::canonical_callable_name` for the
-        // full rationale.
+        // STONE reap-the-angle-machinery (arc 109) — the arc 139 turbofish `<T,...>` this
+        // used to strip via `canonical_callable_name` is unexpressible now; `canonical_k`
+        // above is just `k`, so this is a direct lookup.
         let scheme = match env.get(canonical_k) {
             Some(s) => s,
             None => {
