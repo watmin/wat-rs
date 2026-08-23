@@ -2,9 +2,10 @@
 
 ## The work
 
-Print which part of wrap **8.78** is clones, Arc
-alloc, or intern-id. Do not intern until a part
-is ≥ 1 ms. Do not add `PMap::Array1`.
+Print which part of wrap is clones, Arc alloc, or
+intern-id. `PMap::from_one` on the existing Array arm
+LANDED (harvest:query 6.37 → 5.97). Do not add
+`PMap::Array1`.
 
 ## Read in order
 

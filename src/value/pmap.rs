@@ -68,6 +68,12 @@ impl PMap {
         }
     }
 
+    /// One-entry Array on the existing arm (`DESIGN-STONE-harvest-wrap-parts`).
+    /// Same as `from_pairs` of one pair; skips the iterator dance.
+    pub fn from_one(k: Value, v: Value) -> Self {
+        PMap::Array(Arc::from([(k, v)]), next_intern())
+    }
+
     /// Build from an iterator, choosing the arm from the FINAL size — so a map built in one shot
     /// and the same map built by successive `assoc`s land in the same arm. Later duplicate keys
     /// win, matching `assoc`.
@@ -80,7 +86,7 @@ impl PMap {
             return PMap::new();
         };
         let Some(second) = iter.next() else {
-            return PMap::Array(Arc::from([first]), next_intern());
+            return Self::from_one(first.0, first.1);
         };
         let mut acc: Vec<(Value, Value)> = Vec::new();
         acc.push(first);
@@ -402,9 +408,12 @@ mod tests {
         let once = PMap::from_pairs([(k(1), k(2))]);
         assert!(!once.is_trie());
         assert_eq!(once.len(), 1);
+        let via_one = PMap::from_one(k(1), k(2));
         let via_assoc = PMap::new().assoc(k(1), k(2));
         assert_eq!(once, via_assoc);
+        assert_eq!(via_one, via_assoc);
         assert_eq!(hash_of(&once), hash_of(&via_assoc));
+        assert_eq!(hash_of(&via_one), hash_of(&via_assoc));
         let empty = PMap::from_pairs(std::iter::empty::<(Value, Value)>());
         assert_eq!(empty, PMap::new());
     }

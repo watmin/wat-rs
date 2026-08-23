@@ -969,10 +969,7 @@ where
 {
     let mut maps = Vec::with_capacity(cap);
     for f in facts {
-        maps.push(crate::value::pmap::PMap::from_pairs([(
-            var.clone(),
-            f.clone(),
-        )]));
+        maps.push(crate::value::pmap::PMap::from_one(var.clone(), f.clone()));
     }
     maps
 }

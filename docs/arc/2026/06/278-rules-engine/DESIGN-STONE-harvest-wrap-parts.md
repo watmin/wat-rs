@@ -112,3 +112,23 @@ No Session field. No QueryMemory type change.
 I is not the intern. R is malloc of 40k map bodies. `Value` contains `PMap` contains `Value` — a one-pair Array **cannot sit inline** (infinite size). `ArrayBody::One(Box<(k,v)>)` compiled and passed PMap tests; in-fire harvest:query **6.07 vs 6.06**. Box is not ≥ 1 ms cheaper than Arc. Reverted.
 
 Remaining wrap is physics: 40k heap maps is WHAT. Do not Session-Vec. Do not skip freeze. Do not `PMap::Array1`. Clippy `--lib -D warnings` silent.
+
+## Weigh (2026-08-23) — live print after identity-filter; from_one LANDED
+
+Identity-filter intern LANDED (`fae5b3e5`). In-fire harvest:query **6.37**. Isolated wrap-parts, mean of 3:
+
+| lump | ms |
+|---|---:|
+| **C clone (var, fact)** | **3.92** |
+| **R `Arc::from([pair])`** | **3.40** |
+| I fetch_add | 0.20 |
+| W from_pairs | 10.30 |
+| W−C | 6.38 |
+
+I is not the intern. C is Arc bumps of `String`/`Aggregate` — already the intern the stone named. R intern (inline one-pair) is infinite-size; Box already washed.
+
+Intern: `PMap::from_one` on the existing Array arm. Harvest calls it. `from_pairs` of one pair delegates. Skip the iterator dance. Not Array1. Not Box. Eq/Hash still compare entries.
+
+In-fire harvest:query **6.37 → 5.97 (−0.40)**. Under the ~0.5 ms gate. Builder took it: chase everything that Instant-proves, including sub-gate construction on the existing arm. Isolated W 10.30 → 10.03.
+
+Remaining wrap is still physics of 40k heap maps. Do not Session-Vec. Do not skip freeze. Do not `PMap::Array1`. Do not drop `next_intern` on one-entry maps.
