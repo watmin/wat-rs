@@ -858,7 +858,7 @@ fn check_constraint_head(
 
     match spelling {
         ConstraintSpelling::CoreGeneric => {
-            let suffix = op.rsplit("::").next().unwrap_or(op);
+            let suffix = wat_reader::identifier::leaf(op);
             let twin = match resolved.iter().find_map(|(_, t)| match t {
                 OperandType::Resolved(ty) => Some(*ty),
                 _ => None,

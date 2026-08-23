@@ -352,7 +352,7 @@ pub(crate) fn eval_render_doc(
             Some(entry.syntax.to_string())
         } else if !entry.args.is_empty() {
             // Derive the grammar from the head short-name + arg names.
-            let head = entry.name.rsplit("::").next().unwrap_or(entry.name);
+            let head = wat_reader::identifier::leaf(entry.name);
             let slots: Vec<String> = entry.args.iter()
                 .map(|&(name, _, _, _)| format!("<{}>", name))
                 .collect();

@@ -1313,7 +1313,7 @@ pub(crate) fn type_expr_to_clojure_form(t: &crate::types::TypeExpr, mode: TypeFo
                 // `head`); Colon uses the whole FQDN as a keyword.
                 match mode {
                     TypeFormHeadMode::Clojure => {
-                        let tail = fqdn.rsplit("::").next().unwrap();
+                        let tail = wat_reader::identifier::leaf(fqdn);
                         WatAST::Symbol(Identifier::bare(format!("wat.type/{tail}")), unk.clone())
                     }
                     TypeFormHeadMode::Colon => WatAST::Keyword(format!(":{fqdn}"), unk.clone()),
@@ -2804,18 +2804,16 @@ fn coerce_enum_path(
 #[track_caller]
 fn struct_tag_for(type_path: &str) -> (String, String) {
     let stripped = type_path.strip_prefix(':').unwrap_or(type_path);
-    match stripped.rfind("::") {
-        Some(idx) => {
-            let ns = stripped[..idx].replace("::", ".");
-            let name = stripped[idx + 2..].to_string();
-            (ns, name)
-        }
-        None => panic!(
+    if !stripped.contains("::") {
+        panic!(
             "struct_tag_for: type path {type_path:?} has no `::` namespace separator — no \
              derivable EDN home (fabricating a namespace would silently erase this type's \
              identity on the wire)"
-        ),
+        );
     }
+    let ns = wat_reader::identifier::path(stripped).replace("::", ".");
+    let name = wat_reader::identifier::leaf(stripped).to_string();
+    (ns, name)
 }
 
 /// EDN tag namespace for an enum variant. The writer emits
@@ -3208,18 +3206,16 @@ pub(crate) fn wat_keyword_to_clojure_symbol(kw: &str) -> Option<String> {
     if !body.contains("::") || body.ends_with("::") {
         return None;
     }
-    let segments: Vec<&str> = body.split("::").collect();
     // `body` contains "::" and has no trailing "::", so there are ≥2 non-empty segments.
-    let (final_seg, ns_head) = segments.split_last()?;
-    let mut ns_parts: Vec<&str> = ns_head.to_vec();
-    let name: &str = match final_seg.find('/') {
+    let final_seg = wat_reader::identifier::leaf(body);
+    let mut ns_parts: Vec<&str> = wat_reader::identifier::path(body).split("::").collect();
+    let name: &str = if final_seg.contains('/') && !wat_reader::identifier::receiver(final_seg).is_empty() {
         // `Type/method` — fold `Type` into the namespace; the method is the name.
-        Some(idx) if idx > 0 => {
-            ns_parts.push(&final_seg[..idx]);
-            &final_seg[idx + 1..]
-        }
+        ns_parts.push(wat_reader::identifier::receiver(final_seg));
+        wat_reader::identifier::method(final_seg)
+    } else {
         // A bare `/` (division → name `/`) or no slash: the final segment IS the name.
-        _ => final_seg,
+        final_seg
     };
     Some(format!("{}/{}", ns_parts.join("."), name))
 }
@@ -4095,9 +4091,9 @@ pub fn value_to_edn_with(
 /// non-namespaced EDN keywords.
 pub(crate) fn keyword_from_wat_path(k: &str) -> OwnedValue {
     let stripped = k.strip_prefix(':').unwrap_or(k);
-    if let Some(idx) = stripped.rfind("::") {
-        let ns = stripped[..idx].replace("::", ".");
-        let name = &stripped[idx + 2..];
+    if stripped.contains("::") {
+        let ns = wat_reader::identifier::path(stripped).replace("::", ".");
+        let name = wat_reader::identifier::leaf(stripped);
         match Keyword::try_ns(&ns, name) {
             Ok(kw) => OwnedValue::Keyword(kw),
             // EDN cannot spell this one — carry it VERBATIM rather than
@@ -4137,24 +4133,22 @@ pub(crate) fn keyword_from_wat_path(k: &str) -> OwnedValue {
 #[track_caller]
 pub(crate) fn tag_from_type_path(path: &str) -> Tag {
     let stripped = path.strip_prefix(':').unwrap_or(path);
-    match stripped.rfind("::") {
-        Some(idx) => {
-            let ns = stripped[..idx].replace("::", ".");
-            let name = &stripped[idx + 2..];
-            Tag::try_ns(&ns, name).unwrap_or_else(|e| {
-                panic!(
-                    "tag_from_type_path: type path {path:?} has no derivable EDN home — \
-                     namespace {ns:?} / name {name:?} rejected: {e} (fabricating one would \
-                     silently erase this type's identity on the wire)"
-                )
-            })
-        }
-        None => panic!(
+    if !stripped.contains("::") {
+        panic!(
             "tag_from_type_path: type path {path:?} has no `::` namespace separator — no \
              derivable EDN home (fabricating a namespace would silently erase this type's \
              identity on the wire)"
-        ),
+        );
     }
+    let ns = wat_reader::identifier::path(stripped).replace("::", ".");
+    let name = wat_reader::identifier::leaf(stripped);
+    Tag::try_ns(&ns, name).unwrap_or_else(|e| {
+        panic!(
+            "tag_from_type_path: type path {path:?} has no derivable EDN home — \
+             namespace {ns:?} / name {name:?} rejected: {e} (fabricating one would \
+             silently erase this type's identity on the wire)"
+        )
+    })
 }
 
 /// Build a tagged-nil for an opaque handle.

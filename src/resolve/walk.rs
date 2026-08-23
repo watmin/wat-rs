@@ -302,8 +302,8 @@ pub(super) fn is_resolvable_call_head(head: &str, sym: &SymbolTable, macros: &Ma
     // The resolver must accept these so they survive to the type-checker and
     // runtime dispatch; only the runtime knows the receiver's concrete type and
     // can dispatch to the right impl.
-    if let Some(slash_pos) = head.rfind('/') {
-        let stem = &head[..slash_pos];
+    if head.contains('/') {
+        let stem = wat_reader::identifier::receiver(head);
         // Arc 293.4b — surface-method call heads (`:S/method`).
         //
         // A head `:S/method` where the stem names a `TypeDef::Surface` is a

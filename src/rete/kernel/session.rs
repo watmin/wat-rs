@@ -888,7 +888,7 @@ pub(crate) fn session_names() -> FieldNames {
 /// Mirrors `node-kind-label` (`wat/rete.wat`).
 /// "wat::rete::AlphaNode" → "AlphaNode".
 pub(crate) fn node_kind_label(class_fqdn: &str) -> &str {
-    class_fqdn.rsplit("::").next().unwrap_or(class_fqdn)
+    wat_reader::identifier::leaf(class_fqdn)
 }
 
 /// Read the `class_fqdn` and `struct_form` from a node record Value.

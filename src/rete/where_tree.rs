@@ -331,7 +331,7 @@ fn is_eq_op(op: u16) -> bool {
 
 fn range_kind_of(op: u16) -> Option<CmpKind> {
     let n = RETE_OPS[op as usize].core_name;
-    match n.rsplit("::").next()? {
+    match wat_reader::identifier::leaf(n) {
         "<" => Some(CmpKind::Lt),
         ">" => Some(CmpKind::Gt),
         "<=" => Some(CmpKind::Le),

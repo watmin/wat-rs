@@ -2243,15 +2243,13 @@ pub fn register_type_predicates(
         // Derive predicate name: split FQDN on "::", take last segment,
         // prepend "is-", append "?", rejoin namespace prefix with "::".
         // E.g. "my::Shape" → "my::is-Shape?", "ns::sub::Foo" → "ns::sub::is-Foo?".
-        let segments: Vec<&str> = fqdn.trim_start_matches(':').split("::").collect();
-        let predicate_name: String = if segments.len() <= 1 {
+        let stripped = fqdn.trim_start_matches(':');
+        let predicate_name: String = if !stripped.contains("::") {
             // No namespace prefix — bare name (unusual but handled).
-            let base = segments.last().copied().unwrap_or("");
-            format!(":is-{}?", base)
+            format!(":is-{}?", stripped)
         } else {
-            let (prefix_parts, last) = segments.split_at(segments.len() - 1);
-            let base = last[0];
-            let prefix = prefix_parts.join("::");
+            let base = wat_reader::identifier::leaf(stripped);
+            let prefix = wat_reader::identifier::path(stripped);
             format!(":{}::is-{}?", prefix, base)
         };
 
@@ -3451,11 +3449,7 @@ fn try_parse_fn_shape_def(form: &WatAST) -> Result<Option<ParsedFnShapeDef>, Run
         // to `:user::main` so the def registers under the SAME key the harness
         // and resolver look up. Additive — the Keyword arm above is unchanged.
         WatAST::Symbol(s, _) if s.is_reference() => {
-            let slash_pos = s.as_str().rfind('/').unwrap();
-            let kw = crate::edn_shim::ns_to_wat_path(
-                &s.as_str()[..slash_pos],
-                &s.as_str()[slash_pos + 1..],
-            );
+            let kw = crate::edn_shim::ns_to_wat_path(s.receiver(), s.method());
             match split_name_and_type_params(&kw) {
                 Ok(pair) => pair,
                 Err(_) => return Ok(None),
@@ -3760,11 +3754,7 @@ fn try_parse_user_variadic_def_fn_form(
         // a namespaced Symbol def-name (`my/fold`) → keyword FQDN so faithful
         // VARIADIC defs register too. Additive — Keyword arm above unchanged.
         WatAST::Symbol(s, _) if s.is_reference() => {
-            let slash_pos = s.as_str().rfind('/').unwrap();
-            let kw = crate::edn_shim::ns_to_wat_path(
-                &s.as_str()[..slash_pos],
-                &s.as_str()[slash_pos + 1..],
-            );
+            let kw = crate::edn_shim::ns_to_wat_path(s.receiver(), s.method());
             match split_name_and_type_params(&kw) {
                 Ok(pair) => pair,
                 Err(_) => return Ok(None),
@@ -7050,9 +7040,9 @@ fn dispatch_keyword_head_value(
 
         // Anything else: user-defined function lookup.
         other => {
-            if let Some(slash_pos) = other.rfind('/') {
-                let protocol_fqdn = &other[..slash_pos];
-                let method_name_raw = &other[slash_pos + 1..];
+            if other.contains('/') {
+                let protocol_fqdn = wat_reader::identifier::receiver(other);
+                let method_name_raw = wat_reader::identifier::method(other);
                 // Stone 6b-DEP — strip explicit type-args suffix `<T1,T2>` from the call-head
                 // so the member lookup uses the bare method name.  e.g. `mk<i64,i64>` → bare `mk`.
                 let (method_name, _explicit_suffix) = split_type_params(method_name_raw);
@@ -18233,8 +18223,8 @@ fn eval_edn_validate(
 /// `expected`/`got` are rendered Strings. An empty path (the mismatch is the
 /// value itself, not a sub-field) yields an empty vector — honest, not a `[""]`.
 fn edn_coerce_path_segments(path: &str) -> Vec<Value> {
-    path.split('.')
-        .filter(|seg| !seg.is_empty())
+    wat_reader::identifier::dot_path_segments(path)
+        .into_iter()
         .map(|seg| Value::String(Arc::new(seg.to_string())))
         .collect()
 }

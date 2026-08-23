@@ -676,11 +676,7 @@ pub(crate) fn exec_call(
 }
 
 fn option_result_tag(tag: &str) -> Option<String> {
-    let last = tag
-        .rsplit("::")
-        .next()
-        .unwrap_or(tag)
-        .trim_start_matches(':');
+    let last = wat_reader::identifier::leaf(tag).trim_start_matches(':');
     match last {
         "None" | "Some" | "Ok" | "Err" => Some(last.to_string()),
         _ => None,
@@ -689,7 +685,10 @@ fn option_result_tag(tag: &str) -> Option<String> {
 
 fn split_accessor(head: &str) -> Option<(&str, &str)> {
     let rest = head.strip_prefix(':')?;
-    let (cls, field) = rest.rsplit_once('/')?;
+    if !rest.contains('/') {
+        return None;
+    }
+    let (cls, field) = (wat_reader::identifier::receiver(rest), wat_reader::identifier::method(rest));
     if field.is_empty() || cls.is_empty() {
         return None;
     }
@@ -1203,11 +1202,7 @@ fn pat_matches(pat: &Pat, v: &Value, frame: &mut [Option<Value>]) -> bool {
             },
             Value::Enum(e) => {
                 let composed = format!("{}::{}", e.type_path, e.variant_name);
-                let last = name
-                    .rsplit("::")
-                    .next()
-                    .unwrap_or(name)
-                    .trim_start_matches(':');
+                let last = wat_reader::identifier::leaf(name).trim_start_matches(':');
                 if composed != *name && e.variant_name != *name && e.variant_name != last {
                     return false;
                 }

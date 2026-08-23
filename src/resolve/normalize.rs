@@ -404,9 +404,9 @@ fn resolve_namespaced_symbol(
     macros: &MacroRegistry,
 ) -> Result<WatAST, UnresolvedReference> {
     // Split on the LAST `/` → (namespace, local_name).
-    let slash_pos = symbol_text.rfind('/').expect("caller guarantees '/' present");
-    let namespace = &symbol_text[..slash_pos];
-    let local_name = &symbol_text[slash_pos + 1..];
+    assert!(symbol_text.contains('/'), "caller guarantees '/' present");
+    let namespace = wat_reader::identifier::receiver(symbol_text);
+    let local_name = wat_reader::identifier::method(symbol_text);
 
     // `ns_to_wat_path` replaces `.` with `::` and joins with `::`:
     // `wat.core/+` → `:wat::core::+`.

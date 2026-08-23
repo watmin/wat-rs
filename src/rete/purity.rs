@@ -978,7 +978,10 @@ fn accessor_meta(head: &str, sym: &SymbolTable) -> Option<OpMeta> {
     let types = sym.types_deref()?;
     // Accessors register as `{agg.name}/{field}` (runtime.rs); `agg.name` carries the leading
     // colon (e.g. ":wat::telemetry::Log"), so the type-path splits off verbatim for `types.get`.
-    let (type_path, field) = head.rsplit_once('/')?;
+    if !head.contains('/') {
+        return None;
+    }
+    let (type_path, field) = (wat_reader::identifier::receiver(head), wat_reader::identifier::method(head));
     if let Some(crate::types::TypeDef::Aggregate(a)) = types.get(type_path) {
         if a.field_names().any(|n| n == field) {
             // `total: true` — UNLIKE `constructor_meta`, this one IS corpus-demonstrated:

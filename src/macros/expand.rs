@@ -559,11 +559,7 @@ pub(super) fn expand_form(
             if let Some(WatAST::Symbol(ident, ident_span)) = items.first() {
                 if ident.is_reference() {
                     let head_span = ident_span.clone();
-                    let slash_pos = ident.as_str().rfind('/').unwrap();
-                    let primary = crate::edn_shim::ns_to_wat_path(
-                        &ident.as_str()[..slash_pos],
-                        &ident.as_str()[slash_pos + 1..],
-                    );
+                    let primary = crate::edn_shim::ns_to_wat_path(ident.receiver(), ident.method());
                     if registry.contains(&primary) {
                         let args = items[1..].to_vec();
                         let expanded = {

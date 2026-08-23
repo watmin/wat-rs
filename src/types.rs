@@ -4863,10 +4863,11 @@ pub(crate) fn parse_type_node(node: &WatAST) -> Result<TypeExpr, TypeError> {
             // mapping — `ns_to_wat_path`, the same path `normalize_symbol_refs` uses —
             // then parse. (Single source: do NOT reinvent the `a.b/c`→`:a::b::c` rule.)
             let s = ident.as_str();
-            let kw = match s.rfind('/') {
-                Some(slash) => crate::edn_shim::ns_to_wat_path(&s[..slash], &s[slash + 1..]),
+            let kw = if s.contains('/') {
+                crate::edn_shim::ns_to_wat_path(ident.receiver(), ident.method())
+            } else {
                 // Bare symbol without namespace — treat as a keyword by prepending `:`.
-                None => format!(":{}", s),
+                format!(":{}", s)
             };
             parse_type_expr_with_span(&kw, span)
         }
@@ -4979,12 +4980,11 @@ pub(crate) fn parse_type_form(node: &WatAST) -> Result<TypeExpr, TypeError> {
             // canonical mapping (`ns_to_wat_path`), then strip the leading `:` for the
             // bare head-storage convention. (Single source — no reinvented `.`/`/` rule.)
             let s = ident.as_str();
-            match s.rfind('/') {
-                Some(slash) => {
-                    let kw = crate::edn_shim::ns_to_wat_path(&s[..slash], &s[slash + 1..]);
-                    kw.strip_prefix(':').unwrap_or(&kw).to_string()
-                }
-                None => s.to_string(),
+            if s.contains('/') {
+                let kw = crate::edn_shim::ns_to_wat_path(ident.receiver(), ident.method());
+                kw.strip_prefix(':').unwrap_or(&kw).to_string()
+            } else {
+                s.to_string()
             }
         }
         WatAST::Keyword(kw, _) => {

@@ -156,6 +156,36 @@ impl Identifier {
         self.namespace() != BOUND_NAMESPACE
     }
 
+    /// The last `::`-delimited segment of the spelling. See [`leaf`].
+    pub fn leaf(&self) -> &str {
+        leaf(&self.name)
+    }
+
+    /// Everything before [`leaf`](Self::leaf). See [`path`].
+    pub fn path(&self) -> &str {
+        path(&self.name)
+    }
+
+    /// Everything before the `/` of a surface-method call head. See [`receiver`].
+    pub fn receiver(&self) -> &str {
+        receiver(&self.name)
+    }
+
+    /// Everything after the `/` of a surface-method call head. See [`method`].
+    pub fn method(&self) -> &str {
+        method(&self.name)
+    }
+
+    /// Is the spelling primed (ends in `'`)? See [`prime`].
+    pub fn prime(&self) -> bool {
+        prime(&self.name)
+    }
+
+    /// The spelling with a trailing `'` removed, if present. See [`deprimed`].
+    pub fn deprimed(&self) -> &str {
+        deprimed(&self.name)
+    }
+
     // rune:struere(invariant-coupling) — &BTreeSet IS the contract: its sorted,
     // deterministic iteration is load-bearing (env_key's canonical encoding and
     // hash.rs's scope renumbering both depend on the ordering); an opaque iterator
@@ -166,6 +196,98 @@ impl Identifier {
     pub fn scopes(&self) -> &BTreeSet<ScopeId> {
         &self.scopes
     }
+}
+
+// ─── The name grammar — free functions on `&str` ───────────────────────────
+//
+// STONE-one-name-grammar (arc 109): a name is an atom, and structure encoded
+// inside an atom must be re-parsed by every consumer. These six functions are
+// that one re-parse, written once. Each `Identifier` method above delegates
+// to its free-function twin — one implementation, two surfaces, never two
+// implementations (the discipline `namespace()` already set: one signature,
+// callers never change). Most call sites hold a keyword's raw `&str`, not an
+// `Identifier`, hence the free functions being the primary surface.
+//
+// Four edge cases are pinned in the tests below because the 33 hand-rolls
+// this stone replaced did not all agree on them:
+//
+//   - no separator at all (`:foo`) — `leaf`/`method` (the "final component"
+//     pair) return the WHOLE string; `path`/`receiver` (the "prefix" pair)
+//     return `""`. This mirrors the near-universal `rsplit(...).next()
+//     .unwrap_or(name)` idiom already at most call sites, generalized to
+//     both pairs symmetrically.
+//   - a leading colon (`:foo`, `:wat::cache::Lru`) — NEVER special-cased.
+//     `::`/`/`/`'` search is colon-agnostic, so a leading `:` rides along in
+//     whichever half it lands in (kept in `leaf`/`path`'s output exactly as
+//     found). A caller that wants it gone (e.g. `option_result_tag`) strips
+//     it itself with `.trim_start_matches(':')` — that remains an ordinary
+//     caller-side string op, not part of this grammar.
+//   - an empty segment (`:a::`, trailing `::`) — falls out of the plain
+//     `rsplit`/`rfind` math with no special-casing: `leaf(":a::") == ""`,
+//     `path(":a::") == ":a"`.
+//   - primed AND slashed (`:sort'/apply`) — `prime`/`deprimed` never
+//     descend into slash structure on their own: `prime(":sort'/apply")` is
+//     `false` (the STRING ends in `apply`, not `'`). Asking "is the
+//     receiver primed" is a compose: `prime(receiver(name))`.
+
+/// The last `::`-delimited segment of `name` (`:wat::cache::Lru` → `Lru`). No
+/// `::` present → the WHOLE string (nothing precedes it, so it is its own leaf).
+pub fn leaf(name: &str) -> &str {
+    name.rsplit("::").next().unwrap_or(name)
+}
+
+/// Everything before [`leaf`] (`:wat::cache::Lru` → `:wat::cache`). No `::`
+/// present → `""` — there is no path before a name that IS its own leaf.
+pub fn path(name: &str) -> &str {
+    match name.rfind("::") {
+        Some(idx) => &name[..idx],
+        None => "",
+    }
+}
+
+/// Everything before the `/` of a surface-method call head (`:S/mk` → `:S`).
+/// No `/` present → `""` — there is no receiver on a name with no method call.
+pub fn receiver(name: &str) -> &str {
+    match name.rfind('/') {
+        Some(idx) => &name[..idx],
+        None => "",
+    }
+}
+
+/// Everything after the `/` of a surface-method call head (`:S/mk` → `mk`).
+/// No `/` present → the WHOLE string — a bare name is its own method with no
+/// receiver.
+pub fn method(name: &str) -> &str {
+    match name.rfind('/') {
+        Some(idx) => &name[idx + 1..],
+        None => name,
+    }
+}
+
+/// Is `name` primed — does it end in `'`? (`:sort'` → `true`). Operates on
+/// exactly the string given; does not descend into `/`-structure — see the
+/// module note above for the primed-and-slashed edge case.
+pub fn prime(name: &str) -> bool {
+    name.ends_with('\'')
+}
+
+/// `name` with a trailing `'` removed, if present; unchanged otherwise
+/// (`:sort'` → `:sort`).
+pub fn deprimed(name: &str) -> &str {
+    name.strip_suffix('\'').unwrap_or(name)
+}
+
+/// Split a DOT-separated coercion-error path (`".items.[0]"`, built leaf-upward by
+/// `EdnCoerceError::at`) into its non-empty segments (`["items", "[0]"]`).
+///
+/// This is a DIFFERENT grammar from the `::`/`/`/`'` name grammar above — dot-joined,
+/// not a wat `Identifier` spelling at all — but the same disease STONE-one-name-grammar
+/// (arc 109) attacks: `runtime_error_edn.rs::edn_path_segments` and
+/// `runtime.rs::edn_coerce_path_segments` were two independent implementations of this
+/// exact split before the stone collapsed them onto this one. An empty `path` (the
+/// mismatch is the value itself, not a sub-field) yields an empty `Vec`.
+pub fn dot_path_segments(path: &str) -> Vec<&str> {
+    path.split('.').filter(|s| !s.is_empty()).collect()
 }
 
 #[cfg(test)]
@@ -234,5 +356,77 @@ mod tests {
         let id = Identifier::bare("wat.core/+");
         assert_eq!(id.namespace(), "wat.core");
         assert!(id.is_reference());
+    }
+
+    // ── STONE-one-name-grammar: the four pinned edge cases ─────────────────
+
+    #[test]
+    fn leaf_and_path_split_on_the_last_double_colon() {
+        assert_eq!(leaf(":wat::cache::Lru"), "Lru");
+        assert_eq!(path(":wat::cache::Lru"), ":wat::cache");
+    }
+
+    #[test]
+    fn receiver_and_method_split_on_the_slash() {
+        assert_eq!(receiver(":S/mk"), ":S");
+        assert_eq!(method(":S/mk"), "mk");
+    }
+
+    #[test]
+    fn prime_and_deprimed_read_the_trailing_quote() {
+        assert!(prime(":sort'"));
+        assert_eq!(deprimed(":sort'"), ":sort");
+        assert!(!prime(":sort"));
+        assert_eq!(deprimed(":sort"), ":sort");
+    }
+
+    /// Edge case 1 — no separator at all. The "final component" pair
+    /// (`leaf`/`method`) returns the WHOLE string; the "prefix" pair
+    /// (`path`/`receiver`) returns `""`.
+    #[test]
+    fn no_separator_leaf_and_method_are_total_path_and_receiver_are_empty() {
+        assert_eq!(leaf(":foo"), ":foo");
+        assert_eq!(path(":foo"), "");
+        assert_eq!(method(":foo"), ":foo");
+        assert_eq!(receiver(":foo"), "");
+    }
+
+    /// Edge case 2 — a leading colon is never special-cased by any accessor;
+    /// it rides along in whichever half it lands in, exactly as found.
+    #[test]
+    fn leading_colon_is_never_stripped_by_the_door() {
+        assert_eq!(leaf(":wat::cache::Lru"), "Lru");
+        assert_eq!(path(":wat::cache::Lru"), ":wat::cache"); // colon KEPT
+        assert_eq!(receiver(":S/mk"), ":S"); // colon KEPT
+        // A caller that wants it gone strips it itself, same as
+        // `option_result_tag` (src/rete/expr_ir.rs) already did before this
+        // stone and still does after it.
+        assert_eq!(leaf(":wat::cache::Lru").trim_start_matches(':'), "Lru");
+    }
+
+    /// Edge case 3 — an empty segment (a trailing `::`, e.g. a namespace-
+    /// prefix marker like `:counter::`). Falls out of the plain rsplit/rfind
+    /// math with no special-casing.
+    #[test]
+    fn trailing_double_colon_leaves_an_empty_leaf() {
+        assert_eq!(leaf(":a::"), "");
+        assert_eq!(path(":a::"), ":a");
+    }
+
+    /// Edge case 4 — a name that is both primed AND slashed. `prime`/
+    /// `deprimed` never descend into slash structure on their own: asking
+    /// whether the receiver is primed is a compose, `prime(receiver(name))`.
+    #[test]
+    fn primed_and_slashed_prime_does_not_descend_into_receiver_method() {
+        let name = ":sort'/apply";
+        // The whole string does NOT end in `'` — it ends in `apply`.
+        assert!(!prime(name));
+        assert_eq!(deprimed(name), name);
+        // The split into receiver/method happens first; prime reads the
+        // receiver segment once it has been pulled out.
+        assert_eq!(receiver(name), ":sort'");
+        assert_eq!(method(name), "apply");
+        assert!(prime(receiver(name)));
+        assert_eq!(deprimed(receiver(name)), ":sort");
     }
 }

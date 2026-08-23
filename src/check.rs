@@ -3473,7 +3473,8 @@ fn infer_list(
                     // args (inline `(:wat::core::fn …)`, defn names) are not literal keywords
                     // — they fall through untouched, same infer-for-side-effects bypass.
                     if let WatAST::Keyword(kw, _) = &args[0] {
-                        if let Some(bare) = kw.strip_suffix('\'') {
+                        if wat_reader::identifier::prime(kw) {
+                            let bare = wat_reader::identifier::deprimed(kw);
                             if env.types().get(bare).is_none() {
                                 local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::UnknownCallee {
                                     callee: kw.clone()
@@ -4958,9 +4959,9 @@ fn infer_list(
         // Arc 293.4b — surface-method call-site check.
         // A head `:S/method` where `S` is a `TypeDef::Surface` with a member
         // named `method` is a surface-method call.
-        if let Some(slash_pos) = k.rfind('/') {
-            let protocol_fqdn = &k[..slash_pos];
-            let method_name_raw = &k[slash_pos + 1..];
+        if k.contains('/') {
+            let protocol_fqdn = wat_reader::identifier::receiver(k);
+            let method_name_raw = wat_reader::identifier::method(k);
             // Stone 6b-DEP — strip explicit type-args suffix `<T1,T2>` from the call-head
             // so the look-up uses the bare method name registered in the surface member.
             // e.g. `mk<wat::core::i64,wat::core::i64>` → bare=`mk`, suffix=`<wat::core::i64,wat::core::i64>`
@@ -5578,7 +5579,8 @@ fn infer_list(
                 // scheme is absent, the field doesn't exist. Emit UnknownCallee naming `k`
                 // (the error message will contain the bogus field name).
                 if args.len() == 1 {
-                    let accessor_stem: Option<&str> = k.rfind('/').map(|pos| &k[..pos]);
+                    let accessor_stem: Option<&str> =
+                        k.contains('/').then(|| wat_reader::identifier::receiver(k));
                     if let Some(stem) = accessor_stem {
                         let stem_is_record = matches!(
                             env.types().get(stem),
@@ -5624,7 +5626,8 @@ fn infer_list(
         // args` because a call to `:T'` receives the aggregate's fields positionally, in
         // declared order, with no leading class keyword (unlike `aggregate-new`/
         // `kwargs-construct`, which both carry the class keyword at args[0]).
-        if let Some(bare) = canonical_k.strip_suffix('\'') {
+        if wat_reader::identifier::prime(canonical_k) {
+            let bare = wat_reader::identifier::deprimed(canonical_k);
             if let Some(err) = alarm_op_internal_check(bare, args, env) {
                 local_errors.push(err);
             }
@@ -12708,7 +12711,8 @@ fn canonical_ctor_callee(k: &str, env: &CheckEnv) -> String {
         Some(pos) => (&k[..pos], &k[pos..]),
         None => (k, ""),
     };
-    if let Some(bare) = stem.strip_suffix('\'') {
+    if wat_reader::identifier::prime(stem) {
+        let bare = wat_reader::identifier::deprimed(stem);
         if matches!(env.types().get(bare), Some(crate::types::TypeDef::Aggregate(_))) {
             return format!("{}{}", bare, suffix);
         }
@@ -12727,8 +12731,10 @@ fn canonical_ctor_callee(k: &str, env: &CheckEnv) -> String {
 fn literal_enum_variant_ctor(ast: &WatAST, env: &CheckEnv) -> Option<(String, String, String)> {
     let WatAST::List(items, _) = ast else { return None };
     let WatAST::Keyword(k, _) = items.first()? else { return None };
-    let pos = k.rfind("::")?;
-    let (type_path, variant) = (&k[..pos], &k[pos + 2..]);
+    if !k.contains("::") {
+        return None;
+    }
+    let (type_path, variant) = (wat_reader::identifier::path(k), wat_reader::identifier::leaf(k));
     match env.types().get(type_path) {
         Some(crate::types::TypeDef::Enum(e)) => {
             let is_variant = e.variants.iter().any(|v| match v {

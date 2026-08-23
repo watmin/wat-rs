@@ -1526,8 +1526,8 @@ fn record_dep_dependency(
     {
         let type_part_to_check: Option<&str> = {
             // Case 1: name has `/` — accessor or (legacy) `/new` ctor.
-            if let Some(slash_idx) = name.rfind('/') {
-                let tp = &name[..slash_idx];
+            if name.contains('/') {
+                let tp = wat_reader::identifier::receiver(name);
                 if state.parent_types.get(tp).is_some()
                     || state.captured_types.contains_key(tp)
                 {
@@ -1562,8 +1562,8 @@ fn record_dep_dependency(
     }
     // Similarly skip enum tagged-variant constructors `:E::Variant`
     // where `:E` is a declared enum.
-    if let Some(colon2_idx) = name.rfind("::") {
-        let enum_part = &name[..colon2_idx];
+    if name.contains("::") {
+        let enum_part = wat_reader::identifier::path(name);
         if let Some(TypeDef::Enum(_)) = state.parent_types.get(enum_part) {
             record_type_dependency_by_name(state, enum_part);
             return;

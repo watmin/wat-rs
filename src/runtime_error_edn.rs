@@ -55,7 +55,7 @@ pub fn emit_runtime_error_envelope<W: Write>(out: &mut W, err: &RuntimeError) {
 /// rather than `"seg1.seg2"` — matching the hand-written serializer.
 pub(crate) fn edn_path_segments(path: &str) -> OwnedValue {
     OwnedValue::Vector(
-        path.split('.').filter(|s| !s.is_empty()).map(|s| str_val(s)).collect(),
+        wat_reader::identifier::dot_path_segments(path).into_iter().map(str_val).collect(),
     )
 }
 

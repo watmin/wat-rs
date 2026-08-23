@@ -83,12 +83,12 @@ pub fn is_namespaced(name: &str) -> bool {
 /// Arc 296 stone H-1 — true if the NAME half (the segment after the LAST `::`) contains
 /// a `.`. The namespace half is untouched: `:wat::core::Fault` has namespace `wat::core`
 /// and name `Fault`; only `Fault` is checked. Works whether or not `name` carries the
-/// leading `:` (parametric heads drop it — arc 170's 24t seam), because `rsplit("::")`
+/// leading `:` (parametric heads drop it — arc 170's 24t seam), because `leaf()`
 /// finds the last segment either way. At registration the name is always `::`-separated
 /// (dots appear later, only in the wire tag built by `tag_from_type_path`), so this is a
 /// pure ban, not a parse of an already-dotted form.
 fn has_dotted_name(name: &str) -> bool {
-    name.rsplit("::").next().unwrap_or(name).contains('.')
+    wat_reader::identifier::leaf(name).contains('.')
 }
 
 /// THE gate. The rule + ordering, once:
