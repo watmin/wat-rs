@@ -4228,6 +4228,9 @@ fn accum_query_harvest_split() {
     struct Shot {
         wall: f64,
         fire: f64,
+        setup: f64,
+        round: f64,
+        alpha: f64,
         harvest: f64,
         query_maps: usize,
     }
@@ -4287,6 +4290,9 @@ fn accum_query_harvest_split() {
         Shot {
             wall,
             fire: fire as f64,
+            setup: of("SETUP: indexes") as f64,
+            round: of("ROUND LOOP") as f64,
+            alpha: of("alpha") as f64,
             harvest: of(HARVEST) as f64,
             query_maps: query_map_count(&fired),
         }
@@ -4295,12 +4301,18 @@ fn accum_query_harvest_split() {
     let mut without = Shot {
         wall: 0.0,
         fire: 0.0,
+        setup: 0.0,
+        round: 0.0,
+        alpha: 0.0,
         harvest: 0.0,
         query_maps: 0,
     };
     let mut with = Shot {
         wall: 0.0,
         fire: 0.0,
+        setup: 0.0,
+        round: 0.0,
+        alpha: 0.0,
         harvest: 0.0,
         query_maps: 0,
     };
@@ -4309,37 +4321,57 @@ fn accum_query_harvest_split() {
         let b = shot(true);
         without.wall += a.wall;
         without.fire += a.fire;
+        without.setup += a.setup;
+        without.round += a.round;
+        without.alpha += a.alpha;
         without.harvest += a.harvest;
         without.query_maps = a.query_maps;
         with.wall += b.wall;
         with.fire += b.fire;
+        with.setup += b.setup;
+        with.round += b.round;
+        with.alpha += b.alpha;
         with.harvest += b.harvest;
         with.query_maps = b.query_maps;
     }
     let r = RUNS as f64;
     without.wall /= r;
     without.fire /= r;
+    without.setup /= r;
+    without.round /= r;
+    without.alpha /= r;
     without.harvest /= r;
     with.wall /= r;
     with.fire /= r;
+    with.setup /= r;
+    with.round /= r;
+    with.alpha /= r;
     with.harvest /= r;
 
     let ms = |ns: f64| ns / 1e6;
     println!(
         "\naccum query harvest split — [200 200], mean of {RUNS}\n\
              \n\
-             without queries       wall {:>7.2}  FIRE {:>7.2}  harvest {:>7.2}  maps {}\n\
-             with    five q-*      wall {:>7.2}  FIRE {:>7.2}  harvest {:>7.2}  maps {}\n\
-             delta (query tax)            {:>7.2} ms\n",
+             without queries       wall {:>7.2}  FIRE {:>7.2}  SETUP {:>7.2}  ROUND {:>7.2}  alpha {:>7.2}  harvest {:>7.2}  maps {}\n\
+             with    five q-*      wall {:>7.2}  FIRE {:>7.2}  SETUP {:>7.2}  ROUND {:>7.2}  alpha {:>7.2}  harvest {:>7.2}  maps {}\n\
+             delta (query tax)            {:>7.2} ms   harvest {:>7.2}  ROUND-harvest {:>7.2}\n",
         ms(without.wall),
         ms(without.fire),
+        ms(without.setup),
+        ms(without.round),
+        ms(without.alpha),
         ms(without.harvest),
         without.query_maps,
         ms(with.wall),
         ms(with.fire),
+        ms(with.setup),
+        ms(with.round),
+        ms(with.alpha),
         ms(with.harvest),
         with.query_maps,
         ms(with.wall - without.wall),
+        ms(with.harvest - without.harvest),
+        ms((with.round - without.round) - (with.harvest - without.harvest)),
     );
     assert_eq!(without.query_maps, 0, "compile without queries has empty query-memory");
     assert_eq!(
@@ -5678,7 +5710,6 @@ fn accum_alpha_leftover_split() {
                         cand_scratch: &mut cand,
                         cond_key_ids: &cond_key_ids,
                         bind_only: &bind_only,
-                        query_only_alphas: &std::collections::HashSet::new(),
                     },
                 )
                 .expect("isolated activate");
@@ -5992,7 +6023,6 @@ fn accum_alpha_seed_after_fold_split() {
                         cand_scratch: &mut cand,
                         cond_key_ids: &cond_key_ids_a,
                         bind_only: &bind_only,
-                        query_only_alphas: &std::collections::HashSet::new(),
                     },
                 )
                 .expect("isolated activate");
@@ -6977,7 +7007,6 @@ fn accum_alpha_push_split() {
                         cand_scratch: &mut cand,
                         cond_key_ids: &cond_key_ids,
                         bind_only: &bind_only,
-                        query_only_alphas: &std::collections::HashSet::new(),
                     },
                 )
                 .expect("isolated activate");
