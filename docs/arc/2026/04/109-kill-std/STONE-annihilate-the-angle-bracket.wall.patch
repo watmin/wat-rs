@@ -1,0 +1,65 @@
+diff --git a/crates/wat-reader/src/lexer.rs b/crates/wat-reader/src/lexer.rs
+index 7612dd6d5..86a30b7ad 100644
+--- a/crates/wat-reader/src/lexer.rs
++++ b/crates/wat-reader/src/lexer.rs
+@@ -203,6 +203,15 @@ pub enum LexErrorKind {
+     /// in place of `(launch<S,R,St,Sh,Lu> [args] -> ret)`. Outside
+     /// `<...>`, `,` remains ordinary EDN whitespace — unaffected.
+     CommaInSymbolBody,
++    /// A `<...>` TYPE-HEAD opened inside a name — the angle-bracket
++    /// parameterization spelling (arc 109, "annihilate the angle bracket").
++    /// `<` opens a type head only when preceded by an identifier character
++    /// (`Vector<`, `make<`, `Thread'<`); that is the ONE construct this
++    /// refuses. Operator names are untouched, because their `<` / `>`
++    /// follows `::` or leads the token: `:wat::core::<`, `:wat::core::>=`,
++    /// `<-`, `->`, `<=` all still lex exactly as before. The surviving
++    /// spelling for parameterization is the `:-` binder / reference form.
++    AngleTypeHeadInName,
+     /// Invalid character literal. Arc 220 slice 2: `\c` form error
+     /// (empty body, supplementary-plane codepoint, unknown named char,
+     /// or backslash followed by whitespace).
+@@ -253,6 +262,17 @@ impl fmt::Display for LexErrorKind {
+                 binder form instead — `(mk :- [S R] [args] -> ret)` in place of \
+                 `(mk<S,R> [args] -> ret)`."
+             ),
++            LexErrorKind::AngleTypeHeadInName => write!(
++                f,
++                "angle-bracket type parameters are illegal in a name (arc 109, \"annihilate \
++                the angle bracket\"): `<` may not open a type head. `:-` is the ONE \
++                parameterization operator — write `(Head :- [A B])` for a type REFERENCE \
++                (in parens), `Head :- [A B]` for a BINDER (siblings, no parens), and \
++                `(Head :- [A B] v1 v2)` for a constructor. So `(:wat::core::Vector :- \
++                [:wat::core::i64])` not `:wat::core::Vector<wat::core::i64>`, and \
++                `(mk :- [S R] [args] -> ret)` not `(mk<S,R> [args] -> ret)`. Operator names \
++                are unaffected: `:wat::core::<`, `:wat::core::>=`, `<-`, `->` still lex."
++            ),
+             LexErrorKind::InvalidChar(msg) => write!(
+                 f,
+                 "invalid character literal: {}",
+@@ -833,7 +853,13 @@ fn lex_keyword(src: &str, start: usize) -> Result<(String, usize), LexError> {
+                     .map(|ch| ch.is_ascii_alphanumeric() || ch == '_' || ch == '\'')
+                     .unwrap_or(false);
+                 if prev_alpha {
+-                    angle_depth += 1;
++                    // Arc 109 — THE PERMISSION IS GONE. This branch used to
++                    // open a type head (`angle_depth += 1`) so that
++                    // `:Result<(i64,i64), i64>` lexed as ONE keyword. That
++                    // spelling is retired; `:-` is the only parameterization
++                    // operator. Operator `<` follows `::` and never reaches
++                    // here, so `:wat::core::<` is untouched.
++                    return Err(LexError { position: i, kind: LexErrorKind::AngleTypeHeadInName });
+                 }
+                 out.push(c);
+             }
+@@ -974,7 +1000,10 @@ fn lex_symbol(src: &str, start: usize) -> Result<(String, usize), LexError> {
+                 p.is_ascii_alphanumeric() || p == '_' || p == '\''
+             };
+             if prev_type_head {
+-                angle_depth += 1;
++                // Arc 109 — THE PERMISSION IS GONE (see lex_keyword's twin).
++                // A leading / operator `<` (`<-`, `<`, `<=`) has no preceding
++                // identifier char and so never reaches here.
++                return Err(LexError { position: i, kind: LexErrorKind::AngleTypeHeadInName });
+             }
+             i += 1;
+         } else if c == '>' {
