@@ -317,7 +317,37 @@ part is WHAT. The **malloc is not**: a reused scratch frame
 allocation and keeps the copy. Hot in any `where` with `:or`/`:not` over a
 large alpha.
 
-### T8 — `d_beta_from_parents` materializes a capacity-less Vec
+### T8 — `d_beta_from_parents` materializes a capacity-less Vec — ❌ **CLEARED 2026-08-23, NOT theater**
+
+> **Measured, not argued.** `dbeta_gather_volume` instruments the function
+> across two workloads:
+>
+> | workload | calls | allocating | **MULTI-parent** | tokens/alloc |
+> |---|---:|---:|---:|---:|
+> | strat-neg `[6 2000]` | 12 | 6 (50%) | **0 (0.0%)** | 2000 |
+> | accum `[200 200]` | 10 | 5 (50%) | **0 (0.0%)** | 200 |
+>
+> T8 claimed a capacity-less `Vec` that grows and reallocs. **It cannot.** An
+> empty gather allocates nothing (`Vec::new`), and a single-parent gather
+> `extend`s once from an `ExactSizeIterator`, which reserves the exact length
+> in one shot. Growth requires a MULTI-parent call, and both fixtures measure
+> **zero**. The proposed fix — reserve the total up front — would have done
+> literally nothing.
+>
+> The entry also implied per-node-per-round volume. Real volume is **~10 calls
+> per fire**. The remaining allocation is ~6 × 32 KB of `Token` (which is
+> `Copy`), and both call sites document it as the deliberate price of the
+> `d_beta` read/write borrow conflict.
+>
+> `dbeta_gather_volume` is left as a **TRIPWIRE**: it asserts 0 MULTI-parent
+> calls on both fixtures. If one ever appears, T8's premise has changed and it
+> is live again.
+>
+> One real but sub-trivial find, recorded and NOT struck: both call sites
+> (`delta.rs:1004`, `delta.rs:1228`) already compute `pids` via
+> `parents_of.get(node_id)`, and the function then performs the **same lookup a
+> second time**. At ~10 calls per fire that is ~10 redundant HashMap lookups —
+> real, and far below anything the instrument can see.
 `src/rete/kernel/fire/mod.rs:769`
 ```rust
 let mut out = Vec::new();
@@ -489,3 +519,48 @@ argument.**
 - **A probe whose FIXTURE picks a representation** → may measure a code path
   the fire never takes. Build the fixture the way the fire builds it, or
   instrument the fire and check. (this section)
+
+---
+
+## The floor went RED on T8's tripwire — and the gate was right
+
+**2026-08-23, `.floor/2026-08-23T23-18-25Z`, exit=100.**
+`Summary [275.720s] 4934 tests run: 4933 passed, 1 failed, 19 skipped`
+
+```
+FAIL [0.093s] (44/4934) wat::lint no_loose_string_assert::tests_carry_no_loose_string_assert
+
+🔥🔥🔥 LOOSE STRING ASSERTIONS — 2 site(s) assert a value with contains/starts_with/
+ends_with where an exact `assert_eq!` belongs. A loose check passes on reordered fields,
+malformed maps, and appended garbage.
+
+    src/rete/kernel/tests.rs:9837
+    src/rete/kernel/tests.rs:9846
+```
+
+**The red was mine and the lint was correct.** The T8 tripwire had been written as
+a substring match on the harness's own rendered table:
+
+```rust
+assert!(
+    out.contains("MULTI-parent      0") || out.contains("MULTI-parent          0"),
+    ...
+);
+```
+
+Two spacings ORed together — the author hedging against his own format string is
+exactly the fragility the gate exists to catch. A column-width change would have
+silently turned the tripwire into an assertion that always passes: a guard that
+cannot fail is worse than no guard, because the file still reads as guarded.
+
+**Fixed at the class, not the site** (`extirpare`): the harness no longer asserts
+on text at all. `run` returns a `Gather { calls, tokens, alloc, multi }` and the
+tripwire is `assert_eq!(strat.multi, 0)` / `assert_eq!(accum.multi, 0)` — exact,
+structured, and immune to how the table is printed. Same measured numbers.
+
+**Process note, recorded deliberately.** `scripts/floor.sh` says DO NOT RE-RUN on
+a red, and it was not re-run. The ARM was captured by the script before anything
+was read, the failing test's whole block was read verbatim, the exact arm was
+named (`no_loose_string_assert`, 2 sites, with line numbers), the cause was
+fixed, and only then was a NEW floor run. Re-running to see if a red goes away is
+the forbidden act; re-running after fixing the named cause is the point.

@@ -9773,3 +9773,90 @@ fn strat_merge_cow_parts() {
     assert_eq!(len_a, len_b, "both paths must build the same closure:{table}");
     assert_eq!(len_a, SEED as usize + STRATA * PER_STRATUM, "closure size:{table}");
 }
+/// Volume of `d_beta_from_parents` — the capacity-less `Vec<Token>` gather
+/// (`NEXT-STRIKES-theater-hunt.md` T8). Reports calls / tokens / allocating
+/// calls / MULTI-parent calls across two workloads, so the strike is aimed at
+/// measured volume rather than an assumed one.
+///
+/// TRIPWIRE. T8 claimed this gather grows-and-reallocs a capacity-less `Vec`.
+/// It cannot while every call has at most ONE contributing parent: a single
+/// `extend` from an `ExactSizeIterator` reserves the exact length in one shot,
+/// and an empty gather never allocates. Both fixtures measure 0 MULTI-parent
+/// calls, which is why T8 was CLEARED rather than cut. If either ever reports
+/// one, that premise has changed and T8 is live again.
+#[test]
+fn dbeta_gather_volume() {
+    const STRATA: i64 = 6;
+    const ITEMS: i64 = 2000;
+    const STRAT_WORLD: &str = include_str!("../../../wat-scripts/perf/grid/strat-neg.wat");
+
+    /// calls, tokens, allocating calls, multi-parent calls.
+    struct Gather {
+        calls: u64,
+        tokens: u64,
+        alloc: u64,
+        multi: u64,
+    }
+
+    let run = |label: &str, world_src: &str, seed_src: String| -> Gather {
+        let world = startup_from_source(world_src, None, Arc::new(InMemoryLoader::new()))
+            .unwrap_or_else(|e| panic!("{label} world should freeze: {e:?}"));
+        let staged = eval_in_frozen(
+            &crate::parse_one!(seed_src.as_str()).expect("parse seed"),
+            &world,
+            &Environment::new(),
+        )
+        .unwrap_or_else(|e| panic!("{label} seed raised: {e:?}"))
+        .value_owned();
+
+        let (_fired, counts) = super::with_count_census(|| {
+            fire_rules_on_session(&staged, world.symbols(), None)
+                .unwrap_or_else(|e| panic!("{label} fire raised: {e:?}"))
+        });
+        let get = |n: &str| -> u64 {
+            counts.iter().find(|(k, _)| *k == n).map(|(_, v)| *v).unwrap_or(0)
+        };
+        Gather {
+            calls: get("dbeta:calls"),
+            tokens: get("dbeta:tokens"),
+            alloc: get("dbeta:alloc"),
+            multi: get("dbeta:multi"),
+        }
+    };
+
+    let strat = run(
+        "strat-neg",
+        STRAT_WORLD,
+        format!("(:strat::seed-items (:wat::rete::compile (:strat::build-rules {STRATA})) {ITEMS})"),
+    );
+    let accum = run(
+        "accum",
+        ACCUM_AXIS_WORLD,
+        "(:apx::seed (:wat::rete::compile (:wat::rete::collect-rules :apx)) 200 200)".to_string(),
+    );
+
+    let row = |label: &str, g: &Gather| -> String {
+        format!(
+            "{label:<20} calls {:>6}   allocating {:>6}   MULTI-parent {:>6}   tokens {:>8}\n",
+            g.calls, g.alloc, g.multi, g.tokens
+        )
+    };
+    let table = format!(
+        "\nd_beta_from_parents volume\n\n{}{}",
+        row("strat-neg [6 2000]", &strat),
+        row("accum [200 200]", &accum),
+    );
+    println!("{table}");
+
+    // Structured, exact — never a substring match on the rendering above.
+    assert!(strat.calls > 0, "strat-neg gather never ran:{table}");
+    assert!(accum.calls > 0, "accum gather never ran:{table}");
+    assert_eq!(
+        strat.multi, 0,
+        "a MULTI-parent gather appeared in strat-neg — T8's premise changed, re-open it:{table}"
+    );
+    assert_eq!(
+        accum.multi, 0,
+        "a MULTI-parent gather appeared in accum — T8's premise changed, re-open it:{table}"
+    );
+}

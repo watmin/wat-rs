@@ -766,14 +766,29 @@ pub(crate) fn hash_join_pass(wm: &mut FireSession, arm: &InternedNetwork) -> Res
 /// Delta tokens at every non-alpha parent of `node_id`. Condition `:or` leaves
 /// N terminals; a later Test/:not/:exists/accum must see all of them.
 fn d_beta_from_parents(parents_of: &ParentsOf, d_beta: &BetaMemory, node_id: i64) -> Vec<Token> {
+    let __dbg = phase_start();
     let mut out = Vec::new();
+    #[cfg(test)]
+    let mut contributing = 0u64;
     if let Some(pids) = parents_of.get(&node_id) {
         for pid in pids {
             if let Some(ts) = d_beta.get(pid) {
+                #[cfg(test)]
+                if !ts.is_empty() {
+                    contributing += 1;
+                }
                 out.extend(ts.iter().cloned());
             }
         }
     }
+    #[cfg(test)]
+    {
+        census_count_n("dbeta:calls", 1);
+        census_count_n("dbeta:tokens", out.len() as u64);
+        census_count_n("dbeta:alloc", u64::from(!out.is_empty()));
+        census_count_n("dbeta:multi", u64::from(contributing > 1));
+    }
+    phase_end("  ├ dbeta:gather", __dbg);
     out
 }
 
