@@ -10,7 +10,7 @@
 (:wat::core::defn :wat::rete::harvest-support
   [network  <- :wat::core::PersistentMap
    beta-mem <- :wat::core::PersistentMap
-   rules    <- :wat::core::PersistentVector<wat::rete::Rule>]
+   rules    <- (:wat::core::PersistentVector :- [:wat::rete::Rule])]
   -> :wat::core::PersistentMap
   (:wat::core::foldl
     (:wat::core::fn [sup     <- :wat::core::PersistentMap

@@ -37,7 +37,7 @@
 ;; with-open-file — Ruby's `File.open(path) do |w| … end`. Opens a writer, hands it to body-fn,
 ;; closes it after (explicitly on success; via RAII Drop if body-fn errors and the scope unwinds).
 ;; Returns body-fn's result. The `with-` earns its meaning: managed scope, caller owns only usage.
-(:wat::core::defn :wat::io::with-open-file<T> [path <- :wat::core::String body-fn <- :wat::core::Fn(wat::io::IOWriter)->T] -> :T
+(:wat::core::defn :wat::io::with-open-file :- [T] [path <- :wat::core::String body-fn <- [:wat::io::IOWriter :-> T]] -> :T
   (:wat::core::let [w      (:wat::io::IOWriter/open-file path)
                     result (body-fn w)]
     (:wat::core::do

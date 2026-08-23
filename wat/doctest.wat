@@ -13,7 +13,7 @@
 (:wat::core::defrecord :wat::intrinsic::Example
   [fqdn          <- :wat::core::keyword
    expr          <- :wat::WatAST
-   expected      <- :wat::core::Option<wat::WatAST>
+   expected      <- (:wat::core::Option :- [:wat::WatAST])
    run           <- :wat::core::bool
    pure          <- :wat::core::bool
    deterministic <- :wat::core::bool])
@@ -37,11 +37,11 @@
 
 (:wat::core::defn :wat::doctest::verify-examples
   []
-  -> :wat::core::Vector<wat::doctest::Failure>
+  -> (:wat::core::Vector :- [:wat::doctest::Failure])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::Vector<wat::doctest::Failure>
+    (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::doctest::Failure])
                      ex  <- :wat::intrinsic::Example]
-      -> :wat::core::Vector<wat::doctest::Failure>
+      -> (:wat::core::Vector :- [:wat::doctest::Failure])
       ;; The Example values are Value::wat__Record (the seam builds the
       ;; :wat::core::Record::def representation), so the generated named accessors
       ;; :wat::intrinsic::Example/<field> work directly — no positional indexing.

@@ -55,7 +55,7 @@
 ;; held stdio Handles that were still live at the moment of the ask — an
 ;; already-gone Handle is silently omitted, never listed).
 (:wat::core::defrecord :wat::kernel::StopAccepted
-  [services <- :wat::core::Vector<wat::core::String>])
+  [services <- (:wat::core::Vector :- [:wat::core::String])])
 
 ;; ─── Arc 296: :wat::kernel::StopFailure — moving the source of truth to wat ───
 ;;
@@ -88,7 +88,7 @@
 ;; before a non-zero exit. An empty collection means nothing changes — exit
 ;; as it always did.
 (:wat::core::defrecord :wat::kernel::StopFailed
-  [services <- :wat::core::Vector<wat::kernel::StopFailure>])
+  [services <- (:wat::core::Vector :- [:wat::kernel::StopFailure])])
 
 ;; ─── Arc 296: :wat::kernel::Failure — moving the source of truth to wat ───
 ;;
@@ -106,9 +106,9 @@
 ;; payload carries an AssertionPayload.
 (:wat::core::defrecord :wat::kernel::Failure
   [error    <- :wat::core::Error
-   frames   <- :wat::core::Vector<wat::kernel::Frame>
-   actual   <- :wat::core::Option<wat::core::String>
-   expected <- :wat::core::Option<wat::core::String>])
+   frames   <- (:wat::core::Vector :- [:wat::kernel::Frame])
+   actual   <- (:wat::core::Option :- [:wat::core::String])
+   expected <- (:wat::core::Option :- [:wat::core::String])])
 
 ;; ─── Arc 296: :wat::kernel::AssertionFailure — moving the source of truth to wat ───
 ;;
@@ -126,8 +126,8 @@
 (:wat::core::defrecord :wat::kernel::AssertionFailure
   [thread         <- :wat::core::String
    message        <- :wat::core::String
-   location       <- :wat::core::Option<wat::kernel::Location>
-   actual         <- :wat::core::Option<wat::core::String>
-   expected       <- :wat::core::Option<wat::core::String>
-   frames         <- :wat::core::Vector<wat::kernel::Frame>
-   upstream-chain <- :wat::core::Vector<wat::kernel::LociDiedError>])
+   location       <- (:wat::core::Option :- [:wat::kernel::Location])
+   actual         <- (:wat::core::Option :- [:wat::core::String])
+   expected       <- (:wat::core::Option :- [:wat::core::String])
+   frames         <- (:wat::core::Vector :- [:wat::kernel::Frame])
+   upstream-chain <- (:wat::core::Vector :- [:wat::kernel::LociDiedError])])

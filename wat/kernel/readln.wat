@@ -57,7 +57,7 @@
 ;; load-order dependency on any wat file). This macro therefore has no
 ;; load-order constraint and lives in readln.wat, the file named for what it holds.
 (:wat::core::defmacro :wat::kernel::readln
-  [& args <- :wat::core::Vector<wat::WatAST>]
+  [& args <- (:wat::core::Vector :- [:wat::WatAST])]
   -> :wat::WatAST
   (:wat::core::let
     [n-args    (:wat::core::length args)

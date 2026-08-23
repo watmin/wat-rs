@@ -72,23 +72,23 @@
 ;; twin has died. B2 collapses each verb to ONE clause over `Seqable<T>` walking with
 ;; `:wat::stream::next`, and deletes the twins and `seqable->stream` in the same motion — a name
 ;; dies in the stone that removes its last caller.
-(:wat::core::defsurface :wat::core::Seqable<T> :nature :wat::core::Struct
-  :features [(seq [self <- :wat::core::Seqable<T>] -> :wat::stream::Stream<T>)])
+(:wat::core::defsurface :wat::core::Seqable :- [T] :nature :wat::core::Struct
+  :features [(seq [self <- (:wat::core::Seqable :- [T])] -> (:wat::stream::Stream :- [T]))])
 
 ;; The four impls. Each delegates to the native normaliser, which already steps its source BY
 ;; POSITION (O(n) total) rather than by repeated `rest` (which REBUILDS an eager container per step,
 ;; O(n^2) — the arc-278 Strike-1 fix). Stream's arm is the identity case and stays lazy.
-(:wat::core::extend-type :wat::core::Vector :wat::core::Seqable<T>
-  (seq [self] -> :wat::stream::Stream<T> (:wat::core::seqable->stream self)))
+(:wat::core::extend-type :wat::core::Vector (:wat::core::Seqable :- [T])
+  (seq [self] -> (:wat::stream::Stream :- [T]) (:wat::core::seqable->stream self)))
 
-(:wat::core::extend-type :wat::core::PersistentVector :wat::core::Seqable<T>
-  (seq [self] -> :wat::stream::Stream<T> (:wat::core::seqable->stream self)))
+(:wat::core::extend-type :wat::core::PersistentVector (:wat::core::Seqable :- [T])
+  (seq [self] -> (:wat::stream::Stream :- [T]) (:wat::core::seqable->stream self)))
 
-(:wat::core::extend-type :wat::core::List :wat::core::Seqable<T>
-  (seq [self] -> :wat::stream::Stream<T> (:wat::core::seqable->stream self)))
+(:wat::core::extend-type :wat::core::List (:wat::core::Seqable :- [T])
+  (seq [self] -> (:wat::stream::Stream :- [T]) (:wat::core::seqable->stream self)))
 
-(:wat::core::extend-type :wat::stream::Stream :wat::core::Seqable<T>
-  (seq [self] -> :wat::stream::Stream<T> (:wat::core::seqable->stream self)))
+(:wat::core::extend-type :wat::stream::Stream (:wat::core::Seqable :- [T])
+  (seq [self] -> (:wat::stream::Stream :- [T]) (:wat::core::seqable->stream self)))
 
 ;; ─── filter — NATIVE now (Arc-278 DESIGN-STONE seq-traversal-one-door, Strike 2a) ─────────────
 ;;
@@ -124,8 +124,8 @@
 ;; calls its subject proves nothing. So it drains through its OWN sibling oracle,
 ;; `stream->pvec-spec`, below — NOT the (now-native) `stream->pvec`.
 ;; `[[feedback_a_green_test_can_prove_nothing]]` / `[[feedback_an_oracle_must_be_written_in_the_other_language]]`
-(:wat::core::defn :wat::core::stream->vec-spec<T>
-  [acc <- :wat::core::Vector<T> s <- :wat::stream::Stream<T>] -> :wat::core::Vector<T>
+(:wat::core::defn :wat::core::stream->vec-spec :- [T]
+  [acc <- (:wat::core::Vector :- [T]) s <- (:wat::stream::Stream :- [T])] -> (:wat::core::Vector :- [T])
   (:wat::core::Vector/extend
     acc
     (:wat::core::stream->pvec-spec (:wat::core::PersistentVector) s)))
@@ -141,9 +141,9 @@
 ;; query answers type-checks (`DESIGN-STONE-mapv-eager`).
 
 (:wat::core::defclause :wat::core::filterv
-  ([pred <- :wat::core::Fn(T)->wat::core::bool coll <- :wat::core::Vector<T>] -> :wat::core::Vector<T>
+  ([pred <- [T :-> :wat::core::bool] coll <- (:wat::core::Vector :- [T])] -> (:wat::core::Vector :- [T])
     (:wat::core::into [] (:wat::core::filter pred coll)))
-  ([pred <- :wat::core::Fn(T)->wat::core::bool coll <- :wat::stream::Stream<T>] -> :wat::core::Vector<T>
+  ([pred <- [T :-> :wat::core::bool] coll <- (:wat::stream::Stream :- [T])] -> (:wat::core::Vector :- [T])
     (:wat::core::into [] (:wat::core::filter pred coll))))
 
 ;; stream->pvec-spec — the wat reference engine (the SPEC / differential oracle) for
@@ -163,8 +163,8 @@
 ;; native would become a tautology. `wat/rete.wat:1508`'s `insert-all-spec` is the recorded
 ;; shape — a composed oracle calls its OWN sibling `-spec`, never the subject it is honesty-
 ;; checking.
-(:wat::core::defn :wat::core::stream->pvec-spec<T>
-  [acc <- :wat::core::PersistentVector<T> s <- :wat::stream::Stream<T>] -> :wat::core::PersistentVector<T>
+(:wat::core::defn :wat::core::stream->pvec-spec :- [T]
+  [acc <- (:wat::core::PersistentVector :- [T]) s <- (:wat::stream::Stream :- [T])] -> (:wat::core::PersistentVector :- [T])
   (:wat::core::match (:wat::stream::next s)
     ((:wat::stream::NextOutcome::Item value rest)
       (:wat::core::stream->pvec-spec (:wat::core::PersistentVector/conj acc value) rest))
@@ -177,22 +177,22 @@
 ;; Stream (delegates to `stream->vec`/`stream->pvec`, seeded by `to` — the general "append a
 ;; realized pipeline onto an accumulator" shape).
 (:wat::core::defclause :wat::core::into
-  ([to <- :wat::core::Vector<T> from <- :wat::core::Vector<T>] -> :wat::core::Vector<T>
+  ([to <- (:wat::core::Vector :- [T]) from <- (:wat::core::Vector :- [T])] -> (:wat::core::Vector :- [T])
     (:wat::core::concat to from))
-  ([to <- :wat::core::Vector<T> from <- :wat::stream::Stream<T>] -> :wat::core::Vector<T>
+  ([to <- (:wat::core::Vector :- [T]) from <- (:wat::stream::Stream :- [T])] -> (:wat::core::Vector :- [T])
     (:wat::core::stream->vec to from))
-  ([to <- :wat::core::PersistentVector<T> from <- :wat::stream::Stream<T>] -> :wat::core::PersistentVector<T>
+  ([to <- (:wat::core::PersistentVector :- [T]) from <- (:wat::stream::Stream :- [T])] -> (:wat::core::PersistentVector :- [T])
     (:wat::core::stream->pvec to from))
   ;; DESIGN-STONE-into-pv-from-vector.md — the missing fourth clause: materialize a Vector
   ;; into a PersistentVector in ONE native call, retiring the nine grid axes' hand-rolled
   ;; `foldl`+`conj` bridge (N interpreted closure invocations -> one native concat).
-  ([to <- :wat::core::PersistentVector<T> from <- :wat::core::Vector<T>] -> :wat::core::PersistentVector<T>
+  ([to <- (:wat::core::PersistentVector :- [T]) from <- (:wat::core::Vector :- [T])] -> (:wat::core::PersistentVector :- [T])
     (:wat::core::PersistentVector/concat to from))
   ;; Arc 278 — the MIRROR of the clause above, and the one `stream->vec` now needs. Its absence
   ;; was flagged as owed the moment the (PV,Vector) clause landed, and tripped a probe an hour
   ;; later: `query-by-type-string` returns a PersistentVector, so materialising one into a Vector
   ;; had no clause at all. Native one-shot, no per-element conj.
-  ([to <- :wat::core::Vector<T> from <- :wat::core::PersistentVector<T>] -> :wat::core::Vector<T>
+  ([to <- (:wat::core::Vector :- [T]) from <- (:wat::core::PersistentVector :- [T])] -> (:wat::core::Vector :- [T])
     (:wat::core::Vector/extend to from)))
 
 ;; doall / dorun — eager forcers (Stream -> Vector / nil). DIALECT NOTE: clojure's `doall`
@@ -210,10 +210,10 @@
 ;; SIGSEGVs at the same depth) — nesting it inside an argument would silently make this O(n)-stack.
 ;; Forcing still happens (that is what `next` does, and what makes the side effects run); only the
 ;; retention goes, O(n) live -> O(1) live (measured flat, `probe-118B8-dorun-retention.wat`).
-(:wat::core::defn :wat::core::doall<T> [coll <- :wat::stream::Stream<T>] -> :wat::core::Vector<T>
+(:wat::core::defn :wat::core::doall :- [T] [coll <- (:wat::stream::Stream :- [T])] -> (:wat::core::Vector :- [T])
   (:wat::core::into [] coll))
 
-(:wat::core::defn :wat::core::dorun<T> [coll <- :wat::stream::Stream<T>] -> :wat::core::nil
+(:wat::core::defn :wat::core::dorun :- [T] [coll <- (:wat::stream::Stream :- [T])] -> :wat::core::nil
   (:wat::core::match (:wat::stream::next coll)
     ((:wat::stream::NextOutcome::Item _value rest) (:wat::core::dorun rest))
     (:wat::stream::NextOutcome::Exhausted nil)))
@@ -232,17 +232,17 @@
 ;; an eviction `Option`, whatever) is always discarded, and `run!` itself always yields
 ;; `:wat::core::nil` (mirrors clojure's `run!`: for effects, not values).
 (:wat::core::defclause :wat::core::run!
-  ([f <- :wat::core::Fn(T)->U coll <- :wat::core::Vector<T>] -> :wat::core::nil
+  ([f <- [T :-> U] coll <- (:wat::core::Vector :- [T])] -> :wat::core::nil
     (:wat::core::foldl
       (:wat::core::fn [_acc <- :wat::core::nil x <- :T] -> :wat::core::nil (:wat::core::do (f x) nil))
       nil
       coll))
-  ([f <- :wat::core::Fn(T)->U coll <- :wat::core::List<T>] -> :wat::core::nil
+  ([f <- [T :-> U] coll <- (:wat::core::List :- [T])] -> :wat::core::nil
     (:wat::core::foldl
       (:wat::core::fn [_acc <- :wat::core::nil x <- :T] -> :wat::core::nil (:wat::core::do (f x) nil))
       nil
       coll))
-  ([f <- :wat::core::Fn(T)->U coll <- :wat::core::PersistentVector<T>] -> :wat::core::nil
+  ([f <- [T :-> U] coll <- (:wat::core::PersistentVector :- [T])] -> :wat::core::nil
     (:wat::core::foldl
       (:wat::core::fn [_acc <- :wat::core::nil x <- :T] -> :wat::core::nil (:wat::core::do (f x) nil))
       nil
@@ -274,14 +274,14 @@
 ;;
 ;; Its only caller is `wat-tests/core/core-foldl-spec.wat`. Zero production callers is the CORRECT
 ;; state for a spec — an inventory entry WITH a disposition, not an offender (task #48).
-(:wat::core::defn :wat::core::foldl-spec<T,U>
-  [f    <- :wat::core::Fn(U,T)->U
+(:wat::core::defn :wat::core::foldl-spec :- [T U]
+  [f    <- [U T :-> U]
    init <- :U
-   coll <- :wat::core::Seqable<T>] -> :U
+   coll <- (:wat::core::Seqable :- [T])] -> :U
   (:wat::core::foldl-spec-walk f init (:wat::core::Seqable/seq coll)))
 
-(:wat::core::defn :wat::core::foldl-spec-walk<T,U>
-  [f <- :wat::core::Fn(U,T)->U acc <- :U s <- :wat::stream::Stream<T>] -> :U
+(:wat::core::defn :wat::core::foldl-spec-walk :- [T U]
+  [f <- [U T :-> U] acc <- :U s <- (:wat::stream::Stream :- [T])] -> :U
   (:wat::core::match (:wat::stream::next s)
     ((:wat::stream::NextOutcome::Item value rest)
       (:wat::core::foldl-spec-walk f (f acc value) rest))
@@ -316,10 +316,10 @@
 
 (:wat::core::defclause :wat::core::reduce
   ;; 3-arity: explicit init. Straight to the native `foldl` — no normalisation, no walker.
-  ([f <- :wat::core::Fn(U,T)->U init <- :U coll <- :wat::core::Seqable<T>] -> :U
+  ([f <- [U T :-> U] init <- :U coll <- (:wat::core::Seqable :- [T])] -> :U
     (:wat::core::foldl f init coll))
   ;; 2-arity: no init — the first element seeds the fold. Empty raises, by name.
-  ([f <- :wat::core::Fn(T,T)->T coll <- :wat::core::Seqable<T>] -> :T
+  ([f <- [T T :-> T] coll <- (:wat::core::Seqable :- [T])] -> :T
     (:wat::core::match (:wat::stream::next (:wat::core::Seqable/seq coll))
       ((:wat::stream::NextOutcome::Item value rest)
         (:wat::core::foldl f value rest))
@@ -370,9 +370,9 @@
 ;; clauses (bodies byte-identical) are gone; `rest` comes back as a `Stream<T>`, which IS a
 ;; `Seqable<T>`, so the recursion lands right back here. Stateless, so no `-walk` helper is needed —
 ;; same shape as `keep` above.
-(:wat::core::defn :wat::core::remove<T>
-  [pred <- :wat::core::Fn(T)->wat::core::bool
-   coll <- :wat::core::Seqable<T>] -> :wat::stream::Stream<T>
+(:wat::core::defn :wat::core::remove :- [T]
+  [pred <- [T :-> :wat::core::bool]
+   coll <- (:wat::core::Seqable :- [T])] -> (:wat::stream::Stream :- [T])
   (:wat::stream::lazy
     (:wat::core::match (:wat::stream::next (:wat::core::Seqable/seq coll))
       ((:wat::stream::NextOutcome::Item value rest)
@@ -386,9 +386,9 @@
 ;; branches return `(stream/empty)` WITHOUT touching `rest`, so the cell after the first false is
 ;; never realized — `tests/types/probe_arc118_2z_takewhile_lazy.rs` proves it by making that cell
 ;; divide by zero.
-(:wat::core::defn :wat::core::take-while<T>
-  [pred <- :wat::core::Fn(T)->wat::core::bool
-   coll <- :wat::core::Seqable<T>] -> :wat::stream::Stream<T>
+(:wat::core::defn :wat::core::take-while :- [T]
+  [pred <- [T :-> :wat::core::bool]
+   coll <- (:wat::core::Seqable :- [T])] -> (:wat::stream::Stream :- [T])
   (:wat::stream::lazy
     (:wat::core::match (:wat::stream::next (:wat::core::Seqable/seq coll))
       ((:wat::stream::NextOutcome::Item value rest)
@@ -402,9 +402,9 @@
 ;; through `seqable->stream` (it still held the un-consumed container). With `next` the head is
 ;; already in hand, so the remainder is just `(stream/cons value rest)` — one cell, no
 ;; re-normalization and no second walk of anything.
-(:wat::core::defn :wat::core::drop-while<T>
-  [pred <- :wat::core::Fn(T)->wat::core::bool
-   coll <- :wat::core::Seqable<T>] -> :wat::stream::Stream<T>
+(:wat::core::defn :wat::core::drop-while :- [T]
+  [pred <- [T :-> :wat::core::bool]
+   coll <- (:wat::core::Seqable :- [T])] -> (:wat::stream::Stream :- [T])
   (:wat::stream::lazy
     (:wat::core::match (:wat::stream::next (:wat::core::Seqable/seq coll))
       ((:wat::stream::NextOutcome::Item value rest)
@@ -429,8 +429,8 @@
 ;; hands the same cell back (the repeat, preserved), n>=1 skips `value` plus n-1 from `rest`, and
 ;; every downstream cell is still forced EXACTLY ONCE. Baseline pinned in
 ;; `wat-scripts/scratch-pad/probe-118B-six-walkers-baseline.wat`.
-(:wat::core::defn :wat::core::take-nth-walk<T>
-  [n <- :wat::core::i64 s <- :wat::stream::Stream<T>] -> :wat::stream::Stream<T>
+(:wat::core::defn :wat::core::take-nth-walk :- [T]
+  [n <- :wat::core::i64 s <- (:wat::stream::Stream :- [T])] -> (:wat::stream::Stream :- [T])
   (:wat::stream::lazy
     (:wat::core::match (:wat::stream::next s)
       ((:wat::stream::NextOutcome::Item value rest)
@@ -439,8 +439,8 @@
             (:wat::core::drop (:wat::stream::cons value rest) n))))
       (:wat::stream::NextOutcome::Exhausted (:wat::stream::empty)))))
 
-(:wat::core::defn :wat::core::take-nth<T>
-  [n <- :wat::core::i64 coll <- :wat::core::Seqable<T>] -> :wat::stream::Stream<T>
+(:wat::core::defn :wat::core::take-nth :- [T]
+  [n <- :wat::core::i64 coll <- (:wat::core::Seqable :- [T])] -> (:wat::stream::Stream :- [T])
   (:wat::core::take-nth-walk n (:wat::core::Seqable/seq coll)))
 
 ;; ─── interpose — `sep` between every pair of adjacent elements ────────────────────────────────
@@ -454,8 +454,8 @@
 ;; second force per element (2 `next` calls/element instead of 1) — still O(n), not a complexity
 ;; class change, just a constant-factor cost of not having a second named helper to carry the
 ;; "not the first element" state across the recursion.
-(:wat::core::defn :wat::core::interpose-walk<T>
-  [sep <- :T value <- :T s <- :wat::stream::Stream<T>] -> :wat::stream::Stream<T>
+(:wat::core::defn :wat::core::interpose-walk :- [T]
+  [sep <- :T value <- :T s <- (:wat::stream::Stream :- [T])] -> (:wat::stream::Stream :- [T])
   (:wat::stream::lazy
     (:wat::core::match (:wat::stream::next s)
       ((:wat::stream::NextOutcome::Item next-value next-rest)
@@ -463,8 +463,8 @@
           (:wat::stream::cons sep (:wat::core::interpose-walk sep next-value next-rest))))
       (:wat::stream::NextOutcome::Exhausted (:wat::stream::cons value (:wat::stream::empty))))))
 
-(:wat::core::defn :wat::core::interpose<T>
-  [sep <- :T coll <- :wat::core::Seqable<T>] -> :wat::stream::Stream<T>
+(:wat::core::defn :wat::core::interpose :- [T]
+  [sep <- :T coll <- (:wat::core::Seqable :- [T])] -> (:wat::stream::Stream :- [T])
   (:wat::stream::lazy
     (:wat::core::match (:wat::stream::next (:wat::core::Seqable/seq coll))
       ((:wat::stream::NextOutcome::Item value rest)
@@ -475,9 +475,9 @@
 ;; (wat's Option-drop IS clojure's nil-drop — the honest dialect form, `VIRTVTE PARES`.)
 ;; 118.B2 — ONE clause over `Seqable<T>`, walking with `:wat::stream::next`. `keep-stream` twin
 ;; deleted; this is the DESIGN's own worked example (`probe-118B2-one-clause-lazy-producer.wat`).
-(:wat::core::defn :wat::core::keep<T,U>
-  [f    <- :wat::core::Fn(T)->wat::core::Option<U>
-   coll <- :wat::core::Seqable<T>] -> :wat::stream::Stream<U>
+(:wat::core::defn :wat::core::keep :- [T U]
+  [f    <- [T :-> (:wat::core::Option :- [U])]
+   coll <- (:wat::core::Seqable :- [T])] -> (:wat::stream::Stream :- [U])
   (:wat::stream::lazy
     (:wat::core::match (:wat::stream::next (:wat::core::Seqable/seq coll))
       ((:wat::stream::NextOutcome::Item value rest)
@@ -495,10 +495,10 @@
 ;; needs no new primitive, at the cost of O(n) chained calls per element (O(n^2) total instead of
 ;; the twin's O(n) `idx` counter) — the honest price of not having a second named helper to carry
 ;; the counter across the recursion the way `keep-indexed-stream` did.
-(:wat::core::defn :wat::core::keep-indexed-walk<T,U>
+(:wat::core::defn :wat::core::keep-indexed-walk :- [T U]
   [idx <- :wat::core::i64
-   f   <- :wat::core::Fn(wat::core::i64,T)->wat::core::Option<U>
-   s   <- :wat::stream::Stream<T>] -> :wat::stream::Stream<U>
+   f   <- [:wat::core::i64 T :-> (:wat::core::Option :- [U])]
+   s   <- (:wat::stream::Stream :- [T])] -> (:wat::stream::Stream :- [U])
   (:wat::stream::lazy
     (:wat::core::match (:wat::stream::next s)
       ((:wat::stream::NextOutcome::Item value rest)
@@ -508,9 +508,9 @@
           (:wat::core::None (:wat::core::keep-indexed-walk (:wat::core::+ idx 1) f rest))))
       (:wat::stream::NextOutcome::Exhausted (:wat::stream::empty)))))
 
-(:wat::core::defn :wat::core::keep-indexed<T,U>
-  [f    <- :wat::core::Fn(wat::core::i64,T)->wat::core::Option<U>
-   coll <- :wat::core::Seqable<T>] -> :wat::stream::Stream<U>
+(:wat::core::defn :wat::core::keep-indexed :- [T U]
+  [f    <- [:wat::core::i64 T :-> (:wat::core::Option :- [U])]
+   coll <- (:wat::core::Seqable :- [T])] -> (:wat::stream::Stream :- [U])
   (:wat::core::keep-indexed-walk 0 f (:wat::core::Seqable/seq coll)))
 
 ;; ─── map-indexed — `f : Fn(i64,T)->U` ───────────────────────────────────────────────────────────
@@ -518,10 +518,10 @@
 ;; (see its comment): `map-indexed-stream`'s `idx` param is gone; the index rides on `f` via a
 ;; fresh wrapping closure per recursive step. Public arity `[f coll]` unchanged; O(n) chained
 ;; calls per element traded for not adding a param.
-(:wat::core::defn :wat::core::map-indexed-walk<T,U>
+(:wat::core::defn :wat::core::map-indexed-walk :- [T U]
   [idx <- :wat::core::i64
-   f   <- :wat::core::Fn(wat::core::i64,T)->U
-   s   <- :wat::stream::Stream<T>] -> :wat::stream::Stream<U>
+   f   <- [:wat::core::i64 T :-> U]
+   s   <- (:wat::stream::Stream :- [T])] -> (:wat::stream::Stream :- [U])
   (:wat::stream::lazy
     (:wat::core::match (:wat::stream::next s)
       ((:wat::stream::NextOutcome::Item value rest)
@@ -529,9 +529,9 @@
           (:wat::core::map-indexed-walk (:wat::core::+ idx 1) f rest)))
       (:wat::stream::NextOutcome::Exhausted (:wat::stream::empty)))))
 
-(:wat::core::defn :wat::core::map-indexed<T,U>
-  [f    <- :wat::core::Fn(wat::core::i64,T)->U
-   coll <- :wat::core::Seqable<T>] -> :wat::stream::Stream<U>
+(:wat::core::defn :wat::core::map-indexed :- [T U]
+  [f    <- [:wat::core::i64 T :-> U]
+   coll <- (:wat::core::Seqable :- [T])] -> (:wat::stream::Stream :- [U])
   (:wat::core::map-indexed-walk 0 f (:wat::core::Seqable/seq coll)))
 
 ;; ─── dedupe — drop CONSECUTIVE duplicates ──────────────────────────────────────────────────────
@@ -543,8 +543,8 @@
 ;; duplicates of what I just emitted." Each input element is inspected by at most ONE active
 ;; `drop-while` call (it stops at the first non-match), so this stays O(n) amortized — no
 ;; complexity trade-off here, unlike `keep-indexed`/`map-indexed`/`distinct` below.
-(:wat::core::defn :wat::core::dedupe-walk<T>
-  [prev <- :wat::core::Option<T> s <- :wat::stream::Stream<T>] -> :wat::stream::Stream<T>
+(:wat::core::defn :wat::core::dedupe-walk :- [T]
+  [prev <- (:wat::core::Option :- [T]) s <- (:wat::stream::Stream :- [T])] -> (:wat::stream::Stream :- [T])
   (:wat::stream::lazy
     (:wat::core::match (:wat::stream::next s)
       ((:wat::stream::NextOutcome::Item value rest)
@@ -557,8 +557,8 @@
               (:wat::stream::cons value (:wat::core::dedupe-walk (:wat::core::Some value) rest))))))
       (:wat::stream::NextOutcome::Exhausted (:wat::stream::empty)))))
 
-(:wat::core::defn :wat::core::dedupe<T>
-  [coll <- :wat::core::Seqable<T>] -> :wat::stream::Stream<T>
+(:wat::core::defn :wat::core::dedupe :- [T]
+  [coll <- (:wat::core::Seqable :- [T])] -> (:wat::stream::Stream :- [T])
   (:wat::core::dedupe-walk :wat::core::None (:wat::core::Seqable/seq coll)))
 
 ;; ─── distinct — drop ALL duplicates (keep first) ───────────────────────────────────────────────
@@ -572,8 +572,8 @@
 ;; once per distinct value found, so a stream of N all-distinct elements costs O(n^2), not O(n).
 ;; Traded deliberately for staying at ONE clause with no new param — flagged, not hidden, per the
 ;; same complexity-honesty this file's own `stream->pvec`/`seqable->stream` history demands.
-(:wat::core::defn :wat::core::distinct-walk<T>
-  [seen <- :wat::core::HashSet<T> s <- :wat::stream::Stream<T>] -> :wat::stream::Stream<T>
+(:wat::core::defn :wat::core::distinct-walk :- [T]
+  [seen <- (:wat::core::HashSet :- [T]) s <- (:wat::stream::Stream :- [T])] -> (:wat::stream::Stream :- [T])
   (:wat::stream::lazy
     (:wat::core::match (:wat::stream::next s)
       ((:wat::stream::NextOutcome::Item value rest)
@@ -583,8 +583,8 @@
             (:wat::core::distinct-walk (:wat::core::conj seen value) rest))))
       (:wat::stream::NextOutcome::Exhausted (:wat::stream::empty)))))
 
-(:wat::core::defn :wat::core::distinct<T>
-  [coll <- :wat::core::Seqable<T>] -> :wat::stream::Stream<T>
+(:wat::core::defn :wat::core::distinct :- [T]
+  [coll <- (:wat::core::Seqable :- [T])] -> (:wat::stream::Stream :- [T])
   (:wat::core::distinct-walk (:wat::core::HashSet :T) (:wat::core::Seqable/seq coll)))
 
 ;; ─── reductions — emit `init`, then each successive accumulation ───────────────────────────────
@@ -624,8 +624,8 @@
 ;; returns a bare `nil`). ★ NOT A NEW RULING: `reduce`'s own 2-arity Stream arm made the identical
 ;; call in B2, for the identical reason. Every arm now seeds from ONE `next` and raises by name on
 ;; empty — which is what this comment always claimed, now true for all five containers.
-(:wat::core::defn :wat::core::reductions-walk<T,U>
-  [f <- :wat::core::Fn(U,T)->U init <- :U s <- :wat::stream::Stream<T>] -> :wat::stream::Stream<U>
+(:wat::core::defn :wat::core::reductions-walk :- [T U]
+  [f <- [U T :-> U] init <- :U s <- (:wat::stream::Stream :- [T])] -> (:wat::stream::Stream :- [U])
   (:wat::stream::lazy
     (:wat::stream::cons init
       (:wat::core::match (:wat::stream::next s)
@@ -635,8 +635,8 @@
 
 ;; The 2-arity seed: pull the first element with ONE force, or raise by name. Shared by all five
 ;; 2-arity arms below so the message and the empty-contract exist in exactly one place.
-(:wat::core::defn :wat::core::reductions-seed<T>
-  [f <- :wat::core::Fn(T,T)->T s <- :wat::stream::Stream<T>] -> :wat::stream::Stream<T>
+(:wat::core::defn :wat::core::reductions-seed :- [T]
+  [f <- [T T :-> T] s <- (:wat::stream::Stream :- [T])] -> (:wat::stream::Stream :- [T])
   (:wat::core::match (:wat::stream::next s)
     ((:wat::stream::NextOutcome::Item value rest)
       (:wat::core::reductions-walk f value rest))
@@ -647,10 +647,10 @@
 
 (:wat::core::defclause :wat::core::reductions
   ;; 3-arity: explicit init.
-  ([f <- :wat::core::Fn(U,T)->U init <- :U coll <- :wat::core::Seqable<T>] -> :wat::stream::Stream<U>
+  ([f <- [U T :-> U] init <- :U coll <- (:wat::core::Seqable :- [T])] -> (:wat::stream::Stream :- [U])
     (:wat::core::reductions-walk f init (:wat::core::Seqable/seq coll)))
   ;; 2-arity: no init — the first element seeds the accumulation. Empty raises, by name (above).
-  ([f <- :wat::core::Fn(T,T)->T coll <- :wat::core::Seqable<T>] -> :wat::stream::Stream<T>
+  ([f <- [T T :-> T] coll <- (:wat::core::Seqable :- [T])] -> (:wat::stream::Stream :- [T])
     (:wat::core::reductions-seed f (:wat::core::Seqable/seq coll))))
 
 ;; ─── mapcat — STOP-1 (NOT built) ────────────────────────────────────────────────────────────────

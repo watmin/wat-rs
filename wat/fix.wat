@@ -120,7 +120,7 @@
 
 ;; fix-seq — position-aware left-to-right walk over a child vector, carrying prev-arrow?.
 ;; Order matters: post-arrow type, then structural type, then arrow, then head/ref, then recurse.
-(:wat::core::defn :wat::fix::fix-seq [items <- :wat::core::Vector<wat::WatAST> prev-arrow? <- :wat::core::bool] -> :wat::core::Vector<wat::WatAST>
+(:wat::core::defn :wat::fix::fix-seq [items <- (:wat::core::Vector :- [:wat::WatAST]) prev-arrow? <- :wat::core::bool] -> (:wat::core::Vector :- [:wat::WatAST])
   (:wat::core::if (:wat::core::empty? items)
     (:wat::core::Vector :wat::WatAST)
     (:wat::core::let [h   (:wat::core::first items)
@@ -165,7 +165,7 @@
 ;; line 1 starts at 0; line N starts at: sum over k=1..N-1 of (length(lines[k-1]) + 1).
 (:wat::core::defn :wat::fix::fix-text-line-start
   [n     <- :wat::core::i64
-   lines <- :wat::core::Vector<wat::core::String>]
+   lines <- (:wat::core::Vector :- [:wat::core::String])]
   -> :wat::core::i64
   (:wat::core::if (:wat::core::= n 1)
     0
@@ -180,8 +180,8 @@
 ;; loc is the HashMap<keyword,i64> from (ast-span node); lines = (split src "\n").
 ;; offset = line-start(line) + (col - 1)  (col is 1-indexed char count from line start).
 (:wat::core::defn :wat::fix::fix-text-offset-of
-  [loc   <- :wat::core::HashMap<wat::core::keyword,wat::core::i64>
-   lines <- :wat::core::Vector<wat::core::String>]
+  [loc   <- (:wat::core::HashMap :- [:wat::core::keyword :wat::core::i64])
+   lines <- (:wat::core::Vector :- [:wat::core::String])]
   -> :wat::core::i64
   (:wat::core::let [ln (:wat::core::Option/expect  
                            (:wat::core::HashMap/get loc :line)
@@ -197,9 +197,9 @@
 ;; (ast-end-span node)); lines = (string::split src "\n").
 ;; Returns offset-of(end) - offset-of(start): the number of chars the span covers.
 (:wat::core::defn :wat::fix::fix-text-span-len
-  [start-span <- :wat::core::HashMap<wat::core::keyword,wat::core::i64>
-   end-span   <- :wat::core::HashMap<wat::core::keyword,wat::core::i64>
-   lines      <- :wat::core::Vector<wat::core::String>]
+  [start-span <- (:wat::core::HashMap :- [:wat::core::keyword :wat::core::i64])
+   end-span   <- (:wat::core::HashMap :- [:wat::core::keyword :wat::core::i64])
+   lines      <- (:wat::core::Vector :- [:wat::core::String])]
   -> :wat::core::i64
   (:wat::core::i64::-
     (:wat::fix::fix-text-offset-of end-span lines)
@@ -209,11 +209,11 @@
 ;; Deletion covers exactly the token text (ast-name char length); surrounding whitespace stays.
 (:wat::core::defn :wat::fix::fix-text-deletion-edit
   [node  <- :wat::WatAST
-   lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+   lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::let [off     (:wat::fix::fix-text-offset-of (:wat::core::ast-span node) lines)
                     old-len (:wat::core::string::length (:wat::core::ast-name node))]
-    (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)
+    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])
       (:wat::core::Tuple off old-len ""))))
 
 ;; fix-text-leaf-edits — apply the same rule order as fix-seq to a leaf node,
@@ -222,8 +222,8 @@
 (:wat::core::defn :wat::fix::fix-text-leaf-edits
   [node        <- :wat::WatAST
    prev-arrow? <- :wat::core::bool
-   lines       <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+   lines       <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::let [kind (:wat::core::ast-kind node)]
     (:wat::core::if (:wat::core::= kind "keyword")
       ;; keyword leaf — check type-annotation and head-keyword rules
@@ -233,21 +233,21 @@
                         old-len (:wat::core::string::length nm)]
         (:wat::core::if prev-arrow?
           ;; post-arrow keyword is a type annotation → convert to type form
-          (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)
+          (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])
             (:wat::core::Tuple off old-len
               (:wat::core::write-forms (:wat::core::keyword/to-type-form node))))
           (:wat::core::if (:wat::fix::type-shaped-keyword? node)
             ;; parametric/tuple keyword → type form
-            (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)
+            (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])
               (:wat::core::Tuple off old-len
                 (:wat::core::write-forms (:wat::core::keyword/to-type-form node))))
             (:wat::core::if (:wat::fix::head-keyword? node)
               ;; ::-namespaced call head → faithful-Clojure symbol
-              (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)
+              (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])
                 (:wat::core::Tuple off old-len
                   (:wat::core::ast-name (:wat::core::keyword/to-symbol node))))
               ;; bare data keyword (no ::, not type-shaped) — no edit
-              (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))))))
+              (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))))))
       (:wat::core::if (:wat::core::= kind "symbol")
         ;; symbol leaf — only arrow rule applies
         (:wat::core::if (:wat::fix::arrow? node)
@@ -255,20 +255,20 @@
                             off     (:wat::fix::fix-text-offset-of span lines)
                             nm      (:wat::core::ast-name node)
                             old-len (:wat::core::string::length nm)]
-            (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)
+            (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])
               (:wat::core::Tuple off old-len ":-")))
           ;; non-arrow symbol — no edit
-          (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)))
+          (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])))
         ;; int, float, bool, string, nil — no edit
-        (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))))))
+        (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))))))
 
 ;; fix-text-node-edits — dispatch: structural nodes → fix-text-struct-edits;
 ;; leaf nodes → fix-text-leaf-edits with position context.
 (:wat::core::defn :wat::fix::fix-text-node-edits
   [node        <- :wat::WatAST
    prev-arrow? <- :wat::core::bool
-   lines       <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+   lines       <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::if (:wat::fix::structural? node)
     (:wat::fix::fix-text-struct-edits node lines)
     (:wat::fix::fix-text-leaf-edits node prev-arrow? lines)))
@@ -276,12 +276,12 @@
 ;; fix-text-seq-edits — position-aware left-to-right walk over a child sequence.
 ;; Mirrors fix-seq's rule order; collects edits in ascending offset order.
 (:wat::core::defn :wat::fix::fix-text-seq-edits
-  [items       <- :wat::core::Vector<wat::WatAST>
+  [items       <- (:wat::core::Vector :- [:wat::WatAST])
    prev-arrow? <- :wat::core::bool
-   lines       <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+   lines       <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::if (:wat::core::empty? items)
-    (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
+    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))
     (:wat::core::let [h  (:wat::core::first items)
                       tl (:wat::core::rest items)]
       (:wat::core::concat
@@ -294,8 +294,8 @@
 ;; For all other structural nodes: delegate to fix-text-seq-edits on children.
 (:wat::core::defn :wat::fix::fix-text-struct-edits
   [node  <- :wat::WatAST
-   lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+   lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::if (:wat::fix::annotated-if? node)
     ;; strip-if: manually process children to emit deletions for -> and :T
     (:wat::core::let [ch (:wat::core::ast->children node)]
@@ -323,7 +323,7 @@
 ;; Each edit is Tuple(off, old-len, new-text); replaces src[off..off+old-len] with new-text.
 (:wat::core::defn :wat::fix::fix-text-apply
   [src   <- :wat::core::String
-   edits <- :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>]
+   edits <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])]
   -> :wat::core::String
   (:wat::core::if (:wat::core::empty? edits)
     src
@@ -366,7 +366,7 @@
 
 ;; str-in? — String membership in a Vector<String> (explicit; not index-contains?).
 (:wat::core::defn :wat::fix::str-in?
-  [s <- :wat::core::String  xs <- :wat::core::Vector<wat::core::String>] -> :wat::core::bool
+  [s <- :wat::core::String  xs <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::bool
   (:wat::core::if (:wat::core::empty? xs)
     false
     (:wat::core::if (:wat::core::= s (:wat::core::first xs))
@@ -377,13 +377,13 @@
 ;; the child immediately after it (the type keyword); recurse (strip-arrow-edits) into
 ;; every other child so NESTED matched forms are caught too.
 (:wat::core::defn :wat::fix::strip-arrow-scan
-  [items       <- :wat::core::Vector<wat::WatAST>
+  [items       <- (:wat::core::Vector :- [:wat::WatAST])
    prev-arrow? <- :wat::core::bool
-   heads       <- :wat::core::Vector<wat::core::String>
-   lines       <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+   heads       <- (:wat::core::Vector :- [:wat::core::String])
+   lines       <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::if (:wat::core::empty? items)
-    (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
+    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))
     (:wat::core::let [h  (:wat::core::first items)
                       tl (:wat::core::rest items)]
       (:wat::core::if prev-arrow?
@@ -400,21 +400,21 @@
 
 ;; strip-arrow-seq — recurse strip-arrow-edits over each child (non-matched nodes).
 (:wat::core::defn :wat::fix::strip-arrow-seq
-  [items <- :wat::core::Vector<wat::WatAST>
-   heads <- :wat::core::Vector<wat::core::String>
-   lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+  [items <- (:wat::core::Vector :- [:wat::WatAST])
+   heads <- (:wat::core::Vector :- [:wat::core::String])
+   lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::if (:wat::core::empty? items)
-    (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
+    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))
     (:wat::core::concat (:wat::fix::strip-arrow-edits (:wat::core::first items) heads lines)
                         (:wat::fix::strip-arrow-seq (:wat::core::rest items) heads lines))))
 
 ;; strip-arrow-edits — node → deletion edits for `-> :T` in lists headed by `heads`.
 (:wat::core::defn :wat::fix::strip-arrow-edits
   [node  <- :wat::WatAST
-   heads <- :wat::core::Vector<wat::core::String>
-   lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+   heads <- (:wat::core::Vector :- [:wat::core::String])
+   lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::if (:wat::fix::structural? node)
     (:wat::core::let [ch (:wat::core::ast->children node)]
       (:wat::core::if (:wat::core::if (:wat::core::empty? ch)
@@ -424,12 +424,12 @@
                           false))
         (:wat::fix::strip-arrow-scan ch false heads lines)
         (:wat::fix::strip-arrow-seq ch heads lines)))
-    (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))))
+    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))))
 
 ;; strip-arrow-ascription — src → migrated-src for the given head-set.
 (:wat::core::defn :wat::fix::strip-arrow-ascription
   [src   <- :wat::core::String
-   heads <- :wat::core::Vector<wat::core::String>]
+   heads <- (:wat::core::Vector :- [:wat::core::String])]
   -> :wat::core::String
   (:wat::core::let [lines     (:wat::core::string::split src "\n")
                     tree      (:wat::core::match (:wat::core::read-string src) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)))
@@ -480,13 +480,13 @@
 ;; When prev-arrow? AND kind=="keyword" → type slot: emit a replacement edit.
 ;; The new-text depends on after-amp?: rest param → Vector<wat::WatAST>, fixed → WatAST.
 (:wat::core::defn :wat::fix::argspec-type-edits-walk
-  [items       <- :wat::core::Vector<wat::WatAST>
+  [items       <- (:wat::core::Vector :- [:wat::WatAST])
    prev-arrow? <- :wat::core::bool
    after-amp?  <- :wat::core::bool
-   lines       <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+   lines       <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::if (:wat::core::empty? items)
-    (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
+    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))
     (:wat::core::let [h  (:wat::core::first items)
                       tl (:wat::core::rest items)
                       ;; is this token a type-slot?
@@ -501,9 +501,9 @@
                                                      new-text (:wat::core::if after-amp?
                                                                  ":wat::core::Vector<wat::WatAST>"
                                                                  ":wat::WatAST")]
-                                     (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)
+                                     (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])
                                        (:wat::core::Tuple off old-len new-text)))
-                                   (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)))
+                                   (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])))
                       ;; update after-amp?: set when current token is `&`
                       next-after-amp? (:wat::core::if (:wat::fix::amp? h) true after-amp?)
                       ;; update prev-arrow?: set when current token is `<-`
@@ -517,12 +517,12 @@
 ;; keyword (the keyword immediately following the `->` symbol at this level, NOT inside
 ;; the argvec). Emits at most one replacement edit → `:wat::WatAST`.
 (:wat::core::defn :wat::fix::rettype-edit-walk
-  [items            <- :wat::core::Vector<wat::WatAST>
+  [items            <- (:wat::core::Vector :- [:wat::WatAST])
    prev-right-arrow? <- :wat::core::bool
-   lines            <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+   lines            <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::if (:wat::core::empty? items)
-    (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
+    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))
     (:wat::core::let [h  (:wat::core::first items)
                       tl (:wat::core::rest items)
                       ;; is this the return-type keyword slot?
@@ -534,7 +534,7 @@
         (:wat::core::let [span    (:wat::core::ast-span h)
                           off     (:wat::fix::fix-text-offset-of span lines)
                           old-len (:wat::core::string::length (:wat::core::ast-name h))]
-          (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)
+          (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])
             (:wat::core::Tuple off old-len ":wat::WatAST")))
         ;; not yet — recurse tracking whether current token is `->`
         (:wat::fix::rettype-edit-walk tl (:wat::fix::right-arrow? h) lines)))))
@@ -545,8 +545,8 @@
 ;; return type: first keyword after `->` in the form's top-level children.
 (:wat::core::defn :wat::fix::defmacro-edits
   [form  <- :wat::WatAST
-   lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+   lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::let [ch     (:wat::core::ast->children form)
                     ;; ch[2]: if it's a vector, argvec is here (6-item); else ch[3] (7-item)
                     c2     (:wat::core::nth ch 2)
@@ -568,11 +568,11 @@
 ;; with macro-param-edits (which maps this over a vector of children).
 (:wat::core::defn :wat::fix::collect-defmacro-edits-deep
   [node  <- :wat::WatAST
-   lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+   lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::let [here (:wat::core::if (:wat::fix::defmacro? node)
                            (:wat::fix::defmacro-edits node lines)
-                           (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)))]
+                           (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])))]
     (:wat::core::concat here
       (:wat::fix::macro-param-edits (:wat::core::ast->children node) lines))))
 
@@ -580,11 +580,11 @@
 ;; Each form is walked to ALL depths, so a defmacro nested in another macro's template is
 ;; found and fixed, not just top-level defmacros.
 (:wat::core::defn :wat::fix::macro-param-edits
-  [forms <- :wat::core::Vector<wat::WatAST>
-   lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+  [forms <- (:wat::core::Vector :- [:wat::WatAST])
+   lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::if (:wat::core::empty? forms)
-    (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
+    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))
     (:wat::core::let [form (:wat::core::first forms)
                       rest-forms (:wat::core::rest forms)]
       (:wat::core::concat (:wat::fix::collect-defmacro-edits-deep form lines)
@@ -700,13 +700,13 @@
 ;; rename-prefix-edits-walk — walk a vector of nodes, concating prefix-swap edits.
 ;; Internal helper mirroring macro-param-edits; not a public API.
 (:wat::core::defn :wat::fix::rename-prefix-edits-walk
-  [items      <- :wat::core::Vector<wat::WatAST>
+  [items      <- (:wat::core::Vector :- [:wat::WatAST])
    old-prefix <- :wat::core::String
    new-prefix <- :wat::core::String
-   lines      <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+   lines      <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::if (:wat::core::empty? items)
-    (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
+    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))
     (:wat::core::let [h  (:wat::core::first items)
                       tl (:wat::core::rest items)]
       (:wat::core::concat
@@ -721,8 +721,8 @@
   [node       <- :wat::WatAST
    old-prefix <- :wat::core::String
    new-prefix <- :wat::core::String
-   lines      <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+   lines      <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::if (:wat::fix::structural? node)
     ;; structural: recurse into children
     (:wat::fix::rename-prefix-edits-walk (:wat::core::ast->children node) old-prefix new-prefix lines)
@@ -736,13 +736,13 @@
                         new-name (:wat::fix::rename-in-name name old-bare new-bare old-len name-len 0 "")]
         (:wat::core::if (:wat::core::= new-name name)
           ;; no change — no edit
-          (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
+          (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))
           ;; changed — emit whole-token replace edit
           (:wat::core::let [off (:wat::fix::fix-text-offset-of (:wat::core::ast-span node) lines)]
-            (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)
+            (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])
               (:wat::core::Tuple off name-len new-name)))))
       ;; non-keyword leaf (symbol, int, float, bool, string, nil) — no edit
-      (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)))))
+      (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])))))
 
 ;; rename-keyword-prefix — comment-faithful keyword PREFIX rename rule.
 ;; Parses src → collects prefix-swap edits for every matching keyword leaf →
@@ -771,13 +771,13 @@
 ;; prefix-siblings (`:t::deftest-hermetic`) are untouched (exact whole-name equality). Use
 ;; rename-keyword-prefix for a boundary-aware prefix swap; use this for an exact whole-name rename.
 (:wat::core::defn :wat::fix::rename-exact-edits-walk
-  [items <- :wat::core::Vector<wat::WatAST>
+  [items <- (:wat::core::Vector :- [:wat::WatAST])
    old   <- :wat::core::String
    new   <- :wat::core::String
-   lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+   lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::if (:wat::core::empty? items)
-    (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
+    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))
     (:wat::core::let [h  (:wat::core::first items)
                       tl (:wat::core::rest items)]
       (:wat::core::concat
@@ -790,17 +790,17 @@
   [node  <- :wat::WatAST
    old   <- :wat::core::String
    new   <- :wat::core::String
-   lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+   lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::if (:wat::fix::structural? node)
     (:wat::fix::rename-exact-edits-walk (:wat::core::ast->children node) old new lines)
     (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "keyword")
       (:wat::core::if (:wat::core::= (:wat::core::ast-name node) old)
         (:wat::core::let [off (:wat::fix::fix-text-offset-of (:wat::core::ast-span node) lines)]
-          (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)
+          (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])
             (:wat::core::Tuple off (:wat::core::string::length old) new)))
-        (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)))
-      (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)))))
+        (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])))
+      (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])))))
 
 (:wat::core::defn :wat::fix::rename-keyword-exact
   [old <- :wat::core::String
@@ -826,13 +826,13 @@
 ;; once `new` no longer contains `old` as its full name. Does not touch rename-keyword-exact/
 ;; rename-keyword-prefix or any existing call site.
 (:wat::core::defn :wat::fix::rename-symbol-exact-edits-walk
-  [items <- :wat::core::Vector<wat::WatAST>
+  [items <- (:wat::core::Vector :- [:wat::WatAST])
    old   <- :wat::core::String
    new   <- :wat::core::String
-   lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+   lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::if (:wat::core::empty? items)
-    (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
+    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))
     (:wat::core::let [h  (:wat::core::first items)
                       tl (:wat::core::rest items)]
       (:wat::core::concat
@@ -846,17 +846,17 @@
   [node  <- :wat::WatAST
    old   <- :wat::core::String
    new   <- :wat::core::String
-   lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+   lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::if (:wat::fix::structural? node)
     (:wat::fix::rename-symbol-exact-edits-walk (:wat::core::ast->children node) old new lines)
     (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "symbol")
       (:wat::core::if (:wat::core::= (:wat::core::ast-name node) old)
         (:wat::core::let [off (:wat::fix::fix-text-offset-of (:wat::core::ast-span node) lines)]
-          (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)
+          (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])
             (:wat::core::Tuple off (:wat::core::string::length old) new)))
-        (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)))
-      (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)))))
+        (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])))
+      (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])))))
 
 (:wat::core::defn :wat::fix::rename-symbol-exact
   [old <- :wat::core::String
@@ -902,7 +902,7 @@
 ;; Edit — one span splice: (offset, chars-to-replace, replacement-text).
 ;; A 0-length edit is an INSERT. Collected ascending, applied high-offset-first so a low
 ;; splice never shifts a pending higher one.
-(:wat::core::typealias :wat::fix::Edit :(wat::core::i64,wat::core::i64,wat::core::String))
+(:wat::core::typealias :wat::fix::Edit (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))
 
 ;; kw-name — a keyword node's name; "" for anything else (so callers never branch on kind).
 (:wat::core::defn :wat::fix::kw-name [n <- :wat::WatAST] -> :wat::core::String
@@ -923,11 +923,11 @@
 
 ;; node-start-offset / node-end-offset — a node's span endpoints as flat char offsets.
 (:wat::core::defn :wat::fix::node-start-offset
-  [n <- :wat::WatAST  lines <- :wat::core::Vector<wat::core::String>] -> :wat::core::i64
+  [n <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::i64
   (:wat::fix::fix-text-offset-of (:wat::core::ast-span n) lines))
 
 (:wat::core::defn :wat::fix::node-end-offset
-  [n <- :wat::WatAST  lines <- :wat::core::Vector<wat::core::String>] -> :wat::core::i64
+  [n <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::i64
   (:wat::fix::fix-text-offset-of (:wat::core::ast-end-span n) lines))
 
 ;; arm-head-name — a match arm is `(pattern body…)`. A TAGGED-variant pattern is a list
@@ -946,7 +946,7 @@
 
 ;; arm-heads-contain? — does ANY arm's head name contain `needle`?
 (:wat::core::defn :wat::fix::arm-heads-contain?
-  [arms <- :wat::core::Vector<wat::WatAST>  needle <- :wat::core::String] -> :wat::core::bool
+  [arms <- (:wat::core::Vector :- [:wat::WatAST])  needle <- :wat::core::String] -> :wat::core::bool
   (:wat::core::foldl
     (:wat::core::fn [acc <- :wat::core::bool  arm <- :wat::WatAST] -> :wat::core::bool
       (:wat::core::if acc true
@@ -966,8 +966,8 @@
 ;; wrap-edits — the two inserts that bracket one call: `before` at its start, `after` at its end.
 (:wat::core::defn :wat::fix::wrap-edits
   [node <- :wat::WatAST  before <- :wat::core::String  after <- :wat::core::String
-   lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<wat::fix::Edit>
+   lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [:wat::fix::Edit])
   (:wat::core::Vector :wat::fix::Edit
     (:wat::core::Tuple (:wat::fix::node-start-offset node lines) 0 before)
     (:wat::core::Tuple (:wat::fix::node-end-offset   node lines) 0 after)))
@@ -979,8 +979,8 @@
 (:wat::core::defn :wat::fix::wrap-node-edits
   [node <- :wat::WatAST  head <- :wat::core::String  needle <- :wat::core::String
    before <- :wat::core::String  after <- :wat::core::String
-   lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<wat::fix::Edit>
+   lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [:wat::fix::Edit])
   (:wat::core::if (:wat::fix::wrapped-in-match? node needle)
     (:wat::core::let [ch (:wat::core::ast->children node)]
       (:wat::fix::wrap-seq-edits
@@ -998,13 +998,13 @@
         this))))
 
 (:wat::core::defn :wat::fix::wrap-seq-edits
-  [items <- :wat::core::Vector<wat::WatAST>  head <- :wat::core::String  needle <- :wat::core::String
+  [items <- (:wat::core::Vector :- [:wat::WatAST])  head <- :wat::core::String  needle <- :wat::core::String
    before <- :wat::core::String  after <- :wat::core::String
-   lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<wat::fix::Edit>
+   lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [:wat::fix::Edit])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::Vector<wat::fix::Edit>  it <- :wat::WatAST]
-      -> :wat::core::Vector<wat::fix::Edit>
+    (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::fix::Edit])  it <- :wat::WatAST]
+      -> (:wat::core::Vector :- [:wat::fix::Edit])
       (:wat::core::concat acc (:wat::fix::wrap-node-edits it head needle before after lines)))
     (:wat::core::Vector :wat::fix::Edit)
     items))
@@ -1037,8 +1037,8 @@
 
 ;; rehead-defn-target? — is this list a `(:wat::core::defn :NAME …)` whose NAME is in `names`?
 (:wat::core::defn :wat::fix::rehead-defn-target?
-  [kids  <- :wat::core::Vector<wat::WatAST>
-   names <- :wat::core::Vector<wat::core::String>] -> :wat::core::bool
+  [kids  <- (:wat::core::Vector :- [:wat::WatAST])
+   names <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::bool
   (:wat::core::if (:wat::core::< (:wat::core::length kids) 2)
     false
     (:wat::core::if (:wat::core::= (:wat::fix::kw-name (:wat::core::first kids)) ":wat::core::defn")
@@ -1046,9 +1046,9 @@
       false)))
 
 (:wat::core::defn :wat::fix::rehead-rete-defn-walk
-  [items <- :wat::core::Vector<wat::WatAST>
-   names <- :wat::core::Vector<wat::core::String>
-   lines <- :wat::core::Vector<wat::core::String>] -> :wat::core::Vector<wat::fix::Edit>
+  [items <- (:wat::core::Vector :- [:wat::WatAST])
+   names <- (:wat::core::Vector :- [:wat::core::String])
+   lines <- (:wat::core::Vector :- [:wat::core::String])] -> (:wat::core::Vector :- [:wat::fix::Edit])
   (:wat::core::if (:wat::core::empty? items)
     (:wat::core::Vector :wat::fix::Edit)
     (:wat::core::concat
@@ -1057,8 +1057,8 @@
 
 (:wat::core::defn :wat::fix::rehead-rete-defn-edits
   [node  <- :wat::WatAST
-   names <- :wat::core::Vector<wat::core::String>
-   lines <- :wat::core::Vector<wat::core::String>] -> :wat::core::Vector<wat::fix::Edit>
+   names <- (:wat::core::Vector :- [:wat::core::String])
+   lines <- (:wat::core::Vector :- [:wat::core::String])] -> (:wat::core::Vector :- [:wat::fix::Edit])
   (:wat::core::if (:wat::fix::structural? node)
     (:wat::core::let [kids  (:wat::core::ast->children node)
                       inner (:wat::fix::rehead-rete-defn-walk kids names lines)]
@@ -1076,7 +1076,7 @@
 ;; rehead-rete-defn — the entry point. `names` is the EXPLICIT worklist: the checker names
 ;; each offender ("':X' is not a rete primitive"), and only those move.
 (:wat::core::defn :wat::fix::rehead-rete-defn
-  [names <- :wat::core::Vector<wat::core::String>
+  [names <- (:wat::core::Vector :- [:wat::core::String])
    src   <- :wat::core::String] -> :wat::core::String
   (:wat::core::let
     [lines (:wat::core::string::split src "\n")
@@ -1133,8 +1133,8 @@
 ;; first-of-drop-edits — the 3 span edits (see shape note above) for one matched node.
 (:wat::core::defn :wat::fix::first-of-drop-edits
   [node  <- :wat::WatAST
-   lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<wat::fix::Edit>
+   lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [:wat::fix::Edit])
   (:wat::core::let
     [ch        (:wat::core::ast->children node)
      head      (:wat::core::first ch)
@@ -1161,8 +1161,8 @@
 ;; any nested hit inside X/n — collected via reverse+sort at the entry point, not here.
 (:wat::core::defn :wat::fix::first-of-drop-scan
   [node  <- :wat::WatAST
-   lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<wat::fix::Edit>
+   lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [:wat::fix::Edit])
   (:wat::core::if (:wat::fix::first-of-drop? node)
     (:wat::core::let
       [ch        (:wat::core::ast->children node)
@@ -1176,9 +1176,9 @@
       (:wat::core::Vector :wat::fix::Edit))))
 
 (:wat::core::defn :wat::fix::first-of-drop-walk
-  [items <- :wat::core::Vector<wat::WatAST>
-   lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<wat::fix::Edit>
+  [items <- (:wat::core::Vector :- [:wat::WatAST])
+   lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [:wat::fix::Edit])
   (:wat::core::if (:wat::core::empty? items)
     (:wat::core::Vector :wat::fix::Edit)
     (:wat::core::concat

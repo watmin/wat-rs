@@ -58,7 +58,7 @@
 ;; slots carry the rendered values so the test runner can display them
 ;; alongside the source location. Used to be `:None :None` (just "the
 ;; assertion fired"); arc 064 closed the diagnostic gap.
-(:wat::core::defn :wat::test::assert-eq<T> [actual <- :T expected <- :T] -> :wat::core::nil
+(:wat::core::defn :wat::test::assert-eq :- [T] [actual <- :T expected <- :T] -> :wat::core::nil
   (:wat::core::if (:wat::core::= actual expected) 
       nil
       (:wat::kernel::assertion-failed!
@@ -181,7 +181,7 @@
 ;; `:wat::WatAST` into a `:wat::core::Vector<wat::WatAST>`.
 
 (:wat::core::defmacro :wat::test::program
-  [& forms <- :wat::core::Vector<wat::WatAST>]
+  [& forms <- (:wat::core::Vector :- [:wat::WatAST])]
   -> :wat::WatAST
   `(:wat::core::forms ~@forms))
 
@@ -323,7 +323,7 @@
 ;; capability; the macros below only hand it a program. The peer is a
 ;; let-bound local, so its type never reaches the signature.
 (:wat::core::defn :wat::test::spawn-thread-program
-  [prog <- [:wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64> :-> :wat::core::nil]]
+  [prog <- [(:wat::kernel::ThreadSelfPeer :- [:wat::core::i64 :wat::core::i64]) :-> :wat::core::nil]]
   -> :wat::test::TestResult
   (:wat::core::let [p (:wat::kernel::spawn-program (:wat::spawn::thread) prog)]
     (:wat::core::match (:wat::kernel::recv p)
@@ -368,12 +368,12 @@
 ;; corpus migration a recorded wat-fix codemod rather than a hand-sorted sweep.
 (:wat::core::defclause :wat::test::spawn-peer
   ([locus <- :wat::spawn::ThreadOpts
-    prog  <- [:wat::kernel::ThreadSelfPeer<S,R> :-> :wat::core::nil]]
-    -> :wat::kernel::Thread<R,S>
+    prog  <- [(:wat::kernel::ThreadSelfPeer :- [S R]) :-> :wat::core::nil]]
+    -> (:wat::kernel::Thread :- [R S])
     (:wat::kernel::spawn-program locus prog))
   ([locus <- :wat::spawn::ProcessOpts
-    prog  <- :wat::core::Vector<wat::WatAST>]
-    -> :wat::kernel::Process<I,O>
+    prog  <- (:wat::core::Vector :- [:wat::WatAST])]
+    -> (:wat::kernel::Process :- [I O])
     (:wat::kernel::spawn-program locus prog)))
 
 (:wat::core::defmacro :wat::test::run-thread
@@ -388,7 +388,7 @@
   ;; The macro no longer emits `spawn-program` — it hands the program to
   ;; `:wat::test::spawn-thread-program`, which holds the capability (see above).
   `(:wat::test::spawn-thread-program
-     (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+     (:wat::core::fn [self <- (:wat::kernel::ThreadSelfPeer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
        ;; arc 278 the send'-outcome wall — the PARENT faces the outcome via its own
        ;; `recv' p` in the holder fn (Message/Lost/Closed all become a RunResult); the
        ;; child's completion-signal send' just needs to proceed regardless.
@@ -432,7 +432,7 @@
 ;; The process-tier capability holder — the sibling of
 ;; `:wat::test::spawn-thread-program` above; same reason, same shape.
 (:wat::core::defn :wat::test::spawn-hermetic-program
-  [prog <- :wat::core::Vector<wat::WatAST>]
+  [prog <- (:wat::core::Vector :- [:wat::WatAST])]
   -> :wat::test::TestResult
   (:wat::core::let [p (:wat::kernel::spawn-program (:wat::spawn::process) prog)]
     (:wat::core::match (:wat::kernel::recv p)
