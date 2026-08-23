@@ -119,7 +119,7 @@ Making `acc_facts` a native `Vec` in the frozen Session.
 
 ---
 
-### T2 — the Exists leaf still memcpys occupancy
+### T2 — the Exists leaf still memcpys occupancy — ⚠ RE-RANKED, needs its own probe
 
 **Site:** `src/rete/kernel/fire/delta.rs:1250`.
 
@@ -143,14 +143,32 @@ An Arc bump releases the borrow without copying the bag.
 **★ THE ONE CONTRACT DECISION.** *Exists holds occupancy by Arc, not by
 memcpy* — the same contract already landed for catch-up.
 
-**Gate.** (1) negation / neg-consumer leftover `Instant` does not regress, any
-drop counts; (2) 7strat 3/3; (3) Clara `test-simple-exists` distinct-inner-binds
-still matches; (4) clippy `--lib -D warnings`.
+> **⚠ CORRECTION 2026-08-23 (before the strike, not after).** The predicted
+> win below named **neg-consumer**. Grounded against the disk: the branch is
+> guarded by `pids.is_empty() && kind == NodeKind::Exists` — a **LEADING**
+> `:exists`, one with no parent. Checked every axis: `negation`, `neg-consumer`
+> and `strat-neg` use `:not` and contain **zero** `:exists`; the only axis with
+> one is `accum` (`:acc::exists-rule`), where the `exists` is the **second**
+> condition, so it HAS a parent and this branch never fires.
+> **No grid axis exercises this site.** The memcpy is still real theater and the
+> contract that kills it is already landed and proven, but its win **cannot be
+> demonstrated by the grid**, and this project does not claim numbers it cannot
+> measure. T2 therefore needs its OWN isolated probe (a leading `:exists` over a
+> large alpha, in the shape of `strat_merge_present_parts`) before it is cut —
+> and it is **re-ranked below T3 and T5**, which land on axes already proven
+> sensitive. The original prediction is left below, struck, as the record of the
+> error.
 
-**Predicted win (written first).** Sibling of the catch-up Arc intern, which
-took fanout without-query FIRE **−1.51 ms** on a 40k leaf. Exists leaves in the
-grid are far smaller, so expect **−0.1 to −0.5 ms** on neg-consumer, and a
-larger drop on any Exists over a big alpha.
+**Gate (revised).** (1) an isolated probe over a leading `:exists` with N
+elements names the memcpy; (2) 7strat 3/3; (3) Clara `test-simple-exists`
+distinct-inner-binds still matches; (4) clippy `--lib -D warnings`.
+Do NOT gate on neg-consumer — it does not reach this code.
+
+**~~Predicted win (written first)~~ — STRUCK, wrong on the disk.** ~~Sibling of
+the catch-up Arc intern, which took fanout without-query FIRE −1.51 ms on a 40k
+leaf. Exists leaves in the grid are far smaller, so expect −0.1 to −0.5 ms on
+neg-consumer~~ — neg-consumer has no `:exists` at all. Revised: magnitude is
+whatever a leading `:exists` sits over; unknown until the probe names it.
 
 **Blast radius.** `fire/delta.rs` Exists-leaf branch only. No `.wat`. No
 `AlphaMemory` type change.
