@@ -1512,19 +1512,17 @@ impl GatherIndex {
     /// New ids are `>=` the previous length (alpha only appends). Foldl order holds.
     fn append(
         &mut self,
-        new_idxs: &[usize],
+        new_idxs: impl IntoIterator<Item = usize>,
         elements: &[Element],
         join_keys: &[Value],
         intern: GatherIntern<'_>,
     ) {
-        if new_idxs.is_empty() || elements.is_empty() {
+        if elements.is_empty() {
             return;
         }
         if join_keys.is_empty() {
             if let Self::Nary(m) = self {
-                m.entry(JoinKey::Empty)
-                    .or_default()
-                    .extend(new_idxs.iter().copied());
+                m.entry(JoinKey::Empty).or_default().extend(new_idxs);
             }
             return;
         }
@@ -1536,14 +1534,14 @@ impl GatherIndex {
                     .iter()
                     .position(|k| k == &join_keys[0])
                     .map(|i| i as u32);
-                for &i in new_idxs {
+                for i in new_idxs {
                     if let Some(vid) = unary_el_vid(&elements[i], field, key_id, &intern) {
                         m.entry(vid).or_default().push(i);
                     }
                 }
             }
             Self::Nary(m) => {
-                for &i in new_idxs {
+                for i in new_idxs {
                     let key = key_of_el(&elements[i], join_keys, &intern);
                     m.entry(key).or_default().push(i);
                 }
@@ -1563,14 +1561,93 @@ impl GatherIndex {
 // `DESIGN-STONE-persist-gather-across-rounds`).
 type GatherCache = FxHashMap<(i64, Arc<[Value]>), GatherIndex>;
 
-fn append_d_alpha(cache: &mut GatherCache, d_alpha: &AlphaDelta, wm: &FireSession) {
+/// Packed seed occupancy is dirty in full. Walk `0..len`, do not
+/// materialize `(0..n).collect()` (`DESIGN-STONE-seed-d-alpha-range`).
+#[derive(Clone, Copy)]
+pub(crate) struct AlphaNews<'a> {
+    inner: AlphaNewsInner<'a>,
+}
+
+#[derive(Clone, Copy)]
+enum AlphaNewsInner<'a> {
+    Range(usize),
+    Slots(&'a [usize]),
+}
+
+pub(crate) enum AlphaNewsIter<'a> {
+    Range(std::ops::Range<usize>),
+    Slots(std::slice::Iter<'a, usize>),
+}
+
+impl<'a> AlphaNews<'a> {
+    pub(crate) fn of(
+        d_alpha: &'a AlphaDelta,
+        alpha: &'a AlphaMemory,
+        aid: i64,
+        packed_full: &HashSet<i64>,
+    ) -> Self {
+        if packed_full.contains(&aid) {
+            let n = alpha.get(&aid).map(|v| v.len()).unwrap_or(0);
+            Self {
+                inner: AlphaNewsInner::Range(n),
+            }
+        } else {
+            match d_alpha.get(&aid) {
+                Some(ix) if !ix.is_empty() => Self {
+                    inner: AlphaNewsInner::Slots(ix),
+                },
+                _ => Self {
+                    inner: AlphaNewsInner::Range(0),
+                },
+            }
+        }
+    }
+
+    pub(crate) fn is_empty(self) -> bool {
+        match self.inner {
+            AlphaNewsInner::Range(n) => n == 0,
+            AlphaNewsInner::Slots(s) => s.is_empty(),
+        }
+    }
+
+    pub(crate) fn iter(self) -> AlphaNewsIter<'a> {
+        match self.inner {
+            AlphaNewsInner::Range(n) => AlphaNewsIter::Range(0..n),
+            AlphaNewsInner::Slots(s) => AlphaNewsIter::Slots(s.iter()),
+        }
+    }
+}
+
+impl Iterator for AlphaNewsIter<'_> {
+    type Item = usize;
+    fn next(&mut self) -> Option<usize> {
+        match self {
+            Self::Range(r) => r.next(),
+            Self::Slots(it) => it.next().copied(),
+        }
+    }
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        match self {
+            Self::Range(r) => r.size_hint(),
+            Self::Slots(it) => it.size_hint(),
+        }
+    }
+}
+
+fn append_d_alpha(
+    cache: &mut GatherCache,
+    d_alpha: &AlphaDelta,
+    wm: &FireSession,
+    packed_full: &HashSet<i64>,
+) {
     for ((aid, join_keys), idx) in cache.iter_mut() {
-        let Some(news) = d_alpha.get(aid) else {
+        let news = AlphaNews::of(d_alpha, &wm.alpha, *aid, packed_full);
+        if news.is_empty() {
             continue;
-        };
+        }
         let els = alpha_elements(&wm.alpha, *aid);
         idx.append(
-            news,
+            news.iter(),
             els,
             join_keys.as_ref(),
             GatherIntern::from_wm(wm, *aid),

@@ -508,6 +508,7 @@ pub(crate) fn seed_dirty_join_parents(
     join_parent: &[i64],
     d_beta: &BetaMemory,
     d_alpha: &AlphaDelta,
+    packed_full: &HashSet<i64>,
     joins_fed_by: &JoinsFedBy,
     parents_of: &ParentsOf,
 ) -> FxHashSet<i64> {
@@ -517,12 +518,9 @@ pub(crate) fn seed_dirty_join_parents(
             dirty.insert(*pid);
         }
     }
-    for (aid, idxs) in d_alpha {
-        if idxs.is_empty() {
-            continue;
-        }
-        let Some(joins) = joins_fed_by.get(aid) else {
-            continue;
+    let mut dirty_from_alpha = |aid: i64| {
+        let Some(joins) = joins_fed_by.get(&aid) else {
+            return;
         };
         for j in joins {
             let Some(ps) = parents_of.get(j) else {
@@ -534,6 +532,15 @@ pub(crate) fn seed_dirty_join_parents(
                 }
             }
         }
+    };
+    for (aid, idxs) in d_alpha {
+        if idxs.is_empty() {
+            continue;
+        }
+        dirty_from_alpha(*aid);
+    }
+    for &aid in packed_full {
+        dirty_from_alpha(aid);
     }
     dirty
 }

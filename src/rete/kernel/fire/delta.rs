@@ -374,6 +374,9 @@ pub(crate) fn fire_fixpoint_delta_armed(
         // Indices into this round's wm.alpha[aid] (DESIGN-STONE-delta-alpha-indices).
         let mut d_alpha: AlphaDelta = FxHashMap::default();
         let mut d_beta: BetaMemory = HashMap::new();
+        // Packed seed occupancy is dirty in full — walk 0..len, do not
+        // materialize 0..n (`DESIGN-STONE-seed-d-alpha-range`).
+        let mut packed_full: HashSet<i64> = HashSet::new();
 
         phase_end("  ├ round:preamble", __pre);
 
@@ -462,10 +465,9 @@ pub(crate) fn fire_fixpoint_delta_armed(
                         .map(|&idx| make_element(idx, 0, 0))
                         .collect::<Vec<_>>(),
                 );
-                let slots: Vec<usize> = (0..ids.len()).collect();
                 for &aid in aids {
                     wm.alpha.insert(aid, Arc::clone(&els));
-                    d_alpha.insert(aid, slots.clone());
+                    packed_full.insert(aid);
                 }
             }
             phase_end("  ├ alpha:seed", __seed);
@@ -501,16 +503,17 @@ pub(crate) fn fire_fixpoint_delta_armed(
         }
 
         phase_end("alpha", __pt0);
-        append_d_alpha(&mut gather_cache, &d_alpha, &wm);
+        append_d_alpha(&mut gather_cache, &d_alpha, &wm, &packed_full);
 
         // ── 2. Root-join delta: seed tokens from NEW elements (d_alpha) only. ───
         let __pt1 = phase_start();
         for node_id in &kind_ids.alpha {
-            // New this round: indices into wm.alpha[node_id].
-            let new_idxs = match d_alpha.get(node_id) {
-                Some(ix) if !ix.is_empty() => ix.as_slice(),
-                _ => continue,
-            };
+            // New this round: indices into wm.alpha[node_id]. Packed seed
+            // is 0..len (`DESIGN-STONE-seed-d-alpha-range`).
+            let news = AlphaNews::of(&d_alpha, &wm.alpha, *node_id, &packed_full);
+            if news.is_empty() {
+                continue;
+            }
             let child_ids: &[i64] = arm
                 .children_of
                 .get(node_id)
@@ -527,7 +530,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
                 if kind_of(child_node) != NodeKind::RootJoin {
                     continue;
                 }
-                for &ei in new_idxs {
+                for ei in news.iter() {
                     let el = wm.alpha[node_id][ei];
                     // Seed native Token: one matches edge (fact idx, alpha_id).
                     let binds = if el.binds.len > 0 {
@@ -582,6 +585,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
             &kind_ids.join_parent,
             &d_beta,
             &d_alpha,
+            &packed_full,
             &arm.joins_fed_by,
             parents_of,
         );
@@ -773,13 +777,11 @@ pub(crate) fn fire_fixpoint_delta_armed(
                     continue; // Skip incremental steps 2–5 for this round.
                 }
 
-                // Group C: borrow dl/dr slices — no Vec alloc per node per round.
-                // NLL ends these borrows at their last use (step 5), before step 6 mutates d_beta.
+                // Group C: borrow dl; packed seed dr is 0..len, not a Vec
+                // (`DESIGN-STONE-seed-d-alpha-range`). NLL ends these borrows
+                // at their last use (step 5), before step 6 mutates d_beta.
                 let dl: &[Token] = d_beta.get(node_id).map(Vec::as_slice).unwrap_or_default();
-                let dr: &[usize] = d_alpha
-                    .get(&alpha_id)
-                    .map(Vec::as_slice)
-                    .unwrap_or_default();
+                let dr = AlphaNews::of(&d_alpha, &wm.alpha, alpha_id, &packed_full);
 
                 // Skip if nothing new on either side.
                 if dl.is_empty() && dr.is_empty() {
@@ -793,7 +795,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
                 {
                     let ridx = right_idx.entry(*child_id).or_default();
                     let right_mem = wm.alpha.get(&alpha_id).map(|v| v.as_slice()).unwrap_or(&[]);
-                    for &ei in dr {
+                    for ei in dr.iter() {
                         let el = right_mem[ei];
                         let k = key_of_el(&el, jk, &GatherIntern::from_wm(&wm, alpha_id));
                         let el = element_with_row_span(
@@ -858,7 +860,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
                 if !dr.is_empty() {
                     if let Some(lidx) = left_idx.get(child_id) {
                         let right_mem = wm.alpha.get(&alpha_id).map(|v| v.as_slice()).unwrap_or(&[]);
-                        for &ei in dr {
+                        for ei in dr.iter() {
                             let el = right_mem[ei];
                             let k = key_of_el(&el, jk, &GatherIntern::from_wm(&wm, alpha_id));
                             let el = element_with_row_span(
