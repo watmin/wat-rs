@@ -963,28 +963,66 @@ fn closed_bag_by_class<'a>(
     idx
 }
 
-fn harvest_class_scan(facts: &[&Value], var: &Value) -> Vec<crate::value::pmap::PMap> {
-    let mut maps = Vec::with_capacity(facts.len());
+fn harvest_class_scan<'a, I>(facts: I, cap: usize, var: &Value) -> Vec<crate::value::pmap::PMap>
+where
+    I: Iterator<Item = &'a Value>,
+{
+    let mut maps = Vec::with_capacity(cap);
     for f in facts {
         maps.push(crate::value::pmap::PMap::from_pairs([(
             var.clone(),
-            (*f).clone(),
+            f.clone(),
         )]));
     }
     maps
 }
 
-fn harvest_class_scan_filter(wm: &FireSession, scan: &QueryClassScan) -> Vec<crate::value::pmap::PMap> {
+fn compiled_rhs_is_class(arm: &InternedNetwork, class: &str) -> bool {
+    !arm.compiled_rhs.is_empty()
+        && arm.compiled_rhs.values().all(|forms| {
+            !forms.is_empty()
+                && forms.iter().all(|f| match f {
+                    crate::rete::compiled_rhs::CompiledRhs::Record { class: c, .. } => {
+                        c.as_ref() == class
+                    }
+                    crate::rete::compiled_rhs::CompiledRhs::Call(_) => false,
+                })
+        })
+}
+
+fn harvest_class_scan_filter(
+    wm: &FireSession,
+    scan: &QueryClassScan,
+    derived_is_scan: bool,
+) -> Vec<crate::value::pmap::PMap> {
     let matches_class = |f: &Value| match f {
         Value::Aggregate(a) if a.nature != Nature::Struct => a.class.as_ref() == scan.class,
         _ => false,
     };
-    let mut facts: Vec<&Value> = Vec::new();
-    if let Value::wat__core__PersistentVector(pv) = &wm.facts {
-        facts.extend(pv.iter().filter(|f| matches_class(f)));
+    let mut maps = Vec::new();
+    if wm.input_has_scan_class {
+        if let Value::wat__core__PersistentVector(pv) = &wm.facts {
+            maps.extend(harvest_class_scan(
+                pv.iter().filter(|f| matches_class(f)),
+                pv.len(),
+                &scan.var,
+            ));
+        }
     }
-    facts.extend(wm.derived_facts.iter().filter(|f| matches_class(f)));
-    harvest_class_scan(&facts, &scan.var)
+    if derived_is_scan {
+        maps.extend(harvest_class_scan(
+            wm.derived_facts.iter(),
+            wm.derived_facts.len(),
+            &scan.var,
+        ));
+    } else {
+        maps.extend(harvest_class_scan(
+            wm.derived_facts.iter().filter(|f| matches_class(f)),
+            wm.derived_facts.len(),
+            &scan.var,
+        ));
+    }
+    maps
 }
 
 pub(crate) fn harvest_query_memory(
@@ -996,16 +1034,21 @@ pub(crate) fn harvest_query_memory(
         wm.query.clear();
         return;
     }
-    // Index pays when N queries would rescan the bag. Fanout is one class
-    // that IS the bag — a HashMap+Vec of 40k refs is slower than one filter.
-    // Wanted-only + skip-input: do not index 40k Readings no scan names
-    // (`DESIGN-STONE-accum-wanted-harvest`).
+    // Index pays when N queries would rescan the bag. One scan stays the
+    // filter path: skip facts when no scan class was packed; wrap derived
+    // without class-eq when interned RHS is only that class
+    // (`DESIGN-STONE-fanout-identity-filter`).
     let bag = if scans.len() > 1 {
         let wanted: HashSet<&str> = scans.values().map(|s| s.class.as_str()).collect();
         Some(closed_bag_by_class(wm, &wanted))
     } else {
         None
     };
+    let derived_is_scan = scans.len() == 1
+        && scans
+            .values()
+            .next()
+            .is_some_and(|s| compiled_rhs_is_class(arm, s.class.as_str()));
     let mut harvested: HashMap<String, Vec<crate::value::pmap::PMap>> = HashMap::new();
     for node_id in &arm.kind_ids.query {
         let node = match get_node(&wm.network, *node_id) {
@@ -1031,9 +1074,9 @@ pub(crate) fn harvest_query_memory(
                         .get(scan.class.as_str())
                         .map(|v| v.as_slice())
                         .unwrap_or(&[]);
-                    harvest_class_scan(facts, &scan.var)
+                    harvest_class_scan(facts.iter().copied(), facts.len(), &scan.var)
                 } else {
-                    harvest_class_scan_filter(wm, scan)
+                    harvest_class_scan_filter(wm, scan, derived_is_scan)
                 }
             } else {
                 let mut maps: Vec<crate::value::pmap::PMap> = Vec::new();

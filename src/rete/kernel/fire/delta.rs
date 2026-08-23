@@ -309,7 +309,6 @@ pub(crate) fn fire_fixpoint_delta_armed(
     };
     let alpha_tree = occupancy_tree.as_ref().unwrap_or(&arm.alpha_tree);
     let scan_classes: HashSet<&str> = q_scans.values().map(|s| s.class.as_str()).collect();
-    let index_scans = q_scans.len() > 1;
 
     // P6 — persistent join indexes, maintained ACROSS rounds (never rebuilt).
     // Keyed by HashJoinNode id J.
@@ -417,7 +416,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
                         continue;
                     }
                 };
-                if index_scans && !wm.input_has_scan_class && scan_classes.contains(class) {
+                if !wm.input_has_scan_class && scan_classes.contains(class) {
                     wm.input_has_scan_class = true;
                 }
                 if wm.i64_by_fact.len() == i {

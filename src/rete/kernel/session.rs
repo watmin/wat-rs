@@ -239,9 +239,9 @@ pub(crate) struct FireSession {
     /// optional fact_bind (`DESIGN-STONE-column-gather-fold`).
     pub(crate) cond_key_ids: CondKeyIds,
     /// True when input has a fact whose class is a class-scan query class.
-    /// Index harvest (`scans.len() > 1`) skips `wm.facts` when false
-    /// (`DESIGN-STONE-accum-wanted-harvest`). Fanout (one scan) stays the
-    /// filter walk and does not read this flag. Fire-scoped; not a Session field.
+    /// Harvest skips `wm.facts` when false
+    /// (`DESIGN-STONE-accum-wanted-harvest`,
+    /// `DESIGN-STONE-fanout-identity-filter`). Fire-scoped; not a Session field.
     pub(crate) input_has_scan_class: bool,
 }
 
