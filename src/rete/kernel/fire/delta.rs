@@ -658,11 +658,15 @@ pub(crate) fn fire_fixpoint_delta_armed(
                 // this round's new elements — the catch-up covers historical AND current-round facts.
                 if first_keying {
                     // Occupancy is already Arc-shared. Bump the Arc; do not memcpy
-                    // the Vec (`DESIGN-STONE-catchup-arc-occupancy`). all_left still
-                    // clones wm.beta (HashMap split-borrow, not Arc occupancy).
+                    // the Vec (`DESIGN-STONE-catchup-arc-occupancy`). Parent beta
+                    // is taken, walked, put back — not cloned
+                    // (`DESIGN-STONE-catchup-take-left`).
                     let all_right = wm.alpha.get(&alpha_id).cloned();
                     let n_right = all_right.as_ref().map(|v| v.len()).unwrap_or(0);
-                    let all_left: Vec<Token> = wm.beta.get(node_id).cloned().unwrap_or_default();
+                    let (all_left, restore_parent) = match wm.beta.remove(node_id) {
+                        Some(v) => (v, true),
+                        None => (Vec::new(), false),
+                    };
                     // READ #2 of 2: the parent's cumulative tokens, for the catch-up cross-join.
                     beta_read(*node_id, all_left.len() as u64);
                     // Key from packed occupancy (empty binds), then write BindSpan
@@ -710,7 +714,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
                             );
                             if let Some(bucket) = ridx.get(&k) {
                                 for el in bucket {
-                                    if let Some(new_tok) = join_extend(
+                                    match join_extend(
                                         tok,
                                         el,
                                         alpha_id,
@@ -729,8 +733,15 @@ pub(crate) fn fire_fixpoint_delta_armed(
                                             bind_only: &wm.bind_only,
                                             cond_key_ids: &wm.cond_key_ids,
                                         },
-                                    )? {
-                                        new_tokens.push(new_tok);
+                                    ) {
+                                        Ok(Some(new_tok)) => new_tokens.push(new_tok),
+                                        Ok(None) => {}
+                                        Err(e) => {
+                                            if restore_parent {
+                                                wm.beta.insert(*node_id, all_left);
+                                            }
+                                            return Err(e);
+                                        }
                                     }
                                 }
                             }
@@ -741,7 +752,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
                     let __cli = phase_start();
                     {
                         let lidx = left_idx.entry(*child_id).or_default();
-                        for tok in all_left {
+                        for &tok in &all_left {
                             let k = key_of(
                                 &bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds),
                                 jk,
@@ -751,6 +762,9 @@ pub(crate) fn fire_fixpoint_delta_armed(
                         }
                     }
                     phase_end("  ├ hj:catchup:left-idx", __cli);
+                    if restore_parent {
+                        wm.beta.insert(*node_id, all_left);
+                    }
                     // Emit catch-up tokens into cumulative and delta memories.
                     let __cem = phase_start();
                     // `entry()` HOISTED out of the per-token loop: the key is constant, so the
