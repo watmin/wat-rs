@@ -3117,16 +3117,13 @@ fn preregister_struct_accessors_from_form(
         WatAST::List(items, _) => items,
         _ => return Ok(()),
     };
-    // items[1] is the type name keyword.
+    // items[1] is the type name keyword. `<K,V>` is unexpressible (arc 109 ③'s wall,
+    // `src/types.rs:4688`) — no keyword the reader can hand back ever carries a `<...>`
+    // suffix, so `type_name` is already the base name; used directly, never stripped
+    // (arc 109 "reap the twelve" — measured 0 calls carrying a type-head).
     let type_name = match items.get(1) {
         Some(WatAST::Keyword(k, _)) => k.as_str(),
         _ => return Ok(()), // malformed; type checker will catch it
-    };
-    // Strip parametric suffix `<T,...>` to get the base type name for
-    // accessor paths — mirrors `parse_declared_name`'s base extraction.
-    let type_base = match type_name.find('<') {
-        None => type_name,
-        Some(lt) => &type_name[..lt],
     };
     // Stub Function — zero params, unit return type, unit body.
     // The resolver only checks presence in `sym.functions`; the body/types
@@ -3135,7 +3132,7 @@ fn preregister_struct_accessors_from_form(
     let unit_type = crate::types::TypeExpr::Path(":()".into());
 
     // Constructor: bare `{type}` (arc 293.R2.3 — parity with records; `/new` annihilated)
-    let constructor_path = type_base.to_string();
+    let constructor_path = type_name.to_string();
     // Phase-1 migration to the ONE gate (struct constructor). present -> NoOp (skip).
     let cons_existing = if sym.has_function(&constructor_path) {
         crate::resolve::Existing::Equivalent
@@ -3203,7 +3200,7 @@ fn preregister_struct_accessors_from_form(
                     continue;
                 }
             };
-            let accessor_path = format!("{}/{}", type_base, field_name);
+            let accessor_path = format!("{}/{}", type_name, field_name);
             let acc_existing = if sym.has_function(&accessor_path) {
                 crate::resolve::Existing::Equivalent
             } else {
@@ -3275,16 +3272,13 @@ fn preregister_enum_constructors_from_form(
         WatAST::List(items, _) => items,
         _ => return Ok(()),
     };
-    // items[1] is the type name keyword.
+    // items[1] is the type name keyword. `<K,V>` is unexpressible (arc 109 ③'s wall,
+    // `src/types.rs:4688`) — no keyword the reader can hand back ever carries a `<...>`
+    // suffix, so `type_name` is already the base name; used directly, never stripped
+    // (arc 109 "reap the twelve" — measured 0 calls carrying a type-head).
     let type_name = match items.get(1) {
         Some(WatAST::Keyword(k, _)) => k.as_str(),
         _ => return Ok(()), // malformed; type checker will catch it
-    };
-    // Strip parametric suffix `<T,...>` for the base name — mirrors
-    // `parse_declared_name`'s base extraction.
-    let type_base = match type_name.find('<') {
-        None => type_name,
-        Some(lt) => &type_name[..lt],
     };
 
     // Determine start index for variant items: skip optional metadata-map at items[2].
@@ -3319,7 +3313,7 @@ fn preregister_enum_constructors_from_form(
         // Look-ahead: is the next item a Vector (tagged variant)?
         let is_tagged = matches!(variant_items.get(vi + 1), Some(WatAST::Vector(_, _)));
 
-        let constructor_path = format!("{}::{}", type_base, variant_name);
+        let constructor_path = format!("{}::{}", type_name, variant_name);
         let cons_existing = if sym.has_function(&constructor_path) {
             crate::resolve::Existing::Equivalent
         } else {
@@ -7483,19 +7477,15 @@ fn dispatch_keyword_head_value(
                     // under that name — it used to fall all the way to UnknownFunction below.
                     // Nothing about the form is illegal (STOP: this is the one wall that gets
                     // WIRED, not tightened) — a bare aggregate-type keyword head is unambiguous
-                    // (TypeEnv keys carry the leading colon, matching `other` verbatim once any
-                    // `<T,...>` suffix is stripped, same as `construct_aggregate`'s own
-                    // `bare_name` derivation), so delegate to the SAME kwargs/positional
-                    // dispatch `:wat::core::kwargs-construct` already gives the macro-expanded
-                    // form — a nested surface constructor now evaluates identically to its
-                    // expanded-form twin, arity/field-name errors included.
-                    let bare_type: &str = if let Some(pos) = other.find('<') {
-                        &other[..pos]
-                    } else {
-                        other
-                    };
+                    // (TypeEnv keys carry the leading colon, matching `other` verbatim — `<K,V>`
+                    // is unexpressible, arc 109 ③'s wall at `src/types.rs:4688`, so `other` is
+                    // already the bare name; used directly, never stripped, same as
+                    // `construct_aggregate`'s own `bare_name` derivation), so delegate to the
+                    // SAME kwargs/positional dispatch `:wat::core::kwargs-construct` already
+                    // gives the macro-expanded form — a nested surface constructor now evaluates
+                    // identically to its expanded-form twin, arity/field-name errors included.
                     if matches!(
-                        sym.types().and_then(|t| t.get(bare_type)),
+                        sym.types().and_then(|t| t.get(other)),
                         Some(crate::types::TypeDef::Aggregate(_))
                     ) {
                         let mut synth_args: Vec<WatAST> = Vec::with_capacity(args.len() + 1);
@@ -18726,9 +18716,9 @@ fn eval_aggregate_new(
 
 /// Shared aggregate-constructor tail — evaluates `value_asts` in declared order and
 /// builds the nature-appropriate `AggregateValue` for the type named by `type_name`
-/// (a keyword like `:ns::T` or `:ns::T<A,B>`). Single-sourced across the two arms:
-/// `eval_aggregate_new` (positional / prime path) and `eval_kwargs_construct` (after
-/// the kwargs reorder). Arc 294 item (C).
+/// (a keyword like `:ns::T`). Single-sourced across the two arms: `eval_aggregate_new`
+/// (positional / prime path) and `eval_kwargs_construct` (after the kwargs reorder).
+/// Arc 294 item (C).
 fn construct_aggregate(
     type_name: &str,
     value_asts: &[WatAST],
@@ -18737,15 +18727,13 @@ fn construct_aggregate(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    // Strip leading ':' and any type-params suffix `<…>` → colon-free bare class
-    // for AggregateValue.class and TypeEnv lookup.  The macro-expanded form may
-    // carry the full keyword (e.g. `:r2::HR<T>`) because the defrecord/defstruct
-    // macro template uses `~fqdn` verbatim; TypeEnv keys store the bare name only.
-    let bare_name: &str = if let Some(pos) = type_name.find('<') {
-        &type_name[..pos]
-    } else {
-        type_name
-    };
+    // Strip leading ':' → colon-free bare class for AggregateValue.class and TypeEnv
+    // lookup. The macro-expanded form's `~fqdn` (defrecord/defstruct template,
+    // `wat/Record.wat`) splices the raw source keyword verbatim, but `<K,V>` is
+    // unexpressible (arc 109 ③'s wall, `src/types.rs:4688`) so it only ever splices a
+    // BASE name — `type_name` is used directly, never stripped for a `<...>` suffix
+    // (arc 109 "reap the twelve" — measured 1,024,489 calls, 0 type-heads).
+    let bare_name: &str = type_name;
     let class = bare_name.trim_start_matches(':').to_string();
     // TypeEnv key has leading ':'.
     let type_key = format!(":{}", class);
@@ -18890,12 +18878,11 @@ fn eval_kwargs_construct(
             .all(|a| matches!(a, WatAST::Keyword(_, _)));
 
     if is_kwargs {
-        // Resolve declared field order from the (splice-merged) registry.
-        let bare_name: &str = if let Some(pos) = type_name.find('<') {
-            &type_name[..pos]
-        } else {
-            &type_name
-        };
+        // Resolve declared field order from the (splice-merged) registry. `<K,V>` is
+        // unexpressible (arc 109 ③'s wall, `src/types.rs:4688`), so `type_name` is
+        // already the base name; used directly, never stripped (arc 109 "reap the
+        // twelve" — measured 982,474 calls, 0 type-heads).
+        let bare_name: &str = type_name.as_str();
         let class = bare_name.trim_start_matches(':').to_string();
         let type_key = format!(":{}", class);
         let types = sym.types().ok_or_else(|| {
@@ -18968,11 +18955,12 @@ fn eval_kwargs_construct(
         // T's own `:restricted-to` whitelist (it no longer bypasses it), so unconditionally
         // offering "or use the positional prime `T'`" would walk a non-whitelisted caller
         // straight into that wall. Look the type up and drop the offer when it is restricted.
-        let bare_name: &str = if let Some(pos) = type_name.find('<') {
-            &type_name[..pos]
-        } else {
-            &type_name
-        };
+        // `<K,V>` is unexpressible (arc 109 ③'s wall, `src/types.rs:4688`), so `type_name`
+        // is already the base name; used directly, never stripped (arc 109 "reap the
+        // twelve" — this positional-rejection arm was measured 0 calls over a full floor
+        // run: no corpus `.wat` file currently reaches the retired bare-positional spelling
+        // this branch rejects).
+        let bare_name: &str = type_name.as_str();
         let class = bare_name.trim_start_matches(':').to_string();
         let type_key = format!(":{}", class);
         let is_restricted = sym.types()

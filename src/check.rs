@@ -12747,20 +12747,20 @@ fn infer_ordering(
 /// so when a call-site arity/type CheckError is built against a scheme
 /// resolved under the prime name, report the canonical bare name instead.
 ///
-/// Guarded narrowly to avoid over-stripping: only strips a trailing `'`
-/// (before any `<...>` type-arg suffix) when the bare stem is a REGISTERED
-/// Aggregate type — i.e. `k` is genuinely a generated aggregate-ctor prime.
-/// A legitimate user-defined name that happens to end in `'` but is not a
-/// registered aggregate's prime is returned unchanged.
+/// Guarded narrowly to avoid over-stripping: only strips a trailing `'` when
+/// the bare stem is a REGISTERED Aggregate type — i.e. `k` is genuinely a
+/// generated aggregate-ctor prime. A legitimate user-defined name that
+/// happens to end in `'` but is not a registered aggregate's prime is
+/// returned unchanged. `k` is used directly, never split on `<...>` — `<K,V>`
+/// is unexpressible (arc 109 ③'s wall, `src/types.rs:4688`), so no callee
+/// name the reader hands back can carry a type-arg suffix to preserve (arc
+/// 109 "reap the twelve" — measured 12,665,676 calls, 0 type-heads, the
+/// hottest of the twelve).
 fn canonical_ctor_callee(k: &str, env: &CheckEnv) -> String {
-    let (stem, suffix) = match k.find('<') {
-        Some(pos) => (&k[..pos], &k[pos..]),
-        None => (k, ""),
-    };
-    if wat_reader::identifier::prime(stem) {
-        let bare = wat_reader::identifier::deprimed(stem);
+    if wat_reader::identifier::prime(k) {
+        let bare = wat_reader::identifier::deprimed(k);
         if matches!(env.types().get(bare), Some(crate::types::TypeDef::Aggregate(_))) {
-            return format!("{}{}", bare, suffix);
+            return bare.to_string();
         }
     }
     k.to_string()
@@ -12887,12 +12887,12 @@ fn infer_aggregate_new_check(
 
     // Extract specific type from args[0]: expected to be a direct keyword literal.
     //
-    // For the macro-expanded case, the keyword may include a type-params suffix
-    // (e.g. `:wat::core::HashMap<K,V>`) because ~fqdn in the macro template is
-    // the raw source keyword. TypeEnv stores keys WITHOUT the suffix (":wat::core::HashMap"),
-    // so strip `<…>` before lookup.
+    // `~fqdn` in the macro template (`wat/Record.wat`) splices the raw source keyword —
+    // but `<K,V>` is unexpressible (arc 109 ③'s wall, `src/types.rs:4688`), so it only
+    // ever splices a BASE name (traced to the template, arc 109 "reap the twelve"); `k`
+    // is used directly, never stripped (measured 379,635 calls, 0 type-heads).
     let ty = if let WatAST::Keyword(k, _) = &args[0] {
-        let bare_k: &str = if let Some(pos) = k.find('<') { &k[..pos] } else { k.as_str() };
+        let bare_k: &str = k.as_str();
         // Arc 294 item 9a — the positional ctor scheme moved to the type-name PRIME
         // (`:X'`); the bare `:X` is now the kwargs companion MACRO, which registers no
         // type scheme. `aggregate-new`'s class arg is the bare `:X` (the flip codegen at
@@ -13013,7 +13013,10 @@ fn infer_kwargs_construct_check(
             return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
         }
     };
-    let bare_k: &str = if let Some(pos) = type_kw.find('<') { &type_kw[..pos] } else { type_kw.as_str() };
+    // `<K,V>` is unexpressible (arc 109 ③'s wall, `src/types.rs:4688`), so `type_kw` is
+    // already the base name; used directly, never stripped (arc 109 "reap the twelve" —
+    // measured 565,691 calls, 0 type-heads).
+    let bare_k: &str = type_kw.as_str();
     let type_key = if bare_k.starts_with(':') { bare_k.to_string() } else { format!(":{}", bare_k) };
     // The prime ctor keyword the old `kwargs-lower` forwarded to (no type-params suffix,
     // matching `register_aggregate_methods`' `format!("{}'", agg.name)`).

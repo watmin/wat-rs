@@ -3151,12 +3151,11 @@ fn synthesize_surface_protocol(
                 }
             };
             // `surface.name` is stored WITHOUT its `<...>` suffix by `parse_declared_name`
-            // (type params are split off into `surface.type_params` at parse time), but strip
-            // defensively anyway — the base name is what the law is stated in terms of.
-            let surface_base = match surface.name.find('<') {
-                Some(idx) => &surface.name[..idx],
-                None => surface.name.as_str(),
-            };
+            // (type params are split off into `surface.type_params` at parse time) — and
+            // `<K,V>` is unexpressible at all (arc 109 ③'s wall, `src/types.rs:4688`), so no
+            // keyword the reader hands back can carry one to begin with. Used directly, never
+            // stripped (arc 109 "reap the twelve" — measured 41,172 calls, 0 type-heads).
+            let surface_base = surface.name.as_str();
             let required = format!(
                 "{surface_base}::{}Response",
                 crate::string_ops::kebab_to_pascal_with_acronyms(name, ns_acronyms),
@@ -3213,12 +3212,11 @@ fn synthesize_surface_protocol(
                 }
             };
             // `surface.name` is stored WITHOUT its `<...>` suffix by `parse_declared_name`
-            // (type params are split off into `surface.type_params` at parse time), but strip
-            // defensively anyway — the base name is what the law is stated in terms of.
-            let surface_base = match surface.name.find('<') {
-                Some(idx) => &surface.name[..idx],
-                None => surface.name.as_str(),
-            };
+            // (type params are split off into `surface.type_params` at parse time) — and
+            // `<K,V>` is unexpressible at all (arc 109 ③'s wall, `src/types.rs:4688`), so no
+            // keyword the reader hands back can carry one to begin with. Used directly, never
+            // stripped (arc 109 "reap the twelve" — measured 41,859 calls, 0 type-heads).
+            let surface_base = surface.name.as_str();
             let required = format!(
                 "{surface_base}::{}Request",
                 crate::string_ops::kebab_to_pascal_with_acronyms(name, ns_acronyms),
@@ -5942,6 +5940,47 @@ fn collect_member_recursive(
 
 #[cfg(test)]
 mod tests {
+
+    /// Arc 109 — THE SECOND WALL, and the one ordinary source can never reach.
+    ///
+    /// There are two refusals with near-identical opening text. The LEXER's fires on any
+    /// `<` preceded by an identifier char, so every angle name a human could WRITE dies
+    /// there. `parse_declared_name`'s fires on a declaration name that was never lexed —
+    /// a keyword MINTED at expand time and handed straight to the type parser. It is the
+    /// backstop for exactly the channel the lexer cannot see, which is why it survived the
+    /// purge of every other `<`-inspecting site.
+    ///
+    /// This control exists because it was briefly proved and then thrown away:
+    /// `STONE-reap-the-twelve` demonstrated the wall by constructing a never-lexed
+    /// `WatAST::Keyword` in a temporary test, then deleted it to respect a boundary that
+    /// said "do not touch this wall". A negative control that CAN be kept MUST be kept —
+    /// without it, deleting the wall is a silent green.
+    #[test]
+    fn a_minted_declaration_name_with_angles_is_refused() {
+        let span = crate::span::Span::new(std::sync::Arc::new("<test>".to_string()), 0, 0);
+        // Never lexed: built directly, exactly as a macro's `keyword-node` would.
+        let minted = WatAST::Keyword(":wat::core::Vector<wat::core::i64>".to_string(), span.clone());
+        let err = parse_declared_name(":wat::core::defrecord", &minted, &span)
+            .expect_err("a MINTED angle-bracket declaration name must be REFUSED");
+        let msg = format!("{err:?}");
+        assert!( // rune:lint(loose-assert) — a targeted presence over a large structured diagnostic; the assertion names the REMEDY the wall teaches, which is the whole of its contract.
+            msg.contains("write `Head :- [T …]`"),
+            "the wall must teach the surviving spelling, not merely refuse; got: {msg}"
+        );
+    }
+
+    /// The positive twin. A bare minted name is ordinary and must pass — a wall that
+    /// refused every minted declaration name would satisfy the test above and take the
+    /// stdlib with it.
+    #[test]
+    fn a_minted_declaration_name_without_angles_is_accepted() {
+        let span = crate::span::Span::new(std::sync::Arc::new("<test>".to_string()), 0, 0);
+        let minted = WatAST::Keyword(":wat::core::Vector".to_string(), span.clone());
+        let (name, params) = parse_declared_name(":wat::core::defrecord", &minted, &span)
+            .expect("an ordinary minted declaration name must be ACCEPTED");
+        assert_eq!(name, ":wat::core::Vector");
+        assert!(params.is_empty(), "no binder was present; got {params:?}");
+    }
     use super::*;
 
     /// Arc 109 one-door stone — `parametric_head_fqdn` is IDEMPOTENT, and that is

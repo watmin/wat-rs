@@ -852,13 +852,12 @@ fn extract_define_name(form: &WatAST) -> Option<String> {
             if let Some(WatAST::Keyword(head, _)) = items.first() {
                 if head == ":wat::core::defn" {
                     if let Some(WatAST::Keyword(name, _)) = items.get(1) {
-                        // Strip any `<T,U>` suffix; canonical name is
-                        // the keyword path without type-params.
-                        let canonical = match name.find('<') {
-                            Some(idx) => name[..idx].to_string(),
-                            None => name.clone(),
-                        };
-                        return Some(canonical);
+                        // `<K,V>` is unexpressible (arc 109 ③'s wall, `src/types.rs:4688`)
+                        // — no keyword the reader hands back ever carries a `<...>`
+                        // suffix, so `name` is already canonical; used directly, never
+                        // stripped (arc 109 "reap the twelve" — found by widening the
+                        // rune, not by the original census).
+                        return Some(name.clone());
                     }
                 }
             }
@@ -888,7 +887,7 @@ fn collect_def_names(forms: &[WatAST]) -> Vec<String> {
 }
 
 /// Pull the names of every type declaration form (`struct`/`enum`/
-/// `newtype`/`typealias`) out of a forms vec, stripping any `<T>` suffix.
+/// `newtype`/`typealias`) out of a forms vec.
 fn collect_type_decl_names(forms: &[WatAST]) -> Vec<String> {
     forms
         .iter()
@@ -912,11 +911,13 @@ fn collect_type_decl_names(forms: &[WatAST]) -> Vec<String> {
                         );
                         if is_type_decl {
                             if let WatAST::Keyword(name, _) = &items[1] {
-                                let canonical = match name.find('<') {
-                                    Some(idx) => name[..idx].to_string(),
-                                    None => name.clone(),
-                                };
-                                return Some(canonical);
+                                // `<K,V>` is unexpressible (arc 109 ③'s wall,
+                                // `src/types.rs:4688`) — no keyword the reader hands
+                                // back ever carries a `<...>` suffix, so `name` is
+                                // already canonical; used directly, never stripped
+                                // (arc 109 "reap the twelve" — found by widening the
+                                // rune, not by the original census).
+                                return Some(name.clone());
                             }
                         }
                     }

@@ -51,30 +51,38 @@ use quote::quote;
 // (`:wat::spawn::ServiceEvent<I,O,A>`) and callers passed that whole spelling as the
 // `want` string. They now pass the BASE name, and both sides of the comparison are base
 // names by construction — never one normalized and the other not.
+//
+// Arc 109 "reap the twelve" — the transition is OVER. This fn used to peel EITHER
+// spelling (name-embedded `:Name<I,O,A>` or the binder `Name :- [I O A]`), because the
+// corpus was migrating between them file by file. `<K,V>` is now unexpressible at all
+// (arc 109 ③'s wall, `src/types.rs:4688`) — the reader refuses `<` opening a type head
+// in a keyword or symbol UNCONDITIONALLY (`crates/wat-reader/src/lexer.rs`,
+// `LexErrorKind::AngleTypeHeadInName`, both `lex_keyword` and `lex_symbol`), so
+// `wat_reader::parse_all_with_file` cannot hand this fn a name carrying one — the file
+// would already have failed to parse. Confirmed, not assumed: every `.wat` file this
+// crate's macros read (`wat/core.wat`, `wat/holon.wat`, `wat/rete.wat`, `wat/spawn.wat`,
+// `wat/kernel/diagnostics.wat`, `wat/doctest.wat`, `wat/rete/compile.wat`, and the rest
+// of the 52-file set grepped from every `wat_*_from!` call site in `src/` +
+// `crates/wat-doc`) already compiles clean, and an independent grep for the lexer's own
+// trigger shape (an alnum/`_`/`'` immediately followed by `<`) outside comments and
+// string literals across all 1528 `.wat` files in the repo finds zero declaration names
+// carrying one. The angle half is deleted; `:-` is the one surviving spelling.
 
-/// The declared BASE name and the index of the first payload item — type params peeled,
-/// in whichever of the two legal spellings the declaration wears. `None` when `items[1]`
-/// is not a name keyword at all.
-///
-/// Both spellings are live during arc 109's migration: the name-embedded
-/// `:Name<I,O,A>` and the binder `:Name :- [I O A]`. Peeling both here is what lets one
-/// caller string — the BASE name — address the declaration under either, so a file
-/// migrating does not silently take its Rust-side reader with it.
+/// The declared BASE name and the index of the first payload item — the `:-` binder
+/// peeled off when present. `None` when `items[1]` is not a name keyword at all.
 fn declared_name(items: &[wat_reader::WatAST]) -> Option<(&str, usize)> {
     let wat_reader::WatAST::Keyword(name, _) = items.get(1)? else { return None };
     // `:-` lexes as a KEYWORD, not a symbol — measured against the reader, not assumed
-    // (`src/types.rs::is_binder_marker` matches the same way).
+    // (`src/types.rs::is_binder_marker` matches the same way). This crate cannot reach
+    // `crate::types::peel_param_spec` / `is_binder_marker` in the `wat` crate (cycle:
+    // wat-macros -> wat-doc -> this), so the marker test below re-derives that door's
+    // check, wat_reader-only. Arc 109 "reap the twelve" retired the name-embedded
+    // `:Name<I,O,A>` spelling this fn used to ALSO peel (see the module doc above); `:-`
+    // is now the only spelling a declaration name wears, so this is the one hand-roll
+    // this exemption covers, not one of two.
     let has_binder = matches!(items.get(2), Some(wat_reader::WatAST::Keyword(k, _)) if k == ":-") // rune:lint(one-param-spec) — this crate depends only on wat-reader (cycle: wat-macros -> wat-doc -> this), so it cannot reach `crate::types::peel_param_spec` in the `wat` crate; re-derives the identical test wat_reader-only.
         && matches!(items.get(3), Some(wat_reader::WatAST::Vector(_, _)));
-    // The name-embedded spelling: params live INSIDE the keyword, so the base is the text
-    // before the `<`. A `<` with no matching `>` is not a param list (`:wat::core::<` is a
-    // comparison verb) — the same discriminator `wat/fix.wat::type-shaped-keyword?` uses.
-    let raw = name.as_str();
-    let base = match (raw.find('<'), raw.ends_with('>')) {
-        (Some(lt), true) => &raw[..lt],
-        _ => raw,
-    };
-    Some((base, if has_binder { 4 } else { 2 }))
+    Some((name.as_str(), if has_binder { 4 } else { 2 }))
 }
 
 /// The exact source text a node spans, sliced from the file it was read from.
