@@ -1213,11 +1213,11 @@ pub enum NotAKeyReason {
     /// intentionally pointer-based regardless of what its closed environment holds).
     OpaqueHandle,
     /// Structurally hashable in principle — the `Hash` arm is real, not `unreachable!()` —
-    /// but `is_atomizable` does not currently admit it. Covers both "deliberately excluded"
+    /// but `is_atomizable` does not admit it. Covers both "deliberately excluded"
     /// (arc 216 Stone 7's Tuple sibling `wat__core__List`, kept off the list on purpose per
-    /// its own doc comment) and "not yet taught to the checker" (`PersistentMap`/
-    /// `PersistentVector` — no `Parametric` arm in `is_atomizable` at all, unlike
-    /// `HashMap`/`HashSet`/`Vector`, which share the mechanism).
+    /// its own doc comment) and types with no `Parametric` arm in `is_atomizable`
+    /// (`PersistentMap` / `PersistentVector` — unlike `HashMap`/`HashSet`/`Vector`, which
+    /// share the mechanism).
     ExcludedByDesign,
 }
 

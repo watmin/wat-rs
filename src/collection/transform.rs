@@ -13,7 +13,7 @@
 //! The four ops in the `:wat::std::list::` namespace (zip, window, remove-at,
 //! map-with-index) are named `eval_vec_*` and still enforce `Value::Vec` via
 //! `require_vec` — they are not part of the HOF family migration.
-//! `rest` lives in `eval.rs` (container-polymorphic; Vec/List/WatAST-form arms).
+//! `rest` lives in `eval.rs` (container-polymorphic; Vec/List/WatAST-form/PersistentVector).
 //! Their dispatch arms in `dispatch_keyword_head_value` redirect here.
 //!
 //! See `src/collection/mod.rs` and `docs/DISPATCH.md` for the full doctrine.
@@ -771,10 +771,9 @@ pub(crate) fn eval_stream_to_vec(
 /// `PersistentVector<T> <- Stream<T>` clause arm (`wat/seq.wat:166`; the clause itself is
 /// UNCHANGED). `:wat::core::stream->pvec-spec` (`wat/seq.wat`) is the retained wat ORACLE — see
 /// `eval_stream_to_vec`'s doc, immediately above, for the shared shape/trap/differential note;
-/// this is its PersistentVector twin. `rpds::VectorSync::push_back_mut` mutates the receiver's
-/// OWN backing structure in place (structural sharing, no per-element full-vector clone — the
-/// same primitive `PersistentVector/conj`'s native arm uses, `collection/eval.rs`), so this is
-/// one pass, one accumulator, exactly like its Vector sibling.
+/// this is its PersistentVector twin. Unique `PVec::push_back_mut` grows the accumulator
+/// in place and stays Array (conj is the other verb — persistent `push_back`, which
+/// promotes at 8). One pass, one accumulator, exactly like its Vector sibling.
 pub(crate) fn eval_stream_to_pvec(
     args: &[WatAST],
     call_span: &Span,
@@ -1142,8 +1141,8 @@ pub(crate) fn eval_vec_map_with_index(
 ///   holding `(the Arc handle, index)`; forcing it yields `Cons(elem_at(index),
 ///   thunk(index + 1))`, `Empty` past the end. The handle is `Arc::clone`d once per step —
 ///   O(1) — never the elements, and no element is touched until its cell is forced.
-/// - `PersistentVector` — an rpds bitmapped trie: `.get(index)` is O(log n), `.clone()` is
-///   O(1) (structural sharing). Same index-stepping shape as `Vector`.
+/// - `PersistentVector` — `PVec`: Array get is a slice; Tree get is O(log n). `.clone()` is
+///   O(1) (Arc / RRB handle). Same index-stepping shape as `Vector`.
 /// - `List` — `Arc<LinkedList>`, which has NO indexed access. Snapshotted into an indexable
 ///   `Vec<Value>` ONCE (a single O(n) pass, not per element), then stepped exactly like the
 ///   `Vector` arm. Indexing the `LinkedList` itself per step would reintroduce the quadratic
@@ -1359,9 +1358,9 @@ fn indexed_vec_stream(xs: Arc<Vec<Value>>, index: usize) -> Arc<crate::stream::S
 }
 
 /// Build a lazy `Stream` stepping a `PersistentVector` (`crate::value::pvec::PVec`) by index.
-/// `rpds`'s `Vector` is a bitmapped trie: `.get(index)` is O(log n) and `.clone()` is O(1)
-/// (Arc-backed structural sharing) — the container handle is cloned once per step, never
-/// rebuilt, never walked element-by-element.
+/// Array get is a slice; Tree get is O(log n). `.clone()` is O(1) (Arc / RRB handle) —
+/// the container handle is cloned once per step, never rebuilt, never walked
+/// element-by-element.
 fn indexed_pv_stream(pv: crate::value::pvec::PVec, index: usize) -> Arc<crate::stream::Stream> {
     use crate::stream::{NativeLazyCell, Stream};
     if index >= pv.len() {
@@ -1379,13 +1378,13 @@ fn indexed_pv_stream(pv: crate::value::pvec::PVec, index: usize) -> Arc<crate::s
     ))))
 }
 
-// ─── Arc-278 DESIGN-STONE seq-traversal-one-door — the RED gate ──────────────────────────────
+// ─── Arc-278 DESIGN-STONE seq-traversal-one-door — regression wall ───────────────────────────
 //
-// Written and run BEFORE `seqable->stream` goes native, so it cannot be tuned to a fix that
-// doesn't exist yet. `keep` is the clean probe verb (EXPECTATIONS' trap-door #3): it already
-// delegates through `:wat::core::seqable->stream` and this strike does NOT edit `keep` itself
-// — only the converter it normalizes through. A wall, not a stopwatch: quadratic at n=4000 is
-// ~12,000ms, linear is ~10ms — a three-order-of-magnitude gap no machine variance crosses.
+// Written before `seqable->stream` went native. `keep` is the clean probe verb
+// (EXPECTATIONS' trap-door #3): it already delegates through `:wat::core::seqable->stream`
+// and this strike does NOT edit `keep` itself — only the converter it normalizes through.
+// A wall, not a stopwatch: quadratic at n=4000 is ~12,000ms, linear is ~10ms — a
+// three-order-of-magnitude gap no machine variance crosses.
 #[cfg(test)]
 mod seqable_to_stream_tests {
     use crate::freeze::{eval_in_frozen, startup_from_source};
@@ -1396,13 +1395,12 @@ mod seqable_to_stream_tests {
 
     /// `(into (Vector) (keep keep-all pv))` over a 4000-element `PersistentVector` must
     /// complete in under one second. The source is a `PersistentVector` (not a plain
-    /// `Vector`) deliberately: rpds's `rest` rebuilds via `push_back`-cloning every
-    /// remaining element (`collection/eval.rs`'s `PersistentVector` arm of `eval_rest`),
-    /// the same expensive-per-step shape the DESIGN-STONE's own measurement used
+    /// `Vector`) deliberately: PVec rest rebuilds-from-empty via unique mut
+    /// (`collection/eval.rs`'s `PersistentVector` arm of `eval_rest`), the same
+    /// expensive-per-step shape the DESIGN-STONE's own measurement used
     /// (`probe-pv-lazy-materialize-cost.wat`) — a plain `Vector<i64>` source clones too
-    /// cheaply per step to blow the wall at this n. RED today (the wat `seqable->stream`
-    /// defclause walks its source by repeated `rest`, O(n^2) total); GREEN once
-    /// `seqable->stream` steps by position instead.
+    /// cheaply per step to blow the wall at this n. Asserts the absence of the O(n^2)
+    /// `seqable->stream` walk (native steps by position).
     #[test]
     fn seqable_to_stream_keep_stays_under_wall_at_n4000() {
         const WORLD: &str = "\
@@ -1446,17 +1444,17 @@ mod seqable_to_stream_tests {
     }
 }
 
-// ─── Arc-278 DESIGN-STONE seq-traversal-one-door, Strike 2a — the RED gate ────────────────────
+// ─── Arc-278 DESIGN-STONE seq-traversal-one-door, Strike 2a — regression wall ────────────────
 //
-// Written and run BEFORE `filter` goes native, so it cannot be tuned to a fix that doesn't
-// exist yet. `filter`'s five wat clauses each step their eager source by `(rest coll)` — O(n)
-// per step, O(n^2) per walk. The source here MUST be a `PersistentVector`, not a plain
-// `Vector` — Strike 1's rider drew this same wall over a `Vector` and it passed BEFORE any fix
-// existed, because a `Vector`'s `rest` (a flat clone-and-collect) is cheap enough per element
-// not to cross a one-second wall at n=4000, while a `PersistentVector`'s trie rebuild
-// (`push_back`-cloning every remaining element, `collection/eval.rs`'s `PersistentVector` arm
-// of `eval_rest`) misses it by ~35x. A wall, not a stopwatch: quadratic at n=4000 is
-// ~12,000ms, linear is ~10ms — a three-order-of-magnitude gap no machine variance crosses.
+// Written before `filter` went native. `filter`'s five wat clauses each stepped their eager
+// source by `(rest coll)` — O(n) per step, O(n^2) per walk. The source here MUST be a
+// `PersistentVector`, not a plain `Vector` — Strike 1's rider drew this same wall over a
+// `Vector` and it passed before the native, because a `Vector`'s `rest` (a flat
+// clone-and-collect) is cheap enough per element not to cross a one-second wall at n=4000,
+// while PVec rest (rebuild-from-empty via unique mut, `collection/eval.rs`'s
+// `PersistentVector` arm of `eval_rest`) missed it by ~35x. A wall, not a stopwatch:
+// quadratic at n=4000 is ~12,000ms, linear is ~10ms — a three-order-of-magnitude gap no
+// machine variance crosses.
 #[cfg(test)]
 mod filter_native_tests {
     use crate::freeze::{eval_in_frozen, startup_from_source};
@@ -1466,9 +1464,8 @@ mod filter_native_tests {
     use std::time::{Duration, Instant};
 
     /// `(into [] (filter pred pv))` over a 4000-element `PersistentVector` must complete in
-    /// under one second. RED today (the wat `filter` defclause walks its source by repeated
-    /// `rest`, O(n^2) total); GREEN once `filter` is a native intrinsic composing through
-    /// `seqable->stream`'s by-position walk instead.
+    /// under one second. Asserts the absence of the O(n^2) wat `filter` walk; native
+    /// `filter` composes through `seqable->stream`'s by-position walk.
     #[test]
     fn filter_native_stays_under_wall_at_n4000_persistentvector() {
         const WORLD: &str = "\

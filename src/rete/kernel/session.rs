@@ -367,7 +367,7 @@ pub(crate) fn pm_to_production(
 pub(crate) fn production_to_pm(map: ProductionMemory) -> Value {
     let mut pm: rpds::HashTrieMapSync<Value, Value> = rpds::HashTrieMapSync::new_sync();
     for (node_id, vec) in map {
-        // Bulk Array arm — not N RRB assoc (`DESIGN-STONE-promoting-vector`).
+        // Bulk Array arm — not N RRB push_back (`DESIGN-STONE-promoting-vector`).
         let pv = crate::value::pvec::PVec::from_vec(vec);
         pm.insert_mut(Value::i64(node_id), Value::wat__core__PersistentVector(pv));
     }

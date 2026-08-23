@@ -14,15 +14,9 @@
 //! vector used as a map key silently misses.
 
 use std::hash::{Hash, Hasher};
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 use super::value::Value;
-
-fn next_intern() -> u64 {
-    static NEXT: AtomicU64 = AtomicU64::new(1);
-    NEXT.fetch_add(1, Ordering::Relaxed)
-}
 
 /// Persistent `conj` of an Array this long promotes to the RRB tree so incremental
 /// wat-level `conj` stays O(log n). Bulk `from_vec` ignores the cap.
@@ -32,9 +26,9 @@ pub const PROMOTION_THRESHOLD: usize = 8;
 #[derive(Debug, Clone)]
 pub enum PVec {
     /// Bulk `from_vec` / unique `push_back_mut`. Index is a slice. Any length.
-    Array(Arc<Vec<Value>>, u64),
+    Array(Arc<Vec<Value>>),
     /// After persistent `push_back` past the threshold — the prior representation.
-    Tree(rpds::VectorSync<Value>, u64),
+    Tree(rpds::VectorSync<Value>),
 }
 
 impl Default for PVec {
@@ -45,30 +39,19 @@ impl Default for PVec {
 
 impl PVec {
     pub fn new() -> Self {
-        PVec::Array(Arc::new(Vec::new()), next_intern())
-    }
-
-    /// Drop-in for `VectorSync::new_sync`.
-    pub fn new_sync() -> Self {
-        PVec::new()
-    }
-
-    pub fn rust_identity(&self) -> u64 {
-        match self {
-            PVec::Array(_, id) | PVec::Tree(_, id) => *id,
-        }
+        PVec::Array(Arc::new(Vec::new()))
     }
 
     /// Bulk build — Array arm, any length. The freeze intern
     /// (`DESIGN-STONE-promoting-vector`).
     pub fn from_vec(items: Vec<Value>) -> Self {
-        PVec::Array(Arc::new(items), next_intern())
+        PVec::Array(Arc::new(items))
     }
 
     pub fn len(&self) -> usize {
         match self {
-            PVec::Array(v, _) => v.len(),
-            PVec::Tree(t, _) => t.len(),
+            PVec::Array(v) => v.len(),
+            PVec::Tree(t) => t.len(),
         }
     }
 
@@ -78,8 +61,8 @@ impl PVec {
 
     pub fn get(&self, index: usize) -> Option<&Value> {
         match self {
-            PVec::Array(v, _) => v.get(index),
-            PVec::Tree(t, _) => t.get(index),
+            PVec::Array(v) => v.get(index),
+            PVec::Tree(t) => t.get(index),
         }
     }
 
@@ -89,8 +72,8 @@ impl PVec {
 
     pub fn iter(&self) -> Box<dyn Iterator<Item = &Value> + '_> {
         match self {
-            PVec::Array(v, _) => Box::new(v.iter()),
-            PVec::Tree(t, _) => Box::new(t.iter()),
+            PVec::Array(v) => Box::new(v.iter()),
+            PVec::Tree(t) => Box::new(t.iter()),
         }
     }
 
@@ -98,13 +81,11 @@ impl PVec {
     /// Shared Array: `make_mut` copies, still Array.
     pub fn push_back_mut(&mut self, v: Value) {
         match self {
-            PVec::Array(items, id) => {
+            PVec::Array(items) => {
                 Arc::make_mut(items).push(v);
-                *id = next_intern();
             }
-            PVec::Tree(t, id) => {
+            PVec::Tree(t) => {
                 t.push_back_mut(v);
-                *id = next_intern();
             }
         }
     }
@@ -113,17 +94,17 @@ impl PVec {
     /// conj is RRB, not O(n) copy.
     pub fn push_back(&self, v: Value) -> Self {
         match self {
-            PVec::Array(items, _) if items.len() >= PROMOTION_THRESHOLD => {
+            PVec::Array(items) if items.len() >= PROMOTION_THRESHOLD => {
                 let mut t = tree_from_slice(items);
                 t.push_back_mut(v);
-                PVec::Tree(t, next_intern())
+                PVec::Tree(t)
             }
-            PVec::Array(items, _) => {
+            PVec::Array(items) => {
                 let mut next = (**items).clone();
                 next.push(v);
-                PVec::Array(Arc::new(next), next_intern())
+                PVec::Array(Arc::new(next))
             }
-            PVec::Tree(t, _) => PVec::Tree(t.push_back(v), next_intern()),
+            PVec::Tree(t) => PVec::Tree(t.push_back(v)),
         }
     }
 
@@ -166,14 +147,6 @@ impl FromIterator<Value> for PVec {
     }
 }
 
-impl Extend<Value> for PVec {
-    fn extend<I: IntoIterator<Item = Value>>(&mut self, iter: I) {
-        for v in iter {
-            self.push_back_mut(v);
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -192,7 +165,7 @@ mod tests {
         for i in 0..n {
             t.push_back_mut(k(i));
         }
-        PVec::Tree(t, next_intern())
+        PVec::Tree(t)
     }
 
     #[test]

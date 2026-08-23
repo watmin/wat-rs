@@ -779,8 +779,9 @@ pub(crate) fn vector_concat_inner(left: &Value, right: &Value) -> Result<Value, 
                             let Value::wat__core__PersistentVector(l) = left else { unreachable!("of_value⇒PersistentVector") };
                             let Value::wat__core__PersistentVector(r) = right else { unreachable!("of_value⇒PersistentVector") };
                             // empty ++ x = x (`DESIGN-STONE-insert-all-empty-identity`).
-                            // Clone-left then append-right shares the left tree; the old
-                            // rebuild-from-empty copied both sides into a new rpds Vector.
+                            // Clone-left then unique-mut append: Array COW-copies the Vec;
+                            // Tree shares the RRB spine. The old rebuild-from-empty copied
+                            // both sides into a new rpds Vector.
                             if l.is_empty() {
                                 return Ok(right.clone());
                             }
@@ -1348,9 +1349,10 @@ pub(crate) fn record_empty_q_inner(record: &Value) -> Result<Value, EvalBreak> {
 
 // ─── Arc-278-0b — PersistentVector ops (mirror vector_* family) ──────────────
 //
-// crate::value::pvec::PVec is persistent: push_back returns a NEW vector sharing
-// structure with the old (O(log n)); the original is UNCHANGED.
-// No .clone() of vector contents needed — that is the whole win over std Vec.
+// crate::value::pvec::PVec: persistent `push_back` returns a NEW vector; the
+// original is UNCHANGED. Array copies the Vec below the promotion threshold and
+// promotes at it; Tree shares the RRB spine (O(log n)). Unique `push_back_mut`
+// stays Array at any length.
 
 /// Returns the length of a `Value::wat__core__PersistentVector` as `Value::i64`.
 pub(crate) fn persistentvector_length_inner(v: &Value) -> Result<Value, EvalBreak> {
@@ -1492,7 +1494,7 @@ pub(crate) fn eval_persistentvector_get(
 
 /// `(:wat::core::PersistentVector/conj pv elem)` — persistent append.
 /// Returns a NEW PersistentVector with `elem` appended; the original `pv` is UNCHANGED.
-/// Uses rpds `push_back` — NO clone of the vector contents (structural sharing = the win).
+/// Array copies the Vec (below threshold) or promotes; Tree shares the RRB spine.
 pub(crate) fn persistentvector_conj_inner(container: &Value, item: &Value) -> Result<Value, EvalBreak> {
     match container {
         Value::wat__core__PersistentVector(pv) => {
@@ -1524,24 +1526,8 @@ pub(crate) fn eval_persistentvector_conj(
     persistentvector_conj_inner(&container, &item)
 }
 
-/// `(:wat::core::PersistentVector/concat to from)` — DESIGN-STONE-into-pv-from-vector.md.
-///
-/// The per-Type sibling of `Vector/concat`: appends every element of `from` onto `to`,
-/// returning a NEW PersistentVector (`to`/`from` are unchanged — rpds structural sharing).
-///
-/// Deliberately its OWN function rather than a new arm inside `vector_concat_inner` above.
-/// That function's same-kind-only gate (Vec+Vec / PersistentVector+PersistentVector /
-/// List+List) is a load-bearing, DOCUMENTED invariant ("Same-kind constraint preserved",
-/// arc-278 strike 3) shared with `insert-all'` (`rete/kernel.rs:3628`, always PV×PV) and the
-/// general `concat`/`Vector/concat` surface (`infer_concat`, which explicitly rejects
-/// Vector+PersistentVector as a TypeMismatch). Widening `vector_concat_inner` itself to
-/// accept a mismatched-kind pair would be exactly the "widen the polymorphic surface" move
-/// DESIGN-STONE-into-pv-from-vector.md rejects for `Vector/concat` — the same reasoning
-/// extends one level down to its native backing fn. `to` MUST be a PersistentVector (the
-/// receiver, whose kind the result preserves — DESIGN row 2); `from` may be EITHER a Vector
-/// or a PersistentVector (the two schemes `infer_persistentvector_concat` type-checks).
-/// Arc 278 — `:wat::core::Vector/extend`: a Vector extended by every element of a Vector OR a
-/// PersistentVector, in ONE build.
+/// `(:wat::core::Vector/extend to from)` — Arc 278: a Vector extended by every element of a
+/// Vector OR a PersistentVector, in ONE build.
 ///
 /// NOT a `concat` variant, deliberately. `concat` is same-kind by a documented invariant
 /// (`vector_concat_inner`'s gate + `infer_concat`) because concatenating two different container
@@ -1586,6 +1572,23 @@ pub(crate) fn vector_extend_inner(to: &Value, from: &Value) -> Result<Value, Eva
     Ok(Value::Vec(Arc::new(out)))
 }
 
+/// `(:wat::core::PersistentVector/concat to from)` — DESIGN-STONE-into-pv-from-vector.md.
+///
+/// The per-Type sibling of `Vector/concat`: appends every element of `from` onto `to`,
+/// returning a NEW PersistentVector (`to`/`from` unchanged). Clone-left then unique
+/// `push_back_mut`: Array stays Array (COW copy of the Vec); Tree shares the RRB spine.
+///
+/// Deliberately its OWN function rather than a new arm inside `vector_concat_inner` above.
+/// That function's same-kind-only gate (Vec+Vec / PersistentVector+PersistentVector /
+/// List+List) is a load-bearing, DOCUMENTED invariant ("Same-kind constraint preserved",
+/// arc-278 strike 3) shared with `insert-all'` (`rete/kernel.rs:3628`, always PV×PV) and the
+/// general `concat`/`Vector/concat` surface (`infer_concat`, which explicitly rejects
+/// Vector+PersistentVector as a TypeMismatch). Widening `vector_concat_inner` itself to
+/// accept a mismatched-kind pair would be exactly the "widen the polymorphic surface" move
+/// DESIGN-STONE-into-pv-from-vector.md rejects for `Vector/concat` — the same reasoning
+/// extends one level down to its native backing fn. `to` MUST be a PersistentVector (the
+/// receiver, whose kind the result preserves — DESIGN row 2); `from` may be EITHER a Vector
+/// or a PersistentVector (the two schemes `infer_persistentvector_concat` type-checks).
 pub(crate) fn persistentvector_concat_inner(to: &Value, from: &Value) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::PersistentVector/concat";
     let Value::wat__core__PersistentVector(l) = to else {
@@ -1674,7 +1677,7 @@ pub(crate) fn eval_persistentvector_concat(
 /// `(:wat::core::PersistentVector e1 e2 ...)` — constructor.
 /// Takes bare elements in order (NO leading type keyword).
 /// Types are inferred from the actual elements (checked at check-time by
-/// `infer_persistentvector_constructor`). Uses rpds for structural sharing.
+/// `infer_persistentvector_constructor`). Unique `push_back_mut` — stays Array.
 pub(crate) fn eval_persistentvector_ctor(
     args: &[WatAST],
     call_span: &Span,
@@ -1708,9 +1711,9 @@ pub(crate) fn eval_vector_concat(
     vector_concat_inner(&left, &right)
 }
 
-// ─── Container-polymorphic rest — Vec/List/WatAST-form ───────────────────────
+// ─── Container-polymorphic rest — Vec/List/WatAST-form/PersistentVector ──────
 
-/// `(:wat::core::rest xs)` — everything after the first element. Three dispatch arms:
+/// `(:wat::core::rest xs)` — everything after the first element. Four dispatch arms:
 ///
 /// - `Value::Vec` — returns a new `Vec<T>` of the tail (mirrors `slice[1..]`).
 /// - `Value::wat__core__List` — returns a new `List<T>` of the tail; preserves List type identity.
@@ -1719,6 +1722,8 @@ pub(crate) fn eval_vector_concat(
 ///   This arm is reachable only in macro-expansion contexts where checker discipline is
 ///   relaxed; type-checked user code calling `rest` on a form-value is rejected at check time
 ///   (checker's `rest` arm at `src/check.rs::infer_list` rejects non-Vec/non-List types).
+/// - `Value::wat__core__PersistentVector` — rebuild-from-empty via unique `push_back_mut`
+///   (stays Array). Preserves PersistentVector type identity.
 ///
 /// Runtime error if the Vec/List/form is empty. Lives here beside the per-Type impls rather than
 /// `transform.rs` (which holds Vector/List-SPECIFIC seq-HOFs, not container-polymorphic dispatch).
@@ -1801,7 +1806,7 @@ pub(crate) fn eval_rest(
                             reason: "cannot take rest of empty PersistentVector".into()
                         }).into());
                     }
-                    // Build a new PersistentVector by skipping the first element.
+                    // Rebuild-from-empty via unique mut — stays Array.
                     let mut out: crate::value::pvec::PVec = crate::value::pvec::PVec::new();
                     for elem in pv.iter().skip(1) {
                         out.push_back_mut(elem.clone());
