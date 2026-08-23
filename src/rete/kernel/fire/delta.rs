@@ -657,13 +657,11 @@ pub(crate) fn fire_fixpoint_delta_armed(
                 // have ALREADY run, so wm.alpha and wm.beta contain ALL cumulative data including
                 // this round's new elements — the catch-up covers historical AND current-round facts.
                 if first_keying {
-                    // Clone to avoid split-borrow conflicts with later wm.beta/d_beta mutations.
-                    let all_right: Vec<Element> = wm
-                        .alpha
-                        .get(&alpha_id)
-                        .map(|v| v.as_ref().clone())
-                        .unwrap_or_default();
-                    let n_right = all_right.len();
+                    // Occupancy is already Arc-shared. Bump the Arc; do not memcpy
+                    // the Vec (`DESIGN-STONE-catchup-arc-occupancy`). all_left still
+                    // clones wm.beta (HashMap split-borrow, not Arc occupancy).
+                    let all_right = wm.alpha.get(&alpha_id).cloned();
+                    let n_right = all_right.as_ref().map(|v| v.len()).unwrap_or(0);
                     let all_left: Vec<Token> = wm.beta.get(node_id).cloned().unwrap_or_default();
                     // READ #2 of 2: the parent's cumulative tokens, for the catch-up cross-join.
                     beta_read(*node_id, all_left.len() as u64);
@@ -674,17 +672,19 @@ pub(crate) fn fire_fixpoint_delta_armed(
                     let __cri = phase_start();
                     {
                         let ridx = right_idx.entry(*child_id).or_default();
-                        for el in all_right {
-                            let k = key_of_el(&el, jk, &GatherIntern::from_wm(&wm, alpha_id));
-                            let el = element_with_row_span(
-                                el,
-                                &mut wm.bind_pool,
-                                alpha_id,
-                                &wm.i64_by_fact,
-                                &wm.bind_only,
-                                &wm.cond_key_ids,
-                            );
-                            ridx.entry(k).or_default().push(el);
+                        if let Some(right) = all_right.as_deref() {
+                            for &el in right {
+                                let k = key_of_el(&el, jk, &GatherIntern::from_wm(&wm, alpha_id));
+                                let el = element_with_row_span(
+                                    el,
+                                    &mut wm.bind_pool,
+                                    alpha_id,
+                                    &wm.i64_by_fact,
+                                    &wm.bind_only,
+                                    &wm.cond_key_ids,
+                                );
+                                ridx.entry(k).or_default().push(el);
+                            }
                         }
                     }
                     phase_end("  ├ hj:catchup:right-idx", __cri);
