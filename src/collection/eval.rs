@@ -1036,7 +1036,7 @@ pub(crate) fn eval_persistentmap_get(
 
 /// `(:wat::core::PersistentMap/assoc pm k v)` — persistent insert.
 /// Returns a NEW PersistentMap with (k → v) added; the original `pm` is UNCHANGED.
-/// This is the structural-sharing win: rpds `.insert(k, v)` is O(log n) with NO clone.
+/// Array copies the pair slice; Trie shares (`PMap::assoc`).
 pub(crate) fn persistentmap_assoc_inner(container: &Value, k: &Value, v: &Value) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::core::PersistentMap/assoc";
     match container {
@@ -1048,8 +1048,7 @@ pub(crate) fn persistentmap_assoc_inner(container: &Value, k: &Value, v: &Value)
                     got: Box::new(ValueSnapshot::of(k))
                 }).into());
             }
-            // PMap::assoc returns a NEW map — no clone of contents in the array arm below the
-            // threshold, structural sharing in the trie arm above it.
+            // PMap::assoc returns a NEW map — Array copies the pair slice; Trie shares.
             Ok(Value::wat__core__PersistentMap(m.assoc(k.clone(), v.clone())))
         }
         other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
@@ -1182,7 +1181,7 @@ pub(crate) fn eval_persistentmap_values(
 /// `(:wat::core::PersistentMap k1 v1 k2 v2 ...)` — constructor.
 /// Takes alternating key/value pairs directly (NO leading K/V type keywords).
 /// Types are inferred from the actual key/value values (checked at check-time by
-/// `infer_persistentmap_constructor`). Uses rpds for structural sharing.
+/// `infer_persistentmap_constructor`). `from_pairs` chooses Array (≤8) or Trie (>8).
 pub(crate) fn eval_persistentmap_ctor(
     args: &[WatAST],
     call_span: &Span,

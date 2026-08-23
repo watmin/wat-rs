@@ -73,7 +73,7 @@ impl PMap {
     /// win, matching `assoc`.
     ///
     /// Zero and one pair skip the growable accumulator: class-scan harvest
-    /// is 40k one-entry maps (`DESIGN-STONE-one-entry-pmap-harvest`).
+    /// is 40k one-entry maps (`DESIGN-STONE-harvest-wrap-split`).
     pub fn from_pairs<I: IntoIterator<Item = (Value, Value)>>(pairs: I) -> Self {
         let mut iter = pairs.into_iter();
         let Some(first) = iter.next() else {
@@ -259,21 +259,6 @@ impl PMap {
             )
         } else {
             PMap::Trie(t, next_intern())
-        }
-    }
-
-    /// The trie view, materialising one from the array arm when a reader genuinely needs rpds
-    /// (e.g. a boundary to code that is intentionally still trie-only, such as `Token.bindings`).
-    pub fn to_trie(&self) -> rpds::HashTrieMapSync<Value, Value> {
-        match self {
-            PMap::Trie(t, _) => t.clone(),
-            PMap::Array(entries, _) => {
-                let mut t = rpds::HashTrieMapSync::new_sync();
-                for (k, v) in entries.iter() {
-                    t.insert_mut(k.clone(), v.clone());
-                }
-                t
-            }
         }
     }
 }
