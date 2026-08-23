@@ -61,7 +61,7 @@ pub(crate) fn eval_vec_reverse(
                 let Value::wat__core__PersistentVector(pv) = v else {
                     unreachable!("of_value⇒PersistentVector")
                 };
-                let mut out: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
+                let mut out: crate::value::pvec::PVec = crate::value::pvec::PVec::new();
                 for elem in pv.iter().collect::<Vec<_>>().into_iter().rev() {
                     out.push_back_mut(elem.clone());
                 }
@@ -1358,11 +1358,11 @@ fn indexed_vec_stream(xs: Arc<Vec<Value>>, index: usize) -> Arc<crate::stream::S
     ))))
 }
 
-/// Build a lazy `Stream` stepping a `PersistentVector` (`rpds::VectorSync<Value>`) by index.
+/// Build a lazy `Stream` stepping a `PersistentVector` (`crate::value::pvec::PVec`) by index.
 /// `rpds`'s `Vector` is a bitmapped trie: `.get(index)` is O(log n) and `.clone()` is O(1)
 /// (Arc-backed structural sharing) — the container handle is cloned once per step, never
 /// rebuilt, never walked element-by-element.
-fn indexed_pv_stream(pv: rpds::VectorSync<Value>, index: usize) -> Arc<crate::stream::Stream> {
+fn indexed_pv_stream(pv: crate::value::pvec::PVec, index: usize) -> Arc<crate::stream::Stream> {
     use crate::stream::{NativeLazyCell, Stream};
     if index >= pv.len() {
         return Arc::new(Stream::Empty);

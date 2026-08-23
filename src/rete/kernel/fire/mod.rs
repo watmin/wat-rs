@@ -1083,9 +1083,9 @@ pub(crate) fn collect_derived(production_pm: &Value) -> Vec<Value> {
 /// len(derived)) instead.
 pub(crate) fn merge_facts(facts_pv: &Value, derived: &[Value]) -> Value {
     // Start with a clone of the existing PV.
-    let mut pv: rpds::VectorSync<Value> = match facts_pv {
+    let mut pv: crate::value::pvec::PVec = match facts_pv {
         Value::wat__core__PersistentVector(v) => v.clone(),
-        _ => rpds::VectorSync::new_sync(),
+        _ => crate::value::pvec::PVec::new(),
     };
     let mut present: std::collections::HashSet<Value> = pv.iter().cloned().collect();
     for fact in derived {
@@ -1133,8 +1133,8 @@ pub(crate) fn synthetic_rule(name: &str) -> Value {
         crate::value::value::names_arc_from_static(RULE_FIELDS),
         Arc::new(vec![
             Value::String(Arc::new(name.to_string())),
-            Value::wat__core__PersistentVector(rpds::VectorSync::new_sync()),
-            Value::wat__core__PersistentVector(rpds::VectorSync::new_sync()),
+            Value::wat__core__PersistentVector(crate::value::pvec::PVec::new()),
+            Value::wat__core__PersistentVector(crate::value::pvec::PVec::new()),
         ]),
     )))
 }

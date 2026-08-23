@@ -256,7 +256,7 @@ pub(super) fn accumulate_value(
         }
         AccFold::Distinct(var) => {
             let mut seen: HashSet<i64> = HashSet::new();
-            let mut pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
+            let mut pv: crate::value::pvec::PVec = crate::value::pvec::PVec::new();
             for el in gathered {
                 let n = acc_var_i64(el, var, view);
                 if seen.insert(n) {
@@ -266,21 +266,21 @@ pub(super) fn accumulate_value(
             Some(Value::wat__core__PersistentVector(pv))
         }
         AccFold::All => {
-            let mut pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
+            let mut pv: crate::value::pvec::PVec = crate::value::pvec::PVec::new();
             for el in gathered {
                 pv.push_back_mut(fact_at(view.facts, view.derived, view.n_input, el.fact).clone());
             }
             Some(Value::wat__core__PersistentVector(pv))
         }
         AccFold::GroupBy(var) => {
-            type GroupByMap = HashMap<i64, rpds::VectorSync<Value>>;
+            type GroupByMap = HashMap<i64, crate::value::pvec::PVec>;
             let mut groups: GroupByMap = HashMap::new();
             for el in gathered {
                 let fact = fact_at(view.facts, view.derived, view.n_input, el.fact).clone();
                 let k = acc_var_i64(el, var, view);
                 groups
                     .entry(k)
-                    .or_insert_with(rpds::VectorSync::new_sync)
+                    .or_default()
                     .push_back_mut(fact);
             }
             Some(Value::wat__core__PersistentMap(
@@ -292,7 +292,7 @@ pub(super) fn accumulate_value(
             ))
         }
         AccFold::User { var, program } => {
-            let mut pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
+            let mut pv: crate::value::pvec::PVec = crate::value::pvec::PVec::new();
             for el in gathered {
                 pv.push_back_mut(Value::i64(acc_var_i64(el, var, view)));
             }

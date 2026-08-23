@@ -171,7 +171,7 @@ pub(crate) fn dedupe_filter_children(node: &Value, keep: &std::collections::Hash
         _ => return node.clone(),
     };
     let mut seen_ids: std::collections::HashSet<i64> = std::collections::HashSet::new();
-    let mut new_pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
+    let mut new_pv: crate::value::pvec::PVec = crate::value::pvec::PVec::new();
     for c in old_pv.iter() {
         if let Value::i64(cid) = c {
             if keep.contains(cid) && seen_ids.insert(*cid) {

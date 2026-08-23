@@ -367,20 +367,8 @@ pub(crate) fn pm_to_production(
 pub(crate) fn production_to_pm(map: ProductionMemory) -> Value {
     let mut pm: rpds::HashTrieMapSync<Value, Value> = rpds::HashTrieMapSync::new_sync();
     for (node_id, vec) in map {
-        let mut pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
-        for v in vec {
-            // `_mut`, not the copying form. `Vector::push_back(&self)` begins with
-            // `self.clone()`, which raises every node's refcount to 2, so the `make_mut` inside
-            // `assoc` is FORCED to copy the whole root->leaf path on EVERY iteration — the old
-            // version is then dropped unread. Building a fresh vector nobody else holds, that is
-            // pure waste: `push_back_mut` leaves the refcount at 1, `make_mut` hands back the
-            // existing node, and the write lands in place.
-            //
-            // This is R8's `each_with_object` against `reduce { merge }`, in the output path:
-            // rpds's `*_mut` family IS the transient API the doctrine calls for. Same final
-            // value either way — a persistent Vector — only the build is no longer copy-per-element.
-            pv.push_back_mut(v);
-        }
+        // Bulk Array arm — not N RRB assoc (`DESIGN-STONE-promoting-vector`).
+        let pv = crate::value::pvec::PVec::from_vec(vec);
         pm.insert_mut(Value::i64(node_id), Value::wat__core__PersistentVector(pv));
     }
     // Never wrap a built trie directly — choose the arm by size.
@@ -515,7 +503,7 @@ pub(crate) fn value_token_to_native(
 ///
 /// Named fields `matches` / `bindings` in `TOKEN_FIELDS` order.
 pub(crate) fn native_token_to_value(tok: Token, view: &EncodeView<'_>) -> Value {
-    let mut matches_pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
+    let mut matches_pv: crate::value::pvec::PVec = crate::value::pvec::PVec::new();
     for (fact_idx, alpha_id) in match_slice(view.match_pool, tok.matches) {
         let tuple = Value::Tuple(Arc::new(vec![
             fact_at(view.facts, view.derived, view.n_input, *fact_idx).clone(),
@@ -606,7 +594,7 @@ pub(crate) fn pm_to_beta(
 pub(crate) fn beta_to_pm(beta: BetaMemory, view: &EncodeView<'_>) -> Value {
     let mut pm: rpds::HashTrieMapSync<Value, Value> = rpds::HashTrieMapSync::new_sync();
     for (node_id, tokens) in beta {
-        let mut pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
+        let mut pv: crate::value::pvec::PVec = crate::value::pvec::PVec::new();
         for tok in tokens {
             pv.push_back_mut(native_token_to_value(tok, view));
         }
@@ -758,7 +746,7 @@ pub(crate) fn pm_to_alpha(
 pub(crate) fn alpha_to_pm(alpha: AlphaMemory, view: &EncodeView<'_>) -> Value {
     let mut pm: rpds::HashTrieMapSync<Value, Value> = rpds::HashTrieMapSync::new_sync();
     for (node_id, elements) in alpha {
-        let mut pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
+        let mut pv: crate::value::pvec::PVec = crate::value::pvec::PVec::new();
         for el in elements.iter().copied() {
             pv.push_back_mut(native_element_to_value(el, view));
         }
@@ -991,13 +979,13 @@ pub(crate) fn pm_to_query_memory(op: &'static str, pm: &Value) -> Result<QueryMe
 
 pub(crate) fn query_memory_to_pm(query: QueryMemory) -> Value {
     let pairs = query.into_iter().map(|(name, maps)| {
-        let mut pv = rpds::VectorSync::new_sync();
-        for m in maps {
-            pv.push_back_mut(Value::wat__core__PersistentMap(m));
-        }
+        let items: Vec<Value> = maps
+            .into_iter()
+            .map(Value::wat__core__PersistentMap)
+            .collect();
         (
             Value::String(Arc::new(name)),
-            Value::wat__core__PersistentVector(pv),
+            Value::wat__core__PersistentVector(crate::value::pvec::PVec::from_vec(items)),
         )
     });
     Value::wat__core__PersistentMap(crate::value::pmap::PMap::from_pairs(pairs))
@@ -1080,7 +1068,7 @@ pub(crate) fn session_named_field<'a>(session: &'a Value, name: &str) -> Option<
 pub(crate) fn session_facts(session: &Value) -> Value {
     session_named_field(session, "facts")
         .cloned()
-        .unwrap_or_else(|| Value::wat__core__PersistentVector(rpds::VectorSync::new_sync()))
+        .unwrap_or_else(|| Value::wat__core__PersistentVector(crate::value::pvec::PVec::new()))
 }
 
 pub(crate) fn session_network(session: &Value) -> Option<&Value> {
@@ -1114,7 +1102,7 @@ pub(crate) fn rule_asts_field(rule: &Value, name: &str) -> Vec<WatAST> {
 pub(crate) fn session_rules(session: &Value) -> Value {
     session_named_field(session, "rules")
         .cloned()
-        .unwrap_or_else(|| Value::wat__core__PersistentVector(rpds::VectorSync::new_sync()))
+        .unwrap_or_else(|| Value::wat__core__PersistentVector(crate::value::pvec::PVec::new()))
 }
 
 /// Overlay named fields onto a Session Value. Unmentioned fields carry through.

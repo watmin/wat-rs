@@ -86,7 +86,7 @@ fn pv(items: impl IntoIterator<Item = Value>) -> Value {
 }
 
 fn empty_pv() -> Value {
-    Value::wat__core__PersistentVector(rpds::VectorSync::new_sync())
+    Value::wat__core__PersistentVector(crate::value::pvec::PVec::new())
 }
 
 fn empty_pm() -> Value {
@@ -1372,7 +1372,7 @@ fn unpack_i64s(items: &[Value], skip: usize, span: &Span) -> Result<Vec<i64>, Ev
 }
 
 fn i64_pv(ids: &[i64]) -> Value {
-    let mut v = rpds::VectorSync::new_sync();
+    let mut v = crate::value::pvec::PVec::new();
     for id in ids {
         v.push_back_mut(Value::i64(*id));
     }
@@ -1484,7 +1484,7 @@ fn unpack_node(v: &Value, span: &Span) -> Result<UnpackedNode, EvalBreak> {
         ":q" => {
             let id = expect_i64(expect_at(&items, 1, span, "slot 1")?, IMPORT_OP, span)?;
             let name = expect_str(expect_at(&items, 2, span, "slot 2")?, IMPORT_OP, span)?.to_string();
-            let mut params = rpds::VectorSync::new_sync();
+            let mut params = crate::value::pvec::PVec::new();
             for x in items.iter().skip(3) {
                 params.push_back_mut(x.clone());
             }

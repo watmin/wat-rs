@@ -114,7 +114,7 @@ fn record_seed_leaf_vs_alpha(
     alpha_tree: &crate::rete::alpha_tree::AlphaTree,
     compiled_conds: &HashMap<i64, crate::rete::compiled_cond::CompiledCond>,
     bind_only: &HashMap<i64, Vec<u8>>,
-    input_facts: &rpds::VectorSync<Value>,
+    input_facts: &crate::value::pvec::PVec,
 ) {
     if !crate::rete::kernel::census::leaf_occ_armed() {
         return;
@@ -257,9 +257,9 @@ pub(crate) fn fire_fixpoint_delta_armed(
     // First worklist IS wm.facts. `seen` is filled once (one clone+hash per
     // input). Later rounds own a Vec of derived facts
     // (`DESIGN-STONE-setup-seen-once`).
-    let input_facts: rpds::VectorSync<Value> = match &wm.facts {
+    let input_facts: crate::value::pvec::PVec = match &wm.facts {
         Value::wat__core__PersistentVector(pv) => pv.clone(),
-        _ => rpds::VectorSync::new_sync(),
+        _ => crate::value::pvec::PVec::new(),
     };
     wm.n_input = input_facts.len() as u32;
     wm.bind_pool.reserve(input_facts.len().saturating_mul(4));

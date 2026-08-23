@@ -1348,7 +1348,7 @@ pub(crate) fn record_empty_q_inner(record: &Value) -> Result<Value, EvalBreak> {
 
 // ─── Arc-278-0b — PersistentVector ops (mirror vector_* family) ──────────────
 //
-// rpds::VectorSync<Value> is persistent: push_back returns a NEW vector sharing
+// crate::value::pvec::PVec is persistent: push_back returns a NEW vector sharing
 // structure with the old (O(log n)); the original is UNCHANGED.
 // No .clone() of vector contents needed — that is the whole win over std Vec.
 
@@ -1599,7 +1599,7 @@ pub(crate) fn persistentvector_concat_inner(to: &Value, from: &Value) -> Result<
         return match from {
             Value::wat__core__PersistentVector(_) => Ok(from.clone()),
             Value::Vec(r) => {
-                let mut out = rpds::VectorSync::new_sync();
+                let mut out = crate::value::pvec::PVec::new();
                 for elem in r.iter() {
                     out.push_back_mut(elem.clone());
                 }
@@ -1682,7 +1682,7 @@ pub(crate) fn eval_persistentvector_ctor(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     let _ = call_span; // arity is any (0+ elements)
-    let mut pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
+    let mut pv: crate::value::pvec::PVec = crate::value::pvec::PVec::new();
     for arg in args {
         let v = eval_inner(arg, env, sym)?.value_owned();
         pv.push_back_mut(v);
@@ -1802,7 +1802,7 @@ pub(crate) fn eval_rest(
                         }).into());
                     }
                     // Build a new PersistentVector by skipping the first element.
-                    let mut out: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
+                    let mut out: crate::value::pvec::PVec = crate::value::pvec::PVec::new();
                     for elem in pv.iter().skip(1) {
                         out.push_back_mut(elem.clone());
                     }

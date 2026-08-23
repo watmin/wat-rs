@@ -2971,12 +2971,13 @@ fn tagged_to_value(
                 "wat.core/PersistentVector body must be a vector, got non-vector".to_string()
             ) }),
         };
-        let mut pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
+        let mut acc = Vec::with_capacity(items.len());
         for item in items {
-            let val = edn_to_value_caps(item, types, allow_caps, foreign, ctx)?;
-            pv.push_back_mut(val);
+            acc.push(edn_to_value_caps(item, types, allow_caps, foreign, ctx)?);
         }
-        return Ok(Value::wat__core__PersistentVector(pv));
+        return Ok(Value::wat__core__PersistentVector(
+            crate::value::pvec::PVec::from_vec(acc),
+        ));
     }
 
     // Arc 294.j RELAND — `#wat.holon/Thermometer {…}` / `#wat.holon/SlotMarker {…}`, the two
@@ -4470,11 +4471,11 @@ mod tests {
     #[test]
     fn persistent_vector_edn_round_trip() {
         // Build a PersistentVector with three elements.
-        let mut pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
-        pv.push_back_mut(Value::i64(10));
-        pv.push_back_mut(Value::i64(20));
-        pv.push_back_mut(Value::i64(30));
-        let orig = Value::wat__core__PersistentVector(pv);
+        let orig = Value::wat__core__PersistentVector(crate::value::pvec::PVec::from_vec(vec![
+            Value::i64(10),
+            Value::i64(20),
+            Value::i64(30),
+        ]));
 
         // Serialize → tagged EDN string.
         let s = value_to_edn_string_with(&orig, None);

@@ -92,7 +92,7 @@ pub(crate) fn eval_insert_public(
         .into()),
         _ => {
             let session = crate::runtime::eval_inner(&args[0], env, sym)?.value_owned();
-            let mut pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
+            let mut pv: crate::value::pvec::PVec = crate::value::pvec::PVec::new();
             for a in &args[1..] {
                 pv.push_back_mut(crate::runtime::eval_inner(a, env, sym)?.value_owned());
             }

@@ -3867,6 +3867,118 @@ fn out_production_cost_split() {
     );
 }
 
+/// Apportion `out:query` (3.08 ms / 40k) without a Session rewrite
+/// (`DESIGN-STONE-out-query-split`). Same 40k VectorSync as 2u.
+#[test]
+fn out_query_cost_split() {
+    use std::collections::HashMap;
+    use std::hint::black_box;
+    use std::time::Instant;
+
+    const N: usize = 40_000;
+    const RUNS: usize = 3;
+
+    let var = Value::String(Arc::new("?fact".to_string()));
+    let names = Arc::new(vec!["key".into(), "lid".into(), "rid".into()]);
+    let maps: Vec<crate::value::pmap::PMap> = (0..N)
+        .map(|i| {
+            let fact = Value::Aggregate(Arc::new(AggregateValue::record(
+                "fan::Pair".into(),
+                names.clone(),
+                Arc::new(vec![Value::i64(i as i64), Value::i64(1), Value::i64(2)]),
+            )));
+            crate::value::pmap::PMap::from_pairs([(var.clone(), fact)])
+        })
+        .collect();
+
+    fn time_ns(n: usize, mut body: impl FnMut()) -> f64 {
+        let t0 = Instant::now();
+        for _ in 0..n {
+            body();
+        }
+        t0.elapsed().as_nanos() as f64 / n as f64
+    }
+
+    black_box(maps.clone());
+    {
+        let mut pv = rpds::VectorSync::new_sync();
+        for m in maps.clone() {
+            pv.push_back_mut(Value::wat__core__PersistentMap(m));
+        }
+        black_box(pv);
+        let mut q: QueryMemory = HashMap::new();
+        q.insert("q-Pair".to_string(), maps.clone());
+        black_box(super::query_memory_to_pm(q));
+        let collected: rpds::VectorSync<Value> = maps
+            .clone()
+            .into_iter()
+            .map(Value::wat__core__PersistentMap)
+            .collect();
+        black_box(collected);
+    }
+
+    let mut c = 0.0;
+    let mut v = 0.0;
+    let mut h = 0.0;
+    let mut i = 0.0;
+    for _ in 0..RUNS {
+        c += time_ns(1, || {
+            black_box(maps.clone());
+        });
+        v += time_ns(1, || {
+            let mut pv = rpds::VectorSync::new_sync();
+            for m in maps.clone() {
+                pv.push_back_mut(Value::wat__core__PersistentMap(m));
+            }
+            black_box(pv);
+        });
+        h += time_ns(1, || {
+            let mut q: QueryMemory = HashMap::new();
+            q.insert("q-Pair".to_string(), maps.clone());
+            black_box(super::query_memory_to_pm(q));
+        });
+        i += time_ns(1, || {
+            let collected: rpds::VectorSync<Value> = maps
+                .clone()
+                .into_iter()
+                .map(Value::wat__core__PersistentMap)
+                .collect();
+            black_box(collected);
+        });
+    }
+    let runs = RUNS as f64;
+    c /= runs;
+    v /= runs;
+    h /= runs;
+    i /= runs;
+    assert!(
+        h > 0.0,
+        "query_memory_to_pm recorded 0 ns — the loop never ran"
+    );
+
+    let ms = |ns: f64| ns / 1e6;
+    println!(
+        "\nout:query split — {N} one-entry PMaps, mean of {RUNS}\n\
+             unscaled (the cell is 40k); C is the Arc-bump clone fire does not pay\n\
+             \n\
+             C  clone 40k Vec<PMap>                {:>7.2} ms\n\
+             V  clone + wrap + push_back_mut       {:>7.2} ms\n\
+             H  clone + query_memory_to_pm         {:>7.2} ms\n\
+             I  clone + VectorSync::from_iter      {:>7.2} ms\n\
+             \n\
+             V−C  node-per-fact                    {:>7.2} ms\n\
+             H−V  wrap (query-name map)            {:>7.2} ms\n\
+             V−I  from_iter drop-in                {:>7.2} ms\n",
+        ms(c),
+        ms(v),
+        ms(h),
+        ms(i),
+        ms(v - c),
+        ms(h - v),
+        ms(v - i),
+    );
+}
+
 /// Native FIRE rank across the three instrumented cells now that
 /// fanout is dry (`DESIGN-STONE-cell-rank-after-fanout`).
 #[test]
@@ -4537,7 +4649,7 @@ fn accum_alpha_leftover_split() {
     let mut wm = super::to_transient(&session).expect("to_transient of seeded session");
     let arm = super::rete_arm_get_or_build(&wm.network, &wm.rules, world.symbols())
         .expect("arm for accum network");
-    let input_pv: rpds::VectorSync<Value> = match &wm.facts {
+    let input_pv: crate::value::pvec::PVec = match &wm.facts {
         Value::wat__core__PersistentVector(pv) => pv.clone(),
         _ => panic!("seeded session facts are a PersistentVector"),
     };
@@ -4773,7 +4885,7 @@ fn accum_alpha_seed_after_fold_split() {
     let mut wm = super::to_transient(&session).expect("to_transient of seeded session");
     let arm = super::rete_arm_get_or_build(&wm.network, &wm.rules, world.symbols())
         .expect("arm for accum network");
-    let input_pv: rpds::VectorSync<Value> = match &wm.facts {
+    let input_pv: crate::value::pvec::PVec = match &wm.facts {
         Value::wat__core__PersistentVector(pv) => pv.clone(),
         _ => panic!("seeded session facts are a PersistentVector"),
     };
@@ -6568,7 +6680,7 @@ fn accum_seen_fire_context_split() {
         .unwrap_or_else(|e| panic!("seed raised: {e:?}"))
         .value_owned();
     let wm = super::to_transient(&session).expect("to_transient");
-    let pv: rpds::VectorSync<Value> = match &wm.facts {
+    let pv: crate::value::pvec::PVec = match &wm.facts {
         Value::wat__core__PersistentVector(pv) => pv.clone(),
         _ => panic!("seeded facts is a PersistentVector"),
     };
@@ -7267,7 +7379,7 @@ fn probe_gap_cost_split() {
         fact: 0,
         binds: right_binds,
     };
-    let facts_pv = Value::wat__core__PersistentVector(rpds::VectorSync::new_sync());
+    let facts_pv = Value::wat__core__PersistentVector(crate::value::pvec::PVec::new());
     let derived = [fact.clone()];
     let compiled = CompiledCond::from_parts(
         vec![

@@ -129,7 +129,7 @@ pub(crate) fn eval_step_payload(
     // Binder: (?v <- :field) — collect ?v name.
     // Constraint: (:op a b) — resolve operands via resolve_operand, rebuild as WatAST.
     let mut binder_vars: Vec<String> = Vec::new();
-    let mut constraints_pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
+    let mut constraints_pv = crate::value::pvec::PVec::new();
 
     for clause in clauses {
         match classify_rete_clause(clause) {

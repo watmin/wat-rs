@@ -109,7 +109,7 @@ pub(crate) fn fire_rules_stratified(
         // Filter the original typed rule set to this stratum (same filter the oracle's
         // fire-stratified-loop applies, `wat/rete/oracle/fire.wat`) — this IS the production
         // gate (see doc comment above): only these rules' ProductionNodes may fire this call.
-        let mut stratum_pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
+        let mut stratum_pv: crate::value::pvec::PVec = crate::value::pvec::PVec::new();
         let mut active_ids: std::collections::HashSet<i64> = std::collections::HashSet::new();
         let mut frontier: Vec<i64> = Vec::new();
         let mut stratum_rule_names: HashSet<String> = HashSet::new();
@@ -214,7 +214,7 @@ pub(crate) fn fire_rules_stratified(
     // wrap). network/rules/next-id preserved from the ORIGINAL input
     // session; alpha-memory/beta-memory reset to empty (mirrors fire-stratified's Session
     // constructor, wat/rete/oracle/fire.wat).
-    let mut prod_pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
+    let mut prod_pv: crate::value::pvec::PVec = crate::value::pvec::PVec::new();
     for d in &acc_derived {
         prod_pv.push_back_mut(d.clone());
     }
@@ -337,7 +337,7 @@ fn harvest_stratified_queries(
     let q_net = slice_active_network(network, &q_ids);
     let q_arm = subset_rete_arm(full_arm, &q_ids, &HashSet::new(), &q_net);
     let empty_pm = Value::wat__core__PersistentMap(crate::value::pmap::PMap::new());
-    let empty_rules = Value::wat__core__PersistentVector(rpds::VectorSync::new_sync());
+    let empty_rules = Value::wat__core__PersistentVector(crate::value::pvec::PVec::new());
     let q_sess = session_with_fields(
         session,
         &[

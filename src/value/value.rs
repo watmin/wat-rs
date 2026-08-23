@@ -105,11 +105,10 @@ pub enum Value {
     /// on `assoc`). Structural sharing: `assoc`/`dissoc` return a NEW map; the original is
     /// unchanged. Stone arc-278-0a; promoted to `PMap` by DESIGN-STONE-promoting-map.
     wat__core__PersistentMap(crate::value::pmap::PMap),
-    /// A `:wat::core::PersistentVector<T>` — rpds `VectorSync<Value>`.
-    /// Structural sharing: `conj` (`push_back`) returns a NEW vector (O(log n)); the
-    /// original is unchanged. No `Arc` wrapper needed — rpds is already cheap-clone/shared.
-    /// Stone arc-278-0b.
-    wat__core__PersistentVector(rpds::VectorSync<Value>),
+    /// A `:wat::core::PersistentVector<T>` — [`crate::value::pvec::PVec`], the promoting
+    /// vector (array from bulk `from_vec`, RRB tree after persistent `conj` past 8).
+    /// Stone arc-278-0b; promoted to `PVec` by DESIGN-STONE-promoting-vector.
+    wat__core__PersistentVector(crate::value::pvec::PVec),
     /// A `:HashSet<T>` — Rust std's HashSet natively; stored as
     /// `Arc<HashSet<Value>>` using Stone 216.5a's `impl Hash + PartialEq + Eq
     /// for Value`. No canonical-key crutch; dedupe via native hash semantics.
@@ -625,8 +624,7 @@ impl PartialEq for Value {
             // PersistentMap: rpds::HashTrieMapSync implements PartialEq — delegate.
             // Arc-278-0a: structural equality over K/V using Value's PartialEq.
             (Value::wat__core__PersistentMap(a), Value::wat__core__PersistentMap(b)) => a == b,
-            // PersistentVector: rpds::VectorSync implements PartialEq — delegate.
-            // Arc-278-0b: order-dependent equality (a vector's order is semantic).
+            // PersistentVector: `PVec`'s own `PartialEq` is the sequence, either arm.
             (Value::wat__core__PersistentVector(a), Value::wat__core__PersistentVector(b)) => a == b,
             // --- Structurally-equal but NOT atomizable ---
             (Value::u8(a), Value::u8(b)) => a == b,
@@ -801,14 +799,10 @@ impl std::hash::Hash for Value {
             Value::wat__core__PersistentMap(m) => {
                 m.hash(state);
             }
-            // PersistentVector: order-DEPENDENT hash — sequence hash over elements in order.
-            // Arc-278-0b: a vector's order is semantic; discriminant already hashed above;
-            // hash each element in order (mirrors std Vec's hash_sequence semantics, but with
-            // its own discriminant so it hashes DISTINCT from Vec / List).
+            // PersistentVector: order-DEPENDENT hash — `PVec`'s own `Hash` is the sequence,
+            // either arm. Discriminant already hashed above so it stays distinct from Vec / List.
             Value::wat__core__PersistentVector(v) => {
-                for elem in v.iter() {
-                    elem.hash(state);
-                }
+                v.hash(state);
             }
             // --- Structural but NOT atomizable: honest hash impls (STOP-4 surface) ---
             Value::u8(n) => n.hash(state),
