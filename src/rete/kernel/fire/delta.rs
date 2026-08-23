@@ -1673,6 +1673,17 @@ pub(crate) fn fire_fixpoint_delta_armed(
         let __pt5 = phase_start();
         let mut next_delta: Vec<u32> = Vec::new();
         for node_id in &kind_ids.prod {
+            // Skip get_node unless a parent has tokens this round
+            // (`DESIGN-STONE-dirty-production`).
+            let Some(pids) = parents_of.get(node_id) else {
+                continue;
+            };
+            if !pids
+                .iter()
+                .any(|pid| d_beta.get(pid).is_some_and(|ts| !ts.is_empty()))
+            {
+                continue;
+            }
             let node = match get_node(&wm.network, *node_id) {
                 Some(n) => n,
                 None => continue,
@@ -1694,10 +1705,6 @@ pub(crate) fn fire_fixpoint_delta_armed(
             // Fire on NEW tokens at EVERY parent (condition `:or` has N).
             // Walk d_beta in place — production only reads bindings
             // (`DESIGN-STONE-prod-no-token-clone`).
-            let Some(pids) = parents_of.get(node_id) else {
-                continue;
-            };
-
             for pid in pids {
                 let Some(ts) = d_beta.get(pid) else {
                     continue;
