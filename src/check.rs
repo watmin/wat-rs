@@ -4956,18 +4956,44 @@ fn infer_list(
             _ => {}
         }
 
+        // STONE-exactly-one-call-position (arc 109) — the peel is hoisted HERE, above
+        // every callee-level arm, per the rule this stone exists to fix: whether a call
+        // carries a `:- [T…]` param-spec is a property of the FORM; which arm handles
+        // the call is a property of the CALLEE. The surface-method arm below used to
+        // hand-roll its own extraction — reading the retired angle suffix off the call
+        // head via `split_type_params_pub` — which is exactly how "the call position"
+        // grew two implementations: emitting the binder at a surface-method call gave
+        // `ArityMismatch: expected 7 argument(s); got 9` because that arm never peeled
+        // the marker out of `args` at all. `args` shadows for every arm below (the
+        // surface-method arm, defclause dispatch, and the generic-call arm) — none of
+        // them extracts the marker itself anymore. `:- []` peels to `Some(&[])`, never
+        // `None` — the empty binder is *expressed*, not absent (this stone's blocker 2:
+        // `absent ≡ :- [] ≡ :- []`).
+        let (type_args_raw, args) = crate::types::peel_param_spec(args);
+        let type_args: Option<Vec<TypeExpr>> = type_args_raw.map(|raw| {
+            raw.iter()
+                .map(|node| {
+                    crate::types::parse_type_node(node).unwrap_or_else(|e| {
+                        local_errors.push(CheckError {
+                            span: e.span().clone(),
+                            kind: CheckErrorKind::MalformedForm {
+                                head: k.clone(),
+                                reason: format!("malformed type-param argument: {}", e),
+                                remedies: vec![],
+                            },
+                        });
+                        fresh.fresh()
+                    })
+                })
+                .collect()
+        });
+
         // Arc 293.4b — surface-method call-site check.
         // A head `:S/method` where `S` is a `TypeDef::Surface` with a member
         // named `method` is a surface-method call.
         if k.contains('/') {
             let protocol_fqdn = wat_reader::identifier::receiver(k);
-            let method_name_raw = wat_reader::identifier::method(k);
-            // Stone 6b-DEP — strip explicit type-args suffix `<T1,T2>` from the call-head
-            // so the look-up uses the bare method name registered in the surface member.
-            // e.g. `mk<wat::core::i64,wat::core::i64>` → bare=`mk`, suffix=`<wat::core::i64,wat::core::i64>`
-            let (method_name_bare, explicit_type_suffix) =
-                crate::runtime::split_type_params_pub(method_name_raw);
-            let method_name = method_name_bare;
+            let method_name = wat_reader::identifier::method(k);
             // Arc 293.4d — broadened to Field members too (every surface member is an accessor).
             //
             // A head `:S/name` where `S` is a `TypeDef::Surface` with ANY member named `name`
@@ -5152,37 +5178,24 @@ fn infer_list(
                     // Arc 293.4e-pre.ii — instantiate surface method type params (mirror of the
                     // protocol call-check arm's instantiation block, ~check.rs:5845-5891).
                     // Monomorphic members (empty type_params) take the identity path: use as-is.
-                    // Generic members: explicit type-arg suffix → parse + bind; else → fresh vars.
+                    // Generic members: explicit `:- [T…]` binder → bind directly; else → fresh vars.
                     let (member_ret, extra_param_types): (TypeExpr, Vec<TypeExpr>) =
                         if member_type_params.is_empty() {
                             // Monomorphic — no-op: use raw values verbatim.
                             (member_ret_raw, extra_param_types_raw)
-                        } else if !explicit_type_suffix.is_empty() {
-                            // Generic with EXPLICIT type-args — parse and bind each param.
-                            // suffix is `<T1,T2,...>`: strip the enclosing `<` and `>`.
-                            //
-                            // The split must be DEPTH-AWARE: a type-arg may itself be
-                            // parametric, and its inner commas are not separators here.
-                            // `defservice` mints exactly such a head —
-                            // `Locus/launch<Op,Reply,State<K,V>,Admin<K,V>,Status<K,V>>` —
-                            // which a flat `split(',')` tore into 8 fragments instead of 5,
-                            // shifting every binding (`Sh` bound to the shard `V>`).
-                            // Reuses `parse_type_list`'s own depth tracker (arc 170 W2
-                            // Strike 1a, `->`-arrow guard included) rather than minting a
-                            // third twin. Non-nested suffixes split identically to before.
-                            let inner = &explicit_type_suffix[1..explicit_type_suffix.len() - 1];
-                            let type_strs: Vec<&str> = crate::types::split_type_list_top_level(inner);
+                        } else if let Some(explicit_args) = &type_args {
+                            // Generic with an EXPLICIT `:- [T…]` binder (hoisted above, this
+                            // stone) — bind each declared type param positionally from the
+                            // already-parsed `TypeExpr`s. These came from `peel_param_spec`'s
+                            // Vector elements, one AST node each — never a string that a flat
+                            // `split(',')` could tear, so a parametric type-arg like
+                            // `State<K,V>` (the shape `defservice` mints, five params deep)
+                            // cannot shift a later binding the way the old angle-suffix string
+                            // split once did.
                             let mut mapping: HashMap<String, TypeExpr> = HashMap::new();
                             for (i, tp) in member_type_params.iter().enumerate() {
-                                if let Some(arg_str) = type_strs.get(i) {
-                                    let kw = format!(":{}", arg_str.trim());
-                                    match crate::types::parse_type_expr(&kw) {
-                                        Ok(parsed) => { mapping.insert(tp.clone(), parsed); }
-                                        Err(_) => { mapping.insert(tp.clone(), fresh.fresh()); }
-                                    }
-                                } else {
-                                    mapping.insert(tp.clone(), fresh.fresh());
-                                }
+                                let bound = explicit_args.get(i).cloned().unwrap_or_else(|| fresh.fresh());
+                                mapping.insert(tp.clone(), bound);
                             }
                             let rest: Vec<TypeExpr> = extra_param_types_raw.iter().map(|ty| rename(ty, &mapping)).collect();
                             let ret = rename(&member_ret_raw, &mapping);
@@ -5480,35 +5493,16 @@ fn infer_list(
             };
         }
 
-        // STONE-finish-the-param-spec (arc 109) — position 4: `(:f :- [T…] a…)` peels
-        // its param-spec here, BEFORE arity is ever counted, so `:-` and `[T…]` stop
-        // being read as two extra positional args (measured pre-stone: `ArityMismatch:
-        // expected 1, got 3`). `args` shadows for the rest of this call's handling —
-        // arity checks, the per-arg unify loop, and `alarm_op_internal_check`'s
-        // positional-prime read all see the REST, never the marker. Explicit type args
-        // (when present) seed the scheme's fresh-var instantiation below instead of
-        // being discarded — the callee's declared type params are BOUND from them,
-        // exactly as A's exemplar (`unwrap_type_param_bracket`) binds Vector's `T` from
-        // its peeled bracket. `defclause` dispatch, just above, is untouched — it is a
-        // declaration-position consumer, out of this stone's two-value-position scope.
-        let (type_args_raw, args) = crate::types::peel_param_spec(args);
-        let type_args: Option<Vec<TypeExpr>> = type_args_raw.map(|raw| {
-            raw.iter()
-                .map(|node| {
-                    crate::types::parse_type_node(node).unwrap_or_else(|e| {
-                        local_errors.push(CheckError {
-                            span: e.span().clone(),
-                            kind: CheckErrorKind::MalformedForm {
-                                head: k.clone(),
-                                reason: format!("malformed type-param argument: {}", e),
-                                remedies: vec![],
-                            },
-                        });
-                        fresh.fresh()
-                    })
-                })
-                .collect()
-        });
+        // STONE-exactly-one-call-position (arc 109) — position 4's peel (`(:f :- [T…]
+        // a…)`, measured pre-stone: `ArityMismatch: expected 1, got 3`) now happens
+        // once, hoisted to the top of this dispatch — see the comment there. `type_args`
+        // and the already-peeled `args` are already in scope for this arm; this arm
+        // does not extract them a second time. Explicit type args (when present) seed
+        // the scheme's fresh-var instantiation below instead of being discarded — the
+        // callee's declared type params are BOUND from them, exactly as A's exemplar
+        // (`unwrap_type_param_bracket`) binds Vector's `T` from its peeled bracket.
+        // `defclause` dispatch, just above, now sees the same peeled `args` too — the
+        // hoist widened who benefits from the peel, not who is allowed to author one.
 
         // Normal call: look up scheme, instantiate, unify args.
         // Arc 139 — strip turbofish `<T,...>` from the head before

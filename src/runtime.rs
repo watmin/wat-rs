@@ -7043,6 +7043,19 @@ fn dispatch_keyword_head_value(
 
         // Anything else: user-defined function lookup.
         other => {
+            // STONE-exactly-one-call-position (arc 109) — position 4's runtime peel
+            // (previously below, at the generic user-function dispatch only) is hoisted
+            // to the TOP of this whole arm, before anything branches on whether the
+            // head is a surface-method call (`other.contains('/')`). The surface-method
+            // dispatch block just below used to see the RAW `args` — a call carrying
+            // `:- [T…]` had the marker land in `args[0]`/`args[1]` where the receiver
+            // was expected. Types are erased at runtime — nothing here needs the peeled
+            // type nodes themselves (check.rs already validated and bound them against
+            // the callee's declared type params); every consumer below (the Peer-nature
+            // send/recv forwarding, the aggregate-dispatch receiver read, and the
+            // generic user-function lookup) only needs the REST.
+            let (_, args) = crate::types::peel_param_spec(args);
+
             if other.contains('/') {
                 let protocol_fqdn = wat_reader::identifier::receiver(other);
                 let method_name_raw = wat_reader::identifier::method(other);
@@ -7417,19 +7430,11 @@ fn dispatch_keyword_head_value(
                 }
             }
 
-            // STONE-finish-the-param-spec (arc 109) — position 4's RUNTIME twin of the
-            // check.rs peel just above `resolve_type_slot_args`'s sibling site: a call
-            // `(:f :- [T…] a…)` reaching this generic user-function dispatch must not
-            // count `:-` and `[T…]` as two extra positional args (measured pre-stone:
-            // `ArityMismatch: expected 1, got 3` even after check.rs accepted the same
-            // call). Types are erased at runtime — nothing here NEEDS the peeled type
-            // nodes themselves (check.rs already validated and bound them against the
-            // callee's declared type params); this call only needs the REST. Shadows
-            // `args` for the remainder of this arm (the func lookup, the nested
-            // aggregate-ctor / keyword-accessor fallbacks, and the final positional
-            // eval loop) — the surface-method dispatch block just above, a separate
-            // consumer this stone does not touch, keeps seeing the original `args`.
-            let (_, args) = crate::types::peel_param_spec(args);
+            // STONE-exactly-one-call-position (arc 109) — position 4's RUNTIME peel now
+            // happens once, hoisted to the top of this arm (see the comment there) —
+            // this generic user-function dispatch reads the same already-peeled `args`
+            // the surface-method dispatch block above it does; neither extracts a
+            // second time.
 
             // Arc 139 — strip `<T,...>` from the head before lookup.
             // The substrate registers user defines under the canonical

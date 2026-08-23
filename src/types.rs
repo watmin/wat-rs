@@ -5105,10 +5105,22 @@ pub(crate) fn parse_type_form(node: &WatAST) -> Result<TypeExpr, TypeError> {
     // Arc 109 Stone ②-i-b — the `:-`-marked spelling: `(Head :- [type…])`. `:-`
     // declares "the thing on the left is parameterized by the thing on the right"
     // (the same relation the arg-spec and ret-type arrows already carry); the
-    // bracket after it is a type-param list BY DECLARATION, never sniffed —
-    // unlike the unmarked arm below, there is no `!inner.is_empty()` guard here,
-    // because under `:-` an empty bracket is a legitimate zero-length param-spec
-    // (`(Tuple :- [])`), not something to guess about.
+    // bracket after it is a type-param list BY DECLARATION, never sniffed.
+    //
+    // STONE-exactly-one-call-position (arc 109) — SUPERSEDES the prior reasoning
+    // here (which read `(Tuple :- [])` as a distinct, legitimate zero-length
+    // param-spec, deliberately un-guarded against `!inner.is_empty()`). The
+    // builder's rule this stone: absent, `:- []`, and the empty binder are all
+    // the SAME thing —
+    //
+    //     not expressed        →  :- []
+    //     expressed and empty  →  :- []
+    //     otherwise             →  the binders chosen
+    //
+    // — so `Parametric{args: []}` must not exist as a distinct value from
+    // `Path(head)`. `(Head :- [])` normalises to `Path(head)` below, the same
+    // variant the bare `Head` reference already parses to, so the two now unify
+    // instead of a type failing to match itself.
     //
     // The builder's second rule: initial values after the bracket
     // (`(Head :- [types] v…)`) make the form a LITERAL, and a literal is not a
@@ -5118,6 +5130,7 @@ pub(crate) fn parse_type_form(node: &WatAST) -> Result<TypeExpr, TypeError> {
     // which would misreport it as a malformed `[arg… :-> ret]`.
     let rest_items = &items[1..];
     let (peeled, after_marker) = peel_param_spec(rest_items);
+    let via_binder = peeled.is_some();
     let args: Result<Vec<TypeExpr>, TypeError> = match peeled {
         Some(inner) => {
             if !after_marker.is_empty() {
@@ -5147,6 +5160,12 @@ pub(crate) fn parse_type_form(node: &WatAST) -> Result<TypeExpr, TypeError> {
     // (both produce the SAME `TypeExpr::Tuple`, so they unify identically).
     let result = if raw_head == "wat::core::Tuple" {
         TypeExpr::Tuple(args)
+    } else if via_binder && args.is_empty() {
+        // STONE-exactly-one-call-position — `(Head :- [])` IS `Head`: the empty
+        // binder is the same as absent, so this must be the identical `Path`
+        // variant the bare reference parses to, not a `Parametric` with an empty
+        // arg list that fails to unify against it.
+        TypeExpr::Path(format!(":{}", raw_head))
     } else {
         TypeExpr::Parametric { head: raw_head, args }
     };

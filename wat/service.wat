@@ -489,36 +489,12 @@
      ;; colon-spelled at all; `ast-name` reads it as-is). `Cache<K,V>` exercises exactly this:
      ;; both args are type-vars, not FQDNs.
      ;;
-     ;; STONE-defservice-emits-the-binder: `proto-args-str`/`proto-tp` SURVIVE — their one
-     ;; remaining consumer is `launch-head-kw` below, which STILL mints a NAME-embedded
-     ;; `<a,b,…>` type-arg suffix. That call is a SURFACE-METHOD dispatch (`:S/method`,
-     ;; check.rs's `k.contains('/')` arm ~4959), a DIFFERENT code path from the generic
-     ;; `env.get(canonical_k)` call arm `peel_param_spec` fixed in `69933d362` — the
-     ;; surface-method arm still reads its explicit type-args by splitting the callee NAME
-     ;; TEXT on `<` (`split_type_params_pub`, runtime.rs), never peeling a position-4 `:-`
-     ;; binder from `args`. Measured: rewriting `launch-head-kw` to a bare keyword + `:-
-     ;; [...]` siblings at the call site turns `Locus/launch`'s 7 real args into `args.len()
-     ;; == 9` (the marker + the vector counted as two more positional args) — 257
-     ;; stdlib type-check errors, `ArityMismatch: expected 7; got 9`, on every service in
-     ;; the corpus. STOP-2: this is check.rs surgery outside this stone's boundary
-     ;; (teaching the surface-method arm to peel `:-`), not a `wat/service.wat` edit — filed
-     ;; as the follow-on, not attempted blind here.
-     proto-args-str (:wat::core::foldl
-                       (:wat::core::fn [acc <- :wat::core::String  arg <- :wat::WatAST]
-                         -> :wat::core::String
-                         (:wat::core::let
-                           [arg-str (:wat::core::if (:wat::core::= (:wat::core::ast-kind arg) "keyword")
-                                      (:wat::core::keyword/to-string arg)
-                                      (:wat::core::ast-name arg))]
-                           (:wat::core::if (:wat::core::= acc "")
-                             arg-str
-                             (:wat::core::string::concat acc (:wat::core::string::concat "," arg-str)))))
-                       ""
-                       proto-args)
-     proto-tp       (:wat::core::if proto-parametric?
-
-                      (:wat::core::string::concat "<" (:wat::core::string::concat proto-args-str ">"))
-                      "")
+     ;; STONE-exactly-one-call-position — `proto-args-str`/`proto-tp` (the `<a,b,…>`
+     ;; angle-string mint) are RETIRED. Their one remaining consumer was `launch-head-kw`
+     ;; below (`Locus/launch`'s NAME-embedded type-arg suffix); it now peels a position-4
+     ;; `:-` binder from `args` exactly as the generic call arm does (the hoist that fixed
+     ;; this taught BOTH arms at once), so the head is bare and the type args ride as
+     ;; call-site siblings — nothing left anywhere in this file mints an angle name.
      surface-kw     (:wat::core::keyword/from-string proto-base)
 
      ;; :durable [fields] — optional, default empty vector node []
@@ -950,15 +926,13 @@
      ;; NAME-identity spellings, not type positions: `derive` registers a subtype edge between
      ;; base names, `retag-op'` compares them against a runtime value's `type_path` (which is the
      ;; base), and the child-main `listener'` re-resolves them in a freshly-started child. The
-     ;; TYPE-position spellings are `proto-op-ty-ann` / `proto-reply-ty-ann` below;
-     ;; `proto-op-ty-str`/`proto-reply-ty-str` survive ONLY for `launch-head-kw` (see the
-     ;; STOP-2 note beside `proto-tp` above — that one caller still needs a NAME-embedded suffix).
+     ;; TYPE-position spellings are `proto-op-ty-ann` / `proto-reply-ty-ann` below. Their
+     ;; NAME-embedded `<a,b,…>` siblings (`proto-op-ty-str`/`proto-reply-ty-str`) are
+     ;; RETIRED, STONE-exactly-one-call-position — `launch-head-kw` was their one
+     ;; remaining consumer and it now takes a bare head + call-site `:-` siblings, same as
+     ;; every other call position.
      enum-name     (:wat::core::keyword/from-string
                      (:wat::core::string::interpolate "{proto-base}::Op" :proto-base proto-base))
-     ;; The TYPE-position protocol spellings — base + the surface's type ARGS re-attached.
-     ;; Monomorphic surface ⇒ proto-tp is "" ⇒ these ARE `{proto-base}::Op` / `::Reply`.
-     proto-op-ty-str    (:wat::core::string::interpolate "{b}::Op{p}" :b proto-base :p proto-tp)
-     proto-reply-ty-str (:wat::core::string::interpolate "{b}::Reply{p}" :b proto-base :p proto-tp)
      ;; Arc 278 no-hidden-failures — the reserved PROTOCOL-TIER failure variant. Synthesized
      ;; onto every `<S>::Reply` by `synthesize_surface_protocol` (src/types.rs). The serve loop
      ;; replies `(Reply::Failed cause)` to a client whose message could not be decoded, and the
@@ -1024,37 +998,27 @@
      ;; identity 2c: listener-ty / addr-ty / client-peer-ty are ANNOTATION-only — mint the
      ;; reference FORM directly.
      ;;
-     ;; Arc 109 ③ — angle brackets are ILLEGAL for types. `proto-op-ty-str`/`proto-reply-ty-str`
-     ;; (above) stay as-is for their NAME-construction consumers (method-name interpolation,
-     ;; the runtime `retag-op` discriminator) — those never reach the type parser. TYPE
-     ;; positions here mint their own reference FORM structurally off `proto-args` (already a
-     ;; Vector<WatAST> of arg nodes — see `proto-args`'s own derivation above), never a
-     ;; re-serialized `<a,b>` string.
+     ;; Arc 109 ③ — angle brackets are ILLEGAL for types. NAME-construction consumers
+     ;; (method-name interpolation, the runtime `retag-op` discriminator) key on `proto-base`
+     ;; directly — those never reach the type parser. TYPE positions here mint their own
+     ;; reference FORM structurally off `proto-args` (already a Vector<WatAST> of arg nodes —
+     ;; see `proto-args`'s own derivation above), never a re-serialized `<a,b>` string.
      proto-op-base-kw    (:wat::core::keyword-node
                             (:wat::core::string::concat ":"
                               (:wat::core::string::interpolate "{b}::Op" :b proto-base)))
      proto-reply-base-kw (:wat::core::keyword-node
                             (:wat::core::string::concat ":"
                               (:wat::core::string::interpolate "{b}::Reply" :b proto-base)))
-     ;; STONE-defservice-emits-the-binder — MEASURED, NOT unconditional: `(Head :- [])` does
-     ;; NOT (yet) unify with the bare `Head` a monomorphic value carries — `assignable`/`unify`
-     ;; do not treat `TypeExpr::Parametric{args:[]}` as equal to `TypeExpr::Path`, even though
-     ;; nothing renders `Head<>` any more (Step 1) and the FORM parses cleanly (Step 2's ①). The
-     ;; builder's row-3 rule ("`(Head :- [])` ≡ `Head` at reference position") is FALSE at the
-     ;; structural level today — repro: `(defrecord :u::Plain [n <- i64])`,
-     ;; `(defn :u::takes [x <- (:u::Plain :- [])] -> i64 …)`, called with `(:u::Plain :n 9)` →
-     ;; `TypeMismatch: parameter #1 expects :u::Plain; got :u::Plain` (identical text, genuine
-     ;; mismatch). Making this branch unconditional turned EVERY monomorphic service's `addr-ty`/
-     ;; `listener-ty`/etc into exactly this shape and broke stdlib load (245 type-check errors,
-     ;; `stdout-svc::Handle` et al. — confirmed via a clean-HEAD worktree bisection: reverting
-     ;; only this `if` fixes it). Kept CONDITIONAL until `assignable` learns the equivalence —
-     ;; filed as the follow-on, not attempted blind here.
-     proto-op-ty-ann    (:wat::core::if (:wat::core::empty? proto-args)
-                          proto-op-base-kw
-                          `(~proto-op-base-kw :- [~@proto-args]))
-     proto-reply-ty-ann (:wat::core::if (:wat::core::empty? proto-args)
-                          proto-reply-base-kw
-                          `(~proto-reply-base-kw :- [~@proto-args]))
+     ;; STONE-exactly-one-call-position — UNCONDITIONAL. `(Head :- [])` now IS `Head`:
+     ;; `parse_type_form`'s `:-` arm normalises an empty peeled binder to `TypeExpr::Path`
+     ;; (the same variant the bare reference already parses to), so a monomorphic service's
+     ;; `(~proto-op-base-kw :- [])` and its bare `proto-op-base-kw` are structurally
+     ;; identical from here on — no second branch needed to keep them that way. This was
+     ;; MEASURED conditional before that normalisation landed (245 type-check errors on
+     ;; stdlib load, a genuine `TypeMismatch: parameter #1 expects :u::Plain; got :u::Plain`
+     ;; — a type that did not match itself); the fix is at the parser, not here.
+     proto-op-ty-ann    `(~proto-op-base-kw :- [~@proto-args])
+     proto-reply-ty-ann `(~proto-reply-base-kw :- [~@proto-args])
      listener-ty   `(:wat::kernel::Listener :- [~proto-op-ty-ann ~proto-reply-ty-ann])
      ;; Vector<Peer<proto::Reply,proto::Op>>
      ;; Address<proto::Op,proto::Reply,T> — T is Handle/Status's transport marker (293.W.2f).
@@ -1379,20 +1343,19 @@
                               ;; concatenation. The alias's type ARGS re-attach (`p`), mirroring
                               ;; the surface Op variant's field EXACTLY (the `derive` edge +
                               ;; `retag-op'` both require field-for-field identity). Monomorphic
-                              ;; ⇒ proto-tp is "" ⇒ byte-identical to the bare alias name.
+                              ;; ⇒ proto-args is `[]` ⇒ `(Head :- [])` IS the bare alias name.
                               ;; identity 2c: ANNOTATION-only (this variant's own field type) —
                               ;; mints the reference FORM. Arc 109 ③ — structurally off
                               ;; `proto-args` (the surface's own arg-node list), not the retired
-                              ;; `proto-tp` angle-string suffix. STONE-defservice-emits-the-binder
-                              ;; — kept CONDITIONAL (see the note beside `proto-op-ty-ann`, above):
-                              ;; `assignable` does not yet treat `(Head :- [])` as `Head`.
+                              ;; `proto-tp` angle-string suffix. STONE-exactly-one-call-position —
+                              ;; UNCONDITIONAL (see the note beside `proto-op-ty-ann`, above):
+                              ;; `(Head :- [])` IS `Head` now, so the monomorphic case needs no
+                              ;; second branch.
                               [req-base-kw (:wat::core::keyword-node
                                              (:wat::core::string::concat ":"
                                                (:wat::core::string::interpolate "{b}::{op}/Request"
                                                  :b proto-base :op op-str)))
-                               req-ty (:wat::core::if (:wat::core::empty? proto-args)
-                                        req-base-kw
-                                        `(~req-base-kw :- [~@proto-args]))]
+                               req-ty `(~req-base-kw :- [~@proto-args])]
                               `[req <- ~req-ty]))]
              (:wat::core::conj (:wat::core::conj acc variant-kw-node) field-vec)))
          (:wat::core::Vector :wat::WatAST)
@@ -2040,16 +2003,13 @@
                           ;; identity 2c: req-ty (this scope) is ANNOTATION-only (client method's
                           ;; `req` param type) — mints the reference FORM. Arc 109 ③ —
                           ;; structurally off `proto-args`, not the retired `proto-tp` string.
-                          ;; STONE-defservice-emits-the-binder — kept CONDITIONAL (see the note
-                          ;; beside `proto-op-ty-ann` above): `assignable` does not yet treat
-                          ;; `(Head :- [])` as `Head`.
+                          ;; STONE-exactly-one-call-position — UNCONDITIONAL (see the note beside
+                          ;; `proto-op-ty-ann` above): `(Head :- [])` IS `Head` now.
                           req-base-kw     (:wat::core::keyword-node
                                             (:wat::core::string::concat ":"
                                               (:wat::core::string::interpolate "{b}::{op-str}/Request"
                                                 :b proto-base :op-str op-str)))
-                          req-ty          (:wat::core::if (:wat::core::empty? proto-args)
-                                            req-base-kw
-                                            `(~req-base-kw :- [~@proto-args]))
+                          req-ty          `(~req-base-kw :- [~@proto-args])
                           ;; NOTE: named `client-resp-ty`, NOT `resp-ty` — the outer macro scope
                           ;; already binds `resp-ty` (the :stop projection's return type,
                           ;; `:wat::core::nth stop-fn-ch 3`, used well below); a same-named local
@@ -2058,9 +2018,7 @@
                                             (:wat::core::string::concat ":"
                                               (:wat::core::string::interpolate "{b}::{op-str}/Response"
                                                 :b proto-base :op-str op-str)))
-                          client-resp-ty  (:wat::core::if (:wat::core::empty? proto-args)
-                                            client-resp-base-kw
-                                            `(~client-resp-base-kw :- [~@proto-args]))
+                          client-resp-ty  `(~client-resp-base-kw :- [~@proto-args])
                           ;; arc 278 the recv'-outcome wall — the CLIENT-FACING return type is
                           ;; `RecvOutcome<<Op>Response>` (a matchable value, never a raise).
                           ;; identity 2c: ANNOTATION-only (client method's return type) — mints
@@ -2393,9 +2351,9 @@
      ;; start-params `[locus <- :Locus  state0 <- ~state-ty]` → Vector inner → checker skips it.
      ;;
      ;; arc 272 6b-ii-β: listener-minting moved INTO Locus/launch (child-mints for process tier).
-     ;; start calls Locus/launch<Op,Reply> with EXPLICIT type-args (arc-232 dep) so the impl's
-     ;; (listener' self :S :R) resolves S=Op, R=Reply. The call-head is built as a runtime keyword
-     ;; via string::concat + keyword/from-string (no new primitives — no STOP trigger 1).
+     ;; start calls `(Locus/launch :- [Op Reply …] …)` with EXPLICIT type-args (arc-232 dep) so
+     ;; the impl's (listener' self :S :R) resolves S=Op, R=Reply. STONE-exactly-one-call-position —
+     ;; the head is the bare keyword; the binder rides as a call-site sibling, not name-embedded.
      ;; launch returns Launched<Op,Reply>{handle,address}; start unwraps into Handle.
      lr-sym        (:wat::core::symbol-node "lr")
      ;; arc 170 closure #6 — binds `(:wat::kernel::call-site)` once in start/resume's own
@@ -2405,26 +2363,16 @@
      ;; arc 291 kwargs-start: locus-sym minted once so start-params + start-body (and resume pair)
      ;; share the same scope node — avoids HygieneScopeDivergence when kwargs-defn rebuilds $impl.
      locus-sym     (:wat::core::symbol-node "locus")
-     ;; arc 291 3a-ii-β: launch<Op,Reply,State,Admin,Status> — Sh=Admin (ship), Lu=Status.
+     ;; arc 291 3a-ii-β: `(launch :- [Op Reply State Admin Status] …)` — Sh=Admin (ship), Lu=Status.
      ;; Arc 293 S2 — Op/Reply are the protocol's (proto-str); State/Admin/Status stay per-service.
-     ;; STONE-defservice-emits-the-binder — MEASURED, NOT migrated to bare-head + position-4
-     ;; siblings: `Locus/launch` is a SURFACE-METHOD call (`:S/method`, check.rs's
-     ;; `k.contains('/')` arm), a different code path from the generic call arm `69933d362`
-     ;; fixed. That arm still reads explicit type-args by splitting the callee NAME on `<`
-     ;; (`split_type_params_pub`); it does not peel a position-4 `:-` binder from `args`. See
-     ;; the STOP-2 note beside `proto-tp`, above, for the measurement. Filed as the follow-on
-     ;; stone (teach that arm `peel_param_spec`) rather than blind-shipped here.
-     launch-head-kw (:wat::core::keyword/from-string
-                      (:wat::core::string::concat "wat::spawn::Locus/launch<"
-                        (:wat::core::string::concat proto-op-ty-str
-                          (:wat::core::string::concat ","
-                            (:wat::core::string::concat proto-reply-ty-str
-                              (:wat::core::string::concat ","
-                                (:wat::core::string::concat state-ty-str
-                                  (:wat::core::string::concat ","
-                                    (:wat::core::string::concat admin-ty-str
-                                      (:wat::core::string::concat ","
-                                        (:wat::core::string::concat status-ty-str ">")))))))))))
+     ;; STONE-exactly-one-call-position — LANDED: `Locus/launch` is a SURFACE-METHOD call
+     ;; (`:S/method`, check.rs's `k.contains('/')` arm), which now peels a position-4 `:-`
+     ;; binder from `args` exactly as the generic call arm (`69933d362`) does — the peel is
+     ;; hoisted above BOTH arms' dispatch, so "the call position" is taught once. The head is
+     ;; therefore the BARE keyword; `:- [...]` rides as call-site siblings (below, at each of
+     ;; `launch-head-kw`'s call sites), never name-embedded.
+     launch-head-kw :wat::spawn::Locus/launch
+     launch-tp-ann  `[~proto-op-ty-ann ~proto-reply-ty-ann ~state-ty-ann ~admin-ty-ann ~status-ty-ann]
 
      ;; ── arc 272 6b-ii-β: transport-agnostic service-forms ────────────────────────
      ;; service-forms-kw must be defined before start-body (which splices ~service-forms-kw).
@@ -2640,7 +2588,7 @@
                                         (:wat::spawn::Launched/address ~lr-sym))
      start-body    `(:wat::core::let
                       [~origin-sym (:wat::kernel::call-site)
-                       ~lr-sym (~launch-head-kw
+                       ~lr-sym (~launch-head-kw :- ~launch-tp-ann
                                  ;; arc 170 closure #6 — label this service's process locus
                                  ;; with its own fqdn + the START CALL SITE (the
                                  ;; `:wat::process::Service` identity, wat/process.wat); a
@@ -2666,7 +2614,7 @@
                       ~start-handle-expr)
      start-body-thread `(:wat::core::let
                           [~origin-sym (:wat::kernel::call-site)
-                           ~lr-sym (~launch-head-kw
+                           ~lr-sym (~launch-head-kw :- ~launch-tp-ann
                                      (:wat::spawn::with-label ~locus-sym
                                        (:wat::process::Service
                                          :name (:wat::core::keyword/from-string ~fqdn-base)
@@ -2681,7 +2629,7 @@
                           (:wat::core::ann-form ~start-handle-expr ~handle-shared-name))
      start-body-process `(:wat::core::let
                            [~origin-sym (:wat::kernel::call-site)
-                            ~lr-sym (~launch-head-kw
+                            ~lr-sym (~launch-head-kw :- ~launch-tp-ann
                                       (:wat::spawn::with-label ~locus-sym
                                         (:wat::process::Service
                                           :name (:wat::core::keyword/from-string ~fqdn-base)
@@ -2765,7 +2713,7 @@
 
      ;; ── arc 291 4b-ii: resume fn (mirror of start, ships Admin::Resume instead of Admin::Init) ──
      ;; (defn <fqdn>/resume [locus <- :wat::spawn::Locus  snapshot <- ~record-ty] -> ~handle-name
-     ;;   (let [lr (launch<…> locus (Admin::Resume snapshot) dispatch-admin serve service-forms lu-addr)]
+     ;;   (let [lr (launch :- [Op Reply State Admin Status] locus (Admin::Resume snapshot) dispatch-admin serve service-forms lu-addr)]
      ;;     (Handle (Launched/handle lr) (Launched/address lr))))
      ;; dispatch-admin routes Admin::Resume → (init snapshot) to rebuild the struct.
      ;; launch is UNCHANGED — resume reuses the same machinery.
@@ -2773,7 +2721,7 @@
      ;; 293.W.2f — resume is the same T-stamp as start (kwargs UX + impl + ann-form).
      resume-body    `(:wat::core::let
                        [~origin-sym (:wat::kernel::call-site)
-                        ~lr-sym (~launch-head-kw
+                        ~lr-sym (~launch-head-kw :- ~launch-tp-ann
                                   ;; arc 170 closure #6 — see start-body's identical wrap.
                                   (:wat::spawn::with-label ~locus-sym
                                     (:wat::process::Service
@@ -2790,7 +2738,7 @@
                        ~start-handle-expr)
      resume-body-thread `(:wat::core::let
                            [~origin-sym (:wat::kernel::call-site)
-                            ~lr-sym (~launch-head-kw
+                            ~lr-sym (~launch-head-kw :- ~launch-tp-ann
                                       (:wat::spawn::with-label ~locus-sym
                                         (:wat::process::Service
                                           :name (:wat::core::keyword/from-string ~fqdn-base)
@@ -2805,7 +2753,7 @@
                            (:wat::core::ann-form ~start-handle-expr ~handle-shared-name))
      resume-body-process `(:wat::core::let
                             [~origin-sym (:wat::kernel::call-site)
-                             ~lr-sym (~launch-head-kw
+                             ~lr-sym (~launch-head-kw :- ~launch-tp-ann
                                        (:wat::spawn::with-label ~locus-sym
                                          (:wat::process::Service
                                            :name (:wat::core::keyword/from-string ~fqdn-base)
