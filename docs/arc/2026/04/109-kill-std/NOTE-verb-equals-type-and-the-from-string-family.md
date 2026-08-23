@@ -9,6 +9,32 @@
 
 **A reminder, not a ruling.** Nothing here is decided.
 
+## ★ THE POINT, stated plainly — `keyword/from-string` IS the constructor
+
+The builder's clarification, and it is the whole NOTE:
+
+> *"keyword/from-string is literally what i'm asking for — ctor takes a string and returns a keyword
+> of it?"*
+
+**Yes. It already has exactly the constructor's signature.** From the substrate's own registration
+(`src/check.rs:17401`), comment and scheme both:
+
+```rust
+// keyword/from-string: String → keyword (inverse; rejects ':'-prefixed input).
+params: vec![string_ty()],   ret: keyword_ty()
+```
+
+`String → keyword`. That is a constructor for `:wat::core::keyword`. Nothing about it needs designing,
+discovering, or building — **only the spelling is wrong.** The proposal is therefore not "add a
+constructor"; it is:
+
+```clojure
+(:wat::core::keyword/from-string "something")     ;; today
+(:wat::core::keyword "something")                 ;; the type IS its own constructor
+```
+
+A verb hangs off a type that does not need one. The type already owns the arrow.
+
 ## The principle, and it is already on the board
 
 `294/SEAM.md` carries it as an open item:
@@ -37,9 +63,9 @@ verb-equals-type working today.
 :wat::core::keyword/from-string  ← 9 references. NOT examined by anyone yet.
 ```
 
-If `(:wat::core::List …)` is right because the type is its own constructor, then
-`(:wat::core::keyword "something")` → `:something` is the same claim about `keyword`, and
-`keyword/from-string` is a verb hanging off a type that should not need one.
+`keyword/from-string` is the clearest case of the four, because its declared signature is ALREADY
+`String → keyword` — the others need a judgement about what their constructor should take, and this
+one does not.
 
 The `/of` retirement was scoped from the spelling `/of`. **A census scoped from a SPELLING misses
 every sibling spelled differently** — `[[feedback_scope_the_check_from_the_rule_not_the_diff]]`. The
