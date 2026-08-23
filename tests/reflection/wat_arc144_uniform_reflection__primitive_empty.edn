@@ -1,1 +1,1 @@
-#wat.core.Option/Some [(:wat.core/defn (:wat.core/empty?<T> (_a0 T) -> wat.type/bool) (:wat.core/__internal/primitive :wat.core/empty?))]
+#wat.core.Option/Some [(:wat.core/defn (:wat.core/empty? :- [T] (_a0 T) -> wat.type/bool) (:wat.core/__internal/primitive :wat.core/empty?))]

@@ -41,11 +41,19 @@ fn wrong_service_coord_is_compile_error() {
     let StartupError::Check(CheckErrors(errs)) = &err else {
         panic!("expected a type-check error, got {err:?}");
     };
-    // kv handle's coord ascribed to an Echo address → the ann-form rejects it
+    // kv handle's coord ascribed to an Echo address → the ann-form rejects it.
+    // rune:lint(no-inlined-wat) — the expected/got strings below are golden COMPARISON
+    // text for a TypeMismatch's rendered fields, never a wat world/driver; they happen to be
+    // reader-parseable now only because the checker's error renderer emits real `(Head :- [args])`
+    // syntax instead of the retired unparseable `Head<a,b>` pseudo-syntax (that is the whole point
+    // of this stone). Nothing here builds or runs a wat program from this string.
+    // STONE-defservice-emits-the-binder (arc 109) — same call site, re-rendered: the
+    // checker stopped minting `Head<a,b>` (a spelling the reader now refuses) and emits
+    // the surviving `(Head :- [args])` form instead.
     wat::assert_check_error_present!(errs,
         CheckErrorKind::TypeMismatch { expected, got, .. }
-            if expected == ":wat::kernel::Address<probe::Echo::Op,probe::Echo::Reply>"
-            && got == ":wat::kernel::Address<probe::Kv::Op,probe::Kv::Reply>");
+            if expected == "(:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply])"
+            && got == "(:wat::kernel::Address :- [:probe::Kv::Op :probe::Kv::Reply])");
 }
 
 #[test]
@@ -55,11 +63,15 @@ fn swapped_colocation_tuple_is_compile_error() {
     let StartupError::Check(CheckErrors(errs)) = &err else {
         panic!("expected a type-check error, got {err:?}");
     };
-    // swapped Tuple vs the field-ordered (Echo, Kv) contract at the downstream consumer
+    // swapped Tuple vs the field-ordered (Echo, Kv) contract at the downstream consumer.
+    // STONE-defservice-emits-the-binder (arc 109) — same call site, re-rendered: the
+    // checker stopped minting `Head<a,b>` (a spelling the reader now refuses) and emits
+    // the surviving `(Head :- [args])` form instead (colon-stripped inside the Tuple, per
+    // `format_type_inner`'s existing nested-element convention — unchanged by this stone).
     wat::assert_check_error_present!(errs,
         CheckErrorKind::TypeMismatch { expected, got, .. }
-            if expected == ":(wat::kernel::Address<probe::Echo::Op,probe::Echo::Reply>,\
-                              wat::kernel::Address<probe::Kv::Op,probe::Kv::Reply>)"
-            && got == ":(wat::kernel::Address<probe::Kv::Op,probe::Kv::Reply>,\
-                         wat::kernel::Address<probe::Echo::Op,probe::Echo::Reply>)");
+            if expected == ":((wat::kernel::Address :- [probe::Echo::Op probe::Echo::Reply]),\
+                              (wat::kernel::Address :- [probe::Kv::Op probe::Kv::Reply]))"
+            && got == ":((wat::kernel::Address :- [probe::Kv::Op probe::Kv::Reply]),\
+                         (wat::kernel::Address :- [probe::Echo::Op probe::Echo::Reply]))");
 }

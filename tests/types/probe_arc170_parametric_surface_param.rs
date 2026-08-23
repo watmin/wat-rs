@@ -43,8 +43,16 @@ fn wrong_parametric_surface_param_is_compile_error() {
     };
     // The Gap-1 edge is an EXACT-args match, so an echo handle does NOT satisfy the Kv
     // Dialable — the swap-gate holds.
+    // rune:lint(no-inlined-wat) — the expected/got strings below are golden COMPARISON
+    // text for a TypeMismatch's rendered fields, never a wat world/driver; they happen to be
+    // reader-parseable now only because the checker's error renderer emits real `(Head :- [args])`
+    // syntax instead of the retired unparseable `Head<a,b>` pseudo-syntax (that is the whole point
+    // of this stone). Nothing here builds or runs a wat program from this string.
+    // STONE-defservice-emits-the-binder (arc 109) — same call site, re-rendered: the
+    // checker stopped minting `Head<a,b>` (a spelling the reader now refuses) and emits
+    // the surviving `(Head :- [args])` form instead.
     wat::assert_check_error_present!(errs,
         CheckErrorKind::TypeMismatch { expected, got, .. }
-            if expected == ":wat::capability::Dialable<probe::Kv::Op,probe::Kv::Reply>"
-            && got == ":probe::echo::Handle<wat::kernel::Wire>");
+            if expected == "(:wat::capability::Dialable :- [:probe::Kv::Op :probe::Kv::Reply])"
+            && got == "(:probe::echo::Handle :- [:wat::kernel::Wire])");
 }

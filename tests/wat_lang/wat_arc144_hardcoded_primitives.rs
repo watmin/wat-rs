@@ -128,9 +128,12 @@ fn body_of_length_returns_none() {
 #[test]
 fn lookup_define_length_renders_primitive_sentinel() {
     let line = unwrap_string(run_expr(":t::lookup-vector-length-render"));
-    // rune:clojure-flip — string-eq bridge (not assert_edn_eq): reflection emits a multi-slash `Vector/length` method keyword that plain
-    // EDN cannot round-trip yet; revert to assert_edn_eq + `:-` type sigils when the symmetric faithful
-    // clojure codec lands (keyword_from_wat_path<->ns_to_wat_path, drop-<> in names).
+    // rune:clojure-flip — string-eq bridge (not assert_edn_eq): reflection emits a multi-slash
+    // `Vector/length` method keyword plain EDN cannot round-trip yet; revert to assert_edn_eq +
+    // `:-` type sigils when the symmetric faithful clojure codec lands (keyword_from_wat_path
+    // <-> ns_to_wat_path). STONE-defservice-emits-the-binder (arc 109) — the type-param SUFFIX
+    // (`<T>` -> `:- [T]`) is no longer the blocker here (the multi-slash NAME still is); only
+    // the golden's TEXT changed.
     assert_eq!(
         line,
         include_str!("wat_arc144_hardcoded_primitives__length_primitive.edn").trim_end(),

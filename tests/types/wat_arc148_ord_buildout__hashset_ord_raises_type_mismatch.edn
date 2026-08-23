@@ -4,7 +4,7 @@
   :causes []
   :errors [
     #wat.check/TypeMismatch {
-      :message ":wat::core::<: parameter #1 expects an orderable type (i64, u8, f64, String, bool, keyword, Instant, Duration, Vector<T>, Tuple<T…>, Option<T>, Result<T,E>); got :wat::core::HashSet<wat::core::i64>"
+      :message ":wat::core::<: parameter #1 expects an orderable type (i64, u8, f64, String, bool, keyword, Instant, Duration, Vector<T>, Tuple<T…>, Option<T>, Result<T,E>); got (:wat::core::HashSet :- [:wat::core::i64])"
       :location #wat.core/Span {
         :file "tests/types/ord_hashset.wat.bad"
         :line 6
@@ -20,7 +20,7 @@
       :callee ":wat::core::<"
       :param "#1"
       :expected "an orderable type (i64, u8, f64, String, bool, keyword, Instant, Duration, Vector<T>, Tuple<T…>, Option<T>, Result<T,E>)"
-      :got ":wat::core::HashSet<wat::core::i64>"
+      :got "(:wat::core::HashSet :- [:wat::core::i64])"
       :remedies []
     }
   ]

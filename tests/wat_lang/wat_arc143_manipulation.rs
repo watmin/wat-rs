@@ -50,9 +50,12 @@ fn unwrap_string(v: Value, ctx: &str) -> String {
 #[test]
 fn rename_callable_name_happy_path_foldl_to_reduce() {
     let line = unwrap_string(run_expr(":t::test1-rename-foldl-to-reduce"), "test1");
-    // rune:clojure-flip — string-eq bridge (not assert_edn_eq): reflection emits a `<T,Acc>` multi-param generic head that plain
-    // EDN cannot round-trip yet; revert to assert_edn_eq + `:-` type sigils when the symmetric faithful
-    // clojure codec lands (keyword_from_wat_path<->ns_to_wat_path, drop-<> in names).
+    // rune:clojure-flip — string-eq bridge (not assert_edn_eq), historically because reflection
+    // emitted a `<T,Acc>` multi-param generic head plain EDN could not round-trip. STONE-
+    // defservice-emits-the-binder (arc 109) retired that head — the multi-param binder is now
+    // `:- [T Acc]` siblings, itself plain EDN-representable — but the bridge is left in place
+    // here (only the golden's TEXT changed) since lifting it to `assert_edn_eq!` is a separate,
+    // unscoped cleanup, not part of this stone.
     assert_eq!(
         line,
         include_str!("wat_arc143_manipulation__reduce_head.edn").trim_end(),

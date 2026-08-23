@@ -17,11 +17,11 @@
     :message "malformed template: probe::caller: :ephemeral holds a dialed Peer<probe::Echo::Op,…::Reply> but surface :probe::Echo is not declared in :peers — add :peers [… :probe::Echo …] (the explicit s2s dependency DAG)"
     :location #wat.core/Span {
       :file "wat/service.wat"
-      :line 895
+      :line 913
       :col 27
       :end #wat.core.Option/Some [
         #wat.core/Pos {
-          :line 903
+          :line 921
           :col 119
         }
       ]

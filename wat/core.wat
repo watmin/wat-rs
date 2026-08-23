@@ -1438,29 +1438,19 @@
       ;; Strip -> and :T (first two elements) and re-expand as bare cond.
       `(:wat::core::cond ~@(:wat::core::rest (:wat::core::rest clauses))))))
 
-;; ─── keyword/of — parametric keyword construction ─────────────────
+;; ─── keyword/of — RETIRED (STONE-defservice-emits-the-binder, arc 109) ─────────────
 ;;
-;; keyword/of — build the parametric keyword `:Head<arg1,arg2>` from keyword args
-;; (head + args, leading colons stripped). Pure-total program over forms.
-;; Arc 249 Stone 249.4a — promoted from construct_keyword_of (expand.rs).
-;; Zero args: string::join "" [] = "", yielding `:Head<>` (empty angle brackets).
-(:wat::core::defmacro :wat::core::keyword/of
-  [head <- :wat::WatAST & args <- (:wat::core::Vector :- [:wat::WatAST])]
-  -> :wat::WatAST
-  ;; Arc 118.2a — was `(:wat::core::map ...)`. `map` flipped LAZY; this macro is a pure-total
-  ;; program-body macro (bootstrap-critical, same wall as `:wat::core::defn`'s kwargs-form and
-  ;; `:wat::core::kwargs-lower` above), so `foldl`+`conj` (Rust-native, eager) stand in.
-  (:wat::core::let [head-text (:wat::core::keyword/to-string head)
-                    arg-texts (:wat::core::foldl
-                                (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String]) a <- :wat::holon::HolonAST] -> (:wat::core::Vector :- [:wat::core::String])
-                                  (:wat::core::conj acc (:wat::core::keyword/to-string a)))
-                                (:wat::core::Vector :wat::core::String)
-                                args)
-                    joined (:wat::core::string::join "," arg-texts)
-                    full (:wat::core::string::concat head-text
-                           (:wat::core::string::concat "<"
-                             (:wat::core::string::concat joined ">")))]
-    `~(:wat::core::keyword/from-string full)))
+;; `keyword/of` built the parametric keyword `:Head<arg1,arg2>` from keyword args —
+;; its ENTIRE purpose was minting the now-retired angle spelling. There is no surviving
+;; version to emit: the replacement, `(Head :- [args])`, is a compound FORM (a List), not
+;; a keyword atom, so this macro cannot be "fixed" to return one without changing its
+;; return contract from `:wat::WatAST`-as-keyword to `:wat::WatAST`-as-list, and nothing
+;; in the stdlib actually needs that — every real minting site (`wat/service.wat`) already
+;; mints the reference FORM directly via quasiquote (`` `(~base-kw :- [~@args])` ``), never
+;; through this door. Its one caller was a test fixture exercising macro-in-template-position
+;; firing (`tests/macros/probe_arc249_4_rehome_in_wat_kw_of_tmpl.wat`) — moved to a local
+;; test-only macro that keeps testing the SAME property without minting an angle keyword.
+;; See `tests/macros/probe_arc249_4_rehome_in_wat.rs`'s `keyword_of_fires_in_template_position`.
 
 ;; Stone 245.8 — Polymorphic ordering defclauses RETIRED.
 ;; `<`/`>`/`<=`/`>=` are now a relational check-side intrinsic (`infer_ordering`

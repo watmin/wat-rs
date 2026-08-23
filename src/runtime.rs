@@ -13386,23 +13386,44 @@ fn type_expr_to_ast(ty: &crate::types::TypeExpr) -> WatAST {
     }
 }
 
-/// Build `(<name><type_params> (param0 :Type0) (param1 :Type1) ... -> :Ret)`
+/// STONE-defservice-emits-the-binder (arc 109) — the ONE builder for a reflection
+/// signature's HEAD sequence: the bare name keyword, plus (when `type_params` is
+/// non-empty) the `:-` marker + a `Vector` of bare type-param symbols as SIBLINGS
+/// immediately after it — position 4, live since `69933d362`. Retires the three
+/// `format!("{}<{}>", name, type_params.join(","))` call sites that used to splice the
+/// retired angle spelling into a single `WatAST::Keyword`, which cannot express a
+/// binder at all (a Keyword is an atom; `(Head :- [T U])` is a compound FORM). Callers
+/// `.extend()` this into their own `items` vector in place of pushing one Keyword node.
+fn binder_head_nodes(head_kw: String, type_params: &[String], span: &Span) -> Vec<WatAST> {
+    if type_params.is_empty() {
+        vec![WatAST::Keyword(head_kw, span.clone())]
+    } else {
+        vec![
+            WatAST::Keyword(head_kw, span.clone()),
+            WatAST::Keyword(":-".into(), span.clone()),
+            WatAST::Vector(
+                type_params
+                    .iter()
+                    .map(|t| WatAST::Symbol(crate::scope::Identifier::bare(t.clone()), span.clone()))
+                    .collect(),
+                span.clone(),
+            ),
+        ]
+    }
+}
+
+/// Build `(<name> :- [type_params] (param0 :Type0) (param1 :Type1) ... -> :Ret)`
 /// from a user-defined `Function`. This is the signature HEAD as it would
 /// appear in a `:wat::core::define` form.
 ///
-/// The name keyword is emitted with the type-param suffix appended
-/// (e.g., `:my::fn<T,U>`). Each parameter pair is a two-element list
-/// `(param-name :Type)`. The `->` arrow and return type come last.
+/// The name keyword is followed by the `:- [T U]` binder as SIBLINGS when the function
+/// is generic (never a re-serialized `:my::fn<T,U>`). Each parameter pair is a
+/// two-element list `(param-name :Type)`. The `->` arrow and return type come last.
 fn function_to_signature_ast(f: &Function) -> WatAST {
     let span = crate::rust_caller_span!();
-    // Head keyword: name + optional type-param suffix.
-    let head_kw = match &f.name {
-        Some(n) if f.type_params.is_empty() => n.clone(),
-        Some(n) => format!("{}<{}>", n, f.type_params.join(",")),
-        None => ":anonymous".into(),
-    };
+    let head_kw = f.name.clone().unwrap_or_else(|| ":anonymous".into());
     let mut items: Vec<WatAST> = Vec::with_capacity(3 + f.params.len() * 2 + 4);
-    items.push(WatAST::Keyword(head_kw, span.clone()));
+    items.extend(binder_head_nodes(head_kw, &f.type_params, &span));
     for (param, ty) in f.params.iter().zip(f.param_types.iter()) {
         items.push(WatAST::List(
             vec![
@@ -13471,16 +13492,11 @@ fn function_to_define_ast(f: &Function) -> WatAST {
 /// Because `TypeScheme` carries no param names, we synthesise `:_a0`,
 /// `:_a1`, ... as standin names.
 ///
-/// Shape: `(<name><type_params> (_a0 :Type0) ... -> :Ret)`
+/// Shape: `(<name> :- [type_params] (_a0 :Type0) ... -> :Ret)`
 fn type_scheme_to_signature_ast(name: &str, scheme: &crate::check::TypeScheme) -> WatAST {
     let span = crate::rust_caller_span!();
-    let head_kw = if scheme.type_params.is_empty() {
-        name.to_string()
-    } else {
-        format!("{}<{}>", name, scheme.type_params.join(","))
-    };
     let mut items: Vec<WatAST> = Vec::with_capacity(3 + scheme.params.len() * 2);
-    items.push(WatAST::Keyword(head_kw, span.clone()));
+    items.extend(binder_head_nodes(name.to_string(), &scheme.type_params, &span));
     for (i, ty) in scheme.params.iter().enumerate() {
         items.push(WatAST::List(
             vec![
@@ -13617,7 +13633,7 @@ fn macrodef_to_define_ast(def: &crate::macros::MacroDef) -> WatAST {
 
 /// Build the signature HEAD for a `TypeDef`. Unlike functions and
 /// macros, type "signatures" are just the type's name keyword + its
-/// optional `<T,U,...>` parametric suffix — types declare a name
+/// optional `:- [T U …]` binder siblings — types declare a name
 /// shape, not a callable arity. Wrapping the head in a single-element
 /// List keeps the surface uniform with the function/macro helpers
 /// (always a List around a head Keyword + zero-or-more sub-forms).
@@ -13641,12 +13657,8 @@ fn typedef_to_signature_ast(def: &crate::types::TypeDef) -> WatAST {
         // Arc 293.3-core — surface signature: name + optional type params.
         crate::types::TypeDef::Surface(s) => (s.name.clone(), &s.type_params),
     };
-    let head_kw = if type_params.is_empty() {
-        base
-    } else {
-        format!("{}<{}>", base, type_params.join(","))
-    };
-    WatAST::List(vec![WatAST::Keyword(head_kw, span.clone())], span)
+    let head_nodes = binder_head_nodes(base, type_params, &span);
+    WatAST::List(head_nodes, span)
 }
 
 /// Build the full declaration form for a `TypeDef`. Slice 1 emits a
@@ -14754,8 +14766,16 @@ fn eval_extract_arg_names(
     let children = require_ast_children(OP, &ast_arc, args[0].span())?;
 
     let mut names: Vec<Value> = Vec::new();
-    // Skip children[0] (function name keyword); walk from index 1.
-    for child in children.iter().skip(1) {
+    // Skip children[0] (function name keyword); walk from index 1. STONE-defservice-
+    // emits-the-binder — `binder_head_nodes` (this file) now inserts `:- [T U…]` as
+    // SIBLINGS right after a generic signature's head, so index 1 may be the `:-`
+    // marker + a Vector of bare type-param symbols, not the first arg pair. Peel it
+    // through the ONE door (`peel_param_spec`) before walking, or the type-param
+    // Vector's own contents (which also happen to satisfy the 2-element pair shape
+    // whenever there are exactly two params) get misread as an arg-name pair —
+    // measured: `foldl<T,Acc>`'s `[T Acc]` binder produced a spurious `:T` name.
+    let (_binder, rest) = crate::types::peel_param_spec(&children[1..]);
+    for child in rest {
         if let WatAST::Symbol(ident, _) = child {
             if ident.as_str() == "->" {
                 break; // Arrow sentinel — stop collecting.
@@ -14859,8 +14879,12 @@ fn eval_extract_arg_types(
     let children = require_ast_children(OP, &ast_arc, args[0].span())?;
 
     let mut types: Vec<Value> = Vec::new();
-    // Skip children[0] (function name keyword); walk from index 1.
-    for child in children.iter().skip(1) {
+    // Skip children[0] (function name keyword); walk from index 1. STONE-defservice-
+    // emits-the-binder — see the identical note in `eval_extract_arg_names`, just
+    // above: peel a `:- [T U…]` binder (if present) through the ONE door before
+    // walking, or its own Vector contents get misread as an arg-pair.
+    let (_binder, rest) = crate::types::peel_param_spec(&children[1..]);
+    for child in rest {
         if let WatAST::Symbol(ident, _) = child {
             if ident.as_str() == "->" {
                 break; // Arrow sentinel — stop collecting.

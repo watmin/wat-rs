@@ -100,16 +100,22 @@ fn diag_keyword_of_full() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// D — keyword/of in TEMPLATE POSITION
+// D — a macro fires in TEMPLATE POSITION (nested inside another macro's quasiquote)
 // ═══════════════════════════════════════════════════════════════════════════
+// STONE-defservice-emits-the-binder (arc 109) — `:wat::core::keyword/of` retired (its
+// whole purpose was minting the now-illegal `Head<a,b>` spelling; see `wat/core.wat`'s
+// retirement note). This test's actual subject was never keyword/of's own semantics —
+// it is macro-in-template-position firing, so the fixture's vehicle swapped to a local
+// `:test::mk-kw` macro (see the `.wat` fixture) that exercises the identical topology
+// (`:my::mk`'s quasiquote body calls `:test::mk-kw`) with no angle spelling anywhere.
 #[test]
 fn keyword_of_fires_in_template_position() {
     let result = try_eval("tests/macros/probe_arc249_4_rehome_in_wat_kw_of_tmpl.wat").expect("eval");
-    println!("\n=== keyword_of_fires_in_template_position ===\nexpect Ok(\"foo<bar>\"):\n{:#?}\n", result);
+    println!("\n=== keyword_of_fires_in_template_position ===\nexpect Ok(\"foo-bar\"):\n{:#?}\n", result);
     assert_eq!(
         result,
-        Value::String(Arc::new("foo<bar>".to_string())),
-        "keyword/of MUST fire in template position (inside another macro's quasiquote) \
+        Value::String(Arc::new("foo-bar".to_string())),
+        "a macro MUST fire in template position (inside another macro's quasiquote) \
          as a registered macro — the deleted keyword_of_inside_macro_template_with_unquote risk"
     );
 }

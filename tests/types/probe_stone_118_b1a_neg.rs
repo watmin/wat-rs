@@ -26,14 +26,22 @@ fn concrete_surface_satisfaction_still_refuses_unrelated_family_and_swapped_args
     };
 
     // NEG-1 — no extend-type edge to Seqable at all.
+    // rune:lint(no-inlined-wat) — the expected/got strings below are golden COMPARISON
+    // text for a TypeMismatch's rendered fields, never a wat world/driver; they happen to be
+    // reader-parseable now only because the checker's error renderer emits real `(Head :- [args])`
+    // syntax instead of the retired unparseable `Head<a,b>` pseudo-syntax (that is the whole point
+    // of this stone). Nothing here builds or runs a wat program from this string.
+    // STONE-defservice-emits-the-binder (arc 109) — same call site, re-rendered: the
+    // checker stopped minting `Head<a,b>` (a spelling the reader now refuses) and emits
+    // the surviving `(Head :- [args])` form instead.
     wat::assert_check_error_present!(errs,
         CheckErrorKind::TypeMismatch { expected, got, .. }
-            if expected == ":wat::core::Seqable<wat::core::i64>"
-            && got == ":wat::core::HashSet<wat::core::i64>");
+            if expected == "(:wat::core::Seqable :- [:wat::core::i64])"
+            && got == "(:wat::core::HashSet :- [:wat::core::i64])");
 
     // NEG-2 — the swap-gate. The family DOES extend Seqable; only arg unification refuses this.
     wat::assert_check_error_present!(errs,
         CheckErrorKind::TypeMismatch { expected, got, .. }
-            if expected == ":wat::core::Seqable<wat::core::i64>"
-            && got == ":wat::core::Vector<wat::core::String>");
+            if expected == "(:wat::core::Seqable :- [:wat::core::i64])"
+            && got == "(:wat::core::Vector :- [:wat::core::String])");
 }

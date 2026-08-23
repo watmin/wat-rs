@@ -2,7 +2,7 @@
   :message "not callable: expected Function, got wat::core::keyword `:ns::nonexistent-verb` (built by :wat::core::keyword/from-string at tests/diagnostics/probe_diagnostic_value_snapshot_in_errors_p2.wat:3:13)"
   :location #wat.core/Span {
     :file "src/runtime.rs"
-    :line 25688
+    :line 25712
     :col 17
     :end #wat.core.Option/None []
   }

@@ -54,9 +54,12 @@ fn thread_self_peer_is_refused_where_a_peer_is_expected() {
     // Pin the exact arm: the refusal must be the TYPE relation, not an incidental error
     // elsewhere in the fixture (a fixture that fails for the wrong reason is a green that
     // proves nothing — arc 278 R59).
+    // STONE-defservice-emits-the-binder (arc 109) — same call site, re-rendered: the
+    // checker stopped minting `Head<a,b>` (a spelling the reader now refuses) and emits
+    // the surviving `(Head :- [args])` form instead.
     wat::assert_check_error_present!(errs,
         CheckErrorKind::TypeMismatch { expected, got, callee, .. }
             if callee == ":probe::takes-peer"
-            && expected.contains("wat::kernel::Peer<")
-            && got.contains("wat::kernel::ThreadSelfPeer<"));
+            && expected.contains("(:wat::kernel::Peer :- [")
+            && got.contains("(:wat::kernel::ThreadSelfPeer :- ["));
 }

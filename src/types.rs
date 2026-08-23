@@ -122,6 +122,25 @@ pub(crate) fn parametric_head_fqdn(head: &str) -> String {
     }
 }
 
+/// STONE-defservice-emits-the-binder (arc 109) — the ONE renderer for a parametric type
+/// reference's surviving spelling, `check::format_type`'s companion the way
+/// `parametric_head_fqdn` is `TypeExpr::Parametric.head`'s. `head` is already prefixed
+/// however the caller's position needs (colon or bare); `args` are the already-rendered
+/// element strings for the binder vector, in that SAME caller's convention (so nested
+/// Parametric args recurse through the identical renderer and stay self-consistent).
+///
+/// `args` EMPTY -> `head` UNCHANGED, never `head<>` — `(Head :- [])` and `Head` are one
+/// thing at every position (the builder's rule, STONE row 3, now true at reference position
+/// too because this is what stops minting the distinct `Head<>` identity).
+/// `args` non-empty -> `(head :- [a b …])` — the surviving form, copy-pasteable into source.
+pub(crate) fn render_binder_ref(head: &str, args: &[String]) -> String {
+    if args.is_empty() {
+        head.to_string()
+    } else {
+        format!("({head} :- [{}])", args.join(" "))
+    }
+}
+
 impl TypeExpr {
     /// FQDN of this type's head — colon-prefixed, type args stripped.
     /// `None` for variants with no nameable head (Tuple, Fn, …).
@@ -779,11 +798,42 @@ impl TypeEnv {
     }
 }
 
-/// Heads to try for extend-type edges of a Handle-like parametric:
-/// bare `Handle`, `Handle<T>`, `Handle<Xt>`.
+/// Heads to try for extend-type edges of a Handle-like parametric: bare `Handle`,
+/// `(Handle :- [:T])`, `(Handle :- [:Xt])`. STONE-defservice-emits-the-binder — these three
+/// strings are matched EXACT-string against `register_subtype`'s stored child key
+/// (`extend-type`'s target arg, rendered through `check::format_type` — types.rs's
+/// `:wat::core::extend-type` arm), so this guess MUST stay byte-identical to what
+/// `format_type` now emits for `Parametric { head, args: [Path(":T"|":Xt")] }` — the LEADING
+/// COLON is load-bearing: `parse_type_node`'s `WatAST::Symbol` arm prepends `:` to any
+/// namespace-less symbol before storing it as a `TypeExpr::Path` (a bare `T` binder symbol
+/// parses to `Path(":T")`, never `Path("T")`), so `format_type`'s Path arm — which returns
+/// the stored string unchanged — renders it WITH the colon. Measured: guessing `"T"` (no
+/// colon) here left `wat-scripts/probes/arc-170/probe-c1-clean-surface.wat` (and two
+/// siblings) unable to find `Handle<Wire>`'s registered `(Handle :- [:T]) <:
+/// TypedCapability<...>` edge — `every_wat_scripts_file_loads` caught it.
 pub(crate) fn transport_satisfier_heads(head: &str) -> Vec<String> {
     let fq = parametric_head_fqdn(head);
-    vec![fq.clone(), format!("{fq}<T>"), format!("{fq}<Xt>")]
+    vec![
+        fq.clone(),
+        render_binder_ref(&fq, &[":T".to_string()]),
+        render_binder_ref(&fq, &[":Xt".to_string()]),
+    ]
+}
+
+/// Extract a RENDERED type string's base — the head before any parametric suffix, in
+/// either surviving spelling: `(Head :- [args])` (STONE-defservice-emits-the-binder, this
+/// stone) or the legacy `Head<args>` [`split_type_params_pub`](crate::runtime::split_type_params_pub)
+/// already handles (still the live spelling for a NAME's own turbofish — the SCORE doc's
+/// "finding 1" follow-on, untouched here). `family_extends`'s own base-extraction, below,
+/// is the ONE consumer that compares against a `check::format_type`-rendered string rather
+/// than a literal declared name, so it is the one taught the new form.
+fn base_of_rendered_type(s: &str) -> &str {
+    if let Some(rest) = s.strip_prefix('(') {
+        if let Some(sp) = rest.find(' ') {
+            return &rest[..sp];
+        }
+    }
+    crate::runtime::split_type_params_pub(s).0
 }
 
 /// Does `sub`'s FAMILY extend `sup`'s family — existence only, arguments ignored?
@@ -792,14 +842,14 @@ pub(crate) fn transport_satisfier_heads(head: &str) -> Vec<String> {
 /// "is ANY instantiation of this surface reachable from this type?" Asking it by string
 /// prefix meant the code claimed a relation it never checked. This asks it directly: walk
 /// the `extend-type` edges from each of `sub`'s guessed keys ([`transport_satisfier_heads`]),
-/// and at each parent compare its BASE name (via [`split_type_params_pub`](crate::runtime::split_type_params_pub))
+/// and at each parent compare its BASE name (via [`base_of_rendered_type`], just above)
 /// against `sup`'s base name — the same base-extraction door `TypeExpr::base_fqdn` uses
 /// elsewhere, not a second hand-rolled extraction.
 ///
 /// NOT a substitute for [`is_subtype`], which answers the EXACT question and whose exact-string
 /// compare is load-bearing for `assignable`'s transport fast path.
 pub(crate) fn family_extends(sub: &str, sup: &str, env: &TypeEnv) -> bool {
-    let sup_base = crate::runtime::split_type_params_pub(sup).0;
+    let sup_base = base_of_rendered_type(sup);
     for key in transport_satisfier_heads(sub) {
         if is_subtype(&key, sup, env) {
             return true;
@@ -810,7 +860,7 @@ pub(crate) fn family_extends(sub: &str, sup: &str, env: &TypeEnv) -> bool {
             .map(|p| p.to_vec())
             .unwrap_or_default();
         while let Some(p) = stack.pop() {
-            if crate::runtime::split_type_params_pub(&p).0 == sup_base {
+            if base_of_rendered_type(&p) == sup_base {
                 return true;
             }
             if visited.insert(p.clone()) {

@@ -9799,7 +9799,15 @@ fn is_type_param_letter(ty: &TypeExpr) -> bool {
 }
 
 /// Subtype-edge keys for Handle<Wire> / Handle<K,V,Shared>: the bare head,
-/// Handle<T>, Handle<Xt>, and the full type with last arg rewritten to T/Xt.
+/// `(Handle :- [:T])`, `(Handle :- [:Xt])`, and the full type with last arg rewritten to
+/// `:T`/`:Xt`. STONE-defservice-emits-the-binder — the letters carry their OWN leading
+/// colon (`":T"`, not `"T"`): `parse_type_node`'s `Symbol` arm prepends `:` to a
+/// namespace-less binder symbol before it is ever stored as `TypeExpr::Path`, so the
+/// registered edge (and `format_type`, which no longer strips it for nested args — see
+/// `render_binder_ref`) both carry it. A bare `Path("T".into())` here rendered `(Head :-
+/// [T])` — one colon short of the registered `(Head :- [:T])` — and the extend-type edge
+/// for every transport-polymorphic `Handle<Wire>`/`Handle<Shared>` silently stopped
+/// resolving (`every_wat_scripts_file_loads` caught it, three probes red).
 fn transport_edge_keys(ty: &TypeExpr) -> Vec<String> {
     let mut keys = Vec::new();
     match ty {
@@ -9807,7 +9815,7 @@ fn transport_edge_keys(ty: &TypeExpr) -> Vec<String> {
         TypeExpr::Parametric { head, args } => {
             keys.extend(crate::types::transport_satisfier_heads(head));
             if !args.is_empty() {
-                for letter in ["T", "Xt"] {
+                for letter in [":T", ":Xt"] {
                     let mut inst = args.clone();
                     inst[args.len() - 1] = TypeExpr::Path(letter.into());
                     keys.push(format_type(&TypeExpr::Parametric {
@@ -9823,13 +9831,15 @@ fn transport_edge_keys(ty: &TypeExpr) -> Vec<String> {
 }
 
 /// Scheme keys for a surface method on `recv`: exact format_type, then
-/// last-arg rewritten to T / Xt (Handle<Wire> → Handle<T>), then the bare head.
+/// last-arg rewritten to `:T` / `:Xt` (Handle<Wire> → `(Handle :- [:T])`), then the bare
+/// head. STONE-defservice-emits-the-binder — the colon on the letter matches
+/// `transport_edge_keys`'s own fix, same reason: `Path(":T")`, not `Path("T")`.
 fn satisfier_method_keys(recv: &TypeExpr, method_name: &str) -> Vec<String> {
     let mut keys = vec![format!("{}/{}", format_type(recv), method_name)];
     if let TypeExpr::Parametric { head, args } = recv {
         if let Some(last) = args.last() {
             if is_shared_marker(last) || is_wire_marker(last) || is_type_param_letter(last) {
-                for letter in ["T", "Xt"] {
+                for letter in [":T", ":Xt"] {
                     let mut inst = args.clone();
                     inst[args.len() - 1] = TypeExpr::Path(letter.into());
                     keys.push(format!(
@@ -16241,9 +16251,16 @@ pub(crate) fn rename(ty: &TypeExpr, mapping: &HashMap<String, TypeExpr>) -> Type
 pub fn format_type(t: &TypeExpr) -> String {
     match t {
         TypeExpr::Path(p) => p.clone(),
+        // STONE-defservice-emits-the-binder (arc 109) — `Head<A,B>` retired even as
+        // DISPLAY text: it is user-facing (a type-mismatch's `expected`/`got` fields) and a
+        // reader that refuses the angle spelling must never teach it back. Args recurse
+        // through `format_type` (not `format_type_inner`) because each element is now a
+        // standalone keyword/form in the binder VECTOR, not text embedded inside `<…>` —
+        // it needs its own leading colon, exactly what a fresh top-level render gives it.
         TypeExpr::Parametric { head, args } => {
-            let inner: Vec<_> = args.iter().map(format_type_inner).collect();
-            format!(":{}<{}>", head, inner.join(","))
+            let head_kw = format!(":{head}");
+            let inner: Vec<_> = args.iter().map(format_type).collect();
+            crate::types::render_binder_ref(&head_kw, &inner)
         }
         TypeExpr::Fn { args, ret } => {
             // Arc 163 follow-up — emit canonical FQDN. Pre-fix
@@ -16273,9 +16290,11 @@ pub fn format_type(t: &TypeExpr) -> String {
 fn format_type_inner(t: &TypeExpr) -> String {
     match t {
         TypeExpr::Path(p) => p.strip_prefix(':').unwrap_or(p).to_string(),
+        // STONE-defservice-emits-the-binder — same retirement as `format_type`'s arm above,
+        // colon-stripped convention preserved (this is the nested/inner-position renderer).
         TypeExpr::Parametric { head, args } => {
             let inner: Vec<_> = args.iter().map(format_type_inner).collect();
-            format!("{}<{}>", head, inner.join(","))
+            crate::types::render_binder_ref(head, &inner)
         }
         TypeExpr::Fn { args, ret } => {
             // Arc 163 follow-up — inner-position emits `wat::core::Fn(...)`
