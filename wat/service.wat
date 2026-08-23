@@ -196,8 +196,8 @@
      ;; to reject it; the macro was building it).
      ;;
      ;; THE IDENTITY PROPERTY (load-bearing — the nine concrete services ride on it):
-     ;; with no type params `fqdn-tp` is "" and `fqdn-base` IS `fqdn-str`, so every
-     ;; derived name is byte-identical to the pre-split concatenation.
+     ;; with no type params `fqdn-tp-syms` is empty and `fqdn-base` IS `fqdn-str`, so
+     ;; every derived name is byte-identical to the pre-split concatenation.
      ;;
      ;; WHICH companion carries the params is decided per-name by whether a type param
      ;; can REACH it, not blanket-applied:
@@ -221,9 +221,12 @@
      ;; — because that fold calls `macro-error` on any key not in `known-clauses` and would
      ;; reject `:-` as unrecognized (DESIGN-STONE-binder-beta-ii.md, "hazards measured").
      ;;
-     ;; THE CONTRACT: the binder is the SOURCE OF TRUTH; the bracketed `<K,V>` string below
-     ;; (`fqdn-tp`) is DERIVED from it, never the reverse — two independent derivations off
-     ;; the name could disagree, and the disagreement would surface ~50 sites from the cause.
+     ;; THE CONTRACT: the binder is the SOURCE OF TRUTH; `fqdn-tp-syms` below is DERIVED
+     ;; from it, never the reverse — two independent derivations off the name could
+     ;; disagree, and the disagreement would surface ~50 sites from the cause.
+     ;; STONE-the-last-mint — the bracketed `<K,V>` STRING derivation (`fqdn-tp`) that
+     ;; used to sit alongside `fqdn-tp-syms` is RETIRED; the syms list is the only
+     ;; derivation left.
      binder-present? (:wat::core::if (:wat::core::empty? clauses)
 
                        false
@@ -296,24 +299,11 @@
      ;; char-length=0" — because a downstream reader trusted the flag and did bracket
      ;; arithmetic on "".
      fqdn-parametric? (:wat::core::if (:wat::core::empty? fqdn-tp-syms) false true)
-     ;; DERIVED — the bracketed suffix STRING, the COMPATIBILITY SHIM the ~50 existing
-     ;; consumers keep reading untouched (β-ii-b/c retire it, and the shim is what dies —
-     ;; not a bolt-on that has to be threaded in). ONE derivation now, from the list, for
-     ;; both spellings; a legacy name round-trips name → syms → "<K,V>" identically.
-     fqdn-tp       (:wat::core::if (:wat::core::empty? fqdn-tp-syms)
-
-                     ""
-                     (:wat::core::string::concat "<"
-                       (:wat::core::string::concat
-                         (:wat::core::string::join ","
-                           (:wat::core::foldl
-                             (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String])
-                                              a   <- :wat::WatAST]
-                               -> (:wat::core::Vector :- [:wat::core::String])
-                               (:wat::core::conj acc (:wat::core::ast-name a)))
-                             (:wat::core::Vector :wat::core::String)
-                             fqdn-tp-syms))
-                         ">")))
+     ;; STONE-the-last-mint — `fqdn-tp`, the bracketed `<K,V>` suffix STRING compatibility
+     ;; shim, is RETIRED (its last two consumers, `transport-param` and `method-name`
+     ;; below, now read `fqdn-tp-syms` structurally); mirrors `proto-tp`'s retirement
+     ;; (commit c6c614fe2). `fqdn-tp-syms` (the param SYMBOL list, above) is the one
+     ;; source of truth from here on.
 
      ;; ── 4b-ii: fold ALL clauses into a kwargs MAP (all-kwargs surface) ──────
      ;; clauses is the rest param: a flat [:key val :key val …] list. We fold it into a
@@ -437,7 +427,7 @@
      ;; `:satisfies :S<K,V>` is the CHANNEL. The suffix is written at the satisfies site in the
      ;; SERVICE's own binders, so re-attaching it to a protocol-namespaced name yields exactly
      ;; the instantiation this service wears (`:S::Op<K,V>`, `:S::GetRequest<K,V>`). Same split
-     ;; helper as `fqdn-base`/`fqdn-tp` above — one spelling, two sides.
+     ;; helper as `fqdn-base`/`fqdn-tp-syms` above — one spelling, two sides.
      ;;
      ;; `proto-base` (params STRIPPED) is the identity a NAME keys on: the acronym registry, the
      ;; runtime `retag-op'` discriminator, every ctor/accessor/variant keyword, and `derive`
@@ -562,12 +552,14 @@
 
      ;; ── Arc 109 β-ii-c: per-type param CONSUMPTION — a generated companion carries only
      ;; the params ITS OWN field/member vector actually mentions, not the service's full
-     ;; declared list (`fqdn-tp`/`fqdn-tp-syms`). `type-params-used-in` (arc 109 β-ii-c
-     ;; intrinsic) answers "which of `fqdn-tp-syms` appear anywhere in this AST?"; each
-     ;; "-tp-syms" below is that SUBSET, in the same order, and each "-tp" re-renders it as
-     ;; a bracket suffix — the identical fold+join+concat `fqdn-tp` itself uses above (line
-     ;; ~314), just over the narrower list. An empty subset renders "" (monomorphic),
-     ;; matching `fqdn-tp`'s own empty case — the byte-identity property, one level down.
+     ;; declared list (`fqdn-tp-syms`). `type-params-used-in` (arc 109 β-ii-c intrinsic)
+     ;; answers "which of `fqdn-tp-syms` appear anywhere in this AST?"; each "-tp-syms"
+     ;; below is that SUBSET, in the same order. STONE-the-last-mint — `fqdn-tp` (and the
+     ;; sibling "-tp" bracket-suffix STRING renders this comment used to describe) is
+     ;; RETIRED; every companion now splices its `-tp-syms` subset structurally as
+     ;; DECLARATION siblings / a `(Head :- [args])` reference FORM, never a re-rendered
+     ;; bracket string. An empty subset ⇒ no binder / `(Head :- [])` ≡ `Head` — the
+     ;; byte-identity property, one level down.
      ;;
      ;; Record's own field vector is `durable-fields` verbatim (no union needed).
      record-tp-syms (:wat::core::type-params-used-in fqdn-tp-syms durable-fields)
@@ -947,14 +939,18 @@
      serve-name-str (:wat::core::string::interpolate "{b}::serve" :b fqdn-base)
      ;; 293.W.2f — Handle<T> / Status<T> carry the transport marker (Shared | Wire).
      ;; Bare `::Handle{p}` / `::Status{p}` (T unknown) remain the residual.
-     ;; Transport param is `T` unless the service already binds `T` (`box-svc<T>`),
-     ;; in which case it is `Xt` so the two slots do not collide.
-     transport-param (:wat::core::if (:wat::core::if (:wat::core::string::contains? fqdn-tp "<T>") true
-                                       (:wat::core::if (:wat::core::string::contains? fqdn-tp "<T,") true
-                                         (:wat::core::if (:wat::core::string::contains? fqdn-tp ",T>") true
-                                           (:wat::core::string::contains? fqdn-tp ",T,"))))
-                       "Xt"
-                       "T")
+     ;; Transport param is `T` unless the service already binds `T` (`box-svc<T>`,
+     ;; via the `:- [T]` binder), in which case it is `Xt` so the two slots do not
+     ;; collide. STONE-the-last-mint — `fqdn-tp` (the angle-string mint this used to
+     ;; `string::contains?` against) is RETIRED; the check is now structural, directly
+     ;; over `fqdn-tp-syms` (a symbol named "T" among the declared params), never a
+     ;; re-serialized `<a,b>` string.
+     binds-t?     (:wat::core::foldl
+                     (:wat::core::fn [acc <- :wat::core::bool sym <- :wat::WatAST] -> :wat::core::bool
+                       (:wat::core::if acc true (:wat::core::= (:wat::core::ast-name sym) "T")))
+                     false
+                     fqdn-tp-syms)
+     transport-param (:wat::core::if binds-t? "Xt" "T")
      ;; Arc 109 ③ — angle brackets are ILLEGAL for types; the `<…>` suffix-string mint
      ;; (`handle-t-suffix`/`handle-shared-suffix`/`handle-wire-suffix`) is RETIRED in favour
      ;; of extending `fqdn-tp-syms` structurally (`conj` one more arg node) and minting the
@@ -1990,16 +1986,22 @@
                           op-pascal       (:wat::core::string::kebab->pascal-in surface-kw op-str)
                           ;; Arc 278 the parametric protocol — the client fn's SIGNATURE names the
                           ;; surface's parametric messages, so the DECLARATION carries the service's
-                          ;; own binders (`{b}/{op}{p}`), exactly as `/start`, `/stop`, `/grant` do.
-                          ;; A concrete service satisfying a surface at concrete args has fqdn-tp ""
-                          ;; and a fully concrete signature — no binders to declare, nothing changes.
+                          ;; own binders, exactly as `/start`, `/stop`, `/grant` do. STONE-the-last-mint
+                          ;; — `fqdn-tp` (the `<a,b>` angle-string mint) is RETIRED, mirroring
+                          ;; `proto-tp`/`launch-head-kw`: `method-name` is now the BARE name; a
+                          ;; non-empty `fqdn-tp-syms` splices `:- [~@fqdn-tp-syms]` as DECLARATION
+                          ;; SIBLINGS in the emitted `defn`, below, the same shape `record-def`/
+                          ;; `state-def`/`service-op-def` already use. A concrete service satisfying
+                          ;; a surface at concrete args has an empty `fqdn-tp-syms` and a fully
+                          ;; concrete signature — no binder to declare, nothing changes.
                           method-name     (:wat::core::keyword/from-string
-                                            (:wat::core::string::interpolate "{b}/{op-str}{p}"
-                                              :b fqdn-base :op-str op-str :p fqdn-tp))
+                                            (:wat::core::string::interpolate "{b}/{op-str}"
+                                              :b fqdn-base :op-str op-str))
                           ;; Arc 278 the surface-minted op alias — NAME the alias Rust mints
                           ;; (`<Surface>::<op>/Request` / `/Response`) instead of guessing the
-                          ;; message's name by concatenation; `{p}` re-attaches the alias's own
-                          ;; type args, exactly as `method-name` above re-attaches `fqdn-tp`.
+                          ;; message's name by concatenation; `proto-args` re-attaches the alias's
+                          ;; own type args structurally, exactly as `method-name`'s DECLARATION
+                          ;; binder above re-attaches `fqdn-tp-syms`.
                           ;; identity 2c: req-ty (this scope) is ANNOTATION-only (client method's
                           ;; `req` param type) — mints the reference FORM. Arc 109 ③ —
                           ;; structurally off `proto-args`, not the retired `proto-tp` string.
@@ -2135,7 +2137,11 @@
 
                            acc
                            (:wat::core::conj acc
-                             `(:wat::core::defn ~method-name ~method-params -> ~recv-ret-ty ~method-body)))))
+                             ;; STONE-the-last-mint — same siblings-binder splice as `record-def`/
+                             ;; `state-def`/`service-op-def`, over `fqdn-tp-syms`.
+                             (:wat::core::if (:wat::core::empty? fqdn-tp-syms)
+                               `(:wat::core::defn ~method-name ~method-params -> ~recv-ret-ty ~method-body)
+                               `(:wat::core::defn ~method-name :- [~@fqdn-tp-syms] ~method-params -> ~recv-ret-ty ~method-body))))))
                      (:wat::core::Vector :wat::WatAST)
                      impl-clauses)
 

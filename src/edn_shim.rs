@@ -1107,6 +1107,15 @@ pub fn eval_symbol_node(
         other => return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
             op: OP.into(), expected: ":wat::core::String", got: Box::new(crate::runtime::ValueSnapshot::of(other)) })),
     };
+    // STONE-the-last-mint — the third door. Genuinely unwalled until now; harmless only
+    // because the checker's surface arm keys on Keyword rather than Symbol. Same predicate,
+    // same message as `keyword-node` / `keyword/from-string` above.
+    if crate::runtime::angle_type_head_in_name(&s) {
+        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
+            head: OP.into(),
+            reason: crate::runtime::angle_minted_name_reason(&s),
+        }));
+    }
     let node = WatAST::Symbol(Identifier::bare(s), crate::rust_caller_span!());
     Ok(crate::value::TrackedValue::new(
         Value::wat__WatAST(std::sync::Arc::new(node)),
@@ -1156,6 +1165,12 @@ pub fn eval_keyword_node(
         other => return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
             op: OP.into(), expected: ":wat::core::String", got: Box::new(crate::runtime::ValueSnapshot::of(other)) })),
     };
+    if crate::runtime::angle_type_head_in_name(&s) {
+        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
+            head: OP.into(),
+            reason: crate::runtime::angle_minted_name_reason(&s),
+        }));
+    }
     if !s.starts_with(':') {
         return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
             head: OP.into(),

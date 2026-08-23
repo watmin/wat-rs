@@ -4246,6 +4246,36 @@ fn parse_type_slot(ast: &WatAST) -> Result<crate::types::TypeExpr, EvalBreak> {
 /// convention is `<T1,T2,...>` only as a balanced suffix after the
 /// identifier; the lexer admits both forms (depth tracking permits
 /// trailing unmatched `<`).
+/// Arc 109 — the lexer's type-head predicate, applied to a MINTED name.
+///
+/// `<` opens a type head only when preceded by an identifier character (`Vector<`,
+/// `make<`, `Thread'<`). An operator `<` follows `::` or leads its token
+/// (`:wat::core::<`, `<-`, `<=`) and never matches. This is the SAME predicate
+/// `crates/wat-reader/src/lexer.rs` uses to refuse the spelling in SOURCE — the
+/// wall now stands at both doors a name can come through, written or minted.
+pub(crate) fn angle_type_head_in_name(s: &str) -> bool {
+    let b = s.as_bytes();
+    (1..b.len()).any(|i| {
+        b[i] == b'<' && {
+            let p = b[i - 1] as char;
+            p.is_ascii_alphanumeric() || p == '_' || p == '\''
+        }
+    })
+}
+
+/// The one refusal message for a minted angle name, shared by both doors.
+pub(crate) fn angle_minted_name_reason(name: &str) -> String {
+    format!(
+        "angle-bracket type parameters are illegal in a name (arc 109, \"annihilate the \
+         angle bracket\") — and that holds for a name BUILT at expand time exactly as it \
+         holds for one written in source: {name:?}. `:-` is the ONE parameterization \
+         operator. A macro must emit the type-application FORM `(Head :- [A B])`, not \
+         concatenate `Head` + \"<\" + args + \">\" into a keyword. A name is an atom; \
+         structure encoded inside one has to be re-parsed by every consumer, and that \
+         second parser is what this wall exists to make impossible."
+    )
+}
+
 pub fn canonical_callable_name(kw: &str) -> &str {
     if !kw.ends_with('>') {
         return kw;
@@ -11154,6 +11184,13 @@ fn eval_keyword_from_string(
             other => Err(other),
         },
     )?;
+    if angle_type_head_in_name(&s) {
+        return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
+            head: ":wat::core::keyword/from-string".into(),
+            reason: angle_minted_name_reason(&s),
+        })
+        .into());
+    }
     if s.starts_with(':') {
         return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
             head: ":wat::core::keyword/from-string".into(),

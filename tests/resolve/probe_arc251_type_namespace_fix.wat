@@ -22,7 +22,12 @@
   (:wat::core::write-forms (:wat::core::keyword/to-type-form (:wat::core::keyword-node ":T"))))
 (:wat::core::defn :user::c07b [] -> :wat::core::String
   (:wat::core::write-forms (:wat::core::keyword/to-type-form (:wat::core::keyword-node ":K"))))
-;; c08, c09: keyword/to-type-form raises at RUNTIME for these inputs — startup succeeds
+;; c08, c09: raise at RUNTIME for these inputs — startup succeeds. STONE-the-last-mint —
+;; c08a/c08b's angle-bracket strings now refuse at `keyword-node` itself (the minting wall),
+;; one door earlier than `keyword/to-type-form`'s own parser used to catch them; c09's
+;; trailing-`::` path carries no angle bracket, so it is unaffected and still reaches
+;; `keyword/to-type-form` to raise there. Both assertions (`.rs`) only check `.is_err()`,
+;; so neither needed to move.
 (:wat::core::defn :user::c08a [] -> :wat::core::String
   (:wat::core::write-forms (:wat::core::keyword/to-type-form (:wat::core::keyword-node ":Stream<wat::core::i64>"))))
 (:wat::core::defn :user::c08b [] -> :wat::core::String
