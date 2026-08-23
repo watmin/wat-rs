@@ -48,27 +48,72 @@ fn c01_typealias_bare_type_slot_uses_type_form() {
 
 #[test]
 fn c02_defn_generic_name_drops_type_params() {
+    // Arc 109 (wave 2, "annihilate the angle bracket") — ANNIHILATED, class 3 (c).
+    // C02's original subject was `:migrate::name-fix` stripping a `<T>` suffix off a
+    // DEFN NAME (`:my::ns::map<T>` → plain symbol `map`, `<T>` dropped rather than
+    // migrated). The LEXER wall (this stone) refuses `<` in a name at the READER —
+    // before `:migrate::fix-form` (or anything else) ever sees the AST — so
+    // `:migrate::name-fix`'s `split(kw, "<")` branch can no longer be reached by any
+    // legal `read-string` input. It is not merely untested; it is UNREACHABLE. Fixture
+    // migrated to a plain `::`-qualified, non-generic name so the test keeps exercising
+    // the surviving half of `name-fix` (keyword → symbol conversion) — this is a
+    // WEAKER assertion than the original ("drops <T>"), reported honestly per STOP-3
+    // rather than disguised as a like-for-like fix. The `<`-stripping branch itself is
+    // a purge candidate for the sibling stone.
     let got = normalize(eval_string("c02").expect("C02 fix-form"));
     assert_eq!(
         got,
         include_str!("probe_arc251_decl_migrator__c02-defn-drop-type-params.wat"),
-        "C02 (gap B, LOAD-BEARING): defn name with <T> must be a plain symbol, <T> dropped"
+        "C02 (surviving half): defn name with only `::` (no `<T>`, which is now \
+         unreachable input) must still become a plain symbol"
     );
 }
 
 #[test]
 fn c03_generic_decl_name_and_parametric_target() {
-    // Arc 109 ③ — angle brackets are ILLEGAL for types now, so C03's fixture source
-    // (`(:wat::core::typealias :Foo<T> :wat::core::Vector<wat::core::i64>)`) is no longer
-    // legal INPUT: its parametric TARGET (`Vector<i64>`) renders through the SAME walled
-    // `keyword/to-type-form` C02's decl-name-only case never reaches (a decl name's `<T>`
-    // is stripped by `parse_declared_name`, not rendered). There is no other keyword-string
-    // spelling for a parametric type to migrate FROM any more (see `probe_arc251_keyword_
-    // to_type_form.rs`'s identical contracts 02-05/08) — the refusal itself is the coverage.
-    let err = eval_string("c03").expect_err("angle-bracket parametric target must be REFUSED");
-    assert!( // rune:lint(loose-assert) — targeted substring: asserting the angle-bracket wall fired, not the whole located TypeError's structure
-        err.contains("angle-bracket parametric types are illegal"),
-        "expected the angle-bracket wall's reason; got: {err}"
+    // Arc 109 ③ (a PRIOR stone) walled the TYPE PARSER, so C03 used to prove that a
+    // parametric TARGET keyword (`Vector<i64>`) got refused by `keyword/to-type-form`
+    // with "angle-bracket parametric types are illegal". Arc 109 wave 2 (THIS stone)
+    // walls the LEXER, one door earlier: `:user::topform`'s `read-string` on a source
+    // string containing `Foo<T>` / `Vector<wat::core::i64>` now fails at the READER,
+    // before `keyword/to-type-form` is ever reached — and `:user::topform`'s
+    // `ReadOutcome::Malformed` arm calls `(:wat::core::Error/message __cause)` on a
+    // `:wat::edn::ForeignRecord` that does not implement a `message` surface method, so
+    // the read-string path now crashes with an unrelated `UnknownFunction` before it
+    // can even report the lex refusal. That crash is a SEPARATE, already-documented
+    // defect (DESIGN-STONE-annihilate-the-angle-bracket.md's sequencing section) — out
+    // of this stone's boundary (test module only, not `read-string`'s Rust or
+    // `wat/edn.wat`'s `ForeignRecord`).
+    //
+    // Class 3 (b) — re-pointed as a refusal control, NOT (a): I tried migrating the
+    // fixture's target to an already-`:-`-form type reference (`(:wat::core::Vector :-
+    // [:wat::core::i64])`) to keep testing "parametric target survives"; that fails a
+    // DIFFERENT way — `:migrate::type-slot-2?`'s branch calls `keyword/to-type-form`
+    // UNCONDITIONALLY on the typealias target (unlike `:migrate::fix-types`'s ast-kind
+    // check for typeunion members), so it cannot accept a List there at all:
+    // `MalformedForm { reason: "keyword/to-type-form requires a Keyword node" }`. So
+    // there is no legal input — parametric or not, keyword or already-`:-`-form — for
+    // which C03 exercises anything beyond what C01 (plain type-slot) and C04
+    // (user-type preservation) already cover. STOP-3: making it green with a plain
+    // keyword target would be a materially weaker assertion wearing this test's name.
+    // Left pointed at the ORIGINAL angle-bracket source instead, re-purposed as a
+    // refusal control on THAT: `read-string` now refuses `Foo<T>` / `Vector<wat::core::
+    // i64>` at the lexer wall, but `:user::topform`'s `ReadOutcome::Malformed` arm
+    // calls `(:wat::core::Error/message __cause)` on a `:wat::edn::ForeignRecord` that
+    // has no `message` surface method — a SEPARATE, already-documented defect
+    // (DESIGN-STONE-annihilate-the-angle-bracket.md's sequencing section) that fires
+    // before the lex refusal can be reported cleanly. Asserting the crash's mechanism
+    // (not a made-up clean message) so this goes red again, honestly, if that separate
+    // bug is ever fixed and the message changes shape.
+    //
+    // Class 3 (c) ALSO applies, more broadly than C02: `keyword/to-type-form`'s whole
+    // reason to exist — parsing a `<...>`-embedded parametric type OUT OF a keyword
+    // string — is dead code. No legal `read-string` input can ever contain such a
+    // keyword again. Purge candidate for the sibling stone.
+    let err = eval_string("c03").expect_err("angle-bracket source must fail to read");
+    assert!( // rune:lint(loose-assert) — targeted substring: the read-string crash's mechanism, not the whole located error's structure
+        err.contains("ForeignRecord") && err.contains("message"),
+        "expected the read-string/ForeignRecord crash (see comment above); got: {err}"
     );
 }
 

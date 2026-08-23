@@ -12,7 +12,7 @@
 ;; seam: run by invoke_user_main; asserts the seam stamps :process for the root main.
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::do
-    (:wat::test::assert-eq<:wat::program::PeerKind>
+    (:wat::test::assert-eq
       (:wat::program::Env/peer-kind (:wat::program::env))
       :wat::program::PeerKind::process)
     nil))

@@ -58,7 +58,7 @@
 ;; `[type type …]` vector of NON-arrow'd member types; fix-seq would route them through
 ;; head-keyword? → keyword/to-symbol → the wrong `wat.core/i64`). Each keyword element →
 ;; keyword/to-type-form; any non-keyword → fix-source (defensive). Mirrors fix-seq's shape.
-(:wat::core::defn :migrate::fix-types [items <- :wat::core::Vector<wat::WatAST>] -> :wat::core::Vector<wat::WatAST>
+(:wat::core::defn :migrate::fix-types [items <- (:wat::core::Vector :- [:wat::WatAST])] -> (:wat::core::Vector :- [:wat::WatAST])
   (:wat::core::if (:wat::core::empty? items)
     (:wat::core::Vector :wat::WatAST)
     (:wat::core::let [h   (:wat::core::first items)

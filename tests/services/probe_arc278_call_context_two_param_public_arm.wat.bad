@@ -13,7 +13,7 @@
    (:wat::core::defenum :probe::BadCtxArity::PingResponse :wat::enum::Pure
      :Ok               [ok <- :wat::core::bool]
      :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(ping [self <- :probe::BadCtxArity  req <- :probe::BadCtxArity::PingRequest] -> :probe::BadCtxArity::PingResponse :max-request-bytes 524288)])
 

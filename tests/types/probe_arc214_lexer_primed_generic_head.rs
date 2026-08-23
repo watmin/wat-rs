@@ -55,26 +55,46 @@ fn primed_two_param_must_lex() {
     }
 }
 
-/// PARITY twin: whitespace inside `<...>` is a lex error BY DESIGN (keywords
-/// cannot contain whitespace — same rule for unprimed heads). The honest
-/// assertion is that a primed head fails the SAME way (unclosed-bracket),
-/// never the apostrophe-specific `CommaInKeywordBody` — i.e. angle_depth is
-/// tracked for the primed head, so the comma is protected and the whitespace
-/// rule is what fires. (The earlier form of this test asserted "must lex,"
-/// which mistook the by-design whitespace rule for the apostrophe bug and
-/// passed only via a case-sensitivity accident; corrected 2026-06-07.)
+/// PARITY twin — **RE-POINTED, arc 109 "annihilate the angle bracket".**
+///
+/// This test's original subject (whitespace inside an OPEN `<...>` type head
+/// producing `UnclosedBracketInKeyword`, never the apostrophe-specific
+/// `CommaInKeywordBody`) no longer exists: `<` opening a type head at all is
+/// now refused at the FIRST `<` — for `HashMap'<wat::core::i64 >` and
+/// `HashMap<wat::core::nil >` alike, the wall fires before the lexer ever
+/// reaches the interior space, primed or not. The permission these fixtures
+/// exercised is gone, so the honest re-point is the wall itself: both the
+/// primed and unprimed heads are refused, by the SAME mechanism
+/// (`AngleTypeHeadInName`), which is the parity claim this test still makes —
+/// only the mechanism moved. Assert the MECHANISM (not the whole diagnostic,
+/// whose byte offset is fixture-fragile) per the arc's own precedent.
 #[test]
 fn primed_two_param_with_space_fails_same_as_unprimed() {
     let primed = startup_from_file(
         "tests/types/probe_arc214_lexer_primed_generic_head_primed_space.wat.bad",
     )
-    .expect_err("whitespace inside <...> is a lex error by design");
+    .map(|_| ())
+    .expect_err("a primed angle type head must be refused — arc 109");
     let primed = format!("{}", primed);
     let unprimed = startup_from_file(
         "tests/types/probe_arc214_lexer_primed_generic_head_unprimed_space.wat.bad",
     )
-    .expect_err("whitespace inside <...> is a lex error by design (unprimed control)");
+    .map(|_| ())
+    .expect_err("an unprimed angle type head must be refused — arc 109 (unprimed control)");
     let unprimed = format!("{}", unprimed);
-    wat::assert_edn_matches_file!(primed, "probe_arc214_lexer_primed_generic_head__primed_two_param_with_space_fails_same_as_unprimed__primed.edn", "primed head, whitespace-in-keyword lex error");
-    wat::assert_edn_matches_file!(unprimed, "probe_arc214_lexer_primed_generic_head__primed_two_param_with_space_fails_same_as_unprimed__unprimed.edn", "unprimed control, whitespace-in-keyword lex error");
+    // rune:lint(loose-assert) — targeted PRESENCE over a large structured diagnostic; the
+    // assertion names the MECHANISM (the arc 109 wall), which is the parity claim this test
+    // makes. An exact-match golden would pin the lex error's byte offset and re-break on every
+    // unrelated edit to the fixture — same reasoning as probe_arc232_generic_method_type_
+    // application.rs's precedent.
+    assert!(
+        primed.contains("annihilate the angle bracket"),
+        "primed head must be refused by the arc 109 angle wall; got: {primed}"
+    );
+    // rune:lint(loose-assert) — same reasoning as the primed assertion above: targeted
+    // PRESENCE of the mechanism, not the whole diagnostic.
+    assert!(
+        unprimed.contains("annihilate the angle bracket"),
+        "unprimed head must be refused by the SAME wall (parity); got: {unprimed}"
+    );
 }

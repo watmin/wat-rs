@@ -203,6 +203,15 @@ pub enum LexErrorKind {
     /// in place of `(launch<S,R,St,Sh,Lu> [args] -> ret)`. Outside
     /// `<...>`, `,` remains ordinary EDN whitespace — unaffected.
     CommaInSymbolBody,
+    /// A `<...>` TYPE-HEAD opened inside a name — the angle-bracket
+    /// parameterization spelling (arc 109, "annihilate the angle bracket").
+    /// `<` opens a type head only when preceded by an identifier character
+    /// (`Vector<`, `make<`, `Thread'<`); that is the ONE construct this
+    /// refuses. Operator names are untouched, because their `<` / `>`
+    /// follows `::` or leads the token: `:wat::core::<`, `:wat::core::>=`,
+    /// `<-`, `->`, `<=` all still lex exactly as before. The surviving
+    /// spelling for parameterization is the `:-` binder / reference form.
+    AngleTypeHeadInName,
     /// Invalid character literal. Arc 220 slice 2: `\c` form error
     /// (empty body, supplementary-plane codepoint, unknown named char,
     /// or backslash followed by whitespace).
@@ -252,6 +261,17 @@ impl fmt::Display for LexErrorKind {
                 any depth. A multi-param generic method name like `mk<S,R>` must use the `:-` \
                 binder form instead — `(mk :- [S R] [args] -> ret)` in place of \
                 `(mk<S,R> [args] -> ret)`."
+            ),
+            LexErrorKind::AngleTypeHeadInName => write!(
+                f,
+                "angle-bracket type parameters are illegal in a name (arc 109, \"annihilate \
+                the angle bracket\"): `<` may not open a type head. `:-` is the ONE \
+                parameterization operator — write `(Head :- [A B])` for a type REFERENCE \
+                (in parens), `Head :- [A B]` for a BINDER (siblings, no parens), and \
+                `(Head :- [A B] v1 v2)` for a constructor. So `(:wat::core::Vector :- \
+                [:wat::core::i64])` not `:wat::core::Vector<wat::core::i64>`, and \
+                `(mk :- [S R] [args] -> ret)` not `(mk<S,R> [args] -> ret)`. Operator names \
+                are unaffected: `:wat::core::<`, `:wat::core::>=`, `<-`, `->` still lex."
             ),
             LexErrorKind::InvalidChar(msg) => write!(
                 f,
@@ -833,7 +853,13 @@ fn lex_keyword(src: &str, start: usize) -> Result<(String, usize), LexError> {
                     .map(|ch| ch.is_ascii_alphanumeric() || ch == '_' || ch == '\'')
                     .unwrap_or(false);
                 if prev_alpha {
-                    angle_depth += 1;
+                    // Arc 109 — THE PERMISSION IS GONE. This branch used to
+                    // open a type head (`angle_depth += 1`) so that
+                    // `:Result<(i64,i64), i64>` lexed as ONE keyword. That
+                    // spelling is retired; `:-` is the only parameterization
+                    // operator. Operator `<` follows `::` and never reaches
+                    // here, so `:wat::core::<` is untouched.
+                    return Err(LexError { position: i, kind: LexErrorKind::AngleTypeHeadInName });
                 }
                 out.push(c);
             }
@@ -974,7 +1000,10 @@ fn lex_symbol(src: &str, start: usize) -> Result<(String, usize), LexError> {
                 p.is_ascii_alphanumeric() || p == '_' || p == '\''
             };
             if prev_type_head {
-                angle_depth += 1;
+                // Arc 109 — THE PERMISSION IS GONE (see lex_keyword's twin).
+                // A leading / operator `<` (`<-`, `<`, `<=`) has no preceding
+                // identifier char and so never reaches here.
+                return Err(LexError { position: i, kind: LexErrorKind::AngleTypeHeadInName });
             }
             i += 1;
         } else if c == '>' {
@@ -1133,13 +1162,17 @@ mod tests {
 
     #[test]
     fn keyword_parametric_type() {
-        assert_eq!(
-            lex_tokens(":Vec<wat::holon::HolonAST>").unwrap(),
-            vec![Token::Keyword(":Vec<wat::holon::HolonAST>".into())]
-        );
-        // `:HashMap<K,V>` and `:fn(T,U)->R` — the comma-carrying
-        // multi-param shapes — are retired (arc 109); see
+        // Arc 109 "annihilate the angle bracket" — THE PERMISSION IS GONE.
+        // `:Vec<wat::holon::HolonAST>` used to lex as ONE keyword; `<` no
+        // longer opens a type head at all, comma or not. Re-pointed as a
+        // refusal control (a negative control that CAN be kept MUST be
+        // kept). `:HashMap<K,V>` and `:fn(T,U)->R` — the comma-carrying
+        // multi-param shapes — were already retired (arc 109); see
         // `keyword_comma_in_angle_brackets_rejected` / `keyword_fn_type_with_arrow`.
+        assert!(matches!(
+            lex_tokens(":Vec<wat::holon::HolonAST>"),
+            Err(LexError { kind: LexErrorKind::AngleTypeHeadInName, .. })
+        ));
     }
 
     #[test]
@@ -1178,14 +1211,20 @@ mod tests {
 
     #[test]
     fn keyword_crate_path() {
-        // Rust crate paths embed directly — no translation.
+        // Rust crate paths embed directly — no translation. The real
+        // subject here is the `::` path embedding, not the generic
+        // suffix; the `<T>` / `<String>` decoration was incidental (arc
+        // 109 class-1 rule: whatever a test asserted that is NOT the
+        // type-head permission must survive). Angle brackets are gone,
+        // so the inputs drop the now-illegal generic suffix and keep
+        // testing the thing this test is actually about.
         assert_eq!(
-            lex_tokens(":rust::crossbeam_channel::Sender<T>").unwrap(),
-            vec![Token::Keyword(":rust::crossbeam_channel::Sender<T>".into())]
+            lex_tokens(":rust::crossbeam_channel::Sender").unwrap(),
+            vec![Token::Keyword(":rust::crossbeam_channel::Sender".into())]
         );
         assert_eq!(
-            lex_tokens(":std::sync::mpsc::Receiver<String>").unwrap(),
-            vec![Token::Keyword(":std::sync::mpsc::Receiver<String>".into())]
+            lex_tokens(":std::sync::mpsc::Receiver").unwrap(),
+            vec![Token::Keyword(":std::sync::mpsc::Receiver".into())]
         );
     }
 
@@ -1226,15 +1265,18 @@ mod tests {
 
     #[test]
     fn keyword_vec_parametric() {
-        // :Vec<T> — Rust's collection name.
-        assert_eq!(
-            lex_tokens(":Vec<T>").unwrap(),
-            vec![Token::Keyword(":Vec<T>".into())]
-        );
-        assert_eq!(
-            lex_tokens(":Vec<wat::holon::HolonAST>").unwrap(),
-            vec![Token::Keyword(":Vec<wat::holon::HolonAST>".into())]
-        );
+        // :Vec<T> — Rust's collection name. Arc 109 — THE PERMISSION IS
+        // GONE: this was the permission itself, so it becomes a refusal
+        // control rather than a deletion (a negative control that CAN be
+        // kept MUST be kept).
+        assert!(matches!(
+            lex_tokens(":Vec<T>"),
+            Err(LexError { kind: LexErrorKind::AngleTypeHeadInName, .. })
+        ));
+        assert!(matches!(
+            lex_tokens(":Vec<wat::holon::HolonAST>"),
+            Err(LexError { kind: LexErrorKind::AngleTypeHeadInName, .. })
+        ));
     }
 
     #[test]
@@ -1261,12 +1303,15 @@ mod tests {
 
     #[test]
     fn keyword_nested_parametric_with_fn_type() {
-        // `:HashMap<String,fn(i32)->i32>` — both the outer `<>` comma and
-        // the nested `fn(...)` comma are retired (arc 109); the first one
-        // reached (the outer `<>` comma) is what fires.
+        // `:HashMap<String,fn(i32)->i32>` — the outer `<>` comma, the
+        // nested `fn(...)` comma, AND the outer type-head `<` itself are
+        // all retired (arc 109 "annihilate the angle bracket"). The `<`
+        // immediately after `HashMap` now fires before the lexer ever
+        // reaches the comma — same mechanism-precedence move as
+        // `keyword_comma_in_angle_brackets_rejected`.
         assert!(matches!(
             lex_tokens(":HashMap<String,fn(i32)->i32>"),
-            Err(LexError { kind: LexErrorKind::CommaInKeywordBody, .. })
+            Err(LexError { kind: LexErrorKind::AngleTypeHeadInName, .. })
         ));
     }
 
@@ -1311,38 +1356,51 @@ mod tests {
 
     #[test]
     fn keyword_apostrophe_after_parametric_close() {
-        // D — apostrophe after `>` (outside `<...>`) is pushed as-is.
-        // Arc 109 retired the comma-carrying multi-param spelling; use a
-        // single-param generic (no comma) to keep exercising the
-        // apostrophe-after-close mechanic this test is actually about.
-        assert_eq!(
-            lex_tokens(":HashMap<String>'snapshot").unwrap(),
-            vec![Token::Keyword(":HashMap<String>'snapshot".into())]
-        );
+        // D — this used to test that an apostrophe after `>` (outside
+        // `<...>`) is pushed as-is, i.e. that a generic type head can
+        // close and the keyword keeps absorbing a trailing `'snapshot`.
+        // Arc 109 "annihilate the angle bracket" — THE PERMISSION IS
+        // GONE: there is no longer any way to open the type head in the
+        // first place, so the closing-`>` mechanic this test exercised
+        // cannot be reached at all. Re-pointed as a refusal control: the
+        // wall fires at the `<`, before the parser ever sees the `>` or
+        // the apostrophe.
+        assert!(matches!(
+            lex_tokens(":HashMap<String>'snapshot"),
+            Err(LexError { kind: LexErrorKind::AngleTypeHeadInName, .. })
+        ));
     }
 
     // ─── Arc 214 — primed type-head with generic params ──────────────────
 
     #[test]
     fn keyword_primed_generic_single_param() {
-        // Arc 214 fix: `'` before `<` is a valid type-head-final char.
-        // `:wat::kernel::Thread'<I>` lexes as a single keyword. (The
-        // two-param comma-carrying form this test used pre-arc-109 is now
-        // covered by `keyword_comma_in_angle_brackets_rejected` below —
-        // it must ERROR, not lex clean.)
-        assert_eq!(
-            lex_tokens(":wat::kernel::Thread'<wat::core::i64>").unwrap(),
-            vec![Token::Keyword(":wat::kernel::Thread'<wat::core::i64>".into())]
-        );
+        // Arc 214 taught `'` before `<` as a valid type-head-final char
+        // so `:wat::kernel::Thread'<I>` lexed as a single keyword. Arc
+        // 109 "annihilate the angle bracket" — THE PERMISSION IS GONE:
+        // `prev_alpha` still treats `'` as identifier-like, so a primed
+        // head refuses exactly like an unprimed one. Re-pointed as a
+        // refusal control, paired with
+        // `keyword_unprimed_generic_single_param_control` below — both
+        // halves now refuse, and the pairing still discriminates (arc
+        // 214's primed-vs-unprimed distinction is subsumed by the wall).
+        assert!(matches!(
+            lex_tokens(":wat::kernel::Thread'<wat::core::i64>"),
+            Err(LexError { kind: LexErrorKind::AngleTypeHeadInName, .. })
+        ));
     }
 
     #[test]
     fn keyword_unprimed_generic_single_param_control() {
-        // Control: unprimed single-param generic, comma-free.
-        assert_eq!(
-            lex_tokens(":wat::kernel::Thread<wat::core::nil>").unwrap(),
-            vec![Token::Keyword(":wat::kernel::Thread<wat::core::nil>".into())]
-        );
+        // Control: unprimed single-param generic, comma-free. Arc 109 —
+        // THE PERMISSION IS GONE: both the primed and unprimed forms
+        // refuse now, so the pairing still discriminates (see
+        // `keyword_primed_generic_single_param` above) even though
+        // neither half lexes clean any more.
+        assert!(matches!(
+            lex_tokens(":wat::kernel::Thread<wat::core::nil>"),
+            Err(LexError { kind: LexErrorKind::AngleTypeHeadInName, .. })
+        ));
     }
 
     #[test]
@@ -1377,25 +1435,37 @@ mod tests {
         // Arc 109 — same retirement for the `:HashMap<K,V>` parametric
         // shape (comma valid at angle_depth > 0 pre-arc-109). Destination:
         // `:HashMap :- [K V]` (angle-brackets-to-binder, arc 109 stone ③).
+        // "annihilate the angle bracket" (this stone) now trips the ANGLE
+        // wall one step before the comma wall — `<` after an identifier
+        // char refuses before the lexer ever reaches the comma. Moved
+        // to the mechanism that actually fires; the test still asserts
+        // "this form is refused", it just names the earlier arm.
         assert!(matches!(
             lex_tokens(":HashMap<K,V>"),
-            Err(LexError { kind: LexErrorKind::CommaInKeywordBody, .. })
+            Err(LexError { kind: LexErrorKind::AngleTypeHeadInName, .. })
         ));
         assert!(matches!(
             lex_tokens(":wat::kernel::Thread<wat::core::i64,wat::core::i64>"),
-            Err(LexError { kind: LexErrorKind::CommaInKeywordBody, .. })
+            Err(LexError { kind: LexErrorKind::AngleTypeHeadInName, .. })
         ));
     }
 
     #[test]
-    fn keyword_single_param_generic_and_tuple_still_lex() {
-        // Additive-refusal check (STOP-2): a comma-free bracketed keyword
-        // body — the shapes that never relied on the retired permission —
-        // is untouched.
-        assert_eq!(
-            lex_tokens(":Vec<i64>").unwrap(),
-            vec![Token::Keyword(":Vec<i64>".into())]
-        );
+    fn keyword_single_param_generic_refused_tuple_still_lexes() {
+        // Was an additive-refusal check (STOP-2, comma stone): a
+        // comma-free bracketed keyword body — the shapes that never
+        // relied on the retired COMMA permission — was untouched by
+        // that stone. Arc 109 "annihilate the angle bracket" is
+        // broader: `<` no longer opens a type head at all, comma or
+        // not, so `:Vec<i64>` now refuses too. Renamed from
+        // `keyword_single_param_generic_and_tuple_still_lex` — the
+        // generic half no longer "still lexes". What DOES still hold,
+        // and is still worth an additive-refusal check for THIS wall:
+        // the unrelated `(...)` tuple-body mechanism is untouched.
+        assert!(matches!(
+            lex_tokens(":Vec<i64>"),
+            Err(LexError { kind: LexErrorKind::AngleTypeHeadInName, .. })
+        ));
         assert_eq!(
             lex_tokens(":(i64)").unwrap(),
             vec![Token::Keyword(":(i64)".into())]

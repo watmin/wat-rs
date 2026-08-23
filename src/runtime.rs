@@ -37465,7 +37465,7 @@ mod tests {
         // "primitives-only" restriction of the pre-antidote substrate is
         // gone.
         let result = eval_expr(
-            r#"(:wat::core::HashMap :Vec<i64> :String (:wat::core::Vector :i64 1 2) "x")"#,
+            r#"(:wat::core::HashMap (:wat::core::Vector :- [:i64]) :String (:wat::core::Vector :i64 1 2) "x")"#,
         );
         assert!(
             result.is_ok(),
@@ -38071,7 +38071,7 @@ mod tests {
         // Arc 216.5a + 216.5b: Value: Hash + Eq is canonical; HashSet
         // storage is Arc<HashSet<Value>>. Composite elements are accepted
         // natively — the pre-antidote "primitives-only" restriction is gone.
-        let result = eval_expr(r#"(:wat::core::HashSet :Vec<i64> (:wat::core::Vector :i64 1 2))"#);
+        let result = eval_expr(r#"(:wat::core::HashSet (:wat::core::Vector :- [:i64]) (:wat::core::Vector :i64 1 2))"#);
         assert!(
             result.is_ok(),
             "composite element should construct HashSet; got {:?}",
@@ -40302,6 +40302,14 @@ mod tests {
 
     #[test]
     fn keyword_to_string_strips_leading_colon() {
+        // Arc 109 "annihilate the angle bracket" — the third case used a
+        // parametric keyword literal (`:wat::core::Vector<wat::core::i64>`);
+        // a parametric type is no longer spellable as a single Keyword at
+        // all (only the `:-` reference FORM survives, which is a List, not
+        // a Keyword, and `keyword/to-string` operates on a Keyword). The
+        // subject here — strip-leading-colon on a multi-segment `::` path
+        // — is unaffected by the angle bracket, so it keeps exercising a
+        // plain multi-segment keyword instead.
         assert_eq!(
             expect_string(eval_expr("(:wat::core::keyword/to-string :foo)").unwrap()),
             "foo"
@@ -40312,10 +40320,10 @@ mod tests {
         );
         assert_eq!(
             expect_string(
-                eval_expr("(:wat::core::keyword/to-string :wat::core::Vector<wat::core::i64>)")
+                eval_expr("(:wat::core::keyword/to-string :wat::core::Vector)")
                     .unwrap()
             ),
-            "wat::core::Vector<wat::core::i64>"
+            "wat::core::Vector"
         );
     }
 
@@ -40335,12 +40343,19 @@ mod tests {
 
     #[test]
     fn keyword_reflection_round_trip() {
+        // Arc 109 "annihilate the angle bracket" — the third case used a
+        // parametric keyword literal; see the comment on
+        // `keyword_to_string_strips_leading_colon` above for why a
+        // parametric type cannot be spelled as a single Keyword any more.
+        // The subject (round-trip through a multi-segment `::` path) is
+        // unaffected, so it keeps exercising a plain multi-segment
+        // keyword instead.
         let cases = [
             (":foo", "foo"),
             (":wat::core::i64", "wat::core::i64"),
             (
-                ":wat::kernel::Receiver<wat::core::i64>",
-                "wat::kernel::Receiver<wat::core::i64>",
+                ":wat::kernel::Receiver",
+                "wat::kernel::Receiver",
             ),
         ];
         for (kw, expected_text) in &cases {

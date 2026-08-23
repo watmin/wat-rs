@@ -12,7 +12,7 @@
 
 (:wat::core::defsurface :t::Maker
   :nature :wat::core::Struct
-  :features [(make<T> [self <- :t::Maker  x <- :T] -> :T)])
+  :features [(make :- [T] [self <- :t::Maker  x <- :T] -> :T)])
 
 (:wat::core::defrecord :t::Id [tag <- :wat::core::i64])
 

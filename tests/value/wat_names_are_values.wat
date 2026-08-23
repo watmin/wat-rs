@@ -29,7 +29,7 @@
 
 ;; ─── Test 3: polymorphic named define instantiates at use site ───────────────
 
-(:wat::core::defn :t::test3-identity<T> [x <- :T] -> :T x)
+(:wat::core::defn :t::test3-identity :- [T] [x <- :T] -> :T x)
 
 (:wat::core::defn :t::test3-apply
   [f <- :wat::core::Fn(wat::core::i64)->wat::core::i64

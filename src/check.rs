@@ -21774,8 +21774,10 @@ mod tests {
     fn user_parametric_define_passes() {
         // Identity: ∀T. T -> T. Body returns x, which has type T.
         // With rigid type variables, x: T unifies with ret: T.
+        // Arc 109 "annihilate the angle bracket" — the declaration-name
+        // suffix `id<T>` is class-A (γ-i's binder); migrate to `:-`.
         assert!(check(
-            r#"(:wat::core::defn :my::app::id<T> [x <- :T] -> :T x)"#
+            r#"(:wat::core::defn :my::app::id :- [T] [x <- :T] -> :T x)"#
         )
         .is_ok());
     }
@@ -21785,7 +21787,7 @@ mod tests {
         // Declared ret T; body returns an :i64 constant. Rigid T
         // doesn't unify with :i64.
         let err = check(
-            r#"(:wat::core::defn :my::app::bad<T> [x <- :T] -> :T 42)"#,
+            r#"(:wat::core::defn :my::app::bad :- [T] [x <- :T] -> :T 42)"#,
         )
         .unwrap_err();
         assert!(err.0.iter().any(|e| matches!(e, CheckError { kind: CheckErrorKind::ReturnTypeMismatch { .. }, .. })));

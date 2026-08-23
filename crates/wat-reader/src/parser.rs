@@ -834,14 +834,19 @@ mod tests {
     fn internal_colons_lex_as_single_keyword() {
         // Under the colon-quote model, `:` is the symbol-literal reader
         // macro — one leading `:` marks the start; internal `::` is
-        // just the Rust path separator, pushed as body characters.
+        // just the Rust path separator, pushed as body characters. This
+        // is about `::`, not about angle brackets — the `<T>` on the
+        // second case was incidental (arc 109 class-1 rule: a real
+        // subject that is NOT the type-head permission must survive).
+        // Angle brackets are gone, so the input drops the now-illegal
+        // generic suffix and keeps testing internal `::`.
         assert_eq!(
             crate::parse_one!(":wat::load-file!").unwrap(),
             kw(":wat::load-file!")
         );
         assert_eq!(
-            crate::parse_one!(":rust::crossbeam_channel::Sender<T>").unwrap(),
-            kw(":rust::crossbeam_channel::Sender<T>")
+            crate::parse_one!(":rust::crossbeam_channel::Sender").unwrap(),
+            kw(":rust::crossbeam_channel::Sender")
         );
     }
 
@@ -971,11 +976,24 @@ mod tests {
 
     #[test]
     fn parametric_keyword_survives_in_call() {
+        // Arc 109 "annihilate the angle bracket" — THE PERMISSION IS
+        // GONE: `:Vec<T>` no longer survives ANYWHERE, including as an
+        // argument keyword in a call form. Re-pointed as a refusal
+        // control: the lex error surfaces through the parser as
+        // `ParseErrorKind::Lex`, same mechanism as
+        // `lex_error_surfaces_as_parse_error` above.
         let src = "(foo :Vec<T>)";
-        assert_eq!(
-            crate::parse_one!(src).unwrap(),
-            list(vec![sym("foo"), kw(":Vec<T>")])
-        );
+        let e = crate::parse_one!(src).unwrap_err();
+        assert!(matches!(
+            e,
+            ParseError {
+                kind: ParseErrorKind::Lex(LexError {
+                    kind: crate::lexer::LexErrorKind::AngleTypeHeadInName,
+                    ..
+                }),
+                ..
+            }
+        ));
     }
 
     // ─── Stone 251.8a-ii — the $bound namespace is unforgeable ──────────

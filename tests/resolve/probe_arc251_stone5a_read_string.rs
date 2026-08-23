@@ -25,9 +25,24 @@ fn contract_01_read_string_returns_walkable_forms() {
 
 #[test]
 fn contract_02_read_string_reads_the_dirty_surface() {
-    assert_eq!(
-        eval_bool(":user::c02"),
-        Ok(true),
-        "read-string must read the dirty pre-251.5 surface (Vector<…>) the EDN reader can't"
+    // Arc 109 wave 2 "annihilate the angle bracket" — THE PERMISSION IS GONE. This
+    // contract's whole subject WAS the angle form: that `read-string` could read a
+    // "dirty" pre-251.5 `Vector<...>` spelling the strict EDN reader refused. The
+    // lexer wall (this stone) refuses `<` in a name universally — `read-string` shares
+    // the same lexer as everything else — so there is no longer any surface `read-
+    // string` reads that a stricter reader wouldn't also refuse; the whole
+    // "dirty surface" `read-string` existed partly to read is gone. Class 3 (b):
+    // re-pointed as a refusal control on the mechanism that actually fires now.
+    //
+    // The fixture's `ReadOutcome::Malformed` arm calls `(:wat::core::Error/message
+    // __cause)` on a `:wat::edn::ForeignRecord` with no `message` surface method, so
+    // the lex refusal surfaces as an unrelated `UnknownFunction` crash rather than a
+    // clean error — a SEPARATE, already-documented defect (DESIGN-STONE-annihilate-
+    // the-angle-bracket.md's sequencing section), out of this stone's boundary.
+    // Asserting the crash's mechanism, not a made-up clean message.
+    let err = eval_bool(":user::c02").expect_err("angle-bracket source must fail to read");
+    assert!( // rune:lint(loose-assert) — targeted substring: the read-string crash's mechanism, not the whole located error's structure
+        err.contains("ForeignRecord") && err.contains("message"),
+        "expected the read-string/ForeignRecord crash (see comment above); got: {err}"
     );
 }

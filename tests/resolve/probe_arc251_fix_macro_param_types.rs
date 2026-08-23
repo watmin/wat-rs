@@ -14,6 +14,12 @@ use wat::runtime::Value;
 fn fix_macro_param_types_rewrites_defmacro_only_comment_faithful() {
     // just-eval (rubric): the fix-macro-param-types call lives in the co-located fixture's
     // `:user::run`, driven via `call_beside_value`.
+    //
+    // Arc 109 wave 2 class 3 (a) — the fixture's rest-param annotation used to read
+    // `:AST<wat::holon::Holons>`; that angle text is now refused at the lexer, before
+    // `fix-macro-param-types`'s own `read-string` call ever runs. See the fixture's
+    // comment for why swapping in a plain keyword there is a faithful (a) migration,
+    // not a weakened one: the rewrite rule discards the old type's content entirely.
     let out = match call_beside_value(file!(), ":user::run") {
         Ok(Value::String(s)) => (*s).clone(),
         other => panic!("expected migrated source String; got {other:?}"),

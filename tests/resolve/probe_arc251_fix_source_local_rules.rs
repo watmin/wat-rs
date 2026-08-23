@@ -34,15 +34,25 @@ fn contract_02_post_arrow_scalar_type() {
 
 #[test]
 fn contract_03_structural_parametric_type() {
-    // Arc 109 ③ — angle brackets are ILLEGAL for types now; the fixture's C03 source embeds
-    // `Vector<i64>`, which `wat/fix.wat`'s converter renders through the SAME walled
-    // `keyword/to-type-form` `probe_arc251_keyword_to_type_form.rs`'s contracts 02-05/08 hit —
-    // there is no other keyword-string spelling for a parametric type to migrate FROM any
-    // more, so the refusal itself is the coverage.
-    let err = eval_string(":user::c03").expect_err("angle-bracket parametric type must be REFUSED");
-    assert!( // rune:lint(loose-assert) — targeted substring: asserting the angle-bracket wall fired, not the whole located TypeError's structure
-        err.contains("angle-bracket parametric types are illegal"),
-        "expected the angle-bracket wall's reason; got: {err}"
+    // Arc 109 ③ (a PRIOR stone) walled the TYPE PARSER, so C03 used to prove `Vector<i64>`
+    // got refused by `keyword/to-type-form` with "angle-bracket parametric types are
+    // illegal". Arc 109 wave 2 (THIS stone) walls the LEXER, one door earlier:
+    // `:user::topform`'s `read-string` on `"[x <- :wat::core::Vector<wat::core::i64>]"`
+    // now fails at the READER, before `fix-source`/`keyword/to-type-form` ever run — and
+    // `:user::topform`'s `ReadOutcome::Malformed` arm calls `(:wat::core::Error/message
+    // __cause)` on a `:wat::edn::ForeignRecord` with no `message` surface method, so the
+    // read-string path crashes with an unrelated `UnknownFunction` before it can report
+    // the lex refusal cleanly. That crash is a SEPARATE, already-documented defect
+    // (DESIGN-STONE-annihilate-the-angle-bracket.md's sequencing section; identical to
+    // `probe_arc251_decl_migrator.rs`'s `c03`) — out of this stone's boundary.
+    //
+    // Class 3 (b) — re-pointed as a refusal control on the mechanism that now actually
+    // fires. Also (c): the parametric-target case `keyword/to-type-form` exists to parse
+    // is unreachable input from here on — purge candidate for the sibling stone.
+    let err = eval_string(":user::c03").expect_err("angle-bracket source must fail to read");
+    assert!( // rune:lint(loose-assert) — targeted substring: the read-string crash's mechanism, not the whole located error's structure
+        err.contains("ForeignRecord") && err.contains("message"),
+        "expected the read-string/ForeignRecord crash (see comment above); got: {err}"
     );
 }
 

@@ -33,11 +33,18 @@ fn roundtrips(src: &str) -> bool {
 
 #[test]
 fn contract_01_edn_roundtrip_is_faithful() {
-    // A representative slice of the surface the sweep touches.
+    // A representative slice of the surface the sweep touches. Arc 109 wave 2
+    // "annihilate the angle bracket" — the parametric type on `xs` used to be spelled
+    // `:wat::core::Vector<wat::core::i64>` (a single keyword); that spelling is
+    // refused at the lexer now. The angle bracket was pure decoration for THIS test's
+    // subject (an EDN round-trip identity over a representative program) — it never
+    // tested anything angle-specific — so the input is migrated to the surviving `:-`
+    // reference form, which is if anything MORE representative of "the surface the
+    // sweep touches" post-migration. Class 3 (a): subject survives.
     let program = r#"
         (:wat::core::defn :user::inc [x <- :wat::core::i64] -> :wat::core::i64
           (:wat::core::i64::+ x 1))
-        (:wat::core::defn :user::sum [xs <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
+        (:wat::core::defn :user::sum [xs <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::i64
           (:wat::core::foldl :wat::core::i64::+ 0 xs))
         (:wat::core::def :user::table
           (:wat::core::HashMap-new))

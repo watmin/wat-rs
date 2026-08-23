@@ -206,45 +206,65 @@
 ;; leaf-edits — a keyword leaf gets ONE edit iff `:user::angle-shaped-keyword?` (structural,
 ;; string-based — unaffected by the wall). `prev-decl-head?` (threaded by seq-edits) picks
 ;; render-decl over render-ref.
+;;
+;; call-head? (Arc 109 fence): true iff this node sits at index 0 of a `list` container —
+;; that is a CALL HEAD, e.g. `(:test::make-3tuple<T> args)` (class D) or a method-member
+;; name `(make<T> [self] -> :T)` (class C). Neither role is a REFERENCE, and this codemod
+;; only knows DECL-NAME and REFERENCE — measured (DESIGN-STONE-annihilate-the-angle-bracket.md)
+;; to double-colon the arg and emit a form standing where a callable head goes, which then
+;; fails ArityMismatch. Rather than silently emit that illegal shape again on every future
+;; run, REFUSE loudly and point at the hand-fix step. Class D/C sites are hand-fixed per
+;; BRIEF-STONE-annihilate-the-angle-bracket.md STEP 2, never routed through this codemod.
 (:wat::core::defn :user::leaf-edits
   [node  <- :wat::WatAST
    lines <- (:wat::core::Vector :- [:wat::core::String])
-   prev-decl-head? <- :wat::core::bool]
+   prev-decl-head? <- :wat::core::bool
+   call-head? <- :wat::core::bool]
   -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::if (:user::angle-shaped-keyword? node)
-    (:wat::core::let [nm      (:wat::core::ast-name node)
-                       text    (:wat::core::if prev-decl-head?
-                                 (:user::render-decl nm)
-                                 (:user::render-ref nm))
-                       span    (:wat::core::ast-span node)
-                       off     (:wat::fix::fix-text-offset-of span lines)
-                       old-len (:wat::core::string::length nm)]
-      (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])
-        (:wat::core::Tuple off old-len text)))
+    (:wat::core::if call-head?
+      (:wat::kernel::assertion-failed!
+        (:wat::core::string::interpolate
+          "angle-brackets-to-binder: refusing call-head site `{n}` — a call-site type application (class D) or method-member name (class C) has no REFERENCE-role render (it is not a callable/name, a form is not a name). Hand-fix it per BRIEF-STONE-annihilate-the-angle-bracket.md STEP 2 instead of running this codemod over it."
+          :n (:wat::core::ast-name node))
+        :wat::core::None :wat::core::None)
+      (:wat::core::let [nm      (:wat::core::ast-name node)
+                         text    (:wat::core::if prev-decl-head?
+                                   (:user::render-decl nm)
+                                   (:user::render-ref nm))
+                         span    (:wat::core::ast-span node)
+                         off     (:wat::fix::fix-text-offset-of span lines)
+                         old-len (:wat::core::string::length nm)]
+        (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])
+          (:wat::core::Tuple off old-len text))))
     (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))))
 
 (:wat::core::defn :user::node-edits
   [node  <- :wat::WatAST
    lines <- (:wat::core::Vector :- [:wat::core::String])
-   prev-decl-head? <- :wat::core::bool]
+   prev-decl-head? <- :wat::core::bool
+   is-first? <- :wat::core::bool
+   parent-kind <- :wat::core::String]
   -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::if (:wat::fix::structural? node)
-    (:user::seq-edits (:wat::core::ast->children node) lines true false)
-    (:user::leaf-edits node lines prev-decl-head?)))
+    (:user::seq-edits (:wat::core::ast->children node) lines true false (:wat::core::ast-kind node))
+    (:user::leaf-edits node lines prev-decl-head?
+      (:wat::core::if is-first? (:wat::core::= parent-kind "list") false))))
 
 (:wat::core::defn :user::seq-edits
   [items           <- (:wat::core::Vector :- [:wat::WatAST])
    lines           <- (:wat::core::Vector :- [:wat::core::String])
    is-first?       <- :wat::core::bool
-   prev-decl-head? <- :wat::core::bool]
+   prev-decl-head? <- :wat::core::bool
+   parent-kind     <- :wat::core::String]
   -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::if (:wat::core::empty? items)
     (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))
     (:wat::core::let [h               (:wat::core::first items)
                        this-decl-head? (:wat::core::if is-first? (:user::declarator-head-keyword? h) false)]
       (:wat::core::concat
-        (:user::node-edits h lines prev-decl-head?)
-        (:user::seq-edits (:wat::core::rest items) lines false this-decl-head?)))))
+        (:user::node-edits h lines prev-decl-head? is-first? parent-kind)
+        (:user::seq-edits (:wat::core::rest items) lines false this-decl-head? parent-kind)))))
 
 (:wat::core::defn :user::convert
   [src <- :wat::core::String]
@@ -255,7 +275,7 @@
                                  ((:wat::core::ReadOutcome::Malformed __cause)
                                    (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)))
                     forms     (:wat::core::ast->children tree)
-                    all-edits (:user::seq-edits forms lines true false)
+                    all-edits (:user::seq-edits forms lines true false "top")
                     rev-edits (:wat::core::reverse all-edits)]
     (:wat::fix::fix-text-apply src rev-edits)))
 

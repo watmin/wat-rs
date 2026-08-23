@@ -1,7 +1,7 @@
 ;; Generic-T 3-tuple — call site WITHOUT explicit <T> turbofish.
 ;; Tests whether check infers T at the call site.
 
-(:wat::core::defn :test::make-3tuple<T> [mid <- :T] -> (:wat::core::Tuple :- [:wat::core::i64 T :wat::core::String]) (:wat::core::Tuple 42 mid "hello"))
+(:wat::core::defn :test::make-3tuple :- [T] [mid <- :T] -> (:wat::core::Tuple :- [:wat::core::i64 T :wat::core::String]) (:wat::core::Tuple 42 mid "hello"))
 
 (:wat::test::deftest :wat-tests::core::generic-tuple-infer
   

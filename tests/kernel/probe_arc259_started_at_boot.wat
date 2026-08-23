@@ -3,7 +3,7 @@
 
 (:wat::core::defn :my::assert-started-at [] -> :wat::core::nil
   (:wat::core::do
-    (:wat::test::assert-eq<:wat::core::i64>
+    (:wat::test::assert-eq
       (:wat::time::epoch-seconds
         (:wat::program::Env/started-at (:wat::program::env)))
       1000)

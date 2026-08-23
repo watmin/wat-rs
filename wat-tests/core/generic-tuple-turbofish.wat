@@ -12,13 +12,13 @@
 ;; dispatch, resolve.rs is_resolvable_call_head, and check.rs's
 ;; infer_list scheme lookup. Symmetric strip; this test now passes.
 
-(:wat::core::defn :test::make-3tuple<T> [mid <- :T] -> (:wat::core::Tuple :- [:wat::core::i64 T :wat::core::String]) (:wat::core::Tuple 42 mid "hello"))
+(:wat::core::defn :test::make-3tuple :- [T] [mid <- :T] -> (:wat::core::Tuple :- [:wat::core::i64 T :wat::core::String]) (:wat::core::Tuple 42 mid "hello"))
 
 (:wat::test::deftest :wat-tests::core::generic-tuple-turbofish
   
   (:wat::core::let
     [triple
-      (:test::make-3tuple<wat::core::bool> true)
+      (:test::make-3tuple true)
      a (:wat::core::first triple)
      b (:wat::core::second triple)
      c (:wat::core::third triple)

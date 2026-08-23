@@ -55,23 +55,32 @@ fn letstar_result_no_whitespace_tuple_payload() {
     }
 }
 
-/// Whitespace inside `:<...>` now raises a clean lex-layer error
-/// instead of silently truncating into a downstream type-check
-/// failure. This is the diagnostic improvement that makes proof-018-
-/// shape debugging tractable.
+/// **RE-POINTED, arc 109 "annihilate the angle bracket".** This test's
+/// original subject — whitespace inside an OPEN `<...>` type head raising
+/// `UnclosedBracketInKeyword` — no longer exists: `<` opening a type head at
+/// all is now refused at the reader, before the lexer ever reaches the
+/// interior of the fixture's `HashMap<String >`. The clean-lex-error claim
+/// still holds (this remains a lex-layer error, not a downstream "fresh var
+/// unsolved"); only the mechanism moved from the whitespace rule to the arc
+/// 109 wall. Assert the MECHANISM, not the whole diagnostic (fixture-fragile
+/// byte offset) — arc 109's own precedent.
 #[test]
 fn whitespace_inside_angle_brackets_raises_clean_lex_error() {
     let result = startup_from_file(
         "tests/wat_lang/wat_arc072_letstar_parametric_whitespace.wat.bad",
     );
     let err = result
-        .map(|_| panic!("expected lex error on `:HashMap<String, i64>`"))
-        .unwrap_err();
+        .map(|_| ())
+        .expect_err("expected the angle-bracket type head on `:HashMap<String, i64>` to be refused");
     let err_msg = format!("{}", err);
-    wat::assert_edn_matches_file!(
-        err_msg,
-        "wat_arc072_letstar_parametric__whitespace_inside_angle_brackets_raises_clean_lex_error.edn",
-        "expected exact lex-layer diagnostic for whitespace inside unclosed bracket"
+    // rune:lint(loose-assert) — targeted PRESENCE over a large structured diagnostic; the
+    // assertion names the MECHANISM (the arc 109 wall), the whole claim this re-pointed test
+    // makes. An exact-match golden would pin the lex error's byte offset and re-break on every
+    // unrelated edit to the fixture — same reasoning as probe_arc232_generic_method_type_
+    // application.rs's precedent.
+    assert!(
+        err_msg.contains("annihilate the angle bracket"),
+        "must be refused by the arc 109 angle wall, at the lex layer; got: {err_msg}"
     );
 }
 

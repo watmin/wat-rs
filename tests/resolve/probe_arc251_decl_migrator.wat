@@ -85,7 +85,7 @@
 (:wat::core::defn :user::c01 [] -> :wat::core::String
   (:wat::core::write-forms (:migrate::fix-form (:user::topform "(:wat::core::typealias :svc::Alias :wat::core::i64)"))))
 (:wat::core::defn :user::c02 [] -> :wat::core::String
-  (:wat::core::write-forms (:migrate::fix-form (:user::topform "(:wat::core::defn :my::ns::map<T> [x <- :T] -> :T x)"))))
+  (:wat::core::write-forms (:migrate::fix-form (:user::topform "(:wat::core::defn :my::ns::identity [x <- :i64] -> :i64 x)"))))
 (:wat::core::defn :user::c03 [] -> :wat::core::String
   (:wat::core::write-forms (:migrate::fix-form (:user::topform "(:wat::core::typealias :Foo<T> :wat::core::Vector<wat::core::i64>)"))))
 (:wat::core::defn :user::c04 [] -> :wat::core::String

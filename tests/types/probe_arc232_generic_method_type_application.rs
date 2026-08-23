@@ -7,8 +7,14 @@
 //!
 //! **Arc 109 "the comma dies in the reader" retired the spelling itself.** A comma can never
 //! appear in a keyword body, at any depth — and `:user::Mk/mk<i64,i64>` is a keyword whose body
-//! carries one. The construct is a LEX error now, raised before any resolution or
-//! type-application logic runs, so `canonical_callable_name`'s strip is unreachable from source.
+//! carries one. The construct was a LEX error, raised before any resolution or type-application
+//! logic runs, so `canonical_callable_name`'s strip is unreachable from source.
+//!
+//! **RE-POINTED, arc 109 "annihilate the angle bracket".** `<` opening a type head at all is now
+//! refused at the FIRST `<` — before the lexer ever reaches the comma inside `mk<i64,i64>`. This
+//! fixture's subject is the callable turbofish; it is still refused at the READER, one step
+//! earlier than before (the angle wall fires ahead of the comma wall for this exact shape). The
+//! assertion below moves with it — mechanism, not diagnostic.
 //!
 //! Why the spelling had to go, and it is not about the brackets: **`,` is whitespace in EDN and in
 //! wat** — `(:wat::core::Vector :- [:i64] 1, 2, 3)` reads as `[1 2 3]`. `Head<K,V>` was the only
@@ -30,13 +36,17 @@ fn the_callable_turbofish_is_refused_by_the_reader() {
         .expect_err("the turbofish `:user::Mk/mk<i64,i64>` must be REFUSED — arc 109");
     let msg = format!("{err:?}");
     // rune:lint(loose-assert) — a targeted PRESENCE over a large structured diagnostic. The
-    // assertion names the MECHANISM (the comma, not the brackets), which is the whole claim of
-    // arc 109's kill strike. An exact-match golden would pin the lex error's byte offset and
-    // re-break on every unrelated edit to the fixture.
+    // assertion names the MECHANISM, which is the whole claim of arc 109's kill strike. An
+    // exact-match golden would pin the lex error's byte offset and re-break on every unrelated
+    // edit to the fixture.
+    //
+    // RE-POINTED (annihilate-the-angle-bracket): `<` opening a type head is now refused at the
+    // FIRST `<`, before the lexer ever reaches the comma — so this fixture no longer exercises
+    // "comma inside keyword body retired" at all; it trips the angle wall one step earlier.
     assert!(
-        msg.contains("comma inside keyword body retired"),
-        "must be refused for the COMMA specifically — that is the EDN violation the strike closed, \
-         not the angle brackets. got: {msg}"
+        msg.contains("annihilate the angle bracket"),
+        "must be refused by the arc 109 angle wall — the turbofish `<` is refused before the \
+         comma is ever reached. got: {msg}"
     );
 }
 

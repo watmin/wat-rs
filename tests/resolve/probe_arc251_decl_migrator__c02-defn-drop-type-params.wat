@@ -1,1 +1,1 @@
-(wat.core/defn my.ns/map [x :- T] :- T x)
+(wat.core/defn my.ns/identity [x :- wat.type/i64] :- wat.type/i64 x)

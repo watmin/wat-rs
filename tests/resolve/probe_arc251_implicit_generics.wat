@@ -1,4 +1,4 @@
-(:wat::core::defn :user::pair-first<T> [a <- :T b <- :T] -> :T a)
+(:wat::core::defn :user::pair-first :- [T] [a <- :T b <- :T] -> :T a)
 (:wat::core::defn :user::probe-f02 [] -> :wat::core::i64 (:user::pair-first 1 2))
 (:wat::core::defn :user::pair-first2 [a <- :T b <- :T] -> :T a)
 (:wat::core::defn :user::probe-bare [] -> :wat::core::i64 (:user::pair-first2 1 2))

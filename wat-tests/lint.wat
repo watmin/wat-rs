@@ -174,21 +174,32 @@
     (:wat::test::assert-eq (:wat::core::length findings) 0)))
 
 ;; ─── Case 8: rename-keyword-prefix — type-arg reach + boundary guard (arc 283.1) ───
+;;
+;; Arc 109 wave 2 "annihilate the angle bracket" — the source string below used to be
+;; `:wat::core::Vector<t::Old>`, and the angle form is gone from the language, so the
+;; string a runtime `read-string` receives (rename-keyword-prefix reads its own `src`
+;; the same way) had to move with it. Same finding as `probe_arc283_1_rename_typearg`
+;; (already handled ahead of this stone): in `(:wat::core::Vector :- [:t::Old])` the
+;; type argument is an ordinary keyword LEAF, not a name embedded inside another
+;; keyword's text, so the boundary-aware embedded rename reaches it by plain
+;; start-anchored matching — the embedding this case's TYPE-ARG assertion existed to
+;; prove no longer exists. The return-type / accessor / boundary-decoy assertions are
+;; untouched by the angle bracket and survive as-is.
 
 (:wat::test::deftest :wat-tests::lint::rename-keyword-prefix-type-arg-and-boundary
-  
+
   ;; Renaming :t::Old → :t::New over a source with:
-  ;;   - a TYPE-ARG  (Vector<t::Old>)    — must rename → Vector<t::New>
-  ;;   - a return type (:t::Old)          — must rename → :t::New
-  ;;   - an accessor (:t::Old/make)       — must rename → :t::New/make
-  ;;   - a boundary DECOY (:t::OldExtra)  — must NOT rename (boundary guard)
+  ;;   - a TYPE-ARG  (Vector :- [t::Old])  — must rename → Vector :- [t::New]
+  ;;   - a return type (:t::Old)           — must rename → :t::New
+  ;;   - an accessor (:t::Old/make)        — must rename → :t::New/make
+  ;;   - a boundary DECOY (:t::OldExtra)   — must NOT rename (boundary guard)
   (:wat::core::let
-    [src "(:wat::core::defn :u::f [xs <- :wat::core::Vector<t::Old> y <- :t::OldExtra] -> :t::Old (:t::Old/make xs))"
+    [src "(:wat::core::defn :u::f [xs <- (:wat::core::Vector :- [:t::Old]) y <- :t::OldExtra] -> :t::Old (:t::Old/make xs))"
      result (:wat::fix::rename-keyword-prefix ":t::Old" ":t::New" src)]
     (:wat::core::do
       ;; type-arg must rename
       (:wat::test::assert-true
-        (:wat::core::string::contains? result "Vector<t::New>"))
+        (:wat::core::string::contains? result "(:wat::core::Vector :- [:t::New])"))
       ;; return type must rename
       (:wat::test::assert-true
         (:wat::core::string::contains? result "-> :t::New "))
@@ -200,7 +211,7 @@
         (:wat::core::string::contains? result ":t::OldExtra"))
       ;; old type-arg form must be gone
       (:wat::test::assert-false
-        (:wat::core::string::contains? result "Vector<t::Old>")))))
+        (:wat::core::string::contains? result "(:wat::core::Vector :- [:t::Old])")))))
 
 ;; ─── Case 8: concat-format-fix — bare-symbol rewrites to format; compound stays; dedup ────
 

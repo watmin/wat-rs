@@ -4,7 +4,7 @@
 (:wat::core::defn :probe::takes-1 [f <- :wat::core::Fn(wat::core::i64)->wat::core::i64] -> :wat::core::i64
   (f 3))
 
-(:wat::core::defn :probe::takes-generic<W> [f <- :W] -> :wat::core::i64 7)
+(:wat::core::defn :probe::takes-generic :- [W] [f <- :W] -> :wat::core::i64 7)
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

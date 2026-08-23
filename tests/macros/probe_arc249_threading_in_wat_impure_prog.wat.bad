@@ -1,5 +1,5 @@
-(:wat::core::defmacro :test::impure-prog [] -> :AST<wat::holon::HolonAST>
-  (:wat::core::if (:wat::core::= 1 1) -> :AST<wat::holon::HolonAST>
+(:wat::core::defmacro :test::impure-prog [] -> (:AST :- [:wat::holon::HolonAST])
+  (:wat::core::if (:wat::core::= 1 1) -> (:AST :- [:wat::holon::HolonAST])
     `(:wat::core::not ~(:wat::kernel::stopped?))
     `false))
 (:wat::core::defn :user::probe [] -> :wat::core::bool (:test::impure-prog))

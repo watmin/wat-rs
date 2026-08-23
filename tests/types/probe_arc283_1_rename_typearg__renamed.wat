@@ -1,1 +1,1 @@
-(:wat::core::defn :u::f [xs <- :wat::core::Vector<t::New> y <- :t::OldExtra] -> :t::New (:t::New/make xs))
+(:wat::core::defn :u::f [xs <- (:wat::core::Vector :- [:t::New]) y <- :t::OldExtra] -> :t::New (:t::New/make xs))

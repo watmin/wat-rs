@@ -1,1 +1,0 @@
-[x :- (wat.type/Vector :- [wat.type/i64])]

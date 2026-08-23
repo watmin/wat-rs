@@ -121,10 +121,19 @@ fn contract_06_non_keyword_at_type_slot() {
 
 #[test]
 fn contract_07_rest_binder_rejected() {
-    // [x <- :wat::core::i64 & rest <- :wat::core::Vector<:wat::core::i64>]
+    // [x <- :wat::core::i64 & rest <- (:wat::core::Vector :- [:wat::core::i64])]
     // with allow_rest_binder=false → must error explicitly (rest support is Stone 241.4).
+    // Arc 109 wave 2 "annihilate the angle bracket" — the rest param's type used to be
+    // spelled `:wat::core::Vector<:wat::core::i64>` (a single keyword); `parse_one!`
+    // (used by `parse_vector_items` above, at Rust-compile-embedded-source level) now
+    // refuses that angle text at the reader before this test's own subject (rejection on
+    // the STRUCTURE of a disallowed `&` rest binder) ever runs. The type is decoration —
+    // `RestBinderNotSupported` fires on the presence of `&` with `allow_rest_binder:
+    // false`, independent of what the rest param's type is — so the fixture migrates to
+    // the surviving `:-` reference form. Class 1-style rule applied here too: a real
+    // subject that is NOT the type-head permission must survive.
     let result = parse_triples(
-        "[x <- :wat::core::i64 & rest <- :wat::core::Vector<:wat::core::i64>]", // rune:lint(no-inlined-edn) — input under test: argspec source fed to the parser
+        "[x <- :wat::core::i64 & rest <- (:wat::core::Vector :- [:wat::core::i64])]", // rune:lint(no-inlined-edn) — input under test: argspec source fed to the parser
         false,
     );
     let err = result.expect_err("& rest-binder must error when disallowed");

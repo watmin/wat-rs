@@ -1,3 +1,3 @@
 ;; tests/program/wat_arc170_slice_1e_user_main_nil_slice2_4arg.wat — arc-170-slice-2 4-arg :user::main.
 ;; NEGATIVE fixture: expected to fail freeze with BareLegacyMainSignature walker diagnostic.
-(:wat::core::defn :user::main [stdin <- :wat::io::IOReader stdout <- :wat::io::IOWriter stderr <- :wat::io::IOWriter argv <- :wat::core::Vector<wat::core::String>] -> :wat::kernel::ExitCode (:wat::core::u8 0))
+(:wat::core::defn :user::main [stdin <- :wat::io::IOReader stdout <- :wat::io::IOWriter stderr <- :wat::io::IOWriter argv <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::kernel::ExitCode (:wat::core::u8 0))
