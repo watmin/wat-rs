@@ -40,8 +40,9 @@ pub const PROMOTION_THRESHOLD: usize = 8;
 #[derive(Debug, Clone)]
 pub enum PMap {
     /// `<= PROMOTION_THRESHOLD` entries, insertion-ordered, linear scan. No HAMT allocation.
+    /// Slice, not `Vec`: one-entry harvest is one alloc (`DESIGN-STONE-harvest-wrap-split`).
     /// The `u64` is a rust intern: clone-stable, ignored by `Eq`/`Hash`.
-    Array(Arc<Vec<(Value, Value)>>, u64),
+    Array(Arc<[(Value, Value)]>, u64),
     /// Above the threshold — the prior representation, unchanged.
     /// The `u64` is a rust intern: clone-stable, ignored by `Eq`/`Hash`.
     Trie(rpds::HashTrieMapSync<Value, Value>, u64),
@@ -55,7 +56,7 @@ impl Default for PMap {
 
 impl PMap {
     pub fn new() -> Self {
-        PMap::Array(Arc::new(Vec::new()), next_intern())
+        PMap::Array(Arc::from([]), next_intern())
     }
 
     /// Clone-stable rust identity. Copied on `clone`; minted on every
@@ -79,7 +80,7 @@ impl PMap {
             return PMap::new();
         };
         let Some(second) = iter.next() else {
-            return PMap::Array(Arc::new(vec![first]), next_intern());
+            return PMap::Array(Arc::from([first]), next_intern());
         };
         let mut acc: Vec<(Value, Value)> = Vec::new();
         acc.push(first);
@@ -96,7 +97,7 @@ impl PMap {
             }
             PMap::Trie(t, next_intern())
         } else {
-            PMap::Array(Arc::new(acc), next_intern())
+            PMap::Array(Arc::from(acc), next_intern())
         }
     }
 
@@ -135,9 +136,9 @@ impl PMap {
         match self {
             PMap::Array(entries, _) => {
                 if let Some(i) = entries.iter().position(|(ek, _)| *ek == k) {
-                    let mut next = (**entries).clone();
+                    let mut next = entries.to_vec();
                     next[i].1 = v;
-                    return PMap::Array(Arc::new(next), next_intern());
+                    return PMap::Array(Arc::from(next), next_intern());
                 }
                 if entries.len() + 1 > PROMOTION_THRESHOLD {
                     let mut t = rpds::HashTrieMapSync::new_sync();
@@ -147,9 +148,9 @@ impl PMap {
                     t.insert_mut(k, v);
                     return PMap::Trie(t, next_intern());
                 }
-                let mut next = (**entries).clone();
+                let mut next = entries.to_vec();
                 next.push((k, v));
-                PMap::Array(Arc::new(next), next_intern())
+                PMap::Array(Arc::from(next), next_intern())
             }
             PMap::Trie(t, _) => {
                 let mut next = t.clone();
@@ -174,7 +175,7 @@ impl PMap {
             PMap::Array(entries, _) => {
                 let mut next: Option<Vec<(Value, Value)>> = None;
                 for (k, v) in pairs {
-                    let vec = next.get_or_insert_with(|| (**entries).clone());
+                    let vec = next.get_or_insert_with(|| entries.to_vec());
                     match vec.iter_mut().find(|(ek, _)| *ek == k) {
                         Some(slot) => slot.1 = v,
                         None => vec.push((k, v)),
@@ -190,7 +191,7 @@ impl PMap {
                             }
                             PMap::Trie(t, next_intern())
                         } else {
-                            PMap::Array(Arc::new(vec), next_intern())
+                            PMap::Array(Arc::from(vec), next_intern())
                         }
                     }
                 }
@@ -216,9 +217,9 @@ impl PMap {
             PMap::Array(entries, _) => match entries.iter().position(|(ek, _)| ek == k) {
                 None => self.clone(),
                 Some(i) => {
-                    let mut next = (**entries).clone();
+                    let mut next = entries.to_vec();
                     next.remove(i);
-                    PMap::Array(Arc::new(next), next_intern())
+                    PMap::Array(Arc::from(next), next_intern())
                 }
             },
             PMap::Trie(t, _) => {
@@ -249,7 +250,11 @@ impl PMap {
     pub fn from_trie(t: rpds::HashTrieMapSync<Value, Value>) -> Self {
         if t.size() <= PROMOTION_THRESHOLD {
             PMap::Array(
-                Arc::new(t.iter().map(|(k, v)| (k.clone(), v.clone())).collect()),
+                Arc::from(
+                    t.iter()
+                        .map(|(k, v)| (k.clone(), v.clone()))
+                        .collect::<Vec<_>>(),
+                ),
                 next_intern(),
             )
         } else {
@@ -326,7 +331,7 @@ mod tests {
     /// Same entries, forced into each arm, so every law below is checked ACROSS representations.
     fn both_arms(n: i64) -> (PMap, PMap) {
         let pairs: Vec<(Value, Value)> = (0..n).map(|i| (k(i), k(i * 10))).collect();
-        let array = PMap::Array(Arc::new(pairs.clone()), next_intern());
+        let array = PMap::Array(Arc::from(pairs.clone()), next_intern());
         let mut t = rpds::HashTrieMapSync::new_sync();
         for (kk, vv) in pairs {
             t.insert_mut(kk, vv);

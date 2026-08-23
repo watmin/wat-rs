@@ -3979,6 +3979,101 @@ fn out_query_cost_split() {
     );
 }
 
+/// Apportion harvest:query (7.69 ms / 40k) into scan vs wrap
+/// (`DESIGN-STONE-harvest-wrap-split`). No fire-path change.
+#[test]
+fn harvest_wrap_split() {
+    use std::hint::black_box;
+    use std::time::Instant;
+
+    const N: usize = 40_000;
+    const RUNS: usize = 3;
+    const CLASS: &str = "fan::Pair";
+
+    let var = Value::String(Arc::new("?fact".to_string()));
+    let names = Arc::new(vec!["key".into(), "lid".into(), "rid".into()]);
+    let facts: Vec<Value> = (0..N)
+        .map(|i| {
+            Value::Aggregate(Arc::new(AggregateValue::record(
+                CLASS.into(),
+                names.clone(),
+                Arc::new(vec![Value::i64(i as i64), Value::i64(1), Value::i64(2)]),
+            )))
+        })
+        .collect();
+    let pv = crate::value::pvec::PVec::from_vec(facts);
+
+    let matches_class = |f: &Value| match f {
+        Value::Aggregate(a) if a.nature != Nature::Struct => a.class.as_ref() == CLASS,
+        _ => false,
+    };
+
+    fn time_ns(n: usize, mut body: impl FnMut()) -> f64 {
+        let t0 = Instant::now();
+        for _ in 0..n {
+            body();
+        }
+        t0.elapsed().as_nanos() as f64 / n as f64
+    }
+
+    // Warm the same shapes the timed loops will run.
+    {
+        let collected: Vec<&Value> = pv.iter().filter(|f| matches_class(f)).collect();
+        black_box(&collected);
+        let maps: Vec<crate::value::pmap::PMap> = collected
+            .iter()
+            .map(|f| crate::value::pmap::PMap::from_pairs([(var.clone(), (*f).clone())]))
+            .collect();
+        black_box(maps);
+    }
+
+    let mut s = 0.0;
+    let mut w = 0.0;
+    let mut h = 0.0;
+    for _ in 0..RUNS {
+        s += time_ns(1, || {
+            let collected: Vec<&Value> = pv.iter().filter(|f| matches_class(f)).collect();
+            black_box(collected);
+        });
+        let collected: Vec<&Value> = pv.iter().filter(|f| matches_class(f)).collect();
+        w += time_ns(1, || {
+            let maps: Vec<crate::value::pmap::PMap> = collected
+                .iter()
+                .map(|f| crate::value::pmap::PMap::from_pairs([(var.clone(), (*f).clone())]))
+                .collect();
+            black_box(maps);
+        });
+        h += time_ns(1, || {
+            let collected: Vec<&Value> = pv.iter().filter(|f| matches_class(f)).collect();
+            let maps: Vec<crate::value::pmap::PMap> = collected
+                .iter()
+                .map(|f| crate::value::pmap::PMap::from_pairs([(var.clone(), (*f).clone())]))
+                .collect();
+            black_box(maps);
+        });
+    }
+    let runs = RUNS as f64;
+    s /= runs;
+    w /= runs;
+    h /= runs;
+    assert!(h > 0.0, "harvest wrap recorded 0 ns — the loop never ran");
+
+    let ms = |ns: f64| ns / 1e6;
+    println!(
+        "\nharvest wrap split — {N} one-entry maps, mean of {RUNS}\n\
+             unscaled (the cell is 40k)\n\
+             \n\
+             S  scan (filter PVec by class)        {:>7.2} ms\n\
+             W  wrap (from_pairs × 40k)            {:>7.2} ms\n\
+             H  harvest (scan then wrap)           {:>7.2} ms\n\
+             S+W                                   {:>7.2} ms\n",
+        ms(s),
+        ms(w),
+        ms(h),
+        ms(s + w),
+    );
+}
+
 /// Native FIRE rank across the three instrumented cells now that
 /// fanout is dry (`DESIGN-STONE-cell-rank-after-fanout`).
 #[test]
