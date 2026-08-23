@@ -31,7 +31,7 @@
 (:wat::core::defn :my::compute-assertion-failure [] -> :wat::core::i64
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::thread)
-         (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+         (:wat::core::fn [self <- (:wat::kernel::ThreadSelfPeer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
            ;; The child body (assert-eq 1 2) is unchanged; a failing assertion
            ;; crashes the peer BEFORE the completion-signal send' — the parent's
            ;; recv' then faces Lost[cause] (the LociDiedError carrying the

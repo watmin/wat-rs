@@ -1,6 +1,6 @@
 (:wat::core::defmacro :test::kw-of
-  [head <- :wat::holon::HolonAST & args <- :AST<wat::holon::Holons>]
-  -> :AST<wat::holon::HolonAST>
+  [head <- :wat::holon::HolonAST & args <- (:AST :- [:wat::holon::Holons])]
+  -> (:AST :- [:wat::holon::HolonAST])
   (:wat::core::let [head-text (:wat::core::keyword/to-string head)
                     arg-texts (:wat::core::map
                                 (:wat::core::fn [a <- :wat::holon::HolonAST] -> :wat::core::String

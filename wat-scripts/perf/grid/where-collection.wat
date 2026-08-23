@@ -97,15 +97,15 @@
 ;;            (i+a) mod 4, element b = (i+a+b) mod 9                       — row 4/10, the NESTED field
 (:wat::core::defrecord :wc::Item
   [k     <- :wat::core::i64
-   tags  <- :wat::core::PersistentVector<wat::core::i64>
+   tags  <- (:wat::core::PersistentVector :- [:wat::core::i64])
    bound <- :wat::core::i64
-   grid  <- :wat::core::PersistentVector<wat::core::PersistentVector<wat::core::i64>>])
+   grid  <- (:wat::core::PersistentVector :- [(:wat::core::PersistentVector :- [:wat::core::i64])])])
 
 (:wat::core::defrecord :wc::Hit [k <- :wat::core::i64])
 
 ;; row 7's user-defined pure fn over a WHOLE bound collection (not one element of it):
 ;; heavy?(v) := length(v) > 2 AND v contains 7.
-(:wat::rete::core::defn :wc::heavy? [v <- :wat::core::PersistentVector<wat::core::i64>] -> :wat::core::bool
+(:wat::rete::core::defn :wc::heavy? [v <- (:wat::core::PersistentVector :- [:wat::core::i64])] -> :wat::core::bool
   (:wat::rete::core::and
     (:wat::rete::core::i64::> (:wat::rete::core::PersistentVector/length v) 2)
     (:wat::rete::core::PersistentVector/contains? v 7)))
@@ -243,7 +243,7 @@
 
 
 ;; build-rules — THE ROW DISPATCH. An unknown row is a located failure, never a silent fallback.
-(:wat::core::defn :wc::build-rules [row <- :wat::core::i64] -> :wat::core::PersistentVector<wat::rete::Rule>
+(:wat::core::defn :wc::build-rules [row <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
   (:wat::core::PersistentVector
     (:wat::core::cond
       ((:wat::core::= row 1)  (:wc::length-bound))
@@ -262,33 +262,33 @@
           :wat::core::None :wat::core::None)))))
 
 ;; build-tags i -> a PersistentVector<i64> of length (i mod 6), element j = (i + 3j) mod 13.
-(:wat::core::defn :wc::build-tags [i <- :wat::core::i64] -> :wat::core::PersistentVector<wat::core::i64>
+(:wat::core::defn :wc::build-tags [i <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:wat::core::let [len (:wat::core::i64::mod i 6)]
     (:wat::core::foldl
-      (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::i64>  j <- :wat::core::i64]
-                      -> :wat::core::PersistentVector<wat::core::i64>
+      (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::i64])  j <- :wat::core::i64]
+                      -> (:wat::core::PersistentVector :- [:wat::core::i64])
         (:wat::core::PersistentVector/conj acc
           (:wat::core::i64::mod (:wat::core::i64::+ i (:wat::core::i64::* j 3)) 13)))
       (:wat::core::PersistentVector)
       (:wat::core::range 0 len))))
 
 ;; build-inner i a -> a PersistentVector<i64> of length ((i+a) mod 4), element b = (i+a+b) mod 9.
-(:wat::core::defn :wc::build-inner [i <- :wat::core::i64  a <- :wat::core::i64] -> :wat::core::PersistentVector<wat::core::i64>
+(:wat::core::defn :wc::build-inner [i <- :wat::core::i64  a <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:wat::core::let [base (:wat::core::i64::+ i a)
                     len  (:wat::core::i64::mod base 4)]
     (:wat::core::foldl
-      (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::i64>  b <- :wat::core::i64]
-                      -> :wat::core::PersistentVector<wat::core::i64>
+      (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::i64])  b <- :wat::core::i64]
+                      -> (:wat::core::PersistentVector :- [:wat::core::i64])
         (:wat::core::PersistentVector/conj acc (:wat::core::i64::mod (:wat::core::i64::+ base b) 9)))
       (:wat::core::PersistentVector)
       (:wat::core::range 0 len))))
 
 ;; build-grid i -> a PersistentVector<PersistentVector<i64>> of (i mod 3) inner vectors.
-(:wat::core::defn :wc::build-grid [i <- :wat::core::i64] -> :wat::core::PersistentVector<wat::core::PersistentVector<wat::core::i64>>
+(:wat::core::defn :wc::build-grid [i <- :wat::core::i64] -> (:wat::core::PersistentVector :- [(:wat::core::PersistentVector :- [:wat::core::i64])])
   (:wat::core::let [outer-len (:wat::core::i64::mod i 3)]
     (:wat::core::foldl
-      (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::PersistentVector<wat::core::i64>>  a <- :wat::core::i64]
-                      -> :wat::core::PersistentVector<wat::core::PersistentVector<wat::core::i64>>
+      (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [(:wat::core::PersistentVector :- [:wat::core::i64])])  a <- :wat::core::i64]
+                      -> (:wat::core::PersistentVector :- [(:wat::core::PersistentVector :- [:wat::core::i64])])
         (:wat::core::PersistentVector/conj acc (:wc::build-inner i a)))
       (:wat::core::PersistentVector)
       (:wat::core::range 0 outer-len))))
@@ -300,8 +300,8 @@
   (:wat::rete::insert-all
     session
     (:wat::core::foldl
-      (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::Record>  i <- :wat::core::i64]
-                      -> :wat::core::PersistentVector<wat::core::Record>
+      (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  i <- :wat::core::i64]
+                      -> (:wat::core::PersistentVector :- [:wat::core::Record])
         (:wat::core::PersistentVector/conj acc
           (:wc::Item :k i :tags (:wc::build-tags i) :bound (:wat::core::i64::mod i 8) :grid (:wc::build-grid i))))
       (:wat::core::PersistentVector)
@@ -309,7 +309,7 @@
 
 ;; derived-ints fired — every derived Hit's key k, sorted ascending. THE accuracy witness.
 (:wat::core::defn :wc::derived-ints
-  [fired <- :wat::rete::Session] -> :wat::core::Vector<wat::core::i64>
+  [fired <- :wat::rete::Session] -> (:wat::core::Vector :- [:wat::core::i64])
   (:wat::core::sort
     (:wat::core::into (:wat::core::Vector :wat::core::i64)
       (:wat::core::map
@@ -318,7 +318,7 @@
 
 ;; render-ints — " 3 13 23 …". A plain space-joined rendering, NOT the EDN printer — see
 ;; where-shapes.wat's identical helper for why this must not be `:wat::edn::write`.
-(:wat::core::defn :wc::render-ints [v <- :wat::core::Vector<wat::core::i64>] -> :wat::core::String
+(:wat::core::defn :wc::render-ints [v <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::String
   (:wat::core::foldl
     (:wat::core::fn [acc <- :wat::core::String  x <- :wat::core::i64] -> :wat::core::String
       (:wat::core::String/concat acc

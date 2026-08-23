@@ -9,9 +9,9 @@
              (:wat::core::defrecord :user::Counter [base <- :wat::core::i64])
              ;; the serve loop, now threading `state` (the Counter): reply derives base + n.
              (:wat::core::defn :user::serve
-               [self    <- :wat::kernel::Peer<wat::kernel::Address<wat::core::i64,wat::core::i64>,user::Counter>
-                l       <- :wat::kernel::Listener<wat::core::i64,wat::core::i64>
-                clients <- :wat::core::Vector<wat::kernel::Peer<wat::core::i64,wat::core::i64>>
+               [self    <- (:wat::kernel::Peer :- [(:wat::kernel::Address :- [:wat::core::i64 :wat::core::i64]) :user::Counter])
+                l       <- (:wat::kernel::Listener :- [:wat::core::i64 :wat::core::i64])
+                clients <- (:wat::core::Vector :- [(:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])])
                 state   <- :user::Counter]
                -> :wat::core::nil
                (:wat::core::match (:wat::kernel::poll self l clients) 
@@ -36,7 +36,7 @@
                (:wat::core::let
                  [b    (:wat::kernel::listener (:wat::spawn::process) :wat::core::i64 :wat::core::i64)
                   self (:wat::program::self-peer
-                          :wat::kernel::Address<wat::core::i64,wat::core::i64> :user::Counter)
+                          (:wat::kernel::Address :- [:wat::core::i64 :wat::core::i64]) :user::Counter)
                   _    (:wat::core::match (:wat::kernel::send self (:wat::spawn::Bound/address b)) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) (:wat::kernel::SendOutcome::Stopped nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
                   st   (:wat::core::match (:wat::kernel::recv self)
                          ((:wat::kernel::RecvOutcome::Message m) m)
@@ -47,7 +47,7 @@
                          (:wat::kernel::RecvOutcome::Closed
                            (:wat::kernel::assertion-failed! "recv': self closed before the owner sent state0" :wat::core::None :wat::core::None)))]
                  (:user::serve self (:wat::spawn::Bound/listener b)
-                   (:wat::core::Vector :wat::kernel::Peer<wat::core::i64,wat::core::i64>) st)))))
+                   (:wat::core::Vector (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])) st)))))
      ;; recv' the child's minted capability over the lineage channel (blocks until the child sends it).
      addr (:wat::core::match (:wat::kernel::recv svc)
             ((:wat::kernel::RecvOutcome::Message m) m)

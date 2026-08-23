@@ -11,7 +11,7 @@
 ;; production callers since arc 258 Stone 258.5b deleted its last one on the
 ;; trusted-wire premise. Nothing new is validated; the two halves are connected.
 
-(:wat::core::defrecord :vprobe::PutRequest [items <- :wat::core::Vector<wat::core::String>])
+(:wat::core::defrecord :vprobe::PutRequest [items <- (:wat::core::Vector :- [:wat::core::String])])
 
 (:wat::core::defn :vprobe::render [v <- :wat::edn::Validation] -> :wat::core::String
   (:wat::core::match v

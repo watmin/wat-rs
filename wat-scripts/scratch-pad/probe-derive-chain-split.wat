@@ -80,10 +80,10 @@
       :lhs (:wat::core::PersistentVector a-c b-c where-c)
       :rhs (:wat::core::PersistentVector ins))))
 
-(:wat::core::defn :dc::build-rules [n <- :wat::core::i64] -> :wat::core::PersistentVector<wat::rete::Rule>
+(:wat::core::defn :dc::build-rules [n <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::rete::Rule>  i <- :wat::core::i64]
-      -> :wat::core::PersistentVector<wat::rete::Rule>
+    (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::rete::Rule])  i <- :wat::core::i64]
+      -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
       (:wat::core::PersistentVector/conj acc (:dc::build-rule i n)))
     (:wat::core::PersistentVector)
     (:wat::core::range 0 n)))
@@ -124,9 +124,9 @@
                     sorted  (:wat::core::sort vec)
                     q4      (:wat::time::now)
                     pv      (:wat::core::foldl
-                              (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::i64>
+                              (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::i64])
                                                x   <- :wat::core::i64]
-                                -> :wat::core::PersistentVector<wat::core::i64>
+                                -> (:wat::core::PersistentVector :- [:wat::core::i64])
                                 (:wat::core::PersistentVector/conj acc x))
                               (:wat::core::PersistentVector)
                               sorted)
@@ -137,9 +137,9 @@
                     ;; is linear while the chain above is quadratic, the container is the defect.
                     d0      (:wat::time::now)
                     direct  (:wat::core::foldl
-                              (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::i64>
+                              (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::i64])
                                                p   <- :wat::core::PersistentMap]
-                                -> :wat::core::PersistentVector<wat::core::i64>
+                                -> (:wat::core::PersistentVector :- [:wat::core::i64])
                                 (:wat::core::let [f (:wat::core::Option/expect
                                                       (:wat::core::PersistentMap/get p "?fact")
                                                       "q-Out: ?fact")]

@@ -3,9 +3,9 @@
 ;;
 ;; (:my::sum-of) with NO args — fixed-arity of :init is 1, so zero args is a short call.
 (:wat::core::defmacro :my::sum-of
-  [init <- :AST<wat::core::i64>
-   & items <- :AST<wat::holon::Holons>]
-  -> :AST<wat::holon::HolonAST>
+  [init <- (:AST :- [:wat::core::i64])
+   & items <- (:AST :- [:wat::holon::Holons])]
+  -> (:AST :- [:wat::holon::HolonAST])
   `(:wat::core::foldl
       (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
         (:wat::core::i64::+ acc x))

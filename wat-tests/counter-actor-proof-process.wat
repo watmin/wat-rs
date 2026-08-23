@@ -70,7 +70,7 @@
    ;; arms use assertion-failed! (a Lost cause is a LociDiedError, surfaced).
 
    (:wat::core::defn :counter-proc::get
-     [peer! <- :wat::kernel::Peer<counter::Request,counter::Response>]
+     [peer! <- (:wat::kernel::Peer :- [:counter::Request :counter::Response])]
      -> :wat::core::i64
      (:wat::core::match (:wat::kernel::send peer! :counter::Request::Get)
        (:wat::kernel::SendOutcome::Sent
@@ -93,7 +93,7 @@
          (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))))
 
    (:wat::core::defn :counter-proc::increment
-     [peer! <- :wat::kernel::Peer<counter::Request,counter::Response>
+     [peer! <- (:wat::kernel::Peer :- [:counter::Request :counter::Response])
       n     <- :wat::core::i64]
      -> :wat::core::i64
      (:wat::core::match (:wat::kernel::send peer! (:counter::Request::Increment n))
@@ -117,7 +117,7 @@
          (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))))
 
    (:wat::core::defn :counter-proc::reset
-     [peer! <- :wat::kernel::Peer<counter::Request,counter::Response>]
+     [peer! <- (:wat::kernel::Peer :- [:counter::Request :counter::Response])]
      -> :wat::core::i64
      (:wat::core::match (:wat::kernel::send peer! :counter::Request::Reset)
        (:wat::kernel::SendOutcome::Sent
@@ -140,7 +140,7 @@
          (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))))
 
    (:wat::core::defn :counter-proc::shutdown
-     [peer! <- :wat::kernel::Peer<counter::Request,counter::Response>]
+     [peer! <- (:wat::kernel::Peer :- [:counter::Request :counter::Response])]
      -> :wat::core::i64
      (:wat::core::match (:wat::kernel::send peer! :counter::Request::Shutdown)
        (:wat::kernel::SendOutcome::Sent

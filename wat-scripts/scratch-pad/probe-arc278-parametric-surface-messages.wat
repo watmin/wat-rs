@@ -44,19 +44,19 @@
 ;; payloads asserted in both directions — is `wat-tests/service-parametric-messages.wat`. This file
 ;; stays as the DECLARATION-wall pin it always was.
 
-(:wat::core::defsurface :probe::PCache<K,V> :nature :wat::kernel::Peer
+(:wat::core::defsurface :probe::PCache :- [K V] :nature :wat::kernel::Peer
   :messages
-  [(:wat::core::defrecord :probe::PCache::GetRequest<K>
-     [probes <- :wat::core::Vector<K>])
-   (:wat::core::defenum :probe::PCache::GetResponse<K,V> :wat::enum::Pure
+  [(:wat::core::defrecord :probe::PCache::GetRequest :- [K]
+     [probes <- (:wat::core::Vector :- [K])])
+   (:wat::core::defenum :probe::PCache::GetResponse :- [K V] :wat::enum::Pure
      ;; `echo` carries the K-typed probes back so a WIRE gate — once the layer above is ruled —
      ;; can assert on the actual values in BOTH directions, not just "no crash".
-     :Ok              [echo    <- :wat::core::Vector<K>
-                       results <- :wat::core::Vector<wat::core::Option<V>>]
+     :Ok              [echo    <- (:wat::core::Vector :- [K])
+                       results <- (:wat::core::Vector :- [(:wat::core::Option :- [V])])]
      ;; ruling A — every serviceable op-Response carries the protocol-tier too-large variant.
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   ;; Stone 16.3 — `:max-request-bytes` is MANDATORY on a `:nature :Peer'` op.
-  [(get [self <- :probe::PCache<K,V>  req <- :probe::PCache::GetRequest<K>]
-     -> :probe::PCache::GetResponse<K,V> :max-request-bytes 1024)])
+  [(get [self <- (:probe::PCache :- [K V])  req <- (:probe::PCache::GetRequest :- [K])]
+     -> (:probe::PCache::GetResponse :- [K V]) :max-request-bytes 1024)])

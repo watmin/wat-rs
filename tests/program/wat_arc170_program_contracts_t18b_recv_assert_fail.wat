@@ -18,7 +18,7 @@
 ;; feed the child's readln → assert-eq 2 3 fails → child panics before its println → the peer
 ;; dies → recv-all' returns (Err (LociDiedError::Panic …)).
 (:wat::core::defn :my::test::recv-assert-fail []
-  -> :wat::core::Result<wat::core::Vector<wat::core::i64>,wat::kernel::LociDiedError>
+  -> (:wat::core::Result :- [(:wat::core::Vector :- [:wat::core::i64]) :wat::kernel::LociDiedError])
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms

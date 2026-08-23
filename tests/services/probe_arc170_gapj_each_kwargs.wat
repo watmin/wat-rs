@@ -16,12 +16,12 @@
    (:wat::core::defenum :probe::Counter::GetResponse :wat::enum::Pure
      :Ok              [value <- :wat::core::i64]
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])
    (:wat::core::defrecord :probe::Counter::IncrementRequest  [n <- :wat::core::i64])
    (:wat::core::defenum :probe::Counter::IncrementResponse :wat::enum::Pure
      :Ok              [value <- :wat::core::i64]
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(get       [self <- :probe::Counter  req <- :probe::Counter::GetRequest]       -> :probe::Counter::GetResponse :max-request-bytes 524288)
    (increment [self <- :probe::Counter  req <- :probe::Counter::IncrementRequest] -> :probe::Counter::IncrementResponse :max-request-bytes 524288)])
@@ -47,7 +47,7 @@
 ;; own tail). The side effect is the increment; the return value is discarded by `each`.
 (:wat::core::defn :probe::record-hit
   [item <- :wat::core::String
-   & [counter <- :wat::kernel::Peer<probe::Counter::Op,probe::Counter::Reply>]]
+   & [counter <- (:wat::kernel::Peer :- [:probe::Counter::Op :probe::Counter::Reply])]]
   -> :wat::core::i64
   (:wat::core::match
     (:probe::Counter/increment counter (:probe::Counter::IncrementRequest :n 1)) ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 

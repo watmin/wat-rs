@@ -6,19 +6,19 @@
 (:wat::core::defsurface :probe::Kv :nature :wat::kernel::Peer
   :messages [(:wat::core::defrecord :probe::Kv::GetRequest  [k <- :wat::core::String])
              (:wat::core::defenum :probe::Kv::GetResponse :wat::enum::Pure :Ok [v <- :wat::core::String] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-                                                                                                     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
+                                                                                                     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features [(get [self <- :probe::Kv  req <- :probe::Kv::GetRequest] -> :probe::Kv::GetResponse :max-request-bytes 524288)])
 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
   :messages [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg <- :wat::core::String])
              (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure :Ok [reply <- :wat::core::String] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-                                                                                                        :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
+                                                                                                        :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse :max-request-bytes 524288)])
 
 ;; the bracket work-fn: item POSITIONAL, the services as Peer KWARGS — bound directly in the body
 (:wat::core::defn :probe::work
   [item <- :wat::core::String
-   & [kv   <- :wat::kernel::Peer<probe::Kv::Op,probe::Kv::Reply>
-      echo <- :wat::kernel::Peer<probe::Echo::Op,probe::Echo::Reply>]]
+   & [kv   <- (:wat::kernel::Peer :- [:probe::Kv::Op :probe::Kv::Reply])
+      echo <- (:wat::kernel::Peer :- [:probe::Echo::Op :probe::Echo::Reply])]]
   -> :wat::core::String
   (:wat::core::match
     (:probe::Echo/echo echo

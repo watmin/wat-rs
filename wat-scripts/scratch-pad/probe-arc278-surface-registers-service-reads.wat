@@ -69,7 +69,7 @@
    (:wat::core::defenum :probe::Chan::CountResponse :wat::enum::Pure
      :Ok               [tally <- :probe::Chan::Tally]
      :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])
                         expected <- :wat::core::String
                         got <- :wat::core::String])]
   :features

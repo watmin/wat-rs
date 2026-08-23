@@ -23,7 +23,7 @@
       (:wat::core::defenum :probe::Bare2::EchoResponse :wat::enum::Pure
         :Ok               [c <- :wat::core::i64]
         :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-        :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
+        :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
      :features
      [(echo [self <- :probe::Bare2 req <- :probe::Bare2::EchoRequest] -> :probe::Bare2::EchoResponse :max-request-bytes 524288)]))
 
@@ -38,7 +38,7 @@
         (:wat::core::defenum :probe::Wrapped::EchoResponse :wat::enum::Pure
           :Ok               [c <- :wat::core::i64]
           :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-          :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
+          :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
        :features
        [(echo [self <- :probe::Wrapped req <- :probe::Wrapped::EchoRequest] -> :probe::Wrapped::EchoResponse :max-request-bytes 524288)])
      (:wat::service::defservice :probe::wrappedsvc

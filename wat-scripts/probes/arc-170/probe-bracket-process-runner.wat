@@ -22,7 +22,7 @@
            ;; PROCESS child's self-peer is Peer' (wire-capable, pure I/O) — NOT ThreadSelfPeer'
            ;; (the checker taught this; it's why bracket.wat:21's ThreadSelfPeer' runner is thread-pinned).
            (:wat::core::defn :probe::runner
-             [self <- :wat::kernel::Peer<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+             [self <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
              (:wat::core::let
                [item (:wat::kernel::recv self)
                 _    (:wat::core::match (:wat::kernel::send self (:probe::dbl item)) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))]

@@ -30,7 +30,7 @@
    (:wat::core::defenum :probe::Repl::EvalResponse :wat::enum::Pure
      :Ok               [out <- :wat::core::String]
      :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(eval-src [self <- :probe::Repl  req <- :probe::Repl::EvalRequest]
      -> :probe::Repl::EvalResponse :max-request-bytes 524288)])

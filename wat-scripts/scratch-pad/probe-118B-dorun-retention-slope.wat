@@ -42,7 +42,7 @@
 ;; An UNBOUNDED source. Nothing is materialized: each cell is produced on force, and its tail is a
 ;; fresh thunk. `take` bounds it; `reduce` drains it.
 (:wat::core::defn :probe::counter
-  [i <- :wat::core::i64] -> :wat::stream::Stream<wat::core::i64>
+  [i <- :wat::core::i64] -> (:wat::stream::Stream :- [:wat::core::i64])
   (:wat::stream::lazy
     (:wat::stream::cons i (:probe::counter (:wat::core::+ i 1)))))
 

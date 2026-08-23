@@ -39,7 +39,7 @@
    (:wat::core::defenum :tco::Bag::PutResponse :wat::enum::Pure
      :Ok               [n <- :wat::core::i64]
      :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])
                         expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(put [self <- :tco::Bag  req <- :tco::Bag::PutRequest]
@@ -50,7 +50,7 @@
   :impls
   [(put [s ctx req] (:wat::service::Outcome::Reply s (:tco::Bag::PutResponse::Ok 1)))])
 
-(:wat::core::defn :tco::try [c <- :wat::kernel::Peer<tco::Bag::Op,tco::Bag::Reply>
+(:wat::core::defn :tco::try [c <- (:wat::kernel::Peer :- [:tco::Bag::Op :tco::Bag::Reply])
                             label <- :wat::core::String] -> :wat::core::nil
   (:wat::core::match (:tco::Bag/put c (:tco::Bag::PutRequest :n 1))
     ((:wat::kernel::RecvOutcome::Message resp)
@@ -62,7 +62,7 @@
     (:wat::kernel::RecvOutcome::Closed
       (:wat::kernel::println (:wat::core::string::concat label " => CLOSED")))))
 
-(:wat::core::defn :tco::dial [a <- :wat::kernel::Address<wat::core::i64,wat::core::i64>
+(:wat::core::defn :tco::dial [a <- (:wat::kernel::Address :- [:wat::core::i64 :wat::core::i64])
                              label <- :wat::core::String] -> :wat::core::nil
   (:wat::core::match (:wat::kernel::connect a)
     ((:wat::kernel::ConnectOutcome::Connected p)

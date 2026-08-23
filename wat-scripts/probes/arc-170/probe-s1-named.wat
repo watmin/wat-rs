@@ -5,7 +5,7 @@
      w  (:wat::test::spawn-peer (:wat::spawn::process)
           (:wat::core::concat wf
             (:wat::core::forms
-              (:wat::core::defn :probe::runner [self <- :wat::kernel::Peer<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+              (:wat::core::defn :probe::runner [self <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
                 (:wat::core::let [i (:wat::kernel::recv self) _ (:wat::core::match (:wat::kernel::send self (:probe::work i)) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) (:wat::kernel::SendOutcome::Stopped nil) ((:wat::kernel::SendOutcome::Lost _c) nil))] (:probe::runner self)))
               (:wat::core::defn :user::main [] -> :wat::core::nil
                 (:probe::runner (:wat::program::self-peer :wat::core::i64 :wat::core::i64))))))

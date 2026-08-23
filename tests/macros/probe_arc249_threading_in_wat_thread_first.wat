@@ -1,5 +1,5 @@
 (:wat::core::defmacro :test::thread-first
-  [acc <- :wat::WatAST & steps <- :wat::core::Vector<wat::WatAST>]
+  [acc <- :wat::WatAST & steps <- (:wat::core::Vector :- [:wat::WatAST])]
   -> :wat::WatAST
   (:wat::core::foldl
     (:wat::core::fn [a <- :wat::holon::HolonAST step <- :wat::holon::HolonAST]

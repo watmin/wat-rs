@@ -209,7 +209,7 @@
 
 
 ;; build-rules row — THE ROW DISPATCH. An unknown row is a located failure, never a silent fallback.
-(:wat::core::defn :wmv::build-rules [row <- :wat::core::i64] -> :wat::core::PersistentVector<wat::rete::Rule>
+(:wat::core::defn :wmv::build-rules [row <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
   (:wat::core::PersistentVector
     (:wat::core::cond
       ((:wat::core::= row 1)  (:wmv::three-var))
@@ -243,8 +243,8 @@
   (:wat::rete::insert-all
     session
     (:wat::core::foldl
-      (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::Record>  i <- :wat::core::i64]
-                      -> :wat::core::PersistentVector<wat::core::Record>
+      (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  i <- :wat::core::i64]
+                      -> (:wat::core::PersistentVector :- [:wat::core::Record])
         (:wat::core::let
           [a (:wat::core::i64::mod i 11)
            b (:wat::core::i64::mod i 13)
@@ -259,7 +259,7 @@
 
 ;; derived-ints fired — every derived Hit's key k, sorted ascending. THE accuracy witness.
 (:wat::core::defn :wmv::derived-ints
-  [fired <- :wat::rete::Session] -> :wat::core::Vector<wat::core::i64>
+  [fired <- :wat::rete::Session] -> (:wat::core::Vector :- [:wat::core::i64])
   (:wat::core::sort
     (:wat::core::into (:wat::core::Vector :wat::core::i64)
       (:wat::core::map
@@ -268,7 +268,7 @@
 
 ;; render-ints — " 3 13 23 …". A plain space-joined rendering, NOT the EDN printer — see
 ;; where-shapes.wat's note; both sides must be BYTE-IDENTICAL for `diff` to be the whole verdict.
-(:wat::core::defn :wmv::render-ints [v <- :wat::core::Vector<wat::core::i64>] -> :wat::core::String
+(:wat::core::defn :wmv::render-ints [v <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::String
   (:wat::core::foldl
     (:wat::core::fn [acc <- :wat::core::String  x <- :wat::core::i64] -> :wat::core::String
       (:wat::core::String/concat acc

@@ -136,9 +136,9 @@
 
 ;; Walk a vector of nodes, concating arity-append edits.
 (:wat::core::defn :user::arity-edits-walk
-  [items <- :wat::core::Vector<wat::WatAST>
-   lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+  [items <- (:wat::core::Vector :- [:wat::WatAST])
+   lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::if (:wat::core::empty? items)
     (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
     (:wat::core::let [h  (:wat::core::first items)
@@ -151,8 +151,8 @@
 ;; Structural nodes recurse. Non-keyword leaves are untouched.
 (:wat::core::defn :user::arity-edits
   [node  <- :wat::WatAST
-   lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+   lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::if (:wat::fix::structural? node)
     (:user::arity-edits-walk (:wat::core::ast->children node) lines)
     (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "keyword")
@@ -176,7 +176,7 @@
     (:wat::fix::fix-text-apply src rev-edits)))
 
 (:wat::core::defn :user::apply-each
-  [paths <- :wat::core::Vector<wat::core::String>] -> :wat::core::nil
+  [paths <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::nil
   (:wat::core::if (:wat::core::empty? paths)
     nil
     (:wat::core::let [path (:wat::core::first paths)]

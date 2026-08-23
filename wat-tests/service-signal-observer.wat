@@ -43,7 +43,7 @@
    (:wat::core::defenum :wat-tests::SignalObserver::ObserveResponse :wat::enum::Pure
      :Ok               [requests <- :wat::core::i64  sighup <- :wat::core::bool  user1 <- :wat::core::bool  user2 <- :wat::core::bool]
      :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(observe [self <- :wat-tests::SignalObserver  req <- :wat-tests::SignalObserver::ObserveRequest] -> :wat-tests::SignalObserver::ObserveResponse :max-request-bytes 524288)])
 

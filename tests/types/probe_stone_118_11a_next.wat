@@ -13,7 +13,7 @@
 ;; given, so a single `next` on `(map f v)` must print exactly one line.
 
 ;; Row 1 — (next <3-element stream>) -> Item, value = first element.
-(:wat::core::defn :probe::row1 [] -> :wat::stream::NextOutcome<wat::core::i64>
+(:wat::core::defn :probe::row1 [] -> (:wat::stream::NextOutcome :- [:wat::core::i64])
   (:wat::stream::next
     (:wat::stream::cons 1
       (:wat::stream::cons 2
@@ -21,11 +21,11 @@
           (:wat::stream::empty))))))
 
 ;; Row 2 — (next <exhausted stream>) -> Exhausted.
-(:wat::core::defn :probe::row2 [] -> :wat::stream::NextOutcome<wat::core::i64>
+(:wat::core::defn :probe::row2 [] -> (:wat::stream::NextOutcome :- [:wat::core::i64])
   (:wat::stream::next (:wat::stream::empty)))
 
 ;; Row 4 — pulling `rest` from row 1's Item and calling `next` again yields the SECOND element.
-(:wat::core::defn :probe::row4 [] -> :wat::stream::NextOutcome<wat::core::i64>
+(:wat::core::defn :probe::row4 [] -> (:wat::stream::NextOutcome :- [:wat::core::i64])
   (:wat::core::match (:probe::row1)
     ((:wat::stream::NextOutcome::Item value rest) (:wat::stream::next rest))
     (:wat::stream::NextOutcome::Exhausted

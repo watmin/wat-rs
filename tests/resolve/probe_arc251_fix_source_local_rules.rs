@@ -34,9 +34,15 @@ fn contract_02_post_arrow_scalar_type() {
 
 #[test]
 fn contract_03_structural_parametric_type() {
-    assert_eq!(
-        eval_string(":user::c03"),
-        Ok(include_str!("probe_arc251_fix_source_local_rules__contract-03-structural-parametric.wat").into())
+    // Arc 109 ③ — angle brackets are ILLEGAL for types now; the fixture's C03 source embeds
+    // `Vector<i64>`, which `wat/fix.wat`'s converter renders through the SAME walled
+    // `keyword/to-type-form` `probe_arc251_keyword_to_type_form.rs`'s contracts 02-05/08 hit —
+    // there is no other keyword-string spelling for a parametric type to migrate FROM any
+    // more, so the refusal itself is the coverage.
+    let err = eval_string(":user::c03").expect_err("angle-bracket parametric type must be REFUSED");
+    assert!( // rune:lint(loose-assert) — targeted substring: asserting the angle-bracket wall fired, not the whole located TypeError's structure
+        err.contains("angle-bracket parametric types are illegal"),
+        "expected the angle-bracket wall's reason; got: {err}"
     );
 }
 

@@ -702,10 +702,10 @@
       :lhs (:wat::core::PersistentVector a-c b-c where-c)\n\
       :rhs (:wat::core::PersistentVector ins))))\n\
 \n\
-(:wat::core::defn :nsh::build-rules [n <- :wat::core::i64] -> :wat::core::PersistentVector<wat::rete::Rule>\n\
+(:wat::core::defn :nsh::build-rules [n <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])\n\
   (:wat::core::foldl\n\
-    (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::rete::Rule>  i <- :wat::core::i64]\n\
-      -> :wat::core::PersistentVector<wat::rete::Rule>\n\
+    (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::rete::Rule])  i <- :wat::core::i64]\n\
+      -> (:wat::core::PersistentVector :- [:wat::rete::Rule])\n\
       (:wat::core::PersistentVector/conj acc (:nsh::build-rule i n)))\n\
     (:wat::core::PersistentVector)\n\
     (:wat::core::range 0 n)))\n\
@@ -2708,9 +2708,9 @@
       :lhs (:wat::core::PersistentVector c1 c2)\n\
       :rhs (:wat::core::PersistentVector t1 t2))))\n\
 \n\
-(:wat::core::defn :dc::build-rules [depth <- :wat::core::i64] -> :wat::core::PersistentVector<wat::rete::Rule>\n\
+(:wat::core::defn :dc::build-rules [depth <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])\n\
   (:wat::core::foldl\n\
-    (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::rete::Rule>  k <- :wat::core::i64] -> :wat::core::PersistentVector<wat::rete::Rule>\n\
+    (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::rete::Rule])  k <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])\n\
       (:wat::core::PersistentVector/conj acc (:dc::build-rule k)))\n\
     (:wat::core::PersistentVector (:dc::build-rule 1))\n\
     (:wat::core::range 2 (:wat::core::i64::+ depth 1))))\n\

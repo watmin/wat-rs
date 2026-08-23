@@ -38,7 +38,7 @@
 ;; ── RUNG 4 — the CONTROL that must keep passing ───────────────────────────────────────────────
 ;; An anonymous fn with CONCRETE types, handed to a generic HOF, already works. γ-i must not
 ;; disturb it — if this ever goes red, the change reached further than its own surface.
-(:wat::core::defn :user::app<T> [f <- [T :-> T] x <- :T] -> :T (:wat::core::apply f [x]))
+(:wat::core::defn :user::app :- [T] [f <- [T :-> T] x <- :T] -> :T (:wat::core::apply f [x]))
 
 (:wat::core::defn :user::rung-4-control [] -> :wat::core::nil
   (:wat::core::let [_  (:user::app (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x) 1)

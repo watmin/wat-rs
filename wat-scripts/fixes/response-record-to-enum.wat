@@ -33,11 +33,11 @@
 (:wat::core::defn :user::strip-params [name <- :wat::core::String] -> :wat::core::String
   (:wat::core::first (:wat::core::string::split name "<")))
 
-(:wat::core::defn :user::start-off [n <- :wat::WatAST  lines <- :wat::core::Vector<wat::core::String>]
+(:wat::core::defn :user::start-off [n <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])]
   -> :wat::core::i64
   (:wat::fix::fix-text-offset-of (:wat::core::ast-span n) lines))
 
-(:wat::core::defn :user::end-off [n <- :wat::WatAST  lines <- :wat::core::Vector<wat::core::String>]
+(:wat::core::defn :user::end-off [n <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])]
   -> :wat::core::i64
   (:wat::fix::fix-text-offset-of (:wat::core::ast-end-span n) lines))
 
@@ -47,11 +47,11 @@
 
 ;; ── DISCOVERY: return-type name set (walk for a `->` symbol followed by a keyword) ──
 (:wat::core::defn :user::returns-in-children
-  [ch <- :wat::core::Vector<wat::WatAST>  acc <- :wat::core::HashSet<wat::core::String>]
-  -> :wat::core::HashSet<wat::core::String>
+  [ch <- (:wat::core::Vector :- [:wat::WatAST])  acc <- (:wat::core::HashSet :- [:wat::core::String])]
+  -> (:wat::core::HashSet :- [:wat::core::String])
   (:wat::core::foldl
-    (:wat::core::fn [s <- :wat::core::HashSet<wat::core::String>  i <- :wat::core::i64]
-      -> :wat::core::HashSet<wat::core::String>
+    (:wat::core::fn [s <- (:wat::core::HashSet :- [:wat::core::String])  i <- :wat::core::i64]
+      -> (:wat::core::HashSet :- [:wat::core::String])
       (:wat::core::let
         [cur  (:wat::core::Option/expect (:wat::core::get ch i) "returns cur")
          nxt  (:wat::core::get ch (:wat::core::+ i 1))]
@@ -68,22 +68,22 @@
     (:wat::core::range 0 (:wat::core::length ch))))
 
 (:wat::core::defn :user::collect-returns
-  [node <- :wat::WatAST  acc <- :wat::core::HashSet<wat::core::String>]
-  -> :wat::core::HashSet<wat::core::String>
+  [node <- :wat::WatAST  acc <- (:wat::core::HashSet :- [:wat::core::String])]
+  -> (:wat::core::HashSet :- [:wat::core::String])
   (:wat::core::if (:wat::fix::structural? node)
     (:wat::core::let [ch (:wat::core::ast->children node)]
       (:wat::core::foldl
-        (:wat::core::fn [a <- :wat::core::HashSet<wat::core::String> n <- :wat::WatAST]
-          -> :wat::core::HashSet<wat::core::String>
+        (:wat::core::fn [a <- (:wat::core::HashSet :- [:wat::core::String]) n <- :wat::WatAST]
+          -> (:wat::core::HashSet :- [:wat::core::String])
           (:user::collect-returns n a))
         (:user::returns-in-children ch acc) ch))
     acc))
 
 ;; ── DISCOVERY: defrecord map  name -> (field-name, field-type)  (single-field only) ──
 (:wat::core::defn :user::add-record
-  [m <- :wat::core::HashMap<wat::core::String,(wat::core::String,wat::core::String)>
+  [m <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
    node <- :wat::WatAST]
-  -> :wat::core::HashMap<wat::core::String,(wat::core::String,wat::core::String)>
+  -> (:wat::core::HashMap :- [:wat::core::String (:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
     (:wat::core::let [ch (:wat::core::ast->children node)]
       (:wat::core::if (:wat::core::< (:wat::core::length ch) 3)
@@ -106,13 +106,13 @@
 
 (:wat::core::defn :user::collect-records
   [node <- :wat::WatAST
-   m <- :wat::core::HashMap<wat::core::String,(wat::core::String,wat::core::String)>]
-  -> :wat::core::HashMap<wat::core::String,(wat::core::String,wat::core::String)>
+   m <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Tuple :- [:wat::core::String :wat::core::String])])]
+  -> (:wat::core::HashMap :- [:wat::core::String (:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
   (:wat::core::if (:wat::fix::structural? node)
     (:wat::core::foldl
-      (:wat::core::fn [mm <- :wat::core::HashMap<wat::core::String,(wat::core::String,wat::core::String)>
+      (:wat::core::fn [mm <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
                        c <- :wat::WatAST]
-        -> :wat::core::HashMap<wat::core::String,(wat::core::String,wat::core::String)>
+        -> (:wat::core::HashMap :- [:wat::core::String (:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
         (:user::collect-records c mm))
       (:user::add-record m node)
       (:wat::core::ast->children node))
@@ -120,23 +120,23 @@
 
 ;; respmap = records whose name is also a return type. Membership gates every rewrite below.
 (:wat::core::defn :user::resp-map
-  [forms <- :wat::core::Vector<wat::WatAST>]
-  -> :wat::core::HashMap<wat::core::String,(wat::core::String,wat::core::String)>
+  [forms <- (:wat::core::Vector :- [:wat::WatAST])]
+  -> (:wat::core::HashMap :- [:wat::core::String (:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
   (:wat::core::let
     [recs (:wat::core::foldl
-            (:wat::core::fn [m <- :wat::core::HashMap<wat::core::String,(wat::core::String,wat::core::String)> f <- :wat::WatAST]
-              -> :wat::core::HashMap<wat::core::String,(wat::core::String,wat::core::String)>
+            (:wat::core::fn [m <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Tuple :- [:wat::core::String :wat::core::String])]) f <- :wat::WatAST]
+              -> (:wat::core::HashMap :- [:wat::core::String (:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
               (:user::collect-records f m))
             (:wat::core::HashMap :wat::core::String :(wat::core::String,wat::core::String))
             forms)
      rets (:wat::core::foldl
-            (:wat::core::fn [a <- :wat::core::HashSet<wat::core::String> n <- :wat::WatAST]
-              -> :wat::core::HashSet<wat::core::String>
+            (:wat::core::fn [a <- (:wat::core::HashSet :- [:wat::core::String]) n <- :wat::WatAST]
+              -> (:wat::core::HashSet :- [:wat::core::String])
               (:user::collect-returns n a))
             (:wat::core::HashSet :wat::core::String) forms)]
     (:wat::core::foldl
-      (:wat::core::fn [m <- :wat::core::HashMap<wat::core::String,(wat::core::String,wat::core::String)> k <- :wat::core::String]
-        -> :wat::core::HashMap<wat::core::String,(wat::core::String,wat::core::String)>
+      (:wat::core::fn [m <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Tuple :- [:wat::core::String :wat::core::String])]) k <- :wat::core::String]
+        -> (:wat::core::HashMap :- [:wat::core::String (:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
         (:wat::core::if (:wat::core::HashSet/contains? rets k)
           (:wat::core::HashMap/assoc m k (:wat::core::Option/expect (:wat::core::HashMap/get recs k) "resp"))
           m))
@@ -145,8 +145,8 @@
 
 ;; ── EDITS ──────────────────────────────────────────────────────────────────────
 (:wat::core::defn :user::defrecord-edits
-  [ch <- :wat::core::Vector<wat::WatAST>  lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+  [ch <- (:wat::core::Vector :- [:wat::WatAST])  lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::let
     [head (:wat::core::Option/expect (:wat::core::get ch 0) "dr head")
      ty   (:wat::core::Option/expect (:wat::core::get ch 1) "dr ty")
@@ -163,8 +163,8 @@
 ;; `(:T value)` (2 children). BOTH become `(:T::Ok value)`; only the kwargs form has a `:field ` to
 ;; delete. (Positional single-arg construction is the corner the tests/ arc-170 negatives exposed.)
 (:wat::core::defn :user::ctor-edits
-  [ch <- :wat::core::Vector<wat::WatAST>  lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+  [ch <- (:wat::core::Vector :- [:wat::WatAST])  lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::let
     [head (:wat::core::Option/expect (:wat::core::get ch 0) "ct head")]
     (:wat::core::if (:wat::core::>= (:wat::core::length ch) 3)
@@ -180,9 +180,9 @@
         (:wat::core::Tuple (:user::end-off head lines) 0 "::Ok")))))
 
 (:wat::core::defn :user::field-edits
-  [ch <- :wat::core::Vector<wat::WatAST>  prefix <- :wat::core::String  field <- :wat::core::String
-   ftype <- :wat::core::String  lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+  [ch <- (:wat::core::Vector :- [:wat::WatAST])  prefix <- :wat::core::String  field <- :wat::core::String
+   ftype <- :wat::core::String  lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::let
     [head (:wat::core::Option/expect (:wat::core::get ch 0) "fa head")
      expr (:wat::core::Option/expect (:wat::core::get ch 1) "fa expr")
@@ -202,9 +202,9 @@
 ;; walk one node → its edits + descendants'.
 (:wat::core::defn :user::node-edits
   [node <- :wat::WatAST
-   rm <- :wat::core::HashMap<wat::core::String,(wat::core::String,wat::core::String)>
-   lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+   rm <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
+   lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
     (:wat::core::let [ch (:wat::core::ast->children node)]
       (:wat::core::if (:wat::core::empty? ch)
@@ -233,13 +233,13 @@
       (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)))))
 
 (:wat::core::defn :user::seq-edits
-  [items <- :wat::core::Vector<wat::WatAST>
-   rm <- :wat::core::HashMap<wat::core::String,(wat::core::String,wat::core::String)>
-   lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+  [items <- (:wat::core::Vector :- [:wat::WatAST])
+   rm <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
+   lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)> it <- :wat::WatAST]
-      -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+    (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])]) it <- :wat::WatAST]
+      -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
       (:wat::core::concat acc (:user::node-edits it rm lines)))
     (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
     items))
@@ -255,7 +255,7 @@
     (:wat::fix::fix-text-apply src rev)))
 
 ;; ── driver ───────────────────────────────────────────────────────────────────
-(:wat::core::defn :user::apply-each [paths <- :wat::core::Vector<wat::core::String>] -> :wat::core::nil
+(:wat::core::defn :user::apply-each [paths <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::nil
   (:wat::core::if (:wat::core::empty? paths)
     nil
     (:wat::core::let [path (:wat::core::first paths)]

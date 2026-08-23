@@ -18,11 +18,11 @@
 (:wat::core::defsurface :probe-det::Bag :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :probe-det::Bag::PutRequest
-     [items <- :wat::core::Vector<wat::core::String>])
+     [items <- (:wat::core::Vector :- [:wat::core::String])])
    (:wat::core::defenum :probe-det::Bag::PutResponse :wat::enum::Pure
      :Ok              [len <- :wat::core::i64]
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(put [self <- :probe-det::Bag  req <- :probe-det::Bag::PutRequest]
      -> :probe-det::Bag::PutResponse :max-request-bytes 4096)])
@@ -40,7 +40,7 @@
            (:wat::core::nth (:probe-det::Bag::PutRequest/items req) 0)))))])
 
 (:wat::core::defn :probe-det::round-trip
-  [c     <- :wat::kernel::Peer<probe-det::Bag::Op,probe-det::Bag::Reply>
+  [c     <- (:wat::kernel::Peer :- [:probe-det::Bag::Op :probe-det::Bag::Reply])
    label <- :wat::core::String
    req   <- :probe-det::Bag::PutRequest]
   -> :wat::core::nil

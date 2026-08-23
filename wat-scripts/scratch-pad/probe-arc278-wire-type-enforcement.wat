@@ -36,13 +36,13 @@
 (:wat::core::defsurface :probe-wire::Bag :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :probe-wire::Bag::PutRequest
-     [items <- :wat::core::Vector<wat::core::String>])
+     [items <- (:wat::core::Vector :- [:wat::core::String])])
    (:wat::core::defenum :probe-wire::Bag::PutResponse :wat::enum::Pure
      ;; `seen` is the SERVER's own edn::write of the field it received — the tell.
      :Ok              [seen <- :wat::core::String]
      ;; ruling A — every serviceable op-Response carries the protocol-tier variant.
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(put [self <- :probe-wire::Bag  req <- :probe-wire::Bag::PutRequest]
      -> :probe-wire::Bag::PutResponse :max-request-bytes 4096)])
@@ -60,7 +60,7 @@
 
 ;; ── one round-trip, reporting whatever comes back ────────────────────────────
 (:wat::core::defn :probe-wire::round-trip
-  [c     <- :wat::kernel::Peer<probe-wire::Bag::Op,probe-wire::Bag::Reply>
+  [c     <- (:wat::kernel::Peer :- [:probe-wire::Bag::Op :probe-wire::Bag::Reply])
    label <- :wat::core::String
    req   <- :probe-wire::Bag::PutRequest]
   -> :wat::core::nil

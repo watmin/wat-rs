@@ -27,7 +27,7 @@
     (:wat::kernel::println
       (:wat::core::string::join ","
         (:wat::core::into [] (:wat::core::keep
-          (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::Option<wat::core::i64>
+          (:wat::core::fn [x <- :wat::core::i64] -> (:wat::core::Option :- [:wat::core::i64])
             (:wat::core::if (:wat::core::= 0 (:wat::core::mod x 2)) (:wat::core::Some x) :wat::core::None))
           (:wat::core::List/of 1 2 3 4 5 6)))))
 
@@ -35,7 +35,7 @@
     (:wat::kernel::println
       (:wat::core::string::join ","
         (:wat::core::into [] (:wat::core::keep-indexed
-          (:wat::core::fn [i <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::Option<wat::core::i64>
+          (:wat::core::fn [i <- :wat::core::i64 x <- :wat::core::i64] -> (:wat::core::Option :- [:wat::core::i64])
             (:wat::core::if (:wat::core::= 0 (:wat::core::mod i 2)) (:wat::core::Some x) :wat::core::None))
           (:wat::core::Vector :wat::core::i64 10 11 12 13 14 15)))))
 
@@ -74,6 +74,6 @@
       (:wat::core::string::join ","
         (:wat::core::into []
           (:wat::core::into (:wat::core::PersistentVector)
-            (:wat::core::keep (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::Option<wat::core::i64>
+            (:wat::core::keep (:wat::core::fn [x <- :wat::core::i64] -> (:wat::core::Option :- [:wat::core::i64])
                                  (:wat::core::Some x))
               (:wat::core::Vector :wat::core::i64 7 8 9))))))))

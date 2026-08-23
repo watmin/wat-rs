@@ -28,7 +28,7 @@
 ;; `service-parametric.wat` pins, minus the vacuous `<T>` this stone retires.
 
 ;; ── the surface: parametric, messages BARE (the whole point) ────────────────────────────────
-(:wat::core::defsurface :wat-tests::BareBox<T> :nature :wat::kernel::Peer
+(:wat::core::defsurface :wat-tests::BareBox :- [T] :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :wat-tests::BareBox::PutRequest [item <- :wat::core::i64])
    (:wat::core::defenum :wat-tests::BareBox::PutResponse :wat::enum::Pure
@@ -37,18 +37,18 @@
      :Ok              [echo <- :wat::core::i64]
      ;; ruling A — every serviceable op-Response carries the protocol-tier too-large variant.
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   ;; Stone 16.3 — `:max-request-bytes` is MANDATORY on a `:nature :Peer'` op.
-  [(put [self <- :wat-tests::BareBox<T>  req <- :wat-tests::BareBox::PutRequest]
+  [(put [self <- (:wat-tests::BareBox :- [T])  req <- :wat-tests::BareBox::PutRequest]
      -> :wat-tests::BareBox::PutResponse :max-request-bytes 1024)])
 
 ;; ── the parametric service ──────────────────────────────────────────────────────────────────
 ;; `held <- Option<T>` is the whole point: the durable record — and therefore ::State, ::Admin,
 ;; ::Status and ::Handle, each of which carries it — is generic in T.
-(:wat::service::defservice :wat-tests::barebox-svc<T>
-  :satisfies :wat-tests::BareBox<T>
-  :durable   [held <- :wat::core::Option<T>]
+(:wat::service::defservice :wat-tests::barebox-svc :- [T]
+  :satisfies (:wat-tests::BareBox :- [T])
+  :durable   [held <- (:wat::core::Option :- [T])]
   :ephemeral []
   :impls
   [(put [s ctx req]

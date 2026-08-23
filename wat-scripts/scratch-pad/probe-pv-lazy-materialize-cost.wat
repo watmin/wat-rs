@@ -66,7 +66,7 @@
 ;; `empty?` because `rest` RAISES on an empty PersistentVector (collection/eval.rs:1646).
 ;; Returns the sum purely as a non-vacuity witness — the walk must actually visit every element.
 (:wat::core::defn :cx::rest-walk
-  [pv <- :wat::core::PersistentVector<wat::core::i64>  acc <- :wat::core::i64] -> :wat::core::i64
+  [pv <- (:wat::core::PersistentVector :- [:wat::core::i64])  acc <- :wat::core::i64] -> :wat::core::i64
   (:wat::core::if (:wat::core::empty? pv)
     acc
     (:cx::rest-walk (:wat::core::rest pv) (:wat::core::i64::+ acc (:wat::core::first pv)))))
@@ -82,9 +82,9 @@
 
                     b0     (:wat::time::now)
                     pv     (:wat::core::foldl
-                             (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::i64>
+                             (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::i64])
                                               i   <- :wat::core::i64]
-                               -> :wat::core::PersistentVector<wat::core::i64>
+                               -> (:wat::core::PersistentVector :- [:wat::core::i64])
                                (:wat::core::PersistentVector/conj acc i))
                              (:wat::core::PersistentVector)
                              (:wat::core::range 0 n))
@@ -105,9 +105,9 @@
                     ;; CONTROL — no laziness anywhere; foldl iterates the PV natively.
                     f0     (:wat::time::now)
                     folded (:wat::core::foldl
-                             (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::i64>
+                             (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::i64])
                                               x   <- :wat::core::i64]
-                               -> :wat::core::PersistentVector<wat::core::i64>
+                               -> (:wat::core::PersistentVector :- [:wat::core::i64])
                                (:wat::core::if (:cx::keep? x)
                                  (:wat::core::PersistentVector/conj acc x)
                                  acc))

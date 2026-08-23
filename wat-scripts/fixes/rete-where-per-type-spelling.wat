@@ -65,7 +65,7 @@
 ;; and heads with NO twin at all, which are per-type by RULING and never get a generic form:
 ;;     :wat::core::{> < >= +}
 ;; The lookup simply returns None for all of these, so they are left byte-identical for hand work.
-(:wat::core::defn :user::rename-table [] -> :wat::core::Vector<(wat::core::String,wat::core::String)>
+(:wat::core::defn :user::rename-table [] -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
   (:wat::core::Vector :(wat::core::String,wat::core::String)
     (:wat::core::Tuple ":wat::core::and" ":wat::rete::core::and")
     (:wat::core::Tuple ":wat::core::bool::to-string" ":wat::rete::core::bool::to-string")
@@ -116,7 +116,7 @@
 ;; logic (unlike :wat::fix::rename-keyword-prefix) — every table entry is a WHOLE keyword name.
 (:wat::core::defn :user::rename-lookup
   [name  <- :wat::core::String
-   table <- :wat::core::Vector<(wat::core::String,wat::core::String)>]
+   table <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])]
   -> (:wat::core::Option :wat::core::String)
   (:wat::core::if (:wat::core::empty? table)
     :wat::core::None
@@ -130,9 +130,9 @@
 ;; ── inside a `where` subtree: recurse everywhere, rename any matching keyword leaf ────────────
 (:wat::core::defn :user::inside-where-edits
   [node  <- :wat::WatAST
-   table <- :wat::core::Vector<(wat::core::String,wat::core::String)>
-   lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+   table <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
+   lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::if (:wat::fix::structural? node)
     (:user::inside-where-edits-walk (:wat::core::ast->children node) table lines)
     (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "keyword")
@@ -146,10 +146,10 @@
       (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)))))
 
 (:wat::core::defn :user::inside-where-edits-walk
-  [items <- :wat::core::Vector<wat::WatAST>
-   table <- :wat::core::Vector<(wat::core::String,wat::core::String)>
-   lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+  [items <- (:wat::core::Vector :- [:wat::WatAST])
+   table <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
+   lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::if (:wat::core::empty? items)
     (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
     (:wat::core::concat
@@ -159,7 +159,7 @@
 ;; where-list? — true iff node is a List whose head keyword is exactly ":wat::rete::where".
 (:wat::core::defn :user::where-list?
   [node <- :wat::WatAST
-   ch   <- :wat::core::Vector<wat::WatAST>]
+   ch   <- (:wat::core::Vector :- [:wat::WatAST])]
   -> :wat::core::bool
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
     (:wat::core::if (:wat::core::empty? ch)
@@ -174,9 +174,9 @@
 ;; when a `(:wat::rete::where …)` list is found, and only for THAT list's own children ───────────
 (:wat::core::defn :user::outer-edits
   [node  <- :wat::WatAST
-   table <- :wat::core::Vector<(wat::core::String,wat::core::String)>
-   lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+   table <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
+   lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::if (:wat::fix::structural? node)
     (:wat::core::let [ch (:wat::core::ast->children node)]
       (:wat::core::if (:user::where-list? node ch)
@@ -185,10 +185,10 @@
     (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))))
 
 (:wat::core::defn :user::outer-edits-walk
-  [items <- :wat::core::Vector<wat::WatAST>
-   table <- :wat::core::Vector<(wat::core::String,wat::core::String)>
-   lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+  [items <- (:wat::core::Vector :- [:wat::WatAST])
+   table <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
+   lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::if (:wat::core::empty? items)
     (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
     (:wat::core::concat
@@ -209,7 +209,7 @@
 
 ;; ── driver: read the EDN path vector from stdin, rewrite each file in place ───────────────────
 (:wat::core::defn :user::apply-each
-  [paths <- :wat::core::Vector<wat::core::String>]
+  [paths <- (:wat::core::Vector :- [:wat::core::String])]
   -> :wat::core::nil
   (:wat::core::if (:wat::core::empty? paths)
     nil

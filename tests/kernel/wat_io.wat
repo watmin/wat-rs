@@ -3,17 +3,17 @@
 
 ;; ─── IOReader / read-line ─────────────────────────────────────────────────────
 
-(:wat::core::defn :my::compute-read-line [] -> :wat::core::Option<wat::core::String>
+(:wat::core::defn :my::compute-read-line [] -> (:wat::core::Option :- [:wat::core::String])
   (:wat::core::let
     [r (:wat::io::IOReader/from-string "hello\nworld\n")]
     (:wat::io::IOReader/read-line r)))
 
-(:wat::core::defn :my::compute-read-line-crlf [] -> :wat::core::Option<wat::core::String>
+(:wat::core::defn :my::compute-read-line-crlf [] -> (:wat::core::Option :- [:wat::core::String])
   (:wat::core::let
     [r (:wat::io::IOReader/from-string "hello\r\n")]
     (:wat::io::IOReader/read-line r)))
 
-(:wat::core::defn :my::compute-read-line-eof [] -> :wat::core::Option<wat::core::String>
+(:wat::core::defn :my::compute-read-line-eof [] -> (:wat::core::Option :- [:wat::core::String])
   (:wat::core::let
     [r (:wat::io::IOReader/from-string "only-line\n")
      _ (:wat::io::IOReader/read-line r)]
@@ -21,12 +21,12 @@
 
 ;; ─── IOReader / read (bytes) ─────────────────────────────────────────────────
 
-(:wat::core::defn :my::compute-read-bytes [] -> :wat::core::Option<wat::core::Vector<wat::core::u8>>
+(:wat::core::defn :my::compute-read-bytes [] -> (:wat::core::Option :- [(:wat::core::Vector :- [:wat::core::u8])])
   (:wat::core::let
     [r (:wat::io::IOReader/from-string "hello")]
     (:wat::io::IOReader/read r 3)))
 
-(:wat::core::defn :my::compute-read-bytes-eof [] -> :wat::core::Option<wat::core::Vector<wat::core::u8>>
+(:wat::core::defn :my::compute-read-bytes-eof [] -> (:wat::core::Option :- [(:wat::core::Vector :- [:wat::core::u8])])
   (:wat::core::let
     [r (:wat::io::IOReader/from-string "hi")
      _ (:wat::io::IOReader/read r 100)]
@@ -34,14 +34,14 @@
 
 ;; ─── IOReader / read-all ─────────────────────────────────────────────────────
 
-(:wat::core::defn :my::compute-read-all [] -> :wat::core::Vector<wat::core::u8>
+(:wat::core::defn :my::compute-read-all [] -> (:wat::core::Vector :- [:wat::core::u8])
   (:wat::core::let
     [r (:wat::io::IOReader/from-string "hello")]
     (:wat::io::IOReader/read-all r)))
 
 ;; ─── IOReader / rewind ───────────────────────────────────────────────────────
 
-(:wat::core::defn :my::compute-rewind [] -> :wat::core::Vector<wat::core::u8>
+(:wat::core::defn :my::compute-rewind [] -> (:wat::core::Vector :- [:wat::core::u8])
   (:wat::core::let
     [r (:wat::io::IOReader/from-string "again")
      _ (:wat::io::IOReader/read-all r)
@@ -50,7 +50,7 @@
 
 ;; ─── IOWriter / writeln + to-string ─────────────────────────────────────────
 
-(:wat::core::defn :my::compute-writeln-to-string [] -> :wat::core::Option<wat::core::String>
+(:wat::core::defn :my::compute-writeln-to-string [] -> (:wat::core::Option :- [:wat::core::String])
   (:wat::core::let
     [w (:wat::io::IOWriter/new)
      _ (:wat::io::IOWriter/writeln w "first")
@@ -73,7 +73,7 @@
              (:wat::core::u8 33))]
     (:wat::io::IOWriter/write w bytes)))
 
-(:wat::core::defn :my::compute-write-all-to-bytes [] -> :wat::core::Vector<wat::core::u8>
+(:wat::core::defn :my::compute-write-all-to-bytes [] -> (:wat::core::Vector :- [:wat::core::u8])
   (:wat::core::let
     [w (:wat::io::IOWriter/new)
      bytes (:wat::core::Vector :wat::core::u8
@@ -85,7 +85,7 @@
 
 ;; ─── IOWriter / write-string ─────────────────────────────────────────────────
 
-(:wat::core::defn :my::compute-write-string-no-newline [] -> :wat::core::Option<wat::core::String>
+(:wat::core::defn :my::compute-write-string-no-newline [] -> (:wat::core::Option :- [:wat::core::String])
   (:wat::core::let
     [w (:wat::io::IOWriter/new)
      _ (:wat::io::IOWriter/write-string w "hello ")
@@ -106,7 +106,7 @@
 
 ;; ─── Full round-trip reader → writer ─────────────────────────────────────────
 
-(:wat::core::defn :my::compute-copy-lines [] -> :wat::core::Option<wat::core::String>
+(:wat::core::defn :my::compute-copy-lines [] -> (:wat::core::Option :- [:wat::core::String])
   (:wat::core::let
     [r (:wat::io::IOReader/from-string "alpha\nbeta\n")
      w (:wat::io::IOWriter/new)
@@ -120,12 +120,12 @@
 
 ;; ─── Empty cases ─────────────────────────────────────────────────────────────
 
-(:wat::core::defn :my::compute-fresh-writer-empty [] -> :wat::core::Option<wat::core::String>
+(:wat::core::defn :my::compute-fresh-writer-empty [] -> (:wat::core::Option :- [:wat::core::String])
   (:wat::core::let
     [w (:wat::io::IOWriter/new)]
     (:wat::io::IOWriter/to-string w)))
 
-(:wat::core::defn :my::compute-empty-reader-read-line [] -> :wat::core::Option<wat::core::String>
+(:wat::core::defn :my::compute-empty-reader-read-line [] -> (:wat::core::Option :- [:wat::core::String])
   (:wat::core::let
     [r (:wat::io::IOReader/from-string "")]
     (:wat::io::IOReader/read-line r)))

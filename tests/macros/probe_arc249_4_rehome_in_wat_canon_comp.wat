@@ -2,9 +2,9 @@
 ;; unquote-splicing runs through the restricted macro-eval evaluator (wat-defined `mapv` is
 ;; `UnknownFunction` there), so `foldl`+`conj` (Rust-native) stand in.
 (:wat::core::defmacro :my::inc-vof
-  [& items <- :wat::core::Vector<wat::WatAST>] -> :wat::WatAST
+  [& items <- (:wat::core::Vector :- [:wat::WatAST])] -> :wat::WatAST
   (:wat::core::let [mapped (:wat::core::foldl
-                             (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST> x <- :wat::holon::HolonAST] -> :wat::core::Vector<wat::WatAST>
+                             (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST]) x <- :wat::holon::HolonAST] -> (:wat::core::Vector :- [:wat::WatAST])
                                (:wat::core::conj acc `(:wat::core::i64::+ ~x 1)))
                              (:wat::core::Vector :wat::WatAST)
                              items)]

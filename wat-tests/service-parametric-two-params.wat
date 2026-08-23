@@ -33,7 +33,7 @@
 ;; depth-aware type-arg split, with K and V load-bearing in the STATE.
 
 ;; ── the surface: TWO type params, messages bare ─────────────────────────────────────────────
-(:wat::core::defsurface :wat-tests::Pair<K,V> :nature :wat::kernel::Peer
+(:wat::core::defsurface :wat-tests::Pair :- [K V] :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :wat-tests::Pair::PutRequest [item <- :wat::core::i64])
    (:wat::core::defenum :wat-tests::Pair::PutResponse :wat::enum::Pure
@@ -42,19 +42,19 @@
      :Ok              [echo <- :wat::core::i64]
      ;; ruling A — every serviceable op-Response carries the protocol-tier too-large variant.
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   ;; Stone 16.3 — `:max-request-bytes` is MANDATORY on a `:nature :Peer'` op.
-  [(put [self <- :wat-tests::Pair<K,V>  req <- :wat-tests::Pair::PutRequest]
+  [(put [self <- (:wat-tests::Pair :- [K V])  req <- :wat-tests::Pair::PutRequest]
      -> :wat-tests::Pair::PutResponse :max-request-bytes 1024)])
 
 ;; ── the two-parameter service ───────────────────────────────────────────────────────────────
 ;; `k <- Option<K>` and `v <- Option<V>` are the whole point: ::Record, ::State, ::Admin,
 ;; ::Status and ::Handle are each generic in BOTH K and V, which is what forces the
 ;; `Locus/launch<Op,Reply,State<K,V>,Admin<K,V>,Status<K,V>>` call-head with NESTED type-args.
-(:wat::service::defservice :wat-tests::pair-svc<K,V>
-  :satisfies :wat-tests::Pair<K,V>
-  :durable   [k <- :wat::core::Option<K>  v <- :wat::core::Option<V>]
+(:wat::service::defservice :wat-tests::pair-svc :- [K V]
+  :satisfies (:wat-tests::Pair :- [K V])
+  :durable   [k <- (:wat::core::Option :- [K])  v <- (:wat::core::Option :- [V])]
   :ephemeral []
   :impls
   [(put [s ctx req]

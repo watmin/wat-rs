@@ -206,7 +206,7 @@
 
 
 ;; build-rules row — THE ROW DISPATCH. An unknown row is a located failure (mirrors where-shapes.wat).
-(:wat::core::defn :wnm::build-rules [row <- :wat::core::i64] -> :wat::core::PersistentVector<wat::rete::Rule>
+(:wat::core::defn :wnm::build-rules [row <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
   (:wat::core::PersistentVector
     (:wat::core::cond
       ((:wat::core::= row 1)  (:wnm::quot-neg))
@@ -233,8 +233,8 @@
   (:wat::rete::insert-all
     session
     (:wat::core::foldl
-      (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::Record>  i <- :wat::core::i64]
-                      -> :wat::core::PersistentVector<wat::core::Record>
+      (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  i <- :wat::core::i64]
+                      -> (:wat::core::PersistentVector :- [:wat::core::Record])
         (:wat::core::let [a (:wat::core::i64::- i 100)
                           z (:wat::core::i64::- (:wat::core::i64::mod i 5) 2)
                           x (:wat::core::f64::- (:wat::core::f64::* (:wat::core::i64::to-f64 i) 0.25) 25.0)
@@ -246,7 +246,7 @@
 
 ;; derived-ints fired — every derived Hit's key k, sorted ascending.
 (:wat::core::defn :wnm::derived-ints
-  [fired <- :wat::rete::Session] -> :wat::core::Vector<wat::core::i64>
+  [fired <- :wat::rete::Session] -> (:wat::core::Vector :- [:wat::core::i64])
   (:wat::core::sort
     (:wat::core::into (:wat::core::Vector :wat::core::i64)
       (:wat::core::map
@@ -255,7 +255,7 @@
 
 ;; render-ints — mirrors where-shapes.wat's render-ints EXACTLY (own rendering, not the EDN
 ;; printer, so `diff` is the entire verdict).
-(:wat::core::defn :wnm::render-ints [v <- :wat::core::Vector<wat::core::i64>] -> :wat::core::String
+(:wat::core::defn :wnm::render-ints [v <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::String
   (:wat::core::foldl
     (:wat::core::fn [acc <- :wat::core::String  x <- :wat::core::i64] -> :wat::core::String
       (:wat::core::String/concat acc

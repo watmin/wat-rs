@@ -17,7 +17,7 @@
 ;; HAPPY DIAL → ConnectOutcome::Connected[peer]. `connect'` queues a connect-request in
 ;; the live rendezvous slot (the listener in `pair` is still alive) and wraps the client
 ;; Peer'.
-(:wat::core::defn :user::connect-happy [] -> :wat::kernel::ConnectOutcome<wat::core::i64,wat::core::i64>
+(:wat::core::defn :user::connect-happy [] -> (:wat::kernel::ConnectOutcome :- [:wat::core::i64 :wat::core::i64])
   (:wat::core::let
     [pair (:wat::kernel::listener (:wat::spawn::thread) :wat::core::i64 :wat::core::i64)
      addr (:wat::spawn::Bound/address pair)]
@@ -26,14 +26,14 @@
 ;; Extract ONLY the address (the rendezvous Sender); the enclosing `Bound` (holding the
 ;; listener's crossbeam Receiver) is dropped when this helper returns — so the rendezvous
 ;; has no live receiver left.
-(:wat::core::defn :user::orphaned-address [] -> :wat::kernel::Address<wat::core::i64,wat::core::i64>
+(:wat::core::defn :user::orphaned-address [] -> (:wat::kernel::Address :- [:wat::core::i64 :wat::core::i64])
   (:wat::spawn::Bound/address
     (:wat::kernel::listener (:wat::spawn::thread) :wat::core::i64 :wat::core::i64)))
 
 ;; RETRYABLE TRANSPORT → ConnectOutcome::Refused[cause]. connect' on an address whose
 ;; listener (the only rendezvous Receiver) was dropped → crossbeam send Disconnected →
 ;; Refused (no listener / rendezvous gone), NOT a raise the dialer unwinds past.
-(:wat::core::defn :user::connect-refused [] -> :wat::kernel::ConnectOutcome<wat::core::i64,wat::core::i64>
+(:wat::core::defn :user::connect-refused [] -> (:wat::kernel::ConnectOutcome :- [:wat::core::i64 :wat::core::i64])
   (:wat::core::let
     [addr (:user::orphaned-address)]
     (:wat::kernel::connect addr)))

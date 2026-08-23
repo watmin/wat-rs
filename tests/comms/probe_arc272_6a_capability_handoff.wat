@@ -13,7 +13,7 @@
                    addr (:wat::spawn::Bound/address b)
                    ;; the self-peer carries the Address' capability child->parent (S = Address').
                    self (:wat::program::self-peer
-                          :wat::kernel::Address<wat::core::i64,wat::core::i64> :wat::core::i64)
+                          (:wat::kernel::Address :- [:wat::core::i64 :wat::core::i64]) :wat::core::i64)
                    ;; hand the parent the capability — the lock-step handoff (it now has perfect knowledge).
                    _    (:wat::core::match (:wat::kernel::send self addr) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil) (:wat::kernel::SendOutcome::Stopped nil)) ;; arc 278 #73 — fire-and-forget capability handoff; outcome ignored uniformly regardless of cause
                    ;; accept the parent's dial on our own listener; round-trip n -> n+100.

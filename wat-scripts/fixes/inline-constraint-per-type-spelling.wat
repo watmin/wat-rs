@@ -51,7 +51,7 @@
 ;; Idempotent (re-run = 0 changes): the table's `new` spellings never appear as `old` keys.
 
 ;; ── the rename table — checker-derived for THIS worklist (see the warning above) ──────────────
-(:wat::core::defn :user::rename-table [] -> :wat::core::Vector<(wat::core::String,wat::core::String)>
+(:wat::core::defn :user::rename-table [] -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
   (:wat::core::Vector :(wat::core::String,wat::core::String)
     (:wat::core::Tuple ":wat::core::<" ":wat::rete::core::i64::<")
     (:wat::core::Tuple ":wat::core::>" ":wat::rete::core::i64::>")
@@ -59,7 +59,7 @@
 
 (:wat::core::defn :user::rename-lookup
   [name  <- :wat::core::String
-   table <- :wat::core::Vector<(wat::core::String,wat::core::String)>]
+   table <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])]
   -> (:wat::core::Option :wat::core::String)
   (:wat::core::if (:wat::core::empty? table)
     :wat::core::None
@@ -73,9 +73,9 @@
 ;; ── inside a defrule: the table is LIVE ───────────────────────────────────────────────────────
 (:wat::core::defn :user::inside-rule-edits
   [node  <- :wat::WatAST
-   table <- :wat::core::Vector<(wat::core::String,wat::core::String)>
-   lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+   table <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
+   lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::if (:wat::fix::structural? node)
     (:user::inside-rule-edits-walk (:wat::core::ast->children node) table lines)
     (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "keyword")
@@ -90,10 +90,10 @@
       (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)))))
 
 (:wat::core::defn :user::inside-rule-edits-walk
-  [items <- :wat::core::Vector<wat::WatAST>
-   table <- :wat::core::Vector<(wat::core::String,wat::core::String)>
-   lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+  [items <- (:wat::core::Vector :- [:wat::WatAST])
+   table <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
+   lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::if (:wat::core::empty? items)
     (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
     (:wat::core::concat
@@ -109,7 +109,7 @@
 ;; sibling, which the re-census reported. The fire is the worklist, including the codemod's own.
 (:wat::core::defn :user::defrule-list?
   [node <- :wat::WatAST
-   ch   <- :wat::core::Vector<wat::WatAST>]
+   ch   <- (:wat::core::Vector :- [:wat::WatAST])]
   -> :wat::core::bool
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
     (:wat::core::if (:wat::core::empty? ch)
@@ -125,9 +125,9 @@
 ;; ── outside a defrule: walk, but the table never applies ──────────────────────────────────────
 (:wat::core::defn :user::outer-edits
   [node  <- :wat::WatAST
-   table <- :wat::core::Vector<(wat::core::String,wat::core::String)>
-   lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+   table <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
+   lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::if (:wat::fix::structural? node)
     (:wat::core::let [ch (:wat::core::ast->children node)]
       (:wat::core::if (:user::defrule-list? node ch)
@@ -136,10 +136,10 @@
     (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))))
 
 (:wat::core::defn :user::outer-edits-walk
-  [items <- :wat::core::Vector<wat::WatAST>
-   table <- :wat::core::Vector<(wat::core::String,wat::core::String)>
-   lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+  [items <- (:wat::core::Vector :- [:wat::WatAST])
+   table <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
+   lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::if (:wat::core::empty? items)
     (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
     (:wat::core::concat
@@ -158,7 +158,7 @@
     (:wat::fix::fix-text-apply src rev-edits)))
 
 (:wat::core::defn :user::apply-each
-  [paths <- :wat::core::Vector<wat::core::String>]
+  [paths <- (:wat::core::Vector :- [:wat::core::String])]
   -> :wat::core::nil
   (:wat::core::if (:wat::core::empty? paths)
     nil

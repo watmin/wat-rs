@@ -158,10 +158,10 @@
     (:wat::core::i64::+ (:wat::core::i64::* kind 1000000000000000) (:wat::core::i64::* g 1000000000))
     val))
 
-(:wat::core::defn :acp::vec->pvec [v <- :wat::core::Vector<wat::core::i64>] -> :wat::core::PersistentVector<wat::core::i64>
+(:wat::core::defn :acp::vec->pvec [v <- (:wat::core::Vector :- [:wat::core::i64])] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::i64>  x <- :wat::core::i64]
-      -> :wat::core::PersistentVector<wat::core::i64>
+    (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::i64])  x <- :wat::core::i64]
+      -> (:wat::core::PersistentVector :- [:wat::core::i64])
       (:wat::core::PersistentVector/conj acc x))
     (:wat::core::PersistentVector)
     v))
@@ -180,7 +180,7 @@
     session
     (:wat::core::range 0 G)))
 
-(:wat::core::defn :acp::codes [fired <- :wat::rete::Session] -> :wat::core::Vector<wat::core::i64>
+(:wat::core::defn :acp::codes [fired <- :wat::rete::Session] -> (:wat::core::Vector :- [:wat::core::i64])
   (:wat::core::let
     [c0 (:wat::core::into (:wat::core::Vector :wat::core::i64)
           (:wat::core::map (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:acp::enc 0 (:acp::CountF/g f) (:acp::CountF/n f))))
@@ -199,7 +199,7 @@
             (:wat::rete::query fired (:acp::q-ExistsF))))]
     c4))
 
-(:wat::core::defn :acp::derived-vector [fired <- :wat::rete::Session] -> :wat::core::PersistentVector<wat::core::i64>
+(:wat::core::defn :acp::derived-vector [fired <- :wat::rete::Session] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:acp::vec->pvec (:wat::core::sort (:acp::codes fired))))
 
 (:wat::core::defn :acp::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> :wat::core::i64

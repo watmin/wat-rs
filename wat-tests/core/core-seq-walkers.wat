@@ -18,7 +18,7 @@
 
 ;; ─── an infinite source, for the laziness rows ─────────────────────────────────────────────────
 (:wat::core::defn :wat-tests::core::core-seq-walkers::nat
-  [i <- :wat::core::i64] -> :wat::stream::Stream<wat::core::i64>
+  [i <- :wat::core::i64] -> (:wat::stream::Stream :- [:wat::core::i64])
   (:wat::stream::lazy
     (:wat::stream::cons i (:wat-tests::core::core-seq-walkers::nat (:wat::core::+ i 1)))))
 
@@ -38,15 +38,15 @@
 (:wat::core::defn :wat-tests::core::core-seq-walkers::identity
   [x <- :wat::core::i64] -> :wat::core::i64 x)
 
-(:wat::core::defn :wat-tests::core::core-seq-walkers::lazy-six [] -> :wat::stream::Stream<wat::core::i64>
+(:wat::core::defn :wat-tests::core::core-seq-walkers::lazy-six [] -> (:wat::stream::Stream :- [:wat::core::i64])
   (:wat::core::map :wat-tests::core::core-seq-walkers::identity
     (:wat::core::Vector :wat::core::i64 1 2 3 4 5 6)))
 
-(:wat::core::defn :wat-tests::core::core-seq-walkers::lazy-1234-12 [] -> :wat::stream::Stream<wat::core::i64>
+(:wat::core::defn :wat-tests::core::core-seq-walkers::lazy-1234-12 [] -> (:wat::stream::Stream :- [:wat::core::i64])
   (:wat::core::map :wat-tests::core::core-seq-walkers::identity
     (:wat::core::Vector :wat::core::i64 1 2 3 4 1 2)))
 
-(:wat::core::defn :wat-tests::core::core-seq-walkers::lazy-four [] -> :wat::stream::Stream<wat::core::i64>
+(:wat::core::defn :wat-tests::core::core-seq-walkers::lazy-four [] -> (:wat::stream::Stream :- [:wat::core::i64])
   (:wat::core::map :wat-tests::core::core-seq-walkers::identity
     (:wat::core::Vector :wat::core::i64 1 2 3 4)))
 

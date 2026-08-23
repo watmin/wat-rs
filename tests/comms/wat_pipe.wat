@@ -11,7 +11,7 @@
     42))
 
 ;; pipe_writeln_then_read_line_round_trips
-(:wat::core::defn :my::pipe-writeln-round-trips [] -> :wat::core::Option<wat::core::String>
+(:wat::core::defn :my::pipe-writeln-round-trips [] -> (:wat::core::Option :- [:wat::core::String])
   (:wat::core::let
     [pair (:wat::kernel::pipe)
      w    (:wat::core::first pair)
@@ -49,7 +49,7 @@
       (:wat::core::None        -1))))
 
 ;; pipe_preserves_utf8_lines
-(:wat::core::defn :my::pipe-preserves-utf8 [] -> :wat::core::Option<wat::core::String>
+(:wat::core::defn :my::pipe-preserves-utf8 [] -> (:wat::core::Option :- [:wat::core::String])
   (:wat::core::let
     [pair (:wat::kernel::pipe)
      w    (:wat::core::first pair)

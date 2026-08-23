@@ -151,12 +151,12 @@ fn list_hofs_preserve_container() {
     // `list_map_is_not_vector` below for the complementary negative). `reverse`/`concat` are
     // untouched by the flip (still eager) and still preserve List — proven unchanged.
     let src = format!(
-        "(:wat::core::defn :user::p-map  [] -> :wat::stream::Stream<wat::core::i64> (:wat::core::map {DBL} {L123}))\n\
-         (:wat::core::defn :user::p-filt [] -> :wat::stream::Stream<wat::core::i64> (:wat::core::filter {GT1} {L123}))\n\
-         (:wat::core::defn :user::p-rev  [] -> :wat::core::List<wat::core::i64> (:wat::core::reverse {L123}))\n\
-         (:wat::core::defn :user::p-take [] -> :wat::stream::Stream<wat::core::i64> (:wat::core::take {L123} 2))\n\
-         (:wat::core::defn :user::p-drop [] -> :wat::stream::Stream<wat::core::i64> (:wat::core::drop {L123} 1))\n\
-         (:wat::core::defn :user::p-cat  [] -> :wat::core::List<wat::core::i64> (:wat::core::concat {L123} {L123}))\n\
+        "(:wat::core::defn :user::p-map  [] -> (:wat::stream::Stream :- [:wat::core::i64]) (:wat::core::map {DBL} {L123}))\n\
+         (:wat::core::defn :user::p-filt [] -> (:wat::stream::Stream :- [:wat::core::i64]) (:wat::core::filter {GT1} {L123}))\n\
+         (:wat::core::defn :user::p-rev  [] -> (:wat::core::List :- [:wat::core::i64]) (:wat::core::reverse {L123}))\n\
+         (:wat::core::defn :user::p-take [] -> (:wat::stream::Stream :- [:wat::core::i64]) (:wat::core::take {L123} 2))\n\
+         (:wat::core::defn :user::p-drop [] -> (:wat::stream::Stream :- [:wat::core::i64]) (:wat::core::drop {L123} 1))\n\
+         (:wat::core::defn :user::p-cat  [] -> (:wat::core::List :- [:wat::core::i64]) (:wat::core::concat {L123} {L123}))\n\
          {MAIN}"
     );
     assert!(check(&src).is_ok(), "map/filter/take/drop must yield Stream<i64> (arc 118.2a); reverse/concat must still preserve List<i64>. Got: {:?}", check(&src));

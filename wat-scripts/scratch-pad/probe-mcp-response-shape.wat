@@ -25,7 +25,7 @@
    text <- :wat::core::String])
 
 (:wat::core::defrecord :probe::Result
-  [content <- :wat::core::Vector<probe::Content>
+  [content <- (:wat::core::Vector :- [:probe::Content])
    isError <- :wat::core::bool])
 
 (:wat::core::defrecord :probe::Response

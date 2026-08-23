@@ -9,12 +9,12 @@
    (:wat::core::defenum :my::Counter::GetResponse :wat::enum::Pure
      :Ok              [value <- :wat::core::i64]
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])
    (:wat::core::defrecord :my::Counter::IncrementRequest  [n <- :wat::core::i64])
    (:wat::core::defenum :my::Counter::IncrementResponse :wat::enum::Pure
      :Ok              [value <- :wat::core::i64]
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(get       [self <- :my::Counter  req <- :my::Counter::GetRequest]       -> :my::Counter::GetResponse :max-request-bytes 524288)
    (increment [self <- :my::Counter  req <- :my::Counter::IncrementRequest] -> :my::Counter::IncrementResponse :max-request-bytes 524288)])
@@ -72,7 +72,7 @@
      ;; the monotonic caller-id counter) and its `clients` slot is now Tuple<i64,Peer<…>>
      ;; entries (the id travels WITH its peer), not the bare Peer vector.
      svc  (:wat::test::spawn-peer (:wat::spawn::thread)
-            (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<my::counter::Status,my::counter::Admin>] -> :wat::core::nil
+            (:wat::core::fn [self <- (:wat::kernel::ThreadSelfPeer :- [:my::counter::Status :my::counter::Admin])] -> :wat::core::nil
               (:my::counter::serve self l
                 ;; arc 278 the call context — the Op slot must be the SERVICE superset type
                 ;; (`my::counter::Op`, not the surface `my::Counter::Op`) DIRECTLY: the
@@ -81,7 +81,7 @@
                 ;; Tuple wrapper (unify recurses into tuple elements without re-entering
                 ;; assignable) — so an empty vector built at the widened surface type no
                 ;; longer round-trips once `clients`' element is Tuple<i64,Peer<…>>.
-                (:wat::core::Vector :(wat::core::i64,wat::kernel::Peer<my::Counter::Reply,my::counter::Op>))
+                (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 (:wat::kernel::Peer :- [:my::Counter::Reply :my::counter::Op])]))
                 0
                 (:my::counter::State :durable (:my::counter::Record :count 0)))))
      c    (:wat::core::match (:wat::kernel::connect addr) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))

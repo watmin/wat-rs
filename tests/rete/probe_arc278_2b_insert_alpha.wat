@@ -39,7 +39,7 @@
     (:wat::core::length elems)))
 
 ;; (3) the stored Element's bindings carry ?t = 25 — bindings flow from alpha-match into the Element.
-(:wat::core::defn :user::alpha-element-t-binding [] -> :wat::core::Option<wat::core::i64>
+(:wat::core::defn :user::alpha-element-t-binding [] -> (:wat::core::Option :- [:wat::core::i64])
   (:wat::core::let
     [cond  (:wat::core::quote (:user::Temp (?t <- :value) (:wat::core::> ?t 20)))
      rule  (:wat::rete::Rule :name "r" :lhs (:wat::core::PersistentVector cond) :rhs (:wat::core::PersistentVector))

@@ -46,8 +46,8 @@
   (:wat::rete::insert-all
     s
     (:wat::core::foldl
-      (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::Record>  i <- :wat::core::i64]
-                      -> :wat::core::PersistentVector<wat::core::Record>
+      (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  i <- :wat::core::i64]
+                      -> (:wat::core::PersistentVector :- [:wat::core::Record])
         (:wat::core::PersistentVector/conj acc (:seedp::Left :key i :lid i)))
       (:wat::core::PersistentVector)
       (:wat::core::range 0 n))))

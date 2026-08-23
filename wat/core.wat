@@ -991,6 +991,49 @@
          ;; GUARD: this defn is ITSELF a kwargs-check (it has `& [...]`, so it took the kwargs
          ;; branch too) → do NOT mint ITS checker (infinite mint). Suffix test on the bare name.
          is-check (:wat::core::string::ends-with? name-base "::kwargs-check")
+         ;; Arc 109 ③ — angle brackets are ILLEGAL for types, so a parametric type slot
+         ;; (`Peer<S,R>`) that used to be ONE Keyword node (whose `ast-name` was the whole
+         ;; angle-bracket string) now arrives as the reference FORM `(Head :- [args])`, a
+         ;; List — and `ast-name` only reads Symbol/Keyword/StringLit, so it raises on that
+         ;; shape outright. The kwargs-companion machinery below (`::kwargs-check`/`::Coords`/
+         ;; `::GrantHandles`) tests "is this field's type a Peer<S,R>?" and swaps
+         ;; `Peer`→`Address`/`TypedCapability` in EIGHT places by `ast-name` +
+         ;; `string::contains?`/`string::split`+`string::join` — every one assumed the
+         ;; Keyword-only shape. These two LOCAL closures (bound here, not top-level `defn`s —
+         ;; a program-body macro's default-deny purity gate, arc 249 stone 249.2b-i, refuses
+         ;; any user-defined GLOBAL head; a `let`-bound closure invoked by its bound SYMBOL is
+         ;; not a keyword-headed call at all, so it never reaches that gate) are the ONE door
+         ;; both shapes go through for the eight call sites below.
+         ;;
+         ;; kwargs-type-slot-name: structural type-NAME text of a kwargs field's type slot,
+         ;; whether spelled as a bare Keyword or the `(Head :- [args])` List form (reads the
+         ;; List's own head).
+         kwargs-type-slot-name
+           (:wat::core::fn [node <- :wat::WatAST] -> :wat::core::String
+             (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
+               (:wat::core::ast-name (:wat::core::first (:wat::core::ast->children node)))
+               (:wat::core::ast-name node)))
+         ;; kwargs-type-slot-swap-head: rebuild a type-slot node with its HEAD keyword's text
+         ;; substring-substituted `old`->`new`, preserving shape: a bare Keyword becomes a
+         ;; bare Keyword; a `(Head :- [args])` List keeps the SAME `:- [args]` tail — only
+         ;; Head's text changes, so the args (however deeply nested) survive untouched.
+         kwargs-type-slot-swap-head
+           (:wat::core::fn [node <- :wat::WatAST old <- :wat::core::String new <- :wat::core::String] -> :wat::WatAST
+             (:wat::core::let
+               [nm         (kwargs-type-slot-name node)
+                swapped-kw (:wat::core::keyword-node (:wat::core::string::join new (:wat::core::string::split nm old)))]
+               (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
+                 (:wat::core::let
+                   [ch     (:wat::core::ast->children node)
+                    tail   (:wat::core::rest ch)
+                    new-ch (:wat::core::foldl
+                             (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST]) x <- :wat::WatAST]
+                               -> (:wat::core::Vector :- [:wat::WatAST])
+                               (:wat::core::conj acc x))
+                             (:wat::core::conj (:wat::core::Vector :wat::WatAST) swapped-kw)
+                             tail)]
+                   (:wat::core::with-children node new-ch))
+                 swapped-kw)))
          ;; ── the head-swapped argvec: fold kw-ch, swap Peer TYPE nodes only ──
          ;; kw-ch is flat triples [fname@j·3, arrow@j·3+1, type@j·3+2]; only the type position
          ;; (j mod 3 == 2) is ever swapped, and only when it names a Peer<S,R> (data-typed
@@ -1000,11 +1043,10 @@
                         (:wat::core::let
                           [child   (:wat::core::Option/expect (:wat::core::get kw-ch j) "w2a swapped-ch index")
                            is-type (:wat::core::= (:wat::core::i64::mod j 3) 2)
-                           nm      (:wat::core::ast-name child)
+                           nm      (:wat::core::if is-type (kwargs-type-slot-name child) "")
                            is-peer (:wat::core::if is-type (:wat::core::string::contains? nm "Peer") false)
                            swapped (:wat::core::if is-peer
-                                     (:wat::core::keyword-node
-                                       (:wat::core::string::join "Address" (:wat::core::string::split nm "Peer")))
+                                     (kwargs-type-slot-swap-head child "Peer" "Address")
                                      child)]
                           (:wat::core::conj acc swapped)))
                       (:wat::core::Vector :wat::WatAST)
@@ -1043,7 +1085,7 @@
                           (:wat::core::fn [acc <- :wat::core::bool i <- :wat::core::i64] -> :wat::core::bool
                             (:wat::core::if acc true
                               (:wat::core::string::contains?
-                                (:wat::core::ast-name
+                                (kwargs-type-slot-name
                                   (:wat::core::Option/expect
                                     (:wat::core::get kw-ch (:wat::core::i64::+ (:wat::core::i64::* i 3) 2))
                                     "w2a has-peer-field: type index"))
@@ -1069,12 +1111,10 @@
                             (:wat::core::let
                               [child   (:wat::core::Option/expect (:wat::core::get kw-ch j) "w2d capswapped-ch index")
                                is-type (:wat::core::= (:wat::core::i64::mod j 3) 2)
-                               nm      (:wat::core::ast-name child)
+                               nm      (:wat::core::if is-type (kwargs-type-slot-name child) "")
                                is-peer (:wat::core::if is-type (:wat::core::string::contains? nm "Peer") false)
                                swapped (:wat::core::if is-peer
-                                         (:wat::core::keyword-node
-                                           (:wat::core::string::join "wat::capability::TypedCapability"
-                                             (:wat::core::string::split nm "wat::kernel::Peer")))
+                                         (kwargs-type-slot-swap-head child "wat::kernel::Peer" "wat::capability::TypedCapability")
                                          child)]
                               (:wat::core::conj acc swapped)))
                           (:wat::core::Vector :wat::WatAST)
@@ -1096,7 +1136,7 @@
                                   orig-ty    (:wat::core::Option/expect
                                                (:wat::core::get kw-ch (:wat::core::i64::+ (:wat::core::i64::* i 3) 2))
                                                "w2d gh-field: type index")
-                                  is-peer    (:wat::core::string::contains? (:wat::core::ast-name orig-ty) "Peer")
+                                  is-peer    (:wat::core::string::contains? (kwargs-type-slot-name orig-ty) "Peer")
                                   cap-ty     (:wat::core::Option/expect
                                                (:wat::core::get capswapped-ch (:wat::core::i64::+ (:wat::core::i64::* i 3) 2))
                                                "w2d gh-field: capswapped type index")]
@@ -1133,7 +1173,7 @@
                                   orig-ty    (:wat::core::Option/expect
                                                (:wat::core::get kw-ch (:wat::core::i64::+ (:wat::core::i64::* i 3) 2))
                                                "w2d coords-ctor-args: type index")
-                                  is-peer    (:wat::core::string::contains? (:wat::core::ast-name orig-ty) "Peer")
+                                  is-peer    (:wat::core::string::contains? (kwargs-type-slot-name orig-ty) "Peer")
                                   arg-form   (:wat::core::if is-peer
                                                `(:wat::capability::TypedCapability/coord ~fname-node)
                                                fname-node)]
@@ -1147,7 +1187,7 @@
                              orig-ty    (:wat::core::Option/expect
                                           (:wat::core::get kw-ch (:wat::core::i64::+ (:wat::core::i64::* i 3) 2))
                                           "w2d gh-ctor-args: type index")
-                             is-peer    (:wat::core::string::contains? (:wat::core::ast-name orig-ty) "Peer")]
+                             is-peer    (:wat::core::string::contains? (kwargs-type-slot-name orig-ty) "Peer")]
                             (:wat::core::if is-peer (:wat::core::conj acc fname-node) acc)))
                         (:wat::core::Vector :wat::WatAST)
                         (:wat::core::range 0 n-kw-fields))
@@ -1176,7 +1216,7 @@
                             orig-ty    (:wat::core::Option/expect
                                          (:wat::core::get kw-ch (:wat::core::i64::+ (:wat::core::i64::* i 3) 2))
                                          "w2d grant-calls: type index")
-                            is-peer    (:wat::core::string::contains? (:wat::core::ast-name orig-ty) "Peer")
+                            is-peer    (:wat::core::string::contains? (kwargs-type-slot-name orig-ty) "Peer")
                             fname-str  (:wat::core::ast-name fname-node)
                             acc-kw     (:wat::core::keyword-node
                                          (:wat::core::string::concat ":"
@@ -1193,7 +1233,7 @@
                              orig-ty    (:wat::core::Option/expect
                                           (:wat::core::get kw-ch (:wat::core::i64::+ (:wat::core::i64::* i 3) 2))
                                           "w2d revoke-calls: type index")
-                             is-peer    (:wat::core::string::contains? (:wat::core::ast-name orig-ty) "Peer")
+                             is-peer    (:wat::core::string::contains? (kwargs-type-slot-name orig-ty) "Peer")
                              fname-str  (:wat::core::ast-name fname-node)
                              acc-kw     (:wat::core::keyword-node
                                           (:wat::core::string::concat ":"
@@ -1235,7 +1275,7 @@
                 orig-ty    (:wat::core::Option/expect
                              (:wat::core::get kw-ch (:wat::core::i64::+ (:wat::core::i64::* i 3) 2))
                              "assemble-ctor-args: type index")
-                is-peer    (:wat::core::string::contains? (:wat::core::ast-name orig-ty) "Peer")
+                is-peer    (:wat::core::string::contains? (kwargs-type-slot-name orig-ty) "Peer")
                 fname-str  (:wat::core::ast-name fname-node)
                 acc-kw     (:wat::core::keyword-node
                              (:wat::core::string::concat ":"

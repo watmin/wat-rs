@@ -2,12 +2,12 @@
 ;; A thread worker recv's PoolMsg<D,I>, only ever gets :Work. D is phantom.
 ;; EXPECT (green): "6" (work-fn doubles 3)
 
-(:wat::core::defenum :probe::PoolMsg<D,I> :wat::enum::Pure
+(:wat::core::defenum :probe::PoolMsg :- [D I] :wat::enum::Pure
   :Setup [deps <- :D]
   :Work  [pair <- :(wat::core::i64,I)])
 
 (:wat::core::defn :probe::serve
-  [self <- :wat::kernel::ThreadSelfPeer<(wat::core::i64,wat::core::i64),probe::PoolMsg<wat::core::nil,wat::core::i64>>]
+  [self <- (:wat::kernel::ThreadSelfPeer :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64]) (:probe::PoolMsg :- [:wat::core::nil :wat::core::i64])])]
   -> :wat::core::nil
   (:wat::core::match (:wat::kernel::recv self)
     ((:wat::kernel::RecvOutcome::Message m)
@@ -33,7 +33,7 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [w (:wat::test::spawn-peer (:wat::spawn::thread)
-         (:wat::core::fn [sp <- :wat::kernel::ThreadSelfPeer<(wat::core::i64,wat::core::i64),probe::PoolMsg<wat::core::nil,wat::core::i64>>] -> :wat::core::nil
+         (:wat::core::fn [sp <- (:wat::kernel::ThreadSelfPeer :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64]) (:probe::PoolMsg :- [:wat::core::nil :wat::core::i64])])] -> :wat::core::nil
            (:probe::serve sp)))
      _  (:wat::core::match (:wat::kernel::send w (:probe::PoolMsg::Work (:wat::core::Tuple 0 3))) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) (:wat::kernel::SendOutcome::Stopped nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
      r0 (:wat::kernel::recv w)

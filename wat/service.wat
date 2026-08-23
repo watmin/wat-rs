@@ -577,20 +577,6 @@
      ;;
      ;; Record's own field vector is `durable-fields` verbatim (no union needed).
      record-tp-syms (:wat::core::type-params-used-in fqdn-tp-syms durable-fields)
-     record-tp      (:wat::core::if (:wat::core::empty? record-tp-syms)
-
-                       ""
-                       (:wat::core::string::concat "<"
-                         (:wat::core::string::concat
-                           (:wat::core::string::join ","
-                             (:wat::core::foldl
-                               (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String])
-                                                a   <- :wat::WatAST]
-                                 -> (:wat::core::Vector :- [:wat::core::String])
-                                 (:wat::core::conj acc (:wat::core::ast-name a)))
-                               (:wat::core::Vector :wat::core::String)
-                               record-tp-syms))
-                           ">")))
      ;; State wraps the durable ref + its own ephemeral fields — search the union of the
      ;; RAW `durable-fields`/`ephemeral-fields` (not the derived `record-ty`, so this has
      ;; no ordering dependency on it) built via the same ast->children/with-children idiom
@@ -607,46 +593,34 @@
                            (:wat::core::ast->children ephemeral-fields))
      state-search-node (:wat::core::with-children empty-vec state-search-items)
      state-tp-syms  (:wat::core::type-params-used-in fqdn-tp-syms state-search-node)
-     state-tp       (:wat::core::if (:wat::core::empty? state-tp-syms)
-
-                       ""
-                       (:wat::core::string::concat "<"
-                         (:wat::core::string::concat
-                           (:wat::core::string::join ","
-                             (:wat::core::foldl
-                               (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String])
-                                                a   <- :wat::WatAST]
-                                 -> (:wat::core::Vector :- [:wat::core::String])
-                                 (:wat::core::conj acc (:wat::core::ast-name a)))
-                               (:wat::core::Vector :wat::core::String)
-                               state-tp-syms))
-                           ">")))
 
      ;; ── 4b-ii: mint state-ty as :<fqdn>::State, record-ty as :<fqdn>::Record ──
-     state-ty-str   (:wat::core::string::interpolate "{b}::State{p}" :b fqdn-base :p state-tp)
+     ;; Arc 109 ③ — angle brackets are ILLEGAL for types (both parse doors wall them); the
+     ;; `<a,b>` suffix-string mint (`record-tp`/`state-tp`, above) is RETIRED. `*-ty-str`/
+     ;; `*-ty-decl` now carry the BARE name only — no `<…>` — and `state-def`/`record-def`
+     ;; (below) splice `:- [~@*-tp-syms]` as DECLARATION siblings when the syms list is
+     ;; non-empty. The ANNOTATION spelling mints the reference FORM `(Head :- [args])`
+     ;; directly via quasiquote — no round-trip through an angle-bracket string and the
+     ;; (now-illegal) type parser. identity 2c's role split (DECL-NAME vs ANNOTATION) still
+     ;; holds; only the SPELLING each role emits has changed.
+     state-ty-str   (:wat::core::string::interpolate "{b}::State" :b fqdn-base)
      state-ty-decl  (:wat::core::keyword/from-string state-ty-str)
-     ;; identity 2c: state-ty split by role — DECL-NAME (`defstruct`'s own name slot, :731) stays
-     ;; the raw angle keyword; ANNOTATION (param/return/field types throughout) mints the
-     ;; reference FORM instead (`(Head :- [args])`), per BRIEF-STONE-identity-2c.
-     state-ty-ann   (:wat::core::keyword/to-type-form-colon
-                      (:wat::core::keyword-node (:wat::core::string::concat ":" state-ty-str)))
-     record-ty-decl (:wat::core::keyword/from-string
-                      (:wat::core::string::interpolate "{b}::Record{p}" :b fqdn-base :p record-tp))
-     ;; identity 2c: record-ty split by role — DECL-NAME (`defrecord`'s own name slot, :709/710)
-     ;; stays the raw angle keyword; ANNOTATION (param/return/field types throughout) mints the
-     ;; reference FORM.
+     state-ty-base-kw (:wat::core::keyword-node (:wat::core::string::concat ":" state-ty-str))
+     state-ty-ann   (:wat::core::if (:wat::core::empty? state-tp-syms)
+                      state-ty-base-kw
+                      `(~state-ty-base-kw :- [~@state-tp-syms]))
+     record-ty-str  (:wat::core::string::interpolate "{b}::Record" :b fqdn-base)
+     record-ty-decl (:wat::core::keyword/from-string record-ty-str)
      ;;
      ;; ✅ 2c's STOP-2 IS CLOSED (BRIEF-STONE-defservice-compares-types-as-data). It recorded that
      ;; the `:hibernate` check below consumed this bare keyword through `keyword/to-string` as a
      ;; type-identity STRING compare, fitting none of the four roles. That was the missing DOOR,
      ;; not a missing role: the check now reads `type-equal? hib-ret-ty record-ty-ann` — two type
-     ;; NODES, spelling-agnostic — so nothing renders a type to compare it any more. The
-     ;; `keyword/to-string` on the next line is NOT that site: it is a representation BRIDGE
-     ;; (`keyword/from-string` yields a raw keyword VALUE; `keyword/to-type-form-colon` needs a
-     ;; `:wat::WatAST` node), and it compares nothing.
-     record-ty-ann  (:wat::core::keyword/to-type-form-colon
-                      (:wat::core::keyword-node
-                        (:wat::core::string::concat ":" (:wat::core::keyword/to-string record-ty-decl))))
+     ;; NODES, spelling-agnostic — so nothing renders a type to compare it any more.
+     record-ty-base-kw (:wat::core::keyword-node (:wat::core::string::concat ":" record-ty-str))
+     record-ty-ann  (:wat::core::if (:wat::core::empty? record-tp-syms)
+                      record-ty-base-kw
+                      `(~record-ty-base-kw :- [~@record-tp-syms]))
 
      ;; ── 4b-ii: :init option ────────────────────────────────────────────────────
      ;; :init : Record → State. Default (fn [d <- ::Record] -> ::State (::State d))
@@ -775,10 +749,19 @@
      ;; door instead of a render+compare; `state-parent` is user-declared (`:durable-parent`
      ;; clause, defaulted to `:wat::core::Record`) and, like any declared type, could in
      ;; principle arrive as a form rather than a bare keyword.
+     ;; Arc 109 ③ — `record-ty-decl` is now the BARE name (no `<…>`); a non-empty
+     ;; `record-tp-syms` splices the `:- [T …]` binder as DECLARATION SIBLINGS
+     ;; (no parens — the corpus spelling, e.g. `wat/cache.wat:71`'s
+     ;; `(:wat::core::defrecord :wat::cache::Entry :- [K V] ...)`), immediately
+     ;; after the name, before the field vector.
      record-def   (:wat::core::if (:wat::core::type-equal? state-parent (:wat::core::keyword-node ":wat::holon::Record"))
 
-                    `(:wat::holon::defrecord ~record-ty-decl ~durable-fields)
-                    `(:wat::core::defrecord ~record-ty-decl ~durable-fields))
+                    (:wat::core::if (:wat::core::empty? record-tp-syms)
+                      `(:wat::holon::defrecord ~record-ty-decl ~durable-fields)
+                      `(:wat::holon::defrecord ~record-ty-decl :- [~@record-tp-syms] ~durable-fields))
+                    (:wat::core::if (:wat::core::empty? record-tp-syms)
+                      `(:wat::core::defrecord ~record-ty-decl ~durable-fields)
+                      `(:wat::core::defrecord ~record-ty-decl :- [~@record-tp-syms] ~durable-fields)))
      ;; Build the State struct field vector: prepend [durable <- ::Record] before ephemeral fields.
      ;; Strategy: use quasiquote to build the durable-field prefix vector `[durable <- ~record-ty]`,
      ;; extract its 3 children, then prepend them to the ephemeral children via foldl.
@@ -802,7 +785,10 @@
                          ephemeral-children)
      ;; Build the state field vector as a WatAST::Vector using with-children on empty-vec
      state-field-vec (:wat::core::with-children empty-vec state-field-items)
-     state-def    `(:wat::core::defstruct ~state-ty-decl ~state-field-vec)
+     ;; Arc 109 ③ — same siblings-binder splice as `record-def` above, over `state-tp-syms`.
+     state-def    (:wat::core::if (:wat::core::empty? state-tp-syms)
+                    `(:wat::core::defstruct ~state-ty-decl ~state-field-vec)
+                    `(:wat::core::defstruct ~state-ty-decl :- [~@state-tp-syms] ~state-field-vec))
 
      ;; ── Arc 278 S4d: :peers — the s2s dependency DAG + cross-fork manifest ──────────
      ;; A :satisfies service that DIALS another service holds a client Peer<S::Op,S::Reply>
@@ -977,47 +963,36 @@
                                            (:wat::core::string::contains? fqdn-tp ",T,"))))
                        "Xt"
                        "T")
-     handle-t-suffix (:wat::core::if fqdn-parametric?
-                       (:wat::core::string::concat
-                         (:wat::core::string::subs fqdn-tp 0
-                           (:wat::core::i64::- (:wat::core::string::length fqdn-tp) 1))
-                         (:wat::core::string::concat ","
-                           (:wat::core::string::concat transport-param ">")))
-                       (:wat::core::string::concat "<" (:wat::core::string::concat transport-param ">")))
-     handle-shared-suffix (:wat::core::if fqdn-parametric?
-                            (:wat::core::string::concat
-                              (:wat::core::string::subs fqdn-tp 0
-                                (:wat::core::i64::- (:wat::core::string::length fqdn-tp) 1))
-                              ",wat::kernel::Shared>")
-                            "<wat::kernel::Shared>")
-     handle-wire-suffix (:wat::core::if fqdn-parametric?
-                          (:wat::core::string::concat
-                            (:wat::core::string::subs fqdn-tp 0
-                              (:wat::core::i64::- (:wat::core::string::length fqdn-tp) 1))
-                            ",wat::kernel::Wire>")
-                          "<wat::kernel::Wire>")
-     handle-bare-name (:wat::core::keyword/to-type-form-colon
-                        (:wat::core::keyword-node
-                          (:wat::core::string::concat ":"
-                            (:wat::core::string::interpolate "{b}::Handle{p}" :b fqdn-base :p fqdn-tp))))
-     handle-name-decl (:wat::core::keyword/from-string
-                     (:wat::core::string::interpolate "{b}::Handle{s}" :b fqdn-base :s handle-t-suffix))
+     ;; Arc 109 ③ — angle brackets are ILLEGAL for types; the `<…>` suffix-string mint
+     ;; (`handle-t-suffix`/`handle-shared-suffix`/`handle-wire-suffix`) is RETIRED in favour
+     ;; of extending `fqdn-tp-syms` structurally (`conj` one more arg node) and minting the
+     ;; reference FORM `(Head :- [args])` directly via quasiquote.
+     ;;
+     ;; `handle-bare-name` USED to keep a narrower arg list (`fqdn-tp-syms` only, no transport
+     ;; param) matching a documented "T unknown residual" role. That role does not survive
+     ;; structural typing: `handle-record` (below) registers the REAL `Handle` at arity 3
+     ;; (`handle-tp-syms` — K,V,T), so a 2-arg reference is not a valid partial instantiation of
+     ;; it, just an under-arity mismatch — `parse_type_form`'s structural `Parametric{head,args}`
+     ;; enforces that where the old angle-string round-trip apparently never got exercised
+     ;; end-to-end (`wat --check` on `wat/cache.wat` hit exactly this: `:wat::cache::lru-svc/grant`
+     ;; and `Handle/addr` both expect the 3-arg `Handle<K,V,T>` `handle-bare-name` is the RECEIVER
+     ;; type for). `handle-bare-name` now carries the full `handle-tp-syms` arg list — byte-
+     ;; identical to `handle-name-ann` — closing that gap.
+     handle-ty-str    (:wat::core::string::interpolate "{b}::Handle" :b fqdn-base)
+     handle-base-kw   (:wat::core::keyword-node (:wat::core::string::concat ":" handle-ty-str))
+     handle-name-decl (:wat::core::keyword/from-string handle-ty-str)
+     handle-tp-syms   (:wat::core::conj fqdn-tp-syms (:wat::core::symbol-node transport-param))
      ;; identity 2c: handle-name split by role — DECL-NAME (Handle defstruct's own name slot,
-     ;; :2755) stays the raw angle keyword; ANNOTATION (start/resume$impl return types) mints
-     ;; the reference FORM.
-     handle-name-ann (:wat::core::keyword/to-type-form-colon
-                       (:wat::core::keyword-node
-                         (:wat::core::string::concat ":" (:wat::core::keyword/to-string handle-name-decl))))
+     ;; below) stays the bare keyword (the binder splices as siblings there); ANNOTATION
+     ;; (start/resume$impl return types) mints the reference FORM.
+     handle-name-ann  `(~handle-base-kw :- [~@handle-tp-syms])
+     handle-bare-name handle-name-ann
      ;; identity 2c: handle-shared-name / handle-wire-name are ANNOTATION-only (ann-form
      ;; ascriptions + start/resume$impl-thread/-process return types) — mint the reference FORM.
-     handle-shared-name (:wat::core::keyword/to-type-form-colon
-                          (:wat::core::keyword-node
-                            (:wat::core::string::concat ":"
-                              (:wat::core::string::interpolate "{b}::Handle{s}" :b fqdn-base :s handle-shared-suffix))))
-     handle-wire-name (:wat::core::keyword/to-type-form-colon
-                        (:wat::core::keyword-node
-                          (:wat::core::string::concat ":"
-                            (:wat::core::string::interpolate "{b}::Handle{s}" :b fqdn-base :s handle-wire-suffix))))
+     handle-shared-tp-syms (:wat::core::conj fqdn-tp-syms (:wat::core::keyword-node ":wat::kernel::Shared"))
+     handle-shared-name `(~handle-base-kw :- [~@handle-shared-tp-syms])
+     handle-wire-tp-syms (:wat::core::conj fqdn-tp-syms (:wat::core::keyword-node ":wat::kernel::Wire"))
+     handle-wire-name `(~handle-base-kw :- [~@handle-wire-tp-syms])
      ;; handle-new-kw: :<fqdn>::Handle' — the PRIME positional ctor (arc 294 item 9a: the bare
      ;; `:<fqdn>::Handle` is now the kwargs UX macro; generated machinery constructs via the prime,
      ;; exactly as state-new-kw does for the State struct — see start-body/resume-body below).
@@ -1030,27 +1005,33 @@
      ;; Listener<proto::Op,proto::Reply>
      ;; identity 2c: listener-ty / addr-ty / client-peer-ty are ANNOTATION-only — mint the
      ;; reference FORM directly.
-     listener-ty   (:wat::core::keyword/to-type-form-colon
-                     (:wat::core::keyword-node
-                       (:wat::core::string::concat ":"
-                         (:wat::core::string::interpolate "wat::kernel::Listener<{o},{r}>"
-                           :o proto-op-ty-str :r proto-reply-ty-str))))
+     ;;
+     ;; Arc 109 ③ — angle brackets are ILLEGAL for types. `proto-op-ty-str`/`proto-reply-ty-str`
+     ;; (above) stay as-is for their NAME-construction consumers (method-name interpolation,
+     ;; the runtime `retag-op` discriminator) — those never reach the type parser. TYPE
+     ;; positions here mint their own reference FORM structurally off `proto-args` (already a
+     ;; Vector<WatAST> of arg nodes — see `proto-args`'s own derivation above), never a
+     ;; re-serialized `<a,b>` string.
+     proto-op-base-kw    (:wat::core::keyword-node
+                            (:wat::core::string::concat ":"
+                              (:wat::core::string::interpolate "{b}::Op" :b proto-base)))
+     proto-reply-base-kw (:wat::core::keyword-node
+                            (:wat::core::string::concat ":"
+                              (:wat::core::string::interpolate "{b}::Reply" :b proto-base)))
+     proto-op-ty-ann    (:wat::core::if (:wat::core::empty? proto-args)
+                          proto-op-base-kw
+                          `(~proto-op-base-kw :- [~@proto-args]))
+     proto-reply-ty-ann (:wat::core::if (:wat::core::empty? proto-args)
+                          proto-reply-base-kw
+                          `(~proto-reply-base-kw :- [~@proto-args]))
+     listener-ty   `(:wat::kernel::Listener :- [~proto-op-ty-ann ~proto-reply-ty-ann])
      ;; Vector<Peer<proto::Reply,proto::Op>>
      ;; Address<proto::Op,proto::Reply,T> — T is Handle/Status's transport marker (293.W.2f).
-     addr-ty       (:wat::core::keyword/to-type-form-colon
-                     (:wat::core::keyword-node
-                       (:wat::core::string::concat ":"
-                         (:wat::core::string::interpolate "wat::kernel::Address<{o},{r},{t}"
-                           :o proto-op-ty-str :r proto-reply-ty-str :t
-                           (:wat::core::string::concat transport-param ">")))))
+     addr-ty       `(:wat::kernel::Address :- [~proto-op-ty-ann ~proto-reply-ty-ann ~(:wat::core::symbol-node transport-param)])
      ;; Client Peer<proto::Op,proto::Reply> — connect'(Address<Op,Reply>) → Peer<Op,Reply>.
      ;; This is the client-side peer (sends Op, receives Reply); distinct from
      ;; peer-ty (Peer<Reply,Op>) which is the server-side peer (accepts via listener').
-     client-peer-ty (:wat::core::keyword/to-type-form-colon
-                      (:wat::core::keyword-node
-                        (:wat::core::string::concat ":"
-                          (:wat::core::string::interpolate "wat::kernel::Peer<{o},{r}>"
-                            :o proto-op-ty-str :r proto-reply-ty-str))))
+     client-peer-ty `(:wat::kernel::Peer :- [~proto-op-ty-ann ~proto-reply-ty-ann])
 
      ;; ── arc 291 3a-ii-α: lineage protocol types ──────────────────────────────
      ;; Admin enum:     :<fqdn>::Admin  — what the owner sends DOWN the lineage peer.
@@ -1078,73 +1059,42 @@
      ;; :Hibernate are nullary and :AllowPeer/:DenyPeer carry `Vector<i64>` (concrete), so
      ;; neither contributes a param. Searching `init-params-vec` alone is therefore exact.
      admin-tp-syms  (:wat::core::type-params-used-in fqdn-tp-syms init-params-vec)
-     admin-tp       (:wat::core::if (:wat::core::empty? admin-tp-syms)
-
-                       ""
-                       (:wat::core::string::concat "<"
-                         (:wat::core::string::concat
-                           (:wat::core::string::join ","
-                             (:wat::core::foldl
-                               (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String])
-                                                a   <- :wat::WatAST]
-                                 -> (:wat::core::Vector :- [:wat::core::String])
-                                 (:wat::core::conj acc (:wat::core::ast-name a)))
-                               (:wat::core::Vector :wat::core::String)
-                               admin-tp-syms))
-                           ">")))
-     admin-ty-str   (:wat::core::string::interpolate "{b}::Admin{p}" :b fqdn-base :p admin-tp)
+     admin-ty-str   (:wat::core::string::interpolate "{b}::Admin" :b fqdn-base)
      admin-ty-decl  (:wat::core::keyword/from-string admin-ty-str)
-     ;; identity 2c: admin-ty split by role — DECL-NAME (`defenum`'s own name slot, :1077) and
-     ;; RUNTIME-ARG (`self-peer`'s arg, same call site as status-ty below) stay the raw angle
-     ;; keyword (their destinations are unruled); ANNOTATION (dispatch-admin-def's param type)
-     ;; mints the reference FORM.
-     admin-ty-ann     (:wat::core::keyword/to-type-form-colon
-                        (:wat::core::keyword-node (:wat::core::string::concat ":" admin-ty-str)))
-     admin-ty-runtime admin-ty-decl
+     admin-base-kw  (:wat::core::keyword-node (:wat::core::string::concat ":" admin-ty-str))
+     ;; identity 2c: admin-ty split by role — DECL-NAME (`defenum`'s own name slot, below)
+     ;; stays the bare keyword (the binder splices as siblings there); ANNOTATION
+     ;; (dispatch-admin-def's param type) and RUNTIME-ARG (`self-peer`'s arg) both mint the
+     ;; reference FORM — `parse_peer_pair_type_arg` (src/check.rs) now accepts it (Arc 109 ③
+     ;; closed the checker-side gap that made RUNTIME-ARG Keyword-only).
+     admin-ty-ann     (:wat::core::if (:wat::core::empty? admin-tp-syms)
+                        admin-base-kw
+                        `(~admin-base-kw :- [~@admin-tp-syms]))
+     admin-ty-runtime admin-ty-ann
      ;; 293.W.2f — Status<T> so Started's addr-ty T is a real type parameter
      ;; (not a rigid leftover name). Process launch unifies T:=Wire; thread T:=Shared.
-     status-ty-str (:wat::core::string::interpolate "{b}::Status{s}" :b fqdn-base :s handle-t-suffix)
+     status-ty-str (:wat::core::string::interpolate "{b}::Status" :b fqdn-base)
      status-ty-decl  (:wat::core::keyword/from-string status-ty-str)
-     ;; identity 2c STOP-2 (reported, not resolved here): status-ty-ann — a SECOND, independent
-     ;; instance of lineage-peer-ty's finding below (converting EITHER one alone reproduces the
-     ;; exact same 61/128 `wat::services` failure; my first bisection reverted both at once and
-     ;; wrongly cleared this one — corrected after re-converting it alone broke the suite again).
-     ;; `extract-addr` (this param's owner) is, like `serve`, passed BY NAME to `Locus/launch` as
-     ;; `lu-addr-kw` (comment a few lines below) — the same "signature captured as a first-class
-     ;; value" shape implicated there. Left UNCONVERTED — the raw angle keyword, unchanged from
-     ;; 2b — until this is ruled.
-     status-ty-ann     (:wat::core::keyword/to-type-form-colon
-                         (:wat::core::keyword-node (:wat::core::string::concat ":" status-ty-str)))
-     status-ty-runtime status-ty-decl
+     status-base-kw  (:wat::core::keyword-node (:wat::core::string::concat ":" status-ty-str))
+     ;; Status carries the same transport marker as Handle (293.W.2f) — `handle-tp-syms`
+     ;; (fqdn-tp-syms + transport-param) is the identical arg list.
+     ;; identity 2c STOP-2 — PREVIOUSLY left unconverted (a documented `wat::services`
+     ;; 128/128 -> 61/128 `UnresolvedReference` regression). CLOSED: `src/resolve/walk.rs`'s
+     ;; `check_form` already carries the `is_type_reference` / `is_binder_marker` guard (the
+     ;; resolver-side SIBLING of the `macros/expand.rs` guard) that declines a `(Head :- [args])`
+     ;; form as a call head — the exact mechanism the regression needed. Converts clean.
+     status-ty-ann     `(~status-base-kw :- [~@handle-tp-syms])
+     status-ty-runtime status-ty-ann
      ;; arc 291 3a-ii-β: the CHILD's lineage self-peer — sends Status UP, recvs Admin DOWN.
      ;; serve binds `self` to this (distinct from the client peer-ty Peer<Reply,Op>).
      ;; Arc 293.W.2d: serve's self is ThreadSelfPeer<Status,Admin> for thread-tier.
      ;; Process-tier calls serve via `apply` (Locus/launch child-main-form), which bypasses
      ;; the type check — the process-tier Peer<Status,Admin> from self-peer is accepted at
      ;; runtime without a static mismatch.
-     ;; identity 2c STOP-2 (reported, not resolved here): lineage-peer-ty — converting it alone
-     ;; reproduces the exact `cargo nextest -E 'binary_id(wat::services)'` 128/128 -> 61/128
-     ;; regression this stone hit (see status-ty-ann above for the second, independent instance
-     ;; of the same finding). Every one of the 61 failures cited the SAME shape,
-     ;; `#wat.resolve/UnresolvedReference {:path "<fqdn>::Status" :context "call head — not a
-     ;; builtin, not a registered function"}`. `macroexpand` alone (the acceptance row's own
-     ;; methodology) does NOT catch this — the emitted AST prints fine; it is the RESOLVE pass,
-     ;; downstream of macro-expansion, that treats the spliced form as a call. Best working
-     ;; hypothesis (unconfirmed): both `serve` (this binding) and `extract-addr` (status-ty-ann)
-     ;; are passed BY NAME to `Locus/launch` (per the comment above and near status-ty-ann) —
-     ;; their signatures get captured/referenced as first-class values, unlike e.g.
-     ;; handle-peer-ty's defstruct-FIELD use (structurally nests the identical `<fqdn>::Status`
-     ;; substring, converts clean) which is only ever checked in place. A function reference
-     ;; built from a signature containing a spliced `(Head :- [args])` may resolve that form on
-     ;; a different path than a plain field-type or ordinary-call param check does. Left
-     ;; UNCONVERTED — the raw angle keyword, unchanged from 2b — until this is ruled.
-     lineage-peer-ty (:wat::core::keyword/to-type-form-colon
-                       (:wat::core::keyword-node
-                         (:wat::core::string::concat ":"
-                           (:wat::core::string::concat "wat::kernel::ThreadSelfPeer<"
-                             (:wat::core::string::concat status-ty-str
-                               (:wat::core::string::concat ","
-                                 (:wat::core::string::concat admin-ty-str ">")))))))
+     ;; identity 2c STOP-2 — CLOSED, same finding as status-ty-ann above (the resolver guard
+     ;; in `src/resolve/walk.rs` already covers the "signature captured as a first-class value"
+     ;; path this comment used to flag as the open question).
+     lineage-peer-ty `(:wat::kernel::ThreadSelfPeer :- [~status-ty-ann ~admin-ty-ann])
      admin-init-kw  (:wat::core::keyword/from-string
                       (:wat::core::string::interpolate "{b}::Admin::Init" :b fqdn-base))
      admin-stop-kw  (:wat::core::keyword/from-string
@@ -1205,17 +1155,30 @@
      ;;   Init and Resume both carry ::Record (not ::State — structs never cross the wire).
      ;; arc 278: Admin::AllowPeer[pids] — a vec of caller pids to grant to the accept-gate.
      ;; arc 293: Admin::DenyPeer[pids] — mirror, a vec of caller pids to revoke from it.
-     admin-enum-def `(:wat::core::defenum ~admin-ty-decl :wat::enum::Pure
-                       :Init     ~init-params-vec
-                       :Stop
-                       :Hibernate
-                       :Resume   ~init-params-vec
-                       :AllowPeer [pids <- (:wat::core::Vector :wat::core::i64)]
-                       :DenyPeer [pids <- (:wat::core::Vector :wat::core::i64)])
+     ;; Arc 109 ③ — `admin-ty-decl`/`status-ty-decl` are the BARE names; splice the `:-`
+     ;; binder as declaration siblings (immediately after the name, before the purity
+     ;; keyword) when their tp-syms are non-empty.
+     admin-enum-def (:wat::core::if (:wat::core::empty? admin-tp-syms)
+                      `(:wat::core::defenum ~admin-ty-decl :wat::enum::Pure
+                         :Init     ~init-params-vec
+                         :Stop
+                         :Hibernate
+                         :Resume   ~init-params-vec
+                         :AllowPeer [pids <- (:wat::core::Vector :wat::core::i64)]
+                         :DenyPeer [pids <- (:wat::core::Vector :wat::core::i64)])
+                      `(:wat::core::defenum ~admin-ty-decl :- [~@admin-tp-syms] :wat::enum::Pure
+                         :Init     ~init-params-vec
+                         :Stop
+                         :Hibernate
+                         :Resume   ~init-params-vec
+                         :AllowPeer [pids <- (:wat::core::Vector :wat::core::i64)]
+                         :DenyPeer [pids <- (:wat::core::Vector :wat::core::i64)]))
      ;; arc 291 4b-ii: Status::Hibernated carries ::Record (not ::State).
      ;; arc 278: Status::PeersAllowed (unit) — the AllowPeer request/reply ack.
      ;; arc 293: Status::PeersDenied (unit) — the DenyPeer request/reply ack.
-     status-enum-def `(:wat::core::defenum ~status-ty-decl :wat::enum::Pure
+     ;; Status's tp-syms are `handle-tp-syms` (always non-empty — the transport marker),
+     ;; so the binder splice here is unconditional (mirrors `handle-record` above).
+     status-enum-def `(:wat::core::defenum ~status-ty-decl :- [~@handle-tp-syms] :wat::enum::Pure
                              :Started   [addr     <- ~addr-ty]
                              :Stopped     [resp     <- ~resp-ty]
                              :Hibernated [snapshot <- ~record-ty-ann]
@@ -1292,17 +1255,23 @@
      ;; own params (its variant fields name the surface's parametric messages, so the binders must
      ;; be in scope), and every TYPE-position reference below instantiates it at those params.
      ;; `service-op-str` stays BASE: it is the ctor/variant namespace, the `retag-op'` runtime
-     ;; target, and the `derive` edge's child. Monomorphic ⇒ fqdn-tp is "" ⇒ the two coincide.
-     service-op-ty-str (:wat::core::string::interpolate "{b}::Op{p}" :b fqdn-base :p fqdn-tp)
-     service-op-decl-kw-decl (:wat::core::keyword/from-string service-op-ty-str)
-     ;; identity 2b: service-op-decl-kw split by role — DECL-NAME (above, `defenum`'s own
-     ;; name slot) vs RUNTIME-ARG (below, `retag-op`'s target-type argument). Byte-identical
-     ;; alias; no conversion. See TABLE-defservice-type-name-sites.md.
-     service-op-decl-kw-runtime service-op-decl-kw-decl
+     ;; target, and the `derive` edge's child. Monomorphic ⇒ fqdn-tp-syms is empty ⇒ the two coincide.
+     ;;
+     ;; Arc 109 ③ — angle brackets are ILLEGAL for types; `service-op-ty-str`'s old `<…>`-suffixed
+     ;; spelling is RETIRED. `service-op-ty-ann` mints the reference FORM off `fqdn-tp-syms`
+     ;; structurally. `service-op-decl-kw-decl` is now the BARE name (siblings binder spliced at
+     ;; `service-op-def`, below); the RUNTIME-ARG role (`retag-op`'s target-type argument) now
+     ;; uses `service-op-ty-ann` too — `parse_peer_pair_type_arg` (src/check.rs) accepts the
+     ;; reference form since Arc 109 ③ closed that checker-side gap (identity 2b's byte-identical
+     ;; DECL-NAME/RUNTIME-ARG alias no longer holds; the two roles now want different spellings).
+     service-op-ty-ann (:wat::core::if (:wat::core::empty? fqdn-tp-syms)
+                         service-op-kw
+                         `(~service-op-kw :- [~@fqdn-tp-syms]))
+     service-op-decl-kw-decl service-op-kw
+     service-op-decl-kw-runtime service-op-ty-ann
      ;; selectable-peer-ty: Peer<proto::Reply, service::Op> (the poll' element — superset O).
-     selectable-peer-ty-str (:wat::core::string::interpolate "wat::kernel::Peer<{r},{o}>"
-                               :r proto-reply-ty-str :o service-op-ty-str)
-     selectable-peer-ty (:wat::core::keyword/from-string selectable-peer-ty-str)
+     ;; Arc 109 ③ — reference FORM, structurally off `proto-reply-ty-ann` / `service-op-ty-ann`.
+     selectable-peer-ty `(:wat::kernel::Peer :- [~proto-reply-ty-ann ~service-op-ty-ann])
      ;; selectable-vec-ty: Vector<Peer<proto::Reply, service::Op>> — the BARE peer vector, the
      ;; shape `:wat::kernel::poll`/`:wat::kernel::serve-dispatch-op` require (both are Rust
      ;; intrinsics that downcast every element to a real Peer opaque; neither can see through a
@@ -1310,40 +1279,27 @@
      ;; below) — never as `selectables`' own declared type anymore (see `selectable-entry-vec-ty`).
      ;; identity 2c: selectable-vec-ty is ANNOTATION-only (fold accumulator param + return type)
      ;; — mints the reference FORM directly.
-     selectable-vec-ty (:wat::core::keyword/to-type-form-colon
-                         (:wat::core::keyword-node
-                           (:wat::core::string::concat ":"
-                             (:wat::core::string::interpolate "wat::core::Vector<wat::kernel::Peer<{r},{o}>>"
-                               :r proto-reply-ty-str :o service-op-ty-str))))
+     selectable-vec-ty `(:wat::core::Vector :- [~selectable-peer-ty])
      ;; ── arc 278 the call context: the caller id travels WITH its peer (STOP-2) ──────────────
-     ;; selectable-entry-ty: (i64, Peer<R,O>) — the NATIVE tuple type spelling `:(T1,T2)` (NOT
-     ;; the `Tuple<T1,T2>` angle-bracket form — the checker infers a `(:wat::core::Tuple a b)`
-     ;; ctor call at exactly `:(T1,T2)`, and the two spellings do not unify as declared-vs-
-     ;; inferred; proven by running `--check` and reading the TypeMismatch). ONE element, id+peer
+     ;; selectable-entry-ty: (i64, Peer<R,O>). Arc 109 ③ — the OLD native tuple-STRING spelling
+     ;; `:(T1,T2)` embedded `selectable-peer-ty-str`'s `<…>`, now illegal. `parse_type_form`'s
+     ;; `raw_head == "wat::core::Tuple"` special-case (src/types.rs, ~5042) produces the
+     ;; IDENTICAL `TypeExpr::Tuple` structurally off `(:wat::core::Tuple :- [args])` — so this
+     ;; mints THAT instead; it unifies the same way the string spelling did (both collapse to
+     ;; `TypeExpr::Tuple`, never `Parametric{head:"wat::core::Tuple",…}`). ONE element, id+peer
      ;; coupled by construction (never a second vector keyed by position: `remove-at` drops both
      ;; together, always, because there is only ever one vector). selectable-entry-vec-ty is
      ;; `selectables`' REAL declared type from here down; `selectable-vec-ty`/`selectable-peer-ty`
      ;; above survive only as the bare-peer PROJECTION poll'/serve-dispatch-op still need.
-     selectable-entry-ty-str (:wat::core::string::interpolate "(wat::core::i64,{p})"
-                                :p selectable-peer-ty-str)
-     selectable-entry-ty-raw (:wat::core::keyword/from-string selectable-entry-ty-str)
-     ;; identity 2c: selectable-entry-ty split by role — CTOR-ARG (`Vector`'s element-type
-     ;; argument, below) stays the raw angle/tuple keyword (its destination is unruled); the
-     ;; ANNOTATION alias (the arm-fold's element param type, below) mints the reference FORM
-     ;; instead. 2b had these as one byte-identical pair with `-ann` as the base and `-ctor` as
-     ;; the alias; 2c re-points both off a new `-raw` base so converting `-ann` cannot drag
-     ;; `-ctor` along with it.
-     selectable-entry-ty-ann (:wat::core::keyword/to-type-form-colon
-                                (:wat::core::keyword-node
-                                  (:wat::core::string::concat ":" selectable-entry-ty-str)))
-     selectable-entry-ty-ctor selectable-entry-ty-raw
-     selectable-entry-vec-ty-str (:wat::core::string::interpolate "wat::core::Vector<(wat::core::i64,{p})>"
-                                    :p selectable-peer-ty-str)
+     ;;
+     ;; identity 2c had split CTOR-ARG vs ANNOTATION into `-ctor`/`-ann` aliases of a `-raw`
+     ;; base, because the OLD Keyword-only `Vector` ctor-arg check couldn't accept a reference
+     ;; FORM. `infer_list_constructor` (src/check.rs) now accepts the List form too (arc 109
+     ;; ②-iii widening) — one node serves both roles, so that split collapses back to one name.
+     selectable-entry-ty `(:wat::core::Tuple :- [:wat::core::i64 ~selectable-peer-ty])
      ;; identity 2c: selectable-entry-vec-ty is ANNOTATION-only (arm-fold param/return type +
      ;; `serve-params`' `selectables` field) — mints the reference FORM directly.
-     selectable-entry-vec-ty (:wat::core::keyword/to-type-form-colon
-                                (:wat::core::keyword-node
-                                  (:wat::core::string::concat ":" selectable-entry-vec-ty-str)))
+     selectable-entry-vec-ty `(:wat::core::Vector :- [~selectable-entry-ty])
      ;; peers-only-expr — the BARE-peer projection `:wat::kernel::poll` / `:wat::kernel::
      ;; serve-dispatch-op` need (both are Rust intrinsics that downcast every Vector element to
      ;; a real Peer opaque; a Tuple wrapper is invisible to them). Built fresh, once per
@@ -1354,16 +1310,14 @@
      ;; (outer macro scope) so `serve-body` below can splice it at both call sites.
      peers-acc-sym (:wat::core::symbol-node "pacc")
      peers-t-sym   (:wat::core::symbol-node "pt")
-     peers-fold-fn `(:wat::core::fn [~peers-acc-sym <- ~selectable-vec-ty  ~peers-t-sym <- ~selectable-entry-ty-ann]
+     peers-fold-fn `(:wat::core::fn [~peers-acc-sym <- ~selectable-vec-ty  ~peers-t-sym <- ~selectable-entry-ty]
                         -> ~selectable-vec-ty
                       (:wat::core::conj ~peers-acc-sym (:wat::core::second ~peers-t-sym)))
      peers-only-expr `(:wat::core::foldl ~peers-fold-fn (:wat::core::Vector ~selectable-peer-ty) selectables)
      ;; alarm-o-ty: Alarm<service::Op> — the arm-foldl binder type.
-     ;; identity 2c: ANNOTATION-only (arm-fold's alarm param type) — mints the reference FORM.
-     alarm-o-ty      (:wat::core::keyword/to-type-form-colon
-                       (:wat::core::keyword-node
-                         (:wat::core::string::concat ":"
-                           (:wat::core::string::interpolate "wat::service::Alarm<{o}>" :o service-op-ty-str))))
+     ;; identity 2c: ANNOTATION-only (arm-fold's alarm param type) — mints the reference FORM,
+     ;; structurally off `service-op-ty-ann` (Arc 109 ③ retired the angle-string concat).
+     alarm-o-ty      `(:wat::service::Alarm :- [~service-op-ty-ann])
      ;; The superset variant items: a flat [variant-kw field-vec …] Vector<WatAST> spliced into
      ;; the defenum. A surface op → `:Pascal [req <- :<proto>::<Pascal>Request]` (mirrors the
      ;; surface Op variant's field, so `retag-op'` embeds field-for-field); an internal `-op` →
@@ -1396,17 +1350,25 @@
                               ;; `retag-op'` both require field-for-field identity). Monomorphic
                               ;; ⇒ proto-tp is "" ⇒ byte-identical to the bare alias name.
                               ;; identity 2c: ANNOTATION-only (this variant's own field type) —
-                              ;; mints the reference FORM.
-                              [req-ty (:wat::core::keyword/to-type-form-colon
-                                        (:wat::core::keyword-node
-                                          (:wat::core::string::concat ":"
-                                            (:wat::core::string::interpolate "{b}::{op}/Request{p}"
-                                              :b proto-base :op op-str :p proto-tp))))]
+                              ;; mints the reference FORM. Arc 109 ③ — structurally off
+                              ;; `proto-args` (the surface's own arg-node list), not the retired
+                              ;; `proto-tp` angle-string suffix.
+                              [req-base-kw (:wat::core::keyword-node
+                                             (:wat::core::string::concat ":"
+                                               (:wat::core::string::interpolate "{b}::{op}/Request"
+                                                 :b proto-base :op op-str)))
+                               req-ty (:wat::core::if (:wat::core::empty? proto-args)
+                                        req-base-kw
+                                        `(~req-base-kw :- [~@proto-args]))]
                               `[req <- ~req-ty]))]
              (:wat::core::conj (:wat::core::conj acc variant-kw-node) field-vec)))
          (:wat::core::Vector :wat::WatAST)
          impl-clauses)
-     service-op-def `(:wat::core::defenum ~service-op-decl-kw-decl :wat::enum::Pure ~@service-op-variant-items)
+     ;; Arc 109 ③ — `service-op-decl-kw-decl` is now the BARE name; splice `:- [~@fqdn-tp-syms]`
+     ;; as declaration siblings when the service is genuinely parametric.
+     service-op-def (:wat::core::if (:wat::core::empty? fqdn-tp-syms)
+                      `(:wat::core::defenum ~service-op-decl-kw-decl :wat::enum::Pure ~@service-op-variant-items)
+                      `(:wat::core::defenum ~service-op-decl-kw-decl :- [~@fqdn-tp-syms] :wat::enum::Pure ~@service-op-variant-items))
      ;; ── Arc 278 reconciliation (b): surface-Op <: service-Op subtype edge ──────────────
      ;; The serve loop's `selectables` param is typed with the SUPERSET `<service>::Op`
      ;; (`selectable-peer-ty` above), but CLIENT peers speak the SURFACE `<proto>::Op` — a
@@ -1957,7 +1919,7 @@
                          ;; the arms below dispatch over the instantiated `<service>::Op<K,V>`.
                          ;; `eval_retag_op` canonicalizes both to their base names (params are
                          ;; erased in a runtime `type_path`). Monomorphic ⇒ unchanged.
-                         (:wat::core::match (:wat::kernel::retag-op op ~proto-op-ty-kw ~service-op-decl-kw-runtime)
+                         (:wat::core::match (:wat::kernel::retag-op op ~proto-op-ty-ann ~service-op-decl-kw-runtime)
                            ~@serve-op-arms)))
                      ((:wat::spawn::ServiceEvent::Closed idx)
                        (~serve-name self l (:wat::std::list::remove-at selectables idx) next-id state))
@@ -2043,25 +2005,31 @@
                           ;; message's name by concatenation; `{p}` re-attaches the alias's own
                           ;; type args, exactly as `method-name` above re-attaches `fqdn-tp`.
                           ;; identity 2c: req-ty (this scope) is ANNOTATION-only (client method's
-                          ;; `req` param type) — mints the reference FORM.
-                          req-ty          (:wat::core::keyword/to-type-form-colon
-                                            (:wat::core::keyword-node
-                                              (:wat::core::string::concat ":"
-                                                (:wat::core::string::interpolate "{b}::{op-str}/Request{p}"
-                                                  :b proto-base :op-str op-str :p proto-tp))))
-                          resp-ty-str     (:wat::core::string::interpolate "{b}::{op-str}/Response{p}"
-                                            :b proto-base :op-str op-str :p proto-tp)
+                          ;; `req` param type) — mints the reference FORM. Arc 109 ③ —
+                          ;; structurally off `proto-args`, not the retired `proto-tp` string.
+                          req-base-kw     (:wat::core::keyword-node
+                                            (:wat::core::string::concat ":"
+                                              (:wat::core::string::interpolate "{b}::{op-str}/Request"
+                                                :b proto-base :op-str op-str)))
+                          req-ty          (:wat::core::if (:wat::core::empty? proto-args)
+                                            req-base-kw
+                                            `(~req-base-kw :- [~@proto-args]))
+                          ;; NOTE: named `client-resp-ty`, NOT `resp-ty` — the outer macro scope
+                          ;; already binds `resp-ty` (the :stop projection's return type,
+                          ;; `:wat::core::nth stop-fn-ch 3`, used well below); a same-named local
+                          ;; here would shadow it silently inside this nested `let`.
+                          client-resp-base-kw (:wat::core::keyword-node
+                                            (:wat::core::string::concat ":"
+                                              (:wat::core::string::interpolate "{b}::{op-str}/Response"
+                                                :b proto-base :op-str op-str)))
+                          client-resp-ty  (:wat::core::if (:wat::core::empty? proto-args)
+                                            client-resp-base-kw
+                                            `(~client-resp-base-kw :- [~@proto-args]))
                           ;; arc 278 the recv'-outcome wall — the CLIENT-FACING return type is
-                          ;; `RecvOutcome<<Op>Response>` (a matchable value, never a raise). Built as
-                          ;; the `:head<arg>` keyword-suffix form (arg = resp-ty-str, no leading
-                          ;; colon — mirrors `:wat::core::Vector<wat::WatAST>`).
+                          ;; `RecvOutcome<<Op>Response>` (a matchable value, never a raise).
                           ;; identity 2c: ANNOTATION-only (client method's return type) — mints
-                          ;; the reference FORM.
-                          recv-ret-ty     (:wat::core::keyword/to-type-form-colon
-                                            (:wat::core::keyword-node
-                                              (:wat::core::string::concat ":"
-                                                (:wat::core::string::concat "wat::kernel::RecvOutcome<"
-                                                  (:wat::core::string::concat resp-ty-str ">")))))
+                          ;; the reference FORM, structurally off `client-resp-ty` above.
+                          recv-ret-ty     `(:wat::kernel::RecvOutcome :- [~client-resp-ty])
                           op-variant-kw   (:wat::core::keyword/from-string
                                             (:wat::core::string::concat proto-base
                                               (:wat::core::string::interpolate "::Op::{op-pascal}" :op-pascal op-pascal)))
@@ -2468,7 +2436,7 @@
                           ;; a type var names is opaque (`edn_to_typed_value`'s var arm) — the
                           ;; concrete fields around it are still decoded and enforced exactly.
                           [~cm-b-sym    (:wat::kernel::listener :user::spawn::service-locus
-                                            ~proto-op-ty-kw ~proto-reply-ty-kw ~max-frame-bytes-node)
+                                            ~proto-op-ty-ann ~proto-reply-ty-ann ~max-frame-bytes-node)
                            ~cm-self-sym (:wat::program::self-peer ~status-ty-runtime ~admin-ty-runtime)
                            ~cm-ship-sym (:wat::core::match (:wat::kernel::recv ~cm-self-sym) 
                                             ((:wat::kernel::RecvOutcome::Message ~cm-shipmsg-sym) ~cm-shipmsg-sym)
@@ -2507,7 +2475,7 @@
                           (:wat::core::apply
                             (:wat::core::keyword/from-string ~serve-name-str) ~cm-self-sym
                             (:wat::spawn::Bound/listener ~cm-b-sym)
-                            (:wat::core::Vector ~selectable-entry-ty-ctor)
+                            (:wat::core::Vector ~selectable-entry-ty)
                             0
                             ~cm-st-sym [])))
      ;; The transport-agnostic service-forms defn: Op/Reply/records/serve + agnostic child
@@ -2902,16 +2870,14 @@
      ;; token is the whole fix: a Handle is an owner-side CAPABILITY, never data,
      ;; and only ADDRESSES cross (293.W).
      ;; identity 2c: handle-peer-ty is ANNOTATION-only (Handle struct field) — mints the
-     ;; reference FORM.
-     handle-peer-ty (:wat::core::keyword/to-type-form-colon
-                      (:wat::core::keyword-node
-                        (:wat::core::string::concat ":"
-                          (:wat::core::string::concat "wat::kernel::Peer<"
-                            (:wat::core::string::concat admin-ty-str
-                              (:wat::core::string::concat ","
-                                (:wat::core::string::concat status-ty-str ">")))))))
+     ;; reference FORM, structurally off `admin-ty-ann`/`status-ty-ann` (both already
+     ;; reference-form nodes — Arc 109 ③ retired the angle-string concat this used).
+     handle-peer-ty `(:wat::kernel::Peer :- [~admin-ty-ann ~status-ty-ann])
      handle-fields `[handle <- ~handle-peer-ty addr <- ~addr-ty]
-     handle-record `(:wat::core::defstruct ~handle-name-decl ~handle-fields)
+     ;; Arc 109 ③ — `handle-tp-syms` always carries at least the transport marker, so the
+     ;; binder splice is unconditional here (unlike `record-def`/`state-def`, which may be
+     ;; genuinely monomorphic).
+     handle-record `(:wat::core::defstruct ~handle-name-decl :- [~@handle-tp-syms] ~handle-fields)
 
      ;; ── arc 170: auto-emit the Capability extend-type ─────────────────────────────
      ;; Every <fqdn>::Handle uniformly satisfies :wat::capability::Capability (relocated to
@@ -2940,11 +2906,7 @@
      ;; Reply> — so a wrong-service dial is a compile-time discrimination error. Mirrors
      ;; the hand-proven extend-type in scratchpad/probe-c2-typed-coordinate.wat. proto-str
      ;; (not fqdn-str) matches addr-ty's own Op/Reply namespace (arc 293 S2, line ~472).
-     dialable-ty (:wat::core::keyword/to-type-form-colon
-                   (:wat::core::keyword-node
-                     (:wat::core::string::concat ":"
-                       (:wat::core::string::interpolate "wat::capability::Dialable<{o},{r}>"
-                         :o proto-op-ty-str :r proto-reply-ty-str))))
+     dialable-ty `(:wat::capability::Dialable :- [~proto-op-ty-ann ~proto-reply-ty-ann])
      dialable-extend `(:wat::core::extend-type ~handle-bare-name ~dialable-ty
                          (coord [~grantable-self-sym] (~handle-addr-name ~grantable-self-sym)))
 
@@ -2956,11 +2918,7 @@
      ;; Capability+Dialable bodies above via that flat key. Mirrors dialable-ty's Op/Reply
      ;; wiring exactly (proto-str namespace, not fqdn-str — same reasoning as line ~1192).
      ;; Shape proven scratchpad/probe-v-bodiless.wat / probe-v-swap.wat / probe-v-run.wat.
-     typedcap-ty (:wat::core::keyword/to-type-form-colon
-                   (:wat::core::keyword-node
-                     (:wat::core::string::concat ":"
-                       (:wat::core::string::interpolate "wat::capability::TypedCapability<{o},{r}>"
-                         :o proto-op-ty-str :r proto-reply-ty-str))))
+     typedcap-ty `(:wat::capability::TypedCapability :- [~proto-op-ty-ann ~proto-reply-ty-ann])
      typedcap-extend `(:wat::core::extend-type ~handle-bare-name ~typedcap-ty)]
 
     ;; Assemble the final `do`:

@@ -60,7 +60,7 @@
 ;; surfaces as Lost. The terminal eprintln's value rides the crash cause:
 ;; LociDiedError::Panic.message = the value's EDN "\"oops\"".
 ;; Returns [msg1 msg2 death-message].
-(:wat::core::defn :my::compute-stdout-stderr [] -> :wat::core::Vector<wat::core::String>
+(:wat::core::defn :my::compute-stdout-stderr [] -> (:wat::core::Vector :- [:wat::core::String])
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
@@ -149,7 +149,7 @@
 ;; `(raise! (Fault/of "boom"))` crashes it. Unbuffered PipeWriter → the "before
 ;; panic" Message is received BEFORE the crash surfaces as Lost[Panic].
 ;; Returns [partial-message panic-message].
-(:wat::core::defn :my::compute-panic-partial [] -> :wat::core::Vector<wat::core::String>
+(:wat::core::defn :my::compute-panic-partial [] -> (:wat::core::Vector :- [:wat::core::String])
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms

@@ -20,7 +20,7 @@
    (:wat::core::defenum :wat-tests::OffsetCounter::TotalResponse :wat::enum::Pure
      :Ok              [value <- :wat::core::i64]
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(total [self <- :wat-tests::OffsetCounter  req <- :wat-tests::OffsetCounter::TotalRequest] -> :wat-tests::OffsetCounter::TotalResponse :max-request-bytes 524288)])
 

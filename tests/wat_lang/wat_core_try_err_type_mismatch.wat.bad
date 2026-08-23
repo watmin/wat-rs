@@ -1,5 +1,5 @@
 ;; Negative fixture: mismatched Err types (i64 vs String) → TypeMismatch.
-(:wat::core::defn :t::produce-i64-err [] -> :wat::core::Result<wat::core::i64,wat::core::i64>
+(:wat::core::defn :t::produce-i64-err [] -> (:wat::core::Result :- [:wat::core::i64 :wat::core::i64])
   (:wat::core::Err 99))
-(:wat::core::defn :t::probe [] -> :wat::core::Result<wat::core::i64,wat::core::String>
+(:wat::core::defn :t::probe [] -> (:wat::core::Result :- [:wat::core::i64 :wat::core::String])
   (:wat::core::Ok (:wat::core::Result/try (:t::produce-i64-err))))

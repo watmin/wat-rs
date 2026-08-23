@@ -7,9 +7,9 @@
     [svc  (:wat::test::spawn-peer (:wat::spawn::process)
             (:wat::core::forms
              (:wat::core::defn :user::serve
-               [self    <- :wat::kernel::Peer<wat::kernel::Address<wat::core::i64,wat::core::i64>,wat::core::i64>
-                l       <- :wat::kernel::Listener<wat::core::i64,wat::core::i64>
-                clients <- :wat::core::Vector<wat::kernel::Peer<wat::core::i64,wat::core::i64>>]
+               [self    <- (:wat::kernel::Peer :- [(:wat::kernel::Address :- [:wat::core::i64 :wat::core::i64]) :wat::core::i64])
+                l       <- (:wat::kernel::Listener :- [:wat::core::i64 :wat::core::i64])
+                clients <- (:wat::core::Vector :- [(:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])])]
                -> :wat::core::nil
                (:wat::core::match (:wat::kernel::poll self l clients) 
                  (:wat::spawn::ServiceEvent::Shutdown nil)
@@ -29,10 +29,10 @@
                (:wat::core::let
                  [b    (:wat::kernel::listener (:wat::spawn::process) :wat::core::i64 :wat::core::i64)
                   self (:wat::program::self-peer
-                          :wat::kernel::Address<wat::core::i64,wat::core::i64> :wat::core::i64)
+                          (:wat::kernel::Address :- [:wat::core::i64 :wat::core::i64]) :wat::core::i64)
                   _    (:wat::core::match (:wat::kernel::send self (:wat::spawn::Bound/address b)) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) (:wat::kernel::SendOutcome::Stopped nil) ((:wat::kernel::SendOutcome::Lost _c) nil))]
                  (:user::serve self (:wat::spawn::Bound/listener b)
-                   (:wat::core::Vector :wat::kernel::Peer<wat::core::i64,wat::core::i64>))))))
+                   (:wat::core::Vector (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])))))))
      ;; recv' the child's minted capability over the lineage channel.
      addr (:wat::core::match (:wat::kernel::recv svc)
             ((:wat::kernel::RecvOutcome::Message m) m)

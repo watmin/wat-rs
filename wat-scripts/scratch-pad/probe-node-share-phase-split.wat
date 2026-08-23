@@ -83,10 +83,10 @@
       :lhs (:wat::core::PersistentVector a-c b-c where-c)
       :rhs (:wat::core::PersistentVector ins))))
 
-(:wat::core::defn :phase::build-rules [n <- :wat::core::i64] -> :wat::core::PersistentVector<wat::rete::Rule>
+(:wat::core::defn :phase::build-rules [n <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::rete::Rule>  i <- :wat::core::i64]
-      -> :wat::core::PersistentVector<wat::rete::Rule>
+    (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::rete::Rule])  i <- :wat::core::i64]
+      -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
       (:wat::core::PersistentVector/conj acc (:phase::build-rule i n)))
     (:wat::core::PersistentVector)
     (:wat::core::range 0 n)))
@@ -98,16 +98,16 @@
     session
     (:wat::core::range 0 items)))
 
-(:wat::core::defn :phase::vec->pvec [v <- :wat::core::Vector<wat::core::i64>] -> :wat::core::PersistentVector<wat::core::i64>
+(:wat::core::defn :phase::vec->pvec [v <- (:wat::core::Vector :- [:wat::core::i64])] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::i64>  x <- :wat::core::i64]
-      -> :wat::core::PersistentVector<wat::core::i64>
+    (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::i64])  x <- :wat::core::i64]
+      -> (:wat::core::PersistentVector :- [:wat::core::i64])
       (:wat::core::PersistentVector/conj acc x))
     (:wat::core::PersistentVector)
     v))
 
 (:wat::core::defn :phase::derived-vector
-  [fired <- :wat::rete::Session] -> :wat::core::PersistentVector<wat::core::i64>
+  [fired <- :wat::rete::Session] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:phase::vec->pvec
     (:wat::core::sort
       (:wat::core::into (:wat::core::Vector :wat::core::i64)

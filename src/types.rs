@@ -2996,17 +2996,24 @@ fn synthesize_surface_protocol(
     // declaration, so its honest datum is its EDN shape ("Integer", "Vector", "Map"). Ruled at
     // Stone 1, four questions, 4×YES / 4×NO (DESIGN-request-malformed-input-sanitization.md).
     //
-    // Built by PARSING the canonical spelling rather than hand-assembling the `TypeExpr`: the
-    // parser is the one authority on how `Vector<T>` is represented, and this way the two
-    // written forms (`:wat::core::Vector<wat::core::String>` and `(:wat::core::Vector
-    // :wat::core::String)`) compare equal, as they must — they are the same type.
+    // Arc 109 ③ — angle brackets are ILLEGAL for types, so `parse_type_expr` on a
+    // `Vector<T>`-spelled string constant no longer parses (it screams, correctly — this
+    // constant WAS exactly the class of hardcoded angle-string this stone hunts). Hand-
+    // assemble the `TypeExpr` directly instead of parsing the canonical spelling: this is a
+    // Rust-level literal, not a `.wat` source form, so there is no reference-FORM keyword
+    // text (`(:wat::core::Vector :- [...])`) to parse in the first place — direct
+    // `TypeExpr::Parametric` construction IS the canonical spelling at this layer.
     const RM_VARIANT: &str = "RequestMalformed";
-    const RM_PATH_TY: &str = ":wat::core::Vector<wat::core::String>";
+    // User-facing EXAMPLE text only (the format!()s further down, showing a remedy) — the
+    // `TypeExpr` itself is hand-assembled below, not parsed from this string.
+    const RM_PATH_TY: &str = "(:wat::core::Vector :- [:wat::core::String])";
     let rm_fields: Vec<(String, TypeExpr)> = vec![
         (
             "path".to_string(),
-            parse_type_expr(RM_PATH_TY)
-                .expect("RequestMalformed lock: the canonical `path` type must parse"),
+            TypeExpr::Parametric {
+                head: "wat::core::Vector".to_string(),
+                args: vec![TypeExpr::Path(":wat::core::String".to_string())],
+            },
         ),
         ("expected".to_string(), TypeExpr::Path(":wat::core::String".into())),
         ("got".to_string(), TypeExpr::Path(":wat::core::String".into())),
@@ -3428,12 +3435,24 @@ fn build_surface_forms_carrier(surface_name: &str, surface_form: WatAST, span: S
         ],
         span.clone(),
     );
+    // Arc 109 ③ — angle brackets are ILLEGAL for types; the flat
+    // `:wat::core::Vector<wat::WatAST>` keyword is RETIRED in favour of the reference FORM
+    // `(:wat::core::Vector :- [:wat::WatAST])`, built directly as a `WatAST::List` (this fn
+    // constructs raw AST, never source text, so there is no string to re-spell).
+    let vec_watast_ty = WatAST::List(
+        vec![
+            WatAST::Keyword(":wat::core::Vector".into(), span.clone()),
+            WatAST::Keyword(":-".into(), span.clone()),
+            WatAST::Vector(vec![WatAST::Keyword(":wat::WatAST".into(), span.clone())], span.clone()),
+        ],
+        span.clone(),
+    );
     let fn_form = WatAST::List(
         vec![
             WatAST::Keyword(":wat::core::fn".into(), span.clone()),
             WatAST::Vector(vec![], span.clone()),
             WatAST::Symbol(Identifier::bare("->"), span.clone()),
-            WatAST::Keyword(":wat::core::Vector<wat::WatAST>".into(), span.clone()),
+            vec_watast_ty,
             forms_body,
         ],
         span.clone(),
@@ -4604,44 +4623,23 @@ fn parse_declared_name(
             reason: "keyword must begin with ':'".into(),
         },
     ))?;
-    // Split at first '<' if present.
-    match stripped.find('<') {
-        None => Ok((raw, Vec::new())),
-        Some(lt_index) => {
-            let base = &stripped[..lt_index];
-            let params_part = &stripped[lt_index..];
-            if !params_part.ends_with('>') {
-                return Err(TypeError::new(
-                    name_span,
-                    TypeErrorKind::MalformedName {
-                        raw: raw.clone(),
-                        reason: "parametric name must close with '>'".into(),
-                    },
-                ));
-            }
-            let inner = &params_part[1..params_part.len() - 1];
-            let params: Vec<String> = inner
-                .split(',')
-                .map(|s| s.trim().to_string())
-                .filter(|s| !s.is_empty())
-                .collect();
-            for p in &params {
-                if p.contains(char::is_whitespace) || p.contains('<') || p.contains(':') {
-                    return Err(TypeError::new(
-                        name_span,
-                        TypeErrorKind::MalformedName {
-                            raw: raw.clone(),
-                            reason: format!("type parameter {:?} has invalid chars", p),
-                        },
-                    ));
-                }
-            }
-            // Key the registry by the bare name (no <T> suffix), but
-            // preserve the colon for the stored name field.
-            let stored_name = format!(":{}", base);
-            Ok((stored_name, params))
-        }
+    // Arc 109 ③ — angle brackets are ILLEGAL for a declaration's own name.
+    // `<T>` used to be sniffed and split into (base, params) here; that
+    // spelling is now refused outright. The binder marker
+    // (`take_declared_binder`, just below) is the ONE surviving spelling:
+    // `Head :- [T …]` as SIBLINGS after the name, no parens.
+    if stripped.contains('<') {
+        return Err(TypeError::new(
+            name_span,
+            TypeErrorKind::MalformedName {
+                raw: raw.clone(),
+                reason: "angle-bracket type parameters are illegal; write `Head :- [T …]` \
+                          (siblings after the name, no parens) instead of `Head<T>`"
+                    .into(),
+            },
+        ));
     }
+    Ok((raw, Vec::new()))
 }
 
 /// Arc 109 binder strike α — is this node the `:-` binder MARKER?
@@ -5190,29 +5188,21 @@ fn parse_type_inner(
     if let Some(body) = s.strip_prefix("wat::core::Fn(") {
         return parse_fn_body(body, original, canonicalize, span);
     }
-    // `Head<args>` parametric.
-    if let Some(lt_index) = find_top_level_char(s, '<') {
-        let raw_head = s[..lt_index].to_string();
-        let rest = &s[lt_index..];
-        if !rest.ends_with('>') {
-            return Err(TypeError::new(
-                span.clone(),
-                TypeErrorKind::MalformedTypeExpr {
-                    raw: original.into(),
-                    reason: "parametric type must close with '>'".into(),
-                },
-            ));
-        }
-        let inside = &rest[1..rest.len() - 1];
-        let args = parse_type_list(inside, original, canonicalize, span)?;
-        // Arc 163 slice 3e + 3h — FQDN IS the canonical storage form.
-        // Source FQDN flows through unchanged. Source bare-form is
-        // rejected by `BareLegacyContainerHead` walker at check time
-        // (slice 3g phase A wired the walker on raw post-expansion
-        // forms so define-sig type positions are covered). The
-        // canonicalize=true UPGRADE arm (Vec → wat::core::Vector
-        // etc.) retired in slice 3h — raw_head passes through identity.
-        return Ok(TypeExpr::Parametric { head: raw_head, args });
+    // Arc 109 ③ — angle brackets are ILLEGAL for a parametric type
+    // REFERENCE / annotation. `Head<args>` used to be sniffed and split
+    // here; that spelling is now refused outright. The ONE surviving
+    // reference spelling is the `:-` form parsed by `parse_type_form`:
+    // `(Head :- [args])`, in parens.
+    if find_top_level_char(s, '<').is_some() {
+        return Err(TypeError::new(
+            span.clone(),
+            TypeErrorKind::MalformedTypeExpr {
+                raw: original.into(),
+                reason: "angle-bracket parametric types are illegal; write \
+                          `(Head :- [args])` instead of `Head<args>`"
+                    .into(),
+            },
+        ));
     }
     // Plain path. Arc 109 slice 1a: accept FQDN forms for the
     // built-in primitive types (`:wat::core::i64`, `:wat::core::f64`,
@@ -5909,17 +5899,33 @@ mod tests {
 
     #[test]
     fn arc115_legal_compound_args_pass() {
-        // Canonical forms — no inner colons.
+        // Canonical forms — no inner colons. Arc 109 ③ retired angle-bracket parametrics
+        // entirely: there is no flat-string spelling for them any more (the reference
+        // form `(Head :- [args])` only parses from a structural `WatAST::List`, never
+        // from a keyword string via `parse_type_expr`) — so this now covers only the
+        // compounds that still have a legal STRING spelling: non-parametric
+        // `fn(...)->...` and the native tuple `:(...)`. The angle-bracket cases this
+        // used to assert as legal are covered (as REFUSALS) by
+        // `angle_bracket_parametric_head_is_illegal` below.
+        for input in &[":fn(i64)->bool", ":(wat::core::i64,wat::core::String)"] {
+            let r = parse_type_expr(input);
+            assert!(r.is_ok(), "expected {} to parse; got: {:?}", input, r);
+        }
+    }
+
+    #[test]
+    fn angle_bracket_parametric_head_is_illegal() {
+        // Arc 109 ③ — the sibling of `arc115_legal_compound_args_pass` above: every one
+        // of THAT test's former angle-bracket cases must now be refused, not accepted.
         for input in &[
             ":Vec<String>",
             ":Vec<i64>",
             ":Result<Option<i64>,wat::kernel::ThreadDiedError>",
-            ":fn(i64)->bool",
             ":fn(Vec<String>)->Option<i64>",
             ":HashMap<String,Vec<i64>>",
         ] {
             let r = parse_type_expr(input);
-            assert!(r.is_ok(), "expected {} to parse; got: {:?}", input, r);
+            assert!(r.is_err(), "expected {} to be REFUSED; got: {:?}", input, r);
         }
     }
     fn collect(src: &str) -> Result<(TypeEnv, Vec<WatAST>), TypeError> {
@@ -5975,8 +5981,9 @@ mod tests {
     #[test]
     fn parametric_struct() {
         // Stone 241.8 — migrated from :wat::core::struct pair-form to defstruct triples.
+        // Arc 109 ③ — angle-bracket decl-name retired; `Head :- [T …]` siblings instead.
         let (env, _) = collect(
-            r#"(:wat::core::defstruct :my::Container<T>
+            r#"(:wat::core::defstruct :my::Container :- [T]
                   [value <- :T
                    count <- :i64])"#,
         )
@@ -5994,8 +6001,9 @@ mod tests {
     #[test]
     fn parametric_struct_multiple_params() {
         // Stone 241.8 — migrated from :wat::core::struct pair-form to defstruct triples.
+        // Arc 109 ③ — angle-bracket decl-name retired; `Head :- [K V]` siblings instead.
         let (env, _) = collect(
-            r#"(:wat::core::defstruct :my::Pair<K,V>
+            r#"(:wat::core::defstruct :my::Pair :- [K V]
                   [key   <- :K
                    value <- :V])"#,
         )
@@ -6050,8 +6058,9 @@ mod tests {
     #[test]
     fn parametric_enum() {
         // Stone 241.9 — migrated to defenum form.
+        // Arc 109 ③ — angle-bracket decl-name retired; `Head :- [T]` siblings instead.
         let (env, _) = collect(
-            r#"(:wat::core::defenum :my::Option<T> :wat::enum::Pure
+            r#"(:wat::core::defenum :my::Option :- [T] :wat::enum::Pure
                   :none
                   :some [value <- :T])"#,
         )
@@ -6084,7 +6093,8 @@ mod tests {
 
     #[test]
     fn parametric_newtype() {
-        let (env, _) = collect(r#"(:wat::core::newtype :my::Wrap<T> :T)"#).unwrap();
+        // Arc 109 ③ — angle-bracket decl-name retired; `Head :- [T]` siblings instead.
+        let (env, _) = collect(r#"(:wat::core::newtype :my::Wrap :- [T] :T)"#).unwrap();
         if let TypeDef::Newtype(n) = env.get(":my::Wrap").unwrap() {
             assert_eq!(n.type_params, vec!["T".to_string()]);
             assert_eq!(n.inner, TypeExpr::Path(":T".into()));
@@ -6107,7 +6117,9 @@ mod tests {
 
     #[test]
     fn parametric_typealias() {
-        let (env, _) = collect(r#"(:wat::core::typealias :my::Series<T> :wat::core::Vector<T>)"#).unwrap();
+        // Arc 109 ③ — angle-bracket decl-name AND reference both retired: `Head :- [T]`
+        // siblings for the decl, `(Head :- [T])` in parens for the reference.
+        let (env, _) = collect(r#"(:wat::core::typealias :my::Series :- [T] (:wat::core::Vector :- [T]))"#).unwrap();
         if let TypeDef::Alias(a) = env.get(":my::Series").unwrap() {
             assert_eq!(a.type_params, vec!["T".to_string()]);
             assert_eq!(
@@ -6141,8 +6153,11 @@ mod tests {
 
     #[test]
     fn typealias_nested_parametric() {
+        // Arc 109 ③ — angle-bracket reference retired; `(Head :- [args])` in parens. `Atom`
+        // stays a bare Symbol arg (no "::"), which `parse_type_node`'s Symbol arm prepends a
+        // colon to (`ns_to_wat_path`'s bare-name branch) — same `Path(":Atom")` result.
         let (env, _) = collect(
-            r#"(:wat::core::typealias :my::Scores :wat::core::HashMap<Atom,wat::core::f64>)"#,
+            r#"(:wat::core::typealias :my::Scores (:wat::core::HashMap :- [Atom :wat::core::f64]))"#,
         )
         .unwrap();
         if let TypeDef::Alias(a) = env.get(":my::Scores").unwrap() {
@@ -6278,8 +6293,14 @@ mod tests {
 
     #[test]
     fn type_expr_parametric() {
+        // Arc 109 ③ — angle brackets have no flat-string spelling any more; `parse_type_expr`
+        // (a `&str -> TypeExpr` fn) can no longer express a parametric reference at all. The
+        // reference FORM `(Head :- [args])` only parses from a structural `WatAST::List` —
+        // build one via `parse_one!` (real wat source syntax) and route it through
+        // `parse_type_node`, the substrate's one door for every annotation-slot node shape.
+        let form = crate::parse_one!("(:wat::core::Vector :- [:T])").unwrap();
         assert_eq!(
-            parse_type_expr(":wat::core::Vector<T>").unwrap(),
+            parse_type_node(&form).unwrap(),
             TypeExpr::Parametric {
                 head: "wat::core::Vector".into(),
                 args: vec![TypeExpr::Path(":T".into())]
@@ -6289,7 +6310,13 @@ mod tests {
 
     #[test]
     fn type_expr_parametric_nested() {
-        let t = parse_type_expr(":wat::core::HashMap<wat::core::String,fn(i32)->i32>").unwrap();
+        // Arc 109 ③ — same structural-form migration as `type_expr_parametric` above; the
+        // inner `fn(i32)->i32` stays string-spelled (non-parametric fn args are still legal
+        // in the flat form) as one arg of the outer reference form.
+        let form =
+            crate::parse_one!("(:wat::core::HashMap :- [:wat::core::String :fn(i32)->i32])")
+                .unwrap();
+        let t = parse_type_node(&form).unwrap();
         match t {
             TypeExpr::Parametric { head, args } => {
                 assert_eq!(head, "wat::core::HashMap");
@@ -6374,17 +6401,33 @@ mod tests {
     }
 
     #[test]
-    fn type_expr_tuple_with_nested_parametric() {
-        // :(Vec<i64>,HashMap<String,i64>) — nested commas at depth > 0
-        // must not split the outer tuple.
-        let t = parse_type_expr(":(Vec<i64>,HashMap<String,i64>)").unwrap();
+    fn type_expr_tuple_with_nested_parametric_is_now_illegal() {
+        // Arc 109 ③ — this used to assert `:(Vec<i64>,HashMap<String,i64>)` parses (nested
+        // commas at depth > 0 must not split the outer tuple). A tuple element is parsed
+        // from a raw STRING (`parse_tuple_body` -> `parse_type_inner` per element), which has
+        // no path to the `(Head :- [args])` reference FORM at all — so a parametric tuple
+        // element has no legal spelling any more, string or structural (the whole tuple would
+        // need to move to `(:wat::core::Tuple :- [...])`, and even that inherits `parse_type_
+        // node` per element, but this fn (`parse_type_expr`) only reads keyword STRINGS).
+        // The comma-depth-tracking coverage `parse_tuple_body` still needs is carried by
+        // `type_expr_tuple_with_nested_tuple` below instead (nested PARENS, still legal).
+        let r = parse_type_expr(":(Vec<i64>,HashMap<String,i64>)");
+        assert!(r.is_err(), "expected angle-bracket tuple element to be REFUSED; got: {:?}", r);
+    }
+
+    #[test]
+    fn type_expr_tuple_with_nested_tuple() {
+        // The comma-depth-tracking coverage the retired `type_expr_tuple_with_nested_parametric`
+        // carried, over a shape that is STILL legal: nested tuples via parens. Nested commas at
+        // depth > 0 (inside either inner tuple) must not split the outer tuple.
+        let t = parse_type_expr(":((wat::core::i64,wat::core::String),(wat::core::bool,wat::core::f64))").unwrap();
         match t {
             TypeExpr::Tuple(elements) => {
                 assert_eq!(elements.len(), 2);
-                assert!(matches!(elements[0], TypeExpr::Parametric { .. }));
-                assert!(matches!(elements[1], TypeExpr::Parametric { .. }));
+                assert!(matches!(&elements[0], TypeExpr::Tuple(inner) if inner.len() == 2));
+                assert!(matches!(&elements[1], TypeExpr::Tuple(inner) if inner.len() == 2));
             }
-            other => panic!("expected 2-tuple of parametrics, got {:?}", other),
+            other => panic!("expected 2-tuple of tuples, got {:?}", other),
         }
     }
 
@@ -6725,7 +6768,7 @@ mod tests {
                              (:wat::core::defenum :t::Ok1::FooResponse :wat::enum::Pure
                                 :Ok [reply <- :wat::core::String]
                                 :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-                                :RequestMalformed [path     <- :wat::core::Vector<wat::core::String>
+                                :RequestMalformed [path     <- (:wat::core::Vector :- [:wat::core::String])
                                                    expected <- :wat::core::String
                                                    got      <- :wat::core::String])]
                   :features [(foo [self <- :t::Ok1  req <- :t::Ok1::FooRequest]

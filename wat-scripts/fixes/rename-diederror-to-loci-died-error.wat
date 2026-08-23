@@ -25,11 +25,11 @@
 ;;   printf '["pathA" "pathB" …]\n' | cargo wat ./wat-scripts/fixes/rename-diederror-to-loci-died-error.wat
 
 ;; ── small helpers (mirrors eprintln-recv-arm-to-assertion-failed.wat) ──────────────
-(:wat::core::defn :user::start-off [n <- :wat::WatAST  lines <- :wat::core::Vector<wat::core::String>]
+(:wat::core::defn :user::start-off [n <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])]
   -> :wat::core::i64
   (:wat::fix::fix-text-offset-of (:wat::core::ast-span n) lines))
 
-(:wat::core::defn :user::end-off [n <- :wat::WatAST  lines <- :wat::core::Vector<wat::core::String>]
+(:wat::core::defn :user::end-off [n <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])]
   -> :wat::core::i64
   (:wat::fix::fix-text-offset-of (:wat::core::ast-end-span n) lines))
 
@@ -79,8 +79,8 @@
 ;; fm-head-edit — rename the `:wat::kernel::Failure/message` HEAD keyword token of `node` to
 ;; `:wat::kernel::LociDiedError/message` (whole-token span replace; the arg is untouched).
 (:wat::core::defn :user::fm-head-edit
-  [node <- :wat::WatAST  lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+  [node <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::let [head (:wat::core::first (:wat::core::ast->children node))
                     h0   (:user::start-off head lines)
                     h1   (:user::end-off head lines)]
@@ -90,8 +90,8 @@
 ;; node-edits — scope-threading walk. `lost-var` is the RecvOutcome::Lost-bound var currently in
 ;; scope (""=none). A Lost arm OVERRIDES the scope for its children (nested Lost arms shadow).
 (:wat::core::defn :user::node-edits
-  [node <- :wat::WatAST  lost-var <- :wat::core::String  lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+  [node <- :wat::WatAST  lost-var <- :wat::core::String  lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::let
     [this-var (:user::lost-arm-var node)
      scope    (:wat::core::if (:wat::core::= this-var "") lost-var this-var)
@@ -103,11 +103,11 @@
       this)))
 
 (:wat::core::defn :user::seq-edits
-  [items <- :wat::core::Vector<wat::WatAST>  lost-var <- :wat::core::String  lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+  [items <- (:wat::core::Vector :- [:wat::WatAST])  lost-var <- :wat::core::String  lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)> it <- :wat::WatAST]
-      -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+    (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])]) it <- :wat::WatAST]
+      -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
       (:wat::core::concat acc (:user::node-edits it lost-var lines)))
     (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
     items))
@@ -126,7 +126,7 @@
     (:wat::fix::fix-text-apply src2 rev)))
 
 ;; ── driver ───────────────────────────────────────────────────────────────────
-(:wat::core::defn :user::apply-each [paths <- :wat::core::Vector<wat::core::String>] -> :wat::core::nil
+(:wat::core::defn :user::apply-each [paths <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::nil
   (:wat::core::if (:wat::core::empty? paths)
     nil
     (:wat::core::let [path (:wat::core::first paths)]

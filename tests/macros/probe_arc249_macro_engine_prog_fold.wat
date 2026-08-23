@@ -1,4 +1,4 @@
-(:wat::core::defmacro :my::sum [& nums <- :wat::core::Vector<wat::WatAST>]
+(:wat::core::defmacro :my::sum [& nums <- (:wat::core::Vector :- [:wat::WatAST])]
   -> :wat::WatAST
   (:wat::core::foldl
     (:wat::core::fn [acc <- :wat::holon::HolonAST n <- :wat::holon::HolonAST]

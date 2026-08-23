@@ -21,18 +21,18 @@
 ;; from the pairs. Both directions tested. That asymmetry is a live "a map is a
 ;; map" violation and is arc 285's own business — see its DESIGN.
 
-(:wat::core::defsurface :user::Mapping<K,V> :nature :wat::core::Struct
-  :features [(mget [self <- :user::Mapping<K,V> k <- K] -> :wat::core::Option<V>)])
+(:wat::core::defsurface :user::Mapping :- [K V] :nature :wat::core::Struct
+  :features [(mget [self <- (:user::Mapping :- [K V]) k <- K] -> (:wat::core::Option :- [V]))])
 
-(:wat::core::extend-type :wat::core::HashMap :user::Mapping<K,V>
-  (mget [self k] -> :wat::core::Option<V> (:wat::core::HashMap/get self k)))
+(:wat::core::extend-type :wat::core::HashMap (:user::Mapping :- [K V])
+  (mget [self k] -> (:wat::core::Option :- [V]) (:wat::core::HashMap/get self k)))
 
-(:wat::core::extend-type :wat::core::PersistentMap :user::Mapping<K,V>
-  (mget [self k] -> :wat::core::Option<V> (:wat::core::PersistentMap/get self k)))
+(:wat::core::extend-type :wat::core::PersistentMap (:user::Mapping :- [K V])
+  (mget [self k] -> (:wat::core::Option :- [V]) (:wat::core::PersistentMap/get self k)))
 
 ;; The payoff: ONE fn, typed against the surface, taking EITHER family.
-(:wat::core::defn :user::lookup [m <- :user::Mapping<wat::core::String,wat::core::i64>]
-                  -> :wat::core::Option<wat::core::i64>
+(:wat::core::defn :user::lookup [m <- (:user::Mapping :- [:wat::core::String :wat::core::i64])]
+                  -> (:wat::core::Option :- [:wat::core::i64])
   (:user::Mapping/mget m "a"))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

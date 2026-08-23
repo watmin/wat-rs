@@ -13,7 +13,7 @@
 (:wat::core::defn :my::boom [x <- :wat::core::i64] -> :wat::core::i64
   (:wat::core::if (:wat::core::= x 99) (:wat::core::/ 1 0) x))
 
-(:wat::core::defn :my::compute [] -> :wat::core::Vector<wat::core::i64>
+(:wat::core::defn :my::compute [] -> (:wat::core::Vector :- [:wat::core::i64])
   (:wat::core::into []
     (:wat::core::take-while
       (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::bool (:wat::core::< x 3))

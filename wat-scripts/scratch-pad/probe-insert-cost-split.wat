@@ -92,10 +92,10 @@
     (:wat::core::range 0 n)))
 
 ;; ── arm 2 — floor + the persistent container ─────────────────────────────────
-(:wat::core::defn :ins::conj-only [n <- :wat::core::i64] -> :wat::core::PersistentVector<ins::Reading>
+(:wat::core::defn :ins::conj-only [n <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:ins::Reading])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::PersistentVector<ins::Reading>  i <- :wat::core::i64]
-      -> :wat::core::PersistentVector<ins::Reading>
+    (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:ins::Reading])  i <- :wat::core::i64]
+      -> (:wat::core::PersistentVector :- [:ins::Reading])
       (:wat::core::PersistentVector/conj acc (:ins::Reading :g 0 :v i)))
     (:wat::core::PersistentVector)
     (:wat::core::range 0 n)))

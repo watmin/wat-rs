@@ -48,12 +48,12 @@
 
 (:wat::core::defrecord :grid::Result
   [axis      <- :wat::core::String
-   size      <- :wat::core::PersistentVector<wat::core::i64>
-   derived   <- :wat::core::PersistentVector<wat::core::i64>
+   size      <- (:wat::core::PersistentVector :- [:wat::core::i64])
+   derived   <- (:wat::core::PersistentVector :- [:wat::core::i64])
    native-ns      <- :wat::core::i64
    ;; THREE-WAY: the wat SPEC's own answer, so the runner can render :oracle-accuracy
    ;; (spec vs Clara) and :port-accuracy (spec vs native) instead of one verdict.
-   oracle-derived <- :wat::core::PersistentVector<wat::core::i64>
+   oracle-derived <- (:wat::core::PersistentVector :- [:wat::core::i64])
    oracle-ns      <- :wat::core::i64])
 
 (:wat::rete::defquery :nsh::q-Out
@@ -95,10 +95,10 @@
 ;; build-rules n — the N-rule set [r0 .. r(n-1)], folding build-rule over (range 0 n). Every rule
 ;; shares the leading [A]⋈[B] join-prefix; only the trailing literal differs (mirrors strat-neg's
 ;; build-rules fold shape).
-(:wat::core::defn :nsh::build-rules [n <- :wat::core::i64] -> :wat::core::PersistentVector<wat::rete::Rule>
+(:wat::core::defn :nsh::build-rules [n <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::rete::Rule>  i <- :wat::core::i64]
-      -> :wat::core::PersistentVector<wat::rete::Rule>
+    (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::rete::Rule])  i <- :wat::core::i64]
+      -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
       (:wat::core::PersistentVector/conj acc (:nsh::build-rule i n)))
     (:wat::core::PersistentVector)
     (:wat::core::range 0 n)))
@@ -111,8 +111,8 @@
   (:wat::rete::insert-all
     session
     (:wat::core::foldl
-      (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::Record>  i <- :wat::core::i64]
-                      -> :wat::core::PersistentVector<wat::core::Record>
+      (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  i <- :wat::core::i64]
+                      -> (:wat::core::PersistentVector :- [:wat::core::Record])
         (:wat::core::PersistentVector/conj (:wat::core::PersistentVector/conj acc (:nsh::A i)) (:nsh::B i)))
       (:wat::core::PersistentVector)
       (:wat::core::range 0 items))))
@@ -120,13 +120,13 @@
 ;; vec->pvec v — materialize a Vector<i64> into a PersistentVector<i64>. DESIGN-STONE-into-pv-
 ;; from-vector.md: `into` now has a native (PersistentVector<T>, Vector<T>) clause backed by one
 ;; `PersistentVector/concat` call — retiring the N-interpreted-closure-invocation conj-fold.
-(:wat::core::defn :nsh::vec->pvec [v <- :wat::core::Vector<wat::core::i64>] -> :wat::core::PersistentVector<wat::core::i64>
+(:wat::core::defn :nsh::vec->pvec [v <- (:wat::core::Vector :- [:wat::core::i64])] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:wat::core::into (:wat::core::PersistentVector) v))
 
 ;; derived-vector fired — every derived Out fact's key k, sorted ascending. THE (one-time) sanity
 ;; witness: the full derived set. Expected = [0 1 .. items-1], independent of rule-count N.
 (:wat::core::defn :nsh::derived-vector
-  [fired <- :wat::rete::Session] -> :wat::core::PersistentVector<wat::core::i64>
+  [fired <- :wat::rete::Session] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:nsh::vec->pvec
     (:wat::core::sort
       (:wat::core::into (:wat::core::Vector :wat::core::i64)

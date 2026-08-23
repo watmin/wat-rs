@@ -43,7 +43,7 @@
     (:wat::rete::acc::sum "?bytes" els)))
 
 ;; min ?bytes → Some(100).
-(:wat::core::defn :user::min-folds [] -> :wat::core::Option<wat::core::i64>
+(:wat::core::defn :user::min-folds [] -> (:wat::core::Option :- [:wat::core::i64])
   (:wat::core::let
     [els (:wat::core::PersistentVector/conj
            (:wat::core::PersistentVector/conj
@@ -60,7 +60,7 @@
     (:wat::rete::acc::min "?bytes" els)))
 
 ;; max ?bytes → Some(300).
-(:wat::core::defn :user::max-folds [] -> :wat::core::Option<wat::core::i64>
+(:wat::core::defn :user::max-folds [] -> (:wat::core::Option :- [:wat::core::i64])
   (:wat::core::let
     [els (:wat::core::PersistentVector/conj
            (:wat::core::PersistentVector/conj
@@ -77,7 +77,7 @@
     (:wat::rete::acc::max "?bytes" els)))
 
 ;; mean ?bytes → Some(200) — THE composition: sum(600)/count(3).
-(:wat::core::defn :user::mean-is-sum-over-count [] -> :wat::core::Option<wat::core::i64>
+(:wat::core::defn :user::mean-is-sum-over-count [] -> (:wat::core::Option :- [:wat::core::i64])
   (:wat::core::let
     [els (:wat::core::PersistentVector/conj
            (:wat::core::PersistentVector/conj
@@ -150,6 +150,6 @@
     (:wat::rete::acc::count empty)))
 
 ;; EMPTY: min over an empty set → None (no token — there is no minimum of nothing).
-(:wat::core::defn :user::min-empty-is-none [] -> :wat::core::Option<wat::core::i64>
+(:wat::core::defn :user::min-empty-is-none [] -> (:wat::core::Option :- [:wat::core::i64])
   (:wat::core::let [empty (:wat::core::PersistentVector)]
     (:wat::rete::acc::min "?bytes" empty)))

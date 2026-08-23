@@ -1145,7 +1145,7 @@ mod tests {
         // Build a self-peer echo fn: recv' the input, send' it back — identity.
         // Use startup_from_source to get a real Arc<Function>.
         let world = crate::freeze::startup_from_source(
-            "(:wat::core::defn :my::echo [self <- :wat::kernel::Peer<wat::core::i64,wat::core::i64>] -> :wat::core::nil \
+            "(:wat::core::defn :my::echo [self <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil \
                (:wat::core::match (:wat::kernel::recv self) \
                  ((:wat::kernel::RecvOutcome::Message m) \
                    (:wat::core::match (:wat::kernel::send self m) \
@@ -1287,7 +1287,7 @@ mod tests {
             // disconnects → recv' returns → the do falls through to nil → the worker exits, then join).
             // So EVERY recv' outcome means "reap me, exit cleanly" → all arms nil (NOT the client-call
             // surface-on-failure facing — an assertion-failed! here would crash the worker the test joins).
-            "(:wat::core::defn :my::blocker [self <- :wat::kernel::Peer<wat::core::i64,wat::core::i64>] -> :wat::core::nil \
+            "(:wat::core::defn :my::blocker [self <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil \
                (:wat::core::do \
                  (:wat::core::match (:wat::kernel::recv self) \
                    ((:wat::kernel::RecvOutcome::Message _m) nil) \

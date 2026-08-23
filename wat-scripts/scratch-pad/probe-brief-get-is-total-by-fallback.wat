@@ -22,7 +22,7 @@
 ;; `:user::main`, printing one line per assertion so the transcript is the proof.
 
 ;; ── row 7's fixture: a real rule using the brief's exact nested expression ─────────
-(:wat::core::defrecord :g278get::PV [v <- :wat::core::PersistentVector<wat::core::i64>])
+(:wat::core::defrecord :g278get::PV [v <- (:wat::core::PersistentVector :- [:wat::core::i64])])
 (:wat::core::defrecord :g278get::Hit [n <- :wat::core::i64])
 
 ;; Hit(1) :- PV(v) AND (PersistentVector/get v 0 :undefined -1) > 5.

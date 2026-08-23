@@ -1136,8 +1136,26 @@ pub(crate) fn register_extend_type_surface_impls(
         .cloned()
         .zip(ed.protocol_type_args.iter().cloned())
         .collect();
+    // Arc 109 ③ — the RUNTIME DISPATCH key (`concrete_type_fqdn/method`, built from a live
+    // Value's type-erased class name — `runtime.rs`'s `eval_call`/surface-method dispatch
+    // arm) is ALWAYS the BARE base name: a `Value::Aggregate`'s `class` field never carries
+    // instantiation args. `ed.type_name` stays the FULL identity string (base + args) for
+    // `is_subtype`/`transport_edge_keys` (see the comment on its field, `src/value/value.rs`)
+    // — those key on the exact declared spelling on purpose — but a method REGISTRATION key
+    // built from that full string would never match the bare dispatch lookup for a
+    // genuinely parametric target (was previously masked only because a MONOMORPHIC
+    // service's `handle-bare-name`-style target rendered bare too, with no args to carry;
+    // Arc 109 ③ made every Handle target carry at least the transport-marker arg, which
+    // surfaced this for monomorphic services too). Derive the base STRUCTURALLY off
+    // `ed.type_te` (never re-parse `ed.type_name`'s string — for a parametric target that
+    // string is exactly the now-illegal `Head<args>` shape this stone's wall refuses).
+    let dispatch_type_base: String = match &ed.type_te {
+        Some(crate::types::TypeExpr::Parametric { head, .. }) => format!(":{head}"),
+        Some(crate::types::TypeExpr::Path(p)) => p.clone(),
+        _ => canonical_callable_name(&ed.type_name).to_string(),
+    };
     for (method_name, clause) in &ed.impl_clauses {
-        let method_key = format!("{}/{}", ed.type_name, method_name);
+        let method_key = format!("{}/{}", dispatch_type_base, method_name);
         if sym.has_function(&method_key) {
             if skip_if_present {
                 continue;
@@ -1164,8 +1182,16 @@ pub(crate) fn register_extend_type_surface_impls(
                     .enumerate()
                     .map(|(i, _)| {
                         if i == 0 {
-                            // self — already the concrete satisfier type; no substitution needed.
-                            crate::types::parse_type_expr(&ed.type_name).unwrap_or_else(|_| {
+                            // self — already the concrete satisfier type; no substitution
+                            // needed. Arc 109 ③ — use the STRUCTURED `type_te` computed once
+                            // in `parse_extend_type_form`, not a re-parse of `type_name`'s
+                            // string: for a parametric target that string carries the `<…>`
+                            // arg suffix `format_type` renders it with, and re-parsing THAT
+                            // via `parse_type_expr` is exactly the angle-bracket parse this
+                            // stone's wall refuses — the old `unwrap_or_else` fallback would
+                            // silently collapse to an opaque `Path("Handle<K,V,T>")` that
+                            // never unifies with the properly-structured type elsewhere.
+                            ed.type_te.clone().unwrap_or_else(|| {
                                 crate::types::TypeExpr::Path(ed.type_name.clone())
                             })
                         } else {
@@ -1186,7 +1212,10 @@ pub(crate) fn register_extend_type_surface_impls(
                 (pts, crate::check::rename(ret, &surface_type_subst))
             }
             Some(crate::types::SurfaceMember::Field { ty, .. }) => (
-                vec![crate::types::TypeExpr::Path(ed.type_name.clone())],
+                vec![ed
+                    .type_te
+                    .clone()
+                    .unwrap_or_else(|| crate::types::TypeExpr::Path(ed.type_name.clone()))],
                 crate::check::rename(ty, &surface_type_subst),
             ),
             // No matching surface member — shouldn't happen for a valid
@@ -4047,6 +4076,44 @@ pub(crate) fn parse_type_keyword(kw: &str) -> Result<crate::types::TypeExpr, Run
 /// Atomic positions (`WatAST::Keyword`) recurse via `parse_type_keyword`
 /// so the existing surface spelling stays the source of truth for
 /// Path / Var shapes.
+/// Arc 109 ③ — `parse_type_slot`'s arg-list resolver. `rest` is a structured type List's
+/// items AFTER the head (`items[1..]`). Three accepted shapes, checked in this order:
+///   1. `:- [args…] ` (Arc 109 the binder marker) — the args are the vector's own items. A
+///      trailing item after the vector is a LITERAL, not a type (mirrors `parse_type_form`'s
+///      identical refusal in `src/types.rs`) — refused, not silently accepted.
+///   2. `[args…]` alone (arc 109 step ① bracket sugar, no `:-`) — same reading, no marker.
+///   3. Anything else — the ORIGINAL flat positional reading (`rest` itself, each item its
+///      own arg) — `parse_type_slot`'s pre-existing behavior, unchanged for backward
+///      compatibility with any caller still spelling it that way.
+///
+/// Without this, a List shaped `(Head :- [args])` — the ONLY reference-role spelling Arc 109
+/// ③ leaves legal — hit case 3 here: `:-` (a Keyword) and the args Vector both got read as
+/// if they were themselves TYPE ARGS, and the Vector arm doesn't even parse (this fn's `other`
+/// arm has no Vector case) — a hard failure on every structured type slot this stone's
+/// codemod produced.
+fn resolve_type_slot_args(rest: &[WatAST]) -> Result<Vec<crate::types::TypeExpr>, EvalBreak> {
+    match rest {
+        [WatAST::Keyword(k, _), WatAST::Vector(inner, span), extra @ ..] if k == ":-" => {
+            if !extra.is_empty() {
+                return Err(RuntimeError::new(
+                    span.clone(),
+                    RuntimeErrorKind::MalformedForm {
+                        head: ":wat::core::defn".into(),
+                        reason: "a type declaration cannot carry initial values — \
+                                  `(Head :- [types] v…)` is a LITERAL, and a literal is not a \
+                                  type"
+                            .into(),
+                    },
+                )
+                .into());
+            }
+            inner.iter().map(parse_type_slot).collect()
+        }
+        [WatAST::Vector(inner, _)] => inner.iter().map(parse_type_slot).collect(),
+        positional => positional.iter().map(parse_type_slot).collect(),
+    }
+}
+
 fn parse_type_slot(ast: &WatAST) -> Result<crate::types::TypeExpr, EvalBreak> {
     match ast {
         WatAST::Keyword(k, _) => parse_type_keyword(k).map_err(Into::into),
@@ -4129,24 +4196,22 @@ fn parse_type_slot(ast: &WatAST) -> Result<crate::types::TypeExpr, EvalBreak> {
                     ret: Box::new(ret),
                 });
             }
-            // :Tuple — all remaining children are element types.
-            if head_kw == ":Tuple" {
-                let mut elems: Vec<crate::types::TypeExpr> =
-                    Vec::with_capacity(items.len().saturating_sub(1));
-                for child in items.iter().skip(1) {
-                    elems.push(parse_type_slot(child)?);
-                }
+            // :Tuple — all remaining children are element types. Arc 109 ③ — also the FQDN
+            // spelling `:wat::core::Tuple` (what this stone's codemod emits, matching
+            // `parse_type_form`'s own `raw_head == "wat::core::Tuple"` special-case in
+            // `src/types.rs` — the canonical checker-side parser tests the FQDN, not the bare
+            // short name, so this runtime-side twin now tests both). Args resolve through
+            // `resolve_type_slot_args` so a `:- [args]` binder (or the bare `[args]` bracket)
+            // reads correctly here too, not just the flat positional legacy shape.
+            if head_kw == ":Tuple" || head_kw == ":wat::core::Tuple" {
+                let elems = resolve_type_slot_args(&items[1..])?;
                 return Ok(crate::types::TypeExpr::Tuple(elems));
             }
             // Any other head — Parametric. Strip the leading ':' to
             // recover the head spelling used by `TypeExpr::Parametric`
             // (which stores the FQDN sans-colon, e.g. `wat::core::Option`).
             let head_no_colon = head_kw.strip_prefix(':').unwrap_or(head_kw).to_string();
-            let mut p_args: Vec<crate::types::TypeExpr> =
-                Vec::with_capacity(items.len().saturating_sub(1));
-            for child in items.iter().skip(1) {
-                p_args.push(parse_type_slot(child)?);
-            }
+            let p_args = resolve_type_slot_args(&items[1..])?;
             Ok(crate::types::TypeExpr::Parametric {
                 head: head_no_colon,
                 args: p_args,
@@ -4196,6 +4261,16 @@ pub fn canonical_callable_name(kw: &str) -> &str {
         Some(i) => &kw[..i],
         None => kw,
     }
+}
+
+/// Arc 109 ③ — shape test for a runtime type-keyword ARG whose content this call site never
+/// actually consumes (`self-peer`, `listener'`'s socket-pair args): historically `WatAST::
+/// Keyword(_, _)` only, since a parametric arg always arrived as one angle-bracket keyword.
+/// Angle brackets are illegal now — the SAME parametric arg arrives as the reference FORM
+/// `(Head :- [args])`, a `WatAST::List` — so this widens the shape test to accept both,
+/// additive only (a bare Keyword still passes exactly as before).
+pub(crate) fn is_type_arg_shaped(a: &WatAST) -> bool {
+    matches!(a, WatAST::Keyword(_, _) | WatAST::List(_, _))
 }
 
 /// Split a keyword like `:ns/foo<T,U>` into (`":ns/foo"`, `vec!["T","U"]`).
@@ -8313,8 +8388,14 @@ pub(crate) fn parse_extend_type_form(
     // produced. Dropping to a base-only name here would silently starve `is_subtype`'s
     // exact-string edge lookup (types.rs's `register_subtype`) and the `transport_edge_keys`
     // guess-set, both of which key on the full `Head<T>`/`Head<Wire>` spelling verbatim.
-    let type_name = match &items[1] {
-        WatAST::Keyword(k, _) => k.clone(),
+    // Arc 109 ③ — keep the STRUCTURED `TypeExpr` alongside the rendered `type_name` string
+    // (below, `ExtendDef::type_te`) so a consumer needing the target's structure (self's
+    // param type at each impl method, `register_extend_type_surface_impls`) never has to
+    // re-parse `type_name`'s angle-bracket string — the exact spelling this stone's wall
+    // refuses. The Keyword arm parses too now (`.ok()`, best-effort: a non-parametric
+    // keyword like `:t::Robot` always parses; only a malformed one falls back to `None`).
+    let (type_name, type_te) = match &items[1] {
+        WatAST::Keyword(k, _) => (k.clone(), crate::types::parse_type_node(&items[1]).ok()),
         node @ WatAST::List(_, _) => {
             let te = crate::types::parse_type_node(node).map_err(|e| {
                 RuntimeError::new(
@@ -8325,7 +8406,8 @@ pub(crate) fn parse_extend_type_form(
                     },
                 )
             })?;
-            crate::check::format_type(&te)
+            let raw = crate::check::format_type(&te);
+            (raw, Some(te))
         }
         other => {
             return Err(RuntimeError::new(
@@ -8586,6 +8668,7 @@ pub(crate) fn parse_extend_type_form(
     let canonical_key = format!("extend:{}:{}", protocol_name, type_name);
     let ed = Arc::new(crate::value::ExtendDef {
         type_name,
+        type_te,
         protocol_name,
         protocol_type_args,
         impl_clauses,
@@ -16706,15 +16789,27 @@ pub(crate) fn eval_retag_op(
         )
         .into());
     }
+    // Arc 109 ③ — angle brackets are ILLEGAL for types, so a parametric arg here
+    // (`Cache::Op<K,V>`) can no longer arrive as a single angle-bracket Keyword; it arrives
+    // as the reference FORM `(Head :- [args])`, a `WatAST::List` whose own head (items[0]) IS
+    // the base path this fn needs — a runtime `type_path` is always the base (params erased),
+    // so there is nothing to strip here the way `canonical_callable_name` strips the Keyword
+    // arm's `<…>` suffix; the List arm's head is ALREADY bare.
     let surface_path = match &args[1] {
         WatAST::Keyword(k, _) => k.clone(),
+        WatAST::List(items, _) if matches!(items.first(), Some(WatAST::Keyword(_, _))) => {
+            match items.first() {
+                Some(WatAST::Keyword(k, _)) => k.clone(),
+                _ => unreachable!("guarded by the match arm above"),
+            }
+        }
         other => {
             return Err(RuntimeError::new(
                 other.span().clone(),
                 RuntimeErrorKind::MalformedForm {
                     head: OP.into(),
                     reason: format!(
-                    "second argument must be a keyword literal (the surface Op type path); got {}",
+                    "second argument must be a keyword or `(Head :- [args])` type form (the surface Op type path); got {}",
                     other.variant_name()
                 ),
                 },
@@ -16724,13 +16819,19 @@ pub(crate) fn eval_retag_op(
     };
     let service_path = match &args[2] {
         WatAST::Keyword(k, _) => k.clone(),
+        WatAST::List(items, _) if matches!(items.first(), Some(WatAST::Keyword(_, _))) => {
+            match items.first() {
+                Some(WatAST::Keyword(k, _)) => k.clone(),
+                _ => unreachable!("guarded by the match arm above"),
+            }
+        }
         other => {
             return Err(RuntimeError::new(
                 other.span().clone(),
                 RuntimeErrorKind::MalformedForm {
                     head: OP.into(),
                     reason: format!(
-                    "third argument must be a keyword literal (the service Op type path); got {}",
+                    "third argument must be a keyword or `(Head :- [args])` type form (the service Op type path); got {}",
                     other.variant_name()
                 ),
                 },
@@ -26059,7 +26160,7 @@ fn eval_program_self_peer(args: &[WatAST], list_span: &Span) -> Result<Value, Ev
         .into());
     }
     for (i, a) in args.iter().enumerate() {
-        if !matches!(a, WatAST::Keyword(_, _)) {
+        if !is_type_arg_shaped(a) {
             return Err(RuntimeError::new(
                 list_span.clone(),
                 RuntimeErrorKind::MalformedForm {
@@ -26378,7 +26479,7 @@ pub(crate) fn eval_listener_prime(
         // `DEFAULT_MAX_FRAME_BYTES` (512 KiB); 4 args → the declared `FOO`.
         if args.len() == 3 || args.len() == 4 {
             for i in [1usize, 2usize] {
-                if !matches!(args[i], WatAST::Keyword(_, _)) {
+                if !is_type_arg_shaped(&args[i]) {
                     return Err(RuntimeError::new(
                         args[i].span().clone(),
                         RuntimeErrorKind::MalformedForm {
@@ -26471,7 +26572,7 @@ pub(crate) fn eval_listener_prime(
         }
         // Validate args[1] and args[2] are type keywords (args[0] is the host expression).
         for i in [1usize, 2usize] {
-            if !matches!(args[i], WatAST::Keyword(_, _)) {
+            if !is_type_arg_shaped(&args[i]) {
                 return Err(RuntimeError::new(
                     args[i].span().clone(),
                     RuntimeErrorKind::MalformedForm {
@@ -39016,7 +39117,7 @@ mod tests {
     /// Used to drive walks that should run to natural terminal.
     fn walk_count_prelude() -> &'static str {
         r#"
-        (:wat::core::defn :my::test::count-visit [acc <- :wat::core::i64 form <- :wat::WatAST step <- :wat::eval::StepResult] -> :wat::eval::WalkStep<wat::core::i64> (:wat::eval::WalkStep::Continue (:wat::core::i64::+ acc 1)))
+        (:wat::core::defn :my::test::count-visit [acc <- :wat::core::i64 form <- :wat::WatAST step <- :wat::eval::StepResult] -> (:wat::eval::WalkStep :- [:wat::core::i64]) (:wat::eval::WalkStep::Continue (:wat::core::i64::+ acc 1)))
         "#
     }
 
@@ -39100,7 +39201,7 @@ mod tests {
         // return is (sentinel, acc'). Even on a chain that would
         // naturally terminate at I64(6), Skip wins.
         let src = r#"
-        (:wat::core::defn :my::test::skip-on-first [acc <- :wat::core::i64 form <- :wat::WatAST step <- :wat::eval::StepResult] -> :wat::eval::WalkStep<wat::core::i64>
+        (:wat::core::defn :my::test::skip-on-first [acc <- :wat::core::i64 form <- :wat::WatAST step <- :wat::eval::StepResult] -> (:wat::eval::WalkStep :- [:wat::core::i64])
           (:wat::eval::WalkStep::Skip
                       (:wat::holon::leaf 999)
                       (:wat::core::i64::+ acc 1)))

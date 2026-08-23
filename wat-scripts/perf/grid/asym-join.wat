@@ -33,12 +33,12 @@
 
 (:wat::core::defrecord :grid::Result
   [axis      <- :wat::core::String
-   size      <- :wat::core::PersistentVector<wat::core::i64>
-   derived   <- :wat::core::PersistentVector<wat::core::i64>
+   size      <- (:wat::core::PersistentVector :- [:wat::core::i64])
+   derived   <- (:wat::core::PersistentVector :- [:wat::core::i64])
    native-ns      <- :wat::core::i64
    ;; THREE-WAY: the wat SPEC's own answer, so the runner can render :oracle-accuracy
    ;; (spec vs Clara) and :port-accuracy (spec vs native) instead of one verdict.
-   oracle-derived <- :wat::core::PersistentVector<wat::core::i64>
+   oracle-derived <- (:wat::core::PersistentVector :- [:wat::core::i64])
    oracle-ns      <- :wat::core::i64])
 
 (:wat::rete::defquery :asym::q-B
@@ -59,7 +59,7 @@
 ;; build-rules — the fixed 2-rule chain: R1 A->B, R2 B⋈A->C. Mirrors chain_expr in
 ;; probe_arc278_P6_delta_asymmetric_join.rs exactly (conditions as (:type (?k <- :k)) patterns;
 ;; a two-pattern LHS on r2 is the join, both binding ?k -> equi-join on k).
-(:wat::core::defn :asym::build-rules [] -> :wat::core::PersistentVector<wat::rete::Rule>
+(:wat::core::defn :asym::build-rules [] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
   (:wat::core::PersistentVector
     (:wat::rete::Rule :name "r1"
       :lhs (:wat::core::PersistentVector (:wat::core::quote (:asym::A (?k <- :k))))
@@ -79,19 +79,19 @@
   (:wat::rete::insert-all
     session
     (:wat::core::foldl
-      (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::Record>  i <- :wat::core::i64]
-                      -> :wat::core::PersistentVector<wat::core::Record>
+      (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  i <- :wat::core::i64]
+                      -> (:wat::core::PersistentVector :- [:wat::core::Record])
         (:wat::core::PersistentVector/conj acc (:asym::A i)))
       (:wat::core::PersistentVector)
       (:wat::core::range 0 items))))
 
 ;; b-codes / c-codes — every derived fact of each type, canonically encoded.
-(:wat::core::defn :asym::b-codes [fired <- :wat::rete::Session] -> :wat::core::Vector<wat::core::i64>
+(:wat::core::defn :asym::b-codes [fired <- :wat::rete::Session] -> (:wat::core::Vector :- [:wat::core::i64])
   (:wat::core::into (:wat::core::Vector :wat::core::i64)
     (:wat::core::map (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:asym::encode 0 (:asym::B/k f))))
       (:wat::rete::query fired (:asym::q-B)))))
 
-(:wat::core::defn :asym::c-codes [fired <- :wat::rete::Session] -> :wat::core::Vector<wat::core::i64>
+(:wat::core::defn :asym::c-codes [fired <- :wat::rete::Session] -> (:wat::core::Vector :- [:wat::core::i64])
   (:wat::core::into (:wat::core::Vector :wat::core::i64)
     (:wat::core::map (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:asym::encode 1 (:asym::C/k f))))
       (:wat::rete::query fired (:asym::q-C)))))
@@ -99,13 +99,13 @@
 ;; vec->pvec v — materialize a Vector<i64> into a PersistentVector<i64>. DESIGN-STONE-into-pv-
 ;; from-vector.md: `into` now has a native (PersistentVector<T>, Vector<T>) clause backed by one
 ;; `PersistentVector/concat` call — retiring the N-interpreted-closure-invocation conj-fold.
-(:wat::core::defn :asym::vec->pvec [v <- :wat::core::Vector<wat::core::i64>] -> :wat::core::PersistentVector<wat::core::i64>
+(:wat::core::defn :asym::vec->pvec [v <- (:wat::core::Vector :- [:wat::core::i64])] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:wat::core::into (:wat::core::PersistentVector) v))
 
 ;; derived-vector fired — every derived fact (B then C), canonically encoded and sorted ascending.
 ;; THE accuracy witness: the full set, not a count.
 (:wat::core::defn :asym::derived-vector [fired <- :wat::rete::Session]
-  -> :wat::core::PersistentVector<wat::core::i64>
+  -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:wat::core::let [all (:wat::core::into (:asym::b-codes fired) (:asym::c-codes fired))]
     (:asym::vec->pvec (:wat::core::sort all))))
 

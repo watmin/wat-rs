@@ -91,7 +91,7 @@
   
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::thread)
-         (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+         (:wat::core::fn [self <- (:wat::kernel::ThreadSelfPeer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
            ;; Accessor returns i64; do discards it and returns nil.
            ;; The class guard fires before the nil is reached — that's the point;
            ;; the crash reaches the parent's recv' as Lost before the completion send'.
@@ -158,7 +158,7 @@
   
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::thread)
-         (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+         (:wat::core::fn [self <- (:wat::kernel::ThreadSelfPeer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
            ;; to-holon panics at runtime on base record; do discards result and
            ;; returns nil. The runtime error fires before the nil is reached — the
            ;; crash reaches the parent's recv' as Lost before the completion send'.

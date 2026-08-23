@@ -8,7 +8,7 @@
   (:wat::core::length (:wat::deporder::verify-stdlib)))
 
 ;; Arc 118.2a — `map` flipped LAZY; this fn's declared return type is `Vector<String>`, so `mapv`.
-(:wat::core::defn :user::compute-violations-detail [] -> :wat::core::Vector<wat::core::String>
+(:wat::core::defn :user::compute-violations-detail [] -> (:wat::core::Vector :- [:wat::core::String])
   (:wat::core::let [viols (:wat::deporder::verify-stdlib)]
     (:wat::core::mapv
       (:wat::core::fn [v <- :wat::deporder::Violation] -> :wat::core::String

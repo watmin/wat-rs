@@ -8,7 +8,7 @@
   :messages
   [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- :wat::core::String])
    (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure :Ok [reply <- :wat::core::String] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-                                                                                                      :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
+                                                                                                      :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse :max-request-bytes 524288)])
 
@@ -19,7 +19,7 @@
               (:probe::Echo::EchoResponse::Ok (:wat::core::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))))])
 
 ;; PARENT-side PoolMsg with BARE Address' payload (erased D).
-(:wat::core::defenum :probe::PoolMsg<I> :wat::enum::Pure
+(:wat::core::defenum :probe::PoolMsg :- [I] :wat::enum::Pure
   :Setup [addr <- :wat::kernel::Address]
   :Work  [s    <- :I])
 
@@ -36,16 +36,16 @@
                   :messages
                   [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- :wat::core::String])
                    (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure :Ok [reply <- :wat::core::String] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-                                                                                                                      :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
+                                                                                                                      :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
                   :features
                   [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse :max-request-bytes 524288)])
                 ;; CHILD-side PoolMsg with CONCRETE Address'<Op,Reply> payload.
                 (:wat::core::defenum :probe::PoolMsg :wat::enum::Pure
-                  :Setup [addr <- :wat::kernel::Address<probe::Echo::Op,probe::Echo::Reply>]
+                  :Setup [addr <- (:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply])]
                   :Work  [s    <- :wat::core::String])
                 (:wat::core::defn :probe::serve
-                  [self <- :wat::kernel::Peer<wat::core::String,probe::CMsg>
-                   held <- (:wat::core::Option :wat::kernel::Peer<probe::Echo::Op,probe::Echo::Reply>)]
+                  [self <- (:wat::kernel::Peer :- [:wat::core::String :probe::CMsg])
+                   held <- (:wat::core::Option (:wat::kernel::Peer :- [:probe::Echo::Op :probe::Echo::Reply]))]
                   -> :wat::core::nil
                   (:wat::core::match (:wat::kernel::recv self) 
                     ((:probe::PoolMsg::Setup addr)

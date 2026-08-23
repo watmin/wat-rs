@@ -18,7 +18,7 @@
 (:wat::core::defn :w2d_pos::probe-thread-self-peer-impure [] -> :wat::core::nil
   (:wat::core::let
     [_peer (:wat::test::spawn-peer (:wat::spawn::thread)
-              (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<w2d_pos::S,wat::core::i64>]
+              (:wat::core::fn [self <- (:wat::kernel::ThreadSelfPeer :- [:w2d_pos::S :wat::core::i64])]
                   -> :wat::core::nil
                 nil))]
     nil))

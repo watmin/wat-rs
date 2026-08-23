@@ -33,7 +33,7 @@
    (:wat::core::defenum :tl::Bag::PutResponse :wat::enum::Pure
      :Ok               [n <- :wat::core::i64]
      :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])
                         expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(put [self <- :tl::Bag  req <- :tl::Bag::PutRequest]
@@ -44,7 +44,7 @@
   :impls
   [(put [s ctx req] (:wat::service::Outcome::Reply s (:tl::Bag::PutResponse::Ok 1)))])
 
-(:wat::core::defn :tl::try [c <- :wat::kernel::Peer<tl::Bag::Op,tl::Bag::Reply>
+(:wat::core::defn :tl::try [c <- (:wat::kernel::Peer :- [:tl::Bag::Op :tl::Bag::Reply])
                            label <- :wat::core::String] -> :wat::core::nil
   (:wat::core::match (:tl::Bag/put c (:tl::Bag::PutRequest :n 1))
     ((:wat::kernel::RecvOutcome::Message resp)

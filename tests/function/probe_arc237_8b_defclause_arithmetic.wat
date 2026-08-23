@@ -6,7 +6,7 @@
 ;; GATE 1 — defclause supports & rest-binders in args-vec
 (:wat::core::defclause :my::g1-sum-all
   ([first <- :wat::core::i64
-    & rest <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
+    & rest <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::i64
     (:wat::core::foldl
       (:wat::core::fn [acc <- :wat::core::i64
                        n <- :wat::core::i64] -> :wat::core::i64

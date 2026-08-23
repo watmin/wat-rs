@@ -6,7 +6,7 @@
 ;; a 3-param type against a 2-param declaration and the fixture stopped freezing. There is no
 ;; service/self-peer here (a bare `select` over two process peers), so A is unconstrained;
 ;; naming it i64 alongside I and O is what the fixture means.
-(:wat::core::defn :user::compute [] -> :wat::spawn::ServiceEvent<wat::core::i64,wat::core::i64,wat::core::i64>
+(:wat::core::defn :user::compute [] -> (:wat::spawn::ServiceEvent :- [:wat::core::i64 :wat::core::i64 :wat::core::i64])
   (:wat::core::let
     [a (:wat::test::spawn-peer (:wat::spawn::process)
           (:wat::core::forms

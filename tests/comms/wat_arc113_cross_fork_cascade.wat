@@ -20,7 +20,7 @@
 ;; Returns [message actual-or-":None" expected-or-":None"] — the same triple the old
 ;; RunResult.failure path produced, now sourced from the peer's own Lost cause.
 
-(:wat::core::defn :my::compute [] -> :wat::core::Vector<wat::core::String>
+(:wat::core::defn :my::compute [] -> (:wat::core::Vector :- [:wat::core::String])
   (:wat::core::let
     [p
       (:wat::test::spawn-peer (:wat::spawn::process)

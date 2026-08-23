@@ -45,9 +45,9 @@
       :rhs (:wat::core::PersistentVector t1 t2))))
 
 ;; build-rules depth — the rule set [rule1 .. rule depth], built by folding build-rule over (range 1 depth+1).
-(:wat::core::defn :perf::build-rules [depth <- :wat::core::i64] -> :wat::core::PersistentVector<wat::rete::Rule>
+(:wat::core::defn :perf::build-rules [depth <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::rete::Rule>  k <- :wat::core::i64] -> :wat::core::PersistentVector<wat::rete::Rule>
+    (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::rete::Rule])  k <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
       (:wat::core::PersistentVector/conj acc (:perf::build-rule k)))
     (:wat::core::PersistentVector (:perf::build-rule 1))
     (:wat::core::range 2 (:wat::core::i64::+ depth 1))))

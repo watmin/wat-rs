@@ -46,12 +46,12 @@
 
 (:wat::core::defrecord :grid::Result
   [axis      <- :wat::core::String
-   size      <- :wat::core::PersistentVector<wat::core::i64>
-   derived   <- :wat::core::PersistentVector<wat::core::i64>
+   size      <- (:wat::core::PersistentVector :- [:wat::core::i64])
+   derived   <- (:wat::core::PersistentVector :- [:wat::core::i64])
    native-ns      <- :wat::core::i64
    ;; THREE-WAY: the wat SPEC's own answer, so the runner can render :oracle-accuracy
    ;; (spec vs Clara) and :port-accuracy (spec vs native) instead of one verdict.
-   oracle-derived <- :wat::core::PersistentVector<wat::core::i64>
+   oracle-derived <- (:wat::core::PersistentVector :- [:wat::core::i64])
    oracle-ns      <- :wat::core::i64
    insert-ns      <- :wat::core::i64
    fire-ns        <- :wat::core::i64
@@ -139,28 +139,28 @@
 ;; vec->pvec v — materialize a Vector<i64> into a PersistentVector<i64>. DESIGN-STONE-into-pv-
 ;; from-vector.md: `into` now has a native (PersistentVector<T>, Vector<T>) clause backed by one
 ;; `PersistentVector/concat` call — retiring the N-interpreted-closure-invocation conj-fold.
-(:wat::core::defn :acc::vec->pvec [v <- :wat::core::Vector<wat::core::i64>] -> :wat::core::PersistentVector<wat::core::i64>
+(:wat::core::defn :acc::vec->pvec [v <- (:wat::core::Vector :- [:wat::core::i64])] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:wat::core::into (:wat::core::PersistentVector) v))
 
 ;; seed-readings session g W — stage Reading(g, val(g,j)) for j in [0, W), threading the session.
 ;; reading-facts acc g W — group g's W Readings, appended to a FACT VECTOR. No longer threads a
 ;; Session: staging is one BATCH `insert-all` at the end of `seed`.
 (:wat::core::defn :acc::reading-facts
-  [acc <- :wat::core::PersistentVector<wat::core::Record>  g <- :wat::core::i64  W <- :wat::core::i64]
-  -> :wat::core::PersistentVector<wat::core::Record>
+  [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  g <- :wat::core::i64  W <- :wat::core::i64]
+  -> (:wat::core::PersistentVector :- [:wat::core::Record])
   (:wat::core::foldl
-    (:wat::core::fn [a <- :wat::core::PersistentVector<wat::core::Record>  j <- :wat::core::i64]
-                    -> :wat::core::PersistentVector<wat::core::Record>
+    (:wat::core::fn [a <- (:wat::core::PersistentVector :- [:wat::core::Record])  j <- :wat::core::i64]
+                    -> (:wat::core::PersistentVector :- [:wat::core::Record])
       (:wat::core::PersistentVector/conj a (:acc::Reading :g g :v (:acc::val g j))))
     acc
     (:wat::core::range 0 W)))
 
 ;; all-facts G W — Group(g) + its W Readings for every g. Construct only; insert is timed
 ;; separately so protocol-ns is load+fire+query, not record allocation.
-(:wat::core::defn :acc::all-facts [G <- :wat::core::i64  W <- :wat::core::i64] -> :wat::core::PersistentVector<wat::core::Record>
+(:wat::core::defn :acc::all-facts [G <- :wat::core::i64  W <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::core::Record])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::Record>  g <- :wat::core::i64]
-                    -> :wat::core::PersistentVector<wat::core::Record>
+    (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  g <- :wat::core::i64]
+                    -> (:wat::core::PersistentVector :- [:wat::core::Record])
       (:acc::reading-facts (:wat::core::PersistentVector/conj acc (:acc::Group g)) g W))
     (:wat::core::PersistentVector)
     (:wat::core::range 0 G)))
@@ -171,7 +171,7 @@
 
 ;; codes fired — every derived fact across all five types, canonically encoded, into a Vector<i64>.
 ;; Only five fixed types ⇒ no dispatch: five direct query+map+encode blocks folded into one Vector.
-(:wat::core::defn :acc::codes [fired <- :wat::rete::Session] -> :wat::core::Vector<wat::core::i64>
+(:wat::core::defn :acc::codes [fired <- :wat::rete::Session] -> (:wat::core::Vector :- [:wat::core::i64])
   (:wat::core::let
     [c0 (:wat::core::into (:wat::core::Vector :wat::core::i64)
           (:wat::core::map (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:acc::enc 0 (:acc::CountF/g f) (:acc::CountF/n f))))
@@ -191,7 +191,7 @@
     c4))
 
 ;; derived-vector fired — the sorted i64 accuracy witness (the full set, not a count).
-(:wat::core::defn :acc::derived-vector [fired <- :wat::rete::Session] -> :wat::core::PersistentVector<wat::core::i64>
+(:wat::core::defn :acc::derived-vector [fired <- :wat::rete::Session] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:acc::vec->pvec (:wat::core::sort (:acc::codes fired))))
 
 ;; ns-between t0 t1 — nanoseconds between two Instants (mirrors strat-neg.wat's ns-between).

@@ -33,8 +33,8 @@
    b       <- :wat::core::i64
    name    <- :wat::core::String
    flag    <- :wat::core::bool
-   tags    <- :wat::core::PersistentVector<wat::core::i64>
-   attrs   <- :wat::core::PersistentMap<wat::core::String,wat::core::i64>
+   tags    <- (:wat::core::PersistentVector :- [:wat::core::i64])
+   attrs   <- (:wat::core::PersistentMap :- [:wat::core::String :wat::core::i64])
    client  <- :shape::Client])
 
 (:wat::core::defrecord :shape::Hit [k <- :wat::core::i64])
@@ -136,7 +136,7 @@
       :lhs (:wat::core::PersistentVector conds where-c)
       :rhs (:wat::core::PersistentVector ins))))
 
-(:wat::core::defn :shape::build-rules [] -> :wat::core::PersistentVector<wat::rete::Rule>
+(:wat::core::defn :shape::build-rules [] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
   (:wat::core::PersistentVector
     (:shape::rule-arith)
     (:shape::rule-accessor)
@@ -157,8 +157,8 @@
   (:wat::rete::insert-all
     session
     (:wat::core::foldl
-      (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::Record>  i <- :wat::core::i64]
-                      -> :wat::core::PersistentVector<wat::core::Record>
+      (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  i <- :wat::core::i64]
+                      -> (:wat::core::PersistentVector :- [:wat::core::Record])
         (:wat::core::PersistentVector/conj acc
           (:shape::Req
             :k      i

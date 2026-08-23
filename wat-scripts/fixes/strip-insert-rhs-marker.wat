@@ -34,8 +34,8 @@
 (:wat::core::defn :user::node-edit
   [node  <- :wat::WatAST
    src   <- :wat::core::String
-   lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<wat::fix::Edit>
+   lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [:wat::fix::Edit])
   (:wat::core::if (:user::rhs-marker? node)
     (:wat::core::let
       [fact (:wat::core::Option/expect (:wat::core::get (:wat::core::ast->children node) 1) "node-edit: unreachable")
@@ -55,18 +55,18 @@
 (:wat::core::defn :user::walk-edits
   [node  <- :wat::WatAST
    src   <- :wat::core::String
-   lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<wat::fix::Edit>
+   lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [:wat::fix::Edit])
   (:wat::core::let [this (:user::node-edit node src lines)]
     (:wat::core::if (:wat::fix::structural? node)
       (:wat::core::concat this (:user::walk-seq-edits (:wat::core::ast->children node) src lines))
       this)))
 
 (:wat::core::defn :user::walk-seq-edits
-  [items <- :wat::core::Vector<wat::WatAST>
+  [items <- (:wat::core::Vector :- [:wat::WatAST])
    src   <- :wat::core::String
-   lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<wat::fix::Edit>
+   lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [:wat::fix::Edit])
   (:wat::core::if (:wat::core::empty? items)
     (:wat::core::Vector :wat::fix::Edit)
     (:wat::core::concat
@@ -86,7 +86,7 @@
     (:wat::fix::fix-text-apply src (:wat::core::reverse (:wat::core::sort edits)))))
 
 ;; ── driver: rewrite each path given on stdin (a JSON/EDN array of strings) ────────────────────
-(:wat::core::defn :user::rewrite-each [paths <- :wat::core::Vector<wat::core::String>] -> :wat::core::nil
+(:wat::core::defn :user::rewrite-each [paths <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::nil
   (:wat::core::if (:wat::core::empty? paths)
     nil
     (:wat::core::let [path (:wat::core::first paths)]

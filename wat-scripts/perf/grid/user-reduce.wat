@@ -40,17 +40,17 @@
 
 (:wat::core::defrecord :grid::Result
   [axis      <- :wat::core::String
-   size      <- :wat::core::PersistentVector<wat::core::i64>
-   derived   <- :wat::core::PersistentVector<wat::core::i64>
+   size      <- (:wat::core::PersistentVector :- [:wat::core::i64])
+   derived   <- (:wat::core::PersistentVector :- [:wat::core::i64])
    native-ns      <- :wat::core::i64
    ;; THREE-WAY: the wat SPEC's own answer, so the runner can render :oracle-accuracy
    ;; (spec vs Clara) and :port-accuracy (spec vs native) instead of one verdict.
-   oracle-derived <- :wat::core::PersistentVector<wat::core::i64>
+   oracle-derived <- (:wat::core::PersistentVector :- [:wat::core::i64])
    oracle-ns      <- :wat::core::i64])
 
 ;; the USER custom fold: Σ x² over the whole gathered vector — pure∧det (passes the 8-custom fence).
 ;; Identical to the repo differential exemplar (probe_arc278_8custom_native_differential.rs:26-30).
-(:wat::rete::core::defn :ur::sum-of-squares [xs <- :wat::core::PersistentVector<wat::core::i64>] -> :wat::core::i64
+(:wat::rete::core::defn :ur::sum-of-squares [xs <- (:wat::core::PersistentVector :- [:wat::core::i64])] -> :wat::core::i64
   (:wat::rete::core::foldl
     (:wat::rete::core::fn [acc <- :wat::core::i64  x <- :wat::core::i64] -> :wat::core::i64
       ;; sum-of-squares over readings is always >= 0 (a square is never negative, and a sum of
@@ -85,11 +85,11 @@
 ;; loc-facts acc loc reads — Station(loc) then its `reads` Readings, appended to a FACT VECTOR.
 ;; No longer threads a Session: staging is one BATCH `insert-all` at the end of `seed-all`.
 (:wat::core::defn :ur::loc-facts
-  [acc <- :wat::core::PersistentVector<wat::core::Record>  loc <- :wat::core::i64  reads <- :wat::core::i64]
-  -> :wat::core::PersistentVector<wat::core::Record>
+  [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  loc <- :wat::core::i64  reads <- :wat::core::i64]
+  -> (:wat::core::PersistentVector :- [:wat::core::Record])
   (:wat::core::foldl
-    (:wat::core::fn [a <- :wat::core::PersistentVector<wat::core::Record>  j <- :wat::core::i64]
-                    -> :wat::core::PersistentVector<wat::core::Record>
+    (:wat::core::fn [a <- (:wat::core::PersistentVector :- [:wat::core::Record])  j <- :wat::core::i64]
+                    -> (:wat::core::PersistentVector :- [:wat::core::Record])
       (:wat::core::PersistentVector/conj a (:ur::Reading :loc loc :value (:ur::mod7 (:wat::core::i64::+ loc j)))))
     (:wat::core::PersistentVector/conj acc (:ur::Station loc))
     (:wat::core::range 0 reads)))
@@ -101,8 +101,8 @@
   (:wat::rete::insert-all
     session
     (:wat::core::foldl
-      (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::Record>  loc <- :wat::core::i64]
-                      -> :wat::core::PersistentVector<wat::core::Record>
+      (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  loc <- :wat::core::i64]
+                      -> (:wat::core::PersistentVector :- [:wat::core::Record])
         (:ur::loc-facts acc loc reads))
       (:wat::core::PersistentVector)
       (:wat::core::range 0 locs))))
@@ -110,14 +110,14 @@
 ;; vec->pvec v — materialize a Vector<i64> into a PersistentVector<i64>. DESIGN-STONE-into-pv-
 ;; from-vector.md: `into` now has a native (PersistentVector<T>, Vector<T>) clause backed by one
 ;; `PersistentVector/concat` call — retiring the N-interpreted-closure-invocation conj-fold.
-(:wat::core::defn :ur::vec->pvec [v <- :wat::core::Vector<wat::core::i64>] -> :wat::core::PersistentVector<wat::core::i64>
+(:wat::core::defn :ur::vec->pvec [v <- (:wat::core::Vector :- [:wat::core::i64])] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:wat::core::into (:wat::core::PersistentVector) v))
 
 ;; derived-vector fired — every derived Agg fact, canonically encoded and sorted ascending. THE
 ;; accuracy witness: the full per-location aggregate set (a wrong Σx² anywhere shows up).
 (:wat::core::defn :ur::derived-vector
   [fired <- :wat::rete::Session]
-  -> :wat::core::PersistentVector<wat::core::i64>
+  -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:wat::core::let [codes (:wat::core::into (:wat::core::Vector :wat::core::i64)
                            (:wat::core::map
                              (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:ur::encode (:ur::Agg/loc f) (:ur::Agg/sos f))))

@@ -25,7 +25,7 @@
                 (:wat::core::if (:wat::core::= head-name ":wat::core::defenum") true
                   (:wat::core::= head-name ":wat::core::typeunion"))))))))))
 
-(:wat::core::defn :migrate::fix-types [items <- :wat::core::Vector<wat::WatAST>] -> :wat::core::Vector<wat::WatAST>
+(:wat::core::defn :migrate::fix-types [items <- (:wat::core::Vector :- [:wat::WatAST])] -> (:wat::core::Vector :- [:wat::WatAST])
   (:wat::core::if (:wat::core::empty? items)
     (:wat::core::Vector :wat::WatAST)
     (:wat::core::let [h   (:wat::core::first items)

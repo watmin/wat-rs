@@ -1914,16 +1914,20 @@ pub(crate) fn eval_hashmap_ctor(
             got: args.len()
         }).into());
     }
-    if !matches!(&args[0], WatAST::Keyword(_, _)) {
+    // Arc 109 ③ — widen to accept the `:-` reference FORM `(Head :- [args])` too (a
+    // `WatAST::List`), matching `:wat::program::self-peer`'s identical widening
+    // (`crate::runtime::is_type_arg_shaped`) — this shape check validates and discards;
+    // neither arg's content is otherwise consumed here.
+    if !crate::runtime::is_type_arg_shaped(&args[0]) {
         return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::MalformedForm {
             head: ":wat::core::HashMap".into(),
-            reason: "first two arguments must be type keywords (K, V); first argument is not a keyword".into()
+            reason: "first two arguments must be type keywords or `(Head :- [args])` type forms (K, V); first argument is not one".into()
         }).into());
     }
-    if !matches!(&args[1], WatAST::Keyword(_, _)) {
+    if !crate::runtime::is_type_arg_shaped(&args[1]) {
         return Err(RuntimeError::new(args[1].span().clone(), RuntimeErrorKind::MalformedForm {
             head: ":wat::core::HashMap".into(),
-            reason: "first two arguments must be type keywords (K, V); second argument is not a keyword".into()
+            reason: "first two arguments must be type keywords or `(Head :- [args])` type forms (K, V); second argument is not one".into()
         }).into());
     }
     let pairs = &args[2..];

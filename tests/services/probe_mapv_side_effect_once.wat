@@ -12,14 +12,14 @@
    (:wat::core::defenum :probe::Counter::GetResponse :wat::enum::Pure
      :Ok [value <- :wat::core::i64]
      :RequestTooLarge [bytes <- :wat::core::i64 cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])
                         expected <- :wat::core::String
                         got <- :wat::core::String])
    (:wat::core::defrecord :probe::Counter::IncrementRequest [n <- :wat::core::i64])
    (:wat::core::defenum :probe::Counter::IncrementResponse :wat::enum::Pure
      :Ok [value <- :wat::core::i64]
      :RequestTooLarge [bytes <- :wat::core::i64 cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])
                         expected <- :wat::core::String
                         got <- :wat::core::String])]
   :features
@@ -45,7 +45,7 @@
 
 (:wat::core::defn :probe::inc
   [item <- :wat::core::i64
-   & [counter <- :wat::kernel::Peer<probe::Counter::Op,probe::Counter::Reply>]]
+   & [counter <- (:wat::kernel::Peer :- [:probe::Counter::Op :probe::Counter::Reply])]]
   -> :wat::core::i64
   (:wat::core::match (:probe::Counter/increment counter (:probe::Counter::IncrementRequest :n 1))
     ((:wat::kernel::RecvOutcome::Message recvd)

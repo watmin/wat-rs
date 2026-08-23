@@ -44,12 +44,12 @@
 
 (:wat::core::defrecord :grid::Result
   [axis      <- :wat::core::String
-   size      <- :wat::core::PersistentVector<wat::core::i64>
-   derived   <- :wat::core::PersistentVector<wat::core::i64>
+   size      <- (:wat::core::PersistentVector :- [:wat::core::i64])
+   derived   <- (:wat::core::PersistentVector :- [:wat::core::i64])
    native-ns      <- :wat::core::i64
    ;; THREE-WAY: the wat SPEC's own answer, so the runner can render :oracle-accuracy
    ;; (spec vs Clara) and :port-accuracy (spec vs native) instead of one verdict.
-   oracle-derived <- :wat::core::PersistentVector<wat::core::i64>
+   oracle-derived <- (:wat::core::PersistentVector :- [:wat::core::i64])
    oracle-ns      <- :wat::core::i64])
 
 (:wat::rete::defquery :mf::q-Busy
@@ -97,11 +97,11 @@
 ;; reading-facts loc count — `count` Reading(loc) facts as a FACT VECTOR. No longer threads a
 ;; Session: staging is one BATCH `insert-all` at the end of `seed`.
 (:wat::core::defn :mf::reading-facts
-  [acc <- :wat::core::PersistentVector<wat::core::Record>  loc <- :wat::core::i64  count <- :wat::core::i64]
-  -> :wat::core::PersistentVector<wat::core::Record>
+  [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  loc <- :wat::core::i64  count <- :wat::core::i64]
+  -> (:wat::core::PersistentVector :- [:wat::core::Record])
   (:wat::core::foldl
-    (:wat::core::fn [a <- :wat::core::PersistentVector<wat::core::Record>  _r <- :wat::core::i64]
-                    -> :wat::core::PersistentVector<wat::core::Record>
+    (:wat::core::fn [a <- (:wat::core::PersistentVector :- [:wat::core::Record])  _r <- :wat::core::i64]
+                    -> (:wat::core::PersistentVector :- [:wat::core::Record])
       (:wat::core::PersistentVector/conj a (:mf::Reading loc)))
     acc
     (:wat::core::range 0 count)))
@@ -116,8 +116,8 @@
     (:wat::rete::insert-all
       session
       (:wat::core::foldl
-        (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::Record>  i <- :wat::core::i64]
-                        -> :wat::core::PersistentVector<wat::core::Record>
+        (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  i <- :wat::core::i64]
+                        -> (:wat::core::PersistentVector :- [:wat::core::Record])
           (:mf::reading-facts
             (:wat::core::PersistentVector/conj acc (:mf::Station i))
             i
@@ -128,14 +128,14 @@
 ;; vec->pvec v — materialize a Vector<i64> into a PersistentVector<i64>. DESIGN-STONE-into-pv-
 ;; from-vector.md: `into` now has a native (PersistentVector<T>, Vector<T>) clause backed by one
 ;; `PersistentVector/concat` call — retiring the N-interpreted-closure-invocation conj-fold.
-(:wat::core::defn :mf::vec->pvec [v <- :wat::core::Vector<wat::core::i64>] -> :wat::core::PersistentVector<wat::core::i64>
+(:wat::core::defn :mf::vec->pvec [v <- (:wat::core::Vector :- [:wat::core::i64])] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:wat::core::into (:wat::core::PersistentVector) v))
 
 ;; derived-vector fired — every activated Busy fact, canonically encoded (loc*1M + n) and sorted
 ;; ascending. THIS is the accuracy witness: the full activated set, not a count — a mismatch
 ;; anywhere (a station that should/shouldn't have activated, or a wrong finding count) shows up.
 (:wat::core::defn :mf::derived-vector
-  [fired <- :wat::rete::Session] -> :wat::core::PersistentVector<wat::core::i64>
+  [fired <- :wat::rete::Session] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:mf::vec->pvec
     (:wat::core::sort
       (:wat::core::into (:wat::core::Vector :wat::core::i64)

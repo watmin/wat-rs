@@ -11,7 +11,7 @@
    (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure
      :Ok [reply <- :wat::core::String]
      :RequestTooLarge [bytes <- :wat::core::i64 cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])
                         expected <- :wat::core::String
                         got <- :wat::core::String])]
   :features
@@ -30,7 +30,7 @@
 
 (:wat::core::defn :probe::work
   [item <- :wat::core::String
-   & [echo <- :wat::kernel::Peer<probe::Echo::Op,probe::Echo::Reply>]]
+   & [echo <- (:wat::kernel::Peer :- [:probe::Echo::Op :probe::Echo::Reply])]]
   -> :wat::core::String
   (:wat::core::match (:probe::Echo/echo echo (:probe::Echo::EchoRequest :msg item))
     ((:wat::kernel::RecvOutcome::Message recvd)
@@ -48,7 +48,7 @@
     (:wat::kernel::RecvOutcome::Closed
       (:wat::kernel::assertion-failed! "closed" :wat::core::None :wat::core::None))))
 
-(:wat::core::defn :probe::illegal [] -> :wat::core::Vector<wat::core::String>
+(:wat::core::defn :probe::illegal [] -> (:wat::core::Vector :- [:wat::core::String])
   (:wat::core::let
     [eh (:probe::echo/start :locus (:wat::spawn::thread) :record (:probe::echo::Record))]
     (:wat::bracket::map (:wat::spawn::process) ["a"] :probe::work :echo eh)))

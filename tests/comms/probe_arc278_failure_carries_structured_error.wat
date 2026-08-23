@@ -15,7 +15,7 @@
 ;;   only path, and this probe refuses to take it.
 ;;   Post-stone: GREEN — the raised Fault survives as a structured record, read straight off the Failure.
 
-(:wat::core::defn :my::failure-error-is-structured [] -> :wat::core::Option<wat::core::String>
+(:wat::core::defn :my::failure-error-is-structured [] -> (:wat::core::Option :- [:wat::core::String])
   (:wat::core::let
     [p
       (:wat::test::spawn-peer (:wat::spawn::process)

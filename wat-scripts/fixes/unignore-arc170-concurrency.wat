@@ -63,8 +63,8 @@
 ;; form-edits — 0-or-1 deletion edit for one top-level form: the whole ignore form.
 (:wat::core::defn :user::form-edits
   [node  <- :wat::WatAST
-   lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+   lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::if (:user::arc170-ignore? node)
     (:wat::core::let [off (:wat::fix::fix-text-offset-of (:wat::core::ast-span node) lines)
                       len (:wat::fix::fix-text-span-len
@@ -77,9 +77,9 @@
 
 ;; scan — collect edits across every top-level form (ascending offset order).
 (:wat::core::defn :user::scan
-  [forms <- :wat::core::Vector<wat::WatAST>
-   lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+  [forms <- (:wat::core::Vector :- [:wat::WatAST])
+   lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::if (:wat::core::empty? forms)
     (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
     (:wat::core::concat
@@ -94,7 +94,7 @@
     (:wat::fix::fix-text-apply src (:wat::core::reverse all-edits))))
 
 (:wat::core::defn :user::apply-each
-  [paths <- :wat::core::Vector<wat::core::String>] -> :wat::core::nil
+  [paths <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::nil
   (:wat::core::if (:wat::core::empty? paths)
     nil
     (:wat::core::let [path (:wat::core::first paths)]

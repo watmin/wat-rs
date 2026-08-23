@@ -18,7 +18,7 @@
    (:wat::core::defenum :probe::Op1::DoOpResponse :wat::enum::Pure
      :Ok              [n <- :wat::core::i64]
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(do-op [self <- :probe::Op1  req <- :probe::Op1::DoOpRequest] -> :probe::Op1::DoOpResponse :max-request-bytes 524288)])
 

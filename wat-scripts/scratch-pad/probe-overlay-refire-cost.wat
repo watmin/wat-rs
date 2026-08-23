@@ -61,7 +61,7 @@
 ;; The rule is deliberately MINIMAL — one alpha condition, one production, no join. Cost is then
 ;; ~proportional to the facts the engine actually processes, so a "redo" shows up as time tracking N
 ;; instead of being buried under join work. Hit(k) :- Req(?k) AND k mod 10 == 3.
-(:wat::core::defn :ovl::rules [] -> :wat::core::PersistentVector<wat::rete::Rule>
+(:wat::core::defn :ovl::rules [] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
   (:wat::core::PersistentVector
     (:wat::core::let [conds   (:wat::core::quasiquote (:ovl::Req (?k <- :k)))
                       where-c (:wat::core::quasiquote
@@ -81,8 +81,8 @@
   (:wat::rete::insert-all
     session
     (:wat::core::foldl
-      (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::Record>  i <- :wat::core::i64]
-                      -> :wat::core::PersistentVector<wat::core::Record>
+      (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  i <- :wat::core::i64]
+                      -> (:wat::core::PersistentVector :- [:wat::core::Record])
         (:wat::core::PersistentVector/conj acc (:ovl::Req :k i)))
       (:wat::core::PersistentVector)
       (:wat::core::range lo hi))))

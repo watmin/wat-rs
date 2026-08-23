@@ -47,8 +47,8 @@
 ;; with a 4-child shape (head name prelude body) whose prelude child is `()`.
 (:wat::core::defn :user::form-edits
   [node  <- :wat::WatAST
-   lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+   lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::if (:user::deftest-head? node)
     (:wat::core::let [ch (:wat::core::ast->children node)]
       (:wat::core::if (:wat::core::< (:wat::core::count ch) 4)
@@ -70,9 +70,9 @@
 
 ;; scan — collect edits across every top-level form (ascending offset order).
 (:wat::core::defn :user::scan
-  [forms <- :wat::core::Vector<wat::WatAST>
-   lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+  [forms <- (:wat::core::Vector :- [:wat::WatAST])
+   lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::if (:wat::core::empty? forms)
     (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
     (:wat::core::concat
@@ -87,7 +87,7 @@
     (:wat::fix::fix-text-apply src (:wat::core::reverse all-edits))))
 
 (:wat::core::defn :user::apply-each
-  [paths <- :wat::core::Vector<wat::core::String>] -> :wat::core::nil
+  [paths <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::nil
   (:wat::core::if (:wat::core::empty? paths)
     nil
     (:wat::core::let [path (:wat::core::first paths)]

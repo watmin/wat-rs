@@ -8,7 +8,7 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [w (:wat::test::spawn-peer (:wat::spawn::thread)
-         (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+         (:wat::core::fn [self <- (:wat::kernel::ThreadSelfPeer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
            ;; The child parks forever on its OWN recv (parent never sends) — it must
            ;; never return, or its send-half closing would give the parent Closed
            ;; instead of the Stopped outcome under test.

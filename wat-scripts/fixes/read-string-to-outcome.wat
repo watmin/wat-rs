@@ -46,11 +46,11 @@
 ;; `src/` flip lands SECOND. Rewriting in the other order leaves no working binary to rewrite with.
 
 ;; ── helpers (mirrored from wrap-client-method-match-in-recvoutcome.wat) ──────────
-(:wat::core::defn :user::start-off [n <- :wat::WatAST  lines <- :wat::core::Vector<wat::core::String>]
+(:wat::core::defn :user::start-off [n <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])]
   -> :wat::core::i64
   (:wat::fix::fix-text-offset-of (:wat::core::ast-span n) lines))
 
-(:wat::core::defn :user::end-off [n <- :wat::WatAST  lines <- :wat::core::Vector<wat::core::String>]
+(:wat::core::defn :user::end-off [n <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])]
   -> :wat::core::i64
   (:wat::fix::fix-text-offset-of (:wat::core::ast-end-span n) lines))
 
@@ -72,7 +72,7 @@
     ""))
 
 (:wat::core::defn :user::any-arm-head-contains?
-  [arms <- :wat::core::Vector<wat::WatAST>  needle <- :wat::core::String] -> :wat::core::bool
+  [arms <- (:wat::core::Vector :- [:wat::WatAST])  needle <- :wat::core::String] -> :wat::core::bool
   (:wat::core::foldl
     (:wat::core::fn [acc <- :wat::core::bool  arm <- :wat::WatAST] -> :wat::core::bool
       (:wat::core::if acc true
@@ -101,8 +101,8 @@
 
 ;; ── EDIT: two inserts — `(match ` before the call, the two arms + `)` after it ────
 (:wat::core::defn :user::wrap-edits
-  [node <- :wat::WatAST  lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+  [node <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)
     (:wat::core::Tuple (:user::start-off node lines) 0
       "(:wat::core::match ")
@@ -115,8 +115,8 @@
 ;; (the scrutinee we produced last run) and walk the rest, so a read-string nested inside an ARM body
 ;; is still reachable. Skipping the whole node would strand those.
 (:wat::core::defn :user::node-edits
-  [node <- :wat::WatAST  lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+  [node <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::if (:user::already-wrapped? node)
     (:wat::core::let [ch (:wat::core::ast->children node)]
       (:user::seq-edits
@@ -133,11 +133,11 @@
         this))))
 
 (:wat::core::defn :user::seq-edits
-  [items <- :wat::core::Vector<wat::WatAST>  lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+  [items <- (:wat::core::Vector :- [:wat::WatAST])  lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)> it <- :wat::WatAST]
-      -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+    (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])]) it <- :wat::WatAST]
+      -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
       (:wat::core::concat acc (:user::node-edits it lines)))
     (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
     items))
@@ -152,7 +152,7 @@
     (:wat::fix::fix-text-apply src rev)))
 
 ;; ── driver ───────────────────────────────────────────────────────────────────
-(:wat::core::defn :user::apply-each [paths <- :wat::core::Vector<wat::core::String>] -> :wat::core::nil
+(:wat::core::defn :user::apply-each [paths <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::nil
   (:wat::core::if (:wat::core::empty? paths)
     nil
     (:wat::core::let

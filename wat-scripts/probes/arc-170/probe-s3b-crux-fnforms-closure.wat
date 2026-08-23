@@ -10,7 +10,7 @@
 
 ;; parent-side drain: pins the Process' I/O (parent sends (idx,i64), recvs (idx,i64))
 (:wat::core::defn :probe::drain
-  [w <- :wat::kernel::Process<(wat::core::i64,wat::core::i64),(wat::core::i64,wat::core::i64)>]
+  [w <- (:wat::kernel::Process :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64]) (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])])]
   -> :wat::core::nil
   (:wat::core::let
     [_ (:wat::core::match (:wat::kernel::send w (:wat::core::Tuple 0 3)) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) (:wat::kernel::SendOutcome::Stopped nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
@@ -50,7 +50,7 @@
            (:wat::kernel::fn-forms wf :bracket::__pool-work)     ;; reify wf + its captured work-fn
            (:wat::core::forms
              (:wat::core::defn :bracket::__pool-runner
-               [self <- :wat::kernel::Peer<(wat::core::i64,wat::core::i64),(wat::core::i64,wat::core::i64)>]
+               [self <- (:wat::kernel::Peer :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64]) (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])])]
                -> :wat::core::nil
                (:wat::core::let
                  [pair (:wat::kernel::recv self)

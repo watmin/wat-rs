@@ -4,7 +4,7 @@
 ;; five: interpose, keep-indexed, map-indexed, dedupe, distinct. Scratch, per CLAUDE.md.
 
 (:wat::core::defn :probe::nat
-  [i <- :wat::core::i64] -> :wat::stream::Stream<wat::core::i64>
+  [i <- :wat::core::i64] -> (:wat::stream::Stream :- [:wat::core::i64])
   (:wat::stream::lazy
     (:wat::stream::cons i (:probe::nat (:wat::core::+ i 1)))))
 
@@ -19,7 +19,7 @@
       (:wat::core::string::join ","
         (:wat::core::into [] (:wat::core::take
           (:wat::core::keep-indexed
-            (:wat::core::fn [i <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::Option<wat::core::i64>
+            (:wat::core::fn [i <- :wat::core::i64 x <- :wat::core::i64] -> (:wat::core::Option :- [:wat::core::i64])
               (:wat::core::if (:wat::core::= 0 (:wat::core::mod i 2)) (:wat::core::Some x) :wat::core::None))
             (:probe::nat 0))
           3))))

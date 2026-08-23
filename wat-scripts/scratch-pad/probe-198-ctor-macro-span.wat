@@ -6,11 +6,11 @@
   {:restricted-to [:my::issuer::]}
   [id <- :wat::core::i64])
 
-(:wat::core::defn :probe::pos-str [p <- :wat::core::HashMap<wat::core::keyword,wat::core::i64>] -> :wat::core::String
+(:wat::core::defn :probe::pos-str [p <- (:wat::core::HashMap :- [:wat::core::keyword :wat::core::i64])] -> :wat::core::String
   (:wat::core::string::concat "l" (:wat::core::i64::to-string (:wat::core::Option/expect (:wat::core::HashMap/get p :line) "line"))
     ":c" (:wat::core::i64::to-string (:wat::core::Option/expect (:wat::core::HashMap/get p :col) "col"))))
 
-(:wat::core::defn :probe::dump-children [kids <- :wat::core::Vector<wat::WatAST> i <- :wat::core::i64 depth <- :wat::core::i64] -> :wat::core::nil
+(:wat::core::defn :probe::dump-children [kids <- (:wat::core::Vector :- [:wat::WatAST]) i <- :wat::core::i64 depth <- :wat::core::i64] -> :wat::core::nil
   (:wat::core::match (:wat::core::Vector/get kids i)
     ((:wat::core::Some c) (:wat::core::do (:probe::dump c depth) (:probe::dump-children kids (:wat::core::+ i 1) depth)))
     (:wat::core::None nil)))

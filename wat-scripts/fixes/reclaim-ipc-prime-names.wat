@@ -39,7 +39,7 @@
 ;; The migration as DATA — one line per name. Adding a name is one line; nothing to re-balance.
 ;; (An earlier draft nested 24 `rename-keyword-prefix` calls into a staircase; the closing-paren
 ;; count stopped being eyeballable and was wrong twice. A fold over a list is the honest form.)
-(:wat::core::defn :user::renames [] -> :wat::core::Vector<(wat::core::String,wat::core::String)>
+(:wat::core::defn :user::renames [] -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
   (:wat::core::Vector :(wat::core::String,wat::core::String)
     ;; spawn family
     (:wat::core::Tuple ":wat::kernel::spawn-program'"     ":wat::kernel::spawn-program")
@@ -81,7 +81,7 @@
     (:user::renames)))
 
 (:wat::core::defn :user::apply-each
-  [paths <- :wat::core::Vector<wat::core::String>] -> :wat::core::nil
+  [paths <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::nil
   (:wat::core::if (:wat::core::empty? paths)
     nil
     (:wat::core::let [path (:wat::core::first paths)]

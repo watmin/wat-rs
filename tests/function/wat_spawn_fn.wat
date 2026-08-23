@@ -7,7 +7,7 @@
 ;; the peer reaps on scope-exit (RAII) — no explicit tx/rx or drain-and-join.
 
 ;; T1: named-define body — :app::increment worker + compute that spawns it by name.
-(:wat::core::defn :app::increment [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+(:wat::core::defn :app::increment [self <- (:wat::kernel::ThreadSelfPeer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
   (:wat::core::let
               [value
                 (:wat::core::match (:wat::kernel::recv self)
@@ -58,7 +58,7 @@
               [peer
                 (:wat::test::spawn-peer (:wat::spawn::thread)
                   (:wat::core::fn
-                    [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>]
+                    [self <- (:wat::kernel::ThreadSelfPeer :- [:wat::core::i64 :wat::core::i64])]
                      -> :wat::core::nil
                     (:wat::core::let
                       [value
@@ -106,7 +106,7 @@
               [delta 100
                body
                 (:wat::core::fn
-                  [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>]
+                  [self <- (:wat::kernel::ThreadSelfPeer :- [:wat::core::i64 :wat::core::i64])]
                    -> :wat::core::nil
                   (:wat::core::let
                     [n

@@ -46,7 +46,7 @@
 ;; The SAFE twin — bounded iteration, which is how the closed vocabulary expresses repetition.
 ;; `foldl` visits each element exactly once and nothing in the vocabulary can extend the
 ;; collection mid-fold, so this provably terminates.
-(:wat::core::defn :probe-term::all-even? [xs <- :wat::core::PersistentVector<wat::core::i64>]
+(:wat::core::defn :probe-term::all-even? [xs <- (:wat::core::PersistentVector :- [:wat::core::i64])]
                                          -> :wat::core::bool
   (:wat::rete::core::foldl
     (:wat::rete::core::fn [acc <- :wat::core::bool  x <- :wat::core::i64] -> :wat::core::bool

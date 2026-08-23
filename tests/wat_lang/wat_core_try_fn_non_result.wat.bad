@@ -1,9 +1,9 @@
 ;; Negative fixture: try inside fn with non-Result return → MalformedForm.
 ;; The fn's return type is i64, not Result — innermost scope for try is the fn.
-(:wat::core::defn :t::probe [] -> :wat::core::Result<wat::core::i64,wat::core::String>
+(:wat::core::defn :t::probe [] -> (:wat::core::Result :- [:wat::core::i64 :wat::core::String])
   (:wat::core::let
     [f (:wat::core::fn
-         [r <- :wat::core::Result<wat::core::i64,wat::core::String>]
+         [r <- (:wat::core::Result :- [:wat::core::i64 :wat::core::String])]
          -> :wat::core::i64
          (:wat::core::Result/try r))]
     (:wat::core::Ok (f (:wat::core::Ok 1)))))

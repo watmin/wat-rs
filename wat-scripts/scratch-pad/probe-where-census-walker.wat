@@ -36,7 +36,7 @@
 ;; walk-match-arms — items are (pattern body...) lists (or malformed leftovers); skip position 0
 ;; (the pattern/discriminator), walk-collect over positions 1+ (the body).
 (:wat::core::defn :user::walk-match-arms
-  [arms <- :wat::core::Vector<wat::WatAST> tag <- :wat::core::String] -> :wat::core::nil
+  [arms <- (:wat::core::Vector :- [:wat::WatAST]) tag <- :wat::core::String] -> :wat::core::nil
   (:wat::core::if (:wat::core::empty? arms)
     nil
     (:wat::core::let [arm (:wat::core::first arms)]
@@ -76,7 +76,7 @@
         nil))))
 
 (:wat::core::defn :user::walk-collect-seq
-  [items <- :wat::core::Vector<wat::WatAST> tag <- :wat::core::String] -> :wat::core::nil
+  [items <- (:wat::core::Vector :- [:wat::WatAST]) tag <- :wat::core::String] -> :wat::core::nil
   (:wat::core::if (:wat::core::empty? items)
     nil
     (:wat::core::do
@@ -113,7 +113,7 @@
       ctr2)))
 
 (:wat::core::defn :user::find-wheres-seq
-  [items <- :wat::core::Vector<wat::WatAST> path <- :wat::core::String ctr <- :wat::core::i64] -> :wat::core::i64
+  [items <- (:wat::core::Vector :- [:wat::WatAST]) path <- :wat::core::String ctr <- :wat::core::i64] -> :wat::core::i64
   (:wat::core::if (:wat::core::empty? items)
     ctr
     (:wat::core::let [ctr2 (:user::find-wheres (:wat::core::first items) path ctr)]
@@ -129,7 +129,7 @@
           (:wat::kernel::println (:wat::core::string::concat "PARSE-FAIL " path))
           nil)))))
 
-(:wat::core::defn :user::process-seq [paths <- :wat::core::Vector<wat::core::String>] -> :wat::core::nil
+(:wat::core::defn :user::process-seq [paths <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::nil
   (:wat::core::if (:wat::core::empty? paths)
     nil
     (:wat::core::do

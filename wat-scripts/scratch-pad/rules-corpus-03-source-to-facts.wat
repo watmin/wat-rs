@@ -38,8 +38,8 @@
 ;; the walk's accumulator — threaded, never mutated
 (:wat::core::defrecord :fx::Acc
   [next-id <- :wat::core::i64
-   nodes   <- :wat::core::PersistentVector<fx::Node>
-   named   <- :wat::core::PersistentVector<fx::Named>])
+   nodes   <- (:wat::core::PersistentVector :- [:fx::Node])
+   named   <- (:wat::core::PersistentVector :- [:fx::Named])])
 
 ;; per-level child accumulator: the walk's Acc plus this level's running index
 (:wat::core::defrecord :fx::ChildAcc

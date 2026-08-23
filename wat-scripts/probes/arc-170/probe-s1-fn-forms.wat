@@ -20,7 +20,7 @@
            work-forms
            (:wat::core::forms
              (:wat::core::defn :probe::runner
-               [self <- :wat::kernel::Peer<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+               [self <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
                (:wat::core::let
                  [item (:wat::kernel::recv self)
                   _    (:wat::core::match (:wat::kernel::send self (:probe::work item)) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))]

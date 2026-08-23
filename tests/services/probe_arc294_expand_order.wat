@@ -26,12 +26,12 @@
    (:wat::core::defenum :probe::Echo::PingResponse :wat::enum::Pure
      :Ok              [value <- :wat::core::i64]
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])
    (:wat::core::defrecord :probe::Echo::BumpRequest  [])
    (:wat::core::defenum :probe::Echo::BumpResponse :wat::enum::Pure
      :Ok              [value <- :wat::core::i64]
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(ping [self <- :probe::Echo  req <- :probe::Echo::PingRequest] -> :probe::Echo::PingResponse :max-request-bytes 524288)
    (bump [self <- :probe::Echo  req <- :probe::Echo::BumpRequest] -> :probe::Echo::BumpResponse :max-request-bytes 524288)])

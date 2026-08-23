@@ -30,7 +30,7 @@
 ;; STRING literal, nor inline wat embedded in a Rust test string. Both are hand-check surfaces
 ;; (the 2026-07-24 class-4 lesson); the floor is what surfaces the second.
 
-(:wat::core::defn :user::targets [] -> :wat::core::Vector<wat::core::String>
+(:wat::core::defn :user::targets [] -> (:wat::core::Vector :- [:wat::core::String])
   (:wat::core::Vector :wat::core::String
     ":cg::make-rate"
     ":fix::head-keyword-str?"
@@ -71,7 +71,7 @@
     ":wst::feline?"))
 
 (:wat::core::defn :user::apply-each
-  [paths <- :wat::core::Vector<wat::core::String>] -> :wat::core::nil
+  [paths <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::nil
   (:wat::core::if (:wat::core::empty? paths)
     nil
     (:wat::core::let [path (:wat::core::first paths)

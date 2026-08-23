@@ -14,7 +14,7 @@
    (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure
      :Ok              [reply <- :wat::core::String]
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse :max-request-bytes 524288)])
 
@@ -40,14 +40,14 @@
                    (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure
                      :Ok              [reply <- :wat::core::String]
                      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-                     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
+                     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
                   :features
                   [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse :max-request-bytes 524288)])
                 (:wat::core::defn :user::main [] -> :wat::core::nil
                   (:wat::core::let
                     [self (:wat::program::self-peer
                             :wat::core::String
-                            :wat::kernel::Address<probe::Echo::Op,probe::Echo::Reply>)
+                            (:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply]))
                      addr (:wat::core::match (:wat::kernel::recv self)
                             ((:wat::kernel::RecvOutcome::Message m) m)
                             ((:wat::kernel::RecvOutcome::Lost cause)

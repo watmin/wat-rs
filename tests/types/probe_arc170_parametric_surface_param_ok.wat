@@ -15,7 +15,7 @@
    (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure
      :Ok              [reply <- :wat::core::String]
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse :max-request-bytes 524288)])
 (:wat::service::defservice :probe::echo
@@ -26,14 +26,14 @@
 
 ;; abstract parametric-surface param + coord on it (Gap 2 return + Gap 1 accepting the handle)
 (:wat::core::defn :probe::takes-dialable
-  [d <- :wat::capability::Dialable<probe::Echo::Op,probe::Echo::Reply>]
-  -> :wat::kernel::Address<probe::Echo::Op,probe::Echo::Reply>
+  [d <- (:wat::capability::Dialable :- [:probe::Echo::Op :probe::Echo::Reply])]
+  -> (:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply])
   (:wat::capability::Dialable/coord d))
 
 ;; `:probe::run` (a non-main defn — no `:user::main`, per the arc-170 `[] -> :nil` / UselessMain
 ;; wall) dials nothing; it exists so the checker sees a raw `echo'::Handle` flow into the
 ;; `Dialable<…>` param (Gap 1). Returns the coord'd Address'.
-(:wat::core::defn :probe::run [] -> :wat::kernel::Address<probe::Echo::Op,probe::Echo::Reply>
+(:wat::core::defn :probe::run [] -> (:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply])
   (:wat::core::let
     [eh (:probe::echo/start :locus (:wat::spawn::process) :record (:probe::echo::Record))]
     (:probe::takes-dialable eh)))

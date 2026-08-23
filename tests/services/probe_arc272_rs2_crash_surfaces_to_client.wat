@@ -7,7 +7,7 @@
    (:wat::core::defenum :my::Svc::BoomResponse :wat::enum::Pure
      :Ok              [ok <- :wat::core::bool]
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(boom [self <- :my::Svc  req <- :my::Svc::BoomRequest] -> :my::Svc::BoomResponse :max-request-bytes 524288)])
 

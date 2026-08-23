@@ -54,22 +54,22 @@
 (:wat::core::defn :user::compute_t5 [] -> :wat::core::i64 (:app::pow2 20))
 
 ;; T6: try + TailCall coexistence (short-circuits with Ok 0)
-(:wat::core::defn :app::check [n <- :wat::core::i64] -> :wat::core::Result<wat::core::i64,wat::core::String>
+(:wat::core::defn :app::check [n <- :wat::core::i64] -> (:wat::core::Result :- [:wat::core::i64 :wat::core::String])
   (:wat::core::if (:wat::core::< n 0) 
               (:wat::core::Err "negative")
               (:wat::core::Ok n)))
 
-(:wat::core::defn :app::loop_t6 [n <- :wat::core::i64] -> :wat::core::Result<wat::core::i64,wat::core::String>
+(:wat::core::defn :app::loop_t6 [n <- :wat::core::i64] -> (:wat::core::Result :- [:wat::core::i64 :wat::core::String])
   (:wat::core::let
               [valid (:wat::core::Result/try (:app::check n))]
               (:wat::core::if (:wat::core::= valid 0) 
                 (:wat::core::Ok 0)
                 (:app::loop_t6 (:wat::core::i64::- valid 1)))))
 
-(:wat::core::defn :user::compute_t6 [] -> :wat::core::Result<wat::core::i64,wat::core::String> (:app::loop_t6 50000))
+(:wat::core::defn :user::compute_t6 [] -> (:wat::core::Result :- [:wat::core::i64 :wat::core::String]) (:app::loop_t6 50000))
 
 ;; T7: try propagates Err (starts at -1)
-(:wat::core::defn :app::loop_t7 [n <- :wat::core::i64] -> :wat::core::Result<wat::core::i64,wat::core::String>
+(:wat::core::defn :app::loop_t7 [n <- :wat::core::i64] -> (:wat::core::Result :- [:wat::core::i64 :wat::core::String])
   (:wat::core::let
               [valid (:wat::core::Result/try (:app::check n))]
               (:wat::core::if (:wat::core::<= valid (:wat::core::i64::- 0 1)) 
@@ -77,7 +77,7 @@
                 (:app::loop_t7 (:wat::core::i64::- valid 1)))))
 
 ;; Start at -1 so `check` immediately returns Err and `try` propagates.
-(:wat::core::defn :user::compute_t7 [] -> :wat::core::Result<wat::core::i64,wat::core::String> (:app::loop_t7 -1))
+(:wat::core::defn :user::compute_t7 [] -> (:wat::core::Result :- [:wat::core::i64 :wat::core::String]) (:app::loop_t7 -1))
 
 ;; T8: fn-valued tail call via let-bound symbol
 (:wat::core::defn :user::compute_t8 [] -> :wat::core::i64

@@ -24,7 +24,7 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::thread)
-         (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+         (:wat::core::fn [self <- (:wat::kernel::ThreadSelfPeer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
            (:wat::kernel::assertion-failed! "SEND-WALL-PROBE-CRASH" :wat::core::None :wat::core::None)))
      ;; synchronize on the worker's death: recv' blocks until EOF + the crash reason
      ;; lands on the crash channel — by the time this returns, the worker has fully

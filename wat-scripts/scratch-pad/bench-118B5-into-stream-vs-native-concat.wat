@@ -28,14 +28,14 @@
 
 ;; STREAM path — `map` is lazy, so this is the two-arm interpreted drain under test.
 (:wat::core::defn :bench::stream-drain
-  [v <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
+  [v <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::i64
   (:wat::core::length
     (:wat::core::into (:wat::core::Vector :wat::core::i64)
       (:wat::core::map (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x) v))))
 
 ;; EAGER path — the native PersistentVector/concat arm, same n elements materialized.
 (:wat::core::defn :bench::native-concat
-  [v <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
+  [v <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::i64
   (:wat::core::length
     (:wat::core::into (:wat::core::PersistentVector) v)))
 
@@ -44,7 +44,7 @@
 ;; the drain itself. Without it, "stream is 49x slower" is a claim about a component, read rather
 ;; than measured. [[feedback_measure_the_decomposition_never_read_it]]
 (:wat::core::defn :bench::drain-only
-  [v <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
+  [v <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::i64
   (:wat::core::length
     (:wat::core::into (:wat::core::Vector :wat::core::i64)
       (:wat::core::Seqable/seq v))))

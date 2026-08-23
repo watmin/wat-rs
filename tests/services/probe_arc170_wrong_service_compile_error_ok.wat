@@ -10,7 +10,7 @@
    (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure
      :Ok              [reply <- :wat::core::String]
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse :max-request-bytes 524288)])
 (:wat::service::defservice :probe::echo
@@ -25,7 +25,7 @@
    (:wat::core::defenum :probe::Kv::GetResponse :wat::enum::Pure
      :Ok              [v <- :wat::core::String]
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(get [self <- :probe::Kv  req <- :probe::Kv::GetRequest] -> :probe::Kv::GetResponse :max-request-bytes 524288)])
 (:wat::service::defservice :probe::kv
@@ -39,5 +39,5 @@
     [eh  (:probe::echo/start :locus (:wat::spawn::process) :record (:probe::echo::Record))
      kvh (:probe::kv/start   :locus (:wat::spawn::process) :record (:probe::kv::Record))
      ok  (:wat::core::ann-form (:wat::capability::Dialable/coord eh)
-           :wat::kernel::Address<probe::Echo::Op,probe::Echo::Reply>)]
+           (:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply]))]
     (:wat::kernel::println "measured")))

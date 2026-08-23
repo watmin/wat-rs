@@ -41,7 +41,7 @@
   :when [(:wtc::Pair (?a <- :a) (?b <- :b))])
 
 
-(:wat::core::defn :wtc::build-rules [row <- :wat::core::i64] -> :wat::core::PersistentVector<wat::rete::Rule>
+(:wat::core::defn :wtc::build-rules [row <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
   (:wat::core::PersistentVector
     (:wat::core::cond
       ((:wat::core::= row 1) (:wtc::spoken))

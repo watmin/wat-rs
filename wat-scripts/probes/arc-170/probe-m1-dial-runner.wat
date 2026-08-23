@@ -7,7 +7,7 @@
   :messages
   [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- :wat::core::String])
    (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure :Ok [reply <- :wat::core::String] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-                                                                                                      :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
+                                                                                                      :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse :max-request-bytes 524288)])
 
@@ -29,12 +29,12 @@
                   :messages
                   [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- :wat::core::String])
                    (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure :Ok [reply <- :wat::core::String] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-                                                                                                                      :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
+                                                                                                                      :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
                   :features
                   [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse :max-request-bytes 524288)])
                 ;; the user's 2-param work-fn Fn(Peer'<Op,Reply>,String)->String
                 (:wat::core::defn :user::bracket::work-fn
-                  [c <- :wat::kernel::Peer<probe::Echo::Op,probe::Echo::Reply>  s <- :wat::core::String]
+                  [c <- (:wat::kernel::Peer :- [:probe::Echo::Op :probe::Echo::Reply])  s <- :wat::core::String]
                   -> :wat::core::String
                   (:wat::core::match (:probe::Echo/echo c (:probe::Echo::EchoRequest :msg s)) ((:probe::Echo::EchoResponse::Ok reply) reply)
   ((:probe::Echo::EchoResponse::RequestTooLarge bytes cap)
@@ -45,7 +45,7 @@
                   (:wat::bracket::process-dial-runner
                     (:wat::program::self-peer
                       :(wat::core::i64,wat::core::String)
-                      :wat::bracket::PoolMsg<wat::kernel::Address<probe::Echo::Op,probe::Echo::Reply>,wat::core::String>)
+                      (:wat::bracket::PoolMsg :- [(:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply]) :wat::core::String]))
                     :user::bracket::work-fn
                     :wat::core::None))))
      out  (:wat::core::match (:wat::kernel::peer-pid worker) 

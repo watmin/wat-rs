@@ -22,7 +22,7 @@
    (:wat::core::defenum :wat-tests::RespCounter::IncrementResponse :wat::enum::Pure
      :Ok              [value <- :wat::core::i64]
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(increment [self <- :wat-tests::RespCounter  req <- :wat-tests::RespCounter::IncrementRequest] -> :wat-tests::RespCounter::IncrementResponse :max-request-bytes 524288)])
 

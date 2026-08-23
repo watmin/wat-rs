@@ -23,7 +23,7 @@ fn world(gate: &str) -> String {
          (:wat::core::defrecord :w::Flagged [location <- :wat::core::String])\n\
          \n\
          ;; a PURE∧DET custom fold: sum of squares of the gathered values\n\
-         (:wat::rete::core::defn :w::sum-of-squares [xs <- :wat::core::PersistentVector<wat::core::i64>] -> :wat::core::i64\n\
+         (:wat::rete::core::defn :w::sum-of-squares [xs <- (:wat::core::PersistentVector :- [:wat::core::i64])] -> :wat::core::i64\n\
            (:wat::rete::core::foldl\n\
              (:wat::rete::core::fn [acc <- :wat::core::i64  x <- :wat::core::i64] -> :wat::core::i64\n\
                (:wat::rete::core::i64::+ acc (:wat::rete::core::i64::* x x :undefined 0) :undefined 0))\n\
@@ -100,7 +100,7 @@ fn fence_rejects_impure_fold() {
     let src = "(:wat::core::defrecord :w::Reading [location <- :wat::core::String  value <- :wat::core::i64])\n\
          (:wat::core::defrecord :w::Flagged [location <- :wat::core::String])\n\
          ;; an IMPURE fold — side-effects (println) → must be rejected by the pure∧det fence\n\
-         (:wat::core::defn :w::bad-fold [xs <- :wat::core::PersistentVector<wat::core::i64>] -> :wat::core::i64\n\
+         (:wat::core::defn :w::bad-fold [xs <- (:wat::core::PersistentVector :- [:wat::core::i64])] -> :wat::core::i64\n\
            (:wat::core::do\n\
              (:wat::kernel::println \"side effect\")\n\
              (:wat::core::length xs)))\n\

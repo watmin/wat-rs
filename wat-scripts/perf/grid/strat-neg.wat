@@ -52,12 +52,12 @@
 
 (:wat::core::defrecord :grid::Result
   [axis      <- :wat::core::String
-   size      <- :wat::core::PersistentVector<wat::core::i64>
-   derived   <- :wat::core::PersistentVector<wat::core::i64>
+   size      <- (:wat::core::PersistentVector :- [:wat::core::i64])
+   derived   <- (:wat::core::PersistentVector :- [:wat::core::i64])
    native-ns      <- :wat::core::i64
    ;; THREE-WAY: the wat SPEC's own answer, so the runner can render :oracle-accuracy
    ;; (spec vs Clara) and :port-accuracy (spec vs native) instead of one verdict.
-   oracle-derived <- :wat::core::PersistentVector<wat::core::i64>
+   oracle-derived <- (:wat::core::PersistentVector :- [:wat::core::i64])
    oracle-ns      <- :wat::core::i64])
 
 (:wat::rete::defquery :strat::q-S0
@@ -187,10 +187,10 @@
 
 ;; build-rules strata — the rule set [rule0 .. rule(strata-1)], folding build-rule over
 ;; (range 1 strata) atop a seeded rule0 (mirrors deep-cascade.wat's build-rules exactly).
-(:wat::core::defn :strat::build-rules [strata <- :wat::core::i64] -> :wat::core::PersistentVector<wat::rete::Rule>
+(:wat::core::defn :strat::build-rules [strata <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::rete::Rule>  lvl <- :wat::core::i64]
-      -> :wat::core::PersistentVector<wat::rete::Rule>
+    (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::rete::Rule])  lvl <- :wat::core::i64]
+      -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
       (:wat::core::PersistentVector/conj acc (:strat::build-rule lvl)))
     (:wat::core::PersistentVector (:strat::build-rule 0))
     (:wat::core::range 1 strata)))
@@ -201,8 +201,8 @@
   (:wat::rete::insert-all
     session
     (:wat::core::foldl
-      (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::Record>  i <- :wat::core::i64]
-                      -> :wat::core::PersistentVector<wat::core::Record>
+      (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  i <- :wat::core::i64]
+                      -> (:wat::core::PersistentVector :- [:wat::core::Record])
         (:wat::core::PersistentVector/conj acc (:strat::Item i)))
       (:wat::core::PersistentVector)
       (:wat::core::range 0 items))))
@@ -213,7 +213,7 @@
 ;; mirrors deep-cascade.wat's count-at-level (typed lambda directly over query-by-type-string).
 (:wat::core::defn :strat::codes-for-level
   [fired <- :wat::rete::Session  lvl <- :wat::core::i64]
-  -> :wat::core::Vector<wat::core::i64>
+  -> (:wat::core::Vector :- [:wat::core::i64])
   (:wat::core::cond
     ((:wat::core::= lvl 0)
      (:wat::core::into (:wat::core::Vector :wat::core::i64)
@@ -263,7 +263,7 @@
 ;; vec->pvec v — materialize a Vector<i64> into a PersistentVector<i64>. DESIGN-STONE-into-pv-
 ;; from-vector.md: `into` now has a native (PersistentVector<T>, Vector<T>) clause backed by one
 ;; `PersistentVector/concat` call — retiring the N-interpreted-closure-invocation conj-fold.
-(:wat::core::defn :strat::vec->pvec [v <- :wat::core::Vector<wat::core::i64>] -> :wat::core::PersistentVector<wat::core::i64>
+(:wat::core::defn :strat::vec->pvec [v <- (:wat::core::Vector :- [:wat::core::i64])] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:wat::core::into (:wat::core::PersistentVector) v))
 
 ;; derived-vector fired strata — every derived fact across all `strata` levels, canonically
@@ -271,10 +271,10 @@
 ;; mismatch anywhere (missing/extra fact at any stratum) shows up.
 (:wat::core::defn :strat::derived-vector
   [fired <- :wat::rete::Session  strata <- :wat::core::i64]
-  -> :wat::core::PersistentVector<wat::core::i64>
+  -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:wat::core::let [all (:wat::core::foldl
-                          (:wat::core::fn [acc <- :wat::core::Vector<wat::core::i64>  lvl <- :wat::core::i64]
-                            -> :wat::core::Vector<wat::core::i64>
+                          (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::i64])  lvl <- :wat::core::i64]
+                            -> (:wat::core::Vector :- [:wat::core::i64])
                             (:wat::core::into acc (:strat::codes-for-level fired lvl)))
                           (:wat::core::Vector :wat::core::i64)
                           (:wat::core::range 0 strata))]

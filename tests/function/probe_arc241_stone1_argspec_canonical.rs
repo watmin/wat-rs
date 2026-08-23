@@ -172,7 +172,7 @@ fn contract_10_rest_only_succeeds() {
     // rest_param = Some(("rest", Vector<i64>)).
     // Note: inner type args use bare symbols (no leading colon) per the type system.
     let result = parse_triples(
-        "[& rest <- :wat::core::Vector<wat::core::i64>]", // rune:lint(no-inlined-edn) — input under test: argspec source fed to the parser
+        "[& rest <- (:wat::core::Vector :- [:wat::core::i64])]", // rune:lint(no-inlined-edn) — input under test: argspec source fed to the parser
         true,
     );
     let spec = result.expect("rest-only argspec parses cleanly when opted in");
@@ -186,7 +186,7 @@ fn contract_11_fixed_plus_rest_succeeds() {
     // [x <- :i64 & rest <- :Vector<i64>] → fixed_params: [(x, i64)]; rest_param: Some.
     // Note: inner type args use bare symbols (no leading colon) per the type system.
     let result = parse_triples(
-        "[x <- :wat::core::i64 & rest <- :wat::core::Vector<wat::core::i64>]", // rune:lint(no-inlined-edn) — input under test: argspec source fed to the parser
+        "[x <- :wat::core::i64 & rest <- (:wat::core::Vector :- [:wat::core::i64])]", // rune:lint(no-inlined-edn) — input under test: argspec source fed to the parser
         true,
     );
     let spec = result.expect("fixed+rest argspec parses cleanly when opted in");
@@ -202,7 +202,7 @@ fn contract_12_trailing_items_after_rest_errors() {
     // VERIFIES Stone 241.1.fix DESIGN T2 verdict β (TrailingItems becomes reachable here).
     // Note: inner type args use bare symbols (no leading colon) per the type system.
     let result = parse_triples(
-        "[& rest <- :wat::core::Vector<wat::core::i64> extra]", // rune:lint(no-inlined-edn) — input under test: argspec source fed to the parser
+        "[& rest <- (:wat::core::Vector :- [:wat::core::i64]) extra]", // rune:lint(no-inlined-edn) — input under test: argspec source fed to the parser
         true,
     );
     let err = result.expect_err("trailing items after rest-binder must error");
@@ -246,7 +246,7 @@ fn contract_15_rest_binder_rejected_when_disallowed_preserved() {
     // Distinct test name preserves contract_07 semantics with the post-Stone-241.4 framing.
     // Note: inner type args use bare symbols (no leading colon) per the type system.
     let result = parse_triples(
-        "[x <- :wat::core::i64 & rest <- :wat::core::Vector<wat::core::i64>]", // rune:lint(no-inlined-edn) — input under test: argspec source fed to the parser
+        "[x <- :wat::core::i64 & rest <- (:wat::core::Vector :- [:wat::core::i64])]", // rune:lint(no-inlined-edn) — input under test: argspec source fed to the parser
         false,
     );
     let err = result.expect_err("& rest-binder must STILL error when disallowed");

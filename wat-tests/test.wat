@@ -74,7 +74,7 @@
   ;; so the downstream match on `fail` is unchanged.
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::thread)
-         (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+         (:wat::core::fn [self <- (:wat::kernel::ThreadSelfPeer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
            (:wat::core::do
              (:wat::test::assert-contains "hello" "xyz")
              (:wat::core::match (:wat::kernel::send self 0)
@@ -136,7 +136,7 @@
   ;; explanation in `actual`), so the downstream match on `fail` is unchanged.
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::thread)
-         (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+         (:wat::core::fn [self <- (:wat::kernel::ThreadSelfPeer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
            (:wat::core::do
              (:wat::test::assert-coincident
                (:wat::holon::to-holon "alice")

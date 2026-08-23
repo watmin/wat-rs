@@ -10,12 +10,12 @@
   -> :wat::WatAST
   `(:wat::core::Vector :wat::core::i64 ~@xs))
 
-(:wat::core::defn :my::compute-splice [] -> :wat::core::Vector<wat::core::i64>
+(:wat::core::defn :my::compute-splice [] -> (:wat::core::Vector :- [:wat::core::i64])
   (:my::splice-vec [10 20 30]))
 
 ;; Test 3 (hygienic_splice_adder_binds_via_spliced_names): computes names from spliced material.
 (:wat::core::defmacro :my::make-adder
-  [& params <- :wat::core::Vector<wat::WatAST>]
+  [& params <- (:wat::core::Vector :- [:wat::WatAST])]
   -> :wat::WatAST
   (:wat::core::let
     [n0 (:wat::core::Option/expect (:wat::core::get params 0) "make-adder: missing param name 0")
@@ -31,7 +31,7 @@
 
 ;; Test 4 (vector_splice_round_trip_matches_list_splice): Vector and List splice yield same result.
 (:wat::core::defmacro :my::sum-list
-  [& xs <- :wat::core::Vector<wat::WatAST>]
+  [& xs <- (:wat::core::Vector :- [:wat::WatAST])]
   -> :wat::WatAST
   `(:wat::core::i64::+ ~@xs))
 

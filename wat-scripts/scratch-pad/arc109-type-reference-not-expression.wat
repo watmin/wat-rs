@@ -11,20 +11,20 @@
 ;; Rungs below are the acceptance rows from the BRIEF, each one runnable/checkable in isolation.
 
 ;; ─── row 1 — a `defrecord`-minted generic type used as a `(Head :- [args])` ANNOTATION ────────
-(:wat::core::defrecord :arc109tr::R<T> [value <- :T])
+(:wat::core::defrecord :arc109tr::R :- [T] [value <- :T])
 
 (:wat::core::defn :arc109tr::row1-annotation
   [r <- (:arc109tr::R :- [:wat::core::i64])] -> :wat::core::i64
   (:arc109tr::R/value r))
 
 ;; ─── row 2 — same shape for `defstruct` and `holon::defrecord` ────────────────────────────────
-(:wat::core::defstruct :arc109tr::S<T> [value <- :T])
+(:wat::core::defstruct :arc109tr::S :- [T] [value <- :T])
 
 (:wat::core::defn :arc109tr::row2-defstruct-annotation
   [s <- (:arc109tr::S :- [:wat::core::i64])] -> :wat::core::i64
   (:arc109tr::S/value s))
 
-(:wat::holon::defrecord :arc109tr::H<T> [value <- :T])
+(:wat::holon::defrecord :arc109tr::H :- [T] [value <- :T])
 
 (:wat::core::defn :arc109tr::row2-holon-defrecord-annotation
   [h <- (:arc109tr::H :- [:wat::core::i64])] -> :wat::core::i64

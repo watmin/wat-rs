@@ -57,7 +57,7 @@
 ;; forms-expanded, same declarations.
 
 ;; ── SUBJECT payload — the helper is named, so it ships ─────────────────────────────────
-(:wat::core::defn :probe::payload-complete [] -> :wat::core::Vector<wat::WatAST>
+(:wat::core::defn :probe::payload-complete [] -> (:wat::core::Vector :- [:wat::WatAST])
   (:wat::core::Vector :wat::WatAST
     (:wat::core::quote (:wat::core::defrecord :usr::Temp [c <- :wat::core::i64]))
     (:wat::core::quote (:wat::core::defrecord :usr::Hot  [c <- :wat::core::i64]))
@@ -70,7 +70,7 @@
         :then [(:usr::Hot :c ?c)]))))
 
 ;; ── CONTROL payload — byte-identical except `:usr::big?` is NOT named ──────────────────
-(:wat::core::defn :probe::payload-missing-helper [] -> :wat::core::Vector<wat::WatAST>
+(:wat::core::defn :probe::payload-missing-helper [] -> (:wat::core::Vector :- [:wat::WatAST])
   (:wat::core::Vector :wat::WatAST
     (:wat::core::quote (:wat::core::defrecord :usr::Temp [c <- :wat::core::i64]))
     (:wat::core::quote (:wat::core::defrecord :usr::Hot  [c <- :wat::core::i64]))
@@ -103,7 +103,7 @@
 ;; ── run one payload and name which arm fired ──────────────────────────────────────────
 (:wat::core::defn :probe::run
   [label <- :wat::core::String
-   defs  <- :wat::core::Vector<wat::WatAST>]
+   defs  <- (:wat::core::Vector :- [:wat::WatAST])]
   -> :wat::core::nil
   (:wat::core::match (:wat::eval-with-defs! (:probe::evaluand) defs)
 

@@ -1406,12 +1406,12 @@ mod seqable_to_stream_tests {
     #[test]
     fn seqable_to_stream_keep_stays_under_wall_at_n4000() {
         const WORLD: &str = "\
-(:wat::core::defn :cx::keep-all [x <- :wat::core::i64] -> :wat::core::Option<wat::core::i64>\n\
+(:wat::core::defn :cx::keep-all [x <- :wat::core::i64] -> (:wat::core::Option :- [:wat::core::i64])\n\
   (:wat::core::Some x))\n\
-(:wat::core::defn :cx::build-pv [n <- :wat::core::i64] -> :wat::core::PersistentVector<wat::core::i64>\n\
+(:wat::core::defn :cx::build-pv [n <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::core::i64])\n\
   (:wat::core::foldl\n\
-    (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::i64>  i <- :wat::core::i64]\n\
-      -> :wat::core::PersistentVector<wat::core::i64>\n\
+    (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::i64])  i <- :wat::core::i64]\n\
+      -> (:wat::core::PersistentVector :- [:wat::core::i64])\n\
       (:wat::core::PersistentVector/conj acc i))\n\
     (:wat::core::PersistentVector)\n\
     (:wat::core::range 0 n)))\n\
@@ -1474,10 +1474,10 @@ mod filter_native_tests {
         const WORLD: &str = "\
 (:wat::core::defn :cx::keep-all [x <- :wat::core::i64] -> :wat::core::bool\n\
   true)\n\
-(:wat::core::defn :cx::build-pv [n <- :wat::core::i64] -> :wat::core::PersistentVector<wat::core::i64>\n\
+(:wat::core::defn :cx::build-pv [n <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::core::i64])\n\
   (:wat::core::foldl\n\
-    (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::i64>  i <- :wat::core::i64]\n\
-      -> :wat::core::PersistentVector<wat::core::i64>\n\
+    (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::i64])  i <- :wat::core::i64]\n\
+      -> (:wat::core::PersistentVector :- [:wat::core::i64])\n\
       (:wat::core::PersistentVector/conj acc i))\n\
     (:wat::core::PersistentVector)\n\
     (:wat::core::range 0 n)))\n\

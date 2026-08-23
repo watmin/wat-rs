@@ -13,7 +13,7 @@
      ;; Arc 118.2a — `map` flipped LAZY; this macro evaluates at expand time (pure-total
      ;; program-body, bootstrap-adjacent), so `foldl`+`conj` (Rust-native) stand in.
      chars (:wat::core::foldl
-             (:wat::core::fn [acc <- :wat::core::Vector<wat::core::String> i <- :wat::core::i64] -> :wat::core::Vector<wat::core::String>
+             (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String]) i <- :wat::core::i64] -> (:wat::core::Vector :- [:wat::core::String])
                (:wat::core::conj acc (:wat::core::string::subs str i (:wat::core::i64::+ i 1))))
              (:wat::core::Vector :wat::core::String)
              (:wat::core::range 0 len))

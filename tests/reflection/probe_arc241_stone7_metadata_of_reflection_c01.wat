@@ -4,5 +4,5 @@
 (:wat::core::def :my::x
   {:doc "the x value"}
   42)
-(:wat::core::defn :user::compute [] -> :wat::core::Option<wat::core::i64>
+(:wat::core::defn :user::compute [] -> (:wat::core::Option :- [:wat::core::i64])
   (:wat::runtime::metadata-of :my::x))

@@ -75,7 +75,7 @@
     false))
 
 ;; any-bare-defrule? — the idempotence gate: does ANY top-level form need renaming?
-(:wat::core::defn :user::any-bare-defrule? [forms <- :wat::core::Vector<wat::WatAST>] -> :wat::core::bool
+(:wat::core::defn :user::any-bare-defrule? [forms <- (:wat::core::Vector :- [:wat::WatAST])] -> :wat::core::bool
   (:wat::core::foldl
     (:wat::core::fn [acc <- :wat::core::bool  f <- :wat::WatAST] -> :wat::core::bool
       (:wat::core::if acc true (:user::bare-defrule? f)))
@@ -97,7 +97,7 @@
 
 ;; find-ns — walk top-level forms in order; the FIRST namespaced defn/defrecord names this file's
 ;; namespace (e.g. ":wsh::items" -> "wsh"). STOPS if the file has none at all — never a guessed default.
-(:wat::core::defn :user::find-ns [forms <- :wat::core::Vector<wat::WatAST>] -> :wat::core::String
+(:wat::core::defn :user::find-ns [forms <- (:wat::core::Vector :- [:wat::WatAST])] -> :wat::core::String
   (:wat::core::if (:wat::core::empty? forms)
     (:wat::kernel::assertion-failed!
       "namespace-defrule-names: no namespaced top-level defn/defrecord found to derive the file namespace from"
@@ -112,8 +112,8 @@
 ;; ── collecting the (old, new) rule-name rename pairs ────────────────────────────────────────────
 
 (:wat::core::defn :user::rule-renames
-  [forms <- :wat::core::Vector<wat::WatAST>  ns <- :wat::core::String]
-  -> :wat::core::Vector<(wat::core::String,wat::core::String)>
+  [forms <- (:wat::core::Vector :- [:wat::WatAST])  ns <- :wat::core::String]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
   (:wat::core::if (:wat::core::empty? forms)
     (:wat::core::Vector :(wat::core::String,wat::core::String))
     (:wat::core::let [f (:wat::core::first forms) tl (:wat::core::rest forms)]
@@ -130,7 +130,7 @@
 
 (:wat::core::defn :user::apply-renames
   [text    <- :wat::core::String
-   renames <- :wat::core::Vector<(wat::core::String,wat::core::String)>]
+   renames <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])]
   -> :wat::core::String
   (:wat::core::if (:wat::core::empty? renames)
     text
@@ -156,7 +156,7 @@
         false))
     false))
 
-(:wat::core::defn :user::find-run-row [forms <- :wat::core::Vector<wat::WatAST>] -> :wat::WatAST
+(:wat::core::defn :user::find-run-row [forms <- (:wat::core::Vector :- [:wat::WatAST])] -> :wat::WatAST
   (:wat::core::if (:wat::core::empty? forms)
     (:wat::kernel::assertion-failed! "namespace-defrule-names: no ::run-row defn found" :wat::core::None :wat::core::None)
     (:wat::core::let [f (:wat::core::first forms)]
@@ -171,7 +171,7 @@
       :wat::core::None)))
 
 (:wat::core::defn :user::find-call-seq
-  [items <- :wat::core::Vector<wat::WatAST>  head <- :wat::core::String] -> (:wat::core::Option :wat::WatAST)
+  [items <- (:wat::core::Vector :- [:wat::WatAST])  head <- :wat::core::String] -> (:wat::core::Option :wat::WatAST)
   (:wat::core::if (:wat::core::empty? items)
     :wat::core::None
     (:wat::core::let [h (:wat::core::first items) tl (:wat::core::rest items)]
@@ -183,7 +183,7 @@
 
 ;; concat-all — String/concat is 2-arg; fold a Vector<String> of parts left-to-right instead of
 ;; hand-nesting a nine-deep concat chain (error-prone and unreadable at that depth).
-(:wat::core::defn :user::concat-all [parts <- :wat::core::Vector<wat::core::String>] -> :wat::core::String
+(:wat::core::defn :user::concat-all [parts <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::String
   (:wat::core::foldl
     (:wat::core::fn [acc <- :wat::core::String  p <- :wat::core::String] -> :wat::core::String
       (:wat::core::String/concat acc p))
@@ -234,7 +234,7 @@
         text2))))
 
 ;; ── driver: rewrite each path given on stdin (a JSON array of strings) ──────────────────────────
-(:wat::core::defn :user::rewrite-each [paths <- :wat::core::Vector<wat::core::String>] -> :wat::core::nil
+(:wat::core::defn :user::rewrite-each [paths <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::nil
   (:wat::core::if (:wat::core::empty? paths)
     nil
     (:wat::core::let [p (:wat::core::first paths)]

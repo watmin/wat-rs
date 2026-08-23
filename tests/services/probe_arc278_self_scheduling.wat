@@ -19,12 +19,12 @@
    (:wat::core::defenum :probe::Ticker::StartResponse :wat::enum::Pure
      :Ok              []
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])
    (:wat::core::defrecord :probe::Ticker::PollRequest [])
    (:wat::core::defenum :probe::Ticker::PollResponse :wat::enum::Pure
      :Count           [n <- :wat::core::i64]
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(start [self <- :probe::Ticker  req <- :probe::Ticker::StartRequest] -> :probe::Ticker::StartResponse
      :max-request-bytes 524288)
@@ -66,7 +66,7 @@
 (:wat::core::defn :probe::nap [ms <- :wat::core::i64] -> :wat::core::nil
   (:wat::core::match
     (:wat::kernel::select
-      (:wat::core::Vector :wat::kernel::Peer<wat::core::nil,wat::core::keyword>
+      (:wat::core::Vector (:wat::kernel::Peer :- [:wat::core::nil :wat::core::keyword])
         (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Millisecond ms) :done)))
     
     ((:wat::spawn::ServiceEvent::Message _i _m) nil)
@@ -82,7 +82,7 @@
 ;; elapsed time; polls DURING ticking (exercising "the reactor serves between ticks"), bounded by
 ;; a generous `attempts` failsafe with a small non-correctness-bearing `nap 5` backoff between polls.
 (:wat::core::defn :probe::poll-until
-  [c <- :wat::kernel::Peer<probe::Ticker::Op,probe::Ticker::Reply>  target <- :wat::core::i64  attempts <- :wat::core::i64] -> :wat::core::i64
+  [c <- (:wat::kernel::Peer :- [:probe::Ticker::Op :probe::Ticker::Reply])  target <- :wat::core::i64  attempts <- :wat::core::i64] -> :wat::core::i64
   (:wat::core::if (:wat::core::i64::<= attempts 0)
     -2                                              ;; bound exhausted without reaching target
     (:wat::core::match (:probe::Ticker/poll c (:probe::Ticker::PollRequest))

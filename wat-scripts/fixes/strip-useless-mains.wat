@@ -128,7 +128,7 @@
 ;; ── Report all matches for a file ────────────────────────────────────────────────────
 (:wat::core::defn :user::report-matches
   [path    <- :wat::core::String
-   matches <- :wat::core::Vector<wat::WatAST>] -> :wat::core::nil
+   matches <- (:wat::core::Vector :- [:wat::WatAST])] -> :wat::core::nil
   (:wat::core::if (:wat::core::empty? matches)
     nil
     (:wat::core::do
@@ -174,7 +174,7 @@
 
 ;; ── Walk all paths from the stdin EDN vector ─────────────────────────────────────────
 (:wat::core::defn :user::process-each
-  [paths <- :wat::core::Vector<wat::core::String>] -> :wat::core::nil
+  [paths <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::nil
   (:wat::core::if (:wat::core::empty? paths)
     nil
     (:wat::core::do

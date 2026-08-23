@@ -58,7 +58,7 @@
 ;;     ./target/release/wat wat-scripts/scratch-pad/probe-118B4-forces-per-element-by-walk-shape.wat
 
 (:wat::core::defn :user::gen
-  [n <- :wat::core::i64] -> :wat::stream::Stream<wat::core::i64>
+  [n <- :wat::core::i64] -> (:wat::stream::Stream :- [:wat::core::i64])
   (:wat::stream::lazy
     (:wat::core::do
       (:wat::kernel::println "FORCED")
@@ -68,7 +68,7 @@
 
 ;; A — next-only. One force per cell by construction. The ONLY walk shape THE WALL still permits.
 (:wat::core::defn :user::walk-a
-  [s <- :wat::stream::Stream<wat::core::i64> acc <- :wat::core::i64] -> :wat::core::i64
+  [s <- (:wat::stream::Stream :- [:wat::core::i64]) acc <- :wat::core::i64] -> :wat::core::i64
   (:wat::core::match (:wat::stream::next s)
     ((:wat::stream::NextOutcome::Item value rest) (:user::walk-a rest (:wat::core::+ acc value)))
     (:wat::stream::NextOutcome::Exhausted acc)))

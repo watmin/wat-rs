@@ -172,7 +172,7 @@ pub(super) fn parse_defmacro_form(form: WatAST) -> Result<MacroDef, MacroError> 
 
     // ENFORCE (arc 251.5 / 209) — a macro param binds unevaluated SYNTAX, so its declared
     // type is not free: a fixed param always binds a form (`:wat::WatAST`), a rest param a
-    // sequence of forms (`:wat::core::Vector<wat::WatAST>`). The annotation used to be
+    // sequence of forms (`(:wat::core::Vector :- [:wat::WatAST])`). The annotation used to be
     // mandatory-then-discarded — a lie like `[x <- :wat::core::i64]` was silently accepted.
     // Validate the SOLE argspec output here so the lie is a `MalformedDefmacro` at definition
     // time, not a confusing failure (or silent wrong behaviour) at first expansion.
@@ -205,7 +205,7 @@ pub(super) fn parse_defmacro_form(form: WatAST) -> Result<MacroDef, MacroError> 
                 kind: MacroErrorKind::MalformedDefmacro {
                     reason: format!(
                         "macro rest-param `{}` is declared `{ty:?}`, but a rest param binds a \
-                         sequence of forms — its type must be `:wat::core::Vector<wat::WatAST>`",
+                         sequence of forms — its type must be `(:wat::core::Vector :- [:wat::WatAST])`",
                         ident.as_str()
                     ),
                 },
@@ -337,7 +337,7 @@ fn aggregate_kwargs_companion_source<'a>(
     // field-name vector + prime + ns constants this used to bake are no longer needed.
     format!(
         "(:wat::core::defmacro {bare_name} \
-           [& call-args <- :wat::core::Vector<wat::WatAST>] -> :wat::WatAST \
+           [& call-args <- (:wat::core::Vector :- [:wat::WatAST])] -> :wat::WatAST \
            (:wat::core::let \
              [_kc-type (:wat::core::keyword-node \"{bare_name}\")] \
              `(:wat::core::kwargs-construct ~_kc-type ~@call-args)))",

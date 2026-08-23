@@ -8,15 +8,15 @@
 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
   :messages [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- :wat::core::String])
              (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure :Ok [reply <- :wat::core::String] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-                                                                                                                :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
+                                                                                                                :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse :max-request-bytes 524288)])
 
 (:wat::service::defservice :probe::echo :satisfies :probe::Echo :durable [] :ephemeral []
   :impls [(echo [s ctx req] (:wat::service::Outcome::Reply s
             (:probe::Echo::EchoResponse::Ok (:wat::core::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))))])
 
-(:wat::core::defn :probe::as-pairs [hs <- :wat::core::Vector<(wat::core::keyword,wat::capability::Capability)>]
-  -> :wat::core::Vector<(wat::core::keyword,wat::capability::Capability)>
+(:wat::core::defn :probe::as-pairs [hs <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::keyword :wat::capability::Capability])])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::keyword :wat::capability::Capability])])
   hs)
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

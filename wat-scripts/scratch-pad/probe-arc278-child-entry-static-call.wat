@@ -29,7 +29,7 @@
    (:wat::core::defenum :probe::CE::PingResponse :wat::enum::Pure
      :Ok               [ok <- :wat::core::bool]
      :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(ping [self <- :probe::CE  req <- :probe::CE::PingRequest] -> :probe::CE::PingResponse :max-request-bytes 524288)])
 
@@ -54,8 +54,8 @@
 ;; Mirrors the generated child main's real flow — dispatch-admin THEN serve — so the closure
 ;; walk below is rooted at something with the same callee set the strike will have.
 (:wat::core::defn :probe::ce::child-entry-shape
-  [self <- :wat::kernel::Peer<probe::ce::Status,probe::ce::Admin>
-   l    <- :wat::kernel::Listener<probe::CE::Op,probe::CE::Reply>
+  [self <- (:wat::kernel::Peer :- [:probe::ce::Status :probe::ce::Admin])
+   l    <- (:wat::kernel::Listener :- [:probe::CE::Op :probe::CE::Reply])
    ship <- :probe::ce::Admin]
   -> :wat::core::nil
   (:wat::core::let
@@ -64,16 +64,16 @@
     ;; the selectables slot: `Vector<(i64, Peer<Reply,Op>)>` — the id travels WITH its peer
     ;; (arc 278 the call context). The element type is ONE tuple type-keyword, exactly as
     ;; `selectable-entry-ty` builds it (service.wat:979).
-    (:wat::core::Vector :(wat::core::i64,wat::kernel::Peer<probe::CE::Reply,probe::ce::Op>))
+    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 (:wat::kernel::Peer :- [:probe::CE::Reply :probe::ce::Op])]))
     0
     state)))
 
 ;; ── CLAIM B — does a closure walk rooted HERE reach the service internals? ────────────────────
 (:wat::core::defn :user::declared-names
-  [forms <- :wat::core::Vector<wat::WatAST>
+  [forms <- (:wat::core::Vector :- [:wat::WatAST])
    i     <- :wat::core::i64
-   acc   <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<wat::core::String>
+   acc   <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [:wat::core::String])
   (:wat::core::if (:wat::core::i64::>= i (:wat::core::length forms))
     acc
     (:wat::core::let

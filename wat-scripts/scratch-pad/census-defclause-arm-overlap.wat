@@ -40,7 +40,7 @@
 
 ;; The declared types of a binder vector: every token that FOLLOWS a `<-`.
 (:wat::core::defn :census::types-after-arrows
-  [toks <- :wat::core::Vector<wat::core::String>] -> :wat::core::String
+  [toks <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::String
   (:wat::core::match (:wat::stream::next (:wat::core::Seqable/seq toks))
     ((:wat::stream::NextOutcome::Item t rest)
       (:wat::core::if (:wat::core::= t "<-")

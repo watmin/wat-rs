@@ -21,7 +21,7 @@
 (:wat::rete::defquery :fhp::q-Hit  :params [] :when [(?f <- :fhp::Hit)])
 (:wat::rete::defquery :fhp::q-Seen :params [] :when [(?f <- :fhp::Seen)])
 
-(:wat::core::defn :user::source-counts [] -> :wat::core::PersistentVector<wat::core::i64>
+(:wat::core::defn :user::source-counts [] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:wat::core::let [s0 (:wat::rete::compile-all
                          (:wat::core::PersistentVector (:fhp::cool) (:fhp::seen))
                          (:wat::core::PersistentVector (:fhp::q-Hit) (:fhp::q-Seen)))

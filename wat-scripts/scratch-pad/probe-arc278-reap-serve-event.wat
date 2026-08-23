@@ -11,9 +11,9 @@
 ;;                         ("poll': listener recv failed — address was dropped")
 
 (:wat::core::defn :se::serve
-  [self  <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>
-   l     <- :wat::kernel::Listener<wat::core::i64,wat::core::i64>
-   peers <- :wat::core::Vector<wat::kernel::Peer<wat::core::i64,wat::core::i64>>]
+  [self  <- (:wat::kernel::ThreadSelfPeer :- [:wat::core::i64 :wat::core::i64])
+   l     <- (:wat::kernel::Listener :- [:wat::core::i64 :wat::core::i64])
+   peers <- (:wat::core::Vector :- [(:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])])]
   -> :wat::core::nil
   (:wat::core::match (:wat::kernel::poll self l peers)
     ;; THE REPORT CHANNEL: the spawned thread CANNOT println (stdio services are not
@@ -47,7 +47,7 @@
       (:se::serve self l (:wat::std::list::remove-at peers idx)))
     (_ nil)))
 
-(:wat::core::defn :se::try [c <- :wat::kernel::Peer<wat::core::i64,wat::core::i64>
+(:wat::core::defn :se::try [c <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])
                            label <- :wat::core::String] -> :wat::core::nil
   (:wat::core::do
     (:wat::core::match (:wat::kernel::send c 7)
@@ -73,9 +73,9 @@
      l    (:wat::spawn::Bound/listener pair)
      a    (:wat::spawn::Bound/address pair)
      svc  (:wat::test::spawn-peer (:wat::spawn::thread)
-            (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>]
+            (:wat::core::fn [self <- (:wat::kernel::ThreadSelfPeer :- [:wat::core::i64 :wat::core::i64])]
               -> :wat::core::nil
-              (:se::serve self l (:wat::core::Vector :wat::kernel::Peer<wat::core::i64,wat::core::i64>))))
+              (:se::serve self l (:wat::core::Vector (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])))))
      c    (:wat::core::match (:wat::kernel::connect a)
             ((:wat::kernel::ConnectOutcome::Connected p) p)
             ((:wat::kernel::ConnectOutcome::Refused _f)  (:wat::kernel::assertion-failed! "refused" :wat::core::None :wat::core::None))

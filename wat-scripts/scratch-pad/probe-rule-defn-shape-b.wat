@@ -2,7 +2,7 @@
 ;; conds/ins helper) rule-defns, e.g. where-boolean.wat's :wsb::rule-and2. Grounds the codemod's
 ;; Shape-B index assumptions (bindings-vec arity, helper-defn body shape) against the real AST.
 
-(:wat::core::defn :user::kinds [ch <- :wat::core::Vector<wat::WatAST>] -> :wat::core::String
+(:wat::core::defn :user::kinds [ch <- (:wat::core::Vector :- [:wat::WatAST])] -> :wat::core::String
   (:wat::core::foldl
     (:wat::core::fn [acc <- :wat::core::String c <- :wat::WatAST] -> :wat::core::String
       (:wat::core::String/concat acc
@@ -15,7 +15,7 @@
 ;; (`ast->children`'s return type) and this is reconnaissance over it, not a force-count probe —
 ;; `into []` materializes the filtered Stream back to a Vector so `first` still applies, same
 ;; "find the named top-level form" semantics, byte-identical answer.
-(:wat::core::defn :user::find-named [forms <- :wat::core::Vector<wat::WatAST> nm <- :wat::core::String] -> :wat::WatAST
+(:wat::core::defn :user::find-named [forms <- (:wat::core::Vector :- [:wat::WatAST]) nm <- :wat::core::String] -> :wat::WatAST
   (:wat::core::first
     (:wat::core::into []
       (:wat::core::filter

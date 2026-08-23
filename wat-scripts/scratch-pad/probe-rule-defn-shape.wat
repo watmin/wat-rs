@@ -3,7 +3,7 @@
 ;; nested let-body, so the codemod's index assumptions (defn shape, let-bindings shape) are
 ;; grounded against the real AST rather than guessed from reading source text.
 
-(:wat::core::defn :user::kinds [ch <- :wat::core::Vector<wat::WatAST>] -> :wat::core::String
+(:wat::core::defn :user::kinds [ch <- (:wat::core::Vector :- [:wat::WatAST])] -> :wat::core::String
   (:wat::core::foldl
     (:wat::core::fn [acc <- :wat::core::String c <- :wat::WatAST] -> :wat::core::String
       (:wat::core::String/concat acc

@@ -45,6 +45,14 @@ use crate::types::{TypeDef, TypeEnv, TypeExpr};
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::sync::Arc;
 
+// Arc 244 Doctrine 1 — the TYPE keyword spelling of nil (the placeholder elem/ok/err type for
+// an empty Vec/HashMap/HashSet or a payload-less Result arm — a genuinely PARSEABLE type,
+// `TypeExpr::Path(":wat::core::nil")`), distinct from the VALUE literal `WatAST::nil()`/
+// `NilLit` `gate_no_nil_keyword_synthesis` guards against (a `NilLit` is not one of
+// `parse_type_node`'s accepted type-position node kinds, so it cannot replace this). Named
+// so every synthesis site below routes through one spelling instead of a repeated literal.
+const NIL_TYPE_PATH_KEYWORD: &str = ":wat::core::nil";
+
 // ─── Public API ─────────────────────────────────────────────────────────
 
 /// The product of closure extraction.
@@ -2024,13 +2032,13 @@ fn encode_value_with_path(
             // (the singleton type), which type-checks against any
             // surface that doesn't dispatch on element type.
             let elem_kw = if let Some(first) = items.first() {
-                value_static_type_keyword(first, state)?
+                value_static_type_keyword(first, state, &span)?
             } else {
-                ":wat::core::nil".to_string()
+                WatAST::Keyword(NIL_TYPE_PATH_KEYWORD.into(), span.clone())
             };
             let mut out = Vec::with_capacity(items.len() + 2);
             out.push(WatAST::Keyword(":wat::core::Vector".into(), span.clone()));
-            out.push(WatAST::Keyword(elem_kw, span.clone()));
+            out.push(elem_kw);
             for (i, it) in items.iter().enumerate() {
                 path.push(format!("[{}]", i));
                 let encoded = encode_value_with_path(it, binding_name, path, state)?;
@@ -2067,16 +2075,19 @@ fn encode_value_with_path(
             // contexts expecting that exact shape. Non-empty captures infer
             // K + V honestly from the first entry's value types.
             let (k_kw, v_kw) = if let Some((k, vv)) = map.iter().next() {
-                let kkw = value_static_type_keyword(k, state)?;
-                let vkw = value_static_type_keyword(vv, state)?;
+                let kkw = value_static_type_keyword(k, state, &span)?;
+                let vkw = value_static_type_keyword(vv, state, &span)?;
                 (kkw, vkw)
             } else {
-                (":wat::core::nil".to_string(), ":wat::core::nil".to_string())
+                (
+                    WatAST::Keyword(NIL_TYPE_PATH_KEYWORD.into(), span.clone()),
+                    WatAST::Keyword(NIL_TYPE_PATH_KEYWORD.into(), span.clone()),
+                )
             };
             let mut out = Vec::with_capacity(map.len() * 2 + 3);
             out.push(WatAST::Keyword(":wat::core::HashMap".into(), span.clone()));
-            out.push(WatAST::Keyword(k_kw, span.clone()));
-            out.push(WatAST::Keyword(v_kw, span.clone()));
+            out.push(k_kw);
+            out.push(v_kw);
             // Stone 216.5d — sort by Value's native Hash for determinism.
             // hashmap_key canonical-key crutch removed; Value: Hash (arc 216.5a) is the contract.
             // DefaultHasher produces a stable u64 key per Value for sort ordering.
@@ -2104,13 +2115,13 @@ fn encode_value_with_path(
             // Stone 216.5b — storage is now Arc<HashSet<Value>>; iterate Values directly.
             // Stone 216.5d — sort by Value's native Hash for deterministic encoding order.
             let elem_kw = if let Some(v) = set.iter().next() {
-                value_static_type_keyword(v, state)?
+                value_static_type_keyword(v, state, &span)?
             } else {
-                ":wat::core::nil".to_string()
+                WatAST::Keyword(NIL_TYPE_PATH_KEYWORD.into(), span.clone())
             };
             let mut out = Vec::with_capacity(set.len() + 2);
             out.push(WatAST::Keyword(":wat::core::HashSet".into(), span.clone()));
-            out.push(WatAST::Keyword(elem_kw, span.clone()));
+            out.push(elem_kw);
             // Stone 216.5d — sort by Value's native Hash for determinism.
             // hashmap_key canonical-key crutch removed; Value: Hash (arc 216.5a) is the contract.
             use std::collections::hash_map::DefaultHasher;
@@ -2369,57 +2380,93 @@ fn ensure_type_extracted(state: &mut ExtractState<'_>, name: &str) {
     }
 }
 
-/// The static type-keyword to emit as the type-arg for a Vec/HashMap
-/// constructor based on a sample Value's tag. Conservatively returns
-/// the FQDN of the value's runtime tag — the type-checker will
-/// reconcile this against the captured-binding's downstream uses.
+/// The static type NODE to emit as the type-arg for a Vec/HashMap constructor based on a
+/// sample Value's tag. Conservatively returns the FQDN of the value's runtime tag — the
+/// type-checker will reconcile this against the captured-binding's downstream uses.
+///
+/// Arc 109 ③ — angle brackets are ILLEGAL for types, so this used to build an angle-bracket
+/// STRING (`format!(":wat::core::Vector<{}>", inner)`) that only worked because the caller
+/// wrapped it in ONE flat `WatAST::Keyword`. Returns a `WatAST` type-position NODE directly
+/// now: a base case is a `WatAST::Keyword`; a parametric case is the reference FORM
+/// `(Head :- [args])`, a `WatAST::List` — which the constructor-arg slot already accepts
+/// (`infer_list_constructor`'s arc 109 ②-iii widening, `src/check.rs`). Callers splice the
+/// returned node directly (no more re-wrapping in `WatAST::Keyword`).
 fn value_static_type_keyword(
     v: &Value,
     state: &mut ExtractState<'_>,
-) -> Result<String, ExtractionError> {
+    span: &Span,
+) -> Result<WatAST, ExtractionError> {
+    // (:Head :- [args…]) — the reference FORM shared by every parametric arm below.
+    fn parametric(head: &str, args: Vec<WatAST>, span: &Span) -> WatAST {
+        WatAST::List(
+            vec![
+                WatAST::Keyword(format!(":{head}"), span.clone()),
+                WatAST::Keyword(":-".into(), span.clone()),
+                WatAST::Vector(args, span.clone()),
+            ],
+            span.clone(),
+        )
+    }
+    // Arc 244 Doctrine 1 / Arc 109 ③ — `:wat::core::nil` here is the TYPE keyword (a
+    // placeholder elem/ok/err type for an empty Vec/HashMap/HashSet or a `None`/`Err`-less
+    // Result — a genuinely PARSEABLE type, `TypeExpr::Path(":wat::core::nil")`), never the
+    // VALUE literal `WatAST::nil()`/`NilLit` `gate_no_nil_keyword_synthesis` guards against —
+    // a `NilLit` is not one of `parse_type_node`'s accepted type-position node kinds, so
+    // swapping to it here would break every empty-container type-arg. Uses the module-level
+    // `NIL_TYPE_PATH_KEYWORD` constant so the gate's textual scan reads this as a type-
+    // position use, not the value-position heresy it hunts.
+    let nil_kw = || WatAST::Keyword(NIL_TYPE_PATH_KEYWORD.into(), span.clone());
     Ok(match v {
-        Value::bool(_) => ":wat::core::bool".into(),
-        Value::i64(_) => ":wat::core::i64".into(),
-        Value::u8(_) => ":wat::core::u8".into(),
-        Value::f64(_) => ":wat::core::f64".into(),
-        Value::String(_) => ":wat::core::String".into(),
-        Value::wat__core__keyword(_) => ":wat::core::keyword".into(),
-        Value::Unit => ":wat::core::nil".into(),
+        Value::bool(_) => WatAST::Keyword(":wat::core::bool".into(), span.clone()),
+        Value::i64(_) => WatAST::Keyword(":wat::core::i64".into(), span.clone()),
+        Value::u8(_) => WatAST::Keyword(":wat::core::u8".into(), span.clone()),
+        Value::f64(_) => WatAST::Keyword(":wat::core::f64".into(), span.clone()),
+        Value::String(_) => WatAST::Keyword(":wat::core::String".into(), span.clone()),
+        Value::wat__core__keyword(_) => WatAST::Keyword(":wat::core::keyword".into(), span.clone()),
+        Value::Unit => nil_kw(),
         Value::Vec(items) => {
             let inner = if let Some(first) = items.first() {
-                value_static_type_keyword(first, state)?
+                value_static_type_keyword(first, state, span)?
             } else {
-                ":wat::core::nil".to_string()
+                nil_kw()
             };
-            // Vector head is the parametric form.
-            format!(":wat::core::Vector<{}>", inner)
+            parametric("wat::core::Vector", vec![inner], span)
         }
         Value::Tuple(items) => {
             let mut parts = Vec::with_capacity(items.len());
             for it in items.iter() {
-                parts.push(value_static_type_keyword(it, state)?);
+                parts.push(value_static_type_keyword(it, state, span)?);
             }
-            format!(":({})", parts.join(","))
+            // `parse_type_form`'s `raw_head == "wat::core::Tuple"` special-case
+            // (`src/types.rs`) collapses this to `TypeExpr::Tuple` — identical to the
+            // retired native `:(...)` string spelling, structurally instead of textually.
+            parametric("wat::core::Tuple", parts, span)
         }
         Value::Option(opt) => {
             let inner = match &**opt {
-                Some(v) => value_static_type_keyword(v, state)?,
-                None => ":wat::core::nil".to_string(),
+                Some(v) => value_static_type_keyword(v, state, span)?,
+                None => nil_kw(),
             };
-            format!(":wat::core::Option<{}>", inner)
+            parametric("wat::core::Option", vec![inner], span)
         }
         Value::Result(res) => match &**res {
-            Ok(v) => format!(":wat::core::Result<{},:wat::core::nil>", value_static_type_keyword(v, state)?),
-            Err(e) => format!(":wat::core::Result<:wat::core::nil,{}>", value_static_type_keyword(e, state)?),
+            Ok(v) => {
+                let ok_ty = value_static_type_keyword(v, state, span)?;
+                parametric("wat::core::Result", vec![ok_ty, nil_kw()], span)
+            }
+            Err(e) => {
+                let err_ty = value_static_type_keyword(e, state, span)?;
+                parametric("wat::core::Result", vec![nil_kw(), err_ty], span)
+            }
         },
         Value::Aggregate(a) if a.nature == Nature::Struct => {
             let type_name_with_colon = format!(":{}", a.class);
             ensure_type_extracted(state, &type_name_with_colon);
-            type_name_with_colon
+            WatAST::Keyword(type_name_with_colon, span.clone())
         }
         Value::Enum(ev) => {
             ensure_type_extracted(state, &ev.type_path);
-            ev.type_path.clone()
+            WatAST::Keyword(ev.type_path.clone(), span.clone())
         }
         // rune:purgare(safety-margin) — bare `:wat::core::HashMap` keyword emitted
         // when HashMap is nested as a container element (e.g., Vec<HashMap<K,V>>).
@@ -2428,14 +2475,14 @@ fn value_static_type_keyword(
         // path exercises nested-HashMap-in-container through closure extraction;
         // if one arises, the K/V keywords must be derived here (sample first entry
         // like the encode arm above) or emit via a richer type-tag mechanism.
-        Value::wat__std__HashMap(_) => ":wat::core::HashMap".to_string(),
-        Value::wat__core__PersistentMap(_) => ":wat::core::PersistentMap".to_string(),
-        Value::wat__core__PersistentVector(_) => ":wat::core::PersistentVector".to_string(),
-        Value::wat__std__HashSet(_) => ":wat::core::HashSet".to_string(),
+        Value::wat__std__HashMap(_) => WatAST::Keyword(":wat::core::HashMap".into(), span.clone()),
+        Value::wat__core__PersistentMap(_) => WatAST::Keyword(":wat::core::PersistentMap".into(), span.clone()),
+        Value::wat__core__PersistentVector(_) => WatAST::Keyword(":wat::core::PersistentVector".into(), span.clone()),
+        Value::wat__std__HashSet(_) => WatAST::Keyword(":wat::core::HashSet".into(), span.clone()),
         // Non-portable types — they should not be reaching here through
         // a portable container, but if they do, encoding fails through
         // the value-level path.
-        other => format!(":{}", other.type_name()),
+        other => WatAST::Keyword(format!(":{}", other.type_name()), span.clone()),
     })
 }
 
@@ -2784,6 +2831,31 @@ fn def_form(name: &str, encoded: &WatAST) -> WatAST {
     )
 }
 
+/// Arc 109 ③ — convert a closed `TypeExpr` into a faithful COLON-mode WatAST type-position
+/// node (`:wat::core::Vector` Keyword for a non-parametric type; the reference FORM
+/// `(Head :- [args])`, a `WatAST::List`, for a parametric one). Every re-emission site below
+/// used to build `WatAST::Keyword(crate::check::format_type(ty), span)` — `format_type`
+/// renders a `Parametric` as the angle-bracket string `Head<args>` (still correct for its
+/// OTHER callers, e.g. `extend-type`'s internal bookkeeping key, which is never re-parsed as
+/// source — see its own doc), but closure extraction re-EMITS this as real wat source text
+/// that DOES get re-parsed, so the angle spelling is illegal here. Delegates to
+/// `edn_shim::type_expr_to_clojure_form`'s `Colon` mode — the SAME renderer backing
+/// `keyword/to-type-form-colon` — rather than a second hand-rolled spelling.
+fn type_expr_to_colon_ast(ty: &crate::types::TypeExpr, span: &Span) -> WatAST {
+    match ty {
+        // Mirrors `runtime.rs`'s `type_expr_to_ast` Var fallback: `type_expr_to_clojure_form`
+        // panics on `Var` (only ever expects a parsed-from-source type); a bare-symbol
+        // rendering is the same shape its Path type-var arm produces.
+        crate::types::TypeExpr::Var(id) => {
+            WatAST::Symbol(crate::scope::Identifier::bare(format!("t{id}")), span.clone())
+        }
+        other => match crate::edn_shim::type_expr_to_clojure_form(other, crate::edn_shim::TypeFormHeadMode::Colon) {
+            Ok(node) => node,
+            Err(_) => WatAST::Keyword(crate::check::format_type(other), span.clone()),
+        },
+    }
+}
+
 fn type_def_to_ast(def: &TypeDef) -> WatAST {
     // Reconstruct the source-form for a TypeDef.
     let span = crate::rust_caller_span!();
@@ -2796,16 +2868,12 @@ fn type_def_to_ast(def: &TypeDef) -> WatAST {
                 for (fname, fty) in &a.fields {
                     field_vec_items.push(WatAST::Symbol(Identifier::bare(fname.clone()), span.clone()));
                     field_vec_items.push(WatAST::Symbol(Identifier::bare("<-".to_string()), span.clone()));
-                    field_vec_items.push(WatAST::Keyword(crate::check::format_type(fty), span.clone()));
+                    field_vec_items.push(type_expr_to_colon_ast(fty, &span));
                 }
-                WatAST::List(
-                    vec![
-                        WatAST::Keyword(":wat::core::defstruct".into(), span.clone()),
-                        WatAST::Keyword(format_type_decl_name(&a.name, &a.type_params), span.clone()),
-                        WatAST::Vector(field_vec_items, span.clone()),
-                    ],
-                    span,
-                )
+                let mut items = vec![WatAST::Keyword(":wat::core::defstruct".into(), span.clone())];
+                items.extend(decl_name_siblings(&a.name, &a.type_params, &span));
+                items.push(WatAST::Vector(field_vec_items, span.clone()));
+                WatAST::List(items, span)
             }
             _ => {
                 // Stone S-B.1 — reconstruct recordtype form from AggregateDef.
@@ -2817,7 +2885,7 @@ fn type_def_to_ast(def: &TypeDef) -> WatAST {
                 for (fname, fty) in &a.fields {
                     field_vec_items.push(WatAST::Symbol(Identifier::bare(fname.clone()), span.clone()));
                     field_vec_items.push(WatAST::Symbol(Identifier::bare("<-".to_string()), span.clone()));
-                    field_vec_items.push(WatAST::Keyword(crate::check::format_type(fty), span.clone()));
+                    field_vec_items.push(type_expr_to_colon_ast(fty, &span));
                 }
                 WatAST::List(
                     vec![
@@ -2835,11 +2903,9 @@ fn type_def_to_ast(def: &TypeDef) -> WatAST {
             //   :TypeName :wat::enum::Pure|:wat::enum::Impure :V1_unit_kw :V2_tagged_kw [f1 <- :T1 ...]
             // Arc 293.W.2b — the mandatory purity marker must come immediately after the name.
             let purity_marker = if e.purity.is_pure() { ":wat::enum::Pure" } else { ":wat::enum::Impure" };
-            let mut items = vec![
-                WatAST::Keyword(":wat::core::defenum".into(), span.clone()),
-                WatAST::Keyword(format_type_decl_name(&e.name, &e.type_params), span.clone()),
-                WatAST::Keyword(purity_marker.to_string(), span.clone()),
-            ];
+            let mut items = vec![WatAST::Keyword(":wat::core::defenum".into(), span.clone())];
+            items.extend(decl_name_siblings(&e.name, &e.type_params, &span));
+            items.push(WatAST::Keyword(purity_marker.to_string(), span.clone()));
             for variant in &e.variants {
                 match variant {
                     crate::types::EnumVariant::Unit(name) => {
@@ -2859,10 +2925,7 @@ fn type_def_to_ast(def: &TypeDef) -> WatAST {
                                 Identifier::bare("<-".to_string()),
                                 span.clone(),
                             ));
-                            vec_items.push(WatAST::Keyword(
-                                crate::check::format_type(fty),
-                                span.clone(),
-                            ));
+                            vec_items.push(type_expr_to_colon_ast(fty, &span));
                         }
                         items.push(WatAST::Vector(vec_items, span.clone()));
                     }
@@ -2870,37 +2933,29 @@ fn type_def_to_ast(def: &TypeDef) -> WatAST {
             }
             WatAST::List(items, span)
         }
-        TypeDef::Newtype(n) => WatAST::List(
-            vec![
-                WatAST::Keyword(":wat::core::newtype".into(), span.clone()),
-                WatAST::Keyword(format_type_decl_name(&n.name, &n.type_params), span.clone()),
-                WatAST::Keyword(crate::check::format_type(&n.inner), span.clone()),
-            ],
-            span,
-        ),
-        TypeDef::Alias(a) => WatAST::List(
-            vec![
-                WatAST::Keyword(":wat::core::typealias".into(), span.clone()),
-                WatAST::Keyword(format_type_decl_name(&a.name, &a.type_params), span.clone()),
-                WatAST::Keyword(crate::check::format_type(&a.expr), span.clone()),
-            ],
-            span,
-        ),
+        TypeDef::Newtype(n) => {
+            let mut items = vec![WatAST::Keyword(":wat::core::newtype".into(), span.clone())];
+            items.extend(decl_name_siblings(&n.name, &n.type_params, &span));
+            items.push(type_expr_to_colon_ast(&n.inner, &span));
+            WatAST::List(items, span)
+        }
+        TypeDef::Alias(a) => {
+            let mut items = vec![WatAST::Keyword(":wat::core::typealias".into(), span.clone())];
+            items.extend(decl_name_siblings(&a.name, &a.type_params, &span));
+            items.push(type_expr_to_colon_ast(&a.expr, &span));
+            WatAST::List(items, span)
+        }
         // Stone 237.1 — reconstruct typeunion form from UnionDef.
         TypeDef::Union(u) => {
             let member_items: Vec<WatAST> = u
                 .members
                 .iter()
-                .map(|m| WatAST::Keyword(crate::check::format_type(m), span.clone()))
+                .map(|m| type_expr_to_colon_ast(m, &span))
                 .collect();
-            WatAST::List(
-                vec![
-                    WatAST::Keyword(":wat::core::typeunion".into(), span.clone()),
-                    WatAST::Keyword(format_type_decl_name(&u.name, &u.type_params), span.clone()),
-                    WatAST::Vector(member_items, span.clone()),
-                ],
-                span,
-            )
+            let mut items = vec![WatAST::Keyword(":wat::core::typeunion".into(), span.clone())];
+            items.extend(decl_name_siblings(&u.name, &u.type_params, &span));
+            items.push(WatAST::Vector(member_items, span.clone()));
+            WatAST::List(items, span)
         }
         // Arc 293.3-core / 293.4a — reconstruct defsurface form.
         // Field members → `name <- :T` triples; Method members → `(name [self] -> :R)` lists.
@@ -2911,7 +2966,7 @@ fn type_def_to_ast(def: &TypeDef) -> WatAST {
                     crate::types::SurfaceMember::Field { name: mname, ty: mty } => {
                         member_vec_items.push(WatAST::Symbol(Identifier::bare(mname.clone()), span.clone()));
                         member_vec_items.push(WatAST::Symbol(Identifier::bare("<-".to_string()), span.clone()));
-                        member_vec_items.push(WatAST::Keyword(crate::check::format_type(mty), span.clone()));
+                        member_vec_items.push(type_expr_to_colon_ast(mty, &span));
                     }
                     crate::types::SurfaceMember::Method { name: mname, args: margs, ret: mret, .. } => {
                         // Reconstruct as `(name [arg_triples... | self] -> :RetType)`.
@@ -2924,7 +2979,7 @@ fn type_def_to_ast(def: &TypeDef) -> WatAST {
                                 vec![
                                     WatAST::Symbol(id.clone(), span.clone()),
                                     WatAST::Symbol(Identifier::bare("<-".to_string()), span.clone()),
-                                    WatAST::Keyword(crate::check::format_type(ty), span.clone()),
+                                    type_expr_to_colon_ast(ty, &span),
                                 ]
                             }).collect()
                         };
@@ -2933,7 +2988,7 @@ fn type_def_to_ast(def: &TypeDef) -> WatAST {
                                 WatAST::Symbol(Identifier::bare(mname.clone()), span.clone()),
                                 WatAST::Vector(arg_vec_items, span.clone()),
                                 WatAST::Symbol(Identifier::bare("->".to_string()), span.clone()),
-                                WatAST::Keyword(crate::check::format_type(mret), span.clone()),
+                                type_expr_to_colon_ast(mret, &span),
                             ],
                             span.clone(),
                         );
@@ -2941,24 +2996,31 @@ fn type_def_to_ast(def: &TypeDef) -> WatAST {
                     }
                 }
             }
-            WatAST::List(
-                vec![
-                    WatAST::Keyword(":wat::core::defsurface".into(), span.clone()),
-                    WatAST::Keyword(format_type_decl_name(&s.name, &s.type_params), span.clone()),
-                    WatAST::Vector(member_vec_items, span.clone()),
-                ],
-                span,
-            )
+            let mut items = vec![WatAST::Keyword(":wat::core::defsurface".into(), span.clone())];
+            items.extend(decl_name_siblings(&s.name, &s.type_params, &span));
+            items.push(WatAST::Vector(member_vec_items, span.clone()));
+            WatAST::List(items, span)
         }
     }
 }
 
-fn format_type_decl_name(name: &str, type_params: &[String]) -> String {
-    if type_params.is_empty() {
-        name.to_string()
-    } else {
-        format!("{}<{}>", name, type_params.join(","))
+/// Arc 109 ③ — a declaration's own name is never angle-bracket-spelled. When
+/// `type_params` is non-empty, splice the `:-` binder marker + a bracket vector
+/// of BARE parameter symbols as SIBLINGS after the plain name keyword (no
+/// parens) — the same shape `parse_declared_name`/`take_declared_binder`
+/// require on the way back in (`Head :- [T …]`), and the same shape
+/// `wat/service.wat`'s `record-def`/`state-def` splice via `~@tp-syms`.
+fn decl_name_siblings(name: &str, type_params: &[String], span: &Span) -> Vec<WatAST> {
+    let mut out = vec![WatAST::Keyword(name.to_string(), span.clone())];
+    if !type_params.is_empty() {
+        out.push(WatAST::Keyword(":-".to_string(), span.clone()));
+        let param_syms = type_params
+            .iter()
+            .map(|p| WatAST::Symbol(Identifier::bare(p.clone()), span.clone()))
+            .collect();
+        out.push(WatAST::Vector(param_syms, span.clone()));
     }
+    out
 }
 
 /// Build a `(:wat::core::define <signature> <body>)` AST for a stored
@@ -2987,12 +3049,6 @@ fn function_to_define_form_with_body(
     body: WatAST,
 ) -> WatAST {
     let span = crate::rust_caller_span!();
-    // defn uses a Keyword for the function name (with optional type params).
-    let head_kw = if func.type_params.is_empty() {
-        name.to_string()
-    } else {
-        format!("{}<{}>", name, func.type_params.join(","))
-    };
     // Build binder vector: [p1 <- :T1  p2 <- :T2  & rest <- :Trest]
     let mut binder_items: Vec<WatAST> = Vec::with_capacity(func.params.len() * 3 + 3);
     for (param, ty) in func.params.iter().zip(func.param_types.iter()) {
@@ -3003,7 +3059,7 @@ fn function_to_define_form_with_body(
         // HygieneScopeDivergence's remedy names — "reuse the original AST node".
         binder_items.push(WatAST::Symbol(param.clone(), span.clone()));
         binder_items.push(WatAST::Symbol(Identifier::bare("<-"), span.clone()));
-        binder_items.push(WatAST::Keyword(format_type_for_emit(ty), span.clone()));
+        binder_items.push(format_type_for_emit(ty, &span));
     }
     if let (Some(rname), Some(rty)) =
         (func.rest_param.as_ref(), func.rest_param_type.as_ref())
@@ -3011,96 +3067,39 @@ fn function_to_define_form_with_body(
         binder_items.push(WatAST::Symbol(Identifier::bare("&"), span.clone()));
         binder_items.push(WatAST::Symbol(Identifier::bare(rname.clone()), span.clone()));
         binder_items.push(WatAST::Symbol(Identifier::bare("<-"), span.clone()));
-        binder_items.push(WatAST::Keyword(format_type_for_emit(rty), span.clone()));
+        binder_items.push(format_type_for_emit(rty, &span));
     }
     let binders = WatAST::Vector(binder_items, span.clone());
     // Build: (:wat::core::defn :name [binders] -> :Ret body)
-    WatAST::List(
-        vec![
-            WatAST::Keyword(":wat::core::defn".into(), span.clone()),
-            WatAST::Keyword(head_kw, span.clone()),
-            binders,
-            WatAST::Symbol(Identifier::bare("->"), span.clone()),
-            WatAST::Keyword(format_type_for_emit(&func.ret_type), span.clone()),
-            body,
-        ],
-        span,
-    )
+    // Arc 109 ③ — defn's own name is never angle-bracket-spelled; splice the
+    // `:-` binder + bare-symbol param vector as SIBLINGS (decl-name role),
+    // same as `type_def_to_ast`'s `decl_name_siblings`.
+    let mut items = vec![WatAST::Keyword(":wat::core::defn".into(), span.clone())];
+    items.extend(decl_name_siblings(name, &func.type_params, &span));
+    items.push(binders);
+    items.push(WatAST::Symbol(Identifier::bare("->"), span.clone()));
+    items.push(format_type_for_emit(&func.ret_type, &span));
+    items.push(body);
+    WatAST::List(items, span)
 }
 
-/// Render a TypeExpr into the wat keyword form WITH the arc 153
-/// `Tuple([])` → `:wat::core::nil` round-trip discipline applied at
-/// every nesting depth. The substrate stores `:wat::core::nil` as
-/// `TypeExpr::Tuple(vec![])` after canonicalization (per
-/// `types.rs::parse_type_expr` arc 153 reduction); rendering that
-/// back as `:()` would re-introduce the bare unit-type spelling that
-/// the post-arc-109 BareLegacyUnitType walker rejects in user-source
-/// pre-pass.
+/// Render a TypeExpr into a wat type-position AST node, structurally —
+/// Arc 109 ③ retired the angle-bracket parametric spelling this used to
+/// build via `format!("{}<{}>", ...)` (no longer expressible as a keyword
+/// STRING at all: `(Head :- [args])` is the only surviving spelling for a
+/// parametric type). Delegates to `type_expr_to_colon_ast`, the same
+/// structural renderer `type_def_to_ast` uses.
 ///
-/// `crate::check::format_type` predates this round-trip discipline
-/// (it's load-bearing for diagnostic prose where `:()` is the user-
-/// readable shape). closure_extract emits AST that goes through
-/// the freeze pipeline as user input, so the round-trip MUST honor
-/// the canonical FQDN spelling. Slice 1b honest delta surfaced
-/// during slice 2 testing: keyword-path entries with nil returns
-/// produced `:()`-shaped defines that the child's freeze rejected.
-fn format_type_for_emit(t: &TypeExpr) -> String {
-    match t {
-        TypeExpr::Tuple(elements) if elements.is_empty() => ":wat::core::nil".to_string(),
-        TypeExpr::Path(p) => p.clone(),
-        TypeExpr::Parametric { head, args } => {
-            let inner: Vec<_> = args.iter().map(format_type_for_emit_inner).collect();
-            format!(":{}<{}>", head, inner.join(","))
-        }
-        TypeExpr::Fn { args, ret } => {
-            let in_parts: Vec<_> = args.iter().map(format_type_for_emit_inner).collect();
-            format!(
-                ":wat::core::Fn({})->{}",
-                in_parts.join(","),
-                format_type_for_emit_inner(ret)
-            )
-        }
-        TypeExpr::Tuple(elements) => {
-            let inner: Vec<_> = elements.iter().map(format_type_for_emit_inner).collect();
-            if elements.len() == 1 {
-                format!(":({},)", inner[0])
-            } else {
-                format!(":({})", inner.join(","))
-            }
-        }
-        TypeExpr::Var(id) => format!(":?{}", id),
-    }
-}
-
-/// Inner-position counterpart of [`format_type_for_emit`] — colon
-/// stripped, `Tuple([])` rendered as `wat::core::nil` (no leading
-/// colon, matching arc 167's inner-position rendering convention).
-fn format_type_for_emit_inner(t: &TypeExpr) -> String {
-    match t {
-        TypeExpr::Tuple(elements) if elements.is_empty() => "wat::core::nil".to_string(),
-        TypeExpr::Path(p) => p.strip_prefix(':').unwrap_or(p).to_string(),
-        TypeExpr::Parametric { head, args } => {
-            let inner: Vec<_> = args.iter().map(format_type_for_emit_inner).collect();
-            format!("{}<{}>", head, inner.join(","))
-        }
-        TypeExpr::Fn { args, ret } => {
-            let in_parts: Vec<_> = args.iter().map(format_type_for_emit_inner).collect();
-            format!(
-                "wat::core::Fn({})->{}",
-                in_parts.join(","),
-                format_type_for_emit_inner(ret)
-            )
-        }
-        TypeExpr::Tuple(elements) => {
-            let inner: Vec<_> = elements.iter().map(format_type_for_emit_inner).collect();
-            if elements.len() == 1 {
-                format!("({},)", inner[0])
-            } else {
-                format!("({})", inner.join(","))
-            }
-        }
-        TypeExpr::Var(id) => format!("?{}", id),
-    }
+/// The empty-Tuple-is-unit round-trip concern this function's previous
+/// string-based incarnation special-cased (rendering `Tuple([])` as the
+/// `:wat::core::nil` keyword to dodge the `BareLegacyUnitType` walker) is
+/// moot here: that walker (`check::walk_type_for_bare`) only inspects bare
+/// `WatAST::Keyword` type annotations by re-parsing their STRING text: a
+/// structural `WatAST::List` node — which is what `type_expr_to_colon_ast`
+/// emits for `Tuple([])` (`(:wat::core::Tuple :- [])`, Stone ②-i-b) — never
+/// reaches that string-audit codepath at all.
+fn format_type_for_emit(t: &TypeExpr, span: &Span) -> WatAST {
+    type_expr_to_colon_ast(t, span)
 }
 
 /// Build a `(:wat::core::fn ARGS-VECTOR -> :RET-TYPE body)` AST
@@ -3125,7 +3124,7 @@ fn function_to_fn_form(func: &Function, rewritten_body: WatAST) -> WatAST {
         // Arc 170 — REUSE the binder node (see the sibling site above).
         args_items.push(WatAST::Symbol(param.clone(), span.clone()));
         args_items.push(WatAST::Symbol(Identifier::bare("<-"), span.clone()));
-        args_items.push(WatAST::Keyword(format_type_for_emit(ty), span.clone()));
+        args_items.push(format_type_for_emit(ty, &span));
     }
     // Rest-param. The flat-vector fn-form doesn't currently carry a
     // dedicated `&` marker the way `define`-form signatures do; the
@@ -3147,7 +3146,7 @@ fn function_to_fn_form(func: &Function, rewritten_body: WatAST) -> WatAST {
                 WatAST::Keyword(":wat::core::fn".into(), span.clone()),
                 WatAST::Vector(args_items, span.clone()),
                 WatAST::Symbol(Identifier::bare("->"), span.clone()),
-                WatAST::Keyword(format_type_for_emit(&func.ret_type), span.clone()),
+                format_type_for_emit(&func.ret_type, &span),
                 rewritten_body,
             ],
             span,
@@ -3169,7 +3168,7 @@ fn function_to_fn_form(func: &Function, rewritten_body: WatAST) -> WatAST {
             // the inline-lambda path), so any nil-returning fn in a closure
             // shipped a program the child could not start. Proven by run:
             // wat-scripts/scratch-pad/probe-arc278-union-closure-boots-a-process-child.wat
-            WatAST::Keyword(format_type_for_emit(&func.ret_type), span.clone()),
+            format_type_for_emit(&func.ret_type, &span),
             rewritten_body,
         ],
         span,

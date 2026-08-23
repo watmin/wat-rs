@@ -12,7 +12,7 @@
 ;; The Err arm surfaces the LociDiedError (never swallowed) exactly as t18 does —
 ;; the death, were the peer to die mid-drain, rides in the Result's Err.
 
-(:wat::core::defn :my::test::echo-multi [] -> :wat::core::Vector<wat::core::i64>
+(:wat::core::defn :my::test::echo-multi [] -> (:wat::core::Vector :- [:wat::core::i64])
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms

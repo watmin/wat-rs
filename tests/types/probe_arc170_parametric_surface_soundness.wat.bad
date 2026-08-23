@@ -4,12 +4,12 @@
 ;; the receiver-satisfaction fix (commit b2360c7a): a mistyped satisfier is caught at check time,
 ;; not silently accepted.
 
-(:wat::core::defsurface :probe::Holds<T> :nature :wat::core::Struct
+(:wat::core::defsurface :probe::Holds :- [T] :nature :wat::core::Struct
   :features
-  [(get [self <- :probe::Holds<T>] -> :T)])
+  [(get [self <- (:probe::Holds :- [T])] -> :T)])
 
 (:wat::core::defrecord :probe::BadBox [s <- :wat::core::String])
-(:wat::core::extend-type :probe::BadBox :probe::Holds<wat::core::i64>
+(:wat::core::extend-type :probe::BadBox (:probe::Holds :- [:wat::core::i64])
   (get [self] (:probe::BadBox/s self)))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil (:wat::kernel::println "x"))

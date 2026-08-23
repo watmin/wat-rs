@@ -45,7 +45,7 @@
     false))
 
 ;; all-insert-wrapped? — every then-form is insert-wrapped (STOP-2's check).
-(:wat::core::defn :user::all-insert-wrapped? [forms <- :wat::core::Vector<wat::WatAST>] -> :wat::core::bool
+(:wat::core::defn :user::all-insert-wrapped? [forms <- (:wat::core::Vector :- [:wat::WatAST])] -> :wat::core::bool
   (:wat::core::foldl
     (:wat::core::fn [acc <- :wat::core::bool f <- :wat::WatAST] -> :wat::core::bool
       (:wat::core::if acc (:user::insert-wrapped? f) false))
@@ -54,7 +54,7 @@
 
 ;; then-already-vector? — the post-:then payload is a single Vector node (post-migration shape).
 (:wat::core::defn :user::then-already-vector?
-  [then-forms <- :wat::core::Vector<wat::WatAST>] -> :wat::core::bool
+  [then-forms <- (:wat::core::Vector :- [:wat::WatAST])] -> :wat::core::bool
   (:wat::core::if (:wat::core::= (:wat::core::count then-forms) 1)
     (:wat::core::=
       (:wat::core::ast-kind (:wat::core::Option/expect (:wat::core::get then-forms 0) "then-already-vector?: unreachable"))
@@ -67,7 +67,7 @@
 ;; sliced verbatim from `src` by span — never re-rendered, so field order/spacing/literal
 ;; formatting inside the fact-form survive byte-identical.
 (:wat::core::defn :user::fact-text
-  [f <- :wat::WatAST src <- :wat::core::String lines <- :wat::core::Vector<wat::core::String>]
+  [f <- :wat::WatAST src <- :wat::core::String lines <- (:wat::core::Vector :- [:wat::core::String])]
   -> :wat::core::String
   (:wat::core::let
     [fact (:wat::core::Option/expect (:wat::core::get (:wat::core::ast->children f) 1) "fact-text: unreachable (insert-wrapped? already checked)")
@@ -76,8 +76,8 @@
     (:wat::core::string::subs src off end)))
 
 (:wat::core::defn :user::fact-texts
-  [forms <- :wat::core::Vector<wat::WatAST> src <- :wat::core::String lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<wat::core::String>
+  [forms <- (:wat::core::Vector :- [:wat::WatAST]) src <- :wat::core::String lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [:wat::core::String])
   (:wat::core::if (:wat::core::empty? forms)
     (:wat::core::Vector :wat::core::String)
     (:wat::core::concat
@@ -85,7 +85,7 @@
       (:user::fact-texts (:wat::core::rest forms) src lines))))
 
 ;; join-with-space — left-to-right join; no trailing/leading space.
-(:wat::core::defn :user::join-with-space [xs <- :wat::core::Vector<wat::core::String>] -> :wat::core::String
+(:wat::core::defn :user::join-with-space [xs <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::String
   (:wat::core::if (:wat::core::empty? xs)
     ""
     (:wat::core::let [h (:wat::core::first xs) tl (:wat::core::rest xs)]
@@ -100,8 +100,8 @@
 (:wat::core::defn :user::defrule-edits
   [node  <- :wat::WatAST
    src   <- :wat::core::String
-   lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<wat::fix::Edit>
+   lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [:wat::fix::Edit])
   (:wat::core::if (:user::defrule-form? node)
     (:wat::core::let [ch (:wat::core::ast->children node)]
       (:wat::core::if (:wat::core::< (:wat::core::count ch) 6)
@@ -138,18 +138,18 @@
 (:wat::core::defn :user::walk-edits
   [node  <- :wat::WatAST
    src   <- :wat::core::String
-   lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<wat::fix::Edit>
+   lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [:wat::fix::Edit])
   (:wat::core::let [this (:user::defrule-edits node src lines)]
     (:wat::core::if (:wat::fix::structural? node)
       (:wat::core::concat this (:user::walk-seq-edits (:wat::core::ast->children node) src lines))
       this)))
 
 (:wat::core::defn :user::walk-seq-edits
-  [items <- :wat::core::Vector<wat::WatAST>
+  [items <- (:wat::core::Vector :- [:wat::WatAST])
    src   <- :wat::core::String
-   lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<wat::fix::Edit>
+   lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [:wat::fix::Edit])
   (:wat::core::if (:wat::core::empty? items)
     (:wat::core::Vector :wat::fix::Edit)
     (:wat::core::concat
@@ -169,7 +169,7 @@
     (:wat::fix::fix-text-apply src (:wat::core::reverse (:wat::core::sort edits)))))
 
 ;; ── driver: rewrite each path given on stdin (a JSON/EDN array of strings) ────────────────────
-(:wat::core::defn :user::rewrite-each [paths <- :wat::core::Vector<wat::core::String>] -> :wat::core::nil
+(:wat::core::defn :user::rewrite-each [paths <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::nil
   (:wat::core::if (:wat::core::empty? paths)
     nil
     (:wat::core::let [path (:wat::core::first paths)]

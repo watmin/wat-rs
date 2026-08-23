@@ -30,7 +30,7 @@
    (:wat::core::defenum :probe::FFX::PingResponse :wat::enum::Pure
      :Ok               [ok <- :wat::core::bool]
      :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(ping [self <- :probe::FFX  req <- :probe::FFX::PingRequest] -> :probe::FFX::PingResponse :max-request-bytes 524288)])
 
@@ -69,10 +69,10 @@
 
 ;; ── the declared names of a forms vector, in order ───────────────────────────────────────
 (:wat::core::defn :user::decl-names
-  [forms <- :wat::core::Vector<wat::WatAST>
+  [forms <- (:wat::core::Vector :- [:wat::WatAST])
    i     <- :wat::core::i64
-   acc   <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<wat::core::String>
+   acc   <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [:wat::core::String])
   (:wat::core::if (:wat::core::i64::>= i (:wat::core::length forms))
     acc
     (:user::decl-names forms (:wat::core::i64::+ i 1)
@@ -109,11 +109,11 @@
 ;; Whether this dedup belongs to the extractor or the caller is a DESIGN question this probe
 ;; surfaces rather than settles; doing it here keeps the measurement about completeness.
 (:wat::core::defn :user::dedup-forms
-  [forms <- :wat::core::Vector<wat::WatAST>
+  [forms <- (:wat::core::Vector :- [:wat::WatAST])
    i     <- :wat::core::i64
-   seen  <- :wat::core::Vector<wat::core::String>
-   out   <- :wat::core::Vector<wat::WatAST>]
-  -> :wat::core::Vector<wat::WatAST>
+   seen  <- (:wat::core::Vector :- [:wat::core::String])
+   out   <- (:wat::core::Vector :- [:wat::WatAST])]
+  -> (:wat::core::Vector :- [:wat::WatAST])
   (:wat::core::if (:wat::core::i64::>= i (:wat::core::length forms))
     out
     (:wat::core::let
@@ -154,7 +154,7 @@
 ;; of differing shape ⇒ the dedup's first-wins is unsound. One bare `recordtype` (no
 ;; `do`-wrapped ctor macro beside it) ⇒ the extractor never emitted the constructor.
 (:wat::core::defn :user::dump-named
-  [forms  <- :wat::core::Vector<wat::WatAST>
+  [forms  <- (:wat::core::Vector :- [:wat::WatAST])
    i      <- :wat::core::i64
    target <- :wat::core::String]
   -> :wat::core::nil
@@ -175,7 +175,7 @@
 ;; naming it. Everything else is identical, so the control differs in exactly one form-set.
 ;; RAW: the plain concat, BEFORE dedup — the honest input to the dedup question.
 (:wat::core::defn :user::raw-union [with-init? <- :wat::core::bool]
-  -> :wat::core::Vector<wat::WatAST>
+  -> (:wat::core::Vector :- [:wat::WatAST])
   (:wat::core::let
     [serve-forms (:wat::kernel::fn-forms :probe::ffx::serve :user::root-serve)
      init-forms  (:wat::core::if with-init?
@@ -185,7 +185,7 @@
     (:wat::core::conj joined (:user::child-main-form))))
 
 (:wat::core::defn :user::union-forms [with-init? <- :wat::core::bool]
-  -> :wat::core::Vector<wat::WatAST>
+  -> (:wat::core::Vector :- [:wat::WatAST])
   (:user::dedup-forms (:user::raw-union with-init?) 0
     (:wat::core::Vector :wat::core::String)
     (:wat::core::Vector :wat::WatAST)))

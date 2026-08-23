@@ -71,7 +71,7 @@
 ;; 2-stratum: A(1),A(2) → (Bad, Ok)
 (:wat::core::defn :n::run-counts
   [fire <- :wat::core::Fn(wat::rete::Session)->wat::rete::Session]
-  -> :wat::core::PersistentVector<wat::core::i64>
+  -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:wat::core::let [rules (:wat::rete::collect-rules :n)
                     s0    (:wat::rete::compile-all rules (:wat::core::PersistentVector (:n::q-Bad) (:n::q-Ok) (:n3::q-Bad) (:n3::q-Warn) (:n3::q-Safe)))
                     s1    (:wat::rete::insert s0 (:n::A :k 1))
@@ -84,7 +84,7 @@
 ;; 3-stratum chain: A(1),A(2),A(3) → (Bad, Warn, Safe)
 (:wat::core::defn :n3::run-counts
   [fire <- :wat::core::Fn(wat::rete::Session)->wat::rete::Session]
-  -> :wat::core::PersistentVector<wat::core::i64>
+  -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:wat::core::let [rules (:wat::rete::collect-rules :n3)
                     s0    (:wat::rete::compile-all rules (:wat::core::PersistentVector (:n::q-Bad) (:n::q-Ok) (:n3::q-Bad) (:n3::q-Warn) (:n3::q-Safe)))
                     s1    (:wat::rete::insert s0 (:n3::A :k 1))
@@ -98,11 +98,11 @@
 
 ;; just-eval entry points — thin zero-arg wrappers naming the fire verb (the only thing the
 ;; differential varies), so the Rust driver only names an entry point (no inline wat).
-(:wat::core::defn :user::n-oracle-counts [] -> :wat::core::PersistentVector<wat::core::i64>
+(:wat::core::defn :user::n-oracle-counts [] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:n::run-counts :wat::rete::fire-rules$oracle))
-(:wat::core::defn :user::n-native-counts [] -> :wat::core::PersistentVector<wat::core::i64>
+(:wat::core::defn :user::n-native-counts [] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:n::run-counts :wat::rete::fire-rules))
-(:wat::core::defn :user::n3-oracle-counts [] -> :wat::core::PersistentVector<wat::core::i64>
+(:wat::core::defn :user::n3-oracle-counts [] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:n3::run-counts :wat::rete::fire-rules$oracle))
-(:wat::core::defn :user::n3-native-counts [] -> :wat::core::PersistentVector<wat::core::i64>
+(:wat::core::defn :user::n3-native-counts [] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:n3::run-counts :wat::rete::fire-rules))

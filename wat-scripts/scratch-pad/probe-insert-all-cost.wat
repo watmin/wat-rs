@@ -54,8 +54,8 @@
 ;; ── arm 2 — construct + conj into a vector, then ONE insert-all call ─────────────────────────
 (:wat::core::defn :iac::seed-batch [session <- :wat::rete::Session  n <- :wat::core::i64] -> :wat::rete::Session
   (:wat::core::let [facts (:wat::core::foldl
-                             (:wat::core::fn [acc <- :wat::core::PersistentVector<iac::Reading>  i <- :wat::core::i64]
-                               -> :wat::core::PersistentVector<iac::Reading>
+                             (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:iac::Reading])  i <- :wat::core::i64]
+                               -> (:wat::core::PersistentVector :- [:iac::Reading])
                                (:wat::core::PersistentVector/conj acc (:iac::Reading :g 0 :v i)))
                              (:wat::core::PersistentVector)
                              (:wat::core::range 0 n))]

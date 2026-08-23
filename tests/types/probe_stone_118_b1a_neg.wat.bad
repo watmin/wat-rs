@@ -12,8 +12,8 @@
 ;;          it is precisely the property the removed gate's comment worried about
 ;;          (`echo'::Handle` must satisfy Dialable<Echo::…>, never Dialable<Kv::…>).
 
-(:wat::core::defn :neg::needs-seqable<T>
-  [probe <- :T s <- :wat::core::Seqable<T>] -> :wat::core::i64
+(:wat::core::defn :neg::needs-seqable :- [T]
+  [probe <- :T s <- (:wat::core::Seqable :- [T])] -> :wat::core::i64
   (:wat::core::length (:wat::core::into [] (:wat::core::Seqable/seq s))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

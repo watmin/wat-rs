@@ -67,7 +67,7 @@
   :when [(:wqc::Hit (?loc <- :loc))])
 
 (:wat::core::defn :wqc::has-key
-  [answers <- :wat::core::PersistentVector<wat::core::PersistentMap>
+  [answers <- (:wat::core::PersistentVector :- [:wat::core::PersistentMap])
    k       <- :wat::core::String]
   -> :wat::core::String
   (:wat::core::if (:wat::core::= (:wat::core::length answers) 0)
@@ -88,7 +88,7 @@
     (:wat::core::String/concat "query-compat missing " k)))
 
 (:wat::core::defn :wqc::render-strs
-  [v <- :wat::core::Vector<wat::core::String>] -> :wat::core::String
+  [v <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::String
   (:wat::core::foldl
     (:wat::core::fn [acc <- :wat::core::String s <- :wat::core::String] -> :wat::core::String
       (:wat::core::String/concat acc (:wat::core::String/concat " " s)))
@@ -96,7 +96,7 @@
     v))
 
 (:wat::core::defn :wqc::pairs-c-loc
-  [answers <- :wat::core::PersistentVector<wat::core::PersistentMap>]
+  [answers <- (:wat::core::PersistentVector :- [:wat::core::PersistentMap])]
   -> :wat::core::String
   (:wqc::render-strs
     (:wat::core::sort
@@ -109,7 +109,7 @@
           answers)))))
 
 (:wat::core::defn :wqc::pairs-join
-  [answers <- :wat::core::PersistentVector<wat::core::PersistentMap>]
+  [answers <- (:wat::core::PersistentVector :- [:wat::core::PersistentMap])]
   -> :wat::core::String
   (:wqc::render-strs
     (:wat::core::sort
@@ -125,7 +125,7 @@
           answers)))))
 
 (:wat::core::defn :wqc::vals-c
-  [answers <- :wat::core::PersistentVector<wat::core::PersistentMap>]
+  [answers <- (:wat::core::PersistentVector :- [:wat::core::PersistentMap])]
   -> :wat::core::String
   (:wqc::render-strs
     (:wat::core::into (:wat::core::Vector :wat::core::String)
@@ -140,7 +140,7 @@
               answers)))))))
 
 (:wat::core::defn :wqc::vals-loc
-  [answers <- :wat::core::PersistentVector<wat::core::PersistentMap>]
+  [answers <- (:wat::core::PersistentVector :- [:wat::core::PersistentMap])]
   -> :wat::core::String
   (:wqc::render-strs
     (:wat::core::sort
@@ -151,7 +151,7 @@
           answers)))))
 
 (:wat::core::defn :wqc::one-n
-  [answers <- :wat::core::PersistentVector<wat::core::PersistentMap>]
+  [answers <- (:wat::core::PersistentVector :- [:wat::core::PersistentMap])]
   -> :wat::core::String
   (:wat::core::if (:wat::core::= (:wat::core::length answers) 0)
     ""

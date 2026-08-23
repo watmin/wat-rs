@@ -50,18 +50,18 @@
 (:wat::core::extend-type :wat::core::Vector :bench::Shaped
   (val [self] -> :wat::core::i64 (:wat::core::length self)))
 
-(:wat::core::defn :bench::direct [v <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
+(:wat::core::defn :bench::direct [v <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::i64
   (:wat::core::length v))
 
 (:wat::core::defn :bench::dispatched [s <- :bench::Shaped] -> :wat::core::i64
   (:bench::Shaped/val s))
 
-(:wat::core::defn :bench::loop-direct [n <- :wat::core::i64 v <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
+(:wat::core::defn :bench::loop-direct [n <- :wat::core::i64 v <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::i64
   (:wat::core::foldl (:wat::core::fn [acc <- :wat::core::i64 _i <- :wat::core::i64] -> :wat::core::i64
                        (:wat::core::i64::+ acc (:bench::direct v)))
                      0 (:wat::core::range 0 n)))
 
-(:wat::core::defn :bench::loop-disp [n <- :wat::core::i64 v <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
+(:wat::core::defn :bench::loop-disp [n <- :wat::core::i64 v <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::i64
   (:wat::core::foldl (:wat::core::fn [acc <- :wat::core::i64 _i <- :wat::core::i64] -> :wat::core::i64
                        (:wat::core::i64::+ acc (:bench::dispatched v)))
                      0 (:wat::core::range 0 n)))

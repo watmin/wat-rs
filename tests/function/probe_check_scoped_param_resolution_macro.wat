@@ -4,7 +4,7 @@
 ;; At HEAD (before fix) this checks clean (bug); after fix it is rejected.
 
 (:wat::core::defmacro :test::make-bad-ret
-  [] -> :AST<wat::holon::HolonAST>
+  [] -> (:AST :- [:wat::holon::HolonAST])
   `(:wat::core::defclause :test::bad-ret
      ([x <- :wat::core::i64] -> :wat::core::bool x)))
 

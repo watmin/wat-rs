@@ -35,7 +35,7 @@
      step0   (:wat::core::Option/expect (:wat::core::get (:wat::rete::DerivationNode/via root) 0) "via[0]")]
     (:wat::rete::DerivationStep/pattern step0)))
 
-(:wat::core::defn :user::step-bindings-c [] -> :wat::core::Option<wat::core::Value>
+(:wat::core::defn :user::step-bindings-c [] -> (:wat::core::Option :- [:wat::core::Value])
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :weather)
      session (:wat::rete::compile rules)
@@ -46,7 +46,7 @@
      step0   (:wat::core::Option/expect (:wat::core::get (:wat::rete::DerivationNode/via root) 0) "via[0]")]
     (:wat::core::PersistentMap/get (:wat::rete::DerivationStep/bindings step0) "?c")))
 
-(:wat::core::defn :user::derived-node-rule [] -> :wat::core::Option<wat::core::String>
+(:wat::core::defn :user::derived-node-rule [] -> (:wat::core::Option :- [:wat::core::String])
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :weather)
      session (:wat::rete::compile rules)
@@ -56,7 +56,7 @@
      root    (:wat::rete::explain ex (:weather::ColdAndWindy :celsius -5 :kph 40))]
     (:wat::rete::DerivationNode/rule root)))
 
-(:wat::core::defn :user::base-node-rule [] -> :wat::core::Option<wat::core::String>
+(:wat::core::defn :user::base-node-rule [] -> (:wat::core::Option :- [:wat::core::String])
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :weather)
      session (:wat::rete::compile rules)

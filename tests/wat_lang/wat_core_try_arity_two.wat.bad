@@ -1,3 +1,3 @@
 ;; Negative fixture: try with 2 args → ArityMismatch(expected:1, got:2).
-(:wat::core::defn :t::probe [] -> :wat::core::Result<wat::core::i64,wat::core::String>
+(:wat::core::defn :t::probe [] -> (:wat::core::Result :- [:wat::core::i64 :wat::core::String])
   (:wat::core::Ok (:wat::core::Result/try (:wat::core::Ok 1) (:wat::core::Ok 2))))

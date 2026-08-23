@@ -4,12 +4,12 @@
 ;; clean → bug is specific to the AUTO-EMITTED service Handle
 (:wat::core::defsurface :probe::Flat :nature :wat::core::Struct
   :features [(tag [self <- :probe::Flat] -> :wat::core::String)])
-(:wat::core::defsurface :probe::Pair2<A,B> :nature :wat::core::Struct
-  :features [(fst [self <- :probe::Pair2<A,B>] -> :A)])
+(:wat::core::defsurface :probe::Pair2 :- [A B] :nature :wat::core::Struct
+  :features [(fst [self <- (:probe::Pair2 :- [A B])] -> :A)])
 (:wat::core::defrecord :probe::Multi [i <- :wat::core::i64  s <- :wat::core::String])
 (:wat::core::extend-type :probe::Multi :probe::Flat
   (tag [self] (:probe::Multi/s self)))
-(:wat::core::extend-type :probe::Multi :probe::Pair2<wat::core::i64,wat::core::String>
+(:wat::core::extend-type :probe::Multi (:probe::Pair2 :- [:wat::core::i64 :wat::core::String])
   (fst [self] (:probe::Multi/i self)))
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

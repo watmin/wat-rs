@@ -22,7 +22,7 @@
 
 ;; Spawn a process peer whose :user::main readln's an i64 and println's it doubled;
 ;; send' 21 to feed the child's readln; drain the doubled outputs -> [42].
-(:wat::core::defn :my::test::echo-doubled [] -> :wat::core::Vector<wat::core::i64>
+(:wat::core::defn :my::test::echo-doubled [] -> (:wat::core::Vector :- [:wat::core::i64])
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms

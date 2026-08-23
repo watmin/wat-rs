@@ -31,7 +31,7 @@
 (:wat::core::defn :user::kw-name [n <- :wat::WatAST] -> :wat::core::String
   (:wat::core::ast->source n))
 
-(:wat::core::defn :user::end-off [n <- :wat::WatAST  lines <- :wat::core::Vector<wat::core::String>]
+(:wat::core::defn :user::end-off [n <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])]
   -> :wat::core::i64
   (:wat::fix::fix-text-offset-of (:wat::core::ast-end-span n) lines))
 
@@ -45,7 +45,7 @@
 
 ;; ── the children FOLLOWING the child whose source is `kw` (the census's own helper) ───────
 (:wat::core::defn :user::index-after-keyword
-  [ch <- :wat::core::Vector<wat::WatAST>  kw <- :wat::core::String  i <- :wat::core::i64]
+  [ch <- (:wat::core::Vector :- [:wat::WatAST])  kw <- :wat::core::String  i <- :wat::core::i64]
   -> :wat::core::i64
   (:wat::core::if (:wat::core::i64::>= i (:wat::core::length ch))
     -1
@@ -55,7 +55,7 @@
 
 ;; ── one defservice form → its :impls arms (empty Vector if no :impls) ─────────────────────
 (:wat::core::defn :user::arms-of
-  [form <- :wat::WatAST] -> :wat::core::Vector<wat::WatAST>
+  [form <- :wat::WatAST] -> (:wat::core::Vector :- [:wat::WatAST])
   (:wat::core::let [ch  (:wat::core::ast->children form)
                     idx (:user::index-after-keyword ch ":impls" 0)]
     (:wat::core::if (:wat::core::i64::< idx 0)
@@ -70,8 +70,8 @@
 ;; migrated, or unrecognized) is left untouched — idempotent, and safe against surprises the
 ;; census didn't predict.
 (:wat::core::defn :user::arm-edit
-  [arm <- :wat::WatAST  lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+  [arm <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::let [ch (:wat::core::ast->children arm)]
     (:wat::core::if (:wat::core::< (:wat::core::length ch) 2)
       (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
@@ -95,12 +95,12 @@
 
 ;; ── all edits for one defservice form's arms ───────────────────────────────────────────────
 (:wat::core::defn :user::arms-edits
-  [arms <- :wat::core::Vector<wat::WatAST>  lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+  [arms <- (:wat::core::Vector :- [:wat::WatAST])  lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+    (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
                      arm <- :wat::WatAST]
-      -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+      -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
       (:wat::core::concat acc (:user::arm-edit arm lines)))
     (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
     arms))
@@ -113,8 +113,8 @@
 ;; missed tests/macros/probe_arc278_macro_generates_service.wat's `defservice` (it lives inside
 ;; `:probe::echo-defsvc`'s backtick body), silently leaving one arm unmigrated.
 (:wat::core::defn :user::node-edits
-  [node <- :wat::WatAST  lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+  [node <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
     (:wat::core::let [ch (:wat::core::ast->children node)]
       (:wat::core::if (:wat::core::empty? ch)
@@ -129,12 +129,12 @@
       (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)))))
 
 (:wat::core::defn :user::seq-edits
-  [items <- :wat::core::Vector<wat::WatAST>  lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+  [items <- (:wat::core::Vector :- [:wat::WatAST])  lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+    (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
                      it <- :wat::WatAST]
-      -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+      -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
       (:wat::core::concat acc (:user::node-edits it lines)))
     (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
     items))
@@ -157,7 +157,7 @@
     (:wat::fix::fix-text-apply src rev)))
 
 ;; ── driver ──────────────────────────────────────────────────────────────────────────────────
-(:wat::core::defn :user::apply-each [paths <- :wat::core::Vector<wat::core::String>] -> :wat::core::nil
+(:wat::core::defn :user::apply-each [paths <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::nil
   (:wat::core::if (:wat::core::empty? paths)
     nil
     (:wat::core::let [path (:wat::core::first paths)]

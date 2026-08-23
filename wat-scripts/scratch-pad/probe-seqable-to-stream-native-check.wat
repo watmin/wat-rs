@@ -11,26 +11,26 @@
 ;; SAFE: pure collections + one println count, no rete, no forks.
 ;;   ./target/release/wat wat-scripts/scratch-pad/probe-seqable-to-stream-native-check.wat
 
-(:wat::core::defn :cx::pos? [x <- :wat::core::i64] -> :wat::core::Option<wat::core::i64>
+(:wat::core::defn :cx::pos? [x <- :wat::core::i64] -> (:wat::core::Option :- [:wat::core::i64])
   (:wat::core::if (:wat::core::>= x 0) (:wat::core::Some x) :wat::core::None))
 
-(:wat::core::defn :cx::build-list [n <- :wat::core::i64] -> :wat::core::List<wat::core::i64>
+(:wat::core::defn :cx::build-list [n <- :wat::core::i64] -> (:wat::core::List :- [:wat::core::i64])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::List<wat::core::i64>  i <- :wat::core::i64] -> :wat::core::List<wat::core::i64>
+    (:wat::core::fn [acc <- (:wat::core::List :- [:wat::core::i64])  i <- :wat::core::i64] -> (:wat::core::List :- [:wat::core::i64])
       (:wat::core::List/conj acc i))
     (:wat::core::List/of)
     (:wat::core::reverse (:wat::core::range 0 n))))
 
-(:wat::core::defn :cx::build-pv [n <- :wat::core::i64] -> :wat::core::PersistentVector<wat::core::i64>
+(:wat::core::defn :cx::build-pv [n <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::i64>  i <- :wat::core::i64] -> :wat::core::PersistentVector<wat::core::i64>
+    (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::i64])  i <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::core::i64])
       (:wat::core::PersistentVector/conj acc i))
     (:wat::core::PersistentVector)
     (:wat::core::range 0 n)))
 
 ;; A side-effecting "predicate" — println's, then always keeps. Lets us COUNT invocations by
 ;; counting printed lines (rather than eyeballing timing).
-(:wat::core::defn :cx::counting-keep [x <- :wat::core::i64] -> :wat::core::Option<wat::core::i64>
+(:wat::core::defn :cx::counting-keep [x <- :wat::core::i64] -> (:wat::core::Option :- [:wat::core::i64])
   (:wat::core::let [__ (:wat::kernel::println (:wat::core::i64::to-string x))]
     (:wat::core::Some x)))
 

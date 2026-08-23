@@ -79,7 +79,7 @@
   :params []
   :when [(:vsa::Hit (?tag <- :tag))])
 
-(:wat::core::defn :vsa::catalog [] -> :wat::core::PersistentVector<vsa::Catalog>
+(:wat::core::defn :vsa::catalog [] -> (:wat::core::PersistentVector :- [:vsa::Catalog])
   (:wat::core::PersistentVector
     (:vsa::Catalog :name "identity"    :obs (:vsa::table-of (:vsa::id-fn)))
     (:vsa::Catalog :name "not"         :obs (:vsa::table-of (:vsa::not-fn)))
@@ -123,7 +123,7 @@
 
 (:wat::core::defn :vsa::deg-counts
   [fire <- :wat::core::Fn(wat::rete::Session)->wat::rete::Session]
-  -> :wat::core::PersistentVector<wat::core::i64>
+  -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:wat::core::PersistentVector
     (:vsa::deg-count fire (:vsa::deg-neg1))
     (:vsa::deg-count fire (:vsa::deg-seven))))
@@ -197,7 +197,7 @@
   (:vsa::presence-pair :wat::rete::fire-rules "not" (:vsa::not-fn) (:vsa::id-fn)))
 
 ;; ── degenerate cosine inside a rule ──────────────────────────────────────────
-(:wat::core::defn :user::oracle-deg [] -> :wat::core::PersistentVector<wat::core::i64>
+(:wat::core::defn :user::oracle-deg [] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:vsa::deg-counts :wat::rete::fire-rules$oracle))
-(:wat::core::defn :user::native-deg [] -> :wat::core::PersistentVector<wat::core::i64>
+(:wat::core::defn :user::native-deg [] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:vsa::deg-counts :wat::rete::fire-rules))

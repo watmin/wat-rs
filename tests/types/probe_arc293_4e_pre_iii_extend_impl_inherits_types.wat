@@ -10,9 +10,9 @@
 
 (:wat::core::defsurface :t::Maker
   :nature :wat::core::Struct
-  :features [(make<T> [self <- :t::Maker  x <- :T] -> :t::Box<T>)])
+  :features [(make<T> [self <- :t::Maker  x <- :T] -> (:t::Box :- [T]))])
 
-(:wat::core::defrecord :t::Box<T> [v <- :T])
+(:wat::core::defrecord :t::Box :- [T] [v <- :T])
 (:wat::core::defrecord :t::Id [tag <- :wat::core::i64])
 
 ;; bare GENERIC impl — body wraps x (typed :T from the surface) in a :t::Box<T>.

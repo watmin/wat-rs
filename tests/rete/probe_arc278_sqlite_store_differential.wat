@@ -20,13 +20,13 @@
    ipage <- :wat::query::IndexPage])
 
 (:wat::core::defn :probe::expect-scan
-  [resp <- :wat::kernel::RecvOutcome<wat::query::Store::ScanResponse>] -> :wat::query::Page
+  [resp <- (:wat::kernel::RecvOutcome :- [:wat::query::Store::ScanResponse])] -> :wat::query::Page
   (:wat::core::match resp ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
     ((:wat::query::Store::ScanResponse::Success rows cursor) (:wat::query::Page :rows rows :next-cursor cursor))
     (_ (:wat::kernel::assertion-failed! "scan failed" :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Stopped (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :probe::expect-scan-index
-  [resp <- :wat::kernel::RecvOutcome<wat::query::Store::ScanIndexResponse>] -> :wat::query::IndexPage
+  [resp <- (:wat::kernel::RecvOutcome :- [:wat::query::Store::ScanIndexResponse])] -> :wat::query::IndexPage
   (:wat::core::match resp ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
     ((:wat::query::Store::ScanIndexResponse::Success rows cursor) (:wat::query::IndexPage :rows rows :next-cursor cursor))
     (_ (:wat::kernel::assertion-failed! "scan-index failed" :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Stopped (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None))))

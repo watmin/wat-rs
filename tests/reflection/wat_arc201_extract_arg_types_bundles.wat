@@ -3,7 +3,7 @@
 ;; Probe: Vector<i64> param type lands as a structured Bundle, not a flat keyword.
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
-              [f    (:wat::core::fn [xs <- :wat::core::Vector<wat::core::i64>]
+              [f    (:wat::core::fn [xs <- (:wat::core::Vector :- [:wat::core::i64])]
                       -> :wat::core::i64
                       42)
                sig  (:wat::runtime::signature-of-fn f)

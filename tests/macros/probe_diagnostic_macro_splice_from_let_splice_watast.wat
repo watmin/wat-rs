@@ -9,7 +9,7 @@
         ;; `UnknownFunction` there), so `foldl`+`conj` (Rust-native) stand in.
         (:wat::core::let
           [forms (:wat::core::foldl
-                   (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST> x <- :wat::core::i64] -> :wat::core::Vector<wat::WatAST>
+                   (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST]) x <- :wat::core::i64] -> (:wat::core::Vector :- [:wat::WatAST])
                      (:wat::core::conj acc
                        (:wat::core::quasiquote
                          (:wat::core::unquote (:wat::core::i64::* x 10)))))
@@ -17,4 +17,4 @@
                    xs)]
           forms)))))
 
-(:wat::core::defn :user::compute [] -> :wat::core::Vector<wat::core::i64> (:probe::splice-watast [1 2 3]))
+(:wat::core::defn :user::compute [] -> (:wat::core::Vector :- [:wat::core::i64]) (:probe::splice-watast [1 2 3]))

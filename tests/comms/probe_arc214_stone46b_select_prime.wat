@@ -3,9 +3,9 @@
 ;; Probe 1 (LOAD-BEARING, RUNTIME): select' picks the ready peer.
 ;; Two thread echo peers; send 7 to peer B ONLY; select' [a b] must return ServiceEvent::Message{idx=1, msg=7}.
 
-(:wat::core::defn :user::mk [] -> :wat::kernel::Thread<wat::core::i64,wat::core::i64>
+(:wat::core::defn :user::mk [] -> (:wat::kernel::Thread :- [:wat::core::i64 :wat::core::i64])
   (:wat::test::spawn-peer (:wat::spawn::thread)
-    (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+    (:wat::core::fn [self <- (:wat::kernel::ThreadSelfPeer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
       (:wat::core::match
         (:wat::kernel::send self
           (:wat::core::match (:wat::kernel::recv self)
@@ -21,7 +21,7 @@
         ((:wat::kernel::SendOutcome::Lost _c) nil)
         (:wat::kernel::SendOutcome::Stopped nil))))) ;; arc 278 #73 — fire-and-forget echo; outcome ignored uniformly regardless of cause
 
-(:wat::core::defn :user::compute [] -> :wat::spawn::ServiceEvent<wat::core::i64,wat::core::i64,wat::core::nil>
+(:wat::core::defn :user::compute [] -> (:wat::spawn::ServiceEvent :- [:wat::core::i64 :wat::core::i64 :wat::core::nil])
   (:wat::core::let [a (:user::mk)
                     b (:user::mk)
                     _ (:wat::core::match (:wat::kernel::send b 7)

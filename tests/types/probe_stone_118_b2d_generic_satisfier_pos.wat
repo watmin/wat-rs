@@ -17,7 +17,7 @@
 ;; consumer. `[[feedback_a_pass_answers_only_the_question_the_instrument_asks]]`
 
 (:wat::core::defn :my::eats-concrete
-  [c <- :wat::core::Seqable<wat::core::i64>] -> :wat::core::i64
+  [c <- (:wat::core::Seqable :- [:wat::core::i64])] -> :wat::core::i64
   (:wat::core::length (:wat::core::into [] (:wat::core::Seqable/seq c))))
 
 ;; ROW 1 — the container fed DIRECTLY. B1a's guarantee.
@@ -25,8 +25,8 @@
   (:my::eats-concrete (:wat::core::Vector :wat::core::i64 1 2 3)))
 
 ;; ROW 2 — a POLYMORPHIC consumer swallows the `Stream<T>` result without complaint.
-(:wat::core::defn :my::eats-polymorphic<T>
-  [s <- :wat::stream::Stream<T>] -> :wat::core::i64
+(:wat::core::defn :my::eats-polymorphic :- [T]
+  [s <- (:wat::stream::Stream :- [T])] -> :wat::core::i64
   (:wat::core::length (:wat::core::into [] s)))
 
 (:wat::core::defn :my::via-surface-method-into-polymorphic [] -> :wat::core::i64

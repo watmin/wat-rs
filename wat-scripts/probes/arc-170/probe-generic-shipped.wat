@@ -1,6 +1,6 @@
 ;; Does a shipped GENERIC pool-runner resolve its types by inference from the concrete __work?
 (:wat::core::defn :probe::drain
-  [w <- :wat::kernel::Process<(wat::core::i64,wat::core::i64),(wat::core::i64,wat::core::i64)>]
+  [w <- (:wat::kernel::Process :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64]) (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])])]
   -> :wat::core::nil
   (:wat::core::let
     [;; arc 278 #73 — a stop here is terminal like Lost/Closed for this discard-only send; the
@@ -24,8 +24,8 @@
          (:wat::core::concat
            (:wat::kernel::fn-forms work :bracket::__work)
            (:wat::core::forms
-             (:wat::core::defn :bracket::pool-runner<A,B>
-               [self <- :wat::kernel::Peer<(wat::core::i64,A),(wat::core::i64,B)>]
+             (:wat::core::defn :bracket::pool-runner :- [A B]
+               [self <- (:wat::kernel::Peer :- [(:wat::core::Tuple :- [:wat::core::i64 A]) (:wat::core::Tuple :- [:wat::core::i64 B])])]
                -> :wat::core::nil
                (:wat::core::let
                  [pair (:wat::kernel::recv self)

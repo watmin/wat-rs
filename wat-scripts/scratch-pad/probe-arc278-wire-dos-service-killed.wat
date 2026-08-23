@@ -27,11 +27,11 @@
 ;; deftest in wat-tests/service-request-malformed.wat, both tiers.)
 (:wat::core::defsurface :dos::Bag :nature :wat::kernel::Peer
   :messages
-  [(:wat::core::defrecord :dos::Bag::PutRequest [items <- :wat::core::Vector<wat::core::String>])
+  [(:wat::core::defrecord :dos::Bag::PutRequest [items <- (:wat::core::Vector :- [:wat::core::String])])
    (:wat::core::defenum :dos::Bag::PutResponse :wat::enum::Pure
      :Ok              [n <- :wat::core::i64]
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(put [self <- :dos::Bag  req <- :dos::Bag::PutRequest]
      -> :dos::Bag::PutResponse :max-request-bytes 4096)])
@@ -49,7 +49,7 @@
            (:wat::core::nth (:dos::Bag::PutRequest/items req) 0)))))])
 
 (:wat::core::defn :dos::try
-  [c <- :wat::kernel::Peer<dos::Bag::Op,dos::Bag::Reply>  label <- :wat::core::String
+  [c <- (:wat::kernel::Peer :- [:dos::Bag::Op :dos::Bag::Reply])  label <- :wat::core::String
    req <- :dos::Bag::PutRequest] -> :wat::core::nil
   (:wat::core::match (:dos::Bag/put c req)
     ((:wat::kernel::RecvOutcome::Message resp)

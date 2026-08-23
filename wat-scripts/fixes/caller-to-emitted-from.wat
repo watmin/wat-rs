@@ -40,11 +40,11 @@
 ;;     | cargo wat ./wat-scripts/fixes/caller-to-emitted-from.wat
 
 ;; ── small helpers ────────────────────────────────────────────────────────────
-(:wat::core::defn :user::start-off [n <- :wat::WatAST  lines <- :wat::core::Vector<wat::core::String>]
+(:wat::core::defn :user::start-off [n <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])]
   -> :wat::core::i64
   (:wat::fix::fix-text-offset-of (:wat::core::ast-span n) lines))
 
-(:wat::core::defn :user::end-off [n <- :wat::WatAST  lines <- :wat::core::Vector<wat::core::String>]
+(:wat::core::defn :user::end-off [n <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])]
   -> :wat::core::i64
   (:wat::fix::fix-text-offset-of (:wat::core::ast-end-span n) lines))
 
@@ -71,8 +71,8 @@
 ;; accessor-edit — zero-or-one whole-token replace edit for a keyword LEAF whose exact name is one
 ;; of the two accessors above.
 (:wat::core::defn :user::accessor-edit
-  [n <- :wat::WatAST  lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+  [n <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind n) "keyword")
     (:wat::core::let
       [name     (:wat::core::ast-name n)
@@ -89,11 +89,11 @@
 ;; with `(:wat::kernel::call-site)`. The producer-forward case (value is a list) is left for the
 ;; general recursive walk to rewrite via accessor-edit (its head keyword matches rule (c) above).
 (:wat::core::defn :user::ctor-caller-edits
-  [ch <- :wat::core::Vector<wat::WatAST>  lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+  [ch <- (:wat::core::Vector :- [:wat::WatAST])  lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)> i <- :wat::core::i64]
-      -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+    (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])]) i <- :wat::core::i64]
+      -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
       (:wat::core::let
         [k (:wat::core::Option/expect (:wat::core::get ch i) "ctor-caller-edits: k")]
         (:wat::core::if (:user::caller-kw? k)
@@ -122,8 +122,8 @@
 ;; ── general recursive walk ───────────────────────────────────────────────────
 (:wat::core::defn :user::node-edits
   [node  <- :wat::WatAST
-   lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+   lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
     (:wat::core::let [ch (:wat::core::ast->children node)]
       (:wat::core::if (:wat::core::empty? ch)
@@ -141,11 +141,11 @@
       (:user::accessor-edit node lines))))
 
 (:wat::core::defn :user::seq-edits
-  [items <- :wat::core::Vector<wat::WatAST>  lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+  [items <- (:wat::core::Vector :- [:wat::WatAST])  lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)> it <- :wat::WatAST]
-      -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+    (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])]) it <- :wat::WatAST]
+      -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
       (:wat::core::concat acc (:user::node-edits it lines)))
     (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
     items))
@@ -160,7 +160,7 @@
     (:wat::fix::fix-text-apply src rev)))
 
 ;; ── driver ───────────────────────────────────────────────────────────────────
-(:wat::core::defn :user::apply-each [paths <- :wat::core::Vector<wat::core::String>] -> :wat::core::nil
+(:wat::core::defn :user::apply-each [paths <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::nil
   (:wat::core::if (:wat::core::empty? paths)
     nil
     (:wat::core::let [path (:wat::core::first paths)]

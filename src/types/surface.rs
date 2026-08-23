@@ -1115,16 +1115,18 @@ mod tests {
         //   references protocol type :t::Cache::GetRequest which is not declared in this
         //   surface's :messages …
         // — note the REPORTED name carries no `<K>` while `:messages` declares `GetRequest<K>`.
+        // Arc 109 ③ — angle-bracket decl-names and references retired: `Head :- [args]`
+        // siblings for a declaration's own name; `(Head :- [args])` in parens for a reference.
         let surf = parse_surface(
-            "(:wat::core::defsurface :t::Cache<K,V> :nature :wat::kernel::Peer \
+            "(:wat::core::defsurface :t::Cache :- [K V] :nature :wat::kernel::Peer \
                :messages \
-               [(:wat::core::recordtype :t::Cache::GetRequest<K> [probes <- :wat::core::Vector<K>]) \
-                (:wat::core::defenum :t::Cache::GetResponse<V> :wat::enum::Pure \
-                  :Ok              [results <- :wat::core::Vector<wat::core::Option<V>>] \
+               [(:wat::core::recordtype :t::Cache::GetRequest :- [K] [probes <- (:wat::core::Vector :- [K])]) \
+                (:wat::core::defenum :t::Cache::GetResponse :- [V] :wat::enum::Pure \
+                  :Ok              [results <- (:wat::core::Vector :- [(:wat::core::Option :- [V])])] \
                   :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64])] \
                :features \
-               [(get [self <- :t::Cache<K,V>  req <- :t::Cache::GetRequest<K>] \
-                  -> :t::Cache::GetResponse<V> :max-request-bytes 1024)])",
+               [(get [self <- (:t::Cache :- [K V])  req <- (:t::Cache::GetRequest :- [K])] \
+                  -> (:t::Cache::GetResponse :- [V]) :max-request-bytes 1024)])",
         )
         .expect(
             "a surface whose :messages declare PARAMETRIC types must recognize a feature's \
@@ -1139,12 +1141,14 @@ mod tests {
         // The safety property has TWO halves. This is the second: base-normalization must not
         // turn the wall into a rubber stamp. A genuinely undeclared message — differing from a
         // declared one in its BASE, not merely its params — is still a located error.
+        // Arc 109 ③ — angle-bracket decl-names and references retired (same spelling rule as
+        // `parametric_message_is_recognized_as_declared` above).
         let err = parse_surface(
-            "(:wat::core::defsurface :t::Cache2<K> :nature :wat::kernel::Peer \
+            "(:wat::core::defsurface :t::Cache2 :- [K] :nature :wat::kernel::Peer \
                :messages \
-               [(:wat::core::recordtype :t::Cache2::GetRequest<K> [probes <- :wat::core::Vector<K>])] \
+               [(:wat::core::recordtype :t::Cache2::GetRequest :- [K] [probes <- (:wat::core::Vector :- [K])])] \
                :features \
-               [(get [self <- :t::Cache2<K>  req <- :t::Cache2::PutRequest<K>] \
+               [(get [self <- (:t::Cache2 :- [K])  req <- (:t::Cache2::PutRequest :- [K])] \
                   -> :t::Cache2::GetResponse :max-request-bytes 1024)])",
         )
         .expect_err(

@@ -29,7 +29,7 @@
   :params []
   :when [(:j2::Guess (?name <- :name))])
 
-(:wat::core::defn :j2::catalog [] -> :wat::core::PersistentVector<j2::Catalog>
+(:wat::core::defn :j2::catalog [] -> (:wat::core::PersistentVector :- [:j2::Catalog])
   (:wat::core::PersistentVector
     (:j2::Catalog :name "identity"    :obs (:j2::table-of (:wat::core::fn [b <- :wat::core::bool] -> :wat::core::bool b)))
     (:j2::Catalog :name "not"         :obs (:j2::table-of (:wat::core::fn [b <- :wat::core::bool] -> :wat::core::bool (:wat::core::if b false true))))

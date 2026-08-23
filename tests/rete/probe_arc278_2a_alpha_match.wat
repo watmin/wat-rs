@@ -9,7 +9,7 @@
 
 ;; Condition: a Temp whose :value binds ?t and must be > 20.
 ;; MATCH: 25 binds ?t and 25 > 20 holds → Some({"?t": 25}); PersistentMap/get "?t" → Some(25).
-(:wat::core::defn :user::match-binds-and-constrains [] -> :wat::core::Option<wat::core::i64>
+(:wat::core::defn :user::match-binds-and-constrains [] -> (:wat::core::Option :- [:wat::core::i64])
   (:wat::core::PersistentMap/get
     (:wat::core::Option/expect
       (:wat::rete::alpha-match
@@ -19,14 +19,14 @@
 
 ;; 15 binds ?t but 15 > 20 is false → None (no-error, not a raise).
 (:wat::core::defn :user::match-rejects-failed-constraint []
-  -> :wat::core::Option<wat::core::PersistentMap<wat::core::String,wat::core::i64>>
+  -> (:wat::core::Option :- [(:wat::core::PersistentMap :- [:wat::core::String :wat::core::i64])])
   (:wat::rete::alpha-match
     (:wat::core::quote (:user::Temp (?t <- :value) (:wat::core::> ?t 20)))
     (:user::Temp :value 15)))
 
 ;; Condition head :user::Other ≠ fact type :user::Temp → None.
 (:wat::core::defn :user::match-rejects-wrong-type []
-  -> :wat::core::Option<wat::core::PersistentMap<wat::core::String,wat::core::i64>>
+  -> (:wat::core::Option :- [(:wat::core::PersistentMap :- [:wat::core::String :wat::core::i64])])
   (:wat::rete::alpha-match
     (:wat::core::quote (:user::Other (?t <- :value)))
     (:user::Temp :value 25)))

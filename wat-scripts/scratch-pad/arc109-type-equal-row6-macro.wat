@@ -21,12 +21,12 @@
       (:wat::core::write-forms
         (:wat::core::macroexpand
           (:wat::core::quote
-            (:probe::same-shape? :wat::kernel::Peer<A,B> (:wat::kernel::Peer :- [A B]))))))
+            (:probe::same-shape? (:wat::kernel::Peer :- [A B]) (:wat::kernel::Peer :- [A B]))))))
 
     (:wat::kernel::println "macroexpand (:probe::same-shape? Peer<A,B> Peer<B,A>) — different:")
     (:wat::kernel::println
       (:wat::core::write-forms
         (:wat::core::macroexpand
           (:wat::core::quote
-            (:probe::same-shape? :wat::kernel::Peer<A,B> :wat::kernel::Peer<B,A>)))))
+            (:probe::same-shape? (:wat::kernel::Peer :- [A B]) (:wat::kernel::Peer :- [B A]))))))
     nil))

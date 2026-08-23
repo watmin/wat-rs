@@ -19,7 +19,7 @@
    (:wat::core::defenum :rw::Bag::PutResponse :wat::enum::Pure
      :Ok               [n <- :wat::core::i64]
      :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])
                         expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(put [self <- :rw::Bag  req <- :rw::Bag::PutRequest]
@@ -30,7 +30,7 @@
   :impls
   [(put [s ctx req] (:wat::service::Outcome::Reply s (:rw::Bag::PutResponse::Ok 1)))])
 
-(:wat::core::defn :rw::try [c <- :wat::kernel::Peer<rw::Bag::Op,rw::Bag::Reply>
+(:wat::core::defn :rw::try [c <- (:wat::kernel::Peer :- [:rw::Bag::Op :rw::Bag::Reply])
                            label <- :wat::core::String] -> :wat::core::nil
   (:wat::core::match (:rw::Bag/put c (:rw::Bag::PutRequest :n 1))
     ((:wat::kernel::RecvOutcome::Message resp)
@@ -43,7 +43,7 @@
       (:wat::kernel::println (:wat::core::string::concat label " => CLOSED")))))
 
 ;; The discriminator: the Handle rides in as an argument, so it outlives the caller's env.
-(:wat::core::defn :rw::try-with-handle [c <- :wat::kernel::Peer<rw::Bag::Op,rw::Bag::Reply>
+(:wat::core::defn :rw::try-with-handle [c <- (:wat::kernel::Peer :- [:rw::Bag::Op :rw::Bag::Reply])
                                        h <- :rw::bag-svc::Handle
                                        label <- :wat::core::String] -> :wat::core::nil
   ;; NOT a tail call — a bare `(:rw/try c label)` here would itself tail-drop `h` before
@@ -51,13 +51,13 @@
   (:wat::core::do (:rw::try c label) nil))
 
 ;; Field-level discriminators: carry ONLY the lineage peer, or ONLY the address.
-(:wat::core::defn :rw::try-with-lineage [c <- :wat::kernel::Peer<rw::Bag::Op,rw::Bag::Reply>
-                                        lp <- :wat::kernel::Peer<rw::bag-svc::Admin,rw::bag-svc::Status>
+(:wat::core::defn :rw::try-with-lineage [c <- (:wat::kernel::Peer :- [:rw::Bag::Op :rw::Bag::Reply])
+                                        lp <- (:wat::kernel::Peer :- [:rw::bag-svc::Admin :rw::bag-svc::Status])
                                         label <- :wat::core::String] -> :wat::core::nil
   (:wat::core::do (:rw::try c label) nil))
 
-(:wat::core::defn :rw::try-with-addr [c <- :wat::kernel::Peer<rw::Bag::Op,rw::Bag::Reply>
-                                     a <- :wat::kernel::Address<rw::Bag::Op,rw::Bag::Reply>
+(:wat::core::defn :rw::try-with-addr [c <- (:wat::kernel::Peer :- [:rw::Bag::Op :rw::Bag::Reply])
+                                     a <- (:wat::kernel::Address :- [:rw::Bag::Op :rw::Bag::Reply])
                                      label <- :wat::core::String] -> :wat::core::nil
   (:wat::core::do (:rw::try c label) nil))
 

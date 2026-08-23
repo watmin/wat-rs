@@ -3,7 +3,7 @@
 ;; Probe: Bundle/children on signature-of-fn output yields structured children.
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
-              [f      (:wat::core::fn [peer <- :wat::core::Vector<wat::core::String>]
+              [f      (:wat::core::fn [peer <- (:wat::core::Vector :- [:wat::core::String])]
                        -> :wat::core::String
                        "ok")
                sig    (:wat::runtime::signature-of-fn f)

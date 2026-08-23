@@ -28,36 +28,48 @@ fn contract_01_scalar() {
     );
 }
 
+// Arc 109 ③ — angle brackets are ILLEGAL for types now, so contracts 02/03/04/05/08 (below)
+// no longer have a legal INPUT to feed `keyword/to-type-form`: the fixture built a keyword-
+// NODE whose text embedded `Head<args>` (e.g. `":wat::core::Vector<wat::core::i64>"`) and
+// proved the converter re-spells it in Clojure mode. There is no OTHER keyword-string
+// spelling for a parametric type any more (the reference FORM `(Head :- [args])` only parses
+// from a structural `WatAST::List`, never from a keyword's flat text) — so the conversion
+// these contracts exercised is not merely untested, it is UNREACHABLE: the fixture's own
+// `keyword-node` calls now hit the wall before `keyword/to-type-form` ever runs. Each is
+// repointed to assert exactly that refusal rather than a stale golden.
 #[test]
 fn contract_02_parametric() {
-    assert_eq!(
-        eval_string(":user::c02"),
-        Ok(include_str!("probe_arc251_keyword_to_type_form__contract-02-parametric.wat").into())
+    let err = eval_string(":user::c02").expect_err("angle-bracket parametric keyword must be REFUSED");
+    assert!( // rune:lint(loose-assert) — targeted substring: asserting the angle-bracket wall fired, not the whole located TypeError's structure
+        err.contains("angle-bracket parametric types are illegal"),
+        "expected the angle-bracket wall's reason; got: {err}"
     );
 }
 
 #[test]
 fn contract_03_nested_parametric() {
-    assert_eq!(
-        eval_string(":user::c03"),
-        Ok(include_str!("probe_arc251_keyword_to_type_form__contract-03-nested-parametric.wat").into())
+    let err = eval_string(":user::c03").expect_err("angle-bracket parametric keyword must be REFUSED");
+    assert!( // rune:lint(loose-assert) — targeted substring: asserting the angle-bracket wall fired, not the whole located TypeError's structure
+        err.contains("angle-bracket parametric types are illegal"),
+        "expected the angle-bracket wall's reason; got: {err}"
     );
 }
 
 #[test]
 fn contract_04_type_var_stays_bare() {
-    assert_eq!(
-        eval_string(":user::c04"),
-        Ok(include_str!("probe_arc251_keyword_to_type_form__contract-04-type-var-bare.wat").into()),
-        "a type-var (Path with no `::`) renders as a bare symbol, not wat.type/T"
+    let err = eval_string(":user::c04").expect_err("angle-bracket parametric keyword must be REFUSED");
+    assert!( // rune:lint(loose-assert) — targeted substring: asserting the angle-bracket wall fired, not the whole located TypeError's structure
+        err.contains("angle-bracket parametric types are illegal"),
+        "expected the angle-bracket wall's reason; got: {err}"
     );
 }
 
 #[test]
 fn contract_05_multi_arg() {
-    assert_eq!(
-        eval_string(":user::c05"),
-        Ok(include_str!("probe_arc251_keyword_to_type_form__contract-05-multi-arg.wat").into())
+    let err = eval_string(":user::c05").expect_err("angle-bracket parametric keyword must be REFUSED");
+    assert!( // rune:lint(loose-assert) — targeted substring: asserting the angle-bracket wall fired, not the whole located TypeError's structure
+        err.contains("angle-bracket parametric types are illegal"),
+        "expected the angle-bracket wall's reason; got: {err}"
     );
 }
 
@@ -79,9 +91,13 @@ fn contract_07_empty_tuple_is_not_nil() {
 
 #[test]
 fn contract_08_nested_tuple() {
-    assert_eq!(
-        eval_string(":user::c08"),
-        Ok(include_str!("probe_arc251_keyword_to_type_form__contract-08-nested-tuple.wat").into())
+    // Arc 109 ③ — the fixture's `:(wat::core::Vector<T>,wat::core::i64)` embeds an angle-
+    // bracket parametric INSIDE the native tuple spelling; same refusal as contracts
+    // 02/03/04/05 above (see the block comment there).
+    let err = eval_string(":user::c08").expect_err("angle-bracket parametric keyword must be REFUSED");
+    assert!( // rune:lint(loose-assert) — targeted substring: asserting the angle-bracket wall fired, not the whole located TypeError's structure
+        err.contains("angle-bracket parametric types are illegal"),
+        "expected the angle-bracket wall's reason; got: {err}"
     );
 }
 

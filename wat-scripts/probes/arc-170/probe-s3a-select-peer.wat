@@ -17,7 +17,7 @@
 ;; peers held at the ABSTRACT Peer' type — the shape the bracket's collect-loop wants
 ;; (Vector<Peer'<(i64,I),(i64,O)>>). Positionally identical to Thread'<(i64,I),(i64,O)>.
 (:wat::core::defn :probe::sel
-  [peers <- :wat::core::Vector<wat::kernel::Peer<(wat::core::i64,wat::core::i64),(wat::core::i64,wat::core::i64)>>]
+  [peers <- (:wat::core::Vector :- [(:wat::kernel::Peer :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64]) (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])])])]
   -> :wat::core::nil
   (:wat::core::let [_ev (:wat::kernel::select peers)]
     nil))

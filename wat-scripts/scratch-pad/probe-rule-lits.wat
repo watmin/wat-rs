@@ -19,8 +19,8 @@
   (:wat::core::let
     [rules-children (:wat::core::ast->children rules-vec)
      rule-lits (:wat::core::foldl
-                 (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST> rf <- :wat::WatAST]
-                   -> :wat::core::Vector<wat::WatAST>
+                 (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST]) rf <- :wat::WatAST]
+                   -> (:wat::core::Vector :- [:wat::WatAST])
                    (:wat::core::let
                      [rch       (:wat::core::ast->children rf)
                       rname     (:wat::core::Option/expect (:wat::core::get rch 1) "mk-deduce: rule missing name")
@@ -38,15 +38,15 @@
      ;; A: bare facts, no more `(:wat::rete::insert (:Type …))` wrapper).
      derived-type-strs
                (:wat::core::foldl
-                 (:wat::core::fn [acc <- :wat::core::Vector<wat::core::String> rf <- :wat::WatAST]
-                   -> :wat::core::Vector<wat::core::String>
+                 (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String]) rf <- :wat::WatAST]
+                   -> (:wat::core::Vector :- [:wat::core::String])
                    (:wat::core::let
                      [rch (:wat::core::ast->children rf)
                       then-vec   (:wat::core::Option/expect (:wat::core::get rch 5) "mk-deduce: rule missing :then")
                       then-forms (:wat::core::ast->children then-vec)]
                      (:wat::core::foldl
-                       (:wat::core::fn [acc2 <- :wat::core::Vector<wat::core::String> tf <- :wat::WatAST]
-                         -> :wat::core::Vector<wat::core::String>
+                       (:wat::core::fn [acc2 <- (:wat::core::Vector :- [:wat::core::String]) tf <- :wat::WatAST]
+                         -> (:wat::core::Vector :- [:wat::core::String])
                          (:wat::core::let
                            [cch  (:wat::core::ast->children tf)
                             tkw  (:wat::core::Option/expect (:wat::core::get cch 0) "mk-deduce: :then fact-form missing a type")
@@ -62,8 +62,8 @@
      fired-sym  (:wat::core::symbol-node "fired")
      query-lits
                (:wat::core::foldl
-                 (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST> tstr <- :wat::core::String]
-                   -> :wat::core::Vector<wat::WatAST>
+                 (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST]) tstr <- :wat::core::String]
+                   -> (:wat::core::Vector :- [:wat::WatAST])
                    (:wat::core::let
                      [tkw  (:wat::core::keyword-node (:wat::core::string::concat ":" tstr))
                       cond `(~tkw)]
@@ -75,8 +75,8 @@
                  derived-type-strs)
      query-calls
                (:wat::core::foldl
-                 (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST> lit <- :wat::WatAST]
-                   -> :wat::core::Vector<wat::WatAST>
+                 (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST]) lit <- :wat::WatAST]
+                   -> (:wat::core::Vector :- [:wat::WatAST])
                    (:wat::core::conj acc `(:wat::rete::query ~fired-sym ~lit)))
                  (:wat::core::Vector :wat::WatAST)
                  query-lits)]
@@ -87,7 +87,7 @@
            (:wat::core::PersistentVector ~@query-lits)))
        (:wat::core::defn :usr::deduce-one
          [template <- :wat::rete::Session  seed <- :usr::Temp]
-         -> :wat::core::PersistentVector<wat::core::Value>
+         -> (:wat::core::PersistentVector :- [:wat::core::Value])
          (:wat::core::let
            [~fired-sym (:wat::rete::fire-rules (:wat::rete::insert template seed))]
            (:wat::core::concat ~@query-calls))))))

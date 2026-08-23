@@ -8,7 +8,7 @@
    (:wat::core::defenum :my::HCounter::IsHolonRecordResponse :wat::enum::Pure
      :Ok              [yes <- :wat::core::bool]
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(is-holon-record [self <- :my::HCounter  req <- :my::HCounter::IsHolonRecordRequest] -> :my::HCounter::IsHolonRecordResponse :max-request-bytes 524288)])
 

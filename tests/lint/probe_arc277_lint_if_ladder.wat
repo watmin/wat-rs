@@ -3,7 +3,7 @@
 ;; one var `x` — a set membership in disguise. The probe eval_in_frozen's (:t::lint) and asserts >= 1
 ;; finding from the nested-if-=-ladder rule. (The inner \"...\" are the wat source-string the lexer sees.)
 
-(:wat::core::defn :t::lint [] -> :wat::core::Vector<wat::lint::Finding>
+(:wat::core::defn :t::lint [] -> (:wat::core::Vector :- [:wat::lint::Finding])
   (:wat::lint::lint-source
     (:wat::core::Vector :wat::source::File
       (:wat::source::File :path "t.wat"

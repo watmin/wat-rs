@@ -46,12 +46,12 @@
 
 (:wat::core::defrecord :grid::Result
   [axis      <- :wat::core::String
-   size      <- :wat::core::PersistentVector<wat::core::i64>
-   derived   <- :wat::core::PersistentVector<wat::core::i64>
+   size      <- (:wat::core::PersistentVector :- [:wat::core::i64])
+   derived   <- (:wat::core::PersistentVector :- [:wat::core::i64])
    native-ns      <- :wat::core::i64
    ;; THREE-WAY: the wat SPEC's own answer, so the runner can render :oracle-accuracy
    ;; (spec vs Clara) and :port-accuracy (spec vs native) instead of one verdict.
-   oracle-derived <- :wat::core::PersistentVector<wat::core::i64>
+   oracle-derived <- (:wat::core::PersistentVector :- [:wat::core::i64])
    oracle-ns      <- :wat::core::i64
    insert-ns      <- :wat::core::i64
    fire-ns        <- :wat::core::i64
@@ -66,10 +66,10 @@
 ;; facts-key k fanout — the Left(k,f)+Right(k,f) facts for f in [0,fanout), as a FACT VECTOR.
 ;; It no longer threads a Session: staging is now one BATCH call at the end (below), so the
 ;; helper's job is to produce facts, not to insert them. Named for what it returns.
-(:wat::core::defn :fan::facts-key [k <- :wat::core::i64  fanout <- :wat::core::i64] -> :wat::core::PersistentVector<wat::core::Record>
+(:wat::core::defn :fan::facts-key [k <- :wat::core::i64  fanout <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::core::Record])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::Record>  f <- :wat::core::i64]
-                    -> :wat::core::PersistentVector<wat::core::Record>
+    (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  f <- :wat::core::i64]
+                    -> (:wat::core::PersistentVector :- [:wat::core::Record])
       (:wat::core::PersistentVector/conj
         (:wat::core::PersistentVector/conj acc (:fan::Left :key k :lid f))
         (:fan::Right :key k :rid f)))
@@ -77,10 +77,10 @@
     (:wat::core::range 0 fanout)))
 
 ;; all-facts keys fanout — every key's F Lefts + F Rights. Construct only.
-(:wat::core::defn :fan::all-facts [keys <- :wat::core::i64  fanout <- :wat::core::i64] -> :wat::core::PersistentVector<wat::core::Record>
+(:wat::core::defn :fan::all-facts [keys <- :wat::core::i64  fanout <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::core::Record])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::Record>  k <- :wat::core::i64]
-                    -> :wat::core::PersistentVector<wat::core::Record>
+    (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  k <- :wat::core::i64]
+                    -> (:wat::core::PersistentVector :- [:wat::core::Record])
       (:wat::core::PersistentVector/concat acc (:fan::facts-key k fanout)))
     (:wat::core::PersistentVector)
     (:wat::core::range 0 keys)))
@@ -100,11 +100,11 @@
 ;; vec->pvec v — materialize a Vector<i64> into a PersistentVector<i64>. DESIGN-STONE-into-pv-
 ;; from-vector.md: `into` now has a native (PersistentVector<T>, Vector<T>) clause backed by one
 ;; `PersistentVector/concat` call — retiring the N-interpreted-closure-invocation conj-fold.
-(:wat::core::defn :fan::vec->pvec [v <- :wat::core::Vector<wat::core::i64>] -> :wat::core::PersistentVector<wat::core::i64>
+(:wat::core::defn :fan::vec->pvec [v <- (:wat::core::Vector :- [:wat::core::i64])] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:wat::core::into (:wat::core::PersistentVector) v))
 
 ;; derived-vector fired — every derived Pair fact, canonically encoded, sorted ascending.
-(:wat::core::defn :fan::derived-vector [fired <- :wat::rete::Session] -> :wat::core::PersistentVector<wat::core::i64>
+(:wat::core::defn :fan::derived-vector [fired <- :wat::rete::Session] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:fan::vec->pvec
     (:wat::core::sort
       (:wat::core::into (:wat::core::Vector :wat::core::i64)

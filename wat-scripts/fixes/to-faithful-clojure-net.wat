@@ -149,11 +149,11 @@
 
 ;; ══ THE OBSERVATION WALK — emit :fix::Node facts (pure; zero classification) ══
 (:wat::core::defn :fix::walk-seq
-  [items  <- :wat::core::Vector<wat::WatAST>
+  [items  <- (:wat::core::Vector :- [:wat::WatAST])
    parent <- :fix::Parent
    idx    <- :wat::core::i64
-   lines  <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<fix::Node>
+   lines  <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [:fix::Node])
   (:wat::core::if (:wat::core::empty? items)
     (:wat::core::Vector :fix::Node)
     (:wat::core::concat
@@ -164,8 +164,8 @@
   [node      <- :wat::WatAST
    parent    <- :fix::Parent
    child-idx <- :wat::core::i64
-   lines     <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<fix::Node>
+   lines     <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [:fix::Node])
   (:wat::core::if (:wat::fix::structural? node)
     (:wat::core::let [my-id (:wat::fix::fix-text-offset-of (:wat::core::ast-span node) lines)
                       ch    (:wat::core::ast->children node)
@@ -191,7 +191,7 @@
 
 ;; stage the facts: fold insert over the Node vector
 (:wat::core::defn :fix::insert-nodes
-  [session <- :wat::rete::Session  nodes <- :wat::core::Vector<fix::Node>]
+  [session <- :wat::rete::Session  nodes <- (:wat::core::Vector :- [:fix::Node])]
   -> :wat::rete::Session
   (:wat::core::foldl
     (:wat::core::fn [s <- :wat::rete::Session  n <- :fix::Node] -> :wat::rete::Session
@@ -201,12 +201,12 @@
 ;; ══ QUERY OUT + ACTION — the transform lives HERE (outside rete) ═════════════
 (:wat::core::defn :fix::head-edits
   [convs <- :wat::core::PersistentVector
-   acc   <- :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+   acc   <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::foldl
-    (:wat::core::fn [a  <- :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+    (:wat::core::fn [a  <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
                      hc <- :wat::core::PersistentMap]
-      -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+      -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
       (:wat::core::concat a
         (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)
           (:wat::core::Tuple
@@ -221,12 +221,12 @@
 
 (:wat::core::defn :fix::arrow-edits
   [convs <- :wat::core::PersistentVector
-   acc   <- :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+   acc   <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::foldl
-    (:wat::core::fn [a  <- :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+    (:wat::core::fn [a  <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
                      ac <- :wat::core::PersistentMap]
-      -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+      -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
       (:wat::core::concat a
         (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)
           (:wat::core::Tuple
@@ -237,12 +237,12 @@
 
 (:wat::core::defn :fix::type-edits
   [convs <- :wat::core::PersistentVector
-   acc   <- :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+   acc   <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::foldl
-    (:wat::core::fn [a  <- :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+    (:wat::core::fn [a  <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
                      tc <- :wat::core::PersistentMap]
-      -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+      -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
       (:wat::core::concat a
         (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)
           (:wat::core::Tuple
@@ -282,7 +282,7 @@
 
 ;; ══ DRIVE — read → convert → write, per path ════════════════════════════════
 (:wat::core::defn :user::apply-each
-  [paths <- :wat::core::Vector<wat::core::String>] -> :wat::core::nil
+  [paths <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::nil
   (:wat::core::if (:wat::core::empty? paths)
     nil
     (:wat::core::let [path (:wat::core::first paths)]

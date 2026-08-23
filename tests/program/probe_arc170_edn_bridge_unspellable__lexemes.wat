@@ -10,7 +10,7 @@
 (:wat::core::defn :u::acc [] -> :wat::core::i64 (:wat::core::Vector/length xs))
 
 ;; 2. generic type — `<` `>` in a keyword body.
-(:wat::core::defn :u::gen [xs <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64 1)
+(:wat::core::defn :u::gen [xs <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::i64 1)
 
 ;; 3. tuple type — the keyword body OPENS with `(`.
 (:wat::core::defn :u::tup [] -> :(wat::core::i64,wat::core::String) (:wat::core::Tuple 1 "a"))

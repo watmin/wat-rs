@@ -72,7 +72,7 @@
   [k      <- :wat::core::i64
    client <- :wsh::Client
    name   <- :wat::core::String
-   tags   <- :wat::core::PersistentVector<wat::core::i64>
+   tags   <- (:wat::core::PersistentVector :- [:wat::core::i64])
    limit  <- :wat::core::i64])                                 ;; the shared fact stream
 
 (:wat::core::defrecord :wsh::Hit [k <- :wat::core::i64])   ;; the single production type
@@ -160,7 +160,7 @@
 ;;
 ;; An unknown row is a located failure, never a silent fallback to row 1 — a default arm would let a
 ;; mis-set row-count report a green corpus for a shape nobody ran.
-(:wat::core::defn :wsh::build-rules [row <- :wat::core::i64] -> :wat::core::PersistentVector<wat::rete::Rule>
+(:wat::core::defn :wsh::build-rules [row <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
   (:wat::core::PersistentVector
     (:wat::core::cond
       ((:wat::core::= row 1) (:wsh::arith))
@@ -186,8 +186,8 @@
   (:wat::rete::insert-all
     session
     (:wat::core::foldl
-      (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::Record>  i <- :wat::core::i64]
-                      -> :wat::core::PersistentVector<wat::core::Record>
+      (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  i <- :wat::core::i64]
+                      -> (:wat::core::PersistentVector :- [:wat::core::Record])
         (:wat::core::let [rep      (:wat::core::i64::- (:wat::core::i64::- i (:wat::core::i64::* (:wat::core::i64::/ i 5) 5)) 2)
                           is-ad    (:wat::core::= 0 (:wat::core::i64::- i (:wat::core::i64::* (:wat::core::i64::/ i 3) 3)))
                           nm       (:wat::core::if is-ad
@@ -204,7 +204,7 @@
 
 ;; derived-ints fired — every derived Hit's key k, sorted ascending. THE accuracy witness.
 (:wat::core::defn :wsh::derived-ints
-  [fired <- :wat::rete::Session] -> :wat::core::Vector<wat::core::i64>
+  [fired <- :wat::rete::Session] -> (:wat::core::Vector :- [:wat::core::i64])
   (:wat::core::sort
     (:wat::core::into (:wat::core::Vector :wat::core::i64)
       (:wat::core::map
@@ -216,7 +216,7 @@
 ;; PersistentVector as `#wat.core/PersistentVector [...]` (a real round-trip-identity decision) while
 ;; Clojure's `pr-str` emits a bare vector; rendering the ints ourselves sidesteps that entirely
 ;; instead of stripping the tag afterwards.
-(:wat::core::defn :wsh::render-ints [v <- :wat::core::Vector<wat::core::i64>] -> :wat::core::String
+(:wat::core::defn :wsh::render-ints [v <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::String
   (:wat::core::foldl
     (:wat::core::fn [acc <- :wat::core::String  x <- :wat::core::i64] -> :wat::core::String
       (:wat::core::String/concat acc

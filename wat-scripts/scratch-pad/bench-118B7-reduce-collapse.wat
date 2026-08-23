@@ -20,14 +20,14 @@
 (:wat::core::defn :bench::add [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
   (:wat::core::i64::+ acc x))
 
-(:wat::core::defn :bench::via-reduce [v <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
+(:wat::core::defn :bench::via-reduce [v <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::i64
   (:wat::core::reduce :bench::add 0 v))
 
-(:wat::core::defn :bench::via-foldl [v <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
+(:wat::core::defn :bench::via-foldl [v <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::i64
   (:wat::core::foldl :bench::add 0 v))
 
 ;; the wat oracle, as the SLOW reference — reduce must track foldl, not this.
-(:wat::core::defn :bench::via-spec [v <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
+(:wat::core::defn :bench::via-spec [v <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::i64
   (:wat::core::foldl-spec :bench::add 0 v))
 
 (:wat::core::defn :bench::ns [t0 <- :wat::time::Instant t1 <- :wat::time::Instant] -> :wat::core::i64

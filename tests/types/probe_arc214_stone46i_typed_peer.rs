@@ -35,20 +35,26 @@
 //! Run: `cargo nextest run --release -E 'binary(types)' -F probe_arc214_stone46i_typed_peer`
 
 use wat::freeze::startup_from_file;
-use wat::types::parse_type_expr;
 
 // ─── Probe 1: the parametric peer type parses ────────────────────────────────
 
 /// `:wat::kernel::Thread` must parse as a type-keyword (the parametric head
 /// must be a registered/parseable type). Documents the registration target.
+///
+/// Arc 109 ③ — angle brackets are illegal; `Head<args>` has no flat-string
+/// spelling any more, so `parse_type_expr` (a &str -> TypeExpr fn) can no
+/// longer express a parametric reference at all — the surviving spelling
+/// `(Head :- [args])` only parses from a structural `WatAST::List`, which
+/// (outside the crate, `parse_type_node` being `pub(crate)`) means going
+/// through the freeze pipeline instead. Same claim, driven end-to-end via
+/// the co-located fixture (a typealias referencing the parametric head).
 #[test]
 fn probe_1_thread_peer_type_parses() {
-    let result = parse_type_expr(":wat::kernel::Thread<wat::core::i64,wat::core::i64>");
-    assert!(
-        result.is_ok(),
-        "parse_type_expr(:wat::kernel::Thread<i64,i64>) must return Ok; got {:?}",
-        result
-    );
+    startup_from_file("tests/types/probe_arc214_stone46i_typed_peer_probe1.wat")
+        .unwrap_or_else(|e| panic!(
+            "startup should succeed — :wat::kernel::Thread must parse as a registered parametric type head; got error:\n{}\n---\n{:?}",
+            e, e
+        ));
 }
 
 // ─── Probes 2/3: the peer annotations type-check (vacuously green at HEAD) ───

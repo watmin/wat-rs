@@ -30,11 +30,11 @@
 ;;   printf '["pathA" "pathB" …]\n' | cargo wat ./wat-scripts/fixes/struct-new-failure-to-message-only-failure.wat
 
 ;; ── small helpers (mirrors response-record-to-enum.wat / eprintln-recv-arm-to-assertion-failed.wat) ──
-(:wat::core::defn :user::start-off [n <- :wat::WatAST  lines <- :wat::core::Vector<wat::core::String>]
+(:wat::core::defn :user::start-off [n <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])]
   -> :wat::core::i64
   (:wat::fix::fix-text-offset-of (:wat::core::ast-span n) lines))
 
-(:wat::core::defn :user::end-off [n <- :wat::WatAST  lines <- :wat::core::Vector<wat::core::String>]
+(:wat::core::defn :user::end-off [n <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])]
   -> :wat::core::i64
   (:wat::fix::fix-text-offset-of (:wat::core::ast-end-span n) lines))
 
@@ -56,10 +56,10 @@
 ;; ── EDIT: replace the whole node's span with `(:wat::kernel::message-only-failure MSG)` ──
 (:wat::core::defn :user::struct-new-failure-edit
   [node <- :wat::WatAST
-   ch   <- :wat::core::Vector<wat::WatAST>
+   ch   <- (:wat::core::Vector :- [:wat::WatAST])
    src  <- :wat::core::String
-   lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+   lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::let
     [msg     (:wat::core::Option/expect (:wat::core::get ch 2) "msg")
      n0      (:user::start-off node lines)
@@ -73,8 +73,8 @@
 ;; into its own children (MSG is re-emitted verbatim by span, not walked; the defaulted tail args
 ;; are dropped whole) — the single edit covers the entire node.
 (:wat::core::defn :user::node-edits
-  [node <- :wat::WatAST  src <- :wat::core::String  lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+  [node <- :wat::WatAST  src <- :wat::core::String  lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::if (:user::struct-new-failure? node)
     (:user::struct-new-failure-edit node (:wat::core::ast->children node) src lines)
     (:wat::core::if (:wat::fix::structural? node)
@@ -82,11 +82,11 @@
       (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)))))
 
 (:wat::core::defn :user::seq-edits
-  [items <- :wat::core::Vector<wat::WatAST>  src <- :wat::core::String  lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+  [items <- (:wat::core::Vector :- [:wat::WatAST])  src <- :wat::core::String  lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)> it <- :wat::WatAST]
-      -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+    (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])]) it <- :wat::WatAST]
+      -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
       (:wat::core::concat acc (:user::node-edits it src lines)))
     (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
     items))
@@ -101,7 +101,7 @@
     (:wat::fix::fix-text-apply src rev)))
 
 ;; ── driver ───────────────────────────────────────────────────────────────────
-(:wat::core::defn :user::apply-each [paths <- :wat::core::Vector<wat::core::String>] -> :wat::core::nil
+(:wat::core::defn :user::apply-each [paths <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::nil
   (:wat::core::if (:wat::core::empty? paths)
     nil
     (:wat::core::let [path (:wat::core::first paths)]

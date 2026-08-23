@@ -21,12 +21,12 @@
    (:wat::core::defenum :wat-tests::Counter::GetResponse :wat::enum::Pure
      :Ok              [value <- :wat::core::i64]
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])
    (:wat::core::defrecord :wat-tests::Counter::IncrementRequest  [n <- :wat::core::i64])
    (:wat::core::defenum :wat-tests::Counter::IncrementResponse :wat::enum::Pure
      :Ok              [value <- :wat::core::i64]
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(get       [self <- :wat-tests::Counter  req <- :wat-tests::Counter::GetRequest]       -> :wat-tests::Counter::GetResponse :max-request-bytes 524288)
    (increment [self <- :wat-tests::Counter  req <- :wat-tests::Counter::IncrementRequest] -> :wat-tests::Counter::IncrementResponse :max-request-bytes 524288)])

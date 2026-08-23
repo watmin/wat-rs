@@ -10,7 +10,7 @@
      argspec  (:wat::core::nth fn-ch 1)]
     (:wat::core::length (:wat::core::ast->children argspec))))
 
-(:wat::core::defn :probe::argcount2<W> [f <- :W] -> :wat::core::i64
+(:wat::core::defn :probe::argcount2 :- [W] [f <- :W] -> :wat::core::i64
   (:wat::core::let
     [forms   (:wat::kernel::fn-forms f (:wat::core::keyword/from-string "user::probe::wf"))
      def-node (:wat::core::Option/expect (:wat::core::last forms) "no def")
@@ -31,4 +31,4 @@
     (:wat::kernel::println
       (:probe::argcount (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64 n)))
     (:wat::kernel::println
-      (:probe::argcount2 (:wat::core::fn [c <- :wat::kernel::Peer<wat::core::i64,wat::core::String>  n <- :wat::core::i64] -> :wat::core::i64 n)))))
+      (:probe::argcount2 (:wat::core::fn [c <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::String])  n <- :wat::core::i64] -> :wat::core::i64 n)))))

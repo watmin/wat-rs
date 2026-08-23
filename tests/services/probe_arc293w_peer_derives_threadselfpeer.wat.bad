@@ -15,12 +15,12 @@
 ;; If a future change makes this file compile, that change is wrong — do not "fix" this file.
 
 (:wat::core::defn :probe::takes-peer
-  [p <- :wat::kernel::Peer<wat::core::i64,wat::core::i64>] -> :wat::core::i64
+  [p <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::i64
   1)
 
 ;; ★ THE VIOLATION — must be refused, forever.
 (:wat::core::defn :probe::thread-self-peer-must-not-satisfy-peer
-  [p <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>] -> :wat::core::i64
+  [p <- (:wat::kernel::ThreadSelfPeer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::i64
   (:probe::takes-peer p))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

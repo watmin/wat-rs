@@ -44,7 +44,7 @@
   [n       <- :wat::core::i64
    total   <- :wat::core::i64
    next-id <- :wat::core::i64
-   kinds   <- :wat::core::HashMap<wat::core::String,wat::core::i64>])
+   kinds   <- (:wat::core::HashMap :- [:wat::core::String :wat::core::i64])])
 
 ;; build-rule i n — VERBATIM the axis's rule: Out(k) :- A(k) AND B(k) AND (i == k mod n).
 ;; The leading two conditions are byte-identical across every i (no i splices into them), so they
@@ -63,10 +63,10 @@
       :lhs (:wat::core::PersistentVector a-c b-c where-c)
       :rhs (:wat::core::PersistentVector ins))))
 
-(:wat::core::defn :nsp::build-rules [n <- :wat::core::i64] -> :wat::core::PersistentVector<wat::rete::Rule>
+(:wat::core::defn :nsp::build-rules [n <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::rete::Rule>  i <- :wat::core::i64]
-      -> :wat::core::PersistentVector<wat::rete::Rule>
+    (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::rete::Rule])  i <- :wat::core::i64]
+      -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
       (:wat::core::PersistentVector/conj acc (:nsp::build-rule i n)))
     (:wat::core::PersistentVector)
     (:wat::core::range 0 n)))
@@ -75,13 +75,13 @@
 ;; takes the last `::` segment of the node record's own type FQDN, so this needs no per-kind
 ;; enumeration and will surface a node kind this probe's author never thought of.
 (:wat::core::defn :nsp::count-kinds
-  [session <- :wat::rete::Session] -> :wat::core::HashMap<wat::core::String,wat::core::i64>
+  [session <- :wat::rete::Session] -> (:wat::core::HashMap :- [:wat::core::String :wat::core::i64])
   (:wat::core::let [network (:wat::rete::Session/network session)
                     keys    (:wat::core::PersistentMap/keys network)]
     (:wat::core::foldl
-      (:wat::core::fn [acc <- :wat::core::HashMap<wat::core::String,wat::core::i64>
+      (:wat::core::fn [acc <- (:wat::core::HashMap :- [:wat::core::String :wat::core::i64])
                        k   <- :wat::core::i64]
-        -> :wat::core::HashMap<wat::core::String,wat::core::i64>
+        -> (:wat::core::HashMap :- [:wat::core::String :wat::core::i64])
         (:wat::core::let [node (:wat::core::Option/expect
                                  (:wat::core::PersistentMap/get network k)
                                  "count-kinds: node not found")

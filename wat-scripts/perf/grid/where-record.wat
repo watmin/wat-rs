@@ -78,12 +78,12 @@
 (:wat::core::defrecord :wr::L3 [l4 <- :wr::L4  w <- :wat::core::i64])
 (:wat::core::defrecord :wr::L2 [l3 <- :wr::L3  u <- :wat::core::i64])
 (:wat::core::defrecord :wr::Bag
-  [items <- :wat::core::PersistentVector<wat::core::i64>
+  [items <- (:wat::core::PersistentVector :- [:wat::core::i64])
    label <- :wat::core::String])
 (:wat::core::defrecord :wr::Client
   [l2   <- :wr::L2
    rep  <- :wat::core::i64
-   tags <- :wat::core::PersistentVector<wat::core::i64>
+   tags <- (:wat::core::PersistentVector :- [:wat::core::i64])
    bag  <- :wr::Bag])
 
 ;; row 10's field type — Active carries a level, Pending carries a reason, Inactive is a unit variant.
@@ -97,7 +97,7 @@
    client  <- :wr::Client
    client2 <- :wr::Client
    status  <- :wr::Status
-   note    <- :wat::core::Option<wat::core::i64>])
+   note    <- (:wat::core::Option :- [:wat::core::i64])])
 
 (:wat::core::defrecord :wr::Hit [k <- :wat::core::i64])   ;; the single production type
 
@@ -135,7 +135,7 @@
 
 ;; row 11's field-value builder. None is bare (mirrors :wat::core::None used bare elsewhere); Some
 ;; wraps a value positionally.
-(:wat::core::defn :wr::note-of [i <- :wat::core::i64] -> :wat::core::Option<wat::core::i64>
+(:wat::core::defn :wr::note-of [i <- :wat::core::i64] -> (:wat::core::Option :- [:wat::core::i64])
   (:wat::core::let [nm (:wat::core::i64::mod i 4)]
     (:wat::core::if (:wat::core::= nm 0)
       :wat::core::None
@@ -157,7 +157,7 @@
     ((:wr::Status::Pending reason) (:wat::rete::core::i64::> reason 1))))
 
 ;; row 11's predicate over the Option field — `match` over Some/None, called from `where`.
-(:wat::rete::core::defn :wr::note-positive? [nt <- :wat::core::Option<wat::core::i64>] -> :wat::core::bool
+(:wat::rete::core::defn :wr::note-positive? [nt <- (:wat::core::Option :- [:wat::core::i64])] -> :wat::core::bool
   (:wat::rete::core::match nt
     ((:wat::core::Some v) (:wat::rete::core::i64::> v 2))
     (:wat::core::None     false)))
@@ -298,7 +298,7 @@
 
 
 ;; build-rules row — THE ROW DISPATCH. An unknown row is a located failure, never a silent fallback.
-(:wat::core::defn :wr::build-rules [row <- :wat::core::i64] -> :wat::core::PersistentVector<wat::rete::Rule>
+(:wat::core::defn :wr::build-rules [row <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
   (:wat::core::PersistentVector
     (:wat::core::cond
       ((:wat::core::= row 1)  (:wr::chain2))
@@ -324,8 +324,8 @@
   (:wat::rete::insert-all
     session
     (:wat::core::foldl
-      (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::Record>  i <- :wat::core::i64]
-                      -> :wat::core::PersistentVector<wat::core::Record>
+      (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  i <- :wat::core::i64]
+                      -> (:wat::core::PersistentVector :- [:wat::core::Record])
         (:wat::core::let [j (:wat::core::i64::mod (:wat::core::i64::+ i 97) items)]
           (:wat::core::PersistentVector/conj acc
             (:wr::Req :k i
@@ -338,7 +338,7 @@
 
 ;; derived-ints fired — every derived Hit's key k, sorted ascending. THE accuracy witness.
 (:wat::core::defn :wr::derived-ints
-  [fired <- :wat::rete::Session] -> :wat::core::Vector<wat::core::i64>
+  [fired <- :wat::rete::Session] -> (:wat::core::Vector :- [:wat::core::i64])
   (:wat::core::sort
     (:wat::core::into (:wat::core::Vector :wat::core::i64)
       (:wat::core::map
@@ -347,7 +347,7 @@
 
 ;; render-ints — " 3 13 23 …". A plain space-joined rendering, NOT the EDN printer — see
 ;; where-shapes.wat's identical helper for why this must not be `:wat::edn::write`.
-(:wat::core::defn :wr::render-ints [v <- :wat::core::Vector<wat::core::i64>] -> :wat::core::String
+(:wat::core::defn :wr::render-ints [v <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::String
   (:wat::core::foldl
     (:wat::core::fn [acc <- :wat::core::String  x <- :wat::core::i64] -> :wat::core::String
       (:wat::core::String/concat acc

@@ -40,7 +40,7 @@
    (:wat::core::defenum :probe::DurableForms::EvalSrcResponse :wat::enum::Pure
      :Ok               [out <- :wat::core::String]
      :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path     <- :wat::core::Vector<wat::core::String>
+     :RequestMalformed [path     <- (:wat::core::Vector :- [:wat::core::String])
                         expected <- :wat::core::String
                         got      <- :wat::core::String])]
   :features
@@ -50,7 +50,7 @@
 ;; ★ THE SUBJECT — `:durable` holding a vector of FORMS.
 (:wat::service::defservice :probe::durable-forms-svc
   :satisfies :probe::DurableForms
-  :durable   [defs <- :wat::core::Vector<wat::WatAST>]
+  :durable   [defs <- (:wat::core::Vector :- [:wat::WatAST])]
   :ephemeral []
   :impls
   [(eval-src [s ctx req]

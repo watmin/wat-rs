@@ -16,7 +16,7 @@
 ;; 512 KiB cap. The child stays alive (blocked in the kernel's write(2), pipe buffer full) while the
 ;; parent's frame reader accumulates past the cap → FrameTooLarge → Lost.
 
-(:wat::core::defn :user::compute [] -> :wat::spawn::ServiceEvent<wat::core::nil,wat::core::nil,wat::core::nil>
+(:wat::core::defn :user::compute [] -> (:wat::spawn::ServiceEvent :- [:wat::core::nil :wat::core::nil :wat::core::nil])
   (:wat::core::let
     [child (:wat::test::spawn-peer (:wat::spawn::process)
              (:wat::core::forms
@@ -31,4 +31,4 @@
                  (:wat::core::let
                    [_n (:wat::test::flood-own-stdout)]
                    nil))))]
-    (:wat::kernel::select (:wat::core::Vector :wat::kernel::Process<wat::core::nil,wat::core::nil> child))))
+    (:wat::kernel::select (:wat::core::Vector (:wat::kernel::Process :- [:wat::core::nil :wat::core::nil]) child))))

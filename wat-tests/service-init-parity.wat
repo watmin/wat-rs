@@ -20,7 +20,7 @@
    (:wat::core::defenum :wat-tests::SeededCounter::GetResponse :wat::enum::Pure
      :Ok              [value <- :wat::core::i64]
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(get [self <- :wat-tests::SeededCounter  req <- :wat-tests::SeededCounter::GetRequest] -> :wat-tests::SeededCounter::GetResponse :max-request-bytes 524288)])
 

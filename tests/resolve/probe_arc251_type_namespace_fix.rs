@@ -30,9 +30,14 @@ fn c01_core_fqdn_scalar_stays_wat_type() {
 
 #[test]
 fn c02_core_parametric_stays_wat_type() {
-    assert_eq!(
-        eval_string(":user::c02"),
-        Ok(include_str!("probe_arc251_type_namespace_fix__c02-core-parametric.wat").into())
+    // Arc 109 ③ — angle brackets are ILLEGAL for types now; the fixture's C02 keyword-node
+    // embeds `Vector<i64>`, which renders through the SAME walled `keyword/to-type-form`
+    // `probe_arc251_keyword_to_type_form.rs`'s contracts 02-05/08 hit — there is no other
+    // keyword-string spelling for a parametric type any more, so the refusal is the coverage.
+    let err = eval_string(":user::c02").expect_err("angle-bracket parametric keyword must be REFUSED");
+    assert!( // rune:lint(loose-assert) — targeted substring: asserting the angle-bracket wall fired, not the whole located TypeError's structure
+        err.contains("angle-bracket parametric types are illegal"),
+        "expected the angle-bracket wall's reason; got: {err}"
     );
 }
 

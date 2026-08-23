@@ -22,10 +22,10 @@
 (:wat::core::defn :bench::shift-add [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
   (:wat::core::i64::+ acc x))
 
-(:wat::core::defn :bench::native [v <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
+(:wat::core::defn :bench::native [v <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::i64
   (:wat::core::foldl :bench::shift-add 0 v))
 
-(:wat::core::defn :bench::spec [v <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
+(:wat::core::defn :bench::spec [v <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::i64
   (:wat::core::foldl-spec :bench::shift-add 0 v))
 
 (:wat::core::defn :bench::ns [t0 <- :wat::time::Instant t1 <- :wat::time::Instant] -> :wat::core::i64

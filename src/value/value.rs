@@ -460,8 +460,19 @@ pub struct ClauseSet {
 /// body for each method (keyed by method name), ready for 232.3 dispatch.
 #[derive(Debug, Clone)]
 pub struct ExtendDef {
-    /// Type FQDN being extended (e.g. `":t::Robot"`).
+    /// Type FQDN being extended (e.g. `":t::Robot"`). For a parametric target this is the
+    /// FULL identity string INCLUDING the `<…>` arg suffix (`format_type`'s rendering — an
+    /// internal bookkeeping key, not source syntax the Arc 109 ③ wall governs), e.g.
+    /// `":wat::cache::lru-svc::Handle<K,V,T>"`.
     pub type_name: String,
+    /// Arc 109 ③ — the STRUCTURED `TypeExpr` the extend-type target parsed to, kept
+    /// alongside `type_name` so a consumer needing the target's structure (e.g. `self`'s
+    /// param type at each impl method) does not have to re-parse `type_name`'s angle-bracket
+    /// STRING — which the Arc 109 ③ wall now refuses (`parse_type_expr` on a `Head<args>`
+    /// string is illegal). `None` only when the target's own text failed to parse (should not
+    /// happen for well-formed input; consumers fall back to `TypeExpr::Path(type_name)`, the
+    /// prior behavior, when this is absent).
+    pub type_te: Option<TypeExpr>,
     /// Protocol/surface FQDN being implemented — always the BARE name (e.g. `":t::Greeter"`,
     /// or `":probe::Holds"` for `(extend-type :IntBox :Holds<i64> …)`); never carries the
     /// `<...>` type-arg suffix, so lookups against `TypeEnv` (keyed by the bare declared

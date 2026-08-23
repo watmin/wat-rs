@@ -15,12 +15,12 @@
 
 ;; ─── the SUBJECT: one clause, one Seqable<T> arm ───────────────────────────────────────────────
 (:wat::core::defclause :my::count-via-clause
-  ([c <- :wat::core::Seqable<T>] -> :wat::core::i64
+  ([c <- (:wat::core::Seqable :- [T])] -> :wat::core::i64
     (:wat::core::length (:wat::core::into [] (:wat::core::Seqable/seq c)))))
 
 ;; ─── the CONTROL: identical body + parameter, as a plain `defn` ────────────────────────────────
-(:wat::core::defn :my::count-via-defn<T>
-  [c <- :wat::core::Seqable<T>] -> :wat::core::i64
+(:wat::core::defn :my::count-via-defn :- [T]
+  [c <- (:wat::core::Seqable :- [T])] -> :wat::core::i64
   (:wat::core::length (:wat::core::into [] (:wat::core::Seqable/seq c))))
 
 ;; ─── the four containers, through the CLAUSE (all four must fail today) ────────────────────────

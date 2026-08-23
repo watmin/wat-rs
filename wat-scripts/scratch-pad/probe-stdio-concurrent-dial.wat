@@ -19,12 +19,12 @@
    (:wat::core::defenum :probe::Counter::GetResponse :wat::enum::Pure
      :Ok              [value <- :wat::core::i64]
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])
    (:wat::core::defrecord :probe::Counter::IncrementRequest  [n <- :wat::core::i64])
    (:wat::core::defenum :probe::Counter::IncrementResponse :wat::enum::Pure
      :Ok              [value <- :wat::core::i64]
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(get       [self <- :probe::Counter  req <- :probe::Counter::GetRequest]       -> :probe::Counter::GetResponse :max-request-bytes 524288)
    (increment [self <- :probe::Counter  req <- :probe::Counter::IncrementRequest] -> :probe::Counter::IncrementResponse :max-request-bytes 524288)])
@@ -47,7 +47,7 @@
 ;;    counting how many typed IncrementResponse::Ok replies came back (a cross-talk / lost-reply
 ;;    detector — a garbled or misrouted reply would fail the typed match and raise). ────────────
 (:wat::core::defn :probe::do-increments
-  [c         <- :wat::kernel::Peer<probe::Counter::Op,probe::Counter::Reply>
+  [c         <- (:wat::kernel::Peer :- [:probe::Counter::Op :probe::Counter::Reply])
    remaining <- :wat::core::i64
    acc       <- :wat::core::i64]
   -> :wat::core::i64
@@ -72,8 +72,8 @@
 ;; ── A worker body: connect' our OWN client Peer' to the shared Address', do 4 increments,
 ;;    send the Ok-count back up the self-peer. Factored to a defn so the 3 spawns are identical. ─
 (:wat::core::defn :probe::worker-body
-  [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>
-   addr <- :wat::kernel::Address<probe::Counter::Op,probe::Counter::Reply>]
+  [self <- (:wat::kernel::ThreadSelfPeer :- [:wat::core::i64 :wat::core::i64])
+   addr <- (:wat::kernel::Address :- [:probe::Counter::Op :probe::Counter::Reply])]
   -> :wat::core::nil
   (:wat::core::let
     [c  (:wat::core::match (:wat::kernel::connect addr)
@@ -90,7 +90,7 @@
 
 ;; helper: recv' an i64 result from a joined worker thread peer.
 (:wat::core::defn :probe::join-count
-  [p <- :wat::kernel::Thread<wat::core::i64,wat::core::i64>]
+  [p <- (:wat::kernel::Thread :- [:wat::core::i64 :wat::core::i64])]
   -> :wat::core::i64
   (:wat::core::match (:wat::kernel::recv p)
     ((:wat::kernel::RecvOutcome::Message m) m)
@@ -104,13 +104,13 @@
      addr (:probe::counter::Handle/addr h)
      ;; spawn ALL THREE workers first (concurrent), each capturing the shared addr — then join.
      w1 (:wat::test::spawn-peer (:wat::spawn::thread)
-          (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+          (:wat::core::fn [self <- (:wat::kernel::ThreadSelfPeer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
             (:probe::worker-body self addr)))
      w2 (:wat::test::spawn-peer (:wat::spawn::thread)
-          (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+          (:wat::core::fn [self <- (:wat::kernel::ThreadSelfPeer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
             (:probe::worker-body self addr)))
      w3 (:wat::test::spawn-peer (:wat::spawn::thread)
-          (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+          (:wat::core::fn [self <- (:wat::kernel::ThreadSelfPeer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
             (:probe::worker-body self addr)))
      r1 (:probe::join-count w1)
      r2 (:probe::join-count w2)

@@ -19,7 +19,7 @@
       (:wat::core::defenum :probe::Bare::EchoResponse :wat::enum::Pure
         :Ok               [c <- :wat::core::i64]
         :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-        :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
+        :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
      :features
      [(echo [self <- :probe::Bare req <- :probe::Bare::EchoRequest] -> :probe::Bare::EchoResponse :max-request-bytes 524288)]))
 

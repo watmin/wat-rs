@@ -35,10 +35,10 @@
 (:wat::rete::defquery :dea::q-Seen  :params [] :when [(?f <- :dea::Seen)])
 (:wat::rete::defquery :dea::q-Tally :params [] :when [(?f <- :dea::Tally)])
 
-(:wat::core::defn :dea::rules [] -> :wat::core::PersistentVector<wat::rete::Rule>
+(:wat::core::defn :dea::rules [] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
   (:wat::core::PersistentVector (:dea::mark-bad) (:dea::ok) (:dea::seen) (:dea::tally)))
 
-(:wat::core::defn :dea::queries [] -> :wat::core::PersistentVector<wat::rete::Query>
+(:wat::core::defn :dea::queries [] -> (:wat::core::PersistentVector :- [:wat::rete::Query])
   (:wat::core::PersistentVector (:dea::q-Bad) (:dea::q-Ok) (:dea::q-Seen) (:dea::q-Tally)))
 
 (:wat::core::defn :dea::seed [s <- :wat::rete::Session] -> :wat::rete::Session
@@ -48,25 +48,25 @@
     (:dea::A :k 2)))
 
 (:wat::core::defn :dea::counts [fired <- :wat::rete::Session]
-  -> :wat::core::PersistentVector<wat::core::i64>
+  -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:wat::core::PersistentVector
     (:wat::core::length (:wat::rete::query fired (:dea::q-Bad)))
     (:wat::core::length (:wat::rete::query fired (:dea::q-Ok)))
     (:wat::core::length (:wat::rete::query fired (:dea::q-Seen)))
     (:wat::core::length (:wat::rete::query fired (:dea::q-Tally)))))
 
-(:wat::core::defn :user::source-counts [] -> :wat::core::PersistentVector<wat::core::i64>
+(:wat::core::defn :user::source-counts [] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:dea::counts
     (:wat::rete::fire-rules
       (:dea::seed (:wat::rete::compile-all (:dea::rules) (:dea::queries))))))
 
-(:wat::core::defn :user::import-counts [] -> :wat::core::PersistentVector<wat::core::i64>
+(:wat::core::defn :user::import-counts [] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:wat::core::let [s0  (:wat::rete::compile-all (:dea::rules) (:dea::queries))
                     exp (:wat::rete::export s0)
                     s1  (:wat::rete::import exp)]
     (:dea::counts (:wat::rete::fire-rules (:dea::seed s1)))))
 
-(:wat::core::defn :user::spec-counts [] -> :wat::core::PersistentVector<wat::core::i64>
+(:wat::core::defn :user::spec-counts [] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:dea::counts
     (:wat::rete::fire-rules$oracle
       (:dea::seed (:wat::rete::compile-all (:dea::rules) (:dea::queries))))))

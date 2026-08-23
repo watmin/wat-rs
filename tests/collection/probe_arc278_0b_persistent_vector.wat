@@ -12,7 +12,7 @@
   (:wat::core::PersistentVector/length (:wat::core::PersistentVector 10 20 30)))
 
 ;; 2. get by index
-(:wat::core::defn :t::p2-get-by-index [] -> :wat::core::Option<wat::core::i64>
+(:wat::core::defn :t::p2-get-by-index [] -> (:wat::core::Option :- [:wat::core::i64])
   (:wat::core::PersistentVector/get (:wat::core::PersistentVector 10 20 30) 1))
 
 ;; 3. IMMUTABILITY / structural sharing — conj does not mutate the original.
@@ -27,7 +27,7 @@
     (:wat::core::PersistentVector/conj (:wat::core::PersistentVector 1 2) 3)))
 
 ;; 4. LAYER-1 polymorphism — generic get dispatches on PersistentVector.
-(:wat::core::defn :t::p5-generic-get [] -> :wat::core::Option<wat::core::i64>
+(:wat::core::defn :t::p5-generic-get [] -> (:wat::core::Option :- [:wat::core::i64])
   (:wat::core::get (:wat::core::PersistentVector 10 20 30) 2))
 
 ;; 4. LAYER-1 polymorphism — generic conj dispatches on PersistentVector.

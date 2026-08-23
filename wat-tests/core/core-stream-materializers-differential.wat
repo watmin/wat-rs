@@ -27,13 +27,13 @@
   [x <- :wat::core::i64] -> :wat::core::i64 x)
 
 (:wat::core::defn :wat-tests::core::core-stream-materializers-differential::stream-of
-  [xs <- :wat::core::Vector<wat::core::i64>] -> :wat::stream::Stream<wat::core::i64>
+  [xs <- (:wat::core::Vector :- [:wat::core::i64])] -> (:wat::stream::Stream :- [:wat::core::i64])
   (:wat::core::map :wat-tests::core::core-stream-materializers-differential::identity xs))
 
 ;; A genuinely lazy producer — no backing container anywhere, each cell built on force. Used for
 ;; the "not just a map-wrapped Vector" rows below.
 (:wat::core::defn :wat-tests::core::core-stream-materializers-differential::counter
-  [i <- :wat::core::i64 limit <- :wat::core::i64] -> :wat::stream::Stream<wat::core::i64>
+  [i <- :wat::core::i64 limit <- :wat::core::i64] -> (:wat::stream::Stream :- [:wat::core::i64])
   (:wat::core::if (:wat::core::>= i limit)
     (:wat::stream::empty)
     (:wat::stream::lazy

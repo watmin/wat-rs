@@ -39,7 +39,7 @@
         (:wat::core::PersistentVector 1 2 3)))))
 
 ;; reverse (type-preserving; head after reverse == 3 — get returns Option<T>)
-(:wat::core::defn :t::p5-reverse [] -> :wat::core::Option<wat::core::i64>
+(:wat::core::defn :t::p5-reverse [] -> (:wat::core::Option :- [:wat::core::i64])
   (:wat::core::PersistentVector/get (:wat::core::reverse (:wat::core::PersistentVector 1 2 3)) 0))
 
 ;; take / drop (coll-first; LAZY — materialize via `into`).

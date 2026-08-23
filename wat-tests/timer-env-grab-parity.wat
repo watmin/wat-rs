@@ -23,7 +23,7 @@
    (:wat::core::defenum :wat-tests::Deadline::WaitTickResponse :wat::enum::Pure
      :Ok              [fired <- :wat::core::keyword]
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(wait-tick [self <- :wat-tests::Deadline  req <- :wat-tests::Deadline::WaitTickRequest] -> :wat-tests::Deadline::WaitTickResponse :max-request-bytes 524288)])
 
@@ -37,7 +37,7 @@
      (:wat::core::let
        [m (:wat::core::match
             (:wat::kernel::select
-              (:wat::core::Vector :wat::kernel::Peer<wat::core::nil,wat::core::keyword>
+              (:wat::core::Vector (:wat::kernel::Peer :- [:wat::core::nil :wat::core::keyword])
                 (:wat::kernel::after
                   (:wat::program::Env/peer-kind (:wat::program::env))   ;; grab MY OWN kind off the env
                   (:wat::time::Millisecond 50)

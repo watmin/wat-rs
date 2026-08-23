@@ -54,7 +54,7 @@
   (:wat::core::ast->source form))
 
 (:wat::core::defn :census::kids
-  [form <- :wat::WatAST] -> :wat::core::Vector<wat::WatAST>
+  [form <- :wat::WatAST] -> (:wat::core::Vector :- [:wat::WatAST])
   (:wat::core::into [] (:wat::core::ast->children form)))
 
 ;; The head keyword of a list form, or "" for an atom / empty list.

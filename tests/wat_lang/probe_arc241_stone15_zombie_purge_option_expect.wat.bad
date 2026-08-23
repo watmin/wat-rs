@@ -1,5 +1,5 @@
 ;; tests/wat_lang/probe_arc241_stone15_zombie_purge_option_expect.wat.bad
 ;; Zombie B: :wat::core::option::expect — must be HARD-CUT-rejected via Stone 241.15.
 
-(:wat::core::defn :test::do-it [opt <- :wat::core::Option<wat::core::i64>] -> :wat::core::i64
+(:wat::core::defn :test::do-it [opt <- (:wat::core::Option :- [:wat::core::i64])] -> :wat::core::i64
   (:wat::core::option::expect -> :wat::core::i64 opt "expected value"))

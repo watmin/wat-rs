@@ -29,9 +29,9 @@
 ;; ─── (2) + (3): ONE clause, lazy producer, recursing on a Stream through a Seqable param ─────
 ;; This is exactly what `keep` / `map-indexed` / `dedupe` / `distinct` / `interpose` become in B2.
 ;; Under the old world this needs FIVE defclause arms plus a `-stream` twin.
-(:wat::core::defn :probe::keep-one<T,U>
-  [f    <- :wat::core::Fn(T)->wat::core::Option<U>
-   coll <- :wat::core::Seqable<T>] -> :wat::stream::Stream<U>
+(:wat::core::defn :probe::keep-one :- [T U]
+  [f    <- [T :-> (:wat::core::Option :- [U])]
+   coll <- (:wat::core::Seqable :- [T])] -> (:wat::stream::Stream :- [U])
   (:wat::stream::lazy
     (:wat::core::match (:wat::stream::next (:wat::core::Seqable/seq coll))
       ((:wat::stream::NextOutcome::Item value rest)
@@ -43,9 +43,9 @@
 
 ;; A STATE-CARRYING producer — the harder half of the family (`keep-indexed`, `map-indexed`,
 ;; `dedupe`, `distinct` all thread an accumulator across the walk). Same crux, plus a threaded arg.
-(:wat::core::defn :probe::index-one<T>
+(:wat::core::defn :probe::index-one :- [T]
   [idx  <- :wat::core::i64
-   coll <- :wat::core::Seqable<T>] -> :wat::stream::Stream<wat::core::i64>
+   coll <- (:wat::core::Seqable :- [T])] -> (:wat::stream::Stream :- [:wat::core::i64])
   (:wat::stream::lazy
     (:wat::core::match (:wat::stream::next (:wat::core::Seqable/seq coll))
       ((:wat::stream::NextOutcome::Item value rest)
@@ -54,13 +54,13 @@
 
 ;; An unbounded source — proves the migrated shape stays LAZY (termination is the assertion).
 (:wat::core::defn :probe::nat
-  [i <- :wat::core::i64] -> :wat::stream::Stream<wat::core::i64>
+  [i <- :wat::core::i64] -> (:wat::stream::Stream :- [:wat::core::i64])
   (:wat::stream::lazy
     (:wat::stream::cons i (:probe::nat (:wat::core::+ i 1)))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
-    [keep-even (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::Option<wat::core::i64>
+    [keep-even (:wat::core::fn [x <- :wat::core::i64] -> (:wat::core::Option :- [:wat::core::i64])
                  (:wat::core::if (:wat::core::= 0 (:wat::core::mod x 2))
                    (:wat::core::Some x)
                    :wat::core::None))]

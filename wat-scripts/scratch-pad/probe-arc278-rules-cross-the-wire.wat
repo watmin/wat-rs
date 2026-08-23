@@ -72,12 +72,12 @@
 (:wat::core::defsurface :probe::RuleWire :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :probe::RuleWire::InstallRequest
-     [defs <- :wat::core::Vector<wat::WatAST>])
+     [defs <- (:wat::core::Vector :- [:wat::WatAST])])
    (:wat::core::defenum :probe::RuleWire::InstallResponse :wat::enum::Pure
      :Derived          [n <- :wat::core::i64]
      :Rejected         [reason <- :wat::core::String]
      :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(install [self <- :probe::RuleWire  req <- :probe::RuleWire::InstallRequest] -> :probe::RuleWire::InstallResponse :max-request-bytes 524288)])
 
@@ -122,7 +122,7 @@
          (:wat::service::Outcome::Reply s (:probe::RuleWire::InstallResponse::Rejected "raised")))))])
 
 ;; ── the two payloads, differing in ONE form ───────────────────────────────────────────────
-(:wat::core::defn :probe::payload-complete [] -> :wat::core::Vector<wat::WatAST>
+(:wat::core::defn :probe::payload-complete [] -> (:wat::core::Vector :- [:wat::WatAST])
   (:wat::core::Vector :wat::WatAST
     (:wat::core::quote (:wat::core::defrecord :usr::Temp [c <- :wat::core::i64]))
     (:wat::core::quote (:wat::core::defrecord :usr::Hot  [c <- :wat::core::i64]))
@@ -134,7 +134,7 @@
         :when [(:usr::Temp (?c <- :c)) (:wat::rete::where (:usr::big? ?c))]
         :then [(:usr::Hot :c ?c)]))))
 
-(:wat::core::defn :probe::payload-missing-helper [] -> :wat::core::Vector<wat::WatAST>
+(:wat::core::defn :probe::payload-missing-helper [] -> (:wat::core::Vector :- [:wat::WatAST])
   (:wat::core::Vector :wat::WatAST
     (:wat::core::quote (:wat::core::defrecord :usr::Temp [c <- :wat::core::i64]))
     (:wat::core::quote (:wat::core::defrecord :usr::Hot  [c <- :wat::core::i64]))
@@ -153,7 +153,7 @@
 
 (:wat::core::defn :probe::install!
   [label <- :wat::core::String
-   defs  <- :wat::core::Vector<wat::WatAST>]
+   defs  <- (:wat::core::Vector :- [:wat::WatAST])]
   -> :wat::core::nil
   (:wat::core::let
     [h (:probe::rulewiresvc/start :locus (:wat::spawn::process)

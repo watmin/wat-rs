@@ -9,7 +9,7 @@
   [] -> :wat::WatAST
   `(:wat::core::defclause :test::rest-sum
      ([x <- :wat::core::i64 y <- :wat::core::i64
-       & rest <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
+       & rest <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::i64
        (:wat::core::foldl
          (:wat::core::fn [acc <- :wat::core::i64 n <- :wat::core::i64] -> :wat::core::i64
            (:wat::core::i64::+ acc n))

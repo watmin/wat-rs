@@ -36,12 +36,12 @@
 
 (:wat::core::defrecord :grid::Result
   [axis      <- :wat::core::String
-   size      <- :wat::core::PersistentVector<wat::core::i64>
-   derived   <- :wat::core::PersistentVector<wat::core::i64>
+   size      <- (:wat::core::PersistentVector :- [:wat::core::i64])
+   derived   <- (:wat::core::PersistentVector :- [:wat::core::i64])
    native-ns      <- :wat::core::i64
    ;; THREE-WAY: the wat SPEC's own answer, so the runner can render :oracle-accuracy
    ;; (spec vs Clara) and :port-accuracy (spec vs native) instead of one verdict.
-   oracle-derived <- :wat::core::PersistentVector<wat::core::i64>
+   oracle-derived <- (:wat::core::PersistentVector :- [:wat::core::i64])
    oracle-ns      <- :wat::core::i64])
 
 (:wat::rete::defquery :neg::q-Ok
@@ -51,7 +51,7 @@
 
 ;; build-rules — the single-rule set: Ok(k) :- Item(k) AND NOT Bad(k).
 ;; Two LHS conditions: bind ?k off Item, then negate Bad on the same ?k. One RHS insert.
-(:wat::core::defn :neg::build-rules [] -> :wat::core::PersistentVector<wat::rete::Rule>
+(:wat::core::defn :neg::build-rules [] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
   (:wat::core::PersistentVector
     (:wat::rete::Rule :name "ok"
       :lhs (:wat::core::PersistentVector
@@ -69,8 +69,8 @@
   (:wat::rete::insert-all
     session
     (:wat::core::foldl
-      (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::Record>  i <- :wat::core::i64]
-                      -> :wat::core::PersistentVector<wat::core::Record>
+      (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  i <- :wat::core::i64]
+                      -> (:wat::core::PersistentVector :- [:wat::core::Record])
         (:wat::core::let [a2 (:wat::core::PersistentVector/conj acc (:neg::Item i))]
           (:wat::core::if (:wat::core::= i (:wat::core::i64::* (:wat::core::i64::/ i 2) 2))
             (:wat::core::PersistentVector/conj a2 (:neg::Bad i))
@@ -81,12 +81,12 @@
 ;; vec->pvec v — materialize a Vector<i64> into a PersistentVector<i64>. DESIGN-STONE-into-pv-
 ;; from-vector.md: `into` now has a native (PersistentVector<T>, Vector<T>) clause backed by one
 ;; `PersistentVector/concat` call — retiring the N-interpreted-closure-invocation conj-fold.
-(:wat::core::defn :neg::vec->pvec [v <- :wat::core::Vector<wat::core::i64>] -> :wat::core::PersistentVector<wat::core::i64>
+(:wat::core::defn :neg::vec->pvec [v <- (:wat::core::Vector :- [:wat::core::i64])] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:wat::core::into (:wat::core::PersistentVector) v))
 
 ;; derived-vector fired — every derived Ok fact's key, sorted ascending. This IS the accuracy
 ;; witness: a missing/extra Ok anywhere shows up in the byte-for-byte compare.
-(:wat::core::defn :neg::derived-vector [fired <- :wat::rete::Session] -> :wat::core::PersistentVector<wat::core::i64>
+(:wat::core::defn :neg::derived-vector [fired <- :wat::rete::Session] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:wat::core::let [codes (:wat::core::into (:wat::core::Vector :wat::core::i64)
                             (:wat::core::map
                               (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:neg::Ok/k f)))

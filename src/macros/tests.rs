@@ -556,7 +556,7 @@ fn variadic_macro_arity_too_few_uses_arity_too_few_variant() {
     let err = expand_src(
         r#"
         (:wat::core::defmacro :my::variadic
-          [x <- :wat::WatAST y <- :wat::WatAST & rest <- :wat::core::Vector<wat::WatAST>]
+          [x <- :wat::WatAST y <- :wat::WatAST & rest <- (:wat::core::Vector :- [:wat::WatAST])]
           -> :wat::WatAST
           `(:wat::core::Vector ~x ~y ~@rest))
         (:my::variadic 1)

@@ -25,12 +25,12 @@
   (:wat::rete::insert s (:nad::A :k 1) (:nad::A :k 2)))
 
 (:wat::core::defn :nad::counts [fired <- :wat::rete::Session]
-  -> :wat::core::PersistentVector<wat::core::i64>
+  -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:wat::core::PersistentVector
     (:wat::core::length (:wat::rete::query fired (:nad::q-Bad)))
     (:wat::core::length (:wat::rete::query fired (:nad::q-Ok)))))
 
-(:wat::core::defn :user::source-counts [] -> :wat::core::PersistentVector<wat::core::i64>
+(:wat::core::defn :user::source-counts [] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:nad::counts
     (:wat::rete::fire-rules
       (:nad::seed
@@ -38,7 +38,7 @@
           (:wat::core::PersistentVector (:nad::mark-bad) (:nad::ok))
           (:wat::core::PersistentVector (:nad::q-Bad) (:nad::q-Ok)))))))
 
-(:wat::core::defn :user::spec-counts [] -> :wat::core::PersistentVector<wat::core::i64>
+(:wat::core::defn :user::spec-counts [] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:nad::counts
     (:wat::rete::fire-rules$oracle
       (:nad::seed
@@ -46,7 +46,7 @@
           (:wat::core::PersistentVector (:nad::mark-bad) (:nad::ok))
           (:wat::core::PersistentVector (:nad::q-Bad) (:nad::q-Ok)))))))
 
-(:wat::core::defn :user::import-counts [] -> :wat::core::PersistentVector<wat::core::i64>
+(:wat::core::defn :user::import-counts [] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:wat::core::let [s0  (:wat::rete::compile-all
                           (:wat::core::PersistentVector (:nad::mark-bad) (:nad::ok))
                           (:wat::core::PersistentVector (:nad::q-Bad) (:nad::q-Ok)))

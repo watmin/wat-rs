@@ -6,7 +6,7 @@
 (:wat::core::defrecord :my::Square [side <- :wat::core::f64])
 (:wat::core::typeunion :my::Shape [:my::Circle :my::Square])
 (:wat::core::typeunion :my::Numeric [:wat::core::i64 :wat::core::f64])
-(:wat::core::typealias :my::Bytes :wat::core::Vector<wat::core::u8>)
+(:wat::core::typealias :my::Bytes (:wat::core::Vector :- [:wat::core::u8]))
 
 ;; probe_01: record conforms its own type → true
 (:wat::core::defn :user::probe01 [] -> :wat::core::bool
@@ -52,13 +52,13 @@
 (:wat::core::defn :user::probe08 [] -> :wat::core::bool
   (:wat::core::conforms?
     (:wat::core::Vector :wat::core::u8 (:wat::core::u8 1) (:wat::core::u8 2) (:wat::core::u8 3))
-    :wat::core::Vector<wat::core::u8>))
+    (:wat::core::Vector :- [:wat::core::u8])))
 
 ;; probe_09: i64-vector does NOT conform Vector<u8> → false (element check recurses)
 (:wat::core::defn :user::probe09 [] -> :wat::core::bool
   (:wat::core::conforms?
     (:wat::core::Vector :wat::core::i64 1 2 3)
-    :wat::core::Vector<wat::core::u8>))
+    (:wat::core::Vector :- [:wat::core::u8])))
 
 ;; probe_10a: u8-vector conforms :Bytes (= Vector<u8>) → true (alias resolves)
 (:wat::core::defn :user::probe10a [] -> :wat::core::bool
@@ -76,13 +76,13 @@
 (:wat::core::defn :user::probe11a [] -> :wat::core::bool
   (:wat::core::conforms?
     (:wat::core::Vector :my::Shape (:my::Circle :radius 1.0) (:my::Square :side 2.0))
-    :wat::core::Vector<my::Shape>))
+    (:wat::core::Vector :- [:my::Shape])))
 
 ;; probe_11b: i64-vector does NOT conform Vector<Shape> → false
 (:wat::core::defn :user::probe11b [] -> :wat::core::bool
   (:wat::core::conforms?
     (:wat::core::Vector :wat::core::i64 1 2 3)
-    :wat::core::Vector<my::Shape>))
+    (:wat::core::Vector :- [:my::Shape])))
 
 ;; probe_12: unknown type name → Err at eval (not false); this fn exists for the startup check,
 ;; the Rust test evaluates it and asserts the result is_err().

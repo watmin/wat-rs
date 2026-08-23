@@ -47,8 +47,8 @@
 ;; this, and so does a user's. Under the old world it would need five `defclause` arms plus a
 ;; `-stream` twin.
 
-(:wat::core::defn :wat-tests::core::core-seqable::count-via-seq<T>
-  [s <- :wat::core::Seqable<T>] -> :wat::core::i64
+(:wat::core::defn :wat-tests::core::core-seqable::count-via-seq :- [T]
+  [s <- (:wat::core::Seqable :- [T])] -> :wat::core::i64
   (:wat::core::length (:wat::core::into [] (:wat::core::Seqable/seq s))))
 
 (:wat::test::deftest :wat-tests::core::core-seqable::generic-fn-over-seqable-accepts-all-four
@@ -72,7 +72,7 @@
 ;; is the assertion — `assert-eq` is only there to pin the values it yielded.
 
 (:wat::core::defn :wat-tests::core::core-seqable::nat
-  [i <- :wat::core::i64] -> :wat::stream::Stream<wat::core::i64>
+  [i <- :wat::core::i64] -> (:wat::stream::Stream :- [:wat::core::i64])
   (:wat::stream::lazy
     (:wat::stream::cons i (:wat-tests::core::core-seqable::nat (:wat::core::+ i 1)))))
 

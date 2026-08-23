@@ -22,7 +22,7 @@
 (:wat::core::defrecord :probe::BadInput
   [message  <- :wat::core::String
    location <- :wat::kernel::Location
-   causes   <- :wat::core::Vector<wat::core::Error>
+   causes   <- (:wat::core::Vector :- [:wat::core::Error])
    field    <- :wat::core::String])
 
 ;; Surface-typed param: the checker verifies :probe::BadInput satisfies

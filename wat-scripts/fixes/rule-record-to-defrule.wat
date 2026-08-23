@@ -59,7 +59,7 @@
 ;; ── node-text: verbatim source substring for a node's span ─────────────────────────────────
 (:wat::core::defn :user::node-text
   [node  <- :wat::WatAST
-   lines <- :wat::core::Vector<wat::core::String>
+   lines <- (:wat::core::Vector :- [:wat::core::String])
    src   <- :wat::core::String]
   -> :wat::core::String
   (:wat::core::string::subs src
@@ -69,7 +69,7 @@
 ;; quasi-text — node is `(:wat::core::quasiquote FORM)`; returns FORM's verbatim source text.
 (:wat::core::defn :user::quasi-text
   [node  <- :wat::WatAST
-   lines <- :wat::core::Vector<wat::core::String>
+   lines <- (:wat::core::Vector :- [:wat::core::String])
    src   <- :wat::core::String]
   -> :wat::core::String
   (:wat::core::let [ch   (:wat::core::ast->children node)
@@ -125,7 +125,7 @@
 ;; find-helper — first top-level form matching helper-defn? for `suffix`; None if absent
 ;; (Shape-A-only files have neither `::conds` nor `::ins` helpers).
 (:wat::core::defn :user::find-helper
-  [forms  <- :wat::core::Vector<wat::WatAST>
+  [forms  <- (:wat::core::Vector :- [:wat::WatAST])
    suffix <- :wat::core::String]
   -> (:wat::core::Option :wat::WatAST)
   (:wat::core::if (:wat::core::empty? forms)
@@ -138,8 +138,8 @@
 ;; helper-text-opt — the verbatim FORM text inside a helper's `(quasiquote FORM)` body, if the
 ;; helper exists in this file.
 (:wat::core::defn :user::helper-text-opt
-  [forms  <- :wat::core::Vector<wat::WatAST>
-   lines  <- :wat::core::Vector<wat::core::String>
+  [forms  <- (:wat::core::Vector :- [:wat::WatAST])
+   lines  <- (:wat::core::Vector :- [:wat::core::String])
    src    <- :wat::core::String
    suffix <- :wat::core::String]
   -> (:wat::core::Option :wat::core::String)
@@ -171,11 +171,11 @@
 ;; survey did not find, never silently skipped and never hand-fixed.
 (:wat::core::defn :user::rule-edit
   [f              <- :wat::WatAST
-   lines          <- :wat::core::Vector<wat::core::String>
+   lines          <- (:wat::core::Vector :- [:wat::core::String])
    src            <- :wat::core::String
    conds-text-opt <- (:wat::core::Option :wat::core::String)
    ins-text-opt   <- (:wat::core::Option :wat::core::String)]
-  -> :wat::core::Vector<wat::fix::Edit>
+  -> (:wat::core::Vector :- [:wat::fix::Edit])
   (:wat::core::if (:user::rule-defn? f)
     (:wat::core::let
       [ch        (:wat::core::ast->children f)
@@ -225,12 +225,12 @@
     (:wat::core::Vector :wat::fix::Edit)))
 
 (:wat::core::defn :user::collect-edits
-  [forms          <- :wat::core::Vector<wat::WatAST>
-   lines          <- :wat::core::Vector<wat::core::String>
+  [forms          <- (:wat::core::Vector :- [:wat::WatAST])
+   lines          <- (:wat::core::Vector :- [:wat::core::String])
    src            <- :wat::core::String
    conds-text-opt <- (:wat::core::Option :wat::core::String)
    ins-text-opt   <- (:wat::core::Option :wat::core::String)]
-  -> :wat::core::Vector<wat::fix::Edit>
+  -> (:wat::core::Vector :- [:wat::fix::Edit])
   (:wat::core::if (:wat::core::empty? forms)
     (:wat::core::Vector :wat::fix::Edit)
     (:wat::core::concat
@@ -240,7 +240,7 @@
 ;; ── renames: build-rules' `(:ns::rule-NAME)` call site -> `(:NAME)` ─────────────────────────
 (:wat::core::defn :user::rule-rename
   [f <- :wat::WatAST]
-  -> :wat::core::Vector<(wat::core::String,wat::core::String)>
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
   (:wat::core::if (:user::rule-defn? f)
     (:wat::core::let
       [ch        (:wat::core::ast->children f)
@@ -256,8 +256,8 @@
     (:wat::core::Vector :(wat::core::String,wat::core::String))))
 
 (:wat::core::defn :user::collect-renames
-  [forms <- :wat::core::Vector<wat::WatAST>]
-  -> :wat::core::Vector<(wat::core::String,wat::core::String)>
+  [forms <- (:wat::core::Vector :- [:wat::WatAST])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
   (:wat::core::if (:wat::core::empty? forms)
     (:wat::core::Vector :(wat::core::String,wat::core::String))
     (:wat::core::concat
@@ -266,7 +266,7 @@
 
 (:wat::core::defn :user::apply-renames
   [text    <- :wat::core::String
-   renames <- :wat::core::Vector<(wat::core::String,wat::core::String)>]
+   renames <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])]
   -> :wat::core::String
   (:wat::core::if (:wat::core::empty? renames)
     text
@@ -290,7 +290,7 @@
     text2))
 
 ;; ── driver: rewrite each path given on stdin (a JSON array of strings) ──────────────────────
-(:wat::core::defn :user::rewrite-each [paths <- :wat::core::Vector<wat::core::String>] -> :wat::core::nil
+(:wat::core::defn :user::rewrite-each [paths <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::nil
   (:wat::core::if (:wat::core::empty? paths)
     nil
     (:wat::core::let [p (:wat::core::first paths)]

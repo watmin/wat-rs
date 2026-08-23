@@ -33,14 +33,14 @@
 ;; (Hot's + Warn's — heterogeneous, up-cast to the universal top :wat::core::Value).
 (:wat::core::defn :usr::deduce-one
   [template <- :wat::rete::Session  seed <- :usr::Temp]
-  -> :wat::core::PersistentVector<wat::core::Value>
+  -> (:wat::core::PersistentVector :- [:wat::core::Value])
   (:wat::core::let
     [fired (:wat::rete::fire-rules (:wat::rete::insert template seed))
      hots  (:wat::rete::query fired (:usr::q-Hot))
      warns (:wat::rete::query fired (:usr::q-Warn))
      acc0  (:wat::core::foldl
-             (:wat::core::fn [a <- :wat::core::PersistentVector<wat::core::Value>  p <- :wat::core::PersistentMap]
-               -> :wat::core::PersistentVector<wat::core::Value>
+             (:wat::core::fn [a <- (:wat::core::PersistentVector :- [:wat::core::Value])  p <- :wat::core::PersistentMap]
+               -> (:wat::core::PersistentVector :- [:wat::core::Value])
                (:wat::core::PersistentVector/conj a
                  (:wat::core::Option/expect
                    (:wat::core::PersistentMap/get p "?fact")
@@ -48,8 +48,8 @@
              (:wat::core::PersistentVector)
              hots)]
     (:wat::core::foldl
-      (:wat::core::fn [a <- :wat::core::PersistentVector<wat::core::Value>  p <- :wat::core::PersistentMap]
-        -> :wat::core::PersistentVector<wat::core::Value>
+      (:wat::core::fn [a <- (:wat::core::PersistentVector :- [:wat::core::Value])  p <- :wat::core::PersistentMap]
+        -> (:wat::core::PersistentVector :- [:wat::core::Value])
         (:wat::core::PersistentVector/conj a
           (:wat::core::Option/expect
             (:wat::core::PersistentMap/get p "?fact")

@@ -21,10 +21,10 @@
 ;; the loop: threads the live timer-peer set + the buffer + whether a flush is already armed.
 ;; returns the flushed batch on the tick (proving items buffered BEFORE the tick survive to it).
 (:wat::core::defn :probe::sink-loop
-  [peers <- :wat::core::Vector<wat::kernel::Peer<wat::core::nil,probe::SinkSig>>
-   buf   <- :wat::core::Vector<wat::core::i64>
+  [peers <- (:wat::core::Vector :- [(:wat::kernel::Peer :- [:wat::core::nil :probe::SinkSig])])
+   buf   <- (:wat::core::Vector :- [:wat::core::i64])
    armed <- :wat::core::bool]
-  -> :wat::core::Vector<wat::core::i64>
+  -> (:wat::core::Vector :- [:wat::core::i64])
   (:wat::core::match (:wat::kernel::select peers) 
     ((:wat::spawn::ServiceEvent::Message idx sig)
       (:wat::core::match sig 
@@ -54,7 +54,7 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [;; seed 3 staggered item-timers (1/2/3 ms) — simulate 3 client pushes before the flush:
-     items (:wat::core::Vector :wat::kernel::Peer<wat::core::nil,probe::SinkSig>
+     items (:wat::core::Vector (:wat::kernel::Peer :- [:wat::core::nil :probe::SinkSig])
              (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Millisecond 1) (:probe::SinkSig::Item 10))
              (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Millisecond 2) (:probe::SinkSig::Item 20))
              (:wat::kernel::after :wat::program::PeerKind::thread (:wat::time::Millisecond 3) (:probe::SinkSig::Item 30)))

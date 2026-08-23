@@ -23,8 +23,8 @@
 ;; Do NOT "simplify" the lambda away — it will not compile, and the cause is arc 255's, not this
 ;; stone's.
 
-(:wat::core::defn :user::join-ish<T>
-  [sep <- :wat::core::String xs <- :wat::core::Vector<T>] -> :wat::core::String
+(:wat::core::defn :user::join-ish :- [T]
+  [sep <- :wat::core::String xs <- (:wat::core::Vector :- [T])] -> :wat::core::String
   (:wat::core::string::join sep
     (:wat::core::mapv (:wat::core::fn [x <- T] -> :wat::core::String (:wat::core::str x)) xs)))
 

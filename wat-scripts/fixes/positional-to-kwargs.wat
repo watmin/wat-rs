@@ -21,7 +21,7 @@
         (:wat::core::= name ":wat::core::defholon")))))
 
 ;; first child at index>=i whose ast-kind is "vector" (the field-vec; robust across def shapes)
-(:wat::core::defn :user::fieldvec-at [ch <- :wat::core::Vector<wat::WatAST> i <- :wat::core::i64]
+(:wat::core::defn :user::fieldvec-at [ch <- (:wat::core::Vector :- [:wat::WatAST]) i <- :wat::core::i64]
   -> (:wat::core::Option :wat::WatAST)
   (:wat::core::if (:wat::core::>= i (:wat::core::length ch))
     (:wat::core::None :wat::WatAST)
@@ -31,13 +31,13 @@
         (:user::fieldvec-at ch (:wat::core::+ i 1))))))
 
 ;; field names of a field-vec [x <- T y <- U] → ["x" "y"] (names at 0,3,6…); [] if irregular (splice)
-(:wat::core::defn :user::fieldvec-names [fv <- :wat::WatAST] -> :wat::core::Vector<wat::core::String>
+(:wat::core::defn :user::fieldvec-names [fv <- :wat::WatAST] -> (:wat::core::Vector :- [:wat::core::String])
   (:wat::core::let [ch (:wat::core::ast->children fv)
                     n  (:wat::core::length ch)]
     (:wat::core::if (:wat::core::= (:wat::core::i64::rem n 3) 0)
       (:wat::core::foldl
-        (:wat::core::fn [acc <- :wat::core::Vector<wat::core::String> i <- :wat::core::i64]
-          -> :wat::core::Vector<wat::core::String>
+        (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String]) i <- :wat::core::i64]
+          -> (:wat::core::Vector :- [:wat::core::String])
           (:wat::core::conj acc
             (:wat::core::ast-name (:wat::core::Option/expect (:wat::core::get ch (:wat::core::i64::* i 3)) "fv-name"))))
         (:wat::core::Vector :wat::core::String)
@@ -46,8 +46,8 @@
 
 ;; add one form to the map if it is a mappable def with a clean (non-splice) field-vec.
 (:wat::core::defn :user::add-form
-  [m <- :wat::core::HashMap<wat::core::String,wat::core::Vector<wat::core::String>> form <- :wat::WatAST]
-  -> :wat::core::HashMap<wat::core::String,wat::core::Vector<wat::core::String>>
+  [m <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])]) form <- :wat::WatAST]
+  -> (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind form) "list")
     (:wat::core::let [ch (:wat::core::ast->children form)]
       (:wat::core::if (:wat::core::< (:wat::core::length ch) 3)
@@ -73,20 +73,20 @@
 
 ;; build the global map from ALL forms of ALL files.
 (:wat::core::defn :user::map-of-forms
-  [m <- :wat::core::HashMap<wat::core::String,wat::core::Vector<wat::core::String>>
-   forms <- :wat::core::Vector<wat::WatAST>]
-  -> :wat::core::HashMap<wat::core::String,wat::core::Vector<wat::core::String>>
+  [m <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
+   forms <- (:wat::core::Vector :- [:wat::WatAST])]
+  -> (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
   (:wat::core::foldl :user::add-form m forms))
 
 ;; ── the rewrite: collect insert-edits ────────────────────────────────────────
 ;; for a construction (head arg…), one insert per arg: Tuple(arg-start-offset, 0, ":field ")
 (:wat::core::defn :user::arg-edits
-  [args <- :wat::core::Vector<wat::WatAST> fields <- :wat::core::Vector<wat::core::String>
-   lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+  [args <- (:wat::core::Vector :- [:wat::WatAST]) fields <- (:wat::core::Vector :- [:wat::core::String])
+   lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)> i <- :wat::core::i64]
-      -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+    (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])]) i <- :wat::core::i64]
+      -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
       (:wat::core::let [arg (:wat::core::Option/expect (:wat::core::get args i) "arg-edits arg")
                         off (:wat::fix::fix-text-offset-of (:wat::core::ast-span arg) lines)
                         kw  (:wat::core::string::concat ":" (:wat::core::Option/expect (:wat::core::get fields i) "arg-edits f") " ")]
@@ -97,9 +97,9 @@
 ;; walk a node, collect edits for it + all descendants.
 (:wat::core::defn :user::edits
   [node  <- :wat::WatAST
-   m     <- :wat::core::HashMap<wat::core::String,wat::core::Vector<wat::core::String>>
-   lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+   m     <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
+   lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
     (:wat::core::let [ch (:wat::core::ast->children node)]
       (:wat::core::if (:wat::core::empty? ch)
@@ -126,10 +126,10 @@
       (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)))))
 
 (:wat::core::defn :user::edits-seq
-  [items <- :wat::core::Vector<wat::WatAST>
-   m     <- :wat::core::HashMap<wat::core::String,wat::core::Vector<wat::core::String>>
-   lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+  [items <- (:wat::core::Vector :- [:wat::WatAST])
+   m     <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
+   lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::if (:wat::core::empty? items)
     (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
     (:wat::core::concat
@@ -139,7 +139,7 @@
 ;; ── per-file migrate ─────────────────────────────────────────────────────────
 (:wat::core::defn :user::migrate
   [src <- :wat::core::String
-   m   <- :wat::core::HashMap<wat::core::String,wat::core::Vector<wat::core::String>>]
+   m   <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])]
   -> :wat::core::String
   (:wat::core::let [lines (:wat::core::string::split src "\n")
                     tree  (:wat::core::match (:wat::core::read-string src) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)))
@@ -151,13 +151,13 @@
     (:wat::fix::fix-text-apply src rev)))
 
 ;; ── driver: build the map from ALL files first, then rewrite each ────────────
-(:wat::core::defn :user::read-forms [path <- :wat::core::String] -> :wat::core::Vector<wat::WatAST>
+(:wat::core::defn :user::read-forms [path <- :wat::core::String] -> (:wat::core::Vector :- [:wat::WatAST])
   (:wat::core::ast->children (:wat::core::match (:wat::core::read-string (:wat::io::read-file path)) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)))))
 
 (:wat::core::defn :user::build-map
-  [m <- :wat::core::HashMap<wat::core::String,wat::core::Vector<wat::core::String>>
-   paths <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::HashMap<wat::core::String,wat::core::Vector<wat::core::String>>
+  [m <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
+   paths <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
   (:wat::core::if (:wat::core::empty? paths)
     m
     (:wat::core::let [p (:wat::core::first paths)]
@@ -165,8 +165,8 @@
                         (:wat::core::into [] (:wat::core::rest paths))))))
 
 (:wat::core::defn :user::rewrite-each
-  [paths <- :wat::core::Vector<wat::core::String>
-   m     <- :wat::core::HashMap<wat::core::String,wat::core::Vector<wat::core::String>>]
+  [paths <- (:wat::core::Vector :- [:wat::core::String])
+   m     <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])]
   -> :wat::core::nil
   (:wat::core::if (:wat::core::empty? paths)
     nil
@@ -179,6 +179,6 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let [paths (:wat::core::match (:wat::kernel::readln ) ((:wat::kernel::ReadlnOutcome::Datum __datum) __datum) (:wat::kernel::ReadlnOutcome::Eof (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None)) (:wat::kernel::ReadlnOutcome::Stopped (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)))
                     m     (:user::build-map
-                            (:wat::core::HashMap :wat::core::String :wat::core::Vector<wat::core::String>)
+                            (:wat::core::HashMap :wat::core::String (:wat::core::Vector :- [:wat::core::String]))
                             paths)]
     (:user::rewrite-each paths m)))

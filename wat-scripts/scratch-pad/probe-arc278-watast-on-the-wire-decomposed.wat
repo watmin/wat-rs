@@ -102,12 +102,12 @@
    (:wat::core::defenum :probe::WireKind::EchoResponse :wat::enum::Pure
      :Ok               [n <- :wat::core::i64]
      :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])
-   (:wat::core::defrecord :probe::WireKind::CountRequest [defs <- :wat::core::Vector<wat::WatAST>])
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])
+   (:wat::core::defrecord :probe::WireKind::CountRequest [defs <- (:wat::core::Vector :- [:wat::WatAST])])
    (:wat::core::defenum :probe::WireKind::CountResponse :wat::enum::Pure
      :Ok               [n <- :wat::core::i64]
      :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(echo  [self <- :probe::WireKind  req <- :probe::WireKind::EchoRequest]  -> :probe::WireKind::EchoResponse  :max-request-bytes 524288)
    (count [self <- :probe::WireKind  req <- :probe::WireKind::CountRequest] -> :probe::WireKind::CountResponse :max-request-bytes 524288)])
@@ -135,7 +135,7 @@
     ((:wat::kernel::ConnectOutcome::Failed c)   (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None))))
 
 ;; three quoted declarations — a payload with a known length of 3
-(:wat::core::defn :probe::three-forms [] -> :wat::core::Vector<wat::WatAST>
+(:wat::core::defn :probe::three-forms [] -> (:wat::core::Vector :- [:wat::WatAST])
   (:wat::core::Vector :wat::WatAST
     (:wat::core::quote (:wat::core::defrecord :usr::A [c <- :wat::core::i64]))
     (:wat::core::quote (:wat::core::defrecord :usr::B [c <- :wat::core::i64]))

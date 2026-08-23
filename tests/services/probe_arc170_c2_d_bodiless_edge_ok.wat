@@ -18,23 +18,23 @@
              (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure
                :Ok              [reply <- :wat::core::String]
                :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-               :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
+               :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse :max-request-bytes 524288)])
 (:wat::service::defservice :probe::echo :satisfies :probe::Echo :durable [] :ephemeral []
   :impls [(echo [s ctx req] (:wat::service::Outcome::Reply s (:probe::Echo::EchoResponse::Ok (:probe::Echo::EchoRequest/msg req))))])
-(:wat::core::defsurface :probe::TypedCapability<S,R> :nature :wat::core::Struct
+(:wat::core::defsurface :probe::TypedCapability :- [S R] :nature :wat::core::Struct
   :features
-  [(coord  [self <- :probe::TypedCapability<S,R>] -> :wat::kernel::Address<S,R>)
-   (grant  [self <- :probe::TypedCapability<S,R>  pids <- (:wat::core::Vector :wat::core::i64)] -> :wat::core::nil)
-   (revoke [self <- :probe::TypedCapability<S,R>  pids <- (:wat::core::Vector :wat::core::i64)] -> :wat::core::nil)])
+  [(coord  [self <- (:probe::TypedCapability :- [S R])] -> (:wat::kernel::Address :- [S R]))
+   (grant  [self <- (:probe::TypedCapability :- [S R])  pids <- (:wat::core::Vector :wat::core::i64)] -> :wat::core::nil)
+   (revoke [self <- (:probe::TypedCapability :- [S R])  pids <- (:wat::core::Vector :wat::core::i64)] -> :wat::core::nil)])
 
 ;; *** BODILESS extend-type — edge only, no method bodies ***
-(:wat::core::extend-type :probe::echo::Handle :probe::TypedCapability<probe::Echo::Op,probe::Echo::Reply>)
+(:wat::core::extend-type :probe::echo::Handle (:probe::TypedCapability :- [:probe::Echo::Op :probe::Echo::Reply]))
 
 ;; hold at the abstract combined type; call BOTH grant + typed-coord through it.
 (:wat::core::defn :probe::use-both
-  [h <- :probe::TypedCapability<probe::Echo::Op,probe::Echo::Reply>]
-  -> :wat::kernel::Address<probe::Echo::Op,probe::Echo::Reply>
+  [h <- (:probe::TypedCapability :- [:probe::Echo::Op :probe::Echo::Reply])]
+  -> (:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply])
   (:wat::core::let
     [_ (:probe::TypedCapability/grant h (:wat::core::Vector :wat::core::i64 42))]
     (:probe::TypedCapability/coord h)))

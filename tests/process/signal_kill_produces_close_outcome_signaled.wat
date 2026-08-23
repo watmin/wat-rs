@@ -33,7 +33,7 @@
 ;; strike gives wat source a sanctioned path to `close'` (a stdlib-privileged test helper, or a
 ;; non-restricted "peek" verb), THIS fixture should be replaced with a pure-wat one that matches
 ;; `CloseOutcome::Signaled` directly instead of reading `Process::wait()` from Rust.
-(:wat::core::defn :user::compute [] -> :wat::kernel::Process<wat::core::i64,wat::core::String>
+(:wat::core::defn :user::compute [] -> (:wat::kernel::Process :- [:wat::core::i64 :wat::core::String])
   (:wat::core::let
     [proc (:wat::test::spawn-peer
             (:wat::spawn::process)

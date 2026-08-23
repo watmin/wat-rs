@@ -8,7 +8,7 @@
   :messages
   [(:wat::core::defrecord :probe::Foo::FRequest  [x <- :wat::core::i64])
    (:wat::core::defenum :probe::Foo::FResponse :wat::enum::Pure :Ok [y <- :wat::core::i64] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-                                                                                      :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
+                                                                                      :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(f [self <- :probe::Foo  req <- :probe::Foo::FRequest] -> :probe::Foo::FResponse :max-request-bytes 524288)])
 

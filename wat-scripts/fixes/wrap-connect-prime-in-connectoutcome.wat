@@ -33,11 +33,11 @@
 ;;   printf '["pathA" …]\n' | ./target/release/wat ./wat-scripts/fixes/wrap-connect-prime-in-connectoutcome.wat
 
 ;; ── helpers (mirror wrap-client-method-match-in-recvoutcome.wat) ─────────────────
-(:wat::core::defn :user::start-off [n <- :wat::WatAST  lines <- :wat::core::Vector<wat::core::String>]
+(:wat::core::defn :user::start-off [n <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])]
   -> :wat::core::i64
   (:wat::fix::fix-text-offset-of (:wat::core::ast-span n) lines))
 
-(:wat::core::defn :user::end-off [n <- :wat::WatAST  lines <- :wat::core::Vector<wat::core::String>]
+(:wat::core::defn :user::end-off [n <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])]
   -> :wat::core::i64
   (:wat::fix::fix-text-offset-of (:wat::core::ast-end-span n) lines))
 
@@ -72,7 +72,7 @@
 
 ;; any-arm-head-contains? — does any arm (children[2..]) have a pattern head keyword containing `needle`?
 (:wat::core::defn :user::any-arm-head-contains?
-  [arms <- :wat::core::Vector<wat::WatAST>  needle <- :wat::core::String] -> :wat::core::bool
+  [arms <- (:wat::core::Vector :- [:wat::WatAST])  needle <- :wat::core::String] -> :wat::core::bool
   (:wat::core::foldl
     (:wat::core::fn [acc <- :wat::core::bool  arm <- :wat::WatAST] -> :wat::core::bool
       (:wat::core::if acc true
@@ -97,8 +97,8 @@
 
 ;; ── EDIT: two span inserts wrapping the connect' call node ────────────────────────
 (:wat::core::defn :user::wrap-edits
-  [node <- :wat::WatAST  lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+  [node <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)
     (:wat::core::Tuple (:user::start-off node lines) 0
       "(:wat::core::match ")
@@ -107,8 +107,8 @@
 
 ;; recurse a node's children WITHOUT wrapping the node's own top (idempotency suppression).
 (:wat::core::defn :user::node-edits-no-top
-  [node <- :wat::WatAST  lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+  [node <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::if (:wat::fix::structural? node)
     (:user::seq-edits (:wat::core::ast->children node) lines)
     (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))))
@@ -116,8 +116,8 @@
 ;; walk one node → its edit (if a connect' call) + descendants'. For an already-facing
 ;; ConnectOutcome match, the scrutinee (child[1]) is recursed WITHOUT re-wrapping its top.
 (:wat::core::defn :user::node-edits
-  [node <- :wat::WatAST  lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+  [node <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::let
     [this (:wat::core::if (:user::connect-call? node)
             (:user::wrap-edits node lines)
@@ -137,11 +137,11 @@
         this))))
 
 (:wat::core::defn :user::seq-edits
-  [items <- :wat::core::Vector<wat::WatAST>  lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+  [items <- (:wat::core::Vector :- [:wat::WatAST])  lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)> it <- :wat::WatAST]
-      -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+    (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])]) it <- :wat::WatAST]
+      -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
       (:wat::core::concat acc (:user::node-edits it lines)))
     (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
     items))
@@ -156,7 +156,7 @@
     (:wat::fix::fix-text-apply src rev)))
 
 ;; ── driver ───────────────────────────────────────────────────────────────────
-(:wat::core::defn :user::apply-each [paths <- :wat::core::Vector<wat::core::String>] -> :wat::core::nil
+(:wat::core::defn :user::apply-each [paths <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::nil
   (:wat::core::if (:wat::core::empty? paths)
     nil
     (:wat::core::let [path (:wat::core::first paths)]

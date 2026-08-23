@@ -42,7 +42,7 @@
 
 ;; ── the children FOLLOWING the child whose source is `kw` (i.e. that section's value) ───
 (:wat::core::defn :user::index-after-keyword
-  [ch <- :wat::core::Vector<wat::WatAST>  kw <- :wat::core::String  i <- :wat::core::i64]
+  [ch <- (:wat::core::Vector :- [:wat::WatAST])  kw <- :wat::core::String  i <- :wat::core::i64]
   -> :wat::core::i64
   (:wat::core::if (:wat::core::i64::>= i (:wat::core::length ch))
     -1
@@ -69,7 +69,7 @@
 
 ;; ── one defservice form → its arms ─────────────────────────────────────────────────────
 (:wat::core::defn :user::arms-of
-  [form <- :wat::WatAST] -> :wat::core::Vector<wat::WatAST>
+  [form <- :wat::WatAST] -> (:wat::core::Vector :- [:wat::WatAST])
   (:wat::core::let [ch  (:wat::core::ast->children form)
                     idx (:user::index-after-keyword ch ":impls" 0)]
     (:wat::core::if (:wat::core::i64::< idx 0)
@@ -80,7 +80,7 @@
 
 ;; ── report one arm as a line: "<file> <op> <arity> <internal?>" ────────────────────────
 (:wat::core::defn :user::report-arms
-  [arms <- :wat::core::Vector<wat::WatAST>  path <- :wat::core::String  i <- :wat::core::i64] -> :wat::core::nil
+  [arms <- (:wat::core::Vector :- [:wat::WatAST])  path <- :wat::core::String  i <- :wat::core::i64] -> :wat::core::nil
   (:wat::core::if (:wat::core::i64::>= i (:wat::core::length arms))
     nil
     (:wat::core::let
@@ -100,7 +100,7 @@
         (:user::report-arms arms path (:wat::core::i64::+ i 1))))))
 
 (:wat::core::defn :user::census-forms
-  [forms <- :wat::core::Vector<wat::WatAST>  path <- :wat::core::String  i <- :wat::core::i64] -> :wat::core::nil
+  [forms <- (:wat::core::Vector :- [:wat::WatAST])  path <- :wat::core::String  i <- :wat::core::i64] -> :wat::core::nil
   (:wat::core::if (:wat::core::i64::>= i (:wat::core::length forms))
     nil
     (:wat::core::do
@@ -110,7 +110,7 @@
       (:user::census-forms forms path (:wat::core::i64::+ i 1)))))
 
 (:wat::core::defn :user::census-each
-  [paths <- :wat::core::Vector<wat::core::String>  i <- :wat::core::i64] -> :wat::core::nil
+  [paths <- (:wat::core::Vector :- [:wat::core::String])  i <- :wat::core::i64] -> :wat::core::nil
   (:wat::core::if (:wat::core::i64::>= i (:wat::core::length paths))
     nil
     (:wat::core::let

@@ -58,11 +58,17 @@ fn c02_defn_generic_name_drops_type_params() {
 
 #[test]
 fn c03_generic_decl_name_and_parametric_target() {
-    let got = normalize(eval_string("c03").expect("C03 fix-form"));
-    assert_eq!(
-        got,
-        include_str!("probe_arc251_decl_migrator__c03-generic-decl-parametric.wat"),
-        "C03: generic typealias name stripped + parametric target converted"
+    // Arc 109 ③ — angle brackets are ILLEGAL for types now, so C03's fixture source
+    // (`(:wat::core::typealias :Foo<T> :wat::core::Vector<wat::core::i64>)`) is no longer
+    // legal INPUT: its parametric TARGET (`Vector<i64>`) renders through the SAME walled
+    // `keyword/to-type-form` C02's decl-name-only case never reaches (a decl name's `<T>`
+    // is stripped by `parse_declared_name`, not rendered). There is no other keyword-string
+    // spelling for a parametric type to migrate FROM any more (see `probe_arc251_keyword_
+    // to_type_form.rs`'s identical contracts 02-05/08) — the refusal itself is the coverage.
+    let err = eval_string("c03").expect_err("angle-bracket parametric target must be REFUSED");
+    assert!( // rune:lint(loose-assert) — targeted substring: asserting the angle-bracket wall fired, not the whole located TypeError's structure
+        err.contains("angle-bracket parametric types are illegal"),
+        "expected the angle-bracket wall's reason; got: {err}"
     );
 }
 

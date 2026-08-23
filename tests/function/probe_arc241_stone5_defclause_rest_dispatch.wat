@@ -6,7 +6,7 @@
 ;; Contracts 1-2 — variadic-min with rest; also empty-rest case
 (:wat::core::defclause :c12::sum-all
   ([first <- :wat::core::i64
-    & rest <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
+    & rest <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::i64
     (:wat::core::foldl
       (:wat::core::fn [acc <- :wat::core::i64
                        n <- :wat::core::i64] -> :wat::core::i64
@@ -18,7 +18,7 @@
 
 ;; Contract 3-4 — rest-only clause (0+ args)
 (:wat::core::defclause :c34::count-args
-  ([& rest <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
+  ([& rest <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::i64
     (:wat::core::length rest)))
 (:wat::core::defn :user::c03-rest-only [] -> :wat::core::i64 (:c34::count-args 10 20 30))
 (:wat::core::defn :user::c04-rest-only-empty [] -> :wat::core::i64 (:c34::count-args))
@@ -27,7 +27,7 @@
 (:wat::core::defclause :c8::flex
   ([x <- :wat::core::i64] -> :wat::core::i64 x)
   ([first <- :wat::core::i64
-    & rest <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
+    & rest <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::i64
     (:wat::core::foldl
       (:wat::core::fn [acc <- :wat::core::i64
                        n <- :wat::core::i64] -> :wat::core::i64

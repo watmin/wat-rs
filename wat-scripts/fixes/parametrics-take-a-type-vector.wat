@@ -168,9 +168,9 @@
 ;; instead of the reference form's wrapping `(...)`.
 (:wat::core::defn :user::leaf-edits
   [node  <- :wat::WatAST
-   lines <- :wat::core::Vector<wat::core::String>
+   lines <- (:wat::core::Vector :- [:wat::core::String])
    prev-decl-head? <- :wat::core::bool]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::if (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "keyword")
                     (:wat::fix::type-shaped-keyword? node)
                     false)
@@ -193,9 +193,9 @@
 ;; for this position in the PARENT's child list.
 (:wat::core::defn :user::node-edits
   [node  <- :wat::WatAST
-   lines <- :wat::core::Vector<wat::core::String>
+   lines <- (:wat::core::Vector :- [:wat::core::String])
    prev-decl-head? <- :wat::core::bool]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::if (:wat::fix::structural? node)
     (:user::seq-edits (:wat::core::ast->children node) lines true false)
     (:user::leaf-edits node lines prev-decl-head?)))
@@ -211,11 +211,11 @@
 ;; the immediately preceding sibling WAS an index-0 declarator-head keyword. leaf-edits reads
 ;; `prev-decl-head?` to choose the binder rendering over the reference one.
 (:wat::core::defn :user::seq-edits
-  [items           <- :wat::core::Vector<wat::WatAST>
-   lines           <- :wat::core::Vector<wat::core::String>
+  [items           <- (:wat::core::Vector :- [:wat::WatAST])
+   lines           <- (:wat::core::Vector :- [:wat::core::String])
    is-first?       <- :wat::core::bool
    prev-decl-head? <- :wat::core::bool]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::if (:wat::core::empty? items)
     (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
     (:wat::core::let [h               (:wat::core::first items)
@@ -239,7 +239,7 @@
 
 ;; ── file/stdin harness — identical shape to every recorded migration ────────────────────
 (:wat::core::defn :user::apply-each
-  [paths <- :wat::core::Vector<wat::core::String>] -> :wat::core::nil
+  [paths <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::nil
   (:wat::core::if (:wat::core::empty? paths)
     nil
     (:wat::core::let [path (:wat::core::first paths)]

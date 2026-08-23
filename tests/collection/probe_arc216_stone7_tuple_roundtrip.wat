@@ -34,7 +34,7 @@
     rt))
 
 ;; p5: tuple containing Vec<i64> round-trip
-(:wat::core::defn :t::p5-rt-with-vec [] -> :(wat::core::Vector<wat::core::i64>,wat::core::String)
+(:wat::core::defn :t::p5-rt-with-vec [] -> (:wat::core::Tuple :- [(:wat::core::Vector :- [:wat::core::i64]) :wat::core::String])
   (:wat::core::let
     [v  [1 2 3]
      t  (:wat::core::Tuple v "tag")
@@ -43,7 +43,7 @@
     rt))
 
 ;; p6: tuple containing HashSet<i64> round-trip
-(:wat::core::defn :t::p6-rt-with-set [] -> :(wat::core::HashSet<wat::core::i64>,wat::core::String)
+(:wat::core::defn :t::p6-rt-with-set [] -> (:wat::core::Tuple :- [(:wat::core::HashSet :- [:wat::core::i64]) :wat::core::String])
   (:wat::core::let
     [s  (:wat::core::HashSet :wat::core::i64 1 2)
      t  (:wat::core::Tuple s "label")

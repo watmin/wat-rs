@@ -52,10 +52,10 @@
 ;; fields are ADDITIVE, so every other axis and the 2-way path are untouched.
 (:wat::core::defrecord :grid::Result
   [axis           <- :wat::core::String
-   size           <- :wat::core::PersistentVector<wat::core::i64>
-   derived        <- :wat::core::PersistentVector<wat::core::i64>
+   size           <- (:wat::core::PersistentVector :- [:wat::core::i64])
+   derived        <- (:wat::core::PersistentVector :- [:wat::core::i64])
    native-ns      <- :wat::core::i64
-   oracle-derived <- :wat::core::PersistentVector<wat::core::i64>
+   oracle-derived <- (:wat::core::PersistentVector :- [:wat::core::i64])
    oracle-ns      <- :wat::core::i64])
 
 (:wat::rete::defquery :nc::q-Final
@@ -63,7 +63,7 @@
   :when [(?fact <- :nc::Final)])
 
 
-(:wat::core::defn :nc::build-rules [] -> :wat::core::PersistentVector<wat::rete::Rule>
+(:wat::core::defn :nc::build-rules [] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
   (:wat::core::PersistentVector
     ;; THE GATE — negates a base fact, so the stratifier lifts it correctly.
     (:wat::rete::Rule :name "ok"
@@ -84,8 +84,8 @@
   (:wat::rete::insert-all
     session
     (:wat::core::foldl
-      (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::Record>  i <- :wat::core::i64]
-                      -> :wat::core::PersistentVector<wat::core::Record>
+      (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  i <- :wat::core::i64]
+                      -> (:wat::core::PersistentVector :- [:wat::core::Record])
         (:wat::core::let [a2 (:wat::core::PersistentVector/conj acc (:nc::Item i))
                           a3 (:wat::core::PersistentVector/conj a2 (:nc::Tag i))]
           (:wat::core::if (:wat::core::= i (:wat::core::i64::* (:wat::core::i64::/ i 2) 2))
@@ -94,10 +94,10 @@
       (:wat::core::PersistentVector)
       (:wat::core::range 0 items))))
 
-(:wat::core::defn :nc::vec->pvec [v <- :wat::core::Vector<wat::core::i64>] -> :wat::core::PersistentVector<wat::core::i64>
+(:wat::core::defn :nc::vec->pvec [v <- (:wat::core::Vector :- [:wat::core::i64])] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:wat::core::into (:wat::core::PersistentVector) v))
 
-(:wat::core::defn :nc::derived-vector [fired <- :wat::rete::Session] -> :wat::core::PersistentVector<wat::core::i64>
+(:wat::core::defn :nc::derived-vector [fired <- :wat::rete::Session] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:wat::core::let [codes (:wat::core::into (:wat::core::Vector :wat::core::i64)
                             (:wat::core::map
                               (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:nc::Final/k f)))

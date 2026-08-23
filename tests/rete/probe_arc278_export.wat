@@ -50,7 +50,7 @@
     (:wat::core::length
       (:wat::rete::query (:wat::rete::fire-rules (:exp::seed s1)) (:exp::q-Hit)))))
 
-(:wat::core::defn :user::export-sizes [] -> :wat::core::PersistentVector<wat::core::i64>
+(:wat::core::defn :user::export-sizes [] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:wat::core::let [s0 (:wat::rete::compile-all
                          (:wat::core::PersistentVector (:exp::cool))
                          (:wat::core::PersistentVector (:exp::q-Hit)))
@@ -85,18 +85,18 @@
     (:wat::rete::insert s (:sn::A :k 1))
     (:sn::A :k 2)))
 
-(:wat::core::defn :sn::counts [fired <- :wat::rete::Session] -> :wat::core::PersistentVector<wat::core::i64>
+(:wat::core::defn :sn::counts [fired <- :wat::rete::Session] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:wat::core::PersistentVector
     (:wat::core::length (:wat::rete::query fired (:sn::q-Bad)))
     (:wat::core::length (:wat::rete::query fired (:sn::q-Ok)))))
 
-(:wat::core::defn :user::strat-source-counts [] -> :wat::core::PersistentVector<wat::core::i64>
+(:wat::core::defn :user::strat-source-counts [] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:wat::core::let [s0 (:wat::rete::compile-all
                          (:wat::core::PersistentVector (:sn::mark-bad) (:sn::ok))
                          (:wat::core::PersistentVector (:sn::q-Bad) (:sn::q-Ok)))]
     (:sn::counts (:wat::rete::fire-rules (:sn::seed s0)))))
 
-(:wat::core::defn :user::strat-import-counts [] -> :wat::core::PersistentVector<wat::core::i64>
+(:wat::core::defn :user::strat-import-counts [] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:wat::core::let [s0 (:wat::rete::compile-all
                          (:wat::core::PersistentVector (:sn::mark-bad) (:sn::ok))
                          (:wat::core::PersistentVector (:sn::q-Bad) (:sn::q-Ok)))

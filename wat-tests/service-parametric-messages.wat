@@ -61,36 +61,36 @@
 ;; surface's own. A violation is a located `MalformedDecl` on the defsurface form.
 
 ;; ── the surface: messages PARAMETRIC, K and V in the payload ────────────────────────────────
-(:wat::core::defsurface :wat-tests::PCache<K,V> :nature :wat::kernel::Peer
+(:wat::core::defsurface :wat-tests::PCache :- [K V] :nature :wat::kernel::Peer
   :messages
-  [(:wat::core::defrecord :wat-tests::PCache::GetRequest<K>
+  [(:wat::core::defrecord :wat-tests::PCache::GetRequest :- [K]
      ;; ONE type-param field and ONE concrete field, deliberately side by side: the request-shape
      ;; wall's reach is exactly the difference between them, and probes (2) and (3) below MEASURE
      ;; that difference instead of asserting it.
-     [probes <- :wat::core::Vector<K>
+     [probes <- (:wat::core::Vector :- [K])
       limit  <- :wat::core::i64])
-   (:wat::core::defenum :wat-tests::PCache::GetResponse<K,V> :wat::enum::Pure
+   (:wat::core::defenum :wat-tests::PCache::GetResponse :- [K V] :wat::enum::Pure
      ;; `echo` returns the K-typed probes, `results` the V-typed durable, `limit` the concrete
      ;; field. All three are read APART by the assertion, so a wire that dropped any one of
      ;; them — or that shifted K and V — is caught, not silently tolerated.
-     :Ok              [echo    <- :wat::core::Vector<K>
-                       results <- :wat::core::Vector<V>
+     :Ok              [echo    <- (:wat::core::Vector :- [K])
+                       results <- (:wat::core::Vector :- [V])
                        limit   <- :wat::core::i64]
      ;; ruling A — every serviceable op-Response carries the protocol-tier too-large variant.
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
      ;; arc 278 Stone 2 — and the request-SHAPE refusal, unconditionally generated.
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   ;; Stone 16.3 — `:max-request-bytes` is MANDATORY on a `:nature :Peer'` op.
-  [(get [self <- :wat-tests::PCache<K,V>  req <- :wat-tests::PCache::GetRequest<K>]
-     -> :wat-tests::PCache::GetResponse<K,V> :max-request-bytes 1024)])
+  [(get [self <- (:wat-tests::PCache :- [K V])  req <- (:wat-tests::PCache::GetRequest :- [K])]
+     -> (:wat-tests::PCache::GetResponse :- [K V]) :max-request-bytes 1024)])
 
 ;; ── the two-parameter service ───────────────────────────────────────────────────────────────
 ;; The handler is fully GENERIC: it echoes the K-typed probes it was handed and returns the
 ;; V-typed durable vector. It never constructs a K or a V — it cannot, and does not need to.
-(:wat::service::defservice :wat-tests::pcache-svc<K,V>
-  :satisfies :wat-tests::PCache<K,V>
-  :durable   [fills <- :wat::core::Vector<V>]
+(:wat::service::defservice :wat-tests::pcache-svc :- [K V]
+  :satisfies (:wat-tests::PCache :- [K V])
+  :durable   [fills <- (:wat::core::Vector :- [V])]
   :ephemeral []
   :impls
   [(get [s ctx req]
@@ -113,8 +113,8 @@
 ;; honest fix AND a second assertion in its own right: the whole parametric protocol has to be
 ;; spellable by hand, at concrete args, for a caller to hold one.
 (:wat::core::defn :wat-tests::pcache/dial
-  [a <- :wat::kernel::Address<wat-tests::PCache::Op<wat::core::String,wat::core::i64>,wat-tests::PCache::Reply<wat::core::String,wat::core::i64>>]
-  -> :wat::kernel::Peer<wat-tests::PCache::Op<wat::core::String,wat::core::i64>,wat-tests::PCache::Reply<wat::core::String,wat::core::i64>>
+  [a <- (:wat::kernel::Address :- [(:wat-tests::PCache::Op :- [:wat::core::String :wat::core::i64]) (:wat-tests::PCache::Reply :- [:wat::core::String :wat::core::i64])])]
+  -> (:wat::kernel::Peer :- [(:wat-tests::PCache::Op :- [:wat::core::String :wat::core::i64]) (:wat-tests::PCache::Reply :- [:wat::core::String :wat::core::i64])])
   (:wat::core::match (:wat::kernel::connect a)
     ((:wat::kernel::ConnectOutcome::Connected p) p)
     ((:wat::kernel::ConnectOutcome::Refused cz)
@@ -125,7 +125,7 @@
       (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cz) :wat::core::None :wat::core::None))))
 
 (:wat::core::defn :wat-tests::pcache/label
-  [r <- :wat::kernel::RecvOutcome<wat-tests::PCache::GetResponse<wat::core::String,wat::core::i64>>]
+  [r <- (:wat::kernel::RecvOutcome :- [(:wat-tests::PCache::GetResponse :- [:wat::core::String :wat::core::i64])])]
   -> :wat::core::String
   (:wat::core::match r
     ((:wat::kernel::RecvOutcome::Message __recv)

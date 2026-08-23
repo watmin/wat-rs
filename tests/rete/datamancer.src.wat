@@ -84,13 +84,13 @@
 (:wat::rete::defquery :dm::q-primer :params [] :when [(?f <- :dm::Primer)])
 (:wat::rete::defquery :dm::q-four   :params [] :when [(?f <- :dm::Four)])
 
-(:wat::core::defn :dm::rules [] -> :wat::core::PersistentVector<wat::rete::Rule>
+(:wat::core::defn :dm::rules [] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
   (:wat::core::PersistentVector
     (:dm::gap) (:dm::read-after) (:dm::hollow)
     (:dm::recolligere) (:dm::curare) (:dm::examinare) (:dm::extirpare)
     (:dm::four) (:dm::we-are)))
 
-(:wat::core::defn :dm::queries [] -> :wat::core::PersistentVector<wat::rete::Query>
+(:wat::core::defn :dm::queries [] -> (:wat::core::PersistentVector :- [:wat::rete::Query])
   (:wat::core::PersistentVector
     (:dm::q-who) (:dm::q-hollow) (:dm::q-gap)
     (:dm::q-read) (:dm::q-primer) (:dm::q-four)))
@@ -108,7 +108,7 @@
     (:dm::Beat :t 5 :kind "weigh-disk")
     (:dm::Beat :t 6 :kind "root-failure")))
 
-(:wat::core::defn :user::source-counts [] -> :wat::core::PersistentVector<wat::core::i64>
+(:wat::core::defn :user::source-counts [] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:wat::core::let [s0    (:wat::rete::compile-all (:dm::rules) (:dm::queries))
                     fired (:wat::rete::fire-rules (:dm::seed-practice s0))]
     (:wat::core::PersistentVector
@@ -124,7 +124,7 @@
     (:wat::rete::export
       (:wat::rete::compile-all (:dm::rules) (:dm::queries)))))
 
-(:wat::core::defn :user::sizes [] -> :wat::core::PersistentVector<wat::core::i64>
+(:wat::core::defn :user::sizes [] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:wat::core::let [s0 (:wat::rete::compile-all (:dm::rules) (:dm::queries))
                     exp (:wat::rete::export s0)]
     (:wat::core::PersistentVector

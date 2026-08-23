@@ -3,7 +3,7 @@
 ;; "hygiene-scope divergence" (the body's a/b are literal template symbols that get scope-tagged
 ;; differently from the spliced binders — textbook anaphoric capture refused by hygiene).
 (:wat::core::defmacro :my::make-adder
-  [& params <- :wat::core::Vector<wat::WatAST>]
+  [& params <- (:wat::core::Vector :- [:wat::WatAST])]
   -> :wat::WatAST
   `(:wat::core::fn [~@params] -> :wat::core::i64
       (:wat::core::i64::+ a b)))

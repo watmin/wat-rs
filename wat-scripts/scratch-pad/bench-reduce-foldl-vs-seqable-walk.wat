@@ -20,13 +20,13 @@
 ;; recalibration inside the run.
 
 ;; ARM A — what `reduce` does TODAY for a Vector: the native foldl intrinsic.
-(:wat::core::defn :bench::via-foldl [v <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
+(:wat::core::defn :bench::via-foldl [v <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::i64
   (:wat::core::foldl (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
                        (:wat::core::i64::+ acc x))
     0 v))
 
 ;; ARM B — what a collapsed `reduce` would do: normalise to a Stream, then walk it interpreted.
-(:wat::core::defn :bench::via-walk [v <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
+(:wat::core::defn :bench::via-walk [v <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::i64
   (:wat::core::reduce-walk (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
                              (:wat::core::i64::+ acc x))
     0 (:wat::core::Seqable/seq v)))

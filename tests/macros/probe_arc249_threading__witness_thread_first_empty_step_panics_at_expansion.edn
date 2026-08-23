@@ -17,11 +17,11 @@
     :message "macro_eval: runtime::eval failed"
     :location #wat.core/Span {
       :file "wat/core.wat"
-      :line 1323
+      :line 1363
       :col 33
       :end #wat.core.Option/Some [
         #wat.core/Pos {
-          :line 1323
+          :line 1363
           :col 37
         }
       ]
@@ -31,11 +31,11 @@
       :message "malformed :wat::core::first form: :wat::core::first: WatAST List has 0 child(ren); no child at index 0"
       :location #wat.core/Span {
         :file "wat/core.wat"
-        :line 1323
+        :line 1363
         :col 33
         :end #wat.core.Option/Some [
           #wat.core/Pos {
-            :line 1323
+            :line 1363
             :col 37
           }
         ]

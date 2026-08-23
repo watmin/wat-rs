@@ -37,7 +37,7 @@
 (:wat::core::defn :dm::counts
   [txt  <- :wat::core::String
    seed <- :wat::core::Fn(wat::rete::Session)->wat::rete::Session]
-  -> :wat::core::PersistentVector<wat::core::i64>
+  -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:wat::core::let [exp   (:wat::edn::read txt)
                     s0    (:wat::rete::import exp)
                     fired (:wat::rete::fire-rules (seed s0))]
@@ -46,11 +46,11 @@
       (:wat::core::length (:wat::rete::query fired (:dm::q-hollow))))))
 
 (:wat::core::defn :user::practice [txt <- :wat::core::String]
-  -> :wat::core::PersistentVector<wat::core::i64>
+  -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:dm::counts txt :dm::seed-practice))
 
 (:wat::core::defn :user::impostor [txt <- :wat::core::String]
-  -> :wat::core::PersistentVector<wat::core::i64>
+  -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:dm::counts txt :dm::seed-impostor))
 
 (:wat::core::defn :user::sigil [txt <- :wat::core::String] -> :wat::core::String

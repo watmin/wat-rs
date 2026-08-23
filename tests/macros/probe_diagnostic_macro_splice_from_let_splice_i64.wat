@@ -10,10 +10,10 @@
         ;; native) stand in instead of `mapv`.
         (:wat::core::let
           [doubled (:wat::core::foldl
-                     (:wat::core::fn [acc <- :wat::core::Vector<wat::core::i64> x <- :wat::core::i64] -> :wat::core::Vector<wat::core::i64>
+                     (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::i64]) x <- :wat::core::i64] -> (:wat::core::Vector :- [:wat::core::i64])
                        (:wat::core::conj acc (:wat::core::i64::* x 2)))
                      (:wat::core::Vector :wat::core::i64)
                      xs)]
           doubled)))))
 
-(:wat::core::defn :user::compute [] -> :wat::core::Vector<wat::core::i64> (:probe::splice-i64 [1 2 3]))
+(:wat::core::defn :user::compute [] -> (:wat::core::Vector :- [:wat::core::i64]) (:probe::splice-i64 [1 2 3]))

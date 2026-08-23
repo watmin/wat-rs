@@ -5,7 +5,7 @@
   :messages
   [(:wat::core::defrecord :probe::Echo::EchoRequest  [msg   <- :wat::core::String])
    (:wat::core::defenum :probe::Echo::EchoResponse :wat::enum::Pure :Ok [reply <- :wat::core::String] :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-                                                                                                      :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
+                                                                                                      :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse :max-request-bytes 524288)])
 
@@ -16,7 +16,7 @@
               (:probe::Echo::EchoResponse::Ok (:probe::Echo::EchoRequest/msg req))))])
 
 ;; bare-D PoolMsg (the parent-side shape)
-(:wat::core::defenum :probe::PoolMsg<I> :wat::enum::Pure
+(:wat::core::defenum :probe::PoolMsg :- [I] :wat::enum::Pure
   :Setup [addr <- :wat::kernel::Address]
   :Work  [s    <- :I])
 

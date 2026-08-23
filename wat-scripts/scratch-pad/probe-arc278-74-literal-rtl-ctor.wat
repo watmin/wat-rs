@@ -32,30 +32,30 @@
 ;; ── the SUBJECT: a parametric serviceable surface, params load-bearing in BOTH
 ;;    the request and the response payload (the shape service-parametric-messages
 ;;    proved on the wire).
-(:wat::core::defsurface :probe::PCtor<K,V> :nature :wat::kernel::Peer
+(:wat::core::defsurface :probe::PCtor :- [K V] :nature :wat::kernel::Peer
   :messages
-  [(:wat::core::defrecord :probe::PCtor::GetRequest<K>
-     [probes <- :wat::core::Vector<K>
+  [(:wat::core::defrecord :probe::PCtor::GetRequest :- [K]
+     [probes <- (:wat::core::Vector :- [K])
       limit  <- :wat::core::i64])
-   (:wat::core::defenum :probe::PCtor::GetResponse<V> :wat::enum::Pure
-     :Ok               [results <- :wat::core::Vector<V>]
+   (:wat::core::defenum :probe::PCtor::GetResponse :- [V] :wat::enum::Pure
+     :Ok               [results <- (:wat::core::Vector :- [V])]
      :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path     <- :wat::core::Vector<wat::core::String>
+     :RequestMalformed [path     <- (:wat::core::Vector :- [:wat::core::String])
                         expected <- :wat::core::String
                         got      <- :wat::core::String])]
   :features
-  [(get [self <- :probe::PCtor<K,V>  req <- :probe::PCtor::GetRequest<K>]
-     -> :probe::PCtor::GetResponse<V> :max-request-bytes 1024)])
+  [(get [self <- (:probe::PCtor :- [K V])  req <- (:probe::PCtor::GetRequest :- [K])]
+     -> (:probe::PCtor::GetResponse :- [V]) :max-request-bytes 1024)])
 
 ;; ★ THE CLAIM UNDER TEST — a LITERAL ctor call naming the BARE base of a
 ;;   PARAMETRIC response enum, in exactly the position the macro will splice it.
 (:wat::core::defn :probe::mk-rtl-parametric []
-    -> :probe::PCtor::GetResponse<wat::core::i64>
+    -> (:probe::PCtor::GetResponse :- [:wat::core::i64])
   (:probe::PCtor::GetResponse::RequestTooLarge 9999 1024))
 
 ;; The RequestMalformed twin — the same strike lands on it, so it is under test too.
 (:wat::core::defn :probe::mk-rm-parametric []
-    -> :probe::PCtor::GetResponse<wat::core::i64>
+    -> (:probe::PCtor::GetResponse :- [:wat::core::i64])
   (:probe::PCtor::GetResponse::RequestMalformed
     (:wat::core::Vector :wat::core::String "limit") "i64" "String"))
 
@@ -68,7 +68,7 @@
    (:wat::core::defenum :probe::MCtor::PutResponse :wat::enum::Pure
      :Ok               [n <- :wat::core::i64]
      :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path     <- :wat::core::Vector<wat::core::String>
+     :RequestMalformed [path     <- (:wat::core::Vector :- [:wat::core::String])
                         expected <- :wat::core::String
                         got      <- :wat::core::String])]
   :features

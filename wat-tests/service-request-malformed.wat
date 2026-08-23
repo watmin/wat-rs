@@ -37,11 +37,11 @@
 ;; no declared type — structuring it would fabricate information).
 (:wat::core::defsurface :wat-tests::MalBag :nature :wat::kernel::Peer
   :messages
-  [(:wat::core::defrecord :wat-tests::MalBag::PutRequest [items <- :wat::core::Vector<wat::core::String>])
+  [(:wat::core::defrecord :wat-tests::MalBag::PutRequest [items <- (:wat::core::Vector :- [:wat::core::String])])
    (:wat::core::defenum :wat-tests::MalBag::PutResponse :wat::enum::Pure
      :Ok               [n <- :wat::core::i64]
      :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path     <- :wat::core::Vector<wat::core::String>
+     :RequestMalformed [path     <- (:wat::core::Vector :- [:wat::core::String])
                         expected <- :wat::core::String
                         got      <- :wat::core::String])]
   :features
@@ -70,7 +70,7 @@
 ;; One call → one label. The exhaustive match is the shield: `:RequestMalformed` is a variant
 ;; the caller CANNOT ignore (arc 109 — no wildcard arm), so a refusal can never be silent.
 (:wat::core::defn :wat-tests::mal/try
-  [c <- :wat::kernel::Peer<wat-tests::MalBag::Op,wat-tests::MalBag::Reply>
+  [c <- (:wat::kernel::Peer :- [:wat-tests::MalBag::Op :wat-tests::MalBag::Reply])
    req <- :wat-tests::MalBag::PutRequest] -> :wat::core::String
   (:wat::core::match (:wat-tests::MalBag/put c req)
     ((:wat::kernel::RecvOutcome::Message resp)
@@ -89,8 +89,8 @@
     (:wat::kernel::RecvOutcome::Closed "Closed")))
 
 (:wat::core::defn :wat-tests::mal/dial
-  [a <- :wat::kernel::Address<wat-tests::MalBag::Op,wat-tests::MalBag::Reply>]
-  -> :wat::kernel::Peer<wat-tests::MalBag::Op,wat-tests::MalBag::Reply>
+  [a <- (:wat::kernel::Address :- [:wat-tests::MalBag::Op :wat-tests::MalBag::Reply])]
+  -> (:wat::kernel::Peer :- [:wat-tests::MalBag::Op :wat-tests::MalBag::Reply])
   (:wat::core::match (:wat::kernel::connect a)
     ((:wat::kernel::ConnectOutcome::Connected p) p)
     ((:wat::kernel::ConnectOutcome::Refused c)

@@ -23,13 +23,13 @@
 ;; Mirrors tests/types/probe_arc293_acceptance_demo.wat exactly, renamed.
 (:wat::core::defsurface :sq::Seqable
   :nature :wat::core::Struct
-  :features [(as-vec [self <- :sq::Seqable] -> :wat::core::Vector<wat::core::i64>)])
+  :features [(as-vec [self <- :sq::Seqable] -> (:wat::core::Vector :- [:wat::core::i64]))])
 
 (:wat::core::extend-type :wat::core::Vector :sq::Seqable
-  (as-vec [self] -> :wat::core::Vector<wat::core::i64> self))
+  (as-vec [self] -> (:wat::core::Vector :- [:wat::core::i64]) self))
 
 (:wat::core::extend-type :wat::core::PersistentVector :sq::Seqable
-  (as-vec [self] -> :wat::core::Vector<wat::core::i64>
+  (as-vec [self] -> (:wat::core::Vector :- [:wat::core::i64])
     (:wat::core::into (:wat::core::Vector :wat::core::i64) self)))
 
 ;; the payoff: ONE function over ANY Seqable — what join/map/filter want

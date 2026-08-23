@@ -57,11 +57,11 @@
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind n) "keyword")
     (:wat::core::ast-name n) ""))
 
-(:wat::core::defn :user::start-off [n <- :wat::WatAST  lines <- :wat::core::Vector<wat::core::String>]
+(:wat::core::defn :user::start-off [n <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])]
   -> :wat::core::i64
   (:wat::fix::fix-text-offset-of (:wat::core::ast-span n) lines))
 
-(:wat::core::defn :user::end-off [n <- :wat::WatAST  lines <- :wat::core::Vector<wat::core::String>]
+(:wat::core::defn :user::end-off [n <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])]
   -> :wat::core::i64
   (:wat::fix::fix-text-offset-of (:wat::core::ast-end-span n) lines))
 
@@ -96,12 +96,12 @@
     "::RequestMalformed"))
 
 (:wat::core::defn :user::no-edits []
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)))
 
 ;; find-kw-index — index of the first child that is EXACTLY the keyword `name`; -1 if absent.
 (:wat::core::defn :user::find-kw-index
-  [ch <- :wat::core::Vector<wat::WatAST>  name <- :wat::core::String] -> :wat::core::i64
+  [ch <- (:wat::core::Vector :- [:wat::WatAST])  name <- :wat::core::String] -> :wat::core::i64
   (:wat::core::foldl
     (:wat::core::fn [acc <- :wat::core::i64  i <- :wat::core::i64] -> :wat::core::i64
       (:wat::core::if (:wat::core::>= acc 0)
@@ -117,8 +117,8 @@
 ;; A `defenum` whose variant keywords include `:RequestTooLarge` (and not yet `:RequestMalformed`)
 ;; is a ruling-A op-Response. Insert the shape sibling right after the size variant's field vector.
 (:wat::core::defn :user::defenum-edits
-  [ch <- :wat::core::Vector<wat::WatAST>  lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+  [ch <- (:wat::core::Vector :- [:wat::WatAST])  lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::let
     [irtl (:user::find-kw-index ch ":RequestTooLarge")
      irm  (:user::find-kw-index ch ":RequestMalformed")]
@@ -171,7 +171,7 @@
 ;; find-rtl-arm — index of the first arm whose pattern head ends in `::RequestTooLarge`; -1 if none.
 ;; has-rm-arm? — whether some arm already faces `::RequestMalformed` (the idempotency gate).
 (:wat::core::defn :user::find-arm-suffix
-  [ch <- :wat::core::Vector<wat::WatAST>  suf <- :wat::core::String] -> :wat::core::i64
+  [ch <- (:wat::core::Vector :- [:wat::WatAST])  suf <- :wat::core::String] -> :wat::core::i64
   (:wat::core::foldl
     (:wat::core::fn [acc <- :wat::core::i64  i <- :wat::core::i64] -> :wat::core::i64
       (:wat::core::if (:wat::core::>= acc 0)
@@ -184,8 +184,8 @@
     (:wat::core::range 0 (:wat::core::length ch))))
 
 (:wat::core::defn :user::match-edits
-  [ch <- :wat::core::Vector<wat::WatAST>  lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+  [ch <- (:wat::core::Vector :- [:wat::WatAST])  lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::let
     [irtl (:user::find-arm-suffix ch "::RequestTooLarge")
      irm  (:user::find-arm-suffix ch "::RequestMalformed")]
@@ -207,8 +207,8 @@
 
 ;; ── walk ─────────────────────────────────────────────────────────────────────
 (:wat::core::defn :user::node-edits
-  [node <- :wat::WatAST  lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+  [node <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
     (:wat::core::let [ch (:wat::core::ast->children node)]
       (:wat::core::if (:wat::core::empty? ch)
@@ -226,12 +226,12 @@
       (:user::no-edits))))
 
 (:wat::core::defn :user::seq-edits
-  [items <- :wat::core::Vector<wat::WatAST>  lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+  [items <- (:wat::core::Vector :- [:wat::WatAST])  lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+    (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
                      it  <- :wat::WatAST]
-      -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+      -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
       (:wat::core::concat acc (:user::node-edits it lines)))
     (:user::no-edits)
     items))
@@ -246,7 +246,7 @@
     (:wat::fix::fix-text-apply src rev)))
 
 ;; ── driver ───────────────────────────────────────────────────────────────────
-(:wat::core::defn :user::apply-each [paths <- :wat::core::Vector<wat::core::String>] -> :wat::core::nil
+(:wat::core::defn :user::apply-each [paths <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::nil
   (:wat::core::if (:wat::core::empty? paths)
     nil
     (:wat::core::let [path (:wat::core::first paths)]

@@ -35,26 +35,26 @@
 ;; dispatch per element is a real perf question and nothing here speaks to it.
 
 ;; DISCONFIRMING PROBE #2 — PARAMETRIC Seqable<T> over ALL FOUR containers.
-(:wat::core::defsurface :sq::Seqable<T> :nature :wat::core::Struct
-  :features [(as-vec [self <- :sq::Seqable<T>] -> :wat::core::Vector<T>)])
+(:wat::core::defsurface :sq::Seqable :- [T] :nature :wat::core::Struct
+  :features [(as-vec [self <- (:sq::Seqable :- [T])] -> (:wat::core::Vector :- [T]))])
 
-(:wat::core::extend-type :wat::core::Vector :sq::Seqable<T>
-  (as-vec [self] -> :wat::core::Vector<T> self))
+(:wat::core::extend-type :wat::core::Vector (:sq::Seqable :- [T])
+  (as-vec [self] -> (:wat::core::Vector :- [T]) self))
 
-(:wat::core::extend-type :wat::core::PersistentVector :sq::Seqable<T>
-  (as-vec [self] -> :wat::core::Vector<T> (:wat::core::into (:wat::core::Vector :T) self)))
+(:wat::core::extend-type :wat::core::PersistentVector (:sq::Seqable :- [T])
+  (as-vec [self] -> (:wat::core::Vector :- [T]) (:wat::core::into (:wat::core::Vector :T) self)))
 
-(:wat::core::extend-type :wat::core::List :sq::Seqable<T>
-  (as-vec [self] -> :wat::core::Vector<T>
-    (:wat::core::foldl (:wat::core::fn [acc <- :wat::core::Vector<T> x <- :T] -> :wat::core::Vector<T>
+(:wat::core::extend-type :wat::core::List (:sq::Seqable :- [T])
+  (as-vec [self] -> (:wat::core::Vector :- [T])
+    (:wat::core::foldl (:wat::core::fn [acc <- (:wat::core::Vector :- [T]) x <- :T] -> (:wat::core::Vector :- [T])
                          (:wat::core::conj acc x))
                        (:wat::core::Vector :T) self)))
 
-(:wat::core::extend-type :wat::stream::Stream :sq::Seqable<T>
-  (as-vec [self] -> :wat::core::Vector<T> (:wat::core::into (:wat::core::Vector :T) self)))
+(:wat::core::extend-type :wat::stream::Stream (:sq::Seqable :- [T])
+  (as-vec [self] -> (:wat::core::Vector :- [T]) (:wat::core::into (:wat::core::Vector :T) self)))
 
 ;; THE PAYOFF — one generic fn over ANY Seqable<T>
-(:wat::core::defn :sq::count-of<T> [s <- :sq::Seqable<T>] -> :wat::core::i64
+(:wat::core::defn :sq::count-of :- [T] [s <- (:sq::Seqable :- [T])] -> :wat::core::i64
   (:wat::core::length (:sq::Seqable/as-vec s)))
 
 ;; STONE 118.3-B — the four call sites. Pre-fix: each is RED, `TypeMismatch`,

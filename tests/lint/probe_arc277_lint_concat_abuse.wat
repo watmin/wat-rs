@@ -4,7 +4,7 @@
 ;; `format` cures. The probe eval_in_frozen's (:t::lint) and asserts >= 1 concat-abuse finding.
 ;; (The inner \"...\" are the wat source-string the lexer sees — a SourceFile body is wat-as-text.)
 
-(:wat::core::defn :t::lint [] -> :wat::core::Vector<wat::lint::Finding>
+(:wat::core::defn :t::lint [] -> (:wat::core::Vector :- [:wat::lint::Finding])
   (:wat::lint::lint-source
     (:wat::core::Vector :wat::source::File
       (:wat::source::File :path "t.wat"

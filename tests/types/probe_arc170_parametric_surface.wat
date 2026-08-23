@@ -6,12 +6,12 @@
 ;; located ReturnTypeMismatch at startup, and the runtime value itself is asserted to be i64(42).
 ;; Driven via `invoke_user_main` (not a `parse_one!`-string) so this test inlines no wat.
 
-(:wat::core::defsurface :probe::Holds<T> :nature :wat::core::Struct
+(:wat::core::defsurface :probe::Holds :- [T] :nature :wat::core::Struct
   :features
-  [(get [self <- :probe::Holds<T>] -> :T)])
+  [(get [self <- (:probe::Holds :- [T])] -> :T)])
 
 (:wat::core::defrecord :probe::IntBox [n <- :wat::core::i64])
-(:wat::core::extend-type :probe::IntBox :probe::Holds<wat::core::i64>
+(:wat::core::extend-type :probe::IntBox (:probe::Holds :- [:wat::core::i64])
   (get [self] (:probe::IntBox/n self)))
 
 (:wat::core::defn :probe::resolve [] -> :wat::core::i64

@@ -43,8 +43,8 @@
 
 ;; ── dial — the separately-typed verb, load-bearing (pins K,V) per the parametric precedent ──
 (:wat::core::defn :wat-tests::cache-svc/dial
-  [a <- :wat::kernel::Address<wat::cache::Cache::Op<wat::core::String,wat::core::i64>,wat::cache::Cache::Reply<wat::core::String,wat::core::i64>>]
-  -> :wat::kernel::Peer<wat::cache::Cache::Op<wat::core::String,wat::core::i64>,wat::cache::Cache::Reply<wat::core::String,wat::core::i64>>
+  [a <- (:wat::kernel::Address :- [(:wat::cache::Cache::Op :- [:wat::core::String :wat::core::i64]) (:wat::cache::Cache::Reply :- [:wat::core::String :wat::core::i64])])]
+  -> (:wat::kernel::Peer :- [(:wat::cache::Cache::Op :- [:wat::core::String :wat::core::i64]) (:wat::cache::Cache::Reply :- [:wat::core::String :wat::core::i64])])
   (:wat::core::match (:wat::kernel::connect a)
     ((:wat::kernel::ConnectOutcome::Connected p) p)
     ((:wat::kernel::ConnectOutcome::Refused cz)
@@ -58,7 +58,7 @@
 
 ;; one result -> one token; NEVER a rendered-string `contains`, a real pattern match per element.
 (:wat::core::defn :wat-tests::cache-svc/result-label
-  [r <- :wat::cache::Cache::GetResult<wat::core::i64>]
+  [r <- (:wat::cache::Cache::GetResult :- [:wat::core::i64])]
   -> :wat::core::String
   (:wat::core::match r
     ((:wat::cache::Cache::GetResult::Hit v) (:wat::core::string::concat "Hit:" (:wat::core::i64::to-string v)))
@@ -67,7 +67,7 @@
 ;; the whole batch's results, index order preserved, rendered "[tok,tok,...]" — the fold walks
 ;; `results` LEFT TO RIGHT and `conj` appends, so this string's token order IS `results`' order.
 (:wat::core::defn :wat-tests::cache-svc/get-label
-  [r <- :wat::kernel::RecvOutcome<wat::cache::Cache::GetResponse<wat::core::i64>>]
+  [r <- (:wat::kernel::RecvOutcome :- [(:wat::cache::Cache::GetResponse :- [:wat::core::i64])])]
   -> :wat::core::String
   (:wat::core::match r
     ((:wat::kernel::RecvOutcome::Message __recv)
@@ -77,9 +77,9 @@
             (:wat::core::string::concat
               (:wat::core::string::join ","
                 (:wat::core::foldl
-                  (:wat::core::fn [acc <- :wat::core::Vector<wat::core::String>
-                                   res <- :wat::cache::Cache::GetResult<wat::core::i64>]
-                    -> :wat::core::Vector<wat::core::String>
+                  (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String])
+                                   res <- (:wat::cache::Cache::GetResult :- [:wat::core::i64])]
+                    -> (:wat::core::Vector :- [:wat::core::String])
                     (:wat::core::conj acc (:wat-tests::cache-svc/result-label res)))
                   (:wat::core::Vector :wat::core::String)
                   results))
@@ -99,7 +99,7 @@
 ;; `put` answers nothing meaningful (file-header departure note in `wat/cache.wat`) — the ONLY
 ;; honest token is whether the batch was accepted at all.
 (:wat::core::defn :wat-tests::cache-svc/put-label
-  [r <- :wat::kernel::RecvOutcome<wat::cache::Cache::PutResponse>]
+  [r <- (:wat::kernel::RecvOutcome :- [:wat::cache::Cache::PutResponse])]
   -> :wat::core::String
   (:wat::core::match r
     ((:wat::kernel::RecvOutcome::Message __recv)
@@ -128,7 +128,7 @@
      put-batch (:wat-tests::cache-svc/put-label
                  (:wat::cache::lru-svc/put a
                    (:wat::cache::Cache::PutRequest
-                     :entries (:wat::core::Vector :wat::cache::Entry<wat::core::String,wat::core::i64>
+                     :entries (:wat::core::Vector (:wat::cache::Entry :- [:wat::core::String :wat::core::i64])
                                 (:wat::cache::Entry :key "k1" :value 100)
                                 (:wat::cache::Entry :key "k2" :value 200)))))
      ;; ★ INDEX ALIGNMENT — ONE `get` round trip, THREE probes, DELIBERATELY JUMBLED: k2 (a hit,
@@ -147,7 +147,7 @@
      put-k3 (:wat-tests::cache-svc/put-label
               (:wat::cache::lru-svc/put a
                 (:wat::cache::Cache::PutRequest
-                  :entries (:wat::core::Vector :wat::cache::Entry<wat::core::String,wat::core::i64>
+                  :entries (:wat::core::Vector (:wat::cache::Entry :- [:wat::core::String :wat::core::i64])
                              (:wat::cache::Entry :key "k3" :value 300)))))
      ;; BATCH-OF-ONE get + EVICTION IS OBSERVABLE THROUGH THE ACTOR — k2 was evicted by the put
      ;; above; a batch-of-one get names it a Miss, not an error.

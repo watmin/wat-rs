@@ -2740,20 +2740,21 @@ fn infer_list(
                     } });
                     return CheckResult::errs(local_errors);
                 }
-                // Validate arg[0] is a keyword (type-position).
-                if !matches!(&args[0], WatAST::Keyword(_, _)) {
+                // Validate arg[0] is a type-position node (Keyword, or Arc 109 ③'s reference
+                // FORM `(Head :- [args])` — a `WatAST::List`).
+                if !matches!(&args[0], WatAST::Keyword(_, _) | WatAST::List(_, _)) {
                     local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::MalformedForm {
                         head: ":wat::core::subtype?".into(),
-                        reason: "first arg must be a type keyword (e.g. :my::Child)".into(),
+                        reason: "first arg must be a type keyword or `(Head :- [args])` type form (e.g. :my::Child)".into(),
                         remedies: vec![],
                     } });
                     return CheckResult::errs(local_errors);
                 }
-                // Validate arg[1] is a keyword (type-position).
-                if !matches!(&args[1], WatAST::Keyword(_, _)) {
+                // Validate arg[1] is a type-position node.
+                if !matches!(&args[1], WatAST::Keyword(_, _) | WatAST::List(_, _)) {
                     local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::MalformedForm {
                         head: ":wat::core::subtype?".into(),
-                        reason: "second arg must be a type keyword (e.g. :my::Parent)".into(),
+                        reason: "second arg must be a type keyword or `(Head :- [args])` type form (e.g. :my::Parent)".into(),
                         remedies: vec![],
                     } });
                     return CheckResult::errs(local_errors);
@@ -2795,12 +2796,13 @@ fn infer_list(
                 // irrelevant and may legitimately be an opaque union member or record.
                 let mut _discard: Vec<CheckError> = Vec::new();
                 let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut _discard);
-                // Validate arg[1] is a keyword (type-position); do NOT infer it as a
-                // value expression (would wrongly infer registered constructors as Fn types).
-                if !matches!(&args[1], WatAST::Keyword(_, _)) {
+                // Validate arg[1] is a type-position node (Keyword, or Arc 109 ③'s reference
+                // FORM `(Head :- [args])`); do NOT infer it as a value expression (would
+                // wrongly infer registered constructors as Fn types).
+                if !matches!(&args[1], WatAST::Keyword(_, _) | WatAST::List(_, _)) {
                     local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::MalformedForm {
                         head: ":wat::core::conforms?".into(),
-                        reason: "second arg must be a type keyword (e.g. :my::Type or :wat::core::Vector<my::T>)".into(),
+                        reason: "second arg must be a type keyword or `(Head :- [args])` type form (e.g. :my::Type or (:wat::core::Vector :- [:my::T]))".into(),
                         remedies: vec![],
                     } });
                     return CheckResult::errs(local_errors);
@@ -2836,10 +2838,10 @@ fn infer_list(
                 }
                 let mut _discard: Vec<CheckError> = Vec::new();
                 let _ = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut _discard);
-                if !matches!(&args[1], WatAST::Keyword(_, _)) {
+                if !matches!(&args[1], WatAST::Keyword(_, _) | WatAST::List(_, _)) {
                     local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::MalformedForm {
                         head: ":wat::edn::validate".into(),
-                        reason: "second arg must be a type keyword (e.g. :my::Request or :wat::core::Vector<my::T>)".into(),
+                        reason: "second arg must be a type keyword or `(Head :- [args])` type form (e.g. :my::Request or (:wat::core::Vector :- [:my::T]))".into(),
                         remedies: vec![],
                     } });
                     return CheckResult::errs(local_errors);
@@ -9518,30 +9520,30 @@ fn check_wire_peer_purity_span(
     }
 }
 
-/// Parse one `peer-pair'` type-keyword arg; on a non-keyword or unparseable
-/// keyword, record a diagnostic and return a fresh var so checking continues.
+/// Parse one `peer-pair'` (and `self-peer`/`retag-op`/`listener'`/`connect'`/`accept'`)
+/// type arg; on an unparseable node, record a diagnostic and return a fresh var so
+/// checking continues.
+///
+/// Arc 109 ③ — angle brackets are illegal for types, so a parametric arg here
+/// (`Cache::Op<K,V>`) can no longer arrive as a single angle-bracket Keyword; it
+/// arrives as the reference FORM `(Head :- [args])`, a `WatAST::List`. This used to
+/// accept ONLY `WatAST::Keyword` (hand-rolled here, calling `parse_type_expr` on the
+/// keyword string) — a second, narrower type-parse door that never learned the `:-`
+/// form. Delegate to [`crate::types::parse_type_node`] instead: the ONE dispatcher
+/// every other annotation slot in the checker already resolves through (Keyword /
+/// Symbol / List / Vector), so this door and every other door read the same grammar.
 fn parse_peer_pair_type_arg(
     arg: &WatAST,
     op: &str,
     errs: &mut Vec<CheckError>,
     fresh: &mut InferCtx,
 ) -> TypeExpr {
-    match arg {
-        WatAST::Keyword(k, _) => match crate::types::parse_type_expr(k) {
-            Ok(t) => t,
-            Err(_) => {
-                errs.push(CheckError { span: arg.span().clone(), kind: CheckErrorKind::MalformedForm {
-                    head: op.into(),
-                    reason: format!("argument {} is not a valid type keyword", k),
-                    remedies: vec![],
-                } });
-                fresh.fresh()
-            }
-        },
-        other => {
-            errs.push(CheckError { span: other.span().clone(), kind: CheckErrorKind::MalformedForm {
+    match crate::types::parse_type_node(arg) {
+        Ok(t) => t,
+        Err(_) => {
+            errs.push(CheckError { span: arg.span().clone(), kind: CheckErrorKind::MalformedForm {
                 head: op.into(),
-                reason: "arguments must be type keywords (e.g. :wat::core::i64)".into(),
+                reason: "argument is not a valid type (keyword, namespaced symbol, or parametric form `(Ctor :- [args])`)".into(),
                 remedies: vec![],
             } });
             fresh.fresh()
@@ -14219,66 +14221,62 @@ fn infer_hashmap_constructor(
         }, local_errors);
     }
     let k_ty = match &args[0] {
-        WatAST::Keyword(k, _) => {
+        WatAST::Keyword(k, _) if k == crate::types::INFER_TYPE_PATH => {
             // Arc 215 stone 1 — :wat::type::Infer means "infer K from
             // the keys." Route to a fresh type variable; the unification
             // loop below concretizes it from the first key.
-            if k == crate::types::INFER_TYPE_PATH {
-                fresh.fresh()
-            } else {
-                match crate::types::parse_type_expr(k) {
-                    Ok(parsed) => {
-                        let expanded = crate::types::expand_alias(&parsed, env.types());
-                        expanded
-                    }
-                    Err(_) => {
-                        local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::MalformedForm {
-                            head: ":wat::core::HashMap".into(),
-                            reason: format!("first type argument {} is not a valid type keyword", k),
-                            remedies: vec![],
-                        } });
-                        fresh.fresh()
-                    }
+            fresh.fresh()
+        }
+        // Arc 109 ③ — widen to accept the `:-` reference FORM `(Head :- [args])` too
+        // (a `WatAST::List`), routed through `parse_type_node` — the same widening
+        // `infer_list_constructor` (Vector's ctor) already carries. Additive only: the
+        // Keyword arm above is untouched.
+        node @ (WatAST::Keyword(_, _) | WatAST::List(_, _)) => {
+            match crate::types::parse_type_node(node) {
+                Ok(parsed) => crate::types::expand_alias(&parsed, env.types()),
+                Err(e) => {
+                    local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::MalformedForm {
+                        head: ":wat::core::HashMap".into(),
+                        reason: format!("first type argument is not a valid type: {e}"),
+                        remedies: vec![],
+                    } });
+                    fresh.fresh()
                 }
             }
         }
         _ => {
             local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::MalformedForm {
                 head: ":wat::core::HashMap".into(),
-                reason: "first two arguments must be type keywords (K, V); first argument is not a keyword".into(),
+                reason: "first two arguments must be type keywords or `(Head :- [args])` type forms (K, V); first argument is not one".into(),
                 remedies: vec![],
             } });
             fresh.fresh()
         }
     };
     let v_ty = match &args[1] {
-        WatAST::Keyword(v, _) => {
+        WatAST::Keyword(v, _) if v == crate::types::INFER_TYPE_PATH => {
             // Arc 215 stone 1 — :wat::type::Infer means "infer V from
             // the values." Route to a fresh type variable; the unification
             // loop below concretizes it from the first value.
-            if v == crate::types::INFER_TYPE_PATH {
-                fresh.fresh()
-            } else {
-                match crate::types::parse_type_expr(v) {
-                    Ok(parsed) => {
-                        let expanded = crate::types::expand_alias(&parsed, env.types());
-                        expanded
-                    }
-                    Err(_) => {
-                        local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::MalformedForm {
-                            head: ":wat::core::HashMap".into(),
-                            reason: format!("second type argument {} is not a valid type keyword", v),
-                            remedies: vec![],
-                        } });
-                        fresh.fresh()
-                    }
+            fresh.fresh()
+        }
+        node @ (WatAST::Keyword(_, _) | WatAST::List(_, _)) => {
+            match crate::types::parse_type_node(node) {
+                Ok(parsed) => crate::types::expand_alias(&parsed, env.types()),
+                Err(e) => {
+                    local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::MalformedForm {
+                        head: ":wat::core::HashMap".into(),
+                        reason: format!("second type argument is not a valid type: {e}"),
+                        remedies: vec![],
+                    } });
+                    fresh.fresh()
                 }
             }
         }
         _ => {
             local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::MalformedForm {
                 head: ":wat::core::HashMap".into(),
-                reason: "first two arguments must be type keywords (K, V); second argument is not a keyword".into(),
+                reason: "first two arguments must be type keywords or `(Head :- [args])` type forms (K, V); second argument is not one".into(),
                 remedies: vec![],
             } });
             fresh.fresh()
@@ -21407,7 +21405,7 @@ mod tests {
     use crate::runtime::{
         register_defclause, register_defines, ClauseRegPhase, Environment, SymbolTable,
     };
-    use crate::types::{parse_type_expr, register_types, TypeEnv};
+    use crate::types::{parse_type_expr, parse_type_node, register_types, TypeEnv};
     use crate::value::{RuntimeError, RuntimeErrorKind};
     use std::sync::OnceLock;
 
@@ -21841,13 +21839,20 @@ mod tests {
 
     #[test]
     fn any_as_parametric_head_rejected_at_parse() {
-        let err = parse_type_expr(":Any<i64>").unwrap_err();
+        // Arc 109 ③ — `:Any<i64>` has no flat-string spelling any more; build the reference
+        // FORM `(Head :- [args])` via `parse_one!` and route it through `parse_type_node` (the
+        // door `parse_type_expr` cannot reach a List through) so the `:Any` ban itself — not
+        // the angle-bracket wall — is what actually fires here.
+        let form = crate::parse_one!("(:Any :- [:i64])").unwrap();
+        let err = parse_type_node(&form).unwrap_err();
         assert!(matches!(err.kind(), crate::types::TypeErrorKind::AnyBanned { .. }));
     }
 
     #[test]
     fn any_as_nested_arg_rejected_at_parse() {
-        let err = parse_type_expr(":Vec<Any>").unwrap_err();
+        // Arc 109 ③ — same structural-form migration as the parametric-head test above.
+        let form = crate::parse_one!("(:Vec :- [:Any])").unwrap();
+        let err = parse_type_node(&form).unwrap_err();
         assert!(matches!(err.kind(), crate::types::TypeErrorKind::AnyBanned { .. }));
     }
 
@@ -21994,12 +21999,14 @@ mod tests {
         // bug repro: enum decl carries `<T>`, function param carries
         // `:my::Box<T>`, match patterns reference variants under the
         // bare `:my::Box::*` prefix.
+        // Arc 109 ③ — angle-bracket decl-names and references retired: `Head :- [T]`
+        // siblings for a declaration's own name; `(Head :- [T])` in parens for a reference.
         let src = r#"
-            (:wat::core::defenum :my::Box<T> :wat::enum::Pure
+            (:wat::core::defenum :my::Box :- [T] :wat::enum::Pure
               :Empty
               :Filled [value <- :T])
 
-            (:wat::core::defn :my::is-empty<T> [b <- :my::Box<T>] -> :wat::core::bool
+            (:wat::core::defn :my::is-empty :- [T] [b <- (:my::Box :- [T])] -> :wat::core::bool
               (:wat::core::match b
                               (:my::Box::Empty true)
                               ((:my::Box::Filled _v) false)))
@@ -22017,12 +22024,14 @@ mod tests {
         // Stone 241.9 — migrated to defenum form.
         // Two type params, tagged variants. Mirrors arc 119's
         // `:wat::lru::Request<K,V>` shape directly.
+        // Arc 109 ③ — angle-bracket decl-names and references retired: `Head :- [L R]`
+        // siblings for a declaration's own name; `(Head :- [L R])` in parens for a reference.
         let src = r#"
-            (:wat::core::defenum :my::Either<L,R> :wat::enum::Pure
+            (:wat::core::defenum :my::Either :- [L R] :wat::enum::Pure
               :Left  [value <- :L]
               :Right [value <- :R])
 
-            (:wat::core::defn :my::is-left<L,R> [e <- :my::Either<L,R>] -> :wat::core::bool
+            (:wat::core::defn :my::is-left :- [L R] [e <- (:my::Either :- [L R])] -> :wat::core::bool
               (:wat::core::match e
                               ((:my::Either::Left _v) true)
                               ((:my::Either::Right _v) false)))
@@ -22041,12 +22050,14 @@ mod tests {
         // Tagged variant binder must inherit the parametric type's
         // instantiation. If the scrutinee is :my::Box<i64>, then
         // (Filled v) must bind v as :i64.
+        // Arc 109 ③ — angle-bracket decl-names and references retired: `Head :- [T]`
+        // siblings for a declaration's own name; `(Head :- [T])` in parens for a reference.
         let src = r#"
-            (:wat::core::defenum :my::Box<T> :wat::enum::Pure
+            (:wat::core::defenum :my::Box :- [T] :wat::enum::Pure
               :Empty
               :Filled [value <- :T])
 
-            (:wat::core::defn :my::default-or<T> [b <- :my::Box<T> d <- :T] -> :T
+            (:wat::core::defn :my::default-or :- [T] [b <- (:my::Box :- [T]) d <- :T] -> :T
               (:wat::core::match b
                               (:my::Box::Empty d)
                               ((:my::Box::Filled v) v)))

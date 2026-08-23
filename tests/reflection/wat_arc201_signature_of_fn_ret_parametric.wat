@@ -3,7 +3,7 @@
 ;; Probe: parametric return type Vector<i64> lands as structured Bundle.
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
-              [f   (:wat::core::fn [] -> :wat::core::Vector<wat::core::i64>
+              [f   (:wat::core::fn [] -> (:wat::core::Vector :- [:wat::core::i64])
                      (:wat::core::Vector :wat::core::i64))
                sig (:wat::runtime::signature-of-fn f)
                rendered sig]

@@ -15,7 +15,7 @@
 ;; DRIVE IT: edit `n` per size, run each under `/usr/bin/time -f 'maxRSS=%M KB'`.
 
 (:wat::core::defn :probe::counter
-  [i <- :wat::core::i64] -> :wat::stream::Stream<wat::core::i64>
+  [i <- :wat::core::i64] -> (:wat::stream::Stream :- [:wat::core::i64])
   (:wat::stream::lazy
     (:wat::stream::cons i (:probe::counter (:wat::core::+ i 1)))))
 

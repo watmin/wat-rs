@@ -34,12 +34,12 @@
    (:wat::core::defenum :probe::CallCtx3::WhoamiResponse :wat::enum::Pure
      :Ok               [caller-id <- :wat::core::i64  namespace <- :wat::core::keyword  operation <- :wat::core::String]
      :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])
    (:wat::core::defrecord :probe::CallCtx3::PingRequest [])
    (:wat::core::defenum :probe::CallCtx3::PingResponse :wat::enum::Pure
      :Ok               [ok <- :wat::core::bool]
      :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])
    ;; arc 278 ctx-is-mandatory item (2) — `arm-mark` (client-callable) arms the INTERNAL `-mark`
    ;; op via a one-shot Alarm; `-mark` (never on the wire, no request/response) stamps what its
    ;; OWN `SelfInvocation` ctx said into durable state; `peek-mark` (client-callable) reads it
@@ -48,12 +48,12 @@
    (:wat::core::defenum :probe::CallCtx3::ArmMarkResponse :wat::enum::Pure
      :Ok               []
      :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])
    (:wat::core::defrecord :probe::CallCtx3::PeekMarkRequest [])
    (:wat::core::defenum :probe::CallCtx3::PeekMarkResponse :wat::enum::Pure
      :Ok               [seen-op <- :wat::core::String  seen-ns <- :wat::core::keyword]
      :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(whoami   [self <- :probe::CallCtx3  req <- :probe::CallCtx3::WhoamiRequest]   -> :probe::CallCtx3::WhoamiResponse   :max-request-bytes 524288)
    (ping     [self <- :probe::CallCtx3  req <- :probe::CallCtx3::PingRequest]     -> :probe::CallCtx3::PingResponse     :max-request-bytes 524288)

@@ -33,7 +33,7 @@
 
 ;; src n — a Vector<i64> of n elements, built ONCE and outside both timed regions so the
 ;; construction cost is charged to neither path.
-(:wat::core::defn :iq::src [n <- :wat::core::i64] -> :wat::core::Vector<wat::core::i64>
+(:wat::core::defn :iq::src [n <- :wat::core::i64] -> (:wat::core::Vector :- [:wat::core::i64])
   (:wat::core::into (:wat::core::Vector :wat::core::i64) (:wat::core::range 0 n)))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

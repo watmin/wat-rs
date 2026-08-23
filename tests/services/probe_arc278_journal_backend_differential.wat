@@ -9,7 +9,7 @@
 ;; journal-roundtrip: GIVEN a store's Address' (the config param), start journal' against it, write a
 ;; Metric, then scan the store back through a fresh client and return the persisted `data`.
 (:wat::core::defn :user::journal-roundtrip
-  [store-addr <- :wat::kernel::Address<wat::query::Store::Op,wat::query::Store::Reply>]
+  [store-addr <- (:wat::kernel::Address :- [:wat::query::Store::Op :wat::query::Store::Reply])]
   -> :wat::core::String
   (:wat::core::let
     [jh      (:wat::telemetry::journal/start :locus (:wat::spawn::thread)

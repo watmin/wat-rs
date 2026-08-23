@@ -17,7 +17,7 @@
              (:wat::core::defenum :probe::S1::OpResponse :wat::enum::Pure
                :Ok              [r <- :wat::core::String]
                :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-               :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
+               :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features [(op [self <- :probe::S1  req <- :probe::S1::OpRequest] -> :probe::S1::OpResponse :max-request-bytes 524288)])
 (:wat::service::defservice :probe::s1 :satisfies :probe::S1 :durable [] :ephemeral []
   :impls [(op [s ctx req] (:wat::service::Outcome::Reply s
@@ -28,7 +28,7 @@
              (:wat::core::defenum :probe::S2::OpResponse :wat::enum::Pure
                :Ok              [r <- :wat::core::String]
                :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-               :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
+               :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features [(op [self <- :probe::S2  req <- :probe::S2::OpRequest] -> :probe::S2::OpResponse :max-request-bytes 524288)])
 (:wat::service::defservice :probe::s2 :satisfies :probe::S2 :durable [] :ephemeral []
   :impls [(op [s ctx req] (:wat::service::Outcome::Reply s
@@ -39,7 +39,7 @@
              (:wat::core::defenum :probe::S3::OpResponse :wat::enum::Pure
                :Ok              [r <- :wat::core::String]
                :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-               :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
+               :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features [(op [self <- :probe::S3  req <- :probe::S3::OpRequest] -> :probe::S3::OpResponse :max-request-bytes 524288)])
 (:wat::service::defservice :probe::s3 :satisfies :probe::S3 :durable [] :ephemeral []
   :impls [(op [s ctx req] (:wat::service::Outcome::Reply s
@@ -50,7 +50,7 @@
              (:wat::core::defenum :probe::S4::OpResponse :wat::enum::Pure
                :Ok              [r <- :wat::core::String]
                :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-               :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
+               :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features [(op [self <- :probe::S4  req <- :probe::S4::OpRequest] -> :probe::S4::OpResponse :max-request-bytes 524288)])
 (:wat::service::defservice :probe::s4 :satisfies :probe::S4 :durable [] :ephemeral []
   :impls [(op [s ctx req] (:wat::service::Outcome::Reply s
@@ -61,7 +61,7 @@
              (:wat::core::defenum :probe::S5::OpResponse :wat::enum::Pure
                :Ok              [r <- :wat::core::String]
                :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-               :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
+               :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features [(op [self <- :probe::S5  req <- :probe::S5::OpRequest] -> :probe::S5::OpResponse :max-request-bytes 524288)])
 (:wat::service::defservice :probe::s5 :satisfies :probe::S5 :durable [] :ephemeral []
   :impls [(op [s ctx req] (:wat::service::Outcome::Reply s
@@ -72,7 +72,7 @@
              (:wat::core::defenum :probe::S6::OpResponse :wat::enum::Pure
                :Ok              [r <- :wat::core::String]
                :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-               :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
+               :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features [(op [self <- :probe::S6  req <- :probe::S6::OpRequest] -> :probe::S6::OpResponse :max-request-bytes 524288)])
 (:wat::service::defservice :probe::s6 :satisfies :probe::S6 :durable [] :ephemeral []
   :impls [(op [s ctx req] (:wat::service::Outcome::Reply s
@@ -83,7 +83,7 @@
              (:wat::core::defenum :probe::S7::OpResponse :wat::enum::Pure
                :Ok              [r <- :wat::core::String]
                :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-               :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
+               :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features [(op [self <- :probe::S7  req <- :probe::S7::OpRequest] -> :probe::S7::OpResponse :max-request-bytes 524288)])
 (:wat::service::defservice :probe::s7 :satisfies :probe::S7 :durable [] :ephemeral []
   :impls [(op [s ctx req] (:wat::service::Outcome::Reply s
@@ -92,13 +92,13 @@
 ;; ── the work-fn: item POSITIONAL; 7 Peer' service kwargs + 5 String data kwargs ──
 (:wat::core::defn :probe::enrich
   [item <- :wat::core::String
-   & [s1 <- :wat::kernel::Peer<probe::S1::Op,probe::S1::Reply>
-      s2 <- :wat::kernel::Peer<probe::S2::Op,probe::S2::Reply>
-      s3 <- :wat::kernel::Peer<probe::S3::Op,probe::S3::Reply>
-      s4 <- :wat::kernel::Peer<probe::S4::Op,probe::S4::Reply>
-      s5 <- :wat::kernel::Peer<probe::S5::Op,probe::S5::Reply>
-      s6 <- :wat::kernel::Peer<probe::S6::Op,probe::S6::Reply>
-      s7 <- :wat::kernel::Peer<probe::S7::Op,probe::S7::Reply>
+   & [s1 <- (:wat::kernel::Peer :- [:probe::S1::Op :probe::S1::Reply])
+      s2 <- (:wat::kernel::Peer :- [:probe::S2::Op :probe::S2::Reply])
+      s3 <- (:wat::kernel::Peer :- [:probe::S3::Op :probe::S3::Reply])
+      s4 <- (:wat::kernel::Peer :- [:probe::S4::Op :probe::S4::Reply])
+      s5 <- (:wat::kernel::Peer :- [:probe::S5::Op :probe::S5::Reply])
+      s6 <- (:wat::kernel::Peer :- [:probe::S6::Op :probe::S6::Reply])
+      s7 <- (:wat::kernel::Peer :- [:probe::S7::Op :probe::S7::Reply])
       d1 <- :wat::core::String
       d2 <- :wat::core::String
       d3 <- :wat::core::String
@@ -164,7 +164,7 @@
 
 ;; `:probe::run` (a non-main defn — no `:user::main`; only freezes + is called directly).
 ;; THROUGH THE MACRO: raw handles + data, scrambled order, no Dialable/coord wrapping.
-(:wat::core::defn :probe::run [] -> :wat::core::Vector<wat::core::String>
+(:wat::core::defn :probe::run [] -> (:wat::core::Vector :- [:wat::core::String])
   (:wat::core::let
     [h1 (:probe::s1/start :locus (:wat::spawn::process) :record (:probe::s1::Record))
      h2 (:probe::s2/start :locus (:wat::spawn::process) :record (:probe::s2::Record))

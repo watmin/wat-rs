@@ -224,7 +224,7 @@
   
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::thread)
-         (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+         (:wat::core::fn [self <- (:wat::kernel::ThreadSelfPeer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
            ;; Body must return nil; do discards the i64 result, then returns nil.
            ;; Division panics before nil is reached, which is the whole point — the
            ;; crash reaches the parent's recv' as Lost BEFORE the completion send'.

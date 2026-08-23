@@ -321,6 +321,45 @@
   (spawn-runner [self work-fn]
     (:wat::kernel::spawn-program self (:wat::bracket::process-work-forms work-fn))))
 
+;; Arc 109 ③ — angle brackets are ILLEGAL for types, so a parametric type slot reflected off
+;; a reified work-fn's argspec (e.g. `Peer<S,R>`) now arrives as the reference FORM
+;; `(Head :- [args])`, a List — `ast-name` only reads Symbol/Keyword/StringLit, so it raises
+;; outright on that shape. `process-work-forms` (below) derives new types (the self-peer send/
+;; recv types, the `Peer`→`Address` head-swap) off a reflected type slot by `ast-name` +
+;; string surgery; these two helpers are the ONE door both shapes go through. Plain top-level
+;; `defn`s (unlike `wat/core.wat`'s equivalent pair): `process-work-forms` is a `defclause`,
+;; not a `defmacro`, so there is no program-body purity gate here to route around.
+;;
+;; -type-slot-name — structural type-NAME text of a type-position node, whether spelled as a
+;; bare Keyword or the `(Head :- [args])` List form (reads the List's own head).
+(:wat::core::defn :wat::bracket::-type-slot-name
+  [node <- :wat::WatAST] -> :wat::core::String
+  (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
+    (:wat::core::ast-name (:wat::core::first (:wat::core::ast->children node)))
+    (:wat::core::ast-name node)))
+
+;; -type-slot-swap-head — rebuild a type-position node with its HEAD keyword's text
+;; substring-substituted `old`->`new`, preserving shape: a bare Keyword becomes a bare
+;; Keyword; a `(Head :- [args])` List keeps the SAME `:- [args]` tail — only Head's text
+;; changes, so the args (however deeply nested) survive untouched.
+(:wat::core::defn :wat::bracket::-type-slot-swap-head
+  [node <- :wat::WatAST old <- :wat::core::String new <- :wat::core::String] -> :wat::WatAST
+  (:wat::core::let
+    [nm         (:wat::bracket::-type-slot-name node)
+     swapped-kw (:wat::core::keyword-node (:wat::core::string::join new (:wat::core::string::split nm old)))]
+    (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
+      (:wat::core::let
+        [ch     (:wat::core::ast->children node)
+         tail   (:wat::core::rest ch)
+         new-ch (:wat::core::foldl
+                  (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST]) x <- :wat::WatAST]
+                    -> (:wat::core::Vector :- [:wat::WatAST])
+                    (:wat::core::conj acc x))
+                  (:wat::core::conj (:wat::core::Vector :wat::WatAST) swapped-kw)
+                  tail)]
+        (:wat::core::with-children node new-ch))
+      swapped-kw)))
+
 (:wat::core::defclause :wat::bracket::process-work-forms
   ;; ── KWARGS branch (arc 170 C1 ground case N=1, generalized to N by C2 Strike 1) ──
   ;; work-fn is a BASE NAME keyword naming a kwargs `defn`'s companion (e.g. :probe::enrich).
@@ -359,10 +398,6 @@
        ;; list) — NOT last, unlike the raw dial shape (kwargs puts item before the bundle).
        item-ty       (:wat::core::Option/expect (:wat::core::get arg-ch 2) "process-work-forms(kwargs): no item type")
        ret-ty        (:wat::core::Option/expect (:wat::core::get dn-ch 4) "process-work-forms(kwargs): no ret type")
-       item-nm       (:wat::core::ast-name item-ty)
-       ret-nm        (:wat::core::ast-name ret-ty)
-       item-t        (:wat::core::string::subs item-nm 1 (:wat::core::string::length item-nm))
-       ret-t         (:wat::core::string::subs ret-nm 1 (:wat::core::string::length ret-nm))
        ;; ── arc 170 C2 Strike 1 (record redirect): the ::Kwargs fields, reconciled BY NAME ──
        ;; The coords carrier D is the `<base>::Coords` RECORD (minted at the kwargs-defn site,
        ;; wat/core.wat) — addressed by field NAME, so N has NO positional-accessor cap and DATA
@@ -380,21 +415,19 @@
                          "bracket process-work-forms: field-names-of/field-types-of length mismatch"
                          :wat::core::None :wat::core::None))
        coords-ty-str (:wat::core::format "{base-str}::Coords" :base-str base-str)
-       sp-out-str    (:wat::core::string::concat "(wat::core::i64," (:wat::core::string::concat ret-t ")"))
-       sp-out        (:wat::core::keyword-node (:wat::core::format ":{sp-out-str}" :sp-out-str sp-out-str))
+       coords-ty-kw  (:wat::core::keyword-node (:wat::core::string::concat ":" coords-ty-str))
+       ;; Arc 109 ③ — angle brackets are ILLEGAL for types; sp-out/sp-in/runner-self-kw/
+       ;; ctx-ty-kw used to round-trip `item-ty`/`ret-ty` through `ast-name` + string
+       ;; concatenation into an angle-bracket keyword — now illegal, and it would have raised
+       ;; outright the moment either type was itself parametric (`ast-name` only reads
+       ;; Symbol/Keyword/StringLit). Mint the reference FORM `(Head :- [args])` structurally
+       ;; off the type-position NODES directly instead — no string round-trip at all.
+       sp-out        `(:wat::core::Tuple :- [:wat::core::i64 ~ret-ty])
        ;; sp-in D = the ::Coords RECORD (a plain type path), NOT a Tuple: PoolMsg<<base>::Coords,I>.
-       sp-in-str     (:wat::core::string::concat "wat::bracket::PoolMsg<"
-                       (:wat::core::string::concat coords-ty-str
-                         (:wat::core::string::concat "," (:wat::core::string::concat item-t ">"))))
-       sp-in         (:wat::core::keyword-node (:wat::core::format ":{sp-in-str}" :sp-in-str sp-in-str))
-       runner-self-kw (:wat::core::keyword-node
-                        (:wat::core::string::concat ":wat::kernel::Peer<"
-                          (:wat::core::string::concat sp-out-str
-                            (:wat::core::string::concat "," (:wat::core::string::concat sp-in-str ">")))))
+       sp-in         `(:wat::bracket::PoolMsg :- [~coords-ty-kw ~item-ty])
+       runner-self-kw `(:wat::kernel::Peer :- [~sp-out ~sp-in])
        ;; ctx holds the assembled ::Kwargs (the N-heterogeneous dialed-peer bundle), None until Setup.
-       ctx-ty-kw     (:wat::core::keyword-node
-                       (:wat::core::string::concat ":wat::core::Option<" (:wat::core::string::concat kwargs-ty-str ">")))
-       ret-kw        (:wat::core::keyword-node (:wat::core::format ":{ret-t}" :ret-t ret-t))
+       ctx-ty-kw     `(:wat::core::Option :- [~(:wat::core::keyword-node (:wat::core::string::concat ":" kwargs-ty-str))])
        kwargs-kw     (:wat::core::keyword-node (:wat::core::format ":{kwargs-ty-str}" :kwargs-ty-str kwargs-ty-str))
        ;; kwargs-prime-kw: the POSITIONAL ctor for the just-defined ::Kwargs aggregate. Post-flip,
        ;; the bare `kwargs-kw` name is the KWARGS MACRO (unresolved as a positional call) — generated
@@ -496,30 +529,23 @@
        ;; item type I = the LAST param's type (both arities); O = the return type.
        arg-ty    (:wat::core::Option/expect (:wat::core::last arg-ch) "spawn-runner: work-fn has no arg type")
        ret-ty    (:wat::core::nth fn-ch 3)
-       ;; ast-name → ":wat::core::i64"; strip the leading ':' for the type bodies.
-       arg-nm    (:wat::core::ast-name arg-ty)
-       ret-nm    (:wat::core::ast-name ret-ty)
-       arg-t     (:wat::core::string::subs arg-nm 1 (:wat::core::string::length arg-nm))
-       ret-t     (:wat::core::string::subs ret-nm 1 (:wat::core::string::length ret-nm))
+       ;; Arc 109 ③ — angle brackets are ILLEGAL for types; sp-out/sp-in/addr used to round-
+       ;; trip `arg-ty`/`ret-ty`/`c-ty` through `ast-name` + string concatenation into an
+       ;; angle-bracket keyword — now illegal, and `ast-name` raises outright the moment any
+       ;; of them is itself parametric (a `WatAST::List`, not Symbol/Keyword/StringLit). Mint
+       ;; the reference FORM `(Head :- [args])` structurally off the type-position NODES
+       ;; directly; the DIAL branch's `Peer`->`Address` head-swap routes through
+       ;; `-type-slot-swap-head` (defined above), which handles both shapes the same way.
        ;; ── self-peer SEND type = (i64,O) (output tuple), both arities ──
-       sp-out    (:wat::core::keyword-node
-                   (:wat::core::string::concat ":(wat::core::i64,"
-                     (:wat::core::string::concat ret-t ")")))
+       sp-out    `(:wat::core::Tuple :- [:wat::core::i64 ~ret-ty])
        ;; ── main-def — dispatch on arity ──
        main-def
        (:wat::core::if (:wat::core::= arity 6)
          ;; DIAL: derive Address<S,R> off the 1st param Peer<S,R>; recv PoolMsg<Address<S,R>,I>.
          (:wat::core::let
-           [c-ty   (:wat::core::nth arg-ch 2)          ;; 1st param's TYPE node
-            c-nm   (:wat::core::ast-name c-ty)                              ;; ":wat::kernel::Peer<S,R>"
-            addr   (:wat::core::string::join "Address" (:wat::core::string::split c-nm "Peer"))  ;; ":wat::kernel::Address<S,R>"
-            ;; strip the leading ':' (ast-name keywords always carry one) — inlined via `subs`,
-            ;; not `string::strip-leading-colon` (that helper loads in string.wat, AFTER this file).
-            addr-b (:wat::core::string::subs addr 1 (:wat::core::string::length addr))
-            sp-in  (:wat::core::keyword-node
-                     (:wat::core::string::concat ":wat::bracket::PoolMsg<"
-                       (:wat::core::string::concat addr-b
-                         (:wat::core::string::concat "," (:wat::core::string::concat arg-t ">")))))]
+           [c-ty  (:wat::core::nth arg-ch 2)          ;; 1st param's TYPE node
+            addr  (:wat::bracket::-type-slot-swap-head c-ty "Peer" "Address")
+            sp-in `(:wat::bracket::PoolMsg :- [~addr ~arg-ty])]
            `(:wat::core::defn :user::main [] -> :wat::core::nil
               (:wat::bracket::process-dial-runner
                 (:wat::program::self-peer ~sp-out ~sp-in)
@@ -527,9 +553,7 @@
                 :wat::core::None)))
          ;; NON-DIAL: recv PoolMsg<Address,I> (D phantom — no Setup ever sent).
          (:wat::core::let
-           [sp-in  (:wat::core::keyword-node
-                     (:wat::core::string::concat ":wat::bracket::PoolMsg<wat::kernel::Address,"
-                       (:wat::core::string::concat arg-t ">")))]
+           [sp-in `(:wat::bracket::PoolMsg :- [:wat::kernel::Address ~arg-ty])]
            `(:wat::core::defn :user::main [] -> :wat::core::nil
               (:wat::bracket::process-runner
                 (:wat::program::self-peer ~sp-out ~sp-in)

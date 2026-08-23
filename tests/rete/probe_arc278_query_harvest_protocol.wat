@@ -11,7 +11,7 @@
 
 (:wat::rete::defquery :qhp::q-Hit :params [] :when [(?f <- :qhp::Hit)])
 
-(:wat::core::defn :user::protocol [] -> :wat::core::PersistentVector<wat::core::i64>
+(:wat::core::defn :user::protocol [] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:wat::core::let [s0 (:wat::rete::compile-all
                          (:wat::core::PersistentVector (:qhp::cool))
                          (:wat::core::PersistentVector (:qhp::q-Hit)))

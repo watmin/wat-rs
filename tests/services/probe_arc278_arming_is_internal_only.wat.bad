@@ -21,12 +21,12 @@
    (:wat::core::defenum :probe::Tick2::StartResponse :wat::enum::Pure
      :Ok               []
      :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])
    (:wat::core::defrecord :probe::Tick2::BumpRequest [])
    (:wat::core::defenum :probe::Tick2::BumpResponse :wat::enum::Pure
      :Ok               []
      :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(start [self <- :probe::Tick2  req <- :probe::Tick2::StartRequest] -> :probe::Tick2::StartResponse
      :max-request-bytes 524288)

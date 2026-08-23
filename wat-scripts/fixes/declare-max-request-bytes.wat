@@ -44,7 +44,7 @@
 (:wat::core::defn :user::strip-params [name <- :wat::core::String] -> :wat::core::String
   (:wat::core::first (:wat::core::string::split name "<")))
 
-(:wat::core::defn :user::end-off [n <- :wat::WatAST  lines <- :wat::core::Vector<wat::core::String>]
+(:wat::core::defn :user::end-off [n <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])]
   -> :wat::core::i64
   (:wat::fix::fix-text-offset-of (:wat::core::ast-end-span n) lines))
 
@@ -57,7 +57,7 @@
 ;; wat/query.wat's macro-embedded `-> ~resp-kw`). Recurse into the wrapped inner form for
 ;; `:wat::core::unquote`/`:wat::core::unquote-splicing` heads to find the TRUE end.
 (:wat::core::defn :user::real-end-off
-  [n <- :wat::WatAST  lines <- :wat::core::Vector<wat::core::String>]
+  [n <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])]
   -> :wat::core::i64
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind n) "list")
     (:wat::core::let [ch (:wat::core::ast->children n)]
@@ -79,11 +79,11 @@
 ;; find-kw-value — first `val` in `ch` immediately following an element whose kw-name is `kwname`
 ;; (order-independent kwargs marker lookup, e.g. `:nature`/`:features` in a defsurface's arg list).
 (:wat::core::defn :user::find-kw-value
-  [ch <- :wat::core::Vector<wat::WatAST>  kwname <- :wat::core::String]
-  -> :wat::core::Option<wat::WatAST>
+  [ch <- (:wat::core::Vector :- [:wat::WatAST])  kwname <- :wat::core::String]
+  -> (:wat::core::Option :- [:wat::WatAST])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::Option<wat::WatAST>  i <- :wat::core::i64]
-      -> :wat::core::Option<wat::WatAST>
+    (:wat::core::fn [acc <- (:wat::core::Option :- [:wat::WatAST])  i <- :wat::core::i64]
+      -> (:wat::core::Option :- [:wat::WatAST])
       (:wat::core::match acc 
         ((:wat::core::Some v) (:wat::core::Some v))
         (:wat::core::None
@@ -96,7 +96,7 @@
 
 ;; has-max-bytes? — true iff any element of `ch` at index >= 4 (past name/argvec/arrow/rettype) is
 ;; the `:max-request-bytes` keyword (idempotency gate — options are order-independent kwargs).
-(:wat::core::defn :user::has-max-bytes? [ch <- :wat::core::Vector<wat::WatAST>] -> :wat::core::bool
+(:wat::core::defn :user::has-max-bytes? [ch <- (:wat::core::Vector :- [:wat::WatAST])] -> :wat::core::bool
   (:wat::core::foldl
     (:wat::core::fn [acc <- :wat::core::bool  i <- :wat::core::i64] -> :wat::core::bool
       (:wat::core::if acc true
@@ -120,8 +120,8 @@
 
 ;; ── per-op edit: insert " :max-request-bytes <N>" right after the return-type node (child[3]) ──
 (:wat::core::defn :user::op-edit
-  [op <- :wat::WatAST  surface-name <- :wat::core::String  lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+  [op <- :wat::WatAST  surface-name <- :wat::core::String  lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind op) "list")
     (:wat::core::let [ch (:wat::core::ast->children op)]
       (:wat::core::if (:wat::core::< (:wat::core::length ch) 4)
@@ -139,20 +139,20 @@
     (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))))
 
 (:wat::core::defn :user::ops-edits
-  [ops <- :wat::core::Vector<wat::WatAST>  surface-name <- :wat::core::String
-   lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+  [ops <- (:wat::core::Vector :- [:wat::WatAST])  surface-name <- :wat::core::String
+   lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>  op <- :wat::WatAST]
-      -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+    (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])  op <- :wat::WatAST]
+      -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
       (:wat::core::concat acc (:user::op-edit op surface-name lines)))
     (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
     ops))
 
 ;; ── per-defsurface: gate on `:nature :wat::kernel::Peer'`, then walk its `:features` vector ──
 (:wat::core::defn :user::defsurface-edits
-  [ch <- :wat::core::Vector<wat::WatAST>  lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+  [ch <- (:wat::core::Vector :- [:wat::WatAST])  lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::let
     [nature-opt (:user::find-kw-value ch ":nature")
      is-peer
@@ -176,8 +176,8 @@
 
 ;; ── generic tree walk — reaches EVERY defsurface, top-level or nested (macro-embedded) ────────
 (:wat::core::defn :user::node-edits
-  [node <- :wat::WatAST  lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+  [node <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
     (:wat::core::let [ch (:wat::core::ast->children node)]
       (:wat::core::if (:wat::core::empty? ch)
@@ -194,11 +194,11 @@
       (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)))))
 
 (:wat::core::defn :user::seq-edits
-  [items <- :wat::core::Vector<wat::WatAST>  lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+  [items <- (:wat::core::Vector :- [:wat::WatAST])  lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>  it <- :wat::WatAST]
-      -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+    (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])  it <- :wat::WatAST]
+      -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
       (:wat::core::concat acc (:user::node-edits it lines)))
     (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
     items))
@@ -213,7 +213,7 @@
     (:wat::fix::fix-text-apply src rev)))
 
 ;; ── driver ───────────────────────────────────────────────────────────────────
-(:wat::core::defn :user::apply-each [paths <- :wat::core::Vector<wat::core::String>] -> :wat::core::nil
+(:wat::core::defn :user::apply-each [paths <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::nil
   (:wat::core::if (:wat::core::empty? paths)
     nil
     (:wat::core::let [path (:wat::core::first paths)]

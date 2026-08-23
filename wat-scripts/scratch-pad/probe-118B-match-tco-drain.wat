@@ -19,8 +19,8 @@
 ;; The MIGRATED shape stone B would give `stream->pvec`: one `next` per element (one force),
 ;; both halves bound by the match, tail-recursive in the Item arm.
 (:wat::core::defn :probe::drain-next
-  [acc <- :wat::core::PersistentVector<wat::core::i64>
-   s   <- :wat::stream::Stream<wat::core::i64>] -> :wat::core::PersistentVector<wat::core::i64>
+  [acc <- (:wat::core::PersistentVector :- [:wat::core::i64])
+   s   <- (:wat::stream::Stream :- [:wat::core::i64])] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:wat::core::match (:wat::stream::next s)
     ((:wat::stream::NextOutcome::Item value rest)
       (:probe::drain-next (:wat::core::PersistentVector/conj acc value) rest))

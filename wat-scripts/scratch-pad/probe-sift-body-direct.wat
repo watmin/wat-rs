@@ -67,8 +67,8 @@
            _p1 (:wat::kernel::println (:wat::core::string::concat "class-ok=" (:wat::core::str class-ok)))
            tmpl (:usr::template)
            deds (:wat::core::foldl
-                  (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::Value> log <- :wat::telemetry::Log]
-                    -> :wat::core::PersistentVector<wat::core::Value>
+                  (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Value]) log <- :wat::telemetry::Log]
+                    -> (:wat::core::PersistentVector :- [:wat::core::Value])
                     (:wat::core::concat acc
                       (:wat::core::let
                         [fired (:wat::rete::fire-rules

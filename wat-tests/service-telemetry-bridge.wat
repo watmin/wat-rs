@@ -16,12 +16,12 @@
    (:wat::core::defenum :wat-tests::Recorder::RecordResponse :wat::enum::Pure
      :Ok              [ok    <- :wat::core::bool]
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])
    (:wat::core::defrecord :wat-tests::Recorder::TotalRequest   [])
    (:wat::core::defenum :wat-tests::Recorder::TotalResponse :wat::enum::Pure
      :Ok              [value <- :wat::core::i64]
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(record [self <- :wat-tests::Recorder req <- :wat-tests::Recorder::RecordRequest]
            -> :wat-tests::Recorder::RecordResponse :max-request-bytes 524288)
@@ -35,7 +35,7 @@
    (:wat::core::defenum :wat-tests::Worker::WorkResponse :wat::enum::Pure
      :Ok              [done  <- :wat::core::bool]
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(work [self <- :wat-tests::Worker req <- :wat-tests::Worker::WorkRequest]
          -> :wat-tests::Worker::WorkResponse :max-request-bytes 524288)])
@@ -63,11 +63,11 @@
 (:wat::service::defservice :wat-tests::worker
   :satisfies :wat-tests::Worker
   :durable   [job-count <- :wat::core::i64]
-  :ephemeral [recorder  <- :wat::kernel::Peer<wat-tests::Recorder::Op,wat-tests::Recorder::Reply>]
+  :ephemeral [recorder  <- (:wat::kernel::Peer :- [:wat-tests::Recorder::Op :wat-tests::Recorder::Reply])]
   ;; arc 278 S4d: worker DIALS recorder (holds its client peer above) — declare the s2s DAG edge.
   :peers     [:wat-tests::Recorder]
   :init (:wat::core::fn [record        <- :wat-tests::worker::Record
-                         recorder-addr <- :wat::kernel::Address<wat-tests::Recorder::Op,wat-tests::Recorder::Reply>]
+                         recorder-addr <- (:wat::kernel::Address :- [:wat-tests::Recorder::Op :wat-tests::Recorder::Reply])]
           -> :wat-tests::worker::State
           (:wat-tests::worker::State :durable record :recorder (:wat::core::match (:wat::kernel::connect recorder-addr) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))))
   :impls

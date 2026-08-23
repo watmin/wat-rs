@@ -34,7 +34,7 @@
   :when [(?n <- (:wat::rete::acc::count) :from (:wfb::Temp (?loc <- :loc)))])
 
 (:wat::core::defn :wfb::has-key
-  [answers <- :wat::core::PersistentVector<wat::core::PersistentMap>
+  [answers <- (:wat::core::PersistentVector :- [:wat::core::PersistentMap])
    k       <- :wat::core::String]
   -> :wat::core::String
   (:wat::core::if (:wat::core::= (:wat::core::length answers) 0)

@@ -49,7 +49,7 @@
 (:wat::core::defn :my::compute-join-string-bare [] -> :wat::core::String
   (:wat::core::string::join "-" ["a" "b"]))
 
-(:wat::core::defn :my::compute-split-empty-sep [] -> :wat::core::Vector<wat::core::String>
+(:wat::core::defn :my::compute-split-empty-sep [] -> (:wat::core::Vector :- [:wat::core::String])
   (:wat::core::string::split "abc" ""))
 
 ;; ─── regex::matches? ─────────────────────────────────────────────────────────

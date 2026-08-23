@@ -31,8 +31,8 @@
 (:wat::core::defn :user::wat-grep-form-edit
   [form  <- :wat::WatAST
    src   <- :wat::core::String
-   lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+   lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::let [start-span (:wat::core::ast-span form)
                     end-span   (:wat::core::ast-end-span form)
                     off        (:wat::fix::fix-text-offset-of start-span lines)
@@ -50,10 +50,10 @@
 
 ;; ── Internal: map a vector of matched forms to deletion edits ─────────────────────────
 (:wat::core::defn :user::wat-grep-strip-edits
-  [forms <- :wat::core::Vector<wat::WatAST>
+  [forms <- (:wat::core::Vector :- [:wat::WatAST])
    src   <- :wat::core::String
-   lines <- :wat::core::Vector<wat::core::String>]
-  -> :wat::core::Vector<(wat::core::i64,wat::core::i64,wat::core::String)>
+   lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::if (:wat::core::empty? forms)
     (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
     (:wat::core::concat
@@ -68,7 +68,7 @@
   [src  <- :wat::core::String
    pred <- :wat::core::Fn(wat::WatAST)->wat::core::bool]
   ;; Arc 118.2a — `filter` flipped LAZY; this fn's declared return type is `Vector<WatAST>`, so `filterv`.
-  -> :wat::core::Vector<wat::WatAST>
+  -> (:wat::core::Vector :- [:wat::WatAST])
   (:wat::core::let [tree  (:wat::core::match (:wat::core::read-string src) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)))
                     forms (:wat::core::ast->children tree)]
     (:wat::core::filterv pred forms)))

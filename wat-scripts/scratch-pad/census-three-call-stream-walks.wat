@@ -48,7 +48,7 @@
 ;; and the shape of ONE `defclause` arm. Judging units, not forms, is what makes multi-arm
 ;; defclauses visible.
 (:wat::core::defn :census::unit-hit?
-  [unit <- :wat::core::Vector<wat::WatAST>] -> :wat::core::bool
+  [unit <- (:wat::core::Vector :- [:wat::WatAST])] -> :wat::core::bool
   (:wat::core::if (:wat::core::empty? unit)
     false
     (:wat::core::and
@@ -61,7 +61,7 @@
         (:wat::core::into [] (:wat::core::rest unit))))))
 
 (:wat::core::defn :census::report-unit
-  [label <- :wat::core::String unit <- :wat::core::Vector<wat::WatAST>] -> :wat::core::nil
+  [label <- :wat::core::String unit <- (:wat::core::Vector :- [:wat::WatAST])] -> :wat::core::nil
   (:wat::core::if (:census::unit-hit? unit)
     (:wat::kernel::println (:wat::core::string::concat "  THREE-CALL  " label))
     nil))

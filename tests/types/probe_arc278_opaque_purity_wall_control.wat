@@ -23,7 +23,7 @@
    (:wat::core::defenum :probe::opq::Ctr::GetResponse :wat::enum::Pure
      :Ok               [value <- :wat::core::i64]
      :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])
                         expected <- :wat::core::String
                         got <- :wat::core::String])]
   :features
