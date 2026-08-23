@@ -5,7 +5,7 @@
 use std::collections::HashSet;
 
 use crate::rete::matcher::Bindings;
-use crate::runtime::{EvalBreak, SymbolTable, Value};
+use crate::runtime::{EvalBreak, RuntimeError, RuntimeErrorKind, SymbolTable, Value};
 
 use super::*;
 
@@ -137,24 +137,44 @@ pub(super) fn slot_i64(el: &Element, slot: usize, vals: &[Value], pool: &[(u32, 
     }
 }
 
+fn checked_i64_sum(vals: impl Iterator<Item = i64>) -> Result<i64, EvalBreak> {
+    let mut acc = 0i64;
+    for v in vals {
+        acc = match acc.checked_add(v) {
+            Some(n) => n,
+            None => {
+                return Err(RuntimeError::new(
+                    crate::rust_caller_span!(),
+                    RuntimeErrorKind::IntegerOverflow {
+                        op: "+".into(),
+                        a: acc,
+                        b: v,
+                    },
+                )
+                .into());
+            }
+        };
+    }
+    Ok(acc)
+}
+
 /// Numeric AccFold algebra — one match, two gather representations.
+/// Sum/mean use checked `+`, matching `wat/rete/acc.wat` foldl of `:wat::core::+`.
 pub(super) fn fold_i64s(
     fold: &AccFold,
     vals: impl Iterator<Item = i64>,
     n: usize,
-) -> Option<Value> {
+) -> Result<Option<Value>, EvalBreak> {
     match fold {
-        AccFold::Count => Some(Value::i64(n as i64)),
-        // rune:struere(performance-hotspot) — wrapping Iterator::sum matches wat acc::* wrap;
-        // apply_op checked overflow is the expression-core door, not the Acc fold.
-        AccFold::Sum(_) => Some(Value::i64(vals.sum())),
-        AccFold::Min(_) => vals.min().map(Value::i64),
-        AccFold::Max(_) => vals.max().map(Value::i64),
+        AccFold::Count => Ok(Some(Value::i64(n as i64))),
+        AccFold::Sum(_) => Ok(Some(Value::i64(checked_i64_sum(vals)?))),
+        AccFold::Min(_) => Ok(vals.min().map(Value::i64)),
+        AccFold::Max(_) => Ok(vals.max().map(Value::i64)),
         AccFold::Mean(_) => {
             if n == 0 {
-                None
+                Ok(None)
             } else {
-                Some(Value::i64(vals.sum::<i64>() / n as i64))
+                Ok(Some(Value::i64(checked_i64_sum(vals)? / n as i64)))
             }
         }
         AccFold::Distinct(_) | AccFold::All | AccFold::GroupBy(_) | AccFold::User { .. } => {
@@ -174,54 +194,54 @@ pub(super) fn fold_bucket(
     view: &AccView<'_>,
 ) -> Result<Option<Value>, EvalBreak> {
     match fold {
-        AccFold::Count => Ok(fold_i64s(fold, std::iter::empty(), bucket.len())),
+        AccFold::Count => fold_i64s(fold, std::iter::empty(), bucket.len()),
         AccFold::Sum(var) => {
             let sample = bucket.first().map(|&i| &elements[i]);
             if let Some(field) = packed_operand_field(var, view, sample) {
-                return Ok(fold_i64s(
+                return fold_i64s(
                     fold,
                     bucket.iter().map(|&i| {
                         census_gather_visit();
                         row_i64(&elements[i], field, view.i64_by_fact)
                     }),
                     bucket.len(),
-                ));
+                );
             }
             let Some(slot) = operand_slot(elements, bucket, var, view.keys, view.pool) else {
                 return Ok(Some(Value::i64(0)));
             };
-            Ok(fold_i64s(
+            fold_i64s(
                 fold,
                 bucket.iter().map(|&i| {
                     census_gather_visit();
                     slot_i64(&elements[i], slot, view.vals, view.pool)
                 }),
                 bucket.len(),
-            ))
+            )
         }
         AccFold::Min(var) | AccFold::Max(var) | AccFold::Mean(var) => {
             let sample = bucket.first().map(|&i| &elements[i]);
             if let Some(field) = packed_operand_field(var, view, sample) {
-                return Ok(fold_i64s(
+                return fold_i64s(
                     fold,
                     bucket.iter().map(|&i| {
                         census_gather_visit();
                         row_i64(&elements[i], field, view.i64_by_fact)
                     }),
                     bucket.len(),
-                ));
+                );
             }
             let Some(slot) = operand_slot(elements, bucket, var, view.keys, view.pool) else {
                 return Ok(None);
             };
-            Ok(fold_i64s(
+            fold_i64s(
                 fold,
                 bucket.iter().map(|&i| {
                     census_gather_visit();
                     slot_i64(&elements[i], slot, view.vals, view.pool)
                 }),
                 bucket.len(),
-            ))
+            )
         }
         AccFold::Distinct(_) | AccFold::All | AccFold::GroupBy(_) | AccFold::User { .. } => {
             let gathered: Vec<&Element> = bucket.iter().map(|&i| &elements[i]).collect();
@@ -245,7 +265,7 @@ pub(super) fn accumulate_value(
     sym: &SymbolTable,
     view: &AccView<'_>,
 ) -> Result<Option<Value>, EvalBreak> {
-    Ok(match fold {
+    match fold {
         AccFold::Count => fold_i64s(fold, std::iter::empty(), gathered.len()),
         AccFold::Sum(var) | AccFold::Min(var) | AccFold::Max(var) | AccFold::Mean(var) => {
             fold_i64s(
@@ -263,14 +283,14 @@ pub(super) fn accumulate_value(
                     pv.push_back_mut(Value::i64(n));
                 }
             }
-            Some(Value::wat__core__PersistentVector(pv))
+            Ok(Some(Value::wat__core__PersistentVector(pv)))
         }
         AccFold::All => {
             let mut pv: crate::value::pvec::PVec = crate::value::pvec::PVec::new();
             for el in gathered {
                 pv.push_back_mut(fact_at(view.facts, view.derived, view.n_input, el.fact).clone());
             }
-            Some(Value::wat__core__PersistentVector(pv))
+            Ok(Some(Value::wat__core__PersistentVector(pv)))
         }
         AccFold::GroupBy(var) => {
             type GroupByMap = HashMap<i64, crate::value::pvec::PVec>;
@@ -283,13 +303,13 @@ pub(super) fn accumulate_value(
                     .or_default()
                     .push_back_mut(fact);
             }
-            Some(Value::wat__core__PersistentMap(
+            Ok(Some(Value::wat__core__PersistentMap(
                 crate::value::pmap::PMap::from_pairs(
                     groups
                         .into_iter()
                         .map(|(k, pv)| (Value::i64(k), Value::wat__core__PersistentVector(pv))),
                 ),
-            ))
+            )))
         }
         AccFold::User { var, program } => {
             let mut pv: crate::value::pvec::PVec = crate::value::pvec::PVec::new();
@@ -297,14 +317,14 @@ pub(super) fn accumulate_value(
                 pv.push_back_mut(Value::i64(acc_var_i64(el, var, view)));
             }
             let gathered_pv = Value::wat__core__PersistentVector(pv);
-            Some(crate::rete::expr_ir::exec_call(
+            Ok(Some(crate::rete::expr_ir::exec_call(
                 program,
                 &[gathered_pv],
                 sym,
                 &crate::rust_caller_span!(),
-            )?)
+            )?))
         }
-    })
+    }
 }
 
 #[cfg(test)]
@@ -314,7 +334,7 @@ mod empty_case {
     #[test]
     fn count_empty_is_zero() {
         assert_eq!(
-            fold_i64s(&AccFold::Count, std::iter::empty(), 0),
+            fold_i64s(&AccFold::Count, std::iter::empty(), 0).unwrap(),
             Some(Value::i64(0))
         );
     }
@@ -322,6 +342,9 @@ mod empty_case {
     #[test]
     fn min_empty_is_none() {
         let k = Value::String(std::sync::Arc::new("?x".into()));
-        assert_eq!(fold_i64s(&AccFold::Min(k), std::iter::empty(), 0), None);
+        assert_eq!(
+            fold_i64s(&AccFold::Min(k), std::iter::empty(), 0).unwrap(),
+            None
+        );
     }
 }

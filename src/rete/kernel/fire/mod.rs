@@ -936,7 +936,7 @@ pub(crate) fn query_class_scans(arm: &InternedNetwork, network: &Value) -> HashM
 }
 
 /// One pass of the closed bag, keyed by class. Only `scan.class`.
-/// Skip `wm.facts` when seed packed no wanted class
+/// Skip `wm.facts` when `input_has_scan_class` is false
 /// (`DESIGN-STONE-accum-wanted-harvest`).
 fn closed_bag_by_class<'a>(
     wm: &'a FireSession,

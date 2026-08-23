@@ -225,8 +225,10 @@ pub(crate) fn fire_rules_stratified(
 
     // QueryNodes sit off the production chain, so stratum slices never contain them.
     // Oracle pays a throwaway fire-once on the FULL network + closed facts
-    // (`wat/rete/oracle/fire.wat` q-seed). Native harvests on the QueryNode reverse-closure
-    // only — same answers, no second pass of the stratified join/negation chains.
+    // (`wat/rete/oracle/fire.wat` q-seed). Native class-scan queries harvest
+    // input ∪ derived in place; constrained queries still seed the QueryNode
+    // reverse-closure once — same answers, no second pass of the stratified
+    // join/negation chains.
     let qmem = if full_arm.kind_ids.query.is_empty() {
         Value::wat__core__PersistentMap(crate::value::pmap::PMap::new())
     } else {
@@ -310,8 +312,8 @@ fn slice_active_network(network: &Value, active_ids: &HashSet<i64>) -> Value {
     }
 }
 
-/// Every QueryNode is `(?fact <- :Type)` with empty ops — occupancy
-/// seed of a harvest Once is theater (`DESIGN-STONE-strat-neg-harvest-once`).
+/// True when every query is fed by a class-scan alpha. Occupancy seed
+/// of a harvest Once is then theater (`DESIGN-STONE-strat-neg-harvest-once`).
 fn class_scans_cover_queries(
     arm: &InternedNetwork,
     scans: &HashMap<i64, QueryClassScan>,

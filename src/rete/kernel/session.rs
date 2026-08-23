@@ -238,7 +238,7 @@ pub(crate) struct FireSession {
     /// Interned cond keys, parallel to `bind_only` outputs after an
     /// optional fact_bind (`DESIGN-STONE-column-gather-fold`).
     pub(crate) cond_key_ids: CondKeyIds,
-    /// True when seed packed an input fact whose class is a class-scan query class.
+    /// True when input has a fact whose class is a class-scan query class.
     /// Index harvest (`scans.len() > 1`) skips `wm.facts` when false
     /// (`DESIGN-STONE-accum-wanted-harvest`). Fanout (one scan) stays the
     /// filter walk and does not read this flag. Fire-scoped; not a Session field.
