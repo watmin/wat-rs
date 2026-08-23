@@ -34,7 +34,7 @@
 ;; classification with no matching variant on THIS op folds into `:Fatal` (defensive — never hit
 ;; against this store's own schema/queries, documented per fold-site below). ─────────────────────
 (:wat::core::defn :wat::query::ensure-schema-response
-  [r <- :wat::core::Result<wat::core::nil,wat::sqlite::Error>] -> :wat::query::Store::EnsureSchemaResponse
+  [r <- (:wat::core::Result :- [:wat::core::nil :wat::sqlite::Error])] -> :wat::query::Store::EnsureSchemaResponse
   (:wat::core::match r 
     ((:wat::core::Ok _) (:wat::query::Store::EnsureSchemaResponse::Success))
     ((:wat::core::Err e)
@@ -49,7 +49,7 @@
           (:wat::query::Store::EnsureSchemaResponse::Fatal (:wat::query::Fatal :reason (:wat::query::lift-fault f))))))))
 
 (:wat::core::defn :wat::query::put-response
-  [r <- :wat::core::Result<wat::core::nil,wat::sqlite::Error>] -> :wat::query::Store::PutResponse
+  [r <- (:wat::core::Result :- [:wat::core::nil :wat::sqlite::Error])] -> :wat::query::Store::PutResponse
   (:wat::core::match r 
     ((:wat::core::Ok _) (:wat::query::Store::PutResponse::Success))
     ((:wat::core::Err e)
@@ -62,7 +62,7 @@
           (:wat::query::Store::PutResponse::Fatal (:wat::query::Fatal :reason (:wat::query::lift-fault f))))))))
 
 (:wat::core::defn :wat::query::scan-response
-  [r <- :wat::core::Result<wat::core::Vector<wat::query::Row>,wat::sqlite::Error>
+  [r <- (:wat::core::Result :- [(:wat::core::Vector :- [:wat::query::Row]) :wat::sqlite::Error])
    limit <- :wat::core::i64]
   -> :wat::query::Store::ScanResponse
   (:wat::core::match r 
@@ -86,7 +86,7 @@
         (:wat::query::Store::ScanResponse::Success rows next-cur)))))
 
 (:wat::core::defn :wat::query::scan-index-response
-  [r <- :wat::core::Result<wat::core::Vector<wat::query::IndexRow>,wat::sqlite::Error>
+  [r <- (:wat::core::Result :- [(:wat::core::Vector :- [:wat::query::IndexRow]) :wat::sqlite::Error])
    limit <- :wat::core::i64]
   -> :wat::query::Store::ScanIndexResponse
   (:wat::core::match r 
@@ -136,7 +136,7 @@
 ;; ─── ensure-schema — main + one complete table per named GSI ────────────────────────────────────
 (:wat::core::defn :wat::query::ensure-index-tables
   [conn <- :wat::sqlite::Connection indexes <- (:wat::core::Vector :wat::query::IndexSchema)]
-  -> :wat::core::Result<wat::core::nil,wat::sqlite::Error>
+  -> (:wat::core::Result :- [:wat::core::nil :wat::sqlite::Error])
   (:wat::core::if (:wat::core::empty? indexes)
     (:wat::core::Ok nil)
     (:wat::core::let
@@ -155,7 +155,7 @@
 (:wat::core::defn :wat::query::clear-index-projections
   [conn <- :wat::sqlite::Connection names <- (:wat::core::Vector :wat::core::String)
    pk <- :wat::core::String sk <- :wat::core::String]
-  -> :wat::core::Result<wat::core::nil,wat::sqlite::Error>
+  -> (:wat::core::Result :- [:wat::core::nil :wat::sqlite::Error])
   (:wat::core::if (:wat::core::empty? names)
     (:wat::core::Ok nil)
     (:wat::core::let
@@ -173,7 +173,7 @@
   [conn <- :wat::sqlite::Connection names <- (:wat::core::Vector :wat::core::String)
    pk <- :wat::core::String sk <- :wat::core::String data <- :wat::core::String
    index-keys <- (:wat::core::HashMap :wat::core::String :wat::query::IndexKey)]
-  -> :wat::core::Result<wat::core::nil,wat::sqlite::Error>
+  -> (:wat::core::Result :- [:wat::core::nil :wat::sqlite::Error])
   (:wat::core::if (:wat::core::empty? names)
     (:wat::core::Ok nil)
     (:wat::core::let
@@ -197,7 +197,7 @@
 (:wat::core::defn :wat::query::put-one-row
   [conn <- :wat::sqlite::Connection index-names <- (:wat::core::Vector :wat::core::String)
    row <- :wat::query::StoredRow]
-  -> :wat::core::Result<wat::core::nil,wat::sqlite::Error>
+  -> (:wat::core::Result :- [:wat::core::nil :wat::sqlite::Error])
   (:wat::core::let
     [pk         (:wat::query::StoredRow/pk row)
      sk         (:wat::query::StoredRow/sk row)
@@ -224,7 +224,7 @@
 (:wat::core::defn :wat::query::put-rows
   [conn <- :wat::sqlite::Connection index-names <- (:wat::core::Vector :wat::core::String)
    rows <- (:wat::core::Vector :wat::query::StoredRow)]
-  -> :wat::core::Result<wat::core::nil,wat::sqlite::Error>
+  -> (:wat::core::Result :- [:wat::core::nil :wat::sqlite::Error])
   (:wat::core::if (:wat::core::empty? rows)
     (:wat::core::Ok nil)
     (:wat::core::match (:wat::query::put-one-row conn index-names (:wat::core::first rows))

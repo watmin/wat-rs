@@ -21,11 +21,11 @@
               start-time-ns <- :wat::core::i64
               counters      <- (:wat::core::HashMap :wat::core::keyword :wat::core::i64)
               durations     <- (:wat::core::HashMap :wat::core::keyword :wat::telemetry::Samples)]
-  :ephemeral [sink <- :wat::kernel::Peer<wat::telemetry::Journal::Op,wat::telemetry::Journal::Reply>]
+  :ephemeral [sink <- (:wat::kernel::Peer :- [:wat::telemetry::Journal::Op :wat::telemetry::Journal::Reply])]
   :peers     [:wat::telemetry::Journal]
   :init (:wat::core::fn
           [record    <- :wat::telemetry::span::Record
-           sink-addr <- :wat::kernel::Address<wat::telemetry::Journal::Op,wat::telemetry::Journal::Reply>]
+           sink-addr <- (:wat::kernel::Address :- [:wat::telemetry::Journal::Op :wat::telemetry::Journal::Reply])]
           -> :wat::telemetry::span::State
           ;; arc 278 the connect'-outcome wall — face all four arms; ::Connected → the sink
           ;; Peer'; failure arms → assertion-failed! (fatal, preserving the pre-wall

@@ -65,29 +65,29 @@
 ;; ─── the opaque handle — the wat-native name over the :rust:: opaque type ────────────────────
 ;; unify's alias expansion walks through at every use site, so `:wat::cache::Lru<K,V>` and the
 ;; backing `:rust::cache::Lru<K,V>` are interchangeable.
-(:wat::core::typealias :wat::cache::Lru<K,V> :rust::cache::Lru<K,V>)
+(:wat::core::typealias :wat::cache::Lru :- [K V] (:rust::cache::Lru :- [K V]))
 
 ;; ─── Entry — a displaced key/value pair, named ───────────────────────────────────────────────
-(:wat::core::defrecord :wat::cache::Entry<K,V>
+(:wat::core::defrecord :wat::cache::Entry :- [K V]
   [key   <- :K
    value <- :V])
 
 ;; ─── new ─────────────────────────────────────────────────────────────────────────────────────
 ;; `capacity` is the hard bound on entry count; it must be positive.
-(:wat::core::defn :wat::cache::Lru::new<K,V>
+(:wat::core::defn :wat::cache::Lru::new :- [K V]
   [capacity <- :wat::core::i64]
-  -> :wat::cache::Lru<K,V>
+  -> (:wat::cache::Lru :- [K V])
   (:rust::cache::Lru::new capacity))
 
 ;; ─── put ─────────────────────────────────────────────────────────────────────────────────────
 ;; Insert or update, bumping `k` to MRU. Returns the DISPLACED entry — the least-recently-used
 ;; one when the insert pushed past capacity, or `k`'s previous binding when `k` was already
 ;; present — and `:wat::core::None` when nothing was displaced.
-(:wat::core::defn :wat::cache::Lru::put<K,V>
-  [cache <- :wat::cache::Lru<K,V>
+(:wat::core::defn :wat::cache::Lru::put :- [K V]
+  [cache <- (:wat::cache::Lru :- [K V])
    k     <- :K
    v     <- :V]
-  -> :wat::core::Option<wat::cache::Entry<K,V>>
+  -> (:wat::core::Option :- [(:wat::cache::Entry :- [K V])])
   (:wat::core::match (:rust::cache::Lru::put cache k v)
     ((:wat::core::Some pair)
       (:wat::core::Some
@@ -96,16 +96,16 @@
 
 ;; ─── get ─────────────────────────────────────────────────────────────────────────────────────
 ;; `Some v` on a hit (which bumps `k` to MRU), `None` on a miss.
-(:wat::core::defn :wat::cache::Lru::get<K,V>
-  [cache <- :wat::cache::Lru<K,V>
+(:wat::core::defn :wat::cache::Lru::get :- [K V]
+  [cache <- (:wat::cache::Lru :- [K V])
    k     <- :K]
-  -> :wat::core::Option<V>
+  -> (:wat::core::Option :- [V])
   (:rust::cache::Lru::get cache k))
 
 ;; ─── len ─────────────────────────────────────────────────────────────────────────────────────
 ;; Current entry count (never above capacity). Read-only — does not touch LRU order.
-(:wat::core::defn :wat::cache::Lru::len<K,V>
-  [cache <- :wat::cache::Lru<K,V>]
+(:wat::core::defn :wat::cache::Lru::len :- [K V]
+  [cache <- (:wat::cache::Lru :- [K V])]
   -> :wat::core::i64
   (:rust::cache::Lru::len cache))
 
@@ -166,38 +166,38 @@
 ;; `2048` on both ops fits a realistic ~16-entry HolonAST-keyed put batch (the worst case) with
 ;; room to spare, well above what either gate actually sends, and well above the old single-key
 ;; `1024` cap, which a multi-item HolonAST batch trips immediately by construction.
-(:wat::core::defsurface :wat::cache::Cache<K,V> :nature :wat::kernel::Peer
+(:wat::core::defsurface :wat::cache::Cache :- [K V] :nature :wat::kernel::Peer
   :messages
-  [(:wat::core::defrecord :wat::cache::Cache::GetRequest<K> [probes <- :wat::core::Vector<K>])
-   (:wat::core::defenum :wat::cache::Cache::GetResult<V> :wat::enum::Pure
+  [(:wat::core::defrecord :wat::cache::Cache::GetRequest :- [K] [probes <- (:wat::core::Vector :- [K])])
+   (:wat::core::defenum :wat::cache::Cache::GetResult :- [V] :wat::enum::Pure
      :Hit  [value <- :V]
      :Miss [])
-   (:wat::core::defenum :wat::cache::Cache::GetResponse<V> :wat::enum::Pure
-     :Ok               [results <- :wat::core::Vector<wat::cache::Cache::GetResult<V>>]
+   (:wat::core::defenum :wat::cache::Cache::GetResponse :- [V] :wat::enum::Pure
+     :Ok               [results <- (:wat::core::Vector :- [(:wat::cache::Cache::GetResult :- [V])])]
      :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])
    ;; `Entry<K,V>` reuses Stone 1's record — a `:wat::`-prefixed type defined earlier in THIS file
    ;; (before this defsurface), so the S4c `:messages`-completeness wall does not require it
    ;; re-declared here (it is not a message minted BY this surface — it is the shared
    ;; cache-primitive vocabulary, same standing the old single-key `PutResponse`'s `displaced`
    ;; field gave it).
-   (:wat::core::defrecord :wat::cache::Cache::PutRequest<K,V> [entries <- :wat::core::Vector<wat::cache::Entry<K,V>>])
+   (:wat::core::defrecord :wat::cache::Cache::PutRequest :- [K V] [entries <- (:wat::core::Vector :- [(:wat::cache::Entry :- [K V])])])
    (:wat::core::defenum :wat::cache::Cache::PutResponse :wat::enum::Pure
      :Ok               []
      :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
-  [(get [self <- :wat::cache::Cache<K,V>  req <- :wat::cache::Cache::GetRequest<K>]
-     -> :wat::cache::Cache::GetResponse<V> :max-request-bytes 2048)
-   (put [self <- :wat::cache::Cache<K,V>  req <- :wat::cache::Cache::PutRequest<K,V>]
+  [(get [self <- (:wat::cache::Cache :- [K V])  req <- (:wat::cache::Cache::GetRequest :- [K])]
+     -> (:wat::cache::Cache::GetResponse :- [V]) :max-request-bytes 2048)
+   (put [self <- (:wat::cache::Cache :- [K V])  req <- (:wat::cache::Cache::PutRequest :- [K V])]
      -> :wat::cache::Cache::PutResponse :max-request-bytes 2048)])
 
-(:wat::service::defservice :wat::cache::lru-svc<K,V>
-  :satisfies :wat::cache::Cache<K,V>
+(:wat::service::defservice :wat::cache::lru-svc :- [K V]
+  :satisfies (:wat::cache::Cache :- [K V])
   :durable   [capacity <- :wat::core::i64]
-  :ephemeral [cache <- :wat::cache::Lru<K,V>]
-  :init (:wat::core::fn [record <- :wat::cache::lru-svc::Record<K,V>]
-          -> :wat::cache::lru-svc::State<K,V>
+  :ephemeral [cache <- (:wat::cache::Lru :- [K V])]
+  :init (:wat::core::fn [record <- (:wat::cache::lru-svc::Record :- [K V])]
+          -> (:wat::cache::lru-svc::State :- [K V])
           (:wat::cache::lru-svc::State
             :durable record
             :cache (:wat::cache::Lru::new (:wat::cache::lru-svc::Record/capacity record))))
@@ -213,21 +213,21 @@
      (:wat::service::Outcome::Reply s
        (:wat::cache::Cache::GetResponse::Ok
          (:wat::core::foldl
-           (:wat::core::fn [acc <- :wat::core::Vector<wat::cache::Cache::GetResult<V>>
+           (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::cache::Cache::GetResult :- [V])])
                             k   <- :K]
-             -> :wat::core::Vector<wat::cache::Cache::GetResult<V>>
+             -> (:wat::core::Vector :- [(:wat::cache::Cache::GetResult :- [V])])
              (:wat::core::conj acc
                (:wat::core::match (:wat::cache::Lru::get (:wat::cache::lru-svc::State/cache s) k)
                  ((:wat::core::Some v) (:wat::cache::Cache::GetResult::Hit v))
                  (:wat::core::None (:wat::cache::Cache::GetResult::Miss)))))
-           (:wat::core::Vector :wat::cache::Cache::GetResult<V>)
+           (:wat::core::Vector (:wat::cache::Cache::GetResult :- [V]))
            (:wat::cache::Cache::GetRequest/probes req)))))
    (put [s ctx req]
      (:wat::service::Outcome::Reply s
        (:wat::core::let
          [_ (:wat::core::foldl
               (:wat::core::fn [_acc <- :wat::core::nil
-                               e    <- :wat::cache::Entry<K,V>]
+                               e    <- (:wat::cache::Entry :- [K V])]
                 -> :wat::core::nil
                 (:wat::core::let
                   [_ (:wat::cache::Lru::put (:wat::cache::lru-svc::State/cache s)
@@ -271,14 +271,14 @@
 
 (:wat::core::defstruct :wat::cache::HolographicLru
   [hologram <- :wat::holon::Hologram
-   lru      <- :wat::cache::Lru<wat::holon::HolonAST,wat::core::nil>])
+   lru      <- (:wat::cache::Lru :- [:wat::holon::HolonAST :wat::core::nil])])
 
 ;; ─── new ─────────────────────────────────────────────────────────────────────────────────────
 ;; `filter` gates `Hologram/find` hits (bind `:wat::holon::filter-coincident` /
 ;; `filter-present` / `filter-accept-any`, or a caller-supplied closure). `capacity` is the LRU's
 ;; hard bound on entry count — the same guard Stone 1's `Lru::new` carries (must be positive).
 (:wat::core::defn :wat::cache::HolographicLru::new
-  [filter   <- :wat::core::Fn(wat::core::f64)->wat::core::bool
+  [filter   <- [:wat::core::f64 :-> :wat::core::bool]
    capacity <- :wat::core::i64]
   -> :wat::cache::HolographicLru
   (:wat::cache::HolographicLru
@@ -318,7 +318,7 @@
 (:wat::core::defn :wat::cache::HolographicLru::get
   [store <- :wat::cache::HolographicLru
    probe <- :wat::holon::HolonAST]
-  -> :wat::core::Option<wat::holon::HolonAST>
+  -> (:wat::core::Option :- [:wat::holon::HolonAST])
   (:wat::core::let
     [hologram (:wat::cache::HolographicLru/hologram store)
      lru (:wat::cache::HolographicLru/lru store)]
@@ -381,7 +381,7 @@
   :AcceptAny  [])
 
 (:wat::service::defservice :wat::cache::hologram-svc
-  :satisfies :wat::cache::Cache<wat::holon::HolonAST,wat::holon::HolonAST>
+  :satisfies (:wat::cache::Cache :- [:wat::holon::HolonAST :wat::holon::HolonAST])
   :durable   [capacity <- :wat::core::i64
               filter   <- :wat::cache::HologramFilterKind]
   :ephemeral [cache <- :wat::cache::HolographicLru]
@@ -406,21 +406,21 @@
      (:wat::service::Outcome::Reply s
        (:wat::cache::Cache::GetResponse::Ok
          (:wat::core::foldl
-           (:wat::core::fn [acc   <- :wat::core::Vector<wat::cache::Cache::GetResult<wat::holon::HolonAST>>
+           (:wat::core::fn [acc   <- (:wat::core::Vector :- [(:wat::cache::Cache::GetResult :- [:wat::holon::HolonAST])])
                             probe <- :wat::holon::HolonAST]
-             -> :wat::core::Vector<wat::cache::Cache::GetResult<wat::holon::HolonAST>>
+             -> (:wat::core::Vector :- [(:wat::cache::Cache::GetResult :- [:wat::holon::HolonAST])])
              (:wat::core::conj acc
                (:wat::core::match (:wat::cache::HolographicLru::get (:wat::cache::hologram-svc::State/cache s) probe)
                  ((:wat::core::Some v) (:wat::cache::Cache::GetResult::Hit v))
                  (:wat::core::None (:wat::cache::Cache::GetResult::Miss)))))
-           (:wat::core::Vector :wat::cache::Cache::GetResult<wat::holon::HolonAST>)
+           (:wat::core::Vector (:wat::cache::Cache::GetResult :- [:wat::holon::HolonAST]))
            (:wat::cache::Cache::GetRequest/probes req)))))
    (put [s ctx req]
      (:wat::service::Outcome::Reply s
        (:wat::core::let
          [_ (:wat::core::foldl
               (:wat::core::fn [_acc <- :wat::core::nil
-                               e    <- :wat::cache::Entry<wat::holon::HolonAST,wat::holon::HolonAST>]
+                               e    <- (:wat::cache::Entry :- [:wat::holon::HolonAST :wat::holon::HolonAST])]
                 -> :wat::core::nil
                 (:wat::core::let
                   [_ (:wat::cache::HolographicLru::put (:wat::cache::hologram-svc::State/cache s)

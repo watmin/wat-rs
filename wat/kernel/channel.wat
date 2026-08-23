@@ -39,14 +39,14 @@
 ;; types::register_stdlib_types), which bypasses the reserved-prefix
 ;; gate that otherwise blocks user code from declaring under :wat::*.
 
-(:wat::core::typealias :wat::kernel::Sender<T>
-  :rust::crossbeam_channel::Sender<T>)
+(:wat::core::typealias :wat::kernel::Sender :- [T]
+  (:rust::crossbeam_channel::Sender :- [T]))
 
-(:wat::core::typealias :wat::kernel::Receiver<T>
-  :rust::crossbeam_channel::Receiver<T>)
+(:wat::core::typealias :wat::kernel::Receiver :- [T]
+  (:rust::crossbeam_channel::Receiver :- [T]))
 
-(:wat::core::typealias :wat::kernel::Channel<T>
-  :(wat::kernel::Sender<T>,wat::kernel::Receiver<T>))
+(:wat::core::typealias :wat::kernel::Channel :- [T]
+  (:wat::core::Tuple :- [(:wat::kernel::Sender :- [T]) (:wat::kernel::Receiver :- [T])]))
 
 ;; Arc 113 — Err arm widened to a wat::core::Vector<ThreadDiedError> so cascades
 ;; carry the chain. Head = the immediate peer that died; tail =
@@ -65,13 +65,13 @@
 ;; the caller's vantage; the per-program-kind concrete name is
 ;; what surfaces today.
 (:wat::core::typealias :wat::kernel::ProcessPanics
-  :wat::core::Vector<wat::kernel::LociDiedError>)
+  (:wat::core::Vector :- [:wat::kernel::LociDiedError]))
 
 (:wat::core::typealias :wat::kernel::ThreadPanics
-  :wat::core::Vector<wat::kernel::LociDiedError>)
+  (:wat::core::Vector :- [:wat::kernel::LociDiedError]))
 
-(:wat::core::typealias :wat::kernel::CommResult<T>
-  :wat::core::Result<wat::core::Option<T>,wat::kernel::ThreadPanics>)
+(:wat::core::typealias :wat::kernel::CommResult :- [T]
+  (:wat::core::Result :- [(:wat::core::Option :- [T]) :wat::kernel::ThreadPanics]))
 
-(:wat::core::typealias :wat::kernel::Chosen<T>
-  :(wat::core::i64,wat::kernel::CommResult<T>))
+(:wat::core::typealias :wat::kernel::Chosen :- [T]
+  (:wat::core::Tuple :- [:wat::core::i64 (:wat::kernel::CommResult :- [T])]))

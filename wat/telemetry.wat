@@ -122,7 +122,7 @@
      :Transient      [err <- :wat::query::Transient]
      :Fatal          [err <- :wat::query::Fatal]
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])
 
    (:wat::core::defrecord :wat::telemetry::Journal::WriteLogsRequest
      [batch <- (:wat::core::Vector :wat::telemetry::Log)])
@@ -132,7 +132,7 @@
      :Transient      [err <- :wat::query::Transient]
      :Fatal          [err <- :wat::query::Fatal]
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])
 
    ;; ── query (CloudWatch read side): a namespace + time window [lo,hi] in epoch nanos, paged. ──
    (:wat::core::defrecord :wat::telemetry::Journal::QueryMetricsRequest
@@ -148,7 +148,7 @@
      :Transient [err <- :wat::query::Transient]
      :Fatal     [err <- :wat::query::Fatal]
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])
 
    (:wat::core::defrecord :wat::telemetry::Journal::QueryLogsRequest
      [namespace <- :wat::core::String
@@ -162,7 +162,7 @@
      :Transient [err <- :wat::query::Transient]
      :Fatal     [err <- :wat::query::Fatal]
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])
 
    ;; ── sift (arc 278 Stone 2 — server-side filtering, DESIGN-sift-server-side-filter.md): the
    ;; same namespace + time-window page as query-*, PLUS a `Sieve` (the pure filter spec — this
@@ -182,7 +182,7 @@
      :Transient [err <- :wat::query::Transient]
      :Fatal     [err <- :wat::query::Fatal]
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])
 
    (:wat::core::defrecord :wat::telemetry::Journal::SiftMetricsRequest
      [namespace <- :wat::core::String
@@ -197,7 +197,7 @@
      :Transient [err <- :wat::query::Transient]
      :Fatal     [err <- :wat::query::Fatal]
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [;; write a metrics batch (>=1, homogeneous) ATOMICALLY through the owned store.
    (write-metrics [self <- :wat::telemetry::Journal  req <- :wat::telemetry::Journal::WriteMetricsRequest]
@@ -239,14 +239,14 @@
    (:wat::core::defenum :wat::telemetry::Span::IncrResponse :wat::enum::Pure
      :Ok              []
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])
 
    (:wat::core::defrecord :wat::telemetry::Span::TimedRequest
      [name <- :wat::core::keyword  nanos <- :wat::core::i64])
    (:wat::core::defenum :wat::telemetry::Span::TimedResponse :wat::enum::Pure
      :Ok              []
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])
 
    (:wat::core::defrecord :wat::telemetry::Span::LogRequest
      [emitted-from  <- :wat::kernel::Frame
@@ -257,7 +257,7 @@
    (:wat::core::defenum :wat::telemetry::Span::LogResponse :wat::enum::Pure
      :Ok              []
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])
 
    (:wat::core::defrecord :wat::telemetry::Span::CloseRequest [])
    (:wat::core::defenum :wat::telemetry::Span::CloseResponse :wat::enum::Pure
@@ -266,7 +266,7 @@
      :Transient      [err <- :wat::query::Transient]
      :Fatal          [err <- :wat::query::Fatal]
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [;; increment a named counter by 1 — a PURE state transition (emitted on close).
    (incr [self <- :wat::telemetry::Span  req <- :wat::telemetry::Span::IncrRequest]

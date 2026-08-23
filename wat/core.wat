@@ -69,7 +69,7 @@
   ;; 3+-ary: per-Type fold over rest
   ([x <- :wat::core::i64
     y <- :wat::core::i64
-    & rest <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
+    & rest <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::i64
     (:wat::core::foldl
       (:wat::core::fn [acc <- :wat::core::i64
                        n <- :wat::core::i64] -> :wat::core::i64
@@ -78,7 +78,7 @@
       rest))
   ([x <- :wat::core::f64
     y <- :wat::core::f64
-    & rest <- :wat::core::Vector<wat::core::f64>] -> :wat::core::f64
+    & rest <- (:wat::core::Vector :- [:wat::core::f64])] -> :wat::core::f64
     (:wat::core::foldl
       (:wat::core::fn [acc <- :wat::core::f64
                        n <- :wat::core::f64] -> :wat::core::f64
@@ -92,7 +92,7 @@
     y <- :wat::core::bigint] -> :wat::core::bigint (:wat::core::bigint::+ x y))
   ([x <- :wat::core::bigint
     y <- :wat::core::bigint
-    & rest <- :wat::core::Vector<wat::core::bigint>] -> :wat::core::bigint
+    & rest <- (:wat::core::Vector :- [:wat::core::bigint])] -> :wat::core::bigint
     (:wat::core::foldl
       (:wat::core::fn [acc <- :wat::core::bigint
                        n <- :wat::core::bigint] -> :wat::core::bigint
@@ -120,7 +120,7 @@
     y <- :wat::core::rational] -> :wat::core::rational (:wat::core::rational::+ x y))
   ([x <- :wat::core::rational
     y <- :wat::core::rational
-    & rest <- :wat::core::Vector<wat::core::rational>] -> :wat::core::rational
+    & rest <- (:wat::core::Vector :- [:wat::core::rational])] -> :wat::core::rational
     (:wat::core::foldl
       (:wat::core::fn [acc <- :wat::core::rational
                        n <- :wat::core::rational] -> :wat::core::rational
@@ -180,7 +180,7 @@
   ;; 3+-ary fold
   ([x <- :wat::core::i64
     y <- :wat::core::i64
-    & rest <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
+    & rest <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::i64
     (:wat::core::foldl
       (:wat::core::fn [acc <- :wat::core::i64
                        n <- :wat::core::i64] -> :wat::core::i64
@@ -189,7 +189,7 @@
       rest))
   ([x <- :wat::core::f64
     y <- :wat::core::f64
-    & rest <- :wat::core::Vector<wat::core::f64>] -> :wat::core::f64
+    & rest <- (:wat::core::Vector :- [:wat::core::f64])] -> :wat::core::f64
     (:wat::core::foldl
       (:wat::core::fn [acc <- :wat::core::f64
                        n <- :wat::core::f64] -> :wat::core::f64
@@ -204,7 +204,7 @@
     y <- :wat::core::bigint] -> :wat::core::bigint (:wat::core::bigint::- x y))
   ([x <- :wat::core::bigint
     y <- :wat::core::bigint
-    & rest <- :wat::core::Vector<wat::core::bigint>] -> :wat::core::bigint
+    & rest <- (:wat::core::Vector :- [:wat::core::bigint])] -> :wat::core::bigint
     (:wat::core::foldl
       (:wat::core::fn [acc <- :wat::core::bigint
                        n <- :wat::core::bigint] -> :wat::core::bigint
@@ -229,7 +229,7 @@
     y <- :wat::core::rational] -> :wat::core::rational (:wat::core::rational::- x y))
   ([x <- :wat::core::rational
     y <- :wat::core::rational
-    & rest <- :wat::core::Vector<wat::core::rational>] -> :wat::core::rational
+    & rest <- (:wat::core::Vector :- [:wat::core::rational])] -> :wat::core::rational
     (:wat::core::foldl
       (:wat::core::fn [acc <- :wat::core::rational
                        n <- :wat::core::rational] -> :wat::core::rational
@@ -287,7 +287,7 @@
   ;; 3+-ary fold
   ([x <- :wat::core::i64
     y <- :wat::core::i64
-    & rest <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
+    & rest <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::i64
     (:wat::core::foldl
       (:wat::core::fn [acc <- :wat::core::i64
                        n <- :wat::core::i64] -> :wat::core::i64
@@ -296,7 +296,7 @@
       rest))
   ([x <- :wat::core::f64
     y <- :wat::core::f64
-    & rest <- :wat::core::Vector<wat::core::f64>] -> :wat::core::f64
+    & rest <- (:wat::core::Vector :- [:wat::core::f64])] -> :wat::core::f64
     (:wat::core::foldl
       (:wat::core::fn [acc <- :wat::core::f64
                        n <- :wat::core::f64] -> :wat::core::f64
@@ -310,7 +310,7 @@
     y <- :wat::core::bigint] -> :wat::core::bigint (:wat::core::bigint::* x y))
   ([x <- :wat::core::bigint
     y <- :wat::core::bigint
-    & rest <- :wat::core::Vector<wat::core::bigint>] -> :wat::core::bigint
+    & rest <- (:wat::core::Vector :- [:wat::core::bigint])] -> :wat::core::bigint
     (:wat::core::foldl
       (:wat::core::fn [acc <- :wat::core::bigint
                        n <- :wat::core::bigint] -> :wat::core::bigint
@@ -331,7 +331,7 @@
     y <- :wat::core::rational] -> :wat::core::rational (:wat::core::rational::* x y))
   ([x <- :wat::core::rational
     y <- :wat::core::rational
-    & rest <- :wat::core::Vector<wat::core::rational>] -> :wat::core::rational
+    & rest <- (:wat::core::Vector :- [:wat::core::rational])] -> :wat::core::rational
     (:wat::core::foldl
       (:wat::core::fn [acc <- :wat::core::rational
                        n <- :wat::core::rational] -> :wat::core::rational
@@ -388,7 +388,7 @@
   ;; 3+-ary fold
   ([x <- :wat::core::i64
     y <- :wat::core::i64
-    & rest <- :wat::core::Vector<wat::core::i64>] -> :wat::core::i64
+    & rest <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::i64
     (:wat::core::foldl
       (:wat::core::fn [acc <- :wat::core::i64
                        n <- :wat::core::i64] -> :wat::core::i64
@@ -397,7 +397,7 @@
       rest))
   ([x <- :wat::core::f64
     y <- :wat::core::f64
-    & rest <- :wat::core::Vector<wat::core::f64>] -> :wat::core::f64
+    & rest <- (:wat::core::Vector :- [:wat::core::f64])] -> :wat::core::f64
     (:wat::core::foldl
       (:wat::core::fn [acc <- :wat::core::f64
                        n <- :wat::core::f64] -> :wat::core::f64
@@ -436,7 +436,7 @@
     y <- :wat::core::rational] -> :wat::core::rational (:wat::core::rational::/ x y))
   ([x <- :wat::core::rational
     y <- :wat::core::rational
-    & rest <- :wat::core::Vector<wat::core::rational>] -> :wat::core::rational
+    & rest <- (:wat::core::Vector :- [:wat::core::rational])] -> :wat::core::rational
     (:wat::core::foldl
       (:wat::core::fn [acc <- :wat::core::rational
                        n <- :wat::core::rational] -> :wat::core::rational
@@ -528,7 +528,7 @@
    field-names <- :wat::WatAST
    n-pos      <- :wat::WatAST
    ns         <- :wat::WatAST
-   & call-args <- :wat::core::Vector<wat::WatAST>]
+   & call-args <- (:wat::core::Vector :- [:wat::WatAST])]
   -> :wat::WatAST
   (:wat::core::let
     [;; Extract typed values from the WatAST params
@@ -547,12 +547,12 @@
      ;; Rust-native, unaffected by the flip) rebuild both slices eagerly.
      call-args-len (:wat::core::length call-args)
      pos        (:wat::core::foldl
-                  (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST> i <- :wat::core::i64] -> :wat::core::Vector<wat::WatAST>
+                  (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST]) i <- :wat::core::i64] -> (:wat::core::Vector :- [:wat::WatAST])
                     (:wat::core::conj acc (:wat::core::Option/expect (:wat::core::get call-args i) "kwargs-lower: pos index OOB")))
                   (:wat::core::Vector :wat::WatAST)
                   (:wat::core::range 0 n-pos-int))
      tail       (:wat::core::foldl
-                  (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST> i <- :wat::core::i64] -> :wat::core::Vector<wat::WatAST>
+                  (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST]) i <- :wat::core::i64] -> (:wat::core::Vector :- [:wat::WatAST])
                     (:wat::core::conj acc (:wat::core::Option/expect (:wat::core::get call-args i) "kwargs-lower: tail index OOB")))
                   (:wat::core::Vector :wat::WatAST)
                   (:wat::core::range n-pos-int call-args-len))
@@ -581,9 +581,9 @@
       (:wat::core::let
         [ovals
          (:wat::core::foldl
-           (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST>
+           (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST])
                             fi  <- :wat::core::i64]
-             -> :wat::core::Vector<wat::WatAST>
+             -> (:wat::core::Vector :- [:wat::WatAST])
              (:wat::core::let
                [fn-node
                 (:wat::core::Option/expect
@@ -596,9 +596,9 @@
                 ;; single-element Vector (found) to preserve the matched value.
                 found
                 (:wat::core::foldl
-                  (:wat::core::fn [iacc <- :wat::core::Vector<wat::WatAST>
+                  (:wat::core::fn [iacc <- (:wat::core::Vector :- [:wat::WatAST])
                                    ki   <- :wat::core::i64]
-                    -> :wat::core::Vector<wat::WatAST>
+                    -> (:wat::core::Vector :- [:wat::WatAST])
                     (:wat::core::let
                       [kn
                        (:wat::core::Option/expect
@@ -672,7 +672,7 @@
 ;; so the macro template stays metadata-blind and UNCHANGED.
 (:wat::core::defmacro :wat::core::defn
   [name <- :wat::WatAST
-   & rest <- :wat::core::Vector<wat::WatAST>]
+   & rest <- (:wat::core::Vector :- [:wat::WatAST])]
   -> :wat::WatAST
   ;; PROGRAM-BODY path: top-level `let`, quasiquotes only at branch tails.
   (:wat::core::let
@@ -738,8 +738,8 @@
                       (:wat::core::string::concat
                         (:wat::core::string::join ","
                           (:wat::core::foldl
-                            (:wat::core::fn [acc <- :wat::core::Vector<wat::core::String> nd <- :wat::WatAST]
-                              -> :wat::core::Vector<wat::core::String>
+                            (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String]) nd <- :wat::WatAST]
+                              -> (:wat::core::Vector :- [:wat::core::String])
                               (:wat::core::conj acc (:wat::core::ast-name nd)))
                             (:wat::core::Vector :wat::core::String)
                             binder-names-ch))
@@ -878,7 +878,7 @@
          ;; wat-defined helper (`mapv`/`into`/etc.) is resolvable, and even `conj`ing onto a Stream
          ;; would fail. `foldl`+`get`+`conj` stay Rust-native and eager, unaffected by the flip.
          base-ch         (:wat::core::foldl
-                           (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST> i <- :wat::core::i64] -> :wat::core::Vector<wat::WatAST>
+                           (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST]) i <- :wat::core::i64] -> (:wat::core::Vector :- [:wat::WatAST])
                              (:wat::core::conj acc
                                (:wat::core::Option/expect (:wat::core::get params-ch i) "defn kwargs: base-ch index")))
                            (:wat::core::Vector :wat::WatAST)
@@ -912,9 +912,9 @@
          ;; directly (raw positions 0,1,2,…) and multiply by 3 inline instead of pre-computing the
          ;; 0,3,6,… index Vector — same result, one fewer intermediate, no `map` needed at all.
          let-binder-items (:wat::core::foldl
-                            (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST>
+                            (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST])
                                              fi  <- :wat::core::i64]
-                              -> :wat::core::Vector<wat::WatAST>
+                              -> (:wat::core::Vector :- [:wat::WatAST])
                               (:wat::core::let
                                 [i             (:wat::core::i64::* fi 3)
                                  fname-node    (:wat::core::Option/expect
@@ -958,7 +958,7 @@
          ;; Arc 118.2a — was `map`; same bootstrap wall as `base-ch`/`body-forms`/`let-binder-items`
          ;; above. `foldl`+`conj` stay Rust-native and eager.
          fname-nodes         (:wat::core::foldl
-                               (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST> i <- :wat::core::i64] -> :wat::core::Vector<wat::WatAST>
+                               (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST]) i <- :wat::core::i64] -> (:wat::core::Vector :- [:wat::WatAST])
                                  (:wat::core::conj acc
                                    (:wat::core::Option/expect
                                      (:wat::core::get kw-ch (:wat::core::i64::* i 3))
@@ -996,7 +996,7 @@
          ;; (j mod 3 == 2) is ever swapped, and only when it names a Peer<S,R> (data-typed
          ;; fields pass through as `child` unchanged).
          swapped-ch (:wat::core::foldl
-                      (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST> j <- :wat::core::i64] -> :wat::core::Vector<wat::WatAST>
+                      (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST]) j <- :wat::core::i64] -> (:wat::core::Vector :- [:wat::WatAST])
                         (:wat::core::let
                           [child   (:wat::core::Option/expect (:wat::core::get kw-ch j) "w2a swapped-ch index")
                            is-type (:wat::core::= (:wat::core::i64::mod j 3) 2)
@@ -1065,7 +1065,7 @@
          ;; `wat::kernel::` namespace so the bare swap works there, but TypedCapability lives in
          ;; `wat::capability::` — the whole qualified head must relocate, not just the tail.
          capswapped-ch (:wat::core::foldl
-                          (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST> j <- :wat::core::i64] -> :wat::core::Vector<wat::WatAST>
+                          (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST]) j <- :wat::core::i64] -> (:wat::core::Vector :- [:wat::WatAST])
                             (:wat::core::let
                               [child   (:wat::core::Option/expect (:wat::core::get kw-ch j) "w2d capswapped-ch index")
                                is-type (:wat::core::= (:wat::core::i64::mod j 3) 2)
@@ -1090,7 +1090,7 @@
          ;; arc 294 9a kwargs flip: positional ctor of this just-minted aggregate moves to the prime.
          grant-handles-prime-kw (:wat::core::keyword-node (:wat::core::string::concat ":" (:wat::core::string::concat grant-handles-ty-str "'")))
          gh-field-triples (:wat::core::foldl
-                             (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST> i <- :wat::core::i64] -> :wat::core::Vector<wat::WatAST>
+                             (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST]) i <- :wat::core::i64] -> (:wat::core::Vector :- [:wat::WatAST])
                                (:wat::core::let
                                  [fname-node (:wat::core::Option/expect (:wat::core::get fname-nodes i) "w2d gh-field: fname index")
                                   orig-ty    (:wat::core::Option/expect
@@ -1127,7 +1127,7 @@
          ;; let-binder reuse above). The gate (param types are now `TypedCapability<S,R>` → a
          ;; swapped handle TypeMismatches) and the carrier-assembly (this body) are ONE act.
          coords-ctor-args (:wat::core::foldl
-                             (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST> i <- :wat::core::i64] -> :wat::core::Vector<wat::WatAST>
+                             (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST]) i <- :wat::core::i64] -> (:wat::core::Vector :- [:wat::WatAST])
                                (:wat::core::let
                                  [fname-node (:wat::core::Option/expect (:wat::core::get fname-nodes i) "w2d coords-ctor-args: fname index")
                                   orig-ty    (:wat::core::Option/expect
@@ -1141,7 +1141,7 @@
                              (:wat::core::Vector :wat::WatAST)
                              (:wat::core::range 0 n-kw-fields))
          gh-ctor-args (:wat::core::foldl
-                        (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST> i <- :wat::core::i64] -> :wat::core::Vector<wat::WatAST>
+                        (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST]) i <- :wat::core::i64] -> (:wat::core::Vector :- [:wat::WatAST])
                           (:wat::core::let
                             [fname-node (:wat::core::Option/expect (:wat::core::get fname-nodes i) "w2d gh-ctor-args: fname index")
                              orig-ty    (:wat::core::Option/expect
@@ -1170,7 +1170,7 @@
          gw-handles-sym (:wat::core::symbol-node "handles")
          gw-pid-sym     (:wat::core::symbol-node "pid")
          grant-calls (:wat::core::foldl
-                       (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST> i <- :wat::core::i64] -> :wat::core::Vector<wat::WatAST>
+                       (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST]) i <- :wat::core::i64] -> (:wat::core::Vector :- [:wat::WatAST])
                          (:wat::core::let
                            [fname-node (:wat::core::Option/expect (:wat::core::get fname-nodes i) "w2d grant-calls: fname index")
                             orig-ty    (:wat::core::Option/expect
@@ -1187,7 +1187,7 @@
                        (:wat::core::Vector :wat::WatAST)
                        (:wat::core::range 0 n-kw-fields))
          revoke-calls (:wat::core::foldl
-                        (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST> i <- :wat::core::i64] -> :wat::core::Vector<wat::WatAST>
+                        (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST]) i <- :wat::core::i64] -> (:wat::core::Vector :- [:wat::WatAST])
                           (:wat::core::let
                             [fname-node (:wat::core::Option/expect (:wat::core::get fname-nodes i) "w2d revoke-calls: fname index")
                              orig-ty    (:wat::core::Option/expect
@@ -1227,8 +1227,8 @@
                              (:wat::core::string::interpolate "{kwargs-ty-colon-str}'" :kwargs-ty-colon-str kwargs-ty-colon-str))
          assemble-ctor-args
          (:wat::core::foldl
-           (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST> i <- :wat::core::i64]
-             -> :wat::core::Vector<wat::WatAST>
+           (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST]) i <- :wat::core::i64]
+             -> (:wat::core::Vector :- [:wat::WatAST])
              (:wat::core::let
                [fname-node (:wat::core::Option/expect
                              (:wat::core::get fname-nodes i) "assemble-ctor-args: fname index")
@@ -1278,7 +1278,7 @@
              (:wat::core::fn ~reshaped-params -> ~ret-type
                (:wat::core::let ~let-binders-vec ~@body-forms)))
            (:wat::core::defmacro ~name-base-node
-             [& ~call-args-sym <- :wat::core::Vector<wat::WatAST>]
+             [& ~call-args-sym <- (:wat::core::Vector :- [:wat::WatAST])]
              -> :wat::WatAST
              ;; ── Thin forwarder to :wat::core::kwargs-lower ───────────────────────
              ;; Baked-in constants (substituted at defn-expansion time via depth-1 ~):
@@ -1314,7 +1314,7 @@
 ;; Empty-list step `()`: Option/expect on (first ()) fires "-> step has no head"
 ;;   as a panic_any(AssertionPayload) at macro-expansion time (during startup).
 (:wat::core::defmacro :wat::core::->
-  [acc <- :wat::WatAST & steps <- :wat::core::Vector<wat::WatAST>]
+  [acc <- :wat::WatAST & steps <- (:wat::core::Vector :- [:wat::WatAST])]
   -> :wat::WatAST
   (:wat::core::foldl
     (:wat::core::fn [a <- :wat::holon::HolonAST step <- :wat::holon::HolonAST]
@@ -1331,7 +1331,7 @@
 ;; Empty-list step `()`: ~@() splices nothing, yielding `(acc)` — expansion succeeds
 ;;   but eval rejects the integer-head form with MalformedForm at runtime.
 (:wat::core::defmacro :wat::core::->>
-  [acc <- :wat::WatAST & steps <- :wat::core::Vector<wat::WatAST>]
+  [acc <- :wat::WatAST & steps <- (:wat::core::Vector :- [:wat::WatAST])]
   -> :wat::WatAST
   (:wat::core::foldl
     (:wat::core::fn [a <- :wat::holon::HolonAST step <- :wat::holon::HolonAST]
@@ -1364,7 +1364,7 @@
 ;; empty? is checked FIRST (before any Option/expect) so the empty-clause case
 ;; goes through the RuntimeError channel, not panic_any.
 (:wat::core::defmacro :wat::core::cond
-  [& clauses <- :wat::core::Vector<wat::WatAST>]
+  [& clauses <- (:wat::core::Vector :- [:wat::WatAST])]
   -> :wat::WatAST
   (:wat::core::if (:wat::core::empty? clauses)
     ;; empty clause list — non-exhaustive / no terminal :else. Arc 258 Stone 258.2b: use the
@@ -1405,14 +1405,14 @@
 ;; Arc 249 Stone 249.4a — promoted from construct_keyword_of (expand.rs).
 ;; Zero args: string::join "" [] = "", yielding `:Head<>` (empty angle brackets).
 (:wat::core::defmacro :wat::core::keyword/of
-  [head <- :wat::WatAST & args <- :wat::core::Vector<wat::WatAST>]
+  [head <- :wat::WatAST & args <- (:wat::core::Vector :- [:wat::WatAST])]
   -> :wat::WatAST
   ;; Arc 118.2a — was `(:wat::core::map ...)`. `map` flipped LAZY; this macro is a pure-total
   ;; program-body macro (bootstrap-critical, same wall as `:wat::core::defn`'s kwargs-form and
   ;; `:wat::core::kwargs-lower` above), so `foldl`+`conj` (Rust-native, eager) stand in.
   (:wat::core::let [head-text (:wat::core::keyword/to-string head)
                     arg-texts (:wat::core::foldl
-                                (:wat::core::fn [acc <- :wat::core::Vector<wat::core::String> a <- :wat::holon::HolonAST] -> :wat::core::Vector<wat::core::String>
+                                (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String]) a <- :wat::holon::HolonAST] -> (:wat::core::Vector :- [:wat::core::String])
                                   (:wat::core::conj acc (:wat::core::keyword/to-string a)))
                                 (:wat::core::Vector :wat::core::String)
                                 args)
@@ -1439,7 +1439,7 @@
 (:wat::core::defclause :wat::core::sort
   ;; 1-ary: natural ascending — default comparator is <
   ;; T auto-generalizes (bare uppercase type-var, Arc 256 / Stone 251.7).
-  ([coll <- :wat::core::Vector<T>] -> :wat::core::Vector<T>
+  ([coll <- (:wat::core::Vector :- [T])] -> (:wat::core::Vector :- [T])
     (:wat::core::sort'
       (:wat::core::fn [a <- :T b <- :T] -> :wat::core::bool
         (:wat::core::< a b))
@@ -1447,14 +1447,14 @@
   ;; 2-ary: user-supplied boolean less-than comparator (fn-first, Clojure idiom).
   ;; Cmp is a bare type-var that unifies with the caller's Fn(T,T)->bool.
   ([cmp  <- :Cmp
-    coll <- :wat::core::Vector<T>] -> :wat::core::Vector<T>
+    coll <- (:wat::core::Vector :- [T])] -> (:wat::core::Vector :- [T])
     (:wat::core::sort' cmp coll)))
 
 (:wat::core::defclause :wat::core::sort-by
   ;; 2-ary: key function only — default comparator is < on the keys.
   ;; Keyfn is a bare type-var that unifies with the caller's Fn(T)->K.
   ([keyfn <- :Keyfn
-    coll  <- :wat::core::Vector<T>] -> :wat::core::Vector<T>
+    coll  <- (:wat::core::Vector :- [T])] -> (:wat::core::Vector :- [T])
     (:wat::core::sort'
       (:wat::core::fn [a <- :T b <- :T] -> :wat::core::bool
         (:wat::core::< (keyfn a) (keyfn b)))
@@ -1463,7 +1463,7 @@
   ;; Keyfn and Cmp are bare type-vars.
   ([keyfn <- :Keyfn
     cmp   <- :Cmp
-    coll  <- :wat::core::Vector<T>] -> :wat::core::Vector<T>
+    coll  <- (:wat::core::Vector :- [T])] -> (:wat::core::Vector :- [T])
     (:wat::core::sort'
       (:wat::core::fn [a <- :T b <- :T] -> :wat::core::bool
         (cmp (keyfn a) (keyfn b)))
@@ -1511,11 +1511,11 @@
 ;; (`wat/bracket.wat`, `wat/fix.wat`, `wat/service.wat`, …) keep saying `nth` and now silently
 ;; reach the native — that is the point of the rename, not an accident.
 (:wat::core::defclause :wat::core::nth-spec
-  ([v <- :wat::core::Vector<T> i <- :wat::core::i64] -> :T
+  ([v <- (:wat::core::Vector :- [T]) i <- :wat::core::i64] -> :T
     (:wat::core::Option/expect (:wat::core::get v i) "nth: index out of range"))
-  ([v <- :wat::core::PersistentVector<T> i <- :wat::core::i64] -> :T
+  ([v <- (:wat::core::PersistentVector :- [T]) i <- :wat::core::i64] -> :T
     (:wat::core::Option/expect (:wat::core::get v i) "nth: index out of range"))
-  ([v <- :wat::core::List<T> i <- :wat::core::i64] -> :T
+  ([v <- (:wat::core::List :- [T]) i <- :wat::core::i64] -> :T
     (:wat::core::Option/expect (:wat::core::get v i) "nth: index out of range")))
 
 ;; ─── format — opinionated named-template printf (arc 279) ────────────────────
@@ -1559,7 +1559,7 @@
 ;;
 (:wat::core::defmacro :wat::core::format
   [tmpl <- :wat::WatAST
-   & opts <- :wat::core::Vector<wat::WatAST>]
+   & opts <- (:wat::core::Vector :- [:wat::WatAST])]
   -> :wat::WatAST
   (:wat::core::let
     ;; ── 1. Extract the template string literal ───────────────────────
@@ -1590,9 +1590,9 @@
                      "format: trailing kwargs must be :name value pairs — odd count"))
      ;; Build kwargs-map: HashMap<String,WatAST> (kwarg-name-string → value AST node).
      kwargs-map  (:wat::core::foldl
-                   (:wat::core::fn [m <- :wat::core::HashMap<wat::core::String,wat::WatAST>
+                   (:wat::core::fn [m <- (:wat::core::HashMap :- [:wat::core::String :wat::WatAST])
                                     i <- :wat::core::i64]
-                     -> :wat::core::HashMap<wat::core::String,wat::WatAST>
+                     -> (:wat::core::HashMap :- [:wat::core::String :wat::WatAST])
                      (:wat::core::let
                        [k     (:wat::core::i64::* i 2)
                         k-ast (:wat::core::Option/expect  
@@ -1621,7 +1621,7 @@
      ;; (untested at this bootstrap phase — see `crate::stream::NativeLazyCell`'s doc).
      ;; `foldl`+`conj` stay Rust-native and eager, unaffected by the flip.
      chars       (:wat::core::foldl
-                   (:wat::core::fn [acc <- :wat::core::Vector<wat::core::String> i <- :wat::core::i64] -> :wat::core::Vector<wat::core::String>
+                   (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String]) i <- :wat::core::i64] -> (:wat::core::Vector :- [:wat::core::String])
                      (:wat::core::conj acc (:wat::core::string::subs tmpl-str i (:wat::core::i64::+ i 1))))
                    (:wat::core::Vector :wat::core::String)
                    (:wat::core::range 0 tmpl-len))
@@ -1907,7 +1907,7 @@
 ;; splice-field known gap as the record macros (this extraction runs at defstruct's own
 ;; macro-expansion time, before `~@:Surface` splices resolve at type-registration).
 (:wat::core::defmacro :wat::core::defstruct
-  [& args <- :wat::core::Vector<wat::WatAST>]
+  [& args <- (:wat::core::Vector :- [:wat::WatAST])]
   -> :wat::WatAST
   (:wat::core::let
     [fqdn         (:wat::core::first args)
@@ -1916,7 +1916,7 @@
      field-len    (:wat::core::length field-ch)
      n-fields     (:wat::core::i64::/ field-len 3)
      fname-nodes  (:wat::core::foldl
-                    (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST> i <- :wat::core::i64] -> :wat::core::Vector<wat::WatAST>
+                    (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST]) i <- :wat::core::i64] -> (:wat::core::Vector :- [:wat::WatAST])
                       (:wat::core::conj acc
                         (:wat::core::Option/expect
                           (:wat::core::get field-ch (:wat::core::i64::* i 3))
@@ -1938,7 +1938,7 @@
      ns-parts      (:wat::core::string::split fqdn-bare-str "::")
      n-ns-parts    (:wat::core::length ns-parts)
      ns-lead       (:wat::core::foldl
-                     (:wat::core::fn [acc <- :wat::core::Vector<wat::core::String> i <- :wat::core::i64] -> :wat::core::Vector<wat::core::String>
+                     (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String]) i <- :wat::core::i64] -> (:wat::core::Vector :- [:wat::core::String])
                        (:wat::core::conj acc
                          (:wat::core::Option/expect (:wat::core::get ns-parts i) "defstruct kwargs companion: ns-part index")))
                      (:wat::core::Vector :wat::core::String)
@@ -1949,7 +1949,7 @@
     `(:wat::core::do
        (:wat::core::structtype ~@args)
        (:wat::core::defmacro ~fqdn-bare-kw
-         [& ~call-args-sym <- :wat::core::Vector<wat::WatAST>]
+         [& ~call-args-sym <- (:wat::core::Vector :- [:wat::WatAST])]
          -> :wat::WatAST
          ;; Arc 294 item (C) — LIVE `kwargs-construct` over the bare `:T` (see Record.wat's BASE macro).
          (:wat::core::let
@@ -1966,7 +1966,7 @@
 ;; Per the K5 decision (option A, 2026-06-30): the default rides BOTH pair tiers, so a
 ;; to-record'd value at either tier inherits it for free.
 (:wat::core::defmacro :wat::core::extend-surface
-  [surf <- :wat::WatAST  & methods <- :wat::core::Vector<wat::WatAST>]
+  [surf <- :wat::WatAST  & methods <- (:wat::core::Vector :- [:wat::WatAST])]
   -> :wat::WatAST
   (:wat::core::let
     [surf-str   (:wat::core::keyword/to-string surf)            ;; "k5::HasX" (no leading colon)
@@ -2019,7 +2019,7 @@
   :nature :wat::core::Record
   :features [message  <- :wat::core::String
              location <- :wat::kernel::Location
-             causes   <- :wat::core::Vector<wat::core::Error>])
+             causes   <- (:wat::core::Vector :- [:wat::core::Error])])
 
 ;; ─── Arc 296 S3: :wat::core::Fault — canonical minimal error record ──────────
 ;;
@@ -2035,7 +2035,7 @@
 (:wat::core::defrecord :wat::core::Fault
   [message  <- :wat::core::String
    location <- :wat::kernel::Location
-   causes   <- :wat::core::Vector<wat::core::Error>])
+   causes   <- (:wat::core::Vector :- [:wat::core::Error])])
 
 (:wat::core::defmacro :wat::core::Fault/of
   [msg <- :wat::WatAST]
@@ -2070,4 +2070,4 @@
   [file <- :wat::core::String
    line <- :wat::core::i64
    col  <- :wat::core::i64
-   end  <- :wat::core::Option<wat::core::Pos>])
+   end  <- (:wat::core::Option :- [:wat::core::Pos])])

@@ -34,7 +34,7 @@
 ;; (facts stay staged until fire-rules).
 (:wat::core::defn :wat::rete::insert-all$oracle
   [session <- :wat::rete::Session
-   facts   <- :wat::core::PersistentVector<wat::core::Record>]
+   facts   <- (:wat::core::PersistentVector :- [:wat::core::Record])]
   -> :wat::rete::Session
   (:wat::core::foldl
     :wat::rete::insert$oracle
@@ -45,7 +45,7 @@
 ;; (`insert-all`). This defn exists so `:wat::rete::insert-all` is a first-class Fn.
 (:wat::core::defn :wat::rete::insert-all
   [session <- :wat::rete::Session
-   facts   <- :wat::core::PersistentVector<wat::core::Record>]
+   facts   <- (:wat::core::PersistentVector :- [:wat::core::Record])]
   -> :wat::rete::Session
   (:wat::rete::insert-all$native session facts))
 
@@ -58,11 +58,11 @@
     (:wat::rete::insert$native session fact))
   ([session <- :wat::rete::Session
     fact    <- :T
-    & rest  <- :wat::core::Vector<wat::core::Record>] -> :wat::rete::Session
+    & rest  <- (:wat::core::Vector :- [:wat::core::Record])] -> :wat::rete::Session
     (:wat::rete::insert-all session
       (:wat::core::foldl
-        (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::Record>
-                         f   <- :T] -> :wat::core::PersistentVector<wat::core::Record>
+        (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])
+                         f   <- :T] -> (:wat::core::PersistentVector :- [:wat::core::Record])
           (:wat::core::PersistentVector/conj acc f))
         (:wat::core::PersistentVector/conj (:wat::core::PersistentVector) fact)
         rest))))
@@ -79,9 +79,9 @@
   -> :wat::rete::Session
   (:wat::core::let [old-facts (:wat::rete::Session/facts session)
                     new-facts (:wat::core::foldl
-                                 (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::Record>
+                                 (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])
                                                   f   <- :wat::core::Record]
-                                   -> :wat::core::PersistentVector<wat::core::Record>
+                                   -> (:wat::core::PersistentVector :- [:wat::core::Record])
                                    (:wat::core::if (:wat::core::not (:wat::core::= f fact))
                                      (:wat::core::PersistentVector/conj acc f)
                                      acc))

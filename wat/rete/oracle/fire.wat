@@ -18,10 +18,10 @@
 (:wat::core::defn :wat::rete::walk-alpha-ids
   [facts   <- :wat::core::PersistentVector
    network <- :wat::core::PersistentMap
-   ids     <- :wat::core::Vector<wat::core::i64>
+   ids     <- (:wat::core::Vector :- [:wat::core::i64])
    i       <- :wat::core::i64
-   acc     <- :wat::core::PersistentMap<wat::core::i64,wat::core::PersistentVector<wat::rete::Element>>]
-  -> :wat::core::PersistentMap<wat::core::i64,wat::core::PersistentVector<wat::rete::Element>>
+   acc     <- (:wat::core::PersistentMap :- [:wat::core::i64 (:wat::core::PersistentVector :- [:wat::rete::Element])])]
+  -> (:wat::core::PersistentMap :- [:wat::core::i64 (:wat::core::PersistentVector :- [:wat::rete::Element])])
   (:wat::core::if (:wat::core::i64::>= i (:wat::core::length ids))
     acc
     (:wat::core::let [node-id (:wat::core::Option/expect
@@ -35,11 +35,11 @@
 ;; acc: node-id → PV<Token>.
 (:wat::core::defn :wat::rete::walk-beta-ids
   [network <- :wat::core::PersistentMap
-   amem    <- :wat::core::PersistentMap<wat::core::i64,wat::core::PersistentVector<wat::rete::Element>>
-   ids     <- :wat::core::Vector<wat::core::i64>
+   amem    <- (:wat::core::PersistentMap :- [:wat::core::i64 (:wat::core::PersistentVector :- [:wat::rete::Element])])
+   ids     <- (:wat::core::Vector :- [:wat::core::i64])
    i       <- :wat::core::i64
-   acc     <- :wat::core::PersistentMap<wat::core::i64,wat::core::PersistentVector<wat::rete::Token>>]
-  -> :wat::core::PersistentMap<wat::core::i64,wat::core::PersistentVector<wat::rete::Token>>
+   acc     <- (:wat::core::PersistentMap :- [:wat::core::i64 (:wat::core::PersistentVector :- [:wat::rete::Token])])]
+  -> (:wat::core::PersistentMap :- [:wat::core::i64 (:wat::core::PersistentVector :- [:wat::rete::Token])])
   (:wat::core::if (:wat::core::i64::>= i (:wat::core::length ids))
     acc
     (:wat::core::let [node-id (:wat::core::Option/expect
@@ -54,11 +54,11 @@
 (:wat::core::defn :wat::rete::walk-filter-ids
   [facts   <- :wat::core::PersistentVector
    network <- :wat::core::PersistentMap
-   amem    <- :wat::core::PersistentMap<wat::core::i64,wat::core::PersistentVector<wat::rete::Element>>
-   ids     <- :wat::core::Vector<wat::core::i64>
+   amem    <- (:wat::core::PersistentMap :- [:wat::core::i64 (:wat::core::PersistentVector :- [:wat::rete::Element])])
+   ids     <- (:wat::core::Vector :- [:wat::core::i64])
    i       <- :wat::core::i64
-   acc     <- :wat::core::PersistentMap<wat::core::i64,wat::core::PersistentVector<wat::rete::Token>>]
-  -> :wat::core::PersistentMap<wat::core::i64,wat::core::PersistentVector<wat::rete::Token>>
+   acc     <- (:wat::core::PersistentMap :- [:wat::core::i64 (:wat::core::PersistentVector :- [:wat::rete::Token])])]
+  -> (:wat::core::PersistentMap :- [:wat::core::i64 (:wat::core::PersistentVector :- [:wat::rete::Token])])
   (:wat::core::if (:wat::core::i64::>= i (:wat::core::length ids))
     acc
     (:wat::core::let [node-id (:wat::core::Option/expect
@@ -76,12 +76,12 @@
 ;; production. acc: node-id → PV<Record>.
 (:wat::core::defn :wat::rete::walk-prod-ids
   [network <- :wat::core::PersistentMap
-   bmem    <- :wat::core::PersistentMap<wat::core::i64,wat::core::PersistentVector<wat::rete::Token>>
-   rules   <- :wat::core::PersistentVector<wat::rete::Rule>
-   ids     <- :wat::core::Vector<wat::core::i64>
+   bmem    <- (:wat::core::PersistentMap :- [:wat::core::i64 (:wat::core::PersistentVector :- [:wat::rete::Token])])
+   rules   <- (:wat::core::PersistentVector :- [:wat::rete::Rule])
+   ids     <- (:wat::core::Vector :- [:wat::core::i64])
    i       <- :wat::core::i64
-   acc     <- :wat::core::PersistentMap<wat::core::i64,wat::core::PersistentVector<wat::core::Record>>]
-  -> :wat::core::PersistentMap<wat::core::i64,wat::core::PersistentVector<wat::core::Record>>
+   acc     <- (:wat::core::PersistentMap :- [:wat::core::i64 (:wat::core::PersistentVector :- [:wat::core::Record])])]
+  -> (:wat::core::PersistentMap :- [:wat::core::i64 (:wat::core::PersistentVector :- [:wat::core::Record])])
   (:wat::core::if (:wat::core::i64::>= i (:wat::core::length ids))
     acc
     (:wat::core::let [node-id (:wat::core::Option/expect
@@ -108,9 +108,9 @@
                             pids  (:wat::rete::node-parents node-id network)
                             toks  (:wat::rete::tokens-from-parents beta-mem pids)
                             maps  (:wat::core::foldl
-                                     (:wat::core::fn [a   <- :wat::core::PersistentVector<wat::core::PersistentMap>
+                                     (:wat::core::fn [a   <- (:wat::core::PersistentVector :- [:wat::core::PersistentMap])
                                                       tok <- :wat::rete::Token]
-                                       -> :wat::core::PersistentVector<wat::core::PersistentMap>
+                                       -> (:wat::core::PersistentVector :- [:wat::core::PersistentMap])
                                        (:wat::core::PersistentVector/conj a
                                          (:wat::rete::Token/bindings tok)))
                                      (:wat::core::PersistentVector)
@@ -261,7 +261,7 @@
 ;; type-strata: HashMap<String,i64> mapping produced-type FQDN → stratum number.
 ;; changed: true iff this sweep raised any stratum value.
 (:wat::core::defrecord :wat::rete::StratifyAcc
-  [type-strata <- :wat::core::HashMap<wat::core::String,wat::core::i64>
+  [type-strata <- (:wat::core::HashMap :- [:wat::core::String :wat::core::i64])
    changed     <- :wat::core::bool])
 
 ;; FireStratAcc — fold accumulator for fire-stratified.
@@ -277,12 +277,12 @@
 ;; itself (no more unwrapping a second child).
 (:wat::core::defn :wat::rete::rule-produces
   [rule <- :wat::rete::Rule]
-  -> :wat::core::PersistentVector<wat::core::String>
+  -> (:wat::core::PersistentVector :- [:wat::core::String])
   (:wat::core::let [rhs (:wat::rete::Rule/rhs rule)]
     (:wat::core::foldl
-      (:wat::core::fn [acc  <- :wat::core::PersistentVector<wat::core::String>
+      (:wat::core::fn [acc  <- (:wat::core::PersistentVector :- [:wat::core::String])
                        form <- :wat::WatAST]
-        -> :wat::core::PersistentVector<wat::core::String>
+        -> (:wat::core::PersistentVector :- [:wat::core::String])
         (:wat::core::let [fact-ch   (:wat::core::ast->children form)
                           type-hd   (:wat::core::first fact-ch)
                           raw-nm    (:wat::core::ast-name type-hd)
@@ -296,7 +296,7 @@
 
 ;; type-name-of — colon-stripped fact-type head, or None for engine forms / ?var.
 (:wat::core::defn :wat::rete::type-name-of
-  [form <- :wat::WatAST] -> :wat::core::Option<wat::core::String>
+  [form <- :wat::WatAST] -> (:wat::core::Option :- [:wat::core::String])
   (:wat::core::let [ch (:wat::core::ast->children form)]
     (:wat::core::if (:wat::core::empty? ch)
       :wat::core::None
@@ -317,7 +317,7 @@
 
 ;; negated-types-under — leaves under :not, including :and/:or combinators.
 (:wat::core::defn :wat::rete::negated-types-under
-  [form <- :wat::WatAST] -> :wat::core::PersistentVector<wat::core::String>
+  [form <- :wat::WatAST] -> (:wat::core::PersistentVector :- [:wat::core::String])
   (:wat::core::let [ch (:wat::core::ast->children form)
                     hd (:wat::core::if (:wat::core::empty? ch)
                          ""
@@ -326,13 +326,13 @@
                       true
                       (:wat::core::= hd ":wat::rete::or"))
       (:wat::core::foldl
-        (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::String>
+        (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::String])
                          kid <- :wat::WatAST]
-          -> :wat::core::PersistentVector<wat::core::String>
+          -> (:wat::core::PersistentVector :- [:wat::core::String])
           (:wat::core::foldl
-            (:wat::core::fn [a <- :wat::core::PersistentVector<wat::core::String>
+            (:wat::core::fn [a <- (:wat::core::PersistentVector :- [:wat::core::String])
                              t <- :wat::core::String]
-              -> :wat::core::PersistentVector<wat::core::String>
+              -> (:wat::core::PersistentVector :- [:wat::core::String])
               (:wat::core::PersistentVector/conj a t))
             acc
             (:wat::rete::negated-types-under kid)))
@@ -347,21 +347,21 @@
 ;; rule-negates — :not of a fact AND :not of :and/:or. Leaves, not "wat::rete::and".
 (:wat::core::defn :wat::rete::rule-negates
   [rule <- :wat::rete::Rule]
-  -> :wat::core::PersistentVector<wat::core::String>
+  -> (:wat::core::PersistentVector :- [:wat::core::String])
   (:wat::core::let [lhs (:wat::rete::Rule/lhs rule)]
     (:wat::core::foldl
-      (:wat::core::fn [acc  <- :wat::core::PersistentVector<wat::core::String>
+      (:wat::core::fn [acc  <- (:wat::core::PersistentVector :- [:wat::core::String])
                        form <- :wat::WatAST]
-        -> :wat::core::PersistentVector<wat::core::String>
+        -> (:wat::core::PersistentVector :- [:wat::core::String])
         (:wat::core::let [ch (:wat::core::ast->children form)
                           hd (:wat::core::if (:wat::core::empty? ch)
                                ""
                                (:wat::core::ast-name (:wat::core::first ch)))]
           (:wat::core::if (:wat::core::= hd ":wat::rete::not")
             (:wat::core::foldl
-              (:wat::core::fn [a <- :wat::core::PersistentVector<wat::core::String>
+              (:wat::core::fn [a <- (:wat::core::PersistentVector :- [:wat::core::String])
                                t <- :wat::core::String]
-                -> :wat::core::PersistentVector<wat::core::String>
+                -> (:wat::core::PersistentVector :- [:wat::core::String])
                 (:wat::core::PersistentVector/conj a t))
               acc
               (:wat::rete::negated-types-under (:wat::core::second ch)))
@@ -386,12 +386,12 @@
 ;; accumulate head is not a type.
 (:wat::core::defn :wat::rete::rule-consumes
   [rule <- :wat::rete::Rule]
-  -> :wat::core::PersistentVector<wat::core::String>
+  -> (:wat::core::PersistentVector :- [:wat::core::String])
   (:wat::core::let [lhs (:wat::rete::Rule/lhs rule)]
     (:wat::core::foldl
-      (:wat::core::fn [acc  <- :wat::core::PersistentVector<wat::core::String>
+      (:wat::core::fn [acc  <- (:wat::core::PersistentVector :- [:wat::core::String])
                        form <- :wat::WatAST]
-        -> :wat::core::PersistentVector<wat::core::String>
+        -> (:wat::core::PersistentVector :- [:wat::core::String])
         (:wat::core::let [ch (:wat::core::ast->children form)
                           hd (:wat::core::if (:wat::core::empty? ch)
                                ""
@@ -430,8 +430,8 @@
       lhs)))
 
 (:wat::core::defn :wat::rete::stratify-sweep
-  [rules       <- :wat::core::PersistentVector<wat::rete::Rule>
-   type-strata <- :wat::core::HashMap<wat::core::String,wat::core::i64>]
+  [rules       <- (:wat::core::PersistentVector :- [:wat::rete::Rule])
+   type-strata <- (:wat::core::HashMap :- [:wat::core::String :wat::core::i64])]
   -> :wat::rete::StratifyAcc
   (:wat::core::foldl
     (:wat::core::fn [acc  <- :wat::rete::StratifyAcc
@@ -498,10 +498,10 @@
 ;; Sweeps until no stratum changes (converged) or remaining iterations run out.
 ;; Raises on negation cycle: rule set is not stratifiable (non-terminating strata).
 (:wat::core::defn :wat::rete::stratify-fix
-  [rules       <- :wat::core::PersistentVector<wat::rete::Rule>
-   type-strata <- :wat::core::HashMap<wat::core::String,wat::core::i64>
+  [rules       <- (:wat::core::PersistentVector :- [:wat::rete::Rule])
+   type-strata <- (:wat::core::HashMap :- [:wat::core::String :wat::core::i64])
    remaining   <- :wat::core::i64]
-  -> :wat::core::HashMap<wat::core::String,wat::core::i64>
+  -> (:wat::core::HashMap :- [:wat::core::String :wat::core::i64])
   (:wat::core::let [result  (:wat::rete::stratify-sweep rules type-strata)
                     changed (:wat::rete::StratifyAcc/changed result)
                     new-ts  (:wat::rete::StratifyAcc/type-strata result)]
@@ -519,7 +519,7 @@
 ;; = max(max strata[p] for produced p, max strata[n]+1 for negated n).
 (:wat::core::defn :wat::rete::rule-stratum
   [rule        <- :wat::rete::Rule
-   type-strata <- :wat::core::HashMap<wat::core::String,wat::core::i64>]
+   type-strata <- (:wat::core::HashMap :- [:wat::core::String :wat::core::i64])]
   -> :wat::core::i64
   (:wat::core::let [produced (:wat::rete::rule-produces rule)
                     negated  (:wat::rete::rule-negates rule)
@@ -554,8 +554,8 @@
 ;; Returns HashMap<String,i64> mapping each produced-type FQDN to its stratum number.
 ;; Raises "negation cycle" if the rule set is not stratifiable (cyclic negation dependency).
 (:wat::core::defn :wat::rete::stratify
-  [rules <- :wat::core::PersistentVector<wat::rete::Rule>]
-  -> :wat::core::HashMap<wat::core::String,wat::core::i64>
+  [rules <- (:wat::core::PersistentVector :- [:wat::rete::Rule])]
+  -> (:wat::core::HashMap :- [:wat::core::String :wat::core::i64])
   (:wat::core::let [init-ts (:wat::core::HashMap :wat::core::String :wat::core::i64)
                     ;; length(rules)+1 sweeps is always enough for a stratifiable set
                     bound   (:wat::core::i64::+ (:wat::core::length rules) 1)]
@@ -571,8 +571,8 @@
 ;; and causing compile to reject the argument at the call site. Recursive descent on
 ;; an index always filters the original typed PV — no type information is lost.
 (:wat::core::defn :wat::rete::fire-stratified-loop
-  [rules       <- :wat::core::PersistentVector<wat::rete::Rule>
-   type-strata <- :wat::core::HashMap<wat::core::String,wat::core::i64>
+  [rules       <- (:wat::core::PersistentVector :- [:wat::rete::Rule])
+   type-strata <- (:wat::core::HashMap :- [:wat::core::String :wat::core::i64])
    current     <- :wat::core::i64
    max-s       <- :wat::core::i64
    acc-facts   <- :wat::core::PersistentVector

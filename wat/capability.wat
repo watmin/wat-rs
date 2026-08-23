@@ -41,9 +41,9 @@
 ;; `coordinate` so a handle satisfying BOTH surfaces has no unqualified-call ambiguity; callers
 ;; already qualify by surface (`:wat::capability::Capability/coordinate` vs
 ;; `:wat::capability::Dialable/coord`), matching the probe's proven shape.
-(:wat::core::defsurface :wat::capability::Dialable<S,R> :nature :wat::core::Struct
+(:wat::core::defsurface :wat::capability::Dialable :- [S R] :nature :wat::core::Struct
   :features
-  [(coord [self <- :wat::capability::Dialable<S,R>] -> :wat::kernel::Address<S,R>)])
+  [(coord [self <- (:wat::capability::Dialable :- [S R])] -> (:wat::kernel::Address :- [S R]))])
 
 ;; TypedCapability<S,R> (arc 170 C2 candidate D) — a THIRD, combined surface every service's
 ;; `<fqdn>::Handle` also satisfies, via a THIRD auto-emitted extend-type that is deliberately
@@ -62,8 +62,8 @@
 ;; dispatches at runtime through the flat key). Method names reused verbatim from Dialable/
 ;; Capability (coord, grant, revoke) — safe because a handle only ever calls THROUGH one
 ;; qualified surface at a time; there is no unqualified-call ambiguity to resolve.
-(:wat::core::defsurface :wat::capability::TypedCapability<S,R> :nature :wat::core::Struct
+(:wat::core::defsurface :wat::capability::TypedCapability :- [S R] :nature :wat::core::Struct
   :features
-  [(coord  [self <- :wat::capability::TypedCapability<S,R>] -> :wat::kernel::Address<S,R>)
-   (grant  [self <- :wat::capability::TypedCapability<S,R>  pids <- (:wat::core::Vector :wat::core::i64)] -> :wat::core::nil)
-   (revoke [self <- :wat::capability::TypedCapability<S,R>  pids <- (:wat::core::Vector :wat::core::i64)] -> :wat::core::nil)])
+  [(coord  [self <- (:wat::capability::TypedCapability :- [S R])] -> (:wat::kernel::Address :- [S R]))
+   (grant  [self <- (:wat::capability::TypedCapability :- [S R])  pids <- (:wat::core::Vector :wat::core::i64)] -> :wat::core::nil)
+   (revoke [self <- (:wat::capability::TypedCapability :- [S R])  pids <- (:wat::core::Vector :wat::core::i64)] -> :wat::core::nil)])

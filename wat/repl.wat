@@ -61,7 +61,7 @@
 ;; grounded precisely because it names a limitation instead of a capability.
 
 (:wat::core::defn :repl::eval-and-loop
-  [defs <- :wat::core::Vector<wat::WatAST>
+  [defs <- (:wat::core::Vector :- [:wat::WatAST])
    text <- :wat::core::String]
   -> :wat::core::nil
   ;; The PARSE is a turn outcome too, not a precondition. The codemod's uniform arm for this
@@ -77,7 +77,7 @@
       (:repl::eval-form defs (:wat::core::first forms)))))
 
 (:wat::core::defn :repl::eval-form
-  [defs <- :wat::core::Vector<wat::WatAST>
+  [defs <- (:wat::core::Vector :- [:wat::WatAST])
    form <- :wat::WatAST]
   -> :wat::core::nil
   (:wat::core::let
@@ -122,7 +122,7 @@
 ;; A multi-line form therefore reaches `read-string` truncated and raises UnclosedParen.
 ;; That is a real limitation of this REPL, named rather than discovered by the next person.
 (:wat::core::defn :repl::turn
-  [defs <- :wat::core::Vector<wat::WatAST>]
+  [defs <- (:wat::core::Vector :- [:wat::WatAST])]
   -> :wat::core::nil
   (:wat::core::match (:wat::kernel::read-frame )
     ((:wat::kernel::ReadFrameOutcome::Frame text)

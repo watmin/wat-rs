@@ -12178,10 +12178,27 @@ fn infer_hashset_constructor(
                 }
             }
         }
+        // Arc 109 ②-iii — widen to accept the `:-` reference FORM `(Head :- [T …])`
+        // too, routed through `parse_type_node` (the substrate's one door reading
+        // all four type node shapes, src/types/surface.rs:345) — the check-time
+        // twin of the identical widening in `collection/eval.rs`'s
+        // `eval_hashset_ctor`. Additive only — the `Keyword` arm above is
+        // untouched, so the keyword path stays byte-identical.
+        list @ WatAST::List(_, _) => match crate::types::parse_type_node(list) {
+            Ok(t) => t,
+            Err(e) => {
+                local_errors.push(CheckError { span: e.span().clone(), kind: CheckErrorKind::MalformedForm {
+                    head: ":wat::core::HashSet".into(),
+                    reason: e.to_string(),
+                    remedies: vec![],
+                } });
+                fresh.fresh()
+            }
+        },
         _ => {
             local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::MalformedForm {
                 head: ":wat::core::HashSet".into(),
-                reason: "first argument must be a type keyword (e.g., :i64)".into(),
+                reason: "first argument must be a type keyword (e.g., :i64) or a `(Head :- [T …])` type form".into(),
                 remedies: vec![],
             } });
             fresh.fresh()
@@ -12204,6 +12221,228 @@ fn infer_hashset_constructor(
         args: vec![apply_subst(&t_ty, subst)],
     };
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
+}
+
+// ─── Arc 109 ②-iii — acceptance rows 1 & 3 for the CHECK-TIME twins ──────────────
+//
+// `infer_list_constructor` / `infer_hashset_constructor`'s first-arg guard now
+// accepts the `:-` reference FORM `(Head :- [T …])` alongside the existing
+// `Keyword`, routed through `crate::types::parse_type_node` — the same door the
+// eval-time guards in `collection/eval.rs` were taught, and the check-time twin
+// the orchestrator's unpiped re-grep surfaced (arc 109's fifth "a slot with two
+// implementations is two slots").
+#[cfg(test)]
+mod arc109_two_iii_check_time_ctor_guard_widening {
+    use super::{
+        infer_hashset_constructor, infer_list_constructor, CheckEnv, CheckErrorKind, CheckResult,
+        InferCtx, Subst,
+    };
+    use crate::types::{TypeEnv, TypeExpr};
+    use std::collections::HashMap;
+
+    fn env_and_types() -> TypeEnv {
+        TypeEnv::new()
+    }
+
+    /// Row 1 — `vec` (`:wat::core::Vector`'s check-time inference) takes a form
+    /// first-arg: `(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])`.
+    #[test]
+    fn row1_infer_list_constructor_accepts_parametric_form_first_arg() {
+        let types = env_and_types();
+        let env = CheckEnv::with_builtins_and_types(&types);
+        let locals: HashMap<String, TypeExpr> = HashMap::new();
+        let mut fresh = InferCtx::default();
+        let mut subst = Subst::new();
+        let ty_node = crate::parse_one!("(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])")
+            .expect("parse the parametric form first-arg");
+        let one = crate::parse_one!("(:wat::core::Tuple 1 2)").expect("parse element 1");
+        let two = crate::parse_one!("(:wat::core::Tuple 3 4)").expect("parse element 2");
+        let args = vec![ty_node, one, two];
+        let result: CheckResult<TypeExpr> = infer_list_constructor(
+            &args,
+            &crate::rust_caller_span!(),
+            &env,
+            &locals,
+            &mut fresh,
+            &mut subst,
+        );
+        let (ty, errors) = result.into_parts();
+        assert!(errors.is_empty(), "form first-arg must check clean, got: {errors:?}");
+        assert_eq!(
+            ty,
+            Some(TypeExpr::Parametric {
+                head: "wat::core::Vector".into(),
+                args: vec![TypeExpr::Tuple(vec![
+                    TypeExpr::Path(":wat::core::i64".into()),
+                    TypeExpr::Path(":wat::core::i64".into())
+                ])]
+            })
+        );
+    }
+
+    /// Row 3 (the row that decides the stone) — the KEYWORD path is untouched.
+    #[test]
+    fn row3_infer_list_constructor_keyword_first_arg_unchanged() {
+        let types = env_and_types();
+        let env = CheckEnv::with_builtins_and_types(&types);
+        let locals: HashMap<String, TypeExpr> = HashMap::new();
+        let mut fresh = InferCtx::default();
+        let mut subst = Subst::new();
+        let kw = crate::parse_one!(":wat::core::i64").expect("parse keyword first-arg");
+        let one = crate::parse_one!("1").expect("parse element 1");
+        let args = vec![kw, one];
+        let result = infer_list_constructor(
+            &args,
+            &crate::rust_caller_span!(),
+            &env,
+            &locals,
+            &mut fresh,
+            &mut subst,
+        );
+        let (ty, errors) = result.into_parts();
+        assert!(errors.is_empty(), "keyword first-arg must still check clean, got: {errors:?}");
+        assert_eq!(
+            ty,
+            Some(TypeExpr::Parametric {
+                head: "wat::core::Vector".into(),
+                args: vec![TypeExpr::Path(":wat::core::i64".into())]
+            })
+        );
+    }
+
+    /// Row 3 negative control — a first arg that was rejected BEFORE the widening
+    /// (neither `Keyword` nor now `List` — an int literal) must still be rejected,
+    /// with the SAME diagnostic shape (structured comparison, not `.contains()` —
+    /// `no_loose_string_assert`'s own remedy).
+    #[test]
+    fn row3_infer_list_constructor_still_rejects_non_type_first_arg() {
+        let types = env_and_types();
+        let env = CheckEnv::with_builtins_and_types(&types);
+        let locals: HashMap<String, TypeExpr> = HashMap::new();
+        let mut fresh = InferCtx::default();
+        let mut subst = Subst::new();
+        let bad = crate::parse_one!("1").expect("parse a non-type first-arg");
+        let args = vec![bad];
+        let result = infer_list_constructor(
+            &args,
+            &crate::rust_caller_span!(),
+            &env,
+            &locals,
+            &mut fresh,
+            &mut subst,
+        );
+        let (_ty, errors) = result.into_parts();
+        assert_eq!(errors.len(), 1, "expected exactly one MalformedForm error, got: {errors:?}");
+        assert_eq!(
+            format!("{:?}", errors[0].kind),
+            format!(
+                "{:?}",
+                CheckErrorKind::MalformedForm {
+                    head: ":wat::core::vec".into(),
+                    reason: "first argument must be a type keyword (e.g., :i64) or a `(Head :- [T …])` type form".into(),
+                    remedies: vec![],
+                }
+            )
+        );
+    }
+
+    /// Row 1 — `HashSet` takes a form first-arg.
+    #[test]
+    fn row1_infer_hashset_constructor_accepts_parametric_form_first_arg() {
+        let types = env_and_types();
+        let env = CheckEnv::with_builtins_and_types(&types);
+        let locals: HashMap<String, TypeExpr> = HashMap::new();
+        let mut fresh = InferCtx::default();
+        let mut subst = Subst::new();
+        let ty_node = crate::parse_one!("(:wat::core::Vector :- [:wat::core::i64])")
+            .expect("parse the parametric form first-arg");
+        let one = crate::parse_one!("(:wat::core::Vector :wat::core::i64 1 2)")
+            .expect("parse element 1");
+        let args = vec![ty_node, one];
+        let result = infer_hashset_constructor(
+            &args,
+            &crate::rust_caller_span!(),
+            &env,
+            &locals,
+            &mut fresh,
+            &mut subst,
+        );
+        let (ty, errors) = result.into_parts();
+        assert!(errors.is_empty(), "form first-arg must check clean, got: {errors:?}");
+        assert_eq!(
+            ty,
+            Some(TypeExpr::Parametric {
+                head: "wat::core::HashSet".into(),
+                args: vec![TypeExpr::Parametric {
+                    head: "wat::core::Vector".into(),
+                    args: vec![TypeExpr::Path(":wat::core::i64".into())]
+                }]
+            })
+        );
+    }
+
+    /// Row 3 — the KEYWORD path is untouched.
+    #[test]
+    fn row3_infer_hashset_constructor_keyword_first_arg_unchanged() {
+        let types = env_and_types();
+        let env = CheckEnv::with_builtins_and_types(&types);
+        let locals: HashMap<String, TypeExpr> = HashMap::new();
+        let mut fresh = InferCtx::default();
+        let mut subst = Subst::new();
+        let kw = crate::parse_one!(":wat::core::i64").expect("parse keyword first-arg");
+        let one = crate::parse_one!("1").expect("parse element 1");
+        let args = vec![kw, one];
+        let result = infer_hashset_constructor(
+            &args,
+            &crate::rust_caller_span!(),
+            &env,
+            &locals,
+            &mut fresh,
+            &mut subst,
+        );
+        let (ty, errors) = result.into_parts();
+        assert!(errors.is_empty(), "keyword first-arg must still check clean, got: {errors:?}");
+        assert_eq!(
+            ty,
+            Some(TypeExpr::Parametric {
+                head: "wat::core::HashSet".into(),
+                args: vec![TypeExpr::Path(":wat::core::i64".into())]
+            })
+        );
+    }
+
+    /// Row 3 negative control.
+    #[test]
+    fn row3_infer_hashset_constructor_still_rejects_non_type_first_arg() {
+        let types = env_and_types();
+        let env = CheckEnv::with_builtins_and_types(&types);
+        let locals: HashMap<String, TypeExpr> = HashMap::new();
+        let mut fresh = InferCtx::default();
+        let mut subst = Subst::new();
+        let bad = crate::parse_one!("1").expect("parse a non-type first-arg");
+        let args = vec![bad];
+        let result = infer_hashset_constructor(
+            &args,
+            &crate::rust_caller_span!(),
+            &env,
+            &locals,
+            &mut fresh,
+            &mut subst,
+        );
+        let (_ty, errors) = result.into_parts();
+        assert_eq!(errors.len(), 1, "expected exactly one MalformedForm error, got: {errors:?}");
+        assert_eq!(
+            format!("{:?}", errors[0].kind),
+            format!(
+                "{:?}",
+                CheckErrorKind::MalformedForm {
+                    head: ":wat::core::HashSet".into(),
+                    reason: "first argument must be a type keyword (e.g., :i64) or a `(Head :- [T …])` type form".into(),
+                    remedies: vec![],
+                }
+            )
+        );
+    }
 }
 
 /// Arc 300 Stone C5 — the mixed-numeric CHECK class.
@@ -14576,10 +14815,29 @@ fn infer_list_constructor(
                 }
             }
         }
+        // Arc 109 ②-iii — widen to accept the `:-` reference FORM `(Head :- [T …])`
+        // too, routed through `parse_type_node` (the substrate's one door reading
+        // all four type node shapes, src/types/surface.rs:345) — the check-time
+        // twin of the identical widening in `collection/eval.rs`'s
+        // `eval_vector_ctor` (found by the orchestrator's re-grep, arc 109's fifth
+        // "a slot with two implementations is two slots"). Additive only — the
+        // `Keyword` arm above is untouched, so the keyword path stays
+        // byte-identical.
+        list @ WatAST::List(_, _) => match crate::types::parse_type_node(list) {
+            Ok(t) => t,
+            Err(e) => {
+                local_errors.push(CheckError { span: e.span().clone(), kind: CheckErrorKind::MalformedForm {
+                    head: ":wat::core::vec".into(),
+                    reason: e.to_string(),
+                    remedies: vec![],
+                } });
+                fresh.fresh()
+            }
+        },
         _ => {
             local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::MalformedForm {
                 head: ":wat::core::vec".into(),
-                reason: "first argument must be a type keyword (e.g., :i64)".into(),
+                reason: "first argument must be a type keyword (e.g., :i64) or a `(Head :- [T …])` type form".into(),
                 remedies: vec![],
             } });
             fresh.fresh()

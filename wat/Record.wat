@@ -106,7 +106,7 @@
 ;; kwargs-lower itself) — a data-skip past the F5 purity gate, proven by the arc-294
 ;; de-risk (`derisk_agg_kwargs.wat`).
 (:wat::core::defmacro :wat::core::defrecord
-  [& args <- :wat::core::Vector<wat::WatAST>]
+  [& args <- (:wat::core::Vector :- [:wat::WatAST])]
   -> :wat::WatAST
   ;; Arc 293 surface-splice — the constructor `defn` is DELETED from this macro. The ctor
   ;; is now minted (for EVERY aggregate nature) in `register_aggregate_methods` (runtime.rs)
@@ -146,7 +146,7 @@
      field-ch     (:wat::core::ast->children fields)
      clean-field-ch
      (:wat::core::foldl
-       (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST> i <- :wat::core::i64] -> :wat::core::Vector<wat::WatAST>
+       (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST]) i <- :wat::core::i64] -> (:wat::core::Vector :- [:wat::WatAST])
          (:wat::core::let
            [item      (:wat::core::Option/expect (:wat::core::get field-ch i) "defrecord kwargs companion: field-ch index")
             is-splice (:wat::core::if (:wat::core::= (:wat::core::ast-kind item) "list")
@@ -160,7 +160,7 @@
      field-len    (:wat::core::length clean-field-ch)
      n-fields     (:wat::core::i64::/ field-len 3)
      fname-nodes  (:wat::core::foldl
-                    (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST> i <- :wat::core::i64] -> :wat::core::Vector<wat::WatAST>
+                    (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST]) i <- :wat::core::i64] -> (:wat::core::Vector :- [:wat::WatAST])
                       (:wat::core::conj acc
                         (:wat::core::Option/expect
                           (:wat::core::get clean-field-ch (:wat::core::i64::* i 3))
@@ -181,7 +181,7 @@
      ns-parts      (:wat::core::string::split fqdn-bare-str "::")
      n-ns-parts    (:wat::core::length ns-parts)
      ns-lead       (:wat::core::foldl
-                     (:wat::core::fn [acc <- :wat::core::Vector<wat::core::String> i <- :wat::core::i64] -> :wat::core::Vector<wat::core::String>
+                     (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String]) i <- :wat::core::i64] -> (:wat::core::Vector :- [:wat::core::String])
                        (:wat::core::conj acc
                          (:wat::core::Option/expect (:wat::core::get ns-parts i) "defrecord kwargs companion: ns-part index")))
                      (:wat::core::Vector :wat::core::String)
@@ -195,7 +195,7 @@
        (:wat::core::recordtype ~fqdn ~@binder :wat::core::Record
          [~@field-ch])
        (:wat::core::defmacro ~fqdn-bare-kw
-         [& ~call-args-sym <- :wat::core::Vector<wat::WatAST>]
+         [& ~call-args-sym <- (:wat::core::Vector :- [:wat::WatAST])]
          -> :wat::WatAST
          ;; Arc 294 item (C) — emit the LIVE `kwargs-construct` form over the bare `:T`
          ;; keyword; check/eval resolve `:T`'s (splice-merged, post-register) field order
@@ -222,7 +222,7 @@
 ;; only the `recordtype` parent differs: `:wat::holon::Record` vs `:wat::core::Record`).
 ;; See the BASE macro's comments for the full rationale + the splice-field known gap.
 (:wat::core::defmacro :wat::holon::defrecord
-  [& args <- :wat::core::Vector<wat::WatAST>]
+  [& args <- (:wat::core::Vector :- [:wat::WatAST])]
   -> :wat::WatAST
   ;; Arc 293 surface-splice — constructor `defn` DELETED (see the BASE macro above). The
   ;; holon ctor is minted in `register_aggregate_methods` from the registered fields; the
@@ -241,7 +241,7 @@
      ;; walk, so the companion bakes only the record's OWN literal fields.
      clean-field-ch
      (:wat::core::foldl
-       (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST> i <- :wat::core::i64] -> :wat::core::Vector<wat::WatAST>
+       (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST]) i <- :wat::core::i64] -> (:wat::core::Vector :- [:wat::WatAST])
          (:wat::core::let
            [item      (:wat::core::Option/expect (:wat::core::get field-ch i) "holon defrecord kwargs companion: field-ch index")
             is-splice (:wat::core::if (:wat::core::= (:wat::core::ast-kind item) "list")
@@ -255,7 +255,7 @@
      field-len    (:wat::core::length clean-field-ch)
      n-fields     (:wat::core::i64::/ field-len 3)
      fname-nodes  (:wat::core::foldl
-                    (:wat::core::fn [acc <- :wat::core::Vector<wat::WatAST> i <- :wat::core::i64] -> :wat::core::Vector<wat::WatAST>
+                    (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST]) i <- :wat::core::i64] -> (:wat::core::Vector :- [:wat::WatAST])
                       (:wat::core::conj acc
                         (:wat::core::Option/expect
                           (:wat::core::get clean-field-ch (:wat::core::i64::* i 3))
@@ -275,7 +275,7 @@
      ns-parts      (:wat::core::string::split fqdn-bare-str "::")
      n-ns-parts    (:wat::core::length ns-parts)
      ns-lead       (:wat::core::foldl
-                     (:wat::core::fn [acc <- :wat::core::Vector<wat::core::String> i <- :wat::core::i64] -> :wat::core::Vector<wat::core::String>
+                     (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String]) i <- :wat::core::i64] -> (:wat::core::Vector :- [:wat::core::String])
                        (:wat::core::conj acc
                          (:wat::core::Option/expect (:wat::core::get ns-parts i) "holon defrecord kwargs companion: ns-part index")))
                      (:wat::core::Vector :wat::core::String)
@@ -287,7 +287,7 @@
        (:wat::core::recordtype ~fqdn ~@binder :wat::holon::Record
          [~@field-ch])
        (:wat::core::defmacro ~fqdn-bare-kw
-         [& ~call-args-sym <- :wat::core::Vector<wat::WatAST>]
+         [& ~call-args-sym <- (:wat::core::Vector :- [:wat::WatAST])]
          -> :wat::WatAST
          ;; Arc 294 item (C) — LIVE `kwargs-construct` over the bare `:T` (see the BASE macro).
          (:wat::core::let

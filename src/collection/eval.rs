@@ -1866,11 +1866,30 @@ pub(crate) fn eval_vector_ctor(
             got: 0
         }).into());
     }
-    if !matches!(&args[0], WatAST::Keyword(_, _)) {
-        return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::MalformedForm {
-            head: ":wat::core::Vector".into(),
-            reason: "first argument must be a type keyword (e.g., :i64)".into()
-        }).into());
+    // Arc 109 ②-iii — widen to accept the `:-` reference FORM `(Head :- [T …])`
+    // too, routed through `parse_type_node` (the substrate's one door reading
+    // all four type node shapes, src/types/surface.rs:345), same as γ-i's
+    // src/function/parse.rs:178. Additive only: the `Keyword` arm is
+    // untouched (no new validation on it) so the keyword path stays
+    // byte-identical; a `List` is now actually parsed as a type form — not
+    // merely shape-matched — so a malformed list is still rejected.
+    match &args[0] {
+        WatAST::Keyword(_, _) => {}
+        list @ WatAST::List(_, _) => {
+            crate::types::parse_type_node(list).map_err(|e| RuntimeError::new(
+                e.span().clone(),
+                RuntimeErrorKind::MalformedForm {
+                    head: ":wat::core::Vector".into(),
+                    reason: e.to_string(),
+                },
+            ))?;
+        }
+        _ => {
+            return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::MalformedForm {
+                head: ":wat::core::Vector".into(),
+                reason: "first argument must be a type keyword (e.g., :i64) or a `(Head :- [T …])` type form".into()
+            }).into());
+        }
     }
     // rune:perspicere(mumble-alias) — Result<Vec<_>, _> turbofish reads better than a
     // single-home alias would; the pattern is substrate-wide convention with no existing
@@ -1957,11 +1976,30 @@ pub(crate) fn eval_hashset_ctor(
             got: 0
         }).into());
     }
-    if !matches!(&args[0], WatAST::Keyword(_, _)) {
-        return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::MalformedForm {
-            head: ":wat::core::HashSet".into(),
-            reason: "first argument must be a type keyword (e.g., :i64)".into()
-        }).into());
+    // Arc 109 ②-iii — widen to accept the `:-` reference FORM `(Head :- [T …])`
+    // too, routed through `parse_type_node` (the substrate's one door reading
+    // all four type node shapes, src/types/surface.rs:345), same as γ-i's
+    // src/function/parse.rs:178. Additive only: the `Keyword` arm is
+    // untouched (no new validation on it) so the keyword path stays
+    // byte-identical; a `List` is now actually parsed as a type form — not
+    // merely shape-matched — so a malformed list is still rejected.
+    match &args[0] {
+        WatAST::Keyword(_, _) => {}
+        list @ WatAST::List(_, _) => {
+            crate::types::parse_type_node(list).map_err(|e| RuntimeError::new(
+                e.span().clone(),
+                RuntimeErrorKind::MalformedForm {
+                    head: ":wat::core::HashSet".into(),
+                    reason: e.to_string(),
+                },
+            ))?;
+        }
+        _ => {
+            return Err(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::MalformedForm {
+                head: ":wat::core::HashSet".into(),
+                reason: "first argument must be a type keyword (e.g., :i64) or a `(Head :- [T …])` type form".into()
+            }).into());
+        }
     }
     // Stone 216.5b — native HashSet<Value> insert. Value implements Hash + Eq
     // (Stone 216.5a); dedupe is handled natively by HashSet::insert semantics.
@@ -2144,5 +2182,195 @@ pub(crate) fn hashset_get_inner(container: &Value, item: &Value) -> Result<Value
             expected: "HashSet<T>",
             got: Box::new(ValueSnapshot::of(other))
         }).into()),
+    }
+}
+
+// ─── Arc 109 ②-iii — acceptance rows 1-3 for the `Vector`/`HashSet` ctor guard widening ──
+//
+// `eval_vector_ctor` / `eval_hashset_ctor`'s first-arg guard now accepts the `:-`
+// reference FORM `(Head :- [T …])` alongside the existing `Keyword`, routed through
+// `crate::types::parse_type_node` (the substrate's one door, src/types/surface.rs:345).
+//
+// These are Rust-level (not `.wat` scratch-pad) probes DELIBERATELY: `startup_from_source`
+// / `--check` runs `crate::check::infer_list_constructor` / `infer_hashset_constructor`
+// BEFORE any eval, and those two check-time twins have the SAME keyword-only defect this
+// stone fixes at the eval-time guards — but are OUT OF this stone's boundary (only
+// `src/runtime.rs`'s one match arm and these two `collection/eval.rs` guards). A
+// `wat-scripts/scratch-pad/*.wat` probe calling `(:wat::core::Vector (Head :- [T]) …)` or
+// `(:wat::core::HashSet (Head :- [T]) …)` directly would be rejected by the checker before
+// ever reaching the widened eval-time guard, and would go RED under
+// `tests/lint/wat_scripts_fixes_load.rs` (which runs the identical `startup_from_source`
+// gate) — a false failure of a fix that is correct at the layer it targets. `eval_in_frozen`
+// evaluates a pre-parsed AST directly against a frozen world with NO re-check pass
+// (`src/freeze.rs`: macro-expand then `crate::runtime::eval`), so it exercises exactly the
+// two guards this stone widened, in isolation from the check-time twins' unrelated gap.
+// Found and reported to the orchestrator, not fixed here (STOP-3: a third class surfaced,
+// out of boundary).
+#[cfg(test)]
+mod arc109_two_iii_ctor_guard_widening {
+    use super::{eval_hashset_ctor, eval_vector_ctor, EvalBreak, RuntimeErrorKind};
+    use crate::runtime::{Environment, SymbolTable, Value};
+
+    /// Calls `eval_vector_ctor` / `eval_hashset_ctor` DIRECTLY, on hand-built `WatAST`, with
+    /// a bare `Environment`/`SymbolTable` — no `startup_from_source`/`--check`/`eval_in_frozen`
+    /// world-build. Two reasons, both load-bearing:
+    ///
+    /// 1. `startup_from_source` (which BOTH `--check` and `eval_in_frozen`'s world-build run
+    ///    through) currently fails to freeze the STDLIB ITSELF: the corpus migration this
+    ///    stone ships (arc 109 ②-iii) rewrote `wat/fix.wat` / `cache.wat` / `lint.wat` /
+    ///    `bracket.wat` / `spawn.wat`'s OWN `(:wat::core::Vector :(a,b,c) …)` tuple-keyword
+    ///    constructor calls into the `(:wat::core::Vector (:wat::core::Tuple :- [...]) …)`
+    ///    form — and `crate::check::infer_list_constructor` / `infer_hashset_constructor`
+    ///    (check.rs's OWN, textually independent copy of this exact "first arg is a type
+    ///    keyword" guard) has the SAME keyword-only defect this stone fixes in
+    ///    `collection/eval.rs`, unfixed. 37 `CheckError`s, none reachable from this stone's
+    ///    boundary (`src/runtime.rs`'s one match arm + these two guards) — reported to the
+    ///    orchestrator as a found THIRD class (STOP-3), not fixed here.
+    /// 2. Calling the two guards directly is ALSO the more precise instrument: it isolates
+    ///    exactly the code this stone changed from macro-expansion, symbol resolution, and
+    ///    check.rs's unrelated (and, per point 1, currently broken) parallel implementation.
+    fn env_sym() -> (Environment, SymbolTable) {
+        (Environment::new(), SymbolTable::new())
+    }
+
+    fn i64_lit(n: i64) -> WatAST {
+        WatAST::int(n)
+    }
+
+    fn kw(s: &str) -> WatAST {
+        WatAST::Keyword(s.into(), crate::rust_caller_span!())
+    }
+
+    fn list(items: Vec<WatAST>) -> WatAST {
+        WatAST::List(items, crate::rust_caller_span!())
+    }
+
+    fn vect(items: Vec<WatAST>) -> WatAST {
+        WatAST::Vector(items, crate::rust_caller_span!())
+    }
+
+    use super::WatAST;
+
+    /// Row 3 (the row that decides the stone) — the KEYWORD path is untouched. Same
+    /// argument shape as before the widening, still accepted, still yields the SAME value.
+    #[test]
+    fn row3_vector_ctor_keyword_first_arg_unchanged() {
+        let (env, sym) = env_sym();
+        let args = vec![kw(":wat::core::i64"), i64_lit(1), i64_lit(2), i64_lit(3)];
+        let v = eval_vector_ctor(&args, &crate::rust_caller_span!(), &env, &sym)
+            .unwrap_or_else(|e| panic!("keyword-typed Vector ctor must still eval: {e:?}"));
+        assert_eq!(v, Value::Vec(std::sync::Arc::new(vec![Value::i64(1), Value::i64(2), Value::i64(3)])));
+    }
+
+    #[test]
+    fn row3_hashset_ctor_keyword_first_arg_unchanged() {
+        let (env, sym) = env_sym();
+        let args = vec![kw(":wat::core::i64"), i64_lit(1), i64_lit(2), i64_lit(2), i64_lit(3)];
+        let v = eval_hashset_ctor(&args, &crate::rust_caller_span!(), &env, &sym)
+            .unwrap_or_else(|e| panic!("keyword-typed HashSet ctor must still eval: {e:?}"));
+        match v {
+            Value::wat__std__HashSet(s) => assert_eq!(s.len(), 3, "1,2,2,3 dedupes to 3 elements"),
+            other => panic!("expected HashSet, got {other:?}"),
+        }
+    }
+
+    /// Row 3 negative control — a first arg that was rejected BEFORE the widening (neither a
+    /// `Keyword` nor now a `List` — an i64 literal) must still be rejected after it, with the
+    /// SAME diagnostic text. Proves the widening did not become "accepts anything".
+    #[test]
+    fn row3_vector_ctor_still_rejects_non_type_first_arg() {
+        let (env, sym) = env_sym();
+        let args = vec![i64_lit(1), i64_lit(2), i64_lit(3)];
+        let err = eval_vector_ctor(&args, &crate::rust_caller_span!(), &env, &sym)
+            .expect_err("a plain i64 first arg must still be rejected");
+        // Structured, not string-matched (`no_loose_string_assert`'s own remedy — ask
+        // through the door, whose argument is an enum): the pre-existing diagnostic
+        // shape, byte-identical to before the widening.
+        match err {
+            EvalBreak::Diagnostic(e) => assert_eq!(
+                format!("{:?}", e.kind()),
+                format!(
+                    "{:?}",
+                    RuntimeErrorKind::MalformedForm {
+                        head: ":wat::core::Vector".into(),
+                        reason: "first argument must be a type keyword (e.g., :i64) or a `(Head :- [T …])` type form".into()
+                    }
+                )
+            ),
+            other => panic!("expected Diagnostic, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn row3_hashset_ctor_still_rejects_non_type_first_arg() {
+        let (env, sym) = env_sym();
+        let args = vec![i64_lit(1), i64_lit(2), i64_lit(3)];
+        let err = eval_hashset_ctor(&args, &crate::rust_caller_span!(), &env, &sym)
+            .expect_err("a plain i64 first arg must still be rejected");
+        match err {
+            EvalBreak::Diagnostic(e) => assert_eq!(
+                format!("{:?}", e.kind()),
+                format!(
+                    "{:?}",
+                    RuntimeErrorKind::MalformedForm {
+                        head: ":wat::core::HashSet".into(),
+                        reason: "first argument must be a type keyword (e.g., :i64) or a `(Head :- [T …])` type form".into()
+                    }
+                )
+            ),
+            other => panic!("expected Diagnostic, got {other:?}"),
+        }
+    }
+
+    /// Row 2 — `vec` / `HashSet` take a form first-arg: `(Head :- [T …])`, routed through
+    /// `parse_type_node`. Element type is itself parametric (`Tuple :- [i64 i64]`) — the
+    /// exact shape the corpus migration produces (`wat/fix.wat`, `cache.wat`, `lint.wat`,
+    /// `bracket.wat`, `spawn.wat`).
+    #[test]
+    fn row2_vector_ctor_accepts_parametric_form_first_arg() {
+        let (env, sym) = env_sym();
+        let ty = list(vec![
+            kw(":wat::core::Tuple"),
+            kw(":-"),
+            vect(vec![kw(":wat::core::i64"), kw(":wat::core::i64")]),
+        ]);
+        let args = vec![ty, i64_lit(1), i64_lit(2), i64_lit(3)];
+        let v = eval_vector_ctor(&args, &crate::rust_caller_span!(), &env, &sym)
+            .unwrap_or_else(|e| panic!("form-typed Vector ctor must eval: {e:?}"));
+        match v {
+            Value::Vec(xs) => assert_eq!(xs.len(), 3),
+            other => panic!("expected Vec, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn row2_hashset_ctor_accepts_parametric_form_first_arg() {
+        let (env, sym) = env_sym();
+        let ty = list(vec![
+            kw(":wat::core::Tuple"),
+            kw(":-"),
+            vect(vec![kw(":wat::core::i64"), kw(":wat::core::i64")]),
+        ]);
+        let args = vec![ty, i64_lit(1), i64_lit(2), i64_lit(3)];
+        let v = eval_hashset_ctor(&args, &crate::rust_caller_span!(), &env, &sym)
+            .unwrap_or_else(|e| panic!("form-typed HashSet ctor must eval: {e:?}"));
+        match v {
+            Value::wat__std__HashSet(s) => assert_eq!(s.len(), 3),
+            other => panic!("expected HashSet, got {other:?}"),
+        }
+    }
+
+    /// Row 2 negative control — a MALFORMED form (the head is not a valid type constructor
+    /// keyword — a bare i64-shaped List) must still be rejected. Proves the `List` arm
+    /// actually parses via `parse_type_node`, rather than accepting any `List`
+    /// unconditionally.
+    #[test]
+    fn row2_vector_ctor_rejects_malformed_form_first_arg() {
+        let (env, sym) = env_sym();
+        let malformed_ty = list(vec![i64_lit(1), i64_lit(2), i64_lit(3)]);
+        let args = vec![malformed_ty, i64_lit(1)];
+        let err = eval_vector_ctor(&args, &crate::rust_caller_span!(), &env, &sym)
+            .expect_err("a List that is not a valid type form must still be rejected");
+        eprintln!("row2_vector_ctor_rejects_malformed_form_first_arg: {err:?}");
     }
 }

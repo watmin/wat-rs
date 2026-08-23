@@ -7848,6 +7848,22 @@ fn parse_defclause_clause(
         }
         match &rest[type_pos] {
             WatAST::Keyword(k, _) => parse_type_keyword(k)?,
+            // Arc 109 ②-iii — widen to accept the `:-` reference FORM
+            // `(Head :- [T …])` too, routed through `parse_type_node` (the
+            // substrate's one door reading all four type node shapes,
+            // src/types/surface.rs:345), same as γ-i's
+            // `src/function/parse.rs:178`. Additive only — the `Keyword`
+            // arm above is untouched, so the keyword path stays
+            // byte-identical.
+            list @ WatAST::List(_, _) => crate::types::parse_type_node(list).map_err(|e| {
+                RuntimeError::new(
+                    e.span().clone(),
+                    RuntimeErrorKind::MalformedForm {
+                        head: head.into(),
+                        reason: e.to_string(),
+                    },
+                )
+            })?,
             other => {
                 return Err(RuntimeError::new(
                     other.span().clone(),
@@ -7918,6 +7934,86 @@ fn parse_defclause_clause(
         // name is what a call-stack frame shows).
         func: None,
     })
+}
+
+// ─── Arc 109 ②-iii — acceptance rows 1 & 3 for `defclause`'s return-type slot ────────
+//
+// `parse_defclause_clause`'s `-> :T` slot now accepts the `:-` reference FORM
+// `(Head :- [T …])` alongside the existing `Keyword`, routed through
+// `crate::types::parse_type_node`. Calls the parser DIRECTLY (not via
+// `startup_from_source`/`--check`) for the same reason `collection/eval.rs`'s sibling
+// probes do: the corpus migration this stone ships exposed a THIRD, out-of-boundary
+// keyword-only guard (`crate::check::infer_list_constructor` /
+// `infer_hashset_constructor`) that currently fails to freeze the stdlib itself — see
+// `src/collection/eval.rs`'s `arc109_two_iii_ctor_guard_widening` module doc for the
+// full account. `defclause` itself is unaffected by that third class (this guard is
+// reused by BOTH `runtime.rs` eval and `check.rs`'s `infer_defclause`, which calls
+// `parse_defclause_form` — the SAME parser under test here), but calling it directly
+// keeps this probe independent of whether the wider corpus happens to check clean.
+#[cfg(test)]
+mod arc109_two_iii_defclause_return_slot {
+    use super::{parse_defclause_clause, RuntimeErrorKind};
+
+    /// Row 1 — `defclause` takes a form return: `-> (:wat::core::Vector :- [:wat::core::i64])`.
+    #[test]
+    fn row1_defclause_form_return_type() {
+        let clause = crate::parse_one!(
+            "([n <- :wat::core::i64] -> (:wat::core::Vector :- [:wat::core::i64]) n)"
+        )
+        .expect("parse defclause clause with form return");
+        let parsed = parse_defclause_clause(&clause, ":probe::defclause-row1", None)
+            .unwrap_or_else(|e| panic!("form return type must parse: {e:?}"));
+        let type_node = crate::parse_one!("(:wat::core::Vector :- [:wat::core::i64])")
+            .expect("parse the equivalent bare type form");
+        let expected = crate::types::parse_type_node(&type_node)
+            .expect("the reference form itself must parse via the substrate's one door");
+        assert_eq!(
+            parsed.return_type, expected,
+            "defclause's `-> (Head :- [T …])` must parse to exactly what parse_type_node \
+             yields for the same form standing alone"
+        );
+    }
+
+    /// Row 3 (the row that decides the stone) — the KEYWORD return-type path is
+    /// untouched: same probe, keyword spelling, must still parse to the SAME shape it
+    /// always did.
+    #[test]
+    fn row3_defclause_keyword_return_type_unchanged() {
+        let clause = crate::parse_one!("([n <- :wat::core::i64] -> :wat::core::i64 n)")
+            .expect("parse defclause clause with keyword return");
+        let parsed = parse_defclause_clause(&clause, ":probe::defclause-row3", None)
+            .unwrap_or_else(|e| panic!("keyword return type must still parse: {e:?}"));
+        assert_eq!(
+            parsed.return_type,
+            crate::types::TypeExpr::Path(":wat::core::i64".into())
+        );
+    }
+
+    /// Row 3 negative control — a return slot that was rejected BEFORE the widening
+    /// (neither `Keyword` nor now `List` — a bare symbol) must still be rejected, with
+    /// the SAME diagnostic shape.
+    #[test]
+    fn row3_defclause_still_rejects_non_type_return_slot() {
+        let clause = crate::parse_one!("([n <- :wat::core::i64] -> n n)")
+            .expect("parse defclause clause with a bare-symbol return slot");
+        let err = parse_defclause_clause(&clause, ":probe::defclause-row3-neg", None)
+            .expect_err("a bare symbol return slot must still be rejected");
+        // Structured, not string-matched (`no_loose_string_assert`'s own remedy — ask
+        // through the door, whose argument is an enum): the pre-existing diagnostic
+        // shape, byte-identical to before the widening.
+        assert_eq!(
+            format!("{:?}", err.kind()),
+            format!(
+                "{:?}",
+                RuntimeErrorKind::MalformedForm {
+                    head: ":probe::defclause-row3-neg".into(),
+                    reason: "defclause clause `->` must be followed by a return type keyword; \
+                             got symbol"
+                        .into()
+                }
+            )
+        );
+    }
 }
 
 /// Stone 237.2 — parse and register a defclause form.
@@ -8413,25 +8509,46 @@ pub(crate) fn parse_extend_type_form(
         // Protocol impls don't use `->` so this is a no-op for them.
         // If body_items starts with Symbol("->") followed by a Keyword, strip them and
         // capture the return type; otherwise use :nil as the placeholder (protocol path).
-        let (body_forms, clause_return_type) = if body_items.len() >= 3 {
-            if let (WatAST::Symbol(arrow, _), WatAST::Keyword(ret_kw, _)) =
-                (&body_items[0], &body_items[1])
-            {
-                if arrow.as_str() == "->" {
+        let (body_forms, clause_return_type) = if body_items.len() >= 3
+            && matches!(&body_items[0], WatAST::Symbol(arrow, _) if arrow.as_str() == "->")
+        {
+            match &body_items[1] {
+                WatAST::Keyword(ret_kw, _) => {
                     let ret = crate::types::parse_type_expr(ret_kw)
                         .unwrap_or_else(|_| crate::types::TypeExpr::Path(":wat::core::nil".into()));
                     (body_items[2..].to_vec(), ret)
-                } else {
-                    (
-                        body_items,
-                        crate::types::TypeExpr::Path(":wat::core::nil".into()),
-                    )
                 }
-            } else {
-                (
+                // Arc 109 Stone ⑥ — the method-member RETURN slot also accepts the `:-`
+                // reference FORM (`(Head :- [T …])`), through the same `parse_type_node` door
+                // the sibling extend-type slots above (items[1]'s type_name, items[2]'s
+                // protocol_te) already use. Unlike the Keyword arm's `unwrap_or_else(nil)`
+                // fallback (kept byte-identical — it preserves prior behavior for a keyword
+                // that somehow fails to re-parse, which should not happen for well-formed
+                // input), a malformed List here PROPAGATES its parse error via `?` rather than
+                // silently defaulting to `:nil`: a List only lands in this arm when the source
+                // is unambiguously the `(Head :- [...])` form, so a parse failure is a real
+                // malformed annotation, not a benign non-annotation shape — masking it as
+                // `:nil` would hide exactly the defect class this arc has spent the day
+                // digging out.
+                node @ WatAST::List(_, _) => {
+                    let te = crate::types::parse_type_node(node).map_err(|e| {
+                        RuntimeError::new(
+                            node.span().clone(),
+                            RuntimeErrorKind::MalformedForm {
+                                head: HEAD.into(),
+                                reason: format!(
+                                    "method impl `{}` return type after `->`: {}",
+                                    method_name, e
+                                ),
+                            },
+                        )
+                    })?;
+                    (body_items[2..].to_vec(), te)
+                }
+                _ => (
                     body_items,
                     crate::types::TypeExpr::Path(":wat::core::nil".into()),
-                )
+                ),
             }
         } else {
             (
