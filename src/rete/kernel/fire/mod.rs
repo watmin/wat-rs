@@ -1174,13 +1174,25 @@ pub(crate) fn collect_derived(production_pm: &Value) -> Vec<Value> {
 /// `Value: Hash + Eq` already (the round-loop's own `seen: HashSet<Value>` dedup, above, uses
 /// the same property) — same value-dedup semantics, same push_back order, O(len(pv) +
 /// len(derived)) instead.
-pub(crate) fn merge_facts(facts_pv: &Value, derived: &[Value]) -> Value {
+///
+/// The membership set is the CALLER'S and is carried across strata — it is not
+/// rebuilt here (`DESIGN-STONE-strat-merge-carried-set`). The stratified loop
+/// calls this once per stratum with the whole accumulated closure; rebuilding
+/// the set each time re-hashed and re-cloned every fact derived so far to
+/// re-learn what the previous iteration already held, O(S*N) where the honest
+/// cost is O(N). Measured at strat-neg `[6 2000]`: 27000 hashes vs 8000, 2.23 ms
+/// of it theater (`strat_merge_present_parts`). Seed the set with
+/// `facts_membership` and thread it through the loop.
+pub(crate) fn merge_facts(
+    facts_pv: &Value,
+    present: &mut std::collections::HashSet<Value>,
+    derived: &[Value],
+) -> Value {
     // Start with a clone of the existing PV.
     let mut pv: crate::value::pvec::PVec = match facts_pv {
         Value::wat__core__PersistentVector(v) => v.clone(),
         _ => crate::value::pvec::PVec::new(),
     };
-    let mut present: std::collections::HashSet<Value> = pv.iter().cloned().collect();
     for fact in derived {
         // Conj only if not already present (structural equality, now O(1) amortized).
         if present.insert(fact.clone()) {
@@ -1188,6 +1200,17 @@ pub(crate) fn merge_facts(facts_pv: &Value, derived: &[Value]) -> Value {
         }
     }
     Value::wat__core__PersistentVector(pv)
+}
+
+/// The membership set `merge_facts` would have collected on its first call —
+/// the seed for the carried set. The non-PersistentVector arm mirrors
+/// `merge_facts`' own `_ => PVec::new()`, so a `facts` field that is not a
+/// vector behaves exactly as before.
+pub(crate) fn facts_membership(facts_pv: &Value) -> std::collections::HashSet<Value> {
+    match facts_pv {
+        Value::wat__core__PersistentVector(v) => v.iter().cloned().collect(),
+        _ => std::collections::HashSet::new(),
+    }
 }
 
 pub(crate) fn network_has_production(network: &Value) -> bool {

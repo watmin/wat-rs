@@ -102,6 +102,10 @@ pub(crate) fn fire_rules_stratified(
     let slice_drivers = &full_arm.compiled_drivers;
 
     let mut acc_facts: Value = input_facts.clone();
+    // Carried across strata — NOT rebuilt per stratum
+    // (`DESIGN-STONE-strat-merge-carried-set`). Seeded with exactly what
+    // `merge_facts` would have collected on its first call.
+    let mut acc_present = facts_membership(&acc_facts);
     let mut acc_derived: Vec<Value> = Vec::new();
     let mut acc_derived_set: HashSet<Value> = HashSet::new();
 
@@ -199,7 +203,7 @@ pub(crate) fn fire_rules_stratified(
         // acc_facts := this stratum's post-fixpoint closure (seed ∪ new_derived), for the next
         // stratum's `:not` to see — the value the oracle gets for free by reading
         // `(:wat::rete::Session/facts fired)` (`wat/rete/oracle/fire.wat`).
-        acc_facts = merge_facts(&acc_facts, &new_derived);
+        acc_facts = merge_facts(&acc_facts, &mut acc_present, &new_derived);
 
         // acc_derived := value-dedup union across strata (mirrors `merge-facts`, R18 — NOT concat).
         for d in &new_derived {

@@ -5,6 +5,29 @@
 > `wat/rete.wat`. If a stone below disagrees with a dated ruling here,
 > **this file wins** and the stone is stale.
 
+**CURRENT STAMP 2026-08-23 (supersedes every number below it).** HEAD
+**`a58f9dda`** — the `ca9d9cc3` stamp further down is **STALE by 21 commits**;
+where it disagrees with this block, this block wins. Floor **GREEN**
+`.floor/2026-08-23T21-23-28Z` (4927 passed, 19 skipped, 275.284s, no ARM).
+Clippy CI-identical (`--release --workspace --all-targets -- -D warnings`)
+**silent**. Grid `GRID-native-vs-clara-2026-08-23T21-28-42Z.txt`
+(`GRID_SKIP_ORACLE=1 GRID_RUNS=3`): **30/30 `:match`, 30/30 `:us`**.
+Fanout `[40000]` **24.72 ms** (NOT 42.8 — that figure below is stale).
+strat-neg `[6 2000]` 13.60. accum `[200 200]` 13.44. deep-cascade `[50 100]` 10.13.
+⚠ `T21-28-42Z` vs `T19-17-35Z` are the SAME HEAD with no code between them —
+their spread is the INSTRUMENT's noise floor, not the engine: ±0.1–0.2 ms on
+big cells, −0.71 on strat-neg `[6 500]`. **Do not gate a sub-ms intern on the
+grid** — weigh on the leftover `Instant` harness, same session, before/after.
+Live leftover this HEAD (`fanout_three_leftover_split` [100 20], mean 3):
+without-query FIRE **23.96**, with-query **30.50**, delta 6.54,
+**harvest:query 6.89**, compiled-rhs net 2.01 (40000×), out:production **0.00**.
+`harvest_wrap_parts` 40k: C 2.91 · **R `Arc::from([pair])` 3.01** · I 0.21 · W 7.26.
+**THE WORK LIST IS `NEXT-STRIKES-theater-hunt.md`** — 4 Tier-1 strikes
+(T1 `merge_facts` per-stratum set rebuild · T2 Exists-leaf occupancy memcpy ·
+T3 harvest bag-then-copy · T4 `token_assoc` pool alloc), 4 Tier-2, and a
+Tier-3 CLEARED list that must not be re-hunted. Strikes run one at a time.
+Vigilia loop: last consecutive 0+0 at `36802e7e`; **`e21b7fba` is un-watched**.
+
 **Right now:** class-scan query harvest LANDED.
 Fanout `[40000]` wat-ns **58.1 → 42.8**. With-query
 FIRE **65.89 → 49.59**. Query-only Alpha→RootJoin

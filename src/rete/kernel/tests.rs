@@ -9184,3 +9184,122 @@ fn n3_leaf_set_vs_occupancy() {
         "leaf occ census recorded 0 fires:{out}"
     );
 }
+
+/// Apportion the stratified membership set: REBUILD-per-stratum (today,
+/// `fire/mod.rs` `merge_facts`) vs CARRIED-across-strata, at the strat-neg
+/// `[6 2000]` ladder (`NEXT-STRIKES-theater-hunt.md` T1).
+///
+/// DISCONFIRMING PROBE — prints the parts only, no fire-path change. If the
+/// delta is under the 0.5 ms gate, the strike STOPS and the rebuild is
+/// recorded as physics.
+#[test]
+fn strat_merge_present_parts() {
+    use std::collections::HashSet;
+    use std::hint::black_box;
+    use std::time::Instant;
+
+    const STRATA: usize = 6;
+    const ITEMS: i64 = 2000;
+    const RUNS: usize = 3;
+
+    let names = Arc::new(vec!["k".to_string()]);
+    let mk = |class: &str, k: i64| -> Value {
+        Value::Aggregate(Arc::new(AggregateValue::record(
+            class.into(),
+            names.clone(),
+            Arc::new(vec![Value::i64(k)]),
+        )))
+    };
+
+    // Mirrors wat-scripts/perf/grid/strat-neg.wat: Item(k) seeds; each stratum
+    // derives S_i over half the items (`k mod 2` / `NOT S(i-1)` alternation).
+    let seed: Vec<Value> = (0..ITEMS).map(|k| mk("sn::Item", k)).collect();
+    let derived: Vec<Vec<Value>> = (0..STRATA)
+        .map(|s| {
+            let class = format!("sn::S{s}");
+            (0..ITEMS)
+                .filter(|k| k % 2 == (s as i64 % 2))
+                .map(|k| mk(class.as_str(), k))
+                .collect()
+        })
+        .collect();
+
+    let total_derived: usize = derived.iter().map(|d| d.len()).sum();
+
+    // Hash counts, exactly: REBUILD re-hashes the whole closure each stratum.
+    let mut rebuild_hashes = 0usize;
+    let mut acc = seed.len();
+    for d in &derived {
+        rebuild_hashes += acc;
+        acc += d.len();
+    }
+    let carried_hashes = seed.len() + total_derived;
+
+    let mut a = 0.0f64;
+    let mut b = 0.0f64;
+    let mut len_a = 0usize;
+    let mut len_b = 0usize;
+
+    for _ in 0..RUNS {
+        // A — TODAY: merge_facts rebuilds `present` from the whole closure per stratum.
+        let t0 = Instant::now();
+        let mut pv = crate::value::pvec::PVec::from_vec(seed.clone());
+        for ds in &derived {
+            let mut present: HashSet<Value> = pv.iter().cloned().collect();
+            for f in ds {
+                if present.insert(f.clone()) {
+                    pv.push_back_mut(f.clone());
+                }
+            }
+        }
+        a += t0.elapsed().as_nanos() as f64;
+        len_a = pv.len();
+        black_box(&pv);
+
+        // B — CARRIED: the set is built once and threaded across strata.
+        let t0 = Instant::now();
+        let mut pv = crate::value::pvec::PVec::from_vec(seed.clone());
+        let mut present: HashSet<Value> = pv.iter().cloned().collect();
+        for ds in &derived {
+            for f in ds {
+                if present.insert(f.clone()) {
+                    pv.push_back_mut(f.clone());
+                }
+            }
+        }
+        b += t0.elapsed().as_nanos() as f64;
+        len_b = pv.len();
+        black_box(&pv);
+    }
+
+    let r = RUNS as f64;
+    let (a, b) = (a / r, b / r);
+    let ms = |ns: f64| ns / 1e6;
+
+    let table = format!(
+        "\nstrat merge present — [{STRATA} {ITEMS}], mean of {RUNS}\n\
+         \n\
+         seed {} facts, derived {} across {STRATA} strata, closure {}\n\
+         hashes  REBUILD {rebuild_hashes}   CARRIED {carried_hashes}   wasted {}\n\
+         \n\
+         A  REBUILD per stratum (today)   {:>7.2} ms\n\
+         B  CARRIED across strata         {:>7.2} ms\n\
+         A-B  the theater                 {:>7.2} ms\n",
+        seed.len(),
+        total_derived,
+        len_a,
+        rebuild_hashes - carried_hashes,
+        ms(a),
+        ms(b),
+        ms(a - b),
+    );
+    println!("{table}");
+
+    assert_eq!(len_a, len_b, "both paths must build the same closure:{table}");
+    assert_eq!(
+        len_a,
+        seed.len() + total_derived,
+        "closure must be seed + every derived fact:{table}"
+    );
+    assert!(a > 0.0 && b > 0.0, "probe recorded no time:{table}");
+}
