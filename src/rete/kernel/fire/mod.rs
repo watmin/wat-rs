@@ -867,14 +867,14 @@ pub(crate) fn fire_once_session(session: &Value, sym: &SymbolTable) -> Result<Va
 /// One class-scan query: `{var: fact}` from the closed bag
 /// (input ∪ derived), not production-memory
 /// (`DESIGN-STONE-query-class-scan-harvest`).
-struct QueryClassScan {
+pub(crate) struct QueryClassScan {
     var: Value,
     class: String,
 }
 
 /// Alphas that exist only to feed QueryNodes (Alpha → RootJoin → Query).
 /// `(?fact <- :Type)` with no field constraints.
-fn query_class_scans(arm: &InternedNetwork, network: &Value) -> HashMap<i64, QueryClassScan> {
+pub(crate) fn query_class_scans(arm: &InternedNetwork, network: &Value) -> HashMap<i64, QueryClassScan> {
     let mut q_joins: HashSet<i64> = HashSet::new();
     for &jid in &arm.kind_ids.join_parent {
         let Some(node) = get_node(network, jid) else {
@@ -987,7 +987,7 @@ fn harvest_class_scan_filter(wm: &FireSession, scan: &QueryClassScan) -> Vec<cra
     harvest_class_scan(&facts, &scan.var)
 }
 
-fn harvest_query_memory(
+pub(crate) fn harvest_query_memory(
     wm: &mut FireSession,
     arm: &InternedNetwork,
     scans: &HashMap<i64, QueryClassScan>,

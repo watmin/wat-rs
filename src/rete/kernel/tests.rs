@@ -4348,6 +4348,307 @@ fn accum_query_harvest_split() {
     );
 }
 
+/// Rank strat-neg `[6 2000]` FIRE with vs without the ten grid queries
+/// (`DESIGN-STONE-strat-neg-harvest-split`). Grid compile-alls q-S0..q-S9.
+#[test]
+fn strat_neg_query_harvest_split() {
+    use std::time::Instant;
+
+    const STRATA: i64 = 6;
+    const ITEMS: i64 = 2000;
+    const RUNS: usize = 3;
+    const HARVEST: &str = "  ├ harvest:query";
+    const FIRE_PHASES: [&str; 4] = [
+        "IN: to_transient",
+        "SETUP: indexes",
+        "ROUND LOOP",
+        "OUT: to_persistent",
+    ];
+    const WORLD: &str = include_str!("../../../wat-scripts/perf/grid/strat-neg.wat");
+    const QUERIES: &str = "(:wat::core::PersistentVector \
+        (:strat::q-S0) (:strat::q-S1) (:strat::q-S2) (:strat::q-S3) (:strat::q-S4) \
+        (:strat::q-S5) (:strat::q-S6) (:strat::q-S7) (:strat::q-S8) (:strat::q-S9))";
+
+    struct Shot {
+        wall: f64,
+        fire: f64,
+        harvest: f64,
+        query_maps: usize,
+    }
+
+    let query_map_count = |fired: &Value| -> usize {
+        match session_named_field(fired, "query-memory") {
+            Some(Value::wat__core__PersistentMap(pm)) => pm
+                .iter()
+                .map(|(_, v)| match v {
+                    Value::wat__core__PersistentVector(pv) => pv.len(),
+                    _ => 0,
+                })
+                .sum(),
+            _ => 0,
+        }
+    };
+
+    let world = startup_from_source(WORLD, None, Arc::new(InMemoryLoader::new()))
+        .expect("strat-neg query-harvest world should freeze");
+
+    let shot = |with_query: bool| -> Shot {
+        let compile = if with_query {
+            format!("(:wat::rete::compile-all (:strat::build-rules {STRATA}) {QUERIES})")
+        } else {
+            format!("(:wat::rete::compile (:strat::build-rules {STRATA}))")
+        };
+        let seed_src = format!("(:strat::seed-items {compile} {ITEMS})");
+        let staged = eval_in_frozen(
+            &crate::parse_one!(seed_src.as_str()).expect("parse strat-neg seed"),
+            &world,
+            &Environment::new(),
+        )
+        .unwrap_or_else(|e| panic!("strat-neg seed raised: {e:?}"))
+        .value_owned();
+
+        let t0 = Instant::now();
+        let (fired, rows) = super::with_phase_census_counted(|| {
+            fire_rules_on_session(&staged, world.symbols(), None).unwrap_or_else(|e| {
+                panic!("fire-rules raised with_query={with_query}: {e:?}")
+            })
+        });
+        let wall = t0.elapsed().as_nanos() as f64;
+        let of = |name: &str| -> u64 {
+            rows.iter()
+                .find(|(n, _, _)| *n == name)
+                .map(|(_, ns, _)| *ns)
+                .unwrap_or(0)
+        };
+        let fire: u64 = FIRE_PHASES.iter().map(|n| of(n)).sum();
+        Shot {
+            wall,
+            fire: fire as f64,
+            harvest: of(HARVEST) as f64,
+            query_maps: query_map_count(&fired),
+        }
+    };
+
+    let mut without = Shot {
+        wall: 0.0,
+        fire: 0.0,
+        harvest: 0.0,
+        query_maps: 0,
+    };
+    let mut with = Shot {
+        wall: 0.0,
+        fire: 0.0,
+        harvest: 0.0,
+        query_maps: 0,
+    };
+    for _ in 0..RUNS {
+        let a = shot(false);
+        let b = shot(true);
+        without.wall += a.wall;
+        without.fire += a.fire;
+        without.harvest += a.harvest;
+        without.query_maps = a.query_maps;
+        with.wall += b.wall;
+        with.fire += b.fire;
+        with.harvest += b.harvest;
+        with.query_maps = b.query_maps;
+    }
+    let r = RUNS as f64;
+    without.wall /= r;
+    without.fire /= r;
+    without.harvest /= r;
+    with.wall /= r;
+    with.fire /= r;
+    with.harvest /= r;
+
+    let ms = |ns: f64| ns / 1e6;
+    println!(
+        "\nstrat-neg query harvest split — [6 2000], mean of {RUNS}\n\
+             \n\
+             without queries       wall {:>7.2}  FIRE {:>7.2}  harvest {:>7.2}  maps {}\n\
+             with    ten q-S*      wall {:>7.2}  FIRE {:>7.2}  harvest {:>7.2}  maps {}\n\
+             delta (query tax)            {:>7.2} ms\n",
+        ms(without.wall),
+        ms(without.fire),
+        ms(without.harvest),
+        without.query_maps,
+        ms(with.wall),
+        ms(with.fire),
+        ms(with.harvest),
+        with.query_maps,
+        ms(with.wall - without.wall),
+    );
+    assert_eq!(
+        without.query_maps, 0,
+        "compile without queries has empty query-memory"
+    );
+    assert_eq!(
+        with.query_maps, 6000,
+        "6 strata × 1000 (even/odd) = 6000 query maps"
+    );
+}
+
+/// Rank deep-cascade `[50 100]` FIRE with vs without q-Node / q-Tag
+/// (`DESIGN-STONE-cascade-harvest-split`). Census compiles without queries.
+#[test]
+fn cascade_query_harvest_split() {
+    use std::time::Instant;
+
+    const DEPTH: i64 = 50;
+    const WIDTH: i64 = 100;
+    const RUNS: usize = 3;
+    const HARVEST: &str = "  ├ harvest:query";
+    const SETUP: &str = "SETUP: indexes";
+    const ROUND: &str = "ROUND LOOP";
+    const FIRE_PHASES: [&str; 4] = [
+        "IN: to_transient",
+        "SETUP: indexes",
+        "ROUND LOOP",
+        "OUT: to_persistent",
+    ];
+    const WORLD: &str = include_str!("../../../wat-scripts/perf/grid/deep-cascade.wat");
+    const QUERIES: &str =
+        "(:wat::core::PersistentVector (:cascade::q-Node) (:cascade::q-Tag))";
+
+    struct Shot {
+        wall: f64,
+        fire: f64,
+        setup: f64,
+        round: f64,
+        harvest: f64,
+        query_maps: usize,
+    }
+
+    let query_map_count = |fired: &Value| -> usize {
+        match session_named_field(fired, "query-memory") {
+            Some(Value::wat__core__PersistentMap(pm)) => pm
+                .iter()
+                .map(|(_, v)| match v {
+                    Value::wat__core__PersistentVector(pv) => pv.len(),
+                    _ => 0,
+                })
+                .sum(),
+            _ => 0,
+        }
+    };
+
+    let world = startup_from_source(WORLD, None, Arc::new(InMemoryLoader::new()))
+        .expect("cascade query-harvest world should freeze");
+
+    let shot = |with_query: bool| -> Shot {
+        let compile = if with_query {
+            format!("(:wat::rete::compile-all (:dc::build-rules {DEPTH}) {QUERIES})")
+        } else {
+            format!("(:wat::rete::compile (:dc::build-rules {DEPTH}))")
+        };
+        let seed_src = format!("(:dc::seed-level-0 {compile} {WIDTH})");
+        let staged = eval_in_frozen(
+            &crate::parse_one!(seed_src.as_str()).expect("parse cascade seed"),
+            &world,
+            &Environment::new(),
+        )
+        .unwrap_or_else(|e| panic!("cascade seed raised: {e:?}"))
+        .value_owned();
+
+        let t0 = Instant::now();
+        let (fired, rows) = super::with_phase_census_counted(|| {
+            fire_rules_on_session(&staged, world.symbols(), None).unwrap_or_else(|e| {
+                panic!("fire-rules raised with_query={with_query}: {e:?}")
+            })
+        });
+        let wall = t0.elapsed().as_nanos() as f64;
+        let of = |name: &str| -> u64 {
+            rows.iter()
+                .find(|(n, _, _)| *n == name)
+                .map(|(_, ns, _)| *ns)
+                .unwrap_or(0)
+        };
+        let fire: u64 = FIRE_PHASES.iter().map(|n| of(n)).sum();
+        Shot {
+            wall,
+            fire: fire as f64,
+            setup: of(SETUP) as f64,
+            round: of(ROUND) as f64,
+            harvest: of(HARVEST) as f64,
+            query_maps: query_map_count(&fired),
+        }
+    };
+
+    let mut without = Shot {
+        wall: 0.0,
+        fire: 0.0,
+        setup: 0.0,
+        round: 0.0,
+        harvest: 0.0,
+        query_maps: 0,
+    };
+    let mut with = Shot {
+        wall: 0.0,
+        fire: 0.0,
+        setup: 0.0,
+        round: 0.0,
+        harvest: 0.0,
+        query_maps: 0,
+    };
+    for _ in 0..RUNS {
+        let a = shot(false);
+        let b = shot(true);
+        without.wall += a.wall;
+        without.fire += a.fire;
+        without.setup += a.setup;
+        without.round += a.round;
+        without.harvest += a.harvest;
+        without.query_maps = a.query_maps;
+        with.wall += b.wall;
+        with.fire += b.fire;
+        with.setup += b.setup;
+        with.round += b.round;
+        with.harvest += b.harvest;
+        with.query_maps = b.query_maps;
+    }
+    let r = RUNS as f64;
+    without.wall /= r;
+    without.fire /= r;
+    without.setup /= r;
+    without.round /= r;
+    without.harvest /= r;
+    with.wall /= r;
+    with.fire /= r;
+    with.setup /= r;
+    with.round /= r;
+    with.harvest /= r;
+
+    let ms = |ns: f64| ns / 1e6;
+    println!(
+        "\ncascade query harvest split — [50 100], mean of {RUNS}\n\
+             \n\
+             without queries       wall {:>7.2}  FIRE {:>7.2}  SETUP {:>7.2}  ROUND {:>7.2}  harvest {:>7.2}  maps {}\n\
+             with    q-Node q-Tag  wall {:>7.2}  FIRE {:>7.2}  SETUP {:>7.2}  ROUND {:>7.2}  harvest {:>7.2}  maps {}\n\
+             delta (query tax)            {:>7.2} ms\n",
+        ms(without.wall),
+        ms(without.fire),
+        ms(without.setup),
+        ms(without.round),
+        ms(without.harvest),
+        without.query_maps,
+        ms(with.wall),
+        ms(with.fire),
+        ms(with.setup),
+        ms(with.round),
+        ms(with.harvest),
+        with.query_maps,
+        ms(with.wall - without.wall),
+    );
+    assert_eq!(
+        without.query_maps, 0,
+        "compile without queries has empty query-memory"
+    );
+    assert_eq!(
+        with.query_maps, 10_200,
+        "5100 Node + 5100 Tag (level 0 input ∪ 50 derived levels × 100) = 10200 maps"
+    );
+}
+
 /// Apportion accum harvest:query (6.23 ms / 1k maps) into all-class
 /// index vs wanted-only vs derived-only vs wrap
 /// (`DESIGN-STONE-accum-wanted-harvest`). No fire-path change.

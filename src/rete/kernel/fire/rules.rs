@@ -230,7 +230,14 @@ pub(crate) fn fire_rules_stratified(
     let qmem = if full_arm.kind_ids.query.is_empty() {
         Value::wat__core__PersistentMap(crate::value::pmap::PMap::new())
     } else {
-        harvest_stratified_queries(session, &full_arm, &rev_children, &acc_facts, sym)?
+        harvest_stratified_queries(
+            session,
+            &full_arm,
+            &rev_children,
+            &acc_facts,
+            &acc_derived,
+            sym,
+        )?
     };
 
     let empty_pm = Value::wat__core__PersistentMap(crate::value::pmap::PMap::new());
@@ -303,13 +310,38 @@ fn slice_active_network(network: &Value, active_ids: &HashSet<i64>) -> Value {
     }
 }
 
+/// Every QueryNode is `(?fact <- :Type)` with empty ops — occupancy
+/// seed of a harvest Once is theater (`DESIGN-STONE-strat-neg-harvest-once`).
+fn class_scans_cover_queries(
+    arm: &InternedNetwork,
+    scans: &HashMap<i64, QueryClassScan>,
+) -> bool {
+    if arm.kind_ids.query.is_empty() {
+        return false;
+    }
+    arm.kind_ids.query.iter().all(|qid| {
+        let pids = arm
+            .parents_of
+            .get(qid)
+            .map(|v| v.as_slice())
+            .unwrap_or(&[]);
+        pids.iter().any(|pid| {
+            arm.feeding_alpha_of
+                .get(pid)
+                .is_some_and(|aid| scans.contains_key(aid))
+        })
+    })
+}
+
 /// Fill query-memory after stratified fire. QueryNodes are absent from production
-/// slices; seed the closed fact bag through the QueryNode reverse-closure once.
+/// slices. Class-scan queries harvest input ∪ derived in place; constrained
+/// queries still seed the QueryNode reverse-closure once.
 fn harvest_stratified_queries(
     session: &Value,
     full_arm: &InternedNetwork,
     rev_children: &ParentsOf,
     acc_facts: &Value,
+    acc_derived: &[Value],
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     let Some(network) = session_network(session) else {
@@ -317,6 +349,24 @@ fn harvest_stratified_queries(
             crate::value::pmap::PMap::new(),
         ));
     };
+    let scans = query_class_scans(full_arm, network);
+    if class_scans_cover_queries(full_arm, &scans) {
+        let mut wm = to_transient_for_fire(session)?;
+        wm.derived_facts.extend(acc_derived.iter().cloned());
+        let wanted: HashSet<&str> = scans.values().map(|s| s.class.as_str()).collect();
+        if let Value::wat__core__PersistentVector(pv) = &wm.facts {
+            wm.input_has_scan_class = pv.iter().any(|f| match f {
+                Value::Aggregate(a) if a.nature != crate::types::Nature::Struct => {
+                    wanted.contains(a.class.as_ref())
+                }
+                _ => false,
+            });
+        }
+        let __hq = phase_start();
+        harvest_query_memory(&mut wm, full_arm, &scans);
+        phase_end("  ├ harvest:query", __hq);
+        return Ok(query_memory_to_pm(std::mem::take(&mut wm.query)));
+    }
     let next_id = session_named_field(session, "next-id")
         .cloned()
         .unwrap_or(Value::i64(0));
