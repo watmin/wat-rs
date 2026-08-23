@@ -38,7 +38,7 @@
      ;; Tuple — ann-form site: (:wat::core::Tuple :echo eh) ascribed to
      ;; :(wat::core::keyword,wat::capability::Capability); eh up-casts Handle -> Capability.
      pr (:wat::core::ann-form (:wat::core::Tuple :echo eh)
-          :(wat::core::keyword,wat::capability::Capability))
+          (:wat::core::Tuple :- [:wat::core::keyword :wat::capability::Capability]))
      ;; Map — call-arg site: {:echo eh} against as-map's HashMap<keyword,Capability> param.
      mp (:probe::as-map {:echo eh})
      ;; Set — call-arg site: #{eh} against as-set's HashSet<Capability> param.

@@ -1,31 +1,25 @@
-//! Position-aware keyword body wire encoding (arc 170 slice 1f-W).
+//! Keyword body comma/underscore rules — arc 109 "the comma dies in the reader."
 //!
-//! Locks the four-questions-analysis "option B" rule from
-//! REALIZATIONS-SLICE-1.md pass 14 (2026-05-10):
+//! Retires the position-aware `,`/`_` wire-escape swap this file used to lock
+//! (arc 170 slice 1f-W, REALIZATIONS-SLICE-1.md pass 14). The new rule is
+//! uniform, with no bracket-depth carve-out and no wire/source mode split:
 //!
-//! - **Inside `<...>` substrings within a keyword body:**
-//!   - Source: `_` is FORBIDDEN (rejected by [`parse`]); `,` is the
-//!     type-arg separator
-//!   - Wire: `,` ↔ `_` swap (one-to-one at depth ≥ 1) — [`write`]
-//!     emits `_`; [`Parser::new_wire`] decodes `_` back to `,`
-//! - **Outside `<...>`** (depth 0):
-//!   - Source: `_` allowed (preserves `:rust::*` Rust-mirror
-//!     convention)
-//!   - Wire: chars pass verbatim
+//! - `,` is EDN whitespace EVERYWHERE, including inside a keyword body at any
+//!   bracket depth. It can never again be a body-continue character, so it
+//!   terminates the keyword the same way a space would.
+//! - `_` is an ordinary keyword-body character everywhere — the depth ≥ 1
+//!   reservation (`_` forbidden inside `<...>` as the wire-escape for `,`) is
+//!   gone along with the mechanism that motivated it.
+//! - The writer emits keyword bodies verbatim (`write_keyword_body_to` is a
+//!   plain `push_str`); there is no separate wire-mode reader (`Parser::new`
+//!   is the only constructor — `Parser::new_wire`/`Lexer::new_wire` are
+//!   deleted).
 //!
-//! Round-trip property: `Parser::new_wire(write(k)).parse_top() == k` for every
-//! parametric type keyword. The `parse(...)` function (source mode)
-//! intentionally rejects `_` inside `<...>` so source authors can't
-//! confuse the wire form with the source form.
-//!
-//! The test set covers Rows A through R of EXPECTATIONS-SLICE-1F-W:
-//! lexer accept/reject, writer swap, wire decode, round-trip
-//! identity, nested brackets, empty brackets, the `:rust::*` mirror
-//! convention, and existing 18 underscore-in-keyword forms.
+//! Row 2 of the stone's acceptance is the one that matters: a comma between
+//! VALUES (not inside a name) is still EDN whitespace — `1, 2, 3` still reads
+//! as three integers.
 
-use wat_edn::{parse, write, Keyword, Parser, Value};
-
-// ─── Helpers ────────────────────────────────────────────────────
+use wat_edn::{parse, write, Keyword, Value};
 
 fn kw_ns(ns: &str, name: &str) -> Value<'static> {
     Value::Keyword(Keyword::ns(ns, name))
@@ -35,80 +29,97 @@ fn kw(name: &str) -> Value<'static> {
     Value::Keyword(Keyword::new(name))
 }
 
-/// Round-trip a keyword via the wire path: write → Parser::new_wire →
-/// expect equality with the in-memory original.
-fn roundtrip_wire(v: &Value<'_>) {
-    let wire = write(v);
-    roundtrip_wire_str(&wire, v);
-}
-
-/// Round-trip via the wire path using an already-computed wire string.
-/// Avoids a redundant `write(v)` allocation at call sites that have
-/// already bound the wire form for an assertion.
-fn roundtrip_wire_str(wire: &str, original: &Value<'_>) {
-    let decoded = Parser::new_wire(wire).parse_top().unwrap_or_else(|e| {
-        panic!("Parser::new_wire(...).parse_top() failed on writer output {:?}: {:?}", wire, e)
-    });
-    assert_eq!(
-        original.clone().into_owned(),
-        decoded.into_owned(),
-        "round-trip identity broken; wire form was {:?}",
-        wire
-    );
-}
-
-// ─── Row A — Lexer rejects `_` inside `<>` (source mode) ────────
+// ─── Row 1 — comma is refused as a keyword-body character, any depth ────
 
 #[test]
-fn source_rejects_underscore_inside_brackets() {
-    // Default `parse` is source mode. `_` at bracket depth ≥ 1 in
-    // a keyword body is reserved as the wire-escape for `,`.
-    let err = parse(":Vec<a_b>").expect_err("expected InvalidKeyword");
-    let msg = format!("{}", err);
-    assert_eq!(
-        msg,
-        "EDN parse error at byte 6: invalid keyword: underscore in keyword body inside `<...>` is reserved for wire-escape of comma; use `,` as the type-arg separator in source (arc 170 slice 1f-W)",
-        "diagnostic must name the rule and teach the wire-escape"
-    );
-}
-
-#[test]
-fn source_rejection_span_points_at_underscore() {
-    // Input: ":Vec<a_b>"
-    //         01234567 8
-    // The `_` is at byte index 6.
-    match parse(":Vec<a_b>") {
-        Err(wat_edn::Error::Parse { pos, .. }) => {
-            assert_eq!(
-                pos, 6,
-                "span should point at the offending `_`, got pos={}",
-                pos
-            );
+fn comma_inside_angle_brackets_no_longer_continues_the_body() {
+    // Pre-arc-109 this was accepted whole as one keyword body
+    // (`HashMap<K,V>`). Now `,` is whitespace: the keyword body stops at
+    // the comma, exactly as it would at a space, and the remainder lexes
+    // as a sibling token — asserted here inside a vector so trailing
+    // content after the (now-shorter) keyword doesn't trip the
+    // top-level "expect EOF" check.
+    let v = parse("[:HashMap<K,V>]").unwrap();
+    match v {
+        Value::Vector(items) => {
+            assert_eq!(items.len(), 2, "comma should split the body into two tokens");
+            assert_eq!(items[0], kw("HashMap<K"));
+            match &items[1] {
+                Value::Symbol(s) => assert_eq!(s.name(), "V>"),
+                other => panic!("expected Symbol(V>), got {:?}", other),
+            }
         }
-        other => panic!("expected Parse error, got {:?}", other),
+        other => panic!("expected Vector, got {:?}", other),
     }
 }
 
 #[test]
-fn source_rejects_underscore_inside_nested_brackets() {
-    // Inside the inner `<...>`, `_` is also forbidden (depth ≥ 1
-    // catches both inner and outer).
-    let err = parse(":Vec<Map<K_V>>").expect_err("expected InvalidKeyword");
-    let msg = format!("{}", err);
-    assert_eq!(
-        msg,
-        "EDN parse error at byte 10: invalid keyword: underscore in keyword body inside `<...>` is reserved for wire-escape of comma; use `,` as the type-arg separator in source (arc 170 slice 1f-W)",
-    );
+fn comma_inside_nested_angle_brackets_no_longer_continues_the_body() {
+    let v = parse("[:Vec<Map<K,V>>]").unwrap();
+    match v {
+        Value::Vector(items) => {
+            assert_eq!(items.len(), 2);
+            assert_eq!(items[0], kw("Vec<Map<K"));
+        }
+        other => panic!("expected Vector, got {:?}", other),
+    }
 }
 
-// ─── Row B — Lexer accepts `_` outside `<>` (Rust-mirror) ───────
+// ─── Row 2 — comma between VALUES is still EDN whitespace ───────────────
 
 #[test]
-fn source_accepts_underscore_outside_brackets() {
-    // Post-arc-219: `::` is illegal in strict-EDN keyword bodies.
-    // Rust-mirror paths use `.` as the namespace separator in the
-    // strict-EDN layer (the wat source syntax still uses `::`, but
-    // wat-edn enforces strict EDN on parsed input).
+fn comma_between_values_is_still_whitespace() {
+    // The whole point: killing comma-as-body-continue must NOT touch
+    // comma's ordinary EDN-whitespace role between sibling values.
+    let v = parse("[1, 2, 3]").unwrap();
+    match v {
+        Value::Vector(items) => {
+            assert_eq!(
+                items,
+                vec![Value::Integer(1), Value::Integer(2), Value::Integer(3)]
+            );
+        }
+        other => panic!("expected Vector, got {:?}", other),
+    }
+}
+
+#[test]
+fn comma_between_keywords_is_still_whitespace() {
+    let v = parse("[:a, :b, :c]").unwrap();
+    match v {
+        Value::Vector(items) => {
+            assert_eq!(items, vec![kw("a"), kw("b"), kw("c")]);
+        }
+        other => panic!("expected Vector, got {:?}", other),
+    }
+}
+
+// ─── The reservation is gone — `_` is ordinary everywhere ────────────────
+
+#[test]
+fn underscore_inside_angle_brackets_is_no_longer_reserved() {
+    // Pre-arc-109 this was rejected (InvalidKeyword: "reserved for
+    // wire-escape of comma"). Now `_` is just a body char, same as
+    // outside brackets.
+    let v = parse(":Vec<a_b>").unwrap();
+    match v {
+        Value::Keyword(k) => assert_eq!(k.name(), "Vec<a_b>"),
+        other => panic!("expected Keyword, got {:?}", other),
+    }
+}
+
+#[test]
+fn underscore_inside_nested_angle_brackets_is_no_longer_reserved() {
+    let v = parse(":Vec<Map<K_V>>").unwrap();
+    match v {
+        Value::Keyword(k) => assert_eq!(k.name(), "Vec<Map<K_V>>"),
+        other => panic!("expected Keyword, got {:?}", other),
+    }
+}
+
+#[test]
+fn underscore_outside_brackets_still_parses() {
+    // Post-arc-219: strict-EDN keyword bodies use `.` not `::`.
     let cases = &[
         ":rust.crossbeam_channel.Sender",
         ":rust.sqlite.Db.execute_ddl",
@@ -123,182 +134,8 @@ fn source_accepts_underscore_outside_brackets() {
     }
 }
 
-// ─── Row C — Symbols unchanged ──────────────────────────────────
-
-#[test]
-fn symbols_still_allow_underscore() {
-    // Pass 14: "symbols may not contain commas, however they can
-    // use underscores". The slice 1f-W lexer split is keyword-only.
-    let v = parse("foo_bar").unwrap();
-    match v {
-        Value::Symbol(s) => assert_eq!(s.name(), "foo_bar"),
-        other => panic!("expected Symbol(foo_bar), got {:?}", other),
-    }
-}
-
-#[test]
-fn symbols_with_angle_brackets_and_underscore() {
-    // Even with brackets in a symbol body, `_` is fine — the slice
-    // 1f-W rule applies to keywords only.
-    let v = parse("foo<a_b>").unwrap();
-    match v {
-        Value::Symbol(s) => assert_eq!(s.name(), "foo<a_b>"),
-        other => panic!("expected Symbol, got {:?}", other),
-    }
-}
-
-// ─── Row D — Writer swaps `,` → `_` inside `<>` ─────────────────
-
-#[test]
-fn writer_swaps_comma_to_underscore_inside_brackets() {
-    // Build keyword in-memory with `,` (canonical type-arg
-    // separator). The writer emits `_` for the wire.
-    let k = kw("HashMap<K,V>");
-    assert_eq!(write(&k), ":HashMap<K_V>");
-}
-
-#[test]
-fn writer_swaps_namespaced_keyword_with_brackets() {
-    // Namespace + name both go through the depth-aware writer.
-    let k = kw_ns("wat", "HashMap<K,V>");
-    assert_eq!(write(&k), ":wat/HashMap<K_V>");
-}
-
-// ─── Row E — Writer doesn't swap outside `<>` ───────────────────
-
-#[test]
-fn writer_preserves_underscore_outside_brackets() {
-    // Post-arc-219: strict-EDN keyword bodies use `.` not `::`.
-    // Underscores at depth 0 stay verbatim; dots are the namespace
-    // separator in the strict-EDN layer.
-    let k = kw("rust.crossbeam_channel.Sender");
-    assert_eq!(write(&k), ":rust.crossbeam_channel.Sender");
-}
-
-#[test]
-fn writer_preserves_underscore_with_brackets_outside() {
-    // Post-arc-219: `.` as separator at depth 0; underscore stays verbatim;
-    // no comma inside `<i64>` — nothing to swap.
-    let k = kw("rust.sync.Mutex<i64>");
-    assert_eq!(write(&k), ":rust.sync.Mutex<i64>");
-}
-
-// ─── Row F — Parser swaps `_` → `,` inside `<>` (wire mode) ─────
-
-#[test]
-fn wire_decode_swaps_underscore_to_comma() {
-    // Wire reader sees `:HashMap<K_V>` (writer's output), decodes
-    // it back to in-memory keyword body `HashMap<K,V>`.
-    let v = Parser::new_wire(":HashMap<K_V>").parse_top().unwrap();
-    match v {
-        Value::Keyword(k) => {
-            assert_eq!(k.namespace(), None);
-            assert_eq!(k.name(), "HashMap<K,V>");
-        }
-        other => panic!("expected Keyword, got {:?}", other),
-    }
-}
-
-#[test]
-fn wire_decode_preserves_underscore_outside_brackets() {
-    // Wire mode does NOT touch underscores outside `<...>`.
-    // Post-arc-219: strict-EDN keyword bodies use `.` not `::`;
-    // the entire dot-separated body lands in `name()` (only `/`
-    // is the namespace separator at the EDN layer).
-    let v = Parser::new_wire(":rust.crossbeam_channel.Sender").parse_top().unwrap();
-    match v {
-        Value::Keyword(k) => {
-            assert_eq!(k.namespace(), None);
-            assert_eq!(k.name(), "rust.crossbeam_channel.Sender");
-        }
-        other => panic!("expected Keyword, got {:?}", other),
-    }
-}
-
-// ─── Row G — Round-trip identity ────────────────────────────────
-
-#[test]
-fn roundtrip_basic_keyword() {
-    let k = kw("foo");
-    roundtrip_wire(&k);
-    // Plain keywords also pass through plain `parse` round-trip.
-    assert_eq!(parse(":foo").unwrap().into_owned(), k.into_owned());
-}
-
-#[test]
-fn roundtrip_namespaced_keyword() {
-    let k = kw_ns("ns", "foo");
-    roundtrip_wire(&k);
-    assert_eq!(parse(":ns/foo").unwrap().into_owned(), k.into_owned());
-}
-
-#[test]
-fn roundtrip_one_arg_parametric() {
-    // No comma to swap — wire form is identical to source form.
-    let k = kw("Vec<i64>");
-    let wire = write(&k);
-    assert_eq!(wire, ":Vec<i64>");
-    roundtrip_wire_str(&wire, &k);
-    // Source-mode parse also works because there's no `_` at
-    // depth ≥ 1 in `Vec<i64>`.
-    assert_eq!(parse(&wire).unwrap().into_owned(), k.clone().into_owned());
-}
-
-#[test]
-fn roundtrip_two_arg_parametric() {
-    let k = kw("HashMap<K,V>");
-    roundtrip_wire(&k);
-}
-
-#[test]
-fn roundtrip_namespaced_parametric() {
-    // Post-arc-219: strict-EDN keyword bodies use `.` not `::`.
-    let k = kw("wat.core.HashMap<wat.core.String,wat.core.i64>");
-    // Wire form has `_` for the comma.
-    let wire = write(&k);
-    assert_eq!(wire, ":wat.core.HashMap<wat.core.String_wat.core.i64>");
-    roundtrip_wire_str(&wire, &k);
-}
-
-// ─── Row H — Nested brackets ────────────────────────────────────
-
-#[test]
-fn roundtrip_nested_brackets() {
-    // depth ≥ 1 catches both inner and outer comma.
-    let k = kw("Vec<Map<K,V>>");
-    let wire = write(&k);
-    assert_eq!(wire, ":Vec<Map<K_V>>");
-    roundtrip_wire_str(&wire, &k);
-}
-
-#[test]
-fn roundtrip_deeply_nested_brackets() {
-    let k = kw("A<B<C<D,E>,F>,G>");
-    let wire = write(&k);
-    assert_eq!(wire, ":A<B<C<D_E>_F>_G>");
-    roundtrip_wire_str(&wire, &k);
-}
-
-// ─── Row I — Empty brackets ─────────────────────────────────────
-
-#[test]
-fn roundtrip_empty_brackets() {
-    // No chars inside `<>` — no swap, no rejection.
-    let k = kw("Foo<>");
-    let wire = write(&k);
-    assert_eq!(wire, ":Foo<>");
-    roundtrip_wire_str(&wire, &k);
-    // Source-mode also accepts (no `_` present).
-    assert_eq!(parse(":Foo<>").unwrap().into_owned(), k.into_owned());
-}
-
-// ─── Row R — Existing 18 underscore-in-keyword forms ────────────
-
 #[test]
 fn rust_mirror_underscore_forms_still_parse() {
-    // Post-arc-219: strict-EDN keyword bodies use `.` not `::`.
-    // Rust-mirror paths at the wat-edn boundary are spelled with `.`;
-    // underscores in identifier names remain valid at depth 0.
     let cases = &[
         ":rust.crossbeam_channel.Sender",
         ":rust.crossbeam_channel.Receiver",
@@ -311,41 +148,78 @@ fn rust_mirror_underscore_forms_still_parse() {
         parse(s).unwrap_or_else(|e| {
             panic!("expected to parse {:?} (Rust-mirror), got {:?}", s, e)
         });
-        // Wire mode also accepts (no swap on depth-0 underscores).
-        Parser::new_wire(s).parse_top().unwrap_or_else(|e| {
-            panic!("wire mode failed on {:?}: {:?}", s, e)
-        });
     }
 }
 
-// ─── Symmetry: source comma form parses too ─────────────────────
+// ─── Symbols unaffected (never had the comma/underscore split) ──────────
 
 #[test]
-fn source_with_comma_inside_brackets_parses() {
-    // Pass 14 source rule: `,` IS the type-arg separator. With the
-    // depth-aware lexer, source can write `:Foo<A,B>` directly
-    // (the comma is NOT EDN whitespace at depth ≥ 1).
-    let v = parse(":HashMap<K,V>").unwrap();
+fn symbols_still_allow_underscore() {
+    let v = parse("foo_bar").unwrap();
     match v {
-        Value::Keyword(k) => assert_eq!(k.name(), "HashMap<K,V>"),
-        other => panic!("expected Keyword, got {:?}", other),
+        Value::Symbol(s) => assert_eq!(s.name(), "foo_bar"),
+        other => panic!("expected Symbol(foo_bar), got {:?}", other),
     }
 }
 
 #[test]
-fn source_namespaced_with_comma_parses() {
-    // Post-arc-219: strict-EDN uses `.` not `::` in keyword bodies.
-    // `/` is the only EDN namespace separator; the whole dot-separated
-    // path lands in `name()`, including the brackets and comma.
-    let v = parse(":wat.core.HashMap<wat.core.String,wat.core.i64>").unwrap();
+fn symbols_with_angle_brackets_and_underscore() {
+    let v = parse("foo<a_b>").unwrap();
     match v {
-        Value::Keyword(k) => {
-            assert_eq!(k.namespace(), None);
-            assert_eq!(
-                k.name(),
-                "wat.core.HashMap<wat.core.String,wat.core.i64>"
-            );
-        }
-        other => panic!("expected Keyword, got {:?}", other),
+        Value::Symbol(s) => assert_eq!(s.name(), "foo<a_b>"),
+        other => panic!("expected Symbol, got {:?}", other),
     }
+}
+
+// ─── Writer emits keyword bodies verbatim — no swap, no wire mode ───────
+
+#[test]
+fn writer_emits_underscore_verbatim_inside_brackets() {
+    let k = kw("HashMap<K_V>");
+    assert_eq!(write(&k), ":HashMap<K_V>");
+}
+
+#[test]
+fn writer_emits_underscore_verbatim_namespaced() {
+    let k = kw_ns("wat", "HashMap<K_V>");
+    assert_eq!(write(&k), ":wat/HashMap<K_V>");
+}
+
+#[test]
+fn writer_preserves_underscore_outside_brackets() {
+    let k = kw("rust.crossbeam_channel.Sender");
+    assert_eq!(write(&k), ":rust.crossbeam_channel.Sender");
+}
+
+// ─── Round-trip: write -> parse is now a plain identity (no wire mode) ──
+
+#[test]
+fn roundtrip_basic_keyword() {
+    let k = kw("foo");
+    assert_eq!(parse(&write(&k)).unwrap().into_owned(), k.into_owned());
+}
+
+#[test]
+fn roundtrip_namespaced_keyword() {
+    let k = kw_ns("ns", "foo");
+    assert_eq!(parse(&write(&k)).unwrap().into_owned(), k.into_owned());
+}
+
+#[test]
+fn roundtrip_underscore_parametric_keyword() {
+    // The comma-carrying spelling (`HashMap<K,V>`) is retired; the
+    // underscore spelling is now the one that round-trips, because it
+    // never needed an escape and never will.
+    let k = kw("HashMap<K_V>");
+    let wire = write(&k);
+    assert_eq!(wire, ":HashMap<K_V>");
+    assert_eq!(parse(&wire).unwrap().into_owned(), k.into_owned());
+}
+
+#[test]
+fn roundtrip_empty_brackets() {
+    let k = kw("Foo<>");
+    let wire = write(&k);
+    assert_eq!(wire, ":Foo<>");
+    assert_eq!(parse(&wire).unwrap().into_owned(), k.into_owned());
 }

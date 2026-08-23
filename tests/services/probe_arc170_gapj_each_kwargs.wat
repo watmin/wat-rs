@@ -62,7 +62,7 @@
 ;; `:probe::run` (a non-main defn — no `:user::main`; only freezes + is called directly).
 ;; Returns (each's own return value, the counter's final durable count) so the Rust driver can
 ;; assert BOTH halves of the success gate: `each` returns nil, and every item's side effect fired.
-(:wat::core::defn :probe::run [] -> :(wat::core::nil,wat::core::i64)
+(:wat::core::defn :probe::run [] -> (:wat::core::Tuple :- [:wat::core::nil :wat::core::i64])
   (:wat::core::let
     [h        (:probe::counter/start :locus (:wat::spawn::process) :record (:probe::counter::Record :count 0))
      each-out (:wat::bracket::each (:wat::spawn::process) ["a" "b" "c" "d" "e"] :probe::record-hit :counter h)

@@ -99,7 +99,7 @@
 (:wat::core::defn :user::wrap-edits
   [node <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])]
   -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
-  (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)
+  (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])
     (:wat::core::Tuple (:user::start-off node lines) 0
       "(:wat::core::match ")
     (:wat::core::Tuple (:user::end-off node lines) 0
@@ -111,7 +111,7 @@
   -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::if (:wat::fix::structural? node)
     (:user::seq-edits (:wat::core::ast->children node) lines)
-    (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))))
+    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))))
 
 ;; walk one node → its edit (if a connect' call) + descendants'. For an already-facing
 ;; ConnectOutcome match, the scrutinee (child[1]) is recursed WITHOUT re-wrapping its top.
@@ -121,7 +121,7 @@
   (:wat::core::let
     [this (:wat::core::if (:user::connect-call? node)
             (:user::wrap-edits node lines)
-            (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)))]
+            (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])))]
     (:wat::core::if (:user::already-facing-connect-match? node)
       ;; suppress the scrutinee's top-wrap; recurse everything else normally.
       (:wat::core::let
@@ -143,7 +143,7 @@
     (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])]) it <- :wat::WatAST]
       -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
       (:wat::core::concat acc (:user::node-edits it lines)))
-    (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
+    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))
     items))
 
 ;; ── per-file migrate ─────────────────────────────────────────────────────────

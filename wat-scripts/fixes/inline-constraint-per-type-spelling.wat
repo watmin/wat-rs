@@ -52,7 +52,7 @@
 
 ;; ── the rename table — checker-derived for THIS worklist (see the warning above) ──────────────
 (:wat::core::defn :user::rename-table [] -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
-  (:wat::core::Vector :(wat::core::String,wat::core::String)
+  (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::String :wat::core::String])
     (:wat::core::Tuple ":wat::core::<" ":wat::rete::core::i64::<")
     (:wat::core::Tuple ":wat::core::>" ":wat::rete::core::i64::>")
     (:wat::core::Tuple ":wat::core::=" ":wat::rete::core::string::=")))
@@ -83,11 +83,11 @@
         ((:wat::core::Some new)
           (:wat::core::let [off     (:wat::fix::fix-text-offset-of (:wat::core::ast-span node) lines)
                             old-len (:wat::core::string::length (:wat::core::ast-name node))]
-            (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)
+            (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])
               (:wat::core::Tuple off old-len new))))
         (:wat::core::None
-          (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))))
-      (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)))))
+          (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))))
+      (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])))))
 
 (:wat::core::defn :user::inside-rule-edits-walk
   [items <- (:wat::core::Vector :- [:wat::WatAST])
@@ -95,7 +95,7 @@
    lines <- (:wat::core::Vector :- [:wat::core::String])]
   -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::if (:wat::core::empty? items)
-    (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
+    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))
     (:wat::core::concat
       (:user::inside-rule-edits (:wat::core::first items) table lines)
       (:user::inside-rule-edits-walk (:wat::core::rest items) table lines))))
@@ -133,7 +133,7 @@
       (:wat::core::if (:user::defrule-list? node ch)
         (:user::inside-rule-edits-walk ch table lines)
         (:user::outer-edits-walk ch table lines)))
-    (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))))
+    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))))
 
 (:wat::core::defn :user::outer-edits-walk
   [items <- (:wat::core::Vector :- [:wat::WatAST])
@@ -141,7 +141,7 @@
    lines <- (:wat::core::Vector :- [:wat::core::String])]
   -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::if (:wat::core::empty? items)
-    (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
+    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))
     (:wat::core::concat
       (:user::outer-edits (:wat::core::first items) table lines)
       (:user::outer-edits-walk (:wat::core::rest items) table lines))))

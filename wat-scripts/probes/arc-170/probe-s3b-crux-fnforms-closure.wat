@@ -42,7 +42,7 @@
   (:wat::core::let
     [work-fn (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::* n 2))
      ;; wf — the index-wrapping closure that CAPTURES work-fn (the exact bracket shape)
-     wf (:wat::core::fn [pair <- :(wat::core::i64,wat::core::i64)] -> :(wat::core::i64,wat::core::i64)
+     wf (:wat::core::fn [pair <- (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])] -> (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])
           (:wat::core::Tuple (:wat::core::first pair)
                              (work-fn (:wat::core::second pair))))
      w (:wat::test::spawn-peer (:wat::spawn::process)
@@ -58,5 +58,5 @@
                  (:bracket::__pool-runner self)))
              (:wat::core::defn :user::main [] -> :wat::core::nil
                (:bracket::__pool-runner
-                 (:wat::program::self-peer :(wat::core::i64,wat::core::i64) :(wat::core::i64,wat::core::i64)))))))]
+                 (:wat::program::self-peer (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64]) (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])))))))]
     (:probe::drain w)))

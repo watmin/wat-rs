@@ -74,7 +74,7 @@
   -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::let [ch (:wat::core::ast->children arm)]
     (:wat::core::if (:wat::core::< (:wat::core::length ch) 2)
-      (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
+      (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))
       (:wat::core::let
         [op-node     (:wat::core::first ch)
          op-str      (:user::kw-name op-node)
@@ -86,11 +86,11 @@
                        (:wat::core::= arity 1)
                        (:wat::core::= arity 2))]
         (:wat::core::if (:wat::core::not needs-edit)
-          (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
+          (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))
           (:wat::core::let
             [s-binder (:wat::core::first param-ch)
              end      (:user::end-off s-binder lines)]
-            (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)
+            (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])
               (:wat::core::Tuple end 0 " ctx"))))))))
 
 ;; ── all edits for one defservice form's arms ───────────────────────────────────────────────
@@ -102,7 +102,7 @@
                      arm <- :wat::WatAST]
       -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
       (:wat::core::concat acc (:user::arm-edit arm lines)))
-    (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
+    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))
     arms))
 
 ;; ── generic tree walk — reaches EVERY defservice, top-level OR nested (a defservice embedded
@@ -118,15 +118,15 @@
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
     (:wat::core::let [ch (:wat::core::ast->children node)]
       (:wat::core::if (:wat::core::empty? ch)
-        (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
+        (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))
         (:wat::core::let
           [this (:wat::core::if (:user::defservice-form? node)
                   (:user::arms-edits (:user::arms-of node) lines)
-                  (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)))]
+                  (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])))]
           (:wat::core::concat this (:user::seq-edits ch lines)))))
     (:wat::core::if (:wat::fix::structural? node)
       (:user::seq-edits (:wat::core::ast->children node) lines)
-      (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)))))
+      (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])))))
 
 (:wat::core::defn :user::seq-edits
   [items <- (:wat::core::Vector :- [:wat::WatAST])  lines <- (:wat::core::Vector :- [:wat::core::String])]
@@ -136,7 +136,7 @@
                      it <- :wat::WatAST]
       -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
       (:wat::core::concat acc (:user::node-edits it lines)))
-    (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
+    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))
     items))
 
 ;; ── per-file migrate ────────────────────────────────────────────────────────────────────────

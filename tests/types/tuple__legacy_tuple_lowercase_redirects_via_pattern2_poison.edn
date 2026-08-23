@@ -8,11 +8,11 @@
       :location #wat.core/Span {
         :file "tests/types/tuple_legacy_lowercase.wat.bad"
         :line 2
-        :col 85
+        :col 110
         :end #wat.core.Option/Some [
           #wat.core/Pos {
             :line 2
-            :col 102
+            :col 127
           }
         ]
       }
@@ -26,7 +26,7 @@
           :form ":wat::core::Tuple"
           :kind :retirement
           :score 0
-          :note "rename `:wat::core::tuple` → `:wat::core::Tuple` (verb-equals-type, arc 109 slice 1g); type spelling `:(T,U,V)` is unaffected"
+          :note "rename `:wat::core::tuple` → `:wat::core::Tuple` (verb-equals-type, arc 109 slice 1g); the `:(T,U,V)` type spelling is ALSO retired (arc 109 \"the comma dies in the reader\") — use `(:wat::core::Tuple :- [T U V])`"
         }
       ]
     }

@@ -50,7 +50,7 @@
 
 ;; ─── Test 7: eval-err exposes both kind and message ─────────────────────────
 
-(:wat::core::defn :t::test7 [] -> :(wat::core::String,wat::core::String)
+(:wat::core::defn :t::test7 [] -> (:wat::core::Tuple :- [:wat::core::String :wat::core::String])
   (:wat::core::let
     [bad
       (:wat::core::quote

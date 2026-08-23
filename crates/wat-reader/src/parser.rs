@@ -847,8 +847,12 @@ mod tests {
 
     #[test]
     fn keyword_with_parens_inside() {
-        // :fn(T,U)->R — internal parens must parse as a single keyword.
-        assert_eq!(crate::parse_one!(":fn(T,U)->R").unwrap(), kw(":fn(T,U)->R"));
+        // :fn(T,U)->R — internal parens are still legal keyword-body
+        // characters, but a comma inside them is retired (arc 109): this
+        // legacy multi-arg fn-type spelling now errors. A comma-free
+        // parenthesized body still lexes as a single keyword.
+        assert!(crate::parse_one!(":fn(T,U)->R").is_err());
+        assert_eq!(crate::parse_one!(":fn(T)->R").unwrap(), kw(":fn(T)->R"));
     }
 
     // ─── Quasiquote reader macros ───────────────────────────────────────

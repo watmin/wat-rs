@@ -66,7 +66,7 @@
 ;;     :wat::core::{> < >= +}
 ;; The lookup simply returns None for all of these, so they are left byte-identical for hand work.
 (:wat::core::defn :user::rename-table [] -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
-  (:wat::core::Vector :(wat::core::String,wat::core::String)
+  (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::String :wat::core::String])
     (:wat::core::Tuple ":wat::core::and" ":wat::rete::core::and")
     (:wat::core::Tuple ":wat::core::bool::to-string" ":wat::rete::core::bool::to-string")
     (:wat::core::Tuple ":wat::core::cond" ":wat::rete::core::cond")
@@ -140,10 +140,10 @@
         ((:wat::core::Some new)
           (:wat::core::let [off     (:wat::fix::fix-text-offset-of (:wat::core::ast-span node) lines)
                             old-len (:wat::core::string::length (:wat::core::ast-name node))]
-            (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)
+            (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])
               (:wat::core::Tuple off old-len new))))
-        (:wat::core::None (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))))
-      (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)))))
+        (:wat::core::None (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))))
+      (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])))))
 
 (:wat::core::defn :user::inside-where-edits-walk
   [items <- (:wat::core::Vector :- [:wat::WatAST])
@@ -151,7 +151,7 @@
    lines <- (:wat::core::Vector :- [:wat::core::String])]
   -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::if (:wat::core::empty? items)
-    (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
+    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))
     (:wat::core::concat
       (:user::inside-where-edits (:wat::core::first items) table lines)
       (:user::inside-where-edits-walk (:wat::core::rest items) table lines))))
@@ -182,7 +182,7 @@
       (:wat::core::if (:user::where-list? node ch)
         (:user::inside-where-edits-walk ch table lines)
         (:user::outer-edits-walk ch table lines)))
-    (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))))
+    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))))
 
 (:wat::core::defn :user::outer-edits-walk
   [items <- (:wat::core::Vector :- [:wat::WatAST])
@@ -190,7 +190,7 @@
    lines <- (:wat::core::Vector :- [:wat::core::String])]
   -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::if (:wat::core::empty? items)
-    (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
+    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))
     (:wat::core::concat
       (:user::outer-edits (:wat::core::first items) table lines)
       (:user::outer-edits-walk (:wat::core::rest items) table lines))))

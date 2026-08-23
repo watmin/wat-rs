@@ -23,7 +23,7 @@
     `(:wat::core::fn [~@params] -> :wat::core::i64
         (:wat::core::i64::+ ~n0 ~n1))))
 
-(:wat::core::defn :my::adder [] -> :wat::core::Fn(wat::core::i64,wat::core::i64)->wat::core::i64
+(:wat::core::defn :my::adder [] -> [:wat::core::i64 :wat::core::i64 :-> :wat::core::i64]
   (:my::make-adder a <- :wat::core::i64 b <- :wat::core::i64))
 
 (:wat::core::defn :my::compute-hygienic [] -> :wat::core::i64

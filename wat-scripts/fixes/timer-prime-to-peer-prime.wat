@@ -60,7 +60,7 @@
   [items <- (:wat::core::Vector :- [:wat::WatAST])  lines <- (:wat::core::Vector :- [:wat::core::String])]
   -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::if (:wat::core::empty? items)
-    (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
+    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))
     (:wat::core::concat
       (:user::edits (:wat::core::first items) lines)
       (:user::edits-walk (:wat::core::rest items) lines))))
@@ -74,11 +74,11 @@
       (:wat::core::let [name     (:wat::core::ast-name node)
                         new-name (:user::rewrite-name name)]
         (:wat::core::if (:wat::core::= new-name name)
-          (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
+          (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))
           (:wat::core::let [off (:wat::fix::fix-text-offset-of (:wat::core::ast-span node) lines)]
-            (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)
+            (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])
               (:wat::core::Tuple off (:wat::core::string::length name) new-name)))))
-      (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)))))
+      (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])))))
 
 (:wat::core::defn :user::migrate [src <- :wat::core::String] -> :wat::core::String
   (:wat::core::let [lines     (:wat::core::string::split src "\n")

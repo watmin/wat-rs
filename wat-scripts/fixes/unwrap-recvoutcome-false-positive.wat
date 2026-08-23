@@ -77,7 +77,7 @@
      ia1-s  (:user::start-off ia1 lines)
      ian-e  (:user::end-off ian lines)
      node-e (:user::end-off node lines)]
-    (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)
+    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])
       (:wat::core::Tuple s-end (:wat::core::- ia1-s s-end) " ")
       (:wat::core::Tuple ian-e (:wat::core::- (:wat::core::- node-e 1) ian-e) ""))))
 
@@ -87,7 +87,7 @@
   (:wat::core::let
     [this (:wat::core::if (:user::codemod-wrapped? node)
             (:user::unwrap-edits (:wat::core::ast->children node) node lines)
-            (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)))]
+            (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])))]
     (:wat::core::if (:wat::fix::structural? node)
       (:wat::core::concat this (:user::seq-edits (:wat::core::ast->children node) lines))
       this)))
@@ -99,7 +99,7 @@
     (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])]) it <- :wat::WatAST]
       -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
       (:wat::core::concat acc (:user::node-edits it lines)))
-    (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
+    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))
     items))
 
 (:wat::core::defn :user::migrate [src <- :wat::core::String] -> :wat::core::String

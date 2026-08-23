@@ -36,7 +36,7 @@
 ;; The migration as DATA — one line per name. (0z's first draft nested these into a 24-deep
 ;; staircase and the closing-paren count was wrong twice. A fold over a list cannot have that bug.)
 (:wat::core::defn :user::renames [] -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
-  (:wat::core::Vector :(wat::core::String,wat::core::String)
+  (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::String :wat::core::String])
     ;; the arena / producer-consumer pair
     (:wat::core::Tuple ":cons::consumer'"          ":cons::consumer")
     (:wat::core::Tuple ":prod::producer'"          ":prod::producer")
@@ -72,7 +72,7 @@
   [src <- :wat::core::String] -> :wat::core::String
   (:wat::core::foldl
     (:wat::core::fn [acc <- :wat::core::String
-                     pr  <- :(wat::core::String,wat::core::String)] -> :wat::core::String
+                     pr  <- (:wat::core::Tuple :- [:wat::core::String :wat::core::String])] -> :wat::core::String
       (:wat::fix::rename-keyword-prefix (:wat::core::first pr) (:wat::core::second pr) acc))
     src
     (:user::renames)))

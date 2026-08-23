@@ -4,9 +4,9 @@
 ;; But DROPPING the event (`_`-bound or do-position) silently hid a Lost/Malformed failure. ServiceEvent
 ;; is now must-use, so a dropped poll'/select' event is a located compile error. A *faced* event (matched
 ;; over the variants) has an arm-joined type, not ServiceEvent; this fixture deliberately does NOT face it.
-(:wat::core::defn :user::mk [] -> :wat::kernel::Thread<wat::core::i64,wat::core::i64>
+(:wat::core::defn :user::mk [] -> (:wat::kernel::Thread :- [:wat::core::i64 :wat::core::i64])
   (:wat::kernel::spawn-program (:wat::spawn::thread)
-    (:wat::core::fn [self <- :wat::kernel::ThreadSelfPeer<wat::core::i64,wat::core::i64>] -> :wat::core::nil
+    (:wat::core::fn [self <- (:wat::kernel::ThreadSelfPeer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
       nil)))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

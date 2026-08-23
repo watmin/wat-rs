@@ -69,6 +69,6 @@
              ;; :user::main looks up the rendezvous coordinate and PASSES the work-fn value.
              (:wat::core::defn :user::main [] -> :wat::core::nil
                (:bracket::pool-runner
-                 (:wat::program::self-peer :(wat::core::i64,wat::core::i64) :(wat::core::i64,wat::core::i64))
+                 (:wat::program::self-peer (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64]) (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64]))
                  :user::bracket::work-fn)))))]
     (:probe::drain w)))

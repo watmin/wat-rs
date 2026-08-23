@@ -13,7 +13,7 @@
 (:wat::core::defn :u::gen [xs <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::i64 1)
 
 ;; 3. tuple type — the keyword body OPENS with `(`.
-(:wat::core::defn :u::tup [] -> :(wat::core::i64,wat::core::String) (:wat::core::Tuple 1 "a"))
+(:wat::core::defn :u::tup [] -> (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String]) (:wat::core::Tuple 1 "a"))
 
 ;; 4. function type — parens AND `->` inside one keyword token.
 (:wat::core::defn :u::fnty [g <- :wat::core::Fn(wat::core::i64)->wat::core::i64] -> :wat::core::i64 (g 1))

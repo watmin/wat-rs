@@ -1,2 +1,9 @@
-;; Negative fixture: primed generic head with space inside <...> — must lex-error (unclosed bracket, not CommaInKeywordBody).
-(:wat::core::defn :user::take [m <- :wat::core::HashMap'<wat::core::i64, wat::core::i64>] -> :wat::core::nil nil)
+;; Negative fixture: primed generic head with space inside <...> — must lex-error (unclosed
+;; bracket, not CommaInKeywordBody). Arc 109 "the comma dies in the reader" retired the
+;; comma-carrying multi-param spelling this fixture originally used (`<i64, i64>`) — a comma
+;; inside `<...>` is now its OWN unconditional lex error, so a comma-bearing body would trip THAT
+;; arm before ever reaching the whitespace check this test is about. A single-param bracket with
+;; a trailing space (`<i64 >`) still exercises the exact same `UnclosedBracketInKeyword` arm
+;; without depending on the retired comma — the axis under test is PRIMED-vs-UNPRIMED parity
+;; (see the sibling `_unprimed_space` fixture), not param count.
+(:wat::core::defn :user::take [m <- :wat::core::HashMap'<wat::core::i64 >] -> :wat::core::nil nil)

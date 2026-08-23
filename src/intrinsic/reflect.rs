@@ -514,7 +514,7 @@ fn param_name_of<'a>(node: &'a WatAST, op: &'static str) -> Result<Cow<'a, str>,
 /// @ret :wat::core::Vector<wat::WatAST> the subset of `params`, in the order given, that appear anywhere in `node`
 /// @example (:wat::core::type-params-used-in (:wat::core::Vector :wat::WatAST (:wat::core::symbol-node "K") (:wat::core::symbol-node "V")) (:wat::core::keyword-node ":wat::core::Vector<K>")) #=> [K]
 /// @example (:wat::core::type-params-used-in (:wat::core::Vector :wat::WatAST (:wat::core::symbol-node "K") (:wat::core::symbol-node "V")) (:wat::core::keyword-node ":wat::core::HashMap<Key,KV>")) #=> []
-/// @example-norun (:wat::core::type-params-used-in (:wat::core::Vector (:wat::core::symbol-node "K") (:wat::core::symbol-node "V")) (:wat::core::read-string "[cache <- :wat::cache::Lru<K,V>]")) #=> Vector[Symbol(K), Symbol(V)]
+/// @example-norun (:wat::core::type-params-used-in (:wat::core::Vector (:wat::core::symbol-node "K") (:wat::core::symbol-node "V")) (:wat::core::read-string "[cache <- (:wat::cache::Lru :- [K V])]")) #=> Vector[Symbol(K), Symbol(V)]
 /// @example-norun (:wat::core::type-params-used-in (:wat::core::Vector (:wat::core::symbol-node "K") (:wat::core::symbol-node "V")) (:wat::core::read-string "[capacity <- :wat::core::i64]")) #=> Vector[]
 #[wat_intrinsic(":wat::core::type-params-used-in")]
 pub(crate) fn eval_type_params_used_in(

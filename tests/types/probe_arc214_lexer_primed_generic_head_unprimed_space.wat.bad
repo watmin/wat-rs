@@ -1,2 +1,5 @@
-;; Negative fixture: unprimed generic head with space inside <...> — must lex-error (unclosed bracket).
-(:wat::core::defn :user::take [m <- :wat::core::HashMap<wat::core::nil, wat::core::nil>] -> :wat::core::nil nil)
+;; Negative fixture: unprimed generic head with space inside <...> — must lex-error (unclosed
+;; bracket). Arc 109 "the comma dies in the reader" retired the comma-carrying multi-param
+;; spelling this fixture originally used (`<nil, nil>`) — see the sibling `_primed_space`
+;; fixture's comment for why a single-param bracket (`<nil >`) is the honest replacement.
+(:wat::core::defn :user::take [m <- :wat::core::HashMap<wat::core::nil >] -> :wat::core::nil nil)

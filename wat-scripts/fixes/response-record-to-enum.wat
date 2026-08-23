@@ -127,7 +127,7 @@
             (:wat::core::fn [m <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Tuple :- [:wat::core::String :wat::core::String])]) f <- :wat::WatAST]
               -> (:wat::core::HashMap :- [:wat::core::String (:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
               (:user::collect-records f m))
-            (:wat::core::HashMap :wat::core::String :(wat::core::String,wat::core::String))
+            (:wat::core::HashMap :wat::core::String (:wat::core::Tuple :- [:wat::core::String :wat::core::String]))
             forms)
      rets (:wat::core::foldl
             (:wat::core::fn [a <- (:wat::core::HashSet :- [:wat::core::String]) n <- :wat::WatAST]
@@ -140,7 +140,7 @@
         (:wat::core::if (:wat::core::HashSet/contains? rets k)
           (:wat::core::HashMap/assoc m k (:wat::core::Option/expect (:wat::core::HashMap/get recs k) "resp"))
           m))
-      (:wat::core::HashMap :wat::core::String :(wat::core::String,wat::core::String))
+      (:wat::core::HashMap :wat::core::String (:wat::core::Tuple :- [:wat::core::String :wat::core::String]))
       (:wat::core::HashMap/keys recs))))
 
 ;; ── EDITS ──────────────────────────────────────────────────────────────────────
@@ -153,7 +153,7 @@
      fv   (:wat::core::Option/expect (:wat::core::get ch 2) "dr fv")
      h0   (:user::start-off head lines)
      h1   (:user::end-off head lines)]
-    (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)
+    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])
       (:wat::core::Tuple h0 (:wat::core::- h1 h0) ":wat::core::defenum")
       (:wat::core::Tuple (:user::end-off ty lines) 0 " :wat::enum::Pure :Ok")
       (:wat::core::Tuple (:user::end-off fv lines) 0
@@ -173,10 +173,10 @@
          val (:wat::core::Option/expect (:wat::core::get ch 2) "ct val")
          fs  (:user::start-off fkw lines)
          vs  (:user::start-off val lines)]
-        (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)
+        (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])
           (:wat::core::Tuple (:user::end-off head lines) 0 "::Ok")
           (:wat::core::Tuple fs (:wat::core::- vs fs) "")))
-      (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)
+      (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])
         (:wat::core::Tuple (:user::end-off head lines) 0 "::Ok")))))
 
 (:wat::core::defn :user::field-edits
@@ -195,7 +195,7 @@
                   (:wat::core::string::concat ")\n  ((" prefix
                     (:wat::core::string::concat "::RequestTooLarge bytes cap)\n    (:wat::kernel::assertion-failed! \"unexpected RequestTooLarge\" :wat::core::None :wat::core::None))"
                       ""))))))]
-    (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)
+    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])
       (:wat::core::Tuple h0 (:wat::core::- h1 h0) ":wat::core::match")
       (:wat::core::Tuple (:user::end-off expr lines) 0 arms))))
 
@@ -208,7 +208,7 @@
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
     (:wat::core::let [ch (:wat::core::ast->children node)]
       (:wat::core::if (:wat::core::empty? ch)
-        (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
+        (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))
         (:wat::core::let
           [hname (:user::kw-name (:wat::core::first ch))
            tyname (:wat::core::if (:wat::core::>= (:wat::core::length ch) 2)
@@ -226,11 +226,11 @@
                    (:wat::core::HashMap/contains-key? rm prefix) false)
                  (:wat::core::let [ft (:wat::core::Option/expect (:wat::core::HashMap/get rm prefix) "ft")]
                    (:user::field-edits ch prefix (:wat::core::first ft) (:wat::core::second ft) lines))
-                 (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)))))]
+                 (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])))))]
           (:wat::core::concat this (:user::seq-edits ch rm lines)))))
     (:wat::core::if (:wat::fix::structural? node)
       (:user::seq-edits (:wat::core::ast->children node) rm lines)
-      (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)))))
+      (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])))))
 
 (:wat::core::defn :user::seq-edits
   [items <- (:wat::core::Vector :- [:wat::WatAST])
@@ -241,7 +241,7 @@
     (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])]) it <- :wat::WatAST]
       -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
       (:wat::core::concat acc (:user::node-edits it rm lines)))
-    (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
+    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))
     items))
 
 ;; ── per-file migrate ─────────────────────────────────────────────────────────

@@ -252,14 +252,14 @@
        rcch      (:wat::core::ast->children rule-call)
        name-node (:wat::core::Option/expect (:wat::core::get rcch 2) "rule-rename: name-node")
        new       (:wat::core::String/concat ":" (:wat::core::ast-name name-node))]
-      (:wat::core::Vector :(wat::core::String,wat::core::String) (:wat::core::Tuple old new)))
-    (:wat::core::Vector :(wat::core::String,wat::core::String))))
+      (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::String :wat::core::String]) (:wat::core::Tuple old new)))
+    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::String :wat::core::String]))))
 
 (:wat::core::defn :user::collect-renames
   [forms <- (:wat::core::Vector :- [:wat::WatAST])]
   -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
   (:wat::core::if (:wat::core::empty? forms)
-    (:wat::core::Vector :(wat::core::String,wat::core::String))
+    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::String :wat::core::String]))
     (:wat::core::concat
       (:user::rule-rename (:wat::core::first forms))
       (:user::collect-renames (:wat::core::rest forms)))))

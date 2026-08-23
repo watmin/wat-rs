@@ -147,37 +147,25 @@ pub fn hex_value(b: u8) -> Option<u8> {
     }
 }
 
-/// Write a keyword body segment with the position-aware `,` → `_`
-/// swap at bracket depth ≥ 1. See arc 170 REALIZATIONS-SLICE-1.md
-/// pass 14 for the original swap rationale; arc 218 stone 218.1 for
-/// the extraction.
+/// Write a keyword body segment verbatim.
 ///
-/// Walks chars once: `<` increments depth, `>` decrements, `,` at
-/// depth ≥ 1 emits `_`. Hot-path-friendly: no allocation, single
-/// pass over the segment bytes.
+/// Arc 109 "the comma dies in the reader" retired the position-aware
+/// `,` → `_` wire-escape swap (arc 170 REALIZATIONS-SLICE-1.md pass
+/// 14 / arc 218 stone 218.1): a keyword body never contains `,` any
+/// more (the lexer no longer accepts it as a body-continue char at
+/// any bracket depth), so there is nothing left to escape.
 ///
 /// Keyword body is all-ASCII (lexer enforces `is_symbol_continue` on
-/// every byte after the first; multi-byte UTF-8 is rejected). Each
-/// byte is safe to write as a `char` or as a single-byte `&str`.
+/// every byte after the first, and non-ASCII scalars pass through
+/// their own decode path). A plain `push_str` is both simplest and
+/// fastest — no allocation, single pass, matches the byte-for-byte
+/// output the old per-byte loop produced for every body that
+/// contained no comma (which, post-migration, is now all of them).
 pub(crate) fn write_keyword_body_to<W: std::fmt::Write>(
     seg: &str,
     w: &mut W,
 ) -> std::fmt::Result {
-    let mut depth: u32 = 0;
-    for b in seg.bytes() {
-        if depth > 0 && b == b',' {
-            w.write_char('_')?;
-        } else {
-            // Safe: keyword body is all-ASCII; single byte = single char.
-            w.write_char(b as char)?;
-        }
-        if b == b'<' {
-            depth = depth.saturating_add(1);
-        } else if b == b'>' {
-            depth = depth.saturating_sub(1);
-        }
-    }
-    Ok(())
+    w.write_str(seg)
 }
 
 /// Split a namespaced body `"ns/name"` at the first `/`.

@@ -137,7 +137,7 @@
 ;; operation == "whoami" (the op's own kebab name, spliced as a compile-time literal). namespace
 ;; is checked separately (below) since it is a KEYWORD, not an i64/String the harness can pack
 ;; alongside these two in one return value without a THIRD accessor round-trip.
-(:wat::core::defn :user::ctx-populated-id-and-op [] -> :(wat::core::i64,wat::core::String)
+(:wat::core::defn :user::ctx-populated-id-and-op [] -> (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String])
   (:wat::core::let
     [h (:probe::callctx3svc/start :locus (:wat::spawn::process) :record (:probe::callctx3svc::Record :seen-op "" :seen-ns :probe::none))
      c (:probe::connect! h)]
@@ -194,7 +194,7 @@
 ;; read it would have compiled and returned the durable record's ZERO-VALUE defaults forever,
 ;; never firing red). `peek-mark` reads it back. A bounded, event-driven poll (mirrors
 ;; probe_arc278_self_scheduling.wat's `poll-until` — NOT a sleep-guess) waits for the async fire.
-(:wat::core::defn :probe::peek-mark! [c <- :probe::CallCtx3] -> :(wat::core::String,wat::core::keyword)
+(:wat::core::defn :probe::peek-mark! [c <- :probe::CallCtx3] -> (:wat::core::Tuple :- [:wat::core::String :wat::core::keyword])
   (:wat::core::match (:probe::CallCtx3/peek-mark c (:probe::CallCtx3::PeekMarkRequest))
     ((:wat::kernel::RecvOutcome::Message resp)
       (:wat::core::match resp
@@ -208,7 +208,7 @@
 ;; peek-until — bounded retry, event-driven backoff (`:probe::nap!`), terminates on the OBSERVED
 ;; seen-op becoming non-empty (i.e. `-mark` has genuinely fired and its ctx landed in state).
 (:wat::core::defn :probe::peek-until
-  [c <- :probe::CallCtx3  attempts <- :wat::core::i64] -> :(wat::core::String,wat::core::keyword)
+  [c <- :probe::CallCtx3  attempts <- :wat::core::i64] -> (:wat::core::Tuple :- [:wat::core::String :wat::core::keyword])
   (:wat::core::if (:wat::core::i64::<= attempts 0)
     (:wat::kernel::assertion-failed! "peek-until: bound exhausted — -mark never fired" :wat::core::None :wat::core::None)
     (:wat::core::let [got (:probe::peek-mark! c)]
@@ -219,7 +219,7 @@
 
 ;; Returns Tuple(operation-is-dash-mark, namespace-is-fqdn) — both booleans, computed here (a
 ;; keyword/String equality check on the ctx facts the INTERNAL arm actually saw).
-(:wat::core::defn :user::internal-arm-ctx-populated [] -> :(wat::core::bool,wat::core::bool)
+(:wat::core::defn :user::internal-arm-ctx-populated [] -> (:wat::core::Tuple :- [:wat::core::bool :wat::core::bool])
   (:wat::core::let
     [h (:probe::callctx3svc/start :locus (:wat::spawn::process) :record (:probe::callctx3svc::Record :seen-op "" :seen-ns :probe::none))
      c (:probe::connect! h)
@@ -252,7 +252,7 @@
 ;; return tuple), so by the time this call returns, c1/c3 are alive in the CALLER's frame and c2
 ;; is the only one gone.
 (:wat::core::defn :probe::stability-connect-phase [h <- :probe::callctx3svc::Handle]
-  -> :(wat::core::i64,probe::CallCtx3,probe::CallCtx3)
+  -> (:wat::core::Tuple :- [:wat::core::i64 :probe::CallCtx3 :probe::CallCtx3])
   (:wat::core::let
     [c1 (:probe::connect! h)
      _  (:probe::whoami-id c1)
@@ -265,7 +265,7 @@
 ;; Returns Tuple(id-before, id-after) — the harness asserts they are EQUAL (and, as a second,
 ;; independent proof, that id-after is the ANALYTICALLY correct value 2 — the third id ever
 ;; minted — not merely "unchanged from whatever id-before happened to be").
-(:wat::core::defn :user::stability-gate [] -> :(wat::core::i64,wat::core::i64)
+(:wat::core::defn :user::stability-gate [] -> (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])
   (:wat::core::let
     [h         (:probe::callctx3svc/start :locus (:wat::spawn::process) :record (:probe::callctx3svc::Record :seen-op "" :seen-ns :probe::none))
      phase     (:probe::stability-connect-phase h)

@@ -225,10 +225,13 @@ impl fmt::Display for LexErrorKind {
             ),
             LexErrorKind::CommaInKeywordBody => write!(
                 f,
-                "comma inside keyword body retired (arc 171); use apostrophe `'` as \
-                the dispatch / discriminator separator. Example: `:wat::core::op'2` (arity), \
-                `:wat::core::op'i64'i64` (type-discriminator). The legacy `,2` / `,i64-f64` \
-                shape was swept in arc 171 slice 2 (~440 sites)."
+                "comma inside keyword body retired (arc 109 \"the comma dies in the reader\", \
+                closing the arc 171 carve-out): a comma can never appear in a keyword body, at \
+                any depth. For an arity/discriminator suffix use apostrophe `'` — \
+                `:wat::core::op'2` (arity), `:wat::core::op'i64'i64` (type-discriminator). For a \
+                tuple type use the `:-` binder form — `(:wat::core::Tuple :- [T1 T2 T3])` \
+                instead of `:(T1,T2,T3)`. For a function type use the `:->` arrow form — \
+                `[T1 T2 :-> R]` instead of `:fn(T1,T2)->R` (see wat/cache.wat, wat/spawn.wat)."
             ),
             LexErrorKind::InvalidChar(msg) => write!(
                 f,
@@ -690,12 +693,12 @@ fn lex_char(src: &str, start: usize) -> Result<(char, usize), LexError> {
 /// `:wat::core::op'i64'i64`). It also appears as a primed type-head
 /// suffix: `:wat::kernel::Thread<I,O>` — the `'` marks the primed
 /// variant and is immediately followed by `<` opening the generic params.
-/// `,` at depth 0 (outside `(...)` and `<...>`) is rejected with
-/// `LexError::CommaInKeywordBody` (arc 171 closure). Commas inside
-/// `(...)` (tuple types like `:(A,B,C)`) and inside `<...>` (parametric
-/// types like `:HashMap<K,V>` or `:wat::kernel::Thread<I,O>`) remain
-/// valid. Whitespace inside an unclosed `(` or `<` is an error.
-/// `"` and `;` terminate the keyword — they never appear inside one.
+/// `,` is rejected with `LexError::CommaInKeywordBody` at ANY depth
+/// (arc 109 "the comma dies in the reader" — closes the depth ≥ 1
+/// carve-out arc 171 left open for `(...)`/`<...>`). A comma can never
+/// enter a keyword body again. Whitespace inside an unclosed `(` or
+/// `<` is an error. `"` and `;` terminate the keyword — they never
+/// appear inside one.
 fn lex_keyword(src: &str, start: usize) -> Result<(String, usize), LexError> {
     let bytes = src.as_bytes();
     debug_assert_eq!(bytes[start] as char, ':');
@@ -828,16 +831,17 @@ fn lex_keyword(src: &str, start: usize) -> Result<(String, usize), LexError> {
                 break;
             }
             ',' => {
-                // Arc 171 closure — comma at depth 0 is rejected.
-                // Commas inside `(...)` (tuple types) or `<...>`
-                // (parametric types) are valid and reach this arm only
-                // when paren_depth > 0 or angle_depth > 0; those are
-                // handled by the fall-through. Commas at depth 0 are
-                // the retired keyword-body separator shape.
-                if paren_depth == 0 && angle_depth == 0 {
-                    return Err(LexError { position: i, kind: LexErrorKind::CommaInKeywordBody });
-                }
-                out.push(c);
+                // Arc 109 "the comma dies in the reader" — a comma can
+                // never enter a keyword body again, at ANY depth. Arc
+                // 171 already killed it at depth 0 (the arity/discriminator
+                // separator shape); this retires the depth ≥ 1 carve-out
+                // that survived for parametric types (`:HashMap<K,V>`)
+                // and tuple/fn types (`:(A,B,C)`, `:fn(T,U)->R`) — those
+                // move to the `:-` binder form and `[T U :-> R]` arrow
+                // form respectively (both already live in the stdlib:
+                // `wat/cache.wat`, `wat/spawn.wat`). Outside a keyword
+                // body, `,` remains ordinary EDN whitespace — unaffected.
+                return Err(LexError { position: i, kind: LexErrorKind::CommaInKeywordBody });
             }
             _ => out.push(c),
         }
@@ -1105,14 +1109,9 @@ mod tests {
             lex_tokens(":Vec<wat::holon::HolonAST>").unwrap(),
             vec![Token::Keyword(":Vec<wat::holon::HolonAST>".into())]
         );
-        assert_eq!(
-            lex_tokens(":HashMap<K,V>").unwrap(),
-            vec![Token::Keyword(":HashMap<K,V>".into())]
-        );
-        assert_eq!(
-            lex_tokens(":fn(T,U)->R").unwrap(),
-            vec![Token::Keyword(":fn(T,U)->R".into())]
-        );
+        // `:HashMap<K,V>` and `:fn(T,U)->R` — the comma-carrying
+        // multi-param shapes — are retired (arc 109); see
+        // `keyword_comma_in_angle_brackets_rejected` / `keyword_fn_type_with_arrow`.
     }
 
     #[test]
@@ -1174,15 +1173,18 @@ mod tests {
 
     #[test]
     fn keyword_tuple_literal_type() {
-        // :( opens a tuple-literal type expression.
-        assert_eq!(
-            lex_tokens(":(i64,String)").unwrap(),
-            vec![Token::Keyword(":(i64,String)".into())]
-        );
-        assert_eq!(
-            lex_tokens(":(Holon,wat::holon::HolonAST,Holon)").unwrap(),
-            vec![Token::Keyword(":(Holon,wat::holon::HolonAST,Holon)".into())]
-        );
+        // :( opens a tuple-literal type expression. The comma-carrying
+        // multi-element shape is retired (arc 109) — see
+        // `keyword_comma_in_parens_rejected`; destination is the `:-`
+        // binder form, `(:wat::core::Tuple :- [T1 T2])`.
+        assert!(matches!(
+            lex_tokens(":(i64,String)"),
+            Err(LexError { kind: LexErrorKind::CommaInKeywordBody, .. })
+        ));
+        assert!(matches!(
+            lex_tokens(":(Holon,wat::holon::HolonAST,Holon)"),
+            Err(LexError { kind: LexErrorKind::CommaInKeywordBody, .. })
+        ));
     }
 
     #[test]
@@ -1219,22 +1221,25 @@ mod tests {
 
     #[test]
     fn keyword_fn_type_with_arrow() {
-        // `:fn(T,U)->R` — the `->` arrow has a `>` at angle_depth 0,
-        // which must be pushed as a plain char, not treated as a closer.
-        assert_eq!(
-            lex_tokens(":fn(T,U)->R").unwrap(),
-            vec![Token::Keyword(":fn(T,U)->R".into())]
-        );
+        // `:fn(T,U)->R` — retired (arc 109): a comma can never enter a
+        // keyword body, so a multi-arg legacy fn type now rejects at the
+        // first comma. Destination: `[T U :-> R]` (wat/cache.wat,
+        // wat/spawn.wat already use this arrow form).
+        assert!(matches!(
+            lex_tokens(":fn(T,U)->R"),
+            Err(LexError { kind: LexErrorKind::CommaInKeywordBody, .. })
+        ));
     }
 
     #[test]
     fn keyword_nested_parametric_with_fn_type() {
-        // `:HashMap<String,fn(i32)->i32>` — the outer `<>` nests a
-        // `fn(...)->...` type. The `->` is inside the `<>`.
-        assert_eq!(
-            lex_tokens(":HashMap<String,fn(i32)->i32>").unwrap(),
-            vec![Token::Keyword(":HashMap<String,fn(i32)->i32>".into())]
-        );
+        // `:HashMap<String,fn(i32)->i32>` — both the outer `<>` comma and
+        // the nested `fn(...)` comma are retired (arc 109); the first one
+        // reached (the outer `<>` comma) is what fires.
+        assert!(matches!(
+            lex_tokens(":HashMap<String,fn(i32)->i32>"),
+            Err(LexError { kind: LexErrorKind::CommaInKeywordBody, .. })
+        ));
     }
 
     // ─── Arc 171 slice 1 — apostrophe as keyword-body separator ──────────
@@ -1278,78 +1283,94 @@ mod tests {
 
     #[test]
     fn keyword_apostrophe_after_parametric_close() {
-        // D — apostrophe after `>` (outside `<...>`) is pushed as-is,
-        // same as commas outside brackets.
+        // D — apostrophe after `>` (outside `<...>`) is pushed as-is.
+        // Arc 109 retired the comma-carrying multi-param spelling; use a
+        // single-param generic (no comma) to keep exercising the
+        // apostrophe-after-close mechanic this test is actually about.
         assert_eq!(
-            lex_tokens(":HashMap<i64,String>'snapshot").unwrap(),
-            vec![Token::Keyword(":HashMap<i64,String>'snapshot".into())]
+            lex_tokens(":HashMap<String>'snapshot").unwrap(),
+            vec![Token::Keyword(":HashMap<String>'snapshot".into())]
         );
     }
 
     // ─── Arc 214 — primed type-head with generic params ──────────────────
 
     #[test]
-    fn keyword_primed_generic_two_param_comma() {
-        // Arc 214 fix: `'` before `<` is now a valid type-head-final char.
-        // `:wat::kernel::Thread<I,O>` must lex as a single keyword; the
-        // comma is inside `<...>` (angle_depth > 0) and must NOT trigger
-        // CommaInKeywordBody.
+    fn keyword_primed_generic_single_param() {
+        // Arc 214 fix: `'` before `<` is a valid type-head-final char.
+        // `:wat::kernel::Thread'<I>` lexes as a single keyword. (The
+        // two-param comma-carrying form this test used pre-arc-109 is now
+        // covered by `keyword_comma_in_angle_brackets_rejected` below —
+        // it must ERROR, not lex clean.)
         assert_eq!(
-            lex_tokens(":wat::kernel::Thread<wat::core::i64,wat::core::i64>").unwrap(),
-            vec![Token::Keyword(":wat::kernel::Thread<wat::core::i64,wat::core::i64>".into())]
+            lex_tokens(":wat::kernel::Thread'<wat::core::i64>").unwrap(),
+            vec![Token::Keyword(":wat::kernel::Thread'<wat::core::i64>".into())]
         );
     }
 
     #[test]
-    fn keyword_primed_generic_two_param_space() {
-        // Arc 214 fix: whitespace after the comma inside a primed generic
-        // triggers UnclosedBracketInKeyword (whitespace inside `<...>` is
-        // always a lex error), but MUST NOT trigger CommaInKeywordBody.
-        // The probe accepts either Ok or a non-comma error.
-        let result = lex_tokens(":wat::kernel::Thread<wat::core::i64, wat::core::i64>");
-        match result {
-            Ok(_) => {} // lexed cleanly — fine
-            Err(e) => {
-                assert!(
-                    !matches!(e, LexError { kind: LexErrorKind::CommaInKeywordBody, .. }),
-                    "primed generic with space must NOT error with CommaInKeywordBody; got {:?}", e
-                );
-            }
-        }
-    }
-
-    #[test]
-    fn keyword_unprimed_generic_two_param_control() {
-        // Control: unprimed multi-param generic already lexed before arc 214.
-        // Confirms that the fix does not regress the baseline shape.
+    fn keyword_unprimed_generic_single_param_control() {
+        // Control: unprimed single-param generic, comma-free.
         assert_eq!(
-            lex_tokens(":wat::kernel::Thread<wat::core::nil,wat::core::nil>").unwrap(),
-            vec![Token::Keyword(":wat::kernel::Thread<wat::core::nil,wat::core::nil>".into())]
+            lex_tokens(":wat::kernel::Thread<wat::core::nil>").unwrap(),
+            vec![Token::Keyword(":wat::kernel::Thread<wat::core::nil>".into())]
         );
     }
 
     #[test]
-    fn keyword_comma_in_body_rejected() {
-        // E — `,N` style is rejected at depth 0 (arc 171 closure).
-        // Comma as keyword-body separator retired; `'` is canonical.
+    fn keyword_comma_in_body_rejected_depth_0() {
+        // E — `,N` style is rejected at depth 0 (arc 171 closure, unchanged
+        // by arc 109). Comma as keyword-body separator retired; `'` is
+        // canonical.
         assert!(matches!(
             lex_tokens(":wat::core::op,2"),
             Err(LexError { kind: LexErrorKind::CommaInKeywordBody, .. })
         ));
-        // Depth-0 comma mid-body is also rejected.
         assert!(matches!(
             lex_tokens(":foo,bar"),
             Err(LexError { kind: LexErrorKind::CommaInKeywordBody, .. })
         ));
-        // Commas inside `(...)` (tuple types) are still valid.
+    }
+
+    #[test]
+    fn keyword_comma_in_parens_rejected() {
+        // Arc 109 "the comma dies in the reader" — the `:(A,B,C)` tuple
+        // shape used to lex clean (comma valid at paren_depth > 0). Now
+        // ANY comma in a keyword body is CommaInKeywordBody, regardless
+        // of depth. Destination: `(:wat::core::Tuple :- [T1 T2 T3])`.
+        assert!(matches!(
+            lex_tokens(":(i64,String)"),
+            Err(LexError { kind: LexErrorKind::CommaInKeywordBody, .. })
+        ));
+    }
+
+    #[test]
+    fn keyword_comma_in_angle_brackets_rejected() {
+        // Arc 109 — same retirement for the `:HashMap<K,V>` parametric
+        // shape (comma valid at angle_depth > 0 pre-arc-109). Destination:
+        // `:HashMap :- [K V]` (angle-brackets-to-binder, arc 109 stone ③).
+        assert!(matches!(
+            lex_tokens(":HashMap<K,V>"),
+            Err(LexError { kind: LexErrorKind::CommaInKeywordBody, .. })
+        ));
+        assert!(matches!(
+            lex_tokens(":wat::kernel::Thread<wat::core::i64,wat::core::i64>"),
+            Err(LexError { kind: LexErrorKind::CommaInKeywordBody, .. })
+        ));
+    }
+
+    #[test]
+    fn keyword_single_param_generic_and_tuple_still_lex() {
+        // Additive-refusal check (STOP-2): a comma-free bracketed keyword
+        // body — the shapes that never relied on the retired permission —
+        // is untouched.
         assert_eq!(
-            lex_tokens(":(i64,String)").unwrap(),
-            vec![Token::Keyword(":(i64,String)".into())]
+            lex_tokens(":Vec<i64>").unwrap(),
+            vec![Token::Keyword(":Vec<i64>".into())]
         );
-        // Commas inside `<...>` (parametric types) are still valid.
         assert_eq!(
-            lex_tokens(":HashMap<K,V>").unwrap(),
-            vec![Token::Keyword(":HashMap<K,V>".into())]
+            lex_tokens(":(i64)").unwrap(),
+            vec![Token::Keyword(":(i64)".into())]
         );
     }
 

@@ -57,7 +57,7 @@
 
 ;; The migration as DATA — one line per pair, most-specific first (see ORDER above).
 (:wat::core::defn :user::renames [] -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
-  (:wat::core::Vector :(wat::core::String,wat::core::String)
+  (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::String :wat::core::String])
     ;; compound — the actual lie, rewritten straight to its final form
     (:wat::core::Tuple ":wat::kernel::StdIn::ReadLineResponse::Line" ":wat::kernel::StdIn::ReadFrameResponse::Frame")
     ;; the enclosing response enum — catches ::Eof/::Stopped/::RequestTooLarge/::RequestMalformed
@@ -75,7 +75,7 @@
   (:wat::core::let [kw-migrated
                      (:wat::core::foldl
                        (:wat::core::fn [acc <- :wat::core::String
-                                        pr  <- :(wat::core::String,wat::core::String)] -> :wat::core::String
+                                        pr  <- (:wat::core::Tuple :- [:wat::core::String :wat::core::String])] -> :wat::core::String
                          (:wat::fix::rename-keyword-prefix (:wat::core::first pr) (:wat::core::second pr) acc))
                        src
                        (:user::renames))]

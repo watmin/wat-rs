@@ -115,7 +115,7 @@
   [forms <- (:wat::core::Vector :- [:wat::WatAST])  ns <- :wat::core::String]
   -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
   (:wat::core::if (:wat::core::empty? forms)
-    (:wat::core::Vector :(wat::core::String,wat::core::String))
+    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::String :wat::core::String]))
     (:wat::core::let [f (:wat::core::first forms) tl (:wat::core::rest forms)]
       (:wat::core::if (:user::bare-defrule? f)
         (:wat::core::let [old  (:wat::core::ast-name (:user::defrule-name-node f))
@@ -124,7 +124,7 @@
                                  (:wat::core::String/concat ns
                                    (:wat::core::String/concat "::" bare)))]
           (:wat::core::concat
-            (:wat::core::Vector :(wat::core::String,wat::core::String) (:wat::core::Tuple old new))
+            (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::String :wat::core::String]) (:wat::core::Tuple old new))
             (:user::rule-renames tl ns)))
         (:user::rule-renames tl ns)))))
 

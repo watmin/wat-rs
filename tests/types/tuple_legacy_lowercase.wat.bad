@@ -1,2 +1,2 @@
 ;; tuple_legacy_lowercase.wat.bad — legacy lowercase tuple hits Pattern 2 poison. Must FAIL.
-(:wat::core::defn :my::probe [] -> :(wat::core::i64,wat::core::i64,wat::core::i64) (:wat::core::tuple 1 2 3))
+(:wat::core::defn :my::probe [] -> (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::i64]) (:wat::core::tuple 1 2 3))

@@ -4,7 +4,7 @@
 
 (:wat::core::defenum :probe::PoolMsg :- [D I] :wat::enum::Pure
   :Setup [deps <- :D]
-  :Work  [pair <- :(wat::core::i64,I)])
+  :Work  [pair <- (:wat::core::Tuple :- [:wat::core::i64 I])])
 
 (:wat::core::defn :probe::serve
   [self <- (:wat::kernel::ThreadSelfPeer :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64]) (:probe::PoolMsg :- [:wat::core::nil :wat::core::i64])])]

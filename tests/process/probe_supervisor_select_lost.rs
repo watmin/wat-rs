@@ -142,10 +142,12 @@ fn select_prime_yields_lost_when_process_child_crashes() {
 
     // Eval: (select' (Vector :wat::kernel::Process<wat::core::nil,wat::core::nil> child))
     //
-    // Note: we use a plain vector literal [child] via embedded wat.
+    // Note: we use a plain vector literal [child] via embedded wat. Arc 109 "the comma dies in
+    // the reader" retired the comma-carrying `Process<nil,nil>` spelling; the `:-` binder form
+    // (already live in the stdlib — wat/cache.wat, wat/spawn.wat) is the replacement.
     let select_call = wat::parse_one!(
         r#"
-        (:wat::kernel::select (:wat::core::Vector :wat::kernel::Process<wat::core::nil,wat::core::nil> child))
+        (:wat::kernel::select (:wat::core::Vector (:wat::kernel::Process :- [:wat::core::nil :wat::core::nil]) child))
         "#
     )
     .expect("parse select' call");

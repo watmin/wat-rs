@@ -119,7 +119,7 @@ const RETIREMENT_TABLE: &[RetirementEntry] = &[
         note: Some("rename `:wat::core::list` → `:wat::core::Vector` (was a duplicate of vec; arc 109 slice 1g); substrate produces the same Vec<T> value") },
     // Arc 109 slice 1g — tuple retired (verb-equals-type playbook).
     RetirementEntry { retired: ":wat::core::tuple", replacement: ":wat::core::Tuple",
-        note: Some("rename `:wat::core::tuple` → `:wat::core::Tuple` (verb-equals-type, arc 109 slice 1g); type spelling `:(T,U,V)` is unaffected") },
+        note: Some("rename `:wat::core::tuple` → `:wat::core::Tuple` (verb-equals-type, arc 109 slice 1g); the `:(T,U,V)` type spelling is ALSO retired (arc 109 \"the comma dies in the reader\") — use `(:wat::core::Tuple :- [T U V])`") },
     // Arc 109 slice 1h — bare `Some` retired (callable heads must be FQDN keywords).
     RetirementEntry { retired: "Some", replacement: ":wat::core::Some",
         note: Some("rename `(Some x)` → `(:wat::core::Some x)` at constructor sites; rename `((Some v) ...)` → `((:wat::core::Some v) ...)` at match-pattern sites (arc 109 slice 1h)") },

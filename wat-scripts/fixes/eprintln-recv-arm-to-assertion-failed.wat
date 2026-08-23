@@ -84,7 +84,7 @@
      arg  (:wat::core::Option/expect (:wat::core::get ch 1) "ep arg")
      h0   (:user::start-off head lines)
      h1   (:user::end-off head lines)]
-    (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)
+    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])
       (:wat::core::Tuple h0 (:wat::core::- h1 h0) ":wat::kernel::assertion-failed!")
       (:wat::core::Tuple (:user::end-off arg lines) 0 " :wat::core::None :wat::core::None"))))
 
@@ -95,7 +95,7 @@
   (:wat::core::let
     [this (:wat::core::if (:user::recv-arm-eprintln? node)
             (:user::eprintln-edits (:wat::core::ast->children node) lines)
-            (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)))]
+            (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])))]
     (:wat::core::if (:wat::fix::structural? node)
       (:wat::core::concat this (:user::seq-edits (:wat::core::ast->children node) lines))
       this)))
@@ -107,7 +107,7 @@
     (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])]) it <- :wat::WatAST]
       -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
       (:wat::core::concat acc (:user::node-edits it lines)))
-    (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
+    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))
     items))
 
 ;; ── per-file migrate ─────────────────────────────────────────────────────────

@@ -327,7 +327,7 @@ pub(crate) fn eval_peer_pid(
 /// @Category      Projection
 /// @arg     peer :wat::kernel::Peer<I,O> the peer whose concrete locus to un-erase
 /// @ret     :wat::core::Option<wat::kernel::Process<I,O>> `Some(peer)` if process-tier, `:None` if thread-tier
-/// @example (:wat::core::let [p (:wat::kernel::spawn-thread (:wat::core::fn [self <- :wat::kernel::Peer<wat::core::nil,wat::core::nil>] -> :wat::core::nil nil) (:wat::core::fn [] -> :wat::core::Record (:wat::program::EmptyEnv)) (:wat::core::fn [launch <- :wat::spawn::ThreadLaunch] -> :wat::core::nil nil))] (:wat::kernel::peer-process p)) #=> :None
+/// @example (:wat::core::let [p (:wat::kernel::spawn-thread (:wat::core::fn [self <- (:wat::kernel::Peer :- [:wat::core::nil :wat::core::nil])] -> :wat::core::nil nil) (:wat::core::fn [] -> :wat::core::Record (:wat::program::EmptyEnv)) (:wat::core::fn [launch <- :wat::spawn::ThreadLaunch] -> :wat::core::nil nil))] (:wat::kernel::peer-process p)) #=> :None
 // No registered `TypeScheme` — `check.rs`'s `infer_peer_process` (`:11078`)
 // is the real authority: ∀-parametric, returns `Option<Process<I,O>>`.
 //

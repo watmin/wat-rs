@@ -95,7 +95,7 @@
   (:wat::core::let
     [scrut    (:wat::core::Option/expect (:wat::core::get ch 1) "scrut")
      last-arm (:wat::core::Option/expect (:wat::core::get ch (:wat::core::- (:wat::core::length ch) 1)) "last")]
-    (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)
+    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])
       (:wat::core::Tuple (:user::end-off scrut lines) 0
         " ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv")
       (:wat::core::Tuple (:user::end-off last-arm lines) 0
@@ -109,7 +109,7 @@
   (:wat::core::let
     [this (:wat::core::if (:user::client-method-match? node)
             (:user::wrap-edits (:wat::core::ast->children node) lines)
-            (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)))]
+            (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])))]
     (:wat::core::if (:wat::fix::structural? node)
       (:wat::core::concat this (:user::seq-edits (:wat::core::ast->children node) lines))
       this)))
@@ -121,7 +121,7 @@
     (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])]) it <- :wat::WatAST]
       -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
       (:wat::core::concat acc (:user::node-edits it lines)))
-    (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
+    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))
     items))
 
 ;; ── per-file migrate ─────────────────────────────────────────────────────────

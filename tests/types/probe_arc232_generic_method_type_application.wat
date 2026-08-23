@@ -1,15 +1,9 @@
-;; tests/types/probe_arc232_generic_method_type_application.wat — co-located fixture
+;; tests/types/probe_arc232_generic_method_type_application.wat — the POSITIVE half.
 ;;
-;; Arc 232 follow-on (6b-ii-β) — generic-method TYPE-ARGUMENT APPLICATION.
-
-(:wat::core::defsurface :user::Mk :nature :wat::core::Struct
-  :features [(mk<S,R> [self <- :user::Mk] -> (:wat::spawn::Bound :- [S R]))])
-
-(:wat::core::extend-type :wat::spawn::ThreadOpts :user::Mk
-  (mk [self] (:wat::kernel::listener self :S :R)))
+;; Arc 109 "the comma dies in the reader". Its sibling `.wat.bad` proves a comma inside a KEYWORD
+;; BODY is refused. This proves the dual, and the two are only meaningful together: a comma between
+;; VALUES is ordinary EDN whitespace and must keep working. A wall that refused commas everywhere
+;; would pass the negative test and break the language.
 
 (:wat::core::defn :user::compute [] -> :wat::core::i64
-  (:wat::core::let
-    [b (:user::Mk/mk<wat::core::i64,wat::core::i64> (:wat::spawn::thread))]
-    (:wat::core::let [_ (:wat::spawn::Bound/listener b)] 42)))
-
+  (:wat::core::length (:wat::core::Vector :- [:wat::core::i64] 1, 2, 3)))

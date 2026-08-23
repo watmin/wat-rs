@@ -1,1 +1,1 @@
-(:wat.list/reduce<T_Acc> (_a0 [Acc T :-> Acc]) (_a1 Acc) (_a2 (wat.type/Vector :- [T])) -> Acc)
+(:wat.list/reduce<T,Acc> (_a0 [Acc T :-> Acc]) (_a1 Acc) (_a2 (wat.type/Vector :- [T])) -> Acc)

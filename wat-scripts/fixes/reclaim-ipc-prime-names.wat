@@ -40,7 +40,7 @@
 ;; (An earlier draft nested 24 `rename-keyword-prefix` calls into a staircase; the closing-paren
 ;; count stopped being eyeballable and was wrong twice. A fold over a list is the honest form.)
 (:wat::core::defn :user::renames [] -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
-  (:wat::core::Vector :(wat::core::String,wat::core::String)
+  (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::String :wat::core::String])
     ;; spawn family
     (:wat::core::Tuple ":wat::kernel::spawn-program'"     ":wat::kernel::spawn-program")
     (:wat::core::Tuple ":wat::kernel::spawn-thread'"      ":wat::kernel::spawn-thread")
@@ -75,7 +75,7 @@
   [src <- :wat::core::String] -> :wat::core::String
   (:wat::core::foldl
     (:wat::core::fn [acc <- :wat::core::String
-                     pr  <- :(wat::core::String,wat::core::String)] -> :wat::core::String
+                     pr  <- (:wat::core::Tuple :- [:wat::core::String :wat::core::String])] -> :wat::core::String
       (:wat::fix::rename-keyword-prefix (:wat::core::first pr) (:wat::core::second pr) acc))
     src
     (:user::renames)))

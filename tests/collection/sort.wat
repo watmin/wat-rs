@@ -53,17 +53,17 @@
 (:wat::core::defn :sort::tuple-first-field [] -> :wat::core::String
   (:wat::core::let
     [xs
-      (:wat::core::Vector :(wat::core::i64,wat::core::String)
+      (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String])
         (:wat::core::Tuple 30 "alice")
         (:wat::core::Tuple 25 "carol")
         (:wat::core::Tuple 28 "bob"))
      sorted
       (:wat::core::sort
-        (:wat::core::fn [a <- :(wat::core::i64,wat::core::String) b <- :(wat::core::i64,wat::core::String)] -> :wat::core::bool
+        (:wat::core::fn [a <- (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String]) b <- (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String])] -> :wat::core::bool
           (:wat::core::< (:wat::core::first a) (:wat::core::first b)))
         xs)]
     (:wat::core::string::join ","
       (:wat::core::mapv
-        (:wat::core::fn [p <- :(wat::core::i64,wat::core::String)] -> :wat::core::String
+        (:wat::core::fn [p <- (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String])] -> :wat::core::String
           (:wat::core::second p))
         sorted))))

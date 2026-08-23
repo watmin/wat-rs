@@ -1,21 +1,15 @@
 //! Single-pass EDN writer. `write_to` appends to an existing buffer
 //! (preferred for large outputs); `write` returns a fresh String.
 //!
-//! # Position-aware keyword body wire encoding (arc 170 slice 1f-W)
+//! # Keyword body writing (arc 109 "the comma dies in the reader")
 //!
-//! When writing a keyword body, the writer tracks bracket depth (`<`
-//! increments, `>` decrements). At depth ≥ 1 (inside a parametric
-//! type-arg list like `:Foo<A,B>`), every `,` is emitted as `_` —
-//! the wire-escape rule from REALIZATIONS-SLICE-1.md pass 14
-//! (locked 2026-05-10).
-//!
-//! Mirror of [`super::lexer::Lexer::new_wire`]'s `_` → `,` decode.
-//! Round-trip property: `Parser::new_wire(write(k)).parse_top() == k` for any keyword
-//! `k`, including parametric forms with commas at any depth.
-//!
-//! Outside `<...>` (depth 0), keyword body chars pass verbatim:
-//! `_` stays `_` (preserves `:rust::*` Rust-mirror convention; no
-//! `,` is legal at depth 0 because EDN treats `,` as whitespace).
+//! Keyword bodies are written verbatim (`write_keyword_body_to`,
+//! `crate::vocab`). The old position-aware `,` → `_` wire-escape swap
+//! (arc 170 slice 1f-W) is retired along with the lexer permission it
+//! existed to smuggle a comma past: a keyword body never contains `,`
+//! any more, at any bracket depth, so there is nothing to escape.
+//! `_` stays `_` everywhere (preserves the `:rust::*` Rust-mirror
+//! convention).
 
 use crate::vocab::{char_to_name, encode_string_escape, write_keyword_body_to};
 use crate::value::{Keyword, Symbol, Tag, Value};

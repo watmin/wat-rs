@@ -2,14 +2,14 @@
 ;; Arc 216 Stone 7 — Tuple round-trip through HolonAST::Bundle of positional-Binds.
 
 ;; p1/p2: 2-tuple (i64, String) round-trip — probes 1 and 2 exercise the same encoding
-(:wat::core::defn :t::p1-rt-pair [] -> :(wat::core::i64,wat::core::String)
+(:wat::core::defn :t::p1-rt-pair [] -> (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String])
   (:wat::core::let
     [t  (:wat::core::Tuple 1 "hello")
      h  (:wat::holon::to-holon t)
      rt (:wat::holon::from-holon h)]
     rt))
 
-(:wat::core::defn :t::p2-rt-pair [] -> :(wat::core::i64,wat::core::String)
+(:wat::core::defn :t::p2-rt-pair [] -> (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String])
   (:wat::core::let
     [t  (:wat::core::Tuple 1 "hello")
      h  (:wat::holon::to-holon t)
@@ -17,7 +17,7 @@
     rt))
 
 ;; p3: 3-tuple (bool, i64, String) round-trip
-(:wat::core::defn :t::p3-rt-triple [] -> :(wat::core::bool,wat::core::i64,wat::core::String)
+(:wat::core::defn :t::p3-rt-triple [] -> (:wat::core::Tuple :- [:wat::core::bool :wat::core::i64 :wat::core::String])
   (:wat::core::let
     [t  (:wat::core::Tuple true 42 "wat")
      h  (:wat::holon::to-holon t)
@@ -25,7 +25,7 @@
     rt))
 
 ;; p4: nested tuple ((i64, i64), String) round-trip
-(:wat::core::defn :t::p4-rt-nested [] -> :((wat::core::i64,wat::core::i64),wat::core::String)
+(:wat::core::defn :t::p4-rt-nested [] -> (:wat::core::Tuple :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64]) :wat::core::String])
   (:wat::core::let
     [inner (:wat::core::Tuple 1 2)
      outer (:wat::core::Tuple inner "outer")

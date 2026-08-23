@@ -1,7 +1,14 @@
 ;; Negative fixture: whitespace inside <> → clean lex-layer error.
 ;; Used by test: whitespace_inside_angle_brackets_raises_clean_lex_error
+;; Arc 109 "the comma dies in the reader" retired the comma-carrying multi-param spelling this
+;; fixture used to test whitespace-after-comma with (`<String, i64>`) — a comma inside `<...>` is
+;; now ITS OWN lex error, unconditionally, so a comma-bearing fixture would trip THAT error first
+;; and never reach the whitespace case this test is actually about. A single-arg bracket with an
+;; accidental trailing space (`<String >`) still exercises the exact same
+;; `UnclosedBracketInKeyword` arm (whitespace inside an unclosed bracket is illegal regardless of
+;; how many args the bracket holds) without depending on the retired comma permission.
 (:wat::core::defn :t::probe [] -> :wat::core::nil
   (:wat::core::let
-    (((m :HashMap<String, i64>)
+    (((m :HashMap<String >)
       (:wat::core::HashMap :wat::core::String :wat::core::i64)))
     nil))

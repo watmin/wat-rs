@@ -269,13 +269,13 @@
   [names <- (:wat::core::Vector :- [:wat::WatAST]) ns <- :wat::core::String]
   -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
   (:wat::core::if (:wat::core::empty? names)
-    (:wat::core::Vector :(wat::core::String,wat::core::String))
+    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::String :wat::core::String]))
     (:wat::core::let [n (:wat::core::first names) tl (:wat::core::rest names)]
       (:wat::core::if (:user::needs-fix? n)
         (:wat::core::let [old (:wat::core::ast-name n)
                           new (:user::new-name-for n ns)]
           (:wat::core::concat
-            (:wat::core::Vector :(wat::core::String,wat::core::String) (:wat::core::Tuple old new))
+            (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::String :wat::core::String]) (:wat::core::Tuple old new))
             (:user::collect-renames tl ns)))
         (:user::collect-renames tl ns)))))
 
@@ -285,7 +285,7 @@
    renames <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::String])])]
   -> :wat::core::String
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::String p <- :(wat::core::String,wat::core::String)] -> :wat::core::String
+    (:wat::core::fn [acc <- :wat::core::String p <- (:wat::core::Tuple :- [:wat::core::String :wat::core::String])] -> :wat::core::String
       (:wat::fix::rename-keyword-exact (:wat::core::first p) (:wat::core::second p) acc))
     text
     renames))

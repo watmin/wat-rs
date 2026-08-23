@@ -68,9 +68,9 @@
                             (:wat::core::ast-span node)
                             (:wat::core::ast-end-span node)
                             lines)]
-      (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)
+      (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])
         (:wat::core::Tuple off len "")))
-    (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))))
+    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))))
 
 ;; scan — collect drop edits across every top-level form (ascending offset).
 (:wat::core::defn :user::scan
@@ -78,7 +78,7 @@
    lines <- (:wat::core::Vector :- [:wat::core::String])]
   -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::if (:wat::core::empty? forms)
-    (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
+    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))
     (:wat::core::concat
       (:user::form-edits (:wat::core::first forms) lines)
       (:user::scan (:wat::core::rest forms) lines))))

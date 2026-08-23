@@ -176,7 +176,7 @@
                      hc <- :wat::core::PersistentMap]
       -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
       (:wat::core::concat a
-        (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)
+        (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])
           (:wat::core::Tuple
             (:wat::core::Option/expect (:wat::core::PersistentMap/get hc "?offset") "q-HeadConv: ?offset")
             (:wat::core::Option/expect (:wat::core::PersistentMap/get hc "?len") "q-HeadConv: ?len")
@@ -199,7 +199,7 @@
                      ac <- :wat::core::PersistentMap]
       -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
       (:wat::core::concat a
-        (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)
+        (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])
           (:wat::core::Tuple
             (:wat::core::Option/expect (:wat::core::PersistentMap/get ac "?offset") "q-ArrowConv: ?offset")
             (:wat::core::Option/expect (:wat::core::PersistentMap/get ac "?len") "q-ArrowConv: ?len")
@@ -217,7 +217,7 @@
                      tc <- :wat::core::PersistentMap]
       -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
       (:wat::core::concat a
-        (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String)
+        (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])
           (:wat::core::Tuple
             (:wat::core::Option/expect (:wat::core::PersistentMap/get tc "?offset") "q-TypeConv: ?offset")
             (:wat::core::Option/expect (:wat::core::PersistentMap/get tc "?len") "q-TypeConv: ?len")
@@ -247,14 +247,14 @@
                     ;; query out + action (the transform lives here, outside rete)
                     ;; query-by-type-string (colon-free FQDN) is the checked-body idiom — the bare
                     ;; type-name constructor form `query` wants doesn't type-check in a defn body.
-                    empty-e (:wat::core::Vector :(wat::core::i64,wat::core::i64,wat::core::String))
+                    empty-e (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))
                     e1      (:fix::head-edits  (:wat::rete::query fired (:fix::q-HeadConv))  empty-e)
                     e2      (:fix::arrow-edits (:wat::rete::query fired (:fix::q-ArrowConv)) e1)
                     e3      (:fix::type-edits  (:wat::rete::query fired (:fix::q-TypeConv))  e2)
                     ;; sort right-to-left (descending offset; spans disjoint) so splicing is stable
                     sorted  (:wat::core::sort
-                              (:wat::core::fn [a <- :(wat::core::i64,wat::core::i64,wat::core::String)
-                                               b <- :(wat::core::i64,wat::core::i64,wat::core::String)]
+                              (:wat::core::fn [a <- (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])
+                                               b <- (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])]
                                 -> :wat::core::bool
                                 (:wat::core::> (:wat::core::first a) (:wat::core::first b)))
                               e3)]

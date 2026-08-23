@@ -44,7 +44,7 @@
                 (:wat::core::defn :user::main [] -> :wat::core::nil
                   (:wat::bracket::process-dial-runner
                     (:wat::program::self-peer
-                      :(wat::core::i64,wat::core::String)
+                      (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String])
                       (:wat::bracket::PoolMsg :- [(:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply]) :wat::core::String]))
                     :user::bracket::work-fn
                     :wat::core::None))))
@@ -63,7 +63,7 @@
                           (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None))
                         (:wat::kernel::RecvOutcome::Closed
                           (:wat::kernel::assertion-failed! "recv': worker closed unexpectedly" :wat::core::None :wat::core::None)))
-                      :(wat::core::i64,wat::core::String))
+                      (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String]))
                  _  (:wat::core::match (:wat::kernel::send worker (:wat::bracket::PoolMsg::Work (:wat::core::Tuple 1 "b"))) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) (:wat::kernel::SendOutcome::Stopped nil) ((:wat::kernel::SendOutcome::Lost _c) nil))
                  r2 (:wat::core::ann-form
                       (:wat::core::match (:wat::kernel::recv worker)
@@ -74,7 +74,7 @@
                           (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None))
                         (:wat::kernel::RecvOutcome::Closed
                           (:wat::kernel::assertion-failed! "recv': worker closed unexpectedly" :wat::core::None :wat::core::None)))
-                      :(wat::core::i64,wat::core::String))]
+                      (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String]))]
                 (:wat::core::string::concat (:wat::core::second r1)
                   (:wat::core::string::concat " | " (:wat::core::second r2)))))
             (:wat::core::None

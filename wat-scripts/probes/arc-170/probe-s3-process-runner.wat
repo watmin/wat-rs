@@ -56,5 +56,5 @@
                  (:bracket::pool-runner self)))
              (:wat::core::defn :user::main [] -> :wat::core::nil
                (:bracket::pool-runner
-                 (:wat::program::self-peer :(wat::core::i64,wat::core::i64) :(wat::core::i64,wat::core::i64)))))))]
+                 (:wat::program::self-peer (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64]) (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])))))))]
     (:probe::drain w)))
