@@ -21,7 +21,13 @@
 ;; 5. namespace-prefix marker — a TRAILING `::`, so the EDN name is empty.
 (:wat::core::defn :my::kernel::pfx {:restricted-to [:my::kernel::]} [] -> :wat::core::i64 1)
 
-;; 6. generic method head — a SYMBOL with a comma, and EDN reads `,` as whitespace.
+;; 6. generic method head — arc 109 stone "the last comma lives in a symbol"
+;; retired the comma-carrying `mk<S,R>` spelling (a comma can never enter a
+;; symbol body, at any depth); the multi-param binder form below is the
+;; replacement. `:-` is an ordinary EDN-spellable keyword and `[S R]` an
+;; ordinary vector, so this class no longer exercises an unspellable lexeme —
+;; kept in place as corpus (C03) rather than deleted, since the file is a
+;; population, not a single-purpose fixture.
 (:wat::core::defsurface :u::S :nature :wat::kernel::Peer
   :messages []
-  :features [(mk<S,R> [self <- :u::S] -> :wat::core::i64)])
+  :features [(mk :- [S R] [self <- :u::S] -> :wat::core::i64)])

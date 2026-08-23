@@ -237,11 +237,18 @@ fn parse_method_member_sig(
     sig_items: &[WatAST],
     sig_span: &Span,
 ) -> Result<SurfaceMember, TypeError> {
-    // (name [args...] -> :RetType)
+    // Two spellings for a generic method member, both `(name … [args] -> :R)`:
+    //   (make<T> [args] -> :R)              — inline angle form, single param (no comma:
+    //                                          the arc 109 symbol-comma wall still lexes this)
+    //   (launch :- [S R St Sh Lu] [args] -> ret)  — the `:-` binder, γ-i's shape (siblings,
+    //                                          NO parens around the params) — arc 109 stone
+    //                                          "the last comma lives in a symbol": a
+    //                                          multi-param method name can no longer carry
+    //                                          commas in its Symbol body, so this is now the
+    //                                          only spelling for 2+ type params.
     // sig_items[0] = method name (Symbol)
-    // sig_items[1] = argspec Vector [...]
-    // sig_items[2] = -> (Symbol)
-    // sig_items[3] = :RetType (Keyword)
+    // then EITHER `:- [T U ...]` (binder) OR nothing, followed by:
+    //   argspec Vector [...], `->` (Symbol), :RetType.
     if sig_items.len() < 4 {
         return Err(TypeError::new(
             sig_span.clone(),
@@ -256,11 +263,10 @@ fn parse_method_member_sig(
         ));
     }
 
-    // Item 0: method name (bare Symbol, possibly with type params e.g. `make<T>`).
-    // Arc 293.4e-pre.ii — split via split_method_name_type_params to extract the bare name
-    // and any type_params; monomorphic names (no `<`) produce an empty type_params vec.
-    let (method_name, type_params) = match &sig_items[0] {
-        WatAST::Symbol(s, _) => split_method_name_type_params(s.as_str(), sig_span)?,
+    // Item 0: method name (bare Symbol, possibly with a single inline type param e.g.
+    // `make<T>` — no comma, so it still lexes as one Symbol per the arc 109 symbol wall).
+    let name_raw = match &sig_items[0] {
+        WatAST::Symbol(s, _) => s.as_str(),
         other => {
             return Err(TypeError::new(
                 other.span().clone(),
@@ -275,11 +281,68 @@ fn parse_method_member_sig(
         }
     };
 
-    // Item 1: argspec Vector — parse via parse_argspec_triples, keeping the full ArgSpec.
-    // Arc 293 K0b — ALL binders in a surface method member MUST be typed (`name <- :Type`),
-    // including `self`. A bare untyped binder (e.g. `[self]` without `<-`) is a MalformedDecl;
-    // write `[self <- :TheSurface  …]` (the surface's own name as the self type).
-    let args = match &sig_items[1] {
+    // Arc 109 stone "the last comma lives in a symbol" — teach the door the `:-` binder
+    // (γ-i's shape, already used by `defn`/`fn`: `src/function/metadata.rs::peel_type_binder`).
+    // `name<T>` (no comma) still splits inline via `split_method_name_type_params`
+    // unchanged; a BARE name followed by `:- [T U ...]` peels the binder instead. Neither
+    // form present → monomorphic method, `type_params` stays empty.
+    let (method_name, type_params, rest): (String, Vec<String>, &[WatAST]) =
+        if name_raw.contains('<') {
+            let (bare, params) = split_method_name_type_params(name_raw, sig_span)?;
+            (bare, params, &sig_items[1..])
+        } else if matches!(sig_items.get(1), Some(WatAST::Keyword(k, _)) if k.as_str() == ":-") {
+            match sig_items.get(2) {
+                Some(WatAST::Vector(items, _)) => {
+                    // Mirrors `src/function/metadata.rs::peel_type_binder` (γ-i's shape) —
+                    // `!id.is_reference()` keeps only local binder names.
+                    let params: Vec<String> = items
+                        .iter()
+                        .filter_map(|item| match item {
+                            WatAST::Symbol(id, _) if !id.is_reference() => Some(id.as_str().to_string()),
+                            _ => None,
+                        })
+                        .collect();
+                    (name_raw.to_owned(), params, &sig_items[3..])
+                }
+                _ => {
+                    return Err(TypeError::new(
+                        sig_items[1].span().clone(),
+                        TypeErrorKind::MalformedDecl {
+                            head: HEAD.into(),
+                            reason: format!(
+                                "method member `{}`: `:-` binder must be followed by a \
+                                 `[T U ...]` Vector of type-param names",
+                                name_raw
+                            ),
+                        },
+                    ))
+                }
+            }
+        } else {
+            (name_raw.to_owned(), Vec::new(), &sig_items[1..])
+        };
+
+    if rest.len() < 3 {
+        return Err(TypeError::new(
+            sig_span.clone(),
+            TypeErrorKind::MalformedDecl {
+                head: HEAD.into(),
+                reason: format!(
+                    "method member `{}` sig must have `[args] -> :R` after the name \
+                     (and binder, if any); got {} remaining element(s)",
+                    method_name,
+                    rest.len()
+                ),
+            },
+        ));
+    }
+
+    // Item 1 (of `rest`): argspec Vector — parse via parse_argspec_triples, keeping the
+    // full ArgSpec. Arc 293 K0b — ALL binders in a surface method member MUST be typed
+    // (`name <- :Type`), including `self`. A bare untyped binder (e.g. `[self]` without
+    // `<-`) is a MalformedDecl; write `[self <- :TheSurface  …]` (the surface's own name
+    // as the self type).
+    let args = match &rest[0] {
         WatAST::Vector(items, vec_span) => {
             match crate::argspec::parse_argspec_triples(
                 items,
@@ -320,8 +383,8 @@ fn parse_method_member_sig(
         }
     };
 
-    // Item 2: `->` arrow Symbol.
-    match &sig_items[2] {
+    // Item 2 (of `rest`): `->` arrow Symbol.
+    match &rest[1] {
         WatAST::Symbol(s, _) if s.as_str() == "->" => {}
         other => {
             return Err(TypeError::new(
@@ -338,15 +401,15 @@ fn parse_method_member_sig(
         }
     }
 
-    // Item 3: the return TYPE.
+    // Item 3 (of `rest`): the return TYPE.
     //
     // Arc 109 Stone ②-iii — a type node, not necessarily a keyword: a parametric return is
     // the form `(:wat::cache::Cache::GetResponse :- [V])` since the `:-` migration, and a
     // function return is the bracket `[arg… :-> ret]`. `parse_type_node` is the substrate's
     // one door for all four spellings — the same door the argspec slot above already uses,
     // which is why the ARGUMENT types migrated cleanly while the RETURN type did not.
-    let ret = super::parse_type_node(&sig_items[3]).map_err(|e| TypeError::new(
-        sig_items[3].span().clone(),
+    let ret = super::parse_type_node(&rest[2]).map_err(|e| TypeError::new(
+        rest[2].span().clone(),
         TypeErrorKind::MalformedDecl {
             head: HEAD.into(),
             reason: format!(
@@ -357,7 +420,7 @@ fn parse_method_member_sig(
     ))?;
 
     // Arc 278 #16 Stone 16.0 — OPTIONAL kwargs OPTIONS MAP after `-> :RetType`.
-    // Everything past index 3 (`sig_items[4..]`) is an order-INDEPENDENT sequence of
+    // Everything past `rest[3]` is an order-INDEPENDENT sequence of
     // `:keyword value` PAIRS (kwargs — NOT positional; the design needs a second option
     // `:max-page-bytes` in a later stone, and a positional parse could not hold it). The
     // loop is a general kwargs reader: adding a recognized key later touches only the
@@ -372,7 +435,7 @@ fn parse_method_member_sig(
     // value), a non-keyword where a key is expected, a DUPLICATE key, a non-i64 value, or
     // a value <= 0. (Enforcement / checker rule / codegen are a LATER stone — parse only.)
     let mut max_request_bytes: Option<i64> = None;
-    let opts = &sig_items[4..];
+    let opts = &rest[3..];
     let mut i = 0usize;
     while i < opts.len() {
         // Option KEY — must be a keyword.

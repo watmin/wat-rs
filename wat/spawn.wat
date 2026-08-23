@@ -380,21 +380,22 @@
   ;; arc 291 3a-ii-β: Lu = the lineage UP type (LineageUp); Sh = the ship/admin DOWN type.
   ;; The returned Launched carries the lineage peer as Peer'<Sh,Lu>.
   :features
-  [(launch<S,R,St,Sh,Lu> [self          <- :wat::spawn::Locus
-                          ship          <- :Sh
-                          init          <- :wat::core::keyword
-                          serve         <- :wat::core::keyword
-                          service-forms <- (:wat::core::Vector :- [:wat::WatAST])
-                          lu-addr-kw    <- :wat::core::keyword
-                          ;; arc 278 startup-crash parity: lu-mk-kw is the CONSTRUCTOR twin of
-                          ;; lu-addr-kw (which extracts the addr FROM the lineage-up value). It builds
-                          ;; the lineage-up value FROM the address — for defservice, Status::Started.
-                          ;; The thread tier uses it so its serve closure (built generically here, with
-                          ;; no per-service Status ctor in scope) can send Status::Started AFTER :init
-                          ;; runs, making an :init crash surface over the crash-aware launch handshake
-                          ;; instead of deadlocking the owner's connect'. Process ignores it (its
-                          ;; child-main-form owns the ctor).
-                          lu-mk-kw      <- :wat::core::keyword] -> (:wat::spawn::Launched :- [S R Sh Lu]))
+  [(launch :- [S R St Sh Lu]
+     [self          <- :wat::spawn::Locus
+      ship          <- :Sh
+      init          <- :wat::core::keyword
+      serve         <- :wat::core::keyword
+      service-forms <- (:wat::core::Vector :- [:wat::WatAST])
+      lu-addr-kw    <- :wat::core::keyword
+      ;; arc 278 startup-crash parity: lu-mk-kw is the CONSTRUCTOR twin of
+      ;; lu-addr-kw (which extracts the addr FROM the lineage-up value). It builds
+      ;; the lineage-up value FROM the address — for defservice, Status::Started.
+      ;; The thread tier uses it so its serve closure (built generically here, with
+      ;; no per-service Status ctor in scope) can send Status::Started AFTER :init
+      ;; runs, making an :init crash surface over the crash-aware launch handshake
+      ;; instead of deadlocking the owner's connect'. Process ignores it (its
+      ;; child-main-form owns the ctor).
+      lu-mk-kw      <- :wat::core::keyword] -> (:wat::spawn::Launched :- [S R Sh Lu]))
    ;; Arc 170 M1-pool — work-fn is a GENERIC W (not `Fn(I)->O`): the thread/non-dial
    ;; tiers pass a 1-param `Fn(I)->O`, the process DIAL tier a 2-param `Fn(Peer'<S,R>,I)->O`.
    ;; The impl reifies (process, fn-forms) or applies (thread, unifying W~Fn(I)->O locally)
@@ -406,8 +407,8 @@
    ;; for a plain pool (no dial ever sent), the work-fn's own `<base>::Coords` record for a
    ;; kwargs pool. This is what lets ONE pool coordinator carry both provisionings: the
    ;; carrier is never welded into this surface's return type, only named by it.
-   (spawn-runner<D,I,O,W> [self    <- :wat::spawn::Locus
-                           work-fn <- :W]
+   (spawn-runner :- [D I O W] [self    <- :wat::spawn::Locus
+                               work-fn <- :W]
      -> (:wat::kernel::Peer :- [(:wat::bracket::PoolMsg :- [D I]) (:wat::core::Tuple :- [:wat::core::i64 O])]))])
 
 ;; ── with-label — attach the ps-visible identity to a locus (arc 170 closure #6) ──

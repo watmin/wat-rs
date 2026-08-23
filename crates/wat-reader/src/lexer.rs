@@ -191,6 +191,18 @@ pub enum LexErrorKind {
     /// `:wat::core::op'i64'i64` (type-discriminator). The legacy `,2` /
     /// `,i64-f64` shape was swept in arc 171 slice 2 (~440 sites).
     CommaInKeywordBody,
+    /// Comma inside a bare SYMBOL body while `<...>` is open (arc 109
+    /// stone "the last comma lives in a symbol") — the sibling of
+    /// `CommaInKeywordBody` for the symbol lexer. `mk<S,R>` — a
+    /// multi-param generic method name inside a `defsurface :features`
+    /// declaration — is a Symbol, not a Keyword, and `lex_symbol` kept
+    /// the comma as a type-param separator (arc 271) the same way
+    /// `lex_keyword` once did before arc 109. That carve-out is retired
+    /// here: a comma can never enter a symbol body again. Use the `:-`
+    /// binder form instead — `(launch :- [S R St Sh Lu] [args] -> ret)`
+    /// in place of `(launch<S,R,St,Sh,Lu> [args] -> ret)`. Outside
+    /// `<...>`, `,` remains ordinary EDN whitespace — unaffected.
+    CommaInSymbolBody,
     /// Invalid character literal. Arc 220 slice 2: `\c` form error
     /// (empty body, supplementary-plane codepoint, unknown named char,
     /// or backslash followed by whitespace).
@@ -232,6 +244,14 @@ impl fmt::Display for LexErrorKind {
                 tuple type use the `:-` binder form — `(:wat::core::Tuple :- [T1 T2 T3])` \
                 instead of `:(T1,T2,T3)`. For a function type use the `:->` arrow form — \
                 `[T1 T2 :-> R]` instead of `:fn(T1,T2)->R` (see wat/cache.wat, wat/spawn.wat)."
+            ),
+            LexErrorKind::CommaInSymbolBody => write!(
+                f,
+                "comma inside symbol body retired (arc 109 \"the last comma lives in a symbol\", \
+                closing the arc 271 carve-out): a comma can never appear in a symbol body, at \
+                any depth. A multi-param generic method name like `mk<S,R>` must use the `:-` \
+                binder form instead — `(mk :- [S R] [args] -> ret)` in place of \
+                `(mk<S,R> [args] -> ret)`."
             ),
             LexErrorKind::InvalidChar(msg) => write!(
                 f,
@@ -470,7 +490,7 @@ pub fn lex(src: &str, file: Arc<String>) -> Result<Vec<SpannedToken>, LexError> 
         // Bare symbol — anything else until a break character.
         // end_i = `next` (one past the last char of the symbol).
         let start = i;
-        let (sym, next) = lex_symbol(src, i);
+        let (sym, next) = lex_symbol(src, i)?;
         let tok = match sym.as_str() {
             "true" => Token::Bool(true),
             "false" => Token::Bool(false),
@@ -929,17 +949,22 @@ fn lex_numeric_or_symbol(src: &str, start: usize) -> Result<(Token, usize), LexE
 
 /// Lex a bare symbol (including bools `true` / `false`, which the caller
 /// re-classifies).
-fn lex_symbol(src: &str, start: usize) -> (String, usize) {
+///
+/// Arc 109 stone "the last comma lives in a symbol" — a comma inside
+/// `<...>` used to be KEPT here as a type-param separator (arc 271, so a
+/// multi-type-param generic method name like `combine<A,B>` would still
+/// lex as one Symbol). That carve-out was the last comma-bearing construct
+/// left in the language after the keyword-body wall (arc 109 "the comma
+/// dies in the reader"); it is retired below the same way, at the same
+/// depth tracking — see `LexErrorKind::CommaInSymbolBody`.
+fn lex_symbol(src: &str, start: usize) -> Result<(String, usize), LexError> {
     let bytes = src.as_bytes();
     let mut i = start;
-    // Arc 271 — track `<...>` depth so a multi-type-param generic method name
-    // (a bare Symbol like `combine<A,B>`) keeps the comma that EDN treats as
-    // whitespace (`is_symbol_break`). This mirrors `lex_keyword`'s angle handling
-    // (which is why generic FNS `:foldl<T,Acc>` — keyword names — already worked):
-    // `<` opens a type-head only when preceded by an alphanumeric / `_` / `'`
-    // (`make<`, `Thread'<`), NEVER for a leading/operator `<` (`<-`, `<`, `<=`),
-    // so binder/arrow symbols are unaffected. While `angle_depth > 0`, a comma is
-    // retained instead of breaking the scan; at depth 0 it breaks as before.
+    // `<...>` depth tracking mirrors `lex_keyword`'s: `<` opens a type-head
+    // only when preceded by an alphanumeric / `_` / `'` (`make<`,
+    // `Thread'<`), NEVER for a leading/operator `<` (`<-`, `<`, `<=`), so
+    // binder/arrow symbols are unaffected (STOP-2: `<` `>` `/` `'` all stay
+    // legal symbol characters — only the comma is refused).
     let mut angle_depth = 0i32;
     while i < bytes.len() {
         let c = bytes[i] as char;
@@ -958,15 +983,18 @@ fn lex_symbol(src: &str, start: usize) -> (String, usize) {
             }
             i += 1;
         } else if c == ',' && angle_depth > 0 {
-            // Inside `<...>` the comma separates type params — keep it.
-            i += 1;
+            // Arc 109 — a comma can never enter a symbol body again, at
+            // ANY depth. The generic-method spelling moves to the `:-`
+            // binder form: `(mk :- [S R] [args] -> ret)` instead of
+            // `(mk<S,R> [args] -> ret)`.
+            return Err(LexError { position: i, kind: LexErrorKind::CommaInSymbolBody });
         } else if is_symbol_break(c) {
             break;
         } else {
             i += 1;
         }
     }
-    (src[start..i].to_string(), i)
+    Ok((src[start..i].to_string(), i))
 }
 
 #[cfg(test)]
