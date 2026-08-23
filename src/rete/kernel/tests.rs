@@ -4074,6 +4074,280 @@ fn harvest_wrap_split() {
     );
 }
 
+/// Apportion wrap (8.78 ms / 40k) into clones / Arc / intern-id
+/// (`DESIGN-STONE-harvest-wrap-parts`). No fire-path change.
+#[test]
+fn harvest_wrap_parts() {
+    use std::hint::black_box;
+    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::time::Instant;
+
+    const N: usize = 40_000;
+    const RUNS: usize = 3;
+    const CLASS: &str = "fan::Pair";
+
+    let var = Value::String(Arc::new("?fact".to_string()));
+    let names = Arc::new(vec!["key".into(), "lid".into(), "rid".into()]);
+    let facts: Vec<Value> = (0..N)
+        .map(|i| {
+            Value::Aggregate(Arc::new(AggregateValue::record(
+                CLASS.into(),
+                names.clone(),
+                Arc::new(vec![Value::i64(i as i64), Value::i64(1), Value::i64(2)]),
+            )))
+        })
+        .collect();
+    let pv = crate::value::pvec::PVec::from_vec(facts);
+    let collected: Vec<&Value> = pv
+        .iter()
+        .filter(|f| match f {
+            Value::Aggregate(a) if a.nature != Nature::Struct => a.class.as_ref() == CLASS,
+            _ => false,
+        })
+        .collect();
+    assert_eq!(collected.len(), N, "setup: 40k Pair facts");
+    let pairs: Vec<(Value, Value)> = collected
+        .iter()
+        .map(|f| (var.clone(), (*f).clone()))
+        .collect();
+
+    fn time_ns(n: usize, mut body: impl FnMut()) -> f64 {
+        let t0 = Instant::now();
+        for _ in 0..n {
+            body();
+        }
+        t0.elapsed().as_nanos() as f64 / n as f64
+    }
+
+    {
+        black_box(pairs.clone());
+        let intern = AtomicU64::new(1);
+        for p in &pairs {
+            let a: Arc<[(Value, Value)]> = Arc::from([p.clone()]);
+            black_box(a);
+            intern.fetch_add(1, Ordering::Relaxed);
+        }
+        let maps: Vec<crate::value::pmap::PMap> = collected
+            .iter()
+            .map(|f| crate::value::pmap::PMap::from_pairs([(var.clone(), (*f).clone())]))
+            .collect();
+        black_box(maps);
+    }
+
+    let mut c = 0.0;
+    let mut r = 0.0;
+    let mut i = 0.0;
+    let mut w = 0.0;
+    for _ in 0..RUNS {
+        c += time_ns(1, || {
+            let cloned: Vec<(Value, Value)> = collected
+                .iter()
+                .map(|f| (var.clone(), (*f).clone()))
+                .collect();
+            black_box(cloned);
+        });
+        r += time_ns(1, || {
+            for p in &pairs {
+                let a: Arc<[(Value, Value)]> = Arc::from([p.clone()]);
+                black_box(a);
+            }
+        });
+        i += time_ns(1, || {
+            let intern = AtomicU64::new(1);
+            for _ in 0..N {
+                black_box(intern.fetch_add(1, Ordering::Relaxed));
+            }
+        });
+        w += time_ns(1, || {
+            let maps: Vec<crate::value::pmap::PMap> = collected
+                .iter()
+                .map(|f| crate::value::pmap::PMap::from_pairs([(var.clone(), (*f).clone())]))
+                .collect();
+            black_box(maps);
+        });
+    }
+    let runs = RUNS as f64;
+    c /= runs;
+    r /= runs;
+    i /= runs;
+    w /= runs;
+    assert!(w > 0.0, "from_pairs wrap recorded 0 ns — the loop never ran");
+
+    let ms = |ns: f64| ns / 1e6;
+    println!(
+        "\nharvest wrap parts — {N} one-entry maps, mean of {RUNS}\n\
+             scan paid outside; pairs pre-cloned for R\n\
+             \n\
+             C  clone (var, fact) × 40k            {:>7.2} ms\n\
+             R  Arc::from([pair]) × 40k            {:>7.2} ms\n\
+             I  fetch_add × 40k                    {:>7.2} ms\n\
+             W  from_pairs × 40k                   {:>7.2} ms\n\
+             W−C  wrap minus clones                {:>7.2} ms\n",
+        ms(c),
+        ms(r),
+        ms(i),
+        ms(w),
+        ms(w - c),
+    );
+}
+
+const ACCUM_QUERY_TAIL: &str = "\n\
+(:wat::rete::defquery :apx::q-CountF\n\
+  :params []\n\
+  :when [(?fact <- :apx::CountF)])\n\
+(:wat::rete::defquery :apx::q-SumF\n\
+  :params []\n\
+  :when [(?fact <- :apx::SumF)])\n\
+(:wat::rete::defquery :apx::q-MinF\n\
+  :params []\n\
+  :when [(?fact <- :apx::MinF)])\n\
+(:wat::rete::defquery :apx::q-MaxF\n\
+  :params []\n\
+  :when [(?fact <- :apx::MaxF)])\n\
+(:wat::rete::defquery :apx::q-ExistsF\n\
+  :params []\n\
+  :when [(?fact <- :apx::ExistsF)])\n";
+
+/// Rank accum `[200 200]` FIRE with vs without the five grid queries
+/// (`DESIGN-STONE-accum-class-index`). Census compiles without queries.
+#[test]
+fn accum_query_harvest_split() {
+    use std::time::Instant;
+
+    const G: i64 = 200;
+    const W: i64 = 200;
+    const RUNS: usize = 3;
+    const HARVEST: &str = "  ├ harvest:query";
+    const FIRE_PHASES: [&str; 4] = [
+        "IN: to_transient",
+        "SETUP: indexes",
+        "ROUND LOOP",
+        "OUT: to_persistent",
+    ];
+
+    struct Shot {
+        wall: f64,
+        fire: f64,
+        harvest: f64,
+        query_maps: usize,
+    }
+
+    let query_map_count = |fired: &Value| -> usize {
+        match session_named_field(fired, "query-memory") {
+            Some(Value::wat__core__PersistentMap(pm)) => pm
+                .iter()
+                .map(|(_, v)| match v {
+                    Value::wat__core__PersistentVector(pv) => pv.len(),
+                    _ => 0,
+                })
+                .sum(),
+            _ => 0,
+        }
+    };
+
+    let shot = |with_query: bool| -> Shot {
+        let world_src = if with_query {
+            format!("{ACCUM_AXIS_WORLD}{ACCUM_QUERY_TAIL}")
+        } else {
+            ACCUM_AXIS_WORLD.to_string()
+        };
+        let world = startup_from_source(&world_src, None, Arc::new(InMemoryLoader::new()))
+            .expect("accum query-harvest world should freeze");
+        let compile = if with_query {
+            "(:wat::rete::compile-all (:wat::rete::collect-rules :apx) \
+              (:wat::core::PersistentVector \
+                (:apx::q-CountF) (:apx::q-SumF) (:apx::q-MinF) \
+                (:apx::q-MaxF) (:apx::q-ExistsF)))"
+        } else {
+            "(:wat::rete::compile (:wat::rete::collect-rules :apx))"
+        };
+        let seed_src = format!("(:apx::seed {compile} {G} {W})");
+        let staged = eval_in_frozen(
+            &crate::parse_one!(seed_src.as_str()).expect("parse seed"),
+            &world,
+            &Environment::new(),
+        )
+        .unwrap_or_else(|e| panic!("seed raised: {e:?}"))
+        .value_owned();
+
+        let t0 = Instant::now();
+        let (fired, rows) = super::with_phase_census_counted(|| {
+            fire_rules_on_session(&staged, world.symbols(), None).unwrap_or_else(|e| {
+                panic!("fire-rules raised with_query={with_query}: {e:?}")
+            })
+        });
+        let wall = t0.elapsed().as_nanos() as f64;
+        let of = |name: &str| -> u64 {
+            rows.iter()
+                .find(|(n, _, _)| *n == name)
+                .map(|(_, ns, _)| *ns)
+                .unwrap_or(0)
+        };
+        let fire: u64 = FIRE_PHASES.iter().map(|n| of(n)).sum();
+        Shot {
+            wall,
+            fire: fire as f64,
+            harvest: of(HARVEST) as f64,
+            query_maps: query_map_count(&fired),
+        }
+    };
+
+    let mut without = Shot {
+        wall: 0.0,
+        fire: 0.0,
+        harvest: 0.0,
+        query_maps: 0,
+    };
+    let mut with = Shot {
+        wall: 0.0,
+        fire: 0.0,
+        harvest: 0.0,
+        query_maps: 0,
+    };
+    for _ in 0..RUNS {
+        let a = shot(false);
+        let b = shot(true);
+        without.wall += a.wall;
+        without.fire += a.fire;
+        without.harvest += a.harvest;
+        without.query_maps = a.query_maps;
+        with.wall += b.wall;
+        with.fire += b.fire;
+        with.harvest += b.harvest;
+        with.query_maps = b.query_maps;
+    }
+    let r = RUNS as f64;
+    without.wall /= r;
+    without.fire /= r;
+    without.harvest /= r;
+    with.wall /= r;
+    with.fire /= r;
+    with.harvest /= r;
+
+    let ms = |ns: f64| ns / 1e6;
+    println!(
+        "\naccum query harvest split — [200 200], mean of {RUNS}\n\
+             \n\
+             without queries       wall {:>7.2}  FIRE {:>7.2}  harvest {:>7.2}  maps {}\n\
+             with    five q-*      wall {:>7.2}  FIRE {:>7.2}  harvest {:>7.2}  maps {}\n\
+             delta (query tax)            {:>7.2} ms\n",
+        ms(without.wall),
+        ms(without.fire),
+        ms(without.harvest),
+        without.query_maps,
+        ms(with.wall),
+        ms(with.fire),
+        ms(with.harvest),
+        with.query_maps,
+        ms(with.wall - without.wall),
+    );
+    assert_eq!(without.query_maps, 0, "compile without queries has empty query-memory");
+    assert_eq!(
+        with.query_maps, 1000,
+        "five types × 200 groups = 1000 query maps"
+    );
+}
+
 /// Native FIRE rank across the three instrumented cells now that
 /// fanout is dry (`DESIGN-STONE-cell-rank-after-fanout`).
 #[test]

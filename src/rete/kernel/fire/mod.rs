@@ -935,7 +935,42 @@ fn query_class_scans(arm: &InternedNetwork, network: &Value) -> HashMap<i64, Que
     scans
 }
 
-fn harvest_class_scan(wm: &FireSession, scan: &QueryClassScan) -> Vec<crate::value::pmap::PMap> {
+/// One pass of the closed bag (input ∪ derived), keyed by class.
+/// Five accum queries must not walk 40k Readings five times
+/// (`DESIGN-STONE-accum-class-index`).
+fn closed_bag_by_class(wm: &FireSession) -> HashMap<&str, Vec<&Value>> {
+    let mut idx: HashMap<&str, Vec<&Value>> = HashMap::new();
+    if let Value::wat__core__PersistentVector(pv) = &wm.facts {
+        for f in pv.iter() {
+            if let Value::Aggregate(a) = f {
+                if a.nature != Nature::Struct {
+                    idx.entry(a.class.as_ref()).or_default().push(f);
+                }
+            }
+        }
+    }
+    for f in &wm.derived_facts {
+        if let Value::Aggregate(a) = f {
+            if a.nature != Nature::Struct {
+                idx.entry(a.class.as_ref()).or_default().push(f);
+            }
+        }
+    }
+    idx
+}
+
+fn harvest_class_scan(facts: &[&Value], var: &Value) -> Vec<crate::value::pmap::PMap> {
+    let mut maps = Vec::with_capacity(facts.len());
+    for f in facts {
+        maps.push(crate::value::pmap::PMap::from_pairs([(
+            var.clone(),
+            (*f).clone(),
+        )]));
+    }
+    maps
+}
+
+fn harvest_class_scan_filter(wm: &FireSession, scan: &QueryClassScan) -> Vec<crate::value::pmap::PMap> {
     let matches_class = |f: &Value| match f {
         Value::Aggregate(a) if a.nature != Nature::Struct => a.class.as_ref() == scan.class,
         _ => false,
@@ -945,14 +980,7 @@ fn harvest_class_scan(wm: &FireSession, scan: &QueryClassScan) -> Vec<crate::val
         facts.extend(pv.iter().filter(|f| matches_class(f)));
     }
     facts.extend(wm.derived_facts.iter().filter(|f| matches_class(f)));
-    let mut maps = Vec::with_capacity(facts.len());
-    for f in facts {
-        maps.push(crate::value::pmap::PMap::from_pairs([(
-            scan.var.clone(),
-            f.clone(),
-        )]));
-    }
-    maps
+    harvest_class_scan(&facts, &scan.var)
 }
 
 fn harvest_query_memory(
@@ -960,10 +988,18 @@ fn harvest_query_memory(
     arm: &InternedNetwork,
     scans: &HashMap<i64, QueryClassScan>,
 ) {
-    wm.query.clear();
     if arm.kind_ids.query.is_empty() {
+        wm.query.clear();
         return;
     }
+    // Index pays when N queries would rescan the bag. Fanout is one class
+    // that IS the bag — a HashMap+Vec of 40k refs is slower than one filter.
+    let bag = if scans.len() > 1 {
+        Some(closed_bag_by_class(wm))
+    } else {
+        None
+    };
+    let mut harvested: HashMap<String, Vec<crate::value::pmap::PMap>> = HashMap::new();
     for node_id in &arm.kind_ids.query {
         let node = match get_node(&wm.network, *node_id) {
             Some(n) => n,
@@ -983,7 +1019,15 @@ fn harvest_query_memory(
                 scans.get(aid)
             });
             if let Some(scan) = scan {
-                harvest_class_scan(wm, scan)
+                if let Some(bag) = bag.as_ref() {
+                    let facts = bag
+                        .get(scan.class.as_str())
+                        .map(|v| v.as_slice())
+                        .unwrap_or(&[]);
+                    harvest_class_scan(facts, &scan.var)
+                } else {
+                    harvest_class_scan_filter(wm, scan)
+                }
             } else {
                 let mut maps: Vec<crate::value::pmap::PMap> = Vec::new();
                 for pid in pids {
@@ -996,8 +1040,10 @@ fn harvest_query_memory(
                 maps
             }
         };
-        wm.query.insert(qname, maps);
+        harvested.insert(qname, maps);
     }
+    drop(bag);
+    wm.query = harvested;
 }
 
 // ── Public entry: native fire-once ───────────────────────────────────────────
