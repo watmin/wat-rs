@@ -38,21 +38,20 @@ fn contract_03_structural_parametric_type() {
     // got refused by `keyword/to-type-form` with "angle-bracket parametric types are
     // illegal". Arc 109 wave 2 (THIS stone) walls the LEXER, one door earlier:
     // `:user::topform`'s `read-string` on `"[x <- :wat::core::Vector<wat::core::i64>]"`
-    // now fails at the READER, before `fix-source`/`keyword/to-type-form` ever run — and
-    // `:user::topform`'s `ReadOutcome::Malformed` arm calls `(:wat::core::Error/message
-    // __cause)` on a `:wat::edn::ForeignRecord` with no `message` surface method, so the
-    // read-string path crashes with an unrelated `UnknownFunction` before it can report
-    // the lex refusal cleanly. That crash is a SEPARATE, already-documented defect
-    // (DESIGN-STONE-annihilate-the-angle-bracket.md's sequencing section; identical to
-    // `probe_arc251_decl_migrator.rs`'s `c03`) — out of this stone's boundary.
-    //
-    // Class 3 (b) — re-pointed as a refusal control on the mechanism that now actually
-    // fires. Also (c): the parametric-target case `keyword/to-type-form` exists to parse
-    // is unreachable input from here on — purge candidate for the sibling stone.
-    let err = eval_string(":user::c03").expect_err("angle-bracket source must fail to read");
+    // now fails at the READER, before `fix-source`/`keyword/to-type-form` ever run.
+    // Arc 109 — this reports CLEANLY now. `ReadOutcome::Malformed`'s cause is declared
+    // `:wat::core::Error`, and the decode ladder's FOREIGN arm used to return a
+    // `Value::ForeignRecord` that satisfied that surface nowhere, so every consumer
+    // calling `(:wat::core::Error/message __cause)` — 75 sites across 57 files — died
+    // with `UnknownFunction` instead of reporting the failure. The decoded diagnostic
+    // now rides as a CAUSE under a real `:wat::core::Fault`, through the one
+    // `fault_with_cause` door its sibling `check_failed_cause` already used. So this
+    // asserts the REFUSAL — the thing a refusal control is for — not a crash.
+    let msg = eval_string(":user::c03").expect("the refusal must be REPORTABLE, not a crash");
     assert!( // rune:lint(loose-assert) — targeted substring: the read-string crash's mechanism, not the whole located error's structure
-        err.contains("ForeignRecord") && err.contains("message"),
-        "expected the read-string/ForeignRecord crash (see comment above); got: {err}"
+        msg.contains("annihilate the angle bracket"),
+        "expected the arc 109 angle wall's refusal, reported cleanly through the \
+         ReadOutcome::Malformed cause; got: {msg}"
     );
 }
 

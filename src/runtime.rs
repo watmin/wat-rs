@@ -28943,7 +28943,11 @@ fn check_failed_cause(e: &crate::freeze::StartupError, sym: &SymbolTable) -> Val
     });
 
     match nested {
-        Ok(inner) => fault_with_cause(e.message(), inner),
+        Ok(inner) => fault_with_cause(
+            e.message(),
+            crate::span::Span::new(Arc::new("<runtime>".to_string()), 0, 0),
+            inner,
+        ),
         // A diagnostic whose own EDN neither strict- nor foreign-decodes is itself a
         // defect. Report the headline honestly rather than smuggling the tree back in as
         // prose — a degraded TRUE record beats a complete LYING one.
@@ -28958,17 +28962,26 @@ fn form_outcome_check_failed(e: &crate::freeze::StartupError, sym: &SymbolTable)
 /// A `:wat::core::Fault` carrying one nested structured cause — the shape for "here is
 /// what I can say about this failure, and here is the real diagnostic underneath",
 /// keeping the nested error walkable instead of folding it into the sentence.
-fn fault_with_cause(message: String, cause: Value) -> Value {
+///
+/// Arc 109 — `pub(crate)` and location-taking. THE one door for "a decoded diagnostic
+/// becomes an `:wat::core::Error`". Three sites run the strict→foreign decode ladder
+/// (`check_failed_cause` here, `read_outcome_malformed` and `read_json_outcome_malformed`
+/// in `edn_shim.rs`); each feeds an enum variant whose cause field is DECLARED
+/// `:wat::core::Error`, and the ladder's FOREIGN arm yields a `Value::ForeignRecord` —
+/// a dynamic bag that satisfies that surface NOWHERE. Two of the three used to return it
+/// directly, making the declared type a lie at the boundary. They route through here now,
+/// so the ladder and its disposal cannot drift apart again.
+pub(crate) fn fault_with_cause(
+    message: String,
+    location: crate::span::Span,
+    cause: Value,
+) -> Value {
     Value::Aggregate(Arc::new(AggregateValue::record(
         "wat::core::Fault".into(),
         fault_names(),
         Arc::new(vec![
             Value::String(Arc::new(message)),
-            value_from_span(crate::span::Span::new(
-                Arc::new("<runtime>".to_string()),
-                0,
-                0,
-            )),
+            value_from_span(location),
             Value::Vec(Arc::new(vec![cause])),
         ]),
     )))
@@ -29142,6 +29155,7 @@ pub(crate) fn eval_form_against_defs(
                     "CheckFailed",
                     vec![fault_with_cause(
                         "the accumulated definition set no longer freezes on its own".to_string(),
+                        crate::span::Span::new(Arc::new("<runtime>".to_string()), 0, 0),
                         check_failed_cause(&e, sym),
                     )],
                 ),

@@ -78,42 +78,19 @@ fn c03_generic_decl_name_and_parametric_target() {
     // string containing `Foo<T>` / `Vector<wat::core::i64>` now fails at the READER,
     // before `keyword/to-type-form` is ever reached — and `:user::topform`'s
     // `ReadOutcome::Malformed` arm calls `(:wat::core::Error/message __cause)` on a
-    // `:wat::edn::ForeignRecord` that does not implement a `message` surface method, so
-    // the read-string path now crashes with an unrelated `UnknownFunction` before it
-    // can even report the lex refusal. That crash is a SEPARATE, already-documented
-    // defect (DESIGN-STONE-annihilate-the-angle-bracket.md's sequencing section) — out
-    // of this stone's boundary (test module only, not `read-string`'s Rust or
-    // `wat/edn.wat`'s `ForeignRecord`).
-    //
-    // Class 3 (b) — re-pointed as a refusal control, NOT (a): I tried migrating the
-    // fixture's target to an already-`:-`-form type reference (`(:wat::core::Vector :-
-    // [:wat::core::i64])`) to keep testing "parametric target survives"; that fails a
-    // DIFFERENT way — `:migrate::type-slot-2?`'s branch calls `keyword/to-type-form`
-    // UNCONDITIONALLY on the typealias target (unlike `:migrate::fix-types`'s ast-kind
-    // check for typeunion members), so it cannot accept a List there at all:
-    // `MalformedForm { reason: "keyword/to-type-form requires a Keyword node" }`. So
-    // there is no legal input — parametric or not, keyword or already-`:-`-form — for
-    // which C03 exercises anything beyond what C01 (plain type-slot) and C04
-    // (user-type preservation) already cover. STOP-3: making it green with a plain
-    // keyword target would be a materially weaker assertion wearing this test's name.
-    // Left pointed at the ORIGINAL angle-bracket source instead, re-purposed as a
-    // refusal control on THAT: `read-string` now refuses `Foo<T>` / `Vector<wat::core::
-    // i64>` at the lexer wall, but `:user::topform`'s `ReadOutcome::Malformed` arm
-    // calls `(:wat::core::Error/message __cause)` on a `:wat::edn::ForeignRecord` that
-    // has no `message` surface method — a SEPARATE, already-documented defect
-    // (DESIGN-STONE-annihilate-the-angle-bracket.md's sequencing section) that fires
-    // before the lex refusal can be reported cleanly. Asserting the crash's mechanism
-    // (not a made-up clean message) so this goes red again, honestly, if that separate
-    // bug is ever fixed and the message changes shape.
-    //
-    // Class 3 (c) ALSO applies, more broadly than C02: `keyword/to-type-form`'s whole
-    // reason to exist — parsing a `<...>`-embedded parametric type OUT OF a keyword
-    // string — is dead code. No legal `read-string` input can ever contain such a
-    // keyword again. Purge candidate for the sibling stone.
-    let err = eval_string("c03").expect_err("angle-bracket source must fail to read");
+    // Arc 109 — this reports CLEANLY now. `ReadOutcome::Malformed`'s cause is declared
+    // `:wat::core::Error`, and the decode ladder's FOREIGN arm used to return a
+    // `Value::ForeignRecord` that satisfied that surface nowhere, so every consumer
+    // calling `(:wat::core::Error/message __cause)` — 75 sites across 57 files — died
+    // with `UnknownFunction` instead of reporting the failure. The decoded diagnostic
+    // now rides as a CAUSE under a real `:wat::core::Fault`, through the one
+    // `fault_with_cause` door its sibling `check_failed_cause` already used. So this
+    // asserts the REFUSAL — the thing a refusal control is for — not a crash.
+    let msg = eval_string("c03").expect("the refusal must be REPORTABLE, not a crash");
     assert!( // rune:lint(loose-assert) — targeted substring: the read-string crash's mechanism, not the whole located error's structure
-        err.contains("ForeignRecord") && err.contains("message"),
-        "expected the read-string/ForeignRecord crash (see comment above); got: {err}"
+        msg.contains("annihilate the angle bracket"),
+        "expected the arc 109 angle wall's refusal, reported cleanly through the \
+         ReadOutcome::Malformed cause; got: {msg}"
     );
 }
 

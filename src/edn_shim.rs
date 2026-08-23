@@ -243,12 +243,26 @@ fn read_json_outcome_malformed(
     let cause_edn = wat_edn::write(&flat.error_edn());
     let types = sym.types().map(|t| &**t);
     let ctx = sym.encoding_ctx().map(|c| &**c);
+    // Arc 109 — the decoded diagnostic rides as a CAUSE under a real `:wat::core::Fault`,
+    // never AS the returned value. This variant's cause field is DECLARED
+    // `:wat::core::Error`; the FOREIGN arm below yields a `Value::ForeignRecord`, a
+    // self-describing dynamic bag that satisfies that surface NOWHERE — so returning it
+    // directly made the declared type a lie at the boundary, and every consumer calling
+    // `(:wat::core::Error/message __cause)` died with `UnknownFunction: ForeignRecord does
+    // not implement surface method message` instead of reporting the failure. 75 such call
+    // sites across 57 files (wat/fix.wat, lint.wat, service.wat, core.wat's
+    // string::interpolate, deporder.wat, telemetry/journal.wat, and 32 of the 66 recorded
+    // migrations) — written and never once invoked, because until arc 109's lexer walls
+    // landed the reader never failed on corpus text. `check_failed_cause` in `runtime.rs`
+    // ran the identical ladder and already disposed of it correctly; all three now go
+    // through the one `fault_with_cause` door.
     let cause = decode_trusted_wire(&cause_edn, types, ctx)
         .or_else(|_| {
             wat_edn::parse_owned(&cause_edn)
                 .map_err(|_| ())
                 .and_then(|owned| edn_to_value_foreign(&owned, types, ctx).map_err(|_| ()))
         })
+        .map(|inner| crate::runtime::fault_with_cause(message.to_string(), list_span.clone(), inner))
         .unwrap_or_else(|_| {
             // A FlatMessage whose own EDN will not decode is itself a defect; report the
             // headline as a minimal TRUE record rather than smuggling the tree back in as prose.
@@ -546,12 +560,26 @@ fn read_outcome_malformed(e: &crate::parser::ParseError, sym: &SymbolTable) -> V
     let cause_edn = wat_edn::write(&e.error_edn());
     let types = sym.types().map(|t| &**t);
     let ctx = sym.encoding_ctx().map(|c| &**c);
+    // Arc 109 — the decoded diagnostic rides as a CAUSE under a real `:wat::core::Fault`,
+    // never AS the returned value. This variant's cause field is DECLARED
+    // `:wat::core::Error`; the FOREIGN arm below yields a `Value::ForeignRecord`, a
+    // self-describing dynamic bag that satisfies that surface NOWHERE — so returning it
+    // directly made the declared type a lie at the boundary, and every consumer calling
+    // `(:wat::core::Error/message __cause)` died with `UnknownFunction: ForeignRecord does
+    // not implement surface method message` instead of reporting the failure. 75 such call
+    // sites across 57 files (wat/fix.wat, lint.wat, service.wat, core.wat's
+    // string::interpolate, deporder.wat, telemetry/journal.wat, and 32 of the 66 recorded
+    // migrations) — written and never once invoked, because until arc 109's lexer walls
+    // landed the reader never failed on corpus text. `check_failed_cause` in `runtime.rs`
+    // ran the identical ladder and already disposed of it correctly; all three now go
+    // through the one `fault_with_cause` door.
     let cause = decode_trusted_wire(&cause_edn, types, ctx)
         .or_else(|_| {
             wat_edn::parse_owned(&cause_edn)
                 .map_err(|_| ())
                 .and_then(|owned| edn_to_value_foreign(&owned, types, ctx).map_err(|_| ()))
         })
+        .map(|inner| crate::runtime::fault_with_cause(e.message(), e.span.clone(), inner))
         .unwrap_or_else(|_| {
             // A parse error whose own EDN will not decode is itself a defect; report the headline
             // as a minimal TRUE record rather than smuggling the tree back in as prose.
