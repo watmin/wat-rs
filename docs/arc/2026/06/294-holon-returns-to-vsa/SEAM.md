@@ -1,4 +1,4 @@
-# SEAM — the ONE live breadcrumb. As of 2026-08-23 (②-iii SHIPPED · ③ SHIPPED · the COMMA is dead). Replaced in place.
+# SEAM — the ONE live breadcrumb. As of 2026-08-23 (②-iii · ③ · the COMMA — keyword AND symbol — ALL SHIPPED). Replaced in place.
 
 > ⛔ **THE SELF PAST THIS LINE IS NEW.** You did not live this. It is a lossy cache in your own voice —
 > which is why it will feel like *continuing* rather than *waking*, and **that feeling is the failure.**
@@ -24,7 +24,7 @@
 ⚠ `git status` FIRST. `pgrep -af 'cargo|nextest'`.
 
 ```
-floor .......... 4881/4881, 0 FAIL, 19 skipped, ~80s  (own invocation, scripts/floor.sh, at 575f8fb08)
+floor .......... 4881/4881, 0 FAIL, 19 skipped, ~80s  (own invocation, scripts/floor.sh, at 17cbe1d4f)
                 ⚠ EVERY MOVE IN THIS COUNT IS ACCOUNTED. A count that moves for an
                 unexamined reason is what this line exists to catch:
                   4855 → 4854  the --check stone deleted one test, renamed another
@@ -32,6 +32,7 @@ floor .......... 4881/4881, 0 FAIL, 19 skipped, ~80s  (own invocation, scripts/f
                   4859 → 4866  the builtin-type registry added seven
                   4866 → 4882  ③'s guards + fixtures added sixteen
                   4882 → 4881  the comma strike: 55-file codemod, fixtures restructured
+                  4881 → 4881  the SYMBOL comma wall added no tests (5 fixtures migrated in place)
                 If you floor and see 4881, that is green. Anything else, EXPLAIN before accepting.
 clippy ......... 0 under `-D warnings`
 host ........... JohnDesktop · john · ~/work/holon/wat-rs
@@ -43,15 +44,11 @@ stash@{0} ...... the lifecycle strike. NEVER drop. base ff7705ba.
 ⚠ **`cargo wat` uses the INSTALLED binary at `~/.cargo/bin` and it is STALE.** Use `target/release/wat`.
    It fails with `UnknownFunction` on `keyword/to-type-form-colon`; that is not a finding.
 
-## ⚠⚠ A RIDER IS IN THE FIELD — `the last comma lives in a SYMBOL`
+## ✅ NO RIDER IN THE FIELD — the tree was quiescent at `17cbe1d4f`
 
-**`git status` FIRST.** Brief: `109/BRIEF-STONE-the-last-comma-lives-in-a-symbol.md`. It touches
-`crates/wat-reader/`, `src/types/surface.rs`, and four `.wat` sites. If the tree is dirty, that is its
-work — uncommitted, unfloored, **UNSCORED**.
-
-⚠ **Its row 3 is the one to check first.** Refusing the comma in a symbol goes green for a lexer that
-refuses `<`, `>`, or every symbol — all of which break the language. **Only ordinary symbols still
-lexing** (`:wat::kernel::Peer'`, `foo/bar`, `a<b`) proves it refused the COMMA and nothing else.
+The last-comma stone is SCORED and SHIPPED (`109/SCORE-STONE-the-last-comma-lives-in-a-symbol.md`).
+Rows 1–6 re-run by my own hand. **The census was IMPOSED, not derived** — the wall itself run over
+all 1798 `.wat`/`.wat.bad` files: **ZERO surviving symbol-commas.**
 
 ## ★★ THE WORK: ARC 109 — `:-` IS THE PARAMETERIZATION OPERATOR, AND IT IS THE ONLY ONE
 
@@ -80,10 +77,12 @@ registry      TypeEnv holds the BUILTIN types — THE DOOR tells the truth      
 ②-iii ✅      THE STDLIB SPEAKS `:- [T …]` — 947 forms, 36 files                 2a0d7fa2e
 ③ ✅          ANGLE-BRACKET PARAMETRICS ARE ILLEGAL — 543 files, 710 → 0         ab52b7188
 comma ✅      THE COMMA DIES IN THE READER — one clause; wire escape deleted     575f8fb08
+comma ✅      …AND IN A SYMBOL — the arc 271 carve-out retired; 0 of 1798 left   17cbe1d4f
 ```
 
 ⚠ **`<K,V>` IS UNEXPRESSIBLE.** `Vector<i64>` → *"angle-bracket parametric types are illegal"*.
-A comma in a keyword body → *"comma inside keyword body retired"*. `_`'s language-wide reservation
+A comma in a keyword body → *"comma inside keyword body retired"*; in a SYMBOL body → *"comma inside
+symbol body retired"*. `_`'s language-wide reservation
 inside `<…>` is GONE; `:Vec<a_b>` is an ordinary keyword. Wire mode (`Lexer::new_wire`,
 `Parser::new_wire`, the `,`↔`_` escape) is **deleted, not stubbed** — it had zero external callers.
 
@@ -93,21 +92,45 @@ died. A wall that refuses commas everywhere passes its own test and breaks the l
 
 ## ⛔ NEXT
 
-1. **Score the in-flight rider** (above) — the last comma-bearing construct, 4 sites, 2 in stdlib.
-2. **Seven macros still MINT the angle form** by `string::concat` at expand time —
-   `109/NOTE-seven-macros-still-MINT-the-angle-form.md`. **NOT a blocker**: ②-iii floors green with
-   all of them live, because the names are minted and consumed internally and round-trip. The open
-   question is *"is a macro-built type identity a NAME or a FORM?"* — ③'s territory, wants a DESIGN.
-3. **Two questions filed, both needing a DESIGN against measured ground:**
+1. **`:-` IS NOT YET THE ONLY OPERATOR IN THE METHOD-NAME SLOT.** ⚠ The door
+   (`src/types/surface.rs::parse_method_member_sig`) now takes the binder **AND** the inline
+   `name<T>` spelling — it dispatches on `name_raw.contains('<')` FIRST. `split_method_name_type_params`
+   is unchanged. **Measured: FOUR sites keep the second spelling alive** —
+   `wat-scripts/probes/arc-170/probe-locus1-generic-surface-method.wat:9`,
+   `tests/types/probe_arc293_4e_pre_iii_extend_impl_inherits_types.wat:13`,
+   `tests/types/probe_arc293_4e_pre_ii_generic_surface_method.wat:15` (+ its header comment).
+   Migrate the four, delete the splitter, and the inline angle form leaves the method-name slot the
+   same way ③ took it out of the type slot. **This is the smallest stone on the board.**
+2. **The binder peel's SILENT DISCARD, now at TWO slots.** `filter_map` drops any element of
+   `:- [...]` that is not a non-reference `Symbol`, so `:- [S 3]` silently yields `[S]`. Copied
+   verbatim from `src/function/metadata.rs::peel_type_binder` (γ-i). Close BOTH at once — a slot
+   with two implementations is two slots. (The surface door already tightened one arm: a non-Vector
+   after `:-` now raises `MalformedDecl` where γ-i silently un-peels.)
+3. **The retired spelling survives in PROSE at scale** — **411** comment lines across **139** `.wat`
+   files, **591** across `src/` + `crates/`. FM 14's Bucket B. ⚠ A blind sweep is WRONG: some of
+   these lines RECORD the retirement and must keep the old spelling (Bucket C). Needs the A/B/C/D
+   classification, not a codemod fired off a grep count.
+4. **Seven macros still MINT the angle form** by `string::concat` at expand time —
+   `109/NOTE-seven-macros-still-MINT-the-angle-form.md`. **NOT a blocker**: the floor is green with
+   all of them live; the names are minted and consumed internally and round-trip. The open question
+   is *"is a macro-built type identity a NAME or a FORM?"* — ③'s territory, wants a DESIGN.
+5. **Two questions filed, both needing a DESIGN against measured ground:**
    - `109/NOTE-the-list-rule-and-the-parametric-edn-literal.md` — `'(1 2 3)` satisfies `WatAST` but
      NOT `List<T>`; the lattice exists (`check.rs:15502`, Never-bottom/Value-top) and only the rule
      is missing. **Settle the narrow-numeric LITERAL first** — there is none, so the case that makes
      a container param-spec necessary is unreachable, and the dependency runs literal → container.
    - `109/NOTE-the-three-surviving-primes-want-a-sigil.md` — `sort'` `readln'` `Frame'`, the only
      three left; `'` carries four historical meanings and `$native`/`$impl` say it at the call site.
-4. **A SEVENTH keyword-only slot**, found by audit, unexercised: `parse_defclause_form`'s SHARED
+6. **A SEVENTH keyword-only slot**, found by audit, unexercised: `parse_defclause_form`'s SHARED
    `-> :T` sugar at `runtime.rs:8134`. Not reachable by the migrated set; it bites the moment the
    migration extends past `wat/`.
+
+⚠ **A MULTI-VIOLATION NEGATIVE FIXTURE TESTS WHATEVER THE LEXER REACHES FIRST.** New this stone:
+`probe_arc232_…wat.bad` carried a collateral symbol-comma one line above its actual subject (the
+keyword turbofish). The new wall fired first and silently re-pointed the fixture's own negative
+control at the wrong wall. It went RED only because the assertion names the MECHANISM
+(`"comma inside keyword body retired"`) instead of matching the whole diagnostic. **Assert the
+mechanism, not the message.**
 
 ## ⛔ THE SHAPE THAT BIT SEVEN TIMES — read before any wall
 
