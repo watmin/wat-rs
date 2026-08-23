@@ -1213,6 +1213,11 @@ pub(crate) fn merge_facts(
         Value::wat__core__PersistentVector(v) => v.clone(),
         _ => crate::value::pvec::PVec::new(),
     };
+    #[cfg(test)]
+    {
+        census_count_n("merge:pv-owners", pv.array_owners() as u64);
+        census_count_n("merge:pv-calls", 1);
+    }
     for fact in derived {
         // Conj only if not already present (structural equality, now O(1) amortized).
         if present.insert(fact.clone()) {

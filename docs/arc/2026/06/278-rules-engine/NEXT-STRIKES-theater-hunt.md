@@ -228,7 +228,13 @@ vector of values) — it changes the Session shape the oracle reads.
 
 ---
 
-### T4 — `token_assoc` heap-allocates per call to walk the pool
+### T4 — `token_assoc` heap-allocates per call to walk the pool — ⚠ VOLUME CORRECTED
+
+> **CORRECTION 2026-08-23.** This entry implied per-token volume. Grounded:
+> `token_assoc` has exactly ONE caller (`delta.rs:1084`), the accumulate fold
+> result — **once per group per fold, not per element**. At accum `[200 200]`
+> that is ~200 calls, not 40k. The allocation is real; the volume is two orders
+> of magnitude smaller than the entry implied.
 
 **Site:** `src/rete/kernel/fire/mod.rs:510`.
 
@@ -264,7 +270,15 @@ removed. Size depends on call volume — measure before claiming. If the
 
 ## TIER 2 — real, smaller, or needs care
 
-### T5 — two clones per derived fact per stratum
+### T5 — two clones per derived fact per stratum — ✅ **LANDED 2026-08-23 (unmeasurable, taken on arithmetic)**
+
+> Struck. `new_derived` is dead after the loop, so the vec push MOVES; only the
+> dedup set clones. Probe `strat_acc_derived_clone_parts`: **0.103 ms** isolated
+> at the `[6 2000]` ladder — a CPU probe, therefore an UPPER bound in-fire.
+> In-fire `strat:acc` moved **0.628 → 0.600 ms**, which is noise. **Taken because
+> it is strictly less work (one Arc bump per derived fact instead of two), NOT
+> because it was measured in the fire.** Recorded that way so nobody later cites
+> a win here that the instrument never showed.
 `src/rete/kernel/fire/rules.rs:206-207`
 ```rust
 if acc_derived_set.insert(d.clone()) { acc_derived.push(d.clone()); }
@@ -285,7 +299,14 @@ hash (`u64`) of the span would key the set without materializing. Care: must
 preserve the distinct-inner-binds semantics Clara's `test-simple-exists`
 asserts. Do after T2 (same code region).
 
-### T7 — `Op::Or` / `Op::Not` allocate a SlotFrame per branch, per element
+### T7 — `Op::Or` / `Op::Not` allocate a SlotFrame per branch, per element — ⚠ COLD, source says so
+
+> **CORRECTION 2026-08-23.** This entry claimed the site is "hot in any `where`
+> with `:or`/`:not` over a large alpha". The source already says otherwise —
+> `compiled_cond.rs:558`: *"The one exception is `Op::Or`/`Op::Not`, which clone
+> `scratch` into a fresh temporary — **not exercised by anything in the live grid
+> corpus**."* Like T2, the allocation is real but **no grid axis reaches it**, so
+> no win here is demonstrable without its own probe. Re-ranked with T2.
 `src/rete/compiled_cond.rs:870,878`
 ```rust
 let mut clone: SlotFrame = slots.to_vec();
@@ -389,3 +410,82 @@ touched. Awaiting the builder's call.**
 (recasts 33 + 34). Since then **`e21b7fba`** landed real code
 (`fire/delta.rs`, +28/−7 — catch-up takes parent beta). Per the loop's own
 step 1 that intern is **un-watched**. `a58f9dda` is grid text only.
+
+---
+
+## THE STRATIFIED LOOP WAS UNMEASURED — and the instrument changed the target
+
+**2026-08-23.** About to spend a stone on T5's 0.103 ms, it became obvious that
+`fire_rules_stratified` carried **no phase marks at all** except
+`harvest:query`. 11.4 ms on strat-neg was entirely unapportioned. Grinding a
+0.1 ms cut inside an unmeasured 11 ms is not engineering.
+
+`fire/rules.rs` is now instrumented (`strat:slice` / `strat:session` /
+`strat:collect` / `strat:merge` / `strat:acc`) and `strat_neg_stratum_split`
+reads it. The marks are `#[cfg(test)]` — the release binary the grid measures
+is byte-unchanged.
+
+### Where strat-neg `[6 2000]` actually goes (no query, mean of 3)
+
+| lump | ms | share |
+|---|---:|---:|
+| **FIRE (4 phases)** | **8.392** | 72% |
+| `strat:merge` | 1.387 | 12% |
+| `strat:acc` | 0.600 | 5% |
+| `strat:slice` | 0.109 | 1% |
+| `strat:collect` | 0.106 | 1% |
+| `strat:session` | 0.006 | 0% |
+| unaccounted (freeze/seed/outside marks) | ~1.04 | 9% |
+| wall | 11.641 | |
+
+**The hypothesis that sent me here was wrong.** I expected the per-stratum
+network rebuild — `close_upstream` + `slice_active_network` +
+`subset_rete_arm`, run once per stratum — to be the hidden cost. It is
+`strat:slice` = **0.109 ms**. Not the target. Recorded because a wrong guess
+that the instrument corrects is cheaper than a wrong guess that ships.
+
+**The loop scaffolding is ~2.2 ms of 11.6, and most of it is persistent-
+collection maintenance** (`merge` + `acc` = 1.99 ms), which is what a Session
+holding a `PersistentVector` costs. The remaining lever on this axis is FIRE
+itself at 8.4 ms, not the loop around it.
+
+## A hypothesis the measurement killed — and the cliff it left behind
+
+`push_back_mut` on `PVec::Array` is `Arc::make_mut(items).push(v)`, and
+`merge_facts` clones the closure while the caller's copy is still alive. That
+reads as a textbook copy-on-write bug: the first push of every stratum would
+deep-copy the whole `Vec`, 2000+3000+…+7000 = **27000 Value clones per fire** —
+the exact shape T1 cut on the hashing side.
+
+Probe `strat_merge_cow_parts` confirmed the cost **for the Array arm**:
+
+| lump | ms |
+|---|---:|
+| A SHARED receiver | 2.311 |
+| B UNIQUE receiver | 0.292 |
+| **A−B** | **2.019** (8×) |
+
+**Then the fire said no.** `strat_merge_pv_owner_count` instruments
+`merge_facts` directly: 6 calls, summed owner count **0**, and `array_owners`
+returns 0 only for the **Tree** arm. The closure PVec is rpds `VectorSync`, so
+`push_back_mut` path-copies O(log n) and **no whole-Vec deep copy happens**.
+The probe measured a fixture built with `PVec::from_vec` (Array); the fire does
+not use that arm. **No strike. Hypothesis falsified by measurement, not by
+argument.**
+
+> ⚠ **LATENT CLIFF — the 8× is real, it is just not armed today.** If the
+> closure ever reaches `merge_facts` as `Array` while the caller's copy is
+> alive, every stratum deep-copies the whole Vec.
+> `strat_merge_pv_owner_count` is the **tripwire**: it prints the arm and
+> asserts the call count. If `arm` ever reads `Array`, read
+> `strat_merge_cow_parts` before anything else. `DESIGN-STONE-promoting-vector`
+> is the other end of this thread — it is what decides which arm a vector is in.
+
+### The probe-reading rule, now with a third case
+
+- **CPU probe** (hashing, comparison) → **upper** bound in-fire. (T1)
+- **ALLOCATION probe** → **lower** bound in-fire; a tight loop lets the
+  allocator cache what the fire cannot. (T3)
+- **A probe whose FIXTURE picks a representation** → may measure a code path
+  the fire never takes. Build the fixture the way the fire builds it, or
+  instrument the fire and check. (this section)

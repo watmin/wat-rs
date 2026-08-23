@@ -110,6 +110,7 @@ pub(crate) fn fire_rules_stratified(
     let mut acc_derived_set: HashSet<Value> = HashSet::new();
 
     for s in 0..=max_s {
+        let __st_slice = phase_start();
         // Filter the original typed rule set to this stratum (same filter the oracle's
         // fire-stratified-loop applies, `wat/rete/oracle/fire.wat`) — this IS the production
         // gate (see doc comment above): only these rules' ProductionNodes may fire this call.
@@ -161,6 +162,7 @@ pub(crate) fn fire_rules_stratified(
 
         let slice_arm =
             subset_rete_arm(&full_arm, &active_ids, &stratum_rule_names, &sliced_network);
+        phase_end("  ├ strat:slice", __st_slice);
 
         // Reuse the ALREADY-compiled (now stratum-sliced) network + next-id (no
         // `invoke_wat_compile` call); fresh empty alpha/beta/production memories (same
@@ -168,6 +170,7 @@ pub(crate) fn fire_rules_stratified(
         // lower strata. The slice arm is a value on this pass — not interned
         // (slice rust_identity is not the connection Session; `release-session`
         // would never see it).
+        let __st_sess = phase_start();
         let empty_pm = Value::wat__core__PersistentMap(crate::value::pmap::PMap::new());
         let sub_sess = session_with_fields(
             session,
@@ -181,6 +184,7 @@ pub(crate) fn fire_rules_stratified(
                 ("next-id", next_id.clone()),
             ],
         );
+        phase_end("  ├ strat:session", __st_sess);
 
         let fired = fire_fixpoint_delta_armed(
             &sub_sess,
@@ -198,19 +202,31 @@ pub(crate) fn fire_rules_stratified(
         let production_pm = session_named_field(&fired, "production-memory")
             .cloned()
             .unwrap_or_else(|| Value::wat__core__PersistentMap(crate::value::pmap::PMap::new()));
+        let __st_collect = phase_start();
         let new_derived = collect_derived(&production_pm);
+        phase_end("  ├ strat:collect", __st_collect);
 
         // acc_facts := this stratum's post-fixpoint closure (seed ∪ new_derived), for the next
         // stratum's `:not` to see — the value the oracle gets for free by reading
         // `(:wat::rete::Session/facts fired)` (`wat/rete/oracle/fire.wat`).
+        let __st_merge = phase_start();
         acc_facts = merge_facts(&acc_facts, &mut acc_present, &new_derived);
+        phase_end("  ├ strat:merge", __st_merge);
 
         // acc_derived := value-dedup union across strata (mirrors `merge-facts`, R18 — NOT concat).
-        for d in &new_derived {
+        // `new_derived` is dead after this loop, so the vec push MOVES — only the
+        // dedup set needs an owned clone (T5, `NEXT-STRIKES-theater-hunt.md`).
+        // One Arc bump per derived fact instead of two. Isolated at 0.103 ms per
+        // [6 2000] fire; below the in-fire noise floor and NOT separately
+        // weighable — taken because it is strictly less work, not because it
+        // was measured in the fire.
+        let __st_acc = phase_start();
+        for d in new_derived {
             if acc_derived_set.insert(d.clone()) {
-                acc_derived.push(d.clone());
+                acc_derived.push(d);
             }
         }
+        phase_end("  └ strat:acc", __st_acc);
     }
 
     // Pack derived facts into production-memory {0: acc_derived} (mirrors fire-stratified's

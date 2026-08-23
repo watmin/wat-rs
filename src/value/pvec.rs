@@ -48,6 +48,17 @@ impl PVec {
         PVec::Array(Arc::new(items))
     }
 
+    /// Test-only: how many owners share this Array's buffer, or 0 for Tree.
+    /// `1` means `push_back_mut` grows in place; `>1` means `Arc::make_mut`
+    /// deep-copies the whole `Vec` on the next push.
+    #[cfg(test)]
+    pub(crate) fn array_owners(&self) -> usize {
+        match self {
+            PVec::Array(a) => Arc::strong_count(a),
+            PVec::Tree(_) => 0,
+        }
+    }
+
     pub fn len(&self) -> usize {
         match self {
             PVec::Array(v) => v.len(),
