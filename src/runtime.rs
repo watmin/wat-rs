@@ -4082,23 +4082,26 @@ pub(crate) fn parse_type_keyword(kw: &str) -> Result<crate::types::TypeExpr, Run
 /// arm has no Vector case) — a hard failure on every structured type slot this stone's
 /// codemod produced.
 fn resolve_type_slot_args(rest: &[WatAST]) -> Result<Vec<crate::types::TypeExpr>, EvalBreak> {
-    match rest {
-        [WatAST::Keyword(k, _), WatAST::Vector(inner, span), extra @ ..] if k == ":-" => {
-            if !extra.is_empty() {
-                return Err(RuntimeError::new(
-                    span.clone(),
-                    RuntimeErrorKind::MalformedForm {
-                        head: ":wat::core::defn".into(),
-                        reason: "a type declaration cannot carry initial values — \
-                                  `(Head :- [types] v…)` is a LITERAL, and a literal is not a \
-                                  type"
-                            .into(),
-                    },
-                )
-                .into());
-            }
-            inner.iter().map(parse_type_slot).collect()
+    let (peeled, extra) = crate::types::peel_param_spec(rest);
+    if let Some(inner) = peeled {
+        if !extra.is_empty() {
+            // `peel_param_spec` only returns `Some` when `rest[1]` was the `Vector`
+            // it peeled — its span is the right anchor for this diagnostic.
+            return Err(RuntimeError::new(
+                rest[1].span().clone(),
+                RuntimeErrorKind::MalformedForm {
+                    head: ":wat::core::defn".into(),
+                    reason: "a type declaration cannot carry initial values — \
+                              `(Head :- [types] v…)` is a LITERAL, and a literal is not a \
+                              type"
+                        .into(),
+                },
+            )
+            .into());
         }
+        return inner.iter().map(parse_type_slot).collect();
+    }
+    match rest {
         [WatAST::Vector(inner, _)] => inner.iter().map(parse_type_slot).collect(),
         positional => positional.iter().map(parse_type_slot).collect(),
     }
@@ -7413,6 +7416,20 @@ fn dispatch_keyword_head_value(
                     }
                 }
             }
+
+            // STONE-finish-the-param-spec (arc 109) — position 4's RUNTIME twin of the
+            // check.rs peel just above `resolve_type_slot_args`'s sibling site: a call
+            // `(:f :- [T…] a…)` reaching this generic user-function dispatch must not
+            // count `:-` and `[T…]` as two extra positional args (measured pre-stone:
+            // `ArityMismatch: expected 1, got 3` even after check.rs accepted the same
+            // call). Types are erased at runtime — nothing here NEEDS the peeled type
+            // nodes themselves (check.rs already validated and bound them against the
+            // callee's declared type params); this call only needs the REST. Shadows
+            // `args` for the remainder of this arm (the func lookup, the nested
+            // aggregate-ctor / keyword-accessor fallbacks, and the final positional
+            // eval loop) — the surface-method dispatch block just above, a separate
+            // consumer this stone does not touch, keeps seeing the original `args`.
+            let (_, args) = crate::types::peel_param_spec(args);
 
             // Arc 139 — strip `<T,...>` from the head before lookup.
             // The substrate registers user defines under the canonical

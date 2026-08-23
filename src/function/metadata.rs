@@ -46,12 +46,9 @@ pub(super) fn peel_metadata_preamble(args: &[WatAST]) -> &[WatAST] {
 /// diagnostic ("expected a vector ... got keyword") fires naturally on the
 /// stray `:-` keyword, rather than this peel inventing a second error path.
 pub(crate) fn peel_type_binder(args: &[WatAST]) -> (Option<Vec<String>>, &[WatAST]) {
-    let has_binder = matches!(args.first(), Some(WatAST::Keyword(k, _)) if k == ":-");
-    if !has_binder {
-        return (None, args);
-    }
-    match args.get(1) {
-        Some(WatAST::Vector(items, _)) => {
+    let (peeled, rest) = crate::types::peel_param_spec(args);
+    match peeled {
+        Some(items) => {
             let names: Vec<String> = items
                 .iter()
                 .filter_map(|item| match item {
@@ -59,9 +56,9 @@ pub(crate) fn peel_type_binder(args: &[WatAST]) -> (Option<Vec<String>>, &[WatAS
                     _ => None,
                 })
                 .collect();
-            (Some(names), &args[2..])
+            (Some(names), rest)
         }
-        _ => (None, args),
+        None => (None, args),
     }
 }
 

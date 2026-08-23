@@ -64,7 +64,7 @@ fn declared_name(items: &[wat_reader::WatAST]) -> Option<(&str, usize)> {
     let wat_reader::WatAST::Keyword(name, _) = items.get(1)? else { return None };
     // `:-` lexes as a KEYWORD, not a symbol — measured against the reader, not assumed
     // (`src/types.rs::is_binder_marker` matches the same way).
-    let has_binder = matches!(items.get(2), Some(wat_reader::WatAST::Keyword(k, _)) if k == ":-")
+    let has_binder = matches!(items.get(2), Some(wat_reader::WatAST::Keyword(k, _)) if k == ":-") // rune:lint(one-param-spec) — this crate depends only on wat-reader (cycle: wat-macros -> wat-doc -> this), so it cannot reach `crate::types::peel_param_spec` in the `wat` crate; re-derives the identical test wat_reader-only.
         && matches!(items.get(3), Some(wat_reader::WatAST::Vector(_, _)));
     // The name-embedded spelling: params live INSIDE the keyword, so the base is the text
     // before the `<`. A `<` with no matching `>` is not a param list (`:wat::core::<` is a

@@ -290,9 +290,16 @@ fn parse_method_member_sig(
         if name_raw.contains('<') {
             let (bare, params) = split_method_name_type_params(name_raw, sig_span)?;
             (bare, params, &sig_items[1..])
-        } else if matches!(sig_items.get(1), Some(WatAST::Keyword(k, _)) if k.as_str() == ":-") {
-            match sig_items.get(2) {
-                Some(WatAST::Vector(items, _)) => {
+        } else {
+            // STONE-finish-the-param-spec (arc 109) — routed through the one door
+            // (`crate::types::peel_param_spec`) rather than this site's own hand-rolled
+            // `k == ":-"` test + `[Vector, rest @ ..]` peel (found as a TENTH instance of
+            // the class this stone exists to close — not among the brief's original nine,
+            // but the exact same shape, so the rune below would refuse it either way).
+            let tail = &sig_items[1..];
+            let has_marker = tail.first().is_some_and(crate::types::is_binder_marker);
+            match crate::types::peel_param_spec(tail) {
+                (Some(items), after) => {
                     // Mirrors `src/function/metadata.rs::peel_type_binder` (γ-i's shape) —
                     // `!id.is_reference()` keeps only local binder names.
                     let params: Vec<String> = items
@@ -302,11 +309,11 @@ fn parse_method_member_sig(
                             _ => None,
                         })
                         .collect();
-                    (name_raw.to_owned(), params, &sig_items[3..])
+                    (name_raw.to_owned(), params, after)
                 }
-                _ => {
+                (None, _) if has_marker => {
                     return Err(TypeError::new(
-                        sig_items[1].span().clone(),
+                        tail[0].span().clone(),
                         TypeErrorKind::MalformedDecl {
                             head: HEAD.into(),
                             reason: format!(
@@ -315,11 +322,10 @@ fn parse_method_member_sig(
                                 name_raw
                             ),
                         },
-                    ))
+                    ));
                 }
+                (None, _) => (name_raw.to_owned(), Vec::new(), tail),
             }
-        } else {
-            (name_raw.to_owned(), Vec::new(), &sig_items[1..])
         };
 
     if rest.len() < 3 {

@@ -5480,6 +5480,36 @@ fn infer_list(
             };
         }
 
+        // STONE-finish-the-param-spec (arc 109) — position 4: `(:f :- [T…] a…)` peels
+        // its param-spec here, BEFORE arity is ever counted, so `:-` and `[T…]` stop
+        // being read as two extra positional args (measured pre-stone: `ArityMismatch:
+        // expected 1, got 3`). `args` shadows for the rest of this call's handling —
+        // arity checks, the per-arg unify loop, and `alarm_op_internal_check`'s
+        // positional-prime read all see the REST, never the marker. Explicit type args
+        // (when present) seed the scheme's fresh-var instantiation below instead of
+        // being discarded — the callee's declared type params are BOUND from them,
+        // exactly as A's exemplar (`unwrap_type_param_bracket`) binds Vector's `T` from
+        // its peeled bracket. `defclause` dispatch, just above, is untouched — it is a
+        // declaration-position consumer, out of this stone's two-value-position scope.
+        let (type_args_raw, args) = crate::types::peel_param_spec(args);
+        let type_args: Option<Vec<TypeExpr>> = type_args_raw.map(|raw| {
+            raw.iter()
+                .map(|node| {
+                    crate::types::parse_type_node(node).unwrap_or_else(|e| {
+                        local_errors.push(CheckError {
+                            span: e.span().clone(),
+                            kind: CheckErrorKind::MalformedForm {
+                                head: k.clone(),
+                                reason: format!("malformed type-param argument: {}", e),
+                                remedies: vec![],
+                            },
+                        });
+                        fresh.fresh()
+                    })
+                })
+                .collect()
+        });
+
         // Normal call: look up scheme, instantiate, unify args.
         // Arc 139 — strip turbofish `<T,...>` from the head before
         // env.get. The substrate registers user defines under the
@@ -5603,7 +5633,10 @@ fn infer_list(
             }
         };
 
-        let (param_types, ret_type) = instantiate(scheme, fresh);
+        let (param_types, ret_type) = match &type_args {
+            Some(concrete) => instantiate_with_args(scheme, concrete, fresh),
+            None => instantiate(scheme, fresh),
+        };
 
         // Arc 294 item 9a — user-facing errors from this scheme-resolved call
         // report the CANONICAL name. `k` may be a generated aggregate-ctor
@@ -12011,13 +12044,14 @@ pub(crate) fn unwrap_type_param_bracket(args: &[WatAST]) -> Cow<'_, [WatAST]> {
     // as `split_type_param_bracket`: under `:-` the bracket is a param-spec BY DECLARATION, and
     // the position was never allowed to hold data. The unmarked arm is unchanged (dual-read;
     // ③ deletes it).
+    let (peeled, rest) = crate::types::peel_param_spec(args);
+    if let Some(inner) = peeled {
+        let mut spliced = Vec::with_capacity(inner.len() + rest.len());
+        spliced.extend(inner.iter().cloned());
+        spliced.extend(rest.iter().cloned());
+        return Cow::Owned(spliced);
+    }
     match args {
-        [WatAST::Keyword(k, _), WatAST::Vector(inner, _), rest @ ..] if k == ":-" => {
-            let mut spliced = Vec::with_capacity(inner.len() + rest.len());
-            spliced.extend(inner.iter().cloned());
-            spliced.extend(rest.iter().cloned());
-            Cow::Owned(spliced)
-        }
         [WatAST::Vector(inner, _), rest @ ..] => {
             let mut spliced = Vec::with_capacity(inner.len() + rest.len());
             spliced.extend(inner.iter().cloned());
@@ -12079,10 +12113,13 @@ pub(crate) fn is_type_bracket_candidate(items: &[WatAST]) -> bool {
 pub(crate) fn split_type_param_bracket(
     args: &[WatAST],
 ) -> Option<(&[WatAST], &Span, &[WatAST])> {
+    let (peeled, rest) = crate::types::peel_param_spec(args);
+    if let Some(inner) = peeled {
+        // `peel_param_spec` only returns `Some` when `args[1]` was the `Vector` it
+        // peeled — its span is the bracket's span.
+        return Some((inner, args[1].span(), rest));
+    }
     match args {
-        [WatAST::Keyword(k, _), WatAST::Vector(inner, bspan), rest @ ..] if k == ":-" => {
-            Some((inner.as_slice(), bspan, rest))
-        }
         [WatAST::Vector(inner, bspan), rest @ ..] if is_type_bracket_candidate(inner) => {
             Some((inner.as_slice(), bspan, rest))
         }
@@ -16117,6 +16154,43 @@ fn instantiate(scheme: &TypeScheme, fresh: &mut InferCtx) -> (Vec<TypeExpr>, Typ
     let mut mapping: HashMap<String, TypeExpr> = HashMap::new();
     for tp in &scheme.type_params {
         mapping.insert(tp.clone(), fresh.fresh());
+    }
+    let params = scheme
+        .params
+        .iter()
+        .map(|p| rename(p, &mapping))
+        .collect();
+    let ret = rename(&scheme.ret, &mapping);
+    (params, ret)
+}
+
+/// STONE-finish-the-param-spec (arc 109) — like [`instantiate`], but a call site that
+/// peeled an explicit `:- [T…]` param-spec (position 4: `(:f :- [T…] a…)`) seeds the
+/// scheme's type-params from THOSE concrete types instead of fresh unification vars.
+/// This is the "bind the callee's declared type params" half of the exemplar route
+/// (mirrors how splicing `[T]`'s contents back into Vector's args lets its ctor read
+/// the declared element type directly, rather than inferring it purely from values).
+///
+/// `type_args` shorter than `scheme.type_params` — a caller who under-supplies type
+/// args — falls back to a fresh var for each missing trailing param, exactly like
+/// `instantiate`'s uniform fresh-var behavior; a longer `type_args` simply leaves its
+/// extra entries unused. Neither shape is refused here: STOP-2 is for a currently-green
+/// program changing meaning, and no program reaches this arm today (positions 3/4 were
+/// unreachable before this stone), so there is nothing to protect by refusing arity
+/// mismatches on this brand-new surface — a mismatched count still produces a sound,
+/// merely under- or over-determined, instantiation.
+fn instantiate_with_args(
+    scheme: &TypeScheme,
+    type_args: &[TypeExpr],
+    fresh: &mut InferCtx,
+) -> (Vec<TypeExpr>, TypeExpr) {
+    if scheme.type_params.is_empty() {
+        return (scheme.params.clone(), scheme.ret.clone());
+    }
+    let mut mapping: HashMap<String, TypeExpr> = HashMap::new();
+    for (i, tp) in scheme.type_params.iter().enumerate() {
+        let bound = type_args.get(i).cloned().unwrap_or_else(|| fresh.fresh());
+        mapping.insert(tp.clone(), bound);
     }
     let params = scheme
         .params

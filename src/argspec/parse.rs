@@ -166,8 +166,8 @@ fn parse_triple(
     // Arc 251.4a — accept the `:-` annotation keyword (core.typed parity) as a
     // dual-read alias for the legacy `<-` binder arrow. The `<-` arrow HARD-CUTs at
     // 251.5 (the corpus `<-`→`:-` sweep rides the unified 251.5 sweep).
-    let is_annotation_arrow = triple[1].is_bare_symbol("<-")
-        || matches!(&triple[1], WatAST::Keyword(k, _) if k == ":-");
+    let is_annotation_arrow =
+        triple[1].is_bare_symbol("<-") || crate::types::is_binder_marker(&triple[1]);
     if !is_annotation_arrow {
         return Err(ArgSpecError {
             span: triple[1].span().clone(),

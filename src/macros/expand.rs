@@ -532,16 +532,32 @@ pub(super) fn expand_form(
             // constructor call `(:user::R :field v)` — that shape has NO `:-` at index 1, so
             // it never reaches this guard and is not this stone's concern.
             //
+            // STONE-finish-the-param-spec (arc 109) — refines the shape test above.
+            // `items.get(1).is_some_and(is_binder_marker)` alone cannot tell a bare TYPE
+            // REFERENCE (`(:user::R :- [T])`, nothing after the bracket) from a
+            // PARAMETERIZED CONSTRUCTOR CALL (`(:user::R :- [T] :field v)`, real args
+            // after it) — both carry the marker at index 1. Only the FORMER is a type
+            // reference; the LATTER is exactly the value-application position 3 this
+            // stone teaches. `peel_param_spec` (the one door, `types.rs`) tells them
+            // apart: `is_type_reference` now requires the peeled REST to be empty too.
+            // When the rest is non-empty, the marker+bracket are dropped from the args
+            // handed to the companion macro — `(:user::R :- [T] :field v)` reaches the
+            // SAME kwargs-construct path `(:user::R :field v)` already does, and T is
+            // bound from the field VALUE exactly as the unmarked call already binds it
+            // (mirrors A's exemplar route: peel through the door, then let the existing,
+            // unmarked-form machinery do the rest — not a second binding mechanism).
+            //
             // Arc 294 item 9a (sequential registration): the `contains` probe + scoped
             // `get` keep the `&MacroDef` borrow alive only until `expand_macro_call`
             // returns the OWNED expansion; the registry is then free to be re-borrowed
             // `&mut` for the output fixpoint (which may register the expansion's own
             // `defmacro` children). Cheaper than cloning the MacroDef on every call.
             if let Some(WatAST::Keyword(head, head_span)) = items.first() {
-                let is_type_reference = items.get(1).is_some_and(crate::types::is_binder_marker);
+                let (type_args, rest_after_marker) = crate::types::peel_param_spec(&items[1..]);
+                let is_type_reference = type_args.is_some() && rest_after_marker.is_empty();
                 if registry.contains(head) && !is_type_reference {
                     let head_span = head_span.clone();
-                    let args = items[1..].to_vec();
+                    let args = rest_after_marker.to_vec();
                     let expanded = {
                         let def = registry.get(head).expect("contains checked immediately above");
                         expand_macro_call(def, args, list_span.clone(), head_span, env, sym)?

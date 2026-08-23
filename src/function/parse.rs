@@ -161,8 +161,8 @@ pub(in crate::function) fn parse_fn_signature_prefix(
     // dual-read alias for the legacy `->` return arrow. The `->` arrow HARD-CUTs at
     // 251.5. (This is the fn-SIGNATURE arrow at sig[1], distinct from the `->`
     // threading-macro call head and from the `:->` fn-TYPE arrow of 251.4c.)
-    let is_annotation_arrow = sig[1].is_bare_symbol("->")
-        || matches!(&sig[1], WatAST::Keyword(k, _) if k == ":-");
+    let is_annotation_arrow =
+        sig[1].is_bare_symbol("->") || crate::types::is_binder_marker(&sig[1]);
     if !is_annotation_arrow {
         return Err(ParseStep {
             span: sig[1].span().clone(),

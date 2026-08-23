@@ -4656,6 +4656,39 @@ pub(crate) fn is_binder_marker(node: &WatAST) -> bool {
     matches!(node, WatAST::Keyword(k, _) if k == ":-")
 }
 
+/// STONE-finish-the-param-spec (arc 109) — the ONE door that peels the
+/// `(marker, [types], rest…)` TRIPLE. `is_binder_marker`, just above, answers
+/// only *"is this node `:-`"*; every consumer that also needed the type list
+/// hand-rolled the `[Keyword, Vector, rest @ ..]` slice pattern itself — nine
+/// sites, no two guaranteed to agree. This is the door all nine now call.
+///
+/// `[:- [T U …] rest…]` → `(Some(&[T,U,…]), rest)`;  no marker → `(None, args)`.
+///
+/// - No `:-` at `args[0]` → unchanged: `(None, args)`.
+/// - `:- []` → `(Some(&[]), rest)`, **never** `(None, _)` — the empty binder is
+///   *expressed*, not absent (the builder's rule: `absent ≡ :- [] ≡ :- []`).
+/// - `:-` present but NOT followed by a `WatAST::Vector` → the marker is left
+///   UNPEELED: `(None, args)`. A malformed binder is a shape for the caller's
+///   own diagnostic to name, not for this door to invent a second error path
+///   for (mirrors `peel_type_binder`'s existing "leave it for the natural
+///   'expected a vector' error" rule).
+/// - `:-` as the LAST element (nothing follows the marker itself, so there is
+///   no vector to peel) → falls through the same guard: `(None, args)`.
+///
+/// Returns the raw `WatAST` nodes, never a parsed `TypeExpr` — `check.rs` and
+/// `runtime.rs` treat the peeled slice differently downstream (one splices it
+/// back into a value stream, one parses each entry as a `TypeExpr`), and a
+/// door that pre-committed to one shape would grow a second door for the
+/// other.
+pub(crate) fn peel_param_spec(args: &[WatAST]) -> (Option<&[WatAST]>, &[WatAST]) {
+    match args {
+        [WatAST::Keyword(k, _), WatAST::Vector(inner, _), rest @ ..] if k == ":-" => {
+            (Some(inner.as_slice()), rest)
+        }
+        _ => (None, args),
+    }
+}
+
 /// Arc 109 binder strike α — consume an optional `:- [T …]` binder from the
 /// arg stream, immediately after the name. `name_params` is what
 /// `parse_declared_name` read from the name's `<…>` spelling; `name_span` is
@@ -5033,9 +5066,11 @@ pub(crate) fn parse_type_form(node: &WatAST) -> Result<TypeExpr, TypeError> {
     // through to. Emit a clean, named error here rather than letting it fall
     // through to the standalone function-type-bracket arm (`parse_fn_type_bracket`),
     // which would misreport it as a malformed `[arg… :-> ret]`.
-    let args: Result<Vec<TypeExpr>, TypeError> = match &items[1..] {
-        [WatAST::Keyword(k, _), WatAST::Vector(inner, _), rest @ ..] if k == ":-" => {
-            if !rest.is_empty() {
+    let rest_items = &items[1..];
+    let (peeled, after_marker) = peel_param_spec(rest_items);
+    let args: Result<Vec<TypeExpr>, TypeError> = match peeled {
+        Some(inner) => {
+            if !after_marker.is_empty() {
                 return Err(TypeError::new(
                     span.clone(),
                     TypeErrorKind::MalformedTypeExpr {
@@ -5050,8 +5085,10 @@ pub(crate) fn parse_type_form(node: &WatAST) -> Result<TypeExpr, TypeError> {
             }
             inner.iter().map(parse_type_node).collect()
         }
-        [WatAST::Vector(inner, _)] => inner.iter().map(parse_type_node).collect(),
-        rest => rest.iter().map(parse_type_node).collect(),
+        None => match rest_items {
+            [WatAST::Vector(inner, _)] => inner.iter().map(parse_type_node).collect(),
+            rest => rest.iter().map(parse_type_node).collect(),
+        },
     };
     let args = args?;
     // Arc 251 — the `Tuple` constructor head produces a TUPLE type, not a generic Parametric:
@@ -5869,6 +5906,77 @@ mod tests {
         );
         // variants with no nameable head say so rather than fabricating one
         assert_eq!(TypeExpr::Tuple(vec![]).base_fqdn(), None);
+    }
+
+    // STONE-finish-the-param-spec (arc 109) — `peel_param_spec`'s four pinned edge
+    // cases. These are exactly where the nine hand-rolled peels it replaces currently
+    // differ (per the BRIEF); pinning them here is what keeps the door itself honest.
+    mod peel_param_spec_tests {
+        use super::*;
+
+        fn kw(s: &str) -> WatAST {
+            WatAST::Keyword(s.to_string(), crate::rust_caller_span!())
+        }
+        fn sym(s: &str) -> WatAST {
+            WatAST::Symbol(crate::scope::Identifier::bare(s), crate::rust_caller_span!())
+        }
+        fn vec_of(items: Vec<WatAST>) -> WatAST {
+            WatAST::Vector(items, crate::rust_caller_span!())
+        }
+
+        /// No `:-` at all — the door is a no-op: `(None, args)`, args UNCHANGED.
+        #[test]
+        fn no_marker_returns_none_and_original_args() {
+            let args = vec![sym("x"), sym("y")];
+            let (peeled, rest) = peel_param_spec(&args);
+            assert!(peeled.is_none());
+            assert_eq!(rest.len(), 2);
+            assert!(std::ptr::eq(rest.as_ptr(), args.as_ptr()), "rest must be the SAME slice, not a copy");
+        }
+
+        /// `:- []` — the empty binder is EXPRESSED, never absent. Must be
+        /// `Some(&[])`, NEVER `None` — the builder's rule this stone exists to enforce.
+        #[test]
+        fn empty_bracket_marker_peels_to_some_empty_never_none() {
+            let args = vec![kw(":-"), vec_of(vec![])];
+            let (peeled, rest) = peel_param_spec(&args);
+            assert_eq!(peeled, Some(&[][..]), "`:- []` must peel to Some(&[]), not None");
+            assert!(rest.is_empty());
+        }
+
+        /// `:- [T]` — the ordinary case, sanity-checked alongside the empty one.
+        #[test]
+        fn nonempty_bracket_marker_peels_its_contents() {
+            let args = vec![kw(":-"), vec_of(vec![sym("T")]), sym("rest-arg")];
+            let (peeled, rest) = peel_param_spec(&args);
+            let peeled = peeled.expect("marker present, must peel Some");
+            assert_eq!(peeled.len(), 1);
+            assert!(matches!(&peeled[0], WatAST::Symbol(id, _) if id.as_str() == "T"));
+            assert_eq!(rest.len(), 1);
+            assert!(matches!(&rest[0], WatAST::Symbol(id, _) if id.as_str() == "rest-arg"));
+        }
+
+        /// `:-` immediately followed by a NON-Vector — malformed shape. Left UNPEELED
+        /// (`None, args`) so the caller's own diagnostic fires naturally, rather than
+        /// this door inventing a second error path (mirrors `peel_type_binder`'s
+        /// pre-existing rule for this exact shape).
+        #[test]
+        fn marker_followed_by_non_vector_is_left_unpeeled() {
+            let args = vec![kw(":-"), sym("not-a-vector")];
+            let (peeled, rest) = peel_param_spec(&args);
+            assert!(peeled.is_none(), "a malformed binder must not silently peel");
+            assert_eq!(rest.len(), 2, "args must be returned whole, untouched");
+        }
+
+        /// `:-` as the LAST element — nothing follows it, so there is no vector to
+        /// peel. Falls through the same guard as the non-Vector case: `(None, args)`.
+        #[test]
+        fn marker_as_last_element_is_left_unpeeled() {
+            let args = vec![sym("a"), kw(":-")];
+            let (peeled, rest) = peel_param_spec(&args);
+            assert!(peeled.is_none());
+            assert_eq!(rest.len(), 2);
+        }
     }
 
     // Arc 115 slice 2 — verify parse_type_expr rejects illegal

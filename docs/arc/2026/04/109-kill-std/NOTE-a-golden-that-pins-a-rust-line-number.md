@@ -40,3 +40,38 @@ carried structurally (`#wat.core/Span {:file :line :col}`), so a golden CAN comp
 normalising `:line`/`:col` — asserting *that* a location was captured and *from which file*, without
 pinning where in the file the emitting code currently sits. Any stone that touches these fixtures
 should take that shape rather than re-baselining the numbers again.
+
+---
+
+## ⛔ RETRACTED, same day — the prescription above RE-PROPOSES AN EXPLICITLY REJECTED OPTION
+
+The closing paragraph recommends comparing `:file` while **normalising `:line`/`:col`**. That is wrong,
+and it was ruled on in arc 296 before I wrote it. From `tests/types/probe_arc293_W2b_enum_purity.rs`,
+in the fixture's own comment:
+
+> *"a pinned line that gets updated when it moves is in a constant state of correctness, while a
+> DROPPED field is permanently blind … the span **DISCRIMINATES THE EMITTER** —
+> `ImpureVariantFieldInPureEnum` can be raised from more than one call site in check.rs, and
+> `rust_caller_span!()` says which. Drop it and this test goes green the moment a *different* code
+> path starts raising the same error kind — that silent pass is exactly the coverage this pin buys.
+> **KEEP PINNING THE SPAN. Do not re-propose dropping it.**"*
+
+And `296/BRIEF-296-WaveB1-complete-the-26.md`: *"BUILDER RULED: staleness. Recapture, keep pinning the
+span."* — with the cost measured rather than assumed: exactly **one** `.edn` golden in the tree pinned
+a `src/*.rs` span at the time, so the churn surface was trivial.
+
+**What I got wrong, and it is the whole error:** I read the churn as the cost and never asked what the
+pin BUYS. It buys emitter discrimination — the one thing normalising the line would destroy — and my
+"fix" would have converted a test that catches a wrong emitter into one that cannot. The red I called
+noise is the field doing its job.
+
+★ `[[feedback_a_rejected_option_returns_in_new_clothes]]`. A reject list is stored as PHRASINGS and a
+proposal arrives in its own: arc 296 rejected *"drop the span"*, and I proposed *"normalise `:line`
+while keeping `:file`"* — the same operation wearing different words, in a NOTE offering it to future
+stones as the fix. **The check I skipped is one command:** before proposing that a carried field be
+dropped or loosened, grep the tree for a prior ruling on that field.
+
+**The standing rule, restated so this NOTE stops arguing against it:** an internal `src/*.rs` span that
+moved is STALENESS. Recapture it and KEEP PINNING IT. What survives from the observation above is only
+this — the recapture is mechanical and must be VERIFIED, not rebaselined blind: confirm the new line is
+the same `rust_caller_span!()` call site in the same file, and that only its position moved.
