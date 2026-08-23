@@ -1,4 +1,4 @@
-# NOTE (arc 109) — seven macros still MINT the angle form by concatenation
+# NOTE (arc 109) — ~18 macros still MINT the angle form (filed as SEVEN — that count was wrong too)
 
 **Filed 2026-08-23, after ②-iii shipped (`2a0d7fa2e`).** A POINTER with a measured population.
 This is blocker 3d's real shape, and 3d was proven NOT to block the migration — the corpus floors
@@ -84,3 +84,36 @@ undifferentiated "remaining" until the builder asked why we weren't just fixing 
 - `109/NOTE-2iii-is-blocked-*.md` — blocker 3d, refuted by the re-run
 - `2a0d7fa2e` — ②-iii shipped with all seven live, floor green
 - `294/SEAM.md` — `fix.wat:502` was listed there as unruled; it is now closed
+
+---
+
+## ⛔ AMENDED, one hour later — SEVEN was wrong too. The count is ~18, and hand-counting is retired.
+
+The builder asked why we were not simply converting the seven. Tracing them to their consumers
+surfaced a fifth under-count: my `"…Name<"` probe missed every `string::interpolate` site, because
+those spell the name **without a leading colon** and fill the angles with `{}`:
+
+```
+"wat::kernel::Peer<{o},{r}>"        "wat::core::Vector<wat::kernel::Peer<{r},{o}>>"
+"wat::capability::Dialable<{o},{r}>"  "wat::service::Alarm<{o}>"
+"wat::kernel::Address<{o},{r},{t}"    "wat::spawn::Locus/launch<"
+```
+
+An over-counting probe — any string literal holding both `::` and `<` — returns **20**, of which two
+are prose inside an error message. So ~18 real sites across `wat/service.wat` and `wat/bracket.wat`.
+
+**Five hand-counts, five wrong, every one under.** The count is not the point any more; the method is.
+
+★ **And the reason no grep can finish this: most of these names exist in no file.** They are assembled
+at expand time and handed to `keyword-node`. Only a wall at the type parser sees a minted name the
+same way it sees a written one.
+
+Builder's ruling: *"make parametrics via angle brackets illegal and just make every heretic scream —
+set them ablaze … that's your census."* Briefed as
+`BRIEF-STONE-set-the-angle-form-ablaze.md`. The door is `src/types.rs:4608`, the single `match` arm
+where a keyword becomes a parametric. The stone's deliverable is the CENSUS, not a green floor.
+
+**What the tracing did establish, and it survives:** the roles are real and they differ per site.
+`bracket.wat:448-449` feeds ANNOTATION slots (`[self <- ~runner-self-kw ctx <- ~ctx-ty-kw]`) and can
+take the form today. `"wat::spawn::Locus/launch<"` is a CALLABLE name with a type suffix — not a type
+reference at all, and a form is not a name. That is why this was never one sed.
