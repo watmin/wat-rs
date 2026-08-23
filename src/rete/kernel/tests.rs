@@ -4348,6 +4348,255 @@ fn accum_query_harvest_split() {
     );
 }
 
+/// Apportion accum harvest:query (6.23 ms / 1k maps) into all-class
+/// index vs wanted-only vs derived-only vs wrap
+/// (`DESIGN-STONE-accum-wanted-harvest`). No fire-path change.
+#[test]
+fn accum_harvest_index_parts() {
+    use std::collections::{HashMap, HashSet};
+    use std::hint::black_box;
+    use std::time::Instant;
+
+    const G: usize = 200;
+    const W: usize = 200;
+    const RUNS: usize = 3;
+    const GROUP: &str = "apx::Group";
+    const READING: &str = "apx::Reading";
+    const WANTED: [&str; 5] = [
+        "apx::CountF",
+        "apx::SumF",
+        "apx::MinF",
+        "apx::MaxF",
+        "apx::ExistsF",
+    ];
+
+    let rec = |class: &str, names: &Arc<Vec<String>>, fields: Vec<Value>| {
+        Value::Aggregate(Arc::new(AggregateValue::record(
+            class.into(),
+            Arc::clone(names),
+            Arc::new(fields),
+        )))
+    };
+    let g_names = Arc::new(vec!["g".into()]);
+    let r_names = Arc::new(vec!["g".into(), "v".into()]);
+    let n_names = Arc::new(vec!["g".into(), "n".into()]);
+
+    let mut input: Vec<Value> = Vec::with_capacity(G + G * W);
+    for g in 0..G {
+        input.push(rec(GROUP, &g_names, vec![Value::i64(g as i64)]));
+        for j in 0..W {
+            input.push(rec(
+                READING,
+                &r_names,
+                vec![Value::i64(g as i64), Value::i64(j as i64)],
+            ));
+        }
+    }
+    let mut derived: Vec<Value> = Vec::with_capacity(G * WANTED.len());
+    for class in WANTED {
+        for g in 0..G {
+            if class == "apx::ExistsF" {
+                derived.push(rec(class, &g_names, vec![Value::i64(g as i64)]));
+            } else {
+                derived.push(rec(
+                    class,
+                    &n_names,
+                    vec![Value::i64(g as i64), Value::i64(W as i64)],
+                ));
+            }
+        }
+    }
+    let input_pv = crate::value::pvec::PVec::from_vec(input);
+    let wanted: HashSet<&str> = WANTED.iter().copied().collect();
+    let var = Value::String(Arc::new("?fact".to_string()));
+
+    let index_all = || -> HashMap<&str, Vec<&Value>> {
+        let mut idx: HashMap<&str, Vec<&Value>> = HashMap::new();
+        for f in input_pv.iter() {
+            if let Value::Aggregate(a) = f {
+                if a.nature != Nature::Struct {
+                    idx.entry(a.class.as_ref()).or_default().push(f);
+                }
+            }
+        }
+        for f in &derived {
+            if let Value::Aggregate(a) = f {
+                if a.nature != Nature::Struct {
+                    idx.entry(a.class.as_ref()).or_default().push(f);
+                }
+            }
+        }
+        idx
+    };
+    let index_wanted_both = || -> HashMap<&str, Vec<&Value>> {
+        let mut idx: HashMap<&str, Vec<&Value>> = HashMap::new();
+        for f in input_pv.iter() {
+            if let Value::Aggregate(a) = f {
+                if a.nature != Nature::Struct && wanted.contains(a.class.as_ref()) {
+                    idx.entry(a.class.as_ref()).or_default().push(f);
+                }
+            }
+        }
+        for f in &derived {
+            if let Value::Aggregate(a) = f {
+                if a.nature != Nature::Struct && wanted.contains(a.class.as_ref()) {
+                    idx.entry(a.class.as_ref()).or_default().push(f);
+                }
+            }
+        }
+        idx
+    };
+    let index_wanted_derived = || -> HashMap<&str, Vec<&Value>> {
+        let mut idx: HashMap<&str, Vec<&Value>> = HashMap::new();
+        for f in &derived {
+            if let Value::Aggregate(a) = f {
+                if a.nature != Nature::Struct && wanted.contains(a.class.as_ref()) {
+                    idx.entry(a.class.as_ref()).or_default().push(f);
+                }
+            }
+        }
+        idx
+    };
+
+    fn time_ns(n: usize, mut body: impl FnMut()) -> f64 {
+        let t0 = Instant::now();
+        for _ in 0..n {
+            body();
+        }
+        t0.elapsed().as_nanos() as f64 / n as f64
+    }
+
+    {
+        black_box(index_all());
+        black_box(index_wanted_both());
+        black_box(index_wanted_derived());
+        let facts: Vec<&Value> = derived.iter().collect();
+        let maps: Vec<crate::value::pmap::PMap> = facts
+            .iter()
+            .map(|f| crate::value::pmap::PMap::from_pairs([(var.clone(), (*f).clone())]))
+            .collect();
+        black_box(maps);
+    }
+
+    let mut i = 0.0;
+    let mut w = 0.0;
+    let mut d = 0.0;
+    let mut m = 0.0;
+    let mut maps_n = 0usize;
+    for _ in 0..RUNS {
+        i += time_ns(1, || {
+            black_box(index_all());
+        });
+        w += time_ns(1, || {
+            black_box(index_wanted_both());
+        });
+        d += time_ns(1, || {
+            black_box(index_wanted_derived());
+        });
+        let facts: Vec<&Value> = derived.iter().collect();
+        maps_n = facts.len();
+        m += time_ns(1, || {
+            let maps: Vec<crate::value::pmap::PMap> = facts
+                .iter()
+                .map(|f| crate::value::pmap::PMap::from_pairs([(var.clone(), (*f).clone())]))
+                .collect();
+            black_box(maps);
+        });
+    }
+    let runs = RUNS as f64;
+    i /= runs;
+    w /= runs;
+    d /= runs;
+    m /= runs;
+    assert!(i > 0.0, "all-class index recorded 0 ns — the loop never ran");
+    assert_eq!(maps_n, 1000, "five types × 200 groups = 1000 maps");
+
+    let ms = |ns: f64| ns / 1e6;
+    println!(
+        "\naccum harvest index parts — [200 200], mean of {RUNS}\n\
+             input 200 Group + 40,000 Reading; derived 1,000\n\
+             \n\
+             I  both bags, every class             {:>7.2} ms\n\
+             W  both bags, wanted only             {:>7.2} ms\n\
+             D  derived only, wanted only          {:>7.2} ms\n\
+             M  wrap 1,000 maps                    {:>7.2} ms\n\
+             I−W  Reading vec                      {:>7.2} ms\n\
+             W−D  input walk                       {:>7.2} ms\n",
+        ms(i),
+        ms(w),
+        ms(d),
+        ms(m),
+        ms(i - w),
+        ms(w - d),
+    );
+}
+
+/// Class-scan harvest is input ∪ derived. Skip-input must not drop
+/// an inserted fact of a queried class (`DESIGN-STONE-accum-wanted-harvest`).
+#[test]
+fn class_scan_harvest_includes_input() {
+    const WORLD: &str = "\
+(:wat::core::defrecord :hs::T [x <- :wat::core::i64])\n\
+(:wat::core::defrecord :hs::U [x <- :wat::core::i64])\n\
+(:wat::rete::defrule :hs::never\n\
+  :when [(:hs::T (?x <- :x) (:wat::rete::core::i64::< ?x 0))]\n\
+  :then [(:hs::U ?x)])\n\
+(:wat::rete::defquery :hs::q-T\n\
+  :params []\n\
+  :when [(?fact <- :hs::T)])\n\
+(:wat::rete::defquery :hs::q-U\n\
+  :params []\n\
+  :when [(?fact <- :hs::U)])\n";
+    let world = startup_from_source(WORLD, None, Arc::new(InMemoryLoader::new()))
+        .expect("input-scan world should freeze");
+    let src = "(:wat::rete::fire-rules\n\
+        (:wat::rete::insert\n\
+          (:wat::rete::insert\n\
+            (:wat::rete::compile-all (:wat::rete::collect-rules :hs)\n\
+              (:wat::core::PersistentVector (:hs::q-T) (:hs::q-U)))\n\
+            (:hs::T 1))\n\
+          (:hs::T 2)))";
+    let fired = eval_in_frozen(
+        &crate::parse_one!(src).expect("parse input-scan fire"),
+        &world,
+        &Environment::new(),
+    )
+    .unwrap_or_else(|e| panic!("input-scan fire raised: {e:?}"))
+    .value_owned();
+    let maps = match session_named_field(&fired, "query-memory") {
+        Some(Value::wat__core__PersistentMap(pm)) => pm
+            .iter()
+            .map(|(k, v)| {
+                let name = match k {
+                    Value::String(s) => s.as_ref().clone(),
+                    _ => String::new(),
+                };
+                let n = match v {
+                    Value::wat__core__PersistentVector(pv) => pv.len(),
+                    _ => 0,
+                };
+                (name, n)
+            })
+            .collect::<Vec<_>>(),
+        other => panic!("query-memory missing: {other:?}"),
+    };
+    let t = maps
+        .iter()
+        .find(|(n, _)| n == "hs::q-T")
+        .map(|(_, n)| *n)
+        .unwrap_or(0);
+    let u = maps
+        .iter()
+        .find(|(n, _)| n == "hs::q-U")
+        .map(|(_, n)| *n)
+        .unwrap_or(0);
+    assert_eq!(
+        (t, u),
+        (2, 0),
+        "q-T must harvest the two inserted T; q-U empty (rule never fires): {maps:?}"
+    );
+}
+
 /// Native FIRE rank across the three instrumented cells now that
 /// fanout is dry (`DESIGN-STONE-cell-rank-after-fanout`).
 #[test]

@@ -248,6 +248,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
     wm.i64_by_fact.clear();
     wm.bind_only.clear();
     wm.cond_key_ids.clear();
+    wm.input_has_scan_class = false;
 
     // `seen`: every fact ever in the working set. Seed with all input facts.
     // Mirrors `merge-facts`'s `contains?` guard — ensures each derived fact is processed once.
@@ -300,6 +301,8 @@ pub(crate) fn fire_fixpoint_delta_armed(
     let test_children = &arm.test_children;
     let q_scans = query_class_scans(&arm, &wm.network);
     let q_only_alphas: HashSet<i64> = q_scans.keys().copied().collect();
+    let scan_classes: HashSet<&str> = q_scans.values().map(|s| s.class.as_str()).collect();
+    let index_scans = q_scans.len() > 1;
 
     // P6 — persistent join indexes, maintained ACROSS rounds (never rebuilt).
     // Keyed by HashJoinNode id J.
@@ -408,6 +411,9 @@ pub(crate) fn fire_fixpoint_delta_armed(
                         continue;
                     }
                 };
+                if index_scans && !wm.input_has_scan_class && scan_classes.contains(class) {
+                    wm.input_has_scan_class = true;
+                }
                 if wm.i64_by_fact.len() == i {
                     wm.i64_by_fact.push(pack_i64_row(
                         fields,

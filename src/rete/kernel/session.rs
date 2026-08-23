@@ -238,6 +238,10 @@ pub(crate) struct FireSession {
     /// Interned cond keys, parallel to `bind_only` outputs after an
     /// optional fact_bind (`DESIGN-STONE-column-gather-fold`).
     pub(crate) cond_key_ids: CondKeyIds,
+    /// True when an input fact's class is a class-scan query class.
+    /// Harvest skips `wm.facts` when false (`DESIGN-STONE-accum-wanted-harvest`).
+    /// Fire-scoped; not a Session field.
+    pub(crate) input_has_scan_class: bool,
 }
 
 /// Cap on packed i64 fields (`DESIGN-STONE-fire-i64-columns`). Wider
@@ -906,6 +910,7 @@ fn to_transient_inner(session: &Value, decode_memories: bool) -> Result<FireSess
         i64_by_fact: Vec::new(),
         bind_only: HashMap::new(),
         cond_key_ids: HashMap::new(),
+        input_has_scan_class: false,
     })
 }
 

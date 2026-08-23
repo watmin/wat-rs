@@ -935,26 +935,30 @@ fn query_class_scans(arm: &InternedNetwork, network: &Value) -> HashMap<i64, Que
     scans
 }
 
-/// One pass of the closed bag (input ∪ derived), keyed by class.
-/// Five accum queries must not walk 40k Readings five times
-/// (`DESIGN-STONE-accum-class-index`).
-fn closed_bag_by_class(wm: &FireSession) -> HashMap<&str, Vec<&Value>> {
+/// One pass of the closed bag, keyed by class. Only `scan.class`.
+/// Skip `wm.facts` when seed packed no wanted class
+/// (`DESIGN-STONE-accum-wanted-harvest`).
+fn closed_bag_by_class<'a>(
+    wm: &'a FireSession,
+    wanted: &HashSet<&str>,
+) -> HashMap<&'a str, Vec<&'a Value>> {
     let mut idx: HashMap<&str, Vec<&Value>> = HashMap::new();
-    if let Value::wat__core__PersistentVector(pv) = &wm.facts {
-        for f in pv.iter() {
-            if let Value::Aggregate(a) = f {
-                if a.nature != Nature::Struct {
-                    idx.entry(a.class.as_ref()).or_default().push(f);
-                }
+    let mut push = |f: &'a Value| {
+        if let Value::Aggregate(a) = f {
+            if a.nature != Nature::Struct && wanted.contains(a.class.as_ref()) {
+                idx.entry(a.class.as_ref()).or_default().push(f);
+            }
+        }
+    };
+    if wm.input_has_scan_class {
+        if let Value::wat__core__PersistentVector(pv) = &wm.facts {
+            for f in pv.iter() {
+                push(f);
             }
         }
     }
     for f in &wm.derived_facts {
-        if let Value::Aggregate(a) = f {
-            if a.nature != Nature::Struct {
-                idx.entry(a.class.as_ref()).or_default().push(f);
-            }
-        }
+        push(f);
     }
     idx
 }
@@ -994,8 +998,11 @@ fn harvest_query_memory(
     }
     // Index pays when N queries would rescan the bag. Fanout is one class
     // that IS the bag — a HashMap+Vec of 40k refs is slower than one filter.
+    // Wanted-only + skip-input: do not index 40k Readings no scan names
+    // (`DESIGN-STONE-accum-wanted-harvest`).
     let bag = if scans.len() > 1 {
-        Some(closed_bag_by_class(wm))
+        let wanted: HashSet<&str> = scans.values().map(|s| s.class.as_str()).collect();
+        Some(closed_bag_by_class(wm, &wanted))
     } else {
         None
     };
