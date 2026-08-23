@@ -60,7 +60,7 @@ outside it.** `wat/` — the whole standard library — is **not among them**; �
 | `a<b` | ⛔ REFUSED — **the honest cost; see below** |
 | `:wat::core::<` · `:wat::core::>=` | ✅ lexes |
 | `[x <- :wat::core::i64] -> :T` | ✅ lexes |
-| `((:wat::core::Vector :- [:i64]) 1, 2, 3)` | ✅ `[1 2 3]` — the comma dual holds |
+| `(:wat::core::Vector :- [:i64] 1, 2, 3)` | ✅ `[1 2 3]` — the comma dual holds |
 | `:wat::kernel::Peer'` · `foo/bar` | ✅ lexes |
 
 ⚠ **`a<b` is a NARROWING, and it amends the previous stone's row 3.** The comma stone guaranteed

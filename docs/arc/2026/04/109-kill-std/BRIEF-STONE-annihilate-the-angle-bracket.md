@@ -115,7 +115,7 @@ exact text that produced every measurement in the DESIGN — apply it rather tha
 | 4★★ | `:wat::core::HashMap'<wat::core::i64>` | ⛔ refused — arc 214's primed head |
 | 5★★ | `a<b` | ⛔ refused — **the narrowing; state it in your report** |
 | 6★★★ | `:wat::core::<` · `:wat::core::>=` · `<-` · `->` | ✅ still lex |
-| 7★★★ | `((:wat::core::Vector :- [:i64]) 1, 2, 3)` | ✅ `[1 2 3]` — the comma dual |
+| 7★★★ | `(:wat::core::Vector :- [:i64] 1, 2, 3)` | ✅ `[1 2 3]` — the comma dual |
 | 8★★ | `:wat::kernel::Peer'` · `foo/bar` | ✅ still lex |
 | 9 | corpus | every `.wat`/`.wat.bad` outside `docs/arc` reads clean under the wall |
 | 10 | acceptance criteria | `target/release/wat --check <file>` per file; a scoped `nextest -E` on the tests you touched |
