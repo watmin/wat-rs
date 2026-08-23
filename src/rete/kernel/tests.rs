@@ -9303,3 +9303,96 @@ fn strat_merge_present_parts() {
     );
     assert!(a > 0.0 && b > 0.0, "probe recorded no time:{table}");
 }
+
+/// Apportion the class-scan harvest bag: BUILD-THEN-EXTEND (today,
+/// `harvest_class_scan_filter`) vs WRITE-IN-PLACE, at the fanout 40k ladder
+/// (`NEXT-STRIKES-theater-hunt.md` T3).
+///
+/// DISCONFIRMING PROBE — prints the parts only, no fire-path change. A wash
+/// STOPS the strike and the intermediate bag is recorded as physics.
+#[test]
+fn harvest_bag_copy_parts() {
+    use std::hint::black_box;
+    use std::time::Instant;
+
+    const N: usize = 40_000;
+    const RUNS: usize = 3;
+    const CLASS: &str = "fan::Pair";
+
+    let var = Value::String(Arc::new("?fact".to_string()));
+    let names = Arc::new(vec!["key".into(), "lid".into(), "rid".into()]);
+    let facts: Vec<Value> = (0..N)
+        .map(|i| {
+            Value::Aggregate(Arc::new(AggregateValue::record(
+                CLASS.into(),
+                names.clone(),
+                Arc::new(vec![Value::i64(i as i64), Value::i64(1), Value::i64(2)]),
+            )))
+        })
+        .collect();
+
+    // The callee as it stands today: allocates its own bag and returns it.
+    fn scan_returning(facts: &[Value], cap: usize, var: &Value) -> Vec<crate::value::pmap::PMap> {
+        let mut maps = Vec::with_capacity(cap);
+        for f in facts {
+            maps.push(crate::value::pmap::PMap::from_one(var.clone(), f.clone()));
+        }
+        maps
+    }
+
+    // The cut: write into the caller's vec, no intermediate bag.
+    fn scan_into(out: &mut Vec<crate::value::pmap::PMap>, facts: &[Value], var: &Value) {
+        out.reserve(facts.len());
+        for f in facts {
+            out.push(crate::value::pmap::PMap::from_one(var.clone(), f.clone()));
+        }
+    }
+
+    let mut a = 0.0f64;
+    let mut b = 0.0f64;
+    let mut len_a = 0usize;
+    let mut len_b = 0usize;
+
+    for _ in 0..RUNS {
+        // A — TODAY: capacity-less caller vec, extend from a freshly built bag.
+        let t0 = Instant::now();
+        let mut maps: Vec<crate::value::pmap::PMap> = Vec::new();
+        maps.extend(scan_returning(&facts, facts.len(), &var));
+        a += t0.elapsed().as_nanos() as f64;
+        len_a = maps.len();
+        black_box(&maps);
+        drop(maps);
+
+        // B — CUT: the callee writes straight into the caller's vec.
+        let t0 = Instant::now();
+        let mut maps: Vec<crate::value::pmap::PMap> = Vec::new();
+        scan_into(&mut maps, &facts, &var);
+        b += t0.elapsed().as_nanos() as f64;
+        len_b = maps.len();
+        black_box(&maps);
+        drop(maps);
+    }
+
+    let r = RUNS as f64;
+    let (a, b) = (a / r, b / r);
+    let ms = |ns: f64| ns / 1e6;
+    let pmap_bytes = std::mem::size_of::<crate::value::pmap::PMap>();
+
+    let table = format!(
+        "\nharvest bag copy — {N} one-entry maps, mean of {RUNS}\n\
+         PMap is {pmap_bytes} B, so the intermediate bag is {:.2} MB\n\
+         \n\
+         A  BUILD-THEN-EXTEND (today)     {:>7.2} ms\n\
+         B  WRITE-IN-PLACE                {:>7.2} ms\n\
+         A-B  the theater                 {:>7.2} ms\n",
+        (pmap_bytes * N) as f64 / 1e6,
+        ms(a),
+        ms(b),
+        ms(a - b),
+    );
+    println!("{table}");
+
+    assert_eq!(len_a, N, "A must build 40k maps:{table}");
+    assert_eq!(len_b, N, "B must build 40k maps:{table}");
+    assert!(a > 0.0 && b > 0.0, "probe recorded no time:{table}");
+}

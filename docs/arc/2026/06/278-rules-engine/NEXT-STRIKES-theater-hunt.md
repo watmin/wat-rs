@@ -178,7 +178,14 @@ Skip the walk.
 
 ---
 
-### T3 — `harvest_class_scan_filter` builds a bag, then copies the bag
+### T3 — `harvest_class_scan_filter` builds a bag, then copies the bag — ✅ **LANDED 2026-08-23**
+
+> Struck. `DESIGN-STONE-harvest-bag-in-place` + `BRIEF-harvest-bag-in-place`.
+> `harvest:query` **7.60–7.99 → 5.15–5.48 ms (≈ −2.5)**; with-query FIRE
+> 31.3 → 28.6; without-query FIRE and compiled-rhs unchanged; query-maps still
+> 40000. Probe `harvest_bag_copy_parts` named 0.95 ms — **the prediction
+> UNDERSHOT by 2.6×**; see the stone for why an allocation probe is a LOWER
+> bound in-fire while a hashing probe (T1) is an UPPER bound.
 
 **Site:** `src/rete/kernel/fire/mod.rs:990` (callee `harvest_class_scan`, `:966`).
 
@@ -190,8 +197,9 @@ maps.extend(harvest_class_scan(pv.iter().filter(..), pv.len(), &scan.var));
 
 **Why it is theater.** The callee allocates a full `Vec<PMap>`, fills it,
 returns it; `extend` then copies every element into `maps` and drops the temp.
-`PMap` is `Array(Arc<[(Value,Value)]>, u64)` — 24–32 B — so at fanout 40k that
-is roughly **1.3 MB allocated, filled, memcpy'd and freed per fire**, with the
+`PMap` is `Array(Arc<[(Value,Value)]>, u64)` — **56 B measured**, not the
+24–32 B first estimated here — so at fanout 40k the intermediate is
+**2.24 MB allocated, filled, memcpy'd and freed per fire**, with the
 page-faults paid twice. It sits inside the named leftover: harvest:query
 **6.89 ms** measured this session.
 

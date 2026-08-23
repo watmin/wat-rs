@@ -963,15 +963,25 @@ fn closed_bag_by_class<'a>(
     idx
 }
 
-fn harvest_class_scan<'a, I>(facts: I, cap: usize, var: &Value) -> Vec<crate::value::pmap::PMap>
-where
+/// Write one-entry `{var: fact}` maps straight into the CALLER'S vec.
+///
+/// It used to return its own `Vec` and the caller `extend`ed from it — a bag
+/// built, then the bag copied (`DESIGN-STONE-harvest-bag-in-place`). `PMap` is
+/// 56 B, so at fanout 40k the intermediate was 2.24 MB allocated, filled,
+/// memcpy'd and freed on every fire, with the page faults paid twice. `extra`
+/// is the upper-bound hint reserved before the walk; the walk itself is WHAT.
+fn harvest_class_scan_into<'a, I>(
+    out: &mut Vec<crate::value::pmap::PMap>,
+    facts: I,
+    extra: usize,
+    var: &Value,
+) where
     I: Iterator<Item = &'a Value>,
 {
-    let mut maps = Vec::with_capacity(cap);
+    out.reserve(extra);
     for f in facts {
-        maps.push(crate::value::pmap::PMap::from_one(var.clone(), f.clone()));
+        out.push(crate::value::pmap::PMap::from_one(var.clone(), f.clone()));
     }
-    maps
 }
 
 fn compiled_rhs_is_class(arm: &InternedNetwork, class: &str) -> bool {
@@ -999,25 +1009,28 @@ fn harvest_class_scan_filter(
     let mut maps = Vec::new();
     if wm.input_has_scan_class {
         if let Value::wat__core__PersistentVector(pv) = &wm.facts {
-            maps.extend(harvest_class_scan(
+            harvest_class_scan_into(
+                &mut maps,
                 pv.iter().filter(|f| matches_class(f)),
                 pv.len(),
                 &scan.var,
-            ));
+            );
         }
     }
     if derived_is_scan {
-        maps.extend(harvest_class_scan(
+        harvest_class_scan_into(
+            &mut maps,
             wm.derived_facts.iter(),
             wm.derived_facts.len(),
             &scan.var,
-        ));
+        );
     } else {
-        maps.extend(harvest_class_scan(
+        harvest_class_scan_into(
+            &mut maps,
             wm.derived_facts.iter().filter(|f| matches_class(f)),
             wm.derived_facts.len(),
             &scan.var,
-        ));
+        );
     }
     maps
 }
@@ -1071,7 +1084,14 @@ pub(crate) fn harvest_query_memory(
                         .get(scan.class.as_str())
                         .map(|v| v.as_slice())
                         .unwrap_or(&[]);
-                    harvest_class_scan(facts.iter().copied(), facts.len(), &scan.var)
+                    let mut maps = Vec::new();
+                    harvest_class_scan_into(
+                        &mut maps,
+                        facts.iter().copied(),
+                        facts.len(),
+                        &scan.var,
+                    );
+                    maps
                 } else {
                     harvest_class_scan_filter(wm, scan, derived_is_scan)
                 }
