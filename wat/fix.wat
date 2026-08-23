@@ -499,7 +499,7 @@
                                                      off     (:wat::fix::fix-text-offset-of span lines)
                                                      old-len (:wat::core::string::length (:wat::core::ast-name h))
                                                      new-text (:wat::core::if after-amp?
-                                                                 ":wat::core::Vector<wat::WatAST>"
+                                                                 "(:wat::core::Vector :- [:wat::WatAST])"
                                                                  ":wat::WatAST")]
                                      (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])
                                        (:wat::core::Tuple off old-len new-text)))
