@@ -13,7 +13,7 @@
 //!   **rigid** — they unify only with themselves, not with concrete
 //!   types. The body must type-check for any choice of T.
 //! - Built-in schemes use real polymorphism: `list` is `∀T. T* ->
-//!   List<T>`; `= < > <= >=` are `∀T. T -> T -> :bool`; `Atom` is
+//!   (List :- [T])`; `= < > <= >=` are `∀T. T -> T -> :bool`; `Atom` is
 //!   `∀T. T -> :wat::holon::HolonAST`.
 //! - `:Any` is banned everywhere — the type universe is closed
 //!   ([058-030](https://…/058-030-types/PROPOSAL.md), §591). User
@@ -81,7 +81,7 @@ pub struct TypeScheme {
     pub type_params: Vec<String>,
     pub params: Vec<TypeExpr>,
     pub ret: TypeExpr,
-    /// Arc 150 — `Some(Vector<T>)` for variadic callees; `None` for
+    /// Arc 150 — `Some((Vector :- [T]))` for variadic callees; `None` for
     /// strict-arity. Populated by `derive_scheme_from_function` from
     /// `Function.rest_param_type`. Consumed at call-site inference.
     pub rest_param_type: Option<TypeExpr>,
@@ -1489,9 +1489,9 @@ fn caller_matches_prefix_list(caller_fqdn: &str, prefixes: &[String]) -> bool {
 /// ```text
 /// atomizable(T) :=
 ///   T ∈ {i64, f64, bool, String, keyword, HolonAST, WatAST, Uuid}   // primitives (arc 215 baseline)
-///   OR T = HashSet<T'>  ∧ atomizable(T')                             // arc 216 Stone 1 (shipped)
-///   OR T = Vector<T'>   ∧ atomizable(T')                             // arc 216 Stone 2 (shipped)
-///   OR T = HashMap<K,V> ∧ atomizable(K) ∧ atomizable(V)             // arc 216 Stone 3 (shipped)
+///   OR T = (HashSet :- [T'])  ∧ atomizable(T')                       // arc 216 Stone 1 (shipped)
+///   OR T = (Vector :- [T'])   ∧ atomizable(T')                       // arc 216 Stone 2 (shipped)
+///   OR T = (HashMap :- [K V]) ∧ atomizable(K) ∧ atomizable(V)        // arc 216 Stone 3 (shipped)
 /// ```
 ///
 /// This is the single canonical site for the atomizable predicate.
@@ -1576,11 +1576,11 @@ pub(crate) fn is_atomizable(ty: &TypeExpr) -> bool {
         // Type variables (Var) — unresolved; conservatively allow
         TypeExpr::Var(_) => true,
         TypeExpr::Parametric { head, args } => match head.as_str() {
-            // Arc 216 Stone 1 — HashSet<T'> is atomizable iff T' is atomizable
+            // Arc 216 Stone 1 — (HashSet :- [T']) is atomizable iff T' is atomizable
             "wat::core::HashSet" => args.len() == 1 && is_atomizable(&args[0]),
-            // Arc 216 Stone 2 — Vector<T'> atomizable iff T' atomizable
+            // Arc 216 Stone 2 — (Vector :- [T']) atomizable iff T' atomizable
             "wat::core::Vector" => args.len() == 1 && is_atomizable(&args[0]),
-            // Arc 216 Stone 3 — HashMap<K,V> atomizable iff K and V are atomizable
+            // Arc 216 Stone 3 — (HashMap :- [K V]) atomizable iff K and V are atomizable
             "wat::core::HashMap" => {
                 args.len() == 2 && is_atomizable(&args[0]) && is_atomizable(&args[1])
             }
@@ -1588,8 +1588,8 @@ pub(crate) fn is_atomizable(ty: &TypeExpr) -> bool {
         },
         // Function types — not atomizable
         TypeExpr::Fn { .. } => false,
-        // Arc 216 Stone 7 — Tuple<T1, T2, ...> is atomizable iff ALL element types are atomizable.
-        // Encoding: positional-Bind Bundle (same shape as Vector<T>). Empty tuple = unit; unit
+        // Arc 216 Stone 7 — (Tuple :- [T1 T2 …]) is atomizable iff ALL element types are atomizable.
+        // Encoding: positional-Bind Bundle (same shape as (Vector :- [T])). Empty tuple = unit; unit
         // is Value::Unit, not Value::Tuple — but conservatively allow Tuple([]) since the 0-tuple
         // is handled elsewhere and an empty is_atomizable call should not panic.
         TypeExpr::Tuple(elements) => elements.iter().all(is_atomizable),
@@ -1782,7 +1782,7 @@ fn check_function_body(
     // distinguishes rigid names from fresh unification Vars.
     let mut locals = build_locals(&func.params, &scheme.params);
     // Arc 150 — variadic functions also bind the rest-name in the
-    // body's local scope, with the declared `Vector<T>` type. Without
+    // body's local scope, with the declared `(Vector :- [T])` type. Without
     // this, the rest-param symbol shows up as `<unresolved>` when used
     // in the body (e.g. as the input to `:wat::core::length`,
     // `:wat::core::foldl`, etc.).
@@ -1794,7 +1794,7 @@ fn check_function_body(
     let mut subst = Subst::new();
     // Push this function's declared return type so `infer_try`, if it
     // recurses into the body, can unify its propagated `Err` with this
-    // function's own `Result<_, E>` shape.
+    // function's own `(Result :- [_ E])` shape.
     // Stone 255.1a — Native builtins carry no wat body to type-check.
     let body_ast = match &func.body {
         FunctionBody::Wat(ast) => ast,
@@ -2499,12 +2499,12 @@ fn infer_rete_form(
         }
         // Task #81 (2026-08-05) — THE CONTAINER CONSTRUCTORS, `Redispatch` for the same reason
         // `reduce` and `coincident?` are: a constructor is VARIADIC and PARAMETRIC ("N args, all
-        // of T, yielding C<T>"), which no rank-1 `params`/`ret` scheme can state. Each already has
+        // of T, yielding (C :- [T])"), which no rank-1 `params`/`ret` scheme can state. Each already has
         // a bespoke inference arm reached from `infer_list` (`:wat::core::PersistentVector` at
         // `check.rs:3109`), so head-substitution keeps that arm the ONE place the inference lives —
         // never a second implementation of container-literal typing.
         //
-        // WHY THEY EXIST AT ALL: rete `get` is Ruby's `fetch` — it returns `T`, not `Option<T>`, so
+        // WHY THEY EXIST AT ALL: rete `get` is Ruby's `fetch` — it returns `T`, not `(Option :- [T])`, so
         // its mandatory `:undefined <value>` must be a value of the ELEMENT type. When that element
         // is itself a collection there was previously no writable fallback at all, and a rider had
         // to pass a bound variable because `[]` had no form. See `vocabulary.rs`'s own comment on
@@ -3013,7 +3013,7 @@ fn infer_list(
                 };
             }
             // Arc 220 Stone 220.4 — `:wat::core::List/of` variadic constructor.
-            // `(:wat::core::List/of x1 x2 ...)` → `List<T>`.  No leading type keyword;
+            // `(:wat::core::List/of x1 x2 ...)` → `(List :- [T])`.  No leading type keyword;
             // T is inferred from the elements.
             ":wat::core::List/of" => {
                 let (val, mut errs) = infer_linked_list_constructor(args, head_span, env, locals, fresh, subst).into_parts();
@@ -3024,7 +3024,7 @@ fn infer_list(
                 };
             }
             // Arc 220 Stone 220.4 — `:wat::core::List/conj` prepend.
-            // `(:wat::core::List/conj list item)` → `List<T>`.
+            // `(:wat::core::List/conj list item)` → `(List :- [T])`.
             // Clojure semantic: prepends item to front; distinct from Vector/conj (append).
             ":wat::core::List/conj" => {
                 if args.len() != 2 {
@@ -3153,7 +3153,7 @@ fn infer_list(
                 };
             }
             // Arc-278-0a — PersistentMap constructor: same K/V inference as HashMap;
-            // returns PersistentMap<K,V> instead of HashMap<K,V>.
+            // returns (PersistentMap :- [K V]) instead of (HashMap :- [K V]).
             //
             // Arc 109 step ①b — `(PersistentMap [K V] …)` now accepted too. Not wired
             // to `unwrap_type_param_bracket` (splicing would misalign the `args.chunks(2)`
@@ -3169,7 +3169,7 @@ fn infer_list(
                 };
             }
             // Arc-278-0b — PersistentVector constructor: infers T from elements;
-            // returns PersistentVector<T>.
+            // returns (PersistentVector :- [T]).
             //
             // Arc 109 step ①b — `(PersistentVector [T] …)` now accepted too. Not wired
             // to `unwrap_type_param_bracket`, same reasoning as `PersistentMap` above;
@@ -3285,9 +3285,9 @@ fn infer_list(
                 let ty = TypeExpr::Path(":wat::WatAST".into());
                 return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
             }
-            // Arc 118 — `(:wat::stream::lazy <body>) -> Stream<T>`. SPECIAL FORM.
+            // Arc 118 — `(:wat::stream::lazy <body>) -> (Stream :- [T])`. SPECIAL FORM.
             // The body is captured unevaluated at runtime (a thunk), but TYPED here:
-            // it must produce a `Stream<T>`, and lazy-seq returns that same `Stream<T>`.
+            // it must produce a `(Stream :- [T])`, and lazy-seq returns that same `(Stream :- [T])`.
             // (Unlike quote, the body IS type-checked — runtime laziness defers only
             // EVALUATION, not type-checking. A mistyped body is still a static error.)
             ":wat::stream::lazy" => {
@@ -3301,7 +3301,7 @@ fn infer_list(
                     let seq_ty = TypeExpr::Parametric { head: "wat::stream::Stream".into(), args: vec![t] };
                     return if local_errors.is_empty() { CheckResult::ok(seq_ty) } else { CheckResult::partial_with(seq_ty, local_errors) };
                 }
-                // Type-check the body and unify it with Stream<fresh_T>.
+                // Type-check the body and unify it with (Stream :- [fresh_T]).
                 let body_ty = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
                 let elem = fresh.fresh();
                 let seq_ty = TypeExpr::Parametric { head: "wat::stream::Stream".into(), args: vec![elem] };
@@ -3647,7 +3647,7 @@ fn infer_list(
                 // Arc 216 Stone 1 — atomizable-predicate check at call time.
                 //
                 // After inferring T from the argument, validate `is_atomizable(T)`.
-                // Non-atomizable T (e.g., `HashSet<Function<...>>`) is caught
+                // Non-atomizable T (e.g., `(HashSet :- [[A :-> B]])`) is caught
                 // here with a diagnostic naming the offending type.
                 //
                 // Special-case over the generic scheme path because the scheme
@@ -3776,7 +3776,7 @@ fn infer_list(
                 // (record :wat::core::Record) -> :wat::core::String
                 // Records always have a class_fqdn (mandatory at construction);
                 // the runtime returns Value::String directly (not Option).
-                // Return type is :String (not Option<String>) for record args.
+                // Return type is :String (not (Option :- [:String])) for record args.
                 if args.len() != 1 {
                     local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
                         callee: k.to_string(),
@@ -3789,7 +3789,7 @@ fn infer_list(
                         let resolved = apply_subst(&arg_ty, subst);
                         // Arc 258 cascade — accept any subtype of :wat::core::Record or
                         // :wat::holon::Record (specifically-typed records always have a
-                        // class_fqdn, so the return type is String, not Option<String>).
+                        // class_fqdn, so the return type is String, not (Option :- [:String])).
                         let is_record = matches!(&resolved, TypeExpr::Path(p)
                             if crate::types::is_subtype(p, ":wat::core::Record", env.types())
                                 || crate::types::is_subtype(p, ":wat::holon::Record", env.types()));
@@ -3799,7 +3799,7 @@ fn infer_list(
                             return if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) };
                         }
                     } else {
-                        // Arg failed to infer; fall through to Option<String> default.
+                        // Arg failed to infer; fall through to (Option :- [:String]) default.
                     }
                 }
                 let ty = TypeExpr::Parametric {
@@ -3889,7 +3889,7 @@ fn infer_list(
             // Runtime: `eval_compare` (always was; now via keyword-head dispatch directly
             // rather than through the retired defclauses in wat/core.wat).
             //   RELATIONAL (ordering): ordering IS a constraint flowing between args (∀T);
-            //   a finite clause list cannot express Vec<T> < Vec<T>, Option<T>, etc.
+            //   a finite clause list cannot express (Vector :- [T]) < (Vector :- [T]), (Option :- [T]), etc.
             ":wat::core::<"
             | ":wat::core::>"
             | ":wat::core::<="
@@ -4074,7 +4074,7 @@ fn infer_list(
             // PARTITION — CLAUSE vs INTRINSIC: all three are intrinsic.
             //   send'     — projective: I flows from (peer :- [I O]) into the payload arg.
             //   recv'     — projective: O flows from (peer :- [I O]) into the return.
-            //   close'    — ∀-parametric: peer<∀I,∀O>; clause cannot enumerate all (I,O).
+            //   close'    — ∀-parametric: (peer :- [∀I ∀O]); clause cannot enumerate all (I,O).
             // See `infer_send_prime` / `infer_recv_prime` /
             // `infer_close_prime` for the per-op reasoning.
             ":wat::kernel::send" => {
@@ -4236,9 +4236,9 @@ fn infer_list(
                 };
             }
             // Arc 209 Stone C0b.1 — thread-tier connection verbs.
-            // listener' : (locus :S :R) -> Tuple<Listener'<S,R>, Address'<S,R>>
-            // connect'  : Address'<S,R>  -> Peer'<S,R>
-            // accept'   : Listener'<S,R> -> Peer'<R,S>
+            // listener' : (locus :S :R) -> (Tuple :- [(Listener' :- [S R]) (Address' :- [S R])])
+            // connect'  : (Address' :- [S R])  -> (Peer' :- [S R])
+            // accept'   : (Listener' :- [S R]) -> (Peer' :- [R S])
             ":wat::kernel::listener" => {
                 let (val, mut errs) = infer_listener_prime(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
@@ -4263,7 +4263,7 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
-            // Arc 209 C0b.3b-b — allow'/deny': (Listener'<S,R>, i64) -> nil.
+            // Arc 209 C0b.3b-b — allow'/deny': ((Listener' :- [S R]), i64) -> nil.
             // Tier (thread vs process) is not known at check time; tier-rejection is runtime-only.
             ":wat::kernel::allow" => {
                 let (val, mut errs) = infer_allow_prime(args, head_span, env, locals, fresh, subst).into_parts();
@@ -4331,8 +4331,8 @@ fn infer_list(
             // INTRINSIC = type-level computation; two flavors. See `docs/DISPATCH.md`.
             //
             //   PROJECTIVE — a type flows from an argument's type parameters into the
-            //   return (or another argument). Collections live here: `get: Vector<T> →
-            //   Option<T>`; `HashMap<K,V> + K → Option<V>`. A `defclause` is MONOMORPHIC
+            //   return (or another argument). Collections live here: `get: (Vector :- [T]) →
+            //   (Option :- [T])`; `(HashMap :- [K V]) + K → (Option :- [V])`. A `defclause` is MONOMORPHIC
             //   (no type-variable flow), so it cannot project T/K/V — would need one clause
             //   per concrete instantiation, an infinite open set. Routed to `infer_<op>`.
             //
@@ -4352,7 +4352,7 @@ fn infer_list(
             //   DO NOT make these clauses.
             // ══════════════════════════════════════════════════════════════════════════
             // Arc 237 Stone 237.7b-iii — `:wat::core::conj` ∀T intrinsic with custom inference.
-            // Tier B: element-typing enforced via infer_conj; type-preserving return (Vector<T>/HashSet<T>).
+            // Tier B: element-typing enforced via infer_conj; type-preserving return ((Vector :- [T])/(HashSet :- [T])).
             // Custom arm because plain ∀ scheme can't enforce arg1 matches collection's element type
             // AND can't preserve the collection type (returns coll_ty, not bool).
             ":wat::core::conj" => {
@@ -4364,10 +4364,10 @@ fn infer_list(
                 };
             }
             // Arc 237 Stone 237.7b-iv — `:wat::core::get` ∀T intrinsic with custom inference.
-            // Tier B: Option<element> return precision enforced via infer_get.
+            // Tier B: (Option :- [element]) return precision enforced via infer_get.
             // Two collection arms (NO HashSet — HashSet has no positional get):
-            //   Vector<T>   + i64 index → Option<T>   (arg1 unifies with i64, NOT element type T)
-            //   HashMap<K,V> + K key    → Option<V>   (arg1 unifies with K, return wraps V)
+            //   (Vector :- [T])   + i64 index → (Option :- [T])   (arg1 unifies with i64, NOT element type T)
+            //   (HashMap :- [K V]) + K key    → (Option :- [V])   (arg1 unifies with K, return wraps V)
             ":wat::core::get" => {
                 let (val, mut errs) = crate::collection::infer::infer_get(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
@@ -4379,7 +4379,7 @@ fn infer_list(
             // Arc 237 Stone 237.7c — `:wat::core::assoc` ∀T intrinsic spanning HashMap + Record.
             // Records-doctrine slice: promotes the surface name from a HashMap-only alias to a
             // polymorphic intrinsic with a custom inference arm. Two arms:
-            //   HashMap<K,V> + K + V → HashMap<K,V>   (type-preserving; arg2 unifies with V, NOT K)
+            //   (HashMap :- [K V]) + K + V → (HashMap :- [K V])   (type-preserving; arg2 unifies with V, NOT K)
             //   :wat::core::Record + :keyword + ∀T → :wat::core::Record  (arg2 free; flavor preserved at runtime)
             ":wat::core::assoc" => {
                 let (val, mut errs) = crate::collection::infer::infer_assoc(args, head_span, env, locals, fresh, subst).into_parts();
@@ -4390,7 +4390,7 @@ fn infer_list(
                 };
             }
             // Arc 278 Stone 0d — transform-op check-side parity.
-            // 8 projective intrinsics that accept Vector<T> | PersistentVector<T>.
+            // 8 projective intrinsics that accept (Vector :- [T]) | (PersistentVector :- [T]).
             // Static Vec-only TypeSchemes retired in register_builtins (check.rs:17963-18073).
             // See docs/DISPATCH.md PARTITION doctrine: these are PROJECTIVE — DO NOT make clauses.
             ":wat::core::map" => {
@@ -4478,7 +4478,7 @@ fn infer_list(
                 };
             }
             // concat is a defalias for :wat::core::Vector/concat (core.wat:44).
-            // This arm intercepts before the alias scheme (Vec<T>×Vec<T>→Vec<T>) is consulted,
+            // This arm intercepts before the alias scheme ((Vector :- [T])×(Vector :- [T])→(Vector :- [T])) is consulted,
             // enabling PersistentVector support with same-kind-only semantics.
             ":wat::core::concat" => {
                 let (val, mut errs) = crate::collection::infer::infer_concat(args, head_span, env, locals, fresh, subst).into_parts();
@@ -4491,7 +4491,7 @@ fn infer_list(
             // DESIGN-STONE-into-pv-from-vector.md — the per-Type sibling of `Vector/concat`,
             // minted rather than widening `concat`'s same-kind-only contract just above.
             // Custom arm because a single static TypeScheme (one `params: Vec<TypeExpr>` per
-            // name) cannot express arg2's dual coverage (Vector<T> OR PersistentVector<T>);
+            // name) cannot express arg2's dual coverage ((Vector :- [T]) OR (PersistentVector :- [T]));
             // the fallback fingerprint scheme registered in register_builtins (beside
             // Vector/concat) is never consulted — this arm always intercepts first.
             // Arc 278 — the mirror: destination fixes the kind (Vector), source takes either.
@@ -4513,7 +4513,7 @@ fn infer_list(
                 };
             }
             // Arc 220 Stone 220.4 / arc-278 strike 2 — `:wat::core::rest` is polymorphic over
-            // Vector<T>, List<T>, PersistentVector<T>, and WatAST (list form).
+            // (Vector :- [T]), (List :- [T]), (PersistentVector :- [T]), and WatAST (list form).
             // Classification is routed through StreamContainer::of_type + has_tail() — the
             // registry is the single source of truth; no hand-rolled per-container arms here.
             ":wat::core::rest" => {
@@ -4603,7 +4603,7 @@ fn infer_list(
                 return if local_errors.is_empty() { CheckResult::ok(result_ty) } else { CheckResult::partial_with(result_ty, local_errors) };
             }
             // Stone 118.B4-iii — THE WALL: `:wat::core::empty?` gets a hand-written arm so a
-            // Stream<T> receiver is refused at COMPILE time, not only by the runtime — the
+            // (Stream :- [T]) receiver is refused at COMPILE time, not only by the runtime — the
             // hand-written runtime arm that routed AROUND `measurable()` (`eval_empty`,
             // `runtime.rs`) is deleted this stone; `measurable()` is now the one gate, consulted
             // here on the checker side too, mirroring `:wat::core::rest` just above (`has_tail()`).
@@ -5050,7 +5050,7 @@ fn infer_list(
                     // scheme `<ConcreteType>/<method>`, which `extend-type` registered
                     // (`register_extend_type_surface_impls`, runtime.rs) with the surface's `<T>`
                     // already substituted to that satisfier's concrete binding (e.g. `T=i64` for
-                    // `(extend-type :IntBox :Holds<i64> …)`). Monomorphic surfaces
+                    // `(extend-type :IntBox (:Holds :- [i64]) …)`). Monomorphic surfaces
                     // (`s.type_params` empty) take the identity branch — a pure no-op, so
                     // existing (non-parametric) surfaces are byte-for-byte unaffected.
                     let (member_ret_raw, extra_param_types_raw): (TypeExpr, Vec<TypeExpr>) =
@@ -5064,9 +5064,9 @@ fn infer_list(
                                 .and_then(|o| o.as_ref())
                                 .and_then(|recv_ty| {
                                     let recv = apply_subst(recv_ty, subst);
-                                    // 293.W.2f — Handle<Wire> is an instantiation of
-                                    // Handle<T>; the extend-type scheme is keyed on
-                                    // Handle<T> (or the bare Handle). Try exact, then
+                                    // 293.W.2f — (Handle :- [Wire]) is an instantiation of
+                                    // (Handle :- [T]); the extend-type scheme is keyed on
+                                    // (Handle :- [T]) (or the bare Handle). Try exact, then
                                     // T/Xt in the last slot, then the bare head.
                                     for key in satisfier_method_keys(&recv, method_name) {
                                         if let Some(scheme) = env.get(&key) {
@@ -5078,16 +5078,16 @@ fn infer_list(
                                             //
                                             // Path (1) above assumes `extend-type` already
                                             // substituted the surface's `<T>` to a CONCRETE binding
-                                            // ("e.g. T=i64 for (extend-type :IntBox :Holds<i64>)").
+                                            // ("e.g. T=i64 for (extend-type :IntBox (:Holds :- [i64]))").
                                             // That holds for a MONOMORPHIC satisfier. It does NOT
                                             // hold when a GENERIC container satisfies the surface:
-                                            // `(extend-type :wat::core::Vector :wat::core::Seqable<T>)`
+                                            // `(extend-type :wat::core::Vector (:wat::core::Seqable :- [T]))`
                                             // binds `T -> T`, a VARIABLE, so the stored scheme's
-                                            // return stays `Stream<T>` with `T` free and nothing
+                                            // return stays `(Stream :- [T])` with `T` free and nothing
                                             // ever instantiated it. `(Seqable/seq v)` on a
-                                            // `Vector<i64>` therefore yielded `Stream<T>` and could
+                                            // `(Vector :- [i64])` therefore yielded `(Stream :- [T])` and could
                                             // not be handed to any consumer wanting a concrete
-                                            // element type — the ONE method `Seqable<T>` has could
+                                            // element type — the ONE method `(Seqable :- [T])` has could
                                             // not have its result typed.
                                             //
                                             // ★ NO NEW STATE IS NEEDED, AND `rename` IS THE SIGNAL.
@@ -5103,7 +5103,7 @@ fn infer_list(
                                             // The arity guard is the same one path (2) below
                                             // already applies, for the same reason: the positional
                                             // zip is only meaningful when the counts line up. A
-                                            // hypothetical `Map<K,V>` satisfying `Seqable<T>` fails
+                                            // hypothetical `(Map :- [K V])` satisfying `(Seqable :- [T])` fails
                                             // it and falls through untouched rather than binding
                                             // `T := K`.
                                             if let TypeExpr::Parametric {
@@ -5138,9 +5138,9 @@ fn infer_list(
                                 None => {
                                     // (2) Arc 170 C2 Gap 2 — ABSTRACT parametric-surface receiver:
                                     //     the receiver IS this surface itself parametrized (e.g.
-                                    //     `Dialable<probe::Echo::Op,probe::Echo::Reply>`), so no
+                                    //     `(Dialable :- [probe::Echo::Op probe::Echo::Reply])`), so no
                                     //     concrete satisfier `<Type>/<method>` scheme exists →
-                                    //     `Dialable/coord` on it fell back to the RAW `Address'<S,R>`.
+                                    //     `Dialable/coord` on it fell back to the RAW `(Address' :- [S R])`.
                                     //     Instead, bind the surface's own `<T>` params from the
                                     //     RECEIVER's concrete args (`s.type_params[i] → recv_args[i]`)
                                     //     and `rename` the member's raw return + extra params — the
@@ -5668,7 +5668,7 @@ fn infer_list(
         // Arc 150 — variadic-define call: when the callee's scheme
         // has rest_param_type set, accept `args.len() >= fixed arity`
         // and unify each rest-arg against the rest-param's element
-        // type T (extracted from `Vector<T>`). Strict-arity path
+        // type T (extracted from `(Vector :- [T])`). Strict-arity path
         // (the overwhelming majority of callees) is unchanged.
         let rest_elem_ty: Option<TypeExpr> = scheme
             .rest_param_type
@@ -5995,7 +5995,7 @@ fn infer_match(
 
     // Arc 055 — resolve the shape's inner types via the substitution
     // *now* so recursive sub-pattern checking sees concrete types
-    // (e.g. `Option<fresh>` → `Option<(i64,i64,i64)>` once the
+    // (e.g. `(Option :- [fresh])` → `(Option :- [(i64,i64,i64)])` once the
     // scrutinee unifies with a let-bound variable).
     let shape = match &shape {
         MatchShape::Option(t) => MatchShape::Option(apply_subst(t, subst)),
@@ -6016,7 +6016,7 @@ fn infer_match(
     let mut covers_result_ok = false;
     let mut covers_result_err = false;
     let mut wildcard_seen = false;
-    // Arc 111 — when the Result's Ok-inner type is Option<T>, the
+    // Arc 111 — when the Result's Ok-inner type is (Option :- [T]), the
     // caller may write two partial Ok arms — `(Ok (Some v))` and
     // `(Ok :None)` — that together cover all Ok cases. Track them
     // separately so the combined check can set covers_result_ok.
@@ -6093,7 +6093,7 @@ fn infer_match(
             // two canonical Option-unwrapping sub-arms:
             //   `(Ok (Some v))` → covers_result_ok_inner_some
             //   `(Ok :None)`    → covers_result_ok_inner_none
-            // If both are seen and the inner type IS Option<T>, the
+            // If both are seen and the inner type IS (Option :- [T]), the
             // pair together constitutes full Ok coverage.
             Some(Coverage::ResultOk { full: false }) => {
                 if let WatAST::List(pat_items, _) = pattern {
@@ -6131,7 +6131,7 @@ fn infer_match(
             None => continue,
         }
         // Arc 111 — combined Option-unwrapping Ok coverage: if the
-        // Result's inner Ok type is Option<T> and we've seen both
+        // Result's inner Ok type is (Option :- [T]) and we've seen both
         // `(Ok (Some _))` and `(Ok :None)` arms, promote to full Ok
         // coverage. This lets recv-loop workers use the 3-arm pattern
         // `(Ok (Some v)) / (Ok :None) / (Err _died)` without a
@@ -6335,8 +6335,8 @@ fn enum_match_shape(
 
 /// Scan the match arms to decide which shape the scrutinee matches.
 /// First arm with a recognized variant-constructor pattern wins:
-/// - `:None` or `(Some _)` → Option<T>
-/// - `(Ok _)` or `(Err _)` → Result<T,E>
+/// - `:None` or `(Some _)` → (Option :- [T])
+/// - `(Ok _)` or `(Err _)` → (Result :- [T E])
 /// - `:enum::Variant` (unit) or `(:enum::Variant ...)` (tagged) → Enum
 ///   (arc 048). The keyword is split on the last `::` to separate
 ///   enum path from variant name; the prefix is looked up in the type
@@ -6435,7 +6435,7 @@ fn detect_match_shape(arms: &[&WatAST], env: &CheckEnv, fresh: &mut InferCtx) ->
     // Return Open(fresh) so the scrutinee type is unconstrained —
     // hash-destructure arms work on record / struct / HashMap / any type.
     // The old default MatchShape::Option(fresh) would force the scrutinee
-    // to unify with Option<T>, which is wrong for these arms.
+    // to unify with (Option :- [T]), which is wrong for these arms.
     MatchShape::Open(fresh.fresh())
 }
 
@@ -6837,8 +6837,8 @@ fn pattern_coverage(
 /// mismatch (with errors pushed).
 ///
 /// Disambiguation at list-position is by `expected_ty`:
-/// - `Option<U>`: list head Symbol "Some" is the variant constructor.
-/// - `Result<T,E>`: list head Symbol "Ok" / "Err" are constructors.
+/// - `(Option :- [U])`: list head Symbol "Some" is the variant constructor.
+/// - `(Result :- [T E])`: list head Symbol "Ok" / "Err" are constructors.
 /// - Enum: list head Keyword `:enum::Variant` is the constructor.
 /// - Tuple `(T1,...,Tn)`: list is positional destructure; recurse on
 ///   each element type. The head can be any sub-pattern (bare symbol,
@@ -6953,7 +6953,7 @@ fn check_subpattern(
             }
         },
         // Keyword sub-patterns:
-        // - `:None` — only valid at Option<U> position; partial (only None).
+        // - `:None` — only valid at (Option :- [U]) position; partial (only None).
         // - `:enum::Variant` (unit) — valid at enum position.
         // - bare keyword payload (rare in pattern position) — error.
         WatAST::Keyword(k, _) if (k == ":None" || k == ":wat::core::None") => match expected_ty {
@@ -8729,7 +8729,7 @@ fn infer_try(
     }
 
     // The enclosing function's return type must exist and must itself
-    // be `Result<_, E>`. Otherwise `try` has no propagation target.
+    // be `(Result :- [_ E])`. Otherwise `try` has no propagation target.
     let enclosing = match fresh.enclosing_ret().cloned() {
         Some(r) => r,
         None => {
@@ -8772,7 +8772,7 @@ fn infer_try(
         }
     };
 
-    // Argument must unify with Result<fresh_T, enclosing_err_ty>.
+    // Argument must unify with (Result :- [fresh_T enclosing_err_ty]).
     // Building the expected type this way enforces both that the arg
     // is a Result and that its Err variant matches the enclosing
     // function's Err variant in one unification.
@@ -8880,7 +8880,7 @@ fn infer_option_try(
         }
     };
 
-    // Argument must unify with Option<fresh_T>. Unlike Result/try the
+    // Argument must unify with (Option :- [fresh_T]). Unlike Result/try the
     // shape carries no Err variant to reconcile against the enclosing
     // function — :None is the sole propagation payload.
     let arg_ty = match infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
@@ -9285,7 +9285,7 @@ fn infer_apply(
 
 
 /// Type-check `(:wat::core::first xs)` / `second` / `third`.
-/// Polymorphic over Vec<T> and tuple — both are index-addressed.
+/// Polymorphic over (Vector :- [T]) and tuple — both are index-addressed.
 /// Rank-1 HM can't express the union, so this is special-cased:
 /// inspect the argument's type after substitution and return the
 /// element at `index` from whichever container shape matches.
@@ -9340,8 +9340,8 @@ fn infer_positional_accessor(
                     TypeExpr::Path(p) if p == ":wat::WatAST" => {
                         TypeExpr::Path(":wat::WatAST".into())
                     }
-                    // Homogeneous parametric containers (Vector<T>, List<T>, PersistentVector<T>):
-                    // return bare T (arc-278 flip; was Option<T>). Empty/short is a runtime raise.
+                    // Homogeneous parametric containers ((Vector :- [T]), (List :- [T]), (PersistentVector :- [T])):
+                    // return bare T (arc-278 flip; was (Option :- [T])). Empty/short is a runtime raise.
                     TypeExpr::Parametric { args: targs, .. } => {
                         targs.first().map(|t| apply_subst(t, subst)).unwrap_or_else(|| {
                             // HARVEST (236.2): silent-by-intent — no inner type; polymorphic.
@@ -9354,7 +9354,7 @@ fn infer_positional_accessor(
                 return if local_errors.is_empty() { CheckResult::ok(result_ty) } else { CheckResult::partial_with(result_ty, local_errors) };
             }
             // Stone 118.B4-iii — THE WALL: Stream is not Indexable now — a lazy seq has no
-            // first/second/third. Names the door: `:wat::stream::next`'s `NextOutcome<T> =
+            // first/second/third. Names the door: `:wat::stream::next`'s `(NextOutcome :- [T]) =
             // Item(value, rest) | Exhausted` is the only way a Stream yields anything.
             Some(crate::collection::seq_container::StreamContainer::Stream) => {
                 local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
@@ -9457,9 +9457,9 @@ fn infer_nth(
                     TypeExpr::Path(p) if p == ":wat::WatAST" => {
                         TypeExpr::Path(":wat::WatAST".into())
                     }
-                    // Homogeneous parametric containers: Vector<T>, List<T>, PersistentVector<T>
-                    // — bare T, never Option<T> (nth raises, doesn't None). Stone 118.B4-iii —
-                    // THE WALL: Stream<T> no longer reaches this arm (nth_indexable()==false).
+                    // Homogeneous parametric containers: (Vector :- [T]), (List :- [T]), (PersistentVector :- [T])
+                    // — bare T, never (Option :- [T]) (nth raises, doesn't None). Stone 118.B4-iii —
+                    // THE WALL: (Stream :- [T]) no longer reaches this arm (nth_indexable()==false).
                     TypeExpr::Parametric { args: targs, .. } => {
                         targs.first().map(|t| apply_subst(t, subst)).unwrap_or_else(|| {
                             // HARVEST (236.2): silent-by-intent — no inner type; polymorphic.
@@ -9633,7 +9633,7 @@ fn infer_program_self_peer(
 /// Arc 209 Stone C0b.1 / C0b.2d — `(:wat::kernel::listener locus …)`.
 ///
 /// Thread tier (C0b.1): `(listener' (thread) :S :R)` — 3 args; locus, :S, :R →
-/// `(Tuple Listener'<S,R> Address'<S,R>)`.
+/// `(Tuple :- [(Listener' :- [S R]) (Address' :- [S R])])`.
 ///
 /// Process tier (C0b.2d): `(listener' (process) addr)` — 2 args; locus, addr where
 /// addr is `(SocketAddress' :- [S R])` → `(Listener' :- [S R])` (unified entity, arc 209 C0b.2e-ii).
@@ -9797,7 +9797,7 @@ fn is_type_param_letter(ty: &TypeExpr) -> bool {
     }
 }
 
-/// Subtype-edge keys for Handle<Wire> / Handle<K,V,Shared>: the bare head,
+/// Subtype-edge keys for (Handle :- [Wire]) / (Handle :- [K V Shared]): the bare head,
 /// `(Handle :- [:T])`, `(Handle :- [:Xt])`, and the full type with last arg rewritten to
 /// `:T`/`:Xt`. STONE-defservice-emits-the-binder — the letters carry their OWN leading
 /// colon (`":T"`, not `"T"`): `parse_type_node`'s `Symbol` arm prepends `:` to a
@@ -9805,7 +9805,7 @@ fn is_type_param_letter(ty: &TypeExpr) -> bool {
 /// registered edge (and `format_type`, which no longer strips it for nested args — see
 /// `render_binder_ref`) both carry it. A bare `Path("T".into())` here rendered `(Head :-
 /// [T])` — one colon short of the registered `(Head :- [:T])` — and the extend-type edge
-/// for every transport-polymorphic `Handle<Wire>`/`Handle<Shared>` silently stopped
+/// for every transport-polymorphic `(Handle :- [Wire])`/`(Handle :- [Shared])` silently stopped
 /// resolving (`every_wat_scripts_file_loads` caught it, three probes red).
 fn transport_edge_keys(ty: &TypeExpr) -> Vec<String> {
     let mut keys = Vec::new();
@@ -9830,7 +9830,7 @@ fn transport_edge_keys(ty: &TypeExpr) -> Vec<String> {
 }
 
 /// Scheme keys for a surface method on `recv`: exact format_type, then
-/// last-arg rewritten to `:T` / `:Xt` (Handle<Wire> → `(Handle :- [:T])`), then the bare
+/// last-arg rewritten to `:T` / `:Xt` ((Handle :- [Wire]) → `(Handle :- [:T])`), then the bare
 /// head. STONE-defservice-emits-the-binder — the colon on the letter matches
 /// `transport_edge_keys`'s own fix, same reason: `Path(":T")`, not `Path("T")`.
 fn satisfier_method_keys(recv: &TypeExpr, method_name: &str) -> Vec<String> {
@@ -10306,7 +10306,7 @@ fn infer_process_prog_type(
     let mut local_errors: Vec<CheckError> = Vec::new();
     // Infer for error coverage only (type errors in the forms body are caught at
     // startup_from_forms time, not here). Accept any type — the runtime validates
-    // it's `Vector<WatAST>` (forms).
+    // it's `(Vector :- [WatAST])` (forms).
     let _ = infer(forms_arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
     // Return (Process' :- [I O]) with INDEPENDENT fresh vars (arc 214 γ-1). The
     // forms-server is a request→response program — `send'`ing an I and
@@ -10446,7 +10446,7 @@ fn infer_spawn_process_prime(
     // arg 3: max-message-bytes — an i64 budget; infer only (runtime validates it's an i64).
     let _ = infer(&args[3], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
 
-    // arg 4: identity — Option<Record> ps-visible label; infer only (runtime validates it's
+    // arg 4: identity — (Option :- [Record]) ps-visible label; infer only (runtime validates it's
     // an Option and renders the inner record, if any, to EDN).
     let _ = infer(&args[4], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
 
@@ -10536,11 +10536,11 @@ fn infer_kernel_fn_forms(
 // All three are INTRINSIC (projective / ∀-parametric):
 //   send'      — projective: I flows from (peer :- [I O]) into the payload arg.
 //   recv'      — projective: O flows from (peer :- [I O]) into the return type.
-//   close'     — ∀-parametric: the peer arg is Thread'<∀I,∀O> or Process'<∀I,∀O>;
+//   close'     — ∀-parametric: the peer arg is (Thread' :- [∀I ∀O]) or (Process' :- [∀I ∀O]);
 //                a clause matcher cannot enumerate all (I,O) instantiations.
 // The pattern for each: infer args[0], apply_subst+reduce, match
 // Parametric{head:"wat::kernel::Thread"|"…Process'", args:[I,O]},
-// project I and/or O. Non-peer arg0 → TypeMismatch "peer (Thread'<I,O> | Process'<I,O>)".
+// project I and/or O. Non-peer arg0 → TypeMismatch "peer ((Thread' :- [I O]) | (Process' :- [I O]))".
 
 /// Helper: infer args[0] and project [I, O] from it as a peer Parametric.
 ///
@@ -10977,14 +10977,14 @@ fn infer_recv_prime(
 }
 
 // PARTITION — CLAUSE vs INTRINSIC: `infer_close_prime` is INTRINSIC (∀-parametric).
-// The peer arg is Thread'<∀I,∀O> or Process'<∀I,∀O>; a defclause cannot enumerate
+// The peer arg is (Thread' :- [∀I ∀O]) or (Process' :- [∀I ∀O]); a defclause cannot enumerate
 // all (I,O) instantiations — the same infinite-open-set argument as get/recv'.
 /// Type-check `(:wat::kernel::close peer)` — Stone 4.6a-ii; Arc 278 the close'
 /// OUTCOME WALL.
 ///
 /// One positional arg: `args[0]` peer ((Thread' :- [I O]) or (Process' :- [I O])).
 /// Result: `:wat::kernel::CloseOutcome` (loci-agnostic — the exit code, when any,
-/// rides in `Closed[exit <- Option<i64>]`). A must-use type (see `MUST_USE_TYPES`):
+/// rides in `Closed[exit <- (Option :- [i64])]`). A must-use type (see `MUST_USE_TYPES`):
 /// a dropped `close'` outcome is a compile error, closing the swallow door on the
 /// handleable teardown failures the wall converted from raises.
 fn infer_close_prime(
@@ -11022,7 +11022,7 @@ fn infer_close_prime(
     let peer_reduced = reduce(&peer_surface, subst, env.types());
     // Arc 278 the close' OUTCOME WALL: both peer tiers now yield a matchable
     // `:wat::kernel::CloseOutcome` (loci-agnostic — the exit code, when any, rides
-    // in `Closed[exit <- Option<i64>]`), not a bare `nil`/`i64`.
+    // in `Closed[exit <- (Option :- [i64])]`), not a bare `nil`/`i64`.
     let close_outcome = || TypeExpr::Path(":wat::kernel::CloseOutcome".into());
     let ret = match &peer_reduced {
         TypeExpr::Parametric { head, args }
@@ -11214,8 +11214,8 @@ fn infer_peer_process(
 /// Type-check `(:wat::kernel::peer-wire? peer)` — DESIGN-STONE-the-client-
 /// validates-locally.md STOP-3.
 ///
-/// One positional arg: `args[0]` peer (`Thread<I,O> | Process<I,O> | Peer<I,O> |
-/// ThreadSelfPeer<I,O>` — anything `project_peer_io` accepts). Result is always
+/// One positional arg: `args[0]` peer (`(Thread :- [I O]) | (Process :- [I O]) | (Peer :- [I O]) |
+/// (ThreadSelfPeer :- [I O])` — anything `project_peer_io` accepts). Result is always
 /// `:wat::core::bool`: runtime TRUE iff the underlying connection is socket-tier
 /// (a WIRE, `send` on it encodes via `send_wire`), FALSE for thread-tier (shared
 /// memory, never encodes). PURE PROJECTION, mirrors `peer-process`: a runtime tag
@@ -11264,7 +11264,7 @@ fn infer_peer_wire(
 
 /// Type-check `(:wat::kernel::address-wire? addr)` — 293.W.2e.
 ///
-/// One positional arg: unify against `Address<S,R>` (same expected type as
+/// One positional arg: unify against `(Address :- [S R])` (same expected type as
 /// `infer_connect_prime`). Result is always `:wat::core::bool`. PURE
 /// PROJECTION — do not call `project_peer_io`; do not check wire purity.
 fn infer_address_wire(
@@ -11334,7 +11334,7 @@ fn infer_address_wire(
 /// Type-check `(:wat::kernel::require-wire-address x)` — 293.W.2f.
 ///
 /// The process-runner door. Unifies the argument's transport marker against
-/// `Wire`. A `Handle<Shared>` / `Address<_,_,Shared>` is a TypeMismatch
+/// `Wire`. A `(Handle :- [Shared])` / `(Address :- [_ _ Shared])` is a TypeMismatch
 /// naming Shared vs Wire. 2-arg Address (T unknown) and non-address data
 /// fields are residuals (allowed). Result type is the argument's type.
 /// Runtime is identity.
@@ -11398,9 +11398,9 @@ fn infer_require_wire_address(
     }
 }
 
-/// Extract the transport marker T from `Address<S,R,T>` or from a parametric
-/// type whose last argument is Shared/Wire (Handle<Shared>, Handle<K,V,Wire>).
-/// 2-arg Address and unrelated parametrics (Vector<i64>, …) yield None.
+/// Extract the transport marker T from `(Address :- [S R T])` or from a parametric
+/// type whose last argument is Shared/Wire ((Handle :- [Shared]), (Handle :- [K V Wire])).
+/// 2-arg Address and unrelated parametrics ((Vector :- [i64]), …) yield None.
 fn transport_marker(ty: &TypeExpr) -> Option<TypeExpr> {
     match ty {
         TypeExpr::Parametric { head, args } if head == "wat::kernel::Address" && args.len() == 3 => {
@@ -11496,7 +11496,7 @@ fn infer_retag_op(
 
 // PARTITION — CLAUSE vs INTRINSIC: `infer_select_prime` is INTRINSIC (projective).
 // I,O flow from (Vector :- [(peer :- [I O])])'s element peer type into the return (ServiceEvent :- [I O A]).
-// A clause cannot enumerate Vector<Thread'<∀I,∀O>> / Vector<Process'<∀I,∀O>> —
+// A clause cannot enumerate (Vector :- [(Thread' :- [∀I ∀O])]) / (Vector :- [(Process' :- [∀I ∀O])]) —
 // the same infinite-open-set argument as get/recv'. Mixed tiers are already
 // forbidden by Vector homogeneity at check; no bespoke rejection needed.
 /// Type-check `(:wat::kernel::select peers)` — Stone 4.6b / Stone 259 Lost-locus.
@@ -11560,7 +11560,7 @@ fn infer_select_prime(
     let vec_surface = apply_subst(&vec_ty, subst);
     let vec_reduced = reduce(&vec_surface, subst, env.types());
 
-    // Match Vector<elem>.
+    // Match (Vector :- [elem]).
     let elem_ty = match &vec_reduced {
         TypeExpr::Parametric { head, args: targs }
             if head == "wat::core::Vector" && targs.len() == 1 =>
@@ -11707,7 +11707,7 @@ fn infer_poll_prime(
     let vec_surface = apply_subst(&vec_ty, subst);
     let vec_reduced = reduce(&vec_surface, subst, env.types());
 
-    // Match Vector<elem>.
+    // Match (Vector :- [elem]).
     let elem_ty = match &vec_reduced {
         TypeExpr::Parametric { head, args: targs }
             if head == "wat::core::Vector" && targs.len() == 1 =>
@@ -12024,7 +12024,7 @@ fn process_let_binding(
 /// them), those three's bracket detection is CONDITIONAL: a literal `WatAST::Vector` was
 /// (and remains) a legal first VALUE for all three — `(:wat::core::Tuple [1 2 3] "tag")`
 /// is a real corpus fixture (`tests/collection/probe_arc216_stone7_tuple_roundtrip.rs`),
-/// a 2-tuple whose first element is a `Vector<i64>` literal, not a type bracket.
+/// a 2-tuple whose first element is a `(Vector :- [i64])` literal, not a type bracket.
 ///
 /// `pub(crate)` — Room 3 (`src/runtime.rs`'s dispatch arms for `:wat::core::Vector`
 /// / `HashMap` / `HashSet`, which delegate to `eval_vector_ctor` / `eval_hashmap_ctor`
@@ -12081,7 +12081,7 @@ pub(crate) fn unwrap_type_param_bracket(args: &[WatAST]) -> Cow<'_, [WatAST]> {
 /// `args.first()` as a bracket (`unwrap_type_param_bracket`'s rule) would
 /// silently reinterpret real corpus usage: `(:wat::core::Tuple [1 2 3] "tag")`
 /// (`tests/collection/probe_arc216_stone7_tuple_roundtrip.rs`) is a 2-tuple
-/// whose first element is a `Vector<i64>` literal, not a type declaration.
+/// whose first element is a `(Vector :- [i64])` literal, not a type declaration.
 ///
 /// The discriminator: a genuine type-parameter bracket is syntactically a
 /// non-empty vector of BARE type-keyword tokens (`[wat.type/i64]`,
@@ -12623,8 +12623,8 @@ fn infer_equality(
 
 /// Check whether a (fully-substituted / reduced) TypeExpr belongs to the
 /// orderable class: `i64`, `u8`, `f64`, `String`, `bool`, `keyword`,
-/// `Instant`, `Duration`, and recursively `Vector<orderable>`,
-/// `Tuple<orderable…>`, `Option<orderable>`, `Result<orderable, orderable>`.
+/// `Instant`, `Duration`, and recursively `(Vector :- [orderable])`,
+/// `(Tuple :- [orderable…])`, `(Option :- [orderable])`, `(Result :- [orderable orderable])`.
 ///
 /// Unresolved TypeVars are accepted (deferred — mirrors `infer_equality`'s
 /// TypeVar policy; the runtime's `values_compare → None` is the eval-side
@@ -12653,7 +12653,7 @@ fn is_type_orderable(ty: &TypeExpr, subst: &Subst) -> bool {
             "wat::core::Vector" => args.first().is_none_or(|el| is_type_orderable(el, subst)),
             "wat::core::Option" => args.first().is_none_or(|el| is_type_orderable(el, subst)),
             "wat::core::Result" => {
-                // Result<T, E> orderable iff both T and E are orderable
+                // (Result :- [T E]) orderable iff both T and E are orderable
                 args.first().is_none_or(|t| is_type_orderable(t, subst))
                     && args.get(1).is_none_or(|e| is_type_orderable(e, subst))
             }
@@ -13776,7 +13776,7 @@ pub(crate) fn is_pure_type(ty: &TypeExpr, types: &TypeEnv) -> bool {
                 // pure." A peer of ANY locus holds a live resource (crossbeam tx/rx, or a
                 // pipe/socket fd pair) — exactly what `ThreadSelfPeer` was already listed
                 // for. Its three siblings were absent, so each fell through to
-                // "pure iff its type args are pure": a `Peer<i64,String>` was judged PURE
+                // "pure iff its type args are pure": a `(Peer :- [i64 String])` was judged PURE
                 // and `validate_aggregate_containment` admitted it into a pure Record —
                 // i.e. into a defservice `:durable`, and onto the wire. Only ADDRESSES
                 // cross (293.W); a peer is dialled, never shipped. A thing that holds a
@@ -13787,9 +13787,9 @@ pub(crate) fn is_pure_type(ty: &TypeExpr, types: &TypeEnv) -> bool {
                 | "wat::kernel::Peer"
                 | "wat::kernel::Thread"
                 | "wat::kernel::Process" => false,
-                // 293.W.2f — Address<_,_,Shared> is an in-locus resource (impure).
-                // Address<_,_,Wire> stays pure (it already crosses as SocketAddressWire).
-                // 2-arg Address<S,R> stays pure (T unknown — do not break Coords records).
+                // 293.W.2f — (Address :- [_ _ Shared]) is an in-locus resource (impure).
+                // (Address :- [_ _ Wire]) stays pure (it already crosses as SocketAddressWire).
+                // 2-arg (Address :- [S R]) stays pure (T unknown — do not break Coords records).
                 "wat::kernel::Address" => {
                     match args.as_slice() {
                         [s, r] => is_pure_type(s, types) && is_pure_type(r, types),
@@ -13804,8 +13804,8 @@ pub(crate) fn is_pure_type(ty: &TypeExpr, types: &TypeEnv) -> bool {
                     }
                 }
                 // Pure container: pure iff all type args are pure.
-                // Vector<T>, List<T>, Option<T>, Result<T,E>, HashMap<K,V>,
-                // HashSet<T>, Tuple<...> — any other parametric is conservatively
+                // (Vector :- [T]), (List :- [T]), (Option :- [T]), (Result :- [T E]), (HashMap :- [K V]),
+                // (HashSet :- [T]), (Tuple :- […]) — any other parametric is conservatively
                 // pure-if-args-pure (falls through to the arg check).
                 _ => args.iter().all(|a| is_pure_type(a, types)),
             }
@@ -13965,9 +13965,9 @@ pub(crate) fn validate_aggregate_containment(
 
 /// Arc 234 Stone 234.5 — custom inference handler for `:wat::holon::Bundle`.
 ///
-/// Extends Bundle to accept a `Vector<T>` where each element T is either
+/// Extends Bundle to accept a `(Vector :- [T])` where each element T is either
 /// `:wat::holon::HolonAST` or `:wat::core::Record`. The TypeScheme (line 14328)
-/// declared `Vector<HolonAST>` and is retained as documentation; this
+/// declared `(Vector :- [HolonAST])` and is retained as documentation; this
 /// dispatch arm supersedes it.
 ///
 /// The element-level check mirrors the heterogeneous-vec pattern (Stone 234.2a-CORRECTION;
@@ -13998,7 +13998,7 @@ fn infer_holon_bundle(
         for arg in args {
             let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
         }
-        // HARVEST (236.2): existing diagnostic; Bundle returns Result<HolonAST, CapacityExceeded>.
+        // HARVEST (236.2): existing diagnostic; Bundle returns (Result :- [HolonAST CapacityExceeded]).
         return CheckResult::partial_with(result_ty, local_errors);
     }
     // Inspect the single arg — expect a Vector literal or :wat::core::vec call.
@@ -14022,13 +14022,13 @@ fn infer_holon_bundle(
             }
         }
         other => {
-            // General expression: infer then validate it's a Vector<T> where T is
+            // General expression: infer then validate it's a (Vector :- [T]) where T is
             // HolonAST or Record. For non-literal args, the TypeScheme's element
             // type constraint must still be enforced at the call site.
-            // Pre-Stone-234.5 TypeScheme said Vector<HolonAST>; we now also accept
-            // Vector<Record>. Any other Vector<T> is rejected (TypeMismatch).
+            // Pre-Stone-234.5 TypeScheme said (Vector :- [HolonAST]); we now also accept
+            // (Vector :- [Record]). Any other (Vector :- [T]) is rejected (TypeMismatch).
             // Use reduce (not apply_subst) so typealiases like :wat::holon::Holons
-            // (= Vector<HolonAST>) unfold before the structural match.
+            // (= (Vector :- [HolonAST])) unfold before the structural match.
             if let Some(t) = infer(other, env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
                 let resolved = reduce(&t, subst, env.types());
                 let ok = match &resolved {
@@ -14528,7 +14528,7 @@ fn infer_persistentvector_constructor(
     };
     // Bracket-less: T is a free type variable — inferred from the first element
     // (if any), then unified against the rest. An empty ctor produces
-    // PersistentVector<fresh_T>. With a bracket: T is the declared target above;
+    // (PersistentVector :- [fresh_T]). With a bracket: T is the declared target above;
     // every element up-casts against it instead.
     let t_ty = declared_t.clone().unwrap_or_else(|| fresh.fresh());
     for (i, arg) in values.iter().enumerate() {
@@ -14562,7 +14562,7 @@ fn infer_persistentvector_constructor(
 /// from fresh type variables; the K/V unification loop is identical to the
 /// constructor path.
 ///
-/// An empty map literal `{}` produces `HashMap<fresh_K, fresh_V>` — the type
+/// An empty map literal `{}` produces `(HashMap :- [fresh_K fresh_V])` — the type
 /// variables are concretised by the surrounding context (e.g. assignment to a
 /// typed variable). This matches the behaviour of an empty `(:wat::core::HashMap
 /// :wat::type::Infer :wat::type::Infer)` call.
@@ -14615,7 +14615,7 @@ fn infer_map_literal(
 /// from a fresh type variable; the element unification loop is identical to
 /// the constructor path.
 ///
-/// An empty set literal `#{}` produces `HashSet<fresh_T>`.
+/// An empty set literal `#{}` produces `(HashSet :- [fresh_T])`.
 fn infer_set_literal(
     items: &[WatAST],
     _span: &Span, // rune:lint(unused-span) — located elsewhere: element type errors locate at `item.span()`, more precise than the coarse literal span
@@ -14826,7 +14826,7 @@ fn infer_list_constructor(
     subst: &mut Subst,
 ) -> CheckResult<TypeExpr> {
     let mut local_errors: Vec<CheckError> = Vec::new();
-    // :wat::core::vec / :wat::core::list — `(vec :T x1 x2 ...) -> Vec<T>`.
+    // :wat::core::vec / :wat::core::list — `(vec :T x1 x2 ...) -> (Vector :- [T])`.
     // First arg is a type keyword (read, not inferred); remaining args
     // must unify with T.
     //
@@ -14936,7 +14936,7 @@ fn infer_list_constructor(
 }
 
 /// Expected-type reduction helper: reduce/walk `t` and, iff it is
-/// `Vector<T>` (`Parametric{ head == "wat::core::Vector", args.len()==1 }`),
+/// `(Vector :- [T])` (`Parametric{ head == "wat::core::Vector", args.len()==1 }`),
 /// return `Some(T)`; else `None`. Used to detect when a `[...]` literal sits
 /// in a position with a known expected vector element type (arg-position and
 /// ann-form), so its elements can be up-cast (checked against T) instead of
@@ -14958,7 +14958,7 @@ fn vector_elem_of(t: &TypeExpr, subst: &Subst, types: &TypeEnv) -> Option<TypeEx
 /// the compound-up-cast dispatcher FIRST (so a NESTED compound — e.g. a
 /// `(:wat::core::Tuple ...)` ctor call as an ELEMENT of a `[...]` vector
 /// literal, exactly the shape `process/uses`'s macro spreads into
-/// `process/uses-pairs`'s `Vector<Tuple<keyword,Capability>>` slot — also
+/// `process/uses-pairs`'s `(Vector :- [(Tuple :- [keyword Capability])])` slot — also
 /// up-casts recursively), falling back to plain bottom-up `infer` when
 /// `node` isn't a recognized compound form or doesn't match `expected`'s
 /// shape. Errors drain into `local_errors` either way.
@@ -14981,13 +14981,13 @@ fn infer_component_against(
 /// Expected-type-directed check of a `[...]` vector literal.
 ///
 /// When a `WatAST::Vector` literal appears in a position with a known expected
-/// element type `T` (a call-arg slot typed `Vector<T>`, or an ann-form ascribing
-/// `Vector<T>`), each element is inferred then UP-CAST against `T` via
+/// element type `T` (a call-arg slot typed `(Vector :- [T])`, or an ann-form ascribing
+/// `(Vector :- [T])`), each element is inferred then UP-CAST against `T` via
 /// `assignable` — the same machinery the explicit `(:wat::core::Vector T …)`
 /// form uses (see `infer_list_constructor`). This is sound (up-cast only): an
-/// element not assignable to `T` still errors. Returns `Vector<T>` (ok when no
+/// element not assignable to `T` still errors. Returns `(Vector :- [T])` (ok when no
 /// element errored, partial otherwise), so the caller's outer
-/// `assignable(result, Vector<T>)` passes trivially.
+/// `assignable(result, (Vector :- [T]))` passes trivially.
 fn check_vector_literal_against(
     items: &[WatAST],
     expected_elem: &TypeExpr,
@@ -15021,7 +15021,7 @@ fn check_vector_literal_against(
 // parametric compound forms (this strike) ──────────────────────────────────
 //
 // `vector_elem_of` / `check_vector_literal_against` above (fbc60b94) are the
-// TEMPLATE: a `[...]` literal in a position with a known expected `Vector<T>`
+// TEMPLATE: a `[...]` literal in a position with a known expected `(Vector :- [T])`
 // up-casts its elements against T (via `assignable`) instead of inferring
 // bottom-up and requiring `assignable` on the whole result. The disease is
 // the same in the other three parametric compounds — Tuple, Map, Set — so
@@ -15030,7 +15030,7 @@ fn check_vector_literal_against(
 // the two call-arg loops) only need ONE call each, not four.
 
 /// Expected-type reduction helper: reduce/walk `t` and, iff it is
-/// `HashMap<K,V>` (`Parametric{ head == "wat::core::HashMap", args.len()==2}`),
+/// `(HashMap :- [K V])` (`Parametric{ head == "wat::core::HashMap", args.len()==2}`),
 /// return `Some((K,V))`; else `None`. Mirrors `vector_elem_of`.
 fn map_kv_of(t: &TypeExpr, subst: &Subst, types: &TypeEnv) -> Option<(TypeExpr, TypeExpr)> {
     let reduced = reduce(&walk(t, subst), subst, types);
@@ -15045,7 +15045,7 @@ fn map_kv_of(t: &TypeExpr, subst: &Subst, types: &TypeEnv) -> Option<(TypeExpr, 
 }
 
 /// Expected-type reduction helper: reduce/walk `t` and, iff it is
-/// `HashSet<T>` (`Parametric{ head == "wat::core::HashSet", args.len()==1}`),
+/// `(HashSet :- [T])` (`Parametric{ head == "wat::core::HashSet", args.len()==1}`),
 /// return `Some(T)`; else `None`. Mirrors `vector_elem_of`.
 fn set_elem_of(t: &TypeExpr, subst: &Subst, types: &TypeEnv) -> Option<TypeExpr> {
     let reduced = reduce(&walk(t, subst), subst, types);
@@ -15073,7 +15073,7 @@ fn tuple_elems_of(t: &TypeExpr, subst: &Subst, types: &TypeEnv) -> Option<Vec<Ty
 
 /// Expected-type-directed check of a `{k v ...}` map literal. Mirrors
 /// `check_vector_literal_against`: each key up-casts against `K`, each value
-/// up-casts against `V` (via `assignable`); returns `HashMap<K,V>` (the
+/// up-casts against `V` (via `assignable`); returns `(HashMap :- [K V])` (the
 /// compound is BORN at the expected type). Sound (up-cast only): a
 /// non-assignable key or value still errors.
 fn check_map_literal_against(
@@ -15119,7 +15119,7 @@ fn check_map_literal_against(
 
 /// Expected-type-directed check of a `#{a b ...}` set literal. Mirrors
 /// `check_vector_literal_against`: each element up-casts against `T` (via
-/// `assignable`); returns `HashSet<T>` (the compound is BORN at the expected
+/// `assignable`); returns `(HashSet :- [T])` (the compound is BORN at the expected
 /// type). Sound (up-cast only): a non-assignable element still errors.
 fn check_set_literal_against(
     items: &[WatAST],
@@ -15153,7 +15153,7 @@ fn check_set_literal_against(
 /// Expected-type-directed check of a `(:wat::core::Tuple a b ...)` ctor
 /// call. Mirrors `check_vector_literal_against`: component `i` up-casts
 /// against expected component-type `i` (via `assignable`); returns the
-/// expected `Tuple<...>` shape (the compound is BORN at the expected type).
+/// expected `(Tuple :- […])` shape (the compound is BORN at the expected type).
 /// Arity mismatch is still a hard error (not an up-cast question) — falls
 /// back to bottom-up inference per-arg so spans/errors still propagate.
 fn check_tuple_constructor_against(
@@ -15247,7 +15247,7 @@ fn check_compound_against_expected(
 ///
 /// `(:wat::core::List/of x1 x2 ...)` — no leading type-keyword; all args
 /// are data elements.  Infers T from the first element (fresh var then
-/// unification); returns `List<T>`.  Zero args → `List<T>` with a fresh T.
+/// unification); returns `(List :- [T])`.  Zero args → `(List :- [T])` with a fresh T.
 /// Mirrors `infer_list_constructor` but for the `:wat::core::List` head.
 fn infer_linked_list_constructor(
     args: &[WatAST],
@@ -15373,8 +15373,8 @@ pub(crate) fn unify(
                 Err(UnifyError)
             }
         }
-        // 293.W.2f — bare `Status` (T unknown) unifies with `Status<T>` /
-        // `Status<Shared>`. Same residual as 2-arg Address.
+        // 293.W.2f — bare `Status` (T unknown) unifies with `(Status :- [T])` /
+        // `(Status :- [Shared])`. Same residual as 2-arg Address.
         (TypeExpr::Path(p), TypeExpr::Parametric { head, args })
             if crate::types::parametric_head_fqdn(head) == *p && !args.is_empty() =>
         {
@@ -15648,14 +15648,14 @@ pub(crate) fn assignable(
         }
     }
     // Arc 170 C2 Gap 1 — a CONCRETE type satisfies a PARAMETRIC-SURFACE param iff its FULL-ARGS
-    // extend-type edge exists (e.g. `echo'::Handle <: Dialable<Echo::Op,Echo::Reply>`, keyed by the
+    // extend-type edge exists (e.g. `echo'::Handle <: (Dialable :- [Echo::Op Echo::Reply])`, keyed by the
     // full parametric string — types.rs:2151 stores the extend-type target keyword VERBATIM) AND the
     // edge clears the surface's nature floor. This is the (Path actual, Parametric expected) case the
     // branch above (Parametric actual, Path expected) never covered — roles flipped. Guarded on the
     // expected head naming a `Surface`, so a parametric NON-surface bound (e.g. `(Vector :- [T])`) is
     // untouched → falls through to the derive-graph / unify paths below (byte-identical). SOUND, not
     // permissive: `is_subtype` is an EXACT-string match on the parent, so `echo'::Handle` matches ONLY
-    // `Dialable<Echo::Op,Echo::Reply>`, never `Dialable<Kv::Op,Kv::Reply>` — the swap-gate holds.
+    // `(Dialable :- [Echo::Op Echo::Reply])`, never `(Dialable :- [Kv::Op Kv::Reply])` — the swap-gate holds.
     if let (TypeExpr::Path(ap), TypeExpr::Parametric { head, .. }) = (&a, &e) {
         let surface_key = crate::types::parametric_head_fqdn(head);
         if let Some(crate::types::TypeDef::Surface(_)) = types.get(&surface_key) {
@@ -15666,7 +15666,7 @@ pub(crate) fn assignable(
             }
         }
         // 293.W.2f — uninstantiated aggregate `Handle` (T unknown) accepts any
-        // `Handle<Shared>` / `Handle<Wire>` instantiation, and the reverse.
+        // `(Handle :- [Shared])` / `(Handle :- [Wire])` instantiation, and the reverse.
         if surface_key == *ap {
             if let Some(crate::types::TypeDef::Aggregate(agg)) = types.get(ap) {
                 if !agg.type_params.is_empty() {
@@ -15696,8 +15696,8 @@ pub(crate) fn assignable(
         TypeExpr::Parametric { head: eh, args: eargs },
     ) = (&a, &e)
     {
-        // 293.W.2f — Handle<Shared> / Handle<K,V,Shared> satisfies
-        // TypedCapability<S,R> via the extend-type on Handle<T> / Handle<K,V,T>.
+        // 293.W.2f — (Handle :- [Shared]) / (Handle :- [K V Shared]) satisfies
+        // (TypedCapability :- [S R]) via the extend-type on (Handle :- [T]) / (Handle :- [K V T]).
         if ah != eh
             && transport_edge_keys(&a)
                 .iter()
@@ -15709,8 +15709,8 @@ pub(crate) fn assignable(
         // still carry an unbound unification VAR (e.g. a fresh `?454` from an uninstantiated
         // generic fn's own type param — `count-of :- [T] [s <- (Seqable :- [T])]`): `format_type(&e)`
         // renders the fresh var, but the registered `extend-type` edge is keyed by the
-        // SURFACE's own declared param name, verbatim (`:sq::Seqable<T>`, types.rs:2151) —
-        // "<?454>" != "<T>", always. Bind instead of string-match: confirm `eh` resolves to a
+        // SURFACE's own declared param name, verbatim (`(:sq::Seqable :- [T])`, types.rs:2151) —
+        // "[?454]" != "[T]", always. Bind instead of string-match: confirm `eh` resolves to a
         // registered SURFACE by its BARE key (`parametric_head_fqdn` — the same lookup arm 3,
         // 14800-14812, already uses), confirm the actual's family really does extend-type it
         // (existence only, arg-agnostic — `family_extends`, the same helper arm 3
@@ -15723,23 +15723,23 @@ pub(crate) fn assignable(
         //
         // Why it protected nothing: this is an `else if` on the exact-string arm above. The
         // tenants the old comment named — `Dialable` / `TypedCapability` / `Handle` (293.W.2f) —
-        // are baked per-instance with fully CONCRETE args (`TypedCapability<Echo::Op,Echo::Reply>`,
+        // are baked per-instance with fully CONCRETE args (`(TypedCapability :- [Echo::Op Echo::Reply])`,
         // never a bare `S`/`R`; live at tests/services/probe_arc170_c2_d_bodiless_edge_ok.wat:32),
         // so the arm above DECIDES AND RETURNS for them and this branch is unreachable for their
         // calls either way. `else` is what protects them, never the Var test.
         //
         // What it excluded: a CONCRETE instantiation of a parametric surface over a BUILTIN —
-        // `Vector<i64>` against `Seqable<wat::core::i64>`. A builtin's name can never string-match
+        // `(Vector :- [i64])` against `(Seqable :- [wat::core::i64])`. A builtin's name can never string-match
         // a surface's, so the arm above MUST fail for it; and once an earlier parameter has pinned
         // `T`, `eargs` holds no Var, so the old gate skipped it too and satisfaction fell through
-        // to `false`. Measured: `[s <- Seqable<T>]` accepted a Vector while
-        // `[probe <- :T  s <- Seqable<T>]` rejected the same Vector — the position of an unrelated
+        // to `false`. Measured: `[s <- (Seqable :- [T])]` accepted a Vector while
+        // `[probe <- :T  s <- (Seqable :- [T])]` rejected the same Vector — the position of an unrelated
         // parameter decided it (`118-lazy-seqs-vs-threaded-streams/MEASURED-118.B2-blocked-the-var-gate.md`).
         //
         // ★ SOUNDNESS LIVES IN THE GUARDS BELOW, NOT IN THE GATE — and specifically the swap-gate
         // (arm 4's comment, 14814-14822) is enforced by UNIFY on the args: two different concrete
-        // instantiations do not unify, so `Vector<String>` is still refused against
-        // `Seqable<i64>`, and a family with no extend-type edge is refused by
+        // instantiations do not unify, so `(Vector :- [String])` is still refused against
+        // `(Seqable :- [i64])`, and a family with no extend-type edge is refused by
         // `family_extends`. Both are negative-control rows of 118.B1a's gate.
         else {
             let bare = crate::types::parametric_head_fqdn(eh);
@@ -15758,14 +15758,14 @@ pub(crate) fn assignable(
                 }
             }
         }
-        // Handle<K,V> ↔ Handle<K,V,T> (missing transport slot).
+        // (Handle :- [K V]) ↔ (Handle :- [K V T]) (missing transport slot).
         if ah == eh
             && (aargs.len() + 1 == eargs.len() || eargs.len() + 1 == aargs.len())
             && unify(&a, &e, subst, types).is_ok()
         {
             return true;
         }
-        // Handle<T> → Handle<Shared>/Handle<Wire>: T is a type-param letter
+        // (Handle :- [T]) → (Handle :- [Shared])/(Handle :- [Wire]): T is a type-param letter
         // (not a unification var). Prefix args unify; the transport slot
         // instantiates. Shared ↛ Wire stays rejected.
         if ah == eh && aargs.len() == eargs.len() && !aargs.is_empty() {
@@ -16339,7 +16339,7 @@ fn derive_scheme_from_function(func: &Function) -> Option<TypeScheme> {
     // leave param_types empty and aren't statically typed here.
     //
     // Arc 150 — variadic functions carry their rest-param type in
-    // `func.rest_param_type` (Some(Vector<T>)); strict-arity functions
+    // `func.rest_param_type` (Some((Vector :- [T]))); strict-arity functions
     // have None. The scheme propagates this directly to call-site
     // inference via `TypeScheme.rest_param_type`.
     func.name.as_ref()?;
@@ -16477,7 +16477,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![ioreader_ty()],
             // Arc 170 — was `opt_string_ty()`; a process-wide stop request
-            // needed a third outcome `Option<String>` couldn't express. The
+            // needed a third outcome `(Option :- [String])` couldn't express. The
             // 2-arg-form special-case arm (`infer_ioreader_read_frame`
             // above) returns the same type.
             ret: TypeExpr::Path(":wat::io::IOReader::ReadFrameOutcome".into()),
@@ -16686,9 +16686,9 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
-    // Arc 275 Stone 275.1 — `:wat::stdlib::sources` : () → Vector<Vector<String>>
+    // Arc 275 Stone 275.1 — `:wat::stdlib::sources` : () → (Vector :- [(Vector :- [String])])
     // Returns the baked STDLIB_FILES load order as [path, source] pairs.
-    // Zero params; the type is Vector<Vector<String>>.
+    // Zero params; the type is (Vector :- [(Vector :- [String])]).
     env.register(
         ":wat::stdlib::sources".to_string(),
         TypeScheme {
@@ -17562,7 +17562,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // Pattern B (opaque TypeExpr::Path) per keyword/Instant/Duration precedent.
     // Five verbs: v4 (random), v5 (deterministic SHA-1), from-string (parse),
     // to-string (render), nil (zero-UUID sentinel).
-    // `uuid_ty` is an opaque Path; `opt_uuid_ty` is `Option<Uuid>` for
+    // `uuid_ty` is an opaque Path; `opt_uuid_ty` is `(Option :- [Uuid])` for
     // `from-string`'s parse-safe interface.
     let uuid_ty = || TypeExpr::Path(":wat::core::Uuid".into());
     let opt_uuid_ty = || TypeExpr::Parametric {
@@ -17591,7 +17591,7 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
-    // Uuid/from-string — parse-safe; returns Option<Uuid>. Accepts only
+    // Uuid/from-string — parse-safe; returns (Option :- [Uuid]). Accepts only
     // canonical 8-4-4-4-12 lowercase hyphenated form; None for all others.
     env.register(
         ":wat::core::Uuid/from-string".to_string(),
@@ -17649,7 +17649,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // `(:wat::core::char/of "c")` at parse time (parser.rs). Without this
     // registration the type checker returns `<unresolved>` for char literals,
     // causing spurious TypeMismatch on dispatch sites (e.g. `contains?` on
-    // `HashSet<char>` where the element arg must unify to char).
+    // `(HashSet :- [char])` where the element arg must unify to char).
     // Stone 242.1 — renamed from :wat::core::Char/of to :wat::core::char/of
     // (scalar types lowercase per Doctrine 2).
     let char_ty = || TypeExpr::Path(":wat::core::char".into());
@@ -18238,7 +18238,7 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     // Arc 228 Stone 228.1 — Pascal-Case collection classifier-wrap constructor verbs.
-    // Each takes a Vector<HolonAST> of items (same input shape as Bundle) and produces
+    // Each takes a (Vector :- [HolonAST]) of items (same input shape as Bundle) and produces
     // a HolonAST (the classifier-wrapped Bind form). Return type is plain HolonAST
     // (no Result wrap) — no capacity-check enforcement at this tier; the inner Bundle
     // is not capacity-checked (the classifier-wrap itself is a metadata Bind, not a
@@ -18428,8 +18428,8 @@ fn register_builtins(env: &mut CheckEnv) {
 
     // eval-coincident? family — arc 026. Each variant mirrors its
     // eval-*! parent's arg shape, applied per-side (2 sides per
-    // variant). Return is uniform Result<bool, EvalError> — any
-    // failure on either side arrives as Err<EvalError>.
+    // variant). Return is uniform (Result :- [bool EvalError]) — any
+    // failure on either side arrives as an Err(EvalError).
     let eval_coincident_ret = || TypeExpr::Parametric {
         head: "wat::core::Result".into(),
         args: vec![
@@ -18700,11 +18700,11 @@ fn register_builtins(env: &mut CheckEnv) {
         );
     }
     // Arc 111 — three states surfaced at the type level:
-    //   recv: Result<Option<T>, ThreadDiedError>
+    //   recv: (Result :- [(Option :- [T]) ThreadDiedError])
     //         Ok(Some v)      — value flowed
     //         Ok(:None)       — clean shutdown (every sender dropped via scope)
     //         Err(ThreadDied) — sender thread panicked
-    //   send: Result<(), ThreadDiedError>
+    //   send: (Result :- [() ThreadDiedError])
     //         Ok(())          — delivered
     //         Err(ThreadDied) — receiver gone (clean vs panic in the
     //                           ThreadDiedError variants per arc 060)
@@ -18712,13 +18712,13 @@ fn register_builtins(env: &mut CheckEnv) {
     // message; slice 1 ships the type shape with Err unreachable from
     // the runtime path (still always ChannelDisconnected as a stand-in).
     // Arc 113 — Err arm widens from a single ThreadDiedError to a
-    // `Vec<ThreadDiedError>` (chained-cause backtrace). Vec is the
+    // `(Vector :- [ThreadDiedError])` (chained-cause backtrace). Vector is the
     // chain: head = the immediate peer that died; tail = whatever
     // killed it, transitively. Slice 1 ships the wire shape; slice 2
     // wires auto-conj at every cross-thread hand-off boundary so the
     // substrate produces real chains. Pre-arc-113 consumers matching
     // `((Err died) ...)` against a single ThreadDiedError now match
-    // against a Vec<ThreadDiedError>; common shape `((Err chain)
+    // against a (Vector :- [ThreadDiedError]); common shape `((Err chain)
     // (handle (:wat::core::Vector/first chain)))` to recover head.
     // (:wat::kernel::LociDiedError/message err) -> :String — arc 278 the
     // LociDiedError stone (one loci-agnostic accessor; the dead
@@ -18836,7 +18836,7 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     // Arc 111 registered `:wat::kernel::select` here — the raw
-    // Vec<Receiver<T>> multi-way comm verb. Non-prime IPC de-prime
+    // (Vector :- [(Receiver :- [T])]) multi-way comm verb. Non-prime IPC de-prime
     // (this pass): retired in favour of `:wat::kernel::select`.
     // Algebra measurement: dot product. Per 058-005 new measurement
     // primitive. Scalar-returning sibling of cosine; used by the
@@ -18916,7 +18916,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // Arc 255 spec-complete witnesses — variadic-args-measurement + yields-witness.
     //
     // `:wat::intrinsic::variadic-args-measurement` — variadic intrinsic; 0 fixed
-    // params, rest_param_type = Some(Vector<Value>), returns i64.
+    // params, rest_param_type = Some((Vector :- [Value])), returns i64.
     env.register(
         ":wat::intrinsic::variadic-args-measurement".into(),
         TypeScheme {
@@ -19054,7 +19054,7 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
-    //   ForeignVariant/fields   : Value -> Vector<Value>
+    //   ForeignVariant/fields   : Value -> (Vector :- [Value])
     env.register(
         ":wat::edn::ForeignVariant/fields".into(),
         TypeScheme {
@@ -19429,7 +19429,7 @@ fn register_builtins(env: &mut CheckEnv) {
     }
 
     // Arc 053: Reckoner native value + 8 core methods. Label is :i64;
-    // Prediction is a wat tuple :(Vec<(i64,f64)>, Option<i64>, f64,
+    // Prediction is a wat tuple :((Vector :- [(i64,f64)]), (Option :- [i64]), f64,
     // f64). ReckConfig is encoded in the constructor name (Discrete
     // vs Continuous).
     let reckoner_ty = || TypeExpr::Path(":wat::holon::Reckoner".into());
@@ -19903,7 +19903,7 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
-    // Stat reductions over Vec<f64> — population variance/stddev
+    // Stat reductions over (Vector :- [f64]) — population variance/stddev
     // (matches numpy default ddof=0); all return (:Option :- [f64]) with
     // None on empty input (matches f64::min-of/max-of convention).
     let opt_f64_ty = || TypeExpr::Parametric {
@@ -20078,15 +20078,15 @@ fn register_builtins(env: &mut CheckEnv) {
     }
     // List/Vec primitives — Round 4a, per docs/058-backlog.md.
     //
-    //   length   : ∀T. Vec<T> -> :i64
-    //   empty?   : ∀T. Vec<T> -> :bool
-    //   reverse  : ∀T. Vec<T> -> Vec<T>
-    //   range    : :i64 × :i64 -> Vec<i64>   (two-arg; no overload)
-    //   take     : ∀T. Vec<T> × :i64 -> Vec<T>
-    //   drop     : ∀T. Vec<T> × :i64 -> Vec<T>
-    //   map      : ∀T,U. Vec<T> × fn(T)->U -> Vec<U>
-    //   foldl    : ∀T,Acc. Vec<T> × Acc × fn(Acc,T)->Acc -> Acc
-    //   window   : ∀T. Vec<T> × :i64 -> Vec<Vec<T>>   (at :wat::std::list::)
+    //   length   : ∀T. (Vector :- [T]) -> :i64
+    //   empty?   : ∀T. (Vector :- [T]) -> :bool
+    //   reverse  : ∀T. (Vector :- [T]) -> (Vector :- [T])
+    //   range    : :i64 × :i64 -> (Vector :- [i64])   (two-arg; no overload)
+    //   take     : ∀T. (Vector :- [T]) × :i64 -> (Vector :- [T])
+    //   drop     : ∀T. (Vector :- [T]) × :i64 -> (Vector :- [T])
+    //   map      : ∀T,U. (Vector :- [T]) × [T :-> U] -> (Vector :- [U])
+    //   foldl    : ∀T,Acc. (Vector :- [T]) × Acc × [Acc T :-> Acc] -> Acc
+    //   window   : ∀T. (Vector :- [T]) × :i64 -> (Vector :- [(Vector :- [T])])   (at :wat::std::list::)
     let u_var = || TypeExpr::Path(":U".into());
     let acc_var = || TypeExpr::Path(":Acc".into());
     let vec_of = |inner: TypeExpr| TypeExpr::Parametric {
@@ -20096,11 +20096,11 @@ fn register_builtins(env: &mut CheckEnv) {
     // :wat::core::length scheme retired; polymorphic under
     // `infer_length` (arc 035). Dispatched in `infer_list`.
     // :wat::core::empty? scheme retired (arc 058); polymorphic under
-    // `infer_empty_q`. Same shape as `length` — Vec<T> | HashMap<K,V>
-    // | HashSet<T> → bool.
+    // `infer_empty_q`. Same shape as `length` — (Vector :- [T]) | (HashMap :- [K V])
+    // | (HashSet :- [T]) → bool.
     // Arc-278-0d: :wat::core::reverse scheme RETIRED.
     // Superseded by infer_reverse (collection/infer.rs) dispatched from the
-    // keyword-head match; accepts Vector<T> | PersistentVector<T>, type-preserving.
+    // keyword-head match; accepts (Vector :- [T]) | (PersistentVector :- [T]), type-preserving.
     env.register(
         ":wat::core::range".into(),
         TypeScheme {
@@ -20111,11 +20111,11 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     // Arc-278-0d: :wat::core::take scheme RETIRED.
-    // Superseded by infer_take (collection/infer.rs); accepts Vector<T> | PersistentVector<T>.
+    // Superseded by infer_take (collection/infer.rs); accepts (Vector :- [T]) | (PersistentVector :- [T]).
     // Arc-278-0d: :wat::core::drop scheme RETIRED.
-    // Superseded by infer_drop (collection/infer.rs); accepts Vector<T> | PersistentVector<T>.
+    // Superseded by infer_drop (collection/infer.rs); accepts (Vector :- [T]) | (PersistentVector :- [T]).
     // Arc 056 — comparator-sort primitive (renamed sort' in Arc 251 Stone).
-    // Arc 247: fn-first — `(sort' less? xs) -> Vec<T>` where `less? : :fn(T,T) -> :bool`.
+    // Arc 247: fn-first — `(sort' less? xs) -> (Vector :- [T])` where `less? : [T T :-> :bool]`.
     // Arc 251: wat-level `sort` and `sort-by` defclauses in core.wat wrap this primitive.
     // The user owns asc vs desc via the predicate. Common Lisp tradition.
     env.register(
@@ -20133,7 +20133,7 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
-    // Arc 247: fn-first — (map f xs) -> Vec<U>
+    // Arc 247: fn-first — (map f xs) -> (Vector :- [U])
     // Arc-278-0d NOTE: direct :wat::core::map calls are intercepted by infer_map (keyword-head
     // arm) before this scheme is consulted, enabling PersistentVector.  This scheme is RETAINED
     // so that defalias targets that delegate to map (e.g. future stdlib aliases) derive a valid
@@ -20187,7 +20187,7 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
-    // Arc 247: fn-first — (filter pred xs) -> Vec<T>
+    // Arc 247: fn-first — (filter pred xs) -> (Vector :- [T])
     // Arc-278-0d NOTE: direct calls intercepted by infer_filter; scheme retained for potential aliases.
     env.register(
         ":wat::core::filter".into(),
@@ -20249,8 +20249,8 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     // :wat::core::conj — polymorphic add-to-growing-collection.
-    //   ∀T. Vec<T>     × T -> Vec<T>
-    //   ∀T. HashSet<T> × T -> HashSet<T>
+    //   ∀T. (Vector :- [T])  × T -> (Vector :- [T])
+    //   ∀T. (HashSet :- [T]) × T -> (HashSet :- [T])
     // Illegal on HashMap (use assoc instead — HashMap needs key+value
     // pairing). Dispatched by `infer_conj` at check.rs arm above.
     //
@@ -20425,7 +20425,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // get — 2 arms; per-arm return-type variance:
     //   Vector/get :: ∀T. (Vec :- [T]) × :i64 -> (:Option :- [T])
     //   HashMap/get :: ∀K,V. (HashMap :- [K V]) × K -> (:Option :- [V])
-    // infer_dispatch_call returns the matched arm's specific Option<_>;
+    // infer_dispatch_call returns the matched arm's specific (Option :- [_]);
     // no union-type machinery needed (per arc 146 DESIGN).
     env.register(
         ":wat::core::Vector/get".into(),
@@ -20447,8 +20447,8 @@ fn register_builtins(env: &mut CheckEnv) {
     );
 
     // conj — 2 arms (HashMap excluded; HashMap uses assoc).
-    //   Vector/conj :: ∀T. Vec<T> × T -> Vec<T>
-    //   HashSet/conj :: ∀T. HashSet<T> × T -> HashSet<T>
+    //   Vector/conj :: ∀T. (Vector :- [T]) × T -> (Vector :- [T])
+    //   HashSet/conj :: ∀T. (HashSet :- [T]) × T -> (HashSet :- [T])
     env.register(
         ":wat::core::Vector/conj".into(),
         TypeScheme {
@@ -20476,10 +20476,10 @@ fn register_builtins(env: &mut CheckEnv) {
     // callable (`:wat::core::HashMap/assoc` etc., `:Vector/concat`).
     //
     // assoc / dissoc / keys / values — HashMap-only (DESIGN audit).
-    //   HashMap/assoc  :: ∀K,V. HashMap<K,V> × K × V -> HashMap<K,V>
-    //   HashMap/dissoc :: ∀K,V. HashMap<K,V> × K     -> HashMap<K,V>
-    //   HashMap/keys   :: ∀K,V. HashMap<K,V>         -> Vec<K>
-    //   HashMap/values :: ∀K,V. HashMap<K,V>         -> Vec<V>
+    //   HashMap/assoc  :: ∀K,V. (HashMap :- [K V]) × K × V -> (HashMap :- [K V])
+    //   HashMap/dissoc :: ∀K,V. (HashMap :- [K V]) × K     -> (HashMap :- [K V])
+    //   HashMap/keys   :: ∀K,V. (HashMap :- [K V])         -> (Vector :- [K])
+    //   HashMap/values :: ∀K,V. (HashMap :- [K V])         -> (Vector :- [V])
     env.register(
         ":wat::core::HashMap/assoc".into(),
         TypeScheme {
@@ -20521,7 +20521,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // namespaced separately). 2-arg fingerprint per arc 144 slice 3
     // limitation; pre-arc-146 1+ variadic shape collapsed to honest
     // binary; callers nest for >2 args (or fold).
-    //   Vector/concat :: ∀T. Vec<T> × Vec<T> -> Vec<T>
+    //   Vector/concat :: ∀T. (Vector :- [T]) × (Vector :- [T]) -> (Vector :- [T])
     env.register(
         ":wat::core::Vector/concat".into(),
         TypeScheme {
@@ -20536,10 +20536,10 @@ fn register_builtins(env: &mut CheckEnv) {
     // Fallback rank-1 fingerprint scheme (for the env.get path / reflection tools only —
     // mirrors the assoc/conj fingerprint pattern): the custom arm in `infer_list`
     // (`infer_persistentvector_concat`) intercepts BEFORE this scheme is ever consulted,
-    // and is where the real dual-shape coverage lives (arg2 accepts Vector<T> OR
-    // PersistentVector<T>, which a single static TypeScheme cannot express).
-    //   PersistentVector/concat :: ∀T. PersistentVector<T> × PersistentVector<T> -> PersistentVector<T>
-    //                             (fingerprint; arg2 ALSO accepts Vector<T> per the custom arm)
+    // and is where the real dual-shape coverage lives (arg2 accepts (Vector :- [T]) OR
+    // (PersistentVector :- [T]), which a single static TypeScheme cannot express).
+    //   PersistentVector/concat :: ∀T. (PersistentVector :- [T]) × (PersistentVector :- [T]) -> (PersistentVector :- [T])
+    //                             (fingerprint; arg2 ALSO accepts (Vector :- [T]) per the custom arm)
     let pv_of = |inner: TypeExpr| TypeExpr::Parametric {
         head: "wat::core::PersistentVector".into(),
         args: vec![inner],
@@ -20696,9 +20696,9 @@ fn register_builtins(env: &mut CheckEnv) {
     );
 
     // Arc 278 — the mirror. Same fingerprint-only status: `infer_vector_extend` intercepts
-    // first, and is where arg2's dual shape (Vector<T> OR PersistentVector<T>) actually lives.
-    //   Vector/extend :: ∀T. Vector<T> × Vector<T> -> Vector<T>
-    //                    (fingerprint; arg2 ALSO accepts PersistentVector<T> per the custom arm)
+    // first, and is where arg2's dual shape ((Vector :- [T]) OR (PersistentVector :- [T])) actually lives.
+    //   Vector/extend :: ∀T. (Vector :- [T]) × (Vector :- [T]) -> (Vector :- [T])
+    //                    (fingerprint; arg2 ALSO accepts (PersistentVector :- [T]) per the custom arm)
     env.register(
         ":wat::core::Vector/extend".into(),
         TypeScheme {
@@ -20860,7 +20860,7 @@ fn register_builtins(env: &mut CheckEnv) {
 
     // Arc 237 Stone 237.7a — :wat::core::length as a ∀T intrinsic.
     // Polymorphic collection-length primitive: forall T. T -> i64.
-    // Accepts Vector<T> / HashMap<K,V> / HashSet<T>; rejects other values
+    // Accepts (Vector :- [T]) / (HashMap :- [K V]) / (HashSet :- [T]); rejects other values
     // with a teaching RuntimeError at eval time.
     // Mirrors :wat::core::type (∀T. T -> String) — same TypeScheme shape,
     // concrete i64 return in place of String.
@@ -20876,7 +20876,7 @@ fn register_builtins(env: &mut CheckEnv) {
 
     // Arc 237 Stone 237.7b-i — :wat::core::empty? as a ∀T intrinsic.
     // Polymorphic collection-empty predicate: forall T. T -> bool.
-    // Accepts Vector<T> / HashMap<K,V> / HashSet<T>; rejects other values
+    // Accepts (Vector :- [T]) / (HashMap :- [K V]) / (HashSet :- [T]); rejects other values
     // with a teaching RuntimeError at eval time.
     // Reborn from define-dispatch (core.wat) to Rust builtin; same TypeScheme
     // shape as :wat::core::length with bool return in place of i64.
@@ -20939,8 +20939,8 @@ fn register_builtins(env: &mut CheckEnv) {
     // exactly ONE receiver shape — no container union to dispatch over (`nth` needed a
     // hand-written `infer_nth` arm precisely because it does) — so a plain generic scheme is
     // the whole story here, the same shape `:wat::stream::cons`/`next` above use.
-    //   stream->vec  :: ∀T. Vector<T> × Stream<T> -> Vector<T>
-    //   stream->pvec :: ∀T. PersistentVector<T> × Stream<T> -> PersistentVector<T>
+    //   stream->vec  :: ∀T. (Vector :- [T]) × (Stream :- [T]) -> (Vector :- [T])
+    //   stream->pvec :: ∀T. (PersistentVector :- [T]) × (Stream :- [T]) -> (PersistentVector :- [T])
     env.register(
         ":wat::core::stream->vec".into(),
         TypeScheme {
@@ -21106,7 +21106,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // :wat::core::conforms? :: ∀T. T × :wat::core::keyword -> :wat::core::bool
     //
     // Signature: (value :TypeExpr) -> bool. The second arg is type-position
-    // (a keyword like :my::Circle or :wat::core::Vector<wat::core::u8>).
+    // (a keyword like :my::Circle, or a reference form like (:wat::core::Vector :- [:wat::core::u8])).
     // At check-time a bare keyword not bound as a function infers as
     // :wat::core::keyword — this matches the scheme's second param.
     // No infer_list special-case needed: the TypeScheme scheme path handles
@@ -21145,7 +21145,7 @@ fn register_builtins(env: &mut CheckEnv) {
     );
 
     // Arc 278 Stone 2a — rete single-fact alpha matcher.
-    // (:wat::rete::alpha-match cond fact) → Option<PersistentMap<String, V>>
+    // (:wat::rete::alpha-match cond fact) → (Option :- [(PersistentMap :- [String V])])
     // cond: :wat::WatAST (a quoted condition form `(:FactType clause …)`)
     // fact: :wat::core::Record
     // Returns Some(bindings) iff the fact type matches the condition head AND every
@@ -21258,7 +21258,7 @@ fn register_builtins(env: &mut CheckEnv) {
     );
 
     // Arc 278 Stone 5b — collect-rules: reflect a namespace's defrule'd rules.
-    // (:wat::rete::collect-rules <ns: keyword>) → PersistentVector<Rule>. The ns arg is an
+    // (:wat::rete::collect-rules <ns: keyword>) → (PersistentVector :- [Rule]). The ns arg is an
     // ordinary (undefined) keyword value → unifies normally; no infer_list bypass needed.
     env.register(
         ":wat::rete::export".into(),
@@ -21797,7 +21797,7 @@ mod tests {
         assert!(err.0.iter().any(|e| matches!(e, CheckError { kind: CheckErrorKind::TypeMismatch { .. }, .. })));
     }
 
-    // ─── Polymorphic list (T* -> List<T>) ───────────────────────────────
+    // ─── Polymorphic list (T* -> (List :- [T])) ───────────────────────────────
 
     #[test]
     fn list_same_type_passes() {
@@ -22033,7 +22033,7 @@ mod tests {
 
     #[test]
     fn unify_parametric_head_must_match() {
-        // Different parametric heads must NOT unify: Vec<i64> vs Option<i64>.
+        // Different parametric heads must NOT unify: (Vector :- [i64]) vs (Option :- [i64]).
         let mut s = Subst::new();
         let vec_int = TypeExpr::Parametric {
             head: "wat::core::Vector".into(),

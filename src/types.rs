@@ -110,7 +110,7 @@ pub enum TypeExpr {
 /// carries the colon is returned unchanged.
 ///
 /// `TypeExpr::Parametric.head` is stored WITHOUT a leading colon — deliberately,
-/// so its two parse paths (`Head<args>` and `(Ctor arg…)`) produce a byte-identical
+/// so its two parse paths (`(Head :- [args])` and `(Ctor arg…)`) produce a byte-identical
 /// string for unification (see the parsing notes near `parse_type_inner` and
 /// `parse_fn_body`). `TypeExpr::Path` carries its colon. Do NOT "fix" this asymmetry
 /// at storage — that breaks unification. Normalize at the read site, through this
@@ -407,7 +407,7 @@ pub struct AliasDef {
 /// `Tuple`; `Fn` and `Var` are rejected at registration time.
 ///
 /// `type_params` is reserved for future parametric typeunions
-/// (e.g. `typeunion :Result<T,E>`); arc 237 ships non-parametric only.
+/// (e.g. `typeunion :Result :- [T E]`); arc 237 ships non-parametric only.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UnionDef {
     pub name: String,
@@ -830,8 +830,8 @@ impl TypeEnv {
 /// parses to `Path(":T")`, never `Path("T")`), so `format_type`'s Path arm — which returns
 /// the stored string unchanged — renders it WITH the colon. Measured: guessing `"T"` (no
 /// colon) here left `wat-scripts/probes/arc-170/probe-c1-clean-surface.wat` (and two
-/// siblings) unable to find `Handle<Wire>`'s registered `(Handle :- [:T]) <:
-/// TypedCapability<...>` edge — `every_wat_scripts_file_loads` caught it.
+/// siblings) unable to find `(Handle :- [Wire])`'s registered `(Handle :- [:T]) <:
+/// (TypedCapability :- […])` edge — `every_wat_scripts_file_loads` caught it.
 pub(crate) fn transport_satisfier_heads(head: &str) -> Vec<String> {
     let fq = parametric_head_fqdn(head);
     vec![
@@ -941,7 +941,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // only capacity-failure shape.
     //
     //   typealias :wat::holon::BundleResult
-    //     = :Result<wat::holon::HolonAST, wat::holon::CapacityExceeded>
+    //     = (:Result :- [wat::holon::HolonAST wat::holon::CapacityExceeded])
     //
     // Callers can write either form; alias resolution unifies them
     // as the same type at the checker layer.
@@ -1015,7 +1015,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     ::wat_source_derive::wat_record_from!(env, "wat/core.wat", ":wat::core::EvalError");
 
     // :wat::core::Bytes — substrate-general byte buffer. Alias for
-    // :Vec<u8>. Per arc 062 + /gaze: the universal name "Bytes" wins
+    // (:Vec :- [u8]). Per arc 062 + /gaze: the universal name "Bytes" wins
     // across adjacent ecosystems (Rust's bytes::Bytes, Python's
     // bytes, Go's []byte, Haskell's ByteString). Lives in :wat::core::*
     // because byte buffers are substrate-general — they predate every
@@ -1038,7 +1038,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // Rust's `()`: singleton type, one inhabitant, "no meaningful
     // return value." The name `nil` ships the marker effect the
     // user wants without collapsing wat's existing
-    // `Option<T>::None` / `Some(t)` discipline (per arc 153
+    // `(Option :- [T])::None` / `Some(t)` discipline (per arc 153
     // DESIGN — `nil` ≠ `None` ≠ `false` ≠ empty-list).
     //
     //   typealias :wat::core::nil = :()
@@ -1222,9 +1222,9 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // type may cross the wire / live in `:durable` (`is_pure_type`, `check.rs:12914`), and whether
     // variant fields must themselves be pure (`validate_aggregate_containment`, `:12977`).
     // `Pure` matches the `SendOutcome`/`CloseOutcome`/`Signal` siblings and is what the corpus
-    // already assumes — `Option<String>` in `:durable` is everywhere, and `Impure` would put a wall
+    // already assumes — `(Option :- [String])` in `:durable` is everywhere, and `Impure` would put a wall
     // through the middle of it. `RecvOutcome`'s `Impure` is about `O` being a live PEER OUTPUT, not
-    // about parametricity: `WalkStep<A>` is the parametric-and-registered precedent.
+    // about parametricity: `(WalkStep :- [A])` is the parametric-and-registered precedent.
     //
     // Field names are INTERNAL, not API: the wire form is positional — measured,
     // `(:wat::core::Some 42)` prints `#wat.core.Option/Some [42]` — so no observable shape moves.
@@ -1449,8 +1449,8 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // (register_builtin + construct/match from a `.wat` fixture) proved the mechanism
     // resolves cleanly before this name shipped.
     //
-    // Was `Option<String>` before this arc: `Frame(Some(text))` / `Eof(None)`. A
-    // process-wide stop request is neither — `Option<String>` had no third state to
+    // Was `(Option :- [String])` before this arc: `Frame(Some(text))` / `Eof(None)`. A
+    // process-wide stop request is neither — `(Option :- [String])` had no third state to
     // carry it, so this dedicated enum replaces it. See `eval_ioreader_read_frame`'s
     // doc comment (`src/io.rs`) for the poll that produces `Stopped`.
     env.register_builtin(TypeDef::Enum(EnumDef {
@@ -1575,7 +1575,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     //                              the wire.
     //
     // Purity::Pure — a death report crosses back to the owner as EDN data; its
-    // payload is String / Option<Failure> (no live resource), unlike
+    // payload is String / (Option :- [Failure]) (no live resource), unlike
     // (RecvOutcome :- [O]) which is Impure only because O may be live.
     env.register_builtin(TypeDef::Enum(EnumDef {
         name: ":wat::kernel::LociDiedError".into(),
@@ -1675,8 +1675,8 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // STRICT could not reconstruct a `:location` back to a typed record; it hit
     // `UnknownTag`. Hand-register the decode schema here (the `:wat::kernel::Location`
     // exemplar above), so a `:wat::core::Error` floor record round-trips fully:
-    // `:message` (String), `:location` (this Span), `:causes` (Vector<Error>).
-    // `:end` is `Option<:wat::core::Pos>` (Pos is registered via the EdnSchema
+    // `:message` (String), `:location` (this Span), `:causes` ((Vector :- [Error])).
+    // `:end` is `(Option :- [:wat::core::Pos])` (Pos is registered via the EdnSchema
     // drain below); `None` for the `rust_caller_span!()` point-spans.
     // ⛔ ARC 296 — GENERATED FROM WAT. The hand-written `AggregateDef` literal that stood here
     // is DELETED; this row is now emitted from `(:wat::core::defrecord :wat::core::Span …)`
@@ -1692,7 +1692,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // Arc 293.W.2b — Failure is pure EDN data (all fields are pure scalars/records); flipped
     // Struct → Record. Location and Frame also flipped to Record (pure data, no live resources).
     // This is the 2616-cascade root: ThreadDiedError/ProcessDiedError (Pure enums) carry
-    // `failure: Option<Failure>` — containment passes once Failure is a Record.
+    // `failure: (Option :- [Failure])` — containment passes once Failure is a Record.
     //
     // Arc 278 the string-wrap annihilation — Failure carries the raised
     // `:wat::core::Error` STRUCTURALLY in a MANDATORY `error` field (four-questions Fork B).
@@ -1712,9 +1712,9 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // registered record that the panic-hook `#wat.kernel/AssertionFailure {…}`
     // envelope writer now routes through (via the derived `ToEdn`), replacing
     // the hand-built Map with the wrong field shapes. `:frames` is a
-    // `Vector<Frame>` (was the ad-hoc `{:callee,:at}` map); `:location` is an
-    // `Option<Location>` (was a bare `Span`); `:upstream-chain` is a
-    // `Vector<LociDiedError>` (was heterogeneous Thread|Process). Every field
+    // `(Vector :- [Frame])` (was the ad-hoc `{:callee,:at}` map); `:location` is an
+    // `(Option :- [Location])` (was a bare `Span`); `:upstream-chain` is a
+    // `(Vector :- [LociDiedError])` (was heterogeneous Thread|Process). Every field
     // type (Frame, Location, Failure, LociDiedError) is registered above/below
     // — the record is EDN all the way down.
     // ⛔ ARC 296 — GENERATED FROM WAT. The hand-written `AggregateDef` literal that stood here
@@ -1741,7 +1741,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // `fault_from_runtime_error`, which builds it as a `:wat::core::Fault` — the canonical minimal
     // record that structurally satisfies the `:wat::core::Error` surface, `wat/core.wat`) — never a
     // stringly message, never a bespoke `StopFailureCause` enum. Registered BEFORE `StopFailed` (which
-    // holds `Vector<StopFailure>`), matching the Frame/Location-before-AssertionFailure ordering above.
+    // holds `(Vector :- [StopFailure])`), matching the Frame/Location-before-AssertionFailure ordering above.
     // ⛔ ARC 296 — GENERATED FROM WAT. The hand-written `AggregateDef` literal that stood here
     // is DELETED; this row is now emitted from `(:wat::core::defrecord :wat::kernel::StopFailure …)`
     // in `wat/kernel/diagnostics.wat`, read at BUILD time by `wat-source-derive`. wat is the
@@ -1775,10 +1775,10 @@ fn register_builtin_types(env: &mut TypeEnv) {
     //                                everywhere), the SAME structured carrier ServiceEvent::Lost
     //                                / Reply::Failed use (built via `message_only_failure`).
     // Impure like ServiceEvent (an I/O outcome). Registered as a builtin (peer with Failure /
-    // WalkStep<A>) so the checker knows it from type-env init — recv' is used INSIDE the stdlib
+    // (WalkStep :- [A])) so the checker knows it from type-env init — recv' is used INSIDE the stdlib
     // (spawn.wat) before any wat defenum would load; a builtin is load-order-robust and, per the
     // design's own note, Impure is the honest fixed purity (a Pure marking would lie the moment O
-    // is a live resource). O carries the peer's output element type (WalkStep<A> is the parametric
+    // is a live resource). O carries the peer's output element type ((WalkStep :- [A]) is the parametric
     // precedent).
     env.register_builtin(TypeDef::Enum(EnumDef {
         name: ":wat::kernel::RecvOutcome".into(),
@@ -1863,7 +1863,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     }));
 
     // :wat::kernel::SendOutcome — Arc 278 the send'-outcome wall (Phase 1,
-    // DESIGN-send-outcome-wall.md): the send-side twin of RecvOutcome<O> above.
+    // DESIGN-send-outcome-wall.md): the send-side twin of (RecvOutcome :- [O]) above.
     // send' RAISED reason-free MalformedForms on a gone peer ("peer already
     // closed" / "channel disconnected") — the last raise-that-masks. This makes
     // a send failure a matchable value instead, mirroring RecvOutcome exactly
@@ -1879,7 +1879,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     //                                (`Stopped`) from a genuine peer loss (`Disconnected`);
     //                                it was simply discarding the distinction. Was the
     //                                "channel disconnected" raise.
-    // PURE — unlike RecvOutcome. RecvOutcome<O> is Impure ONLY because of its payload
+    // PURE — unlike RecvOutcome. (RecvOutcome :- [O]) is Impure ONLY because of its payload
     // `O` (the received message may be a live resource — a socket/file handle). SendOutcome
     // is NON-parametric and holds only pure data: two nullary variants + `Lost[cause <-
     // LociDiedError]`, and LociDiedError is Purity::Pure (a death report — crosses back to
@@ -1958,7 +1958,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // panic, process-signaled, process-wait-fail, process-stopped); per the
     // peer-lifecycle LAW those become a matchable outcome, only the must-never-happen
     // raises (double-close, close'-on-a-timer, arity/type) stay raises. Shape B (RULED):
-    //   :Closed   [exit <- Option<i64>] — clean close. None = thread (no OS exit code);
+    //   :Closed   [exit <- (Option :- [i64])] — clean close. None = thread (no OS exit code);
     //                                     Some(code) = process exit status. Loci-agnostic
     //                                     (R32): the exit rides in an Option, not two variants.
     //   :Signaled [signal <- i64]       — process TERMINATED by a signal (was the
@@ -1968,7 +1968,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     //                                     the abnormal-close carrier (structured Failure).
     // PURE — like SendOutcome, unlike (RecvOutcome :- [O]). Non-parametric; the peer is
     // CONSUMED (close' takes the Option, leaving None), so no value here holds a live
-    // resource. It carries only pure data: an Option<i64>, an i64, and a Nature::Record
+    // resource. It carries only pure data: an (Option :- [i64]), an i64, and a Nature::Record
     // Failure — fully EDN-reconstructable / wire-crossable. Marking it Impure would LIE.
     // Registered as a builtin for the same load-order reason as SendOutcome — close' is a
     // kernel intrinsic used before any wat defenum would load.
@@ -2091,14 +2091,14 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // Aggregate it is a NOMINAL identity check only (runtime.rs `conforms_check`,
     // the `TypeDef::Aggregate` arm → `concrete_type_name_matches`) — it never
     // recurses into a record's FIELDS, so `#dos.Bag/PutRequest {:items [1 2 3]}`
-    // against `items <- Vector<String>` passes it. `edn_to_typed_value`
+    // against `items <- (Vector :- [String])` passes it. `edn_to_typed_value`
     // (edn_shim.rs) IS the deep walker (per-field, per-element, with the offending
     // path); `validate` is its thin wat-facing wrapper.
     //   :Valid   []                       — the value matches the declared shape.
     //   :Invalid [path expected got]      — it does not, at `path` (segments, e.g.
     //                                       ["items" "[0]"]), where the declaration
     //                                       says `expected` and the wire carried `got`.
-    // `path` is STRUCTURED (Vector<String> — segments the caller can index/walk);
+    // `path` is STRUCTURED ((Vector :- [String]) — segments the caller can index/walk);
     // `expected`/`got` are STRINGS, ruled by the four questions (see
     // DESIGN-request-malformed-input-sanitization.md): `expected` is
     // `check::format_type`'s rendering (the ONE authoritative type renderer), and
@@ -2481,7 +2481,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // `deftest`. Arc 278 the vacuous-gate wall (BRIEF-vacuous-deftest-gate-wall.md),
     // the third of the outcome walls after RecvOutcome (R53) and SendOutcome (R57).
     //
-    // It WAS a Nature::Struct with one field, `failure <- Option<Failure>`
+    // It WAS a Nature::Struct with one field, `failure <- (Option :- [Failure])`
     // (arc 278 wave 2d dropped the stdout/stderr capture buffers, leaving that
     // single slot). That shape is what let a caller look away: a pass and a
     // failure wore the SAME type, distinguished only by an `Option` slot nobody
@@ -2753,8 +2753,8 @@ fn register_builtin_types(env: &mut TypeEnv) {
         // `:wat::core::Never` is EXCLUDED — see the header note above.
         ":wat::core::Value",
         // container — no bare-legacy pairing to derive from; `wat/seq.wat:240`
-        // `coll <- :wat::core::List<T>`, `wat-scripts/scratch-pad/probe-seqable-to-stream-native-check.wat:17`
-        // `-> :wat::core::List<wat::core::i64>`.
+        // `coll <- (:wat::core::List :- [T])`, `wat-scripts/scratch-pad/probe-seqable-to-stream-native-check.wat:17`
+        // `-> (:wat::core::List :- [:wat::core::i64])`.
         ":wat::core::List",
         // opaques — `wat/telemetry.wat:77` `uuid <- :wat::core::Uuid`;
         // `wat/cache.wat:273` `[hologram <- :wat::holon::Hologram`;
@@ -2770,15 +2770,15 @@ fn register_builtin_types(env: &mut TypeEnv) {
         ":wat::io::IOReader",
         ":wat::io::IOWriter",
         // kernel opaques — `tests/kernel/probe_arc278_close_outcome_wall.wat:19`
-        // `-> :wat::kernel::Process<wat::core::i64,wat::core::i64>`;
-        // `wat-tests/test.wat:77` `self <- :wat::kernel::ThreadSelfPeer<...>`
+        // `-> (:wat::kernel::Process :- [:wat::core::i64 :wat::core::i64])`;
+        // `wat-tests/test.wat:77` `self <- (:wat::kernel::ThreadSelfPeer :- […])`
         // (also covers `Thread`, the family it self-identifies as);
         // `wat-tests/service-parametric-messages.wat:116`
-        // `a <- :wat::kernel::Address<...>`;
+        // `a <- (:wat::kernel::Address :- […])`;
         // `wat-scripts/scratch-pad/probe-timer-as-peer.wat:28`
-        // `l <- :wat::kernel::Listener<wat::core::keyword,wat::core::nil>`;
+        // `l <- (:wat::kernel::Listener :- [:wat::core::keyword :wat::core::nil])`;
         // `wat-tests/service-parametric-messages.wat:117`
-        // `-> :wat::kernel::Peer<...>`.
+        // `-> (:wat::kernel::Peer :- […])`.
         ":wat::kernel::Process",
         ":wat::kernel::Thread",
         ":wat::kernel::Address",
@@ -2786,7 +2786,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
         ":wat::kernel::Peer",
         ":wat::kernel::ThreadSelfPeer",
         // stream — `wat-scripts/scratch-pad/probe-118B2-one-clause-lazy-producer.wat:34`
-        // `-> :wat::stream::Stream<U>`.
+        // `-> (:wat::stream::Stream :- [U])`.
         ":wat::stream::Stream",
         // time — `wat/service.wat:56` `after <- :wat::time::Duration` (field
         // type in the stdlib itself, not just a probe);
@@ -2794,10 +2794,10 @@ fn register_builtin_types(env: &mut TypeEnv) {
         // `t0 <- :wat::time::Instant`.
         ":wat::time::Duration",
         ":wat::time::Instant",
-        // rust-backed — the RHS of `:wat::kernel::Sender<T>` /
-        // `:wat::kernel::Receiver<T>`'s own typealiases in the stdlib:
-        // `wat/kernel/channel.wat:43` `:rust::crossbeam_channel::Sender<T>)`,
-        // `wat/kernel/channel.wat:46` `:rust::crossbeam_channel::Receiver<T>)`.
+        // rust-backed — the RHS of `:wat::kernel::Sender :- [T]` /
+        // `:wat::kernel::Receiver :- [T]`'s own typealiases in the stdlib:
+        // `wat/kernel/channel.wat:43` `(:rust::crossbeam_channel::Sender :- [T]))`,
+        // `wat/kernel/channel.wat:46` `(:rust::crossbeam_channel::Receiver :- [T]))`.
         ":rust::crossbeam_channel::Sender",
         ":rust::crossbeam_channel::Receiver",
     ] {
@@ -2828,7 +2828,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
 /// variant keeps its coordinate fields).
 ///
 /// **Scope:** the 25 variants whose coordinate fields are fully
-/// scalar-decodable (String / i64 / Option<String> / Vector<String> / Span) are
+/// scalar-decodable (String / i64 / (Option :- [String]) / (Vector :- [String]) / Span) are
 /// registered here. The 7 variants that carry a nested value-snapshot / typed
 /// sub-error (`NotCallable`, `TypeMismatch`, `BadCondition`,
 /// `EvalVerificationFailed`, `MacroExpansionFailed`, `NoMatchingClause`,
@@ -2841,7 +2841,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
 fn register_runtime_error_variants(env: &mut TypeEnv) {
     // The `:wat::core::Error` floor keys, prepended to every variant record.
     // `:message` String, `:location` Span (registered above), `:causes`
-    // Vector<Error>. A variant whose own field is literally named `message`
+    // (Vector :- [Error]). A variant whose own field is literally named `message`
     // (`AssertionFailed`, `MacroAbort`) has it stripped by `error_edn()`'s
     // floor-dedup, so it is NOT re-declared as a coordinate field.
     let s = |p: &str| TypeExpr::Path(p.to_string());
@@ -2916,7 +2916,7 @@ fn register_runtime_error_variants(env: &mut TypeEnv) {
                 ("op".into(), string()),
                 ("expected".into(), string()),
                 ("got".into(), string()),
-                // `edn_path_segments` writes `:path` as Vector<String> segments.
+                // `edn_path_segments` writes `:path` as (Vector :- [String]) segments.
                 ("path".into(), vec_string()),
             ],
         ),
@@ -3067,7 +3067,7 @@ fn synthesize_surface_protocol(
     // surprise in the caller's exhaustive match. Every failure kind is a VISIBLE,
     // author-declared, checker-forced named variant — the verbosity IS the shield.
     //
-    // Shape: `[path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String
+    // Shape: `[path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String
     //          got <- :wat::core::String]`. `path` is STRUCTURED (the segments `["items" "[0]"]`
     // a caller indexes and walks — real data); `expected`/`got` are rendered Strings because
     // `got` is NOT a type and cannot be made one: the value arrived off an untyped wire with no
@@ -3147,7 +3147,7 @@ fn synthesize_surface_protocol(
         // `<surface-base>::<OpPascal>Response`, checker-forced here so the wat macros can go
         // back to splicing a literal ctor keyword, guaranteed correct by construction.
         //
-        // Compare the BASE name only (⛔ never the rendered type — `GetResponse<K,V>`
+        // Compare the BASE name only (⛔ never the rendered type — `(GetResponse :- [K V])`
         // CONFORMS): type args are stripped from both sides, and `TypeExpr::Path` carries a
         // leading `:` while `TypeExpr::Parametric`'s `head` does NOT (deliberate — see the note
         // at the now-deleted `build_op_response_type_constants`) — normalize here, at this one
@@ -3284,7 +3284,7 @@ fn synthesize_surface_protocol(
         // AFTER the surface is not our concern — it is an unknown path with its own
         // unresolved-reference diagnostic downstream, so we only lock what we can resolve.
         // Arc 278 #76 — the lock reaches a PARAMETRIC response too. It used to read
-        // `if let TypeExpr::Path(resp_path) = ret`, so a `GetResponse<K,V>` (a
+        // `if let TypeExpr::Path(resp_path) = ret`, so a `(GetResponse :- [K V])` (a
         // `TypeExpr::Parametric`) fell to the `_ => {}` arm below and the whole ruling-A
         // SHAPE lock — RequestTooLarge well-shaped, RequestMalformed well-shaped — NEVER
         // RAN ON IT. Proven with a non-vacuity control: a parametric response missing
@@ -3293,10 +3293,12 @@ fn synthesize_surface_protocol(
         // `wat/cache.wat`) carried both variants by AUTHOR DILIGENCE, not by this lock.
         //
         // A parametric decl REGISTERS under its bare base — `parse_declared_name`
-        // (~:4155) splits at the first `<` and stores the params separately — so
+        // (~:4676) refuses any `<` in the name outright (arc 109 ③) and returns an
+        // empty params Vec; the type params are parsed separately, from the sibling
+        // `Head :- [T …]` binder (`take_declared_binder`, just below it) — so
         // `env.get` needs the base with its colon re-prepended. `Parametric`'s `head` is
         // stored WITHOUT the leading `:` and that is DELIBERATE (both parse paths,
-        // `Head<args>` and `(Ctor arg…)`, must yield a byte-identical head for
+        // `(Head :- [args])` and `(Ctor arg…)`, must yield a byte-identical head for
         // unification), so the normalization belongs HERE, at the read site, never
         // upstream in the parser. This is the same one-line-per-site hand-match that
         // task #75's `TypeExpr` accessor exists to delete across ~137 sites; when that
@@ -3463,7 +3465,7 @@ fn synthesize_surface_protocol(
     // Arc 278 — the PARAMETRIC PROTOCOL. `Op`/`Reply` inherit the surface's own type params.
     //
     // The variant fields are the surface members' request/response `TypeExpr`s VERBATIM, so a
-    // parametric surface's messages (`GetRequest<K,V>`) put `K`/`V` in those field positions. Born
+    // parametric surface's messages (`(GetRequest :- [K V])`) put `K`/`V` in those field positions. Born
     // with `type_params: vec![]`, `K` was UNBOUND in the enum — the surface declared a parametric
     // protocol and the wire silently stripped it. The params bind here, at the one place that knows
     // both the surface's binders and the fields that reference them.
@@ -3489,13 +3491,13 @@ fn synthesize_surface_protocol(
 }
 
 /// Arc 278 S4c — build the `<S>::surface-forms` carrier: a 0-arg `defn` returning a
-/// `Vector<WatAST>` of the peer surface's own forms (here, the whole post-expansion
+/// `(Vector :- [WatAST])` of the peer surface's own forms (here, the whole post-expansion
 /// `defsurface` form). `defservice` concats `(<S>::surface-forms)` into its shipped
 /// `service-forms` bundle so a forked child re-registers the surface's protocol
 /// (its `:messages` records + the synthesized `::Op`/`::Reply`) at a fresh startup.
 ///
 /// Mirrors `wat/service.wat`'s `<fqdn>::service-forms` defn: a 0-arg fn the checker can
-/// type at call sites, whose `(:wat::core::forms …)` body yields the forms as `Vector<WatAST>`.
+/// type at call sites, whose `(:wat::core::forms …)` body yields the forms as `(Vector :- [WatAST])`.
 ///
 /// This is injected AFTER `expand_all` (in `register_types`), so it must be built in the
 /// LOW-LEVEL `(:wat::core::def :name (:wat::core::fn [] -> :ret body))` shape that `defn`
@@ -3597,7 +3599,7 @@ fn register_types_impl(
                 // Arc 278 S4c — a peer surface OWNS its `:messages` protocol forms and must SHIP
                 // them across a process fork. Clone the raw defsurface form BEFORE it is consumed
                 // so we can (a) register each message type-decl and (b) emit the `<S>::surface-forms`
-                // carrier (a `Vector<WatAST>` of the surface's own forms) that `defservice` concats
+                // carrier (a `(Vector :- [WatAST])` of the surface's own forms) that `defservice` concats
                 // into its shipped `service-forms` bundle.
                 let surface_form_clone = if head == "defsurface" { Some(form.clone()) } else { None };
                 // Arc 170 — retain the ORIGINAL decl form (clone BEFORE `parse_type_decl`
@@ -3883,11 +3885,14 @@ fn splice_type_decls(
         ":wat::core::extend-type" => {
             let decl_span = span.clone();
             // Arc 109 identity 2c remainder — the TARGET slot also accepts a parametric-type
-            // FORM (`(Head :- [args])`) alongside the Keyword surface (`Head<args>`). Unlike
+            // FORM (`(Head :- [args])`) alongside the bare (non-parametric) Keyword surface —
+            // angle brackets can never reach here at all: the lexer refuses `<` inside a
+            // keyword token outright (arc 109 "annihilate the angle bracket", wat-reader's
+            // lexer.rs), so a parametric target has exactly one live spelling, the FORM. Unlike
             // the SATISFIED-SURFACE arm just below, this one does NOT reduce to `base_fqdn()`:
             // `type_name` feeds `register_subtype`'s CHILD side, which `is_subtype` (below)
             // walks with EXACT-string semantics, and `transport_edge_keys`/
-            // `transport_satisfier_heads` (check.rs) guess at the FULL `Head<T>`/`Head<Wire>`
+            // `transport_satisfier_heads` (check.rs) guess at the FULL `(Head :- [T])`/`(Head :- [Wire])`
             // spelling verbatim — dropping args here would starve both. `check::format_type`
             // is the substrate's ONE authoritative TypeExpr renderer (types.rs:1987), so
             // re-render through it rather than hand-rolling a second stringifier.
@@ -3907,8 +3912,10 @@ fn splice_type_decls(
                 }
             };
             // Arc 109 stone 1 — the protocol slot also accepts a parametric-type FORM
-            // (`(:Proto :- [T])`, ②-iii's eventual spelling) alongside the Keyword surface
-            // (`:Proto<T>`). Both go through the SAME two existing doors — `parse_type_node`
+            // (`(:Proto :- [T])`, ②-iii's eventual spelling) alongside the bare (non-parametric)
+            // Keyword surface — the lexer refuses `<` inside a keyword token outright, so a
+            // parametric protocol has exactly one live spelling, the FORM. Both the bare Keyword
+            // and the FORM go through the SAME two existing doors — `parse_type_node`
             // (already parses `:-`-marked forms into `TypeExpr::Parametric`, no reader change
             // needed) then `TypeExpr::base_fqdn()` — so the lattice's own extraction stays
             // singular; this does not add a second hand-rolled `find('<')`.
@@ -3996,11 +4003,11 @@ fn classify_type_decl(form: &WatAST) -> Option<&'static str> {
 /// - `Union` — every member type.
 /// - `Surface` — every `Field` member's type, AND every `Method` member's fixed-param types,
 ///   rest-param type (if any), and return type. The design/brief docs shorthand this variant's
-///   row as "surface fields", but the corpus's own parametric surfaces (`Seqable<T>`,
-///   `Dialable<S,R>`, `TypedCapability<S,R>`, `Holds<T>`, `Cache<K,V>`, `Pair<A,B>`, …) declare
+///   row as "surface fields", but the corpus's own parametric surfaces ((Seqable :- [T]),
+///   (Dialable :- [S R]), (TypedCapability :- [S R]), (Holds :- [T]), (Cache :- [K V]), (Pair :- [A B]), …) declare
 ///   ZERO plain `Field` members — every one of them consumes its type params exclusively
-///   through `:features` method signatures (typically the `self <- :Name<T,...>` restatement,
-///   sometimes the return type, e.g. `Holds<T>`'s `get [self] -> :T`). A check that read only
+///   through `:features` method signatures (typically the `self <- (Name :- [T,...])` restatement,
+///   sometimes the return type, e.g. `(Holds :- [T])`'s `get [self] -> :T`). A check that read only
 ///   `Field` members would reject all of them; walking `Method` args + ret is required for the
 ///   wall to be sound against the surface declarations that already exist.
 ///
@@ -6955,7 +6962,7 @@ mod tests {
     #[test]
     fn stone_2_malformed_request_malformed_shape_is_a_located_error() {
         // The field SHAPE is locked, not just the name. `path` must be
-        // `Vector<String>` — the structured coordinate a caller indexes and walks. A `path`
+        // `(Vector :- [String])` — the structured coordinate a caller indexes and walks. A `path`
         // rendered as a flat String would collapse the one field of this variant that is real
         // DATA rather than a rendering, so it is refused.
         let err = expand_then_register(

@@ -1763,7 +1763,7 @@ pub fn register_aggregate_methods(
                 //     (:wat::core::Option/expect
                 //       (:wat::core::if
                 //         (:wat::core::= (:wat::core::type self) "<class-no-colon>")
-                //         -> :wat::core::Option<wat::core::Record>
+                //         -> (:wat::core::Option :- [:wat::core::Record])
                 //         (:wat::core::Some self)
                 //         :wat::core::None)
                 //       (:wat::core::string::concat "<msg-prefix>" (:wat::core::type self)))
@@ -3715,7 +3715,7 @@ fn try_parse_variadic_def_fn_form(form: &WatAST) -> Option<(String, Arc<Function
 /// - `Ok(None)` — form is not a 3-item `def + fn` shape at all (let other handlers try).
 /// - `Ok(Some((name, func)))` — valid variadic form; `func` carries rest_param + rest_param_type.
 /// - `Err(RuntimeError)` — form IS a `def + fn` shape with `&` in the argspec but the
-///   argspec is malformed, OR the rest-binder type is not `Vector<T>` / `Vec<T>`.
+///   argspec is malformed, OR the rest-binder type is not `(Vector :- [T])` / `(Vec :- [T])`.
 ///
 /// Called exclusively from `register_defines` (user-source path); reserved-prefix check
 /// is the caller's responsibility.
@@ -3804,7 +3804,7 @@ fn try_parse_user_variadic_def_fn_form(
         Some(pair) => pair,
         None => return Ok(None),
     };
-    // Validate: rest-binder type must be Vector<T> (or Vec<T>). A bare scalar
+    // Validate: rest-binder type must be (Vector :- [T]) (or (Vec :- [T])). A bare scalar
     // type like `:wat::core::i64` is rejected here so the error surfaces as a
     // startup registration error rather than a silent type-check failure.
     let is_vector = matches!(
@@ -5022,7 +5022,7 @@ pub(crate) fn eval_inner(
                 ));
             }
             // `:None` is the nullary constructor of the built-in
-            // `:Option<T>` enum (058-030). Special-cased here so users
+            // `(Option :- [T])` enum (058-030). Special-cased here so users
             // can write `:None` in expression position to produce
             // `Value::Option(None)` without requiring a keyword-path
             // call form.
@@ -5412,29 +5412,29 @@ fn dispatch_keyword_head_value(
         // and all arc 234.x record-y verbs.
         ":wat::core::type" => eval_type(args, list_span, env, sym),
         // Arc 237 Stone 237.7a — `:wat::core::length` ∀T intrinsic.
-        // Polymorphic collection-length: Vector<T> / HashMap<K,V> / HashSet<T> → i64.
+        // Polymorphic collection-length: (Vector :- [T]) / (HashMap :- [K V]) / (HashSet :- [T]) → i64.
         // Reborn from define-dispatch (core.wat) to Rust builtin; mechanism-swap behavior-preserving.
         ":wat::core::length" => eval_length(args, list_span, env, sym),
         // Arc 237 Stone 237.7b-i — `:wat::core::empty?` ∀T intrinsic.
-        // Polymorphic collection-empty predicate: Vector<T> / HashMap<K,V> / HashSet<T> → bool.
+        // Polymorphic collection-empty predicate: (Vector :- [T]) / (HashMap :- [K V]) / (HashSet :- [T]) → bool.
         // Reborn from define-dispatch (core.wat) to Rust builtin; mechanism-swap behavior-preserving.
         ":wat::core::empty?" => eval_empty(args, list_span, env, sym),
         // Arc 237 Stone 237.7b-ii — `:wat::core::contains?` ∀T intrinsic with custom inference arm.
-        // Polymorphic membership predicate: Vector<T> / HashSet<T> / HashMap<K,V> → bool.
+        // Polymorphic membership predicate: (Vector :- [T]) / (HashSet :- [T]) / (HashMap :- [K V]) → bool.
         // Tier B: element-typing enforced at check by infer_contains (src/check.rs); behavior-preserving.
         ":wat::core::contains?" => eval_contains(args, list_span, env, sym),
         // Arc 237 Stone 237.7b-iii — `:wat::core::conj` ∀T intrinsic with custom inference arm.
-        // Polymorphic append/insert: Vector<T> / HashSet<T> → same collection type (type-preserving).
+        // Polymorphic append/insert: (Vector :- [T]) / (HashSet :- [T]) → same collection type (type-preserving).
         // Tier B: element-typing enforced at check by infer_conj (src/check.rs); behavior-preserving.
         // HashMap excluded — HashMap insertion is `assoc` (key+value pair required).
         ":wat::core::conj" => eval_conj(args, list_span, env, sym),
         // Arc 237 Stone 237.7b-iv — `:wat::core::get` ∀T intrinsic with custom inference arm.
-        // Polymorphic indexed/keyed lookup: Vector<T> + i64 → Option<T>; HashMap<K,V> + K → Option<V>.
-        // Tier B: Option<element> precision enforced at check by infer_get (src/check.rs); behavior-preserving.
+        // Polymorphic indexed/keyed lookup: (Vector :- [T]) + i64 → (Option :- [T]); (HashMap :- [K V]) + K → (Option :- [V]).
+        // Tier B: (Option :- [element]) precision enforced at check by infer_get (src/check.rs); behavior-preserving.
         // NO HashSet arm — HashSet has no positional get.
         ":wat::core::get" => eval_get(args, list_span, env, sym),
         // Arc 237 Stone 237.7c — `:wat::core::assoc` ∀T intrinsic spanning HashMap + Record.
-        // Records-doctrine slice: HashMap<K,V>+K+V → HashMap<K,V>; :wat::core::Record+:keyword+∀T → :wat::core::Record.
+        // Records-doctrine slice: (HashMap :- [K V])+K+V → (HashMap :- [K V]); :wat::core::Record+:keyword+∀T → :wat::core::Record.
         // Routes to hashmap_assoc_inner (HashMap) or eval_record_assoc (base + holonic).
         ":wat::core::assoc" => eval_assoc(args, list_span, env, sym),
         // Arc 237 Stone 237.5 — `:wat::core::conforms?` general type-conformance primitive.
@@ -5488,7 +5488,7 @@ fn dispatch_keyword_head_value(
         ":wat::core::Record/field-at" => eval_record_field_at(args, list_span, env, sym),
         // Arc 234 Stone 234.3a — polymorphic record read verbs.
         // record?   :: ∀T. T -> bool          — true iff input is Value::Aggregate (Record/HolonRecord nature)
-        // record->map :: :wat::core::Record -> HashMap<keyword, T> — extract field-name/value map
+        // record->map :: :wat::core::Record -> (HashMap :- [keyword T]) — extract field-name/value map
         ":wat::core::record?" => eval_record_q(args, list_span, env, sym),
         ":wat::core::record->map" => eval_record_to_map(args, list_span, env, sym),
         // Arc 249 Stone 249.3a — form-shape predicate over WatAST::List form-values.
@@ -5642,7 +5642,7 @@ fn dispatch_keyword_head_value(
         ":wat::form::matches?" => eval_form_matches(args, list_span, env, sym),
         // Arc 278 Stone 2a — rete single-fact alpha matcher.
         // Pure data-in/data-out: cond (WatAST from quote) × fact (Record) →
-        // Option<PersistentMap<String,Value>>. No Environment, no eval_inner.
+        // (Option :- [(PersistentMap :- [String Value])]). No Environment, no eval_inner.
         // Bindings keyed by logic-var name string ("?t" → bound value).
         ":wat::rete::alpha-match" => {
             crate::rete::matcher::eval_alpha_match(args, list_span, env, sym)
@@ -5736,7 +5736,7 @@ fn dispatch_keyword_head_value(
         }
         // BRIEF-the-fence-names-the-head — the SAME walk pure?/deterministic? run, surfacing the
         // first violating leaf instead of discarding it.
-        // (:wat::rete::axis-violation <quoted-expr> <axis: :pure|:deterministic>) -> :wat::core::Option<wat::rete::AxisViolation>
+        // (:wat::rete::axis-violation <quoted-expr> <axis: :pure|:deterministic>) -> (:wat::core::Option :- [wat::rete::AxisViolation])
         ":wat::rete::axis-violation" => {
             crate::rete::purity::eval_axis_violation(args, list_span, env, sym)
         }
@@ -6066,7 +6066,7 @@ fn dispatch_keyword_head_value(
 
         // Arc 207 slice 2 — typed `:wat::core::Uuid` constructors + accessors.
         // Five verbs: v4 (random), v5 (deterministic SHA-1 with typed namespace),
-        // from-string (parse-safe, canonical-only → Option<Uuid>),
+        // from-string (parse-safe, canonical-only → (Option :- [Uuid])),
         // to-string (canonical render), nil (zero-UUID sentinel).
         ":wat::core::Uuid/v4" => {
             crate::string_ops::eval_uuid_typed_v4(args, list_span, env, sym).map_err(Into::into)
@@ -6171,7 +6171,7 @@ fn dispatch_keyword_head_value(
 
         // Scalar conversions — arc 014. Explicit named casts between
         // the four scalar tiers. Infallible → target type; fallible
-        // → :Option<T>.
+        // → (Option :- [T]).
         ":wat::core::i64::to-string" => eval_i64_to_string(args, list_span, env, sym),
         ":wat::core::i64::to-f64" => eval_i64_to_f64(args, list_span, env, sym),
         // Arc 234 Stone 234.4 — slash-form alias for i64::to-f64.
@@ -6897,7 +6897,7 @@ fn dispatch_keyword_head_value(
         // intrinsic registry (`src/intrinsic/kernel/message.rs`); dispatch now
         // reaches them via the registry lookup above, not a literal arm here.
         //
-        // Arc 214 Stone 4.6a-ii — close': intrinsic (∀-parametric: peer<∀I,∀O>);
+        // Arc 214 Stone 4.6a-ii — close': intrinsic (∀-parametric: (peer :- [∀I ∀O]));
         // see docs/DISPATCH.md + check.rs ~4814 for the CLAUSE-vs-INTRINSIC
         // partition. Downcasts the peer RustOpaque by sentinel (Thread' first,
         // then Process', else TypeMismatch).
@@ -7101,7 +7101,7 @@ fn dispatch_keyword_head_value(
                                     // Rust's `TypeExpr` keeps head and args structurally separate) —
                                     // but they do NOT carry the leading `:` the same way, and the
                                     // difference is DELIBERATE, not an accident: a parametric
-                                    // head is stored BARE so its two parse paths (`Head<args>`
+                                    // head is stored BARE so its two parse paths (`(Head :- [args])`
                                     // and `(Ctor arg…)`) produce a byte-identical string for
                                     // unification (src/types.rs ~4450; stated outright at ~4287,
                                     // "We must produce the SAME string for unification"). `Path`
@@ -7109,7 +7109,7 @@ fn dispatch_keyword_head_value(
                                     // — a different, equally intentional convention for a
                                     // different variant. Normalize HERE, at this one read site,
                                     // never upstream in the parser/storage: a parametric response
-                                    // (e.g. `PCache::GetResponse<K,V>`) fed a colon-less `head`
+                                    // (e.g. `(PCache::GetResponse :- [K V])`) fed a colon-less `head`
                                     // into this keyword string, missing its first real character.
                                     let resp_base_raw: &str = match ret {
                                         crate::types::TypeExpr::Path(p) => p.as_str(),
@@ -7520,7 +7520,7 @@ fn dispatch_keyword_head_value(
                                 return keyword_accessor_struct(bare_name, a, sym, list_span);
                             }
                             Value::wat__std__HashMap(map) => {
-                                // HashMap accessor: keyword key → Option<V>.
+                                // HashMap accessor: keyword key → (Option :- [V]).
                                 // Equivalent to (:wat::core::HashMap/get map :key).
                                 // Never errors on miss — missing key = None (per D5 / T7).
                                 let key = Value::wat__core__keyword(Arc::new(other.to_string()));
@@ -8347,14 +8347,17 @@ pub(crate) fn parse_extend_type_form(
         ));
     }
     // Arc 109 identity 2c remainder — the TARGET slot also accepts a parametric-type FORM
-    // (`(Head :- [args])`, the ANNOTATION migration's spelling) alongside the Keyword surface
-    // (`:Head<args>`). Both go through the SAME door — `parse_type_node` — then rendered back
-    // through `check::format_type`, the ONE authoritative TypeExpr renderer (already crossing
-    // this exact runtime.rs/check.rs boundary elsewhere, e.g. line 8146) — so `type_name` stays
-    // the FULL identity string (base + args), byte-identical to what the Keyword arm always
-    // produced. Dropping to a base-only name here would silently starve `is_subtype`'s
-    // exact-string edge lookup (types.rs's `register_subtype`) and the `transport_edge_keys`
-    // guess-set, both of which key on the full `Head<T>`/`Head<Wire>` spelling verbatim.
+    // (`(Head :- [args])`, the ANNOTATION migration's spelling) alongside the bare
+    // (non-parametric) Keyword surface — angle brackets can never reach the Keyword arm at
+    // all: the lexer refuses `<` inside a keyword token outright (arc 109 "annihilate the
+    // angle bracket"). Both the bare Keyword and the FORM go through the SAME door —
+    // `parse_type_node` — then rendered back through `check::format_type`, the ONE
+    // authoritative TypeExpr renderer (already crossing this exact runtime.rs/check.rs
+    // boundary elsewhere, e.g. line 8146) — so `type_name` stays the FULL identity string
+    // (base + args), byte-identical to what the Keyword arm always produced. Dropping to a
+    // base-only name here would silently starve `is_subtype`'s exact-string edge lookup
+    // (types.rs's `register_subtype`) and the `transport_edge_keys` guess-set, both of which
+    // key on the full `(Head :- [T])`/`(Head :- [Wire])` spelling verbatim.
     // Arc 109 ③ — keep the STRUCTURED `TypeExpr` alongside the rendered `type_name` string
     // (below, `ExtendDef::type_te`) so a consumer needing the target's structure (self's
     // param type at each impl method, `register_extend_type_surface_impls`) never has to
@@ -8389,8 +8392,9 @@ pub(crate) fn parse_extend_type_form(
             ))
         }
     };
-    // Arc 170 C2 — split a parametric protocol/surface target (`:Holds<wat::core::i64>`)
-    // into the BARE name (`:probe::Holds`, matching how the surface is registered in
+    // Arc 170 C2 — split a parametric protocol/surface target (e.g. `(:Holds :- [wat::core::i64])`
+    // — the ONE live spelling; a keyword can never carry `<...>`, the lexer refuses it) into
+    // the BARE name (`:probe::Holds`, matching how the surface is registered in
     // `TypeEnv`) plus the concrete type args (`[Path(":wat::core::i64")]`). A plain
     // (non-generic) target (`:t::Greeter`) parses to `TypeExpr::Path` — `protocol_name`
     // is unchanged, `protocol_type_args` is empty (the monomorphic no-op path).
@@ -8834,7 +8838,7 @@ fn select_defclause_clause(
         }
 
         // 2.5 (S3 Stone 241.5) — Rest-binder element type check.
-        // When rest_param is present, extract T from Vector<T> and check
+        // When rest_param is present, extract T from (Vector :- [T]) and check
         // each trailing value against T.
         if let Some((_rest_name, rest_ty)) = &clause.args.rest_param {
             let elem_ty = match rest_ty {
@@ -8844,7 +8848,7 @@ fn select_defclause_clause(
                     &args[0]
                 }
                 _ => {
-                    // Defensive: parser should enforce Vector<T>; if not, fail clause.
+                    // Defensive: parser should enforce (Vector :- [T]); if not, fail clause.
                     attempted.push(ClauseAttempt {
                         clause_index: clause_idx,
                         declared_arity,
@@ -9183,16 +9187,16 @@ fn value_matches_type_by_name(
         }
         // Arc 118.2a — container-polymorphic defclause dispatch (`:wat::core::into`/
         // `reduce`/`filter`) needs clauses that differ ONLY in a Parametric container head
-        // (Vector<T> vs List<T> vs PersistentVector<T> vs Stream<T>) to actually discriminate
+        // ((Vector :- [T]) vs (List :- [T]) vs (PersistentVector :- [T]) vs (Stream :- [T])) to actually discriminate
         // at runtime. Before this arc, EVERY defclause's competing clauses at a shared arity
         // differed only in bare Path types (i64 vs f64) — a Parametric param was always the
         // SOLE clause at that position, so the old unconditional `true` never mis-dispatched.
         // With multiple same-arity clauses differing in container kind, the permissive
         // fallback made the FIRST declared clause win regardless of the value's real shape
-        // (silently wrong — e.g. a Stream fed to a `Vector<T>` clause "matched" and ran the
+        // (silently wrong — e.g. a Stream fed to a `(Vector :- [T])` clause "matched" and ran the
         // Vector body unchanged). Fix: for container heads the seq-container registry knows
         // about, require the value's ACTUAL classification to agree with the declared head;
-        // every other Parametric shape (HashMap<K,V>, Option<T>, Result<T,E>, etc. — never
+        // every other Parametric shape ((HashMap :- [K V]), (Option :- [T]), (Result :- [T E]), etc. — never
         // multi-clause-competing on container kind) keeps the old permissive behavior.
         crate::types::TypeExpr::Parametric { head, .. } => {
             // ── Stone 118.B2c strike 2 — A SURFACE IS THE CONTAINER-TOP ─────────────────────
@@ -9588,7 +9592,7 @@ fn bind_let_binding(
                     }
                 }
                 Value::wat__std__HashMap(map) => {
-                    // HashMap receiver — keyword key lookup returning Option<V>.
+                    // HashMap receiver — keyword key lookup returning (Option :- [V]).
                     // Consistent with keyword-as-accessor fall-through and
                     // :wat::core::HashMap/get (miss = None, never an error).
                     for (var_name, bare_field, var_span) in &bindings {
@@ -10074,7 +10078,7 @@ fn dispatch_rete_op(
                 // BRIEF-get-is-total-by-fallback.md (2026-08-05) — the FOURTH failure mode,
                 // shaped like none of the three above: a core op that signals its domain hole by
                 // RETURNING `Value::Option(None)` (`PersistentVector/get`/`Vector/get`/`List/get`
-                // today; any future `Option<T>`-returning verb tomorrow, per STOP-1 — this arm is
+                // today; any future `(Option :- [T])`-returning verb tomorrow, per STOP-1 — this arm is
                 // written generically over `Value::Option`, never special-cased to `get`).
                 // ⚠ `Option` is `Value::Option(_)`, NOT `Value::Enum` (`runtime.rs`'s own
                 // `val_type_path`: `Value::Option(_) => ":wat::core::Option"`) — the holon
@@ -10566,7 +10570,7 @@ where
 //
 // :wat::core::<source>::to-<target> — explicit named casts between
 // the four scalar tiers (i64, f64, bool, String). Infallible ones
-// return the target directly; fallible ones return :Option<T>. No
+// return the target directly; fallible ones return (Option :- [T]). No
 // implicit coercion at arithmetic / comparison sites; users opt in
 // to each conversion by name at the call site.
 
@@ -12148,7 +12152,7 @@ pub(crate) fn dispatch_substrate_impl(
             vals.first().expect("arity-checked"),
             vals.get(1).expect("arity-checked"),
         )),
-        // get — 2 args (return type varies per arm: Option<T> vs Option<V>)
+        // get — 2 args (return type varies per arm: (Option :- [T]) vs (Option :- [V]))
         ":wat::core::Vector/get" => Some(ceval::vector_get_inner(
             vals.first().expect("arity-checked"),
             vals.get(1).expect("arity-checked"),
@@ -12569,8 +12573,8 @@ pub fn value_is_key_hashable(v: &Value) -> bool {
 
 // Arc 146 slice 3 — `eval_get` retired. The polymorphism is honest
 // now: a Dispatch (declared in `wat/core.wat`) routes
-// `:wat::core::get` to `:Vector/get` (Vec×i64 → Option<T>) and
-// `:HashMap/get` (HashMap<K,V>×K → Option<V>). HashSet's
+// `:wat::core::get` to `:Vector/get` (Vec×i64 → (Option :- [T])) and
+// `:HashMap/get` ((HashMap :- [K V])×K → (Option :- [V])). HashSet's
 // "get-by-equality" is just `:contains?` per arc 146 DESIGN audit
 // table.
 
@@ -13404,7 +13408,7 @@ fn function_to_signature_ast(f: &Function) -> WatAST {
         ));
     }
     // Arc 150 — variadic defines render their rest-binder as
-    // `& (rest :Vector<T>)` between the fixed params and the arrow.
+    // `& (rest (wat.type/Vector [T]))` between the fixed params and the arrow.
     // Mirrors `macrodef_to_signature_ast`'s shape so reflection
     // consumers see a uniform variadic surface across functions and
     // macros. Strict-arity defines skip this block (`rest_param.is_none()`).
@@ -13523,8 +13527,9 @@ fn primitive_to_define_ast(name: &str, scheme: &crate::check::TypeScheme) -> Wat
 //
 // - `macrodef_to_define_ast` → `(:wat::core::defmacro <head> <template>)`
 // - `macrodef_to_signature_ast` → just the head Bundle
-// - `typedef_to_define_ast` → `(:wat::core::struct|enum|newtype|typealias :Name<T...> ...)`
-//   with a sentinel body slot (real field emission is a future arc)
+// - `typedef_to_define_ast` → `(:wat::core::struct|enum|newtype|typealias :Name ...)`
+//   with a sentinel body slot (real field emission is a future arc); type params ride
+//   the separate `:- [T...]` binder siblings (`typedef_to_signature_ast`), never in the name
 // - `typedef_to_signature_ast` → the bare type head as a single-element Bundle
 //
 // Honest-sentinel discipline: the substrate doesn't preserve every
@@ -13533,12 +13538,16 @@ fn primitive_to_define_ast(name: &str, scheme: &crate::check::TypeScheme) -> Wat
 // shape rather than a half-rendered fiction.
 
 /// Build the signature HEAD for a registered defmacro from its
-/// `MacroDef`. The substrate doesn't track per-parameter `:AST<T>`
-/// type annotations (they're lost after defmacro registration), so
-/// every param gets the honest sentinel `:AST<wat::WatAST>` — the
-/// param IS an AST; the specific T isn't tracked.
+/// `MacroDef`. The substrate doesn't track per-parameter type
+/// annotations (they're lost after defmacro registration), so every
+/// param gets the honest sentinel `:wat::WatAST` — the param IS an
+/// AST; the specific shape isn't tracked. (An earlier design tracked
+/// this as a fictional `:AST<T>` sentinel; STONE-close-the-last-two-
+/// channels (arc 109) retired the angle-bracket grammar it was spelled
+/// in — the reader refuses it outright — and repointed this to the
+/// real, non-parametric `:wat::WatAST` below.)
 ///
-/// Shape: `(<name> (p1 :AST<wat::WatAST>) ... [& (rest :AST<Vec<wat::WatAST>>)] -> :AST<wat::WatAST>)`.
+/// Shape: `(<name> (p1 :wat::WatAST) ... [& (rest (:wat::core::Vector :- [:wat::WatAST]))] -> :wat::WatAST)`.
 /// Build the canonical argspec Vector `[name <- :AST ... & rest <- :AST]`
 /// for a registered defmacro. Stone 241.17 — mirrors the canonical argspec
 /// form that `parse_argspec_triples` parses.
@@ -14375,7 +14384,7 @@ fn eval_metadata_of(
     };
     // Arc 255.1b-iii — the intrinsic branch. If `name` is a registered Rust
     // intrinsic, answer `metadata-of` with the SAME shape as the user path:
-    // `Some(HashMap<keyword, Value>)`, carrying the auto-derived baseline.
+    // `Some((HashMap :- [keyword Value]))`, carrying the auto-derived baseline.
     // Arc 255.1b-iv-c: all values are PLAIN wat Values (not holon-AST-wrapped);
     // the three closed-domain fields use Value::Enum (Kind/DefinedIn/Layer).
     // Seamless reflection parity — a `:wat::core::Bytes::to-hex` reflects like
@@ -15158,7 +15167,7 @@ fn eval_bundle_children(
 /// - Non-Bundle input → `RuntimeError::TypeMismatch`.
 /// - Empty Bundle → `RuntimeError::TypeMismatch` (no first child to return;
 ///   matches `:wat::core::first` semantics on an empty Vec but expressed
-///   structurally — there is no `Option<HolonAST>` wrap at this surface).
+///   structurally — there is no `(Option :- [HolonAST])` wrap at this surface).
 fn eval_bundle_first(
     args: &[WatAST],
     list_span: &Span,
@@ -15256,7 +15265,7 @@ fn eval_form_matches(
 
     // Eval the subject. Auto-unwrap one level of `Option(Some(_))`
     // so callers can write `(matches? maybe-event (:Foo ...))`
-    // against `:Option<Value>` directly. None / non-Struct / wrong
+    // against `(Option :- [Value])` directly. None / non-Struct / wrong
     // type → false.
     let subject = eval_inner(&args[0], env, sym)?.value_owned();
     let subject = match subject {
@@ -15669,11 +15678,10 @@ fn eval_macroexpand(
 /// - On `Tuple`: returns the element at `index`, cloned, as `T`.
 ///   Tuples are fixed-arity and type-known; out-of-range is a
 ///   type error caught at compile time.
-/// - On `Vec`: returns `Option<T>` — `Some(items[index])` if
-///   in-range, `None` if out-of-range. Empty/short Vec is a
-///   runtime fact, so the signature surfaces it honestly. This
-///   matches Rust's `vec.first() -> Option<&T>` and Ruby's
-///   `[].first -> nil`.
+/// - On `Vec`: returns bare `T` — `items[index]` if in-range, else
+///   raises (arc-278 flip: like `nth`; was `(Option :- [T])` before
+///   that flip). Empty/short Vec is a runtime fact, so the raise
+///   surfaces it honestly.
 ///
 /// `third` covers 3-tuples + Vecs-of-length-≥-3 (when in-range);
 /// higher indices go through `:wat::core::get`.
@@ -16395,7 +16403,7 @@ fn eval_result_expect(
 /// Returns `Some(chain)` when the Err arg is a Vec (the post-slice-1
 /// shape); `None` otherwise (defensive — pre-slice-1 shapes or
 /// user-code that put a non-Vec in the Err arm of a custom
-/// `Result<T, E>` they own). Falling back to `None` keeps the
+/// `(Result :- [T E])` they own). Falling back to `None` keeps the
 /// chain machinery additive: callers without chains see no
 /// behavior change.
 fn extract_panics(err: &Value) -> Option<Vec<Value>> {
@@ -17978,8 +17986,8 @@ fn eval_conj(
 /// Polymorphic indexed/keyed lookup: ∀T. (coll, idx-or-key) -> (Option :- [element]).
 /// Mirrors `eval_conj` in shape: arity-2, eval args, match Value variant.
 /// Delegates to the existing per-type inner helpers for correct semantics:
-/// - `Value::Vec(..)` → `vector_get_inner` (index i64 → Option<T>; inner already wraps in Value::Option)
-/// - `Value::wat__std__HashMap(..)` → `hashmap_get_inner` (key → Option<V>; inner already wraps)
+/// - `Value::Vec(..)` → `vector_get_inner` (index i64 → (Option :- [T]); inner already wraps in Value::Option)
+/// - `Value::wat__std__HashMap(..)` → `hashmap_get_inner` (key → (Option :- [V]); inner already wraps)
 ///
 /// HashSet excluded — HashSet has no positional get (use `contains?`).
 /// All other variants produce a teaching `RuntimeError::TypeMismatch`.
@@ -18157,7 +18165,7 @@ fn eval_conforms(
 /// cannot serve here: for an Aggregate its `TypeExpr::Path` arm is a NOMINAL
 /// identity check (`concrete_type_name_matches`) that never recurses into the
 /// record's FIELDS — so `#dos.Bag/PutRequest {:items [1 2 3]}` conforms? TRUE
-/// against `items <- Vector<String>`. That gap is the denial of service: the
+/// against `items <- (Vector :- [String])`. That gap is the denial of service: the
 /// handler then uses the field at its declared type and the whole service dies.
 ///
 /// This is a THIN WRAPPER over the deep walker that already existed and had zero
@@ -18234,7 +18242,7 @@ fn eval_edn_validate(
 /// by `EdnCoerceError::at`) into its SEGMENTS (`["items" "[0]"]`).
 ///
 /// The segments are the structured half of the `Invalid` payload: a caller can
-/// index/walk them, which is why `path` is a `Vector<String>` while
+/// index/walk them, which is why `path` is a `(Vector :- [String])` while
 /// `expected`/`got` are rendered Strings. An empty path (the mismatch is the
 /// value itself, not a sub-field) yields an empty vector — honest, not a `[""]`.
 fn edn_coerce_path_segments(path: &str) -> Vec<Value> {
@@ -20031,7 +20039,7 @@ fn eval_holon_from_holon(
         //   "List"   → List   (bare items in inner Bundle, order-preserving)
         //   "Tuple"  → Tuple  (positional I64-key Binds in inner Bundle)
         // Per HARD CUT discipline: bare Bundles (no classifier) error with diagnostic.
-        // The `-> :HashMap<K,V>` consumer-hint form is preserved for empty-Map classifier.
+        // The `-> (HashMap :- [K V])` consumer-hint form is preserved for empty-Map classifier.
         other => {
             if let Some(classifier) = extract_classifier(other) {
                 // Classifier-wrapped collection: extract inner Bundle items.
@@ -20268,9 +20276,9 @@ fn wrap_holon_as_atom(v: Value, arg_span: &Span) -> Result<Value, EvalBreak> {
 /// - Primitives (i64/f64/bool/String/keyword/nil/Char/Uuid) → typed leaves.
 /// - HolonAST → `HolonAST::Atom(inner)` (opaque-identity wrap, same as narrow `Atom`).
 /// - WatAST → structural lowering via `watast_to_holon` (List→Bundle, literals→leaves).
-/// - HashSet<T> → Bundle of bare atoms (arc 216 Stone 1).
-/// - Vec<T> / Tuple → Bundle of positional-Bind pairs (arc 216 Stone 2/7).
-/// - HashMap<K,V> → Bundle of arbitrary-K Bind pairs (arc 216 Stone 3).
+/// - (HashSet :- [T]) → Bundle of bare atoms (arc 216 Stone 1).
+/// - (Vector :- [T]) / Tuple → Bundle of positional-Bind pairs (arc 216 Stone 2/7).
+/// - (HashMap :- [K V]) → Bundle of arbitrary-K Bind pairs (arc 216 Stone 3).
 fn eval_holon_to_holon(
     args: &[WatAST],
     list_span: &Span,
@@ -20338,7 +20346,7 @@ pub(crate) fn to_holon_inner(v: Value, arg_span: &Span) -> Result<Value, EvalBre
         Value::holon__HolonAST(h) => HolonAST::Atom(h),
         // Structural lowering of a captured wat form ────────────────
         Value::wat__WatAST(a) => watast_to_holon(&a),
-        // Arc 216 Stone 1 — HashSet<T> → classifier-wrapped Bundle of bare items.
+        // Arc 216 Stone 1 — (HashSet :- [T]) → classifier-wrapped Bundle of bare items.
         // Arc 228 Stone 228.1 supersedes arc 216 bare-Bundle encoding per the
         // typed-entities doctrine: every collection carries its classifier at substrate.
         // Output: Bind(Atom("Set"), Bundle(bare items)).
@@ -20359,7 +20367,7 @@ pub(crate) fn to_holon_inner(v: Value, arg_span: &Span) -> Result<Value, EvalBre
             );
             return Ok(Value::holon__HolonAST(Arc::new(classified)));
         }
-        // Arc 216 Stone 2 — Vec<T> → classifier-wrapped positional-Bind Bundle.
+        // Arc 216 Stone 2 — (Vector :- [T]) → classifier-wrapped positional-Bind Bundle.
         // Arc 228 Stone 228.1 supersedes arc 216 bare-Bundle encoding per the
         // typed-entities doctrine. Output: Bind(Atom("Vector"), Bundle(positional Binds)).
         // Each element's index i becomes the Bind key as HolonAST::I64(i).
@@ -20405,7 +20413,7 @@ pub(crate) fn to_holon_inner(v: Value, arg_span: &Span) -> Result<Value, EvalBre
             );
             return Ok(Value::holon__HolonAST(Arc::new(classified)));
         }
-        // Arc 216 Stone 3 — HashMap<K, V> → classifier-wrapped Bundle of arbitrary-K Binds.
+        // Arc 216 Stone 3 — (HashMap :- [K V]) → classifier-wrapped Bundle of arbitrary-K Binds.
         // Arc 228 Stone 228.1 supersedes arc 216 bare-Bundle encoding per the
         // typed-entities doctrine. Output: Bind(Atom("Map"), Bundle(K-V Binds)).
         // Iteration order is non-canonical (HashMap unordered); the produced Bundle's
@@ -25061,7 +25069,7 @@ fn eval_reckoner_observe(
     Ok(Value::Unit)
 }
 
-/// `(:wat::holon::Reckoner/predict r vec) -> :(Vec<(i64,f64)>, Option<i64>, f64, f64)`
+/// `(:wat::holon::Reckoner/predict r vec) -> :((Vector :- [(i64,f64)]), (Option :- [i64]), f64, f64)`
 ///
 /// Returns a tuple: scores (Vec of (label-index, cosine) pairs sorted
 /// descending by abs cosine), winning direction (Some label-index or
@@ -25871,7 +25879,7 @@ pub fn apply_function(
         //
         // `TryPropagate` keeps its legacy behavior: wrap in the
         // function's own `Err(e)` return. The type checker guarantees
-        // this function's declared return type is `:Result<_,E>`
+        // this function's declared return type is `(Result :- [_ E])`
         // whenever its body contains a `try`, so the wrap is
         // type-correct by construction.
         // Stone 255.1a — Native builtins are intercepted by the runtime dispatch match
@@ -27409,7 +27417,7 @@ pub(crate) fn eval_handle_pool_finish(
 // channel pattern lived on inside the arc-114 in-thread satisfier
 // (`:wat::kernel::spawn-thread`, itself retired — non-prime IPC
 // de-prime, this pass) and `spawn_with_world_into_result` (the
-// Process<I,O> in-thread driver from arc 103a). The retired bare-
+// (Process :- [I O]) in-thread driver from arc 103a). The retired bare-
 // spawn impl is gone; the type-checker poisons every call site
 // pre-runtime so this layer is unreachable. See arc 114
 // INSCRIPTION for the contract retirement. Arc 278's vacate-spawn-
@@ -27484,7 +27492,7 @@ pub(crate) fn extract_panic_payload(
 
 /// Build a `:wat::kernel::ThreadDiedError::Panic` enum value
 /// (arc 060 + arc 105c). Variant carries two fields:
-/// `message: String` always populated; `failure: Option<Failure>`
+/// `message: String` always populated; `failure: (Option :- [Failure])`
 /// populated when the panic was an `AssertionPayload` carrying
 /// arc 064's structured actual / expected / location / frames
 /// info, `:None` for plain panics.
@@ -27587,7 +27595,7 @@ pub(crate) fn failure_names() -> Arc<Vec<String>> {
 /// `location` is a MANDATORY `:wat::kernel::Location` (not `Option`); when the
 /// panic carried no span (transport/synthetic failures — disconnected, shutdown,
 /// service crash), a synthetic `<runtime>` location marks it honestly. `causes`
-/// is an empty `Vector<Error>`. This is the canonical synthesizer for every
+/// is an empty `(Vector :- [Error])`. This is the canonical synthesizer for every
 /// death that is a bare message rather than a structured `raise!`.
 fn fault_value(message: String, location: Option<crate::span::Span>) -> Value {
     let location_value = match location {
@@ -27760,7 +27768,7 @@ pub(crate) fn eval_failure_message(
 /// `(:wat::kernel::Failure/location f) -> (:Option :- [:wat::kernel::Location])` — arc 278
 /// the string-wrap annihilation. DERIVED accessor: reads `error.location` (a
 /// mandatory `:wat::kernel::Location` on the error) and wraps it in `Some` to keep
-/// the accessor's historic `Option<Location>` return shape.
+/// the accessor's historic `(Option :- [Location])` return shape.
 pub(crate) fn eval_failure_location(
     args: &[WatAST],
     env: &Environment,
@@ -27833,7 +27841,7 @@ fn single_died_chain(died: Value) -> Value {
 }
 
 /// Arc 278 no-hidden-failures — render a THREAD-peer PANIC death as the SAME
-/// bare `Vector<LociDiedError>` EDN line the process tier emits from
+/// bare `(Vector :- [LociDiedError])` EDN line the process tier emits from
 /// `emit_chain_envelope` (`value_to_edn_with` → `wat_edn::write`), so the
 /// parent's [`loci_died_error_from_reason`] bridges it STRUCTURALLY — the raised
 /// Fault rides in `Panic.failure` — instead of falling to the opaque string-wrap
@@ -27853,7 +27861,7 @@ pub(crate) fn thread_crash_panic_edn(
 /// [`thread_crash_panic_edn`]. Mirrors the process tier's
 /// `process_died_error_runtime_value`: the RuntimeError crosses the wire as
 /// structured `to_wire_edn` (its `:message`/`:location`/`:causes` floor), NOT
-/// `re.to_string()` prose, wrapped in the same bare `Vector<LociDiedError>` line.
+/// `re.to_string()` prose, wrapped in the same bare `(Vector :- [LociDiedError])` line.
 pub(crate) fn thread_crash_runtime_edn(
     re: &RuntimeError,
     types: Option<&crate::types::TypeEnv>,
@@ -27894,7 +27902,7 @@ pub(crate) fn conj_died_chain_value(fresh: Value, upstream: Option<Vec<Value>>) 
 
 /// Build a `:wat::kernel::ProcessDiedError::Panic` enum value
 /// (arc 112). Sibling of `thread_died_error_panic` for the
-/// Process<I,O> subject. Same payload shape; the type_path
+/// (Process :- [I O]) subject. Same payload shape; the type_path
 /// distinguishes them at runtime + at the type-checker.
 fn process_died_error_panic(
     message: String,
@@ -28105,7 +28113,7 @@ pub(crate) fn eval_died_error_message(
 // reader is dead. The `edn_is_loci_died_chain` helper below survives
 // (still used by the recv' Lost EDN decoder).
 
-/// True when `v` is a bare `Vector<LociDiedError>` death chain — a
+/// True when `v` is a bare `(Vector :- [LociDiedError])` death chain — a
 /// `Vector` whose first element is a `#wat.kernel.LociDiedError/…` tagged
 /// value. Arc 278: the chain crosses bare (no `ProcessPanics` wrapper); the
 /// head element's own tag is the self-describing marker.
@@ -28163,7 +28171,7 @@ pub(crate) fn eval_died_error_to_failure(
                             .into());
                         }
                     };
-                    // Field 1 is declared `Option<Failure>`. The
+                    // Field 1 is declared `(Option :- [Failure])`. The
                     // EDN reader's reconstruct_struct + Tagged
                     // arms (arc 113 slice 3) wrap Option layers
                     // back during bridge, so both wat-side
@@ -28314,7 +28322,7 @@ fn recv_outcome_shutdown() -> Value {
 /// `:wat::kernel::LociDiedError` that `RecvOutcome::Lost` carries (arc 278 the
 /// LociDiedError stone).
 ///
-/// A process peer emits its death as a self-describing BARE `Vector<LociDiedError>`
+/// A process peer emits its death as a self-describing BARE `(Vector :- [LociDiedError])`
 /// EDN line (the annihilated `#wat.kernel/ProcessPanics` wrapper is gone); we parse
 /// it via generic `edn::read` and take the HEAD (the immediate peer death) — the
 /// chain is a container-level Vector, and Lost holds ONE. A single tagged
@@ -28325,7 +28333,7 @@ fn recv_outcome_shutdown() -> Value {
 fn loci_died_error_from_reason(reason: String, types: Option<&crate::types::TypeEnv>) -> Value {
     let trimmed = reason.trim();
     if let Ok(parsed) = wat_edn::parse_owned(trimmed) {
-        // A bare Vector<LociDiedError> death chain → bridge + take the head.
+        // A bare (Vector :- [LociDiedError]) death chain → bridge + take the head.
         if edn_is_loci_died_chain(&parsed) {
             // ctx=None: this decodes only the fixed core `LociDiedError` enum — never a
             // user-declared HolonRecord class — so no EncodingCtx is ever needed here.
@@ -28540,7 +28548,7 @@ fn try_send_outcome_lost(cause: Value) -> Value {
 /// the peer is CONSUMED, so no variant holds a live resource (Pure, like SendOutcome).
 const CLOSE_OUTCOME_TYPE: &str = ":wat::kernel::CloseOutcome";
 
-/// `CloseOutcome::Closed [exit <- Option<i64>]` — a clean close. `None` = a thread
+/// `CloseOutcome::Closed [exit <- (Option :- [i64])]` — a clean close. `None` = a thread
 /// peer (no OS exit code — loci-agnostic, R32); `Some(code)` = a process exit status.
 fn close_outcome_closed(exit: Option<i64>) -> Value {
     Value::Enum(Arc::new(EnumValue {
@@ -28801,7 +28809,7 @@ fn eval_error_names() -> Arc<Vec<String>> {
 }
 
 /// Wrap an inner evaluation's `Result<Value, EvalBreak>` as the
-/// `Value::Result<V, EvalError>` the eval-family forms return.
+/// `Value::Result` — a `(Result :- [V EvalError])` — the eval-family forms return.
 ///
 /// Preserves `EvalBreak::Signal(TryPropagate)` / `EvalBreak::Signal(OptionPropagate)`
 /// so `:wat::core::Result/try` and `:wat::core::Option/try` inside eval'd
@@ -29248,7 +29256,7 @@ pub(crate) fn eval_form_against_defs(
 }
 
 /// Arc 066 — wrap a wat Value as a HolonAST Value. Used by
-/// `eval-ast!` to honor its `Result<HolonAST, EvalError>` scheme;
+/// `eval-ast!` to honor its `(Result :- [HolonAST EvalError])` scheme;
 /// returns TypeMismatch for Values that have no HolonAST
 /// representation (channels, fns, ProgramHandles, etc.).
 ///
@@ -30131,7 +30139,7 @@ fn step_holon_descend_then_fire(
             return Ok(StepValue::Next(WatAST::List(new_items, list_span.clone())));
         }
     }
-    // Fire. Bundle's signature is `:Result<HolonAST, CapacityExceeded>`
+    // Fire. Bundle's signature is `(:Result :- [HolonAST CapacityExceeded])`
     // — a wat-side Result wrap orthogonal to the EvalError wrap that
     // eval-step!'s caller sees. Other holon constructors return a
     // bare HolonAST. Peel the inner Result if present so the
@@ -32174,7 +32182,7 @@ pub(crate) fn eval_peer_close_prime(
 /// `(:wat::kernel::signal proc sig)` — DESIGN-STONE-process-signal-owner-to-
 /// child.md; BRIEF-process-signal-p2-mint.md.
 ///
-/// STOP-1: `Process<I,O>` ONLY — no shared codegen with Thread'/Peer' (a thread
+/// STOP-1: `(Process :- [I O])` ONLY — no shared codegen with Thread'/Peer' (a thread
 /// peer has no process to signal). STOP-3: routes through `Pidfd::send_signal`,
 /// never `kill(pid, sig)` (`clone.rs:215-216` documents why the bare PID is
 /// unsafe to reuse). STOP-4: `Kill` sends and returns; it does NOT reap —
@@ -34432,7 +34440,7 @@ mod tests {
             panic!("the emitted StartupError chain must STRICT-decode to typed records; got {err:?}\n  line: {line}")
         });
 
-        // chain = Vector<LociDiedError>; head = StartupError.
+        // chain = (Vector :- [LociDiedError]); head = StartupError.
         let chain = match &decoded {
             Value::Vec(items) => items,
             other => panic!("chain must be a (Vector :- [LociDiedError]); got {other:?}"),
@@ -35287,7 +35295,7 @@ mod tests {
 
     #[test]
     fn algebra_bundle_via_list_ctor() {
-        // Bundle now returns Result<wat::holon::HolonAST, CapacityExceeded>
+        // Bundle now returns (Result :- [wat::holon::HolonAST CapacityExceeded])
         // under every mode — end-to-end tests in `tests/wat_bundle_*`
         // exercise the four capacity-mode paths. This unit test
         // confirms the Ok wrap happens at cost <= budget (at d=1024,
@@ -35357,7 +35365,7 @@ mod tests {
     // ─── Four eval forms (wat-source callable) ──────────────────────────
     //
     // Per 2026-04-20 INSCRIPTION: eval-ast! / eval-edn! / eval-digest! /
-    // eval-signed! all return :Result<wat::holon::HolonAST, :wat::core::EvalError>
+    // eval-signed! all return (:Result :- [wat::holon::HolonAST :wat::core::EvalError])
     // now. Test helpers below unwrap the Result wrap so the assertions
     // against Ok values and Err-kind strings stay concise.
 
@@ -36278,7 +36286,7 @@ mod tests {
     // run_constrained; each result atomizes via value_to_atom; the
     // two Atoms compare with the same coincident_floor test
     // structural coincident? uses. Return is eval-family-shaped
-    // Result<bool, EvalError>.
+    // (Result :- [bool EvalError]).
 
     #[test]
     fn eval_coincident_q_true_for_equivalent_arithmetic() {
@@ -38337,7 +38345,7 @@ mod tests {
     // not to make a deletion compile: its entire subject was retired, because
     // `:wat::kernel::drop` proved UNREACHABLE from wat — its only accepted
     // arguments were `Sender`/`Receiver`, and nothing in the corpus constructs
-    // either (`:wat::kernel::Channel<T>` is a typealias, not a verb).
+    // either (`:wat::kernel::Channel :- [T]` is a typealias, not a verb).
     //
     // The distinction matters and is the rule: deleting a test whose subject
     // still LIVES, to make an unrelated change pass, is the forbidden move. A
@@ -39065,7 +39073,7 @@ mod tests {
         // Arc 102: pre-arc-102, a Vec result errored because
         // value_to_holon couldn't wrap it. With arc 102's revert,
         // Vec results pass through cleanly — caller binds
-        // T = :wat::core::Vector<i64> and (Ok xs) gets the Vec directly.
+        // T = (:wat::core::Vector :- [i64]) and (Ok xs) gets the Vec directly.
         let src = r#"
             (:wat::core::match
               (:wat::eval-ast!

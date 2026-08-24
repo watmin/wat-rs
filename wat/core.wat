@@ -730,21 +730,15 @@
                       (:wat::core::Option/expect (:wat::core::get rest 1)
                         "defn binder: `:-` must be followed by a `[...]` vector"))
                     (:wat::core::Vector :wat::WatAST))
-     ;; the binder rendered as a `<T,U>` string SUFFIX — the exact shape `name-tp`
-     ;; already takes from a `<T,U>`-spelled name, so every downstream
-     ;; `{b}::Kwargs{p}` / `{b}$impl{p}` interpolation is unchanged by construction.
-     binder-tp    (:wat::core::if has-binder
-                    (:wat::core::string::concat "<"
-                      (:wat::core::string::concat
-                        (:wat::core::string::join ","
-                          (:wat::core::foldl
-                            (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String]) nd <- :wat::WatAST]
-                              -> (:wat::core::Vector :- [:wat::core::String])
-                              (:wat::core::conj acc (:wat::core::ast-name nd)))
-                            (:wat::core::Vector :wat::core::String)
-                            binder-names-ch))
-                        ">"))
-                    "")
+     ;; STONE-the-dormant-minter — `binder-tp` (the bracketed `<T,U>` STRING mint that
+     ;; used to feed `{b}::Kwargs{p}` / `{b}$impl{p}`) is RETIRED, mirroring `proto-tp`'s
+     ;; and `fqdn-tp`'s deaths in `wat/service.wat` (commits c6c614fe2, 0811c3009): every
+     ;; companion name below now stays BARE (`name-tp` is always `""` when `has-binder`),
+     ;; and `binder-names-ch` (above) rides as a `:- [~@binder-names-ch]` DECLARATION-
+     ;; sibling binder on the emitted `defstruct` / `fn` forms, and as an ANNOTATION
+     ;; reference form `(Head :- [~@binder-names-ch])` at TYPE positions — never a
+     ;; re-serialized angle string. See `record-def`, `impl-def`, and `kwargs-ty-ann`
+     ;; below.
      rest2        (:wat::core::if has-binder
                     (:wat::core::rest (:wat::core::rest rest))
                     rest)
@@ -795,33 +789,45 @@
       (:wat::core::let
         [name-str        (:wat::core::keyword/to-string name)
          ;; ── Arc 278 parametric names: the name / type-param SPLIT ────────────────────
-         ;; A kwargs defn MAY be generic (`:my::svc/start<T>` — every parametric
-         ;; `defservice`'s auto start/resume is exactly this). Its companions must append
-         ;; the suffix to the BASE and RE-ATTACH the params at the end
-         ;; (`:my::svc/start::Kwargs<T>`), never the naive `:my::svc/start<T>::Kwargs`
-         ;; (a malformed type name). Mirrors the same split in wat/service.wat.
+         ;; A kwargs defn MAY be generic (`:my::svc/start<T>` — this comment used to add
+         ;; "every parametric `defservice`'s auto start/resume is exactly this"). STONE-
+         ;; the-dormant-minter RESOLVED that claim STALE: `wat/service.wat`'s own
+         ;; `start`/`resume` generator (~line 2546, comment "293.W.2f — `/start` must not
+         ;; erase T. Native kwargs+defclause is unexpressible") explicitly does NOT route
+         ;; through this native kwargs-binder combination — it hand-rolls THREE separate
+         ;; positional `$impl`/`$impl-thread`/`$impl-process` fns behind its own dispatch
+         ;; macro precisely because this join was unexpressible before this fix. So the
+         ;; combination was dormant even through `defservice`, not merely "lucky" — no
+         ;; live caller anywhere in the corpus reached `has-binder` + kwargs together.
+         ;; Every companion name below stays BARE regardless; a `:- [T ...]` binder never
+         ;; rides in NAME text, only as a structural sibling on the emitted form
+         ;; (`record-def`, `impl-def`) or reference form (`kwargs-ty-ann`) — mirrors
+         ;; `proto-tp`/`fqdn-tp`'s deaths in wat/service.wat (commits c6c614fe2, 0811c3009).
          ;; IDENTITY when there are no params: `name-tp` = "" and `name-base` IS `name-str`,
          ;; so every companion name is byte-identical to the pre-split concatenation.
-         ;; DECLARED types/fns carry the params; CTOR / ACCESSOR / by-name-resolution
-         ;; keywords (and the companion MACRO's own name) take the bare base.
+         ;; CTOR / ACCESSOR / by-name-resolution keywords (and the companion MACRO's own
+         ;; name) take the bare base — same as DECLARED types/fns now that name-tp is
+         ;; always "".
          ;;
          ;; Arc 109 gamma-i row 6 — a `:- [T ...]` binder is the SECOND spelling of the
-         ;; same fact `name-str`'s `<T,U>` suffix already carries (`has-binder`/`binder-tp`,
-         ;; computed above from `rest`, before it was ever bound to a defstruct/defmacro
-         ;; splice). `name-str-parametric?` names the ORIGINAL name-suffix test so
-         ;; `name-base` (which strips a real `<T>` suffix off `name-str`) is unaffected by
-         ;; which spelling supplied the params. `name-tp` prefers the binder when present.
-         ;; `name-str-parametric?` itself is NOT rebound here — reused from the OUTER let
-         ;; (where `_binder-contradiction-check`, above, already rejected the both-spellings
-         ;; case for EVERY `defn`, kwargs or plain, before either branch is chosen) — so
-         ;; reaching this point with `has-binder` true guarantees `name-str-parametric?` is
-         ;; false, and the two never silently disagree here.
+         ;; same fact `name-str`'s `<T,U>` suffix used to carry (`has-binder`, computed
+         ;; above from `rest`). `name-str-parametric?` names the ORIGINAL name-suffix test
+         ;; so `name-base` (which strips a real `<T>` suffix off `name-str`) is unaffected
+         ;; by which spelling supplied the params. `name-str-parametric?` itself is NOT
+         ;; rebound here — reused from the OUTER let (where `_binder-contradiction-check`,
+         ;; above, already rejected the both-spellings case for EVERY `defn`, kwargs or
+         ;; plain, before either branch is chosen) — so reaching this point with
+         ;; `has-binder` true guarantees `name-str-parametric?` is false, and the two never
+         ;; silently disagree here.
          name-parametric? (:wat::core::if has-binder true name-str-parametric?)
          name-base       (:wat::core::if name-str-parametric?
                            (:wat::core::first (:wat::core::string::split name-str "<"))
                            name-str)
+         ;; STONE-the-dormant-minter — was `binder-tp` (a `<T,U>` string mint) in the
+         ;; `has-binder` branch; now always `""`, so every downstream `{b}::Kwargs{p}` /
+         ;; `{b}$impl{p}` interpolation below is byte-identical to its bare form.
          name-tp         (:wat::core::if has-binder
-                           binder-tp
+                           ""
                            (:wat::core::if name-str-parametric?
                              (:wat::core::string::subs name-str
                                (:wat::core::string::length name-base)
@@ -830,7 +836,9 @@
          ;; the companion MACRO's own head — always the bare name (a macro takes no type args)
          name-base-node  (:wat::core::keyword-node
                            (:wat::core::string::interpolate ":{b}" :b name-base))
-         ;; :<name>::Kwargs — the minted bundle type. DECLARED → carries the type params.
+         ;; :<name>::Kwargs — the minted bundle type. STONE-the-dormant-minter — always
+         ;; the BARE name now (`name-tp` is always ""); a non-empty `binder-names-ch`
+         ;; rides as a `:- [...]` sibling on `record-def` (below), not name-embedded.
          kwargs-ty       (:wat::core::keyword/from-string
                            (:wat::core::string::interpolate "{b}::Kwargs{p}" :b name-base :p name-tp))
          kwargs-ty-str   (:wat::core::keyword/to-string kwargs-ty)
@@ -860,18 +868,44 @@
                                  nil)))
                            nil
                            (:wat::core::range 0 n-kw-fields))
+         ;; kw-tp-syms — arc 109 β-ii-c per-type param CONSUMPTION (mirrors service.wat's
+         ;; `record-tp-syms`, `state-tp-syms`, `admin-tp-syms`): the Kwargs bundle's OWN
+         ;; declared binder is not `binder-names-ch` wholesale but the SUBSET actually
+         ;; mentioned in the kwargs section's own field vector (`kw-argvec`). A `T` used
+         ;; only by a LEADING POSITIONAL param (never inside the trailing `& [...]`
+         ;; section) would otherwise be declared on `::Kwargs` and consumed by nothing —
+         ;; UnconsumedTypeParam, measured: probe C's own `seed <- :T` is positional, so
+         ;; `::Kwargs<T>`'s field vector (`times <- i64` only) never mentions T.
+         kw-tp-syms      (:wat::core::type-params-used-in binder-names-ch kw-argvec)
          ;; Mint the kwargs bundle as a STRUCT (defstruct): a kwargs bundle is a LOCAL
          ;; calling-convention artifact (never stored/shipped) that must accept impure args
          ;; (fns, sockets, resources) — so it is impure/struct, NOT a pure record. Arc 259/278.
-         record-def      `(:wat::core::defstruct ~kwargs-ty ~kw-argvec)
+         ;; STONE-the-dormant-minter — a non-empty `kw-tp-syms` splices `:- [~@kw-tp-syms]`
+         ;; as a DECLARATION SIBLING on the emitted `defstruct`, never a name-embedded
+         ;; `<T,U>` mint. Mirrors `record-def`'s identical conditional splice in
+         ;; wat/service.wat (commit 0811c3009).
+         record-def      (:wat::core::if (:wat::core::empty? kw-tp-syms)
+                           `(:wat::core::defstruct ~kwargs-ty ~kw-argvec)
+                           `(:wat::core::defstruct ~kwargs-ty :- [~@kw-tp-syms] ~kw-argvec))
          ;; HYGIENIC hidden kwargs binder: fresh-symbol stamps a fresh unique scope (arc 274.1) so the
          ;; binder is capture-proof BY CONSTRUCTION — it cannot collide with any caller variable, even one
          ;; literally named "kwargs". (The field binders below stay plain symbol-node — they are
          ;; INTENTIONALLY user-facing, clojure {:keys}.)
          kw-sym          (:wat::core::fresh-symbol "kwargs")
-         ;; kwargs-ty as a WatAST Keyword node (needed for with-children)
+         ;; kwargs-ty as a WatAST Keyword node (needed for with-children) — the BARE
+         ;; CONSTRUCTOR/declaration-head spelling.
          kwargs-ty-node  (:wat::core::keyword-node
                             (:wat::core::string::interpolate ":{kwargs-ty-str}" :kwargs-ty-str kwargs-ty-str))
+         ;; kwargs-ty-ann: the TYPE-REFERENCE form for the (possibly generic) kwargs
+         ;; bundle. STONE-the-dormant-minter, Arc 109 ③ identity 2c — an ANNOTATION
+         ;; position mints the reference FORM `(Head :- [args])` structurally off
+         ;; `kw-tp-syms` (the SAME subset `record-def` just declared — a reference form's
+         ;; arg count must match its declaration's), never a re-serialized `<T,U>` string.
+         ;; Monomorphic (or T unconsumed by the kwargs fields) ⇒ `kw-tp-syms` is empty ⇒
+         ;; byte-identical to bare `kwargs-ty-node`.
+         kwargs-ty-ann   (:wat::core::if (:wat::core::empty? kw-tp-syms)
+                           kwargs-ty-node
+                           `(~kwargs-ty-node :- [~@kw-tp-syms]))
          ;; Build reshaped params children: drop trailing `& [...]` (last 2), append kw-sym <- kwargs-ty
          ;; Arc 118.2a — was `(:wat::core::take ...)`. `take` flipped LAZY (returns Stream); this is
          ;; `:wat::core::defn`'s OWN macro body — it runs at macro-expansion time, BEFORE any
@@ -884,11 +918,15 @@
                            (:wat::core::Vector :wat::WatAST)
                            (:wat::core::range 0 (:wat::core::i64::- params-len 2)))
          arrow-sym       (:wat::core::symbol-node "<-")
+         ;; STONE-the-dormant-minter — kw-sym's param type is `kwargs-ty-ann` (the
+         ;; reference FORM), not the bare `kwargs-ty-node`: the $impl fn's own body reads
+         ;; fields off this param through the accessors, and a generic bundle referenced
+         ;; bare (no args) would not carry T through to the accessor result types.
          reshaped-ch     (:wat::core::conj
                            (:wat::core::conj
                              (:wat::core::conj base-ch kw-sym)
                              arrow-sym)
-                           kwargs-ty-node)
+                           kwargs-ty-ann)
          reshaped-params (:wat::core::with-children params-vec reshaped-ch)
          ;; ret-type: rest2[2] (after params-vec and ->). Arc 109 gamma-i row 6 — reads
          ;; `rest2` (binder-stripped), not `rest`, so a binder-spelled kwargs defn's
@@ -1297,9 +1335,22 @@
            (:wat::core::range 0 n-kw-fields))
          assemble-def (:wat::core::if mint-coords?
                         `(:wat::core::defn ~assemble-kw
-                           [~assemble-deps-sym <- ~coords-kw] -> ~kwargs-ty-node
+                           [~assemble-deps-sym <- ~coords-kw] -> ~kwargs-ty-ann
                            (~kwargs-prime-kw ~@assemble-ctor-args))
-                        `(:wat::core::do nil))]
+                        `(:wat::core::do nil))
+         ;; STONE-the-dormant-minter — the $impl fn's own DECLARATION splices
+         ;; `:- [~@binder-names-ch]` on the `fn` (immediately after `fn`'s head, the same
+         ;; position `defn`'s own backward-compat `(fn ~@rest)` forward already accepts a
+         ;; user-written binder at) rather than baking the params into `impl-name-node`'s
+         ;; text. Hoisted out of the final quasiquote below so both branches stay
+         ;; expressible without a nested `if` inside the `do`.
+         impl-def     (:wat::core::if has-binder
+                        `(:wat::core::def ~impl-name-node
+                           (:wat::core::fn :- [~@binder-names-ch] ~reshaped-params -> ~ret-type
+                             (:wat::core::let ~let-binders-vec ~@body-forms)))
+                        `(:wat::core::def ~impl-name-node
+                           (:wat::core::fn ~reshaped-params -> ~ret-type
+                             (:wat::core::let ~let-binders-vec ~@body-forms))))]
         ;; Arc 260.1b: emit record-def + $impl fn (under :<name>$impl) + companion defmacro (:name)
         ;; The companion macro is a THIN FORWARDER to :wat::core::kwargs-lower (Part B dedup).
         ;; Values baked in at defn-expansion time via ~ (depth-1 unquotes from the outer quasiquote):
@@ -1314,9 +1365,7 @@
         ;; form `~(...)` is a List node at check time — not a Symbol — so it passes the gate.
         `(:wat::core::do
            ~record-def
-           (:wat::core::def ~impl-name-node
-             (:wat::core::fn ~reshaped-params -> ~ret-type
-               (:wat::core::let ~let-binders-vec ~@body-forms)))
+           ~impl-def
            (:wat::core::defmacro ~name-base-node
              [& ~call-args-sym <- (:wat::core::Vector :- [:wat::WatAST])]
              -> :wat::WatAST

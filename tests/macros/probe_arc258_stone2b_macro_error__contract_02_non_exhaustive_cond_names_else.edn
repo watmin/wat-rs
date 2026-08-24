@@ -17,11 +17,11 @@
     :message "malformed template: cond: non-exhaustive — needs a terminal :else arm"
     :location #wat.core/Span {
       :file "wat/core.wat"
-      :line 1415
+      :line 1464
       :col 5
       :end #wat.core.Option/Some [
         #wat.core/Pos {
-          :line 1415
+          :line 1464
           :col 82
         }
       ]
