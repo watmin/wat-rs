@@ -1,11 +1,10 @@
-//! Arc 278 — Stone 8-custom: custom accumulators (any pure∧det user fold fn over the gather) + the DIFFERENTIAL.
-//! The accumulator slot accepts a USER fn head (not just the 8 built-ins): `(?r <- (:my-fold ?v) :from (…))`
-//! gathers the `?v` values into a `PV<T>` and applies `my-fold : (PV<T>) -> R`. RED at HEAD (the non-built-in
-//! head hits `accumulate_value`'s `other` arm → "unknown accumulator" panic → fire errors). GREEN when 8-custom
-//! generalizes the dispatch (known head → built-in fast-path; else eval the user fn over the gather) + adds the
-//! compile fence (reject impure/non-det folds). Contract: DESIGN-STONE-8-custom.md.
+//! Arc 278 stone 8-custom — custom accumulators (any fenced user fold over the gather) + the differential.
+//! Dual-impl: the unprimed public Fn is native; `$oracle` is the spec mouth.
 //!
-//! `fire-rules` = native; `fire-rules-spec` = the wat oracle. For a custom-fold rule the two MUST agree.
+//! The accumulator slot accepts a USER fn head (not just the 8 built-ins): `(?r <- (:my-fold ?v) :from (…))`
+//! gathers the `?v` values into a `PV<T>` and applies `my-fold : (PV<T>) -> R`. Known head → built-in
+//! fast-path; else eval the user fn over the gather. The compile fence rejects a fold that is not
+//! (pure ∧ deterministic ∧ total ∧ primitive?). Native `fire-rules` == `fire-rules$oracle`.
 //!
 //! Run: cargo test --release -p wat --test probe_arc278_8custom_native_differential
 

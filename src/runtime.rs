@@ -2504,25 +2504,22 @@ pub fn register_runtime_defs(
         register_runtime_defs_form(form, env, sym)?;
         match crate::rete::purity::apply_rete_defn_contracts(sym, declared_rete_defns) {
             crate::rete::purity::ReteDefnCheckOutcome::Ok => {}
-            crate::rete::purity::ReteDefnCheckOutcome::AxisViolation {
-                name,
-                axis,
-                head,
-                span,
-            } => {
-                return Err(RuntimeError::new(
-                    span,
-                    RuntimeErrorKind::ReteDefnAxisViolation { name, axis, head },
-                )
-                .into());
-            }
-            crate::rete::purity::ReteDefnCheckOutcome::Recursive { name, head, span } => {
-                return Err(RuntimeError::new(
-                    span,
-                    RuntimeErrorKind::ReteDefnRecursive { name, head },
-                )
-                .into());
-            }
+            crate::rete::purity::ReteDefnCheckOutcome::Err(err) => match err.kind {
+                crate::rete::purity::ReteDefnCheckErrorKind::AxisViolation { name, axis, head } => {
+                    return Err(RuntimeError::new(
+                        err.span,
+                        RuntimeErrorKind::ReteDefnAxisViolation { name, axis, head },
+                    )
+                    .into());
+                }
+                crate::rete::purity::ReteDefnCheckErrorKind::Recursive { name, head } => {
+                    return Err(RuntimeError::new(
+                        err.span,
+                        RuntimeErrorKind::ReteDefnRecursive { name, head },
+                    )
+                    .into());
+                }
+            },
         }
     }
     Ok(())
@@ -5380,7 +5377,7 @@ fn dispatch_keyword_head_value(
     // and this function is that dispatch, not the `where` path, so compiling `where` (#49a) would
     // never have removed the tax. Cheaper than the benchmark that would have justified caring.
     // DESIGN-STONE-insert-prime-split — before the intrinsic registry and before
-    // the wat defclause in `sym`. 2-ary is insert'; 3+ is insert-all'.
+    // the wat defclause in `sym`. 2-ary is insert$native; 3+ is insert-all$native.
     if head == ":wat::rete::insert" {
         return crate::rete::kernel::eval_insert_public(args, list_span, env, sym);
     }
@@ -5659,11 +5656,11 @@ fn dispatch_keyword_head_value(
         // Arc 278 Stone 4a — rete RHS insert evaluator (the dual of alpha-match).
         // Pure data-in/data-out: insert-form (WatAST) × bindings (PersistentMap) → Record.
         // Resolves ?var/literal fact-args via resolve_operand; raises on unresolved (no silent drop).
-        ":wat::rete::eval-insert" => crate::rete::matcher::eval_insert(args, list_span, env, sym),
+        ":wat::rete::eval-insert" => crate::rete::eval_insert::eval_insert(args, list_span, env, sym),
         // Arc 278 Stone P2 — native Rust single-pass fire cycle (the differential harness).
         // (:wat::rete::fire-once <session>) → :wat::rete::Session
-        // Observationally equivalent to the wat oracle's fire-once: same derived facts.
-        // Mutates a native FireSession (sealed; never escapes to wat); returns a frozen Session.
+        // Equivalent to fire-once$oracle on AST Sessions; Export is native-only
+        // (the oracle refuses an imported Export).
         ":wat::rete::fire-once$native" | ":wat::rete::fire-once" => {
             crate::rete::kernel::eval_fire_once_native(args, list_span, env, sym)
         }
@@ -5674,6 +5671,9 @@ fn dispatch_keyword_head_value(
         }
         // Arc 278 — intern the rust InternedNetwork when compile-all returns a Session
         // (`DESIGN-STONE-arm-at-compile`). Value unchanged. First fire-rules HIT.
+        // rune:circumspicere(accepted-by-design) — intern hangup mouths are keyword
+        // primitives (TypeScheme + runtime dispatch), not dual-impl wat Fns; bound in
+        // DESIGN-STONE-intern-eviction.md (keyword primitives; oracle has no intern).
         ":wat::rete::arm-session" => {
             crate::rete::kernel::eval_arm_session(args, list_span, env, sym)
         }
@@ -5688,7 +5688,7 @@ fn dispatch_keyword_head_value(
             crate::rete::kernel::eval_insert_all_native(args, list_span, env, sym)
         }
         ":wat::rete::insert$native" => {
-            crate::rete::kernel::eval_insert_native(args, list_span, env, sym)
+            crate::rete::kernel::eval_session_insert(args, list_span, env, sym)
         }
         ":wat::rete::fire-rules-explain$native" | ":wat::rete::fire-rules-explain" => {
             crate::rete::kernel::eval_fire_rules_explain(args, list_span, env, sym)
@@ -5697,7 +5697,7 @@ fn dispatch_keyword_head_value(
         // (:wat::rete::step-payload session alpha-id bindings sfact supporting) → :wat::rete::DerivationStep
         // REUSES resolve_operand + the clause classifier from matcher.rs (faithful by construction).
         ":wat::rete::step-payload" => {
-            crate::rete::matcher::eval_step_payload(args, list_span, env, sym)
+            crate::rete::step_payload::eval_step_payload(args, list_span, env, sym)
         }
         ":wat::rete::collect-rules" => {
             crate::rete::collect::eval_collect_rules(args, list_span, env, sym)
@@ -5736,13 +5736,13 @@ fn dispatch_keyword_head_value(
         }
         // BRIEF-the-fence-names-the-head — the SAME walk pure?/deterministic? run, surfacing the
         // first violating leaf instead of discarding it.
-        // (:wat::rete::axis-violation <quoted-expr> <axis: :pure|:deterministic>) -> (:wat::core::Option :- [wat::rete::AxisViolation])
+        // (:wat::rete::axis-violation <quoted-expr> <axis: :wat::rete::Axis>) -> (:wat::core::Option :- [wat::rete::AxisViolation])
         ":wat::rete::axis-violation" => {
             crate::rete::purity::eval_axis_violation(args, list_span, env, sym)
         }
         // Arc 278 Stone 6b-i — the runtime evaluator for where/:test predicates.
         // (:wat::rete::eval-test <quoted-expr: :wat::WatAST> <bindings: :wat::core::PersistentMap>) -> :wat::core::bool
-        ":wat::rete::eval-test" => crate::rete::matcher::eval_test(args, list_span, env, sym),
+        ":wat::rete::eval-test" => crate::rete::eval_test::eval_test(args, list_span, env, sym),
         // #49 — rule-compile refuse: lower the where expr or raise. Returns nil on success.
         ":wat::rete::lower" => crate::rete::expr_ir::eval_lower(args, list_span, env, sym),
         ":wat::core::forms" => Ok(eval_forms(args, list_span)?),
@@ -18947,15 +18947,15 @@ fn eval_kwargs_construct(
             };
             kv.push((fname, pair[1].clone()));
         }
-        let reordered = crate::rete::validate::reorder_kwargs_by_field_name(&field_order, &kv)
+        let reordered = crate::rete::validate::reorder_kwargs_by_field_name(&field_order, &kv, list_span)
             .map_err(|bad| {
                 RuntimeError::new(
-                    list_span.clone(),
+                    bad.span,
                     RuntimeErrorKind::MalformedForm {
                         head: OP.into(),
                         reason: format!(
                             "unknown field :{} for aggregate {} (declared fields: {})",
-                            bad,
+                            bad.field,
                             type_key,
                             field_order.join(", ")
                         ),

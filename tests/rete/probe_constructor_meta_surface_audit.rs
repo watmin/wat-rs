@@ -92,7 +92,7 @@ fn nested_surface_aggregate_constructor_now_works_via_oracle() {
     assert!(matches!(r, Ok(Value::i64(5))), "expected Inner.x=5 via the newly-wired nested constructor (oracle); got {r:?}");
 }
 
-/// #1, native-kernel counterpart — same rule, compiled RHS path (`insert'`/`fire-rules'`).
+/// #1, native-kernel counterpart — same rule, compiled RHS path (`insert`/`fire-rules`).
 #[test]
 fn nested_surface_aggregate_constructor_now_works_via_native_kernel() {
     let r = run(WORLD_NESTED_AGGREGATE_GREEN, ":user::run-native");

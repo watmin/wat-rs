@@ -7,13 +7,9 @@
 //! user path — `probe-insert-cost-split.wat` measured it at 87% of the per-fact cost (11.79 µs of
 //! 13.54), and seeding is 74% of a real `accum` workload.
 //!
-//! The trio this mirrors (`runtime.rs:4706` — "unprimed is the wat ORACLE, primed the native
-//! kernel; never collapsed"):
-//!   `fire-rules-spec` / `fire-rules'` / `fire-rules`  ->  `insert-spec` / `insert'` / `insert`
-//!
-//! RED at HEAD: neither `insert-spec` nor `insert'` exists, so those entries raise
-//! `UnknownFunction` at RUNTIME. `--check` alone would not catch an unknown callee
-//! (`reference_check_is_not_a_complete_red_arbiter`), which is why this gate must RUN.
+//! Dual-impl law: unprimed public names are native; `$oracle` is the spec mouth;
+//! `$native` is the kernel (`wat/rete/oracle/insert.wat`).
+//!   `insert$oracle` / `insert$native` / `insert`
 //!
 //! What would turn this red once it is green — the R59 question, answered before the assertions
 //! were written:
@@ -72,16 +68,16 @@ fn public_insert_delegates_to_the_prime() {
     assert_eq!(
         count(":user::public-staged").expect("public"),
         count(":user::native-staged").expect("native"),
-        "the public `insert` must forward to `insert'` (staged)"
+        "the public `insert` must forward to `insert$native` (staged)"
     );
     assert_eq!(
         count(":user::public-fired").expect("public"),
         count(":user::native-fired").expect("native"),
-        "the public `insert` must forward to `insert'` (fired)"
+        "the public `insert` must forward to `insert$native` (fired)"
     );
     assert_eq!(
         count(":user::public-sum").expect("public"),
         count(":user::native-sum").expect("native"),
-        "the public `insert` must forward to `insert'` (content)"
+        "the public `insert` must forward to `insert$native` (content)"
     );
 }

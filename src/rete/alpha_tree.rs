@@ -1,7 +1,7 @@
 //! Arc 278 — the alpha discrimination tree (DESIGN-STONE-alpha-discrimination-tree.md).
 //!
-//! Native fire type-indexes (P8), then `exec_compiled_with_key_ids` on the
-//! candidate set this tree returns. A depth-D cascade has D alphas per type
+//! Native fire type-indexes (P8), then matches the candidate set this tree
+//! returns (compiled exec, skip-span, or occupancy leaf-fill). A depth-D cascade has D alphas per type
 //! where exactly one can succeed — a linear probe was `facts × D` calls
 //! (79% of the deep-cascade depth cost, `a0_depth_cost_split_at_equal_work`).
 //! A fact walks this tree root-to-leaf, one declared field per level, and
@@ -10,17 +10,18 @@
 //! ## ★ THE ONE CONTRACT DECISION
 //!
 //! **The tree may OVER-approximate. It may never UNDER-approximate.** Native fire
-//! runs `exec_compiled_with_key_ids` on the candidate set; `alpha_match_inner` is the
-//! oracle / differential matcher. `AlphaTree::candidates` returns a **candidate set**.
-//! For every fact, `candidates(fact) ⊇ { alphas that actually match }`.
+//! matches the candidate set (compiled exec, skip-span, or occupancy leaf-fill);
+//! `alpha_match_inner` is the oracle / differential matcher. `AlphaTree::candidates`
+//! returns a **candidate set**. For every fact,
+//! `candidates(fact) ⊇ { alphas that actually match }`.
 //!
 //! Any clause this analyzer cannot prove an equality discriminator for — `not=`, `or`, `not`, a
 //! computed operand, an unfamiliar shape, anything at all — rides the **wildcard** edge and
-//! is always walked (a wasted `exec_compiled` on native fire; `alpha_match_inner` is the
+//! is always walked (a wasted `exec_compiled_with_key_ids` on native fire; `alpha_match_inner` is the
 //! oracle / differential). A conservative tree is a correct tree; this analyzer never
 //! guesses at a shape it does not recognise in order to prune it.
 //!
-//! The clause-shape analyzer **consumes** `classify_rete_clause` (`matcher.rs:365`) — the single
+//! The clause-shape analyzer **consumes** `classify_rete_clause` — the single
 //! source of "what shape is this form" that arc 294 item 9a extracted precisely to close a drift
 //! hole between the matcher and the validator. This module adds no second parser for clause
 //! shapes; it only inspects the WatAST *literal* variants inside an already-classified
@@ -36,19 +37,22 @@
 //! (`kernel::class_field_names`), not a fixed global order. Range constraints
 //! (`< > <= >=`) contribute no discriminator and ride the wildcard edge.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use rustc_hash::FxHashMap;
 
 use crate::ast::WatAST;
-use crate::rete::matcher::{classify_constraint_head, classify_rete_clause, CmpKind, ReteClauseShape};
+use crate::rete::clause::{classify_constraint_head, classify_rete_clause, CmpKind, ReteClauseShape};
 use crate::rete::kernel::{class_field_names, AlphasByType};
 use crate::runtime::{SymbolTable, Value};
 
 type EqBuckets = HashMap<Value, Vec<i64>>;
 type DimRequired = HashMap<usize, Value>;
 type AlphaDiscs = HashMap<i64, DimRequired>;
+type EqChildren = FxHashMap<Value, Arc<AlphaDiscNode>>;
+type AlphaRoots = Vec<(String, Arc<AlphaDiscNode>)>;
+type AlphaWildcard = Option<Arc<AlphaDiscNode>>;
 
 /// One level of the discrimination tree: branch on field `dim` of the fact's own class.
 pub(crate) struct AlphaDiscNode {
@@ -58,9 +62,9 @@ pub(crate) struct AlphaDiscNode {
     /// Equality fan-out: a field value this dim was proven to require, to the subtree of
     /// alphas that could still match. FxHash — SipHash of the field `Value` 40k
     /// times was the I−G walk (`DESIGN-STONE-alpha-tree-fxhash`).
-    children: FxHashMap<Value, Arc<AlphaDiscNode>>,
+    children: EqChildren,
     /// Alphas that do not constrain `dim` by a provable equality — always walked.
-    wildcard: Option<Arc<AlphaDiscNode>>,
+    wildcard: AlphaWildcard,
     /// Alpha ids terminating at this node (no further dimension left to discriminate on, or
     /// only one candidate remained).
     leaves: Vec<i64>,
@@ -73,7 +77,7 @@ pub(crate) struct AlphaDiscNode {
 pub(crate) struct AlphaTree {
     /// Linear over a handful of types (`DESIGN-STONE-alpha-class-lookup`).
     /// SipHash of the FQDN 40k times was 3.26 ms; `str` eq is not.
-    roots: Vec<(String, Arc<AlphaDiscNode>)>,
+    roots: AlphaRoots,
 }
 
 impl AlphaTree {
@@ -114,9 +118,23 @@ impl AlphaTree {
         AlphaTree { roots }
     }
 
+    /// Keep only alphas in `keep`. Used by `subset_rete_arm` so a stratum
+    /// slice does not walk every alpha of the type.
+    pub(crate) fn restrict(&self, keep: &HashSet<i64>) -> Self {
+        let roots = self
+            .roots
+            .iter()
+            .filter_map(|(class, root)| {
+                restrict_node(root, keep).map(|n| (class.clone(), n))
+            })
+            .collect();
+        AlphaTree { roots }
+    }
+
     /// Import-time tree: every alpha of a class is a candidate. Correct
     /// (a superset); unpruned. The residual does not carry WatAST, so
     /// `build` cannot re-derive discriminators. `(b)` indexes later.
+    /// Import-only — `restrict` is the stratum slice.
     pub(crate) fn unpruned(alpha_by_type: &AlphasByType) -> Self {
         let mut roots = Vec::with_capacity(alpha_by_type.len());
         for (class, alpha_ids) in alpha_by_type {
@@ -134,8 +152,9 @@ impl AlphaTree {
     }
 
     /// Walk `class`'s tree for a fact's field values, returning the **candidate set** of alpha
-    /// ids the caller must still run `alpha_match_inner` on. A superset of the alphas that
-    /// actually match — never a subset. Unknown class (no alpha of that type at all): empty.
+    /// ids native fire still has to match (compiled exec, skip-span, or occupancy leaf-fill). A
+    /// superset of the alphas that actually match — never a subset. Unknown class: empty.
+    /// `alpha_match_inner` is the differential oracle, not the native fire path.
     #[cfg(test)]
     pub(crate) fn candidates(&self, class: &str, fields: &[Value]) -> Vec<i64> {
         let mut out = Vec::new();
@@ -157,10 +176,61 @@ impl AlphaTree {
         self.roots.iter().find(|(c, _)| c == class).map(|(_, n)| n)
     }
 
+    /// Classes whose root has no equality fan-out: `leaves` is what
+    /// `candidates_into` returns for every fact of that class.
+    pub(crate) fn undiscriminated_leaves(&self) -> Vec<(&str, &[i64])> {
+        self.roots
+            .iter()
+            .filter_map(|(class, root)| {
+                if root.children.is_empty() && root.wildcard.is_none() && !root.leaves.is_empty() {
+                    Some((class.as_str(), root.leaves.as_slice()))
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+
+    /// Fact-class for an alpha id, from the interned tree (not Session tests AST).
+    /// Export of an imported Session has empty tests; class_idx must still pack.
+    pub(crate) fn class_for_alpha(&self, alpha_id: i64) -> Option<&str> {
+        for (class, root) in &self.roots {
+            if disc_contains(root, alpha_id) {
+                return Some(class.as_str());
+            }
+        }
+        None
+    }
+
     #[cfg(test)]
     pub(crate) fn has_class(&self, class: &str) -> bool {
         self.root_for(class).is_some()
     }
+}
+
+fn disc_contains(n: &AlphaDiscNode, id: i64) -> bool {
+    n.leaves.contains(&id)
+        || n.wildcard.as_ref().is_some_and(|w| disc_contains(w, id))
+        || n.children.values().any(|c| disc_contains(c, id))
+}
+
+fn restrict_node(n: &AlphaDiscNode, keep: &HashSet<i64>) -> Option<Arc<AlphaDiscNode>> {
+    let leaves: Vec<i64> = n.leaves.iter().copied().filter(|id| keep.contains(id)).collect();
+    let children: EqChildren = n
+        .children
+        .iter()
+        .filter_map(|(k, c)| restrict_node(c, keep).map(|c| (k.clone(), c)))
+        .collect();
+    let wildcard = n.wildcard.as_ref().and_then(|w| restrict_node(w, keep));
+    if leaves.is_empty() && children.is_empty() && wildcard.is_none() {
+        return None;
+    }
+    Some(Arc::new(AlphaDiscNode {
+        dim: n.dim,
+        children,
+        wildcard,
+        leaves,
+    }))
 }
 
 /// Recursively partition `alpha_ids` over the remaining dims. Each alpha with a proven
@@ -192,7 +262,7 @@ fn build_node(
         }
     }
 
-    let children: FxHashMap<Value, Arc<AlphaDiscNode>> = buckets
+    let children: EqChildren = buckets
         .into_iter()
         .map(|(v, ids)| (v, build_node(ids, disc, dims, pos + 1)))
         .collect();
@@ -273,7 +343,7 @@ fn collect_equalities(
 ) {
     for clause in clauses {
         match classify_rete_clause(clause) {
-            // The ONE DOOR (`matcher::classify_constraint_head`) — an EQUALITY at any spelling, so
+            // The ONE DOOR (`clause::classify_constraint_head`) — an EQUALITY at any spelling, so
             // the per-type rete rows feed the discrimination tree exactly as the generic core `=`
             // used to. Matching a literal string here is what made this arm a silent
             // migration hazard: `_ => {}` below would have quietly stopped collecting
@@ -325,11 +395,5 @@ fn field_literal_pair(
 /// is deliberately excluded: in operand position it is always a field reference (see
 /// `resolve_operand`), never a literal keyword value.
 fn literal_value(ast: &WatAST) -> Option<Value> {
-    match ast {
-        WatAST::IntLit(n, _) => Some(Value::i64(*n)),
-        WatAST::FloatLit(x, _) => Some(Value::f64(*x)),
-        WatAST::BoolLit(b, _) => Some(Value::bool(*b)),
-        WatAST::StringLit(s, _) => Some(Value::String(std::sync::Arc::new(s.clone()))),
-        _ => None,
-    }
+    crate::rete::matcher::ast_literal_value(ast)
 }

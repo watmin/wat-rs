@@ -165,6 +165,7 @@
      state-ty-kw  (:wat::core::keyword-node (:wat::core::string::concat ":" (:wat::core::string::concat svc-str "::State")))
      state-journal-kw  (:wat::core::keyword-node (:wat::core::string::concat ":" (:wat::core::string::concat svc-str "::State/journal")))
      state-template-kw (:wat::core::keyword-node (:wat::core::string::concat ":" (:wat::core::string::concat svc-str "::State/template")))
+     state-durable-kw  (:wat::core::keyword-node (:wat::core::string::concat ":" (:wat::core::string::concat svc-str "::State/durable")))
 
      defs-children  (:wat::core::ast->children defs-node)
      rules-children (:wat::core::ast->children rules-node)
@@ -340,7 +341,11 @@
      jaddr-sym  (:wat::core::symbol-node "journal-addr")
      ok-sym     (:wat::core::symbol-node "ok")
      log-sym    (:wat::core::symbol-node "log")
-     acc-sym    (:wat::core::symbol-node "acc")]
+     acc-sym    (:wat::core::symbol-node "acc")
+     stop-s-sym (:wat::core::symbol-node "s")
+     rel-sym    (:wat::core::symbol-node "rel")
+     payload-sym (:wat::core::symbol-node "payload")
+     cause-sym   (:wat::core::symbol-node "cause")]
     `(:wat::core::do
        (:wat::core::defsurface ~surface-kw :nature :wat::kernel::Peer
          :messages
@@ -390,6 +395,10 @@
                    :template (:wat::rete::compile-all
                                (:wat::core::PersistentVector ~@rule-lits)
                                (:wat::core::PersistentVector ~@query-lits))))
+         ;; Hangup drops the intern lease `compile-all` took (`DESIGN-STONE-intern-eviction`).
+         :stop (:wat::core::fn [~stop-s-sym <- ~state-ty-kw] -> ~record-ty-kw
+                 (:wat::core::let [~rel-sym (:wat::rete::release-session (~state-template-kw ~stop-s-sym))]
+                   (~state-durable-kw ~stop-s-sym)))
          :impls
          ;; arc 278 ctx-is-mandatory — `[s ctx req]`, not `[s req]`: EVERY public op arm receives an
          ;; `:wat::service::Invocation` (BRIEF-ctx-is-mandatory.md). This template was missed by the
@@ -418,10 +427,14 @@
                           (:wat::core::fn [~ok-sym <- :wat::core::bool ~log-sym <- :wat::telemetry::Log]
                             -> :wat::core::bool
                             (:wat::core::if ~ok-sym
-                              (:wat::core::Vector/contains?
-                                (:wat::core::Vector :wat::core::String ~@def-type-strs)
-                                (:wat::core::type
-                                  (:wat::edn::read-foreign (:wat::telemetry::Log/message ~log-sym))))
+                              (:wat::core::match
+                                (:wat::edn::read-foreign (:wat::telemetry::Log/message ~log-sym))
+                                ((:wat::edn::ReadForeignOutcome::Value ~payload-sym)
+                                  (:wat::core::Vector/contains?
+                                    (:wat::core::Vector :wat::core::String ~@def-type-strs)
+                                    (:wat::core::type ~payload-sym)))
+                                ((:wat::edn::ReadForeignOutcome::Malformed ~cause-sym)
+                                  false))
                               false))
                           true
                           logs)

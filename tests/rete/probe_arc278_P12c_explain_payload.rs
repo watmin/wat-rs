@@ -1,11 +1,11 @@
-//! Arc 278 — P12c: the EXPLAIN payload (`:constraints` / `:bindings` / `:pattern` / `rule`).
-//! RED at HEAD (`DerivationStep` + `DerivationNode/rule` + the payload accessors don't exist; via is still
-//! `PV<DerivationNode>`); GREEN when P12c lands. Contract: DESIGN-STONE-P12c-explain-payload.md.
+//! Arc 278 stone P12c — the EXPLAIN payload (`:constraints` / `:bindings` / `:pattern` / `rule`).
 //!
-//! The operator-legibility stone: each support edge (`DerivationStep`) carries the satisfied constraint
-//! predicates with concrete values substituted (`(:wat::core::< -5 0)`), the per-step bound vars, the matched
-//! type, and the node's rule. These assertions are on the cold-and-windy explain; `via[0]` is the Temperature
-//! step (first condition).
+//! Live mouths: `fire-rules-explain`, `explain`, `DerivationNode/via`, `DerivationNode/rule`,
+//! `DerivationStep/pattern`, `DerivationStep/bindings`, `DerivationStep/constraints`. Each support
+//! edge (`DerivationStep`) carries the satisfied constraint with concrete values substituted
+//! (`(:wat::rete::core::i64::< -5 0)`), the per-step bound vars, the matched type, and the node's rule.
+//! `via[0]` is the Temperature step: pattern `weather::Temperature`, `?c = -5`, one constraint.
+//! Root rule is Some("weather::cold-and-windy"); a base fact's rule is None.
 //!
 //! Run: cargo test --release -p wat --test probe_arc278_P12c_explain_payload -- --include-ignored
 
@@ -17,6 +17,13 @@ use wat::runtime::Value;
 /// `step0` — internally, then applies its own tail).
 fn nav(fn_name: &str) -> Value {
     call_beside_value(file!(), fn_name).expect("compute should run")
+}
+
+/// The shared prefix yields a DerivationNode whose via is non-empty (Temperature ⋈ WindSpeed).
+#[test]
+fn explain_cw_root_has_nonempty_via() {
+    let v = nav(":user::explain-cw-via-length");
+    assert!(matches!(v, Value::i64(n) if n > 0), "explain-cw-root via must be non-empty; got {v:?}");
 }
 
 /// PATTERN — the first step matched a Temperature condition.
@@ -58,7 +65,7 @@ fn step_has_one_constraint() {
 }
 
 /// CONSTRAINTS substitution (THE load-bearing assertion) — the satisfied predicate is the form with the bound
-/// value substituted: `(:wat::core::< -5 0)` (?c → -5), NOT `(:wat::core::< ?c 0)`. Span-agnostic structural match.
+/// value substituted: `(:wat::rete::core::i64::< -5 0)` (?c → -5), NOT `(:wat::rete::core::i64::< ?c 0)`. Span-agnostic structural match.
 #[test]
 fn constraint_is_the_substituted_form() {
     let v = nav(":user::step-constraint-0");

@@ -127,8 +127,10 @@
         ;; the cursor-loop: pages `Journal/sift-logs` (small :limit) accumulating survivor count
         ;; until `next-cur` is None (:done true) — remaining iterations then no-op. The sieve is a
         ;; class-guarded FOREIGN predicate — `ForeignRecord/class` checked BEFORE
-        ;; `ForeignRecord/get :severity` (heterogeneous payloads: `:prod::Flow`/`:prod::Query` lack
-        ;; `:severity`; `get` on a missing key ERRORS) — an explicit `if` short-circuit, NOT `and`.
+        ;; `ForeignRecord/get :severity`. `get` returns Option (HashMap/get's contract);
+        ;; miss is None, never a raise. The class-guard is the semantic filter (only
+        ;; Alert), not a raise-avoidance. `match` on the Option, not `Option/expect`
+        ;; (expect raises — not total; journal sift-logs requires total?).
         final      (:wat::core::foldl
                      (:wat::core::fn [state <- :cons::Consumer::PageState  _i <- :wat::core::i64]
                        -> :cons::Consumer::PageState
@@ -137,12 +139,16 @@
                          (:wat::core::let
                            [sieve (:wat::query::sieve-pred
                                     (:wat::core::fn [log <- :wat::telemetry::Log] -> :wat::core::bool
-                                      (:wat::core::let
-                                        [fr (:wat::edn::read-foreign (:wat::telemetry::Log/message log))]
-                                        (:wat::core::if
-                                          (:wat::core::= (:wat::edn::ForeignRecord/class fr) "prod::Alert")
-                                          (:wat::core::= (:wat::edn::ForeignRecord/get fr :severity) "high")
-                                          false))))
+                                      (:wat::core::match
+                                        (:wat::edn::read-foreign (:wat::telemetry::Log/message log))
+                                        ((:wat::edn::ReadForeignOutcome::Value fr)
+                                          (:wat::core::if
+                                            (:wat::core::= (:wat::edn::ForeignRecord/class fr) "prod::Alert")
+                                            (:wat::core::match (:wat::edn::ForeignRecord/get fr :severity)
+                                              ((:wat::core::Some s) (:wat::core::= s "high"))
+                                              (:wat::core::None false))
+                                            false))
+                                        ((:wat::edn::ReadForeignOutcome::Malformed _) false))))
                             sr    (:wat::telemetry::Journal/sift-logs journal
                                     (:wat::telemetry::Journal::SiftLogsRequest :namespace ns
                                       :time-lo 0 :time-hi 100000 :limit 50

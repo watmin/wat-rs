@@ -114,12 +114,12 @@
 ;; `wat-scripts/scratch-pad/probe-rete-if-in-where.wat` (`hits=1`). Expanding into rete `if`
 ;; is therefore a correct target, not a hope.
 ;;
-;; GROUNDED GAP, NOT fixed here: a `(:wat::rete::where …)` clause is never macro-expanded at
-;; all (`defrule` quotes `:when`/`:then` verbatim; `matcher.rs`'s `eval_test_core` evaluates
-;; that raw AST directly, never touching the macro registry) — see
-;; `NOTE-a-where-body-is-never-macro-expanded.md` for the full grounding. This macro is the
-;; correct, necessary prerequisite for whatever later change closes that gap; it does not
-;; close it itself.
+;; Present: `defrule` still quotes `:when`/`:then` vectors, but `expand_form` on
+;; `make-rule` (`src/macros/expand.rs` `expand_make_rule` / `expand_make_rule_when`,
+;; `src/resolve/boundary.rs` `Boundary::MakeRule`) expands only each `where` body's
+;; code — not fact patterns, not `:then`. A `cond` written inside a `where` is legal
+;; and expands to rete `if`. This macro is that expansion. Ordinary (non-quoted) rete
+;; `cond` uses the same template.
 (:wat::core::defmacro :wat::rete::core::cond
   [& clauses <- (:wat::core::Vector :- [:wat::WatAST])]
   -> :wat::WatAST
@@ -188,7 +188,7 @@
 ;;
 ;; Both :when and :then are VECTORS. Each :then member is a single fact to insert — the
 ;; `:wat::rete::insert` RHS-marker wrapper is GONE (the engine is inserts-only by doctrine,
-;; so naming it per entry said nothing; see matcher.rs's `build_insert_fact`).
+;; so naming it per entry said nothing; see eval_insert.rs's `build_insert_fact`).
 ;;
 ;; Expands to:
 ;;   (:wat::core::defn :weather::cold-and-windy [] -> :wat::rete::Rule

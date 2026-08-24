@@ -53,6 +53,11 @@
   -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:dm::counts txt :dm::seed-impostor))
 
+(:wat::core::defn :user::disk-reexport-identical [txt <- :wat::core::String] -> :wat::core::bool
+  (:wat::core::let [e1 (:wat::edn::read txt)
+                    e2 (:wat::rete::export (:wat::rete::import e1))]
+    (:wat::core::= (:wat::edn::write e1) (:wat::edn::write e2))))
+
 (:wat::core::defn :user::sigil [txt <- :wat::core::String] -> :wat::core::String
   (:wat::core::let [exp   (:wat::edn::read txt)
                     s0    (:wat::rete::import exp)

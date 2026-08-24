@@ -60,7 +60,12 @@
                         (:wat::core::if ok
                           (:wat::core::Vector/contains?
                             (:wat::core::Vector :wat::core::String "usr::Temp" "usr::Hot" "usr::Warn")
-                            (:wat::core::type (:wat::edn::read-foreign (:wat::telemetry::Log/message log))))
+                            (:wat::core::match
+                              (:wat::edn::read-foreign (:wat::telemetry::Log/message log))
+                              ((:wat::edn::ReadForeignOutcome::Value payload)
+                                (:wat::core::type payload))
+                              ((:wat::edn::ReadForeignOutcome::Malformed _)
+                                "")))
                           false))
                       true
                       qlogs)

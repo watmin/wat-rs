@@ -1,11 +1,9 @@
-//! Arc 278 stone 5a — disconfirming probe: `defrule` (rule macro) + `query` (read derived facts). RED at HEAD.
+//! Arc 278 stone 5a — `defrule` (rule macro) + `query` (harvest a Query).
 //!
-//! The wat half of the homoiconic surface. `query` reads derived facts of a type out of a fired session;
-//! `defrule` expands the readable rule form into a zero-arg `defn` returning a `Rule`. The reflection that
-//! auto-gathers rules (`collect-rules`) is 5b — here the one rule is collected manually by calling its fn.
-//!
-//! RED at HEAD: `query` is UnknownFunction; the `defrule` macro is undefined so a world containing it fails
-//! to freeze.
+//! `query` harvests a Query out of a fired session; `defrule` expands the readable rule form
+//! into a zero-arg `defn` returning a `Rule`. The reflection that auto-gathers rules (`collect-rules`)
+//! is 5b — here the one rule is collected manually by calling its fn. Live mouths: `defrule`,
+//! `query`, `compile-all`, `insert`, `fire-rules`.
 //!
 //! Run: cargo test --release -p wat --test probe_arc278_5a_defrule_query -- --include-ignored
 
@@ -30,15 +28,15 @@ fn call(w: &FrozenWorld, fn_name: &str) -> Value {
 // ── query ───────────────────────────────────────────────────────────────────
 
 #[test]
-fn query_reads_derived_facts_by_type() {
+fn query_reads_derived_coldandwindy() {
     let got = call(&world(WORLD_PLAIN_PATH), ":user::query-coldandwindy-count");
-    assert_eq!(got, Value::i64(1), "query returns the one derived ColdAndWindy; got {got:?}");
+    assert_eq!(got, Value::i64(1), "query harvests q-ColdAndWindy; one derived fact; got {got:?}");
 }
 
 #[test]
-fn query_empty_for_absent_type() {
+fn query_reads_inserted_windspeed() {
     let got = call(&world(WORLD_PLAIN_PATH), ":user::query-windspeed-count");
-    assert_eq!(got, Value::i64(1), "WindSpeed was inserted; query reads the session, not derived-only; got {got:?}");
+    assert_eq!(got, Value::i64(1), "query harvests q-WindSpeed; one inserted fact; got {got:?}");
 }
 
 // ── defrule ───────────────────────────────────────────────────────────────────

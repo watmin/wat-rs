@@ -38,6 +38,28 @@
   :when [(:tf::Rate (?count <- :count))])
 
 
+(:wat::core::defn :test::compile-tf [] -> :wat::rete::Session
+  (:wat::rete::compile-all
+    (:wat::rete::collect-rules :tf)
+    (:wat::core::PersistentVector (:tf::q-Rate))))
+
+(:wat::core::defn :test::seed-anchor-rate [s <- :wat::rete::Session] -> :wat::rete::Session
+  (:wat::rete::insert
+    (:wat::rete::insert s (:tf::Anchor :x 0))
+    (:tf::Rate :count 5)))
+
+(:wat::core::defn :test::count-rate [s <- :wat::rete::Session] -> :wat::core::i64
+  (:wat::core::Option/expect
+    (:wat::core::PersistentMap/get
+      (:wat::core::first (:wat::rete::query s (:tf::q-Rate)))
+      "?count")
+    "q-Rate: ?count"))
+
+(:wat::core::defn :test::run
+  [fire <- :wat::core::Fn(wat::rete::Session)->wat::rete::Session]
+  -> :wat::core::i64
+  (:test::count-rate (fire (:test::seed-anchor-rate (:test::compile-tf)))))
+
 ;; Fires via the WAT ORACLE. NOT an unconfounded witness for "a NEW fact was derived" — the
 ;; extraction-only fn returns a value structurally IDENTICAL to the accumulated input, so a plain
 ;; type-count cannot distinguish "the rule fired" from "the input fact was already there" (both
@@ -47,27 +69,7 @@
 ;; execute it, and the result type-checks as a fact at `build_insert_fact_call`'s runtime guard —
 ;; all without raising. See `probe_arc278_then_user_forms.rs` for what's actually asserted.
 (:wat::core::defn :user::run-first-count [] -> :wat::core::i64
-  (:wat::core::let
-    [rules   (:wat::rete::collect-rules :tf)
-     session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:tf::q-Rate)))
-     session (:wat::rete::insert session (:tf::Anchor :x 0))
-     session (:wat::rete::insert session (:tf::Rate :count 5))
-     fired   (:wat::rete::fire-rules$oracle session)
-     derived (:wat::rete::query fired (:tf::q-Rate))
-     r       (:wat::core::first derived)]
-    (:wat::core::Option/expect
-      (:wat::core::PersistentMap/get r "?count")
-      "q-Rate: ?count")))
+  (:test::run :wat::rete::fire-rules$oracle))
 
 (:wat::core::defn :user::run-first-count-native [] -> :wat::core::i64
-  (:wat::core::let
-    [rules   (:wat::rete::collect-rules :tf)
-     session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:tf::q-Rate)))
-     session (:wat::rete::insert session (:tf::Anchor :x 0))
-     session (:wat::rete::insert session (:tf::Rate :count 5))
-     fired   (:wat::rete::fire-rules session)
-     derived (:wat::rete::query fired (:tf::q-Rate))
-     r       (:wat::core::first derived)]
-    (:wat::core::Option/expect
-      (:wat::core::PersistentMap/get r "?count")
-      "q-Rate: ?count")))
+  (:test::run :wat::rete::fire-rules))

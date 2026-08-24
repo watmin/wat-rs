@@ -1,29 +1,29 @@
-//! Arc 278 — P12 THE EXPLAIN NORTH-STAR: "how did this fact get derived", walked back to the inputs.
-//! RED at HEAD (`fire-rules-explain` / `explain` / `Why/via` are UnknownFunction); GREEN when P12 lands.
-//! Contract: DESIGN-STONE-P12-explain-walk.md.
+//! Arc 278 stone P12 — `explain` walks a derived fact back to its inputs through `fire-rules-explain`.
+//! Dual-impl: the unprimed public Fn is native; `$oracle` is the spec mouth.
 //!
-//! This is the guiding light of arc 278 — the operator diagnostic: hand it a derived fact, get the why-tree
-//! back to the input facts, through which rule, which gates, which supporting facts. Proven IN WAT (the walk is
-//! a wat function over an explain-mode-exposed support graph; the fire is Rust).
+//! Live mouths: `fire-rules-explain`, `explain`, `DerivationNode/via`. Diagnostics default OFF.
+//! `fire-rules` is the line-rate path (clears beta, no provenance). `fire-rules-explain` is opt-in:
+//! retains the support graph. ColdAndWindy via-length is 2 (Temperature ⋈ WindSpeed); WeatherAlert
+//! via-length is 1 (the derived ColdAndWindy, which itself carries a nested why).
 //!
 //! ## The opt-in principle (why this is a SEPARATE mode — DESIGN, R5 applied to the why-tree)
-//! Diagnostics default OFF. `fire-rules'` (the public default) is the line-rate path: clears beta, no
-//! provenance index. `fire-rules-explain` is opt-in: retains the support graph + records the
-//! fact→producing-token index. This costs nothing and loses nothing, because the why-tree is itself a pure
-//! function of `{facts, rules}` — a deferred computation. You can always re-force it: pull the stored thunk,
-//! `fire-rules-explain`, walk it — bit-identical to what prod did (purity). The AWS S3-triage workflow made
-//! principled.
+//! The why-tree is a pure function of `{facts, rules}` — a deferred computation. You can always
+//! re-force it: pull the stored thunk, `fire-rules-explain`, walk it — bit-identical to what prod
+//! did (purity).
 //!
-//! ## The worked surface this pins (nested `#rete/Why`, v1 — DAG-sharing for fan-in is a named follow-on)
+//! ## The worked surface this pins (nested `#rete/Why`, v1)
+//! rune:exigere(scope-affirmative) — Out of P12's scope; DAG-sharing for fan-in is rejected
+//! (first producing token only). Tracked as Out of scope in
+//! docs/arc/2026/06/278-rules-engine/DESIGN-STONE-P12-explain-walk.md.
 //! ```clojure
 //! (:wat::rete::explain (:wat::rete::fire-rules-explain staged) (:weather::ColdAndWindy -5 40))
 //! ;; → #rete/Why
 //! ;;   {:fact (:weather::ColdAndWindy -5 40)
 //! ;;    :rule "weather::cold-and-windy"
 //! ;;    :via [ {:type :weather::Temperature :fact (:weather::Temperature -5 "Oslo") :bound {?c -5}
-//! ;;            :met [(:wat::core::< -5 0)]}      ;; (< ?c 0), ?c=-5 → -5 < 0 ✓  (no :why → base fact, leaf)
+//! ;;            :met [(:wat::rete::core::i64::< -5 0)]}      ;; (< ?c 0), ?c=-5 → -5 < 0 ✓  (no :why → base fact, leaf)
 //! ;;           {:type :weather::WindSpeed   :fact (:weather::WindSpeed 40 "Oslo")  :bound {?k 40}
-//! ;;            :met [(:wat::core::> 40 30)]} ]}  ;; (> ?k 30), ?k=40 → 40 > 30 ✓  (base fact, leaf)
+//! ;;            :met [(:wat::rete::core::i64::> 40 30)]} ]}  ;; (> ?k 30), ?k=40 → 40 > 30 ✓  (base fact, leaf)
 //! ;;
 //! ;; a cascade level — a derived supporting fact carries a nested :why (the tree recurses to inputs):
 //! (:wat::rete::explain fired (:weather::WeatherAlert -5 40))

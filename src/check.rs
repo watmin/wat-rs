@@ -13050,16 +13050,16 @@ fn infer_kwargs_construct_check(
                     kv.push((fk.strip_prefix(':').unwrap_or(fk.as_str()), pair[1].clone()));
                 }
             }
-            match crate::rete::validate::reorder_kwargs_by_field_name(&field_order, &kv) {
+            match crate::rete::validate::reorder_kwargs_by_field_name(&field_order, &kv, head_span) {
                 Ok(v) => v,
                 Err(bad) => {
                     local_errors.push(CheckError {
-                        span: head_span.clone(),
+                        span: bad.span,
                         kind: CheckErrorKind::MalformedForm {
                             head: CALLEE.into(),
                             reason: format!(
                                 "unknown field :{} for aggregate {} (declared fields: {})",
-                                bad, type_key, field_order.join(", ")
+                                bad.field, type_key, field_order.join(", ")
                             ),
                             remedies: vec![],
                         },
@@ -18995,16 +18995,21 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
-    // Arc 278 Stone A — `(:wat::edn::read-foreign s)` → `:T`. The DATA-MODE
-    // sibling of `read`: unknown tag → a self-describing dynamic value
-    // (ForeignRecord / ForeignVariant). Same polymorphic-fresh-var return so
-    // the caller's binding unifies with whatever dynamic value shape lands.
+    // Arc 278 Stone A — `(:wat::edn::read-foreign s)` → `:wat::edn::ReadForeignOutcome<T>`.
+    // The DATA-MODE sibling of `read`: unknown tag → a self-describing dynamic
+    // value (ForeignRecord / ForeignVariant). TOTAL twin of `read-json`: parse/
+    // decode failure is `:Malformed`, never a raise. Parametric T so the
+    // caller's binding pins the payload (a ForeignRecord consumer unifies T
+    // with `:wat::edn::ForeignRecord`).
     env.register(
         ":wat::edn::read-foreign".into(),
         TypeScheme {
             type_params: vec!["T".into()],
             params: vec![TypeExpr::Path(":wat::core::String".into())],
-            ret: t_var(),
+            ret: TypeExpr::Parametric {
+                head: "wat::edn::ReadForeignOutcome".into(),
+                args: vec![t_var()],
+            },
             rest_param_type: None,
         },
     );
@@ -19014,7 +19019,8 @@ fn register_builtins(env: &mut CheckEnv) {
     // `:wat::edn::ForeignRecord` / `:wat::edn::ForeignVariant` are opaque nominal
     // Paths (Pattern B, per the Uuid/Instant precedent) — they resolve in
     // annotations/returns and unify by name.
-    //   ForeignRecord/get       : (ForeignRecord, keyword) -> Value
+    //   ForeignRecord/get       : (ForeignRecord, keyword) -> Option<Value>
+    //   miss is None, never a raise — HashMap/get's contract.
     env.register(
         ":wat::edn::ForeignRecord/get".into(),
         TypeScheme {
@@ -19023,7 +19029,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 TypeExpr::Path(":wat::edn::ForeignRecord".into()),
                 TypeExpr::Path(":wat::core::keyword".into()),
             ],
-            ret: TypeExpr::Path(":wat::core::Value".into()),
+            ret: opt(TypeExpr::Path(":wat::core::Value".into())),
             rest_param_type: None,
         },
     );
@@ -21296,7 +21302,7 @@ fn register_builtins(env: &mut CheckEnv) {
 
     // Arc 278 Stone P2 — native Rust single-pass fire cycle (the differential harness).
     // (:wat::rete::fire-once <session: :wat::rete::Session>) → :wat::rete::Session
-    // Observationally equivalent to the wat oracle's fire-once: same derived facts.
+    // Equivalent to fire-once$oracle on AST Sessions; Export is native-only.
     // fire-once is a wat defn (first-class Fn). `$native` is the rust kernel.
     env.register(
         ":wat::rete::fire-once$native".into(),
@@ -21355,12 +21361,13 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
-    // Arc 278 Stone P4a — native Rust cascade fixpoint (re-run-from-scratch).
-    // (:wat::rete::fire-rules <session: :wat::rete::Session>) → :wat::rete::Session
-    // Observationally equivalent to the wat oracle's fire-rules: same derived facts including
-    // multi-round cascade. Returns Session with facts = input only (derived in production-memory).
-    // fire-rules / insert / insert-all / fire-rules-explain are wat defns (first-class
-    // Fn). Keyword-head calls are intercepted by rust. Do not register them here.
+    // Arc 278 Stone P4a — native fire-rules is semi-naive delta (stratified when a
+    // rule negates derived). Observationally equivalent to fire-rules$oracle on AST
+    // Sessions; re-run-from-scratch is the $oracle mouth. Export is native-only.
+    // Returns Session with facts = input only (derived in production-memory).
+    // fire-rules / insert / insert-all / fire-rules-explain are wat defns
+    // (first-class Fn). Keyword-head calls are intercepted by rust. Do not
+    // register them here.
 
     // Arc 278 — intern the rust InternedNetwork at compile-all (`DESIGN-STONE-arm-at-compile`).
     // (:wat::rete::arm-session <session: :wat::rete::Session>) → :wat::rete::Session
@@ -21408,9 +21415,11 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
-    // Arc 278 Stone 6a — the rete condition fence: two orthogonal predicates (pure ∧ deterministic).
+    // Arc 278 Stone 6a — the rete condition fence: four conjuncts (pure ∧ det ∧ total ∧ primitive?).
     // (:wat::rete::pure? <expr: :wat::WatAST>) -> :wat::core::bool          — effect-free?
     // (:wat::rete::deterministic? <expr: :wat::WatAST>) -> :wat::core::bool — referentially transparent?
+    // (:wat::rete::total? <expr: :wat::WatAST>) -> :wat::core::bool         — defined on all its inputs?
+    // (:wat::rete::primitive? <expr: :wat::WatAST>) -> :wat::core::bool     — composed only of rete primitives?
     // Default-deny: proven by intrinsic metadata or transitive user fn; everything else rejected.
     env.register(
         ":wat::rete::pure?".into(),
@@ -21467,7 +21476,7 @@ fn register_builtins(env: &mut CheckEnv) {
     );
     // BRIEF-the-fence-names-the-head — same walk as the four fence predicates, surfacing the
     // violation instead of discarding it. `:wat::rete::AxisViolation` and `:wat::rete::Axis`
-    // are declared via `defrecord`/`defenum` in `wat/rete.wat`. The axis argument is the
+    // are declared via `defrecord`/`defenum` in `wat/rete/compile.wat`. The axis argument is the
     // `:wat::rete::Axis` enum — a closed 4-member set (Pure, Deterministic, Total,
     // RetePrimitive).
     // (:wat::rete::axis-violation <expr: :wat::WatAST> <axis: :wat::rete::Axis>) -> (:wat::core::Option :- [wat::rete::AxisViolation])

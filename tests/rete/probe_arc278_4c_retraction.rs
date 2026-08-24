@@ -1,14 +1,12 @@
-//! Arc 278 stone 4c — disconfirming probe: truth maintenance / retraction. RED at HEAD.
+//! Arc 278 stone 4c — truth maintenance / retraction.
 //!
-//! A retracted fact must drop every derived fact whose support depended on it, transitively. On the
-//! re-run-from-scratch oracle this is pure replay — once the fact model keeps INPUT distinct from DERIVED.
-//!
+//! A retracted fact drops every derived fact whose support depended on it, transitively. On the
+//! re-run-from-scratch oracle this is pure replay — the fact model keeps INPUT distinct from DERIVED.
 //! Two-rule chain (reused from 4b): A: Temp+Wind(same loc)→ColdAndWindy; B: ColdAndWindy→WeatherAlert.
+//! Live mouths: `compile-all`, `insert`, `fire-rules`, `retract`, `query`.
 //!
-//! RED at HEAD, two ways:
-//!  - fact-model: 4b's fire-rules returns Session.facts = the whole closure (input + derived), so a derived
-//!    ColdAndWindy leaks into facts. Part A asserts facts holds only INPUT types → RED.
-//!  - retract: `:wat::rete::retract` does not exist yet → Part B/C/D raise at eval → RED.
+//! - fact-model: `Session.facts` holds INPUT types only; derived ColdAndWindy lives in production-memory.
+//! - retract: drops the consequence transitively and precisely (independent derivations survive).
 //!
 //! Run: cargo test --release -p wat --test probe_arc278_4c_retraction -- --include-ignored
 
@@ -16,6 +14,24 @@ use wat::freeze::call_beside_value;
 use wat::runtime::Value;
 
 // ── Part A — the fact-model fix: fire keeps INPUT distinct from DERIVED ──────────
+
+#[test]
+fn compile_ab_rules_fires_nothing() {
+    assert_eq!(call_beside_value(file!(), ":user::compile-ab-rules-fires-nothing").expect("eval"), Value::i64(0),
+        "two-rule compile+fire with no facts derives nothing");
+}
+
+#[test]
+fn seed_oslo_then_fire_cw() {
+    assert_eq!(call_beside_value(file!(), ":user::seed-oslo-then-fire-cw").expect("eval"), Value::i64(1),
+        "Oslo Temp+Wind fire derives one ColdAndWindy");
+}
+
+#[test]
+fn seed_bergen_then_fire_cw() {
+    assert_eq!(call_beside_value(file!(), ":user::seed-bergen-then-fire-cw").expect("eval"), Value::i64(1),
+        "Bergen Temp+Wind fire derives one ColdAndWindy");
+}
 
 #[test]
 fn fire_keeps_input_facts_distinct_from_derived() {

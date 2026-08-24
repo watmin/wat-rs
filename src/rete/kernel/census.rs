@@ -31,7 +31,7 @@ use super::{pmap_from_span, Token};
 
 /// One round's census of every native structure the fire loop grows.
 ///
-/// Recorded at the END of each round, after all five passes and before the terminate check, so
+/// Recorded at the END of each round, after the round body and before the terminate check, so
 /// the counts are that round's cumulative totals. Fields are deliberately exhaustive: the point
 /// is to let the growth term name ITSELF rather than confirm a guess about which one it is.
 #[cfg(test)]
@@ -47,9 +47,10 @@ pub(crate) struct RoundCensus {
     /// Distinct node-ids holding beta tokens, and the total token count across them.
     pub(crate) beta_nodes: usize,
     pub(crate) beta_tokens: usize,
-    /// Σ over every beta token of `matches.len()` — the per-token support-chain edges. This is the
-    /// real memory driver (a Token owns its `Vec<(Value, i64)>`), so it separates "N× more tokens"
-    /// from "same tokens carrying N× longer chains".
+    /// Σ over every beta token of `matches.len()` — the per-token support-chain edges
+    /// (`Token.matches` is a `BindSpan` into `FireSession.match_pool`; the census sums
+    /// those span lengths). Separates "N× more tokens" from "same tokens carrying N×
+    /// longer chains".
     pub(crate) beta_token_matches: usize,
     /// The per-round delta (new-this-round tokens), same two measures.
     pub(crate) d_beta_nodes: usize,
@@ -154,23 +155,53 @@ pub(crate) fn with_fire_census<R>(f: impl FnOnce() -> R) -> (R, Vec<RoundCensus>
     (out, recorded.unwrap_or_default())
 }
 
+/// One fire's seed occupancy: leaf-set prediction vs what seed installed in alpha.
+#[cfg(test)]
+#[derive(Debug, Clone, Default)]
+pub(crate) struct LeafOccDiff {
+    pub extra: Vec<(i64, u32)>,
+    pub missing: Vec<(i64, u32)>,
+    pub predicted: usize,
+    pub actual: usize,
+    pub n_facts: usize,
+    pub n_leaf_aids: usize,
+}
+
+#[cfg(test)]
+thread_local! {
+    // rune:perspicere(read-once) — test-only occupancy recolligere TLS; alias would be a mumble.
+    static LEAF_OCC_DIFF: std::cell::RefCell<Option<Vec<LeafOccDiff>>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+#[cfg(test)]
+pub(crate) fn leaf_occ_armed() -> bool {
+    LEAF_OCC_DIFF.with(|c| c.borrow().is_some())
+}
+
+#[cfg(test)]
+pub(crate) fn record_leaf_occ_diff(row: LeafOccDiff) {
+    LEAF_OCC_DIFF.with(|c| {
+        if let Some(rows) = c.borrow_mut().as_mut() {
+            rows.push(row);
+        }
+    });
+}
+
+#[cfg(test)]
+pub(crate) fn with_leaf_occ_diff<R>(f: impl FnOnce() -> R) -> (R, Vec<LeafOccDiff>) {
+    let prior = LEAF_OCC_DIFF.with(|c| c.borrow_mut().replace(Vec::new()));
+    let out = f();
+    let recorded = LEAF_OCC_DIFF.with(|c| std::mem::replace(&mut *c.borrow_mut(), prior));
+    (out, recorded.unwrap_or_default())
+}
+
 /// Map a node kind label onto a `&'static str` so a census row can be printed without holding a
 /// borrow of the network. Any kind the compiler can emit that is not listed reads as `"?"` — an
 /// unrecognised kind must be visible in the output, never silently folded into a neighbour.
 #[cfg(test)]
-pub(crate) fn census_kind(kind: &str) -> &'static str {
-    match kind {
-        "AlphaNode" => "Alpha",
-        "RootJoinNode" => "RootJoin",
-        "HashJoinNode" => "HashJoin",
-        "TestNode" => "Test",
-        "NegationNode" => "Negation",
-        "ExistsNode" => "Exists",
-        "AccumulateNode" => "Accumulate",
-        "ProductionNode" => "Production",
-        "QueryNode" => "Query",
-        _ => "?",
-    }
+pub(crate) fn census_kind(kind: crate::rete::kernel::NodeKind) -> &'static str {
+    kind.as_str().strip_suffix("Node").unwrap_or(kind.as_str())
 }
 
 // Test-only instrument: one element EXAMINED by an Accumulate / Negation / Exists gather.

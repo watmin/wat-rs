@@ -1,6 +1,7 @@
 //! Two standalone `:where` (mid-chain and trailing). Native `fire-rules`
-//! must derive the same bag as `fire-rules-spec` (Oslo only). Spec is the
-//! oracle; native is the user path. A disagreement is a rete flaw.
+//! must derive the same bag as `fire-rules$oracle` (Oslo only). Spec is the
+//! oracle; native is the user path. Dual-impl: the unprimed public Fn is native; `$oracle` is the spec mouth.
+//! A disagreement is a rete flaw.
 
 use wat::freeze::call_beside_value;
 use wat::runtime::Value;
@@ -20,7 +21,7 @@ fn two_where_native_matches_spec_oslo_only() {
     );
     assert_eq!(
         native, spec,
-        "native fire-rules must match fire-rules-spec on two standalone :where \
+        "native fire-rules must match fire-rules$oracle on two standalone :where \
          (mid-chain + trailing); native={native:?} spec={spec:?}"
     );
 }

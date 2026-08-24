@@ -65,7 +65,7 @@
 
 
 ;; ── drivers (parameterized by the fire verb — the ONLY thing the differential varies) ──
-;; The .rs names one entry and passes the fire fn (fire-rules native / fire-rules-spec oracle);
+;; The .rs names one entry and passes the fire fn (fire-rules native / fire-rules$oracle spec);
 ;; all the wat lives here, on disk. Returns the per-type counts the differential compares.
 
 ;; 2-stratum: A(1),A(2) → (Bad, Ok)

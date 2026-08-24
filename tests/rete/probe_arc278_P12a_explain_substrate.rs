@@ -1,20 +1,24 @@
-//! Arc 278 — P12a: the EXPLAIN substrate. `fire-rules-explain` + the `Explained {session, support}` index.
-//! RED at HEAD (`fire-rules-explain` / `Explained` / `Support` are unknown); GREEN when P12a lands.
-//! Contract: DESIGN-STONE-P12a-explain-substrate.md.
+//! Arc 278 stone P12a — `fire-rules-explain` + the `Explained {session, support}` index.
+//! Dual-impl: unprimed `fire-rules-explain` is native; `fire-rules-explain$oracle` is the spec mouth.
 //!
-//! Proves the OPT-IN diagnostic fire captures the support graph at the substrate level — WITHOUT needing the
-//! wat `explain` walk (P12b). Three layered assertions on the cold-and-windy cascade
-//! (Temperature ⋈ WindSpeed → ColdAndWindy → WeatherAlert):
-//!   1. CLOSURE FIDELITY — explain mode derives the SAME facts as the fast path (it only adds provenance).
+//! The OPT-IN diagnostic fire captures the support graph at the substrate — without the wat `explain`
+//! walk. Cold-and-windy cascade (Temperature ⋈ WindSpeed → ColdAndWindy → WeatherAlert):
+//!   1. CLOSURE FIDELITY — explain mode derives the SAME facts as `fire-rules` (it only adds provenance).
 //!   2. INDEX POPULATED — the support map has one entry per derived fact (ColdAndWindy + WeatherAlert = 2).
-//!   3. CHAINS CAPTURED — each entry's producing token carries its real `matches` support chain
-//!      (ColdAndWindy's token: Temp+Wind = 2 edges; WeatherAlert's: ColdAndWindy = 1 edge; sum = 3).
+//!   3. CHAINS CAPTURED — producing tokens carry their real `matches` chains (2 + 1 = 3).
+//!   4. `$oracle` support cardinality equals native.
 //!
 //! `Explained` is EPHEMERAL — re-derived per explain, never serialized; the snapshot stays `{facts, rules}`.
 //! Run: cargo test --release -p wat --test probe_arc278_P12a_explain_substrate -- --include-ignored
 
 use wat::freeze::call_beside_value;
 use wat::runtime::Value;
+
+#[test]
+fn compile_weather_fires_nothing() {
+    let n = call_beside_value(file!(), ":user::compile-weather-fires-nothing").expect("compute should run");
+    assert!(matches!(n, Value::i64(0)), "compile+fire with no facts derives no ColdAndWindy; got {n:?}");
+}
 
 /// 1. CLOSURE FIDELITY — explain mode derives the same facts as the fast path: `Explained/session` is a real
 ///    fired session, and the ColdAndWindy closure count is 1 (diagnostics add provenance, never change WHAT fires).

@@ -352,8 +352,8 @@ const STDLIB_FILES: &[WatSource] = &[
         source: include_str!("../wat/kernel/services/stdio.wat"),
     },
     // Arc 278 stone 1a — :wat::rete:: — the rete engine data model.
-    // Pure data records (Token/Element/Activation, Rule, AlphaNode/RootJoinNode/
-    // HashJoinNode/ProductionNode/QueryNode), the Node defenum sum, the Session
+    // Pure data records (Token/Element, Rule, AlphaNode/RootJoinNode/
+    // HashJoinNode/ProductionNode/QueryNode), the Session
     // record, and a render-dag inspection fn. All on stone-0 persistent
     // collections (PersistentMap/PersistentVector). No compile, no fire.
     // Loads AFTER Record.wat (uses :wat::core::defrecord); PersistentMap/PersistentVector
@@ -363,7 +363,7 @@ const STDLIB_FILES: &[WatSource] = &[
         source: include_str!("../wat/rete.wat"),
     },
     // Arc 278 — interpreted compile (rule-set → network). Dual of the native
-    // compiler. Loads AFTER wat/rete.wat (records, Node, Session).
+    // compiler. Loads AFTER wat/rete.wat (records, Session).
     WatSource {
         path: "wat/rete/compile.wat",
         source: include_str!("../wat/rete/compile.wat"),
@@ -375,7 +375,7 @@ const STDLIB_FILES: &[WatSource] = &[
         source: include_str!("../wat/rete/acc.wat"),
     },
     // Arc 278 — interpreted fire oracle, split like rete.wat / kernel/fire/.
-    // insert → pass (alpha/join/production) → accum-pass → fire (once/rules/stratify)
+    // insert → pass (alpha/join/production) → accum-pass → stratify → fire (once/rules)
     // → explain. Dual of the native kernel. Loads AFTER compile and acc::*.
     WatSource {
         path: "wat/rete/oracle/insert.wat",
@@ -388,6 +388,10 @@ const STDLIB_FILES: &[WatSource] = &[
     WatSource {
         path: "wat/rete/oracle/accum-pass.wat",
         source: include_str!("../wat/rete/oracle/accum-pass.wat"),
+    },
+    WatSource {
+        path: "wat/rete/oracle/stratify.wat",
+        source: include_str!("../wat/rete/oracle/stratify.wat"),
     },
     WatSource {
         path: "wat/rete/oracle/fire.wat",

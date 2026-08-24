@@ -3,7 +3,7 @@
 //!
 //! `every_wat_scripts_file_loads_on_the_current_runtime` (tests/lint/wat_scripts_fixes_load.rs)
 //! parses + type-checks every `.wat` under `wat-scripts/` but never RUNS one. The rete fence
-//! (`wat/rete.wat`'s "expr is not total" arm) is a RUNTIME check that fires when a rule
+//! (`wat/rete/compile.wat`'s "expr is not total" arm) is a RUNTIME check that fires when a rule
 //! *compiles* — i.e. only when the program actually runs — so on 2026-08-06 four grid axes
 //! (min-finding, node-share, strat-neg, user-reduce) were found DEAD, having died the hour that
 //! fence armed, with every existing gate green for days. This test closes that blind spot by

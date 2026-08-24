@@ -1,25 +1,39 @@
-//! Arc 278 stone 4a — disconfirming probe: production-fire (token → RHS → derived fact). RED at HEAD.
+//! Arc 278 stone 4a — production-fire (token → RHS → derived fact).
 //!
-//! The first slice of stone 4. After the equality-join network matches (3b), a Token reaching the
-//! ProductionNode must FIRE the rule's RHS: evaluate `(:wat::rete::insert (:weather::ColdAndWindy ?loc))`
-//! with the token's bindings into a derived `:weather::ColdAndWindy` record, stored in production-memory.
+//! After the equality-join network matches, a Token reaching the ProductionNode FIREs the rule's RHS:
+//! evaluate `(:weather::ColdAndWindy ?loc)` with the token's bindings into a derived
+//! `:weather::ColdAndWindy` record, stored in production-memory.
+//! Live mouths: `compile-all`, `insert`, `fire-rules`, `query`.
 //!
 //!   :when  [(:weather::Temperature (?loc <- :location) (?t <- :celsius))
 //!           (:weather::WindSpeed    (?loc <- :location) (?w <- :kph))]
-//!   :then  (:wat::rete::insert (:weather::ColdAndWindy ?loc))
+//!   :then  [(:weather::ColdAndWindy :location ?loc)]
 //!
 //! - MATCH (same loc): the join yields one Token → the RHS fires → ONE ColdAndWindy("Oslo") in production-memory.
 //! - NO JOIN (diff loc): zero tokens at the ProductionNode → zero derived facts.
 //! - 2×2 (no leakage): 2 Temps × 2 Winds / 2 locs → exactly 2 same-loc joins → exactly 2 derived facts.
-//!
-//! RED at HEAD: `fire-rules` runs alpha → root-join → hash-join only (3b); no production pass exists, so
-//! production-memory is empty and no derived fact is ever produced.
 //!
 //! Run: cargo test --release -p wat --test probe_arc278_4a_production_fire -- --include-ignored
 
 use std::sync::Arc;
 use wat::freeze::call_beside_value;
 use wat::runtime::Value;
+
+#[test]
+fn compile_cw_fires_nothing() {
+    let got = call_beside_value(file!(), ":user::compile-cw-fires-nothing").expect("eval");
+    assert_eq!(got, Value::i64(0), "compile+fire with no facts derives nothing; got {got:?}");
+}
+
+#[test]
+fn fired_oslo_builds() {
+    let _ = call_beside_value(file!(), ":test::fired-oslo").expect("eval");
+}
+
+#[test]
+fn fired_bergen_builds() {
+    let _ = call_beside_value(file!(), ":test::fired-bergen").expect("eval");
+}
 
 #[test]
 fn production_fires_one_fact_on_matching_loc() {

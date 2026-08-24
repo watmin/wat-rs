@@ -32,10 +32,16 @@
 //!
 //! # Machine-output cleanliness
 //!
-//! The warning goes to stderr only.  When `--check-output edn` or
-//! `--check-output json` is detected in argv (machine-readable pipeline
-//! mode) the warning is suppressed entirely to keep pipelines clean.
+//! The warning goes to stderr only, and only when stderr is a tty.
+//! When `--check-output edn` or `--check-output json` is detected in
+//! argv (machine-readable pipeline mode), or when stderr is piped
+//! (process children, nextest capture), the warning is suppressed —
+//! a warning-only `eprintln` on a process child's stderr becomes
+//! `LociDiedError::Panic.message`. A child that inherits a tty still
+//! shares that channel; this gate is a check, not an unrepresentable
+//! shape.
 
+use std::io::IsTerminal;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
@@ -205,6 +211,10 @@ fn newest_source_mtime(repo_root: &Path) -> Option<SystemTime> {
 /// - If `--check-output edn` or `--check-output json` is present in
 ///   argv, returns silently (machine-readable pipeline; stderr warning
 ///   would be unexpected noise).
+/// - If stderr is **not a tty** (piped, captured, a process child),
+///   returns silently. Process children capture stderr as the death
+///   wire — a warning-only `eprintln` becomes `LociDiedError::Panic.message`.
+///   A child that inherits a tty still shares that channel.
 /// - Otherwise, compares the installed binary's mtime against the newest
 ///   source file mtime.  If the binary is older, prints a loud warning to
 ///   **stderr** and continues (warning-only; never changes behavior or exit
@@ -214,6 +224,12 @@ pub fn check_dev_staleness() {
     // We peek at raw argv ourselves since arg parsing hasn't happened yet.
     let args: Vec<String> = std::env::args().collect();
     if args.iter().any(|a| a == "--check-output") {
+        return;
+    }
+
+    // Process children, nextest capture, and pipes own stderr as the
+    // death/user wire. Only scream at a human terminal.
+    if !std::io::stderr().is_terminal() {
         return;
     }
 

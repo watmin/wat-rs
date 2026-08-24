@@ -1,0 +1,60 @@
+── min-finding ──────────────────────────────────────────────
+run-axis: guard = cgroup MemoryMax=6G, no swap, 300s
+run-axis: GRID_SKIP_ORACLE=1 — fire-rules$oracle not invoked (native vs Clara only)
+#grid/Verdict {:axis "min-finding" :size [500 3] :accuracy :match :runs 3 :ratio 54.6991 :min 44.4481 :max 65.9628 :wat-ns 608146 :clara-ns 33369826 :winner :us :wat-wall-ms 357 :clara-wall-ms 3300 :wall-ratio 9.2437 :wall-winner :us :fire-share-pct 0.17}
+#grid/Verdict {:axis "min-finding" :size [1000 3] :accuracy :match :runs 3 :ratio 43.4595 :min 36.0983 :max 51.9162 :wat-ns 1284661 :clara-ns 54948451 :winner :us :wat-wall-ms 368 :clara-wall-ms 3435 :wall-ratio 9.3342 :wall-winner :us :fire-share-pct 0.35}
+#grid/Verdict {:axis "min-finding" :size [2000 3] :accuracy :match :runs 3 :ratio 43.4268 :min 38.0812 :max 53.7374 :wat-ns 2657727 :clara-ns 114234811 :winner :us :wat-wall-ms 379 :clara-wall-ms 3774 :wall-ratio 9.9578 :wall-winner :us :fire-share-pct 0.70}
+── negation ──────────────────────────────────────────────
+run-axis: guard = cgroup MemoryMax=6G, no swap, 300s
+run-axis: GRID_SKIP_ORACLE=1 — fire-rules$oracle not invoked (native vs Clara only)
+#grid/Verdict {:axis "negation" :size [250] :accuracy :match :runs 3 :ratio 18.2718 :min 13.3342 :max 20.8917 :wat-ns 656518 :clara-ns 11785091 :winner :us :wat-wall-ms 336 :clara-wall-ms 3139 :wall-ratio 9.3423 :wall-winner :us :fire-share-pct 0.20}
+#grid/Verdict {:axis "negation" :size [500] :accuracy :match :runs 3 :ratio 15.5030 :min 11.1121 :max 19.5321 :wat-ns 1136864 :clara-ns 17605918 :winner :us :wat-wall-ms 358 :clara-wall-ms 3173 :wall-ratio 8.8631 :wall-winner :us :fire-share-pct 0.32}
+#grid/Verdict {:axis "negation" :size [1000] :accuracy :match :runs 3 :ratio 12.4108 :min 8.6242 :max 14.4307 :wat-ns 2197577 :clara-ns 27399841 :winner :us :wat-wall-ms 350 :clara-wall-ms 3372 :wall-ratio 9.6343 :wall-winner :us :fire-share-pct 0.63}
+── neg-consumer ──────────────────────────────────────────────
+run-axis: guard = cgroup MemoryMax=6G, no swap, 300s
+run-axis: GRID_SKIP_ORACLE=1 — fire-rules$oracle not invoked (native vs Clara only)
+#grid/Verdict {:axis "neg-consumer" :size [250] :accuracy :match :runs 3 :ratio 22.0021 :min 19.5965 :max 23.8488 :wat-ns 921195 :clara-ns 20237752 :winner :us :wat-wall-ms 348 :clara-wall-ms 3412 :wall-ratio 9.8046 :wall-winner :us :fire-share-pct 0.26}
+#grid/Verdict {:axis "neg-consumer" :size [500] :accuracy :match :runs 3 :ratio 14.8279 :min 12.3727 :max 18.7431 :wat-ns 1718067 :clara-ns 25449440 :winner :us :wat-wall-ms 359 :clara-wall-ms 3296 :wall-ratio 9.1811 :wall-winner :us :fire-share-pct 0.48}
+#grid/Verdict {:axis "neg-consumer" :size [1000] :accuracy :match :runs 3 :ratio 10.3044 :min 7.5138 :max 14.1784 :wat-ns 3672949 :clara-ns 37373062 :winner :us :wat-wall-ms 352 :clara-wall-ms 3442 :wall-ratio 9.7784 :wall-winner :us :fire-share-pct 1.04}
+── asym-join ──────────────────────────────────────────────
+run-axis: guard = cgroup MemoryMax=6G, no swap, 300s
+run-axis: GRID_SKIP_ORACLE=1 — fire-rules$oracle not invoked (native vs Clara only)
+#grid/Verdict {:axis "asym-join" :size [500] :accuracy :match :runs 3 :ratio 20.0854 :min 15.6731 :max 22.5228 :wat-ns 1059489 :clara-ns 21289805 :winner :us :wat-wall-ms 351 :clara-wall-ms 3153 :wall-ratio 8.9829 :wall-winner :us :fire-share-pct 0.30}
+#grid/Verdict {:axis "asym-join" :size [1000] :accuracy :match :runs 3 :ratio 13.3489 :min 12.3272 :max 15.2589 :wat-ns 2228544 :clara-ns 29731151 :winner :us :wat-wall-ms 385 :clara-wall-ms 3245 :wall-ratio 8.4286 :wall-winner :us :fire-share-pct 0.58}
+#grid/Verdict {:axis "asym-join" :size [2000] :accuracy :match :runs 3 :ratio 9.2378 :min 9.1469 :max 9.3261 :wat-ns 4837740 :clara-ns 44690404 :winner :us :wat-wall-ms 410 :clara-wall-ms 3390 :wall-ratio 8.2683 :wall-winner :us :fire-share-pct 1.18}
+── strat-neg ──────────────────────────────────────────────
+run-axis: guard = cgroup MemoryMax=6G, no swap, 300s
+run-axis: GRID_SKIP_ORACLE=1 — fire-rules$oracle not invoked (native vs Clara only)
+#grid/Verdict {:axis "strat-neg" :size [6 500] :accuracy :match :runs 3 :ratio 15.9526 :min 14.2712 :max 18.4415 :wat-ns 6536572 :clara-ns 104065387 :winner :us :wat-wall-ms 382 :clara-wall-ms 3911 :wall-ratio 10.2382 :wall-winner :us :fire-share-pct 1.71}
+#grid/Verdict {:axis "strat-neg" :size [6 1000] :accuracy :match :runs 3 :ratio 14.3139 :min 13.8943 :max 14.6352 :wat-ns 15350440 :clara-ns 219665790 :winner :us :wat-wall-ms 407 :clara-wall-ms 4379 :wall-ratio 10.7592 :wall-winner :us :fire-share-pct 3.77}
+#grid/Verdict {:axis "strat-neg" :size [6 2000] :accuracy :match :runs 3 :ratio 19.8536 :min 19.2349 :max 20.1844 :wat-ns 33745661 :clara-ns 670025404 :winner :us :wat-wall-ms 469 :clara-wall-ms 6336 :wall-ratio 13.5096 :wall-winner :us :fire-share-pct 7.20}
+── user-reduce ──────────────────────────────────────────────
+run-axis: guard = cgroup MemoryMax=6G, no swap, 300s
+run-axis: GRID_SKIP_ORACLE=1 — fire-rules$oracle not invoked (native vs Clara only)
+#grid/Verdict {:axis "user-reduce" :size [10 25] :accuracy :match :runs 3 :ratio 21.8040 :min 20.2152 :max 22.8583 :wat-ns 181749 :clara-ns 3957002 :winner :us :wat-wall-ms 332 :clara-wall-ms 3022 :wall-ratio 9.1024 :wall-winner :us :fire-share-pct 0.05}
+#grid/Verdict {:axis "user-reduce" :size [20 50] :accuracy :match :runs 3 :ratio 18.2216 :min 14.9023 :max 20.2102 :wat-ns 514476 :clara-ns 9352401 :winner :us :wat-wall-ms 340 :clara-wall-ms 3020 :wall-ratio 8.8824 :wall-winner :us :fire-share-pct 0.15}
+#grid/Verdict {:axis "user-reduce" :size [40 100] :accuracy :match :runs 3 :ratio 8.9979 :min 8.3852 :max 10.0265 :wat-ns 1827819 :clara-ns 16441700 :winner :us :wat-wall-ms 362 :clara-wall-ms 3070 :wall-ratio 8.4807 :wall-winner :us :fire-share-pct 0.50}
+── node-share ──────────────────────────────────────────────
+run-axis: guard = cgroup MemoryMax=6G, no swap, 300s
+run-axis: GRID_SKIP_ORACLE=1 — fire-rules$oracle not invoked (native vs Clara only)
+#grid/Verdict {:axis "node-share" :size [10 200] :accuracy :match :runs 3 :ratio 27.4306 :min 21.2585 :max 36.1048 :wat-ns 516405 :clara-ns 14131307 :winner :us :wat-wall-ms 350 :clara-wall-ms 3157 :wall-ratio 9.0200 :wall-winner :us :fire-share-pct 0.15}
+#grid/Verdict {:axis "node-share" :size [25 200] :accuracy :match :runs 3 :ratio 23.2166 :min 18.6953 :max 26.2954 :wat-ns 645293 :clara-ns 14944348 :winner :us :wat-wall-ms 380 :clara-wall-ms 3365 :wall-ratio 8.8553 :wall-winner :us :fire-share-pct 0.17}
+#grid/Verdict {:axis "node-share" :size [50 200] :accuracy :match :runs 3 :ratio 19.8359 :min 16.6488 :max 25.2928 :wat-ns 942474 :clara-ns 18774592 :winner :us :wat-wall-ms 395 :clara-wall-ms 3615 :wall-ratio 9.1519 :wall-winner :us :fire-share-pct 0.24}
+── accum ──────────────────────────────────────────────
+run-axis: guard = cgroup MemoryMax=6G, no swap, 300s
+run-axis: GRID_SKIP_ORACLE=1 — fire-rules$oracle not invoked (native vs Clara only)
+#grid/Verdict {:axis "accum" :size [50 200] :accuracy :match :runs 3 :ratio 18.2447 :min 17.8338 :max 18.8165 :wat-ns 2478187 :clara-ns 45235763 :winner :us :wat-wall-ms 405 :clara-wall-ms 3407 :wall-ratio 8.4123 :wall-winner :us :fire-share-pct 0.61}
+#grid/Verdict {:axis "accum" :size [100 200] :accuracy :match :runs 3 :ratio 14.4196 :min 11.5270 :max 19.5989 :wat-ns 6368050 :clara-ns 91652029 :winner :us :wat-wall-ms 498 :clara-wall-ms 3637 :wall-ratio 7.3032 :wall-winner :us :fire-share-pct 1.28}
+#grid/Verdict {:axis "accum" :size [200 200] :accuracy :match :runs 3 :ratio 11.2703 :min 10.5837 :max 12.2590 :wat-ns 13661254 :clara-ns 154129921 :winner :us :wat-wall-ms 643 :clara-wall-ms 4032 :wall-ratio 6.2706 :wall-winner :us :fire-share-pct 2.12}
+── deep-cascade ──────────────────────────────────────────────
+run-axis: guard = cgroup MemoryMax=6G, no swap, 300s
+run-axis: GRID_SKIP_ORACLE=1 — fire-rules$oracle not invoked (native vs Clara only)
+#grid/Verdict {:axis "deep-cascade" :size [10 100] :accuracy :match :runs 3 :ratio 10.7953 :min 10.2159 :max 11.1710 :wat-ns 2512746 :clara-ns 27094281 :winner :us :wat-wall-ms 389 :clara-wall-ms 3257 :wall-ratio 8.3728 :wall-winner :us :fire-share-pct 0.65}
+#grid/Verdict {:axis "deep-cascade" :size [30 100] :accuracy :match :runs 3 :ratio 10.1724 :min 8.6300 :max 13.0715 :wat-ns 8574618 :clara-ns 87100651 :winner :us :wat-wall-ms 526 :clara-wall-ms 3871 :wall-ratio 7.3593 :wall-winner :us :fire-share-pct 1.63}
+#grid/Verdict {:axis "deep-cascade" :size [50 100] :accuracy :match :runs 3 :ratio 7.4630 :min 6.9908 :max 7.8876 :wat-ns 16399914 :clara-ns 122337855 :winner :us :wat-wall-ms 622 :clara-wall-ms 4304 :wall-ratio 6.9196 :wall-winner :us :fire-share-pct 2.64}
+── fanout ──────────────────────────────────────────────
+run-axis: guard = cgroup MemoryMax=6G, no swap, 300s
+run-axis: GRID_SKIP_ORACLE=1 — fire-rules$oracle not invoked (native vs Clara only)
+#grid/Verdict {:axis "fanout" :size [10000] :accuracy :match :runs 3 :ratio 4.7872 :min 4.4418 :max 4.9720 :wat-ns 11813413 :clara-ns 56563399 :winner :us :wat-wall-ms 536 :clara-wall-ms 3372 :wall-ratio 6.2910 :wall-winner :us :fire-share-pct 2.20}
+#grid/Verdict {:axis "fanout" :size [20000] :accuracy :match :runs 3 :ratio 3.4060 :min 3.1096 :max 3.5588 :wat-ns 29572287 :clara-ns 100811998 :winner :us :wat-wall-ms 752 :clara-wall-ms 3713 :wall-ratio 4.9375 :wall-winner :us :fire-share-pct 3.93}
+#grid/Verdict {:axis "fanout" :size [40000] :accuracy :match :runs 3 :ratio 2.9075 :min 2.8651 :max 2.9805 :wat-ns 61721281 :clara-ns 179410539 :winner :us :wat-wall-ms 1149 :clara-wall-ms 4157 :wall-ratio 3.6179 :wall-winner :us :fire-share-pct 5.37}

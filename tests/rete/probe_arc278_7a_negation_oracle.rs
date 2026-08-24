@@ -1,10 +1,10 @@
-//! Arc 278 — Stone 7-a: negation (`:not` / NegationNode) in the ORACLE (`rete.wat` compile + fire).
-//! RED at HEAD (no NegationNode: compile-condition treats `(:wat::rete::not …)` as an unsatisfiable
-//! alpha → the rule never fires). GREEN when 7-a lands. Contract: DESIGN-STONE-7-negation.md.
+//! Arc 278 stone 7-a — negation (`:not` / NegationNode) in the oracle (`fire-rules$oracle`).
+//! Dual-impl: the unprimed public Fn is native; `$oracle` is the spec mouth.
 //!
-//! Probed through the ORACLE (`fire-rules-spec`) — 7-a builds the oracle NegationNode; the native port +
+//! Probed through `fire-rules$oracle` — 7-a builds the oracle NegationNode; the native port +
 //! differential are 7-b. A `:not` passes a token iff NO fact matches the negated condition for that
-//! token's bindings (the shared `?loc` must agree — the join-filter half).
+//! token's bindings (the shared `?loc` must agree — the join-filter half). Absent → 1 Unattended;
+//! present-matching → 0; present-different-binding → 1.
 //!
 //! Run: cargo test --release -p wat --test probe_arc278_7a_negation_oracle
 

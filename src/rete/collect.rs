@@ -64,7 +64,7 @@ pub(crate) fn eval_collect_rules(
 
     // Invoke each zero-arg rule fn → its Rule value; collect into a PersistentVector.
     // The call keyword carries the leading ':' (the form `(:ns::name)` that 5a proved evaluates the fn).
-    let mut out: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
+    let mut out: crate::value::pvec::PVec = crate::value::pvec::PVec::new();
     for name in &names {
         let kw = if name.starts_with(':') { name.clone() } else { format!(":{name}") };
         let call = WatAST::List(vec![WatAST::Keyword(kw, list_span.clone())], list_span.clone());

@@ -7,8 +7,8 @@
 //! this file, not three edits across three files (STOP-2: an op named in more than one place is
 //! the stone failing, not a detail).
 //!
-//! ## The three mechanism classes (grounded — see the design stone's "class table, corrected
-//! twice by grounding")
+//! ## The four mechanism classes (grounded — see the design stone's "class table, corrected
+//! twice by grounding", plus #57 Redispatch)
 //!
 //! - **`Alias`** — a plain strict fn: rete name, same routine as `core_name`, zero new logic.
 //!   Gets a `TypeScheme` (fed from `params`/`ret` below) AND a dispatch arm — but the dispatch
@@ -43,6 +43,10 @@
 //!   own routine would otherwise produce. See `runtime.rs`'s `dispatch_rete_op`, `OpClass::Fallback`
 //!   arm, for the exact mechanism and why it needed NEITHER the `:9753` substrate kernel NOR a
 //!   `:4829` refactor (STOP-3 did not fire — see that arm's doc).
+//! - **`Redispatch`** — an ordinary fn whose type cannot be stated as a rank-1 `TypeScheme`
+//!   (polymorphic over the container constructor). Named for HOW the type is answered
+//!   (checker re-dispatches to core's own bespoke inference). No `TypeScheme`; runtime is
+//!   the same generic re-dispatch `Alias`/`Form` already use. See `OpClass::Redispatch`.
 //!
 //! ## The admission test — module-set, NOT a bare prefix (STOP-1)
 //!
@@ -101,6 +105,9 @@
 //! `NAMING_RULE_EXCEPTIONS`, not six — "one core verb serving several rete rows" is not a
 //! one-off, it recurs whenever a core op is polymorphic across something the rete surface wants
 //! to monomorphise per-leaf (per-type for equality, per-container for `first`).
+
+use std::collections::HashMap;
+use std::sync::OnceLock;
 
 use crate::ast::WatAST;
 use crate::runtime::{
@@ -537,9 +544,8 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // `meta` is vestigial here too, for the same reason as `match`'s row: `classify_expr`
     // intercepts a `fn` literal structurally (walks the body forms only; params/return-type are
     // never evaluated) before `head_ok` — which reads `meta` — is ever reached. Kept accurate
-    // anyway, for STOP-2 completeness: unlike `match` (which can raise `NoMatchingArm` on a
-    // non-exhaustive scrutinee), merely CONSTRUCTING a well-typed `fn` literal never raises, so
-    // `total: true` — the same as `if`/`let`'s own hand-list entries, not `match`'s `false`.
+    // anyway, for STOP-2 completeness: merely CONSTRUCTING a well-typed `fn` literal never
+    // raises, so `total: true` — the same as `if`/`let`/`match`'s own hand-list entries.
     ReteOp {
         type_params: &[],
         rete_name: ":wat::rete::core::fn",
@@ -567,21 +573,14 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // and the naming-rule tests need; it does no expansion work itself — the wat-source
     // `defmacro` does.
     //
-    // ⚠ GROUNDED GAP, not fixed by this row or the macro above: a `(:wat::rete::where ...)`
-    // clause is never macro-expanded at all — `defrule`'s macro quotes `:when`/`:then`
-    // VERBATIM (`wat/rete/syntax.wat` `defrule`, `(:wat::core::quote ~when-vec)`), and
-    // `eval_test_core` (`src/rete/matcher.rs`) evaluates that raw AST by calling
-    // `runtime::eval_inner` directly — the expander (`src/macros/expand.rs:441`) never
-    // descends into `:wat::core::quote`. A `cond` written literally inside a `where` —
-    // core-spelled OR rete-spelled — therefore still raises `UnknownFunction` at fire time,
-    // not compile time. Proven both ways on the current tree
-    // (`wat-scripts/scratch-pad/probe-cond-in-where-baseline.wat`,
-    // `probe-cond-rete-where.wat`); full grounding in
-    // `NOTE-a-where-body-is-never-macro-expanded.md`. The purity-guard widening below
-    // (classify_expr) lets such a `where` PASS the pure∧det fence and compile a `TestNode` —
-    // it does not, and cannot, make that `TestNode` evaluate. Outside a `where` (ordinary
-    // macro-expanded code — the tier-ladder shape the brief's scorecard row 2 exercises),
-    // `cond` works identically to its core twin, fully rete-spelled all the way down.
+    // Present: the expander does not descend into `:wat::core::quote` in general, but
+    // `make-rule`'s `:when` is a classified boundary (`src/resolve/boundary.rs`
+    // `Boundary::MakeRule`; `src/macros/expand.rs` `expand_make_rule` /
+    // `expand_make_rule_when`) that expands each `where` body. A `cond` written inside
+    // a `where` is legal and expands to rete `if` (`wat-scripts/scratch-pad/probe-cond-rete-where.wat`
+    // is the positive control). Outside a `where` (ordinary macro-expanded code — the
+    // tier-ladder shape the brief's scorecard row 2 exercises), `cond` works identically
+    // to its core twin, fully rete-spelled all the way down.
     //
     // `total: true` mirrors `if`'s own hand-list entry: `cond` expands to nested
     // `:wat::rete::core::if` (already `total` in `purity.rs`'s list) and introduces nothing
@@ -892,13 +891,10 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // sit in its pure∧det hand-list (`:371-375`, "CONDITIONALLY pure∧det: the combinator
     // itself is referentially transparent + effect-free; its purity/determinism falls out of
     // the arg-recursion over its fn-argument" — `classify_expr`'s unconditional per-argument
-    // recursion, already generic, needs no widening for these four). `total`: `foldl` alone is
-    // in the total hand-list (`:533`, "the verb ITSELF never raises... marking the head total
-    // and letting `classify_expr`'s general-list arm recurse into the fn-literal argument...
-    // is the same mechanism already built for pure/det"); `map`/`filter`/`reduce` are
-    // explicitly NOT included there (`:478-480`, "extremely likely total... but are NOT
-    // included — no `where` row in the corpus uses them... Flagged, not classified") —
-    // `total: false` for those three is the honest default-deny, not a guess.
+    // recursion, already generic, needs no widening for these four). `total`: all four HOF
+    // rete heads are `total: true` (the rows below; `every_rete_row_is_total` makes a false
+    // row a red build). `classify_expr`'s general-list arm recurses into the fn-literal
+    // argument — the same mechanism already built for pure/det.
     ReteOp {
         type_params: &[],
         rete_name: ":wat::rete::core::foldl",
@@ -1017,8 +1013,8 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // BRIEF-the-f64-surface-is-a-stub.md Part D (2026-08-05) — casing bug fixed. Round 1c
     // (`6d5af2c8`) minted these with a capital-S `String::`, derived from the TYPE instead of
     // the MODULE; every other string row in both surfaces is lowercase
-    // (`:wat::core::string::{length,concat,trim,…}`, `:wat::rete::string::{length,to-lowercase,
-    // trim}`). Renamed `:wat::rete::String::{=,not=}` → `:wat::rete::string::{=,not=}`. Zero
+    // (`:wat::core::string::{length,concat,trim,…}`, `:wat::rete::core::string::{length,to-lowercase,
+    // trim}`). Renamed `:wat::rete::String::{=,not=}` → `:wat::rete::core::string::{=,not=}`. Zero
     // call sites existed at rename time (`grep -rn 'rete::String::' --include=*.wat
     // --include=*.rs .` found only this file's own three occurrences: the comment above and
     // these two rows) — a rename, not a migration.
@@ -1373,8 +1369,22 @@ pub(crate) const RETE_MODULES: &[&str] = &[
 
 /// Look up `head`'s row, if it is a minted rete-vocabulary op. Exact match — never a prefix scan
 /// (STOP-1 applies here too: a prefix match would silently "admit" any typo under a real module).
+pub(crate) fn rete_op_index(head: &str) -> Option<usize> {
+    static BY_NAME: OnceLock<HashMap<&'static str, usize>> = OnceLock::new();
+    BY_NAME
+        .get_or_init(|| {
+            RETE_OPS
+                .iter()
+                .enumerate()
+                .map(|(i, op)| (op.rete_name, i))
+                .collect()
+        })
+        .get(head)
+        .copied()
+}
+
 pub(crate) fn rete_op_for(head: &str) -> Option<&'static ReteOp> {
-    RETE_OPS.iter().find(|op| op.rete_name == head)
+    rete_op_index(head).map(|i| &RETE_OPS[i])
 }
 
 /// Arc 278 #56 phase 2 — resolves a head to its `core_name` if it is a minted rete row,
@@ -1584,16 +1594,23 @@ mod naming_rule_tests {
     /// fewer. Catches the exception set silently growing (a real collision nobody explained) or
     /// shrinking without the corresponding row being deleted.
     ///
-    /// ⚠ 9 → 11 (2026-08-05, #57's `enum::{=,not=}`). This ratchet is pinned to a COUNT, and a
-    /// count cannot tell "+1 new, −1 fixed" from "nothing happened", nor name the offender in its
-    /// own failure text (`[[feedback_a_gate_freezes_names_never_a_count]]`). It fired correctly
-    /// here — `left: 11, right: 9` — but only because the list grew; the NAMES are what should be
-    /// frozen. The loop below already walks them, so the stronger form is close at hand; it is not
-    /// bundled into this strike because widening a ratchet inside the change it is auditing is how
-    /// a ratchet stops auditing.
+    /// The exception NAMES are frozen (this list) AND counted. A silent
+    /// `+1 new, −1 fixed` fails the equality on the slice, not only the length.
     #[test]
     fn naming_rule_exceptions_are_exactly_the_documented_eleven() {
         assert_eq!(NAMING_RULE_EXCEPTIONS.len(), 11);
+        let mut frozen: Vec<&str> = NAMING_RULE_EXCEPTIONS.to_vec();
+        frozen.sort_unstable();
+        let mut live: Vec<&str> = NAMING_RULE_EXCEPTIONS
+            .iter()
+            .copied()
+            .filter(|name| RETE_OPS.iter().any(|op| op.rete_name == *name))
+            .collect();
+        live.sort_unstable();
+        assert_eq!(
+            frozen, live,
+            "exception names must exist in RETE_OPS — stale or missing entry"
+        );
         for &name in NAMING_RULE_EXCEPTIONS {
             assert!(
                 RETE_OPS.iter().any(|op| op.rete_name == name),

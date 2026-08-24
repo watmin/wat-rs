@@ -1,8 +1,9 @@
 ;; wat/rete/oracle/insert.wat — interpreted insert / retract oracle.
 ;;
-;; insert$oracle / insert-all$oracle / public insert / retract.
+;; insert$oracle / insert-all$oracle / public insert / insert-all.
+;; `retract` is a wat-only Session rebuild (no $oracle / $native pair yet).
 ;; Zero activation: facts stay staged until fire-rules. Loads after wat/rete.wat
-;; (Session). Public names call $native.
+;; (Session). insert / insert-all public names call $native.
 ;;
 ;; Namespace: :wat::rete::
 
@@ -51,7 +52,7 @@
 
 ;; insert — public production verb. Runtime intercepts the keyword head
 ;; (`eval_insert_public`: 2-ary native, 3+ insert-all). This defclause is the
-;; type surface and the first-class Fn; bodies re-enter the keyword head.
+;; type surface and the first-class Fn; bodies call `$native`.
 (:wat::core::defclause :wat::rete::insert
   ([session <- :wat::rete::Session
     fact    <- :T] -> :wat::rete::Session

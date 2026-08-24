@@ -1,4 +1,4 @@
-//! Transient Session: Token, Element, FireSession, freeze boundary, node readers.
+//! Transient Session: Token, Element, FireSession, freeze boundary.
 
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
@@ -7,12 +7,49 @@ use rustc_hash::FxHashMap;
 
 use crate::ast::WatAST;
 use crate::rete::compiled_cond::BindIntern;
-use crate::rete::matcher::{BindView, Bindings};
+use crate::rete::matcher::Bindings;
 use crate::runtime::{EvalBreak, RuntimeError, RuntimeErrorKind, Value, ValueSnapshot};
 use crate::types::Nature;
 use crate::value::value::AggregateValue;
 
 use super::{phase_end, phase_start};
+
+/// Fire-scoped bind view: key ids into `bind_keys`, filler ids into
+/// `bind_vals` (`DESIGN-STONE-bind-key-intern`,
+/// `DESIGN-STONE-bind-value-intern`). Intern reader lives with Token/Element/BindSpan.
+// rune:struere(lifetime-coupling) — fire-scoped Copy spans; a BindView must not
+// outlive its pool (`DESIGN-STONE-bind-pool`, `DESIGN-STONE-bind-value-intern`).
+#[derive(Clone, Copy)]
+pub(crate) struct BindView<'a> {
+    pub keys: &'a [Value],
+    pub vals: &'a [Value],
+    pub pairs: &'a [(u32, u32)],
+}
+
+impl Bindings for BindView<'_> {
+    fn get(&self, k: &Value) -> Option<&Value> {
+        self.pairs.iter().find_map(|(i, vid)| {
+            (self.keys.get(*i as usize) == Some(k))
+                .then(|| self.vals.get(*vid as usize))
+                .flatten()
+        })
+    }
+    fn iter(&self) -> impl Iterator<Item = (&Value, &Value)> {
+        self.pairs.iter().filter_map(|(i, vid)| {
+            let k = self.keys.get(*i as usize)?;
+            let v = self.vals.get(*vid as usize)?;
+            Some((k, v))
+        })
+    }
+}
+
+impl BindView<'_> {
+    /// Binding-cardinality census in `fire_fixpoint_delta` (`#[cfg(test)]` only).
+    #[cfg(test)]
+    pub(crate) fn len(self) -> usize {
+        self.pairs.len()
+    }
+}
 
 // ─── Native token (P11) ───────────────────────────────────────────────────────
 
@@ -21,6 +58,8 @@ use super::{phase_end, phase_start};
 /// `Copy`: two `BindSpan`s. `matches` indexes `FireSession.match_pool`
 /// (`(fact, alpha_id)` edges). `binds` indexes `FireSession.bind_pool`
 /// (`DESIGN-STONE-token-bind-pool`). Clone copies the spans, not the pairs.
+// rune:struere(lifetime-coupling) — fire-scoped Copy spans; a Token must not
+// outlive its pool (`DESIGN-STONE-bind-pool`, `DESIGN-STONE-match-pool`).
 #[derive(Clone, Copy)]
 pub(crate) struct Token {
     /// Span into `FireSession.match_pool` (`DESIGN-STONE-match-pool`).
@@ -43,6 +82,8 @@ pub(crate) struct Token {
 /// Bindings live in `FireSession.bind_pool`. The span is `(off, len)`
 /// (`DESIGN-STONE-bind-pool`). Clone copies the span, not the pairs.
 /// Tokens use the same pool (`DESIGN-STONE-token-bind-pool`).
+// rune:struere(lifetime-coupling) — Copy span into the fire-scoped pool; Clone
+// copies (off, len), not the pairs. Must not outlive `FireSession.bind_pool`.
 #[derive(Clone, Copy)]
 pub(crate) struct BindSpan {
     pub(crate) off: u32,
@@ -53,6 +94,8 @@ pub(crate) struct BindSpan {
 /// `Token.binds` is the same kind of span.
 /// `fact` is an index into the fire-lived store (`fact_at`) —
 /// DESIGN-STONE-fact-as-index. The Element does not own a clone.
+// rune:struere(lifetime-coupling) — Copy fact index + bind span; must not
+// outlive the fire-lived store and `bind_pool` (`DESIGN-STONE-fact-as-index`).
 #[derive(Clone, Copy)]
 pub(crate) struct Element {
     /// Index: `0..n_input` is `wm.facts`, else `derived_facts`.
@@ -63,7 +106,14 @@ pub(crate) struct Element {
 
 /// Lookup for `Element.fact`. Input slots are the facts PersistentVector;
 /// derived slots are the append-only vec that outlives `drop-memories`.
-pub(crate) fn fact_at<'a>(facts: &'a Value, derived: &'a [Value], n_input: u32, idx: u32) -> &'a Value {
+// rune:struere(invariant-coupling) — well-formed fire: input idx is in facts PV,
+// derived idx is in derived_facts; Option would force every walk to invent a miss.
+pub(crate) fn fact_at<'a>(
+    facts: &'a Value,
+    derived: &'a [Value],
+    n_input: u32,
+    idx: u32,
+) -> &'a Value {
     let i = idx as usize;
     if i < n_input as usize {
         match facts {
@@ -101,21 +151,35 @@ pub(crate) fn encode_view(wm: &FireSession) -> EncodeView<'_> {
     }
 }
 
-pub(crate) type AlphaMemory = FxHashMap<i64, Vec<Element>>;
+pub(crate) type AlphaMemory = FxHashMap<i64, Arc<Vec<Element>>>;
 pub(crate) type BetaMemory = HashMap<i64, Vec<Token>>;
 pub(crate) type ProductionMemory = HashMap<i64, Vec<Value>>;
 pub(crate) type QueryMemory = HashMap<String, Vec<crate::value::pmap::PMap>>;
-pub(crate) type SlotFrame = Vec<Option<Value>>;
+pub(crate) use crate::rete::compiled_cond::SlotFrame;
 pub(crate) type FieldNames = Arc<Vec<String>>;
 pub(crate) type ParentsOf = HashMap<i64, Vec<i64>>;
+pub(crate) type ChildrenOf = HashMap<i64, Vec<i64>>;
 pub(crate) type JoinsFedBy = HashMap<i64, Vec<i64>>;
+pub(crate) type TestSibs = HashMap<i64, Vec<i64>>;
+pub(crate) type TestChildren = HashMap<i64, Vec<i64>>;
+/// Explain index: derived fact → (rule name, token as Value).
+pub(crate) type ExplainSupport = HashMap<Value, (String, Value)>;
 /// HashJoin id → cached join-key names. Not production memory.
 pub(crate) type JoinKeysCache = HashMap<i64, Vec<Value>>;
 pub(crate) type AlphasByType = HashMap<String, Vec<i64>>;
 pub(crate) type CondKeyIds = HashMap<i64, Vec<u32>>;
 pub(crate) type AlphaDelta = FxHashMap<i64, Vec<usize>>;
-/// P6 join index: join-key tuple → tokens/elements at one HashJoin.
-pub(crate) type JoinKeyMap<T> = HashMap<Vec<Value>, Vec<T>>;
+/// Interned join-key (`DESIGN-STONE-gather-unary-index` applied to HashJoin).
+/// Empty = cartesian; Unary = interned filler id; Nary = interned filler ids.
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub(crate) enum JoinKey {
+    Empty,
+    Unary(u32),
+    Nary(Box<[u32]>),
+}
+
+/// P6 join index: interned join-key → tokens/elements at one HashJoin.
+pub(crate) type JoinKeyMap<T> = HashMap<JoinKey, Vec<T>>;
 /// HashJoin id → left (token) index, persistent across rounds.
 pub(crate) type JoinLeftIndex = HashMap<i64, JoinKeyMap<Token>>;
 /// HashJoin id → right (element) index, persistent across rounds.
@@ -164,6 +228,81 @@ pub(crate) struct FireSession {
     /// Fire-scoped match edges. `Token.matches` is a span into this vec
     /// (`DESIGN-STONE-match-pool`).
     pub(crate) match_pool: Vec<(u32, i64)>,
+    /// Packed i64 fields per fact index (`DESIGN-STONE-fire-i64-columns`).
+    /// `None` = not all declared fields i64, or wider than [`I64_ROW_CAP`].
+    /// Fire-scoped; not a Session field. Cleared at fire start.
+    pub(crate) i64_by_fact: Vec<Option<I64Row>>,
+    /// Bind-only alphas: output field indexes into the packed row
+    /// (`DESIGN-STONE-column-gather-fold`). Fire-scoped.
+    pub(crate) bind_only: HashMap<i64, Vec<u8>>,
+    /// Interned cond keys, parallel to `bind_only` outputs after an
+    /// optional fact_bind (`DESIGN-STONE-column-gather-fold`).
+    pub(crate) cond_key_ids: CondKeyIds,
+    /// True when input has a fact whose class is a class-scan query class.
+    /// Harvest skips `wm.facts` when false
+    /// (`DESIGN-STONE-accum-wanted-harvest`,
+    /// `DESIGN-STONE-fanout-identity-filter`). Fire-scoped; not a Session field.
+    pub(crate) input_has_scan_class: bool,
+}
+
+/// Cap on packed i64 fields (`DESIGN-STONE-fire-i64-columns`). Wider
+/// records stay on `exec_compiled_with_key_ids`.
+pub(crate) const I64_ROW_CAP: usize = 8;
+
+/// One fact's declared i64 fields and interned filler ids. Packed at seed
+/// (leaf-fill) or first activate — not a SETUP walk
+/// (`DESIGN-STONE-column-gather-fold`).
+// rune:struere(lifetime-coupling) — vids must not outlive bind_vals; n is the
+// live prefix of fields/vids. Same warrant as BindSpan.
+#[derive(Clone, Copy)]
+pub(crate) struct I64Row {
+    pub n: u8,
+    pub fields: [i64; I64_ROW_CAP],
+    pub vids: [u32; I64_ROW_CAP],
+}
+
+impl I64Row {
+    pub const EMPTY: Self = Self {
+        n: 0,
+        fields: [0; I64_ROW_CAP],
+        vids: [0; I64_ROW_CAP],
+    };
+}
+
+/// Copy each i64 field and `intern_val` once. `None` if any field is
+/// not i64 or the row is empty / wider than [`I64_ROW_CAP`]. Called
+/// from seed pack-all or first activate with fields already in hand —
+/// not a SETUP walk.
+pub(crate) fn pack_i64_row(
+    fields: &[Value],
+    vals: &mut Vec<Value>,
+    ids: &mut crate::rete::compiled_cond::ValIntern,
+) -> Option<I64Row> {
+    if fields.is_empty() || fields.len() > I64_ROW_CAP {
+        return None;
+    }
+    let mut row = I64Row::EMPTY;
+    for (i, v) in fields.iter().enumerate() {
+        let Value::i64(n) = v else {
+            return None;
+        };
+        row.fields[i] = *n;
+        row.vids[i] = intern_val(vals, ids, Value::i64(*n));
+    }
+    row.n = fields.len() as u8;
+    Some(row)
+}
+
+impl FireSession {
+    #[cfg(test)]
+    pub(crate) fn bind_intern(&mut self) -> BindIntern<'_> {
+        BindIntern {
+            keys: &mut self.bind_keys,
+            vals: &mut self.bind_vals,
+            ids: &mut self.bind_val_ids,
+            pool: &mut self.bind_pool,
+        }
+    }
 }
 
 // ─── Memory conversion helpers ────────────────────────────────────────────────
@@ -174,7 +313,10 @@ pub(crate) struct FireSession {
 /// A malformed key (not `Value::i64`) or a malformed value (not
 /// `Value::wat__core__PersistentVector`) → `RuntimeError::TypeMismatch`; entries are
 /// never silently dropped.
-pub(crate) fn pm_to_hashmap(op: &'static str, pm: &Value) -> Result<ProductionMemory, EvalBreak> {
+pub(crate) fn pm_to_production(
+    op: &'static str,
+    pm: &Value,
+) -> Result<ProductionMemory, EvalBreak> {
     match pm {
         Value::wat__core__PersistentMap(m) => {
             let mut out: ProductionMemory = HashMap::with_capacity(m.len());
@@ -227,23 +369,11 @@ pub(crate) fn pm_to_hashmap(op: &'static str, pm: &Value) -> Result<ProductionMe
 
 /// Convert a `ProductionMemory` back into a
 /// `Value::wat__core__PersistentMap<i64, PersistentVector<Value>>`.
-pub(crate) fn hashmap_to_pm(map: ProductionMemory) -> Value {
+pub(crate) fn production_to_pm(map: ProductionMemory) -> Value {
     let mut pm: rpds::HashTrieMapSync<Value, Value> = rpds::HashTrieMapSync::new_sync();
     for (node_id, vec) in map {
-        let mut pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
-        for v in vec {
-            // `_mut`, not the copying form. `Vector::push_back(&self)` begins with
-            // `self.clone()`, which raises every node's refcount to 2, so the `make_mut` inside
-            // `assoc` is FORCED to copy the whole root->leaf path on EVERY iteration — the old
-            // version is then dropped unread. Building a fresh vector nobody else holds, that is
-            // pure waste: `push_back_mut` leaves the refcount at 1, `make_mut` hands back the
-            // existing node, and the write lands in place.
-            //
-            // This is R8's `each_with_object` against `reduce { merge }`, in the output path:
-            // rpds's `*_mut` family IS the transient API the doctrine calls for. Same final
-            // value either way — a persistent Vector — only the build is no longer copy-per-element.
-            pv.push_back_mut(v);
-        }
+        // Bulk Array arm — not N RRB push_back (`DESIGN-STONE-promoting-vector`).
+        let pv = crate::value::pvec::PVec::from_vec(vec);
         pm.insert_mut(Value::i64(node_id), Value::wat__core__PersistentVector(pv));
     }
     // Never wrap a built trie directly — choose the arm by size.
@@ -251,12 +381,8 @@ pub(crate) fn hashmap_to_pm(map: ProductionMemory) -> Value {
 }
 
 /// Decode a Value Token Record → native `Token` (lossless).
-///
-/// Value Token Record shape (from `make_token` / `wat::rete::Token`):
-///   struct_form[0] = `PV<Tuple(fact, i64)>`  — the matches
-///   struct_form[1] = `PM`                     — the bindings
-///
-/// Each `Tuple` is `Value::Tuple(Arc<Vec<Value>>)` with two elements: `[fact, Value::i64(alpha_id)]`.
+/// Named fields `matches` / `bindings` (`TOKEN_FIELDS`). Each match Tuple is
+/// `[fact, Value::i64(alpha_id)]`.
 pub(crate) fn value_token_to_native(
     tok: &Value,
     intern: &mut BindIntern<'_>,
@@ -265,28 +391,47 @@ pub(crate) fn value_token_to_native(
     n_input: u32,
 ) -> Result<Token, EvalBreak> {
     const OP: &str = ":wat::rete::to_transient (beta decode)";
-    let struct_form = match tok {
-        Value::Aggregate(a) if a.nature != Nature::Struct => a.fields.as_slice(),
-        other => {
-            return Err(RuntimeError::new(
-                crate::rust_caller_span!(),
-                RuntimeErrorKind::TypeMismatch {
-                    op: OP.into(),
-                    expected: ":wat::rete::Token (a wat::core::Record)",
-                    got: Box::new(ValueSnapshot::of(other)),
-                },
-            )
-            .into())
-        }
+    let Some(matches_v) = agg_named_field(tok, "matches") else {
+        return Err(RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: ":wat::rete::Token with named matches field",
+                got: Box::new(ValueSnapshot::of(tok)),
+            },
+        )
+        .into());
+    };
+    let Some(bindings_v) = agg_named_field(tok, "bindings") else {
+        return Err(RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: ":wat::rete::Token with named bindings field",
+                got: Box::new(ValueSnapshot::of(tok)),
+            },
+        )
+        .into());
     };
     // Decode matches: PV<Tuple(fact, i64)> → Vec<(Value, i64)>
-    let matches_vec = match &struct_form[0] {
+    let matches_vec = match matches_v {
         Value::wat__core__PersistentVector(pv) => {
             let mut out: Vec<(u32, i64)> = Vec::with_capacity(pv.len());
             for entry in pv.iter() {
                 match entry {
                     Value::Tuple(elems) => {
                         let es = elems.as_slice();
+                        if es.len() < 2 {
+                            return Err(RuntimeError::new(
+                                crate::rust_caller_span!(),
+                                RuntimeErrorKind::TypeMismatch {
+                                    op: OP.into(),
+                                    expected: "match tuple [fact, alpha-id]",
+                                    got: Box::new(ValueSnapshot::of(entry)),
+                                },
+                            )
+                            .into());
+                        }
                         let alpha_id = match &es[1] {
                             Value::i64(n) => *n,
                             other => {
@@ -334,7 +479,7 @@ pub(crate) fn value_token_to_native(
     };
     // Decode bindings: PM → PMap. `Token.bindings` IS a `PMap` now (DESIGN-STONE-token-bindings-
     // promoting) — no conversion at this boundary, just take the value directly.
-    let bindings = match &struct_form[1] {
+    let bindings = match bindings_v {
         Value::wat__core__PersistentMap(m) => m.clone(),
         other => {
             return Err(RuntimeError::new(
@@ -355,21 +500,15 @@ pub(crate) fn value_token_to_native(
             off: match_off as u32,
             len: (match_pool.len() - match_off) as u16,
         },
-        binds: span_from_pairs(
-            intern.keys,
-            intern.vals,
-            intern.ids,
-            intern.pool,
-            bindings.iter().map(|(k, v)| (k.clone(), v.clone())),
-        ),
+        binds: span_from_pairs(intern, bindings.iter().map(|(k, v)| (k.clone(), v.clone()))),
     })
 }
 
 /// Encode a native `Token` → Value Token Record (lossless round-trip with `value_token_to_native`).
 ///
-/// Produces the same shape `make_token` did: `struct_form = [PV<Tuple(fact,i64)>, PM bindings]`.
+/// Named fields `matches` / `bindings` in `TOKEN_FIELDS` order.
 pub(crate) fn native_token_to_value(tok: Token, view: &EncodeView<'_>) -> Value {
-    let mut matches_pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
+    let mut matches_pv: crate::value::pvec::PVec = crate::value::pvec::PVec::new();
     for (fact_idx, alpha_id) in match_slice(view.match_pool, tok.matches) {
         let tuple = Value::Tuple(Arc::new(vec![
             fact_at(view.facts, view.derived, view.n_input, *fact_idx).clone(),
@@ -460,7 +599,7 @@ pub(crate) fn pm_to_beta(
 pub(crate) fn beta_to_pm(beta: BetaMemory, view: &EncodeView<'_>) -> Value {
     let mut pm: rpds::HashTrieMapSync<Value, Value> = rpds::HashTrieMapSync::new_sync();
     for (node_id, tokens) in beta {
-        let mut pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
+        let mut pv: crate::value::pvec::PVec = crate::value::pvec::PVec::new();
         for tok in tokens {
             pv.push_back_mut(native_token_to_value(tok, view));
         }
@@ -471,10 +610,7 @@ pub(crate) fn beta_to_pm(beta: BetaMemory, view: &EncodeView<'_>) -> Value {
 }
 
 /// Decode a Value Element Record → native `Element` (lossless).
-///
-/// Value Element Record shape (from `native_element_to_value` / `wat::rete::Element`):
-///   struct_form[0] = fact  — the matched fact (a `wat::core::Record`)
-///   struct_form[1] = PM    — the bindings
+/// Named fields `fact` / `bindings` (`ELEMENT_FIELDS`).
 pub(crate) fn value_to_element(
     el: &Value,
     intern: &mut BindIntern<'_>,
@@ -482,25 +618,33 @@ pub(crate) fn value_to_element(
     n_input: u32,
 ) -> Result<Element, EvalBreak> {
     const OP: &str = ":wat::rete::to_transient (alpha decode)";
-    let struct_form = match el {
-        Value::Aggregate(a) if a.nature != Nature::Struct => a.fields.as_slice(),
-        other => {
-            return Err(RuntimeError::new(
-                crate::rust_caller_span!(),
-                RuntimeErrorKind::TypeMismatch {
-                    op: OP.into(),
-                    expected: ":wat::rete::Element (a wat::core::Record)",
-                    got: Box::new(ValueSnapshot::of(other)),
-                },
-            )
-            .into())
-        }
+    let Some(fact_v) = agg_named_field(el, "fact") else {
+        return Err(RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: ":wat::rete::Element with named fact field",
+                got: Box::new(ValueSnapshot::of(el)),
+            },
+        )
+        .into());
+    };
+    let Some(bindings_v) = agg_named_field(el, "bindings") else {
+        return Err(RuntimeError::new(
+            crate::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: OP.into(),
+                expected: ":wat::rete::Element with named bindings field",
+                got: Box::new(ValueSnapshot::of(el)),
+            },
+        )
+        .into());
     };
     let fact_idx = n_input + derived.len() as u32;
-    derived.push(struct_form[0].clone());
+    derived.push(fact_v.clone());
     // Value-boundary decode: PM -> array. One-time per element at session decode (to_transient),
     // not the matcher's hot read path — see DESIGN-STONE-element-bindings-array read-order §3.
-    let bindings = match &struct_form[1] {
+    let bindings = match bindings_v {
         Value::wat__core__PersistentMap(m) => m
             .iter()
             .map(|(k, v)| (k.clone(), v.clone()))
@@ -517,19 +661,12 @@ pub(crate) fn value_to_element(
             .into())
         }
     };
-    Ok(push_element(
-        intern.keys,
-        intern.vals,
-        intern.ids,
-        intern.pool,
-        fact_idx,
-        bindings,
-    ))
+    Ok(push_element(intern, fact_idx, bindings))
 }
 
 /// Encode a native `Element` → Value Element Record (lossless round-trip with `value_to_element`).
 ///
-/// Produces the same shape `make_element` (pre-nativise) did: `struct_form = [fact, PM bindings]`.
+/// Named fields `fact` / `bindings` in `ELEMENT_FIELDS` order.
 /// Value-boundary encode: array -> PM. One-time per element at session encode (to_persistent) —
 /// the wat contract still needs a `PersistentMap`, so this walks the array and builds one
 /// (DESIGN-STONE-element-bindings-array read-order §3); it is not the matcher's hot read path.
@@ -594,7 +731,7 @@ pub(crate) fn pm_to_alpha(
                         .into())
                     }
                 };
-                out.insert(node_id, elements);
+                out.insert(node_id, Arc::from(elements));
             }
             Ok(out)
         }
@@ -614,8 +751,8 @@ pub(crate) fn pm_to_alpha(
 pub(crate) fn alpha_to_pm(alpha: AlphaMemory, view: &EncodeView<'_>) -> Value {
     let mut pm: rpds::HashTrieMapSync<Value, Value> = rpds::HashTrieMapSync::new_sync();
     for (node_id, elements) in alpha {
-        let mut pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
-        for el in elements {
+        let mut pv: crate::value::pvec::PVec = crate::value::pvec::PVec::new();
+        for el in elements.iter().copied() {
             pv.push_back_mut(native_element_to_value(el, view));
         }
         pm.insert_mut(Value::i64(node_id), Value::wat__core__PersistentVector(pv));
@@ -628,17 +765,31 @@ pub(crate) fn alpha_to_pm(alpha: AlphaMemory, view: &EncodeView<'_>) -> Value {
 
 /// Convert a frozen `:wat::rete::Session` `Value` into a mutable `FireSession`.
 ///
-/// Reads `struct_form` positions 0..7 in declaration order:
-/// `network, rules, alpha-memory, beta-memory, production-memory, facts, next-id, query-memory`.
+/// Reads fields by declaration name (`session_named_field`), same overlay as insert.
 ///
 /// Returns `RuntimeError::TypeMismatch` if:
 /// - the value is not a `Value::Aggregate` record with `class == "wat::rete::Session"`,
+/// - a required named field is missing,
 /// - any of the memory fields is not a `Value::wat__core__PersistentMap`,
 /// - any memory key is not `Value::i64`, or
 /// - any memory value is not a `Value::wat__core__PersistentVector`.
 ///
-/// Never panics.
+/// Never panics: malformed Token/Element records and short match tuples
+/// return `TypeMismatch` (length-checked in `value_token_to_native` /
+/// `value_to_element`).
+#[cfg(test)]
 pub(crate) fn to_transient(session: &Value) -> Result<FireSession, EvalBreak> {
+    to_transient_inner(session, true)
+}
+
+/// Fire-entry decode: network / rules / facts / next-id. Native fire never
+/// reads frozen memories (clears them immediately); full `to_transient`
+/// stays the lossless round-trip door for tests.
+pub(crate) fn to_transient_for_fire(session: &Value) -> Result<FireSession, EvalBreak> {
+    to_transient_inner(session, false)
+}
+
+fn to_transient_inner(session: &Value, decode_memories: bool) -> Result<FireSession, EvalBreak> {
     const OP: &str = ":wat::rete::to_transient";
     let agg = match session {
         Value::Aggregate(a) if a.nature != Nature::Struct => a,
@@ -665,16 +816,26 @@ pub(crate) fn to_transient(session: &Value) -> Result<FireSession, EvalBreak> {
         )
         .into());
     }
-    let sf = agg.fields.as_slice();
-    // Declaration order: network(0) rules(1) alpha-memory(2) beta-memory(3)
-    //                    production-memory(4) facts(5) next-id(6) query-memory(7)
-    let network = sf[0].clone();
-    let rules = sf[1].clone();
-    let alpha_pm = &sf[2];
-    let beta_pm = &sf[3];
-    let prod_pm = &sf[4];
-    let facts = sf[5].clone();
-    let next_id = match &sf[6] {
+    let require = |name: &'static str| -> Result<&Value, EvalBreak> {
+        session_named_field(session, name).ok_or_else(|| {
+            RuntimeError::new(
+                crate::rust_caller_span!(),
+                RuntimeErrorKind::TypeMismatch {
+                    op: OP.into(),
+                    expected: name,
+                    got: Box::new(ValueSnapshot::of(session)),
+                },
+            )
+            .into()
+        })
+    };
+    let network = require("network")?.clone();
+    let rules = require("rules")?.clone();
+    let alpha_pm = require("alpha-memory")?;
+    let beta_pm = require("beta-memory")?;
+    let prod_pm = require("production-memory")?;
+    let facts = require("facts")?.clone();
+    let next_id = match require("next-id")? {
         Value::i64(n) => *n,
         other => {
             return Err(RuntimeError::new(
@@ -699,26 +860,36 @@ pub(crate) fn to_transient(session: &Value) -> Result<FireSession, EvalBreak> {
         _ => 0,
     };
     let mut derived_facts = Vec::new();
-    let mut intern = BindIntern {
-        keys: &mut bind_keys,
-        vals: &mut bind_vals,
-        ids: &mut bind_val_ids,
-        pool: &mut bind_pool,
-    };
-    let alpha = pm_to_alpha(OP, alpha_pm, &mut intern, &mut derived_facts, n_input)?;
-    let beta = pm_to_beta(
-        OP,
-        beta_pm,
-        &mut intern,
-        &mut match_pool,
-        &mut derived_facts,
-        n_input,
-    )?;
-    let production = pm_to_hashmap(OP, prod_pm)?;
-    let query = if sf.len() > 7 {
-        pm_to_query_memory(OP, &sf[7])?
+    let (alpha, beta, production, query) = if decode_memories {
+        let mut intern = BindIntern {
+            keys: &mut bind_keys,
+            vals: &mut bind_vals,
+            ids: &mut bind_val_ids,
+            pool: &mut bind_pool,
+        };
+        let alpha = pm_to_alpha(OP, alpha_pm, &mut intern, &mut derived_facts, n_input)?;
+        let beta = pm_to_beta(
+            OP,
+            beta_pm,
+            &mut intern,
+            &mut match_pool,
+            &mut derived_facts,
+            n_input,
+        )?;
+        let production = pm_to_production(OP, prod_pm)?;
+        let query = match session_named_field(session, "query-memory") {
+            Some(q) => pm_to_query_memory(OP, q)?,
+            None => HashMap::new(),
+        };
+        (alpha, beta, production, query)
     } else {
-        HashMap::new()
+        let _ = (alpha_pm, beta_pm, prod_pm);
+        (
+            FxHashMap::default(),
+            HashMap::new(),
+            HashMap::new(),
+            HashMap::new(),
+        )
     };
 
     Ok(FireSession {
@@ -737,13 +908,14 @@ pub(crate) fn to_transient(session: &Value) -> Result<FireSession, EvalBreak> {
         n_input,
         derived_facts,
         match_pool,
+        i64_by_fact: Vec::new(),
+        bind_only: HashMap::new(),
+        cond_key_ids: HashMap::new(),
+        input_has_scan_class: false,
     })
 }
 
-pub(crate) fn pm_to_query_memory(
-    op: &'static str,
-    pm: &Value,
-) -> Result<QueryMemory, EvalBreak> {
+pub(crate) fn pm_to_query_memory(op: &'static str, pm: &Value) -> Result<QueryMemory, EvalBreak> {
     match pm {
         Value::wat__core__PersistentMap(m) => {
             let mut out: QueryMemory = HashMap::new();
@@ -813,13 +985,13 @@ pub(crate) fn pm_to_query_memory(
 
 pub(crate) fn query_memory_to_pm(query: QueryMemory) -> Value {
     let pairs = query.into_iter().map(|(name, maps)| {
-        let mut pv = rpds::VectorSync::new_sync();
-        for m in maps {
-            pv.push_back_mut(Value::wat__core__PersistentMap(m));
-        }
+        let items: Vec<Value> = maps
+            .into_iter()
+            .map(Value::wat__core__PersistentMap)
+            .collect();
         (
             Value::String(Arc::new(name)),
-            Value::wat__core__PersistentVector(pv),
+            Value::wat__core__PersistentVector(crate::value::pvec::PVec::from_vec(items)),
         )
     });
     Value::wat__core__PersistentMap(crate::value::pmap::PMap::from_pairs(pairs))
@@ -828,8 +1000,8 @@ pub(crate) fn query_memory_to_pm(query: QueryMemory) -> Value {
 /// Convert a `FireSession` back into a frozen `:wat::rete::Session` `Value`.
 ///
 /// Rebuilds each memory map into a `PersistentMap`, then constructs a
-/// `Value::Aggregate` record with `struct_form` in declaration order:
-/// `[network, rules, alpha-memory, beta-memory, production-memory, facts, next-id, query-memory]`.
+/// `Value::Aggregate` record with named fields in `SESSION_FIELDS` order:
+/// `network`, `rules`, `alpha-memory`, `beta-memory`, `production-memory`, `facts`, `next-id`, `query-memory`.
 ///
 /// An empty memory map → an empty `PersistentMap` (never `nil`; the field is always present).
 pub(crate) fn to_persistent(wm: FireSession) -> Value {
@@ -853,8 +1025,11 @@ pub(crate) fn to_persistent(wm: FireSession) -> Value {
     let beta_pm = beta_to_pm(wm.beta, &view);
     phase_end("  ├ out:beta", __ob);
     let __op = phase_start();
-    let prod_pm = hashmap_to_pm(wm.production);
-    phase_end("  └ out:production", __op);
+    let prod_pm = production_to_pm(wm.production);
+    phase_end("  ├ out:production", __op);
+    let __oq = phase_start();
+    let query_pm = query_memory_to_pm(wm.query);
+    phase_end("  └ out:query", __oq);
 
     Value::Aggregate(Arc::new(AggregateValue::record(
         "wat::rete::Session".into(),
@@ -867,7 +1042,7 @@ pub(crate) fn to_persistent(wm: FireSession) -> Value {
             prod_pm,
             wm.facts,
             Value::i64(wm.next_id),
-            query_memory_to_pm(wm.query),
+            query_pm,
         ]),
     )))
 }
@@ -875,159 +1050,104 @@ pub(crate) fn to_persistent(wm: FireSession) -> Value {
 ::wat_source_derive::wat_field_names_from!(SESSION_FIELDS, "wat/rete.wat", ":wat::rete::Session");
 ::wat_source_derive::wat_field_names_from!(RULE_FIELDS, "wat/rete.wat", ":wat::rete::Rule");
 pub(crate) fn session_names() -> FieldNames {
-    static N: OnceLock<Arc<Vec<String>>> = OnceLock::new();
+    static N: OnceLock<FieldNames> = OnceLock::new();
     N.get_or_init(|| crate::value::value::names_arc_from_static(SESSION_FIELDS))
         .clone()
 }
 
-// ─── Fire kernel (P2) — four-pass native fire-once ───────────────────────────
-
-// ── Node-kind helpers ─────────────────────────────────────────────────────────
-
-/// Extract the last `::` segment from a class FQDN string.
-/// Mirrors `node-kind-label` (`wat/rete.wat`).
-/// "wat::rete::AlphaNode" → "AlphaNode".
-pub(crate) fn node_kind_label(class_fqdn: &str) -> &str {
-    wat_reader::identifier::leaf(class_fqdn)
-}
-
-/// Read the `class_fqdn` and `struct_form` from a node record Value.
-/// Returns `None` for non-record values (should never happen in a well-formed network).
-pub(crate) fn node_record(node: &Value) -> Option<(&str, &[Value])> {
-    match node {
+/// Read a named field off a record Aggregate (Session overlay and node overlay).
+pub(crate) fn agg_named_field<'a>(v: &'a Value, name: &str) -> Option<&'a Value> {
+    match v {
         Value::Aggregate(a) if a.nature != Nature::Struct => {
-            Some((a.class.as_ref(), a.fields.as_slice()))
+            let i = a.names.iter().position(|n| n == name)?;
+            a.fields.get(i)
         }
         _ => None,
     }
 }
 
-/// Return the node kind label (last `::` segment of the class FQDN).
-/// Closed set: Alpha / RootJoin / HashJoin / Test / Negation / Exists /
-/// Accumulate / Production / Query. Panics on a malformed node.
-pub(crate) fn kind_of(node: &Value) -> &str {
-    let (fqdn, _) = node_record(node).expect("kind_of: node must be a Record");
-    node_kind_label(fqdn)
+/// Read a Session field by declaration name (`DESIGN-STONE-insert-facts-from-names`).
+pub(crate) fn session_named_field<'a>(session: &'a Value, name: &str) -> Option<&'a Value> {
+    agg_named_field(session, name)
 }
 
-/// Read the children PV (a `Value::wat__core__PersistentVector<i64>`) from a node.
-/// Mirrors `node-children-ids` (`wat/rete.wat`).
-/// Children field by kind: Alpha/Test/Negation/Exists at `[2]`, RootJoin/HashJoin
-/// at `[1]`, Accumulate at `[4]`. Production / Query → empty (leaves).
-pub(crate) fn node_children(node: &Value) -> Vec<i64> {
-    let (fqdn, sf) = match node_record(node) {
-        Some(x) => x,
-        None => return vec![],
-    };
-    let kind = node_kind_label(fqdn);
-    let pv = match kind {
-        "AlphaNode" => &sf[2],    // AlphaNode: id(0), tests(1), children(2)
-        "RootJoinNode" => &sf[1], // RootJoinNode: id(0), children(1), binding-keys(2)
-        "HashJoinNode" => &sf[1], // HashJoinNode: id(0), children(1), binding-keys(2)
-        "TestNode" => &sf[2],     // TestNode:      id(0), expr(1), children(2)
-        "NegationNode" => &sf[2], // NegationNode:  id(0), negated-alpha-id(1), children(2)
-        "ExistsNode" => &sf[2],   // ExistsNode:    id(0), exists-alpha-id(1), children(2)
-        // AccumulateNode: id(0), result-var(1), acc-form(2), from-alpha-id(3), children(4)
-        "AccumulateNode" => &sf[4],
-        _ => return vec![], // ProductionNode / QueryNode: no children
-    };
-    match pv {
-        Value::wat__core__PersistentVector(v) => v
+pub(crate) fn session_facts(session: &Value) -> Value {
+    session_named_field(session, "facts")
+        .cloned()
+        .unwrap_or_else(|| Value::wat__core__PersistentVector(crate::value::pvec::PVec::new()))
+}
+
+pub(crate) fn session_network(session: &Value) -> Option<&Value> {
+    session_named_field(session, "network")
+}
+
+pub(crate) fn rule_named_field<'a>(rule: &'a Value, name: &str) -> Option<&'a Value> {
+    agg_named_field(rule, name)
+}
+
+pub(crate) fn rule_name_of(rule: &Value) -> Option<String> {
+    match rule_named_field(rule, "name") {
+        Some(Value::String(s)) => Some((**s).clone()),
+        _ => None,
+    }
+}
+
+pub(crate) fn rule_asts_field(rule: &Value, name: &str) -> Vec<WatAST> {
+    match rule_named_field(rule, name) {
+        Some(Value::wat__core__PersistentVector(pv)) => pv
             .iter()
-            .filter_map(|x| {
-                if let Value::i64(n) = x {
-                    Some(*n)
-                } else {
-                    None
-                }
+            .filter_map(|x| match x {
+                Value::wat__WatAST(ast) => Some((**ast).clone()),
+                _ => None,
             })
             .collect(),
         _ => vec![],
     }
 }
 
-/// Rebuild `node`'s own `children` field as a de-duplicated (first-seen order), `keep`-
-/// filtered `PersistentVector<i64>` — every other field cloned as-is. `ProductionNode` (and
-/// any unrecognized kind) has no children field and passes through unchanged.
-///
-/// Used ONLY by `fire_rules_stratified`'s per-stratum network slice (P9): the wat compiler
-/// (`find-or-mint-alpha`/`find-or-mint-root-join`, `wat/rete/compile.wat`) dedups the NODE when two
-/// rules share an identical condition, but the wiring call (`network-add-child`) that follows
-/// is unconditional — so a shared Alpha/RootJoin ends up with one literal duplicate `children`
-/// entry PER RULE sharing that condition (the doc-commented `wat/rete/compile.wat`
-/// shared-alpha hazard). Reusing that one already-compiled network across every stratum (no
-/// recompile) would otherwise replay each token once per duplicate entry — never a WRONG
-/// final fact (production still dedups by value) but a real N× per-round blow-up. This
-/// rewrites only the SLICE's copy of the field; the session's own `network` Value is never
-/// mutated.
-pub(crate) fn dedupe_filter_children(node: &Value, keep: &std::collections::HashSet<i64>) -> Value {
-    let (fqdn, sf) = match node_record(node) {
-        Some(x) => x,
-        None => return node.clone(),
-    };
-    let child_idx = match node_kind_label(fqdn) {
-        "AlphaNode" => 2,
-        "RootJoinNode" | "HashJoinNode" => 1,
-        "TestNode" | "NegationNode" | "ExistsNode" => 2,
-        "AccumulateNode" => 4,
-        _ => return node.clone(), // ProductionNode / unrecognized: no children field
-    };
-    let old_pv = match sf.get(child_idx) {
-        Some(Value::wat__core__PersistentVector(v)) => v,
-        _ => return node.clone(),
-    };
-    let mut seen_ids: std::collections::HashSet<i64> = std::collections::HashSet::new();
-    let mut new_pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
-    for c in old_pv.iter() {
-        if let Value::i64(cid) = c {
-            if keep.contains(cid) && seen_ids.insert(*cid) {
-                new_pv.push_back_mut(Value::i64(*cid));
+pub(crate) fn session_rules(session: &Value) -> Value {
+    session_named_field(session, "rules")
+        .cloned()
+        .unwrap_or_else(|| Value::wat__core__PersistentVector(crate::value::pvec::PVec::new()))
+}
+
+/// Overlay named fields onto a Session Value. Unmentioned fields carry through.
+pub(crate) fn session_with_fields(session: &Value, pairs: &[(&str, Value)]) -> Value {
+    match session {
+        Value::Aggregate(a) if a.nature != Nature::Struct => {
+            let mut fields = a.fields.as_slice().to_vec();
+            for (name, v) in pairs {
+                if let Some(i) = a.names.iter().position(|n| n == *name) {
+                    if i < fields.len() {
+                        fields[i] = v.clone();
+                    }
+                }
             }
+            Value::Aggregate(Arc::new(AggregateValue::record_arc(
+                a.class.clone(),
+                a.names.clone(),
+                Arc::new(fields),
+            )))
         }
-    }
-    let mut new_fields = sf.to_vec();
-    new_fields[child_idx] = Value::wat__core__PersistentVector(new_pv);
-    match node {
-        Value::Aggregate(a) => Value::Aggregate(Arc::new(AggregateValue::record_arc(
-            a.class.clone(),
-            a.names.clone(),
-            Arc::new(new_fields),
-        ))),
         other => other.clone(),
     }
 }
 
-/// Get all node ids from a network PersistentMap, sorted ascending.
-/// The alpha/root-join/hash-join passes require ascending id order (topological).
-pub(crate) fn sorted_node_ids(network: &Value) -> Vec<i64> {
-    let mut ids: Vec<i64> = match network {
-        Value::wat__core__PersistentMap(m) => m
-            .keys()
-            .into_iter()
-            .filter_map(|k| if let Value::i64(n) = k { Some(n) } else { None })
-            .collect(),
-        _ => vec![],
-    };
-    ids.sort_unstable();
-    ids
+pub(crate) fn session_with_facts(fired: &Value, new_facts: Value) -> Value {
+    session_with_fields(fired, &[("facts", new_facts)])
 }
 
-/// Look up a node by id from the network PersistentMap.
-pub(crate) fn get_node(network: &Value, node_id: i64) -> Option<&Value> {
-    match network {
-        Value::wat__core__PersistentMap(m) => m.get(&Value::i64(node_id)),
-        _ => None,
-    }
-}
+// ─── Fire kernel (P2) — four-pass native fire-once ───────────────────────────
 
 // ── Element / Token builders ──────────────────────────────────────────────────
 
 // Group A: constant-string Arcs — hoisted to module-level statics (pointer bump vs alloc per call).
-static ELEMENT_CLASS_FQDN: OnceLock<Arc<String>> = OnceLock::new();
-static TOKEN_CLASS_FQDN: OnceLock<Arc<String>> = OnceLock::new();
+type ClassFqdn = Arc<String>;
+static ELEMENT_CLASS_FQDN: OnceLock<ClassFqdn> = OnceLock::new();
+static TOKEN_CLASS_FQDN: OnceLock<ClassFqdn> = OnceLock::new();
 // P12a — explain substrate.
-static SUPPORT_CLASS_FQDN: OnceLock<Arc<String>> = OnceLock::new();
-static EXPLAINED_CLASS_FQDN: OnceLock<Arc<String>> = OnceLock::new();
+static SUPPORT_CLASS_FQDN: OnceLock<ClassFqdn> = OnceLock::new();
+static EXPLAINED_CLASS_FQDN: OnceLock<ClassFqdn> = OnceLock::new();
 
 #[inline]
 pub(crate) fn element_class_fqdn() -> Arc<String> {
@@ -1071,22 +1191,22 @@ pub(crate) fn explained_class_fqdn() -> Arc<String> {
 );
 
 pub(crate) fn token_names() -> FieldNames {
-    static N: OnceLock<Arc<Vec<String>>> = OnceLock::new();
+    static N: OnceLock<FieldNames> = OnceLock::new();
     N.get_or_init(|| crate::value::value::names_arc_from_static(TOKEN_FIELDS))
         .clone()
 }
 pub(crate) fn element_names() -> FieldNames {
-    static N: OnceLock<Arc<Vec<String>>> = OnceLock::new();
+    static N: OnceLock<FieldNames> = OnceLock::new();
     N.get_or_init(|| crate::value::value::names_arc_from_static(ELEMENT_FIELDS))
         .clone()
 }
 pub(crate) fn support_names() -> FieldNames {
-    static N: OnceLock<Arc<Vec<String>>> = OnceLock::new();
+    static N: OnceLock<FieldNames> = OnceLock::new();
     N.get_or_init(|| crate::value::value::names_arc_from_static(SUPPORT_FIELDS))
         .clone()
 }
 pub(crate) fn explained_names() -> FieldNames {
-    static N: OnceLock<Arc<Vec<String>>> = OnceLock::new();
+    static N: OnceLock<FieldNames> = OnceLock::new();
     N.get_or_init(|| crate::value::value::names_arc_from_static(EXPLAINED_FIELDS))
         .clone()
 }
@@ -1096,14 +1216,11 @@ pub(crate) fn explained_names() -> FieldNames {
 /// lives in `native_element_to_value`, the encoder called at the one boundary — `to_persistent`
 /// — where an Element must actually become a Value.)
 pub(crate) fn push_element(
-    keys: &mut Vec<Value>,
-    vals: &mut Vec<Value>,
-    ids: &mut crate::rete::compiled_cond::ValIntern,
-    pool: &mut Vec<(u32, u32)>,
+    intern: &mut BindIntern<'_>,
     fact: u32,
     pairs: impl IntoIterator<Item = (Value, Value)>,
 ) -> Element {
-    let binds = span_from_pairs(keys, vals, ids, pool, pairs);
+    let binds = span_from_pairs(intern, pairs);
     Element { fact, binds }
 }
 
@@ -1117,12 +1234,7 @@ pub(crate) fn make_element(fact: u32, off: u32, len: u16) -> Element {
 /// Intern a bind-variable key into the fire-scoped `bind_keys` table.
 /// Returns the existing id on HIT; clones `k` once on MISS.
 pub(crate) fn intern_key(keys: &mut Vec<Value>, k: &Value) -> u32 {
-    if let Some(i) = keys.iter().position(|x| x == k) {
-        return i as u32;
-    }
-    let i = keys.len() as u32;
-    keys.push(k.clone());
-    i
+    crate::rete::compiled_cond::intern_key(keys, k)
 }
 
 pub(crate) fn intern_val(
@@ -1155,28 +1267,33 @@ pub(crate) fn element_fact_bindings<'a>(
     bind_view(keys, vals, pool, el.binds)
 }
 
+// rune:struere(invariant-coupling) — well-formed fire: BindSpan is in-range in
+// this pool (off+len ≤ len). Option would force every walk to invent a miss.
+// Lifetime is BindSpan's rune (must not outlive the pool); this is the in-range half.
 pub(crate) fn pool_slice(pool: &[(u32, u32)], span: BindSpan) -> &[(u32, u32)] {
     let o = span.off as usize;
     &pool[o..o + span.len as usize]
 }
 
 pub(crate) fn span_from_pairs(
-    keys: &mut Vec<Value>,
-    vals: &mut Vec<Value>,
-    ids: &mut crate::rete::compiled_cond::ValIntern,
-    pool: &mut Vec<(u32, u32)>,
+    intern: &mut BindIntern<'_>,
     pairs: impl IntoIterator<Item = (Value, Value)>,
 ) -> BindSpan {
-    let off = pool.len();
+    let off = intern.pool.len();
     for (k, v) in pairs {
-        pool.push((intern_key(keys, &k), intern_val(vals, ids, v)));
+        intern.pool.push((
+            intern_key(intern.keys, &k),
+            intern_val(intern.vals, intern.ids, v),
+        ));
     }
     BindSpan {
         off: off as u32,
-        len: (pool.len() - off) as u16,
+        len: (intern.pool.len() - off) as u16,
     }
 }
 
+// rune:struere(invariant-coupling) — well-formed fire: match BindSpan is in-range
+// in this pool. Same warrant as `pool_slice`.
 pub(crate) fn match_slice(pool: &[(u32, i64)], span: BindSpan) -> &[(u32, i64)] {
     let o = span.off as usize;
     &pool[o..o + span.len as usize]
@@ -1203,39 +1320,4 @@ pub(crate) fn pmap_from_span(
             .iter()
             .map(|(k, v)| (k.clone(), v.clone())),
     )
-}
-
-pub(crate) fn cond_text(cond: &WatAST) -> String {
-    wat_edn::write(&crate::wat_edn_bridge::watast_to_edn(cond))
-}
-
-pub(crate) fn alpha_id_for_cond(network: &Value, cond: &WatAST) -> Option<i64> {
-    let want = cond_text(cond);
-    for node_id in sorted_node_ids(network) {
-        let Some(node) = get_node(network, node_id) else {
-            continue;
-        };
-        if kind_of(node) != "AlphaNode" {
-            continue;
-        }
-        let Some(stored) = alpha_cond_of(network, node_id) else {
-            continue;
-        };
-        if cond_text(&stored) == want {
-            return Some(node_id);
-        }
-    }
-    None
-}
-
-pub(crate) fn alpha_cond_of(network: &Value, alpha_id: i64) -> Option<WatAST> {
-    let node = get_node(network, alpha_id)?;
-    let (_, sf) = node_record(node)?;
-    match &sf[1] {
-        Value::wat__core__PersistentVector(pv) => match pv.first() {
-            Some(Value::wat__WatAST(ast)) => Some((**ast).clone()),
-            _ => None,
-        },
-        _ => None,
-    }
 }

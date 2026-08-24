@@ -123,7 +123,7 @@
       ;; (Vector :- [i64]), build the call `(user-fn (:wat::core::PersistentVector v0 v1 …))`
       ;; via quasiquote (~acc-hd splices the head; ~@vals splices the literal values into a
       ;; PV constructor), then eval-ast! it. The result (any Value) assocs into the binding.
-      ;; The compile fence (compile-condition) has already proven the fn is pure∧det.
+      ;; The compile fence (compile-condition) has already proven the fn is pure∧det∧total∧rete.
       (:else
        (:wat::core::let [var  (:wat::core::ast-name
                                 (:wat::core::Option/expect  

@@ -10,10 +10,10 @@
 ;; `:then` value-position operand to admit a fenced EXPRESSION (a call form) — so a nested
 ;; form like `(:wat::core::+ ?a 1)` is no longer categorically illegal here; this Rust-side
 ;; wall (`validate_and_reorder_then`) now defers a call-form operand to the wat-side fence
-;; (`then-item-fence`, `wat/rete.wat`), which judges it on purity/determinism/composition, not
+;; (`then-item-fence`, `wat/rete/compile.wat`), which judges it on purity/determinism/composition, not
 ;; shape. What this wall STILL catches — because it can never resolve under ANY fence, at ANY
 ;; layer — is a bare non-`?` symbol: not a literal, not a `?var`, not a call. See
-;; `probe_arc278_then_user_forms_expr_widening.wat` for the now-legal nested-form sibling of
+;; `probe_arc278_then_user_forms_expr.wat` for the now-legal nested-form sibling of
 ;; this fixture.
 (:wat::core::defrecord :nf::In  [a <- :wat::core::i64])
 (:wat::core::defrecord :nf::Out [a <- :wat::core::i64])

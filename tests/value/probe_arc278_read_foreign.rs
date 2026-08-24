@@ -35,6 +35,30 @@ fn read_foreign_reconstructs_nested_foreign_variant() {
     );
 }
 
+/// `ForeignRecord/get` of an absent key is `None`, never a raise — HashMap/get's contract.
+#[test]
+fn foreign_record_get_miss_is_none() {
+    let v = call_beside_value(file!(), ":my::missing-field-is-none")
+        .expect("missing-field get should return bool, not raise");
+    assert_eq!(
+        v,
+        Value::bool(true),
+        "ForeignRecord/get of an absent key must be None"
+    );
+}
+
+/// Junk EDN is `:Malformed`, never a raise — `read-json`'s contract. Totality.
+#[test]
+fn read_foreign_malformed_does_not_raise() {
+    let v = call_beside_value(file!(), ":my::malformed-is-malformed")
+        .expect("malformed EDN must return ReadForeignOutcome::Malformed, not raise");
+    assert_eq!(
+        v,
+        Value::bool(true),
+        "read-foreign of junk must be :Malformed"
+    );
+}
+
 /// (2) STRICT read on the SAME input STILL raises — the no-hidden-failures floor held (R41).
 /// `expect_err` proves it raised (did not silently decode); the `matches!` pins it to the
 /// read verb's malformed-form raise (exact kind, not a loose message substring).

@@ -70,6 +70,16 @@
                     :index "by-v" :ipk "u#1" :isk-lo "v1" :isk-hi "v2" :limit 10 :cursor :wat::core::None)))]
     (:probe::RunResult :page1 page1 :page2 page2 :page3 page3 :ipage ipage)))
 
+(:wat::test::deftest :user::run-ops-on-mem-store
+  (:wat::core::let
+    [h         (:wat::query::mem-store/start :locus (:wat::spawn::thread)
+                 :record (:wat::query::mem-store::Record (:wat::core::PersistentVector)))
+     mem-store (:wat::core::match (:wat::kernel::connect (:wat::query::mem-store::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
+     result    (:probe::run-ops mem-store)]
+    (:wat::test::assert-eq (:wat::core::count (:wat::query::Page/rows (:probe::RunResult/page1 result))) 2)
+    (:wat::test::assert-eq (:wat::query::Page/next-cursor (:probe::RunResult/page3 result)) :wat::core::None)
+    (:wat::test::assert-eq (:wat::core::count (:wat::query::IndexPage/rows (:probe::RunResult/ipage result))) 2)))
+
 (:wat::test::deftest :user::sqlite_store_differential 
   (:wat::core::let
     [h            (:wat::query::mem-store/start :locus (:wat::spawn::thread)

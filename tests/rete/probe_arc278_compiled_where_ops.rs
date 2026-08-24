@@ -7,8 +7,8 @@
 //!   1. **A record accessor without an `Environment`.** The corpus's most common non-arithmetic
 //!      shape is `(:arena::Route/status ?route)`. Today that reaches `eval_inner`'s head dispatch,
 //!      misses user-fn lookup / def-bound / sandbox, and lands in the LAST arm — the
-//!      keyword-as-accessor fall-through (`runtime.rs:6053-6097`), which calls
-//!      `keyword_accessor_record` (`:6119`) and LINEAR-SCANS the field names. The compiled executor
+//!      keyword-as-accessor fall-through (LAST arm of `eval_inner`), which calls
+//!      `keyword_accessor_record` and LINEAR-SCANS the field names. The compiled executor
 //!      must reach that value with no `Environment` and no head dispatch. `keyword_accessor_record`
 //!      is a PRIVATE fn in `runtime.rs`, so this probe measures whether the value is reachable at
 //!      all from outside — and by what door.
@@ -42,9 +42,15 @@ use wat::runtime::Value;
 fn accessor_value_is_reachable_without_the_head_dispatch() {
     let via_accessor = call_beside_value(file!(), ":p::status-via-accessor")
         .expect("the accessor entry must evaluate");
+    assert_eq!(
+        via_accessor,
+        Value::i64(200),
+        "wat mouth :p::status-via-accessor must read Route.status; got {via_accessor:?}"
+    );
 
     let record =
         call_beside_value(file!(), ":p::the-record").expect("the record entry must evaluate");
+    // rune:vocare(vantage-bypass-test) — Op::Field index scout reads host Aggregate.fields / TypeEnv; not a wat caller surface
     let via_field_index = match &record {
         Value::Aggregate(a) => a.fields[0].clone(),
         other => panic!("expected a record aggregate, got {other:?}"),
@@ -62,6 +68,7 @@ fn accessor_value_is_reachable_without_the_head_dispatch() {
     // `field_names`); the stone resolves it ONCE. If the registry is not reachable this way, the
     // executor must carry the field NAME and scan — still cheaper than head dispatch, but a
     // different op.
+    // rune:vocare(vantage-bypass-test) — TypeEnv field-index scout is host layout, not a wat caller surface
     let world = startup_beside(file!()).expect("the fixture must freeze");
     let types = world.symbols.types().expect("the frozen world must carry a TypeEnv");
     let idx = match types.get(":p::Route") {

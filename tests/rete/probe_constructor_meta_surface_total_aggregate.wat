@@ -45,7 +45,7 @@
         "q-Outer: ?inner"))))
 
 ;; Fires via the NATIVE KERNEL — same rule, same expected value, through the compiled RHS path
-;; (`insert'`/`fire-rules'`) instead of the interpreted oracle.
+;; (`insert`/`fire-rules`) instead of the interpreted oracle.
 (:wat::core::defn :user::run-native [] -> :wat::core::i64
   (:wat::core::let
     [rules   (:wat::rete::collect-rules :cg)

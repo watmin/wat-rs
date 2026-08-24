@@ -1,13 +1,9 @@
-;; NEGATIVE FIXTURE — an UNTYPED inline alpha constraint using a generic ordering comparator.
+;; POSITIVE FIXTURE — per-type `i64::>` inline constraint. GREEN admit: compiles, fires, prunes.
 ;;
-;; `(:wat::rete::core::i64::> :value 10)` sits inside a fact pattern, where `classify_rete_clause`
-;; (matcher.rs:331) makes `Constraint` a sibling of `Bind`. `compile-condition` (wat/rete.wat:679)
-;; has no branch for it, so law A never sees it and this compiles + fires TODAY.
-;;
-;; Generic `>` routes through `compare_values`, whose `?` propagates the incomparable-operands
-;; error — the domain hole the per-type surface exists to delete.
-;;
-;; MUST BE ADMITTED, and must DISCRIMINATE (Oslo only, never Bergen).
+;; `(:wat::rete::core::i64::> :value 10)` sits inside a fact pattern.
+;; `classify_rete_clause` (`clause.rs:173`) names the per-type rete spelling;
+;; `compile-condition` (`wat/rete/compile.wat:364`) admits it. Discriminates
+;; Oslo only, never Bergen.
 ;; See DESIGN-STONE-inline-constraint-admits-non-rete.md.
 
 (:wat::core::defrecord :probe::Reading [location <- :wat::core::String  value <- :wat::core::i64])

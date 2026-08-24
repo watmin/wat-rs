@@ -19,7 +19,7 @@
 //! vector that way allocates ~4 nodes per element and throws 39,999 intermediate versions away
 //! unread.
 //!
-//! Measured on arc 278's fanout cell (`0416d1a5`): converting ONE function, `hashmap_to_pm`, took
+//! Measured on arc 278's fanout cell (`0416d1a5`): converting ONE function, `production_to_pm`, took
 //! `out:production` from **28.53 ms to 4.47 ms** and the whole fire from 105.76 to 85.82 ms.
 //!
 //! ## What this lint forbids — a SHAPE, not a function

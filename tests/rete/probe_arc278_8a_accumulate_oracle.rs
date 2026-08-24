@@ -1,11 +1,11 @@
-//! Arc 278 — Stone 8-a: the AccumulateNode in the ORACLE (`rete.wat` compile + fire).
-//! RED at HEAD (no AccumulateNode: compile-condition doesn't recognise `(?n <- (acc) :from cond)` → the
-//! rule never fires). GREEN when 8-a lands. Contract: DESIGN-STONE-8-accumulators.md (the 8-a bullet).
+//! Arc 278 stone 8-a — the AccumulateNode in the oracle (`fire-rules$oracle`).
+//! Dual-impl: the unprimed public Fn is native; `$oracle` is the spec mouth.
 //!
-//! Probed through the ORACLE (`fire-rules-spec`). An accumulate condition gathers the token-compatible
-//! `:from` facts (shared `?loc`), folds them (8-i), binds the result `?var`, extends the token. The exact
-//! bound value is checked via a `(where (= ?n N))` gate — count the survivors. Composition: the "minimum
-//! finding set to activate" = `(acc/count) :from …` + `(where (>= ?n N))`.
+//! An accumulate condition gathers the token-compatible `:from` facts (shared `?loc`), folds them (8-i),
+//! binds the result `?var`, extends the token. The exact bound value is checked via a `(where (= ?n N))`
+//! gate — count the survivors. Composition: the "minimum finding set to activate" =
+//! `(acc/count) :from …` + `(where (>= ?n N))`. Live mouths: `collect-rules`, `compile-all`, `insert`,
+//! `fire-rules$oracle`, `query`, `acc::count`, `acc::sum`.
 //!
 //! Run: cargo test --release -p wat --test probe_arc278_8a_accumulate_oracle
 

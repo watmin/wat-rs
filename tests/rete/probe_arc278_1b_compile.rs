@@ -1,4 +1,4 @@
-//! Arc 278 stone 1b — disconfirming probe: `compile` (rule-set → shared, CONNECTED network). RED at HEAD.
+//! Arc 278 stone 1b — `compile` (rule-set → shared, CONNECTED network).
 //!
 //! `(:wat::rete::compile rules)` walks each rule's conditions left-to-right and builds the network with NODE
 //! SHARING (the non-redundancy DAG) AND wires the child edges (alpha→join, parent→join, join→production).
@@ -6,15 +6,12 @@
 //!   (1) SHARING — two rules with an identical FIRST condition share its AlphaNode + RootJoinNode
 //!       (counts: 3 AlphaNode, 1 RootJoinNode, 2 HashJoinNode, 2 ProductionNode — not 4/2/2/2).
 //!   (2) THE CHAIN — `render-dag` emits each node's child edges, and the shared RootJoinNode has TWO children
-//!       (the divergence after the shared prefix). An edgeless node-set (the deferred-edges failure mode) shows
-//!       the RootJoinNode with `[]` and fails (2).
+//!       (the divergence after the shared prefix). An edgeless node-set shows the RootJoinNode with `[]` and fails (2).
 //!
-//! `render-dag` edge format (the contract this probe pins): one line per node —
+//! `render-dag` edge format: one line per node —
 //!     `  <id>  <kind> -> [<child-id> <child-id> ...]`
 //! children space-separated inside brackets; leaves (ProductionNode/QueryNode) render `-> []`.
-//!
-//! RED at HEAD: `:wat::rete::compile` is unknown (Rule/PersistentVector/quote/render-dag exist from 0/1a, so
-//! the failure isolates the missing `compile`). GREEN when 1b ships: sharing + wired edges.
+//! Live mouths: `compile`, `render-dag`, `Rule`.
 //!
 //! Run: cargo test --release -p wat --test probe_arc278_1b_compile -- --include-ignored
 

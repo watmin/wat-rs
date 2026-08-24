@@ -232,7 +232,7 @@
   [network   <- :wat::core::PersistentMap
    alpha-mem <- :wat::core::PersistentMap
    cond      <- :wat::WatAST]
-  -> (:wat::core::Option :- [(:wat::core::PersistentVector :- [:wat::rete::Element])])
+  -> (:wat::core::Option :- [(:wat::core::PersistentVector :- [:wat::rete::Element])])  ;; rune:perspicere(intentional-structure) — Option vs empty-PV is the no-alpha door
   (:wat::core::match (:wat::rete::alpha-id-for-cond network cond)
     ((:wat::core::Some id)
      (:wat::core::match (:wat::core::PersistentMap/get alpha-mem id)
@@ -786,9 +786,9 @@
 ;; Mirrors hash-join-pass as a fold step over node-ids; seeds with the existing production-memory.
 (:wat::core::defn :wat::rete::production-pass
   [network  <- :wat::core::PersistentMap
-   beta-mem <- (:wat::core::PersistentMap :- [:wat::core::i64 (:wat::core::PersistentVector :- [:wat::rete::Token])])
+   beta-mem <- :wat::core::PersistentMap
    rules    <- (:wat::core::PersistentVector :- [:wat::rete::Rule])
-   prod-mem <- (:wat::core::PersistentMap :- [:wat::core::i64 (:wat::core::PersistentVector :- [:wat::core::Record])])
+   prod-mem <- :wat::core::PersistentMap
    node-id  <- :wat::core::i64]
   -> (:wat::core::PersistentMap :- [:wat::core::i64 (:wat::core::PersistentVector :- [:wat::core::Record])])
   (:wat::core::let [node (:wat::core::Option/expect  

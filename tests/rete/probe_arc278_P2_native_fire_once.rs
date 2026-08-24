@@ -1,8 +1,8 @@
-//! Arc 278 stone P2 — disconfirming probe: the native Rust `fire-once'` is OBSERVATIONALLY EQUIVALENT to the
-//! wat oracle `fire-once`. RED at HEAD (`fire-once'` is UnknownFunction).
+//! Arc 278 stone P2 — native `fire-once` is observationally equivalent to `fire-once$oracle`.
+//! Dual-impl: the unprimed public Fn is native; `$oracle` is the spec mouth.
 //!
-//! The differential harness for the perf close: for every input session, the native single-pass fire produces
-//! the SAME derived facts as the wat oracle's single pass — `query(fire-once' s) == query(fire-once s)`. NOT
+//! For every input session, native single-pass fire produces the SAME derived facts as the
+//! wat oracle's single pass — `query(fire-once s) == query(fire-once$oracle s)`. NOT
 //! raw Session equality (P3 restructures the memories by design); the durable contract is the derived facts.
 //!
 //! Run: cargo test --release -p wat --test probe_arc278_P2_native_fire_once -- --include-ignored
@@ -18,10 +18,30 @@ fn call(fn_name: &str) -> Value {
 }
 
 #[test]
+fn compile_cw_fires_once_nothing() {
+    assert_eq!(call(":user::compile-cw-fires-once-nothing"), Value::i64(0), "compile+fire-once with no facts derives nothing");
+}
+
+#[test]
+fn staged_oslo_builds() {
+    let _ = call(":test::staged-oslo");
+}
+
+#[test]
+fn staged_bergen_builds() {
+    let _ = call(":test::staged-bergen");
+}
+
+#[test]
+fn staged_2x2_builds() {
+    let _ = call(":test::staged-2x2");
+}
+
+#[test]
 fn native_matches_wat_on_a_match() {
     let native = call(":user::count-native-oslo");
     let wat = call(":user::count-wat-oslo");
-    assert_eq!(native, wat, "native fire-once' must agree with wat fire-once (Oslo); native {native:?} vs wat {wat:?}");
+    assert_eq!(native, wat, "native fire-once must agree with fire-once$oracle (Oslo); native {native:?} vs wat {wat:?}");
     assert_eq!(native, Value::i64(1), "the match derives exactly one ColdAndWindy; got {native:?}");
 }
 

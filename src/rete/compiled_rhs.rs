@@ -3,7 +3,7 @@
 //!
 //! ## ⚠ Not a perf stone (mirrors `compiled_cond.rs`'s amendment)
 //!
-//! `build_insert_fact` (`matcher.rs`) re-derives its program from a `WatAST` on **every derived
+//! `build_insert_fact` (`eval_insert.rs`) re-derives its program from a `WatAST` on **every derived
 //! fact**: it re-validates the `(:Type arg…)` fact-form shape, re-detects
 //! kwargs-vs-positional, re-allocates the class `String`, and — via `resolve_operand` — rebuilds
 //! each `?var` lookup key with a fresh `Value::String(Arc::new(name.to_string()))`, a `String`
@@ -35,10 +35,10 @@
 //! Flip 4 (CURRENT-STATE): widening (b) is a compiled `Program` on the one
 //! `Expr` core — `lower` once at setup, `exec_value` per derived fact. The
 //! interpreter (`build_insert_fact` / `eval_rhs_expr`) remains the other half
-//! of the differential. A `LowerError` falls the whole form back to
-//! `build_insert_fact` (same door as a fn-headed item). Widening (a) (an
-//! item's head may be a fn) is still not represented — `compile_rhs` returns
-//! `None` for a fn-headed item (`BRIEF-then-user-forms.md` STOP-3).
+//! of the differential. A `LowerError` is a fire refuse (`into_eval`) — fire
+//! does not walk `build_insert_fact` on a failed lower. Widening (a) (an
+//! item's head may be a fn) is `CompiledRhs::Call` — `compile_rhs` lowers the
+//! whole form (`BRIEF-then-user-forms.md` STOP-3).
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -49,11 +49,11 @@ use crate::value::value::AggregateValue;
 use crate::runtime::Value;
 
 /// One resolved RHS field — a `?var` lookup (key pre-built once, at compile time), a bare
-/// literal (built once), or (arc 278 Stone B, widening (b)) a fenced call-form EXPRESSION
-/// captured once as `WatAST`, un-shape-detected again. Any value-position AST node that is none
+/// literal (built once), or (arc 278 Stone B, widening (b)) a fenced call-form compiled
+/// once as [`RhsOp::Expr`] (`Arc<Program>`). Any value-position AST node that is none
 /// of these (a bare non-`?` symbol, a `:field` keyword reference — RHS has no current fact — or a
-/// Vector/Map/Set literal) makes [`compile_rhs`] return `None` for the WHOLE form, falling back
-/// to `build_insert_fact` for that form rather than inventing a shape this stone does not claim.
+/// Vector/Map/Set literal) makes [`compile_rhs`] return `Ok(None)` for the WHOLE form —
+/// a setup refuse, not an interpreter walk.
 #[derive(Clone, Debug)]
 pub(crate) enum RhsOp {
     /// `?var` — the PRE-BUILT `Value::String` key, never rebuilt per fact. Execution does
@@ -62,7 +62,9 @@ pub(crate) enum RhsOp {
     /// The second field is the operand AST's debug rendering, built ONCE here so the unbound-var
     /// error this op can raise is **byte-identical** to `build_insert_fact`'s. That matters
     /// because the arm is REACHABLE: `--check` on a rule whose `:then` names a `?var` its `:when`
-    /// never binds exits 0 (`validate_and_reorder_then` validates the SHAPE — insert head, fact type, field names, positional arity — but never inspects the value-position OPERANDS, so an unbound `?var` and a nested form both pass), so the failure surfaces at fire time. A diagnostic that changes text
+    /// never binds exits 0 (`validate_then_form` / `reorder_then_kwargs` validate the SHAPE —
+    /// insert head, fact type, field names, positional arity — and walk nested constructors, but
+    /// still do not bind-check `?var`), so the failure surfaces at fire time. A diagnostic that changes text
     /// depending on which internal path happened to run is a difference the caller can see and
     /// cannot explain; the design's "same SHAPE of error" was too loose a contract, and this is
     /// the correction.
@@ -71,10 +73,10 @@ pub(crate) enum RhsOp {
     Lit(Value),
     /// Flip 4 — a value-position call form, lowered once onto the one `Expr` core.
     /// The freeze-time wat fence (`then-item-fence`) has already proven it pure ∧
-    /// deterministic and rete-namespaced-or-composed. `lower` failing returns
-    /// `None` for the whole form (same door as a fn-headed item): the fire path
-    /// falls back to `build_insert_fact`. Executed via `exec_value` — prologue
-    /// is token bindings → slots; the `Value` becomes the field.
+    /// deterministic ∧ total ∧ rete-primitive (declaration-derived constructors still
+    /// admitted via `head_ok`'s first door). `lower` failing is `Err` (fire refuse).
+    /// Executed via `exec_value` — prologue is token bindings → slots; the `Value`
+    /// becomes the field.
     Expr(Arc<crate::rete::expr_ir::Program>),
 }
 
@@ -107,20 +109,15 @@ pub(crate) type CompiledRhsByRule = HashMap<String, Vec<CompiledRhs>>;
 ///
 /// Arc 278 Stone B, widening (a) — takes `sym` now, SOLELY to defend against miscompiling a
 /// fn-call item: `head` must name a known aggregate type (`sym.types()`, the SAME registry
-/// `build_insert_fact` reads at fire time) or this returns `None` immediately, deferring the
-/// WHOLE item to `build_insert_fact`'s fn-call branch. Without this check, a fn-call item whose
-/// args happen to all be `?var`/literal (e.g. `(:usr::make-rate ?c ?w)`) would silently fall
-/// through the OLD per-arg loop below and be miscompiled as a 2-field record of class
-/// `"usr::make-rate"` — a wrong answer, not a raise. This stone's compiled fast path does not
-/// implement the fn-call shape (`BRIEF-then-user-forms.md` STOP-3: "report it rather than
-/// falling the whole form back to the interpreter silently" — reported here, in this doc comment
-/// and the rider's own report, not silently): every fn-headed `:then` item runs interpreted.
+/// `build_insert_fact` reads at fire time) or this returns `Ok(Some(CompiledRhs::Call))`
+/// after `lower`. Without this check, a fn-call item whose args happen to all be
+/// `?var`/literal (e.g. `(:usr::make-rate ?c ?w)`) would silently fall through the OLD
+/// per-arg loop below and be miscompiled as a 2-field record of class `"usr::make-rate"` —
+/// a wrong answer, not a raise. Fn-headed `:then` items are `CompiledRhs::Call`.
 ///
-/// Returns `Ok(None)` whenever `build_insert_fact` would either raise an error for this form (a
-/// static, compile-time-provable property — the fallback then raises the identical error at
-/// fire time) or contains a value-position node this stone's op model does not represent: a bare
-/// non-`?` symbol, a `:field` keyword reference, or a Vector/Map/Set literal. A fenced `List`
-/// that `lower` refuses is `Err` — the old form is gone; fire does not walk the WatAST.
+/// Returns `Ok(None)` for a value-position node this stone's op model does not represent: a
+/// bare non-`?` symbol, a `:field` keyword reference, or a Vector/Map/Set literal. A fenced
+/// `List` that `lower` refuses is `Err` — fire does not walk the WatAST.
 pub(crate) fn compile_rhs(
     fact_form: &WatAST,
     sym: &SymbolTable,
@@ -151,14 +148,7 @@ pub(crate) fn compile_rhs(
     // Arc 294 item 9a — kwargs `(:Type :field1 v1 :field2 v2)` vs legacy positional
     // `(:Type v1 v2)`, exactly `build_insert_fact`'s detection.
     let args = &fact_items[1..];
-    let is_kwargs = args.len() >= 2
-        && args.len() % 2 == 0
-        && args.iter().step_by(2).all(|a| matches!(a, WatAST::Keyword(_, _)));
-    let value_asts: Vec<&WatAST> = if is_kwargs {
-        args.iter().skip(1).step_by(2).collect()
-    } else {
-        args.iter().collect()
-    };
+    let value_asts = crate::rete::eval_insert::rete_kwargs_value_asts(args);
 
     let mut ops: Vec<RhsOp> = Vec::with_capacity(value_asts.len());
     for arg in value_asts {
@@ -170,24 +160,22 @@ pub(crate) fn compile_rhs(
                 // the two paths indistinguishable to a caller who hits the unbound-var case.
                 format!("{arg:?}"),
             ),
-            WatAST::IntLit(n, _) => RhsOp::Lit(Value::i64(*n)),
-            WatAST::FloatLit(x, _) => RhsOp::Lit(Value::f64(*x)),
-            WatAST::BoolLit(b, _) => RhsOp::Lit(Value::bool(*b)),
-            WatAST::StringLit(s, _) => RhsOp::Lit(Value::String(Arc::new(s.clone()))),
             // Flip 4 — a fenced call form MUST lower. A LowerError is a fire
             // refuse, not a walk of the WatAST. `None` below is only the
-            // unrepresentable shapes (fn-headed item, `:field`, Vector/Map/Set).
+            // unrepresentable shapes (`:field`, Vector/Map/Set, bare non-`?` symbol).
             WatAST::List(..) => {
                 let program = crate::rete::expr_ir::lower(arg, sym)
                     .map_err(crate::rete::expr_ir::LowerError::into_eval)?;
                 RhsOp::Expr(Arc::new(program))
             }
-            // A bare non-`?` symbol, a `:field` keyword (RHS has no current fact), or a
-            // Vector/Map/Set literal — `resolve_operand` would return `None` for these too, and
-            // this stone's op model does not represent them either: fall back to
-            // `build_insert_fact` for the WHOLE form, which raises the identical error at fire
-            // time rather than miscompiling it.
-            _ => return Ok(None),
+            other => match crate::rete::matcher::ast_literal_value(other) {
+                Some(v) => RhsOp::Lit(v),
+                // A bare non-`?` symbol, a `:field` keyword (RHS has no current fact), or a
+                // Vector/Map/Set literal — this stone's op model does not represent them.
+                // `Ok(None)` is a setup refuse (`rhs_must_compile`); native fire never walks
+                // `build_insert_fact` on this arm. The interpreter remains the differential only.
+                None => return Ok(None),
+            },
         };
         ops.push(op);
     }
@@ -202,8 +190,11 @@ pub(crate) fn compile_rhs(
 /// Raises a BYTE-IDENTICAL error to `build_insert_fact`'s when a `?var` this form references is
 /// not bound in `bindings` — the only failure mode a validly-compiled program can hit at fire
 /// time, and a REACHABLE one: `--check` on a rule whose `:then` names a `?var` its `:when` never
-/// binds exits 0 (`validate_and_reorder_then` validates the SHAPE — insert head, fact type, field names, positional arity — but never inspects the value-position OPERANDS, so an unbound `?var` and a nested form both pass), so this
-/// surfaces at fire time rather than at compile time. Never panics.
+/// binds exits 0 (`validate_then_form` / `reorder_then_kwargs` validate the SHAPE — insert head,
+/// fact type, field names, positional arity — and walk nested constructors, but still do not
+/// bind-check `?var`), so this
+/// surfaces at fire time rather than at compile time. Does not panic on a
+/// program Import has accepted (`slot < frame_len`); an OOB slot is MalformedForm.
 ///
 /// Flip 4 — `RhsOp::Expr` is a compiled `Program`. `sym` is still required
 /// (`CallUser` / accessors). The interpreter (`build_insert_fact`) remains
@@ -216,18 +207,20 @@ pub(crate) fn exec_compiled_rhs<B: crate::rete::matcher::Bindings + ?Sized>(
     const OP: &str = ":wat::rete::eval-insert";
     match c {
         CompiledRhs::Call(program) => {
-            match crate::rete::expr_ir::exec_value(program, bindings, sym, &program.span)? {
-                v @ Value::Aggregate(_) => Ok(v),
-                other => Err(RuntimeError::new(
+            let v = crate::rete::expr_ir::exec_value(program, bindings, sym, &program.span)?;
+            if crate::rete::matcher::is_record_fact(&v) {
+                Ok(v)
+            } else {
+                Err(RuntimeError::new(
                     program.span.clone(),
                     RuntimeErrorKind::TypeMismatch {
                         op: OP.into(),
-                        expected: "the fn to return a fact (a Record/Struct) — the rule-compile fence should \
+                        expected: "the fn to return a fact (a Record) — the rule-compile fence should \
                                    have refused a non-fact return type",
-                        got: Box::new(ValueSnapshot::of(&other)),
+                        got: Box::new(ValueSnapshot::of(&v)),
                     },
                 )
-                .into()),
+                .into())
             }
         }
         CompiledRhs::Record { class, names, ops } => {
@@ -293,7 +286,7 @@ pub(crate) fn rhs_bind_slots(
 /// mismatch fall back to [`exec_compiled_rhs`]. Token stays a BindSpan.
 pub(crate) fn exec_compiled_rhs_at(
     c: &CompiledRhs,
-    pairs: crate::rete::matcher::BindView<'_>,
+    pairs: crate::rete::kernel::BindView<'_>,
     slots: &[Option<usize>],
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
@@ -345,10 +338,12 @@ mod tests {
     /// an unbound-`?var` error whose `got` differed from `build_insert_fact`'s, and the floor was
     /// 4241/4241 green through it — because **nothing anywhere fires a rule with an unbound `?var`
     /// in `:then`**, and nothing compares two impls' failures. That arm is REACHABLE: `--check` on
-    /// such a rule exits 0 (`validate_and_reorder_then` validates the SHAPE — insert head, fact type, field names, positional arity — but never inspects the value-position OPERANDS, so an unbound `?var` and a nested form both pass), so it surfaces at fire time.
+    /// such a rule exits 0 (`validate_then_form` / `reorder_then_kwargs` validate the SHAPE —
+    /// insert head, fact type, field names, positional arity — and walk nested constructors, but
+    /// still do not bind-check `?var`), so it surfaces at fire time.
     ///
     /// **Spans are excluded on purpose, and that is not a loosening.** `RuntimeError::new` stamps
-    /// `rust_caller_span!()`, so one error is raised in `matcher.rs` and the other in this file;
+    /// `rust_caller_span!()`, so one error is raised in `eval_insert.rs` and the other in this file;
     /// they can never be byte-equal and should not be. What must match is the KIND — `op`,
     /// `expected`, `got` — compared through `RuntimeErrorKind`'s `wat_edn::ToEdn` derive (arc
     /// 298.3), which carries no span. Structural, not a `contains`.
@@ -411,7 +406,7 @@ mod tests {
                 Ok(None) => panic!("{src} unexpectedly failed to compile — a case here regressed"),
                 Err(e) => panic!("{src} lower refused a fenced then-expr: {e:?}"),
             };
-            match (exec_compiled_rhs(&compiled, *binds, &sym), crate::rete::matcher::build_insert_fact(&ast, binds, &sym)) {
+            match (exec_compiled_rhs(&compiled, *binds, &sym), crate::rete::eval_insert::build_insert_fact(&ast, binds, &sym)) {
                 (Ok(a), Ok(b)) => assert_eq!(
                     a, b,
                     "compiled and interpreted RHS produced DIFFERENT facts for {src}"
@@ -674,7 +669,7 @@ mod tests {
             .map(|(i, _)| (i as u32, i as u32))
             .collect();
         let view_vals: Vec<Value> = pairs.iter().map(|(_, v)| v.clone()).collect();
-        let view = crate::rete::matcher::BindView {
+        let view = crate::rete::kernel::BindView {
             keys: &view_keys,
             vals: &view_vals,
             pairs: &view_pairs,

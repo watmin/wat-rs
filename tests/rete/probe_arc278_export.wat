@@ -22,6 +22,9 @@
     (:wat::core::length
       (:wat::rete::query (:wat::rete::fire-rules (:exp::seed s0)) (:exp::q-Hit)))))
 
+(:wat::core::defn :user::empty-pv [] -> :wat::core::PersistentVector
+  (:wat::core::PersistentVector))
+
 (:wat::core::defn :user::cool-export [] -> :wat::rete::Export
   (:wat::rete::export
     (:wat::rete::compile-all
@@ -39,6 +42,16 @@
     (:wat::core::length
       (:wat::rete::query
         (:wat::rete::fire-rules$oracle (:exp::seed s1))
+        (:exp::q-Hit)))))
+
+(:wat::core::defn :user::spec-once-on-import [] -> :wat::core::i64
+  (:wat::core::let [s0 (:wat::rete::compile-all
+                         (:wat::core::PersistentVector (:exp::cool))
+                         (:wat::core::PersistentVector (:exp::q-Hit)))
+                    s1 (:wat::rete::import (:wat::rete::export s0))]
+    (:wat::core::length
+      (:wat::rete::query
+        (:wat::rete::fire-once$oracle (:exp::seed s1))
         (:exp::q-Hit)))))
 
 (:wat::core::defn :user::import-hits [] -> :wat::core::i64
@@ -104,6 +117,31 @@
                     s1 (:wat::rete::import exp)]
     (:sn::counts (:wat::rete::fire-rules (:sn::seed s1)))))
 
+(:wat::core::defn :user::reexport-shape [] -> (:wat::core::PersistentVector :- [:wat::core::i64])
+  (:wat::core::let [s0 (:wat::rete::compile-all
+                         (:wat::core::PersistentVector (:exp::cool))
+                         (:wat::core::PersistentVector (:exp::q-Hit)))
+                    e1 (:wat::rete::export s0)
+                    e2 (:wat::rete::export (:wat::rete::import e1))]
+    (:wat::core::PersistentVector
+      (:wat::core::length (:wat::rete::Export/deps e1))
+      (:wat::core::length (:wat::rete::Export/deps e2))
+      (:wat::core::length (:wat::rete::Export/nodes e1))
+      (:wat::core::length (:wat::rete::Export/nodes e2))
+      (:wat::core::length (:wat::rete::Export/conds e1))
+      (:wat::core::length (:wat::rete::Export/conds e2))
+      (:wat::core::length (:wat::rete::Export/rhs e1))
+      (:wat::core::length (:wat::rete::Export/rhs e2)))))
+
+(:wat::core::defn :user::reexport-deps-length [] -> :wat::core::i64
+  (:wat::core::let [s0 (:wat::rete::compile-all
+                         (:wat::core::PersistentVector (:exp::cool))
+                         (:wat::core::PersistentVector (:exp::q-Hit)))
+                    e1 (:wat::rete::export s0)
+                    s1 (:wat::rete::import e1)
+                    e2 (:wat::rete::export s1)]
+    (:wat::core::length (:wat::rete::Export/deps e2))))
+
 (:wat::core::defn :user::edn-roundtrip-hits [] -> :wat::core::i64
   (:wat::core::let [s0 (:wat::rete::compile-all
                          (:wat::core::PersistentVector (:exp::cool))
@@ -114,6 +152,26 @@
                     s1 (:wat::rete::import exp2)]
     (:wat::core::length
       (:wat::rete::query (:wat::rete::fire-rules (:exp::seed s1)) (:exp::q-Hit)))))
+
+;; One EDN value: write(e) == write(export(import(e))).
+(:wat::core::defn :user::reexport-edn-identical [] -> :wat::core::bool
+  (:wat::core::let [s0 (:wat::rete::compile-all
+                         (:wat::core::PersistentVector (:exp::cool))
+                         (:wat::core::PersistentVector (:exp::q-Hit)))
+                    e1 (:wat::rete::export s0)
+                    e2 (:wat::rete::export (:wat::rete::import e1))]
+    (:wat::core::= (:wat::edn::write e1) (:wat::edn::write e2))))
+
+;; Fire of import(export(import(e))) — the re-export, not the original export.
+(:wat::core::defn :user::reexport-import-fires [] -> :wat::core::i64
+  (:wat::core::let [s0 (:wat::rete::compile-all
+                         (:wat::core::PersistentVector (:exp::cool))
+                         (:wat::core::PersistentVector (:exp::q-Hit)))
+                    e1 (:wat::rete::export s0)
+                    e2 (:wat::rete::export (:wat::rete::import e1))
+                    s2 (:wat::rete::import e2)]
+    (:wat::core::length
+      (:wat::rete::query (:wat::rete::fire-rules (:exp::seed s2)) (:exp::q-Hit)))))
 
 ;; The compiled program as an EDN string — source of tests/rete/hello.rete.edn.
 (:wat::core::defn :user::export-edn [] -> :wat::core::String

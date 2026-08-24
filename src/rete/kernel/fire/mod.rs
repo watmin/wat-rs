@@ -6,11 +6,9 @@ use std::sync::Arc;
 use rustc_hash::FxHashMap;
 
 use crate::ast::WatAST;
-use crate::rete::compiled_cond::ValIntern;
+use crate::rete::compiled_cond::{BindIntern, ValIntern};
 use crate::rete::matcher::Bindings;
-use crate::runtime::{
-    EvalBreak, RuntimeError, RuntimeErrorKind, SymbolTable, Value,
-};
+use crate::runtime::{EvalBreak, RuntimeError, RuntimeErrorKind, SymbolTable, Value};
 use crate::span::Span;
 use crate::types::Nature;
 use crate::value::value::AggregateValue;
@@ -27,37 +25,22 @@ pub(crate) struct FireCtx<'a> {
     pub(crate) match_pool: &'a mut Vec<(u32, i64)>,
     pub(crate) keys: &'a [Value],
     pub(crate) vals: &'a [Value],
+    pub(crate) val_ids: &'a crate::rete::compiled_cond::ValIntern,
     pub(crate) facts: &'a Value,
     pub(crate) derived: &'a [Value],
     pub(crate) n_input: u32,
-}
-
-/// Shared intern + fact store for accumulate folds (no pool mutation).
-struct AccView<'a> {
-    keys: &'a [Value],
-    vals: &'a [Value],
-    pool: &'a [(u32, u32)],
-    facts: &'a Value,
-    derived: &'a [Value],
-    n_input: u32,
-}
-
-fn acc_view(wm: &FireSession) -> AccView<'_> {
-    AccView {
-        keys: &wm.bind_keys,
-        vals: &wm.bind_vals,
-        pool: &wm.bind_pool,
-        facts: &wm.facts,
-        derived: &wm.derived_facts,
-        n_input: wm.n_input,
-    }
+    pub(crate) i64_by_fact: &'a [Option<I64Row>],
+    pub(crate) bind_only: &'a HashMap<i64, Vec<u8>>,
+    pub(crate) cond_key_ids: &'a CondKeyIds,
 }
 
 // ── Pass 1: Alpha pass ────────────────────────────────────────────────────────
 
-/// `activate-alpha` + `activate-fact` — type-index each fact, `exec_compiled`
-/// against that type's alphas. Mirrors `wat/rete/oracle/pass.wat`.
-/// A missing compiled cond refuses — do not walk `alpha_match_inner`.
+/// `activate-alpha` + `activate-fact` — type-index each fact,
+/// `exec_compiled_with_key_ids` against that type's alphas. Mirrors
+/// `wat/rete/oracle/pass.wat`. A missing compiled cond refuses — do not walk
+/// `alpha_match_inner`.
+#[cfg(test)]
 pub(crate) fn alpha_pass(wm: &mut FireSession, arm: &InternedNetwork) -> Result<(), EvalBreak> {
     let mut match_scratch: SlotFrame = Vec::with_capacity(arm.compiled_max_slots);
     let mut cand_scratch: Vec<i64> = Vec::new();
@@ -102,7 +85,7 @@ pub(crate) fn alpha_pass(wm: &mut FireSession, arm: &InternedNetwork) -> Result<
                 continue;
             };
             let el = make_element(i as u32, off, len);
-            wm.alpha.entry(aid).or_default().push(el);
+            Arc::make_mut(wm.alpha.entry(aid).or_default()).push(el);
         }
     }
     Ok(())
@@ -113,6 +96,7 @@ pub(crate) fn alpha_pass(wm: &mut FireSession, arm: &InternedNetwork) -> Result<
 /// `root-join-pass` / `seed-root-join-children` / `seed-token` / `append-token` —
 /// for each AlphaNode with Elements, seed one Token per Element into each RootJoinNode child's beta.
 /// Mirrors `wat/rete/oracle/pass.wat`.
+#[cfg(test)]
 pub(crate) fn root_join_pass(wm: &mut FireSession) {
     let node_ids = sorted_node_ids(&wm.network);
 
@@ -122,7 +106,7 @@ pub(crate) fn root_join_pass(wm: &mut FireSession) {
             Some(n) => n,
             None => continue,
         };
-        if kind_of(node) != "AlphaNode" {
+        if kind_of(node) != NodeKind::Alpha {
             continue;
         }
         let child_ids = node_children(node);
@@ -140,7 +124,7 @@ pub(crate) fn root_join_pass(wm: &mut FireSession) {
                 Some(n) => n,
                 None => continue,
             };
-            if kind_of(child_node) != "RootJoinNode" {
+            if kind_of(child_node) != NodeKind::RootJoin {
                 continue;
             }
             // Seed one native Token per Element into beta[child_id].
@@ -150,41 +134,12 @@ pub(crate) fn root_join_pass(wm: &mut FireSession) {
                 let tok = Token {
                     matches: push_match(&mut wm.match_pool, el.fact, *node_id),
                     binds: seed_token_binds(el),
-                            };
+                };
                 wm.beta.entry(*child_id).or_default().push(tok);
             }
         }
     }
 }
-
-// ── Pass 3: Hash-join pass ────────────────────────────────────────────────────
-
-/// `alpha-feeding` — find the AlphaNode id whose `children` contains `hj_id`.
-/// Mirrors `wat/rete/oracle/pass.wat`. Returns -1 if not found.
-fn alpha_feeding(hj_id: i64, network: &Value) -> i64 {
-    let node_ids: Vec<i64> = match network {
-        Value::wat__core__PersistentMap(m) => m
-            .keys()
-            .into_iter()
-            .filter_map(|k| if let Value::i64(n) = k { Some(n) } else { None })
-            .collect(),
-        _ => return -1,
-    };
-    for node_id in &node_ids {
-        let node = match get_node(network, *node_id) {
-            Some(n) => n,
-            None => continue,
-        };
-        if kind_of(node) == "AlphaNode" {
-            let children = node_children(node);
-            if children.contains(&hj_id) {
-                return *node_id;
-            }
-        }
-    }
-    -1
-}
-
 
 pub(crate) fn driver_of(
     drivers: &HashMap<i64, CondDriver>,
@@ -215,6 +170,8 @@ fn binding_extensions(
     gather_cache: &mut GatherCache,
 ) -> Result<Vec<crate::value::pmap::PMap>, EvalBreak> {
     match driver {
+        // rune:temperare(simplicity-win) — And is sequential join of kid extensions;
+        // empty short-circuits. A specialized 2-kid path would duplicate the fold.
         CondDriver::And(kids) => {
             let mut exts = vec![seed.clone()];
             for kid in kids {
@@ -253,14 +210,9 @@ fn binding_extensions(
             Ok(out)
         }
         CondDriver::Where(program) => {
-            match crate::rete::expr_ir::exec_where(
-                program,
-                seed,
-                sym,
-                &crate::rust_caller_span!(),
-            ) {
-                Ok(true) => Ok(vec![seed.clone()]),
-                _ => Ok(vec![]),
+            match crate::rete::expr_ir::exec_where(program, seed, sym, &program.span)? {
+                true => Ok(vec![seed.clone()]),
+                false => Ok(vec![]),
             }
         }
         CondDriver::Not(inner) => {
@@ -309,6 +261,19 @@ pub(crate) fn rematch_compiled(
     })
 }
 
+fn fact_holds_under<B: Bindings + ?Sized>(
+    fact: &Value,
+    seed: &B,
+    compiled: &crate::rete::compiled_cond::CompiledCond,
+    scratch: &mut SlotFrame,
+) -> bool {
+    let fact_fields = match fact {
+        Value::Aggregate(a) if a.nature != Nature::Struct => a.fields.as_slice(),
+        _ => return false,
+    };
+    crate::rete::compiled_cond::exec_compiled_under_holds(compiled, fact_fields, scratch, seed)
+}
+
 fn fact_bindings_under<B: Bindings + ?Sized>(
     fact: &Value,
     seed: &B,
@@ -328,9 +293,8 @@ fn fact_bindings_under<B: Bindings + ?Sized>(
     // is how `where-not-and-bound` row 3 accepted Temp.c ≠ Cold.c.
     // Leftover rematch only: materialize a PMap. The fire path does not
     // keep it (`DESIGN-STONE-token-bind-pool`).
-    let mut pm = crate::value::pmap::PMap::from_pairs(
-        seed.iter().map(|(k, v)| (k.clone(), v.clone())),
-    );
+    let mut pm =
+        crate::value::pmap::PMap::from_pairs(seed.iter().map(|(k, v)| (k.clone(), v.clone())));
     for (k, v) in pairs.iter() {
         match pm.get(k) {
             Some(existing) if existing != v => return None,
@@ -340,10 +304,6 @@ fn fact_bindings_under<B: Bindings + ?Sized>(
     }
     Some(pm)
 }
-
-
-
-
 
 fn token_exists_under<B: Bindings + ?Sized>(
     driver: &CondDriver,
@@ -366,19 +326,13 @@ fn token_exists_under<B: Bindings + ?Sized>(
                 scratch,
             ))
         }
+        // rune:temperare(simplicity-win) — combinator :not/:exists still PMap::from_pairs;
+        // leaf already uses BindView. n tokens with combinator inners is the rare path.
         other => {
             let seed = crate::value::pmap::PMap::from_pairs(
                 tok.iter().map(|(k, v)| (k.clone(), v.clone())),
             );
-            exists_cond_under(
-                other,
-                wm,
-                &seed,
-                compiled_conds,
-                scratch,
-                sym,
-                gather_cache,
-            )
+            exists_cond_under(other, wm, &seed, compiled_conds, scratch, sym, gather_cache)
         }
     }
 }
@@ -393,16 +347,12 @@ fn exists_cond_under(
     gather_cache: &mut GatherCache,
 ) -> Result<bool, EvalBreak> {
     match driver {
-        CondDriver::And(_) => Ok(!binding_extensions(
-            driver,
-            wm,
-            seed,
-            compiled_conds,
-            scratch,
-            sym,
-            gather_cache,
-        )?
-        .is_empty()),
+        CondDriver::And(_) => {
+            Ok(
+                !binding_extensions(driver, wm, seed, compiled_conds, scratch, sym, gather_cache)?
+                    .is_empty(),
+            )
+        }
         CondDriver::Or(kids) => {
             for k in kids {
                 if exists_cond_under(k, wm, seed, compiled_conds, scratch, sym, gather_cache)? {
@@ -411,13 +361,9 @@ fn exists_cond_under(
             }
             Ok(false)
         }
-        CondDriver::Where(program) => Ok(crate::rete::expr_ir::exec_where(
-            program,
-            seed,
-            sym,
-            &crate::rust_caller_span!(),
-        )
-        .unwrap_or(false)),
+        CondDriver::Where(program) => {
+            crate::rete::expr_ir::exec_where(program, seed, sym, &program.span)
+        }
         CondDriver::Not(inner) => Ok(!exists_cond_under(
             inner,
             wm,
@@ -427,15 +373,9 @@ fn exists_cond_under(
             sym,
             gather_cache,
         )?),
-        CondDriver::Exists(inner) => exists_cond_under(
-            inner,
-            wm,
-            seed,
-            compiled_conds,
-            scratch,
-            sym,
-            gather_cache,
-        ),
+        CondDriver::Exists(inner) => {
+            exists_cond_under(inner, wm, seed, compiled_conds, scratch, sym, gather_cache)
+        }
         CondDriver::Leaf(leaf_id) => {
             let compiled = rematch_compiled(compiled_conds, *leaf_id)?;
             Ok(any_seeded_keyed(
@@ -448,25 +388,6 @@ fn exists_cond_under(
             ))
         }
     }
-}
-
-
-/// Shared-variable agreement: if a key is in both maps with a DIFFERENT value → false.
-/// A variable only on one side never conflicts. The keyed hash-join does not call this
-/// in the hot path; the NegationNode / ExistsNode gather still does.
-fn token_element_compatible<B: Bindings + ?Sized, E: Bindings + ?Sized>(
-    tok_bindings: &B,
-    el_bindings: &E,
-) -> bool {
-    for (k, e_val) in el_bindings.iter() {
-        if let Some(t_val) = tok_bindings.get(k) {
-            if t_val != e_val {
-                return false;
-            }
-        }
-        // Key only in element bindings → no conflict (compatible).
-    }
-    true
 }
 
 /// Merge an Element's fact and bindings into a native `Token`.
@@ -529,49 +450,94 @@ fn seed_token_binds(el: &Element) -> BindSpan {
     el.binds
 }
 
-fn token_assoc(
-    tok: &Token,
-    k: Value,
-    v: Value,
-    keys: &mut Vec<Value>,
-    vals: &mut Vec<Value>,
-    ids: &mut crate::rete::compiled_cond::ValIntern,
+/// Write a Token/join right span from packed vids when the Element
+/// skipped BindSpan (`DESIGN-STONE-column-gather-fold`).
+fn span_from_row(
     pool: &mut Vec<(u32, u32)>,
-) -> Token {
-    let kid = intern_key(keys, &k);
-    let vid = intern_val(vals, ids, v);
-    let pairs: Vec<(u32, u32)> = pool_slice(pool, tok.binds).to_vec();
-    let start = pool.len();
+    el: &Element,
+    alpha_id: i64,
+    i64_by_fact: &[Option<I64Row>],
+    bind_only: &HashMap<i64, Vec<u8>>,
+    cond_key_ids: &CondKeyIds,
+) -> BindSpan {
+    let Some(fields) = bind_only.get(&alpha_id) else {
+        return empty_span();
+    };
+    let Some(kids) = cond_key_ids.get(&alpha_id) else {
+        return empty_span();
+    };
+    let Some(row) = i64_by_fact.get(el.fact as usize).and_then(|o| o.as_ref()) else {
+        return empty_span();
+    };
+    let skip = kids.len().saturating_sub(fields.len());
+    let off = pool.len();
+    for (i, &fi) in fields.iter().enumerate() {
+        if skip + i >= kids.len() || (fi as usize) >= row.n as usize {
+            pool.truncate(off);
+            return empty_span();
+        }
+        pool.push((kids[skip + i], row.vids[fi as usize]));
+    }
+    BindSpan {
+        off: off as u32,
+        len: (pool.len() - off) as u16,
+    }
+}
+
+/// Occupancy stays empty. The join-index copy gets a BindSpan once
+/// (`DESIGN-STONE-join-index-span`). `join_extend` then shares two words.
+fn element_with_row_span(
+    el: Element,
+    pool: &mut Vec<(u32, u32)>,
+    alpha_id: i64,
+    i64_by_fact: &[Option<I64Row>],
+    bind_only: &HashMap<i64, Vec<u8>>,
+    cond_key_ids: &CondKeyIds,
+) -> Element {
+    if el.binds.len > 0 {
+        return el;
+    }
+    let binds = span_from_row(pool, &el, alpha_id, i64_by_fact, bind_only, cond_key_ids);
+    Element {
+        fact: el.fact,
+        binds,
+    }
+}
+
+fn token_assoc(tok: &Token, k: Value, v: Value, intern: &mut BindIntern<'_>) -> Token {
+    let key_id = intern_key(intern.keys, &k);
+    let vid = intern_val(intern.vals, intern.ids, v);
+    // Copy the old span WITHIN the pool, then patch it in place. This used to
+    // `to_vec()` the span first — an allocation per call, and the comment for it
+    // was the borrow checker: the pool is read while the pool is pushed to.
+    // `extend_from_within` is that read-and-append as one operation, so there is
+    // nothing to borrow around. Same pairs, same order, same result: the old
+    // keys are preserved and the matching key's VALUE is replaced.
+    let start = intern.pool.len();
+    let o = tok.binds.off as usize;
+    intern.pool.extend_from_within(o..o + tok.binds.len as usize);
     let mut found = false;
-    for (ek, ev) in pairs {
-        if ek == kid {
-            pool.push((ek, vid));
+    for slot in &mut intern.pool[start..] {
+        if slot.0 == key_id {
+            slot.1 = vid;
             found = true;
-        } else {
-            pool.push((ek, ev));
         }
     }
     if !found {
-        pool.push((kid, vid));
+        intern.pool.push((key_id, vid));
     }
     Token {
         matches: tok.matches,
         binds: BindSpan {
             off: start as u32,
-            len: (pool.len() - start) as u16,
+            len: (intern.pool.len() - start) as u16,
         },
     }
 }
 
-/// Keyed hash-join helper (P3 — shared by batch `hash_join_pass` and delta `fire_fixpoint_delta`).
-///
-/// Joins `left_tokens` (native `Token`) against `right_elements` (Value Element Records) using the
-/// keyed index-and-probe strategy. Returns the new extended tokens produced by the join. If either
-/// slice is empty, returns an empty Vec (no join possible). `alpha_id` is recorded in each new
-/// token's matches vec.
-///
-/// The join_keys (sorted intersection of token/element binding keys) are derived from the
-/// first element of each slice — callers must guarantee both slices are non-empty.
+/// Rematch one token against one alpha element and extend the support chain.
+/// Returns `None` when a leftover `SeedCmp` rejects the pair. `alpha_id` is
+/// recorded on the new token's matches span.
 pub(crate) fn join_extend(
     tok: &Token,
     el: &Element,
@@ -582,26 +548,38 @@ pub(crate) fn join_extend(
     // No leftover SeedCmp: the keyed bucket is the join (same contract as
     // fold-the-wall). Rematch cannot reject a member (`DESIGN-STONE-join-extend-no-leftover`).
     if compiled.has_seed_cmp()
-        && fact_bindings_under(
+        && !fact_holds_under(
             fact_at(ctx.facts, ctx.derived, ctx.n_input, el.fact),
             &bind_view(ctx.keys, ctx.vals, ctx.pool, tok.binds),
             compiled,
             ctx.scratch,
         )
-        .is_none()
     {
         return Ok(None);
     }
+    let right = if el.binds.len > 0 {
+        el.binds
+    } else {
+        span_from_row(
+            ctx.pool,
+            el,
+            alpha_id,
+            ctx.i64_by_fact,
+            ctx.bind_only,
+            ctx.cond_key_ids,
+        )
+    };
     Ok(Some(extend_token(
         tok,
         el.fact,
-        el.binds,
+        right,
         alpha_id,
         ctx.pool,
         ctx.match_pool,
     )))
 }
 
+#[cfg(test)]
 fn keyed_join(
     left_tokens: &[Token],
     right_elements: &[Element],
@@ -613,59 +591,98 @@ fn keyed_join(
     }
 
     // Step 1: compute join_keys = sorted shared variable names (intersection of binding key-sets).
-    let join_keys: Vec<Value> = {
-        let sample_tok_bindings = bind_view(ctx.keys, ctx.vals, ctx.pool, left_tokens[0].binds);
-        let sample_el_bindings = element_fact_bindings(&right_elements[0], ctx.keys, ctx.vals, ctx.pool);
-        let mut keys: Vec<Value> = sample_tok_bindings
-            .iter()
-            .map(|(k, _)| k.clone())
-            .filter(|k| Bindings::get(&sample_el_bindings, k).is_some())
-            .collect();
-        // Binding keys are Value::String (variable names like "?loc").
-        // Sort by their string content for a stable canonical order.
-        keys.sort_by(|a, b| {
-            let a_str = match a {
-                Value::String(s) => s.as_str(),
-                _ => "",
-            };
-            let b_str = match b {
-                Value::String(s) => s.as_str(),
-                _ => "",
-            };
-            a_str.cmp(b_str)
-        });
-        keys
-    };
+    let join_keys: Vec<Value> = gather_join_keys(
+        &bind_view(ctx.keys, ctx.vals, ctx.pool, left_tokens[0].binds),
+        right_elements,
+        GatherIntern::from_ctx(ctx, alpha_id),
+    );
 
     // Step 2: index RIGHT (elements) by join-key-value tuple.
     let mut index: JoinKeyMap<usize> = HashMap::new();
+    let intern = GatherIntern::from_ctx(ctx, alpha_id);
     for (i, el) in right_elements.iter().enumerate() {
-        let el_bindings = element_fact_bindings(el, ctx.keys, ctx.vals, ctx.pool);
-        let key: Vec<Value> = join_keys
-            .iter()
-            .map(|k| {
-                Bindings::get(&el_bindings, k)
-                    .cloned()
-                    .expect("keyed_join: join key missing from element bindings")
-            })
-            .collect();
+        let key = key_of_el(el, &join_keys, &intern);
         index.entry(key).or_default().push(i);
     }
 
     // Step 3: probe with each LEFT (token).
     let mut out: Vec<Token> = Vec::new();
     for tok in left_tokens {
-        let probe_key: Vec<Value> = join_keys
-            .iter()
-            .map(|k| {
-                Bindings::get(&bind_view(ctx.keys, ctx.vals, ctx.pool, tok.binds), k)
-                    .cloned()
-                    .expect("keyed_join: join key missing from token bindings")
-            })
-            .collect();
+        let probe_key = key_of(
+            &bind_view(ctx.keys, ctx.vals, ctx.pool, tok.binds),
+            &join_keys,
+            ctx.val_ids,
+        );
         if let Some(bucket) = index.get(&probe_key) {
             for &el_idx in bucket {
                 if let Some(new_tok) = join_extend(tok, &right_elements[el_idx], alpha_id, ctx)? {
+                    out.push(new_tok);
+                }
+            }
+        }
+    }
+    Ok(out)
+}
+
+/// Persistent right index for join-after-filter HashJoins.
+struct FilterJoinIdx<'a> {
+    right_idx: &'a mut JoinRightIndex,
+    join_keys_cache: &'a mut JoinKeysCache,
+    indexed_n: &'a mut HashMap<i64, usize>,
+}
+
+/// Join-after-filter: Δleft ⋈ all_right with a persistent right index (same
+/// observable as [`keyed_join`]; first visit indexes, later rounds append).
+fn keyed_join_persistent(
+    left_tokens: &[Token],
+    right_elements: &[Element],
+    alpha_id: i64,
+    join_id: i64,
+    idx: &mut FilterJoinIdx<'_>,
+    ctx: &mut FireCtx<'_>,
+) -> Result<Vec<Token>, EvalBreak> {
+    if left_tokens.is_empty() || right_elements.is_empty() {
+        return Ok(vec![]);
+    }
+    idx.join_keys_cache.entry(join_id).or_insert_with(|| {
+        gather_join_keys(
+            &bind_view(ctx.keys, ctx.vals, ctx.pool, left_tokens[0].binds),
+            right_elements,
+            GatherIntern::from_ctx(ctx, alpha_id),
+        )
+    });
+    let already = idx.indexed_n.get(&join_id).copied().unwrap_or(0);
+    if already < right_elements.len() {
+        let jk = &idx.join_keys_cache[&join_id];
+        let ridx = idx.right_idx.entry(join_id).or_default();
+        for el in &right_elements[already..] {
+            let k = key_of_el(el, jk, &GatherIntern::from_ctx(ctx, alpha_id));
+            let el = element_with_row_span(
+                *el,
+                ctx.pool,
+                alpha_id,
+                ctx.i64_by_fact,
+                ctx.bind_only,
+                ctx.cond_key_ids,
+            );
+            ridx.entry(k).or_default().push(el);
+        }
+        idx.indexed_n.insert(join_id, right_elements.len());
+    }
+    let jk = &idx.join_keys_cache[&join_id];
+    let Some(ridx) = idx.right_idx.get(&join_id) else {
+        return Ok(vec![]);
+    };
+    let mut out: Vec<Token> = Vec::new();
+    for tok in left_tokens {
+        let probe_key = key_of(
+            &bind_view(ctx.keys, ctx.vals, ctx.pool, tok.binds),
+            jk,
+            ctx.val_ids,
+        );
+        if let Some(bucket) = ridx.get(&probe_key) {
+            for el in bucket {
+                if let Some(new_tok) = join_extend(tok, el, alpha_id, ctx)? {
                     out.push(new_tok);
                 }
             }
@@ -678,6 +695,8 @@ fn keyed_join(
 /// its HashJoinNode children, in ascending node-id order (topological).
 /// Left parents: RootJoin / HashJoin / Test / Negation / Exists / Accumulate.
 /// Mirrors `wat/rete/oracle/pass.wat` hash-join-pass (A1: a TestNode may parent a HashJoin).
+#[cfg(test)]
+// ── Pass 3: Hash-join pass ────────────────────────────────────────────────────
 pub(crate) fn hash_join_pass(wm: &mut FireSession, arm: &InternedNetwork) -> Result<(), EvalBreak> {
     let node_ids = &arm.node_ids;
     let mut match_scratch: SlotFrame = Vec::with_capacity(arm.compiled_max_slots);
@@ -688,9 +707,13 @@ pub(crate) fn hash_join_pass(wm: &mut FireSession, arm: &InternedNetwork) -> Res
         match_pool: &mut wm.match_pool,
         keys: &wm.bind_keys,
         vals: &wm.bind_vals,
+        val_ids: &wm.bind_val_ids,
         facts: &wm.facts,
         derived: &wm.derived_facts,
         n_input: wm.n_input,
+        i64_by_fact: &wm.i64_by_fact,
+        bind_only: &wm.bind_only,
+        cond_key_ids: &wm.cond_key_ids,
     };
 
     for node_id in node_ids {
@@ -700,12 +723,12 @@ pub(crate) fn hash_join_pass(wm: &mut FireSession, arm: &InternedNetwork) -> Res
             None => continue,
         };
         let kind = kind_of(node);
-        if kind != "RootJoinNode"
-            && kind != "HashJoinNode"
-            && kind != "TestNode"
-            && kind != "NegationNode"
-            && kind != "ExistsNode"
-            && kind != "AccumulateNode"
+        if kind != NodeKind::RootJoin
+            && kind != NodeKind::HashJoin
+            && kind != NodeKind::Test
+            && kind != NodeKind::Negation
+            && kind != NodeKind::Exists
+            && kind != NodeKind::Accumulate
         {
             continue;
         }
@@ -725,11 +748,12 @@ pub(crate) fn hash_join_pass(wm: &mut FireSession, arm: &InternedNetwork) -> Res
                 Some(n) => n,
                 None => continue,
             };
-            if kind_of(child_node) != "HashJoinNode" {
+            if kind_of(child_node) != NodeKind::HashJoin {
                 continue;
             }
-            // Find the feeding alpha for this HashJoinNode.
-            let alpha_id = alpha_feeding(*child_id, &wm.network);
+            let Some(&alpha_id) = arm.feeding_alpha_of.get(child_id) else {
+                continue;
+            };
             // Group C: borrow elements from wm.alpha — wm.beta mutations are on a different field.
             let elements = match wm.alpha.get(&alpha_id) {
                 Some(els) => els.as_slice(),
@@ -744,52 +768,53 @@ pub(crate) fn hash_join_pass(wm: &mut FireSession, arm: &InternedNetwork) -> Res
     Ok(())
 }
 
-// ── Pass 4: Production pass ───────────────────────────────────────────────────
-
 /// Delta tokens at every non-alpha parent of `node_id`. Condition `:or` leaves
 /// N terminals; a later Test/:not/:exists/accum must see all of them.
-fn d_beta_from_parents(
-    parents_of: &ParentsOf,
-    d_beta: &BetaMemory,
-    node_id: i64,
-) -> Vec<Token> {
+/// Gather the tokens that are new this round at every parent of `node_id`.
+///
+/// Returns an OWNED `Vec` on purpose. The callers write `d_beta[node_id]` while
+/// holding this, which is a same-map conflict with `d_beta[parent]`; and the
+/// parent's delta must stay intact because its other children read it. See the
+/// note at the `filter.rs` call site for the alternatives that were considered
+/// and rejected. `Token` is 16 B and `Copy`, so this is a memcpy, not a deep
+/// clone.
+fn d_beta_from_parents(parents_of: &ParentsOf, d_beta: &BetaMemory, node_id: i64) -> Vec<Token> {
+    let __dbg = phase_start();
     let mut out = Vec::new();
+    #[cfg(test)]
+    let mut contributing = 0u64;
     if let Some(pids) = parents_of.get(&node_id) {
         for pid in pids {
             if let Some(ts) = d_beta.get(pid) {
+                #[cfg(test)]
+                if !ts.is_empty() {
+                    contributing += 1;
+                }
                 out.extend(ts.iter().cloned());
             }
         }
     }
-    out
-}
-
-fn node_parents(child_id: i64, network: &Value) -> Vec<i64> {
-    let node_ids: Vec<i64> = match network {
-        Value::wat__core__PersistentMap(m) => m
-            .keys()
-            .into_iter()
-            .filter_map(|k| if let Value::i64(n) = k { Some(n) } else { None })
-            .collect(),
-        _ => return vec![],
-    };
-    let mut out = Vec::new();
-    for node_id in &node_ids {
-        let node = match get_node(network, *node_id) {
-            Some(n) => n,
-            None => continue,
-        };
-        if node_children(node).contains(&child_id) {
-            out.push(*node_id);
-        }
+    #[cfg(test)]
+    {
+        census_count_n("dbeta:calls", 1);
+        census_count_n("dbeta:tokens", out.len() as u64);
+        census_count_n("dbeta:alloc", u64::from(!out.is_empty()));
+        census_count_n("dbeta:multi", u64::from(contributing > 1));
     }
+    phase_end("  ├ dbeta:gather", __dbg);
     out
 }
 
+// ── Pass 4: Production pass ───────────────────────────────────────────────────
 /// `production-pass` / `fire-production` — for each ProductionNode, find its parent's beta tokens,
 /// for each token × each compiled `:then` form, `exec_compiled_rhs`, push to `production[prod_id]`.
 /// Mirrors `wat/rete/oracle/pass.wat`.
-pub(crate) fn production_pass(wm: &mut FireSession, arm: &InternedNetwork, sym: &SymbolTable) -> Result<(), EvalBreak> {
+#[cfg(test)]
+pub(crate) fn production_pass(
+    wm: &mut FireSession,
+    arm: &InternedNetwork,
+    sym: &SymbolTable,
+) -> Result<(), EvalBreak> {
     let node_ids = &arm.node_ids;
 
     for node_id in node_ids {
@@ -799,14 +824,11 @@ pub(crate) fn production_pass(wm: &mut FireSession, arm: &InternedNetwork, sym: 
             Some(n) => n,
             None => continue,
         };
-        if kind_of(node) != "ProductionNode" {
+        if kind_of(node) != NodeKind::Production {
             continue;
         }
-        // ProductionNode: id(0), rule-name(1)
-        let (_, sf) = node_record(node).unwrap();
-        let rule_name = match &sf[1] {
-            Value::String(s) => s.as_str(),
-            _ => continue,
+        let Some(rule_name) = node_named_string(node, "rule-name") else {
+            continue;
         };
 
         let Some(compiled_rhs) = arm.compiled_rhs.get(rule_name) else {
@@ -816,8 +838,13 @@ pub(crate) fn production_pass(wm: &mut FireSession, arm: &InternedNetwork, sym: 
         // All non-alpha parents (condition `:or` wires N arm terminals to one production).
         // Slots from the first token of THIS parent — `:or` arms may not share layout
         // (`DESIGN-STONE-rhs-bind-slot`).
-        for pid in node_parents(*node_id, &wm.network) {
-            let Some(ts) = wm.beta.get(&pid) else {
+        let pids = arm
+            .parents_of
+            .get(node_id)
+            .map(|v| v.as_slice())
+            .unwrap_or(&[]);
+        for pid in pids {
+            let Some(ts) = wm.beta.get(pid) else {
                 continue;
             };
             if ts.is_empty() {
@@ -844,90 +871,289 @@ pub(crate) fn production_pass(wm: &mut FireSession, arm: &InternedNetwork, sym: 
 
 // ── Pure single-pass fn (extracted for fixpoint reuse) ───────────────────────
 
-/// Pure single-pass fire: `to_transient` → clear memories → four passes → `to_persistent`.
-///
-/// Public `fire-once` evaluates its AST then delegates here. `fire-rules` does
-/// **not** re-run this; it calls `fire_fixpoint_delta` (or the stratified
-/// driver wrapping it). Mirrors `fire-once$oracle` (`wat/rete/oracle/fire.wat`):
-/// re-run-from-scratch each call (memories cleared).
+/// Public `fire-once`. One round of the delta walk (alpha → join → accum/filter
+/// → production), no cascade. Mirrors `fire-once$oracle` (`wat/rete/oracle/fire.wat`):
+/// populate-then-emit including Test/Neg/Exists/Accum; keeps alpha and beta.
 pub(crate) fn fire_once_session(session: &Value, sym: &SymbolTable) -> Result<Value, EvalBreak> {
-    let mut wm = to_transient(session)?;
-    let rules_empty = matches!(&wm.rules, Value::wat__core__PersistentVector(pv) if pv.is_empty());
-    if rules_empty
-        && rete_arm_lookup(network_identity(&wm.network).unwrap_or(0)).is_none()
-        && network_has_production(&wm.network)
-    {
-        return Err(refuse_export_without_arm(
-            ":wat::rete::fire-once",
-            &crate::rust_caller_span!(),
-        ));
+    let rules = session_rules(session);
+    let rules_empty = matches!(&rules, Value::wat__core__PersistentVector(pv) if pv.is_empty());
+    if rules_empty {
+        if let Some(net) = session_network(session) {
+            if rete_arm_lookup(network_identity(net).unwrap_or(0)).is_none()
+                && network_has_production(net)
+            {
+                return Err(refuse_export_without_arm(
+                    ":wat::rete::fire-once",
+                    &crate::rust_caller_span!(),
+                ));
+            }
+        }
     }
-
-    // Clear memories — re-run-from-scratch.
-    wm.alpha.clear();
-    wm.beta.clear();
-    wm.production.clear();
-    wm.bind_pool.clear();
-    wm.bind_keys.clear();
-    wm.bind_vals.clear();
-    wm.bind_val_ids.clear();
-    wm.match_pool.clear();
-    wm.derived_facts.clear();
-
-    let arm = rete_arm_get_or_build(&wm.network, &wm.rules, sym)?;
-
-    // Four passes (alpha → root-join → hash-join → production).
-    alpha_pass(&mut wm, &arm)?;
-    root_join_pass(&mut wm);
-    hash_join_pass(&mut wm, &arm)?;
-    production_pass(&mut wm, &arm, sym)?;
-
-    harvest_query_memory(&mut wm);
-    // Drop ephemeral beta tokens before freeze — derived facts live in production-memory.
-    // (Re-generated on every fire; never read from a frozen Session's beta-memory by native fire.)
-    wm.beta.clear();
-    Ok(to_persistent(wm))
+    fire_fixpoint_delta_armed(session, sym, None, None, FireKind::Once)
 }
 
-fn harvest_query_memory(wm: &mut FireSession) {
-    wm.query.clear();
-    let node_ids = sorted_node_ids(&wm.network);
-    for node_id in node_ids {
-        let node = match get_node(&wm.network, node_id) {
+/// One class-scan query: `{var: fact}` from the closed bag
+/// (input ∪ derived), not production-memory
+/// (`DESIGN-STONE-query-class-scan-harvest`).
+pub(crate) struct QueryClassScan {
+    var: Value,
+    class: String,
+}
+
+/// Alphas that exist only to feed QueryNodes (Alpha → RootJoin → Query).
+/// `(?fact <- :Type)` with no field constraints.
+pub(crate) fn query_class_scans(arm: &InternedNetwork, network: &Value) -> HashMap<i64, QueryClassScan> {
+    let mut q_joins: HashSet<i64> = HashSet::new();
+    for &jid in &arm.kind_ids.join_parent {
+        let Some(node) = get_node(network, jid) else {
+            continue;
+        };
+        if kind_of(node) != NodeKind::RootJoin {
+            continue;
+        }
+        let Some(kids) = arm.children_of.get(&jid) else {
+            continue;
+        };
+        if kids.is_empty() {
+            continue;
+        }
+        if kids
+            .iter()
+            .all(|&c| get_node(network, c).is_some_and(|n| kind_of(n) == NodeKind::Query))
+        {
+            q_joins.insert(jid);
+        }
+    }
+    let mut scans = HashMap::new();
+    for &aid in &arm.kind_ids.alpha {
+        let Some(kids) = arm.children_of.get(&aid) else {
+            continue;
+        };
+        if kids.is_empty() || !kids.iter().all(|c| q_joins.contains(c)) {
+            continue;
+        }
+        let Some(c) = arm.compiled_conds.get(&aid) else {
+            continue;
+        };
+        let Some(var) = c.fact_bind() else {
+            continue;
+        };
+        if !c.ops().is_empty() {
+            continue;
+        }
+        // Import/Export AlphaNode has no tests AST — class-scan cannot
+        // name the type. Leave the chain; beta harvest still works.
+        let Some(node) = get_node(network, aid) else {
+            continue;
+        };
+        let Some(cond) = alpha_cond_from_node(node) else {
+            continue;
+        };
+        let Some(pat) = crate::rete::matcher::alpha_pattern(&cond) else {
+            continue;
+        };
+        scans.insert(
+            aid,
+            QueryClassScan {
+                var: var.clone(),
+                class: pat.type_head.to_string(),
+            },
+        );
+    }
+    scans
+}
+
+/// One pass of the closed bag, keyed by class. Only `scan.class`.
+/// Skip `wm.facts` when `input_has_scan_class` is false
+/// (`DESIGN-STONE-accum-wanted-harvest`).
+fn closed_bag_by_class<'a>(
+    wm: &'a FireSession,
+    wanted: &HashSet<&str>,
+) -> HashMap<&'a str, Vec<&'a Value>> {
+    let mut idx: HashMap<&str, Vec<&Value>> = HashMap::new();
+    let mut push = |f: &'a Value| {
+        if let Value::Aggregate(a) = f {
+            if a.nature != Nature::Struct && wanted.contains(a.class.as_ref()) {
+                idx.entry(a.class.as_ref()).or_default().push(f);
+            }
+        }
+    };
+    if wm.input_has_scan_class {
+        if let Value::wat__core__PersistentVector(pv) = &wm.facts {
+            for f in pv.iter() {
+                push(f);
+            }
+        }
+    }
+    for f in &wm.derived_facts {
+        push(f);
+    }
+    idx
+}
+
+/// Write one-entry `{var: fact}` maps straight into the CALLER'S vec.
+///
+/// It used to return its own `Vec` and the caller `extend`ed from it — a bag
+/// built, then the bag copied (`DESIGN-STONE-harvest-bag-in-place`). `PMap` is
+/// 56 B, so at fanout 40k the intermediate was 2.24 MB allocated, filled,
+/// memcpy'd and freed on every fire, with the page faults paid twice. `extra`
+/// is the upper-bound hint reserved before the walk; the walk itself is WHAT.
+fn harvest_class_scan_into<'a, I>(
+    out: &mut Vec<crate::value::pmap::PMap>,
+    facts: I,
+    extra: usize,
+    var: &Value,
+) where
+    I: Iterator<Item = &'a Value>,
+{
+    out.reserve(extra);
+    for f in facts {
+        out.push(crate::value::pmap::PMap::from_one(var.clone(), f.clone()));
+    }
+}
+
+fn compiled_rhs_is_class(arm: &InternedNetwork, class: &str) -> bool {
+    !arm.compiled_rhs.is_empty()
+        && arm.compiled_rhs.values().all(|forms| {
+            !forms.is_empty()
+                && forms.iter().all(|f| match f {
+                    crate::rete::compiled_rhs::CompiledRhs::Record { class: c, .. } => {
+                        c.as_ref() == class
+                    }
+                    crate::rete::compiled_rhs::CompiledRhs::Call(_) => false,
+                })
+        })
+}
+
+fn harvest_class_scan_filter(
+    wm: &FireSession,
+    scan: &QueryClassScan,
+    derived_is_scan: bool,
+) -> Vec<crate::value::pmap::PMap> {
+    let matches_class = |f: &Value| match f {
+        Value::Aggregate(a) if a.nature != Nature::Struct => a.class.as_ref() == scan.class,
+        _ => false,
+    };
+    let mut maps = Vec::new();
+    if wm.input_has_scan_class {
+        if let Value::wat__core__PersistentVector(pv) = &wm.facts {
+            harvest_class_scan_into(
+                &mut maps,
+                pv.iter().filter(|f| matches_class(f)),
+                pv.len(),
+                &scan.var,
+            );
+        }
+    }
+    if derived_is_scan {
+        harvest_class_scan_into(
+            &mut maps,
+            wm.derived_facts.iter(),
+            wm.derived_facts.len(),
+            &scan.var,
+        );
+    } else {
+        harvest_class_scan_into(
+            &mut maps,
+            wm.derived_facts.iter().filter(|f| matches_class(f)),
+            wm.derived_facts.len(),
+            &scan.var,
+        );
+    }
+    maps
+}
+
+pub(crate) fn harvest_query_memory(
+    wm: &mut FireSession,
+    arm: &InternedNetwork,
+    scans: &HashMap<i64, QueryClassScan>,
+) {
+    if arm.kind_ids.query.is_empty() {
+        wm.query.clear();
+        return;
+    }
+    // Index pays when N queries would rescan the bag. One scan stays the
+    // filter path: skip facts when no scan class was packed; wrap derived
+    // without class-eq when interned RHS is only that class
+    // (`DESIGN-STONE-fanout-identity-filter`).
+    let bag = if scans.len() > 1 {
+        let wanted: HashSet<&str> = scans.values().map(|s| s.class.as_str()).collect();
+        Some(closed_bag_by_class(wm, &wanted))
+    } else {
+        None
+    };
+    let derived_is_scan = scans.len() == 1
+        && scans
+            .values()
+            .next()
+            .is_some_and(|s| compiled_rhs_is_class(arm, s.class.as_str()));
+    let mut harvested: HashMap<String, Vec<crate::value::pmap::PMap>> = HashMap::new();
+    for node_id in &arm.kind_ids.query {
+        let node = match get_node(&wm.network, *node_id) {
             Some(n) => n,
             None => continue,
         };
-        if kind_of(node) != "QueryNode" {
+        let Some(qname) = node_named_string(node, "query-name").map(str::to_string) else {
             continue;
-        }
-        let (_, sf) = match node_record(node) {
-            Some(p) => p,
-            None => continue,
         };
-        let qname = match &sf[1] {
-            Value::String(s) => s.as_ref().clone(),
-            _ => continue,
-        };
-        let mut maps: Vec<crate::value::pmap::PMap> = Vec::new();
-        for pid in node_parents(node_id, &wm.network) {
-            if let Some(ts) = wm.beta.get(&pid) {
-                maps.extend(ts.iter().map(|t| pmap_from_span(t.binds, &wm.bind_keys, &wm.bind_vals, &wm.bind_pool)));
+        let maps = {
+            let pids = arm
+                .parents_of
+                .get(node_id)
+                .map(|v| v.as_slice())
+                .unwrap_or(&[]);
+            let scan = pids.iter().find_map(|pid| {
+                let aid = arm.feeding_alpha_of.get(pid)?;
+                scans.get(aid)
+            });
+            if let Some(scan) = scan {
+                if let Some(bag) = bag.as_ref() {
+                    let facts = bag
+                        .get(scan.class.as_str())
+                        .map(|v| v.as_slice())
+                        .unwrap_or(&[]);
+                    let mut maps = Vec::new();
+                    harvest_class_scan_into(
+                        &mut maps,
+                        facts.iter().copied(),
+                        facts.len(),
+                        &scan.var,
+                    );
+                    maps
+                } else {
+                    harvest_class_scan_filter(wm, scan, derived_is_scan)
+                }
+            } else {
+                let mut maps: Vec<crate::value::pmap::PMap> = Vec::new();
+                for pid in pids {
+                    if let Some(ts) = wm.beta.get(pid) {
+                        maps.extend(ts.iter().map(|t| {
+                            pmap_from_span(t.binds, &wm.bind_keys, &wm.bind_vals, &wm.bind_pool)
+                        }));
+                    }
+                }
+                maps
             }
-        }
-        wm.query.insert(qname, maps);
+        };
+        harvested.insert(qname, maps);
     }
+    drop(bag);
+    wm.query = harvested;
 }
 
 // ── Public entry: native fire-once ───────────────────────────────────────────
 
 /// `(:wat::rete::fire-once <session>) -> :wat::rete::Session`
 ///
-/// Native Rust single-pass fire cycle: alpha → root-join → hash-join → production.
-/// Observationally equivalent to the wat oracle's `fire-once$oracle`.
+/// Native Rust single-pass fire cycle: the delta walk, one round, no cascade.
+/// Observationally equivalent to the wat oracle's `fire-once$oracle` on AST
+/// Sessions (alpha → root-join → accum/filter/hash-join in id order → production).
+/// Export is native-only: the oracle refuses an imported Export
+/// (`wat/rete.wat`; `wat/rete/oracle/fire.wat` fire-once$oracle).
 ///
 /// Dispatch entry called from `runtime.rs:dispatch_keyword_head_value`.
-/// Evaluates the single argument (must be `:wat::rete::Session`), runs the four passes
-/// over the native `FireSession`, and returns a frozen `Session` via `to_persistent`.
+/// Evaluates the single argument (must be `:wat::rete::Session`) and returns
+/// a frozen `Session`.
 pub(crate) fn eval_fire_once_native(
     args: &[WatAST],
     list_span: &Span,
@@ -989,20 +1215,40 @@ pub(crate) fn collect_derived(production_pm: &Value) -> Vec<Value> {
 /// `wat/rete/oracle/fire.wat`), not concat, or a fact produced by more than one stratum's
 /// query is double-counted.
 ///
-/// P9 perf: membership is checked via a `HashSet` mirror of `pv`'s contents, not a linear
-/// `.any()` scan — the former was O(len(pv)) PER derived fact (O(n²) over a stratum-chain
-/// run, since `fire_rules_stratified` calls this once per stratum with `pv` = the whole
-/// accumulated closure so far), the exact quadratic blow-up behind the `[7,3000]`-class hang.
-/// `Value: Hash + Eq` already (the round-loop's own `seen: HashSet<Value>` dedup, above, uses
-/// the same property) — same value-dedup semantics, same push_back order, O(len(pv) +
-/// len(derived)) instead.
-pub(crate) fn merge_facts(facts_pv: &Value, derived: &[Value]) -> Value {
+/// P9 perf, kept for the lineage: membership is a `HashSet` rather than a linear `.any()`
+/// scan, which was O(len(pv)) PER derived fact — O(n²) over a stratum-chain run and the exact
+/// quadratic blow-up behind the `[7,3000]`-class hang. `Value: Hash + Eq` already (the
+/// round-loop's own `seen: HashSet<Value>` dedup, above, uses the same property), so the swap
+/// cost nothing in semantics: same value-dedup, same push_back order.
+///
+/// P9 left the set REBUILT here, once per call, making the per-call cost O(len(pv) +
+/// len(derived)). That is no longer what this function does — see the next paragraph. The
+/// O(len(pv)) term is now paid ONCE by `facts_membership` outside the loop, and this call is
+/// O(len(derived)).
+///
+/// The membership set is the CALLER'S and is carried across strata — it is not
+/// rebuilt here (`DESIGN-STONE-strat-merge-carried-set`). The stratified loop
+/// calls this once per stratum with the whole accumulated closure; rebuilding
+/// the set each time re-hashed and re-cloned every fact derived so far to
+/// re-learn what the previous iteration already held, O(S*N) where the honest
+/// cost is O(N). Measured at strat-neg `[6 2000]`: 27000 hashes vs 8000, 2.23 ms
+/// of it theater (`strat_merge_present_parts`). Seed the set with
+/// `facts_membership` and thread it through the loop.
+pub(crate) fn merge_facts(
+    facts_pv: &Value,
+    present: &mut std::collections::HashSet<Value>,
+    derived: &[Value],
+) -> Value {
     // Start with a clone of the existing PV.
-    let mut pv: rpds::VectorSync<Value> = match facts_pv {
+    let mut pv: crate::value::pvec::PVec = match facts_pv {
         Value::wat__core__PersistentVector(v) => v.clone(),
-        _ => rpds::VectorSync::new_sync(),
+        _ => crate::value::pvec::PVec::new(),
     };
-    let mut present: std::collections::HashSet<Value> = pv.iter().cloned().collect();
+    #[cfg(test)]
+    {
+        census_count_n("merge:pv-owners", pv.array_owners() as u64);
+        census_count_n("merge:pv-calls", 1);
+    }
     for fact in derived {
         // Conj only if not already present (structural equality, now O(1) amortized).
         if present.insert(fact.clone()) {
@@ -1012,64 +1258,21 @@ pub(crate) fn merge_facts(facts_pv: &Value, derived: &[Value]) -> Value {
     Value::wat__core__PersistentVector(pv)
 }
 
-/// Rebuild a frozen Session from a fired session, replacing only the `facts` field.
-///
-/// Used in the fixpoint to carry `new_facts` into the next round and in `eval_fire_rules_native`
-/// to restore `facts = input` before returning. Mirrors the Session reconstruction in
-/// `fire-fixpoint` (`wat/rete/oracle/fire.wat`) and `fire-rules` (`wat/rete/oracle/fire.wat`).
-pub(crate) fn session_with_facts(fired: &Value, new_facts: Value) -> Value {
-    match fired {
-        Value::Aggregate(a) if a.nature != Nature::Struct => {
-            let sf = a.fields.as_slice();
-            Value::Aggregate(Arc::new(AggregateValue::record_arc(
-                a.class.clone(),
-                a.names.clone(),
-                Arc::new(vec![
-                    sf[0].clone(), // network
-                    sf[1].clone(), // rules
-                    sf[2].clone(), // alpha-memory
-                    sf[3].clone(), // beta-memory
-                    sf[4].clone(), // production-memory
-                    new_facts,     // facts (replaced)
-                    sf[6].clone(), // next-id
-                    if sf.len() > 7 {
-                        sf[7].clone()
-                    } else {
-                        Value::wat__core__PersistentMap(crate::value::pmap::PMap::new())
-                    },
-                ]),
-            )))
-        }
-        // Should never happen — callers pass only a Session; pass through unchanged.
-        other => other.clone(),
-    }
-}
-
-/// Read the `facts` field (position 5) from a frozen Session Value.
-///
-/// Used by the 7-strat-native stratified driver (`fire_rules_stratified`) to read a
-/// session's current fact set (both the original input session and each stratum's fired
-/// sub-session).
-pub(crate) fn session_facts(session: &Value) -> Value {
-    match session {
-        Value::Aggregate(a) if a.nature != Nature::Struct => a.fields.as_slice()[5].clone(),
-        _ => Value::wat__core__PersistentVector(rpds::VectorSync::new_sync()),
-    }
-}
-
-/// Read the `network` field (position 0) from a frozen Session Value.
-/// Declaration order: network(0) rules(1) … facts(5) next-id(6) query-memory(7).
-pub(crate) fn session_network(session: &Value) -> Option<&Value> {
-    match session {
-        Value::Aggregate(a) if a.nature != Nature::Struct => a.fields.as_slice().first(),
-        _ => None,
+/// The membership set `merge_facts` would have collected on its first call —
+/// the seed for the carried set. The non-PersistentVector arm mirrors
+/// `merge_facts`' own `_ => PVec::new()`, so a `facts` field that is not a
+/// vector behaves exactly as before.
+pub(crate) fn facts_membership(facts_pv: &Value) -> std::collections::HashSet<Value> {
+    match facts_pv {
+        Value::wat__core__PersistentVector(v) => v.iter().cloned().collect(),
+        _ => std::collections::HashSet::new(),
     }
 }
 
 pub(crate) fn network_has_production(network: &Value) -> bool {
     sorted_node_ids(network)
         .iter()
-        .any(|&id| get_node(network, id).is_some_and(|n| kind_of(n) == "ProductionNode"))
+        .any(|&id| get_node(network, id).is_some_and(|n| kind_of(n) == NodeKind::Production))
 }
 
 pub(crate) fn refuse_export_without_arm(op: &'static str, span: &Span) -> EvalBreak {
@@ -1077,7 +1280,7 @@ pub(crate) fn refuse_export_without_arm(op: &'static str, span: &Span) -> EvalBr
         span.clone(),
         RuntimeErrorKind::MalformedForm {
             head: op.into(),
-            reason: "cannot consume an Export without interned arm — empty rules, live network"
+            reason: "cannot consume an Export without interned stratify schedule — empty rules, empty rule_deps, live productions"
                 .into(),
         },
     )
@@ -1088,13 +1291,10 @@ pub(crate) fn rules_lack_ast(rules: &[Value]) -> bool {
     if rules.is_empty() {
         return true;
     }
-    rules.iter().all(|r| match node_record(r) {
-        Some((_, sf)) if sf.len() > 1 => match &sf[1] {
-            Value::wat__core__PersistentVector(pv) => {
-                !pv.iter().any(|x| matches!(x, Value::wat__WatAST(_)))
-            }
-            _ => true,
-        },
+    rules.iter().all(|r| match rule_named_field(r, "lhs") {
+        Some(Value::wat__core__PersistentVector(pv)) => {
+            !pv.iter().any(|x| matches!(x, Value::wat__WatAST(_)))
+        }
         _ => true,
     })
 }
@@ -1105,8 +1305,8 @@ pub(crate) fn synthetic_rule(name: &str) -> Value {
         crate::value::value::names_arc_from_static(RULE_FIELDS),
         Arc::new(vec![
             Value::String(Arc::new(name.to_string())),
-            Value::wat__core__PersistentVector(rpds::VectorSync::new_sync()),
-            Value::wat__core__PersistentVector(rpds::VectorSync::new_sync()),
+            Value::wat__core__PersistentVector(crate::value::pvec::PVec::new()),
+            Value::wat__core__PersistentVector(crate::value::pvec::PVec::new()),
         ]),
     )))
 }
@@ -1115,39 +1315,30 @@ pub(crate) fn fire_rules_from_deps(
     session: &Value,
     deps: &[RuleDep],
     sym: &SymbolTable,
+    support: Option<&mut ExplainSupport>,
 ) -> Result<Value, EvalBreak> {
     let mut parts: Vec<RuleParts> = Vec::with_capacity(deps.len());
     for d in deps {
         parts.push(RuleParts {
             rule: synthetic_rule(&d.name),
-            produced: d.produced.clone(),
-            negated: d.negated.clone(),
-            consumed: d.consumed.clone(),
-            bag: d.bag.clone(),
+            view: d.view.clone(),
         });
     }
-    let pn_only: Vec<StratifyView> = parts.iter().map(RuleParts::view).collect();
+    let pn_only: Vec<StratifyView> = parts.iter().map(|p| p.view.clone()).collect();
     let type_strata = native_stratify(&pn_only)?;
     let mut max_s: i64 = 0;
     let mut rule_strata: Vec<i64> = Vec::with_capacity(parts.len());
     for part in &parts {
-        let s = native_rule_stratum(&part.produced, &part.negated, &type_strata);
+        let s = native_rule_stratum(&part.view.produced, &part.view.negated, &type_strata);
         rule_strata.push(s);
         if s > max_s {
             max_s = s;
         }
     }
     if max_s == 0 {
-        return fire_fixpoint_delta(session, sym, None);
+        return fire_fixpoint_delta(session, sym, support);
     }
-    fire_rules_stratified(session, &parts, &rule_strata, max_s, sym)
-}
-
-pub(crate) fn session_rules(session: &Value) -> Value {
-    match session {
-        Value::Aggregate(a) if a.nature != Nature::Struct => a.fields.as_slice()[1].clone(),
-        _ => Value::wat__core__PersistentVector(rpds::VectorSync::new_sync()),
-    }
+    fire_rules_stratified(session, &parts, &rule_strata, max_s, sym, support)
 }
 
 // ── key_of helper ────────────────────────────────────────────────────────────
@@ -1160,43 +1351,71 @@ pub(crate) fn session_rules(session: &Value) -> Value {
 ///
 /// Panics if a join key is absent from `bindings` (structurally impossible in a well-formed
 /// rete network; all shared variables must be bound before this node is reached).
-pub(crate) fn key_of<B: Bindings + ?Sized>(bindings: &B, join_keys: &[Value]) -> Vec<Value> {
-    join_keys
-        .iter()
-        .map(|k| {
-            bindings
-                .get(k)
-                .cloned()
-                .unwrap_or_else(|| panic!("key_of: join key {:?} missing from bindings", k))
-        })
-        .collect()
+// rune:struere(invariant-coupling) — missing key is a malformed network; Option would
+// force every join to invent a fallback the grammar already forbids.
+pub(crate) fn key_of<B: Bindings + ?Sized>(
+    bindings: &B,
+    join_keys: &[Value],
+    ids: &crate::rete::compiled_cond::ValIntern,
+) -> JoinKey {
+    fn vid(ids: &crate::rete::compiled_cond::ValIntern, v: &Value) -> u32 {
+        ids.get(v)
+            .unwrap_or_else(|| panic!("key_of: filler {v:?} is not interned (bind_val_ids)"))
+    }
+    match join_keys.len() {
+        0 => JoinKey::Empty,
+        1 => {
+            let v = bindings.get(&join_keys[0]).unwrap_or_else(|| {
+                panic!("key_of: join key {:?} missing from bindings", join_keys[0])
+            });
+            JoinKey::Unary(vid(ids, v))
+        }
+        _ => {
+            let mut out = Vec::with_capacity(join_keys.len());
+            for k in join_keys {
+                let v = bindings
+                    .get(k)
+                    .unwrap_or_else(|| panic!("key_of: join key {:?} missing from bindings", k));
+                out.push(vid(ids, v));
+            }
+            JoinKey::Nary(out.into_boxed_slice())
+        }
+    }
 }
 
 /// Derive the join-key tuple shared between `sample_bindings` and `elements` — the cheap half of
-/// `gather_index` (step 1 of the `keyed_join` (`:779-834`) shape): a sorted intersection of
+/// `gather_index` (step 1 of `keyed_join`): a sorted intersection of
 /// `sample_bindings`' keys and a sample element's keys, string-sorted for a stable canonical
 /// order, derived from `elements[0]` when non-empty. An empty `elements` slice yields `[]`.
 ///
 /// Split out from the index build so a cache lookup can key on `(alpha_id, join_keys)` *before*
 /// paying for the expensive half (`build_gather_index`) — the gather-index cache's ordering
 /// constraint (`DESIGN-STONE-gather-index-cache.md`).
-fn gather_join_keys<B: Bindings + ?Sized>(
+pub(crate) fn gather_join_keys<B: Bindings + ?Sized>(
     sample_bindings: &B,
     elements: &[Element],
-    bind_keys: &[Value],
-    vals: &[Value],
-    pool: &[(u32, u32)],
+    intern: GatherIntern<'_>,
 ) -> Vec<Value> {
     if elements.is_empty() {
         return Vec::new();
     }
-    let sample_el_bindings = element_fact_bindings(&elements[0], bind_keys, vals, pool);
-    let mut keys: Vec<Value> = sample_bindings
-        .iter()
-        .map(|(k, _)| k)
-        .filter(|k| Bindings::get(&sample_el_bindings, k).is_some())
-        .cloned()
-        .collect();
+    let mut keys: Vec<Value> = if elements[0].binds.len == 0 {
+        sample_bindings
+            .iter()
+            .map(|(k, _)| k)
+            .filter(|k| col_field_of(&intern, k).is_some())
+            .cloned()
+            .collect()
+    } else {
+        let sample_el_bindings =
+            element_fact_bindings(&elements[0], intern.bind_keys, intern.vals, intern.pool);
+        sample_bindings
+            .iter()
+            .map(|(k, _)| k)
+            .filter(|k| Bindings::get(&sample_el_bindings, k).is_some())
+            .cloned()
+            .collect()
+    };
     // Binding keys are Value::String (variable names like "?loc").
     // Sort by their string content for a stable canonical order.
     keys.sort_by(|a, b| {
@@ -1216,7 +1435,142 @@ fn gather_join_keys<B: Bindings + ?Sized>(
 /// Join-key → element indices (bucket), as built by `build_gather_index`.
 /// Unary when `join_keys.len() == 1` — no one-element `Vec` (`DESIGN-STONE-gather-unary-index`).
 type GatherUnary = FxHashMap<u32, Vec<usize>>;
-type GatherNary = FxHashMap<Vec<Value>, Vec<usize>>;
+type GatherNary = FxHashMap<JoinKey, Vec<usize>>;
+/// Bind intern borrowed by gather (avoids too-many-arguments).
+pub(crate) struct GatherIntern<'a> {
+    bind_keys: &'a [Value],
+    vals: &'a [Value],
+    pool: &'a [(u32, u32)],
+    val_ids: &'a ValIntern,
+    i64_by_fact: &'a [Option<I64Row>],
+    bind_only: &'a HashMap<i64, Vec<u8>>,
+    cond_key_ids: &'a CondKeyIds,
+    alpha_id: i64,
+}
+
+impl<'a> GatherIntern<'a> {
+    fn from_ctx(ctx: &'a FireCtx<'_>, alpha_id: i64) -> Self {
+        Self {
+            bind_keys: ctx.keys,
+            vals: ctx.vals,
+            pool: ctx.pool,
+            val_ids: ctx.val_ids,
+            i64_by_fact: ctx.i64_by_fact,
+            bind_only: ctx.bind_only,
+            cond_key_ids: ctx.cond_key_ids,
+            alpha_id,
+        }
+    }
+
+    pub(crate) fn from_wm(wm: &'a FireSession, alpha_id: i64) -> Self {
+        Self {
+            bind_keys: &wm.bind_keys,
+            vals: &wm.bind_vals,
+            pool: &wm.bind_pool,
+            val_ids: &wm.bind_val_ids,
+            i64_by_fact: &wm.i64_by_fact,
+            bind_only: &wm.bind_only,
+            cond_key_ids: &wm.cond_key_ids,
+            alpha_id,
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn of(
+        bind_keys: &'a [Value],
+        vals: &'a [Value],
+        pool: &'a [(u32, u32)],
+        val_ids: &'a ValIntern,
+    ) -> Self {
+        Self {
+            bind_keys,
+            vals,
+            pool,
+            val_ids,
+            i64_by_fact: &[],
+            bind_only: {
+                static EMPTY: std::sync::OnceLock<HashMap<i64, Vec<u8>>> =
+                    std::sync::OnceLock::new();
+                EMPTY.get_or_init(HashMap::new)
+            },
+            cond_key_ids: {
+                static EMPTY: std::sync::OnceLock<CondKeyIds> = std::sync::OnceLock::new();
+                EMPTY.get_or_init(HashMap::new)
+            },
+            alpha_id: -1,
+        }
+    }
+}
+
+/// Field index of `join_key` on this intern's alpha, if bind-only packed.
+fn col_field_of(intern: &GatherIntern<'_>, join_key: &Value) -> Option<u8> {
+    let fields = intern.bind_only.get(&intern.alpha_id)?;
+    let kids = intern.cond_key_ids.get(&intern.alpha_id)?;
+    let kid = intern
+        .bind_keys
+        .iter()
+        .position(|k| k == join_key)
+        .map(|i| i as u32)?;
+    let skip = kids.len().saturating_sub(fields.len());
+    let pos = kids.iter().skip(skip).position(|&k| k == kid)?;
+    fields.get(pos).copied()
+}
+
+fn unary_el_vid(
+    el: &Element,
+    field: Option<u8>,
+    key_id: Option<u32>,
+    intern: &GatherIntern<'_>,
+) -> Option<u32> {
+    if let Some(f) = field {
+        if let Some(vid) = col_vid(intern, el, f) {
+            return Some(vid);
+        }
+    }
+    let key_id = key_id?;
+    pool_slice(intern.pool, el.binds)
+        .iter()
+        .find(|(k, _)| *k == key_id)
+        .map(|(_, vid)| *vid)
+}
+
+fn col_vid(intern: &GatherIntern<'_>, el: &Element, field: u8) -> Option<u32> {
+    intern
+        .i64_by_fact
+        .get(el.fact as usize)
+        .and_then(|o| o.as_ref())
+        .filter(|r| (field as usize) < r.n as usize)
+        .map(|r| r.vids[field as usize])
+}
+
+fn key_of_el(el: &Element, join_keys: &[Value], intern: &GatherIntern<'_>) -> JoinKey {
+    if el.binds.len > 0 {
+        let el_b = element_fact_bindings(el, intern.bind_keys, intern.vals, intern.pool);
+        return key_of(&el_b, join_keys, intern.val_ids);
+    }
+    match join_keys.len() {
+        0 => JoinKey::Empty,
+        1 => {
+            let field = col_field_of(intern, &join_keys[0]).unwrap_or_else(|| {
+                panic!("key_of_el: join key {:?} has no packed field", join_keys[0])
+            });
+            let vid = col_vid(intern, el, field)
+                .unwrap_or_else(|| panic!("key_of_el: packed vid missing for field {field}"));
+            JoinKey::Unary(vid)
+        }
+        _ => {
+            let mut out = Vec::with_capacity(join_keys.len());
+            for k in join_keys {
+                let field = col_field_of(intern, k)
+                    .unwrap_or_else(|| panic!("key_of_el: join key {k:?} has no packed field"));
+                let vid = col_vid(intern, el, field)
+                    .unwrap_or_else(|| panic!("key_of_el: packed vid missing for field {field}"));
+                out.push(vid);
+            }
+            JoinKey::Nary(out.into_boxed_slice())
+        }
+    }
+}
 
 pub(crate) enum GatherIndex {
     /// One join key: interned filler id (`DESIGN-STONE-gather-val-id`).
@@ -1225,14 +1579,11 @@ pub(crate) enum GatherIndex {
 }
 
 impl GatherIndex {
-    fn bucket(&self, key: &[Value], val_ids: &ValIntern) -> &[usize] {
-        match self {
-            Self::UnaryId(m) => key
-                .first()
-                .and_then(|k| val_ids.get(k))
-                .and_then(|vid| m.get(&vid))
-                .map_or(&[], Vec::as_slice),
-            Self::Nary(m) => m.get(key).map_or(&[], Vec::as_slice),
+    fn bucket(&self, key: &JoinKey) -> &[usize] {
+        match (self, key) {
+            (Self::UnaryId(m), JoinKey::Unary(id)) => m.get(id).map_or(&[], Vec::as_slice),
+            (Self::Nary(m), k) => m.get(k).map_or(&[], Vec::as_slice),
+            _ => &[],
         }
     }
 
@@ -1240,36 +1591,37 @@ impl GatherIndex {
     /// New ids are `>=` the previous length (alpha only appends). Foldl order holds.
     fn append(
         &mut self,
-        new_idxs: &[usize],
+        new_idxs: impl IntoIterator<Item = usize>,
         elements: &[Element],
         join_keys: &[Value],
-        bind_keys: &[Value],
-        vals: &[Value],
-        pool: &[(u32, u32)],
+        intern: GatherIntern<'_>,
     ) {
-        if new_idxs.is_empty() || elements.is_empty() || join_keys.is_empty() {
+        if elements.is_empty() {
+            return;
+        }
+        if join_keys.is_empty() {
+            if let Self::Nary(m) = self {
+                m.entry(JoinKey::Empty).or_default().extend(new_idxs);
+            }
             return;
         }
         match self {
             Self::UnaryId(m) => {
-                let Some(kid) = bind_keys
+                let field = col_field_of(&intern, &join_keys[0]);
+                let key_id = intern
+                    .bind_keys
                     .iter()
                     .position(|k| k == &join_keys[0])
-                    .map(|i| i as u32)
-                else {
-                    return;
-                };
-                for &i in new_idxs {
-                    let pairs = pool_slice(pool, elements[i].binds);
-                    if let Some((_, vid)) = pairs.iter().find(|(k, _)| *k == kid) {
-                        m.entry(*vid).or_default().push(i);
+                    .map(|i| i as u32);
+                for i in new_idxs {
+                    if let Some(vid) = unary_el_vid(&elements[i], field, key_id, &intern) {
+                        m.entry(vid).or_default().push(i);
                     }
                 }
             }
             Self::Nary(m) => {
-                for &i in new_idxs {
-                    let el_bindings = element_fact_bindings(&elements[i], bind_keys, vals, pool);
-                    let key = key_of(&el_bindings, join_keys);
+                for i in new_idxs {
+                    let key = key_of_el(&elements[i], join_keys, &intern);
                     m.entry(key).or_default().push(i);
                 }
             }
@@ -1277,35 +1629,113 @@ impl GatherIndex {
     }
 }
 
-/// Fire-scoped cache: `(alpha_id, join_keys) -> index`. Buckets are indices
-/// into `wm.alpha[alpha_id]` (`DESIGN-STONE-gather-no-snapshot`).
+/// Fire-scoped cache: `(alpha_id, join_keys) -> index`. Join keys are the
+/// intersection of this sample token's keys with the alpha's elements — they
+/// are NOT a property of the alpha alone (query params vs empty parent).
+/// Buckets are indices into `wm.alpha[alpha_id]` (`DESIGN-STONE-gather-no-snapshot`).
 /// Persists across rounds; `append` takes `d_alpha`
 /// (`DESIGN-STONE-persist-gather-across-rounds`). Not a Session field.
-type GatherCache = FxHashMap<(i64, Vec<Value>), GatherIndex>;
+// rune:struere(lifetime-coupling) — indices into this fire's `wm.alpha`; a
+// GatherIndex must not outlive the alpha vec (`DESIGN-STONE-gather-no-snapshot`,
+// `DESIGN-STONE-persist-gather-across-rounds`).
+type GatherCache = FxHashMap<(i64, Arc<[Value]>), GatherIndex>;
+
+/// Packed seed occupancy is dirty in full. Walk `0..len`, do not
+/// materialize `(0..n).collect()` (`DESIGN-STONE-seed-d-alpha-range`).
+#[derive(Clone, Copy)]
+pub(crate) struct AlphaNews<'a> {
+    inner: AlphaNewsInner<'a>,
+}
+
+#[derive(Clone, Copy)]
+enum AlphaNewsInner<'a> {
+    Range(usize),
+    Slots(&'a [usize]),
+}
+
+pub(crate) enum AlphaNewsIter<'a> {
+    Range(std::ops::Range<usize>),
+    Slots(std::slice::Iter<'a, usize>),
+}
+
+impl<'a> AlphaNews<'a> {
+    pub(crate) fn of(
+        d_alpha: &'a AlphaDelta,
+        alpha: &'a AlphaMemory,
+        aid: i64,
+        packed_full: &HashSet<i64>,
+    ) -> Self {
+        if packed_full.contains(&aid) {
+            let n = alpha.get(&aid).map(|v| v.len()).unwrap_or(0);
+            Self {
+                inner: AlphaNewsInner::Range(n),
+            }
+        } else {
+            match d_alpha.get(&aid) {
+                Some(ix) if !ix.is_empty() => Self {
+                    inner: AlphaNewsInner::Slots(ix),
+                },
+                _ => Self {
+                    inner: AlphaNewsInner::Range(0),
+                },
+            }
+        }
+    }
+
+    pub(crate) fn is_empty(self) -> bool {
+        match self.inner {
+            AlphaNewsInner::Range(n) => n == 0,
+            AlphaNewsInner::Slots(s) => s.is_empty(),
+        }
+    }
+
+    pub(crate) fn iter(self) -> AlphaNewsIter<'a> {
+        match self.inner {
+            AlphaNewsInner::Range(n) => AlphaNewsIter::Range(0..n),
+            AlphaNewsInner::Slots(s) => AlphaNewsIter::Slots(s.iter()),
+        }
+    }
+}
+
+impl Iterator for AlphaNewsIter<'_> {
+    type Item = usize;
+    fn next(&mut self) -> Option<usize> {
+        match self {
+            Self::Range(r) => r.next(),
+            Self::Slots(it) => it.next().copied(),
+        }
+    }
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        match self {
+            Self::Range(r) => r.size_hint(),
+            Self::Slots(it) => it.size_hint(),
+        }
+    }
+}
 
 fn append_d_alpha(
     cache: &mut GatherCache,
     d_alpha: &AlphaDelta,
     wm: &FireSession,
+    packed_full: &HashSet<i64>,
 ) {
     for ((aid, join_keys), idx) in cache.iter_mut() {
-        let Some(news) = d_alpha.get(aid) else {
+        let news = AlphaNews::of(d_alpha, &wm.alpha, *aid, packed_full);
+        if news.is_empty() {
             continue;
-        };
+        }
         let els = alpha_elements(&wm.alpha, *aid);
         idx.append(
-            news,
+            news.iter(),
             els,
-            join_keys,
-            &wm.bind_keys,
-            &wm.bind_vals,
-            &wm.bind_pool,
+            join_keys.as_ref(),
+            GatherIntern::from_wm(wm, *aid),
         );
     }
 }
 
 fn alpha_elements(alpha: &AlphaMemory, alpha_id: i64) -> &[Element] {
-    alpha.get(&alpha_id).map(Vec::as_slice).unwrap_or(&[])
+    alpha.get(&alpha_id).map(|v| v.as_slice()).unwrap_or(&[])
 }
 
 /// Build the bucket index over `elements` for a given `join_keys` tuple — the expensive half of
@@ -1318,30 +1748,29 @@ fn alpha_elements(alpha: &AlphaMemory, alpha_id: i64) -> &[Element] {
 pub(crate) fn build_gather_index(
     elements: &[Element],
     join_keys: &[Value],
-    bind_keys: &[Value],
-    vals: &[Value],
-    pool: &[(u32, u32)],
+    intern: GatherIntern<'_>,
 ) -> GatherIndex {
     if join_keys.len() == 1 {
         let mut index: GatherUnary = FxHashMap::default();
-        if let Some(kid) = bind_keys
+        let field = col_field_of(&intern, &join_keys[0]);
+        let key_id = intern
+            .bind_keys
             .iter()
             .position(|k| k == &join_keys[0])
-            .map(|i| i as u32)
-        {
-            for (i, el) in elements.iter().enumerate() {
-                let pairs = pool_slice(pool, el.binds);
-                if let Some((_, vid)) = pairs.iter().find(|(k, _)| *k == kid) {
-                    index.entry(*vid).or_default().push(i);
-                }
+            .map(|i| i as u32);
+        for (i, el) in elements.iter().enumerate() {
+            // Packed i64 first; BindSpan if the row is absent (string
+            // location, 7b/8b/exists). bind_only + col_field_of without
+            // this fallback silently dropped every non-i64 occupant.
+            if let Some(vid) = unary_el_vid(el, field, key_id, &intern) {
+                index.entry(vid).or_default().push(i);
             }
         }
         GatherIndex::UnaryId(index)
     } else {
         let mut index: GatherNary = FxHashMap::default();
         for (i, el) in elements.iter().enumerate() {
-            let el_bindings = element_fact_bindings(el, bind_keys, vals, pool);
-            let key = key_of(&el_bindings, join_keys);
+            let key = key_of_el(el, join_keys, &intern);
             index.entry(key).or_default().push(i);
         }
         GatherIndex::Nary(index)
@@ -1351,21 +1780,26 @@ pub(crate) fn build_gather_index(
 /// Get-or-build the fire-scoped gather index for `alpha_id` under `sample`'s shared keys.
 /// Acc, Negation, and Exists all miss through here so one pair is built once per fire
 /// and appended across rounds (`DESIGN-STONE-persist-gather-across-rounds`).
-fn ensure_gather<B: Bindings + ?Sized>(
-    cache: &mut GatherCache,
+fn ensure_gather<'a, B: Bindings + ?Sized>(
+    cache: &'a mut GatherCache,
     wm: &FireSession,
     alpha_id: i64,
     sample: &B,
-) -> Vec<Value> {
+) -> Option<(&'a GatherIndex, Arc<[Value]>)> {
     let els = alpha_elements(&wm.alpha, alpha_id);
-    let join_keys = gather_join_keys(sample, els, &wm.bind_keys, &wm.bind_vals, &wm.bind_pool);
-    let cache_key = (alpha_id, join_keys.clone());
-    cache.entry(cache_key).or_insert_with(|| {
-        census_count("accum:index-builds");
-        census_count_n("accum:index-elements", els.len() as u64);
-        build_gather_index(els, &join_keys, &wm.bind_keys, &wm.bind_vals, &wm.bind_pool)
-    });
-    join_keys
+    if els.is_empty() {
+        return None;
+    }
+    let join_keys: Arc<[Value]> =
+        gather_join_keys(sample, els, GatherIntern::from_wm(wm, alpha_id)).into();
+    let index = cache
+        .entry((alpha_id, Arc::clone(&join_keys)))
+        .or_insert_with(|| {
+            census_count("accum:index-builds");
+            census_count_n("accum:index-elements", els.len() as u64);
+            build_gather_index(els, join_keys.as_ref(), GatherIntern::from_wm(wm, alpha_id))
+        });
+    Some((index, join_keys))
 }
 
 /// Exists/Not Leaf: probe the token's bucket. Empty bucket is absence (contract clause 2).
@@ -1377,22 +1811,24 @@ fn any_seeded_keyed<B: Bindings + ?Sized>(
     compiled: &crate::rete::compiled_cond::CompiledCond,
     scratch: &mut SlotFrame,
 ) -> bool {
-    let join_keys = ensure_gather(cache, wm, alpha_id, seed);
-    let key = key_of(seed, &join_keys);
-    let index = cache
-        .get(&(alpha_id, join_keys))
-        .expect("ensure_gather just inserted");
+    let Some((index, join_keys)) = ensure_gather(cache, wm, alpha_id, seed) else {
+        return false;
+    };
+    let key = key_of(seed, join_keys.as_ref(), &wm.bind_val_ids);
     let elements = alpha_elements(&wm.alpha, alpha_id);
-    let bucket = index.bucket(&key, &wm.bind_val_ids);
+    let bucket = index.bucket(&key);
+    // No leftover SeedCmp: the keyed bucket is the exists/not (same contract as join_extend).
+    if !compiled.has_seed_cmp() {
+        return !bucket.is_empty();
+    }
     bucket.iter().any(|&i| {
         census_gather_visit();
-        fact_bindings_under(
+        fact_holds_under(
             fact_at(&wm.facts, &wm.derived_facts, wm.n_input, elements[i].fact),
             seed,
             compiled,
             scratch,
         )
-        .is_some()
     })
 }
 
@@ -1405,13 +1841,32 @@ fn seeded_bindings_keyed(
     compiled: &crate::rete::compiled_cond::CompiledCond,
     scratch: &mut SlotFrame,
 ) -> Vec<crate::value::pmap::PMap> {
-    let join_keys = ensure_gather(cache, wm, alpha_id, seed);
-    let key = key_of(seed, &join_keys);
-    let index = cache
-        .get(&(alpha_id, join_keys))
-        .expect("ensure_gather just inserted");
+    let Some((index, join_keys)) = ensure_gather(cache, wm, alpha_id, seed) else {
+        return Vec::new();
+    };
+    let key = key_of(seed, join_keys.as_ref(), &wm.bind_val_ids);
     let elements = alpha_elements(&wm.alpha, alpha_id);
-    let bucket = index.bucket(&key, &wm.bind_val_ids);
+    let bucket = index.bucket(&key);
+    if !compiled.has_seed_cmp() {
+        return bucket
+            .iter()
+            .map(|&i| {
+                let el_b = element_fact_bindings(
+                    &elements[i],
+                    &wm.bind_keys,
+                    &wm.bind_vals,
+                    &wm.bind_pool,
+                );
+                let mut pm = seed.clone();
+                for (k, v) in el_b.iter() {
+                    if pm.get(k).is_none() {
+                        pm = pm.assoc(k.clone(), v.clone());
+                    }
+                }
+                pm
+            })
+            .collect();
+    }
     bucket
         .iter()
         .filter_map(|&i| {
@@ -1424,247 +1879,6 @@ fn seeded_bindings_keyed(
             )
         })
         .collect()
-}
-
-// ── Accumulate folds (8-b) — native mirrors of the wat acc::* fold library ────
-
-/// Read an element's bound `?var` value as an i64 (the value-folds' arg).
-/// Mirrors `(Option/expect (PersistentMap/get (Element/bindings e) var) ...)`.
-/// Panics on an unbound var or a non-i64 value (a compile-time-impossible shape).
-fn acc_var_i64(
-    el: &Element,
-    var: &Value,
-    bind_keys: &[Value],
-    vals: &[Value],
-    pool: &[(u32, u32)],
-) -> i64 {
-    let bindings = element_fact_bindings(el, bind_keys, vals, pool);
-    match Bindings::get(&bindings, var) {
-        Some(Value::i64(n)) => *n,
-        Some(other) => panic!("accumulate: var bound to non-i64 {other:?}"),
-        None => panic!("accumulate: var {var:?} unbound in element bindings"),
-    }
-}
-
-/// Slot of `var` on the first bucket element. Empty bucket → None (count/sum
-/// emit identity; min/max/mean drop). Derived from a live Element, never stored
-/// on the interned `AccFold` (`DESIGN-STONE-accum-fold-the-wall`).
-fn operand_slot(
-    elements: &[Element],
-    bucket: &[usize],
-    var: &Value,
-    bind_keys: &[Value],
-    pool: &[(u32, u32)],
-) -> Option<usize> {
-    let &i = bucket.first()?;
-    pool_slice(pool, elements[i].binds)
-        .iter()
-        .position(|(id, _)| bind_keys.get(*id as usize) == Some(var))
-}
-
-fn slot_i64(el: &Element, slot: usize, vals: &[Value], pool: &[(u32, u32)]) -> i64 {
-    match pool_slice(pool, el.binds).get(slot) {
-        Some((_, vid)) => match vals.get(*vid as usize) {
-            Some(Value::i64(n)) => *n,
-            Some(other) => panic!("accumulate: slot bound to non-i64 {other:?}"),
-            None => panic!("accumulate: slot {slot} filler id {vid} missing"),
-        },
-        None => panic!("accumulate: slot {slot} missing in element bindings"),
-    }
-}
-
-/// Fold a keyed bucket with no leftover `SeedCmp`. The bucket IS the gather
-/// (join-key equality ≡ `token_element_compatible`). Count is `len`; value
-/// folds read `bindings[slot]`.
-fn fold_bucket(
-    fold: &AccFold,
-    elements: &[Element],
-    bucket: &[usize],
-    sym: &SymbolTable,
-    view: &AccView<'_>,
-) -> Result<Option<Value>, EvalBreak> {
-    match fold {
-        AccFold::Count => Ok(Some(Value::i64(bucket.len() as i64))),
-        AccFold::Sum(var) => {
-            let Some(slot) = operand_slot(elements, bucket, var, view.keys, view.pool) else {
-                return Ok(Some(Value::i64(0)));
-            };
-            let s: i64 = bucket
-                .iter()
-                .map(|&i| {
-                    census_gather_visit();
-                    slot_i64(&elements[i], slot, view.vals, view.pool)
-                })
-                .sum();
-            Ok(Some(Value::i64(s)))
-        }
-        AccFold::Min(var) => {
-            let Some(slot) = operand_slot(elements, bucket, var, view.keys, view.pool) else {
-                return Ok(None);
-            };
-            let mut acc: Option<i64> = None;
-            for &i in bucket {
-                census_gather_visit();
-                let v = slot_i64(&elements[i], slot, view.vals, view.pool);
-                acc = Some(match acc {
-                    Some(cur) if cur <= v => cur,
-                    _ => v,
-                });
-            }
-            Ok(acc.map(Value::i64))
-        }
-        AccFold::Max(var) => {
-            let Some(slot) = operand_slot(elements, bucket, var, view.keys, view.pool) else {
-                return Ok(None);
-            };
-            let mut acc: Option<i64> = None;
-            for &i in bucket {
-                census_gather_visit();
-                let v = slot_i64(&elements[i], slot, view.vals, view.pool);
-                acc = Some(match acc {
-                    Some(cur) if cur >= v => cur,
-                    _ => v,
-                });
-            }
-            Ok(acc.map(Value::i64))
-        }
-        AccFold::Mean(var) => {
-            let Some(slot) = operand_slot(elements, bucket, var, view.keys, view.pool) else {
-                return Ok(None);
-            };
-            let n = bucket.len() as i64;
-            let s: i64 = bucket
-                .iter()
-                .map(|&i| {
-                    census_gather_visit();
-                    slot_i64(&elements[i], slot, view.vals, view.pool)
-                })
-                .sum();
-            Ok(Some(Value::i64(s / n)))
-        }
-        AccFold::Distinct(_)
-        | AccFold::All
-        | AccFold::GroupBy(_)
-        | AccFold::User { .. } => {
-            let gathered: Vec<&Element> = bucket.iter().map(|&i| &elements[i]).collect();
-            accumulate_value(fold, &gathered, sym, view)
-        }
-    }
-}
-
-fn project_group_keys<B: Bindings + ?Sized>(
-    el_bindings: &B,
-    keys: &[Value],
-) -> Vec<(Value, Value)> {
-    keys.iter()
-        .filter_map(|k| el_bindings.get(k).map(|v| (k.clone(), v.clone())))
-        .collect()
-}
-
-fn accumulate_value(
-    fold: &AccFold,
-    gathered: &[&Element],
-    sym: &SymbolTable,
-    view: &AccView<'_>,
-) -> Result<Option<Value>, EvalBreak> {
-    Ok(match fold {
-        AccFold::Count => Some(Value::i64(gathered.len() as i64)),
-        AccFold::Sum(var) => {
-            let s: i64 = gathered.iter().map(|el| acc_var_i64(el, var, view.keys, view.vals, view.pool)).sum();
-            Some(Value::i64(s))
-        }
-        AccFold::Min(var) => {
-            // None seed; first element sets it, subsequent narrow with `<`. Empty → None.
-            let mut acc: Option<i64> = None;
-            for el in gathered {
-                let v = acc_var_i64(el, var, view.keys, view.vals, view.pool);
-                acc = Some(match acc {
-                    Some(cur) => {
-                        if v < cur {
-                            v
-                        } else {
-                            cur
-                        }
-                    }
-                    None => v,
-                });
-            }
-            acc.map(Value::i64)
-        }
-        AccFold::Max(var) => {
-            let mut acc: Option<i64> = None;
-            for el in gathered {
-                let v = acc_var_i64(el, var, view.keys, view.vals, view.pool);
-                acc = Some(match acc {
-                    Some(cur) => {
-                        if v > cur {
-                            v
-                        } else {
-                            cur
-                        }
-                    }
-                    None => v,
-                });
-            }
-            acc.map(Value::i64)
-        }
-        AccFold::Mean(var) => {
-            let n = gathered.len() as i64;
-            if n == 0 {
-                None
-            } else {
-                let s: i64 = gathered.iter().map(|el| acc_var_i64(el, var, view.keys, view.vals, view.pool)).sum();
-                Some(Value::i64(s / n))
-            }
-        }
-        AccFold::Distinct(var) => {
-            let mut seen: HashSet<i64> = HashSet::new();
-            let mut pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
-            for el in gathered {
-                let n = acc_var_i64(el, var, view.keys, view.vals, view.pool);
-                if seen.insert(n) {
-                    pv.push_back_mut(Value::i64(n));
-                }
-            }
-            Some(Value::wat__core__PersistentVector(pv))
-        }
-        AccFold::All => {
-            let mut pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
-            for el in gathered {
-                pv.push_back_mut(fact_at(view.facts, view.derived, view.n_input, el.fact).clone());
-            }
-            Some(Value::wat__core__PersistentVector(pv))
-        }
-        AccFold::GroupBy(var) => {
-            let mut groups: HashMap<i64, rpds::VectorSync<Value>> = HashMap::new();
-            for el in gathered {
-                let fact = fact_at(view.facts, view.derived, view.n_input, el.fact).clone();
-                let k = acc_var_i64(el, var, view.keys, view.vals, view.pool);
-                groups
-                    .entry(k)
-                    .or_insert_with(rpds::VectorSync::new_sync)
-                    .push_back_mut(fact);
-            }
-            Some(Value::wat__core__PersistentMap(
-                crate::value::pmap::PMap::from_pairs(groups.into_iter().map(|(k, pv)| {
-                    (Value::i64(k), Value::wat__core__PersistentVector(pv))
-                })),
-            ))
-        }
-        AccFold::User { var, program } => {
-            let mut pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
-            for el in gathered {
-                pv.push_back_mut(Value::i64(acc_var_i64(el, var, view.keys, view.vals, view.pool)));
-            }
-            let gathered_pv = Value::wat__core__PersistentVector(pv);
-            Some(crate::rete::expr_ir::exec_call(
-                program,
-                &[gathered_pv],
-                sym,
-                &crate::rust_caller_span!(),
-            )?)
-        }
-    })
 }
 
 fn exec_stashed_where(
@@ -1713,7 +1927,12 @@ fn dispatch_where_tests(
     if use_tree {
         let span = crate::rust_caller_span!();
         for tok in tokens {
-            let binds = bind_view(&sink.wm.bind_keys, &sink.wm.bind_vals, &sink.wm.bind_pool, tok.binds);
+            let binds = bind_view(
+                &sink.wm.bind_keys,
+                &sink.wm.bind_vals,
+                &sink.wm.bind_pool,
+                tok.binds,
+            );
             let cands = sink.where_tree.candidates(&binds, &span);
             let proven: HashSet<i64> = cands.proven.into_iter().collect();
             let maybe: HashSet<i64> = cands.maybe.into_iter().collect();
@@ -1751,7 +1970,12 @@ fn dispatch_where_tests(
                 if exec_stashed_where(
                     sink.compiled_wheres,
                     tid,
-                    &bind_view(&sink.wm.bind_keys, &sink.wm.bind_vals, &sink.wm.bind_pool, tok.binds),
+                    &bind_view(
+                        &sink.wm.bind_keys,
+                        &sink.wm.bind_vals,
+                        &sink.wm.bind_pool,
+                        tok.binds,
+                    ),
                     sink.sym,
                 )? {
                     census_count("filter:test-pass");
@@ -1767,11 +1991,10 @@ fn dispatch_where_tests(
     Ok(())
 }
 
-fn sorted_parents_of(parents_of: &ParentsOf, id: i64) -> Vec<i64> {
-    let mut p = parents_of.get(&id).cloned().unwrap_or_default();
-    p.sort_unstable();
-    p
-}
-
+mod acc;
+use acc::*;
+pub(crate) mod pass;
 mod delta;
 pub(crate) use delta::*;
+mod rules;
+pub(crate) use rules::*;

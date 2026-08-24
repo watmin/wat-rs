@@ -1,0 +1,450 @@
+//! Pass 3 of the fire round — hash-join delta.
+//!
+//! The largest pass, moved last and deliberately: 397 lines carrying the
+//! catch-up take/restore invariant (`DESIGN-STONE-partire-fire-loop`
+//! § sequencing). Settled method — the `arm` aliases are re-declared here as
+//! the fire prologue declares them, so the body needs no re-spelling.
+//!
+//! ⚠ THE TAKE/RESTORE INVARIANT IS GONE — the situation was removed, not
+//! guarded. `DESIGN-STONE-catchup-take-left` had this pass `wm.beta.remove` the
+//! parent, walk it, and re-insert it at two sites — one of them an error path
+//! nested twelve levels in — because a HashMap split-borrow was believed to
+//! need the parent OUT while the catch-up ran. Taking was a real improvement
+//! over the `.cloned()` it replaced.
+//!
+//! It is no longer needed. Every mutable touch of the session inside that
+//! window is `wm.bind_pool` or `wm.match_pool`, and those are DISJOINT FIELDS
+//! from `wm.beta`: a shared borrow of the parent coexists with them, so the
+//! parent can simply be READ. The emit that the take was protecting now happens
+//! after the window in any case. The workaround outlived its cause.
+//!
+//! So there is no invariant to hold: no take, no `restore_parent`, no two
+//! restore sites, and no way for a future `?` in this window to drop a beta
+//! memory — because nothing is removed from the map to begin with.
+//! (`DESIGN-STONE-catchup-borrow-not-take`.)
+//!
+//! `dirty_parents` is pass-local: seeded, tested and inserted into entirely
+//! within this body.
+
+use super::super::*;
+use super::RoundScratch;
+
+/// Join this round's new tokens and elements, ascending node id (topological).
+pub(crate) fn hash_join_delta(
+    wm: &mut FireSession,
+    arm: &InternedNetwork,
+    scratch: &mut RoundScratch<'_>,
+    d_beta: &mut BetaMemory,
+    left_idx: &mut JoinLeftIndex,
+    right_idx: &mut JoinRightIndex,
+    join_keys_cache: &mut JoinKeysCache,
+) -> Result<(), EvalBreak> {
+    let kind_ids = &arm.kind_ids;
+    let compiled_conds = &arm.compiled_conds;
+    let beta_readers = &arm.beta_readers;
+    let feeding_alpha_of = &arm.feeding_alpha_of;
+    let parents_of = &arm.parents_of;
+    let RoundScratch {
+        d_alpha,
+        packed_full,
+        match_scratch,
+        ..
+    } = scratch;
+
+// ── 3. Hash-join delta (ascending id — topological). ─────────────────────
+let __pt2 = phase_start();
+// P6 persistent-index algorithm (DESIGN-STONE-P6, 6-step ordering):
+//
+// For each parent P (Root/HashJoin) with HashJoinNode child J (feeding alpha A):
+//   dl = d_beta[P]  (Δleft:  tokens new this round at P)
+//   dr = d_alpha[A] (Δright: elements new this round at A)
+//
+//   Step 2: add dr → right_idx[J]   (right_idx now holds ALL right incl. this round's)
+//   Step 3: term1 = Δleft ⋈ all_right   (probe right_idx[J] with dl)
+//   Step 4: term2 = old_left ⋈ Δright   (probe left_idx[J] — still OLD — with dr)
+//   Step 5: add dl → left_idx[J]    (AFTER term2: left_idx now holds ALL left incl. this round's)
+//   Step 6: new tokens → wm.beta[J] + d_beta[J]
+//
+// Invariant: (Δleft×Δright) appears in term1 only (right_idx already has Δright at step 3);
+//            old_left×Δright appears in term2 only (left_idx lacks Δleft at step 4).
+//            No double-count, no miss — same semi-naive result as the keyed_join rebuild.
+// Dirty join-parents only (`DESIGN-STONE-dirty-join-parents`): left d_beta
+// or a HashJoin child whose feeding alpha has d_alpha. First-keying runs
+// the round the second side arrives (that delta is non-empty). Grow the
+// set as we emit so a middle join (J1→J2) is visited this round.
+let mut dirty_parents = seed_dirty_join_parents(
+    &kind_ids.join_parent,
+    d_beta,
+    d_alpha,
+    packed_full,
+    &arm.joins_fed_by,
+    parents_of,
+);
+for node_id in &kind_ids.join_parent {
+    if !dirty_parents.contains(node_id) {
+        continue;
+    }
+    // kind_ids.join_parent already filtered; children interned so fire
+    // does not re-scan names (`InternedNetwork.children_of`).
+    let child_ids: &[i64] = arm
+        .children_of
+        .get(node_id)
+        .map(|v| v.as_slice())
+        .unwrap_or(&[]);
+    for child_id in child_ids {
+        // Group C: child_node ref — only used for kind_of; borrow ends before wm mutations.
+        let child_node = match get_node(&wm.network, *child_id) {
+            Some(n) => n,
+            None => continue,
+        };
+        if kind_of(child_node) != NodeKind::HashJoin {
+            continue;
+        }
+        let alpha_id = feeding_alpha_of.get(child_id).copied().unwrap_or(-1);
+
+        // Step 1: Ensure join_keys[J] is cached.
+        // Compute from a sample token at P and a sample element at A (if both exist).
+        // first_keying=true means J was previously skipped while one side was empty;
+        // a one-time catch-up full-join is required to populate right_idx[J] from ALL
+        // cumulative wm.alpha[alpha_id] (not just the current round's dr).
+        let first_keying = if !join_keys_cache.contains_key(child_id) {
+            let sample_tok = wm.beta.get(node_id).and_then(|v| v.first());
+            // READ #1 of 2: one sample token, to derive this join's keys.
+            if sample_tok.is_some() {
+                beta_read(*node_id, 1);
+            }
+            let sample_el = wm.alpha.get(&alpha_id).and_then(|v| v.first());
+            match (sample_tok, sample_el) {
+                (Some(tok), Some(el)) => {
+                    let keys = gather_join_keys(
+                        &bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds),
+                        std::slice::from_ref(el),
+                        GatherIntern::from_wm(wm, alpha_id),
+                    );
+                    join_keys_cache.insert(*child_id, keys);
+                    true // first keying: catch-up full-join needed
+                }
+                _ => {
+                    // Neither side has data yet — skip this node for this round.
+                    // The join_keys will be computed next round when both sides are populated.
+                    continue;
+                }
+            }
+        } else {
+            false
+        };
+
+        // Group C: borrow join_keys (pointer bump) instead of cloning (Vec alloc + copy).
+        let jk: &[Value] = &join_keys_cache[child_id];
+
+        // CATCH-UP (first keying only): J was skipped every prior round while one side
+        // was empty, so right_idx[J] was never populated from those rounds' facts.
+        // Rebuild from ALL cumulative wm.alpha[alpha_id] and wm.beta[parent], cross-join
+        // fully, and build both indexes. Safe: J produced ZERO tokens before first keying
+        // so there is nothing to double-count. On subsequent rounds the incremental
+        // semi-naive path (steps 2–5 below) handles new arrivals correctly.
+        //
+        // Note: at this point in the round, steps 1 (alpha delta) and 2 (root-join delta)
+        // have ALREADY run, so wm.alpha and wm.beta contain ALL cumulative data including
+        // this round's new elements — the catch-up covers historical AND current-round facts.
+        if first_keying {
+            // Occupancy is already Arc-shared. Bump the Arc; do not memcpy
+            // the Vec (`DESIGN-STONE-catchup-arc-occupancy`). Parent beta
+            // is taken, walked, put back — not cloned
+            // (`DESIGN-STONE-catchup-take-left`).
+            let all_right = wm.alpha.get(&alpha_id).cloned();
+            let n_right = all_right.as_ref().map(|v| v.len()).unwrap_or(0);
+            // BORROWED, not taken. The removal this replaces existed to dodge a
+            // borrow conflict that the compiler does not actually have: every
+            // mutable touch inside this window is `wm.bind_pool` or
+            // `wm.match_pool`, and those are DISJOINT FIELDS from `wm.beta`, so
+            // a shared borrow of the parent coexists with them.
+            let all_left: &[Token] = wm
+                .beta
+                .get(node_id)
+                .map(|v| v.as_slice())
+                .unwrap_or(&[]);
+            // READ #2 of 2: the parent's cumulative tokens, for the catch-up cross-join.
+            beta_read(*node_id, all_left.len() as u64);
+            // Key from packed occupancy (empty binds), then write BindSpan
+            // onto the indexed copy (`DESIGN-STONE-join-index-span`).
+            // Keying after materialize used the binds-path JoinKey, which
+            // missed token probes (7b/7exists/8b native=0).
+            let __cri = phase_start();
+            {
+                let ridx = right_idx.entry(*child_id).or_default();
+                if let Some(right) = all_right.as_deref() {
+                    for &el in right {
+                        let k = key_of_el(&el, jk, &GatherIntern::from_wm(wm, alpha_id));
+                        let el = element_with_row_span(
+                            el,
+                            &mut wm.bind_pool,
+                            alpha_id,
+                            &wm.i64_by_fact,
+                            &wm.bind_only,
+                            &wm.cond_key_ids,
+                        );
+                        ridx.entry(k).or_default().push(el);
+                    }
+                }
+            }
+            phase_end("  ├ hj:catchup:right-idx", __cri);
+            // Reserve the 40k appends. Isolated unreserved extend paid
+            // G−E = 4.13 ms (`DESIGN-STONE-probe-gap-split`).
+            let n_join = match right_idx.get(child_id) {
+                Some(idx) if !idx.is_empty() && n_right > 0 => {
+                    all_left.len().saturating_mul(n_right / idx.len())
+                }
+                _ => 0,
+            };
+            wm.bind_pool.reserve(n_join.saturating_mul(4));
+            wm.match_pool.reserve(n_join.saturating_mul(2));
+            // Full cross-join: every left token keyed against right_idx[J].
+            let __cpr = phase_start();
+            let mut new_tokens: Vec<Token> = Vec::with_capacity(n_join);
+            if let Some(ridx) = right_idx.get(child_id) {
+                for tok in all_left {
+                    let k = key_of(
+                        &bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds),
+                        jk,
+                        &wm.bind_val_ids,
+                    );
+                    if let Some(bucket) = ridx.get(&k) {
+                        for el in bucket {
+                            match join_extend(
+                                tok,
+                                el,
+                                alpha_id,
+                                &mut FireCtx {
+                                    compiled_conds,
+                                    scratch: match_scratch,
+                                    pool: &mut wm.bind_pool,
+                                    match_pool: &mut wm.match_pool,
+                                    keys: &wm.bind_keys,
+                                    vals: &wm.bind_vals,
+                                    val_ids: &wm.bind_val_ids,
+                                    facts: &wm.facts,
+                                    derived: &wm.derived_facts,
+                                    n_input: wm.n_input,
+                                    i64_by_fact: &wm.i64_by_fact,
+                                    bind_only: &wm.bind_only,
+                                    cond_key_ids: &wm.cond_key_ids,
+                                },
+                            ) {
+                                Ok(Some(new_tok)) => new_tokens.push(new_tok),
+                                Ok(None) => {}
+                                Err(e) => return Err(e),
+                            }
+                        }
+                    }
+                }
+            }
+            phase_end("  ├ hj:catchup:probe", __cpr);
+            // Build left_idx[J] from ALL cumulative left tokens.
+            let __cli = phase_start();
+            {
+                let lidx = left_idx.entry(*child_id).or_default();
+                for &tok in all_left {
+                    let k = key_of(
+                        &bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds),
+                        jk,
+                        &wm.bind_val_ids,
+                    );
+                    lidx.entry(k).or_default().push(tok);
+                }
+            }
+            phase_end("  ├ hj:catchup:left-idx", __cli);
+            // Emit catch-up tokens into cumulative and delta memories.
+            let __cem = phase_start();
+            // `entry()` HOISTED out of the per-token loop: the key is constant, so the
+            // old form paid two map lookups per token (80,000 on the fanout cell) where
+            // two total will do. Correct regardless of the guard below.
+            if beta_readers.contains(child_id) {
+                beta_written(*child_id, new_tokens.len() as u64);
+                let beta = wm.beta.entry(*child_id).or_default();
+                beta.reserve(new_tokens.len());
+                for t in &new_tokens {
+                    beta.push(*t);
+                }
+            }
+            let n_emit = new_tokens.len();
+            let delta = d_beta.entry(*child_id).or_default();
+            delta.reserve(n_emit);
+            for new_tok in new_tokens {
+                delta.push(new_tok);
+            }
+            if n_emit > 0 {
+                dirty_parents.insert(*child_id);
+            }
+            phase_end("  ├ hj:catchup:emit", __cem);
+            continue; // Skip incremental steps 2–5 for this round.
+        }
+
+        // Group C: borrow dl; packed seed dr is 0..len, not a Vec
+        // (`DESIGN-STONE-seed-d-alpha-range`). NLL ends these borrows
+        // at their last use (step 5), before step 6 mutates d_beta.
+        let dl: &[Token] = d_beta.get(node_id).map(Vec::as_slice).unwrap_or_default();
+        let dr = AlphaNews::of(d_alpha, &wm.alpha, alpha_id, packed_full);
+
+        // Skip if nothing new on either side.
+        if dl.is_empty() && dr.is_empty() {
+            continue;
+        }
+
+        // Step 2: add Δright (dr) to right_idx[J] FIRST.
+        // dr is indices into wm.alpha[A]; right_idx still owns Elements (P6).
+        // Span once onto the indexed copy (`DESIGN-STONE-join-index-span`).
+        let __s2 = phase_start();
+        {
+            let ridx = right_idx.entry(*child_id).or_default();
+            let right_mem = wm.alpha.get(&alpha_id).map(|v| v.as_slice()).unwrap_or(&[]);
+            for ei in dr.iter() {
+                let el = right_mem[ei];
+                let k = key_of_el(&el, jk, &GatherIntern::from_wm(wm, alpha_id));
+                let el = element_with_row_span(
+                    el,
+                    &mut wm.bind_pool,
+                    alpha_id,
+                    &wm.i64_by_fact,
+                    &wm.bind_only,
+                    &wm.cond_key_ids,
+                );
+                ridx.entry(k).or_default().push(el);
+            }
+        }
+        phase_end("  ├ hj:step2-right-idx", __s2);
+
+        // Step 3: term1 = Δleft ⋈ all_right (probe right_idx[J] — now includes Δright).
+        // The mutable borrow from step 2 ended with that scope block; safe to borrow immutably.
+        let __s3 = phase_start();
+        let mut new_tokens: Vec<Token> = Vec::new();
+        if !dl.is_empty() {
+            if let Some(ridx) = right_idx.get(child_id) {
+                for tok in dl {
+                    let k = key_of(
+                        &bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds),
+                        jk,
+                        &wm.bind_val_ids,
+                    );
+                    if let Some(bucket) = ridx.get(&k) {
+                        for el in bucket {
+                            if let Some(new_tok) = join_extend(
+                                tok,
+                                el,
+                                alpha_id,
+                                &mut FireCtx {
+                                    compiled_conds,
+                                    scratch: match_scratch,
+                                    pool: &mut wm.bind_pool,
+                                    match_pool: &mut wm.match_pool,
+                                    keys: &wm.bind_keys,
+                                    vals: &wm.bind_vals,
+                                    val_ids: &wm.bind_val_ids,
+                                    facts: &wm.facts,
+                                    derived: &wm.derived_facts,
+                                    n_input: wm.n_input,
+                                    i64_by_fact: &wm.i64_by_fact,
+                                    bind_only: &wm.bind_only,
+                                    cond_key_ids: &wm.cond_key_ids,
+                                },
+                            )? {
+                                new_tokens.push(new_tok);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        phase_end("  ├ hj:step3-term1", __s3);
+
+        // Step 4: term2 = old_left ⋈ Δright (probe left_idx[J] — still OLD, Δleft not yet added).
+        // left_idx is a separate map from right_idx; no aliasing — safe immutable borrow.
+        let __s4 = phase_start();
+        if !dr.is_empty() {
+            if let Some(lidx) = left_idx.get(child_id) {
+                let right_mem = wm.alpha.get(&alpha_id).map(|v| v.as_slice()).unwrap_or(&[]);
+                for ei in dr.iter() {
+                    let el = right_mem[ei];
+                    let k = key_of_el(&el, jk, &GatherIntern::from_wm(wm, alpha_id));
+                    let el = element_with_row_span(
+                        el,
+                        &mut wm.bind_pool,
+                        alpha_id,
+                        &wm.i64_by_fact,
+                        &wm.bind_only,
+                        &wm.cond_key_ids,
+                    );
+                    if let Some(bucket) = lidx.get(&k) {
+                        for tok in bucket {
+                            if let Some(new_tok) = join_extend(
+                                tok,
+                                &el,
+                                alpha_id,
+                                &mut FireCtx {
+                                    compiled_conds,
+                                    scratch: match_scratch,
+                                    pool: &mut wm.bind_pool,
+                                    match_pool: &mut wm.match_pool,
+                                    keys: &wm.bind_keys,
+                                    vals: &wm.bind_vals,
+                                    val_ids: &wm.bind_val_ids,
+                                    facts: &wm.facts,
+                                    derived: &wm.derived_facts,
+                                    n_input: wm.n_input,
+                                    i64_by_fact: &wm.i64_by_fact,
+                                    bind_only: &wm.bind_only,
+                                    cond_key_ids: &wm.cond_key_ids,
+                                },
+                            )? {
+                                new_tokens.push(new_tok);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        phase_end("  ├ hj:step4-term2", __s4);
+
+        // Step 5: add Δleft (dl) to left_idx[J] AFTER term2 (no-double-count invariant).
+        // dl is &[Token] — iterate directly.
+        let __s5 = phase_start();
+        {
+            let lidx = left_idx.entry(*child_id).or_default();
+            for tok in dl {
+                let k = key_of(
+                    &bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds),
+                    jk,
+                    &wm.bind_val_ids,
+                );
+                lidx.entry(k).or_default().push(*tok);
+            }
+        }
+        phase_end("  ├ hj:step5-left-idx", __s5);
+
+        // Step 6: push new tokens to wm.beta[J] and d_beta[J].
+        let __s6 = phase_start();
+        // Same hoist + guard as the catch-up emit above.
+        if beta_readers.contains(child_id) {
+            beta_written(*child_id, new_tokens.len() as u64);
+            let beta = wm.beta.entry(*child_id).or_default();
+            beta.reserve(new_tokens.len());
+            for t in &new_tokens {
+                beta.push(*t);
+            }
+        }
+        let n_emit = new_tokens.len();
+        let delta = d_beta.entry(*child_id).or_default();
+        delta.reserve(n_emit);
+        for new_tok in new_tokens {
+            delta.push(new_tok);
+        }
+        if n_emit > 0 {
+            dirty_parents.insert(*child_id);
+        }
+        phase_end("  ├ hj:step6-emit", __s6);
+    }
+}
+
+phase_end("hash-join", __pt2);
+    Ok(())
+}

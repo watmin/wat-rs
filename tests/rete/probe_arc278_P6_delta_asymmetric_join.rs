@@ -34,7 +34,7 @@ fn run_expr(expr: &str) -> Value {
         .value_owned()
 }
 
-/// Run the same expression with BOTH `fire-rules'` (native delta) and `fire-rules-spec` (oracle),
+/// Run the same expression with BOTH `fire-rules` (native delta) and `fire-rules$oracle` (oracle),
 /// assert they agree, and return the common count.
 fn assert_native_eq_oracle(expr_template: &str, type_str: &str) -> i64 {
     let native_expr = expr_template.replace("FIRE_VERB", ":wat::rete::fire-rules");
@@ -43,7 +43,7 @@ fn assert_native_eq_oracle(expr_template: &str, type_str: &str) -> i64 {
     let oracle = run_expr(&oracle_expr);
     assert_eq!(
         native, oracle,
-        "native fire-rules' must match oracle fire-rules-spec for type {type_str}; native={native:?} oracle={oracle:?}"
+        "native fire-rules must match oracle fire-rules$oracle for type {type_str}; native={native:?} oracle={oracle:?}"
     );
     match native {
         Value::i64(n) => n,

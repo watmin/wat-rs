@@ -1,14 +1,15 @@
-//! Arc 278 — Stone 7-strat-native: STRATIFIED negation in the NATIVE kernel + the DIFFERENTIAL.
-//! The wat ORACLE (`fire-rules-spec` → `fire-stratified`) orders strata so a `:not` over a DERIVED fact
-//! fires only after its producer stratum closes (built `bb6fb0f9`). The native fast path
-//! (`fire-rules` → `fire-rules'` → `eval_fire_rules_native`) gained the same stratification natively
-//! (`bdbf3021`) — a PARALLEL port, not a flag on the oracle.
+//! Arc 278 stone 7-strat-native — STRATIFIED negation in the native kernel + the differential.
+//! Dual-impl: the unprimed public Fn is native; `$oracle` is the spec mouth.
+//!
+//! The oracle (`fire-rules$oracle` → `fire-stratified`) orders strata so a `:not` over a DERIVED fact
+//! fires only after its producer stratum closes. Native `fire-rules` stratifies the same way — a
+//! PARALLEL port, not a flag on the oracle.
 //!
 //! The worlds + drivers live in the co-located `.wat` fixture; the driver only names the fire verb via a
 //! thin zero-arg wrapper entry point (the only thing the differential varies).
 //!
 //! The full differential chain (the acceptance spec):
-//!     clj+clara  ──▶  wat+rete (`fire-rules-spec`)  ──▶  wat+rust-rete (`fire-rules`)
+//!     clj+clara  ──▶  wat+rete (`fire-rules$oracle`)  ──▶  wat+rust-rete (`fire-rules`)
 //! When all three agree we are in a good state; `neg.clj` pins the Clara boundary externally
 //! (`wat-scripts/fixes/rete-truth-maintenance-probes/`).
 //!
@@ -31,7 +32,7 @@ fn run_counts(entry: &str, n: usize) -> Result<Vec<i64>, String> {
     }
 }
 
-/// The oracle (`fire-rules-spec` → `fire-stratified`) is the reference within wat; it already stratifies.
+/// The oracle (`fire-rules$oracle` → `fire-stratified`) is the reference within wat; it already stratifies.
 #[test]
 fn oracle_stratified_negation_is_ok1() {
     let c = run_counts(":user::n-oracle-counts", 2).expect("oracle fire");

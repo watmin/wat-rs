@@ -5,69 +5,140 @@
 > `wat/rete.wat`. If a stone below disagrees with a dated ruling here,
 > **this file wins** and the stone is stale.
 
-**Right now:** floor **GREEN** `.floor/2026-08-20T22-14-47Z/`
-(4844 passed, 19 skipped). Clippy `--all-targets -D warnings`
-silent. First floor this turn RED `.floor/2026-08-20T22-07-56Z/`
-five diagnostic goldens (`runtime.rs` 25361→25366,
-`release-session` shifted `apply_tracked_callee`); recaptured;
-do not treat 22-07-56Z as green. Grid
-`GRID-native-vs-clara-2026-08-20T22-21-52Z.txt`
-(`GRID_SKIP_ORACLE=1`, `GRID_RUNS=3`): **30/30 `:match`,
-30/30 `:us`**, wall **368s**. Closest **fanout `[40000]` ratio 3.35**
-(wat 53.0 ms). Cascade `[50 100]` 6.68 (wat 17.6 ms). Accum
-`[200 200]` 8.02 (wat 18.6 ms). Skip matches `fire-rules$oracle`
-(a leftover token fails the run). Do not treat 17-42-43Z as a
-measurement. GNU `/usr/bin/time` is not installed; bash `time`
-is a keyword (`which time` empty).
+**⚠ INSTRUMENT CORRECTION 2026-08-24 — read before citing any census number.**
+The phase-census calibration constant was measured as ONE 200k batch and read
+anywhere from **105 to 155 ns** per mark pair. At 40 000 pairs that is a **±2 ms
+swing**: `prod:compiled-rhs` was recorded at both 2.541 and 4.826 ms for
+identical code. It is now the **minimum of five batches, ~66 ns, stable to under
+a nanosecond** (`calibrate_mark_ns`, used by all nine census harnesses).
+**Every `net` figure taken before this — including "production 19.6 / 66% is the
+named leftover" below — is UNDER-reported**, because the old constant
+over-subtracted. `prod:compiled-rhs` on the fanout cell is ~5.9 ms, not the
+~2-3 ms previously recorded. Before/after deltas within one session remain
+sound; absolutes do not. The `production` mark was also narrowed on 2026-08-24
+to bracket its pass rather than the A8 census — correct scoping, but it changed
+no number, because that census early-returns unless `FIRE_CENSUS` is armed and
+no harness arms it alongside `PHASE_NANOS`.
+
+**CURRENT STAMP 2026-08-23 (supersedes every number below it).** HEAD
+**`a58f9dda`** — the `ca9d9cc3` stamp further down is **STALE by 21 commits**;
+where it disagrees with this block, this block wins. Floor **GREEN**
+`.floor/2026-08-23T21-23-28Z` (4927 passed, 19 skipped, 275.284s, no ARM).
+Clippy CI-identical (`--release --workspace --all-targets -- -D warnings`)
+**silent**. Grid `GRID-native-vs-clara-2026-08-23T21-28-42Z.txt`
+(`GRID_SKIP_ORACLE=1 GRID_RUNS=3`): **30/30 `:match`, 30/30 `:us`**.
+Fanout `[40000]` **24.72 ms** (NOT 42.8 — that figure below is stale).
+strat-neg `[6 2000]` 13.60. accum `[200 200]` 13.44. deep-cascade `[50 100]` 10.13.
+⚠ `T21-28-42Z` vs `T19-17-35Z` are the SAME HEAD with no code between them —
+their spread is the INSTRUMENT's noise floor, not the engine: ±0.1–0.2 ms on
+big cells, −0.71 on strat-neg `[6 500]`. **Do not gate a sub-ms intern on the
+grid** — weigh on the leftover `Instant` harness, same session, before/after.
+Live leftover this HEAD (`fanout_three_leftover_split` [100 20], mean 3):
+without-query FIRE **23.96**, with-query **30.50**, delta 6.54,
+**harvest:query 6.89**, compiled-rhs net 2.01 (40000×), out:production **0.00**.
+`harvest_wrap_parts` 40k: C 2.91 · **R `Arc::from([pair])` 3.01** · I 0.21 · W 7.26.
+**THE WORK LIST IS `NEXT-STRIKES-theater-hunt.md`** — 4 Tier-1 strikes
+(T1 `merge_facts` per-stratum set rebuild · T2 Exists-leaf occupancy memcpy ·
+T3 harvest bag-then-copy · T4 `token_assoc` pool alloc), 4 Tier-2, and a
+Tier-3 CLEARED list that must not be re-hunted. Strikes run one at a time.
+Vigilia loop: last consecutive 0+0 at `36802e7e`; **`e21b7fba` is un-watched**.
+
+**Right now:** class-scan query harvest LANDED.
+Fanout `[40000]` wat-ns **58.1 → 42.8**. With-query
+FIRE **65.89 → 49.59**. Query-only Alpha→RootJoin
+skipped; `{?fact: fact}` from the closed bag.
+Leftover harvest:query **16.91** (40k one-entry
+PMaps). Grid `T20-37-11Z` 30/30 `:match` `:us` was
+pre-intern; fanout `[40000]` re-measured 42.8
+`:match` `:us`. Floor **GREEN**
+`.floor/2026-08-22T21-53-26Z/` (4914 passed, 19
+skipped). Grid `T21-37-57Z` 30/30 `:match` `:us`.
+Clippy `--all-targets -D warnings` silent. Occupancy leaf-fill + join-index
+span LANDED. Unary gather packed-then-BindSpan (7b string
+locations). Sum fold falls back when the i64 row is
+absent. grok-rete dirty intern on harvest HEAD **`ca9d9cc3`**. `harvest_stratified_queries` LANDED (QueryNode reverse-closure,
+not a second full fire).
+Vigilia recasts **12 and 13** both **0 L1 + 0 L2** (inward
+17/17 + circumspicere) at `8839bb16` — the stop named as two
+back-to-back empty recasts. R68 (`REALIZATIONS.md`) is the
+wrap of that watch. Do not stamp `vigilatum` until asked.
+Stone **29 REJECTED** (2026-08-20): intern stays discrete per
+compile-all (`rust_identity`). Identical rules do not share.
+Identical queries do not share. Query-memory is per Session.
+Overlay HIT is the same connection. Athena content-address
+would make `release-session` a cross-connection invariant —
+do not construct it. `NEXT-STRIKES-after-shadow.md`. `wm.rs` →
+`session.rs`. Stratify holds the slice arm as a value
+(`fire_fixpoint_delta_armed`). Primed public-entry docs gone.
+Intern doors share `rete_arm_build_put`. Grid
+`GRID-native-vs-clara-2026-08-22T09-12-32Z.txt`
+(`GRID_SKIP_ORACLE=1`, `GRID_RUNS=3`, occupancy intern vs
+`T00-23-51Z` HEAD `4c437585`): **30/30 `:match`, 30/30 `:us`**.
+Rank **`wat-ns`**, not ratio. Occupancy cells (bind-only leaf
+fill): **accum `[200 200]` 18.26 → 13.66 ms** (FIRE 13.7
+holds); `[50 200]` 4.14 → 2.48; `[100 200]` 8.69 → 6.37.
+**negation `[1000]` 3.45 → 2.20. neg-consumer `[1000]` 7.07 →
+3.67.** Harvest cell held: **strat-neg `[6 2000]` 47.5 →
+33.75 ms** (named harvest was 33.6). Closest Clara cell
+**fanout `[40000]` ratio 2.91, wat-ns 61.7 ms** (was 55.5 /
+3.40 — skip-BindSpan rebuilt the span × 40k products).
+**deep-cascade `[50 100]` 15.0 → 16.4. asym-join
+`[2000]` 4.26 → 4.84.** node-share `[50 200]` 0.94 held.
+min-finding `[2000]` 2.49 → 2.66 (noise). Do not cite ratio
+as the engine cut. Oracle still pays the full q-seed.
+`DESIGN-STONE-join-index-span` LANDED: occupancy Arc
+stays empty; `right_idx` copy gets BindSpan once.
+Fanout probe **3.76 → 1.62 ms**. FIRE `[200 200]`
+**13.48** (held). Named cell `GRID_SKIP_ORACLE=1
+GRID_RUNS=3`: fanout `[40000]` **61.7 → 58.7 ms**
+(still above 55.5 — production 19.6 / 66% is the
+named leftover, 40k RHS). asym-join `[2000]` 4.84
+→ 4.72 (noise).
+`DESIGN-STONE-occupancy-leaf-column` LANDED:
+undiscriminated bind-only classes fill tree
+**leaves** from a fact-id column after **packing
+every fact** (skip-activate without pack was
+3-stratum red). Occupancy ≡ `candidates_into`.
+`AlphaMemory` is `Arc<Vec<Element>>` — sibling
+leaves share one occupant list. 7strat 3-stratum
+green. `DESIGN-STONE-fire-i64-columns` LANDED
+(bind-only skips `exec_ops`). Column gather/fold
+interned; skip BindSpan did not cut FIRE.
+Class-union fill reverted (3-stratum). Seed
+reserve+fill realloc cheat reverted (not ≥ 1 ms).
+SETUP PV walk inverted FIRE — do not pack at
+SETUP. Isolated E−K still the old
+`exec_compiled` door. Do not skip Token spans.
+Three packed-rows scouts stay reverted
+(`DESIGN-STONE-packed-fire-rows`): i64 exec E−K −0.80;
+populate-without-materialize E−K −3 **and FIRE 19→70**
+(accumulate 1.3→28 — intern re-paid on gather/fold).
+Scout 3 (cheap slots on Element): gather/fold stayed 1.3;
+seed 16.6→18.8; FIRE 19→23. Reverted. Skip matches
+`fire-rules$oracle` (a leftover token fails the run). Do not
+treat 17-42-43Z as a measurement. GNU `/usr/bin/time` is
+not installed; bash `time` is a keyword (`which time` empty).
 insert-prime-split LANDED (insert − conj 1933 → 310 ns). Host
 encode/sort after query-read is compiled-wat, not rete.
-Queue: **intueri comment-geography leftovers; other wards CONVERGED twice.**
-Stone **29 REJECTED**
-(2026-08-20): intern stays discrete per compile-all
-(`rust_identity`). Identical rules do not share. Identical
-queries do not share. Query-memory is per Session. Overlay
-HIT is the same connection. Athena content-address would
-make `release-session` a cross-connection invariant — do
-not construct it. `NEXT-STRIKES-after-shadow.md`. grok-rete
-DR **82b9b551** (was d0973fb1; do not cite the old hash).
-Inward vigilia recast **DIVERGED**; L1+L2 drive is on disk (this tree,
-dirty after `82b9b551`). `wm.rs` → `session.rs`. Stratify holds the
-slice arm as a value (`fire_fixpoint_delta_armed`). Primed public-entry
-docs gone. `JoinKeysCache` / `RhsSlotTables` / `AlphaDiscs` /
-`OrBranches` / `WhereDiscs` used at construction. `intern_key` doc
-names the intern. Exigere `Follow-up` and stones 6–8 present-tense.
-Intern doors share `rete_arm_build_put`. rete lib **104**. clippy
-`-D warnings` (`--lib`) silent. Recast to confirm CONVERGES. Do not
-stamp `vigilatum` until a live recast is 0+0.
-Circumspicere (this turn): shipped-claim lies closed
-(`kernel is wm` → `session`; Session comments still said
-`fire-once'` / `fire-rules-spec`). Negative space: slice-arm
-as value had no rete-lib weigh after intern-put removal —
-`probe_arc278_7strat*` + `probe_arc278_not_and*` **6/6**
-green. TLS intern still requires connection affinity (stone
-27). `release-session` is hangup, not Drop (stone 28).
-Do not stamp.
-Dirty: vigilia L1+L2 drive + intern-trio docs + stones
-27–28 + 29 reject. Kernel is `session` / `fire` / `arm` /
-`stratify` / `census` / `insert`. Live names:
-`FireSession`, `InternedNetwork`, `WhereDiscNode`,
-`AlphaDiscNode`. Stratify is `StratifyView` / `RuleDep` /
-`RuleParts` structs, not tuples. Fire loop is
-`kernel/fire/mod.rs` (passes) + `kernel/fire/delta.rs`
-(fixpoint). Oracle is `wat/rete/oracle/` {insert,pass,
-accum-pass,fire,explain}. Sequi intern: arm table is
-thread-owned (`thread_local` `RefCell<FxHashMap>`; stone
-**27 LANDED**, `rg Mutex src/rete` empty) + exec arena
-runed `ambient-context`; census TLS runed
-`performance-counter`. Intern is a lease (`arm-session`
-+1, `release-session` −1, 0 drops **that id**; stone
-**28 LANDED**). Perspicere: nested maps named
-(`JoinLeftIndex`, `CompiledRhsByRule`, `AlphasByType`,
-gather unary/nary). Census/microbench HashMaps runed
-`perspicere(read-once)`. Named L1/L2 from the last tape
-are closed on disk. Recast vigilia. Do not stamp until
-a live recast is 0+0. Public rete names are unprimed wat Fns. Rust is
-`$native`. The wat reference is `$oracle`. `$impl` is
+TLS intern still requires connection affinity (stone 27).
+`release-session` is hangup, not Drop (stone 28). Kernel is
+`session` / `fire` / `arm` / `stratify` / `census` /
+`insert`. Live names: `FireSession`, `InternedNetwork`,
+`WhereDiscNode`, `AlphaDiscNode`. Stratify is
+`StratifyView` / `RuleDep` / `RuleParts` structs, not
+tuples. Fire loop is `kernel/fire/mod.rs` (passes) +
+`kernel/fire/delta.rs` (fixpoint). Oracle is
+`wat/rete/oracle/` {insert,pass,accum-pass,fire,explain}.
+Sequi intern: arm table is thread-owned (`thread_local`
+`RefCell<FxHashMap>`; stone **27 LANDED**, `rg Mutex src/rete`
+empty) + exec arena runed `ambient-context`;
+census TLS runed `performance-counter`. Intern is a lease
+(`arm-session` +1, `release-session` −1, 0 drops **that
+id**; stone **28 LANDED**). Public rete names are unprimed
+wat Fns. Rust is `$native`. The wat reference is
+`$oracle`. Exception: intern hangup mouths `arm-session` /
+`release-session` are keyword primitives (native-only
+intern; oracle has no intern). `$impl` is
 kwargs/bracket/service — not rete. Grid: fire-rules /
 fire-once / insert / insert-all / fire-rules-explain each
 have public + `$native` + `$oracle`. Prime `'` is not the

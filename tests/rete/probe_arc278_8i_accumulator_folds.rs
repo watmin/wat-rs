@@ -1,10 +1,14 @@
-//! Arc 278 — Stone 8-i: the wat accumulator fold library (`:wat::rete::acc::*`), standalone.
-//! RED at HEAD (the acc fold fns don't exist). GREEN when 8-i lands. Contract: DESIGN-STONE-8-accumulators.md.
+//! Arc 278 stone 8-i — the wat accumulator fold library (`:wat::rete::acc::*`), standalone.
 //!
 //! The accumulators are PURE WAT FOLDS over a `PV<Element>` (an Element = `(:wat::rete::Element :fact fact :bindings bindings)`);
 //! value-folds read a BOUND `?var` (a string key) from each element's bindings map. `mean` = `sum / count`
-//! (composition). Each fold returns `Option<Value>`: `None` = no token on empty (min/max/mean of nothing);
-//! `Some(v)` otherwise (count/sum emit `Some(0)` on empty; all/distinct → empty; group-by → empty map).
+//! (composition). Empty-case return types (illegal states unrepresentable):
+//!   count / sum      → BARE value (0 on empty — always concrete; never Option)
+//!   distinct / all   → BARE PV   ([] on empty)
+//!   group-by         → BARE PM   ({} on empty)
+//!   min / max / mean → Option    (None on empty — there is no minimum/maximum/mean of nothing)
+//! Option is min/max/mean only. Live mouths: `acc::count`, `acc::sum`, `acc::min`, `acc::max`,
+//! `acc::mean`, `acc::distinct`, `acc::all`, `acc::group-by`.
 //!
 //! Run: cargo test --release -p wat --test probe_arc278_8i_accumulator_folds
 

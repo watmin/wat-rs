@@ -10,7 +10,7 @@ use std::sync::{Arc, OnceLock};
 
 use crate::ast::WatAST;
 use crate::rete::matcher::{compare_values, Bindings, FieldNames};
-use crate::rete::vocabulary::{resolve_core_name, rete_op_for, OpClass, RETE_OPS};
+use crate::rete::vocabulary::{resolve_core_name, OpClass, RETE_OPS};
 use crate::runtime::{
     coincident_q_from_values, cosine_outcome_from_values, dot_outcome_from_values,
     presence_q_from_values, project_holon_rete_fallback, EvalBreak, FunctionBody, HolonReteProject,
@@ -84,11 +84,13 @@ pub(crate) enum Pat {
     /// `(Some p)` / `(Ok p)` / `(Err p)` / unit `:None`.
     Variant {
         name: String,
-        payload: Option<Box<Pat>>,
+        payload: PatPayload,
     },
 }
 
-pub(crate) type SlotNames = Box<[Option<Arc<str>>]>;
+pub(crate) type PatPayload = Option<Box<Pat>>;
+pub(crate) type SlotName = Option<Arc<str>>;
+pub(crate) type SlotNames = Box<[SlotName]>;
 type ExecArena = Vec<Option<Value>>;
 
 #[derive(Clone, Debug)]
@@ -239,10 +241,9 @@ fn lower_expr(ast: &WatAST, cx: &mut LowerCx) -> Result<Expr, LowerError> {
         return lower_hof_callee(ast, cx);
     }
     match ast {
-        WatAST::IntLit(n, _) => Ok(Expr::Lit(Value::i64(*n))),
-        WatAST::FloatLit(n, _) => Ok(Expr::Lit(Value::f64(*n))),
-        WatAST::BoolLit(b, _) => Ok(Expr::Lit(Value::bool(*b))),
-        WatAST::StringLit(s, _) => Ok(Expr::Lit(Value::String(Arc::new(s.clone())))),
+        ast if crate::rete::matcher::ast_literal_value(ast).is_some() => {
+            Ok(Expr::Lit(crate::rete::matcher::ast_literal_value(ast).unwrap()))
+        }
         WatAST::Keyword(k, _) => Ok(Expr::Lit(keyword_value(k, cx.sym))),
         WatAST::NilLit(_) => Ok(Expr::Lit(Value::Unit)),
         WatAST::Symbol(id, span) => {
@@ -362,11 +363,9 @@ fn lower_list(items: &[WatAST], span: &Span, cx: &mut LowerCx) -> Result<Expr, L
 
     // Vocabulary rows win over `:Type/field` — `PersistentVector/length` contains `/`
     // but is a rete op, not a record accessor.
-    if let Some(row) = rete_op_for(head) {
-        let op = RETE_OPS
-            .iter()
-            .position(|r| r.rete_name == row.rete_name)
-            .expect("row is in RETE_OPS") as u16;
+    if let Some(op) = crate::rete::vocabulary::rete_op_index(head) {
+        let row = &RETE_OPS[op];
+        let op = op as u16;
         let hof = matches!(
             row.core_name,
             ":wat::core::foldl"
@@ -411,11 +410,13 @@ fn lower_list(items: &[WatAST], span: &Span, cx: &mut LowerCx) -> Result<Expr, L
     Err(LowerError::unsupported(span.clone(), format!("cannot lower head {head}")))
 }
 
+type ExprArgs = Box<[Expr]>;
+
 fn lower_call_args(
     args: &[WatAST],
     cx: &mut LowerCx,
     hof: bool,
-) -> Result<Box<[Expr]>, LowerError> {
+) -> Result<ExprArgs, LowerError> {
     let mut out = Vec::with_capacity(args.len());
     for (i, a) in args.iter().enumerate() {
         let prev = cx.hof_fn_pos;
@@ -427,7 +428,7 @@ fn lower_call_args(
     Ok(out.into_boxed_slice())
 }
 
-fn lower_args(args: &[WatAST], cx: &mut LowerCx) -> Result<Box<[Expr]>, LowerError> {
+fn lower_args(args: &[WatAST], cx: &mut LowerCx) -> Result<ExprArgs, LowerError> {
     let mut out = Vec::with_capacity(args.len());
     for a in args {
         out.push(lower_expr(a, cx)?);
@@ -528,11 +529,10 @@ fn lower_match(args: &[WatAST], span: &Span, cx: &mut LowerCx) -> Result<Expr, L
 }
 
 fn lower_pat(ast: &WatAST, cx: &mut LowerCx) -> Result<Pat, LowerError> {
+    if let Some(v) = crate::rete::matcher::ast_literal_value(ast) {
+        return Ok(Pat::Lit(v));
+    }
     match ast {
-        WatAST::IntLit(n, _) => Ok(Pat::Lit(Value::i64(*n))),
-        WatAST::FloatLit(n, _) => Ok(Pat::Lit(Value::f64(*n))),
-        WatAST::BoolLit(b, _) => Ok(Pat::Lit(Value::bool(*b))),
-        WatAST::StringLit(s, _) => Ok(Pat::Lit(Value::String(Arc::new(s.clone())))),
         WatAST::Keyword(k, _) => {
             if let Some(name) = option_result_tag(k) {
                 return Ok(Pat::Variant {
@@ -648,20 +648,21 @@ fn lower_rete_defn(
 /// The callee is in the closed language; this is a call boundary, not a hatch.
 pub(crate) fn lower_named_rete_fn(
     head: &str,
+    span: &Span,
     sym: &SymbolTable,
 ) -> Result<Arc<Program>, LowerError> {
     let func = match sym.get(head) {
         Some(f) => f,
         None => {
-            return Err(LowerError::unsupported(crate::rust_caller_span!(), format!("unknown rete-defn {head}")));
+            return Err(LowerError::unsupported(span.clone(), format!("unknown rete-defn {head}")));
         }
     };
     if func.rete.is_none() {
-        return Err(LowerError::unsupported(crate::rust_caller_span!(), format!("{head} is not a rete-defn")));
+        return Err(LowerError::unsupported(span.clone(), format!("{head} is not a rete-defn")));
     }
     match &func.body {
         FunctionBody::Wat(body) => lower_rete_defn(func.as_ref(), body, sym),
-        _ => Err(LowerError::unsupported(crate::rust_caller_span!(), format!("{head} has no wat body"))),
+        _ => Err(LowerError::unsupported(span.clone(), format!("{head} has no wat body"))),
     }
 }
 
@@ -723,17 +724,7 @@ fn lower_construct(
         let names = a.names_arc();
         let class = head.strip_prefix(':').unwrap_or(head).to_string();
         let args = &items[1..];
-        let is_kwargs = args.len() >= 2
-            && args.len().is_multiple_of(2)
-            && args
-                .iter()
-                .step_by(2)
-                .all(|a| matches!(a, WatAST::Keyword(_, _)));
-        let value_asts: Vec<&WatAST> = if is_kwargs {
-            args.iter().skip(1).step_by(2).collect()
-        } else {
-            args.iter().collect()
-        };
+        let value_asts = crate::rete::eval_insert::rete_kwargs_value_asts(args);
         let mut fields = Vec::with_capacity(value_asts.len());
         for v in value_asts {
             fields.push(lower_expr(v, cx)?);
@@ -814,6 +805,28 @@ pub(crate) fn exec_where<B: Bindings + ?Sized>(
     }
 }
 
+fn write_slot(
+    frame: &mut [Option<Value>],
+    slot: u16,
+    v: Value,
+    span: &Span,
+) -> Result<(), EvalBreak> {
+    match frame.get_mut(slot as usize) {
+        Some(s) => {
+            *s = Some(v);
+            Ok(())
+        }
+        None => Err(RuntimeError::new(
+            span.clone(),
+            RuntimeErrorKind::MalformedForm {
+                head: ":wat::rete::exec_value".into(),
+                reason: format!("slot {slot} is outside frame_len {}", frame.len()),
+            },
+        )
+        .into()),
+    }
+}
+
 /// Prologue (token bindings → slots) + eval. `where` requires bool;
 /// `compiled_rhs` takes the `Value` as a fact field.
 pub(crate) fn exec_value<B: Bindings + ?Sized>(
@@ -825,7 +838,7 @@ pub(crate) fn exec_value<B: Bindings + ?Sized>(
     with_exec_frame(program.frame_len as usize, |frame| {
         for (k, slot) in program.reads.iter() {
             if let Some(v) = bindings.get(k) {
-                frame[*slot as usize] = Some(v.clone());
+                write_slot(frame, *slot, v.clone(), span)?;
             }
         }
         exec(&program.root, frame, &program.names, sym, span)
@@ -869,7 +882,7 @@ fn with_exec_frame<R>(len: usize, f: impl FnOnce(&mut [Option<Value>]) -> R) -> 
 fn exec(
     e: &Expr,
     frame: &mut [Option<Value>],
-    names: &[Option<Arc<str>>],
+    names: &[SlotName],
     sym: &SymbolTable,
     span: &Span,
 ) -> Result<Value, EvalBreak> {
@@ -1001,7 +1014,7 @@ fn exec(
         Expr::Let { binds, body } => {
             for (slot, e) in binds.iter() {
                 let v = exec(e, frame, names, sym, span)?;
-                frame[*slot as usize] = Some(v);
+                write_slot(frame, *slot, v, span)?;
             }
             exec(body, frame, names, sym, span)
         }
@@ -1083,6 +1096,7 @@ fn exec(
 fn exec_program_on(
     program: &Program,
     args: &[Value],
+    // rune:perspicere(intentional-structure) — SlotFrame row; alias body would hide the slot layout
     parent: Option<&[Option<Value>]>,
     sym: &SymbolTable,
     span: &Span,
@@ -1120,7 +1134,7 @@ fn exec_program_on(
 fn exec_foldl(
     args: &[Expr],
     frame: &mut [Option<Value>],
-    names: &[Option<Arc<str>>],
+    names: &[SlotName],
     sym: &SymbolTable,
     span: &Span,
 ) -> Result<Value, EvalBreak> {
@@ -1175,10 +1189,13 @@ fn exec_foldl(
 fn pat_matches(pat: &Pat, v: &Value, frame: &mut [Option<Value>]) -> bool {
     match pat {
         Pat::Wild => true,
-        Pat::Bind(s) => {
-            frame[*s as usize] = Some(v.clone());
-            true
-        }
+        Pat::Bind(s) => match frame.get_mut(*s as usize) {
+            Some(slot) => {
+                *slot = Some(v.clone());
+                true
+            }
+            None => false,
+        },
         Pat::Lit(lit) => v == lit,
         Pat::Variant { name, payload } => match v {
             Value::Option(opt) => match (name.as_str(), opt.as_ref()) {
@@ -1232,7 +1249,7 @@ enum OpExec {
 impl OpExec {
     fn of(core: &str) -> Self {
         match core {
-            ":wat::core::=" | ":wat::core::enum::=" => Self::Eq,
+            ":wat::core::=" => Self::Eq,
             ":wat::core::not=" => Self::NotEq,
             ":wat::core::i64::>" | ":wat::core::>" => Self::Gt,
             ":wat::core::i64::<" | ":wat::core::<" => Self::Lt,
@@ -1250,7 +1267,7 @@ impl OpExec {
             ":wat::core::i64::+" => Self::I64Add,
             ":wat::core::i64::-" => Self::I64Sub,
             ":wat::core::i64::*" => Self::I64Mul,
-            ":wat::core::i64::/" | ":wat::core::i64::quot" | ":wat::core::i64::div" => Self::I64Div,
+            ":wat::core::i64::/" | ":wat::core::i64::quot" => Self::I64Div,
             ":wat::core::i64::rem" => Self::I64Rem,
             ":wat::core::i64::mod" => Self::I64Mod,
             ":wat::core::i64::to-f64" => Self::I64ToF64,
@@ -1304,7 +1321,17 @@ pub(crate) fn apply_op(
     let kinds = KINDS.get_or_init(|| {
         RETE_OPS.iter().map(|r| OpExec::of(r.core_name)).collect()
     });
-    apply_core_kind(kinds[op as usize], args, span, sym)
+    let Some(&kind) = kinds.get(op as usize) else {
+        return Err(RuntimeError::new(
+            span.clone(),
+            RuntimeErrorKind::MalformedForm {
+                head: ":wat::rete::apply_op".into(),
+                reason: format!("op index {op} is outside RETE_OPS"),
+            },
+        )
+        .into());
+    };
+    apply_core_kind(kind, args, span, sym)
 }
 
 fn apply_core_kind(
@@ -1408,7 +1435,18 @@ fn apply_core_kind(
                     RuntimeError::new(span.clone(), RuntimeErrorKind::DivisionByZero).into(),
                 );
             }
-            Ok(Value::i64(a.checked_rem(*b).unwrap_or(0)))
+            match a.checked_rem(*b) {
+                Some(n) => Ok(Value::i64(n)),
+                None => Err(RuntimeError::new(
+                    span.clone(),
+                    RuntimeErrorKind::IntegerOverflow {
+                        op: "rem".into(),
+                        a: *a,
+                        b: *b,
+                    },
+                )
+                .into()),
+            }
         }
         (OpExec::I64Mod, [Value::i64(a), Value::i64(b)]) => {
             if *b == 0 {
@@ -1416,7 +1454,20 @@ fn apply_core_kind(
                     RuntimeError::new(span.clone(), RuntimeErrorKind::DivisionByZero).into(),
                 );
             }
-            let r = a.checked_rem(*b).unwrap_or(0);
+            let r = match a.checked_rem(*b) {
+                Some(n) => n,
+                None => {
+                    return Err(RuntimeError::new(
+                        span.clone(),
+                        RuntimeErrorKind::IntegerOverflow {
+                            op: "mod".into(),
+                            a: *a,
+                            b: *b,
+                        },
+                    )
+                    .into())
+                }
+            };
             Ok(Value::i64(if r != 0 && (r < 0) != (*b < 0) {
                 r + *b
             } else {
@@ -1543,7 +1594,7 @@ fn apply_core_kind(
         _ => Err(RuntimeError::new(
             span.clone(),
             RuntimeErrorKind::MalformedForm {
-                head: ":wat::rete::apply".into(),
+                head: "compiled-exec".into(),
                 reason: format!("compiled apply cannot dispatch kind {kind:?} arity {}", args.len()),
             },
         )
@@ -1590,7 +1641,7 @@ fn ord(
         None => Err(RuntimeError::new(
             span.clone(),
             RuntimeErrorKind::TypeMismatch {
-                op: ":wat::rete::core::cmp".into(),
+                op: "compiled-compare".into(),
                 expected: "comparable pair",
                 got: Box::new(ValueSnapshot::of(a)),
             },

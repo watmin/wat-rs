@@ -1,8 +1,9 @@
 ;; wat/rete/compile.wat — interpreted compile (rule-set → network).
 ;;
 ;; compile-condition / compile-rule / compile-all, Axis / AxisViolation.
-;; Loads after wat/rete.wat (records). Native compile is the Rust `$native`
-;; dual; this file keeps it honest.
+;; Loads after wat/rete.wat (records). This file is the compile oracle
+;; (no compile$native verb). Native compile of conds/rhs happens in
+;; `arm-session` (`compile_condition_local` / `compile_rhs` / `compile_cond_driver`).
 ;;
 ;; Namespace: :wat::rete::
 
@@ -161,8 +162,7 @@
       (:wat::core::None
        (:wat::core::let [join-node (:wat::rete::RootJoinNode
                                       :id next-id
-                                      :children (:wat::core::PersistentVector)
-                                      :binding-keys (:wat::core::PersistentVector))
+                                      :children (:wat::core::PersistentVector))
                          new-net   (:wat::core::PersistentMap/assoc network next-id join-node)
                          new-dedup (:wat::core::HashMap/assoc dedup dkey next-id)
                          new-state (:wat::rete::CompileState
@@ -191,8 +191,7 @@
       (:wat::core::None
        (:wat::core::let [join-node (:wat::rete::HashJoinNode
                                       :id next-id
-                                      :children (:wat::core::PersistentVector)
-                                      :binding-keys (:wat::core::PersistentVector))
+                                      :children (:wat::core::PersistentVector))
                          new-net   (:wat::core::PersistentMap/assoc network next-id join-node)
                          new-dedup (:wat::core::HashMap/assoc dedup dkey next-id)
                          new-state (:wat::rete::CompileState
@@ -243,11 +242,11 @@
   :Pure
   :Deterministic
   :Total
-  ;; #57 LAW A — the head is a rete primitive. The builder's law: "the entire rete query language
-  ;; may only be composed from rete primitives." Its own variant because reusing :Pure would make
-  ;; the refusal LIE — `:wat::core::>` IS pure, deterministic and total, and is refused for one
-  ;; reason only: it is not from rete. The name is a WORD IN THE SENTENCE `axis-violation-message`
-  ;; builds ("is not a rete primitive"), not a label — an earlier spelling, `:Vocabulary`, was cast
+  ;; #57 LAW A — the head is a rete primitive. Armed on `where` / accumulate / `:then`.
+  ;; Its own variant because reusing :Pure would make the refusal LIE — `:wat::core::>` IS
+  ;; pure, deterministic and total, and is refused (on those arms) for one reason only: it
+  ;; is not from rete. The name is a WORD IN THE SENTENCE `axis-violation-message` builds
+  ;; ("is not a rete primitive"), not a label — an earlier spelling, `:Vocabulary`, was cast
   ;; to intueri and failed exactly there: "is not vocabulary" does not parse, and it named the
   ;; table we check rather than the law we hold.
   :RetePrimitive)
@@ -258,13 +257,13 @@
 ;;   head: the violating verb's fqdn (e.g. ":wat::io::IOReader/open-file", ":wat::core::Uuid/v4").
 ;;   axis: which axis was asked about (`:Pure` / `:Deterministic` / `:Total` / `:RetePrimitive`) —
 ;;         echoed back for self-description.
-;;   span: the failing call's source Location when the walk was still inside an inspectable AST at
-;;         the moment of failure; None for the one case it wasn't (a native fn stub with no body).
-;; Fields: head (fqdn), axis (which fence conjunct failed), span (call site or None).
+;;   span: the failing call's source Location. Native stubs with no body AST use
+;;         rust_caller_span so the field is never omitted.
+;; Fields: head (fqdn), axis (which fence conjunct failed), span (call site).
 (:wat::core::defrecord :wat::rete::AxisViolation
   [head <- :wat::core::String
    axis <- :wat::rete::Axis
-   span <- (:wat::core::Option :- [:wat::kernel::Location])])
+   span <- :wat::kernel::Location])
 
 ;; first-failing-axis — given the SAME booleans a fence's `and` already computed, names WHICH axis
 ;; to explain, mirroring `and`'s left-to-right short-circuit: report the FIRST conjunct that failed,
@@ -292,20 +291,24 @@
 (:wat::core::defn :wat::rete::first-failing-axis
   [is-pure  <- :wat::core::bool
    is-det   <- :wat::core::bool
-   is-total <- :wat::core::bool]
+   is-total <- :wat::core::bool
+   is-rete  <- :wat::core::bool]
   -> :wat::rete::Axis
   ;; `cond`, not a nested-`if` ladder — the chain reads top-to-bottom in the SAME order the
   ;; conjunction short-circuits, so the code and the law have one shape. (A nested `if` here would
   ;; also trip our own `lint_finds_the_nested_if_ladder`.) Builder: *"use cond over if chaining."*
+  ;; Fourth argument is Law A: `:else` is RetePrimitive, never Total. A wrap that names
+  ;; RetePrimitive outside this fn can drop and a core `i64::>` where is refused as Total.
   (:wat::core::cond
-    ((:wat::core::not is-pure) :wat::rete::Axis::Pure)
-    ((:wat::core::not is-det)  :wat::rete::Axis::Deterministic)
-    (:else                     :wat::rete::Axis::Total)))
+    ((:wat::core::not is-pure)  :wat::rete::Axis::Pure)
+    ((:wat::core::not is-det)   :wat::rete::Axis::Deterministic)
+    ((:wat::core::not is-total) :wat::rete::Axis::Total)
+    (:else                      :wat::rete::Axis::RetePrimitive)))
 
 ;; axis-violation-message — build a human-actionable fence message from an ALREADY-DECIDED
-;; rejection. `context` names the fenced site ("where" / "accumulator"); `failing-axis` is the axis
-;; `first-failing-axis` picked. This function NEVER changes accept/reject (STOP-3) — both call sites
-;; reach it only after `(and is-pure is-det is-total is-rete)` was already false — it only names
+;; rejection. `context` names the fenced site ("where" / "accumulator" / "then"); `failing-axis` is the axis
+;; `first-failing-axis` picked. This function NEVER changes accept/reject (STOP-3) — the three call sites
+;; (where, accumulator, then-item-fence) reach it only after `(and is-pure is-det is-total is-rete)` was already false — it only names
 ;; the failure that was already found. `:wat::core::Option/expect`'s message argument is evaluated
 ;; lazily (only on the None/rejected branch — `expect_panic` in runtime.rs), so this walk never
 ;; runs on an accepted expr even though it is wired as a plain argument expression.
@@ -354,7 +357,7 @@
        ((:wat::core::Some v)
         (:wat::core::string::concat "compile-condition: " context " expr is not a rete primitive — '"
                                      (:wat::rete::AxisViolation/head v)
-                                     "' is not a rete primitive; a where admits only :wat::rete:: ops"))
+                                     "' is not a rete primitive; a " context " admits only :wat::rete:: ops"))
        (:wat::core::None
         (:wat::core::format "compile-condition: {context} expr is not a rete primitive (offending head could not be attributed)" :context context))))))
 
@@ -451,21 +454,19 @@
                         ;; whole endeavour exists to remove: there is no jump-table opcode for
                         ;; "raises", so #49a's compiled executor cannot dispatch one.
                         is-total  (:wat::rete::total? expr)
-                        ;; #57 LAW A, ARMED. "The entire rete query language may only be composed
-                        ;; from rete primitives." A core-spelled op is refused even when it is pure,
-                        ;; deterministic AND total — which is exactly why RetePrimitive is its own
-                        ;; axis and not a fourth reading of :Pure.
+                        ;; #57 LAW A, ARMED on this arm (`where` / accumulate / `:then`).
+                        ;; Fact-pattern constraints: freeze wall (`validate.rs` NonReteConstraint)
+                        ;; AND native `compile_condition_local` (arm-session / compile-all intern)
+                        ;; refuse CoreGeneric — this fenced expr is the same axis.
                         is-rete   (:wat::rete::primitive? expr)
                         _fence    (:wat::core::Option/expect
                                       (:wat::core::if (:wat::core::and is-pure is-det is-total is-rete)
                                         (:wat::core::Some nil)
                                         :wat::core::None)
                                       (:wat::rete::axis-violation-message "where" expr
-                                        ;; the axis is EXACT, never a default: if the first three
-                                        ;; conjuncts held, the only one left to have failed is law A.
-                                        (:wat::core::if (:wat::core::and is-pure is-det is-total)
-                                          :wat::rete::Axis::RetePrimitive
-                                          (:wat::rete::first-failing-axis is-pure is-det is-total))))
+                                        ;; the axis is EXACT: first-failing-axis walks all four
+                                        ;; conjuncts; `:else` is Law A (RetePrimitive), never Total.
+                                        (:wat::rete::first-failing-axis is-pure is-det is-total is-rete)))
                         ;; #49 — lower at rule-compile. A form that cannot lower never
                         ;; enters the network. Fire only executes the circuit.
                         _lowered  (:wat::rete::lower expr)
@@ -565,19 +566,21 @@
                                              (:wat::core::get cond-ch 2)
                                              "compile-condition: accumulate missing acc-form")
                             ;; 8-custom FENCE: the acc-form head selects the fold. A built-in
-                            ;; head (:wat::rete::acc::*) is trusted (skip the fence). Any other
-                            ;; head is a USER fold fn → assert it is pure∧det (the same 6a fence
-                            ;; `where` uses), else raise at compile. Build a synthetic call
-                            ;; `(<acc-hd> __acc__)` and run pure?/deterministic? on it — head_ok
-                            ;; classifies the user fn transitively (purity.rs:classify_fn).
+                            ;; head (:wat::rete::acc::*) is trusted (skip the fence wholesale).
+                            ;; Any other head is a USER fold fn → the same four-axis check
+                            ;; `where` / `:then` use: pure ∧ det ∧ total ∧ rete. Build a
+                            ;; synthetic call `(<acc-hd> __acc__)` and run the four predicates
+                            ;; on it — head_ok classifies the user fn transitively
+                            ;; (purity.rs:classify_fn).
                             acc-ch       (:wat::core::ast->children acc-form)
                             acc-hd       (:wat::core::first acc-ch)
                             acc-hd-nm    (:wat::core::ast-name acc-hd)
                             is-builtin   (:wat::core::string::starts-with? acc-hd-nm ":wat::rete::acc::")
                             fence-call   (:wat::core::quasiquote
                                             ((:wat::core::unquote acc-hd) __acc__))
-                            ;; fence: pure ∧ deterministic (skipped for :wat::rete::acc::* builtins,
-                            ;; which are trusted). is-pure/is-det are computed unconditionally — same
+                            ;; fence: pure ∧ det ∧ total ∧ rete (skipped for :wat::rete::acc::*
+                            ;; builtins, which are trusted). The four predicates are computed
+                            ;; unconditionally — same
                             ;; shape as the `where` fence above — which is safe even for a builtin
                             ;; acc-hd: pure?/deterministic? default-deny gracefully on an unrecognized
                             ;; head, never panic. The message names the offending head + axis
@@ -609,12 +612,9 @@
                                                  (:wat::core::Some nil)
                                                  :wat::core::None))
                                              (:wat::rete::axis-violation-message "accumulator" fence-call
-                                               ;; the axis is EXACT, never a default — the same rule the
-                                               ;; `where` fence uses: if the first three conjuncts held,
-                                               ;; the only one left to have failed is law A.
-                                               (:wat::core::if (:wat::core::and is-pure is-det is-total)
-                                                 :wat::rete::Axis::RetePrimitive
-                                                 (:wat::rete::first-failing-axis is-pure is-det is-total))))
+                                               ;; the axis is EXACT: first-failing-axis walks all four
+                                               ;; conjuncts; `:else` is Law A (RetePrimitive), never Total.
+                                               (:wat::rete::first-failing-axis is-pure is-det is-total is-rete)))
                             ;; assert items[3] is :from (structural validation)
                             from-kw      (:wat::core::Option/expect  
                                              (:wat::core::get cond-ch 3)
@@ -718,15 +718,16 @@
 ;; anything): the item must RETURN A FACT. Evaluate the head to its fn value — `eval-ast!`, since
 ;; `item-ch`'s head is already a `:wat::WatAST` value — then read its declared return type
 ;; (`return-type-of`) and confirm that type is a registered record/struct
-;; (`field-names-of` raises otherwise — the SAME registry `validate_and_reorder_then`'s
+;; (`field-names-of` raises otherwise — the SAME registry `validate_then_form`'s
 ;; `lookup_fields` reads on the Rust side, reached here in wat because that Rust validator
 ;; carries `types` but not `sym`, per `BRIEF-then-user-forms.md`'s "the fence goes where the
 ;; where fence already is").
 ;;
 ;; A bare record-type keyword (e.g. `:usr::Rate`) evaluates to a KEYWORD, not its constructor fn
 ;; (arc 294 item 9a's construction flip — `runtime.rs::eval_return_type_of`'s own doc) — resolve
-;; through the PRIME `:T'` in that case, the exact `:wat::rete::query` macro idiom
-;; ("types-as-forms"). A plain `:wat::core::defn` has no such indirection and already resolved to
+;; through the PRIME `:T'` in that case, the :then constructor door only (`return-type-of`).
+;; `query` is a defmacro over `query-read`; q is a Query, no type-keyword, no T'.
+;; A plain `:wat::core::defn` has no such indirection and already resolved to
 ;; a fn on the bare read.
 ;;
 ;; foldl-compatible: `(acc, item) -> acc`, so `compile-rule` folds this straight over `rhs`
@@ -766,11 +767,9 @@
                                     (:wat::core::Some nil)
                                     :wat::core::None)
                                   (:wat::rete::axis-violation-message "then" item
-                                    ;; exact, never a default: if the first three held, law A is
-                                    ;; the only conjunct left to have failed.
-                                    (:wat::core::if (:wat::core::and is-pure is-det is-total)
-                                      :wat::rete::Axis::RetePrimitive
-                                      (:wat::rete::first-failing-axis is-pure is-det is-total))))
+                                    ;; exact: first-failing-axis walks all four conjuncts;
+                                    ;; `:else` is Law A (RetePrimitive), never Total.
+                                    (:wat::rete::first-failing-axis is-pure is-det is-total is-rete)))
                     item-ch   (:wat::core::ast->children item)
                     head      (:wat::core::first item-ch)
                     head-val0 (:wat::core::Result/expect

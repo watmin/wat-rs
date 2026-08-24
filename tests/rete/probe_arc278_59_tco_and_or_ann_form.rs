@@ -1,5 +1,5 @@
 //! Arc 278 #59 — `and`, `or`, `ann-form` mirror the `if`/`match`/`let`/`do` pattern `eval_tail`
-//! (runtime.rs:3807) already dispatches to their `*_tail` TCO variants. Contract:
+//! already dispatches to their `*_tail` TCO variants. Contract:
 //! `docs/arc/2026/06/278-rules-engine/BRIEF-tco-and-or-ann-form.md`.
 //!
 //! THE GATE THAT DECIDES WHETHER THIS SHIPPED (per the brief): each TCO test below must go RED

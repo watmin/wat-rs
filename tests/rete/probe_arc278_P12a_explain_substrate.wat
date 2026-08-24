@@ -24,56 +24,52 @@
   :when [(?fact <- :weather::ColdAndWindy)])
 
 
-;; The shared lifecycle prefix (collect → compile → insert ×2 → fire-rules-explain, binding `ex`) is
-;; inlined into each entry point below — one per probe assertion.
+(:wat::core::defn :test::compile-weather [] -> :wat::rete::Session
+  (:wat::rete::compile-all
+    (:wat::rete::collect-rules :weather)
+    (:wat::core::PersistentVector (:weather::q-ColdAndWindy))))
+
+(:wat::core::defn :test::seed-oslo [s <- :wat::rete::Session] -> :wat::rete::Session
+  (:wat::rete::insert
+    (:wat::rete::insert s (:weather::Temperature :celsius -5 :location "Oslo"))
+    (:weather::WindSpeed :kph 40 :location "Oslo")))
+
+(:wat::core::defn :test::explain-oslo [] -> :wat::rete::Explained
+  (:wat::rete::fire-rules-explain (:test::seed-oslo (:test::compile-weather))))
+
+(:wat::core::defn :test::explain-oslo-oracle [] -> :wat::rete::Explained
+  (:wat::rete::fire-rules-explain$oracle (:test::seed-oslo (:test::compile-weather))))
+
+(:wat::core::defn :user::compile-weather-fires-nothing [] -> :wat::core::i64
+  (:wat::core::length
+    (:wat::rete::query
+      (:wat::rete::fire-rules (:test::compile-weather))
+      (:weather::q-ColdAndWindy))))
 
 ;; 1. CLOSURE FIDELITY — explain mode derives the same facts as the fast path: `Explained/session` is a real
 ;; fired session, and the ColdAndWindy closure count is 1 (diagnostics add provenance, never change WHAT fires).
 (:wat::core::defn :user::closure-fidelity-coldandwindy-count [] -> :wat::core::i64
-  (:wat::core::let
-    [rules   (:wat::rete::collect-rules :weather)
-     session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:weather::q-ColdAndWindy)))
-     session (:wat::rete::insert session (:weather::Temperature :celsius -5 :location "Oslo"))
-     session (:wat::rete::insert session (:weather::WindSpeed    :kph 40 :location "Oslo"))
-     ex      (:wat::rete::fire-rules-explain session)]
-    (:wat::core::length
-      (:wat::rete::query (:wat::rete::Explained/session ex) (:weather::q-ColdAndWindy)))))
+  (:wat::core::length
+    (:wat::rete::query
+      (:wat::rete::Explained/session (:test::explain-oslo))
+      (:weather::q-ColdAndWindy))))
 
 ;; 2. INDEX POPULATED — the support map has one entry per derived fact: ColdAndWindy + WeatherAlert = 2.
 (:wat::core::defn :user::support-index-length [] -> :wat::core::i64
-  (:wat::core::let
-    [rules   (:wat::rete::collect-rules :weather)
-     session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:weather::q-ColdAndWindy)))
-     session (:wat::rete::insert session (:weather::Temperature :celsius -5 :location "Oslo"))
-     session (:wat::rete::insert session (:weather::WindSpeed    :kph 40 :location "Oslo"))
-     ex      (:wat::rete::fire-rules-explain session)]
-    (:wat::core::PersistentMap/length (:wat::rete::Explained/support ex))))
+  (:wat::core::PersistentMap/length (:wat::rete::Explained/support (:test::explain-oslo))))
 
 ;; 3. CHAINS CAPTURED — each entry's producing token carries its real `matches` support chain. Sum of chain
 ;; lengths over all support entries: ColdAndWindy's token has 2 edges (Temperature, WindSpeed), WeatherAlert's
 ;; has 1 (ColdAndWindy) → 3. This proves the index stores the real provenance, not just fact keys.
 (:wat::core::defn :user::support-chains-total-length [] -> :wat::core::i64
-  (:wat::core::let
-    [rules   (:wat::rete::collect-rules :weather)
-     session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:weather::q-ColdAndWindy)))
-     session (:wat::rete::insert session (:weather::Temperature :celsius -5 :location "Oslo"))
-     session (:wat::rete::insert session (:weather::WindSpeed    :kph 40 :location "Oslo"))
-     ex      (:wat::rete::fire-rules-explain session)]
-    (:wat::core::foldl
-      (:wat::core::fn [acc <- :wat::core::i64  sv <- :wat::rete::Support]
-        -> :wat::core::i64
-        (:wat::core::i64::+ acc
-          (:wat::core::length (:wat::rete::Token/matches (:wat::rete::Support/token sv)))))
-      0
-      (:wat::core::PersistentMap/values (:wat::rete::Explained/support ex)))))
+  (:wat::core::foldl
+    (:wat::core::fn [acc <- :wat::core::i64  sv <- :wat::rete::Support]
+      -> :wat::core::i64
+      (:wat::core::i64::+ acc
+        (:wat::core::length (:wat::rete::Token/matches (:wat::rete::Support/token sv)))))
+    0
+    (:wat::core::PersistentMap/values (:wat::rete::Explained/support (:test::explain-oslo)))))
 
 ;; 4. ORACLE SIGIL — fire-rules-explain$oracle matches native support cardinality.
 (:wat::core::defn :user::support-index-length-oracle [] -> :wat::core::i64
-  (:wat::core::let
-    [rules   (:wat::rete::collect-rules :weather)
-     session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:weather::q-ColdAndWindy)))
-     session (:wat::rete::insert session (:weather::Temperature :celsius -5 :location "Oslo"))
-     session (:wat::rete::insert session (:weather::WindSpeed    :kph 40 :location "Oslo"))
-     ex      (:wat::rete::fire-rules-explain$oracle session)]
-    (:wat::core::PersistentMap/length (:wat::rete::Explained/support ex))))
-
+  (:wat::core::PersistentMap/length (:wat::rete::Explained/support (:test::explain-oslo-oracle))))

@@ -91,6 +91,17 @@ fn practice_on_disk_program_deduces_datamancer() {
 }
 
 #[test]
+fn disk_program_edn_is_canonical() {
+    let txt = edn_from_disk();
+    let v = call_with_edn(":user::disk-reexport-identical", &txt);
+    assert_eq!(
+        v,
+        Value::bool(true),
+        "edn-write(disk) must equal edn-write(export(import(disk)))"
+    );
+}
+
+#[test]
 fn impostor_on_disk_program_is_hollow() {
     let txt = edn_from_disk();
     let (who, hollow) = pair_i64(call_with_edn(":user::impostor", &txt));

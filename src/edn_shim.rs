@@ -206,15 +206,21 @@ pub fn eval_edn_read(
 // Arc 278 Stone 1 (`wat --mcp`) — the type path of `:wat::edn::ReadJsonOutcome` (registered in
 // `types.rs`, beside `:wat::core::ReadOutcome`).
 const READ_JSON_OUTCOME_TYPE: &str = ":wat::edn::ReadJsonOutcome";
+const READ_FOREIGN_OUTCOME_TYPE: &str = ":wat::edn::ReadForeignOutcome";
+
+/// `ReadJsonOutcome::Value` / `ReadForeignOutcome::Value` — the decoded value.
+fn tagged_read_outcome_value(type_path: &str, value: Value) -> Value {
+    Value::Enum(std::sync::Arc::new(crate::runtime::EnumValue {
+        type_path: type_path.into(),
+        variant_name: "Value".into(),
+        names: crate::runtime::builtin_enum_variant_names(type_path, "Value"),
+        fields: vec![value],
+    }))
+}
 
 /// `ReadJsonOutcome::Value [value]` — the decoded value.
 fn read_json_outcome_value(value: Value) -> Value {
-    Value::Enum(std::sync::Arc::new(crate::runtime::EnumValue {
-        type_path: READ_JSON_OUTCOME_TYPE.into(),
-        variant_name: "Value".into(),
-        names: crate::runtime::builtin_enum_variant_names(READ_JSON_OUTCOME_TYPE, "Value"),
-        fields: vec![value],
-    }))
+    tagged_read_outcome_value(READ_JSON_OUTCOME_TYPE, value)
 }
 
 /// `ReadJsonOutcome::Malformed [cause]` — the JSON text did not parse, or the parsed JSON did
@@ -224,19 +230,21 @@ fn read_json_outcome_value(value: Value) -> Value {
 /// the `wat-edn` crate, and the trait lives in `src/to_edn.rs` (the orphan rule forbids the
 /// reverse impl). The message is lifted through `FlatMessage` — the existing adapter for a
 /// genuinely flat, structure-free failure (`to_edn.rs:346`) — then decoded back to a typed
-/// `:wat::core::Error` via the IDENTICAL tail `read_outcome_malformed` uses below: the STRICT
+/// `:wat::core::Error` via the IDENTICAL tail the `read-string` Malformed helper uses: the STRICT
 /// decode is preferred and the FOREIGN (data-mode) decode is the fallback for tags the type
-/// registry does not carry yet. Same reasoning as `read_outcome_malformed`: a structured
+/// registry does not carry yet. Same reasoning as that helper: a structured
 /// diagnostic flattened into a String is the mask this arc exists to kill, and a lossy carrier is
 /// what makes that mask mandatory.
-fn read_json_outcome_malformed(
+fn tagged_read_outcome_malformed(
+    type_path: &str,
+    error_tag: &str,
     message: &str,
     sym: &SymbolTable,
     list_span: &crate::span::Span,
 ) -> Value {
     use crate::to_edn::WatError;
     let flat = crate::to_edn::FlatMessage {
-        tag: "JsonReadError",
+        tag: error_tag,
         key: "reason",
         message,
     };
@@ -279,11 +287,19 @@ fn read_json_outcome_malformed(
             ))
         });
     Value::Enum(std::sync::Arc::new(crate::runtime::EnumValue {
-        type_path: READ_JSON_OUTCOME_TYPE.into(),
+        type_path: type_path.into(),
         variant_name: "Malformed".into(),
-        names: crate::runtime::builtin_enum_variant_names(READ_JSON_OUTCOME_TYPE, "Malformed"),
+        names: crate::runtime::builtin_enum_variant_names(type_path, "Malformed"),
         fields: vec![cause],
     }))
+}
+
+fn read_json_outcome_malformed(
+    message: &str,
+    sym: &SymbolTable,
+    list_span: &crate::span::Span,
+) -> Value {
+    tagged_read_outcome_malformed(READ_JSON_OUTCOME_TYPE, "JsonReadError", message, sym, list_span)
 }
 
 /// `(:wat::edn::read-json s)` → `:wat::edn::ReadJsonOutcome`. Arc 278 Stone 1 (`wat --mcp`) —
@@ -328,14 +344,18 @@ pub fn eval_edn_read_json(
     ))
 }
 
-/// `(:wat::edn::read-foreign s)` → `:T`. Arc 278 Stone A — the DATA-MODE sibling
-/// of [`eval_edn_read`]. Same String→`parse_owned`→decode path, but an UNKNOWN
-/// tag reconstructs a self-describing dynamic value (`ForeignRecord` for a map
-/// body, `ForeignVariant` for a vector body) instead of raising `UnknownTag`.
+/// `(:wat::edn::read-foreign s)` → `:wat::edn::ReadForeignOutcome<T>`. Arc 278
+/// Stone A — the DATA-MODE sibling of [`eval_edn_read`]. Same
+/// String→`parse_owned`→decode path, but an UNKNOWN tag reconstructs a
+/// self-describing dynamic value (`ForeignRecord` for a map body,
+/// `ForeignVariant` for a vector body) instead of raising `UnknownTag`.
 /// Recursive: nested unknown tags decode all the way down. STRICT
 /// [`eval_edn_read`] is UNCHANGED (unknown tag still errors — the
 /// no-hidden-failures floor, R41 EGO SVM LEX). The consumer that HOLDS a type
 /// uses `read`; the consumer that LACKS it uses `read-foreign`.
+///
+/// TOTAL — parse/decode failure is `:Malformed`, never a raise. Type/arity
+/// mismatches still raise (the type checker's concern, same as `read-json`).
 pub fn eval_edn_read_foreign(
     args: &[WatAST],
     list_span: &crate::span::Span,
@@ -354,24 +374,31 @@ pub fn eval_edn_read_foreign(
             }));
         }
     };
-    let edn = wat_edn::parse_owned(&s).map_err(|e| RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
-        head: OP.into(),
-        reason: format!("EDN parse error: {e}")
-    }))?;
-    let result = edn_to_value_foreign(
-        &edn,
-        sym.types().map(|a| a.as_ref()),
-        sym.encoding_ctx().map(|a| a.as_ref()),
-    ).map_err(|e| {
-        RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
-            head: OP.into(),
-            reason: e.to_string()
-        })
-    })?;
+    let types = sym.types().map(|a| a.as_ref());
+    let ctx = sym.encoding_ctx().map(|a| a.as_ref());
+    let value = match wat_edn::parse_owned(&s) {
+        Ok(edn) => match edn_to_value_foreign(&edn, types, ctx) {
+            Ok(v) => tagged_read_outcome_value(READ_FOREIGN_OUTCOME_TYPE, v),
+            Err(e) => tagged_read_outcome_malformed(
+                READ_FOREIGN_OUTCOME_TYPE,
+                "ForeignReadError",
+                &e.to_string(),
+                sym,
+                list_span,
+            ),
+        },
+        Err(e) => tagged_read_outcome_malformed(
+            READ_FOREIGN_OUTCOME_TYPE,
+            "ForeignReadError",
+            &format!("EDN parse error: {e}"),
+            sym,
+            list_span,
+        ),
+    };
     Ok(crate::value::TrackedValue::new(
-        result,
+        value,
         crate::value::Provenance::RuntimeBuilt {
-            producer: ":wat::edn::read-foreign",
+            producer: OP,
             call_span: list_span.clone(),
         },
     ))
@@ -389,10 +416,13 @@ fn foreign_key_name(kw: &str) -> String {
     }
 }
 
-/// `(:wat::edn::ForeignRecord/get fr :key)` → `:wat::core::Value`. Arc 278
-/// Stone A — navigate a foreign record BY KEY (the consumer holds no type). The
-/// returned value is itself a `Value` (heterogeneous dynamic boundary — R7
-/// universal top): a leaf, or a nested `ForeignRecord`/`ForeignVariant`.
+/// `(:wat::edn::ForeignRecord/get fr :key)` → `:wat::core::Option<wat::core::Value>`.
+/// Arc 278 Stone A — navigate a foreign record BY KEY (the consumer holds no
+/// type). Same contract as `HashMap/get` / `PersistentMap/get`: miss is `None`,
+/// never a raise. The inner value is `Value` (heterogeneous dynamic boundary —
+/// R7 universal top): a leaf, or a nested `ForeignRecord`/`ForeignVariant`.
+/// Type/arity mismatches still raise (the type checker's concern, not this
+/// axis — same convention as `HashMap/get`).
 pub fn eval_foreign_record_get(
     args: &[WatAST],
     list_span: &crate::span::Span,
@@ -428,11 +458,8 @@ pub fn eval_foreign_record_get(
         }
     };
     match fr.fields.iter().find(|(k, _)| *k == key) {
-        Some((_, v)) => Ok(v.clone()),
-        None => Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
-            head: OP.into(),
-            reason: format!("foreign record `{}` has no field `:{}`", fr.class, key),
-        })),
+        Some((_, v)) => Ok(Value::Option(Arc::new(Some(v.clone())))),
+        None => Ok(Value::Option(Arc::new(None))),
     }
 }
 
@@ -3103,12 +3130,13 @@ fn tagged_to_value(
                 "wat.core/PersistentVector body must be a vector, got non-vector".to_string()
             ) }),
         };
-        let mut pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
+        let mut acc = Vec::with_capacity(items.len());
         for item in items {
-            let val = edn_to_value_caps(item, types, allow_caps, foreign, ctx)?;
-            pv.push_back_mut(val);
+            acc.push(edn_to_value_caps(item, types, allow_caps, foreign, ctx)?);
         }
-        return Ok(Value::wat__core__PersistentVector(pv));
+        return Ok(Value::wat__core__PersistentVector(
+            crate::value::pvec::PVec::from_vec(acc),
+        ));
     }
 
     // Arc 294.j RELAND — `#wat.holon/Thermometer {…}` / `#wat.holon/SlotMarker {…}`, the two
@@ -3576,7 +3604,7 @@ fn build_foreign_record(
     let mut fields: Vec<(String, Value)> = Vec::with_capacity(entries.len());
     for (k, v) in entries {
         // Foreign records carry keyword-named fields (mirrors record/struct
-        // decode + the `ForeignRecord/get : (_, Keyword) -> Value` accessor).
+        // decode + the `ForeignRecord/get : (_, Keyword) -> Option<Value>` accessor).
         // A non-keyword key is out of contract → loud error (no-hidden-failures).
         let key = match k {
             OwnedValue::Keyword(kw) => kw.name().to_string(),
@@ -4598,11 +4626,11 @@ mod tests {
     #[test]
     fn persistent_vector_edn_round_trip() {
         // Build a PersistentVector with three elements.
-        let mut pv: rpds::VectorSync<Value> = rpds::VectorSync::new_sync();
-        pv.push_back_mut(Value::i64(10));
-        pv.push_back_mut(Value::i64(20));
-        pv.push_back_mut(Value::i64(30));
-        let orig = Value::wat__core__PersistentVector(pv);
+        let orig = Value::wat__core__PersistentVector(crate::value::pvec::PVec::from_vec(vec![
+            Value::i64(10),
+            Value::i64(20),
+            Value::i64(30),
+        ]));
 
         // Serialize → tagged EDN string.
         let s = value_to_edn_string_with(&orig, None);

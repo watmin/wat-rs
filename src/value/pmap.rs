@@ -23,12 +23,68 @@ use std::sync::Arc;
 
 use super::value::Value;
 
+/// Bits of a mint id that name the minting thread. 2^20 lanes.
+const INTERN_LANE_BITS: u32 = 20;
+/// Bits that count mints within one lane. 2^44 ids per thread.
+const INTERN_SEQ_BITS: u32 = u64::BITS - INTERN_LANE_BITS;
+const INTERN_SEQ_MASK: u64 = (1u64 << INTERN_SEQ_BITS) - 1;
+
+/// Claim a fresh lane for this thread. One atomic per THREAD, not per mint.
+///
+/// Lane 0 is never issued, so no id is ever 0 — the runtime rejected a shared
+/// intern id of 0 for one-entry maps (`DESIGN-STONE-harvest-wrap-parts`),
+/// and this keeps that hole closed by construction.
+fn fresh_intern_lane() -> u64 {
+    static LANE: AtomicU64 = AtomicU64::new(1);
+    let lane = LANE.fetch_add(1, Ordering::Relaxed);
+    assert!(
+        lane < (1u64 << INTERN_LANE_BITS),
+        "PMap intern lanes exhausted after {} distinct minting threads — \
+         ids can no longer be proven unique, so this panics rather than \
+         silently colliding two map identities",
+        1u64 << INTERN_LANE_BITS
+    );
+    lane << INTERN_SEQ_BITS
+}
+
+thread_local! {
+    /// The next id this thread will mint. Seeded from its own lane, so minting
+    /// touches no memory any other thread touches.
+    static NEXT_INTERN: std::cell::Cell<u64> =
+        std::cell::Cell::new(fresh_intern_lane());
+}
+
 /// Rust-only identity for a map *instance*, copied on clone and minted on every
 /// structural rewrite. Not part of `Eq` / `Hash` — two maps with the same
 /// entries stay equal across arms and across intern ids.
+///
+/// PARTITIONED PER THREAD, and that is load-bearing for concurrency. This was
+/// one process-global `AtomicU64` bumped on every mint — and every one-entry
+/// map mints, which is 40k per fire on the harvest path. Measured
+/// (`intern_counter_thread_scaling`): 5.80 ns/op on one thread, **16.9 ns/op
+/// the moment a second thread appears** — a single shared cache line that
+/// every concurrently-firing rete has to take exclusively. The engine's
+/// concurrency contract is N independent sessions on N threads sharing nothing
+/// (`DESIGN-STONE-intern-zero-mutex`, stone 27: `ARM_TABLE` is thread-local and
+/// `rg Mutex src/rete` is empty); this counter was the one place that contract
+/// leaked.
+///
+/// Uniqueness is preserved, not traded away: the high `INTERN_LANE_BITS` name
+/// the thread and the low bits count within it, so two threads cannot mint the
+/// same id. A lane that exhausts its 2^44 sequence takes a fresh lane rather
+/// than wrapping into its neighbour.
 fn next_intern() -> u64 {
-    static NEXT: AtomicU64 = AtomicU64::new(1);
-    NEXT.fetch_add(1, Ordering::Relaxed)
+    NEXT_INTERN.with(|c| {
+        let id = c.get();
+        let next = id + 1;
+        // Sequence wrapped back to 0 -> this lane is spent; take another.
+        c.set(if next & INTERN_SEQ_MASK == 0 {
+            fresh_intern_lane()
+        } else {
+            next
+        });
+        id
+    })
 }
 
 /// Entries at or below this live in the array arm; `assoc` past it promotes to the trie.
@@ -40,8 +96,9 @@ pub const PROMOTION_THRESHOLD: usize = 8;
 #[derive(Debug, Clone)]
 pub enum PMap {
     /// `<= PROMOTION_THRESHOLD` entries, insertion-ordered, linear scan. No HAMT allocation.
+    /// Slice, not `Vec`: one-entry harvest is one alloc (`DESIGN-STONE-harvest-wrap-split`).
     /// The `u64` is a rust intern: clone-stable, ignored by `Eq`/`Hash`.
-    Array(Arc<Vec<(Value, Value)>>, u64),
+    Array(Arc<[(Value, Value)]>, u64),
     /// Above the threshold — the prior representation, unchanged.
     /// The `u64` is a rust intern: clone-stable, ignored by `Eq`/`Hash`.
     Trie(rpds::HashTrieMapSync<Value, Value>, u64),
@@ -55,7 +112,7 @@ impl Default for PMap {
 
 impl PMap {
     pub fn new() -> Self {
-        PMap::Array(Arc::new(Vec::new()), next_intern())
+        PMap::Array(Arc::from([]), next_intern())
     }
 
     /// Clone-stable rust identity. Copied on `clone`; minted on every
@@ -67,12 +124,29 @@ impl PMap {
         }
     }
 
+    /// One-entry Array on the existing arm (`DESIGN-STONE-harvest-wrap-parts`).
+    /// Same as `from_pairs` of one pair; skips the iterator dance.
+    pub fn from_one(k: Value, v: Value) -> Self {
+        PMap::Array(Arc::from([(k, v)]), next_intern())
+    }
+
     /// Build from an iterator, choosing the arm from the FINAL size — so a map built in one shot
     /// and the same map built by successive `assoc`s land in the same arm. Later duplicate keys
     /// win, matching `assoc`.
+    ///
+    /// Zero and one pair skip the growable accumulator: class-scan harvest
+    /// is 40k one-entry maps (`DESIGN-STONE-harvest-wrap-split`).
     pub fn from_pairs<I: IntoIterator<Item = (Value, Value)>>(pairs: I) -> Self {
+        let mut iter = pairs.into_iter();
+        let Some(first) = iter.next() else {
+            return PMap::new();
+        };
+        let Some(second) = iter.next() else {
+            return Self::from_one(first.0, first.1);
+        };
         let mut acc: Vec<(Value, Value)> = Vec::new();
-        for (k, v) in pairs {
+        acc.push(first);
+        for (k, v) in std::iter::once(second).chain(iter) {
             match acc.iter_mut().find(|(ek, _)| *ek == k) {
                 Some(slot) => slot.1 = v,
                 None => acc.push((k, v)),
@@ -85,7 +159,7 @@ impl PMap {
             }
             PMap::Trie(t, next_intern())
         } else {
-            PMap::Array(Arc::new(acc), next_intern())
+            PMap::Array(Arc::from(acc), next_intern())
         }
     }
 
@@ -124,9 +198,9 @@ impl PMap {
         match self {
             PMap::Array(entries, _) => {
                 if let Some(i) = entries.iter().position(|(ek, _)| *ek == k) {
-                    let mut next = (**entries).clone();
+                    let mut next = entries.to_vec();
                     next[i].1 = v;
-                    return PMap::Array(Arc::new(next), next_intern());
+                    return PMap::Array(Arc::from(next), next_intern());
                 }
                 if entries.len() + 1 > PROMOTION_THRESHOLD {
                     let mut t = rpds::HashTrieMapSync::new_sync();
@@ -136,9 +210,9 @@ impl PMap {
                     t.insert_mut(k, v);
                     return PMap::Trie(t, next_intern());
                 }
-                let mut next = (**entries).clone();
+                let mut next = entries.to_vec();
                 next.push((k, v));
-                PMap::Array(Arc::new(next), next_intern())
+                PMap::Array(Arc::from(next), next_intern())
             }
             PMap::Trie(t, _) => {
                 let mut next = t.clone();
@@ -163,7 +237,7 @@ impl PMap {
             PMap::Array(entries, _) => {
                 let mut next: Option<Vec<(Value, Value)>> = None;
                 for (k, v) in pairs {
-                    let vec = next.get_or_insert_with(|| (**entries).clone());
+                    let vec = next.get_or_insert_with(|| entries.to_vec());
                     match vec.iter_mut().find(|(ek, _)| *ek == k) {
                         Some(slot) => slot.1 = v,
                         None => vec.push((k, v)),
@@ -179,7 +253,7 @@ impl PMap {
                             }
                             PMap::Trie(t, next_intern())
                         } else {
-                            PMap::Array(Arc::new(vec), next_intern())
+                            PMap::Array(Arc::from(vec), next_intern())
                         }
                     }
                 }
@@ -205,9 +279,9 @@ impl PMap {
             PMap::Array(entries, _) => match entries.iter().position(|(ek, _)| ek == k) {
                 None => self.clone(),
                 Some(i) => {
-                    let mut next = (**entries).clone();
+                    let mut next = entries.to_vec();
                     next.remove(i);
-                    PMap::Array(Arc::new(next), next_intern())
+                    PMap::Array(Arc::from(next), next_intern())
                 }
             },
             PMap::Trie(t, _) => {
@@ -238,26 +312,15 @@ impl PMap {
     pub fn from_trie(t: rpds::HashTrieMapSync<Value, Value>) -> Self {
         if t.size() <= PROMOTION_THRESHOLD {
             PMap::Array(
-                Arc::new(t.iter().map(|(k, v)| (k.clone(), v.clone())).collect()),
+                Arc::from(
+                    t.iter()
+                        .map(|(k, v)| (k.clone(), v.clone()))
+                        .collect::<Vec<_>>(),
+                ),
                 next_intern(),
             )
         } else {
             PMap::Trie(t, next_intern())
-        }
-    }
-
-    /// The trie view, materialising one from the array arm when a reader genuinely needs rpds
-    /// (e.g. a boundary to code that is intentionally still trie-only, such as `Token.bindings`).
-    pub fn to_trie(&self) -> rpds::HashTrieMapSync<Value, Value> {
-        match self {
-            PMap::Trie(t, _) => t.clone(),
-            PMap::Array(entries, _) => {
-                let mut t = rpds::HashTrieMapSync::new_sync();
-                for (k, v) in entries.iter() {
-                    t.insert_mut(k.clone(), v.clone());
-                }
-                t
-            }
         }
     }
 }
@@ -315,7 +378,7 @@ mod tests {
     /// Same entries, forced into each arm, so every law below is checked ACROSS representations.
     fn both_arms(n: i64) -> (PMap, PMap) {
         let pairs: Vec<(Value, Value)> = (0..n).map(|i| (k(i), k(i * 10))).collect();
-        let array = PMap::Array(Arc::new(pairs.clone()), next_intern());
+        let array = PMap::Array(Arc::from(pairs.clone()), next_intern());
         let mut t = rpds::HashTrieMapSync::new_sync();
         for (kk, vv) in pairs {
             t.insert_mut(kk, vv);
@@ -394,6 +457,21 @@ mod tests {
             Some(&found),
             "a map-as-key entry must survive an EDN round trip and still be found from the other arm"
         );
+    }
+
+    #[test]
+    fn one_pair_from_pairs_is_the_array_arm_and_equals_assoc() {
+        let once = PMap::from_pairs([(k(1), k(2))]);
+        assert!(!once.is_trie());
+        assert_eq!(once.len(), 1);
+        let via_one = PMap::from_one(k(1), k(2));
+        let via_assoc = PMap::new().assoc(k(1), k(2));
+        assert_eq!(once, via_assoc);
+        assert_eq!(via_one, via_assoc);
+        assert_eq!(hash_of(&once), hash_of(&via_assoc));
+        assert_eq!(hash_of(&via_one), hash_of(&via_assoc));
+        let empty = PMap::from_pairs(std::iter::empty::<(Value, Value)>());
+        assert_eq!(empty, PMap::new());
     }
 
     /// Promotion must actually FIRE, and the two build paths must converge. A promotion test where
@@ -589,6 +667,136 @@ mod tests {
             trie.rust_identity(),
             trie.assoc(k(99), k(1)).rust_identity(),
             "assoc must mint — the network changed"
+        );
+    }
+
+    /// Does the intern counter scale across threads? `next_intern` is a single
+    /// process-global `AtomicU64`, and every one-entry `PMap` mints one — 40k
+    /// per fire on the harvest path. The builder's constraint is 512 concurrent
+    /// retes that "must never step on each other", so the question is whether
+    /// this counter is a shared cache line they fight over.
+    ///
+    /// DISCONFIRMING PROBE — measures only. Flat ns/op across thread counts
+    /// means no contention and no strike.
+    #[test]
+    fn intern_counter_thread_scaling() {
+        use std::sync::atomic::{AtomicU64, Ordering};
+        use std::sync::Arc as StdArc;
+        use std::sync::Barrier;
+        use std::time::Instant;
+
+        const PER_THREAD: u64 = 400_000;
+        const LANES: [usize; 4] = [1, 2, 4, 8];
+
+        // A private twin of the real counter, so the probe cannot be perturbed
+        // by other tests minting ids on the shared one.
+        static PROBE_NEXT: AtomicU64 = AtomicU64::new(1);
+
+        let mut shared_rows = String::new();
+        let mut local_rows = String::new();
+
+        for &threads in LANES.iter() {
+            // A — SHARED: every thread bumps one global counter (today's shape).
+            let barrier = StdArc::new(Barrier::new(threads + 1));
+            let handles: Vec<_> = (0..threads)
+                .map(|_| {
+                    let b = StdArc::clone(&barrier);
+                    std::thread::spawn(move || {
+                        b.wait();
+                        let mut acc = 0u64;
+                        for _ in 0..PER_THREAD {
+                            acc = acc.wrapping_add(PROBE_NEXT.fetch_add(1, Ordering::Relaxed));
+                        }
+                        std::hint::black_box(acc);
+                    })
+                })
+                .collect();
+            barrier.wait();
+            let t0 = Instant::now();
+            for h in handles {
+                h.join().expect("shared lane joined");
+            }
+            let shared_ns = t0.elapsed().as_nanos() as f64 / (PER_THREAD as f64 * threads as f64);
+
+            // B — LANED: the REAL `next_intern`, TLS lookup and all. Not a bare
+            // increment loop — that collapses to nothing under the optimizer and
+            // would flatter the result.
+            let barrier = StdArc::new(Barrier::new(threads + 1));
+            let handles: Vec<_> = (0..threads)
+                .map(|_| {
+                    let b = StdArc::clone(&barrier);
+                    std::thread::spawn(move || {
+                        b.wait();
+                        let mut acc = 0u64;
+                        for _ in 0..PER_THREAD {
+                            acc = acc.wrapping_add(super::next_intern());
+                        }
+                        std::hint::black_box(acc);
+                    })
+                })
+                .collect();
+            barrier.wait();
+            let t0 = Instant::now();
+            for h in handles {
+                h.join().expect("laned joined");
+            }
+            let local_ns = t0.elapsed().as_nanos() as f64 / (PER_THREAD as f64 * threads as f64);
+
+            shared_rows.push_str(&format!("{threads:>3} threads   {shared_ns:>8.2} ns/op\n"));
+            local_rows.push_str(&format!("{threads:>3} threads   {local_ns:>8.2} ns/op\n"));
+        }
+
+        println!(
+            "\nintern counter scaling — {PER_THREAD} mints per thread, 8 cores\n\n\
+             A  SHARED AtomicU64 (today)\n{shared_rows}\n\
+             B  PER-THREAD lane (proposed)\n{local_rows}\n\
+             a flat A column means no contention and no strike; a rising one is\n\
+             512 retes fighting over a single cache line.\n"
+        );
+    }
+
+    /// The laned counter must still mint globally-unique ids. Partitioning is
+    /// only allowed to remove contention, never uniqueness — the id is a map
+    /// instance's identity and a collision would silently fuse two overlays.
+    #[test]
+    fn laned_intern_ids_are_unique_across_threads() {
+        use std::collections::HashSet;
+        use std::sync::mpsc;
+
+        const THREADS: usize = 8;
+        const PER_THREAD: usize = 50_000;
+
+        let (tx, rx) = mpsc::channel::<Vec<u64>>();
+        let handles: Vec<_> = (0..THREADS)
+            .map(|_| {
+                let tx = tx.clone();
+                std::thread::spawn(move || {
+                    let ids: Vec<u64> = (0..PER_THREAD).map(|_| super::next_intern()).collect();
+                    tx.send(ids).expect("send ids");
+                })
+            })
+            .collect();
+        drop(tx);
+        for h in handles {
+            h.join().expect("minting thread joined");
+        }
+
+        let mut all: HashSet<u64> = HashSet::with_capacity(THREADS * PER_THREAD);
+        let mut total = 0usize;
+        for ids in rx {
+            for id in ids {
+                assert_ne!(id, 0, "id 0 must never be minted");
+                total += 1;
+                all.insert(id);
+            }
+        }
+        assert_eq!(total, THREADS * PER_THREAD, "every thread must report");
+        assert_eq!(
+            all.len(),
+            total,
+            "laned ids collided: {} distinct out of {} minted",
+            all.len(),
+            total
         );
     }
 }

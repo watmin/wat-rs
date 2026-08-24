@@ -1,12 +1,9 @@
 ;; Arc 278 — `insert-all` joins the dual-impl as the real BATCH primitive; `insert` keeps its
 ;; 2-ary clause UNCHANGED and gains a variadic clause as sugar over `insert-all`.
-;; RED at HEAD: `insert-all` / `insert-all-spec` / `insert-all'` do not exist, so every entry
-;; below raises `UnknownFunction` at RUNTIME (`--check` alone would NOT catch an unknown callee —
-;; `reference_check_is_not_a_complete_red_arbiter` — which is why this gate must RUN).
 ;;
-;; The trio this extends (mirrors `tests/rete/probe_arc278_native_insert_differential.{wat,rs}`,
-;; runtime.rs:4706 — "unprimed is the wat ORACLE, primed the native kernel; never collapsed"):
-;;   insert-spec  / insert'  / insert    ->   insert-all-spec / insert-all' / insert-all
+;; Dual-impl law: unprimed public names are native; `$oracle` is the spec mouth;
+;; `$native` is the kernel. (mirrors probe_arc278_native_insert_differential)
+;;   insert$oracle / insert$native / insert  ->  insert-all$oracle / insert-all$native / insert-all
 ;;
 ;; What would turn this red once it is green (the R59 question, answered before the assertions
 ;; were written):
@@ -16,13 +13,13 @@
 ;;       oracle (2) assertions would both pass vacuously against an empty vector; assertion (3)
 ;;       (N > 1, `facts` length == N exactly) is the ONLY thing that would catch it;
 ;;   (c) the public `insert-all` becoming a second implementation instead of a delegate to
-;;       `insert-all'` — invisible to the oracle/native split alone, which is why (2) compares
-;;       `insert-all-spec` to `insert-all'` directly (not through the public verb);
+;;       `insert-all$native` — invisible to the oracle/native split alone, which is why (2) compares
+;;       `insert-all$oracle` to `insert-all$native` directly (not through the public verb);
 ;;   (d) the 2-ary `insert` being silently RE-ROUTED through `insert-all` (STOP-1) — a
 ;;       one-element-vector allocation on the streaming hot path that every other assertion here
 ;;       would miss. Assertion (4) checks it by BEHAVIOUR: a lone 2-ary `insert` call must match
-;;       `insert'` called directly, fact for fact. (The form-level proof — that
-;;       `wat/rete.wat`'s 2-ary clause body is byte-for-byte `(:wat::rete::insert' session fact)`
+;;       `insert$native` called directly, fact for fact. (The form-level proof — that
+;;       `wat/rete/oracle/insert.wat`'s 2-ary clause body is `(:wat::rete::insert$native session fact)`
 ;;       with no reference to `insert-all` — is read by hand against the source, not re-derived
 ;;       here.)
 
@@ -54,14 +51,13 @@
 
 ;; ── seeders — identical facts, different verb ────────────────────────────────
 
-;; batch: ONE insert-all call (the public verb, delegating to insert-all').
+;; batch: ONE insert-all call (the public verb, delegating to insert-all$native).
 (:wat::core::defn :nia::seed-batch [] -> :wat::rete::Session
   (:wat::rete::insert-all (:nia::base) (:nia::the-facts)))
 
 ;; chained: N sequential 2-ary insert calls — the pre-existing streaming hot path.
-;; `insert` is now a `defclause` (a dispatch table, not a plain `Function` value), so — unlike
-;; `insert-spec` above — it cannot be passed to `foldl` bare; wrap it so the 2-ary clause is
-;; called explicitly.
+;; `insert` is now a `defclause` (a dispatch table, not a plain `Function` value), so it
+;; cannot be passed to `foldl` bare; wrap it so the 2-ary clause is called explicitly.
 (:wat::core::defn :nia::seed-chained [] -> :wat::rete::Session
   (:wat::core::foldl
     (:wat::core::fn [s <- :wat::rete::Session f <- :nia::Reading] -> :wat::rete::Session
@@ -69,13 +65,13 @@
     (:nia::base)
     (:nia::the-facts)))
 
-;; oracle: batch via insert-all-spec (the wat reference / differential oracle).
+;; oracle: batch via insert-all$oracle (the wat reference / differential oracle).
 (:wat::core::defn :nia::seed-oracle [] -> :wat::rete::Session
   (:wat::rete::insert-all$oracle (:nia::base) (:nia::the-facts)))
 
-;; native: batch via insert-all' DIRECTLY (bypassing the public delegate — isolates the prime).
+;; native: batch via insert-all$native DIRECTLY (bypassing the public delegate — isolates the prime).
 (:wat::core::defn :nia::seed-native [] -> :wat::rete::Session
-  (:wat::rete::insert-all (:nia::base) (:nia::the-facts)))
+  (:wat::rete::insert-all$native (:nia::base) (:nia::the-facts)))
 
 ;; ── witnesses, read off a seeded Session ──────────────────────────────────────
 
@@ -104,7 +100,7 @@
   (:wat::rete::insert (:nia::base) (:nia::Reading :g 7 :v 70)))
 
 (:wat::core::defn :nia::seed-single-native [] -> :wat::rete::Session
-  (:wat::rete::insert (:nia::base) (:nia::Reading :g 7 :v 70)))
+  (:wat::rete::insert$native (:nia::base) (:nia::Reading :g 7 :v 70)))
 
 ;; ── entries (0-arity, called by name from the .rs) ────────────────────────────
 
@@ -116,7 +112,7 @@
 (:wat::core::defn :user::batch-sum      [] -> :wat::core::i64 (:nia::fired-sum (:nia::seed-batch)))
 (:wat::core::defn :user::chained-sum    [] -> :wat::core::i64 (:nia::fired-sum (:nia::seed-chained)))
 
-;; assertion 2 — THE ORACLE: insert-all-spec == insert-all' on the same input.
+;; assertion 2 — THE ORACLE: insert-all$oracle == insert-all$native on the same input.
 (:wat::core::defn :user::oracle-staged  [] -> :wat::core::i64 (:nia::staged-count (:nia::seed-oracle)))
 (:wat::core::defn :user::native-staged  [] -> :wat::core::i64 (:nia::staged-count (:nia::seed-native)))
 (:wat::core::defn :user::oracle-fired   [] -> :wat::core::i64 (:nia::fired-count (:nia::seed-oracle)))
@@ -128,7 +124,7 @@
 (:wat::core::defn :user::n-under-test    [] -> :wat::core::i64 (:wat::core::length (:nia::the-facts)))
 (:wat::core::defn :user::batch-facts-len [] -> :wat::core::i64 (:nia::staged-count (:nia::seed-batch)))
 
-;; assertion 4 — THE 2-ARY PATH IS UNTOUCHED: a single 2-ary insert call matches insert' directly.
+;; assertion 4 — THE 2-ARY PATH IS UNTOUCHED: a single 2-ary insert call matches insert$native directly.
 (:wat::core::defn :user::single-public-staged [] -> :wat::core::i64 (:nia::staged-count (:nia::seed-single-public)))
 (:wat::core::defn :user::single-native-staged [] -> :wat::core::i64 (:nia::staged-count (:nia::seed-single-native)))
 (:wat::core::defn :user::single-public-fired  [] -> :wat::core::i64 (:nia::fired-count (:nia::seed-single-public)))
