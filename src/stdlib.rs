@@ -407,6 +407,16 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/rete/syntax.wat",
         source: include_str!("../wat/rete/syntax.wat"),
     },
+    // Arc 278 — DESIGN-STONE-wat-grep-is-a-feature — :wat::grep:: — wat-grep's vocabulary:
+    // Node/Named/Span (the fact base wat-grep inserts, per file), Match/Capture (what a rule
+    // asserts), and the ONE query q-match. Also extent-of (the sole ast-span/ast-end-span
+    // unwrap door) and facts-of (source -> Facts). References :wat::core:: builtins (defrecord,
+    // ast-span/ast-kind/ast-name/read-string, HashMap/Option/PersistentVector) and
+    // :wat::rete::defquery (wat/rete/syntax.wat) — loads after both.
+    WatSource {
+        path: "wat/grep.wat",
+        source: include_str!("../wat/grep.wat"),
+    },
     // Arc 278 stone S4 — :wat::query:: — the backend-agnostic storage CONTRACT (DynamoDB-shaped
     // narrow waist: (pk,sk,data) + named-GSI (ipk,isk), all keys EDN-form strings), on the
     // services-as-surfaces OPERATION MODEL (arc 293 Path B): `Store` is a `:nature

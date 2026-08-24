@@ -4,151 +4,12 @@
 ;; them. Both seeded facts BY HAND. This is the load-bearing unknown between those probes and an
 ;; actual migration: can a real `.wat` file on disk be turned into the fact base the rules read?
 ;;
-;; If this fails, the whole rules-ification is a toy. So it is measured here, on real files,
-;; before anything else is built on top of it.
+;; DESIGN-STONE-wat-grep-is-a-feature moved the extractor into the stdlib (`wat/grep.wat`):
+;; `:wat::grep::Node`/`Named`/`Span`/`Facts`/`facts-of`/`extent-of`/`q-match`. This probe now
+;; CONSUMES those stdlib verbs instead of declaring its own — it stays a probe, and it is this
+;; stone's regression check: the numbers below must not move, because a move that changes
+;; behaviour is not a move.
 ;;
-;; ─── THE ONE DESIGN DECISION ─────────────────────────────────────────────────
-;; Node identity is assigned by a PRE-ORDER walk with a threaded counter. Nothing about the
-;; source carries an id, and the rules need one to join on (corpus 01's `Node`/`Named` split and
-;; corpus 02's whole chain are joins on `?id`). Pre-order is chosen because it makes `parent`
-;; always ALREADY ASSIGNED when a child is numbered — a post-order walk would force a second
-;; pass to back-fill parents.
-;;
-;; ─── AND THE GUARD THAT CORPUS 01 PREDICTED, NOW LOAD-BEARING FOR REAL ───────
-;; `ast-name` is PARTIAL — it raises on any node that is not Symbol/Keyword/StringLit. That is
-;; the exact defect that killed the hand-rolled codemod on 43 of 1392 corpus files (it guarded on
-;; ARITY and then called `ast-name` anyway). Here the guard is structural instead: a `Named` fact
-;; is emitted ONLY for a nameable kind, so an unnameable node simply HAS NO NAME FACT and every
-;; downstream rule that joins `Named` cannot see it. The absence IS the guard (corpus 01 L1).
-;;
-;; ★ NON-VACUITY: `Node` must exceed `Named` on any real file. Every node gets a `Node`; only
-;; nameable ones get a `Named`. If the two counts were EQUAL the guard would be doing nothing and
-;; every reading below would be meaningless.
-
-(:wat::core::defrecord :fx::Node
-  [id     <- :wat::core::i64
-   parent <- :wat::core::i64
-   index  <- :wat::core::i64
-   kind   <- :wat::core::String])
-
-(:wat::core::defrecord :fx::Named
-  [id   <- :wat::core::i64
-   name <- :wat::core::String])
-
-;; :fx::Span — the coordinate a rule can bind. Flat, not nested, and NOT :wat::core::Span:
-;; `ast-span` returns keyword->i64 so it cannot carry :file; the file is a property of the RUN,
-;; not of a node; and a rule binds FIELDS, not sub-records. Emitted UNCONDITIONALLY beside Node —
-;; unlike :fx::Named, this fact has no guard. Span == Node is the non-vacuity control.
-(:wat::core::defrecord :fx::Span
-  [id       <- :wat::core::i64      ; joins to Node/id — the pre-order identity
-   line     <- :wat::core::i64
-   col      <- :wat::core::i64
-   end-line <- :wat::core::i64
-   end-col  <- :wat::core::i64])
-
-;; the walk's accumulator — threaded, never mutated
-(:wat::core::defrecord :fx::Acc
-  [next-id <- :wat::core::i64
-   nodes   <- (:wat::core::PersistentVector :- [:fx::Node])
-   named   <- (:wat::core::PersistentVector :- [:fx::Named])
-   spans   <- (:wat::core::PersistentVector :- [:fx::Span])])
-
-;; per-level child accumulator: the walk's Acc plus this level's running index
-(:wat::core::defrecord :fx::ChildAcc
-  [acc <- :fx::Acc
-   idx <- :wat::core::i64])
-
-;; nameable? — the TOTAL guard in front of the partial `ast-name`.
-(:wat::core::defn :fx::nameable? [node <- :wat::WatAST] -> :wat::core::bool
-  (:wat::core::let [k (:wat::core::ast-kind node)]
-    (:wat::core::if (:wat::core::= k "symbol") true
-      (:wat::core::if (:wat::core::= k "keyword") true
-        (:wat::core::= k "string")))))
-
-;; structural? — does this node HAVE children to descend into?
-(:wat::core::defn :fx::structural? [node <- :wat::WatAST] -> :wat::core::bool
-  (:wat::core::let [k (:wat::core::ast-kind node)]
-    (:wat::core::contains?
-      (:wat::core::HashSet :wat::type::Infer "list" "vector" "map" "set") k)))
-
-;; walk — assign this node an id, emit its facts, then descend. Pre-order, so `parent` is always
-;; already numbered when a child is reached.
-(:wat::core::defn :fx::walk
-  [acc    <- :fx::Acc
-   node   <- :wat::WatAST
-   parent <- :wat::core::i64
-   index  <- :wat::core::i64]
-  -> :fx::Acc
-  (:wat::core::let
-    [id    (:fx::Acc/next-id acc)
-     kind  (:wat::core::ast-kind node)
-     nodes (:wat::core::PersistentVector/conj (:fx::Acc/nodes acc)
-             (:fx::Node :id id :parent parent :index index :kind kind))
-     ;; THE GUARD: no name fact for an unnameable node. `ast-name` is never reached for one.
-     named (:wat::core::if (:fx::nameable? node)
-             (:wat::core::PersistentVector/conj (:fx::Acc/named acc)
-               (:fx::Named :id id :name (:wat::core::ast-name node)))
-             (:fx::Acc/named acc))
-     ;; NO GUARD: ast-span / ast-end-span are TOTAL (measured across leaf kinds and reader-
-     ;; synthesized nodes). Every node gets a Span — that is this stone's whole point.
-     sp    (:wat::core::ast-span node)
-     ep    (:wat::core::ast-end-span node)
-     spans (:wat::core::PersistentVector/conj (:fx::Acc/spans acc)
-             (:fx::Span :id id
-                        :line     (:wat::core::Option/expect (:wat::core::HashMap/get sp :line) "Span :line")
-                        :col      (:wat::core::Option/expect (:wat::core::HashMap/get sp :col)  "Span :col")
-                        :end-line (:wat::core::Option/expect (:wat::core::HashMap/get ep :line) "Span :end-line")
-                        :end-col  (:wat::core::Option/expect (:wat::core::HashMap/get ep :col)  "Span :end-col")))
-     acc'  (:fx::Acc :next-id (:wat::core::i64::+ id 1) :nodes nodes :named named :spans spans)]
-    (:wat::core::if (:fx::structural? node)
-      (:fx::ChildAcc/acc
-        (:wat::core::foldl
-          (:wat::core::fn [ca <- :fx::ChildAcc  child <- :wat::WatAST] -> :fx::ChildAcc
-            (:fx::ChildAcc
-              :acc (:fx::walk (:fx::ChildAcc/acc ca) child id (:fx::ChildAcc/idx ca))
-              :idx (:wat::core::i64::+ (:fx::ChildAcc/idx ca) 1)))
-          (:fx::ChildAcc :acc acc' :idx 0)
-          (:wat::core::ast->children node)))
-      acc')))
-
-;; extract — every top-level form of one source file, walked into one fact base.
-;;
-;; `read-string` returns a FACED OUTCOME, not a bare vector — the no-hidden-failures law. A file
-;; that will not parse is a RESULT the extractor carries, never a crash: in the one-shot that is
-;; a `.wat.bad` negative fixture or a genuinely broken file, and the migration needs to know
-;; WHICH file rather than die on it. Malformed yields an EMPTY fact base, which every downstream
-;; rule reads as "nothing to say about this file" — the honest answer.
-(:wat::core::defn :fx::empty-acc [] -> :fx::Acc
-  (:fx::Acc :next-id 1
-            :nodes (:wat::core::PersistentVector)
-            :named (:wat::core::PersistentVector)
-            :spans (:wat::core::PersistentVector)))
-
-(:wat::core::defn :fx::extract [src <- :wat::core::String] -> :fx::Acc
-  (:wat::core::match (:wat::core::read-string src)
-    ((:wat::core::ReadOutcome::Forms forms)
-      (:fx::ChildAcc/acc
-        (:wat::core::foldl
-          (:wat::core::fn [ca <- :fx::ChildAcc  form <- :wat::WatAST] -> :fx::ChildAcc
-            (:fx::ChildAcc
-              :acc (:fx::walk (:fx::ChildAcc/acc ca) form 0 (:fx::ChildAcc/idx ca))
-              :idx (:wat::core::i64::+ (:fx::ChildAcc/idx ca) 1)))
-          (:fx::ChildAcc :acc (:fx::empty-acc) :idx 0)
-          (:wat::core::ast->children forms))))
-    ((:wat::core::ReadOutcome::Malformed __cause) (:fx::empty-acc))))
-
-(:wat::core::defn :fx::report [path <- :wat::core::String] -> :wat::core::nil
-  (:wat::core::let [acc (:fx::extract (:wat::io::read-file path))
-                    n   (:wat::core::length (:fx::Acc/nodes acc))
-                    m   (:wat::core::length (:fx::Acc/named acc))
-                    sp  (:wat::core::length (:fx::Acc/spans acc))]
-    (:wat::kernel::println
-      (:wat::core::string::concat path
-        (:wat::core::string::concat "  Node=" (:wat::core::str n)
-          (:wat::core::string::concat "  Named=" (:wat::core::str m)
-            (:wat::core::string::concat "  Span=" (:wat::core::str sp))))))))
-
-
 ;; ─── ★ THE JOIN: the extractor's facts FEED THE RULES, on real source ────────
 ;; Corpus 01's three verdicts, now over a file from disk instead of five hand-written facts.
 ;; Nothing about the rules changed to accept real input — that is the point. The rules never
@@ -158,23 +19,23 @@
 (:wat::core::defrecord :fx::IsTypePos [id <- :wat::core::i64])
 
 (:wat::rete::defrule :fx::arrow
-  :when [(:fx::Node  (?id <- :id) (?k <- :kind))
-         (:fx::Named (?id <- :id) (?n <- :name))
+  :when [(:wat::grep::Node  (?id <- :id) (?k <- :kind))
+         (:wat::grep::Named (?id <- :id) (?n <- :name))
          (:wat::rete::where (:wat::rete::core::string::= ?k "symbol"))
          (:wat::rete::where (:wat::rete::core::string::= ?n "<-"))]
   :then [(:fx::IsArrow :id ?id)])
 
 (:wat::rete::defrule :fx::head-kw
-  :when [(:fx::Node  (?id <- :id) (?k <- :kind))
-         (:fx::Named (?id <- :id) (?n <- :name))
+  :when [(:wat::grep::Node  (?id <- :id) (?k <- :kind))
+         (:wat::grep::Named (?id <- :id) (?n <- :name))
          (:wat::rete::where (:wat::rete::core::string::= ?k "keyword"))
          (:wat::rete::where (:wat::rete::core::String/contains? ?n "::"))]
   :then [(:fx::IsHeadKw :id ?id)])
 
 ;; the prev-sibling JOIN that replaces fix-seq's single carried boolean — over real source now
 (:wat::rete::defrule :fx::type-pos
-  :when [(:fx::Node    (?id <- :id)  (?p <- :parent) (?i <- :index))
-         (:fx::Node    (?aid <- :id) (?p <- :parent) (?ai <- :index))
+  :when [(:wat::grep::Node (?id <- :id)  (?p <- :parent) (?i <- :index))
+         (:wat::grep::Node (?aid <- :id) (?p <- :parent) (?ai <- :index))
          (:fx::IsArrow (?aid <- :id))
          (:wat::rete::where
            (:wat::rete::core::i64::= ?i (:wat::rete::core::i64::+ ?ai 1 :undefined 0)))]
@@ -182,13 +43,13 @@
 
 ;; ★ THE SPAN JOIN — proves the coordinate is reachable from a condition. A three-way join,
 ;; Node × Named × Span, all sharing ?id: the arrow-symbol condition from `:fx::arrow`, plus
-;; `:fx::Span` re-joined on the SAME ?id, binding ?l to the line the arrow starts on.
+;; `:wat::grep::Span` re-joined on the SAME ?id, binding ?l to the line the arrow starts on.
 (:wat::core::defrecord :fx::ArrowLine [id <- :wat::core::i64  line <- :wat::core::i64])
 
 (:wat::rete::defrule :fx::arrow-line
-  :when [(:fx::Node  (?id <- :id) (?k <- :kind))
-         (:fx::Named (?id <- :id) (?n <- :name))
-         (:fx::Span  (?id <- :id) (?l <- :line))
+  :when [(:wat::grep::Node  (?id <- :id) (?k <- :kind))
+         (:wat::grep::Named (?id <- :id) (?n <- :name))
+         (:wat::grep::Span  (?id <- :id) (?l <- :line))
          (:wat::rete::where (:wat::rete::core::string::= ?k "symbol"))
          (:wat::rete::where (:wat::rete::core::string::= ?n "<-"))]
   :then [(:fx::ArrowLine :id ?id :line ?l)])
@@ -211,17 +72,49 @@
   :params []
   :when [(?fact <- :fx::IsTypePos)])
 
+;; ─── ★ THE PROVING RULE — a real :wat::grep::Match, built in one RHS ─────────
+;; Five coordinates LHS-bound off :wat::grep::Span (line/col/end-line/end-col, plus the node's
+;; own `kind` off :wat::grep::Node re-joined on the same ?id), `file` a literal in the RHS
+;; (a property of the RUN, not of a node — the DESIGN's own argument), and a non-empty
+;; `captures` vector holding one real :wat::grep::Capture. This is row 3/4/5's rule.
+;;
+;; ⚠ the vector constructor is :wat::rete::core::PersistentVector, NOT :wat::core::PersistentVector
+;; — core's fails the rete `:then` fence with "is not total" (measured, DESIGN-STONE session).
+(:wat::rete::defrule :fx::match-arrow
+  :when [(:wat::grep::Node (?id <- :id) (?k <- :kind))
+         (:wat::grep::Span (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))]
+  :then [(:wat::grep::Match
+           :file     "wat/fix.wat"
+           :line     ?l
+           :col      ?c
+           :end-line ?el
+           :end-col  ?ec
+           :rule     "fx::match-arrow"
+           :captures (:wat::rete::core::PersistentVector
+                       (:wat::grep::Capture :name "kind" :value ?k)))])
+
+(:wat::core::defn :fx::report [path <- :wat::core::String] -> :wat::core::nil
+  (:wat::core::let [facts (:wat::grep::facts-of (:wat::io::read-file path))
+                    n   (:wat::core::length (:wat::grep::Facts/nodes facts))
+                    m   (:wat::core::length (:wat::grep::Facts/named facts))
+                    sp  (:wat::core::length (:wat::grep::Facts/spans facts))]
+    (:wat::kernel::println
+      (:wat::core::string::concat path
+        (:wat::core::string::concat "  Node=" (:wat::core::str n)
+          (:wat::core::string::concat "  Named=" (:wat::core::str m)
+            (:wat::core::string::concat "  Span=" (:wat::core::str sp))))))))
+
 
 (:wat::core::defn :fx::classify [path <- :wat::core::String] -> :wat::core::nil
   (:wat::core::let
-    [acc   (:fx::extract (:wat::io::read-file path))
+    [facts (:wat::grep::facts-of (:wat::io::read-file path))
      rules (:wat::core::PersistentVector (:fx::arrow) (:fx::head-kw) (:fx::type-pos) (:fx::arrow-line))
      s0    (:wat::rete::insert-all
              (:wat::rete::compile-all rules
                (:wat::core::PersistentVector (:fx::q-IsArrow) (:fx::q-IsHeadKw) (:fx::q-IsTypePos) (:fx::q-ArrowLine)))
-             (:fx::Acc/nodes acc))
-     s1    (:wat::rete::insert-all s0 (:fx::Acc/named acc))
-     s2    (:wat::rete::insert-all s1 (:fx::Acc/spans acc))
+             (:wat::grep::Facts/nodes facts))
+     s1    (:wat::rete::insert-all s0 (:wat::grep::Facts/named facts))
+     s2    (:wat::rete::insert-all s1 (:wat::grep::Facts/spans facts))
      fired (:wat::rete::fire-rules s2)
      arrow-lines (:wat::rete::query fired (:fx::q-ArrowLine))
      n-arrow-lines (:wat::core::length arrow-lines)]
@@ -239,6 +132,22 @@
                         "q-ArrowLine: ?l"))
                     "none"))))))))))
 
+;; ─── ★ THE MATCH — proves the stdlib fact base can feed a user-declared Match rule ──
+(:wat::core::defn :fx::match [path <- :wat::core::String] -> :wat::core::nil
+  (:wat::core::let
+    [facts (:wat::grep::facts-of (:wat::io::read-file path))
+     rules (:wat::core::PersistentVector (:fx::match-arrow))
+     s0    (:wat::rete::insert-all
+             (:wat::rete::compile-all rules (:wat::core::PersistentVector (:wat::grep::q-match)))
+             (:wat::grep::Facts/nodes facts))
+     s1    (:wat::rete::insert-all s0 (:wat::grep::Facts/spans facts))
+     fired (:wat::rete::fire-rules s1)
+     matches (:wat::rete::query fired (:wat::grep::q-match))
+     m       (:wat::core::Option/expect
+               (:wat::core::PersistentMap/get (:wat::core::first matches) "?fact")
+               "q-match: ?fact")]
+    (:wat::kernel::println (:wat::core::str m))))
+
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::do
     ;; Real files, deliberately spanning shapes: the codemod itself, a rules file, and a probe
@@ -248,4 +157,6 @@
     (:fx::report "tests/macros/probe_do_splice_define_via_macro.wat")
     ;; ★ and the rules, reading those same files
     (:fx::classify "wat-scripts/perf/grid/neg-consumer.wat")
-    (:fx::classify "tests/macros/probe_do_splice_define_via_macro.wat")))
+    (:fx::classify "tests/macros/probe_do_splice_define_via_macro.wat")
+    ;; ★ and the proving rule — a real Match, built from the stdlib facts
+    (:fx::match "wat/fix.wat")))
