@@ -762,3 +762,50 @@ Two things follow:
   the load artefact look like a certainty — the tighter the history, the more
   convincing a contaminated reading appears. Tight history raises the value of a
   re-measure, it does not remove the need for one.
+
+---
+
+## THE HUNT AS OF 2026-08-24 — theater is done; the exemplar hunt is not
+
+The theater list above is closed: **T1/T3/T5 struck**, **T8 cleared as not
+theater**, **T2/T7 cold** (no grid axis reaches them; each needs its own probe
+before anyone claims a win), **T4/T6 open and small**. The perf campaign is at
+the floor on every measured axis.
+
+What replaced it is a different question — *is this code the exemplar the rest
+of wat's subsystems should copy?* — and it is measured differently: **code
+volume × nesting**, not milliseconds. Current state of rete, longest first:
+
+| function | lines | comment | nesting | verdict |
+|---|---:|---:|---:|---|
+| `intrinsic_meta` (`purity.rs`) | 701 | **71%** | **2** | **NOT a defect.** ~200 code lines, flat cascade, 500 lines of justification. Line count is the wrong lens here. |
+| `eval_axis_violation` (`purity.rs`) | 590 | 18% | **7** | **open** — ~480 code lines, never examined |
+| `exec_compiled_rhs_at` (`compiled_rhs.rs`) | 451 | 10% | 4 | **open** — ~405 code lines, never examined |
+| `fire_fixpoint_delta_armed` | 448 | 17% | 4 | done — was 1774 at nesting 12 |
+| `hash_join_delta` | 361 | 18% | 9 | depth **explained** on `FireCtx`, not fixable without over-borrowing |
+| `exec_dim` (`where_tree.rs`) | 388 | **0%** | 6 | **open** — zero comments in a codebase this documented is its own defect |
+
+### Two findings that generalise beyond rete
+
+They are mirrors, and only fixing the first made the second testable:
+
+- **`AlphaNews::of` claimed a borrow it never took** — `alpha: &'a AlphaMemory`
+  when `alpha` is read once for a `usize`. The false claim propagated into every
+  caller and was the sole reason `hash_join_delta` sat at nesting 9. **A
+  too-tight lifetime is a defect that shows up as DEPTH somewhere else.**
+- **`FireCtx`'s thirteen-field literal cannot be collapsed** — a constructor must
+  take `&mut wm` whole; the literal borrows eleven *named fields* and leaves
+  `wm.alpha`/`wm.beta` free, which every call site needs. Tried, reverted within
+  the hour, documented on the struct. **Verbosity that encodes field-level
+  disjointness is data flow, not repetition.**
+
+The same shape appeared a third time in the `d_beta` copies: what reads as a
+borrow-checker workaround is often the data flow. **Before removing an apparent
+workaround, check whether the type over-claims (fix it) or claims exactly what it
+takes (leave it).**
+
+### Next target
+
+`exec_dim` — 388 lines, nesting 6, and the only place in rete where the house
+style is simply absent. Then `eval_axis_violation`, the largest un-examined body
+of code left in the subsystem.

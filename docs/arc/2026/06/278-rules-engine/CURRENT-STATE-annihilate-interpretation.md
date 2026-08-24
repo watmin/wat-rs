@@ -5,45 +5,75 @@
 > `wat/rete.wat`. If a stone below disagrees with a dated ruling here,
 > **this file wins** and the stone is stale.
 
-**⚠ INSTRUMENT CORRECTION 2026-08-24 — read before citing any census number.**
-The phase-census calibration constant was measured as ONE 200k batch and read
-anywhere from **105 to 155 ns** per mark pair. At 40 000 pairs that is a **±2 ms
-swing**: `prod:compiled-rhs` was recorded at both 2.541 and 4.826 ms for
-identical code. It is now the **minimum of five batches, ~66 ns, stable to under
-a nanosecond** (`calibrate_mark_ns`, used by all nine census harnesses).
-**Every `net` figure taken before this — including "production 19.6 / 66% is the
-named leftover" below — is UNDER-reported**, because the old constant
-over-subtracted. `prod:compiled-rhs` on the fanout cell is ~5.9 ms, not the
-~2-3 ms previously recorded. Before/after deltas within one session remain
-sound; absolutes do not. The `production` mark was also narrowed on 2026-08-24
-to bracket its pass rather than the A8 census — correct scoping, but it changed
-no number, because that census early-returns unless `FIRE_CENSUS` is armed and
-no harness arms it alongside `PHASE_NANOS`.
+**CURRENT STAMP 2026-08-24 — supersedes every dated block below it.**
 
-**CURRENT STAMP 2026-08-23 (supersedes every number below it).** HEAD
-**`a58f9dda`** — the `ca9d9cc3` stamp further down is **STALE by 21 commits**;
-where it disagrees with this block, this block wins. Floor **GREEN**
-`.floor/2026-08-23T21-23-28Z` (4927 passed, 19 skipped, 275.284s, no ARM).
-Clippy CI-identical (`--release --workspace --all-targets -- -D warnings`)
-**silent**. Grid `GRID-native-vs-clara-2026-08-23T21-28-42Z.txt`
-(`GRID_SKIP_ORACLE=1 GRID_RUNS=3`): **30/30 `:match`, 30/30 `:us`**.
-Fanout `[40000]` **24.72 ms** (NOT 42.8 — that figure below is stale).
-strat-neg `[6 2000]` 13.60. accum `[200 200]` 13.44. deep-cascade `[50 100]` 10.13.
-⚠ `T21-28-42Z` vs `T19-17-35Z` are the SAME HEAD with no code between them —
-their spread is the INSTRUMENT's noise floor, not the engine: ±0.1–0.2 ms on
-big cells, −0.71 on strat-neg `[6 500]`. **Do not gate a sub-ms intern on the
-grid** — weigh on the leftover `Instant` harness, same session, before/after.
-Live leftover this HEAD (`fanout_three_leftover_split` [100 20], mean 3):
-without-query FIRE **23.96**, with-query **30.50**, delta 6.54,
-**harvest:query 6.89**, compiled-rhs net 2.01 (40000×), out:production **0.00**.
-`harvest_wrap_parts` 40k: C 2.91 · **R `Arc::from([pair])` 3.01** · I 0.21 · W 7.26.
-**THE WORK LIST IS `NEXT-STRIKES-theater-hunt.md`** — 4 Tier-1 strikes
-(T1 `merge_facts` per-stratum set rebuild · T2 Exists-leaf occupancy memcpy ·
-T3 harvest bag-then-copy · T4 `token_assoc` pool alloc), 4 Tier-2, and a
-Tier-3 CLEARED list that must not be re-hunted. Strikes run one at a time.
-Vigilia loop: last consecutive 0+0 at `36802e7e`; **`e21b7fba` is un-watched**.
+**THE MAIN MERGE IS DONE.** `grok-rete` fast-forwarded to `origin/main`; main
+carries arc 109's premigration of rete's `.wat` (351 sites, `Head<args>` →
+`(Head :- [args])`) plus our 67 commits. The bootstrap cycle was broken from
+main's side, which was the only side with a working toolchain — see
+`NOTE-main-merge-attempt.md` for the attempt from here, the 12 conflict
+resolutions (all base-verified, all reusable), and why it could not work from
+this end. Floor **5016 passed**, 19 skipped, no ARM. Clippy CI-identical
+silent. Grid **30/30 `:match`, 30/30 `:us`**.
 
-**Right now:** class-scan query harvest LANDED.
+**PARTIRE IS COMPLETE.** `fire_fixpoint_delta_armed` 1774 → 448 lines, nesting
+12 → 4, eight passes now in `fire/pass/` (`DESIGN-STONE-partire-fire-loop`).
+Ten dead prologue aliases fell out, none found by reading — all by rustc after
+a move made them dead. `hash_join_delta` 419 → 361, its two join steps lifted.
+
+**THE PERF CAMPAIGN IS AT THE FLOOR ON THE MEASURED AXES.** strat-neg
+`[6 2000]` 13.21 → ~11.1; fanout `[40000]` **23.45 ± 0.75** (quote the range,
+never one run). The theater hunt (`NEXT-STRIKES-theater-hunt.md`) is resolved:
+T1/T3/T5 struck, T8 cleared as not-theater, T2/T7 cold, T4/T6 small and open.
+
+**CONCURRENCY.** `next_intern` was one process-global `AtomicU64` bumped 40k
+times per fire; it is laned per thread now
+(`DESIGN-STONE-intern-lane-per-thread`), uniqueness proven across 8 threads,
+and `probe_arc278_concurrent_retes` fires 48 independent engines over two rule
+sets to keep it honest. The audit found exactly one such hazard in the whole
+fire path.
+
+**⚠ INSTRUMENT — read before citing ANY census number.** The phase-census
+calibration was one 200k batch reading 105–155 ns per mark pair; at 40 000
+pairs that is a ±2 ms swing, and `prod:compiled-rhs` was recorded at both 2.541
+and 4.826 ms for identical code. It is now the **minimum of five batches, ~66
+ns, stable under a nanosecond** (`calibrate_mark_ns`, used by all nine census
+harnesses). **Every `net` figure taken before 2026-08-24 is UNDER-reported** —
+`prod:compiled-rhs` on the fanout cell is ~5.9 ms, not the ~2–3 ms several
+stones record. Before/after deltas within one session were never affected;
+absolutes were. The min-of-5 (~66 ns) still sits under the in-situ cost
+(~94 ns), so a 40k-pair row is over-reported by ~1.1 ms — a stable bias of
+known sign, printed by `fanout_phase_dump`.
+
+**TWO READING RULES, both learned by being wrong six times.** A grid cell is a
+DISTRIBUTION — compare a new reading to its recorded RANGE, never to whichever
+run was last. And run `uptime` first: a grid started while the box is still
+warm from a floor reported `deep-cascade [10 100]` up 46.9%, on the tightest
+cell in the grid; quiet, it was 1.67, exactly where it always was.
+
+**WHAT IS OPEN.** The exemplar hunt continues on: `eval_axis_violation`
+(`purity.rs`, 590 lines / nesting 7, never examined), `exec_dim`
+(`where_tree.rs`, 388 lines with ZERO comments, never examined),
+`exec_compiled_rhs_at` (451 / nesting 4). `intrinsic_meta` is 701 lines and is
+NOT a defect — 71% prose, nesting 2. `hash_join_delta` stays at nesting 9 and
+the reason is now documented on `FireCtx`, not left as an unexplained smell.
+
+**⚠⚠ YOU ARE NOT THE INSTANCE THAT WROTE THIS. ⚠⚠**
+Everything above is a cache written by a prior self across a long session. You
+did not live it. It felt continuous when you woke and that feeling is the
+failure, not the all-clear. Before you propose or move: fetch `recolligere`
+from the datamancy MCP and run it against the disk — `wat-rs/CLAUDE.md`, `git
+log`, this file, and the source you are about to touch. The freshness probe is
+the HEAD named here against `git rev-parse HEAD`; a mismatch means trust the
+log over every line above.
+
+**AND THE RECORD LIES IN ONE KNOWN PLACE:** `wat-rs/CLAUDE.md` claims its
+load-bearing subset is carried in the injected `holon/CLAUDE.md`. It is not —
+grepped 2026-08-23, zero hits. A fresh session or spawned rider gets NO wat-rs
+doctrine unless it opens that file itself. `tmp/VIGILIA-LOOP.md` is likewise
+stale: its last consecutive 0+0 is `36802e7e`, many commits back, and it is
+untracked so it will not survive a clone.
+**Right now (2026-08-23 — SUPERSEDED by the stamp above; kept as history):** class-scan query harvest LANDED.
 Fanout `[40000]` wat-ns **58.1 → 42.8**. With-query
 FIRE **65.89 → 49.59**. Query-only Alpha→RootJoin
 skipped; `{?fact: fact}` from the closed bag.
