@@ -34,7 +34,7 @@ The seams are **already drawn by the authors**:
 | 1484–1690 | 207 | 3.7 filter-after-join |
 | 1691–1794 | 104 | 4. production |
 | 1795–1883 | 89 | A8 census |
-| 1884–1901 | 18 | 5. terminate |
+| 1884–1901 | 18 | 5. terminate — **NOT a pass**: owns the loop `break` |
 | 1902–1984 | 83 | epilogue: cardinality census, OUT |
 
 ## What this stone does NOT claim
@@ -149,7 +149,13 @@ Smallest and most isolated first, so the pattern is proven cheaply before the
 
 1. **2. root-join** (55) — the probe. If `RoundCtx` cannot carry this one
    without cloning, STOP: the design is wrong and the rest is not attempted.
-2. **5. terminate** (18) and **A8 census** (89).
+2. ~~**5. terminate** (18)~~ **STRUCK FROM THE SEQUENCE 2026-08-24** — it is
+   not a pass. Those 10 lines are the loop's own epilogue and they own the
+   `break`; extracting them would force a control-flow reshape (return a bool,
+   break at the call site), which is exactly the change a move commit forbids.
+   The section comments name nine sections; only eight are passes. Recorded
+   rather than silently skipped, because the map was wrong, not the work.
+   Then **A8 census** (89).
 3. **4. production** (104) — the pass with the most unapportioned time; moving
    it whole makes its interior readable for the first time.
 4. **3.6 join-after-filter** (85), **1. alpha** (125).

@@ -12,3 +12,8 @@
 
 mod root_join;
 pub(crate) use root_join::*;
+
+#[cfg(test)]
+mod round_census;
+#[cfg(test)]
+pub(crate) use round_census::*;
