@@ -1050,7 +1050,18 @@ fn exec(
                 vs.push(exec(a, frame, names, sym, span)?);
             }
             match apply_op(*op, &vs, span, Some(sym)) {
-                Ok(Value::f64(x)) if !x.is_finite() => exec(fallback, frame, names, sym, span),
+                // Guard on the ROW's DECLARED `ret`, never by sniffing the runtime value's
+                // type — `runtime.rs`'s canonical copy of this classification says why: "a
+                // value-sniff would silently change behaviour for any future row that
+                // happens to return a float for a non-arithmetic reason.\" Fallback-class
+                // rows are NOT all f64 (I64 x7, Var("T") x6, F64 x6, String x1), so the
+                // two spellings genuinely disagree; this copy used to sniff.
+                Ok(Value::f64(x))
+                    if matches!(row.ret, crate::rete::vocabulary::ParamType::F64)
+                        && !x.is_finite() =>
+                {
+                    exec(fallback, frame, names, sym, span)
+                }
                 Ok(Value::Option(opt)) => match opt.as_ref() {
                     Some(v) => Ok(v.clone()),
                     None => exec(fallback, frame, names, sym, span),

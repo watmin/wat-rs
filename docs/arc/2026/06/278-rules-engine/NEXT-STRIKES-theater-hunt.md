@@ -1060,3 +1060,26 @@ rather than riding along in a cleanup commit. **It is the highest-value remainin
 diagnostic work in rete.**
 
 Floor 5023/5023. Clippy silent.
+
+### circumspicere's uncapped fixpoint — DEFERRED BY DECISION, bounded (2026-08-24)
+
+`fire_fixpoint_delta_armed` ends only when the delta empties: no round counter, no
+deadline, no memory ceiling, and the memories accumulate across rounds by design. A
+rule deriving a structurally-novel fact each round hangs the calling thread with
+unbounded heap and no diagnostic.
+
+**Builder's ruling, 2026-08-24 — an affirmative cut, not an open item:** *"this one
+does not concern me — if the caller dos's themselves that's their problem … when we
+build rete-as-a-service is a problem for us to handle then, not now."*
+
+So the boundary is named and it is not a date: **the cap becomes required when rete
+is exposed as a SERVICE**, i.e. when the caller stops being the rule author. Until
+then a self-inflicted hang is the author's own, exactly like an infinite loop in any
+other language they write. `DESIGN-STONE-4b-cascade-fixpoint` already frames the
+unbounded fixpoint as the deliberate Datalog-semantics choice; this ruling confirms
+it and supplies the trigger the stone left as "let need reveal."
+
+**What this does NOT excuse:** the reasoning still lives only in arc docs. README,
+USER-GUIDE, CLAUDE.md and `wat/rete.wat` say nothing about fixpoint termination. A
+rule author cannot read the decision that makes their hang their own fault. Documenting
+the bound where a CALLER reads it is separate from capping it, and remains open.

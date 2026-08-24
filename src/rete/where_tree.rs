@@ -523,7 +523,18 @@ fn exec_dim<B: Bindings + ?Sized>(d: &DimKey, bindings: &B, span: &Span) -> Resu
                 vs.push(exec_dim(a, bindings, span)?);
             }
             match apply_op(*op, &vs, span, None) {
-                Ok(Value::f64(x)) if !x.is_finite() => exec_dim(fallback, bindings, span),
+                // Guard on the ROW's DECLARED `ret`, never by sniffing the runtime value's
+                // type — `runtime.rs`'s canonical copy of this classification says why: "a
+                // value-sniff would silently change behaviour for any future row that
+                // happens to return a float for a non-arithmetic reason.\" Fallback-class
+                // rows are NOT all f64 (I64 x7, Var("T") x6, F64 x6, String x1), so the
+                // two spellings genuinely disagree; this copy used to sniff.
+                Ok(Value::f64(x))
+                    if matches!(row.ret, crate::rete::vocabulary::ParamType::F64)
+                        && !x.is_finite() =>
+                {
+                    exec_dim(fallback, bindings, span)
+                }
                 Ok(Value::Option(opt)) => match opt.as_ref() {
                     Some(v) => Ok(v.clone()),
                     None => exec_dim(fallback, bindings, span),
