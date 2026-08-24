@@ -91,9 +91,12 @@
   (:wat::core::let
     [files (:wat::core::Vector :- [:wat::core::String] "fileA" "fileB" "fileC")
      base  (:user::build-base)
+     ;; intueri ruling: the body params are the signal. `base` is a VALUE you hold (and could
+     ;; thread forward for corpus mode); `overlay` below is a VERB you call. The pair telegraphs
+     ;; the FN1/FN2 difference at a doc-free use site, which the verb names alone do not.
      total (:user::with-network (:user::the-rules) (:user::the-queries)
-             (:wat::core::fn [r <- :wat::rete::Session] -> :wat::core::i64
-               (:user::grep-files r files)))
+             (:wat::core::fn [base <- :wat::rete::Session] -> :wat::core::i64
+               (:user::grep-files base files)))
      _ (:wat::kernel::println total)
      ;; base must STILL be empty — proof the overlay never touched it
      _ (:wat::kernel::println
@@ -118,22 +121,21 @@
   [(:wat::core::PersistentVector :- [:wat::core::Record]) :-> :wat::rete::Session])
 
 (:wat::core::defn :user::with-overlay :- [T]
-  [base    <- :wat::rete::Session
+  [rules   <- (:wat::core::PersistentVector :- [:wat::rete::Rule])
+   queries <- (:wat::core::PersistentVector :- [:wat::rete::Query])
    body-fn <- [:user::Overlay :-> T]]
   -> T
-  (:wat::core::let
-    ;; the ONLY handle the body gets: facts in, a FIRED session out, always re-seeded from base
-    [overlay (:wat::core::fn [facts <- (:wat::core::PersistentVector :- [:wat::core::Record])]
-               -> :wat::rete::Session
-               (:wat::rete::fire-rules (:wat::rete::insert-all base facts)))
-     result  (body-fn overlay)]
-    (:wat::core::do
-      (:wat::rete::release-session base)
-      result)))
+  ;; built ON with-network: same acquire/release scope, one more layer of guarantee.
+  (:user::with-network rules queries
+    (:wat::core::fn [base <- :wat::rete::Session] -> T
+      (body-fn
+        (:wat::core::fn [facts <- (:wat::core::PersistentVector :- [:wat::core::Record])]
+          -> :wat::rete::Session
+          (:wat::rete::fire-rules (:wat::rete::insert-all base facts)))))))
 
 (:wat::core::defn :user::main-variant-b [] -> :wat::core::i64
-  (:wat::core::let [base (:user::build-base)]
-    (:user::with-overlay base
+  (:wat::core::let [_ 0]
+    (:user::with-overlay (:user::the-rules) (:user::the-queries)
       (:wat::core::fn [overlay <- :user::Overlay]
         -> :wat::core::i64
         (:wat::core::foldl

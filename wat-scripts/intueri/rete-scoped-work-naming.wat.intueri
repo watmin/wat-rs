@@ -1,0 +1,140 @@
+;; rete-scoped-work-naming.wat.intueri — the naming target for rete's scoped-work surface.
+;; NON-RUNNING; it exists to COMMUNICATE the decision so intueri can weigh which candidates
+;; keep their promise. Two functions and one type are being added to the stdlib.
+
+;; ── THE THING BEING NAMED ────────────────────────────────────────────────────────────────
+;;
+;; rete has an ACQUIRE/RELEASE pair with no form pairing it:
+;;   (:wat::rete::compile-all rules queries)  ; ALREADY takes an intern lease (arm-at-compile)
+;;   (:wat::rete::release-session s)          ; drops it; at zero the interned network is evicted
+;; Today every caller must remember the release. One site does (a defservice :stop hook,
+;; wat/query.wat:400); nothing enforces it. This is a convention where a shape belongs.
+;;
+;; FN 1 — the primitive. Compiles a network, hands the Session to a body, releases after.
+;;   Returns the body's result. Acquire and release are the SAME SCOPE, which is forced:
+;;   compile-all already arms, and arm-session's HIT path INCREMENTS the lease, so a wrapper
+;;   handed an already-compiled Session can only add a lease it then removes — leaving
+;;   compile-all's own lease held forever.
+;;
+;; FN 2 — the same scope, plus a guarantee. The body receives NOT the Session but a function
+;;   `facts -> fired Session`, always re-seeded from the compiled base. Because the base is
+;;   never in scope, threading one unit of work's facts into the next HAS NO FORM. That is the
+;;   difference between the two: in FN 1 per-unit isolation is discipline; in FN 2 it is structure.
+;;
+;; THE TYPE — the thing FN 2 hands the body. Named because the inline form is a function taking
+;;   a function and reads as noise: [[(PersistentVector :- [Record]) :-> Session] :-> T].
+
+;; ── WHY THIS IS CHEAP, so the names can be honest about what they cost ──────────────────
+;;
+;; The Session is a FACT OVERLAY over circuits it does not own (src/rete/kernel/arm.rs:572),
+;; and it is IMMUTABLE. So "reset to the known state" is NOT AN OPERATION — you re-seed from
+;; the base and the base is untouched. Gated: `fire_rules_reuses_arm_across_fire_and_insert_
+;; overlay` ("fire on a facts overlay must not rebuild the arm"), `intern_overlay_is_not_a_
+;; second_lease`. N units of work cost ONE network build and ONE lease.
+;;
+;; ⚠ The re-seed point is the SCOPE KNOB. FN 1 permits accumulating across units (corpus-wide
+;; joins); FN 2 forbids it. Both are legitimate. The names must not imply one is the "real" one.
+
+;; ── SIBLING VERBS (anchors for register + tone) ─────────────────────────────────────────
+;;
+;;   the `with-` family already in wat:
+;;     (:wat::io::with-open-file path body-fn)      ; opens, hands over, CLOSES after
+;;     (:wat::telemetry::with-span ...)             ; scoped span
+;;     (:wat::spawn::with-label ...)                ; scoped label
+;;     (:wat::core::with-children node f)           ; structural, not a resource
+;;   Clojure's lineage: `with-open`, `with-redefs`, `with-local-vars`.
+;;
+;;   rete's own surface the new verbs sit beside:
+;;     (:wat::rete::compile-all rules queries)  -> Session
+;;     (:wat::rete::insert-all  s facts)        -> Session
+;;     (:wat::rete::fire-rules  s)              -> Session
+;;     (:wat::rete::query       s q)            -> (PersistentVector :- [...])
+;;     (:wat::rete::arm-session s)  (:wat::rete::release-session s)
+
+;; ── CANDIDATES — FN 1 (the primitive: compile, lend, release) ────────────────────────────
+;;
+;;   with-network   — names the RESOURCE, like with-open-file names the file. But "network" is
+;;                    rete's internal noun (the node graph); is it the caller's noun?
+;;   with-rete      — names the ENGINE. Reads well aloud. But every verb here is already
+;;                    :wat::rete::, so the segment repeats: `rete::with-rete`.
+;;   with-session   — names what the body RECEIVES, which is the most honest description of the
+;;                    signature. But the Session is also what compile-all returns, so the name
+;;                    does not say a lease is being managed.
+;;   with-rules     — names the INPUT. Reads oddly for something whose point is the lifecycle.
+;;   with-compiled  — names the STATE. Adjective-as-noun; mumbles.
+;;
+;; ── CANDIDATES — FN 2 (the same scope, isolation enforced) ───────────────────────────────
+;;
+;;   with-overlay   — names the MECHANISM, and "overlay" is rete's own word for what a Session
+;;                    is (arm.rs:572). Precise. But does a caller who has not read arm.rs know
+;;                    what an overlay IS, or does it mumble at the use site?
+;;   with-each      — names the INTENT: run the body once per unit. Obvious to a first reader.
+;;                    But "each" implies iteration the function does not perform — the BODY loops.
+;;   with-scan      — grep's own register (scan a file). Obvious for wat-grep; too narrow if the
+;;                    surface is general?
+;;   with-fresh     — names the GUARANTEE (each unit starts clean). Says the property, not the thing.
+;;   with-isolation — names the guarantee precisely; heavy, and abstract at a use site.
+;;
+;; ── CANDIDATES — THE TYPE (facts in, fired Session out) ─────────────────────────────────
+;;
+;;   Overlay   — rete's own noun. Pairs with FN 2 if that is `with-overlay`.
+;;   Pass      — one pass of facts through the network. Collides with rete's internal
+;;               `*-pass` fns (alpha-pass, filter-pass, production-pass) — a REAL collision.
+;;   Run       — one run. Short, but "run" is overloaded across the substrate.
+;;   Seeding   — names the act, not the thing.
+;;   Scan      — pairs with with-scan.
+;;
+;; ── THE USE SITES the names must read at ────────────────────────────────────────────────
+;;
+;;   (:wat::rete::<FN1> rules queries
+;;     (:wat::core::fn [s <- :wat::rete::Session] -> :wat::core::i64  ...))
+;;
+;;   (:wat::rete::<FN2> rules queries
+;;     (:wat::core::fn [<verb> <- :wat::rete::<TYPE>] -> :wat::core::i64
+;;       ... (<verb> facts-for-this-file) ...))
+;;
+;; NB the body's PARAMETER in FN 2 is itself unnamed above — `overlay`? `scan`? `run`? The
+;; parameter name is read more often than the type name and should be weighed with it.
+
+;; ══ RULING — intueri, cast 2026-08-24 ═══════════════════════════════════════════════════
+;;
+;;   FN 1        :wat::rete::with-network      four questions: YES YES YES YES
+;;   FN 2        :wat::rete::with-overlay      YES YES YES YES
+;;   THE TYPE    :wat::rete::Overlay           YES YES YES YES
+;;   FN 2 param  overlay                       YES YES YES YES
+;;   FN 1 param  base                          (see the finding below)
+;;
+;; GROUNDED, not preferred — "overlay" is THIS CORPUS'S OWN WORD, three independent
+;; pre-existing uses, none minted for this decision:
+;;   src/rete/kernel/arm.rs:572      "The Session is a fact overlay, not the owner of the circuits."
+;;   src/rete/kernel/session.rs:1114 "Overlay named fields onto a Session Value."
+;;   src/rete/kernel/tests.rs:3068   "Overlay fire after release…"
+;; and "network" likewise: `network-add-child`, `network-has-production`, plus 21 network
+;; nouns in arm.rs. Neither name is imported vocabulary.
+;;
+;; REJECTED, each with the promise it failed:
+;;   with-session — compile-all ALREADY RETURNS a Session. Naming the wrapper after its return
+;;                  type says nothing about the operation (compile + lease + release) it performs;
+;;                  a reader would take it as "do something with a Session you already have".
+;;   with-each    — LEVEL 1, a control-flow lie: "each" claims the function iterates. It does not
+;;                  — the BODY loops (`foldl` in the prototype). The wrapper runs once.
+;;   with-scan    — imports wat-grep's register into a general rete primitive. The candidate
+;;                  list's own worry ("too narrow if the surface is general") is confirmed by the
+;;                  fact that this is being promoted OUT of wat-grep into :wat::rete::.
+;;   Pass         — REAL collision, five live siblings in the same namespace: root-join-pass,
+;;                  hash-join-pass, filter-pass, production-pass, accumulate-pass — all meaning
+;;                  an internal compiler fold-step, not a user-facing per-unit function type.
+;;   with-rete    — namespace stutter: `:wat::rete::with-rete`.
+;;
+;; ★ THE FINDING THE WORKSHEET ASKED FOR AND DID NOT ANSWER ITSELF.
+;;   The verb names ALONE do not tell a reader that FN 1 permits accumulating across units and
+;;   FN 2 forbids it. That fact lives in the TYPE of the body's parameter, not in the wrapper's
+;;   name — and it IS visible without docs, one line in:
+;;
+;;     (:wat::core::fn [base    <- :wat::rete::Session] …)   a VALUE you hold  → can thread forward
+;;     (:wat::core::fn [overlay <- :wat::rete::Overlay] …)   a VERB you call   → base never in scope
+;;
+;;   The moment a reader sees `(overlay facts)` APPLIED, they know it cannot be accumulated the
+;;   way `base` can. So the fix is not a signature change — it is a CONVENTION: always show
+;;   FN 1's body param as `base`, never a throwaway `s`/`r`. The worksheet's own use-site
+;;   template under-served this, and the prototype had `r`. Both corrected.
