@@ -1349,90 +1349,15 @@ pub(crate) fn fire_fixpoint_delta_armed(
 
         phase_end("filter", __pt4);
 
-        // ── 3.6 Join-after-filter (A1): HashJoin children of Test/Neg/Exists/Accum. ─
-        // The P6 loop above only left-activates from Root/HashJoin. Compile will parent
-        // a HashJoin on a mid-chain :where (Clara does; Join → Test → Join). Filter just
-        // filled d_beta[test]; push those tokens across the next join. keyed_join against
-        // the full alpha is the catch-up: this child produced nothing in step 3, so there
-        // is nothing to double-count.
-        let __pt36 = phase_start();
-        let mut after_join_frontier: Vec<i64> = Vec::new();
-        for node_id in &kind_ids.filter_or_acc {
-            let node = match get_node(&wm.network, *node_id) {
-                Some(n) => n,
-                None => continue,
-            };
-            let kind = kind_of(node);
-            if kind != NodeKind::Test
-                && kind != NodeKind::Negation
-                && kind != NodeKind::Exists
-                && kind != NodeKind::Accumulate
-            {
-                continue;
-            }
-            let new_tokens: Vec<Token> = match d_beta.get(node_id) {
-                Some(ts) if !ts.is_empty() => ts.clone(),
-                _ => continue,
-            };
-            let child_ids: &[i64] = arm
-                .children_of
-                .get(node_id)
-                .map(|v| v.as_slice())
-                .unwrap_or(&[]);
-            for child_id in child_ids {
-                let child_node = match get_node(&wm.network, *child_id) {
-                    Some(n) => n,
-                    None => continue,
-                };
-                if kind_of(child_node) != NodeKind::HashJoin {
-                    continue;
-                }
-                let alpha_id = feeding_alpha_of.get(child_id).copied().unwrap_or(-1);
-                let elements = match wm.alpha.get(&alpha_id) {
-                    Some(els) if !els.is_empty() => els.as_slice(),
-                    _ => continue,
-                };
-                let joined = keyed_join_persistent(
-                    &new_tokens,
-                    elements,
-                    alpha_id,
-                    *child_id,
-                    &mut FilterJoinIdx {
-                        right_idx: &mut right_idx,
-                        join_keys_cache: &mut join_keys_cache,
-                        indexed_n: &mut right_idx_n,
-                    },
-                    &mut FireCtx {
-                        compiled_conds,
-                        scratch: &mut match_scratch,
-                        pool: &mut wm.bind_pool,
-                        match_pool: &mut wm.match_pool,
-                        keys: &wm.bind_keys,
-                        vals: &wm.bind_vals,
-                        val_ids: &wm.bind_val_ids,
-                        facts: &wm.facts,
-                        derived: &wm.derived_facts,
-                        n_input: wm.n_input,
-                        i64_by_fact: &wm.i64_by_fact,
-                        bind_only: &wm.bind_only,
-                        cond_key_ids: &wm.cond_key_ids,
-                    },
-                )?;
-                if joined.is_empty() {
-                    continue;
-                }
-                if beta_readers.contains(child_id) {
-                    beta_written(*child_id, joined.len() as u64);
-                    wm.beta
-                        .entry(*child_id)
-                        .or_default()
-                        .extend(joined.iter().cloned());
-                }
-                d_beta.entry(*child_id).or_default().extend(joined);
-                after_join_frontier.push(*child_id);
-            }
-        }
-        phase_end("join-after-filter", __pt36);
+        let after_join_frontier = crate::rete::kernel::fire::pass::join_after_filter(
+            &mut wm,
+            &arm,
+            &mut d_beta,
+            &mut right_idx,
+            &mut right_idx_n,
+            &mut join_keys_cache,
+            &mut match_scratch,
+        )?;
 
         // ── 3.7 Filter-after-join: Test/Neg/Exists whose parent just got tokens
         // in 3.6 (trailing `:where` after a mid-chain `:where` + join). A1 only

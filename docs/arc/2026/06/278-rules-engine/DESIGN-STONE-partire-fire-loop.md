@@ -142,6 +142,25 @@ differential is the gate.
   before/after in the arc incomparable.
 - A perf justification for this stone. It has none and must not acquire one.
 
+## Method note — how the alias re-spelling is done (added 2026-08-24)
+
+Each pass reads prologue aliases (`kind_ids`, `beta_readers`, `compiled_conds`,
+`feeding_alpha_of`, …) that are just `&arm.<field>`. The move re-spells them to
+`arm.<field>`, and on pass 3.6 that was done with a blanket substring replace,
+which corrupted a struct-field **shorthand**: `compiled_conds,` inside a
+`FireCtx { … }` literal became `arm.compiled_conds,`, which is not valid
+shorthand, and then needed `compiled_conds: &arm.compiled_conds,`.
+
+The compiler caught it, as it caught a missed alias (`feeding_alpha_of`), a
+re-borrow, a redundant field name and an unused `sym` parameter — five errors on
+one pass, none of which could reach a commit. That is the wall working, and it
+is why the gate is `-D warnings` rather than a reading.
+
+Still, the method is sharpened for the remaining passes: re-spell on **word
+boundaries**, not substrings, and check struct literals for shorthand before
+replacing. An extraction that needs five compiler round-trips is not wrong, but
+it is slower than one that needs none.
+
 ## Sequencing
 
 Smallest and most isolated first, so the pattern is proven cheaply before the
