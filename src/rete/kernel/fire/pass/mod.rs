@@ -22,13 +22,13 @@ use super::*;
 pub(crate) struct RoundScratch<'a> {
     pub(crate) d_alpha: &'a mut AlphaDelta,
     pub(crate) packed_full: &'a mut std::collections::HashSet<i64>,
-    pub(crate) bind_only: &'a mut std::collections::HashMap<i64, Vec<u8>>,
-    pub(crate) cond_key_ids: &'a mut CondKeyIds,
+    pub(crate) bind_only: &'a BindOnlyFields,
+    pub(crate) cond_key_ids: &'a CondKeyIds,
     pub(crate) cand_scratch: &'a mut Vec<i64>,
     pub(crate) match_scratch: &'a mut SlotFrame,
     pub(crate) seen_ids: &'a mut rustc_hash::FxHashSet<u64>,
     pub(crate) seen_rest: &'a mut rustc_hash::FxHashSet<Value>,
-    pub(crate) leaf_aids: &'a std::collections::HashMap<String, Vec<i64>>,
+    pub(crate) leaf_aids: &'a LeafAidsByClass,
 }
 
 mod accumulate;

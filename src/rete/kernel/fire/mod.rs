@@ -51,7 +51,7 @@ pub(crate) struct FireCtx<'a> {
     pub(crate) derived: &'a [Value],
     pub(crate) n_input: u32,
     pub(crate) i64_by_fact: &'a [Option<I64Row>],
-    pub(crate) bind_only: &'a HashMap<i64, Vec<u8>>,
+    pub(crate) bind_only: &'a BindOnlyFields,
     pub(crate) cond_key_ids: &'a CondKeyIds,
 }
 
@@ -478,7 +478,7 @@ fn span_from_row(
     el: &Element,
     alpha_id: i64,
     i64_by_fact: &[Option<I64Row>],
-    bind_only: &HashMap<i64, Vec<u8>>,
+    bind_only: &BindOnlyFields,
     cond_key_ids: &CondKeyIds,
 ) -> BindSpan {
     let Some(fields) = bind_only.get(&alpha_id) else {
@@ -512,7 +512,7 @@ fn element_with_row_span(
     pool: &mut Vec<(u32, u32)>,
     alpha_id: i64,
     i64_by_fact: &[Option<I64Row>],
-    bind_only: &HashMap<i64, Vec<u8>>,
+    bind_only: &BindOnlyFields,
     cond_key_ids: &CondKeyIds,
 ) -> Element {
     if el.binds.len > 0 {
@@ -1464,7 +1464,7 @@ pub(crate) struct GatherIntern<'a> {
     pool: &'a [(u32, u32)],
     val_ids: &'a ValIntern,
     i64_by_fact: &'a [Option<I64Row>],
-    bind_only: &'a HashMap<i64, Vec<u8>>,
+    bind_only: &'a BindOnlyFields,
     cond_key_ids: &'a CondKeyIds,
     alpha_id: i64,
 }
@@ -1510,7 +1510,7 @@ impl<'a> GatherIntern<'a> {
             val_ids,
             i64_by_fact: &[],
             bind_only: {
-                static EMPTY: std::sync::OnceLock<HashMap<i64, Vec<u8>>> =
+                static EMPTY: std::sync::OnceLock<BindOnlyFields> =
                     std::sync::OnceLock::new();
                 EMPTY.get_or_init(HashMap::new)
             },
