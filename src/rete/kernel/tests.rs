@@ -9860,3 +9860,123 @@ fn dbeta_gather_volume() {
         "a MULTI-parent gather appeared in accum — T8's premise changed, re-open it:{table}"
     );
 }
+
+/// Complete phase apportionment of the fanout census world — every mark the
+/// fire path emits, calibrated and ranked. The theater hunt kept asking "what
+/// is left?" from a list; this answers it from the instrument.
+#[test]
+fn fanout_phase_dump() {
+    use std::time::Instant;
+
+    const RUNS: usize = 3;
+    const CAL_N: u64 = 200_000;
+    const KEYS: i64 = 100;
+    const FANOUT: i64 = 20;
+    const TOP: [&str; 4] = [
+        "IN: to_transient",
+        "SETUP: indexes",
+        "ROUND LOOP",
+        "OUT: to_persistent",
+    ];
+
+    let cal_t0 = Instant::now();
+    super::with_phase_census(|| {
+        for _ in 0..CAL_N {
+            let m = super::phase_start();
+            super::phase_end("cal", m);
+        }
+    });
+    let cal = cal_t0.elapsed().as_nanos() as f64 / CAL_N as f64;
+
+    let world = startup_from_source(FANOUT_CENSUS_WORLD, None, Arc::new(InMemoryLoader::new()))
+        .expect("fanout world should freeze");
+
+    let mut acc: FxHashMap<String, (f64, u64)> = FxHashMap::default();
+    let mut wall = 0.0f64;
+
+    for _ in 0..RUNS {
+        let seed_src = format!(
+            "(:fan::seed (:wat::rete::compile (:wat::rete::collect-rules :fan)) {KEYS} {FANOUT})"
+        );
+        let staged = eval_in_frozen(
+            &crate::parse_one!(seed_src.as_str()).expect("parse seed"),
+            &world,
+            &Environment::new(),
+        )
+        .unwrap_or_else(|e| panic!("seed raised: {e:?}"))
+        .value_owned();
+
+        let t0 = Instant::now();
+        let (_fired, rows) = super::with_phase_census_counted(|| {
+            fire_rules_on_session(&staged, world.symbols(), None)
+                .unwrap_or_else(|e| panic!("fire raised: {e:?}"))
+        });
+        wall += t0.elapsed().as_nanos() as f64;
+        for (name, ns, k) in rows {
+            let e = acc.entry(name.to_string()).or_insert((0.0, 0));
+            e.0 += ns as f64 - k as f64 * cal;
+            e.1 = k;
+        }
+    }
+
+    let r = RUNS as f64;
+    let ms = |ns: f64| ns / 1e6;
+
+    // NESTING TAX. A parent's span CONTAINS its children's mark pairs, and the
+    // per-row calibration only removes a row's OWN pairs. `prod:compiled-rhs`
+    // and `prod:dedup-store` each fire once per derivation — 40k pairs apiece on
+    // this cell — so `production` was reading ~7.5 ms of pure instrument.
+    // Measured directly by deleting the two marks and re-running: production
+    // 18.992 -> 11.524 ms, wall 24.491 -> 16.690. Subtract the children's tax
+    // from the parent, or the biggest number in the table is the instrument.
+    let child_tax: f64 = ["  ├ prod:compiled-rhs", "  ├ prod:dedup-store"]
+        .iter()
+        .map(|n| acc.get(*n).map(|e| e.1).unwrap_or(0) as f64 * cal)
+        .sum();
+    // NOT applied to the parent. `cal` is measured in a tight loop and
+    // OVERSTATES the in-context cost of a mark: it estimates this tax at
+    // ~11-12 ms, while deleting the two marks and re-running measured 7.5 ms
+    // (production 18.992 -> 11.524, wall 24.491 -> 16.690). Subtracting the
+    // estimate would trade an inflated number for a deflated one. The raw rows
+    // stand; the direct experiment is the reference.
+    let top_sum: f64 = TOP.iter().map(|n| acc.get(*n).map(|e| e.0).unwrap_or(0.0)).sum::<f64>();
+
+    let mut sub: Vec<(String, f64, u64)> = acc
+        .iter()
+        .filter(|(n, _)| !TOP.contains(&n.as_str()) && n.as_str() != "cal")
+        .map(|(n, (ns, k))| (n.clone(), *ns / r, *k))
+        .collect();
+    sub.sort_by(|a, b| b.1.total_cmp(&a.1));
+
+    let mut body = String::new();
+    for (name, msv, k) in &sub {
+        body.push_str(&format!("{name:<26} {:>8.3} ms   {k:>7} pairs\n", ms(*msv)));
+    }
+    let named: f64 = sub.iter().map(|(_, v, _)| *v).sum();
+
+    println!(
+        "\nfanout phase dump — [{KEYS} {FANOUT}], no query, mean of {RUNS}\n\
+         instrument: {cal:.1} ns per mark pair\n\
+         \n\
+         wall                       {:>8.3} ms\n\
+         FIRE (4 top phases)        {:>8.3} ms\n\
+         \n{body}\
+         \n\
+         sub-phase sum (parents+children, DOUBLE COUNTS) {:>8.3} ms\n\
+         \n\
+         ⚠ READ THE PARENTS WITH CARE. `production` brackets two marks that fire\n\
+         ONCE PER DERIVATION (40k pairs each here), and per-row calibration only\n\
+         removes a row's OWN pairs. Deleting those two marks and re-running gave\n\
+         production 18.992 -> 11.524 ms and wall 24.491 -> 16.690: ~7.5 ms of the\n\
+         parent is instrument. The tight-loop `cal` estimates that tax at\n\
+         {:>6.3} ms, i.e. it OVERSTATES — do not subtract it and call the result\n\
+         truth. Deltas measured before/after one change are sound; absolute\n\
+         parent times from this table are not.\n",
+        ms(wall / r),
+        ms(top_sum / r),
+        ms(named),
+        ms(child_tax),
+    );
+
+    assert!(wall > 0.0, "harness recorded no time");
+}
