@@ -641,12 +641,27 @@ same sentence — the borrow checker:
 | `fire/mod.rs:510` | `to_vec` because `intern.pool` is about to be borrowed mutably |
 | `DESIGN-STONE-catchup-take-left` | *"HashMap split-borrow needs the parent out of the map"* |
 
-These are not five independent inefficiencies. They are **one arrangement**
-producing five workarounds: a single `&mut FireSession` held across 1774 lines,
-so the compiler cannot see that a pass's reads and writes touch disjoint fields.
-`extirpare`'s deepest rung applies exactly — *do not eliminate the failure,
-eliminate the situation that produces it.* Passes with narrowed borrows would
-make several of these clones unnecessary rather than merely cheaper.
+These are five workarounds for the borrow checker, and the arrangement that
+forces them is one function holding one `&mut FireSession` across 1774 lines.
+
+> **⚠ CORRECTED 2026-08-24, before the strike was briefed.** This paragraph
+> first claimed narrowed per-pass borrows "would make several of these clones
+> unnecessary". That is TOO STRONG, and probing it is what caught it. Only ONE
+> of the five is a disjoint-FIELD conflict:
+>
+> | conflict | between | fixed by splitting? |
+> |---|---|---|
+> | `:1000`, `:1224` | `d_beta[parent]` read vs `d_beta[child]` write — the SAME HashMap, and a round-local, not a `wm` field | **no** |
+> | `:1250` Exists | `wm.alpha` vs `wm.bind_pool` / `i64_by_fact` / `bind_only` / `cond_key_ids` — distinct fields | **yes** |
+> | `mod.rs:510` | `intern.pool` read vs write — same container | **no** |
+> | catch-up take-left | same beta map | **no** |
+>
+> So the split is justified on **craft** — Obvious and Simple — and removes one
+> clone as a side effect. The other four are same-container conflicts needing
+> their own techniques (disjoint-key access, a two-phase collect,
+> `extend_from_within`, a restore guard). Claiming the refactor would dissolve
+> them was the kind of tidy story that survives right up until someone does the
+> work and finds it false.
 
 This is also where the ~7–8 ms of unapportioned `production` time lives, and why
 apportioning it costs more instrument than it measures.
