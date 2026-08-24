@@ -292,7 +292,7 @@
     (:wat::core::match sv-opt 
       ((:wat::core::Some sv)
        ;; derived fact — recurse on each supporting fact in the token's matches chain.
-       ;; matches is PersistentVector<(wat::core::Record, wat::core::i64)>; each tuple is (sfact, alpha-id).
+       ;; matches is (PersistentVector :- [(wat::core::Tuple :- [wat::core::Record wat::core::i64])]); each tuple is (sfact, alpha-id).
        (:wat::core::let [tok      (:wat::rete::Support/token sv)
                          matches  (:wat::rete::Token/matches tok)
                          bindings (:wat::rete::Token/bindings tok)

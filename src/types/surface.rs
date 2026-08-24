@@ -139,7 +139,7 @@ fn is_surface_type_param_ref(ty: &TypeExpr, type_params: &[String]) -> bool {
 }
 
 /// Arc 170 C2 (receiver-check gap fix) — true iff the RESOLVED `defn_ty` (a satisfier's
-/// concrete method return/arg type, e.g. `Address'<Echo::Op,Echo::Reply>`) satisfies the
+/// concrete method return/arg type, e.g. `(Address' :- [Echo::Op Echo::Reply])`) satisfies the
 /// surface's RAW, unresolved `member_ty` (e.g. `Address'<S,R>` where `S`/`R` are the
 /// surface's own type params — not real types).
 ///
@@ -895,7 +895,7 @@ pub(crate) fn parse_defsurface(args: Vec<WatAST>, decl_span: Span) -> Result<Typ
 /// and collect every type it references in a FIELD position. A field type is written `name <- :Type`
 /// (both record fields and enum tagged-variant fields use this triple), so every `:Type` keyword
 /// IMMEDIATELY following a `<-` symbol is a referenced type. Each is parsed via `parse_type_expr` and
-/// its leaves collected with `collect_user_type_paths` (so `:wat::core::Vector<my::ns::Thing>` yields
+/// its leaves collected with `collect_user_type_paths` (so `(:wat::core::Vector :- [my::ns::Thing])` yields
 /// both the stdlib head and the user arg). Type NAMES (slot-1 keyword), enum variant keywords, and the
 /// `:wat::enum::*` purity marker are NOT `<-`-preceded, so they are correctly skipped. Recurses into
 /// every nested List/Vector so enum variant vectors are reached.

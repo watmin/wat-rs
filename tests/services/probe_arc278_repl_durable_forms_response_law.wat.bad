@@ -5,16 +5,16 @@
 ;; `EvalSrcResponse`) was the ACCEPTANCE CASE for "the RequestTooLarge ctor is read from the op's
 ;; DECLARED return type, never guessed by `<OpPascal>Response` concatenation" — the exact wrong
 ;; guess R64 caught. It ALSO carried an older, separate disconfirming probe (arc 170, the REPL
-;; stone): may a `defservice` declare `:durable` as `Vector<WatAST>` (a vector of forms), or does
+;; stone): may a `defservice` declare `:durable` as `(Vector :- [WatAST])` (a vector of forms), or does
 ;; the portability wall (293.W) reject it? That question was answered (accepted, this file was
 ;; the standing GREEN witness) before #74 existed.
 ;;
 ;; Under the ruling R64 exposed a defect in, not a feature: an op's response type IS
 ;; `<Op>Response`, checker-enforced at `defsurface` registration. So `:probe::Repl::eval-src ->
 ;; EvalResponse` — UNCHANGED, on purpose — is now illegal, and the file cannot freeze at all. The
-;; `defservice`/`:durable [Vector<WatAST>]` content that used to follow is UNREACHABLE (freeze
+;; `defservice`/`:durable [(Vector :- [WatAST])]` content that used to follow is UNREACHABLE (freeze
 ;; fails at the surface, before the service is ever seen) and is deleted rather than kept as dead
-;; weight — the `:durable`-as-`Vector<WatAST>` question is no longer covered BY THIS FILE; if it
+;; weight — the `:durable`-as-`(Vector :- [WatAST])` question is no longer covered BY THIS FILE; if it
 ;; needs re-proving, that is a fresh fixture with a conforming response name, not this one (git
 ;; history has the original shape).
 ;;

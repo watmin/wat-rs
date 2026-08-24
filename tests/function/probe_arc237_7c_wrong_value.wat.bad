@@ -1,5 +1,5 @@
 ;; tests/function/probe_arc237_7c_wrong_value.wat.bad — NEGATIVE: wrong value type.
-;; assoc HashMap<String,i64> with String value must reject at check time.
+;; assoc (HashMap :- [String i64]) with String value must reject at check time.
 ;; startup MUST fail.
 
 (:wat::core::defn :user::bad [] -> :wat::core::i64

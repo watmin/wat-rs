@@ -107,8 +107,8 @@ REMAINING:
 | cell | verdict | grounding |
 |------|---------|-----------|
 | Vector/assoc, PV/assoc, WatAstList/assoc | **✓ BUILD** (assoc-by-index) | homogeneous → type-preserving, bounds-checked; the immutable element-update verb |
-| WatAstList/get | **✓ BUILD** (child by index → `Option<WatAST>`) | homogeneous, precise |
-| Tuple/get, Tuple/assoc | **N/A** | heterogeneous *product*; runtime-index can't be typed (→`Option<Value>`, lossy) and precise static access exists (first/second/third, destructure) |
+| WatAstList/get | **✓ BUILD** (child by index → `(Option :- [WatAST])`) | homogeneous, precise |
+| Tuple/get, Tuple/assoc | **N/A** | heterogeneous *product*; runtime-index can't be typed (→`(Option :- [Value])`, lossy) and precise static access exists (first/second/third, destructure) |
 | Tuple/has?, WatAstList/has? | **✓ BUILD** (element membership) | membership needs no static typing; matches wat's element-`contains?` |
 | HashSet/get | **✓ BUILD** (membership-as-lookup) | uniform `ILookup` — a set is an element→element map; `get` works on every keyed container. (Footnote: under value-semantics it returns no *new* info vs `contains?` — Clojure's canonicalization payoff needs reference identity, which we lack. Kept for uniformity, not canonicalization.) |
 | HashSet/concat | **N/A** | `concat` = ordered seq-join (keeps dupes); set-combine is `union` (unordered, dedupes) — a distinct verb. Clojure keeps them separate too. |

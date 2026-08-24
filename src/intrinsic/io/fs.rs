@@ -278,7 +278,7 @@ pub(crate) fn eval_io_read_file(
         .map_err(Into::into)
 }
 
-/// `(:wat::io::list-dir path)` → `:wat::core::Vector<wat::core::String>`.
+/// `(:wat::io::list-dir path)` → `(:wat::core::Vector :- [wat::core::String])`.
 /// Enumerates the directory at `path`; returns each entry as a full path
 /// (`entry.path()` already joins the input path with the entry name).
 /// Errors (`MalformedForm`) if `path` does not exist or is not a

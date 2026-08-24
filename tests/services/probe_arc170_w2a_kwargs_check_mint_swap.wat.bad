@@ -1,9 +1,9 @@
 ;; Arc 170 W2a/C2-D — auto-minted `<fqdn>::kwargs-check` NEGATIVE: swapped handles.
 ;; Same shape as the _ok.wat sibling, but the :echo/:kv RAW HANDLES are SWAPPED at the
 ;; kwargs-check call site. Both names stay present (no missing/extra :key), so the
-;; auto-minted checker's head-swapped TypedCapability<S,R> field types must reject this
+;; auto-minted checker's head-swapped (TypedCapability :- [S R]) field types must reject this
 ;; as a located TypeMismatch (not a name/arity error) — a kv'::Handle does not satisfy
-;; TypedCapability<Echo::Op,Echo::Reply>.
+;; (TypedCapability :- [Echo::Op Echo::Reply]).
 
 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer
   :messages

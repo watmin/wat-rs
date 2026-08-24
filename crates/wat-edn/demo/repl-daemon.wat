@@ -10,7 +10,7 @@
 ;; block on readln, compute one reply, println it, invoke yourself to listen again.
 ;;
 ;; THE THREE EDGES ARE THE LOOP'S WHOLE CONTROL FLOW, and they are at the read, where the
-;; read happens (arc 170 #24). `readln` returns `:wat::kernel::ReadlnOutcome<T>`, so the
+;; read happens (arc 170 #24). `readln` returns `(:wat::kernel::ReadlnOutcome :- [T])`, so the
 ;; session's two exits are VALUES this loop faces, not raises that flee past it:
 ;;   Datum   — evaluate, reply, recur (the only arm that continues)
 ;;   Eof     — the client closed stdin; return nil, which ends the process. The honest stop.

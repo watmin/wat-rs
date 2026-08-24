@@ -145,7 +145,7 @@ errors for the misuse case.
   `ThreadOwnedCell`, the cache lives on one thread; that thread
   puts and gets at hot-path speeds; other threads that try to
   touch it get an error, not a race.
-- **`:wat::std::LocalCache<K,V>`** — a wat-level wrapper over the
+- **`:wat::std::LocalCache :- [K V]`** — a wat-level wrapper over the
   LruCache shim. The stdlib form authors who want per-program
   caching use this — no coordination overhead; no lock; no
   wakeups.
@@ -195,7 +195,7 @@ proven concurrency pattern that is not a lock.
   canonical shape. (The former Console service-based gateway
   retired in arc 109 § kill-std / arc 170 slice 1f-η.)
 - **`:wat::lru::*`** — the L2 caching program (spawn via
-  `:wat::lru::spawn<K,V,G>`)
+  `:wat::lru::spawn :- [K V G]`)
   (external workspace member `crates/wat-lru/`; namespace promoted
   to `:wat::*` via arc 036). Owns its own LocalCache internally
   (on the driver's thread, using tier-2 ThreadOwnedCell). Clients
@@ -215,13 +215,13 @@ proven concurrency pattern that is not a lock.
 **Infrastructure that makes this tier ergonomic:**
 
 - `:wat::kernel::spawn` — starts a wat function on a new OS
-  thread, returns a `ProgramHandle<R>` the caller can `join`.
+  thread, returns a `(ProgramHandle :- [R])` the caller can `join`.
 - `:wat::kernel::make-bounded-channel :T n` — a typed, bounded
   crossbeam channel. `n=1` rendezvous is the FOUNDATION default.
 - `:wat::kernel::select` — select across N receivers; returns
-  `(index, Option<T>)` where `:None` means the receiver at that
+  `(index, (Option :- [T]))` where `:None` means the receiver at that
   index disconnected. The fan-in primitive.
-- `:wat::kernel::HandlePool<T>` — claim-or-panic discipline for
+- `:wat::kernel::HandlePool :- [T]` — claim-or-panic discipline for
   distributing N client handles across N consumers. Catches
   orphaned handles at wiring time instead of letting them deadlock
   the driver at shutdown.
@@ -301,15 +301,15 @@ a lock.
 Two routing strategies, both substrate-supported:
 
 - **Pair-by-index** (single-verb services). The
-  driver's `Vec<(Rx, AckTx)>` holds request and ack ends paired
+  driver's `(Vec :- [(Tuple :- [Rx AckTx])])` holds request and ack ends paired
   by index. `select` returns the index that fired; the driver
   looks up the matching ack-tx at the same index and sends `()`.
   Ack address is implicit in the channel's identity. The
   cleanest shape when ALL replies are unit and the service has
   one verb.
 
-- **Embedded reply-tx in payload** (`Service<E,G>`,
-  `CacheService<K,V>`). The request payload includes the
+- **Embedded reply-tx in payload** (`Service :- [E G]`,
+  `CacheService :- [K V]`). The request payload includes the
   producer's ack/reply channel as a field. The driver reads the
   request, dispatches per-verb, sends the reply on the address
   embedded in the payload. Necessary when reply types differ per
@@ -377,7 +377,7 @@ because each producer's queue is exactly one slot wide.**
 ### Batch granularity = lock granularity (arc 119)
 
 **Every wat-rs-shipped service except Console takes batches.**
-A `Vec<K>` of probes for `get`; a `Vec<Entry<K,V>>` of writes
+A `(Vec :- [K])` of probes for `get`; a `(Vec :- [(Entry :- [K V])])` of writes
 for `put`; a singleton becomes a batch-of-one. The convention
 is named in `CONVENTIONS.md` § "Batch convention"; here's why
 it falls out of mini-TCP's geometry.
@@ -396,7 +396,7 @@ having callers loop over single-item calls) gives:
 - Honest naming: the request IS the unit of work; the reply IS
   what came of it.
 - Uniform substrate surface: every service pairs `(get probes)
-  -> Vec<Option<V>>` with `(put entries) -> unit`. No "pipeline
+  -> (Vec :- [(Option :- [V])])` with `(put entries) -> unit`. No "pipeline
   this for me" wrapper layer.
 
 Console is exempt because Console IS the sink; bundling writes

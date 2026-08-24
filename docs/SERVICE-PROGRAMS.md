@@ -229,8 +229,8 @@ the client consumes the previous response.
 
 ## Step 5 — multi-channel select
 
-`select` watches a `Vec<Receiver<T>>` and returns
-`Chosen<T> ≡ (idx, Option<T>)` — *which receiver fired* and *what it
+`select` watches a `(Vec :- [(Receiver :- [T])])` and returns
+`(Chosen :- [T]) ≡ (idx, (Option :- [T]))` — *which receiver fired* and *what it
 gave* (`Some v` or `:None` on disconnect).
 
 ```scheme
@@ -360,7 +360,7 @@ clients work the same way — each client thread is spawned with one
 popped handle as an argument, holds it for its lifetime, drops it when
 the client exits.
 
-**Why a pool and not a bare `Vec<Sender>`?** The pool gives you
+**Why a pool and not a bare `(Vec :- [Sender])`?** The pool gives you
 claim-or-panic at *construction*. Without it, an unused handle
 silently keeps a channel alive forever — the kind of bug that only
 shows up as "my program hangs at shutdown."
@@ -589,7 +589,7 @@ third (see below).
 | Variant shape | Reply | Substrate use |
 |---|---|---|
 | `Ack(... entries, ack-tx)` | `unit` | every batch-write request — caller blocks until durable |
-| `Reply(... probes, reply-tx)` | `Vec<Option<V>>` | every batch-read request — caller blocks until results return |
+| `Reply(... probes, reply-tx)` | `(Vec :- [(Option :- [V])])` | every batch-read request — caller blocks until results return |
 
 Both shapes carry their reply channel as a field on the variant
 (Pattern B routing — see `ZERO-MUTEX.md` § "Routing acks"). Both
@@ -644,7 +644,7 @@ Request/Response records, the Op/Reply enums, the `serve` dispatch
 loop, and the client-face constructors/methods/`start` fn/`Handle`
 record — the wiring this doc used to teach you to hand-assemble.
 
-`wat-rs/wat/cache.wat`'s `:wat::cache::lru-svc<K,V>` is a worked
+`wat-rs/wat/cache.wat`'s `:wat::cache::lru-svc :- [K V]` is a worked
 `defservice` definition; `wat-rs/wat-tests/service-cache-lru.wat` is
 its consumer-vantage test. **Lift that shape when starting your own
 service** — what changes per-service is:
@@ -671,14 +671,14 @@ illustrates the Console exemption:
 
 - **Batch reference (Pattern A unit-ack)** —
   `wat-rs/crates/wat-telemetry/wat/telemetry/Service.wat`. N
-  producers each send `Request<E> = Vec<E>` worth of events;
+  producers each send `(Request :- [E]) = (Vec :- [E])` worth of events;
   the driver drains and dispatches per batch; ack-tx releases
   the producer when the dispatcher returns.
 
 - **Batch reference (Pattern B data-back)** —
   `wat-rs/crates/wat-lru/wat/lru/CacheService.wat`. Both verbs
-  batch: `(get probes :Vec<K>) -> Vec<Option<V>>` and
-  `(put entries :Vec<Entry<K,V>>) -> unit`. The Pattern B
+  batch: `(get probes (:Vec :- [K])) -> (Vec :- [(Option :- [V])])` and
+  `(put entries (:Vec :- [(Entry :- [K V])])) -> unit`. The Pattern B
   canonical reference per arc 109 § K + arc 119.
 
 - **Same shape with HolonAST as both K and V** —
@@ -704,11 +704,11 @@ The substrate aliases that make all of this readable
 
 | Alias | Expands to |
 |---|---|
-| `:wat::kernel::Sender<T>` | `:rust::crossbeam_channel::Sender<T>` |
-| `:wat::kernel::Receiver<T>` | `:rust::crossbeam_channel::Receiver<T>` |
-| `:wat::kernel::Channel<T>` | `:(Sender<T>, Receiver<T>)` |
-| `:wat::kernel::Chosen<T>` | `:(i64, Option<T>)` — `select` return |
-| `:wat::kernel::Sent` | `:Option<()>` — `send` return |
+| `:wat::kernel::Sender :- [T]` | `:rust::crossbeam_channel::Sender<T>` |
+| `:wat::kernel::Receiver :- [T]` | `:rust::crossbeam_channel::Receiver<T>` |
+| `:wat::kernel::Channel :- [T]` | `:(Tuple :- [(Sender :- [T]) (Receiver :- [T])])` |
+| `:wat::kernel::Chosen :- [T]` | `:(Tuple :- [i64 (Option :- [T])])` — `select` return |
+| `:wat::kernel::Sent` | `(:Option :- [()])` — `send` return |
 
 The shutdown rules in one paragraph:
 

@@ -266,7 +266,7 @@ pub(crate) fn eval_address_wire(
     crate::runtime::eval_address_wire(std::slice::from_ref(addr), list_span, env, sym)
 }
 
-/// `(:wat::kernel::peer-pid peer)` → `:wat::core::Option<wat::core::i64>`.
+/// `(:wat::kernel::peer-pid peer)` → `(:wat::core::Option :- [wat::core::i64])`.
 /// Pure projection of the far-end child pid off a process peer's `Pidfd`;
 /// `:None` for a thread peer (no separate pid). On the capability circuit:
 /// its two production call sites (`wat/bracket.wat:714,754`) feed the pid
@@ -316,7 +316,7 @@ pub(crate) fn eval_peer_pid(
     crate::runtime::eval_peer_pid(std::slice::from_ref(peer), list_span, env, sym)
 }
 
-/// `(:wat::kernel::peer-process peer)` → `:wat::core::Option<wat::kernel::Process<I,O>>`.
+/// `(:wat::kernel::peer-process peer)` → `(:wat::core::Option :- [(wat::kernel::Process :- [I O])])`.
 /// Un-erases the concrete locus a `Peer<I,O>`-typed value already holds at
 /// runtime: `Some` the same peer value (now nameable `Process<I,O>`) for a
 /// process peer, `:None` for a thread peer.

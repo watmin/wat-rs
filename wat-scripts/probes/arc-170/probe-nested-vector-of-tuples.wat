@@ -1,5 +1,5 @@
 ;; probe-nested-vector-of-tuples.wat — the NESTED case Part 3 (retiring as-capability)
-;; depends on: process/uses-pairs takes Vector<(keyword,Capability)>; the macro splices a
+;; depends on: process/uses-pairs takes (Vector :- [(:wat::core::Tuple :- [:wat::core::keyword :wat::capability::Capability])]); the macro splices a
 ;; Vector literal whose ELEMENTS are (:wat::core::Tuple k v) ctor calls. Each Tuple element
 ;; must up-cast RECURSIVELY (Vector's check_vector_literal_against dispatches each item
 ;; through check_compound_against_expected, not bare infer) — a Handle inside a Tuple

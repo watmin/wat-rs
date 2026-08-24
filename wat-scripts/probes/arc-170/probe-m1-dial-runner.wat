@@ -1,6 +1,6 @@
 ;; probe-m1-dial-runner.wat — drive the BAKED :wat::bracket::process-dial-runner directly.
 ;; Child uses stdlib (PoolMsg :- [(Address' :- [Op Reply]) String]) + process-dial-runner (concrete D).
-;; Parent sends bare-D (PoolMsg :- [Address' (i64,String)]) (erased address). Same enum name ⇒ wire ok.
+;; Parent sends bare-D (PoolMsg :- [Address' (Tuple :- [i64 String])]) (erased address). Same enum name ⇒ wire ok.
 ;; EXPECT (green): "echo:a | echo:b"
 
 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer

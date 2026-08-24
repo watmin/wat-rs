@@ -10399,7 +10399,7 @@ fn infer_spawn_thread_prime(
 ///   budget extracted from `ProcessOpts/max-message-bytes`; inferred only (runtime
 ///   validates the value is an i64).
 /// - `args[4]`: label; arc 170 closure #6's ps-visible identity —
-///   `Option<:wat::core::Record>` extracted from `ProcessOpts/label`; inferred
+///   `(Option :- [:wat::core::Record])` extracted from `ProcessOpts/label`; inferred
 ///   only (runtime validates it is an Option, and renders the inner record to EDN
 ///   with the caller's own type registry — see `kernel::spawn::spawn_process_peer`).
 ///   A VALUE, unlike env-fn's source string — it never needed the child's world.
@@ -16704,7 +16704,7 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
-    // Arc 255 Stone iv-b2-a — `:wat::intrinsic::examples` : () → Vector<:wat::intrinsic::Example>
+    // Arc 255 Stone iv-b2-a — `:wat::intrinsic::examples` : () → (Vector :- [:wat::intrinsic::Example])
     // Returns each registered intrinsic's carried @example/@example-norun as Example records.
     // Zero params; records (not heterogeneous tuples) so verify-examples can field-access typed values.
     env.register(
@@ -19133,7 +19133,7 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
-    // Arc 251.5a-iii — `(:wat::core::ast->children ast)` → `Vector<:wat::WatAST>`.
+    // Arc 251.5a-iii — `(:wat::core::ast->children ast)` → `(Vector :- [:wat::WatAST])`.
     // The AST↔walkable bridge: a node's children as the collection the first/rest/map
     // vocab walks (same shape as `:wat::core::forms`).
     env.register(
@@ -21048,7 +21048,7 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
-    // :wat::core::record->map :: :wat::core::Record -> HashMap<:wat::core::keyword, :T>
+    // :wat::core::record->map :: :wat::core::Record -> (HashMap :- [:wat::core::keyword :T])
     // Extracts a HashMap from a record: field-name keywords → typed field values.
     // Input is :wat::core::Record; output is HashMap with keyword keys + polymorphic value type.
     // The keyword key type is fixed; the value type T is polymorphic (inferred from context).

@@ -1,8 +1,8 @@
 ;; Arc 170 wrong-service compile error — NEGATIVE: co-location angle.
 ;; A Tuple of typed coords carries a field-ordered contract through a `let`; a SWAPPED
 ;; tuple is rejected at a downstream consumer. De-rotted from scratchpad/probe-c2-colocation.wat:
-;; the hand-written `(defsurface :probe::Dialable<S,R> ...)` + two `extend-type`s are DELETED
-;; (the baked :wat::capability::Dialable<S,R> now auto-emits this per defservice — hand-declaring
+;; the hand-written `(defsurface :probe::Dialable :- [S R] ...)` + two `extend-type`s are DELETED
+;; (the baked (:wat::capability::Dialable :- [S R]) now auto-emits this per defservice — hand-declaring
 ;; it DUPLICATE-DEFINEs). Every `:probe::Dialable/coord` call becomes `:wat::capability::Dialable/coord`.
 ;; EXPECT: a located TypeMismatch from the swapped Tuple vs the field-ordered contract (NOT
 ;; DuplicateDefine).

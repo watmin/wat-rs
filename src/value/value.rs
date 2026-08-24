@@ -482,7 +482,7 @@ pub struct ExtendDef {
     /// name) always hit. See `protocol_type_args` for the parsed concrete args.
     pub protocol_name: String,
     /// Arc 170 C2 — the concrete type args from a parametric surface target
-    /// (`:Holds<wat::core::i64>` → `[Path(":wat::core::i64")]`). Empty for a monomorphic
+    /// (`(:Holds :- [wat::core::i64])` → `[Path(":wat::core::i64")]`). Empty for a monomorphic
     /// surface/protocol target (`:Greeter`) — the common case, a pure no-op.
     pub protocol_type_args: Vec<TypeExpr>,
     /// Per-method impl bodies: method name → `Clause` (argspec + body).

@@ -154,7 +154,7 @@ pub(crate) fn payload_to_edn(payload: &AssertionPayload) -> OwnedValue {
 
     // ── :location ────────────────────────────────────────────────────
     // Arc 278 the LociDiedError stone — the registered `AssertionFailure`
-    // record declares `:location` as `Option<:wat::kernel::Location>` (NOT a
+    // record declares `:location` as `(Option :- [:wat::kernel::Location])` (NOT a
     // bare `#wat.core/Span`). Emit the `#wat.kernel/Location {:file :line :col}`
     // record when present, nil when absent (the human-facing nil-convention).
     let location_val = match &payload.location {

@@ -856,7 +856,7 @@ pub fn eval_uuid_typed_v5(
     Ok(Value::wat__core__Uuid(wat_edn::new_uuid_v5(ns_uuid, &name_str)))
 }
 
-/// `(:wat::core::Uuid/from-string s)` → `:Option<:wat::core::Uuid>`.
+/// `(:wat::core::Uuid/from-string s)` → `(:Option :- [:wat::core::Uuid])`.
 ///
 /// Parse-safe constructor. Accepts ONLY canonical 8-4-4-4-12 lowercase
 /// hyphenated form; returns `None` for uppercase, URN prefix, braced,

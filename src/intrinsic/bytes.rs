@@ -90,7 +90,7 @@ const NIBBLE: [char; 16] = [
     '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f',
 ];
 
-/// Decode a lowercase-hex `:String` back into `:wat::core::Option<:wat::core::Bytes>`.
+/// Decode a lowercase-hex `:String` back into `(:wat::core::Option :- [:wat::core::Bytes])`.
 ///
 /// Mixed case accepted (`a-f` and `A-F` both decode); raw hex only (no
 /// separators, no `0x` prefix); the empty string round-trips to an empty

@@ -38,11 +38,11 @@ use std::sync::Arc;
 /// registry over `spawn_service_peer`) is DELETED; these cached primed peers are all
 /// that remains.
 pub struct ThreadIO {
-    /// Cached client Peer'<StdOut::Op,StdOut::Reply> for `println`/`pprintln`.
+    /// Cached client (Peer' :- [StdOut::Op StdOut::Reply]) for `println`/`pprintln`.
     pub stdout_peer: RefCell<Option<crate::runtime::Value>>,
-    /// Cached client Peer'<StdErr::Op,StdErr::Reply> for `eprintln`/`epprintln`.
+    /// Cached client (Peer' :- [StdErr::Op StdErr::Reply]) for `eprintln`/`epprintln`.
     pub stderr_peer: RefCell<Option<crate::runtime::Value>>,
-    /// Cached client Peer'<StdIn::Op,StdIn::Reply> for `readln`.
+    /// Cached client (Peer' :- [StdIn::Op StdIn::Reply]) for `readln`.
     pub stdin_peer: RefCell<Option<crate::runtime::Value>>,
 }
 
@@ -130,11 +130,11 @@ pub(crate) fn cached_stdio_peer(
 /// is shared memory). Held as opaque `Value`s (no per-op typing at this layer).
 #[derive(Clone)]
 pub struct PrimedStdio {
-    /// `Address'<StdIn::Op, StdIn::Reply>` — dial to reach the primed stdin read service.
+    /// `(Address' :- [StdIn::Op StdIn::Reply])` — dial to reach the primed stdin read service.
     pub stdin_addr: crate::runtime::Value,
-    /// `Address'<StdOut::Op, StdOut::Reply>` — dial to reach the primed stdout write service.
+    /// `(Address' :- [StdOut::Op StdOut::Reply])` — dial to reach the primed stdout write service.
     pub stdout_addr: crate::runtime::Value,
-    /// `Address'<StdErr::Op, StdErr::Reply>` — dial to reach the primed stderr write service.
+    /// `(Address' :- [StdErr::Op StdErr::Reply])` — dial to reach the primed stderr write service.
     pub stderr_addr: crate::runtime::Value,
 }
 

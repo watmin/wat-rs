@@ -15,7 +15,7 @@
 //! ## Session record (8 fields, declaration order — `wat/rete.wat` `defrecord Session`)
 //! ```text
 //! network           <- :wat::core::PersistentMap
-//! rules             <- :wat::core::PersistentVector<wat::rete::Rule>
+//! rules             <- (:wat::core::PersistentVector :- [wat::rete::Rule])
 //! alpha-memory      <- :wat::core::PersistentMap
 //! beta-memory       <- :wat::core::PersistentMap
 //! production-memory <- :wat::core::PersistentMap

@@ -23,8 +23,8 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [eh  (:probe::echo/start :locus (:wat::spawn::process) :record (:probe::echo::Record))
-     ea  (:probe::echo::Handle/addr eh)                       ;; concrete Address'<Op,Reply>
+     ea  (:probe::echo::Handle/addr eh)                       ;; concrete (Address' :- [Op Reply])
      eab (:wat::core::ann-form ea :wat::kernel::Address)      ;; erase -> bare Address'
-     v   (:wat::core::Vector :wat::kernel::Address eab)       ;; store bare in Vector<Address'>
+     v   (:wat::core::Vector :wat::kernel::Address eab)       ;; store bare in (Vector :- [Address'])
      msg (:probe::PoolMsg::Setup (:wat::core::first v))]       ;; bare-D Setup constructor
     (:wat::kernel::println "erase-ok")))

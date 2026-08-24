@@ -1,11 +1,11 @@
 ;; Arc 278 recv-must-use wall — the `let`-`_` discard door, negative fixture.
-;; The recv wall (R53) made `recv` return a matchable `:wat::kernel::RecvOutcome<O>`
+;; The recv wall (R53) made `recv` return a matchable `(:wat::kernel::RecvOutcome :- [O])`
 ;; (never a raise past the reader). But nothing forced FACING it — a `_`-bound recv
 ;; outcome (`(:wat::core::let [_ (:wat::kernel::recv p)] …)`) silently dropped the
 ;; outcome, hiding a `Lost`/`Closed` failure (the exact R55 harness sin, at the class
 ;; level). This gate — RecvOutcome added to the must-use set — makes that a located
 ;; compile error, closing the swallow door. A *faced* recv (matched over
-;; Message/Closed/Lost) has type `O` (or a joined arm type), not `RecvOutcome<O>`, and
+;; Message/Closed/Lost) has type `O` (or a joined arm type), not `(RecvOutcome :- [O])`, and
 ;; stays legal; this fixture deliberately does NOT face it.
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

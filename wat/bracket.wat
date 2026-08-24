@@ -168,7 +168,7 @@
 ;;   then ship a NAMED index-wrapping pool-runner as source (the defservice fork
 ;;   trick). Mirrors scratchpad/probe-s3-process-runner.wat.
 ;;
-;; Both return (:wat::kernel::Peer :- [(i64,I) (i64,O)]) so collect-loop drains a
+;; Both return (:wat::kernel::Peer :- [(:wat::core::Tuple :- [:wat::core::i64 I]) (:wat::core::Tuple :- [:wat::core::i64 O])]) so collect-loop drains a
 ;; uniform (Vector :- [(Peer :- […])]) (select' accepts Peer as of S3a).
 
 ;; Thread spawn-runner — TWO mouths, same split as Locus/launch.

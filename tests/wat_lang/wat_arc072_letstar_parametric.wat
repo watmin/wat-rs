@@ -10,7 +10,7 @@
                  ((:wat::core::Err _) -1))]
     extracted))
 
-;; test2: (Result :- [(i64,i64) i64]) — tuple payload → returns i64 11
+;; test2: (Result :- [(Tuple :- [i64 i64]) i64]) — tuple payload → returns i64 11
 (:wat::core::defn :t::wrap-it [] -> (:wat::core::Result :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64]) :wat::core::i64])
   (:wat::core::Ok (:wat::core::Tuple 7 11)))
 

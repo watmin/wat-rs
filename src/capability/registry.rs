@@ -278,7 +278,7 @@ mod waist_proof {
             nature: Nature::Record,
             restrictions: None,
             // minter-pid <- :wat::core::i64
-            // name       <- :wat::core::Vector<wat::core::i64>
+            // name       <- (:wat::core::Vector :- [wat::core::i64])
             fields: vec![
                 ("minter-pid".to_string(), TypeExpr::Path(":wat::core::i64".to_string())),
                 ("name".to_string(), TypeExpr::Parametric {

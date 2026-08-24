@@ -1,13 +1,13 @@
 ;; Arc 170 #24 readln-must-use wall — the `let`-`_` discard door, negative fixture.
 ;;
-;; #24 made `readln` return a matchable `:wat::kernel::ReadlnOutcome<T>` instead of RAISING on
+;; #24 made `readln` return a matchable `(:wat::kernel::ReadlnOutcome :- [T])` instead of RAISING on
 ;; end-of-input and on a process-wide stop (R53 `VERBO MEO CAPTVS` — a raise in a language with
 ;; no try/catch unwinds PAST the reader). That closed the *raise* mask but not the *swallow*:
 ;; a `_`-bound readln outcome silently DROPS it, hiding an Eof or a Stop — the same class the
 ;; recv'/send' walls each had to gate separately, through the same door.
 ;;
 ;; A FACED readln (matched over Datum/Eof/Stopped) has type `T` (the decoded value) or a joined
-;; arm type, never `ReadlnOutcome<T>` — so the gate fires ONLY on the raw dropped form and every
+;; arm type, never `(ReadlnOutcome :- [T])` — so the gate fires ONLY on the raw dropped form and every
 ;; migrated call site stays legal. This fixture deliberately does NOT face it.
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

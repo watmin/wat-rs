@@ -102,7 +102,7 @@ pub(crate) fn eval_intrinsic_examples(
             // For `@example-norun`, the `#=>` text may be pseudo-code (human
             // doc only, not wat syntax) — the verifier skips it, so yield None.
             // None is also yielded for a markerless `@example-norun` (None).
-            // Field type is Option<:wat::WatAST> → Value::Option.
+            // Field type is (Option :- [:wat::WatAST]) → Value::Option.
             let expected_field = if ex.run {
                 match ex.expected {
                     Some(s) => {

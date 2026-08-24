@@ -1,7 +1,7 @@
 ;; Arc 170 C2 — Strike 2 NEGATIVE: the swap through the MACRO is a COMPILE error (the gate).
 ;; Identical to the _ok sibling EXCEPT `:s1 h2 :s2 h1` — S1 gets S2's handle and vice-versa. The
-;; checker's service params are `Dialable<S,R>` (Part A), and `s2'::Handle` satisfies only
-;; `Dialable<S2…>`, NOT `Dialable<S1…>` — so this is a located `TypeMismatch` at `wat --check`,
+;; checker's service params are `(Dialable :- [S R])` (Part A), and `s2'::Handle` satisfies only
+;; `(Dialable :- [S2…])`, NOT `(Dialable :- [S1…])` — so this is a located `TypeMismatch` at `wat --check`,
 ;; NOT a runtime peer-closed. Proves the erased-positional soundness hole is closed through the
 ;; whole `bracket/uses` surface.
 ;;    reconciles ::Coords → ::Kwargs by field name (connect' the 7 Peer' fields, copy the 5 data).

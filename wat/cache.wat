@@ -22,7 +22,7 @@
 ;; ─── `Entry`, not a bare tuple ───────────────────────────────────────────────────────────────
 ;; The Rust shim returns the displaced pair as `Option<(Value,Value)>` (proven marshaling; tuples
 ;; have blanket ToWat/FromWat). The oracle stopped there and typed its surface
-;; `(Option :- [(K,V)])` — positional, so a caller reads `first`/`second` and has to remember which is
+;; `(Option :- [(:wat::core::Tuple :- [K V])])` — positional, so a caller reads `first`/`second` and has to remember which is
 ;; which. Modern wat prefers a NAMED aggregate: `put` below lifts that tuple into
 ;; `:wat::cache::Entry` (`key`/`value`), so the eviction is self-describing at every call site.
 ;; The lift is the ONE place the positional form is touched.
@@ -350,7 +350,7 @@
 ;; (`wat-scripts/scratch-pad/probe-arc278-concrete-satisfies-parametric.wat`): a concrete service
 ;; satisfying `(Cache :- [K V])` at fixed FQDN type args `--check`s clean, and a deliberately-sabotaged
 ;; variant (swapped K/V) correctly produces type errors naming the exact derived
-;; `Cache::Reply<wat::core::String,wat::core::i64>` instantiation — proof the macro's
+;; `(Cache::Reply :- [wat::core::String wat::core::i64])` instantiation — proof the macro's
 ;; `proto-base`/`proto-tp` split (wat/service.wat:268-276) handles a concrete FQDN type-arg list
 ;; correctly, not just bare binders.
 ;;

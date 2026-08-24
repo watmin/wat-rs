@@ -5267,7 +5267,7 @@ fn dispatch_keyword_head(
                 .map_err(Into::into)
         }
         // Arc 251.5a-iii — the AST↔walkable bridge: decompose a :wat::WatAST node
-        // into a Vector<:wat::WatAST> the first/rest/map vocab walks (so a recursive
+        // into a (Vector :- [:wat::WatAST]) the first/rest/map vocab walks (so a recursive
         // role-inversion transform can be written IN WAT).
         ":wat::core::ast->children" => {
             return crate::edn_shim::eval_ast_children(args, list_span, env, sym)
@@ -19397,7 +19397,7 @@ fn record_field_map(
     }
 }
 
-/// Extracts a `HashMap<:wat::core::keyword, value>` from a `Value::Aggregate` (Record/HolonRecord).
+/// Extracts a `(HashMap :- [:wat::core::keyword value])` from a `Value::Aggregate` (Record/HolonRecord).
 /// Field names come from the `AggregateDef` in the TypeEnv; values from `fields` by index
 /// (positional match — field i in declaration order corresponds to fields[i]).
 ///

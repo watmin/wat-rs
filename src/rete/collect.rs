@@ -1,6 +1,6 @@
 //! Arc 278 Stone 5b — `collect-rules`: gather a namespace's `defrule`'d rules by reflecting the symbol table.
 //!
-//! `(:wat::rete::collect-rules <ns: :wat::core::keyword>) -> :wat::core::PersistentVector<wat::rete::Rule>`
+//! `(:wat::rete::collect-rules <ns: :wat::core::keyword>) -> (:wat::core::PersistentVector :- [wat::rete::Rule])`
 //!
 //! `defrule` (stone 5a) expands to a zero-arg `defn` returning `:wat::rete::Rule` — the return type is the
 //! discovery marker, exactly as `deftest` marks tests by returning `:wat::test::TestResult` and the test

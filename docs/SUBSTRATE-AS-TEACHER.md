@@ -162,8 +162,8 @@ the right one keeps the diagnostic stream coherent — every error
 ### Pattern 1 — Type-shape change (arcs 111 / 112 / 113)
 
 **When:** the change is to a TYPE SIGNATURE that ripples through
-unification (`:Option<T>` → `:Result<:Option<T>,E>`,
-`:E` → `:Vec<:E>`). Old call sites mismatch *naturally* against
+unification (`(:Option :- [T])` → `(:Result :- [(:Option :- [T]) E])`,
+`:E` → `(:Vec :- [:E])`). Old call sites mismatch *naturally* against
 the new signature.
 
 **Mechanism:** keep `CheckError::TypeMismatch` (already firing

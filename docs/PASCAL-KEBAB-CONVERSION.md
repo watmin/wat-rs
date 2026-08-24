@@ -89,7 +89,7 @@ Shipped string primitives (`src/string_ops.rs`, `wat/` registrations):
 - `:wat::core::string::subs s start end` → **char-indexed** substring (start-incl, end-excl).
 - `:wat::core::string::to-lowercase s` → lowercased copy.
 - `:wat::core::string::to-uppercase s` → uppercased copy (minted arc 209; needed by `kebab->pascal`).
-- `:wat::core::string::split s sep` → `Vector<String>`.
+- `:wat::core::string::split s sep` → `(Vector :- [String])`.
 - `:wat::core::string::concat …` → joined string.
 - `:wat::core::string::pascal->kebab s` → PascalCase → kebab (plain; disciplined subset).
 - `:wat::core::string::pascal->kebab-in ns s` → namespace-scoped PascalCase → kebab.

@@ -32,7 +32,7 @@
 
 ;; `:probe::run` (a non-main defn — no `:user::main`, per the arc-170 `[] -> :nil` / UselessMain
 ;; wall) dials nothing; it exists so the checker sees a raw `echo'::Handle` flow into the
-;; `Dialable<…>` param (Gap 1). Returns the coord'd Address'.
+;; `(Dialable :- […])` param (Gap 1). Returns the coord'd Address'.
 (:wat::core::defn :probe::run [] -> (:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply])
   (:wat::core::let
     [eh (:probe::echo/start :locus (:wat::spawn::process) :record (:probe::echo::Record))]

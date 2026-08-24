@@ -1,7 +1,7 @@
 ;; Arc 170 wrong-service compile error — NEGATIVE: the wrong-service swap.
 ;; Two services (:probe::echo' / :probe::kv'); :user::main ascribes the KV handle's
 ;; auto-emitted Dialable/coord to an ECHO address. The auto-emitted typed coordinate
-;; (:wat::capability::Dialable<S,R>, baked in wat/capability.wat + auto-emitted per
+;; ((:wat::capability::Dialable :- [S R]), baked in wat/capability.wat + auto-emitted per
 ;; service in wat/service.wat) must catch this at check time as a located TypeMismatch
 ;; — never a runtime "peer closed".
 

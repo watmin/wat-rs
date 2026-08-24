@@ -1,4 +1,4 @@
-;; Negative fixture: spawn-program' :thread declared as Process'<...> return — must be a CHECK ERROR.
+;; Negative fixture: spawn-program' :thread declared as (Process' :- [...]) return — must be a CHECK ERROR.
 (:wat::core::defn :user::mk-cross [] -> (:wat::kernel::Process :- [:wat::core::i64 :wat::core::i64])
   (:wat::kernel::spawn-program (:wat::spawn::thread)
     (:wat::core::fn [self <- (:wat::kernel::ThreadSelfPeer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil

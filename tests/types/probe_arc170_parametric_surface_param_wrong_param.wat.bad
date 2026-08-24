@@ -1,7 +1,7 @@
 ;; Arc 170 C2 — complete parametric surfaces (Gaps 1+2), NEGATIVE: the SOUNDNESS proof.
 ;; The Gap-1 completion must be PRECISE, not permissive: a handle satisfies ONLY its OWN
-;; parametric surface. Here `:probe::takes-kv-dialable` wants `Dialable<probe::Kv::Op,probe::Kv::Reply>`
-;; but the caller passes an `echo'::Handle` (which satisfies only `Dialable<Echo::Op,Echo::Reply>`).
+;; parametric surface. Here `:probe::takes-kv-dialable` wants `(Dialable :- [probe::Kv::Op probe::Kv::Reply])`
+;; but the caller passes an `echo'::Handle` (which satisfies only `(Dialable :- [Echo::Op Echo::Reply])`).
 ;; This MUST be a located `TypeMismatch` at `wat --check` — if it froze clean, the Gap-1 edge would
 ;; be matching by bare surface name (ignoring the args) and the whole swap-gate would be dead.
 

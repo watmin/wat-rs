@@ -146,7 +146,7 @@ pub(crate) fn eval_kernel_macro_call_site(
     crate::runtime::eval_kernel_macro_call_site(&[], list_span)
 }
 
-/// `(:wat::kernel::fn-forms f name)` → `:wat::core::Vector<wat::WatAST>`.
+/// `(:wat::kernel::fn-forms f name)` → `(:wat::core::Vector :- [wat::WatAST])`.
 /// Reifies a fn value (anonymous or named-by-reference) into a
 /// self-contained program fragment that, evaluated in a fresh universe,
 /// resolves `name` to a behaviorally-equivalent fn.

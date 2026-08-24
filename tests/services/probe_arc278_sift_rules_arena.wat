@@ -174,13 +174,13 @@
 ;; in-process channel, no IPC frame limit), page sift-rules at :limit 100, assert exactly 720. ──
 ;;
 ;; NOTE — a real finding: the page-loop below is INLINED directly in each of the two driver fns
-;; below (duplicated), never factored into a shared top-level `:arena::page-loop [svc <- Peer'<…>]`
+;; below (duplicated), never factored into a shared top-level `:arena::page-loop [svc <- (Peer' :- […])]`
 ;; helper — that factoring was tried first and broke BOTH loci with "channel disconnected" on the
 ;; very first `sift-rules` send, even on THREAD (no fork involved, so this is NOT the cross-fork
 ;; :messages-reachability gap probe_arc278_sift_arena.wat's own note describes — that one raises
 ;; UnresolvedReference at COMPILE time; this is a runtime IPC failure). Root cause not chased
 ;; (out of this task's scope) — bisected at scratchpad/probe-arena-bisect{1,2,3}.wat: passing a
-;; connected `Peer'<...>` client handle as a PARAMETER into a separate top-level `defn` and issuing
+;; connected `(Peer' :- [...])` client handle as a PARAMETER into a separate top-level `defn` and issuing
 ;; the RPC from inside that callee reproduces the crash; keeping the same call inline in the
 ;; `let` that created the connection does not. Mirrors the codebase's own established idiom
 ;; (probe_arc278_sift_arena.wat's `:cons::consumer'/sift` cursor-loop is inline for a related-but-

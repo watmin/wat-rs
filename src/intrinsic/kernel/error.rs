@@ -123,7 +123,7 @@ pub(crate) fn eval_failure_message(
     crate::runtime::eval_failure_message(std::slice::from_ref(f), env, sym, list_span)
 }
 
-/// `(:wat::kernel::Failure/location f)` → `:wat::core::Option<wat::kernel::Location>`.
+/// `(:wat::kernel::Failure/location f)` → `(:wat::core::Option :- [wat::kernel::Location])`.
 /// DERIVED accessor — reads `error.location` (a mandatory
 /// `:wat::kernel::Location` on the error) and wraps it in `Some` to keep the
 /// accessor's historic `Option<Location>` return shape.

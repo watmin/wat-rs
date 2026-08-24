@@ -88,7 +88,7 @@ entry fn, opens the Db inside the new thread, runs the substrate's
 `Service/loop` with a local dispatcher closure that captures the
 local Db.
 
-`:user::main` only ever sees `(HandlePool<ReqTx>, ProgramHandle)` —
+`:user::main` only ever sees `(Tuple :- [(HandlePool :- [ReqTx]) ProgramHandle])` —
 the pipe handles plus the driver to join. Never the Db.
 
 ### 2. Pipes cross threads; resources don't
@@ -175,8 +175,7 @@ wiring is probably wrong:
 - A resource is constructed in `:user::main` and passed across a
   spawn → the resource probably needs to be opened in the worker
   (look for `ThreadOwnedCell` panics).
-- A spawn returns something other than `(HandlePool<...>,
-  ProgramHandle<...>)` or its equivalent factory tuple → the
+- A spawn returns something other than `(Tuple :- [(HandlePool :- [...]) (ProgramHandle :- [...])])` or its equivalent factory tuple → the
   spawn isn't following the substrate contract.
 - A worker reaches across to another worker's state without going
   through a pipe → introduce a service.

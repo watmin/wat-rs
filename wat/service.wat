@@ -937,9 +937,9 @@
      ;; `(keyword/from-string …)` so Locus/launch receives serve by a RUNTIME keyword
      ;; (a spliced literal `:fqdn::serve` would Arc-009-resolve to a Fn, not a keyword).
      serve-name-str (:wat::core::string::interpolate "{b}::serve" :b fqdn-base)
-     ;; 293.W.2f — Handle<T> / Status<T> carry the transport marker (Shared | Wire).
+     ;; 293.W.2f — (Handle :- [T]) / (Status :- [T]) carry the transport marker (Shared | Wire).
      ;; Bare `::Handle{p}` / `::Status{p}` (T unknown) remain the residual.
-     ;; Transport param is `T` unless the service already binds `T` (`box-svc<T>`,
+     ;; Transport param is `T` unless the service already binds `T` (`box-svc :- [T]`,
      ;; via the `:- [T]` binder), in which case it is `Xt` so the two slots do not
      ;; collide. STONE-the-last-mint — `fqdn-tp` (the angle-string mint this used to
      ;; `string::contains?` against) is RETIRED; the check is now structural, directly
@@ -997,7 +997,7 @@
      ;; Arc 109 ③ — angle brackets are ILLEGAL for types. NAME-construction consumers
      ;; (method-name interpolation, the runtime `retag-op` discriminator) key on `proto-base`
      ;; directly — those never reach the type parser. TYPE positions here mint their own
-     ;; reference FORM structurally off `proto-args` (already a Vector<WatAST> of arg nodes —
+     ;; reference FORM structurally off `proto-args` (already a (Vector :- [WatAST]) of arg nodes —
      ;; see `proto-args`'s own derivation above), never a re-serialized `<a,b>` string.
      proto-op-base-kw    (:wat::core::keyword-node
                             (:wat::core::string::concat ":"

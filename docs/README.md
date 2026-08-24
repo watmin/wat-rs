@@ -137,7 +137,7 @@ organized as `arc/YYYY/MM/NNN-slug/`:
   benefits every higher-order combinator downstream.
 - **`arc/2026/04/010-variadic-quote/`** — `:wat::core::forms`, the
   variadic sibling of `:wat::core::quote`. Takes N unevaluated
-  forms; returns `:Vec<wat::WatAST>` with each form captured as
+  forms; returns `(:Vec :- [:wat::WatAST])` with each form captured as
   data. Closes the per-form quote ceremony at every sandbox /
   eval-ast / programs-as-atoms callsite. Paired with stdlib sugar
   `:wat::test::program` (defmacro alias) + `:wat::test::run-ast`
@@ -186,7 +186,7 @@ organized as `arc/YYYY/MM/NNN-slug/`:
   `:wat::core::i64::to-string` was needed for honest test
   assertions. Eight primitives at
   `:wat::core::<source>::to-<target>` — i64/f64/bool/string
-  conversions with `:Option<T>` for fallible paths (NaN / ±∞ /
+  conversions with `(:Option :- [T])` for fallible paths (NaN / ±∞ /
   out-of-range / unparseable → `:None`). No implicit coercion;
   every conversion is explicit at the call site. First arc cut
   from a paused slice; the shape is now precedent for future
@@ -357,7 +357,7 @@ organized as `arc/YYYY/MM/NNN-slug/`:
 
 - **`arc/2026/04/032-bundle-result-typealias/`** — **shipped.**
   `:wat::holon::BundleResult` registered as a baked built-in
-  typealias for `:Result<wat::holon::HolonAST, wat::holon::CapacityExceeded>`
+  typealias for `(:Result :- [:wat::holon::HolonAST :wat::holon::CapacityExceeded])`
   — Bundle's canonical return shape. Non-parametric. Named by
   the gaze-ward discipline; the `Result` suffix speaks at first
   read, no grep needed. 28-site migration across wat-rs
@@ -378,7 +378,7 @@ organized as `arc/YYYY/MM/NNN-slug/`:
 
 - **`arc/2026/04/033-holons-typealias/`** — **shipped.**
   `:wat::holon::Holons` registered as a baked built-in typealias
-  for `:Vec<wat::holon::HolonAST>` — the list-of-holons shape
+  for `(:Vec :- [:wat::holon::HolonAST])` — the list-of-holons shape
   Bundle takes as input and every `encode-*-facts` vocab
   function returns. Named under `/gaze` after rejecting
   `:wat::holon::Facts` on Level-1 epistemic grounds: the type
@@ -462,7 +462,7 @@ organized as `arc/YYYY/MM/NNN-slug/`:
 - **`arc/2026/04/042-zero-mutex-drift-sync/`** — **shipped.**
   `wat-rs/docs/ZERO-MUTEX.md` drift-only sync. Three Edits total
   — the smallest implementation surface of any doc-audit arc so
-  far. Sole drift was three `:wat::std::service::Cache<K,V>`
+  far. Sole drift was three `(:wat::std::service::Cache :- [K V])`
   references migrating to `:wat::lru::*` (CacheService grouping
   noun retired in arc 109 slice K.lru) per arcs 013 + 036. Architectural prose otherwise current — the
   three-tier framing (immutable / thread-owned / program-owned),
@@ -481,7 +481,7 @@ organized as `arc/YYYY/MM/NNN-slug/`:
   downstream callers outside test fixtures, so substrate cost
   was bounded: 5 source files + 2 test files. cargo test green
   (39 binaries, 850 tests). Slice 2 mid-arc folded in another
-  builder catch: replace `:Vec<wat::holon::HolonAST>` with the
+  builder catch: replace `(:Vec :- [:wat::holon::HolonAST])` with the
   `:wat::holon::Holons` typealias (arc 033) in user-facing
   example signatures. Last polish-class arc planned per builder's
   "treat wat as stable" stance — further drift catches surface
@@ -532,7 +532,7 @@ organized as `arc/YYYY/MM/NNN-slug/`:
 >
 > Highlight set from the cache + telemetry storyline (074-088):
 >
-> - **`074-holon-store/`** — coordinate-cell `HologramStore<V>` + the
+> - **`074-holon-store/`** — coordinate-cell `(HologramStore :- [V])` + the
 >   bounded `HologramCache` sibling. The cache primitive every
 >   subsequent arc builds on.
 > - **`076-therm-routed-hologram/`** — routing moved INSIDE Hologram;
@@ -545,7 +545,7 @@ organized as `arc/YYYY/MM/NNN-slug/`:
 > - **`079-wat-edn-shims/`** — `:wat::edn::write` / `write-pretty` /
 >   `write-json`. Render any wat value as deterministic EDN/JSON.
 > - **`080-telemetry-service-substrate/`** —
->   `:wat::telemetry::Service<E,G>`. Generic queue-fronted
+>   `:wat::telemetry::Service :- [E G]`. Generic queue-fronted
 >   shell, lifted from the lab's `:trading::rundb::Service`.
 > - **`081-telemetry-console/`** — `Console/dispatcher` factory.
 >   Per-entry rendering closure that composes with arc 080's shell.

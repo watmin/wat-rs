@@ -1,5 +1,5 @@
 ;; tests/comms/probe_arc214_stone46b_select_prime_probe2.wat.bad
-;; Arc 214 Stone 4.6b Probe 2 (CHECK NEGATIVE): select' return type is ServiceEvent<I,O>.
+;; Arc 214 Stone 4.6b Probe 2 (CHECK NEGATIVE): select' return type is (ServiceEvent :- [I O]).
 ;; Declaring the select' result as :String over i64-peers MUST fail at check.
 ;; startup_from_file on this file is expected to return Err.
 

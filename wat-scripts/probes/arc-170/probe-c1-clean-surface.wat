@@ -1,5 +1,5 @@
 ;; Arc 170 Strike C1 — THE GATE. A full clean-surface run: a kwargs work-fn
-;; ([item & [echo <- Peer'<...>]]) dialed via bracket/map's OWN `:name val` tail
+;; ([item & [echo <- (Peer' :- [...])]]) dialed via bracket/map's OWN `:name val` tail
 ;; (arc 170 gap J — provisioning rides map/each directly; `process/uses` retired),
 ;; run through bracket/map with the CLEAN base name (never $impl).
 ;; EXPECT (green): ["echo:a" "echo:b" "echo:c"]

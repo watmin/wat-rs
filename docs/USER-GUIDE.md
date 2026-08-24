@@ -2084,7 +2084,7 @@ the same wire format).
 
 Arc 112 lifts the bytes-and-EDN protocol to typed verbs:
 `:wat::kernel::process-send` renders + writes; `process-recv`
-reads + parses; both return `Result<…, ProcessDiedError>` with
+reads + parses; both return `(Result :- [… ProcessDiedError])` with
 the arc-111 three-state shape (`Ok(Some)`/`Ok(:None)`/`Err(died)`).
 
 ```scheme
@@ -2107,8 +2107,8 @@ the arc-111 three-state shape (`Ok(Some)`/`Ok(:None)`/`Err(died)`).
 ```
 
 For a clean-shutdown wait at end-of-conversation, use
-`:wat::kernel::Process/join-result` — returns `Result<:(),
-:wat::kernel::ProcessDiedError>` matching the same three-state
+`:wat::kernel::Process/join-result` — returns `(Result :- [:()
+:wat::kernel::ProcessDiedError])` matching the same three-state
 discipline.
 
 Running demos:

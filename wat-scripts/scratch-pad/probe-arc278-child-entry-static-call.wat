@@ -61,7 +61,7 @@
   (:wat::core::let
     [state (:probe::ce::dispatch-admin ship)]
   (:probe::ce::serve self l
-    ;; the selectables slot: `(Vector :- [(i64, (Peer :- [Reply Op]))])` — the id travels WITH its peer
+    ;; the selectables slot: `(Vector :- [(Tuple :- [i64 (Peer :- [Reply Op])])])` — the id travels WITH its peer
     ;; (arc 278 the call context). The element type is ONE tuple type-keyword, exactly as
     ;; `selectable-entry-ty` builds it (service.wat:979).
     (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 (:wat::kernel::Peer :- [:probe::CE::Reply :probe::ce::Op])]))

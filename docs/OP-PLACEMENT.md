@@ -33,7 +33,7 @@ get : Vector<T>          + i64  -> Option<T>
 get : HashMap<K, V>      + K    -> Option<V>
 ```
 
-The return `Option<T>` is computed from the container's `T`; the key argument's type *is* the container's `K`. A clause is monomorphic — no `∀` — so to cover this it would need one clause per concrete `(K, V)`, an **infinite open set** (users mint new types forever). Unexpressible. `infer_get` projects `T`/`K`/`V` out of the container and flows them into the key-arg and the return. **Projective ⇒ intrinsic.**
+The return `(Option :- [T])` is computed from the container's `T`; the key argument's type *is* the container's `K`. A clause is monomorphic — no `∀` — so to cover this it would need one clause per concrete `(K, V)`, an **infinite open set** (users mint new types forever). Unexpressible. `infer_get` projects `T`/`K`/`V` out of the container and flows them into the key-arg and the return. **Projective ⇒ intrinsic.**
 
 ### Relational — a constraint flows between the arguments
 
@@ -60,7 +60,7 @@ The fixed return type alone does **not** make an op a clause. Equality returns `
 | Op | Type | Verdict | Why |
 |---|---|---|---|
 | `+`, `-`, `*`, `<`, `>` | `i64,i64 -> i64` / `f64,f64 -> f64` | **clause** | concrete args, fixed per-type return, no type-var flow; one clause per concrete numeric type |
-| `get`, `conj`, `assoc`, `contains` | `Vector<T> -> Option<T>`, … | **intrinsic — projective** | return is a function of the container's type params |
+| `get`, `conj`, `assoc`, `contains` | `(Vector :- [T]) -> (Option :- [T])`, … | **intrinsic — projective** | return is a function of the container's type params |
 | `=`, `not=` | `a:T, b:T -> bool` (∀T) | **intrinsic — relational** | cross-argument unification; a clause checks positions independently and cannot tie them |
 
 ## The macro fence — the second boundary (intrinsic vs wat-helper)

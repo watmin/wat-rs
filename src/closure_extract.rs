@@ -504,7 +504,7 @@ pub fn extract_closure(
 /// reconstructs the fn-form AST from the value and walks the body for
 /// transitive deps, so it covers both input shapes without a name-vs-
 /// no-name branch here. Returns `prologue ++ [(:wat::core::def <name>
-/// <entry_form>)]` as a `:wat::core::Vector<wat::WatAST>` value: a
+/// <entry_form>)]` as a `(:wat::core::Vector :- [wat::WatAST])` value: a
 /// self-contained program fragment that, `eval`d top-to-bottom in a
 /// fresh world, resolves `<name>` to a behaviorally-equivalent fn.
 ///

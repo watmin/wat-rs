@@ -1901,7 +1901,7 @@ fn axis_violation_names() -> Arc<Vec<String>> {
 }
 
 /// `(:wat::rete::axis-violation <quoted-expr> <axis: :wat::rete::Axis>) ->
-/// :wat::core::Option<wat::rete::AxisViolation>`
+/// (:wat::core::Option :- [wat::rete::AxisViolation])`
 ///
 /// The SAME walk `pure?`/`deterministic?`/`total?`/`primitive?` run, surfacing the
 /// violation instead of discarding it: `:wat::core::None` ⟺ `(pure? e)` / `(deterministic? e)` would

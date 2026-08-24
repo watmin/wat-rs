@@ -444,7 +444,7 @@
   (:wat::core::take-nth-walk n (:wat::core::Seqable/seq coll)))
 
 ;; ─── interpose — `sep` between every pair of adjacent elements ────────────────────────────────
-;; 118.B2 — ONE clause over `Seqable<T>`. `interpose-stream` (the twin that carried the "always
+;; 118.B2 — ONE clause over `(Seqable :- [T])`. `interpose-stream` (the twin that carried the "always
 ;; sep-prefix" recursion) is deleted; there is no local-recursion primitive in wat to smuggle
 ;; that split into a second, unnamed helper (no letrec — src/runtime.rs:4273), and threading a
 ;; boolean "have I emitted yet" flag into `interpose`'s own params would be an arity change

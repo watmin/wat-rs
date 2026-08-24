@@ -1,8 +1,8 @@
 ;; Arc 170 C2 candidate D — the BODILESS extend-type mechanism, NEGATIVE sibling, promoted from
 ;; the disconfirming probe (scratchpad/probe-v-swap.wat) that proved it this session.
 ;;
-;; Two services, each bodiless-edged to its OWN `:probe::TypedCapability<S,R>` instantiation. A
-;; `kv'::Handle` (edged to `TypedCapability<Kv…>`) passed where `TypedCapability<Echo…>` is
+;; Two services, each bodiless-edged to its OWN `(:probe::TypedCapability :- [S R])` instantiation. A
+;; `kv'::Handle` (edged to `(TypedCapability :- [Kv…])`) passed where `(TypedCapability :- [Echo…])` is
 ;; expected must be a located `TypeMismatch` — the bodiless edge is per-service PARAMETRIC, not
 ;; a blanket "any Handle satisfies TypedCapability" escape hatch.
 

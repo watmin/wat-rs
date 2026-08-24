@@ -822,7 +822,7 @@ pub(crate) fn write_wat_source(ast: &WatAST, out: &mut String) {
 /// `(:wat::core::ast->children <ast>)` — arc 251 Stone 251.5a-iii (the bridge).
 ///
 /// The AST↔walkable bridge: decompose a `:wat::WatAST` node into a
-/// `Vector<:wat::WatAST>` of its children — the SAME walkable shape `:wat::core::forms`
+/// `(Vector :- [:wat::WatAST])` of its children — the SAME walkable shape `:wat::core::forms`
 /// produces (`Value::Vec` of `wat__WatAST`), so the existing `first`/`rest`/`map`
 /// collection vocab applies for free. A List/Vector/Set node yields its items; a Map
 /// yields its keys and values interleaved; a leaf (Symbol/Keyword/literal) yields the
@@ -869,7 +869,7 @@ pub fn eval_ast_children(
 /// `(:wat::core::with-children <template> <children>)` — arc 251 Stone 251.5a-iv.
 ///
 /// The kind-preserving REBUILD: a NEW AST node of the SAME KIND as `template`,
-/// carrying `children` (a `Vector<:wat::WatAST>`, as `ast->children` yields) as its
+/// carrying `children` (a `(Vector :- [:wat::WatAST])`, as `ast->children` yields) as its
 /// children. The inverse of `ast->children` GIVEN the decomposed node — the template
 /// restores the kind `ast->children` collapses. Faithful round-trip:
 /// `(with-children n (ast->children n)) = n` for every node kind. This lets a
@@ -2278,7 +2278,7 @@ fn edn_to_typed_value_inner(
             // make. Every CONCRETE field around it is still walked and enforced to the leaf;
             // `K` itself is pinned STATICALLY, at the client's call site, where it is known.
             // (When a caller CAN name the instantiation — `(:wat::edn::validate v
-            // :S::Req<wat::core::String>)` — `substitute_type_params` puts the real argument
+            // (:S::Req :- [wat::core::String]))` — `substitute_type_params` puts the real argument
             // here first and this arm is never reached.)
             //
             // The var test is the substrate's own (`runtime::is_type_var_path`): bare, no
@@ -2483,7 +2483,7 @@ fn edn_to_typed_value_inner(
                     // Arc 278 the parametric protocol — RECORD-nature aggregates join Struct
                     // here, exactly as they did on the `Path` arm above (Stone 1). The 293.2b
                     // Struct/Record collapse left this half narrowed: a `defrecord :S::Req<K>`
-                    // named AT its instantiation (`:S::Req<wat::core::String>`) was an instant
+                    // named AT its instantiation (`(:S::Req :- [wat::core::String])`) was an instant
                     // mismatch, while the same record named bare walked fine. Records are what
                     // service requests ARE, so the two spellings of one type must agree.
                     Some(crate::types::TypeDef::Aggregate(a))
@@ -2563,7 +2563,7 @@ fn edn_to_typed_value_inner(
 /// Two cases, both honest:
 ///
 /// * **Args known** (`args` non-empty — the caller named the instantiation, e.g.
-///   `(:wat::edn::validate v :S::GetRequest<wat::core::String,wat::core::i64>)`): each param is
+///   `(:wat::edn::validate v (:S::GetRequest :- [wat::core::String wat::core::i64]))`): each param is
 ///   replaced by its actual argument and the walk enforces it EXACTLY, to the leaf.
 ///
 /// * **Args unknown** (`args` empty — the caller named the bare generic): each param becomes
@@ -3732,7 +3732,7 @@ mod cap_decode_boundary {
             nature: Nature::Record,
             restrictions: None,
             // minter-pid <- :wat::core::i64
-            // name       <- :wat::core::Vector<wat::core::i64>
+            // name       <- (:wat::core::Vector :- [wat::core::i64])
             fields: vec![
                 ("minter-pid".to_string(), TypeExpr::Path(":wat::core::i64".to_string())),
                 ("name".to_string(), TypeExpr::Parametric {

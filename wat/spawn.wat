@@ -218,7 +218,7 @@
 ;;
 ;; The enum NAME is the wire tag (`#wat.bracket.PoolMsg/Setup`); the D/I type-params
 ;; are NOT in the tag. So the PARENT (map-worker) holds a type-ERASED
-;; `(PoolMsg :- [Address' (i64,I)])` (bare Address' — derived per-handle from the locus's `:uses`
+;; `(PoolMsg :- [Address' (:wat::core::Tuple :- [:wat::core::i64 I])])` (bare Address' — derived per-handle from the locus's `:uses`
 ;; field via each handle's `coordinate` method, keeping ProcessOpts non-parametric) while the
 ;; CHILD's baked dial-runner holds the CONCRETE `(PoolMsg :- [(Address' :- [S R]) I])` (S,R off the
 ;; work-fn's peer param). Same name ⇒ the wire round-trips; the Setup payload encodes as

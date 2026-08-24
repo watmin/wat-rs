@@ -789,7 +789,7 @@
       (:wat::core::let
         [name-str        (:wat::core::keyword/to-string name)
          ;; ── Arc 278 parametric names: the name / type-param SPLIT ────────────────────
-         ;; A kwargs defn MAY be generic (`:my::svc/start<T>` — this comment used to add
+         ;; A kwargs defn MAY be generic (`:my::svc/start :- [T]` — this comment used to add
          ;; "every parametric `defservice`'s auto start/resume is exactly this"). STONE-
          ;; the-dormant-minter RESOLVED that claim STALE: `wat/service.wat`'s own
          ;; `start`/`resume` generator (~line 2546, comment "293.W.2f — `/start` must not
@@ -875,7 +875,7 @@
          ;; only by a LEADING POSITIONAL param (never inside the trailing `& [...]`
          ;; section) would otherwise be declared on `::Kwargs` and consumed by nothing —
          ;; UnconsumedTypeParam, measured: probe C's own `seed <- :T` is positional, so
-         ;; `::Kwargs<T>`'s field vector (`times <- i64` only) never mentions T.
+         ;; `(::Kwargs :- [T])`'s field vector (`times <- i64` only) never mentions T.
          kw-tp-syms      (:wat::core::type-params-used-in binder-names-ch kw-argvec)
          ;; Mint the kwargs bundle as a STRUCT (defstruct): a kwargs bundle is a LOCAL
          ;; calling-convention artifact (never stored/shipped) that must accept impure args
@@ -992,7 +992,7 @@
          kwargs-ty-colon-str (:wat::core::string::interpolate ":{kwargs-ty-base-str}" :kwargs-ty-base-str kwargs-ty-base-str)
          ;; n-pos: count of leading positional params (all params before `& [...]`)
          n-pos               (:wat::core::i64::/ (:wat::core::i64::- params-len 2) 3)
-         ;; fname-nodes: Vector<WatAST> of field-name symbol nodes in declared order.
+         ;; fname-nodes: (Vector :- [WatAST]) of field-name symbol nodes in declared order.
          ;; Arc 118.2a — was `map`; same bootstrap wall as `base-ch`/`body-forms`/`let-binder-items`
          ;; above. `foldl`+`conj` stay Rust-native and eager.
          fname-nodes         (:wat::core::foldl
@@ -1108,7 +1108,7 @@
          ;; dial-carrier (services are declared `Peer` and dialed; data fields ride along). Read
          ;; the ORIGINAL field types (`kw-ch` position j·3+2), NOT the swapped ones: a swapped
          ;; `Peer`→`Address`, but a defservice `start`/`resume` init-param can ALSO be declared
-         ;; `Address` directly (e.g. `s2s-thread-probe.wat`'s `:echo-addr <- Address<…>`) — so
+         ;; `Address` directly (e.g. `s2s-thread-probe.wat`'s `:echo-addr <- (Address :- […])`) — so
          ;; testing the swapped `Address` would false-match those. Only a real `Peer` field
          ;; (unmangled source) marks a dialing work-fn. This keeps `::Coords` (a pure defrecord)
          ;; from being minted for the many NON-dialing kwargs defns that hold impure fields — every
@@ -1709,7 +1709,7 @@
      ;;   mode    : String — "text" | "name"
      ;;   pending : String — "none" | "open" | "close"
      ;;   buf     : String — accumulated chars (text or placeholder name)
-     ;;   segments: (Vector :- [Tuple(kind,payload)]) — emitted tokens
+     ;;   segments: (Vector :- [(:wat::core::Tuple :- [String String])]) — emitted (kind,payload) tokens
      ;;
      ;; Transition table (verbatim from DESIGN-279.1-escape.md):
      ;;
