@@ -4,10 +4,10 @@
 ;;
 ;; RED at HEAD: 293.4b/c/d only ever exercised `[self]`-only method members. A method with a
 ;; second arg fails the surface-method arity check — `:t::Maker/make: expected 3 argument(s); got 2`
-;; (self is double-counted). The generic form `make<T>` is worse: `unknown callee :t::Maker/make`.
+;; (self is double-counted). The generic form `make :- [T]` is worse: `unknown callee :t::Maker/make`.
 ;;
 ;; GREEN at 293.4e-pre: a surface method `(make [self … extra-args …] -> ret)` dispatches with the
-;; right arity (and the generic `make<T>` resolves), at parity with arc-267 generic protocol methods.
+;; right arity (and the generic `make :- [T]` resolves), at parity with arc-267 generic protocol methods.
 
 (:wat::core::defsurface :t::Maker
   :nature :wat::core::Struct

@@ -31,7 +31,7 @@
 (:wat::core::defn :iq::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> :wat::core::i64
   (:wat::core::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
 
-;; src n — a Vector<i64> of n elements, built ONCE and outside both timed regions so the
+;; src n — a (Vector :- [i64]) of n elements, built ONCE and outside both timed regions so the
 ;; construction cost is charged to neither path.
 (:wat::core::defn :iq::src [n <- :wat::core::i64] -> (:wat::core::Vector :- [:wat::core::i64])
   (:wat::core::into (:wat::core::Vector :wat::core::i64) (:wat::core::range 0 n)))

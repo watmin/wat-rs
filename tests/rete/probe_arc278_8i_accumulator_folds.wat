@@ -3,7 +3,7 @@
 
 (:wat::core::defrecord :net::Packet [src <- :wat::core::String])
 
-;; The accumulators are PURE WAT FOLDS over a PV<Element>. `els` = 3 Elements with bindings
+;; The accumulators are PURE WAT FOLDS over a (PV :- [Element]). `els` = 3 Elements with bindings
 ;; {?bytes, ?port} + Packet facts: ?bytes = 100/200/300 (sum 600, min 100, max 300, mean 200);
 ;; ?port = 80/443/80 (distinct → 2; group-by → 2 keys). `empty` = an empty PV. Each entry point
 ;; wraps one accumulator call over `els` or `empty` — the ten probe assertions below.

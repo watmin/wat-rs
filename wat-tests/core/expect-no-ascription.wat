@@ -1,8 +1,8 @@
 ;; wat-tests/core/expect-no-ascription.wat — -> :T annihilation sub-strike 1 probe.
 ;;
 ;; The clean kills: Option/expect + Result/expect no longer carry a `-> :T`
-;; return ascription — the unwrapped type is INFERRED from the Option<T> /
-;; Result<T,E> argument (exactly the recv'/select' kill, arc 258.5b).
+;; return ascription — the unwrapped type is INFERRED from the (Option :- [T]) /
+;; (Result :- [T E]) argument (exactly the recv'/select' kill, arc 258.5b).
 ;;
 ;; RED at HEAD: both forms REQUIRE the `-> :T` arrow (layout
 ;; `(Option/expect -> :T <opt> <msg>)`, items.len() >= 5). The bare 2-arg form

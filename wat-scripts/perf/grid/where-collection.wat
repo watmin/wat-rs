@@ -127,7 +127,7 @@
 
 ;; ROW 2 — ELEMENT ACCESS at a CONSTANT index, feeding a comparison, TOTAL on a short/empty vector.
 ;; `nth` (STOP-1, see header) raises the purity fence; the surface's actual total, pure form is
-;; `PersistentVector/get` (-> Option<T>) destructured by `match` — a pattern, not a call, so the
+;; `PersistentVector/get` (-> (Option :- [T])) destructured by `match` — a pattern, not a call, so the
 ;; fence never even sees `Some`/`None` as heads. get(tags,2) -> Some x, x>5; None (len<=2) -> false.
 ;; Simulated => 54/200.
 (:wat::rete::defrule :wc::get-const
@@ -144,7 +144,7 @@
   :then
   [(:wc::Hit ?k)])
 
-;; ROW 4 — NESTED COLLECTION, two levels in. grid is Vector<Vector<i64>>; reach the FIRST inner
+;; ROW 4 — NESTED COLLECTION, two levels in. grid is (Vector :- [(Vector :- [i64])]); reach the FIRST inner
 ;; vector (Option, None when grid is empty — i mod 3 == 0, 67 facts) and test ITS length.
 ;; get(grid,0) -> Some inner, length(inner)>1; None -> false. Simulated => 66/200.
 (:wat::rete::defrule :wc::nested
@@ -261,7 +261,7 @@
           (:wat::core::String/concat "where-collection: unknown row " (:wat::core::i64::to-string row))
           :wat::core::None :wat::core::None)))))
 
-;; build-tags i -> a PersistentVector<i64> of length (i mod 6), element j = (i + 3j) mod 13.
+;; build-tags i -> a (PersistentVector :- [i64]) of length (i mod 6), element j = (i + 3j) mod 13.
 (:wat::core::defn :wc::build-tags [i <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:wat::core::let [len (:wat::core::i64::mod i 6)]
     (:wat::core::foldl
@@ -272,7 +272,7 @@
       (:wat::core::PersistentVector)
       (:wat::core::range 0 len))))
 
-;; build-inner i a -> a PersistentVector<i64> of length ((i+a) mod 4), element b = (i+a+b) mod 9.
+;; build-inner i a -> a (PersistentVector :- [i64]) of length ((i+a) mod 4), element b = (i+a+b) mod 9.
 (:wat::core::defn :wc::build-inner [i <- :wat::core::i64  a <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:wat::core::let [base (:wat::core::i64::+ i a)
                     len  (:wat::core::i64::mod base 4)]
@@ -283,7 +283,7 @@
       (:wat::core::PersistentVector)
       (:wat::core::range 0 len))))
 
-;; build-grid i -> a PersistentVector<PersistentVector<i64>> of (i mod 3) inner vectors.
+;; build-grid i -> a (PersistentVector :- [(PersistentVector :- [i64])]) of (i mod 3) inner vectors.
 (:wat::core::defn :wc::build-grid [i <- :wat::core::i64] -> (:wat::core::PersistentVector :- [(:wat::core::PersistentVector :- [:wat::core::i64])])
   (:wat::core::let [outer-len (:wat::core::i64::mod i 3)]
     (:wat::core::foldl

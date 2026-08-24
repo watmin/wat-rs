@@ -4,7 +4,7 @@
 ;;
 ;;   {"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"42"}],"isError":false}}
 ;;
-;; wat's HashMap is `HashMap<K,V>` — homogeneous in V — so a map cannot hold a String, an i64,
+;; wat's HashMap is `(HashMap :- [K V])` — homogeneous in V — so a map cannot hold a String, an i64,
 ;; a bool and a nested object at once. RECORDS can (each field its own type). The question is
 ;; what they SERIALIZE to:
 ;;

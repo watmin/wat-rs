@@ -4,9 +4,9 @@
 ;;
 ;; THE CHANGE (RULING 2026-07-22g, four-questions, builder-ratified): a `:nature :Peer` surface
 ;; client-method (`Store/scan`, `Op1/do-op`, `Journal/write-metrics`, …) now returns
-;; `:wat::kernel::RecvOutcome<Response>` instead of a bare `Response` — the transport failure is a
+;; `(:wat::kernel::RecvOutcome :- [Response])` instead of a bare `Response` — the transport failure is a
 ;; matchable VALUE the caller faces (ADT; wat has no try/catch). Every CALL SITE that matched the bare
-;; Response now type-errors (`match scrutinee expects X; got RecvOutcome<X>`). This codemod wraps each
+;; Response now type-errors (`match scrutinee expects X; got (RecvOutcome :- [X])`). This codemod wraps each
 ;; such match in the RecvOutcome match:
 ;;
 ;;   (match SCRUT <Response arms>)

@@ -68,7 +68,7 @@
 ;; built-ins, `src/check.rs` `BARE_CONTAINER_HEADS`) — so `constructor_meta` returns `None` for
 ;; `:wat::core::Some`/`:wat::core::Ok`/etc., they fall through to `intrinsic_meta`, and NEITHER is
 ;; in that hand-list. Reading a field of Option/Result type and MATCHING it (never constructing) is
-;; completely fine — row 7 below matches a bound `?o : Option<i64>` with zero friction, and an
+;; completely fine — row 7 below matches a bound `?o : (Option :- [i64])` with zero friction, and an
 ;; isolated /tmp probe confirmed the identical shape for `Result` (`match` on a bound `Result`
 ;; field, no `expect`, reached `n=[3]` correctly). The wall is specifically CONSTRUCTING one of the
 ;; two most common built-in sum types anywhere a `where` can reach — which reads as a real gap in

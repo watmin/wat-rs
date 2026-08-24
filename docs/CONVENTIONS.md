@@ -74,7 +74,7 @@ primitive) and `:wat::core::defn-restricted` (defmacro sugar over
 | `:wat::kernel::*` | CSP primitives — `spawn`, `send`, `recv`, `select`, `drop`, `join`, `make-bounded-channel`, `HandlePool`, signal handlers. |
 | `:wat::io::*` | Stdio primitives — `stdin`, `stdout`, `stderr`, `println`. |
 | `:wat::std::*` | Stdlib built on primitives. Each entry should be expressible (in principle) in wat itself, even if shipped as Rust for performance. `stream::*`, `service::Console`, `hermetic`, `test::*`. (LocalCache + CacheService moved to `:wat::lru::*` via arcs 013 + 036.) |
-| `:wat::lru::*` | LRU cache surface (external workspace member `crates/wat-lru/`, namespace promoted to `:wat::*` via arc 036). `LocalCache<K,V>`, `CacheService<K,V>`. |
+| `:wat::lru::*` | LRU cache surface (external workspace member `crates/wat-lru/`, namespace promoted to `:wat::*` via arc 036). `(:wat::lru::LocalCache :- [K V])`, `(:wat::lru::CacheService :- [K V])`. |
 | `:rust::*` | Surfaced Rust types via `#[wat_dispatch]`. Paths mirror real Rust (`:rust::std::iter::Iterator`, `:rust::crossbeam_channel::Receiver`). |
 | `:user::*` | User composition space — community wat crates AND user program code. See "External wat crates" below. |
 
@@ -138,7 +138,7 @@ All three collection literals use `Infer` for inferred type-arg positions
    diagnostic naming the offending position.
 
 2. **Function-signature unification** (call site): when a literal is passed to a
-   function expecting `HashMap<keyword, i64>`, the inferred K/V must unify with the
+   function expecting `(:wat::core::HashMap :- [:wat::core::keyword :wat::core::i64])`, the inferred K/V must unify with the
    declared parameter type. This is where keyword-key conventions are enforced for
    APIs that require them — not at the language parse layer.
 
@@ -544,7 +544,7 @@ the arity and side-effects from the suffix alone.
 
 ;; Type/spawn — factory that ALSO spawns a driver thread
 (:wat::lru::spawn capacity count reporter metrics-cadence)
-   ; -> CacheService::Spawn<K,V>
+   ; -> (CacheService::Spawn :- [K V])
 (:wat::holon::lru::HologramCacheService/spawn count cap reporter metrics-cadence)
    ; -> HologramCacheService::Spawn
 ```
@@ -582,10 +582,10 @@ exists; the last five are the standard verbs):
    only `(Metrics stats)`; future variants (Error, Evicted,
    Lifecycle) extend additively. Same grow-by-arms pattern as the
    archive's `TreasuryRequest`.
-3. **A `Reporter` typealias.** `:fn(Type::Report) -> :()`. The
+3. **A `Reporter` typealias.** `[Type::Report :-> :wat::core::nil]`. The
    user's match-dispatching consumer.
-4. **A `MetricsCadence<G>` struct.** `{gate :G, tick :fn(G,Stats) ->
-   :(G,bool)}`. Stateful rate gate. The user picks `G`; the loop
+4. **A `MetricsCadence :- [G]` struct.** `{gate :G, tick [G Stats :->
+   (:wat::core::Tuple :- [G :wat::core::bool])]}`. Stateful rate gate. The user picks `G`; the loop
    threads it through, rebuilding the struct each iteration with
    the advanced gate.
 5. **A `Stats` struct.** Counter type emitted via `Report::Metrics`.
@@ -600,7 +600,7 @@ exists; the last five are the standard verbs):
    Both are non-negotiable.
 8. **`Type/handle req state -> state'`.** Per-variant request
    dispatcher. Pure values-up.
-9. **`Type/tick-window state reporter metrics-cadence -> Step<G>`.**
+9. **`Type/tick-window state reporter metrics-cadence -> Step :- [G]`.**
    Gate-fire logic; ALWAYS advances the cadence; conditionally
    emits + resets stats. Named for what it always does, not the
    conditional branch.
@@ -665,10 +665,10 @@ substrate's surface is the bound discipline — users implementing
 their own services pick whatever shape fits.
 
 Shape:
-- **Get** — `(get probes :Vec<K>) -> Vec<Option<V>>`. Data-bearing
+- **Get** — `(get probes (:wat::core::Vector :- [K])) -> (:wat::core::Vector :- [(:wat::core::Option :- [V])])`. Data-bearing
   reply (Pattern B back-edge). Each probe maps to its slot in
   the result vec; missing keys come back as `:None`.
-- **Put** — `(put entries :Vec<Entry<K,V>>) -> :wat::core::nil`.
+- **Put** — `(put entries (:wat::core::Vector :- [(Entry :- [K V])])) -> :wat::core::nil`.
   Nil-ack release (Pattern A back-edge; arc 153 renamed
   `:wat::core::unit` → `:wat::core::nil`). Caller blocks until
   the batch is durable in the service's state.
@@ -680,9 +680,9 @@ state lives in one program; the io::select loop serializes
 batches sequentially; lock granularity = batch granularity.
 
 Why batch-only:
-- A batch-of-one is `(get [probe])` — costs one extra `Vec<>`
-  allocation against the protocol surface, gains one uniform
-  shape across every substrate service.
+- A batch-of-one is `(get [probe])` — costs one extra
+  `(:wat::core::Vector :- [...])` allocation against the protocol
+  surface, gains one uniform shape across every substrate service.
 - Single-item interfaces lie about the lock model — they imply
   per-item acquisition when the loop already serializes.
 - Users who actually have N items stay efficient by default;
@@ -696,9 +696,9 @@ work layer to amortize. Bundling writes would force partial-
 flush semantics the underlying file descriptor doesn't carry.
 
 Substrate services obeying this convention:
-- `:wat::telemetry::*` — `Request<E>` is `Vec<E>` (already
+- `:wat::telemetry::*` — `Request :- [E]` is `(:wat::core::Vector :- [E])` (already
   batch since arc 029)
-- `:wat::telemetry::sqlite::*` — rides `:wat::telemetry::Request<E>`
+- `:wat::telemetry::sqlite::*` — rides `(:wat::telemetry::Request :- [E])`
 - `:wat::lru::*` — adopts batch via arc 119
 - `:wat::holon::lru::*` — adopts batch via arc 119
 - (the former Console service was retired in arc 109 § kill-std / arc 170 slice 1f-η; the ambient kernel trio `println` / `eprintln` / `readln` replaces it — no batch exemption needed)
@@ -722,58 +722,61 @@ The real-world citation lives at
 
 ### Per-service, not shared
 
-Each service ships its own `Type::MetricsCadence<G>`. We keep
+Each service ships its own `Type::MetricsCadence :- [G]`. We keep
 per-service rather than lifting to a shared
-`:wat::std::service::MetricsCadence<G,Stats>` because the cadence's
+`:wat::std::service::MetricsCadence :- [G Stats]` because the cadence's
 `tick` knows the service's specific Stats — sharing would force a
 two-parameter generic with no clear payoff. Revisit when a third
 service surfaces and the duplication is concretely painful.
 
 ## Type alias for nested-generic returns (arc 077)
 
-If a function's return type contains **three or more** `<` characters, name it. Nested generics make signatures unreadable; an alias near the type definition restores grep-ability.
+If a function's return type nests **three or more** `:- [...]` parameterizations, name it. Deeply nested generics make signatures unreadable; an alias near the type definition restores grep-ability. (Historical: before arc 109 ③ this was phrased as "three or more `<` characters" — the same density judgement, counted on the current syntax.)
 
 ### Examples
 
 ```scheme
-;; Before — 3 angle brackets at every Service factory site
-(:wat::lru::spawn<K,V>
-  (capacity :i64) (count :i64)
-  -> :(wat::kernel::HandlePool<wat::lru::ReqTx<K,V>>,wat::kernel::ProgramHandle<()>))
+;; Before — 3 levels of :- nesting at every Service factory site
+(:wat::lru::spawn :- [K V]
+  [capacity <- :wat::core::i64 count <- :wat::core::i64]
+  -> (:wat::kernel::HandlePool :- [(:wat::lru::ReqTx :- [K V])]))
 
 ;; After — alias near the protocol typealiases
-(:wat::core::typealias :wat::lru::Spawn<K,V>
-  :(wat::kernel::HandlePool<wat::lru::ReqTx<K,V>>,wat::kernel::ProgramHandle<()>))
+(:wat::core::typealias :wat::lru::Spawn :- [K V]
+  (:wat::kernel::HandlePool :- [(:wat::lru::ReqTx :- [K V])]))
 
-(:wat::lru::spawn<K,V>
-  (capacity :i64) (count :i64)
-  -> :wat::lru::Spawn<K,V>)
+(:wat::lru::spawn :- [K V]
+  [capacity <- :wat::core::i64 count <- :wat::core::i64]
+  -> (:wat::lru::Spawn :- [K V]))
 ```
 
 ### Aliases that ship in the substrate
 
 | Alias | Expands to | Where |
 |---|---|---|
-| `:wat::kernel::Channel<T>` | `:(Sender<T>,Receiver<T>)` | `wat/kernel/channel.wat` |
-| `:wat::kernel::Sent` | `:Option<()>` | `wat/kernel/channel.wat` |
-| `:wat::kernel::Chosen<T>` | `:(i64,Option<T>)` | `wat/kernel/channel.wat` |
-| `:wat::stream::Stream<T>` | `:(wat::kernel::Receiver<T>,wat::kernel::Thread<wat::core::nil,wat::core::nil>)` | `wat/stream.wat` |
-| `:wat::stream::ChunkStep<T>` | `:(wat::core::Vector<T>,wat::core::Vector<wat::core::Vector<T>>)` | `wat/stream.wat` |
-| `:wat::stream::KeyedChunkStep<K,T>` | `:((wat::core::Option<K>,wat::core::Vector<T>),wat::core::Vector<wat::core::Vector<T>>)` | `wat/stream.wat` |
-| `:wat::lru::Spawn<K,V>` | factory return shape | `crates/wat-lru/wat/lru/CacheService.wat` |
-| `:wat::lru::Step<K,V,G>` | one loop-step output | `crates/wat-lru/wat/lru/CacheService.wat` |
-| `:wat::lru::ReqChannel<K,V>` | `:(ReqTx<K,V>,ReqRx<K,V>)` | `crates/wat-lru/wat/lru/CacheService.wat` |
-| `:wat::holon::lru::HologramCacheService::Spawn` | factory return shape | `crates/wat-holon-lru/wat/holon/lru/HologramCacheService.wat` |
-| `:wat::holon::lru::HologramCacheService::Step<G>` | one loop-step output | `crates/wat-holon-lru/wat/holon/lru/HologramCacheService.wat` |
+| `:wat::kernel::Channel :- [T]` | `(:wat::core::Tuple :- [(:wat::kernel::Sender :- [T]) (:wat::kernel::Receiver :- [T])])` | `wat/kernel/channel.wat` |
+| `:wat::kernel::CommResult :- [T]` | `(:wat::core::Result :- [(:wat::core::Option :- [T]) :wat::kernel::ThreadPanics])` — replaces the retired arc-110-era `:wat::kernel::Sent` | `wat/kernel/channel.wat` |
+| `:wat::kernel::Chosen :- [T]` | `(:wat::core::Tuple :- [:wat::core::i64 (:wat::kernel::CommResult :- [T])])` | `wat/kernel/channel.wat` |
 
-The same rule applies in user crates: pass the angle-bracket
-density check at every type signature, and add aliases adjacent
-to the protocol typealiases when one signature crosses three.
+⚠ **Unverified — flag for a dedicated content-accuracy pass, out of this stone's scope
+(syntax only):** this table's remaining rows (`:wat::stream::Stream`/`ChunkStep`/`KeyedChunkStep`,
+`:wat::lru::Spawn`/`Step`/`ReqChannel`, `:wat::holon::lru::HologramCacheService::Spawn`/`Step`) name
+files and shapes that no longer check out against the corpus: `wat/stream.wat` doesn't exist (`Stream`
+is now a native Rust-backed type — `StreamContainer::Stream` in `src/runtime.rs` — not a tuple alias);
+`ChunkStep`/`KeyedChunkStep` don't appear anywhere in the corpus or `src/`; `crates/wat-lru/` (and
+`crates/wat-holon-lru/`) do not exist in this tree at all. This is CONTENT drift, not a spelling
+question — deliberately NOT rewritten here per the "do not invent the rules" / STOP-3 discipline
+(cannot verify a replacement shape for machinery that may have moved or been renamed elsewhere).
+
+The same rule applies in user crates: pass the parameterization-
+nesting density check at every type signature, and add aliases
+adjacent to the protocol typealiases when one signature crosses
+three levels of `:- [...]` nesting.
 
 ### Consumers alias the substrate's generic at their concrete instantiation
 
-The substrate ships generic aliases — `Service::Spawn<E>`,
-`Console::Dispatcher<E>`, `CacheService::Spawn<K,V>` — so the
+The substrate ships generic aliases — `Service::Spawn :- [E]`,
+`Console::Dispatcher :- [E]`, `CacheService::Spawn :- [K V]` — so the
 SAME factory can serve any consumer's domain type. For each
 consumer, those generics resolve to ONE concrete instantiation
 (the lab's `E = :trading::log::LogEntry`; an MTG engine's
@@ -786,37 +789,41 @@ Two layers of alias compose: substrate-generic + consumer-concrete.
 
 ```scheme
 ;; Substrate ships the generic — reusable across consumers.
-(:wat::core::typealias :wat::telemetry::Spawn<E>
-  :(wat::telemetry::ReqTxPool<E>,wat::kernel::ProgramHandle<()>))
+(:wat::core::typealias :wat::telemetry::Spawn :- [E]
+  (:wat::telemetry::ReqTxPool :- [E]))
 
 ;; Consumer aliases the concrete instantiation at their namespace —
 ;; readable everywhere downstream.
 (:wat::core::typealias :trading::telemetry::Spawn
-  :wat::telemetry::Spawn<trading::log::LogEntry>)
+  (:wat::telemetry::Spawn :- [trading::log::LogEntry]))
 
 ;; Every lab signature reads `:trading::telemetry::Spawn` instead
-;; of `:wat::telemetry::Spawn<trading::log::LogEntry>`.
-(:wat::core::define
-  (:trading::telemetry::Sqlite/spawn<G>
-    (path :String) (count :i64)
-    (cadence :wat::telemetry::MetricsCadence<G>)
-    -> :trading::telemetry::Spawn)
+;; of `(:wat::telemetry::Spawn :- [trading::log::LogEntry])`.
+(:wat::core::defn :trading::telemetry::Sqlite/spawn :- [G]
+  [path <- :wat::core::String count <- :wat::core::i64
+   cadence <- (:wat::telemetry::MetricsCadence :- [G])]
+  -> :trading::telemetry::Spawn
   ...)
 ```
+
+⚠ **Unverified — flag for a content-accuracy pass, out of this stone's scope (syntax only):**
+`ReqTxPool` does not appear anywhere in the current corpus; this may be further content drift on
+top of the spelling, in the same family as the LRU/stream table above. The `:->` and `(Head :-
+[Args])` spellings above are independently verified; the specific named types are not.
 
 The rule:
 
 - **Substrate ships generics for reusability across consumers.**
-  `<E>`, `<K,V>`, `<G>` parameters that different domains
-  instantiate differently.
+  `E`, `K V`, `G` parameters (bound `:- [...]`) that different
+  domains instantiate differently.
 - **Consumers alias the concrete instantiation at their own namespace.**
-  One alias per concept the app uses; substrate's `<E>` collapses
-  to a single readable name at the consumer site.
+  One alias per concept the app uses; the substrate's generic
+  binder collapses to a single readable name at the consumer site.
 
 References:
 
 - `holon-lab-trading/wat/io/telemetry/Sqlite.wat` —
-  `:trading::telemetry::Spawn = Service::Spawn<trading::log::LogEntry>`
+  `:trading::telemetry::Spawn = (Service::Spawn :- [trading::log::LogEntry])`
   is the canonical example; the lab's only telemetry consumer
   aliases its concrete shape once.
 
@@ -843,10 +850,10 @@ need to know which before reaching for code:
   every shape-inspection site had to chain manually. The substrate
   work was the fix.
 - **Feature that shouldn't exist, reframe the combinator.** arc
-  006's `first(stream, n) -> Vec<T>` as a terminal would have
+  006's `first(stream, n) -> (:wat::core::Vector :- [T])` as a terminal would have
   needed a force-drop primitive wat deliberately doesn't ship
   (scope discipline IS shutdown discipline). Reframing as
-  `take(stream, n) -> Stream<T>` — a stage, not a terminal —
+  `take(stream, n) -> (:wat::stream::Stream :- [T])` — a stage, not a terminal —
   sidestepped the gap entirely. The missing primitive was the
   language telling us the combinator shape was wrong.
 

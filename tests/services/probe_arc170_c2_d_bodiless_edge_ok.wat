@@ -1,10 +1,10 @@
 ;; Arc 170 C2 candidate D — the BODILESS extend-type mechanism, promoted from the disconfirming
 ;; probe (scratchpad/probe-v-bodiless.wat) that proved it this session.
 ;;
-;; A hand-defined LOCAL `:probe::TypedCapability<S,R>` surface (coord/grant/revoke) — distinct
-;; from (but the exact shape that) the real `:wat::capability::TypedCapability<S,R>` (baked
+;; A hand-defined LOCAL `(:probe::TypedCapability :- [S R])` surface (coord/grant/revoke) — distinct
+;; from (but the exact shape that) the real `(:wat::capability::TypedCapability :- [S R])` (baked
 ;; wat/capability.wat, auto-emitted per-service wat/service.wat) — with a BODILESS extend-type:
-;; `(extend-type :probe::echo'::Handle :probe::TypedCapability<probe::Echo::Op,probe::Echo::Reply>)`
+;; `(extend-type :probe::echo'::Handle (:probe::TypedCapability :- [probe::Echo::Op probe::Echo::Reply]))`
 ;; — no method bodies. Registers the satisfaction EDGE only; `coord`/`grant` are served, at
 ;; runtime, off the flat `Handle/coord` key the handle would need ANYWAY (a real service Handle
 ;; gets that key for free from the real auto-emitted Dialable/Capability; this probe fakes it by

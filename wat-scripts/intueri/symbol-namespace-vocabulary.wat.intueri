@@ -40,7 +40,7 @@
 ;;   src/runtime.rs:3048           s.as_str().contains('/')
 ;;   src/runtime.rs:3307           s.as_str().contains('/')
 ;;
-;; ── WHY A NAMED NAMESPACE AND NOT `Option<Namespace>` ─────────────────────────────────────
+;; ── WHY A NAMED NAMESPACE AND NOT `(Option :- [Namespace])` ───────────────────────────────
 ;;
 ;; The alternative shape is an optional namespace whose `None` means "this is a binder".
 ;; That was cut, on precedent one day old (arc 278 R66): an `Option` whose `None` meant

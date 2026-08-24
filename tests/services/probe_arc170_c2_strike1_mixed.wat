@@ -178,7 +178,7 @@
      h7 (:probe::s7/start :locus (:wat::spawn::process) :record (:probe::s7::Record))
      ;; Strike 1a/C2-D's checker — the gate AND the carrier-assembly are ONE act. Kwargs are
      ;; ORDER-FREE (scrambled here on purpose); RAW HANDLES (no Dialable/coord upcast — a
-     ;; handle satisfies TypedCapability<S,R> directly via the bodiless auto-emit); the checker
+     ;; handle satisfies (TypedCapability :- [S R]) directly via the bodiless auto-emit); the checker
      ;; reorders to field order and returns `(::Coords, ::GrantHandles)`.
      pair    (:probe::enrich::kwargs-check
                :d2 "D2" :s3 h3 :s1 h1

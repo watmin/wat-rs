@@ -127,7 +127,7 @@
 
 ;; collect-kwds — recursively walk a node, collecting the ast-name of
 ;; every ::-namespaced :wat:: keyword node found anywhere in the tree.
-;; Returns Vector<String>. Mirrors fix.wat's structural?+recurse pattern.
+;; Returns (Vector :- [String]). Mirrors fix.wat's structural?+recurse pattern.
 (:wat::core::defn :wat::deporder::collect-kwds
   [node <- :wat::WatAST]
   -> (:wat::core::Vector :- [:wat::core::String])
@@ -293,7 +293,7 @@
 ;; ─── stdlib surface ───────────────────────────────────────────────────
 
 ;; stdlib-sources — wraps the Rust intrinsic's [path source] pairs into
-;; SourceFile records. The intrinsic returns Vector<Vector<String>> where
+;; SourceFile records. The intrinsic returns (Vector :- [(Vector :- [String])]) where
 ;; each inner Vector is [path, source] in STDLIB_FILES order.
 (:wat::core::defn :wat::deporder::stdlib-sources
   []

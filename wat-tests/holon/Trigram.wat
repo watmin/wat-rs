@@ -17,7 +17,7 @@
      d (:wat::holon::to-holon "d")
      window-1
       (:wat::holon::Sequential (:wat::core::Vector :wat::holon::HolonAST a b c))
-     ;; Trigram returns :wat::core::Result<HolonAST, CapacityExceeded>. 4 atoms at
+     ;; Trigram returns (:wat::core::Result :- [HolonAST CapacityExceeded]). 4 atoms at
      ;; d=1024 is well under the capacity budget; Err is unreachable
      ;; but the type system still demands we acknowledge it.
      full

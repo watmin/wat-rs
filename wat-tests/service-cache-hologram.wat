@@ -1,10 +1,10 @@
 ;; wat-tests/service-cache-hologram.wat — arc 278 cache Stone 4: the SIMILARITY cache, as a
-;; service, now on the BATCH `Cache<K,V>` surface (BRIEF-cache-batch-surface).
+;; service, now on the BATCH `(Cache :- [K V])` surface (BRIEF-cache-batch-surface).
 ;;
 ;; Stone 3 (`wat-tests/cache/HolographicLru.wat`) proved `:wat::cache::HolographicLru` in-process.
-;; Stone 4 puts it behind the SAME `:wat::cache::Cache<K,V>` multi-client surface Stone 2's
-;; `lru-svc<K,V>` wears (`wat-tests/service-cache-lru.wat`), pinned concretely at
-;; `Cache<wat::holon::HolonAST,wat::holon::HolonAST>` (`:wat::cache::hologram-svc`, no `<K,V>` of
+;; Stone 4 puts it behind the SAME `(:wat::cache::Cache :- [K V])` multi-client surface Stone 2's
+;; `lru-svc :- [K V]` wears (`wat-tests/service-cache-lru.wat`), pinned concretely at
+;; `(Cache :- [wat::holon::HolonAST wat::holon::HolonAST])` (`:wat::cache::hologram-svc`, no `:- [K V]` of
 ;; its own — `HolographicLru` is concrete over `HolonAST`, so the service is too). `get`/`put` are
 ;; BATCH in both directions (`docs/CONVENTIONS.md:658`), same as `lru-svc`.
 ;;
@@ -35,7 +35,7 @@
 ;; mirror `lru-svc`. Eviction is proven the only way it CAN be proven here — a later `get` miss.
 ;;
 ;; Assert on structure exactly (never a rendered-string `contains`): `get-results` unwraps
-;; `RecvOutcome<GetResponse<HolonAST>>` down to the raw `Vector<GetResult<HolonAST>>`, dying loud
+;; `(RecvOutcome :- [(GetResponse :- [HolonAST])])` down to the raw `(Vector :- [(GetResult :- [HolonAST])])`, dying loud
 ;; (`assertion-failed!`) on a wire breach (Lost/Closed) or an unexpected response variant
 ;; (RequestTooLarge/RequestMalformed); the gate then `assert-eq`s that Vector against a literal
 ;; expected Vector — index position and all — so a shifted or dropped result fails structurally,

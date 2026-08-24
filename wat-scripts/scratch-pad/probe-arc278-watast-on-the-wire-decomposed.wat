@@ -2,14 +2,14 @@
 ;; `LOST disconnected` on BOTH arms, which is the mechanism failing rather than the
 ;; differential firing. Two variables were braided in that probe:
 ;;   (a) the service shape itself (start/connect/op round-trip on a process locus), and
-;;   (b) a `Vector<WatAST>` as a request field crossing the pipe.
+;;   (b) a `(Vector :- [WatAST])` as a request field crossing the pipe.
 ;;
 ;; This file separates them in ONE service with TWO ops that differ ONLY in the request
 ;; field's type. Both replies are a plain i64, so the RESPONSE side is identical and cannot
 ;; be the variable.
 ;;
 ;;   echo    [n <- i64]                  -> Ok n            ← the CONTROL: is my shape right?
-;;   count   [defs <- Vector<WatAST>]    -> Ok (length defs) ← the SUBJECT: does WatAST cross?
+;;   count   [defs <- (Vector :- [WatAST])]    -> Ok (length defs) ← the SUBJECT: does WatAST cross?
 ;;
 ;; READ:
 ;;   echo Ok  AND count Ok      => the wire carries WatAST; the earlier failure is in the
@@ -55,7 +55,7 @@
 ;; it is why this took three runs to diagnose instead of one.
 ;;
 ;; ⚠ STILL NOT DETERMINED: where exactly the name comparison lives, and whether a BARE `WatAST`
-;; field fails the same way as `Vector<WatAST>`. Do not guess either.
+;; field fails the same way as `(Vector :- [WatAST])`. Do not guess either.
 ;;
 ;; ★ MEASURED 2026-08-12, after the identity arm (`edn_shim::edn_to_typed_value_inner`,
 ;; `TypeExpr::Path` arm, `:wat::WatAST` case — DESIGN-STONE-watast-is-the-wire.md):
@@ -65,7 +65,7 @@
 ;;   "ISOLATOR count THREAD      => Ok n=3"                 (was REQUEST-MALFORMED — NOW FIXED)
 ;;
 ;; FINDING 1 (predicted) CONFIRMED: the identity arm closes the walker for both loci equally —
-;; `count THREAD` now decodes/validates a `Vector<WatAST>` correctly. Companion probe
+;; `count THREAD` now decodes/validates a `(Vector :- [WatAST])` correctly. Companion probe
 ;; `probe-arc278-watast-identity-arm.wat` additionally confirms the BARE case (not only
 ;; parametric) and the negative row (a wrong field type is still refused).
 ;;

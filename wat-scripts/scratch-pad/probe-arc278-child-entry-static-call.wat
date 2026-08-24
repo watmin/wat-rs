@@ -9,8 +9,8 @@
 ;;
 ;; TWO load-bearing claims, and this file fails on EXACTLY them if either is false:
 ;;
-;;   A. A parent defn can hand the process tier's `Peer'<Status,Admin>` to `serve`, whose `self`
-;;      is declared `ThreadSelfPeer'<Status,Admin>`. This is what the 293.W derive edge bought
+;;   A. A parent defn can hand the process tier's `(Peer' :- [Status Admin])` to `serve`, whose `self`
+;;      is declared `(ThreadSelfPeer' :- [Status Admin])`. This is what the 293.W derive edge bought
 ;;      (`Peer' derives ThreadSelfPeer'`, wat/spawn.wat). Before that edge this was a located
 ;;      TypeMismatch — i.e. the strike was IMPOSSIBLE, not merely unwritten.
 ;;
@@ -48,7 +48,7 @@
 ;; generated `serve` declares it (service.wat:1478 `serve-params`), so a rider copying this is
 ;; copying a form the checker has already accepted.
 ;;
-;; ★ The `self` here is `Peer'<Status,Admin>` — what `:wat::program::self-peer` returns in the
+;; ★ The `self` here is `(Peer' :- [Status Admin])` — what `:wat::program::self-peer` returns in the
 ;; forked child — NOT the `ThreadSelfPeer'` serve declares. It type-checks only via the derive
 ;; edge. Flip either head and this file goes red, which is the disconfirmation.
 ;; Mirrors the generated child main's real flow — dispatch-admin THEN serve — so the closure
@@ -61,7 +61,7 @@
   (:wat::core::let
     [state (:probe::ce::dispatch-admin ship)]
   (:probe::ce::serve self l
-    ;; the selectables slot: `Vector<(i64, Peer<Reply,Op>)>` — the id travels WITH its peer
+    ;; the selectables slot: `(Vector :- [(i64, (Peer :- [Reply Op]))])` — the id travels WITH its peer
     ;; (arc 278 the call context). The element type is ONE tuple type-keyword, exactly as
     ;; `selectable-entry-ty` builds it (service.wat:979).
     (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 (:wat::kernel::Peer :- [:probe::CE::Reply :probe::ce::Op])]))

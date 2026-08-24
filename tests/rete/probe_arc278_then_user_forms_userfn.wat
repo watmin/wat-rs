@@ -2,7 +2,7 @@
 ;; Loaded via startup_from_file. The `:then` item's HEAD is a user fn (`:tf::first-rate`), not a
 ;; fact-type constructor — admissible because its declared return type (`:tf::Rate`) is a fact
 ;; type and its body bottoms out in admitted ops (`:wat::core::first` on a bound
-;; `PersistentVector<tf::Rate>` — the accumulator's `acc::all` result, which BEFORE this stone
+;; `(PersistentVector :- [tf::Rate])` — the accumulator's `acc::all` result, which BEFORE this stone
 ;; `:then` had no way to consume at all: "the rete action layer only inserts records from bound
 ;; vars + literals" — accum.wat's own comment). This is new capability, not merely a widened
 ;; syntax: a `where` fence never had to prove a fn's RETURN type; that check is `:then`-only.
@@ -42,7 +42,7 @@
 ;; extraction-only fn returns a value structurally IDENTICAL to the accumulated input, so a plain
 ;; type-count cannot distinguish "the rule fired" from "the input fact was already there" (both
 ;; read back as one `tf::Rate`, same `count`). What this DOES prove, unconfounded: the fence
-;; admits a fn-headed item whose body reads a `PersistentVector<Record>`-valued accumulate bind
+;; admits a fn-headed item whose body reads a `(PersistentVector :- [Record])`-valued accumulate bind
 ;; (impossible for `:then` before this stone), `sym.functions` resolution + `apply_function`
 ;; execute it, and the result type-checks as a fact at `build_insert_fact_call`'s runtime guard —
 ;; all without raising. See `probe_arc278_then_user_forms.rs` for what's actually asserted.

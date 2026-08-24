@@ -66,7 +66,7 @@
   ;; to this service's accepted-connection receivers; a frame over this → a reasoned 400 + close, not mute.
   :max-frame-bytes 10485760
   :durable   []
-  ;; the dialed backend peer — a client Peer'<Store::Op,Store::Reply>, held as a ROOT ephemeral field
+  ;; the dialed backend peer — a client (Peer' :- [Store::Op Store::Reply]), held as a ROOT ephemeral field
   :ephemeral [store <- (:wat::kernel::Peer :- [:wat::query::Store::Op :wat::query::Store::Reply])]
   ;; the explicit s2s dependency DAG — set-equal to the ephemeral peer field's surface
   :peers     [:wat::query::Store]

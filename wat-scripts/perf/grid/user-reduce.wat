@@ -2,8 +2,8 @@
 ;;
 ;; The A6 capability (DESIGN-STONE-8-custom.md, wat/rete.wat:665+ accumulate 8-custom fence +
 ;; :2272 accumulate-pass-for-token): the accumulate slot accepts ANY pure∧det user wat fn
-;; `(PersistentVector<T>) -> R` as the acc-form head — the dispatcher gathers the bound `?var`
-;; values into a PV<T> and folds the user fn over it. Here the fold is `sum-of-squares`
+;; `((PersistentVector :- [T])) -> R` as the acc-form head — the dispatcher gathers the bound `?var`
+;; values into a (PV :- [T]) and folds the user fn over it. Here the fold is `sum-of-squares`
 ;; (the repo's own differential exemplar, tests/rete/probe_arc278_8custom_native_differential.rs):
 ;;   sum-of-squares(xs) = Σ x² .
 ;;
@@ -13,10 +13,10 @@
 ;;   Agg(loc, s) :- Station(loc) AND (?s <- sum-of-squares(?v) :from Reading(loc, ?v))
 ;;                         — one derived Agg per location; s is the population Σ v² of that
 ;;                           location's gathered readings, computed by the USER fold over the
-;;                           whole gathered PV<i64> (batch fold; re-run each fire).
+;;                           whole gathered (PV :- [i64]) (batch fold; re-run each fire).
 ;;
 ;; WHY sum-of-squares (not a percentile/top-k): CLARA-TRANSLATIONS.md A6 (c) — wat's custom fold is
-;; a BATCH fold over PV<T>; Clara's `accum` is a STREAMING reduce (reduce-fn + optional retract-fn).
+;; a BATCH fold over (PV :- [T]); Clara's `accum` is a STREAMING reduce (reduce-fn + optional retract-fn).
 ;; The two SHAPES differ, so this axis compares FINAL RESULTS only. sum-of-squares is
 ;; incrementally decomposable (Σx² over insert = O(1) update; Σx² over a batch PV = O(n) re-fold) —
 ;; so BOTH engines compute the IDENTICAL final population value. That equivalence is the point of
@@ -107,8 +107,8 @@
       (:wat::core::PersistentVector)
       (:wat::core::range 0 locs))))
 
-;; vec->pvec v — materialize a Vector<i64> into a PersistentVector<i64>. DESIGN-STONE-into-pv-
-;; from-vector.md: `into` now has a native (PersistentVector<T>, Vector<T>) clause backed by one
+;; vec->pvec v — materialize a (Vector :- [i64]) into a (PersistentVector :- [i64]). DESIGN-STONE-into-pv-
+;; from-vector.md: `into` now has a native ((PersistentVector :- [T]), (Vector :- [T])) clause backed by one
 ;; `PersistentVector/concat` call — retiring the N-interpreted-closure-invocation conj-fold.
 (:wat::core::defn :ur::vec->pvec [v <- (:wat::core::Vector :- [:wat::core::i64])] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:wat::core::into (:wat::core::PersistentVector) v))

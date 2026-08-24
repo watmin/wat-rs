@@ -56,7 +56,7 @@
      c   (:wat::core::match (:wat::kernel::connect (:probe::op1svc::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      r   (:probe::Op1/do-op c (:probe::Op1::DoOpRequest :payload big))]
     ;; arc 278 the recv'-outcome wall — `do-op` now returns a matchable
-    ;; `RecvOutcome<DoOpResponse>`; the happy-path Response comes through ::Message.
+    ;; `(RecvOutcome :- [DoOpResponse])`; the happy-path Response comes through ::Message.
     (:wat::core::match r
       ((:wat::kernel::RecvOutcome::Message resp)
         (:wat::core::match resp

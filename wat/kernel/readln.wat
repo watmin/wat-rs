@@ -51,7 +51,7 @@
 ;;
 ;; The program-body path (no leading quasiquote) runs in the fenced macro
 ;; evaluator; `args` is bound as a Value::Vec of Value::wat__WatAST nodes.
-;; `get` returns Option<Value::wat__WatAST>; `Option/expect` unwraps it.
+;; `get` returns (Option :- [Value::wat__WatAST]); `Option/expect` unwraps it.
 ;;
 ;; `readln'` is a Rust intrinsic (always available at expand time — no
 ;; load-order dependency on any wat file). This macro therefore has no

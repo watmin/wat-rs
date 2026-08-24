@@ -6,7 +6,7 @@
 ;; The client (this test body) spawns a forms-server child; the server's
 ;; :user::main `pprintln`s a map to its stdout (fd 1) — `pprintln` breaks a
 ;; multi-key map across PHYSICAL lines. The client `recv'`s it off the named-fd
-;; `Process'<I,O>` peer.
+;; `(Process' :- [I O])` peer.
 ;;
 ;; Before 259.S3.6 the comms io_uring framer split on the FIRST '\n', so a
 ;; multi-line value was mis-framed — `recv'` yielded just "{". After: the one

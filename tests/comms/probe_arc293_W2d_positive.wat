@@ -7,13 +7,13 @@
 ;;   2. :wat::program::self-peer with pure types still type-checks (the purity gate only
 ;;      rejects IMPURE type args; it must not over-reject the pure case).
 ;;
-;; Both cases must load without error — the Peer'<I,O> well-formedness gate must NOT
+;; Both cases must load without error — the (Peer' :- [I O]) well-formedness gate must NOT
 ;; apply to ThreadSelfPeer' (it's in-locus), and must not fire on pure type args.
 
 ;; A struct type — impure (Nature::Struct).
 (:wat::core::defstruct :w2d_pos::S [val <- :wat::core::i64])
 
-;; Positive 1: spawn a thread whose self-peer is ThreadSelfPeer'<S,i64> (impure I).
+;; Positive 1: spawn a thread whose self-peer is (ThreadSelfPeer' :- [S i64]) (impure I).
 ;; In-locus; any I/O is allowed. The body does nothing — we only check type-checking.
 (:wat::core::defn :w2d_pos::probe-thread-self-peer-impure [] -> :wat::core::nil
   (:wat::core::let

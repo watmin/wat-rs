@@ -2,8 +2,8 @@
 ;; probe_arc278_connect_outcome_wall.rs, slurped via startup_beside(file!()).
 ;;
 ;; Arc 278 peer-lifecycle Strike 4 — the connect' OUTCOME WALL (the LAST peer wall).
-;; `connect'` used to return a bare `Peer'<S,R>` and RAISE on its handleable failures;
-;; it now returns a matchable `:wat::kernel::ConnectOutcome<S,R>` (::Connected[Peer'<S,R>]
+;; `connect'` used to return a bare `(Peer' :- [S R])` and RAISE on its handleable failures;
+;; it now returns a matchable `(:wat::kernel::ConnectOutcome :- [S R])` (::Connected[(Peer' :- [S R])]
 ;; · ::Refused[Failure] · ::Rejected[Failure] · ::Failed[Failure]). These fns RETURN the
 ;; raw ConnectOutcome so the Rust probe can assert on it STRUCTURALLY (Value::Enum field
 ;; extraction).

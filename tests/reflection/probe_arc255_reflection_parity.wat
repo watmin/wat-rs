@@ -4,7 +4,7 @@
 ;;
 ;; metadata-of carries no registered TypeScheme (its arg is a binding-name
 ;; keyword resolved at runtime), so its inferred return is permissive; the
-;; declared Option<HashMap<keyword, HolonAST>> here mirrors its documented shape
+;; declared (Option :- [(HashMap :- [keyword HolonAST])]) here mirrors its documented shape
 ;; (runtime.rs eval_metadata_of). The Rust driver inspects the returned Value.
 
 ;; metadata-of on a rust builtin (:wat::core::i64::+) — RED at HEAD returns None

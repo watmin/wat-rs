@@ -7,7 +7,7 @@
 ;;    "params":{"name":"eval","arguments":{"edn":"(:wat::core::+ 2 2)"}}}
 ;;
 ;; and the sibling values at each level are HETEROGENEOUS (a String beside an i64 beside a
-;; nested object). A wat `HashMap<K,V>` has ONE V. So this is the question that decides where
+;; nested object). A wat `(HashMap :- [K V])` has ONE V. So this is the question that decides where
 ;; the JSON-RPC envelope is parsed:
 ;;
 ;;   WALKS  => wat can own the envelope; `wat/mcp.wat` reads the request end to end.

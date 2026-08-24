@@ -1,7 +1,7 @@
 ;; s2s-process-probe.wat — arc 278 S4d GREEN-LIGHT target.
 ;; Two primed services, BOTH forked to PROCESSES:
 ;;   echo'   — :satisfies :probe::Echo; echoes "echo:<msg>".
-;;   caller' — :satisfies :probe::Caller; DIALS echo' (holds a client Peer'<Echo::Op,Echo::Reply>
+;;   caller' — :satisfies :probe::Caller; DIALS echo' (holds a client (Peer' :- [Echo::Op Echo::Reply])
 ;;             in :ephemeral, declares :peers [:probe::Echo]); its `run` impl calls Echo/echo.
 ;;
 ;; Needs BOTH arc-278-S4d changes:
@@ -41,7 +41,7 @@
 (:wat::service::defservice :probe::caller
   :satisfies :probe::Caller
   :durable   []
-  ;; the dialed peer — a client Peer'<Echo::Op,Echo::Reply>, held as a ROOT ephemeral field
+  ;; the dialed peer — a client (Peer' :- [Echo::Op Echo::Reply]), held as a ROOT ephemeral field
   :ephemeral [echo <- (:wat::kernel::Peer :- [:probe::Echo::Op :probe::Echo::Reply])]
   ;; the explicit s2s dependency DAG — set-equal to the ephemeral peer field's surface
   :peers     [:probe::Echo]

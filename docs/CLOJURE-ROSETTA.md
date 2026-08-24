@@ -30,8 +30,8 @@ The form/operator names AND their semantics:
 | `(:wat::core::Vector ...)` | Clojure vector `[...]` | wat distinguishes Vector (binding-syntax) from Vec literal (out of arc 167's scope) |
 | `(:wat::core::Tuple ...)` | (no native equivalent) | Wat-specific; positional product type |
 | `(:wat::core::HashMap ...)` | `{...}` | Same data structure |
-| `(:wat::core::Option<T>)` with `:Some` / `:wat::core::None` | `Optional`/`Maybe` (Java interop) | Wat ships its own enum |
-| `(:wat::core::Result<T,E>)` with `:Ok` / `:Err` | `(try ...)` exception model in Clojure | Wat is Result-typed throughout |
+| `(:wat::core::Option :- [T])` with `:Some` / `:wat::core::None` | `Optional`/`Maybe` (Java interop) | Wat ships its own enum |
+| `(:wat::core::Result :- [T E])` with `:Ok` / `:Err` | `(try ...)` exception model in Clojure | Wat is Result-typed throughout |
 | `(:wat::core::Result/try expr -> :T :catch err handler)` | `(try ...)` | Result-shaped; not exception-shaped |
 | `(:wat::core::concat ...)` | `(concat ...)` | Same |
 | `(:wat::core::length xs)` | `(count xs)` | Different name; same idea |

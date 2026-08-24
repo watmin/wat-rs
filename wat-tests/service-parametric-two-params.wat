@@ -1,4 +1,4 @@
-;; wat-tests/service-parametric-two-params.wat — arc 278: a TWO-parameter `defservice<K,V>`.
+;; wat-tests/service-parametric-two-params.wat — arc 278: a TWO-parameter `defservice :- [K V]`.
 ;;
 ;; Sibling of `service-parametric.wat` (which pins the ONE-parameter case). One param was never
 ;; enough to prove the machinery: `box-svc<T>` mints `Locus/launch<Op,Reply,State<T>,Admin<T>,
@@ -22,8 +22,8 @@
 ;; from a shifted one. The handler READS BOTH durable fields (presence, not payload — a K- or
 ;; V-typed value is opaque inside a generic body), so both params reach the state and back.
 ;;
-;; SCOPE (arc 278, the surface-minted op alias stone): the synthesized `Pair::Op<K,V>` /
-;; `Pair::Reply<K,V>` carry the surface's params (unchanged), but the surface's `:messages` are
+;; SCOPE (arc 278, the surface-minted op alias stone): the synthesized `(Pair::Op :- [K V])` /
+;; `(Pair::Reply :- [K V])` carry the surface's params (unchanged), but the surface's `:messages` are
 ;; BARE again — `PutRequest` / `PutResponse` here, naming neither K nor V. Rust mints an alias per
 ;; op at the surface's registration site (`<Surface>::<op>/Request` / `/Response`) targeting each
 ;; message exactly as `:features` declares it, so `wat/service.wat` names that alias instead of
@@ -49,9 +49,9 @@
      -> :wat-tests::Pair::PutResponse :max-request-bytes 1024)])
 
 ;; ── the two-parameter service ───────────────────────────────────────────────────────────────
-;; `k <- Option<K>` and `v <- Option<V>` are the whole point: ::Record, ::State, ::Admin,
+;; `k <- (Option :- [K])` and `v <- (Option :- [V])` are the whole point: ::Record, ::State, ::Admin,
 ;; ::Status and ::Handle are each generic in BOTH K and V, which is what forces the
-;; `Locus/launch<Op,Reply,State<K,V>,Admin<K,V>,Status<K,V>>` call-head with NESTED type-args.
+;; `Locus/launch :- [Op Reply (State :- [K V]) (Admin :- [K V]) (Status :- [K V])]` call-head with NESTED type-args.
 (:wat::service::defservice :wat-tests::pair-svc :- [K V]
   :satisfies (:wat-tests::Pair :- [K V])
   :durable   [k <- (:wat::core::Option :- [K])  v <- (:wat::core::Option :- [V])]

@@ -12,7 +12,7 @@
 ;; dialed peer IS the Store, intrinsically — no `extend-type`. The SQL + pure helpers are
 ;; UNCHANGED; the 4 op bodies now read fields off `Store::<Op>Request` and return the per-op
 ;; `Store::<Op>Response` OUTCOME ENUM (`:Success` + that op's own error variants) instead of a
-;; generic `Result<_,query::Error>`. S2's `SqliteStore/open` convenience constructor stays RETIRED
+;; generic `(Result :- [_ query::Error])`. S2's `SqliteStore/open` convenience constructor stays RETIRED
 ;; (the scope-trap in mem.wat's NOTE forbids it — construct inline).
 ;;
 ;; Ratified design (S2): DESIGN-STONE-S2-sqlite-satisfier.md. DDB-faithful — a GSI is a SEPARATE

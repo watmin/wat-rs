@@ -3,7 +3,7 @@
 
 (:wat::core::defrecord :user::Temp [value <- :wat::core::i64])
 
-;; alpha-match's registered TypeScheme is `Option<PersistentMap<String, V>>` (check.rs, arc 278
+;; alpha-match's registered TypeScheme is `(Option :- [(PersistentMap :- [String V])])` (check.rs, arc 278
 ;; Stone 2a) — V is unconstrained by the params (the map is heterogeneous at runtime); the
 ;; call-site annotation below pins V to i64 (the ?t binding's field type in these probes).
 

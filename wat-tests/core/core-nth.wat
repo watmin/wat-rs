@@ -1,8 +1,8 @@
 ;; wat-tests/core/core-nth.wat — stone 118.B4-i runtime coverage for widened `:wat::core::nth`.
 ;;
-;; `nth` used to be `Vector<T>`-only. Stone 118.B4-i turned it into a `defclause`: O(1) arms for
+;; `nth` used to be `(Vector :- [T])`-only. Stone 118.B4-i turned it into a `defclause`: O(1) arms for
 ;; Vector/PersistentVector/List (unchanged body, once per container that has `get`) plus a
-;; `Seqable<T>` arm that walked a Stream with `:wat::stream::next`.
+;; `(Seqable :- [T])` arm that walked a Stream with `:wat::stream::next`.
 ;;
 ;; ⛔ STONE 118.B4-iii — THE WALL (2026-08-18) removes the Stream receiver: `nth` on a Stream was
 ;; O(i) via that walk, identical syntax to the O(1) Vector case — a complexity lie the wall exists

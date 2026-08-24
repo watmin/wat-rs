@@ -3,7 +3,7 @@
 ;; proves every runner ran and produced its index.
 
 ;; Arc 170 gap J — map-worker absorbed `uses'`'s provisioning params; a plain caller passes
-;; nil grant-handles, a no-op grant-fn/revoke-fn pair, and an EMPTY Vector<D> (no Setup sent).
+;; nil grant-handles, a no-op grant-fn/revoke-fn pair, and an EMPTY (Vector :- [D]) (no Setup sent).
 (:wat::core::defn :user::compute [] -> (:wat::core::Vector :- [:wat::core::i64])
    (:wat::bracket::map-worker (:wat::spawn::thread)
      (:wat::core::range 0 50)

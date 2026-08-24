@@ -30,7 +30,7 @@
 
 ;; ── CANDIDATE NAMES (which one KEEPS ITS PROMISE — says what it is, at the use site?) ──────────
 ;;
-;; The use site reads: (:wat::kernel::<name> p)  where p is a Peer<S,R>, yielding (Option i64).
+;; The use site reads: (:wat::kernel::<name> p)  where p is a (Peer :- [S R]), yielding (Option i64).
 ;;
 ;;   pid          — bare. Beside send/recv it reads as "the pid of this peer" — but WHOSE pid?
 ;;                  (the far-end process's, not mine). Does the bare word carry "far end + Option"?

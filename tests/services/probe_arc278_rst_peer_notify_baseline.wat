@@ -22,7 +22,7 @@
        (:wat::core::Some "boom")
        (:wat::core::Some "ok")))])
 
-;; arc 278 recv'-wall: the generated client method `/boom` returns a matchable RecvOutcome<BoomResponse>
+;; arc 278 recv'-wall: the generated client method `/boom` returns a matchable (RecvOutcome :- [BoomResponse])
 ;; VALUE, never a raise. A genuine far-side handler panic makes the client's recv' surface a DISTINCT
 ;; ::Lost (a reason-free 500 — the crash reason is administrative, owner-channel-only), NOT a bare
 ;; clean-EOF ::Closed (the old mute disconnect) and NOT a fake ::Message. We MATCH and RETURN a marker:

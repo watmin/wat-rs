@@ -6,8 +6,8 @@
 ;;
 ;; THE QUESTION IT ANSWERS: for each `defsurface` and each `extend-type`, what is the protocol
 ;; target's spelling? A satisfier that binds the surface's params to CONCRETE types
-;; (`:Holds<wat::core::i64>`) takes path (1) and works today. A satisfier that binds them to
-;; VARIABLES (`:Seqable<T>`) is the broken class — the stored scheme's return keeps a free `T`.
+;; (`(:Holds :- [wat::core::i64])`) takes path (1) and works today. A satisfier that binds them to
+;; VARIABLES (`(:Seqable :- [T])`) is the broken class — the stored scheme's return keeps a free `T`.
 ;;
 ;; ★ IT PRINTS RAW SOURCE AND DOES NOT CLASSIFY. wat's string library has no substring/split, so any
 ;; in-language classifier here would be exactly the kind of hand-rolled text rule that produced three

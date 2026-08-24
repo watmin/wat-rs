@@ -8,8 +8,8 @@
 ;; Capability (renamed from Grantable, stone A) — a struct-nature methods-surface every
 ;; service's `<fqdn>::Handle` satisfies (via the extend-type the defservice macro AUTO-EMITs,
 ;; routing to the landed <fqdn>/grant & <fqdn>/revoke methods, plus the up-cast `coordinate`
-;; hook onto the handle's own addr). This lets a HETEROGENEOUS `Vector<:wat::capability::
-;; Capability>` of different services' Handles be grant/revoke'd UNIFORMLY, AND dialed
+;; hook onto the handle's own addr). This lets a HETEROGENEOUS `(Vector :- [:wat::capability::
+;; Capability])` of different services' Handles be grant/revoke'd UNIFORMLY, AND dialed
 ;; uniformly — `coordinate` hands back the handle's dial address as a bare
 ;; :wat::kernel::Address', so ONE vector of handles carries both grant and dial. grant/revoke
 ;; return nil; coordinate returns the bare address.
@@ -24,16 +24,16 @@
 ;; constructor call wasn't component-wise up-cast against its expected type. That gap is
 ;; closed (arc-check-literal-elems, generalized): `(:wat::core::Tuple k v)` now up-casts
 ;; each component against its expected position — including nested inside a spliced
-;; `Vector<(keyword,Capability)>`, exactly `process/uses`'s (wat/spawn.wat) shape. Zero
+;; `(Vector :- [(keyword,Capability)])`, exactly `process/uses`'s (wat/spawn.wat) shape. Zero
 ;; consumers remain (whole-tree grep) — deleted rather than kept as dead surface.
 
-;; Dialable<S,R> (arc 170 W1) — a SECOND, PARAMETRIC surface every service's `<fqdn>::Handle`
+;; Dialable :- [S R] (arc 170 W1) — a SECOND, PARAMETRIC surface every service's `<fqdn>::Handle`
 ;; also satisfies (via a second auto-emitted extend-type, wat/service.wat's dialable-extend,
 ;; beside grantable-extend). Where Capability/coordinate deliberately erases the service type
-;; (bare :wat::kernel::Address', for the uniform heterogeneous Vector<Capability> grant/revoke
-;; path), Dialable/coord returns the handle's own TYPED :wat::kernel::Address'<S,R> — so
+;; (bare :wat::kernel::Address', for the uniform heterogeneous (Vector :- [Capability]) grant/revoke
+;; path), Dialable/coord returns the handle's own TYPED `(:wat::kernel::Address' :- [S R])` — so
 ;; `(Dialable/coord handle)` resolves per-satisfier to the concrete service address
-;; (Address'<Echo::Op,Echo::Reply> vs Address'<Kv::Op,Kv::Reply>), and a wrong-service dial is
+;; ((Address' :- [Echo::Op Echo::Reply]) vs (Address' :- [Kv::Op Kv::Reply])), and a wrong-service dial is
 ;; a compile-time discrimination error. Proven by hand in
 ;; scratchpad/probe-c2-typed-coordinate.wat (pre-auto-emit); this bakes the surface so
 ;; defservice can auto-emit satisfaction without a hand-written extend-type per service.
@@ -45,7 +45,7 @@
   :features
   [(coord [self <- (:wat::capability::Dialable :- [S R])] -> (:wat::kernel::Address :- [S R]))])
 
-;; TypedCapability<S,R> (arc 170 C2 candidate D) — a THIRD, combined surface every service's
+;; TypedCapability :- [S R] (arc 170 C2 candidate D) — a THIRD, combined surface every service's
 ;; `<fqdn>::Handle` also satisfies, via a THIRD auto-emitted extend-type that is deliberately
 ;; BODILESS (wat/service.wat's typedcap-extend, beside grantable-extend/dialable-extend). It
 ;; unions Dialable's typed `coord` with Capability's `grant`/`revoke` under ONE surface so a

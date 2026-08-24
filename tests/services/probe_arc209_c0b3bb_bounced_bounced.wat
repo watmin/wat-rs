@@ -50,7 +50,7 @@
                   (:wat::kernel::assertion-failed! "recv': svc closed" :wat::core::None :wat::core::None)))
      ;; A SEPARATE process child — its pid ≠ the owner's → NOT in the birth-seeded allow-set.
      ;; The owner hands the (leaked) service address DOWN to the stranger via its lineage channel.
-     ;; stranger self-peer: S=i64 (would send up — never does), R=Address'<i64,i64> (receives cap).
+     ;; stranger self-peer: S=i64 (would send up — never does), R=(Address' :- [i64 i64]) (receives cap).
      stranger (:wat::test::spawn-peer (:wat::spawn::process)
                 (:wat::core::forms
                   (:wat::core::defn :user::main [] -> :wat::core::nil

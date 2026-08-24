@@ -1,13 +1,13 @@
-;; PROBE — does a `Vector<WatAST>` cross a real defservice op boundary, and can the far side
+;; PROBE — does a `(Vector :- [WatAST])` cross a real defservice op boundary, and can the far side
 ;; build a world from it and fire the rule?
 ;;
 ;; WHY THIS EXISTS. `probe-arc278-rules-ship-as-declared-payload.wat` proved a declared payload
 ;; carries a rule AND the fn its `where` calls — but IN-PROCESS, through `eval-with-defs!` called
-;; directly. The payload never touched a pipe. Every `Vector<WatAST>` in the corpus is a MACRO
+;; directly. The payload never touched a pipe. Every `(Vector :- [WatAST])` in the corpus is a MACRO
 ;; PARAMETER or a local fold accumulator; not one is a `defsurface :features` field, a
 ;; `:messages` entry, or a service op parameter. So WatAST-at-the-boundary is untested in both
 ;; directions — and task #77 is on the board precisely because that coverage was LOST
-;; ("does a defservice `:durable` accept `Vector<WatAST>`? No fixture asks any more").
+;; ("does a defservice `:durable` accept `(Vector :- [WatAST])`? No fixture asks any more").
 ;;
 ;; ⚠ THE LOCUS IS `process` ON PURPOSE. A thread peer shares the parent's address space and could
 ;; hand the value across without an EDN round-trip, which would prove nothing about the wire. A
@@ -49,7 +49,7 @@
 ;; different question from whether a form can be a typed field at all.
 ;;
 ;; ★ THIS FILE IS KEPT RED-BY-MEASUREMENT, not deleted. It is the acceptance test for the decode
-;; fix: once a `Vector<WatAST>` validates, this must print `DERIVED n=1` / `REJECTED
+;; fix: once a `(Vector :- [WatAST])` validates, this must print `DERIVED n=1` / `REJECTED
 ;; check-failed`. Rewrite this verdict then; do not leave it standing once it goes green.
 ;;
 ;; ★ MEASURED AGAIN 2026-08-12, after the identity arm (DESIGN-STONE-watast-is-the-wire.md,
@@ -68,7 +68,7 @@
 ;; (its "FINDING 3"), captured via `strace -f` on the child. Out of this stone's blast radius
 ;; (fixing it means loosening the general untyped reader, not "one arm in one walker").
 
-;; ── the surface — `defs` is the SUBJECT: a Vector<WatAST> as a request field ───────────────
+;; ── the surface — `defs` is the SUBJECT: a (Vector :- [WatAST]) as a request field ───────────────
 (:wat::core::defsurface :probe::RuleWire :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :probe::RuleWire::InstallRequest

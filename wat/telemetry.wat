@@ -98,7 +98,7 @@
    message <- :wat::core::String])
 
 ;; ─── Journal — arc 278 stone T1b.1: the telemetry sink's S4c contract, write half. ─
-;; A `:nature :wat::kernel::Peer'` surface — a dialed `Peer'<Journal::Op,Journal::Reply>` IS a
+;; A `:nature :wat::kernel::Peer'` surface — a dialed `(Peer' :- [Journal::Op Journal::Reply])` IS a
 ;; Journal intrinsically (arc 293 Path B), exactly the shape `:wat::query::Store` has
 ;; (wat/query.wat:101). Mirrors Store's `:messages`/`:features` split verbatim: per-op
 ;; `Journal::<Op>Request` records + `Journal::<Op>Response` `:wat::enum::Pure` enums in

@@ -3,8 +3,8 @@
 ;; The migration tool, self-hosted (use-the-tool, not hand-fix); kept for future readers.
 ;;
 ;; Arc 258 sub-strike 1 (the clean kills): Option/expect + Result/expect drop their
-;; `-> :T` return ascription — the unwrapped type is now INFERRED from the Option<T> /
-;; Result<T,E> argument (the recv'/select' pattern, 258.5b). The checker/runtime were
+;; `-> :T` return ascription — the unwrapped type is now INFERRED from the (Option :- [T]) /
+;; (Result :- [T E]) argument (the recv'/select' pattern, 258.5b). The checker/runtime were
 ;; changed to the bare 2-arg layout; this codemod rewrites every CALL SITE:
 ;;
 ;;   (:wat::core::Option/expect -> :T <opt> <msg>)  →  (:wat::core::Option/expect <opt> <msg>)

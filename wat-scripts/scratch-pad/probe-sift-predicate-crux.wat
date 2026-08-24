@@ -3,7 +3,7 @@
 ;; Does the predicate-as-EDN-source chain compose + produce a CALLABLE fn value?
 ;;   String of EDN source -> read-string -> :wat::WatAST
 ;;   pure? / deterministic?  -> verify the quoted form (the no-hidden-failures gate)
-;;   eval-ast! -> Result<fn>, unwrapped -> a :wat::core::fn value
+;;   eval-ast! -> (Result :- [fn]), unwrapped -> a :wat::core::fn value
 ;;   apply -> the fn value called on one record -> :bool
 ;; GREEN (pure=true det=true keeps5=true drops2=false) => the chain works => sift-logs briefable.
 ;; If eval-ast! of a fn-form Err's at runtime too, that's the trap — re-plan the carry.

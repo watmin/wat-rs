@@ -1,7 +1,7 @@
 ;; arc 292 — RED probe for the PROCESS-tier timer-Peer (send_after / time-as-select).
 ;;
 ;; Mirror of wat-tests/timer-after.wat, but the LOCUS is (:wat::spawn::process),
-;; so (:wat::kernel::after ...) must return Process'<nil,O> and drop into the
+;; so (:wat::kernel::after ...) must return (Process' :- [nil O]) and drop into the
 ;; PROCESS-tier select' (io_uring reactor) — not the thread tier.
 ;;
 ;; The contract (DESIGN.md rev2 + arc-292 doctrine): a one-shot timer DELIVERS a
@@ -12,7 +12,7 @@
 ;;
 ;; RED at HEAD: eval_kernel_after rejects a ProcessOpts locus with a MalformedForm
 ;; ("io_uring timer not yet implemented", runtime.rs:25035), AND infer_kernel_after
-;; returns Thread'<nil,O> for every locus (check.rs:11182) so the Process'-typed
+;; returns (Thread' :- [nil O]) for every locus (check.rs:11182) so the Process'-typed
 ;; Vector mismatches at check time. Either way the probe fails on EXACTLY the one
 ;; missing primitive: the process-tier after. Everything else (process select',
 ;; Vector, ServiceEvent, :wat::time::Millisecond) already exists.

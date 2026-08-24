@@ -2,7 +2,7 @@
 ;; slurped via startup_beside(file!()). No placeholder main — startup_beside loads defns only.
 
 ;; Process-tier autobind: no name arg — the listener MINTS its own kernel-unique address.
-;; Same signature shape as the thread tier: (listener' host :S :R) -> Bound<S,R>.
+;; Same signature shape as the thread tier: (listener' host :S :R) -> (Bound :- [S R]).
 (:wat::core::defn :user::go [] -> :wat::core::bool
   (:wat::core::let
     [b (:wat::kernel::listener (:wat::spawn::process) :wat::core::i64 :wat::core::i64)

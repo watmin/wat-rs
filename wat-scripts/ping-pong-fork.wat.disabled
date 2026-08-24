@@ -127,7 +127,7 @@
             -> :())
           (:demo::pong::loop stdin stdout))))
      ;; Fork. Process B starts; runs child-forms's :user::main with
-     ;; pipe-backed stdio. Returns a Process<Ping,Pong> struct with the
+     ;; pipe-backed stdio. Returns a (Process :- [Ping Pong]) struct with the
      ;; parent-side pipe ends + a ProgramHandle for join.
      ((proc :wat::kernel::Process<demo::Ping,demo::Pong>)
       (:wat::kernel::fork-program-ast child-forms))

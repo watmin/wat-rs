@@ -11,7 +11,7 @@
 ;; genuine interior mutability behind a `:wat::core::Struct`. wat has no generic mutable-cell
 ;; primitive (no `Cell`/`atom`/`swap!`); the tempting workaround — a `defstruct` holding BOTH ends
 ;; of one channel pair as a single-place "MVar" — deadlocks: a role holding both a
-;; `Sender<T>` and its paired `Receiver<T>` keeps the channel alive against its own `recv`, so the
+;; `(Sender :- [T])` and its paired `(Receiver :- [T])` keeps the channel alive against its own `recv`, so the
 ;; recv never wakes. A `ChannelPairDeadlock` static check once rejected this shape at compile time;
 ;; that walker was RETIRED once locus became reachable only through `defservice` and brackets —
 ;; the workaround is no longer detected because it is no longer constructible. The deadlock is
@@ -20,7 +20,7 @@
 ;; The sanctioned answer is `:wat::service::defservice` (wat/service.wat, arc 209/291): a spawned
 ;; actor holds durable state in its own tail-recursive `serve` loop parameter (rete's own
 ;; Session-threading convention — `Outcome::Reply new-state reply` rebinds `state` for the next
-;; iteration; no mutable cell anywhere), and callers talk to it over a connected `Peer'<Op,Reply>`.
+;; iteration; no mutable cell anywhere), and callers talk to it over a connected `(Peer' :- [Op Reply])`.
 ;; `put`/`scan`/`scan-index` become client RPCs; the actor's loop is the ONE place mutation
 ;; "happens" (by rebinding, not by mutating memory).
 ;;
@@ -37,7 +37,7 @@
 ;; A convenience constructor is future work once/if the substrate grows a scope-detach primitive.
 ;;
 ;; ── the wire format ─────────────────────────────────────────────────────────────────────────
-;; The service's durable record is one `PersistentVector<StoredRow>` — the whole table, unindexed;
+;; The service's durable record is one `(PersistentVector :- [StoredRow])` — the whole table, unindexed;
 ;; `scan`/`scan-index` filter + `sort-by` + `take` a plain materialized copy on every read (no
 ;; separate sorted structure — correct, not fast; a later stone may add per-index structures).
 ;; `:wat::spawn::thread` locus only (in-memory; no cross-process EDN encoding of `StoredRow`/HashMap
@@ -83,7 +83,7 @@
     :ipk (:wat::query::IndexKey/ipk ik) :isk (:wat::query::IndexKey/isk ik) :data (:wat::query::StoredRow/data r)))
 
 ;; ─── the mem-store' SERVICE — the real, mutating in-memory backend ──────────────────────────
-;; durable = one flat PersistentVector<StoredRow>; `put` conj's the batch on (rete-style pure
+;; durable = one flat (PersistentVector :- [StoredRow]); `put` conj's the batch on (rete-style pure
 ;; threading: the `serve` loop rebinds `state` to the returned new State — see wat/service.wat's
 ;; tail-recursive dispatch, `Outcome::Reply`); `scan`/`scan-index` are pure reads (state
 ;; unchanged) that filter+sort+paginate a plain materialized copy. `:satisfies :wat::query::Store`

@@ -1,6 +1,6 @@
 ;; probe-locus1-generic-surface-method.wat — disconfirming probe for the Locus→surface flip, risk 1:
 ;; does a GENERIC method member on an AGGREGATE (:nature :Struct) defsurface, satisfied by a
-;; defstruct via extend-type, type-check AND dispatch? (Locus/launch is generic: launch<S,R,St,Sh,Lu>.)
+;; defstruct via extend-type, type-check AND dispatch? (Locus/launch is generic: launch :- [S R St Sh Lu].)
 ;;
 ;; Mirrors tests/types/probe_arc232_generic_method.wat but on a defsurface, not a defprotocol.
 ;; GREEN target: prints "5".

@@ -1,6 +1,6 @@
 ;; wat-scripts/scratch-pad/probe-timer-as-peer.wat — arc 278 Stone 1 DISCONFIRMING probe.
 ;;
-;; THE CLAIM: `(:wat::kernel::after peer-kind d msg)` now builds a UNIFIED `Peer'<nil, O>`
+;; THE CLAIM: `(:wat::kernel::after peer-kind d msg)` now builds a UNIFIED `(Peer' :- [nil O])`
 ;; (arc 278 Stone 1 — the timer relocated to the CORRECT location), so a timer drops into
 ;; a service's `poll'` set BY CONSTRUCTION and `poll'` delivers its `msg` as a
 ;; `ServiceEvent::Message`, exactly like an accepted client connection.
@@ -9,10 +9,10 @@
 ;; to the unified `PEER_TYPE_PATH` and errors on anything else) — NOT `select'` (the adjacent
 ;; path). A one-element `[timer]` peers set alongside the self-peer + listener IS a real
 ;; `poll'` set; the timer is the client-peer element the multiplexer watches. (A reply-ing
-;; client cannot yet share the homogeneous `Vector<Peer'<I,O>>` with a `Peer'<nil,O>` timer —
+;; client cannot yet share the homogeneous `(Vector :- [(Peer' :- [I O])])` with a `(Peer' :- [nil O])` timer —
 ;; that is Stone 2's `<service>::Op` superset — so the minimal real set is self+listener+timer.)
 ;;
-;; RED before the stone: `after` built a tier-specific `Timer'<O>` (`THREAD_PEER_TYPE_PATH` /
+;; RED before the stone: `after` built a tier-specific `(Timer' :- [O])` (`THREAD_PEER_TYPE_PATH` /
 ;; `PROCESS_PEER_TYPE_PATH`), which `poll'` rejects (`peers[i] must be a Peer'`). GREEN after:
 ;; `after` builds `PEER_TYPE_PATH`, so `poll'` accepts + delivers it. BOTH tiers.
 ;;

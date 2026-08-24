@@ -5,7 +5,7 @@
 ;; Usage (one EDN vector of paths on stdin):
 ;;   printf '["wat/core.wat" "wat/Record.wat"]\n' | cargo wat ./wat-scripts/fixes/fix-macro-param-types.wat
 ;;
-;; readln parses the line as a Vector<String>; for each path:
+;; readln parses the line as a (Vector :- [String]); for each path:
 ;;   read-file → :wat::fix::fix-macro-param-types → write-file.
 ;; The rewrite is comment-faithful and idempotent (re-running yields zero changes), so it
 ;; is safe to run over a clean tree.

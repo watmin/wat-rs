@@ -9,7 +9,7 @@
 ;; GATE: `wat --check` on this file must exit 0 (all three forms type-check: Tuple via
 ;; ann-form, Map via call-arg, Set via call-arg — each up-casts eh: Handle -> Capability
 ;; at construction). Tuple+Map also RUN to completion (proven separately). Set's runtime
-;; execution hits a PRE-EXISTING, unrelated gap — `HashSet<Capability>` panics on an
+;; execution hits a PRE-EXISTING, unrelated gap — `(HashSet :- [Capability])` panics on an
 ;; opaque-Handle element ("Value::RustOpaque is not atomizable") even via the OLD verbose
 ;; `(:wat::core::HashSet :wat::capability::Capability (:wat::capability::as-capability eh))`
 ;; ctor (verified: same panic pre-fix, nothing to do with this strike's checker change —
@@ -39,8 +39,8 @@
      ;; :(wat::core::keyword,wat::capability::Capability); eh up-casts Handle -> Capability.
      pr (:wat::core::ann-form (:wat::core::Tuple :echo eh)
           (:wat::core::Tuple :- [:wat::core::keyword :wat::capability::Capability]))
-     ;; Map — call-arg site: {:echo eh} against as-map's HashMap<keyword,Capability> param.
+     ;; Map — call-arg site: {:echo eh} against as-map's (HashMap :- [keyword Capability]) param.
      mp (:probe::as-map {:echo eh})
-     ;; Set — call-arg site: #{eh} against as-set's HashSet<Capability> param.
+     ;; Set — call-arg site: #{eh} against as-set's (HashSet :- [Capability]) param.
      st (:probe::as-set #{eh})]
     (:wat::kernel::println "compound-upcast: ok")))

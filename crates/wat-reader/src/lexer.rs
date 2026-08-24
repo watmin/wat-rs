@@ -12,27 +12,31 @@
 //!   **literal Rust path**. Examples:
 //!     - `:wat::load-file!`
 //!     - `:wat::holon::Atom`
-//!     - `:crossbeam_channel::Sender<T>`
-//!     - `:wat::core::Vector<T>`, `:wat::core::HashMap<K,V>`, `:wat::core::Option<T>`
-//!     - `:fn(T,U)->R`
-//!     - `:(T,U)` — a tuple-literal type.
+//!     - `:wat::core::<`, `:wat::core::>=` — operator names (their `<`/`>`
+//!       follows `::`, so it never opens a type head).
 //!
 //!   **The `:` is wat's symbol-literal reader macro** — exactly one
 //!   leading `:` marks the start of a symbol literal; everything after
 //!   is the body. The body contains the literal Rust syntax you want to
-//!   name: module paths use `::` (Rust's path separator), type
-//!   parameters use `<T>`, function types use `fn(args)->ret`, tuples
-//!   use `(T,U)`. No translation — what you write IS the Rust form.
+//!   name: module paths use `::` (Rust's path separator).
+//!
+//!   Arc 109 "annihilate the angle bracket" — a `<` that opens a TYPE HEAD
+//!   (immediately preceded by an identifier character, e.g. `Vector<`,
+//!   `make<`, `Thread'<`) is a lex error (`AngleTypeHeadInName`, below):
+//!   angle-bracket parameterization is retired. The one surviving
+//!   parameterization spelling is `:-` — `(:wat::core::Vector :- [:wat::core::i64])`
+//!   for a type reference, `mk :- [S R]` for a binder — never
+//!   `:wat::core::Vector<wat::core::i64>` or `mk<S,R>`. A comma is also
+//!   retired from keyword and symbol bodies at any depth
+//!   (`CommaInKeywordBody` / `CommaInSymbolBody`, below); see those
+//!   variants' error text for the surviving spellings of a tuple type
+//!   (`:-` binder) and a function type (`:->` arrow).
 //!
 //!   The only brackets wat has are `(` and `)`, and the lexer tracks
 //!   their depth inside a keyword body so an internal balanced pair
-//!   (`:fn(T,U)->R` or `:(i64,String)`) doesn't get cut short by the
-//!   `)` that closes the enclosing form. Every other character is
-//!   plain: `<`, `>`, `/`, `-`, `'`, `:`, `::`, digits, letters — all
-//!   just body characters. `'` (apostrophe) is the canonical dispatch /
-//!   discriminator separator (arc 171). `,` at depth 0 (outside `(...)`
-//!   or `<...>`) is rejected; commas inside tuple or parametric type
-//!   positions remain valid. A keyword ends at whitespace at paren-depth
+//!   doesn't get cut short by the `)` that closes the enclosing form.
+//!   `'` (apostrophe) is the canonical dispatch / discriminator separator
+//!   (arc 171). A keyword ends at whitespace at paren-depth
 //!   0, or at an unmatched `)`, or at a `"` / `;` (which can't appear
 //!   inside a keyword). Whitespace inside an unclosed `(` is a lex
 //!   error (malformed keyword).

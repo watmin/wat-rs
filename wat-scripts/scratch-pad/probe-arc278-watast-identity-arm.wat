@@ -2,7 +2,7 @@
 ;; probe-arc278-watast-on-the-wire-decomposed.wat (which measures the two ORIGINAL
 ;; ★ load-bearing rows). This file targets the two rows the brief added on top:
 ;;
-;;   GATE ROW 3 — a BARE `:wat::WatAST` field (not only `Vector<WatAST>`) crosses.
+;;   GATE ROW 3 — a BARE `:wat::WatAST` field (not only `(Vector :- [WatAST])`) crosses.
 ;;   GATE ROW 4 — THE NEGATIVE ROW: a genuinely wrong field type is still refused.
 ;;     The identity arm applies to `:wat::WatAST` ALONE — widening the hole instead
 ;;     of closing the edge is exactly what STOP-3 forbids.

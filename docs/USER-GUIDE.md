@@ -130,7 +130,7 @@ are optional; defaults are honest:
 - **`(:wat::config::set-dim-router! router-fn)`** — replaces the
   default sizing function (smallest tier `d` whose `√d ≥ statement
   size`). The router takes a `:wat::holon::HolonAST` and returns
-  `:Option<:i64>` (the picked dim, or `:None` to refuse). Default
+  `(:Option :- [:i64])` (the picked dim, or `:None` to refuse). Default
   tier list (post-arc-067): `[10000]` — single tier optimized for
   measurement S/N rather than per-encode perf at small arities.
   Override with `SizingRouter::with_tiers(vec![256, 4096, 10000,
@@ -568,7 +568,7 @@ watmin
 ```
 
 Everything you need to read that program:
-- `:wat::io::IOReader/read-line` returns `:Option<String>` — `(Some line)` on a read, `:None` on EOF.
+- `:wat::io::IOReader/read-line` returns `(:Option :- [:String])` — `(Some line)` on a read, `:None` on EOF.
 - `:wat::core::match` decomposes the Option. Exhaustive — both arms required, or use `_` wildcard.
 - `:wat::io::IOWriter/print` takes a stdout or stderr handle and a `:String`.
 
@@ -582,14 +582,14 @@ Every wat program lives in a coordinate with two axes.
 
 1. **Holon algebra** (`:wat::holon::*`) — six AST-producing primitives (`Atom`, `Bind`, `Bundle`, `Blend`, `Permute`, `Thermometer`), three measurements (`cosine`, `dot`, `presence?`), the `HolonAST` type, the `CapacityExceeded` error, plus ten wat-written idioms that compose the primitives (`Subtract`, `Amplify`, `Reject`, `Project`, `Sequential`, `Ngram`, `Bigram`, `Trigram`, `Log`, `Circular`). These are the substrate of hyperdimensional computing. If you're encoding data or comparing holons, you reach here.
 2. **Language core** (`:wat::core::*`) — the language's own mechanics: `define`, `fn`, `let`, `match`, `if`, `cond`, `try`, `struct`, `enum` (declare + construct/match user variants per arc 048), `newtype`, `typealias`, `defmacro`, `load!`, `digest-load!`, `signed-load!`, `assoc`, `HashMap`, `HashSet`, `vec`, `get`, `contains?`, arithmetic/comparison operators, `f64::round`, `f64::max`/`min`/`abs`/`clamp` (arc 046), scalar conversions. The forms you need to WRITE programs; cannot be written in wat itself.
-3. **Kernel** (`:wat::kernel::*`) — concurrency and I/O primitives: `spawn-thread` (arc 114; returns `Thread<I,O>`), `Thread/input`, `Thread/output`, `Thread/join-result`, `make-bounded-channel`, `send`, `recv`, `select`, `drop`, `HandlePool`, `stopped?`, `pipe`, `spawn-program{,-ast}`, `fork-program{,-ast}` (both return `Process<I,O>` — arc 112 unification), `Process/join-result`, `process-send`, `process-recv`, signal query+reset. Plus `:wat::io::IOReader/read-line` / `write`. The things that move bytes (or typed values) between Programs. Arc 114 names the contract: hosting is a user choice (Thread vs Process); the protocol (input / output / error mechanism through join) is fixed.
+3. **Kernel** (`:wat::kernel::*`) — concurrency and I/O primitives: `spawn-thread` (arc 114; returns `(Thread :- [I O])`), `Thread/input`, `Thread/output`, `Thread/join-result`, `make-bounded-channel`, `send`, `recv`, `select`, `drop`, `HandlePool`, `stopped?`, `pipe`, `spawn-program{,-ast}`, `fork-program{,-ast}` (both return `(Process :- [I O])` — arc 112 unification), `Process/join-result`, `process-send`, `process-recv`, signal query+reset. Plus `:wat::io::IOReader/read-line` / `write`. The things that move bytes (or typed values) between Programs. Arc 114 names the contract: hosting is a user choice (Thread vs Process); the protocol (input / output / error mechanism through join) is fixed.
 4. **Stream stdlib** (`:wat::stream::*`) — composable concurrency combinators written in wat: `spawn-producer`, `map`, `filter`, `flat-map`, `chunks`, `take`, `with-state`, `for-each`, `collect`, `fold`. Graduated to its own top-level tier in arc 109 slice 9d (previously nested under `:wat::std::*`). Each combinator is a tail-recursive worker plus bounded(1)-queue plumbing. See § 8 for the full combinator surface.
 5. **Stdlib plumbing** (`:wat::std::*`) — the hermetic-test wrapper. Expressible in wat on top of core + kernel. (The former Console stdio service retired in arc 109 § kill-std / arc 170 slice 1f-η; see § 11 for the ambient kernel trio that replaces it.)
 
 ### Axis 2 — two namespaces
 
 - **`:wat::*`** — forms and types defined by the wat language itself. Every form you'll call that does work provided by wat-rs lives here.
-- **`:rust::*`** — types surfaced from Rust crates via `#[wat_dispatch]`. `:wat::io::IOReader`, `:rust::crossbeam_channel::Sender<T>`, `:rust::lru::LruCache<K,V>`, and whatever your consumer crate adds. Every Rust type's path is its actual Rust path — no short aliases.
+- **`:rust::*`** — types surfaced from Rust crates via `#[wat_dispatch]`. `:wat::io::IOReader`, `(:rust::crossbeam_channel::Sender :- [T])`, `(:rust::lru::LruCache :- [K V])`, and whatever your consumer crate adds. Every Rust type's path is its actual Rust path — no short aliases.
 
 A program declares which Rust types it intends to use via `(:wat::core::use! :rust::some::Type)` — a per-program opt-in. User source cannot claim any name under `:wat::*` or `:rust::*`; those prefixes are wat-rs's.
 
@@ -830,8 +830,8 @@ substrate and user code — orthogonal roles, type system enforces:
 | Form | Role |
 |---|---|
 | `:wat::core::nil` | Unit type / singleton: "no meaningful return value." |
-| `:wat::core::None` | `Option<T>`'s absence variant. |
-| `:wat::core::Some(t)` | `Option<T>`'s presence variant. |
+| `:wat::core::None` | `(Option :- [T])`'s absence variant. |
+| `:wat::core::Some(t)` | `(Option :- [T])`'s presence variant. |
 
 No "null pointer exception" semantics; no sentinel-value lies.
 Wat's `nil` is honest: a singleton-valued type, not a pointer.
@@ -859,7 +859,7 @@ FROM the slot. Once the shape is read once, every wat function
 definition is mechanical.
 
 Produces a
-`:wat::core::Fn(wat::core::i64,wat::core::i64)->wat::core::i64`
+`[wat::core::i64 wat::core::i64 :-> wat::core::i64]`
 value — a first-class function you can pass around, store in a
 Vector, put in a struct.
 
@@ -870,13 +870,17 @@ the `->`.
 Arc 155 collapsed the previous lambda / fn vocabulary into a
 single Clojure-faithful pair:
 - `:wat::core::fn` — operator-position special form (function value)
-- `:wat::core::Fn(...)` — type-position parametric (function type)
+- `[ArgType… :-> RetType]` — type-position parametric (function type)
 
-Capitalization disambiguates type-position from operator-position.
-`:wat::core::lambda` is dead (arc 155 slice 2 retired the dispatch
-arms — Path B retirement; not aliased). Bare `:fn(...)` retired in
-favor of `:wat::core::Fn(...)` per arc 109's FQDN doctrine (closes
-the fifth parametric type head — the four others FQDN'd in slice 1e).
+Capitalization used to disambiguate type-position (`Fn`) from
+operator-position (`fn`); arc 109 retired the parenthesized
+`Fn(args)->ret` head the same way it retired every other
+angle-bracket-adjacent parametric spelling — a function type is now
+written as a bracket, not a call-shaped head. `:wat::core::lambda`
+is dead (arc 155 slice 2 retired the dispatch arms — Path B
+retirement; not aliased). Bare `:fn(...)` was FQDN'd to
+`:wat::core::Fn(...)` per arc 109's early FQDN doctrine before the
+bracket form superseded the whole `Fn(...)` head.
 
 ### `let` — sequential binding (arc 154 + arc 159 + arc 168 + arc 169)
 
@@ -1029,7 +1033,7 @@ shape is the shape all four questions pass.
   ((Err e) (:my::app::handle-err e)))
 ```
 
-Works on `:Option<T>`, `:Result<T,E>`, and user enums (058-048). The
+Works on `(:Option :- [T])`, `(:Result :- [T E])`, and user enums (058-048). The
 `-> :T` annotation declares the arms' common result type — every arm
 body is checked against `T` independently, so a mismatch points at the
 offending arm, not at the unifier. Exhaustiveness is checked at
@@ -1040,7 +1044,7 @@ can itself be another pattern — bare symbol, `_` wildcard, literal,
 nested tuple, or nested variant — to any depth:
 
 ```scheme
-;; Option<Tuple> destructured in one step:
+;; (Option :- [Tuple]) destructured in one step:
 (:wat::core::match row -> :String
   ((Some (ts open high low close volume))
     (:wat::core::string::concat
@@ -1112,7 +1116,7 @@ violation, not data the caller will handle.
 
 | Verb | Failure case | Where |
 |---|---|---|
-| `:wat::core::Result/try` | `Err(e)` propagates UP | inside a fn returning `:Result<_, E>` |
+| `:wat::core::Result/try` | `Err(e)` propagates UP | inside a fn returning `(:Result :- [_ E])` |
 | `:wat::core::Option/expect` | `:None` panics with message | anywhere |
 | `:wat::core::Result/expect` | `Err(_)` panics with message | anywhere |
 
@@ -1127,7 +1131,7 @@ any value producer; the form reads "declare result T; derive it
 from this value or panic with this message."
 
 `expect`'s primary defense is the silent-disconnect cascade:
-`(:wat::kernel::send tx v)` returns `:Option<()>` and most callers
+`(:wat::kernel::send tx v)` returns `(:Option :- [:wat::core::nil])` and most callers
 bind it to `_` and discard. When the consumer thread has died,
 that's a silent dead-service the caller will ride into a recv
 hang on a reply channel they themselves still own. Wrap the send
@@ -1187,7 +1191,7 @@ params, mirroring `:wat::core::defmacro`'s syntax:
 
 ```scheme
 (:wat::core::define
-  (:my::app::sum (init :wat::core::i64) & (xs :wat::core::Vector<wat::core::i64>) -> :wat::core::i64)
+  (:my::app::sum (init :wat::core::i64) & (xs (:wat::core::Vector :- [:wat::core::i64])) -> :wat::core::i64)
   (:wat::core::foldl xs init :wat::core::i64::+,2))
 
 (:my::app::sum 0)              ;; → 0  (rest binds to empty Vector)
@@ -1197,7 +1201,7 @@ params, mirroring `:wat::core::defmacro`'s syntax:
 
 Rules:
 - `&` followed by exactly one binder `(name :Type)`; type is required
-- Type MUST be `Vector<T>` — rest-args collect into a Vector
+- Type MUST be `(Vector :- [T])` — rest-args collect into a Vector
 - Rest-binder is the LAST element of the signature (no fixed params after `&`)
 - Caller passes `>= fixed_arity` args; the first `fixed_arity` bind
   positionally, the rest collect into the Vector
@@ -1314,8 +1318,8 @@ ordering each have two layers; equality is universal.
 ;; Ordering — relational check-side intrinsic (Stone 245.8; binary only)
 (:wat::core::< a b)                 ;; same-type only (unify rejects cross-type → TypeMismatch)
                                     ;; orderable class: i64, u8, f64, String, bool, keyword,
-                                    ;; Instant, Duration, Vector<T>, Tuple<T…>, Option<T>,
-                                    ;; Result<T,E>, HolonVector — rejected at CHECK for others
+                                    ;; Instant, Duration, (Vector :- [T]), (Tuple :- [T…]), (Option :- [T]),
+                                    ;; (Result :- [T E]), HolonVector — rejected at CHECK for others
 (:wat::core::i64::< a b)           ;; type-locked Tier-2 leaf (still available)
 
 ;; Equality — universal structural intrinsic
@@ -1359,46 +1363,46 @@ addressable, reflectable per arc 144.
 ### Containers — polymorphic `get` / `assoc` / `conj` / `contains?` / `length`
 
 Five core verbs operate uniformly across the three built-in
-containers (`HashMap<K,V>`, `HashSet<T>`, `Vec<T>`). Each verb's
+containers (`(HashMap :- [K V])`, `(HashSet :- [T])`, `(Vec :- [T])`). Each verb's
 shape is forced by the container's semantics — illegal cells exist
 where a verb has no honest meaning for that container (arc 025
 unified the surface; arc 035 added `length`):
 
-| Verb | `HashMap<K,V>` | `HashSet<T>` | `Vec<T>` |
+| Verb | `(HashMap :- [K V])` | `(HashSet :- [T])` | `(Vec :- [T])` |
 |---|---|---|---|
-| `get`        | `Option<V>` by key      | `Option<T>` by element      | `Option<T>` by index |
+| `get`        | `(Option :- [V])` by key      | `(Option :- [T])` by element      | `(Option :- [T])` by index |
 | `assoc`      | new map (key→value)     | **illegal** — use `conj`    | **illegal** (arc 146)   |
 | `dissoc`     | new map (key removed)   | **illegal** (arc 058)       | **illegal** (arc 058) |
 | `conj`       | **illegal** — use `assoc` | new set (insert element)  | new vec (push tail) |
 | `contains?`  | `bool` by key           | `bool` by element           | `bool` by index |
 | `length`     | `i64` (entry count)     | `i64` (member count)        | `i64` (item count) |
 | `empty?`     | `bool` (entry count == 0) | `bool` (member count == 0) | `bool` (item count == 0) |
-| `keys`       | `Vec<K>` (arc 058)      | **illegal**                 | **illegal** |
-| `values`     | `Vec<V>` (arc 058)      | **illegal**                 | **illegal** |
+| `keys`       | `(Vec :- [K])` (arc 058)      | **illegal**                 | **illegal** |
+| `values`     | `(Vec :- [V])` (arc 058)      | **illegal**                 | **illegal** |
 
 ```scheme
 (:wat::core::let
-  (((m :HashMap<String,i64>) (:wat::core::HashMap :(String,i64)))
-   ((m1 :HashMap<String,i64>) (:wat::core::assoc m "rsi" 42))
-   ((v :Option<i64>) (:wat::core::get m1 "rsi")))         ;; → (Some 42)
+  (((m (:HashMap :- [:String :i64])) (:wat::core::HashMap :(String,i64)))
+   ((m1 (:HashMap :- [:String :i64])) (:wat::core::assoc m "rsi" 42))
+   ((v (:Option :- [:i64])) (:wat::core::get m1 "rsi")))         ;; → (Some 42)
   ...)
 ;; The first arg `:(K,V)` is a tuple-type keyword carrying both
 ;; parameters. Typealiases work here too — `(:wat::core::typealias
 ;; :my::KV :(String,i64))` then `(:wat::core::HashMap :my::KV ...)`
 ;; resolves structurally at the constructor site (same rule that
-;; lets `:wat::core::Bytes` stand in for `:Vec<u8>` everywhere).
+;; lets `:wat::core::Bytes` stand in for `(:Vec :- [:u8])` everywhere).
 
 (:wat::core::let
-  (((s :HashSet<String>) (:wat::core::HashSet :String))
-   ((s1 :HashSet<String>) (:wat::core::conj s "alpha"))
+  (((s (:HashSet :- [:String])) (:wat::core::HashSet :String))
+   ((s1 (:HashSet :- [:String])) (:wat::core::conj s "alpha"))
    ((found? :bool) (:wat::core::contains? s1 "alpha"))    ;; → true
    ((n :i64) (:wat::core::length s1)))                    ;; → 1
   ...)
 
 (:wat::core::let
-  (((v :Vec<i64>) (:wat::core::vec :i64 10 20 30))
-   ((v1 :Vec<i64>) (:wat::core::conj v 40))               ;; → [10,20,30,40]
-   ((x :Option<i64>) (:wat::core::get v1 1)))             ;; → (Some 20)
+  (((v (:Vec :- [:i64])) (:wat::core::vec :i64 10 20 30))
+   ((v1 (:Vec :- [:i64])) (:wat::core::conj v 40))               ;; → [10,20,30,40]
+   ((x (:Option :- [:i64])) (:wat::core::get v1 1)))             ;; → (Some 20)
   ...)
 ```
 
@@ -1467,7 +1471,7 @@ appears ONLY in type annotations. Only `/new` constructs; only
 Everything holon-algebra-shaped lives under `:wat::holon::*` — six
 AST-producing primitives, four measurements (two structural, two
 verified-eval), the `HolonAST` type, the `CapacityExceeded` error
-type, two typealiases (`Holons` for `Vec<HolonAST>`, `BundleResult`
+type, two typealiases (`Holons` for `(Vec :- [HolonAST])`, `BundleResult`
 for Bundle's Result return), and eleven wat-written idioms that
 compose the primitives. File path matches namespace (`wat/holon/*.wat`).
 
@@ -1494,7 +1498,7 @@ compose the primitives. File path matches namespace (`wat/holon/*.wat`).
 (:wat::holon::Bind role filler)          ; elementwise multiply — role-filler binding
 (:wat::holon::Bundle holons-vec)         ; sum + threshold — superposition
                                          ;   returns :wat::holon::BundleResult
-                                         ;   (= :Result<HolonAST, CapacityExceeded>;
+                                         ;   (= (:Result :- [HolonAST CapacityExceeded]);
                                          ;    see section 12)
 (:wat::holon::Permute holon k)           ; circular shift — positional encoding
 (:wat::holon::Thermometer v min max)     ; locality-preserving gradient encoding of a scalar (HDC/ML tradition; see runtime.rs::eval_algebra_thermometer)
@@ -1505,7 +1509,7 @@ Per arc 057 the algebra is closed under itself: every leaf variant
 (`Symbol`, `String`, `I64`, `F64`, `Bool`) IS a HolonAST; the `Atom`
 variant narrows to `Arc<HolonAST>` (opaque-identity wrap of an inner
 holon). HolonAST has structural `Hash + Eq` derive, which is what
-unblocks `:wat::lru::LocalCache<wat::holon::HolonAST, V>` and the
+unblocks `(:wat::lru::LocalCache :- [:wat::holon::HolonAST V])` and the
 dual-LRU coordinate cache pattern.
 
 ### Two stories the consumer chooses (arc 057)
@@ -1528,7 +1532,7 @@ when you want the answer, not the path.
 
 ;; Story 2 — value. Lift back, run.
 ((reveal :wat::WatAST) (:wat::holon::to-watast form-atom))
-(:wat::eval-ast! reveal)        ; → :Result<:T, :EvalError> (arc 102)
+(:wat::eval-ast! reveal)        ; → (:Result :- [:T :EvalError]) (arc 102)
                                  ; T unifies with the value the form
                                  ; evaluates to — bind with the type
                                  ; you expect (i64, HolonAST, your
@@ -1575,12 +1579,12 @@ Most consumers don't write the walker by hand. Reach for
 (:wat::eval::walk
   form          ;; :wat::WatAST            the form to walk
   init          ;; :A                      initial accumulator
-  visit         ;; :fn(A, WatAST, StepResult) -> WalkStep<A>
-)               ;; -> :Result<(:wat::holon::HolonAST, :A), :wat::core::EvalError>
+  visit         ;; [A WatAST StepResult :-> (WalkStep :- [A])]
+)               ;; -> (:Result :- [(:wat::holon::HolonAST, :A) :wat::core::EvalError])
 ```
 
 The walker visits every coordinate exactly once with `(acc,
-current-form, step-result)`. The visitor returns a `WalkStep<A>`:
+current-form, step-result)`. The visitor returns a `(WalkStep :- [A])`:
 
 - `Continue(acc')` — keep walking. On `StepNext`, the walker
   recurses on the next form. On either terminal flavor, the walker
@@ -1598,16 +1602,16 @@ current-form, step-result)`. The visitor returns a `WalkStep<A>`:
     (tier   :my::cache::Tier)
     (form-w :wat::WatAST)
     (step   :wat::eval::StepResult)
-    -> :wat::eval::WalkStep<my::cache::Tier>)
+    -> (:wat::eval::WalkStep :- [my::cache::Tier]))
   (:wat::core::let
     (((form-h :wat::holon::HolonAST) (:wat::holon::from-watast form-w)))
     (:wat::core::match (:my::cache::lookup-terminal tier form-h)
-                       -> :wat::eval::WalkStep<my::cache::Tier>
+                       -> (:wat::eval::WalkStep :- [my::cache::Tier])
       ;; Cache hit on the terminal — short-circuit.
       ((Some t) (:wat::eval::WalkStep::Skip t tier))
       ;; Miss — record what the substrate just produced.
       (:None
-        (:wat::core::match step -> :wat::eval::WalkStep<my::cache::Tier>
+        (:wat::core::match step -> (:wat::eval::WalkStep :- [my::cache::Tier])
           ((:wat::eval::StepResult::StepNext next-w)
             (:wat::eval::WalkStep::Continue
               (:my::cache::record-next tier form-h
@@ -1694,8 +1698,8 @@ programs — verify each side's source under integrity, evaluate,
 atomize, compare:
 
 ```scheme
-(:wat::holon::eval-coincident? a-ast b-ast)               ; 2 args  → :Result<:bool, EvalError>
-(:wat::holon::eval-edn-coincident? a-src b-src)           ; 2 args  → :Result<:bool, EvalError>
+(:wat::holon::eval-coincident? a-ast b-ast)               ; 2 args  → (:Result :- [:bool EvalError])
+(:wat::holon::eval-edn-coincident? a-src b-src)           ; 2 args  → (:Result :- [:bool EvalError])
 (:wat::holon::eval-digest-coincident? ...8 args...)       ; 4 per side: source, eval-iface, verify-iface, digest-hex
 (:wat::holon::eval-signed-coincident? ...12 args...)      ; 6 per side: source, eval-iface, sig-iface, sig-b64, pk-iface, pk-b64
 ```
@@ -1760,15 +1764,15 @@ The kernel primitives are small. Four concepts cover everything.
 
 ```scheme
 (:wat::kernel::make-bounded-channel :Candle 1)
-;; → :wat::kernel::Channel<Candle>
-;;   ≡ :(Sender<Candle>, Receiver<Candle>)
+;; → (:wat::kernel::Channel :- [Candle])
+;;   ≡ (:wat::core::Tuple :- [(:wat::kernel::Sender :- [Candle]) (:wat::kernel::Receiver :- [Candle])])
 ;; bounded(1) — rendezvous; sender blocks until receiver ready
 
 (:wat::kernel::make-bounded-channel :Candle 64)
 ;; bounded(64) — buffer of 64 before sender blocks
 
 (:wat::kernel::make-unbounded-channel :LearnSignal)
-;; → :wat::kernel::Channel<LearnSignal>
+;; → (:wat::kernel::Channel :- [LearnSignal])
 ;; fire-and-forget — buffer grows until consumer drains
 ```
 
@@ -1781,11 +1785,11 @@ spell the channel surface in short form:
 
 | Alias | Expands to |
 |---|---|
-| `:wat::kernel::Sender<T>` | `:rust::crossbeam_channel::Sender<T>` |
-| `:wat::kernel::Receiver<T>` | `:rust::crossbeam_channel::Receiver<T>` |
-| `:wat::kernel::Channel<T>` | `:(Sender<T>, Receiver<T>)` — what `make-bounded/unbounded-channel` returns |
-| `:wat::kernel::CommResult<T>` | `:Result<:Option<T>, :wat::kernel::ThreadDiedError>` — what `recv` / `try-recv` return (arc 111). Three states: `Ok(Some v)` value flowed; `Ok(:None)` clean shutdown (every sender dropped via scope); `Err(...)` sender thread died |
-| `:wat::kernel::Chosen<T>` | `:(i64, :wat::kernel::CommResult<T>)` — what `select` returns (which receiver fired, and the recv outcome) |
+| `(:wat::kernel::Sender :- [T])` | `(:rust::crossbeam_channel::Sender :- [T])` |
+| `(:wat::kernel::Receiver :- [T])` | `(:rust::crossbeam_channel::Receiver :- [T])` |
+| `(:wat::kernel::Channel :- [T])` | `(:wat::core::Tuple :- [(:wat::kernel::Sender :- [T]) (:wat::kernel::Receiver :- [T])])` — what `make-bounded/unbounded-channel` returns |
+| `(:wat::kernel::CommResult :- [T])` | `(:Result :- [(:Option :- [T]) :wat::kernel::ThreadDiedError])` — what `recv` / `try-recv` return (arc 111). Three states: `Ok(Some v)` value flowed; `Ok(:None)` clean shutdown (every sender dropped via scope); `Err(...)` sender thread died |
+| `(:wat::kernel::Chosen :- [T])` | `(:wat::core::Tuple :- [:i64 (:wat::kernel::CommResult :- [T])])` — what `select` returns (which receiver fired, and the recv outcome) |
 
 Reach for them in let bindings, function signatures, and Vec carriers
 wherever you'd otherwise type the long `rust::crossbeam_channel::*`
@@ -1794,9 +1798,9 @@ path. Aliases and their expansion are interchangeable at unification.
 ### Send and receive
 
 ```scheme
-(:wat::kernel::send sender value)          ; → :Result<:(), :ThreadDiedError>   — Ok(()) on landed; Err on disconnect
-(:wat::kernel::recv receiver)              ; → :Result<:Option<T>, :ThreadDiedError>  — Ok(Some v) value; Ok(:None) clean shutdown; Err sender-thread died
-(:wat::kernel::try-recv receiver)          ; → :Result<:Option<T>, :ThreadDiedError>  — same shape, non-blocking
+(:wat::kernel::send sender value)          ; → (:Result :- [:wat::core::nil :ThreadDiedError])   — Ok(()) on landed; Err on disconnect
+(:wat::kernel::recv receiver)              ; → (:Result :- [(:Option :- [T]) :ThreadDiedError])  — Ok(Some v) value; Ok(:None) clean shutdown; Err sender-thread died
+(:wat::kernel::try-recv receiver)          ; → (:Result :- [(:Option :- [T]) :ThreadDiedError])  — same shape, non-blocking
 (:wat::kernel::drop handle)                ; → :()  — readability marker; see § Channel close is scope-based
 ```
 
@@ -1851,7 +1855,7 @@ that handle downstream-closed.
     state)
   ((Err died-chain)
     ;; sender thread panicked. died-chain is a
-    ;; :wat::kernel::ThreadPanics — a Vec<ThreadDiedError> that
+    ;; :wat::kernel::ThreadPanics — a (Vec :- [ThreadDiedError]) that
     ;; cascades across hand-off boundaries (see §13 cascade
     ;; chains). `(:wat::core::first died-chain)` recovers the
     ;; immediate peer's death; walking the Vec answers "what
@@ -1865,8 +1869,8 @@ When the caller's program cannot continue meaningfully without
 this recv's value:
 
 ```scheme
-((maybe-v :Option<T>)
-  (:wat::core::Result/expect -> :Option<T>
+((maybe-v (:Option :- [T]))
+  (:wat::core::Result/expect -> (:Option :- [T])
     (:wat::kernel::recv rx)
     "rx: peer thread died — driver panicked?"))
 ```
@@ -1877,7 +1881,7 @@ substrate's AssertionPayload — when this thread itself dies and
 the spawn driver synthesizes the join outcome, this thread's
 death gets conj'd onto the FRONT of the inherited chain. Same
 mechanism preserves chain shape across cross-thread cascades
-end-to-end). Returns `:Option<T>` — the inner Option survives so
+end-to-end). Returns `(:Option :- [T])` — the inner Option survives so
 the caller can distinguish "value received" from "clean
 shutdown" if they care. To panic on either disconnect kind,
 nest:
@@ -1885,7 +1889,7 @@ nest:
 ```scheme
 ((v :T)
   (:wat::core::Option/expect -> :T
-    (:wat::core::Result/expect -> :Option<T>
+    (:wat::core::Result/expect -> (:Option :- [T])
       (:wat::kernel::recv rx)
       "rx: peer thread died")
     "rx: clean disconnect — peer dropped its sender"))
@@ -1909,7 +1913,7 @@ sharing means threading the endpoint through spawn args.
 
 ### Channel close is scope-based
 
-A `Sender<T>` / `Receiver<T>` is reference-counted. The corresponding
+A `(Sender :- [T])` / `(Receiver :- [T])` is reference-counted. The corresponding
 channel-end disconnects only when **every** clone has dropped — and
 clones drop when their `let` binding goes out of scope. There is no
 force-close primitive: `:wat::kernel::drop` evaluates its argument
@@ -1930,10 +1934,10 @@ shape regardless.
 
 ```scheme
 (:wat::core::let
-  (((pair :wat::kernel::Channel<i64>)
+  (((pair (:wat::kernel::Channel :- [:wat::core::i64]))
     (:wat::kernel::make-bounded-channel :wat::core::i64 1))
-   ((rx :wat::kernel::Receiver<i64>) (:wat::core::second pair))
-   ((thr :wat::kernel::Thread<(),i64>)
+   ((rx (:wat::kernel::Receiver :- [:wat::core::i64])) (:wat::core::second pair))
+   ((thr (:wat::kernel::Thread :- [:wat::core::nil :wat::core::i64]))
     (:wat::kernel::spawn-thread ...))
    ...)
   (:wat::kernel::Thread/join-result thr))   ;; ← arc 117: ScopeDeadlock (check retired; shape still a real deadlock)
@@ -1948,15 +1952,15 @@ exits, every `Sender` Arc bound there decrements; the worker's next
 
 ```scheme
 (:wat::core::let
-  (((thr :wat::kernel::Thread<(),i64>)
+  (((thr (:wat::kernel::Thread :- [:wat::core::nil :wat::core::i64]))
     (:wat::core::let
-      (((pair :wat::kernel::Channel<i64>)
+      (((pair (:wat::kernel::Channel :- [:wat::core::i64]))
         (:wat::kernel::make-bounded-channel :wat::core::i64 1))
-       ((tx :wat::kernel::Sender<i64>) (:wat::core::first pair))
-       ((rx :wat::kernel::Receiver<i64>) (:wat::core::second pair))
-       ((h :wat::kernel::Thread<(),i64>)
+       ((tx (:wat::kernel::Sender :- [:wat::core::i64])) (:wat::core::first pair))
+       ((rx (:wat::kernel::Receiver :- [:wat::core::i64])) (:wat::core::second pair))
+       ((h (:wat::kernel::Thread :- [:wat::core::nil :wat::core::i64]))
         (:wat::kernel::spawn-thread ...))
-       ((_send :Result<(),:Vec<wat::kernel::ThreadDiedError>>)
+       ((_send (:Result :- [:wat::core::nil (:Vec :- [wat::kernel::ThreadDiedError])]))
         (:wat::core::Result/expect -> :()
           (:wat::kernel::send tx 1)
           "send 1: tx disconnected — worker died?")))
@@ -1975,8 +1979,8 @@ structurally; see `WAT-CHEATSHEET.md § 10` for the rule and
 
 ```scheme
 (:wat::kernel::select receivers)
-;; receivers : :Vec<wat::kernel::Receiver<T>>
-;; → :wat::kernel::Chosen<T>   ≡ :(i64, Option<T>)
+;; receivers : (:Vec :- [(:wat::kernel::Receiver :- [T])])
+;; → (:wat::kernel::Chosen :- [T])   ≡ :(i64, (Option :- [T]))
 ;; — blocks until any receiver has a value or disconnects
 ;; — returns the index and :None if disconnected, (Some v) if produced
 ```
@@ -1986,10 +1990,10 @@ the list, exit when the list is empty. (The hand-rolled service-driver
 loop that used to be the canonical example here — `wat-tests/service-template.wat`
 — is retired; a `:wat::service::defservice`-built service's generated
 loop fans in over `Peer'` values via `select'`/`poll'` instead of raw
-`Receiver<T>` via `select`, so it is not a like-for-like substitute
+`(Receiver :- [T])` via `select`, so it is not a like-for-like substitute
 example for THIS primitive.)
 
-`:wat::kernel::Chosen<T>` is the fourth substrate alias from
+`(:wat::kernel::Chosen :- [T])` is the fourth substrate alias from
 `wat/kernel/channel.wat`. The variable that binds the return value is
 universally named `chosen`. The alias makes the type echo the variable.
 
@@ -1998,11 +2002,11 @@ universally named `chosen`. The alias makes the type echo the variable.
 ```scheme
 (:wat::kernel::spawn-thread
   (:wat::core::fn
-    ((in  :rust::crossbeam_channel::Receiver<I>)
-     (out :rust::crossbeam_channel::Sender<O>)
+    ((in  (:rust::crossbeam_channel::Receiver :- [I]))
+     (out (:rust::crossbeam_channel::Sender :- [O]))
      -> :())
     body))
-;; → :wat::kernel::Thread<I, O>
+;; → (:wat::kernel::Thread :- [I O])
 ;; The body reads typed values from `in`, writes typed values to
 ;; `out`, returns unit. The substrate allocates the channel pair;
 ;; the parent reaches the other halves through Thread/input and
@@ -2017,13 +2021,13 @@ join) retired; the type checker self-describes the migration to
 `spawn-thread` at every old call site.
 
 ```scheme
-(:wat::kernel::Thread/input  thr)   ;; → :Sender<I>   parent → thread
-(:wat::kernel::Thread/output thr)   ;; → :Receiver<O> thread → parent
+(:wat::kernel::Thread/input  thr)   ;; → (:Sender :- [I])   parent → thread
+(:wat::kernel::Thread/output thr)   ;; → (:Receiver :- [O]) thread → parent
 
 (:wat::kernel::Thread/join-result thr)
-;; → :Result<:(), :Vec<:wat::kernel::ThreadDiedError>>  (arcs 060/113)
+;; → (:Result :- [:wat::core::nil (:Vec :- [:wat::kernel::ThreadDiedError])])  (arcs 060/113)
 ;; "Death as data." Match on (Ok ()) | (Err chain). The Err arm is
-;; the post-arc-113 chain — Vec<ThreadDiedError> with one element
+;; the post-arc-113 chain — (Vec :- [ThreadDiedError]) with one element
 ;; per host transition the panic crossed.
 ```
 
@@ -2039,7 +2043,7 @@ on `Thread/join-result`.
     ;; thread completed; values already flowed through out
     ())
   ((Err chain)
-    ;; chain : :Vec<:wat::kernel::ThreadDiedError> — arc 113
+    ;; chain : (:Vec :- [:wat::kernel::ThreadDiedError]) — arc 113
     ;; first element is THIS thread's death; tail is upstream causes
     (:my::report-chain stderr chain)))
 ```
@@ -2059,14 +2063,14 @@ parent via three OS pipes.
 ```scheme
 (:wat::kernel::spawn-program
   (src   :String)             ;; or use spawn-program-ast for forms entry
-  (scope :Option<String>)     ;; loader scope; :None inherits caller's
+  (scope (:Option :- [String]))     ;; loader scope; :None inherits caller's
   -> :wat::kernel::Process)
 
 ;; :wat::kernel::Process is a struct:
 ;;   { stdin   :wat::io::IOWriter        ← parent writes, child reads
 ;;     stdout  :wat::io::IOReader        ← child writes, parent reads
 ;;     stderr  :wat::io::IOReader        ← child writes, parent reads
-;;     join    :wat::kernel::ProgramHandle<()> }
+;;     join    (:wat::kernel::ProgramHandle :- [:wat::core::nil]) }
 ```
 
 The mini-TCP discipline applies (see `docs/ZERO-MUTEX.md`): producer
@@ -2085,8 +2089,8 @@ the arc-111 three-state shape (`Ok(Some)`/`Ok(:None)`/`Err(died)`).
 
 ```scheme
 (:wat::core::let
-  (((proc :wat::kernel::Process<MyRequest,MyResponse>)
-    (:wat::core::Result/expect -> :wat::kernel::Process<MyRequest,MyResponse>
+  (((proc (:wat::kernel::Process :- [MyRequest MyResponse]))
+    (:wat::core::Result/expect -> (:wat::kernel::Process :- [MyRequest MyResponse])
       (:wat::kernel::spawn-program inner-src :None)
       "spawn-program failed"))
    ;; typed send — substrate handles EDN render + newline + write
@@ -2122,7 +2126,7 @@ Reach for `spawn-program` for in-process containment (logical jail
 via separate frozen world; in-thread). Reach for `fork-program-ast`
 for OS-process containment (separate address space, separate fd
 table, separate `_exit`). **The user-facing surface is identical**
-— both return `:wat::kernel::Process<I,O>`; both work with the
+— both return `(:wat::kernel::Process :- [I O])`; both work with the
 same `process-send` / `process-recv` / `Process/join-result`
 verbs. Pick by cost: thread is cheap and fast; fork is heavier
 but truly isolated. The protocol never changes.
@@ -2139,7 +2143,7 @@ would silently deadlock:
 
 ```scheme
 (:wat::kernel::HandlePool::new "my-service" senders-vec)
-;; → :HandlePool<T>
+;; → (:HandlePool :- [T])
 
 (:wat::kernel::HandlePool::pop pool)
 ;; → :T  — claims one; panics if empty
@@ -2168,21 +2172,21 @@ the spawn + queue + drop-cascade plumbing.
 ### The combinators
 
 ```
-Stream<T> = :(Receiver<T>, ProgramHandle<()>)
+(Stream :- [T]) = (:wat::core::Tuple :- [(Receiver :- [T]) (ProgramHandle :- [:wat::core::nil])])
 
-spawn-producer  f                → Stream<T>     -- f writes to Sender<T>
-from-receiver   rx handle        → Stream<T>     -- wrap an existing pair
+spawn-producer  f                → (Stream :- [T])     -- f writes to (Sender :- [T])
+from-receiver   rx handle        → (Stream :- [T])     -- wrap an existing pair
 
-map             stream f         → Stream<U>     -- 1:1 transform
-filter          stream pred      → Stream<T>     -- 1:0..1 keep predicate
-inspect         stream f         → Stream<T>     -- 1:1 side-effect, forward value
-flat-map        stream f         → Stream<U>     -- 1:N expansion
-chunks          stream size      → Stream<Vec<T>> -- N:1 batcher; flushes at EOS
-take            stream n         → Stream<T>     -- first n items, then exit
-with-state      stream init step flush → Stream<U>  -- Mealy-machine stage
+map             stream f         → (Stream :- [U])     -- 1:1 transform
+filter          stream pred      → (Stream :- [T])     -- 1:0..1 keep predicate
+inspect         stream f         → (Stream :- [T])     -- 1:1 side-effect, forward value
+flat-map        stream f         → (Stream :- [U])     -- 1:N expansion
+chunks          stream size      → (Stream :- [(Vec :- [T])]) -- N:1 batcher; flushes at EOS
+take            stream n         → (Stream :- [T])     -- first n items, then exit
+with-state      stream init step flush → (Stream :- [U])  -- Mealy-machine stage
 
 for-each        stream handler   → :()           -- terminal: drive to EOS
-collect         stream           → :Vec<T>       -- terminal: accumulate
+collect         stream           → (:Vec :- [T])       -- terminal: accumulate
 fold            stream init f    → :Acc          -- terminal: aggregate
 ```
 
@@ -2200,13 +2204,13 @@ fold            stream init f    → :Acc          -- terminal: aggregate
                      (stderr :wat::io::IOWriter)
                      -> :())
   (:wat::core::let
-    (((raw :wat::stream::Stream<RawCandle>)
+    (((raw (:wat::stream::Stream :- [RawCandle]))
       (:wat::stream::spawn-producer :my::app::candle-source))
-     ((enriched :wat::stream::Stream<EnrichedCandle>)
+     ((enriched (:wat::stream::Stream :- [EnrichedCandle]))
       (:wat::stream::map raw :my::app::enrich-candle))
-     ((batched :wat::stream::Stream<Vec<EnrichedCandle>>)
+     ((batched (:wat::stream::Stream :- [(:Vec :- [EnrichedCandle])]))
       (:wat::stream::chunks enriched 100))
-     ((collected :Vec<Vec<EnrichedCandle>>)
+     ((collected (:Vec :- [(:Vec :- [EnrichedCandle])]))
       (:wat::stream::collect batched)))
     ()))
 ```
@@ -2230,23 +2234,23 @@ window, sessionize, running-stats — is a `(init, step, flush)` triple
 over `with-state`:
 
 ```
-step  : (Acc, T) -> (Acc, Vec<U>)   -- consume one T; produce updated Acc + items to emit
-flush : Acc      -> Vec<U>           -- final emission at upstream EOS
+step  : (Acc, T) -> (Acc, (Vec :- [U]))   -- consume one T; produce updated Acc + items to emit
+flush : Acc      -> (Vec :- [U])           -- final emission at upstream EOS
 ```
 
 Example — **dedupe-adjacent** (collapse runs of equal items):
 
 ```scheme
-(:wat::core::define (:my::dedupe-step (last :Option<i64>) (item :i64)
-                    -> :(Option<i64>,Vec<i64>))
-  (:wat::core::match last -> :(Option<i64>,Vec<i64>)
+(:wat::core::define (:my::dedupe-step (last (:Option :- [:i64])) (item :i64)
+                    -> :((:Option :- [:i64]),(:Vec :- [:i64])))
+  (:wat::core::match last -> :((:Option :- [:i64]),(:Vec :- [:i64]))
     (:None (:wat::core::tuple (Some item) (:wat::core::vec :i64 item)))
     ((Some prev)
-      (:wat::core::if (:wat::core::= prev item) -> :(Option<i64>,Vec<i64>)
+      (:wat::core::if (:wat::core::= prev item) -> :((:Option :- [:i64]),(:Vec :- [:i64]))
         (:wat::core::tuple last (:wat::core::vec :i64))         ;; duplicate; swallow
         (:wat::core::tuple (Some item) (:wat::core::vec :i64 item))))))
 
-(:wat::core::define (:my::dedupe-flush (_ :Option<i64>) -> :Vec<i64>)
+(:wat::core::define (:my::dedupe-flush (_ (:Option :- [:i64])) -> (:Vec :- [:i64]))
   (:wat::core::vec :i64))   ;; nothing to emit at EOS
 
 ;; in :user::main
@@ -2311,7 +2315,7 @@ impl WatConnection {
     }
 
     /// `:rust::rusqlite::Connection::query_i64 conn sql` — asks the
-    /// DB for an i64; returns `:Option<i64>`. `Some(v)` if the query
+    /// DB for an i64; returns `(:Option :- [:i64])`. `Some(v)` if the query
     /// yielded a row; `None` for any reason it didn't (no row, DB
     /// locked, syntax error, type mismatch). The caller asked a
     /// question; the answer is either present or absent. The shim
@@ -2407,7 +2411,7 @@ Lives in that program's thread; no channel overhead.
 
 (:wat::core::define (:my::app::worker -> :())
   (:wat::core::let
-    (((cache :wat::lru::LocalCache<String,i64>)
+    (((cache (:wat::lru::LocalCache :- [String i64]))
       (:wat::lru::LocalCache::new 128)))
     (... use cache via :wat::lru::LocalCache::put / ::get ...)))
 ```
@@ -2422,12 +2426,12 @@ through channels.
 
 ```scheme
 (:wat::core::let
-  (((state :(wat::kernel::HandlePool<wat::lru::ReqTx<String,i64>>,
-             wat::kernel::ProgramHandle<()>))
+  (((state :((wat::kernel::HandlePool :- [(wat::lru::ReqTx :- [String i64])]),
+             (wat::kernel::ProgramHandle :- [wat::core::nil])))
     (:wat::lru::spawn 1024 8 reporter cadence))  ;; capacity 1024, 8 client handles
-   ((pool :wat::kernel::HandlePool<...>) (:wat::core::first state))
-   ((driver :wat::kernel::ProgramHandle<()>) (:wat::core::second state))
-   ((client1 :wat::lru::ReqTx<String,i64>)
+   ((pool (:wat::kernel::HandlePool :- [...])) (:wat::core::first state))
+   ((driver (:wat::kernel::ProgramHandle :- [:wat::core::nil])) (:wat::core::second state))
+   ((client1 (:wat::lru::ReqTx :- [String i64]))
     (:wat::kernel::HandlePool::pop pool))
    (... eight clients ...)
    ((_ :()) (:wat::kernel::HandlePool::finish pool)))
@@ -2531,7 +2535,7 @@ seam:
      (_s (:wat::sqlite::pragma db "synchronous" "NORMAL"))]
     ()))
 
-((sqlite-spawn :Service::Spawn<my::log::Entry>)
+((sqlite-spawn (:Service::Spawn :- [my::log::Entry]))
  (:wat::telemetry::Sqlite/auto-spawn
    :my::log::Entry "runs/today.db" 1
    (:wat::telemetry::null-metrics-cadence)
@@ -2561,7 +2565,7 @@ unify them. Five constructors + two accessors cover all use-cases:
 
 (:wat::core::Uuid/from-string s)
 ;;   s  : :wat::core::String — must be canonical 36-char hyphenated form
-;;   -> :wat::core::Option<:wat::core::Uuid> — None when s is not a valid UUID
+;;   -> (:wat::core::Option :- [:wat::core::Uuid]) — None when s is not a valid UUID
 
 (:wat::core::Uuid/nil)
 ;;   -> :wat::core::Uuid — nil UUID (all zeros); useful as a well-known constant
@@ -2648,7 +2652,7 @@ needed).
 
 ## 12. Error handling
 
-### `:Option<T>` — absence
+### `(:Option :- [T])` — absence
 
 ```scheme
 (:wat::core::match (:wat::kernel::recv receiver) -> :()
@@ -2656,7 +2660,7 @@ needed).
   (:None (... handle disconnection ...)))
 ```
 
-### `:Result<T,E>` — fallible computation
+### `(:Result :- [T E])` — fallible computation
 
 Constructors are bare: `(Ok v)`, `(Err e)`. Consumers match or `try`.
 
@@ -2666,16 +2670,16 @@ Constructors are bare: `(Ok v)`, `(Err e)`. Consumers match or `try`.
   ((Ok v) v)
   ((Err e) (:my::app::recover-from e)))
 
-;; TRY — propagate; the enclosing function must return :Result<_, E> with the same E
-(:wat::core::define (:my::app::pipeline (x :T) -> :Result<U,E>)
+;; TRY — propagate; the enclosing function must return (:Result :- [_ E]) with the same E
+(:wat::core::define (:my::app::pipeline (x :T) -> (:Result :- [U E]))
   (Ok (:wat::core::Result/try (:my::app::fallible-compute x))))
 ```
 
 ### Bundle's capacity — the canonical Result in the algebra
 
 `:wat::holon::Bundle` returns `:wat::holon::BundleResult` (a
-typealias for `:Result<:wat::holon::HolonAST,
-:wat::holon::CapacityExceeded>`, arc 032). The two `capacity-mode`
+typealias for `(:Result :- [:wat::holon::HolonAST
+:wat::holon::CapacityExceeded])`, arc 032). The two `capacity-mode`
 values (`:error` — default, returns `Err`; `:panic` — panics; arc
 045 renamed `:abort` → `:panic`) set
 at program startup determine the runtime behavior when Kanerva's
@@ -2823,7 +2827,7 @@ both ends of the leak are clickable. Arc 140.
 ### Assertion primitives
 
 ```
-:wat::test::assert-eq<T>          a b
+:wat::test::assert-eq :- [T]      a b
 :wat::test::assert-contains       haystack needle     -- strings
 :wat::test::assert-stdout-is      run-result expected-lines
 :wat::test::assert-stderr-matches run-result pattern  -- regex, unanchored
@@ -2987,15 +2991,15 @@ defines have a substrate-side query surface in the
 
 ```scheme
 (:wat::runtime::lookup-callable :wat::core::foldl)
-;; → :Option<:wat::holon::HolonAST> wrapping a synthesized define
+;; → (:Option :- [:wat::holon::HolonAST]) wrapping a synthesized define
 ;;   form (head + body sentinel for substrate primitives; real body
 ;;   for user defines)
 
 (:wat::runtime::signature-of-defn :wat::core::foldl)
-;; → :Option<:wat::holon::HolonAST> wrapping the signature head only
+;; → (:Option :- [:wat::holon::HolonAST]) wrapping the signature head only
 
 (:wat::runtime::body-of :user::my-add)
-;; → :Option<:wat::holon::HolonAST> wrapping the body for user
+;; → (:Option :- [:wat::holon::HolonAST]) wrapping the body for user
 ;;   defines (:None for substrate primitives — Rust-implemented;
 ;;   no wat body)
 
@@ -3004,7 +3008,7 @@ defines have a substrate-side query surface in the
 ;;   + args + return preserved
 
 (:wat::runtime::extract-arg-names <signature>)
-;; → :Vec<:wat::holon::HolonAST> of bare-symbol arg names
+;; → (:Vec :- [:wat::holon::HolonAST]) of bare-symbol arg names
 ;;   (suitable for splicing as call positions)
 ```
 
@@ -3099,7 +3103,7 @@ path types as atomic `HolonAST::Atom`. Five new primitives:
 
 ```scheme
 (:wat::runtime::signature-of-defn :name-keyword)
-;; → :Option<HolonAST>  — symbol-table lookup (renamed from
+;; → (:Option :- [HolonAST])  — symbol-table lookup (renamed from
 ;;   pre-arc-201 :signature-of for explicit asymmetry with -fn sibling)
 
 (:wat::runtime::signature-of-fn fn-value)
@@ -3107,11 +3111,11 @@ path types as atomic `HolonAST::Atom`. Five new primitives:
 ;;   an inline (:wat::core::fn ...) form
 
 (:wat::runtime::extract-arg-types <signature>)
-;; → :Vec<:wat::holon::HolonAST>  — type-direction sibling of
+;; → (:Vec :- [:wat::holon::HolonAST])  — type-direction sibling of
 ;;   extract-arg-names; each item is the structured type AST per arg
 
 (:wat::holon::Bundle/children :HolonAST::Bundle)
-;; → :Vec<:HolonAST>  — children of a structured-composition node
+;; → (:Vec :- [:HolonAST])  — children of a structured-composition node
 
 (:wat::holon::Bundle/first :HolonAST::Bundle)
 ;; → :HolonAST  — first child (typically the head atom)
@@ -3127,7 +3131,7 @@ The chain for type-driven macros (Stone D2's algorithm shape):
    ;; for arg k:
    name-k     (:wat::core::Vector/get names k)
    type-k     (:wat::core::Vector/get types k)
-   ;; if type-k is :ThreadPeer<I,O>:
+   ;; if type-k is (:ThreadPeer :- [I O]):
    type-k-ast (:wat::core::Option/expect type-k "arg index out of range")
    children   (:wat::holon::Bundle/children type-k-ast)
    ;; children = [Atom(:ThreadPeer), I-type-ast, O-type-ast]
@@ -3164,7 +3168,7 @@ stdout, its stderr, its assertion-failure payload. Pair
               -> :())
             (:wat::io::IOWriter/println stdout "hello-from-inside")))
         (:wat::core::vec :String)))
-     ((lines :Vec<String>) (:wat::kernel::RunResult/stdout r)))
+     ((lines (:Vec :- [String])) (:wat::kernel::RunResult/stdout r)))
     (:wat::test::assert-eq (:wat::core::first lines) "hello-from-inside")))
 ```
 
@@ -3204,7 +3208,7 @@ s-expressions:
           (:wat::core::define (:user::main -> :wat::core::nil)
             (:wat::kernel::println "hello via ambient stdio")))
         (:wat::core::vec :String)))
-     ((lines :Vec<String>) (:wat::kernel::RunResult/stdout r)))
+     ((lines (:Vec :- [String])) (:wat::kernel::RunResult/stdout r)))
     (:wat::test::assert-eq (:wat::core::first lines) "\"hello via ambient stdio\"")))
 ```
 
@@ -3298,12 +3302,12 @@ and `arc/2026/04/116-phenomenal-cargo-debugging/INSCRIPTION.md`.
 ### Cascade chains — `:wat::kernel::ProcessPanics` / `ThreadPanics` (arc 113)
 
 Every comm/join verb's `Err` arm carries a **chain of deaths**, not
-a single error. The chain is just `Vec<*DiedError>`:
+a single error. The chain is just `(Vec :- [*DiedError])`:
 
 | Typealias | Body |
 |---|---|
-| `:wat::kernel::ThreadPanics` | `Vec<wat::kernel::ThreadDiedError>` |
-| `:wat::kernel::ProcessPanics` | `Vec<wat::kernel::ProcessDiedError>` |
+| `:wat::kernel::ThreadPanics` | `(Vec :- [wat::kernel::ThreadDiedError])` |
+| `:wat::kernel::ProcessPanics` | `(Vec :- [wat::kernel::ProcessDiedError])` |
 
 The Vec IS the chain. Head = the immediate peer that died; tail
 = whatever killed it, transitively, across hand-off boundaries.
@@ -3314,7 +3318,7 @@ The Vec IS the chain. Head = the immediate peer that died; tail
   ;; head: this thread's recv saw its peer thread die
   ;; tail (if any): what killed THAT peer, transitively
   (:wat::core::let
-    (((immediate :Option<wat::kernel::ThreadDiedError>)
+    (((immediate (:Option :- [wat::kernel::ThreadDiedError]))
       (:wat::core::first died-chain)))
     (handle-immediate immediate)))
 ```
@@ -3323,7 +3327,7 @@ The Vec IS the chain. Head = the immediate peer that died; tail
 architectural through-line: threads pass DiedError values through
 crossbeam channels (zero-copy); processes pass them as EDN over
 kernel pipes. The chain SHAPE at the caller surface
-(`Result<R, Vec<*DiedError>>`) is identical regardless of where
+(`(Result :- [R (Vec :- [*DiedError])])`) is identical regardless of where
 the spawn boundary fell. Only the wire differs.
 
 ```
@@ -3340,7 +3344,7 @@ Worker A panics                   Worker A panics
 spawn driver conjs                parent's drive-sandbox
 on join-result                    extract-panics from stderr
    ↓                                 ↓
-Result<R, ThreadPanics>           Result<R, ProcessPanics>
+(Result :- [R ThreadPanics])      (Result :- [R ProcessPanics])
 ```
 
 The conj-on-panic mechanism: `:wat::core::Result/expect` on an
@@ -3413,24 +3417,45 @@ struct carries `/cost` (actual count) and `/budget` (the limit
 at the active `d`) accessors so the error path can shape its
 recovery against real numbers.
 
-**Inner colon on a parametric arg.** Type expressions inside
-`<>`, `()`, or `fn(...)` use bare Rust symbols — NO leading
-colon. The colon prefix marks wat keywords and lives at the
-OUTERMOST type position only.
+**`<>` is retired — a parametric type is `Head :- [args]`.** Arc 109
+retired the angle-bracket spelling entirely: `Vec<T>`, `HashMap<K,V>`,
+`Result<T,E>`, `fn(A)->B` no longer lex — `<` / `>` cannot appear in a
+type position at all. A TYPE REFERENCE is the head keyword followed
+by `:- [...]`, in parens; a DECLARATION's own name takes the same
+binder as bare siblings, no parens (`defsurface :Holds<T>` from the
+old world is now `defsurface :Holds :- [T]`). A function type drops
+the `fn(...)->` wrapper for a bracket: `[ArgType… :-> RetType]`.
 
-| Illegal | Canonical |
+| Retired (`<>`) | Canonical (`:- […]`) |
 |---|---|
-| `:Vec<:String>` | `:Vec<String>` |
-| `:Result<:Option<i64>,:wat::kernel::ThreadDiedError>` | `:Result<Option<i64>,wat::kernel::ThreadDiedError>` |
-| `:fn(:i64)->:bool` | `:fn(i64)->bool` |
-| `:Vec<:wat::core::String>` | `:Vec<wat::core::String>` |
+| `:wat::core::Vector<wat::core::i64>` | `(:wat::core::Vector :- [:wat::core::i64])` |
+| `:wat::kernel::Peer<S,R>` | `(:wat::kernel::Peer :- [S R])` |
+| `:Vec<:String>` | `(:Vec :- [:String])` |
+| `:Result<:Option<i64>,:wat::kernel::ThreadDiedError>` | `(:Result :- [(:Option :- [:i64]) :wat::kernel::ThreadDiedError])` |
+| `:fn(:i64)->:bool` | `[:i64 :-> :bool]` |
 
-Arc 115 turned this into a self-describing compile error that
-names the rule and shows the fix. Pre-arc-115 the substrate
-accepted the malformed shape silently and let users discover it
-via cryptic downstream "expects X; got Y" mismatches; post-arc-
-115, it rejects at the binding site with the canonical form
-suggested.
+**A binder is the reference form minus its parens.** A type being
+*used* takes the parenthesised reference form (`(Head :- [args])`,
+optionally followed by constructor values); a name being *declared*
+(`defn`, `defrecord`, `defenum`, `defsurface`, `typealias`, …) takes
+the SAME `:- […]` binder as bare siblings of its own name, with no
+wrapping parens: `(:wat::core::defn :my::identity-fn :- [T] [x <- :T] -> :T x)`.
+`:- []` is the assumed default — there is no separate monomorphic-
+vs-parametric form, only a param list that's usually empty.
+
+Concrete type args inside `:- […]` carry their full path, colon and
+all, exactly as they would anywhere else (`:wat::core::i64`, `:String`)
+— that FQDN discipline never lapses inside the brackets the way the
+old `<>` form's bare-symbols-only rule required. A bare, unqualified,
+single-word symbol (`T`, `K`, `V`, `S`, `R`, `I`, `O`, `A`, `U`…) is
+read as a fresh TYPE VARIABLE, not shorthand for a builtin — there is
+no implicit `wat::core::` qualification of a short name.
+
+Arc 115 turned the pre-`:-` inner-colon mistake into a self-describing
+compile error that named the rule and showed the fix; arc 109 later
+retired the `<>` surface itself, so today's mistake is writing `<>`
+at all — `wat --check` names the retirement and points at the
+canonical `:- […]` rewrite.
 
 **Pipeline deadlocks.** If a pipeline stage reads from its input
 but NEVER sends to its output, the upstream's `bounded(1)` send
@@ -3523,7 +3548,7 @@ spell out. For each: the path, the arity, and what it produces.
 | `:wat::config::dims` | `()` | `:i64` (compat shim — arc 037) |
 | `:wat::config::noise-floor` | `()` | `:f64` (compat shim — arc 037) |
 | `:wat::core::define` | `((name (p :T) ... -> :R) body)` | registers function |
-| `:wat::core::fn` | `([p <- :T ...] -> :R body...)` | `:wat::core::Fn(T,...)->R` (arc 155) |
+| `:wat::core::fn` | `([p <- :T ...] -> :R body...)` | `[T… :-> R]` (arc 155) |
 | `:wat::core::let` | `[n1 e1 n2 e2 ...] body+` | body's type |
 | `:wat::core::match` | `scrutinee -> :T arm1 arm2 ...` | arm result (type `T`) |
 | `:wat::core::if` | `cond -> :T then else` | branch result (type `T`) |
@@ -3538,13 +3563,13 @@ spell out. For each: the path, the arity, and what it produces.
 | `:wat::load-string!` | `<source>` | registers loaded source (arc 028) |
 | `:wat::digest-load-file!` / `digest-load-string!` | `<path-or-src> <hex-digest>` | SHA-256 verified load |
 | `:wat::signed-load-file!` / `signed-load-string!` | `<path-or-src> <sig-b64> <pk-b64>` | Ed25519 verified load |
-| `:wat::core::vec` | `:T v1 v2 ...` | `:Vec<T>` |
-| `:wat::core::list` | `:T v1 v2 ...` | `:Vec<T>` (alias) |
+| `:wat::core::vec` | `:T v1 v2 ...` | `(:Vec :- [T])` |
+| `:wat::core::list` | `:T v1 v2 ...` | `(:Vec :- [T])` (alias) |
 | `:wat::core::Tuple` | `v1 v2 ...` | `:(T1,T2,...)` |
-| `:wat::core::first` / `second` / `third` | `<tuple-or-vec>` | tuple → `T`; Vec → `Option<T>` (arc 047 — Vec accessors return Option to honestly signal empty/short) |
-| `:wat::core::last` | `<vec>` | `Option<T>` — `None` for empty, `Some(items[len-1])` otherwise (arc 047) |
-| `:wat::core::find-last-index` | `xs pred-fn` | `Option<i64>` — index of rightmost element where pred holds (arc 047); `None` if no match or empty |
-| `:wat::core::f64::max-of` / `min-of` | `<vec-of-f64>` | `Option<f64>` — `None` for empty (arc 047) |
+| `:wat::core::first` / `second` / `third` | `<tuple-or-vec>` | tuple → `T`; Vec → `(Option :- [T])` (arc 047 — Vec accessors return Option to honestly signal empty/short) |
+| `:wat::core::last` | `<vec>` | `(Option :- [T])` — `None` for empty, `Some(items[len-1])` otherwise (arc 047) |
+| `:wat::core::find-last-index` | `xs pred-fn` | `(Option :- [i64])` — index of rightmost element where pred holds (arc 047); `None` if no match or empty |
+| `:wat::core::f64::max-of` / `min-of` | `<vec-of-f64>` | `(Option :- [f64])` — `None` for empty (arc 047) |
 | `:wat::core::length` / `empty?` / `reverse` / `take` / `drop` | list ops | various |
 | `:wat::core::+/-/*//` | `a b` | polymorphic arithmetic (arc 050); both args must be numeric (`:i64` or `:f64`); result is `:f64` if either is `:f64`, else `:i64` — Lisp-traditional int → float promotion |
 | `:wat::core::i64::+/-/*//` / `f64::+/-/*//` | `a b` | typed strict arithmetic — same arity, but the type checker rejects cross-type input. Reach for these when the type-guard behavior matters (e.g., index arithmetic where i64 is the only honest answer) |
@@ -3556,7 +3581,7 @@ spell out. For each: the path, the arity, and what it produces.
 | `:wat::std::math::pi` | — | π as `:f64` |
 | `:wat::time::now` | — | `:wat::time::Instant` — current wall-clock time (arc 056; world-observing — sibling of `:wat::io::*` rather than under `:wat::std::*`) |
 | `:wat::time::at` / `at-millis` / `at-nanos` | `epoch:i64` | `:wat::time::Instant` from epoch seconds / ms / ns (i64 ns saturates ~year 2262) |
-| `:wat::time::from-iso8601` | `s:String` | `:Option<wat::time::Instant>` — `:None` on parse failure; accepts the RFC 3339 grammar |
+| `:wat::time::from-iso8601` | `s:String` | `(:Option :- [wat::time::Instant])` — `:None` on parse failure; accepts the RFC 3339 grammar |
 | `:wat::time::to-iso8601` | `instant digits:i64` | `:String` — UTC ISO 8601 with N fractional second digits; `digits` clamps to `[0, 9]` |
 | `:wat::time::epoch-seconds` / `epoch-millis` / `epoch-nanos` | `instant` | `:i64` — truncating; `epoch-nanos` panics outside i64-ns range (~1677–2262) |
 | `:wat::time::Duration` | type | Non-negative time interval as i64 nanos (arc 097). Distinct from Instant so polymorphic `:wat::time::-` can dispatch on RHS variant. Always non-negative — direction lives in the operation, not the sign |
@@ -3568,39 +3593,39 @@ spell out. For each: the path, the arity, and what it produces.
 | `:wat::time::nanoseconds-ago` / `microseconds-ago` / `milliseconds-ago` / `seconds-ago` / `minutes-ago` / `hours-ago` / `days-ago` | `n:i64` | `:wat::time::Instant` — pre-composed sugar; `(hours-ago 1)` ≡ `(ago (Hour 1))`. Reads cleaner at every callsite (arc 097 slice 4) |
 | `:wat::time::nanoseconds-from-now` / `microseconds-from-now` / `milliseconds-from-now` / `seconds-from-now` / `minutes-from-now` / `hours-from-now` / `days-from-now` | `n:i64` | `:wat::time::Instant` — pre-composed sugar; `(days-from-now 2)` ≡ `(from-now (Day 2))` (arc 097 slice 4) |
 | `:wat::core::i64::to-string` / `to-f64` | `n` | infallible — `:String` / `:f64` |
-| `:wat::core::f64::to-string` / `to-i64` | `x` | `:String` / `:Option<i64>` (NaN/inf/out-of-range → `:None`) |
-| `:wat::core::string::to-i64` / `to-f64` / `to-bool` | `s` | `:Option<T>` (unparseable → `:None`) |
+| `:wat::core::f64::to-string` / `to-i64` | `x` | `:String` / `(Option :- [i64])` (NaN/inf/out-of-range → `:None`) |
+| `:wat::core::string::to-i64` / `to-f64` / `to-bool` | `s` | `(Option :- [T])` (unparseable → `:None`) |
 | `:wat::core::bool::to-string` | `b` | `"true"` / `"false"` |
 | `:wat::holon::Vector` | type | First-class materialized algebra vector (arc 052). Usable as struct field, parameter, return type, container element. Equality is bit-exact; for graded similarity reach for `cosine` / `presence?` / `simhash` |
 | `:wat::holon::encode` | `holon` | `:wat::holon::Vector` — explicit materialization of a HolonAST into a Vector at the ambient d (arc 052). Lets users hold a Vector value, store it in caches, or pass it to Vector-tier algebra |
-| `:wat::core::Bytes` | type alias | Substrate-general byte buffer (arc 062). `:wat::core::Bytes ≡ :Vec<u8>` — alias resolves structurally, both forms work at call sites. The canonical name for the wire-format / storage / transmission shape used by `vector-bytes` (arc 061) and future crypto/IO/hashing/network ops |
+| `:wat::core::Bytes` | type alias | Substrate-general byte buffer (arc 062). `:wat::core::Bytes ≡ (:Vec :- [u8])` — alias resolves structurally, both forms work at call sites. The canonical name for the wire-format / storage / transmission shape used by `vector-bytes` (arc 061) and future crypto/IO/hashing/network ops |
 | `:wat::core::Bytes::to-hex` | `bs` | `:String` — lowercase hex, no separators (arc 063). Deterministic; same Bytes always produce the same String |
-| `:wat::core::Bytes::from-hex` | `s` | `:Option<wat::core::Bytes>` — parse hex back to Bytes (arc 063). Mixed case accepted; empty string → empty Bytes; `:None` on odd length, non-hex character, or `0x` prefix |
+| `:wat::core::Bytes::from-hex` | `s` | `(:Option :- [wat::core::Bytes])` — parse hex back to Bytes (arc 063). Mixed case accepted; empty string → empty Bytes; `:None` on odd length, non-hex character, or `0x` prefix |
 | `:wat::core::show` | `v` | `:String` — polymorphic value rendering (arc 064). Per-Value-variant dispatch: primitives render as their wat literal form (`true` / `42` / `"hello"` / `:foo`); Option/Result/Vec/Tuple recurse; substrate compounds (Vector/Struct/Enum/handles) render as type-named summaries. Used internally by `assert-eq` to populate failure payload's actual/expected; exposed for diagnostic prints and future assertions |
 | `:wat::holon::vector-bytes` | `vec` | `:wat::core::Bytes` — serialize a Vector to a portable byte buffer (arc 061). 4-byte dim header + 2-bit-per-cell ternary packing. The wire format for the cryptographic-substrate transmission protocol |
-| `:wat::holon::bytes-vector` | `bs` | `:Option<wat::holon::Vector>` — deserialize the wire format (arc 061). Takes `:wat::core::Bytes`. `:None` on short / truncated / dim-mismatched / corrupt input |
+| `:wat::holon::bytes-vector` | `bs` | `(:Option :- [wat::holon::Vector])` — deserialize the wire format (arc 061). Takes `:wat::core::Bytes`. `:None` on short / truncated / dim-mismatched / corrupt input |
 | `:wat::holon::coincident?` | `a b` | `:bool` — polymorphic over HolonAST or Vector inputs in either position (arc 061 widened from HolonAST-only); `(1 - cosine) < coincident-floor` at encoded d |
-| `:wat::holon::simhash` | `holon` or `vector` | `:i64` — Charikar SimHash, polymorphic over HolonAST or Vector input (arcs 051 + 052). Cosine-similar inputs share keys; the position-allocator for content-addressed caches. Composes with `:rust::lru::LruCache<i64,V>` for bidirectional engram lookup |
-| `:wat::core::>` / `=` / `<` / `>=` / `<=` | `a b` | polymorphic comparison/equality, always returns `:bool`. **`=` / `not=`**: cross-numeric (i64+f64) accepted (value comparison). **`<` / `>` / `<=` / `>=`**: same-type ONLY — they are a relational check-side intrinsic (Stone 245.8, the sibling of `=`); cross-type (i64 vs f64) is rejected at check by unify failure → `TypeMismatch`. Ordering reaches the **orderable class**: `i64`, `u8`, `f64`, `String`, `bool`, `keyword`, `Instant`, `Duration`, and recursively `Vector<T>`, `Tuple<T…>`, `Option<T>`, `Result<T,E>`, `HolonVector` (bit-exact lex). Not orderable: `HashMap`, `HashSet`, user enums, `Struct`, `HolonAST`, unit — rejected at check. **`=` / `not=` are DEEP STRUCTURAL over all EDN/value data** (arc 238): scalars, `Vector`/`List`/`Tuple`, `Option`/`Result`/`Enum`, `Struct`, **records** (type-strict: same class + same fields), **`HashMap`/`HashSet`** (order-independent), `Instant`, `Duration`, `HolonAST`/`WatAST`. Opaque values (functions, channels/handles, ML state, io readers) are NOT value-comparable — `=` on those is a `TypeMismatch` (honest refusal, not a silent answer) |
+| `:wat::holon::simhash` | `holon` or `vector` | `:i64` — Charikar SimHash, polymorphic over HolonAST or Vector input (arcs 051 + 052). Cosine-similar inputs share keys; the position-allocator for content-addressed caches. Composes with `(:rust::lru::LruCache :- [i64 V])` for bidirectional engram lookup |
+| `:wat::core::>` / `=` / `<` / `>=` / `<=` | `a b` | polymorphic comparison/equality, always returns `:bool`. **`=` / `not=`**: cross-numeric (i64+f64) accepted (value comparison). **`<` / `>` / `<=` / `>=`**: same-type ONLY — they are a relational check-side intrinsic (Stone 245.8, the sibling of `=`); cross-type (i64 vs f64) is rejected at check by unify failure → `TypeMismatch`. Ordering reaches the **orderable class**: `i64`, `u8`, `f64`, `String`, `bool`, `keyword`, `Instant`, `Duration`, and recursively `(Vector :- [T])`, `(Tuple :- [T…])`, `(Option :- [T])`, `(Result :- [T E])`, `HolonVector` (bit-exact lex). Not orderable: `HashMap`, `HashSet`, user enums, `Struct`, `HolonAST`, unit — rejected at check. **`=` / `not=` are DEEP STRUCTURAL over all EDN/value data** (arc 238): scalars, `Vector`/`List`/`Tuple`, `Option`/`Result`/`Enum`, `Struct`, **records** (type-strict: same class + same fields), **`HashMap`/`HashSet`** (order-independent), `Instant`, `Duration`, `HolonAST`/`WatAST`. Opaque values (functions, channels/handles, ML state, io readers) are NOT value-comparable — `=` on those is a `TypeMismatch` (honest refusal, not a silent answer) |
 | `:wat::core::i64::>` / `=` / `<` / `>=` / `<=` / `f64::*` | `a b` | typed strict comparison/equality (arc 050) — rejects cross-type at the checker; opt-in for type-guard discipline |
 | `:wat::Record/same-data?` | `a b` | `:bool` — record DATA equality, **type-BLIND** (arc 237 S-C.2d): true iff two records hold the same field-name→value map, *regardless of class or flavor*. Contrast with `=`, which is type-strict (`Point[0,0] = Coord[0,0]` → false, but `same-data?` → true). Name-keyed: different field names → false. The reach for "do these hold the same data, whatever they are?" |
-| `:wat::io::IOReader/read-line` | `stdin` | `:Option<String>` |
+| `:wat::io::IOReader/read-line` | `stdin` | `(:Option :- [String])` |
 | `:wat::io::IOWriter/print` | `handle string` | `:()` |
-| `:wat::kernel::spawn-thread` | `body` | `:wat::kernel::Thread<I,O>` — body is a fn `((in :Receiver<I>) (out :Sender<O>) -> :())` (arc 114) |
-| `:wat::kernel::Thread/input` | `thr` | `:rust::crossbeam_channel::Sender<I>` — parent → thread |
-| `:wat::kernel::Thread/output` | `thr` | `:rust::crossbeam_channel::Receiver<O>` — thread → parent |
-| `:wat::kernel::Thread/join-result` | `thr` | `:Result<:(), :Vec<wat::kernel::ThreadDiedError>>` — death-as-data; chain shape (arcs 060/113/114) |
-| `:wat::kernel::make-bounded-channel` | `:T n` | `:(Sender<T>, Receiver<T>)` |
-| `:wat::kernel::make-unbounded-channel` | `:T` | `:(Sender<T>, Receiver<T>)` |
-| `:wat::kernel::send` | `sender value` | `:wat::kernel::Sent` ≡ `:Option<()>` — `(Some ())` on sent, `:None` on disconnect |
-| `:wat::kernel::recv` / `try-recv` | `receiver` | `:Option<T>` |
-| `:wat::kernel::select` | `receivers` | `:(i64, Option<T>)` |
+| `:wat::kernel::spawn-thread` | `body` | `(:wat::kernel::Thread :- [I O])` — body is a fn `((in (:Receiver :- [I])) (out (:Sender :- [O])) -> :())` (arc 114) |
+| `:wat::kernel::Thread/input` | `thr` | `(:rust::crossbeam_channel::Sender :- [I])` — parent → thread |
+| `:wat::kernel::Thread/output` | `thr` | `(:rust::crossbeam_channel::Receiver :- [O])` — thread → parent |
+| `:wat::kernel::Thread/join-result` | `thr` | `(:Result :- [:wat::core::nil (:Vec :- [wat::kernel::ThreadDiedError])])` — death-as-data; chain shape (arcs 060/113/114) |
+| `:wat::kernel::make-bounded-channel` | `:T n` | `:((Sender :- [T]), (Receiver :- [T]))` |
+| `:wat::kernel::make-unbounded-channel` | `:T` | `:((Sender :- [T]), (Receiver :- [T]))` |
+| `:wat::kernel::send` | `sender value` | `:wat::kernel::Sent` ≡ `(:Option :- [:wat::core::nil])` — `(Some ())` on sent, `:None` on disconnect |
+| `:wat::kernel::recv` / `try-recv` | `receiver` | `(:Option :- [T])` |
+| `:wat::kernel::select` | `receivers` | `:(i64, (Option :- [T]))` |
 | `:wat::kernel::drop` | `handle` | `:()` |
 | `:wat::kernel::stopped?` / `sigusr1?` / ... | `()` | `:bool` |
 | `:wat::kernel::HandlePool::new` / `pop` / `finish` | various | pool ops |
 | `:wat::kernel::println` | `v` | `:wat::core::nil` — EDN-encode `v`, emit to stdout (arc 170 slice 1f-α) |
 | `:wat::kernel::eprintln` / `epprintln` | `v` | `:wat::core::nil` (type) — EDN-encode `v`, emit to stderr, **then terminate the program non-zero** (a dying declaration; not a benign log — arc 278) |
-| `:wat::kernel::readln` | `(-> :T)` | `:T` — read one EDN-decoded value of type `:T` from stdin |
+| `:wat::kernel::readln` | `[:-> :T]` | `:T` — read one EDN-decoded value of type `:T` from stdin |
 | `:wat::lru::spawn` (wat-lru) | `capacity count reporter cadence` | `(HandlePool, Driver)` |
 | `:wat::lru::LocalCache::new` / `put` / `get` (wat-lru) | various | per-program LRU |
 | `:wat::holon::Atom` | `<value>` | `:wat::holon::HolonAST` — polymorphic dispatcher (arc 057). Primitive → matching typed leaf; HolonAST → opaque-identity wrap; quoted wat form → structural lowering. New code: prefer the named siblings `:wat::holon::leaf` (primitives) and `:wat::holon::from-watast` (quoted forms) — one verb per move (arc 065). Polymorphism preserved for back-compat. |
@@ -3616,71 +3641,71 @@ spell out. For each: the path, the arity, and what it produces.
 | `:wat::holon::cosine` / `dot` | `a b` | `:f64` — polymorphic over HolonAST or Vector inputs (arc 052); mixed (one AST, one Vector) is permitted and the AST encodes at the Vector's d |
 | `:wat::holon::presence?` | `target reference` | `:bool` — cosine > presence-floor |
 | `:wat::holon::coincident-explain` | `a b` | `:wat::holon::CoincidentExplanation` (arc 069) — diagnostic record bundling cosine, floor, dim, sigma, the predicate result, and `min-sigma-to-pass` (smallest sigma at which the pair would coincide). Polymorphic over HolonAST/Vector. Use when a coincidence judgement disagrees with expectation |
-| `:wat::holon::eval-coincident?` | `a-ast b-ast` | `:Result<:bool, EvalError>` (arc 026) |
-| `:wat::holon::eval-edn-coincident?` | `a-src b-src` | `:Result<:bool, EvalError>` |
-| `:wat::holon::eval-digest-coincident?` | `<8 args>` | `:Result<:bool, EvalError>` — 4 per side, SHA-256 |
-| `:wat::holon::eval-signed-coincident?` | `<12 args>` | `:Result<:bool, EvalError>` — 6 per side, Ed25519 |
+| `:wat::holon::eval-coincident?` | `a-ast b-ast` | `(:Result :- [:bool EvalError])` (arc 026) |
+| `:wat::holon::eval-edn-coincident?` | `a-src b-src` | `(:Result :- [:bool EvalError])` |
+| `:wat::holon::eval-digest-coincident?` | `<8 args>` | `(:Result :- [:bool EvalError])` — 4 per side, SHA-256 |
+| `:wat::holon::eval-signed-coincident?` | `<12 args>` | `(:Result :- [:bool EvalError])` — 6 per side, Ed25519 |
 | `:wat::form::matches?` | `subject (:TYPE-NAME clause ...)` | `:bool` — Clara-style single-item pattern matcher (arc 098). Substrate-recognized special form. Subject can be any value; `:None` / `(Some non-struct)` / non-Struct / wrong-type-Struct return `false` (Clara semantics — no error). Clauses are bindings or constraints. Bindings `(= ?var :field)` push `?var → field-value` into scope for subsequent clauses. Constraint vocabulary inside clauses (no `:wat::core::` prefix needed): `=` `<` `>` `<=` `>=` `not=` `and` `or` `not` `where`. The `where` escape evaluates an arbitrary wat expression in the binding scope; must return `:bool`. Logic variables (`?var`) lex natively per the wat tokenizer. Pattern grammar errors surface at type-check |
 | `:wat::core::quote` | `<form>` | `:wat::WatAST` — captures AST as data |
-| `:wat::core::forms` | `f1 f2 ... fn` | `:Vec<wat::WatAST>` — variadic quote |
+| `:wat::core::forms` | `f1 f2 ... fn` | `(:Vec :- [wat::WatAST])` — variadic quote |
 | `:wat::core::macroexpand` | `<quoted-form>` | `:wat::WatAST` — expands until non-macro head (arc 030) |
 | `:wat::core::macroexpand-1` | `<quoted-form>` | `:wat::WatAST` — peels exactly one layer (arc 030) |
 | `:wat::core::conj` | `vec item` | new collection — polymorphic over HashSet/Vec (arc 025) |
-| `:wat::core::concat` | `v1 v2 ...` | `:Vec<T>` — variadic Vec concatenation; ≥1 arg; all args same `Vec<T>` (arc 059) |
+| `:wat::core::concat` | `v1 v2 ...` | `(:Vec :- [T])` — variadic Vec concatenation; ≥1 arg; all args same `(Vec :- [T])` (arc 059) |
 | `:wat::core::assoc` | `coll k v` | new collection — polymorphic over HashMap/Vec (arc 025) |
-| `:wat::core::dissoc` | `m k` | `:HashMap<K,V>` — new map without `k`; missing key is no-op (arc 058) |
-| `:wat::core::get` | `coll k-or-i` | `:Option<T>` — polymorphic over HashMap/HashSet/Vec (arc 025) |
+| `:wat::core::dissoc` | `m k` | `(:HashMap :- [K V])` — new map without `k`; missing key is no-op (arc 058) |
+| `:wat::core::get` | `coll k-or-i` | `(:Option :- [T])` — polymorphic over HashMap/HashSet/Vec (arc 025) |
 | `:wat::core::contains?` | `coll k-or-i` | `:bool` — polymorphic over HashMap/HashSet/Vec (arc 025) |
-| `:wat::core::keys` | `m` | `:Vec<K>` — order unspecified; sort post-call for determinism (arc 058) |
-| `:wat::core::values` | `m` | `:Vec<V>` — order unspecified; sort post-call for determinism (arc 058) |
+| `:wat::core::keys` | `m` | `(:Vec :- [K])` — order unspecified; sort post-call for determinism (arc 058) |
+| `:wat::core::values` | `m` | `(:Vec :- [V])` — order unspecified; sort post-call for determinism (arc 058) |
 | `:wat::core::empty?` | `coll` | `:bool` — polymorphic over Vec/HashMap/HashSet (extended in arc 058) |
-| `:wat::eval-ast!` | `<wat-ast>` | `:Result<:T, :wat::core::EvalError>` (arc 102, polymorphic) — evaluates already-parsed AST (arc 028) and returns the bare terminal value; T unifies with the binding's annotated type. Same trust-the-caller discipline as `:wat::edn::read` / `:wat::eval-edn!`: caller annotates `T` with the type they expect (`:i64`, `:wat::holon::HolonAST`, a user struct, anything); type-mismatched downstream ops fail at runtime if the expectation is wrong. Reverts arc 066's `value_to_holon` HolonAST-wrap — the wrap was a workaround for a type-vs-runtime lie that arc 102 fixes at the type level instead. |
-| `:wat::eval-step!` | `<wat-ast>` | `:Result<wat::eval::StepResult, wat::core::EvalError>` — performs ONE call-by-value reduction at the leftmost-outermost redex (arc 068). Returns `StepNext form` when a rewrite happened (`form` is the next WatAST to feed back), `StepTerminal value` when this step reduced a redex (chain length ≥ 1), `AlreadyTerminal value` when the input was already a value-shape (arc 070; chain length 0 — `to-watast(holon)` round-trips, holon-constructor calls with all-canonical args, primitive literals). Effectful ops (`:wat::kernel::*`, `:wat::io::*`, `:wat::eval-*`, `:wat::load*`, `:wat::config::*`) refuse with `EvalError(kind="effectful-in-step")`; ops without a step rule yet refuse with `kind="no-step-rule"`. The substrate primitive backing BOOK Chapter 59's dual-LRU coordinate cache: every intermediate form is its own cache key |
+| `:wat::eval-ast!` | `<wat-ast>` | `(:Result :- [:T :wat::core::EvalError])` (arc 102, polymorphic) — evaluates already-parsed AST (arc 028) and returns the bare terminal value; T unifies with the binding's annotated type. Same trust-the-caller discipline as `:wat::edn::read` / `:wat::eval-edn!`: caller annotates `T` with the type they expect (`:i64`, `:wat::holon::HolonAST`, a user struct, anything); type-mismatched downstream ops fail at runtime if the expectation is wrong. Reverts arc 066's `value_to_holon` HolonAST-wrap — the wrap was a workaround for a type-vs-runtime lie that arc 102 fixes at the type level instead. |
+| `:wat::eval-step!` | `<wat-ast>` | `(:Result :- [wat::eval::StepResult wat::core::EvalError])` — performs ONE call-by-value reduction at the leftmost-outermost redex (arc 068). Returns `StepNext form` when a rewrite happened (`form` is the next WatAST to feed back), `StepTerminal value` when this step reduced a redex (chain length ≥ 1), `AlreadyTerminal value` when the input was already a value-shape (arc 070; chain length 0 — `to-watast(holon)` round-trips, holon-constructor calls with all-canonical args, primitive literals). Effectful ops (`:wat::kernel::*`, `:wat::io::*`, `:wat::eval-*`, `:wat::load*`, `:wat::config::*`) refuse with `EvalError(kind="effectful-in-step")`; ops without a step rule yet refuse with `kind="no-step-rule"`. The substrate primitive backing BOOK Chapter 59's dual-LRU coordinate cache: every intermediate form is its own cache key |
 | `:wat::eval::StepResult` | enum | `StepNext { form: :wat::WatAST }` / `StepTerminal { value: :wat::holon::HolonAST }` / `AlreadyTerminal { value: :wat::holon::HolonAST }` — three outcomes of a single reduction step (arc 068, arc 070). Match by full keyword path: `((:wat::eval::StepResult::StepNext next) ...)` / `((:wat::eval::StepResult::StepTerminal h) ...)` / `((:wat::eval::StepResult::AlreadyTerminal h) ...)` |
-| `:wat::eval::walk` | `<form> <init> <visit>` | `:Result<(:wat::holon::HolonAST, :A), :wat::core::EvalError>` — fold over the eval-step! chain (arc 070). Visitor fires once per coordinate with `(acc, form, step-result)` and returns `WalkStep<A>`: `Continue(acc')` keeps walking, `Skip(terminal, acc')` short-circuits with the caller's terminal. The substrate primitive that lifts the walker pattern proofs 015/016/017/018 each reimplemented |
-| `:wat::eval::WalkStep<A>` | enum | `Continue { acc: A }` / `Skip { terminal: :wat::holon::HolonAST, acc: A }` — what `:wat::eval::walk`'s visitor returns. Generic over `A` so the consumer's accumulator can be any type (cache, trace, counter, tier) |
+| `:wat::eval::walk` | `<form> <init> <visit>` | `(:Result :- [(:wat::holon::HolonAST, :A) :wat::core::EvalError])` — fold over the eval-step! chain (arc 070). Visitor fires once per coordinate with `(acc, form, step-result)` and returns `(WalkStep :- [A])`: `Continue(acc')` keeps walking, `Skip(terminal, acc')` short-circuits with the caller's terminal. The substrate primitive that lifts the walker pattern proofs 015/016/017/018 each reimplemented |
+| `:wat::eval::WalkStep :- [A]` | enum | `Continue { acc: A }` / `Skip { terminal: :wat::holon::HolonAST, acc: A }` — what `:wat::eval::walk`'s visitor returns. Generic over `A` so the consumer's accumulator can be any type (cache, trace, counter, tier) |
 | `:wat::eval-edn!` / `eval-file!` | `<source>` / `<path>` | parses+evaluates string or file |
 | `:wat::eval-digest-string!` / `eval-digest-file!` | `<src/path> <hex>` | SHA-256 verified eval |
 | `:wat::eval-signed-string!` / `eval-signed-file!` | `<src/path> <sig> <pk>` | Ed25519 verified eval |
 | `:wat::core::string::contains?` / `starts-with?` / `ends-with?` | `hay needle` | `:bool` |
 | `:wat::core::string::length` | `s` | `:i64` — char count |
 | `:wat::core::string::trim` | `s` | `:String` |
-| `:wat::core::string::split` / `join` | `hay sep` / `sep pieces` | `:Vec<String>` / `:String` |
+| `:wat::core::string::split` / `join` | `hay sep` / `sep pieces` | `(:Vec :- [String])` / `:String` |
 | `:wat::core::regex::matches?` | `pattern haystack` | `:bool` — unanchored |
 | `:wat::kernel::run-sandboxed` | `src stdin scope` | `:wat::kernel::RunResult` — wat stdlib define in `wat/kernel/sandbox.wat` (arc 105c), atop spawn-program |
 | `:wat::kernel::run-sandboxed-ast` | `forms stdin scope` | `:wat::kernel::RunResult` — same file, atop spawn-program-ast |
 | `:wat::kernel::run-sandboxed-hermetic-ast` | `forms stdin scope` | `:wat::kernel::RunResult` — forks a child via `:wat::kernel::fork-program-ast`; wat stdlib define in `wat/kernel/hermetic.wat` |
 | `:wat::kernel::pipe` | — | `:(IOWriter, IOReader)` — libc::pipe(2), PipeWriter first |
-| `:wat::kernel::spawn-program` | `src scope` | `:Result<:wat::kernel::Process<I,O>, :wat::kernel::StartupError>` — in-thread; arc 103a / 105a / 112 |
-| `:wat::kernel::spawn-program-ast` | `forms scope` | `:Result<:wat::kernel::Process<I,O>, :wat::kernel::StartupError>` — in-thread; arc 103a / 105a / 112 |
-| `:wat::kernel::fork-program` | `src scope` | `:wat::kernel::Process<I,O>` — libc::fork(2); arc 104b / 112 (ForkedChild retired in arc 112 slice 2a) |
-| `:wat::kernel::fork-program-ast` | `forms` | `:wat::kernel::Process<I,O>` — libc::fork(2); arc 104a / 112 |
-| `:wat::kernel::Process/join-result` | `proc` | `:Result<:(), :wat::kernel::ProcessDiedError>` — death-as-data wait verb; arc 112. Replaces `wait-child` returning `:i64` |
-| `:wat::kernel::process-send` | `proc value` | `:Result<:(), :wat::kernel::ProcessDiedError>` — typed value send to Process.stdin via EDN; arc 112 slice 2b |
-| `:wat::kernel::process-recv` | `proc` | `:Result<:Option<O>, :wat::kernel::ProcessDiedError>` — typed value recv from Process.stdout; arc 112 slice 2b |
+| `:wat::kernel::spawn-program` | `src scope` | `(:Result :- [(:wat::kernel::Process :- [I O]) :wat::kernel::StartupError])` — in-thread; arc 103a / 105a / 112 |
+| `:wat::kernel::spawn-program-ast` | `forms scope` | `(:Result :- [(:wat::kernel::Process :- [I O]) :wat::kernel::StartupError])` — in-thread; arc 103a / 105a / 112 |
+| `:wat::kernel::fork-program` | `src scope` | `(:wat::kernel::Process :- [I O])` — libc::fork(2); arc 104b / 112 (ForkedChild retired in arc 112 slice 2a) |
+| `:wat::kernel::fork-program-ast` | `forms` | `(:wat::kernel::Process :- [I O])` — libc::fork(2); arc 104a / 112 |
+| `:wat::kernel::Process/join-result` | `proc` | `(:Result :- [:wat::core::nil :wat::kernel::ProcessDiedError])` — death-as-data wait verb; arc 112. Replaces `wait-child` returning `:i64` |
+| `:wat::kernel::process-send` | `proc value` | `(:Result :- [:wat::core::nil :wat::kernel::ProcessDiedError])` — typed value send to Process.stdin via EDN; arc 112 slice 2b |
+| `:wat::kernel::process-recv` | `proc` | `(:Result :- [(:Option :- [O]) :wat::kernel::ProcessDiedError])` — typed value recv from Process.stdout; arc 112 slice 2b |
 | `:wat::kernel::ThreadDiedError/message` | `err` | `:String` — extracts msg regardless of variant; arc 105b |
 | `:wat::kernel::ThreadDiedError/to-failure` | `err` | `:wat::kernel::Failure` — preserves arc 064 actual/expected when assertion-payload-carrying; arc 105c |
 | `:wat::kernel::ProcessDiedError/message` | `err` | `:String` — sibling of ThreadDiedError/message for Process subjects; arc 112 |
 | `:wat::kernel::ProcessDiedError/to-failure` | `err` | `:wat::kernel::Failure` — sibling of ThreadDiedError/to-failure; arc 112 |
 | `:wat::kernel::assertion-failed!` | `message actual expected` | `:()` — panics with AssertionPayload |
-| `:wat::stream::spawn-producer` | `producer-fn` | `:Stream<T>` |
-| `:wat::stream::from-receiver` | `rx handle` | `:Stream<T>` |
-| `:wat::stream::map` / `filter` / `inspect` | `stream f` | `:Stream<U>` / `:Stream<T>` / `:Stream<T>` |
-| `:wat::stream::flat-map` | `stream f` | `:Stream<U>` |
-| `:wat::stream::chunks` | `stream size` | `:Stream<Vec<T>>` |
-| `:wat::stream::take` | `stream n` | `:Stream<T>` |
-| `:wat::stream::with-state` | `stream init step flush` | `:Stream<U>` |
+| `:wat::stream::spawn-producer` | `producer-fn` | `(Stream :- [T])` |
+| `:wat::stream::from-receiver` | `rx handle` | `(Stream :- [T])` |
+| `:wat::stream::map` / `filter` / `inspect` | `stream f` | `(Stream :- [U])` / `(Stream :- [T])` / `(Stream :- [T])` |
+| `:wat::stream::flat-map` | `stream f` | `(Stream :- [U])` |
+| `:wat::stream::chunks` | `stream size` | `(Stream :- [(Vec :- [T])])` |
+| `:wat::stream::take` | `stream n` | `(Stream :- [T])` |
+| `:wat::stream::with-state` | `stream init step flush` | `(Stream :- [U])` |
 | `:wat::stream::for-each` | `stream handler` | `:()` — terminal |
-| `:wat::stream::collect` / `fold` | `stream` / `stream init f` | `:Vec<T>` / `:Acc` |
+| `:wat::stream::collect` / `fold` | `stream` / `stream init f` | `(:Vec :- [T])` / `:Acc` |
 | `:wat::test::deftest` | `name body` | registers named zero-arg RunResult fn (arc 031 — inherits config) |
 | `:wat::test::make-deftest` | `name (forms ...)` | registers a deftest-shaped macro with default-prelude forms (arc 029) |
-| `:wat::test::assert-eq<T>` | `actual expected` | `:()` — panics on mismatch |
+| `:wat::test::assert-eq :- [T]` | `actual expected` | `:()` — panics on mismatch |
 | `:wat::test::assert-contains` | `haystack needle` | `:()` |
 | `:wat::test::assert-stdout-is` / `assert-stderr-matches` | `run-result expected` / `result regex` | `:()` |
 | `:wat::test::run` / `run-in-scope` | `src stdin` / `src stdin scope` | `:wat::kernel::RunResult` — string-entry |
 | `:wat::test::run-ast` | `forms stdin` | `:wat::kernel::RunResult` — AST-entry |
 | `:wat::test::run-hermetic-ast` | `forms stdin` | `:wat::kernel::RunResult` — AST-entry subprocess |
-| `:wat::test::program` | `f1 f2 ... fn` | `:Vec<wat::WatAST>` — macro → `:wat::core::forms` |
+| `:wat::test::program` | `f1 f2 ... fn` | `(:Vec :- [wat::WatAST])` — macro → `:wat::core::forms` |
 
 ---
 

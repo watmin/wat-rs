@@ -80,7 +80,7 @@ coincident-floor`). For the raw scalar, use `:wat::holon::cosine`
 (returns `:f64`).
 
 **Rust interop operational.** The `:rust::` namespace carries any
-consumer-registered Rust type. `:rust::lru::LruCache<K,V>` ships as a
+consumer-registered Rust type. `(:rust::lru::LruCache :- [K V])` ships as a
 default; `:wat::io::IOReader` / `IOWriter` are abstract types the CLI
 wraps real OS stdio in and the sandbox wraps StringIo in (arc 008);
 application crates layer their own (`:rust::rusqlite::`, `:rust::parquet::`,
@@ -106,7 +106,7 @@ assertion primitives with panic-and-catch semantics. `cargo test`
 **Capacity-guard arc operational.** `:wat::holon::Bundle` enforces
 Kanerva's per-frame capacity at dispatch time and returns
 `:wat::holon::BundleResult` (a typealias for
-`:Result<holon::HolonAST, :wat::holon::CapacityExceeded>`, arc 032);
+`(:wat::core::Result :- [:wat::holon::HolonAST :wat::holon::CapacityExceeded])`, arc 032);
 authors choose `:error` / `:panic` at startup via
 `:wat::config::set-capacity-mode!` — `:silent` and `:warn` retired
 in arc 037. Paired with two supporting forms that shipped in the
@@ -168,8 +168,10 @@ test --release` from `wat-rs/`.
 
 - [`lexer`] — s-expression tokenizer. `:` is the symbol-literal reader
   macro; internal `::` is Rust's path separator, allowed freely.
-  Paren-depth tracking handles `(…)` inside keyword bodies
-  (`:fn(T,U)->R`, `:(i64,String)`). UTF-8-correct via `char_indices`
+  Historically tracked paren-depth for keyword bodies to handle
+  `:fn(T,U)->R` and `:(i64,String)` — both spellings retired arc 109
+  (`:-`'s bracket form and `:->` replace them; see
+  `docs/WAT-CHEATSHEET.md` § 1). UTF-8-correct via `char_indices`
   (arc 008 caught a pre-existing bug and fixed it).
 - [`ast::WatAST`] — language-surface AST: `IntLit`, `FloatLit`,
   `BoolLit`, `StringLit`, `Keyword`, `Symbol(Identifier)`, `List`.
@@ -259,12 +261,13 @@ test --release` from `wat-rs/`.
 ## Rust interop
 
 wat programs reach into Rust through the `:rust::` namespace. A path like
-`:rust::lru::LruCache<String,i64>::new` names a method on a concrete Rust
-type; the wat runtime calls into the shim the consumer registered.
+`:rust::lru::LruCache::new` names a method on a concrete Rust
+type (`(:rust::lru::LruCache :- [String i64])` once K/V are pinned); the
+wat runtime calls into the shim the consumer registered.
 
 Namespaces are **fully qualified and honest**: a wat program names a Rust
 type by its full Rust path, not a short alias.
-`:rust::crossbeam_channel::Sender<T>`, not `:rust::Sender<T>`.
+`(:rust::crossbeam_channel::Sender :- [T])`, not `(:rust::Sender :- [T])`.
 `:wat::` and `:rust::` are sibling namespaces, both rooted at the colon,
 and a wat program declares which `:rust::*` paths it intends to use:
 
@@ -456,7 +459,7 @@ stderr, or failure) compose two stdlib forms:
           (:wat::core::define (:user::main ... -> :())
             (:wat::io::IOWriter/println stdout "hello-from-inside")))
         (:wat::core::vec :String)))
-     ((lines :Vec<String>) (:wat::kernel::RunResult/stdout r)))
+     ((lines (:wat::core::Vector :- [:wat::core::String])) (:wat::kernel::RunResult/stdout r)))
     (:wat::test::assert-eq (:wat::core::first lines) "hello-from-inside")))
 ```
 
@@ -516,11 +519,11 @@ consolidation; files live in `wat/holon/`):
   in one call: bare AST, edn-string, digest-verified,
   signed-verified).
 - Typealiases: `:wat::holon::Holons` (arc 033, for
-  `Vec<HolonAST>`); `:wat::holon::BundleResult` (arc 032, for
+  `(:wat::core::Vector :- [:wat::holon::HolonAST])`); `:wat::holon::BundleResult` (arc 032, for
   Bundle's Result return).
 
 Streams (arcs 003 + 004 + 006):
-- `:wat::stream::Stream<T>` typealias, `spawn-producer`,
+- `:wat::stream::Stream :- [T]` typealias, `spawn-producer`,
   `from-receiver`, `map`, `filter`, `inspect`, `chunks` (rewritten on
   `with-state`), `flat-map`, `take`, `for-each`, `collect`, `fold`,
   `with-state` (the Mealy-machine substrate — every stateful stage
@@ -535,13 +538,15 @@ Test harness (arcs 007 + 010 + 012 + 029 + 031):
   factory whose default-prelude carries shared loads/helpers across
   tests), `program`.
 
-Caches (external — `crates/wat-lru/`; arc 013 externalization):
-- `:wat::lru::LocalCache<K,V>` — L1. Three thin wrappers
+Caches (external — `crates/wat-lru/`; arc 013 externalization; ⚠
+this crate path does not exist in the current tree — flagged for a
+content-accuracy pass, out of this stone's scope):
+- `(:wat::lru::LocalCache :- [K V])` — L1. Three thin wrappers
   over `:rust::lru::LruCache`. Single-thread-owned. Fastest memoization.
   Ships in the `wat-lru` sibling crate; consumers add `wat-lru =
   "..."` to `Cargo.toml` + `deps: [wat_lru]` to their `wat::main!`.
 - `:wat::lru::*` — L2 shared cache (multi-client service program;
-  spawn via `:wat::lru::spawn<K,V,G>`). Driver thread owns its
+  spawn via `:wat::lru::spawn :- [K V G]`). Driver thread owns its
   `LocalCache`; clients send tagged requests with an embedded reply
   channel. Also in `wat-lru`.
 
@@ -568,9 +573,9 @@ comfortably above the noise floor at the chosen `d`.
 **Return type (every mode).**
 
 ```
-:wat::holon::Bundle : :Vec<holon::HolonAST>
+:wat::holon::Bundle : (:wat::core::Vector :- [:wat::holon::HolonAST])
                    -> :wat::holon::BundleResult
-                   = :Result<holon::HolonAST, :wat::holon::CapacityExceeded>
+                   = (:wat::core::Result :- [:wat::holon::HolonAST :wat::holon::CapacityExceeded])
 ```
 
 `:wat::holon::BundleResult` is a typealias (arc 032) — same shape,
@@ -596,9 +601,9 @@ auto-generated `/cost` and `/budget` accessors.
 **Canonical program shape** uses `:wat::core::try`:
 
 ```scheme
-(:wat::core::define (:app::build
-                    (items :Vec<holon::HolonAST>)
-                    -> :wat::holon::BundleResult)
+(:wat::core::defn :app::build
+  [items <- (:wat::core::Vector :- [:wat::holon::HolonAST])]
+  -> :wat::holon::BundleResult
   (Ok (:wat::core::try (:wat::holon::Bundle items))))
 ```
 
@@ -611,7 +616,7 @@ wrap — `:wat::holon::Ngram`, `:wat::holon::Bigram`,
 Every type identifier in wat source shows its full namespace. Every
 `Value` variant in the Rust enum encodes its path via `__` separator.
 Errors read exactly like user-written declarations: *expected
-`:rust::crossbeam_channel::Sender<String>`, got `:i64`*. No short names
+`(:rust::crossbeam_channel::Sender :- [:wat::core::String])`, got `:wat::core::i64`*. No short names
 hiding what a value is or where a type comes from.
 
 Two sibling namespaces, both rooted at the colon:
@@ -756,7 +761,7 @@ caller-demanded per `stdlib-as-blueprint` discipline:
   hook renders `cargo test`-shaped output gated on `RUST_BACKTRACE`.
   Still open from arc 007: parallel test execution, `:rust::*`
   capability allowlist, richer assertion payloads via generic
-  `show<T>`. Each waits for demand.
+  `show :- [T]`. Each waits for demand.
 - **UX pass on the trading lab.** When holon-lab-trading rewrites its
   wat programs against this crate, every ceremonial shape it hits is
   a candidate for a substrate follow-up — the same way arc 010's

@@ -1,4 +1,4 @@
-;; Does a param typed Fn(I)->O accept a 2-arg fn? And can a param be typed generically
+;; Does a param typed [I :-> O] accept a 2-arg fn? And can a param be typed generically
 ;; (a bare type-param W) to accept any-arity fn, then reified via fn-forms?
 
 (:wat::core::defn :probe::takes-1 [f <- :wat::core::Fn(wat::core::i64)->wat::core::i64] -> :wat::core::i64

@@ -3,9 +3,9 @@
 ;; The third and last of the parametric-service gates, and the only one where a type param is
 ;; load-bearing IN THE PAYLOAD:
 ;;
-;;   service-parametric.wat             `Box<T>`      — T lives in the STATE; the messages carry
-;;   service-parametric-two-params.wat  `Pair<K,V>`     no field of type T/K/V at all.
-;;   THIS FILE                          `PCache<K,V>` — K and V are FIELD types of the request
+;;   service-parametric.wat             `(Box :- [T])`      — T lives in the STATE; the messages carry
+;;   service-parametric-two-params.wat  `(Pair :- [K V])`     no field of type T/K/V at all.
+;;   THIS FILE                          `(PCache :- [K V])` — K and V are FIELD types of the request
 ;;                                                      and the response. The WIRE carries them.
 ;;
 ;; ── what was broken ─────────────────────────────────────────────────────────────────────────
@@ -19,16 +19,16 @@
 ;; `(defenum :…::pcache-svc::Op :wat::enum::Pure :Get [req <- :…::PCache::GetRequest])`.
 ;;
 ;; ── what closes it ──────────────────────────────────────────────────────────────────────────
-;; `Op`/`Reply` inherit `surface.type_params`, and `:satisfies :S<K,V>` is the macro's CHANNEL:
+;; `Op`/`Reply` inherit `surface.type_params`, and `:satisfies (:S :- [K V])` is the macro's CHANNEL:
 ;; the clause is split into base + type-ARGS (`proto-base` / `proto-tp`, the same split helper
 ;; `fqdn-base`/`fqdn-tp` has used since the parametric `defservice` landed) and the args re-attach
-;; at every TYPE position — `Op<K,V>`, `Reply<K,V>`, the `Peer'`/`Listener'`/`Address'` wire types,
+;; at every TYPE position — `(Op :- [K V])`, `(Reply :- [K V])`, the `Peer'`/`Listener'`/`Address'` wire types,
 ;; the `<service>::Op` superset, the `Locus/launch` head, and the derived message names. Name
 ;; positions (ctors, accessors, patterns, `derive` edges, the `retag-op'` runtime discriminator)
 ;; stay at the BASE, because a runtime `type_path` has no params to carry.
 ;;
 ;; ── what this gate proves that a `--check` cannot ───────────────────────────────────────────
-;; A surface can DECLARE a parametric protocol and still have a dead wire. So the `<K,V>` service
+;; A surface can DECLARE a parametric protocol and still have a dead wire. So the `K,V`-parametric service
 ;; is STOOD UP — on the THREAD locus and on the PROCESS locus, same expectation, one token apart —
 ;; a client `connect'`s to `Handle/addr`, and THREE probes run down one connection. K=`String` and
 ;; V=`i64`, two DIFFERENT concrete types (a gate where they coincided could not tell a correct
@@ -42,8 +42,8 @@
 ;;                                      one. Without this token, (3) would be indistinguishable
 ;;                                      from "the wall gave up on parametric messages".
 ;;   [1 2]|33|7                     (3) the BOUNDARY LINE, measured rather than claimed: a
-;;                                      `Vector<K>` slot carrying integers is ACCEPTED. wat erases
-;;                                      type params, so inside `serve<K,V>` there is no `K` to
+;;                                      `(Vector :- [K])` slot carrying integers is ACCEPTED. wat erases
+;;                                      type params, so inside `serve :- [K V]` there is no `K` to
 ;;                                      check against; the server does not pretend to a check it
 ;;                                      cannot make. K is pinned STATICALLY, at the caller.
 ;;
@@ -54,7 +54,7 @@
 ;; ── the message-params rule (checker-locked) ────────────────────────────────────────────────
 ;; A parametric serviceable surface's `:messages` must be declared parametric in EXACTLY the
 ;; surface's params. RETIRED 2026-08-21 — each message declares only what IT consumes, so and
-;; `GetResponse<K,V>` names both — but the rule holds even for a message that names none of them
+;; `(GetResponse :- [K V])` names both — but the rule holds even for a message that names none of them
 ;; (see the two sibling gates), because the derivation is a MACRO: freeze runs `expand_all` before
 ;; `register_types`, so at the moment `wat/service.wat` builds those names the type registry is
 ;; still empty and it cannot ask a message how many params it has. It can only re-attach the
@@ -109,7 +109,7 @@
 ;; .wat) and that is load-bearing here, not stylistic: it is where K and V are PINNED. Inlined,
 ;; `connect'`'s argument would still have an open K at the point the §7 purity wall inspects the
 ;; peer's Reply type, and an unresolved type var is not pure. Naming the instantiation — a
-;; two-level type-arg nest, `Address'<PCache::Op<String,i64>,PCache::Reply<String,i64>>` — is the
+;; two-level type-arg nest, `(Address' :- [(PCache::Op :- [String i64]) (PCache::Reply :- [String i64])])` — is the
 ;; honest fix AND a second assertion in its own right: the whole parametric protocol has to be
 ;; spellable by hand, at concrete args, for a caller to hold one.
 (:wat::core::defn :wat-tests::pcache/dial
@@ -181,9 +181,9 @@
               (:wat::edn::read
                 "#wat-tests.PCache/GetRequest {:probes [\"alpha\" \"beta\"] :limit \"seven\"}")))
      ;; (3) THE TYPE-PARAM POSITION IS OPAQUE — and this is the honest, measured limit of the
-     ;;     guarantee, not a claim in a comment. `probes` is declared `Vector<K>`; here it
+     ;;     guarantee, not a claim in a comment. `probes` is declared `(Vector :- [K])`; here it
      ;;     arrives holding INTEGERS while the client that sent it is typed at K=String. The
-     ;;     server ACCEPTS it, because wat erases type params: inside `serve<K,V>` there is no
+     ;;     server ACCEPTS it, because wat erases type params: inside `serve :- [K V]` there is no
      ;;     `K` to check against, so refusing would be pretending to a check it cannot make.
      ;;     K is pinned STATICALLY at the caller instead — no well-typed program can reach here.
      ;;     `echo` therefore comes back holding those INTEGERS, and the assertion below records
@@ -211,7 +211,7 @@
 ;; is the half that could not be inferred from the thread tier: a forked child re-registers the
 ;; surface from the shipped `service-forms` bundle and the payload crosses as ENCODED EDN, so the
 ;; request record is DECODED against its declared field types on the way in (`edn_to_typed_value`)
-;; instead of arriving as a verbatim in-process value. `probes <- Vector<K>` is decoded there
+;; instead of arriving as a verbatim in-process value. `probes <- (Vector :- [K])` is decoded there
 ;; too — the same type-param position the sanitization wall faces — so this test is what proves
 ;; the codec carries a parametric payload, not just that the thread tier never had to.
 (:wat::test::deftest :wat-tests::service::parametric-messages-round-trip-on-process

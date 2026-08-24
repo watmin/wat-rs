@@ -37,19 +37,19 @@
 ;;   (e) Vectors used as defenum field lists and serve/method/start params: the checker
 ;;       does NOT recurse into Vector nodes' children (only into List-headed forms).
 
-;; ── Outcome<S,R> — the handler result (the gen_server callback-return model) ──────────
+;; ── Outcome :- [S R] — the handler result (the gen_server callback-return model) ──────
 ;;
-;; A handler is a PURE transform `(s <- :State, …in) -> :Outcome<:State, <fqdn>::Reply>`.
+;; A handler is a PURE transform `(s <- :State, …in) -> (:Outcome :- [:State <fqdn>::Reply])`.
 ;; It returns what to DO: reply-and-continue (C.2), and later (C.4) no-reply / stop. This
 ;; is OTP gen_server's `{reply,R,S} | {noreply,S} | {stop,…}` re-derived as a wat tagged sum
 ;; (named — NOT a bare `(:Tuple state reply)`; a structured result with distinct roles is a
 ;; record/sum, per the ADT identity, not an order-convention pair). Generic + stdlib: every
 ;; service reuses it (not minted per-service). C.4 GROWS it by ADDING variants — no reshape.
-;; Arc 278 Stone 2-A (self-scheduling) — GROW to <S,R,O>: a third type param O (the
+;; Arc 278 Stone 2-A (self-scheduling) — GROW to :- [S R O]: a third type param O (the
 ;; service's concrete Op type — the synthesized `<service>::Op` superset). Only the
 ;; arm-carrying variants use it (phantom for Reply/Stop/NoReply). A handler schedules a
 ;; self-message by emitting `Alarm`s: `after` a Duration, deliver `op` (an `<service>::Op`
-;; value — armed into the service's own `select'` set as a `Peer<Never,O>` timer).
+;; value — armed into the service's own `select'` set as a `(Peer :- [Never O])` timer).
 ;;   :NoReply       — a cast / a fired self-op with no client to reply to (OTP {noreply,S}).
 ;;   :ReplyAndArm   — reply to the client AND arm one/more timers.
 ;;   :NoReplyAndArm — no reply, arm one/more timers (a re-arming heartbeat).
@@ -207,8 +207,8 @@
      ;;     `<Op>Request` records (:messages stay concrete) and internal ops are nullary,
      ;;     so no type param can reach it.
      ;;   defn DECLARATIONS whose signature names a parametric companion → PARAMETRIC.
-     ;;     `::service-forms` ([] -> Vector<WatAST>) and the per-op CLIENT methods
-     ;;     (`[c <- Peer<S::Op,S::Reply>  req <- S::<Op>Request] -> RecvOutcome<…>`)
+     ;;     `::service-forms` ([] -> (Vector :- [WatAST])) and the per-op CLIENT methods
+     ;;     (`[c <- (Peer :- [S::Op S::Reply])  req <- S::<Op>Request] -> (RecvOutcome :- […])`)
      ;;     name no companion → concrete.
      ;;   CONSTRUCTOR / ACCESSOR / VARIANT / runtime-name-string keywords (`::State'`,
      ;;     `::State/durable`, `::Admin::Init`, `"<fqdn>::serve"`) → BASE, no params:
@@ -443,14 +443,14 @@
      ;; ⛔ RETIRED 2026-08-21 — "THE MESSAGE CONVENTION" said a parametric surface's `:messages` are
      ;; parametric in ALL of the surface's params "even when a given message uses only some (or none)
      ;; of them", and called itself checker-locked in `synthesize_surface_protocol`. BOTH HALVES WERE
-     ;; FALSE. Nothing locked it: `wat/cache.wat:169` declares `Cache<K,V>` and `:171` declares
-     ;; `Cache::GetRequest<K>` — one param, not all — and the stdlib loads and passes.
+     ;; FALSE. Nothing locked it: `wat/cache.wat:169` declares `(Cache :- [K V])` and `:171` declares
+     ;; `(Cache::GetRequest :- [K])` — one param, not all — and the stdlib loads and passes.
      ;;
      ;; THE RULE, builder 2026-08-21: a surface declares its own params; each MESSAGE declares only
      ;; what IT consumes, and the surface's list is the union rather than a quota each must restate.
      ;; `cache.wat` already reads exactly that way and is the exemplar:
-     ;;   Cache<K,V>  ⇒  Cache::GetRequest<K>   (keys)      Cache::GetResult<V>   (values)
-     ;;                  Cache::GetResponse<V>  (values)    Cache::PutRequest<K,V> (Entry<K,V>, both)
+     ;;   (Cache :- [K V])  ⇒  (Cache::GetRequest :- [K])   (keys)      (Cache::GetResult :- [V])   (values)
+     ;;                        (Cache::GetResponse :- [V])  (values)    (Cache::PutRequest :- [K V]) ((Entry :- [K V]), both)
      ;; Enforced by the param-spec consumption wall: a declared param no member type mentions is
      ;; illegal. `[[feedback_a_comment_can_ship_a_gap_as_a_law]]` — this comment asserted a lock
      ;; that did not exist, and the corpus it cited as conformant was the deviation.
@@ -476,7 +476,7 @@
                       (:wat::core::Vector :wat::WatAST))
      ;; A type ARG may be a concrete FQDN (renders as a Keyword — `keyword/to-string` strips its
      ;; leading colon) or a bare type-VARIABLE (`K`/`V`/`T` — renders as a Symbol, never
-     ;; colon-spelled at all; `ast-name` reads it as-is). `Cache<K,V>` exercises exactly this:
+     ;; colon-spelled at all; `ast-name` reads it as-is). `(Cache :- [K V])` exercises exactly this:
      ;; both args are type-vars, not FQDNs.
      ;;
      ;; STONE-exactly-one-call-position — `proto-args-str`/`proto-tp` (the `<a,b,…>`
@@ -777,13 +777,13 @@
                     `(:wat::core::defstruct ~state-ty-decl :- [~@state-tp-syms] ~state-field-vec))
 
      ;; ── Arc 278 S4d: :peers — the s2s dependency DAG + cross-fork manifest ──────────
-     ;; A :satisfies service that DIALS another service holds a client Peer<S::Op,S::Reply>
+     ;; A :satisfies service that DIALS another service holds a client (Peer :- [S::Op S::Reply])
      ;; in a ROOT :ephemeral field and calls S's surface methods on it. :peers [:S1 …] is the
      ;; EXPLICIT declaration of those dialed surfaces.
      ;;
      ;; BIJECTION (set equality, by surface): the SET of :peers surfaces MUST EQUAL the SET of
      ;; root-ephemeral peer-field surfaces. A peer field is any root :ephemeral field whose type
-     ;; is `:wat::kernel::Peer<S::Op,S::Reply>` — its surface is S (the first type-arg minus the
+     ;; is `(:wat::kernel::Peer :- [S::Op S::Reply])` — its surface is S (the first type-arg minus the
      ;; trailing `::Op`). :peers entry with no matching ephemeral peer field → macro-error (missing);
      ;; ephemeral peer field whose surface is not in :peers → macro-error (extra/undeclared).
      ;; Two ephemeral peers of the same surface → one :peers entry (set equality). Only ROOT
@@ -802,7 +802,7 @@
                         "defservice: :peers needs a value")
                       empty-vec)
      peers-children (:wat::core::ast->children peers-node)
-     ;; peers-surfaces: Vector<String> — the declared peer surface fqdns (keyword/to-string each).
+     ;; peers-surfaces: (Vector :- [String]) — the declared peer surface fqdns (keyword/to-string each).
      peers-surfaces (:wat::core::foldl
                       (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String])
                                        pk  <- :wat::WatAST]
@@ -810,7 +810,7 @@
                         (:wat::core::conj acc (:wat::core::keyword/to-string pk)))
                       (:wat::core::Vector :wat::core::String)
                       peers-children)
-     ;; ephemeral-peer-surfaces: Vector<String> — the surface of each ROOT ephemeral peer field.
+     ;; ephemeral-peer-surfaces: (Vector :- [String]) — the surface of each ROOT ephemeral peer field.
      ;; ephemeral-children is the flat token vec [name <- :Type name <- :Type …]; the type node
      ;; of field i is at index i*3+2.
      ;;
@@ -889,7 +889,7 @@
                                         (:wat::core::string::concat es " …] (the explicit s2s dependency DAG)"))))))))))
                       true
                       ephemeral-peer-surfaces)
-     ;; peer-forms-calls: Vector<WatAST> of `(:S::surface-forms)` call nodes — one per :peers surface.
+     ;; peer-forms-calls: (Vector :- [WatAST]) of `(:S::surface-forms)` call nodes — one per :peers surface.
      ;; Spliced into the service-forms concat (below) so each dialed surface's forms cross the fork.
      ;; DESIGN-STONE the-child-needs-the-entry-not-the-library: each contributor to
      ;; service-forms ships only when the child cannot already have it. A `:wat::`-rooted
@@ -963,7 +963,7 @@
      ;; it, just an under-arity mismatch — `parse_type_form`'s structural `Parametric{head,args}`
      ;; enforces that where the old angle-string round-trip apparently never got exercised
      ;; end-to-end (`wat --check` on `wat/cache.wat` hit exactly this: `:wat::cache::lru-svc/grant`
-     ;; and `Handle/addr` both expect the 3-arg `Handle<K,V,T>` `handle-bare-name` is the RECEIVER
+     ;; and `Handle/addr` both expect the 3-arg `(Handle :- [K V T])` `handle-bare-name` is the RECEIVER
      ;; type for). `handle-bare-name` now carries the full `handle-tp-syms` arg list — byte-
      ;; identical to `handle-name-ann` — closing that gap.
      handle-ty-str    (:wat::core::string::interpolate "{b}::Handle" :b fqdn-base)
@@ -988,9 +988,9 @@
                      (:wat::core::string::interpolate "{b}::Handle'" :b fqdn-base))
      ;; Parametric type keywords for serve's typed params. Arc 293 S2 — Op/Reply are the
      ;; PROTOCOL's (proto-str), so a :satisfies service's serve/client peers share the
-     ;; surface's uniform Address<S::Op,S::Reply>. (proto-str = fqdn-str for the :ops path.)
-     ;; Peer<proto::Reply,proto::Op>
-     ;; Listener<proto::Op,proto::Reply>
+     ;; surface's uniform (Address :- [S::Op S::Reply]). (proto-str = fqdn-str for the :ops path.)
+     ;; (Peer :- [proto::Reply proto::Op])
+     ;; (Listener :- [proto::Op proto::Reply])
      ;; identity 2c: listener-ty / addr-ty / client-peer-ty are ANNOTATION-only — mint the
      ;; reference FORM directly.
      ;;
@@ -1016,12 +1016,12 @@
      proto-op-ty-ann    `(~proto-op-base-kw :- [~@proto-args])
      proto-reply-ty-ann `(~proto-reply-base-kw :- [~@proto-args])
      listener-ty   `(:wat::kernel::Listener :- [~proto-op-ty-ann ~proto-reply-ty-ann])
-     ;; Vector<Peer<proto::Reply,proto::Op>>
-     ;; Address<proto::Op,proto::Reply,T> — T is Handle/Status's transport marker (293.W.2f).
+     ;; (Vector :- [(Peer :- [proto::Reply proto::Op])])
+     ;; (Address :- [proto::Op proto::Reply T]) — T is Handle/Status's transport marker (293.W.2f).
      addr-ty       `(:wat::kernel::Address :- [~proto-op-ty-ann ~proto-reply-ty-ann ~(:wat::core::symbol-node transport-param)])
-     ;; Client Peer<proto::Op,proto::Reply> — connect'(Address<Op,Reply>) → Peer<Op,Reply>.
+     ;; Client (Peer :- [proto::Op proto::Reply]) — connect'((Address :- [Op Reply])) → (Peer :- [Op Reply]).
      ;; This is the client-side peer (sends Op, receives Reply); distinct from
-     ;; peer-ty (Peer<Reply,Op>) which is the server-side peer (accepts via listener').
+     ;; peer-ty ((Peer :- [Reply Op])) which is the server-side peer (accepts via listener').
      client-peer-ty `(:wat::kernel::Peer :- [~proto-op-ty-ann ~proto-reply-ty-ann])
 
      ;; ── arc 291 3a-ii-α: lineage protocol types ──────────────────────────────
@@ -1032,7 +1032,7 @@
      ;;   :Started [addr <- :addr-ty]    — startup address handoff (replaces raw addr)
      ;;   :Stopped   [state <- :state-ty]  — stop response (3a-ii-β uses this)
      ;;
-     ;; self-peer type in child-main-form: ThreadSelfPeer<Status, Admin>
+     ;; self-peer type in child-main-form: (ThreadSelfPeer :- [Status Admin])
      ;;   child sends Status up, receives Admin down.
      ;;   Arc 293.W.2d: thread-tier uses ThreadSelfPeer (any I/O); process-tier `apply`
      ;;   bypasses the type check so the same serve fn works for both tiers.
@@ -1047,7 +1047,7 @@
      ;;   naming per-service types.
      ;; Arc 109 β-ii-c — Admin's own field set: :Init/:Resume both carry `init-params-vec`
      ;; verbatim (the user's :init signature, already available here — β-ii-a′); :Stop/
-     ;; :Hibernate are nullary and :AllowPeer/:DenyPeer carry `Vector<i64>` (concrete), so
+     ;; :Hibernate are nullary and :AllowPeer/:DenyPeer carry `(Vector :- [i64])` (concrete), so
      ;; neither contributes a param. Searching `init-params-vec` alone is therefore exact.
      admin-tp-syms  (:wat::core::type-params-used-in fqdn-tp-syms init-params-vec)
      admin-ty-str   (:wat::core::string::interpolate "{b}::Admin" :b fqdn-base)
@@ -1062,7 +1062,7 @@
                         admin-base-kw
                         `(~admin-base-kw :- [~@admin-tp-syms]))
      admin-ty-runtime admin-ty-ann
-     ;; 293.W.2f — Status<T> so Started's addr-ty T is a real type parameter
+     ;; 293.W.2f — (Status :- [T]) so Started's addr-ty T is a real type parameter
      ;; (not a rigid leftover name). Process launch unifies T:=Wire; thread T:=Shared.
      status-ty-str (:wat::core::string::interpolate "{b}::Status" :b fqdn-base)
      status-ty-decl  (:wat::core::keyword/from-string status-ty-str)
@@ -1077,10 +1077,10 @@
      status-ty-ann     `(~status-base-kw :- [~@handle-tp-syms])
      status-ty-runtime status-ty-ann
      ;; arc 291 3a-ii-β: the CHILD's lineage self-peer — sends Status UP, recvs Admin DOWN.
-     ;; serve binds `self` to this (distinct from the client peer-ty Peer<Reply,Op>).
-     ;; Arc 293.W.2d: serve's self is ThreadSelfPeer<Status,Admin> for thread-tier.
+     ;; serve binds `self` to this (distinct from the client peer-ty (Peer :- [Reply Op])).
+     ;; Arc 293.W.2d: serve's self is (ThreadSelfPeer :- [Status Admin]) for thread-tier.
      ;; Process-tier calls serve via `apply` (Locus/launch child-main-form), which bypasses
-     ;; the type check — the process-tier Peer<Status,Admin> from self-peer is accepted at
+     ;; the type check — the process-tier (Peer :- [Status Admin]) from self-peer is accepted at
      ;; runtime without a static mismatch.
      ;; identity 2c STOP-2 — CLOSED, same finding as status-ty-ann above (the resolver guard
      ;; in `src/resolve/walk.rs` already covers the "signature captured as a first-class value"
@@ -1239,7 +1239,7 @@
      ;; (field-for-field, so `retag-op'` embeds them) PLUS the service's internal leading-dash
      ;; ops (nullary). The WIRE stays <proto>::Op — a client can only construct surface ops; a
      ;; client op is RE-TAGGED into its <service>::Op counterpart at the Message arm. selectables
-     ;; (the poll' set) is typed with the superset O; the O flows into `Outcome<S,R,O>`/`Alarm<O>`.
+     ;; (the poll' set) is typed with the superset O; the O flows into `(Outcome :- [S R O])`/`(Alarm :- [O])`.
      service-op-str  (:wat::core::string::interpolate "{b}::Op" :b fqdn-base)
      service-op-kw   (:wat::core::keyword/from-string service-op-str)
      ;; Arc 278 the parametric protocol — the SUPERSET enum's DECLARED name carries the service's
@@ -1260,10 +1260,10 @@
                          `(~service-op-kw :- [~@fqdn-tp-syms]))
      service-op-decl-kw-decl service-op-kw
      service-op-decl-kw-runtime service-op-ty-ann
-     ;; selectable-peer-ty: Peer<proto::Reply, service::Op> (the poll' element — superset O).
+     ;; selectable-peer-ty: (Peer :- [proto::Reply service::Op]) (the poll' element — superset O).
      ;; Arc 109 ③ — reference FORM, structurally off `proto-reply-ty-ann` / `service-op-ty-ann`.
      selectable-peer-ty `(:wat::kernel::Peer :- [~proto-reply-ty-ann ~service-op-ty-ann])
-     ;; selectable-vec-ty: Vector<Peer<proto::Reply, service::Op>> — the BARE peer vector, the
+     ;; selectable-vec-ty: (Vector :- [(Peer :- [proto::Reply service::Op])]) — the BARE peer vector, the
      ;; shape `:wat::kernel::poll`/`:wat::kernel::serve-dispatch-op` require (both are Rust
      ;; intrinsics that downcast every element to a real Peer opaque; neither can see through a
      ;; wrapper). Still used as the PROJECTED view built fresh each iteration (`peers-only-expr`
@@ -1272,7 +1272,7 @@
      ;; — mints the reference FORM directly.
      selectable-vec-ty `(:wat::core::Vector :- [~selectable-peer-ty])
      ;; ── arc 278 the call context: the caller id travels WITH its peer (STOP-2) ──────────────
-     ;; selectable-entry-ty: (i64, Peer<R,O>). Arc 109 ③ — the OLD native tuple-STRING spelling
+     ;; selectable-entry-ty: (i64, (Peer :- [R O])). Arc 109 ③ — the OLD native tuple-STRING spelling
      ;; `:(T1,T2)` embedded `selectable-peer-ty-str`'s `<…>`, now illegal. `parse_type_form`'s
      ;; `raw_head == "wat::core::Tuple"` special-case (src/types.rs, ~5042) produces the
      ;; IDENTICAL `TypeExpr::Tuple` structurally off `(:wat::core::Tuple :- [args])` — so this
@@ -1305,11 +1305,11 @@
                         -> ~selectable-vec-ty
                       (:wat::core::conj ~peers-acc-sym (:wat::core::second ~peers-t-sym)))
      peers-only-expr `(:wat::core::foldl ~peers-fold-fn (:wat::core::Vector ~selectable-peer-ty) selectables)
-     ;; alarm-o-ty: Alarm<service::Op> — the arm-foldl binder type.
+     ;; alarm-o-ty: (Alarm :- [service::Op]) — the arm-foldl binder type.
      ;; identity 2c: ANNOTATION-only (arm-fold's alarm param type) — mints the reference FORM,
      ;; structurally off `service-op-ty-ann` (Arc 109 ③ retired the angle-string concat).
      alarm-o-ty      `(:wat::service::Alarm :- [~service-op-ty-ann])
-     ;; The superset variant items: a flat [variant-kw field-vec …] Vector<WatAST> spliced into
+     ;; The superset variant items: a flat [variant-kw field-vec …] (Vector :- [WatAST]) spliced into
      ;; the defenum. A surface op → `:Pascal [req <- :<proto>::<Pascal>Request]` (mirrors the
      ;; surface Op variant's field, so `retag-op'` embeds field-for-field); an internal `-op` →
      ;; `:-Pascal []` (nullary). Dash preserved SCOPED here (strip `-`, kebab->pascal, re-prepend
@@ -1364,8 +1364,8 @@
      ;; ── Arc 278 reconciliation (b): surface-Op <: service-Op subtype edge ──────────────
      ;; The serve loop's `selectables` param is typed with the SUPERSET `<service>::Op`
      ;; (`selectable-peer-ty` above), but CLIENT peers speak the SURFACE `<proto>::Op` — a
-     ;; caller-constructed `Peer<proto::Reply, proto::Op>` must be assignable into the
-     ;; superset-O `Vector<Peer<proto::Reply, service::Op>>`. `service::Op` is a genuine
+     ;; caller-constructed `(Peer :- [proto::Reply proto::Op])` must be assignable into the
+     ;; superset-O `(Vector :- [(Peer :- [proto::Reply service::Op])])`. `service::Op` is a genuine
      ;; superset (every surface variant embedded field-for-field + the internal `-op`s), and
      ;; `retag-op'` (wat/service.wat:1080) re-tags a client's surface op into its service-Op
      ;; counterpart at dispatch — so a surface-Op peer soundly satisfies a superset-Op slot
@@ -1540,9 +1540,9 @@
                           let-bindings  (:wat::core::with-children param-vec binding-items)
                           ;; the ARM fn — folds each Alarm into `selectables` as an `after` timer at
                           ;; the service's OWN tier (env-grab own-kind → both loci). alarm.op is a
-                          ;; concrete <service>::Op value → the timer is Peer<Never,O>, joins poll'.
+                          ;; concrete <service>::Op value → the timer is (Peer :- [Never O]), joins poll'.
                           ;; arc 278 the call context — `selectables`' element is now
-                          ;; Tuple<i64,Peer<R,O>> (STOP-2: id travels WITH its peer, one vector,
+                          ;; (Tuple :- [i64 (Peer :- [R O])]) (STOP-2: id travels WITH its peer, one vector,
                           ;; never a second one keyed by position), so a timer needs an id slot
                           ;; too, purely to keep the vector's element type uniform. `-1` is a
                           ;; SENTINEL, never a real caller id (real ids are minted >= 0 in the
@@ -1553,18 +1553,18 @@
                           ;; convention) — so nothing ever asks this sentinel for one.
                           arm-acc-sym   (:wat::core::symbol-node "acc")
                           arm-alarm-sym (:wat::core::symbol-node "alarm")
-                          ;; `after` is honestly typed `Peer<Never,O>` (it can never RECEIVE a
+                          ;; `after` is honestly typed `(Peer :- [Never O])` (it can never RECEIVE a
                           ;; Reply — arc 278 Stone 2's own comment: "after's honest uninhabited
-                          ;; send-type"). `assignable`'s Peer<Never,_> <: Peer<Reply,_> widening
+                          ;; send-type"). `assignable`'s (Peer :- [Never _]) <: (Peer :- [Reply _]) widening
                           ;; (src/check.rs, the "SAME-head parametric" branch) fires for a BARE
                           ;; Peer-vs-Peer compare, but `unify` recurses into Tuple elements
-                          ;; WITHOUT re-entering `assignable` — so `(i64,Peer<Never,O>)` does not
-                          ;; widen to `(i64,Peer<Reply,O>)` once nested inside the tuple (proven by
+                          ;; WITHOUT re-entering `assignable` — so `(i64,(Peer :- [Never O]))` does not
+                          ;; widen to `(i64,(Peer :- [Reply O]))` once nested inside the tuple (proven by
                           ;; running `--check` and reading the TypeMismatch: touching that is a
                           ;; src/check.rs change, outside this strike's blast radius). Route the
-                          ;; timer peer through a one-element `Vector<Peer<Reply,O>>` first — THAT
+                          ;; timer peer through a one-element `(Vector :- [(Peer :- [Reply O])])` first — THAT
                           ;; conj DOES hit the working bare-Peer widening — then `first` it back out;
-                          ;; the checker now reads it at `Peer<Reply,O>` before it ever reaches the
+                          ;; the checker now reads it at `(Peer :- [Reply O])` before it ever reaches the
                           ;; Tuple ctor. Values are unaffected: Peer's type params are erased at
                           ;; runtime (this file's own comment elsewhere: "params are erased in a
                           ;; runtime type_path") — this is a check-time-only detour.
@@ -1706,7 +1706,7 @@
                               ;; target-driven (`reconstruct_record` uses the declared fields for names
                               ;; and order only; the declared `fty` is never compared to the decoded
                               ;; value). So `#dos.Bag/PutRequest {:items [1 2 3]}` against
-                              ;; `items <- Vector<String>` was accepted verbatim on BOTH tiers, the
+                              ;; `items <- (Vector :- [String])` was accepted verbatim on BOTH tiers, the
                               ;; handler used the field at its declared type, and the service DIED FOR
                               ;; EVERYONE — a second, innocent client could not even `connect'`. That is
                               ;; a denial of service, and it is what this guard pulls out by the root:
@@ -1741,8 +1741,8 @@
                               ;; deliberately: it is a RUNTIME argument (`:wat::edn::validate`
                               ;; reads it, evaluates the registry lookup, and walks the DECLARED
                               ;; field types), not a type position the checker reads; and inside a
-                              ;; generic `serve<K,V>` the params are erased, so re-attaching
-                              ;; `<K,V>` would hand the walker the letters `K` and `V` — no more
+                              ;; generic `serve :- [K V]` the params are erased, so re-attaching
+                              ;; `:- [K V]` would hand the walker the letters `K` and `V` — no more
                               ;; information than the bare alias name already carries.
                               ;; `edn_to_typed_value` follows a `TypeDef::Alias` unconditionally
                               ;; (src/edn_shim.rs) and treats a type-VARIABLE position as opaque,
@@ -1797,7 +1797,7 @@
      ;; arc 278 the call context — `next-id` is the NEW 5th param: the stable monotonic
      ;; conn-id counter, threaded as pure state (no clock, no entropy, no global — the
      ;; ONE pinned contract decision). `selectables` is now `selectable-entry-vec-ty`
-     ;; (Tuple<i64,Peer> — the id travels WITH its peer, STOP-2), not the bare peer vector.
+     ;; ((Tuple :- [i64 Peer]) — the id travels WITH its peer, STOP-2), not the bare peer vector.
      serve-params `[self        <- ~lineage-peer-ty
                     l           <- ~listener-ty
                     selectables <- ~selectable-entry-vec-ty
@@ -1908,7 +1908,7 @@
                        (:wat::kernel::serve-dispatch-op ~peers-only-expr
                          ;; Arc 278 the parametric protocol — TYPE-position spellings on both
                          ;; sides: `infer_retag_op` reads arg[2] as this form's RESULT TYPE, and
-                         ;; the arms below dispatch over the instantiated `<service>::Op<K,V>`.
+                         ;; the arms below dispatch over the instantiated `(<service>::Op :- [K V])`.
                          ;; `eval_retag_op` canonicalizes both to their base names (params are
                          ;; erased in a runtime `type_path`). Monomorphic ⇒ unchanged.
                          (:wat::core::match (:wat::kernel::retag-op op ~proto-op-ty-ann ~service-op-decl-kw-runtime)
@@ -1963,12 +1963,12 @@
                          (~serve-name self l (:wat::std::list::remove-at selectables idx) next-id state))))
 
      ;; ── Arc 293 S2: client methods for :impls (over the surface's protocol) ─────────────
-     ;; `(defn <fqdn>/<op> [c <- Peer<S::Op,S::Reply>  req <- <S>::<Op>Request] -> <S>::<Op>Response
+     ;; `(defn <fqdn>/<op> [c <- (Peer :- [S::Op S::Reply])  req <- <S>::<Op>Request] -> <S>::<Op>Response
      ;;    (let [_ (send' c (<S>::Op::<Op> req))  r (recv' c)]
      ;;      (match r ((<S>::Reply::<Op> resp) resp) …)))
      ;; The client fn is SERVICE-namespaced (<fqdn>/<op>) — the SURFACE-namespaced name <S>/<op>
      ;; is already the surface's method-dispatch stub (defsurface registers it; receiver = a Store
-     ;; satisfier). The blind/uniform side is the shared Op/Reply protocol + Address<S::Op,S::Reply>
+     ;; satisfier). The blind/uniform side is the shared Op/Reply protocol + (Address :- [S::Op S::Reply])
      ;; type; the surface method <S>/<op> becomes the blind entry once a satisfier extend-type wires
      ;; it to this concrete client fn (S4). Request/response records are the surface's own
      ;; (user-declared `<S>::<Op>Request` / `<S>::<Op>Response` — the S1/gRPC naming convention).
@@ -2022,7 +2022,7 @@
                                                 :b proto-base :op-str op-str)))
                           client-resp-ty  `(~client-resp-base-kw :- [~@proto-args])
                           ;; arc 278 the recv'-outcome wall — the CLIENT-FACING return type is
-                          ;; `RecvOutcome<<Op>Response>` (a matchable value, never a raise).
+                          ;; `(RecvOutcome :- [<Op>Response])` (a matchable value, never a raise).
                           ;; identity 2c: ANNOTATION-only (client method's return type) — mints
                           ;; the reference FORM, structurally off `client-resp-ty` above.
                           recv-ret-ty     `(:wat::kernel::RecvOutcome :- [~client-resp-ty])
@@ -2057,8 +2057,8 @@
                                             (:wat::core::string::concat proto-base
                                               (:wat::core::string::interpolate "::{op-pascal}Response::RequestTooLarge" :op-pascal op-pascal)))
                           ;; arc 278 the recv'-outcome wall — recv' returns a matchable
-                          ;; RecvOutcome<Reply>, never a raise. This client method RE-WRAPS it into a
-                          ;; `RecvOutcome<<Op>Response>` the caller faces as a VALUE (we are ADT; no
+                          ;; (RecvOutcome :- [Reply]), never a raise. This client method RE-WRAPS it into a
+                          ;; `(RecvOutcome :- [<Op>Response])` the caller faces as a VALUE (we are ADT; no
                           ;; try/catch, no raise). CLIENT role: on ::Message, unwrap the reply variant
                           ;; to its Response and re-wrap as ::Message (the inner `_` arm stays for a
                           ;; GENUINE misroute — an off-protocol variant — which IS a real protocol
@@ -2340,7 +2340,7 @@
      ;;   (let [b    (listener' locus Op Reply)              ; listener' accepts an abstract :Locus
      ;;         l    (Bound/listener b)
      ;;         addr (Bound/address b)
-     ;;         svc  (:wat::spawn::Locus/launch locus l (Vector Peer<Reply,Op>) state0
+     ;;         svc  (:wat::spawn::Locus/launch locus l (Vector (Peer :- [Reply Op])) state0
      ;;                (keyword/from-string "<fqdn>::serve"))]  ; the protocol builds the per-tier prog
      ;;     (Handle svc addr)))
      ;;
@@ -2352,7 +2352,7 @@
      ;; extend-type, zero edit here.
      ;;
      ;; Hygiene for start-body:
-     ;;   `lr` is the let binder for the Launched<S,R> value → symbol-node.
+     ;;   `lr` is the let binder for the (Launched :- [S R]) value → symbol-node.
      ;;   `locus`, `state0` are value references (start's params) → fine as literals.
      ;; start-params `[locus <- :Locus  state0 <- ~state-ty]` → Vector inner → checker skips it.
      ;;
@@ -2360,7 +2360,7 @@
      ;; start calls `(Locus/launch :- [Op Reply …] …)` with EXPLICIT type-args (arc-232 dep) so
      ;; the impl's (listener' self :S :R) resolves S=Op, R=Reply. STONE-exactly-one-call-position —
      ;; the head is the bare keyword; the binder rides as a call-site sibling, not name-embedded.
-     ;; launch returns Launched<Op,Reply>{handle,address}; start unwraps into Handle.
+     ;; launch returns (Launched :- [Op Reply]){handle,address}; start unwraps into Handle.
      lr-sym        (:wat::core::symbol-node "lr")
      ;; arc 170 closure #6 — binds `(:wat::kernel::call-site)` once in start/resume's own
      ;; body, so the ps label carries the CALLER's source position (which start brought this
@@ -2410,7 +2410,7 @@
      cm-shipcause-sym (:wat::core::symbol-node "shipcause")
      cm-st-sym   (:wat::core::symbol-node "st")
      ;; arc 291 3a-ii-α: child-main-form uses the lineage protocol.
-     ;; self-peer: Peer<Status, Admin>
+     ;; self-peer: (Peer :- [Status Admin])
      ;;   child sends Status::Started(addr) UP, receives Admin DOWN.
      ;; The send' wraps addr in Status::Started (was: raw addr).
      ;; The recv' gets Admin; dispatch-admin applies to it (was: init applied to raw ship).
@@ -2424,8 +2424,8 @@
                           ;; succeeding and the owner's later connect' getting a bare ECONNREFUSED.
                           ;; Arc 278 the parametric protocol — the TYPE-position spellings.
                           ;; `listener'` types the `Bound`, whose `Address` flows into
-                          ;; `Status::Started` — a `Status<K,V>` variant, so its addr slot is
-                          ;; `Address<Op<K,V>,Reply<K,V>>` and a BARE `Address<Op,Reply>` does
+                          ;; `Status::Started` — a `(Status :- [K V])` variant, so its addr slot is
+                          ;; `(Address :- [(Op :- [K V]) (Reply :- [K V])])` and a BARE `(Address :- [Op Reply])` does
                           ;; not unify with it. In this generated child `:user::main` the params
                           ;; are FREE type vars (exactly as they already are in the sibling
                           ;; `(self-peer ~status-ty ~admin-ty)` below), which is what the child
@@ -2476,9 +2476,9 @@
                             0
                             ~cm-st-sym [])))
      ;; The transport-agnostic service-forms defn: Op/Reply/records/serve + agnostic child
-     ;; main. Emitted as `(defn :<fqdn>::service-forms [] -> Vector<WatAST> (forms …))`.
+     ;; main. Emitted as `(defn :<fqdn>::service-forms [] -> (Vector :- [WatAST]) (forms …))`.
      ;; A 0-arg fn so the checker can type-check call sites: `(:my::counter::service-forms)`
-     ;; returns Vector<WatAST>. Registered into sym.functions at step 6 via
+     ;; returns (Vector :- [WatAST]). Registered into sym.functions at step 6 via
      ;; preregister_fn_defs_in_do, so the checker sees it before checking start-fn.
      ;; The ProcessOpts launch arm receives the Vector value (the runtime evaluates the
      ;; call before dispatch, so it arrives as the actual Vec).
@@ -2510,7 +2510,7 @@
                           ~child-main-form))
      ;; ── Arc 278 S4c: the surface OWNS its protocol; SHIP it. ──────────────────────
      ;; The satisfied surface's `<S>::surface-forms` carrier (emitted by defsurface in Rust) is
-     ;; a Vector<WatAST> of the surface's own forms (its :messages records/enums + the defsurface
+     ;; a (Vector :- [WatAST]) of the surface's own forms (its :messages records/enums + the defsurface
      ;; that re-synthesizes ::Op/::Reply at the child's fresh startup). Concat it AHEAD of this
      ;; service's own forms so a forked child resolves the protocol its serve loop references.
      ;; proto-str = the surface fqdn (`:satisfies` is mandatory; `:ops` is retired), so the carrier
@@ -2547,7 +2547,7 @@
      ;; (`& [… ]` is a defn-macro idiom; defclause's argspec rejects a vector after `&`;
      ;; a generated defclause inside this `do` is also invisible to the top-level
      ;; defclause preregister). Public `start` stays a kwargs macro. Three positional
-     ;; impls (ThreadOpts → Handle<Shared>, ProcessOpts → Handle<Wire>, Locus residual)
+     ;; impls (ThreadOpts → (Handle :- [Shared]), ProcessOpts → (Handle :- [Wire]), Locus residual)
      ;; so K,V infer from init args; the macro picks the impl from the `:locus` AST.
      ;; Abstract-locus (a symbol / `Locus`-typed value) is the residual — T stays unknown.
      start-impl-name (:wat::core::keyword/from-string
@@ -2843,13 +2843,13 @@
 
      ;; ── C.3: Handle STRUCT ───────────────────────────────────────────────────────
      ;; (defstruct <fqdn>::Handle
-     ;;   [handle <- Peer<Admin,Status>
-     ;;    addr   <- :wat::kernel::Address<fqdn::Op,fqdn::Reply>])
+     ;;   [handle <- (Peer :- [Admin Status])
+     ;;    addr   <- (:wat::kernel::Address :- [fqdn::Op fqdn::Reply])])
      ;; arc 291 3a-ii-β: handle is the owner-only lineage peer (admin channel).
-     ;; Peer<Admin,Status> — owner sends Admin (down), receives Status (up).
-     ;; Thread<Admin,Status> and Process<Admin,Status> both satisfy this field
+     ;; (Peer :- [Admin Status]) — owner sends Admin (down), receives Status (up).
+     ;; (Thread :- [Admin Status]) and (Process :- [Admin Status]) both satisfy this field
      ;; (send'/recv' intrinsics accept Thread|Process|Peer uniformly).
-     ;; addr carries the typed Address<Op,Reply> for client connect'.
+     ;; addr carries the typed (Address :- [Op Reply]) for client connect'.
      ;;
      ;; ★ A STRUCT, NOT A RECORD — arc 278 2026-08-03, builder-ruled: "they are
      ;; resources - they are not pure." BOTH fields are live: `handle` is a peer
@@ -2895,19 +2895,19 @@
                          (coordinate [~grantable-self-sym]
                            (:wat::core::ann-form (~handle-addr-name ~grantable-self-sym) :wat::kernel::Address)))
 
-     ;; ── arc 170 W1: auto-emit the Dialable<S,R> extend-type ───────────────────────
+     ;; ── arc 170 W1: auto-emit the Dialable :- [S R] extend-type ───────────────────
      ;; A SECOND, PARAMETRIC surface (wat/capability.wat) every <fqdn>::Handle also
      ;; satisfies, beside the flat Capability above. Where Capability/coordinate up-casts
      ;; to a bare Address (service-erased, for uniform grant/revoke), Dialable/coord
-     ;; returns the handle's own TYPED addr field directly — Address<proto::Op,proto::
-     ;; Reply> — so a wrong-service dial is a compile-time discrimination error. Mirrors
+     ;; returns the handle's own TYPED addr field directly — (Address :- [proto::Op proto::
+     ;; Reply]) — so a wrong-service dial is a compile-time discrimination error. Mirrors
      ;; the hand-proven extend-type in scratchpad/probe-c2-typed-coordinate.wat. proto-str
      ;; (not fqdn-str) matches addr-ty's own Op/Reply namespace (arc 293 S2, line ~472).
      dialable-ty `(:wat::capability::Dialable :- [~proto-op-ty-ann ~proto-reply-ty-ann])
      dialable-extend `(:wat::core::extend-type ~handle-bare-name ~dialable-ty
                          (coord [~grantable-self-sym] (~handle-addr-name ~grantable-self-sym)))
 
-     ;; ── arc 170 C2 D: auto-emit the THIRD, BODILESS TypedCapability<S,R> extend-type ─────
+     ;; ── arc 170 C2 D: auto-emit the THIRD, BODILESS TypedCapability :- [S R] extend-type ─
      ;; Registers the satisfaction EDGE only — no method bodies (that's the whole point: a
      ;; third re-declaration of coord/grant/revoke here would collide with grantable-extend/
      ;; dialable-extend's own bodies on the flat `<Type>/<method>` key, DuplicateDefine).

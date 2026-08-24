@@ -2,7 +2,7 @@
 ;;
 ;; The full user surface in one form: (bracket/uses (process) items work-fn :name val …) with RAW
 ;; `:name val` pairs (handles for the 7 services, values for the 5 data), SCRAMBLED order. Proves:
-;;  - Part A: the checker takes `Dialable<S,R>` → raw handles type-check; it coords services internally.
+;;  - Part A: the checker takes `(Dialable :- [S R])` → raw handles type-check; it coords services internally.
 ;;  - Part B: the macro parses + expands to `(let [coords (…kwargs-check :name val…)] (uses' …))`.
 ;;  - Part C: `uses'`'s grant-boot dispatches the heterogeneous `[(Tuple :name val) …]` per val
 ;;    (7 service handles granted, 5 data values skipped) — mixed service+data in ONE strike.

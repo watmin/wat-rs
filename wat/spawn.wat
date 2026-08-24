@@ -27,7 +27,7 @@
 
 ;; ── Arc 272 6c.2 — SocketAddressWire (the portable address capability record) ──
 ;; The portable form of a process-tier Address': minter-pid + autobind name bytes
-;; (as Vector<i64>, since wat has no byte scalar). Encodes as:
+;; (as (Vector :- [i64]), since wat has no byte scalar). Encodes as:
 ;;   #wat.kernel/Address #wat.kernel/SocketAddressWire {:minter-pid 4242 :name [1 2 3 4 5]}
 ;; The cap codec builds/reads this record; the connect gate verifies minter-pid.
 (:wat::core::defrecord :wat::kernel::SocketAddressWire
@@ -163,7 +163,7 @@
   ([locus <- :wat::spawn::ThreadOpts]  -> :wat::core::i64  (:wat::spawn::ThreadOpts/runner-count locus))
   ([locus <- :wat::spawn::ProcessOpts] -> :wat::core::i64  (:wat::spawn::ProcessOpts/runner-count locus)))
 
-;; ── ServiceEvent<I,O> — the poll' return type ───────────────────────────────
+;; ── ServiceEvent :- [I O] — the poll' return type ─────────────────────────
 ;;
 ;; Arc 209 Stone C0b.1b / C0b.2e-i-c.  A service `poll'` over `(self-peer, listener, peers)`
 ;; — the service multiplexer — returns one of five events:
@@ -189,7 +189,7 @@
 ;; Type params: I = the type the server SENDS to peers (peer's recv type);
 ;;              O = the type the server RECEIVES from peers (peer's send type);
 ;;              A = the type the server RECEIVES from the owner (admin ops).
-;; Mirror Peer'<I,O>: the accepted peer is Peer'<I,O>, message is O.
+;; Mirror (Peer' :- [I O]): the accepted peer is (Peer' :- [I O]), message is O.
 ;; Arc 291 3a-i: A is the self-peer's receive type (owner→service admin channel).
 ;;
 (:wat::core::defenum :wat::spawn::ServiceEvent :- [I O A] :wat::enum::Impure
@@ -202,9 +202,9 @@
   :Malformed  [idx   <- :wat::core::i64  cause <- :wat::kernel::Failure]   ;; arc 278: peer ALIVE, message undecodable — reply cause + keep serving
   :Rejected   [idx   <- :wat::core::i64  cause <- :wat::kernel::Failure])   ;; arc 278 Stone 1a: over-FOO (400-class) — reply cause (non-blocking) + EVICT + keep serving
 
-;; ── PoolMsg<D,I> — the universal pool wire message (arc 170 M1-pool) ──────────
+;; ── (PoolMsg :- [D I]) — the universal pool wire message (arc 170 M1-pool) ──
 ;;
-;; Every bracket pool runner recv's PoolMsg<D,I>, never a raw (i64,I) pair, so the
+;; Every bracket pool runner recv's (PoolMsg :- [D I]), never a raw (i64,I) pair, so the
 ;; SAME peer type carries the dial handshake AND the work stream — the one shape
 ;; that lets a tier-agnostic map-worker send both. `:Pure` — proven to cross the
 ;; wire by scratchpad/probe-m1-worker-setup.wat (a :Pure enum, Address' payload).
@@ -218,9 +218,9 @@
 ;;
 ;; The enum NAME is the wire tag (`#wat.bracket.PoolMsg/Setup`); the D/I type-params
 ;; are NOT in the tag. So the PARENT (map-worker) holds a type-ERASED
-;; `PoolMsg<Address',(i64,I)>` (bare Address' — derived per-handle from the locus's `:uses`
+;; `(PoolMsg :- [Address' (i64,I)])` (bare Address' — derived per-handle from the locus's `:uses`
 ;; field via each handle's `coordinate` method, keeping ProcessOpts non-parametric) while the
-;; CHILD's baked dial-runner holds the CONCRETE `PoolMsg<Address'<S,R>,I>` (S,R off the
+;; CHILD's baked dial-runner holds the CONCRETE `(PoolMsg :- [(Address' :- [S R]) I])` (S,R off the
 ;; work-fn's peer param). Same name ⇒ the wire round-trips; the Setup payload encodes as
 ;; SocketAddressWire either way. A thread/non-dial pool simply never sends :Setup (D stays
 ;; phantom).
@@ -238,7 +238,7 @@
 ;; ── arc 291 3a-ii-β: Thread'/Process' ARE Peer's ────────────────────────────
 ;; The owner-side spawn handle IS the parent end of the lineage channel — a peer.
 ;; send'/recv'/poll' already operate on it (process `launch` does `recv' svc`/`send' svc`);
-;; these derives make the TYPE model say so, so a locus-agnostic `Handle.handle <- Peer'<…>`
+;; these derives make the TYPE model say so, so a locus-agnostic `Handle.handle <- (Peer' :- […])`
 ;; field binds ANY spawn handle. N-LOCI-GENERAL: a future remote locus joins the peer family
 ;; with ONE more `derive` line — zero edits to the assignable rule, which is driven by THIS
 ;; derive graph (check.rs `assignable`, the Parametric<:Parametric arm). Never a 2-only assumption.
@@ -247,8 +247,8 @@
 
 ;; ── arc 293.W.2d / arc 278 — a wire-safe Peer' IS usable in-locus ────────────
 ;; THE LINE IS SHARED MEMORY OR NOT, and it is DIRECTIONAL:
-;;   ThreadSelfPeer'<S,R>  in-locus, ANY I/O   (the escape hatch for peers holding live handles)
-;;   Peer'<S,R>            wire-safe, PURE I/O only
+;;   (ThreadSelfPeer' :- [S R])  in-locus, ANY I/O   (the escape hatch for peers holding live handles)
+;;   (Peer' :- [S R])            wire-safe, PURE I/O only
 ;; `Peer'` is STRICTLY STRICTER, so it satisfies every constraint a `ThreadSelfPeer'` position
 ;; imposes — one derive states the relation the checker previously enumerated by hand at ~7
 ;; sites (check.rs 9835 / 10159 / 11091 / poll'-select' self / the 10176 error string).
@@ -272,31 +272,31 @@
 (:wat::core::derive :wat::kernel::Peer :wat::kernel::ThreadSelfPeer)
 
 ;; ── Shared / Wire — phantom transport markers (293.W.2f) ─────────────────────
-;; Type arguments only. Not values. The third argument of Address<S,R,T>:
+;; Type arguments only. Not values. The third argument of (Address :- [S R T]):
 ;;   Shared — in-locus (crossbeam). A process may never dial this.
 ;;   Wire   — portable (SocketAddressWire). A process may hold and dial this.
 (:wat::core::defstruct :wat::kernel::Shared [])
 (:wat::core::defstruct :wat::kernel::Wire [])
 
-;; ── Bound<S,R,T> — the listening state minted by (listener' (thread) :S :R) ─────
+;; ── Bound :- [S R T] — the listening state minted by (listener' (thread) :S :R) ─
 ;; A STRUCT, not a record: its fields are non-EDN RustOpaque kernel entities
 ;; (Listener'/Address'). `listener` is the server accept-side; `address` is what
 ;; clients dial via connect'. Replaces the bare Tuple the thread tier returned.
-;; T is the transport marker (Shared | Wire); 2-arg Bound<S,R> still means T unknown.
+;; T is the transport marker (Shared | Wire); 2-arg (Bound :- [S R]) still means T unknown.
 (:wat::core::defstruct :wat::spawn::Bound :- [S R T]
   [listener <- (:wat::kernel::Listener :- [S R])
    address  <- (:wat::kernel::Address :- [S R T])])
 
-;; ── Launched<S,R,Sh,Lu,T> — what Locus/launch returns: the spawn handle + the dial address ──
+;; ── Launched :- [S R Sh Lu T] — what Locus/launch returns: the spawn handle + the dial address ──
 ;; A STRUCT, not a record (address is an Address' RustOpaque; handle is :Spawned).
 ;; `handle` is the owner-side spawn handle (Thread'/Process'/future-remote all derive :Spawned).
 ;; `address` is what clients dial via connect'.
 ;; `start` unwraps Launched into the Handle record — locus-agnostic launch, locus-agnostic start.
-;; arc 291 3a-ii-β: handle is the lineage PEER (Peer'<Sh,Lu> — sends Sh=Admin, recvs
-;; Lu=LineageUp), no longer the opaque :Spawned marker. Thread'<Sh,Lu>/Process'<Sh,Lu>
+;; arc 291 3a-ii-β: handle is the lineage PEER ((Peer' :- [Sh Lu]) — sends Sh=Admin, recvs
+;; Lu=LineageUp), no longer the opaque :Spawned marker. (Thread' :- [Sh Lu])/(Process' :- [Sh Lu])
 ;; bind it via the `derive …Peer'` foundation. This is what makes owner-only `stop` able
 ;; to send'/recv' on the Handle's handle. S,R = the client (listener/dial) channel.
-;; T is the transport marker (Shared | Wire); 4-arg Launched<S,R,Sh,Lu> still means T unknown.
+;; T is the transport marker (Shared | Wire); 4-arg (Launched :- [S R Sh Lu]) still means T unknown.
 (:wat::core::defstruct :wat::spawn::Launched :- [S R Sh Lu T]
   [handle  <- (:wat::kernel::Peer :- [Sh Lu])
    address <- (:wat::kernel::Address :- [S R T])])
@@ -310,10 +310,10 @@
 ;; The env arg of the 3-arg intrinsic is gone (it was discarded at runtime;
 ;; the defclause makes the absence structural).
 ;;
-;; Thread clause: prog MUST be the self-peer model `[Peer'<S,R>] -> nil`
+;; Thread clause: prog MUST be the self-peer model `[(Peer' :- [S R]) :-> nil]`
 ;; (apply-loop purged by S2c-ii-a; the true form remains).
 ;; Process clause: prog is a `(:wat::core::forms ...)` block — a forms-server
-;; program (`Vector<wat::WatAST>`) for the forked child universe.
+;; program (`(Vector :- [wat::WatAST])`) for the forked child universe.
 ;;
 ;; A new locus type (e.g. RemoteOpts when its door is finally specified)
 ;; arrives as one new key + one new clause here; the 2-arg sig is unmoved.
@@ -346,7 +346,7 @@
   ([locus <- :wat::spawn::ThreadOpts
     prog <- [(:wat::kernel::ThreadSelfPeer :- [S R]) :-> :wat::core::nil]] -> (:wat::kernel::Thread :- [R S])
     (:wat::kernel::spawn-thread prog (:wat::spawn::ThreadOpts/init-fn locus) (:wat::spawn::ThreadOpts/post-spawn-fn locus)))
-  ;; process — forms (Vector<wat::WatAST>); I,O are the forms-server's free request/response vars.
+  ;; process — forms ((Vector :- [wat::WatAST])); I,O are the forms-server's free request/response vars.
   ;; The locus's post-spawn-fn (extracted via ProcessOpts/post-spawn-fn) runs owner-side
   ;; after the child is forked, with a ProcessLaunch{pid} carrying the child pid.
   ;; The locus's env-fn (extracted via ProcessOpts/env-fn) is a source string the child
@@ -367,7 +367,7 @@
 ;; listener/state; process ships forms ([[project_shared_memory_partition_hosting]]).
 ;; So `launch` MINTS THE LISTENER INSIDE the concrete impl (arc 272 6a: the child
 ;; must mint its own listener; parent-minting is wrong for the process tier) and
-;; returns a Launched<S,R>{handle,address}. `start` unwraps Launched — locus-agnostic.
+;; returns a (Launched :- [S R]){handle,address}. `start` unwraps Launched — locus-agnostic.
 ;; A new transport joins as one `extend-type`, zero edit to `start`.
 ;;
 ;; Generic over S,R (the listener/peer channel types) and St (service state).
@@ -378,7 +378,7 @@
 ;; context added `next-id`, the monotonic conn-id counter, as the 4th positional arg.)
 (:wat::core::defsurface :wat::spawn::Locus :nature :wat::core::Struct
   ;; arc 291 3a-ii-β: Lu = the lineage UP type (LineageUp); Sh = the ship/admin DOWN type.
-  ;; The returned Launched carries the lineage peer as Peer'<Sh,Lu>.
+  ;; The returned Launched carries the lineage peer as (Peer' :- [Sh Lu]).
   :features
   [(launch :- [S R St Sh Lu]
      [self          <- :wat::spawn::Locus
@@ -396,10 +396,10 @@
       ;; instead of deadlocking the owner's connect'. Process ignores it (its
       ;; child-main-form owns the ctor).
       lu-mk-kw      <- :wat::core::keyword] -> (:wat::spawn::Launched :- [S R Sh Lu]))
-   ;; Arc 170 M1-pool — work-fn is a GENERIC W (not `Fn(I)->O`): the thread/non-dial
-   ;; tiers pass a 1-param `Fn(I)->O`, the process DIAL tier a 2-param `Fn(Peer'<S,R>,I)->O`.
-   ;; The impl reifies (process, fn-forms) or applies (thread, unifying W~Fn(I)->O locally)
-   ;; it. The runner recv type is PoolMsg<D,I> (the universal pool wire): send it the
+   ;; Arc 170 M1-pool — work-fn is a GENERIC W (not `[I :-> O]`): the thread/non-dial
+   ;; tiers pass a 1-param `[I :-> O]`, the process DIAL tier a 2-param `[(Peer' :- [S R]) I :-> O]`.
+   ;; The impl reifies (process, fn-forms) or applies (thread, unifying W~[I :-> O] locally)
+   ;; it. The runner recv type is (PoolMsg :- [D I]) (the universal pool wire): send it the
    ;; work-stream AND the dial Setup over ONE peer type.
    ;;
    ;; Arc 170 gap J — D-GENERIC (was a fixed bare `Address'`): the Setup carrier is now
@@ -581,7 +581,7 @@
               ;; outcomes, Stopped included. One decision point, not two.
               (:wat::kernel::SendOutcome::Stopped nil)
               ((:wat::kernel::SendOutcome::Lost _c) nil))
-       ;; arc 278 the recv'-outcome wall — recv' returns a matchable RecvOutcome<Lu>. ::Message →
+       ;; arc 278 the recv'-outcome wall — recv' returns a matchable (RecvOutcome :- [Lu]). ::Message →
        ;; the child-minted launch status (extract-addr consumes it); ::Lost (the child crashed
        ;; before Started — the ProcessPanics envelope) → eprintln the cause (loud, terminal);
        ;; ::Closed (the child exited before Started) → eprintln (terminal).
@@ -600,17 +600,17 @@
 ;; ── recv-all' — the honest peer-drain (arc 278 IPC de-prime) ─────────────────
 ;; Drains ALL output values from a spawned peer, honestly. The primed replacement
 ;; for the retired non-prime `:wat::test::run-hermetic-drain-outputs` (which returned
-;; a bare `Vector<O>` and SWALLOWED the peer's death — `((:wat::core::Err _died) acc)`,
+;; a bare `(Vector :- [O])` and SWALLOWED the peer's death — `((:wat::core::Err _died) acc)`,
 ;; the exact swallow this prime fixes). Reads until the peer signals a terminal
 ;; RecvOutcome, matching the recv'-outcome wall exactly:
 ;;   Message[v]  -> accumulate v, continue.
-;;   Closed      -> a GENUINE clean EOF; return (Ok <collected Vector<O>>).
+;;   Closed      -> a GENUINE clean EOF; return (Ok <collected (Vector :- [O])>).
 ;;   Lost[cause] -> the peer DIED; return (Err cause) — the LociDiedError rides in
 ;;                  the Err, surfaced, NEVER dropped (that is the whole point).
 ;; Composed from `recv'` (wat-first; recv' is native but recv-all' is a wat stdlib
 ;; defn). wat has no loop/recur, so the drain is a tail-recursive private helper
 ;; (`recv-all-loop'`) that recv-all' seeds with an empty vector. `p` is typed
-;; `Peer'<I,O>`; Thread'/Process' derive Peer' (see the derives above), so a spawned
+;; `(Peer' :- [I O])`; Thread'/Process' derive Peer' (see the derives above), so a spawned
 ;; process/thread peer drains through here unchanged.
 (:wat::core::defn :wat::kernel::recv-all-loop :- [I O]
   [p   <- (:wat::kernel::Peer :- [I O])

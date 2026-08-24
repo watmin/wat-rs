@@ -4,7 +4,7 @@
 ;; send (i, work item) → loop) is a NAMED defn shipped as source (like defservice's serve) —
 ;; no recursive-closure reification. The parent-side Process' type is pinned by a typed context
 ;; (a fn param here; the bracket's generic peers-vector element type in real use — same as how
-;; defservice pins its Process' through Launched<S,R>). Index-carrying (idx,value) pairs.
+;; defservice pins its Process' through (Launched :- [S R])). Index-carrying (idx,value) pairs.
 ;;
 ;; EXPECT "6 10".
 

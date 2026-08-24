@@ -17,7 +17,7 @@
 ;; of "is this a service or not" before anyone opened the file. Kept visible: a stale comment
 ;; reads as grounded precisely because it is specific.
 ;;
-;;   defs — a `Vector<WatAST>`, threaded through the tail call. Forms are PURE by nature (a tree
+;;   defs — a `(Vector :- [WatAST])`, threaded through the tail call. Forms are PURE by nature (a tree
 ;;          of keywords and literals holds no fd and no peer), so the definition set is data that
 ;;          ships and replays. It lives for the process and dies with it.
 ;;

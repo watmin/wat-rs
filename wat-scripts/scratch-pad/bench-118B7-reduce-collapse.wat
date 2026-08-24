@@ -1,16 +1,16 @@
-;; BENCH — 118.B7. Did collapsing `reduce` to two `Seqable<T>` clauses cost anything on an EAGER
+;; BENCH — 118.B7. Did collapsing `reduce` to two `(Seqable :- [T])` clauses cost anything on an EAGER
 ;; container?
 ;;
-;; `reduce`'s 3-arity body is now `(foldl f init coll)` with `coll` declared `Seqable<T>`. The
+;; `reduce`'s 3-arity body is now `(foldl f init coll)` with `coll` declared `(Seqable :- [T])`. The
 ;; question this answers: does declaring the parameter as the SURFACE change what the native does?
-;; It must not — `Seqable<T>` is a STATIC type, the value arriving is a concrete Vector, and
+;; It must not — `(Seqable :- [T])` is a STATIC type, the value arriving is a concrete Vector, and
 ;; `foldl` classifies the VALUE. So `reduce` should cost `foldl` plus one clause dispatch, and no
 ;; more.
 ;;
 ;; ⛔ THE FAILURE THIS GUARDS. The obvious way to write that body is
 ;; `(foldl f init (Seqable/seq coll))` — normalise, then fold. That type-checks, and it forces every
 ;; eager reduce onto the lazy Stream path for a Stream it never needed. The arm added to
-;; `extract_lazyable_elem` (accepting `Seqable<T>` itself) is what makes the direct spelling legal;
+;; `extract_lazyable_elem` (accepting `(Seqable :- [T])` itself) is what makes the direct spelling legal;
 ;; without it the normalising spelling is the ONLY one that compiles, and the tax comes back in
 ;; through the front door. If this bench ever shows `reduce` tracking the SPEC rather than `foldl`,
 ;; that is what happened.

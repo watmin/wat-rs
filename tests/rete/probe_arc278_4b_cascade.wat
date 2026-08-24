@@ -8,7 +8,7 @@
 
 ;; A: Temp+Wind(same loc)→ColdAndWindy; B: ColdAndWindy→WeatherAlert (the cascade chain). Gathers ALL
 ;; derived facts across every ProductionNode (production-memory values flattened into one
-;; PV<:wat::core::Record>) as `derived`, then either counts a type or reports the total length.
+;; (PV :- [:wat::core::Record])) as `derived`, then either counts a type or reports the total length.
 
 (:wat::core::defn :user::weatheralert-count-oslo [] -> :wat::core::i64
   (:wat::core::let

@@ -11,7 +11,7 @@
 ;; CompileState — internal state threaded through compile's rule + condition folds.
 ;; network: the id→Node PersistentMap built so far.
 ;; next-id: the next free node id.
-;; dedup:   HashMap<String,i64> — maps a structural key to the existing node id;
+;; dedup:   (HashMap :- [String i64]) — maps a structural key to the existing node id;
 ;;          avoids rescanning the network to detect shareable nodes.
 ;; WHY a record: cleaner than a Tuple at call sites; fields are domain nouns.
 (:wat::core::defrecord :wat::rete::CompileState

@@ -119,9 +119,9 @@
 ;; Arc 278 (DESIGN-loci-died-error.md): the registered record that the
 ;; panic-hook `#wat.kernel/AssertionFailure {…}` envelope writer routes
 ;; through (via the derived `ToEdn`), replacing a hand-built Map with the
-;; wrong field shapes. `frames` is a `Vector<Frame>` (was an ad-hoc
-;; `{:callee,:at}` map); `location` is an `Option<Location>` (was a bare
-;; `Span`); `upstream-chain` is a `Vector<LociDiedError>` (was heterogeneous
+;; wrong field shapes. `frames` is a `(Vector :- [Frame])` (was an ad-hoc
+;; `{:callee,:at}` map); `location` is an `(Option :- [Location])` (was a bare
+;; `Span`); `upstream-chain` is a `(Vector :- [LociDiedError])` (was heterogeneous
 ;; Thread|Process) — the record is EDN all the way down.
 (:wat::core::defrecord :wat::kernel::AssertionFailure
   [thread         <- :wat::core::String

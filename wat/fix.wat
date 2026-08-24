@@ -177,7 +177,7 @@
             (:wat::core::rest lines)))))))
 
 ;; fix-text-offset-of — convert an ast-span {:line N :col C} map to a flat char offset.
-;; loc is the HashMap<keyword,i64> from (ast-span node); lines = (split src "\n").
+;; loc is the (HashMap :- [keyword i64]) from (ast-span node); lines = (split src "\n").
 ;; offset = line-start(line) + (col - 1)  (col is 1-indexed char count from line start).
 (:wat::core::defn :wat::fix::fix-text-offset-of
   [loc   <- (:wat::core::HashMap :- [:wat::core::keyword :wat::core::i64])
@@ -304,7 +304,7 @@
                         c2       (:wat::core::nth ch 2)
                         c3       (:wat::core::nth ch 3)
                         ;; Arc 118.2a — `drop` flipped LAZY; `branches` feeds
-                        ;; `fix-text-seq-edits`, which declares a `Vector<WatAST>` param.
+                        ;; `fix-text-seq-edits`, which declares a `(Vector :- [WatAST])` param.
                         branches (:wat::core::into [] (:wat::core::drop ch 4))]
         ;; edits in ascending text order: head, cond, arrow-del, type-del, branches
         (:wat::core::concat
@@ -364,7 +364,7 @@
 ;; child[2] for `if`/`match`). The checker/runtime change that makes the bare form legal
 ;; is per-form; THIS is the shared call-site rewriter every such kill reuses.
 
-;; str-in? — String membership in a Vector<String> (explicit; not index-contains?).
+;; str-in? — String membership in a (Vector :- [String]) (explicit; not index-contains?).
 (:wat::core::defn :wat::fix::str-in?
   [s <- :wat::core::String  xs <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::bool
   (:wat::core::if (:wat::core::empty? xs)
@@ -445,7 +445,7 @@
 ;; the only honest type is `:wat::WatAST` (a macro arg is always a form). This
 ;; rule rewrites, COMMENT-FAITHFULLY (riding fix-text-apply's span-splice):
 ;;   - each FIXED param's type   → :wat::WatAST
-;;   - the REST param's type     → :wat::core::Vector<wat::WatAST>
+;;   - the REST param's type     → (:wat::core::Vector :- [:wat::WatAST])
 ;;   - the RETURN type           → :wat::WatAST
 ;; and touches DEFMACRO forms ONLY — defn/fn type annotations are real and survive.
 ;;
@@ -478,7 +478,7 @@
 ;; argspec-type-edits-walk — position-aware left-to-right walk of an argvec's children.
 ;; Tracks prev-arrow? (previous token was `<-`) and after-amp? (a `&` has been seen).
 ;; When prev-arrow? AND kind=="keyword" → type slot: emit a replacement edit.
-;; The new-text depends on after-amp?: rest param → Vector<wat::WatAST>, fixed → WatAST.
+;; The new-text depends on after-amp?: rest param → (Vector :- [wat::WatAST]), fixed → WatAST.
 (:wat::core::defn :wat::fix::argspec-type-edits-walk
   [items       <- (:wat::core::Vector :- [:wat::WatAST])
    prev-arrow? <- :wat::core::bool
@@ -1088,7 +1088,7 @@
 ;; ══════════════════════════════════════════════════════════════════════════════════════
 ;; STONE 118.B4-ii — `(first (drop X n))` → `(nth X n)`, the general-positional-lookup fold
 ;; ══════════════════════════════════════════════════════════════════════════════════════
-;; B4-i widened `nth` to Seqable<T> (O(1) on Vector/PersistentVector/List, O(n) walk on
+;; B4-i widened `nth` to (Seqable :- [T]) (O(1) on Vector/PersistentVector/List, O(n) walk on
 ;; Stream); this rewrites every corpus call-site of the old two-verb idiom to the new one.
 ;; X and n carry across as their ORIGINAL SOURCE TEXT, byte for byte — this is a STRUCTURAL
 ;; edit (head + one nested call collapses to one call), not a token rename, so it needs its

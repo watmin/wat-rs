@@ -3,7 +3,7 @@
 ;; (`spawn-program' (process)` + `send'` + `:wat::kernel::recv-all'`), but the child's `assert-eq`
 ;; FAILS mid-exchange, so the child DIES before it can `println`.
 ;;
-;; recv-all' drains the peer honestly and returns a `Result<Vector<i64>, LociDiedError>`:
+;; recv-all' drains the peer honestly and returns a `(Result :- [(Vector :- [i64]) LociDiedError])`:
 ;;   Ok[outputs] -> the peer closed cleanly; the collected outputs.
 ;;   Err[cause]  -> the peer DIED; `cause` is a `:wat::kernel::LociDiedError` — here a
 ;;                  `LociDiedError::Panic` carrying the assertion failure (message + the

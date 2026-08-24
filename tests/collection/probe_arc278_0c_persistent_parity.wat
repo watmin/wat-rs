@@ -2,7 +2,7 @@
 ;; the sibling probe (.rs), slurped via startup_beside(file!()). Named zero-arg
 ;; defns, one per assertion in `persistent_vector_transform_parity`.
 ;;
-;; Arc 118.2a: `map`/`filter`/`take`/`drop` are LAZY — they return `Stream<T>`
+;; Arc 118.2a: `map`/`filter`/`take`/`drop` are LAZY — they return `(Stream :- [T])`
 ;; (never container-preserving); the fixtures below materialize back to a
 ;; PersistentVector via `into` before taking `length`, exactly mirroring the
 ;; original format!-driven exprs.
@@ -38,7 +38,7 @@
         (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::bool (:wat::core::i64::> x 1))
         (:wat::core::PersistentVector 1 2 3)))))
 
-;; reverse (type-preserving; head after reverse == 3 — get returns Option<T>)
+;; reverse (type-preserving; head after reverse == 3 — get returns (Option :- [T]))
 (:wat::core::defn :t::p5-reverse [] -> (:wat::core::Option :- [:wat::core::i64])
   (:wat::core::PersistentVector/get (:wat::core::reverse (:wat::core::PersistentVector 1 2 3)) 0))
 

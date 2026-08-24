@@ -5,7 +5,7 @@
 ;;
 ;;   :wat::core::HashMap/assoc: parameter #3 expects :wat::core::String; got :wat::core::i64
 ;;
-;; A wat `HashMap<K,V>` has ONE V. The reply envelope is heterogeneous by nature (a String
+;; A wat `(HashMap :- [K V])` has ONE V. The reply envelope is heterogeneous by nature (a String
 ;; beside an i64 beside a bool beside a Vector of maps), so it CANNOT be a HashMap. That is
 ;; the asymmetry worth writing down: `read-json` WALKS heterogeneous JSON happily
 ;; (probe-mcp-nested-json-walk.wat), but nothing can CONSTRUCT it as a map. The only wat

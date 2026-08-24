@@ -19,8 +19,8 @@
              ((:wat::core::ReadOutcome::Malformed __c) (:wat::kernel::assertion-failed! (:wat::core::Error/message __c) :wat::core::None :wat::core::None)))
      forms (:wat::core::ast->children tree)
      ;; find the first form whose ast-name is ":wsh::rule-arith"
-     ;; Stone 118.B4-iii — THE WALL: `filter` returns a lazy Stream<T> (arc 118.2a) and `first`
-     ;; no longer accepts one. `forms` is already a fully-realized, finite Vector<WatAST> — this
+     ;; Stone 118.B4-iii — THE WALL: `filter` returns a lazy (Stream :- [T]) (arc 118.2a) and `first`
+     ;; no longer accepts one. `forms` is already a fully-realized, finite (Vector :- [WatAST]) — this
      ;; is reconnaissance, not a force-count probe — so `into []` materializes the filtered
      ;; Stream back to a Vector so `first` still applies, byte-identical answer.
      rule  (:wat::core::first

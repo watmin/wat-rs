@@ -14,7 +14,7 @@
 ;;
 ;; ── THE Option REPRESENTATION NOTE (rule 4 — mirror, don't idiomatise) ──────────────────────────
 ;;
-;; wat's `o` field is `Option<i64>` (`Some(i)` / `None`), constructed OUTSIDE any `where` at seed
+;; wat's `o` field is `(Option :- [i64])` (`Some(i)` / `None`), constructed OUTSIDE any `where` at seed
 ;; time (row 7 only ever MATCHES a bound `?o`, never constructs one — constructing an Option INSIDE
 ;; a where-reachable path is itself a STOP-1, see the .wat header). Clojure has no built-in tagged
 ;; Option, so this side represents it the plain idiomatic way — `nil` for `None`, the bare `i64` for

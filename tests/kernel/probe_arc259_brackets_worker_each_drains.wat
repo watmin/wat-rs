@@ -2,7 +2,7 @@
 ;; each-worker over 50 items returns nil; completion proves pool drained all 50.
 
 ;; Arc 170 gap J — each-worker absorbed `uses'`'s provisioning params; a plain caller passes
-;; nil grant-handles, a no-op grant-fn/revoke-fn pair, and an EMPTY Vector<D> (no Setup sent).
+;; nil grant-handles, a no-op grant-fn/revoke-fn pair, and an EMPTY (Vector :- [D]) (no Setup sent).
 (:wat::core::defn :user::compute [] -> :wat::core::nil
    (:wat::bracket::each-worker (:wat::spawn::thread)
      (:wat::core::range 0 50)

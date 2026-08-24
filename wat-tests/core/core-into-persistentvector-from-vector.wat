@@ -1,6 +1,6 @@
 ;; wat-tests/core/core-into-persistentvector-from-vector.wat — corpus witness for
 ;; DESIGN-STONE-into-pv-from-vector.md: `into`'s fourth clause,
-;; (PersistentVector<T>, Vector<T>) -> PersistentVector<T> (wat/seq.wat), backed by the new
+;; ((PersistentVector :- [T]), (Vector :- [T])) -> (PersistentVector :- [T]) (wat/seq.wat), backed by the new
 ;; native `:wat::core::PersistentVector/concat` (src/collection/eval.rs, src/runtime.rs
 ;; dispatch, src/check.rs `infer_persistentvector_concat`).
 ;;
@@ -13,7 +13,7 @@
 ;; Three things a test here must prove (BRIEF-into-pv-from-vector.md):
 ;;   1. the RED gate flips — `into` accepts a PersistentVector receiver + Vector source.
 ;;   2. the receiver's KIND is preserved — the result is a PersistentVector, not a Vector.
-;;      `assert-eq<T>` is monomorphic over ONE T for both sides — `expected` below is a
+;;      `assert-eq :- [T]` is monomorphic over ONE T for both sides — `expected` below is a
 ;;      PersistentVector literal, so a runtime value that came back a Vector instead fails
 ;;      loudly (`values_equal` has no Vec×PersistentVector arm — falls to `TypeMismatch`,
 ;;      never a silent `false`), which IS the kind assertion, not just an element compare.
@@ -62,7 +62,7 @@
 ;; ─── PersistentVector/concat: the PV×PV scheme (the op's OTHER clause) ───────────
 ;;
 ;; Called directly (not through `into`, which has no (PersistentVector,PersistentVector)
-;; clause) — proves `PersistentVector/concat`'s second scheme, PV<T> × PV<T> -> PV<T>.
+;; clause) — proves `PersistentVector/concat`'s second scheme, (PV :- [T]) × (PV :- [T]) -> (PV :- [T]).
 
 (:wat::test::deftest :wat-tests::core::core-into-persistentvector-from-vector::persistentvector-concat-pv-from-pv
 

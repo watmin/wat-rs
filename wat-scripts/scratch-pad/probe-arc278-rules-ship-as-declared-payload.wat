@@ -10,7 +10,7 @@
 ;; This probe asks whether the inference is needed at all. A rule is FORMS; the forms are
 ;; retained (`FunctionBody::Wat(ast)`); forms are pure data that "ships and replays"
 ;; (wat/repl.wat:20-22); and `:wat::eval-with-defs!` already builds a world from a supplied
-;; `Vector<WatAST>` — "a wat program can hold an accumulated definition set … and has no way
+;; `(Vector :- [WatAST])` — "a wat program can hold an accumulated definition set … and has no way
 ;; to run anything IN it. This verb closes exactly that gap and nothing else."
 ;; (src/check.rs:16868-16876). So: DECLARE the payload, do not infer it.
 ;;

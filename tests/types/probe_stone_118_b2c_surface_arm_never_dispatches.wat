@@ -8,12 +8,12 @@
 ;; equal that container's canonical name, so `wat::core::Seqable` can never match ANYTHING.
 ;;
 ;; ★ THE CONTROL IS THE LOAD-BEARING HALF. `:my::count-via-defn` is the SAME body with the SAME
-;; `Seqable<T>` parameter, as a plain `defn` instead of a `defclause` arm. It must SUCCEED. Without
-;; it, the four failing rows below would be satisfied by "Seqable<T> params are broken everywhere" —
+;; `(Seqable :- [T])` parameter, as a plain `defn` instead of a `defclause` arm. It must SUCCEED. Without
+;; it, the four failing rows below would be satisfied by "(Seqable :- [T]) params are broken everywhere" —
 ;; which is false, and would send the fix at the wrong door.
 ;; `[[feedback_a_pass_answers_only_the_question_the_instrument_asks]]`
 
-;; ─── the SUBJECT: one clause, one Seqable<T> arm ───────────────────────────────────────────────
+;; ─── the SUBJECT: one clause, one (Seqable :- [T]) arm ───────────────────────────────────────────────
 (:wat::core::defclause :my::count-via-clause
   ([c <- (:wat::core::Seqable :- [T])] -> :wat::core::i64
     (:wat::core::length (:wat::core::into [] (:wat::core::Seqable/seq c)))))

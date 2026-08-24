@@ -66,10 +66,10 @@
     [pair (:wat::kernel::listener (:wat::spawn::thread) :my::Counter::Op :my::Counter::Reply)
      l    (:wat::spawn::Bound/listener pair)
      addr (:wat::spawn::Bound/address pair)
-     ;; arc 291 3a-ii-β: serve's `self` is the lineage self-peer (Peer'<Status,Admin>),
-     ;; not a client peer. The clients Vector stays the client type (Peer'<Reply,Op>).
+     ;; arc 291 3a-ii-β: serve's `self` is the lineage self-peer ((Peer' :- [Status Admin])),
+     ;; not a client peer. The clients Vector stays the client type ((Peer' :- [Reply Op])).
      ;; arc 278 the call context — the GENERATED `serve` grew a 5th positional arg (`next-id`,
-     ;; the monotonic caller-id counter) and its `clients` slot is now Tuple<i64,Peer<…>>
+     ;; the monotonic caller-id counter) and its `clients` slot is now (Tuple :- [i64 (Peer :- […])])
      ;; entries (the id travels WITH its peer), not the bare Peer vector.
      svc  (:wat::test::spawn-peer (:wat::spawn::thread)
             (:wat::core::fn [self <- (:wat::kernel::ThreadSelfPeer :- [:my::counter::Status :my::counter::Admin])] -> :wat::core::nil
@@ -80,7 +80,7 @@
                 ;; (assignable's Peer-specific branch) but does not propagate through a
                 ;; Tuple wrapper (unify recurses into tuple elements without re-entering
                 ;; assignable) — so an empty vector built at the widened surface type no
-                ;; longer round-trips once `clients`' element is Tuple<i64,Peer<…>>.
+                ;; longer round-trips once `clients`' element is (Tuple :- [i64 (Peer :- […])]).
                 (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 (:wat::kernel::Peer :- [:my::Counter::Reply :my::counter::Op])]))
                 0
                 (:my::counter::State :durable (:my::counter::Record :count 0)))))

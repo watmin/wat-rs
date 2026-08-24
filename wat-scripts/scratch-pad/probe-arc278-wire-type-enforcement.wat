@@ -3,7 +3,7 @@
 ;; arc 278 — MEASUREMENT probe (BRIEF-wire-type-enforcement-probe.md, stone 1 of (A)).
 ;;
 ;; THE QUESTION: does a service's wire decode ENFORCE the DECLARED type of an op's
-;; request payload? `PutRequest [items <- Vector<String>]` — deliver `{:items [1 2 3]}`
+;; request payload? `PutRequest [items <- (Vector :- [String])]` — deliver `{:items [1 2 3]}`
 ;; (well-formed EDN, i64s where String is declared). Does the server REJECT with a
 ;; named/located failure, or ACCEPT and hand the handler a mistyped value?
 ;;
@@ -29,10 +29,10 @@
 ;;
 ;; THE TELL: the handler echoes back `(:wat::edn::write items)` — the SERVER's own
 ;; rendering of what it actually received. `"[\"a\" \"b\"]"` = strings arrived;
-;; `"[1 2 3]"` = i64s arrived under a `Vector<String>` declaration, i.e. the wire did
+;; `"[1 2 3]"` = i64s arrived under a `(Vector :- [String])` declaration, i.e. the wire did
 ;; NOT enforce the declared type.
 
-;; ── the surface: one op, one field, declared Vector<String> ──────────────────
+;; ── the surface: one op, one field, declared (Vector :- [String]) ──────────────────
 (:wat::core::defsurface :probe-wire::Bag :nature :wat::kernel::Peer
   :messages
   [(:wat::core::defrecord :probe-wire::Bag::PutRequest
@@ -110,7 +110,7 @@
      _ (:wat::kernel::println
          (:wat::core::string::concat tier " control wire form = " (:wat::edn::write good)))
      _ (:probe-wire::round-trip c (:wat::core::string::concat tier " control  ") good)
-     ;; THE PROBE — well-formed EDN, WRONG TYPE: i64s where Vector<String> is declared.
+     ;; THE PROBE — well-formed EDN, WRONG TYPE: i64s where (Vector :- [String]) is declared.
      bad (:wat::edn::read "#probe-wire.Bag/PutRequest {:items [1 2 3]}")
      _ (:wat::kernel::println
          (:wat::core::string::concat tier " mistyped wire form = " (:wat::edn::write bad)))

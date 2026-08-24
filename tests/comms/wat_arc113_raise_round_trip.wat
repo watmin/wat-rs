@@ -19,7 +19,7 @@
 ;; tests/comms/probe_arc278_failure_carries_structured_error.wat). The child body is
 ;; UNCHANGED; only the driver flipped. The death is never swallowed.
 ;;
-;; Returns Option<String> = the raised Fault's message field, read structurally,
+;; Returns (Option :- [String]) = the raised Fault's message field, read structurally,
 ;; proving the error rode the boundary as a record — not a stringified blob.
 
 (:wat::core::defn :my::compute [] -> (:wat::core::Option :- [:wat::core::String])

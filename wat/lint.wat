@@ -1,6 +1,6 @@
 ;; wat/lint.wat — the wat-lint framework.
 ;;
-;; Arc 277 Stone 277.1. A pure-wat linter: a rule is `(form → Vector<Finding>)`;
+;; Arc 277 Stone 277.1. A pure-wat linter: a rule is `(form → (Vector :- [Finding]))`;
 ;; `lint-source` runs form-level rules over every top-level form of every file;
 ;; `lint-stdlib` is the surface — form-level findings over the real stdlib plus
 ;; deporder's load-order folded in as rule-zero (report-only).
@@ -12,7 +12,7 @@
 ;; shipped REPORT-ONLY (fix = None). The auto-fix seam is deferred to 277.1b.
 ;;
 ;; The surface:
-;;   (:wat::lint::lint-source files) — run rules over Vector<SourceFile>
+;;   (:wat::lint::lint-source files) — run rules over (Vector :- [SourceFile])
 ;;   (:wat::lint::lint-stdlib)       — lint the real stdlib + rule-zero
 ;;
 ;; Namespace: :wat::lint::
@@ -101,7 +101,7 @@
 ;;      return the symbol name (VAR), the literal, and the ELSE node.
 ;;   2. collect-ladder-lits — recursively walk the else-chain collecting
 ;;      literals, verifying the same VAR throughout; stop when ELSE is `false`.
-;;      Returns Vector<String> of LIT texts, empty if the chain breaks.
+;;      Returns (Vector :- [String]) of LIT texts, empty if the chain breaks.
 ;;   3. nested-if-=-ladder? — it's a ladder when ≥3 lits collected.
 
 ;; kw-or-sym? — a node we can call ast-name on (keyword or symbol).
@@ -160,7 +160,7 @@
         (:wat::lint::node-write c2)))))
 
 ;; collect-ladder-lits — walk an if-eq-true chain over VAR, collecting
-;; the LIT texts. Returns Vector<String> of lits; empty if chain breaks.
+;; the LIT texts. Returns (Vector :- [String]) of lits; empty if chain breaks.
 ;;
 ;; Arguments:
 ;;   form:     the current if-node we're examining
@@ -382,7 +382,7 @@
 ;;
 ;; When eligible: fold args in order building:
 ;;   - template  (String): literal args → their inner text; symbol args → "{name}"
-;;   - kwarg-names (Vector<String>): symbol names, deduped first-seen-order
+;;   - kwarg-names (Vector :- [String]): symbol names, deduped first-seen-order
 ;; head-str = if in-defmacro? ":wat::core::string::interpolate" else ":wat::core::format"
 ;; Emit: new-text = "(<head-str> \"<template>\" :a a :b b …)"
 ;; Return: Some(FixEdit start-line start-col end-line end-col new-text)
@@ -418,7 +418,7 @@
                                args)]
     (:wat::core::if eligible
       ;; ── Step 2: build template + kwarg-names ────────────────────────
-      ;; acc = Tuple(template, kwarg-names) : :(String, Vector<String>)
+      ;; acc = Tuple(template, kwarg-names) : :(String, (Vector :- [String]))
       (:wat::core::let [build-result
                          (:wat::core::foldl
                            (:wat::core::fn [acc <- (:wat::core::Tuple :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])
@@ -546,7 +546,7 @@
           (:wat::core::ast->children form)))
       (:wat::core::Vector :wat::lint::Finding))))
 
-;; ─── lint-source: run all rules over a Vector<SourceFile> ────────────
+;; ─── lint-source: run all rules over a (Vector :- [SourceFile]) ────────────
 
 ;; lint-file — run all form-level rules over one SourceFile.
 (:wat::core::defn :wat::lint::lint-file
@@ -567,7 +567,7 @@
       (:wat::core::Vector :wat::lint::Finding)
       forms)))
 
-;; lint-source — run form-level rules over every file in Vector<SourceFile>.
+;; lint-source — run form-level rules over every file in (Vector :- [SourceFile]).
 ;; The primary pure entry point for the linter.
 (:wat::core::defn :wat::lint::lint-source
   [files <- (:wat::core::Vector :- [:wat::source::File])]

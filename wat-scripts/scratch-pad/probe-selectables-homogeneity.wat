@@ -1,11 +1,11 @@
 ;; probe-selectables-homogeneity.wat — arc 278 Stone 2 STEP 0 (the DISCONFIRMING homogeneity probe).
 ;;
 ;; THE LOAD-BEARING COMPOSITION the whole self-scheduling stone rests on:
-;;   Can a REAL reply-ing client `Peer'<Reply, Op>` and a Stone-1 timer share ONE `poll'`
+;;   Can a REAL reply-ing client `(Peer' :- [Reply Op])` and a Stone-1 timer share ONE `poll'`
 ;;   `selectables` vec AND both be delivered as a `ServiceEvent::Message`?
 ;;
-;; The seam (grounded, --check): the serve loop's `selectables` is `Vector<Peer'<Reply, Op>>`
-;; (a NON-nil Reply — the server sends a real reply). A Stone-1 timer is `Peer'<I, Op>`. For the
+;; The seam (grounded, --check): the serve loop's `selectables` is `(Vector :- [(Peer' :- [Reply Op])])`
+;; (a NON-nil Reply — the server sends a real reply). A Stone-1 timer is `(Peer' :- [I Op])`. For the
 ;; homogeneous vec to type BOTH:
 ;;   O-side — the timer must deliver the SAME `Op` the client speaks (here a shared `Op` enum with
 ;;            a client `:Ping` surface variant + an internal `:Tick` variant; in the real macro this
@@ -13,8 +13,8 @@
 ;;   I-side — the timer's send-type `I` must be assignable to the client's `Reply`. A timer NEVER
 ;;            sends (its runtime peer has a dead tx), so `after` now infers `I = :wat::core::Never`,
 ;;            the honest named BOTTOM (the DUAL of `:wat::core::Value`'s top — arc 278 Stone 2 STEP
-;;            0). Because `Never <: T` for every `T`, the timer assigns into `Vector<Peer'<Reply,O>>`
-;;            (I-slot: `Never <: Reply`) AND into Stone-1's `Vector<Peer'<nil,O>>` (`Never <: nil`);
+;;            0). Because `Never <: T` for every `T`, the timer assigns into `(Vector :- [(Peer' :- [Reply O])])`
+;;            (I-slot: `Never <: Reply`) AND into Stone-1's `(Vector :- [(Peer' :- [nil O])])` (`Never <: nil`);
 ;;            and `send'`-to-a-standalone-timer is a COMPILE ERROR (Never is uninhabited — nothing
 ;;            to send). conj/vector-construct up-cast the element via `assignable` (unify-first).
 ;;

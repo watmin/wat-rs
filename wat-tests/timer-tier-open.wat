@@ -2,9 +2,9 @@
 ;;
 ;; The locked surface: arg0 of `after` is a `:wat::program::PeerKind` (NOT a spawn-locus),
 ;; and the timer is a SELECTABLE that lives IN the `select'` vector (Go `select` /
-;; Clojure `(alts! [ch (timeout d)])`). Its type is the tier-OPEN `Timer'<O>`, which
+;; Clojure `(alts! [ch (timeout d)])`). Its type is the tier-OPEN `(Timer' :- [O])`, which
 ;; fuses to the concrete tier of whatever homogeneous `select'` set it joins; alone in a
-;; vector it is `Timer'<O>` and `select'` projects `ServiceEvent<nil, O>`.
+;; vector it is `(Timer' :- [O])` and `select'` projects `(ServiceEvent :- [nil O])`.
 ;;
 ;; The tier-agnostic idiom (not shown here — needs a peer to grab from) is
 ;; `(after (peer-kind-of (:wat::program::env)) d msg)`; here we use the explicit literal

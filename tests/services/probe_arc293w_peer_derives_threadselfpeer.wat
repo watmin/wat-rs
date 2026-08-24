@@ -1,8 +1,8 @@
 ;; probe_arc293w_peer_derives_threadselfpeer.wat — the SAFE direction of the peer relation.
 ;;
 ;; Arc 293.W.2d minted two peer heads on the SHARED-MEMORY-OR-NOT line:
-;;   ThreadSelfPeer'<S,R> — in-locus, ANY I/O (the escape hatch for peers holding live handles)
-;;   Peer'<S,R>           — wire-safe, PURE I/O only
+;;   (ThreadSelfPeer' :- [S R]) — in-locus, ANY I/O (the escape hatch for peers holding live handles)
+;;   (Peer' :- [S R])           — wire-safe, PURE I/O only
 ;;
 ;; `Peer'` is STRICTLY STRICTER, so a `Peer'` satisfies every constraint a `ThreadSelfPeer'`
 ;; position imposes. This file asserts that safe direction: a `Peer'`-typed value is accepted

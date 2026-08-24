@@ -3,7 +3,7 @@
 ;;   (2) macro-emit a per-derived-type QueryNode `query` flat-map (Session/facts set-diff does
 ;;       NOT carry derived facts — proven false below; make-query + query is the mouth).
 ;; Both probed together, then wired into a deduce-one that flat-maps ALL derived types into one
-;; PersistentVector<Value> — the exact shape sift-rules' op needs per Log/seed.
+;; (PersistentVector :- [Value]) — the exact shape sift-rules' op needs per Log/seed.
 
 (:wat::core::defrecord :usr::Temp [c <- :wat::core::i64])
 (:wat::core::defrecord :usr::Hot  [c <- :wat::core::i64])

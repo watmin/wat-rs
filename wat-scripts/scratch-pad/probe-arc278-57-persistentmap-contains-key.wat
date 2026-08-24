@@ -21,7 +21,7 @@
 ;;      PREDICATE ruling of DESIGN-STONE-where-admits-only-rete-ops, the same shape as
 ;;      `coincident?` answering `false` on a degenerate operand.
 ;;   b. a WRONG RECEIVER -> `TypeMismatch` raise. Must-never-happen: the row DECLARES the
-;;      receiver `PersistentMap<K,V>`, so the checker refuses a non-map before runtime.
+;;      receiver `(PersistentMap :- [K V])`, so the checker refuses a non-map before runtime.
 ;;
 ;; The differential that settled it is the sibling `PersistentVector/contains?`, already ruled
 ;; `total: true`: its impl carries the SAME receiver raise and has NO hashability guard at all.

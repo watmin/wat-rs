@@ -10,7 +10,7 @@
 ;; a SORTED VECTOR OF i64 compared byte-for-byte against Clara's identical workload
 ;; (gen-accum.sh). count/sum/min/max each bind a SCALAR i64 aggregate — it drops straight into a
 ;; derived record's i64 field and encodes to one canonical integer. distinct/group-by bind a
-;; COLLECTION (PV<i64> / PM) whose reduction to a scalar (e.g. its cardinality) would require the
+;; COLLECTION ((PV :- [i64]) / PM) whose reduction to a scalar (e.g. its cardinality) would require the
 ;; rule RHS to COMPUTE over the bound var — the rete action layer only inserts records from bound
 ;; vars + literals (no fold in the RHS), so neither engine can canonicalise a collection-valued
 ;; fold to an i64 witness without contortion. Both folds are exercised elsewhere (the oracle/native
@@ -136,8 +136,8 @@
     (:wat::core::i64::+ (:wat::core::i64::* kind 1000000000000000) (:wat::core::i64::* g 1000000000))
     val))
 
-;; vec->pvec v — materialize a Vector<i64> into a PersistentVector<i64>. DESIGN-STONE-into-pv-
-;; from-vector.md: `into` now has a native (PersistentVector<T>, Vector<T>) clause backed by one
+;; vec->pvec v — materialize a (Vector :- [i64]) into a (PersistentVector :- [i64]). DESIGN-STONE-into-pv-
+;; from-vector.md: `into` now has a native ((PersistentVector :- [T]), (Vector :- [T])) clause backed by one
 ;; `PersistentVector/concat` call — retiring the N-interpreted-closure-invocation conj-fold.
 (:wat::core::defn :acc::vec->pvec [v <- (:wat::core::Vector :- [:wat::core::i64])] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:wat::core::into (:wat::core::PersistentVector) v))
@@ -169,7 +169,7 @@
 (:wat::core::defn :acc::seed [session <- :wat::rete::Session  G <- :wat::core::i64  W <- :wat::core::i64] -> :wat::rete::Session
   (:wat::rete::insert-all session (:acc::all-facts G W)))
 
-;; codes fired — every derived fact across all five types, canonically encoded, into a Vector<i64>.
+;; codes fired — every derived fact across all five types, canonically encoded, into a (Vector :- [i64]).
 ;; Only five fixed types ⇒ no dispatch: five direct query+map+encode blocks folded into one Vector.
 (:wat::core::defn :acc::codes [fired <- :wat::rete::Session] -> (:wat::core::Vector :- [:wat::core::i64])
   (:wat::core::let

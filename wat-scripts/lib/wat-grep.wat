@@ -2,7 +2,7 @@
 ;;
 ;; Provides two public verbs:
 ;;
-;;   (:user::wat-grep src pred)       → Vector<WatAST>
+;;   (:user::wat-grep src pred)       → (Vector :- [WatAST])
 ;;     Parse src, filter TOP-LEVEL forms with pred; return matching nodes.
 ;;
 ;;   (:user::wat-grep-strip src pred) → String
@@ -12,7 +12,7 @@
 ;; Embedded forms inside (:wat::core::forms …) blocks are NOT walked, giving spawned-child
 ;; entrypoints (:user::main inside forms) protection for free.
 ;;
-;; pred: :wat::core::Fn(wat::WatAST)->wat::core::bool
+;; pred: [wat::WatAST :-> wat::core::bool]
 ;;   Passed directly to (:wat::core::filter …). Named defns and lambdas both work.
 ;;
 ;; (:user::wat-grep-strip …) uses the :wat::fix:: span-edit machinery from fix.wat (stdlib):
@@ -67,7 +67,7 @@
 (:wat::core::defn :user::wat-grep
   [src  <- :wat::core::String
    pred <- :wat::core::Fn(wat::WatAST)->wat::core::bool]
-  ;; Arc 118.2a — `filter` flipped LAZY; this fn's declared return type is `Vector<WatAST>`, so `filterv`.
+  ;; Arc 118.2a — `filter` flipped LAZY; this fn's declared return type is `(Vector :- [WatAST])`, so `filterv`.
   -> (:wat::core::Vector :- [:wat::WatAST])
   (:wat::core::let [tree  (:wat::core::match (:wat::core::read-string src) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)))
                     forms (:wat::core::ast->children tree)]
@@ -86,7 +86,7 @@
                     tree      (:wat::core::match (:wat::core::read-string src) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)))
                     forms     (:wat::core::ast->children tree)
                     ;; Arc 118.2a — `filter` flipped LAZY; `matches` feeds `wat-grep-strip-edits`
-                    ;; (Vector<WatAST> param), so `filterv`.
+                    ;; ((Vector :- [WatAST]) param), so `filterv`.
                     matches   (:wat::core::filterv pred forms)
                     all-edits (:user::wat-grep-strip-edits matches src lines)
                     rev-edits (:wat::core::reverse all-edits)]

@@ -156,7 +156,7 @@
 
 ;; make-rule — runtime helper: split quoted vector nodes into PVs and build a Rule.
 ;; when-ast / then-ast are quoted VECTOR nodes; ast->children yields the per-element WatASTs.
-;; Converts the std Vector from ast->children to a PersistentVector<WatAST> via foldl/conj.
+;; Converts the std Vector from ast->children to a (PersistentVector :- [WatAST]) via foldl/conj.
 (:wat::core::defn :wat::rete::make-rule
   [name     <- :wat::core::String
    when-ast <- :wat::WatAST

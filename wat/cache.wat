@@ -13,7 +13,7 @@
 ;; (`:wat::cache::lru-svc`), where the actor's serialization is the mutex — not a lock here.
 ;;
 ;; ─── the named surface (do NOT rename or add verbs) ──────────────────────────────────────────
-;; `Lru<K,V>` (opaque, thread-owned) · `Entry<K,V>` (a displaced key/value pair) ·
+;; `(Lru :- [K V])` (opaque, thread-owned) · `(Entry :- [K V])` (a displaced key/value pair) ·
 ;; `Lru::new` / `Lru::put` / `Lru::get` / `Lru::len`. The verbs are TYPE-SCOPED under `Lru::` on
 ;; purpose: the BARE `:wat::cache::get` / `:wat::cache::put` names are reserved for the later
 ;; stones' client verbs over the cache flavours (`Lru | HolographicLru`), which — per the sqlite
@@ -22,7 +22,7 @@
 ;; ─── `Entry`, not a bare tuple ───────────────────────────────────────────────────────────────
 ;; The Rust shim returns the displaced pair as `Option<(Value,Value)>` (proven marshaling; tuples
 ;; have blanket ToWat/FromWat). The oracle stopped there and typed its surface
-;; `Option<(K,V)>` — positional, so a caller reads `first`/`second` and has to remember which is
+;; `(Option :- [(K,V)])` — positional, so a caller reads `first`/`second` and has to remember which is
 ;; which. Modern wat prefers a NAMED aggregate: `put` below lifts that tuple into
 ;; `:wat::cache::Entry` (`key`/`value`), so the eviction is self-describing at every call site.
 ;; The lift is the ONE place the positional form is touched.
@@ -40,11 +40,11 @@
 ;;
 ;; ─── BRIEF-cache-batch-surface (arc 278) — BATCH, both directions, TWO deliberate departures ──
 ;; `docs/CONVENTIONS.md:658` (arc 119) rules that every wat-rs-shipped service's `get`/`put` is
-;; BATCH-oriented (Console excepted); `Cache<K,V>` (Stone 2/4, below) originally shipped
-;; single-key — a miss in the brief that designed it. `Cache<K,V>`'s `get`/`put` now take/return
+;; BATCH-oriented (Console excepted); `(Cache :- [K V])` (Stone 2/4, below) originally shipped
+;; single-key — a miss in the brief that designed it. `(Cache :- [K V])`'s `get`/`put` now take/return
 ;; `Vector`s. The shapes are SETTLED (builder-ruled 2026-07-26) and deliberately depart from arc
 ;; 119's OWN prose in two places — this note is why nobody should "correct" them back:
-;;   1. Arc 119 says `get -> Vec<Option<V>>`. This ships a NAMED `Cache::GetResult<V>` enum
+;;   1. Arc 119 says `get -> Vec<Option<V>>`. This ships a NAMED `(Cache::GetResult :- [V])` enum
 ;;      (`:Hit [value <- V] | :Miss []`) instead — per the later named-enum doctrine ("a proper
 ;;      enum name is doubly useful"; `Option` tells a reader nothing about the DOMAIN). It is also
 ;;      the extensible choice: a SIMILARITY cache's miss has kinds (below-threshold vs nothing
@@ -63,8 +63,8 @@
 (:wat::core::use! :rust::cache::Lru)
 
 ;; ─── the opaque handle — the wat-native name over the :rust:: opaque type ────────────────────
-;; unify's alias expansion walks through at every use site, so `:wat::cache::Lru<K,V>` and the
-;; backing `:rust::cache::Lru<K,V>` are interchangeable.
+;; unify's alias expansion walks through at every use site, so `(:wat::cache::Lru :- [K V])` and the
+;; backing `(:rust::cache::Lru :- [K V])` are interchangeable.
 (:wat::core::typealias :wat::cache::Lru :- [K V] (:rust::cache::Lru :- [K V]))
 
 ;; ─── Entry — a displaced key/value pair, named ───────────────────────────────────────────────
@@ -109,7 +109,7 @@
   -> :wat::core::i64
   (:rust::cache::Lru::len cache))
 
-;; ═══ Stone 2 — :wat::cache::Cache<K,V>, the MULTI-CLIENT `defservice` form ═══════════════════
+;; ═══ Stone 2 — :wat::cache::Cache :- [K V], the MULTI-CLIENT `defservice` form ══════════════
 ;;
 ;; Stone 1 above is thread-owned, zero-mutex — the fastest single-owner memoization. Stone 2 is
 ;; the SHARED-cache form: a `defservice` whose actor serialization IS the mutex, so N clients
@@ -122,7 +122,7 @@
 ;; `:wat::cache::Lru` is `scope = "thread_owned"` on the Rust shim (header above): it CANNOT
 ;; cross a wire or a hibernation boundary. So:
 ;;   `:durable   [capacity <- i64]`        — plain EDN, the SPEC the resource is rebuilt from.
-;;   `:ephemeral [cache <- Lru<K,V>]`      — the live handle, born inside `:init` by calling
+;;   `:ephemeral [cache <- (Lru :- [K V])]`      — the live handle, born inside `:init` by calling
 ;;                                           `Lru::new` on the durable capacity.
 ;; This is R5 at the service layer — store the thunk, not the answer.
 ;;
@@ -147,8 +147,8 @@
 ;; parameters and for six of our own unregistered-but-pure core types. That is arc 255's registry
 ;; work. See `293/NOTE-containment-wall-blind-to-rust-opaques.md`.
 ;; ─── batch, both directions (BRIEF-cache-batch-surface, file header above) ───────────────────
-;; `get`: probes IN as a `Vector<K>`, results OUT as an INDEX-ALIGNED `Vector<GetResult<V>>` —
-;; `results[i]` answers `probes[i]`. `put`: entries IN as a `Vector<Entry<K,V>>`, nothing
+;; `get`: probes IN as a `(Vector :- [K])`, results OUT as an INDEX-ALIGNED `(Vector :- [(GetResult :- [V])])` —
+;; `results[i]` answers `probes[i]`. `put`: entries IN as a `(Vector :- [(Entry :- [K V])])`, nothing
 ;; meaningful out (`:Ok []`) — see the file-header departure note for why. Verbs stay `get`/`put`;
 ;; the `Vector` in the signature already says batch (no `get-many`/`put-many` split).
 ;;
@@ -176,7 +176,7 @@
      :Ok               [results <- (:wat::core::Vector :- [(:wat::cache::Cache::GetResult :- [V])])]
      :RequestTooLarge  [bytes <- :wat::core::i64  cap <- :wat::core::i64]
      :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])
-   ;; `Entry<K,V>` reuses Stone 1's record — a `:wat::`-prefixed type defined earlier in THIS file
+   ;; `(Entry :- [K V])` reuses Stone 1's record — a `:wat::`-prefixed type defined earlier in THIS file
    ;; (before this defsurface), so the S4c `:messages`-completeness wall does not require it
    ;; re-declared here (it is not a message minted BY this surface — it is the shared
    ;; cache-primitive vocabulary, same standing the old single-key `PutResponse`'s `displaced`
@@ -239,13 +239,13 @@
 
 ;; ═══ Stone 3 — :wat::cache::HolographicLru, the SIMILARITY-KEYED composite ═══════════════════
 ;;
-;; The other cache flavour: same eviction discipline as Stone 1's `Lru<K,V>`, different
+;; The other cache flavour: same eviction discipline as Stone 1's `(Lru :- [K V])`, different
 ;; key-matching — exact-key becomes *hologram similarity*. Concrete over `HolonAST` (the
-;; Hologram store is HolonAST-keyed, not generic), so unlike Stone 1 this type carries no `<K,V>`.
+;; Hologram store is HolonAST-keyed, not generic), so unlike Stone 1 this type carries no `:- [K V]`.
 ;;
 ;; Study oracle: `crates/wat-holon-lru/wat/holon/lru/HologramCache.wat` — read for the shape
 ;; (`put`'s eviction → `Hologram/remove` chain, `get`'s `Hologram/find` → LRU-bump), never copied.
-;; Rebuilt here clean on Stone 1's `:wat::cache::Lru<K,V>` primitive (named `Entry`, not the
+;; Rebuilt here clean on Stone 1's `(:wat::cache::Lru :- [K V])` primitive (named `Entry`, not the
 ;; oracle's positional tuple) exactly as Stone 1 was rebuilt from its own oracle.
 ;;
 ;; ─── the two structures, and the invariant that binds them ──────────────────────────────────
@@ -339,23 +339,23 @@
 
 ;; ═══ Stone 4 — :wat::cache::hologram-svc, the SIMILARITY cache as a SERVICE ═══════════════════
 ;;
-;; The last cache-campaign build. `HolographicLru` behind the SAME `Cache<K,V>` surface Stone 2's
-;; `lru-svc<K,V>` wears — but `HolographicLru` is CONCRETE over `HolonAST` (the Hologram store is
-;; HolonAST-keyed, not generic; header above), so `hologram-svc` itself carries NO `<K,V>` — it
-;; pins BOTH of `Cache<K,V>`'s params to `:wat::holon::HolonAST` at the `:satisfies` site. A
+;; The last cache-campaign build. `HolographicLru` behind the SAME `(Cache :- [K V])` surface Stone 2's
+;; `lru-svc :- [K V]` wears — but `HolographicLru` is CONCRETE over `HolonAST` (the Hologram store is
+;; HolonAST-keyed, not generic; header above), so `hologram-svc` itself carries NO `:- [K V]` — it
+;; pins BOTH of `(Cache :- [K V])`'s params to `:wat::holon::HolonAST` at the `:satisfies` site. A
 ;; concrete, non-parametric service satisfying a parametric surface at FIXED type arguments had
 ;; no precedent in this corpus before this stone (the only prior `:satisfies` with type args is
-;; Stone 2's `lru-svc<K,V> :satisfies Cache<K,V>` — parametric satisfying parametric, service
+;; Stone 2's `lru-svc :- [K V] :satisfies (Cache :- [K V])` — parametric satisfying parametric, service
 ;; binders flowing straight through). Grounded first as a throwaway probe
 ;; (`wat-scripts/scratch-pad/probe-arc278-concrete-satisfies-parametric.wat`): a concrete service
-;; satisfying `Cache<K,V>` at fixed FQDN type args `--check`s clean, and a deliberately-sabotaged
+;; satisfying `(Cache :- [K V])` at fixed FQDN type args `--check`s clean, and a deliberately-sabotaged
 ;; variant (swapped K/V) correctly produces type errors naming the exact derived
 ;; `Cache::Reply<wat::core::String,wat::core::i64>` instantiation — proof the macro's
 ;; `proto-base`/`proto-tp` split (wat/service.wat:268-276) handles a concrete FQDN type-arg list
 ;; correctly, not just bare binders.
 ;;
 ;; ─── the filter problem — a live closure cannot be a durable field ───────────────────────────
-;; `HolographicLru::new` (above) takes a `filter <- Fn(f64)->bool` — and every factory that
+;; `HolographicLru::new` (above) takes a `filter <- [f64 :-> bool]` — and every factory that
 ;; produces one (`filter-coincident` / `filter-present` / `filter-accept-any`, wat/holon.wat:65-93)
 ;; is a CLOSURE that captures ambient state (`:wat::config::dim-count`) at call time. `Admin::Init`
 ;; is unconditionally Pure (293.W), so an impure `Fn`-typed argument cannot reach `:init` from

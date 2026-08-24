@@ -4,7 +4,7 @@
 ;;
 ;; Its service opts into NOTHING. It declares a surface, a state, and a handler that uses the
 ;; request field at its declared type (`(string::length (nth items 0))` against
-;; `items <- Vector<String>`) — correct against the declaration, and undefended. Before Stone 2
+;; `items <- (Vector :- [String])`) — correct against the declaration, and undefended. Before Stone 2
 ;; the attacker's `#dos.Bag/PutRequest {:items [1 2 3]}` detonated inside that handler and the
 ;; service DIED FOR EVERY CLIENT:
 ;;

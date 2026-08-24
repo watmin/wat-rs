@@ -11,7 +11,7 @@
 ;; `[[feedback_a_green_test_can_prove_nothing]]` / `[[feedback_an_oracle_must_be_written_in_the_other_language]]`
 ;;
 ;; ⛔ STONE 118.B4-iii — THE WALL (2026-08-18): both `nth` (native) and `nth-spec` (oracle) drop
-;; their Stream arm — `nth-spec`'s wat `defclause` loses its fourth (`Seqable<T>`) arm in lockstep
+;; their Stream arm — `nth-spec`'s wat `defclause` loses its fourth (`(Seqable :- [T])`) arm in lockstep
 ;; with the native's `nth_indexable()` capability flip (`wat/core.wat`, `src/collection/
 ;; seq_container.rs`). The differential must classify the SAME receiver set on both sides or it
 ;; silently stops covering what it claims to. `agree-on-stream` and `nth-spec-past-end-stream-
@@ -115,5 +115,5 @@
 ;; ═══ RETIRED by stone 118.B4-iii (THE WALL) ════════════════════════════════════════════════
 ;;
 ;; `agree-on-stream` and `nth-spec-past-end-stream-raises` used to sit here. Both are GONE, not
-;; weakened: `(nth-spec stream i)` no longer type-checks (the oracle's `Seqable<T>` arm is
+;; weakened: `(nth-spec stream i)` no longer type-checks (the oracle's `(Seqable :- [T])` arm is
 ;; dropped, `wat/core.wat`), so there is nothing left for either assertion to measure.

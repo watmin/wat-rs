@@ -1,4 +1,4 @@
-;; NARROW: 2-param surface Pair<A,B> satisfied by a PLAIN RECORD.
+;; NARROW: 2-param surface (Pair :- [A B]) satisfied by a PLAIN RECORD.
 ;; receiver clean + (Pair/fst b):i64 → the bug is the SERVICE-HANDLE satisfier
 ;; receiver errors ("expects :probe::Pair; got :probe::ISBox") → the bug is the 2-PARAM count
 (:wat::core::defsurface :probe::Pair :- [A B] :nature :wat::core::Struct

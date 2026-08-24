@@ -32,7 +32,7 @@
     (:wat::core::concat (:wat::core::into [] (:wat::core::take (:wat::core::ast->children node) 2))
                         (:wat::core::into [] (:wat::core::drop (:wat::core::ast->children node) 4)))))
 
-;; Arc 118.2a — `map` flipped LAZY; `with-children` needs a concrete `Vector<WatAST>`.
+;; Arc 118.2a — `map` flipped LAZY; `with-children` needs a concrete `(Vector :- [WatAST])`.
 (:wat::core::defn :user::fix-source [node <- :wat::WatAST] -> :wat::WatAST
   (:wat::core::if (:user::structural? node)
     (:wat::core::let [rebuilt (:wat::core::with-children node

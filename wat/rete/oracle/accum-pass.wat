@@ -8,10 +8,10 @@
 
 ;; ─── the accumulate dispatch (Stone 8-a) ────────────────────────────────────
 ;;
-;; WHY there is no single `apply-accumulator -> Option<Value>` fn: the wat type system has INVARIANT
-;; parametric types — `Option<i64>` is NOT a subtype of `Option<Value>` even though i64 <: Value
+;; WHY there is no single `apply-accumulator -> (Option :- [Value])` fn: the wat type system has INVARIANT
+;; parametric types — `(Option :- [i64])` is NOT a subtype of `(Option :- [Value])` even though i64 <: Value
 ;; (STONE-Value's `is_subtype` root rule fires only for `sup == ":wat::core::Value"` Path-to-Path, NOT
-;; for `Option<T>` covariance). So the dispatch is inlined per-fold in accumulate-pass-for-token, where
+;; for `(Option :- [T])` covariance). So the dispatch is inlined per-fold in accumulate-pass-for-token, where
 ;; each fold's concrete return type is handled directly: bare folds (count/sum/distinct/all/group-by)
 ;; assoc their result into the token's bindings; Option folds (min/max/mean) match inline (None → drop).
 
@@ -22,7 +22,7 @@
 ;;
 ;; DESIGN: Each branch calls a specific acc::* fold and handles that fold's return type
 ;; directly. Bare folds (count/sum/distinct/all/group-by) always produce a value → assoc
-;; into bindings. Option folds (min/max/mean) produce Option<i64> → match on that, then
+;; into bindings. Option folds (min/max/mean) produce (Option :- [i64]) → match on that, then
 ;; assoc or drop. The PersistentMap/assoc on the BARE bindings PM accepts any value
 ;; (i64/PV/PM) via STONE-Value UP (i64 <: Value, PV <: Value, PM <: Value).
 (:wat::core::defn :wat::rete::accumulate-pass-for-token
@@ -57,7 +57,7 @@
                          nb  (:wat::core::PersistentMap/assoc tok-binds result-var v)
                          ntk (:wat::rete::Token :matches tok-matches :bindings nb)]
          (:wat::rete::append-token bm node-id ntk)))
-      ;; min — Option<i64>; Some → assoc, None → drop
+      ;; min — (Option :- [i64]); Some → assoc, None → drop
       ((:wat::core::= acc-nm ":wat::rete::acc::min")
        (:wat::core::let [var (:wat::core::ast-name
                                (:wat::core::Option/expect  
@@ -69,7 +69,7 @@
               (:wat::rete::Token :matches tok-matches
                 :bindings (:wat::core::PersistentMap/assoc tok-binds result-var v))))
            (:wat::core::None bm))))
-      ;; max — Option<i64>; Some → assoc, None → drop
+      ;; max — (Option :- [i64]); Some → assoc, None → drop
       ((:wat::core::= acc-nm ":wat::rete::acc::max")
        (:wat::core::let [var (:wat::core::ast-name
                                (:wat::core::Option/expect  
@@ -81,7 +81,7 @@
               (:wat::rete::Token :matches tok-matches
                 :bindings (:wat::core::PersistentMap/assoc tok-binds result-var v))))
            (:wat::core::None bm))))
-      ;; mean — Option<i64>; Some → assoc, None → drop
+      ;; mean — (Option :- [i64]); Some → assoc, None → drop
       ((:wat::core::= acc-nm ":wat::rete::acc::mean")
        (:wat::core::let [var (:wat::core::ast-name
                                (:wat::core::Option/expect  
@@ -103,7 +103,7 @@
                          nb  (:wat::core::PersistentMap/assoc tok-binds result-var v)
                          ntk (:wat::rete::Token :matches tok-matches :bindings nb)]
          (:wat::rete::append-token bm node-id ntk)))
-      ;; all — bare PV<Record> result (always; empty → []); assoc directly
+      ;; all — bare (PV :- [Record]) result (always; empty → []); assoc directly
       ((:wat::core::= acc-nm ":wat::rete::acc::all")
        (:wat::core::let [v   (:wat::rete::acc::all gathered)
                          nb  (:wat::core::PersistentMap/assoc tok-binds result-var v)
@@ -120,7 +120,7 @@
                          ntk (:wat::rete::Token :matches tok-matches :bindings nb)]
          (:wat::rete::append-token bm node-id ntk)))
       ;; 8-custom — a non-built-in head is a USER fold fn. Gather the ?var values into a
-      ;; Vector<i64>, build the call `(user-fn (:wat::core::PersistentVector v0 v1 …))`
+      ;; (Vector :- [i64]), build the call `(user-fn (:wat::core::PersistentVector v0 v1 …))`
       ;; via quasiquote (~acc-hd splices the head; ~@vals splices the literal values into a
       ;; PV constructor), then eval-ast! it. The result (any Value) assocs into the binding.
       ;; The compile fence (compile-condition) has already proven the fn is pure∧det.
@@ -204,8 +204,8 @@
 ;; Empty gather + non-empty group keys: no bag-wide 0 (Clara new-bindings).
 ;; Runs AFTER hash-join-pass and BEFORE filter-pass (so a :where on ?result sees the binding).
 ;;
-;; STOP-3 resolution: apply-accumulator cannot return Option<Value> because the wat type system
-;; has invariant parametric types — Option<i64> is not Option<Value>. The dispatch is inlined
+;; STOP-3 resolution: apply-accumulator cannot return (Option :- [Value]) because the wat type system
+;; has invariant parametric types — (Option :- [i64]) is not (Option :- [Value]). The dispatch is inlined
 ;; in accumulate-pass-for-token where each fold's specific return type is handled directly.
 (:wat::core::defn :wat::rete::accumulate-pass
   [network   <- :wat::core::PersistentMap

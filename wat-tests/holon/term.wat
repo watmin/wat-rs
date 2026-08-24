@@ -8,8 +8,8 @@
 ;;
 ;;   template :HolonAST -> :HolonAST            ;; replace Thermometer values
 ;;                                              ;; with SlotMarker (min, max)
-;;   slots    :HolonAST -> :wat::core::Vector<wat::core::f64>            ;; pre-order Thermometer values
-;;   ranges   :HolonAST -> :wat::core::Vector<(f64,f64)>      ;; pre-order Thermometer ranges
+;;   slots    :HolonAST -> (:wat::core::Vector :- [:wat::core::f64])            ;; pre-order Thermometer values
+;;   ranges   :HolonAST -> (:wat::core::Vector :- [(f64,f64)])      ;; pre-order Thermometer ranges
 ;;
 ;; Templates compare exactly (HashMap-keyable). Slots and ranges are
 ;; parallel in length and order; the TermStore::get path uses them

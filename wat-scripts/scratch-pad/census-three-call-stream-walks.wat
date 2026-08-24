@@ -16,7 +16,7 @@
 ;;
 ;; ★ AND THE MATCH IS STRUCTURAL, not textual: a hit is a LIST WHOSE HEAD IS the keyword
 ;; `:wat::core::first` / `rest` / `empty?`. A comment mentioning `rest`, or a type named
-;; `Stream<T>`, cannot score — which is what made grep's counts untrustworthy in both directions.
+;; `(Stream :- [T])`, cannot score — which is what made grep's counts untrustworthy in both directions.
 ;;
 ;; Usage (one EDN vector of paths on stdin):
 ;;   printf '["wat/seq.wat"]\n' | ./target/release/wat wat-scripts/scratch-pad/census-three-call-stream-walks.wat

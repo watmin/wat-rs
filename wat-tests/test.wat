@@ -70,7 +70,7 @@
   ;; rune:complectens(embedded-program) — outer let has 2 bindings (p, fail); bulk is embedded-program AST literal (test fixture, not composition)
   ;; arc 278 IPC de-prime: run-thread → primed peer wire (spawn-program' :thread + recv').
   ;; The failing assert-contains crashes the self-peer → recv' Lost[cause];
-  ;; LociDiedError/to-failure rebuilds the Option<Failure> (preserving actual/expected),
+  ;; LociDiedError/to-failure rebuilds the (Option :- [Failure]) (preserving actual/expected),
   ;; so the downstream match on `fail` is unchanged.
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::thread)
@@ -132,7 +132,7 @@
   ;; rune:complectens(embedded-program) — outer let has 2 bindings (p, fail); bulk is embedded-program AST literal (test fixture, not composition)
   ;; arc 278 IPC de-prime: run-thread → primed peer wire (spawn-program' :thread + recv').
   ;; The failing assert-coincident crashes the self-peer → recv' Lost[cause];
-  ;; LociDiedError/to-failure rebuilds the Option<Failure> (preserving the rendered
+  ;; LociDiedError/to-failure rebuilds the (Option :- [Failure]) (preserving the rendered
   ;; explanation in `actual`), so the downstream match on `fail` is unchanged.
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::thread)

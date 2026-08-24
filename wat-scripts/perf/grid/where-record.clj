@@ -16,7 +16,7 @@
 ;; it is mirrored as a plain map with a `:tag` key (`{:tag "active" :level N}`, `{:tag "inactive"}`,
 ;; `{:tag "pending" :reason N}`) dispatched with `case` — the idiomatic Clojure shape for a closed
 ;; tag set, exactly as `defrecord`/`i64` are already how records/ints are mirrored elsewhere in this
-;; corpus. `:wat::core::Option<i64>` is mirrored the standard Clojure way: `nil` for `None`, the bare
+;; corpus. `(:wat::core::Option :- [i64])` is mirrored the standard Clojure way: `nil` for `None`, the bare
 ;; value for `Some v` — this is rule 4 (mirror the OPERATION, not the vocabulary): neither language
 ;; has the other's exact construct, so each side uses its own idiomatic representation of the SAME
 ;; three-way (Active/Inactive/Pending) and two-way (Some/None) case split, and `match`/`case` walk

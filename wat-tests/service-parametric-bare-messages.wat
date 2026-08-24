@@ -1,7 +1,7 @@
 ;; wat-tests/service-parametric-bare-messages.wat — arc 278: the surface-minted op alias STONE.
 ;;
 ;; `1ac85d96` forced every message on a parametric `:nature :Peer'` surface to spell the
-;; surface's own params, even vacuously (`PutRequest<T>` whose fields name no `T` at all) —
+;; surface's own params, even vacuously (`PutRequest :- [T]` whose fields name no `T` at all) —
 ;; because `wat/service.wat` derives each message type NAME by string concatenation, at expand
 ;; time, when the type registry is still empty; it cannot ask a message its real arity, so it
 ;; could only re-attach the surface's own params uniformly.
@@ -14,18 +14,18 @@
 ;; free to say so, honestly, bare.
 ;;
 ;; RED before the stone (the message-params lock, src/types.rs, `1ac85d96`):
-;;   op `put` in surface :wat-tests::BareBox<T>: its request type
+;;   op `put` in surface :wat-tests::BareBox :- [T]: its request type
 ;;   ":wat-tests::BareBox::PutRequest" must be declared parametric in EXACTLY this surface's
-;;   type params, in order — `PutRequest<T>` (arc 278, the parametric protocol) …
+;;   type params, in order — `PutRequest :- [T]` (arc 278, the parametric protocol) …
 ;; GREEN after: the lock is deleted (the whole point of this stone is that the spelling is no
 ;; longer required), and the bare messages below resolve through the Rust-minted alias.
 ;;
-;; WHAT THIS PROVES (beyond `--check`): the `<T>` service is STOOD UP and one `put` round-trips
+;; WHAT THIS PROVES (beyond `--check`): the `T`-parametric service is STOOD UP and one `put` round-trips
 ;; on BOTH loci — the thread tier (the alias resolves in-process, verbatim values) and the
 ;; process tier (a forked child re-registers the surface from the shipped `service-forms`
 ;; bundle and the payload crosses as ENCODED EDN, decoded against the alias's target type). `T`
 ;; is pinned to `i64` at the `/start` seed, load-bearing in the STATE — the same shape
-;; `service-parametric.wat` pins, minus the vacuous `<T>` this stone retires.
+;; `service-parametric.wat` pins, minus the vacuous `T` this stone retires.
 
 ;; ── the surface: parametric, messages BARE (the whole point) ────────────────────────────────
 (:wat::core::defsurface :wat-tests::BareBox :- [T] :nature :wat::kernel::Peer
@@ -44,7 +44,7 @@
      -> :wat-tests::BareBox::PutResponse :max-request-bytes 1024)])
 
 ;; ── the parametric service ──────────────────────────────────────────────────────────────────
-;; `held <- Option<T>` is the whole point: the durable record — and therefore ::State, ::Admin,
+;; `held <- (Option :- [T])` is the whole point: the durable record — and therefore ::State, ::Admin,
 ;; ::Status and ::Handle, each of which carries it — is generic in T.
 (:wat::service::defservice :wat-tests::barebox-svc :- [T]
   :satisfies (:wat-tests::BareBox :- [T])

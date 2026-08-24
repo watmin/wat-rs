@@ -10,8 +10,8 @@
     ""
     ch))
 
-;; Stone 118.B4-iii — THE WALL: `filter` returns a lazy `Stream<T>` (arc 118.2a) and `first` no
-;; longer accepts one. `forms` is already a fully-realized, finite `Vector<WatAST>`
+;; Stone 118.B4-iii — THE WALL: `filter` returns a lazy `(Stream :- [T])` (arc 118.2a) and `first` no
+;; longer accepts one. `forms` is already a fully-realized, finite `(Vector :- [WatAST])`
 ;; (`ast->children`'s return type) and this is reconnaissance over it, not a force-count probe —
 ;; `into []` materializes the filtered Stream back to a Vector so `first` still applies, same
 ;; "find the named top-level form" semantics, byte-identical answer.

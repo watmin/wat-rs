@@ -16,7 +16,7 @@
 ;; file is the same program with Shape->Seqable and area->as-vec.
 ;;
 ;; ⚠ WHAT THIS DOES *NOT* PROVE: only Vector + PersistentVector are extended here (List and
-;; Stream are untested); the surface is NOT parametric (hardcoded Vector<i64>, not Seqable<T>);
+;; Stream are untested); the surface is NOT parametric (hardcoded (Vector :- [i64]), not (Seqable :- [T]));
 ;; and per-element dispatch cost is UNMEASURED. Those three are the real remaining work.
 
 ;; DISCONFIRMING PROBE — can `Seqable` be spelled in wat TODAY?

@@ -11,7 +11,7 @@
 ;;     :nature :wat::core::Record
 ;;     :features [message  <- :wat::core::String
 ;;                location <- :wat::kernel::Location
-;;                causes   <- :wat::core::Vector<wat::core::Error>])
+;;                causes   <- (:wat::core::Vector :- [wat::core::Error])])
 ;;
 ;; Three things proved:
 ;; (a) startup boots — :wat::core::Error is registered

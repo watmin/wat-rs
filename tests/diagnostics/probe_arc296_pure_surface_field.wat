@@ -3,10 +3,10 @@
 ;; Arc 296 — a Record-natured surface used as a RECURSIVE field type in a pure aggregate.
 ;;
 ;; RED at HEAD: is_pure_type returns false for any Surface arm → ImpureFieldInPureAggregate
-;; when :probe::Boom declares `causes <- :wat::core::Vector<probe::E>`.
+;; when :probe::Boom declares `causes <- (:wat::core::Vector :- [probe::E])`.
 ;;
 ;; GREEN after arc 296 fix: Surface purity mirrors its nature's purity.
-;; :probe::E has :nature :wat::core::Record → is_pure → the Vector<E> field is allowed.
+;; :probe::E has :nature :wat::core::Record → is_pure → the (Vector :- [E]) field is allowed.
 
 (:wat::core::defsurface :probe::E
   :nature :wat::core::Record

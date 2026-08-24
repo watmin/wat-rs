@@ -5,7 +5,7 @@
 ;; the bound is real: a cap-2 cache holding {:a :b} evicts `:a` when `:c` arrives, handing the
 ;; evicted pair back as a NAMED `:wat::cache::Entry` (key/value), not a positional tuple.
 ;;
-;; Keys are KEYWORDS and values are i64 — the generic `<K,V>` carries arbitrary hashable EDN,
+;; Keys are KEYWORDS and values are i64 — the generic `Lru :- [K V]` carries arbitrary hashable EDN,
 ;; it is not narrowed to String/i64.
 
 (:wat::core::use! :rust::cache::Lru)
@@ -53,11 +53,11 @@
 ;; ─── HolonAST as an EXACT-match key — closes a Cache Stone 5 coverage gap ────────────────────
 ;;
 ;; The gate above only ever keys on Keyword. `:wat::cache::HolographicLru`'s internal
-;; `Lru<HolonAST,nil>` field DOES instantiate `Lru<K,V>` at K=HolonAST, but only ever through
+;; `(Lru :- [HolonAST nil])` field DOES instantiate `(Lru :- [K V])` at K=HolonAST, but only ever through
 ;; Hologram's own SIMILARITY match + recency bump — never a direct exact `Lru::get`/`put`
 ;; round-trip on a bare HolonAST key. Ported from the dying `crates/wat-lru`'s
 ;; `wat-tests/lru/HolonKey.wat` (arc 057 slice 3): the three properties any cache layer needs
-;; to trust holon keys, proven directly against `:wat::cache::Lru<K,V>` this time, not the old
+;; to trust holon keys, proven directly against `(:wat::cache::Lru :- [K V])` this time, not the old
 ;; `:wat::lru::LocalCache`.
 ;;
 ;; The underlying `impl Hash + Eq for Value::holon__HolonAST` is ALSO covered at the Rust level

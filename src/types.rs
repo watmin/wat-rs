@@ -9,19 +9,20 @@
 //! - `(:wat::core::typealias :name :Expr)` — structural alias (same type,
 //!   alternative name).
 //!
-//! Parametric polymorphism (058-030 Q1 resolved YES): the name keyword
-//! may carry a `<T,U,V>` suffix declaring type parameters. Example:
-//! `:my::Wrapper<T>` declares a type with one type variable `T`.
+//! Parametric polymorphism (058-030 Q1 resolved YES): the name keyword is followed by a
+//! sibling `:- [T U V]` binder declaring type parameters (arc 109 ③ retired the old
+//! `<T,U,V>` name-suffix spelling — it is refused outright). Example:
+//! `:my::Wrapper :- [T]` declares a type with one type variable `T`.
 //!
 //! # What this slice does
 //!
 //! - Classifies each declaration form at startup.
 //! - Extracts the name, type parameters, and structural shape (field
 //!   name/type pairs, enum variants).
-//! - Parses type expressions (`:f64`, `:Vec<T>`, `:fn(T,U)->R`,
+//! - Parses type expressions (`:f64`, `(:Vec :- [T])`, `:fn(T,U)->R`,
 //!   `:my::ns::MyType`) into structured [`TypeExpr`] values.
 //! - Stores the result in a [`TypeEnv`], keyed by the bare declaration
-//!   name (no `<T>` in the key — parametric types are registered once;
+//!   name (no `:- [T]` binder in the key — parametric types are registered once;
 //!   call-site instantiation is [`crate::check`]'s concern).
 //! - Rejects duplicate declarations and reserved-prefix names. The
 //!   authoritative prefix list is
@@ -79,7 +80,7 @@ pub enum TypeExpr {
     /// rejection of the escape hatch. `parse_type_expr` refuses it at
     /// the parse layer.
     Path(String),
-    /// `:wat::core::Vector<T>`, `:wat::core::HashMap<K,V>`, `:my::ns::Container<wat::holon::HolonAST,f64>`.
+    /// `(:wat::core::Vector :- [T])`, `(:wat::core::HashMap :- [K V])`, `(:my::ns::Container :- [wat::holon::HolonAST f64])`.
     Parametric {
         head: String,
         args: Vec<TypeExpr>,
@@ -180,7 +181,7 @@ pub struct StructRestrictions {
 ///   HolonRecord = holonic record (`:wat::holon::Record` hierarchy, wire-portable + holon_form)
 /// Arc 293 S3-Nature-2 — a fourth variant, `Peer`, joins the axis but sits OFF the aggregate
 /// contravariant ladder: a `:nature :Peer` surface requires an EXACT match (a dialed
-/// `Peer'<S::Op,S::Reply>`), not a floor. See `rank()` for why it carries the sentinel `i8::MIN`.
+/// `(Peer' :- [S::Op S::Reply])`), not a floor. See `rank()` for why it carries the sentinel `i8::MIN`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Nature {
     Struct,
@@ -946,7 +947,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // anything else a caller bundles; the alias makes no truth
     // assertion.
     //
-    //   typealias :wat::holon::Holons = :Vec<wat::holon::HolonAST>
+    //   typealias :wat::holon::Holons = (:Vec :- [wat::holon::HolonAST])
     //
     // Callers can write either form; alias resolution unifies them.
     env.register_builtin(TypeDef::Alias(AliasDef {
@@ -1000,9 +1001,9 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // because byte buffers are substrate-general — they predate every
     // current and future consumer (vector serde via arc 061, future
     // crypto/IO/hashing/network arcs). The alias resolves structurally;
-    // both `:wat::core::Bytes` and `:Vec<u8>` work at call sites.
+    // both `:wat::core::Bytes` and `(:Vec :- [u8])` work at call sites.
     //
-    //   typealias :wat::core::Bytes = :Vec<u8>
+    //   typealias :wat::core::Bytes = (:Vec :- [u8])
     env.register_builtin(TypeDef::Alias(AliasDef {
         name: ":wat::core::Bytes".into(),
         type_params: vec![],
@@ -1107,7 +1108,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
         ],
     }));
 
-    // Arc 070 — :wat::eval::WalkStep<A> — what the visitor passed to
+    // Arc 070 — (:wat::eval::WalkStep :- [A]) — what the visitor passed to
     // :wat::eval::walk returns. Two variants:
     //
     //   Continue(acc')        — keep walking; acc' is the new
@@ -1251,7 +1252,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
         ],
     }));
 
-    // Arc 278 Stone 1 (`wat --mcp`) — :wat::edn::ReadJsonOutcome<T> — what
+    // Arc 278 Stone 1 (`wat --mcp`) — (:wat::edn::ReadJsonOutcome :- [T]) — what
     // `:wat::edn::read-json` returns.
     //
     // `:wat::edn::read-json`'s input arrives from a REMOTE, UNTRUSTED harness over stdio (the
@@ -1267,7 +1268,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // CHECKED, so a `:wat::core::Value` payload can be PRODUCED but never CONSUMED — no accessor
     // (`HashMap/get`, a Struct/Record field, …) type-checks against an opaque `Value` receiver, by
     // design (measured: `HashMap/get` on a decoded JSON object refused with "expected
-    // HashMap<?,?>; got :wat::core::Value"). `T` is generic exactly as `ReadlnOutcome<T>`'s `T` is
+    // HashMap<?,?>; got :wat::core::Value"). `T` is generic exactly as `(ReadlnOutcome :- [T])`'s `T` is
     // (immediately above) and for the same reason — the payload's type is the CALLER's, driven by
     // the annotated binding, not ours to fix in advance.
     //
@@ -1276,7 +1277,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     //
     // Pure, and for `ReadOutcome`'s stated reason: the payload holds no fd and no peer (T here is
     // ordinary decoded data — a String/HashMap/record — never a live resource, unlike
-    // `ReadlnOutcome<T>`'s T which can be), and `:wat::core::Error` is Record-natured. Marking it
+    // `(ReadlnOutcome :- [T])`'s T which can be), and `:wat::core::Error` is Record-natured. Marking it
     // Impure would bar it from pure aggregates and the wire for nothing.
     env.register_builtin(TypeDef::Enum(EnumDef {
         name: ":wat::edn::ReadJsonOutcome".into(),
@@ -1365,7 +1366,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
         ],
     }));
 
-    // Arc 170 closure #24 — :wat::kernel::ReadlnOutcome<T> — what `readln` returns.
+    // Arc 170 closure #24 — (:wat::kernel::ReadlnOutcome :- [T]) — what `readln` returns.
     //
     // The THIRD outcome at this seam, and deliberately not either of the other two.
     // `IOReader::ReadFrameOutcome` and `kernel::ReadFrameOutcome` both carry RAW TEXT;
@@ -1382,11 +1383,11 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // 72 readln callers … there is no caller-facing value form for 'raise' to hand a stop
     // through". This is that value form; the bank is spent.
     //
-    // `T` is generic exactly as `RecvOutcome<O>`'s `O` is, and for the same reason —
+    // `T` is generic exactly as `(RecvOutcome :- [O])`'s `O` is, and for the same reason —
     // the payload's type is the consumer's, not ours. That precedent is what makes this
     // mechanism already proven rather than newly invented.
     //
-    // Impure for `RecvOutcome<O>`'s reason exactly: `T` may itself be a live resource.
+    // Impure for `(RecvOutcome :- [O])`'s reason exactly: `T` may itself be a live resource.
     //
     // ⚠ `Datum` is PROVISIONAL — arc 170 closure #26 casts intueri over this whole
     // surface (`StdIn::ReadFrameResponse` / `read-frame` / `:Frame`) and this variant name
@@ -1449,7 +1450,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
         ],
     }));
 
-    // Arc 170 — :wat::eval::FormOutcome<T> — what `:wat::eval-with-defs!` returns:
+    // Arc 170 — (:wat::eval::FormOutcome :- [T]) — what `:wat::eval-with-defs!` returns:
     // the outcome of handing ONE form to a world built from a definition set.
     //
     // Why FOUR variants and not a Result. A caller submitting a line (a REPL's `E`
@@ -1489,10 +1490,10 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // `defn` and `defrecord` fail eval with `unknown-function` — byte-identical to a
     // TYPO — because both are macros with no runtime verb to find.
     //
-    // Impure, for RecvOutcome<O>'s reason exactly: the caller's live `Environment` is
+    // Impure, for (RecvOutcome :- [O])'s reason exactly: the caller's live `Environment` is
     // threaded through unchanged so impure bindings survive, so `T` may be a live
     // resource, and a Pure marking would lie the moment it is. `T` is phantom in three
-    // of the four variants — the precedent is `:wat::service::Outcome<S,R,O>`, whose
+    // of the four variants — the precedent is `(:wat::service::Outcome :- [S R O])`, whose
     // `O` is phantom for Reply/Stop/NoReply.
     //
     // Named by an intueri cast (2026-07-28), which also ruled the verb
@@ -1555,7 +1556,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     //
     // Purity::Pure — a death report crosses back to the owner as EDN data; its
     // payload is String / Option<Failure> (no live resource), unlike
-    // RecvOutcome<O> which is Impure only because O may be live.
+    // (RecvOutcome :- [O]) which is Impure only because O may be live.
     env.register_builtin(TypeDef::Enum(EnumDef {
         name: ":wat::kernel::LociDiedError".into(),
         type_params: vec![],
@@ -1740,7 +1741,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // source of truth; Rust consumes it.
     ::wat_source_derive::wat_record_from!(env, "wat/kernel/diagnostics.wat", ":wat::kernel::StopFailed");
 
-    // :wat::kernel::RecvOutcome<O> — the matchable outcome of a point-to-point
+    // (:wat::kernel::RecvOutcome :- [O]) — the matchable outcome of a point-to-point
     // peer read (`recv'`). Arc 278 the recv'-outcome wall (DESIGN-recv-outcome-wall.md):
     // recv' RETURNED O and RAISED on close/crash — a raise unwinds past the reader
     // (mute). This makes a reason-free failure UNREPRESENTABLE — a peer read yields a
@@ -1798,7 +1799,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
         ],
     }));
 
-    // :wat::stream::NextOutcome<T> — Arc 118.11a (stone A of two, "mint next +
+    // (:wat::stream::NextOutcome :- [T]) — Arc 118.11a (stone A of two, "mint next +
     // NextOutcome", DESIGN-STONE-118.11a). The matchable outcome of
     // `:wat::stream::next`, the single-force pull primitive that replaces the
     // three-force `empty?`/`first`/`rest` walk protocol (measured: 15 user-code
@@ -1806,14 +1807,14 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // the whole realized chain in memory, +297 B/element). `next` forces exactly
     // one cell (`crate::stream::realize`, WHNF) and returns both halves in one
     // shot — nothing to dedupe, so no cache is needed:
-    //   :Item      [value <- T, rest <- Stream<T>] — the forced head + the
+    //   :Item      [value <- T, rest <- (Stream :- [T])] — the forced head + the
     //                                                 undrained tail, together.
     //   :Exhausted []                              — the named end.
-    // Parametric in T exactly as `RecvOutcome<O>` above (the copied exemplar) —
+    // Parametric in T exactly as `(RecvOutcome :- [O])` above (the copied exemplar) —
     // and for the identical reason: the nullary `Exhausted` variant is the
     // documented hazard in `check.rs` (the un-parametrized-nullary-variant
     // unify failure) unless the enum itself carries `type_params`. IMPURE like
-    // `RecvOutcome<O>`, not `SendOutcome`/`CloseOutcome`: T is a caller-supplied
+    // `(RecvOutcome :- [O])`, not `SendOutcome`/`CloseOutcome`: T is a caller-supplied
     // element type that MAY be a live resource (a `Stream` of open peers, say),
     // so a blanket `Pure` marking would lie about what crosses. This stone is
     // purely additive — no existing verb moves, no call site migrates onto `next` yet.
@@ -1945,7 +1946,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     //                                     *terminated*, never merely stopped.
     //   :Failed   [cause <- Failure]    — join-panic / wait-fail / stopped-not-terminated;
     //                                     the abnormal-close carrier (structured Failure).
-    // PURE — like SendOutcome, unlike RecvOutcome<O>. Non-parametric; the peer is
+    // PURE — like SendOutcome, unlike (RecvOutcome :- [O]). Non-parametric; the peer is
     // CONSUMED (close' takes the Option, leaving None), so no value here holds a live
     // resource. It carries only pure data: an Option<i64>, an i64, and a Nature::Record
     // Failure — fully EDN-reconstructable / wire-crossable. Marking it Impure would LIE.
@@ -2112,15 +2113,15 @@ fn register_builtin_types(env: &mut TypeEnv) {
         ],
     }));
 
-    // :wat::kernel::AcceptOutcome<R,S> — Arc 278 peer-lifecycle Strike 3 (the accept'
+    // (:wat::kernel::AcceptOutcome :- [R S]) — Arc 278 peer-lifecycle Strike 3 (the accept'
     // OUTCOME WALL, BRIEF-accept-outcome-wall.md). `accept'` used to RETURN a bare
-    // `Peer'<R,S>` and RAISE on its *handleable* failures (rendezvous dropped/shutdown,
+    // `(Peer' :- [R S])` and RAISE on its *handleable* failures (rendezvous dropped/shutdown,
     // decode error, `select` error, `peer_cred` read fail). Per the peer-lifecycle LAW
     // (2026-07-23) — "we deliver an enum for code to handle exceptions with; raise is
     // uncatchable on purpose, a thing that must never happen" — those become a matchable
     // outcome; only the must-never-happen raises (arity, listener-type-mismatch, and the
     // in-process malformed-connect-request substrate bug) stay raises. Shape (RULED):
-    //   :Accepted [peer <- Peer'<R,S>]  — an AUTHORIZED peer connected (the happy path).
+    //   :Accepted [peer <- (Peer' :- [R S])]  — an AUTHORIZED peer connected (the happy path).
     //   :Closed   []                    — the listener's rendezvous shut down / address
     //                                     dropped (clean; no peer). The reason-free terminal.
     //   :Failed   [cause <- Failure]    — a decode / select / peer_cred / socket-wrap io
@@ -2130,7 +2131,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // drop + re-poll; thread tier: no gate — the crossbeam handle IS the grant), so no
     // tier returns a security-reject to the caller — a `Rejected` variant would never be
     // constructed (fails Honest).
-    // Impure + PARAMETRIC, mirroring RecvOutcome<O>: `Accepted` holds a live `Peer'` (a
+    // Impure + PARAMETRIC, mirroring (RecvOutcome :- [O]): `Accepted` holds a live `Peer'` (a
     // socket/channel handle), so a Pure marking would lie the moment the peer is a live
     // resource. R,S carry the peer's wire element types (the parametric precedent).
     // Registered as a builtin for the same load-order reason as RecvOutcome — accept' is a
@@ -2161,17 +2162,17 @@ fn register_builtin_types(env: &mut TypeEnv) {
         ],
     }));
 
-    // :wat::kernel::ConnectOutcome<S,R> — Arc 278 peer-lifecycle Strike 4 (the connect'
+    // (:wat::kernel::ConnectOutcome :- [S R]) — Arc 278 peer-lifecycle Strike 4 (the connect'
     // OUTCOME WALL, BRIEF-connect-outcome-wall.md — the LAST peer-lifecycle wall). The
-    // exact TWIN of `AcceptOutcome<R,S>` above. `connect'` used to RETURN a bare
-    // `Peer'<S,R>` and RAISE on its *handleable* failures (ECONNREFUSED / no listener /
+    // exact TWIN of `(AcceptOutcome :- [R S])` above. `connect'` used to RETURN a bare
+    // `(Peer' :- [S R])` and RAISE on its *handleable* failures (ECONNREFUSED / no listener /
     // rendezvous gone, the `OnlyThisPeer` identity reject, `peer_cred` read fail,
     // socket-wrap io error). Per the peer-lifecycle LAW (2026-07-23) — "we deliver an enum
     // for code to handle exceptions with; raise is uncatchable on purpose, a thing that
     // must never happen" — those become a matchable outcome; only the must-never-happen
     // raises (arity, address-type-mismatch, and the in-process malformed-address substrate
     // bug — see below) stay raises. Shape (RULED):
-    //   :Connected [peer <- Peer'<S,R>]  — dialed + admitted (the happy path).
+    //   :Connected [peer <- (Peer' :- [S R])]  — dialed + admitted (the happy path).
     //   :Refused   [cause <- Failure]    — ECONNREFUSED / no listener / rendezvous gone;
     //                                      RETRYABLE transport (the server may come up).
     //   :Rejected  [cause <- Failure]    — the `OnlyThisPeer` identity check failed (the
@@ -2191,7 +2192,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // (non-empty, <=107-byte abstract-UDS limit, bytes 0..=255 — `capability::registry`),
     // so a malformed name at connect time is an in-process substrate bug, not adversarial
     // wire data (STOP-3, grounded).
-    // Impure + PARAMETRIC, mirroring AcceptOutcome<R,S>/RecvOutcome<O>: `Connected` holds a
+    // Impure + PARAMETRIC, mirroring (AcceptOutcome :- [R S])/(RecvOutcome :- [O]): `Connected` holds a
     // live `Peer'` (a socket/channel handle), so a Pure marking would lie the moment the
     // peer is a live resource. S,R carry the peer's wire element types. Registered as a
     // builtin for the same load-order reason as AcceptOutcome — connect' is a kernel verb
@@ -2231,7 +2232,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
 
     // :wat::holon::VectorDecodeOutcome — Arc 278 the dimension-heresy strike
     // (BRIEF-dimension-heresy-screams.md). `:wat::holon::bytes-vector` used to
-    // return a bare `:Option<wat::holon::Vector>`, collapsing FOUR structurally
+    // return a bare `(:Option :- [wat::holon::Vector])`, collapsing FOUR structurally
     // distinct wire-decode failures (short header, wrong data length, foreign
     // encoding dimension, reserved 0b11 cell pattern) into one reason-free
     // `:None`. Per the builder's ruling on this strike — "the entire check is
@@ -2500,7 +2501,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     }));
 
     // :wat::kernel::ForkedChild RETIRED 2026-04-30 (arc 112).
-    // The struct collapsed into :wat::kernel::Process<I,O> — both
+    // The struct collapsed into (:wat::kernel::Process :- [I O]) — both
     // spawn-process and spawn-program' now return the unified Process
     // shape. The wait mechanism lives inside ProgramHandle's
     // InThread / Forked enum variant; the ChildHandle is no longer
@@ -2509,8 +2510,8 @@ fn register_builtin_types(env: &mut TypeEnv) {
     //   (handle :wat::kernel::ChildHandle)     (ForkedChild/handle child)
     //   (exit  :i64)                           (wait-child handle)
     // Migration:
-    //   (proc  :wat::kernel::Process<I,O>)     (spawn-process forms)
-    //   (rcv   :Result<:(),:ProcessDiedError>) (Process/join-result proc)
+    //   (proc  (:wat::kernel::Process :- [I O]))     (spawn-process forms)
+    //   (rcv   (:Result :- [:() :ProcessDiedError])) (Process/join-result proc)
 
     // :wat::kernel::StartupError — error variant of the Result
     // returned by `:wat::kernel::spawn-program` / `-ast` (arc 105a).
@@ -4640,10 +4641,13 @@ fn parse_aggregate(args: Vec<WatAST>, decl_span: Span, head: &'static str, env: 
 // which was also deleted (HARD CUT). `parse_defenum` uses `parse_argspec_triples`
 // for tagged-variant fields instead of the legacy pair-form parser.
 
-/// Parse a declared type name. Accepts:
+/// Parse a declared type name. Accepts a bare name only:
 /// - `:my::ns::MyType` → ("my/ns/MyType", [])
-/// - `:my::ns::Wrapper<T>` → ("my/ns/Wrapper", ["T"])
-/// - `:my::ns::Container<K,V>` → ("my/ns/Container", ["K", "V"])
+///
+/// A name carrying an angle-bracket suffix (`:my::ns::Wrapper<T>`) is REFUSED — arc 109 ③
+/// retired that spelling; type parameters now arrive as the sibling `Head :- [T …]` binder
+/// just after the name (see `is_binder_marker`/`take_declared_binder` below), never inside
+/// the name keyword's own text. The returned `Vec` is therefore always empty here.
 ///
 /// Arc 138 slice 2 — `decl_span` is the whole-decl span used for
 /// MalformedDecl errors fired here (when the name slot isn't a
@@ -4930,8 +4934,9 @@ pub fn parse_type_expr_preserving_with_span(kw: &str, span: &Span) -> Result<Typ
 /// dual-read transition begins at 251.3:
 ///
 /// - `WatAST::Keyword(kw, span)` — the existing surface: delegates to
-///   `parse_type_expr_with_span`. Covers `:wat::core::i64`,
-///   `:wat::core::Vector<wat::core::i64>`, etc.
+///   `parse_type_expr_with_span`. Covers atomic paths (`:wat::core::i64`, etc.) and
+///   `fn(...)->...`/tuple-literal spellings; a parametric reference in Keyword form
+///   (`Head<args>`) is refused — arc 109 ③ retired that spelling.
 /// - `WatAST::Symbol(ident, span)` — a namespaced symbol `wat.type/X`
 ///   arriving **pre-normalization** (before `normalize_symbol_refs` has run).
 ///   Converted to the keyword FQDN (`:wat::type::X`) then parsed; the
@@ -5565,7 +5570,7 @@ fn find_matching_close(s: &str, open: char, close: char) -> Option<usize> {
 // ─── Typealias expansion ─────────────────────────────────────────────
 //
 // 058-030 declares `:wat::core::typealias` as a structural alias:
-// `:Alias<K,V>` and its expansion are the SAME type. The runtime shape
+// `(:Alias :- [K V])` and its expansion are the SAME type. The runtime shape
 // below walks alias-headed expressions to their definitions,
 // substituting declared type parameters with call-site arguments, until
 // a non-alias root is reached. Called from `check::unify` before the
@@ -5869,7 +5874,7 @@ pub fn is_subtype(sub: &str, sup: &str, env: &TypeEnv) -> bool {
     // Arc 278 Stone 2 — :wat::core::Never is the universal subtype-BOTTOM: Never <: every type
     // (the exact DUAL of Value's top). DOWN is free (this rule); UP stays checked — nothing is
     // <: Never except Never itself (reflexive, above). Uninhabited: it is the honest send-type of
-    // a timer peer (`after` → `Peer'<Never, O>`), which never sends, so `send'`-to-a-timer is a
+    // a timer peer (`after` → `(Peer' :- [Never O])`), which never sends, so `send'`-to-a-timer is a
     // compile error (the wrong thing has no form). No registration: like Value, Never is an opaque
     // Path; a TypeDef::Struct would wrongly synthesize a constructor (Never is un-constructible).
     if sub == ":wat::core::Never" {
@@ -6958,10 +6963,11 @@ mod tests {
 
     #[test]
     fn stone_2_request_malformed_path_accepts_the_list_type_spelling() {
-        // `(:wat::core::Vector :wat::core::String)` and `:wat::core::Vector<wat::core::String>`
-        // are the SAME type written two ways, and the lock compares parsed `TypeExpr`s — so
-        // both clear it. This is why `rm_fields` is built by PARSING the canonical spelling
-        // rather than hand-assembling the `TypeExpr`.
+        // `(:wat::core::Vector :wat::core::String)` (the bare parametric FORM) and
+        // `(:wat::core::Vector :- [:wat::core::String])` (the canonical `:-` FORM, used by the
+        // sibling test below) are the SAME type written two ways, and the lock compares parsed
+        // `TypeExpr`s — so both clear it. This is why `rm_fields` is built by PARSING the
+        // canonical spelling rather than hand-assembling the `TypeExpr`.
         expand_then_register(
             r#"(:wat::core::defsurface :t::Ok2 :nature :wat::kernel::Peer
                   :messages [(:wat::core::recordtype :t::Ok2::FooRequest :wat::core::Record

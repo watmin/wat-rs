@@ -6,7 +6,7 @@
 (:wat::core::defrecord :weather::ColdAndWindy [location <- :wat::core::String])
 
 ;; Build the fired session for a given WindSpeed location, then flatten production-memory's per-node
-;; PV<:wat::core::Record> values into one `derived` PV (only one rule/ProductionNode exists in each
+;; (PV :- [:wat::core::Record]) values into one `derived` PV (only one rule/ProductionNode exists in each
 ;; scenario below, so this is exactly the ProductionNode's own derived facts). Two scenario groups:
 ;; wind at "Oslo" (matches Temperature's loc) and wind at "Bergen" (does not).
 

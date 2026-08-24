@@ -24,14 +24,14 @@
 
 ;; ─── the lazy sources ──────────────────────────────────────────────────────────────────────────
 ;; The fourth "container" each verb is exercised over is a REAL lazy stage, not a re-wrapped
-;; Vector. `(map identity v)` returns a genuine `Stream<i64>`, so these rows test the composition
+;; Vector. `(map identity v)` returns a genuine `(Stream :- [i64])`, so these rows test the composition
 ;; that actually matters — a lazy verb consuming another lazy verb's output, which is precisely
 ;; where a re-forcing walker would run the upstream's user code more than once.
 ;;
 ;; ⚠ NOT `(Seqable/seq v)`. That was the obvious spelling and it does NOT type-check: `Seqable/seq`
-;; is declared `[self <- Seqable<T>] -> Stream<T>`, and calling it on a concrete `Vector<i64>`
-;; yields `Stream<T>` with T UNBOUND — the surface method drops the instantiation, so the result
-;; will not satisfy a concrete `Seqable<i64>` downstream. Recorded in
+;; is declared `[self <- (Seqable :- [T])] -> (Stream :- [T])`, and calling it on a concrete `(Vector :- [i64])`
+;; yields `(Stream :- [T])` with T UNBOUND — the surface method drops the instantiation, so the result
+;; will not satisfy a concrete `(Seqable :- [i64])` downstream. Recorded in
 ;; `NOTE-118.B2b-two-doors-the-checker-opened-and-the-runtime-did-not.md`; it is pre-existing (B1
 ;; minted the surface; nothing had yet fed a surface-method RESULT into a concrete consumer).
 

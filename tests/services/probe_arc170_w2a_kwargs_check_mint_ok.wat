@@ -1,7 +1,7 @@
 ;; Arc 170 W2a/C2-D — auto-minted `<fqdn>::kwargs-check` POSITIVE control.
-;; :probe::enrich is a kwargs defn (two Peer'<S,R> handle fields) — defn's kwargs branch
+;; :probe::enrich is a kwargs defn (two (Peer' :- [S R]) handle fields) — defn's kwargs branch
 ;; (wat/core.wat:876) auto-mints :probe::enrich::kwargs-check, a checker fn whose Peer'
-;; field types are head-swapped to TypedCapability<S,R> (data-typed fields pass through
+;; field types are head-swapped to (TypedCapability :- [S R]) (data-typed fields pass through
 ;; unchanged; arc 170 C2 candidate D). A CORRECTLY-typed kwargs call to the AUTO-MINTED
 ;; checker (not the work fn itself), passing RAW HANDLES (no Dialable/coord upcast — the
 ;; handle satisfies TypedCapability directly via the bodiless auto-emit), must freeze
@@ -54,7 +54,7 @@
 
 ;; arc 170 C2 D — the checker RETURNS `(::Coords, ::GrantHandles)` (a Tuple: the pure
 ;; field-ordered Address'+data record, and the impure parent-local typed-handle struct);
-;; the checker's service params are `TypedCapability<S,R>`, so the call site passes RAW
+;; the checker's service params are `(TypedCapability :- [S R])`, so the call site passes RAW
 ;; HANDLES (no coord upcast — the bodiless edge admits them directly). `:user::main`
 ;; discards the pair (`_pair`, a plain let-binding) so the call still exercises the
 ;; param-type gate while `main` keeps its required `[] -> :nil` contract.

@@ -19,7 +19,7 @@
 ;;       reaches every real occurrence and, unlike a prefix rename, can never later swallow some future
 ;;       sibling variant whose name happens to start with "Shutdown" (e.g. a hypothetical
 ;;       `ShutdownReason`). Chosen deliberately over `rename-keyword-prefix`: the prefix primitive
-;;       earns its keep only when a parametric tail (`Peer'<S,R>`) or an appended suffix can follow the
+;;       earns its keep only when a parametric tail (`(Peer' :- [S R])`) or an appended suffix can follow the
 ;;       matched token, and neither is possible here.
 ;;   (2) a literal `WRONG:Shutdown` -> `WRONG:Stopped` text pass (split+join substring replace — no
 ;;       AST primitive touches STRING LITERALS). Four test fixtures carry a `WRONG:<variant>` sentinel

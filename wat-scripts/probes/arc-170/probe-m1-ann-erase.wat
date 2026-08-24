@@ -1,6 +1,6 @@
-;; probe-m1-ann-erase.wat — can ann-form erase concrete Address'<S,R> -> bare Address',
-;; store in Vector<Address'>, then send it (bare) to a child that recv's it concrete + connects?
-;; The parent's PoolMsg<Address',...> and child's PoolMsg<Address'<S,R>,...> are SEPARATE
+;; probe-m1-ann-erase.wat — can ann-form erase concrete (Address' :- [S R]) -> bare Address',
+;; store in (Vector :- [Address']), then send it (bare) to a child that recv's it concrete + connects?
+;; The parent's (PoolMsg :- [Address' ...]) and child's (PoolMsg :- [(Address' :- [S R]) ...]) are SEPARATE
 ;; typecheck universes; only the wire bytes must match.
 ;; EXPECT (green): "echo:z"
 
@@ -27,7 +27,7 @@
   (:wat::core::let
     [eh   (:probe::echo/start :locus (:wat::spawn::process) :record (:probe::echo::Record))
      ea   (:probe::echo::Handle/addr eh)
-     ;; ERASE concrete Address'<Op,Reply> -> bare Address' via ann-form:
+     ;; ERASE concrete (Address' :- [Op Reply]) -> bare Address' via ann-form:
      eab  (:wat::core::ann-form ea :wat::kernel::Address)
      erased (:wat::core::Vector :wat::kernel::Address eab)
      worker (:wat::test::spawn-peer (:wat::spawn::process)
@@ -39,7 +39,7 @@
                                                                                                                       :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
                   :features
                   [(echo [self <- :probe::Echo  req <- :probe::Echo::EchoRequest] -> :probe::Echo::EchoResponse :max-request-bytes 524288)])
-                ;; CHILD-side PoolMsg with CONCRETE Address'<Op,Reply> payload.
+                ;; CHILD-side PoolMsg with CONCRETE (Address' :- [Op Reply]) payload.
                 (:wat::core::defenum :probe::CMsg :wat::enum::Pure
                   :Setup [addr <- (:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply])]
                   :Work  [s    <- :wat::core::String])

@@ -5,9 +5,9 @@
 ;; THE QUESTION the 285 STUB asks: "can a built-in `Value` type satisfy a
 ;; wat-defined defprotocol whose methods route to those Rust intrinsics?"
 ;;
-;; THE QUESTION IT DOES NOT ASK, and which was the real unknown: `Seqable<T>`
-;; (wat/seq.wat:75) proves ONE type param over built-ins. `Dialable<S,R>`
-;; (wat/capability.wat:44) proves TWO type params over a user Struct. A `Map<K,V>`
+;; THE QUESTION IT DOES NOT ASK, and which was the real unknown: `(Seqable :- [T])`
+;; (wat/seq.wat:75) proves ONE type param over built-ins. `(Dialable :- [S R])`
+;; (wat/capability.wat:44) proves TWO type params over a user Struct. A `(Map :- [K V])`
 ;; is TWO params over a BUILT-IN — a combination neither precedent covers.
 ;;
 ;; ANSWER, measured 2026-08-20 at HEAD 9b360374f: it works, with no new substrate.

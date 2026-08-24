@@ -2,7 +2,7 @@
 ;;
 ;; Exercises List/of constructor, length, empty?, first, rest, conj (prepend),
 ;; contains?, and cross-type equality with Vector.
-;; All cases pass if List<T> is correctly wired (eval, dispatch arms, equality).
+;; All cases pass if (List :- [T]) is correctly wired (eval, dispatch arms, equality).
 
 ;; ─── 1: List/of and List/length ────────────────────────────────────────────
 

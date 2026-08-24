@@ -1,5 +1,5 @@
 ;; tests/collection/probe_verify_hashset_of_vector_gap.wat — co-located fixture.
-;; Historical evidence: HashSet<Vector<T>> construction (arc 216.5a-d).
+;; Historical evidence: (HashSet :- [(Vector :- [T])]) construction (arc 216.5a-d).
 ;; The gap is closed; this probe confirms it cannot reopen.
 
 (:wat::core::defn :user::verify [] -> :wat::core::i64

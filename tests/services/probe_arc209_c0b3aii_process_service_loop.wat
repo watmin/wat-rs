@@ -32,7 +32,7 @@
                  (_ nil)))
              ;; the child entry: autobind (no name — unguessable capability), hand the minted
              ;; address to the parent over the self-peer (arc 272 capability handoff), then serve.
-             ;; The self-peer carries Address'<i64,i64> up to the parent (S), i64 down from parent (R).
+             ;; The self-peer carries (Address' :- [i64 i64]) up to the parent (S), i64 down from parent (R).
              (:wat::core::defn :user::main [] -> :wat::core::nil
                (:wat::core::let
                  [b    (:wat::kernel::listener (:wat::spawn::process) :wat::core::i64 :wat::core::i64)

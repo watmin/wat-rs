@@ -39,10 +39,10 @@
 ;;   L4 [v]                                   — innermost scalar holder
 ;;   L3 [l4 <- L4, w]                         — one level up
 ;;   L2 [l3 <- L3, u]                         — two levels up
-;;   Bag [items <- Vector<i64>, label]        — a record whose field IS a collection
-;;   Client [l2 <- L2, rep, tags <- Vector<i64>, bag <- Bag]
+;;   Bag [items <- (Vector :- [i64]), label]        — a record whose field IS a collection
+;;   Client [l2 <- L2, rep, tags <- (Vector :- [i64]), bag <- Bag]
 ;;   Status  — enum: Active[level] | Inactive | Pending[reason]
-;;   Req [k, client <- Client, client2 <- Client, status <- Status, note <- Option<i64>]
+;;   Req [k, client <- Client, client2 <- Client, status <- Status, note <- (Option :- [i64])]
 ;;
 ;; `Client/l2 -> L2/l3 -> L3/l4 -> L4/v` is a 4-level accessor chain reached off ONE bound var.
 ;; `client2` is a SECOND, independently-seeded Client on the same Req, for the cross-var rows.

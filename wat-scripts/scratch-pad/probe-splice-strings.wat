@@ -1,4 +1,4 @@
-;; Probe: inside a defmacro body, build a PLAIN runtime Vector<String> (not WatAST),
+;; Probe: inside a defmacro body, build a PLAIN runtime (Vector :- [String]) (not WatAST),
 ;; then `~@` splice it into a `(:wat::core::Vector :wat::core::String ~@strs)` call form.
 ;; Tests whether splice auto-wraps each String element as a literal. Mirrors sieve-pred's
 ;; `~src` (a plain runtime String unquoted directly) but for SPLICE of a String Vector.

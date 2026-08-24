@@ -4,8 +4,8 @@
 ;; Self-hosted, comment-faithful fix-wat codemod — NO hand-editing of .wat files, use the tool.
 ;; The exact sibling of wrap-client-method-match-in-recvoutcome.wat (the recv'-wall codemod).
 ;;
-;; THE CHANGE: `:wat::kernel::connect'` now returns `:wat::kernel::ConnectOutcome<S,R>` instead
-;; of a bare `Peer'<S,R>` — the dial failure is a matchable VALUE the caller faces (ADT; wat has
+;; THE CHANGE: `:wat::kernel::connect'` now returns `(:wat::kernel::ConnectOutcome :- [S R])` instead
+;; of a bare `(Peer' :- [S R])` — the dial failure is a matchable VALUE the caller faces (ADT; wat has
 ;; no try/catch). Every CALL SITE that used the bare Peer' now type-errors. This codemod wraps
 ;; each `(connect' ARG)` call in the ConnectOutcome match, extracting the peer on the happy path
 ;; and dying (fatal, preserving the pre-wall raise-unwind) on the three failure arms — the RULED

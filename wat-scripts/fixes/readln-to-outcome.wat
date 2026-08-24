@@ -6,7 +6,7 @@
 ;; LAST IPC verb still raising; every sibling (recv'/send'/close'/accept'/connect'/poll') already
 ;; hands its failure back as a matchable value, because a raise in a language with no try/catch
 ;; unwinds PAST the reader (R53 `VERBO MEO CAPTVS`). `readln` now returns
-;; `:wat::kernel::ReadlnOutcome<T>::{Datum [value <- :T], Eof, Stopped}` and every call site faces it.
+;; `(:wat::kernel::ReadlnOutcome :- [T])::{Datum [value <- :T], Eof, Stopped}` and every call site faces it.
 ;;
 ;; The capability was BANKED, not missing: `StdIn` has always returned a matchable `::Eof`, and
 ;; `stdio-read` raised on it "to preserve the old fd-0 behavior for the 72 readln callers". That bank

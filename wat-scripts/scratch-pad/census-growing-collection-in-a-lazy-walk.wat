@@ -20,7 +20,7 @@
 ;;
 ;; It deliberately does NOT read the parameter's declared type. The declared type is a claim; the
 ;; `conj` in the recursive argument is the mechanism. Reading types would also have required
-;; parsing `<- :wat::core::HashSet<T>` out of a param vector — a second boundary problem inside the
+;; parsing `<- (:wat::core::HashSet :- [T])` out of a param vector — a second boundary problem inside the
 ;; instrument built to avoid the first.
 ;;
 ;; ★ THE DISCRIMINATOR — an accumulator grown inside an EAGER fold is ORDINARY (one copy alive at a
@@ -90,7 +90,7 @@
     (:wat::core::into [] (:wat::core::drop (:census::kids form) 1))))
 
 ;; Is `call-head` a self-call of the fn declared as `declared`? `declared` may carry type params
-;; (`:wat::core::distinct-walk<T>`) while the call site never does.
+;; (`:wat::core::distinct-walk :- [T]`) while the call site never does.
 (:wat::core::defn :census::is-self-call?
   [declared <- :wat::core::String call-head <- :wat::core::String] -> :wat::core::bool
   (:wat::core::and

@@ -4,7 +4,7 @@
 ;; composed primes. The runtime-built child program (a `(:wat::core::Vector :wat::WatAST main-form)`
 ;; quasiquote factory that splices `~offset` into the child body) is handed to `spawn-program'
 ;; (process)` the SAME way it was handed to spawn-process — the process clause accepts a forms
-;; VALUE (`Vector<wat::WatAST>`), so the factory shape is preserved unchanged. Only the DRIVER
+;; VALUE (`(Vector :- [wat::WatAST])`), so the factory shape is preserved unchanged. Only the DRIVER
 ;; flipped to the peer wire: `send' 7` feeds the child's `readln`, and `(n + offset)`'s `println`
 ;; crosses back as a `recv'` `RecvOutcome::Message`. Returns the recv'd i64 directly (== offset+7).
 (:wat::core::defn :my::launch [offset <- :wat::core::i64] -> :wat::core::i64

@@ -115,7 +115,7 @@
                             (:wat::kernel::StdIn::ReadFrameRequest/max-buffer-bytes req))
          ;; a full line read → ::Line; EOF → the matchable ::Eof value (NOT a panic that
          ;; kills the serve loop — the no-hidden-failures upgrade). Arc 170: IOReader/read-frame's
-         ;; return became :wat::io::IOReader::ReadFrameOutcome (was Option<String>) so a stop
+         ;; return became :wat::io::IOReader::ReadFrameOutcome (was (Option :- [String])) so a stop
          ;; request could get its OWN outcome rather than being folded into ::Eof — ::Stopped
          ;; carries it straight through.
          ((:wat::io::IOReader::ReadFrameOutcome::Frame line) (:wat::kernel::StdIn::ReadFrameResponse::Frame line))

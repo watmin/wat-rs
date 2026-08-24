@@ -15,7 +15,7 @@
 ;; constructors, beside connect'/select'); they CONSUME a :wat::time:: Duration.
 ;; Tier decision (arc 292 D2 = B1): the timer is a TIER peer — a LOCUS picks the
 ;; tier (and thus the reactor), so it satisfies select's Thread'|Process' constraint
-;; with zero select' change. (after (thread) d msg) -> Thread'<nil,O>; mirrors start.
+;; with zero select' change. (after (thread) d msg) -> (Thread' :- [nil O]); mirrors start.
 
 (:wat::test::deftest :wat-tests::timer::after-delivers-its-message
   

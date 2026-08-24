@@ -230,7 +230,8 @@
   ;;
   ;; Arc 109 β-i — same variadic/ends-only binder shape as the BASE macro above; see there
   ;; for the full rationale. `:wat::holon::defrecord` has zero parametric call sites in the
-  ;; corpus today, but both spellings (`<T>`-embedded and `:- [T…]`-binder) must work.
+  ;; corpus today; the `:- [T…]`-binder is the only spelling the lexer admits (arc 109 —
+  ;; angle-bracket type parameters are illegal in a name).
   (:wat::core::let
     [fqdn         (:wat::core::first args)
      fields       (:wat::core::Option/expect (:wat::core::last args) "holon defrecord: missing field-vector")

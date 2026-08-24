@@ -47,7 +47,7 @@ pub enum Value {
     /// `:u8` — unsigned 8-bit integer, 0..=255. Produced by
     /// `:wat::core::u8` (range-checked cast from i64), consumed by
     /// byte-oriented IO (`:wat::io::read`, `:wat::io::write`) and
-    /// `:wat::core::Vector<u8>` carriers. Arithmetic is wrapping per Rust's
+    /// `(:wat::core::Vector :- [u8])` carriers. Arithmetic is wrapping per Rust's
     /// default u8 semantics. Slice 1 of arc 008.
     u8(u8),
     f64(f64),
@@ -73,44 +73,44 @@ pub enum Value {
     /// [`Value::String`] (raw EDN text that still needs parsing) and
     /// from [`Value::holon__HolonAST`] (algebra AST).
     wat__WatAST(Arc<WatAST>),
-    /// A `:wat::kernel::Sender<T>` handle (arc 170 slice 1c).
+    /// A `(:wat::kernel::Sender :- [T])` handle (arc 170 slice 1c).
     /// Carries `Value` — any wat runtime value can travel through.
     /// Transport-polymorphic via [`crate::channel::SenderInner`]:
     /// `Crossbeam` for tier 1 (in-memory), `PipeFd` for tier 2
     /// (EDN-encoded over linux pipes). The user-visible
-    /// `Sender<T>` abstraction is uniform across tiers; the
+    /// `(Sender :- [T])` abstraction is uniform across tiers; the
     /// substrate dispatches on the inner enum.
     ///
     /// Pre-arc-170: this variant was named `crossbeam_channel__Sender`
     /// and carried only a crossbeam Sender. Slice 1c renames to the
     /// tier-1/tier-2-honest `wat__kernel__Sender` and adds the
     /// PipeFd transport. The wat-side type alias
-    /// `:wat::kernel::Sender<T>` continues to point at this Value
+    /// `(:wat::kernel::Sender :- [T])` continues to point at this Value
     /// variant; the alias chain to
-    /// `:rust::crossbeam_channel::Sender<T>` (in
+    /// `(:rust::crossbeam_channel::Sender :- [T])` (in
     /// `wat/kernel/channel.wat`) is preserved for back-compat with
     /// existing user code.
     wat__kernel__Sender(Arc<SenderInner>),
-    /// A `:wat::kernel::Receiver<T>` handle (arc 170 slice 1c).
+    /// A `(:wat::kernel::Receiver :- [T])` handle (arc 170 slice 1c).
     /// Sibling of [`Self::wat__kernel__Sender`]; same transport
     /// polymorphism shape via
     /// [`crate::channel::ReceiverInner`].
     wat__kernel__Receiver(Arc<ReceiverInner>),
-    /// A `:HashMap<K,V>` — Rust std's HashMap natively; stored as
+    /// A `(:HashMap :- [K V])` — Rust std's HashMap natively; stored as
     /// `Arc<HashMap<Value, Value>>` using Stone 216.5a's `impl Hash + PartialEq + Eq
     /// for Value`. No canonical-key crutch; K is the actual HashMap key directly.
     wat__std__HashMap(Arc<HashMap<Value, Value>>),
-    /// A `:wat::core::PersistentMap<K,V>` — [`crate::value::pmap::PMap`], the promoting map
+    /// A `(:wat::core::PersistentMap :- [K V])` — [`crate::value::pmap::PMap`], the promoting map
     /// (array below `PROMOTION_THRESHOLD`, `rpds::HashTrieMapSync` above it — one-way promotion
     /// on `assoc`). Structural sharing: `assoc`/`dissoc` return a NEW map; the original is
     /// unchanged. Stone arc-278-0a; promoted to `PMap` by DESIGN-STONE-promoting-map.
     wat__core__PersistentMap(crate::value::pmap::PMap),
-    /// A `:wat::core::PersistentVector<T>` — rpds `VectorSync<Value>`.
+    /// A `(:wat::core::PersistentVector :- [T])` — rpds `VectorSync<Value>`.
     /// Structural sharing: `conj` (`push_back`) returns a NEW vector (O(log n)); the
     /// original is unchanged. No `Arc` wrapper needed — rpds is already cheap-clone/shared.
     /// Stone arc-278-0b.
     wat__core__PersistentVector(rpds::VectorSync<Value>),
-    /// A `:HashSet<T>` — Rust std's HashSet natively; stored as
+    /// A `(:HashSet :- [T])` — Rust std's HashSet natively; stored as
     /// `Arc<HashSet<Value>>` using Stone 216.5a's `impl Hash + PartialEq + Eq
     /// for Value`. No canonical-key crutch; dedupe via native hash semantics.
     wat__std__HashSet(Arc<HashSet<Value>>),
@@ -130,14 +130,14 @@ pub enum Value {
     /// `WatWriter` implementation (real stdout/stderr, in-memory
     /// `StringIoWriter`, …). Arc 008 slice 2.
     io__IOWriter(Arc<dyn WatWriter>),
-    /// An `:Option<T>` value — `:None` or `(Some v)`. Built-in
+    /// An `(:Option :- [T])` value — `:None` or `(Some v)`. Built-in
     /// parametric enum per 058-030; used as the return type of
     /// `:wat::kernel::recv` / `select` and of structural
     /// retrieval (`get` on HashMap/Vec/HashSet). The `std::option::Option`
-    /// here is the Rust host's own Option — wat's `:Option<T>`
+    /// here is the Rust host's own Option — wat's `(:Option :- [T])`
     /// compiles to it directly.
     Option(Arc<std::option::Option<Value>>),
-    /// A `:Result<T,E>` value — `(Ok v)` or `(Err e)`. Built-in
+    /// A `(:Result :- [T E])` value — `(Ok v)` or `(Err e)`. Built-in
     /// parametric enum for fallible operations. Surfaced by Rust-dep
     /// shims that wrap crates returning `std::result::Result` (rusqlite
     /// and friends). Constructors are symbol-dispatched (`Ok` / `Err`
@@ -152,7 +152,7 @@ pub enum Value {
     /// `((a b ...) rhs)` binder shape. The unit type `:()` stays on
     /// [`Value::Unit`] — tuples start at arity 1.
     Tuple(Arc<Vec<Value>>),
-    /// A claim-or-panic handle pool — `:HandlePool<T>` per FOUNDATION.
+    /// A claim-or-panic handle pool — `(:HandlePool :- [T])` per FOUNDATION.
     /// Backing: a bounded crossbeam channel pre-filled with N handles
     /// and its sender dropped immediately, so `is_empty` means the
     /// pool has been fully drained. No Mutex — crossbeam's channel
@@ -202,7 +202,7 @@ pub enum Value {
     ///   entry whose body calls `:wat::core::enum-new`.
     ///
     /// Generic mechanism — covers every user-declared enum.
-    /// Built-in `:Option<T>` and `:Result<T,E>` keep their dedicated
+    /// Built-in `(:Option :- [T])` and `(:Result :- [T E])` keep their dedicated
     /// `Value::Option` / `Value::Result` variants for substrate-
     /// internal use; user enums use this generic representation.
     Enum(Arc<EnumValue>),
@@ -264,8 +264,8 @@ pub enum Value {
     /// match container for engrams. `Arc<ThreadOwnedCell<...>>` for
     /// per-thread mutation under CSP.
     EngramLibrary(Arc<ThreadOwnedCell<holon::EngramLibrary>>),
-    /// Arc 074 slice 1 — `:wat::holon::Hologram<V>`. Coordinate-cell
-    /// store with cosine readout, unbounded. The wat-side `<V>` is
+    /// Arc 074 slice 1 — `(:wat::holon::Hologram :- [V])`. Coordinate-cell
+    /// store with cosine readout, unbounded. The wat-side `V` is
     /// phantom — the runtime carries any `Value`. Thread-owned mutable
     /// per `ZERO-MUTEX.md` Tier 2.
     Hologram(Arc<ThreadOwnedCell<Hologram>>),
@@ -329,7 +329,7 @@ pub enum Value {
     /// Boxed for the same cache-friendliness reason as `wat__core__Rational`.
     /// Constructed via the `<int>N` source literal (`WatAST::BigIntLit`).
     wat__core__BigInt(Box<BigInt>),
-    /// Arc 220 Stone 220.4 — `:wat::core::List<T>`. Typed linked-list primitive.
+    /// Arc 220 Stone 220.4 — `(:wat::core::List :- [T])`. Typed linked-list primitive.
     /// Distinct from `Value::Vec` (`:wat::core::Vector`) — preserves the EDN
     /// parens-vs-brackets distinction for faithful round-trips with Clojure.
     /// Backed by `std::collections::LinkedList<Value>`: O(1) cons/head, O(N) iter.
@@ -339,7 +339,7 @@ pub enum Value {
     /// conj = PREPEND (Clojure semantic; distinct from Vector conj = APPEND).
     /// Constructed via `(:wat::core::List/of ...)` or `'(...)` literal.
     wat__core__List(std::sync::Arc<std::collections::LinkedList<Value>>),
-    /// Arc 118 — `:wat::stream::Stream<T>`. Lazy sequence (Option C: closures + thunks).
+    /// Arc 118 — `(:wat::stream::Stream :- [T])`. Lazy sequence (Option C: closures + thunks).
     /// SINGLE-PASS — NO memoization (builder, 2026-06-27: *"you cannot walk back a stream …
     /// core does not ship it"*). Diverges from Clojure's persistent lazy-seq: a wat lazy seq
     /// is a stream, consumed once. `(lazy-seq <body>)` captures body unevaluated as a 0-arg
@@ -460,10 +460,13 @@ pub struct ClauseSet {
 /// body for each method (keyed by method name), ready for 232.3 dispatch.
 #[derive(Debug, Clone)]
 pub struct ExtendDef {
-    /// Type FQDN being extended (e.g. `":t::Robot"`). For a parametric target this is the
-    /// FULL identity string INCLUDING the `<…>` arg suffix (`format_type`'s rendering — an
-    /// internal bookkeeping key, not source syntax the Arc 109 ③ wall governs), e.g.
-    /// `":wat::cache::lru-svc::Handle<K,V,T>"`.
+    /// Type FQDN being extended (e.g. `":t::Robot"`). For a parametric target written with
+    /// the Keyword surface (`:Head<args>`, still accepted verbatim at this ONE position —
+    /// see `types.rs`'s `extend-type` TARGET arm), this is the RAW keyword text INCLUDING
+    /// its `<…>` arg suffix — an internal bookkeeping key, not source syntax the Arc 109 ③
+    /// wall governs, e.g. `":wat::cache::lru-svc::Handle<K,V,T>"`. A target written with the
+    /// `(Head :- [args])` FORM instead is re-rendered through `format_type`, which never
+    /// emits brackets, so `type_name` carries the `:- [...]` spelling in that case.
     pub type_name: String,
     /// Arc 109 ③ — the STRUCTURED `TypeExpr` the extend-type target parsed to, kept
     /// alongside `type_name` so a consumer needing the target's structure (e.g. `self`'s

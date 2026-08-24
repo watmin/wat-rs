@@ -15,7 +15,7 @@
 ;; PROOF 2 — a defmacro rebuilds a Vector node via with-children, dropping the first element.
 ;; Program-body path again. (:user::drop-first [10 20 30]) -> with-children v (drop children 1)
 ;; -> the [20 30] node -> returned directly -> a 2-element vector; length 2.
-;; Arc 118.2a — `drop` flipped LAZY; `with-children` needs a concrete `Vector<WatAST>`. `rest`
+;; Arc 118.2a — `drop` flipped LAZY; `with-children` needs a concrete `(Vector :- [WatAST])`. `rest`
 ;; stays eager/container-preserving and is on the macro program-body pure-total allow-list, so
 ;; a single-element drop is `rest` instead.
 (:wat::core::defmacro :user::drop-first

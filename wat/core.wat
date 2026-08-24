@@ -996,7 +996,7 @@
          ;; angle-bracket string) now arrives as the reference FORM `(Head :- [args])`, a
          ;; List — and `ast-name` only reads Symbol/Keyword/StringLit, so it raises on that
          ;; shape outright. The kwargs-companion machinery below (`::kwargs-check`/`::Coords`/
-         ;; `::GrantHandles`) tests "is this field's type a Peer<S,R>?" and swaps
+         ;; `::GrantHandles`) tests "is this field's type a (Peer :- [S R])?" and swaps
          ;; `Peer`→`Address`/`TypedCapability` in EIGHT places by `ast-name` +
          ;; `string::contains?`/`string::split`+`string::join` — every one assumed the
          ;; Keyword-only shape. These two LOCAL closures (bound here, not top-level `defn`s —
@@ -1036,7 +1036,7 @@
                  swapped-kw)))
          ;; ── the head-swapped argvec: fold kw-ch, swap Peer TYPE nodes only ──
          ;; kw-ch is flat triples [fname@j·3, arrow@j·3+1, type@j·3+2]; only the type position
-         ;; (j mod 3 == 2) is ever swapped, and only when it names a Peer<S,R> (data-typed
+         ;; (j mod 3 == 2) is ever swapped, and only when it names a (Peer :- [S R]) (data-typed
          ;; fields pass through as `child` unchanged).
          swapped-ch (:wat::core::foldl
                       (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST]) j <- :wat::core::i64] -> (:wat::core::Vector :- [:wat::WatAST])
@@ -1057,7 +1057,7 @@
          ;; so N-service reconciliation has NO positional-accessor cap AND data fields fall out for
          ;; free (a data field is just another named field). `<fqdn>::Coords` is a defRECORD (pure,
          ;; EDN-crossable — it IS the PoolMsg::Setup wire payload) whose fields are the HEAD-SWAPPED
-         ;; argvec (each Peer<S,R> → Address<S,R>; data fields keep their own type), SAME field
+         ;; argvec (each (Peer :- [S R]) → (Address :- [S R]); data fields keep their own type), SAME field
          ;; names + order as `::Kwargs`. Reuses the `swapped-argvec` field nodes verbatim.
          coords-ty-str (:wat::core::string::interpolate "{name-base}::Coords" :name-base name-base)
          coords-kw     (:wat::core::keyword-node (:wat::core::string::interpolate ":{coords-ty-str}" :coords-ty-str coords-ty-str))
@@ -1065,7 +1065,7 @@
          ;; ctor moved to the type-name PRIME. This is GENERATED code constructing a just-minted
          ;; aggregate positionally (see kwargs-check-def below) — use the prime, never the bare name.
          coords-prime-kw (:wat::core::keyword-node (:wat::core::string::concat ":" (:wat::core::string::concat coords-ty-str "'")))
-         ;; has-peer-field?: does the kwargs section declare ≥1 `Peer<S,R>` field? This is the
+         ;; has-peer-field?: does the kwargs section declare ≥1 `(Peer :- [S R])` field? This is the
          ;; SEMANTIC gate for "is this a DIALING work-fn" — the ONLY kind that needs a `::Coords`
          ;; dial-carrier (services are declared `Peer` and dialed; data fields ride along). Read
          ;; the ORIGINAL field types (`kw-ch` position j·3+2), NOT the swapped ones: a swapped
@@ -1096,9 +1096,9 @@
          ;; branch — the `is-check` suffix guard stops the infinite mint (no Coords/checker for a
          ;; `::kwargs-check`). Otherwise gate on being a dialing (Peer-bearing) work-fn.
          mint-coords? (:wat::core::if is-check false has-peer-field)
-         ;; ── arc 170 C2 D: the CAPABILITY-swapped argvec — Peer<S,R> → TypedCapability<S,R> ──
+         ;; ── arc 170 C2 D: the CAPABILITY-swapped argvec — (Peer :- [S R]) → (TypedCapability :- [S R]) ──
          ;; A SECOND head-swap, parallel to `swapped-ch` (Address) but targeting the combined
-         ;; `:wat::capability::TypedCapability<S,R>` surface (capability.wat) instead. This is
+         ;; `(:wat::capability::TypedCapability :- [S R])` surface (capability.wat) instead. This is
          ;; the checker's OWN param typing (so `bracket/uses` passes RAW HANDLES typed as
          ;; TypedCapability — caught by the bodiless-edge assignability check — never erased,
          ;; never a bare Address). `swapped-ch`/`swapped-argvec` (Address) is UNCHANGED and
@@ -1122,7 +1122,7 @@
          capswapped-argvec (:wat::core::with-children kw-argvec capswapped-ch)
          ;; ── ::GrantHandles — the impure, is-peer-FILTERED parent-local carrier ──────────────
          ;; A `defstruct` (impure-permitting, like `::Kwargs` itself) of ONLY the service fields,
-         ;; each typed `TypedCapability<Si,Ri>` (capswapped). Data fields never enter it — they
+         ;; each typed `(TypedCapability :- [Si Ri])` (capswapped). Data fields never enter it — they
          ;; carry no capability to grant. Read `kw-ch`'s ORIGINAL (unswapped) type per field —
          ;; same is-peer test as `has-peer-field`, applied per-field here.
          grant-handles-ty-str (:wat::core::string::interpolate "{name-base}::GrantHandles" :name-base name-base)
@@ -1164,7 +1164,7 @@
          ;; coord call — these stay live/granted-through, never erased.
          ;; Reuses `fname-nodes` (the SAME symbol-node objects bound as the checker's OWN param
          ;; names via `capswapped-argvec` — hygienic by construction, mirrors the $impl
-         ;; let-binder reuse above). The gate (param types are now `TypedCapability<S,R>` → a
+         ;; let-binder reuse above). The gate (param types are now `(TypedCapability :- [S R])` → a
          ;; swapped handle TypeMismatches) and the carrier-assembly (this body) are ONE act.
          coords-ctor-args (:wat::core::foldl
                              (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST]) i <- :wat::core::i64] -> (:wat::core::Vector :- [:wat::WatAST])
@@ -1475,14 +1475,14 @@
         (:wat::core::< a b))
       coll))
   ;; 2-ary: user-supplied boolean less-than comparator (fn-first, Clojure idiom).
-  ;; Cmp is a bare type-var that unifies with the caller's Fn(T,T)->bool.
+  ;; Cmp is a bare type-var that unifies with the caller's [T T :-> bool].
   ([cmp  <- :Cmp
     coll <- (:wat::core::Vector :- [T])] -> (:wat::core::Vector :- [T])
     (:wat::core::sort' cmp coll)))
 
 (:wat::core::defclause :wat::core::sort-by
   ;; 2-ary: key function only — default comparator is < on the keys.
-  ;; Keyfn is a bare type-var that unifies with the caller's Fn(T)->K.
+  ;; Keyfn is a bare type-var that unifies with the caller's [T :-> K].
   ([keyfn <- :Keyfn
     coll  <- (:wat::core::Vector :- [T])] -> (:wat::core::Vector :- [T])
     (:wat::core::sort'
@@ -1507,16 +1507,16 @@
 ;; element; give it or fail" — never an `Option`, never a caller-visible undefined case), but the
 ;; FUNCTION itself is partial by this codebase's own definition of `total` (an ordinary value on
 ;; every input, no raise) — it raises via `Option/expect` on out-of-range. `get` is the genuinely
-;; total one (`Vec<T> × i64 -> Option<T>`, `None` on out-of-range, never raises).
+;; total one (`[(Vec :- [T]) i64 :-> (Option :- [T])]`, `None` on out-of-range, never raises).
 ;;
 ;; `Vector/get` is the associative, nil-safe form. `nth` is Clojure's positional idiom: the i-th
 ;; element returned as `T`, RAISING on out-of-range — "there IS an i-th element; give it or
 ;; fail." Sugar over `Option/expect (Vector/get …)`.
 ;;
-;; ── B4-i widened nth to Seqable<T> (arc 118); B4-iii — THE WALL closes it again ──────────────
+;; ── B4-i widened nth to (Seqable :- [T]) (arc 118); B4-iii — THE WALL closes it again ────────
 ;;
 ;; The header's argument above is unchanged: nth's CONTRACT still reads as total, its FUNCTION is
-;; still partial. B4-i widened the receiver set with a fourth, O(n) `Seqable<T>` arm reached only
+;; still partial. B4-i widened the receiver set with a fourth, O(n) `(Seqable :- [T])` arm reached only
 ;; by Stream (Vector/PersistentVector/List all resolve to an earlier, O(1) arm first) — walking
 ;; via `nth-spec-walk`/`:wat::stream::next`. Three O(1) arms, once per container that has `get`
 ;; (byte-identical modulo receiver type — the "eager indexable container" gap the 294 seam already
@@ -1571,11 +1571,11 @@
 ;;
 ;; Implementation (two-pass char-walk tokenizer, arc 279.1):
 ;;   1. Extract template string literal from first arg via ast-kind/ast-name.
-;;   2. Fold trailing `:name val` pairs into a HashMap<String,WatAST> (kwargs-map).
+;;   2. Fold trailing `:name val` pairs into a (HashMap :- [String WatAST]) (kwargs-map).
 ;;   3. Pass 1 — tokenize: build char vector via (map subs (range 0 length)), then foldl over
 ;;      a Tuple(mode, pending, buf, segments) accumulator per the state-machine transition table.
 ;;      Finalize: error on lone brace / unclosed name, flush final text segment.
-;;   4. Pass 2 — emit: foldl segments → pieces (Vector<WatAST>) + used-set (HashMap<String,bool>).
+;;   4. Pass 2 — emit: foldl segments → pieces (Vector :- [WatAST]) + used-set (HashMap :- [String bool]).
 ;;      kind=="text" → String literal AST node; kind=="slot" → (:wat::core::str val-ast).
 ;;   5. Strict check: every kwarg key in used-set (else macro-error).
 ;;   6. Emit: (:wat::core::string::concat piece …).
@@ -1618,7 +1618,7 @@
                    nil
                    (:wat::core::macro-error
                      "format: trailing kwargs must be :name value pairs — odd count"))
-     ;; Build kwargs-map: HashMap<String,WatAST> (kwarg-name-string → value AST node).
+     ;; Build kwargs-map: (HashMap :- [String WatAST]) (kwarg-name-string → value AST node).
      kwargs-map  (:wat::core::foldl
                    (:wat::core::fn [m <- (:wat::core::HashMap :- [:wat::core::String :wat::WatAST])
                                     i <- :wat::core::i64]
@@ -1647,7 +1647,7 @@
      ;; Arc 118.2a — was `(:wat::core::map ...)`. `map` flipped LAZY (returns a `Stream`, not
      ;; a `Vector`); `format` is itself a macro invoked from inside OTHER macros' bodies at
      ;; macro-expansion time (e.g. `wat/lint.wat`), so `chars` must stay a concrete
-     ;; `Vector<String>` RIGHT NOW, without depending on any wat-defined eager materializer
+     ;; `(Vector :- [String])` RIGHT NOW, without depending on any wat-defined eager materializer
      ;; (untested at this bootstrap phase — see `crate::stream::NativeLazyCell`'s doc).
      ;; `foldl`+`conj` stay Rust-native and eager, unaffected by the flip.
      chars       (:wat::core::foldl
@@ -1660,7 +1660,7 @@
      ;;   mode    : String — "text" | "name"
      ;;   pending : String — "none" | "open" | "close"
      ;;   buf     : String — accumulated chars (text or placeholder name)
-     ;;   segments: Vector<Tuple(kind,payload)> — emitted tokens
+     ;;   segments: (Vector :- [Tuple(kind,payload)]) — emitted tokens
      ;;
      ;; Transition table (verbatim from DESIGN-279.1-escape.md):
      ;;
@@ -1821,7 +1821,7 @@
                    fin-segs
                    (:wat::core::conj fin-segs (:wat::core::Tuple "text" fin-buf)))
 
-     ;; ── 4. Pass 2 — segments → pieces (Vector<WatAST>) + used-set ───
+     ;; ── 4. Pass 2 — segments → pieces (Vector :- [WatAST]) + used-set ───
      ;; Helper: build a WatAST String-literal node from a text string.
      ;; (Option/expect (first (ast->children (read-string (concat "\"" text "\"")))))
      ;; The `"` guard above guarantees text never contains `"`, so the re-wrap is safe.
@@ -2033,7 +2033,7 @@
 ;;
 ;; The canonical contract for error records: a message (human-readable String),
 ;; a source location (kernel::Location — the call site or origin), and a
-;; recursive causes chain (Vector<Error> — zero or more contributing errors).
+;; recursive causes chain ((Vector :- [Error]) — zero or more contributing errors).
 ;;
 ;; :nature :wat::core::Record — pure; the surface and its backing records may
 ;; appear as field types in other pure aggregates (defrecord, defsurface)
@@ -2095,7 +2095,7 @@
 ;; hand-written Rust literal to a wat declaration.
 ;;
 ;; The leaf source location an error's `:location` floor key carries (arc 278
-;; "errors first-class EDN"). `end` is `Option<Pos>` — `None` for point-spans.
+;; "errors first-class EDN"). `end` is `(Option :- [Pos])` — `None` for point-spans.
 (:wat::core::defrecord :wat::core::Span
   [file <- :wat::core::String
    line <- :wat::core::i64

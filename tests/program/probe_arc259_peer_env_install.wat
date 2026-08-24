@@ -15,7 +15,7 @@
                                ;; either way, same as Closed.
                                (:wat::kernel::SendOutcome::Stopped nil)
                                ((:wat::kernel::SendOutcome::Lost _c) nil))))
-                    ;; arc 278 recv'-outcome wall — recv' returns a matchable RecvOutcome<i64>.
+                    ;; arc 278 recv'-outcome wall — recv' returns a matchable (RecvOutcome :- [i64]).
                     ;; OWNER role (the test is the final caller): ::Message m flows out as got;
                     ;; ::Lost/::Closed surface the cause loudly (eprintln, divergent-return).
                     r   (:wat::kernel::recv peer)

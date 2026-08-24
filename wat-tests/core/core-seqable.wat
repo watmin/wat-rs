@@ -1,13 +1,13 @@
-;; wat-tests/core/core-seqable.wat — stone 118.B1 runtime coverage for `:wat::core::Seqable<T>`.
+;; wat-tests/core/core-seqable.wat — stone 118.B1 runtime coverage for `(:wat::core::Seqable :- [T])`.
 ;;
-;; `Seqable<T>` is the type the seven `<verb>-stream` twins were a workaround for. Builder,
+;; `(Seqable :- [T])` is the type the seven `<verb>-stream` twins were a workaround for. Builder,
 ;; 2026-07-31: *"The twins are a workaround for the missing type, not a pattern."* Route B was
 ;; ruled 2026-08-17 (`docs/arc/2026/04/118-lazy-seqs-vs-threaded-streams/DECISIONS-118.B-four-questioned.md`).
 ;;
 ;; ★ THE LOAD-BEARING TEST IS `generic-fn-over-seqable-accepts-all-four`. Everything above it
 ;; only proves the four `extend-type`s registered. What 118.3-B actually had to fix was that a
 ;; concrete builtin would not unify against a PARAMETRIC surface parameter — so a test that
-;; DECLARES a `Seqable<T>`-typed fn without CALLING it proves nothing. That exact mistake was made
+;; DECLARES a `(Seqable :- [T])`-typed fn without CALLING it proves nothing. That exact mistake was made
 ;; on 2026-08-17 and reported as "the full design type-checks"; adding call sites made it RED four
 ;; times over. This test calls it with all four containers.
 ;;
@@ -41,7 +41,7 @@
                                 (:wat::stream::lazy (:wat::stream::empty)))))))]
     (:wat::test::assert-eq (:wat::core::string::join "," out) "7,8")))
 
-;; ─── ★ THE STONE — one generic fn over ANY Seqable<T>, CALLED with all four ─────────────────
+;; ─── ★ THE STONE — one generic fn over ANY (Seqable :- [T]), CALLED with all four ─────────────────
 ;;
 ;; This is the shape route B exists for: after B2 every sequence verb in the stdlib looks like
 ;; this, and so does a user's. Under the old world it would need five `defclause` arms plus a

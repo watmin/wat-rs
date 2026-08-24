@@ -163,7 +163,7 @@
 ;; `:Message`), NOT where the handle came from.
   :Resource
 ;; Delivers or receives a payload across a peer/channel boundary to another locus —
-;; `send`, `try-send`, `recv`, `select`, `poll`. The locus is a TYPED VALUE (`peer<I,O>`)
+;; `send`, `try-send`, `recv`, `select`, `poll`. The locus is a TYPED VALUE (`(peer :- [I O])`)
 ;; the caller already holds — contrast `:Io`, whose target is an ambient OS stream with
 ;; no caller-held handle. The underlying transport (in-process channel, pipe, socket) is
 ;; an implementation detail, NEVER the axis — the same way `:Mutate` was refused for

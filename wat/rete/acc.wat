@@ -7,10 +7,10 @@
 
 ;; ─── acc:: — pure wat accumulator fold library (Stone 8-i) ─────────────────
 ;;
-;; Each fn folds a PersistentVector<Element> into a reduced value.
+;; Each fn folds a (PersistentVector :- [Element]) into a reduced value.
 ;; An Element = (:wat::rete::Element fact bindings) where
 ;;   fact     = the original typed :wat::core::Record
-;;   bindings = a PersistentMap<String,Value> of variable bindings.
+;;   bindings = a (PersistentMap :- [String Value]) of variable bindings.
 ;;
 ;; Value-folds read a bound ?var (a String key) from each element's bindings map:
 ;;   (:wat::core::Option/expect -> :wat::core::i64
@@ -133,7 +133,7 @@
     (:wat::core::PersistentVector)
     els))
 
-;; acc::group-by — map bindings[var] → PV<fact> via foldl into a PersistentMap.
+;; acc::group-by — map bindings[var] → (PV :- [fact]) via foldl into a PersistentMap.
 ;; Each key is the bound var's value; each value is a PV of matching element facts.
 ;; empty → {} → bare PersistentMap, never Option.
 (:wat::core::defn :wat::rete::acc::group-by
@@ -156,7 +156,7 @@
     (:wat::core::PersistentMap)
     els))
 
-;; acc::gather-vals (8-custom) — gather bindings[var] into a Vector<i64> in gather order
+;; acc::gather-vals (8-custom) — gather bindings[var] into a (Vector :- [i64]) in gather order
 ;; (NO dedup; the custom fold fn sees every value). A `Vector` (not PV) so it splices via
 ;; `~@` into the synthetic call AST (`unquote-splicing` flattens a Value::Vec element-wise).
 ;; This is the oracle mirror of the native `other` arm's PV gather.

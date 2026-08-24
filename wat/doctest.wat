@@ -33,7 +33,7 @@
 ;;   2. Doctest: eval expr and expected via :wat::eval-ast!, compare with
 ;;      :wat::core::=; a mismatch is a Failure.
 ;; run=false examples (@example-norun) are skipped.
-;; Returns Vector<:wat::doctest::Failure> — empty means all doctests passed.
+;; Returns (Vector :- [:wat::doctest::Failure]) — empty means all doctests passed.
 
 (:wat::core::defn :wat::doctest::verify-examples
   []

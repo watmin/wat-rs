@@ -51,10 +51,10 @@
 ;; role (test outcome).
 (:wat::core::typealias :wat::test::TestResult :wat::kernel::RunResult)
 
-;; ─── assert-eq<T> ─────────────────────────────────────────────────────
+;; ─── assert-eq :- [T] ─────────────────────────────────────────────────
 ;;
 ;; Structural equality via :wat::core::=. Failure renders both sides
-;; via :wat::core::show<T> (arc 064) — the assertion's actual / expected
+;; via `(:wat::core::show :- [T])` (arc 064) — the assertion's actual / expected
 ;; slots carry the rendered values so the test runner can display them
 ;; alongside the source location. Used to be `:None :None` (just "the
 ;; assertion fired"); arc 064 closed the diagnostic gap.
@@ -178,7 +178,7 @@
 ;; + `recv'`. `:wat::test::program` survives as the ergonomic
 ;; forms-capture helper: it expands to `:wat::core::forms` (the
 ;; variadic-quote substrate), capturing each top-level form as
-;; `:wat::WatAST` into a `:wat::core::Vector<wat::WatAST>`.
+;; `:wat::WatAST` into a `(:wat::core::Vector :- [wat::WatAST])`.
 
 (:wat::core::defmacro :wat::test::program
   [& forms <- (:wat::core::Vector :- [:wat::WatAST])]

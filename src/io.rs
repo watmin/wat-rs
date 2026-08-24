@@ -901,7 +901,7 @@ pub fn eval_ioreader_from_string(
 
 // ─── IOReader ops ────────────────────────────────────────────────────────
 
-/// `(:wat::io::IOReader/read <reader> <i64>)` → `:Option<Vec<u8>>`.
+/// `(:wat::io::IOReader/read <reader> <i64>)` → `(:Option :- [(Vec :- [u8])])`.
 pub fn eval_ioreader_read(
     args: &[WatAST],
     env: &Environment,
@@ -922,7 +922,7 @@ pub fn eval_ioreader_read(
     Ok(Value::Option(Arc::new(result.map(bytes_to_vec_u8_value))))
 }
 
-/// `(:wat::io::IOReader/read-all <reader>)` → `:wat::core::Vector<u8>`.
+/// `(:wat::io::IOReader/read-all <reader>)` → `(:wat::core::Vector :- [u8])`.
 pub fn eval_ioreader_read_all(
     args: &[WatAST],
     env: &Environment,
@@ -954,7 +954,7 @@ pub fn eval_ioreader_read_all_string(
     Ok(Value::String(Arc::new(s)))
 }
 
-/// `(:wat::io::IOReader/read-line <reader>)` → `:Option<String>`.
+/// `(:wat::io::IOReader/read-line <reader>)` → `(:Option :- [String])`.
 pub fn eval_ioreader_read_line(
     args: &[WatAST],
     env: &Environment,
@@ -989,9 +989,9 @@ pub fn eval_ioreader_read_line(
 /// real stdin observe SIGTERM instead of pinning the process alive until
 /// stdin EOFs.
 ///
-/// `Option<String>` could not carry the third ("a stop was requested, and
+/// `(Option :- [String])` could not carry the third ("a stop was requested, and
 /// nothing is wrong with the stream") outcome, so this verb's return type
-/// changed from `Option<String>` to the dedicated `ReadFrameOutcome` enum —
+/// changed from `(Option :- [String])` to the dedicated `ReadFrameOutcome` enum —
 /// see its scheme in `src/check.rs`.
 ///
 /// Optional second argument: explicit max-bytes cap (i64). When absent the
@@ -1349,7 +1349,7 @@ pub fn eval_ioreader_from_fd(
     Ok(Value::io__IOReader(reader))
 }
 
-/// `(:wat::io::IOWriter/to-bytes <writer>)` → `:wat::core::Vector<u8>`. Clones the
+/// `(:wat::io::IOWriter/to-bytes <writer>)` → `(:wat::core::Vector :- [u8])`. Clones the
 /// accumulated buffer. Only valid for `StringIoWriter` — real stdio
 /// doesn't snapshot (returns MalformedForm).
 pub fn eval_iowriter_to_bytes(
@@ -1366,7 +1366,7 @@ pub fn eval_iowriter_to_bytes(
     Ok(bytes_to_vec_u8_value(bytes))
 }
 
-/// `(:wat::io::IOWriter/to-string <writer>)` → `:Option<String>`. UTF-8
+/// `(:wat::io::IOWriter/to-string <writer>)` → `(:Option :- [String])`. UTF-8
 /// decode of the accumulated buffer; `:None` if not valid UTF-8.
 pub fn eval_iowriter_to_string(
     args: &[WatAST],
@@ -1791,7 +1791,7 @@ pub fn eval_io_read_file(
     Ok(Value::String(Arc::new(loaded.source)))
 }
 
-/// `(:wat::io::list-dir path)` → `:wat::core::Vector<String>`.
+/// `(:wat::io::list-dir path)` → `(:wat::core::Vector :- [String])`.
 ///
 /// Enumerate the directory at `path`; return each entry as a FULL path
 /// (the OS-level `entry.path()` already joins the input path with the
@@ -1827,7 +1827,7 @@ pub fn eval_io_list_dir(
     Ok(Value::Vec(Arc::new(entries)))
 }
 
-/// `(:wat::stdlib::sources)` → `:wat::core::Vector<Vector<String>>`
+/// `(:wat::stdlib::sources)` → `(:wat::core::Vector :- [(Vector :- [String])])`
 ///
 /// Returns the baked stdlib load order as a vector of `[path, source]` pairs.
 /// Each inner vector has exactly two elements: the path string and the full

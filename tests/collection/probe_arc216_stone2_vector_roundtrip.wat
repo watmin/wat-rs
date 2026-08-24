@@ -1,5 +1,5 @@
 ;; tests/collection/probe_arc216_stone2_vector_roundtrip.wat — co-located fixture.
-;; Arc 216 Stone 2 — Vec<T> round-trip through HolonAST::Bundle of positional-Binds.
+;; Arc 216 Stone 2 — (Vec :- [T]) round-trip through HolonAST::Bundle of positional-Binds.
 
 ;; p1: forward round-trip length 3
 (:wat::core::defn :t::p1-forward-rt-len [] -> :wat::core::i64
@@ -51,7 +51,7 @@
       ((:wat::core::Some x) x)
       (:wat::core::None -1))))
 
-;; p5a: Vec<i64> element at index 1 = 20
+;; p5a: (Vec :- [i64]) element at index 1 = 20
 (:wat::core::defn :t::p5a-i64-elem1 [] -> :wat::core::i64
   (:wat::core::let
     [h (:wat::holon::to-holon [10 20 30])
@@ -62,14 +62,14 @@
       ((:wat::core::Some x) x)
       (:wat::core::None -1))))
 
-;; p5b: Vec<String> round-trip length 3
+;; p5b: (Vec :- [String]) round-trip length 3
 (:wat::core::defn :t::p5b-str-rt-len [] -> :wat::core::i64
   (:wat::core::let
     [h (:wat::holon::to-holon (:wat::core::Vector :wat::core::String "a" "b" "c"))
      v (:wat::holon::from-holon h)]
     (:wat::core::Vector/length v)))
 
-;; p5c: Vec<bool> round-trip length 3
+;; p5c: (Vec :- [bool]) round-trip length 3
 (:wat::core::defn :t::p5c-bool-rt-len [] -> :wat::core::i64
   (:wat::core::let
     [h (:wat::holon::to-holon (:wat::core::Vector :wat::core::bool true false true))
@@ -137,7 +137,7 @@
           (:wat::core::None -1)))
       (:wat::core::None -1))))
 
-;; p8a: Vec<HashSet<i64>> outer length 2
+;; p8a: (Vec :- [(HashSet :- [i64])]) outer length 2
 (:wat::core::defn :t::p8a-mixed-outer-len [] -> :wat::core::i64
   (:wat::core::let
     [s1 (:wat::core::HashSet :wat::core::i64 1 2 3)
@@ -147,7 +147,7 @@
      rv (:wat::holon::from-holon h)]
     (:wat::core::Vector/length rv)))
 
-;; p8b: Vec<HashSet<i64>> arc 228 outer length 2
+;; p8b: (Vec :- [(HashSet :- [i64])]) arc 228 outer length 2
 (:wat::core::defn :t::p8b-mixed-arc228 [] -> :wat::core::i64
   (:wat::core::let
     [s1 (:wat::core::HashSet :wat::core::i64 1 2 3)

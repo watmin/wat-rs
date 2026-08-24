@@ -33,7 +33,7 @@
      rt    (:wat::holon::from-holon h)]
     rt))
 
-;; p5: tuple containing Vec<i64> round-trip
+;; p5: tuple containing (Vec :- [i64]) round-trip
 (:wat::core::defn :t::p5-rt-with-vec [] -> (:wat::core::Tuple :- [(:wat::core::Vector :- [:wat::core::i64]) :wat::core::String])
   (:wat::core::let
     [v  [1 2 3]
@@ -42,7 +42,7 @@
      rt (:wat::holon::from-holon h)]
     rt))
 
-;; p6: tuple containing HashSet<i64> round-trip
+;; p6: tuple containing (HashSet :- [i64]) round-trip
 (:wat::core::defn :t::p6-rt-with-set [] -> (:wat::core::Tuple :- [(:wat::core::HashSet :- [:wat::core::i64]) :wat::core::String])
   (:wat::core::let
     [s  (:wat::core::HashSet :wat::core::i64 1 2)
@@ -51,7 +51,7 @@
      rt (:wat::holon::from-holon h)]
     rt))
 
-;; p7-admits: Tuple<i64, String> passes is_atomizable check → returns 1
+;; p7-admits: (Tuple :- [i64 String]) passes is_atomizable check → returns 1
 (:wat::core::defn :t::p7-admits [] -> :wat::core::i64
   (:wat::core::let
     [t (:wat::core::Tuple 1 "hello")

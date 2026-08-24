@@ -11,11 +11,11 @@
 ;; annotation's to take. This file restores it, with a lawful name pair.
 ;;
 ;; THE ONE QUESTION: may a `defservice` declare its `:durable` state as a vector of
-;; FORMS — `:wat::core::Vector<wat::WatAST>` — or does the portability wall (293.W,
+;; FORMS — `(:wat::core::Vector :- [:wat::WatAST])` — or does the portability wall (293.W,
 ;; "no portable aggregate declares a non-portable field") reject it?
 ;;
 ;; Why it decides a design: the REPL's durable state is the user's accumulated definition
-;; set. The seam (278 24w) recorded that as `:durable [defs <- Vector<WatAST>]`. But
+;; set. The seam (278 24w) recorded that as `:durable [defs <- (Vector :- [WatAST])]`. But
 ;; `src/edn_shim.rs` refuses an `Edn::Symbol` on the general value DECODE path ("wat has
 ;; no symbol value type"), and a form is full of bare symbols — so a WatAST field may
 ;; ENCODE faithfully and still be un-decodable on the far side. If the wall fires here,

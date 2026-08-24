@@ -1,11 +1,11 @@
 ;; Arc 170 C2 — complete parametric surfaces (Gaps 1+2), POSITIVE control.
-;; The abstract-`Dialable<S,R>` path: a fn whose param is the parametric SURFACE itself
-;; (`Dialable<probe::Echo::Op,probe::Echo::Reply>`), whose body calls `Dialable/coord` on it.
-;;  - Gap 2: `(Dialable/coord d)` on an abstract `Dialable<Echo::Op,Echo::Reply>` receiver must
-;;    resolve to `Address'<Echo::Op,Echo::Reply>` (the surface's `<T>` instantiated from the
-;;    receiver's args), NOT the raw `Address'<S,R>` → the declared return type-checks.
-;;  - Gap 1: a raw `echo'::Handle` (which satisfies `Dialable<Echo::Op,Echo::Reply>` via the
-;;    auto-emitted full-args extend-type edge) must be assignable to the `Dialable<…>` param.
+;; The abstract-`(Dialable :- [S R])` path: a fn whose param is the parametric SURFACE itself
+;; (`(Dialable :- [probe::Echo::Op probe::Echo::Reply])`), whose body calls `Dialable/coord` on it.
+;;  - Gap 2: `(Dialable/coord d)` on an abstract `(Dialable :- [Echo::Op Echo::Reply])` receiver must
+;;    resolve to `(Address' :- [Echo::Op Echo::Reply])` (the surface's `T` instantiated from the
+;;    receiver's args), NOT the raw `(Address' :- [S R])` → the declared return type-checks.
+;;  - Gap 1: a raw `echo'::Handle` (which satisfies `(Dialable :- [Echo::Op Echo::Reply])` via the
+;;    auto-emitted full-args extend-type edge) must be assignable to the parametric `Dialable` param.
 ;; No hand-written `defsurface Dialable`/`extend-type` — the surface is baked (wat/capability.wat)
 ;; and auto-emitted per service (wat/service.wat).
 

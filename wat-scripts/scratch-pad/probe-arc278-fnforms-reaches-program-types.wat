@@ -54,7 +54,7 @@
              ((:probe::FFXTag::Beta)  false))]
        (:wat::service::Outcome::Reply s (:probe::FFX::PingResponse::Ok ok))))])
 
-;; ── render a Vector<WatAST> to one string so we can ask whether a name appears in it ───────────
+;; ── render a (Vector :- [WatAST]) to one string so we can ask whether a name appears in it ───────────
 (:wat::core::defn :user::render-forms
   [forms <- (:wat::core::Vector :- [:wat::WatAST])  i <- :wat::core::i64  acc <- :wat::core::String]
   -> :wat::core::String
@@ -77,5 +77,5 @@
                        (:wat::core::i64::to-string (:wat::core::length closure))))))
      _m        (:wat::kernel::println (:wat::core::string::concat "MANIFEST_SRC " man-src))]
     ;; the shell greps these two lines for the needle — a substring test wat has no verb for
-    ;; (`str-in?` is Vector<String> membership, as the checker said when this probe first tried it)
+    ;; (`str-in?` is (Vector :- [String]) membership, as the checker said when this probe first tried it)
     (:wat::kernel::println (:wat::core::string::concat "CLOSURE_SRC " clo-src))))

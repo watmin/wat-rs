@@ -15,7 +15,7 @@
 ;;
 ;; The recv'-drain is the SHARED primed helper `:wat::kernel::recv-all'` (arc 278 IPC
 ;; de-prime — this consumer is its canonical call site, minted alongside in wat/spawn.wat).
-;; recv-all' drains the peer honestly and returns a `Result<Vector<O>, LociDiedError>`:
+;; recv-all' drains the peer honestly and returns a `(Result :- [(Vector :- [O]) LociDiedError])`:
 ;;   Ok[outputs] -> the peer closed cleanly (RecvOutcome::Closed); the collected values.
 ;;   Err[cause]  -> the peer DIED (RecvOutcome::Lost); the LociDiedError rides in the Err,
 ;;                  surfaced here via `assertion-failed!`, NEVER swallowed.

@@ -4,7 +4,7 @@
 ;;       A Session is an immutable value, so the template is never mutated; one seed never
 ;;       poisons the next (alpha-only structural: one base fact per fire).
 ;;   (2) rete INFERS: one hot seed fires TWO rules → TWO deductions (output > input).
-;;   (3) heterogeneous DEDUCTIONS collect into a (Vector :Value): a Hot AND a Warn in one PV<Value>
+;;   (3) heterogeneous DEDUCTIONS collect into a (Vector :Value): a Hot AND a Warn in one (PV :- [Value])
 ;;       (the reply-wire carrier the caller, holding the defs, matches back).
 
 (:wat::core::defrecord :usr::Temp [c <- :wat::core::i64])
@@ -29,7 +29,7 @@
   :when [(?fact <- :usr::Warn)])
 
 
-;; deduce-one: fire ONE seed from the fresh template, flat-map its deductions into a PV<Value>
+;; deduce-one: fire ONE seed from the fresh template, flat-map its deductions into a (PV :- [Value])
 ;; (Hot's + Warn's — heterogeneous, up-cast to the universal top :wat::core::Value).
 (:wat::core::defn :usr::deduce-one
   [template <- :wat::rete::Session  seed <- :usr::Temp]

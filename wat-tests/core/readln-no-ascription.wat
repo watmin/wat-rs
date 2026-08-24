@@ -7,13 +7,13 @@
 ;; `-> :T` in ascription position is now a located compile error.
 ;;
 ;; readln reads stdin, so it cannot be EXECUTED in a deftest' (no wire). This proves the CHECK-time
-;; property instead: a bare `(readln)` in a consumer position (a foldl over Vector<i64>) TYPE-CHECKS
+;; property instead: a bare `(readln)` in a consumer position (a foldl over (Vector :- [i64])) TYPE-CHECKS
 ;; — its element type is inferred as :i64 from the fold — inside an fn VALUE that is never applied,
 ;; so the read never fires. If bare-readln inference regressed, this file would fail to load.
 
 (:wat::test::deftest :wat-tests::core::readln-no-ascription
   
-  ;; `sum-stdin` is a well-typed fn (bare readln infers Vector<i64> from the foldl consumer);
+  ;; `sum-stdin` is a well-typed fn (bare readln infers (Vector :- [i64]) from the foldl consumer);
   ;; it is bound and NEVER called, so stdin is untouched. The deftest' asserts a trivial truth —
   ;; the load-bearing proof is that the fn body type-checks with NO `-> :T` on readln.
   (:wat::core::let

@@ -30,8 +30,8 @@
 (:wat::core::defenum :probe::Kv::Reply :wat::enum::Pure  :Put [resp <- :probe::Kv::PutResponse] :Get [resp <- :probe::Kv::GetResponse])
 
 ;; The UNIFORM wire types every satisfier shares (this is the ENTIRE reason a caller dials blind):
-;;   :wat::kernel::Address<probe::Kv::Op, probe::Kv::Reply>   — the dial target (pure, EDN-crossable)
-;;   :wat::kernel::Peer<probe::Kv::Op, probe::Kv::Reply>      — what connect yields from that Address
+;;   (:wat::kernel::Address :- [probe::Kv::Op probe::Kv::Reply])   — the dial target (pure, EDN-crossable)
+;;   (:wat::kernel::Peer :- [probe::Kv::Op probe::Kv::Reply])      — what connect yields from that Address
 ;;   :wat::kernel::connect                                    — the dial: Address -> Peer
 ;;   :wat::kernel::Locus                                       — the wire (thread/process/UDS/mTLS/L4), orthogonal
 
@@ -39,7 +39,7 @@
 ;; [TRANSITION — PURGED BY S4] — NOT candidates; the scaffolding being replaced
 ;; ════════════════════════════════════════════════════════════════════════════════════════
 ;; S2, to dodge the :probe::Kv/put dispatch-stub collision, emitted the RPC client fn under the
-;; concrete SERVICE namespace: :probe::kv-store'/put  [c <- Peer<Kv::Op,Kv::Reply>  req <- ...].
+;; concrete SERVICE namespace: :probe::kv-store'/put  [c <- (Peer :- [Kv::Op Kv::Reply])  req <- ...].
 ;; That name (a) couples the caller to ONE backend (kv-store'), and (b) can't be named by a
 ;; :calls [:probe::Kv] consumer that is BLIND to which backend. It dies with the per-service ::Op.
 
@@ -51,7 +51,7 @@
 ;;    so the SAME surface method dispatches whether the receiver is a local struct or a remote
 ;;    peer (R31's "the interface and the remote service become one act"). Two shapes:
 ;;
-;;    Shape 1a — NO WRAPPER: the dialed Peer<Kv::Op,Kv::Reply> DIRECTLY satisfies :probe::Kv
+;;    Shape 1a — NO WRAPPER: the dialed (Peer :- [Kv::Op Kv::Reply]) DIRECTLY satisfies :probe::Kv
 ;;               (the macro emits an `extend-type :probe::Kv` for the peer type; sending
 ;;               Kv::Op::Put / receiving Kv::Reply::Put IS the method body). Then there is no
 ;;               new NAME at all — a Peer of the right protocol is-a Kv. Fewest names, most honest?
@@ -80,7 +80,7 @@
 ;;    decomplection R31 promised)? Or does a caller deserve to SEE it may cross the wire?
 
 ;; ── SLOT 3 — the DIAL a :calls [:probe::Kv] consumer runs in :init to turn a given
-;;    Address<Kv::Op,Kv::Reply> (a pure operating-input) INTO the Kv it then calls.
+;;    (Address :- [Kv::Op Kv::Reply]) (a pure operating-input) INTO the Kv it then calls.
 ;;    Today: (:wat::kernel::connect addr) -> Peer. If SLOT 1 = a named client type, the dial
 ;;    must PRODUCE it. Candidates for the surface-level dial:
 ;;      (:wat::kernel::connect addr)              — the raw dial (yields Peer; is-a Kv iff SLOT-1a)
@@ -96,7 +96,7 @@
 ;;    response record) PLUS one variant per modeled error (each an error record). What does the
 ;;    client entry (SLOT 2) RETURN so the caller must branch success-vs-error?
 ;;      -> :probe::Kv::PutResponse                                  — success only (errors would be lost — dishonest)
-;;      -> :wat::core::Result<probe::Kv::PutResponse, probe::Kv::Error>   — a Result split
+;;      -> (:wat::core::Result :- [probe::Kv::PutResponse probe::Kv::Error])   — a Result split
 ;;      -> :probe::Kv::Reply                                        — the raw Reply enum (caller matches variants)
 ;;    QUESTION for intueri: what does the client method's RETURN TYPE promise so the caller
 ;;    cannot ignore a modeled error — the Reply enum itself (match-forced), or a Result over

@@ -23,11 +23,11 @@
 ;;   1. Enum unit variants use `(VariantName)` with parens per substrate.
 ;;   2. Enum payload variant uses named field: `(Increment (n :wat::core::i64))`.
 ;;   3. Enum variant constructors use `::` separator, not `/`.
-;;   4. spawn-program' (process) hands back a Peer'<counter::Request,counter::Response>
+;;   4. spawn-program' (process) hands back a (Peer' :- [counter::Request counter::Response])
 ;;      directly — no rx/tx pipe wrapping, no ProcessPeer/new (arc 278 IPC de-prime).
 ;;   5. spawn-program' does not allow capturing parent types; the subprocess
 ;;      declares its own independent copy of the counter enum types.
-;;   6. Client wrappers take Peer'<counter::Request, counter::Response>
+;;   6. Client wrappers take (Peer' :- [counter::Request counter::Response])
 ;;      (recv' responses from the peer; send' requests to the peer).
 ;;   7. readln at the server side uses `(:wat::kernel::readln -> :counter::Request)`
 ;;      for typed deserialization from EDN. The ambient println encodes to EDN.
@@ -60,7 +60,7 @@
    ;;
    ;; Parallel to the thread-tier wrappers but over the process peer wire using
    ;; send' + recv'. The peer type is:
-   ;;   Peer'<counter::Request, counter::Response>
+   ;;   (Peer' :- [counter::Request counter::Response])
    ;; where the parent recv's counter::Response from the peer and send's
    ;; counter::Request to it (arc 278 IPC de-prime).
    ;;
@@ -174,7 +174,7 @@
   ;;
   ;; Arc 278 IPC de-prime: spawn-program' (process) returns the process peer
   ;; directly — no Receiver/from-pipe + Sender/from-pipe + ProcessPeer/new
-  ;; construction. The peer is a Peer'<counter::Request,counter::Response>;
+  ;; construction. The peer is a (Peer' :- [counter::Request counter::Response]);
   ;; the wrappers send' requests and recv' responses over it.
   (:wat::core::let
     [peer!

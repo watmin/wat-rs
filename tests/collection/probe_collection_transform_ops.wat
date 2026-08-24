@@ -1,7 +1,7 @@
 ;; tests/collection/probe_collection_transform_ops.wat — co-located fixture.
 ;; Perimeter-closure probes for the collection dispatch home.
 
-;; item1a: length of non-empty List<i64>(10,20,30)
+;; item1a: length of non-empty (List :- [i64])(10,20,30)
 (:wat::core::defn :t::item1a-list-len-nonempty [] -> :wat::core::i64
   (:wat::core::length (:wat::core::List/of 10 20 30)))
 

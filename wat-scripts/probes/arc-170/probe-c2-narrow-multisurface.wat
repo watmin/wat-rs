@@ -1,4 +1,4 @@
-;; NARROW-2: a plain record satisfying a MONOMORPHIC surface (Flat) AND a PARAMETRIC one (Pair2<A,B>)
+;; NARROW-2: a plain record satisfying a MONOMORPHIC surface (Flat) AND a PARAMETRIC one (Pair2 :- [A B])
 ;; — exactly what a service Handle does (it satisfies Capability mono, + we add Dialable parametric).
 ;; parametric receiver errors → bug is multi-surface (pre-existing mono satisfaction blocks parametric)
 ;; clean → bug is specific to the AUTO-EMITTED service Handle

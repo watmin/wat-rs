@@ -6,14 +6,14 @@
 ;;
 ;; ═══ WHAT B2 CLAIMS, AND WHAT IS ACTUALLY UNPROVEN ═══════════════════════════════════════════
 ;;
-;; B1 (488eacd0) proved a CONSUMER over `Seqable<T>` works: `[s <- Seqable<T>] -> i64`, called with
+;; B1 (488eacd0) proved a CONSUMER over `(Seqable :- [T])` works: `[s <- (Seqable :- [T])] -> i64`, called with
 ;; all four containers. Every verb B2 collapses is a LAZY PRODUCER, which is a different shape and
 ;; has never been run. Three things have to hold at once, and only the first is proven:
 ;;
 ;;   1. `Seqable/seq` resolves on all four containers                      ✅ proven, B1
 ;;   2. a `stream/lazy` body can `match` on `(next …)` and `stream/cons`   ❓ never run in this shape
 ;;   3. ★★ THE CRUX — the RECURSIVE call passes `rest`, a **Stream**, into a parameter typed
-;;      `Seqable<T>`, INSIDE the definition of the very fn being defined.                   ❓
+;;      `(Seqable :- [T])`, INSIDE the definition of the very fn being defined.                   ❓
 ;;
 ;; If (3) fails, the one-clause design collapses and every `<verb>-stream` TWIN comes straight
 ;; back — because the twin exists precisely to be the Stream-typed thing a clause can recurse into.
@@ -36,7 +36,7 @@
     (:wat::core::match (:wat::stream::next (:wat::core::Seqable/seq coll))
       ((:wat::stream::NextOutcome::Item value rest)
         (:wat::core::match (f value)
-          ;; ★ (3) — `rest` is a Stream<T>, handed to a Seqable<T> parameter, recursively.
+          ;; ★ (3) — `rest` is a (Stream :- [T]), handed to a (Seqable :- [T]) parameter, recursively.
           ((:wat::core::Some v) (:wat::stream::cons v (:probe::keep-one f rest)))
           (:wat::core::None (:probe::keep-one f rest))))
       (:wat::stream::NextOutcome::Exhausted (:wat::stream::empty)))))
@@ -75,11 +75,11 @@
               (:wat::core::PersistentVector 1 2 3 4 5))))
             (:wat::core::string::join "," (:wat::core::into [] (:probe::keep-one keep-even
               (:wat::core::List/of 1 2 3 4 5))))
-            ;; 4th slot: a CONCRETE Stream<i64>. It was `(Seqable/seq (Vector …))` while this
+            ;; 4th slot: a CONCRETE (Stream :- [i64]). It was `(Seqable/seq (Vector …))` while this
             ;; probe was B2's RED gate; that form is still RED, but for an UNRELATED reason —
             ;; task #95, a dotted call head is not type-checked, so a dotted surface method's
-            ;; RETURN comes back as the surface's declared letter, `Stream<T>`, uninstantiated.
-            ;; Isolated: a concrete `Stream<i64>` from an ordinary defn satisfies `Seqable<i64>`
+            ;; RETURN comes back as the surface's declared letter, `(Stream :- [T])`, uninstantiated.
+            ;; Isolated: a concrete `(Stream :- [i64])` from an ordinary defn satisfies `(Seqable :- [i64])`
             ;; fine. Changed to the concrete form so this probe measures B1a and not #95 —
             ;; the #95 instance is recorded in MEASURED-118.B1a, not silently dropped.
             (:wat::core::string::join "," (:wat::core::into [] (:probe::keep-one keep-even

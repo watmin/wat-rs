@@ -100,13 +100,13 @@
     (:wat::core::i64::+ (:wat::core::i64::* kind 1000000000000000) (:wat::core::i64::* level 1000000000))
     id))
 
-;; vec->pvec v — materialize a Vector<i64> into a PersistentVector<i64>. DESIGN-STONE-into-pv-
-;; from-vector.md: `into` now has a native (PersistentVector<T>, Vector<T>) clause backed by one
+;; vec->pvec v — materialize a (Vector :- [i64]) into a (PersistentVector :- [i64]). DESIGN-STONE-into-pv-
+;; from-vector.md: `into` now has a native ((PersistentVector :- [T]), (Vector :- [T])) clause backed by one
 ;; `PersistentVector/concat` call — retiring the N-interpreted-closure-invocation conj-fold.
 (:wat::core::defn :dc::vec->pvec [v <- (:wat::core::Vector :- [:wat::core::i64])] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:wat::core::into (:wat::core::PersistentVector) v))
 
-;; codes fired — every DERIVED Node/Tag fact (level > 0), canonically encoded, into one Vector<i64>.
+;; codes fired — every DERIVED Node/Tag fact (level > 0), canonically encoded, into one (Vector :- [i64]).
 ;; Level-0 facts are the seeded input, excluded from the witness (mirrors accum/negation excluding
 ;; their own seed types from the derived witness).
 (:wat::core::defn :dc::codes [fired <- :wat::rete::Session] -> (:wat::core::Vector :- [:wat::core::i64])

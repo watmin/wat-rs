@@ -60,7 +60,7 @@
      eq    (:wat::core::= a1 a2)]
     (:wat::core::not eq)))
 
-;; ─── Probe 4 — HashMap<keyword, i64> insert + lookup ─────────────────────────
+;; ─── Probe 4 — (HashMap :- [keyword i64]) insert + lookup ─────────────────────────
 
 (:wat::core::defn :t::p4-a-val [] -> :wat::core::i64
   (:wat::core::let
@@ -87,7 +87,7 @@
      m3  (:wat::core::HashMap/assoc m2 :tag-b 20)]
     (:wat::core::HashMap/length m3)))
 
-;; ─── Probe 5 — HashSet<keyword> insert + contains? ───────────────────────────
+;; ─── Probe 5 — (HashSet :- [keyword]) insert + contains? ───────────────────────────
 
 (:wat::core::defn :t::p5-has-foo [] -> :wat::core::bool
   (:wat::core::let
@@ -110,7 +110,7 @@
     [tags (:wat::core::HashSet :wat::core::keyword :foo :bar :baz)]
     (:wat::core::HashSet/length tags)))
 
-;; ─── Probe 6 — HashMap<Uuid, String> insert + lookup — closes arc 207 ────────
+;; ─── Probe 6 — (HashMap :- [Uuid String]) insert + lookup — closes arc 207 ────────
 
 (:wat::core::defn :t::p6-retrieved [] -> :wat::core::String
   (:wat::core::let

@@ -22,7 +22,7 @@
 
 ;; ─── metadata-of carries :category ───────────────────────────────────────────
 ;; metadata-of has no registered TypeScheme (runtime keyword-arg resolution); the
-;; declared Option<HashMap<keyword, HolonAST>> mirrors its documented shape.
+;; declared (Option :- [(HashMap :- [keyword HolonAST])]) mirrors its documented shape.
 (:wat::core::defn :user::to-hex-metadata []
   -> (:wat::core::Option :- [(:wat::core::HashMap :- [:wat::core::keyword :wat::holon::HolonAST])])
   (:wat::runtime::metadata-of :wat::core::Bytes::to-hex))

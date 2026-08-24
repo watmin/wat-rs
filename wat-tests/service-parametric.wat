@@ -9,13 +9,13 @@
 ;;     parametric name must close with '>'"}
 ;; The parser was innocent — `box-svc<T>::Record` genuinely IS malformed. The macro built it.
 ;; GREEN after: the suffix appends to the BASE and the params re-attach at the end
-;; (`box-svc::Record<T>`), and every generated `defn` whose signature names a parametric
+;; (`box-svc::Record :- [T]`), and every generated `defn` whose signature names a parametric
 ;; companion declares those params.
 ;;
 ;; WHAT THIS PROVES (beyond `--check`): the service is STOOD UP on the thread locus, a client
 ;; `connect'`s to its address, and one `put` round-trips — so the generic State/Record/Admin/
 ;; Status/Handle family is real machinery, not just well-formed names. The handler READS the
-;; T-typed durable field (`held <- Option<T>`) generically, so `T` is load-bearing in the state.
+;; T-typed durable field (`held <- (Option :- [T])`) generically, so `T` is load-bearing in the state.
 ;;
 ;; SCOPE (v3 — arc 278, the surface-minted op alias stone): the surface's `:messages` are BARE
 ;; again — `PutRequest` / `PutResponse` name no `T` at all, honestly. Rust mints one alias per op
@@ -23,7 +23,7 @@
 ;; held), named `<Surface>::<op>/Request` / `/Response`, targeting each message EXACTLY as
 ;; `:features` declares it; `wat/service.wat` names that alias instead of guessing a message's
 ;; arity by concatenation. The prior `v2` forced every message to spell the surface's params even
-;; vacuously (`PutRequest<T>`) because the macro could not do better — that forcing lock is
+;; vacuously (`PutRequest :- [T]`) because the macro could not do better — that forcing lock is
 ;; retired; spell what you use. What this file pins is unchanged: T is load-bearing in the STATE,
 ;; not on the wire.
 
@@ -44,7 +44,7 @@
      -> :wat-tests::Box::PutResponse :max-request-bytes 1024)])
 
 ;; ── the parametric service ──────────────────────────────────────────────────────────────────
-;; `held <- Option<T>` is the whole point: the durable record — and therefore ::State, ::Admin,
+;; `held <- (Option :- [T])` is the whole point: the durable record — and therefore ::State, ::Admin,
 ;; ::Status and ::Handle, each of which carries it — is generic in T.
 (:wat::service::defservice :wat-tests::box-svc :- [T]
   :satisfies (:wat-tests::Box :- [T])

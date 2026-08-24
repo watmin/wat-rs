@@ -12,7 +12,7 @@
 ;; SHAPES, learned from the checker rather than guessed (it corrected two wrong assumptions in the
 ;; first draft of this file): `defrule` is a DECLARATION that expands to a ZERO-ARG DEFN returning
 ;; a Rule (wat/rete.wat:2385) — it does not evaluate to a Rule in place; and `:wat::rete::compile`
-;; takes a `PersistentVector<Rule>`, not a `Vector<Rule>`.
+;; takes a `(PersistentVector :- [Rule])`, not a `(Vector :- [Rule])`.
 ;;
 ;; ⚠ NON-VACUITY. The CONTROL rule is well-formed in exactly the way the BROKEN one is malformed —
 ;; same records, same shape, one unbound variable apart. If both compile, the DSL diagnoses

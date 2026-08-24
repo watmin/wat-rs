@@ -21,7 +21,7 @@
 ;; ─── Hologram/get filter factories ──────────────────────────────────
 ;;
 ;; `Hologram/get` takes a 2-arg call `(:wat::holon::Hologram/get store probe)`.
-;; The filter `:wat::core::Fn(:wat::core::f64) -> :wat::core::bool` is bound
+;; The filter `[:wat::core::f64 :-> :wat::core::bool]` is bound
 ;; at construction via `Hologram/make` and decides whether the
 ;; highest-cosine candidate is "close enough" to return. The substrate
 ;; ships three opinionated factories so consumers don't have to

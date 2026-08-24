@@ -44,7 +44,7 @@
 (:wat::service::defservice :probe::caller
   :satisfies :probe::Caller
   :durable   []
-  ;; the dialed peer — a client Peer'<Echo::Op,Echo::Reply>, held as a ROOT ephemeral field
+  ;; the dialed peer — a client (Peer' :- [Echo::Op Echo::Reply]), held as a ROOT ephemeral field
   :ephemeral [echo <- (:wat::kernel::Peer :- [:probe::Echo::Op :probe::Echo::Reply])]
   ;; the explicit s2s dependency DAG — set-equal to the ephemeral peer field's surface
   :peers     [:probe::Bogus]

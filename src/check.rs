@@ -35,12 +35,12 @@
 //! - **Fn-value call-site typing.** Fn values don't carry structured
 //!   signatures through [`crate::runtime::Function`]; calling a fn
 //!   stays Unknown at the check layer.
-//! - **`:Union<T,U,V>` coproduct discipline.** `:Union` is a
+//! - **`(:Union :- [T U V])` coproduct discipline.** `:Union` is a
 //!   first-class type form in the grammar; its check-layer surface
 //!   is intentionally permissive — full subtype/variant discipline
 //!   is outside the check layer by design.
 //! - **Typed-macro parameter checks (058-032).** Macros expand before
-//!   check; macro-definition-time checks (`:AST<T>` against body
+//!   check; macro-definition-time checks (`(:AST :- [T])` against body
 //!   positions) are outside the check layer by design (expansion-time
 //!   discipline is a separate concern if pursued).
 //! - **Numeric promotion.** `:i64` does not promote to `:f64` statically;
@@ -67,7 +67,7 @@ use std::collections::HashMap;
 /// [`TypeExpr::Var`]s so multiple independent call sites don't alias.
 ///
 /// Arc 150 — variadic-define rest-param info carried inline.
-/// `rest_param_type` is `Some(:wat::core::Vector<T>)` for variadic
+/// `rest_param_type` is `Some((:wat::core::Vector :- [T]))` for variadic
 /// callees (the call-site inference accepts `args.len() >= params.len()`
 /// and unifies each rest-arg against `T`); `None` for strict-arity
 /// callees (existing behavior unchanged).
@@ -1936,7 +1936,7 @@ pub(crate) fn infer(
         // Arc 244 — NilLit is the canonical nil VALUE literal; infers as :wat::core::nil.
         WatAST::NilLit(_) => CheckResult::ok(TypeExpr::Path(":wat::core::nil".into())),
         // `:None` / `:wat::core::None` — nullary constructor of the
-        // built-in :Option<T> enum. Infers as `:Option<T>` with a
+        // built-in (:Option :- [T]) enum. Infers as `(:Option :- [T])` with a
         // fresh T; unification against the expected type sharpens T
         // at the use site.
         //
@@ -1975,12 +1975,12 @@ pub(crate) fn infer(
         WatAST::Keyword(k, _) if env.unit_variant_type(k).is_some() => {
             let base = env.unit_variant_type(k).expect("guard").clone();
             // Arc 278 the recv'-outcome wall — a unit variant of a PARAMETRIC enum
-            // (e.g. `:wat::kernel::RecvOutcome::Closed` of `RecvOutcome<O>`) must
+            // (e.g. `:wat::kernel::RecvOutcome::Closed` of `(RecvOutcome :- [O])`) must
             // instantiate the enum's type params with fresh vars, EXACTLY as the
-            // `:None` arm above does for `Option<T>`. The precomputed unit-variant
+            // `:None` arm above does for `(Option :- [T])`. The precomputed unit-variant
             // map stores only the bare `Path` (arity-0) — without this, constructing
             // a nullary variant infers as the un-parametrized `RecvOutcome` and fails
-            // to unify with the `RecvOutcome<Response>` a use site expects (a nullary
+            // to unify with the `(RecvOutcome :- [Response])` a use site expects (a nullary
             // variant carries no field, so nothing else pins O). Non-parametric enums
             // (empty type_params) return `base` unchanged — byte-identical behavior.
             let ty = match &base {
@@ -2432,7 +2432,7 @@ fn infer_rete_form(
             //
             // ⚠ BOTH `Path` AND `Parametric` — this cost a RED on the positive test and the
             // arm named it outright: `got :wat::core::Option<?0> and :wat::core::Option<?1>`.
-            // A first cut matched `Path` only, which refuses every PARAMETRIC enum — `Option<T>`
+            // A first cut matched `Path` only, which refuses every PARAMETRIC enum — `(Option :- [T])`
             // and any user `defenum` carrying type params. Enum-ness is a property of the type
             // CONSTRUCTOR, not of whether it happens to be applied to arguments, and a guard
             // drawn one notch too tight makes the honest path non-compliant
@@ -3074,7 +3074,7 @@ fn infer_list(
             ":wat::core::list" => {
                 // Arc 109 slice 1g — :wat::core::list retires.
                 // Was always a duplicate of :wat::core::vec; both
-                // produced :Vec<T>. Post-slice-1f, :wat::core::Vector
+                // produced (:Vec :- [T]). Post-slice-1f, :wat::core::Vector
                 // is the canonical constructor. Pattern 2 poison:
                 // synthetic TypeMismatch + redirect; continue to
                 // dispatch so the program type-checks.
@@ -3339,7 +3339,7 @@ fn infer_list(
                 // Variadic sibling of quote. Every positional arg is
                 // DATA, captured as `:wat::WatAST`. The checker does
                 // not recurse into any of them. Return type is
-                // `:wat::core::Vector<wat::WatAST>` regardless of arity (including
+                // `(:wat::core::Vector :- [wat::WatAST])` regardless of arity (including
                 // zero, which produces an empty Vec).
                 return CheckResult::ok(TypeExpr::Parametric {
                     head: "wat::core::Vector".into(),
@@ -3369,7 +3369,7 @@ fn infer_list(
             | ":wat::runtime::body-of" => {
                 // Arc 143 slice 1 — runtime introspection primitives.
                 // Each takes a keyword name (`:fn::path`) and returns
-                // `:Option<wat::holon::HolonAST>`. The argument may be
+                // `(:Option :- [wat::holon::HolonAST])`. The argument may be
                 // a known function name (inferred as its fn-type by arc
                 // 009) or an unknown bare keyword. In either case, arity
                 // must be exactly 1; the argument's inferred type is NOT
@@ -3511,7 +3511,7 @@ fn infer_list(
             }
             ":wat::runtime::extract-arg-names" => {
                 // Arc 143 slice 3 — extract-arg-names.
-                // (head :HolonAST) -> :wat::core::Vector<keyword>
+                // (head :HolonAST) -> (:wat::core::Vector :- [keyword])
                 // First arg is a HolonAST (not a keyword), so normal
                 // type-scheme unification would fail on arc-009 call
                 // sites. Infer for side-effects; return the concrete type.
@@ -3533,7 +3533,7 @@ fn infer_list(
             }
             ":wat::runtime::extract-arg-types" => {
                 // Arc 201 slice 5 — extract-arg-types.
-                // (head :HolonAST) -> :wat::core::Vector<wat::WatAST>
+                // (head :HolonAST) -> (:wat::core::Vector :- [wat::WatAST])
                 // Type-direction sibling of extract-arg-names. Same special-case
                 // rationale: first arg is a HolonAST value; normal type-scheme
                 // unification would fail on arc-009 call sites.
@@ -3560,7 +3560,7 @@ fn infer_list(
             }
             ":wat::runtime::field-names-of" => {
                 // Arc 170 Strike B — field-names-of.
-                // (type-kw :wat::core::keyword) -> :wat::core::Vector<wat::core::keyword>
+                // (type-kw :wat::core::keyword) -> (:wat::core::Vector :- [wat::core::keyword])
                 // Same arc-009 "names are values" bypass as extract-arg-names/-types:
                 // the arg is normally a plain type keyword (infers as
                 // `:wat::core::keyword`), but for a `defstruct`-declared type the bare
@@ -3593,7 +3593,7 @@ fn infer_list(
                 // decomposable, reparseable (NOT the old `format_type` keyword
                 // flattening, which mangled parametric types via Rust-style
                 // `<>`; NOT the retired HolonAST carrier either).
-                // (type-kw :wat::core::keyword) -> :wat::core::Vector<wat::WatAST>
+                // (type-kw :wat::core::keyword) -> (:wat::core::Vector :- [wat::WatAST])
                 if args.len() != 1 {
                     local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
                         callee: k.to_string(),
@@ -3688,7 +3688,7 @@ fn infer_list(
                 // Arc 225 Stone 225.1 — renamed from `:wat::core::atom-value`.
                 // from-holon accepts 1 or 3 args.
                 // 1-arg form: `(from-holon h)` — plain reverse dispatch; return type T (Infer).
-                // 3-arg form: `(from-holon h -> :HashMap<K,V>)` — consumer-declared type hint
+                // 3-arg form: `(from-holon h -> (:HashMap :- [K V]))` — consumer-declared type hint
                 //   for disambiguating empty Bundle → empty HashMap. The `->` and type keyword
                 //   are syntactic decoration; return type is still T (Infer).
                 // Both forms validate the first arg is HolonAST.
@@ -3722,7 +3722,7 @@ fn infer_list(
             }
             ":wat::holon::Bundle/children" => {
                 // Arc 201 slice 2 — Bundle/children.
-                // (bundle :HolonAST) -> :wat::core::Vector<wat::holon::HolonAST>
+                // (bundle :HolonAST) -> (:wat::core::Vector :- [wat::holon::HolonAST])
                 // First arg is a HolonAST value; same special-case
                 // rationale as `extract-arg-names` (HolonAST inputs
                 // don't unify via normal type-scheme paths at arc-009
@@ -3766,7 +3766,7 @@ fn infer_list(
             }
             ":wat::holon::extract-classifier" => {
                 // Arc 232 Stone 232.0a — typed-entities reflection layer.
-                // For HolonAST args: (holon :HolonAST) -> :wat::core::Option<wat::core::String>
+                // For HolonAST args: (holon :HolonAST) -> (:wat::core::Option :- [wat::core::String])
                 // Returns Some(class-name) for canonical-wrap shape
                 // (Bind (Atom <s>) <right>); None otherwise.
                 // HolonAST arg bypasses normal type-unification (same
@@ -3810,7 +3810,7 @@ fn infer_list(
             }
             ":wat::holon::Bind/left" | ":wat::holon::Bind/right" => {
                 // Arc 232 Stone 232.0a — structural Bind accessors.
-                // (holon :HolonAST) -> :wat::core::Option<wat::holon::HolonAST>
+                // (holon :HolonAST) -> (:wat::core::Option :- [wat::holon::HolonAST])
                 // Bind/left returns Some(left) for (Bind left _); None otherwise.
                 // Bind/right returns Some(right) for (Bind _ right); None otherwise.
                 // Symmetric positional pair; naming the STRUCTURAL fact not the
@@ -4051,7 +4051,7 @@ fn infer_list(
             // not projected/unified — same "accept, runtime validates" posture
             // as spawn-thread''s init-fn arg); `name` unifies against
             // `:wat::core::keyword`; return type is the fixed
-            // `:wat::core::Vector<wat::WatAST>` shape.
+            // `(:wat::core::Vector :- [wat::WatAST])` shape.
             ":wat::kernel::fn-forms" => {
                 let (val, mut errs) = infer_kernel_fn_forms(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
@@ -4061,7 +4061,7 @@ fn infer_list(
                 };
             }
             // Arc 292 — one-shot timer peer (thread tier).
-            // after : (locus, duration: :wat::time::Duration, msg: T) -> Thread'<nil, T>
+            // after : (locus, duration: :wat::time::Duration, msg: T) -> (Thread' :- [nil T])
             ":wat::kernel::after" => {
                 let (val, mut errs) = infer_kernel_after(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
@@ -4072,8 +4072,8 @@ fn infer_list(
             }
             // Arc 214 Stone 4.6a-ii — three peer verb intrinsics.
             // PARTITION — CLAUSE vs INTRINSIC: all three are intrinsic.
-            //   send'     — projective: I flows from peer<I,O> into the payload arg.
-            //   recv'     — projective: O flows from peer<I,O> into the return.
+            //   send'     — projective: I flows from (peer :- [I O]) into the payload arg.
+            //   recv'     — projective: O flows from (peer :- [I O]) into the return.
             //   close'    — ∀-parametric: peer<∀I,∀O>; clause cannot enumerate all (I,O).
             // See `infer_send_prime` / `infer_recv_prime` /
             // `infer_close_prime` for the per-op reasoning.
@@ -4114,7 +4114,7 @@ fn infer_list(
                 };
             }
             // DESIGN-STONE-process-signal-owner-to-child.md; BRIEF-process-signal-p2-mint.md
-            // — STOP-1: `signal` is `Process<I,O>`-ONLY (unlike close', not shared with
+            // — STOP-1: `signal` is `(Process :- [I O])`-ONLY (unlike close', not shared with
             // Thread'/Peer' — a thread peer has no process to signal). See infer_signal.
             ":wat::kernel::signal" => {
                 let (val, mut errs) = infer_signal(args, head_span, env, locals, fresh, subst).into_parts();
@@ -4125,7 +4125,7 @@ fn infer_list(
                 };
             }
             // DESIGN-STONE-a-service-that-measures-itself.md / BRIEF-a-service-that-measures-
-            // itself.md — A1: un-erase the concrete locus a `Peer<I,O>`-typed value (e.g. a
+            // itself.md — A1: un-erase the concrete locus a `(Peer :- [I O])`-typed value (e.g. a
             // defservice Handle's lineage `handle` field, deliberately widened by
             // `wat/spawn.wat:265` Launched so `stop` stays locus-agnostic) already holds at
             // runtime. ∀-parametric over I,O (project_peer_io), same partition as close'/recv'.
@@ -4162,7 +4162,7 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
-            // 293.W.2e — `address-wire?`: 1 arg, unify Address<S,R>, return bool.
+            // 293.W.2e — `address-wire?`: 1 arg, unify (Address :- [S R]), return bool.
             // Twin of infer_peer_wire, different type-path. Do NOT call project_peer_io.
             ":wat::kernel::address-wire?" => {
                 let (val, mut errs) = infer_address_wire(args, head_span, env, locals, fresh, subst).into_parts();
@@ -4202,8 +4202,8 @@ fn infer_list(
             }
             // Arc 214 Stone 4.6b / Stone 259 Lost-locus — select' intrinsic.
             // PARTITION — CLAUSE vs INTRINSIC: intrinsic (projective).
-            // I,O flow from Vector<peer<I,O>>'s element peer type into the
-            // return ServiceEvent<I,O>. See `infer_select_prime` for the reasoning.
+            // I,O flow from (Vector :- [(peer :- [I O])])'s element peer type into the
+            // return (ServiceEvent :- [I O]). See `infer_select_prime` for the reasoning.
             ":wat::kernel::select" => {
                 let (val, mut errs) = infer_select_prime(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
@@ -4214,7 +4214,7 @@ fn infer_list(
             }
             // Arc 209 Stone C0b.2e-i-c — poll' intrinsic (3-arg service multiplexer).
             // PARTITION — CLAUSE vs INTRINSIC: intrinsic (projective).
-            // I,O flow from Vector<Peer'<I,O>>'s element peer type into ServiceEvent<I,O>.
+            // I,O flow from (Vector :- [(Peer' :- [I O])])'s element peer type into (ServiceEvent :- [I O]).
             // See `infer_poll_prime` for the reasoning.
             ":wat::kernel::poll" => {
                 let (val, mut errs) = infer_poll_prime(args, head_span, env, locals, fresh, subst).into_parts();
@@ -4224,7 +4224,7 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
-            // Arc 209 C0b.3a-0 / C0b.2e-i-b — self-peer: (:S :R) -> Peer'<S,R>.
+            // Arc 209 C0b.3a-0 / C0b.2e-i-b — self-peer: (:S :R) -> (Peer' :- [S R]).
             // Returns the spawned process child's owner-link (rx=fd0, tx=fd1) as a
             // unified Peer' (socket-backed, PEER_TYPE_PATH). Root gets MalformedForm.
             ":wat::program::self-peer" => {
@@ -5044,7 +5044,7 @@ fn infer_list(
                                 .drain_errors_into(&mut local_errors)
                         })
                         .collect();
-                    // Arc C2 (surface type params, arc 170) — a `defsurface :S<T> …` member's
+                    // Arc C2 (surface type params, arc 170) — a `defsurface :S :- [T] …` member's
                     // declared type is a bare, UNRESOLVED `:T` in `s.members` — correct only
                     // PER-SATISFIER. Resolve it by looking up the receiver's concrete satisfier
                     // scheme `<ConcreteType>/<method>`, which `extend-type` registered
@@ -5194,7 +5194,7 @@ fn infer_list(
                             // already-parsed `TypeExpr`s. These came from `peel_param_spec`'s
                             // Vector elements, one AST node each — never a string that a flat
                             // `split(',')` could tear, so a parametric type-arg like
-                            // `State<K,V>` (the shape `defservice` mints, five params deep)
+                            // `(State :- [K V])` (the shape `defservice` mints, five params deep)
                             // cannot shift a later binding the way the old angle-suffix string
                             // split once did.
                             let mut mapping: HashMap<String, TypeExpr> = HashMap::new();
@@ -5274,8 +5274,8 @@ fn infer_list(
                     let ret = apply_subst(&member_ret, subst);
                     // Arc 278 the recv'-outcome wall — a `:nature :Peer` surface METHOD is a
                     // generated client call that dials the peer, sends the op, and `recv'`s the
-                    // reply; `recv'` yields a matchable `RecvOutcome<Response>` (never a raise). The
-                    // client-facing return type is therefore `RecvOutcome<<Op>Response>`, matching
+                    // reply; `recv'` yields a matchable `(RecvOutcome :- [Response])` (never a raise). The
+                    // client-facing return type is therefore `(RecvOutcome :- [<Op>Response])`, matching
                     // the Path-B intrinsic (runtime.rs) and the defservice op-method codegen
                     // (wat/service.wat) — both now RETURN the outcome rather than unwrap+raise. Field
                     // accessors and every non-Peer nature are unaffected (their returns are ordinary
@@ -5922,7 +5922,7 @@ fn infer_list(
 /// the rest unify against it — exactly as `if` unifies then/else). A
 /// divergent arm produces a per-arm TypeMismatch naming the running
 /// result type. Exhaustiveness is checked per the detected shape
-/// (`:Option<T>` / `:Result<T,E>` / user enum / open hash-destructure).
+/// (`(:Option :- [T])` / `(:Result :- [T E])` / user enum / open hash-destructure).
 ///
 /// Arc 258.5 (`the -> :T annihilation`) retired the mandatory `-> :T`
 /// ascription (a 2026-04-20 diagnostics stopgap); `-> :T` is legal only
@@ -6230,8 +6230,8 @@ fn infer_match(
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
 }
 
-/// Coverage class for a match pattern. Spans built-in `:Option<T>`,
-/// `:Result<T,E>`, and (arc 048) user-defined enums. Wildcard covers
+/// Coverage class for a match pattern. Spans built-in `(:Option :- [T])`,
+/// `(:Result :- [T E])`, and (arc 048) user-defined enums. Wildcard covers
 /// any shape.
 ///
 /// Arc 055 — variant-carrying coverage classes carry a `full` flag.
@@ -6260,15 +6260,15 @@ enum Coverage {
 /// first variant-constructor arm.
 #[derive(Clone, Debug)]
 enum MatchShape {
-    /// :Option<T> — inner_ty is T.
+    /// (:Option :- [T]) — inner_ty is T.
     Option(TypeExpr),
-    /// :Result<T,E> — t_ty is T (Ok-inner), e_ty is E (Err-inner).
+    /// (:Result :- [T E]) — t_ty is T (Ok-inner), e_ty is E (Err-inner).
     Result(TypeExpr, TypeExpr),
     /// Arc 048 — user-defined enum. Carries the enum's full type path
     /// (e.g. `:trading::types::PhaseLabel`) and its type arguments
     /// (fresh tyvars at construction; resolved via subst as inference
     /// proceeds). Empty arg vec ↔ non-parametric enum (`PhaseLabel`);
-    /// non-empty ↔ parametric enum (`Request<K,V>`). Arc 119 surfaced
+    /// non-empty ↔ parametric enum (`(Request :- [K V])`). Arc 119 surfaced
     /// the parametric case — Option/Result already carried their args
     /// via dedicated variants; user-defined enums needed the same so
     /// the scrutinee type unifies against `Enum<…>` not bare `Enum`.
@@ -6315,7 +6315,7 @@ impl MatchShape {
 /// Construct a MatchShape::Enum carrying the right arity of fresh
 /// type variables for the named enum's parametric signature. For a
 /// non-parametric enum the args vec is empty and `as_type()` produces
-/// `TypeExpr::Path`. For a parametric enum (`Request<K,V>`) the args
+/// `TypeExpr::Path`. For a parametric enum (`(Request :- [K V])`) the args
 /// vec has one fresh tyvar per type param and `as_type()` produces
 /// `TypeExpr::Parametric { head, args }` so the scrutinee unification
 /// preserves the parametric envelope. Arc 119 surfaced this — see
@@ -6638,8 +6638,8 @@ fn pattern_coverage(
                     }
                 };
                 // Arc 209 C0b.1b — build a type-param → concrete-type mapping so
-                // field types like `Peer'<I,O>` are instantiated to the scrutinee's
-                // concrete args (e.g. `Peer'<i64,Op>`). For non-parametric enums the
+                // field types like `(Peer' :- [I O])` are instantiated to the scrutinee's
+                // concrete args (e.g. `(Peer' :- [i64 Op])`). For non-parametric enums the
                 // mapping is empty and `rename` is identity. This is the same
                 // substitution that `instantiate` applies to TypeSchemes at call sites.
                 let type_param_mapping: HashMap<String, TypeExpr> = enum_def
@@ -6685,7 +6685,7 @@ fn pattern_coverage(
                 }
                 // Arc 055 — recurse into each field's sub-pattern.
                 // Instantiate field types with the concrete enum args so parametric
-                // enums (`ServiceEvent<I,O>`) bind correctly typed variables.
+                // enums (`(ServiceEvent :- [I O])`) bind correctly typed variables.
                 let mut all_full = true;
                 for (binder_ast, (_field_name, field_type)) in rest.iter().zip(fields.iter()) {
                     let instantiated_field_type = if type_param_mapping.is_empty() {
@@ -7446,30 +7446,30 @@ const MUST_USE_TYPES: &[&str] = &[
 /// is one of these is must-use regardless of its type args. NB the Parametric
 /// `head` convention is a BARE FQDN (no leading `:`), unlike `Path` (colon-
 /// prefixed) — see `infer_recv_prime` (`head: "wat::kernel::RecvOutcome"`).
-/// `:wat::kernel::RecvOutcome<O>` (arc 278 recv'-must-use, R53 wall's twin gate)
+/// `(:wat::kernel::RecvOutcome :- [O])` (arc 278 recv'-must-use, R53 wall's twin gate)
 /// — a *faced* `recv'` (matched over `Message`/`Closed`/`Lost`) has type `O`
-/// (the message) or a joined arm type, never `RecvOutcome<O>`, so this fires
+/// (the message) or a joined arm type, never `(RecvOutcome :- [O])`, so this fires
 /// ONLY on a raw unfaced/dropped `recv'`, closing the swallow door R55's
 /// harness-fix only patched at one site.
 ///
-/// `:wat::spawn::ServiceEvent<…>` (arc 278 peer-lifecycle walls — `poll'`/`select'`) — already
+/// `(:wat::spawn::ServiceEvent :- […])` (arc 278 peer-lifecycle walls — `poll'`/`select'`) — already
 /// value-faced (a matchable enum carrying `Message`/`Closed`/`Lost[cause]`/`Malformed[cause]`/
 /// `Rejected[cause]`), so the only gap was the swallow-axis: a dropped `poll'`/`select'` event
 /// hid a `Lost`/`Malformed` failure. Gating it closes that door; a *faced* poll' (matched over
-/// the event variants) has an arm-joined type, never `ServiceEvent<…>`.
+/// the event variants) has an arm-joined type, never `(ServiceEvent :- […])`.
 ///
-/// `:wat::kernel::AcceptOutcome<R,S>` (arc 278 peer-lifecycle Strike 3 — the accept'
-/// OUTCOME WALL) — parametric like RecvOutcome<O> (`Accepted` holds a live `Peer'<R,S>`).
+/// `(:wat::kernel::AcceptOutcome :- [R S])` (arc 278 peer-lifecycle Strike 3 — the accept'
+/// OUTCOME WALL) — parametric like (RecvOutcome :- [O]) (`Accepted` holds a live `(Peer' :- [R S])`).
 /// A *faced* `accept'` (matched over `Accepted`/`Closed`/`Failed`) has the Peer' / an
-/// arm-joined type, never `AcceptOutcome<R,S>`, so this fires only on a raw dropped
+/// arm-joined type, never `(AcceptOutcome :- [R S])`, so this fires only on a raw dropped
 /// `accept'`, closing the swallow door on the rendezvous-drop/decode/select/peer_cred
 /// failures the wall converted from raises.
 ///
-/// `:wat::kernel::ConnectOutcome<S,R>` (arc 278 peer-lifecycle Strike 4 — the connect'
+/// `(:wat::kernel::ConnectOutcome :- [S R])` (arc 278 peer-lifecycle Strike 4 — the connect'
 /// OUTCOME WALL, the LAST peer wall) — the twin of `AcceptOutcome`, parametric (`Connected`
-/// holds a live `Peer'<S,R>`). A *faced* `connect'` (matched over
+/// holds a live `(Peer' :- [S R])`). A *faced* `connect'` (matched over
 /// `Connected`/`Refused`/`Rejected`/`Failed`) has the Peer' / an arm-joined type, never
-/// `ConnectOutcome<S,R>`, so this fires only on a raw dropped `connect'`, closing the
+/// `(ConnectOutcome :- [S R])`, so this fires only on a raw dropped `connect'`, closing the
 /// swallow door on the ECONNREFUSED/no-listener, identity-reject, and peer_cred/socket-wrap
 /// failures the wall converted from raises.
 const MUST_USE_PARAMETRIC_HEADS: &[&str] = &[
@@ -7477,10 +7477,10 @@ const MUST_USE_PARAMETRIC_HEADS: &[&str] = &[
     "wat::spawn::ServiceEvent",
     "wat::kernel::AcceptOutcome",
     "wat::kernel::ConnectOutcome",
-    // `:wat::kernel::ReadlnOutcome<T>` (arc 170 #24 — the readln wall's twin gate).
+    // `(:wat::kernel::ReadlnOutcome :- [T])` (arc 170 #24 — the readln wall's twin gate).
     // #24 made `readln` return a matchable outcome instead of RAISING on Eof/Stopped;
     // that closed the *raise* mask but not the *swallow*. A FACED readln (matched over
-    // Datum/Eof/Stopped) has type `T` or a joined arm type, never `ReadlnOutcome<T>`,
+    // Datum/Eof/Stopped) has type `T` or a joined arm type, never `(ReadlnOutcome :- [T])`,
     // so this fires ONLY on a raw dropped readln — both discard doors.
     "wat::kernel::ReadlnOutcome",
 ];
@@ -8689,9 +8689,9 @@ fn validate_def_position_with_wrapper(
 /// Type rules:
 /// 1. Exactly one argument. Otherwise `ArityMismatch`.
 /// 2. The innermost enclosing function must declare its return
-///    type as `:Result<_, E>`. Otherwise `MalformedForm` — `try` has
+///    type as `(:Result :- [_ E])`. Otherwise `MalformedForm` — `try` has
 ///    nowhere to propagate to.
-/// 3. The argument's type must unify with `:Result<T, E>` where `E` is
+/// 3. The argument's type must unify with `(:Result :- [T E])` where `E` is
 ///    the enclosing function's `Err` variant. Mismatched `E` surfaces
 ///    as `TypeMismatch` (strict equality per the 2026-04-19 stance —
 ///    no auto-conversion, no From-trait analogue). Polymorphic error
@@ -8746,8 +8746,8 @@ fn infer_try(
             return CheckResult::errs(local_errors);
         }
     };
-    // Reduce so a typealias over Result<T,E> is recognized as
-    // Result<T,E> here. (`:my::Res<T> = Result<T,String>` would
+    // Reduce so a typealias over (Result :- [T E]) is recognized as
+    // (Result :- [T E]) here. (`:my::Res :- [T] = (Result :- [T String])` would
     // otherwise be rejected as "not a Result" at this match.)
     let enclosing_reduced = reduce(&enclosing, subst, env.types());
     let enclosing_err_ty = match &enclosing_reduced {
@@ -8810,9 +8810,9 @@ fn infer_try(
 /// Type rules:
 /// 1. Exactly one argument.
 /// 2. The innermost enclosing function must declare its return
-///    type as `:Option<_>`. Otherwise `MalformedForm` — `Option/try`
+///    type as `(:Option :- [_])`. Otherwise `MalformedForm` — `Option/try`
 ///    has nowhere to propagate to.
-/// 3. The argument's type must unify with `:Option<T>`.
+/// 3. The argument's type must unify with `(:Option :- [T])`.
 /// 4. On success, the form's type is `T` — the Some-inner of the
 ///    argument's Option.
 ///
@@ -8915,7 +8915,7 @@ fn infer_option_try(
 /// Type rules:
 /// 1. Exactly two arguments (opt, msg). Otherwise
 ///    `MalformedForm` naming the expected shape.
-/// 2. `args[0]` (the opt expression) must unify with `:Option<T>`.
+/// 2. `args[0]` (the opt expression) must unify with `(:Option :- [T])`.
 /// 3. `args[1]` (the msg expression) must unify with `:String`.
 ///
 /// On success the form's type is `T` — the Some-inner refined by
@@ -8946,7 +8946,7 @@ fn infer_option_expect(
         // HARVEST (236.2): existing diagnostic; straight conversion.
         return CheckResult::errs(local_errors);
     }
-    // Opt expression must unify with :Option<T> where T is a fresh type var.
+    // Opt expression must unify with (:Option :- [T]) where T is a fresh type var.
     let opt_ty = match infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
         Some(t) => t,
         // HARVEST (236.2): silent-by-intent — opt inference failed; propagate errors.
@@ -8987,7 +8987,7 @@ fn infer_option_expect(
 /// sibling of `Option/expect`. Arc 108.
 ///
 /// Shape: exactly 2 args `[<res> <msg>]`. `args[0]` unifies with
-/// `:Result<T, fresh_E>` (Err variant is discarded at runtime; its
+/// `(:Result :- [T fresh_E])` (Err variant is discarded at runtime; its
 /// type is left to inference). On success the form's type is `T`.
 fn infer_result_expect(
     callee: &str,
@@ -9124,7 +9124,7 @@ fn infer_kernel_readln_prime(
     // The decoded value's type is a fresh var pinned by the consumer — the
     // self-describing wire reconstructs the exact value at runtime (mirror recv').
     //
-    // Arc 170 closure #24 — readln returns `:wat::kernel::ReadlnOutcome<T>`, not a bare
+    // Arc 170 closure #24 — readln returns `(:wat::kernel::ReadlnOutcome :- [T])`, not a bare
     // `T`. It was the LAST IPC verb still RAISING on Eof and on a stop; every sibling
     // (recv'/send'/close'/accept'/connect') already hands its failure back as a matchable
     // value, because a raise in a language with no try/catch unwinds PAST the reader
@@ -9133,7 +9133,7 @@ fn infer_kernel_readln_prime(
     // `T` stays a FRESH var — the consumer still determines the decoded type, exactly as
     // before. It is simply one layer in now: it flows through `ReadlnOutcome::Datum`'s
     // payload rather than being the whole result. Proven to still bind by probe before
-    // this shipped; `RecvOutcome<O>` is the same mechanism and the precedent that made it
+    // this shipped; `(RecvOutcome :- [O])` is the same mechanism and the precedent that made it
     // safe to reach for.
     let t = fresh.fresh();
     // Colon-free head, exactly as `infer_recv_prime` spells `wat::kernel::RecvOutcome`.
@@ -9157,8 +9157,8 @@ fn infer_kernel_readln_prime(
 /// when a caller-supplied cap flows through readln' → StdInService::Req.
 ///
 /// Return type: `:wat::io::IOReader::ReadFrameOutcome` in both cases (arc 170 — was
-/// `:Option<String>`; a process-wide stop request needed a third outcome
-/// `Option<String>` could not express — see the type's registration in
+/// `(:Option :- [String])`; a process-wide stop request needed a third outcome
+/// `(Option :- [String])` could not express — see the type's registration in
 /// `src/types.rs`).
 fn infer_ioreader_read_frame(
     head_span: &Span,
@@ -9507,7 +9507,7 @@ fn infer_nth(
     if local_errors.is_empty() { CheckResult::ok(fresh.fresh()) } else { CheckResult::partial_with(fresh.fresh(), local_errors) }
 }
 
-/// Arc 293.W.2d — validate that a `Peer'<I,O>` type argument is pure.
+/// Arc 293.W.2d — validate that a `(Peer' :- [I O])` type argument is pure.
 ///
 /// A wire peer (`Peer'`) carries only pure data (records, scalars, pure containers).
 /// Impure types (structs, handles, closures) cannot cross a comms boundary.
@@ -9588,10 +9588,10 @@ fn parse_peer_pair_type_arg(
 
 
 /// Arc 209 C0b.3a-0 / C0b.2e-i-b — `(:wat::program::self-peer :S :R)` →
-/// `Peer'<S,R>`.
+/// `(Peer' :- [S R])`.
 ///
 /// Mirror of `infer_socket_pair_prime`: two type-keyword args via
-/// `parse_peer_pair_type_arg`, single (not crossed) `Peer'<S,R>` result.
+/// `parse_peer_pair_type_arg`, single (not crossed) `(Peer' :- [S R])` result.
 /// The self-peer is a one-sided peer (the child's owner-link); there is no
 /// crossed twin. Runtime type is `PEER_TYPE_PATH`; checker head is
 /// `"wat::kernel::Peer"` (arc 209 C0b.2e-i-b: unified, retiring SocketPeer').
@@ -9636,7 +9636,7 @@ fn infer_program_self_peer(
 /// `(Tuple Listener'<S,R> Address'<S,R>)`.
 ///
 /// Process tier (C0b.2d): `(listener' (process) addr)` — 2 args; locus, addr where
-/// addr is `SocketAddress'<S,R>` → `Listener'<S,R>` (unified entity, arc 209 C0b.2e-ii).
+/// addr is `(SocketAddress' :- [S R])` → `(Listener' :- [S R])` (unified entity, arc 209 C0b.2e-ii).
 /// Retires the C0b.2c mint-and-return form.
 ///
 /// Any other locus is a `TypeMismatch` check error naming both valid loci.
@@ -9678,7 +9678,7 @@ fn infer_listener_prime(
             let r_ty = parse_peer_pair_type_arg(&args[2], OP, &mut local_errors, fresh);
             bound_type(s_ty, r_ty, shared_marker())
         } else if host_reduced == TypeExpr::Path(":wat::spawn::ProcessOpts".into()) {
-            // Arc 272 — 3-arg AUTOBIND form `(listener' (process) :S :R)` → `Bound<S,R>`,
+            // Arc 272 — 3-arg AUTOBIND form `(listener' (process) :S :R)` → `(Bound :- [S R])`,
             // mirroring the thread tier (the listener mints its own kernel-unique address;
             // no name arg). The 2-arg named form below is LEGACY — annihilated in arc 272 step 5.
             // Arc 278 Stone 1 — an OPTIONAL 4th arg carries the service's declared hard frame
@@ -9726,7 +9726,7 @@ fn infer_listener_prime(
             // Arc 209 host-parity-4a — abstract locus (the `:wat::spawn::Locus`
             // protocol): a locus-blind `(listener' locus :S :R)` inside
             // defservice's `start [locus <- :Locus]`. Shape mirrors the thread
-            // tier (3 args: locus, :S, :R → Bound<S,R,T> with T fresh); runtime
+            // tier (3 args: locus, :S, :R → (Bound :- [S R T]) with T fresh); runtime
             // `eval_listener_prime` dispatches on the concrete locus value the
             // caller actually passes.
             if args.len() != 3 {
@@ -9763,7 +9763,7 @@ fn infer_listener_prime(
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
 }
 
-/// `Bound<S,R,T>` — result type of `(listener' (thread|process|locus) …)`.
+/// `(Bound :- [S R T])` — result type of `(listener' (thread|process|locus) …)`.
 /// T is Shared (thread), Wire (process), or a fresh var (abstract Locus).
 fn bound_type(s: TypeExpr, r: TypeExpr, t: TypeExpr) -> TypeExpr {
     TypeExpr::Parametric { head: "wat::spawn::Bound".into(), args: vec![s, r, t] }
@@ -9891,14 +9891,14 @@ fn is_transport_slot(ty: &TypeExpr) -> bool {
 }
 
 
-/// Arc 209 Stone C0b.1 / C0b.2e-iii — `(:wat::kernel::connect addr)` → `Peer'<S,R>`.
+/// Arc 209 Stone C0b.1 / C0b.2e-iii — `(:wat::kernel::connect addr)` → `(Peer' :- [S R])`.
 ///
-/// 1 arg: `addr` of type `Address'<S,R>` (unified — thread and process tiers).
-/// Returns `Peer'<S,R>` (the client end).
-/// Extracts S and R from the `Address'<S,R>` parametric type of the argument.
+/// 1 arg: `addr` of type `(Address' :- [S R])` (unified — thread and process tiers).
+/// Returns `(Peer' :- [S R])` (the client end).
+/// Extracts S and R from the `(Address' :- [S R])` parametric type of the argument.
 ///
 /// Arc 209 C0b.2e-iii: collapsed from two arms (`Address'` thread + `SocketAddress'`
-/// process) to one — both tiers now produce `Address'<S,R>`.
+/// process) to one — both tiers now produce `(Address' :- [S R])`.
 fn infer_connect_prime(
     args: &[WatAST],
     head_span: &Span,
@@ -9930,7 +9930,7 @@ fn infer_connect_prime(
     // Arc 258.5a (IO-cluster arrow-kill) — UNIFY the arg against `Address'<?,?>` rather than rigid
     // pattern-match. A fresh `recv'` result (a process handle's opaque O, check.rs:10827) then BINDS
     // to `Address'` and flows from this consumer — no `-> :T` ascription needed (258 NOTE: "the type
-    // lives in the channel"). A concrete `Address'<i64,i64>` still unifies (binding S,R to its real
+    // lives in the channel"). A concrete `(Address' :- [i64 i64])` still unifies (binding S,R to its real
     // params); a wrong concrete type still fails. Reduce first so an alias-to-`Address'` resolves.
     let addr_reduced = reduce(&apply_subst(&addr_ty, subst), subst, env.types());
     let s = fresh.fresh();
@@ -9938,16 +9938,16 @@ fn infer_connect_prime(
     let expected = TypeExpr::Parametric { head: "wat::kernel::Address".into(), args: vec![s.clone(), r.clone()] };
     match unify(&addr_reduced, &expected, subst, env.types()) {
         Ok(_) => {
-            // Arc 209 C0b.2e-iii — unified Address'<S,R> → Peer'<S,R> (both tiers).
-            // Arc 293.W.2d — Peer'<I,O> well-formedness: I,O must be pure.
+            // Arc 209 C0b.2e-iii — unified (Address' :- [S R]) → (Peer' :- [S R]) (both tiers).
+            // Arc 293.W.2d — (Peer' :- [I O]) well-formedness: I,O must be pure.
             let s_resolved = apply_subst(&s, subst);
             let r_resolved = apply_subst(&r, subst);
             check_wire_peer_purity_span(&s_resolved, args[0].span(), OP, env.types(), &mut local_errors);
             check_wire_peer_purity_span(&r_resolved, args[0].span(), OP, env.types(), &mut local_errors);
             // Arc 278 the connect' OUTCOME WALL (the LAST peer wall) — connect' no longer
-            // returns the bare Peer'<S,R> and raises on ECONNREFUSED/no-listener,
+            // returns the bare (Peer' :- [S R]) and raises on ECONNREFUSED/no-listener,
             // identity-reject, or peer_cred/socket-wrap io; it returns a matchable
-            // `:wat::kernel::ConnectOutcome<S,R>` (::Connected[Peer'<S,R>] · ::Refused ·
+            // `(:wat::kernel::ConnectOutcome :- [S R])` (::Connected[(Peer' :- [S R])] · ::Refused ·
             // ::Rejected · ::Failed, each [Failure]) so a masked connect failure is
             // structurally unrepresentable. The peer still flows via the ::Connected arm.
             let ty = TypeExpr::Parametric { head: "wat::kernel::ConnectOutcome".into(), args: vec![s, r] };
@@ -9968,9 +9968,9 @@ fn infer_connect_prime(
     }
 }
 
-/// Arc 209 Stone C0b.1 — `(:wat::kernel::accept listener)` → `Peer'<R,S>`.
+/// Arc 209 Stone C0b.1 — `(:wat::kernel::accept listener)` → `(Peer' :- [R S])`.
 ///
-/// 1 arg: `listener` of type `Listener'<S,R>`. Returns `Peer'<R,S>` (the server end:
+/// 1 arg: `listener` of type `(Listener' :- [S R])`. Returns `(Peer' :- [R S])` (the server end:
 /// server recvs S, sends R — the flipped pair).
 fn infer_accept_prime(
     args: &[WatAST],
@@ -10004,16 +10004,16 @@ fn infer_accept_prime(
     let listener_reduced = reduce(&listener_surface, subst, env.types());
     let ty = match listener_reduced {
         TypeExpr::Parametric { ref head, ref args } if head == "wat::kernel::Listener" && args.len() == 2 => {
-            // Arc 209 C0b.2e-ii — unified Listener'<S,R> (both thread + process tiers)
-            // → Peer'<R,S> (server recvs S, sends R — the flipped pair).
-            // Arc 293.W.2d — Peer'<I,O> well-formedness: I,O must be pure.
-            let r_ty = args[1].clone(); // S in Listener'<S,R> → R in Peer'<R,S>
-            let s_ty = args[0].clone(); // R in Listener'<S,R> → S in Peer'<R,S>
+            // Arc 209 C0b.2e-ii — unified (Listener' :- [S R]) (both thread + process tiers)
+            // → (Peer' :- [R S]) (server recvs S, sends R — the flipped pair).
+            // Arc 293.W.2d — (Peer' :- [I O]) well-formedness: I,O must be pure.
+            let r_ty = args[1].clone(); // S in (Listener' :- [S R]) → R in (Peer' :- [R S])
+            let s_ty = args[0].clone(); // R in (Listener' :- [S R]) → S in (Peer' :- [R S])
             check_wire_peer_purity_span(&r_ty, head_span, OP, env.types(), &mut local_errors);
             check_wire_peer_purity_span(&s_ty, head_span, OP, env.types(), &mut local_errors);
             // Arc 278 the accept' OUTCOME WALL — accept' no longer returns the bare
-            // Peer'<R,S> and raises on rendezvous-drop/decode/select/peer_cred failure; it
-            // returns a matchable `:wat::kernel::AcceptOutcome<R,S>` (::Accepted[Peer'<R,S>]
+            // (Peer' :- [R S]) and raises on rendezvous-drop/decode/select/peer_cred failure; it
+            // returns a matchable `(:wat::kernel::AcceptOutcome :- [R S])` (::Accepted[(Peer' :- [R S])]
             // · ::Closed · ::Failed[Failure]) so a masked accept failure is structurally
             // unrepresentable. The peer still flows to the consumer via the ::Accepted arm.
             TypeExpr::Parametric { head: "wat::kernel::AcceptOutcome".into(), args: vec![r_ty, s_ty] }
@@ -10036,9 +10036,9 @@ fn infer_accept_prime(
 
 /// Arc 209 C0b.3b-b — `(:wat::kernel::allow listener pid)` → `nil`.
 ///
-/// 2 args: `listener` of type `Listener'<S,R>`, `pid` of type `i64`.
+/// 2 args: `listener` of type `(Listener' :- [S R])`, `pid` of type `i64`.
 /// Returns `nil`. The tier (thread vs process) is NOT checked here; tier-rejection is runtime-only
-/// (both tiers have type `Listener'<S,R>` at check time).
+/// (both tiers have type `(Listener' :- [S R])` at check time).
 fn infer_allow_prime(
     args: &[WatAST],
     head_span: &Span,
@@ -10168,13 +10168,13 @@ fn infer_deny_prime(
 // helpers below remain as the backing inference for spawn-thread'/spawn-process'.
 
 /// Shared `:thread` projection — infers `fn_arg` as a fn and projects it to
-/// `Thread'<R,S>` (self-peer model, the ONLY valid form post arc 259 S2c-ii-a purge).
+/// `(Thread' :- [R S])` (self-peer model, the ONLY valid form post arc 259 S2c-ii-a purge).
 ///
 /// Called by `infer_spawn_thread_prime` (1-arg verb, passing `args[0]`).
 /// No duplication: one path.
 ///
 /// Arc 259 S2c-ii-a — apply-loop purge:
-/// - If the fn arg type is `Peer'<S,R>`, returns `Thread'<R,S>` (param-swap).
+/// - If the fn arg type is `(Peer' :- [S R])`, returns `(Thread' :- [R S])` (param-swap).
 /// - Otherwise, REJECTS with a clear error ("expected a self-peer prog").
 fn infer_thread_prog_type(
     fn_arg: &WatAST,
@@ -10243,11 +10243,11 @@ fn infer_thread_prog_type(
 
     // Arc 259 S2c-ii-a — PURGE. Only the self-peer model is valid.
     //
-    // If the fn arg type is `ThreadSelfPeer'<S,R>` (arc 293.W.2d — in-locus, any I/O)
-    // or `Peer'<S,R>` (wire-safe, pure I/O only), the prog is a ThreadProg:
+    // If the fn arg type is `(ThreadSelfPeer' :- [S R])` (arc 293.W.2d — in-locus, any I/O)
+    // or `(Peer' :- [S R])` (wire-safe, pure I/O only), the prog is a ThreadProg:
     // the spawned thread's `tx` sends S to the parent, and its `rx` receives R from the
-    // parent. The parent-side `Thread'<I,O>` has `I = R` (parent sends R → worker recvs R)
-    // and `O = S` (parent recvs S ← worker sends S). Return `Thread'<R, S>`.
+    // parent. The parent-side `(Thread' :- [I O])` has `I = R` (parent sends R → worker recvs R)
+    // and `O = S` (parent recvs S ← worker sends S). Return `(Thread' :- [R S])`.
     //
     // ThreadSelfPeer' is the escape hatch for thread workers that carry impure I/O
     // (e.g. Sender/Receiver handles for reply channels). Any I/O is allowed in-locus.
@@ -10261,7 +10261,7 @@ fn infer_thread_prog_type(
             if (head == "wat::kernel::Peer" || head == "wat::kernel::ThreadSelfPeer")
                 && peer_args.len() == 2 =>
         {
-            // Self-peer model: Thread'<R, S> (param-swap of Peer'<S,R> or ThreadSelfPeer'<S,R>).
+            // Self-peer model: (Thread' :- [R S]) (param-swap of (Peer' :- [S R]) or (ThreadSelfPeer' :- [S R])).
             let s_ty = peer_args[0].clone();
             let r_ty = peer_args[1].clone();
             let ty = TypeExpr::Parametric {
@@ -10291,7 +10291,7 @@ fn infer_thread_prog_type(
 }
 
 /// Shared `:process` projection — infers `forms_arg` (accepts any type; the
-/// runtime validates it is `Vector<WatAST>`) and returns `Process'<I,O>` with
+/// runtime validates it is `(Vector :- [WatAST])`) and returns `(Process' :- [I O])` with
 /// independent fresh vars (arc 214 γ-1).
 ///
 /// Called by `infer_spawn_process_prime` (1-arg verb, passing `args[0]`).
@@ -10308,7 +10308,7 @@ fn infer_process_prog_type(
     // startup_from_forms time, not here). Accept any type — the runtime validates
     // it's `Vector<WatAST>` (forms).
     let _ = infer(forms_arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
-    // Return Process'<I,O> with INDEPENDENT fresh vars (arc 214 γ-1). The
+    // Return (Process' :- [I O]) with INDEPENDENT fresh vars (arc 214 γ-1). The
     // forms-server is a request→response program — `send'`ing an I and
     // `recv'`ing a different O is the common case (e.g. a Request enum in,
     // a Response enum out). A single shared `T` would force I = O and break
@@ -10328,9 +10328,9 @@ fn infer_process_prog_type(
 /// Type-check `(:wat::kernel::spawn-thread prog init-fn)` — arc 259 Stone S2c-i.
 ///
 /// Two positional args:
-/// - `args[0]`: program fn; inferred; must be `fn([Peer'<S,R>]) -> nil` (self-peer
+/// - `args[0]`: program fn; inferred; must be `fn([(Peer' :- [S R])]) -> nil` (self-peer
 ///   model — the ONLY valid form post arc 259 S2c-ii-a purge); projects to
-///   `Thread'<R,S>`. Uses `infer_thread_prog_type` (the shared projection helper).
+///   `(Thread' :- [R S])`. Uses `infer_thread_prog_type` (the shared projection helper).
 /// - `args[1]`: init-fn; a 0-arg fn returning `:wat::core::Record`; inferred but not
 ///   further projected (the checker accepts any fn value here — runtime validates
 ///   the return type is a :wat::core::Record subtype at peer start).
@@ -10388,7 +10388,7 @@ fn infer_spawn_thread_prime(
 ///
 /// Five positional args:
 /// - `args[0]`: forms (program vec); accepted as any type (runtime validates);
-///   returns `Process'<I,O>` with independent fresh vars. Uses
+///   returns `(Process' :- [I O])` with independent fresh vars. Uses
 ///   `infer_process_prog_type` (the shared projection helper).
 /// - `args[1]`: post-spawn-fn; `Fn(ProcessLaunch) -> nil`; inferred and unified
 ///   with `Fn(:wat::spawn::ProcessLaunch) -> :wat::core::nil`. This causes the
@@ -10476,7 +10476,7 @@ fn infer_spawn_process_prime(
 /// - `args[1]`: `name`, the bind-name; inferred and unified with
 ///   `:wat::core::keyword`.
 ///
-/// Return type is fixed: `:wat::core::Vector<wat::WatAST>` (same shape as
+/// Return type is fixed: `(:wat::core::Vector :- [wat::WatAST])` (same shape as
 /// `spawn-process`'s `program` param — a vector of top-level wat forms).
 fn infer_kernel_fn_forms(
     args: &[WatAST],
@@ -10534,8 +10534,8 @@ fn infer_kernel_fn_forms(
 //
 // PARTITION — CLAUSE vs INTRINSIC (see docs/DISPATCH.md):
 // All three are INTRINSIC (projective / ∀-parametric):
-//   send'      — projective: I flows from peer<I,O> into the payload arg.
-//   recv'      — projective: O flows from peer<I,O> into the return type.
+//   send'      — projective: I flows from (peer :- [I O]) into the payload arg.
+//   recv'      — projective: O flows from (peer :- [I O]) into the return type.
 //   close'     — ∀-parametric: the peer arg is Thread'<∀I,∀O> or Process'<∀I,∀O>;
 //                a clause matcher cannot enumerate all (I,O) instantiations.
 // The pattern for each: infer args[0], apply_subst+reduce, match
@@ -10545,9 +10545,9 @@ fn infer_kernel_fn_forms(
 /// Helper: infer args[0] and project [I, O] from it as a peer Parametric.
 ///
 /// Arc 293.W.2d: Returns `Ok((i_ty, o_ty))` on success. The purity constraint is
-/// now STRUCTURAL (carried by the peer type): `Peer'<I,O>` requires pure I,O by
+/// now STRUCTURAL (carried by the peer type): `(Peer' :- [I O])` requires pure I,O by
 /// well-formedness (enforced at producers — connect'/accept'/peer-pair');
-/// `ThreadSelfPeer'<I,O>` is in-locus (any I/O). The ops are purity-blind here.
+/// `(ThreadSelfPeer' :- [I O])` is in-locus (any I/O). The ops are purity-blind here.
 ///
 /// On failure, pushes a TypeMismatch into `local_errors` and returns `Err(())`.
 #[expect(
@@ -10586,10 +10586,10 @@ fn project_peer_io(
                 && args.len() == 2 =>
         {
             // Purity is guaranteed by the peer TYPE, not by ops:
-            //   Peer'<I,O>:           wire peer, I/O are pure by producer well-formedness.
-            //   ThreadSelfPeer'<I,O>: in-locus, any I/O (the 2d escape hatch).
-            //   Thread'<I,O>:         parent handle to spawned thread (in-locus crossbeam).
-            //   Process'<I,O>:        parent handle to spawned process (wire, pure I/O).
+            //   (Peer' :- [I O]):           wire peer, I/O are pure by producer well-formedness.
+            //   (ThreadSelfPeer' :- [I O]): in-locus, any I/O (the 2d escape hatch).
+            //   (Thread' :- [I O]):         parent handle to spawned thread (in-locus crossbeam).
+            //   (Process' :- [I O]):        parent handle to spawned process (wire, pure I/O).
             // The ops (send'/recv') go purity-blind — the peer type carries the guarantee.
             Ok((args[0].clone(), args[1].clone()))
         }
@@ -10618,7 +10618,7 @@ fn project_peer_io(
 /// - `args[1]`: duration — must conform to `:wat::time::Duration`.
 /// - `args[2]`: msg — inferred; its type becomes the output type `O`.
 ///
-/// Returns `Peer'<nil, O>` where `O` is the inferred type of `msg`. arc 278 Stone 1:
+/// Returns `(Peer' :- [nil O])` where `O` is the inferred type of `msg`. arc 278 Stone 1:
 /// the timer is built in the CORRECT location — a UNIFIED `Peer'` — so it drops into
 /// `poll'`/`select'` by construction (the vestigial tier-open `Timer'` type + its
 /// fusion machinery are retired). A timer has no input, so `I = :wat::core::nil`.
@@ -10691,8 +10691,8 @@ fn infer_kernel_after(
         .drain_errors_into(&mut local_errors)
         .unwrap_or_else(|| fresh.fresh());
 
-    // arc 278 Stone 1 — return the UNIFIED `Peer'<I, O>` where O is the delivered message
-    // type. This drops into `poll'`/`select'`'s `Peer'<I,O>` element arm by construction —
+    // arc 278 Stone 1 — return the UNIFIED `(Peer' :- [I O])` where O is the delivered message
+    // type. This drops into `poll'`/`select'`'s `(Peer' :- [I O])` element arm by construction —
     // no tier-open fusion needed.
     //
     // arc 278 Stone 2 (STEP 0) — the INPUT type `I` is `:wat::core::Never`, the honest named
@@ -10700,9 +10700,9 @@ fn infer_kernel_after(
     // `eval_kernel_after` builds a receive-only peer with a dead tx), so its send-type is
     // genuinely UNINHABITED — `Never` names that, and makes `send'`-to-a-standalone-timer a
     // compile error (Never has no inhabitant to send). Because `Never <: T` for every `T`
-    // (is_subtype, types.rs), a `Peer'<Never, O>` timer assigns into a service's `selectables`
-    // vec of reply-ing client peers `Vector<Peer'<Reply, O>>` (I-slot: `Never <: Reply`), and
-    // into Stone 1's `Vector<Peer'<nil, O>>` timer-only sites (`Never <: nil`) — both by the
+    // (is_subtype, types.rs), a `(Peer' :- [Never O])` timer assigns into a service's `selectables`
+    // vec of reply-ing client peers `(Vector :- [(Peer' :- [Reply O])])` (I-slot: `Never <: Reply`), and
+    // into Stone 1's `(Vector :- [(Peer' :- [nil O])])` timer-only sites (`Never <: nil`) — both by the
     // bottom rule, no Value-erasure / fresh-var papering / coercion.
     let peer_ty = TypeExpr::Parametric {
         head: "wat::kernel::Peer".into(),
@@ -10722,7 +10722,7 @@ fn infer_kernel_after(
 ///
 /// Two positional args: `args[0]` peer, `args[1]` payload of type I.
 /// Result: `:wat::kernel::SendOutcome` — a matchable value (`Sent`/`Closed`/`Lost`),
-/// mirroring `recv'`'s `RecvOutcome<O>`. NOT `:wat::core::nil` (pre-278: send'
+/// mirroring `recv'`'s `(RecvOutcome :- [O])`. NOT `:wat::core::nil` (pre-278: send'
 /// RAISED on a gone peer instead of returning; the eval no longer raises, so the
 /// checker's declared return type must agree — this is the type-agreement
 /// correction, NOT the Phase-3 exhaustiveness force itself; a bare `(send' ...)`
@@ -10955,7 +10955,7 @@ fn infer_recv_prime(
     match project_peer_io(args, head_span, OP, env, locals, fresh, subst, &mut local_errors) {
         Ok((_i_ty, o_ty)) => {
             // Arc 278 the recv'-outcome wall — recv' no longer returns the bare O and
-            // raises on close/crash; it returns a matchable `:wat::kernel::RecvOutcome<O>`
+            // raises on close/crash; it returns a matchable `(:wat::kernel::RecvOutcome :- [O])`
             // (::Message[O] · ::Closed · ::Lost[Failure]) so a masked failure is
             // structurally unrepresentable. O still flows to the consumer via the
             // ::Message arm's `msg` binding (258.5b consumer inference is unaffected).
@@ -10982,7 +10982,7 @@ fn infer_recv_prime(
 /// Type-check `(:wat::kernel::close peer)` — Stone 4.6a-ii; Arc 278 the close'
 /// OUTCOME WALL.
 ///
-/// One positional arg: `args[0]` peer (Thread'<I,O> or Process'<I,O>).
+/// One positional arg: `args[0]` peer ((Thread' :- [I O]) or (Process' :- [I O])).
 /// Result: `:wat::kernel::CloseOutcome` (loci-agnostic — the exit code, when any,
 /// rides in `Closed[exit <- Option<i64>]`). A must-use type (see `MUST_USE_TYPES`):
 /// a dropped `close'` outcome is a compile error, closing the swallow door on the
@@ -11057,12 +11057,12 @@ fn infer_close_prime(
 
 // PARTITION — CLAUSE vs INTRINSIC: `infer_signal` is INTRINSIC, and narrower than
 // `infer_close_prime`. STOP-1 (DESIGN-STONE-process-signal-owner-to-child.md /
-// BRIEF-process-signal-p2-mint.md): the verb takes `Process<I,O>` ONLY — a
+// BRIEF-process-signal-p2-mint.md): the verb takes `(Process :- [I O])` ONLY — a
 // Thread' peer has no process to signal, so unlike close' (loci-agnostic over
 // Thread'/Process') this is deliberately NOT shared codegen over both tiers.
 /// Type-check `(:wat::kernel::signal proc sig)`.
 ///
-/// Two positional args: `args[0]` proc (`:wat::kernel::Process<I,O>`), `args[1]`
+/// Two positional args: `args[0]` proc (`(:wat::kernel::Process :- [I O])`), `args[1]`
 /// sig (`:wat::kernel::Signal`). Result: `:wat::kernel::SignalOutcome` — a
 /// must-use type (see `MUST_USE_TYPES`): a dropped outcome is a compile error,
 /// same discipline as `close'`.
@@ -11149,11 +11149,11 @@ fn infer_signal(
 /// Type-check `(:wat::kernel::peer-process peer)` — DESIGN-STONE-a-service-that-
 /// measures-itself.md A1.
 ///
-/// One positional arg: `args[0]` peer (`Thread<I,O> | Process<I,O> | Peer<I,O> |
-/// ThreadSelfPeer<I,O>` — anything `project_peer_io` accepts, so this works
+/// One positional arg: `args[0]` peer (`(Thread :- [I O]) | (Process :- [I O]) | (Peer :- [I O]) |
+/// (ThreadSelfPeer :- [I O])` — anything `project_peer_io` accepts, so this works
 /// uniformly whether the caller already holds a concrete peer or the erased
-/// `Peer<I,O>` a defservice `Handle`'s `handle` field carries). Result:
-/// `:wat::core::Option<wat::kernel::Process<I,O>>` — `Some` when the underlying
+/// `(Peer :- [I O])` a defservice `Handle`'s `handle` field carries). Result:
+/// `(:wat::core::Option :- [(wat::kernel::Process :- [I O])])` — `Some` when the underlying
 /// runtime value is process-tier, `None` on a thread (a thread has no process to
 /// signal). PURE PROJECTION, mirrors `peer-pid` (arc 170 capability circuit stone
 /// 2): a runtime tag read, no effect. Not must-use — `Option` carries no failure
@@ -11422,7 +11422,7 @@ fn transport_marker(ty: &TypeExpr) -> Option<TypeExpr> {
 /// stone. `clients` is inferred for internal-consistency/error-surfacing only
 /// (`poll'`'s `listener`-arg discipline — checked, but its type is never
 /// unified with anything, since `serve-dispatch-op'` is ∀-generic over the
-/// service's own `Peer'<S,R>` element type and has no reason to pin it down).
+/// service's own `(Peer' :- [S R])` element type and has no reason to pin it down).
 /// `body`'s inferred type IS the form's own type — the SAME do-style
 /// passthrough `infer_do` uses for its final arg (see that function): this
 /// primitive is a transparent runtime wrapper around what used to be a bare
@@ -11495,21 +11495,21 @@ fn infer_retag_op(
 }
 
 // PARTITION — CLAUSE vs INTRINSIC: `infer_select_prime` is INTRINSIC (projective).
-// I,O flow from Vector<peer<I,O>>'s element peer type into the return ServiceEvent<I,O,A>.
+// I,O flow from (Vector :- [(peer :- [I O])])'s element peer type into the return (ServiceEvent :- [I O A]).
 // A clause cannot enumerate Vector<Thread'<∀I,∀O>> / Vector<Process'<∀I,∀O>> —
 // the same infinite-open-set argument as get/recv'. Mixed tiers are already
 // forbidden by Vector homogeneity at check; no bespoke rejection needed.
 /// Type-check `(:wat::kernel::select peers)` — Stone 4.6b / Stone 259 Lost-locus.
 ///
-/// One positional arg: `args[0]` a `Vector<Thread'<I,O>>` or
-/// `Vector<Process'<I,O>>`. Returns `ServiceEvent<I,O,A>`.
+/// One positional arg: `args[0]` a `(Vector :- [(Thread' :- [I O])])` or
+/// `(Vector :- [(Process' :- [I O])])`. Returns `(ServiceEvent :- [I O A])`.
 ///
 /// select' has no self-peer / lineage channel, so `A` (the admin receive type) is a
 /// fresh unconstrained tyvar — the :Admin variant can never fire from select'.
 ///
 /// On success: `TypeExpr::Parametric { "wat::spawn::ServiceEvent", [I, O, A] }`.
 /// On failure (non-peer element type): TypeMismatch with
-/// "Vector of Thread'<I,O> | Process'<I,O> peers".
+/// "Vector of (Thread' :- [I O]) | (Process' :- [I O]) peers".
 fn infer_select_prime(
     args: &[WatAST],
     head_span: &Span,
@@ -11546,7 +11546,7 @@ fn infer_select_prime(
         return CheckResult::partial_with(fb, local_errors);
     }
 
-    // Infer the argument — must be Vector<peer<I,O>>.
+    // Infer the argument — must be (Vector :- [(peer :- [I O])]).
     let vec_ty = match infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
         Some(t) => t,
         None => {
@@ -11599,7 +11599,7 @@ fn infer_select_prime(
             (targs[0].clone(), targs[1].clone())
         }
         // arc 278 Stone 1 — the tier-open `Timer'` element arm is RETIRED: `after` now
-        // builds a UNIFIED `Peer'<nil, O>`, so a timer is a `Peer'` element (matched by
+        // builds a UNIFIED `(Peer' :- [nil O])`, so a timer is a `Peer'` element (matched by
         // the arm above), never a `Timer'`.
         other => {
             local_errors.push(CheckError {
@@ -11622,7 +11622,7 @@ fn infer_select_prime(
     let i_resolved = apply_subst(&i_ty, subst);
     let o_resolved = apply_subst(&o_ty, subst);
     // select' has no self-peer / lineage channel — :Admin can never fire.
-    // Use a fresh unconstrained tyvar for A so the arity matches ServiceEvent<I,O,A>.
+    // Use a fresh unconstrained tyvar for A so the arity matches (ServiceEvent :- [I O A]).
     let a_fresh = fresh.fresh();
     let ret = TypeExpr::Parametric {
         head: "wat::spawn::ServiceEvent".into(),
@@ -11635,16 +11635,16 @@ fn infer_select_prime(
     }
 }
 
-/// Arc 209 Stone C0b.1b / C0b.2e-i-c — `(:wat::kernel::poll self-peer listener peers)` → `ServiceEvent<I,O,A>`.
+/// Arc 209 Stone C0b.1b / C0b.2e-i-c — `(:wat::kernel::poll self-peer listener peers)` → `(ServiceEvent :- [I O A])`.
 ///
 /// 3-arg service-multiplexer form:
-///   args[0] = self-peer (`Peer'<S,R>` — the owner link; R = admin receive type A).
-///   args[1] = listener (`Listener'<S,R>` — inferred permissively, not further constrained).
-///   args[2] = peers (`Vector<Peer'<I,O>>` — the connected client peers).
+///   args[0] = self-peer (`(Peer' :- [S R])` — the owner link; R = admin receive type A).
+///   args[1] = listener (`(Listener' :- [S R])` — inferred permissively, not further constrained).
+///   args[2] = peers (`(Vector :- [(Peer' :- [I O])])` — the connected client peers).
 ///
 /// Arc 291 3a-i: returns `Parametric { "wat::spawn::ServiceEvent", [I, O, A] }`.
 ///   I, O flow from the peers vector element type.
-///   A = the self-peer's receive type (args[0]: Peer'<_,A>) — the admin channel receive type.
+///   A = the self-peer's receive type (args[0]: (Peer' :- [_ A])) — the admin channel receive type.
 fn infer_poll_prime(
     args: &[WatAST],
     _head_span: &Span, // rune:lint(unused-span) — located elsewhere: type errors locate at the offending arg's own span (`args[2].span()`), more precise than the coarse head span
@@ -11657,8 +11657,8 @@ fn infer_poll_prime(
     const OP: &str = ":wat::kernel::poll";
     let mut local_errors: Vec<CheckError> = Vec::new();
 
-    // args[0]: self-peer — infer and extract the receive type A (targs[1] of Peer'<S,A>
-    // or ThreadSelfPeer'<S,A>). A is the type the service receives from the owner over
+    // args[0]: self-peer — infer and extract the receive type A (targs[1] of (Peer' :- [S A])
+    // or (ThreadSelfPeer' :- [S A])). A is the type the service receives from the owner over
     // the lineage channel (admin ops).
     // Arc 293.W.2d: accept both Peer' (wire-safe) and ThreadSelfPeer' (in-locus, any I/O).
     let a_ty: TypeExpr = {
@@ -11673,7 +11673,7 @@ fn infer_poll_prime(
                             || head == "wat::kernel::ThreadSelfPeer")
                             && targs.len() == 2 =>
                     {
-                        // Peer'<S, R> or ThreadSelfPeer'<S,R>: targs[1] = R = the receive type A.
+                        // (Peer' :- [S R]) or (ThreadSelfPeer' :- [S R]): targs[1] = R = the receive type A.
                         targs[1].clone()
                     }
                     _ => {
@@ -11689,7 +11689,7 @@ fn infer_poll_prime(
     // args[1]: listener — infer for error coverage; type not further constrained here.
     let _ = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
 
-    // args[2]: peers — must be Vector<Peer'<I,O>>.
+    // args[2]: peers — must be (Vector :- [(Peer' :- [I O])]).
     let vec_ty = match infer(&args[2], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
         Some(t) => t,
         None => {
@@ -11732,7 +11732,7 @@ fn infer_poll_prime(
         }
     };
 
-    // Reduce the element type — accept Peer'<I,O>.
+    // Reduce the element type — accept (Peer' :- [I O]).
     let elem_surface = apply_subst(&elem_ty, subst);
     let elem_reduced = reduce(&elem_surface, subst, env.types());
     let (i_ty, o_ty) = match &elem_reduced {
@@ -12850,8 +12850,8 @@ fn alarm_op_internal_check(type_key: &str, field_values: &[WatAST], env: &CheckE
 ///
 /// Deliberately does NOT mirror `infer_kwargs_construct_check`'s synthetic-call-to-`:T'`
 /// approach, despite both looking like "the same kind of gap" — a first attempt at
-/// exactly that broke every generic self-constructing type in the stdlib (`Bound<S,R>`,
-/// `Launched<S,R,Sh,Lu>`, `Cache::Entry<K,V>`, …), and the reason is architectural, not a
+/// exactly that broke every generic self-constructing type in the stdlib (`(Bound :- [S R])`,
+/// `(Launched :- [S R Sh Lu])`, `(Cache::Entry :- [K V])`, …), and the reason is architectural, not a
 /// bug in that attempt: `register_aggregate_methods` (runtime.rs:1510-1559, "THE ONE
 /// aggregate constructor mint" for every nature) mints `:T'`'s OWN body as EXACTLY
 /// `(:wat::core::aggregate-new :T field-syms…)` — `aggregate-new` is invoked in this ONE
@@ -12897,9 +12897,9 @@ fn infer_aggregate_new_check(
         // (`:X'`); the bare `:X` is now the kwargs companion MACRO, which registers no
         // type scheme. `aggregate-new`'s class arg is the bare `:X` (the flip codegen at
         // runtime.rs pushes `agg.name`), so resolve via the PRIME scheme first — its
-        // params/ret carry the correct parametric self-type (`:X<S,R>`), which the
+        // params/ret carry the correct parametric self-type (`(:X :- [S R])`), which the
         // bare-path fallback loses for generic aggregates (body `:X` ≠ declared
-        // `:X<S,R>`). Fall back to the bare scheme (any pre-flip / non-flipped
+        // `(:X :- [S R])`). Fall back to the bare scheme (any pre-flip / non-flipped
         // aggregate), then the bare path.
         let prime_k = format!("{}'", bare_k);
         if let Some(scheme) = env.get(&prime_k).or_else(|| env.get(bare_k)).cloned() {
@@ -12975,7 +12975,7 @@ fn infer_aggregate_new_check(
 /// that check BYTE-EQUIVALENTLY: reorder the value-ASTs into declared order (via the
 /// shared `reorder_kwargs_by_field_name`, validating each field ∈ :T) and then run the
 /// SAME `infer` over a synthetic `(:T' <reordered>)` list. Reusing the call path is what
-/// keeps generic self-construction (e.g. `Launched<S,R,Sh,Lu>` in `spawn.wat`) correct:
+/// keeps generic self-construction (e.g. `(Launched :- [S R Sh Lu])` in `spawn.wat`) correct:
 /// the prime scheme is INSTANTIATED with fresh vars + unified against the args, which a
 /// raw `scheme.ret.clone()` (the aggregate-new-check shortcut) would NOT do — its bound
 /// type-vars mismatch the fn signature's even when `format_type` displays identically.
@@ -14910,7 +14910,7 @@ fn infer_list_constructor(
                 } else {
                     // unify (invariant join) FIRST to preserve element-type inference; fall to the
                     // directional `assignable` up-cast so a subtype element (the R7 `Never` bottom
-                    // — a `Peer'<Never,O>` timer into a `Vector<Peer'<Reply,O>>`) is accepted.
+                    // — a `(Peer' :- [Never O])` timer into a `(Vector :- [(Peer' :- [Reply O])])`) is accepted.
                     unify(&arg_ty, &elem_ty, subst, env.types()).is_ok()
                         || assignable(&arg_ty, &elem_ty, subst, env)
                 }
@@ -15332,8 +15332,8 @@ pub(crate) fn unify(
     // match — follow Var bindings AND expand typealiases at each
     // level. The recursive unify-on-children calls reduce at their
     // levels; combined, every position in both type trees is seen
-    // post-alias. `:MyCache<K,V>` and its expansion
-    // `:rust::lru::LruCache<K,V>` unify structurally as a result.
+    // post-alias. `(:MyCache :- [K V])` and its expansion
+    // `(:rust::lru::LruCache :- [K V])` unify structurally as a result.
     let a = reduce(&walk(a, subst), subst, types);
     let b = reduce(&walk(b, subst), subst, types);
     match (&a, &b) {
@@ -15386,17 +15386,17 @@ pub(crate) fn unify(
             Ok(())
         }
         // arc 278 Stone 1 — the tier-open `Timer'` fusion arms are RETIRED. `after` now
-        // builds a UNIFIED `Peer'<nil, O>`, so a timer unifies with real peers through the
+        // builds a UNIFIED `(Peer' :- [nil O])`, so a timer unifies with real peers through the
         // ordinary structural `Parametric ~ Parametric` arm below — there is no `Timer'`
         // type to fuse anymore.
         (
             TypeExpr::Parametric { head: h1, args: a1 },
             TypeExpr::Parametric { head: h2, args: a2 },
         ) => {
-            // 293.W.2f — Address<S,R> (T unknown) unifies with Address<S,R,T>;
-            // Bound<S,R> unifies with Bound<S,R,T>; Launched<S,R,Sh,Lu> unifies
-            // with Launched<S,R,Sh,Lu,T>. Same-head n vs n+1 also covers
-            // Handle<K,V> ↔ Handle<K,V,T> when the extra slot is the transport.
+            // 293.W.2f — (Address :- [S R]) (T unknown) unifies with (Address :- [S R T]);
+            // (Bound :- [S R]) unifies with (Bound :- [S R T]); (Launched :- [S R Sh Lu]) unifies
+            // with (Launched :- [S R Sh Lu T]). Same-head n vs n+1 also covers
+            // (Handle :- [K V]) ↔ (Handle :- [K V T]) when the extra slot is the transport.
             if h1 == h2 {
                 let n_fixed = match h1.as_str() {
                     "wat::kernel::Address" | "wat::spawn::Bound" => Some(2),
@@ -15540,7 +15540,7 @@ fn derived_nature(t: &TypeExpr, types: &TypeEnv) -> crate::types::Nature {
             return agg.nature;
         }
     }
-    // Arc 293 S3-Nature-2 — a dialed `Peer'<S::Op,S::Reply>` derives `Nature::Peer` exactly; it must
+    // Arc 293 S3-Nature-2 — a dialed `(Peer' :- [S::Op S::Reply])` derives `Nature::Peer` exactly; it must
     // not fall through to the `Struct` default below (a peer is not a plain foreign struct).
     if let TypeExpr::Parametric { head, .. } = t {
         if head == "wat::kernel::Peer" {
@@ -15600,7 +15600,7 @@ pub(crate) fn assignable(
     let types = env.types();
     let a = reduce(&walk(actual, subst), subst, types);
     let e = reduce(&walk(expected, subst), subst, types);
-    // 293.W.2f — tuples assign elementwise (Handle<Shared> <: Handle inside
+    // 293.W.2f — tuples assign elementwise ((Handle :- [Shared]) <: Handle inside
     // start-primed-stdio's return triple). Unify is exact; assignable is not.
     if let (TypeExpr::Tuple(ae), TypeExpr::Tuple(ee)) = (&a, &e) {
         return ae.len() == ee.len()
@@ -15610,7 +15610,7 @@ pub(crate) fn assignable(
                 .all(|(x, y)| assignable(x, y, subst, env));
     }
     // Arc 293 S3-Nature-4 (Path B) — a dialed peer intrinsically satisfies a `:nature :Peer`
-    // surface: no extend-type needed. `Peer'<X,Y>` satisfies `:S` iff X/Y equal :S's own
+    // surface: no extend-type needed. `(Peer' :- [X Y])` satisfies `:S` iff X/Y equal :S's own
     // S1-synthesized `Op`/`Reply` enums.
     if let (TypeExpr::Parametric { head, args: peer_args }, TypeExpr::Path(ep)) = (&a, &e) {
         if head == "wat::kernel::Peer" && peer_args.len() == 2 {
@@ -15635,8 +15635,8 @@ pub(crate) fn assignable(
     // extend-types the protocol. Edge keys carry the leading colon (types.rs:1402);
     // Parametric.head does not — reconcile with `crate::types::parametric_head_fqdn`.
     if let (TypeExpr::Parametric { head, .. }, TypeExpr::Path(ep)) = (&a, &e) {
-        // Full-args edge (a full-parametric extend-type, e.g. Peer'<Op,Reply> <: :S — PROTOCOL-SPECIFIC)
-        // OR the arc-267 head-only edge (a constructor-based extend-type, e.g. Vector<T> <: :Proto).
+        // Full-args edge (a full-parametric extend-type, e.g. (Peer' :- [Op Reply]) <: :S — PROTOCOL-SPECIFIC)
+        // OR the arc-267 head-only edge (a constructor-based extend-type, e.g. (Vector :- [T]) <: :Proto).
         if crate::types::is_subtype(&format_type(&a), ep, types)
             || crate::types::is_subtype(&crate::types::parametric_head_fqdn(head), ep, types)
             || transport_edge_keys(&a)
@@ -15652,7 +15652,7 @@ pub(crate) fn assignable(
     // full parametric string — types.rs:2151 stores the extend-type target keyword VERBATIM) AND the
     // edge clears the surface's nature floor. This is the (Path actual, Parametric expected) case the
     // branch above (Parametric actual, Path expected) never covered — roles flipped. Guarded on the
-    // expected head naming a `Surface`, so a parametric NON-surface bound (e.g. `Vector<T>`) is
+    // expected head naming a `Surface`, so a parametric NON-surface bound (e.g. `(Vector :- [T])`) is
     // untouched → falls through to the derive-graph / unify paths below (byte-identical). SOUND, not
     // permissive: `is_subtype` is an EXACT-string match on the parent, so `echo'::Handle` matches ONLY
     // `Dialable<Echo::Op,Echo::Reply>`, never `Dialable<Kv::Op,Kv::Reply>` — the swap-gate holds.
@@ -15707,7 +15707,7 @@ pub(crate) fn assignable(
         }
         // Stone 118.3-B — the exact-string compare above can never succeed when `e`'s args
         // still carry an unbound unification VAR (e.g. a fresh `?454` from an uninstantiated
-        // generic fn's own type param — `count-of<T> [s <- Seqable<T>]`): `format_type(&e)`
+        // generic fn's own type param — `count-of :- [T] [s <- (Seqable :- [T])]`): `format_type(&e)`
         // renders the fresh var, but the registered `extend-type` edge is keyed by the
         // SURFACE's own declared param name, verbatim (`:sq::Seqable<T>`, types.rs:2151) —
         // "<?454>" != "<T>", always. Bind instead of string-match: confirm `eh` resolves to a
@@ -15795,9 +15795,9 @@ pub(crate) fn assignable(
         }
         // Arc 278 Stone 2 — SAME-head parametric: args are INVARIANT (unify) EXCEPT that the
         // subtype LATTICE flows through each arg position, so the two endpoints (`Never` bottom,
-        // `Value` top — the R7 dual pair) assign per-arg. This is what lets a `Peer'<Never, O>`
+        // `Value` top — the R7 dual pair) assign per-arg. This is what lets a `(Peer' :- [Never O])`
         // timer (`after`'s honest uninhabited send-type) assign into a service's `selectables`
-        // element type `Peer'<Reply, O>` (I-slot: `Never <: Reply`; O-slot: `O` unifies exactly).
+        // element type `(Peer' :- [Reply O])` (I-slot: `Never <: Reply`; O-slot: `O` unifies exactly).
         // Only a genuine subtype edge (endpoints, or a user-declared parent) relaxes a slot; two
         // unrelated concrete payload types still fail (unify fails, is_subtype finds no edge).
         if ah == eh
@@ -15819,10 +15819,10 @@ pub(crate) fn assignable(
                     return true;
                 }
                 // Arc 278 reconciliation (b) — a NESTED Peer' arg (e.g. the element of a
-                // `Vector<Peer'<Reply, Op>>` selectables slot) widens COVARIANTLY in its
+                // `(Vector :- [(Peer' :- [Reply Op])])` selectables slot) widens COVARIANTLY in its
                 // RECEIVED-Op position ONLY. A client peer speaks the SURFACE protocol —
-                // `Peer'<proto::Reply, proto::Op>` — but the serve loop's selectables are
-                // typed with the SUPERSET `Peer'<proto::Reply, service::Op>` (service::Op is
+                // `(Peer' :- [proto::Reply proto::Op])` — but the serve loop's selectables are
+                // typed with the SUPERSET `(Peer' :- [proto::Reply service::Op])` (service::Op is
                 // a genuine superset: every surface variant embedded field-for-field + the
                 // internal `-op`s, registered via the `derive` edge emitted by defservice;
                 // `retag-op'` re-tags a client op into its service-Op counterpart at dispatch).
@@ -16070,11 +16070,11 @@ impl<'a, 'b: 'a> crate::rust_deps::SchemeCtx for CheckSchemeCtx<'a, 'b> {
 
 /// Apply the substitution map deeply — rewrites every `Var(id)` in
 /// `ty` to its bound target (transitively). **Does NOT expand
-/// typealiases.** `:MyAlias<i64>` stays `:MyAlias<i64>`.
+/// typealiases.** `(:MyAlias :- [i64])` stays `(:MyAlias :- [i64])`.
 ///
 /// Use this for **error display** — it preserves the surface name
 /// the user wrote, so `TypeMismatch` reads "expected
-/// `:wat::stream::Stream<i64>`", not the tuple expansion.
+/// `(:wat::stream::Stream :- [i64])`", not the tuple expansion.
 ///
 /// For **structural matching** against the canonical form of a type,
 /// call [`reduce`] instead.
@@ -16777,7 +16777,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // return type is polymorphic per arc 107: `∀T. ... -> :T`. T
     // unifies with whatever the caller's context demands, including
     // `:()` (existing test-stdlib call sites) AND non-`:()` types
-    // (`:wat::std::option::expect<T>` and `:wat::std::result::expect<T,E>`
+    // (`:wat::std::option::expect :- [T]` and `:wat::std::result::expect :- [T E]`
     // need `:T` arms). The previous declared `:()` was a lie since
     // wat has no `Never` type; T is the honest scheme.
     env.register(
@@ -17137,7 +17137,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // Scalar conversions — arc 014. :wat::core::<source>::to-<target>
     // between the four scalar tiers (i64, f64, bool, String).
     // Infallible ones return the target directly; fallible ones return
-    // :Option<T>. No implicit coercion — every conversion is an
+    // (:Option :- [T]). No implicit coercion — every conversion is an
     // explicit named call at the call site.
     let opt_i64_ty = || TypeExpr::Parametric {
         head: "wat::core::Option".into(),
@@ -17952,7 +17952,7 @@ fn register_builtins(env: &mut CheckEnv) {
     );
 
     // The eval-family forms — per the 2026-04-20 INSCRIPTION adding
-    // :Result<wat::holon::HolonAST, :wat::core::EvalError> as the uniform
+    // (:Result :- [wat::holon::HolonAST :wat::core::EvalError]) as the uniform
     // return type. Every dynamic evaluation failure (verification,
     // parse, mutation-form refused, unknown function, type mismatch,
     // etc.) becomes an Err value in the Result rather than an
@@ -18061,7 +18061,7 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
-    // :wat::eval::walk<A> (arc 070) — fold over the eval-step! chain.
+    // (:wat::eval::walk :- [A]) (arc 070) — fold over the eval-step! chain.
     // Visitor sees every coordinate exactly once, in order, with the
     // step-result the substrate produced at that coordinate. Returns
     // (terminal-HolonAST, final-acc) on Ok; the chain's terminal +
@@ -18184,7 +18184,7 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     // Bundle takes :wat::holon::Holons and returns
-    // :Result<wat::holon::HolonAST, :wat::holon::CapacityExceeded>.
+    // (:Result :- [wat::holon::HolonAST wat::holon::CapacityExceeded]).
     // The Result wrap is the forcing function for the capacity guard:
     // authors are required by the type system to acknowledge the
     // failure case — either matching explicitly or propagating via
@@ -18621,7 +18621,7 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     // Arc 170 slice 1e — ambient runtime values per REALIZATIONS pass 7.
-    // `(:wat::runtime::argv) → :wat::core::Vector<wat::core::String>`
+    // `(:wat::runtime::argv) → (:wat::core::Vector :- [wat::core::String])`
     // — process-wide argv handed in by wat-cli (or any embedder)
     // before `:user::main` runs.
     env.register(
@@ -18789,9 +18789,9 @@ fn register_builtins(env: &mut CheckEnv) {
     // `:wat::core::result::expect` to carry chains through panics, is a
     // different function and stays.)
     // HandlePool — claim-or-panic discipline.
-    //   new    : ∀T. :String -> :wat::core::Vector<T> -> :HandlePool<T>
-    //   pop    : ∀T. :HandlePool<T> -> :T
-    //   finish : ∀T. :HandlePool<T> -> :()
+    //   new    : ∀T. :String -> (:wat::core::Vector :- [T]) -> (:HandlePool :- [T])
+    //   pop    : ∀T. (:HandlePool :- [T]) -> :T
+    //   finish : ∀T. (:HandlePool :- [T]) -> :()
     env.register(
         ":wat::kernel::HandlePool::new".into(),
         TypeScheme {
@@ -18862,7 +18862,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // transmit V (the encoded vector) between users. 4-byte dim
     // header + 2-bit-per-cell ternary packing; see
     // `eval_holon_vector_bytes` for the format. Arc 062 swaps the
-    // verbose `:Vec<u8>` for `:wat::core::Bytes` (substrate-general
+    // verbose `(:Vec :- [u8])` for `:wat::core::Bytes` (substrate-general
     // alias); both forms work at call sites because alias resolution
     // is structural.
     env.register(
@@ -18880,7 +18880,7 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec![],
             params: vec![TypeExpr::Path(":wat::core::Bytes".into())],
             // Arc 278 the dimension-heresy strike — was
-            // `:Option<wat::holon::Vector>`, collapsing four distinct
+            // `(:Option :- [wat::holon::Vector])`, collapsing four distinct
             // wire-decode failures into one reason-free `:None`. See
             // `VectorDecodeOutcome`'s registration in types.rs.
             ret: TypeExpr::Path(":wat::holon::VectorDecodeOutcome".into()),
@@ -18941,7 +18941,7 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
-    // Arc 064 — polymorphic value rendering. `:wat::core::show<T>`
+    // Arc 064 — polymorphic value rendering. `:wat::core::show :- [T]`
     // takes any value and returns a debug-friendly String. Used
     // internally by `:wat::test::assert-eq` to populate the failure
     // payload's actual/expected fields; exposed publicly so test
@@ -19066,7 +19066,7 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
-    // Arc 278 Stone 1 (`wat --mcp`) — `(:wat::edn::read-json s)` → `:wat::edn::ReadJsonOutcome<T>`.
+    // Arc 278 Stone 1 (`wat --mcp`) — `(:wat::edn::read-json s)` → `(:wat::edn::ReadJsonOutcome :- [T])`.
     // The JSON-input twin of `:wat::edn::read`: parses JSON (not EDN) text via
     // `wat_edn::from_json_string`, then the same typed `edn_to_value` decode. TOTAL — see
     // `ReadJsonOutcome` in `types.rs` for why (this verb's input arrives from a remote,
@@ -19077,7 +19077,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // `:wat::core::Value` (the universal top). That is a produce-only type (UP is free, DOWN is
     // checked — arc 278 R7), so nothing could ever read a field back out of it; measured directly
     // (`HashMap/get` on the decoded value refused to type-check). `T` here flows from the caller's
-    // annotated binding, exactly as `ReadlnOutcome<T>`'s `T` does.
+    // annotated binding, exactly as `(ReadlnOutcome :- [T])`'s `T` does.
     env.register(
         ":wat::edn::read-json".into(),
         TypeScheme {
@@ -19657,7 +19657,7 @@ fn register_builtins(env: &mut CheckEnv) {
     );
 
     // Arc 143 slice 1 — three runtime introspection primitives. Each
-    // takes a :Symbol (keyword name) and returns :Option<HolonAST>:
+    // takes a :Symbol (keyword name) and returns (:Option :- [HolonAST]):
     //   lookup-define  — full (:define <head> <body>) AST
     //   signature-of-defn — head only
     //   body-of        — body only (:None for substrate primitives)
@@ -19740,7 +19740,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // (plain-EDN), NOT `:wat::holon::HolonAST`. Reflection is ZERO-holon; holon
     // tooling is reserved for holographic (VSA) operations.
     // rename-callable-name (head :WatAST) (from :keyword) (to :keyword) -> :WatAST
-    // extract-arg-names    (head :WatAST)                               -> :wat::core::Vector<keyword>
+    // extract-arg-names    (head :WatAST)                               -> (:wat::core::Vector :- [keyword])
     //
     // The type-checker special-case in `infer_list` (check.rs:3126+) bypasses
     // normal type-unification for these primitives because the first argument
@@ -19771,7 +19771,7 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     // Arc 201 slice 5 — extract-arg-types: type-direction sibling.
-    // extract-arg-types (head :WatAST) -> :wat::core::Vector<wat::WatAST>
+    // extract-arg-types (head :WatAST) -> (:wat::core::Vector :- [wat::WatAST])
     // Post arc-294.f the signature head already carries canonical `wat.type/`
     // WatAST type nodes; this verb returns each verbatim — no HolonAST anywhere.
     let vec_watast_ty = || TypeExpr::Parametric {
@@ -19790,7 +19790,7 @@ fn register_builtins(env: &mut CheckEnv) {
 
     // Arc 201 slice 2 — general-purpose Bundle accessors.
     //
-    // Bundle/children (bundle :HolonAST) -> :wat::core::Vector<wat::holon::HolonAST>
+    // Bundle/children (bundle :HolonAST) -> (:wat::core::Vector :- [wat::holon::HolonAST])
     // Bundle/first    (bundle :HolonAST) -> :wat::holon::HolonAST
     //
     // The `Atom/value` half of the originally-proposed accessor set is
@@ -19828,9 +19828,9 @@ fn register_builtins(env: &mut CheckEnv) {
 
     // Arc 232 Stone 232.0a — typed-entities reflection layer.
     //
-    // extract-classifier (holon :HolonAST) -> :wat::core::Option<wat::core::String>
-    // Bind/left         (holon :HolonAST) -> :wat::core::Option<wat::holon::HolonAST>
-    // Bind/right        (holon :HolonAST) -> :wat::core::Option<wat::holon::HolonAST>
+    // extract-classifier (holon :HolonAST) -> (:wat::core::Option :- [wat::core::String])
+    // Bind/left         (holon :HolonAST) -> (:wat::core::Option :- [wat::holon::HolonAST])
+    // Bind/right        (holon :HolonAST) -> (:wat::core::Option :- [wat::holon::HolonAST])
     //
     // The infer_list special-cases above handle the parametric inference for
     // these verbs (same rationale as Bundle/children: HolonAST args bypass
@@ -19903,7 +19903,7 @@ fn register_builtins(env: &mut CheckEnv) {
     );
 
     // Stat reductions over Vec<f64> — population variance/stddev
-    // (matches numpy default ddof=0); all return :Option<f64> with
+    // (matches numpy default ddof=0); all return (:Option :- [f64]) with
     // None on empty input (matches f64::min-of/max-of convention).
     let opt_f64_ty = || TypeExpr::Parametric {
         head: "wat::core::Option".into(),
@@ -20422,8 +20422,8 @@ fn register_builtins(env: &mut CheckEnv) {
     );
 
     // get — 2 arms; per-arm return-type variance:
-    //   Vector/get :: ∀T. Vec<T> × :i64 -> :Option<T>
-    //   HashMap/get :: ∀K,V. HashMap<K,V> × K -> :Option<V>
+    //   Vector/get :: ∀T. (Vec :- [T]) × :i64 -> (:Option :- [T])
+    //   HashMap/get :: ∀K,V. (HashMap :- [K V]) × K -> (:Option :- [V])
     // infer_dispatch_call returns the matched arm's specific Option<_>;
     // no union-type machinery needed (per arc 146 DESIGN).
     env.register(
@@ -20890,7 +20890,7 @@ fn register_builtins(env: &mut CheckEnv) {
     );
 
     // Arc 118 — lazy-seq foundation: seq-empty + cons type schemes.
-    // `seq-empty :: ∀T. () -> Stream<T>` — the Empty terminator (T free, instantiated fresh).
+    // `seq-empty :: ∀T. () -> (Stream :- [T])` — the Empty terminator (T free, instantiated fresh).
     let seq_t = || TypeExpr::Parametric {
         head: "wat::stream::Stream".into(),
         args: vec![t_var()],
@@ -20904,7 +20904,7 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
-    // `cons :: ∀T. (T, Stream<T>) -> Stream<T>` — strict head + a Stream tail.
+    // `cons :: ∀T. (T, (Stream :- [T])) -> (Stream :- [T])` — strict head + a Stream tail.
     env.register(
         ":wat::stream::cons".into(),
         TypeScheme {
@@ -20914,7 +20914,7 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
-    // Arc 118.11a — `next :: ∀T. Stream<T> -> NextOutcome<T>`. Forces exactly one
+    // Arc 118.11a — `next :: ∀T. (Stream :- [T]) -> (NextOutcome :- [T])`. Forces exactly one
     // cell (`crate::stream::realize`) and returns both halves — the pull primitive
     // stone B's migration will move `map`/`filter`/`keep`/`into`/`doall` onto.
     // Additive only: no existing scheme above is touched.
@@ -20976,7 +20976,7 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
-    // get :: ∀T. T × T -> :Option<T>  (fingerprint; real return-type projection in infer_get)
+    // get :: ∀T. T × T -> (:Option :- [T])  (fingerprint; real return-type projection in infer_get)
     env.register(
         ":wat::core::get".into(),
         TypeScheme {
@@ -21466,7 +21466,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // are declared via `defrecord`/`defenum` in `wat/rete.wat`. The axis argument is the
     // `:wat::rete::Axis` enum — a closed 4-member set (Pure, Deterministic, Total,
     // RetePrimitive).
-    // (:wat::rete::axis-violation <expr: :wat::WatAST> <axis: :wat::rete::Axis>) -> :wat::core::Option<wat::rete::AxisViolation>
+    // (:wat::rete::axis-violation <expr: :wat::WatAST> <axis: :wat::rete::Axis>) -> (:wat::core::Option :- [wat::rete::AxisViolation])
     env.register(
         ":wat::rete::axis-violation".into(),
         TypeScheme {
@@ -21826,7 +21826,7 @@ mod tests {
 
     #[test]
     fn bundle_of_list_of_ints_rejected() {
-        // Bundle wants :wat::holon::Holons, but this is :wat::core::Vector<wat::core::i64>.
+        // Bundle wants :wat::holon::Holons, but this is (:wat::core::Vector :- [wat::core::i64]).
         let err = check(r#"(:wat::holon::Bundle (:wat::core::Vector :wat::core::i64 1 2 3))"#).unwrap_err();
         assert!(err.0.iter().any(|e| matches!(e, CheckError { kind: CheckErrorKind::TypeMismatch { .. }, .. })));
     }
@@ -22083,11 +22083,11 @@ mod tests {
     // ─── Parametric user-defined enum match patterns ────────────────────
     //
     // First parametric user-defined enum surfaced by arc 119
-    // (`:wat::lru::Request<K,V>`). Coverage gap before arc 119: zero
+    // (`(:wat::lru::Request :- [K V])`). Coverage gap before arc 119: zero
     // parametric user enums existed in the codebase, so the
     // match-pattern resolver's path that drops type params
     // (`MatchShape::Enum(name)` → `TypeExpr::Path(name)`) was never
-    // exercised. `:wat::core::Option<T>` and `:wat::core::Result<T,E>`
+    // exercised. `(:wat::core::Option :- [T])` and `(:wat::core::Result :- [T E])`
     // bypass the gap via dedicated MatchShape variants
     // (`Option(t)`, `Result(t,e)`) that carry their type args directly.
     //
@@ -22126,7 +22126,7 @@ mod tests {
     fn parametric_user_enum_two_type_args_match() {
         // Stone 241.9 — migrated to defenum form.
         // Two type params, tagged variants. Mirrors arc 119's
-        // `:wat::lru::Request<K,V>` shape directly.
+        // `(:wat::lru::Request :- [K V])` shape directly.
         // Arc 109 ③ — angle-bracket decl-names and references retired: `Head :- [L R]`
         // siblings for a declaration's own name; `(Head :- [L R])` in parens for a reference.
         let src = r#"
@@ -22151,7 +22151,7 @@ mod tests {
     fn parametric_user_enum_extracts_typed_field() {
         // Stone 241.9 — migrated to defenum form.
         // Tagged variant binder must inherit the parametric type's
-        // instantiation. If the scrutinee is :my::Box<i64>, then
+        // instantiation. If the scrutinee is (:my::Box :- [i64]), then
         // (Filled v) must bind v as :i64.
         // Arc 109 ③ — angle-bracket decl-names and references retired: `Head :- [T]`
         // siblings for a declaration's own name; `(Head :- [T])` in parens for a reference.
@@ -22174,14 +22174,14 @@ mod tests {
     }
 
     // ─── arc 278 Stone 1: `after` builds a UNIFIED `Peer'` (tier-open `Timer'`
-    // fusion RETIRED). A timer is now a `Peer'<nil, O>`; it composes with real
+    // fusion RETIRED). A timer is now a `(Peer' :- [nil O])`; it composes with real
     // peers through the ordinary structural `Parametric ~ Parametric` unify arm, so
     // the dedicated `Timer'`-fusion arms + their tests are gone. Tier homogeneity
     // between real peers (below) is unchanged. ──────────────────────────────────
 
     #[test]
     fn thread_process_still_fail() {
-        // unify(Thread'<nil, keyword>, Process'<nil, keyword>) == Err (homogeneity preserved)
+        // unify((Thread' :- [nil keyword]), (Process' :- [nil keyword])) == Err (homogeneity preserved)
         let mut s = Subst::new();
         let kw = TypeExpr::Path(":wat::core::keyword".into());
         let nil = TypeExpr::Path(":wat::core::nil".into());

@@ -16,7 +16,7 @@
 ;; Clojure's `mod` agree exactly for the non-negative operands every formula here produces, so no
 ;; subtraction-expansion is needed to dodge a semantic gap (there isn't one here).
 ;;
-;; `PersistentVector/get` (wat) returns `Option<T>` (`None` on out-of-range); the direct Clojure
+;; `PersistentVector/get` (wat) returns `(Option :- [T])` (`None` on out-of-range); the direct Clojure
 ;; mirror is `(get v idx)`, which returns `nil` out-of-range — every element here is a non-nil i64,
 ;; so "present" and "absent" map onto `some?`/`nil?` exactly the way `Some`/`None` do on the wat
 ;; side. `contains?` (element membership, NOT Clojure's key-membership `contains?`) mirrors to

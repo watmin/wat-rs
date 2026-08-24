@@ -438,8 +438,8 @@ pub enum ProcessSelectable {
 /// `(:wat::kernel::spawn-thread prog init-fn post-spawn-fn)` — arc 259 Stone S2c-i.
 ///
 /// Three positional args:
-/// - `args[0]` — program fn: `fn [self <- Peer'<S,R>] -> nil` (self-peer model,
-///   the ONLY valid form post arc 259 S2c-ii-a purge). Returns `Thread'<R,S>`.
+/// - `args[0]` — program fn: `fn [self <- (Peer' :- [S R])] -> nil` (self-peer model,
+///   the ONLY valid form post arc 259 S2c-ii-a purge). Returns `(Thread' :- [R S])`.
 /// - `args[1]` — init-fn: `fn [] -> :wat::core::Record` — runs at the peer's start,
 ///   its return value becomes `user-data` in the peer's env.
 /// - `args[2]` — post-spawn-fn: `fn [l <- ThreadLaunch] -> nil` — runs OWNER-side
@@ -527,7 +527,7 @@ pub fn eval_kernel_spawn_thread_prime(
 ///
 /// Two positional args:
 /// - `args[0]` — program forms (a vec of WatAST): the forms-server program.
-///   Returns `Process'<I,O>`.
+///   Returns `(Process' :- [I O])`.
 /// - `args[1]` — post-spawn-fn: `fn [l <- ProcessLaunch] -> nil` — runs OWNER-side
 ///   in the parent after the child is forked, with the child pid in ProcessLaunch.
 ///
@@ -651,7 +651,7 @@ pub fn eval_kernel_spawn_process_prime(
 /// (S2c-ii-b). Exposed as `pub` for integration tests.
 ///
 /// Arc 259 S2c-ii-a — PURGE. The apply-loop model is annihilated; only the
-/// self-peer model remains. The prog MUST be `fn([self <- Peer'<S,R>]) -> nil`.
+/// self-peer model remains. The prog MUST be `fn([self <- (Peer' :- [S R])]) -> nil`.
 /// The spawned closure constructs a `Peer` opaque inside the thread (owner-thread
 /// invariant) and calls the prog ONCE. The prog owns its own recv'/send' loop.
 ///
@@ -745,7 +745,7 @@ pub fn spawn_thread_peer(
             // the ThreadOwnedCell's owner-thread == this spawned thread (where the
             // prog runs). Raw endpoints are Send — they move here; the Peer + Arc
             // are constructed on this thread only.
-            // Worker is Peer'<O,I>: tx=output_tx (worker→parent), rx=input_rx (parent→worker).
+            // Worker is (Peer' :- [O I]): tx=output_tx (worker→parent), rx=input_rx (parent→worker).
             let self_peer = make_rust_opaque(
                 PEER_TYPE_PATH,
                 Arc::new(ThreadOwnedCell::new(Some(Peer::from_thread(
@@ -1123,8 +1123,8 @@ mod tests {
     ///
     /// Arc 259 S2c-ii-a — apply-loop PURGE: the apply-loop echo fn
     /// `[input <- i64] -> i64 input` is replaced with the self-peer form
-    /// `[self <- Peer'<i64,i64>] -> nil (send' self (recv' self))`.
-    /// The Thread'<i64,i64> type is preserved; round-trip behaviour is identical.
+    /// `[self <- (Peer' :- [i64 i64])] -> nil (send' self (recv' self))`.
+    /// The (Thread' :- [i64 i64]) type is preserved; round-trip behaviour is identical.
     ///
     /// Constructs the spawn by calling `spawn_thread_peer` directly (bypassing
     /// the WAT-level dispatcher) to stay lib-safe (no WatAST parsing required).

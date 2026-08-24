@@ -1,12 +1,12 @@
 ;; wat-tests/service-cache-lru.wat — arc 278 cache Stone 2: the MULTI-CLIENT `defservice` gate,
-;; now on the BATCH `Cache<K,V>` surface (BRIEF-cache-batch-surface).
+;; now on the BATCH `(Cache :- [K V])` surface (BRIEF-cache-batch-surface).
 ;;
-;; Stone 1 (`a86f521c`) shipped `:wat::cache::Lru<K,V>`, thread-owned, zero mutex. Stone 2 is the
-;; multi-client form: `:wat::cache::lru-svc<K,V>` (`:wat::cache::Cache<K,V>` its wire surface) —
+;; Stone 1 (`a86f521c`) shipped `(:wat::cache::Lru :- [K V])`, thread-owned, zero mutex. Stone 2 is the
+;; multi-client form: `:wat::cache::lru-svc :- [K V]` (`(:wat::cache::Cache :- [K V])` its wire surface) —
 ;; a `defservice` whose actor serialization IS the mutex, so N clients share ONE cache with no
 ;; lock written anywhere. `get`/`put` are BATCH in both directions (`docs/CONVENTIONS.md:658`,
 ;; arc 119 — every wat-rs-shipped service is batch-oriented, Console excepted; the original
-;; single-key `Cache<K,V>` was a miss in the brief that designed it, corrected here). This gate
+;; single-key `(Cache :- [K V])` was a miss in the brief that designed it, corrected here). This gate
 ;; proves, one round trip per behaviour, per locus:
 ;;
 ;;   ★ INDEX ALIGNMENT — the load-bearing property a batch API can get wrong while every

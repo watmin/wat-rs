@@ -13,13 +13,13 @@
 ;; spec that calls its subject proves nothing (`wat/seq.wat`'s own ⚠ notes on both defns).
 ;; `[[feedback_a_green_test_can_prove_nothing]]` / `[[feedback_an_oracle_must_be_written_in_the_other_language]]`
 ;;
-;; Two receivers (Vector<T> / PersistentVector<T>) × three sizes (empty / one / many) = the
+;; Two receivers ((Vector :- [T]) / (PersistentVector :- [T])) × three sizes (empty / one / many) = the
 ;; ACCEPTANCE table's six rows, plus two seeded-accumulator rows (`into`'s actual contract: `to`
 ;; is not always freshly empty) and one genuinely-lazy-producer row per receiver (not merely a
 ;; `map`-wrapped Vector) so the differential does not only ever see one Stream SHAPE.
 
 ;; ─── the lazy sources ──────────────────────────────────────────────────────────────────────────
-;; `(map identity v)` — a genuine `Stream<i64>` over an already-resident Vector, same idiom
+;; `(map identity v)` — a genuine `(Stream :- [i64])` over an already-resident Vector, same idiom
 ;; `wat-tests/core/core-seq-walkers.wat` uses. `identity` keeps the walk itself under test, not
 ;; some other transform's correctness.
 
@@ -40,7 +40,7 @@
       (:wat::stream::cons i
         (:wat-tests::core::core-stream-materializers-differential::counter (:wat::core::+ i 1) limit)))))
 
-;; ═══ stream->vec — Vector<T> receiver, fresh-empty seed ═══════════════════════════════════════
+;; ═══ stream->vec — (Vector :- [T]) receiver, fresh-empty seed ═══════════════════════════════════════
 
 (:wat::test::deftest :wat-tests::core::core-stream-materializers-differential::vec-agree-empty
   (:wat::test::assert-eq
@@ -85,7 +85,7 @@
     (:wat::core::stream->vec-spec (:wat::core::Vector :wat::core::i64)
       (:wat-tests::core::core-stream-materializers-differential::counter 0 25))))
 
-;; ═══ stream->pvec — PersistentVector<T> receiver, fresh-empty seed ═════════════════════════════
+;; ═══ stream->pvec — (PersistentVector :- [T]) receiver, fresh-empty seed ═════════════════════════════
 
 (:wat::test::deftest :wat-tests::core::core-stream-materializers-differential::pvec-agree-empty
   (:wat::test::assert-eq

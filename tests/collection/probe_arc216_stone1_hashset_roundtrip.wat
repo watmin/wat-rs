@@ -1,5 +1,5 @@
 ;; tests/collection/probe_arc216_stone1_hashset_roundtrip.wat — co-located fixture.
-;; Arc 216 Stone 1 — HashSet<T> round-trip through HolonAST::Bundle.
+;; Arc 216 Stone 1 — (HashSet :- [T]) round-trip through HolonAST::Bundle.
 
 ;; p1: forward round-trip via to-holon + from-holon — length 3
 (:wat::core::defn :t::p1-forward-rt-len [] -> :wat::core::i64
@@ -43,21 +43,21 @@
      s (:wat::holon::from-holon h)]
     (:wat::core::HashSet/contains? s 42)))
 
-;; p5a: HashSet<i64> round-trip contains 20
+;; p5a: (HashSet :- [i64]) round-trip contains 20
 (:wat::core::defn :t::p5a-i64-rt-contains [] -> :wat::core::bool
   (:wat::core::let
     [h (:wat::holon::to-holon #{10 20 30})
      s (:wat::holon::from-holon h)]
     (:wat::core::HashSet/contains? s 20)))
 
-;; p5b: HashSet<String> round-trip length 3
+;; p5b: (HashSet :- [String]) round-trip length 3
 (:wat::core::defn :t::p5b-str-rt-len [] -> :wat::core::i64
   (:wat::core::let
     [h (:wat::holon::to-holon (:wat::core::HashSet :wat::core::String "a" "b" "c"))
      s (:wat::holon::from-holon h)]
     (:wat::core::HashSet/length s)))
 
-;; p5c: HashSet<bool> round-trip length 2
+;; p5c: (HashSet :- [bool]) round-trip length 2
 (:wat::core::defn :t::p5c-bool-rt-len [] -> :wat::core::i64
   (:wat::core::let
     [h (:wat::holon::to-holon (:wat::core::HashSet :wat::core::bool true false))

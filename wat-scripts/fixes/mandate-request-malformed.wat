@@ -12,7 +12,7 @@
 ;;
 ;;   (a) the op-Response DECL — a `defenum` carrying `:RequestTooLarge [bytes cap]` gains its
 ;;       SHAPE sibling immediately after it:
-;;         :RequestMalformed [path     <- :wat::core::Vector<wat::core::String>
+;;         :RequestMalformed [path     <- (:wat::core::Vector :- [:wat::core::String])
 ;;                            expected <- :wat::core::String
 ;;                            got      <- :wat::core::String]
 ;;

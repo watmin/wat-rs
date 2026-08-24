@@ -38,7 +38,7 @@
 (:wat::service::defservice :prod::producer
   :satisfies :prod::Producer
   :durable   []
-  ;; the dialed backend peer — a client Peer'<Journal::Op,Journal::Reply>, held as a ROOT
+  ;; the dialed backend peer — a client (Peer' :- [Journal::Op Journal::Reply]), held as a ROOT
   ;; ephemeral field. NEVER an ephemeral/peer to anything Consumer-shaped — the producer only
   ;; ever talks to the shared journal.
   :ephemeral [journal <- (:wat::kernel::Peer :- [:wat::telemetry::Journal::Op :wat::telemetry::Journal::Reply])]

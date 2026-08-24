@@ -12,7 +12,7 @@
 ;; ─── the operation model (S4) ──────────────────────────────────────────────────────────────────
 ;; Every fallible/successful op returns a per-op OUTCOME ENUM named `Store::<Op>Response`
 ;; (`:Success` first, then that op's own error variants — never a bare success type, never a
-;; generic `Result<T,Error>`). The error channel is an errors-as-record model on the RECOVERY axis
+;; generic `(Result :- [T Error])`). The error channel is an errors-as-record model on the RECOVERY axis
 ;; (the caller's forced branch: retry / surface / abort) — `Transient` / `Constraint` / `Fatal`,
 ;; each carrying a `reason <- Reason` (an OPEN surface — any pure record satisfies it; `Fault
 ;; [message <- String]` is the concrete default a backend with nothing more structured reaches for).
@@ -110,7 +110,7 @@
 ;; (surface + defservice) whose `sift-rules` op reads a page of Logs from a held Journal peer and
 ;; fires the user's rules PER LOG (one seed per fire — alpha-only structural, RENASCOR NON RETRACTO
 ;; at the record grain), flat-mapping the DERIVED facts (not the seeds) into one
-;; `PersistentVector<wat::core::Value>` reply — the level-up from the Predicate's SELECT to INFER
+;; `(PersistentVector :- [wat::core::Value])` reply — the level-up from the Predicate's SELECT to INFER
 ;; (one log can yield MANY deductions; the returned count can exceed the page size).
 ;;
 ;; Canonical kwargs order assumed (defrule precedent, wat/rete.wat:1971): `:name :defs :rules`.
@@ -169,7 +169,7 @@
      defs-children  (:wat::core::ast->children defs-node)
      rules-children (:wat::core::ast->children rules-node)
 
-     ;; ── (1) rule-lits: Vector<WatAST> of `(make-rule name-str (quote when-vec) (quote then-vec))`
+     ;; ── (1) rule-lits: (Vector :- [WatAST]) of `(make-rule name-str (quote when-vec) (quote then-vec))`
      ;; call literals — one per :rules form. Mirrors defrule's own body (rete.wat:2150) exactly,
      ;; minus the defn wrapper (see the doc comment above). Arc 278 Stone A: `:then` is now a
      ;; VECTOR (child[5] of rch), quoted as-is — symmetric with when-vec; no more splicing.
@@ -407,7 +407,7 @@
                     :time-hi   (~req-hi-kw req)
                     :limit     (~req-lim-kw req)
                     :cursor    (~req-cur-kw req)))
-                ;; the Journal peer client-method now returns RecvOutcome<QueryLogsResponse> — a lost/closed
+                ;; the Journal peer client-method now returns (RecvOutcome :- [QueryLogsResponse]) — a lost/closed
                 ;; Journal backend must NOT kill this shared sift service (client-triggerable-DoS forbidden):
                 ;; map to our own ::Fatal response value and KEEP SERVING (mirrors telemetry/journal.wat).
                 ((:wat::kernel::RecvOutcome::Message sresp)
@@ -467,7 +467,7 @@
 
 ;; ─── the contract — the Store surface, on the operation model ──────────────────────────────────
 ;; :nature :wat::kernel::Peer' — a satisfier is a `:satisfies Store` defservice; a dialed
-;; `Peer'<Store::Op,Store::Reply>` IS a Store INTRINSICALLY (arc 293 Path B) — no wrapper struct,
+;; `(Peer' :- [Store::Op Store::Reply])` IS a Store INTRINSICALLY (arc 293 Path B) — no wrapper struct,
 ;; no extend-type. `ReadStore` (the S0 read-only narrowing) is DELETED here: no live consumer, and
 ;; its only satisfiers were the wrapper structs this stone removes; reintroduce as a Store-peer
 ;; read-only narrowing when a real read-only consumer needs it.

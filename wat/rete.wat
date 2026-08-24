@@ -51,7 +51,7 @@
 
 ;; Rule — a rule as pure data (not yet compiled into network nodes).
 ;; name: the namespaced rule name.
-;; lhs:  conditions (form::matches?-shaped clauses) — PersistentVector<WatAST> so foldl works.
+;; lhs:  conditions (form::matches?-shaped clauses) — (PersistentVector :- [WatAST]) so foldl works.
 ;; rhs:  consequence forms (data; pure — applied by a consumer).
 (:wat::core::defrecord :wat::rete::Rule
   [name <- :wat::core::String
@@ -191,7 +191,7 @@
 ;;   beta-memory:       node-id → {join-bindings → [Token …]}
 ;;                      FIRE-SCOPED — same treatment; `fire-once` populates it,
 ;;                      `fire-rules` / `fire-rules$oracle` return it empty.
-;;   production-memory: node-id → PV<:wat::core::Record>  flat derived facts in 4a; grows to the {token → [facts]} support store in 4c (TM)
+;;   production-memory: node-id → (PV :- [:wat::core::Record])  flat derived facts in 4a; grows to the {token → [facts]} support store in 4c (TM)
 ;;   facts:             PersistentVector of asserted facts.
 ;;   next-id:           the next free node id (i64).
 ;;   query-memory:      query-name → PV of binding maps (QueryNode answers; survives fire).
@@ -240,7 +240,7 @@
 
 ;; Explained — the opt-in diagnostic result of fire-rules-explain.
 ;;   session: the same frozen Session the fast path produces (same closure, same derived facts).
-;;   support: PersistentMap<derived-fact, Support> — the provenance index.
+;;   support: (PersistentMap :- [derived-fact Support]) — the provenance index.
 ;; EPHEMERAL — re-derived per explain; never serialized.
 (:wat::core::defrecord :wat::rete::Explained
   [session <- :wat::rete::Session
@@ -248,8 +248,8 @@
 
 ;; ─── P12b+P12c: derivation-tree records + explain walk ─────────────────────
 
-;; DerivationNode — one node in the provenance tree. P12c: adds rule (Option<String>)
-;; and changes via to PV<DerivationStep> (the edge payload from P12c).
+;; DerivationNode — one node in the provenance tree. P12c: adds rule (Option :- [String])
+;; and changes via to (PV :- [DerivationStep]) (the edge payload from P12c).
 ;;   fact: the derived (or base) fact this node represents.
 ;;   rule: Some(rule-name) for a derived fact; None for a base/asserted leaf.
 ;;   via:  the supporting edges — one DerivationStep per supporting fact.
@@ -299,7 +299,7 @@
                          rule     (:wat::rete::Support/rule sv)
                          session  (:wat::rete::Explained/session ex)
                          ;; Arc 118.2a — `map` flipped LAZY; `DerivationNode`'s 3rd field is
-                         ;; `PersistentVector<DerivationStep>`, so materialize via `into`.
+                         ;; `(PersistentVector :- [DerivationStep])`, so materialize via `into`.
                          via      (:wat::core::into (:wat::core::PersistentVector)
                                     (:wat::core::map
                                       (:wat::core::fn [m <- (:wat::core::Tuple :- [:wat::core::Record :wat::core::i64])]
@@ -357,7 +357,7 @@
        (:wat::rete::AccumulateNode/children node))
       (:else (:wat::core::PersistentVector)))))
 
-;; children-ids-text — format a PersistentVector<i64> as "[id id ...]" for render-dag.
+;; children-ids-text — format a (PersistentVector :- [i64]) as "[id id ...]" for render-dag.
 ;; WHY: foldl builds space-separated ids so render-dag can emit the edge list inline.
 (:wat::core::defn :wat::rete::children-ids-text
   [ids <- (:wat::core::PersistentVector :- [:wat::core::i64])]
@@ -377,9 +377,9 @@
 ;; render-dag — walk Session.network (id→Node records), emit one readable line
 ;; per node: "  <id>  <kind> -> [<child-ids>]\n". Returns the whole graph as a String.
 ;;
-;; Strategy: get keys from the PersistentMap as a Vec<i64>, foldl over them,
+;; Strategy: get keys from the PersistentMap as a (Vec :- [i64]), foldl over them,
 ;; for each key fetch the node (Option/expect), derive the kind label, emit edges.
-;; Uses PersistentMap/keys (returns Vec<K>) + foldl + PersistentMap/get.
+;; Uses PersistentMap/keys (returns (Vec :- [K])) + foldl + PersistentMap/get.
 (:wat::core::defn :wat::rete::render-dag
   [session <- :wat::rete::Session]
   -> :wat::core::String

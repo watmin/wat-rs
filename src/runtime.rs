@@ -1490,7 +1490,7 @@ pub fn register_stdlib_defines(
 /// Arc 071 — build the type expression that names a declared
 /// struct/enum/newtype. For monomorphic decls (`type_params` empty),
 /// returns `:Foo` as a `Path`. For parametric decls (`type_params =
-/// ["A","B"]`), returns `:Foo<A,B>` as a `Parametric` whose head
+/// ["A","B"]`), returns `(:Foo :- [A B])` as a `Parametric` whose head
 /// strips the leading `:` (matching how the type parser stores
 /// Parametric heads — see arc 058's `Result`/`Option`/`Vec` registrations).
 ///
@@ -1498,7 +1498,7 @@ pub fn register_stdlib_defines(
 /// synthesized constructors with bare-path return types — fine for
 /// monomorphic decls but broken for parametric ones, since the type
 /// checker saw the body produce `:Foo` and rejected it against a
-/// `:Foo<i64>` signature. Surfaced by arc 070's `WalkStep<A>`
+/// `(:Foo :- [i64])` signature. Surfaced by arc 070's `(WalkStep :- [A])`
 /// (the first parametric built-in enum) when the lab harness
 /// type-checked a real consumer.
 fn parametric_decl_type(name: &str, type_params: &[String]) -> crate::types::TypeExpr {
@@ -1604,7 +1604,7 @@ pub fn register_aggregate_methods(
             _ => continue,
         };
 
-        // The parametric self-type (e.g. `:t::R<T>` for generic, `:myapp::Pt`
+        // The parametric self-type (e.g. `(:t::R :- [T])` for generic, `:myapp::Pt`
         // for monomorphic) — used as the accessor's single param type so the
         // type checker binds type params at each call site.
         //
@@ -1976,10 +1976,10 @@ pub fn register_enum_methods(
             _ => continue,
         };
 
-        // Arc 071 — parametric enums (e.g., `WalkStep<A>`) need
-        // their constructor return types to read `:Enum<A,B>`, not
+        // Arc 071 — parametric enums (e.g., `(WalkStep :- [A])`) need
+        // their constructor return types to read `(:Enum :- [A B])`, not
         // bare `:Enum`. Without this the type checker sees the body
-        // produce `:Enum` and rejects against a `:Enum<i64>` signature.
+        // produce `:Enum` and rejects against a `(:Enum :- [i64])` signature.
         // The lab harness probe at experiment/099-walkstep-probe is
         // the regression case.
         let enum_type = parametric_decl_type(&enum_def.name, &enum_def.type_params);
@@ -4042,7 +4042,8 @@ pub(crate) fn parse_type_keyword(kw: &str) -> Result<crate::types::TypeExpr, Run
 ///
 /// Both routes converge on the same `TypeExpr`. Source-keyword inputs
 /// go through `crate::types::parse_type_expr` (which understands the
-/// `:Head<args>` / `:(T,U)` / `:Fn(T)->U` surface spelling). Structured-
+/// `:(T,U)` / `:Fn(T)->U` surface spelling — a bare atomic keyword or one of
+/// those two compound forms; `:Head<args>` is refused, arc 109 ③). Structured-
 /// AST inputs are walked directly:
 ///
 /// - `WatAST::List [Keyword ":Tuple", ...args]` → `TypeExpr::Tuple`
@@ -6889,8 +6890,8 @@ fn dispatch_keyword_head_value(
         // The 3-arg Rust intrinsic is RETIRED; the defclause dispatches on the host
         // type (ThreadOpts → spawn-thread'; ProcessOpts → spawn-process').
         // Arc 259 S2c-i — per-tier 1-arg primitives (no tier keyword, no env arg).
-        // spawn-thread' : fn([Peer'<S,R>]) -> nil -> Thread'<R,S>
-        // spawn-process' : forms -> Process'<I,O>
+        // spawn-thread' : fn([(Peer' :- [S R])]) -> nil -> (Thread' :- [R S])
+        // spawn-process' : forms -> (Process' :- [I O])
         // Both delegate to the shared spawn_thread_peer / spawn_process_peer helpers.
         // Arc 255.1c-kernel-message — send/try-send/recv/select/poll moved to the
         // intrinsic registry (`src/intrinsic/kernel/message.rs`); dispatch now
@@ -6901,7 +6902,7 @@ fn dispatch_keyword_head_value(
         // partition. Downcasts the peer RustOpaque by sentinel (Thread' first,
         // then Process', else TypeMismatch).
         // DESIGN-STONE-process-signal-owner-to-child.md; BRIEF-process-signal-p2-mint.md
-        // — owner-to-child signal delivery. STOP-1: Process<I,O> only, no shared
+        // — owner-to-child signal delivery. STOP-1: (Process :- [I O]) only, no shared
         // codegen with Thread'/Peer'. STOP-3: routes through Pidfd::send_signal, never
         // kill(pid, sig). See eval_signal.
         // Arc 255.1c-kernel-remainder (home #8) — peer-process/peer-wire?/address-wire?/
@@ -6920,11 +6921,11 @@ fn dispatch_keyword_head_value(
         // `check.rs` (no scheme, no `infer_*` arm) — registration documents the verb,
         // it does not close that hole (task #110 / 255.1b-iv).
         // Arc 209 C0b.3b-b — allow'/deny': mutate the SocketListener's allow-set.
-        // allow' : (Listener'<S,R>, i64) -> nil  — insert pid; process-tier only.
-        // deny'  : (Listener'<S,R>, i64) -> nil  — remove pid; process-tier only.
+        // allow' : [(Listener' :- [S R]) i64 :-> nil]  — insert pid; process-tier only.
+        // deny'  : [(Listener' :- [S R]) i64 :-> nil]  — remove pid; process-tier only.
         // :wat::kernel::wait-child retired in arc 112 — replaced by
-        // :wat::kernel::Process/join-result returning Result<(),
-        // ProcessDiedError>. The orphaned eval body in src/fork.rs
+        // :wat::kernel::Process/join-result returning (Result :- [()
+        // ProcessDiedError]). The orphaned eval body in src/fork.rs
         // was removed in arc 214 Stone 6.2.
         // Arc 255.1c-kernel-ambient — sigusr1?/sigusr2?/sighup?/reset-sigusr1!/
         // reset-sigusr2!/reset-sighup! (plus stopped? above, near call-site) moved to
@@ -7164,9 +7165,9 @@ fn dispatch_keyword_head_value(
                                         ], span.clone()),
                                         WatAST::List(vec![
                                             // Arc 278 the recv'-outcome wall — `recv'` returns a
-                                            // matchable `RecvOutcome<Reply>`, NEVER a raise. This
+                                            // matchable `(RecvOutcome :- [Reply])`, NEVER a raise. This
                                             // Path-B intrinsic RE-WRAPS it into a
-                                            // `RecvOutcome<<Op>Response>` the caller faces as a value
+                                            // `(RecvOutcome :- [<Op>Response])` the caller faces as a value
                                             // (we are ADT; no try/catch): ::Message unwraps the reply
                                             // to its Response and re-wraps as ::Message; ::Lost maps
                                             // to a REASON-FREE ::Lost (arc-294 client = reason-free
@@ -11027,7 +11028,6 @@ fn eval_string_to_bool(
 /// Examples:
 ///   `(keyword/to-string :foo)`            → `"foo"`
 ///   `(keyword/to-string :wat::core::i64)` → `"wat::core::i64"`
-///   `(keyword/to-string :Vector<i64>)`    → `"Vector<i64>"`
 fn eval_keyword_to_string(
     args: &[WatAST],
     list_span: &Span,
@@ -11659,7 +11659,7 @@ fn values_equal(a: &Value, b: &Value) -> Option<bool> {
 /// by `values_equal`. The two functions are kept in lockstep —
 /// `values_equal`'s recursive arms are extended here for `Vec`, `Tuple`,
 /// `Option`, `Result`, and `Vector`; new leaf arms cover `Instant`,
-/// `Duration`. `Bytes` (which is `:wat::core::Vector<wat::core::u8>` at
+/// `Duration`. `Bytes` (which is `(:wat::core::Vector :- [wat::core::u8])` at
 /// the type level and `Value::Vec` of `Value::u8` at runtime) is covered
 /// by the `Vec` arm recursing into the `u8` arm — no separate Bytes
 /// variant exists.
@@ -12682,7 +12682,7 @@ fn eval_quote(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBreak> {
     Ok(Value::wat__WatAST(Arc::new(args[0].clone())))
 }
 
-/// Arc 118 — `(:wat::stream::empty) -> Stream<T>`. The Empty terminator.
+/// Arc 118 — `(:wat::stream::empty) -> (Stream :- [T])`. The Empty terminator.
 ///
 /// Zero-arg constructor producing `Value::wat__stream__Stream(Arc::new(Stream::Empty))`.
 fn eval_seq_empty(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBreak> {
@@ -12702,7 +12702,7 @@ fn eval_seq_empty(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBreak>
     )))
 }
 
-/// Arc 118 — `(:wat::stream::cons head tail) -> Stream<T>`. Strict-head Cons cell.
+/// Arc 118 — `(:wat::stream::cons head tail) -> (Stream :- [T])`. Strict-head Cons cell.
 ///
 /// `head` is evaluated (strict); `tail` is evaluated and must be a `Stream` (it may
 /// itself be a Thunk — O(1), no forcing). Returns a `Stream::Cons{head, tail}`.
@@ -12744,7 +12744,7 @@ fn eval_cons(
     )))
 }
 
-/// Arc 118 — `(:wat::stream::lazy <body>) -> Stream<T>`. SPECIAL FORM (capture-don't-eval).
+/// Arc 118 — `(:wat::stream::lazy <body>) -> (Stream :- [T])`. SPECIAL FORM (capture-don't-eval).
 ///
 /// The body is NOT evaluated here. Instead it is captured as a 0-arg wat closure
 /// over the current environment (`env.clone()` in `closed_env`), and wrapped in a
@@ -12793,10 +12793,10 @@ fn eval_lazy_seq(args: &[WatAST], list_span: &Span, env: &Environment) -> Result
 }
 
 /// Arc 118.11a — the type path of `next`'s matchable outcome enum
-/// (`:wat::stream::NextOutcome<T>`, registered in `types.rs`).
+/// (`(:wat::stream::NextOutcome :- [T])`, registered in `types.rs`).
 const NEXT_OUTCOME_TYPE: &str = ":wat::stream::NextOutcome";
 
-/// `NextOutcome::Item [value <- T, rest <- Stream<T>]` — the forced head plus the
+/// `NextOutcome::Item [value <- T, rest <- (Stream :- [T])]` — the forced head plus the
 /// undrained tail, both from the SAME single force. Mirrors `recv_outcome_message`.
 fn next_outcome_item(value: Value, rest: Value) -> Value {
     Value::Enum(Arc::new(EnumValue {
@@ -12818,10 +12818,10 @@ fn next_outcome_exhausted() -> Value {
     }))
 }
 
-/// Arc 118.11a — `(:wat::stream::next s) -> NextOutcome<T>`. The pull primitive:
+/// Arc 118.11a — `(:wat::stream::next s) -> (NextOutcome :- [T])`. The pull primitive:
 /// forces `s` to WHNF via `realize` (reusing the existing `forced` memo — this
 /// stone does not touch it) and destructures the result. `Empty` → `Exhausted`;
-/// `Cons{head, tail}` → `Item[value <- head, rest <- Stream<T> wrapping tail]`.
+/// `Cons{head, tail}` → `Item[value <- head, rest <- (Stream :- [T]) wrapping tail]`.
 ///
 /// **Exactly one force per call** — `realize`'s own loop already stops at the
 /// first `Empty`/`Cons`; this function does not add a second forcing loop or
@@ -13839,7 +13839,7 @@ pub fn lookup_form<'a>(name: &str, sym: &'a SymbolTable) -> Option<Binding<'a>> 
     None
 }
 
-/// `(:wat::runtime::lookup-define <name :keyword>) -> :Option<wat::holon::HolonAST>`
+/// `(:wat::runtime::lookup-define <name :keyword>) -> (:Option :- [wat::holon::HolonAST])`
 ///
 /// Arc 143 slice 1. Returns the FULL define AST:
 /// `(:wat::core::define <head> <body>)`.
@@ -13949,10 +13949,10 @@ fn eval_lookup_define(
     }
 }
 
-/// `(:wat::runtime::signature-of-defn <name :keyword>) -> :Option<wat::holon::HolonAST>`
+/// `(:wat::runtime::signature-of-defn <name :keyword>) -> (:Option :- [wat::holon::HolonAST])`
 ///
 /// Arc 143 slice 1. Returns ONLY the signature HEAD:
-/// `(<name><type_params> (param :Type) ... -> :Ret)`.
+/// `(<name> :- [type_params] (param0 :Type0) (param1 :Type1) ... -> :Ret)`.
 ///
 /// For user defines, reconstructs from the `Function`.
 /// For substrate primitives, synthesises from the `TypeScheme`.
@@ -14078,7 +14078,7 @@ fn eval_signature_of_defn(
 /// signature head spells out as `:anonymous` per the existing convention
 /// at `function_to_signature_ast`'s line ~9107.
 ///
-/// Return type is `:wat::holon::HolonAST` (NOT `:Option<HolonAST>`).
+/// Return type is `:wat::holon::HolonAST` (NOT `(:Option :- [HolonAST])`).
 /// Unlike `signature-of-defn` (which can fail to find a name → `:None`), this
 /// primitive's input is a structurally-validated fn value — absence is
 /// impossible. Type mismatches at the input slot surface as
@@ -14219,7 +14219,7 @@ fn eval_return_type_of(
     Ok(Value::String(Arc::new(fqdn)))
 }
 
-/// `(:wat::runtime::body-of <name :keyword>) -> :Option<wat::holon::HolonAST>`
+/// `(:wat::runtime::body-of <name :keyword>) -> (:Option :- [wat::holon::HolonAST])`
 ///
 /// Arc 143 slice 1. Returns the body AST only.
 ///
@@ -14300,7 +14300,7 @@ fn eval_body_of(
     }
 }
 
-/// `(:wat::runtime::metadata-of <name :keyword>) -> :Option<HashMap<Keyword, HolonAST>>`
+/// `(:wat::runtime::metadata-of <name :keyword>) -> (:Option :- [(HashMap :- [Keyword HolonAST])])`
 ///
 /// Stone 241.7. Returns the binding's metadata-map as Option:
 /// - Some({:k1 v1 ...}) when metadata was attached at def time (Stone 241.6 storage)
@@ -14666,7 +14666,7 @@ fn eval_rename_callable_name(
     Ok(Value::wat__WatAST(Arc::new(rebuilt)))
 }
 
-/// `(:wat::runtime::extract-arg-names head) -> :wat::core::Vector<wat::core::keyword>`
+/// `(:wat::runtime::extract-arg-names head) -> (:wat::core::Vector :- [wat::core::keyword])`
 ///
 /// Arc 143 slice 3. Takes a signature head AST and returns a `Vec` of
 /// the arg-name keywords (`:_a0`, `:_a1`, ... or user-defined names).
@@ -14762,7 +14762,7 @@ fn eval_extract_arg_names(
     Ok(Value::Vec(Arc::new(names)))
 }
 
-/// `(:wat::runtime::extract-arg-types head) -> :wat::core::Vector<wat::WatAST>`
+/// `(:wat::runtime::extract-arg-types head) -> (:wat::core::Vector :- [wat::WatAST])`
 ///
 /// Arc 201 slice 5. Direct sibling of `eval_extract_arg_names` (arc 143 slice 3).
 /// Given a signature HolonAST (the shape `signature-of-defn` and `signature-of-fn`
@@ -14783,7 +14783,7 @@ fn eval_extract_arg_names(
 /// `holon_type_ast_to_wat_type_form` — a structural mirror of
 /// [`crate::edn_shim::type_expr_to_clojure_form`] operating on the HolonAST
 /// shapes `type_expr_to_ast` emits (rather than on `TypeExpr` directly), so
-/// parametric types (e.g. `Peer'<A,B>`) render to a decomposable
+/// parametric types (e.g. `(Peer' :- [A B])`) render to a decomposable
 /// `(wat.kernel/Peer' probe.A probe.B)` list instead of a mangled keyword.
 ///
 /// Algorithm:
@@ -14864,7 +14864,7 @@ fn eval_extract_arg_types(
     Ok(Value::Vec(Arc::new(types)))
 }
 
-/// `(:wat::runtime::field-names-of type-kw) -> :wat::core::Vector<wat::core::Keyword>`
+/// `(:wat::runtime::field-names-of type-kw) -> (:wat::core::Vector :- [wat::core::Keyword])`
 ///
 /// Arc 170 Strike B — struct-field reflection, the type-direction sibling
 /// of `extract-arg-names` (which reflects a *callable's* argspec; this
@@ -14926,7 +14926,7 @@ fn eval_field_names_of(
     Ok(Value::Vec(Arc::new(names)))
 }
 
-/// `(:wat::runtime::field-types-of type-kw) -> :wat::core::Vector<wat::WatAST>`
+/// `(:wat::runtime::field-types-of type-kw) -> (:wat::core::Vector :- [wat::WatAST])`
 ///
 /// Arc 170 Strike B — direct sibling of `eval_field_names_of` above (same
 /// resolution: `type-kw` → runtime type registry → `AggregateDef`).
@@ -15075,7 +15075,7 @@ fn resolve_aggregate_def_for_reflection<'a>(
     }
 }
 
-/// `(:wat::holon::Bundle/children bundle) -> :wat::core::Vector<wat::holon::HolonAST>`
+/// `(:wat::holon::Bundle/children bundle) -> (:wat::core::Vector :- [wat::holon::HolonAST])`
 ///
 /// Arc 201 slice 2. General-purpose accessor on `HolonAST::Bundle`: returns
 /// the children sequence, each child re-wrapped as a `Value::holon__HolonAST`
@@ -15490,7 +15490,7 @@ fn walk_match_clause(
     }
 }
 
-/// `(:wat::core::forms f1 f2 ... fn)` → `:wat::core::Vector<wat::WatAST>`.
+/// `(:wat::core::forms f1 f2 ... fn)` → `(:wat::core::Vector :- [wat::WatAST])`.
 ///
 /// Variadic sibling of `quote`. Takes N unevaluated forms and returns
 /// a Vec of `:wat::WatAST` values — one per form, each captured as
@@ -15504,7 +15504,7 @@ fn walk_match_clause(
 /// program` macro expands directly to this.
 ///
 /// Like `quote`, this is a special form — arguments are NOT
-/// evaluated. The type checker returns `:wat::core::Vector<wat::WatAST>`
+/// evaluated. The type checker returns `(:wat::core::Vector :- [wat::WatAST])`
 /// unconditionally; see `check.rs::infer_list` for the handling.
 fn eval_forms(
     args: &[WatAST],
@@ -15783,7 +15783,7 @@ fn eval_positional_accessor(
         }
         // ∅ N/A: HashSet is unordered — no canonical "first". Stone 118.B4-iii — THE WALL:
         // Stream lands here too now (indexable()==false) — a lazy seq has no first/second/third;
-        // advance it with `:wat::stream::next`, whose `NextOutcome<T> = Item(value, rest) |
+        // advance it with `:wat::stream::next`, whose `(NextOutcome :- [T]) = Item(value, rest) |
         // Exhausted` is the only door a Stream yields through.
         Some(StreamContainer::Stream) => Err(RuntimeError::new(
             args[0].span().clone(),
@@ -16067,7 +16067,7 @@ fn eval_f64_reduce(
     Ok(Value::Option(Arc::new(Some(Value::f64(acc)))))
 }
 
-/// `(Some <expr>)` — tagged constructor of the built-in `:Option<T>`
+/// `(Some <expr>)` — tagged constructor of the built-in `(:Option :- [T])`
 /// enum (058-030). Reserved bare identifier; users cannot shadow it.
 /// Arity 1. Evaluates `expr` and wraps it in `Value::Option(Some(_))`.
 ///
@@ -16095,7 +16095,7 @@ fn eval_some_ctor(
     Ok(Value::Option(Arc::new(Some(v))))
 }
 
-/// `(Ok <expr>)` — tagged constructor for the built-in `:Result<T,E>`
+/// `(Ok <expr>)` — tagged constructor for the built-in `(:Result :- [T E])`
 /// enum. Reserved bare identifier. Arity 1. Evaluates `expr` and wraps
 /// in `Value::Result(Ok(_))`.
 fn eval_ok_ctor(
@@ -16119,7 +16119,7 @@ fn eval_ok_ctor(
     Ok(Value::Result(Arc::new(Ok(v))))
 }
 
-/// `(Err <expr>)` — tagged constructor for the built-in `:Result<T,E>`
+/// `(Err <expr>)` — tagged constructor for the built-in `(:Result :- [T E])`
 /// enum. Reserved bare identifier. Arity 1. Evaluates `expr` and wraps
 /// in `Value::Result(Err(_))`.
 fn eval_err_ctor(
@@ -16143,7 +16143,7 @@ fn eval_err_ctor(
     Ok(Value::Result(Arc::new(Err(v))))
 }
 
-/// `(:wat::core::Result/try <result-expr>)` — unwrap a `:Result<T,E>`
+/// `(:wat::core::Result/try <result-expr>)` — unwrap a `(:Result :- [T E])`
 /// to its inner `T`, or short-circuit the enclosing Result-returning
 /// function with `Err(e)`.
 ///
@@ -16210,7 +16210,7 @@ fn eval_try(
 }
 
 /// `(:wat::core::Option/try <option-expr>)` — Arc 109 slice 1j. The
-/// Option-side mirror of `Result/try`: unwrap a `:Option<T>` to its
+/// Option-side mirror of `Result/try`: unwrap a `(:Option :- [T])` to its
 /// inner `T`, or short-circuit the enclosing Option-returning
 /// function with `:None`.
 ///
@@ -16223,7 +16223,7 @@ fn eval_try(
 ///   `Value::Option(Arc::new(None))` return value.
 ///
 /// The type checker (see `crate::check::infer_option_try`) guarantees
-/// the enclosing function returns `:Option<_>`. The dispatcher
+/// the enclosing function returns `(:Option :- [_])`. The dispatcher
 /// assumes this invariant and does not re-verify at runtime.
 fn eval_option_try(
     op: &str,
@@ -16271,7 +16271,7 @@ fn eval_option_try(
 ///
 /// `args[0]` is the `->` symbol; `args[1]` is the declared arm-result
 /// type keyword `:T`; `args[2]` is the opt-expr (must evaluate to
-/// `:Option<T>`); `args[3]` is the msg-expr (must evaluate to
+/// `(:Option :- [T])`); `args[3]` is the msg-expr (must evaluate to
 /// `:String`). Type declared at HEAD position before any value
 /// producer — see `infer_option_expect` in check.rs for the
 /// rationale.
@@ -16948,7 +16948,7 @@ fn eval_struct_field(
 }
 
 /// `(:wat::core::match <scrutinee> <arm>...)` — pattern-match over
-/// enum values. MVP-scoped to `:Option<T>` (the only built-in enum);
+/// enum values. MVP-scoped to `(:Option :- [T])` (the only built-in enum);
 /// user-declared enums graduate in a later slice.
 ///
 /// Each arm is `(pattern body)`. Pattern forms:
@@ -17781,7 +17781,7 @@ fn eval_empty(
         // Stone 118.B4-iii — THE WALL: Stream lands here now (measurable()==false, and no early
         // realize left to intercept it first). A lazy seq's emptiness is decidable in one force,
         // but the wall closes the verb anyway — advance it with `:wat::stream::next`, whose
-        // `NextOutcome<T>::Exhausted` already answers exactly what `empty?` was asked.
+        // `(NextOutcome :- [T])::Exhausted` already answers exactly what `empty?` was asked.
         Some(StreamContainer::Stream) => Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: "Vector<T>, List<T>, PersistentVector<T>, HashSet<T>, Tuple, or WatAST — a lazy Stream<T> has no empty?; advance it with :wat::stream::next, whose NextOutcome<T>::Exhausted answers what empty? was asked",
@@ -17886,7 +17886,7 @@ fn eval_contains(
 
 /// `(:wat::core::conj <collection> <elem>) -> <collection>` — arc 237 Stone 237.7b-iii.
 ///
-/// Polymorphic type-preserving append/insert: ∀T. (coll<T>, T) -> coll<T>.
+/// Polymorphic type-preserving append/insert: ∀T. ((coll :- [T]), T) -> (coll :- [T]).
 /// Mirrors `eval_contains` in shape: arity-2, eval args, match Value variant.
 /// Delegates to the existing per-type inner helpers for correct semantics:
 /// - `Value::Vec(..)` → vector append (clone + push; functional, not mutating)
@@ -17956,9 +17956,9 @@ fn eval_conj(
 
 // ─── Arc 237 Stone 237.7b-iv — :wat::core::get ──────────────────────────────
 
-/// `(:wat::core::get <collection> <index-or-key>) -> Option<element>` — arc 237 Stone 237.7b-iv.
+/// `(:wat::core::get <collection> <index-or-key>) -> (Option :- [element])` — arc 237 Stone 237.7b-iv.
 ///
-/// Polymorphic indexed/keyed lookup: ∀T. (coll, idx-or-key) -> Option<element>.
+/// Polymorphic indexed/keyed lookup: ∀T. (coll, idx-or-key) -> (Option :- [element]).
 /// Mirrors `eval_conj` in shape: arity-2, eval args, match Value variant.
 /// Delegates to the existing per-type inner helpers for correct semantics:
 /// - `Value::Vec(..)` → `vector_get_inner` (index i64 → Option<T>; inner already wraps in Value::Option)
@@ -19896,7 +19896,7 @@ fn eval_holon_from_holon(
 ) -> Result<TrackedValue, EvalBreak> {
     const OP: &str = ":wat::holon::from-holon";
     // Accepts 1 arg (no type hint) or 3 args with optional `-> :T` annotation
-    // for disambiguating empty Bundle: `(from-holon h -> :wat::core::HashMap<K,V>)`.
+    // for disambiguating empty Bundle: `(from-holon h -> (:wat::core::HashMap :- [K V]))`.
     // Arc 216 Stone 3 — the 3-arg form is the only way to signal "empty Bundle = empty HashMap".
     if args.len() != 1 && args.len() != 3 {
         return Err(RuntimeError::new(
@@ -20744,7 +20744,7 @@ fn eval_term_template(
     Ok(Value::holon__HolonAST(Arc::new(h.template())))
 }
 
-/// `(:wat::holon::term::slots form)` → `:wat::core::Vector<f64>` (arc 073). Pre-order
+/// `(:wat::holon::term::slots form)` → `(:wat::core::Vector :- [f64])` (arc 073). Pre-order
 /// list of every Thermometer value in the form. Empty for forms with
 /// no Thermometer leaves. Parallel in length and order to
 /// `:wat::holon::term::ranges`. The `TermStore::get` path uses these
@@ -20785,7 +20785,7 @@ fn eval_term_slots(
     Ok(Value::Vec(Arc::new(items)))
 }
 
-/// `(:wat::holon::term::ranges form)` → `:wat::core::Vector<(f64,f64)>` (arc 073).
+/// `(:wat::holon::term::ranges form)` → `(:wat::core::Vector :- [(f64,f64)])` (arc 073).
 /// Pre-order list of every Thermometer (min, max) pair in the form,
 /// parallel to `term::slots`. Used by `TermStore::get` to compute
 /// the per-slot tolerance window: `|q − stored| / (max − min)` against
@@ -21125,7 +21125,7 @@ fn eval_hologram_put(
     Ok(Value::Unit)
 }
 
-/// `(:wat::holon::Hologram/get store probe)` -> `:Option<HolonAST>`.
+/// `(:wat::holon::Hologram/get store probe)` -> `(:Option :- [HolonAST])`.
 /// Filtered-argmax over the bracket-pair determined by `probe`'s
 /// structure. Therm probes scan two adjacent slots (floor + ceil);
 /// non-therm probes scan slot 0. The construction-time filter
@@ -21174,7 +21174,7 @@ fn eval_hologram_get(
         None => Ok(Value::Option(Arc::new(None))),
     }
 }
-/// `(:wat::holon::Hologram/find store probe)` -> `:Option<:wat::holon::Match>`.
+/// `(:wat::holon::Hologram/find store probe)` -> `(:Option :- [:wat::holon::Match])`.
 /// Same lookup as `Hologram/get` but returns a `:wat::holon::Match {key value}`
 /// record carrying both the matched key AND the val — `HolographicLru::get`
 /// composes this to bump the matched key's LRU recency, which it cannot do
@@ -21240,7 +21240,7 @@ fn match_names() -> Arc<Vec<String>> {
 }
 
 /// `(:wat::holon::Hologram/remove store key)` ->
-/// `:Option<wat::holon::HolonAST>`. Drop the entry whose key matches
+/// `(:Option :- [wat::holon::HolonAST])`. Drop the entry whose key matches
 /// `key` exactly. Returns the previously-stored val if present, else
 /// None. HologramCache calls this on LRU eviction to keep the inner
 /// Hologram in sync.
@@ -21591,7 +21591,7 @@ fn eval_algebra_bind(
 /// `(:wat::holon::Bundle <list-of-holons>)` — superposition, with
 /// Kanerva-capacity enforcement per the committed capacity-mode.
 ///
-/// Return type is `:Result<:wat::holon::HolonAST, :wat::holon::CapacityExceeded>`.
+/// Return type is `(:Result :- [:wat::holon::HolonAST :wat::holon::CapacityExceeded])`.
 /// Always. Under every mode. Callers are forced by the type system to
 /// acknowledge the possibility of failure — either matching on the
 /// Result explicitly or propagating with `:wat::core::try`.
@@ -23769,9 +23769,9 @@ pub(crate) fn dot_outcome_from_values(
 /// property holds.
 ///
 /// **Composition with `wat-lru` for bidirectional caches.** The i64
-/// key plugs into `:rust::lru::LruCache<i64,V>` directly — values can
+/// key plugs into `(:rust::lru::LruCache :- [i64 V])` directly — values can
 /// be `:wat::holon::HolonAST` (one-AST-per-key, most-recent-wins) or
-/// `:wat::core::Vector<wat::holon::HolonAST>` (full bucket). Cosine-rank within the
+/// `(:wat::core::Vector :- [wat::holon::HolonAST])` (full bucket). Cosine-rank within the
 /// bucket if multiple matches.
 fn eval_algebra_simhash(
     args: &[WatAST],
@@ -23897,7 +23897,7 @@ fn eval_holon_encode(
 // the receiver's responsibility to know. V + K + F three-factor
 // verification UX.
 
-/// `(:wat::holon::vector-bytes vec)` → `:wat::core::Vector<u8>` (arc 061).
+/// `(:wat::holon::vector-bytes vec)` → `(:wat::core::Vector :- [u8])` (arc 061).
 /// Serialize a Vector to a portable byte buffer. Deterministic:
 /// same Vector → same bytes.
 fn eval_holon_vector_bytes(
@@ -24030,7 +24030,7 @@ fn vector_decode_outcome_invalid_cell(at: i64) -> Value {
 
 /// `(:wat::holon::bytes-vector bs)` → `:wat::holon::VectorDecodeOutcome`
 /// (arc 061; arc 278 the dimension-heresy strike upgraded the bare
-/// `:Option<Vector>` to a matchable outcome — see `VectorDecodeOutcome`'s
+/// `(:Option :- [Vector])` to a matchable outcome — see `VectorDecodeOutcome`'s
 /// registration in `types.rs` for the full "why five variants" reasoning).
 /// Deserialize a byte buffer back into a Vector. Returns a failure variant on:
 ///   - input shorter than 4-byte dim header → `TruncatedHeader`
@@ -24356,7 +24356,7 @@ fn eval_holon_vector_bind(
 }
 
 /// `(:wat::holon::vector-bundle vs) -> :wat::holon::CombineOutcome` —
-/// superposition over a `:wat::core::Vector<Vector>`. Arc 053; arc 278 the
+/// superposition over a `(:wat::core::Vector :- [Vector])`. Arc 053; arc 278 the
 /// dimension-heresy strike (see `vector-bind` above for the raise-to-outcome
 /// rationale).
 ///
@@ -24545,7 +24545,7 @@ fn require_subspace(
     }
 }
 
-/// Arc 053 — wrap a `Vec<f64>` into a wat-tier `:wat::core::Vector<f64>` Value.
+/// Arc 053 — wrap a `Vec<f64>` into a wat-tier `(:wat::core::Vector :- [f64])` Value.
 fn vec_f64_to_value(xs: Vec<f64>) -> Value {
     Value::Vec(Arc::new(xs.into_iter().map(Value::f64).collect()))
 }
@@ -25152,7 +25152,7 @@ fn eval_reckoner_resolve(
     Ok(Value::Unit)
 }
 
-/// `(:wat::holon::Reckoner/curve r) -> :Option<(f64,f64)>`
+/// `(:wat::holon::Reckoner/curve r) -> (:Option :- [(f64,f64)])`
 fn eval_reckoner_curve(
     args: &[WatAST],
     list_span: &Span,
@@ -25187,7 +25187,7 @@ fn eval_reckoner_curve(
     })
 }
 
-/// `(:wat::holon::Reckoner/labels r) -> :wat::core::Vector<i64>`
+/// `(:wat::holon::Reckoner/labels r) -> (:wat::core::Vector :- [i64])`
 fn eval_reckoner_labels(
     args: &[WatAST],
     list_span: &Span,
@@ -25488,7 +25488,7 @@ fn eval_library_add(
     Ok(Value::Unit)
 }
 
-/// `(:wat::holon::EngramLibrary/match-vec lib probe top-k prefilter-k) -> :wat::core::Vector<(String,f64)>`
+/// `(:wat::holon::EngramLibrary/match-vec lib probe top-k prefilter-k) -> (:wat::core::Vector :- [(String,f64)])`
 fn eval_library_match_vec(
     args: &[WatAST],
     list_span: &Span,
@@ -26125,7 +26125,7 @@ fn eval_program_env(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBrea
 }
 
 /// `(:wat::program::self-peer :S :R)` — returns the calling thread's self-peer
-/// (the spawned process child's owner-link as a unified `Peer'<S,R>`).
+/// (the spawned process child's owner-link as a unified `(Peer' :- [S R])`).
 ///
 /// Arc 209 C0b.3a-0 / C0b.2e-i-b. The self-peer is installed into the `SELF_PEER`
 /// thread-local by `install_self_peer` at the child-only seam
@@ -26202,7 +26202,7 @@ fn eval_program_cpu_count(args: &[WatAST], list_span: &Span) -> Result<Value, Ev
 }
 
 /// `(:wat::runtime::argv)` — nullary; returns the process-wide argv
-/// ambient as `:wat::core::Vector<wat::core::String>`.
+/// ambient as `(:wat::core::Vector :- [wat::core::String])`.
 ///
 /// Arc 170 slice 1e (REALIZATIONS pass 7). The four-arg `:user::main`
 /// shape (stdin/stdout/stderr/argv) retires; argv moves to ambient.
@@ -26418,7 +26418,7 @@ fn eval_config_global_seed(
 /// `(:wat::kernel::listener host …)` — Arc 209 Stone C0b.1 / C0b.2c / C0b.2d.
 ///
 /// Thread tier (C0b.1): `(listener' (thread) :S :R)` — mints a crossbeam rendezvous
-/// channel and returns `Tuple[Listener'<S,R>, Address'<S,R>]` (raw Receiver / raw Sender).
+/// channel and returns `Tuple[(Listener' :- [S R]), (Address' :- [S R])]` (raw Receiver / raw Sender).
 /// 3 args: host, :S, :R.
 ///
 /// Process tier (C0b.2d → arc 272): `(listener' (process) :S :R)` — autobinds an abstract-namespace
@@ -26457,7 +26457,7 @@ pub(crate) fn eval_listener_prime(
     if is_process {
         // Arc 272 — 3-arg AUTOBIND form `(listener' (process) :S :R)`: mint a kernel-unique,
         // exclusive-bind abstract address (kernel-minted, not a chosen name → no collision, no
-        // squatting) and return `Bound<S,R>{listener, address}`, MIRRORING the thread tier.
+        // squatting) and return `(Bound :- [S R]){listener, address}`, MIRRORING the thread tier.
         // The address is the capability `connect'` dials. (The 2-arg `(host addr)` named form
         // below is LEGACY — annihilated in arc 272 step 5 with the rest of the name-discovery
         // stack.) The SO_PEERCRED uid+pid checks are the security; the autobind name is the
@@ -26673,7 +26673,7 @@ pub(crate) fn eval_connect_prime(
 ///
 /// The connect-request is a `Value::Tuple` `(req_rx: Receiver, resp_tx: Sender)`
 /// minted by `connect'` and uniquely owned at the point of receipt:
-/// `Arc::try_unwrap` succeeds.  Returns the server `Peer'<R,S>` opaque.
+/// `Arc::try_unwrap` succeeds.  Returns the server `(Peer' :- [R S])` opaque.
 fn wrap_connect_request(cr: Value, span: &Span) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::kernel::accept"; // same context for error messages
                                              // Unpack the connect-request tuple: (req_rx: Receiver, resp_tx: Sender).
@@ -26776,7 +26776,7 @@ fn wrap_connect_request(cr: Value, span: &Span) -> Result<Value, EvalBreak> {
             .into());
         }
     };
-    // Wrap the server Peer'<R,S> end on THIS thread (custody holds).
+    // Wrap the server (Peer' :- [R S]) end on THIS thread (custody holds).
     use crate::kernel::peer::Peer;
     use crate::kernel::spawn::PEER_TYPE_PATH;
     use crate::rust_deps::custodia::ThreadOwnedCell;
@@ -26793,13 +26793,13 @@ fn wrap_connect_request(cr: Value, span: &Span) -> Result<Value, EvalBreak> {
 ///
 /// Thread tier (C0b.1): block on the rendezvous `Listener'` (a raw
 /// `Receiver`) until a connect-request arrives; unpack the server's raw
-/// halves `(req_rx, resp_tx)`; wrap the server `Peer'<R,S>` end on THIS
+/// halves `(req_rx, resp_tx)`; wrap the server `(Peer' :- [R S])` end on THIS
 /// thread (custody holds).  Returns the server `Peer'`.
 ///
 /// Process tier (C0b.2c): downcast the `SocketListener'` opaque to
 /// `&UnixListener`, call `.accept()` (blocks until a connection — the
-/// honest wire-wait), wrap the accepted stream as a unified `Peer'<R,S>`.
-/// Returns `Peer'<R,S>`.
+/// honest wire-wait), wrap the accepted stream as a unified `(Peer' :- [R S])`.
+/// Returns `(Peer' :- [R S])`.
 pub(crate) fn eval_accept_prime(
     args: &[WatAST],
     list_span: &Span,
@@ -27062,7 +27062,7 @@ fn eval_math_pi(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBreak> {
     Ok(Value::f64(std::f64::consts::PI))
 }
 
-/// `(:wat::std::stat::mean :wat::core::Vector<f64>) -> :wat::core::Option<f64>`. Population
+/// `(:wat::std::stat::mean (:wat::core::Vector :- [f64])) -> (:wat::core::Option :- [f64])`. Population
 /// mean. None on empty input — matches `f64::min-of`/`max-of`'s
 /// reduction-empty convention.
 ///
@@ -27114,7 +27114,7 @@ fn eval_stat_mean(
     )))))
 }
 
-/// `(:wat::std::stat::variance :wat::core::Vector<f64>) -> :wat::core::Option<f64>`. Population
+/// `(:wat::std::stat::variance (:wat::core::Vector :- [f64])) -> (:wat::core::Option :- [f64])`. Population
 /// variance (divides by n). Matches numpy default `ddof=0`. None on
 /// empty input. Single-point input returns `Some(0.0)` (no spread).
 fn eval_stat_variance(
@@ -27169,7 +27169,7 @@ fn eval_stat_variance(
     Ok(Value::Option(Arc::new(Some(Value::f64(sq / n)))))
 }
 
-/// `(:wat::std::stat::stddev :wat::core::Vector<f64>) -> :wat::core::Option<f64>`. Square
+/// `(:wat::std::stat::stddev (:wat::core::Vector :- [f64])) -> (:wat::core::Option :- [f64])`. Square
 /// root of population variance.
 fn eval_stat_stddev(
     args: &[WatAST],
@@ -27740,7 +27740,7 @@ pub(crate) fn eval_failure_message(
     }
 }
 
-/// `(:wat::kernel::Failure/location f) -> :Option<:wat::kernel::Location>` — arc 278
+/// `(:wat::kernel::Failure/location f) -> (:Option :- [:wat::kernel::Location])` — arc 278
 /// the string-wrap annihilation. DERIVED accessor: reads `error.location` (a
 /// mandatory `:wat::kernel::Location` on the error) and wraps it in `Some` to keep
 /// the accessor's historic `Option<Location>` return shape.
@@ -28231,7 +28231,7 @@ fn message_only_failure(message: String) -> Value {
 }
 
 /// Arc 278 the recv'-outcome wall — the type path of the matchable `recv'` outcome
-/// enum (`:wat::kernel::RecvOutcome<O>`, registered in `types.rs`).
+/// enum (`(:wat::kernel::RecvOutcome :- [O])`, registered in `types.rs`).
 const RECV_OUTCOME_TYPE: &str = ":wat::kernel::RecvOutcome";
 
 /// `RecvOutcome::Message [msg]` — a real message (the happy path).
@@ -28353,7 +28353,7 @@ fn recv_outcome_from_decoded(v: Value, types: Option<&crate::types::TypeEnv>) ->
 
 /// Arc 278 the send'-outcome wall — the type path of the matchable `send'` outcome
 /// enum (`:wat::kernel::SendOutcome`, registered in `types.rs`). Non-parametric —
-/// send' carries no received payload (unlike RecvOutcome<O>).
+/// send' carries no received payload (unlike (RecvOutcome :- [O])).
 const SEND_OUTCOME_TYPE: &str = ":wat::kernel::SendOutcome";
 
 /// `SendOutcome::Sent []` — delivered (the happy path).
@@ -28602,11 +28602,11 @@ fn signal_outcome_failed(reason: String) -> Value {
 }
 
 /// Arc 278 peer-lifecycle Strike 3 — the type path of `accept'`'s matchable outcome
-/// enum (`:wat::kernel::AcceptOutcome<R,S>`, registered in `types.rs`). PARAMETRIC +
-/// Impure, mirroring `RecvOutcome<O>` — `Accepted` holds a live `Peer'`.
+/// enum (`(:wat::kernel::AcceptOutcome :- [R S])`, registered in `types.rs`). PARAMETRIC +
+/// Impure, mirroring `(RecvOutcome :- [O])` — `Accepted` holds a live `Peer'`.
 const ACCEPT_OUTCOME_TYPE: &str = ":wat::kernel::AcceptOutcome";
 
-/// `AcceptOutcome::Accepted [peer <- Peer'<R,S>]` — an AUTHORIZED peer connected
+/// `AcceptOutcome::Accepted [peer <- (Peer' :- [R S])]` — an AUTHORIZED peer connected
 /// (the happy path). `peer_val` is the already-wrapped `PEER_TYPE_PATH` opaque.
 pub(crate) fn accept_outcome_accepted(peer_val: Value) -> Value {
     Value::Enum(Arc::new(EnumValue {
@@ -28643,12 +28643,12 @@ pub(crate) fn accept_outcome_failed(reason: String) -> Value {
 }
 
 /// Arc 278 peer-lifecycle Strike 4 (the LAST peer wall) — the type path of `connect'`'s
-/// matchable outcome enum (`:wat::kernel::ConnectOutcome<S,R>`, registered in `types.rs`).
-/// PARAMETRIC + Impure, the exact TWIN of `AcceptOutcome<R,S>` — `Connected` holds a live
-/// `Peer'` (note the mirrored arg order `<S,R>`: connect returns the client end).
+/// matchable outcome enum (`(:wat::kernel::ConnectOutcome :- [S R])`, registered in `types.rs`).
+/// PARAMETRIC + Impure, the exact TWIN of `(AcceptOutcome :- [R S])` — `Connected` holds a live
+/// `Peer'` (note the mirrored arg order `[S R]`: connect returns the client end).
 const CONNECT_OUTCOME_TYPE: &str = ":wat::kernel::ConnectOutcome";
 
-/// `ConnectOutcome::Connected [peer <- Peer'<S,R>]` — dialed + admitted (the happy path).
+/// `ConnectOutcome::Connected [peer <- (Peer' :- [S R])]` — dialed + admitted (the happy path).
 /// `peer_val` is the already-wrapped `PEER_TYPE_PATH` opaque.
 pub(crate) fn connect_outcome_connected(peer_val: Value) -> Value {
     Value::Enum(Arc::new(EnumValue {
@@ -28860,7 +28860,7 @@ fn eval_form_ast(
     })())
 }
 
-/// Arc 170 — the type path of `:wat::eval::FormOutcome<T>` (registered in `types.rs`).
+/// Arc 170 — the type path of `(:wat::eval::FormOutcome :- [T])` (registered in `types.rs`).
 const FORM_OUTCOME_TYPE: &str = ":wat::eval::FormOutcome";
 
 fn form_outcome(variant: &str, fields: Vec<Value>) -> Value {
@@ -29366,7 +29366,7 @@ fn eval_form_step(
 /// EvalError>`. Lifts the walker pattern that proofs 015/016/017/018
 /// each reimplemented into a single substrate primitive. The
 /// visitor is called once per coordinate with `(acc, current-form,
-/// step-result)` and returns a `WalkStep<A>`:
+/// step-result)` and returns a `(WalkStep :- [A])`:
 ///
 ///   - `Continue(acc')` — keep walking. On `StepNext` the loop
 ///     recurses on the next form; on either terminal flavor the
@@ -29450,7 +29450,7 @@ fn eval_walk(
                 sym,
                 list_span.clone(),
             )?;
-            // Visitor must return :wat::eval::WalkStep<A> as a
+            // Visitor must return (:wat::eval::WalkStep :- [A]) as a
             // tagged-enum value. Read the variant + fields.
             let (variant_name, fields) = match walkstep_value {
                 Value::Enum(ev) => {
@@ -31504,7 +31504,7 @@ pub(crate) fn eval_peer_send_prime(
 /// `(:wat::kernel::try-send peer payload)` — Arc 278 Stone 1a / Phase 3a
 /// (`BRIEF-send-wall-3a-try-send-outcome.md`).
 ///
-/// Best-effort, NON-BLOCKING twin of `send'` for the unified `Peer'<S,R>`. Same
+/// Best-effort, NON-BLOCKING twin of `send'` for the unified `(Peer' :- [S R])`. Same
 /// type contract for the payload (unifies with the peer's I) but the write NEVER
 /// blocks: a full kernel buffer (peer not draining) or a gone peer is a
 /// **silent skip** at the transport level — but unlike Phase-1 `send'`, the
@@ -31794,7 +31794,7 @@ pub(crate) fn eval_peer_recv_prime(
             let result = cell
                 .with_ref(OP, |opt_peer| -> Result<Value, EvalBreak> {
                     // Arc 278 the recv'-outcome wall — recv' returns a matchable
-                    // `RecvOutcome<O>`, never raises on close/crash (a raise unwinds
+                    // `(RecvOutcome :- [O])`, never raises on close/crash (a raise unwinds
                     // past the reader = mute). Ok → Message; Disconnected (clean EOF,
                     // incl. use-after-close: the peer is gone) → Closed; Crashed(reason)
                     // → Lost(<structured Failure carrying the crash reason>).
@@ -31835,7 +31835,7 @@ pub(crate) fn eval_peer_recv_prime(
                 list_span.clone(),
             )?;
             // Arc 278 the recv'-outcome wall — the process arm returns a matchable
-            // `RecvOutcome<O>`. The EDN decode moves INSIDE the closure so a decode
+            // `(RecvOutcome :- [O])`. The EDN decode moves INSIDE the closure so a decode
             // failure surfaces as `Lost(<Failure>)` (abnormal loss carrying its reason),
             // never a raise. Ok+decode → Message; Crashed(reason) → Lost; Disconnected
             // (clean EOF / use-after-close) → Closed. Timer stays a static-usage raise.
@@ -31900,7 +31900,7 @@ pub(crate) fn eval_peer_recv_prime(
                     list_span.clone(),
                 )?;
             // Arc 278 the recv'-outcome wall — the unified peer arm returns a matchable
-            // `RecvOutcome<O>`. Ok+decode → Message (or Lost if the decoded value is a
+            // `(RecvOutcome :- [O])`. Ok+decode → Message (or Lost if the decoded value is a
             // reserved `Reply::Failed`, via recv_outcome_from_decoded); a raw wire
             // Failed(reason) or an abnormal far-side crash (PeerCrashed, whose to_string
             // IS the reason-free administrative sentinel a CLIENT gets) → Lost; a clean
@@ -32307,16 +32307,16 @@ pub(crate) fn eval_signal(
 /// `(:wat::kernel::peer-process peer)` — DESIGN-STONE-a-service-that-measures-
 /// itself.md A1.
 ///
-/// PURE PROJECTION, un-erasing the concrete locus a `Peer<I,O>`-typed value
+/// PURE PROJECTION, un-erasing the concrete locus a `(Peer :- [I O])`-typed value
 /// already holds at runtime even though the static type widened it to the
 /// abstract `Peer` — exactly the situation a defservice `Handle`'s lineage
-/// `handle` field is in (`wat/spawn.wat:265` `Launched.handle <- Peer<Sh,Lu>`,
+/// `handle` field is in (`wat/spawn.wat:265` `Launched.handle <- (Peer :- [Sh Lu])`,
 /// deliberate so `stop` stays locus-agnostic). `spawn-program` returns the
-/// concrete `Process<I,O>`/`Thread<I,O>`; the RustOpaque type-path tag never
+/// concrete `(Process :- [I O])`/`(Thread :- [I O])`; the RustOpaque type-path tag never
 /// lies about which one it is, regardless of what the checker widened the
 /// static type to. So:
 /// - a **process** peer → `Some` the SAME peer value, now nameable
-///   `Process<I,O>` — good enough to hand straight to `:wat::kernel::signal`.
+///   `(Process :- [I O])` — good enough to hand straight to `:wat::kernel::signal`.
 /// - a **thread** peer → `None` — a thread has no process to signal.
 ///
 /// Same shape as `eval_peer_pid` (arc 170 capability circuit stone 2): a
@@ -33208,7 +33208,7 @@ pub(crate) fn eval_peer_select_prime(
 //
 // 3-arg service-multiplexer form: multiplexes THREE inputs — the **self-peer**
 // (owner/supervisor link → `:Shutdown`), the **listener** (new connections),
-// and the **connected client `Peer'`s** (requests) — returning a `ServiceEvent<I,O>`.
+// and the **connected client `Peer'`s** (requests) — returning a `(ServiceEvent :- [I O])`.
 //
 // Registration order (= Select index):
 //   0 = self-peer `.rx`  (= `input_rx`; wakes when owner drops the handle via RAII drain)
@@ -33230,7 +33230,7 @@ pub(crate) fn eval_peer_select_prime(
 /// Implement `(:wat::kernel::after peer-kind duration msg)` — arc 292 L3 timer peer.
 ///
 /// arg0 is a `:wat::program::PeerKind` enum value (`:thread` or `:process`), selecting
-/// the tier for the one-shot timer. arc 278 Stone 1: returns a UNIFIED `Peer'<nil, O>`
+/// the tier for the one-shot timer. arc 278 Stone 1: returns a UNIFIED `(Peer' :- [nil O])`
 /// value (`PEER_TYPE_PATH` opaque RustOpaque) — a real peer whose recv fires the `msg`
 /// once, then EOFs — so it drops into `poll'`/`select'` by construction:
 ///   - `:thread` → crossbeam `after`-backed unified peer (futex, no background thread).
@@ -33335,8 +33335,8 @@ pub(crate) fn eval_kernel_after(
     use crate::rust_deps::marshal::make_rust_opaque;
 
     // arc 278 Stone 1 — the timer is built in the CORRECT location: a UNIFIED
-    // `Peer'<nil, O>` (`PEER_TYPE_PATH`), NOT a tier-specific `Thread'`/`Process'`
-    // `Timer'<O>`. A timer is a real peer whose recv fires the `msg` once, then
+    // `(Peer' :- [nil O])` (`PEER_TYPE_PATH`), NOT a tier-specific `Thread'`/`Process'`
+    // `(Timer' :- [O])`. A timer is a real peer whose recv fires the `msg` once, then
     // EOFs — so it drops into `poll'` (and `select'`) BY CONSTRUCTION, exactly
     // like an accepted connection (`Listener::accept_as_value`). The tier is still
     // chosen by `peer-kind`, but both tiers now yield the same `PEER_TYPE_PATH`
@@ -33502,7 +33502,7 @@ pub(crate) fn eval_poll_prime(
     const SELECT_EVENT_TYPE: &str = ":wat::spawn::ServiceEvent";
 
     // ── arg 0: self-peer → PEER_TYPE_PATH opaque ──────────────────────────────
-    // The self-peer is the spawned worker's own Peer'<O,I> (tx=output_tx, rx=input_rx).
+    // The self-peer is the spawned worker's own (Peer' :- [O I]) (tx=output_tx, rx=input_rx).
     // We only need its .rx (= input_rx); watching it makes the RAII drain the wake.
     // Arc 209 C0b.2e-i-b: Peer is now non-generic (boxed); recover the concrete
     // &thread::Receiver<Value> via as_any (i-a foundation, shipped aac27fb5).
@@ -33770,7 +33770,7 @@ pub(crate) fn eval_poll_prime(
                             ))
                         })?;
                         let peer_value = wrap_connect_request(cr, list_span)?;
-                        // ServiceEvent::Connection [peer <- Peer'<I,O>]
+                        // ServiceEvent::Connection [peer <- (Peer' :- [I O])]
                         Value::Enum(Arc::new(EnumValue {
                             type_path: SELECT_EVENT_TYPE.into(),
                             variant_name: "Connection".into(),
@@ -34088,7 +34088,7 @@ pub(crate) fn eval_poll_prime(
                                         )))),
                                     )
                                 };
-                                // ServiceEvent::Connection [peer <- Peer'<I,O>]
+                                // ServiceEvent::Connection [peer <- (Peer' :- [I O])]
                                 break Value::Enum(Arc::new(EnumValue {
                                     type_path: SELECT_EVENT_TYPE.into(),
                                     variant_name: "Connection".into(),
@@ -39113,7 +39113,7 @@ mod tests {
     //
     // Fold over the eval-step! chain. The walker visits every
     // coordinate exactly once with `(acc, form, step-result)` and
-    // dispatches based on the WalkStep<A> the visitor returns.
+    // dispatches based on the (WalkStep :- [A]) the visitor returns.
 
     /// Wat program prelude defining a `count-visits` visitor that
     /// always returns Continue and increments the i64 accumulator.

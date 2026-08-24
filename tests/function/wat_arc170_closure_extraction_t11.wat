@@ -1,4 +1,4 @@
-;; T11: recursive struct Tree (children is Vector<my::Tree>) + root-value.
+;; T11: recursive struct Tree (children is (Vector :- [my::Tree])) + root-value.
 ;; Type must appear exactly once in prologue after extraction.
 (:wat::core::defstruct :my::Tree
   [value    <- :wat::core::i64

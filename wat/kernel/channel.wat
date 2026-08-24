@@ -7,21 +7,21 @@
 ;; reaches for — without forcing each caller to spell out the long
 ;; rust:: paths every time.
 ;;
-;;   Sender<T>      — single sender end of a substrate channel
-;;   Receiver<T>    — single receiver end of a substrate channel
-;;   Channel<T>     — the `(Sender<T>, Receiver<T>)` pair type
+;;   (Sender :- [T])      — single sender end of a substrate channel
+;;   (Receiver :- [T])    — single receiver end of a substrate channel
+;;   (Channel :- [T])     — the `((Sender :- [T]), (Receiver :- [T]))` pair type
 ;;
 ;; Renamed from QueueSender / QueueReceiver / QueuePair (and the
 ;; matching `make-*-queue` verbs) per arc 109 slice K.kernel-channel
 ;; (gaze: "Queue" leaked crossbeam's data-structure name; the
 ;; canonical Channel/Sender/Receiver vocabulary is the substrate's
 ;; honest naming).
-;;   Chosen<T>         — what `:wat::kernel::select` returns
-;;                       (idx, wat::core::Result<wat::core::Option<T>, ThreadDiedError>) per arc 111
+;;   (Chosen :- [T])   — what `:wat::kernel::select` returns
+;;                       (idx, (wat::core::Result :- [(wat::core::Option :- [T]) ThreadDiedError])) per arc 111
 ;;                       — which receiver fired, and what it produced.
-;;   CommResult<T>     — what `recv` / `try-recv` return
-;;                       (and the inner shape of `send`'s :CommResult<()>)
-;;                       wat::core::Result<wat::core::Option<T>, ThreadDiedError> per arc 111:
+;;   (CommResult :- [T]) — what `recv` / `try-recv` return
+;;                       (and the inner shape of `send`'s (:CommResult :- [()]))
+;;                       (wat::core::Result :- [(wat::core::Option :- [T]) ThreadDiedError]) per arc 111:
 ;;                       Ok(Some v) — value flowed; Ok(:None) — clean
 ;;                       shutdown (every sender dropped via scope);
 ;;                       Err(ThreadDied) — sender thread panicked.
@@ -48,13 +48,13 @@
 (:wat::core::typealias :wat::kernel::Channel :- [T]
   (:wat::core::Tuple :- [(:wat::kernel::Sender :- [T]) (:wat::kernel::Receiver :- [T])]))
 
-;; Arc 113 — Err arm widened to a wat::core::Vector<ThreadDiedError> so cascades
+;; Arc 113 — Err arm widened to a (wat::core::Vector :- [ThreadDiedError]) so cascades
 ;; carry the chain. Head = the immediate peer that died; tail =
 ;; whatever killed it, transitively. (:wat::core::first chain)
 ;; recovers the head when consumers don't care about the trail.
 ;;
 ;; The named-chain typealiases below let consumers spell the
-;; cascade type without re-typing `wat::core::Vector<wat::kernel::*DiedError>`
+;; cascade type without re-typing `(wat::core::Vector :- [wat::kernel::*DiedError])`
 ;; at every binding site. `ProcessPanics` is the cross-fork
 ;; shape (the element type ProcessDiedError matches what
 ;; spawn-process's substrate emits in its

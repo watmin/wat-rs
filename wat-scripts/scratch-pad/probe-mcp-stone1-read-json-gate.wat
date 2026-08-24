@@ -15,10 +15,10 @@
         (:wat::test::assert-true false)))
 
     ;; 2 — CRUX-1: is a nested field readable from wat? `ReadJsonOutcome` is PARAMETRIC
-    ;; (`ReadJsonOutcome<T>`, corrected from an initial pass that fixed the payload at the
+    ;; (`(ReadJsonOutcome :- [T])`, corrected from an initial pass that fixed the payload at the
     ;; bare `:wat::core::Value` — the universal top, produce-only: UP is free, DOWN is
     ;; checked, so nothing could ever read a field back out of it). With `T` flowing from
-    ;; the caller's use, `m` binds at a real `HashMap<K,V>` and the ordinary
+    ;; the caller's use, `m` binds at a real `(HashMap :- [K V])` and the ordinary
     ;; `:wat::core::HashMap/get` accessor applies directly — no destructure sugar needed.
     (:wat::core::match (:wat::edn::read-json "{\"edn\":\"42\"}")
       ((:wat::edn::ReadJsonOutcome::Value m)

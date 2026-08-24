@@ -181,7 +181,7 @@
 
 ;; ── the inserted helper's source text (only the namespace varies) ──────────────────────────────
 
-;; concat-all — String/concat is 2-arg; fold a Vector<String> of parts left-to-right instead of
+;; concat-all — String/concat is 2-arg; fold a (Vector :- [String]) of parts left-to-right instead of
 ;; hand-nesting a nine-deep concat chain (error-prone and unreadable at that depth).
 (:wat::core::defn :user::concat-all [parts <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::String
   (:wat::core::foldl

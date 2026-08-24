@@ -1,7 +1,7 @@
 ;; wat-tests/cache/HolographicLru.wat — arc 278 Cache Stone 3 acceptance gate.
 ;;
 ;; `:wat::cache::HolographicLru` composes a `Hologram` (the similarity index, holds VALUES) with
-;; Stone 1's `Lru<HolonAST,nil>` (the recency/bound index, holds KEYS ONLY — the `nil` value slot
+;; Stone 1's `(Lru :- [HolonAST nil])` (the recency/bound index, holds KEYS ONLY — the `nil` value slot
 ;; means the LRU stores nothing of its own; the values live in the Hologram). The LRU exists so
 ;; the Hologram cannot grow without limit.
 ;;

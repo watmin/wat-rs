@@ -5,7 +5,7 @@
 ;;   ./scripts/query-db.sh /path/to/run.db ./wat-scripts/count-logs.wat
 ;;
 ;; Reads the .db path from stdin, opens read-only, streams the
-;; whole `log` table through Stream<Event::Log> + collect, prints
+;; whole `log` table through (Stream :- [Event::Log]) + collect, prints
 ;; the count to stdout. The simplest possible interrogation —
 ;; proves the shell-pipeable shape works end-to-end.
 

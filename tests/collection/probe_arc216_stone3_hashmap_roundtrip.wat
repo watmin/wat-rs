@@ -1,5 +1,5 @@
 ;; tests/collection/probe_arc216_stone3_hashmap_roundtrip.wat — co-located fixture.
-;; Arc 216 Stone 3 — HashMap<K,V> round-trip through HolonAST::Bundle of arbitrary-K Binds.
+;; Arc 216 Stone 3 — (HashMap :- [K V]) round-trip through HolonAST::Bundle of arbitrary-K Binds.
 
 ;; p1: forward round-trip length 2
 (:wat::core::defn :t::p1-forward-rt-len [] -> :wat::core::i64
@@ -49,7 +49,7 @@
      rv (:wat::holon::from-holon h -> :wat::core::HashMap)]
     (:wat::core::HashMap/length rv)))
 
-;; p4a: HashMap<keyword,i64> round-trip length 2
+;; p4a: (HashMap :- [keyword i64]) round-trip length 2
 (:wat::core::defn :t::p4a-kw-rt-len [] -> :wat::core::i64
   (:wat::core::let
     [m  (:wat::core::HashMap :wat::core::keyword :wat::core::i64 :a 1 :b 2)
@@ -57,7 +57,7 @@
      rv (:wat::holon::from-holon h)]
     (:wat::core::HashMap/length rv)))
 
-;; p4b: HashMap<String,i64> round-trip length 2
+;; p4b: (HashMap :- [String i64]) round-trip length 2
 (:wat::core::defn :t::p4b-str-rt-len [] -> :wat::core::i64
   (:wat::core::let
     [m  (:wat::core::HashMap :wat::core::String :wat::core::i64 "x" 10 "y" 20)
@@ -65,7 +65,7 @@
      rv (:wat::holon::from-holon h)]
     (:wat::core::HashMap/length rv)))
 
-;; p4c: HashMap<i64,String> round-trip length 2
+;; p4c: (HashMap :- [i64 String]) round-trip length 2
 (:wat::core::defn :t::p4c-i64k-rt-len [] -> :wat::core::i64
   (:wat::core::let
     [m  (:wat::core::HashMap :wat::core::i64 :wat::core::String 100 "hello" 200 "world")
@@ -73,7 +73,7 @@
      rv (:wat::holon::from-holon h)]
     (:wat::core::HashMap/length rv)))
 
-;; p4d: HashMap<bool,i64> round-trip length 2
+;; p4d: (HashMap :- [bool i64]) round-trip length 2
 (:wat::core::defn :t::p4d-bool-rt-len [] -> :wat::core::i64
   (:wat::core::let
     [m  (:wat::core::HashMap :wat::core::bool :wat::core::i64 true 1 false 0)
@@ -81,7 +81,7 @@
      rv (:wat::holon::from-holon h)]
     (:wat::core::HashMap/length rv)))
 
-;; p5a: HashMap<keyword,i64> V=i64 length 1
+;; p5a: (HashMap :- [keyword i64]) V=i64 length 1
 (:wat::core::defn :t::p5a-v-i64 [] -> :wat::core::i64
   (:wat::core::let
     [m  {:foo 42}
@@ -89,7 +89,7 @@
      rv (:wat::holon::from-holon h)]
     (:wat::core::HashMap/length rv)))
 
-;; p5b: HashMap<keyword,String> V=String length 2
+;; p5b: (HashMap :- [keyword String]) V=String length 2
 (:wat::core::defn :t::p5b-v-str [] -> :wat::core::i64
   (:wat::core::let
     [m  (:wat::core::HashMap :wat::core::keyword :wat::core::String :name "alice" :city "paris")
@@ -97,7 +97,7 @@
      rv (:wat::holon::from-holon h)]
     (:wat::core::HashMap/length rv)))
 
-;; p5c: HashMap<keyword,bool> V=bool length 2
+;; p5c: (HashMap :- [keyword bool]) V=bool length 2
 (:wat::core::defn :t::p5c-v-bool [] -> :wat::core::i64
   (:wat::core::let
     [m  (:wat::core::HashMap :wat::core::keyword :wat::core::bool :active true :disabled false)
@@ -105,7 +105,7 @@
      rv (:wat::holon::from-holon h)]
     (:wat::core::HashMap/length rv)))
 
-;; p5d: HashMap<keyword,keyword> V=keyword length 2
+;; p5d: (HashMap :- [keyword keyword]) V=keyword length 2
 (:wat::core::defn :t::p5d-v-kw [] -> :wat::core::i64
   (:wat::core::let
     [m  (:wat::core::HashMap :wat::core::keyword :wat::core::keyword :role :admin :mode :active)
@@ -113,7 +113,7 @@
      rv (:wat::holon::from-holon h)]
     (:wat::core::HashMap/length rv)))
 
-;; p6a: HashMap<i64,String> round-trip length 2
+;; p6a: (HashMap :- [i64 String]) round-trip length 2
 (:wat::core::defn :t::p6a-i64k-rt-len [] -> :wat::core::i64
   (:wat::core::let
     [m  (:wat::core::HashMap :wat::core::i64 :wat::core::String 100 "hello" 200 "world")
@@ -121,7 +121,7 @@
      rv (:wat::holon::from-holon h)]
     (:wat::core::HashMap/length rv)))
 
-;; p6b: HashMap<i64,String> round-trip contains-key? 100
+;; p6b: (HashMap :- [i64 String]) round-trip contains-key? 100
 (:wat::core::defn :t::p6b-i64k-rt-contains [] -> :wat::core::bool
   (:wat::core::let
     [m  (:wat::core::HashMap :wat::core::i64 :wat::core::String 100 "hello" 200 "world")
@@ -147,7 +147,7 @@
      rv    (:wat::holon::from-holon h)]
     (:wat::core::HashMap/length rv)))
 
-;; p8a: HashMap<keyword,Vec<i64>> outer length 1
+;; p8a: (HashMap :- [keyword (Vec :- [i64])]) outer length 1
 (:wat::core::defn :t::p8a-hashmap-of-vec-len [] -> :wat::core::i64
   (:wat::core::let
     [v  (:wat::core::Vector :wat::core::i64 10 20 30)
@@ -156,7 +156,7 @@
      rv (:wat::holon::from-holon h)]
     (:wat::core::HashMap/length rv)))
 
-;; p8b: HashMap<keyword,Vec<i64>> arc 228 outer length 1
+;; p8b: (HashMap :- [keyword (Vec :- [i64])]) arc 228 outer length 1
 (:wat::core::defn :t::p8b-hashmap-of-vec-arc228 [] -> :wat::core::i64
   (:wat::core::let
     [v  (:wat::core::Vector :wat::core::i64 10 20 30)
@@ -165,7 +165,7 @@
      rv (:wat::holon::from-holon h)]
     (:wat::core::HashMap/length rv)))
 
-;; p9a: HashMap<keyword,HashSet<i64>> outer length 1
+;; p9a: (HashMap :- [keyword (HashSet :- [i64])]) outer length 1
 (:wat::core::defn :t::p9a-hashmap-of-set-len [] -> :wat::core::i64
   (:wat::core::let
     [s  (:wat::core::HashSet :wat::core::i64 1 2 3)
@@ -174,7 +174,7 @@
      rv (:wat::holon::from-holon h)]
     (:wat::core::HashMap/length rv)))
 
-;; p9b: HashMap<keyword,HashSet<i64>> arc 228 outer length 1
+;; p9b: (HashMap :- [keyword (HashSet :- [i64])]) arc 228 outer length 1
 (:wat::core::defn :t::p9b-hashmap-of-set-arc228 [] -> :wat::core::i64
   (:wat::core::let
     [s  (:wat::core::HashSet :wat::core::i64 1 2 3)

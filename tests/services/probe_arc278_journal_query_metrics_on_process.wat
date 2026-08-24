@@ -1,7 +1,7 @@
 ;; Co-located fixture for probe_arc278_journal_query_metrics_on_process.rs — arc 278 T2 loci parity.
 ;; The READ path across a FORK: journal' + mem-store' both on processes (grant-before-dial). Write 2
 ;; Metrics, then query-metrics [0,3s] — the forked journal' scans + hydrates in the child and the
-;; QueryMetricsResponse (Vector<Metric>) crosses the wire back. Returns the count (must be 2).
+;; QueryMetricsResponse ((Vector :- [Metric])) crosses the wire back. Returns the count (must be 2).
 
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let

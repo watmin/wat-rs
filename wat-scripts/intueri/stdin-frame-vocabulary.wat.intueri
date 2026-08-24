@@ -12,7 +12,7 @@
 ;; ── WHAT IS ALREADY RULED (anchors — do NOT propose changing these) ───────────
 ;;
 ;; `:wat::io::IOReader/read-line` is LIVE and CORRECT — it genuinely reads one
-;; line, returns Option<String>. src/types.rs:1001 already ruled the consequence:
+;; line, returns (Option :- [String]). src/types.rs:1001 already ruled the consequence:
 ;;   "that name is already spent with that meaning, so reusing it here would both
 ;;    lie and collide."
 ;; So the Layer-2 op CANNOT be called `read-line`. That half is settled.
@@ -21,7 +21,7 @@
 ;;   :wat::io::IOReader/read-frame
 ;;   :wat::io::IOReader::ReadFrameOutcome :: Frame | Eof | Stopped
 ;;   :wat::kernel::ReadFrameOutcome       :: Frame | Eof | Stopped
-;;   :wat::kernel::ReadlnOutcome<T>       :: Datum | Eof | Stopped
+;;   (:wat::kernel::ReadlnOutcome :- [T])       :: Datum | Eof | Stopped
 ;;
 ;; ★ THE DENSITY QUESTION, and it is the reason this is cast rather than assumed:
 ;;   TWO `ReadFrameOutcome`s already exist at two namespaces. A naive Layer-2

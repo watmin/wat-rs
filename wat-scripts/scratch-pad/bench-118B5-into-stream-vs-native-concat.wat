@@ -39,7 +39,7 @@
   (:wat::core::length
     (:wat::core::into (:wat::core::PersistentVector) v)))
 
-;; DRAIN-ONLY path — `Seqable/seq` yields a Stream<T> over the SAME vector with NO user closure
+;; DRAIN-ONLY path — `Seqable/seq` yields a (Stream :- [T]) over the SAME vector with NO user closure
 ;; anywhere. This is the control that separates `map`'s per-element interpreted closure call from
 ;; the drain itself. Without it, "stream is 49x slower" is a claim about a component, read rather
 ;; than measured. [[feedback_measure_the_decomposition_never_read_it]]

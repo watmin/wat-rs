@@ -14,7 +14,7 @@
 (:wat::core::defn :user::contains-q-vector-hit [] -> :wat::core::bool
   (:wat::core::contains? (:wat::core::Vector :wat::core::i64 1 2 3) 2))
 
-;; TIER B — get ((coll, key) -> Option<element>)
+;; TIER B — get ((coll, key) -> (Option :- [element]))
 (:wat::core::defn :user::get-vector-precise [] -> :wat::core::i64
   (:wat::core::match (:wat::core::get (:wat::core::Vector :wat::core::i64 10 20 30) 1)
                      

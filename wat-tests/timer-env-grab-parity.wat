@@ -2,7 +2,7 @@
 ;;
 ;; THE idiom "programs don't care about their tier": code reads its OWN `peer-kind`
 ;; off its ambient `(:wat::program::env)` and hands it to `(after …)`. The tier-open
-;; `Timer'<O>` fuses into whatever reactor it landed on. The SAME service runs unchanged
+;; `(Timer' :- [O])` fuses into whatever reactor it landed on. The SAME service runs unchanged
 ;; on a thread (crossbeam) and a process (io_uring).
 ;;
 ;; Model: wat-tests/service-locus-parity.wat — ONE defservice, two deftests differing in

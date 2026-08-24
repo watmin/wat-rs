@@ -6,7 +6,7 @@
 ;; PAST the reader — the mask this arc kills). We MATCH the outcome and RETURN the surviving fields.
 ;;
 ;; Arc 278 no-hidden-failures (the string-wrap annihilation, deeper): the thread crash channel now
-;; carries a STRUCTURED `Vector<LociDiedError>` (parity with the process tier), NOT the flattened
+;; carries a STRUCTURED `(Vector :- [LociDiedError])` (parity with the process tier), NOT the flattened
 ;; `#wat.kernel/AssertionFailure {…}` envelope String. So `message`, `actual`, and `expected` ride in
 ;; the `Failure` RECORD's own fields — read STRUCTURALLY off `Failure/message` / `Failure/actual` /
 ;; `Failure/expected`, not scraped out of a stringified blob. We join the three with "|" so the .rs

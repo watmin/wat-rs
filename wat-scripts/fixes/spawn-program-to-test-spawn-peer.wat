@@ -11,8 +11,8 @@
 ;; `:wat::test::spawn-peer` — a defclause in the capability-holding namespace that
 ;; dispatches on locus type EXACTLY as `spawn-program` does:
 ;;
-;;   ([locus <- ThreadOpts   prog <- [ThreadSelfPeer<S,R> :-> nil]] -> Thread<R,S>)
-;;   ([locus <- ProcessOpts  prog <- Vector<wat::WatAST>]           -> Process<I,O>)
+;;   ([locus <- ThreadOpts   prog <- [(ThreadSelfPeer :- [S R]) :-> nil]] -> (Thread :- [R S]))
+;;   ([locus <- ProcessOpts  prog <- (Vector :- [wat::WatAST])]           -> (Process :- [I O]))
 ;;
 ;; Same arity, same arguments, same dispatch — so this migration is a pure HEAD
 ;; rename and nothing else. That isomorphism is why the corpus sweep is a codemod

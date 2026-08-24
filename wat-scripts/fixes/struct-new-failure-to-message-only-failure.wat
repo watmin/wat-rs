@@ -9,7 +9,7 @@
 ;; wire, pure EDN, only a Record round-trips it). Strike A already gave the corpus the one
 ;; canonical message-only constructor (`wat/spawn.wat`): `(:wat::kernel::message-only-failure
 ;; msg)`, whose body hardcodes the exact same defaulted tail every hand-rolled struct-new site
-;; below repeats verbatim (location :None, frames empty Vector<Frame>, actual :None, expected
+;; below repeats verbatim (location :None, frames empty (Vector :- [Frame]), actual :None, expected
 ;; :None). Every message-only struct-new site collapses to that one call:
 ;;
 ;;   (:wat::core::struct-new :wat::kernel::Failure MSG :wat::core::None

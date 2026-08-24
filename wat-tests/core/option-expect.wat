@@ -39,7 +39,7 @@
     (:wat::test::assert-eq v "hello")))
 
 
-;; ─── Some happy path — nested :wat::core::Option<wat::core::Option<wat::core::i64>> ────────────────────
+;; ─── Some happy path — nested (:wat::core::Option :- [(:wat::core::Option :- [:wat::core::i64])]) ────────────────────
 
 (:wat::test::deftest :wat-tests::core::option-expect::some-nested-option
   

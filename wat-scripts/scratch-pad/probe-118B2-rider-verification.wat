@@ -31,7 +31,7 @@
             (:wat::core::if (:wat::core::= 0 (:wat::core::mod x 2)) (:wat::core::Some x) :wat::core::None))
           (:wat::core::List/of 1 2 3 4 5 6)))))
 
-    ;; keep-indexed — f : Fn(i64,T)->Option<U>; keep values at even indices.
+    ;; keep-indexed — f : [i64 T :-> (Option :- [U])]; keep values at even indices.
     (:wat::kernel::println
       (:wat::core::string::join ","
         (:wat::core::into [] (:wat::core::keep-indexed
@@ -39,7 +39,7 @@
             (:wat::core::if (:wat::core::= 0 (:wat::core::mod i 2)) (:wat::core::Some x) :wat::core::None))
           (:wat::core::Vector :wat::core::i64 10 11 12 13 14 15)))))
 
-    ;; map-indexed — f : Fn(i64,T)->U; pair index with value via a string.
+    ;; map-indexed — f : [i64 T :-> U]; pair index with value via a string.
     (:wat::kernel::println
       (:wat::core::string::join ","
         (:wat::core::into [] (:wat::core::map-indexed
@@ -56,7 +56,7 @@
       (:wat::core::string::join ","
         (:wat::core::into [] (:wat::core::distinct (:wat::core::Vector :wat::core::i64 1 2 1 3 2 1)))))
 
-    ;; reduce — 3-arity and 2-arity Stream arms (via a `map` stage so coll is Stream<T>).
+    ;; reduce — 3-arity and 2-arity Stream arms (via a `map` stage so coll is (Stream :- [T])).
     (:wat::kernel::println
       (:wat::core::i64::to-string (:wat::core::reduce
         (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::+ acc x))

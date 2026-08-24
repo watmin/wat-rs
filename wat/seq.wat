@@ -36,7 +36,7 @@
 ;;
 ;; STOP surfaced (not built): `reduced` / `reduced?` (clojure's early-exit `reduce` marker).
 ;; wat's type universe is CLOSED (`:Any` is banned, `src/types.rs` line ~78) — there is no way
-;; to type a reducing function's return as "T, or a Reduced<T> early-exit wrapper" without
+;; to type a reducing function's return as "T, or a (Reduced :- [T]) early-exit wrapper" without
 ;; reopening that banned escape hatch, and a control-flow-signal mechanism (mirroring
 ;; `Result/try`'s `EvalSignal::TryPropagate`) would need NEW Rust plumbing (a new signal variant
 ;; + checker special-casing) beyond a wat-over-primitives change. Per the STOP doctrine this is
@@ -44,7 +44,7 @@
 ;; walks the whole input (exactly like the `foldl`/`:wat::seq::reduce` it replaces; no
 ;; regression, just not a new capability).
 
-;; ═══ 118.B1 — `Seqable<T>`: the type the twins were a workaround for ═══════════════════════════
+;; ═══ 118.B1 — `(Seqable :- [T])`: the type the twins were a workaround for ═══════════════════
 ;;
 ;; Clojure has exactly one `filter`, one `map`, one `reduce`, because it calls `seq` — the universal
 ;; coercion every collection implements — and walks the result. wat could not write that, because
@@ -65,11 +65,11 @@
 ;; `docs/arc/2026/04/109-kill-std/NOTE-seqable-has-no-name-in-wat.md`. The route was re-posed and
 ;; ruled in `118-lazy-seqs-vs-threaded-streams/DECISIONS-118.B-four-questioned.md`.
 ;;
-;; ★ `seq` returns a `Stream<T>` and stays LAZY. It is NOT `as-vec`: a materializing coercion would
+;; ★ `seq` returns a `(Stream :- [T])` and stays LAZY. It is NOT `as-vec`: a materializing coercion would
 ;; invert this arc's entire purpose. The exploratory probe used `as-vec` only to prove satisfaction.
 ;;
 ;; ADDITIVE AS OF B1: nothing below consumes it yet, `extract_lazyable_elem` is untouched, and no
-;; twin has died. B2 collapses each verb to ONE clause over `Seqable<T>` walking with
+;; twin has died. B2 collapses each verb to ONE clause over `(Seqable :- [T])` walking with
 ;; `:wat::stream::next`, and deletes the twins and `seqable->stream` in the same motion — a name
 ;; dies in the stone that removes its last caller.
 (:wat::core::defsurface :wat::core::Seqable :- [T] :nature :wat::core::Struct
@@ -92,8 +92,8 @@
 
 ;; ─── filter — NATIVE now (Arc-278 DESIGN-STONE seq-traversal-one-door, Strike 2a) ─────────────
 ;;
-;; `:wat::core::filter` used to live here as five wat `defclause` arms (Vector<T> / List<T> /
-;; PersistentVector<T> / Stream<T> / bare PersistentVector), each stepping its eager source by
+;; `:wat::core::filter` used to live here as five wat `defclause` arms ((Vector :- [T]) / (List :- [T]) /
+;; (PersistentVector :- [T]) / (Stream :- [T]) / bare PersistentVector), each stepping its eager source by
 ;; repeated `(rest coll)` — O(n) per step, O(n^2) per walk, because `rest` REBUILDS the whole
 ;; remaining container on every eager container. It is a Rust intrinsic now (`eval_filter`,
 ;; `src/collection/transform.rs`), one body for any seqable, composing through the native
@@ -149,8 +149,8 @@
 ;; stream->pvec-spec — the wat reference engine (the SPEC / differential oracle) for
 ;; `:wat::core::stream->pvec` (stone 118.B5: promoted to a native Rust intrinsic — see
 ;; `src/collection/transform.rs::eval_stream_to_pvec`). The PersistentVector twin of
-;; `stream->vec-spec` (118.2b cascade: rete.wat's PersistentVector<Rule>/
-;; PersistentVector<DerivationStep> fields need a Stream materialized into a PersistentVector,
+;; `stream->vec-spec` (118.2b cascade: rete.wat's (PersistentVector :- [Rule])/
+;; (PersistentVector :- [DerivationStep]) fields need a Stream materialized into a PersistentVector,
 ;; not a Vector).
 ;; 118.B2 — migrated from the three-call (`empty?`/`first`/`rest`) walk onto the single-force
 ;; `:wat::stream::next` pull primitive. ★ THE DRAIN — the recursive call MUST stay in the
@@ -292,7 +292,7 @@
 ;; 118.B2 — `reduce-stream` (the Stream-input walk `foldl` cannot do; foldl is Vector/List/
 ;; PersistentVector-only) is DELETED as a named twin: its walk migrates inline into `reduce`'s
 ;; own Stream arms below, over `:wat::stream::next` — one force per element, tail-recursive.
-;; ✅ 118.B6 + 118.B7 — `reduce` IS TWO CLAUSES NOW, one per arity, both over `Seqable<T>`.
+;; ✅ 118.B6 + 118.B7 — `reduce` IS TWO CLAUSES NOW, one per arity, both over `(Seqable :- [T])`.
 ;;
 ;; It was EIGHT: three eager arms per arity delegating to the native `foldl`, plus a Stream arm per
 ;; arity that had to walk in wat because `foldl` REFUSED a Stream (`mappable()`'s "later strike.
@@ -338,7 +338,7 @@
 ;; shape above (one clause per seqable — Vector/List/PersistentVector/Stream + bare-
 ;; PersistentVector — `stream/lazy` + `first`/`rest`/`empty?` + `stream/cons`/`stream/empty`).
 ;; Forms that carry state across the walk (an index, a seen-set, a running accumulator, the
-;; previous element) normalize their input to a genuine `Stream<T>` ONCE (via the private
+;; previous element) normalize their input to a genuine `(Stream :- [T])` ONCE (via the private
 ;; `seqable->stream` helper below) and then delegate to a single Stream-only `<form>-stream`
 ;; helper `defn` — exactly the way `:wat::core::reduce` above normalizes to `reduce-stream` for
 ;; its Stream-input clause (the difference: `reduce`'s other 3 clauses already have a
@@ -348,13 +348,13 @@
 ;;
 ;; 118.B2 — the description above is now historical for SIX of the twelve: `interpose`, `keep`,
 ;; `keep-indexed`, `map-indexed`, `dedupe`, `distinct` no longer have per-container `defclause`
-;; arms or a `<form>-stream` twin — each is ONE `defn` over `:wat::core::Seqable<T>`, walking with
+;; arms or a `<form>-stream` twin — each is ONE `defn` over `(:wat::core::Seqable :- [T])`, walking with
 ;; `:wat::stream::next` (see each verb's own comment for its specific migration). `remove`,
 ;; `take-while`, `drop-while`, `take-nth`, `reductions` are UNTOUCHED this stone and still match
 ;; the description above exactly.
 
 ;; seqable->stream — private plumbing: realize any seqable (Vector/List/PersistentVector/Stream)
-;; as an equivalent `Stream<T>`. Used by every stateful form below to collapse the container
+;; as an equivalent `(Stream :- [T])`. Used by every stateful form below to collapse the container
 ;; types down to 1 before threading state.
 ;;
 ;; Arc-278 DESIGN-STONE seq-traversal-one-door, Strike 1 — NATIVE now (src/collection/
@@ -366,9 +366,9 @@
 ;; unchanged; they go linear by delegation alone.
 
 ;; ─── remove — filter's negation (keep elements where `pred` is FALSE) ─────────────────────────
-;; 118.B2b — ONE `defn` over `Seqable<T>`, walking with `:wat::stream::next`. The five per-container
-;; clauses (bodies byte-identical) are gone; `rest` comes back as a `Stream<T>`, which IS a
-;; `Seqable<T>`, so the recursion lands right back here. Stateless, so no `-walk` helper is needed —
+;; 118.B2b — ONE `defn` over `(Seqable :- [T])`, walking with `:wat::stream::next`. The five per-container
+;; clauses (bodies byte-identical) are gone; `rest` comes back as a `(Stream :- [T])`, which IS a
+;; `(Seqable :- [T])`, so the recursion lands right back here. Stateless, so no `-walk` helper is needed —
 ;; same shape as `keep` above.
 (:wat::core::defn :wat::core::remove :- [T]
   [pred <- [T :-> :wat::core::bool]
@@ -382,7 +382,7 @@
       (:wat::stream::NextOutcome::Exhausted (:wat::stream::empty)))))
 
 ;; ─── take-while — cons while `pred` holds; stop (never realize past it) at the first false ────
-;; 118.B2b — ONE `defn` over `Seqable<T>`. ★ THE LAZINESS PROPERTY IS TESTED: the `Exhausted`/false
+;; 118.B2b — ONE `defn` over `(Seqable :- [T])`. ★ THE LAZINESS PROPERTY IS TESTED: the `Exhausted`/false
 ;; branches return `(stream/empty)` WITHOUT touching `rest`, so the cell after the first false is
 ;; never realized — `tests/types/probe_arc118_2z_takewhile_lazy.rs` proves it by making that cell
 ;; divide by zero.
@@ -398,7 +398,7 @@
       (:wat::stream::NextOutcome::Exhausted (:wat::stream::empty)))))
 
 ;; ─── drop-while — skip while `pred` holds; once it turns false, emit the remainder unchanged ──
-;; 118.B2b — ONE `defn` over `Seqable<T>`. The old terminal branch re-normalized the WHOLE `coll`
+;; 118.B2b — ONE `defn` over `(Seqable :- [T])`. The old terminal branch re-normalized the WHOLE `coll`
 ;; through `seqable->stream` (it still held the un-consumed container). With `next` the head is
 ;; already in hand, so the remainder is just `(stream/cons value rest)` — one cell, no
 ;; re-normalization and no second walk of anything.
@@ -414,7 +414,7 @@
       (:wat::stream::NextOutcome::Exhausted (:wat::stream::empty)))))
 
 ;; ─── take-nth — every nth element (indices 0, n, 2n, ...) ─────────────────────────────────────
-;; 118.B2b — ONE `defn` over `Seqable<T>` plus a private `Stream<T>` walker.
+;; 118.B2b — ONE `defn` over `(Seqable :- [T])` plus a private `(Stream :- [T])` walker.
 ;;
 ;; ⚠ THE DEGENERATE `n` IS LOAD-BEARING AND IT IS MEASURED, NOT ASSUMED.
 ;; At HEAD, `(take [] 5 (take-nth 0 [1 2 3]))` yields `1,1,1,1,1` — an infinite repeat of the head,
@@ -471,9 +471,9 @@
         (:wat::core::interpose-walk sep value rest))
       (:wat::stream::NextOutcome::Exhausted (:wat::stream::empty)))))
 
-;; ─── keep — DIALECT (pinned): `f : Fn(T)->Option<U>`; keep the `Some`s, drop the `None`s ───────
+;; ─── keep — DIALECT (pinned): `f : [T :-> (Option :- [U])]`; keep the `Some`s, drop the `None`s ──
 ;; (wat's Option-drop IS clojure's nil-drop — the honest dialect form, `VIRTVTE PARES`.)
-;; 118.B2 — ONE clause over `Seqable<T>`, walking with `:wat::stream::next`. `keep-stream` twin
+;; 118.B2 — ONE clause over `(Seqable :- [T])`, walking with `:wat::stream::next`. `keep-stream` twin
 ;; deleted; this is the DESIGN's own worked example (`probe-118B2-one-clause-lazy-producer.wat`).
 (:wat::core::defn :wat::core::keep :- [T U]
   [f    <- [T :-> (:wat::core::Option :- [U])]
@@ -486,8 +486,8 @@
           (:wat::core::None (:wat::core::keep f rest))))
       (:wat::stream::NextOutcome::Exhausted (:wat::stream::empty)))))
 
-;; ─── keep-indexed — as `keep`, `f : Fn(i64,T)->Option<U>` ──────────────────────────────────────
-;; 118.B2 — ONE clause over `Seqable<T>`. `keep-indexed-stream` (the twin that threaded an `idx`
+;; ─── keep-indexed — as `keep`, `f : [i64 T :-> (Option :- [U])]` ────────────────────────────────
+;; 118.B2 — ONE clause over `(Seqable :- [T])`. `keep-indexed-stream` (the twin that threaded an `idx`
 ;; accumulator as an extra param) is deleted; adding an `idx` param to `keep-indexed` itself would
 ;; be an arity change (STOP-2). Instead the index rides on `f`: each recursive step wraps the
 ;; CURRENT `f` in a fresh closure that adds 1 before delegating — `f` at recursion depth `k` calls
@@ -513,8 +513,8 @@
    coll <- (:wat::core::Seqable :- [T])] -> (:wat::stream::Stream :- [U])
   (:wat::core::keep-indexed-walk 0 f (:wat::core::Seqable/seq coll)))
 
-;; ─── map-indexed — `f : Fn(i64,T)->U` ───────────────────────────────────────────────────────────
-;; 118.B2 — ONE clause over `Seqable<T>`, same closure-composition trick as `keep-indexed`
+;; ─── map-indexed — `f : [i64 T :-> U]` ──────────────────────────────────────────────────────────
+;; 118.B2 — ONE clause over `(Seqable :- [T])`, same closure-composition trick as `keep-indexed`
 ;; (see its comment): `map-indexed-stream`'s `idx` param is gone; the index rides on `f` via a
 ;; fresh wrapping closure per recursive step. Public arity `[f coll]` unchanged; O(n) chained
 ;; calls per element traded for not adding a param.
@@ -535,7 +535,7 @@
   (:wat::core::map-indexed-walk 0 f (:wat::core::Seqable/seq coll)))
 
 ;; ─── dedupe — drop CONSECUTIVE duplicates ──────────────────────────────────────────────────────
-;; 118.B2 — ONE clause over `Seqable<T>`. `dedupe-stream`'s `prev : Option<T>` param is gone;
+;; 118.B2 — ONE clause over `(Seqable :- [T])`. `dedupe-stream`'s `prev : (Option :- [T])` param is gone;
 ;; `dedupe` has NO caller-supplied `f` to smuggle state through the way `keep-indexed`/
 ;; `map-indexed` do, and adding a `prev` param would be an arity change (STOP-2). Instead: emit
 ;; `value`, then recurse on `(drop-while (= value) rest)` — `drop-while` (unchanged, this same
@@ -562,7 +562,7 @@
   (:wat::core::dedupe-walk :wat::core::None (:wat::core::Seqable/seq coll)))
 
 ;; ─── distinct — drop ALL duplicates (keep first) ───────────────────────────────────────────────
-;; 118.B2 — ONE clause over `Seqable<T>`. `distinct-stream`'s `seen : HashSet<T>` accumulator is
+;; 118.B2 — ONE clause over `(Seqable :- [T])`. `distinct-stream`'s `seen : (HashSet :- [T])` accumulator is
 ;; gone; `distinct` has no caller-supplied `f` to carry it on, and adding a `seen` param would be
 ;; an arity change (STOP-2). Same shape as the `dedupe` rewrite above, using `remove` (unchanged,
 ;; this same file) instead of `drop-while`: emit `value`, recurse on `(remove (= value) rest)` —
@@ -588,10 +588,10 @@
   (:wat::core::distinct-walk (:wat::core::HashSet :T) (:wat::core::Seqable/seq coll)))
 
 ;; ─── reductions — emit `init`, then each successive accumulation ───────────────────────────────
-;; 118.B2b — the three-call walk is GONE: every arm now delegates to ONE private `Stream<T>` walker
+;; 118.B2b — the three-call walk is GONE: every arm now delegates to ONE private `(Stream :- [T])` walker
 ;; that pulls with `:wat::stream::next` (one force per cell, where the old bodies forced three).
 ;;
-;; ✅ 118.B2c + 118.B2d — TEN ARMS COLLAPSE TO TWO, one per ARITY, both over `Seqable<T>`.
+;; ✅ 118.B2c + 118.B2d — TEN ARMS COLLAPSE TO TWO, one per ARITY, both over `(Seqable :- [T])`.
 ;;
 ;; B2b left this verb with ten per-container arms and a comment explaining that it COULD NOT
 ;; collapse, because a `defclause` ARM typed with a surface never dispatched:
@@ -602,7 +602,7 @@
 ;; Two doors were shut. `118.B2c` strike 2 taught the runtime clause selector to ask the CHECKER's
 ;; own satisfaction question (`satisfies_bare_surface`) instead of enumerating concrete container
 ;; heads; `118.B2d` made a GENERIC satisfier's surface param bind from the receiver, so
-;; `(Seqable/seq v)` on a `Vector<i64>` yields `Stream<i64>` rather than `Stream<T>`. This collapse
+;; `(Seqable/seq v)` on a `(Vector :- [i64])` yields `(Stream :- [i64])` rather than `(Stream :- [T])`. This collapse
 ;; is those two stones' payoff, and the first production code to walk through both.
 ;;
 ;; ⚠ `:wat::core::reduce` ABOVE IS DELIBERATELY *NOT* COLLAPSED, and the reason is measured, not

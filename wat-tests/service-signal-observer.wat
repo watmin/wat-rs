@@ -12,11 +12,11 @@
 ;; untouched here).
 ;;
 ;; A1 — un-erasing the concrete locus: `start` builds a Handle whose `handle` field is typed
-;; `:wat::kernel::Peer<Admin,Status>` (wat/spawn.wat:265 `Launched`'s deliberate erasure — it is
-;; what keeps `stop` locus-agnostic). `:wat::kernel::signal` needs the concrete `Process<I,O>`.
+;; `(:wat::kernel::Peer :- [Admin Status])` (wat/spawn.wat:265 `Launched`'s deliberate erasure — it is
+;; what keeps `stop` locus-agnostic). `:wat::kernel::signal` needs the concrete `(Process :- [I O])`.
 ;; The accessor is `:wat::kernel::peer-process` — mirrors the already-shipped `peer-pid` (arc 170
 ;; capability circuit stone 2), which reads the SAME RustOpaque type-path tag for a DIFFERENT
-;; projection: `Some` on a process locus (the very same peer value, now nameable `Process<I,O>`),
+;; projection: `Some` on a process locus (the very same peer value, now nameable `(Process :- [I O])`),
 ;; `None` on a thread (a thread has no process to signal). Pure projection: no effect, no signal.
 ;;
 ;; A2 — the app: the builder's sequence, verbatim —

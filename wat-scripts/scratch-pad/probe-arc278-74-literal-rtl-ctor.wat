@@ -11,8 +11,8 @@
 ;;
 ;; `proto-base` is the surface name with its type args STRIPPED (service.wat:268),
 ;; and `variant-pascal` is `kebab->pascal-in surface-kw op-str` (service.wat:890).
-;; So for a surface `:probe::PCtor<K,V>` whose op `get` returns
-;; `:probe::PCtor::GetResponse<V>`, the macro would splice the BARE base name
+;; So for a surface `(:probe::PCtor :- [K V])` whose op `get` returns
+;; `(:probe::PCtor::GetResponse :- [V])`, the macro would splice the BARE base name
 ;; `:probe::PCtor::GetResponse::RequestTooLarge` — with no `<K,V>` anywhere.
 ;;
 ;; `wat-tests/service-parametric-messages.wat`'s header CLAIMS this is fine
@@ -27,7 +27,7 @@
 ;; (Two form-corrections the checker taught while writing this, kept visible:
 ;;  `defrecord` not `recordtype`; and a parametric surface's `:messages` must be
 ;;  declared parametric in EXACTLY the surface's params, in order — so the
-;;  response is `GetResponse<V>` — it names only V, which is all its fields use (rule retired 2026-08-21).)
+;;  response is `(GetResponse :- [V])` — it names only V, which is all its fields use (rule retired 2026-08-21).)
 
 ;; ── the SUBJECT: a parametric serviceable surface, params load-bearing in BOTH
 ;;    the request and the response payload (the shape service-parametric-messages

@@ -5,7 +5,7 @@
 ;; reverse/take/drop/concat) and the 3 bare-typed-container defns — all must type-check clean
 ;; (arc 278 stone 0d).
 ;;
-;; Arc 118.2a note: `map`/`filter`/`take`/`drop` flipped LAZY (return `Stream<T>`, not the
+;; Arc 118.2a note: `map`/`filter`/`take`/`drop` flipped LAZY (return `(Stream :- [T])`, not the
 ;; container-preserving contract this probe originally proved parity for). The test's PURPOSE —
 ;; "does this op accept a PersistentVector INPUT at check time" — still holds and is still
 ;; asserted here; only the OUTER fold changed from `foldl` (Vector/List/PersistentVector-only,

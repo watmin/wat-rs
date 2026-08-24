@@ -1,4 +1,4 @@
-;; Can a concrete Address'<S,R> be erased to bare Address' via ann-form, stored, and
+;; Can a concrete (Address' :- [S R]) be erased to bare Address' via ann-form, stored, and
 ;; sent as a bare-D PoolMsg::Setup? Test the TYPE questions only (no child).
 
 (:wat::core::defsurface :probe::Echo :nature :wat::kernel::Peer

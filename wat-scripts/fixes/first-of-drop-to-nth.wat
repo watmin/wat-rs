@@ -1,7 +1,7 @@
 ;; wat-scripts/fixes/first-of-drop-to-nth.wat — stone 118.B4-ii: the `nth` fold.
 ;; Self-hosted fix-wat codemod: no hand-editing of .wat — wat rewrites wat.
 ;;
-;; B4-i widened `nth` to Seqable<T> (arc 118) so it now covers every receiver the old
+;; B4-i widened `nth` to (Seqable :- [T]) (arc 118) so it now covers every receiver the old
 ;; two-verb idiom reached. This codemod folds the corpus onto the new door:
 ;;
 ;;   (:wat::core::first (:wat::core::drop X n))  ->  (:wat::core::nth X n)

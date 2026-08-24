@@ -1,9 +1,9 @@
 ;; wat-scripts/fixes/timer-prime-to-peer-prime.wat — arc 278 Stone 1 corpus migration.
 ;; Self-hosted fix-wat codemod: no hand-editing of .wat files — use the tool.
 ;;
-;; The relocation makes `(:wat::kernel::after …)` build a UNIFIED `Peer'<nil, O>` instead of
+;; The relocation makes `(:wat::kernel::after …)` build a UNIFIED `(Peer' :- [nil O])` instead of
 ;; the retired tier-open `Timer'<O>`, so every `Timer'<X>` TYPE ANNOTATION in the corpus must
-;; become `Peer'<nil, X>` (a timer has no input → I = nil; O = the delivered message type X).
+;; become `(Peer' :- [nil X])` (a timer has no input → I = nil; O = the delivered message type X).
 ;;
 ;; This is an INTERIOR substring rewrite (prepend a type arg), NOT a prefix rename:
 ;;   :wat::kernel::Timer'<X>                         → :wat::kernel::Peer'<wat::core::nil,X>

@@ -68,7 +68,7 @@
   
   ;; arc 278 IPC de-prime: run-thread → primed peer wire (spawn-program' :thread + recv').
   ;; The FAILING assertion crashes the self-peer BEFORE its send' → recv' Lost[cause];
-  ;; LociDiedError/to-failure rebuilds the Option<Failure> the old RunResult/failure gave
+  ;; LociDiedError/to-failure rebuilds the (Option :- [Failure]) the old RunResult/failure gave
   ;; (:Some), so the downstream match on `fail` is unchanged.
   (:wat::core::let
     [p (:wat::test::spawn-peer (:wat::spawn::thread)

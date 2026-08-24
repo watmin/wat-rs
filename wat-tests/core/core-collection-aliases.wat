@@ -93,7 +93,7 @@
 ;; ─── values: content check on 1-key map (deterministic) ─────────────────
 ;;
 ;; A 1-key map has exactly one value; assert its contents equal [7].
-;; Uses the = intrinsic on Vec<i64> (arc 237.8d equality grid — Vecs
+;; Uses the = intrinsic on (Vec :- [i64]) (arc 237.8d equality grid — Vecs
 ;; compare element-wise).
 
 (:wat::test::deftest :wat-tests::core::core-collection-aliases::values-content-one-key

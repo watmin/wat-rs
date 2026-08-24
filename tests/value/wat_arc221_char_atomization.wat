@@ -24,7 +24,7 @@
      eq         (:wat::core::= atom-char atom-int)]
     (:wat::core::not eq)))
 
-;; ─── Probe 2 — HashMap<char, i64> insert + lookup ────────────────────────────
+;; ─── Probe 2 — (HashMap :- [char i64]) insert + lookup ────────────────────────────
 
 (:wat::core::defn :t::p2-a-val [] -> :wat::core::i64
   (:wat::core::let
@@ -51,7 +51,7 @@
      tally3  (:wat::core::HashMap/assoc tally2 \b 7)]
     (:wat::core::HashMap/length tally3)))
 
-;; ─── Probe 3 — HashSet<char> insert + contains? ──────────────────────────────
+;; ─── Probe 3 — (HashSet :- [char]) insert + contains? ──────────────────────────────
 
 (:wat::core::defn :t::p3-has-a [] -> :wat::core::bool
   (:wat::core::let

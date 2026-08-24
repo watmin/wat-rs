@@ -1,7 +1,7 @@
-;; BENCH — what would collapsing `reduce` to ONE `Seqable<T>` clause COST on an eager container?
+;; BENCH — what would collapsing `reduce` to ONE `(Seqable :- [T])` clause COST on an eager container?
 ;;
 ;; ⛔ WHY THIS EXISTS. Stones B2c/B2d opened the doors that let a multi-arity verb live as one
-;; clause over `Seqable<T>`. `reductions`' ten arms are pure duplication — every one delegates to
+;; clause over `(Seqable :- [T])`. `reductions`' ten arms are pure duplication — every one delegates to
 ;; the same walker — so collapsing it is free. **`reduce` is NOT that shape.** Its eager arms
 ;; delegate to `:wat::core::foldl`, a NATIVE intrinsic (dispatched at src/runtime.rs:6354).
 ;; Collapsing `reduce` would route every eager reduce through the interpreted `reduce-walk`

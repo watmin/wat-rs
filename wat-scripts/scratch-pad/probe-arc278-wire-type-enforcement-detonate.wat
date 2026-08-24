@@ -4,7 +4,7 @@
 ;; `probe-arc278-wire-type-enforcement.wat`; same BRIEF).
 ;;
 ;; Part 1 established that the wire ACCEPTS `{:items [1 2 3]}` under a declared
-;; `items <- Vector<String>` and hands the handler i64s (the handler's own
+;; `items <- (Vector :- [String])` and hands the handler i64s (the handler's own
 ;; `edn::write` echoed `[1 2 3]`).
 ;;
 ;; THIS probe measures the CONSEQUENCE: what happens when the handler actually

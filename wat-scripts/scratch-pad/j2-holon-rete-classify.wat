@@ -1,7 +1,7 @@
 ;; Domain repro for BRIEF-native-where-vsa-ops. Twin of
 ;; tests/rete/probe_arc278_vsa_where_native_differential.wat.
 ;; Four Catalog holons (bool→bool tables), one Observation from applying a
-;; wat Fn(bool)->bool, cosine `where` > 0.9. Oracle names the mystery;
+;; wat [bool :-> bool], cosine `where` > 0.9. Oracle names the mystery;
 ;; native must too.
 
 (:wat::core::defrecord :j2::Catalog     [name <- :wat::core::String  obs <- :wat::holon::HolonAST])

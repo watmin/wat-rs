@@ -10,7 +10,7 @@
 ;; Surface:
 ;;   make     :: i64, fn(f64)->bool -> Hologram   ; capacity = floor(sqrt(d))
 ;;   put      :: Hologram, AST, AST -> ()         ; slot inferred from key
-;;   get      :: Hologram, AST -> wat::core::Option<AST>     ; filter from construction
+;;   get      :: Hologram, AST -> (wat::core::Option :- [AST])     ; filter from construction
 ;;   len      :: Hologram -> i64
 ;;   capacity :: Hologram -> i64                  ; floor(sqrt(d))
 ;;

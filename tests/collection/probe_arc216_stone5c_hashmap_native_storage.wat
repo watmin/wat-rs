@@ -148,7 +148,7 @@
           (_ -2)))
       (_ -1))))
 
-;; Probe 11a: HashMap<HashSet<i64>, String> length 1
+;; Probe 11a: (HashMap :- [(HashSet :- [i64]) String]) length 1
 (:wat::core::defn :t::p11a-hashset-key-len [] -> :wat::core::i64
   (:wat::core::let [k (:wat::core::HashSet :wat::core::i64 1 2 3)]
     (:wat::core::HashMap/length

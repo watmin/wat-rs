@@ -1,7 +1,7 @@
-;; 293.4e-pre.ii own-probe — a GENERIC surface method member `(make<T> [self … x <- :T] -> :T)`
+;; 293.4e-pre.ii own-probe — a GENERIC surface method member `(make :- [T] [self … x <- :T] -> :T)`
 ;; must parse with the type-params stripped off the name, and dispatch at the call site with the
 ;; type-params instantiated (parity with arc-267 generic *protocol* methods). This is the last gate
-;; before `:wat::spawn::Locus`'s `launch<S,R,St,Sh,Lu>` can migrate `defprotocol` → `defsurface`.
+;; before `:wat::spawn::Locus`'s `launch :- [S R St Sh Lu]` can migrate `defprotocol` → `defsurface`.
 ;;
 ;; RED at HEAD (post-293.4e-pre.i): `parse_method_member_sig` hardcodes `type_params: vec![]` and does
 ;; NOT split `<T>` off the name → the member is stored as `"make<T>"`, the call `:t::Maker/make` is
@@ -16,7 +16,7 @@
 
 (:wat::core::defrecord :t::Id [tag <- :wat::core::i64])
 
-;; extend-type impl: bare name (no <T>), bare args — exactly the Locus extend-impl shape.
+;; extend-type impl: bare name (no `:- [T]`), bare args — exactly the Locus extend-impl shape.
 (:wat::core::extend-type :t::Id :t::Maker
   (make [self x] x))
 

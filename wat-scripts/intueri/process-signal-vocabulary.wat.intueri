@@ -24,11 +24,11 @@
 ;; ── SIBLING VERBS it sits beside (the peer surface — anchors for register + the prime convention) ─
 ;;
 ;;   (:wat::kernel::send    peer msg)   -> SendOutcome
-;;   (:wat::kernel::recv    peer)       -> RecvOutcome<O>
-;;   (:wat::kernel::connect addr)       -> ConnectOutcome<S,R>
-;;   (:wat::kernel::accept  listener)   -> AcceptOutcome<R,S>
+;;   (:wat::kernel::recv    peer)       -> (RecvOutcome :- [O])
+;;   (:wat::kernel::connect addr)       -> (ConnectOutcome :- [S R])
+;;   (:wat::kernel::accept  listener)   -> (AcceptOutcome :- [R S])
 ;;   (:wat::kernel::close   peer)       -> CloseOutcome
-;;   (:wat::kernel::poll    peers)      -> ServiceEvent<...>
+;;   (:wat::kernel::poll    peers)      -> (ServiceEvent :- [...])
 ;;
 ;; ✅ THE PRIME `'` QUESTION IS SETTLED — NO PRIME. And the way it was settled is the lesson.
 ;;
@@ -112,9 +112,9 @@
 ;; ── THE OUTCOME — SHIPPED SIBLINGS ARE THE ANCHOR (do not invent a new shape) ──────────────────
 ;;
 ;;   :wat::kernel::SendOutcome         Sent | Closed | Lost[cause <- Failure]
-;;   :wat::kernel::RecvOutcome<O>      Message[..] | Closed | Lost[cause]
-;;   :wat::kernel::CloseOutcome        Closed[exit <- Option<i64>] | Signaled[signal <- i64] | Failed[cause]
-;;   :wat::kernel::ConnectOutcome<S,R> Connected[peer] | Refused[cause] | Rejected[cause] | Failed[cause]
+;;   (:wat::kernel::RecvOutcome :- [O])      Message[..] | Closed | Lost[cause]
+;;   :wat::kernel::CloseOutcome        Closed[exit <- (Option :- [i64])] | Signaled[signal <- i64] | Failed[cause]
+;;   (:wat::kernel::ConnectOutcome :- [S R]) Connected[peer] | Refused[cause] | Rejected[cause] | Failed[cause]
 ;;
 ;; ⚠ NOTE THE TENSION worth a verdict: CloseOutcome ALREADY reports a signal, as a BARE i64
 ;; (`Signaled [signal <- i64]`, types.rs:1747). That is the RECEIVE side — "the child was killed by
@@ -132,7 +132,7 @@
 
 ;; ── CANDIDATE NAMES — which one KEEPS ITS PROMISE at the use site? ─────────────────────────────
 ;;
-;; THE VERB — the use site reads:  (<verb> proc <signal>)  where proc <- Process<I,O>
+;; THE VERB — the use site reads:  (<verb> proc <signal>)  where proc <- (Process :- [I O])
 ;;
 ;;   signal        — bare, obvious, reads as the noun-as-verb. Beside send/recv does it fit?
 ;;                   But `signal` is also a NOUN here (the 2nd argument IS a signal) — does the verb
@@ -185,7 +185,7 @@
 ;; ── THE PROBE FORM — the name goes here; judge it at THIS use site ─────────────────────────────
 ;;
 ;; (:wat::core::defn :naming::PROBE
-;;   [proc <- :wat::kernel::Process<:wat::core::i64,:wat::core::i64>]
+;;   [proc <- (:wat::kernel::Process :- [:wat::core::i64 :wat::core::i64])]
 ;;   -> :wat::kernel::SIGNAL-OUTCOME-NAME
 ;;   (:wat::core::match (<VERB-NAME> proc <SIGNAL-TYPE>::<USER1-VARIANT>)
 ;;     (<SIGNAL-OUTCOME>::<DELIVERED-VARIANT> nil)

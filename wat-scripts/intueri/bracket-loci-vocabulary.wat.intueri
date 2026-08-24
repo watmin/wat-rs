@@ -7,7 +7,7 @@
 ;;   :wat::spawn::ThreadOpts / ProcessOpts — the per-runner opts structs (already asymmetric per tier)
 ;;   thread · thread/init · process · process/env · process/max-message-bytes — the /-suffix ctor family
 ;;   spawn-program'                        — the SOLE locus interface (dispatches on the opts TYPE)
-;;   service-forms                         — defservice's shipped forms (Vector<WatAST> the forked child rebuilds from)
+;;   service-forms                         — defservice's shipped forms ((Vector :- [WatAST]) the forked child rebuilds from)
 ;;   closure_extract (Rust, internal)      — ClosurePackage {prologue, entry}; reifies a fn to shippable forms
 ;;   :wat::bracket::map / each / map-worker — Ruby's Parallel (the consumer)
 ;;   :wat::program::cpu-count              — the default pool size

@@ -11,7 +11,7 @@
 ;; this fixture can confuse the two arms under test:
 ;;   `BareSeqable`  — NOT parametric. Goes through arm 3 (`(Parametric actual, Path expected)`,
 ;;                    `parametric_head_fqdn` lookup). Must stay byte-identical (row 2 / STOP-3).
-;;   `Seqable<T>`   — parametric. Goes through the FIXED arm 5. All four containers extend it,
+;;   `Seqable :- [T]`   — parametric. Goes through the FIXED arm 5. All four containers extend it,
 ;;                    matching `extract_lazyable_elem`'s hardcoded four-head set (row 1).
 
 ;; ─── bare (non-parametric) surface — arm 3, unchanged ──────────────────────────────

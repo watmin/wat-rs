@@ -15,67 +15,90 @@ concurrency architecture see `ZERO-MUTEX.md`. This cheatsheet is
 ## 1. Colon rule
 
 **The `:` is the symbol-quote marker.** Keywords are symbol-quoted
-paths. The leading `:` quotes the ENTIRE symbol path that follows —
-including parametric type arguments inside `<>`, `(...)`, `:fn(...)`,
-or `:[...]`. Everything to the right of the leading `:` is part of
-the SAME symbol; it doesn't get its own `:` because the outer one
-already covers it.
+paths. The leading `:` quotes the symbol path that follows — one
+colon, at the start, for that one symbol. A parametric type is NOT
+spelled by splicing more text after that colon: `:-` is the ONE
+parameterization operator, and it takes a real nested FORM.
 
-`:Vec<wat::core::String>` reads as "the keyword whose symbol path is
-`Vec<wat::core::String>`." The `wat::core::String` inside `<...>`
-isn't a separate keyword needing its own quote — it's part of the
-outer keyword's path.
+```wat
+(:wat::core::Vector :- [:wat::core::i64])            ;; reference — in parens
+(:wat::core::HashMap :- [K V])                       ;; reference, bare generic params
+:wat::bracket::runner-loop :- [I O]                  ;; BINDER — siblings, no parens
+(:wat::core::Vector :- [:wat::core::i64] 1 2 3)      ;; constructor — reference PLUS values
+```
 
-`:Vec<:wat::core::String>` is illegal because you can't nest
-symbol-quotes; the inner `:` would mean "start a new symbol-quote
-here," but you're already inside one.
+Because `:- [...]` is a real vector of separate AST nodes — not one
+continuous lexical token — nesting falls out for free: each inner
+type argument is its OWN keyword, with its OWN leading colon, exactly
+like any other symbol-quoted path:
 
-**Operational form of the rule:** ONE colon per keyword-path token,
-always at the start. NEVER inside `<>`, `(...)`, `:fn(...)`, or
-`:[...]`.
+```wat
+(:wat::core::Option :- [(:wat::core::Vector :- [T])])
+```
 
-| Illegal | Canonical | Why |
-|---|---|---|
-| `:Vec<:String>` | `:Vec<String>` | inner colon — arc 115 |
-| `:Result<:Option<i64>,:wat::kernel::ThreadDiedError>` | `:Result<Option<i64>,wat::kernel::ThreadDiedError>` | same |
-| `:fn(:i64)->:bool` | `:fn(i64)->bool` | same |
-| `:Vec<:wat::core::String>` | `:Vec<wat::core::String>` | same |
-| `:wat::core::Option<:wat::Record>` | `:wat::core::Option<wat::Record>` | Stone 234.2c (2026-05-24) |
+— no different from nesting any other wat form. That is precisely
+what the OLD `<...>` spelling could not do: `Vec<wat::core::String>`
+was ONE lexical token, so typing a `:` inside it opened a SECOND
+symbol-quote nested inside the first — illegal (arc 115's rule).
+Under `:-` there is no such trap: parens and brackets nest the way
+they always do everywhere else in wat.
 
-Arc 115's compile error names the rule and shows the canonical
-form. See `arc/2026/04/115-no-inner-colon-in-parametric-args/`.
+**Operational form of the rule today:** ONE colon per keyword-path
+token, at its start; a nested type is a nested FORM (`:- [...]`),
+never nested text spliced after one colon.
+
+| Illegal (doesn't lex) | Canonical |
+|---|---|
+| `:Vec<wat::core::i64>` | `(:wat::core::Vector :- [:wat::core::i64])` |
+| `:Result<Option<i64>,wat::kernel::ThreadDiedError>` | `(:wat::core::Result :- [(:wat::core::Option :- [:wat::core::i64]) :wat::kernel::ThreadDiedError])` |
+| `:fn(i64)->bool` | `[:wat::core::i64 :-> :wat::core::bool]` |
+| `mk<S,R> [args] -> ret` (a declaration) | `mk :- [S R] [args] -> ret` |
+
+> ⚠ **Historical.** Arc 115 (`docs/arc/2026/04/115-no-inner-colon-in-parametric-args/`)
+> forbade a symbol-quote nested inside `<...>`'s single lexical token. Arc 109 ③
+> removed `<...>` types outright — 543 files, 710 → 0 — so that specific trap no
+> longer exists to fall into; `:-`'s real nesting structurally can't reproduce it.
 
 > **LLM note** — every LLM (sonnet flights, orchestrator instances,
-> anyone cloning this repo) initially defaults to "type the colon
-> because it's a path token." That reflex is wrong here; the
-> **symbol-quote framing above** is the WHY that prevents the
-> mistake — internalize that, not just the legal/illegal table. The
-> substrate's compile error (arc 115) is the structural guarantee:
-> when in doubt, write the form and trust the type-checker to teach.
-> The framing is the discipline; the error is the safety net.
+> anyone cloning this repo) initially defaults to spelling a
+> parametric type by splicing `<...>` after the name. That reflex is
+> wrong here; `:-` is the ONE parameterization operator, full stop —
+> `(Head :- [A B])` for a reference, `Head :- [A B]` for a binder,
+> `(Head :- [A B] v1 v2)` for a constructor. The substrate's lex
+> error names this rule directly and shows the fix; when in doubt,
+> write the form and trust the type-checker to teach.
 
 ## 2. Whitespace rule
 
-NO whitespace inside `<...>`, `:(...)`, `:fn(...)`, or `:[...]`.
+> ⚠ **Historical.** This section used to forbid whitespace inside
+> `<...>`, `:(...)`, `:fn(...)`, or `:[...]` — those were single
+> lexical tokens (a name with text spliced after it), so the lexer
+> rejected whitespace inside the unclosed bracket. Arc 109 ③ retired
+> all four spellings; the constraint retired with them.
 
-| Illegal | Canonical |
-|---|---|
-| `:Vec<wat::core::i64, wat::core::String>` | `:Vec<wat::core::i64,wat::core::String>` |
-| `:Result<(), Vec<wat::kernel::ThreadDiedError>>` | `:Result<(),Vec<wat::kernel::ThreadDiedError>>` |
-| `:(A, B, C)` | `:(A,B,C)` |
-| `:fn(A, B) -> C` | `:fn(A,B)->C` |
+`:- [...]` is an ORDINARY vector, not a spliced token — whitespace
+between its elements is required exactly the way it's required
+between the elements of any other wat vector (`[1 2 3]`, an arg
+list, a `let` binding), and a comma is accepted as EDN whitespace
+between elements the same as everywhere else:
 
-The lexer rejects whitespace inside an unclosed bracket.
+```wat
+(:wat::kernel::Peer :- [S R])       ;; canonical, space-separated
+(:wat::kernel::Peer :- [S, R])      ;; comma is EDN whitespace — also legal
+```
+
+There is no bracket-form left in wat where whitespace is illegal.
 
 ## 3. FQDN namespace rule
 
 Substrate-provided types use their full path. No bare aliases
-like `:Sender<T>` or `:Receiver<T>` — those are not registered.
+like `(:Sender :- [T])` or `(:Receiver :- [T])` — those are not
+registered.
 
 | Illegal / unregistered | Canonical |
 |---|---|
-| `:Sender<T>` | `:rust::crossbeam_channel::Sender<T>` |
-| `:Receiver<T>` | `:rust::crossbeam_channel::Receiver<T>` |
+| `(:Sender :- [T])` | `(:rust::crossbeam_channel::Sender :- [T])` |
+| `(:Receiver :- [T])` | `(:rust::crossbeam_channel::Receiver :- [T])` |
 | `:i64` | `:wat::core::i64` (in user code post-arc-109/1c) |
 | `:String` | `:wat::core::String` (same) |
 | `:wat::core::unit` | `:wat::core::nil` (arc 153 — same type, new name) |
@@ -101,14 +124,14 @@ both positions:
 
 The triplet `nil` / `Some(t)` / `None` reads cleanly and stays
 orthogonal — `:wat::core::nil` is the unit type (singleton),
-`:wat::core::None` is `Option<T>`'s absence variant,
+`:wat::core::None` is `(:wat::core::Option :- [T])`'s absence variant,
 `:wat::core::Some(t)` is the presence variant. The type system
 enforces the split. No "null pointer exception" semantics; no
 sentinel-value lies.
 
 ### `:wat::program::Env` — wat-level program environment (arc 214 Slice 4)
 
-`:wat::program::Env` is a registered typealias for `HashMap<:wat::core::keyword, :wat::holon::HolonAST>`.
+`:wat::program::Env` is a registered typealias for `(:wat::core::HashMap :- [:wat::core::keyword :wat::holon::HolonAST])`.
 It is the second positional argument to `spawn-program'` — the map of configuration
 that a spawned program sees as its startup environment.
 
@@ -126,8 +149,8 @@ that a spawned program sees as its startup environment.
 
 | Name | Alias for | Scope |
 |---|---|---|
-| `:wat::program::Env` | `HashMap<keyword, HolonAST>` | wat-level program config (Slice 4) |
-| `:wat::process::Env` | `HashMap<String, String>` | OS-level process env vars (`$HOME`, `$PATH`, …) — separate concern; out of scope Slice 4 |
+| `:wat::program::Env` | `(:wat::core::HashMap :- [:wat::core::keyword :wat::holon::HolonAST])` | wat-level program config (Slice 4) |
+| `:wat::process::Env` | `(:wat::core::HashMap :- [:wat::core::String :wat::core::String])` | OS-level process env vars (`$HOME`, `$PATH`, …) — separate concern; out of scope Slice 4 |
 
 The two namespaces are orthogonal: program env carries wat-typed config; process env mirrors the OS contract (`getenv`/`setenv`). Callers reach for the right namespace based on what they are talking about.
 
@@ -135,15 +158,15 @@ The two namespaces are orthogonal: program env carries wat-typed config; process
 
 | Verb | Args | Returns | Miss / wrong-type |
 |---|---|---|---|
-| `:wat::program::Env/get` | `env key -> :T` | `Option<T>` | `None` |
+| `:wat::program::Env/get` | `env key -> :T` | `(:wat::core::Option :- [T])` | `None` |
 | `:wat::program::Env/expect-get` | `env key -> :T` | `T` | panic with KeyError diagnostic |
 | `:wat::program::Env/get-default` | `env key default -> :T` | `T` | `default` |
 
 The `-> :T` annotation sits at TAIL position (after env + key args). The verb looks up `key` in `env`, extracts the stored `HolonAST` leaf to the declared type T, and returns Some(v) / v / default on hit or None / panic / default on miss or type-mismatch.
 
 ```wat
-;; /get — Option<T> on miss
-(:wat::program::Env/get env :port -> :wat::core::i64)     ;; → Option<i64>
+;; /get — (:wat::core::Option :- [T]) on miss
+(:wat::program::Env/get env :port -> :wat::core::i64)     ;; → (:wat::core::Option :- [:wat::core::i64])
 
 ;; /expect-get — T directly; panics if missing or wrong type
 (:wat::program::Env/expect-get env :port -> :wat::core::i64)  ;; → i64
@@ -163,19 +186,19 @@ The `-> :T` annotation sits at TAIL position (after env + key args). The verb lo
 
 | Verb | Args | Returns | Miss / wrong-type |
 |---|---|---|---|
-| `:wat::program::Env/dig` | `env path -> :T` | `Option<T>` | `None` |
+| `:wat::program::Env/dig` | `env path -> :T` | `(:wat::core::Option :- [T])` | `None` |
 | `:wat::program::Env/expect-dig` | `env path -> :T` | `T` | panic with KeyError diagnostic |
 | `:wat::program::Env/dig-default` | `env path default -> :T` | `T` | `default` |
 
-`path` is a `Vector<keyword>` — each element is a navigation step (keyword key for HashMap lookup).  The walk starts at `env` and follows each key in sequence.
+`path` is a `(:wat::core::Vector :- [:wat::core::keyword])` — each element is a navigation step (keyword key for HashMap lookup).  The walk starts at `env` and follows each key in sequence.
 
-**STOP-1 (arc 215 atomizable-set limitation, resolved):** `HashSet<T>` is now atomizable (arc 216 Stone 1); `Vector<T>` is now atomizable (arc 216 Stone 2); `HashMap<K,V>` is now atomizable (arc 216 Stone 3).  All three collection types support `(:wat::holon::Atom collection)` → HolonAST round-trip.  Multi-step traversal through nested HashMaps is now fully supported at the algebra level.
+**STOP-1 (arc 215 atomizable-set limitation, resolved):** `(:wat::core::HashSet :- [T])` is now atomizable (arc 216 Stone 1); `(:wat::core::Vector :- [T])` is now atomizable (arc 216 Stone 2); `(:wat::core::HashMap :- [K V])` is now atomizable (arc 216 Stone 3).  All three collection types support `(:wat::holon::Atom collection)` → HolonAST round-trip.  Multi-step traversal through nested HashMaps is now fully supported at the algebra level.
 
 Single-step paths (`[:key]`) are equivalent to the `/get` trio and always work.
 
 ```wat
-;; /dig — Option<T> on miss or early termination
-(:wat::program::Env/dig env [:port] -> :wat::core::i64)         ;; → Option<i64>
+;; /dig — (:wat::core::Option :- [T]) on miss or early termination
+(:wat::program::Env/dig env [:port] -> :wat::core::i64)         ;; → (:wat::core::Option :- [:wat::core::i64])
 
 ;; /expect-dig — T directly; panics if path misses
 (:wat::program::Env/expect-dig env [:host] -> :wat::core::String)  ;; → String
@@ -223,7 +246,7 @@ handled at every comm site.
 
 ```wat
 ;; Illegal
-((received :Result<...>) (:wat::kernel::recv rx))
+(received (:wat::kernel::recv rx))
 
 ;; Canonical
 (:wat::core::match (:wat::kernel::recv rx)
@@ -266,7 +289,7 @@ Forms that take ASTs (not strings):
 | Form | Takes |
 |---|---|
 | `:wat::kernel::raise!` | `data: HolonAST`. Wrap a string with `(:wat::holon::leaf "msg")`. |
-| `:wat::kernel::assertion-failed!` | `(message :String, actual :Option<String>, expected :Option<String>)` |
+| `:wat::kernel::assertion-failed!` | `(message :String, actual (:wat::core::Option :- [:wat::core::String]), expected (:wat::core::Option :- [:wat::core::String]))` |
 | `:wat::core::eval-ast!` | `:wat::WatAST` (the AST datatype itself) |
 
 Forms that take string literals:
@@ -281,10 +304,11 @@ Forms that take string literals:
 `std::any::Any` on the Rust side; wat code uses concrete types
 or generics.
 
-Wat does NOT mint its own type system. `Atom<T>` uses real Rust
-types — `Atom<wat::core::String>`, `Atom<wat::holon::HolonAST>`,
-etc. No `AtomLiteral` enum or `AtomValue` trait. Rust types ARE
-wat types.
+Wat does NOT mint its own type system. Generic wat types are backed
+by real Rust generics — `(:wat::core::Vector :- [:wat::core::String])`
+is Rust's `Vec<String>`, `(:wat::core::Vector :- [:wat::holon::HolonAST])`
+is Rust's `Vec<HolonAST>`, etc. No `AtomLiteral` enum or `AtomValue`
+trait. Rust types ARE wat types.
 
 ## 8. Collection constructors (verb-equals-type)
 
@@ -294,10 +318,10 @@ heterogeneous `Tuple` takes positional values only (element types inferred
 from each position).
 
 ```wat
-(:wat::core::Vector :T x0 x1 ...)              ;; Vector<T>          (1 type-keyword)
-(:wat::core::HashMap :K :V k0 v0 k1 v1 ...)    ;; HashMap<K,V>       (2 type-keywords)
-(:wat::core::HashSet :T x0 x1 ...)             ;; HashSet<T>         (mirror of Vector)
-(:wat::core::Tuple x0 x1 x2 ...)               ;; Tuple<T0,T1,T2>    (no type-keywords; types inferred per position)
+(:wat::core::Vector :T x0 x1 ...)              ;; (:wat::core::Vector :- [T])          (1 type-keyword)
+(:wat::core::HashMap :K :V k0 v0 k1 v1 ...)    ;; (:wat::core::HashMap :- [K V])       (2 type-keywords)
+(:wat::core::HashSet :T x0 x1 ...)             ;; (:wat::core::HashSet :- [T])         (mirror of Vector)
+(:wat::core::Tuple x0 x1 x2 ...)               ;; (:wat::core::Tuple :- [T0 T1 T2])    (no type-keywords; types inferred per position)
 ```
 
 Rules:
@@ -366,9 +390,9 @@ Escape hatch (power-user explicit form): use the verb form with concrete types:
                         ;;   :k0 v0 :k1 v1 ...)
                         ;; K and V both inferred from first key/value
 
-{}                      ;; empty map literal — HashMap<fresh-K, fresh-V>
+{}                      ;; empty map literal — (:wat::core::HashMap :- [fresh-K fresh-V])
 
-{:outer {:inner 42}}    ;; nested: outer V inferred as HashMap<keyword, i64>
+{:outer {:inner 42}}    ;; nested: outer V inferred as (:wat::core::HashMap :- [:wat::core::keyword :wat::core::i64])
                         ;; values pass through as-is (no Atom auto-wrap)
 
 {1 "v" 2 "w"}           ;; arc 215 stone 2: non-keyword keys accepted
@@ -389,7 +413,7 @@ For explicit K/V types, use the verb form: `(:wat::core::HashMap :K :V ...)`.
 #{1 2 3}        ;; desugars to: (:wat::core::HashSet :wat::type::Infer 1 2 3)
                 ;; T inferred as :wat::core::i64 from element 1
 
-#{}             ;; empty set — HashSet<fresh-T>
+#{}             ;; empty set — (:wat::core::HashSet :- [fresh-T])
 
 #{:a :b :c}     ;; T inferred as :wat::core::keyword
 ```
@@ -407,10 +431,10 @@ determines which types are accepted; non-atomizable types fail at check time
 
 ```
 atomizable(T) :=
-  T ∈ {i64, f64, bool, String, keyword, HolonAST, WatAST, Uuid}  -- primitives (arc 215 baseline)
-  OR T = HashSet<T'>  ∧ atomizable(T')                             -- arc 216 Stone 1 (shipped)
-  OR T = Vector<T'>   ∧ atomizable(T')                             -- arc 216 Stone 2 (shipped)
-  OR T = HashMap<K,V> ∧ atomizable(K) ∧ atomizable(V)             -- arc 216 Stone 3 (shipped)
+  T ∈ {i64, f64, bool, String, keyword, HolonAST, WatAST, Uuid}          -- primitives (arc 215 baseline)
+  OR T = (HashSet :- [T']) ∧ atomizable(T')                             -- arc 216 Stone 1 (shipped)
+  OR T = (Vector :- [T'])  ∧ atomizable(T')                             -- arc 216 Stone 2 (shipped)
+  OR T = (HashMap :- [K V]) ∧ atomizable(K) ∧ atomizable(V)             -- arc 216 Stone 3 (shipped)
 ```
 
 Canonical implementation: `fn is_atomizable(ty: &TypeExpr) -> bool` at `src/check.rs:3623`.
@@ -424,7 +448,7 @@ Called from the `:wat::holon::Atom | :wat::holon::leaf` arm in `infer_list`.
 ;; Set-shape: bare atoms, no Bind keys
 
 (:wat::core::atom-value bundle-of-bare-atoms)
-;; → HashSet<T> (reconstructs from Bundle of bare atoms)
+;; → (:wat::core::HashSet :- [T]) (reconstructs from Bundle of bare atoms)
 ;; Round-trip: #{1 2 3} → Atom → atom-value → #{1 2 3}
 
 (:wat::holon::Atom [1 2 3])
@@ -432,7 +456,7 @@ Called from the `:wat::holon::Atom | :wat::holon::leaf` arm in `infer_list`.
 ;; Array-shape: positional-Bind keys 0..n-1, order preserved
 
 (:wat::core::atom-value bundle-of-positional-binds)
-;; → Vec<T> (reconstructs from Bundle of Bind(I64(i), _) with sequential keys 0..n-1)
+;; → (:wat::core::Vector :- [T]) (reconstructs from Bundle of Bind(I64(i), _) with sequential keys 0..n-1)
 ;; Round-trip: [1 2 3] → Atom → atom-value → [1 2 3] (order preserved)
 
 (:wat::holon::Atom {:foo 42 :bar 99})
@@ -440,7 +464,7 @@ Called from the `:wat::holon::Atom | :wat::holon::leaf` arm in `infer_list`.
 ;; Map-shape: arbitrary-K Bind pairs; order non-canonical (HashMap unordered)
 
 (:wat::core::atom-value bundle-of-arbitrary-k-binds)
-;; → HashMap<K, V> (reconstructs from Bundle where all children are Bind nodes
+;; → (:wat::core::HashMap :- [K V]) (reconstructs from Bundle where all children are Bind nodes
 ;;   and keys are not sequential i64 0..n-1 — non-sequential I64 keys also → HashMap)
 ;; Round-trip: {:foo 42} → Atom → atom-value → {:foo 42}
 
@@ -463,49 +487,50 @@ Called from the `:wat::holon::Atom | :wat::holon::leaf` arm in `infer_list`.
 **Predicate at check time:**
 
 ```wat
-;; PASSES: HashSet<i64> is atomizable (i64 is primitive)
+;; PASSES: (:wat::core::HashSet :- [:wat::core::i64]) is atomizable (i64 is primitive)
 (:wat::holon::Atom #{1 2 3})
 
-;; PASSES: Vector<i64> is atomizable (i64 is primitive)
+;; PASSES: (:wat::core::Vector :- [:wat::core::i64]) is atomizable (i64 is primitive)
 (:wat::holon::Atom [1 2 3])
 
-;; PASSES: HashMap<keyword, i64> is atomizable (both K and V are primitive)
+;; PASSES: (:wat::core::HashMap :- [:wat::core::keyword :wat::core::i64]) — both K and V are primitive
 (:wat::holon::Atom {:foo 42 :bar 99})
 
-;; PASSES: nested Vector<Vector<i64>> — predicate recurses both levels
+;; PASSES: nested (:wat::core::Vector :- [(:wat::core::Vector :- [:wat::core::i64])]) — predicate recurses both levels
 (:wat::holon::Atom outer-nested-vec)
 
-;; PASSES: nested HashSet<HashSet<i64>> — predicate recurses
+;; PASSES: nested (:wat::core::HashSet :- [(:wat::core::HashSet :- [:wat::core::i64])]) — predicate recurses
 (:wat::holon::Atom outer-nested-set)
 
-;; PASSES: HashMap<keyword, Vec<i64>> — composes Stone 2 + Stone 3
+;; PASSES: (:wat::core::HashMap :- [:wat::core::keyword (:wat::core::Vector :- [:wat::core::i64])]) — composes Stone 2 + Stone 3
 (:wat::holon::Atom {:data [1 2 3]})
 
-;; PASSES: HashMap<keyword, Vector<HashSet<i64>>> — all three collections nested
+;; PASSES: (:wat::core::HashMap :- [:wat::core::keyword (:wat::core::Vector :- [(:wat::core::HashSet :- [:wat::core::i64])])]) — all three collections nested
 ;; (triple-nested composition; arc 216 Stone 4 composite)
 (:wat::holon::Atom complex-nested-map)
 
-;; FAILS at check: Fn(...)->... is not atomizable
+;; FAILS at check: a function value is not atomizable
 (:wat::holon::Atom my-fn)
-;; TypeMismatch: :wat::holon::Atom #1 expected atomizable type, got Fn([i64])->i64
+;; TypeMismatch: :wat::holon::Atom #1 expects :wat::holon::HolonAST; got :wat::core::Fn(wat::core::i64)->wat::core::i64
+;; (the substrate's own diagnostic still renders a Fn type this way — verified live, arc 109 did not touch Fn's DISPLAY form)
 
-;; FAILS at check: Vector<Fn(...)-> ...> — non-atomizable element T
-;; TypeMismatch: :wat::holon::Atom #1 expected atomizable type, got Vector<Fn(...)>
+;; FAILS at check: (:wat::core::Vector :- [Fn-type]) — non-atomizable element T
+;; TypeMismatch: :wat::holon::Atom #1 expects :wat::holon::HolonAST; got (:wat::core::Vector :- [:wat::core::Fn(wat::core::i64)->wat::core::i64])
 ;; (:wat::holon::Atom vec-of-fns)  -- rejects at check time
 
-;; FAILS at check: HashMap<Fn(...), i64> — non-atomizable K
-;; TypeMismatch: :wat::holon::Atom #1 expected atomizable type, got HashMap<Fn(...),...>
+;; FAILS at check: (:wat::core::HashMap :- [Fn-type :wat::core::i64]) — non-atomizable K
+;; TypeMismatch: :wat::holon::Atom #1 expects :wat::holon::HolonAST; got (:wat::core::HashMap :- [...])
 ```
 
 Atomizable composition examples:
 
 | Expression | Passes? | Reason |
 |---|---|---|
-| `Atom<HashMap<keyword, Vector<HashSet<i64>>>>` | YES | all three collections; T = i64 (primitive) |
-| `Atom<Vector<HashSet<i64>>>` | YES | Vector-of-HashSet; T = i64 (primitive) |
-| `Atom<HashSet<Vector<i64>>>` | YES | HashSet-of-Vector; T = i64 (primitive) |
-| `Atom<HashMap<keyword, Function<...>>>` | NO | V = Function; not atomizable |
-| `Atom<Vector<Function<...>>>` | NO | T = Function; not atomizable |
+| `(:wat::holon::Atom v)`, `v : (:wat::core::HashMap :- [:wat::core::keyword (:wat::core::Vector :- [(:wat::core::HashSet :- [:wat::core::i64])])])` | YES | all three collections; T = i64 (primitive) |
+| `(:wat::holon::Atom v)`, `v : (:wat::core::Vector :- [(:wat::core::HashSet :- [:wat::core::i64])])` | YES | Vector-of-HashSet; T = i64 (primitive) |
+| `(:wat::holon::Atom v)`, `v : (:wat::core::HashSet :- [(:wat::core::Vector :- [:wat::core::i64])])` | YES | HashSet-of-Vector; T = i64 (primitive) |
+| `(:wat::holon::Atom v)`, `v : (:wat::core::HashMap :- [:wat::core::keyword Fn-type])` | NO | V = Function; not atomizable |
+| `(:wat::holon::Atom v)`, `v : (:wat::core::Vector :- [Fn-type])` | NO | T = Function; not atomizable |
 
 Non-atomizable T (e.g., function values, Thread handles, user structs not in the set)
 fails at check with `TypeMismatch` naming `:wat::holon::Atom` and the offending type.
@@ -555,11 +580,11 @@ Reference: `src/runtime.rs` — `pub fn value_is_hashable`, `value_is_set_hashab
 `:wat::type::Infer` machinery at expression position:
 
 ```wat
-[1 2 3]         ;; Vec<i64>; T inferred as :wat::core::i64 from element 1
-[1.5 2.5]       ;; Vec<f64>; T inferred as :wat::core::f64
-["a" "b"]       ;; Vec<String>
-[true false]    ;; Vec<bool>
-[]              ;; empty Vec<fresh-T>
+[1 2 3]         ;; (:wat::core::Vector :- [:wat::core::i64]); T inferred as :wat::core::i64 from element 1
+[1.5 2.5]       ;; (:wat::core::Vector :- [:wat::core::f64]); T inferred as :wat::core::f64
+["a" "b"]       ;; (:wat::core::Vector :- [:wat::core::String])
+[true false]    ;; (:wat::core::Vector :- [:wat::core::bool])
+[]              ;; empty (:wat::core::Vector :- [fresh-T])
 ```
 
 At binder position (let/fn/match), `[...]` continues to act as a tuple-destructure
@@ -587,16 +612,16 @@ A bare Symbol head → struct destructure. Anything else (keyword, integer, stri
 
 | Verb | Returns |
 |---|---|
-| `:wat::kernel::send sender value` | `:Result<(),:Vec<wat::kernel::ThreadDiedError>>` |
-| `:wat::kernel::recv receiver` | `:Result<Option<T>,:Vec<wat::kernel::ThreadDiedError>>` |
-| `:wat::kernel::try-recv receiver` | `:Result<Option<T>,:Vec<wat::kernel::ThreadDiedError>>` |
-| `:wat::kernel::select [(rx-1 ...) (rx-2 ...)]` | `:Result<Chosen<T>,:Vec<wat::kernel::ThreadDiedError>>` |
-| `:wat::kernel::spawn-thread body` | `:wat::kernel::Thread<I,O>` (arc 114) |
-| `:wat::kernel::Thread/join-result thr` | `:Result<wat::core::nil,:Vec<wat::kernel::ThreadDiedError>>` |
-| `:wat::kernel::spawn-program src scope` | `:Result<wat::kernel::Process<I,O>,wat::kernel::StartupError>` |
-| `:wat::kernel::Process/join-result proc` | `:Result<wat::core::nil,:Vec<wat::kernel::ProcessDiedError>>` |
+| `:wat::kernel::send sender value` | `(:wat::core::Result :- [:wat::core::nil (:wat::core::Vector :- [:wat::kernel::ThreadDiedError])])` |
+| `:wat::kernel::recv receiver` | `(:wat::core::Result :- [(:wat::core::Option :- [T]) (:wat::core::Vector :- [:wat::kernel::ThreadDiedError])])` |
+| `:wat::kernel::try-recv receiver` | `(:wat::core::Result :- [(:wat::core::Option :- [T]) (:wat::core::Vector :- [:wat::kernel::ThreadDiedError])])` |
+| `:wat::kernel::select [(rx-1 ...) (rx-2 ...)]` | `(:wat::core::Result :- [(:wat::kernel::Chosen :- [T]) (:wat::core::Vector :- [:wat::kernel::ThreadDiedError])])` |
+| `:wat::kernel::spawn-thread body` | `(:wat::kernel::Thread :- [I O])` (arc 114) |
+| `:wat::kernel::Thread/join-result thr` | `(:wat::core::Result :- [:wat::core::nil (:wat::core::Vector :- [:wat::kernel::ThreadDiedError])])` |
+| `:wat::kernel::spawn-program src scope` | `(:wat::core::Result :- [(:wat::kernel::Process :- [I O]) :wat::kernel::StartupError])` |
+| `:wat::kernel::Process/join-result proc` | `(:wat::core::Result :- [:wat::core::nil (:wat::core::Vector :- [:wat::kernel::ProcessDiedError])])` |
 
-Arc 113 widened every Err arm to `:Vec<*DiedError>` (chain).
+Arc 113 widened every Err arm to `(:wat::core::Vector :- [*DiedError])` (chain).
 Arc 114 retired `:wat::kernel::spawn` / `join` / `join-result`
 in favor of `spawn-thread` + `Thread/join-result`.
 
@@ -606,7 +631,7 @@ Tests use `:wat::test::*`, NOT `:user::*`:
 
 | Verb | Path |
 |---|---|
-| `assert-eq` | `:wat::test::assert-eq<T>` |
+| `assert-eq` | `:wat::test::assert-eq :- [T]` |
 | `assert-substring` | `:wat::test::assert-substring` |
 | `assert-coincident?` | `:wat::test::assert-coincident?` |
 | `deftest` | `:wat::test::deftest` |
@@ -624,25 +649,25 @@ clone. The compiler refuses programs where a `Channel` /
 ;; Illegal — pair sibling to thr; pair's Sender outlives thr;
 ;; the worker's recv never sees EOF.
 (:wat::core::let
-  (((pair :wat::kernel::Channel<i64>) (:wat::kernel::make-bounded-channel :wat::core::i64 1))
-   ((thr  :wat::kernel::Thread<(),i64>) (:wat::kernel::spawn-thread ...))
+  (((pair (:wat::kernel::Channel :- [:wat::core::i64])) (:wat::kernel::make-bounded-channel :wat::core::i64 1))
+   ((thr  (:wat::kernel::Thread :- [:wat::core::nil :wat::core::i64])) (:wat::kernel::spawn-thread ...))
    ...)
   (:wat::kernel::Thread/join-result thr))
 
 ;; Canonical — outer holds thr; inner owns pair + Sender;
 ;; inner returns thr; pair drops at inner-scope exit.
 (:wat::core::let
-  (((thr :wat::kernel::Thread<(),i64>)
+  (((thr (:wat::kernel::Thread :- [:wat::core::nil :wat::core::i64]))
     (:wat::core::let
-      (((pair :wat::kernel::Channel<i64>) (:wat::kernel::make-bounded-channel :wat::core::i64 1))
-       ((h    :wat::kernel::Thread<(),i64>) (:wat::kernel::spawn-thread ...))
+      (((pair (:wat::kernel::Channel :- [:wat::core::i64])) (:wat::kernel::make-bounded-channel :wat::core::i64 1))
+       ((h    (:wat::kernel::Thread :- [:wat::core::nil :wat::core::i64])) (:wat::kernel::spawn-thread ...))
        ...)
       h)))
   (:wat::kernel::Thread/join-result thr))
 ```
 
 Same rule applies to `Process/join-result`. Arc 117 enforces it
-at type-check time. Arc 131 extended it to `HandlePool<T>` —
+at type-check time. Arc 131 extended it to `(:wat::kernel::HandlePool :- [T])` —
 when T (after alias resolution) contains a Sender, a HandlePool
 sibling to a Thread with `Thread/join-result` fires the same
 diagnostic with `(a HandlePool)` as the offending kind. Arc 133
@@ -652,7 +677,7 @@ typed-name shapes. See `SERVICE-PROGRAMS.md § "The lockstep"`
 for the why.
 
 Arc 134 added two structural narrowings to reduce false positives
-on canonical Thread<I,O> usage:
+on canonical `(:wat::kernel::Thread :- [I O])` usage:
 
 - **Origin-trace exemption.** A Sender whose binding RHS is
   `(:wat::kernel::Thread/input <_>)` or `Process/input` extracts
@@ -688,10 +713,10 @@ the channel alive even when the receiving thread dies.
 ;; never sees EOF if the worker dies; caller's tx clone
 ;; keeps the channel open.
 (:wat::core::let
-  (((pair :wat::kernel::Channel<wat::core::nil>)
+  (((pair (:wat::kernel::Channel :- [:wat::core::nil]))
     (:wat::kernel::make-bounded-channel :wat::core::nil 1))
-   ((tx :wat::kernel::Sender<wat::core::nil>)   (:wat::core::first  pair))
-   ((rx :wat::kernel::Receiver<wat::core::nil>) (:wat::core::second pair))
+   ((tx (:wat::kernel::Sender :- [:wat::core::nil]))   (:wat::core::first  pair))
+   ((rx (:wat::kernel::Receiver :- [:wat::core::nil])) (:wat::core::second pair))
    ...
    ((_ :wat::core::nil) (:my::helper-verb tx rx ...)))
   ...)
@@ -702,8 +727,8 @@ the channel alive even when the receiving thread dies.
 ;; Distinct pair-anchors → distinct channels → no deadlock.
 (:wat::core::let
   (((handle :svc::Handle)                (:wat::kernel::HandlePool::pop pool))
-   ((req-tx :svc::ReqTx<...>)            (:wat::core::first  handle))
-   ((ack-rx :svc::AckRx<wat::core::nil>) (:wat::core::second handle))
+   ((req-tx (:svc::ReqTx :- [T]))            (:wat::core::first  handle))
+   ((ack-rx (:svc::AckRx :- [:wat::core::nil])) (:wat::core::second handle))
    ...
    ((_ :wat::core::nil) (:my::helper-verb req-tx ack-rx ...)))
   ...)

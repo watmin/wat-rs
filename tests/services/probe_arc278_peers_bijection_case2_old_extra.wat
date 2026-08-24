@@ -44,7 +44,7 @@
 (:wat::service::defservice :probe::caller
   :satisfies :probe::Caller
   :durable   []
-  ;; the dialed peer — a client Peer'<Echo::Op,Echo::Reply>, held as a ROOT ephemeral field
+  ;; the dialed peer — a client (Peer' :- [Echo::Op Echo::Reply]), held as a ROOT ephemeral field
   :ephemeral [echo <- (:wat::kernel::Peer :- [:probe::Echo::Op :probe::Echo::Reply])]
   ;; :init connects to echo' (its Address' crosses the fork as an operating-input cap record)
   :init (:wat::core::fn

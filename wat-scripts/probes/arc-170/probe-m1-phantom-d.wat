@@ -1,5 +1,5 @@
-;; probe-m1-phantom-d.wat — does a PoolMsg<D,I> with D never constructed monomorphize?
-;; A thread worker recv's PoolMsg<D,I>, only ever gets :Work. D is phantom.
+;; probe-m1-phantom-d.wat — does a (PoolMsg :- [D I]) with D never constructed monomorphize?
+;; A thread worker recv's (PoolMsg :- [D I]), only ever gets :Work. D is phantom.
 ;; EXPECT (green): "6" (work-fn doubles 3)
 
 (:wat::core::defenum :probe::PoolMsg :- [D I] :wat::enum::Pure

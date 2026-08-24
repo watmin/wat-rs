@@ -14,7 +14,7 @@
 ;; `acc` is the memory that walker actually writes, `phase`/`cond` are gone.
 
 ;; walk-alpha-ids — activate-alpha over sorted node-ids.
-;; acc: node-id → PV<Element> (FLAT — assoc under alpha-id, not nested by bindings).
+;; acc: node-id → (PV :- [Element]) (FLAT — assoc under alpha-id, not nested by bindings).
 (:wat::core::defn :wat::rete::walk-alpha-ids
   [facts   <- :wat::core::PersistentVector
    network <- :wat::core::PersistentMap
@@ -32,7 +32,7 @@
         (:wat::core::i64::+ i 1) acc1))))
 
 ;; walk-beta-ids — root-join-pass over sorted node-ids. Reads amem; writes beta.
-;; acc: node-id → PV<Token>.
+;; acc: node-id → (PV :- [Token]).
 (:wat::core::defn :wat::rete::walk-beta-ids
   [network <- :wat::core::PersistentMap
    amem    <- (:wat::core::PersistentMap :- [:wat::core::i64 (:wat::core::PersistentVector :- [:wat::rete::Element])])
@@ -50,7 +50,7 @@
         (:wat::core::i64::+ i 1) acc1))))
 
 ;; walk-filter-ids — populate-then-emit: accumulate-pass, then filter-pass, then
-;; hash-join-pass. Reads facts+amem; threads beta. acc: node-id → PV<Token>.
+;; hash-join-pass. Reads facts+amem; threads beta. acc: node-id → (PV :- [Token]).
 (:wat::core::defn :wat::rete::walk-filter-ids
   [facts   <- :wat::core::PersistentVector
    network <- :wat::core::PersistentMap
@@ -73,7 +73,7 @@
         (:wat::core::i64::+ i 1) acc1))))
 
 ;; walk-prod-ids — production-pass over sorted node-ids. Reads bmem+rules; writes
-;; production. acc: node-id → PV<Record>.
+;; production. acc: node-id → (PV :- [Record]).
 (:wat::core::defn :wat::rete::walk-prod-ids
   [network <- :wat::core::PersistentMap
    bmem    <- (:wat::core::PersistentMap :- [:wat::core::i64 (:wat::core::PersistentVector :- [:wat::rete::Token])])
@@ -174,8 +174,8 @@
   -> :wat::rete::Session
   (:wat::rete::fire-once$native session))
 
-;; collect-derived — flatten production-memory's per-node PV<Record> values into one PV<:wat::core::Record>.
-;; WHY foldl-over-values: production-memory is a PersistentMap from node-id to PV<Record>;
+;; collect-derived — flatten production-memory's per-node (PV :- [Record]) values into one (PV :- [:wat::core::Record]).
+;; WHY foldl-over-values: production-memory is a PersistentMap from node-id to (PV :- [Record]);
 ;; the outer foldl visits each node's PV, the inner foldl conj's each record into the accumulator.
 (:wat::core::defn :wat::rete::collect-derived
   [prod-mem <- :wat::core::PersistentMap]
@@ -258,7 +258,7 @@
 ;; finite, no negation-ordering hazard). Stratification is the ordering layer.
 
 ;; StratifyAcc — sweep accumulator: current type-strata map + change flag.
-;; type-strata: HashMap<String,i64> mapping produced-type FQDN → stratum number.
+;; type-strata: (HashMap :- [String i64]) mapping produced-type FQDN → stratum number.
 ;; changed: true iff this sweep raised any stratum value.
 (:wat::core::defrecord :wat::rete::StratifyAcc
   [type-strata <- (:wat::core::HashMap :- [:wat::core::String :wat::core::i64])
@@ -551,7 +551,7 @@
     (:wat::core::if (:wat::core::i64::> from-n from-p) from-n from-p)))
 
 ;; stratify — compute the type→stratum HashMap for a rule set.
-;; Returns HashMap<String,i64> mapping each produced-type FQDN to its stratum number.
+;; Returns (HashMap :- [String i64]) mapping each produced-type FQDN to its stratum number.
 ;; Raises "negation cycle" if the rule set is not stratifiable (cyclic negation dependency).
 (:wat::core::defn :wat::rete::stratify
   [rules <- (:wat::core::PersistentVector :- [:wat::rete::Rule])]
@@ -562,7 +562,7 @@
     (:wat::rete::stratify-fix rules init-ts bound)))
 
 ;; fire-stratified-loop — recursive descent over strata [current..max-s].
-;; Filters the original `rules` (typed PersistentVector<Rule>) to the current stratum
+;; Filters the original `rules` (typed (PersistentVector :- [Rule])) to the current stratum
 ;; on each call, avoiding type erasure that would occur from storing rule groups in an
 ;; outer PersistentVector. Threads (acc-facts, acc-derived) forward across strata.
 ;;
@@ -580,7 +580,7 @@
   -> :wat::rete::FireStratAcc
   (:wat::core::if (:wat::core::i64::> current max-s)
     (:wat::rete::FireStratAcc :facts acc-facts :derived acc-derived)
-    (:wat::core::let [;; Arc 118.2a — `filter` flipped LAZY; `compile` needs `PersistentVector<Rule>`
+    (:wat::core::let [;; Arc 118.2a — `filter` flipped LAZY; `compile` needs `(PersistentVector :- [Rule])`
                       ;; eagerly, so materialize via `into` (was container-preserving from `rules`).
                       stratum-rules (:wat::core::into (:wat::core::PersistentVector)
                                       (:wat::core::filter

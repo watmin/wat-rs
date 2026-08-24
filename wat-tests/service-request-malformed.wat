@@ -8,7 +8,7 @@
 ;;     victim: connect REFUSED — service is GONE
 ;;
 ;; A client sends well-formed EDN with a wrong-typed body under a CORRECT tag —
-;; `#…/PutRequest {:items [1 2 3]}` against `items <- Vector<String>`. The wire accepted it
+;; `#…/PutRequest {:items [1 2 3]}` against `items <- (Vector :- [String])`. The wire accepted it
 ;; verbatim: the thread tier never decodes at all (`ReactorClass::InMemory` passes the Value
 ;; through crossbeam), and the process tier's decode is TAG-driven, not TARGET-driven
 ;; (`reconstruct_record` uses the declared fields for names and order only — the declared
@@ -30,7 +30,7 @@
 ;;   2. a subsequent INNOCENT client `connect'`s and IS SERVED.
 ;; A bad caller, malicious or dumb, cannot crash anything.
 
-;; ── the surface: the whitelist is `items <- Vector<String>`, and nothing else ────────────
+;; ── the surface: the whitelist is `items <- (Vector :- [String])`, and nothing else ────────────
 ;; `:RequestMalformed` is the shape sibling of ruling A's `:RequestTooLarge` size variant:
 ;; `path` is STRUCTURED (segments — ["items" "[0]"]); `expected`/`got` are Strings (the
 ;; four-questions ruling: `got` is the EDN SHAPE that arrived, and an untyped wire value has

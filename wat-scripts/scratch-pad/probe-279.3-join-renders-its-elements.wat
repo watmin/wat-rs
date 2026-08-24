@@ -7,7 +7,7 @@
 ;;
 ;; PROVEN HERE, measured 2026-08-16:
 ;;   1. `T` BINDS INSIDE A LAMBDA nested in a parametric defn. This was the load-bearing unknown —
-;;      `(:wat::core::fn [x <- T] ...)` inside `defn :user::join-ish<T>` resolves `T` correctly.
+;;      `(:wat::core::fn [x <- T] ...)` inside `defn :user::join-ish :- [T]` resolves `T` correctly.
 ;;   2. `str` is TOTAL (stone 279.2, `25d9d015`) — an i64 element renders without a bound on `T`.
 ;;      That totality is the whole reason `T` needs no constraint; with a partial `str` this
 ;;      signature would require a type-variable bound, a form wat does not have.
@@ -15,10 +15,10 @@
 ;;      TOP LEVEL per element, so 279.2's "nested strings stay quoted" rule does not fire here.
 ;;      This ANSWERS the contract question off the disk rather than by ruling: it is already Ruby's
 ;;      `ary.join(',') => "some,stringified,values"`.
-;;   4. Delegating to the existing native over `Vector<String>` composes cleanly.
+;;   4. Delegating to the existing native over `(Vector :- [String])` composes cleanly.
 ;;
 ;; ⚠ THE LAMBDA IS NOT STYLE — IT IS FORCED. `(mapv :wat::core::str xs)` does NOT type-check: a bare
-;; intrinsic keyword is a `:wat::core::keyword`, not an `Fn(T)->U`, while a USER fn keyword IS.
+;; intrinsic keyword is a `:wat::core::keyword`, not a `[T :-> U]`, while a USER fn keyword IS.
 ;; See `docs/arc/2026/06/255-builtin-registry/NOTE-an-intrinsic-cannot-be-passed-as-a-value.md`.
 ;; Do NOT "simplify" the lambda away — it will not compile, and the cause is arc 255's, not this
 ;; stone's.
