@@ -180,3 +180,59 @@ refutes.
   bound is unchanged and remains named in `DESIGN-STONE-intern-zero-mutex`.
 - **Not that the allocator question is answered.** It is untouched and remains
   the last unexplored axis, deliberately not bundled here.
+
+## The fuzz that closes this stone's own gap (2026-08-23)
+
+This stone's evidence was a scaling probe over a **counter in isolation**. It
+said so, and that was a real hole: nothing in the suite ever fired more than one
+engine at a time. The builder named the contract precisely —
+
+> *"there must be no shared state — N concurrent rete instances must never
+> commingle any state… we need concurrent readers to operate independently —
+> they get scheduled however they get scheduled but they never clobber each
+> other."*
+
+`tests/rete/probe_arc278_concurrent_retes.{rs,wat}` is that gate, built on wat's
+own first-party thread pool (`:wat::bracket::map (:wat::spawn::thread)`).
+
+**48 workers, each a whole engine.** Every worker compiles its own rules, builds
+its own network, seeds its own facts, fires its own session and reads its own
+queries. Nothing is passed between workers; no session is shared. The only thing
+they have in common is the process — which is exactly where a global hides.
+
+**Two rule sets interleaved.** Even workers run a `:cc` 3-stratum chain, odd
+workers a `:dd` 2-stratum one, so two distinct compiled networks are live on the
+pool simultaneously and the per-thread arm intern (stone 27) is exercised with
+both. Each witness carries a rule-set **tag** as well as its counts, because the
+counts alone are identical between the sets — without the tag, a worker reading
+another thread's arm would be invisible.
+
+**Workers finish out of step.** Worker `i` seeds `100 + i` items, so tasks are
+different sizes. A pool where every task is identical can keep workers in
+lockstep and hide the very interleaving the gate exists to find.
+
+Five assertions: the serial reference matches the analytic closure; concurrent
+matches serial element for element; concurrent *also* matches the analytic
+closure (so a shared systematic error cannot hide); both rule sets are provably
+live; and the whole pool is re-run 8 times, because a race that needs a
+particular interleaving will not show on one pass.
+
+### Two things deliberately NOT in this gate
+
+- **No timing.** Perf under concurrency is out of scope here. A duration
+  assertion on a shared box is a flake generator, and every red on this gate
+  must mean cross-thread damage and nothing else. A first draft did measure
+  speedup, read 1.35× on 8 cores, and nearly reported "poor scaling" — the
+  controls showed the number was dominated by per-call world freeze and pool
+  spawn, not by the retes. It was cut rather than fixed: it was answering a
+  question this gate is not asking.
+- **No shared session.** A draft also tried one fired base with concurrent
+  readers and copy-on-write overlays. That is the wrong model for this contract:
+  instances must share *nothing*, so deliberately sharing a session tests
+  something the design does not promise. Removed.
+
+**What it does not prove:** that the pool is multi-threaded. A pool that
+silently ran every task on one thread would make it pass vacuously. That belongs
+to the bracket layer and is covered by `tests/kernel/probe_arc259_brackets_*`.
+It is named in the probe's header rather than assumed, because a vacuous green
+is worse than a red.
