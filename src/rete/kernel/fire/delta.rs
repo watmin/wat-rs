@@ -103,7 +103,7 @@ pub(crate) fn alpha_activate_fact(
 /// (leaf-fill or activate). Does not change memories
 /// (`DESIGN-STONE-occupancy-leaf-column` recolligere).
 #[cfg(test)]
-fn record_seed_leaf_vs_alpha(
+pub(crate) fn record_seed_leaf_vs_alpha(
     wm: &FireSession,
     alpha_tree: &crate::rete::alpha_tree::AlphaTree,
     compiled_conds: &HashMap<i64, crate::rete::compiled_cond::CompiledCond>,
@@ -388,117 +388,43 @@ pub(crate) fn fire_fixpoint_delta_armed(
         };
         let __pt0 = phase_start();
         if seed_round {
-            // Two pairs / fire, not per fact (`DESIGN-STONE-alpha-leftover-split`).
-            let __seed = phase_start();
-            let mut class_ids: HashMap<String, Vec<u32>> = HashMap::new();
-            for class in leaf_aids.keys() {
-                class_ids.insert(class.clone(), Vec::with_capacity(input_facts.len()));
-            }
-            for (i, fact) in input_facts.iter().enumerate() {
-                seen_insert(&mut seen_ids, &mut seen_rest, fact);
-                let (class, fields) = match fact {
-                    Value::Aggregate(a) if a.nature != Nature::Struct => {
-                        (a.class.as_ref(), a.fields.as_slice())
-                    }
-                    _ => {
-                        alpha_activate_fact(
-                            fact,
-                            i as u32,
-                            &mut AlphaActivateCx {
-                                wm: &mut wm,
-                                d_alpha: &mut d_alpha,
-                                alpha_tree,
-                                compiled_conds,
-                                match_scratch: &mut match_scratch,
-                                cand_scratch: &mut cand_scratch,
-                                cond_key_ids: &cond_key_ids,
-                                bind_only: &bind_only,
-                            },
-                        )?;
-                        continue;
-                    }
-                };
-                if !wm.input_has_scan_class && scan_classes.contains(class) {
-                    wm.input_has_scan_class = true;
-                }
-                if wm.i64_by_fact.len() == i {
-                    wm.i64_by_fact.push(pack_i64_row(
-                        fields,
-                        &mut wm.bind_vals,
-                        &mut wm.bind_val_ids,
-                    ));
-                }
-                let packed = wm.i64_by_fact.get(i).and_then(|o| o.as_ref()).is_some();
-                if packed {
-                    if let Some(ids) = class_ids.get_mut(class) {
-                        ids.push(i as u32);
-                        continue;
-                    }
-                }
-                alpha_activate_fact(
-                    fact,
-                    i as u32,
-                    &mut AlphaActivateCx {
-                        wm: &mut wm,
-                        d_alpha: &mut d_alpha,
-                        alpha_tree,
-                        compiled_conds,
-                        match_scratch: &mut match_scratch,
-                        cand_scratch: &mut cand_scratch,
-                        cond_key_ids: &cond_key_ids,
-                        bind_only: &bind_only,
-                    },
-                )?;
-            }
-            for (class, aids) in &leaf_aids {
-                let Some(ids) = class_ids.get(class) else {
-                    continue;
-                };
-                if ids.is_empty() {
-                    continue;
-                }
-                census_count_n("compiled:calls", ids.len() as u64 * aids.len() as u64);
-                // rune:perspicere(intentional-structure) — Arc vs owned Vec is the occupancy-share door
-                let els: Arc<Vec<Element>> = Arc::from(
-                    ids.iter()
-                        .map(|&idx| make_element(idx, 0, 0))
-                        .collect::<Vec<_>>(),
-                );
-                for &aid in aids {
-                    wm.alpha.insert(aid, Arc::clone(&els));
-                    packed_full.insert(aid);
-                }
-            }
-            phase_end("  ├ alpha:seed", __seed);
-            #[cfg(test)]
-            record_seed_leaf_vs_alpha(
-                &wm,
-                alpha_tree,
-                compiled_conds,
-                &bind_only,
+            crate::rete::kernel::fire::pass::alpha_seed(
+                &mut wm,
+                &mut crate::rete::kernel::fire::pass::RoundScratch {
+                    d_alpha: &mut d_alpha,
+                    packed_full: &mut packed_full,
+                    bind_only: &mut bind_only,
+                    cond_key_ids: &mut cond_key_ids,
+                    cand_scratch: &mut cand_scratch,
+                    match_scratch: &mut match_scratch,
+                    seen_ids: &mut seen_ids,
+                    seen_rest: &mut seen_rest,
+                    leaf_aids: &leaf_aids,
+                },
                 &input_facts,
-            );
+                &arm.compiled_conds,
+                alpha_tree,
+                &scan_classes,
+            )?;
             seed_round = false;
         } else {
-            let __delta = phase_start();
-            for &idx in &owned_delta {
-                let fact = fact_at(&wm.facts, &wm.derived_facts, wm.n_input, idx).clone();
-                alpha_activate_fact(
-                    &fact,
-                    idx,
-                    &mut AlphaActivateCx {
-                        wm: &mut wm,
-                        d_alpha: &mut d_alpha,
-                        alpha_tree,
-                        compiled_conds,
-                        match_scratch: &mut match_scratch,
-                        cand_scratch: &mut cand_scratch,
-                        cond_key_ids: &cond_key_ids,
-                        bind_only: &bind_only,
-                    },
-                )?;
-            }
-            phase_end("  └ alpha:delta", __delta);
+            crate::rete::kernel::fire::pass::alpha_delta(
+                &mut wm,
+                &mut crate::rete::kernel::fire::pass::RoundScratch {
+                    d_alpha: &mut d_alpha,
+                    packed_full: &mut packed_full,
+                    bind_only: &mut bind_only,
+                    cond_key_ids: &mut cond_key_ids,
+                    cand_scratch: &mut cand_scratch,
+                    match_scratch: &mut match_scratch,
+                    seen_ids: &mut seen_ids,
+                    seen_rest: &mut seen_rest,
+                    leaf_aids: &leaf_aids,
+                },
+                &owned_delta,
+                &arm.compiled_conds,
+                alpha_tree,
+            )?;
         }
 
         phase_end("alpha", __pt0);
