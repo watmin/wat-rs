@@ -600,3 +600,90 @@ while a single cache line serialised 512 engines. `circumspicere` is the ward
 for exactly this: *steps back from the code the other spells look INTO and
 surveys what surrounds it… finds what the guard walked past.* The guard walked
 past this one, and a question found it.
+
+---
+
+## READ, not measured — is this code an exemplar? Not yet, and here is the shape
+
+**2026-08-23.** Builder: *"how about we do a deep dive on the code… and 'read for'
+theatre?.. not measure it?.. i want this code to be an exemplar - are we there
+yet?"*
+
+Measurement had hit a wall (a mark pair costs ~100–155 ns against sub-operations
+of ~100–300 ns). Reading finds what the timer cannot.
+
+### The one structural fact that explains most of the rest
+
+```
+fire_fixpoint_delta_armed   src/rete/kernel/fire/delta.rs:220-1994
+    1774 lines  —  87% of the file
+    12 levels of brace nesting at its deepest
+    16 mutable locals at the top level
+    8 passes braided into one body:
+      alpha · root-join · hash-join · accumulate · filter ·
+      join-after-filter · filter-after-join · production · terminate
+```
+
+Against the four questions this fails **Obvious** and **Simple** outright. No
+reader holds 1774 lines and 12 levels; and "one function, eight passes" is not
+one un-braided concept.
+
+### It is also the ROOT of theater the hunt could not remove
+
+Every clone the hunt found and could not cut is justified, in the source, by the
+same sentence — the borrow checker:
+
+| site | the source's own words |
+|---|---|
+| `delta.rs:1000` | *"clone to avoid the d_beta read/write borrow conflict"* |
+| `delta.rs:1224` | *"to avoid a simultaneous borrow conflict (reading d_beta[parent] while writing d_beta[*node_id])"* |
+| `delta.rs:1250` | releases the `wm.alpha` borrow before `span_from_row(&mut wm.bind_pool, …)` |
+| `fire/mod.rs:510` | `to_vec` because `intern.pool` is about to be borrowed mutably |
+| `DESIGN-STONE-catchup-take-left` | *"HashMap split-borrow needs the parent out of the map"* |
+
+These are not five independent inefficiencies. They are **one arrangement**
+producing five workarounds: a single `&mut FireSession` held across 1774 lines,
+so the compiler cannot see that a pass's reads and writes touch disjoint fields.
+`extirpare`'s deepest rung applies exactly — *do not eliminate the failure,
+eliminate the situation that produces it.* Passes with narrowed borrows would
+make several of these clones unnecessary rather than merely cheaper.
+
+This is also where the ~7–8 ms of unapportioned `production` time lives, and why
+apportioning it costs more instrument than it measures.
+
+### A hand-held invariant at 12 levels deep
+
+`delta.rs:666-766` takes the parent beta out of the map (`wm.beta.remove`), walks
+it, and puts it back — with **two** restore sites, one on the normal path
+(`:765`) and one on an error path (`:740`) nested 12 levels in. Audited: exactly
+one early return in that 100-line window, and it *is* handled. The invariant
+holds today. But it is held by **convention**: any future `?` added in those 100
+lines silently drops a beta memory, and nothing catches it. On `extirpare`'s
+ladder that is the bottom rung where a guard/scope shape would be the top.
+
+### Drift I introduced today, found by reading
+
+`fire/mod.rs` `merge_facts` carried two adjacent doc paragraphs that contradicted
+each other after T1: the P9 paragraph still stated the per-call cost as
+`O(len(pv) + len(derived))` — true only while the set was rebuilt per call —
+directly above the new paragraph saying the set is no longer rebuilt here. A
+reader had to reconcile them. `cohaerere`, caught by reading, not by any gate:
+clippy, the floor and 4942 tests were all green with the contradiction in place.
+Corrected — the P9 note is now explicitly lineage, and names where the
+`O(len(pv))` term is paid instead.
+
+### The honest verdict
+
+**Not an exemplar yet, and the gap is one function.** The parts around it read
+well: names say what they are, the stones are unusually good, the census tree is
+disciplined, `rg Mutex src/rete` is empty, and the dual-impl oracle keeps the
+whole thing honest. `partire` would return LEAVE on most of this repo.
+
+On `delta.rs` it returns the opposite, and the cut lines are already drawn — the
+eight `// ── N. <pass>` section comments in that function are the seams, written
+by the authors themselves. The file is one module wearing nine hats.
+
+**Not proposed as a strike here.** Splitting a 1774-line fire loop is a
+different kind of work from the intern chain: it is a refactor whose gate is the
+differential and the floor, not a leftover `Instant`, and it is the builder's
+call whether arc 278 takes it.

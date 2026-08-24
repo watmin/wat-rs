@@ -1202,13 +1202,16 @@ pub(crate) fn collect_derived(production_pm: &Value) -> Vec<Value> {
 /// `wat/rete/oracle/fire.wat`), not concat, or a fact produced by more than one stratum's
 /// query is double-counted.
 ///
-/// P9 perf: membership is checked via a `HashSet` mirror of `pv`'s contents, not a linear
-/// `.any()` scan — the former was O(len(pv)) PER derived fact (O(n²) over a stratum-chain
-/// run, since `fire_rules_stratified` calls this once per stratum with `pv` = the whole
-/// accumulated closure so far), the exact quadratic blow-up behind the `[7,3000]`-class hang.
-/// `Value: Hash + Eq` already (the round-loop's own `seen: HashSet<Value>` dedup, above, uses
-/// the same property) — same value-dedup semantics, same push_back order, O(len(pv) +
-/// len(derived)) instead.
+/// P9 perf, kept for the lineage: membership is a `HashSet` rather than a linear `.any()`
+/// scan, which was O(len(pv)) PER derived fact — O(n²) over a stratum-chain run and the exact
+/// quadratic blow-up behind the `[7,3000]`-class hang. `Value: Hash + Eq` already (the
+/// round-loop's own `seen: HashSet<Value>` dedup, above, uses the same property), so the swap
+/// cost nothing in semantics: same value-dedup, same push_back order.
+///
+/// P9 left the set REBUILT here, once per call, making the per-call cost O(len(pv) +
+/// len(derived)). That is no longer what this function does — see the next paragraph. The
+/// O(len(pv)) term is now paid ONCE by `facts_membership` outside the loop, and this call is
+/// O(len(derived)).
 ///
 /// The membership set is the CALLER'S and is carried across strata — it is not
 /// rebuilt here (`DESIGN-STONE-strat-merge-carried-set`). The stratified loop
