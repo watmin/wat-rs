@@ -6832,17 +6832,36 @@ fn dispatch_keyword_head_value(
 
         // Constrained runtime eval — four forms, matching the load
         // pipeline's discipline on source interface and verification.
-        ":wat::eval-ast!" => eval_form_ast(args, env, sym, list_span),
-        // Arc 170 — the sibling that supplies the WORLD as well as the form.
-        ":wat::eval-with-defs!" => eval_form_with_defs(args, env, sym, list_span),
-        ":wat::eval-step!" => eval_form_step(args, env, sym, list_span),
-        ":wat::eval::walk" => eval_walk(args, env, sym, list_span),
-        ":wat::eval-edn!" => eval_form_edn(args, env, sym, list_span),
-        ":wat::eval-file!" => eval_form_file(args, env, sym, list_span),
-        ":wat::eval-digest!" => eval_form_digest(args, env, sym, list_span),
-        ":wat::eval-digest-string!" => eval_form_digest_string(args, env, sym, list_span),
-        ":wat::eval-signed!" => eval_form_signed(args, env, sym, list_span),
-        ":wat::eval-signed-string!" => eval_form_signed_string(args, env, sym, list_span),
+        //
+        // STONE-the-binder-must-be-universal (arc 109) — all TEN of these root-level
+        // eval forms pass through this one cluster, so the call-site `:- […]` binder
+        // (arc 109's fourth position) is peeled HERE, once, rather than inside each
+        // helper below. Types are erased at runtime — check.rs has already validated
+        // and bound the binder against the callee's declared type params (that is why
+        // the call type-checks clean today even though the runtime previously refused
+        // it) — so every helper below only ever needs the value ARGS. Peeling once
+        // means a form added later to this cluster inherits the fix instead of
+        // re-earning the bug; peeling inside each helper was ten edits, ten chances to
+        // miss one, and no guarantee for an eleventh.
+        head @ (":wat::eval-ast!" | ":wat::eval-with-defs!" | ":wat::eval-step!"
+        | ":wat::eval::walk" | ":wat::eval-edn!" | ":wat::eval-file!" | ":wat::eval-digest!"
+        | ":wat::eval-digest-string!" | ":wat::eval-signed!" | ":wat::eval-signed-string!") => {
+            let (_binder, args) = crate::types::peel_param_spec(args);
+            match head {
+                ":wat::eval-ast!" => eval_form_ast(args, env, sym, list_span),
+                // Arc 170 — the sibling that supplies the WORLD as well as the form.
+                ":wat::eval-with-defs!" => eval_form_with_defs(args, env, sym, list_span),
+                ":wat::eval-step!" => eval_form_step(args, env, sym, list_span),
+                ":wat::eval::walk" => eval_walk(args, env, sym, list_span),
+                ":wat::eval-edn!" => eval_form_edn(args, env, sym, list_span),
+                ":wat::eval-file!" => eval_form_file(args, env, sym, list_span),
+                ":wat::eval-digest!" => eval_form_digest(args, env, sym, list_span),
+                ":wat::eval-digest-string!" => eval_form_digest_string(args, env, sym, list_span),
+                ":wat::eval-signed!" => eval_form_signed(args, env, sym, list_span),
+                ":wat::eval-signed-string!" => eval_form_signed_string(args, env, sym, list_span),
+                _ => unreachable!("outer match arm restricts head to these ten forms"),
+            }
+        }
 
         // Kernel primitives — channel IO + stop flag + user signals.
         // Arc 255.1c-kernel-ambient — stopped?/sigusr1?/sigusr2?/sighup?/reset-sigusr1!/
