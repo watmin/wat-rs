@@ -8,6 +8,13 @@ repository = "https://github.com/watmin/wat-rs"
 
 [dependencies]
 wat-source-derive = { path = "../wat-source-derive" }
+# Arc 109 stone "the smart comments must be compliant": the @arg/@ret type-token
+# check asks the reader what a type may be spelled, rather than a hand-rolled
+# `starts_with(':')` shape test. Adds nothing to the graph — wat-doc already
+# depends transitively on wat-reader via wat-source-derive, whose own manifest
+# states the reason: "so both wat-doc and the main crate can use it without a
+# cycle." wat-reader depends only on wat-edn.
+wat-reader = { path = "../wat-reader" }
 
 # Inherit the workspace clippy wall (root [workspace.lints.clippy]): a finding is a
 # FAILURE, not advice. NB `[lints]` is a TOP-LEVEL table — writing `lints.workspace`

@@ -101,7 +101,7 @@ const NIBBLE: [char; 16] = [
 /// @Determinism   Deterministic
 /// @Category      Transform
 /// @arg        s :wat::core::String the hex-encoded string to decode
-/// @ret        :wat::core::Option<wat::core::Bytes> Some(Bytes) on success, None on malformed input
+/// @ret        (:wat::core::Option :- [:wat::core::Bytes]) Some(Bytes) on success, None on malformed input
 /// @example    (:wat::core::Bytes::from-hex "gg") #=> :None
 /// @example-norun (:wat::core::Bytes::from-hex "ff0010") #=> Some(Bytes[255, 0, 16])
 /// @see        :wat::core::Bytes::to-hex

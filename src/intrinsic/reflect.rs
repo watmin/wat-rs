@@ -60,7 +60,7 @@ fn example_names() -> Arc<Vec<String>> {
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
 /// @Category      Reflection
-/// @ret :wat::core::Vector<wat::intrinsic::Example> a Vector of Example records, one per @example/@example-norun across all registered intrinsics
+/// @ret (:wat::core::Vector :- [:wat::intrinsic::Example]) a Vector of Example records, one per @example/@example-norun across all registered intrinsics
 /// @example-norun (:wat::intrinsic::examples)
 #[wat_intrinsic(":wat::intrinsic::examples")]
 pub(crate) fn eval_intrinsic_examples(
@@ -509,9 +509,9 @@ fn param_name_of<'a>(node: &'a WatAST, op: &'static str) -> Result<Cow<'a, str>,
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Reflection
-/// @arg params :wat::core::Vector<wat::WatAST> the candidate type-param name nodes (Symbols, or Keywords), in declaration order
+/// @arg params (:wat::core::Vector :- [:wat::WatAST]) the candidate type-param name nodes (Symbols, or Keywords), in declaration order
 /// @arg node :wat::WatAST the AST subtree to search — typically a field/member vector
-/// @ret :wat::core::Vector<wat::WatAST> the subset of `params`, in the order given, that appear anywhere in `node`
+/// @ret (:wat::core::Vector :- [:wat::WatAST]) the subset of `params`, in the order given, that appear anywhere in `node`
 /// @example (:wat::core::type-params-used-in (:wat::core::Vector :wat::WatAST (:wat::core::symbol-node "K") (:wat::core::symbol-node "V")) (:wat::core::keyword-node ":wat::core::Vector<K>")) #=> [K]
 /// @example (:wat::core::type-params-used-in (:wat::core::Vector :wat::WatAST (:wat::core::symbol-node "K") (:wat::core::symbol-node "V")) (:wat::core::keyword-node ":wat::core::HashMap<Key,KV>")) #=> []
 /// @example-norun (:wat::core::type-params-used-in (:wat::core::Vector (:wat::core::symbol-node "K") (:wat::core::symbol-node "V")) (:wat::core::read-string "[cache <- (:wat::cache::Lru :- [K V])]")) #=> Vector[Symbol(K), Symbol(V)]

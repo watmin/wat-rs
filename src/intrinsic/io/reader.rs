@@ -100,7 +100,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Transform
-/// @arg     bytes :wat::core::Vector<wat::core::u8> the bytes the reader will yield back, in order
+/// @arg     bytes (:wat::core::Vector :- [:wat::core::u8]) the bytes the reader will yield back, in order
 /// @ret     :wat::io::IOReader a fresh in-memory reader over `bytes`
 /// @example (:wat::io::IOReader/read-all-string (:wat::io::IOReader/from-bytes (:wat::core::Vector :wat::core::u8 (:wat::core::u8 104) (:wat::core::u8 105)))) #=> "hi"
 // Registered `TypeScheme` — `check.rs:15729` — gate LIVE.
@@ -241,7 +241,7 @@ pub(crate) fn eval_ioreader_from_fd(
 /// @Category      Io
 /// @arg     reader :wat::io::IOReader the reader to pull bytes from
 /// @arg     n :wat::core::i64 max bytes to read (must be non-negative)
-/// @ret     :wat::core::Option<wat::core::Vector<wat::core::u8>> the bytes read, or `None` on clean EOF
+/// @ret     (:wat::core::Option :- [(:wat::core::Vector :- [:wat::core::u8])]) the bytes read, or `None` on clean EOF
 /// @example-norun (:wat::io::IOReader/read reader 4) #=> (Some Bytes[104, 105, 33, 10])
 // Registered `TypeScheme` — `check.rs:15758` — gate LIVE.
 //
@@ -275,7 +275,7 @@ pub(crate) fn eval_ioreader_read(
 /// @Determinism   Nondeterministic
 /// @Category      Io
 /// @arg     reader :wat::io::IOReader the reader to drain to EOF
-/// @ret     :wat::core::Vector<wat::core::u8> every byte read
+/// @ret     (:wat::core::Vector :- [:wat::core::u8]) every byte read
 /// @example-norun (:wat::io::IOReader/read-all reader) #=> Bytes[104, 105]
 // Registered `TypeScheme` — `check.rs:15767` — gate LIVE.
 //
@@ -338,7 +338,7 @@ pub(crate) fn eval_ioreader_read_all_string(
 /// @Determinism   Nondeterministic
 /// @Category      Io
 /// @arg     reader :wat::io::IOReader the reader to pull a line from
-/// @ret     :wat::core::Option<wat::core::String> the line read, or `None` on clean EOF
+/// @ret     (:wat::core::Option :- [:wat::core::String]) the line read, or `None` on clean EOF
 /// @example-norun (:wat::io::IOReader/read-line reader) #=> (Some "hello")
 // Registered `TypeScheme` — `check.rs:15785` — gate LIVE.
 //

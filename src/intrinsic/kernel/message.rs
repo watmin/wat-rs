@@ -76,7 +76,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
 /// @Category      Message
-/// @arg     peer :wat::kernel::Peer<I,O> the peer/channel handle to send across
+/// @arg     peer (:wat::kernel::Peer :- [I O]) the peer/channel handle to send across
 /// @arg     payload :I the payload; must unify with the peer's held I
 /// @ret     :wat::kernel::SendOutcome Sent / Closed / Lost — never a raise
 /// @example-norun (:wat::kernel::send my-peer "hi") #=> #wat.kernel/SendOutcome.Sent{}
@@ -112,7 +112,7 @@ pub(crate) fn eval_peer_send_prime(
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
 /// @Category      Message
-/// @arg     peer :wat::kernel::Peer<I,O> the peer/channel handle to send across
+/// @arg     peer (:wat::kernel::Peer :- [I O]) the peer/channel handle to send across
 /// @arg     payload :I the payload; must unify with the peer's held I
 /// @ret     :wat::kernel::TrySendOutcome Sent / WouldBlock / Closed / Lost
 /// @example-norun (:wat::kernel::try-send my-peer "hi") #=> #wat.kernel/TrySendOutcome.Sent{}
@@ -146,8 +146,8 @@ pub(crate) fn eval_peer_try_send_prime(
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
 /// @Category      Message
-/// @arg     peer :wat::kernel::Peer<I,O> the peer/channel handle to receive from
-/// @ret     :wat::kernel::RecvOutcome<O> Message(O) / Closed / Lost(Failure) / Shutdown
+/// @arg     peer (:wat::kernel::Peer :- [I O]) the peer/channel handle to receive from
+/// @ret     (:wat::kernel::RecvOutcome :- [O]) Message(O) / Closed / Lost(Failure) / Shutdown
 /// @example-norun (:wat::kernel::recv my-peer) #=> #wat.kernel/RecvOutcome.Message{msg: "hi"}
 // `//` not `///` — maintainer rationale (see `readln'`'s note in `kernel_stdio.rs`).
 //
@@ -179,8 +179,8 @@ pub(crate) fn eval_peer_recv_prime(
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
 /// @Category      Message
-/// @arg     peers :wat::core::Vector<wat::kernel::Peer<I,O>> non-empty, same-tier peers to fan in over
-/// @ret     :wat::spawn::ServiceEvent<I,O,A> Message[idx,O] / Closed[idx] / Lost[idx,Failure] — `A` is a free, unconstrained tyvar (select' has no self-peer/admin channel, so :Admin can never fire from it)
+/// @arg     peers (:wat::core::Vector :- [(:wat::kernel::Peer :- [I O])]) non-empty, same-tier peers to fan in over
+/// @ret     (:wat::spawn::ServiceEvent :- [I O A]) Message[idx,O] / Closed[idx] / Lost[idx,Failure] — `A` is a free, unconstrained tyvar (select' has no self-peer/admin channel, so :Admin can never fire from it)
 /// @example-norun (:wat::kernel::select [peer-a peer-b]) #=> #wat.spawn/ServiceEvent.Message{idx: 0, msg: "hi"}
 // `//` not `///` — maintainer rationale (see `readln'`'s note in `kernel_stdio.rs`).
 //
@@ -218,10 +218,10 @@ pub(crate) fn eval_peer_select_prime(
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
 /// @Category      Message
-/// @arg     self_peer :wat::kernel::Peer<S,A> the owner/supervisor link (self-peer); `A` (its receive type) becomes the Admin payload type
-/// @arg     listener :wat::kernel::Listener<S,R> the connection listener; inferred permissively, not further constrained
-/// @arg     peers :wat::core::Vector<wat::kernel::Peer<I,O>> the connected client peers
-/// @ret     :wat::spawn::ServiceEvent<I,O,A> Admin[A] / Shutdown / Connection[Peer<I,O>] / Message[idx,O] / Closed[idx]
+/// @arg     self_peer (:wat::kernel::Peer :- [S A]) the owner/supervisor link (self-peer); `A` (its receive type) becomes the Admin payload type
+/// @arg     listener (:wat::kernel::Listener :- [S R]) the connection listener; inferred permissively, not further constrained
+/// @arg     peers (:wat::core::Vector :- [(:wat::kernel::Peer :- [I O])]) the connected client peers
+/// @ret     (:wat::spawn::ServiceEvent :- [I O A]) Admin[A] / Shutdown / Connection[Peer<I,O>] / Message[idx,O] / Closed[idx]
 /// @example-norun (:wat::kernel::poll self listener clients) #=> #wat.spawn/ServiceEvent.Message{idx: 0, msg: "hi"}
 // `//` not `///` — maintainer rationale (see `readln'`'s note in `kernel_stdio.rs`).
 //

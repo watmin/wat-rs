@@ -169,7 +169,7 @@ pub(crate) fn eval_time_at_nanos(
 /// @Determinism   Deterministic
 /// @Category      Transform
 /// @arg     s :wat::core::String the ISO 8601 / RFC 3339 timestamp string
-/// @ret     :wat::core::Option<wat::time::Instant> Some(Instant) on success, None on malformed input
+/// @ret     (:wat::core::Option :- [:wat::time::Instant]) Some(Instant) on success, None on malformed input
 /// @example (:wat::time::from-iso8601 "not-a-date") #=> :None
 /// @see     :wat::time::to-iso8601
 #[wat_intrinsic(":wat::time::from-iso8601")]

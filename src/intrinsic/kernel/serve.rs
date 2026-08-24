@@ -169,7 +169,7 @@ pub(crate) fn eval_retag_op(
 /// @Purity        Effectful
 /// @Determinism   Nondeterministic
 /// @Category      ControlFlow
-/// @arg     clients :wat::core::Vector<wat::kernel::Peer<S,R>> the connected clients to notify on a handler crash
+/// @arg     clients (:wat::core::Vector :- [(:wat::kernel::Peer :- [S R])]) the connected clients to notify on a handler crash
 /// @arg     body :T the op-dispatch form to evaluate (a `(:wat::core::match op ~@arms)`)
 /// @ret     :T `body`'s own result — this primitive is a transparent wrapper (do-style passthrough)
 /// @example-norun (:wat::kernel::serve-dispatch-op clients (:wat::core::match op (Ping :pong))) #=> :pong

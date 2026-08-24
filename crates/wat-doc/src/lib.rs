@@ -258,6 +258,66 @@ pub struct DocSpecialForm {
 /// If the type token equals one of these, the grammar is violated.
 const SEPARATOR_TOKENS: &[&str] = &["—", "--", "-", ":"];
 
+/// Ask wat's own reader whether `token` is a spelling it can parse as a single,
+/// complete form. This is the ONE adjudication of "what may a type be spelled" —
+/// the same question the language answers everywhere else. It replaces a
+/// hand-rolled `starts_with(':')` shape test that let unexpressible spellings
+/// (e.g. `Option<T>`, the retired `fn(…)->…` vocabulary) through five times over.
+///
+/// This is deliberately NOT "is this a type" — it is "is this expressible at
+/// all" (a bare symbol like `Bytes` lexes fine but is not a type keyword; the
+/// `starts_with(':')` check alongside this one is what rules that out).
+fn type_token_is_expressible(token: &str) -> bool {
+    wat_reader::parse_one_with_file(token, "<wat-doc @arg/@ret type token>").is_ok()
+}
+
+/// Split the type token off the front of `s` (already leading-whitespace-
+/// trimmed). A bare keyword/symbol type (the common case, e.g.
+/// `:wat::core::Bytes`) ends at the first whitespace, exactly as before this
+/// stone. But the surviving parametric-type spellings — `(Head :- [args])`
+/// for a type reference and `[arg… :-> ret]` for a fn type — carry INTERNAL
+/// whitespace (`(:wat::core::Vector :- [:wat::core::i64])`), so a naive
+/// whitespace split truncates them mid-token. When the token opens with `(`
+/// or `[`, this scans to the MATCHING close (tracking depth across both
+/// bracket kinds together, so nesting like
+/// `[(:wat::kernel::Peer :- [S R]) :-> :wat::core::nil]` closes correctly)
+/// and returns everything up to and including it as the token.
+/// Returns `(type_token, rest_trimmed)`.
+fn take_type_token(s: &str) -> (&str, &str) {
+    match s.chars().next() {
+        Some('(') | Some('[') => {
+            let mut depth = 0i32;
+            for (i, c) in s.char_indices() {
+                match c {
+                    '(' | '[' => depth += 1,
+                    ')' | ']' => {
+                        depth -= 1;
+                        if depth == 0 {
+                            let end = i + c.len_utf8();
+                            let (tok, rest) = s.split_at(end);
+                            return (tok, rest.trim_start());
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            // Unbalanced — fall through to a plain whitespace split so the
+            // existing "must start with `:`" / "type is missing" errors
+            // still fire downstream on the (malformed) result.
+            let mut it = s.splitn(2, char::is_whitespace);
+            let tok = it.next().unwrap_or("");
+            let rest = it.next().unwrap_or("").trim_start();
+            (tok, rest)
+        }
+        _ => {
+            let mut it = s.splitn(2, char::is_whitespace);
+            let tok = it.next().unwrap_or("");
+            let rest = it.next().unwrap_or("").trim_start();
+            (tok, rest)
+        }
+    }
+}
+
 /// Parse a joined `///` block into a [`DocComment`], enforcing the universal
 /// required directives (prose, `@added`, `@ret`, and ≥1 `@example`/`@example-norun`).
 ///
@@ -334,8 +394,8 @@ pub fn parse(raw: &str) -> Result<DocComment, DocError> {
                 // name = first token (may carry `…` suffix for variadic/rest params),
                 // type = second token (must start with `:`; for `…` args, this is the
                 // ELEMENT type — the `…` implies Vector<elem>), desc = rest.
-                let mut tokens = payload.splitn(3, char::is_whitespace);
-                let raw_name = tokens.next().unwrap_or("");
+                let mut name_split = payload.splitn(2, char::is_whitespace);
+                let raw_name = name_split.next().unwrap_or("");
                 if raw_name.is_empty() {
                     return Err(DocError::MalformedDirective {
                         tag: "@arg".into(),
@@ -351,7 +411,9 @@ pub fn parse(raw: &str) -> Result<DocComment, DocError> {
                     (raw_name.to_string(), false)
                 };
 
-                let ty_token = tokens.next().unwrap_or("").trim();
+                let after_name = name_split.next().unwrap_or("").trim_start();
+                let (ty_token, desc_raw) = take_type_token(after_name);
+                let ty_token = ty_token.trim();
                 if ty_token.is_empty() {
                     return Err(DocError::MalformedDirective {
                         tag: "@arg".into(),
@@ -365,16 +427,30 @@ pub fn parse(raw: &str) -> Result<DocComment, DocError> {
                         why: "separator used in type position; grammar is `@arg <name> <type> <desc>`",
                     });
                 }
-                // Type token must start with `:` (all wat types are keywords).
-                if !ty_token.starts_with(':') {
+                // Type token must start with `:` (all wat types are keywords) —
+                // OR be one of the two surviving STRUCTURAL type spellings, which
+                // can never start with `:` by construction: a parametric type
+                // REFERENCE `(Head :- [args])`, or a fn type `[arg… :-> ret]`.
+                // Those are still gated by the reader check just below; this
+                // clause only rules out a BARE non-keyword symbol like `Bytes`.
+                if !(ty_token.starts_with(':') || ty_token.starts_with('(') || ty_token.starts_with('[')) {
                     return Err(DocError::MalformedDirective {
                         tag: "@arg".into(),
                         why: "type token must start with `:` (e.g. `:wat::core::Bytes`); grammar is `@arg <name> <type> <desc>`",
                     });
                 }
+                // Type token must be a spelling wat's own reader accepts as a
+                // single, complete form — rules out `Option<T>`, the retired
+                // `fn(…)->…` vocabulary, and any other inexpressible spelling.
+                if !type_token_is_expressible(ty_token) {
+                    return Err(DocError::MalformedDirective {
+                        tag: "@arg".into(),
+                        why: "type token is not a spelling wat's reader accepts (e.g. `Option<T>` and the retired `fn(…)->…` form are inexpressible; use `:- [...]`)",
+                    });
+                }
                 let ty = ty_token.to_string();
 
-                let desc = tokens.next().unwrap_or("").trim().to_string();
+                let desc = desc_raw.trim().to_string();
                 if desc.is_empty() {
                     return Err(DocError::MalformedDirective {
                         tag: "@arg".into(),
@@ -388,8 +464,8 @@ pub fn parse(raw: &str) -> Result<DocComment, DocError> {
                     return Err(DocError::DuplicateSingleton { tag: "@ret".into() });
                 }
                 // Firm grammar: @ret <type> <desc>
-                let mut tokens = payload.splitn(2, char::is_whitespace);
-                let ty_token = tokens.next().unwrap_or("").trim();
+                let (ty_token, desc_raw) = take_type_token(payload);
+                let ty_token = ty_token.trim();
                 if ty_token.is_empty() {
                     return Err(DocError::MalformedDirective {
                         tag: "@ret".into(),
@@ -403,15 +479,29 @@ pub fn parse(raw: &str) -> Result<DocComment, DocError> {
                         why: "separator used in type position; grammar is `@ret <type> <desc>`",
                     });
                 }
-                // Type token must start with `:`.
-                if !ty_token.starts_with(':') {
+                // Type token must start with `:` — or be one of the two
+                // surviving STRUCTURAL type spellings, which can never start
+                // with `:` by construction: a parametric type REFERENCE
+                // `(Head :- [args])`, or a fn type `[arg… :-> ret]`. Those are
+                // still gated by the reader check just below; this clause
+                // only rules out a BARE non-keyword symbol like `Bytes`.
+                if !(ty_token.starts_with(':') || ty_token.starts_with('(') || ty_token.starts_with('[')) {
                     return Err(DocError::MalformedDirective {
                         tag: "@ret".into(),
                         why: "type token must start with `:` (e.g. `:wat::core::String`); grammar is `@ret <type> <desc>`",
                     });
                 }
+                // Type token must be a spelling wat's own reader accepts as a
+                // single, complete form — rules out `Option<T>`, the retired
+                // `fn(…)->…` vocabulary, and any other inexpressible spelling.
+                if !type_token_is_expressible(ty_token) {
+                    return Err(DocError::MalformedDirective {
+                        tag: "@ret".into(),
+                        why: "type token is not a spelling wat's reader accepts (e.g. `Option<T>` and the retired `fn(…)->…` form are inexpressible; use `:- [...]`)",
+                    });
+                }
                 let ty = ty_token.to_string();
-                let desc = tokens.next().unwrap_or("").trim().to_string();
+                let desc = desc_raw.trim().to_string();
                 if desc.is_empty() {
                     return Err(DocError::MalformedDirective {
                         tag: "@ret".into(),
@@ -514,22 +604,37 @@ pub fn parse(raw: &str) -> Result<DocComment, DocError> {
                 if yields_val.is_some() {
                     return Err(DocError::DuplicateSingleton { tag: "@yields".into() });
                 }
-                let mut tokens = payload.splitn(2, char::is_whitespace);
-                let ty_token = tokens.next().unwrap_or("").trim();
+                let (ty_token, desc_raw) = take_type_token(payload);
+                let ty_token = ty_token.trim();
                 if ty_token.is_empty() {
                     return Err(DocError::MalformedDirective {
                         tag: "@yields".into(),
                         why: "type is missing; grammar is `@yields <type> <desc>`",
                     });
                 }
-                if !ty_token.starts_with(':') {
+                // Type token must start with `:` — or be one of the two
+                // surviving STRUCTURAL type spellings, which can never start
+                // with `:` by construction: a parametric type REFERENCE
+                // `(Head :- [args])`, or a fn type `[arg… :-> ret]`. Those are
+                // still gated by the reader check just below; this clause
+                // only rules out a BARE non-keyword symbol like `Bytes`.
+                if !(ty_token.starts_with(':') || ty_token.starts_with('(') || ty_token.starts_with('[')) {
                     return Err(DocError::MalformedDirective {
                         tag: "@yields".into(),
                         why: "type token must start with `:` (e.g. `:wat::core::i64`); grammar is `@yields <type> <desc>`",
                     });
                 }
+                // Type token must be a spelling wat's own reader accepts as a
+                // single, complete form — rules out `Option<T>`, the retired
+                // `fn(…)->…` vocabulary, and any other inexpressible spelling.
+                if !type_token_is_expressible(ty_token) {
+                    return Err(DocError::MalformedDirective {
+                        tag: "@yields".into(),
+                        why: "type token is not a spelling wat's reader accepts (e.g. `Option<T>` and the retired `fn(…)->…` form are inexpressible; use `:- [...]`)",
+                    });
+                }
                 let ty = ty_token.to_string();
-                let desc = tokens.next().unwrap_or("").trim().to_string();
+                let desc = desc_raw.trim().to_string();
                 if desc.is_empty() {
                     return Err(DocError::MalformedDirective {
                         tag: "@yields".into(),
@@ -639,8 +744,8 @@ pub fn parse_special_form(raw: &str) -> Result<DocSpecialForm, DocError> {
                 syntax_val = Some(payload.to_string());
             }
             "@arg" => {
-                let mut tokens = payload.splitn(3, char::is_whitespace);
-                let raw_name = tokens.next().unwrap_or("");
+                let mut name_split = payload.splitn(2, char::is_whitespace);
+                let raw_name = name_split.next().unwrap_or("");
                 if raw_name.is_empty() {
                     return Err(DocError::MalformedDirective {
                         tag: "@arg".into(),
@@ -655,7 +760,9 @@ pub fn parse_special_form(raw: &str) -> Result<DocSpecialForm, DocError> {
                     (raw_name.to_string(), false)
                 };
 
-                let ty_token = tokens.next().unwrap_or("").trim();
+                let after_name = name_split.next().unwrap_or("").trim_start();
+                let (ty_token, desc_raw) = take_type_token(after_name);
+                let ty_token = ty_token.trim();
                 if ty_token.is_empty() {
                     return Err(DocError::MalformedDirective {
                         tag: "@arg".into(),
@@ -668,14 +775,29 @@ pub fn parse_special_form(raw: &str) -> Result<DocSpecialForm, DocError> {
                         why: "separator used in type position; grammar is `@arg <name> <type> <desc>`",
                     });
                 }
-                if !ty_token.starts_with(':') {
+                // Type token must start with `:` — or be one of the two
+                // surviving STRUCTURAL type spellings, which can never start
+                // with `:` by construction: a parametric type REFERENCE
+                // `(Head :- [args])`, or a fn type `[arg… :-> ret]`. Those are
+                // still gated by the reader check just below; this clause
+                // only rules out a BARE non-keyword symbol like `Bytes`.
+                if !(ty_token.starts_with(':') || ty_token.starts_with('(') || ty_token.starts_with('[')) {
                     return Err(DocError::MalformedDirective {
                         tag: "@arg".into(),
                         why: "type token must start with `:` (e.g. `:wat::core::Bool`); grammar is `@arg <name> <type> <desc>`",
                     });
                 }
+                // Type token must be a spelling wat's own reader accepts as a
+                // single, complete form — rules out `Option<T>`, the retired
+                // `fn(…)->…` vocabulary, and any other inexpressible spelling.
+                if !type_token_is_expressible(ty_token) {
+                    return Err(DocError::MalformedDirective {
+                        tag: "@arg".into(),
+                        why: "type token is not a spelling wat's reader accepts (e.g. `Option<T>` and the retired `fn(…)->…` form are inexpressible; use `:- [...]`)",
+                    });
+                }
                 let ty = ty_token.to_string();
-                let desc = tokens.next().unwrap_or("").trim().to_string();
+                let desc = desc_raw.trim().to_string();
                 if desc.is_empty() {
                     return Err(DocError::MalformedDirective {
                         tag: "@arg".into(),
@@ -688,8 +810,8 @@ pub fn parse_special_form(raw: &str) -> Result<DocSpecialForm, DocError> {
                 if ret.is_some() {
                     return Err(DocError::DuplicateSingleton { tag: "@ret".into() });
                 }
-                let mut tokens = payload.splitn(2, char::is_whitespace);
-                let ty_token = tokens.next().unwrap_or("").trim();
+                let (ty_token, desc_raw) = take_type_token(payload);
+                let ty_token = ty_token.trim();
                 if ty_token.is_empty() {
                     return Err(DocError::MalformedDirective {
                         tag: "@ret".into(),
@@ -702,14 +824,23 @@ pub fn parse_special_form(raw: &str) -> Result<DocSpecialForm, DocError> {
                         why: "separator used in type position; grammar is `@ret <type> <desc>`",
                     });
                 }
-                if !ty_token.starts_with(':') {
+                if !(ty_token.starts_with(':') || ty_token.starts_with('(') || ty_token.starts_with('[')) {
                     return Err(DocError::MalformedDirective {
                         tag: "@ret".into(),
                         why: "type token must start with `:` (e.g. `:wat::core::String`); grammar is `@ret <type> <desc>`",
                     });
                 }
+                // Type token must be a spelling wat's own reader accepts as a
+                // single, complete form — rules out `Option<T>`, the retired
+                // `fn(…)->…` vocabulary, and any other inexpressible spelling.
+                if !type_token_is_expressible(ty_token) {
+                    return Err(DocError::MalformedDirective {
+                        tag: "@ret".into(),
+                        why: "type token is not a spelling wat's reader accepts (e.g. `Option<T>` and the retired `fn(…)->…` form are inexpressible; use `:- [...]`)",
+                    });
+                }
                 let ty = ty_token.to_string();
-                let desc = tokens.next().unwrap_or("").trim().to_string();
+                let desc = desc_raw.trim().to_string();
                 if desc.is_empty() {
                     return Err(DocError::MalformedDirective {
                         tag: "@ret".into(),
@@ -1237,5 +1368,98 @@ mod tests {
             .expect("@arg-only special form doc must parse OK");
         assert_eq!(doc.syntax, "", "syntax is empty when @syntax is absent");
         assert_eq!(doc.args.len(), 3, "three @arg entries parsed");
+    }
+}
+
+/// Arc 109 "the smart comments must be compliant" — the `@arg`/`@ret` type
+/// check now asks wat's own READER what a type may be spelled, instead of a
+/// hand-rolled `starts_with(':')` shape test. These are the negative control
+/// (a doc naming an inexpressible type must fail the build) SHIPPED WITH its
+/// positive twin (the legal spellings must still pass) — a validator whose
+/// refusal is untested is a validator that can be silently removed.
+#[cfg(test)]
+mod arc109_reader_adjudicates_type_tokens {
+    use super::*;
+
+    /// One `@added`/`@Purity`/`@Determinism`/`@Category`/`@example` shell around
+    /// a single `@ret <ty>` line, so each case below differs ONLY in the type
+    /// token under test.
+    fn doc_with_ret_type(ty: &str) -> String {
+        format!(
+            "A probe.\n\n@added   1.0.0\n@ret     {ty} the ret\n@Purity Pure\n@Determinism Deterministic\n@Category Transform\n@example (:wat::core::foo x) #=> 1"
+        )
+    }
+
+    /// Row 1 — the refusal. `Option<T>` is exactly the angle-bracket spelling
+    /// arc 109 annihilated; the reader refuses it, so the doc build must too.
+    #[test]
+    fn angle_bracket_type_is_refused() {
+        let err = parse(&doc_with_ret_type(":wat::core::Option<wat::core::i64>"))
+            .expect_err("an angle-bracket type must be refused");
+        assert_eq!(
+            err,
+            DocError::MalformedDirective {
+                tag: "@ret".into(),
+                why: "type token is not a spelling wat's reader accepts (e.g. `Option<T>` and the retired `fn(…)->…` form are inexpressible; use `:- [...]`)",
+            }
+        );
+    }
+
+    /// Row 2 — the decisive row. Three legal spellings, none of them angle
+    /// brackets, must all still be ACCEPTED: a bare keyword, the surviving
+    /// parametric type-reference form `(Head :- [args])`, and the `<`
+    /// operator keyword itself (arc 109's own dual: `<` stays a legal
+    /// keyword body character; only an angle-bracket TYPE HEAD is illegal).
+    #[test]
+    fn legal_type_spellings_are_all_accepted() {
+        for ty in [
+            ":wat::core::Bytes",
+            "(:wat::core::Vector :- [:wat::core::i64])",
+            ":wat::core::<",
+        ] {
+            let doc = parse(&doc_with_ret_type(ty))
+                .unwrap_or_else(|e| panic!("`{ty}` must be accepted, got {e:?}"));
+            assert_eq!(doc.ret_type, ty);
+        }
+    }
+
+    /// Row 4 — the colon rule still fires, unreplaced. A bare `Bytes` LEXES
+    /// fine as a plain symbol (the reader alone would accept it — it is
+    /// "expressible"), but the annotation grammar still demands a keyword;
+    /// this is the check the reader-based one was added ALONGSIDE, not
+    /// instead of, and its error message is unchanged.
+    #[test]
+    fn bare_symbol_without_colon_is_still_refused_by_the_colon_rule() {
+        let err = parse(&doc_with_ret_type("Bytes")).expect_err("a bare symbol must be refused");
+        assert_eq!(
+            err,
+            DocError::MalformedDirective {
+                tag: "@ret".into(),
+                why: "type token must start with `:` (e.g. `:wat::core::String`); grammar is `@ret <type> <desc>`",
+            }
+        );
+    }
+
+    /// The two surviving STRUCTURAL spellings both round-trip through a real
+    /// `@arg`/`@ret` pair — the nested case (`Option<Process<I,O>>`-shaped)
+    /// and the fn-type bracket case — proving `take_type_token` finds the
+    /// MATCHING close across nested parens/brackets, not just the first one.
+    #[test]
+    fn nested_parametric_type_reference_round_trips() {
+        let doc = "A probe.\n\n@added   1.0.0\n@arg     peers (:wat::core::Vector :- [(:wat::kernel::Peer :- [I O])]) the peers\n@ret     (:wat::core::Option :- [(:wat::kernel::Process :- [I O])]) the ret\n@Purity Pure\n@Determinism Deterministic\n@Category Transform\n@example (:wat::core::foo x) #=> 1";
+        let parsed = parse(doc).expect("nested parametric type references must be accepted");
+        assert_eq!(parsed.args[0].ty, "(:wat::core::Vector :- [(:wat::kernel::Peer :- [I O])])");
+        assert_eq!(parsed.args[0].desc, "the peers");
+        assert_eq!(parsed.ret_type, "(:wat::core::Option :- [(:wat::kernel::Process :- [I O])])");
+        assert_eq!(parsed.ret, "the ret");
+    }
+
+    #[test]
+    fn fn_type_bracket_form_round_trips() {
+        let doc = "A probe.\n\n@added   1.0.0\n@arg     prog [(:wat::kernel::Peer :- [S R]) :-> :wat::core::nil] the prog\n@ret     (:wat::kernel::Thread :- [R S]) the ret\n@Purity Pure\n@Determinism Deterministic\n@Category Transform\n@example (:wat::core::foo x) #=> 1";
+        let parsed = parse(doc).expect("the fn-type bracket form must be accepted");
+        assert_eq!(parsed.args[0].ty, "[(:wat::kernel::Peer :- [S R]) :-> :wat::core::nil]");
+        assert_eq!(parsed.args[0].desc, "the prog");
+        assert_eq!(parsed.ret_type, "(:wat::kernel::Thread :- [R S])");
     }
 }

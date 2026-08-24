@@ -56,7 +56,7 @@ pub(crate) fn eval_variadic_args_measurement(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      ControlFlow
-/// @arg f :wat::core::Fn(:wat::core::i64)->:wat::core::i64 the fn applied to the yielded value
+/// @arg f [:wat::core::i64 :-> :wat::core::i64] the fn applied to the yielded value
 /// @yields :wat::core::i64 the value handed to f (always 42 for this witness)
 /// @ret :wat::core::i64 the result of applying f to 42
 /// @example (:wat::intrinsic::yields-witness (fn [x] (:wat::core::+ x 1))) #=> 43

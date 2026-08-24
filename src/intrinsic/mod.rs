@@ -463,65 +463,69 @@ mod tests {
         }
     }
 
+    /// Arc 109 stone "the smart comments must be compliant" — REWRITTEN. This used
+    /// to render `Parametric`/non-empty-`Tuple` types with the retired angle-bracket
+    /// spelling (`:{head}<{args}>`, `:({items})`) — a SECOND, independent
+    /// implementation of "what may a type be spelled," alongside `wat-doc`'s own
+    /// `@arg`/`@ret` reader-based check, and it was still spelling the annihilated
+    /// vocabulary. Discovered as a direct, mechanical consequence of fixing the
+    /// `@arg`/`@ret` doc strings to the surviving spellings: this test started
+    /// failing because the doc string (now correct) no longer matched what this
+    /// renderer (still retired) expected. Now emits the same surviving forms the
+    /// reader accepts and the corpus actually uses: `(Head :- [args])` for a
+    /// parametric type reference, `(:wat::core::Tuple :- [items])` for a non-empty
+    /// tuple (verified against `wat/kernel/channel.wat`'s `Channel<T>` typealias,
+    /// which is itself `(:wat::core::Tuple :- [(:wat::kernel::Sender :- [T]) …])` —
+    /// the PRIOR note here cited that file's `;;` PROSE comment, not its code, for
+    /// the retired spelling), and the bracket form `[args :-> ret]` for a fn type.
     fn typeexpr_to_doc_string(ty: &crate::types::TypeExpr) -> String {
         match ty {
             crate::types::TypeExpr::Path(p) => p.clone(),
             crate::types::TypeExpr::Parametric { head, args } => {
-                // Inside <>, Path types drop their leading `:` — the colon is
-                // only the first char quoting the symbol at top level; `<:...>` is illegal.
                 let args_str: Vec<String> = args.iter().map(typeexpr_to_type_arg_string).collect();
-                format!(":{}<{}>", head, args_str.join(","))
+                format!("(:{} :- [{}])", head, args_str.join(" "))
             }
             // `nil` IS the unit type — registered as an alias to the empty tuple
             // (types.rs:879) and canonicalized away at parse (types.rs:4706). The
             // checker therefore stores it as `Tuple([])`, while every doc, signature
             // and call site in the corpus writes `:wat::core::nil`. Render the
             // canonical form back to the spelling humans use.
-            //
-            // Empty tuple only — a non-empty `Tuple` falls through to the fallback
-            // below; no registered intrinsic returns one, so a spelling for that
-            // case would be invented rather than verified.
             crate::types::TypeExpr::Tuple(items) if items.is_empty() => ":wat::core::nil".to_string(),
-            // ⊘ CORRECTED 2026-08-19 (255.1c-kernel-resource). The note above used to
-            // end: "Empty tuple only — a non-empty `Tuple` falls through to the fallback
-            // below; no registered intrinsic returns one, so a spelling for that case
-            // would be invented rather than verified." BOTH CLAUSES ARE NOW FALSE.
-            // `:wat::kernel::pipe` returns `(IOWriter, IOReader)` and is registered as of
-            // home #7 — the first row anywhere with a non-empty tuple return, which made
-            // this latent gap REACHABLE (the same shape as home #3, where the carve made
-            // the unit-type arm reachable for the first time).
-            //
-            // And the spelling is no longer invented — it is VERIFIED against the corpus:
-            // `wat/kernel/channel.wat:49` declares `:(wat::kernel::Sender<T>,wat::kernel::Receiver<T>)`
-            // and `wat/` carries `:(wat::core::i64,O)` sites. Elements use the TYPE-ARG
-            // spelling (no leading `:`), exactly as inside `<>`.
-            //
-            // Without this arm the fallback Debug-formats (`Tuple([Path(":wat::io::IOWriter"), …])`),
-            // which NO `@ret` string can ever equal — the doc grammar forbids whitespace in a
-            // type token — so the gate was unsatisfiable rather than merely failing.
+            // Non-empty tuple — verified against the corpus's own canonical
+            // parametric-type-reference form (see fn doc above), not invented.
             crate::types::TypeExpr::Tuple(items) if !items.is_empty() => {
                 let items_str: Vec<String> =
                     items.iter().map(typeexpr_to_type_arg_string).collect();
-                format!(":({})", items_str.join(","))
+                format!("(:wat::core::Tuple :- [{}])", items_str.join(" "))
             }
             crate::types::TypeExpr::Fn { args, ret } => {
                 let args_str: Vec<String> = args.iter().map(typeexpr_to_doc_string).collect();
-                format!(":wat::core::Fn({})->{}", args_str.join(","), typeexpr_to_doc_string(ret))
+                if args_str.is_empty() {
+                    format!("[:-> {}]", typeexpr_to_doc_string(ret))
+                } else {
+                    format!("[{} :-> {}]", args_str.join(" "), typeexpr_to_doc_string(ret))
+                }
             }
             other => format!("{:?}", other),
         }
     }
 
-    /// Render a TypeExpr as it appears INSIDE `<>` — Path types drop the leading `:`.
+    /// Render a TypeExpr as it appears INSIDE a `:- [...]` argument list. A
+    /// concrete type keeps its leading `:` (`:wat::core::i64`); a lexically-scoped
+    /// type VARIABLE (`:T`, `:S`, `:R` — stored as a colon-prefixed `Path` per
+    /// `check.rs`'s `t_var()`, same as any other `Path`) is written BARE, per the
+    /// corpus's own `:- [S R]` binder/reference convention. Reuses
+    /// `runtime::is_type_var_path` (Stone 251.7 "THE VAR TEST") rather than
+    /// re-deriving the var/concrete distinction here — a third implementation of
+    /// that question is exactly the shape this stone exists to stop shipping.
     fn typeexpr_to_type_arg_string(ty: &crate::types::TypeExpr) -> String {
         match ty {
             crate::types::TypeExpr::Path(p) => {
-                // Strip leading `:` for use inside type parameters.
-                p.strip_prefix(':').unwrap_or(p).to_string()
-            }
-            crate::types::TypeExpr::Parametric { head, args } => {
-                let args_str: Vec<String> = args.iter().map(typeexpr_to_type_arg_string).collect();
-                format!("{}<{}>", head, args_str.join(","))
+                if crate::runtime::is_type_var_path(p) {
+                    p.strip_prefix(':').unwrap_or(p).to_string()
+                } else {
+                    p.clone()
+                }
             }
             other => typeexpr_to_doc_string(other),
         }

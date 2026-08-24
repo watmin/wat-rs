@@ -289,7 +289,7 @@ pub(crate) fn eval_io_read_file(
 /// @Determinism   Nondeterministic
 /// @Category      Io
 /// @arg     path :wat::core::String the directory to list
-/// @ret     :wat::core::Vector<wat::core::String> each entry's full path
+/// @ret     (:wat::core::Vector :- [:wat::core::String]) each entry's full path
 /// @example-norun (:wat::io::list-dir "wat") #=> Vector["wat/fix.wat" "wat/core.wat" …]
 // Registered `TypeScheme` — `check.rs:15997` — gate LIVE.
 //

@@ -239,7 +239,7 @@ pub(crate) fn eval_iowriter_from_fd(
 /// @Determinism   Nondeterministic
 /// @Category      Projection
 /// @arg     writer :wat::io::IOWriter the writer to snapshot (must be `StringIoWriter`-backed)
-/// @ret     :wat::core::Vector<wat::core::u8> the bytes accumulated so far
+/// @ret     (:wat::core::Vector :- [:wat::core::u8]) the bytes accumulated so far
 /// @example-norun (:wat::io::IOWriter/to-bytes writer) #=> Bytes[104, 105]
 // Registered `TypeScheme` — `check.rs:15847` — gate LIVE.
 //
@@ -283,7 +283,7 @@ pub(crate) fn eval_iowriter_to_bytes(
 /// @Determinism   Nondeterministic
 /// @Category      Projection
 /// @arg     writer :wat::io::IOWriter the writer to snapshot (must be `StringIoWriter`-backed)
-/// @ret     :wat::core::Option<wat::core::String> the decoded text, or `None` if the buffer is not valid UTF-8
+/// @ret     (:wat::core::Option :- [:wat::core::String]) the decoded text, or `None` if the buffer is not valid UTF-8
 /// @example-norun (:wat::io::IOWriter/to-string writer) #=> (Some "hi")
 // Registered `TypeScheme` — `check.rs:15856` — gate LIVE.
 //
@@ -317,7 +317,7 @@ pub(crate) fn eval_iowriter_to_string(
 /// @Determinism   Nondeterministic
 /// @Category      Io
 /// @arg     writer :wat::io::IOWriter the writer to push bytes into
-/// @arg     bytes :wat::core::Vector<wat::core::u8> the bytes to write
+/// @arg     bytes (:wat::core::Vector :- [:wat::core::u8]) the bytes to write
 /// @ret     :wat::core::i64 the number of bytes actually written
 /// @example-norun (:wat::io::IOWriter/write writer bytes) #=> 5
 // Registered `TypeScheme` — `check.rs:15865` — gate LIVE.
@@ -353,7 +353,7 @@ pub(crate) fn eval_iowriter_write(
 /// @Determinism   Nondeterministic
 /// @Category      Io
 /// @arg     writer :wat::io::IOWriter the writer to push bytes into
-/// @arg     bytes :wat::core::Vector<wat::core::u8> the bytes to write, in full
+/// @arg     bytes (:wat::core::Vector :- [:wat::core::u8]) the bytes to write, in full
 /// @ret     :wat::core::nil always `:()` on success; a broken pipe or stop request raises
 /// @example-norun (:wat::io::IOWriter/write-all writer bytes) #=> #wat.core/nil{}
 // Registered `TypeScheme` — `check.rs:15874` — gate LIVE.

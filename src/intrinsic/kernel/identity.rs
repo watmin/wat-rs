@@ -195,7 +195,7 @@ pub(crate) fn eval_require_wire_address(
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
 /// @Category      Probe
-/// @arg     peer :wat::kernel::Peer<S,R> the peer to interrogate
+/// @arg     peer (:wat::kernel::Peer :- [S R]) the peer to interrogate
 /// @ret     :wat::core::bool whether the peer's transport is a wire
 /// @example-norun (:wat::kernel::peer-wire? p) #=> false
 // No registered `TypeScheme` — `check.rs`'s `infer_peer_wire` (`:11140`) is
@@ -238,7 +238,7 @@ pub(crate) fn eval_peer_wire(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Probe
-/// @arg     addr :wat::kernel::Address<S,R> the address to interrogate
+/// @arg     addr (:wat::kernel::Address :- [S R]) the address to interrogate
 /// @ret     :wat::core::bool whether the address has a portable (wire) form
 /// @example (:wat::kernel::address-wire? (:wat::spawn::Bound/address (:wat::kernel::listener (:wat::spawn::thread) :wat::core::i64 :wat::core::i64))) #=> false
 // No registered `TypeScheme` — `check.rs`'s `infer_address_wire` (`:11187`)
@@ -283,8 +283,8 @@ pub(crate) fn eval_address_wire(
 /// @Purity        Pure
 /// @Determinism   Nondeterministic
 /// @Category      Projection
-/// @arg     peer :wat::kernel::Peer<I,O> the peer to read the far-end pid from
-/// @ret     :wat::core::Option<wat::core::i64> `Some(pid)` for a process peer, `:None` for a thread peer
+/// @arg     peer (:wat::kernel::Peer :- [I O]) the peer to read the far-end pid from
+/// @ret     (:wat::core::Option :- [:wat::core::i64]) `Some(pid)` for a process peer, `:None` for a thread peer
 /// @example-norun (:wat::kernel::peer-pid p) #=> (Some 4242)
 // No registered `TypeScheme` — verified by the rider (`grep -cF
 // ':wat::kernel::peer-pid' src/check.rs` → 0), independently of the
@@ -325,8 +325,8 @@ pub(crate) fn eval_peer_pid(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Projection
-/// @arg     peer :wat::kernel::Peer<I,O> the peer whose concrete locus to un-erase
-/// @ret     :wat::core::Option<wat::kernel::Process<I,O>> `Some(peer)` if process-tier, `:None` if thread-tier
+/// @arg     peer (:wat::kernel::Peer :- [I O]) the peer whose concrete locus to un-erase
+/// @ret     (:wat::core::Option :- [(:wat::kernel::Process :- [I O])]) `Some(peer)` if process-tier, `:None` if thread-tier
 /// @example (:wat::core::let [p (:wat::kernel::spawn-thread (:wat::core::fn [self <- (:wat::kernel::Peer :- [:wat::core::nil :wat::core::nil])] -> :wat::core::nil nil) (:wat::core::fn [] -> :wat::core::Record (:wat::program::EmptyEnv)) (:wat::core::fn [launch <- :wat::spawn::ThreadLaunch] -> :wat::core::nil nil))] (:wat::kernel::peer-process p)) #=> :None
 // No registered `TypeScheme` — `check.rs`'s `infer_peer_process` (`:11078`)
 // is the real authority: ∀-parametric, returns `Option<Process<I,O>>`.
