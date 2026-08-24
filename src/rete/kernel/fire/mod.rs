@@ -507,15 +507,20 @@ fn element_with_row_span(
 fn token_assoc(tok: &Token, k: Value, v: Value, intern: &mut BindIntern<'_>) -> Token {
     let key_id = intern_key(intern.keys, &k);
     let vid = intern_val(intern.vals, intern.ids, v);
-    let pairs: Vec<(u32, u32)> = pool_slice(intern.pool, tok.binds).to_vec();
+    // Copy the old span WITHIN the pool, then patch it in place. This used to
+    // `to_vec()` the span first — an allocation per call, and the comment for it
+    // was the borrow checker: the pool is read while the pool is pushed to.
+    // `extend_from_within` is that read-and-append as one operation, so there is
+    // nothing to borrow around. Same pairs, same order, same result: the old
+    // keys are preserved and the matching key's VALUE is replaced.
     let start = intern.pool.len();
+    let o = tok.binds.off as usize;
+    intern.pool.extend_from_within(o..o + tok.binds.len as usize);
     let mut found = false;
-    for (ek, ev) in pairs {
-        if ek == key_id {
-            intern.pool.push((ek, vid));
+    for slot in &mut intern.pool[start..] {
+        if slot.0 == key_id {
+            slot.1 = vid;
             found = true;
-        } else {
-            intern.pool.push((ek, ev));
         }
     }
     if !found {
@@ -765,6 +770,14 @@ pub(crate) fn hash_join_pass(wm: &mut FireSession, arm: &InternedNetwork) -> Res
 
 /// Delta tokens at every non-alpha parent of `node_id`. Condition `:or` leaves
 /// N terminals; a later Test/:not/:exists/accum must see all of them.
+/// Gather the tokens that are new this round at every parent of `node_id`.
+///
+/// Returns an OWNED `Vec` on purpose. The callers write `d_beta[node_id]` while
+/// holding this, which is a same-map conflict with `d_beta[parent]`; and the
+/// parent's delta must stay intact because its other children read it. See the
+/// note at the `filter.rs` call site for the alternatives that were considered
+/// and rejected. `Token` is 16 B and `Copy`, so this is a memcpy, not a deep
+/// clone.
 fn d_beta_from_parents(parents_of: &ParentsOf, d_beta: &BetaMemory, node_id: i64) -> Vec<Token> {
     let __dbg = phase_start();
     let mut out = Vec::new();

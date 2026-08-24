@@ -65,8 +65,18 @@ for node_id in &kind_ids.filter {
     if kind != NodeKind::Test && kind != NodeKind::Negation && kind != NodeKind::Exists {
         continue;
     }
-    // Clone the new-this-round tokens at EVERY parent to avoid a simultaneous
-    // borrow conflict (reading d_beta[parent] while writing d_beta[*node_id]).
+    // COPY, and it is the data flow rather than a borrow-checker dodge — checked
+    // 2026-08-24 before trying to remove it. The parent's delta must survive
+    // this call intact because SIBLING children read the same `d_beta[parent]`,
+    // so it cannot be taken; and reading `d_beta[parent]` while `entry(node_id)`
+    // writes is a genuine same-map conflict, not a disjoint-field one the
+    // compiler could split (contrast `DESIGN-STONE-catchup-borrow-not-take`,
+    // where it could). `Token` is 16 B and `Copy`; measured volume is ~6
+    // allocating calls and ~187 KB per fire (`dbeta_gather_volume`,
+    // `dbeta_copy_size`). Every alternative is worse to READ: taking the parent
+    // reintroduces the restore invariant just deleted from hash-join, and
+    // buffering the output needs `new_tokens` to become Cow-shaped because the
+    // leading-negation arm below REPLACES it with a synthetic token.
     // A Test/:not/:exists after condition `:or` has N parents.
     let pids = parents_of.get(node_id).map(|v| v.as_slice()).unwrap_or(&[]);
     let mut new_tokens: Vec<Token> = d_beta_from_parents(parents_of, d_beta, *node_id);

@@ -9980,3 +9980,16 @@ fn fanout_phase_dump() {
 
     assert!(wall > 0.0, "harness recorded no time");
 }
+
+/// How much does the `d_beta_from_parents` copy actually cost? The two call
+/// sites document themselves as a borrow-checker workaround
+/// (`NEXT-STRIKES-theater-hunt.md`), so before trying to remove one, size it.
+#[test]
+fn dbeta_copy_size() {
+    println!(
+        "\nToken is {} B; a d_beta_from_parents Vec of 2000 is {:.1} KB\n",
+        std::mem::size_of::<Token>(),
+        (std::mem::size_of::<Token>() * 2000) as f64 / 1024.0
+    );
+    assert!(std::mem::size_of::<Token>() > 0);
+}

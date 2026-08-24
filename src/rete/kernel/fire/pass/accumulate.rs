@@ -70,7 +70,10 @@ for node_id in &kind_ids.acc {
     let Some(from_alpha_id) = node_named_i64(node, "from-alpha-id") else {
         continue;
     };
-    // NEW tokens at EVERY parent (clone to avoid the d_beta read/write borrow conflict).
+    // NEW tokens at EVERY parent. The copy is the data flow, not a
+    // borrow-checker dodge — see the note at the same call in `filter.rs`:
+    // sibling children read the same `d_beta[parent]`, so it cannot be taken,
+    // and the read/write is a genuine same-map conflict. Checked 2026-08-24.
     // Leading accumulate (Clara test-count): no parent — seed one empty token.
     // count/sum emit 0 on empty gather; min/max/mean drop the token.
     let pids = parents_of.get(node_id).map(|v| v.as_slice()).unwrap_or(&[]);
