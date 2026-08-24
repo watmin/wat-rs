@@ -564,3 +564,39 @@ was read, the failing test's whole block was read verbatim, the exact arm was
 named (`no_loose_string_assert`, 2 sites, with line numbers), the cause was
 fixed, and only then was a NEW floor run. Re-running to see if a red goes away is
 the forbidden act; re-running after fixing the named cause is the point.
+
+---
+
+## The concurrency audit — a hazard the perf hunt would never have found
+
+**2026-08-23.** Told that the last unexplored perf axis was the allocator, the
+builder redirected: *"we must have the rete subsystem be tolerant to highly
+concurrent execution — imagine 512 threads all running their own rete — they
+must never step on each other."*
+
+That question found something this whole theater hunt had walked past, because
+the hunt was looking for **wasted work** and this is **shared state**:
+`next_intern` in `src/value/pmap.rs` was one process-global `AtomicU64`, taken
+exclusively on every mint — and every one-entry `PMap` mints, 40k per fire on
+the harvest path. `harvest_wrap_parts` had even *measured* it (`I fetch_add
+0.21 ms`) and correctly ruled it not worth cutting **single-threaded**. It was
+never the throughput that mattered.
+
+Struck: `DESIGN-STONE-intern-lane-per-thread` + `BRIEF-intern-lane-per-thread`.
+Ids are now laned per thread — uniqueness preserved, one atomic per THREAD
+instead of per mint. A never improves with threads (16.03 → 15.87 ns/op),
+B scales near-linearly (5.30 → 0.47), and B is faster single-threaded too.
+
+**The audit found exactly one hazard in the whole fire path** — every other
+shared site is a write-once `OnceLock`, a `thread_local`, or `#[cfg(test)]`.
+The table is in the stone's Weigh.
+
+### The lesson for this list
+
+A hunt aimed at one defect class is blind to the others by construction. This
+list hunts **theater** — work that produces nothing. It has no lens for
+**contention**, and would have kept reporting "the remaining cost is physics"
+while a single cache line serialised 512 engines. `circumspicere` is the ward
+for exactly this: *steps back from the code the other spells look INTO and
+surveys what surrounds it… finds what the guard walked past.* The guard walked
+past this one, and a question found it.
