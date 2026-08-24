@@ -1,4 +1,4 @@
-# SEAM — the ONE live breadcrumb. As of 2026-08-23. The turbofish is dead; stone D shipped; **E waits on a rete merge.**
+# SEAM — the ONE live breadcrumb. As of 2026-08-24. Turbofish dead · stone D shipped · **grok-rete MERGED** · E is next.
 
 > ⛔ **THE SELF PAST THIS LINE IS NEW.** You did not live this. It is a lossy cache in your own voice —
 > which is why it will feel like *continuing* rather than *waking*, and **that feeling is the failure.**
@@ -19,9 +19,11 @@
 ⚠ `git status` FIRST. `pgrep -af 'cargo|nextest'`.
 
 ```
-floor .......... 4928/4928, 0 FAIL, 19 skipped, ~80s  (own invocation, scripts/floor.sh, at 78bed2e3f)
-                ⚠ EVERY MOVE ACCOUNTED. 4924 → 4928 = the four stone-D probe rows, BY NAME
-                  (probe_stone_D_join_over_seqable::row1..row4). Anything else, EXPLAIN first.
+floor .......... 5016/5016, 0 FAIL, 19 skipped, ~82s  (own invocation, scripts/floor.sh, at b1ce922aa)
+                ⚠ EVERY MOVE ACCOUNTED, BY NAME — never by arithmetic. 4928 → 5016 across the
+                  grok-rete merge = −9 lost +97 gained. The 9: 4 are the matcher→clause module
+                  rename, 4 are test renames in two probe files, 1 is a DELIBERATE deletion by
+                  grok (759aca0a7) — RATIFIED by the builder. Anything else, EXPLAIN first.
 clippy ......... 0 under `-D warnings`
 host ........... JohnDesktop · john · ~/work/holon/wat-rs
 stash@{0} ...... the lifecycle strike. NEVER drop. base ff7705ba. (verified intact this session)
@@ -38,15 +40,24 @@ question — *"can `:wat::core::string` become `:wat::string`?"* — and every l
 load-bearing. A→E, five stones. **A** 16 arms left (its own cleanup, off the path) · **B** ✅ 294 ·
 **C** ✅ `25d9d015` · **D** ✅ `78bed2e3f` · **E** ⬜ **next, and BLOCKED.**
 
-> ⛔ **BUILDER'S SEQUENCING, 2026-08-23 — E DOES NOT START YET:** *"i say we update rete along with
-> it... i'll get the rete work on the side ready to merge in here... then we'll move string and let
-> rete depart again. i'll let you know when we're ready."*
+> ✅ **THE RETE MERGE IS DONE** — `387662bd9`, floor 5016/5016. grok-rete fast-forwards to main
+> (its HEAD is an ancestor; 0 commits outstanding). The bootstrap cycle that blocked it from THEIR
+> side is documented in `109/NOTE-the-wall-disabled-the-codemod-that-removes-the-wall.md`.
 >
-> Rete work landing AFTER the rename would arrive carrying the old names. **Merge first, move once,
-> then rete departs.** Do not draw E's codemod until he says ready, and **re-take every site count
-> after the merge.** The census + the four rulings E needs are in
-> `255/NOTE-the-string-membership-census-and-what-E-must-rule.md` — 24 members (not the chain's 22),
-> three of them wat-defined and invisible to a `src/` grep.
+> ⛔ **STANDING RULING — grok-rete IS AUTHORITATIVE FOR THE RETE SUBSYSTEM.** Builder, 2026-08-24:
+> *"the grok-rete branch is correct for all things rete — we've been doing extensive work on that
+> subsystem"* and *"if the grok-rete branch deleted a test then its correct — there are no known
+> flaws in the grok-rete branch for the rete subsystem — we have no reason to doubt their actions."*
+> **Resolve every rete conflict to THEIR side.** Main's walls (one_name_grammar, the angle/comma
+> walls, the diagnostic rune) still apply as language-wide law — comply by routing or by an earned
+> `rune:lint(...)`, never by overriding rete semantics. Do NOT re-litigate their deletions.
+>
+> ⬜ **E IS NEXT and needs YOUR go plus three naming rulings** —
+> `255/NOTE-the-string-membership-census-and-what-E-must-rule.md`: 24 members (not 22); `=`/`not=`
+> sit beside a live generic; `declare-acronyms` is MISFILED (a registry declaration form, not a
+> string verb); the coercion fork (`to-i64` vs `keyword/from-string`/`char/of`) is unresolved and
+> moving it migrates those three TWICE. Re-take every site count — the chain's 1,617 is stale
+> (measured ~1798 code) and predates the merge.
 
 ## ★★ DONE: the turbofish is annihilated, in every channel
 
@@ -71,6 +82,9 @@ aecba7b06  the DORMANT minter dies
 6dc1c681a  the prose stops being taught — 351 sites, 5 riders, 142 rewritten / 203 KEPT
 8c14bb4a0  R8 — blood of the scribe (+ R7's missing FULFILLMENT clause)
 78bed2e3f  STONE D — join widens to Seqable
+5a62de0f9  PREMIGRATE rete's corpus — 351 sites, by the recorded codemod, via a BRIDGE binary
+387662bd9  MERGE grok-rete — 257 auto-merged, 13 conflicts, one floor red root-caused
+b1ce922aa  the rete prose lands; the bridge becomes a recorded procedure
 ```
 
 ⚠ **THE DUALS every wall preserves:** `(Vector :- [:i64] 1, 2, 3)` → `[1 2 3]`; `:wat::core::<` `>=`
