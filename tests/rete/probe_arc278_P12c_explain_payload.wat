@@ -41,13 +41,13 @@
 (:wat::core::defn :user::step-pattern [] -> :wat::core::String
   (:wat::rete::DerivationStep/pattern (:user::explain-cw-step0)))
 
-(:wat::core::defn :user::step-bindings-c [] -> :wat::core::Option<wat::core::Value>
+(:wat::core::defn :user::step-bindings-c [] -> (:wat::core::Option :- [:wat::core::Value])
   (:wat::core::PersistentMap/get (:wat::rete::DerivationStep/bindings (:user::explain-cw-step0)) "?c"))
 
-(:wat::core::defn :user::derived-node-rule [] -> :wat::core::Option<wat::core::String>
+(:wat::core::defn :user::derived-node-rule [] -> (:wat::core::Option :- [:wat::core::String])
   (:wat::rete::DerivationNode/rule (:user::explain-cw-root)))
 
-(:wat::core::defn :user::base-node-rule [] -> :wat::core::Option<wat::core::String>
+(:wat::core::defn :user::base-node-rule [] -> (:wat::core::Option :- [:wat::core::String])
   (:wat::rete::DerivationNode/rule (:wat::rete::DerivationStep/supporting (:user::explain-cw-step0))))
 
 (:wat::core::defn :user::step-constraints-count [] -> :wat::core::i64

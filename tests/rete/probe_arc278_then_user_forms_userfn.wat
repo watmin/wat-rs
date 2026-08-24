@@ -24,7 +24,7 @@
 (:wat::core::defrecord :tf::Rate   [count <- :wat::core::i64])
 
 (:wat::rete::core::defn :tf::first-rate
-  [rs <- :wat::core::PersistentVector<tf::Rate>]
+  [rs <- (:wat::core::PersistentVector :- [:tf::Rate])]
   -> :tf::Rate
   (:wat::rete::core::PersistentVector/first rs :undefined (:tf::Rate :count 0)))
 

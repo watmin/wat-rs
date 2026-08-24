@@ -18,7 +18,7 @@
 (:wat::core::defn :wat::rete::walk-alpha-ids
   [facts   <- :wat::core::PersistentVector
    network <- :wat::core::PersistentMap
-   ids     <- :wat::core::Vector<wat::core::i64>
+   ids     <- (:wat::core::Vector :- [:wat::core::i64])
    i       <- :wat::core::i64
    acc     <- :wat::rete::AlphaMemory]
   -> :wat::rete::AlphaMemory
@@ -36,7 +36,7 @@
 (:wat::core::defn :wat::rete::walk-beta-ids
   [network <- :wat::core::PersistentMap
    amem    <- :wat::rete::AlphaMemory
-   ids     <- :wat::core::Vector<wat::core::i64>
+   ids     <- (:wat::core::Vector :- [:wat::core::i64])
    i       <- :wat::core::i64
    acc     <- :wat::rete::BetaMemory]
   -> :wat::rete::BetaMemory
@@ -58,7 +58,7 @@
   [facts   <- :wat::core::PersistentVector
    network <- :wat::core::PersistentMap
    amem    <- :wat::rete::AlphaMemory
-   ids     <- :wat::core::Vector<wat::core::i64>
+   ids     <- (:wat::core::Vector :- [:wat::core::i64])
    i       <- :wat::core::i64
    acc     <- :wat::rete::BetaMemory]
   -> :wat::rete::BetaMemory
@@ -80,8 +80,8 @@
 (:wat::core::defn :wat::rete::walk-prod-ids
   [network <- :wat::core::PersistentMap
    bmem    <- :wat::rete::BetaMemory
-   rules   <- :wat::core::PersistentVector<wat::rete::Rule>
-   ids     <- :wat::core::Vector<wat::core::i64>
+   rules   <- (:wat::core::PersistentVector :- [:wat::rete::Rule])
+   ids     <- (:wat::core::Vector :- [:wat::core::i64])
    i       <- :wat::core::i64
    acc     <- :wat::rete::ProductionMemory]
   -> :wat::rete::ProductionMemory
@@ -111,9 +111,9 @@
                             pids  (:wat::rete::node-parents node-id network)
                             toks  (:wat::rete::tokens-from-parents beta-mem pids)
                             maps  (:wat::core::foldl
-                                     (:wat::core::fn [a   <- :wat::core::PersistentVector<wat::core::PersistentMap>
+                                     (:wat::core::fn [a   <- (:wat::core::PersistentVector :- [:wat::core::PersistentMap])
                                                       tok <- :wat::rete::Token]
-                                       -> :wat::core::PersistentVector<wat::core::PersistentMap>
+                                       -> (:wat::core::PersistentVector :- [:wat::core::PersistentMap])
                                        (:wat::core::PersistentVector/conj a
                                          (:wat::rete::Token/bindings tok)))
                                      (:wat::core::PersistentVector)
@@ -262,8 +262,8 @@
 ;; and causing compile to reject the argument at the call site. Recursive descent on
 ;; an index always filters the original typed PV — no type information is lost.
 (:wat::core::defn :wat::rete::fire-stratified-loop
-  [rules       <- :wat::core::PersistentVector<wat::rete::Rule>
-   type-strata <- :wat::core::HashMap<wat::core::String,wat::core::i64>
+  [rules       <- (:wat::core::PersistentVector :- [:wat::rete::Rule])
+   type-strata <- (:wat::core::HashMap :- [:wat::core::String :wat::core::i64])
    current     <- :wat::core::i64
    max-s       <- :wat::core::i64
    acc-facts   <- :wat::core::PersistentVector

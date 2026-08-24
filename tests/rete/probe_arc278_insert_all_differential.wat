@@ -41,7 +41,7 @@
   (:wat::rete::compile-all (:wat::rete::collect-rules :nia) (:wat::core::PersistentVector (:nia::q-Out))))
 
 ;; The facts under test — N=5, satisfying assertion 3's N > 1 requirement.
-(:wat::core::defn :nia::the-facts [] -> :wat::core::PersistentVector<nia::Reading>
+(:wat::core::defn :nia::the-facts [] -> (:wat::core::PersistentVector :- [:nia::Reading])
   (:wat::core::PersistentVector
     (:nia::Reading :g 0 :v 0)
     (:nia::Reading :g 1 :v 10)

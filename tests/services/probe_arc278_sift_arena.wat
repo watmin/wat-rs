@@ -31,7 +31,7 @@
    (:wat::core::defenum :prod::Producer::FloodResponse :wat::enum::Pure
      :Done            [written <- :wat::core::i64]
      :RequestTooLarge [bytes   <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])]
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])]
   :features
   [(flood [self <- :prod::Producer  req <- :prod::Producer::FloodRequest] -> :prod::Producer::FloodResponse :max-request-bytes 524288)])
 
@@ -41,11 +41,11 @@
   ;; the dialed backend peer — a client Peer'<Journal::Op,Journal::Reply>, held as a ROOT
   ;; ephemeral field. NEVER an ephemeral/peer to anything Consumer-shaped — the producer only
   ;; ever talks to the shared journal.
-  :ephemeral [journal <- :wat::kernel::Peer<wat::telemetry::Journal::Op,wat::telemetry::Journal::Reply>]
+  :ephemeral [journal <- (:wat::kernel::Peer :- [:wat::telemetry::Journal::Op :wat::telemetry::Journal::Reply])]
   :peers     [:wat::telemetry::Journal]
   :init (:wat::core::fn
           [record       <- :prod::producer::Record
-           journal-addr <- :wat::kernel::Address<wat::telemetry::Journal::Op,wat::telemetry::Journal::Reply>]
+           journal-addr <- (:wat::kernel::Address :- [:wat::telemetry::Journal::Op :wat::telemetry::Journal::Reply])]
           -> :prod::producer::State
           (:prod::producer::State :durable record :journal (:wat::core::match (:wat::kernel::connect journal-addr) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))))
   :impls
@@ -97,7 +97,7 @@
    (:wat::core::defenum :cons::Consumer::SiftResponse :wat::enum::Pure
      :Count           [n <- :wat::core::i64]
      :RequestTooLarge [bytes <- :wat::core::i64  cap <- :wat::core::i64]
-     :RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String])
+     :RequestMalformed [path <- (:wat::core::Vector :- [:wat::core::String])  expected <- :wat::core::String  got <- :wat::core::String])
    (:wat::core::defrecord :cons::Consumer::PageState
      [done <- :wat::core::bool
       cur  <- (:wat::core::Option :wat::core::String)
@@ -108,13 +108,13 @@
 (:wat::service::defservice :cons::consumer
   :satisfies :cons::Consumer
   :durable   []
-  :ephemeral [journal <- :wat::kernel::Peer<wat::telemetry::Journal::Op,wat::telemetry::Journal::Reply>]
+  :ephemeral [journal <- (:wat::kernel::Peer :- [:wat::telemetry::Journal::Op :wat::telemetry::Journal::Reply])]
   ;; ONLY the Journal — never Producer. This IS the guarantee: consumer''s child registry never
   ;; compiles `:prod::*`.
   :peers     [:wat::telemetry::Journal]
   :init (:wat::core::fn
           [record       <- :cons::consumer::Record
-           journal-addr <- :wat::kernel::Address<wat::telemetry::Journal::Op,wat::telemetry::Journal::Reply>]
+           journal-addr <- (:wat::kernel::Address :- [:wat::telemetry::Journal::Op :wat::telemetry::Journal::Reply])]
           -> :cons::consumer::State
           (:cons::consumer::State :durable record :journal (:wat::core::match (:wat::kernel::connect journal-addr) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))))
   :impls

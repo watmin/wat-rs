@@ -12,12 +12,12 @@
   [session <- :wat::rete::Session
    q       <- :wat::rete::Query
    params  <- :wat::core::PersistentMap]
-  -> :wat::core::PersistentVector<wat::core::PersistentMap>
+  -> (:wat::core::PersistentVector :- [:wat::core::PersistentMap])
   (:wat::core::let [want (:wat::rete::Query/params q)
                     got  (:wat::core::foldl
-                           (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::String>
+                           (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::String])
                                             k   <- :wat::core::String]
-                             -> :wat::core::PersistentVector<wat::core::String>
+                             -> (:wat::core::PersistentVector :- [:wat::core::String])
                              (:wat::core::PersistentVector/conj acc k))
                            (:wat::core::PersistentVector)
                            (:wat::core::PersistentMap/keys params))
@@ -59,7 +59,7 @@
 ;; template so a PersistentVector of mixed keyword/value kwargs never exists.
 (:wat::core::defmacro :wat::rete::query-params-form
   [acc <- :wat::WatAST
-   & items <- :wat::core::Vector<wat::WatAST>]
+   & items <- (:wat::core::Vector :- [:wat::WatAST])]
   -> :wat::WatAST
   (:wat::core::if (:wat::core::empty? items)
     acc
@@ -83,7 +83,7 @@
 (:wat::core::defmacro :wat::rete::query
   [session <- :wat::WatAST
    q       <- :wat::WatAST
-   & rest  <- :wat::core::Vector<wat::WatAST>]
+   & rest  <- (:wat::core::Vector :- [:wat::WatAST])]
   -> :wat::WatAST
   `(:wat::rete::query-read ~session ~q
      (:wat::rete::query-params-form (:wat::core::PersistentMap) ~@rest)))
@@ -121,7 +121,7 @@
 ;; and expands to rete `if`. This macro is that expansion. Ordinary (non-quoted) rete
 ;; `cond` uses the same template.
 (:wat::core::defmacro :wat::rete::core::cond
-  [& clauses <- :wat::core::Vector<wat::WatAST>]
+  [& clauses <- (:wat::core::Vector :- [:wat::WatAST])]
   -> :wat::WatAST
   (:wat::core::if (:wat::core::empty? clauses)
     ;; empty clause list — non-exhaustive / no terminal :else. Same located diagnostic as
@@ -163,16 +163,16 @@
    then-ast <- :wat::WatAST]
   -> :wat::rete::Rule
   (:wat::core::let [lhs-pv (:wat::core::foldl
-                               (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::WatAST>
+                               (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::WatAST])
                                                 c   <- :wat::WatAST]
-                                 -> :wat::core::PersistentVector<wat::WatAST>
+                                 -> (:wat::core::PersistentVector :- [:wat::WatAST])
                                  (:wat::core::PersistentVector/conj acc c))
                                (:wat::core::PersistentVector)
                                (:wat::core::ast->children when-ast))
                     rhs-pv (:wat::core::foldl
-                               (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::WatAST>
+                               (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::WatAST])
                                                 c   <- :wat::WatAST]
-                                 -> :wat::core::PersistentVector<wat::WatAST>
+                                 -> (:wat::core::PersistentVector :- [:wat::WatAST])
                                  (:wat::core::PersistentVector/conj acc c))
                                (:wat::core::PersistentVector)
                                (:wat::core::ast->children then-ast))]
@@ -201,7 +201,7 @@
 ;; Assumes canonical :when then :then order (STOP if a general parse is needed).
 (:wat::core::defmacro :wat::rete::defrule
   [name <- :wat::WatAST
-   & rest <- :wat::core::Vector<wat::WatAST>]
+   & rest <- (:wat::core::Vector :- [:wat::WatAST])]
   -> :wat::WatAST
   (:wat::core::let [;; name-str: ast-name returns the raw keyword text WITH leading colon;
                     ;; strip it to get the bare FQDN matching (:wat::core::type fact).
@@ -229,16 +229,16 @@
    when-ast   <- :wat::WatAST]
   -> :wat::rete::Query
   (:wat::core::let [params-pv (:wat::core::foldl
-                                 (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::String>
+                                 (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::String])
                                                   p   <- :wat::WatAST]
-                                   -> :wat::core::PersistentVector<wat::core::String>
+                                   -> (:wat::core::PersistentVector :- [:wat::core::String])
                                    (:wat::core::PersistentVector/conj acc (:wat::core::ast-name p)))
                                  (:wat::core::PersistentVector)
                                  (:wat::core::ast->children params-ast))
                     lhs-pv (:wat::core::foldl
-                              (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::WatAST>
+                              (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::WatAST])
                                                c   <- :wat::WatAST]
-                                -> :wat::core::PersistentVector<wat::WatAST>
+                                -> (:wat::core::PersistentVector :- [:wat::WatAST])
                                 (:wat::core::PersistentVector/conj acc c))
                               (:wat::core::PersistentVector)
                               (:wat::core::ast->children when-ast))]
@@ -250,7 +250,7 @@
 ;;     :when   […])
 (:wat::core::defmacro :wat::rete::defquery
   [name <- :wat::WatAST
-   & rest <- :wat::core::Vector<wat::WatAST>]
+   & rest <- (:wat::core::Vector :- [:wat::WatAST])]
   -> :wat::WatAST
   (:wat::core::let [raw-name  (:wat::core::ast-name name)
                     name-str  (:wat::core::if (:wat::core::= (:wat::core::string::subs raw-name 0 1) ":")

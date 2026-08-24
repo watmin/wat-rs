@@ -29,7 +29,7 @@
 ;;   Load-bearing for TM: the chain grows one tuple per condition as the token flows through joins.
 ;; bindings: {?var → value} — variable bindings accumulated left-to-right.
 (:wat::core::defrecord :wat::rete::Token
-  [matches  <- :wat::core::PersistentVector<(wat::core::Record,wat::core::i64)>
+  [matches  <- (:wat::core::PersistentVector :- [(:wat::core::Tuple :- [:wat::core::Record :wat::core::i64])])
    bindings <- :wat::core::PersistentMap])
 
 ;; Element — a fact presented to an alpha node; flows RIGHT into a join.
@@ -47,15 +47,15 @@
 ;; rhs:  consequence forms (data; pure — applied by a consumer).
 (:wat::core::defrecord :wat::rete::Rule
   [name <- :wat::core::String
-   lhs  <- :wat::core::PersistentVector<wat::WatAST>
-   rhs  <- :wat::core::PersistentVector<wat::WatAST>])
+   lhs  <- (:wat::core::PersistentVector :- [:wat::WatAST])
+   rhs  <- (:wat::core::PersistentVector :- [:wat::WatAST])])
 
 ;; Query — a named parametric query (Clara defquery). No :then; answers are
 ;; binding maps, filtered by param values at `query` time.
 (:wat::core::defrecord :wat::rete::Query
   [name   <- :wat::core::String
-   params <- :wat::core::PersistentVector<wat::core::String>
-   lhs    <- :wat::core::PersistentVector<wat::WatAST>])
+   params <- (:wat::core::PersistentVector :- [:wat::core::String])
+   lhs    <- (:wat::core::PersistentVector :- [:wat::WatAST])])
 
 ;; ─── the network nodes ──────────────────────────────────────────────────────
 ;; Alpha, RootJoin, HashJoin, Test, Negation, Exists, Accumulate, Production,
@@ -67,22 +67,22 @@
 ;; children: PersistentVector of child node ids — typed as i64 for foldl.
 (:wat::core::defrecord :wat::rete::AlphaNode
   [id       <- :wat::core::i64
-   tests    <- :wat::core::PersistentVector<wat::WatAST>
-   children <- :wat::core::PersistentVector<wat::core::i64>])
+   tests    <- (:wat::core::PersistentVector :- [:wat::WatAST])
+   children <- (:wat::core::PersistentVector :- [:wat::core::i64])])
 
 ;; RootJoinNode — the leftmost beta join (no left memory needed; seeds the token).
 ;; id:           unique node id.
 ;; children:     PersistentVector of child node ids — typed as i64 for foldl.
 (:wat::core::defrecord :wat::rete::RootJoinNode
   [id       <- :wat::core::i64
-   children <- :wat::core::PersistentVector<wat::core::i64>])
+   children <- (:wat::core::PersistentVector :- [:wat::core::i64])])
 
 ;; HashJoinNode — a standard two-input beta join node.
 ;; id:           unique node id.
 ;; children:     PersistentVector of child node ids — typed as i64 for foldl.
 (:wat::core::defrecord :wat::rete::HashJoinNode
   [id       <- :wat::core::i64
-   children <- :wat::core::PersistentVector<wat::core::i64>])
+   children <- (:wat::core::PersistentVector :- [:wat::core::i64])])
 
 ;; ProductionNode — the terminal node; triggers an activation on a full token.
 ;; id:        unique node id.
@@ -98,7 +98,7 @@
 (:wat::core::defrecord :wat::rete::TestNode
   [id       <- :wat::core::i64
    expr     <- :wat::WatAST
-   children <- :wat::core::PersistentVector<wat::core::i64>])
+   children <- (:wat::core::PersistentVector :- [:wat::core::i64])])
 
 ;; NegationNode — a left-only filter node (stone 7-a): passes a token iff ZERO elements in the
 ;; negated alpha-memory are compatible with the token's bindings. Hash-join inverted: pure replay
@@ -109,7 +109,7 @@
 (:wat::core::defrecord :wat::rete::NegationNode
   [id              <- :wat::core::i64
    negated-alpha-id <- :wat::core::i64
-   children        <- :wat::core::PersistentVector<wat::core::i64>])
+   children        <- (:wat::core::PersistentVector :- [:wat::core::i64])])
 
 ;; ExistsNode — a left-only filter node (stone 7-exists): the NegationNode sibling with its
 ;; filter predicate INVERTED. Passes a token iff ≥1 element in the inner alpha-memory is
@@ -123,7 +123,7 @@
 (:wat::core::defrecord :wat::rete::ExistsNode
   [id              <- :wat::core::i64
    exists-alpha-id  <- :wat::core::i64
-   children        <- :wat::core::PersistentVector<wat::core::i64>])
+   children        <- (:wat::core::PersistentVector :- [:wat::core::i64])])
 
 ;; AccumulateNode — a left-input aggregate join node (stone 8-a): for each parent token,
 ;; gathers the token-compatible elements from from-alpha-id's alpha-memory, folds them with
@@ -140,7 +140,7 @@
    result-var    <- :wat::core::String
    acc-form      <- :wat::WatAST
    from-alpha-id <- :wat::core::i64
-   children      <- :wat::core::PersistentVector<wat::core::i64>])
+   children      <- (:wat::core::PersistentVector :- [:wat::core::i64])])
 
 ;; QueryNode — a named query endpoint; like a production but returns answers.
 ;; id:         unique node id.
@@ -149,17 +149,17 @@
 (:wat::core::defrecord :wat::rete::QueryNode
   [id         <- :wat::core::i64
    query-name <- :wat::core::String
-   param-keys <- :wat::core::PersistentVector<wat::core::String>])
+   param-keys <- (:wat::core::PersistentVector :- [:wat::core::String])])
 
 ;; ─── the session (the whole engine state) ───────────────────────────────────
 ;; intueri: NOT WorkingMemory — Session names the whole caller-facing engine state.
 
 (:wat::core::typealias :wat::rete::AlphaMemory
-  :wat::core::PersistentMap<wat::core::i64,wat::core::PersistentVector<wat::rete::Element>>)
+  (:wat::core::PersistentMap :- [:wat::core::i64 (:wat::core::PersistentVector :- [:wat::rete::Element])]))
 (:wat::core::typealias :wat::rete::BetaMemory
-  :wat::core::PersistentMap<wat::core::i64,wat::core::PersistentVector<wat::rete::Token>>)
+  (:wat::core::PersistentMap :- [:wat::core::i64 (:wat::core::PersistentVector :- [:wat::rete::Token])]))
 (:wat::core::typealias :wat::rete::ProductionMemory
-  :wat::core::PersistentMap<wat::core::i64,wat::core::PersistentVector<wat::core::Record>>)
+  (:wat::core::PersistentMap :- [:wat::core::i64 (:wat::core::PersistentVector :- [:wat::core::Record])]))
 
 ;; Session — the complete rete engine state; the caller-facing handle.
 ;;   network:           id → raw node record — the compiled DAG, id-indexed.
@@ -176,7 +176,7 @@
 ;;   query-memory:      query-name → PV of binding maps (QueryNode answers; survives fire).
 (:wat::core::defrecord :wat::rete::Session
   [network           <- :wat::core::PersistentMap
-   rules             <- :wat::core::PersistentVector<wat::rete::Rule>
+   rules             <- (:wat::core::PersistentVector :- [:wat::rete::Rule])
    alpha-memory      <- :wat::core::PersistentMap
    beta-memory       <- :wat::core::PersistentMap
    production-memory <- :wat::core::PersistentMap
@@ -184,9 +184,9 @@
    next-id           <- :wat::core::i64
    query-memory      <- :wat::core::PersistentMap])
 (:wat::core::typealias :wat::rete::GroupByMap
-  :wat::core::PersistentMap<wat::core::i64,wat::core::PersistentVector<wat::core::Record>>)
+  (:wat::core::PersistentMap :- [:wat::core::i64 (:wat::core::PersistentVector :- [:wat::core::Record])]))
 (:wat::core::typealias :wat::rete::ClassFields
-  :wat::core::PersistentVector<wat::core::PersistentVector<wat::core::String>>)
+  (:wat::core::PersistentVector :- [(:wat::core::PersistentVector :- [:wat::core::String])]))
 
 ;; Export — the compiled program as one EDN value. Not a Session.
 ;; No facts, no memories, no source forms. Native fire only.
@@ -203,7 +203,7 @@
 (:wat::core::defrecord :wat::rete::Export
   [v       <- :wat::core::i64
    abi     <- :wat::core::String
-   classes <- :wat::core::PersistentVector<wat::core::String>
+   classes <- (:wat::core::PersistentVector :- [:wat::core::String])
    fields  <- :wat::rete::ClassFields
    nodes   <- :wat::core::PersistentVector
    conds   <- :wat::core::PersistentVector
@@ -243,8 +243,8 @@
 ;; EPHEMERAL — produced by explain; never serialized.
 (:wat::core::defrecord :wat::rete::DerivationNode
   [fact <- :wat::core::Record
-   rule <- :wat::core::Option<wat::core::String>
-   via  <- :wat::core::PersistentVector<wat::rete::DerivationStep>])
+   rule <- (:wat::core::Option :- [:wat::core::String])
+   via  <- (:wat::core::PersistentVector :- [:wat::rete::DerivationStep])])
 
 ;; DerivationStep — one edge in the provenance tree. Carries the payload that
 ;; makes the derivation readable without knowing the rule.
@@ -258,8 +258,8 @@
 (:wat::core::defrecord :wat::rete::DerivationStep
   [supporting  <- :wat::rete::DerivationNode
    pattern     <- :wat::core::String
-   bindings    <- :wat::core::PersistentMap<wat::core::String,wat::core::Value>
-   constraints <- :wat::core::PersistentVector<wat::WatAST>])
+   bindings    <- (:wat::core::PersistentMap :- [:wat::core::String :wat::core::Value])
+   constraints <- (:wat::core::PersistentVector :- [:wat::WatAST])])
 
 ;; step-payload is a rust primitive (`:wat::rete::step-payload`). explain calls it.
 
@@ -288,7 +288,7 @@
                          ;; `PersistentVector<DerivationStep>`, so materialize via `into`.
                          via      (:wat::core::into (:wat::core::PersistentVector)
                                     (:wat::core::map
-                                      (:wat::core::fn [m <- :(wat::core::Record,wat::core::i64)]
+                                      (:wat::core::fn [m <- (:wat::core::Tuple :- [:wat::core::Record :wat::core::i64])]
                                         -> :wat::rete::DerivationStep
                                         (:wat::core::let [sfact    (:wat::core::first m)
                                                           alpha-id (:wat::core::second m)]
@@ -325,7 +325,7 @@
 ;; AlphaNode/children when the node IS an AlphaNode, satisfying the guard.
 (:wat::core::defn :wat::rete::node-children-ids
   [node <- :wat::core::Record]
-  -> :wat::core::PersistentVector<wat::core::i64>
+  -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:wat::core::let [kind (:wat::rete::node-kind-label node)]
     (:wat::core::cond
       ((:wat::core::= kind "AlphaNode")
@@ -347,7 +347,7 @@
 ;; children-ids-text — format a PersistentVector<i64> as "[id id ...]" for render-dag.
 ;; WHY: foldl builds space-separated ids so render-dag can emit the edge list inline.
 (:wat::core::defn :wat::rete::children-ids-text
-  [ids <- :wat::core::PersistentVector<wat::core::i64>]
+  [ids <- (:wat::core::PersistentVector :- [:wat::core::i64])]
   -> :wat::core::String
   (:wat::core::let [inner (:wat::core::foldl
                              (:wat::core::fn [acc <- :wat::core::String

@@ -76,12 +76,12 @@
 ;; Without `eval_and_tail`, `eval_tail` would fall through its catch-all to ordinary `eval`,
 ;; dispatch to the checked `eval_and`, and this would come back `Err` (a located `TypeMismatch`)
 ;; instead of `Ok(5)`.
-(:wat::core::defn :t::and-tail-skips-last-check [] -> :wat::core::Result<wat::core::i64,wat::core::EvalError>
+(:wat::core::defn :t::and-tail-skips-last-check [] -> (:wat::core::Result :- [:wat::core::i64 :wat::core::EvalError])
   (:wat::eval-ast!
     (:wat::core::quote
       (:wat::core::apply (:wat::core::fn [] -> :wat::core::i64 (:wat::core::and true 5)) []))))
 
-(:wat::core::defn :t::or-tail-skips-last-check [] -> :wat::core::Result<wat::core::i64,wat::core::EvalError>
+(:wat::core::defn :t::or-tail-skips-last-check [] -> (:wat::core::Result :- [:wat::core::i64 :wat::core::EvalError])
   (:wat::eval-ast!
     (:wat::core::quote
       (:wat::core::apply (:wat::core::fn [] -> :wat::core::i64 (:wat::core::or false 7)) []))))

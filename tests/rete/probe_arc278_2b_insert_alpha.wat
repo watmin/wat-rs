@@ -58,7 +58,7 @@
     (:wat::core::length elems)))
 
 ;; (3) the stored Element's bindings carry ?t = 25 — bindings flow from alpha-match into the Element.
-(:wat::core::defn :user::alpha-element-t-binding [] -> :wat::core::Option<wat::core::i64>
+(:wat::core::defn :user::alpha-element-t-binding [] -> (:wat::core::Option :- [:wat::core::i64])
   (:wat::core::let
     [fired (:test::fired-temp-alpha)
      ;; rune:vocare(vantage-bypass-test) — empty :rhs so the caller mouth cannot see the match; implementer alpha layout

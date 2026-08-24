@@ -87,8 +87,8 @@
   (:wat::rete::insert-all
     session
     (:wat::core::foldl
-      (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::Record>  i <- :wat::core::i64]
-                      -> :wat::core::PersistentVector<wat::core::Record>
+      (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  i <- :wat::core::i64]
+                      -> (:wat::core::PersistentVector :- [:wat::core::Record])
         (:wat::core::PersistentVector/conj acc (:cc::Item i)))
       (:wat::core::PersistentVector)
       (:wat::core::range 0 items))))
@@ -99,8 +99,8 @@
   (:wat::rete::insert-all
     session
     (:wat::core::foldl
-      (:wat::core::fn [acc <- :wat::core::PersistentVector<wat::core::Record>  i <- :wat::core::i64]
-                      -> :wat::core::PersistentVector<wat::core::Record>
+      (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  i <- :wat::core::i64]
+                      -> (:wat::core::PersistentVector :- [:wat::core::Record])
         (:wat::core::PersistentVector/conj acc (:dd::Item i)))
       (:wat::core::PersistentVector)
       (:wat::core::range 0 items))))
@@ -151,7 +151,7 @@
     (:dd::one-rete i)))
 
 ;; Worker indices, eagerly materialized (`bracket::map` needs `items` eager).
-(:wat::core::defn :cc::indices [] -> :wat::core::Vector<wat::core::i64>
+(:wat::core::defn :cc::indices [] -> (:wat::core::Vector :- [:wat::core::i64])
   (:wat::core::mapv
     (:wat::core::fn [i <- :wat::core::i64] -> :wat::core::i64 i)
     (:wat::core::range 0 48)))
@@ -159,13 +159,13 @@
 ;; ── entry points ─────────────────────────────────────────────────────────────
 
 ;; N whole retes AT ONCE on the thread pool.
-(:wat::core::defn :user::cc-concurrent [] -> :wat::core::Vector<wat::core::i64>
+(:wat::core::defn :user::cc-concurrent [] -> (:wat::core::Vector :- [:wat::core::i64])
   (:wat::bracket::map (:wat::spawn::thread)
     (:cc::indices)
     (:wat::core::fn [i <- :wat::core::i64] -> :wat::core::i64 (:cc::dispatch i))))
 
 ;; The same witnesses, one thread, as the reference.
-(:wat::core::defn :user::cc-serial [] -> :wat::core::Vector<wat::core::i64>
+(:wat::core::defn :user::cc-serial [] -> (:wat::core::Vector :- [:wat::core::i64])
   (:wat::core::mapv
     (:wat::core::fn [i <- :wat::core::i64] -> :wat::core::i64 (:cc::dispatch i))
     (:cc::indices)))
