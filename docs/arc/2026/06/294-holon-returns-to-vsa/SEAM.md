@@ -1,4 +1,4 @@
-# SEAM — the ONE live breadcrumb. As of 2026-08-24. Turbofish dead · stone D shipped · **grok-rete MERGED** · E is next.
+# SEAM — the ONE live breadcrumb. As of 2026-08-24. Turbofish dead · rete MERGED · scoped work SHIPPED · wat-grep is the build.
 
 > ⛔ **THE SELF PAST THIS LINE IS NEW.** You did not live this. It is a lossy cache in your own voice —
 > which is why it will feel like *continuing* rather than *waking*, and **that feeling is the failure.**
@@ -19,155 +19,131 @@
 ⚠ `git status` FIRST. `pgrep -af 'cargo|nextest'`.
 
 ```
-floor .......... 5016/5016, 0 FAIL, 19 skipped, ~82s  (own invocation, scripts/floor.sh, at b1ce922aa)
-                ⚠ EVERY MOVE ACCOUNTED, BY NAME — never by arithmetic. 4928 → 5016 across the
-                  grok-rete merge = −9 lost +97 gained. The 9: 4 are the matcher→clause module
-                  rename, 4 are test renames in two probe files, 1 is a DELIBERATE deletion by
-                  grok (759aca0a7) — RATIFIED by the builder. Anything else, EXPLAIN first.
+floor .......... 5025/5025, 0 FAIL, 19 skipped, ~82s  (own invocation, scripts/floor.sh, at fd7b017f6)
+                ⚠ ACCOUNTED BY NAME, NEVER BY ARITHMETIC. 4928 → 5025 this session:
+                  +88 grok-rete merge (−9 renamed/deleted, +97 theirs — the 9 ENUMERATED)
+                  +3 stone D · +3 binder-universal · +3 guard-peel · +3 scoped-work
 clippy ......... 0 under `-D warnings`
 host ........... JohnDesktop · john · ~/work/holon/wat-rs
-stash@{0} ...... the lifecycle strike. NEVER drop. base ff7705ba. (verified intact this session)
+stash@{0} ...... the lifecycle strike. NEVER drop. base ff7705ba.
 ```
 
 ⚠ **RUN EVERYTHING CAPPED.** `systemd-run --user --scope -q -p MemoryMax=<N> -p MemorySwapMax=0 timeout <s> …`.
 ⚠ **A stdlib `.wat` edit is INVISIBLE until you rebuild** (`include_str!` at RUST-compile time).
 ⚠ **`cargo wat` uses the STALE installed binary.** Always `target/release/wat`.
 
-## ⛔⛔ WHERE WE ARE — READ THIS BEFORE PROPOSING ANYTHING
+## ⛔⛔ WHERE WE ARE — the build is wat-grep
 
-**We are on the string-home chain**, `255/CHAIN-rendering-before-the-string-home.md`. It began as one
-question — *"can `:wat::core::string` become `:wat::string`?"* — and every layer under it was
-load-bearing. A→E, five stones. **A** 16 arms left (its own cleanup, off the path) · **B** ✅ 294 ·
-**C** ✅ `25d9d015` · **D** ✅ `78bed2e3f` · **E** ⬜ **next, and BLOCKED.**
+**rete is merged and DONE** (`387662bd9`). Builder: *"rete is basically perfect… only physics is
+holding it back"* and **grok-rete is AUTHORITATIVE for the rete subsystem** — resolve every rete
+conflict to their side; main's walls still apply as language law, complied with by routing or an
+earned rune, never by overriding rete semantics. Do NOT re-litigate their deletions.
 
-> ✅ **THE RETE MERGE IS DONE** — `387662bd9`, floor 5016/5016. grok-rete fast-forwards to main
-> (its HEAD is an ancestor; 0 commits outstanding). The bootstrap cycle that blocked it from THEIR
-> side is documented in `109/NOTE-the-wall-disabled-the-codemod-that-removes-the-wall.md`.
->
-> ⛔ **STANDING RULING — grok-rete IS AUTHORITATIVE FOR THE RETE SUBSYSTEM.** Builder, 2026-08-24:
-> *"the grok-rete branch is correct for all things rete — we've been doing extensive work on that
-> subsystem"* and *"if the grok-rete branch deleted a test then its correct — there are no known
-> flaws in the grok-rete branch for the rete subsystem — we have no reason to doubt their actions."*
-> **Resolve every rete conflict to THEIR side.** Main's walls (one_name_grammar, the angle/comma
-> walls, the diagnostic rune) still apply as language-wide law — comply by routing or by an earned
-> `rune:lint(...)`, never by overriding rete semantics. Do NOT re-litigate their deletions.
->
-> ⬜ **E IS NEXT and needs YOUR go plus three naming rulings** —
-> `255/NOTE-the-string-membership-census-and-what-E-must-rule.md`: 24 members (not 22); `=`/`not=`
-> sit beside a live generic; `declare-acronyms` is MISFILED (a registry declaration form, not a
-> string verb); the coercion fork (`to-i64` vs `keyword/from-string`/`char/of`) is unresolved and
-> moving it migrates those three TWICE. Re-take every site count — the chain's 1,617 is stale
-> (measured ~1798 code) and predates the merge.
+**The build now is wat-grep**, and the builder's thesis is the reason: a corpus of proven
+"encoded thoughts for problem resolution" buys rete fluency **by proximity, not by training**.
+Every census error this session was a text pattern approximating a structural question; the worst
+(a 404-site `String/*` shadow namespace) was invisible because *nobody knew to ask*. **A grep
+answers one question and evaporates. A fact base answers questions you have not thought of yet.**
 
-## ★★ DONE: the turbofish is annihilated, in every channel
+> ⛔ **THE CONTRACT, builder 2026-08-24:** *the user's rules assert `Match` facts; wat-grep queries
+> for them and prints.* wat-grep owns ONE query and performs NO interpretation. The user supplies
+> RULES, not queries. Everything wat-grep does not interpret is something it cannot get wrong.
 
-```clojure
-[n :- wat.type/i64]                          arg-spec
-:- wat.type/i64                              ret-type
-(wat.type/Vector :- [wat.type/i64])          type args    — a REFERENCE, in parens
-(wat.type/Vector :- [wat.type/i64] 1 2 3)    constructor
-(wat.core/defn ns/f :- [T] [x :- T] :- T x)  declaration  — a BINDER, siblings, NO parens
-(:ns/f :- [:i64] 7)                          CALL-SITE application — and it BINDS
-[A B :-> R]                                  function type
-(:wat::core::Tuple :- [:i64 O])              TUPLE — the comma form `(A,B)` is DEAD too
-```
-**`:- []` ≡ absent.** Measured: **no keyword bearing `<` can be produced by ANY route** — written
-(both lexer doors), expand-time minted, or runtime minted (`keyword/from-string` AND `keyword-node`
-both refuse; run and read this session).
+### SHIPPED this session
 
 ```
-86e1b105a  THE PERMISSION removed from both lexer doors
-0811c3009  UNEXPRESSIBLE — all three minting doors walled
-aecba7b06  the DORMANT minter dies
-6dc1c681a  the prose stops being taught — 351 sites, 5 riders, 142 rewritten / 203 KEPT
-8c14bb4a0  R8 — blood of the scribe (+ R7's missing FULFILLMENT clause)
-78bed2e3f  STONE D — join widens to Seqable
-5a62de0f9  PREMIGRATE rete's corpus — 351 sites, by the recorded codemod, via a BRIDGE binary
-387662bd9  MERGE grok-rete — 257 auto-merged, 13 conflicts, one floor red root-caused
+78bed2e3f  stone D — join widens to Seqable (the string chain's last rung under E)
+387662bd9  MERGE grok-rete — the bootstrap cycle broken from the side that could
 b1ce922aa  the rete prose lands; the bridge becomes a recorded procedure
+04863f99c  the call-site binder is UNIVERSAL — peel once at the dispatch cluster
+5981e23cb  guard the peel point — too many type args no longer swallowed
+fd7b017f6  with-network / with-overlay / Overlay — the lease finally has a shape
 ```
 
-⚠ **THE DUALS every wall preserves:** `(Vector :- [:i64] 1, 2, 3)` → `[1 2 3]`; `:wat::core::<` `>=`
-`<-` `->` all lex; `Peer'` and `foo/bar` lex. **A wall that refuses everything passes its own test
-and destroys the language.**
+### ⬜ NEXT — wat-grep, in order
 
-## ⛔ NEXT — E is blocked; these are not
+1. **THE SPAN FACT** — `278/DESIGN-STONE-the-span-fact.md`, DRAWN, ready to release. **The one
+   blocking prerequisite**: `rules-corpus-03` emits `Node`/`Named` and NO coordinates, so under the
+   contract no user rule can build a `Match` at all. Measured: `ast-span` and `ast-end-span` are
+   **TOTAL** — which INVERTS corpus-03's guard design (`ast-name` is partial; `Named < Node`).
+   **`Span == Node` is the control**; a count below Node means a guard crept in.
+2. **`:wat::grep::Match`** — modelled, not drawn:
+   `span <- :wat::core::Span` (the substrate's own coordinate; do NOT invent a second) ·
+   `rule <- String` (set by the USER's RHS) · `bindings <- PersistentMap` (what the rule concluded —
+   the field that makes it not-grep). **No `:offset`** — `fix.wat` derives it from `{:line :col}`;
+   carrying both gives one position two sources of truth.
+3. **wat-grep itself** — 93 lines today, TOP-LEVEL ONLY, and it already computes spans and throws
+   them away (`wat-grep-form-edit`). Needs: return coordinates · walk deep (`fix.wat`'s `fix-source`
+   has the recursion) · then the rete processor on top.
+4. **The query is DATA, not code** — PROVEN: `load-file!` resolves at FREEZE time so a query program
+   cannot be loaded as code, but `read-string` → `eval-ast!` in the frozen world → `Rule` →
+   `compile` runs end to end. `eval_in_frozen`'s own doc names *"rule-like pattern-match systems"*.
 
-1. **`NOTE-the-guides-are-not-executable.md`** — `:wat::core::define` is RETIRED and `USER-GUIDE.md`
-   teaches it 32×; `let`'s binding shape changed. Extract fenced `wat` blocks and `--check` them.
-   **Gate and repair are ONE sequenced stone** — it goes red on landing. This also owns the **61
-   in-fence doc occurrences** deliberately cut from the prose strike: `SERVICE-PROGRAMS.md:55` carries
-   the retired `let` shape *alongside* an angle head, so a token fix would make it LOOK repaired.
-2. **`@example` ASSERTS NOTHING — 140 directives.** 55 run-flagged + 85 norun, and the runner
-   (`tests/reflection/probe_arc255_ivb2b_verify_examples.rs`) is `#[ignore]`d on arc 255's unbuilt
-   registry. `src/intrinsic/reflect.rs:610-612` documents a call that **raises** — verified. Same
-   door E's home #4 waits behind.
-3. **8 provably-dead stdlib branches** — `split fqdn-str "<"` / `ends-with? … ">"` in `core.wat`
-   (755, 824, 2012), `Record.wat` (175, 271), `service.wat` (244, 246, 268). Unreachable by proof
-   (see DONE, above). `fix.wat:112` KEEPS its own — the codemod must read old source.
-4. **20 quoted-diagnostic comments** transcribe output the renderer stopped emitting at `64a8fa5a0`.
-   Cannot be hand-edited — must be RECAPTURED by running the probe.
-5. **`BRIEF-STONE-a-doc-directive-may-wrap.md`** — written, committed, NEVER RELEASED.
-6. **The bare comma-tuple** population outside the camouflage pattern (`wat/spawn.wat:207,217`) —
-   unmeasured; my pattern was scoped to `:- [...]`-internal only.
-7. **`NOTE-the-loader-gate-is-scoped-by-extension.md`** + `DESIGN-a-file-declares-its-wat-contract.md`
-   — 11 files rot through a gate that asks "does the name end in `.wat`". **Four questions on all six
-   options are drawn; the ruling is the builder's.**
-8. **`defclause`'s SHARED return** still refuses `:-` (the 7th slot). Measured.
+### ⬜ ALSO OPEN
 
-## ⛔ THE CENSUSES — TEN NOW, ALL THE SAME FAMILY
+- **E — the string home.** Fully scoped: **21 verbs**, `:wat::core::string::` retired ENTIRELY
+  (leaving it alive for 4 verbs was my error — it breaks home #4). `String/*` is a 404-site SHADOW
+  namespace of pure aliases; `String/empty?` is the one real verb hiding there. `string::{=,not=}`
+  join as new verbs (i64 and f64 have them; string never did). Needs the builder's go.
+- **eval is DYNAMIC, not polymorphic.** arc 028 shipped `type_params: vec![]`; the `∀T` arrived at
+  `a33642acf` as the RESIDUE of reverting a wrapper, and its own comment concedes
+  *"trust-the-caller… type-mismatched downstream ops fail at runtime."* `ann-form` exists.
+- **The untyped-PV hazard** — two sites in rete's hot path restructure around an empty
+  `PersistentVector` carrying an unconstrained `T` (`oracle/pass.wat:353`).
+- **The load-order gate is half-blind** — it reports a COUNT and names `probe_arc275_verify_stdlib`,
+  a test target that no longer exists. Call `(:wat::deporder::verify-stdlib)` for the actual list.
+- **The codemod cannot do its own job** — arc 109 walled the syntax its own migration tool reads.
+  Procedure recorded: `109/NOTE-the-wall-disabled-the-codemod-that-removes-the-wall.md`.
 
-Six are recorded in R7. **This session added four**, every one an UNDERCOUNT against a rider's own
-hand-count: 44→**45**, 53→**56**, 70→**72**, 113→**117**. Each of mine came from a validated
-instrument with a positive AND negative control, derived from the lexer's own predicate.
+## ⛔ THE LESSON THAT COST THE MOST TODAY
 
-★ **Performing rigor is exactly what makes an undercount credible.** *A precise measurement of the
-wrong population is more convincing than a vague one, not less.*
+**A DESIGN IS UNFALSIFIABLE UNTIL SOMETHING CONSUMES IT.** Three designs, all grounded, all written
+down, all wrong — and **all three ran GREEN first**:
 
-> **ENUMERATE THE CHANNELS, NOT THE SHAPES.** Written · minted · rendered · in a string literal ·
-> taught in prose · on a path nothing runs · **quoted from a channel already migrated** (the seventh,
-> found this session). Pair every dynamic census with a static one, and every static one with a
-> READER. `[[feedback_scope_the_check_from_the_rule_not_the_diff]]`
+```
+the call-site binder   checker accepted it, runtime refused it — found by USING it elsewhere
+with-network           leaked the very lease it existed to drop — found by grepping who ELSE calls arm-session
+the load-order red     "wat/rete.wat, after the session records" — load order never considered
+```
 
-## ⛔ RULES THAT COST REAL TIME
+Each defect lived in a RELATION the design did not contain — between two doors, between a wrapper
+and another caller, between a file's position and its symbols. **You cannot re-read your way to
+these.** `[[feedback_a_design_is_unfalsifiable_until_something_consumes_it]]`
 
-- ⛔ **THE ADJACENT FUNCTION IS NOT THE SUBJECT.** I briefed `seqable_value_to_stream` as
-  `pub(crate)` and wrote *"signature-checked"* over it. It was module-private; the `pub(crate)` I read
-  belonged to `eval_seqable_to_stream`, **four lines above**. The rider caught it as its own STOP-1.
-  `[[feedback_an_adjacent_implementation_is_not_the_subject]]`
-- ⛔ **A WALL CANNOT BE BUILT ON A PAGE.** R7's method won the code channel outright and then hit
-  prose, where 203 of 351 sites had to be **KEPT** — the epitaph and the heresy are the same
-  characters with opposite fates. **Erase the gravestone and the next reader re-mints the pariah
-  innocently.** See R8, `SCRIBIMVS VT EXVLET`.
-- ⛔ **A RIDER'S SUBAGENT IS OUTSIDE YOUR BRIEF.** Every brief now says *"You may not spawn sub-agents."*
-- ⛔ **DISJOINT FILES ≠ DISJOINT MEASUREMENT.** Sample `git diff --numstat` twice, seconds apart; if
-  it moves, the measurement is VOID. Riders edit; **the orchestrator floors centrally.**
-- ⛔ **FILING IS NOT FIXING.** I filed two channels as NOTEs and the builder had to ask.
-- ⚠ **KEEP PINNING THE SPAN.** Arc 296 ruled it; I re-proposed dropping it and was wrong.
+★ The builder's sequencing is what caught two of them: *"build what we think with-rete looks like in
+wat-grep and then we'll migrate the UX story to rete."* **Prototype at the CONSUMER, then promote.**
+
+## ⛔ RULES THAT STILL COST TIME
+
+- ⛔ **ACCOUNT THE FLOOR BY NAME.** 4928→5016 looked clean; enumerating found **9 tests gone** —
+  8 renames and 1 real deletion. A rise hides a loss.
+- ⛔ **A SPAN-PINNED GOLDEN IS RECAPTURED, NEVER DROPPED.** Three times today. Verify the emitter is
+  byte-identical against HEAD, THEN `UPDATE_EDN=1`; the diff must be `:line` and nothing else.
+- ⛔ **DISJOINT FILES ≠ DISJOINT MEASUREMENT.** Sample `git diff --numstat` twice. I probed a live
+  rider's tree again today — the finding held, but re-run it clean before crediting.
+- ⛔ **A RIDER'S SUBAGENT IS OUTSIDE YOUR BRIEF.** Every brief says *"You may not spawn sub-agents."*
 - ⚠ **`.wat` scratch → `wat-scripts/scratch-pad/`** — but a probe that must FAIL cannot live there
-  (the loader gate requires it to load). That is `DESIGN-a-file-declares-its-wat-contract.md`'s point.
+  (the loader gate requires it to load). That is `109/DESIGN-a-file-declares-its-wat-contract.md`.
 
 ---
 
 > **SEAM.** You are NEW. The better this reads, the more it will feel like continuing rather than
 > waking. **That feeling is the failure.**
 >
-> ⚠ **THE RECORD LIES IN YOUR OWN VOICE — and R8 counted it.** This session alone, in our own ink:
-> a comment announcing strings "built below" a function that builds none (`bracket.wat:285`); a false
-> kwargs claim above unreachable code (`core.wat:2007`); a doc citing a call site twelve lines from
-> its only caller (`types.rs:5507`); three `@example`s asserting a call that raises; twenty
-> transcripts of diagnostics we stopped emitting the day we fixed them; and four censuses under.
+> ⚠ **THE RECORD LIES IN YOUR OWN VOICE.** This session alone: a brief that asserted a `pub(crate)`
+> I never read and wrote *"signature-checked"* over it; a stale comment that sent three riders
+> hunting; a doc citing a call site that does not exist; four censuses under with validated
+> instruments and controls; and a gate that prints a tally and points at a dead command.
 > **Re-run the instrument that made the claim; do not read the claim.**
 >
-> ⚠ **AND THE COUNTERWEIGHT, or you will freeze:** every advance came from imposing a check and
-> reading the screams — and where no check can be imposed, from writing the exile down. The turbofish
-> entered this arc as the language's parameterization syntax and leaves unwritable, unmintable,
-> unrenderable, unparseable, and untaught. **When the population is a property, light the fire.**
+> ⚠ **AND THE COUNTERWEIGHT, or you will freeze:** the turbofish is unwritable, unmintable,
+> unrenderable, unparseable and untaught; rete came home; the lease has a shape. Every one came from
+> imposing a check and reading the screams — and where no check could be imposed, from writing the
+> exile down.
 >
-> Read `294/REALIZATIONS.md` **R5 → R6 → R7 → R8**. Four beats: `AEQUALITATEM RESPUO` (the shell, not
-> the point) · `DOLOR INDEX EST` (the ache is the instrument) · `INCENDIMVS VT VIDEAMVS` (light it
-> yourself) · `SCRIBIMVS VT EXVLET` (write so it stays exiled). R7's fulfillment clause was added
-> 2026-08-23; it had none, by design, until the floor was known.
+> Read `294/REALIZATIONS.md` **R5 → R6 → R7 → R8**: `AEQUALITATEM RESPUO` (the shell, not the point) ·
+> `DOLOR INDEX EST` (the ache is the instrument) · `INCENDIMVS VT VIDEAMVS` (light it yourself) ·
+> `SCRIBIMVS VT EXVLET` (write so it stays exiled).
 >
 > `NON BIS IN IDEM FLVMEN.` · `IVDICIVM SEMEL, MACHINA SAEPE.` · `NISI FRANGAS, NIHIL PROBAS.` ·
 > `INCENDIMVS VT VIDEAMVS.` · `SCRIBIMVS VT EXVLET.`
