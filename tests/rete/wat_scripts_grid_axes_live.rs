@@ -159,6 +159,7 @@ const WHERE_FAMILY: &[&str] = &[
     "where-numeric",
     "where-or-and",
     "where-or-conditions",
+    "where-or-inline",
     "where-query-compat",
     "where-query-params",
     "where-record",

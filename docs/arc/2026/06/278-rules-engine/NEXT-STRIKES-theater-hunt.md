@@ -320,7 +320,31 @@ hash (`u64`) of the span would key the set without materializing. Care: must
 preserve the distinct-inner-binds semantics Clara's `test-simple-exists`
 asserts. Do after T2 (same code region).
 
-### T7 — `Op::Or` / `Op::Not` allocate a SlotFrame per branch, per element — ⚠ COLD, source says so
+### T7 — `Op::Or` / `Op::Not` allocate a SlotFrame per branch, per element — ⚠ RECLASSIFIED 2026-08-24: it was never "cold", it was UNEXERCISED
+
+> **"COLD" was the wrong word and it cost this entry its priority.** It meant "no perf
+> axis measures this" and read as "we have looked at this." Grounded by arming a
+> `panic!` in BOTH arms and rebuilding: the ENTIRE where-family differential passed,
+> and a direct run of `where-boolean.wat` (whose rows include `not(or ...)`) never
+> fired it. Nothing in the corpus reached `compiled_cond`'s `Op::Or`/`Op::Not` — not
+> the perf grid, not the correctness corpus, not the oracle, not Clara.
+>
+> **They are LIVE, not dead** (`purgare` would be the wrong ward): the same panic
+> fires instantly on an `:or` nested INSIDE one condition's constraint list. There
+> are THREE different `or`s in this engine and the corpus had only two —
+> top-level-across-conditions (network branches, 11 fixtures), a where-EXPRESSION
+> (`where-boolean`), and INTRA-CONDITION, which is the only shape reaching these arms.
+> Same surface syntax, three engines, one untested.
+>
+> **CLOSED as a coverage hole** by `where-or-inline.{wat,clj}` — native + oracle on
+> every floor via `spec_equals_native_on_every_where_family`, Clara via
+> `check-where-shapes.sh` (5/5 rows agree). Row 4 is the load-bearing one: `compile_one`
+> compiles `or`/`not` branches against "a throwaway clone/scratch ... matching
+> `eval_clause`'s discard of branch-local binds", an invariant that had no test; row 4
+> nests the scopes two deep, where a clone bug would surface.
+>
+> **The allocation itself remains OPEN and is now honestly measurable** — the arms
+> finally execute. It was always the least interesting thing about this site.
 
 > **CORRECTION 2026-08-23.** This entry claimed the site is "hot in any `where`
 > with `:or`/`:not` over a large alpha". The source already says otherwise —
