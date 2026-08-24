@@ -208,3 +208,104 @@
 (:wat::rete::defquery :wat::grep::q-match
   :params []
   :when [(?fact <- :wat::grep::Match)])
+
+;; ── the driver — :wat::grep::run ────────────────────────────────────────────────────
+;; DESIGN: docs/arc/2026/06/278-rules-engine/DESIGN-STONE-the-grep-mode.md
+;; BRIEF:  docs/arc/2026/06/278-rules-engine/BRIEF-STONE-the-grep-driver.md
+;;
+;; facts-as-records — Facts holds three DIFFERENTLY-TYPED vectors (Node/Named/Span); the single
+;; `with-overlay` call each file gets takes ONE `(PersistentVector :- [:wat::core::Record])`, so
+;; the three must be merged before that call, not after (a rule's Node×Span join needs both
+;; present in the same insert). `PersistentVector/conj`'s element position accepts any defrecord
+;; as a :wat::core::Record — the same coercion the DESIGN's own probe uses to build a Record
+;; vector by hand (wat-grep-with-network-shape.wat's `grep-one-file`) — so a fold of `conj` per
+;; sub-vector is the general shape for N sub-vectors of differing concrete record types.
+(:wat::core::defn :wat::grep::facts-as-records
+  [facts <- :wat::grep::Facts]
+  -> (:wat::core::PersistentVector :- [:wat::core::Record])
+  (:wat::core::let
+    [acc0 (:wat::core::PersistentVector :- [:wat::core::Record])
+     acc1 (:wat::core::foldl
+            (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])
+                             n   <- :wat::grep::Node]
+              -> (:wat::core::PersistentVector :- [:wat::core::Record])
+              (:wat::core::PersistentVector/conj acc n))
+            acc0
+            (:wat::grep::Facts/nodes facts))
+     acc2 (:wat::core::foldl
+            (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])
+                             nm  <- :wat::grep::Named]
+              -> (:wat::core::PersistentVector :- [:wat::core::Record])
+              (:wat::core::PersistentVector/conj acc nm))
+            acc1
+            (:wat::grep::Facts/named facts))
+     acc3 (:wat::core::foldl
+            (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])
+                             sp  <- :wat::grep::Span]
+              -> (:wat::core::PersistentVector :- [:wat::core::Record])
+              (:wat::core::PersistentVector/conj acc sp))
+            acc2
+            (:wat::grep::Facts/spans facts))]
+    acc3))
+
+;; print-match — the ONE printer. It knows exactly one type because wat-grep owns exactly one
+;; query; nothing here ranks, filters, or counts. `query-read`'s binding maps key a query's
+;; params by "?name" (rules-corpus-03's own read of q-match: `(PersistentMap/get m "?fact")`).
+(:wat::core::defn :wat::grep::print-match
+  [binding <- :wat::core::PersistentMap]
+  -> :wat::core::nil
+  (:wat::kernel::println
+    (:wat::core::str
+      (:wat::core::Option/expect
+        (:wat::core::PersistentMap/get binding "?fact")
+        "wat::grep::print-match: q-match binding has no ?fact"))))
+
+;; run-one — one file, through the ALREADY-COMPILED network via `overlay`. `overlay` always
+;; re-seeds from the network's compiled base (with-overlay's own contract), so this function
+;; never has a prior file's session in scope to thread forward — the isolation the DESIGN calls
+;; structural, not disciplined.
+(:wat::core::defn :wat::grep::run-one
+  [overlay <- :wat::rete::Overlay
+   path    <- :wat::core::String]
+  -> :wat::core::nil
+  (:wat::core::let
+    [facts   (:wat::grep::facts-of (:wat::io::read-file path))
+     records (:wat::grep::facts-as-records facts)
+     fired   (overlay records)
+     matches (:wat::rete::query fired (:wat::grep::q-match))]
+    (:wat::core::run! :wat::grep::print-match matches)))
+
+;; run-each — the loop. Identical recursive shape to every recorded stdin-harness codemod
+;; (`wat-scripts/fixes/angle-brackets-to-binder.wat`'s `apply-each`): first path, recurse on
+;; rest, nil at empty. No count, no header, no separator — silence for a file whose rules
+;; assert nothing is the honest answer, not an error.
+(:wat::core::defn :wat::grep::run-each
+  [overlay <- :wat::rete::Overlay
+   paths   <- (:wat::core::Vector :- [:wat::core::String])]
+  -> :wat::core::nil
+  (:wat::core::if (:wat::core::empty? paths)
+    nil
+    (:wat::core::do
+      (:wat::grep::run-one overlay (:wat::core::first paths))
+      (:wat::grep::run-each overlay (:wat::core::rest paths)))))
+
+;; run — the driver. Reads ONE EDN vector of paths from stdin, compiles `rules` + the single
+;; query `:wat::grep::q-match` ONCE (the driver compiles, so the driver holds the lease, in one
+;; scope — `with-overlay` releases it when this call returns), then threads every file through
+;; that one compiled network via `overlay`, each file re-seeded from the compiled base.
+(:wat::core::defn :wat::grep::run
+  [rules <- (:wat::core::PersistentVector :- [:wat::rete::Rule])]
+  -> :wat::core::nil
+  (:wat::core::let
+    [paths (:wat::core::match (:wat::kernel::readln)
+             ((:wat::kernel::ReadlnOutcome::Datum __datum) __datum)
+             (:wat::kernel::ReadlnOutcome::Eof
+               (:wat::kernel::assertion-failed! "wat::grep::run: readln: end of input"
+                 :wat::core::None :wat::core::None))
+             (:wat::kernel::ReadlnOutcome::Stopped
+               (:wat::kernel::assertion-failed! "wat::grep::run: readln: stop requested"
+                 :wat::core::None :wat::core::None)))]
+    (:wat::rete::with-overlay rules
+      (:wat::core::PersistentVector :- [:wat::rete::Query] (:wat::grep::q-match))
+      (:wat::core::fn [overlay <- :wat::rete::Overlay] -> :wat::core::nil
+        (:wat::grep::run-each overlay paths)))))
