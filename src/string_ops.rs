@@ -22,7 +22,7 @@
 //! (`:wat::core::uuid::v4` + `v5`) were retired in arc 207 slice 3.
 
 use crate::ast::WatAST;
-use crate::runtime::{eval, Environment, RuntimeError, RuntimeErrorKind, SymbolTable, Value};
+use crate::runtime::{eval, Environment, EvalBreak, RuntimeError, RuntimeErrorKind, SymbolTable, Value};
 use crate::span::Span;
 use std::sync::Arc;
 
@@ -480,21 +480,52 @@ pub fn eval_string_join(
             }));
         }
     };
-    let pieces = match eval(&args[1], env, sym)?.value_owned() {
-        Value::Vec(items) => items,
-        other => {
-            return Err(RuntimeError::new(args[1].span().clone(), RuntimeErrorKind::TypeMismatch {
-                op: OP.into(),
-                expected: "(Vector :- [T])",
-                got: Box::new(crate::runtime::ValueSnapshot::of(&other))
-            }));
+    let types = sym.types().map(|a| a.as_ref());
+    // Converts the EvalBreak that `seqable_value_to_stream`/`crate::stream::realize`
+    // raise (they live on the `eval_inner` signal subgraph) back to the plain
+    // `RuntimeError` this fn returns — the same unwrap `eval`'s own public boundary
+    // performs (runtime.rs's `eval`, `Err(EvalBreak::Signal(s)) => ...`); a `Signal`
+    // escaping here is an interpreter bug, not a user-facing condition.
+    let to_runtime_error = |span: &Span, e: EvalBreak| -> RuntimeError {
+        match e {
+            EvalBreak::Diagnostic(boxed) => *boxed,
+            EvalBreak::Signal(s) => RuntimeError::new(span.clone(), RuntimeErrorKind::MalformedForm {
+                head: OP.into(),
+                reason: format!("internal: eval-loop signal escaped string::join's Seqable walk: {s}"),
+            }),
         }
     };
-    let types = sym.types().map(|a| a.as_ref());
-    let pieces_owned: Vec<String> = pieces
-        .iter()
-        .map(|item| render_str_total(item, types))
-        .collect();
+    let pieces_owned: Vec<String> = match eval(&args[1], env, sym)?.value_owned() {
+        // FAST PATH — unchanged (118.B7 discipline, Stone D contract): an eager
+        // Vector keeps its direct iterator and never routes through the stream
+        // normaliser below.
+        Value::Vec(items) => items.iter().map(|item| render_str_total(item, types)).collect(),
+        // WIDENED (Stone D, arc 255) — any other member of the `Seqable :- [T]`
+        // surface (PersistentVector, List, Stream): normalise once through the
+        // shared value-level door (`seqable_value_to_stream` — composes, does not
+        // re-derive the container classification), then render each element as
+        // the walk forces it. Single pass; nothing intermediate materialized.
+        other => {
+            let mut cur = crate::collection::transform::seqable_value_to_stream(other, OP, args[1].span())
+                .map_err(|e| to_runtime_error(args[1].span(), e))?;
+            let mut out = Vec::new();
+            loop {
+                let realized = crate::stream::realize(&cur, sym, args[1].span())
+                    .map_err(|e| to_runtime_error(args[1].span(), e))?;
+                match realized.as_ref() {
+                    crate::stream::Stream::Empty => break,
+                    crate::stream::Stream::Cons { head, tail } => {
+                        out.push(render_str_total(head, types));
+                        cur = Arc::clone(tail);
+                    }
+                    crate::stream::Stream::Thunk(_) | crate::stream::Stream::NativeThunk(_) => {
+                        unreachable!("crate::stream::realize always returns Empty|Cons")
+                    }
+                }
+            }
+            out
+        }
+    };
     Ok(Value::String(Arc::new(pieces_owned.join(&sep))))
 }
 

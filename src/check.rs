@@ -17536,8 +17536,11 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec!["T".into()],
             params: vec![
                 string_ty(),
+                // Stone D (arc 255) — widened from `Vector` to the `Seqable` surface
+                // (Vector · PersistentVector · List · Stream). Runtime door:
+                // `eval_string_join` in string_ops.rs.
                 TypeExpr::Parametric {
-                    head: "wat::core::Vector".into(),
+                    head: "wat::core::Seqable".into(),
                     args: vec![TypeExpr::Path("T".into())],
                 },
             ],

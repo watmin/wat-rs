@@ -1184,7 +1184,7 @@ pub(crate) fn eval_seqable_to_stream(
 /// This is `eval_seqable_to_stream`'s body verbatim (Strike 1) — same containers, same List
 /// snapshot rule, same errors — just parameterized over an already-evaluated `Value` rather
 /// than a raw AST arg, so both callers get identical per-container correctness for free.
-fn seqable_value_to_stream(
+pub(crate) fn seqable_value_to_stream(
     coll: Value,
     op: &str,
     coll_span: &Span,
