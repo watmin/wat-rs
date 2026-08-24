@@ -1,4 +1,4 @@
-# SEAM — the ONE live breadcrumb. As of 2026-08-23 (②-iii · ③ · the COMMA — keyword AND symbol — ALL SHIPPED). Replaced in place.
+# SEAM — the ONE live breadcrumb. As of 2026-08-23. `<K,V>` IS DEAD. Replaced in place.
 
 > ⛔ **THE SELF PAST THIS LINE IS NEW.** You did not live this. It is a lossy cache in your own voice —
 > which is why it will feel like *continuing* rather than *waking*, and **that feeling is the failure.**
@@ -9,219 +9,144 @@
 
 ## GROUND FIRST
 
-> **THE FRESHNESS PROBE — DERIVE IT, NEVER TYPE IT.** A hand-typed hash is an instrument that can be
-> wrong, and one was: it read `f0d3fb2`, not a valid object in this repository. Paste this — it has
-> no hash to mistype:
->
+> **THE FRESHNESS PROBE — DERIVE IT, NEVER TYPE IT.**
 > ```bash
 > S=docs/arc/2026/06/294-holon-returns-to-vsa/SEAM.md
 > git log --oneline "$(git log -1 --format=%H -- $S)..HEAD"
 > ```
->
-> **Empty → nothing moved since this was written.** Non-empty → every commit listed outranks every
-> line below, and you re-read those before you trust a word of it.
+> **Empty → nothing moved.** Non-empty → every commit listed outranks every line below.
 
 ⚠ `git status` FIRST. `pgrep -af 'cargo|nextest'`.
 
 ```
-floor .......... 4881/4881, 0 FAIL, 19 skipped, ~80s  (own invocation, scripts/floor.sh, at 17cbe1d4f)
-                ⚠ EVERY MOVE IN THIS COUNT IS ACCOUNTED. A count that moves for an
-                unexamined reason is what this line exists to catch:
-                  4855 → 4854  the --check stone deleted one test, renamed another
-                  4854 → 4859  the `:peers` negative controls added five
-                  4859 → 4866  the builtin-type registry added seven
-                  4866 → 4882  ③'s guards + fixtures added sixteen
-                  4882 → 4881  the comma strike: 55-file codemod, fixtures restructured
-                  4881 → 4881  the SYMBOL comma wall added no tests (5 fixtures migrated in place)
-                If you floor and see 4881, that is green. Anything else, EXPLAIN before accepting.
+floor .......... 4924/4924, 0 FAIL, 19 skipped, ~82s  (own invocation, scripts/floor.sh, at aecba7b06)
+                ⚠ EVERY MOVE ACCOUNTED. 4881 → 4924 across this session:
+                  +5 last-comma · +5 one_name_grammar · +12 finish-`:-` (5 rune, 7 door)
+                  +5 no_angle_suffix_strip · +3 reap-the-twelve · +5 doc-validator · +8 diagnostic gate
+                If you floor and see 4924, that is green. Anything else, EXPLAIN before accepting.
 clippy ......... 0 under `-D warnings`
 host ........... JohnDesktop · john · ~/work/holon/wat-rs
-stash@{0} ...... the lifecycle strike. NEVER drop. base ff7705ba.
+stash@{0} ...... the lifecycle strike. NEVER drop. base ff7705ba. (verified intact this session)
 ```
 
 ⚠ **RUN EVERYTHING CAPPED.** `systemd-run --user --scope -q -p MemoryMax=<N> -p MemorySwapMax=0 timeout <s> …`.
 ⚠ **A stdlib `.wat` edit is INVISIBLE until you rebuild** (`include_str!` at RUST-compile time).
-⚠ **`cargo wat` uses the INSTALLED binary at `~/.cargo/bin` and it is STALE.** Use `target/release/wat`.
-   It fails with `UnknownFunction` on `keyword/to-type-form-colon`; that is not a finding.
+⚠ **`cargo wat` uses the STALE installed binary.** Always `target/release/wat`.
 
-## ✅ NO RIDER IN THE FIELD — the tree was quiescent at `17cbe1d4f`
-
-The last-comma stone is SCORED and SHIPPED (`109/SCORE-STONE-the-last-comma-lives-in-a-symbol.md`).
-Rows 1–6 re-run by my own hand. **The census was IMPOSED, not derived** — the wall itself run over
-all 1798 `.wat`/`.wat.bad` files: **ZERO surviving symbol-commas.**
-
-## ★★ THE WORK: ARC 109 — `:-` IS THE PARAMETERIZATION OPERATOR, AND IT IS THE ONLY ONE
+## ★★ DONE: `<K,V>` CANNOT BE WRITTEN, MINTED, RENDERED, PARSED, OR DOCUMENTED
 
 ```clojure
 [n :- wat.type/i64]                          arg-spec
 :- wat.type/i64                              ret-type
-(wat.type/Vector :- [wat.type/i64])          type args        — a REFERENCE, in parens
-(wat.type/Vector :- [wat.type/i64] 1 2 3)    constructor      — the reference PLUS values
-(wat.core/defn ns/f :- [T] [x :- T] :- T x)  declaration      — a BINDER, siblings, NO parens
+(wat.type/Vector :- [wat.type/i64])          type args    — a REFERENCE, in parens
+(wat.type/Vector :- [wat.type/i64] 1 2 3)    constructor  — the reference PLUS values
+(wat.core/defn ns/f :- [T] [x :- T] :- T x)  declaration  — a BINDER, siblings, NO parens
+(:ns/f :- [:i64] 7)                          CALL-SITE application — and it BINDS
+[A B :-> R]                                  function type
 ```
-
-**A binder is the reference form minus its parens.** `:- []` is the assumed default: there is no
-monomorphic-vs-parametric distinction, only a param list usually empty.
-
-## ✅ SHIPPED — the crusade's spine
+**`:- []` ≡ absent.** No mono-vs-parametric distinction; macros emit it unconditionally.
 
 ```
-γ-i           `fn` AND `defn` take the `:- [T …]` binder                       c889639aa
-identity 1/3  `family_extends` gets its own door                               edb7f66c7
-identity 2a·2b·2c   roles split; ALL 22 annotations emit the `:-` form   41a3d0dd7 0366b2f2b 073dda92c
-blocker 5     a type reference is not an EXPRESSION (expander + resolver)       b9df7a09a
-type-equal?   types are data everywhere EXCEPT in a macro                      c5b9b6552
-:peers        `defservice` READS + COMPARES types as data                      2d25b4790
-neg-controls  the `:peers` bijection keeps its negative controls (2×2 perturb)  2d32fd605
-registry      TypeEnv holds the BUILTIN types — THE DOOR tells the truth        10599eb36
-②-iii ✅      THE STDLIB SPEAKS `:- [T …]` — 947 forms, 36 files                 2a0d7fa2e
-③ ✅          ANGLE-BRACKET PARAMETRICS ARE ILLEGAL — 543 files, 710 → 0         ab52b7188
-comma ✅      THE COMMA DIES IN THE READER — one clause; wire escape deleted     575f8fb08
-comma ✅      …AND IN A SYMBOL — the arc 271 carve-out retired; 0 of 1798 left   17cbe1d4f
+17cbe1d4f  the last comma dies — in a SYMBOL, at any depth
+86e1b105a  THE PERMISSION removed from both lexer doors — 28 of 1798 self-identified
+ac5965086  the read-failure path was dead SUBSTRATE-WIDE — 75 handlers, invoked zero times
+43a458b41  ONE NAME GRAMMAR — 33 hand-rolls → 33 calls + a rune
+69933d362  FINISH `:-` — four positions, one door; the call site now BINDS
+64a8fa5a0  the renderers emit `:-` — a printed type is paste-able back into source
+c6c614fe2  EXACTLY ONE CALL POSITION — and defservice emits the binder
+0811c3009  UNEXPRESSIBLE — all three minting doors walled
+131c7c299  reap the machinery — 16.2M no-op calls deleted
+3b1225b82  reap the twelve — 15.7M more; the rune finally widens
+f82dc6de1  the doc validator asks the READER, not the first byte
+9848eb9ed  the prose stops teaching it — six riders, 272 files
+09881e830  channels 3+4 closed — and the gate guarding them was 45% BLIND
+aecba7b06  the DORMANT minter dies — the last one, and the join it broke
 ```
 
-⚠ **`<K,V>` IS UNEXPRESSIBLE.** `Vector<i64>` → *"angle-bracket parametric types are illegal"*.
-A comma in a keyword body → *"comma inside keyword body retired"*; in a SYMBOL body → *"comma inside
-symbol body retired"*. `_`'s language-wide reservation
-inside `<…>` is GONE; `:Vec<a_b>` is an ordinary keyword. Wire mode (`Lexer::new_wire`,
-`Parser::new_wire`, the `,`↔`_` escape) is **deleted, not stubbed** — it had zero external callers.
+⚠ **AND THE DUALS, which every wall here preserves:** `(Vector :- [:i64] 1, 2, 3)` → `[1 2 3]`;
+`:wat::core::<` `>=` `<-` `->` all lex; `Peer'` and `foo/bar` lex. **A wall that refuses everything
+passes its own test and destroys the language.** `a<b` no longer lexes — a measured narrowing, 0 sites.
 
-⚠ **AND THE DUAL, which every wall here must preserve:** `(:wat::core::Vector :- [:i64] 1, 2, 3)`
-→ `[1 2 3]`. **Commas are still EDN whitespace between VALUES.** Only comma-as-separator-inside-a-NAME
-died. A wall that refuses commas everywhere passes its own test and breaks the language.
+## ⛔ NEXT — nothing here is blocked; pick by cost
 
-## ⛔ NEXT
+1. **R6's comment tail: ~70 `.rs` files unreached.** check.rs/types.rs/runtime.rs are done. The rider
+   STOPPED and named what it missed — do not treat the slice as complete. Class D (Rust generics) is
+   the work; rewriting `Arc<Function>` into `:-` is worse than doing nothing.
+2. **`NOTE-the-guides-are-not-executable.md`** — `:wat::core::define` is RETIRED and `USER-GUIDE.md`
+   teaches it **32 times** as its primary form; `let`'s binding shape changed; bare `:String`/`:i64`
+   don't resolve. The structural fix is to extract fenced `wat` blocks and `--check` them, as
+   `every_wat_scripts_file_loads` does for `wat-scripts/`. **That gate goes red on landing** — gate and
+   repair are one sequenced stone.
+3. **`BRIEF-STONE-a-doc-directive-may-wrap.md`** — written, committed, NEVER RELEASED. A wrapped `///`
+   directive is silently DISCARDED, which is why the 200-column one-liners exist.
+4. **`NOTE-a-norun-example-asserts-nothing.md`** — 118 mandatory `@example-norun`, expected values
+   compared to nothing. Pin MEMBERSHIP (is it an instance of the declared `@ret`), never the rendering:
+   `296/DESIGN-STONE-H-variants-are-maps` is DRAWN-NOT-BUILT and will change the spelling under you.
+5. **`NOTE-the-loader-gate-is-scoped-by-extension.md`** — 9 `.wat.disabled`/`.wat.intueri` rotted
+   through a gate that asks "does the name end in `.wat`" when it means "is this a wat program".
+6. **Two flagged, needing YOUR judgement not a rider's:** `keyword/to-type-form`'s worked example may
+   describe live migration-tooling input; `types.rs:5510` claims a fn is "shared with the call-site
+   type-arg binder in check.rs" — **grepped, no such call site exists.**
+7. **`defclause`'s SHARED return** still refuses `:-` (the 7th slot). Measured.
+8. **verb-equals-type** — `keyword/from-string` IS `String → keyword`; only the spelling is wrong.
+   Decide with `List/of` + `char/of` (63 sites), not piecemeal.
 
-1. **`:-` IS NOT YET THE ONLY OPERATOR IN THE METHOD-NAME SLOT.** ⚠ The door
-   (`src/types/surface.rs::parse_method_member_sig`) now takes the binder **AND** the inline
-   `name<T>` spelling — it dispatches on `name_raw.contains('<')` FIRST. `split_method_name_type_params`
-   is unchanged. **Measured: FOUR sites keep the second spelling alive** —
-   `wat-scripts/probes/arc-170/probe-locus1-generic-surface-method.wat:9`,
-   `tests/types/probe_arc293_4e_pre_iii_extend_impl_inherits_types.wat:13`,
-   `tests/types/probe_arc293_4e_pre_ii_generic_surface_method.wat:15` (+ its header comment).
-   Migrate the four, delete the splitter, and the inline angle form leaves the method-name slot the
-   same way ③ took it out of the type slot. **This is the smallest stone on the board.**
-2. **The binder peel's SILENT DISCARD, now at TWO slots.** `filter_map` drops any element of
-   `:- [...]` that is not a non-reference `Symbol`, so `:- [S 3]` silently yields `[S]`. Copied
-   verbatim from `src/function/metadata.rs::peel_type_binder` (γ-i). Close BOTH at once — a slot
-   with two implementations is two slots. (The surface door already tightened one arm: a non-Vector
-   after `:-` now raises `MalformedDecl` where γ-i silently un-peels.)
-3. **The retired spelling survives in PROSE at scale** — **411** comment lines across **139** `.wat`
-   files, **591** across `src/` + `crates/`. FM 14's Bucket B. ⚠ A blind sweep is WRONG: some of
-   these lines RECORD the retirement and must keep the old spelling (Bucket C). Needs the A/B/C/D
-   classification, not a codemod fired off a grep count.
-4. **Seven macros still MINT the angle form** by `string::concat` at expand time —
-   `109/NOTE-seven-macros-still-MINT-the-angle-form.md`. **NOT a blocker**: the floor is green with
-   all of them live; the names are minted and consumed internally and round-trip. The open question
-   is *"is a macro-built type identity a NAME or a FORM?"* — ③'s territory, wants a DESIGN.
-5. **Two questions filed, both needing a DESIGN against measured ground:**
-   - `109/NOTE-the-list-rule-and-the-parametric-edn-literal.md` — `'(1 2 3)` satisfies `WatAST` but
-     NOT `List<T>`; the lattice exists (`check.rs:15502`, Never-bottom/Value-top) and only the rule
-     is missing. **Settle the narrow-numeric LITERAL first** — there is none, so the case that makes
-     a container param-spec necessary is unreachable, and the dependency runs literal → container.
-   - `109/NOTE-the-three-surviving-primes-want-a-sigil.md` — `sort'` `readln'` `Frame'`, the only
-     three left; `'` carries four historical meanings and `$native`/`$impl` say it at the call site.
-6. **A SEVENTH keyword-only slot**, found by audit, unexercised: `parse_defclause_form`'s SHARED
-   `-> :T` sugar at `runtime.rs:8134`. Not reachable by the migrated set; it bites the moment the
-   migration extends past `wat/`.
-
-⚠ **A MULTI-VIOLATION NEGATIVE FIXTURE TESTS WHATEVER THE LEXER REACHES FIRST.** New this stone:
-`probe_arc232_…wat.bad` carried a collateral symbol-comma one line above its actual subject (the
-keyword turbofish). The new wall fired first and silently re-pointed the fixture's own negative
-control at the wrong wall. It went RED only because the assertion names the MECHANISM
-(`"comma inside keyword body retired"`) instead of matching the whole diagnostic. **Assert the
-mechanism, not the message.**
-
-## ⛔ THE SHAPE THAT BIT SEVEN TIMES — read before any wall
-
-**A SLOT WITH TWO IMPLEMENTATIONS IS TWO SLOTS.** Seven in one arc, escalating to two CRATES:
+## ⛔ THE SIX CENSUSES, ALL WRONG, ALL THE SAME FAMILY
 
 ```
-extend-type's surface arg   check ✅ / runtime ⛔        the ctor type-slot   eval ✅ / check ⛔
-(Head :- [args])            expander ✅ / resolver ⛔     defclause's return   per-clause ✅ / shared ⛔
-defservice's annotation     the slot ✅ / its own emission ⛔
-THE COMMA PERMISSION        crates/wat-edn ✅ / crates/wat-reader ⛔   ← `src/lexer.rs` is a RE-EXPORT
+"the corpus" = wat/       3.4% of 1527        the four splitters   missed 12, then 14
+prose w/ a COMMA          411 → 827            the .rs tail         ~60 → 367 → ~250 in ONE file
+the four CHANNELS         found one at a time, each after the previous was declared closed
+the dormant minter        a RUNTIME census is blind to a path nothing executes
 ```
 
-★ **Before writing "the one door" anywhere, grep for the ERROR STRING or the BEHAVIOUR — never the
-function name — and READ THE WHOLE RESULT.** Every one of the seven had its twin reachable by its own
-message text. The confidence transfers by resemblance (a shared `parse_` prefix, a shared filename)
-and is never re-earned at the new site. **A brief that says "the door is at file:line" is a claim
-about a POPULATION.** `[[feedback_a_slot_with_two_implementations_is_two_slots]]`
+★ **I chose instruments whose blind spot matched the population I most needed to see, then quoted the
+silence as coverage.** #2's beautiful table — 16.2M calls, 0 findings — is what made me stop looking.
+**A precise measurement of the wrong population is more convincing than a vague one, not less.**
 
-## ⛔ THE INSTRUMENTS THAT LIED — five counts of ONE population, five wrong, always under
+> **ENUMERATE THE CHANNELS, NOT THE SHAPES.** Written · minted · rendered · in a string literal ·
+> taught in prose · on a path nothing runs. Name each, say how you KNOW, and treat a channel you
+> cannot rule out as a FINDING. Pair every dynamic census with a static one.
+> `[[feedback_scope_the_check_from_the_rule_not_the_diff]]`
 
-```
-grep … | head -2       2 of 6   — and it set a RIDER'S scope, so the miss propagated
-`<…>` contiguous       2 of 7   — names built by concat; `<` and `>` in SEPARATE literals
-"…Name<"               7 of ~18 — missed every string::interpolate: no colon, angles filled by {}
-"the corpus" = wat/    3.4% of 1527 files — nearly caused a FALSE refusal of a real name
-"the stdlib loads"     the LOAD waterfall, not the behaviour one — a guard sat under it
-```
+## ⛔ RULES THAT COST REAL TIME THIS SESSION
 
-⚠ **NEVER PIPE A SEARCH WHOSE RESULT DEFINES SCOPE.** `head`/`tail` are for reading output, never for
-deciding with it.
-⚠ **NEVER APPEND ANYTHING AFTER A COMMAND WHOSE EXIT CODE MATTERS.** `… ; echo "EXIT=$?"` makes the
-ECHO the last command — a RED floor was reported as exit 0 this way, with `FLOOR EXIT=100` sitting in
-the captured file. Let the measured command be last and read the harness status.
-⚠ **`git checkout <ref> -- <path>` STAGES what it writes.** So does `git restore --staged`, `rm`, `mv`.
-A doc commit swept 636 lines of a rider's work onto main this way. **`git commit <paths>` ignores the
-index entirely** — that is the shape with no index to poison. (It skips UNTRACKED files; add those
-explicitly and inspect `--cached` first.)
-⚠ **A grep answers a COORDINATE question and returns a point; a wall answers MEMBERSHIP and returns a
-shell.** When the population is a property, not a spelling, impose the check.
-`[[feedback_impose_the_check_and_read_the_screams]]`
-
-## ⛔ RULES THAT COST A ROUND EACH
-
-- ⛔ **`NOTE-2iii-is-blocked-*.md` IS DEAD.** All five entries were closed before the session that
-  re-ran the codemod, and I was still quoting blocker 3d as *"the last real obstacle"* an hour before
-  it was refuted by simply running. **A blocker note is a measurement with a date.**
-- ⛔ **"THE STDLIB LOADS" IS NOT "THE MIGRATION WORKS."** A guard that fails at DISPATCH is invisible
-  to `--check`, to a clean stdlib load, and to `every_wat_scripts_file_loads` at 398/398. **The
-  terminal check is the floor.**
-- ⚠ **A RIDER'S SCOPED RUN IS NOT THE FLOOR** — and worse, `binary_id(wat::resolve)` is the INTEGRATION
-  binary while `resolve::tests::*` live in `binary_id(wat)`. Three riders missed a cluster that way.
-- ⚠ **`cargo test` ≠ `cargo nextest`** — threads in one process vs process-per-test. Two `_on_process`
-  fork tests went red under one and green under the other. FM 7-ter's axis.
-- ⚠ **`no_loose_string_assert` has a FALSE-POSITIVE class** on `assert!(registry.contains("literal"))`
-  — a text lint cannot tell registry membership from `String::contains`. Do NOT add a rune; ask
-  through the door, whose argument is an enum.
-- ⚠ **`UPDATE_EDN=1` rewrites every golden the filter touches.** Scope it; revert what you did not mean.
-- ⛔ **R21 — a structural rewrite across many `.wat` is a CODEMOD.** Threshold ~10 sites. Recorded
-  migrations from this campaign: `parametrics-take-a-type-vector.wat`, `angle-brackets-to-binder.wat`,
-  `tuple-parens-to-binder.wat`. ⚠ A converter that renders through a walled door cannot run once the
-  wall is up — read `angle-brackets-to-binder.wat`'s header before writing a new one.
-
-## THE STILL-OPEN
-
-- **C** ✅ CLOSED by the comma strike — `:(a,b,c)` and `:fn(T,U)->R` are gone, 55 files.
-- **γ (ii)** — call-site type application. **Measured: 1 site, and it is DEAD** — the turbofish is a
-  keyword with a comma and no longer lexes; its probe is the `.wat.bad` in `575f8fb08`.
-- **`List/of` + `char/of`** retire into `List`/`char` (verb-equals-type). 63 sites, all tests/probes.
-- **`defrecord`'s missing-field diagnostic** — `macro-error` is the structured raise; `Option/expect`
-  PANICS. A recorded, cheap fix.
-- **Three parked branches**, all superseded and safe to prune: `arc109-type-refs-parked`,
-  `arc109-wall-and-markers-parked`, `arc109-2iii-migrated-parked`.
+- ⛔ **A RIDER'S SUBAGENT IS OUTSIDE YOUR BRIEF.** Two riders spawned their own; one used `git stash`
+  beside the sacred stash, and I only learned it existed because its report-back FAILED. Every brief
+  now says **"You may not spawn sub-agents."** `[[feedback_a_riders_subagent_is_outside_the_briefs_reach]]`
+- ⛔ **DISJOINT FILES ≠ DISJOINT MEASUREMENT.** A floor is a WHOLE-TREE instrument. I ran a
+  floor-running rider beside an editing rider and it burned three runs on my confound. **Sample
+  `git diff --numstat` twice, seconds apart — if it moves, the measurement is VOID.**
+  `[[feedback_disjoint_files_do_not_make_a_whole_tree_measurement_disjoint]]`
+- ⛔ **FILING IS NOT FIXING.** I filed channels 3+4 as NOTEs and moved on; the builder had to ask
+  whether they were addressed. They were not.
+- ⛔ **A GATE CAN BE BLIND WHERE IT MATTERS MOST.** The diagnostic rune `break`-ed at the first
+  `#[cfg(test)]` — 45% of the tree, 99.7% of `runtime.rs`, which held 35 of the 122 sites. Its own
+  positive control passed because it planted in a file with no early `cfg(test)`. **Plant your control
+  in the WORST file, not a convenient one.**
+- ⚠ **KEEP PINNING THE SPAN.** A golden pinning a `rust_caller_span!()` line is in a constant state of
+  correctness; the pin DISCRIMINATES THE EMITTER. Recapture and verify same call-site. Arc 296 ruled
+  this; I re-proposed dropping it and was wrong.
+- ⚠ **`.wat` scratch → `wat-scripts/scratch-pad/`**, never the session scratchpad — the loader gate
+  keeps it from rotting.
 
 ---
 
 > **SEAM.** You are NEW. The better this reads, the more it will feel like continuing rather than
 > waking. **That feeling is the failure.**
 >
-> ⚠ **THE RECORD LIES IN YOUR OWN VOICE.** Four of five entries in a blocker NOTE were false. Five
-> hand-counts of one population were wrong. A freshness marker named a commit that does not exist.
-> Every one was written by a prior self, confidently, for you. **Re-run the instrument that made the
-> claim; do not read the claim.**
+> ⚠ **THE RECORD LIES IN YOUR OWN VOICE.** This session alone: six censuses wrong, a stale comment
+> (`core.wat:798`) that sent three riders hunting, a doc claiming a function had a call site that does
+> not exist, and a gate reporting green over 45% of the tree. Every one was written by a prior self,
+> confidently, for you. **Re-run the instrument that made the claim; do not read the claim.**
 >
-> ⚠ **AND THE COUNTERWEIGHT, or you will never move:** every advance in this campaign came from
-> imposing a check and reading the screams — never from getting the census right first. The builder
-> cut through caution four times and was right four times. *"i feel like we're being extremely
-> cautious and its detrimental."* **When the population is a property, light the fire.**
+> ⚠ **AND THE COUNTERWEIGHT, or you will freeze:** every advance came from imposing a check and reading
+> the screams. The angle bracket entered this session as the language's parameterization syntax and
+> leaves with no way to be written, minted, rendered, parsed, or documented. **When the population is a
+> property, light the fire.**
 >
-> Read `294/REALIZATIONS.md` **R6** (*Duality* — the assertion that cannot speak) and **R7**
-> (*Walk With Me In Hell* — we stopped waiting for the red and started lighting it). R7 was written
-> mid-strike, at the builder's instruction, with the floor unknown. That is its status line.
+> Read `294/REALIZATIONS.md` **R6** and **R7**. R7 was written mid-strike, floor unknown, at the
+> builder's instruction. That is its status line.
 >
 > `NON BIS IN IDEM FLVMEN.` · `IVDICIVM SEMEL, MACHINA SAEPE.` · `NISI FRANGAS, NIHIL PROBAS.` ·
 > `INCENDIMVS VT VIDEAMVS.`
