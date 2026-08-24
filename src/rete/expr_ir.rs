@@ -1334,6 +1334,29 @@ pub(crate) fn apply_op(
     apply_core_kind(kind, args, span, sym)
 }
 
+/// Apply one compiled core op to its ALREADY-EVALUATED arguments.
+///
+/// This is the leaf of the compiled-expression interpreter: `expr_ir` lowers a
+/// `:where` form to `Op`s, the walker evaluates the operands, and every actual
+/// computation lands here. The 53 arms are a flat dispatch table — one per
+/// `OpExec` — and are deliberately uncommented: each matches on `(kind, args)`
+/// and its body IS its specification. Reach for the arm, not for prose.
+///
+/// Two things a reader cannot recover from the arms themselves:
+///
+/// **The pattern is the arity-and-type check.** An arm matches only when the
+/// operand shapes match too (`[Value::i64(a), Value::i64(b)]`), so a wrong
+/// arity or a wrong operand type does not reach a body — it falls through to
+/// the catch-all. There is no separate validation pass; this table is it.
+///
+/// **The catch-all raises with head `"compiled-exec"`, and that head matters.**
+/// `exec_dim`'s `CallFallback` swallows a `MalformedForm` only when its head
+/// equals the op's own `core_name` (see `where_tree::exec_dim`). `"compiled-exec"`
+/// never equals one, so a dispatch failure PROPAGATES rather than being
+/// silently replaced by a fallback value. Do not retag this error to an op name.
+///
+/// `sym` is `None` off the encoding path; the holon arms that need it raise
+/// `NoEncodingCtx` rather than assuming a context they were not given.
 fn apply_core_kind(
     kind: OpExec,
     args: &[Value],

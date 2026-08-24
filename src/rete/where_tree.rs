@@ -467,6 +467,12 @@ fn to_dim(e: &Expr, slots: &HashMap<u16, String>) -> Option<DimKey> {
     }
 }
 
+/// Evaluate one `DimKey` — the where-tree's compiled dimension expression — against a row's bindings.
+///
+/// Recursive over the `DimKey` tree: `Lit` and `Bind` are leaves, `Call`,
+/// `CallFallback` and `Field` recurse into their operands first. `span` is the
+/// whole `:where` form's span and is reused for every diagnostic raised in here,
+/// because a `DimKey` is compiled from that form and carries no span of its own.
 fn exec_dim<B: Bindings + ?Sized>(d: &DimKey, bindings: &B, span: &Span) -> Result<Value, EvalBreak> {
     match d {
         DimKey::Lit(v) => Ok(v.clone()),
@@ -486,6 +492,26 @@ fn exec_dim<B: Bindings + ?Sized>(d: &DimKey, bindings: &B, span: &Span) -> Resu
             }
             apply_op(*op, &vs, span, None)
         }
+        // `CallFallback` is `Call` plus a rule for "this op has no answer for THIS row".
+        // The distinction it draws is the load-bearing one: a row the op cannot answer
+        // takes `fallback`; a program that is WRONG still raises. Five shapes count as
+        // no-answer, and nothing else does:
+        //
+        //   1. a non-finite `f64` — the arithmetic ran and produced NaN or ±inf;
+        //   2. `Option::None` — an op that reports absence by `Option` said absent;
+        //   3. a holon outcome enum whose variant means degenerate/mismatch
+        //      (`HolonReteProject::Fallback`). `Scalar` unwraps the enum to its number
+        //      and `NotHolon` passes the value through untouched — only the middle
+        //      case is a fallback;
+        //   4. `IntegerOverflow` / `DivisionByZero` — the operands left the op's domain;
+        //   5. `MalformedForm` **whose head is this op's own `core_name`** — the op
+        //      rejected the operands it was handed.
+        //
+        // The head test in (5) is why a nested failure is not swallowed: a
+        // `MalformedForm` raised deeper carries THAT callee's head, so it fails the
+        // guard and propagates. Every other `Err` propagates by the final arm. Widening
+        // any of these five turns a real error into a silently-substituted fallback
+        // value, which is the one failure this shape exists to prevent.
         DimKey::CallFallback {
             op,
             args,
