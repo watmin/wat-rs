@@ -77,6 +77,47 @@ output verbatim:
 ⚠ That probe ran on a tree a rider was mid-flight in. The finding is a property of rete's compiler,
 not of the rider's edit — but it is RE-RUN on a quiescent tree as this stone's row 4, not credited.
 
+> ## ⛔ CORRECTED 2026-08-24 — `:end` MUST NOT BE `None`, AND THIS DOC TAUGHT THE WRONG SHAPE
+>
+> Builder: *"end set to none … that's reserved for rust code where we cannot know … in wat we
+> always know … end must be optional as rust doesn't have a tool for its end of line coords."*
+>
+> The `Option` on `:end` exists for **Rust's** benefit. The substrate says so in its own hand at
+> `crates/wat-reader/src/span.rs:69` — *"`end` is `Some(Pos)` when the lexer or parser computed a
+> real range (wat-source tokens and structural forms); `None` for point-spans from Rust call sites
+> (`rust_caller_span!()`) where no end is available"* — and splits its two constructors on exactly
+> that line: `Span::new` for `rust_caller_span!()`, `Span::with_end` for the lexer and parser.
+>
+> **`None` is a PROVENANCE MARKER.** It asserts *"Rust built me, and Rust has no instrument for the
+> end."* A wat-built Span carrying `None` is a lie about its own origin — and `ast-end-span` is
+> TOTAL, which this stone itself measured, so wat always knows.
+>
+> The row above proved a **weaker claim than wat-grep needs**: one level of nesting instead of
+> three. The corrected row is `Pos` inside `Some` inside `Span`, all four coordinates LHS-bound:
+>
+> ```
+> #p/Hit {:span #wat.core/Span {:file "a.wat" :line 7 :col 1
+>                               :end #wat.core.Option/Some [#wat.core/Pos {:line 7 :col 26}]}
+>         :why "complete Span — Pos inside Some inside Span, all four coords LHS-bound"}
+> ```
+>
+> The correct shape also settled how a rule writes a sum type, and the builder ruled it in four
+> words — *"rete has their own enums - use them."* A `:then` admits a head through `head_ok`'s
+> constructor door, and Law A exempts a DECLARATION-DERIVED head from the rete-namespace rule, so
+> a rule's own enum flows straight in with LHS bindings inside the variant (`(:g::End::Known ?l ?c)`
+> → `#g.End/Known [7 26]`, measured). `:wat::core::Option::Some` works for the same reason: it is a
+> real declared variant. The bare `:wat::core::{Some,Ok,Err}` are refused because they are not
+> declarations at all — special-cased by string equality in the checker and runtime — so there is
+> nothing for the constructor door to read. Design working, not a defect; recorded at the foot of
+> `wat-scripts/scratch-pad/probe-rhs-builds-core-span.wat` together with the one that will bite a
+> rule author: **a tagged variant constructor is POSITIONAL, a record constructor is KWARGS**, and
+> they look identical at the call site.
+>
+> ★ **The lesson is the arc's own, one turn later:** a design is unfalsifiable until something
+> consumes it. My BRIEF said *"use `:end` = None; you do not need `:wat::core::Pos`"* and named
+> reaching for `Pos` as drift in trap-door 5. The rider complied exactly. The green row was real
+> and measured the wrong thing, because I had written the wrong thing down.
+
 ## The rooms
 
 1. **`wat-scripts/scratch-pad/rules-corpus-03-source-to-facts.wat:64-90`** — `:fx::walk`. `id`, and
