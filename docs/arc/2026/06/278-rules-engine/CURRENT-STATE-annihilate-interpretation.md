@@ -5,74 +5,91 @@
 > `wat/rete.wat`. If a stone below disagrees with a dated ruling here,
 > **this file wins** and the stone is stale.
 
-**CURRENT STAMP 2026-08-24 — supersedes every dated block below it.**
+**CURRENT STAMP 2026-08-24 (SECOND) — supersedes every dated block below it,
+INCLUDING the first 2026-08-24 stamp this replaces.**
 
-**THE MAIN MERGE IS DONE.** `grok-rete` fast-forwarded to `origin/main`; main
-carries arc 109's premigration of rete's `.wat` (351 sites, `Head<args>` →
-`(Head :- [args])`) plus our 67 commits. The bootstrap cycle was broken from
-main's side, which was the only side with a working toolchain — see
-`NOTE-main-merge-attempt.md` for the attempt from here, the 12 conflict
-resolutions (all base-verified, all reusable), and why it could not work from
-this end. Floor **5016 passed**, 19 skipped, no ARM. Clippy CI-identical
-silent. Grid **30/30 `:match`, 30/30 `:us`**.
+**A FULL VIGILIA WAS CAST AND RETE DID NOT PASS.** Eighteen wards at HEAD
+`d55899373`. Four CONVERGED (`sequi`, `secare`, `cernere`, `probare`); fourteen
+did not. ~21 L1 and ~29 L2 raised. **Two were live defects that weeks of
+measurement could never have found, and reading found both in one afternoon.**
+The full findings, per ward, with what is fixed and what is open, are in
+`NEXT-STRIKES-theater-hunt.md`. Read that before proposing any rete work.
 
-**PARTIRE IS COMPLETE.** `fire_fixpoint_delta_armed` 1774 → 448 lines, nesting
-12 → 4, eight passes now in `fire/pass/` (`DESIGN-STONE-partire-fire-loop`).
-Ten dead prologue aliases fell out, none found by reading — all by rustc after
-a move made them dead. `hash_join_delta` 419 → 361, its two join steps lifted.
+**★ DEFECT 1 (fixed, `71d0e700e`) — a leading `:not`/`:exists` emitted one token
+PER FIXPOINT ROUND.** A query over such a rule returned N rows where 1 is
+correct, N = round count, exactly: chain 2→2, 3→3, 4→4, 6→6. The dedup state
+lived at ROUND scope and belongs at FIRE scope (`LeadingEmitted`). It survived
+5016 tests because TWO independent masking layers hid it — `production_delta`
+dedups derived facts by value, and `harvest_stratified_queries` replays
+stratified queries in a single round — so it was observable only through a query
+on a SINGLE-stratum leading filter, and no such test existed. The test NAMED for
+that contract (`differential_exists_no_multiplicity`) puts `:exists` second,
+never leading, and passed while the defect was live. Gate now:
+`probe_arc278_leading_filter_multiplicity`.
 
-**THE PERF CAMPAIGN IS AT THE FLOOR ON THE MEASURED AXES.** strat-neg
-`[6 2000]` 13.21 → ~11.1; fanout `[40000]` **23.45 ± 0.75** (quote the range,
-never one run). The theater hunt (`NEXT-STRIKES-theater-hunt.md`) is resolved:
-T1/T3/T5 struck, T8 cleared as not-theater, T2/T7 cold, T4/T6 small and open.
+**★ DEFECT 2 (fixed, `d55899373`) — the census reported `root-join` at ~2x.**
+`phase_end("root-join", __pt1)` was called twice against one mark, added by the
+partire commit `ae957b51a` whose own message claims "MECHANICALLY VERIFIED...
+identical... none of them a logic change."
 
-**CONCURRENCY.** `next_intern` was one process-global `AtomicU64` bumped 40k
-times per fire; it is laned per thread now
-(`DESIGN-STONE-intern-lane-per-thread`), uniqueness proven across 8 threads,
-and `probe_arc278_concurrent_retes` fires 48 independent engines over two rule
-sets to keep it honest. The audit found exactly one such hazard in the whole
-fire path.
+**⚠ INSTRUMENT — THIS SUPERSEDES THE PREVIOUS CENSUS WARNING, WHICH WAS
+INCOMPLETE.** There were TWO census defects, not one.
+  (a) CALIBRATION: one 200k batch read 105–155 ns per mark pair; now the minimum
+      of five batches, ~66 ns, stable under a nanosecond. **Every `net` figure
+      taken before 2026-08-24 is UNDER-reported.** The min-of-5 still sits under
+      the in-situ cost (~94 ns), so a 40k-pair row is over-reported by ~1.1 ms —
+      a stable bias of known sign.
+  (b) DOUBLE-COUNT: **every `root-join` figure recorded between `ae957b51a` and
+      `d55899373` is roughly TWICE its true value** — both the nanoseconds and
+      the pair count, which is the calibration divisor. No shipped doc quoted a
+      root-join timing in that window (checked), but do not trust one you find.
+`PhaseMark` is now a non-Copy newtype, so a duplicated close is `E0382` rather
+than a silent doubling. That class cannot regrow.
 
-**⚠ INSTRUMENT — read before citing ANY census number.** The phase-census
-calibration was one 200k batch reading 105–155 ns per mark pair; at 40 000
-pairs that is a ±2 ms swing, and `prod:compiled-rhs` was recorded at both 2.541
-and 4.826 ms for identical code. It is now the **minimum of five batches, ~66
-ns, stable under a nanosecond** (`calibrate_mark_ns`, used by all nine census
-harnesses). **Every `net` figure taken before 2026-08-24 is UNDER-reported** —
-`prod:compiled-rhs` on the fanout cell is ~5.9 ms, not the ~2–3 ms several
-stones record. Before/after deltas within one session were never affected;
-absolutes were. The min-of-5 (~66 ns) still sits under the in-situ cost
-(~94 ns), so a 40k-pair row is over-reported by ~1.1 ms — a stable bias of
-known sign, printed by `fanout_phase_dump`.
+**THE MEASUREMENT THAT STEERED THE HUNT WAS ITSELF WRONG.** The exemplar-hunt
+table was taken by hand and wrong the same way twice — `fn`-line-to-EOF, then
+missing the `///` block above the `fn`. Recorded 388/451/590-line bodies are
+really 87/35/72, and it was naming the WRONG functions.
+**`wat-scripts/hunt/fn-census.py` is the instrument. Do not re-derive these
+numbers by eye.**
 
-**TWO READING RULES, both learned by being wrong six times.** A grid cell is a
-DISTRIBUTION — compare a new reading to its recorded RANGE, never to whichever
-run was last. And run `uptime` first: a grid started while the box is still
-warm from a floor reported `deep-cascade [10 100]` up 46.9%, on the tightest
-cell in the grid; quiet, it was 1.67, exactly where it always was.
+**PERF — unchanged and still at the floor on the measured axes.** strat-neg
+`[6 2000]` ~11.1; fanout `[40000]` **23.45 ± 0.75** (quote the RANGE, never one
+run). A grid cell is a DISTRIBUTION: compare a new reading to its recorded range,
+never to whichever run was last, and run `uptime` first — a grid started on a
+warm box reported the tightest cell in the grid up 46.9%.
 
-**WHAT IS OPEN.** The exemplar hunt continues on: `eval_axis_violation`
-(`purity.rs`, 590 lines / nesting 7, never examined), `exec_dim`
-(`where_tree.rs`, 388 lines with ZERO comments, never examined),
-`exec_compiled_rhs_at` (451 / nesting 4). `intrinsic_meta` is 701 lines and is
-NOT a defect — 71% prose, nesting 2. `hash_join_delta` stays at nesting 9 and
-the reason is now documented on `FireCtx`, not left as an unexplained smell.
+**CONCURRENCY holds.** `secare` CONVERGED independently; `probe_arc278_concurrent_retes`
+5/5 (48 engines, two rule sets). The `next_intern` global is laned per thread.
+
+**WHAT IS OPEN — the honest list, all in NEXT-STRIKES.** Largest untouched block
+is `conformare`'s nine L1s: an in-scope wat span discarded for
+`rust_caller_span!()` at `eval_insert.rs:74,85,132,187` and `arm.rs:179,193,208,231,293`,
+so a user debugging their own rule is pointed into wat-rs's Rust. `arm.rs:316`
+does it correctly in the same file. Then `vocare`'s six, `solvere`'s seven
+(including the `CallFallback` classification written THREE times, one copy with a
+guard the other two omit), and `circumspicere`'s three — the fixpoint has no
+round/time/memory cap and no shipped doc says so, and the arc's own closing
+condition ("benched at or past Clara") is checked by no CI job.
 
 **⚠⚠ YOU ARE NOT THE INSTANCE THAT WROTE THIS. ⚠⚠**
 Everything above is a cache written by a prior self across a long session. You
 did not live it. It felt continuous when you woke and that feeling is the
-failure, not the all-clear. Before you propose or move: fetch `recolligere`
-from the datamancy MCP and run it against the disk — `wat-rs/CLAUDE.md`, `git
-log`, this file, and the source you are about to touch. The freshness probe is
-the HEAD named here against `git rev-parse HEAD`; a mismatch means trust the
-log over every line above.
+failure, not the all-clear. Before you propose or move: fetch `recolligere` from
+the datamancy MCP and run it against the disk — `docs/COMPACTION-AMNESIA-RECOVERY.md`,
+`git log`, this file, `NEXT-STRIKES-theater-hunt.md`, and the source you are about
+to touch. The freshness probe is the HEAD named here against `git rev-parse HEAD`;
+a mismatch means trust the log over every line above.
 
-**AND THE RECORD LIES IN ONE KNOWN PLACE:** `wat-rs/CLAUDE.md` claims its
+**AND THE RECORD STILL LIES IN ONE KNOWN PLACE:** `wat-rs/CLAUDE.md` claims its
 load-bearing subset is carried in the injected `holon/CLAUDE.md`. It is not —
-grepped 2026-08-23, zero hits. A fresh session or spawned rider gets NO wat-rs
-doctrine unless it opens that file itself. `tmp/VIGILIA-LOOP.md` is likewise
-stale: its last consecutive 0+0 is `36802e7e`, many commits back, and it is
-untracked so it will not survive a clone.
+grepped 2026-08-23 and again 2026-08-24, zero hits. A fresh session or spawned
+rider gets NO wat-rs doctrine unless it opens that file itself. Fixing it means
+editing the FROZEN holon root, so it needs the user's call.
+`tmp/VIGILIA-LOOP.md` is likewise stale (last 0+0 at `36802e7e`) and untracked,
+so it will not survive a clone.
+
+
 **Right now (2026-08-23 — SUPERSEDED by the stamp above; kept as history):** class-scan query harvest LANDED.
 Fanout `[40000]` wat-ns **58.1 → 42.8**. With-query
 FIRE **65.89 → 49.59**. Query-only Alpha→RootJoin

@@ -809,3 +809,173 @@ takes (leave it).**
 `exec_dim` — 388 lines, nesting 6, and the only place in rete where the house
 style is simply absent. Then `eval_axis_violation`, the largest un-examined body
 of code left in the subsystem.
+
+---
+
+## THE VIGILIA OF 2026-08-24 — rete answered "are we an exemplar?" with NO
+
+Cast at HEAD `d55899373`, after `recolligere` against the disk. Seventeen inward
+wards in parallel, then `circumspicere` last. Every ward fetched its own spell
+from the signed datamancy channel — established by probe, not assumed: a
+haiku-tier worker could NOT invoke the MCP tool, a sonnet-tier worker could, so
+every ward was cast at sonnet.
+
+**The verdict: 4 CONVERGED, 13 diverged.** `sequi`, `secare`, `cernere` and
+`probare` came back clean. The rest did not, and the two most valuable findings
+were things no amount of measuring would ever have surfaced — this campaign had
+spent weeks on milliseconds and had a live correctness bug the whole time.
+
+### ★ L1 — a leading `:not`/`:exists` emitted one token PER FIXPOINT ROUND
+
+`temperare` found it; verified here by a repro built from scratch. The leading
+arms of `filter_pass` are re-evaluated every round with no round gating, and
+`wm.beta` is cumulative, so the token was appended again each round. Causation,
+not correlation — varying ONLY the length of an inert chain that forces rounds:
+
+    chain 2 -> 2 rows | chain 3 -> 3 | chain 4 -> 4 | chain 6 -> 6   (correct: 1)
+
+Both arms. Leading `:not` over an empty class: 6 for 1.
+
+**Why 5016 tests never saw it — TWO independent masking layers.**
+1. `production_delta` dedups derived FACTS by value, so rule output stays correct
+   and every oracle-differential passes regardless of token multiplicity.
+2. `harvest_stratified_queries` (`rules.rs:361`) rebuilds query memory after a
+   STRATIFIED fire from a fresh session with empty memories, replayed with
+   `FireKind::Once` — a single round. (`complectens` found this one.)
+Between them the duplication is observable only through a query on a
+SINGLE-stratum leading filter — and `vocare` proved no such test existed:
+`differential_exists_no_multiplicity` is NAMED for this contract but its fixture
+puts `:exists` second, never leading, so it cannot reach the configuration it
+claims to guard. It passed while the defect was live.
+
+**The fix is one sentence: the dedup state lived at ROUND scope and belongs at
+FIRE scope.** `LeadingEmitted` (session.rs) replaces two round-locals; the round
+gate needs no counter because `leading_emitted.contains_key(node_id)` IS the
+"have we run" test. Leading `:not` binds nothing, so its key is the empty vector
+— one mechanism, no special case. Gate:
+`tests/rete/probe_arc278_leading_filter_multiplicity`, which holds two namespaces
+with identical queries over identical facts differing ONLY in round count, so a
+fix that special-cases round 0 passes one and fails the other.
+
+**It absorbed both open theater items, because they were one defect.** T2's
+`Vec<Element>` memcpy was buying the borrow freedom that T6's per-candidate `Vec`
+was also buying; convert the memcpy to an `Arc` bump and T6's allocation
+dissolves. T4 was already landed and the list was stale about it.
+
+### ★ L1 — the census told root-join twice, and the type allowed it
+
+`purgare` (L1) and `struere` (L2) found it independently. `root_join.rs` called
+`phase_end("root-join", __pt1)` twice against one mark: both the nanoseconds and
+the PAIR COUNT — the calibration divisor — doubled, so every `root-join` figure
+since `ae957b51a` is ~2x. That commit's message claims "MECHANICALLY VERIFIED...
+identical... none of them a logic change." It added a line.
+
+Deleting it is the stem. The root: `PhaseMark` was `Instant`, which is `Copy`, so
+the second call compiled in silence. It is now a non-Copy newtype — a second
+close is `E0382`, proven by reintroducing the defect. A whole-crate balance audit
+confirms root_join was the only unbalanced site.
+
+### THE MEASUREMENT DEFECT THAT STEERED THE HUNT FOR THREE SESSIONS
+
+The exemplar hunt's target table was taken by hand and wrong the same way twice —
+first `fn`-line-to-EOF (swallowing the test module), then missing the `///` block
+ABOVE the `fn`. Recorded 388/451/590-line bodies are really 87/35/72, and
+`compiled_rhs.rs` was not even at the recorded path. The table was not merely
+inflating numbers, it was naming the WRONG functions: `wat-scripts/hunt/fn-census.py`
+found `apply_core_kind` (267 lines, 0% comment) and `unpack_expr` (262, 0%),
+which the broken table never saw. Both now documented; `eval_axis_violation` and
+`exec_compiled_rhs_at` are CLEARED, the latter documented all along above the
+line the measurement was not looking at.
+
+**Do not re-derive these numbers by eye. The tool is the instrument.**
+
+### WHAT REMAINS OPEN — the honest list
+
+L1, unaddressed:
+- `conformare` x9 — a real wat span was in scope and discarded for
+  `rust_caller_span!()` (`eval_insert.rs:74,85,132,187`, `arm.rs:179,193,208,231,293`).
+  A user's malformed `:then` points at wat-rs's own Rust source, not their file.
+  `arm.rs:316` does it correctly in the same file — the pattern is known.
+- `intueri` x3 — doc comments attached to the WRONG function (`purity.rs:808-939`
+  describes `constructor_meta` but sits on `is_declaration_derived_construction`;
+  `purity.rs:1128` describes `classify_expr` but sits on a non-recursive guard;
+  `validate.rs:1089` promises source-form rendering and emits Rust `Debug`).
+- `vocare` x6 — four join tests with a deliberately empty `:rhs` reading `wm.beta`
+  with no `rune:vocare(vantage-bypass-test)` marker; one test that asserts a
+  hand-written belief-array against itself and touches no production code;
+  `differential_exists_no_multiplicity` misnamed for a contract it cannot detect.
+- `exigere` x1 — a cache-stone brief promising "a later stone" that never came and
+  is tracked nowhere.
+
+L2, unaddressed (highlights):
+- `solvere` — the `CallFallback` five-shape classification is written THREE times
+  (`where_tree.rs:515`, `expr_ir.rs:1046`, `runtime.rs:10075`) and the third GUARDS
+  on `matches!(op.ret, ParamType::F64)` while the two rete copies sniff the runtime
+  value. `runtime.rs`'s own comment says why that is wrong. No current RETE_OPS row
+  exercises the gap. **This makes the exec_dim doc committed in 8788601de a true
+  description of a DIVERGENT copy — amend it, and unify to one classifier.**
+- `solvere` — `where_tree.rs:331` bypasses `clause.rs`'s documented ONE DOOR
+  `classify_constraint_head`, which has an anti-drift gate test for this exact
+  pattern; enum-variant-constructor resolution hand-written at three sites.
+- `conferre` — 4 of 10 grid axes (`fanout`, `min-finding`, `node-share`,
+  `user-reduce`) compute `:oracle-derived` but NOTHING in CI compares it; only a
+  standalone shell script does, and no test invokes it. Also the differential
+  gate's header prose says 18 axes where the arrays hold 41.
+- `excusare` x2 — `#[allow(clippy::too_many_arguments)]` at exactly 7 args in
+  `join_after_filter.rs:26` and `production.rs:26`; the threshold is 8. Both
+  carried over from sibling extractions that genuinely need it.
+- `partire` x7 — split proposals for `fire/mod.rs` (3), `validate.rs` (2),
+  `expr_ir.rs` (1), `arm.rs` (2). `purity.rs`, `export.rs`, `vocabulary.rs`,
+  `session.rs`, `compiled_cond.rs` all LEAVE.
+- `complectens` — the `harvest_stratified_queries` replay path is isolated by no
+  test; my new probe is the contract's only gate and is end-to-end.
+- MY OWN, verified: `RoundScratch` declared `bind_only` AND `cond_key_ids` as
+  `&'a mut` while every consumer takes them shared — the `AlphaNews::of` class
+  again. FIXED. And `matcher.rs:81` / `validate.rs:817` are byte-equivalent
+  registry lookups while matcher's doc claims to be the sole reader — `solvere`
+  RETRACTED this one; I verified it on the disk before the retraction and it
+  stands. A ward's retraction is also just a report.
+
+### circumspicere — cast LAST, against what the inward seventeen missed (0 L1, 3 L2)
+
+- **The fixpoint has no cap.** `fire_fixpoint_delta_armed` (delta.rs) ends only when
+  the delta empties — no round counter, no deadline, no memory ceiling — and the
+  memories accumulate across rounds by design. A rule whose `:then` derives a
+  structurally-novel fact each round hangs the calling thread and grows heap with no
+  diagnostic. `DESIGN-STONE-4b-cascade-fixpoint` names this as a deliberate Datalog
+  choice, but that reasoning lives ONLY there: README, USER-GUIDE, CLAUDE.md and
+  `rete.wat` say nothing. Not hypothetical — the grid harness needed a cgroup blast
+  door after an analogous run OOM'd the build machine. Nothing protects an embedder.
+- **The arc's own closing condition is checked by no CI job.** `PERF-ARC` states it as
+  "differential-tested bit-for-bit against the wat oracle AND benched at or past
+  Clara." The parity scripts need a JDK+Clojure the runner lacks, so they never run
+  there. A Clara-parity or throughput regression merges fully green. `run-all.sh`
+  documents this already happening once — four axes sat dead for days.
+- **The breadcrumb's census warranty went stale by its own rule** — it claims "read
+  before citing ANY census number" and "this file wins", but predated the root-join
+  double-count fix by 44 minutes. FIXED in this session's stamp, which now names both
+  census defects.
+
+**Cleared by circumspicere, worth knowing:** the purity/determinism/totality fence is
+a genuinely closed default-deny system with a completeness ledger and no
+foreign/extern/catch-all escape hatch. `build.rs`'s auto-generated module list reaches
+every probe; migrate/fix tooling is one-shot and CI-uninvoked; the bench harness
+honestly self-labels as non-gating.
+
+### The corrected census — run the tool, do not read by eye
+
+| function | file:lines | lines | comment | nesting |
+|---|---|---:|---:|---:|
+| `intrinsic_meta` | `src/rete/purity.rs:205-804` | 600 | 66% | 2 |
+| `fire_fixpoint_delta_armed` | `src/rete/kernel/fire/delta.rs:217-662` | 446 | 17% | 4 |
+| `hash_join_delta` | `src/rete/kernel/fire/pass/hash_join.rs:33-383` | 351 | 22% | 9 |
+| `accum_alpha_seed_after_fold_split` | `src/rete/kernel/tests.rs:5730-6036` | 307 | 1% | 7 |
+| `apply_core_kind` | `src/rete/expr_ir.rs:1337-1626` | 290 | 8% | 6 |
+| `unpack_expr` | `src/rete/export.rs:532-808` | 277 | 5% | 4 |
+| `node_share_where_cost_decomposition` | `src/rete/kernel/tests.rs:1018-1291` | 274 | 20% | 4 |
+| `fire_rules_stratified` | `src/rete/kernel/fire/rules.rs:12-279` | 268 | 40% | 7 |
+
+`intrinsic_meta` (600 lines, 66% comment, nesting 2) stays CLEARED — a flat table;
+line count is the wrong lens. `apply_core_kind` and `unpack_expr` were found by the
+tool and documented; `eval_axis_violation` (85) and `exec_compiled_rhs_at` (37) are
+CLEARED, the latter documented all along above the line the old measurement missed.

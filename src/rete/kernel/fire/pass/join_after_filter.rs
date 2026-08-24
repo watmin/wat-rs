@@ -23,7 +23,6 @@ use super::super::*;
 /// The main hash-join pass only left-activates from Root/HashJoin, but compile
 /// will parent a HashJoin on a mid-chain `:where`. Returns the child ids that
 /// received tokens — pass 3.7's frontier.
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn join_after_filter(
     wm: &mut FireSession,
     arm: &InternedNetwork,
