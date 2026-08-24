@@ -28,7 +28,7 @@
 ;; finite, no negation-ordering hazard). Stratification is the ordering layer.
 
 ;; StratifyAcc — sweep accumulator: current type-strata map + change flag.
-;; type-strata: HashMap<String,i64> mapping produced-type FQDN → stratum number.
+;; type-strata: (HashMap :- [String i64]) mapping produced-type FQDN → stratum number.
 ;; changed: true iff this sweep raised any stratum value.
 (:wat::core::defrecord :wat::rete::StratifyAcc
   [type-strata <- (:wat::core::HashMap :- [:wat::core::String :wat::core::i64])
@@ -314,7 +314,7 @@
     (:wat::core::if (:wat::core::i64::> from-n from-p) from-n from-p)))
 
 ;; stratify — compute the type→stratum HashMap for a rule set.
-;; Returns HashMap<String,i64> mapping each produced-type FQDN to its stratum number.
+;; Returns (HashMap :- [String i64]) mapping each produced-type FQDN to its stratum number.
 ;; Raises "negation cycle" if the rule set is not stratifiable (cyclic negation dependency).
 (:wat::core::defn :wat::rete::stratify
   [rules <- (:wat::core::PersistentVector :- [:wat::rete::Rule])]
