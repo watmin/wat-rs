@@ -32,7 +32,7 @@ use crate::rete::clause::CmpKind;
 use crate::rete::matcher::{compare_values, Bindings};
 use crate::rete::vocabulary::RETE_OPS;
 use crate::runtime::{
-    project_holon_rete_fallback, EvalBreak, HolonReteProject, RuntimeError, RuntimeErrorKind, Value,
+    EvalBreak, RuntimeError, RuntimeErrorKind, Value,
 };
 use crate::span::Span;
 
@@ -492,26 +492,16 @@ fn exec_dim<B: Bindings + ?Sized>(d: &DimKey, bindings: &B, span: &Span) -> Resu
             }
             apply_op(*op, &vs, span, None)
         }
-        // `CallFallback` is `Call` plus a rule for "this op has no answer for THIS row".
-        // The distinction it draws is the load-bearing one: a row the op cannot answer
-        // takes `fallback`; a program that is WRONG still raises. Five shapes count as
-        // no-answer, and nothing else does:
+        // `CallFallback` is `Call` plus a rule for "this op has no answer for THIS row",
+        // and that rule is NOT stated here: `runtime::classify_fallback_outcome` is its
+        // single home, with the five no-answer shapes and why each is narrow.
         //
-        //   1. a non-finite `f64` — the arithmetic ran and produced NaN or ±inf;
-        //   2. `Option::None` — an op that reports absence by `Option` said absent;
-        //   3. a holon outcome enum whose variant means degenerate/mismatch
-        //      (`HolonReteProject::Fallback`). `Scalar` unwraps the enum to its number
-        //      and `NotHolon` passes the value through untouched — only the middle
-        //      case is a fallback;
-        //   4. `IntegerOverflow` / `DivisionByZero` — the operands left the op's domain;
-        //   5. `MalformedForm` **whose head is this op's own `core_name`** — the op
-        //      rejected the operands it was handed.
-        //
-        // The head test in (5) is why a nested failure is not swallowed: a
-        // `MalformedForm` raised deeper carries THAT callee's head, so it fails the
-        // guard and propagates. Every other `Err` propagates by the final arm. Widening
-        // any of these five turns a real error into a silently-substituted fallback
-        // value, which is the one failure this shape exists to prevent.
+        // It used to be restated here in full — and this file's copy was WRONG. It
+        // sniffed the runtime value instead of guarding on the row's declared `ret`, so
+        // a generic-`ret` row returning a non-finite float took the fallback here and
+        // not in the core evaluator: native answering `1` where the `$oracle` answered
+        // `0`. Three hand-written copies of one classification, and the prose beside each
+        // read like the definition. Do not restate it again — call the classifier.
         DimKey::CallFallback {
             op,
             args,
@@ -522,46 +512,18 @@ fn exec_dim<B: Bindings + ?Sized>(d: &DimKey, bindings: &B, span: &Span) -> Resu
             for a in args.iter() {
                 vs.push(exec_dim(a, bindings, span)?);
             }
-            match apply_op(*op, &vs, span, None) {
-                // Guard on the ROW's DECLARED `ret`, never by sniffing the runtime value's
-                // type — `runtime.rs`'s canonical copy of this classification says why: "a
-                // value-sniff would silently change behaviour for any future row that
-                // happens to return a float for a non-arithmetic reason.\" Fallback-class
-                // rows are NOT all f64 (I64 x7, Var("T") x6, F64 x6, String x1), so the
-                // two spellings genuinely disagree; this copy used to sniff.
-                Ok(Value::f64(x))
-                    if matches!(row.ret, crate::rete::vocabulary::ParamType::F64)
-                        && !x.is_finite() =>
-                {
-                    exec_dim(fallback, bindings, span)
-                }
-                Ok(Value::Option(opt)) => match opt.as_ref() {
-                    Some(v) => Ok(v.clone()),
-                    None => exec_dim(fallback, bindings, span),
-                },
-                Ok(v) => match project_holon_rete_fallback(&v, row.rete_name, span)? {
-                    HolonReteProject::Scalar(x) => Ok(Value::f64(x)),
-                    HolonReteProject::Fallback => exec_dim(fallback, bindings, span),
-                    HolonReteProject::NotHolon => Ok(v),
-                },
-                Err(EvalBreak::Diagnostic(e))
-                    if matches!(
-                        e.kind(),
-                        RuntimeErrorKind::IntegerOverflow { .. }
-                            | RuntimeErrorKind::DivisionByZero
-                    ) =>
-                {
-                    exec_dim(fallback, bindings, span)
-                }
-                Err(EvalBreak::Diagnostic(e))
-                    if matches!(
-                        e.kind(),
-                        RuntimeErrorKind::MalformedForm { head, .. } if head.as_str() == row.core_name
-                    ) =>
-                {
-                    exec_dim(fallback, bindings, span)
-                }
-                Err(e) => Err(e),
+            // ONE classification, shared with `expr_ir`'s walk and the core evaluator.
+            // It used to be hand-written here, and the copies diverged — see
+            // `classify_fallback_outcome`. Only the RECURSION is this site's own.
+            match crate::runtime::classify_fallback_outcome(
+                apply_op(*op, &vs, span, None),
+                &row.ret,
+                row.core_name,
+                row.rete_name,
+                span,
+            )? {
+                crate::runtime::FallbackVerdict::Value(v) => Ok(v),
+                crate::runtime::FallbackVerdict::UseFallback => exec_dim(fallback, bindings, span),
             }
         }
         DimKey::Field { recv, idx } => {
