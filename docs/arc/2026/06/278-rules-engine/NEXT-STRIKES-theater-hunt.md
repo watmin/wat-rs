@@ -1083,3 +1083,40 @@ it and supplies the trigger the stone left as "let need reveal."
 USER-GUIDE, CLAUDE.md and `wat/rete.wat` say nothing about fixpoint termination. A
 rule author cannot read the decision that makes their hang their own fault. Documenting
 the bound where a CALLER reads it is separate from capping it, and remains open.
+
+### ⚠ A CLAIM I MADE AND RETRACT — the diagnostic goldens are NOT a vocare defect (2026-08-24)
+
+While landing the `CallFallback` unification I twice described the five
+`probe_diagnostic_value_snapshot_in_errors` goldens — which pin
+`:location src/runtime.rs :line N` — as "`vocare`'s wrong-altitude class,
+demonstrating itself." **Both halves of that were wrong.**
+
+**It is not what vocare found.** vocare's six were: four join tests that hand-build
+a `Rule` with an empty `:rhs` and read `wm.beta` (no production ever runs), one test
+asserting a hand-written belief-array against itself, and
+`differential_exists_no_multiplicity`. It explicitly CLEARED the rendered-output
+family — "CLEAN, stated for contrast". I attributed to the ward a finding it never
+made, which is precisely the phantom `examinare` forbids, committed about my own
+ward's report.
+
+**And it is wrong on the merits.** vocare measures VANTAGE: does the test stand
+where the CALLER stands? The `:location` span is part of the error EDN a caller
+receives, so pinning it asserts shipped output, not internals. The golden compares
+the whole error structurally, so it cannot go green on a real break; and when it
+reddened for me it reddened on a genuinely caller-visible change — the location
+moved 25695→25722. That is signal: "the code raising this moved, confirm that is
+intentional." Had the unification changed WHICH code raises `NotCallable`, the
+recapture diff would have carried more than a `:line`.
+
+**The distinguishing property**, worth keeping: a vocare defect asserts on something
+NO CALLER CAN OBSERVE — it reddens on internal churn and stays green when the
+behaviour breaks. The goldens are the opposite: they redden only on caller-visible
+change and are maximally sensitive.
+
+**Why it fooled me:** a Rust line number FEELS like an implementation detail. But a
+`rust_caller_span!()` in an error is the honest answer to "where did this come from"
+when there is no wat source — and this same session proved the converse mattered,
+since `RhsOp::Bind`'s MISSING span was a real user-facing defect (`15064c9eb`). The
+location cannot be load-bearing when absent and noise when pinned.
+
+No action. Recorded so the retraction outlives the claim.
