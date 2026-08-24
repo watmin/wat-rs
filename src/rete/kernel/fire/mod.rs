@@ -18,6 +18,27 @@ use super::*;
 /// Split-borrow of `FireSession`. Token/Element are Copy; we cannot
 /// hold `&mut FireSession` while walking beta/alpha. Facts stay out of
 /// the bind intern (`DESIGN-STONE-fact-as-index`).
+/// The per-join context: the eleven session fields a join needs, plus the two
+/// that vary.
+///
+/// ⚠ DO NOT REPLACE THE CALL-SITE LITERALS WITH A `from_wm(&mut wm, …)`
+/// CONSTRUCTOR. It was tried on 2026-08-24 and reverted the same hour. Six
+/// identical thirteen-field literals look like pure boilerplate — ~78 lines
+/// saying the same thing — and at three sites in `hash_join_delta` the literal's
+/// braces are what carry the nesting to nine, the deepest point in the engine.
+/// So the constructor is the obvious cleanup, and it does not work:
+///
+/// A constructor must take `&mut wm` **whole**. The literal borrows ELEVEN
+/// NAMED FIELDS and leaves `wm.alpha` and `wm.beta` alone — which every call
+/// site relies on, because it is holding a shared borrow of one of those two
+/// while it builds this. Collapsing the literal produced exactly the error the
+/// literal exists to avoid: *cannot borrow `*wm` as mutable because it is also
+/// borrowed as immutable*, at four sites.
+///
+/// The verbosity is Rust's only spelling for field-level disjointness. It is
+/// the data flow, not repetition — the same lesson as the `d_beta` copies in
+/// `filter.rs`, and the exact mirror of `AlphaNews::of`, which had the opposite
+/// defect (claiming a borrow it did not take).
 pub(crate) struct FireCtx<'a> {
     pub(crate) compiled_conds: &'a HashMap<i64, crate::rete::compiled_cond::CompiledCond>,
     pub(crate) scratch: &'a mut SlotFrame,
@@ -1659,9 +1680,18 @@ pub(crate) enum AlphaNewsIter<'a> {
 }
 
 impl<'a> AlphaNews<'a> {
+    /// `alpha` is NOT borrowed for `'a`, and that is load-bearing.
+    ///
+    /// Only `d_alpha` is retained (the `Slots` arm holds a slice of it). `alpha`
+    /// is read once for a length, which is a `usize` — nothing outlives the
+    /// call. Tying it to `'a` claimed a borrow the body never takes, and that
+    /// false claim propagated: a caller holding an `AlphaNews` could not then
+    /// take `&mut wm.bind_pool`, even though the two touch disjoint fields. It
+    /// is why `hash_join_delta` reached nesting 9 — the join steps could not be
+    /// lifted out while the compiler believed `dr` pinned `wm.alpha`.
     pub(crate) fn of(
         d_alpha: &'a AlphaDelta,
-        alpha: &'a AlphaMemory,
+        alpha: &AlphaMemory,
         aid: i64,
         packed_full: &HashSet<i64>,
     ) -> Self {

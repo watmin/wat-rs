@@ -28,6 +28,7 @@
 
 use super::super::*;
 use super::RoundScratch;
+use crate::rete::compiled_cond::CompiledCond;
 
 /// Join this round's new tokens and elements, ascending node id (topological).
 pub(crate) fn hash_join_delta(
@@ -314,96 +315,28 @@ for node_id in &kind_ids.join_parent {
         }
         phase_end("  ├ hj:step2-right-idx", __s2);
 
-        // Step 3: term1 = Δleft ⋈ all_right (probe right_idx[J] — now includes Δright).
-        // The mutable borrow from step 2 ended with that scope block; safe to borrow immutably.
-        let __s3 = phase_start();
-        let mut new_tokens: Vec<Token> = Vec::new();
-        if !dl.is_empty() {
-            if let Some(ridx) = right_idx.get(child_id) {
-                for tok in dl {
-                    let k = key_of(
-                        &bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds),
-                        jk,
-                        &wm.bind_val_ids,
-                    );
-                    if let Some(bucket) = ridx.get(&k) {
-                        for el in bucket {
-                            if let Some(new_tok) = join_extend(
-                                tok,
-                                el,
-                                alpha_id,
-                                &mut FireCtx {
-                                    compiled_conds,
-                                    scratch: match_scratch,
-                                    pool: &mut wm.bind_pool,
-                                    match_pool: &mut wm.match_pool,
-                                    keys: &wm.bind_keys,
-                                    vals: &wm.bind_vals,
-                                    val_ids: &wm.bind_val_ids,
-                                    facts: &wm.facts,
-                                    derived: &wm.derived_facts,
-                                    n_input: wm.n_input,
-                                    i64_by_fact: &wm.i64_by_fact,
-                                    bind_only: &wm.bind_only,
-                                    cond_key_ids: &wm.cond_key_ids,
-                                },
-                            )? {
-                                new_tokens.push(new_tok);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        phase_end("  ├ hj:step3-term1", __s3);
+        let mut new_tokens = hj_step3_term1(
+            wm,
+            compiled_conds,
+            match_scratch,
+            right_idx,
+            dl,
+            jk,
+            child_id,
+            alpha_id,
+        )?;
 
-        // Step 4: term2 = old_left ⋈ Δright (probe left_idx[J] — still OLD, Δleft not yet added).
-        // left_idx is a separate map from right_idx; no aliasing — safe immutable borrow.
-        let __s4 = phase_start();
-        if !dr.is_empty() {
-            if let Some(lidx) = left_idx.get(child_id) {
-                let right_mem = wm.alpha.get(&alpha_id).map(|v| v.as_slice()).unwrap_or(&[]);
-                for ei in dr.iter() {
-                    let el = right_mem[ei];
-                    let k = key_of_el(&el, jk, &GatherIntern::from_wm(wm, alpha_id));
-                    let el = element_with_row_span(
-                        el,
-                        &mut wm.bind_pool,
-                        alpha_id,
-                        &wm.i64_by_fact,
-                        &wm.bind_only,
-                        &wm.cond_key_ids,
-                    );
-                    if let Some(bucket) = lidx.get(&k) {
-                        for tok in bucket {
-                            if let Some(new_tok) = join_extend(
-                                tok,
-                                &el,
-                                alpha_id,
-                                &mut FireCtx {
-                                    compiled_conds,
-                                    scratch: match_scratch,
-                                    pool: &mut wm.bind_pool,
-                                    match_pool: &mut wm.match_pool,
-                                    keys: &wm.bind_keys,
-                                    vals: &wm.bind_vals,
-                                    val_ids: &wm.bind_val_ids,
-                                    facts: &wm.facts,
-                                    derived: &wm.derived_facts,
-                                    n_input: wm.n_input,
-                                    i64_by_fact: &wm.i64_by_fact,
-                                    bind_only: &wm.bind_only,
-                                    cond_key_ids: &wm.cond_key_ids,
-                                },
-                            )? {
-                                new_tokens.push(new_tok);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        phase_end("  ├ hj:step4-term2", __s4);
+        hj_step4_term2(
+            wm,
+            compiled_conds,
+            match_scratch,
+            left_idx,
+            &mut new_tokens,
+            dr,
+            jk,
+            child_id,
+            alpha_id,
+        )?;
 
         // Step 5: add Δleft (dl) to left_idx[J] AFTER term2 (no-double-count invariant).
         // dl is &[Token] — iterate directly.
@@ -447,4 +380,138 @@ for node_id in &kind_ids.join_parent {
 
 phase_end("hash-join", __pt2);
     Ok(())
+}
+
+/// Step 4 of the P6 ordering — `term2 = old_left ⋈ Δright`.
+///
+/// Lifted out of `hash_join_delta`, where it sat at nesting NINE, the deepest
+/// point in the whole rete engine. It could not be lifted before: `dr` is an
+/// `AlphaNews`, and `AlphaNews::of` used to tie its `alpha` parameter to the
+/// struct's lifetime, so the compiler believed `dr` pinned `wm.alpha` and
+/// refused the `&mut wm` this body needs. That claim was false — `alpha` is
+/// read once for a length — and correcting it is what made this a move rather
+/// than a thirteen-parameter explosion. See `AlphaNews::of`.
+#[allow(clippy::too_many_arguments)]
+fn hj_step4_term2(
+    wm: &mut FireSession,
+    compiled_conds: &HashMap<i64, CompiledCond>,
+    match_scratch: &mut SlotFrame,
+    left_idx: &JoinLeftIndex,
+    new_tokens: &mut Vec<Token>,
+    dr: AlphaNews<'_>,
+    jk: &[Value],
+    child_id: &i64,
+    alpha_id: i64,
+) -> Result<(), EvalBreak> {
+// Step 4: term2 = old_left ⋈ Δright (probe left_idx[J] — still OLD, Δleft not yet added).
+// left_idx is a separate map from right_idx; no aliasing — safe immutable borrow.
+let __s4 = phase_start();
+if !dr.is_empty() {
+    if let Some(lidx) = left_idx.get(child_id) {
+        let right_mem = wm.alpha.get(&alpha_id).map(|v| v.as_slice()).unwrap_or(&[]);
+        for ei in dr.iter() {
+            let el = right_mem[ei];
+            let k = key_of_el(&el, jk, &GatherIntern::from_wm(wm, alpha_id));
+            let el = element_with_row_span(
+                el,
+                &mut wm.bind_pool,
+                alpha_id,
+                &wm.i64_by_fact,
+                &wm.bind_only,
+                &wm.cond_key_ids,
+            );
+            if let Some(bucket) = lidx.get(&k) {
+                for tok in bucket {
+                    if let Some(new_tok) = join_extend(
+                        tok,
+                        &el,
+                        alpha_id,
+                        &mut FireCtx {
+                            compiled_conds,
+                            scratch: match_scratch,
+                            pool: &mut wm.bind_pool,
+                            match_pool: &mut wm.match_pool,
+                            keys: &wm.bind_keys,
+                            vals: &wm.bind_vals,
+                            val_ids: &wm.bind_val_ids,
+                            facts: &wm.facts,
+                            derived: &wm.derived_facts,
+                            n_input: wm.n_input,
+                            i64_by_fact: &wm.i64_by_fact,
+                            bind_only: &wm.bind_only,
+                            cond_key_ids: &wm.cond_key_ids,
+                        },
+                    )? {
+                        new_tokens.push(new_tok);
+                    }
+                }
+            }
+        }
+    }
+}
+phase_end("  ├ hj:step4-term2", __s4);
+    Ok(())
+}
+
+/// Step 3 of the P6 ordering — `term1 = Δleft ⋈ all_right`.
+///
+/// Twin of `hj_step4_term2`, and lifted for the same reason: it was the other
+/// arm sitting at nesting nine. `dl` borrows `d_beta`, not `wm`, so this one
+/// was never blocked by the `AlphaNews` lifetime — it simply had nowhere to go
+/// while its twin was stuck. Builds and returns the round's `new_tokens`, which
+/// step 4 then extends and step 6 drains.
+#[allow(clippy::too_many_arguments)]
+fn hj_step3_term1(
+    wm: &mut FireSession,
+    compiled_conds: &HashMap<i64, CompiledCond>,
+    match_scratch: &mut SlotFrame,
+    right_idx: &JoinRightIndex,
+    dl: &[Token],
+    jk: &[Value],
+    child_id: &i64,
+    alpha_id: i64,
+) -> Result<Vec<Token>, EvalBreak> {
+// Step 3: term1 = Δleft ⋈ all_right (probe right_idx[J] — now includes Δright).
+// The mutable borrow from step 2 ended with that scope block; safe to borrow immutably.
+let __s3 = phase_start();
+let mut new_tokens: Vec<Token> = Vec::new();
+if !dl.is_empty() {
+    if let Some(ridx) = right_idx.get(child_id) {
+        for tok in dl {
+            let k = key_of(
+                &bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds),
+                jk,
+                &wm.bind_val_ids,
+            );
+            if let Some(bucket) = ridx.get(&k) {
+                for el in bucket {
+                    if let Some(new_tok) = join_extend(
+                        tok,
+                        el,
+                        alpha_id,
+                        &mut FireCtx {
+                            compiled_conds,
+                            scratch: match_scratch,
+                            pool: &mut wm.bind_pool,
+                            match_pool: &mut wm.match_pool,
+                            keys: &wm.bind_keys,
+                            vals: &wm.bind_vals,
+                            val_ids: &wm.bind_val_ids,
+                            facts: &wm.facts,
+                            derived: &wm.derived_facts,
+                            n_input: wm.n_input,
+                            i64_by_fact: &wm.i64_by_fact,
+                            bind_only: &wm.bind_only,
+                            cond_key_ids: &wm.cond_key_ids,
+                        },
+                    )? {
+                        new_tokens.push(new_tok);
+                    }
+                }
+            }
+        }
+    }
+}
+phase_end("  ├ hj:step3-term1", __s3);
+    Ok(new_tokens)
 }
