@@ -212,3 +212,90 @@ move compile. That would be trading the exact thing this attack is for.
 **STOP-2:** if the differential goes red at any step, revert that pass's
 commit rather than debugging forward. Each pass is one commit precisely so
 that revert is cheap.
+
+## Weigh (2026-08-24) — LANDED, all eight passes
+
+| | before | after |
+|---|---:|---:|
+| `fire_fixpoint_delta_armed` | **1774 lines** | **657** (37%) |
+| max brace nesting | **12** | **8** |
+| `delta.rs` | 2043 | 937 |
+| passes in one body | 9 sections / 8 passes | 0 |
+
+`fire/pass/`, none over 449 lines including its header: hash_join 449 ·
+filter_after_join 250 · filter 243 · alpha 178 · production 138 ·
+join_after_filter 121 · round_census 113 · root_join 88.
+
+**Per-pass gate, eight times, no exceptions:** rete cohort 363/363 including
+the oracle differential `spec_equals_native_on_every_where_family`;
+`differential_three_stratum_negation` 3/3; `probe_arc278_concurrent_retes` 5/5;
+clippy `--release --workspace --all-targets -D warnings` silent; floor GREEN
+(4942 passed, 19 skipped, no ARM). Eight floors, eight greens, zero reds.
+
+### The perf prediction held, and no win is claimed
+
+Grid `T03-58-45Z`, 30/30 `:match`, 30/30 `:us`. Big cells against the
+pre-strike baseline: strat-neg `[6 2000]` −0.9%, accum `[200 200]` −0.5%,
+fanout `[40000]` −2.2%, deep-cascade `[50 100]` −3.8%. Nothing regressed.
+
+The stone predicted **no measurable change in either direction** and forbade
+this refactor from acquiring a perf justification. It does not get one now: the
+consistent small negative drift is as easily explained by the pre-strike
+baseline being a high run as by anything the moves did, and every one of those
+cells sits inside its historical range. **The claim is "no regression", not
+"a speedup".**
+
+A mid-strike grid (after three passes, at the builder's request) caught fanout
+`[40000]` at +4.3% — the exact shape an inlining loss would take, on the axis
+where the just-moved `production_delta` runs 40k times. It did not reproduce at
+RUNS=5. Running that check at the midpoint rather than only at the end was the
+right call: had it been real, finding it after eight commits would have meant
+bisecting eight instead of looking at one.
+
+### What the strike actually cost, honestly
+
+**Nine dead prologue aliases** were retired — `compiled_rhs_cache`,
+`test_sibs_of`, `compiled_drivers`, `compiled_wheres`, `where_tree`,
+`test_children`, `feeding_alpha_of`, and two mis-destructured scratch fields.
+**Not one was found by reading.** Every one came from `unused_variables` after a
+move made it dead. The 1774-line function was hiding its own dead bindings by
+being too large for anyone to notice them — and this stone claimed nothing about
+dead code.
+
+**The method changed twice, mid-strike, and both changes are recorded rather
+than smoothed over:**
+
+1. Passes 1–4 re-spelled prologue aliases to `arm.<field>` in the moved body.
+   That broke a struct-field shorthand on 3.6 and cost five compiler
+   round-trips. From 3.5 on, the aliases are **re-declared inside the pass**
+   exactly as the prologue declares them — body untouched, shorthand cannot
+   break, signature six parameters instead of fourteen. Pass 3.5 then built
+   clean first try.
+2. `RoundScratch` was introduced at pass 1 (alpha), not up front — precisely
+   where the stone said the decision belonged. Root-join needed 5 parameters,
+   production 7, alpha's seed path **14**. Borrows only, constructed inline so
+   its lifetime ends with the statement, destructured on entry so bodies keep
+   their inline names.
+
+**Two errors only the move-verifier could see.** The compiler was green for
+both: a doc contradiction in `merge_facts`, and — in this final pass — my own
+`&x[i]` restoration rewriting **sixteen comment lines** of the P6 algorithm
+prose, turning `dl = d_beta[P]` into `dl = &d_beta[P]` in the explanation of the
+whole pass. Checking a move mechanically instead of reading the diff and
+believing it is what caught both.
+
+### What is NOT done
+
+- **`terminate` was never a pass** — 10 lines owning the loop's `break`. Nine
+  sections, eight passes; the map was corrected, not the work.
+- **The take/restore invariant still holds by convention.** `hash_join.rs`
+  documents it: one take, two restores, one of them twelve levels deep, exactly
+  one early exit and it restores first. A future `?` in that window silently
+  drops a beta memory. A guard shape is a named follow-up.
+- **Four of the five borrow-checker workarounds remain**, as this stone said
+  from the start. Only `:1250` (Exists, disjoint fields) is a field-split; the
+  others are same-container conflicts needing disjoint-key access, a two-phase
+  collect, and `extend_from_within`. Separate strikes.
+- **The `production` phase mark still spans wider than the pass it names** —
+  it encloses the A8 census. Moving it is a census-tree change; every
+  `production` number in the arc reflects the wider span.
