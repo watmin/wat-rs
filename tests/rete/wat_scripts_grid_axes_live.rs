@@ -65,6 +65,15 @@ const SIZED_AXES: &[(&str, &[i64], &str)] = &[
          items>=1.",
     ),
     (
+        "leading-exists",
+        &[3],
+        "size=[items]; every loc in [0,items) is asserted TWICE as Wind(loc), and the leading \
+         :exists binds one token per DISTINCT loc, so :derived is exactly [0..items) — \
+         non-empty for any items>=1. The inert S1..S6 cascade forces six fixpoint rounds, \
+         which is the whole point: this axis exists because a leading :not/:exists once \
+         emitted one token PER ROUND, and the row count must be independent of the cascade.",
+    ),
+    (
         "deep-cascade",
         &[2, 3],
         "size=[depth width]; every seeded id survives every level by construction (\"the \
