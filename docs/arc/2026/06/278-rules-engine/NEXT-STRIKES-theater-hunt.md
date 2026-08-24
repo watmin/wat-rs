@@ -734,3 +734,31 @@ flattering number picked from the low end of the range is the same error wearing
 a nicer face, and this file has one of those in its own history.
 
 `fanout [40000]` sits at **23.45 ± 0.75 ms**. Quote that, not a single run.
+
+
+## AND CHECK THE LOAD BEFORE YOU RUN THE GRID (2026-08-24)
+
+The range rule above catches a grid cell compared against one lucky run. It does
+NOT catch a grid run taken on a busy box, and that produced the sixth false alarm
+of this campaign — the first one with an identifiable cause rather than plain
+variance.
+
+The post-merge grid was started immediately after a floor and two release builds,
+with `load average` still at **4.45** and stray processes from a killed run. It
+reported `deep-cascade` up on all three rungs, +46.9% at `[10 100]`. That cell is
+the TIGHTEST in the whole grid — 1.64, 1.69, 1.66, 1.67, 1.65, 1.64, 1.65 across
+seven prior runs, a range of ±0.03 — so a reading of 2.42 was many multiples
+outside it and looked unarguable.
+
+Re-measured on a quieter box: **1.67 and 1.67.** The other flagged cells came back
+the same way (strat-neg `[6 2000]` 12.45 → 11.13; fanout `[40000]` inside range).
+
+Two things follow:
+
+- **`uptime` before `run-all.sh`.** The floor's `nice -n 19` protects the
+  *builder's keyboard*, not a later benchmark; the machine stays warm and loaded
+  for minutes afterwards. A grid started in that window measures the weather.
+- **A tight cell is not a safe cell.** `deep-cascade [10 100]`'s ±0.03 range made
+  the load artefact look like a certainty — the tighter the history, the more
+  convincing a contaminated reading appears. Tight history raises the value of a
+  re-measure, it does not remove the need for one.
