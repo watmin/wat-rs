@@ -31,6 +31,8 @@ pub(crate) struct RoundScratch<'a> {
     pub(crate) leaf_aids: &'a std::collections::HashMap<String, Vec<i64>>,
 }
 
+mod accumulate;
+pub(crate) use accumulate::*;
 mod alpha;
 pub(crate) use alpha::*;
 mod filter;

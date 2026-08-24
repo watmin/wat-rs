@@ -213,7 +213,26 @@ move compile. That would be trading the exact thing this attack is for.
 commit rather than debugging forward. Each pass is one commit precisely so
 that revert is cheap.
 
-## Weigh (2026-08-24) — LANDED, all eight passes
+## ⚠ CORRECTION (2026-08-24) — the strike was declared complete one pass early
+
+The Weigh below was written claiming all eight passes were out. **It was
+seven.** `── 3.25 Accumulate-pass` — 236 lines, the largest block remaining —
+was still inline, and the A8 census was miscounted as the eighth pass. The
+function was reported "complete" at 657 lines with 290 of them still being
+work this stone had listed in its own pass table.
+
+Nothing in the gates could catch that: every floor was green, every
+differential passed, the grid showed no regression. All of it was true of a
+refactor that had not finished. **A refactor that mis-states what it did is
+worse than one that stops early**, because the next reader trusts the claim
+and stops looking.
+
+Accumulate has since been extracted (`fire/pass/accumulate.rs`) under the same
+per-pass gate. The corrected totals are in the second Weigh at the end of this
+stone; the numbers in the first are accurate as of when it was written and are
+left standing rather than edited, so the error stays visible.
+
+## Weigh (2026-08-24) — LANDED, seven of eight passes (see the correction above)
 
 | | before | after |
 |---|---:|---:|
@@ -299,3 +318,37 @@ believing it is what caught both.
 - **The `production` phase mark still spans wider than the pass it names** —
   it encloses the A8 census. Moving it is a census-tree change; every
   `production` number in the arc reflects the wider span.
+
+## Weigh (2026-08-24), corrected — LANDED, all EIGHT passes
+
+| | before | after |
+|---|---:|---:|
+| `fire_fixpoint_delta_armed` | **1774 lines** | **435** (25%) |
+| max brace nesting | **12** | 8 |
+| `delta.rs` | 2043 | **714** |
+| prologue aliases | 14 | **3** |
+
+`fire/pass/`: hash_join · filter_after_join · filter · accumulate · alpha ·
+production · join_after_filter · round_census · root_join.
+
+**Ten dead prologue aliases retired** across the strike — `compiled_rhs_cache`,
+`test_sibs_of`, `compiled_drivers`, `compiled_wheres`, `where_tree`,
+`test_children`, `feeding_alpha_of`, `compiled_acc_folds`, `parents_of`,
+`beta_readers` — plus a dead `use` and two mis-destructured scratch fields.
+Not one was found by reading; every one came from `unused_variables` after a
+move made it dead. The prologue is down to three: `node_ids` (`cfg(test)`),
+`kind_ids`, `compiled_conds`.
+
+Nine per-pass gates, nine floors, zero reds.
+
+### The follow-up that came back and closed itself
+
+This stone listed the catch-up take/restore invariant as a named follow-up
+wanting a guard shape. `DESIGN-STONE-catchup-borrow-not-take` found the take
+itself unnecessary — every mutable touch in that window is a field disjoint
+from `wm.beta`, so the parent can simply be read. No guard was built; the
+situation was removed. It also took ~0.8 ms off without-query FIRE, which was
+not the point.
+
+That leaves the four-workaround list at **three**: the two same-container
+`d_beta[parent]`/`d_beta[child]` clones, and `token_assoc`'s pool copy.
