@@ -45,14 +45,40 @@ is right.
 1. Declare intermediate fact types for the concepts your question needs (`IsHead`, `Unwrap`).
 2. Write one rule per concept. A rule that recognises a shape asserts a fact naming it.
 3. Write one rule that joins those concepts to `Span` and `Source` and asserts a `:wat::grep::Match`.
-4. Return every rule from `:user::grep`.
+4. `(:wat::rete::collect-rules :your-ns)` — never a hand-list.
 
-Two things that will otherwise cost a cycle, both measured:
+The intermediate fact types are what make a rule read like a sentence: `IsHead`, `Unwrap`,
+`ArgIsList` are not machinery, they are the NOUNS, and the join is the "whose". A text search has no
+way to name a middle step, which is why it can only ever ask about adjacency.
+
+**`:user::grep` returns `(:wat::rete::collect-rules :ns)`, never a hand-written vector.** It
+reflects the symbol table for every zero-arg fn in the namespace whose return type is
+`:wat::rete::Rule` — the marker `defrule` plants. A hand-list is a second copy of the same
+information, and the rule you add next month is the one that silently does not run.
+
+Order does not matter, and this was measured rather than assumed: `collect-rules` sorts by name, so
+`head-position.wat` compiles `:hp::calls-first` BEFORE the `:hp::head` rule that feeds it, and the
+answer is identical (159 either way). Forward chaining does not care about declaration order.
+
+Four things that will otherwise cost a cycle, all measured:
 
 - The vector constructor in a `:then` is **`:wat::rete::core::PersistentVector`**, not core's.
   Core's fails the fence with *"is not total"*.
 - A **record** constructor takes kwargs; a **tagged enum variant** takes positions. They look
   identical at the call site.
+- **`cond` does not work in a `:then`; `if` does.** Measured — a `cond` in an RHS fails at
+  `compile-all` with `compile-condition: then expr is not pure — '<malformed cond clause>' is not
+  pure`, which names neither the problem (the RHS compiler does not read `cond`'s clause shape) nor
+  the fix (nest `if`). `--check` passes it, so the failure arrives at runtime.
+- **`or` is binary.** Three alternatives need `(or A (or B C))`.
+
+### On collapsing rules — measured, and rejected
+
+`bare-variant-constructors.wat` has three near-identical rules. They collapse into one, using an
+`or` guard and a nested `if` in the RHS to pick the replacement — verified, same 211 matches. **It
+is not kept.** Three rules that each read as one sentence beat one rule carrying two nested
+conditionals, and a conditional inside a `:then` puts branching where a fact assertion belongs.
+Fewer lines was the only thing it won.
 
 ## What is NOT here yet
 

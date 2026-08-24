@@ -66,5 +66,4 @@
                        (:wat::grep::Capture :name "qualified" :value ":wat::core::Result::Err")))])
 
 (:wat::core::defn :user::grep [] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
-  (:wat::core::PersistentVector :- [:wat::rete::Rule]
-    (:bv::head) (:bv::some) (:bv::ok) (:bv::err)))
+  (:wat::rete::collect-rules :bv))

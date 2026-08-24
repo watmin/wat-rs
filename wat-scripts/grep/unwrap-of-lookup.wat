@@ -56,4 +56,4 @@
                        (:wat::grep::Capture :name "inner" :value ?hn)))])
 
 (:wat::core::defn :user::grep [] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
-  (:wat::core::PersistentVector :- [:wat::rete::Rule] (:ul::unwrap) (:ul::arg) (:ul::match)))
+  (:wat::rete::collect-rules :ul))

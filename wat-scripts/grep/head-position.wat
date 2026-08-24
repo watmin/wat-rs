@@ -36,5 +36,8 @@
            :captures (:wat::rete::core::PersistentVector
                        (:wat::grep::Capture :name "verb" :value ?n)))])
 
+;; `collect-rules` reflects the symbol table for every zero-arg fn in `hp::` whose return type is
+;; `:wat::rete::Rule` — the marker `defrule` plants. A hand-written vector would be a second list
+;; of the same rules, and a rule added later would silently not run.
 (:wat::core::defn :user::grep [] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
-  (:wat::core::PersistentVector :- [:wat::rete::Rule] (:hp::head) (:hp::calls-first)))
+  (:wat::rete::collect-rules :hp))
