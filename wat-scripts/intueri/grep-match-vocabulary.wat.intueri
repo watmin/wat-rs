@@ -1,0 +1,102 @@
+;; grep-match-vocabulary.wat.intueri — the naming target for wat-grep's Match vocabulary.
+;; NON-RUNNING; it exists to COMMUNICATE the decision so intueri can weigh which candidates
+;; keep their promise. THREE names are being minted. One name is already ruled and is NOT
+;; in scope: `Match` is the builder's, verbatim, and stays.
+
+;; ── THE CONTRACT THAT SHAPES EVERY NAME ─────────────────────────────────────────────────
+;;
+;; Builder, 2026-08-24: "the user's rules assert Match facts; wat-grep queries for them and
+;; prints." wat-grep owns exactly ONE query and performs NO interpretation. So these names are
+;; read by TWO audiences with different knowledge:
+;;   - the RULE AUTHOR, writing a rete :then, who must know what to construct
+;;   - an ARBITRARY CONSUMER reading printed EDN, who has never seen the rule
+;; A name that only serves the first is half a name. The EDN rendering is part of the surface:
+;;   #wat.grep/Match {:file "a.wat" :line 7 :col 1 :end-line 7 :end-col 26
+;;                    :rule "arrow-in-typepos"
+;;                    :bindings [#wat.grep/Binding {:name "id" :value "42"}]}
+
+;; ── NAME 1 — the name/value pair inside `Match.bindings` ────────────────────────────────
+;;
+;; WHAT IT IS: a String name and a String value, the unit of "what the rule concluded".
+;; It is a record and not an alternating flat vector deliberately: an odd-length
+;; name/value/name vector is a silent defect that still renders fine, so the pair is the unit.
+;;
+;; ⚠ THE HAZARD, and it is the reason this cast exists. `Binding` is ALREADY a loaded word in
+;; this exact room. A rete rule's LHS binds ?vars — `(:fx::Span (?l <- :line))` binds ?l — and
+;; those are universally called bindings. The field here is NOT those. It is whatever the rule
+;; AUTHOR chose to report, which may be a subset of its ?vars, a renaming of them, or values
+;; computed in the RHS that were never ?vars at all. If a reader assumes `Match.bindings` is the
+;; rule's variable bindings, they will believe a rule reported something it did not.
+;;   So: does `Binding` LIE here (level 1), or is the rhyme with rete's vocabulary a virtue?
+;;
+;;   Binding    — rhymes with rete's own vocabulary. Risks the conflation above.
+;;   Finding    — names it from the CONSUMER's side: what the rule found. No collision.
+;;                But a "finding" usually IS the whole match, not one field of it.
+;;   Detail     — honest that it is annotation, not mechanism. Possibly too weak to earn a record.
+;;   Note       — same, and shorter. May undersell structured data.
+;;   Datum      — precise and cold; says "one piece of reported data" with no rete overtone.
+;;   Capture    — regex lineage; a reader of grep tools knows "capture group" instantly, and a
+;;                capture IS "the part of the match the author chose to name". Possibly the
+;;                closest domain fit — but does it import regex's positional-group baggage?
+
+;; ── NAME 2 — the four coordinates, in-process ───────────────────────────────────────────
+;;
+;; WHAT IT IS: the return of the ONE DOOR (name 3). Four i64: start line/col and end line/col,
+;; already unwrapped out of the two HashMaps `ast-span` / `ast-end-span` return.
+;;
+;; ⚠ THE HAZARD: there are already THREE things in this codebase that mean "where":
+;;     :wat::core::Span   file + line + col + (Option :- [Pos])   the substrate's; end OPTIONAL
+;;     :fx::Span          id + 4×i64                              corpus-03's FACT, per node
+;;     this one           4×i64                                   the in-process value, no id
+;;   Naming this `Span` too would make FOUR readings of one word, and the whole point of the
+;;   Match stone is that this one's end is NOT optional while :wat::core::Span's is. A shared
+;;   name across that distinction is exactly the lie the stone exists to stop telling.
+;;   Conversely: is a fourth NOUN better than a fourth reading? Or should `:fx::Span` and this
+;;   be the SAME type, one declared once and used in both places?  <-- a real structural
+;;   question, not only a naming one; intueri should say if the two are one thing.
+;;
+;;   Coords     — plain, says exactly what it holds. Abbreviated ("coordinates"), which the
+;;                spell's own rule says must earn its place through scope.
+;;   Extent     — names a RANGE rather than a point; start-and-end is the whole content.
+;;   Range      — same, and more common. Collides with numeric-range vocabulary.
+;;   Region     — a 2-D reading; a source span is not rectangular, so possibly a lie.
+;;   Locus      — already in this substrate's vocabulary (LociDiedError). Latin register the
+;;                project already speaks. But `locus` reads as a POINT, and this is a range.
+
+;; ── NAME 3 — the one door ───────────────────────────────────────────────────────────────
+;;
+;; WHAT IT IS: `[:wat::WatAST] -> <name 2>`. It calls ast-span and ast-end-span, and consumes
+;; the four `HashMap/get` Options in ONE place with ONE located failure — so that no other site
+;; in wat-grep ever unwraps a span, and no rule can ever see an Option.
+;; The name must carry that it is THE door, not A helper, or a second one gets written.
+;;
+;;   coords-of      — `-of` has house precedent: `fix-text-offset-of`, `metadata-of`.
+;;   span-of        — inherits name 2's collision problem.
+;;   locate         — a verb; reads as "go find it" rather than "read it off this node".
+;;   extent-of      — pairs with Extent if name 2 lands there.
+;;   read-coords    — says a READ happens, which is honest (it consults the node twice).
+
+;; ── SIBLING VOCABULARY (anchors for register + tone) ────────────────────────────────────
+;;
+;;   the substrate's span tooling the door wraps:
+;;     (:wat::core::ast-span     node) -> (HashMap :- [keyword i64])   {:line :col}
+;;     (:wat::core::ast-end-span node) -> same, one char past the last
+;;     (:wat::fix::fix-text-offset-of loc lines) -> i64     ;; the `-of` precedent
+;;     (:wat::fix::fix-text-span-len  s e lines) -> i64
+;;
+;;   the fact the rule binds (SHIPPED, 5d650b807 — its name is NOT in scope here):
+;;     (:fx::Span :id :line :col :end-line :end-col)
+;;
+;;   what a rule can construct in a :then, MEASURED — the surface these names live inside:
+;;     a bound ?var · a String/i64/f64/bool literal
+;;     (:wat::rete::core::String/concat ?a ?b)   (:wat::rete::core::PersistentVector …)
+;;     a declared record constructor · a declared enum variant constructor
+;;     ✗ (:wat::core::string::concat …)     "is not total"
+;;     ✗ (:wat::core::PersistentMap …)      "is not total"  — which is WHY bindings is a vector
+
+;; ── WHAT INTUERI IS ASKED FOR ───────────────────────────────────────────────────────────
+;;
+;; A ruling on each of the three, with the reason. Where a candidate LIES (level 1) or MUMBLES
+;; (level 2), say which and why. And the structural question under name 2 — whether this and
+;; `:fx::Span` are one type wearing two names — is in scope: a naming problem that is really a
+;; duplication problem should be reported as the duplication.
