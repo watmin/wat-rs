@@ -898,15 +898,7 @@ fn render_phase_table(
     facts: impl Fn(i64, i64) -> i64,
     census: impl Fn(i64, i64) -> Vec<(&'static str, u64, u64)>,
 ) -> String {
-    const CAL_N: u64 = 200_000;
-    let cal_t0 = std::time::Instant::now();
-    super::with_phase_census(|| {
-        for _ in 0..CAL_N {
-            let m = super::phase_start();
-            super::phase_end("cal", m);
-        }
-    });
-    let cal_ns_per_pair = cal_t0.elapsed().as_nanos() as f64 / CAL_N as f64;
+    let cal_ns_per_pair = calibrate_mark_ns();
     const RUNS: usize = 3;
 
     let mut table = format!(
@@ -3331,19 +3323,11 @@ fn fanout_fire_phase_census() {
 /// as unmarked work (`DESIGN-STONE-prod-leftover-split`).
 #[test]
 fn fanout_production_leftover_split() {
-    const CAL_N: u64 = 200_000;
     const RUNS: usize = 3;
     const RHS: &str = "  ├ prod:compiled-rhs";
     const DEDUP: &str = "  ├ prod:dedup-store";
 
-    let cal_t0 = std::time::Instant::now();
-    super::with_phase_census(|| {
-        for _ in 0..CAL_N {
-            let m = super::phase_start();
-            super::phase_end("cal", m);
-        }
-    });
-    let cal = cal_t0.elapsed().as_nanos() as f64 / CAL_N as f64;
+    let cal = calibrate_mark_ns();
 
     let mut prod_raw = 0.0;
     let mut rhs_raw = 0.0;
@@ -3427,7 +3411,6 @@ fn fanout_three_leftover_split() {
     const KEYS: i64 = 100;
     const FANOUT: i64 = 20;
     const RUNS: usize = 3;
-    const CAL_N: u64 = 200_000;
     const RHS: &str = "  ├ prod:compiled-rhs";
     const HARVEST: &str = "  ├ harvest:query";
     const OUT_PROD: &str = "  ├ out:production";
@@ -3443,14 +3426,7 @@ fn fanout_three_leftover_split() {
   :params []\n\
   :when [(?fact <- :fan::Pair)])\n";
 
-    let cal_t0 = Instant::now();
-    super::with_phase_census(|| {
-        for _ in 0..CAL_N {
-            let m = super::phase_start();
-            super::phase_end("cal", m);
-        }
-    });
-    let cal = cal_t0.elapsed().as_nanos() as f64 / CAL_N as f64;
+    let cal = calibrate_mark_ns();
 
     struct Shot {
         wall: f64,
@@ -3646,7 +3622,6 @@ fn fanout_three_leftover_split() {
 /// (`DESIGN-STONE-honest-fire-rank`).
 #[test]
 fn fanout_honest_fire_rank() {
-    const CAL_N: u64 = 200_000;
     const RUNS: usize = 3;
     const TOP: [&str; 4] = [
         "IN: to_transient",
@@ -3658,14 +3633,7 @@ fn fanout_honest_fire_rank() {
     const DEDUP: &str = "  ├ prod:dedup-store";
     const PROBE: &str = "  ├ hj:catchup:probe";
 
-    let cal_t0 = std::time::Instant::now();
-    super::with_phase_census(|| {
-        for _ in 0..CAL_N {
-            let m = super::phase_start();
-            super::phase_end("cal", m);
-        }
-    });
-    let cal = cal_t0.elapsed().as_nanos() as f64 / CAL_N as f64;
+    let cal = calibrate_mark_ns();
 
     let mut fire = 0.0;
     let mut prod_raw = 0.0;
@@ -5106,17 +5074,9 @@ fn cell_rank_after_grid() {
 /// fanout is 80k test marks (2p); intern from honest_FIRE.
 #[test]
 fn honest_cell_rank_after_arm() {
-    const CAL_N: u64 = 200_000;
     const RUNS: usize = 3;
 
-    let cal_t0 = std::time::Instant::now();
-    super::with_phase_census(|| {
-        for _ in 0..CAL_N {
-            let m = super::phase_start();
-            super::phase_end("cal", m);
-        }
-    });
-    let cal = cal_t0.elapsed().as_nanos() as f64 / CAL_N as f64;
+    let cal = calibrate_mark_ns();
 
     fn fire_top_honest(
         rows: &[(&'static str, u64, u64)],
@@ -5231,17 +5191,9 @@ fn honest_cell_rank_after_arm() {
 /// Leftover cascade SETUP: arm vs remainder (`DESIGN-STONE-cascade-setup-split`).
 #[test]
 fn cascade_setup_leftover_split() {
-    const CAL_N: u64 = 200_000;
     const RUNS: usize = 3;
 
-    let cal_t0 = std::time::Instant::now();
-    super::with_phase_census(|| {
-        for _ in 0..CAL_N {
-            let m = super::phase_start();
-            super::phase_end("cal", m);
-        }
-    });
-    let cal = cal_t0.elapsed().as_nanos() as f64 / CAL_N as f64;
+    let cal = calibrate_mark_ns();
 
     let mut setup_raw = 0.0;
     let mut seen_raw = 0.0;
@@ -5313,7 +5265,6 @@ fn cascade_setup_leftover_split() {
 /// named engine rows (`DESIGN-STONE-accum-leftover-split`).
 #[test]
 fn accum_leftover_split() {
-    const CAL_N: u64 = 200_000;
     const RUNS: usize = 3;
     const TOP: [&str; 4] = [
         "IN: to_transient",
@@ -5329,14 +5280,7 @@ fn accum_leftover_split() {
     ];
     const PROD_KIDS: [&str; 2] = ["  ├ prod:compiled-rhs", "  ├ prod:dedup-store"];
 
-    let cal_t0 = std::time::Instant::now();
-    super::with_phase_census(|| {
-        for _ in 0..CAL_N {
-            let m = super::phase_start();
-            super::phase_end("cal", m);
-        }
-    });
-    let cal = cal_t0.elapsed().as_nanos() as f64 / CAL_N as f64;
+    let cal = calibrate_mark_ns();
 
     let mut fire = 0.0;
     let mut alpha_raw = 0.0;
@@ -9505,7 +9449,6 @@ fn strat_neg_stratum_split() {
     const STRATA: i64 = 6;
     const ITEMS: i64 = 2000;
     const RUNS: usize = 3;
-    const CAL_N: u64 = 200_000;
     const WORLD: &str = include_str!("../../../wat-scripts/perf/grid/strat-neg.wat");
     const FIRE_PHASES: [&str; 4] = [
         "IN: to_transient",
@@ -9521,14 +9464,7 @@ fn strat_neg_stratum_split() {
         "  └ strat:acc",
     ];
 
-    let cal_t0 = Instant::now();
-    super::with_phase_census(|| {
-        for _ in 0..CAL_N {
-            let m = super::phase_start();
-            super::phase_end("cal", m);
-        }
-    });
-    let cal = cal_t0.elapsed().as_nanos() as f64 / CAL_N as f64;
+    let cal = calibrate_mark_ns();
 
     let world = startup_from_source(WORLD, None, Arc::new(InMemoryLoader::new()))
         .expect("strat-neg stratum-split world should freeze");
@@ -9861,6 +9797,35 @@ fn dbeta_gather_volume() {
     );
 }
 
+/// Cost of one `phase_start`/`phase_end` pair, in ns — the constant every
+/// census harness subtracts.
+///
+/// TAKE THE MINIMUM OF SEVERAL BATCHES, not one. A single 200k batch reads
+/// anywhere from ~105 to ~155 ns depending on what else the box is doing, and a
+/// row with 40 000 pairs multiplies that spread into a **±2 ms swing** — enough
+/// that `prod:compiled-rhs` was seen at 2.541 and 4.826 ms for identical code.
+/// The minimum is the right estimator for a tight loop: the true cost cannot be
+/// lower, and everything above it is interference.
+fn calibrate_mark_ns() -> f64 {
+    const BATCHES: usize = 5;
+    const PER_BATCH: u64 = 200_000;
+    let mut best = f64::INFINITY;
+    for _ in 0..BATCHES {
+        let t0 = std::time::Instant::now();
+        super::with_phase_census(|| {
+            for _ in 0..PER_BATCH {
+                let m = super::phase_start();
+                super::phase_end("cal", m);
+            }
+        });
+        let ns = t0.elapsed().as_nanos() as f64 / PER_BATCH as f64;
+        if ns < best {
+            best = ns;
+        }
+    }
+    best
+}
+
 /// Complete phase apportionment of the fanout census world — every mark the
 /// fire path emits, calibrated and ranked. The theater hunt kept asking "what
 /// is left?" from a list; this answers it from the instrument.
@@ -9869,7 +9834,6 @@ fn fanout_phase_dump() {
     use std::time::Instant;
 
     const RUNS: usize = 3;
-    const CAL_N: u64 = 200_000;
     const KEYS: i64 = 100;
     const FANOUT: i64 = 20;
     const TOP: [&str; 4] = [
@@ -9879,14 +9843,7 @@ fn fanout_phase_dump() {
         "OUT: to_persistent",
     ];
 
-    let cal_t0 = Instant::now();
-    super::with_phase_census(|| {
-        for _ in 0..CAL_N {
-            let m = super::phase_start();
-            super::phase_end("cal", m);
-        }
-    });
-    let cal = cal_t0.elapsed().as_nanos() as f64 / CAL_N as f64;
+    let cal = calibrate_mark_ns();
 
     let world = startup_from_source(FANOUT_CENSUS_WORLD, None, Arc::new(InMemoryLoader::new()))
         .expect("fanout world should freeze");
@@ -9929,6 +9886,7 @@ fn fanout_phase_dump() {
     // Measured directly by deleting the two marks and re-running: production
     // 18.992 -> 11.524 ms, wall 24.491 -> 16.690. Subtract the children's tax
     // from the parent, or the biggest number in the table is the instrument.
+    #[allow(unused_variables)]
     let child_tax: f64 = ["  ├ prod:compiled-rhs", "  ├ prod:dedup-store"]
         .iter()
         .map(|n| acc.get(*n).map(|e| e.1).unwrap_or(0) as f64 * cal)
@@ -9965,17 +9923,28 @@ fn fanout_phase_dump() {
          sub-phase sum (parents+children, DOUBLE COUNTS) {:>8.3} ms\n\
          \n\
          ⚠ READ THE PARENTS WITH CARE. `production` brackets two marks that fire\n\
-         ONCE PER DERIVATION (40k pairs each here), and per-row calibration only\n\
-         removes a row's OWN pairs. Deleting those two marks and re-running gave\n\
-         production 18.992 -> 11.524 ms and wall 24.491 -> 16.690: ~7.5 ms of the\n\
-         parent is instrument. The tight-loop `cal` estimates that tax at\n\
-         {:>6.3} ms, i.e. it OVERSTATES — do not subtract it and call the result\n\
-         truth. Deltas measured before/after one change are sound; absolute\n\
-         parent times from this table are not.\n",
+         ONCE PER DERIVATION (40k pairs here), and per-row calibration only\n\
+         removes a row's OWN pairs, so the parent still carries its children's\n\
+         tax. Deleting those two marks and re-running gave production\n\
+         18.992 -> 11.524 ms and wall 24.491 -> 16.690 — about 7.5 ms of the\n\
+         parent is instrument, i.e. ~94 ns per pair IN SITU.\n\
+         \n\
+         `cal` is now the MINIMUM of five 200k batches and reads ~66 ns, stable\n\
+         to under a nanosecond. It used to be one batch and read anywhere from\n\
+         105 to 155 ns, which at 40k pairs swung a child row by ±2 ms — this\n\
+         very row was recorded at both 2.541 and 4.826 ms for identical code.\n\
+         Every net figure in this arc taken with the old calibration is\n\
+         therefore UNDER-reported.\n\
+         \n\
+         The min-of-5 tight loop (~66 ns) still sits below the in-situ cost\n\
+         (~94 ns), so a 40k-pair net row remains over-reported by roughly\n\
+         {:>5.2} ms. That is now a STABLE bias of known sign and size rather\n\
+         than run-to-run noise. Before/after deltas from one session are sound;\n\
+         absolute parent times from this table are still not.\n",
         ms(wall / r),
         ms(top_sum / r),
         ms(named),
-        ms(child_tax),
+        (94.0 - cal) * 40_000.0 / 1e6,
     );
 
     assert!(wall > 0.0, "harness recorded no time");

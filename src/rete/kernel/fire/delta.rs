@@ -531,6 +531,10 @@ pub(crate) fn fire_fixpoint_delta_armed(
             &mut support,
             sym,
         )?;
+        // NARROWED 2026-08-24: this mark used to close AFTER the A8 census
+        // below, so `production` reported the pass PLUS an 85-line test-only
+        // node walk. It now brackets the pass and nothing else.
+        phase_end("production", __pt5);
 
         // ── A8 instrument: census this round BEFORE the terminate check. ─────────
         #[cfg(test)]
@@ -549,8 +553,6 @@ pub(crate) fn fire_fixpoint_delta_armed(
         {
             round_no += 1;
         }
-
-        phase_end("production", __pt5);
 
         // ── 5. Terminate or loop. ─────────────────────────────────────────────────
         let __ep = phase_start();

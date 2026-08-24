@@ -5,13 +5,18 @@
 //! the middle of the round body; nothing in a release build ever ran them, and
 //! every reader of the fire loop had to step over them.
 //!
-//! ⚠ IT IS STILL INSIDE THE `production` PHASE MARK. `__pt5` opens at the
-//! production section and closes AFTER this census, so `production`'s reported
-//! time includes this whole node walk. That is a third contributor to the
-//! inflated `production` reading, on top of the ~7.5 ms of 40k-pair child marks
-//! already measured (`NEXT-STRIKES-theater-hunt.md`). Moving the mark is a
-//! change to the census tree and is deliberately OUT OF SCOPE for a move
-//! commit — recorded here so it is not rediscovered.
+//! The `production` mark used to close AFTER this census; it was narrowed on
+//! 2026-08-24 so it brackets the pass and nothing else.
+//!
+//! ⚠ AND THE REASON GIVEN FOR NARROWING IT WAS WRONG. This module previously
+//! claimed the census was "a third contributor to the inflated production
+//! reading". It is not, and measuring the narrowing proved it: production read
+//! 18.315 ms before and 18.662 after — no change. The body below early-returns
+//! unless `FIRE_CENSUS` is armed (`None => return`), and the phase harnesses arm
+//! only `PHASE_NANOS`, so in every measurement in this arc it cost one TLS
+//! access. Narrowing the mark was still right — a mark should name what it
+//! measures — but it bought no accuracy, and the claim that it would is
+//! corrected here rather than left standing.
 
 use super::super::*;
 

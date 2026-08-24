@@ -5,6 +5,21 @@
 > `wat/rete.wat`. If a stone below disagrees with a dated ruling here,
 > **this file wins** and the stone is stale.
 
+**⚠ INSTRUMENT CORRECTION 2026-08-24 — read before citing any census number.**
+The phase-census calibration constant was measured as ONE 200k batch and read
+anywhere from **105 to 155 ns** per mark pair. At 40 000 pairs that is a **±2 ms
+swing**: `prod:compiled-rhs` was recorded at both 2.541 and 4.826 ms for
+identical code. It is now the **minimum of five batches, ~66 ns, stable to under
+a nanosecond** (`calibrate_mark_ns`, used by all nine census harnesses).
+**Every `net` figure taken before this — including "production 19.6 / 66% is the
+named leftover" below — is UNDER-reported**, because the old constant
+over-subtracted. `prod:compiled-rhs` on the fanout cell is ~5.9 ms, not the
+~2-3 ms previously recorded. Before/after deltas within one session remain
+sound; absolutes do not. The `production` mark was also narrowed on 2026-08-24
+to bracket its pass rather than the A8 census — correct scoping, but it changed
+no number, because that census early-returns unless `FIRE_CENSUS` is armed and
+no harness arms it alongside `PHASE_NANOS`.
+
 **CURRENT STAMP 2026-08-23 (supersedes every number below it).** HEAD
 **`a58f9dda`** — the `ca9d9cc3` stamp further down is **STALE by 21 commits**;
 where it disagrees with this block, this block wins. Floor **GREEN**
