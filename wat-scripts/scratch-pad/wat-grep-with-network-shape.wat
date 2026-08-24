@@ -25,18 +25,26 @@
 ;; ── THE SHAPE UNDER EVALUATION ────────────────────────────────────────────────
 ;; with-network — hand an ARMED session to body-fn, release the lease after.
 ;; Promote to `:wat::rete::with-network` once the ergonomics read right at the call site.
+;; ⚠ CORRECTED — the first draft called `arm-session` on the session `compile-all` returns.
+;; `compile-all` ALREADY ARMS (wat/rete/compile.wat:1149, DESIGN-STONE-arm-at-compile), and
+;; `arm-session`'s HIT path INCREMENTS the lease (arm.rs:709). So that draft took lease 2 and
+;; released back to 1 — leaking the lease compile-all took, which is the exact thing this
+;; wrapper exists to drop. `with-open-file` had the right shape all along: it OPENS the
+;; resource itself. So this ACQUIRES by compiling and RELEASES at scope end; the caller never
+;; holds an unreleased lease, and never has to know one exists.
 (:wat::core::defn :user::with-network :- [T]
-  [base    <- :wat::rete::Session
+  [rules   <- (:wat::core::PersistentVector :- [:wat::rete::Rule])
+   queries <- (:wat::core::PersistentVector :- [:wat::rete::Query])
    body-fn <- [:wat::rete::Session :-> T]]
   -> T
-  (:wat::core::let [armed  (:wat::rete::arm-session base)
-                    result (body-fn armed)]
+  (:wat::core::let [base   (:wat::rete::compile-all rules queries)
+                    result (body-fn base)]
     (:wat::core::do
-      (:wat::rete::release-session armed)
+      (:wat::rete::release-session base)
       result)))
 
 ;; ── the network the user's query program would supply ─────────────────────────
-(:wat::core::defn :user::build-base [] -> :wat::rete::Session
+(:wat::core::defn :user::the-rules [] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
   (:wat::core::let
     [c1   (:wat::core::quote (:g::Temp (?loc <- :location)))
      c2   (:wat::core::quote (:g::Wind (?loc <- :location)))
@@ -44,8 +52,14 @@
      rule (:wat::rete::Rule :name "temp-and-wind"
             :lhs (:wat::core::PersistentVector c1 c2)
             :rhs (:wat::core::PersistentVector rhs))]
-    (:wat::rete::compile-all (:wat::core::PersistentVector rule)
-                             (:wat::core::PersistentVector (:g::q-match)))))
+    (:wat::core::PersistentVector :- [:wat::rete::Rule] rule)))
+
+(:wat::core::defn :user::the-queries [] -> (:wat::core::PersistentVector :- [:wat::rete::Query])
+  (:wat::core::PersistentVector :- [:wat::rete::Query] (:g::q-match)))
+
+;; kept for the base-untouched proof below
+(:wat::core::defn :user::build-base [] -> :wat::rete::Session
+  (:wat::rete::compile-all (:user::the-rules) (:user::the-queries)))
 
 ;; ── ONE FILE: overlay its facts on the base, fire, report the user's query ────
 ;; `base` is the caller's; this returns a COUNT, never the session — so nothing leaks forward.
@@ -75,9 +89,9 @@
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
-    [base  (:user::build-base)
-     files (:wat::core::Vector :- [:wat::core::String] "fileA" "fileB" "fileC")
-     total (:user::with-network base
+    [files (:wat::core::Vector :- [:wat::core::String] "fileA" "fileB" "fileC")
+     base  (:user::build-base)
+     total (:user::with-network (:user::the-rules) (:user::the-queries)
              (:wat::core::fn [r <- :wat::rete::Session] -> :wat::core::i64
                (:user::grep-files r files)))
      _ (:wat::kernel::println total)
@@ -108,14 +122,13 @@
    body-fn <- [:user::Overlay :-> T]]
   -> T
   (:wat::core::let
-    [armed  (:wat::rete::arm-session base)
-     ;; the ONLY handle the body gets: facts in, a FIRED session out, always re-seeded
-     overlay (:wat::core::fn [facts <- (:wat::core::PersistentVector :- [:wat::core::Record])]
+    ;; the ONLY handle the body gets: facts in, a FIRED session out, always re-seeded from base
+    [overlay (:wat::core::fn [facts <- (:wat::core::PersistentVector :- [:wat::core::Record])]
                -> :wat::rete::Session
-               (:wat::rete::fire-rules (:wat::rete::insert-all armed facts)))
-     result (body-fn overlay)]
+               (:wat::rete::fire-rules (:wat::rete::insert-all base facts)))
+     result  (body-fn overlay)]
     (:wat::core::do
-      (:wat::rete::release-session armed)
+      (:wat::rete::release-session base)
       result)))
 
 (:wat::core::defn :user::main-variant-b [] -> :wat::core::i64
