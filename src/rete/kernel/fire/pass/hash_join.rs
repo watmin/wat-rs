@@ -5,20 +5,23 @@
 //! § sequencing). Settled method — the `arm` aliases are re-declared here as
 //! the fire prologue declares them, so the body needs no re-spelling.
 //!
-//! ⚠ THE TAKE/RESTORE INVARIANT, read line by line and NOT reflowed.
-//! `DESIGN-STONE-catchup-take-left` has this pass remove the parent's beta from
-//! the map, walk it, and put it back — because a HashMap split-borrow needs the
-//! parent out while `entry(child)` mutates, and copying the bag would be the
-//! memcpy that stone removed. The consequence is an invariant held by HAND:
+//! ⚠ THE TAKE/RESTORE INVARIANT IS GONE — the situation was removed, not
+//! guarded. `DESIGN-STONE-catchup-take-left` had this pass `wm.beta.remove` the
+//! parent, walk it, and re-insert it at two sites — one of them an error path
+//! nested twelve levels in — because a HashMap split-borrow was believed to
+//! need the parent OUT while the catch-up ran. Taking was a real improvement
+//! over the `.cloned()` it replaced.
 //!
-//!   * one take:    `let (all_left, restore_parent) = match wm.beta.remove(..)`
-//!   * two restores: the normal path, and an error path nested twelve levels in
+//! It is no longer needed. Every mutable touch of the session inside that
+//! window is `wm.bind_pool` or `wm.match_pool`, and those are DISJOINT FIELDS
+//! from `wm.beta`: a shared borrow of the parent coexists with them, so the
+//! parent can simply be READ. The emit that the take was protecting now happens
+//! after the window in any case. The workaround outlived its cause.
 //!
-//! Audited at extraction: exactly ONE early exit inside that window
-//! (`return Err(e)`), and it restores first. The invariant holds. It holds by
-//! convention, though, not by shape — any future `?` added inside the take
-//! window silently drops a beta memory, and no test asserts it. Turning that
-//! into a guard is a named follow-up strike, not part of a move.
+//! So there is no invariant to hold: no take, no `restore_parent`, no two
+//! restore sites, and no way for a future `?` in this window to drop a beta
+//! memory — because nothing is removed from the map to begin with.
+//! (`DESIGN-STONE-catchup-borrow-not-take`.)
 //!
 //! `dirty_parents` is pass-local: seeded, tested and inserted into entirely
 //! within this body.
@@ -151,10 +154,16 @@ for node_id in &kind_ids.join_parent {
             // (`DESIGN-STONE-catchup-take-left`).
             let all_right = wm.alpha.get(&alpha_id).cloned();
             let n_right = all_right.as_ref().map(|v| v.len()).unwrap_or(0);
-            let (all_left, restore_parent) = match wm.beta.remove(node_id) {
-                Some(v) => (v, true),
-                None => (Vec::new(), false),
-            };
+            // BORROWED, not taken. The removal this replaces existed to dodge a
+            // borrow conflict that the compiler does not actually have: every
+            // mutable touch inside this window is `wm.bind_pool` or
+            // `wm.match_pool`, and those are DISJOINT FIELDS from `wm.beta`, so
+            // a shared borrow of the parent coexists with them.
+            let all_left: &[Token] = wm
+                .beta
+                .get(node_id)
+                .map(|v| v.as_slice())
+                .unwrap_or(&[]);
             // READ #2 of 2: the parent's cumulative tokens, for the catch-up cross-join.
             beta_read(*node_id, all_left.len() as u64);
             // Key from packed occupancy (empty binds), then write BindSpan
@@ -194,7 +203,7 @@ for node_id in &kind_ids.join_parent {
             let __cpr = phase_start();
             let mut new_tokens: Vec<Token> = Vec::with_capacity(n_join);
             if let Some(ridx) = right_idx.get(child_id) {
-                for tok in &all_left {
+                for tok in all_left {
                     let k = key_of(
                         &bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds),
                         jk,
@@ -224,12 +233,7 @@ for node_id in &kind_ids.join_parent {
                             ) {
                                 Ok(Some(new_tok)) => new_tokens.push(new_tok),
                                 Ok(None) => {}
-                                Err(e) => {
-                                    if restore_parent {
-                                        wm.beta.insert(*node_id, all_left);
-                                    }
-                                    return Err(e);
-                                }
+                                Err(e) => return Err(e),
                             }
                         }
                     }
@@ -240,7 +244,7 @@ for node_id in &kind_ids.join_parent {
             let __cli = phase_start();
             {
                 let lidx = left_idx.entry(*child_id).or_default();
-                for &tok in &all_left {
+                for &tok in all_left {
                     let k = key_of(
                         &bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds),
                         jk,
@@ -250,9 +254,6 @@ for node_id in &kind_ids.join_parent {
                 }
             }
             phase_end("  ├ hj:catchup:left-idx", __cli);
-            if restore_parent {
-                wm.beta.insert(*node_id, all_left);
-            }
             // Emit catch-up tokens into cumulative and delta memories.
             let __cem = phase_start();
             // `entry()` HOISTED out of the per-token loop: the key is constant, so the
