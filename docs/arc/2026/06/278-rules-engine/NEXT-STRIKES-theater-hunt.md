@@ -702,3 +702,35 @@ by the authors themselves. The file is one module wearing nine hats.
 different kind of work from the intern chain: it is a refactor whose gate is the
 differential and the floor, not a leftover `Instant`, and it is the builder's
 call whether arc 278 takes it.
+
+
+---
+
+## READ THE GRID AGAINST A RANGE, NOT AGAINST THE LAST RUN (2026-08-24)
+
+Five times this session a grid comparison showed a coherent move — every rung of
+an axis in the same direction, the pattern that normally means signal — and five
+times it failed to reproduce at `GRID_RUNS=5`:
+
+| axis | apparent | re-measured | verdict |
+|---|---|---|---|
+| asym-join (T14) | +23/+2/+26% | 2.941 vs 2.92 pre | noise |
+| strat-neg (T14) | +9.9/+1.6/+1.5% | 11.429 vs 11.77 post-T1 | noise |
+| accum (T16) | +5.2/+14.5/+2.4% | 2.64 / 6.47 / 13.37, all mid-range | noise |
+| fanout (T17, mid-partire) | +4.3% at 40k | 23.09, lowest ever | noise |
+| fanout (T18→T19) | +3.2/+6.7/+3.0% | 23.64, dead centre | noise |
+
+The last one is the clearest lesson. `fanout [40000]` across seven samples since
+the harvest cut: **23.18 · 23.43 · 23.31 · 24.31 · 22.80 · 23.50 · 23.64** —
+mean ≈ 23.45, range ±0.75. The partire-end run happened to read **22.80**, the
+lowest of the seven. Comparing the next run to *that* produced a +3.0%
+"regression" out of nothing.
+
+**The rule, from now on:** a grid cell is a DISTRIBUTION, not a value. Compare a
+new reading to the cell's recorded RANGE, not to whichever run happened to be
+last. A move counts only if it lands outside the range, or if a same-session
+before/after on a leftover `Instant` harness shows it. Both directions — a
+flattering number picked from the low end of the range is the same error wearing
+a nicer face, and this file has one of those in its own history.
+
+`fanout [40000]` sits at **23.45 ± 0.75 ms**. Quote that, not a single run.
