@@ -3056,7 +3056,7 @@ fn infer_list(
                             local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                                 callee: ":wat::core::List/conj".into(),
                                 param: "#1".into(),
-                                expected: "List<T>".into(),
+                                expected: "(List :- [T])".into(),
                                 got: format_type(&apply_subst(lt, subst))
                             } });
                         }
@@ -3310,7 +3310,7 @@ fn infer_list(
                         local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                             callee: ":wat::stream::lazy".into(),
                             param: "<body>".into(),
-                            expected: "wat::stream::Stream<T>".into(),
+                            expected: "(wat::stream::Stream :- [T])".into(),
                             got: format_type(&apply_subst(&bt, subst))
                         } });
                     }
@@ -3676,7 +3676,7 @@ fn infer_list(
                         local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                             callee: k.clone(),
                             param: "#1".into(),
-                            expected: "atomizable type (primitive | HolonAST | WatAST | HashSet<T> | Vector<T> | HashMap<K,V> for atomizable T)".into(),
+                            expected: "atomizable type (primitive | HolonAST | WatAST | (HashSet :- [T]) | (Vector :- [T]) | (HashMap :- [K V]) for atomizable T)".into(),
                             got: format_type(&resolved)
                         } });
                     }
@@ -4561,7 +4561,7 @@ fn infer_list(
                             local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                                 callee: ":wat::core::rest".into(),
                                 param: "#1".into(),
-                                expected: "Vector<T>, List<T>, PersistentVector<T>, or WatAST — a lazy Stream<T> has no rest; advance it with :wat::stream::next (NextOutcome<T> = Item(value, rest) | Exhausted)".into(),
+                                expected: "(Vector :- [T]), (List :- [T]), (PersistentVector :- [T]), or WatAST — a lazy (Stream :- [T]) has no rest; advance it with :wat::stream::next ((NextOutcome :- [T]) = Item(value, rest) | Exhausted)".into(),
                                 got: format_type(&apply_subst(ty, subst))
                             } });
                             let t = fresh.fresh();
@@ -4572,7 +4572,7 @@ fn infer_list(
                             local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                                 callee: ":wat::core::rest".into(),
                                 param: "#1".into(),
-                                expected: "Vec<T>, List<T>, PersistentVector<T>, or WatAST".into(),
+                                expected: "(Vector :- [T]), (List :- [T]), (PersistentVector :- [T]), or WatAST".into(),
                                 got: format_type(&apply_subst(ty, subst))
                             } });
                             let t = fresh.fresh();
@@ -4588,7 +4588,7 @@ fn infer_list(
                                 local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                                     callee: ":wat::core::rest".into(),
                                     param: "#1".into(),
-                                    expected: "Vec<T>, List<T>, PersistentVector<T>, or WatAST".into(),
+                                    expected: "(Vector :- [T]), (List :- [T]), (PersistentVector :- [T]), or WatAST".into(),
                                     got: format_type(&apply_subst(ty, subst))
                                 } });
                                 let t = fresh.fresh();
@@ -4634,7 +4634,7 @@ fn infer_list(
                         local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                             callee: ":wat::core::empty?".into(),
                             param: "#1".into(),
-                            expected: "Vector<T>, List<T>, PersistentVector<T>, HashSet<T>, Tuple, or WatAST — a lazy Stream<T> has no empty?; advance it with :wat::stream::next, whose NextOutcome<T>::Exhausted answers exactly what empty? was asked".into(),
+                            expected: "(Vector :- [T]), (List :- [T]), (PersistentVector :- [T]), (HashSet :- [T]), Tuple, or WatAST — a lazy (Stream :- [T]) has no empty?; advance it with :wat::stream::next, whose (NextOutcome :- [T])::Exhausted answers exactly what empty? was asked".into(),
                             got: format_type(&apply_subst(ty, subst))
                         } });
                     }
@@ -6193,8 +6193,8 @@ fn infer_match(
         local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
             head: ":wat::core::match".into(),
             reason: match &shape {
-                MatchShape::Option(_) => "non-exhaustive: :Option<T> needs arms for both :None and (Some _), or a wildcard. (Arc 055 — narrowing patterns like `(Some (1 _))` are partial; add a fallback `_` arm.)".into(),
-                MatchShape::Result(_, _) => "non-exhaustive: :Result<T,E> needs arms for both (Ok _) and (Err _), or a wildcard. (Arc 055 — narrowing patterns like `(Ok 200)` are partial; add a fallback `_` arm.)".into(),
+                MatchShape::Option(_) => "non-exhaustive: (:wat::core::Option :- [T]) needs arms for both :None and (Some _), or a wildcard. (Arc 055 — narrowing patterns like `(Some (1 _))` are partial; add a fallback `_` arm.)".into(),
+                MatchShape::Result(_, _) => "non-exhaustive: (:wat::core::Result :- [T E]) needs arms for both (Ok _) and (Err _), or a wildcard. (Arc 055 — narrowing patterns like `(Ok 200)` are partial; add a fallback `_` arm.)".into(),
                 MatchShape::Enum(enum_path, _) => {
                     if let Some(crate::types::TypeDef::Enum(e)) = env.types().get(enum_path) {
                         let missing: Vec<String> = e.variants.iter().filter_map(|v| {
@@ -8760,7 +8760,7 @@ fn infer_try(
             local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
                 head: callee.into(),
                 reason: format!(
-                    "enclosing function returns {}; `{}` requires the enclosing function to return :Result<T,E>",
+                    "enclosing function returns {}; `{}` requires the enclosing function to return (:wat::core::Result :- [T E])",
                     format_type(&enclosing),
                     callee
                 ),
@@ -8868,7 +8868,7 @@ fn infer_option_try(
             local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
                 head: callee.into(),
                 reason: format!(
-                    "enclosing function returns {}; `{}` requires the enclosing function to return :Option<T>",
+                    "enclosing function returns {}; `{}` requires the enclosing function to return (:wat::core::Option :- [T])",
                     format_type(&enclosing),
                     callee
                 ),
@@ -9360,7 +9360,7 @@ fn infer_positional_accessor(
                 local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: op.into(),
                     param: "#1".into(),
-                    expected: "Tuple, Vector<T>, List<T>, PersistentVector<T>, or WatAST — a lazy Stream<T> has no first/second/third; advance it with :wat::stream::next (NextOutcome<T> = Item(value, rest) | Exhausted)".into(),
+                    expected: "Tuple, (Vector :- [T]), (List :- [T]), (PersistentVector :- [T]), or WatAST — a lazy (Stream :- [T]) has no first/second/third; advance it with :wat::stream::next ((NextOutcome :- [T]) = Item(value, rest) | Exhausted)".into(),
                     got: format_type(&apply_subst(&ty, subst))
                 } });
             }
@@ -9369,7 +9369,7 @@ fn infer_positional_accessor(
                 local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: op.into(),
                     param: "#1".into(),
-                    expected: "tuple, Vec<T>, List<T>, PersistentVector<T>, or WatAST".into(),
+                    expected: "tuple, (Vector :- [T]), (List :- [T]), (PersistentVector :- [T]), or WatAST".into(),
                     got: format_type(&apply_subst(&ty, subst))
                 } });
             }
@@ -9378,7 +9378,7 @@ fn infer_positional_accessor(
                 local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: op.into(),
                     param: "#1".into(),
-                    expected: "tuple, Vec<T>, List<T>, PersistentVector<T>, or WatAST".into(),
+                    expected: "tuple, (Vector :- [T]), (List :- [T]), (PersistentVector :- [T]), or WatAST".into(),
                     got: format_type(&apply_subst(&ty, subst))
                 } });
             }
@@ -9478,7 +9478,7 @@ fn infer_nth(
                 local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: OP.into(),
                     param: "#1".into(),
-                    expected: "Vector<T>, List<T>, PersistentVector<T>, or WatAST — a lazy Stream<T> has no O(1) nth; use (drop s i) then :wat::stream::next".into(),
+                    expected: "(Vector :- [T]), (List :- [T]), (PersistentVector :- [T]), or WatAST — a lazy (Stream :- [T]) has no O(1) nth; use (drop s i) then :wat::stream::next".into(),
                     got: format_type(&apply_subst(&ty, subst))
                 } });
             }
@@ -9488,7 +9488,7 @@ fn infer_nth(
                 local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: OP.into(),
                     param: "#1".into(),
-                    expected: "Vector<T>, List<T>, PersistentVector<T>, or WatAST".into(),
+                    expected: "(Vector :- [T]), (List :- [T]), (PersistentVector :- [T]), or WatAST".into(),
                     got: format_type(&apply_subst(&ty, subst))
                 } });
             }
@@ -9497,7 +9497,7 @@ fn infer_nth(
                 local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: OP.into(),
                     param: "#1".into(),
-                    expected: "Vector<T>, List<T>, PersistentVector<T>, or WatAST".into(),
+                    expected: "(Vector :- [T]), (List :- [T]), (PersistentVector :- [T]), or WatAST".into(),
                     got: format_type(&apply_subst(&ty, subst))
                 } });
             }
@@ -9957,7 +9957,7 @@ fn infer_connect_prime(
             local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: OP.into(),
                 param: "addr".into(),
-                expected: "Address<S,R>".into(),
+                expected: "(Address :- [S R])".into(),
                 got: format_type(&addr_reduced),
             } });
             let s2 = fresh.fresh();
@@ -10022,7 +10022,7 @@ fn infer_accept_prime(
             local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: OP.into(),
                 param: "listener".into(),
-                expected: "Listener<S,R>".into(),
+                expected: "(Listener :- [S R])".into(),
                 got: format_type(&other),
             } });
             let s = fresh.fresh();
@@ -10071,7 +10071,7 @@ fn infer_allow_prime(
             local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: OP.into(),
                 param: "listener".into(),
-                expected: "Listener<S,R>".into(),
+                expected: "(Listener :- [S R])".into(),
                 got: format_type(&other),
             } });
         }
@@ -10134,7 +10134,7 @@ fn infer_deny_prime(
             local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
                 callee: OP.into(),
                 param: "listener".into(),
-                expected: "Listener<S,R>".into(),
+                expected: "(Listener :- [S R])".into(),
                 got: format_type(&other),
             } });
         }
@@ -10599,7 +10599,7 @@ fn project_peer_io(
                 kind: CheckErrorKind::TypeMismatch {
                     callee: op.into(),
                     param: "peer".into(),
-                    expected: "peer (Thread<I,O> | Process<I,O> | Peer<S,R> | ThreadSelfPeer<S,R>)".into(),
+                    expected: "peer ((Thread :- [I O]) | (Process :- [I O]) | (Peer :- [S R]) | (ThreadSelfPeer :- [S R]))".into(),
                     got: format_type(&other),
                 },
             });
@@ -11041,7 +11041,7 @@ fn infer_close_prime(
                 kind: CheckErrorKind::TypeMismatch {
                     callee: OP.into(),
                     param: "peer".into(),
-                    expected: "peer (Thread<I,O> | Process<I,O>)".into(),
+                    expected: "peer ((Thread :- [I O]) | (Process :- [I O]))".into(),
                     got: format_type(other),
                 },
             });
@@ -11110,7 +11110,7 @@ fn infer_signal(
                 kind: CheckErrorKind::TypeMismatch {
                     callee: OP.into(),
                     param: "proc".into(),
-                    expected: "Process<I,O>".into(),
+                    expected: "(Process :- [I O])".into(),
                     got: format_type(other),
                 },
             });
@@ -11322,7 +11322,7 @@ fn infer_address_wire(
                 kind: CheckErrorKind::TypeMismatch {
                     callee: OP.into(),
                     param: "addr".into(),
-                    expected: "Address<S,R>".into(),
+                    expected: "(Address :- [S R])".into(),
                     got: format_type(&addr_reduced),
                 },
             });
@@ -11384,7 +11384,7 @@ fn infer_require_wire_address(
                     kind: CheckErrorKind::TypeMismatch {
                         callee: OP.into(),
                         param: "addr".into(),
-                        expected: "Address<S,R,Wire>".into(),
+                        expected: "(Address :- [S R Wire])".into(),
                         got: format_type(&got_reduced),
                     },
                 });
@@ -11573,7 +11573,7 @@ fn infer_select_prime(
                 kind: CheckErrorKind::TypeMismatch {
                     callee: OP.into(),
                     param: "peers".into(),
-                    expected: "Vector of Thread<I,O> | Process<I,O> | Peer<I,O> peers".into(),
+                    expected: "Vector of (Thread :- [I O]) | (Process :- [I O]) | (Peer :- [I O]) peers".into(),
                     got: format_type(other),
                 },
             });
@@ -11607,7 +11607,7 @@ fn infer_select_prime(
                 kind: CheckErrorKind::TypeMismatch {
                     callee: OP.into(),
                     param: "peers".into(),
-                    expected: "Vector of Thread<I,O> | Process<I,O> | Peer<I,O> peers".into(),
+                    expected: "Vector of (Thread :- [I O]) | (Process :- [I O]) | (Peer :- [I O]) peers".into(),
                     got: format_type(other),
                 },
             });
@@ -11720,7 +11720,7 @@ fn infer_poll_prime(
                 kind: CheckErrorKind::TypeMismatch {
                     callee: OP.into(),
                     param: "peers".into(),
-                    expected: "Vector<Peer<I,O>> (connected client peers)".into(),
+                    expected: "(Vector :- [(Peer :- [I O])]) (connected client peers)".into(),
                     got: format_type(other),
                 },
             });
@@ -11747,7 +11747,7 @@ fn infer_poll_prime(
                 kind: CheckErrorKind::TypeMismatch {
                     callee: OP.into(),
                     param: "peers element".into(),
-                    expected: "Peer<I,O>".into(),
+                    expected: "(Peer :- [I O])".into(),
                     got: format_type(other),
                 },
             });
@@ -12727,7 +12727,7 @@ fn infer_ordering(
                 local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::TypeMismatch {
                     callee: op.into(),
                     param: "#1".into(),
-                    expected: "an orderable type (i64, u8, f64, String, bool, keyword, Instant, Duration, Vector<T>, Tuple<T…>, Option<T>, Result<T,E>)".into(),
+                    expected: "an orderable type (i64, u8, f64, String, bool, keyword, Instant, Duration, (Vector :- [T]), Tuple, (Option :- [T]), (Result :- [T E]))".into(),
                     got: format_type(&unified)
                 } });
             }
@@ -14041,7 +14041,7 @@ fn infer_holon_bundle(
                     local_errors.push(CheckError { span: other.span().clone(), kind: CheckErrorKind::TypeMismatch {
                         callee: ":wat::holon::Bundle".into(),
                         param: "#1".into(),
-                        expected: "wat::core::Vector<:wat::holon::HolonAST> or wat::core::Vector<:wat::core::Record>".into(),
+                        expected: "(wat::core::Vector :- [:wat::holon::HolonAST]) or (wat::core::Vector :- [:wat::core::Record])".into(),
                         got: format_type(&resolved)
                     } });
                 }
@@ -16265,13 +16265,14 @@ pub fn format_type(t: &TypeExpr) -> String {
             crate::types::render_binder_ref(&head_kw, &inner)
         }
         TypeExpr::Fn { args, ret } => {
-            // Arc 163 follow-up — emit canonical FQDN. Pre-fix
-            // rendered as `:fn(...)` (legacy pre-arc-155). The
-            // BareLegacyLowercaseFn walker rejects bare `:fn(`
-            // input, so the renderer must emit `:wat::core::Fn(...)`
-            // for round-trip consistency between diagnostics and parser.
-            let in_parts: Vec<_> = args.iter().map(format_type_inner).collect();
-            format!(":wat::core::Fn({})->{}", in_parts.join(","), format_type_inner(ret))
+            // STONE-close-the-last-two-channels (arc 109) — `:wat::core::Fn(A,B)->C` is
+            // retired as DISPLAY text the same way `Head<A,B>` was: it is user-facing (a
+            // type-mismatch's `expected`/`got`) and for 2+ args the comma-in-keyword-body
+            // spelling cannot be read back at all (refused since the comma strike). Emit the
+            // bracket surface (`parse_fn_type_bracket`, arc 251.4c) instead, through the one
+            // shared renderer — `render_fn_type_ref` is this arm's `render_binder_ref`.
+            let in_parts: Vec<_> = args.iter().map(format_type).collect();
+            crate::types::render_fn_type_ref(&in_parts, &format_type(ret))
         }
         TypeExpr::Tuple(elements) => {
             let inner: Vec<_> = elements.iter().map(format_type_inner).collect();
@@ -16299,11 +16300,11 @@ fn format_type_inner(t: &TypeExpr) -> String {
             crate::types::render_binder_ref(head, &inner)
         }
         TypeExpr::Fn { args, ret } => {
-            // Arc 163 follow-up — inner-position emits `wat::core::Fn(...)`
-            // (no leading colon; inner is colon-stripped per the
-            // canonical-form invariant).
+            // STONE-close-the-last-two-channels — same retirement as `format_type`'s arm
+            // above, inner-position (colon-stripped element convention preserved for the
+            // args/ret this bracket's own elements recurse through).
             let in_parts: Vec<_> = args.iter().map(format_type_inner).collect();
-            format!("wat::core::Fn({})->{}", in_parts.join(","), format_type_inner(ret))
+            crate::types::render_fn_type_ref(&in_parts, &format_type_inner(ret))
         }
         TypeExpr::Tuple(elements) => {
             let inner: Vec<_> = elements.iter().map(format_type_inner).collect();

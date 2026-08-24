@@ -178,14 +178,14 @@ fn eval_opt_string(op: &str, tv: TrackedValue) -> Result<Option<String>, Runtime
             // arc 138: no span — eval_opt_string receives Value, no WatAST trace available
             Some(other) => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
-                expected: "Option<String>",
+                expected: "(Option :- [String])",
                 got: Box::new(crate::runtime::ValueSnapshot::of(other))
             })),
         },
         // arc 138: no span — eval_opt_string receives Value, no WatAST trace available
         other => Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
             op: op.into(),
-            expected: "Option<String>",
+            expected: "(Option :- [String])",
             got: Box::new(crate::runtime::ValueSnapshot::of(&other))
         })),
     }

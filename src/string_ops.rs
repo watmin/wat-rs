@@ -485,7 +485,7 @@ pub fn eval_string_join(
         other => {
             return Err(RuntimeError::new(args[1].span().clone(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: "Vec<T>",
+                expected: "(Vector :- [T])",
                 got: Box::new(crate::runtime::ValueSnapshot::of(&other))
             }));
         }

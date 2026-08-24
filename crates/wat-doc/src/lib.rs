@@ -445,7 +445,7 @@ pub fn parse(raw: &str) -> Result<DocComment, DocError> {
                 if !type_token_is_expressible(ty_token) {
                     return Err(DocError::MalformedDirective {
                         tag: "@arg".into(),
-                        why: "type token is not a spelling wat's reader accepts (e.g. `Option<T>` and the retired `fn(…)->…` form are inexpressible; use `:- [...]`)",
+                        why: "type token is not a spelling wat's reader accepts (e.g. `Option<T>` and the retired `fn(…)->…` form are inexpressible; use `:- [...]`)", // rune:lint(no-angle-type-in-diagnostic) — class C: quotes the retired spelling to name what is refused, exactly like the reader's own refusal messages
                     });
                 }
                 let ty = ty_token.to_string();
@@ -497,7 +497,7 @@ pub fn parse(raw: &str) -> Result<DocComment, DocError> {
                 if !type_token_is_expressible(ty_token) {
                     return Err(DocError::MalformedDirective {
                         tag: "@ret".into(),
-                        why: "type token is not a spelling wat's reader accepts (e.g. `Option<T>` and the retired `fn(…)->…` form are inexpressible; use `:- [...]`)",
+                        why: "type token is not a spelling wat's reader accepts (e.g. `Option<T>` and the retired `fn(…)->…` form are inexpressible; use `:- [...]`)", // rune:lint(no-angle-type-in-diagnostic) — class C: quotes the retired spelling to name what is refused, exactly like the reader's own refusal messages
                     });
                 }
                 let ty = ty_token.to_string();
@@ -630,7 +630,7 @@ pub fn parse(raw: &str) -> Result<DocComment, DocError> {
                 if !type_token_is_expressible(ty_token) {
                     return Err(DocError::MalformedDirective {
                         tag: "@yields".into(),
-                        why: "type token is not a spelling wat's reader accepts (e.g. `Option<T>` and the retired `fn(…)->…` form are inexpressible; use `:- [...]`)",
+                        why: "type token is not a spelling wat's reader accepts (e.g. `Option<T>` and the retired `fn(…)->…` form are inexpressible; use `:- [...]`)", // rune:lint(no-angle-type-in-diagnostic) — class C: quotes the retired spelling to name what is refused, exactly like the reader's own refusal messages
                     });
                 }
                 let ty = ty_token.to_string();
@@ -793,7 +793,7 @@ pub fn parse_special_form(raw: &str) -> Result<DocSpecialForm, DocError> {
                 if !type_token_is_expressible(ty_token) {
                     return Err(DocError::MalformedDirective {
                         tag: "@arg".into(),
-                        why: "type token is not a spelling wat's reader accepts (e.g. `Option<T>` and the retired `fn(…)->…` form are inexpressible; use `:- [...]`)",
+                        why: "type token is not a spelling wat's reader accepts (e.g. `Option<T>` and the retired `fn(…)->…` form are inexpressible; use `:- [...]`)", // rune:lint(no-angle-type-in-diagnostic) — class C: quotes the retired spelling to name what is refused, exactly like the reader's own refusal messages
                     });
                 }
                 let ty = ty_token.to_string();
@@ -836,7 +836,7 @@ pub fn parse_special_form(raw: &str) -> Result<DocSpecialForm, DocError> {
                 if !type_token_is_expressible(ty_token) {
                     return Err(DocError::MalformedDirective {
                         tag: "@ret".into(),
-                        why: "type token is not a spelling wat's reader accepts (e.g. `Option<T>` and the retired `fn(…)->…` form are inexpressible; use `:- [...]`)",
+                        why: "type token is not a spelling wat's reader accepts (e.g. `Option<T>` and the retired `fn(…)->…` form are inexpressible; use `:- [...]`)", // rune:lint(no-angle-type-in-diagnostic) — class C: quotes the retired spelling to name what is refused, exactly like the reader's own refusal messages
                     });
                 }
                 let ty = ty_token.to_string();

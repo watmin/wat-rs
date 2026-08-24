@@ -533,7 +533,7 @@ pub(crate) fn eval_type_params_used_in(
         other => {
             return Err(RuntimeError::new(params.span().clone(), RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
-                    expected: ":wat::core::Vector<wat::WatAST>",
+                    expected: "(:wat::core::Vector :- [:wat::WatAST])",
                     got: Box::new(crate::runtime::ValueSnapshot::of(other)),
                 })
             .into());
@@ -560,7 +560,7 @@ pub(crate) fn eval_type_params_used_in(
             other => {
                 return Err(RuntimeError::new(params.span().clone(), RuntimeErrorKind::TypeMismatch {
                         op: OP.into(),
-                        expected: ":wat::core::Vector<wat::WatAST> of param name nodes",
+                        expected: "(:wat::core::Vector :- [:wat::WatAST]) of param name nodes",
                         got: Box::new(crate::runtime::ValueSnapshot::of(other)),
                     })
                 .into());

@@ -4971,7 +4971,7 @@ pub(crate) fn eval_inner(
                 if !value_is_key_hashable(&k) {
                     return Err(RuntimeError::new(k_node.span().clone(), RuntimeErrorKind::TypeMismatch {
                         op: "{…} map literal".into(),
-                        expected: "hashable key (primitive, HolonAST, WatAST, HashSet<T>, Vec<T>, or HashMap<K,V>)",
+                        expected: "hashable key (primitive, HolonAST, WatAST, (HashSet :- [T]), (Vector :- [T]), or (HashMap :- [K V]))",
                         got: Box::new(ValueSnapshot::of(&k))
                     }).into());
                 }
@@ -4994,7 +4994,7 @@ pub(crate) fn eval_inner(
                 if !value_is_set_hashable(&v) {
                     return Err(RuntimeError::new(item.span().clone(), RuntimeErrorKind::TypeMismatch {
                         op: "#{…} set literal".into(),
-                        expected: "hashable value (primitive, HolonAST, WatAST, HashSet<T>, Vec<T>, or HashMap<K,V>)",
+                        expected: "hashable value (primitive, HolonAST, WatAST, (HashSet :- [T]), (Vector :- [T]), or (HashMap :- [K V]))",
                         got: Box::new(ValueSnapshot::of(&v))
                     }).into());
                 }
@@ -8851,7 +8851,7 @@ fn select_defclause_clause(
                         declared_arg_types,
                         failure_reason: ClauseFailureReason::ArgTypeMismatch {
                             position: fixed_arity,
-                            expected: "Vector<T>".to_string(),
+                            expected: "(Vector :- [T])".to_string(),
                             got: crate::check::format_type(rest_ty),
                         },
                     });
@@ -12633,7 +12633,7 @@ fn eval_assoc(
             list_span.clone(),
             RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: "HashMap<K,V>, PersistentMap<K,V>, or :wat::core::Record",
+                expected: "(HashMap :- [K V]), (PersistentMap :- [K V]), or :wat::core::Record",
                 got: Box::new(ValueSnapshot::of(&arg0_val)),
             },
         )
@@ -12642,7 +12642,7 @@ fn eval_assoc(
             list_span.clone(),
             RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: "HashMap<K,V>, PersistentMap<K,V>, or :wat::core::Record",
+                expected: "(HashMap :- [K V]), (PersistentMap :- [K V]), or :wat::core::Record",
                 got: Box::new(ValueSnapshot::of(&arg0_val)),
             },
         )
@@ -13544,7 +13544,11 @@ fn primitive_to_define_ast(name: &str, scheme: &crate::check::TypeScheme) -> Wat
 /// form that `parse_argspec_triples` parses.
 fn macrodef_to_signature_ast(def: &crate::macros::MacroDef) -> WatAST {
     let span = crate::rust_caller_span!();
-    let ast_kw = WatAST::Keyword(":AST<wat::WatAST>".into(), span.clone());
+    // STONE-close-the-last-two-channels (arc 109) — `:AST<wat::WatAST>` was a
+    // fictional sentinel spelled in the retired angle-bracket grammar; the reader
+    // refuses it outright. `:wat::WatAST` is the real, already-registered, NON-parametric
+    // type (a form IS its own type — no `<T>` wrapper was ever needed).
+    let ast_kw = WatAST::Keyword(":wat::WatAST".into(), span.clone());
     let mut items: Vec<WatAST> = Vec::new();
     for p in def.params.iter() {
         items.push(WatAST::Symbol(
@@ -13570,8 +13574,19 @@ fn macrodef_to_signature_ast(def: &crate::macros::MacroDef) -> WatAST {
             crate::scope::Identifier::bare("<-"),
             span.clone(),
         ));
-        items.push(WatAST::Keyword(
-            ":AST<Vec<wat::WatAST>>".into(),
+        // STONE-close-the-last-two-channels — same retirement as `ast_kw` above, for the
+        // rest-param's Vector-of-forms type: the real reference spelling is the surviving
+        // `:-` binder form, `(:wat::core::Vector :- [:wat::WatAST])`, not the fictional
+        // `:AST<Vec<wat::WatAST>>` keyword the reader would refuse to read back.
+        items.push(WatAST::List(
+            vec![
+                WatAST::Keyword(":wat::core::Vector".into(), span.clone()),
+                WatAST::Keyword(":-".into(), span.clone()),
+                WatAST::Vector(
+                    vec![WatAST::Keyword(":wat::WatAST".into(), span.clone())],
+                    span.clone(),
+                ),
+            ],
             span.clone(),
         ));
     }
@@ -13592,7 +13607,9 @@ fn macrodef_to_define_ast(def: &crate::macros::MacroDef) -> WatAST {
             WatAST::Keyword(def.name.clone(), span.clone()),
             argvec,
             WatAST::Symbol(crate::scope::Identifier::bare("->"), span.clone()),
-            WatAST::Keyword(":AST<wat::WatAST>".into(), span.clone()),
+            // STONE-close-the-last-two-channels — same retirement as `macrodef_to_signature_ast`'s
+            // `ast_kw`: the real, non-parametric `:wat::WatAST`, not the fictional `:AST<wat::WatAST>`.
+            WatAST::Keyword(":wat::WatAST".into(), span.clone()),
             body,
         ],
         span,
@@ -15789,7 +15806,7 @@ fn eval_positional_accessor(
             args[0].span().clone(),
             RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
-                expected: "Tuple, Vector<T>, List<T>, PersistentVector<T>, or WatAST — a lazy Stream<T> has no first/second/third; advance it with :wat::stream::next (NextOutcome<T> = Item(value, rest) | Exhausted)",
+                expected: "Tuple, (Vector :- [T]), (List :- [T]), (PersistentVector :- [T]), or WatAST — a lazy (Stream :- [T]) has no first/second/third; advance it with :wat::stream::next ((NextOutcome :- [T]) = Item(value, rest) | Exhausted)",
                 got: Box::new(ValueSnapshot::of(&v)),
             },
         )
@@ -15977,7 +15994,7 @@ fn eval_nth(
             args[0].span().clone(),
             RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: "Vector<T>, List<T>, PersistentVector<T>, or WatAST — a lazy Stream<T> has no O(1) nth; use (drop s i) then :wat::stream::next",
+                expected: "(Vector :- [T]), (List :- [T]), (PersistentVector :- [T]), or WatAST — a lazy (Stream :- [T]) has no O(1) nth; use (drop s i) then :wat::stream::next",
                 got: Box::new(ValueSnapshot::of(&v)),
             },
         )
@@ -16039,7 +16056,7 @@ fn eval_f64_reduce(
                 arg_span,
                 RuntimeErrorKind::TypeMismatch {
                     op: op.into(),
-                    expected: "Vec<f64>",
+                    expected: "(Vector :- [f64])",
                     got: Box::new(ValueSnapshot::of(other)),
                 },
             )
@@ -16056,7 +16073,7 @@ fn eval_f64_reduce(
                     arg_span.clone(),
                     RuntimeErrorKind::TypeMismatch {
                         op: op.into(),
-                        expected: "Vec<f64>",
+                        expected: "(Vector :- [f64])",
                         got: Box::new(ValueSnapshot::of(other)),
                     },
                 )
@@ -16201,7 +16218,7 @@ fn eval_try(
             args[0].span().clone(),
             RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
-                expected: "Result<T,E>",
+                expected: "(Result :- [T E])",
                 got: Box::new(ValueSnapshot::of(&other)),
             },
         )
@@ -16257,7 +16274,7 @@ fn eval_option_try(
             args[0].span().clone(),
             RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
-                expected: "Option<T>",
+                expected: "(Option :- [T])",
                 got: Box::new(ValueSnapshot::of(&other)),
             },
         )
@@ -16313,7 +16330,7 @@ fn eval_option_expect(
             args[0].span().clone(),
             RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
-                expected: "Option<T>",
+                expected: "(Option :- [T])",
                 got: Box::new(ValueSnapshot::of(&other)),
             },
         )
@@ -16361,7 +16378,7 @@ fn eval_result_expect(
             args[0].span().clone(),
             RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
-                expected: "Result<T,E>",
+                expected: "(Result :- [T E])",
                 got: Box::new(ValueSnapshot::of(&other)),
             },
         )
@@ -17667,7 +17684,7 @@ fn eval_length(
         },
         Some(_) => return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
-            expected: "Vector<T>, HashMap<K,V>, PersistentMap<K,V>, PersistentVector<T>, HashSet<T>, or List<T>",
+            expected: "(Vector :- [T]), (HashMap :- [K V]), (PersistentMap :- [K V]), (PersistentVector :- [T]), (HashSet :- [T]), or (List :- [T])",
             got: Box::new(ValueSnapshot::of(&arg_val))
         }).into()),
         None => {}
@@ -17691,12 +17708,12 @@ fn eval_length(
         },
         Some(_) => Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
-            expected: "Vector<T>, HashMap<K,V>, PersistentMap<K,V>, PersistentVector<T>, HashSet<T>, or List<T>",
+            expected: "(Vector :- [T]), (HashMap :- [K V]), (PersistentMap :- [K V]), (PersistentVector :- [T]), (HashSet :- [T]), or (List :- [T])",
             got: Box::new(ValueSnapshot::of(&arg_val))
         }).into()),
         None => Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
-            expected: "Vector<T>, HashMap<K,V>, PersistentMap<K,V>, PersistentVector<T>, HashSet<T>, or List<T>",
+            expected: "(Vector :- [T]), (HashMap :- [K V]), (PersistentMap :- [K V]), (PersistentVector :- [T]), (HashSet :- [T]), or (List :- [T])",
             got: Box::new(ValueSnapshot::of(&arg_val))
         }).into()),
     }
@@ -17748,7 +17765,7 @@ fn eval_empty(
         },
         Some(_) => return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
-            expected: "Vector<T>, HashMap<K,V>, PersistentMap<K,V>, PersistentVector<T>, HashSet<T>, or List<T>",
+            expected: "(Vector :- [T]), (HashMap :- [K V]), (PersistentMap :- [K V]), (PersistentVector :- [T]), (HashSet :- [T]), or (List :- [T])",
             got: Box::new(ValueSnapshot::of(&arg_val))
         }).into()),
         None => {}
@@ -17784,17 +17801,17 @@ fn eval_empty(
         // `(NextOutcome :- [T])::Exhausted` already answers exactly what `empty?` was asked.
         Some(StreamContainer::Stream) => Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
-            expected: "Vector<T>, List<T>, PersistentVector<T>, HashSet<T>, Tuple, or WatAST — a lazy Stream<T> has no empty?; advance it with :wat::stream::next, whose NextOutcome<T>::Exhausted answers what empty? was asked",
+            expected: "(Vector :- [T]), (List :- [T]), (PersistentVector :- [T]), (HashSet :- [T]), Tuple, or WatAST — a lazy (Stream :- [T]) has no empty?; advance it with :wat::stream::next, whose (NextOutcome :- [T])::Exhausted answers what empty? was asked",
             got: Box::new(ValueSnapshot::of(&arg_val))
         }).into()),
         Some(_) => Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
-            expected: "Vector<T>, HashMap<K,V>, PersistentMap<K,V>, PersistentVector<T>, HashSet<T>, or List<T>",
+            expected: "(Vector :- [T]), (HashMap :- [K V]), (PersistentMap :- [K V]), (PersistentVector :- [T]), (HashSet :- [T]), or (List :- [T])",
             got: Box::new(ValueSnapshot::of(&arg_val))
         }).into()),
         None => Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
-            expected: "Vector<T>, HashMap<K,V>, PersistentMap<K,V>, PersistentVector<T>, HashSet<T>, or List<T>",
+            expected: "(Vector :- [T]), (HashMap :- [K V]), (PersistentMap :- [K V]), (PersistentVector :- [T]), (HashSet :- [T]), or (List :- [T])",
             got: Box::new(ValueSnapshot::of(&arg_val))
         }).into()),
     }
@@ -17847,7 +17864,7 @@ fn eval_contains(
         },
         Some(_) => return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
-            expected: "Vector<T>, HashMap<K,V>, PersistentMap<K,V>, PersistentVector<T>, or HashSet<T>",
+            expected: "(Vector :- [T]), (HashMap :- [K V]), (PersistentMap :- [K V]), (PersistentVector :- [T]), or (HashSet :- [T])",
             got: Box::new(ValueSnapshot::of(&arg0_val))
         }).into()),
         None => {}
@@ -17871,12 +17888,12 @@ fn eval_contains(
         },
         Some(_) => Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
-            expected: "Vector<T>, HashMap<K,V>, PersistentMap<K,V>, PersistentVector<T>, or HashSet<T>",
+            expected: "(Vector :- [T]), (HashMap :- [K V]), (PersistentMap :- [K V]), (PersistentVector :- [T]), or (HashSet :- [T])",
             got: Box::new(ValueSnapshot::of(&arg0_val))
         }).into()),
         None => Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
-            expected: "Vector<T>, HashMap<K,V>, PersistentMap<K,V>, PersistentVector<T>, or HashSet<T>",
+            expected: "(Vector :- [T]), (HashMap :- [K V]), (PersistentMap :- [K V]), (PersistentVector :- [T]), or (HashSet :- [T])",
             got: Box::new(ValueSnapshot::of(&arg0_val))
         }).into()),
     }
@@ -17946,7 +17963,7 @@ fn eval_conj(
             list_span.clone(),
             RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: "Vector<T>, HashSet<T>, PersistentVector<T>, or List<T>",
+                expected: "(Vector :- [T]), (HashSet :- [T]), (PersistentVector :- [T]), or (List :- [T])",
                 got: Box::new(ValueSnapshot::of(&arg0_val)),
             },
         )
@@ -18012,7 +18029,7 @@ fn eval_get(
                 list_span.clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
-                    expected: "Vector<T>, HashMap<K,V>, PersistentMap<K,V>, or PersistentVector<T>",
+                    expected: "(Vector :- [T]), (HashMap :- [K V]), (PersistentMap :- [K V]), or (PersistentVector :- [T])",
                     got: Box::new(ValueSnapshot::of(&arg0_val)),
                 },
             )
@@ -18054,7 +18071,7 @@ fn eval_get(
             list_span.clone(),
             RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: "Vector<T>, HashMap<K,V>, PersistentMap<K,V>, or PersistentVector<T>",
+                expected: "(Vector :- [T]), (HashMap :- [K V]), (PersistentMap :- [K V]), or (PersistentVector :- [T])",
                 got: Box::new(ValueSnapshot::of(&arg0_val)),
             },
         )
@@ -18063,7 +18080,7 @@ fn eval_get(
             list_span.clone(),
             RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: "Vector<T>, HashMap<K,V>, PersistentMap<K,V>, or PersistentVector<T>",
+                expected: "(Vector :- [T]), (HashMap :- [K V]), (PersistentMap :- [K V]), or (PersistentVector :- [T])",
                 got: Box::new(ValueSnapshot::of(&arg0_val)),
             },
         )
@@ -20461,7 +20478,7 @@ pub(crate) fn to_holon_inner(v: Value, arg_span: &Span) -> Result<Value, EvalBre
         other => {
             return Err(RuntimeError::new(arg_span.clone(), RuntimeErrorKind::TypeMismatch {
                 op: ":wat::holon::to-holon".into(),
-                expected: "primitive, HolonAST, quoted wat form, HashSet<T>, Vec<T>, Tuple<T1,...>, HashMap<K,V>, List<T>, or wat::core::Record",
+                expected: "primitive, HolonAST, quoted wat form, (HashSet :- [T]), (Vector :- [T]), Tuple, (HashMap :- [K V]), (List :- [T]), or wat::core::Record",
                 got: Box::new(ValueSnapshot::of(&other))
             }).into());
         }
@@ -21669,7 +21686,7 @@ fn eval_algebra_bundle(
                 args[0].span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: ":wat::holon::Bundle".into(),
-                    expected: "List<wat::holon::HolonAST> from (:wat::core::Vector ...)",
+                    expected: "(List :- [wat::holon::HolonAST]) from (:wat::core::Vector ...)",
                     got: Box::new(ValueSnapshot::of(&other)),
                 },
             )
@@ -21928,7 +21945,7 @@ fn eval_algebra_map(
                 args[0].span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
-                    expected: "List<wat::holon::HolonAST> from (:wat::core::Vector ...)",
+                    expected: "(List :- [wat::holon::HolonAST]) from (:wat::core::Vector ...)",
                     got: Box::new(ValueSnapshot::of(&other)),
                 },
             )
@@ -21977,7 +21994,7 @@ fn eval_algebra_set(
                 args[0].span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
-                    expected: "List<wat::holon::HolonAST> from (:wat::core::Vector ...)",
+                    expected: "(List :- [wat::holon::HolonAST]) from (:wat::core::Vector ...)",
                     got: Box::new(ValueSnapshot::of(&other)),
                 },
             )
@@ -22027,7 +22044,7 @@ fn eval_algebra_vector(
                 args[0].span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
-                    expected: "List<wat::holon::HolonAST> from (:wat::core::Vector ...)",
+                    expected: "(List :- [wat::holon::HolonAST]) from (:wat::core::Vector ...)",
                     got: Box::new(ValueSnapshot::of(&other)),
                 },
             )
@@ -22081,7 +22098,7 @@ fn eval_algebra_list(
                 args[0].span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
-                    expected: "List<wat::holon::HolonAST> from (:wat::core::Vector ...)",
+                    expected: "(List :- [wat::holon::HolonAST]) from (:wat::core::Vector ...)",
                     got: Box::new(ValueSnapshot::of(&other)),
                 },
             )
@@ -22132,7 +22149,7 @@ fn eval_algebra_tuple(
                 args[0].span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
-                    expected: "List<wat::holon::HolonAST> from (:wat::core::Vector ...)",
+                    expected: "(List :- [wat::holon::HolonAST]) from (:wat::core::Vector ...)",
                     got: Box::new(ValueSnapshot::of(&other)),
                 },
             )
@@ -24065,7 +24082,7 @@ fn eval_holon_bytes_vector(
                 args[0].span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
-                    expected: "Vec<u8>",
+                    expected: "(Vector :- [u8])",
                     got: Box::new(ValueSnapshot::of(&other)),
                 },
             )
@@ -24081,7 +24098,7 @@ fn eval_holon_bytes_vector(
                     list_span.clone(),
                     RuntimeErrorKind::TypeMismatch {
                         op: OP.into(),
-                        expected: "Vec<u8>",
+                        expected: "(Vector :- [u8])",
                         got: Box::new(ValueSnapshot::of(other)),
                         // arc 138: no per-value AST span — element from Vec value, not AST; list_span (call site) used instead
                     },
@@ -26653,7 +26670,7 @@ pub(crate) fn eval_connect_prime(
                 args[0].span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
-                    expected: "Address<S,R>",
+                    expected: "(Address :- [S R])",
                     got: Box::new(ValueSnapshot::of(other)),
                 },
             )
@@ -26838,7 +26855,7 @@ pub(crate) fn eval_accept_prime(
             args[0].span().clone(),
             RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: "Listener<S,R> (unified Listener entity from listener)",
+                expected: "(Listener :- [S R]) (unified Listener entity from listener)",
                 got: Box::new(ValueSnapshot::of(&other)),
             },
         )
@@ -26917,7 +26934,7 @@ pub(crate) fn eval_allow_prime(
             args[0].span().clone(),
             RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: "Listener<S,R> (unified Listener entity from listener)",
+                expected: "(Listener :- [S R]) (unified Listener entity from listener)",
                 got: Box::new(ValueSnapshot::of(&other)),
             },
         )
@@ -26996,7 +27013,7 @@ pub(crate) fn eval_deny_prime(
             args[0].span().clone(),
             RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: "Listener<S,R> (unified Listener entity from listener)",
+                expected: "(Listener :- [S R]) (unified Listener entity from listener)",
                 got: Box::new(ValueSnapshot::of(&other)),
             },
         )
@@ -27100,7 +27117,7 @@ fn eval_stat_mean(
                     args[0].span().clone(),
                     RuntimeErrorKind::TypeMismatch {
                         op: OP.into(),
-                        expected: "Vec<f64>",
+                        expected: "(Vector :- [f64])",
                         got: Box::new(ValueSnapshot::of(other)),
                         // arc 138: no — iterating over Vec<Value>; no per-element AST span
                     },
@@ -27149,7 +27166,7 @@ fn eval_stat_variance(
                     args[0].span().clone(),
                     RuntimeErrorKind::TypeMismatch {
                         op: OP.into(),
-                        expected: "Vec<f64>",
+                        expected: "(Vector :- [f64])",
                         got: Box::new(ValueSnapshot::of(other)),
                         // arc 138: no — iterating over Vec<Value>; no per-element AST span
                     },
@@ -27199,7 +27216,7 @@ fn eval_stat_stddev(
             list_span.clone(),
             RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: "Option<f64> from inner variance",
+                expected: "(Option :- [f64]) from inner variance",
                 got: Box::new(ValueSnapshot::of(&other)),
                 // arc 138: no — internal variance re-wrap; no originating AST element
             },
@@ -29426,7 +29443,7 @@ fn eval_walk(
                     args[2].span().clone(),
                     RuntimeErrorKind::TypeMismatch {
                         op: OP.into(),
-                        expected: "wat::core::fn — visitor (acc, form, step) → WalkStep<A>",
+                        expected: "wat::core::fn — visitor (acc, form, step) → (wat::eval::WalkStep :- [A])",
                         got: Box::new(ValueSnapshot::of(&other)),
                     },
                 )
@@ -29459,7 +29476,7 @@ fn eval_walk(
                             args[2].span().clone(),
                             RuntimeErrorKind::TypeMismatch {
                                 op: OP.into(),
-                                expected: "wat::eval::WalkStep<A>",
+                                expected: "(wat::eval::WalkStep :- [A])",
                                 got: Box::new(ValueSnapshot::unavailable("different enum")),
                                 // arc 138: no — Value::Enum result from visitor; no originating AST
                             },
@@ -29474,7 +29491,7 @@ fn eval_walk(
                         args[2].span().clone(),
                         RuntimeErrorKind::TypeMismatch {
                             op: OP.into(),
-                            expected: "wat::eval::WalkStep<A>",
+                            expected: "(wat::eval::WalkStep :- [A])",
                             got: Box::new(ValueSnapshot::of(&other)),
                             // arc 138: no — visitor return value; no originating AST
                         },
@@ -31493,7 +31510,7 @@ pub(crate) fn eval_peer_send_prime(
             list_span.clone(),
             RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: "peer (Thread<I,O> | Process<I,O> | Peer<S,R>)",
+                expected: "peer ((Thread :- [I O]) | (Process :- [I O]) | (Peer :- [S R]))",
                 got: Box::new(ValueSnapshot::of(other)),
             },
         )
@@ -31586,7 +31603,7 @@ pub(crate) fn eval_peer_try_send_prime(
             list_span.clone(),
             RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: "peer (unified Peer<S,R>)",
+                expected: "peer (unified (Peer :- [S R]))",
                 got: Box::new(ValueSnapshot::of(other)),
             },
         )
@@ -31681,7 +31698,7 @@ pub(crate) fn eval_peer_pid(
             list_span.clone(),
             RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: "peer (Thread<I,O> | Process<I,O>)",
+                expected: "peer ((Thread :- [I O]) | (Process :- [I O]))",
                 got: Box::new(ValueSnapshot::of(other)),
             },
         )
@@ -31987,7 +32004,7 @@ pub(crate) fn eval_peer_recv_prime(
             list_span.clone(),
             RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: "peer (Thread<I,O> | Process<I,O> | Peer<S,R>)",
+                expected: "peer ((Thread :- [I O]) | (Process :- [I O]) | (Peer :- [S R]))",
                 got: Box::new(ValueSnapshot::of(other)),
             },
         )
@@ -32146,7 +32163,7 @@ pub(crate) fn eval_peer_close_prime(
             list_span.clone(),
             RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: "peer (Thread<I,O> | Process<I,O>)",
+                expected: "peer ((Thread :- [I O]) | (Process :- [I O]))",
                 got: Box::new(ValueSnapshot::of(other)),
             },
         )
@@ -32296,7 +32313,7 @@ pub(crate) fn eval_signal(
             list_span.clone(),
             RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: "proc (Process<I,O>)",
+                expected: "proc (Process :- [I O])",
                 got: Box::new(ValueSnapshot::of(other)),
             },
         )
@@ -32358,7 +32375,7 @@ pub(crate) fn eval_peer_process(
             list_span.clone(),
             RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: "peer (Thread<I,O> | Process<I,O>)",
+                expected: "peer ((Thread :- [I O]) | (Process :- [I O]))",
                 got: Box::new(ValueSnapshot::of(other)),
             },
         )
@@ -32425,7 +32442,7 @@ pub(crate) fn eval_peer_wire(
             list_span.clone(),
             RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: "peer (unified Peer<S,R>)",
+                expected: "peer (unified (Peer :- [S R]))",
                 got: Box::new(ValueSnapshot::of(other)),
             },
         )
@@ -32475,7 +32492,7 @@ pub(crate) fn eval_address_wire(
                 args[0].span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
-                    expected: "Address<S,R>",
+                    expected: "(Address :- [S R])",
                     got: Box::new(ValueSnapshot::of(other)),
                 },
             )
@@ -32585,7 +32602,7 @@ pub(crate) fn eval_peer_select_prime(
                 list_span.clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
-                    expected: "peer (Thread<I,O> | Process<I,O>)",
+                    expected: "peer ((Thread :- [I O]) | (Process :- [I O]))",
                     got: Box::new(ValueSnapshot::of(other)),
                 },
             )
@@ -33196,7 +33213,7 @@ pub(crate) fn eval_peer_select_prime(
             list_span.clone(),
             RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
-                expected: "peer (Thread<I,O> | Process<I,O> | Peer<I,O>)",
+                expected: "peer ((Thread :- [I O]) | (Process :- [I O]) | (Peer :- [I O]))",
                 got: Box::new(ValueSnapshot::unavailable(first_type_path)),
             },
         )
@@ -33522,7 +33539,7 @@ pub(crate) fn eval_poll_prime(
                 args[0].span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
-                    expected: "Peer<_,_> (self-peer, the owner/supervisor link)",
+                    expected: "(Peer :- [S R]) (self-peer, the owner/supervisor link)",
                     got: Box::new(ValueSnapshot::of(other)),
                 },
             )
@@ -33564,7 +33581,7 @@ pub(crate) fn eval_poll_prime(
                 args[1].span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
-                    expected: "Listener<S,R> (unified Listener entity from listener)",
+                    expected: "(Listener :- [S R]) (unified Listener entity from listener)",
                     got: Box::new(ValueSnapshot::of(other)),
                 },
             )
@@ -33582,7 +33599,7 @@ pub(crate) fn eval_poll_prime(
                 args[2].span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
-                    expected: "Vector<Peer<I,O>> (connected client peers)",
+                    expected: "(Vector :- [(Peer :- [I O])]) (connected client peers)",
                     got: Box::new(ValueSnapshot::of(&other)),
                 },
             )
@@ -34418,7 +34435,7 @@ mod tests {
         // chain = Vector<LociDiedError>; head = StartupError.
         let chain = match &decoded {
             Value::Vec(items) => items,
-            other => panic!("chain must be a Vector<LociDiedError>; got {other:?}"),
+            other => panic!("chain must be a (Vector :- [LociDiedError]); got {other:?}"),
         };
         assert_eq!(chain.len(), 1, "one death in the chain; line: {line}");
         let ev = match &chain[0] {

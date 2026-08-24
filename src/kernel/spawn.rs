@@ -623,7 +623,7 @@ pub fn eval_kernel_spawn_process_prime(
                 args[4].span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
-                    expected: "Option<Record> value (identity label) for process tier",
+                    expected: "(Option :- [Record]) value (identity label) for process tier",
                     got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
                 },
             )

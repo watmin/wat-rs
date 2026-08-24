@@ -2145,7 +2145,7 @@
             println!("  {:>4}  {:>8.1} /{:>8.1}  {:>8.1} /{:>8.1}  {:>8.1} /{:>8.1}  {:>8.1} /{:>8.1}  {:>8.1} /{:>8.1}",
                      n, build_a, build_b, look_a, look_b, clone_a, clone_b, ext_a, ext_b, drop_a, drop_b);
         }
-        println!("\n  A = rpds::HashTrieMapSync (today)   B = Arc<Vec<(Value,Value)>>\n");
+        println!("\n  A = rpds::HashTrieMapSync (today)   B = Arc<Vec<(Value,Value)>>\n"); // rune:lint(no-angle-type-in-diagnostic) — RUST generics naming two RUST data structures in a benchmark banner; no wat type is mentioned and no wat user ever sees this line.
     }
 
     /// Diagnostic — the binding-cardinality distribution, the PREMISE under the

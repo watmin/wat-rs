@@ -86,7 +86,7 @@ pub(crate) fn eval_yields_witness(
         other => {
             return Err(RuntimeError::new(span.clone(), RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
-                    expected: ":wat::core::Fn(:wat::core::i64)->:wat::core::i64",
+                    expected: "[:wat::core::i64 :-> :wat::core::i64]",
                     got: Box::new(crate::runtime::ValueSnapshot::of(&other)),
                 })
             .into());

@@ -4,7 +4,7 @@
   :causes []
   :errors [
     #wat.check/TypeMismatch {
-      :message ":wat::core::<: parameter #1 expects an orderable type (i64, u8, f64, String, bool, keyword, Instant, Duration, Vector<T>, Tuple<T…>, Option<T>, Result<T,E>); got :wat::holon::HolonAST"
+      :message ":wat::core::<: parameter #1 expects an orderable type (i64, u8, f64, String, bool, keyword, Instant, Duration, (Vector :- [T]), Tuple, (Option :- [T]), (Result :- [T E])); got :wat::holon::HolonAST"
       :location #wat.core/Span {
         :file "tests/types/ord_holon_ast.wat.bad"
         :line 3
@@ -19,7 +19,7 @@
       :causes []
       :callee ":wat::core::<"
       :param "#1"
-      :expected "an orderable type (i64, u8, f64, String, bool, keyword, Instant, Duration, Vector<T>, Tuple<T…>, Option<T>, Result<T,E>)"
+      :expected "an orderable type (i64, u8, f64, String, bool, keyword, Instant, Duration, (Vector :- [T]), Tuple, (Option :- [T]), (Result :- [T E]))"
       :got ":wat::holon::HolonAST"
       :remedies []
     }

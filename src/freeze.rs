@@ -1694,23 +1694,26 @@ pub fn validate_user_main_not_useless(frozen: &FrozenWorld) -> Result<(), String
 pub fn format_type_expr(t: &TypeExpr) -> String {
     match t {
         TypeExpr::Path(p) => p.clone(),
+        // STONE-close-the-last-two-channels (arc 109) — a second live copy of
+        // `check::format_type`'s Parametric arm, found still emitting the retired
+        // `Head<A,B>` suffix spelling (channel 1's defect, missed by that stone because
+        // this is a DIFFERENT renderer for the SAME `TypeExpr::Parametric`, reached only
+        // through `:user::main` signature-mismatch diagnostics). Routed through the same
+        // shared renderer `check::format_type` uses, so there is one surviving spelling,
+        // not two copies of the rendering — the defect this arc has removed repeatedly.
         TypeExpr::Parametric { head, args } => {
-            let inner: Vec<_> = args.iter().map(format_type_expr_inner).collect();
-            format!(":{}<{}>", head, inner.join(","))
+            let head_kw = format!(":{head}");
+            let inner: Vec<_> = args.iter().map(format_type_expr).collect();
+            crate::types::render_binder_ref(&head_kw, &inner)
         }
         TypeExpr::Fn { args, ret } => {
-            // Arc 163 follow-up — emit canonical FQDN syntax. Pre-fix
-            // this rendered as `:fn(args)->ret` (legacy pre-arc-155).
-            // The walker `BareLegacyLowercaseFn` rejects bare `:fn(`
-            // input post-walker-rearm, so the renderer must emit the
-            // canonical `:wat::core::Fn(...)` to keep round-trip
-            // consistency between rendered diagnostics and parser.
-            let in_parts: Vec<_> = args.iter().map(format_type_expr_inner).collect();
-            format!(
-                ":wat::core::Fn({})->{}",
-                in_parts.join(","),
-                format_type_expr_inner(ret)
-            )
+            // STONE-close-the-last-two-channels — same retirement as the Parametric arm
+            // above: `:wat::core::Fn(A,B)->C` carries a comma inside a keyword body,
+            // refused since the comma strike, and for 2+ args cannot be read back at all.
+            // Emit the bracket surface (`parse_fn_type_bracket`, arc 251.4c) through the
+            // one shared renderer `check::format_type` uses.
+            let in_parts: Vec<_> = args.iter().map(format_type_expr).collect();
+            crate::types::render_fn_type_ref(&in_parts, &format_type_expr(ret))
         }
         TypeExpr::Tuple(elements) => {
             let inner: Vec<_> = elements.iter().map(format_type_expr_inner).collect();

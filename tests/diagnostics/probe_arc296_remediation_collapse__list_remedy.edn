@@ -2,5 +2,5 @@
   :form ":wat::core::Vector"
   :kind :retirement
   :score 0
-  :note "rename `:wat::core::list` → `:wat::core::Vector` (was a duplicate of vec; arc 109 slice 1g); substrate produces the same Vec<T> value"
+  :note "rename `:wat::core::list` → `:wat::core::Vector` (was a duplicate of vec; arc 109 slice 1g); substrate produces the same (Vector :- [T]) value"
 }

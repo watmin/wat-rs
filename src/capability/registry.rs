@@ -175,7 +175,7 @@ fn socket_address_wire_from_record(rec: &Value) -> Result<(i32, Vec<u8>), EdnRea
         Value::Vec(xs) => xs.clone(),
         _ => {
             return Err(cap_decode_error(
-                "#wat.kernel/Address (name field must be Vector<i64>)",
+                "#wat.kernel/Address (name field must be (Vector :- [i64]))",
             ))
         }
     };

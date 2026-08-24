@@ -32,7 +32,7 @@ fn address_wire_is_false_on_thread_true_on_process() {
     }
 }
 
-/// Negative control: `address-wire?` on an i64 is a TypeMismatch naming `Address<S,R>`.
+/// Negative control: `address-wire?` on an i64 is a TypeMismatch naming `(Address :- [S R])`.
 ///
 /// cargo nextest run --release -E 'test(address_wire)'
 #[test]
@@ -42,8 +42,14 @@ fn address_wire_non_address_is_type_mismatch() {
     let StartupError::Check(CheckErrors(errs)) = &err else {
         panic!("expected a type-check error, got {err:?}");
     };
+    // rune:lint(no-inlined-wat) — STONE-close-the-last-two-channels (arc 109): the
+    // `expected` substring below is golden COMPARISON text for a TypeMismatch's rendered
+    // field, never a wat world/driver; it happens to be reader-parseable now only because
+    // the renderer emits the surviving `(Head :- [args])` form instead of the retired
+    // unparseable `Head<a,b>` — same shape as `probe_arc170_w2a_kwargs_check_mint.rs`'s
+    // own exemption for the identical reason.
     wat::assert_check_error_present!(errs,
         CheckErrorKind::TypeMismatch { expected, callee, .. }
             if callee == ":wat::kernel::address-wire?"
-            && expected.contains("Address<S,R>"));
+            && expected.contains("(Address :- [S R])"));
 }

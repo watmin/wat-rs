@@ -4,7 +4,7 @@
   :causes []
   :errors [
     #wat.check/MalformedForm {
-      :message "malformed :wat::core::match form: non-exhaustive: :Option<T> needs arms for both :None and (Some _), or a wildcard. (Arc 055 — narrowing patterns like `(Some (1 _))` are partial; add a fallback `_` arm.)"
+      :message "malformed :wat::core::match form: non-exhaustive: (:wat::core::Option :- [T]) needs arms for both :None and (Some _), or a wildcard. (Arc 055 — narrowing patterns like `(Some (1 _))` are partial; add a fallback `_` arm.)"
       :location #wat.core/Span {
         :file "tests/function/recursive_patterns_nonexhaustive.wat"
         :line 8
@@ -18,7 +18,7 @@
       }
       :causes []
       :head ":wat::core::match"
-      :reason "non-exhaustive: :Option<T> needs arms for both :None and (Some _), or a wildcard. (Arc 055 — narrowing patterns like `(Some (1 _))` are partial; add a fallback `_` arm.)"
+      :reason "non-exhaustive: (:wat::core::Option :- [T]) needs arms for both :None and (Some _), or a wildcard. (Arc 055 — narrowing patterns like `(Some (1 _))` are partial; add a fallback `_` arm.)"
       :remedies []
     }
   ]

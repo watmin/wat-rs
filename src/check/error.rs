@@ -567,7 +567,7 @@ impl CheckErrorKind {
                 }
                 write!(
                     f,
-                    " is retired (arc 153); canonical FQDN is ':wat::core::nil'. Same role (singleton type, 'no meaningful return value'); rename ships the marker effect of a Lisp's nil while preserving wat's existing Option<T>::None / Some(t) discipline. Rename ':wat::core::unit' -> ':wat::core::nil' at the offending site."
+                    " is retired (arc 153); canonical FQDN is ':wat::core::nil'. Same role (singleton type, 'no meaningful return value'); rename ships the marker effect of a Lisp's nil while preserving wat's existing (Option :- [T])::None / Some(t) discipline. Rename ':wat::core::unit' -> ':wat::core::nil' at the offending site."
                 )
             }
             CheckErrorKind::BareLegacyLetStar => {
@@ -607,7 +607,7 @@ impl CheckErrorKind {
                 }
                 write!(
                     f,
-                    " is retired (arc 109 slice 1e); canonical FQDN form is '{}'. Substrate-provided container types live under :wat::core::* (see arc 109 § B). Rename '{}' → '{}' at the offending site (works in both outer position like ':{}' → ':{}' and inner position like 'Vec<{}>' → 'Vec<{}>').",
+                    " is retired (arc 109 slice 1e); canonical FQDN form is '{}'. Substrate-provided container types live under :wat::core::* (see arc 109 § B). Rename '{}' → '{}' at the offending site (works in both keyword position like ':{}' → ':{}' and a type reference like '({} :- [args])' → '({} :- [args])').",
                     fqdn, head, fqdn, head, fqdn, head, fqdn
                 )
             }

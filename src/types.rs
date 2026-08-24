@@ -142,6 +142,26 @@ pub(crate) fn render_binder_ref(head: &str, args: &[String]) -> String {
     }
 }
 
+/// STONE-close-the-last-two-channels (arc 109) — the ONE renderer for a function type's
+/// surviving spelling, the `TypeExpr::Fn` analogue of [`render_binder_ref`] above. The old
+/// `:wat::core::Fn(A,B)->C` FQDN carries a comma inside a keyword body — refused since the
+/// comma strike, so for two or more arguments it could not be read back AT ALL. The reader
+/// gained a second surface for this reason (`parse_fn_type_bracket`, arc 251.4c): a bracket
+/// `[arg… :-> ret]`, unambiguous because each element is its own form in the vector rather
+/// than text packed inside one keyword.
+///
+/// `args`/`ret` are already-rendered strings in the caller's convention (colon-having at a
+/// top position, colon-stripped when the caller is itself building a nested/inner spelling)
+/// — same contract as `render_binder_ref`'s `args`, so a `Fn` nested inside a binder's `[...]`
+/// stays self-consistent with its siblings.
+pub(crate) fn render_fn_type_ref(args: &[String], ret: &str) -> String {
+    if args.is_empty() {
+        format!("[:-> {ret}]")
+    } else {
+        format!("[{} :-> {ret}]", args.join(" "))
+    }
+}
+
 impl TypeExpr {
     /// FQDN of this type's head — colon-prefixed, type args stripped.
     /// `None` for variants with no nameable head (Tuple, Fn, …).

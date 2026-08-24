@@ -448,7 +448,7 @@ fn expect_vec_ast(op: &str, tv: TrackedValue, span: crate::span::Span) -> Result
         }
         other => Err(RuntimeError::new(span, RuntimeErrorKind::TypeMismatch {
             op: op.into(),
-            expected: "Vec<wat::WatAST>",
+            expected: "(Vector :- [wat::WatAST])",
             got: Box::new(crate::runtime::ValueSnapshot::of(&other))
         })),
     }

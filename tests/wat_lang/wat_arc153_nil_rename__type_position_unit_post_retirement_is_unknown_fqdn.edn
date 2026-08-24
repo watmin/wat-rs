@@ -4,7 +4,7 @@
   :causes []
   :errors [
     #wat.check/BareLegacyUnitName {
-      :message "':wat::core::unit' is retired (arc 153); canonical FQDN is ':wat::core::nil'. Same role (singleton type, 'no meaningful return value'); rename ships the marker effect of a Lisp's nil while preserving wat's existing Option<T>::None / Some(t) discipline. Rename ':wat::core::unit' -> ':wat::core::nil' at the offending site."
+      :message "':wat::core::unit' is retired (arc 153); canonical FQDN is ':wat::core::nil'. Same role (singleton type, 'no meaningful return value'); rename ships the marker effect of a Lisp's nil while preserving wat's existing (Option :- [T])::None / Some(t) discipline. Rename ':wat::core::unit' -> ':wat::core::nil' at the offending site."
       :location #wat.core/Span {
         :file "tests/wat_lang/wat_arc153_nil_rename_unit_pos.wat.bad"
         :line 5

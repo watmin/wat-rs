@@ -859,7 +859,7 @@ fn expect_vec_u8(op: &str, tv: TrackedValue, span: Span) -> Result<Vec<u8>, Runt
         }
         other => Err(RuntimeError::new(span, RuntimeErrorKind::TypeMismatch {
             op: op.into(),
-            expected: "Vec<u8>",
+            expected: "(Vector :- [u8])",
             got: Box::new(crate::runtime::ValueSnapshot::of(&other))
         })),
     }

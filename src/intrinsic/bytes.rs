@@ -55,7 +55,7 @@ pub(crate) fn eval_bytes_to_hex(
         other => {
             return Err(RuntimeError::new(bs.span().clone(), RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
-                    expected: "wat::core::Bytes (Vec<u8>)",
+                    expected: "wat::core::Bytes, i.e. (Vector :- [u8])",
                     got: Box::new(ValueSnapshot::of(&other)),
                 })
             .into());
@@ -71,7 +71,7 @@ pub(crate) fn eval_bytes_to_hex(
                 // location the author can act on. A Rust line is not.
                 return Err(RuntimeError::new(span.clone(), RuntimeErrorKind::TypeMismatch {
                         op: OP.into(),
-                        expected: "wat::core::Bytes (Vec<u8>)",
+                        expected: "wat::core::Bytes, i.e. (Vector :- [u8])",
                         got: Box::new(ValueSnapshot::of(other)),
                     })
                 .into());

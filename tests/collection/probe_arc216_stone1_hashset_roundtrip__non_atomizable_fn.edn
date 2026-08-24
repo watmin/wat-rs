@@ -4,7 +4,7 @@
   :causes []
   :errors [
     #wat.check/TypeMismatch {
-      :message ":wat::holon::to-holon: parameter #1 expects atomizable type (primitive | HolonAST | WatAST | HashSet<T> | Vector<T> | HashMap<K,V> for atomizable T); got :wat::core::Fn(wat::core::i64)->wat::core::i64"
+      :message ":wat::holon::to-holon: parameter #1 expects atomizable type (primitive | HolonAST | WatAST | (HashSet :- [T]) | (Vector :- [T]) | (HashMap :- [K V]) for atomizable T); got [:wat::core::i64 :-> :wat::core::i64]"
       :location #wat.core/Span {
         :file "tests/collection/probe_arc216_stone1_hashset_roundtrip_p9.wat.bad"
         :line 6
@@ -19,8 +19,8 @@
       :causes []
       :callee ":wat::holon::to-holon"
       :param "#1"
-      :expected "atomizable type (primitive | HolonAST | WatAST | HashSet<T> | Vector<T> | HashMap<K,V> for atomizable T)"
-      :got ":wat::core::Fn(wat::core::i64)->wat::core::i64"
+      :expected "atomizable type (primitive | HolonAST | WatAST | (HashSet :- [T]) | (Vector :- [T]) | (HashMap :- [K V]) for atomizable T)"
+      :got "[:wat::core::i64 :-> :wat::core::i64]"
       :remedies []
     }
     #wat.check/ReturnTypeMismatch {

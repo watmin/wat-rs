@@ -113,10 +113,10 @@ const RETIREMENT_TABLE: &[RetirementEntry] = &[
     // Stream into a Vector" idiom — that's `(:wat::core::into [] coll)` (ratified: no new
     // name; `into []` is clojure's own materializer).
     RetirementEntry { retired: ":wat::core::vec", replacement: ":wat::core::Vector",
-        note: Some("as a TYPE CONSTRUCTOR, rename `:wat::core::vec` → `:wat::core::Vector` (verb-equals-type, arc 109 slice 1f); substrate produces the same Vec<T> value. To materialize a seqable/Stream into a Vector (arc 118.2a), use `(:wat::core::into [] coll)` instead") },
+        note: Some("as a TYPE CONSTRUCTOR, rename `:wat::core::vec` → `:wat::core::Vector` (verb-equals-type, arc 109 slice 1f); substrate produces the same (Vector :- [T]) value. To materialize a seqable/Stream into a Vector (arc 118.2a), use `(:wat::core::into [] coll)` instead") },
     // Arc 109 slice 1g — list retired (was a duplicate of vec; both produced Vec<T>).
     RetirementEntry { retired: ":wat::core::list", replacement: ":wat::core::Vector",
-        note: Some("rename `:wat::core::list` → `:wat::core::Vector` (was a duplicate of vec; arc 109 slice 1g); substrate produces the same Vec<T> value") },
+        note: Some("rename `:wat::core::list` → `:wat::core::Vector` (was a duplicate of vec; arc 109 slice 1g); substrate produces the same (Vector :- [T]) value") },
     // Arc 109 slice 1g — tuple retired (verb-equals-type playbook).
     RetirementEntry { retired: ":wat::core::tuple", replacement: ":wat::core::Tuple",
         note: Some("rename `:wat::core::tuple` → `:wat::core::Tuple` (verb-equals-type, arc 109 slice 1g); the `:(T,U,V)` type spelling is ALSO retired (arc 109 \"the comma dies in the reader\") — use `(:wat::core::Tuple :- [T U V])`") },

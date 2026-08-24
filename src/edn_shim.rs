@@ -901,7 +901,7 @@ pub fn eval_with_children(
     let child_vals: &Vec<Value> = match &children_v {
         Value::Vec(v) => v.as_ref(),
         other => return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::TypeMismatch {
-            op: OP.into(), expected: ":wat::core::Vector<:wat::WatAST>",
+            op: OP.into(), expected: "(:wat::core::Vector :- [:wat::WatAST])",
             got: Box::new(crate::runtime::ValueSnapshot::of(other)),
         })),
     };
