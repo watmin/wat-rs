@@ -1,0 +1,15 @@
+;; tests/types/probe_stone_guard_the_peel_point_row1_too_many.wat.bad
+;;
+;; STONE-guard-the-peel-point (arc 109) — row 1, LOAD-BEARING.
+;;
+;; `:wat::eval-ast!` declares exactly ONE type parameter (`∀T`, `check.rs:18023`). This call
+;; supplies THREE. Pre-fix, the two extras were silently dropped by `instantiate_with_args`
+;; (it iterates `scheme.type_params`, so anything past index 0 is unreachable by construction)
+;; and the call type-checked as `Ok [42]`. Post-fix this must be REFUSED at check time — the
+;; `MalformedForm` diagnostic at `check.rs:5635` names the callee and both counts (1 declared,
+;; 3 supplied).
+
+(:wat::core::defn :t::too_many [] -> (:wat::core::Result :- [:wat::core::i64 :wat::core::EvalError])
+  (:wat::core::let
+    [program (:wat::core::quote (:wat::core::i64::+ 40 2))]
+    (:wat::eval-ast! :- [:wat::core::i64 :wat::core::String :wat::core::bool] program)))

@@ -5632,6 +5632,32 @@ fn infer_list(
             }
         };
 
+        // STONE-guard-the-peel-point (arc 109) — this is the ONLY place `type_args`
+        // reaches `instantiate_with_args`, so it is the one place too many concrete
+        // type arguments can be refused instead of silently dropped. Written as `>`,
+        // not `!=`: FEWER than declared must stay legal (inference completes a partial
+        // application via `instantiate_with_args`'s own fresh-var fallback), and `:- []`
+        // must stay legal everywhere (`0 > N` is false for every N, so the empty binder
+        // is admitted by construction, not by a special case).
+        if let Some(concrete) = &type_args {
+            if concrete.len() > scheme.type_params.len() {
+                local_errors.push(CheckError {
+                    span: head_span.clone(),
+                    kind: CheckErrorKind::MalformedForm {
+                        head: k.clone(),
+                        reason: format!(
+                            "{} declares {} type parameter(s) but {} were supplied",
+                            k,
+                            scheme.type_params.len(),
+                            concrete.len()
+                        ),
+                        remedies: vec![],
+                    },
+                });
+                return CheckResult::errs(local_errors);
+            }
+        }
+
         let (param_types, ret_type) = match &type_args {
             Some(concrete) => instantiate_with_args(scheme, concrete, fresh),
             None => instantiate(scheme, fresh),

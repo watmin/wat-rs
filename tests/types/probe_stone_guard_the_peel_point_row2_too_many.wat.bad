@@ -1,0 +1,12 @@
+;; tests/types/probe_stone_guard_the_peel_point_row2_too_many.wat.bad
+;;
+;; STONE-guard-the-peel-point (arc 109) — row 2.
+;;
+;; `:wat::eval-edn!` declares ZERO type parameters (`check.rs:18134`). This call supplies ONE.
+;; Pre-fix `instantiate_with_args` early-returns `scheme.params`/`scheme.ret` unread whenever
+;; `scheme.type_params.is_empty()`, so ANY supplied type arg — the whole `M > 0` case — was
+;; silently swallowed. Post-fix this must be REFUSED at check time, naming the callee and both
+;; counts (0 declared, 1 supplied).
+
+(:wat::core::defn :t::too_many [] -> (:wat::core::Result :- [:wat::holon::HolonAST :wat::core::EvalError])
+  (:wat::eval-edn! :- [:wat::core::i64] "42"))
