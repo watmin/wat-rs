@@ -1,5 +1,36 @@
 # DESIGN — STONE: `string::{=,not=}` close the equality family
 
+> ## ⊘ AMENDED 2026-08-24 — **SCOPE CUT BY THE BUILDER. THIS IS NOT A SEPARATE STONE; IT FOLDS INTO E.**
+>
+> *"rete can point to core's = for now - we're just renaming, right?... we just need to rename and
+> introduce equal to wat's string - not rete's. rete's already dispatches correctly - we are not
+> touching rete other than a rename, yes?"*
+>
+> **The section below proposed repointing rete's `=`/`not=` rows at the new typed verbs. Do NOT.**
+> Measured: those rows carry `core_name: ":wat::core::="` / `":wat::core::not="` — **the GENERIC**,
+> which is not a string verb and therefore does not move. Rete already dispatches correctly; the
+> repoint bought nothing and risked a live path.
+>
+> **What survives of this design:** the GAP is real (i64 and f64 have `=`/`not=`; string does not),
+> and the fix is to **mint `:wat::string::{=,not=}`** onto the renamed namespace — one item inside E,
+> not a stone of its own. `values_equal`'s String arm stays the one tooling; the generic is unchanged.
+>
+> **What the RENAME mechanically drags** — consequence of the verb names moving, NOT new rete work:
+>
+> | site | count | what |
+> |---|---|---|
+> | `vocabulary.rs` `rete_name` | 6 | `:wat::rete::core::string::*` → `:wat::rete::string::*` |
+> | `vocabulary.rs` `core_name` | **4** | `length` · `subs` · `to-lowercase` · `trim` follow their verbs |
+> | `expr_ir.rs` `OpExec` arms | **7** | the 4 live + 3 dead predicates, all naming `:wat::core::string::*` |
+> | `vocabulary.rs` `=`/`not=` rows | **0** | they name the generic — **leave them alone** |
+>
+> Purity/determinism/totality get imposed on the mirrored verbs as the mirror requires.
+>
+> ⛔ **The lesson that produced the original overreach is kept below and still stands** — call-site
+> count is not a test of whether a verb belongs. The overreach here was a different error: proposing
+> to change a working dispatch because I had just finished reading it.
+
+
 > **Builder's ruling, 2026-08-24, verbatim:** *"we have equality for all the primitives but string..
 > that's a clear miss we've been carrying for a long time - the wat.core/{=,not=} should just be a
 > dispatch to the same tooling wat.string/{=,not=} perform -- the core dispatch and per-type explicit
