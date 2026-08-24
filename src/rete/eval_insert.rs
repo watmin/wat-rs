@@ -71,7 +71,7 @@ pub(crate) fn build_insert_fact(
     let fact_items = match fact_form {
         WatAST::List(items, _) if !items.is_empty() => items.as_slice(),
         _ => {
-            return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(fact_form.span().clone(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "fact-form List (:RecordType arg…)",
                 got: Box::new(ValueSnapshot::of(&Value::wat__WatAST(Arc::new(fact_form.clone())))),
@@ -82,7 +82,7 @@ pub(crate) fn build_insert_fact(
     let type_keyword = match &fact_items[0] {
         WatAST::Keyword(k, _) => k.as_str(),
         other => {
-            return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
+            return Err(RuntimeError::new(other.span().clone(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "keyword (record type) as fact-form head",
                 got: Box::new(ValueSnapshot::of(&Value::String(Arc::new(format!("{other:?}"))))),
@@ -129,7 +129,7 @@ pub(crate) fn build_insert_fact(
         match resolve_rhs_value(arg, bindings, sym)? {
             Some(v) => fields.push(v),
             None => {
-                return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
+                return Err(RuntimeError::new(arg.span().clone(), RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "resolvable operand (?var, literal, or a fenced expression) in RHS fact-form",
                     got: Box::new(ValueSnapshot::of(&Value::String(Arc::new(format!("{arg:?}"))))),
@@ -184,7 +184,7 @@ fn build_insert_fact_call(
         match resolve_rhs_value(arg, bindings, sym)? {
             Some(v) => vals.push(v),
             None => {
-                return Err(RuntimeError::new(crate::rust_caller_span!(), RuntimeErrorKind::TypeMismatch {
+                return Err(RuntimeError::new(arg.span().clone(), RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "resolvable operand (?var, literal, or a fenced expression) in a RHS fn-call arg",
                     got: Box::new(ValueSnapshot::of(&Value::String(Arc::new(format!("{arg:?}"))))),

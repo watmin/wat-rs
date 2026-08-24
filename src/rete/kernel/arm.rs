@@ -176,7 +176,7 @@ pub(crate) fn compile_acc_fold(
         WatAST::List(items, _) => items.as_slice(),
         _ => {
             return Err(RuntimeError::new(
-                crate::rust_caller_span!(),
+                acc_form.span().clone(),
                 RuntimeErrorKind::MalformedForm {
                     head: ":wat::rete::fire-rules".into(),
                     reason: "accumulate acc-form is not a list".into(),
@@ -190,7 +190,7 @@ pub(crate) fn compile_acc_fold(
         Some(WatAST::Symbol(s, _)) => s.as_str(),
         _ => {
             return Err(RuntimeError::new(
-                crate::rust_caller_span!(),
+                acc_form.span().clone(),
                 RuntimeErrorKind::MalformedForm {
                     head: ":wat::rete::fire-rules".into(),
                     reason: "accumulate acc-form has no head".into(),
@@ -205,7 +205,7 @@ pub(crate) fn compile_acc_fold(
             Some(WatAST::Keyword(k, _)) => k.as_str().to_string(),
             _ => {
                 return Err(RuntimeError::new(
-                    crate::rust_caller_span!(),
+                    acc_form.span().clone(),
                     RuntimeErrorKind::MalformedForm {
                         head: head.into(),
                         reason: format!("accumulate: value-fold {head} missing ?var arg"),
@@ -228,7 +228,7 @@ pub(crate) fn compile_acc_fold(
         _ => {
             let Some(program) = compiled_user else {
                 return Err(RuntimeError::new(
-                    crate::rust_caller_span!(),
+                    acc_form.span().clone(),
                     RuntimeErrorKind::MalformedForm {
                         head: head.into(),
                         reason: "user acc fold has no compiled Program — setup should have refused"
@@ -290,7 +290,7 @@ pub(crate) fn compile_alpha_conds_from_index(
             let compiled = crate::rete::compiled_cond::compile_condition_local(cond, &field_names)
                 .ok_or_else(|| {
                     RuntimeError::new(
-                        crate::rust_caller_span!(),
+                        cond.span().clone(),
                         RuntimeErrorKind::MalformedForm {
                             head: ":wat::rete::fire-rules".into(),
                             reason: format!(

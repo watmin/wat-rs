@@ -1026,3 +1026,37 @@ honestly self-labels as non-gating.
 line count is the wrong lens. `apply_core_kind` and `unpack_expr` were found by the
 tool and documented; `eval_axis_violation` (85) and `exec_compiled_rhs_at` (37) are
 CLEARED, the latter documented all along above the line the old measurement missed.
+
+### conformare's nine — CLOSED, and the block's priority was INVERTED (2026-08-24)
+
+All nine `rust_caller_span!()` sites that had a real wat span in scope now carry it
+(`arm.rs` x5, `eval_insert.rs` x4; zero left in either file). Three got MORE precise
+than the ward asked: `eval_insert.rs:85` points at `other`, the offending head
+itself; both operand loops point at `arg` rather than the enclosing form; `arm.rs`'s
+alpha site points at `cond`.
+
+**But grounding inverted the block, and this is the part worth keeping.** It reads as
+nine user-facing diagnostic bugs. It is not:
+
+- **`arm.rs` x5 — genuinely user-facing.** `compile_acc_fold` /
+  `compile_alpha_conds_from_index` run at `compile-all`, so a malformed `accumulate`
+  form now names the user's own line instead of `src/rete/kernel/arm.rs`.
+- **`eval_insert.rs` x4 — the ORACLE path, not native fire.** The source says so in
+  four places: "Native production runs `exec_compiled_rhs`" (`eval_insert.rs:44`,
+  `:288`), "this file is the interpreter / differential" (`:4`), and "fire does not
+  walk `build_insert_fact`" (`arm.rs:319`). Correct to fix, cheap, and it improves
+  the interpreter's diagnostics — not the one a user hits.
+- **THE GAP conformare DID NOT NAME.** A real user firing natively hits
+  `unbound_operand` (`compiled_rhs.rs:250`), which takes only a debug STRING —
+  `RhsOp::Bind` carries no span at all. So the native-fire diagnostic gap is
+  STRUCTURAL. The ward audited the sites that HAD a span to discard; it did not
+  audit the path that had already thrown one away.
+
+**Deliberately NOT fixed, and why.** Widening `RhsOp::Bind` to carry a `Span` touches
+`compile_rhs`, both exec paths, and `export.rs`'s pack/unpack — the SERIALIZED ABI,
+guarded by a round-trip identity test and an ABI hash. That is a design change with
+real blast radius, not a mechanical span swap, and it deserves its own decision
+rather than riding along in a cleanup commit. **It is the highest-value remaining
+diagnostic work in rete.**
+
+Floor 5023/5023. Clippy silent.
