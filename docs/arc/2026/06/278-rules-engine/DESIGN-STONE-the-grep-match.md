@@ -3,6 +3,32 @@
 > The Span fact (`5d650b807`) made the coordinate BINDABLE. This makes it REPORTABLE.
 > Together they are the whole of wat-grep's data contract.
 
+> ## ⛔ REDRAWN 2026-08-24 — THE HOME MOVED, AND THE FIRST RIDER WAS RIGHT TO STOP
+>
+> **v1 of this stone was self-contradictory and a rider proved it in 17 minutes.** It ruled the
+> vocabulary `:wat::grep::*` and in the same document said *"does NOT put anything in `wat/`"*.
+> `:wat::` is reserved to `Privilege::Stdlib`; a `wat-scripts/` file is `Privilege::User`, and
+> `src/resolve/registration.rs:129` refuses it unconditionally:
+>
+> ```
+> #wat.macro/ReservedPrefix {:message "cannot declare macro :wat::grep::Capture — reserved
+> prefix (:wat::, :rust::, :$bound::); user macros must use their own prefix" …}
+> ```
+>
+> The answer was in a file v1 *sent the rider to read*: `wat-scripts/lib/wat-grep.wat:24` —
+> *"Namespace: `:user::` (the only writable prefix for user scripts outside `wat/` stdlib)."*
+> Re-reading the design would never have shown it; the defect lived in the RELATION between the
+> namespace and the location. `[[feedback_a_design_is_unfalsifiable_until_something_consumes_it]]`
+>
+> **v1 also manufactured a load cycle.** It required the proving rule to *"bind four from
+> `:fx::Span`"*, so the new file needed corpus-03's type while corpus-03 needed the new file's
+> door — `CycleDetected` in both directions. The rider engineered around it with a mirrored
+> `:fx::Span` plus `set-redef!`. It should never have had to; see THE PROVING RULE below.
+>
+> **The builder's ruling, 2026-08-24, resolves both by moving the thing:** *"grep moves out of
+> wat-scripts, that's where we host our repo's scripts, wat-grep is maturing into a wat feature."*
+> And on the CLI surface: *"it must be `--grep` to match with `--repl` and `--mcp`."*
+
 ## The contract, restated
 
 Builder, 2026-08-24: **the user's rules assert `Match` facts; wat-grep queries for them and prints.**
@@ -157,6 +183,46 @@ rename (`col` → `column`) must be made by hand in both places with no compiler
 `:fx::Span`'s declaration gains a one-line cross-reference to `Extent` naming that dependency —
 the weakest rung, and on this channel the only rung there is.
 
+## THE HOME — `wat/grep.wat`, stdlib, and `:wat::grep::` is now legitimate
+
+wat-grep is a **wat feature**, not a repo script. `wat-scripts/` hosts this repository's own
+scripts; a vocabulary the language ships cannot live there, and the reserved-prefix wall is the
+substrate saying exactly that. The declarations and the door go to `wat/grep.wat` and register
+under `Privilege::Stdlib` like every other stdlib type.
+
+Three consequences, all of them simplifications:
+
+1. **The load cycle dissolves.** corpus-03 consults stdlib; it `load-file!`s nothing. No mirrored
+   `:fx::Span`, no `set-redef!`, no cycle to route around.
+2. **`--grep` becomes possible.** A CLI mode cannot dispatch into a vocabulary that only exists
+   inside one user script. See THE CLI, below.
+3. ⚠ **A stdlib `.wat` edit is INVISIBLE until the crate is rebuilt** (`include_str!` at
+   Rust-compile time), and `wat/grep.wat` must take a position in `STDLIB_FILES`
+   (`src/stdlib.rs:34`) that the arc-275 load-order gate accepts. It references only `core`, so it
+   sits early; the gate is the authority, not this sentence.
+
+## THE CLI — `--grep`, and why the harness owns the loop
+
+Builder: `echo '["vec" "of" "files"]' | wat --grep grep-program.wat`.
+
+**`--grep`, not `grep`** — ruled, and the reason is consistency: the mode grammar is already
+`--repl` / `--mcp` (`src/distribution/argv.rs:93-95`), flags recognised only before the entry path.
+A bare subcommand word would be this CLI's first, and would need a rule distinguishing "the file
+named grep" from "the grep mode". `--grep` needs no such rule.
+
+**What the harness owns, and why it matters:** the stdin file list, the loop, the network's
+lifetime, the reset between files, and the one query. The user supplies **rules only**. This is the
+builder's contract applied one level up — *everything wat-grep does not interpret is something it
+cannot get wrong*, and everything the user does not write is something they cannot get wrong. Per-file
+isolation stops being discipline and becomes structure, which is precisely what `with-network`
+shipped for (`fd7b017f6`).
+
+It also retires a real duplication rather than inventing a convention: the stdin-EDN-vector harness
+is hand-copied into every recorded migration — `wat-scripts/fixes/angle-brackets-to-binder.wat:282`
+labels its own copy *"identical shape to every recorded migration."*
+
+**The CLI is the NEXT stone, not this one.** This stone ships the vocabulary it dispatches into.
+
 ## The rooms
 
 1. **`wat-scripts/scratch-pad/rules-corpus-03-source-to-facts.wat:89-99`** — the four `Option/expect`
@@ -170,23 +236,44 @@ the weakest rung, and on this channel the only rung there is.
 
 ## Acceptance
 
-1. **A rule builds a complete `Match` in one RHS** — all five coordinates LHS-bound from `:fx::Span`,
-   `file` supplied as a literal, `captures` a non-empty vector of `Capture` records. Output verbatim.
+1. **A rule builds a complete `Match` in one RHS** — all five coordinates LHS-bound, `file` supplied
+   as a literal, `captures` a non-empty vector of `Capture` records. Output verbatim.
+
+   ⚠ **The proving rule binds its OWN demo fact, NOT `:fx::Span`.** v1 required `:fx::Span` and that
+   is what forced the load cycle: the proving file would need corpus-03's type while corpus-03 needs
+   this file's door. The rule needs *a* fact carrying four coordinates — it does not need *that* one.
+   Declaring a two-line demo fact beside the rule proves exactly the same thing and depends on
+   nothing. (`:fx::Span` still consumes `extent-of` — that is row 4 — but the dependency runs one
+   way only, and now through stdlib rather than `load-file!`.)
 2. **No `Option` appears anywhere in the Match's rendered EDN.** The negative control for the whole
    "end is not optional" ruling — grep the output for `Option/` and find nothing.
 3. **`extent-of` is the ONLY site that unwraps an `ast-span` HashMap.** A census of
    `Option/expect` + `HashMap/get` in the touched files returns exactly one pair.
 4. **The one door is total on the same population the Span stone measured** — re-run corpus-03 and get
    `Span == Node` unchanged (4316 / 435 / 33). A refactor that changes a count changed behaviour.
-5. Files load (`every_wat_scripts_file_loads`), floor green, clippy 0.
+5. **The load-order gate accepts `wat/grep.wat`'s position** — `(:wat::deporder::verify-stdlib)`
+   returns `[]`. It is the authority on placement; a position that reads tidy and violates the gate
+   is how the scoped-work stone went red (`fd7b017f6`'s predecessor).
+6. Files load (`every_wat_scripts_file_loads`), floor green, clippy 0.
+
+⚠ **The floor cannot see a stdlib `.wat` edit until the crate rebuilds** (`include_str!` runs at
+Rust-compile time). A `--check` against a stale `target/release/wat` will report the OLD file.
 
 ## Out of scope — affirmatively cut
 
 - **The rete PersistentMap compiled-exec gap.** Measured and recorded above; it belongs to the rete
   subsystem, which is grok-rete's authority. This stone routes around it by design, not by workaround
   — the vector is the better shape regardless.
-- **wat-grep's loop, the network, and `with-network`.** The Match record and its one door are this
-  stone; the processor that runs files through a held network is the next.
+- **`--grep` itself** — the mode, the stdin list, the `with-network` loop, the one query, the print.
+  It is the NEXT stone and it dispatches into this one's vocabulary. Ruled `--grep`, not `grep`, to
+  match `--repl`/`--mcp`.
+- **Retiring `wat-scripts/lib/wat-grep.wat`.** Measured: exactly ONE consumer,
+  `wat-scripts/fixes/strip-useless-mains.wat`, calling two verbs. And its own comment (`:22`) already
+  names them **`:wat::fix::wat-grep`** / **`:wat::fix::wat-grep-strip`** — a home that does not
+  exist. That comment is right about the domain: both verbs build span-DELETE edits, which is
+  `fix`'s business, not grep's. So the old lib does not migrate into `wat/grep.wat`; its capability
+  belongs to `fix`, and the `grep` name frees up for the real thing. Tracked as its own stone, not
+  folded here — it has a different destination and a different consumer.
 - **Walking deep.** wat-grep is TOP-LEVEL ONLY today; `fix.wat`'s `fix-source` has the recursion. That
   is a separate change with its own blast radius.
 - **`:wat::core::Span` / the Option/Result symbol migration.** Belongs to `296/DESIGN-STONE-H`, which
