@@ -33,6 +33,8 @@ pub(crate) struct RoundScratch<'a> {
 
 mod alpha;
 pub(crate) use alpha::*;
+mod filter;
+pub(crate) use filter::*;
 mod join_after_filter;
 pub(crate) use join_after_filter::*;
 mod production;

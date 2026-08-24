@@ -161,6 +161,27 @@ boundaries**, not substrings, and check struct literals for shorthand before
 replacing. An extraction that needs five compiler round-trips is not wrong, but
 it is slower than one that needs none.
 
+**Settled on pass 3.5 — do not re-spell the aliases at all.** Re-declare them
+inside the pass, exactly as the fire prologue declares them:
+
+```rust
+let kind_ids = &arm.kind_ids;
+let compiled_conds = &arm.compiled_conds;
+…
+let RoundScratch { match_scratch, .. } = scratch;
+```
+
+The moved body then needs **zero** re-spelling, so shorthand cannot break, the
+signature stays at six parameters instead of fourteen, and the diff is a move by
+construction rather than by careful editing. Pass 3.5 built clean on the first
+attempt with this pattern, against five round-trips for 3.6 without it.
+
+**And beware the scan itself.** `\bbind_only\b` matches inside `wm.bind_only`,
+so the pre-scan reported two round locals the filter pass never touches; both
+were destructured and both came back as `unused_variable`. A name test that
+ignores the receiver will over-report every time a session field and a round
+local share a name — which here they deliberately do. Exclude a preceding `.`.
+
 ## Sequencing
 
 Smallest and most isolated first, so the pattern is proven cheaply before the
