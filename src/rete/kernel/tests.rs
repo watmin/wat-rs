@@ -3117,6 +3117,165 @@ fn intern_release_session_wat_mouth_drops_the_lease() {
     assert_eq!(rete_arm_leases(id), None);
 }
 
+// ── DESIGN-STONE-scoped-work-over-a-network: :wat::rete::with-network / with-overlay ──────
+//
+// Row 1 and row 2 exercise the promoted forms end-to-end via `eval_in_frozen`, same as every
+// other test in this file. Row 3 is the one that MUST be Rust (`DESIGN-STONE-scoped-work-
+// over-a-network.md`): leases are not observable from wat, so a wat-only test cannot see the
+// class of bug the prototype's first draft actually shipped (an extra `arm-session` call inside
+// the body took a second lease and released back to 1, leaking the lease `compile-all` took).
+
+/// Fixture world for the scoped-work rows — same shape as the proven prototype
+/// (`wat-scripts/scratch-pad/wat-grep-with-network-shape.wat`), renamed into `:sw::` so it
+/// cannot collide with any other test world's namespace in this file.
+const SCOPED_WORK_WORLD: &str = "\
+(:wat::core::defrecord :sw::Temp  [location <- :wat::core::String])\n\
+(:wat::core::defrecord :sw::Wind  [location <- :wat::core::String])\n\
+(:wat::core::defrecord :sw::Match [location <- :wat::core::String])\n\
+\n\
+(:wat::rete::defquery :sw::q-match :params [] :when [(?fact <- :sw::Match)])\n\
+\n\
+(:wat::core::defn :sw::the-rules [] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])\n\
+  (:wat::core::let\n\
+    [c1   (:wat::core::quote (:sw::Temp (?loc <- :location)))\n\
+     c2   (:wat::core::quote (:sw::Wind (?loc <- :location)))\n\
+     rhs  (:wat::core::quote (:sw::Match ?loc))\n\
+     rule (:wat::rete::Rule :name \"temp-and-wind\"\n\
+            :lhs (:wat::core::PersistentVector c1 c2)\n\
+            :rhs (:wat::core::PersistentVector rhs))]\n\
+    (:wat::core::PersistentVector :- [:wat::rete::Rule] rule)))\n\
+\n\
+(:wat::core::defn :sw::the-queries [] -> (:wat::core::PersistentVector :- [:wat::rete::Query])\n\
+  (:wat::core::PersistentVector :- [:wat::rete::Query] (:sw::q-match)))\n\
+\n\
+(:wat::core::defn :sw::facts-for\n\
+  [loc <- :wat::core::String]\n\
+  -> (:wat::core::PersistentVector :- [:wat::core::Record])\n\
+  (:wat::core::PersistentVector :- [:wat::core::Record]\n\
+    (:sw::Temp :location loc) (:sw::Wind :location loc)))\n\
+";
+
+/// Row 1 — N units of work cost ONE network build. `with-overlay` over 3 distinct fact sets
+/// (matching the prototype's `3 / 0 / 3`) must increment `ARM_BUILDS` exactly once; rete
+/// already gates the underlying mechanism (`fire_rules_reuses_arm_across_fire_and_insert_
+/// overlay`), this asserts the COMPOSITION through the promoted `with-overlay` form.
+#[test]
+fn scoped_work_with_overlay_reuses_one_build() {
+    use super::ARM_BUILDS;
+    let world = startup_from_source(SCOPED_WORK_WORLD, None, Arc::new(InMemoryLoader::new()))
+        .expect("scoped-work world should freeze");
+    let builds_before = ARM_BUILDS.load(std::sync::atomic::Ordering::Relaxed);
+
+    let src = "\
+(:wat::rete::with-overlay (:sw::the-rules) (:sw::the-queries)\n\
+  (:wat::core::fn [overlay <- :wat::rete::Overlay] -> :wat::core::i64\n\
+    (:wat::core::foldl\n\
+      (:wat::core::fn [acc <- :wat::core::i64  loc <- :wat::core::String] -> :wat::core::i64\n\
+        (:wat::core::i64::+ acc\n\
+          (:wat::core::length (:wat::rete::query (overlay (:sw::facts-for loc)) (:sw::q-match)))))\n\
+      0\n\
+      (:wat::core::Vector :- [:wat::core::String] \"fileA\" \"fileB\" \"fileC\"))))";
+    let ast = crate::parse_one!(src).expect("parse with-overlay driver");
+    let total = eval_in_frozen(&ast, &world, &Environment::new())
+        .unwrap_or_else(|e| panic!("with-overlay raised: {e:?}"))
+        .value_owned();
+    assert_eq!(
+        total,
+        Value::i64(3),
+        "one match per unit, three distinct units"
+    );
+
+    let builds_after = ARM_BUILDS.load(std::sync::atomic::Ordering::Relaxed);
+    assert_eq!(
+        builds_after - builds_before,
+        1,
+        "with-overlay over 3 distinct fact sets must cost exactly ONE network build; \
+         before={builds_before} after={builds_after}"
+    );
+}
+
+/// Row 2 — the base is untouched. The Session is a fact overlay over circuits it does not own
+/// (`arm.rs:572`) and is immutable, so a freshly compiled base that has had no facts inserted
+/// must still answer its own query with zero results — the prototype's `0` in `3 / 0 / 3`.
+#[test]
+fn scoped_work_with_network_base_untouched() {
+    let world = startup_from_source(SCOPED_WORK_WORLD, None, Arc::new(InMemoryLoader::new()))
+        .expect("scoped-work world should freeze");
+
+    let src = "\
+(:wat::rete::with-network (:sw::the-rules) (:sw::the-queries)\n\
+  (:wat::core::fn [base <- :wat::rete::Session] -> :wat::core::i64\n\
+    (:wat::core::length (:wat::rete::query (:wat::rete::fire-rules base) (:sw::q-match)))))";
+    let ast = crate::parse_one!(src).expect("parse with-network driver");
+    let zero = eval_in_frozen(&ast, &world, &Environment::new())
+        .unwrap_or_else(|e| panic!("with-network raised: {e:?}"))
+        .value_owned();
+    assert_eq!(
+        zero,
+        Value::i64(0),
+        "a compiled base with no facts inserted must still answer its own query with zero results"
+    );
+}
+
+/// Row 3 — THE LEASE IS ACTUALLY RELEASED. Must be Rust: leases are not observable from wat.
+///
+/// Two id's, deliberately: `compile-all` never content-interns (`network_identity` keys off the
+/// PersistentMap's own allocation identity, `arm.rs:602`), so no two separate `compile-all`
+/// calls in this test — even on identical rules/queries — can ever share an id. There is no way
+/// to pause a live `with-network` call from Rust to probe its lease mid-execution (wat has no
+/// native-closure body-fn hook), so "inside the body" is reproduced directly: `compile-all` is
+/// the FIRST thing `with-network`'s body does (`wat/rete.wat`), so calling it standalone
+/// reproduces the exact lease state a correct body-fn runs under, before anything releases it.
+/// The SECOND half is the one that actually discriminates the prototype's real bug: it runs the
+/// PROMOTED `with-network` end-to-end and checks the state after it returns. The prototype's
+/// first draft called `arm-session` on the session `compile-all` already armed — HIT increments
+/// the lease (`arm.rs:709`) — so it took lease 2 and released back to 1, leaving `compile-all`'s
+/// own lease held FOREVER; `rete_arm_lookup` would still find it (`Some`, not `None`) after
+/// `with-network` returned. The idiom (compile → assert leased → release → assert gone) is
+/// `intern_release_one_session_leaves_the_other`'s (`tests.rs:3043`).
+#[test]
+fn scoped_work_with_network_releases_the_lease_it_takes() {
+    use super::{rete_arm_leases, rete_arm_lookup, rete_arm_release};
+    let world = startup_from_source(SCOPED_WORK_WORLD, None, Arc::new(InMemoryLoader::new()))
+        .expect("scoped-work world should freeze");
+
+    // "inside the body" — the state with-network's body runs under: one lease, taken by
+    // compile-all, nothing has released it yet.
+    let inside_src = "(:wat::rete::compile-all (:sw::the-rules) (:sw::the-queries))";
+    let inside_ast = crate::parse_one!(inside_src).expect("parse compile-all");
+    let inside_base = eval_in_frozen(&inside_ast, &world, &Environment::new())
+        .unwrap_or_else(|e| panic!("compile-all raised: {e:?}"))
+        .value_owned();
+    let inside_id =
+        session_net_id(&inside_base).expect("compiled session has a network identity");
+    assert_eq!(
+        rete_arm_leases(inside_id),
+        Some(1),
+        "compile-all leases exactly 1 — the state with-network's body runs under"
+    );
+    // Clean up this standalone probe network directly (not through a second compile-all —
+    // that would mint a THIRD, unrelated id) so it does not outlive the test.
+    rete_arm_release(inside_id);
+    assert!(rete_arm_lookup(inside_id).is_none());
+
+    // "after with-network returns" — the check that actually catches the historical bug: run
+    // the PROMOTED form end-to-end and confirm the lease compile-all took is fully gone.
+    let after_src = "\
+(:wat::rete::with-network (:sw::the-rules) (:sw::the-queries)\n\
+  (:wat::core::fn [base <- :wat::rete::Session] -> :wat::rete::Session base))";
+    let after_ast = crate::parse_one!(after_src).expect("parse with-network driver");
+    let returned = eval_in_frozen(&after_ast, &world, &Environment::new())
+        .unwrap_or_else(|e| panic!("with-network raised: {e:?}"))
+        .value_owned();
+    let after_id =
+        session_net_id(&returned).expect("with-network's base carries a network identity");
+    assert!(
+        rete_arm_lookup(after_id).is_none(),
+        "with-network must fully release the lease compile-all took; a leaked lease (the \
+         prototype's first-draft bug) would leave this Some instead of None"
+    );
+}
+
 /// Every `Value::Aggregate` (non-`Struct`) fact in a fired session's final fact set —
 /// `merge_facts` accumulates seed + every derived fact there across the whole fire pass.
 fn all_facts_of(fired: &Value) -> Vec<Value> {

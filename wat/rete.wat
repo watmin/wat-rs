@@ -161,6 +161,14 @@
 (:wat::core::typealias :wat::rete::ProductionMemory
   (:wat::core::PersistentMap :- [:wat::core::i64 (:wat::core::PersistentVector :- [:wat::core::Record])]))
 
+;; Overlay — the thing with-overlay hands its body: facts in, a FIRED Session out. The Session
+;; is a fact overlay over circuits it does not own (arm.rs:572) and is immutable, so re-seeding
+;; from the compiled base is the only "reset" there is. Named by the 2026-08-24 intueri cast
+;; (rete-scoped-work-naming.wat.intueri) — "overlay" is this corpus's own word (arm.rs:572,
+;; session.rs:1114, kernel/tests.rs:3068), not imported vocabulary.
+(:wat::core::typealias :wat::rete::Overlay
+  [(:wat::core::PersistentVector :- [:wat::core::Record]) :-> :wat::rete::Session])
+
 ;; Session — the complete rete engine state; the caller-facing handle.
 ;;   network:           id → raw node record — the compiled DAG, id-indexed.
 ;;   rules:             PersistentVector of Rule (the rule-set as data).
@@ -183,6 +191,7 @@
    facts             <- :wat::core::PersistentVector
    next-id           <- :wat::core::i64
    query-memory      <- :wat::core::PersistentMap])
+
 (:wat::core::typealias :wat::rete::GroupByMap
   (:wat::core::PersistentMap :- [:wat::core::i64 (:wat::core::PersistentVector :- [:wat::core::Record])]))
 (:wat::core::typealias :wat::rete::ClassFields

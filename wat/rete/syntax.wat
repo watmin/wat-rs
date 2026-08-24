@@ -267,3 +267,56 @@
          (:wat::core::quote ~params-vec)
          (:wat::core::quote ~when-vec)))))
 
+;; ⚠ THESE LIVE HERE, NOT IN wat/rete.wat, AND THE LOAD ORDER IS WHY.
+;; rete.wat loads at STDLIB_FILES pos 36; compile-all is defined in wat/rete/compile.wat
+;; (pos 37), insert-all in oracle/insert.wat, fire-rules in oracle/fire.wat (pos 43) — all
+;; AFTER it. Placing these defns in rete.wat produced three real eval-time load-order
+;; violations (arc 275's gate caught them by name). syntax.wat is the LAST rete file to
+;; load, so every dependency is already defined — and it is already the caller-facing
+;; mouth (`query` lives here), which is where a caller-facing scope form belongs anyway.
+;; ── scoped work over a compiled network ─────────────────────────────────────
+;; DESIGN-STONE-scoped-work-over-a-network: rete has an ACQUIRE/RELEASE pair with nothing
+;; pairing it — compile-all already takes an intern lease (DESIGN-STONE-arm-at-compile) and
+;; release-session drops it; every caller had to remember the release by hand. These two forms
+;; are that missing shape, matching :wat::io::with-open-file: a plain defn that acquires its
+;; own resource and releases it after the body runs.
+
+;; with-network — compiles rules+queries into an armed Session, hands it to body-fn, releases
+;; the lease after. Returns body-fn's result.
+;; Both forms COMPILE their own network; neither accepts a Session. This is forced, not
+;; stylistic: compile-all already arms, and arm-session's HIT path INCREMENTS the lease
+;; (arm.rs:709) — so a wrapper handed an already-compiled Session could only add a lease it
+;; then removes, leaking the lease compile-all took. Acquire and release must be the same scope.
+;; The body's param is named `base` by convention, not signature: it is a VALUE the body can
+;; hold and thread forward (accumulating across units is permitted here) — as opposed to
+;; with-overlay's `overlay`, a VERB the body calls, which forbids it by having no base in scope.
+(:wat::core::defn :wat::rete::with-network :- [T]
+  [rules   <- (:wat::core::PersistentVector :- [:wat::rete::Rule])
+   queries <- (:wat::core::PersistentVector :- [:wat::rete::Query])
+   body-fn <- [:wat::rete::Session :-> T]]
+  -> T
+  (:wat::core::let [base   (:wat::rete::compile-all rules queries)
+                    result (body-fn base)]
+    (:wat::core::do
+      (:wat::rete::release-session base)
+      result)))
+
+;; with-overlay — same acquire/release scope as with-network (built ON it: one release site,
+;; not two), plus a structural guarantee: the body receives not the Session but an Overlay
+;; (facts -> fired Session), always re-seeded from the compiled base. The base is never in
+;; scope, so threading one unit of work's facts into the next has no form. `(overlay facts)`
+;; returns a FIRED Session, not a seeded one — the caller never wants the unfired form.
+;; N distinct units of work still cost ONE network build and ONE lease: the Session is a fact
+;; overlay over circuits it does not own (arm.rs:572) and is immutable, so each call re-seeds
+;; from `base` and `base` itself is never touched.
+(:wat::core::defn :wat::rete::with-overlay :- [T]
+  [rules   <- (:wat::core::PersistentVector :- [:wat::rete::Rule])
+   queries <- (:wat::core::PersistentVector :- [:wat::rete::Query])
+   body-fn <- [:wat::rete::Overlay :-> T]]
+  -> T
+  (:wat::rete::with-network rules queries
+    (:wat::core::fn [base <- :wat::rete::Session] -> T
+      (body-fn
+        (:wat::core::fn [facts <- (:wat::core::PersistentVector :- [:wat::core::Record])]
+          -> :wat::rete::Session
+          (:wat::rete::fire-rules (:wat::rete::insert-all base facts)))))))
