@@ -35,11 +35,23 @@
   [id   <- :wat::core::i64
    name <- :wat::core::String])
 
+;; :fx::Span — the coordinate a rule can bind. Flat, not nested, and NOT :wat::core::Span:
+;; `ast-span` returns keyword->i64 so it cannot carry :file; the file is a property of the RUN,
+;; not of a node; and a rule binds FIELDS, not sub-records. Emitted UNCONDITIONALLY beside Node —
+;; unlike :fx::Named, this fact has no guard. Span == Node is the non-vacuity control.
+(:wat::core::defrecord :fx::Span
+  [id       <- :wat::core::i64      ; joins to Node/id — the pre-order identity
+   line     <- :wat::core::i64
+   col      <- :wat::core::i64
+   end-line <- :wat::core::i64
+   end-col  <- :wat::core::i64])
+
 ;; the walk's accumulator — threaded, never mutated
 (:wat::core::defrecord :fx::Acc
   [next-id <- :wat::core::i64
    nodes   <- (:wat::core::PersistentVector :- [:fx::Node])
-   named   <- (:wat::core::PersistentVector :- [:fx::Named])])
+   named   <- (:wat::core::PersistentVector :- [:fx::Named])
+   spans   <- (:wat::core::PersistentVector :- [:fx::Span])])
 
 ;; per-level child accumulator: the walk's Acc plus this level's running index
 (:wat::core::defrecord :fx::ChildAcc
@@ -77,7 +89,17 @@
              (:wat::core::PersistentVector/conj (:fx::Acc/named acc)
                (:fx::Named :id id :name (:wat::core::ast-name node)))
              (:fx::Acc/named acc))
-     acc'  (:fx::Acc :next-id (:wat::core::i64::+ id 1) :nodes nodes :named named)]
+     ;; NO GUARD: ast-span / ast-end-span are TOTAL (measured across leaf kinds and reader-
+     ;; synthesized nodes). Every node gets a Span — that is this stone's whole point.
+     sp    (:wat::core::ast-span node)
+     ep    (:wat::core::ast-end-span node)
+     spans (:wat::core::PersistentVector/conj (:fx::Acc/spans acc)
+             (:fx::Span :id id
+                        :line     (:wat::core::Option/expect (:wat::core::HashMap/get sp :line) "Span :line")
+                        :col      (:wat::core::Option/expect (:wat::core::HashMap/get sp :col)  "Span :col")
+                        :end-line (:wat::core::Option/expect (:wat::core::HashMap/get ep :line) "Span :end-line")
+                        :end-col  (:wat::core::Option/expect (:wat::core::HashMap/get ep :col)  "Span :end-col")))
+     acc'  (:fx::Acc :next-id (:wat::core::i64::+ id 1) :nodes nodes :named named :spans spans)]
     (:wat::core::if (:fx::structural? node)
       (:fx::ChildAcc/acc
         (:wat::core::foldl
@@ -99,7 +121,8 @@
 (:wat::core::defn :fx::empty-acc [] -> :fx::Acc
   (:fx::Acc :next-id 1
             :nodes (:wat::core::PersistentVector)
-            :named (:wat::core::PersistentVector)))
+            :named (:wat::core::PersistentVector)
+            :spans (:wat::core::PersistentVector)))
 
 (:wat::core::defn :fx::extract [src <- :wat::core::String] -> :fx::Acc
   (:wat::core::match (:wat::core::read-string src)
@@ -117,11 +140,13 @@
 (:wat::core::defn :fx::report [path <- :wat::core::String] -> :wat::core::nil
   (:wat::core::let [acc (:fx::extract (:wat::io::read-file path))
                     n   (:wat::core::length (:fx::Acc/nodes acc))
-                    m   (:wat::core::length (:fx::Acc/named acc))]
+                    m   (:wat::core::length (:fx::Acc/named acc))
+                    sp  (:wat::core::length (:fx::Acc/spans acc))]
     (:wat::kernel::println
       (:wat::core::string::concat path
         (:wat::core::string::concat "  Node=" (:wat::core::str n)
-          (:wat::core::string::concat "  Named=" (:wat::core::str m)))))))
+          (:wat::core::string::concat "  Named=" (:wat::core::str m)
+            (:wat::core::string::concat "  Span=" (:wat::core::str sp))))))))
 
 
 ;; ─── ★ THE JOIN: the extractor's facts FEED THE RULES, on real source ────────
@@ -155,6 +180,23 @@
            (:wat::rete::core::i64::= ?i (:wat::rete::core::i64::+ ?ai 1 :undefined 0)))]
   :then [(:fx::IsTypePos :id ?id)])
 
+;; ★ THE SPAN JOIN — proves the coordinate is reachable from a condition. A three-way join,
+;; Node × Named × Span, all sharing ?id: the arrow-symbol condition from `:fx::arrow`, plus
+;; `:fx::Span` re-joined on the SAME ?id, binding ?l to the line the arrow starts on.
+(:wat::core::defrecord :fx::ArrowLine [id <- :wat::core::i64  line <- :wat::core::i64])
+
+(:wat::rete::defrule :fx::arrow-line
+  :when [(:fx::Node  (?id <- :id) (?k <- :kind))
+         (:fx::Named (?id <- :id) (?n <- :name))
+         (:fx::Span  (?id <- :id) (?l <- :line))
+         (:wat::rete::where (:wat::rete::core::string::= ?k "symbol"))
+         (:wat::rete::where (:wat::rete::core::string::= ?n "<-"))]
+  :then [(:fx::ArrowLine :id ?id :line ?l)])
+
+(:wat::rete::defquery :fx::q-ArrowLine
+  :params []
+  :when [(:fx::ArrowLine (?id <- :id) (?l <- :line))])
+
 (:wat::rete::defquery :fx::q-IsArrow
   :params []
   :when [(?fact <- :fx::IsArrow)])
@@ -173,14 +215,29 @@
 (:wat::core::defn :fx::classify [path <- :wat::core::String] -> :wat::core::nil
   (:wat::core::let
     [acc   (:fx::extract (:wat::io::read-file path))
-     rules (:wat::core::PersistentVector (:fx::arrow) (:fx::head-kw) (:fx::type-pos))
-     s0    (:wat::rete::insert-all (:wat::rete::compile-all rules (:wat::core::PersistentVector (:fx::q-IsArrow) (:fx::q-IsHeadKw) (:fx::q-IsTypePos))) (:fx::Acc/nodes acc))
-     fired (:wat::rete::fire-rules (:wat::rete::insert-all s0 (:fx::Acc/named acc)))]
+     rules (:wat::core::PersistentVector (:fx::arrow) (:fx::head-kw) (:fx::type-pos) (:fx::arrow-line))
+     s0    (:wat::rete::insert-all
+             (:wat::rete::compile-all rules
+               (:wat::core::PersistentVector (:fx::q-IsArrow) (:fx::q-IsHeadKw) (:fx::q-IsTypePos) (:fx::q-ArrowLine)))
+             (:fx::Acc/nodes acc))
+     s1    (:wat::rete::insert-all s0 (:fx::Acc/named acc))
+     s2    (:wat::rete::insert-all s1 (:fx::Acc/spans acc))
+     fired (:wat::rete::fire-rules s2)
+     arrow-lines (:wat::rete::query fired (:fx::q-ArrowLine))
+     n-arrow-lines (:wat::core::length arrow-lines)]
     (:wat::kernel::println
       (:wat::core::string::concat path
         (:wat::core::string::concat "  arrows=" (:wat::core::str (:wat::core::length (:wat::rete::query fired (:fx::q-IsArrow))))
           (:wat::core::string::concat "  head-kw=" (:wat::core::str (:wat::core::length (:wat::rete::query fired (:fx::q-IsHeadKw))))
-            (:wat::core::string::concat "  type-pos=" (:wat::core::str (:wat::core::length (:wat::rete::query fired (:fx::q-IsTypePos)))))))))))
+            (:wat::core::string::concat "  type-pos=" (:wat::core::str (:wat::core::length (:wat::rete::query fired (:fx::q-IsTypePos))))
+              (:wat::core::string::concat "  arrow-line=" (:wat::core::str n-arrow-lines)
+                (:wat::core::string::concat "  sample-line="
+                  (:wat::core::if (:wat::core::i64::> n-arrow-lines 0)
+                    (:wat::core::str
+                      (:wat::core::Option/expect
+                        (:wat::core::PersistentMap/get (:wat::core::first arrow-lines) "?l")
+                        "q-ArrowLine: ?l"))
+                    "none"))))))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::do
