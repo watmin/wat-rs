@@ -167,6 +167,48 @@ use crate::freeze::startup_from_source;
 use crate::load::FsLoader;
 use crate::runtime::set_argv;
 
+/// Check that a frozen `--grep` world's `:user::grep` declares the canonical
+/// `[] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])` shape. Returns `Err(message)`
+/// with a reader-friendly diagnostic naming `:user::grep` — the mirror of
+/// `freeze::validate_user_main_signature`'s JOB (a missing-or-wrong-shaped entry point must be
+/// refused with a located diagnostic naming what was expected), not its text: `--grep` has a
+/// different entry point with a different contract, so it gets its own message rather than a
+/// borrowed one that would name the wrong function.
+///
+/// Lives here (not `freeze.rs`) — this stone's blast radius is `src/distribution/*` only; the
+/// wall is Grep's own, parallel to but independent of the main wall it must never reach.
+fn validate_user_grep_signature(world: &crate::freeze::FrozenWorld) -> Result<(), String> {
+    let func = world.symbols().get(":user::grep").ok_or_else(|| {
+        ":user::grep not defined — a --grep program needs an entry point. Arc 278 (the \
+         grep-mode stone) — `--grep` dispatches to `:user::grep`, not `:user::main`; the two \
+         are different contracts for different modes. The canonical signature is \
+         `[] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])`."
+            .to_string()
+    })?;
+    let expected_ret =
+        crate::types::parse_type_expr_from_source("(:wat::core::PersistentVector :- [:wat::rete::Rule])")
+            .expect("arc 278: the grep-mode canonical return type source parses");
+    if !func.param_types.is_empty() {
+        return Err(format!(
+            ":user::grep must take exactly 0 parameters; got {}. Arc 278 (the grep-mode stone) \
+             — `:user::grep` takes no arguments; it returns the rules for `:wat::grep::run` to \
+             compile. The canonical signature is \
+             `[] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])`.",
+            func.param_types.len()
+        ));
+    }
+    if func.ret_type != expected_ret {
+        return Err(format!(
+            ":user::grep return type expected (:wat::core::PersistentVector :- \
+             [:wat::rete::Rule]); got {}. Arc 278 (the grep-mode stone) — `:user::grep` must \
+             return the vector of rules `:wat::grep::run` compiles and fires. The canonical \
+             signature is `[] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])`.",
+            crate::freeze::format_type_expr(&func.ret_type)
+        ));
+    }
+    Ok(())
+}
+
 /// argv-injectable variant; `run` = `run_with_args(b, env::args())`.
 ///
 /// Identical to [`run`] but accepts a caller-supplied `argv` instead
@@ -239,8 +281,12 @@ pub fn run_with_args(batteries: &[Battery], argv: Vec<String>) -> ExitCode {
         // no entry file. The label is what its diagnostics carry.
         argv::Mode::Mcp => (MCP_LABEL, None, false),
         argv::Mode::Run { entry_path } => (entry_path.as_str(), None, false),
+        // Grep behaves exactly like Run here: it has a real entry file that must be read and
+        // frozen. It diverges only after the freeze (see the Grep dispatch arm below).
+        argv::Mode::Grep { entry_path } => (entry_path.as_str(), None, false),
     };
     let is_repl = matches!(mode, argv::Mode::Repl);
+    let is_grep = matches!(mode, argv::Mode::Grep { .. });
 
     // Arc 170 slice 1e (REALIZATIONS pass 7) — populate the process-wide argv
     // ambient, which `(:wat::runtime::argv)` reads from any depth in the wat
@@ -424,6 +470,80 @@ pub fn run_with_args(batteries: &[Battery], argv: Vec<String>) -> ExitCode {
             return ExitCode::from(crate::process::EXIT_STARTUP_ERROR as u8);
         }
     };
+
+    // ── Grep dispatch — diverges HERE, before the `:user::main` wall below ─────────────────
+    //
+    // DESIGN: docs/arc/2026/06/278-rules-engine/DESIGN-STONE-the-grep-mode.md
+    // BRIEF:  docs/arc/2026/06/278-rules-engine/BRIEF-STONE-the-grep-mode.md
+    //
+    // A `--grep` program has no `:user::main`. Routed through the wall at `:443` below it
+    // would be refused for lacking a function it is not supposed to have — so Grep gets its
+    // own arm with its own wall, on `:user::grep`, and returns from this function before that
+    // wall is ever reached.
+    if is_grep {
+        if let Err(msg) = validate_user_grep_signature(&world) {
+            crate::process::emit_structured_exit(
+                Some(&world),
+                crate::runtime::process_died_error_runtime_value(&crate::to_edn::FlatMessage {
+                    tag: "GrepSignatureError",
+                    key: "message",
+                    message: &msg,
+                }),
+            );
+            return ExitCode::from(crate::process::EXIT_RUNTIME_ERROR as u8);
+        }
+
+        // `invoke_user_main` (freeze.rs) hardcodes `:user::main` and is NOT reusable here.
+        // Its own steps 1-4 — spawning the three stdio services and installing ThreadIO on
+        // this thread, so the driver's `(:wat::kernel::println …)` / `(readln)` calls land
+        // somewhere — carry no such assumption and ARE reusable directly:
+        // `bootstrap_wat_vm_process` is `pub fn` for exactly this.
+        let runtime = match crate::freeze::bootstrap_wat_vm_process(crate::freeze::BootstrapArgs {
+            frozen: &world,
+        }) {
+            Ok(rt) => rt,
+            Err(e) => {
+                crate::process::emit_structured_exit(
+                    Some(&world),
+                    crate::runtime::process_died_error_runtime_value(&e),
+                );
+                return ExitCode::from(crate::process::EXIT_RUNTIME_ERROR as u8);
+            }
+        };
+
+        // Both lookups are known to succeed here: `:user::grep` by the wall just above,
+        // `:wat::grep::run` because it is stdlib (`wat/grep.wat`), always present.
+        let grep_fn = runtime
+            .symbols()
+            .get(":user::grep")
+            .expect("validate_user_grep_signature already confirmed :user::grep exists")
+            .clone();
+        let run_fn = runtime
+            .symbols()
+            .get(":wat::grep::run")
+            .expect(":wat::grep::run is stdlib and always present")
+            .clone();
+
+        // The shape from the design/brief: `:user::grep` produces the rules,
+        // `:wat::grep::run` consumes them — `:wat::grep::run` reads the EDN path vector off
+        // stdin itself (`readln`, the codemods' shape); Rust never reads stdin for this mode.
+        let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let rules = crate::runtime::apply_function(
+                grep_fn,
+                Vec::new(),
+                runtime.symbols(),
+                crate::rust_caller_span!(),
+            )?;
+            crate::runtime::apply_function(
+                run_fn,
+                vec![rules],
+                runtime.symbols(),
+                crate::rust_caller_span!(),
+            )
+        }));
+        let code = crate::process::finish_in_process(&world, outcome);
+        return ExitCode::from(code as u8);
+    }
 
     // Run `:user::main` under a panic boundary and map the outcome to an exit
     // code, emitting the SAME structured EDN on fd 2 that the forked child

@@ -70,6 +70,16 @@ pub(super) enum Mode {
     /// re-threading a slice of it here would be a second copy that could drift
     /// from the ambient the program actually reads.
     Run { entry_path: String },
+    /// `echo '["a.wat" …]' | wat --grep <entry.wat>` — the grep mode
+    /// (`docs/arc/2026/06/278-rules-engine/DESIGN-STONE-the-grep-mode.md`). EXACTLY one
+    /// positional, same arity contract as `Run` — it has a real program that must be read and
+    /// frozen. Unlike `Run`, that program declares `:user::grep` (rules), never `:user::main`;
+    /// the dispatch tail (`src/distribution/mod.rs`) validates the mirror wall, not the main
+    /// one, and hands the result to `:wat::grep::run` instead of invoking `:user::main`. The
+    /// paths to search are NOT a positional/trailing arg — they arrive as an EDN vector on
+    /// stdin, read by `:wat::grep::run` itself (`readln`, the codemods' shape); Rust never
+    /// reads stdin for this mode.
+    Grep { entry_path: String },
 }
 
 /// Parse `argv[1..]` into a [`Mode`]. `prog` is argv\[0\] (or `"wat"` if argv
@@ -80,6 +90,7 @@ pub(super) fn parse(argv: &[String], prog: &str) -> Result<Mode, ExitCode> {
     let mut check_only = false;
     let mut repl = false;
     let mut mcp = false;
+    let mut grep = false;
     let mut output_format: Option<CheckOutputFormat> = None;
     let mut positional: Vec<&str> = Vec::new();
     let mut iter = argv.iter().skip(1);
@@ -93,6 +104,9 @@ pub(super) fn parse(argv: &[String], prog: &str) -> Result<Mode, ExitCode> {
             "--repl" if positional.is_empty() => repl = true,
             "--mcp" if positional.is_empty() => mcp = true,
             "--check" if positional.is_empty() => check_only = true,
+            // `--grep`, not a bare `grep` subcommand — matches `--repl`/`--mcp`'s shape
+            // (builder, 2026-08-24: "it must be --grep to match with --repl and --mcp").
+            "--grep" if positional.is_empty() => grep = true,
             "--check-output" if positional.is_empty() => {
                 match iter.next().map(String::as_str) {
                     Some("edn") => output_format = Some(CheckOutputFormat::Edn),
@@ -118,7 +132,7 @@ pub(super) fn parse(argv: &[String], prog: &str) -> Result<Mode, ExitCode> {
 
     let usage = |prog: &str| {
         eprintln!(
-            "usage: {prog} [--check [--check-output edn|json]] <entry.wat> [args…]\n   or: {prog} --repl\n   or: {prog} --mcp"
+            "usage: {prog} [--check [--check-output edn|json]] <entry.wat> [args…]\n   or: {prog} --repl\n   or: {prog} --mcp\n   or: {prog} --grep <entry.wat>"
         );
         ExitCode::from(64) // EX_USAGE
     };
@@ -127,7 +141,7 @@ pub(super) fn parse(argv: &[String], prog: &str) -> Result<Mode, ExitCode> {
     // `--mcp --repl` is a usage error rather than a precedence rule — two different programs
     // were asked for, and picking one silently is the dishonest answer.
     if mcp {
-        if !positional.is_empty() || check_only || output_format.is_some() || repl {
+        if !positional.is_empty() || check_only || output_format.is_some() || repl || grep {
             return Err(usage(prog));
         }
         return Ok(Mode::Mcp);
@@ -137,10 +151,23 @@ pub(super) fn parse(argv: &[String], prog: &str) -> Result<Mode, ExitCode> {
     // different programs at once; refusing is the honest answer, not "run one and ignore the
     // other". `--repl --check` is likewise a usage error: there is no entry file to check.
     if repl {
-        if !positional.is_empty() || check_only || output_format.is_some() {
+        if !positional.is_empty() || check_only || output_format.is_some() || grep {
             return Err(usage(prog));
         }
         return Ok(Mode::Repl);
+    }
+
+    // Grep mode: exactly one positional — the program declaring `:user::grep`, same arity
+    // contract as Run. `--grep --check` is a usage error rather than a precedence rule: the
+    // two verify DIFFERENT walls (`:user::main` vs `:user::grep`) and picking one silently
+    // would misreport what was actually checked.
+    if grep {
+        if positional.len() != 1 || check_only || output_format.is_some() {
+            return Err(usage(prog));
+        }
+        return Ok(Mode::Grep {
+            entry_path: positional[0].to_string(),
+        });
     }
 
     if check_only {
