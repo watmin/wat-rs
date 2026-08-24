@@ -37,6 +37,8 @@ mod filter;
 pub(crate) use filter::*;
 mod filter_after_join;
 pub(crate) use filter_after_join::*;
+mod hash_join;
+pub(crate) use hash_join::*;
 mod join_after_filter;
 pub(crate) use join_after_filter::*;
 mod production;
