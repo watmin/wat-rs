@@ -82,9 +82,13 @@
 ;; — core's fails the rete `:then` fence with "is not total" (measured, DESIGN-STONE session).
 (:wat::rete::defrule :fx::match-arrow
   :when [(:wat::grep::Node (?id <- :id) (?k <- :kind))
-         (:wat::grep::Span (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))]
+         (:wat::grep::Span (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
+         ;; the ONE Source fact per file — how a rule learns which file it is matching in.
+         ;; This line used to be a hardcoded "wat/fix.wat", which was right by coincidence for
+         ;; exactly one file and wrong for every other.
+         (:wat::grep::Source (?f <- :file))]
   :then [(:wat::grep::Match
-           :file     "wat/fix.wat"
+           :file     ?f
            :line     ?l
            :col      ?c
            :end-line ?el
@@ -94,7 +98,7 @@
                        (:wat::grep::Capture :name "kind" :value ?k)))])
 
 (:wat::core::defn :fx::report [path <- :wat::core::String] -> :wat::core::nil
-  (:wat::core::let [facts (:wat::grep::facts-of (:wat::io::read-file path))
+  (:wat::core::let [facts (:wat::grep::facts-of path (:wat::io::read-file path))
                     n   (:wat::core::length (:wat::grep::Facts/nodes facts))
                     m   (:wat::core::length (:wat::grep::Facts/named facts))
                     sp  (:wat::core::length (:wat::grep::Facts/spans facts))]
@@ -107,7 +111,7 @@
 
 (:wat::core::defn :fx::classify [path <- :wat::core::String] -> :wat::core::nil
   (:wat::core::let
-    [facts (:wat::grep::facts-of (:wat::io::read-file path))
+    [facts (:wat::grep::facts-of path (:wat::io::read-file path))
      rules (:wat::core::PersistentVector (:fx::arrow) (:fx::head-kw) (:fx::type-pos) (:fx::arrow-line))
      s0    (:wat::rete::insert-all
              (:wat::rete::compile-all rules
@@ -135,13 +139,15 @@
 ;; ─── ★ THE MATCH — proves the stdlib fact base can feed a user-declared Match rule ──
 (:wat::core::defn :fx::match [path <- :wat::core::String] -> :wat::core::nil
   (:wat::core::let
-    [facts (:wat::grep::facts-of (:wat::io::read-file path))
+    [facts (:wat::grep::facts-of path (:wat::io::read-file path))
      rules (:wat::core::PersistentVector (:fx::match-arrow))
      s0    (:wat::rete::insert-all
              (:wat::rete::compile-all rules (:wat::core::PersistentVector (:wat::grep::q-match)))
              (:wat::grep::Facts/nodes facts))
      s1    (:wat::rete::insert-all s0 (:wat::grep::Facts/spans facts))
-     fired (:wat::rete::fire-rules s1)
+     ;; the ONE Source fact — the rule joins it for :file, so it must be inserted like any other.
+     s2    (:wat::rete::insert s1 (:wat::grep::Facts/source facts))
+     fired (:wat::rete::fire-rules s2)
      matches (:wat::rete::query fired (:wat::grep::q-match))
      m       (:wat::core::Option/expect
                (:wat::core::PersistentMap/get (:wat::core::first matches) "?fact")

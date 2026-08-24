@@ -97,10 +97,26 @@
 
 ;; ── source → facts ──────────────────────────────────────────────────────────────────
 
+;; Source — ONE fact per file, naming where the other facts came from.
+;;
+;; ⛔ WHY THIS EXISTS, and it is a correction. The DESIGN argued — correctly — that "the file is a
+;; property of the RUN, not of a node; repeating it on every fact in a 4316-node file is 4316
+;; copies of one string." That is why `file` is not a field on Node or Span. But the design then
+;; gave the run's property NO route to a rule at all, and `facts-of` took the source's CONTENTS
+;; without its IDENTITY — so the knowledge died at a parameter list while `run-one` was holding
+;; the path one expression away. Every Match a rule could assert carried a filename the rule
+;; author had typed by hand.
+;;
+;; A rule that wants the filename joins this ONE fact; a rule that does not, ignores it. One
+;; string per file, not one per node — the design's own argument, finally with a destination.
+(:wat::core::defrecord :wat::grep::Source
+  [file <- :wat::core::String])
+
 (:wat::core::defrecord :wat::grep::Facts
-  [nodes <- (:wat::core::PersistentVector :- [:wat::grep::Node])
-   named <- (:wat::core::PersistentVector :- [:wat::grep::Named])
-   spans <- (:wat::core::PersistentVector :- [:wat::grep::Span])])
+  [source <- :wat::grep::Source
+   nodes  <- (:wat::core::PersistentVector :- [:wat::grep::Node])
+   named  <- (:wat::core::PersistentVector :- [:wat::grep::Named])
+   spans  <- (:wat::core::PersistentVector :- [:wat::grep::Span])])
 
 ;; ── internal walk plumbing (not part of the wat-grep contract; the walk's threading) ────
 ;; Moved verbatim from corpus-03's :fx::Acc / :fx::ChildAcc, renamed.
@@ -182,8 +198,11 @@
 ;; `read-string` returns a FACED OUTCOME, not a bare vector — the no-hidden-failures law. A
 ;; string that will not parse is a RESULT the extractor carries, never a crash: Malformed yields
 ;; an EMPTY fact base, which every downstream rule reads as "nothing to say about this file".
+;; ⚠ `path` is not decoration: it is the file's IDENTITY, and a signature that took only `src`
+;; is exactly where the filename used to be lost. It is used for nothing but the Source fact.
 (:wat::core::defn :wat::grep::facts-of
-  [src <- :wat::core::String]
+  [path <- :wat::core::String
+   src  <- :wat::core::String]
   -> :wat::grep::Facts
   (:wat::core::let
     [acc (:wat::core::match (:wat::core::read-string src)
@@ -198,9 +217,10 @@
                  (:wat::core::ast->children forms))))
            ((:wat::core::ReadOutcome::Malformed __cause) (:wat::grep::empty-acc)))]
     (:wat::grep::Facts
-      :nodes (:wat::grep::Acc/nodes acc)
-      :named (:wat::grep::Acc/named acc)
-      :spans (:wat::grep::Acc/spans acc))))
+      :source (:wat::grep::Source :file path)
+      :nodes  (:wat::grep::Acc/nodes acc)
+      :named  (:wat::grep::Acc/named acc)
+      :spans  (:wat::grep::Acc/spans acc))))
 
 ;; ── the ONE query — never written by a user; wat-grep owns exactly one query so the printer
 ;; is TOTAL, rendering exactly one type it fully knows. ───────────────────────────────────────
@@ -246,7 +266,8 @@
               (:wat::core::PersistentVector/conj acc sp))
             acc2
             (:wat::grep::Facts/spans facts))]
-    acc3))
+    ;; the ONE Source fact, last — a rule joins it to name the file it matched in.
+    (:wat::core::PersistentVector/conj acc3 (:wat::grep::Facts/source facts))))
 
 ;; print-match — the ONE printer. It knows exactly one type because wat-grep owns exactly one
 ;; query; nothing here ranks, filters, or counts. `query-read`'s binding maps key a query's
@@ -269,7 +290,7 @@
    path    <- :wat::core::String]
   -> :wat::core::nil
   (:wat::core::let
-    [facts   (:wat::grep::facts-of (:wat::io::read-file path))
+    [facts   (:wat::grep::facts-of path (:wat::io::read-file path))
      records (:wat::grep::facts-as-records facts)
      fired   (overlay records)
      matches (:wat::rete::query fired (:wat::grep::q-match))]

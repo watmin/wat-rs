@@ -20,9 +20,11 @@
 (:wat::rete::defrule :pg::match-arrow
   :when [(:wat::grep::Node (?id <- :id) (?k <- :kind))
          (:wat::grep::Span (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
-         (:pg::IsArrow (?id <- :id))]
+         (:pg::IsArrow (?id <- :id))
+         ;; the ONE Source fact — this is how a rule learns which file it is matching in.
+         (:wat::grep::Source (?f <- :file))]
   :then [(:wat::grep::Match
-           :file     "probe"
+           :file     ?f
            :line     ?l
            :col      ?c
            :end-line ?el
