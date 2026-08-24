@@ -1980,6 +1980,7 @@ fn dispatch_where_tests(
 
 mod acc;
 use acc::*;
+pub(crate) mod pass;
 mod delta;
 pub(crate) use delta::*;
 mod rules;

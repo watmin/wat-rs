@@ -506,59 +506,13 @@ pub(crate) fn fire_fixpoint_delta_armed(
         append_d_alpha(&mut gather_cache, &d_alpha, &wm, &packed_full);
 
         // ── 2. Root-join delta: seed tokens from NEW elements (d_alpha) only. ───
-        let __pt1 = phase_start();
-        for node_id in &kind_ids.alpha {
-            // New this round: indices into wm.alpha[node_id]. Packed seed
-            // is 0..len (`DESIGN-STONE-seed-d-alpha-range`).
-            let news = AlphaNews::of(&d_alpha, &wm.alpha, *node_id, &packed_full);
-            if news.is_empty() {
-                continue;
-            }
-            let child_ids: &[i64] = arm
-                .children_of
-                .get(node_id)
-                .map(|v| v.as_slice())
-                .unwrap_or(&[]);
-            // rune:temperare(simplicity-win) — kind_of filters mixed children_of; typed child
-            // lists at intern would drop the Value-network probe. n children × rounds is small.
-            for child_id in child_ids {
-                // Group C: child_node ref — only used for kind_of; borrow ends before wm mutations.
-                let child_node = match get_node(&wm.network, *child_id) {
-                    Some(n) => n,
-                    None => continue,
-                };
-                if kind_of(child_node) != NodeKind::RootJoin {
-                    continue;
-                }
-                for ei in news.iter() {
-                    let el = wm.alpha[node_id][ei];
-                    // Seed native Token: one matches edge (fact idx, alpha_id).
-                    let binds = if el.binds.len > 0 {
-                        seed_token_binds(&el)
-                    } else {
-                        span_from_row(
-                            &mut wm.bind_pool,
-                            &el,
-                            *node_id,
-                            &wm.i64_by_fact,
-                            &wm.bind_only,
-                            &wm.cond_key_ids,
-                        )
-                    };
-                    let tok = Token {
-                        matches: push_match(&mut wm.match_pool, el.fact, *node_id),
-                        binds,
-                    };
-                    if beta_readers.contains(child_id) {
-                        beta_written(*child_id, 1);
-                        wm.beta.entry(*child_id).or_default().push(tok);
-                    }
-                    d_beta.entry(*child_id).or_default().push(tok);
-                }
-            }
-        }
-
-        phase_end("root-join", __pt1);
+        crate::rete::kernel::fire::pass::root_join_delta(
+            &mut wm,
+            &arm,
+            &d_alpha,
+            &mut d_beta,
+            &packed_full,
+        );
 
         // ── 3. Hash-join delta (ascending id — topological). ─────────────────────
         let __pt2 = phase_start();
