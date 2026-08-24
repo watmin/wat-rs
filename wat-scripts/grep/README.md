@@ -66,10 +66,15 @@ Four things that will otherwise cost a cycle, all measured:
   Core's fails the fence with *"is not total"*.
 - A **record** constructor takes kwargs; a **tagged enum variant** takes positions. They look
   identical at the call site.
-- **`cond` does not work in a `:then`; `if` does.** Measured — a `cond` in an RHS fails at
-  `compile-all` with `compile-condition: then expr is not pure — '<malformed cond clause>' is not
-  pure`, which names neither the problem (the RHS compiler does not read `cond`'s clause shape) nor
-  the fix (nest `if`). `--check` passes it, so the failure arrives at runtime.
+- **`cond` does not lower in a `:then`; `if` does.** Measured, and the reason is NOT the one this
+  README first gave. `cond` compiles fine in a `where` on the LHS (verified — the rule fires); it is
+  the RHS lowerer that has no `cond` arm (`src/rete/expr_ir.rs:314`), so a clause reaches generic
+  call lowering and is reported as `malformed :wat::rete::lower form: call head must be a keyword`.
+  `--check` passes it either way, so the failure arrives at `compile-all`.
+  Filed: `~/work/NOTE-rete-cond-lowers-on-the-lhs-but-not-the-rhs.md`.
+  ⚠ Note the clause shape: wat's `cond` is `(cond (test body) … (:else body))` — PARENTHESIZED
+  clauses, not Clojure's flat `test expr test expr`. The flat form is refused earlier, by the purity
+  classifier, with `'<malformed cond clause>' is not pure` — a shape problem wearing an axis's name.
 - **`or` is binary.** Three alternatives need `(or A (or B C))`.
 
 ### On collapsing rules — measured, and rejected
