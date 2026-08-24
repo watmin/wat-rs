@@ -18,9 +18,9 @@ Two consequences that shape everything below:
 ## The record
 
 ```clojure
-(:wat::core::defrecord :wat::grep::Binding
+(:wat::core::defrecord :wat::grep::Capture
   [name  <- :wat::core::String      ; what the rule called it — "id", "kind", "head"
-   value <- :wat::core::String])    ; what it bound, rendered
+   value <- :wat::core::String])    ; what it reported, rendered
 
 (:wat::core::defrecord :wat::grep::Match
   [file      <- :wat::core::String  ; supplied by the RUN, not by a node
@@ -29,7 +29,7 @@ Two consequences that shape everything below:
    end-line  <- :wat::core::i64     ; REQUIRED — see "the end is not optional"
    end-col   <- :wat::core::i64
    rule      <- :wat::core::String  ; which rule concluded this
-   bindings  <- (:wat::core::PersistentVector :- [:wat::grep::Binding])])
+   captures  <- (:wat::core::PersistentVector :- [:wat::grep::Capture])])
 ```
 
 Flat coordinates, not a nested span. Same reason `:fx::Span` is flat: **a rule binds FIELDS, not
@@ -58,7 +58,7 @@ constructs `Some`** — so the bare-vs-declared variant spelling that cost this 
 (`:wat::core::Some` refused in a `:then`; `:wat::core::Option::Some` admitted) never touches wat-grep
 at all. Not worked around. Structurally absent.
 
-## `bindings` is a VECTOR, not a map — and this is MEASURED, not preferred
+## `captures` is a VECTOR, not a map — and this is MEASURED, not preferred
 
 `294/SEAM.md` sketched `bindings <- PersistentMap`. **A rete `:then` cannot build a map.** Measured
 this session, at `compile-all` time:
@@ -99,7 +99,7 @@ nested constructors — measured verbatim:
 ⚠ Note the constructor is **`:wat::rete::core::PersistentVector`**, not core's. A rule author writing
 core's spelling gets *"is not total"*, which describes the axis, not the fix.
 
-### Why `Binding` is a record and not two parallel vectors
+### Why a record and not two parallel vectors
 
 A `(PersistentVector :- [String])` of alternating name/value would build just as well and is strictly
 worse: it is a map with the pairing left to a convention nobody can check, and an odd-length vector
@@ -126,10 +126,36 @@ coordinates, consuming the `HashMap/get` Options exactly once, with one located 
 sees an Option, and no rule can — because the fact it binds is already four i64s.
 
 ```clojure
-(:wat::core::defn :wat::grep::coords-of [node <- :wat::WatAST] -> :wat::grep::Coords …)
+(:wat::core::defn :wat::grep::extent-of [node <- :wat::WatAST] -> :wat::grep::Extent …)
 ```
 
 The extractor's Span emit calls it; nothing else unwraps a span.
+
+## ★ THE NAMES ARE RULED — intueri, 2026-08-24
+
+Cast against `wat-scripts/intueri/grep-match-vocabulary.wat.intueri`. `Match` is the builder's and
+was not in scope. Every rejection below is a collision **verified in this repo**, not an aesthetic:
+
+| slot | RULED | rejected, and why |
+|---|---|---|
+| the pair record | **`Capture`** | `Binding` — **L1, lies.** `Bindings` is a live trait in the engine itself (`src/rete/matcher.rs:102`, imported `src/rete/where_tree.rs:32`) meaning *the LHS variable environment*. This field is a curated RHS report that may be a subset of the `?vars`, a renaming, or values that were never `?vars`. The reader most likely to assume is the one who has read the engine. · `Finding` — **L2**, and a real cross-file collision: `:wat::lint::Finding` already exists (`wat/lint.wat:50`) as the sibling tool's whole per-occurrence result. · `Detail`/`Note` — L2, generic. · `Datum` — runner-up, not rejected. |
+| the four coordinates | **`Extent`** | `Coords` — **L1, lies**, and the cast's strongest catch: `<fqdn>::Coords` is already minted by the `defservice` machinery (`wat/core.wat:1100`) as a capability-crossing carrier. An outright homonym with a security-relevant family. · `Range` — L2, `:wat::core::range` is a live sequence generator. · `Region` — L1, implies rectangularity; a mid-line-3→mid-line-7 span is not a rectangle. · `Locus` — L1, this codebase's only "locus" is `LociDiedError`, *one point of death*. |
+| the one door | **`extent-of`** | `coords-of`/`span-of` — L1, inherit their nouns' collisions. · `locate` — L2, implies search; the door is a direct unwrap on a node the caller holds. · `read-coords` — L2, "a read" reads as one of several, and the whole constraint is that it is THE door. |
+
+★ **`Extent` is not a coinage.** `wat/lint.wat:389` already says, verbatim:
+*";; extent = ast-span..ast-end-span of the whole concat form"* — the door's exact computation,
+under the exact word, in the sibling tool. The word was already here.
+
+### The structural question, answered
+
+`Extent` and `:fx::Span` are **not** one type wearing two names. `Span` is `id` + `Extent`'s four
+fields, spread rather than nested, and the spreading is forced: a rule binds FIELDS, not sub-records,
+so a fact that nested its coordinates could not be joined on a line. Composition, not duplication.
+
+⚠ **The one risk it leaves, and it is real:** nothing pins the two field lists together. A later
+rename (`col` → `column`) must be made by hand in both places with no compiler link between them.
+`:fx::Span`'s declaration gains a one-line cross-reference to `Extent` naming that dependency —
+the weakest rung, and on this channel the only rung there is.
 
 ## The rooms
 
@@ -145,10 +171,10 @@ The extractor's Span emit calls it; nothing else unwraps a span.
 ## Acceptance
 
 1. **A rule builds a complete `Match` in one RHS** — all five coordinates LHS-bound from `:fx::Span`,
-   `file` supplied as a literal, `bindings` a non-empty vector of `Binding` records. Output verbatim.
+   `file` supplied as a literal, `captures` a non-empty vector of `Capture` records. Output verbatim.
 2. **No `Option` appears anywhere in the Match's rendered EDN.** The negative control for the whole
    "end is not optional" ruling — grep the output for `Option/` and find nothing.
-3. **`coords-of` is the ONLY site that unwraps an `ast-span` HashMap.** A census of
+3. **`extent-of` is the ONLY site that unwraps an `ast-span` HashMap.** A census of
    `Option/expect` + `HashMap/get` in the touched files returns exactly one pair.
 4. **The one door is total on the same population the Span stone measured** — re-run corpus-03 and get
    `Span == Node` unchanged (4316 / 435 / 33). A refactor that changes a count changed behaviour.
@@ -166,8 +192,7 @@ The extractor's Span emit calls it; nothing else unwraps a span.
 - **`:wat::core::Span` / the Option/Result symbol migration.** Belongs to `296/DESIGN-STONE-H`, which
   is DRAWN and carries it explicitly. Nothing here waits on it.
 
-## ⚠ OWED BEFORE SHIPPING — cast `intueri`
+## ⊘ THE intueri CAST IS DISCHARGED
 
-`Match` is the builder's name. `Binding`, `Coords`, and `coords-of` are the apparatus's and have not
-been ruled. intueri owns all names; cast it on this file's three new nouns before the stone lands,
-the same way the scoped-work names were ruled (`61b07ccc3`).
+Ruled above, 2026-08-24. Target: `wat-scripts/intueri/grep-match-vocabulary.wat.intueri`.
+Every citation re-read against the disk by the orchestrator before the ruling was folded in.
