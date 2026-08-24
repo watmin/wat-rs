@@ -119,7 +119,11 @@ def test_mod_ranges(lines):
 
 
 def measure_file(path, include_tests):
-    lines = path.read_text(errors="replace").split("\n")
+    return measure_source(path.read_text(errors="replace"), include_tests, str(path))
+
+
+def measure_source(text, include_tests, label="<source>"):
+    lines = text.split("\n")
     skip = [] if include_tests else test_mod_ranges(lines)
 
     def in_skip(i):
@@ -172,7 +176,7 @@ def measure_file(path, include_tests):
             maxd = max(maxd, depth)
         results.append(
             {
-                "file": str(path),
+                "file": label,
                 "name": m.group("name"),
                 "start": start + 1,
                 "end": end + 1,
@@ -186,15 +190,146 @@ def measure_file(path, include_tests):
     return results
 
 
+# ── SELF-TEST ────────────────────────────────────────────────────────────────
+#
+# WHY THIS EXISTS, and why every case below is a real incident rather than an
+# invented one. This tool replaced a hand-measurement that was wrong TWICE, in
+# opposite directions, and then SHIPPED WITH THE SECOND BUG ITSELF:
+#   - take 1 measured a function as `fn`-line -> end-of-file, swallowing the
+#     `#[cfg(test)] mod tests` below it. It reported 388/451/590-line bodies that
+#     are really 87/35/72, and steered the exemplar hunt at the WRONG functions
+#     for three sessions.
+#   - take 2 fixed the end and broke the start: it began at the `fn` line, so a
+#     function whose `///` block sits ABOVE it read as 0% comment. That is how a
+#     fully-documented function got filed as undocumented.
+# An unverified measurer is the exact defect class this tool exists to remove, so
+# it verifies itself. Each case is named for the incident it prevents.
+# Run: wat-scripts/hunt/fn-census.py --selftest   (exit 0 = every case holds)
+
+SELFTEST_CASES = [
+    (
+        "take-1: a #[cfg(test)] module below must NOT be swallowed",
+        "fn target(x: u32) -> u32 {\n"
+        "    x + 1\n"
+        "}\n"
+        "\n"
+        "#[cfg(test)]\n"
+        "mod tests {\n"
+        "    use super::*;\n"
+        "    #[test]\n"
+        "    fn t() {\n"
+        "        assert_eq!(target(1), 2);\n"
+        "    }\n"
+        "}\n",
+        {"name": "target", "start": 1, "end": 3, "lines": 3, "nesting": 1},
+    ),
+    (
+        "take-2: a doc block and attributes ABOVE the fn are part of the item",
+        "/// One.\n"
+        "/// Two.\n"
+        "#[inline]\n"
+        "fn target() -> u32 {\n"
+        "    1\n"
+        "}\n",
+        {"name": "target", "start": 1, "end": 6, "lines": 6, "comment": 2, "nesting": 1},
+    ),
+    (
+        "a brace inside a string literal must not open a block",
+        "fn target() -> &'static str {\n"
+        '    let _s = "{{{ not a block";\n'
+        '    "}"\n'
+        "}\n",
+        {"name": "target", "start": 1, "end": 4, "lines": 4, "nesting": 1},
+    ),
+    (
+        "braces inside line and block comments must not open a block",
+        "fn target() -> u32 {\n"
+        "    // { this brace is prose\n"
+        "    /* and { these } too */\n"
+        "    0\n"
+        "}\n",
+        {"name": "target", "start": 1, "end": 5, "lines": 5, "comment": 2, "nesting": 1},
+    ),
+    (
+        "a char-literal brace must not open a block",
+        "fn target(c: char) -> bool {\n"
+        "    c == '{' || c == '}'\n"
+        "}\n",
+        {"name": "target", "start": 1, "end": 3, "lines": 3, "nesting": 1},
+    ),
+    (
+        "a trait signature with no body is not a measurable item",
+        "trait T {\n"
+        "    fn target(&self) -> u32;\n"
+        "}\n"
+        "\n"
+        "fn other() -> u32 {\n"
+        "    1\n"
+        "}\n",
+        {"name": "other", "start": 5, "end": 7, "lines": 3, "nesting": 1},
+    ),
+    (
+        "nesting is real, and a lifetime tick is not a char literal",
+        "fn target<'a>(v: &'a [u32]) -> u32 {\n"
+        "    for x in v {\n"
+        "        if *x > 0 {\n"
+        "            return *x;\n"
+        "        }\n"
+        "    }\n"
+        "    0\n"
+        "}\n",
+        {"name": "target", "start": 1, "end": 8, "lines": 8, "nesting": 3},
+    ),
+]
+
+
+def run_selftest():
+    failures = []
+    for title, src, want in SELFTEST_CASES:
+        rows = {r["name"]: r for r in measure_source(src, include_tests=False)}
+        got = rows.get(want["name"])
+        if got is None:
+            failures.append(title + "\n    no row for " + repr(want["name"])
+                            + "; got " + repr(sorted(rows)))
+            continue
+        for k, v in want.items():
+            if k == "name":
+                continue
+            if got[k] != v:
+                failures.append(title + "\n    " + want["name"] + "." + k
+                                + ": expected " + repr(v) + ", got " + repr(got[k]))
+    # The take-1 case from the other side: with --tests the test fn MUST appear,
+    # so "excluded by default" is proven to be a filter and not a parse failure.
+    with_tests = {r["name"] for r in measure_source(SELFTEST_CASES[0][1], include_tests=True)}
+    if "t" not in with_tests:
+        failures.append("--tests must include #[cfg(test)] fns; got " + repr(sorted(with_tests)))
+
+    for f in failures:
+        print("FAIL " + f, file=sys.stderr)
+    n = len(SELFTEST_CASES) + 1
+    if failures:
+        print("fn-census selftest: " + str(len(failures)) + " failure(s) across "
+              + str(n) + " cases", file=sys.stderr)
+        return 1
+    print("fn-census selftest: " + str(n) + "/" + str(n) + " cases hold")
+    return 0
+
+
 def main():
     ap = argparse.ArgumentParser(description="Measure Rust functions for the exemplar hunt.")
-    ap.add_argument("path", help="a .rs file or a directory to walk")
+    ap.add_argument("path", nargs="?", help="a .rs file or a directory to walk")
+    ap.add_argument("--selftest", action="store_true",
+                    help="verify the measurer against the incidents that produced it, and exit")
     ap.add_argument("--name", help="only this function")
     ap.add_argument("--top", type=int, help="show only the N largest")
     ap.add_argument("--min-lines", type=int, default=0)
     ap.add_argument("--tests", action="store_true", help="include #[cfg(test)] modules")
     ap.add_argument("--format", choices=["txt", "md"], default="txt")
     a = ap.parse_args()
+    if a.selftest:
+        return run_selftest()
+    if not a.path:
+        ap.error("a path is required unless --selftest is given")
 
     root = pathlib.Path(a.path)
     files = sorted(root.rglob("*.rs")) if root.is_dir() else [root]

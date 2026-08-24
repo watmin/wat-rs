@@ -994,6 +994,42 @@ even if every other field is right.
 **Cross-reference:** `feedback_agent_model_explicit.md` (memory
 saved 2026-05-06). Carries the discipline across compactions.
 
+### Failure mode 20 — Reading a gate's verdict through a pipe that discards its exit code
+
+**Signature:** `./scripts/floor.sh 2>&1 | tail -4`, or any
+`<gate> | head/tail/grep` used to DECIDE green-vs-red. In a
+pipeline the shell reports the LAST command's status, so the
+gate's own exit code is thrown away: `tail` succeeds, the
+harness reports exit 0, and a red floor reads as green. The
+truncation compounds it — `tail -4` can cut the summary line
+off entirely, leaving only epilogue prose that looks like a
+clean finish.
+
+**Reality check:** `scripts/floor.sh`'s own header already
+says it — *"EXIT CODE is nextest's own. Never pipe this script
+into head/tail to decide."* Run it unpiped and read `$?`, or
+read the kept log: every run writes `.floor/<utc-stamp>/raw.log`
+and `.floor/latest` symlinks to the newest. The verdict line is
+`Summary [ … ] N tests run: N passed`. A gate you cannot see
+fail is not a gate.
+
+    ./scripts/floor.sh > /dev/null 2>&1; echo "FLOOR EXIT=$?"
+    grep -aE "Summary|FAIL" .floor/latest/raw.log | tail -4
+
+**Real incident, 2026-08-24:** mid-session I ran the floor as
+`./scripts/floor.sh 2>&1 | tail -4` inside a compound command,
+got "exit code 0", and told the user the floor was green. It
+was not: `no_inlined_edn` was RED on a test file I had just
+added (a `strip_prefix("(ns ")` literal — the lint bans
+EDN-esque string literals in tests). The real verdict, from
+`.floor/2026-08-24T20-08-40Z/raw.log`, was **5022 passed, 1
+failed**. Every earlier floor that session was read via `grep`
+on the log or the `[floor] exit=` line and was trustworthy;
+this one was not, and the difference was purely how it was
+read. The session's whole theme was building gates that prove
+tooling works — while the method used to verify them had the
+identical hole.
+
 ### Failure mode 13 — Trusting a DESIGN section without cross-checking memory
 
 **Signature:** reading a slice description / scope statement /

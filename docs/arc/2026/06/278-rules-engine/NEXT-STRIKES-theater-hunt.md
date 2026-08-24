@@ -119,7 +119,14 @@ Making `acc_facts` a native `Vec` in the frozen Session.
 
 ---
 
-### T2 — the Exists leaf still memcpys occupancy — ⚠ RE-RANKED, needs its own probe
+### T2 — the Exists leaf still memcpys occupancy — ✅ **LANDED 2026-08-24 (in `71d0e700e`)**
+
+> Struck as part of the leading-filter correctness strike, because it was the SAME
+> block. `.map(|v| v.as_ref().clone())` → `.cloned()`, an Arc bump — the contract
+> already proven for catch-up, applied to its last unconverted sibling. The probe
+> this entry demanded was never needed in the end: the change rode a CORRECTNESS
+> gate (`probe_arc278_leading_filter_multiplicity`), not a perf claim, so no
+> unmeasured win is asserted here. The memcpy is gone; no ms are claimed for it.
 
 **Site:** `src/rete/kernel/fire/delta.rs:1250`.
 
@@ -228,7 +235,12 @@ vector of values) — it changes the Session shape the oracle reads.
 
 ---
 
-### T4 — `token_assoc` heap-allocates per call to walk the pool — ⚠ VOLUME CORRECTED
+### T4 — `token_assoc` heap-allocates per call to walk the pool — ✅ **ALREADY LANDED; this entry was STALE**
+
+> Found 2026-08-24 during `recolligere`: `extend_from_within` was already in
+> `fire/mod.rs`, with a comment explaining it, while this list still carried T4 as
+> open. The list was wrong, not the code. Recorded because a work list that claims
+> open work already done is the same class of defect as one that hides work.
 
 > **CORRECTION 2026-08-23.** This entry implied per-token volume. Grounded:
 > `token_assoc` has exactly ONE caller (`delta.rs:1084`), the accumulate fold
@@ -287,7 +299,16 @@ One clone feeds the dedup set, one feeds the vec. Both are Arc bumps of
 `Value::Aggregate`. Kin to T1 — the same stratum loop. Consider folding into
 T1's carried-set change rather than a separate strike.
 
-### T6 — Exists candidates materialize a Vec purely to key a HashSet
+### T6 — Exists candidates materialize a Vec purely to key a HashSet — ✅ **LANDED 2026-08-24 (in `71d0e700e`)**
+
+> It DISSOLVED rather than being optimized. The `candidates` Vec existed only to
+> escape the `wm.alpha` borrow that T2's memcpy was buying; convert the memcpy to an
+> Arc bump and the second allocation has no reason to exist. T2 and T6 were one
+> defect wearing two hats.
+>
+> NOT done by a u64 content hash, which this entry originally floated: a collision
+> silently DROPS a distinct binding, trading a correctness lie for a malloc. The
+> dedup is still exact, keyed on the interned pairs.
 `src/rete/kernel/fire/delta.rs:1268`
 ```rust
 (binds, pool_slice(&wm.bind_pool, binds).to_vec())
@@ -767,9 +788,11 @@ Two things follow:
 
 ## THE HUNT AS OF 2026-08-24 — theater is done; the exemplar hunt is not
 
-The theater list above is closed: **T1/T3/T5 struck**, **T8 cleared as not
-theater**, **T2/T7 cold** (no grid axis reaches them; each needs its own probe
-before anyone claims a win), **T4/T6 open and small**. The perf campaign is at
+The theater list above is closed **except T7**: **T1/T3/T5 struck**, **T8 cleared
+as not theater**, **T2/T6 struck 2026-08-24** (one defect, two hats — see their
+entries), **T4 was already landed and this list was stale about it**. **T7 alone
+remains, and it is COLD** — no grid axis reaches it, so it needs its own probe
+before anyone claims a win. The perf campaign is at
 the floor on every measured axis.
 
 What replaced it is a different question — *is this code the exemplar the rest
