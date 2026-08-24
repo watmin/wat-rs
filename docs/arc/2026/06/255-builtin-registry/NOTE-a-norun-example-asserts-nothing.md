@@ -55,14 +55,54 @@ It is not a fact about the **rendered form of the answer**. `#wat.core.Option/So
 value shape the substrate can produce and render without performing any I/O at all. So a `-norun`
 example's `#=>` is unverifiable *by current construction*, not by nature.
 
+## ⛔ AMENDED — the ENUM WIRE REP IS CHANGING, and it decides the shape of the fix
+
+The builder, on reading the above:
+
+> *"we have a pending change to the edn rep of enums... for options they'll become
+> `#wat.core/Option.Some {:value "hello"}` … what matters is that we don't forget to do the no-run
+> challenging the ret val must be an instance of the ret-type the doc declares — we get this when we
+> run, but no run has non-determinism so it'll be nuanced"*
+
+It is filed as **`docs/arc/2026/06/296-diagnostics-fully-edn/DESIGN-STONE-H-variants-are-maps.md`** —
+*"a variant is a tagged map, like everything else"*, **STATUS: DRAWN, NOT BUILT**, ruled 2026-08-15.
+Its wire form:
+
+```clojure
+#wat.telemetry/Numeric.I64 {:val 42}        ;; tag #<ns>/<Enum>.<Variant>, body a map keyed by binder
+```
+
+So the value in the offending doc line is on its **third** spelling, and only one of them has ever
+been written down correctly:
+
+```
+the doc says            (Some "hello")                          ← never right
+renders TODAY as        #wat.core.Option/Some ["hello"]
+renders AFTER 296 H as  #wat.core/Option.Some {:value "hello"}
+```
+
+★ **THIS KILLS THE "RENDER A WITNESS AND MATCH THE TEXT" DIRECTION BELOW.** Any validation that pins
+the rendered TEXT would go green today and rot the instant stone H lands — re-breaking 118 examples for
+a reason that has nothing to do with whether they are correct.
+`[[feedback_a_measurements_boundary_is_its_claims_boundary]]`.
+
+★ **The durable requirement, in the builder's words: the expected value must be an INSTANCE OF the
+`@ret` type the doc declares.** That is a TYPE-MEMBERSHIP question, and it survives every rendering
+change — `(Some "hello")`, `#wat.core.Option/Some ["hello"]` and `#wat.core/Option.Some {:value
+"hello"}` are three spellings of one membership claim, and only the membership is stable.
+
+**The nuance the builder flagged:** a runnable `@example` gets this free — execute, and the actual value
+IS an instance by construction. A `-norun` cannot execute, so the check must run on the expected TEXT:
+read it as a value, and ask whether its type satisfies the declared `@ret`. No I/O, no nondeterminism,
+no execution — the same reasoning that says `-norun` is about the CALL, not about the answer's shape.
+
 ## Directions worth weighing — none chosen
 
 - **Shape, not value.** Check the expected text parses, and that its type agrees with the intrinsic's
   declared `@ret`. `(Some "hello")` fails that today; `#wat.core.Option/Some ["hello"]` passes. This is
   the builder's *"validate ret types in no-run are logical"*, and it needs no execution.
-- **Render a witness.** For a value-shaped answer, construct one instance of the `@ret` type and render
-  it, then require the example's expected text to match that RENDERING — catching drift in the printer
-  as well as the doc.
+- ~~**Render a witness** and require the expected text to match that rendering.~~ **STRUCK by the
+  amendment above** — it pins a spelling that arc 296 stone H is already ruled to change.
 - **Do nothing, but say so.** If `-norun` expected values are to remain decorative, the directive should
   admit it — a `#=>` that means "illustrative, unchecked" is honest; one that looks like every other
   `#=>` is not.
