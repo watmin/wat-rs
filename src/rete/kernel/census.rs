@@ -261,14 +261,30 @@ pub(crate) fn with_gather_census<R>(f: impl FnOnce() -> R) -> (R, u64) {
 // hot path for the benefit of a test-only instrument. In a non-test build every call here is a
 // no-op on a `()` and the phase map does not exist.
 
+/// A started phase, consumed by exactly one [`phase_end`].
+///
+/// **Deliberately NOT `Copy` and NOT `Clone`, and that is the whole point.**
+/// `phase_end` takes the mark BY VALUE, so a mark can be closed once and the
+/// borrow checker rejects the second close as a use-after-move. This is not
+/// style: while `PhaseMark` was a bare `Instant` (which is `Copy`), a `partire`
+/// move duplicated `phase_end("root-join", __pt1);` onto two adjacent lines and
+/// it compiled silently. Both the summed nanoseconds AND the pair count — the
+/// divisor the calibration subtraction uses — were then doubled, so every
+/// `root-join` census figure taken between commits `ae957b51a` and the fix was
+/// roughly twice its true value. The commit that introduced it claimed to be a
+/// mechanically-verified pure move, and it was not.
+///
+/// A duplicated close is now a compile error, so that class cannot regrow. Do
+/// not add `Copy`/`Clone` here to make a call site easier — a site that wants to
+/// close twice is the bug this shape exists to catch. To time two overlapping
+/// regions, take two marks.
 #[cfg(test)]
-type PhaseMark = std::time::Instant;
+pub(crate) struct PhaseMark(std::time::Instant);
 /// A zero-sized stand-in in non-test builds. Deliberately NOT `()`: `let __pt = phase_start();`
 /// against a unit value trips `clippy::let_unit_value` at nine call sites, and nine `#[allow]`s
 /// would be suppressing a lint rather than not earning it. A ZST compiles to nothing and the lint
-/// simply does not apply.
+/// simply does not apply. Non-`Copy` for the same reason as its test-build twin above.
 #[cfg(not(test))]
-#[derive(Clone, Copy)]
 pub(crate) struct PhaseMark;
 
 #[cfg(test)]
@@ -291,7 +307,7 @@ thread_local! {
 #[cfg(test)]
 #[inline]
 pub(crate) fn phase_start() -> PhaseMark {
-    std::time::Instant::now()
+    PhaseMark(std::time::Instant::now())
 }
 
 #[cfg(not(test))]
@@ -303,7 +319,7 @@ pub(crate) fn phase_start() -> PhaseMark {
 #[cfg(test)]
 #[inline]
 pub(crate) fn phase_end(name: &'static str, t: PhaseMark) {
-    let ns = t.elapsed().as_nanos() as u64;
+    let ns = t.0.elapsed().as_nanos() as u64;
     PHASE_NANOS.with(|c| {
         if let Some(m) = c.borrow_mut().as_mut() {
             let e = m.entry(name).or_insert((0, 0));

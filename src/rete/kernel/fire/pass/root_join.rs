@@ -84,5 +84,4 @@ pub(crate) fn root_join_delta(
     }
 
     phase_end("root-join", __pt1);
-    phase_end("root-join", __pt1);
 }
