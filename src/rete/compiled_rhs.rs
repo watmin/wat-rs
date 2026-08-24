@@ -44,6 +44,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::ast::WatAST;
+use crate::span::Span;
 use crate::runtime::{EvalBreak, RuntimeError, RuntimeErrorKind, SymbolTable, ValueSnapshot};
 use crate::value::value::AggregateValue;
 use crate::runtime::Value;
@@ -68,7 +69,22 @@ pub(crate) enum RhsOp {
     /// depending on which internal path happened to run is a difference the caller can see and
     /// cannot explain; the design's "same SHAPE of error" was too loose a contract, and this is
     /// the correction.
-    Bind(Value, String),
+    /// The third field is the operand's own wat SPAN, so a fire-time unbound-`?var`
+    /// error names the user's source line rather than a location inside wat-rs.
+    ///
+    /// This is the half the span audit of 2026-08-24 missed. It corrected nine sites
+    /// that HELD a span and discarded it, but native production does not run any of
+    /// them — `build_insert_fact` is the interpreter/differential door ("fire does not
+    /// walk build_insert_fact", `arm.rs`). Native fire runs THIS op, and it had already
+    /// thrown the span away at compile time, so no amount of fixing raise-sites could
+    /// reach it. Correcting only the interpreter would have left the two paths
+    /// disagreeing in span KIND — wat on one, Rust on the other — which is worse for a
+    /// caller than both being poor.
+    ///
+    /// Not carried on the wire: `pack_rhs_op` drops it for the same reason it drops the
+    /// debug rendering — source, not residual. `unpack_rhs_op` restamps it from the
+    /// import site's own span, which is the truthful location for an imported rule.
+    Bind(Value, String, Span),
     /// A literal value, built once at compile time.
     Lit(Value),
     /// Flip 4 — a value-position call form, lowered once onto the one `Expr` core.
@@ -159,6 +175,7 @@ pub(crate) fn compile_rhs(
                 // `format!("{arg:?}")` into its error's `got`; matching it exactly is what keeps
                 // the two paths indistinguishable to a caller who hits the unbound-var case.
                 format!("{arg:?}"),
+                arg.span().clone(),
             ),
             // Flip 4 — a fenced call form MUST lower. A LowerError is a fire
             // refuse, not a walk of the WatAST. `None` below is only the
@@ -227,9 +244,9 @@ pub(crate) fn exec_compiled_rhs<B: crate::rete::matcher::Bindings + ?Sized>(
             let mut fields: Vec<Value> = Vec::with_capacity(ops.len());
             for op in ops {
                 let v = match op {
-                    RhsOp::Bind(key, ast_debug) => match bindings.get(key) {
+                    RhsOp::Bind(key, ast_debug, span) => match bindings.get(key) {
                         Some(v) => v.clone(),
-                        None => return Err(unbound_operand(ast_debug)),
+                        None => return Err(unbound_operand(ast_debug, span)),
                     },
                     RhsOp::Lit(v) => v.clone(),
                     RhsOp::Expr(program) => {
@@ -247,10 +264,10 @@ pub(crate) fn exec_compiled_rhs<B: crate::rete::matcher::Bindings + ?Sized>(
     }
 }
 
-fn unbound_operand(ast_debug: &str) -> EvalBreak {
+fn unbound_operand(ast_debug: &str, span: &Span) -> EvalBreak {
     const OP: &str = ":wat::rete::eval-insert";
     RuntimeError::new(
-        crate::rust_caller_span!(),
+        span.clone(),
         RuntimeErrorKind::TypeMismatch {
             op: OP.into(),
             expected: "resolvable operand (?var, literal, or a fenced expression) in RHS fact-form",
@@ -273,7 +290,7 @@ pub(crate) fn rhs_bind_slots(
         CompiledRhs::Record { ops, .. } => ops
             .iter()
             .map(|op| match op {
-                RhsOp::Bind(k, _) => pairs
+                RhsOp::Bind(k, _, _) => pairs
                     .iter()
                     .position(|(kk, _)| kk == k),
                 RhsOp::Lit(_) | RhsOp::Expr(_) => None,
@@ -299,12 +316,12 @@ pub(crate) fn exec_compiled_rhs_at(
     let mut fields: Vec<Value> = Vec::with_capacity(ops.len());
     for (op, slot) in ops.iter().zip(slots) {
         let v = match op {
-            RhsOp::Bind(_, ast_debug) => match slot.and_then(|i| {
+            RhsOp::Bind(_, ast_debug, span) => match slot.and_then(|i| {
                 let (_, vid) = pairs.pairs.get(i)?;
                 pairs.vals.get(*vid as usize)
             }) {
                 Some(v) => v.clone(),
-                None => return Err(unbound_operand(ast_debug)),
+                None => return Err(unbound_operand(ast_debug, span)),
             },
             RhsOp::Lit(v) => v.clone(),
             RhsOp::Expr(program) => {
@@ -342,11 +359,21 @@ mod tests {
     /// insert head, fact type, field names, positional arity — and walk nested constructors, but
     /// still do not bind-check `?var`), so it surfaces at fire time.
     ///
-    /// **Spans are excluded on purpose, and that is not a loosening.** `RuntimeError::new` stamps
-    /// `rust_caller_span!()`, so one error is raised in `eval_insert.rs` and the other in this file;
-    /// they can never be byte-equal and should not be. What must match is the KIND — `op`,
-    /// `expected`, `got` — compared through `RuntimeErrorKind`'s `wat_edn::ToEdn` derive (arc
-    /// 298.3), which carries no span. Structural, not a `contains`.
+    /// **Spans are excluded on purpose, and that is not a loosening.** What must match is the
+    /// KIND — `op`, `expected`, `got` — compared through `RuntimeErrorKind`'s `wat_edn::ToEdn`
+    /// derive (arc 298.3), which carries no span. Structural, not a `contains`.
+    ///
+    /// ⚠ THE ORIGINAL REASON FOR EXCLUDING THEM IS GONE, and the exclusion is kept anyway.
+    /// It used to read: "`RuntimeError::new` stamps `rust_caller_span!()`, so one error is raised
+    /// in `eval_insert.rs` and the other in this file; they can never be byte-equal and should not
+    /// be." As of 2026-08-24 BOTH paths stamp the offending operand's own wat span — the
+    /// interpreter from `arg`, the compiled path from `RhsOp::Bind`'s third field — so for the
+    /// same rule they now CAN be equal. The exclusion stands on a different footing: this test
+    /// builds its two inputs separately, and pinning a span here would couple a
+    /// same-KIND-of-error assertion to how the fixture happens to be constructed. If you ever want
+    /// span parity asserted, `tests/rete/probe_arc278_rhs_unbound_span.rs` is where it belongs —
+    /// it checks the shape structurally (`Span::end.is_some()` distinguishes a wat range from a
+    /// Rust point-span) rather than by text.
     ///
     /// The third arm is the one that matters most: **one path succeeding while the other fails**
     /// is a worse defect than differing text, and nothing today would have noticed that either.
@@ -469,7 +496,7 @@ mod tests {
         let bind_keys: Vec<&Value> = ops
             .iter()
             .map(|op| match op {
-                RhsOp::Bind(key, _) => key,
+                RhsOp::Bind(key, _, _) => key,
                 other => panic!("fan::Pair form is binds only, got {other:?}"),
             })
             .collect();
@@ -617,7 +644,7 @@ mod tests {
         let bind_keys: Vec<&Value> = ops
             .iter()
             .map(|op| match op {
-                RhsOp::Bind(key, _) => key,
+                RhsOp::Bind(key, _, _) => key,
                 other => panic!("fan::Pair form is binds only, got {other:?}"),
             })
             .collect();

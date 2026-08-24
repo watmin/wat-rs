@@ -1177,7 +1177,7 @@ fn pack_rhs_op(op: &RhsOp) -> Value {
     match op {
         // Slot name only. The second Bind field is a Debug rendering of
         // WatAST for fire-time unbound errors — source, not residual.
-        RhsOp::Bind(k, _) => pv([kw(":rbind"), k.clone()]),
+        RhsOp::Bind(k, _, _) => pv([kw(":rbind"), k.clone()]),
         RhsOp::Lit(v) => pv([kw(":rlit"), v.clone()]),
         RhsOp::Expr(p) => pv([kw(":rexpr"), pack_prog(p)]),
     }
@@ -1198,7 +1198,9 @@ fn unpack_rhs_op(v: &Value, span: &Span) -> Result<RhsOp, EvalBreak> {
                     _ => String::new(),
                 },
             };
-            Ok(RhsOp::Bind(k, dbg))
+            // Restamped from the import site — the truthful location for an
+            // imported rule, whose original source is not on this disk.
+            Ok(RhsOp::Bind(k, dbg, span.clone()))
         }
         ":rlit" => Ok(RhsOp::Lit(expect_at(&items, 1, span, "rlit value")?.clone())),
         ":rexpr" => Ok(RhsOp::Expr(Arc::new(unpack_prog(
