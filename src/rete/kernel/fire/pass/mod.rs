@@ -10,6 +10,8 @@
 //! diff can be reviewed by reading it. The gate is the oracle differential —
 //! a second implementation of the same semantics — plus the floor.
 
+mod production;
+pub(crate) use production::*;
 mod root_join;
 pub(crate) use root_join::*;
 

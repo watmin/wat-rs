@@ -286,7 +286,6 @@ pub(crate) fn fire_fixpoint_delta_armed(
     let compiled_wheres = &arm.compiled_wheres;
     let where_tree = &arm.where_tree;
     let compiled_acc_folds = &arm.compiled_acc_folds;
-    let compiled_rhs_cache = &arm.compiled_rhs;
     let feeding_alpha_of = &arm.feeding_alpha_of;
     let parents_of = &arm.parents_of;
     let beta_readers = &arm.beta_readers;
@@ -1644,107 +1643,15 @@ pub(crate) fn fire_fixpoint_delta_armed(
 
         // ── 4. Production delta: fire production nodes on NEW tokens only. ────────
         let __pt5 = phase_start();
-        let mut next_delta: Vec<u32> = Vec::new();
-        for node_id in &kind_ids.prod {
-            // Skip get_node unless a parent has tokens this round
-            // (`DESIGN-STONE-dirty-production`).
-            let Some(pids) = parents_of.get(node_id) else {
-                continue;
-            };
-            if !pids
-                .iter()
-                .any(|pid| d_beta.get(pid).is_some_and(|ts| !ts.is_empty()))
-            {
-                continue;
-            }
-            let node = match get_node(&wm.network, *node_id) {
-                Some(n) => n,
-                None => continue,
-            };
-            if kind_of(node) != NodeKind::Production {
-                continue;
-            }
-            let Some(rule_name) = node_named_string(node, "rule-name") else {
-                continue;
-            };
-            // Production gate: rule name must be in this arm's compiled :then
-            // (stratified slices pass a rules subset — a ProductionNode whose
-            // rule is absent is inert).
-            let compiled_rhs_forms = match compiled_rhs_cache.get(rule_name) {
-                Some(forms) => forms,
-                None => continue,
-            };
-
-            // Fire on NEW tokens at EVERY parent (condition `:or` has N).
-            // Walk d_beta in place — production only reads bindings
-            // (`DESIGN-STONE-prod-no-token-clone`).
-            for pid in pids {
-                let Some(ts) = d_beta.get(pid) else {
-                    continue;
-                };
-                if ts.is_empty() {
-                    continue;
-                }
-                // `seen` grows by one entry per NEW derived fact, and hashbrown stores only 7-bit
-                // control tags — it RE-HASHES every element on every resize. Reserve the exact
-                // upper bound for this parent's tokens × RHS forms.
-                seen_ids.reserve(ts.len().saturating_mul(compiled_rhs_forms.len()));
-
-                let first = bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, ts[0].binds);
-                let slot_tables: crate::rete::compiled_rhs::RhsSlotTables = compiled_rhs_forms
-                    .iter()
-                    .map(|c| crate::rete::compiled_rhs::rhs_bind_slots(c, &first))
-                    .collect();
-                for tok in ts {
-                    for (compiled, slots) in compiled_rhs_forms.iter().zip(&slot_tables) {
-                        let __prhs = phase_start();
-                        let derived = {
-                            let pairs =
-                                bind_view(&wm.bind_keys, &wm.bind_vals, &wm.bind_pool, tok.binds);
-                            crate::rete::compiled_rhs::exec_compiled_rhs_at(
-                                compiled, pairs, slots, sym,
-                            )?
-                        };
-                        phase_end("  ├ prod:compiled-rhs", __prhs);
-                        // Arc 278 — the LAST split probe. build_insert_fact's own four parts summed to
-                        // ~18ms instrumented while `production` read ~51ms, so ~30ms lives OUTSIDE the
-                        // function. This mark brackets the dedup-and-store block. One pair per
-                        // derivation, same tax as the four inside — so these five are comparable to
-                        // each other and to nothing else.
-                        //
-                        // It used to cost two full-aggregate hashes per derivation (`contains`, then
-                        // `insert`) on top of the resize ladder; both are gone — `insert` alone reports
-                        // newness, and the reserve above sizes the set once. Measured on the
-                        // 40,000-pair fanout cell, 3 runs each: 610 -> 489 (kill the second hash)
-                        // -> 244 (reserve) ns per derivation, ranges disjoint at every step.
-                        // ~120-165 ns of what remains is this mark pair itself, so the block is at
-                        // the instrument's resolution — measure something else before cutting here.
-                        let __pd = phase_start();
-                        census_count("prod:derivations");
-                        // Dedup + termination guard: only propagate truly new facts.
-                        if seen_insert(&mut seen_ids, &mut seen_rest, &derived) {
-                            // P12a: record the support index (first-producer-wins; or_insert_with).
-                            if let Some(ref mut idx) = support {
-                                idx.entry(derived.clone()).or_insert_with(|| {
-                                    (
-                                        rule_name.to_string(),
-                                        native_token_to_value(*tok, &encode_view(&wm)),
-                                    )
-                                });
-                            }
-                            wm.production
-                                .entry(*node_id)
-                                .or_default()
-                                .push(derived.clone());
-                            let idx = wm.n_input + wm.derived_facts.len() as u32;
-                            wm.derived_facts.push(derived);
-                            next_delta.push(idx);
-                        }
-                        phase_end("  ├ prod:dedup-store", __pd);
-                    }
-                }
-            }
-        }
+        let next_delta = crate::rete::kernel::fire::pass::production_delta(
+            &mut wm,
+            &arm,
+            &d_beta,
+            &mut seen_ids,
+            &mut seen_rest,
+            &mut support,
+            sym,
+        )?;
 
         // ── A8 instrument: census this round BEFORE the terminate check. ─────────
         #[cfg(test)]
