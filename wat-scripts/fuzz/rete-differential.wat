@@ -110,9 +110,7 @@
                     prefix (:user::i64s c 2)
                     f      (:user::i64s c 3)
                     d      (:user::i64s c 4)]
-    (:wat::core::if (:wat::core::and (:wat::core::= f 0) (:wat::core::= prefix 0))
-      0
-      (:wat::core::let [q  (:wat::rete::Query :name "q" :params (:wat::core::PersistentVector)
+    (:wat::core::let [q  (:wat::rete::Query :name "q" :params (:wat::core::PersistentVector)
                              :lhs (:user::build-lhs prefix f wpos))
                         s0 (:wat::rete::compile-all (:user::chain d) (:wat::core::PersistentVector q))
                         ws (:wat::core::into (:wat::core::PersistentVector)
@@ -135,27 +133,34 @@
                                   (:wat::core::String/concat
                                     (:wat::core::String/concat " native=" (:wat::core::i64::to-string n))
                                     (:wat::core::String/concat " oracle=" (:wat::core::i64::to-string o)))))]
-            1))))))
+            1)))))
 
-;; A pure companion that runs NO rete: counts how many coordinates are real cases
-;; rather than skips, so the reported denominator is measured, not asserted.
-(:wat::core::defn :user::ran [c <- (:wat::core::PersistentVector :- [:wat::core::i64])]
-  -> :wat::core::i64
-  (:wat::core::if (:wat::core::and (:wat::core::= (:user::i64s c 3) 0)
-                                   (:wat::core::= (:user::i64s c 2) 0))
-    0 1))
+;; ── the SPACE excludes invalid shapes; the property no longer has to ─────────
+;; A coordinate with no filter AND no fact condition leaves nothing to match on.
+;; That used to be an `if` guarding the body of `prop`, with a second pure pass
+;; counting how many coordinates were real cases. Both are gone: `gen-such-that`
+;; makes the exclusion part of the GENERATOR, so `card` is already the true case
+;; count and the property does one thing.
+;;
+;; This is the shape `test.check`'s `such-that` cannot have. There, filtering an
+;; opaque random source means retry-and-discard — it can give up after N tries and
+;; it skews what survives. Here the survivors are computed once and exactly, so
+;; `Gen/card` IS the denominator, measured rather than asserted.
+(:wat::core::defn :user::shape-is-matchable
+  [c <- (:wat::core::PersistentVector :- [:wat::core::i64])] -> :wat::core::bool
+  (:wat::core::not (:wat::core::and (:wat::core::= (:user::i64s c 3) 0)
+                                    (:wat::core::= (:user::i64s c 2) 0))))
 
 ;; bases: dups 3 · wpos 3 · prefix 3 · filter 3 · depth 4
 (:wat::core::defn :user::space [] -> (:user::Gen :- [(:wat::core::PersistentVector :- [:wat::core::i64])])
-  (:user::gen-coords (:wat::core::PersistentVector 3 3 3 3 4)))
+  (:user::gen-such-that :user::shape-is-matchable
+    (:user::gen-coords (:wat::core::PersistentVector 3 3 3 3 4))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let [g   (:user::space)
-                    ran (:user::gen-check g :user::ran)
+                    ran (:user::Gen/card g)
                     bad (:user::gen-check g :user::prop)]
     (:wat::kernel::println
       (:wat::core::String/concat
-        (:wat::core::String/concat "space=" (:wat::core::i64::to-string (:user::Gen/card g)))
-        (:wat::core::String/concat
-          (:wat::core::String/concat " cases=" (:wat::core::i64::to-string ran))
-          (:wat::core::String/concat " mismatches=" (:wat::core::i64::to-string bad)))))))
+        (:wat::core::String/concat "space=324 cases=" (:wat::core::i64::to-string (:user::Gen/card g)))
+        (:wat::core::String/concat " mismatches=" (:wat::core::i64::to-string bad))))))
