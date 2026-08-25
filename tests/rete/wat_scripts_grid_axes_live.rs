@@ -292,12 +292,28 @@ fn run_where_axis(stem: &str) -> (bool, String, String) {
 /// `]` after the opening `[` is always the close. Returns `None` if the shape isn't found at all
 /// (a missing `#grid/Result` line, handled separately by the caller).
 fn extract_derived(stdout: &str) -> Option<String> {
-    let key = ":derived";
-    let key_pos = stdout.find(key)?;
-    let after_key = &stdout[key_pos + key.len()..];
+    extract_vector_field(stdout, ":derived").map(|(v, _)| v)
+}
+
+/// Extract one `<key> #wat.core/PersistentVector [...]` bracket, returning its contents and
+/// the byte offset the key matched at.
+///
+/// ⚠ THE KEY MUST BE DELIMITED, and that is not fussiness: `":oracle-derived"` CONTAINS
+/// `":derived"`. A plain `find(":derived")` can land inside the oracle field, and then a
+/// native-vs-oracle comparison built on it degenerates to `X == X` — a gate that passes
+/// forever while proving nothing. Today `:derived` is emitted first so a naive find happens
+/// to be right; that is an ordering coincidence, not a property. Requiring a preceding space
+/// removes the coincidence.
+///
+/// Elements are plain i64s (no nested brackets), so the first `]` after the opening `[` is
+/// always the close.
+fn extract_vector_field(stdout: &str, key: &str) -> Option<(String, usize)> {
+    let delimited = format!(" {key} ");
+    let key_pos = stdout.find(&delimited)?;
+    let after_key = &stdout[key_pos + delimited.len()..];
     let open = after_key.find('[')?;
     let close = after_key[open..].find(']')?;
-    Some(after_key[open + 1..open + close].to_string())
+    Some((after_key[open + 1..open + close].to_string(), key_pos))
 }
 
 #[test]
@@ -370,7 +386,43 @@ fn grid_axes_run_and_derive_nonvacuously() {
                 "  {stem} (size {size:?}, justification: {why}): DIED — ran and exited 0, but \
                  :derived is EMPTY ([]). Full line: {stdout:?}\n      stderr: {stderr:?}"
             )),
-            Some(_) => {} // non-empty — this axis is alive.
+            Some(derived) => {
+                // The axis ALREADY fires the `$oracle` on the same staged session and emits
+                // its answer; nothing read it. `conferre` found that four sized axes
+                // (fanout, min-finding, node-share, user-reduce) had NO oracle differential
+                // anywhere — the comparison lived only in `run-axis.sh`, which no test
+                // invokes and which CI cannot run (the Clara half needs a JDK the runner
+                // lacks). So a native-vs-oracle regression on those axes could merge fully
+                // green. The data was being computed and discarded; this reads it.
+                match extract_vector_field(&stdout, ":oracle-derived") {
+                    None => failures.push(format!(
+                        "  {stem} (size {size:?}): #grid/Result carries :derived but no \
+                         :oracle-derived — every sized axis fires the $oracle on the same \
+                         staged session and must emit its answer, or this differential is \
+                         silently not running.\n      stdout: {stdout:?}"
+                    )),
+                    Some((oracle, oracle_at)) => {
+                        // Guard the guard: if both keys matched the same span the comparison
+                        // below is `X == X`.
+                        let derived_at = extract_vector_field(&stdout, ":derived")
+                            .map(|(_, at)| at)
+                            .unwrap_or(usize::MAX);
+                        if derived_at == oracle_at {
+                            failures.push(format!(
+                                "  {stem}: :derived and :oracle-derived resolved to the SAME \
+                                 span — the comparison would be vacuous"
+                            ));
+                        } else if derived.trim() != oracle.trim() {
+                            failures.push(format!(
+                                "  {stem} (size {size:?}): NATIVE AND $ORACLE DISAGREE.\n      \
+                                 native: [{}]\n      oracle: [{}]",
+                                derived.trim(),
+                                oracle.trim()
+                            ));
+                        }
+                    }
+                }
+            }
         }
     }
 
