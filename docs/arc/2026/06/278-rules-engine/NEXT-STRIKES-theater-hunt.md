@@ -1280,6 +1280,22 @@ question that has to be answered before it can move.
 
 **Where:** `src/rust_deps/cache.rs` (module doc + `Lru::new` / `put` / `get`), `wat/cache.wat`.
 
+> **⚠ SCOPE NOTE (2026-08-25).** This row was raised by `exigere` against a 278 BRIEF
+> (`BRIEF-cache-stone-1-primitive.md`), which is an arc artifact and in scope. The LRU itself is
+> not rete and this session had no mandate over it; the two source files were touched
+> comment-only, to stop them promising a stone in prose and to mark citations Stone 5 had
+> invalidated. Nothing about the cache's behaviour was changed here, and nothing should be
+> without whoever owns it.
+>
+> **And a correction worth keeping, because it nearly cost the record a true line.** While
+> closing this I claimed the files cited a nonexistent oracle and deleted a provenance sentence
+> on that basis. I was wrong: "oracle" in the cache files means a **STUDY oracle** — a prior
+> crate implementation read for shape — not rete's `$oracle`. I had grepped for the rete naming
+> convention, found nothing, and read absence as proof. The sentence is restored. The genuine
+> defect was different and duller: Stone 5 annihilated `crates/wat-lru` and
+> `crates/wat-holon-lru`, so five citations pointed at deleted paths and one line still said
+> "the crate stays intact until Stone 5". Those are now marked as provenance, not live paths.
+
 **What:** `:wat::cache::Lru::new` panics on `capacity <= 0`; `put`/`get` panic on a non-hashable
 (opaque-handle) key. Stone 1 surfaced this as a question and left it to "a later stone".
 
