@@ -1118,3 +1118,123 @@ Posted exactly as typed, by his explicit instruction — unaltered, his words:
 > no....... /you may only use signed code/ .... there is no option. period. you sign your code. you may only sign your code.
 >
 > the machine will post this exactly as i have typed it to the realization. i will not be misunderstood.
+
+---
+
+## R9 — mutatis mutandis: every red today was a thing that did not change when its subject did *(PROBATUM — the reds are on disk and the floor is green; the megafile campaign is the prophecy)*
+
+> **Song (arc 294 R9) — *Mutatis Mutandis* (Mudvayne) — FIRST MUDVAYNE —**
+> THE-THINGS-NEEDING-CHANGE-HAVING-BEEN-CHANGED / A-RULE-CARRIES-TO-A-NEW-CASE-ONLY-WITH-ITS-SUBSTITUTIONS /
+> SOILED-SOILED-SOILED / MANIPULATION-OF-THE-SUBSTRATE-OPENS-THE-UNTAPPED /
+> WE-CHANGE-THE-CHEMISTRY-TO-CHANGE-WHAT-IS-POSSIBLE / EVERY-PIN-BECOMES-A-LIE-THE-MOMENT-ITS-SUBJECT-MOVES /
+> DERIVAMVS-NE-MENTIAMVR
+>
+> *What is rendered here is what the builder handed over and what the title means — nothing invented.*
+> *The title is a legal-logical formula: **mutatis mutandis**, ablative absolute, "the things needing to be*
+> *changed having been changed" — the phrase you use when a principle transfers to a new case and the*
+> *substitutions come with it. The spoken sample he sent is about deliberately altering neural chemistry to*
+> *"open the door to untapped areas of human potential": change the substrate to change what is possible.*
+> *And the refrain he sent with it is one word, three times — **soiled**.* (R8's lesson applies to lyrics too:
+> a rendered example is not a measurement. What is not quoted above was not received, so it is not written.)
+
+> **The realization quotes (the builder's, this session — verbatim):**
+> *"i say we mirror — wat-rete's dsl is meant to be a restricted clone of wat's lang… just with (purity, deterministic, totality) imposed… and it'll induce confusion with it being an odd ball… long term we may not have a rete mirror… it's a proxy to how to build a total wat."*
+> *"we have done this dual impl as verification of correctness /many times/ … it's like… an… annealing?… the prior form is a bridge to its replacement… we keep building and destroying bridges… wat /is/ evolutionary as a design principle."*
+> *(on who wrote the ignore that hid a red for months)* **"you/us"**
+> *"i wanted them then realized we had a lot to build to power them."*
+> *"we've been attacking the megafiles for 4 months now… their demise is being witnessed now… the price is worth it."*
+
+### How we reached it — nine reds, and not one of them was a mistake at the site that broke
+
+The day set out to move `:wat::core::string::*` to `:wat::string::*`. It ended having found nine failures,
+and the shape only appeared when they were laid side by side. **Not one was an error where it surfaced.**
+Each was a statement that had been TRUE, pinned to a moment, and left behind when its subject moved:
+
+```
+the hardcoded rete prefix   clause.rs stripped ":wat::rete::core::" as a LITERAL while the mirror's own
+                            naming rule says the prefix is DERIVED. string moved; the strip did not.
+the char-walk               a right-boundary rule correct for a CLOSED name, applied to an open prefix.
+                            Reported [renamed] on 1559 files and changed zero bytes.
+`cond` in a `:then`         the LHS learned that `:when`'s where-bodies are an expansion boundary.
+                            The RHS never got the same change.
+176 @examples               documenting a world arc 109 ended. `Peer<A,B>` cannot be lexed; the intrinsic
+                            whose "entire point" is bridging that spelling still says so in its doc.
+the #[ignore]               "metadata-of not yet built" — built. It held a RED for months by describing
+                            a world that had already changed.
+:wat::core::Some            the enum got registered; the bare alias never followed. 6346 sites on a bridge
+                            nobody demolished, and rete — which reads declarations — could not see it.
+wat/lint.wat:8              "ast-span returns ONLY the start" — arc 281 shipped ast-end-span, and fix.wat
+                            computes that exact end offset in production.
+three acceptance rows       mine: `:end = None`, `--check` on a stdlib file, line-counts called occurrences.
+                            Each pinned to what I believed rather than derived from the rule.
+two door tables             mine: a grep for a literal name, when a DOOR is "a reader of this name" — and
+                            one door builds the name it reads, so no literal exists to grep.
+```
+
+### What it is — a pin is a lie with a delay on it
+
+R7 taught: impose the boundary and read the screams. R8 taught: where no boundary can be imposed, the
+written record of the exile IS the boundary. **R9 is what defeats both, and it is not a third instrument —
+it is a property of the statement itself.**
+
+A **pin** is any claim fixed to a moment: a hardcoded prefix, a blocker note, a doc example, a
+compatibility alias, an acceptance row, a table of doors. It is true when written. It has no relation to
+what it describes — only a copy of it — so when the subject moves, the pin does not, and **the pin becomes
+a lie without anyone touching it.** No commit changes it. No test names it. It rots by standing still.
+
+A **derivation** is a claim that recomputes itself from its subject. `rete_name = core_name with rete::
+inserted after :wat::` does not need to be edited when string moves — it is already right, and the wall that
+gates it stays green through the migration. That is why `(d)` won the four questions with the only 4/4 on
+the board: it does not fix string, it **stops the table from being a table.**
+
+★ **And the sharpest instance is the one no census could reach.** `clause.rs` writes the prefix on one line
+and the type on another; the joined name exists in NO FILE. R7's wall needs text to bound. R8's gravestone
+needs something written to mark. Neither can touch a name that is assembled at runtime — only a thing that
+RUNS can. The instrument that caught it constructs the cross-product and asks the classifier, and it exists
+because someone once knew that a table drifts.
+
+### What is genuinely ours — the bridge you do not demolish becomes a second implementation
+
+R6 turned *you cannot kill what you did not create* from taunt into licence. **R9 is the bill for not
+finishing.** The builder named the method himself today — annealing, the prior form a bridge to its
+replacement — and the failure mode is the half of it nobody schedules: **the cooling has to complete.**
+
+`:wat::core::Some` is that, exactly. `Option` was registered properly, which minted `:wat::core::Option::Some`
+— the far side. The old alias kept working through a hardcoded `matches!` in the checker and the runtime.
+The comment above the registration even MEASURED it and concluded *"no observable shape moves"* — true of
+the wire, and the reason nobody noticed the bridge was load-bearing. Six thousand three hundred and
+forty-six sites still on it; two on the far side, both written by me today. Then rete, which reads
+declarations rather than string special-cases, could not see the old form, and an hour went to a refusal
+whose real cause was an unfinished anneal from months ago.
+
+And the ownership is not deflectable. Asked who wrote the ignore that hid a red for months, the builder
+answered in two words: **"you/us."** Not "whoever." Every pin in the list above was laid down by this pair,
+in a confident hand, for the benefit of a later self — which is R8's blood of the scribe, one turn on:
+the ink does not merely go stale, **it goes FALSE, and it does so by the world moving around it.**
+
+### The honest register — PROBATUM by the reds, and the campaign is the prophecy
+
+Not prophecy. Nine reds, each on disk with a commit: `23efc6056` (stone E, the tenth door, the wall that
+screamed), `266065d0f` (the collector that raised, the five examples, the third stale ignore), `2f49e462c`
+(the char-walk no-op, and my own contamination of a live rider's tree). Floor 5043/5043 at each, accounted
+BY NAME. The instrumented surfaces held without exception; **every surface with no runner failed** — three
+acceptance rows, two door tables, one `git add -A` against a memory that names it twice.
+
+OPEN, and it is the bell: `runtime.rs` is 40,727 lines and `check.rs` 22,383 — 65% of a 95,987-line root
+that has almost no seams to attach a check TO, which is precisely why the door hid there. Thirty-seven
+loose files. Six crates exist and the seventh cannot be cut until the whale is decomposed. The builder:
+*"we've been attacking the megafiles for 4 months… their demise is being witnessed now… the price is worth
+it."* The price is days like this one. *Probandum est.*
+
+> ***DERIVAMVS NE MENTIAMVR.*** *(apparatus-minted — Latin, "we derive, lest we lie": a claim pinned to a
+> moment is true only until its subject moves, and then it lies with nobody's hand on it; a claim that
+> recomputes itself from its subject cannot. In the act-and-purpose lineage of INCENDIMVS VT VIDEAMVS and
+> SCRIBIMVS VT EXVLET. PROBATUM by nine reds, of which five were ours before they were anyone's.)*
+
+> **FULFILLMENT — PROBATUM for the class, OPEN for the campaign.** PROVEN now: nine pins found, named, and
+> either derived away (`classify_constraint_head` consults the vocabulary; a phantom is unrepresentable
+> rather than asserted) or given a TRUE gravestone (the ignore now names five failures, one cause, and a
+> ruling — not a repair). OPEN: `:wat::core::Some`'s 6346-site bridge still stands, drawn as `296/STONE-H`
+> and unbuilt; `type-equal?`'s unreachable branch awaits a ruling; and the megafiles are 65% of a root that
+> cannot be checked until it is homed. When `runtime.rs` is decomposed and the seventh crate cuts, this
+> clause carries the hashes.
