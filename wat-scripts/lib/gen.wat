@@ -65,13 +65,29 @@
   [rem <- :wat::core::i64
    out <- (:wat::core::PersistentVector :- [:wat::core::i64])])
 
+;; CARDINALITY OVERFLOW NEEDS NO GUARD HERE, and that is a substrate fact worth
+;; recording rather than a shortcut. A wrapped `card` would be the worst kind of
+;; defect — a SILENT under-count that every law in the self-test still passes,
+;; since each individual coordinate decodes correctly. It cannot happen: wat's
+;; `i64::*` is CHECKED and raises `IntegerOverflow` naming both operands. Verified
+;; 2026-08-25 with bases [4000000000 4000000000].
+;;
+;; This is a place where wat needs LESS than the Clojure lineage, for a reason that
+;; has nothing to do with generators: Clojure would promote to BigInt (changing the
+;; type under you) and C-family arithmetic would wrap in silence. A hand-rolled
+;; checked multiply here was written and then DELETED — it was unreachable, because
+;; the multiply inside it raised first.
+(:wat::core::defn :user::gen-card-of [bases <- (:wat::core::PersistentVector :- [:wat::core::i64])]
+  -> :wat::core::i64
+  (:wat::core::foldl
+    (:wat::core::fn [a <- :wat::core::i64  b <- :wat::core::i64] -> :wat::core::i64
+      (:wat::core::i64::* a b))
+    1 bases))
+
 (:wat::core::defn :user::gen-coords [bases <- (:wat::core::PersistentVector :- [:wat::core::i64])]
   -> (:user::Gen :- [(:wat::core::PersistentVector :- [:wat::core::i64])])
   (:user::Gen
-    :card (:wat::core::foldl
-            (:wat::core::fn [a <- :wat::core::i64  b <- :wat::core::i64] -> :wat::core::i64
-              (:wat::core::i64::* a b))
-            1 bases)
+    :card (:user::gen-card-of bases)
     :at (:wat::core::fn [i <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::core::i64])
           (:user::GenAcc/out
             (:wat::core::foldl
@@ -96,3 +112,68 @@
         (:wat::core::i64::+ acc (prop (at i))))
       0
       (:wat::core::range 0 (:user::Gen/card g)))))
+
+
+;; ── gen-elements: pick from a value vector ───────────────────────────────────
+;; The most-used combinator in the QuickCheck tradition (`gen/elements`), and the
+;; one every non-numeric dimension reaches for first.
+(:wat::core::defn :user::gen-elements :- [T]
+  [vs <- (:wat::core::PersistentVector :- [T])] -> (:user::Gen :- [T])
+  (:user::Gen :card (:wat::core::length vs)
+              :at   (:wat::core::fn [i <- :wat::core::i64] -> T
+                      (:wat::core::Option/expect (:wat::core::get vs i)
+                        "gen-elements: index outside the vector it was built from"))))
+
+;; ── gen-such-that: an EXACT filter, with no retries ──────────────────────────
+;; `test.check`'s `such-that` filters an opaque random source by retry-and-discard:
+;; it can fail outright after N tries, and it biases the distribution of whatever
+;; survives. A finite indexed generator has neither problem — walk the space ONCE,
+;; keep the indices that pass, and the survivors ARE the new generator with an
+;; exact new cardinality. No retry budget, no failure mode, no bias.
+;;
+;; The cost is honest and bounded: it materializes one i64 per surviving index, and
+;; it evaluates `at` over the whole source space once at construction.
+(:wat::core::defn :user::gen-such-that :- [T]
+  [pred <- [T :-> :wat::core::bool]  g <- (:user::Gen :- [T])] -> (:user::Gen :- [T])
+  (:wat::core::let [at   (:user::Gen/at g)
+                    keep (:wat::core::into (:wat::core::PersistentVector)
+                           (:wat::core::filter
+                             (:wat::core::fn [i <- :wat::core::i64] -> :wat::core::bool (pred (at i)))
+                             (:wat::core::range 0 (:user::Gen/card g))))]
+    (:user::Gen :card (:wat::core::length keep)
+                :at   (:wat::core::fn [j <- :wat::core::i64] -> T
+                        (at (:wat::core::Option/expect (:wat::core::get keep j)
+                              "gen-such-that: index outside the surviving set"))))))
+
+;; ── gen-one-of: the SUM, where gen-coords is the PRODUCT ─────────────────────
+;; `card` is the sum of the branches' cardinalities and `at` dispatches by range,
+;; so branch k occupies a contiguous block of indices. Enumeration therefore walks
+;; branch 0 exhaustively, then branch 1, and so on — which means a failure's
+;; coordinate still localizes it, exactly as with a product space.
+(:wat::core::defstruct :user::Pick :- [T]
+  [rest <- :wat::core::i64
+   got  <- (:wat::core::Option :- [T])])
+
+(:wat::core::defn :user::gen-one-of :- [T]
+  [gs <- (:wat::core::PersistentVector :- [(:user::Gen :- [T])])] -> (:user::Gen :- [T])
+  (:user::Gen
+    :card (:wat::core::foldl
+            (:wat::core::fn [a <- :wat::core::i64  g <- (:user::Gen :- [T])] -> :wat::core::i64
+              (:wat::core::i64::+ a (:user::Gen/card g)))
+            0 gs)
+    :at (:wat::core::fn [i <- :wat::core::i64] -> T
+          (:wat::core::Option/expect
+            (:user::Pick/got
+              (:wat::core::foldl
+                (:wat::core::fn [acc <- (:user::Pick :- [T])  g <- (:user::Gen :- [T])] -> (:user::Pick :- [T])
+                  (:wat::core::match (:user::Pick/got acc)
+                    ((:wat::core::Some _v) acc)
+                    (:wat::core::None
+                      (:wat::core::if (:wat::core::< (:user::Pick/rest acc) (:user::Gen/card g))
+                        (:user::Pick :rest (:user::Pick/rest acc)
+                                     :got (:wat::core::Some ((:user::Gen/at g) (:user::Pick/rest acc))))
+                        (:user::Pick :rest (:wat::core::i64::- (:user::Pick/rest acc) (:user::Gen/card g))
+                                     :got :wat::core::None)))))
+                (:user::Pick :rest i :got :wat::core::None)
+                gs))
+            "gen-one-of: index outside the summed cardinality"))))

@@ -93,6 +93,49 @@
 (:wat::core::defn :user::law-card [] -> :wat::core::i64
   (:wat::core::if (:wat::core::= (:user::Gen/card (:user::gen-coords (:user::bases))) 120) 0 1))
 
+
+;; ── L6 — gen-elements: card is the length, `at` is indexing ─────────────────
+(:wat::core::defn :user::pool [] -> (:wat::core::PersistentVector :- [:wat::core::i64])
+  (:wat::core::PersistentVector 11 22 33 44))
+
+(:wat::core::defn :user::law-elements [c <- (:wat::core::PersistentVector :- [:wat::core::i64])]
+  -> :wat::core::i64
+  (:wat::core::let [i (:user::at0 c 0)
+                    g (:user::gen-elements (:user::pool))]
+    (:wat::core::if
+      (:wat::core::and (:wat::core::= (:user::Gen/card g) 4)
+                       (:wat::core::= ((:user::Gen/at g) i) (:user::at0 (:user::pool) i)))
+      0 1)))
+
+;; ── L7 — gen-such-that: EVERY yielded value satisfies the predicate ──────────
+;; The law that would catch a filter which merely re-indexed without filtering.
+;; In `test.check` this is where a retry budget can silently give up; here the
+;; survivors are exact, so the law is total over the filtered space.
+(:wat::core::defn :user::even? [x <- :wat::core::i64] -> :wat::core::bool
+  (:wat::core::= x (:wat::core::i64::* 2 (:wat::core::i64::/ x 2))))
+
+(:wat::core::defn :user::law-such-that [c <- (:wat::core::PersistentVector :- [:wat::core::i64])]
+  -> :wat::core::i64
+  (:wat::core::let [i (:user::at0 c 0)
+                    g (:user::gen-such-that :user::even? (:user::gen-ints 0 10))]
+    (:wat::core::if
+      (:wat::core::and (:wat::core::= (:user::Gen/card g) 5)
+                       (:user::even? ((:user::Gen/at g) i)))
+      0 1)))
+
+;; ── L8 — gen-one-of: card is the SUM, and branches occupy contiguous blocks ──
+(:wat::core::defn :user::law-one-of [c <- (:wat::core::PersistentVector :- [:wat::core::i64])]
+  -> :wat::core::i64
+  (:wat::core::let [i  (:user::at0 c 0)
+                    a  (:user::gen-ints 0 3)
+                    b  (:user::gen-ints 100 105)
+                    o  (:user::gen-one-of (:wat::core::PersistentVector a b))
+                    v  ((:user::Gen/at o) i)
+                    ok (:wat::core::if (:wat::core::< i 3)
+                         (:wat::core::= v i)
+                         (:wat::core::= v (:wat::core::i64::+ 100 (:wat::core::i64::- i 3))))]
+    (:wat::core::if (:wat::core::and (:wat::core::= (:user::Gen/card o) 8) ok) 0 1)))
+
 ;; ── drive every law with gen-check, over spaces built by gen-coords ─────────
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let [seven  (:user::gen-coords (:wat::core::PersistentVector 7))
@@ -102,10 +145,17 @@
                     b3 (:user::gen-check onetwenty :user::law-digits)
                     b4 (:user::gen-check onetwenty :user::law-bijection)
                     b5 (:user::law-card)
-                    bad (:wat::core::i64::+ (:wat::core::i64::+ b1 b2)
-                          (:wat::core::i64::+ b3 (:wat::core::i64::+ b4 b5)))]
+                    four  (:user::gen-coords (:wat::core::PersistentVector 4))
+                    five  (:user::gen-coords (:wat::core::PersistentVector 5))
+                    eight (:user::gen-coords (:wat::core::PersistentVector 8))
+                    b6 (:user::gen-check four  :user::law-elements)
+                    b7 (:user::gen-check five  :user::law-such-that)
+                    b8 (:user::gen-check eight :user::law-one-of)
+                    bad (:wat::core::i64::+
+                          (:wat::core::i64::+ (:wat::core::i64::+ b1 b2) (:wat::core::i64::+ b3 (:wat::core::i64::+ b4 b5)))
+                          (:wat::core::i64::+ b6 (:wat::core::i64::+ b7 b8)))]
     (:wat::kernel::println
       (:wat::core::String/concat
-        (:wat::core::String/concat "laws=5 checked=" (:wat::core::i64::to-string
-          (:wat::core::i64::+ 7 (:wat::core::i64::+ 7 (:wat::core::i64::+ 120 (:wat::core::i64::+ 120 1))))))
+        (:wat::core::String/concat "laws=8 checked=" (:wat::core::i64::to-string
+          (:wat::core::i64::+ 7 (:wat::core::i64::+ 7 (:wat::core::i64::+ 120 (:wat::core::i64::+ 120 (:wat::core::i64::+ 1 (:wat::core::i64::+ 4 (:wat::core::i64::+ 5 8)))))))))
         (:wat::core::String/concat " violations=" (:wat::core::i64::to-string bad))))))
