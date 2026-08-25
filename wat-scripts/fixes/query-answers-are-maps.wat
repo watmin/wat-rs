@@ -67,14 +67,19 @@
     (:wat::fix::node-start-offset node lines)
     (:wat::fix::node-end-offset node lines)))
 
+;; old-text = fix-text-span-text over the WHOLE matched node's OWN span (arc 282) —
+;; sanctioned: every caller of span-edit has already structurally verified `node`'s
+;; identity (e.g. calls-to? ":wat::core::fn") before calling this, and it is a List's
+;; own span — never a reader-synthesized leaf's — being replaced wholesale.
 (:wat::core::defn :user::span-edit
   [node  <- :wat::WatAST
    text  <- :wat::core::String
+   src   <- :wat::core::String
    lines <- (:wat::core::Vector :- [:wat::core::String])]
   -> :wat::fix::Edit
-  (:wat::core::let [off (:wat::fix::node-start-offset node lines)
-                    end (:wat::fix::node-end-offset node lines)]
-    (:wat::core::Tuple off (:wat::core::i64::- end off) text)))
+  (:wat::core::let [off      (:wat::fix::node-start-offset node lines)
+                    old-text (:wat::fix::fix-text-span-text (:wat::core::ast-span node) (:wat::core::ast-end-span node) lines src)]
+    (:wat::core::Tuple off old-text text)))
 
 (:wat::core::defn :user::insert-fact-bind
   [node  <- :wat::WatAST
@@ -82,7 +87,7 @@
   -> :wat::fix::Edit
   (:wat::core::Tuple
     (:wat::core::i64::+ (:wat::fix::node-start-offset node lines) 1)
-    0
+    ""
     "?fact <- "))
 
 (:wat::core::defn :user::when-edits
@@ -141,10 +146,14 @@
         (:wat::core::if (:user::plain-type-cond? c)
           (:wat::core::Vector :wat::fix::Edit (:user::insert-fact-bind c lines))
           (:wat::core::if (:user::overwrapped? c)
+            ;; old-text = the literal "?fact <- " (9 chars) — overwrapped? already verified
+            ;; c's shape is `(?fact <- :Type …)`, so this is exactly what the rule believes
+            ;; immediately follows the opening paren; NEVER span text (this claims a SPECIFIC
+            ;; literal, not "whatever's there").
             (:wat::core::Vector :wat::fix::Edit
               (:wat::core::Tuple
                 (:wat::core::i64::+ (:wat::fix::node-start-offset c lines) 1)
-                9
+                "?fact <- "
                 ""))
             (:wat::core::Vector :wat::fix::Edit)))
         (:user::when-vec-scan items (:wat::core::i64::+ i 1) n lines)))))
@@ -238,7 +247,7 @@
                  (:wat::core::Vector :wat::fix::Edit
                    (:user::span-edit fn-node
                      (:user::rewrite-fn-text fn-node src lines nm)
-                     lines)))
+                     src lines)))
                 (:wat::core::None (:wat::core::Vector :wat::fix::Edit))))
             (:wat::core::Vector :wat::fix::Edit)))))
     (:wat::core::Vector :wat::fix::Edit)))

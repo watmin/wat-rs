@@ -642,9 +642,14 @@
 
 ;; apply-fixes — apply all Some fixes from findings to the source in sf.
 ;; For each finding with a Some(FixEdit): converts the span positions to flat offsets
-;; using fix-text-offset-of (via {:line,:col} HashMaps), computes old-len via
-;; fix-text-span-len, collects Tuple(off, old-len, new-text) in ascending order,
-;; reverses to right-to-left, then splices via fix-text-apply.
+;; using fix-text-offset-of (via {:line,:col} HashMaps), computes old-text via
+;; fix-text-span-text — sanctioned here (not STOP-1): every FixEdit's span is the WHOLE
+;; matched List form (a nested-if-=-ladder, a concat-abuse call), independently verified
+;; structural (collect-ladder-lits / concat-abuse?) BEFORE the FixEdit is built; there is no
+;; separate NAME-based claim about that span's content to diverge from it, so the span IS
+;; the rule's entire belief — the same "deleting/replacing a region" case fix-text-span-text's
+;; own header carves out, never a rename of a leaf token — collects Tuple(off, old-text,
+;; new-text) in ascending order, reverses to right-to-left, then splices via fix-text-apply.
 (:wat::core::defn :wat::lint::apply-fixes
   [sf       <- :wat::source::File
    findings <- (:wat::core::Vector :- [:wat::lint::Finding])]
@@ -652,9 +657,9 @@
   (:wat::core::let [src   (:wat::source::File/source sf)
                     lines (:wat::string::split src "\n")
                     edits (:wat::core::foldl
-                            (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
+                            (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
                                              f   <- :wat::lint::Finding]
-                              -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
+                              -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
                               (:wat::core::match (:wat::lint::Finding/fix f)  
                                 (:wat::core::None acc)
                                 ((:wat::core::Some fe)
@@ -665,12 +670,12 @@
                                                                :line (:wat::lint::FixEdit/end-line fe)
                                                                :col  (:wat::lint::FixEdit/end-col fe))
                                                    off       (:wat::fix::fix-text-offset-of start-map lines)
-                                                   old-len   (:wat::fix::fix-text-span-len start-map end-map lines)
+                                                   old-text  (:wat::fix::fix-text-span-text start-map end-map lines src)
                                                    new-text  (:wat::lint::FixEdit/new-text fe)]
                                    (:wat::core::concat acc
-                                     (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])
-                                       (:wat::core::Tuple off old-len new-text)))))))
-                            (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))
+                                     (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])
+                                       (:wat::core::Tuple off old-text new-text)))))))
+                            (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String]))
                             findings)
                     rev-edits (:wat::core::reverse edits)]
     (:wat::fix::fix-text-apply src rev-edits)))

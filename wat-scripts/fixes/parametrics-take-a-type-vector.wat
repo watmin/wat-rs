@@ -170,7 +170,7 @@
   [node  <- :wat::WatAST
    lines <- (:wat::core::Vector :- [:wat::core::String])
    prev-decl-head? <- :wat::core::bool]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
   (:wat::core::if (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "keyword")
                     (:wat::fix::type-shaped-keyword? node)
                     false)
@@ -179,14 +179,14 @@
         (:wat::core::let [span    (:wat::core::ast-span node)
                           off     (:wat::fix::fix-text-offset-of span lines)
                           nm      (:wat::core::ast-name node)
-                          old-len (:wat::string::length nm)
+                          old-len nm
                           text    (:wat::core::if prev-decl-head?
                                     (:user::strip-outer-parens rendered)
                                     rendered)]
-          (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])
+          (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])
             (:wat::core::Tuple off old-len text)))
-        (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))))
-    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))))
+        (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String]))))
+    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String]))))
 
 ;; node-edits — structural nodes recurse (via seq-edits, fresh at index 0 of THEIR OWN
 ;; children); leaves go to leaf-edits, carrying whatever prev-decl-head? seq-edits computed
@@ -195,7 +195,7 @@
   [node  <- :wat::WatAST
    lines <- (:wat::core::Vector :- [:wat::core::String])
    prev-decl-head? <- :wat::core::bool]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
   (:wat::core::if (:wat::fix::structural? node)
     (:user::seq-edits (:wat::core::ast->children node) lines true false)
     (:user::leaf-edits node lines prev-decl-head?)))
@@ -215,9 +215,9 @@
    lines           <- (:wat::core::Vector :- [:wat::core::String])
    is-first?       <- :wat::core::bool
    prev-decl-head? <- :wat::core::bool]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
   (:wat::core::if (:wat::core::empty? items)
-    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))
+    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String]))
     (:wat::core::let [h               (:wat::core::first items)
                       this-decl-head? (:wat::core::if is-first? (:user::declarator-head-keyword? h) false)]
       (:wat::core::concat

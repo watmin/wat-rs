@@ -126,10 +126,13 @@
                  first-fact (:wat::core::Option/expect (:wat::core::get then-forms 0) "defrule-edits: unreachable")
                  last-fact  (:wat::core::Option/expect (:wat::core::get then-forms (:wat::core::i64::- (:wat::core::count then-forms) 1)) "defrule-edits: unreachable")
                  first-off  (:wat::fix::node-start-offset first-fact lines)
-                 last-off   (:wat::fix::node-end-offset last-fact lines)
-                 len        (:wat::core::i64::- last-off first-off)]
+                 ;; old-text = fix-text-span-text spanning first-fact's start to last-fact's
+                 ;; end (arc 282) — sanctioned: this is a REFLOW of a known multi-form region
+                 ;; (join with spaces, wrap in "[...]"), not a rename; no name-based claim
+                 ;; about the inter-form whitespace exists to diverge from the span.
+                 old-text   (:wat::fix::fix-text-span-text (:wat::core::ast-span first-fact) (:wat::core::ast-end-span last-fact) lines src)]
                 (:wat::core::Vector :wat::fix::Edit
-                  (:wat::core::Tuple first-off len
+                  (:wat::core::Tuple first-off old-text
                     (:wat::string::concat "[" (:wat::string::concat joined "]"))))))))))
     (:wat::core::Vector :wat::fix::Edit)))
 

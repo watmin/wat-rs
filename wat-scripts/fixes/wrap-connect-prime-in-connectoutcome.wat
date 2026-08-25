@@ -98,30 +98,30 @@
 ;; ── EDIT: two span inserts wrapping the connect' call node ────────────────────────
 (:wat::core::defn :user::wrap-edits
   [node <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
-  (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])
-    (:wat::core::Tuple (:user::start-off node lines) 0
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+  (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])
+    (:wat::core::Tuple (:user::start-off node lines) ""
       "(:wat::core::match ")
-    (:wat::core::Tuple (:user::end-off node lines) 0
+    (:wat::core::Tuple (:user::end-off node lines) ""
       " ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))")))
 
 ;; recurse a node's children WITHOUT wrapping the node's own top (idempotency suppression).
 (:wat::core::defn :user::node-edits-no-top
   [node <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
   (:wat::core::if (:wat::fix::structural? node)
     (:user::seq-edits (:wat::core::ast->children node) lines)
-    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))))
+    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String]))))
 
 ;; walk one node → its edit (if a connect' call) + descendants'. For an already-facing
 ;; ConnectOutcome match, the scrutinee (child[1]) is recursed WITHOUT re-wrapping its top.
 (:wat::core::defn :user::node-edits
   [node <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
   (:wat::core::let
     [this (:wat::core::if (:user::connect-call? node)
             (:user::wrap-edits node lines)
-            (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])))]
+            (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])))]
     (:wat::core::if (:user::already-facing-connect-match? node)
       ;; suppress the scrutinee's top-wrap; recurse everything else normally.
       (:wat::core::let
@@ -138,12 +138,12 @@
 
 (:wat::core::defn :user::seq-edits
   [items <- (:wat::core::Vector :- [:wat::WatAST])  lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])]) it <- :wat::WatAST]
-      -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
+    (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]) it <- :wat::WatAST]
+      -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
       (:wat::core::concat acc (:user::node-edits it lines)))
-    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))
+    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String]))
     items))
 
 ;; ── per-file migrate ─────────────────────────────────────────────────────────

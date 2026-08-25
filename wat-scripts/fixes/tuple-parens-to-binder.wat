@@ -150,8 +150,8 @@
 (:wat::core::defn :user::scan
   [text <- :wat::core::String i <- :wat::core::i64 len <- :wat::core::i64
    in-string? <- :wat::core::bool
-   edits <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
+   edits <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
   (:wat::core::if (:wat::core::i64::>= i len)
     edits
     (:wat::core::let [c (:user::char-at text i)]
@@ -186,22 +186,21 @@
 ;; the walk right after the whole keyword either way (never re-enter what was just consumed).
 (:wat::core::defn :user::scan-tuple-site
   [text <- :wat::core::String i <- :wat::core::i64 len <- :wat::core::i64
-   edits <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
+   edits <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
   (:wat::core::let [close (:user::scan-for-close text (:wat::core::i64::+ i 2) 1)
                     inner (:wat::string::subs text (:wat::core::i64::+ i 2) close)
                     next-i (:wat::core::i64::+ close 1)]
     (:wat::core::if (:user::has-top-level-comma? inner)
       (:wat::core::let [old-text (:wat::string::subs text i next-i)
-                        new-text (:user::render-tuple old-text)
-                        old-len  (:wat::core::i64::- next-i i)]
-        (:user::scan text next-i len false (:wat::core::conj edits (:wat::core::Tuple i old-len new-text))))
+                        new-text (:user::render-tuple old-text)]
+        (:user::scan text next-i len false (:wat::core::conj edits (:wat::core::Tuple i old-text new-text))))
       (:user::scan text next-i len false edits))))
 
 (:wat::core::defn :user::convert
   [src <- :wat::core::String] -> :wat::core::String
   (:wat::core::let [all-edits (:user::scan src 0 (:wat::string::length src) false
-                                 (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])))
+                                 (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])))
                     rev-edits (:wat::core::reverse all-edits)]
     (:wat::fix::fix-text-apply src rev-edits)))
 

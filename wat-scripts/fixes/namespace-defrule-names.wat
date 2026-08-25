@@ -228,7 +228,7 @@
                     ")"
                     lines1)
          ins-off  (:wat::fix::node-start-offset run-row lines1)
-         ins-edit (:wat::core::Vector :wat::fix::Edit (:wat::core::Tuple ins-off 0 (:user::helper-defn-text ns)))
+         ins-edit (:wat::core::Vector :wat::fix::Edit (:wat::core::Tuple ins-off "" (:user::helper-defn-text ns)))
          all-eds  (:wat::core::concat wrap-eds ins-edit)
          text2    (:wat::fix::fix-text-apply text1 (:wat::core::reverse (:wat::core::sort all-eds)))]
         text2))))

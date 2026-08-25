@@ -239,14 +239,18 @@
     (:wat::fix::node-start-offset node lines)
     (:wat::fix::node-end-offset node lines)))
 
+;; old-text = fix-text-span-text over the WHOLE matched node's OWN span (arc 282) —
+;; sanctioned: every caller has already structurally verified `node`'s identity before
+;; calling this, and it is a List's own span — never a reader-synthesized leaf's.
 (:wat::core::defn :user::span-edit
   [node  <- :wat::WatAST
    text  <- :wat::core::String
+   src   <- :wat::core::String
    lines <- (:wat::core::Vector :- [:wat::core::String])]
   -> :wat::fix::Edit
-  (:wat::core::let [off (:wat::fix::node-start-offset node lines)
-                    end (:wat::fix::node-end-offset node lines)]
-    (:wat::core::Tuple off (:wat::core::i64::- end off) text)))
+  (:wat::core::let [off      (:wat::fix::node-start-offset node lines)
+                    old-text (:wat::fix::fix-text-span-text (:wat::core::ast-span node) (:wat::core::ast-end-span node) lines src)]
+    (:wat::core::Tuple off old-text text)))
 
 (:wat::core::defn :user::q-call
   [fqdn <- :wat::core::String] -> :wat::core::String
@@ -321,8 +325,11 @@
                       arg (:wat::core::Option/expect
                             (:wat::core::get (:wat::core::ast->children node) 2)
                             "call-edit: type kw")]
+      ;; old-text = (ast-name arg) — arg is a KEYWORD LEAF (type-query? verified
+      ;; ast-kind=="keyword"), so this is a RENAME, not a whole-list replace; NEVER
+      ;; span text here (span-edit's own sanctioned use is for List nodes only).
       (:wat::core::Vector :wat::fix::Edit
-        (:user::span-edit arg (:user::q-call ty) lines)))
+        (:wat::core::Tuple (:wat::fix::node-start-offset arg lines) (:wat::core::ast-name arg) (:user::q-call ty))))
     (:wat::core::if (:user::qbts? node)
       (:wat::core::let [ch (:wat::core::ast->children node)
                         sess (:wat::core::Option/expect
@@ -340,7 +347,7 @@
         (:wat::core::Vector :wat::fix::Edit
           (:user::span-edit node
             (:wat::string::concat new ")")
-            lines)))
+            src lines)))
       (:wat::core::Vector :wat::fix::Edit))))
 
 (:wat::core::defn :user::compile-edit
@@ -362,7 +369,7 @@
       (:wat::core::Vector :wat::fix::Edit
         (:user::span-edit node
           (:wat::string::concat new ")")
-          lines)))
+          src lines)))
     (:wat::core::Vector :wat::fix::Edit)))
 
 (:wat::core::defn :user::walk-edits
@@ -429,7 +436,7 @@
                                        (:wat::core::first forms) lines)
                                      off)]
                (:wat::core::Vector :wat::fix::Edit
-                 (:wat::core::Tuple at 0 inserted))))
+                 (:wat::core::Tuple at "" inserted))))
          call-edits (:user::walk-seq-edits forms types src lines)
          all (:wat::core::concat ins-edits call-edits)]
         (:wat::fix::fix-text-apply src

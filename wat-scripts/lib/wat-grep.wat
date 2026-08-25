@@ -32,30 +32,34 @@
   [form  <- :wat::WatAST
    src   <- :wat::core::String
    lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+  ;; old-text = fix-text-span-text over `form`'s OWN span (arc 282), plus the trailing "\n"
+  ;; when present — sanctioned, not STOP-1: pred already matched `form` structurally, this
+  ;; is the form's own span (never a reader-synthesized leaf's), and the deletion's subject
+  ;; genuinely IS "this form, plus one trailing newline if there is one."
   (:wat::core::let [start-span (:wat::core::ast-span form)
                     end-span   (:wat::core::ast-end-span form)
                     off        (:wat::fix::fix-text-offset-of start-span lines)
-                    old-len    (:wat::fix::fix-text-span-len start-span end-span lines)
+                    span-text  (:wat::fix::fix-text-span-text start-span end-span lines src)
                     ;; eat the trailing newline (if any) to avoid a dangling blank line
                     src-len    (:wat::string::length src)
-                    end-off    (:wat::core::+ off old-len)
+                    end-off    (:wat::core::+ off (:wat::string::length span-text))
                     next-is-nl (:wat::core::if (:wat::core::< end-off src-len)
                                   (:wat::core::= (:wat::string::subs src end-off
                                                    (:wat::core::+ end-off 1)) "\n")
                                   false)
-                    eat        (:wat::core::if next-is-nl 1 0)]
-    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])
-      (:wat::core::Tuple off (:wat::core::+ old-len eat) ""))))
+                    old-text   (:wat::core::if next-is-nl (:wat::string::concat span-text "\n") span-text)]
+    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])
+      (:wat::core::Tuple off old-text ""))))
 
 ;; ── Internal: map a vector of matched forms to deletion edits ─────────────────────────
 (:wat::core::defn :user::wat-grep-strip-edits
   [forms <- (:wat::core::Vector :- [:wat::WatAST])
    src   <- :wat::core::String
    lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
   (:wat::core::if (:wat::core::empty? forms)
-    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))
+    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String]))
     (:wat::core::concat
       (:user::wat-grep-form-edit (:wat::core::first forms) src lines)
       (:user::wat-grep-strip-edits (:wat::core::rest forms) src lines))))

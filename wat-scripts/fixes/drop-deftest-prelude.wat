@@ -45,45 +45,51 @@
 
 ;; form-edits — 0-or-1 deletion edit for one top-level form: fires only on a deftest head
 ;; with a 4-child shape (head name prelude body) whose prelude child is `()`.
+;; old-text = fix-text-span-text over the `()` prelude node's OWN span (arc 282) —
+;; sanctioned: empty-list? already verified the node's identity structurally (its
+;; ast->children is empty), so the deletion's subject genuinely IS the span, whatever
+;; whitespace it does or doesn't contain between the parens.
 (:wat::core::defn :user::form-edits
   [node  <- :wat::WatAST
+   src   <- :wat::core::String
    lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
   (:wat::core::if (:user::deftest-head? node)
     (:wat::core::let [ch (:wat::core::ast->children node)]
       (:wat::core::if (:wat::core::< (:wat::core::count ch) 4)
-        (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))
+        (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String]))
         (:wat::core::let [prelude (:wat::core::nth ch 2)]
           (:wat::core::if (:user::empty-list? prelude)
             ;; delete ONLY the `()` token span (prelude-start .. prelude-end); surrounding
             ;; whitespace + any body doc-comment between `()` and the body survive intact
             ;; (the residual blank line is wat-fmt's job — never eat a comment).
-            (:wat::core::let [off (:wat::fix::fix-text-offset-of (:wat::core::ast-span prelude) lines)
-                              len (:wat::fix::fix-text-span-len
-                                    (:wat::core::ast-span prelude)
-                                    (:wat::core::ast-end-span prelude)
-                                    lines)]
-              (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])
-                (:wat::core::Tuple off len "")))
-            (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))))))
-    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))))
+            (:wat::core::let [off      (:wat::fix::fix-text-offset-of (:wat::core::ast-span prelude) lines)
+                              old-text (:wat::fix::fix-text-span-text
+                                         (:wat::core::ast-span prelude)
+                                         (:wat::core::ast-end-span prelude)
+                                         lines src)]
+              (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])
+                (:wat::core::Tuple off old-text "")))
+            (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String]))))))
+    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String]))))
 
 ;; scan — collect edits across every top-level form (ascending offset order).
 (:wat::core::defn :user::scan
   [forms <- (:wat::core::Vector :- [:wat::WatAST])
+   src   <- :wat::core::String
    lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
   (:wat::core::if (:wat::core::empty? forms)
-    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))
+    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String]))
     (:wat::core::concat
-      (:user::form-edits (:wat::core::first forms) lines)
-      (:user::scan (:wat::core::rest forms) lines))))
+      (:user::form-edits (:wat::core::first forms) src lines)
+      (:user::scan (:wat::core::rest forms) src lines))))
 
 (:wat::core::defn :user::migrate [src <- :wat::core::String] -> :wat::core::String
   (:wat::core::let [lines     (:wat::string::split src "\n")
                     tree      (:wat::core::match (:wat::core::read-string src) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)))
                     forms     (:wat::core::ast->children tree)
-                    all-edits (:user::scan forms lines)]
+                    all-edits (:user::scan forms src lines)]
     (:wat::fix::fix-text-apply src (:wat::core::reverse all-edits))))
 
 (:wat::core::defn :user::apply-each

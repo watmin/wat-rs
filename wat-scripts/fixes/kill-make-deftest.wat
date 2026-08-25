@@ -58,37 +58,42 @@
 ;; form-edits — 0-or-1 whole-form deletion edit for one top-level form:
 ;; fires only when the head is a make-deftest factory. Deletes the entire
 ;; form span [ast-span .. ast-end-span); surrounding whitespace survives.
+;; old-text = fix-text-span-text over the form's OWN span (arc 282) — sanctioned, not STOP-1:
+;; make-deftest-head? already verified the form's identity structurally, and this is a whole
+;; List's own span, never a reader-synthesized leaf's.
 (:wat::core::defn :user::form-edits
   [node  <- :wat::WatAST
+   src   <- :wat::core::String
    lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
   (:wat::core::if (:user::make-deftest-head? node)
-    (:wat::core::let [off (:wat::fix::fix-text-offset-of (:wat::core::ast-span node) lines)
-                      len (:wat::fix::fix-text-span-len
-                            (:wat::core::ast-span node)
-                            (:wat::core::ast-end-span node)
-                            lines)]
-      (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])
-        (:wat::core::Tuple off len "")))
-    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))))
+    (:wat::core::let [off      (:wat::fix::fix-text-offset-of (:wat::core::ast-span node) lines)
+                      old-text (:wat::fix::fix-text-span-text
+                                 (:wat::core::ast-span node)
+                                 (:wat::core::ast-end-span node)
+                                 lines src)]
+      (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])
+        (:wat::core::Tuple off old-text "")))
+    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String]))))
 
 ;; scan — collect drop edits across every top-level form (ascending offset).
 (:wat::core::defn :user::scan
   [forms <- (:wat::core::Vector :- [:wat::WatAST])
+   src   <- :wat::core::String
    lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
   (:wat::core::if (:wat::core::empty? forms)
-    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))
+    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String]))
     (:wat::core::concat
-      (:user::form-edits (:wat::core::first forms) lines)
-      (:user::scan (:wat::core::rest forms) lines))))
+      (:user::form-edits (:wat::core::first forms) src lines)
+      (:user::scan (:wat::core::rest forms) src lines))))
 
 ;; drop-registrations — (a): span-delete every make-deftest factory form.
 (:wat::core::defn :user::drop-registrations [src <- :wat::core::String] -> :wat::core::String
   (:wat::core::let [lines     (:wat::string::split src "\n")
                     tree      (:wat::core::match (:wat::core::read-string src) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)))
                     forms     (:wat::core::ast->children tree)
-                    all-edits (:user::scan forms lines)]
+                    all-edits (:user::scan forms src lines)]
     (:wat::fix::fix-text-apply src (:wat::core::reverse all-edits))))
 
 ;; rename-aliases — (b): each file-local alias call-head → the prime.

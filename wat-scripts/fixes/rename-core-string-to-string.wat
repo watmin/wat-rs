@@ -111,34 +111,39 @@
   -> :wat::grep::Capture
   (:wat::core::second captures))
 
-;; edits-of — query rows -> Vector of Tuple(offset, old-len, new-text), UNSORTED.
-;; `?captures` is (old, new) in that fixed order (this file's own :then above), so `second`
-;; is the replacement text — no name-keyed lookup needed for a two-element vector this file
-;; itself constructed.
+;; first-capture — the "old" capture: the rule's CLAIM about what text sits at this match's
+;; span (arc 282). Captured in :then above and, until this stone, never read — the belief
+;; was thrown away and old-len was derived from the span instead (vacuous: it would have
+;; matched itself). Typed the same way second-capture is, for the same INFER-vs-checking-
+;; mode reason (PersistentMap/get's value type needs a concrete argument type to force it).
+(:wat::core::defn :rn::first-capture
+  [captures <- (:wat::core::PersistentVector :- [:wat::grep::Capture])]
+  -> :wat::grep::Capture
+  (:wat::core::first captures))
+
+;; edits-of — query rows -> Vector of Tuple(offset, old-text, new-text), UNSORTED.
+;; `?captures` is (old, new) in that fixed order (this file's own :then above). old-text is
+;; the FIRST capture's value — the rule's belief, not a slice of src at `offset`.
 (:wat::core::defn :rn::edits-of
   [rows  <- :wat::core::PersistentVector
    lines <- (:wat::core::Vector :- [:wat::core::String])
-   acc   <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
+   acc   <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
   (:wat::core::foldl
-    (:wat::core::fn [a   <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
+    (:wat::core::fn [a   <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
                      row <- :wat::core::PersistentMap]
-      -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
+      -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
       (:wat::core::let
         [line     (:wat::core::Option/expect (:wat::core::PersistentMap/get row "?line")     "q-match: ?line")
          col      (:wat::core::Option/expect (:wat::core::PersistentMap/get row "?col")      "q-match: ?col")
-         end-line (:wat::core::Option/expect (:wat::core::PersistentMap/get row "?end-line") "q-match: ?end-line")
-         end-col  (:wat::core::Option/expect (:wat::core::PersistentMap/get row "?end-col")  "q-match: ?end-col")
-         new-text (:wat::grep::Capture/value
-                     (:rn::second-capture
-                       (:wat::core::Option/expect (:wat::core::PersistentMap/get row "?captures") "q-match: ?captures")))
+         captures (:wat::core::Option/expect (:wat::core::PersistentMap/get row "?captures") "q-match: ?captures")
+         old-text (:wat::grep::Capture/value (:rn::first-capture captures))
+         new-text (:wat::grep::Capture/value (:rn::second-capture captures))
          start    {:line line     :col col}
-         end      {:line end-line :col end-col}
-         offset   (:wat::fix::fix-text-offset-of start lines)
-         old-len  (:wat::fix::fix-text-span-len start end lines)]
+         offset   (:wat::fix::fix-text-offset-of start lines)]
         (:wat::core::concat a
-          (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])
-            (:wat::core::Tuple offset old-len new-text)))))
+          (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])
+            (:wat::core::Tuple offset old-text new-text)))))
     acc rows))
 
 ;; convert-one — one file, through the already-compiled network via `overlay` (mirrors
@@ -154,13 +159,13 @@
      records (:wat::grep::facts-as-records facts)
      fired   (overlay records)
      rows    (:wat::rete::query fired (:rn::q-match))
-     empty-e (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))
+     empty-e (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String]))
      edits   (:rn::edits-of rows lines empty-e)
      ;; ★ SORT DESCENDING BY OFFSET — fix-text-apply splices right-to-left; rete returns query
      ;; results in NETWORK order, not source order (to-faithful-clojure-net.wat:275's comparator).
      sorted  (:wat::core::sort
-               (:wat::core::fn [a <- (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])
-                                b <- (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])]
+               (:wat::core::fn [a <- (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])
+                                b <- (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
                  -> :wat::core::bool
                  (:wat::core::> (:wat::core::first a) (:wat::core::first b)))
                edits)

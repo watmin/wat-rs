@@ -72,16 +72,16 @@
 ;; of the two accessors above.
 (:wat::core::defn :user::accessor-edit
   [n <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind n) "keyword")
     (:wat::core::let
       [name     (:wat::core::ast-name n)
        new-name (:user::accessor-new-name name)]
       (:wat::core::if (:wat::core::= new-name name)
-        (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))
-        (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])
-          (:wat::core::Tuple (:user::start-off n lines) (:wat::string::length name) new-name))))
-    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))))
+        (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String]))
+        (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])
+          (:wat::core::Tuple (:user::start-off n lines) name new-name))))
+    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String]))))
 
 ;; ── ctor :caller key/value edits — only ever called with a matched Log/LogRequest ctor's
 ;; children (head + flat kwargs). Scans every index; a `:caller` KEY gets renamed, and — iff its
@@ -90,51 +90,52 @@
 ;; general recursive walk to rewrite via accessor-edit (its head keyword matches rule (c) above).
 (:wat::core::defn :user::ctor-caller-edits
   [ch <- (:wat::core::Vector :- [:wat::WatAST])  lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])]) i <- :wat::core::i64]
-      -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
+    (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]) i <- :wat::core::i64]
+      -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
       (:wat::core::let
         [k (:wat::core::Option/expect (:wat::core::get ch i) "ctor-caller-edits: k")]
         (:wat::core::if (:user::caller-kw? k)
+          ;; key-edit's old-text = (ast-name k) — already verified by caller-kw? to equal
+          ;; ":caller"; val-edit's old-text = (ast-name v) — the literal keyword value being
+          ;; replaced. NEVER span text (both rename a keyword leaf, STOP-1 territory).
           (:wat::core::let
             [ks       (:user::start-off k lines)
-             ke       (:user::end-off k lines)
-             key-edit (:wat::core::Tuple ks (:wat::core::- ke ks) ":emitted-from")
+             key-edit (:wat::core::Tuple ks (:wat::core::ast-name k) ":emitted-from")
              nxt      (:wat::core::get ch (:wat::core::+ i 1))]
-            (:wat::core::match nxt 
+            (:wat::core::match nxt
               (:wat::core::None
-                (:wat::core::concat acc (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]) key-edit)))
+                (:wat::core::concat acc (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String]) key-edit)))
               ((:wat::core::Some v)
                 (:wat::core::if (:wat::core::= (:wat::core::ast-kind v) "keyword")
                   (:wat::core::let
                     [vs       (:user::start-off v lines)
-                     ve       (:user::end-off v lines)
-                     val-edit (:wat::core::Tuple vs (:wat::core::- ve vs) "(:wat::kernel::call-site)")]
+                     val-edit (:wat::core::Tuple vs (:wat::core::ast-name v) "(:wat::kernel::call-site)")]
                     (:wat::core::concat acc
-                      (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]) key-edit val-edit)))
+                      (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String]) key-edit val-edit)))
                   (:wat::core::concat acc
-                    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]) key-edit))))))
+                    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String]) key-edit))))))
           acc)))
-    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))
+    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String]))
     (:wat::core::range 0 (:wat::core::length ch))))
 
 ;; ── general recursive walk ───────────────────────────────────────────────────
 (:wat::core::defn :user::node-edits
   [node  <- :wat::WatAST
    lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
     (:wat::core::let [ch (:wat::core::ast->children node)]
       (:wat::core::if (:wat::core::empty? ch)
-        (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))
+        (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String]))
         (:wat::core::let
           [hname (:user::kw-name (:wat::core::first ch))
            ctor? (:wat::core::if (:wat::core::= hname ":wat::telemetry::Log") true
                    (:wat::core::= hname ":wat::telemetry::Span::LogRequest"))
            ctor-edits (:wat::core::if ctor?
                         (:user::ctor-caller-edits ch lines)
-                        (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])))]
+                        (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])))]
           (:wat::core::concat ctor-edits (:user::seq-edits ch lines)))))
     (:wat::core::if (:wat::fix::structural? node)
       (:user::seq-edits (:wat::core::ast->children node) lines)
@@ -142,12 +143,12 @@
 
 (:wat::core::defn :user::seq-edits
   [items <- (:wat::core::Vector :- [:wat::WatAST])  lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])]) it <- :wat::WatAST]
-      -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
+    (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]) it <- :wat::WatAST]
+      -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
       (:wat::core::concat acc (:user::node-edits it lines)))
-    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))
+    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String]))
     items))
 
 ;; ── per-file migrate ─────────────────────────────────────────────────────────

@@ -64,8 +64,8 @@
 
 ;; unwrap-edits — delete the two inserted regions, leaving (match SCRUT IA…).
 (:wat::core::defn :user::unwrap-edits
-  [ch <- (:wat::core::Vector :- [:wat::WatAST])  node <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
+  [ch <- (:wat::core::Vector :- [:wat::WatAST])  node <- :wat::WatAST  src <- :wat::core::String  lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
   (:wat::core::let
     [scrut  (:wat::core::Option/expect (:wat::core::get ch 1) "scrut")
      arm    (:wat::core::Option/expect (:wat::core::get ch 2) "arm")
@@ -76,37 +76,44 @@
      s-end  (:user::end-off scrut lines)
      ia1-s  (:user::start-off ia1 lines)
      ian-e  (:user::end-off ian lines)
-     node-e (:user::end-off node lines)]
-    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])
-      (:wat::core::Tuple s-end (:wat::core::- ia1-s s-end) " ")
-      (:wat::core::Tuple ian-e (:wat::core::- (:wat::core::- node-e 1) ian-e) ""))))
+     node-e (:user::end-off node lines)
+     ;; both edits are gap deletions between two independently-located node boundaries
+     ;; (arc 282) — sanctioned: no name-based claim about that whitespace/punctuation
+     ;; exists to diverge from it; the span IS the whole belief. Sliced directly by flat
+     ;; offset (both endpoints are already flat ints here; fix-text-span-text's span-map
+     ;; form is unneeded — same subs-of-src semantics).
+     gap1   (:wat::string::subs src s-end ia1-s)
+     gap2   (:wat::string::subs src ian-e (:wat::core::i64::- node-e 1))]
+    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])
+      (:wat::core::Tuple s-end gap1 " ")
+      (:wat::core::Tuple ian-e gap2 ""))))
 
 (:wat::core::defn :user::node-edits
-  [node <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
+  [node <- :wat::WatAST  src <- :wat::core::String  lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
   (:wat::core::let
     [this (:wat::core::if (:user::codemod-wrapped? node)
-            (:user::unwrap-edits (:wat::core::ast->children node) node lines)
-            (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])))]
+            (:user::unwrap-edits (:wat::core::ast->children node) node src lines)
+            (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])))]
     (:wat::core::if (:wat::fix::structural? node)
-      (:wat::core::concat this (:user::seq-edits (:wat::core::ast->children node) lines))
+      (:wat::core::concat this (:user::seq-edits (:wat::core::ast->children node) src lines))
       this)))
 
 (:wat::core::defn :user::seq-edits
-  [items <- (:wat::core::Vector :- [:wat::WatAST])  lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
+  [items <- (:wat::core::Vector :- [:wat::WatAST])  src <- :wat::core::String  lines <- (:wat::core::Vector :- [:wat::core::String])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])]) it <- :wat::WatAST]
-      -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
-      (:wat::core::concat acc (:user::node-edits it lines)))
-    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))
+    (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]) it <- :wat::WatAST]
+      -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+      (:wat::core::concat acc (:user::node-edits it src lines)))
+    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String]))
     items))
 
 (:wat::core::defn :user::migrate [src <- :wat::core::String] -> :wat::core::String
   (:wat::core::let
     [lines (:wat::string::split src "\n")
      forms (:wat::core::ast->children (:wat::core::match (:wat::core::read-string src) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None))))
-     eds   (:user::seq-edits forms lines)
+     eds   (:user::seq-edits forms src lines)
      rev   (:wat::core::reverse (:wat::core::sort eds))]
     (:wat::fix::fix-text-apply src rev)))
 

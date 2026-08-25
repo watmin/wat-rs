@@ -40,9 +40,11 @@
    len    <- :wat::core::i64
    name   <- :wat::core::String])
 
+;; arc 282: carries `name` too — the arrow's OWN text ("<-" or "->"), the old-text claim.
 (:wat::core::defrecord :fix::ArrowConv
   [offset <- :wat::core::i64
-   len    <- :wat::core::i64])
+   len    <- :wat::core::i64
+   name   <- :wat::core::String])
 
 (:wat::core::defrecord :fix::TypeConv
   [offset <- :wat::core::i64
@@ -92,7 +94,7 @@
                         (:wat::rete::string::= ?name "<-")
                         (:wat::rete::string::= ?name "->")))]
   :then
-  [(:fix::ArrowConv ?offset ?len)])
+  [(:fix::ArrowConv ?offset ?len ?name)])
 
 (:wat::rete::defrule :fix::type-keyword->conv
   :when
@@ -115,7 +117,7 @@
 
 (:wat::rete::defquery :fix::q-ArrowConv
   :params []
-  :when [(:fix::ArrowConv (?offset <- :offset) (?len <- :len))])
+  :when [(:fix::ArrowConv (?offset <- :offset) (?len <- :len) (?name <- :name))])
 
 (:wat::rete::defquery :fix::q-TypeConv
   :params []
@@ -169,40 +171,39 @@
 ;; HeadConv → (ast-name (keyword/to-symbol (keyword-node name))) — the ::-keyword becomes a symbol.
 (:wat::core::defn :fix::head-edits
   [convs <- :wat::core::PersistentVector
-   acc   <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
+   acc   <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
   (:wat::core::foldl
-    (:wat::core::fn [a  <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
+    (:wat::core::fn [a  <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
                      hc <- :wat::core::PersistentMap]
-      -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
-      (:wat::core::concat a
-        (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])
-          (:wat::core::Tuple
-            (:wat::core::Option/expect (:wat::core::PersistentMap/get hc "?offset") "q-HeadConv: ?offset")
-            (:wat::core::Option/expect (:wat::core::PersistentMap/get hc "?len") "q-HeadConv: ?len")
-            (:wat::core::ast-name
-              (:wat::core::keyword/to-symbol
-                (:wat::core::keyword-node
-                  (:wat::core::Option/expect
-                    (:wat::core::PersistentMap/get hc "?name")
-                    "q-HeadConv: ?name"))))))))
+      -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+      (:wat::core::let [old-name (:wat::core::Option/expect (:wat::core::PersistentMap/get hc "?name") "q-HeadConv: ?name")]
+        ;; old-text = ?name directly (arc 282) — NEVER ?len; see wat-scripts/fixes/to-
+        ;; faithful-clojure-net.wat's sibling comment for the full reasoning.
+        (:wat::core::concat a
+          (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])
+            (:wat::core::Tuple
+              (:wat::core::Option/expect (:wat::core::PersistentMap/get hc "?offset") "q-HeadConv: ?offset")
+              old-name
+              (:wat::core::ast-name (:wat::core::keyword/to-symbol (:wat::core::keyword-node old-name))))))))
     acc
     convs))
 
 ;; ArrowConv → ":-" (the annotation-arrow becomes the faithful bind marker).
 (:wat::core::defn :fix::arrow-edits
   [convs <- :wat::core::PersistentVector
-   acc   <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
+   acc   <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
   (:wat::core::foldl
-    (:wat::core::fn [a  <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
+    (:wat::core::fn [a  <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
                      ac <- :wat::core::PersistentMap]
-      -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
+      -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+      ;; old-text = ?name — see q-HeadConv's sibling comment above (arc 282).
       (:wat::core::concat a
-        (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])
+        (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])
           (:wat::core::Tuple
             (:wat::core::Option/expect (:wat::core::PersistentMap/get ac "?offset") "q-ArrowConv: ?offset")
-            (:wat::core::Option/expect (:wat::core::PersistentMap/get ac "?len") "q-ArrowConv: ?len")
+            (:wat::core::Option/expect (:wat::core::PersistentMap/get ac "?name") "q-ArrowConv: ?name")
             ":-"))))
     acc
     convs))
@@ -210,23 +211,20 @@
 ;; TypeConv → (write-forms (keyword/to-type-form (keyword-node name))) — the type-keyword becomes a type form.
 (:wat::core::defn :fix::type-edits
   [convs <- :wat::core::PersistentVector
-   acc   <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
+   acc   <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])]
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
   (:wat::core::foldl
-    (:wat::core::fn [a  <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
+    (:wat::core::fn [a  <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
                      tc <- :wat::core::PersistentMap]
-      -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
-      (:wat::core::concat a
-        (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])
-          (:wat::core::Tuple
-            (:wat::core::Option/expect (:wat::core::PersistentMap/get tc "?offset") "q-TypeConv: ?offset")
-            (:wat::core::Option/expect (:wat::core::PersistentMap/get tc "?len") "q-TypeConv: ?len")
-            (:wat::core::write-forms
-              (:wat::core::keyword/to-type-form
-                (:wat::core::keyword-node
-                  (:wat::core::Option/expect
-                    (:wat::core::PersistentMap/get tc "?name")
-                    "q-TypeConv: ?name"))))))))
+      -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+      (:wat::core::let [old-name (:wat::core::Option/expect (:wat::core::PersistentMap/get tc "?name") "q-TypeConv: ?name")]
+        ;; old-text = ?name directly (arc 282) — NEVER ?len.
+        (:wat::core::concat a
+          (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])
+            (:wat::core::Tuple
+              (:wat::core::Option/expect (:wat::core::PersistentMap/get tc "?offset") "q-TypeConv: ?offset")
+              old-name
+              (:wat::core::write-forms (:wat::core::keyword/to-type-form (:wat::core::keyword-node old-name))))))))
     acc
     convs))
 
@@ -247,14 +245,14 @@
                     ;; query out + action (the transform lives here, outside rete)
                     ;; query-by-type-string (colon-free FQDN) is the checked-body idiom — the bare
                     ;; type-name constructor form `query` wants doesn't type-check in a defn body.
-                    empty-e (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))
+                    empty-e (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String]))
                     e1      (:fix::head-edits  (:wat::rete::query fired (:fix::q-HeadConv))  empty-e)
                     e2      (:fix::arrow-edits (:wat::rete::query fired (:fix::q-ArrowConv)) e1)
                     e3      (:fix::type-edits  (:wat::rete::query fired (:fix::q-TypeConv))  e2)
                     ;; sort right-to-left (descending offset; spans disjoint) so splicing is stable
                     sorted  (:wat::core::sort
-                              (:wat::core::fn [a <- (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])
-                                               b <- (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])]
+                              (:wat::core::fn [a <- (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])
+                                               b <- (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]
                                 -> :wat::core::bool
                                 (:wat::core::> (:wat::core::first a) (:wat::core::first b)))
                               e3)]

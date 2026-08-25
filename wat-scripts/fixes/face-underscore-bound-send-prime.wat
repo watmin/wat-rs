@@ -61,29 +61,29 @@
 ;; ── EDIT: two span inserts around the send' call (start; end) ───────────────────
 (:wat::core::defn :user::wrap-edits
   [rhs <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
-  (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])
-    (:wat::core::Tuple (:user::start-off rhs lines) 0 "(:wat::core::match ")
-    (:wat::core::Tuple (:user::end-off rhs lines) 0
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+  (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])
+    (:wat::core::Tuple (:user::start-off rhs lines) "" "(:wat::core::match ")
+    (:wat::core::Tuple (:user::end-off rhs lines) ""
       " (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil))")))
 
 ;; pair-edits — walk a let binding vector's children [name0 rhs0 name1 rhs1 …] two at a time
 ;; (index i = name, i+1 = rhs); emit a wrap for every underscore-bound-send' pair.
 (:wat::core::defn :user::pair-edits
   [vch <- (:wat::core::Vector :- [:wat::WatAST])  lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
   (:wat::core::let [n (:wat::core::length vch)
                     npairs (:wat::core::i64::/ n 2)]
     (:wat::core::foldl
-      (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])]) i <- :wat::core::i64]
-        -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
+      (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]) i <- :wat::core::i64]
+        -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
         (:wat::core::let [idx  (:wat::core::i64::* i 2)
                           name (:wat::core::Option/expect (:wat::core::get vch idx) "pair name")
                           rhs  (:wat::core::Option/expect (:wat::core::get vch (:wat::core::+ idx 1)) "pair rhs")]
           (:wat::core::if (:user::underscore-bound-send'? name rhs)
             (:wat::core::concat acc (:user::wrap-edits rhs lines))
             acc)))
-      (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))
+      (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String]))
       (:wat::core::range 0 npairs))))
 
 ;; let-node? — is this node a `:wat::core::let` list (head keyword exactly `:wat::core::let`)?
@@ -99,14 +99,14 @@
 ;; second child isn't a vector — malformed let, leave for the checker to report).
 (:wat::core::defn :user::let-edits
   [node <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
   (:wat::core::let [ch (:wat::core::ast->children node)]
     (:wat::core::if (:wat::core::< (:wat::core::length ch) 2)
-      (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))
+      (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String]))
       (:wat::core::let [bindings (:wat::core::Option/expect (:wat::core::get ch 1) "bindings")]
         (:wat::core::if (:wat::core::= (:wat::core::ast-kind bindings) "vector")
           (:user::pair-edits (:wat::core::ast->children bindings) lines)
-          (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])))))))
+          (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])))))))
 
 ;; walk one node → its edits + descendants'. (Recurse into ALL structural children incl. a
 ;; let's own binding-vector/body — a wrapped send' rhs's new head is `:wat::core::match`, not
@@ -114,22 +114,22 @@
 ;; reached normally.)
 (:wat::core::defn :user::node-edits
   [node <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
   (:wat::core::let [this (:wat::core::if (:user::let-node? node)
                             (:user::let-edits node lines)
-                            (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])))]
+                            (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])))]
     (:wat::core::if (:wat::fix::structural? node)
       (:wat::core::concat this (:user::seq-edits (:wat::core::ast->children node) lines))
       this)))
 
 (:wat::core::defn :user::seq-edits
   [items <- (:wat::core::Vector :- [:wat::WatAST])  lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])]) it <- :wat::WatAST]
-      -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
+    (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]) it <- :wat::WatAST]
+      -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
       (:wat::core::concat acc (:user::node-edits it lines)))
-    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))
+    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String]))
     items))
 
 ;; ── per-file migrate ─────────────────────────────────────────────────────────

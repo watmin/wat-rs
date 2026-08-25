@@ -189,7 +189,10 @@
        bindch    (:wat::core::ast->children bindings)
        n         (:wat::core::length bindch)
        off       (:wat::fix::node-start-offset f lines)
-       len       (:wat::core::i64::- (:wat::fix::node-end-offset f lines) off)]
+       ;; old-text = fix-text-span-text over the WHOLE matched form's OWN span (arc 282) —
+       ;; sanctioned: rule-defn? already verified `f`'s identity structurally, and this
+       ;; is a top-level defn form's own span, never a reader-synthesized leaf's.
+       old-text  (:wat::fix::fix-text-span-text (:wat::core::ast-span f) (:wat::core::ast-end-span f) lines src)]
       (:wat::core::if (:wat::core::= n 6)
         ;; Shape A — conds/where-c/ins all bound inline in this rule's own let.
         (:wat::core::let
@@ -200,7 +203,7 @@
                         (:user::quasi-text conds-val lines src)
                         (:user::quasi-text wherec-val lines src)
                         (:user::quasi-text ins-val lines src))]
-          (:wat::core::Vector :wat::fix::Edit (:wat::core::Tuple off len new-text)))
+          (:wat::core::Vector :wat::fix::Edit (:wat::core::Tuple off old-text new-text)))
         (:wat::core::if (:wat::core::= n 2)
           ;; Shape B — only where-c is local; conds/ins come from the file-level helpers.
           (:wat::core::let
@@ -215,7 +218,7 @@
                               " needs a file-level `::ins` helper but none was found")))
              new-text   (:user::build-defrule-text name-str cond-text
                           (:user::quasi-text wherec-val lines src) ins-text)]
-            (:wat::core::Vector :wat::fix::Edit (:wat::core::Tuple off len new-text)))
+            (:wat::core::Vector :wat::fix::Edit (:wat::core::Tuple off old-text new-text)))
           ;; Neither shape — STOP. Never a silent skip, never a hand-fix.
           (:wat::kernel::assertion-failed!
             (:wat::core::String/concat "rule-record-to-defrule: unrecognized let-bindings arity "

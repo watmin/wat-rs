@@ -80,36 +80,38 @@
 ;; `:wat::kernel::LociDiedError/message` (whole-token span replace; the arg is untouched).
 (:wat::core::defn :user::fm-head-edit
   [node <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
+  ;; old-text = (ast-name head) — the rule's own belief, already verified by fm-call-on? to
+  ;; equal ":wat::kernel::Failure/message"; NEVER span text (this is a rename of a keyword
+  ;; leaf, STOP-1 territory).
   (:wat::core::let [head (:wat::core::first (:wat::core::ast->children node))
-                    h0   (:user::start-off head lines)
-                    h1   (:user::end-off head lines)]
-    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])
-      (:wat::core::Tuple h0 (:wat::core::- h1 h0) ":wat::kernel::LociDiedError/message"))))
+                    h0   (:user::start-off head lines)]
+    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])
+      (:wat::core::Tuple h0 (:wat::core::ast-name head) ":wat::kernel::LociDiedError/message"))))
 
 ;; node-edits — scope-threading walk. `lost-var` is the RecvOutcome::Lost-bound var currently in
 ;; scope (""=none). A Lost arm OVERRIDES the scope for its children (nested Lost arms shadow).
 (:wat::core::defn :user::node-edits
   [node <- :wat::WatAST  lost-var <- :wat::core::String  lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
   (:wat::core::let
     [this-var (:user::lost-arm-var node)
      scope    (:wat::core::if (:wat::core::= this-var "") lost-var this-var)
      this     (:wat::core::if (:user::fm-call-on? node lost-var)
                 (:user::fm-head-edit node lines)
-                (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])))]
+                (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])))]
     (:wat::core::if (:wat::fix::structural? node)
       (:wat::core::concat this (:user::seq-edits (:wat::core::ast->children node) scope lines))
       this)))
 
 (:wat::core::defn :user::seq-edits
   [items <- (:wat::core::Vector :- [:wat::WatAST])  lost-var <- :wat::core::String  lines <- (:wat::core::Vector :- [:wat::core::String])]
-  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
+  -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
   (:wat::core::foldl
-    (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])]) it <- :wat::WatAST]
-      -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
+    (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]) it <- :wat::WatAST]
+      -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
       (:wat::core::concat acc (:user::node-edits it lost-var lines)))
-    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))
+    (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String]))
     items))
 
 ;; ── per-file migrate ─────────────────────────────────────────────────────────
