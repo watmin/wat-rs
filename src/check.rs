@@ -5629,6 +5629,24 @@ fn infer_list(
                         }
                     }
                 }
+                // Arc 255 STONE-retirement-table-becomes-mechanism — DOOR 1: consult the
+                // retirement table before falling into the silent-accept below. A
+                // slash-form or nested `:wat::` name (e.g. `:wat::core::Uuid/v4`) never
+                // reaches one of the hand-written bare-primitive arms above; without this
+                // check it fell all the way through to a bare runtime `UnknownFunction`
+                // (door 2, src/value/signal.rs) with no help at all. `remedies_for` runs
+                // retirement lookup FIRST and an exact table hit always scores 0 (a typo
+                // is never < 1), so this fires ONLY on a genuine retirement — never on a
+                // merely-unregistered name falling through to the silent accept below.
+                let retirement_remedies = crate::remedy::remedies_for(k, std::iter::empty());
+                if retirement_remedies.first().is_some_and(|r| r.score() == 0) {
+                    local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
+                        head: k.clone(),
+                        reason: format!("'{}' is retired; use '{}' instead", k, retirement_remedies[0].form),
+                        remedies: retirement_remedies,
+                    } });
+                    return CheckResult::errs(local_errors);
+                }
                 // HARVEST (236.2): silent-by-intent — no scheme found for multi-arg form; accept and pass.
                 return if local_errors.is_empty() { CheckResult::ok(fresh.fresh()) } else { CheckResult::partial_with(fresh.fresh(), local_errors) };
             }

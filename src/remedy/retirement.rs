@@ -187,6 +187,19 @@ pub(super) fn retirement_lookup(needle: &str) -> Option<Remedy> {
         })
 }
 
+/// Every retired-form name, in table order — walks `RETIREMENT_TABLE` directly.
+///
+/// Arc 255 STONE-retirement-table-becomes-mechanism: the ONLY caller is the
+/// end-to-end reachability gate (`tests/cli/retirement_table_reachable.rs`, bridged
+/// through `crate::remedy::retirement_table_names` and `wat::retirement_table_names_for_gate`
+/// in `lib.rs`), which must iterate the table ITSELF rather than a hand-maintained
+/// copy of its names — a copy would be exactly the defect this stone fixes, one
+/// level up (`[[feedback_a_gate_over_two_hand_lists_is_a_hand_list]]`). Not for
+/// production use.
+pub(super) fn retirement_table_names() -> Vec<&'static str> {
+    RETIREMENT_TABLE.iter().map(|e| e.retired).collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

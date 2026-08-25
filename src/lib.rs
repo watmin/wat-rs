@@ -370,3 +370,14 @@ pub fn eval_algebra_source(
     let holon = lower(&ast)?;
     Ok(encode(&holon, vm, scalar))
 }
+
+/// Arc 255 STONE-retirement-table-becomes-mechanism — the retirement table's
+/// retired-form names, bridged out of the `pub(crate)` `remedy` module for the
+/// end-to-end reachability gate (`tests/cli/retirement_table_reachable.rs`), which
+/// drives the real `wat` binary and must walk `RETIREMENT_TABLE` itself rather than
+/// a hand-maintained copy of its names. Not for production use — mirrors the
+/// `#[doc(hidden)] pub fn new_for_test` convention (`src/kernel/peer.rs`).
+#[doc(hidden)]
+pub fn retirement_table_names_for_gate() -> Vec<&'static str> {
+    remedy::retirement_table_names()
+}

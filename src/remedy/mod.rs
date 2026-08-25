@@ -47,6 +47,14 @@ mod rank;
 use retirement::retirement_lookup;
 pub use rank::nearest_matches;
 
+/// Bridge for the end-to-end retirement-table reachability gate — see
+/// `retirement::retirement_table_names`'s doc for why this exists and who the only
+/// caller is. Re-bridged as `wat::retirement_table_names_for_gate` in `lib.rs` since
+/// this module is `pub(crate)` and the gate lives in an external integration-test crate.
+pub(crate) fn retirement_table_names() -> Vec<&'static str> {
+    retirement::retirement_table_names()
+}
+
 /// A single ranked remedy offered to the user when their input is rejected.
 ///
 /// Remedies are sorted ascending by `score()` (closest first); ties broken

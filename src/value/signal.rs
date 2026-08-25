@@ -585,7 +585,25 @@ impl RuntimeErrorKind {
                 write!(f, "{}unbound symbol: {}", prefix, s)
             }
             RuntimeErrorKind::UnknownFunction(p) => {
-                write!(f, "{}unknown function: {}", prefix, p)
+                // Arc 255 STONE-retirement-table-becomes-mechanism — DOOR 2: a
+                // dynamically-built head (`eval-ast!`, `keyword/from-string`) never
+                // passes the checker, so door 1 (src/check.rs) alone leaves a hole —
+                // this is the runtime-only path. `RuntimeErrorKind::UnknownFunction`
+                // is a tuple variant carrying only the path (pinned: do NOT widen it
+                // to carry a structured remedies list — that is a different stone), so
+                // the retirement replacement is folded directly into the message text.
+                // `remedies_for` runs retirement lookup FIRST and an exact table hit
+                // always scores 0 (a typo is never < 1), so this fires ONLY on a
+                // genuine retirement.
+                let remedies = crate::remedy::remedies_for(p, std::iter::empty());
+                match remedies.first() {
+                    Some(r) if r.score() == 0 => write!(
+                        f,
+                        "{}unknown function: {} — '{}' is retired; use '{}' instead",
+                        prefix, p, p, r.form
+                    ),
+                    _ => write!(f, "{}unknown function: {}", prefix, p),
+                }
             }
             RuntimeErrorKind::NotCallable { got } => {
                 write!(f, "{}not callable: expected Function, got {}", prefix, got)
