@@ -224,3 +224,56 @@ is read as approval of the direction, and the growing is the trigger.
 7. **`Char/of` survives only as its three retirement comments**; `wat-tests/holon/char-round-trip.wat:3`
    names `char/of`.
 8. Floor green **accounted BY NAME**; clippy 0 under `-D warnings`.
+
+---
+
+# ⛔ AMENDED 2026-08-25 (pre-flight) — THE RETIREMENT TABLE, AND ROW 1'S BAR WAS WRONG
+
+`src/remedy/retirement.rs` is a static table mapping a retired form to its replacement, so the error
+at an old name **names the new one** instead of shrugging. Its own doctrine, in its header:
+
+> *"Each HARD CUT stone appends its retirement entry at the arc's ship time."*
+
+Ten names are being hard-cut here. Measured, on a name retired by stone 242.1:
+
+```
+(:wat::core::Char "x")
+  -> MalformedForm  "':wat::core::Char' is retired (Stone 242.1); use ':wat::core::char' instead"
+     :remedies [#wat.kernel/Remedy {:form ":wat::core::char" :kind :retirement …}]
+```
+
+**So ROW 1's bar as drawn — "the old name is `UnknownFunction`" — was wrong.** With an entry the old
+name is a `MalformedForm` that names its replacement, at CHECK time, with a `:retirement` remedy.
+`UnknownFunction` is what you get when the table has *not* been fed — i.e. the drawn bar would have
+been passed by doing the lesser thing, and failed by doing the right one. Another row whose bar came
+from what I expected. Corrected below.
+
+Four questions on feeding the table here: **Obvious** yes (the module's own doctrine). **Simple** yes
+(ten rows, same shape as the 25 already there). **Honest** — omitting them means the substrate
+silently forgets a rename it made this hour, and a caller on an old name gets no path forward: NO
+without them. **Good UX** — it is the entire reason the table exists. In scope.
+
+## ⚠ FINDING AGAINST STONE E — 19 string verbs were retired and the table was never fed
+
+Measured this session:
+
+```
+(:wat::core::string::length "abc")
+  -> UnknownFunction  "unknown function: :wat::core::string::length"     ← no replacement named
+```
+
+Stone E hard-cut `:wat::core::string::*` → `:wat::string::*` across 1761 sites and appended **zero**
+retirement entries, against the table's stated doctrine. Nineteen verbs, and every caller still on
+an old name gets a shrug. This is not this stone's work and is not folded into it — it is E's
+ledger, named here with its measurement so it is a work item rather than a mental note, and put to
+the builder as its own small strike.
+
+## ACCEPTANCE — row 1 replaced, row 9 added
+
+1. **Each of the 10 verbs answers `metadata-of` under its NEW name.** And the OLD name is a
+   **`MalformedForm` naming its replacement, carrying a `:retirement` remedy** — not a bare
+   `UnknownFunction`, which is the signature of an unfed table. Both directions, per verb.
+9. **`src/remedy/retirement.rs` gains exactly 10 entries**, and its header's arc-history table gains
+   the matching rows.
+
+Rows 2–8 stand as written above.
