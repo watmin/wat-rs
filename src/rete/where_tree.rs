@@ -28,7 +28,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use crate::rete::expr_ir::{apply_op, Expr, Program};
-use crate::rete::clause::CmpKind;
+use crate::rete::clause::{classify_constraint_head, CmpKind};
 use crate::rete::matcher::{compare_values, Bindings};
 use crate::rete::vocabulary::RETE_OPS;
 use crate::runtime::{
@@ -328,18 +328,42 @@ fn shape_is_pure_cmp(e: &Expr, slots: &HashMap<u16, String>) -> bool {
     }
 }
 
+/// Classify a RESOLVED `RETE_OPS` row through `clause.rs`'s ★ ONE DOOR.
+///
+/// These two used to hand-match `core_name` — `ends_with("::=")` for equality, and the
+/// leaf `<`/`>`/`<=`/`>=` for orderings — which made this a SECOND closed set beside the
+/// one `classify_constraint_head` exists to be. That door's own doc names the defect:
+/// "the six generic core spellings were matched by literal string in FOUR independent
+/// places, each re-asserting a closed set nothing enforced… That is the arc's recurring
+/// defect class — a match on a literal STRING no exhaustiveness check can see." This was
+/// a fifth place, and it is the one that read `core_name` rather than a head.
+///
+/// The hand-match was RIGHT today and wrong in shape, which is why the swap was proved
+/// row-by-row before it was made rather than argued:
+///   - `range_kind_of` matched the leaf regardless of TYPE, while the door admits
+///     orderings only for `i64`/`f64` ("orderings exist only where the type totally
+///     orders"). A `string::<` row would have been classified a range here and refused
+///     there.
+///   - `ends_with("::=")` happens to hold for `:wat::rete::core::enum::=`, whose
+///     `core_name` is the GENERIC `:wat::core::=` by head-substitution — right by a
+///     coincidence of spelling, not by consulting the table.
+///
+/// It reads `rete_name`, not `core_name`: the door takes a head as WRITTEN, and
+/// deliberately recognises the generic core spelling in order to REFUSE it. A resolved
+/// row's rete spelling is the admissible one. `NotEq` is neither an equality nor a
+/// range here, and is dropped — the same verdict the hand-match gave by excluding
+/// `not=`.
+fn constraint_kind(op: u16) -> Option<CmpKind> {
+    classify_constraint_head(RETE_OPS[op as usize].rete_name).map(|(k, _)| k)
+}
+
 fn is_eq_op(op: u16) -> bool {
-    let n = RETE_OPS[op as usize].core_name;
-    n.ends_with("::=") && !n.contains("not=")
+    matches!(constraint_kind(op), Some(CmpKind::Eq))
 }
 
 fn range_kind_of(op: u16) -> Option<CmpKind> {
-    let n = RETE_OPS[op as usize].core_name;
-    match wat_reader::identifier::leaf(n) {
-        "<" => Some(CmpKind::Lt),
-        ">" => Some(CmpKind::Gt),
-        "<=" => Some(CmpKind::Le),
-        ">=" => Some(CmpKind::Ge),
+    match constraint_kind(op) {
+        Some(k @ (CmpKind::Lt | CmpKind::Gt | CmpKind::Le | CmpKind::Ge)) => Some(k),
         _ => None,
     }
 }
@@ -557,6 +581,7 @@ fn exec_dim<B: Bindings + ?Sized>(d: &DimKey, bindings: &B, span: &Span) -> Resu
 #[cfg(test)]
 mod tests {
     use super::*;
+
     use crate::rete::expr_ir::{Expr, Program};
 
     fn eq_op() -> u16 {
