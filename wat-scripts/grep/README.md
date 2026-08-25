@@ -23,6 +23,7 @@ difference is not noise.**
 | `unwrap-of-lookup.wat` | where does a missing key become a crash? | 30 sites · a one-line regex finds 7, one a comment |
 | `bare-variant-constructors.wat` | how big is the Option/Result migration, really? | 211 constructor calls · text finds 212 |
 | `defined-twice.wat` | does one file define the same name twice? | 0 real · 2 false positives, both macro templates |
+| `can-raise.wat` | which functions contain a call that can panic? | 207 call sites across 121 functions · 2.6s |
 
 ## What the differences were
 
@@ -105,6 +106,39 @@ exactly one is ever emitted. `facts-of` walks every node including template inte
 they are data. **A rule about "definitions" currently cannot tell a definition from a template for
 one.** A `:wat::grep::Quoted [id]` fact would close it. Structure beats text, and structure has its
 own way of being wrong; naming that is the job.
+
+## Recursion — a rule that feeds itself
+
+`can-raise.wat` asks a question with no bounded shape: *does this function contain, at ANY depth, a
+call that can raise?* "At any depth" is transitive closure, and a rete rule computes it by matching
+its own output:
+
+```clojure
+direct : a node is Under its own parent
+step   : if X is Under A, and N's parent is X, then N is Under A     ;; matches its own :then
+```
+
+Forward chaining runs that to a fixed point. Verified on `(a (b (c (d))))`: **24** `Under` facts,
+exactly the sum over nodes of each node's ancestor count — counted, not eyeballed. Cost on the real
+corpus: **2.6s for all 54 stdlib files**, closure included.
+
+Three controls, because a new rule's first answer is never evidence:
+
+```
+:ctl::risky   partial call at depth 1           matched
+:ctl::deep    same call nested inside two ifs   matched     <- transitivity, not adjacency
+:ctl::safe    no partial call at all            silent      <- non-vacuous in both directions
+```
+
+And one result checked against the disk: `bracket.wat:338` really is
+`(:wat::core::first (:wat::core::ast->children node))`, and the enclosing top-level `defn` at
+`:335` really is `:wat::bracket::-type-slot-name` — the exact pair reported.
+
+**Report at the site, not at the container.** The first draft reported each match at the *defn's*
+span, which produced one Match per (defn, call) PAIR — the same function repeated with identical
+coordinates, reading as several findings when it is one. Reporting at the call site makes every
+Match a distinct place and carries the containing function as a capture. Same facts, honest
+granularity.
 
 ## What is NOT here yet
 
