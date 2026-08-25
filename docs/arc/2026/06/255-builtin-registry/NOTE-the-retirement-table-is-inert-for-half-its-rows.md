@@ -69,7 +69,14 @@ knock. The candidates:
 | **(c)** (b) plus the check-time silent-accept at `check.rs:5628` | YES | one more site | YES — and the error arrives at CHECK time, where the working thirteen already deliver it | **YES** — a retired name should not need to be *reached* to be diagnosed |
 
 **(c) is the answer**, and the 13/13/7 census above is its acceptance row: after it, the inert column
-is empty and the "other" seven get a real disposition instead of an artifact of my probe's shape.
+is empty.
+
+⚠ **CORRECTED 2026-08-25, same day.** The sentence that stood here called the seven "an artifact of
+my probe's shape" and expected them to need a disposition. Measured properly: they produce
+`TypeMismatch`, and at least `tuple`'s message already names its own retirement (*"the comma dies in
+the reader"*). **They are diagnosed by a third path and are not a gap.** 22 of 35 rows diagnose; 13
+do not. I wrote a guess into a note whose whole subject is guessing about mechanism — recorded
+rather than silently edited.
 
 ⚠ **The wall this needs** is not a count. It is a test that walks `RETIREMENT_TABLE` itself and
 asserts every row produces a retirement diagnostic — a gate over the *table*, not over a hand-list
