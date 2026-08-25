@@ -196,3 +196,24 @@ no field rename**, and the wire form for these three is `{:value …}` / `{:valu
 `109/NOTE-six-parametric-constructors-never-got-the-bracket.md` — `Some`/`None`/`Ok`/`Err` are not
 a separate constructor-wiring stone, they are H's variants declaring their param-spec. Amend H;
 do not mint a sibling.
+
+---
+
+## ⛔ CROSS-ARC 2026-08-25 — H's blast radius reaches `109/NOTE-match-cond-clause-brackets`
+
+Read in full alongside this stone, 2026-08-25. **The match arm's FORM `[Variant [binds] body]`
+survives H unchanged** — positional destructuring needs the variant's fields to be ordered (they are,
+at the declaration: `EnumVariant::Tagged { fields: Vec<(String, TypeExpr)> }`), not its wire body to
+be a vector.
+
+But that note grounds the form on the wire, twice, and H moves the wire out from under both:
+
+- *"the vector-bodied variant encoding … is what makes the destructure vec exact"* — under H the body
+  is `{:value 42}`.
+- *"the WRITER of a variant and the READER of an arm see the same body-shape discriminator"* — this
+  stone says outright that *"body shape stops carrying any burden at all."*
+
+The note has been amended with a warrant that recomputes itself — *the vec mirrors the DECLARATION,
+not the wire* — which holds under arc 258's vector body, under this stone's map body, and under
+251's flip. **No change is owed by H here**; this line exists so that whichever of the two ships
+second does not discover it the expensive way.

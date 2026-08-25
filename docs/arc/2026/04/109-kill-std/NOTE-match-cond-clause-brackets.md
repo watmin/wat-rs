@@ -127,3 +127,58 @@ education). Fold with any concurrent match-touching sweep to touch the tree once
 ## Status
 **DEFERRED.** rete (arc 278) is the stepping stone; lands with/after the non-return-`-> :T` annihilation.
 The new term is an **owed intueri cast** at draw time.
+
+---
+
+## ⛔ AMENDED 2026-08-25 — THE FORM SURVIVES `296/STONE-H`; TWO OF ITS FOUR REASONS DO NOT
+
+`294/SEAM.md` carried this as an open contradiction — *"H makes a variant body a MAP; the match note
+destructures it as a VECTOR and cites the vector encoding as its warrant. Neither knows."* Both docs
+were read in full, 2026-08-25. **The seam was right about the citation and wrong about the conflict**,
+and the difference is what makes this cheap.
+
+### The form does not collide
+
+`[Variant [binds] body]` works unchanged under H. Positional destructuring of a variant needs the
+variant's **fields to be ORDERED**, not its wire body to be a vector — and they are ordered at the
+declaration: `EnumVariant::Tagged { fields: Vec<(String, TypeExpr)> }`. Clojure destructures a map
+positionally-by-declaration in exactly this way. Nothing in the grammar assertion above needs to move.
+
+### But the WARRANT was pinned to a wire format that H replaces
+
+Two sentences in this note are load-bearing and go **false** under H — not wrong when written, and
+not edited by anyone; left behind when their subject moved:
+
+1. *"The vector-bodied variant encoding (arc 258 R45/R46 — every variant is `[]` unit or `[items]` N,
+   one uniform rule) is what makes the destructure vec exact: it destructures the variant's
+   vector-encoded body, per-arity uniform."*
+   Under H the body is `{:value 42}`. **The stated foundation of the vec's exactness stops existing.**
+   The vec is still exact — but because the declaration's field list is ordered, not because the wire
+   is a vector.
+2. *"**The wire still reads this way (R45/R46).** A variant value *is* `[tag …body]`; … the WRITER of
+   a variant and the READER of an arm see the **same body-shape** discriminator."*
+   H deletes this in both halves. The wire is `#wat.core/Option.Some {:value …}`, and H says outright
+   that once the dot in the tag discriminates, *"body shape stops carrying any burden at all."* There
+   is no shared body-shape discriminator left to see.
+
+### The fix is a DERIVATION, not a patch
+
+The warrant is re-grounded on the thing that does not move:
+
+> The destructure vec is exact because a variant's fields are **declared in order** and that order is
+> what the arm binds — `[]` for a unit variant, `[d0 d1 …]` matching the declared arity. The vec
+> mirrors the DECLARATION, not the wire. Whatever the wire carries — arc 258's `[items]` vector or
+> `296/STONE-H`'s `{:key …}` map — the arm reads the same, because the declaration is the same.
+
+That version survives H, survives 251's keyword→symbol flip, and survives whatever replaces the wire
+after those. The old warrant could not survive its own arc.
+
+★ **This is R9's class, still alive.** Written 2026-07-22 and true then; H drawn 2026-08-15; the note
+went false with nobody's hand on it, and neither document knew. A claim that recomputes itself from
+its subject — *fields are declared in order* — cannot rot this way.
+`[[R9 DERIVAMVS NE MENTIAMVR]]`
+
+### What is NOT settled here
+
+Whether H ships at all. This amendment says only that **if** it ships, this note's form stands and its
+warrant is the above. H remains DRAWN, NOT BUILT.
