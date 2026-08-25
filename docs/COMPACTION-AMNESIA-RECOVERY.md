@@ -1016,6 +1016,16 @@ fail is not a gate.
     ./scripts/floor.sh > /dev/null 2>&1; echo "FLOOR EXIT=$?"
     grep -aE "Summary|FAIL" .floor/latest/raw.log | tail -4
 
+**⚠ IT IS NOT ONLY THE EXIT CODE — TRUNCATION LOSES CONTENT TOO.** Three times in
+one session: `floor.sh | tail -4` discarded the exit code; the same pipe cut the
+`Summary` line off entirely, leaving epilogue prose that read like a clean finish;
+and `run-all.sh | tail -60` silently dropped the grid's FIRST axis
+(`min-finding`, first in `ORDER`), which then looked like an axis that never ran.
+The habit that fixes all three is not vigilance, it is a redirect:
+
+    <long-running gate> > /path/to/out.txt 2>&1; echo "EXIT=$?"
+    grep -aE "Summary|FAIL|Verdict" /path/to/out.txt
+
 **Real incident, 2026-08-24:** mid-session I ran the floor as
 `./scripts/floor.sh 2>&1 | tail -4` inside a compound command,
 got "exit code 0", and told the user the floor was green. It
@@ -1029,6 +1039,32 @@ this one was not, and the difference was purely how it was
 read. The session's whole theme was building gates that prove
 tooling works — while the method used to verify them had the
 identical hole.
+
+### Failure mode 21 — A blanket edit that lands INSIDE a string literal
+
+**Signature:** a scripted replace keyed on line CONTENT (`line.strip().startswith(...)`,
+a regex over the whole file) with no check of what the line is *inside of*. Rust files
+here carry wat SOURCE in `const X: &str = "\ … "` blocks and quasiquote templates; a
+`//` comment inserted there is not a comment, it is program text. **It compiles** — inside
+a string literal anything is legal — so the failure surfaces as a runtime test failure far
+from the edit, or not at all.
+
+**Reality check:** bound the edit before making it. Either slice the file to one
+function's span and edit inside that, or assert the target is not within a string block:
+
+    awk '/const [A-Z]+: &str/{ins=1} ins&&/<marker>/{print "LEAK at "NR} /^";$/{ins=0}' file.rs
+
+**Real incidents, both 2026-08-24.** (1) A substring replace of `compiled_conds,` turned
+a struct-literal shorthand into `arm.compiled_conds,` — five compiler round-trips.
+(2) Inserting `rune:vocare(...)` above four hand-built `Rule`s put the comment inside the
+wat source of all four, reddening the floor. **The second is the one worth studying**: I
+caught a FIFTH site the same pass had corrupted, fixed that one, and concluded the
+problem was "I matched an extra site" when it was "my insertion point is inside a
+string." Then I verified the wrong property — `git diff --stat` showing *12 insertions, 0
+deletions, byte-identical* proved the fifth site was restored and said NOTHING about the
+four I had deliberately targeted. A true statement about one subject, read as
+reassurance about another. The structural check above takes one line and would have
+caught all five.
 
 ### Failure mode 13 — Trusting a DESIGN section without cross-checking memory
 

@@ -1120,3 +1120,66 @@ since `RhsOp::Bind`'s MISSING span was a real user-facing defect (`15064c9eb`). 
 location cannot be load-bearing when absent and noise when pinned.
 
 No action. Recorded so the retraction outlives the claim.
+
+---
+
+## CLOSING TALLY — the vigilia worked through, 2026-08-24 (HEAD `15dcca1df`)
+
+**CLOSED.** `temperare` 1 L1 · `purgare` 1 L1 · `struere` 1 L2 · `intueri` 3 L1 ·
+`conformare` 9 L1 + the gap it never named (`RhsOp::Bind` carried no span at all — the
+audit examined sites that HELD a span to discard, not the path that had already thrown
+one away) · `excusare` 2 L2 · `perspicere` 2 of 3 L2 · **`solvere` all 7 L2** ·
+`vocare` 4 of 6 · `complectens` 1 of 2 · `conferre` 1 of 2 · `circumspicere` 1 of 3
+(one DEFERRED by ruling, one correctly scoped as unrunnable in CI).
+
+**STILL OPEN — nothing here can compute a wrong answer.**
+- `conferre` 1 L2 — `wat_scripts_grid_axes_live.rs` header prose says "18 axes"; the
+  arrays hold 41. Prose drift, load-bearing only for a reader reasoning about coverage.
+- `exigere` 1 L1 + 1 L2 — a cache-stone "a later stone" that never came and is tracked
+  nowhere; one "not a v1 blocker" row with no owner, arc, or gate.
+- `perspicere` 1 L2 — `fire/mod.rs`'s `harvested` re-spells the existing `QueryMemory`
+  alias, which is in scope and is literally what it is assigned into.
+- `sequi` 2 L3 — `arm.rs`'s `ARM_TABLE` rune is categorised `host-idiom` where the
+  structurally identical `EXEC_ARENA` two files over is `ambient-context`; and
+  `bind_only`/`cond_key_ids` exist as two live copies (round-local + session) whose
+  reason is nowhere stated, having already misled two scans.
+- `vocare` 2 of 6 — `probe_arc278_49_one_core_covers_the_surfaces` (an honest DESIGN
+  probe; NOT a vantage defect — see the retraction below) and
+  `differential_exists_no_multiplicity`, named for a contract its fixture cannot reach.
+- `complectens` 1 of 2 — the leading-filter contract has no base-layer unit test.
+  DELIBERATELY not taken: `filter_pass` is unreachable from an integration test, and
+  going in-crate means the empty-`:rhs` implementer vantage just marked as a runed
+  exception.
+- `circumspicere` 1 L2 — the grid's SPEED half runs in no CI job. Correctly scoped: it
+  needs Clara and a JDK the runner lacks. The CORRECTNESS half never needed Clara and
+  now runs on every floor.
+- **T7** — `Op::Or`/`Op::Not` allocate a `SlotFrame` per branch per element. Last, and
+  reclassified: it was never "cold", it was UNEXERCISED, and that half is now closed by
+  `where-or-inline`. The allocation itself remains, on a rare shape, measurable only by
+  building an axis for it — more work than the fix.
+- **RECORD** — `wat-rs/CLAUDE.md`'s delivery claim (fix lives in the FROZEN holon root:
+  builder's call) and `tmp/VIGILIA-LOOP.md`, stale and untracked.
+
+## WHAT THIS ARC LEARNED THAT OUTLIVES IT
+
+1. **When native disagrees with BOTH the `$oracle` and Clara, native is wrong** — and
+   the real question is which fixture was missing. Three engine divergences, three times
+   the two references agreed with each other.
+2. **Three kinds of gap, hiding differently.** MISSING data (no fixture drove it),
+   DISCARDED data (computed, correct, unread), MASKED data (a correct layer hides a
+   broken one). The middle is cheapest to fix and easiest to walk past.
+3. **A predicate can be right for a reason unrelated to why it is right.**
+   `ends_with("::=")` held for `enum::=` only because that row's `core_name` is the
+   generic spelling. Right answer, wrong reason — and the wrong reason is what drifts.
+4. **Duplication is only a mumble until you check whether the copies disagree on a
+   REACHABLE input.** Same ward, same grade, same file family: one triplication was a
+   live L1, the next was benign.
+5. **A ward's RETRACTION is also just a report.** `solvere` withdrew a true finding; the
+   disk said otherwise. And a ward can only audit what is in front of it — `conformare`
+   examined nine sites that held a span, and never the path that had already discarded
+   one. The gap is usually one question further on.
+6. **Arm a `panic!` to answer "does anything execute this?"** Cheaper and more decisive
+   than reading every fixture. Paid three times.
+7. **A gate that cannot go red is decoration** — mutation-test every one before landing
+   it — and a gate that can silently compare a value to ITSELF is worse than none
+   (`:derived` vs `:oracle-derived`; the `q-scan` control row).
