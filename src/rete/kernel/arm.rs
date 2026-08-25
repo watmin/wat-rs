@@ -739,9 +739,7 @@ pub(crate) fn build_rete_arm(
     let alpha_tree = crate::rete::alpha_tree::AlphaTree::build(&alpha_by_type, &alpha_cond, sym);
     let compiled_conds = compile_alpha_conds_from_index(&alpha_by_type, &alpha_cond, sym)?;
     let compiled_drivers = compile_all_cond_drivers(network, &node_ids, sym)?;
-    let compiled_max_slots = compiled_conds.values().map(|c| c.n_slots()).max().unwrap_or(0);
     let compiled_wheres = compile_test_programs(network, &node_ids, sym)?;
-    let where_tree = crate::rete::where_tree::WhereTree::build(&compiled_wheres);
     let compiled_user_folds = compile_user_fold_programs(network, &node_ids, sym)?;
     let mut compiled_acc_folds: HashMap<i64, AccFold> = HashMap::new();
     for node_id in &node_ids {
@@ -760,12 +758,21 @@ pub(crate) fn build_rete_arm(
         );
     }
 
-    let NetworkEdges {
+    // ONE RECIPE — see `derive_indices`. Both arm builders derive the same ten indices;
+    // the only difference is WHICH NETWORK they are handed, and that is the difference
+    // that must not be gettable wrong.
+    let DerivedIndices {
+        kind_ids,
+        where_tree,
         feeding_alpha_of,
+        joins_fed_by,
         parents_of,
         children_of,
         beta_readers,
-    } = index_network_edges(network, &node_ids);
+        compiled_max_slots,
+        test_sibs,
+        test_children,
+    } = derive_indices(network, &node_ids, &compiled_conds, &compiled_wheres);
 
     let rule_vec: Vec<Value> = match rules {
         Value::wat__core__PersistentVector(pv) => pv.iter().cloned().collect(),
@@ -787,10 +794,6 @@ pub(crate) fn build_rete_arm(
 
     let rule_deps = rule_deps_from_rules(rules, sym);
 
-    let kind_ids = kind_id_lists(network, &node_ids);
-    let joins_fed_by = invert_feeding_alpha(&feeding_alpha_of);
-    let test_sibs = build_test_sibs(network, &node_ids, &parents_of);
-    let test_children = build_test_children(network, &node_ids);
     Ok(InternedNetwork {
         node_ids,
         kind_ids,
@@ -811,6 +814,61 @@ pub(crate) fn build_rete_arm(
         test_children,
         children_of,
     })
+}
+
+/// Everything an [`InternedNetwork`] DERIVES from a network, its node set, and its
+/// compiled maps — as opposed to what it merely CARRIES.
+///
+/// ONE RECIPE. `build_rete_arm` (the whole network) and `subset_rete_arm` (one stratum's
+/// slice) each used to spell out the same ten derivations. The struct literal already
+/// stopped a MISSING field — literals are exhaustive, so a new `InternedNetwork` field
+/// fails to compile on both paths. What it could not stop is the far quieter mistake:
+/// deriving a new index in the slice path from the FULL arm (`arm.foo`) instead of from
+/// the slice, producing a stratum-sliced arm carrying a stale index. That is visible only
+/// under stratified fire, which is the same "wrong only in a configuration nothing
+/// exercises" shape as this arc's other silent defects.
+///
+/// This makes that unrepresentable rather than merely discouraged: the function is handed
+/// a network and cannot reach a prior arm, so every field it produces is derived from the
+/// one source it was given. Adding a derived index means adding it HERE, once, and both
+/// callers get it from the right network by construction.
+pub(crate) struct DerivedIndices {
+    pub(crate) kind_ids: KindIdLists,
+    pub(crate) where_tree: crate::rete::where_tree::WhereTree,
+    pub(crate) feeding_alpha_of: HashMap<i64, i64>,
+    pub(crate) joins_fed_by: JoinsFedBy,
+    pub(crate) parents_of: ParentsOf,
+    pub(crate) children_of: ChildrenOf,
+    pub(crate) beta_readers: HashSet<i64>,
+    pub(crate) compiled_max_slots: usize,
+    pub(crate) test_sibs: TestSibs,
+    pub(crate) test_children: TestChildren,
+}
+
+pub(crate) fn derive_indices(
+    network: &Value,
+    node_ids: &[i64],
+    compiled_conds: &HashMap<i64, crate::rete::compiled_cond::CompiledCond>,
+    compiled_wheres: &HashMap<i64, crate::rete::expr_ir::Program>,
+) -> DerivedIndices {
+    let NetworkEdges {
+        feeding_alpha_of,
+        parents_of,
+        children_of,
+        beta_readers,
+    } = index_network_edges(network, node_ids);
+    DerivedIndices {
+        kind_ids: kind_id_lists(network, node_ids),
+        where_tree: crate::rete::where_tree::WhereTree::build(compiled_wheres),
+        joins_fed_by: invert_feeding_alpha(&feeding_alpha_of),
+        test_sibs: build_test_sibs(network, node_ids, &parents_of),
+        test_children: build_test_children(network, node_ids),
+        compiled_max_slots: compiled_conds.values().map(|c| c.n_slots()).max().unwrap_or(0),
+        feeding_alpha_of,
+        parents_of,
+        children_of,
+        beta_readers,
+    }
 }
 
 /// TestNodes that share a parent-set dispatch together through the where-tree.
@@ -942,23 +1000,22 @@ pub(crate) fn subset_rete_arm(
         .collect();
     let alpha_tree = arm.alpha_tree.restrict(active_ids);
 
-    let NetworkEdges {
+    // ONE RECIPE — see `derive_indices`. Both arm builders derive the same ten indices;
+    // the only difference is WHICH NETWORK they are handed, and that is the difference
+    // that must not be gettable wrong.
+    let DerivedIndices {
+        kind_ids,
+        where_tree,
         feeding_alpha_of,
+        joins_fed_by,
         parents_of,
         children_of,
         beta_readers,
-    } = index_network_edges(sliced_network, &node_ids);
-    let compiled_max_slots = compiled_conds
-        .values()
-        .map(|c: &crate::rete::compiled_cond::CompiledCond| c.n_slots())
-        .max()
-        .unwrap_or(0);
-    let where_tree = crate::rete::where_tree::WhereTree::build(&compiled_wheres);
+        compiled_max_slots,
+        test_sibs,
+        test_children,
+    } = derive_indices(sliced_network, &node_ids, &compiled_conds, &compiled_wheres);
 
-    let kind_ids = kind_id_lists(sliced_network, &node_ids);
-    let joins_fed_by = invert_feeding_alpha(&feeding_alpha_of);
-    let test_sibs = build_test_sibs(sliced_network, &node_ids, &parents_of);
-    let test_children = build_test_children(sliced_network, &node_ids);
     Arc::new(InternedNetwork {
         node_ids,
         kind_ids,
