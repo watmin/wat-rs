@@ -207,6 +207,12 @@
 ;; language's answer and it is strictly better — fully typed, and general past
 ;; records to variants and smart constructors alike.
 ;;
+;; NOR is macro-time reflection a gap: `wat/telemetry.wat:286` already records that
+;; "compile-time/macro-expand reflection of a baked record is DEAD, proven; runtime
+;; resolves for both stdlib and user records" — documented, with the resolution
+;; already chosen. This macro never needed it anyway: its arity comes from the
+;; caller's argument count, not from a type.
+;;
 ;; What survives from the original reasoning is the half about VALUES, and it is
 ;; the half worth keeping: `field-types-of` yields `wat.type/i64` — a type,
 ;; carrying NO BOUNDS. A finite generator is nothing BUT bounds, so deriving one
