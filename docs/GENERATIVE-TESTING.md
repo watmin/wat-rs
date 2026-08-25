@@ -170,6 +170,32 @@ visit tuples twice and miss others while reporting a clean case count.
 
 ## The work list
 
+### FOUND — two live rete defects, 2026-08-25
+
+The fuzzer's first widened run found **22 divergences of 504 shapes**, every one at the
+newly-added accumulate shape, decomposing into exactly two families. Both reproduce minimally,
+both are SILENT, and both are preserved in
+`tests/rete/probe_arc278_accumulate_divergences.{rs,wat}`.
+
+| family | shape | native | oracle |
+|---|---|---|---|
+| **A** | LEADING accumulate | **depth+1** (rows == rounds: 2→2, 3→3) | 1 |
+| **B** | fact cond + accumulate + a SECOND `where` | **0** | 1 |
+
+Family A is the same class as the leading `:not`/`:exists` defect fixed on 2026-08-24
+(`71d0e700e`) — **and that fix did not reach accumulate.** Family B is independent of depth: it
+reproduces at depth 0, so it is not a fixpoint issue. `qB1` and `qB2` differ by exactly one
+trailing, trivially-true `where`.
+
+**Why the existing corpus could not see either:** the accumulate axes (`accum`, `min-finding`)
+compare DERIVED FACTS, and `production_delta` dedups those by value — a rule deriving one distinct
+fact reads identically whether its token passed once or four times. That masking is the reason
+this fuzzer compares beta rows, and it is now the reason it found something.
+
+The gate is a RATCHET pinned at 22, not a zero: asserting zero would redden the floor and block
+unrelated work, and deleting the accumulate shape to keep a gate green is the trade this codebase
+refuses. Movement in either direction is a red test demanding an explanation.
+
 ### Done 2026-08-25
 
 - ~~`card` overflow guard~~ — **NOT NEEDED**; the substrate raises `IntegerOverflow`. See §6.
