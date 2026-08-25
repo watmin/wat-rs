@@ -57,6 +57,21 @@
    end-line <- :wat::core::i64
    end-col  <- :wat::core::i64])
 
+;; ONLY when the span holds exactly this node's own name — the fact a REWRITING rule joins.
+;; `Named` says WHAT a node is called; `Written` says AND IT IS SPELLED HERE. A reader-
+;; synthesized node (`~` -> unquote, `` ` `` -> quasiquote, `\c` -> char/of, …) gets a `Named`
+;; fact (its name is real) but NOT a `Written` fact (the span it carries is the literal token's,
+;; not its own name's) — `ast-name` returns verbatim token TEXT, so for a single-line named node
+;; `end-col - col == length(name)` iff the name is actually spelled at that span; not a heuristic.
+;; It carries coordinates, not just `{id}`: a rewriting rule joins ONE fact and never touches
+;; `Span` at all. See DESIGN-STONE-wat-grep-never-lies.md F2.
+(:wat::core::defrecord :wat::grep::Written
+  [id       <- :wat::core::i64
+   line     <- :wat::core::i64
+   col      <- :wat::core::i64
+   end-line <- :wat::core::i64
+   end-col  <- :wat::core::i64])
+
 ;; ── what a rule asserts ─────────────────────────────────────────────────────────────
 
 (:wat::core::defrecord :wat::grep::Capture
@@ -112,11 +127,25 @@
 (:wat::core::defrecord :wat::grep::Source
   [file <- :wat::core::String])
 
+;; Unreadable — "I could not read this file", the fact F1 was missing. A rule can join it and
+;; reason about coverage; `run-one` ALSO prints it to stderr unconditionally, because an opt-in
+;; fact does nothing for a consumer who does not know to opt in — the exact way today's silence
+;; works. `reason`/`line`/`col` come straight off the parser's own `:wat::core::Error` cause
+;; (`Error/message`, `Error/location` -> `:wat::kernel::Location/line`+`/col`); nothing is
+;; invented here. See DESIGN-STONE-wat-grep-never-lies.md F1.
+(:wat::core::defrecord :wat::grep::Unreadable
+  [file   <- :wat::core::String
+   reason <- :wat::core::String
+   line   <- :wat::core::i64
+   col    <- :wat::core::i64])
+
 (:wat::core::defrecord :wat::grep::Facts
-  [source <- :wat::grep::Source
-   nodes  <- (:wat::core::PersistentVector :- [:wat::grep::Node])
-   named  <- (:wat::core::PersistentVector :- [:wat::grep::Named])
-   spans  <- (:wat::core::PersistentVector :- [:wat::grep::Span])])
+  [source     <- :wat::grep::Source
+   nodes      <- (:wat::core::PersistentVector :- [:wat::grep::Node])
+   named      <- (:wat::core::PersistentVector :- [:wat::grep::Named])
+   spans      <- (:wat::core::PersistentVector :- [:wat::grep::Span])
+   written    <- (:wat::core::PersistentVector :- [:wat::grep::Written])
+   unreadable <- (:wat::core::PersistentVector :- [:wat::grep::Unreadable])])
 
 ;; ── internal walk plumbing (not part of the wat-grep contract; the walk's threading) ────
 ;; Moved verbatim from corpus-03's :fx::Acc / :fx::ChildAcc, renamed.
@@ -125,7 +154,8 @@
   [next-id <- :wat::core::i64
    nodes   <- (:wat::core::PersistentVector :- [:wat::grep::Node])
    named   <- (:wat::core::PersistentVector :- [:wat::grep::Named])
-   spans   <- (:wat::core::PersistentVector :- [:wat::grep::Span])])
+   spans   <- (:wat::core::PersistentVector :- [:wat::grep::Span])
+   written <- (:wat::core::PersistentVector :- [:wat::grep::Written])])
 
 ;; per-level child accumulator: the walk's Acc plus this level's running index
 (:wat::core::defrecord :wat::grep::ChildAcc
@@ -175,7 +205,25 @@
                         :col      (:wat::grep::Extent/col ex)
                         :end-line (:wat::grep::Extent/end-line ex)
                         :end-col  (:wat::grep::Extent/end-col ex)))
-     acc'  (:wat::grep::Acc :next-id (:wat::core::i64::+ id 1) :nodes nodes :named named :spans spans)]
+     ;; THE GUARD, again: `written?` is exact — nameable AND single-line AND the span's width
+     ;; equals the written name's length. `ast-name` is only called under the `nameable?` guard,
+     ;; the same discipline `named` above already uses.
+     written? (:wat::core::if (:wat::grep::nameable? node)
+                (:wat::core::if (:wat::core::= (:wat::grep::Extent/line ex) (:wat::grep::Extent/end-line ex))
+                  (:wat::core::=
+                    (:wat::core::i64::- (:wat::grep::Extent/end-col ex) (:wat::grep::Extent/col ex))
+                    (:wat::string::length (:wat::core::ast-name node)))
+                  false)
+                false)
+     written (:wat::core::if written?
+               (:wat::core::PersistentVector/conj (:wat::grep::Acc/written acc)
+                 (:wat::grep::Written :id id
+                            :line     (:wat::grep::Extent/line ex)
+                            :col      (:wat::grep::Extent/col ex)
+                            :end-line (:wat::grep::Extent/end-line ex)
+                            :end-col  (:wat::grep::Extent/end-col ex)))
+               (:wat::grep::Acc/written acc))
+     acc'  (:wat::grep::Acc :next-id (:wat::core::i64::+ id 1) :nodes nodes :named named :spans spans :written written)]
     (:wat::core::if (:wat::grep::structural? node)
       (:wat::grep::ChildAcc/acc
         (:wat::core::foldl
@@ -189,38 +237,64 @@
 
 (:wat::core::defn :wat::grep::empty-acc [] -> :wat::grep::Acc
   (:wat::grep::Acc :next-id 1
-            :nodes (:wat::core::PersistentVector)
-            :named (:wat::core::PersistentVector)
-            :spans (:wat::core::PersistentVector)))
+            :nodes   (:wat::core::PersistentVector)
+            :named   (:wat::core::PersistentVector)
+            :spans   (:wat::core::PersistentVector)
+            :written (:wat::core::PersistentVector)))
+
+;; the pair `facts-of` pulls out of the ONE match on `read-string` — a Forms/Malformed match
+;; must decide `acc` AND `unreadable` together, or the parse runs twice.
+(:wat::core::defrecord :wat::grep::FactsOfResult
+  [acc        <- :wat::grep::Acc
+   unreadable <- (:wat::core::PersistentVector :- [:wat::grep::Unreadable])])
 
 ;; facts-of — every top-level form of one source string, walked into one fact base.
 ;;
 ;; `read-string` returns a FACED OUTCOME, not a bare vector — the no-hidden-failures law. A
 ;; string that will not parse is a RESULT the extractor carries, never a crash: Malformed yields
-;; an EMPTY fact base, which every downstream rule reads as "nothing to say about this file".
+;; an EMPTY fact base (as before) PLUS the `Unreadable` fact that says so out loud — F1. The
+;; cause is already in hand at the match arm; `Error/message` is the reason, `Error/location`'s
+;; `:wat::kernel::Location` is the line/col, straight off the parser's own diagnostic (mirrors
+;; `wat/fix.wat:351`'s ONE difference: fix.wat raises immediately, an APPLIER's contract; grep
+;; reports and keeps going, a FINDER's contract — see run-one/run for where that fires).
 ;; ⚠ `path` is not decoration: it is the file's IDENTITY, and a signature that took only `src`
-;; is exactly where the filename used to be lost. It is used for nothing but the Source fact.
+;; is exactly where the filename used to be lost. It is used for nothing but the Source fact and
+;; the Unreadable fact's own `file`.
 (:wat::core::defn :wat::grep::facts-of
   [path <- :wat::core::String
    src  <- :wat::core::String]
   -> :wat::grep::Facts
   (:wat::core::let
-    [acc (:wat::core::match (:wat::core::read-string src)
-           ((:wat::core::ReadOutcome::Forms forms)
-             (:wat::grep::ChildAcc/acc
-               (:wat::core::foldl
-                 (:wat::core::fn [ca <- :wat::grep::ChildAcc  form <- :wat::WatAST] -> :wat::grep::ChildAcc
-                   (:wat::grep::ChildAcc
-                     :acc (:wat::grep::walk (:wat::grep::ChildAcc/acc ca) form 0 (:wat::grep::ChildAcc/idx ca))
-                     :idx (:wat::core::i64::+ (:wat::grep::ChildAcc/idx ca) 1)))
-                 (:wat::grep::ChildAcc :acc (:wat::grep::empty-acc) :idx 0)
-                 (:wat::core::ast->children forms))))
-           ((:wat::core::ReadOutcome::Malformed __cause) (:wat::grep::empty-acc)))]
+    [result (:wat::core::match (:wat::core::read-string src)
+              ((:wat::core::ReadOutcome::Forms forms)
+                (:wat::grep::FactsOfResult
+                  :acc (:wat::grep::ChildAcc/acc
+                         (:wat::core::foldl
+                           (:wat::core::fn [ca <- :wat::grep::ChildAcc  form <- :wat::WatAST] -> :wat::grep::ChildAcc
+                             (:wat::grep::ChildAcc
+                               :acc (:wat::grep::walk (:wat::grep::ChildAcc/acc ca) form 0 (:wat::grep::ChildAcc/idx ca))
+                               :idx (:wat::core::i64::+ (:wat::grep::ChildAcc/idx ca) 1)))
+                           (:wat::grep::ChildAcc :acc (:wat::grep::empty-acc) :idx 0)
+                           (:wat::core::ast->children forms)))
+                  :unreadable (:wat::core::PersistentVector :- [:wat::grep::Unreadable])))
+              ((:wat::core::ReadOutcome::Malformed __cause)
+                (:wat::grep::FactsOfResult
+                  :acc (:wat::grep::empty-acc)
+                  :unreadable
+                    (:wat::core::PersistentVector :- [:wat::grep::Unreadable]
+                      (:wat::grep::Unreadable
+                        :file   path
+                        :reason (:wat::core::Error/message __cause)
+                        :line   (:wat::kernel::Location/line (:wat::core::Error/location __cause))
+                        :col    (:wat::kernel::Location/col  (:wat::core::Error/location __cause)))))))
+     acc (:wat::grep::FactsOfResult/acc result)]
     (:wat::grep::Facts
-      :source (:wat::grep::Source :file path)
-      :nodes  (:wat::grep::Acc/nodes acc)
-      :named  (:wat::grep::Acc/named acc)
-      :spans  (:wat::grep::Acc/spans acc))))
+      :source     (:wat::grep::Source :file path)
+      :nodes      (:wat::grep::Acc/nodes acc)
+      :named      (:wat::grep::Acc/named acc)
+      :spans      (:wat::grep::Acc/spans acc)
+      :written    (:wat::grep::Acc/written acc)
+      :unreadable (:wat::grep::FactsOfResult/unreadable result))))
 
 ;; ── the ONE query — never written by a user; wat-grep owns exactly one query so the printer
 ;; is TOTAL, rendering exactly one type it fully knows. ───────────────────────────────────────
@@ -233,13 +307,14 @@
 ;; DESIGN: docs/arc/2026/06/278-rules-engine/DESIGN-STONE-the-grep-mode.md
 ;; BRIEF:  docs/arc/2026/06/278-rules-engine/BRIEF-STONE-the-grep-driver.md
 ;;
-;; facts-as-records — Facts holds three DIFFERENTLY-TYPED vectors (Node/Named/Span); the single
-;; `with-overlay` call each file gets takes ONE `(PersistentVector :- [:wat::core::Record])`, so
-;; the three must be merged before that call, not after (a rule's Node×Span join needs both
-;; present in the same insert). `PersistentVector/conj`'s element position accepts any defrecord
-;; as a :wat::core::Record — the same coercion the DESIGN's own probe uses to build a Record
-;; vector by hand (wat-grep-with-network-shape.wat's `grep-one-file`) — so a fold of `conj` per
-;; sub-vector is the general shape for N sub-vectors of differing concrete record types.
+;; facts-as-records — Facts holds several DIFFERENTLY-TYPED vectors (Node/Named/Span/Written/
+;; Unreadable); the single `with-overlay` call each file gets takes ONE `(PersistentVector :-
+;; [:wat::core::Record])`, so all of them must be merged before that call, not after (a rule's
+;; Node×Span join needs both present in the same insert). `PersistentVector/conj`'s element
+;; position accepts any defrecord as a :wat::core::Record — the same coercion the DESIGN's own
+;; probe uses to build a Record vector by hand (wat-grep-with-network-shape.wat's
+;; `grep-one-file`) — so a fold of `conj` per sub-vector is the general shape for N sub-vectors
+;; of differing concrete record types.
 (:wat::core::defn :wat::grep::facts-as-records
   [facts <- :wat::grep::Facts]
   -> (:wat::core::PersistentVector :- [:wat::core::Record])
@@ -265,9 +340,23 @@
               -> (:wat::core::PersistentVector :- [:wat::core::Record])
               (:wat::core::PersistentVector/conj acc sp))
             acc2
-            (:wat::grep::Facts/spans facts))]
+            (:wat::grep::Facts/spans facts))
+     acc4 (:wat::core::foldl
+            (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])
+                             w   <- :wat::grep::Written]
+              -> (:wat::core::PersistentVector :- [:wat::core::Record])
+              (:wat::core::PersistentVector/conj acc w))
+            acc3
+            (:wat::grep::Facts/written facts))
+     acc5 (:wat::core::foldl
+            (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])
+                             u   <- :wat::grep::Unreadable]
+              -> (:wat::core::PersistentVector :- [:wat::core::Record])
+              (:wat::core::PersistentVector/conj acc u))
+            acc4
+            (:wat::grep::Facts/unreadable facts))]
     ;; the ONE Source fact, last — a rule joins it to name the file it matched in.
-    (:wat::core::PersistentVector/conj acc3 (:wat::grep::Facts/source facts))))
+    (:wat::core::PersistentVector/conj acc5 (:wat::grep::Facts/source facts))))
 
 ;; print-match — the ONE printer. It knows exactly one type because wat-grep owns exactly one
 ;; query; nothing here ranks, filters, or counts. `query-read`'s binding maps key a query's
@@ -285,28 +374,37 @@
 ;; re-seeds from the network's compiled base (with-overlay's own contract), so this function
 ;; never has a prior file's session in scope to thread forward — the isolation the DESIGN calls
 ;; structural, not disciplined.
+;;
+;; Returns THIS file's `Unreadable` facts (0 or 1) rather than printing them directly — see
+;; `run`'s header comment for why. `run-each`/`run` fold every file's answer into the pinned
+;; contract (report every bad file, then exit non-zero at the END), never stopping early: a
+;; finder that halted at the first bad file in a 1567-file corpus would hide the other 1566
+;; answers, which is `fix.wat`'s (an APPLIER's) contract, not this one's.
 (:wat::core::defn :wat::grep::run-one
   [overlay <- :wat::rete::Overlay
    path    <- :wat::core::String]
-  -> :wat::core::nil
+  -> (:wat::core::PersistentVector :- [:wat::grep::Unreadable])
   (:wat::core::let
-    [facts   (:wat::grep::facts-of path (:wat::io::read-file path))
-     records (:wat::grep::facts-as-records facts)
-     fired   (overlay records)
-     matches (:wat::rete::query fired (:wat::grep::q-match))]
-    (:wat::core::run! :wat::grep::print-match matches)))
+    [facts       (:wat::grep::facts-of path (:wat::io::read-file path))
+     records     (:wat::grep::facts-as-records facts)
+     fired       (overlay records)
+     matches     (:wat::rete::query fired (:wat::grep::q-match))
+     ran-matches (:wat::core::run! :wat::grep::print-match matches)]
+    (:wat::grep::Facts/unreadable facts)))
 
 ;; run-each — the loop. Identical recursive shape to every recorded stdin-harness codemod
 ;; (`wat-scripts/fixes/angle-brackets-to-binder.wat`'s `apply-each`): first path, recurse on
-;; rest, nil at empty. No count, no header, no separator — silence for a file whose rules
-;; assert nothing is the honest answer, not an error.
+;; rest. No count, no header, no separator — silence for a file whose rules assert nothing is
+;; the honest answer, not an error. Returns the CONCATENATION of every file's `Unreadable`
+;; facts — the recursion always runs every path (never short-circuits on a bad one), so all of
+;; them are collected before `run` decides whether to raise.
 (:wat::core::defn :wat::grep::run-each
   [overlay <- :wat::rete::Overlay
    paths   <- (:wat::core::Vector :- [:wat::core::String])]
-  -> :wat::core::nil
+  -> (:wat::core::PersistentVector :- [:wat::grep::Unreadable])
   (:wat::core::if (:wat::core::empty? paths)
-    nil
-    (:wat::core::do
+    (:wat::core::PersistentVector :- [:wat::grep::Unreadable])
+    (:wat::core::PersistentVector/concat
       (:wat::grep::run-one overlay (:wat::core::first paths))
       (:wat::grep::run-each overlay (:wat::core::rest paths)))))
 
@@ -314,6 +412,21 @@
 ;; query `:wat::grep::q-match` ONCE (the driver compiles, so the driver holds the lease, in one
 ;; scope — `with-overlay` releases it when this call returns), then threads every file through
 ;; that one compiled network via `overlay`, each file re-seeded from the compiled base.
+;;
+;; ⛔ THE PINNED CONTRACT — F1: every bad file is collected (via `run-each`, above), and if ANY
+;; file along the way was unreadable, THIS reports every one of them AND exits non-zero, once,
+;; at the end. A run that skipped files silently did not fulfil its contract, and a zero exit on
+;; an incomplete census is exactly the lie this stone kills.
+;;
+;; ⚠ ONE call to `eprintln`, not a print-per-file loop: `:wat::kernel::eprintln` is wat's PANIC
+;; channel (`wat/kernel/diagnostics.wat:52`, `src/check.rs`'s "TERMINATING form" registration —
+;; it emits to stderr THEN TERMINATES non-zero at runtime; there is no benign, non-terminating
+;; stderr-write primitive in the substrate). A per-file `eprintln` inside `run-one` would die on
+;; the FIRST bad file and hide every other answer — exactly `fix.wat`'s (an APPLIER's) contract,
+;; and exactly what the pinned contract above forbids. So every file's `Unreadable` fact is
+;; collected first (never printed early), and the ONE terminating call at the very end both
+;; names every bad file (its payload is the whole vector) and produces the non-zero exit — the
+;; two contractual requirements collapse into the one primitive built for exactly this.
 (:wat::core::defn :wat::grep::run
   [rules <- (:wat::core::PersistentVector :- [:wat::rete::Rule])]
   -> :wat::core::nil
@@ -325,8 +438,13 @@
                  :wat::core::None :wat::core::None))
              (:wat::kernel::ReadlnOutcome::Stopped
                (:wat::kernel::assertion-failed! "wat::grep::run: readln: stop requested"
-                 :wat::core::None :wat::core::None)))]
-    (:wat::rete::with-overlay rules
-      (:wat::core::PersistentVector :- [:wat::rete::Query] (:wat::grep::q-match))
-      (:wat::core::fn [overlay <- :wat::rete::Overlay] -> :wat::core::nil
-        (:wat::grep::run-each overlay paths)))))
+                 :wat::core::None :wat::core::None)))
+     bad
+       (:wat::rete::with-overlay rules
+         (:wat::core::PersistentVector :- [:wat::rete::Query] (:wat::grep::q-match))
+         (:wat::core::fn [overlay <- :wat::rete::Overlay]
+           -> (:wat::core::PersistentVector :- [:wat::grep::Unreadable])
+           (:wat::grep::run-each overlay paths)))]
+    (:wat::core::if (:wat::core::empty? bad)
+      nil
+      (:wat::kernel::eprintln bad))))

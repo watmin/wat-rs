@@ -185,3 +185,91 @@ most likely to skip because they assert that nothing happened. They are not opti
 - **Retro-fitting `Written` into the existing `wat-scripts/fixes/` corpus.** Those 68 codemods have
   run and their migrations are recorded history. New codemods join `Written`; old ones are not
   rewritten to prove a point.
+
+---
+
+# ⛔ AMENDED 2026-08-25 (post-strike) — WHAT THE BUILD CORRECTED IN THIS DESIGN
+
+## ★ ACCEPTANCE ROW 3 WAS WRONG, AND BEING WRONG MADE THE STONE BETTER
+
+Row 3 predicted `Named − Written = 1411`. Measured corpus-wide: **11534**.
+
+```
+keyword   1411   ← exactly as predicted (the reader-macro population)
+symbol       0
+string   10123   ← a class this design never considered
+```
+
+**The predicate is not wrong; the prediction was.** `:wat::core::ast-name` on a `StringLit` returns
+the UNQUOTED content while `Span` covers the token INCLUDING both quotes — verified directly:
+`(f "abc")`'s literal has name `abc` (3 chars) and span col 4..9 (**width 5**). So the span's text is
+`"abc"` and the name is `abc`; they are not equal, and `Written` means exactly *the span's text IS
+this name*. A rewrite spliced into that span destroys the quotes.
+
+★ **Which is the defect stone E's rider caught by hand across 1564 files**, and guarded with an
+explicit `(where (:wat::rete::string::= ?k "keyword"))` that the brief had omitted.
+**`Written` subsumes that guard structurally** — a rule joining `Written` cannot see a string
+literal, whether or not its author ever heard of the hazard. That is a better outcome than this
+design asked for, and it arrived because the prediction was wrong rather than despite it.
+
+⚠ The claim *"the predicate is EXACT, not a heuristic — 172/172 genuine and 50/50 phantom"* was
+**sampled only over keywords**, because the probe that produced those numbers was keyword-guarded.
+The claim was true and its evidence could not have shown otherwise.
+`[[feedback_a_totality_claim_is_only_as_good_as_its_sampling]]` — mine, today, again.
+
+The rider recorded this as a passing test named *"…breaks Written==Named"* whose failure message told
+a future reader to *"update the test to assert equality"* if it ever passed. **That instruction would
+have reintroduced the corruption.** Renamed to
+`written_refuses_a_string_literal_because_the_span_holds_the_quotes`, and its message now says what is
+true: if these ever become equal, the guard is gone.
+
+## ★ PART 1 ASKED FOR SOMETHING THAT CANNOT EXIST
+
+The brief said *"`run-one` prints it to stderr unconditionally … at the END, if any file was
+unreadable, raise."* Two calls, one benign and one fatal. But **`:wat::kernel::eprintln` IS wat's
+panic channel** (`wat/kernel/diagnostics.wat:52`; typed `∀T,R. T -> R`, never returns). There is no
+benign stderr write in the language, so a per-file `eprintln` would have died on the first bad file —
+violating the pinned contract's own *"do NOT stop at the first bad file"* clause in the same breath.
+
+The shipped shape: every file's `Unreadable` facts are collected through `run-each`, and **one**
+`eprintln` at the end of `run` carries the whole vector — it names every bad file *and* produces the
+non-zero exit in one primitive. The contract holds; the mechanism is not the one the brief described.
+
+## ★ F1 IMMEDIATELY FOUND TWO FILES EVERY PRIOR CENSUS HAD DROPPED
+
+```
+docs/arc/2026/05/130-cache-services-pair-by-index/complected-2026-05-02/substrate.wat   TRACKED  #wat.parse/Lex
+docs/arc/2026/05/130-cache-services-pair-by-index/complected-2026-05-02/test.wat        TRACKED  #wat.parse/Lex
+```
+
+Both tracked, both retired angle-bracket generic syntax, both silently skipped by **every** wat-grep
+run ever made — including the ones that produced 1461, 1411 and 239 in this session's own notes, and
+the table in `wat-scripts/grep/README.md`. The NOTE's claim that *"every census run through wat-grep
+so far has an unknown and unknowable denominator"* was not rhetoric; it was two files.
+
+## ⚠ AND THE GATES THE RIDER COULD NOT SEE
+
+The rider ran `-E 'test(wat_grep::)'` — correctly, per its brief. Three whole-tree gates it therefore
+never met went red at the central weigh: `no_inlined_edn`, `no_loose_string_assert` (7 sites), and
+clippy (`cloned_ref_to_slice_refs` ×2). All fixed by **restructuring, not by runes** — the loose
+asserts became two exact `assert_eq!`s that pin every deterministic field and substitute only the
+per-checkout absolute path. Six `contains` probes on one `Match` line pass on a reordered record; one
+exact compare does not.
+
+This is the tier boundary working as designed (FM 18/19): the rider edits and reports, the
+orchestrator builds, floors, clippies and commits. **It is also why a rider's green is never the
+stone's green.**
+
+## THE NUMBERS, WEIGHED BY THE ORCHESTRATOR'S OWN RUN
+
+```
+G1  Span == Node            1129 == 1129 (grep.wat) · 305490 == 305490 (corpus)
+G2  Named < Node            805 < 1129
+G3  malformed               exit 2, stdout empty, stderr names file + "unclosed '('" + line/col
+G4  balanced (the control)  exit 0, stderr empty, one Match on stdout
+G5  Written < Named (~)     9 < 11
+G6  Written == Named        13 == 13
+G7  --grep end to end       exact Match line, asserted whole
+floor 5053/5053, 0 FAIL, 19 skipped — BY NAME: +7 GAINED, 0 LOST
+clippy 0 under -D warnings
+```
