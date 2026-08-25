@@ -136,6 +136,28 @@
                          (:wat::core::= v (:wat::core::i64::+ 100 (:wat::core::i64::- i 3))))]
     (:wat::core::if (:wat::core::and (:wat::core::= (:user::Gen/card o) 8) ok) 0 1)))
 
+
+;; ── L9 — gen-record: the PRODUCT of its field generators, constructed ────────
+;; The macro emits an ordinary checked constructor call, so arity and field types
+;; are verified at COMPILE time (proven: three generators for a two-field record
+;; is an ArityMismatch; a String generator for an i64 field is a TypeMismatch).
+;; What remains for a runtime law is that the mixed-radix product is wired to the
+;; right fields in the right order — which is what this checks.
+(:wat::core::defrecord :user::Pair [a <- :wat::core::i64  b <- :wat::core::i64])
+
+(:wat::core::defn :user::law-record [c <- (:wat::core::PersistentVector :- [:wat::core::i64])]
+  -> :wat::core::i64
+  (:wat::core::let [i (:user::at0 c 0)
+                    g (:user::gen-record :user::Pair (:user::gen-ints 0 3) (:user::gen-ints 10 12))
+                    p ((:user::Gen/at g) i)
+                    ea (:user::gen-digit i 3)
+                    eb (:wat::core::i64::+ 10 (:user::gen-digit (:user::gen-shift i 3) 2))]
+    (:wat::core::if
+      (:wat::core::and (:wat::core::= (:user::Gen/card g) 6)
+                       (:wat::core::and (:wat::core::= (:user::Pair/a p) ea)
+                                        (:wat::core::= (:user::Pair/b p) eb)))
+      0 1)))
+
 ;; ── drive every law with gen-check, over spaces built by gen-coords ─────────
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let [seven  (:user::gen-coords (:wat::core::PersistentVector 7))
@@ -151,11 +173,13 @@
                     b6 (:user::gen-check four  :user::law-elements)
                     b7 (:user::gen-check five  :user::law-such-that)
                     b8 (:user::gen-check eight :user::law-one-of)
+                    six (:user::gen-coords (:wat::core::PersistentVector 6))
+                    b9 (:user::gen-check six :user::law-record)
                     bad (:wat::core::i64::+
                           (:wat::core::i64::+ (:wat::core::i64::+ b1 b2) (:wat::core::i64::+ b3 (:wat::core::i64::+ b4 b5)))
-                          (:wat::core::i64::+ b6 (:wat::core::i64::+ b7 b8)))]
+                          (:wat::core::i64::+ b6 (:wat::core::i64::+ b7 (:wat::core::i64::+ b8 b9))))]
     (:wat::kernel::println
       (:wat::core::String/concat
-        (:wat::core::String/concat "laws=8 checked=" (:wat::core::i64::to-string
-          (:wat::core::i64::+ 7 (:wat::core::i64::+ 7 (:wat::core::i64::+ 120 (:wat::core::i64::+ 120 (:wat::core::i64::+ 1 (:wat::core::i64::+ 4 (:wat::core::i64::+ 5 8)))))))))
+        (:wat::core::String/concat "laws=9 checked=" (:wat::core::i64::to-string
+          (:wat::core::i64::+ 7 (:wat::core::i64::+ 7 (:wat::core::i64::+ 120 (:wat::core::i64::+ 120 (:wat::core::i64::+ 1 (:wat::core::i64::+ 4 (:wat::core::i64::+ 5 (:wat::core::i64::+ 8 6))))))))))
         (:wat::core::String/concat " violations=" (:wat::core::i64::to-string bad))))))

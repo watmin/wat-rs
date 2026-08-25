@@ -177,3 +177,72 @@
                 (:user::Pick :rest i :got :wat::core::None)
                 gs))
             "gen-one-of: index outside the summed cardinality"))))
+
+;; ── gen-nth: read one digit out of a coordinate ─────────────────────────────
+(:wat::core::defn :user::gen-nth
+  [c <- (:wat::core::PersistentVector :- [:wat::core::i64])  i <- :wat::core::i64] -> :wat::core::i64
+  (:wat::core::Option/expect (:wat::core::get c i) "gen-nth: coordinate digit out of range"))
+
+;; ── gen-record: a generator for a RECORD, from one generator per field ───────
+;;
+;; `(gen-record :user::Point (gen-ints 0 3) (gen-elements names))`
+;;   -> Gen<:user::Point> with card 3 * len(names)
+;;
+;; WHY THIS IS A MACRO AND NOT `gen-of-type` (the `clojure.spec` s/gen shape).
+;; Two findings, both grounded 2026-08-25, and the second one matters more:
+;;
+;;  (a) IT IS NOT EXPRESSIBLE. wat's reflection is READ-ONLY at runtime:
+;;      `field-names-of` / `field-types-of` inspect a declared type, but there is
+;;      no matching runtime CONSTRUCTION from a type value — `kwargs-construct`
+;;      needs a LITERAL type keyword, checked at type-check time. And macro-time
+;;      reflection cannot help: macros expand before user types are registered, so
+;;      `field-types-of` inside a macro reports "unknown type ':user::Point'".
+;;
+;;  (b) IT WOULD NOT BE WORTH MUCH ANYWAY, which is the more useful half.
+;;      `field-types-of` yields `wat.type/i64` — a type, carrying NO BOUNDS. A
+;;      finite generator is nothing BUT bounds; deriving one from `i64` would have
+;;      to invent a range, which is precisely the decision the author must make.
+;;      `spec`'s auto-gen earns its keep in a language with no types to lean on.
+;;      Here the types are already known — what is missing is the interesting
+;;      SUBSET, and no amount of reflection knows that.
+;;
+;; So the field generators are given explicitly, and the emitted constructor call
+;; is ORDINARY CHECKED WAT: pass too few, too many, or wrongly-typed generators
+;; and the type-checker rejects the expansion. The checker performs exactly the
+;; verification reflection would have, and it does it at compile time.
+;;
+;; NOTE: each generator expression is emitted TWICE (once for its `card`, once for
+;; its `at`). Generator constructors are pure and cheap, but `gen-such-that`
+;; enumerates its source — let-bind that at the call site rather than inlining it.
+(:wat::core::defmacro :user::gen-record
+  [T <- :wat::WatAST  & gens <- (:wat::core::Vector :- [:wat::WatAST])]
+  -> :wat::WatAST
+  (:wat::core::let
+    [;; HYGIENIC binder. A literal `c` in binder position is REFUSED by the macro
+     ;; system (hygiene bound gate E, arc 249 stone 249.2b-ii) because it could
+     ;; capture a caller-site name. `fresh-symbol` stamps a fresh unique scope, and
+     ;; the name is spliced with `~` at both its binding and its uses.
+     cv    (:wat::core::fresh-symbol "coord")
+     ;; The POSITIONAL constructor is the PRIME name: bare-positional construction
+     ;; is retired (the bare name is the kwargs macro), so `:user::Point` becomes
+     ;; `:user::Point'`. Same node-building idiom `:wat::core::kwargs-lower` uses.
+     ctor  (:wat::core::keyword-node (:wat::core::string::concat (:wat::core::ast-name T) "'"))
+     n     (:wat::core::length gens)
+     cards (:wat::core::foldl
+             (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST])  g <- :wat::WatAST]
+                             -> (:wat::core::Vector :- [:wat::WatAST])
+               (:wat::core::conj acc `(:user::Gen/card ~g)))
+             (:wat::core::Vector :wat::WatAST)
+             gens)
+     args  (:wat::core::foldl
+             (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST])  i <- :wat::core::i64]
+                             -> (:wat::core::Vector :- [:wat::WatAST])
+               (:wat::core::conj acc
+                 `((:user::Gen/at ~(:wat::core::Option/expect (:wat::core::get gens i) "gen-record: gen index"))
+                   (:user::gen-nth ~cv ~i))))
+             (:wat::core::Vector :wat::WatAST)
+             (:wat::core::range 0 n))]
+    `(:user::gen-fmap
+       (:wat::core::fn [~cv <- (:wat::core::PersistentVector :- [:wat::core::i64])] -> ~T
+         (~ctor ~@args))
+       (:user::gen-coords (:wat::core::PersistentVector ~@cards)))))
