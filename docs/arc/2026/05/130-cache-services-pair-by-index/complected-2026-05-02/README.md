@@ -15,9 +15,24 @@ The user's instruction (verbatim, 2026-05-02):
 > our proof that we attacked it.. we beat complected forms
 > with cascading simplicity as complexity..
 
+## ⚠ The `.wat.bad` extension — added 2026-08-25, bytes untouched
+
+Both files were renamed `.wat` → `.wat.bad`. **Not one byte of their content changed**, and it
+must not: their whole value is being the failed state exactly as it was.
+
+The reason is that they no longer LEX. They predate arc 109's annihilation of the angle bracket,
+so `Reply<V>` and `DriverPair<K,V>` are now illegal at the reader — which is itself part of what
+they preserve. Arc 278's `wat-grep never lies` stone made an unreadable file LOUD: every
+corpus-wide run over `git ls-files '*.wat'` reported these two and exited non-zero. Correct, and
+useless every single time — a warning that always fires is a warning nobody reads, which is the
+exact failure that stone exists to prevent, one level up.
+
+`.wat.bad` is this repo's existing name for *wat that is not valid wat* (see the fixtures under
+`tests/collection/`). It takes them out of `*.wat` globs and leaves the record intact.
+
 ## What's in this directory
 
-- `substrate.wat` — sonnet's WIP at `crates/wat-lru/wat/lru/CacheService.wat`.
+- `substrate.wat.bad` — sonnet's WIP at `crates/wat-lru/wat/lru/CacheService.wat`.
   The arc 130 substrate reshape attempt: `Reply<V>` enum, `Handle<K,V>`
   + `DriverPair<K,V>` typealiases, paired-by-index spawn + driver
   loop. The shape is partially correct; the bugs are in the details.
@@ -32,7 +47,7 @@ The user's instruction (verbatim, 2026-05-02):
     the runtime test failed `expected "hit", actual "<missing>"`.
     No diagnostic surface; could be in any of the binding chains.
 
-- `test.wat` — sonnet's WIP at `crates/wat-lru/wat-tests/lru/CacheService.wat`.
+- `test.wat.bad` — sonnet's WIP at `crates/wat-lru/wat-tests/lru/CacheService.wat`.
   Monolithic deftest body. ~30 sequential let* bindings inside one
   `(:wat::test::run-hermetic-ast (:wat::test::program ...))`. When
   the runtime assertion failed, the panic message named no unit
@@ -104,6 +119,6 @@ into entanglement).
 - Commit `db4ecc7` — substrate diagnostic improvement
   (`MalformedVariant` carries span + offending + hint), surfaced
   by sonnet chasing parens on the bare-symbol mistake recorded
-  here at the original line 64 of `substrate.wat`.
+  here at the original line 64 of `substrate.wat.bad`.
 - Commit `98fa7c9` — REALIZATIONS + compositional rewrite of the
   live test file.

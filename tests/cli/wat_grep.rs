@@ -80,7 +80,7 @@ fn g1_span_equals_node_and_g2_named_less_than_node() {
 #[test]
 fn g3_malformed_file_is_loud_and_nonzero() {
     let program = fixture("wat_grep__any_symbol_rule.wat");
-    let target = fixture("wat_grep__malformed.wat");
+    let target = fixture("wat_grep__malformed.wat.bad");
     let output = run_grep(&program, std::slice::from_ref(&target));
 
     assert_ne!(output.status.code(), Some(0), "malformed input must exit non-zero");
