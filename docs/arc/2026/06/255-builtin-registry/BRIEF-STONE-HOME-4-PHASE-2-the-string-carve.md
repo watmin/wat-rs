@@ -95,8 +95,30 @@ remains, say so in your report — do NOT rename it (STOP-4).
 
 - **Row 1 — all 19 are registered.** `#[wat_intrinsic]` count in `src/intrinsic/string.rs` is
   exactly 19, and the registry total goes 146 → 165. Report both numbers.
-- **★ Row 2 — NO leftover match arms.** `grep -c '":wat::string::' src/runtime.rs` is **0**. This is
-  the row nothing else can catch, because a leftover arm is silently dead rather than broken.
+- **★ Row 2 — NO leftover DISPATCH ARMS.** The bar is arms, **not** every mention:
+
+  ```
+  grep -cE '":wat::string::[a-z0-9>?<>_-]+" *=>' src/runtime.rs     ← must be 0
+  ```
+
+  This is the row nothing else can catch, because a leftover arm is silently dead rather than
+  broken.
+
+  ⚠ **`runtime.rs` holds 26 mentions and only 19 are arms. The other SEVEN MUST SURVIVE** — they
+  are not dispatch and a carve does not touch them. Measured before this brief was written:
+
+  ```
+  1848    ":wat::string::concat".into()                     constructing a keyword
+  2332    const HEAD: &str = ":wat::string::declare-acronyms"
+  2429    WatAST::Keyword(k) if k == ":wat::string::declare-acronyms"   expand-time guard
+  7311    WatAST::Keyword(":wat::string::length".into(), …)  synthesizing a call node
+  10887 · 10909 · 10954   ":wat::string::to-i64" / to-f64 / to-bool as op-name strings
+  ```
+
+  **Report each of the seven with a one-line reason it survived.** If you believe one of them IS
+  dead after the carve, say so and leave it — that is a finding, not a deletion (STOP-5). A rider
+  told "make the count zero" would delete seven live references; the count was the wrong bar and
+  this note is the correction.
 - **Row 3 — `metadata-of` answers for each of the 19.** Run it per verb; report the full list of 19
   answers, not a sample.
 - **★ Row 4 — the doctest count is STILL 5.** Not 5+n. Every example you wrote passes.
@@ -132,6 +154,9 @@ Nothing in `wat/`. No new verbs. No renames.
    covered. STOP; that means the arm and the handler were not equivalent, which is a finding.
 4. **You want to rename or split `string_ops.rs`.** STOP — say it in the report instead. What the
    file should be called once it holds only Uuid/char/regex is a decision, not a cleanup.
+5. **One of row 2's seven surviving references looks dead to you.** STOP at that one — leave it in
+   place and report it. A reference that is dead AFTER a carve is a separate finding with a separate
+   justification, and deleting it inside this stone hides it inside a diff of 19 moves.
 
 A STOP means: leave the tree as it is, write the report, end your turn.
 
