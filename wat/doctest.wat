@@ -57,22 +57,42 @@
                                         :fqdn (:wat::intrinsic::Example/fqdn ex)
                                         :reason "doctested @example on a non-pure∧deterministic intrinsic")))
                                   acc)
-                          expected-ast (:wat::core::Option/expect  
-                                          (:wat::intrinsic::Example/expected ex)
-                                          "verify-examples: run=true example missing expected")
-                          got  (:wat::core::Result/expect  
-                                  (:wat::eval-ast! (:wat::intrinsic::Example/expr ex))
-                                  "verify-examples: expr eval failed")
-                          want (:wat::core::Result/expect  
-                                  (:wat::eval-ast! expected-ast)
-                                  "verify-examples: expected eval failed")]
-          (:wat::core::if (:wat::core::not (:wat::core::= got want))
-            (:wat::core::concat acc1
-              (:wat::core::Vector :wat::doctest::Failure
-                (:wat::doctest::Failure
-                  :fqdn (:wat::intrinsic::Example/fqdn ex)
-                  :reason "@example result did not match #=>")))
-            acc1))
+                          fqdn (:wat::intrinsic::Example/fqdn ex)]
+          (:wat::core::match (:wat::intrinsic::Example/expected ex)
+            ((:wat::core::Some expected-ast)
+              (:wat::core::match (:wat::eval-ast! (:wat::intrinsic::Example/expr ex))
+                ((:wat::core::Ok got)
+                  (:wat::core::match (:wat::eval-ast! expected-ast)
+                    ((:wat::core::Ok want)
+                      (:wat::core::if (:wat::core::not (:wat::core::= got want))
+                        (:wat::core::concat acc1
+                          (:wat::core::Vector :wat::doctest::Failure
+                            (:wat::doctest::Failure
+                              :fqdn fqdn
+                              :reason "@example result did not match #=>")))
+                        acc1))
+                    ((:wat::core::Err err)
+                      (:wat::core::concat acc1
+                        (:wat::core::Vector :wat::doctest::Failure
+                          (:wat::doctest::Failure
+                            :fqdn fqdn
+                            :reason (:wat::string::concat
+                                      "expected eval failed: "
+                                      (:wat::core::EvalError/message err))))))))
+                ((:wat::core::Err err)
+                  (:wat::core::concat acc1
+                    (:wat::core::Vector :wat::doctest::Failure
+                      (:wat::doctest::Failure
+                        :fqdn fqdn
+                        :reason (:wat::string::concat
+                                  "expr eval failed: "
+                                  (:wat::core::EvalError/message err))))))))
+            (:wat::core::None
+              (:wat::core::concat acc1
+                (:wat::core::Vector :wat::doctest::Failure
+                  (:wat::doctest::Failure
+                    :fqdn fqdn
+                    :reason "run=true example missing expected"))))))
         ;; run=false: skip
         acc))
     (:wat::core::Vector :wat::doctest::Failure)
