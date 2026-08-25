@@ -188,28 +188,36 @@
 ;; `(gen-record :user::Point (gen-ints 0 3) (gen-elements names))`
 ;;   -> Gen<:user::Point> with card 3 * len(names)
 ;;
-;; WHY THIS IS A MACRO AND NOT `gen-of-type` (the `clojure.spec` s/gen shape).
-;; Two findings, both grounded 2026-08-25, and the second one matters more:
+;; WHY A MACRO — and it is ONLY for arity. `gen-lift2` / `gen-lift3` below do the
+;; same job as plain functions, and are the better tool at those arities. A
+;; function cannot be N-ary over generators, so this macro exists to cover 4+
+;; fields, nothing more.
 ;;
-;;  (a) IT IS NOT EXPRESSIBLE. wat's reflection is READ-ONLY at runtime:
-;;      `field-names-of` / `field-types-of` inspect a declared type, but there is
-;;      no matching runtime CONSTRUCTION from a type value — `kwargs-construct`
-;;      needs a LITERAL type keyword, checked at type-check time. And macro-time
-;;      reflection cannot help: macros expand before user types are registered, so
-;;      `field-types-of` inside a macro reports "unknown type ':user::Point'".
+;; ⚠ CORRECTION (2026-08-25). This comment previously justified the macro by
+;; claiming wat "cannot construct from a type value" — that reflection reads
+;; shapes but cannot build them, so explicit generators were forced. **The premise
+;; was wrong, and the builder caught it: a type's constructor IS a first-class
+;; function value.**
 ;;
-;;  (b) IT WOULD NOT BE WORTH MUCH ANYWAY, which is the more useful half.
-;;      `field-types-of` yields `wat.type/i64` — a type, carrying NO BOUNDS. A
-;;      finite generator is nothing BUT bounds; deriving one from `i64` would have
-;;      to invent a range, which is precisely the decision the author must make.
-;;      `spec`'s auto-gen earns its keep in a language with no types to lean on.
-;;      Here the types are already known — what is missing is the interesting
-;;      SUBSET, and no amount of reflection knows that.
+;;     (:user::apply2 :user::Point' 3 4)   ->   #user/Point {:x 3 :y 4}
 ;;
-;; So the field generators are given explicitly, and the emitted constructor call
-;; is ORDINARY CHECKED WAT: pass too few, too many, or wrongly-typed generators
-;; and the type-checker rejects the expansion. The checker performs exactly the
-;; verification reflection would have, and it does it at compile time.
+;; What is genuinely unavailable is construction from a type KEYWORD — and that is
+;; not a gap to fill: the result type could not be known statically, which is a
+;; hole in the checker, not a missing intrinsic. The constructor value is the
+;; language's answer and it is strictly better — fully typed, and general past
+;; records to variants and smart constructors alike.
+;;
+;; What survives from the original reasoning is the half about VALUES, and it is
+;; the half worth keeping: `field-types-of` yields `wat.type/i64` — a type,
+;; carrying NO BOUNDS. A finite generator is nothing BUT bounds, so deriving one
+;; from a type would have to invent a range, which is exactly the decision the
+;; author must make. `spec`'s auto-gen earns its keep in a language with no types
+;; to lean on; here what is missing is the interesting SUBSET, which no reflection
+;; knows.
+;;
+;; The emitted constructor call is ORDINARY CHECKED WAT: too few, too many, or
+;; wrongly-typed generators and the type-checker rejects the expansion — proven,
+;; `ArityMismatch` and `expects :wat::core::i64; got :wat::core::String`.
 ;;
 ;; NOTE: each generator expression is emitted TWICE (once for its `card`, once for
 ;; its `at`). Generator constructors are pure and cheap, but `gen-such-that`
@@ -246,3 +254,46 @@
        (:wat::core::fn [~cv <- (:wat::core::PersistentVector :- [:wat::core::i64])] -> ~T
          (~ctor ~@args))
        (:user::gen-coords (:wat::core::PersistentVector ~@cards)))))
+
+;; ── gen-lift2 / gen-lift3: apply an N-ary FUNCTION across N generators ───────
+;;
+;; The applicative lift (`liftA2`), and the honest primitive `gen-record` should
+;; have been built on. It takes a FUNCTION, not a type — which matters because in
+;; wat a constructor IS a first-class function value:
+;;
+;;     (:user::apply2 :user::Point' 3 4)   ->   #user/Point {:x 3 :y 4}
+;;
+;; so `(gen-lift2 :user::Point' gx gy)` generates records with no macro, no
+;; hygiene ceremony, and no reflection. It also generalizes past records for free:
+;; the function can be an enum variant, a smart constructor, or any computation —
+;; anything `[A B :-> R]`.
+;;
+;; This corrects a claim made earlier in this file's history: that wat "cannot
+;; construct from a type value". The premise was wrong. Construction from a type
+;; KEYWORD is indeed unavailable (and would punch a hole in the checker, since the
+;; result type could not be known statically) — but that was never the language's
+;; answer. The constructor value is, and it is strictly better: fully typed, and
+;; not limited to records.
+(:wat::core::defn :user::gen-lift2 :- [A B R]
+  [f <- [A B :-> R]  ga <- (:user::Gen :- [A])  gb <- (:user::Gen :- [B])]
+  -> (:user::Gen :- [R])
+  (:wat::core::let [ca (:user::Gen/card ga)
+                    fa (:user::Gen/at ga)
+                    fb (:user::Gen/at gb)]
+    (:user::Gen :card (:wat::core::i64::* ca (:user::Gen/card gb))
+                :at (:wat::core::fn [i <- :wat::core::i64] -> R
+                      (f (fa (:user::gen-digit i ca)) (fb (:user::gen-shift i ca)))))))
+
+(:wat::core::defn :user::gen-lift3 :- [A B C R]
+  [f <- [A B C :-> R]  ga <- (:user::Gen :- [A])  gb <- (:user::Gen :- [B])  gc <- (:user::Gen :- [C])]
+  -> (:user::Gen :- [R])
+  (:wat::core::let [ca (:user::Gen/card ga)
+                    cb (:user::Gen/card gb)
+                    fa (:user::Gen/at ga)
+                    fb (:user::Gen/at gb)
+                    fc (:user::Gen/at gc)]
+    (:user::Gen :card (:wat::core::i64::* (:wat::core::i64::* ca cb) (:user::Gen/card gc))
+                :at (:wat::core::fn [i <- :wat::core::i64] -> R
+                      (f (fa (:user::gen-digit i ca))
+                         (fb (:user::gen-digit (:user::gen-shift i ca) cb))
+                         (fc (:user::gen-shift (:user::gen-shift i ca) cb)))))))

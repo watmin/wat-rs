@@ -158,6 +158,25 @@
                                         (:wat::core::= (:user::Pair/b p) eb)))
       0 1)))
 
+
+;; ── L10 — gen-lift2 over a CONSTRUCTOR VALUE ────────────────────────────────
+;; A type's constructor is a first-class function, so the applicative lift builds
+;; records with no macro and no reflection. Same mixed-radix wiring as L9, reached
+;; a different way — which is the point: if these two ever disagree, one of the
+;; two construction paths has drifted.
+(:wat::core::defn :user::law-lift2 [c <- (:wat::core::PersistentVector :- [:wat::core::i64])]
+  -> :wat::core::i64
+  (:wat::core::let [i (:user::at0 c 0)
+                    g (:user::gen-lift2 :user::Pair' (:user::gen-ints 0 3) (:user::gen-ints 10 12))
+                    p ((:user::Gen/at g) i)
+                    r (:user::gen-record :user::Pair (:user::gen-ints 0 3) (:user::gen-ints 10 12))
+                    q ((:user::Gen/at r) i)]
+    (:wat::core::if
+      (:wat::core::and (:wat::core::= (:user::Gen/card g) 6)
+                       (:wat::core::and (:wat::core::= (:user::Pair/a p) (:user::Pair/a q))
+                                        (:wat::core::= (:user::Pair/b p) (:user::Pair/b q))))
+      0 1)))
+
 ;; ── drive every law with gen-check, over spaces built by gen-coords ─────────
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let [seven  (:user::gen-coords (:wat::core::PersistentVector 7))
@@ -175,11 +194,12 @@
                     b8 (:user::gen-check eight :user::law-one-of)
                     six (:user::gen-coords (:wat::core::PersistentVector 6))
                     b9 (:user::gen-check six :user::law-record)
+                    b10 (:user::gen-check six :user::law-lift2)
                     bad (:wat::core::i64::+
                           (:wat::core::i64::+ (:wat::core::i64::+ b1 b2) (:wat::core::i64::+ b3 (:wat::core::i64::+ b4 b5)))
-                          (:wat::core::i64::+ b6 (:wat::core::i64::+ b7 (:wat::core::i64::+ b8 b9))))]
+                          (:wat::core::i64::+ b6 (:wat::core::i64::+ b7 (:wat::core::i64::+ b8 (:wat::core::i64::+ b9 b10)))))]
     (:wat::kernel::println
       (:wat::core::String/concat
-        (:wat::core::String/concat "laws=9 checked=" (:wat::core::i64::to-string
-          (:wat::core::i64::+ 7 (:wat::core::i64::+ 7 (:wat::core::i64::+ 120 (:wat::core::i64::+ 120 (:wat::core::i64::+ 1 (:wat::core::i64::+ 4 (:wat::core::i64::+ 5 (:wat::core::i64::+ 8 6))))))))))
+        (:wat::core::String/concat "laws=10 checked=" (:wat::core::i64::to-string
+          (:wat::core::i64::+ 7 (:wat::core::i64::+ 7 (:wat::core::i64::+ 120 (:wat::core::i64::+ 120 (:wat::core::i64::+ 1 (:wat::core::i64::+ 4 (:wat::core::i64::+ 5 (:wat::core::i64::+ 8 (:wat::core::i64::+ 6 6)))))))))))
         (:wat::core::String/concat " violations=" (:wat::core::i64::to-string bad))))))
