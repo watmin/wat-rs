@@ -3,7 +3,7 @@
 //! This file is declared as `#[cfg(test)] mod to_edn_derive_tests;` in
 //! `src/lib.rs`, so it is only compiled during test builds. All toy enums are
 //! defined here rather than in an integration test because `#[derive(ToEdn)]`
-//! generates `impl crate::to_edn::ToEdn for <Enum>`, which only resolves inside
+//! generates `impl crate::edn::contract::ToEdn for <Enum>`, which only resolves inside
 //! the `wat` crate.
 //!
 //! ## Coverage
@@ -33,7 +33,7 @@
 //!    `#wat.kernel/Wrap {:cause "…"}`. Also tests field-level `via` on the
 //!    tuple field for a custom transform.
 
-use crate::to_edn::ToEdn;
+use crate::edn::contract::ToEdn;
 use crate::span::Span;
 use std::sync::Arc;
 use wat_edn::OwnedValue;

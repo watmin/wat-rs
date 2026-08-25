@@ -9,7 +9,7 @@
 use std::sync::Arc;
 use wat::check::error::{CheckError, CheckErrorKind};
 use wat::span::Span;
-use wat::to_edn::ToEdn;
+use wat::edn::contract::ToEdn;
 
 fn write_edn(kind: CheckErrorKind, file: &str, line: i64, col: i64) -> String {
     let err = CheckError {

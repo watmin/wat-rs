@@ -212,7 +212,7 @@ pub(crate) fn get_node(network: &Value, node_id: i64) -> Option<&Value> {
 }
 
 pub(crate) fn cond_text(cond: &WatAST) -> String {
-    wat_edn::write(&crate::wat_edn_bridge::watast_to_edn(cond))
+    wat_edn::write(&crate::edn::bridge::watast_to_edn(cond))
 }
 
 pub(crate) fn alpha_cond_from_node(node: &Value) -> Option<WatAST> {

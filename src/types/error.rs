@@ -64,7 +64,7 @@ impl From<crate::resolve::Rejection> for TypeError {
 /// Variant data for [`TypeError`]. Spans live in the outer struct; variants
 /// carry ONLY data unique to each failure kind.
 ///
-/// Arc 296 Strike 3a: `#[derive(ToEdn)]` generates `impl crate::to_edn::ToEdn
+/// Arc 296 Strike 3a: `#[derive(ToEdn)]` generates `impl crate::edn::contract::ToEdn
 /// for TypeErrorKind`. All fields use the default derive (`.to_edn()`); no
 /// nested error causes — `remedies: Vec<Remedy>` serializes via the blanket
 /// `impl<T: ToEdn> ToEdn for Vec<T>`, identical to the deleted `remedies_to_edn`.
@@ -423,42 +423,42 @@ impl fmt::Display for TypeErrorKind {
 impl fmt::Debug for TypeError {
     // Stone B: Debug emits EDN, not Rust struct layout.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&crate::to_edn::to_wire_edn(self))
+        f.write_str(&crate::edn::contract::to_wire_edn(self))
     }
 }
 
 impl fmt::Display for TypeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&crate::to_edn::to_wire_edn(self))
+        f.write_str(&crate::edn::contract::to_wire_edn(self))
     }
 }
 
 // ─── Arc 296 — structured EDN ────────────────────────────────────────────────
 
-impl crate::to_edn::WatError for TypeError {
+impl crate::edn::contract::WatError for TypeError {
     /// Concise single-line headline: the span-free kind Display's first line
     /// (no `file:line` prefix, no multi-line remedy sections — those live in
     /// `:location` and the structured variant fields).
     fn message(&self) -> String {
-        crate::to_edn::first_line(self.kind.to_string())
+        crate::edn::contract::first_line(self.kind.to_string())
     }
     fn location(&self) -> wat_edn::OwnedValue {
-        crate::to_edn::location_from_span(&self.span)
+        crate::edn::contract::location_from_span(&self.span)
     }
     fn causes(&self) -> wat_edn::OwnedValue {
         wat_edn::OwnedValue::Vector(vec![])
     }
     fn variant(&self) -> wat_edn::OwnedValue {
-        use crate::to_edn::ToEdn;
-        crate::to_edn::strip_span_from_tagged(self.to_edn())
+        use crate::edn::contract::ToEdn;
+        crate::edn::contract::strip_span_from_tagged(self.to_edn())
     }
 }
 
-impl crate::to_edn::ToEdn for TypeError {
+impl crate::edn::contract::ToEdn for TypeError {
     /// Pattern A: derive on TypeErrorKind generates the variant body;
     /// `:span` appended via `span.to_edn()` (Stone B).
     fn to_edn(&self) -> wat_edn::OwnedValue {
-        use crate::to_edn::edn_kw;
+        use crate::edn::contract::edn_kw;
         use wat_edn::OwnedValue;
         let kind_val = self.kind.to_edn();
         match kind_val {

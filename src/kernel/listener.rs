@@ -491,7 +491,7 @@ mod tests {
         SocketListener {
             listener,
             allowed_pids: ThreadOwnedCell::new(pids.iter().copied().collect()),
-            max_frame_bytes: crate::edn_shim::DEFAULT_MAX_FRAME_BYTES,
+            max_frame_bytes: crate::edn::render::DEFAULT_MAX_FRAME_BYTES,
         }
     }
 

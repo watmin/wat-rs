@@ -484,7 +484,7 @@ pub fn run_with_args(batteries: &[Battery], argv: Vec<String>) -> ExitCode {
         if let Err(msg) = validate_user_grep_signature(&world) {
             crate::process::emit_structured_exit(
                 Some(&world),
-                crate::runtime::process_died_error_runtime_value(&crate::to_edn::FlatMessage {
+                crate::runtime::process_died_error_runtime_value(&crate::edn::contract::FlatMessage {
                     tag: "GrepSignatureError",
                     key: "message",
                     message: &msg,
@@ -563,7 +563,7 @@ pub fn run_with_args(batteries: &[Battery], argv: Vec<String>) -> ExitCode {
     if let Err(msg) = crate::freeze::validate_user_main_signature(&world) {
         crate::process::emit_structured_exit(
             Some(&world),
-            crate::runtime::process_died_error_main_signature_value(&crate::to_edn::FlatMessage {
+            crate::runtime::process_died_error_main_signature_value(&crate::edn::contract::FlatMessage {
                 tag: "MainSignatureError",
                 key: "message",
                 message: &msg,
@@ -592,7 +592,7 @@ pub fn run_with_args(batteries: &[Battery], argv: Vec<String>) -> ExitCode {
             // non-zero exit — and this write IS immediately before one. Exit 0 would claim the
             // stop was clean when it was not.
             let stop_failed = crate::runtime::stop_failed_value(failures);
-            let edn = crate::edn_shim::value_to_edn_with(&stop_failed, Some(world.types()));
+            let edn = crate::edn::render::value_to_edn_with(&stop_failed, Some(world.types()));
             let line = format!("{}\n", wat_edn::write(&edn));
             crate::process::stdio::emit_panic_envelope(&line);
             if code == crate::process::EXIT_SUCCESS {

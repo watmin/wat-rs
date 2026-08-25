@@ -3156,7 +3156,7 @@ fn synthesize_surface_protocol(
                          `-> :Response` in its `:features` clause.",
                         name,
                         surface.name,
-                        crate::edn_shim::DEFAULT_MAX_FRAME_BYTES,
+                        crate::edn::render::DEFAULT_MAX_FRAME_BYTES,
                     ),
                 },
             ));
@@ -5008,7 +5008,7 @@ pub(crate) fn parse_type_node(node: &WatAST) -> Result<TypeExpr, TypeError> {
             // then parse. (Single source: do NOT reinvent the `a.b/c`→`:a::b::c` rule.)
             let s = ident.as_str();
             let kw = if s.contains('/') {
-                crate::edn_shim::ns_to_wat_path(ident.receiver(), ident.method())
+                crate::edn::render::ns_to_wat_path(ident.receiver(), ident.method())
             } else {
                 // Bare symbol without namespace — treat as a keyword by prepending `:`.
                 format!(":{}", s)
@@ -5125,7 +5125,7 @@ pub(crate) fn parse_type_form(node: &WatAST) -> Result<TypeExpr, TypeError> {
             // bare head-storage convention. (Single source — no reinvented `.`/`/` rule.)
             let s = ident.as_str();
             if s.contains('/') {
-                let kw = crate::edn_shim::ns_to_wat_path(ident.receiver(), ident.method());
+                let kw = crate::edn::render::ns_to_wat_path(ident.receiver(), ident.method());
                 kw.strip_prefix(':').unwrap_or(&kw).to_string()
             } else {
                 s.to_string()

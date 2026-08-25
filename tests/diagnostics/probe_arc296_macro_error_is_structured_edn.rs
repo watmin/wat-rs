@@ -19,7 +19,7 @@ use wat::macros::{MacroError, MacroErrorKind};
 use wat::runtime::{RuntimeError, RuntimeErrorKind};
 use wat::freeze::StartupError;
 use wat::span::Span;
-use wat::to_edn::ToEdn;
+use wat::edn::contract::ToEdn;
 use wat_edn::OwnedValue;
 
 // ─── Probe 1 — startup_error_to_edn produces Tagged OwnedValue ──────────────

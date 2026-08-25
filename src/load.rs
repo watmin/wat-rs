@@ -220,11 +220,11 @@ impl std::error::Error for LoadFetchError {}
 
 // ─── Arc 296 D1 — structured EDN form for LoadFetchError ─────────────────────
 
-impl crate::to_edn::ToEdn for LoadFetchError {
+impl crate::edn::contract::ToEdn for LoadFetchError {
     /// `#wat.kernel/NotFound {:path "…"}` / `#wat.kernel/LoadOther {:path :reason}` /
     /// `#wat.kernel/OutOfScope {:path :scope}` — each variant as a tagged structured map.
     fn to_edn(&self) -> wat_edn::OwnedValue {
-        use crate::to_edn::{edn_kw, edn_str, edn_tag};
+        use crate::edn::contract::{edn_kw, edn_str, edn_tag};
         use wat_edn::OwnedValue;
         match self {
             LoadFetchError::NotFound(path) => edn_tag(
@@ -285,7 +285,7 @@ impl LoadError {
 /// Variant data for [`LoadError`]. The span lives in the outer struct;
 /// variants carry ONLY data unique to each failure kind.
 ///
-/// `#[derive(ToEdn)]` generates `impl crate::to_edn::ToEdn for LoadErrorKind`
+/// `#[derive(ToEdn)]` generates `impl crate::edn::contract::ToEdn for LoadErrorKind`
 /// — a match over the variants. Snake-case field names become kebab-case EDN
 /// keys. The outer `LoadError::to_edn()` splices `:span` last via
 /// `splice_span` (Strike 3b; replaces the deleted hand-written match body).
@@ -321,7 +321,7 @@ pub enum LoadErrorKind {
     Parse {
         path: String,
         #[to_edn(key = "cause")]
-        #[to_edn(via = crate::to_edn::error_edn_of)]
+        #[to_edn(via = crate::edn::contract::error_edn_of)]
         err: ParseError,
     },
     /// Cryptographic verification of the loaded source failed.
@@ -368,13 +368,13 @@ impl fmt::Display for LoadErrorKind {
 impl fmt::Debug for LoadError {
     // Stone B: Debug emits EDN, not Rust struct layout.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&crate::to_edn::to_wire_edn(self))
+        f.write_str(&crate::edn::contract::to_wire_edn(self))
     }
 }
 
 impl fmt::Display for LoadError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&crate::to_edn::to_wire_edn(self))
+        f.write_str(&crate::edn::contract::to_wire_edn(self))
     }
 }
 
@@ -382,7 +382,7 @@ impl std::error::Error for LoadError {}
 
 // ─── Arc 296 — structured EDN ────────────────────────────────────────────────
 
-impl crate::to_edn::WatError for LoadError {
+impl crate::edn::contract::WatError for LoadError {
     /// Concise single-line headline. The `Parse` / `VerificationFailed`
     /// variants drop the embedded nested-error text (the nested `ParseError`
     /// is now carried structurally under `:cause` in floor form; the
@@ -396,26 +396,26 @@ impl crate::to_edn::WatError for LoadError {
             LoadErrorKind::VerificationFailed { path, .. } => {
                 format!("verification failed for {}", path)
             }
-            _ => crate::to_edn::first_line(self.kind.to_string()),
+            _ => crate::edn::contract::first_line(self.kind.to_string()),
         }
     }
     fn location(&self) -> wat_edn::OwnedValue {
-        crate::to_edn::location_from_span(&self.span)
+        crate::edn::contract::location_from_span(&self.span)
     }
     fn causes(&self) -> wat_edn::OwnedValue {
         wat_edn::OwnedValue::Vector(vec![])
     }
     fn variant(&self) -> wat_edn::OwnedValue {
-        use crate::to_edn::ToEdn;
-        crate::to_edn::strip_span_from_tagged(self.to_edn())
+        use crate::edn::contract::ToEdn;
+        crate::edn::contract::strip_span_from_tagged(self.to_edn())
     }
 }
 
-impl crate::to_edn::ToEdn for LoadError {
+impl crate::edn::contract::ToEdn for LoadError {
     /// Pattern A: derive on LoadErrorKind generates the variant body;
     /// `:span` appended via `span.to_edn()` (Stone B).
     fn to_edn(&self) -> wat_edn::OwnedValue {
-        use crate::to_edn::edn_kw;
+        use crate::edn::contract::edn_kw;
         use wat_edn::OwnedValue;
         let kind_val = self.kind.to_edn();
         match kind_val {

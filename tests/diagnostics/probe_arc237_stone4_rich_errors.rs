@@ -47,7 +47,7 @@
 use std::sync::Arc;
 use wat::runtime::{ClauseAttempt, ClauseFailureReason, RuntimeError, RuntimeErrorKind, Value, ValueSnapshot};
 use wat::span::Span;
-use wat::to_edn::ToEdn;
+use wat::edn::contract::ToEdn;
 
 fn test_span() -> Span {
     Span::new(Arc::new("test.wat".to_string()), 5, 3)

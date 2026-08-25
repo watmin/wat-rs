@@ -59,7 +59,7 @@ use crate::value::{Environment, RuntimeError, RuntimeErrorKind, SymbolTable, Val
 pub(crate) fn render_str_total(v: &Value, types: Option<&crate::types::TypeEnv>) -> String {
     match v {
         Value::String(s) => (**s).clone(),
-        other => crate::edn_shim::value_to_edn_string_with(other, types),
+        other => crate::edn::render::value_to_edn_string_with(other, types),
     }
 }
 

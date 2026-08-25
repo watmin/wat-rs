@@ -236,7 +236,7 @@ fn checkerror_display_elides_unknown_span() {
 ///     the file:line:col data.
 #[test]
 fn edn_elides_unknown_span() {
-    use wat::to_edn::ToEdn;
+    use wat::edn::contract::ToEdn;
 
     // --- (a) UNKNOWN span: serialized EDN must not mention "<runtime>" ---
     let err_unknown = CheckError {

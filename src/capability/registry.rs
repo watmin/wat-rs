@@ -11,7 +11,7 @@
 //! ONLY off the trusted peer wire — a capability is handed over a lineage channel, never forged from
 //! parsed data (object-capability transfer-only).
 
-use crate::edn_shim::{EdnReadError, EdnReadErrorKind};
+use crate::edn::render::{EdnReadError, EdnReadErrorKind};
 use crate::rust_deps::marshal::RustOpaqueInner;
 use crate::runtime::Value;
 use crate::types::TypeEnv;
@@ -83,7 +83,7 @@ fn encode_in(caps: &[CapCodec], inner: &RustOpaqueInner, types: &TypeEnv) -> Opt
     // Arc 294.m — the wire tag IS the capability's real type home, derived from the same
     // `type_path` key encode just resolved by (never a second, hand-rolled path-joiner; never a
     // `wat-edn.cap` marker namespace + nickname).
-    Some(OwnedValue::Tagged(crate::edn_shim::tag_from_type_path(codec.type_path), Box::new(body)))
+    Some(OwnedValue::Tagged(crate::edn::render::tag_from_type_path(codec.type_path), Box::new(body)))
 }
 
 /// Construct a capability-decode error. Decode reconstructs off the trusted peer wire from an
@@ -218,7 +218,7 @@ fn address_codec() -> CapCodec {
         encode: |inner, types| {
             let addr = inner.payload.downcast_ref::<crate::kernel::address::Address>()?;
             let (minter_pid, name_bytes) = addr.portable_form()?;
-            Some(crate::edn_shim::value_to_edn_with(
+            Some(crate::edn::render::value_to_edn_with(
                 &socket_address_wire_to_record(minter_pid, name_bytes),
                 Some(types),
             ))
@@ -229,7 +229,7 @@ fn address_codec() -> CapCodec {
             // SocketAddressWire record).
             // ctx=None: this codec only ever decodes the fixed `SocketAddressWire` Record
             // (never a user-declared HolonRecord class), so no EncodingCtx is ever needed.
-            let record_val = crate::edn_shim::edn_to_value(body, Some(types), None).map_err(|_| {
+            let record_val = crate::edn::render::edn_to_value(body, Some(types), None).map_err(|_| {
                 cap_decode_error("#wat.kernel/Address (body failed edn_to_value)")
             })?;
             let (minter_pid, name_bytes) = socket_address_wire_from_record(&record_val)?;
@@ -388,7 +388,7 @@ mod waist_proof {
             socket_address_wire_names(),
             std::sync::Arc::new(vec![Value::i64(minter_pid as i64), name]),
         )));
-        crate::edn_shim::value_to_edn_with(&record, Some(types))
+        crate::edn::render::value_to_edn_with(&record, Some(types))
     }
 
     #[test]

@@ -48,10 +48,10 @@
 //!
 //! Per `project_pipe_protocol.md`: line-delimited EDN. One typed
 //! `Value` per line. The encoder calls
-//! [`crate::edn_shim::value_to_edn_with`] for the typed Value, then
+//! [`crate::edn::render::value_to_edn_with`] for the typed Value, then
 //! [`wat_edn::write`] to bytes, then appends `'\n'`. The decoder
 //! reads via [`crate::io::WatReader::read_line`] (which strips
-//! trailing `\n`/`\r`) and parses with [`crate::edn_shim::read_edn`].
+//! trailing `\n`/`\r`) and parses with [`crate::edn::render::read_edn`].
 //! This is the same line-delimited EDN convention the process-tier
 //! peer wire (`spawn-program' (process)` + `send'`/`recv'`) uses.
 //!

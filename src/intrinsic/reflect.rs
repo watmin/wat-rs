@@ -248,7 +248,7 @@ pub(crate) fn eval_show_source(
         Some(crate::runtime::Binding::UserFunction { f, .. }) => {
             match &f.body {
                 crate::value::FunctionBody::Wat(ast) => {
-                    let edn = crate::wat_edn_bridge::watast_to_edn(ast.as_ref());
+                    let edn = crate::edn::bridge::watast_to_edn(ast.as_ref());
                     let text = wat_edn::write(&edn);
                     Ok(Value::String(Arc::new(text)))
                 }
@@ -262,7 +262,7 @@ pub(crate) fn eval_show_source(
             }
         }
         Some(crate::runtime::Binding::Macro { def, .. }) => {
-            let edn = crate::wat_edn_bridge::watast_to_edn(&def.body);
+            let edn = crate::edn::bridge::watast_to_edn(&def.body);
             let text = wat_edn::write(&edn);
             Ok(Value::String(Arc::new(text)))
         }

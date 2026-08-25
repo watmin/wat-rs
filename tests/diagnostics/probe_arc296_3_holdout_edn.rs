@@ -28,7 +28,7 @@ use wat::macros::{MacroError, MacroErrorKind};
 use wat::resolve::ResolveError;
 use wat::runtime::{RuntimeError, RuntimeErrorKind};
 use wat::span::Span;
-use wat::to_edn::ToEdn;
+use wat::edn::contract::ToEdn;
 use wat::types::error::{TypeError, TypeErrorKind};
 
 // ─── Probe 1 — Parse error: structured tagged EDN, NOT a :detail blob ────────

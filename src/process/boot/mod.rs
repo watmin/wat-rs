@@ -69,7 +69,7 @@ use crate::span::Span;
 /// This is a limit on ONE FRAME, never on the program: a large program is chunked
 /// across many program frames. The chunker below is what guarantees no single
 /// frame exceeds it.
-pub(crate) const MAX_BOOT_FRAME_BYTES: usize = crate::edn_shim::DEFAULT_MAX_FRAME_BYTES;
+pub(crate) const MAX_BOOT_FRAME_BYTES: usize = crate::edn::render::DEFAULT_MAX_FRAME_BYTES;
 
 /// A frame on the boot wire.
 ///
@@ -314,7 +314,7 @@ fn _span_type_is_used(_: &Span) {}
 /// The inverse is [`wire_to_forms`]. Together they are a round trip, which is
 /// the property the child's oracle actually needs — see `spawn_process_peer`.
 pub(crate) fn forms_to_wire(forms: &[crate::ast::WatAST]) -> String {
-    crate::wat_edn_bridge::program_to_edn(forms)
+    crate::edn::bridge::program_to_edn(forms)
 }
 
 /// Rebuild the program from the wire — the inverse of [`forms_to_wire`].
@@ -323,7 +323,7 @@ pub(crate) fn forms_to_wire(forms: &[crate::ast::WatAST]) -> String {
 /// not what it inherited through the fork, so the stream is load-bearing before
 /// the exec removes the inheritance entirely.
 pub(crate) fn wire_to_forms(frame: &str) -> Result<Vec<crate::ast::WatAST>, RuntimeError> {
-    crate::wat_edn_bridge::edn_to_program(frame)
+    crate::edn::bridge::edn_to_program(frame)
         .map_err(|e| boot_err(format!("program frame did not decode: {e}")))
 }
 
@@ -707,7 +707,7 @@ fn config_to_wire(cfg: Option<&crate::config::Config>) -> String {
     } = cfg;
 
     let ast_field = |a: &Option<crate::ast::WatAST>| match a {
-        Some(ast) => crate::wat_edn_bridge::program_to_edn(std::slice::from_ref(ast)),
+        Some(ast) => crate::edn::bridge::program_to_edn(std::slice::from_ref(ast)),
         None => "nil".to_owned(),
     };
     let mode = match capacity_mode {
@@ -774,7 +774,7 @@ pub(crate) fn wire_to_config(frame: &str) -> Result<Option<crate::config::Config
             wat_edn::Value::Nil => Ok(None),
             other => {
                 let text = wat_edn::write(other);
-                let mut forms = crate::wat_edn_bridge::edn_to_program(&text)
+                let mut forms = crate::edn::bridge::edn_to_program(&text)
                     .map_err(|e| boot_err(format!(":{want} did not decode as a form: {e}")))?;
                 match forms.len() {
                     1 => Ok(Some(forms.pop().expect("len checked"))),

@@ -48,7 +48,7 @@ fn a_doomed_child_fails_spawn_by_name_instead_of_hanging() {
         include_str!("doomed_child_boot_ack_does_not_hang__empty_env.wat")
             .trim()
             .to_string(),
-        wat::edn_shim::DEFAULT_MAX_FRAME_BYTES,
+        wat::edn::render::DEFAULT_MAX_FRAME_BYTES,
         None,
         &world.symbols,
         &dummy_span,

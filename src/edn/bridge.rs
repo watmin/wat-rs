@@ -27,7 +27,7 @@
 //! native Map/Set nodes make the mapping 1:1.
 
 use crate::ast::WatAST;
-use crate::edn_shim::{keyword_from_wat_path, ns_to_wat_path};
+use crate::edn::render::{keyword_from_wat_path, ns_to_wat_path};
 use crate::scope::{fresh_scope, Identifier, ScopeId};
 use crate::span::{Pos, Span};
 use std::collections::HashMap;

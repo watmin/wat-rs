@@ -34,7 +34,7 @@ use wat::runtime::{
     ClauseAttempt, ClauseFailureReason, RuntimeError, RuntimeErrorKind, Value, ValueSnapshot,
 };
 use wat::span::Span;
-use wat::to_edn::ToEdn;
+use wat::edn::contract::ToEdn;
 use wat::value::Provenance;
 
 fn s() -> Span {

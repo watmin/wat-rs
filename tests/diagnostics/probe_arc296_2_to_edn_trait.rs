@@ -11,7 +11,7 @@
 //!   - Probe 2: `Span.to_edn()` produces structured `{:file :line :col}` map
 //!   - Probe 4: `StartupError.to_edn()` matches `startup_error_to_edn()` (kept)
 //!
-//! RED before 296.2: `wat::to_edn::ToEdn` does not exist; `.to_edn()`
+//! RED before 296.2: `wat::edn::contract::ToEdn` does not exist; `.to_edn()`
 //! method is not callable — FAILS to compile.
 //!
 //! GREEN after 296.2 / 298.3: all impls present.
@@ -20,7 +20,7 @@ use std::sync::Arc;
 use wat::macros::{MacroError, MacroErrorKind};
 use wat::freeze::StartupError;
 use wat::span::Span;
-use wat::to_edn::ToEdn;
+use wat::edn::contract::ToEdn;
 
 // ─── Probe 2 — Span.to_edn() produces structured {:file :line :col} map ──────
 

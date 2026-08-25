@@ -21,7 +21,7 @@
 //! `probe_runtime_error_width.rs`) and the goldens (`probe_arc298_3_runtime_derive_identical`
 //! owns those). This probe carries exactly one claim.
 
-use wat::to_edn::ToEdn;
+use wat::edn::contract::ToEdn;
 use wat::value::signal::{RuntimeError, RuntimeErrorKind};
 
 /// Build a kind with real payload — a variant that carries data, so the EDN body is

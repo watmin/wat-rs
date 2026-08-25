@@ -43,7 +43,7 @@ use std::sync::Arc;
 use wat::freeze::startup_from_forms;
 use wat::load::InMemoryLoader;
 use wat::parser::parse_all_with_file;
-use wat::wat_edn_bridge::{
+use wat::edn::bridge::{
     edn_to_program, edn_to_watast, program_to_edn, watast_to_edn, WatEdnBridgeError,
 };
 use wat::WatAST;

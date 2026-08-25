@@ -268,13 +268,13 @@ pub struct ReteCheckError {
 impl fmt::Debug for ReteCheckError {
     // Stone B convention: Debug emits EDN, not Rust struct layout.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&crate::to_edn::to_wire_edn(self))
+        f.write_str(&crate::edn::contract::to_wire_edn(self))
     }
 }
 
 impl fmt::Display for ReteCheckError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&crate::to_edn::to_wire_edn(self))
+        f.write_str(&crate::edn::contract::to_wire_edn(self))
     }
 }
 
@@ -286,13 +286,13 @@ pub struct ReteCheckErrors(pub Vec<ReteCheckError>);
 
 impl fmt::Debug for ReteCheckErrors {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&crate::to_edn::to_wire_edn(self))
+        f.write_str(&crate::edn::contract::to_wire_edn(self))
     }
 }
 
 impl fmt::Display for ReteCheckErrors {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&crate::to_edn::to_wire_edn(self))
+        f.write_str(&crate::edn::contract::to_wire_edn(self))
     }
 }
 
@@ -300,9 +300,9 @@ impl std::error::Error for ReteCheckErrors {}
 
 // ─── ToEdn + WatError impls (mirrors src/check/error_edn.rs) ─────────────────────────────────
 
-impl crate::to_edn::ToEdn for ReteCheckError {
+impl crate::edn::contract::ToEdn for ReteCheckError {
     fn to_edn(&self) -> OwnedValue {
-        use crate::to_edn::edn_kw;
+        use crate::edn::contract::edn_kw;
         let kind_val = self.kind.to_edn();
         match kind_val {
             OwnedValue::Tagged(tag, body) => {
@@ -318,30 +318,30 @@ impl crate::to_edn::ToEdn for ReteCheckError {
     }
 }
 
-impl crate::to_edn::WatError for ReteCheckError {
+impl crate::edn::contract::WatError for ReteCheckError {
     fn message(&self) -> String {
-        crate::to_edn::first_line(self.kind.to_string())
+        crate::edn::contract::first_line(self.kind.to_string())
     }
     fn location(&self) -> OwnedValue {
-        crate::to_edn::location_from_span(&self.span)
+        crate::edn::contract::location_from_span(&self.span)
     }
     fn causes(&self) -> OwnedValue {
         OwnedValue::Vector(vec![])
     }
     fn variant(&self) -> OwnedValue {
-        use crate::to_edn::ToEdn;
-        crate::to_edn::strip_span_from_tagged(self.to_edn())
+        use crate::edn::contract::ToEdn;
+        crate::edn::contract::strip_span_from_tagged(self.to_edn())
     }
 }
 
-impl crate::to_edn::ToEdn for ReteCheckErrors {
+impl crate::edn::contract::ToEdn for ReteCheckErrors {
     fn to_edn(&self) -> OwnedValue {
         let items: Vec<OwnedValue> = self.0.iter().map(|e| e.to_edn()).collect();
         tagged("ReteCheckErrors", OwnedValue::Map(vec![(kw("errors"), OwnedValue::Vector(items))]))
     }
 }
 
-impl crate::to_edn::WatError for ReteCheckErrors {
+impl crate::edn::contract::WatError for ReteCheckErrors {
     fn message(&self) -> String {
         let n = self.0.len();
         format!("{} rete rule validation error{}", n, if n == 1 { "" } else { "s" })
@@ -367,10 +367,10 @@ fn kw(name: &str) -> OwnedValue {
 }
 
 /// Render a clause/form for a diagnostic message — the same structural pretty-printer
-/// `:wat::core::write-forms` uses (`crate::wat_edn_bridge::watast_to_edn` + `wat_edn::write`),
+/// `:wat::core::write-forms` uses (`crate::edn::bridge::watast_to_edn` + `wat_edn::write`),
 /// so a `#wat.rete/MalformedClause` names the offending form exactly as a wat reader would.
 fn render_form(ast: &WatAST) -> String {
-    wat_edn::write(&crate::wat_edn_bridge::watast_to_edn(ast))
+    wat_edn::write(&crate::edn::bridge::watast_to_edn(ast))
 }
 
 // ─── The shared reorder helper (S3, design call 2) ───────────────────────────────────────────

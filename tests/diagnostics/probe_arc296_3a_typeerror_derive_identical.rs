@@ -29,7 +29,7 @@
 //! - `usize` fields (`expected`, `got`) serialize as integers, matching `edn_int(*n as i64)`.
 
 use std::sync::Arc;
-use wat::to_edn::ToEdn;
+use wat::edn::contract::ToEdn;
 use wat::span::Span;
 use wat::types::error::{TypeError, TypeErrorKind};
 

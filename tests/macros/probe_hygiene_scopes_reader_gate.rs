@@ -8,7 +8,7 @@
 //! at exactly THREE sanctioned chokepoints —
 //!   1. `crate::scope::resolution::env_key` — in-process resolution (eval + check),
 //!   2. the canonical hasher (`src/hash.rs`) — cross-process identity (renumbered),
-//!   3. the plain-EDN bridge (`src/wat_edn_bridge.rs`) — cross-process TRANSPORT
+//!   3. the plain-EDN bridge (`src/edn/bridge.rs`) — cross-process TRANSPORT
 //!      (remapped; arc 170) —
 //!      and every resolution bind of a possibly-scoped ident routes through `env_key`.
 //!
@@ -67,7 +67,7 @@ const SANCTIONED_SCOPES_READERS: &[(&str, &str)] = &[
          to verify the mint side, never keys/identifies by them.",
     ),
     (
-        "wat_edn_bridge.rs",
+        "edn/bridge.rs",
         "the plain-EDN program bridge — cross-process TRANSPORT of hygiene (arc 170). \
          Reads scopes ONLY to serialize them onto the wire as \
          `#wat.ast/ScopedSymbol {:name … :scopes […]}`, and NEVER keys or identifies \

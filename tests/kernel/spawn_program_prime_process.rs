@@ -175,7 +175,7 @@ fn spawn_program_prime_process_echo_round_trip() {
     let noop_psf = noop_process_post_spawn_fn();
 
     let peer_val =
-        wat::kernel::spawn::spawn_process_peer(forms, noop_psf, empty_env_expr(), wat::edn_shim::DEFAULT_MAX_FRAME_BYTES, None, sym, &dummy_span)
+        wat::kernel::spawn::spawn_process_peer(forms, noop_psf, empty_env_expr(), wat::edn::render::DEFAULT_MAX_FRAME_BYTES, None, sym, &dummy_span)
             .expect("spawn_process_peer must succeed");
 
     let opaque_arc = rust_opaque_arc(
@@ -227,7 +227,7 @@ fn spawn_program_prime_process_sandbox_pure_fn_accepted() {
     let noop_psf = noop_process_post_spawn_fn();
 
     let peer_val =
-        wat::kernel::spawn::spawn_process_peer(forms, noop_psf, empty_env_expr(), wat::edn_shim::DEFAULT_MAX_FRAME_BYTES, None, sym, &dummy_span)
+        wat::kernel::spawn::spawn_process_peer(forms, noop_psf, empty_env_expr(), wat::edn::render::DEFAULT_MAX_FRAME_BYTES, None, sym, &dummy_span)
             .expect("pure WAT forms-server must spawn successfully");
 
     let opaque_arc = rust_opaque_arc(
@@ -284,7 +284,7 @@ fn spawn_program_prime_process_helper_round_trip() {
     let noop_psf = noop_process_post_spawn_fn();
 
     let peer_val =
-        wat::kernel::spawn::spawn_process_peer(forms, noop_psf, empty_env_expr(), wat::edn_shim::DEFAULT_MAX_FRAME_BYTES, None, sym, &dummy_span)
+        wat::kernel::spawn::spawn_process_peer(forms, noop_psf, empty_env_expr(), wat::edn::render::DEFAULT_MAX_FRAME_BYTES, None, sym, &dummy_span)
             .expect("spawn_process_peer must succeed (forms-server startup)");
 
     let opaque_arc = rust_opaque_arc(

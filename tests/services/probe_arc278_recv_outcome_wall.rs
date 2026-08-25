@@ -29,7 +29,7 @@ fn assert_outcome(fn_name: &str, golden: &str) {
              past the reader); got Err: {e:?}"
         )
     });
-    let edn = ::wat_edn::write(&wat::edn_shim::value_to_edn(&v));
+    let edn = ::wat_edn::write(&wat::edn::render::value_to_edn(&v));
     wat::assert_edn_matches_file!(edn, golden, fn_name);
 }
 

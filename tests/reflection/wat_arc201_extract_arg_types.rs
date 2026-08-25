@@ -10,7 +10,7 @@
 //! `:wat::core::Vector<wat::WatAST>`. Each arg type — Path, Parametric,
 //! Tuple, or Fn — renders to the canonical `wat.type/` WatAST form (via
 //! `holon_type_ast_to_wat_type_form`, structurally mirroring
-//! `crate::edn_shim::type_expr_to_clojure_form`, e.g.
+//! `crate::edn::render::type_expr_to_clojure_form`, e.g.
 //! `(wat.type/Vector [wat.type/i64])`), NOT a mangled single keyword and NOT
 //! a HolonAST subtree.
 //!
@@ -98,7 +98,7 @@ fn extract_arg_types_returns_atoms_for_monomorphic_args() {
     // Arc-251 canonical-form rewire: `extract-arg-types` returns a Vector of
     // two `wat.type/` WatAST Symbols (rendered via
     // `holon_type_ast_to_wat_type_form`, structurally mirroring
-    // `crate::edn_shim::type_expr_to_clojure_form`) — plain-EDN, not a
+    // `crate::edn::render::type_expr_to_clojure_form`) — plain-EDN, not a
     // mangled keyword.
     let out = run_file("tests/reflection/wat_arc201_extract_arg_types_atoms_types.wat");
     assert_eq!(out.len(), 1, "expected one output line; got {:?}", out);
@@ -124,7 +124,7 @@ fn extract_arg_types_returns_bundles_for_parametric_args() {
     // Arc-251 canonical-form rewire: Parametric types now render to a
     // decomposable `wat.type/`-headed WatAST List (via
     // `holon_type_ast_to_wat_type_form`, structurally mirroring
-    // `crate::edn_shim::type_expr_to_clojure_form`) — NOT a mangled single
+    // `crate::edn::render::type_expr_to_clojure_form`) — NOT a mangled single
     // keyword (the pre-rewire shape) and NOT the pre-arc-201-eviction
     // `Bundle [head-Symbol, arg-Symbol]` HolonAST either.
     let out = run_file("tests/reflection/wat_arc201_extract_arg_types_bundles.wat");

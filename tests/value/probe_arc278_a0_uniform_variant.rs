@@ -19,7 +19,7 @@
 //! perfect discriminator (map=record, vector=variant, nil=unit-value).
 
 use std::sync::Arc;
-use wat::edn_shim::{edn_to_value, value_to_edn, value_to_edn_with};
+use wat::edn::render::{edn_to_value, value_to_edn, value_to_edn_with};
 use wat::runtime::{EnumValue, Value};
 use wat::types::{EnumDef, EnumVariant, Purity, TypeDef, TypeEnv};
 

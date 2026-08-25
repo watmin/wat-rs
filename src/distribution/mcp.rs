@@ -406,7 +406,7 @@ fn eval_one_form(form: WatAST, session: &mut Session) -> (String, bool) {
 }
 
 fn render_edn(v: &Value, types: Option<&crate::types::TypeEnv>) -> String {
-    wat_edn::write(&crate::edn_shim::value_to_edn_with(v, types))
+    wat_edn::write(&crate::edn::render::value_to_edn_with(v, types))
 }
 
 /// The text the model actually reads. Harnesses (Grok measured 2026-08-16)

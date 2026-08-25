@@ -116,7 +116,7 @@ pub enum MacroErrorKind {
     /// instead of parsing the reason string.
     ProgramBodyEvalFailed {
         macro_name: String,
-        #[to_edn(via = crate::to_edn::error_edn_of_boxed)]
+        #[to_edn(via = crate::edn::contract::error_edn_of_boxed)]
         cause: Box<MacroError>,
     },
 
@@ -128,7 +128,7 @@ pub enum MacroErrorKind {
     /// message, no structural cause). All other runtime failures carry the
     /// typed `RuntimeError` here.
     MacroEvalRuntimeFailed {
-        #[to_edn(via = crate::to_edn::error_edn_of_boxed)]
+        #[to_edn(via = crate::edn::contract::error_edn_of_boxed)]
         cause: Box<RuntimeError>,
     },
 }
@@ -225,13 +225,13 @@ impl fmt::Display for MacroErrorKind {
 impl fmt::Debug for MacroError {
     // Stone B: Debug emits EDN, not Rust struct layout.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&crate::to_edn::to_wire_edn(self))
+        f.write_str(&crate::edn::contract::to_wire_edn(self))
     }
 }
 
 impl fmt::Display for MacroError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&crate::to_edn::to_wire_edn(self))
+        f.write_str(&crate::edn::contract::to_wire_edn(self))
     }
 }
 

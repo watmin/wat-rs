@@ -21,7 +21,7 @@
 // call_beside_value seam here: the subject is the parse/write round-trip itself,
 // not evaluation of a program. Precedent: tests/collection/wat_arc167_vector_ast.rs.
 
-use wat::wat_edn_bridge::{edn_to_program, program_to_edn};
+use wat::edn::bridge::{edn_to_program, program_to_edn};
 
 /// Parse → forms → EDN text → forms again; the two form-vecs must be equal.
 fn roundtrips(src: &str) -> bool {

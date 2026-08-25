@@ -85,7 +85,7 @@ use crate::comms::{
     CommReceiver, CommSender, EdnRepresentable, ReceiverIndex, RecvError, SelectOutcome,
     SendError, TrySendError,
 };
-use crate::edn_shim::{next_complete_frame, FrameScan, DEFAULT_MAX_FRAME_BYTES};
+use crate::edn::render::{next_complete_frame, FrameScan, DEFAULT_MAX_FRAME_BYTES};
 
 /// Byte accumulator for newline-framed pipe reads. `RefCell` provides
 /// interior mutability so `recv(&self)` can extend

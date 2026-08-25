@@ -504,7 +504,7 @@ fn parse_method_member_sig(
     let max_request_bytes_explicit = max_request_bytes.is_some();
     // Unset → the DEFAULT_MAX_FRAME_BYTES (512 KiB) default, cast to i64.
     let max_request_bytes: i64 =
-        max_request_bytes.unwrap_or(crate::edn_shim::DEFAULT_MAX_FRAME_BYTES as i64);
+        max_request_bytes.unwrap_or(crate::edn::render::DEFAULT_MAX_FRAME_BYTES as i64);
 
     Ok(SurfaceMember::Method {
         name: method_name,
@@ -1025,7 +1025,7 @@ mod tests {
     //! Arc 278 #16 Stone 16.0 — the optional `:max-request-bytes N` annotation on a
     //! `:features` method member parses into `SurfaceMember::Method.max_request_bytes`.
     use super::*;
-    use crate::edn_shim::DEFAULT_MAX_FRAME_BYTES;
+    use crate::edn::render::DEFAULT_MAX_FRAME_BYTES;
 
     /// Parse a single defsurface source into its `SurfaceDef` (strips the head keyword and
     /// routes through `parse_defsurface`, the same path `register_types` uses).

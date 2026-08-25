@@ -36,7 +36,7 @@ use std::sync::Arc;
 use wat::hash::HashError;
 use wat::load::{LoadError, LoadErrorKind, LoadFetchError};
 use wat::span::Span;
-use wat::to_edn::ToEdn;
+use wat::edn::contract::ToEdn;
 use wat_reader::parser::{ParseError, ParseErrorKind};
 
 // ─── Shared span fixtures ─────────────────────────────────────────────────────

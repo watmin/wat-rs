@@ -177,7 +177,7 @@ impl ProcessRuntime {
             stop_accepted_names(),
             Arc::new(vec![Value::Vec(Arc::new(service_names))]),
         )));
-        let edn = crate::edn_shim::value_to_edn_with(
+        let edn = crate::edn::render::value_to_edn_with(
             &stop_accepted,
             self.sym.types().map(|t| t.as_ref()),
         );
@@ -716,13 +716,13 @@ pub enum StartupError {
 impl fmt::Debug for StartupError {
     // Stone B: Debug emits EDN, not Rust struct layout.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&crate::to_edn::to_wire_edn(self))
+        f.write_str(&crate::edn::contract::to_wire_edn(self))
     }
 }
 
 impl fmt::Display for StartupError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&crate::to_edn::to_wire_edn(self))
+        f.write_str(&crate::edn::contract::to_wire_edn(self))
     }
 }
 
@@ -825,7 +825,7 @@ impl StartupError {
     /// `Display` so field-level data reaches tooling without text
     /// parsing.
     pub fn to_edn_values(&self) -> Vec<wat_edn::OwnedValue> {
-        use crate::to_edn::ToEdn;
+        use crate::edn::contract::ToEdn;
         match self {
             StartupError::Check(errors) => errors.0.iter().map(|e| e.to_edn()).collect(),
             _ => vec![self.to_edn()],
@@ -1049,7 +1049,7 @@ impl DeftestOutcome {
                 // that renders 296's `field-N` failure blob. Making it name its fields means
                 // threading a registry into `DeftestOutcome` — 296's actual stone, now a
                 // VISIBLE gap rather than a hidden default.
-                crate::edn_shim::value_to_edn_string_with(&failure, None)
+                crate::edn::render::value_to_edn_string_with(&failure, None)
             ),
             DeftestOutcome::DidNotRun { error } => panic!(
                 "{context}\n  deftest DID NOT RUN (the entry fn raised before returning a \

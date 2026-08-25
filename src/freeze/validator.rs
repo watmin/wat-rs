@@ -18,7 +18,7 @@ use crate::ast::WatAST;
 use crate::runtime::SymbolTable;
 use crate::types::TypeEnv;
 
-/// A validator error: any type that is [`crate::to_edn::ToEdn`] (so it can cross the wire
+/// A validator error: any type that is [`crate::edn::contract::ToEdn`] (so it can cross the wire
 /// tagged with its OWN namespace — a rete error still tags `#wat.rete/…` through the box,
 /// by dynamic dispatch) + `Debug` + `Display` (so `StartupError`'s own `Debug`/`Display`
 /// keep working) + `Send + Sync` (an `inventory`-submitted `fn` pointer must be usable from
@@ -27,11 +27,11 @@ use crate::types::TypeEnv;
 /// Blanket-implemented for every type that satisfies the bound — no validator crate needs to
 /// write `impl FreezeValidatorError for MyError {}` by hand.
 pub trait FreezeValidatorError:
-    crate::to_edn::ToEdn + std::fmt::Debug + std::fmt::Display + Send + Sync
+    crate::edn::contract::ToEdn + std::fmt::Debug + std::fmt::Display + Send + Sync
 {
 }
 
-impl<T: crate::to_edn::ToEdn + std::fmt::Debug + std::fmt::Display + Send + Sync>
+impl<T: crate::edn::contract::ToEdn + std::fmt::Debug + std::fmt::Display + Send + Sync>
     FreezeValidatorError for T
 {
 }

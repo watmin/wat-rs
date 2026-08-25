@@ -27,7 +27,7 @@ use std::sync::Arc;
 use wat::macros::{MacroError, MacroErrorKind};
 use wat::runtime::{RuntimeError, RuntimeErrorKind};
 use wat::span::Span;
-use wat::to_edn::ToEdn;
+use wat::edn::contract::ToEdn;
 
 fn s() -> Span {
     Span::new(Arc::new("test.wat".to_string()), 1, 0)

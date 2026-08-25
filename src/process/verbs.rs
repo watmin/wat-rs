@@ -73,7 +73,7 @@ pub(crate) fn emit_startup_error_structured_exit(e: &crate::freeze::StartupError
 /// Factored out of [`emit_startup_error_structured_exit`] so the acceptance
 /// gate can capture the emitted chain without a real fork.
 pub(crate) fn startup_error_chain_edn(e: &crate::freeze::StartupError) -> wat_edn::OwnedValue {
-    use crate::to_edn::WatError;
+    use crate::edn::contract::WatError;
     let cause_edn = e.error_edn();
 
     // Arc 278 the LociDiedError stone — #wat.kernel.LociDiedError/StartupError [<cause>].
@@ -100,7 +100,7 @@ pub(crate) fn startup_error_chain_edn(e: &crate::freeze::StartupError) -> wat_ed
 /// vector, read by generic `edn::read` (the head element's own tag is the
 /// self-describing marker the stderr scanner / `recv'` Lost decoder key on).
 fn emit_chain_envelope(chain: crate::runtime::Value, types: Option<&crate::types::TypeEnv>) {
-    let edn = crate::edn_shim::value_to_edn_with(&chain, types);
+    let edn = crate::edn::render::value_to_edn_with(&chain, types);
     let line = format!("{}\n", wat_edn::write(&edn));
     crate::process::stdio::emit_panic_envelope(&line);
 }
@@ -178,7 +178,7 @@ fn finish_forked_child(
             // FlatMessage (the string IS the datum — no structure to lose).
             emit_structured_exit(
                 Some(world),
-                crate::runtime::process_died_error_bad_return_value(&crate::to_edn::FlatMessage {
+                crate::runtime::process_died_error_bad_return_value(&crate::edn::contract::FlatMessage {
                     tag: "BadReturnType",
                     key: "got-type",
                     message: other.type_name(),
@@ -244,7 +244,7 @@ pub(crate) fn finish_in_process(
         Ok(Ok(other)) => {
             emit_structured_exit(
                 Some(world),
-                crate::runtime::process_died_error_bad_return_value(&crate::to_edn::FlatMessage {
+                crate::runtime::process_died_error_bad_return_value(&crate::edn::contract::FlatMessage {
                     tag: "BadReturnType",
                     key: "got-type",
                     message: other.type_name(),

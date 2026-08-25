@@ -45,7 +45,7 @@ use std::collections::BTreeSet;
 use wat::ast::WatAST;
 use wat::hash::hash_canonical_program;
 use wat::scope::{fresh_scope, Identifier};
-use wat::wat_edn_bridge::{edn_to_program, program_to_edn};
+use wat::edn::bridge::{edn_to_program, program_to_edn};
 
 fn sym(ident: Identifier) -> WatAST {
     WatAST::Symbol(ident, wat::rust_caller_span!())

@@ -59,7 +59,7 @@ fn revoked_prober_is_bounced() {
     // The golden #probe.Outcome/Bounced [] is captured (UPDATE_EDN=1), never hand-authored.
     let v = compute("tests/services/probe_arc170_m1_teeth_revoked.wat")
         .unwrap_or_else(|e| panic!("the revoked prober's bounce must surface as a VALUE compute FACES (never a raise past apply_function); got Err: {e:?}"));
-    let edn = ::wat_edn::write(&wat::edn_shim::value_to_edn(&v));
+    let edn = ::wat_edn::write(&wat::edn::render::value_to_edn(&v));
     wat::assert_edn_matches_file!(edn, "m1_teeth_revoked__revoked_prober_is_bounced.edn",
       "after echo'/revoke ack'd the pid gone, the prober's dial #2 must be BOUNCED — its echo recv' EOFs → it dies → the owner FACES the death as a matchable Outcome::Bounced, never Served");
 }

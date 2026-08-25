@@ -10,7 +10,7 @@
 //! See `docs/arc/2026/06/296-diagnostics-fully-edn/BRIEF-296-J-the-forms-carry-their-spans.md`.
 
 use wat::span::{Pos, Span};
-use wat::wat_edn_bridge::{edn_to_program, program_to_edn};
+use wat::edn::bridge::{edn_to_program, program_to_edn};
 use wat::WatAST;
 
 /// A real multi-line, multi-form program so nodes carry genuine parser spans

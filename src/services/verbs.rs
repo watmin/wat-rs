@@ -25,7 +25,7 @@
 use std::sync::Arc;
 
 use crate::ast::WatAST;
-use crate::edn_shim::require_one_arg;
+use crate::edn::render::require_one_arg;
 use crate::runtime::{apply_function, Environment, RuntimeError, RuntimeErrorKind, SymbolTable, Value};
 use crate::services::client::cached_stdio_peer;
 use crate::services::ThreadIO;
@@ -163,7 +163,7 @@ pub fn eval_kernel_println(
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::kernel::println";
     let v = require_one_arg(OP, args, env, sym, list_span)?;
-    let edn = crate::edn_shim::value_to_edn_with(&v, sym.types().map(|a| a.as_ref()));
+    let edn = crate::edn::render::value_to_edn_with(&v, sym.types().map(|a| a.as_ref()));
     // Append the line terminator HERE (the service is now a raw byte writer — no implicit newline);
     // the batched `stdio-write-out` fragments this `<edn>\n` payload into ≤budget raw chunks, so the
     // bytes on fd1 are identical to the old `writeln(edn)` path (`<edn>\n`) even for oversized output.
@@ -183,7 +183,7 @@ pub fn eval_kernel_pprintln(
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::kernel::pprintln";
     let v = require_one_arg(OP, args, env, sym, list_span)?;
-    let edn = crate::edn_shim::value_to_edn_with(&v, sym.types().map(|a| a.as_ref()));
+    let edn = crate::edn::render::value_to_edn_with(&v, sym.types().map(|a| a.as_ref()));
     // Terminator appended here (raw-writer service); batched → identical bytes to old `writeln(pretty)`.
     let mut line = wat_edn::write_pretty(&edn);
     line.push('\n');
@@ -204,7 +204,7 @@ pub fn eval_kernel_eprintln(
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::kernel::eprintln";
     let v = require_one_arg(OP, args, env, sym, list_span)?;
-    let edn = crate::edn_shim::value_to_edn_with(&v, sym.types().map(|a| a.as_ref()));
+    let edn = crate::edn::render::value_to_edn_with(&v, sym.types().map(|a| a.as_ref()));
     // The emitted value's EDN is the crash reason carried by the terminal panic (no trailing newline —
     // a reason is a message, not stream bytes). The written PAYLOAD gets the terminator (raw-writer
     // service); batched → identical bytes to the old `writeln(edn)` path.
@@ -225,7 +225,7 @@ pub fn eval_kernel_epprintln(
 ) -> Result<Value, RuntimeError> {
     const OP: &str = ":wat::kernel::epprintln";
     let v = require_one_arg(OP, args, env, sym, list_span)?;
-    let edn = crate::edn_shim::value_to_edn_with(&v, sym.types().map(|a| a.as_ref()));
+    let edn = crate::edn::render::value_to_edn_with(&v, sym.types().map(|a| a.as_ref()));
     let reason = wat_edn::write_pretty(&edn);
     let payload = format!("{reason}\n");
     write_via_stderr(OP, list_span, sym, payload)?;
@@ -285,7 +285,7 @@ fn read_frame_via_stdin(op: &'static str, span: &Span, sym: &SymbolTable) -> Res
     let primed = sym.primed_stdio().ok_or_else(|| RuntimeError::new(span.clone(), RuntimeErrorKind::ServiceNotRunning { op: op.into() }))?;
     let addr = primed.stdin_addr.clone();
     let peer = cached_stdio_peer(op, span, sym, addr, ":wat::kernel::stdio-connect-in", |io: &ThreadIO| &io.stdin_peer)?;
-    let cap = crate::edn_shim::DEFAULT_MAX_FRAME_BYTES as i64;
+    let cap = crate::edn::render::DEFAULT_MAX_FRAME_BYTES as i64;
     let read_fn = sym.get(":wat::kernel::stdio-read-frame").ok_or_else(|| RuntimeError::new(span.clone(), RuntimeErrorKind::UnknownFunction(":wat::kernel::stdio-read-frame".into())))?.clone();
     apply_function(read_fn, vec![peer, Value::i64(cap)], sym, span.clone())
 }
@@ -345,7 +345,7 @@ pub fn eval_kernel_readln_prime(
     // stays a raise — that is a malformed wire, a genuine fault, not an outcome.
     Ok(match read_via_stdin(OP, list_span, sym, cap)? {
         ReadFrame::Text(line) => {
-            let v = crate::edn_shim::decode_trusted_wire(&line, sym.types().map(|a| a.as_ref()), sym.encoding_ctx().map(|a| a.as_ref()))
+            let v = crate::edn::render::decode_trusted_wire(&line, sym.types().map(|a| a.as_ref()), sym.encoding_ctx().map(|a| a.as_ref()))
                 .map_err(|e| RuntimeError::new(list_span.clone(), RuntimeErrorKind::MalformedForm {
                         head: OP.into(),
                         reason: format!("readln EDN decode failed: {}", e),

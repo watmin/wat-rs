@@ -188,7 +188,7 @@ pub(crate) fn payload_to_edn(payload: &AssertionPayload) -> OwnedValue {
         Some(chain) => {
             let items = chain
                 .iter()
-                .map(|v| crate::edn_shim::value_to_edn_with(v, None))
+                .map(|v| crate::edn::render::value_to_edn_with(v, None))
                 .collect();
             OwnedValue::Vector(items)
         }
@@ -244,7 +244,7 @@ fn frame_to_map(frame: &FrameInfo) -> OwnedValue {
 // `Span` is defined in `wat-reader`; `ToEdn` is defined in `wat-edn`; the
 // impl must live in the crate that owns the type).
 
-impl crate::to_edn::ToEdn for crate::assertion::AssertionPayload {
+impl crate::edn::contract::ToEdn for crate::assertion::AssertionPayload {
     fn to_edn(&self) -> OwnedValue {
         payload_to_edn(self)
     }

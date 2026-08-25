@@ -262,20 +262,20 @@ pub fn typed_recv(
                         // edn_frame_status — cheaper, and catches even buffers
                         // that would parse. Uses the same constant as
                         // read_framed_edn for consistent behaviour.
-                        if buf.len() > crate::edn_shim::DEFAULT_MAX_FRAME_BYTES {
+                        if buf.len() > crate::edn::render::DEFAULT_MAX_FRAME_BYTES {
                             return RecvOutcome::DecodeError(format!(
                                 "EDN frame exceeded {} bytes without completing — message too large or never terminated",
                                 buf.len()
                             ));
                         }
-                        use crate::edn_shim::EdnFrameStatus;
-                        match crate::edn_shim::edn_frame_status(&buf) {
+                        use crate::edn::render::EdnFrameStatus;
+                        match crate::edn::render::edn_frame_status(&buf) {
                             EdnFrameStatus::Incomplete => continue,
                             EdnFrameStatus::Complete => {
                                 // Trim trailing newline for read_edn (which
                                 // also handles multi-line strings just fine).
                                 let trimmed = buf.trim_end_matches('\n');
-                                return match crate::edn_shim::read_edn(trimmed, types, ctx) {
+                                return match crate::edn::render::read_edn(trimmed, types, ctx) {
                                     Ok(v) => RecvOutcome::Value(v),
                                     Err(e) => RecvOutcome::DecodeError(format!("{}", e)),
                                 };

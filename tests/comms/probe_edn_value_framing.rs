@@ -111,7 +111,7 @@ fn pprintln_multiline_map_roundtrips_over_pipe() {
         RecvOutcome::Value(recv_val) => {
             // Re-decode the compact form and compare via Value::PartialEq
             // (HashMap equality is key-order-independent — correct for EDN maps).
-            let expected = wat::edn_shim::read_edn(compact, None, None)
+            let expected = wat::edn::render::read_edn(compact, None, None)
                 .expect("compact read_edn should succeed");
             assert_eq!(
                 recv_val, expected,
@@ -148,7 +148,7 @@ fn pprintln_multiline_map_roundtrips_over_pipe() {
 /// (no regression on the normal path).
 #[test]
 fn read_framed_edn_tiny_cap_rejects_overlong_frame() {
-    use wat::edn_shim::{read_framed_edn, FramedRead};
+    use wat::edn::render::{read_framed_edn, FramedRead};
 
     // Craft lines that keep the buffer growing past 64 bytes before completing.
     // Each line is appended with a '\n' inside read_framed_edn.  We feed:
@@ -171,8 +171,8 @@ fn read_framed_edn_tiny_cap_rejects_overlong_frame() {
     let mut iter = lines.iter();
     let result = read_framed_edn(
         |_span| Ok(match iter.next() {
-            Some(s) => wat::edn_shim::LineRead::Line(s.to_string()),
-            None => wat::edn_shim::LineRead::Eof,
+            Some(s) => wat::edn::render::LineRead::Line(s.to_string()),
+            None => wat::edn::render::LineRead::Eof,
         }),
         wat::rust_caller_span!(),
         64, // tiny cap — 64 bytes
@@ -197,7 +197,7 @@ fn read_framed_edn_tiny_cap_rejects_overlong_frame() {
 /// well under the cap still produces `FramedRead::Frame` (no regression).
 #[test]
 fn read_framed_edn_tiny_cap_passes_small_value() {
-    use wat::edn_shim::{read_framed_edn, FramedRead};
+    use wat::edn::render::{read_framed_edn, FramedRead};
 
     // A compact map that fits in < 64 bytes including the trailing '\n'.
     // rune:lint(no-inlined-edn) — input under test: a small EDN value fed line-by-line to read_framed_edn under the tiny cap.
@@ -205,8 +205,8 @@ fn read_framed_edn_tiny_cap_passes_small_value() {
     let mut iter = lines.iter();
     let result = read_framed_edn(
         |_span| Ok(match iter.next() {
-            Some(s) => wat::edn_shim::LineRead::Line(s.to_string()),
-            None => wat::edn_shim::LineRead::Eof,
+            Some(s) => wat::edn::render::LineRead::Line(s.to_string()),
+            None => wat::edn::render::LineRead::Eof,
         }),
         wat::rust_caller_span!(),
         64, // tiny cap — still fits

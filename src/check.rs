@@ -439,7 +439,7 @@ pub(crate) fn return_type_remedies_via(
 /// on the `attempted_clauses` field (the type has no `ToEdn` impl; `via` lifts the
 /// constraint).
 pub(crate) fn clause_attempts_to_edn(v: &[(usize, Vec<String>)]) -> wat_edn::OwnedValue {
-    use crate::to_edn::{edn_kw, ToEdn};
+    use crate::edn::contract::{edn_kw, ToEdn};
     wat_edn::OwnedValue::Vector(
         v.iter()
             .map(|(arity, param_types)| {
@@ -3541,7 +3541,7 @@ fn infer_list(
                 // unification would fail on arc-009 call sites.
                 // Arc-251 canonical-form rewire: each arg type now renders to the
                 // canonical `wat.type/` WatAST form (`holon_type_ast_to_wat_type_form`
-                // in runtime.rs, via `crate::edn_shim::type_expr_to_clojure_form`'s
+                // in runtime.rs, via `crate::edn::render::type_expr_to_clojure_form`'s
                 // discriminator) instead of a mangled keyword — mirrors
                 // field-types-of's declared return shape.
                 if args.len() != 1 {
@@ -3591,7 +3591,7 @@ fn infer_list(
                 // field-names-of immediately above (same bypass rationale);
                 // type-direction twin returning each field's TypeExpr rendered
                 // to the canonical `wat.type/` WatAST form via
-                // `crate::edn_shim::type_expr_to_clojure_form` — plain-EDN,
+                // `crate::edn::render::type_expr_to_clojure_form` — plain-EDN,
                 // decomposable, reparseable (NOT the old `format_type` keyword
                 // flattening, which mangled parametric types via Rust-style
                 // `<>`; NOT the retired HolonAST carrier either).

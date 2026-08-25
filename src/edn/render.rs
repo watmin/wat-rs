@@ -242,8 +242,8 @@ fn tagged_read_outcome_malformed(
     sym: &SymbolTable,
     list_span: &crate::span::Span,
 ) -> Value {
-    use crate::to_edn::WatError;
-    let flat = crate::to_edn::FlatMessage {
+    use crate::edn::contract::WatError;
+    let flat = crate::edn::contract::FlatMessage {
         tag: error_tag,
         key: "reason",
         message,
@@ -583,7 +583,7 @@ fn read_outcome_forms(forms: Value) -> Value {
 /// the identical reason: a structured diagnostic flattened into a String is the mask this arc
 /// exists to kill, and a lossy carrier is what makes that mask mandatory.
 fn read_outcome_malformed(e: &crate::parser::ParseError, sym: &SymbolTable) -> Value {
-    use crate::to_edn::WatError;
+    use crate::edn::contract::WatError;
     let cause_edn = wat_edn::write(&e.error_edn());
     let types = sym.types().map(|t| &**t);
     let ctx = sym.encoding_ctx().map(|c| &**c);
@@ -702,7 +702,7 @@ pub fn eval_write_forms(
             }));
         }
     };
-    let edn = crate::wat_edn_bridge::watast_to_edn(ast);
+    let edn = crate::edn::bridge::watast_to_edn(ast);
     let text = wat_edn::write(&edn);
     Ok(crate::value::TrackedValue::new(
         Value::String(std::sync::Arc::new(text)),
@@ -2289,7 +2289,7 @@ fn edn_to_typed_value_inner(
             // TYPE lattice (types.rs:5212, `:wat::core::Value`), one domain over.
             // `edn_to_watast` is the write side's own inverse (`watast_to_edn`), so
             // accepting here is literally undoing what the wire's own writer did.
-            ":wat::WatAST" => crate::wat_edn_bridge::edn_to_watast(edn)
+            ":wat::WatAST" => crate::edn::bridge::edn_to_watast(edn)
                 .map(|ast| Value::wat__WatAST(Arc::new(ast)))
                 .map_err(|e| EdnCoerceError {
                     expected: ":wat::WatAST".into(),
@@ -4013,7 +4013,7 @@ pub fn value_to_edn_with(
         // A WatAST is a parsed form — by definition an EDN value (watast_to_edn/edn_to_watast
         // are a total bijection). Render it faithfully as its form (legible + recoverable);
         // opaque-nil was a lie. Round-trip-as-WatAST is type-directed (from-edn :T / the typed slot).
-        Value::wat__WatAST(a) => crate::wat_edn_bridge::watast_to_edn(a.as_ref()),
+        Value::wat__WatAST(a) => crate::edn::bridge::watast_to_edn(a.as_ref()),
         Value::wat__core__fn(_) => opaque_nil("wat.core", "fn"),
         Value::wat__kernel__Sender(_) => opaque_nil("wat.kernel", "Sender"),
         Value::wat__kernel__Receiver(_) => opaque_nil("wat.kernel", "Receiver"),
@@ -4166,12 +4166,12 @@ pub(crate) fn keyword_from_wat_path(k: &str) -> OwnedValue {
             // namespace-prefix markers (`:restricted-to` whitelists), whose
             // EDN name is empty. Still total, still non-panicking, no longer
             // a lie.
-            Err(_) => crate::wat_edn_bridge::verbatim_keyword(k),
+            Err(_) => crate::edn::bridge::verbatim_keyword(k),
         }
     } else {
         match Keyword::try_new(stripped) {
             Ok(kw) => OwnedValue::Keyword(kw),
-            Err(_) => crate::wat_edn_bridge::verbatim_keyword(k),
+            Err(_) => crate::edn::bridge::verbatim_keyword(k),
         }
     }
 }

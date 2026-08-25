@@ -18,7 +18,7 @@ use wat::check::error::{CheckError, CheckErrorKind};
 use wat::load::{LoadError, LoadErrorKind, LoadFetchError};
 use wat::runtime::{RuntimeError, RuntimeErrorKind};
 use wat::span::Span;
-use wat::to_edn::ToEdn;
+use wat::edn::contract::ToEdn;
 use wat::types::error::{TypeError, TypeErrorKind};
 
 fn make_span() -> Span {

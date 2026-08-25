@@ -15,7 +15,7 @@
 //!
 //! This is the consumer-side proof that `read_framed_edn` is live: the
 //! dispatch arm in runtime.rs routes to `eval_ioreader_read_frame`, which
-//! calls `crate::edn_shim::read_framed_edn`.
+//! calls `crate::edn::render::read_framed_edn`.
 //!
 //! Three tests:
 //! 1. A MULTI-LINE EDN map written to a StringIoReader decodes to Frame(text).

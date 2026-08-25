@@ -35,7 +35,7 @@
 //! at arc 251.5.
 
 use crate::ast::WatAST;
-use crate::edn_shim::ns_to_wat_path;
+use crate::edn::render::ns_to_wat_path;
 use crate::macros::MacroRegistry;
 use crate::runtime::SymbolTable;
 use super::boundary::{is_unquote_escape, is_where_form, quote_boundary, Boundary};

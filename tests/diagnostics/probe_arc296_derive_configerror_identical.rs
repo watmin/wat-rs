@@ -30,7 +30,7 @@
 use std::sync::Arc;
 use wat::config::{ConfigError, ConfigErrorKind};
 use wat::span::Span;
-use wat::to_edn::ToEdn;
+use wat::edn::contract::ToEdn;
 
 // ─── Shared span fixtures ─────────────────────────────────────────────────────
 

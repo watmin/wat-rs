@@ -123,7 +123,7 @@ pub struct RuntimeError {
     /// `tests/value/probe_runtime_error_boxed_kind_edn.rs` pins that
     /// `Box<RuntimeErrorKind>::to_edn()` == `RuntimeErrorKind::to_edn()` via the
     /// blanket `impl<T: ToEdn> ToEdn for Box<T>` (`crates/wat-edn/src/lib.rs:217`),
-    /// which the hand-written wrapper in `crate::runtime_error_edn` reaches by an
+    /// which the hand-written wrapper in `crate::edn::error` reaches by an
     /// auto-deref'd method call.
     kind: Box<RuntimeErrorKind>,
 }
@@ -341,7 +341,7 @@ pub enum RuntimeErrorKind {
     /// wrapped [`crate::macros::MacroError`] description. Arc 030.
     MacroExpansionFailed {
         op: String,
-        #[to_edn(via = crate::to_edn::error_edn_of_boxed)]
+        #[to_edn(via = crate::edn::contract::error_edn_of_boxed)]
         cause: Box<crate::macros::MacroError>,
     },
     /// A `(:wat::core::match scrutinee ...)` ran with no arm whose
@@ -420,7 +420,7 @@ pub enum RuntimeErrorKind {
     },
     /// Arc 170 slice 1f-ι — `:wat::kernel::readln`'s
     /// EDN→typed-`T` coercion (the `edn_to_typed_value` walker
-    /// in `crate::edn_shim`) found a shape mismatch between the
+    /// in `crate::edn::render`) found a shape mismatch between the
     /// caller's declared `-> :T` annotation and the EDN form on
     /// the wire. `expected` is the wat type the caller asked for;
     /// `got` is the EDN shape that actually arrived; `path`
@@ -430,7 +430,7 @@ pub enum RuntimeErrorKind {
     ///
     /// The diagnostic surface intentionally mirrors `EdnReadError`
     /// (the inverse direction — `wat_edn::OwnedValue` → wat `Value`
-    /// without a target-T annotation); see `crate::edn_shim`.
+    /// without a target-T annotation); see `crate::edn::render`.
     EdnCoerceMismatch {
         op: String,
         // Arc 109 kill-std stone (BRIEF-runtime-error-width): boxed to bring the
@@ -442,7 +442,7 @@ pub enum RuntimeErrorKind {
         // existing `via` and stays unboxed.
         expected: Box<String>,
         got: Box<String>,
-        #[to_edn(via = crate::runtime_error_edn::edn_path_segments)]
+        #[to_edn(via = crate::edn::error::edn_path_segments)]
         path: String,
     },
     /// Arc 234 Stone 234.3b.fix — `:wat::core::Record/assoc` was invoked with
@@ -854,13 +854,13 @@ impl fmt::Debug for RuntimeError {
     // not the Rust struct layout. Every face that reads this error sees structured
     // EDN, never a Rust debug blob.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&crate::to_edn::to_wire_edn(self))
+        f.write_str(&crate::edn::contract::to_wire_edn(self))
     }
 }
 
 impl fmt::Display for RuntimeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&crate::to_edn::to_wire_edn(self))
+        f.write_str(&crate::edn::contract::to_wire_edn(self))
     }
 }
 

@@ -20,7 +20,7 @@
 // as `probe_rational_C2_arithmetic.rs`'s exemption.
 use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
-use wat::edn_shim::value_to_edn;
+use wat::edn::render::value_to_edn;
 use wat::freeze::{eval_in_frozen, startup_from_source};
 use wat::runtime::Environment;
 

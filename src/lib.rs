@@ -73,7 +73,7 @@ pub mod kernel;
 pub mod compose;
 pub mod config;
 pub mod distribution;
-pub mod edn_shim;
+pub mod edn;
 pub mod error_ns;
 pub mod sigma;
 pub mod process;
@@ -93,7 +93,6 @@ pub mod parser;
 pub mod resolve;
 pub mod restriction_entry;
 pub mod runtime;
-pub mod runtime_error_edn;
 pub mod stream;
 pub mod rust_deps;
 pub mod sandbox;
@@ -113,11 +112,7 @@ pub mod channel;
 pub mod time;
 pub mod types;
 pub mod value;
-pub mod to_edn;
-#[cfg(test)]
-mod to_edn_derive_tests;
 pub mod vm_registry;
-pub mod wat_edn_bridge;
 pub(crate) mod intrinsic;
 
 pub use compose::{compose_and_run, compose_and_run_with_loader};
@@ -138,7 +133,7 @@ pub use check::{check_program, CheckEnv, CheckError, CheckErrorKind, CheckErrors
 // `edn_to_value` / `edn_to_typed_value` path like any other type. Measured
 // zero callers in this repo AND in every sibling repo under `holon/`
 // (STOP-3's required check) before deleting.
-pub use edn_shim::{edn_to_value, read_edn, EdnReadError};
+pub use edn::render::{edn_to_value, read_edn, EdnReadError};
 pub use config::{
     collect_entry_file, collect_entry_file_with_inherit, CapacityMode, Config, ConfigError,
 };

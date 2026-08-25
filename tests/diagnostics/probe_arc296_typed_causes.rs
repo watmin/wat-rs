@@ -15,7 +15,7 @@ use std::sync::Arc;
 use wat::macros::{MacroError, MacroErrorKind};
 use wat::runtime::{RuntimeError, RuntimeErrorKind};
 use wat::span::Span;
-use wat::to_edn::ToEdn;
+use wat::edn::contract::ToEdn;
 use wat_edn::OwnedValue;
 
 fn make_span() -> Span {
@@ -87,7 +87,7 @@ fn s2_runtime_error_wire_edn_is_structured_not_prose() {
     let runtime_err = RuntimeError::new(make_span(), RuntimeErrorKind::UnboundSymbol("some-var".into()));
 
     // to_wire_edn is what process_died_error_runtime_value calls.
-    let wire_edn = wat::to_edn::to_wire_edn(&runtime_err);
+    let wire_edn = wat::edn::contract::to_wire_edn(&runtime_err);
 
     // Wire payload must be exact tagged EDN with floor fields (:message / :location / :causes).
     wat::assert_edn_matches_file!(wire_edn.clone(), "probe_arc296_typed_causes__runtime_wire_unbound_symbol.edn", "process_died_error_runtime_value wire payload must be exact structured EDN (NOT prose)");

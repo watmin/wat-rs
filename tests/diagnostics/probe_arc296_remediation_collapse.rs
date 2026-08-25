@@ -20,7 +20,7 @@
 use std::sync::Arc;
 use wat::check::error::{CheckError, CheckErrorKind};
 use wat::span::Span;
-use wat::to_edn::ToEdn;
+use wat::edn::contract::ToEdn;
 use wat_edn::OwnedValue;
 
 fn make_span() -> Span {

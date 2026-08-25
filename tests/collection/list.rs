@@ -219,7 +219,7 @@ fn cross_type_hash_list_vector_same_contents_same_hash() {
 fn edn_roundtrip_list_parse_to_wat_core_list() {
     // Parse EDN `(1 2 3)` → should produce Value::wat__core__List (not Vec)
     use wat_edn::parse;
-    use wat::edn_shim::edn_to_value;
+    use wat::edn::render::edn_to_value;
 
     // rune:lint(no-inlined-edn) — input under test: EDN source string fed to wat_edn::parse; the subject is the reader's list-parse path, not an evaluated value.
     let edn_src = "(1 2 3)";
@@ -246,7 +246,7 @@ fn edn_roundtrip_list_parse_to_wat_core_list() {
 fn edn_roundtrip_vector_still_goes_to_vec() {
     // Parse EDN `[1 2 3]` → should produce Value::Vec (not List)
     use wat_edn::parse;
-    use wat::edn_shim::edn_to_value;
+    use wat::edn::render::edn_to_value;
 
     // rune:lint(no-inlined-edn) — input under test: EDN source string fed to wat_edn::parse; the subject is the reader's vector-parse path, not an evaluated value.
     let edn_src = "[1 2 3]";
@@ -266,7 +266,7 @@ fn edn_roundtrip_vector_still_goes_to_vec() {
 fn edn_roundtrip_list_writes_as_parens() {
     // Write a wat__core__List → should produce EDN parens form, not brackets
     use wat_edn::write;
-    use wat::edn_shim::value_to_edn;
+    use wat::edn::render::value_to_edn;
 
     let list = Value::wat__core__List(Arc::new({
         let mut ll = LinkedList::new();

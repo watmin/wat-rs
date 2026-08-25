@@ -145,14 +145,14 @@ impl Ord for Remedy {
 // `Remedy` gets a `ToEdn` impl so error serializers can embed remedies as a
 // structured `Vector` of tagged maps rather than a `render_remedies()` prose blob.
 
-impl crate::to_edn::ToEdn for Remedy {
+impl crate::edn::contract::ToEdn for Remedy {
     /// `#wat.kernel/Remedy {:form "…" :kind :typo|:retirement :score N :note "…"|nil}`
     ///
     /// `:kind` is a keyword (`:typo` or `:retirement`) derived from `RemedyKind`.
     /// `:score` is the integer Levenshtein distance (0 for retirement hits).
     /// `:note` is the migration caveat string, or `nil` when `None`.
     fn to_edn(&self) -> wat_edn::OwnedValue {
-        use crate::to_edn::{edn_int, edn_kw, edn_str, edn_tag};
+        use crate::edn::contract::{edn_int, edn_kw, edn_str, edn_tag};
         use wat_edn::OwnedValue;
         let kind_kw = match self.kind {
             RemedyKind::Typo(_) => edn_kw("typo"),
@@ -177,7 +177,7 @@ impl crate::to_edn::ToEdn for Remedy {
 /// structurally consistent — never a String, never absent. Used by the serializers
 /// for `ReturnTypeMismatch`, `MalformedForm`, and `MalformedVariant`.
 pub(crate) fn remedies_to_edn(remedies: &[Remedy]) -> wat_edn::OwnedValue {
-    use crate::to_edn::ToEdn;
+    use crate::edn::contract::ToEdn;
     wat_edn::OwnedValue::Vector(remedies.iter().map(|r| r.to_edn()).collect())
 }
 
@@ -503,7 +503,7 @@ mod tests {
 
     #[test]
     fn remedy_to_edn_typo_is_wat_kernel_remedy_tagged() {
-        use crate::to_edn::ToEdn;
+        use crate::edn::contract::ToEdn;
         let r = Remedy {
             form: ":my::Status::Ok".into(),
             kind: RemedyKind::Typo(std::num::NonZeroU32::new(1).unwrap()),
@@ -518,7 +518,7 @@ mod tests {
 
     #[test]
     fn remedy_to_edn_retirement_kind_is_keyword() {
-        use crate::to_edn::ToEdn;
+        use crate::edn::contract::ToEdn;
         let r = Remedy {
             form: ":wat::core::defstruct".into(),
             kind: RemedyKind::Retirement,
@@ -531,7 +531,7 @@ mod tests {
 
     #[test]
     fn remedy_to_edn_note_some_is_string() {
-        use crate::to_edn::ToEdn;
+        use crate::edn::contract::ToEdn;
         let r = Remedy {
             form: ":wat::core::defstruct".into(),
             kind: RemedyKind::Retirement,

@@ -160,7 +160,7 @@ impl EdnRepresentable for crate::value::Value {
         // 258.5b-ii already moved the socket tier OFF it (encode in the eval layer, ship
         // bytes) precisely for this reason; the thread tier passes `T` directly. Anything
         // still reaching here with a record is a plumbing gap, not a rendering choice.
-        crate::edn_shim::value_to_edn_string_with(self, None)
+        crate::edn::render::value_to_edn_string_with(self, None)
     }
 
     fn from_wire(s: &str) -> Result<Self, WireError>
@@ -171,7 +171,7 @@ impl EdnRepresentable for crate::value::Value {
         // trusted channel, so it REFUSES capability tags. The trusted peer wire is
         // the `recv'`/`select'` eval path (runtime.rs), which calls `decode_trusted_wire` directly —
         // the one audited door that may reconstruct a capability (ocap transfer-only).
-        crate::edn_shim::edn_string_to_value(s)
+        crate::edn::render::edn_string_to_value(s)
             .map_err(|e| WireError::new(format!("Value from_wire: {e}")))
     }
 }

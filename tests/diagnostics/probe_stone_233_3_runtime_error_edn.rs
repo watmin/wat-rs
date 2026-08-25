@@ -22,7 +22,7 @@ use std::sync::Arc;
 use wat::runtime::{RuntimeError, RuntimeErrorKind, Value, ValueSnapshot};
 use wat::value::{Provenance, TrackedValue};
 use wat::span::Span;
-use wat::to_edn::ToEdn;
+use wat::edn::contract::ToEdn;
 
 // ─── Probe 1 — NotCallable serializes to #wat.kernel/NotCallable ────────────
 
@@ -109,7 +109,7 @@ fn probe_5_provenance_variants_render_with_tags() {
         head_span: Span::new(span.file.clone(), 5, 12),
     };
 
-    let edn = wat::runtime_error_edn::provenance_to_edn(&prov);
+    let edn = wat::edn::error::provenance_to_edn(&prov);
     let serialized = wat_edn::write(&edn);
 
     wat::assert_edn_matches_file!(serialized, "probe_stone_233_3_runtime_error_edn__provenance_symbol_bound.edn", "Provenance::SymbolBound must surface exact binding-span + head-span in EDN");
@@ -119,7 +119,7 @@ fn probe_5_provenance_variants_render_with_tags() {
         producer: ":wat::core::keyword/from-string",
         call_span: span.clone(),
     };
-    let edn_rb = wat::runtime_error_edn::provenance_to_edn(&prov_rb);
+    let edn_rb = wat::edn::error::provenance_to_edn(&prov_rb);
     let serialized_rb = wat_edn::write(&edn_rb);
 
     wat::assert_edn_matches_file!(serialized_rb, "probe_stone_233_3_runtime_error_edn__provenance_runtime_built.edn", "Provenance::RuntimeBuilt must surface exact producer + call-span in EDN");

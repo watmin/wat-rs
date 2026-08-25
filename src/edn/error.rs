@@ -43,14 +43,14 @@ use crate::span::Span;
 /// and writes the tagged EDN line. Replaces the deleted `runtime_error_to_edn`
 /// + `variant_name` pair.
 pub fn emit_runtime_error_envelope<W: Write>(out: &mut W, err: &RuntimeError) {
-    use crate::to_edn::ToEdn;
+    use crate::edn::contract::ToEdn;
     let line = format!("{}\n", wat_edn::write(&err.to_edn()));
     let _ = out.write_all(line.as_bytes());
 }
 
 /// Arc 298.3 — serialize a dot-notation path string to a vector of segments.
 ///
-/// Used as `#[to_edn(via = crate::runtime_error_edn::edn_path_segments)]`
+/// Used as `#[to_edn(via = crate::edn::error::edn_path_segments)]`
 /// on `EdnCoerceMismatch.path` so the wire form stays `["seg1" "seg2"]`
 /// rather than `"seg1.seg2"` — matching the hand-written serializer.
 pub(crate) fn edn_path_segments(path: &str) -> OwnedValue {
@@ -61,12 +61,12 @@ pub(crate) fn edn_path_segments(path: &str) -> OwnedValue {
 
 // ─── ToEdn + WatError impls ──────────────────────────────────────────────────
 
-impl crate::to_edn::ToEdn for RuntimeError {
+impl crate::edn::contract::ToEdn for RuntimeError {
     /// Pattern A: derive on RuntimeErrorKind generates the variant body;
     /// `:span` appended via `span.to_edn()` (Stone B: the derive-generated
     /// typed record replaces the hand-built `splice_span` helper).
     fn to_edn(&self) -> OwnedValue {
-        use crate::to_edn::edn_kw;
+        use crate::edn::contract::edn_kw;
         let kind_val = self.kind().to_edn();
         match kind_val {
             OwnedValue::Tagged(tag, body) => {
@@ -82,22 +82,22 @@ impl crate::to_edn::ToEdn for RuntimeError {
     }
 }
 
-impl crate::to_edn::WatError for RuntimeError {
+impl crate::edn::contract::WatError for RuntimeError {
     /// Concise single-line headline: the span-free kind Display's first line
     /// (no `file:line` prefix — that lives in `:location`; no multi-line
     /// actual/expected detail — that lives in the structured variant fields).
     fn message(&self) -> String {
-        crate::to_edn::first_line(self.kind().to_string())
+        crate::edn::contract::first_line(self.kind().to_string())
     }
     fn location(&self) -> OwnedValue {
-        crate::to_edn::location_from_span(self.span())
+        crate::edn::contract::location_from_span(self.span())
     }
     fn causes(&self) -> OwnedValue {
         OwnedValue::Vector(vec![])
     }
     fn variant(&self) -> OwnedValue {
-        use crate::to_edn::ToEdn;
-        crate::to_edn::strip_span_from_tagged(self.to_edn())
+        use crate::edn::contract::ToEdn;
+        crate::edn::contract::strip_span_from_tagged(self.to_edn())
     }
 }
 
@@ -112,7 +112,7 @@ pub fn value_snapshot_to_edn(snap: &ValueSnapshot) -> OwnedValue {
     ])
 }
 
-impl crate::to_edn::ToEdn for ValueSnapshot {
+impl crate::edn::contract::ToEdn for ValueSnapshot {
     fn to_edn(&self) -> OwnedValue {
         value_snapshot_to_edn(self)
     }
@@ -145,7 +145,7 @@ pub fn provenance_to_edn(prov: &Provenance) -> OwnedValue {
     }
 }
 
-impl crate::to_edn::ToEdn for Provenance {
+impl crate::edn::contract::ToEdn for Provenance {
     fn to_edn(&self) -> OwnedValue {
         provenance_to_edn(self)
     }
@@ -153,7 +153,7 @@ impl crate::to_edn::ToEdn for Provenance {
 
 /// Arc 298.3 — `impl ToEdn for ClauseAttempt` wraps the free function so
 /// the derive's `Vec<ClauseAttempt>::to_edn()` serializes each element.
-impl crate::to_edn::ToEdn for ClauseAttempt {
+impl crate::edn::contract::ToEdn for ClauseAttempt {
     fn to_edn(&self) -> OwnedValue {
         clause_attempt_to_edn(self)
     }
@@ -214,7 +214,7 @@ fn str_val(s: &str) -> OwnedValue {
 }
 
 fn span_val(span: &Span) -> OwnedValue {
-    use crate::to_edn::ToEdn;
+    use crate::edn::contract::ToEdn;
     span.to_edn()
 }
 

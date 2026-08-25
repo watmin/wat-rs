@@ -17,7 +17,7 @@
 use wat::check::error::{CheckError, CheckErrorKind, CheckErrors};
 use wat::freeze::StartupError;
 use wat::span::Span;
-use wat::to_edn::ToEdn;
+use wat::edn::contract::ToEdn;
 
 /// `edn_to_value` on a `#wat.kernel/CheckErrors {…}` value FAILS — there is no
 /// registered `:wat::kernel::CheckErrors` type and no generic tagged `Value`.
@@ -34,7 +34,7 @@ fn check_errors_edn_does_not_round_trip_to_value() {
 
     // No type registry available here (the common case for a freshly-parsed
     // envelope) → NoTypeRegistry.
-    let decoded = wat::edn_shim::edn_to_value(&edn, None, None);
+    let decoded = wat::edn::render::edn_to_value(&edn, None, None);
     eprintln!("edn_to_value(None) → {:?}", decoded.as_ref().map(|_| "Ok").map_err(|e| e.to_string()));
     assert!(
         decoded.is_err(),

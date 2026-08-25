@@ -147,7 +147,7 @@ fn row4_thermometer_renders_to_directive_tag_and_decodes_to_real_thermometer() {
     let world = startup_beside(file!()).expect("startup");
     let edn = wat_edn::parse_owned(&w).expect("parse the wire text back");
     let target = TypeExpr::Path(":wat::holon::HolonAST".to_string());
-    let decoded = wat::edn_shim::edn_to_typed_value(&target, &edn, world.symbols())
+    let decoded = wat::edn::render::edn_to_typed_value(&target, &edn, world.symbols())
         .unwrap_or_else(|e| panic!("decode of a legitimate Thermometer wire form must succeed: {e:?}"));
     match decoded {
         Value::holon__HolonAST(h) => match h.as_ref() {
@@ -183,7 +183,7 @@ fn row4_thermometer_renders_to_directive_tag_and_decodes_to_real_thermometer() {
 fn row5_slotmarker_renders_to_directive_tag_and_roundtrips() {
     let original = HolonAST::SlotMarker { min: 0.0, max: 10.0 };
     let v = Value::holon__HolonAST(Arc::new(original.clone()));
-    let edn = wat::edn_shim::value_to_edn_with(&v, None);
+    let edn = wat::edn::render::value_to_edn_with(&v, None);
     let w = wat_edn::write(&edn);
     wat::assert_edn_matches_file!(
         w.clone(),
@@ -194,7 +194,7 @@ fn row5_slotmarker_renders_to_directive_tag_and_roundtrips() {
 
     let world = startup_beside(file!()).expect("startup");
     let target = TypeExpr::Path(":wat::holon::HolonAST".to_string());
-    let decoded = wat::edn_shim::edn_to_typed_value(&target, &edn, world.symbols())
+    let decoded = wat::edn::render::edn_to_typed_value(&target, &edn, world.symbols())
         .unwrap_or_else(|e| panic!("SlotMarker decode must succeed: {e:?}"));
     match decoded {
         Value::holon__HolonAST(h) => assert_eq!(
@@ -219,7 +219,7 @@ fn row6_data_holon_roundtrips_under_wat_slash_holon_tag() {
         )]),
     );
     let v = Value::holon__HolonAST(Arc::new(original.clone()));
-    let edn = wat::edn_shim::value_to_edn_with(&v, None);
+    let edn = wat::edn::render::value_to_edn_with(&v, None);
     let w = wat_edn::write(&edn);
     // The builder: "the only things that need tags are stuff like thermometers" — but
     // CORRECTION 2 found the originally-specified bare `#wat.holon <data>` spelling cannot
@@ -235,7 +235,7 @@ fn row6_data_holon_roundtrips_under_wat_slash_holon_tag() {
 
     let world = startup_beside(file!()).expect("startup");
     let target = TypeExpr::Path(":wat::holon::HolonAST".to_string());
-    let decoded = wat::edn_shim::edn_to_typed_value(&target, &edn, world.symbols())
+    let decoded = wat::edn::render::edn_to_typed_value(&target, &edn, world.symbols())
         .unwrap_or_else(|e| panic!("data holon decode must succeed: {e:?}"));
     match decoded {
         Value::holon__HolonAST(h) => assert_eq!(
@@ -257,7 +257,7 @@ fn row7_bare_bundle_raises_on_encode_never_falls_back() {
     let v = Value::holon__HolonAST(Arc::new(bare_bundle));
 
     let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        wat::edn_shim::value_to_edn_with(&v, None)
+        wat::edn::render::value_to_edn_with(&v, None)
     }));
     let err = caught.expect_err(
         "a bare Bundle is neither data nor a recognized directive — encode must RAISE, \

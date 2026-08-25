@@ -47,7 +47,7 @@ use crate::freeze::StartupError;
 /// `SigmaFn(String)` — a bare diagnostic string from the sigma-fn registration
 /// path — so its `:detail` is honest, not a deferral.
 pub fn startup_error_to_edn(err: &StartupError) -> OwnedValue {
-    use crate::to_edn::ToEdn;
+    use crate::edn::contract::ToEdn;
     match err {
         StartupError::Macro(e) => e.to_edn(),
         StartupError::Runtime(e) => e.to_edn(),
@@ -77,11 +77,11 @@ pub fn startup_error_to_edn(err: &StartupError) -> OwnedValue {
 
 // ─── ToEdn + WatError impls ──────────────────────────────────────────────────
 
-impl crate::to_edn::ToEdn for MacroError {
+impl crate::edn::contract::ToEdn for MacroError {
     /// Pattern A: derive on MacroErrorKind generates the variant body;
     /// `:span` appended via `span.to_edn()` (Stone B).
     fn to_edn(&self) -> OwnedValue {
-        use crate::to_edn::edn_kw;
+        use crate::edn::contract::edn_kw;
         let kind_val = self.kind.to_edn();
         match kind_val {
             OwnedValue::Tagged(tag, body) => {
@@ -97,7 +97,7 @@ impl crate::to_edn::ToEdn for MacroError {
     }
 }
 
-impl crate::to_edn::WatError for MacroError {
+impl crate::edn::contract::WatError for MacroError {
     /// Concise single-line headline. The two nested-cause variants drop the
     /// embedded cause text (the cause is now carried structurally under
     /// `:cause` in floor form); every other variant uses the span-free kind
@@ -111,28 +111,28 @@ impl crate::to_edn::WatError for MacroError {
             MacroErrorKind::MacroEvalRuntimeFailed { .. } => {
                 "macro_eval: runtime::eval failed".to_string()
             }
-            _ => crate::to_edn::first_line(self.kind.to_string()),
+            _ => crate::edn::contract::first_line(self.kind.to_string()),
         }
     }
     fn location(&self) -> OwnedValue {
-        crate::to_edn::location_from_span(&self.span)
+        crate::edn::contract::location_from_span(&self.span)
     }
     fn causes(&self) -> OwnedValue {
         OwnedValue::Vector(vec![])
     }
     fn variant(&self) -> OwnedValue {
-        use crate::to_edn::ToEdn;
-        crate::to_edn::strip_span_from_tagged(self.to_edn())
+        use crate::edn::contract::ToEdn;
+        crate::edn::contract::strip_span_from_tagged(self.to_edn())
     }
 }
 
-impl crate::to_edn::ToEdn for crate::freeze::StartupError {
+impl crate::edn::contract::ToEdn for crate::freeze::StartupError {
     fn to_edn(&self) -> OwnedValue {
         startup_error_to_edn(self)
     }
 }
 
-impl crate::to_edn::WatError for crate::freeze::StartupError {
+impl crate::edn::contract::WatError for crate::freeze::StartupError {
     /// `StartupError` is a TRANSPARENT wrapper: its `WatError` methods delegate
     /// to the inner error so `error_edn()` reconstructs the inner error's floor
     /// form EXACTLY (inner tag, inner `:message`, inner `:location`, inner
@@ -154,10 +154,10 @@ impl crate::to_edn::WatError for crate::freeze::StartupError {
             // The boxed FreezeValidatorError carries ToEdn + Debug + Display, not WatError
             // (a validator crate never needs to hand-write message/location/causes/variant) —
             // so the concise message is derived from its Display, first line only.
-            SE::Validator(e) => crate::to_edn::first_line(e.to_string()),
+            SE::Validator(e) => crate::edn::contract::first_line(e.to_string()),
             SE::Stdlib(e) => e.message(),
-            SE::SigmaFn(msg) => crate::to_edn::first_line(msg.clone()),
-            SE::MainSignature(msg) => crate::to_edn::first_line(msg.clone()),
+            SE::SigmaFn(msg) => crate::edn::contract::first_line(msg.clone()),
+            SE::MainSignature(msg) => crate::edn::contract::first_line(msg.clone()),
         }
     }
     fn location(&self) -> OwnedValue {
@@ -215,7 +215,7 @@ impl crate::to_edn::WatError for crate::freeze::StartupError {
             // Same pattern as MacroError::variant() above: strip :span from the boxed
             // error's own to_edn() output. The concrete namespace (e.g. #wat.rete/…) survives
             // by dynamic dispatch — the box never re-tags it.
-            SE::Validator(e) => crate::to_edn::strip_span_from_tagged(e.to_edn()),
+            SE::Validator(e) => crate::edn::contract::strip_span_from_tagged(e.to_edn()),
             SE::Stdlib(e) => e.variant(),
             SE::SigmaFn(msg) => tagged(
                 "SigmaFnError",

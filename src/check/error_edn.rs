@@ -25,11 +25,11 @@ use super::error::{CheckError, CheckErrors};
 
 // ─── ToEdn + WatError impls ──────────────────────────────────────────────────
 
-impl crate::to_edn::ToEdn for CheckError {
+impl crate::edn::contract::ToEdn for CheckError {
     /// Pattern A: derive on CheckErrorKind generates the variant body;
     /// `:span` appended via `span.to_edn()` (Stone B).
     fn to_edn(&self) -> OwnedValue {
-        use crate::to_edn::edn_kw;
+        use crate::edn::contract::edn_kw;
         let kind_val = self.kind.to_edn();
         match kind_val {
             OwnedValue::Tagged(tag, body) => {
@@ -45,26 +45,26 @@ impl crate::to_edn::ToEdn for CheckError {
     }
 }
 
-impl crate::to_edn::WatError for CheckError {
+impl crate::edn::contract::WatError for CheckError {
     /// Concise single-line headline: the span-free kind Display's first line
     /// (no `file:line` prefix, no multi-line hint/remedy sections — those live
     /// in `:location` and the structured variant fields).
     fn message(&self) -> String {
-        crate::to_edn::first_line(self.kind.to_string())
+        crate::edn::contract::first_line(self.kind.to_string())
     }
     fn location(&self) -> OwnedValue {
-        crate::to_edn::location_from_span(&self.span)
+        crate::edn::contract::location_from_span(&self.span)
     }
     fn causes(&self) -> OwnedValue {
         OwnedValue::Vector(vec![])
     }
     fn variant(&self) -> OwnedValue {
-        use crate::to_edn::ToEdn;
-        crate::to_edn::strip_span_from_tagged(self.to_edn())
+        use crate::edn::contract::ToEdn;
+        crate::edn::contract::strip_span_from_tagged(self.to_edn())
     }
 }
 
-impl crate::to_edn::ToEdn for CheckErrors {
+impl crate::edn::contract::ToEdn for CheckErrors {
     /// `#wat.kernel/CheckErrors {:errors [#wat.kernel/<Variant> {…} …]}` —
     /// each `CheckError` in the collection is a navigable tagged value, not a
     /// line in a `:detail` prose blob. This is the structured form the
@@ -78,7 +78,7 @@ impl crate::to_edn::ToEdn for CheckErrors {
     }
 }
 
-impl crate::to_edn::WatError for CheckErrors {
+impl crate::edn::contract::WatError for CheckErrors {
     /// Concise COLLECTION summary — a count, NOT the concatenated multi-line
     /// render of every item. Each item carries its own single-line `:message`
     /// inside the recursively-floored `:errors` array, so re-rendering them

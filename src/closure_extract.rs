@@ -2851,7 +2851,7 @@ fn type_expr_to_colon_ast(ty: &crate::types::TypeExpr, span: &Span) -> WatAST {
         crate::types::TypeExpr::Var(id) => {
             WatAST::Symbol(crate::scope::Identifier::bare(format!("t{id}")), span.clone())
         }
-        other => match crate::edn_shim::type_expr_to_clojure_form(other, crate::edn_shim::TypeFormHeadMode::Colon) {
+        other => match crate::edn::render::type_expr_to_clojure_form(other, crate::edn::render::TypeFormHeadMode::Colon) {
             Ok(node) => node,
             Err(_) => WatAST::Keyword(crate::check::format_type(other), span.clone()),
         },

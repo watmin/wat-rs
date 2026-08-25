@@ -560,13 +560,13 @@ impl std::error::Error for HashError {}
 
 // ─── Arc 296 D1 — structured EDN form for HashError ──────────────────────────
 
-impl crate::to_edn::ToEdn for HashError {
+impl crate::edn::contract::ToEdn for HashError {
     /// `#wat.kernel/<Variant> {…}` per variant.
     ///
     /// String fields → `str_val`; `usize` fields → `int_val` (cast to i64).
     /// `&'static str` fields (`field` on `InvalidBase64`) → `str_val` identically.
     fn to_edn(&self) -> wat_edn::OwnedValue {
-        use crate::to_edn::{edn_int, edn_kw, edn_str, edn_tag};
+        use crate::edn::contract::{edn_int, edn_kw, edn_str, edn_tag};
         use wat_edn::OwnedValue;
         match self {
             HashError::UnsupportedAlgorithm { algo } => edn_tag(

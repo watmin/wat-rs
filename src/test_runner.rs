@@ -820,13 +820,13 @@ fn structured_output_format() -> Option<StructuredOutputFormat> {
 /// Emit one structured EDN envelope to stdout, prefixed with the
 /// test label so consumers can correlate. No-op when
 /// `WAT_TEST_OUTPUT` is unset.
-/// Wire boundary: generic over [`crate::to_edn::ToEdn`].
+/// Wire boundary: generic over [`crate::edn::contract::ToEdn`].
 ///
 /// A type that does not implement `ToEdn` cannot reach this function —
 /// the compiler rejects the call site. This is the compile fence from
 /// arc 296 slice 5: new error variants are forced to implement `ToEdn`
 /// before they can be emitted to the structured output stream.
-fn emit_structured_edn(label: &str, edn: &impl crate::to_edn::ToEdn) {
+fn emit_structured_edn(label: &str, edn: &impl crate::edn::contract::ToEdn) {
     let format = match structured_output_format() {
         Some(f) => f,
         None => return,

@@ -36,7 +36,7 @@
 use wat_edn::OwnedValue;
 
 /// Re-exported from `wat-edn` (where the trait is now defined). All
-/// `impl ToEdn for LocalType` sites in this crate use `crate::to_edn::ToEdn`
+/// `impl ToEdn for LocalType` sites in this crate use `crate::edn::contract::ToEdn`
 /// which resolves here via this re-export — unchanged by the trait relocation.
 pub use wat_edn::ToEdn;
 
@@ -228,7 +228,7 @@ pub(crate) fn location_from_span(span: &crate::span::Span) -> OwnedValue {
 ///
 /// ```text
 /// fn variant(&self) -> OwnedValue {
-///     crate::to_edn::strip_span_from_tagged(self.to_edn())
+///     crate::edn::contract::strip_span_from_tagged(self.to_edn())
 /// }
 /// ```
 ///
@@ -254,7 +254,7 @@ pub(crate) fn strip_span_from_tagged(val: OwnedValue) -> OwnedValue {
 
 /// Call `e.error_edn()` on any [`WatError`] value, returning the floor form.
 ///
-/// Used as a `#[to_edn(via = crate::to_edn::error_edn_of)]` target for fields
+/// Used as a `#[to_edn(via = crate::edn::contract::error_edn_of)]` target for fields
 /// that embed a nested substrate error that must be serialized via the floor
 /// (`:message` / `:location` / `:causes`) rather than raw `to_edn()`. The field
 /// type must implement [`WatError`]; the derive default (`.to_edn()`) applies to
@@ -311,11 +311,11 @@ pub(crate) fn error_edn_of_boxed<T: WatError>(cause: &Box<T>) -> OwnedValue {
 /// ```compile_fail
 /// // ToEdn alone is insufficient — the floor requires WatError.
 /// struct FloorlessError;
-/// impl wat::to_edn::ToEdn for FloorlessError {
+/// impl wat::edn::contract::ToEdn for FloorlessError {
 ///     fn to_edn(&self) -> wat_edn::OwnedValue { wat_edn::OwnedValue::Nil }
 /// }
 /// // ERROR[E0277]: the trait bound `FloorlessError: WatError` is not satisfied.
-/// let _: String = wat::to_edn::to_wire_edn(&FloorlessError);
+/// let _: String = wat::edn::contract::to_wire_edn(&FloorlessError);
 /// ```
 ///
 /// A type implementing neither `ToEdn` nor `WatError` also fails:
@@ -323,7 +323,7 @@ pub(crate) fn error_edn_of_boxed<T: WatError>(cause: &Box<T>) -> OwnedValue {
 /// ```compile_fail
 /// struct NotSerializable;
 /// // ERROR[E0277]: `NotSerializable: WatError` is not satisfied.
-/// let _: String = wat::to_edn::to_wire_edn(&NotSerializable);
+/// let _: String = wat::edn::contract::to_wire_edn(&NotSerializable);
 /// ```
 ///
 /// A real substrate error (implementing `WatError`) reaches the boundary:
@@ -334,7 +334,7 @@ pub(crate) fn error_edn_of_boxed<T: WatError>(cause: &Box<T>) -> OwnedValue {
 ///     span: wat::rust_caller_span!(),
 ///     kind: RuntimeErrorKind::UserMainMissing,
 /// };
-/// let _text: String = wat::to_edn::to_wire_edn(&err);
+/// let _text: String = wat::edn::contract::to_wire_edn(&err);
 /// ```
 pub fn to_wire_edn(e: &impl WatError) -> String {
     wat_edn::write(&e.error_edn())

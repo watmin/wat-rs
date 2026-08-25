@@ -31,13 +31,13 @@ pub enum ResolveError {
 impl fmt::Debug for ResolveError {
     // Stone B: Debug emits EDN, not Rust struct layout.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&crate::to_edn::to_wire_edn(self))
+        f.write_str(&crate::edn::contract::to_wire_edn(self))
     }
 }
 
 impl fmt::Display for ResolveError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&crate::to_edn::to_wire_edn(self))
+        f.write_str(&crate::edn::contract::to_wire_edn(self))
     }
 }
 
@@ -45,7 +45,7 @@ impl std::error::Error for ResolveError {}
 
 // ─── Arc 296 — structured EDN ────────────────────────────────────────────────
 
-impl crate::to_edn::WatError for ResolveError {
+impl crate::edn::contract::WatError for ResolveError {
     /// Concise COLLECTION summary — a count, NOT the concatenated multi-line
     /// render of every reference (each `UnresolvedReference` carries its own
     /// path / context / span structurally under `:unresolved`).
@@ -72,18 +72,18 @@ impl crate::to_edn::WatError for ResolveError {
     /// families), so per the strike's scope they stay `to_edn` and keep their
     /// per-reference `:span`.
     fn variant(&self) -> wat_edn::OwnedValue {
-        use crate::to_edn::ToEdn;
+        use crate::edn::contract::ToEdn;
         self.to_edn()
     }
 }
 
-impl crate::to_edn::ToEdn for ResolveError {
+impl crate::edn::contract::ToEdn for ResolveError {
     /// `#wat.resolve/UnresolvedReferences {:unresolved [#wat.resolve/UnresolvedReference {…} …]}`
     /// — each failed reference is a navigable tagged value (path, context,
     /// span), not a line in a prose blob. Stone B: `span.to_edn()` emits the
     /// derive-generated typed `#wat.core/Span` record.
     fn to_edn(&self) -> wat_edn::OwnedValue {
-        use crate::to_edn::{edn_kw, edn_str};
+        use crate::edn::contract::{edn_kw, edn_str};
         use wat_edn::{OwnedValue, Tag};
 
         match self {

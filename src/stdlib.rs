@@ -585,7 +585,7 @@ impl StdlibError {
 /// Variant data for [`StdlibError`]. The span lives in the outer struct;
 /// variants carry ONLY data unique to each failure kind.
 ///
-/// Arc 296 Strike 3a: `#[derive(ToEdn)]` generates `impl crate::to_edn::ToEdn
+/// Arc 296 Strike 3a: `#[derive(ToEdn)]` generates `impl crate::edn::contract::ToEdn
 /// for StdlibErrorKind`. The `cause` field uses `error_edn_of` (floor form:
 /// `:message`/`:location`/`:causes`) matching the deleted hand-written serializer
 /// which called `cause.error_edn()`. The `path` field (`&'static str`) serializes
@@ -595,7 +595,7 @@ impl StdlibError {
 pub enum StdlibErrorKind {
     ParseFailed {
         path: &'static str,
-        #[to_edn(via = crate::to_edn::error_edn_of)]
+        #[to_edn(via = crate::edn::contract::error_edn_of)]
         cause: ParseError,
     },
 }
@@ -613,13 +613,13 @@ impl std::fmt::Display for StdlibErrorKind {
 impl std::fmt::Debug for StdlibError {
     // Stone B: Debug emits EDN, not Rust struct layout.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&crate::to_edn::to_wire_edn(self))
+        f.write_str(&crate::edn::contract::to_wire_edn(self))
     }
 }
 
 impl std::fmt::Display for StdlibError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&crate::to_edn::to_wire_edn(self))
+        f.write_str(&crate::edn::contract::to_wire_edn(self))
     }
 }
 
@@ -627,29 +627,29 @@ impl std::error::Error for StdlibError {}
 
 // ─── Arc 296 — structured EDN ────────────────────────────────────────────────
 
-impl crate::to_edn::WatError for StdlibError {
+impl crate::edn::contract::WatError for StdlibError {
     /// Concise single-line headline: the span-free kind Display's first line
     /// (the baked stdlib has no wat-source span, so `:location` is nil).
     fn message(&self) -> String {
-        crate::to_edn::first_line(self.kind.to_string())
+        crate::edn::contract::first_line(self.kind.to_string())
     }
     fn location(&self) -> wat_edn::OwnedValue {
-        crate::to_edn::location_from_span(&self.span)
+        crate::edn::contract::location_from_span(&self.span)
     }
     fn causes(&self) -> wat_edn::OwnedValue {
         wat_edn::OwnedValue::Vector(vec![])
     }
     fn variant(&self) -> wat_edn::OwnedValue {
-        use crate::to_edn::ToEdn;
-        crate::to_edn::strip_span_from_tagged(self.to_edn())
+        use crate::edn::contract::ToEdn;
+        crate::edn::contract::strip_span_from_tagged(self.to_edn())
     }
 }
 
-impl crate::to_edn::ToEdn for StdlibError {
+impl crate::edn::contract::ToEdn for StdlibError {
     /// Pattern A: derive on StdlibErrorKind generates the variant body;
     /// `:span` appended via `span.to_edn()` (Stone B).
     fn to_edn(&self) -> wat_edn::OwnedValue {
-        use crate::to_edn::edn_kw;
+        use crate::edn::contract::edn_kw;
         use wat_edn::OwnedValue;
         let kind_val = self.kind.to_edn();
         match kind_val {
@@ -712,7 +712,7 @@ mod tests {
     // S1/S2 (those are in the integration test since RuntimeError is pub).
     #[test]
     fn s6_parse_failed_edn_carries_typed_cause_not_source_string() {
-        use crate::to_edn::ToEdn;
+        use crate::edn::contract::ToEdn;
 
         let bad_source = "(unclosed";
         let parse_err = crate::parser::parse_all_with_file(bad_source, "stdlib-probe.wat")
@@ -777,7 +777,7 @@ mod tests {
     /// every span is a real location; the elide-when-unknown discipline is retired).
     #[test]
     fn s3a_parse_failed_edn_rust_caller_span_carries_span_key() {
-        use crate::to_edn::ToEdn;
+        use crate::edn::contract::ToEdn;
 
         let bad_source = "(unclosed";
         let parse_err = crate::parser::parse_all_with_file(bad_source, "s3a-probe.wat")
@@ -833,7 +833,7 @@ mod tests {
     /// S3a — `ParseFailed` with a known span MUST carry `:span`.
     #[test]
     fn s3a_parse_failed_edn_known_span_carries_span_key() {
-        use crate::to_edn::ToEdn;
+        use crate::edn::contract::ToEdn;
         use std::sync::Arc;
 
         let bad_source = "(unclosed";

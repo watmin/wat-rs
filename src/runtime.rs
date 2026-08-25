@@ -585,7 +585,7 @@ fn stop_failed_names() -> Arc<Vec<String>> {
 /// which would require every possible `RuntimeErrorKind` variant tag to be independently
 /// EDN-decodable; `Fault` is already a single, simple, always-registered record.
 pub(crate) fn fault_from_runtime_error(err: &RuntimeError) -> Value {
-    use crate::to_edn::WatError;
+    use crate::edn::contract::WatError;
     Value::Aggregate(Arc::new(AggregateValue::record(
         "wat::core::Fault".to_string(),
         fault_names(),
@@ -3441,7 +3441,7 @@ fn try_parse_fn_shape_def(form: &WatAST) -> Result<Option<ParsedFnShapeDef>, Run
         // to `:user::main` so the def registers under the SAME key the harness
         // and resolver look up. Additive — the Keyword arm above is unchanged.
         WatAST::Symbol(s, _) if s.is_reference() => {
-            (crate::edn_shim::ns_to_wat_path(s.receiver(), s.method()), Vec::new())
+            (crate::edn::render::ns_to_wat_path(s.receiver(), s.method()), Vec::new())
         }
         _ => return Ok(None),
     };
@@ -3742,7 +3742,7 @@ fn try_parse_user_variadic_def_fn_form(
         // a namespaced Symbol def-name (`my/fold`) → keyword FQDN so faithful
         // VARIADIC defs register too. Additive — Keyword arm above unchanged.
         WatAST::Symbol(s, _) if s.is_reference() => {
-            (crate::edn_shim::ns_to_wat_path(s.receiver(), s.method()), Vec::new())
+            (crate::edn::render::ns_to_wat_path(s.receiver(), s.method()), Vec::new())
         }
         _ => return Ok(None),
     };
@@ -5237,95 +5237,95 @@ fn dispatch_keyword_head(
         }
         ":wat::holon::from-holon" => return eval_holon_from_holon(args, list_span, env, sym),
         ":wat::edn::read" => {
-            return crate::edn_shim::eval_edn_read(args, list_span, env, sym).map_err(Into::into)
+            return crate::edn::render::eval_edn_read(args, list_span, env, sym).map_err(Into::into)
         }
         // Arc 278 Stone 1 (`wat --mcp`) — the JSON-input twin of `edn::read`: parses JSON
         // (not EDN) text and NEVER raises (matchable `ReadJsonOutcome`), because this verb's
         // input arrives from a remote, untrusted harness over stdio. Producer (returns
         // TrackedValue with RuntimeBuilt provenance).
         ":wat::edn::read-json" => {
-            return crate::edn_shim::eval_edn_read_json(args, list_span, env, sym)
+            return crate::edn::render::eval_edn_read_json(args, list_span, env, sym)
                 .map_err(Into::into)
         }
         // Arc 278 Stone A — the DATA-MODE sibling: unknown tag → self-describing
         // dynamic value (ForeignRecord/ForeignVariant) instead of UnknownTag.
         // Producer (returns TrackedValue with RuntimeBuilt provenance).
         ":wat::edn::read-foreign" => {
-            return crate::edn_shim::eval_edn_read_foreign(args, list_span, env, sym)
+            return crate::edn::render::eval_edn_read_foreign(args, list_span, env, sym)
                 .map_err(Into::into)
         }
         // Arc 251.5a-i — the homoiconic `read`: wat SOURCE text → forms-as-data
         // (what `edn::read` can't do — it runs the EDN parser; this runs wat's own).
         ":wat::core::read-string" => {
-            return crate::edn_shim::eval_read_string(args, list_span, env, sym).map_err(Into::into)
+            return crate::edn::render::eval_read_string(args, list_span, env, sym).map_err(Into::into)
         }
         // Arc 251.5a-ii — write side: forms-as-data → clean EDN String (the inverse
         // of read-string; the fixer's read→transform→write cycle closes here).
         ":wat::core::write-forms" => {
-            return crate::edn_shim::eval_write_forms(args, list_span, env, sym).map_err(Into::into)
+            return crate::edn::render::eval_write_forms(args, list_span, env, sym).map_err(Into::into)
         }
         // Arc 278 Stone 1 — the sift Predicate's enabling primitive: forms-as-data →
         // VERBATIM `::`-source text (does NOT dial `::`→`.` the way write-forms does).
         ":wat::core::ast->source" => {
-            return crate::edn_shim::eval_ast_to_source(args, list_span, env, sym)
+            return crate::edn::render::eval_ast_to_source(args, list_span, env, sym)
                 .map_err(Into::into)
         }
         // Arc 251.5a-iii — the AST↔walkable bridge: decompose a :wat::WatAST node
         // into a (Vector :- [:wat::WatAST]) the first/rest/map vocab walks (so a recursive
         // role-inversion transform can be written IN WAT).
         ":wat::core::ast->children" => {
-            return crate::edn_shim::eval_ast_children(args, list_span, env, sym)
+            return crate::edn::render::eval_ast_children(args, list_span, env, sym)
                 .map_err(Into::into)
         }
         // Arc 251.5a-iv — the kind-preserving REBUILD: same kind as template, new children.
         // The inverse of ast->children given the decomposed node.
         ":wat::core::with-children" => {
-            return crate::edn_shim::eval_with_children(args, list_span, env, sym)
+            return crate::edn::render::eval_with_children(args, list_span, env, sym)
                 .map_err(Into::into)
         }
         // Arc 251.5a-v — node recognition + construction.
         ":wat::core::ast-kind" => {
-            return crate::edn_shim::eval_ast_kind(args, list_span, env, sym).map_err(Into::into)
+            return crate::edn::render::eval_ast_kind(args, list_span, env, sym).map_err(Into::into)
         }
         ":wat::core::ast-name" => {
-            return crate::edn_shim::eval_ast_name(args, list_span, env, sym).map_err(Into::into)
+            return crate::edn::render::eval_ast_name(args, list_span, env, sym).map_err(Into::into)
         }
         ":wat::core::ast-span" => {
-            return crate::edn_shim::eval_ast_span(args, list_span, env, sym).map_err(Into::into)
+            return crate::edn::render::eval_ast_span(args, list_span, env, sym).map_err(Into::into)
         }
         ":wat::core::ast-end-span" => {
-            return crate::edn_shim::eval_ast_end_span(args, list_span, env, sym)
+            return crate::edn::render::eval_ast_end_span(args, list_span, env, sym)
                 .map_err(Into::into)
         }
         ":wat::core::symbol-node" => {
-            return crate::edn_shim::eval_symbol_node(args, list_span, env, sym).map_err(Into::into)
+            return crate::edn::render::eval_symbol_node(args, list_span, env, sym).map_err(Into::into)
         }
         // Arc 274.1 — capture-proof binder for program-body macros (sets-of-scopes, fresh ScopeId).
         ":wat::core::fresh-symbol" => {
-            return crate::edn_shim::eval_fresh_symbol(args, list_span, env, sym)
+            return crate::edn::render::eval_fresh_symbol(args, list_span, env, sym)
                 .map_err(Into::into)
         }
         ":wat::core::keyword-node" => {
-            return crate::edn_shim::eval_keyword_node(args, list_span, env, sym)
+            return crate::edn::render::eval_keyword_node(args, list_span, env, sym)
                 .map_err(Into::into)
         }
         ":wat::core::keyword/to-symbol" => {
-            return crate::edn_shim::eval_keyword_to_symbol(args, list_span, env, sym)
+            return crate::edn::render::eval_keyword_to_symbol(args, list_span, env, sym)
                 .map_err(Into::into)
         }
         ":wat::core::keyword/to-type-form" => {
-            return crate::edn_shim::eval_keyword_to_type_form(args, list_span, env, sym)
+            return crate::edn::render::eval_keyword_to_type_form(args, list_span, env, sym)
                 .map_err(Into::into)
         }
         ":wat::core::keyword/to-type-form-colon" => {
-            return crate::edn_shim::eval_keyword_to_type_form_colon(args, list_span, env, sym)
+            return crate::edn::render::eval_keyword_to_type_form_colon(args, list_span, env, sym)
                 .map_err(Into::into)
         }
         // Arc 258 Stone 258.2b — first-class macro-abort. Evaluates the one String arg and
         // returns Err(MacroAbort) so the macro engine (macro_eval_pre_validated) wraps it into
         // a clean MacroError without "runtime::eval failed:" prefix noise. Macro-body-only.
         ":wat::core::macro-error" => {
-            let v = match crate::edn_shim::require_one_arg(
+            let v = match crate::edn::render::require_one_arg(
                 ":wat::core::macro-error",
                 args,
                 env,
@@ -6680,38 +6680,38 @@ fn dispatch_keyword_head_value(
         // which wraps strings in `"..."`, `str` renders values as format fills them.
         ":wat::core::str" => eval_str(args, list_span, env, sym),
         ":wat::edn::write" => {
-            crate::edn_shim::eval_edn_write(args, list_span, env, sym).map_err(Into::into)
+            crate::edn::render::eval_edn_write(args, list_span, env, sym).map_err(Into::into)
         }
         ":wat::edn::write-pretty" => {
-            crate::edn_shim::eval_edn_write_pretty(args, list_span, env, sym).map_err(Into::into)
+            crate::edn::render::eval_edn_write_pretty(args, list_span, env, sym).map_err(Into::into)
         }
         ":wat::edn::write-json" => {
-            crate::edn_shim::eval_edn_write_json(args, list_span, env, sym).map_err(Into::into)
+            crate::edn::render::eval_edn_write_json(args, list_span, env, sym).map_err(Into::into)
         }
         ":wat::edn::write-json-natural" => {
-            crate::edn_shim::eval_edn_write_json_natural(args, list_span, env, sym)
+            crate::edn::render::eval_edn_write_json_natural(args, list_span, env, sym)
                 .map_err(Into::into)
         }
         // ":wat::edn::read" is routed by dispatch_keyword_head directly (producer).
         // Arc 278 Stone A — foreign dynamic-value accessors (navigate DATA, not a
         // typed value). ":wat::edn::read-foreign" is a producer, routed above.
         ":wat::edn::ForeignRecord/get" => {
-            crate::edn_shim::eval_foreign_record_get(args, list_span, env, sym).map_err(Into::into)
+            crate::edn::render::eval_foreign_record_get(args, list_span, env, sym).map_err(Into::into)
         }
         ":wat::edn::ForeignRecord/class" => {
-            crate::edn_shim::eval_foreign_record_class(args, list_span, env, sym)
+            crate::edn::render::eval_foreign_record_class(args, list_span, env, sym)
                 .map_err(Into::into)
         }
         ":wat::edn::ForeignVariant/variant" => {
-            crate::edn_shim::eval_foreign_variant_variant(args, list_span, env, sym)
+            crate::edn::render::eval_foreign_variant_variant(args, list_span, env, sym)
                 .map_err(Into::into)
         }
         ":wat::edn::ForeignVariant/enum-class" => {
-            crate::edn_shim::eval_foreign_variant_enum_class(args, list_span, env, sym)
+            crate::edn::render::eval_foreign_variant_enum_class(args, list_span, env, sym)
                 .map_err(Into::into)
         }
         ":wat::edn::ForeignVariant/fields" => {
-            crate::edn_shim::eval_foreign_variant_fields(args, list_span, env, sym)
+            crate::edn::render::eval_foreign_variant_fields(args, list_span, env, sym)
                 .map_err(Into::into)
         }
         ":wat::holon::vector-bind" => eval_holon_vector_bind(args, list_span, env, sym),
@@ -13165,7 +13165,7 @@ fn type_expr_to_ast(ty: &crate::types::TypeExpr) -> WatAST {
         crate::types::TypeExpr::Var(id) => {
             WatAST::Symbol(crate::scope::Identifier::bare(format!("t{id}")), span)
         }
-        other => match crate::edn_shim::type_expr_to_clojure_form(other, crate::edn_shim::TypeFormHeadMode::Clojure) {
+        other => match crate::edn::render::type_expr_to_clojure_form(other, crate::edn::render::TypeFormHeadMode::Clojure) {
             Ok(node) => node,
             // Unmodeled shape (malformed trailing-`::` path, or a
             // bare/higher-kinded parametric head) — never reachable from a
@@ -14629,7 +14629,7 @@ fn eval_extract_arg_names(
 /// HolonAST-carrier contract. So each type AST is instead rendered directly
 /// to the canonical arc-251 `wat.type/` `WatAST` form via
 /// `holon_type_ast_to_wat_type_form` — a structural mirror of
-/// [`crate::edn_shim::type_expr_to_clojure_form`] operating on the HolonAST
+/// [`crate::edn::render::type_expr_to_clojure_form`] operating on the HolonAST
 /// shapes `type_expr_to_ast` emits (rather than on `TypeExpr` directly), so
 /// parametric types (e.g. `(Peer' :- [A B])`) render to a decomposable
 /// `(wat.kernel/Peer' probe.A probe.B)` list instead of a mangled keyword.
@@ -14784,7 +14784,7 @@ fn eval_field_names_of(
 ///
 /// Value representation (post arc-251 type-form rewire): each field's
 /// `TypeExpr` is rendered directly via
-/// [`crate::edn_shim::type_expr_to_clojure_form`] to the canonical
+/// [`crate::edn::render::type_expr_to_clojure_form`] to the canonical
 /// `wat.type/` `WatAST` form and wrapped as `Value::wat__WatAST` — NOT the
 /// old `format_type` keyword flattening, which mangled parametric types
 /// (`Peer'<probe::Kv::Op,probe::Kv::Reply>` → the broken, non-reparseable
@@ -14815,7 +14815,7 @@ fn eval_field_types_of(
 
     let mut types: Vec<Value> = Vec::with_capacity(agg.fields.len());
     for (_, ty) in agg.fields.iter() {
-        let node = crate::edn_shim::type_expr_to_clojure_form(ty, crate::edn_shim::TypeFormHeadMode::Clojure).map_err(|reason| {
+        let node = crate::edn::render::type_expr_to_clojure_form(ty, crate::edn::render::TypeFormHeadMode::Clojure).map_err(|reason| {
             RuntimeError::new(
                 list_span.clone(),
                 RuntimeErrorKind::MalformedForm {
@@ -16340,7 +16340,7 @@ pub(crate) fn eval_kernel_raise(
         // Defensive: the checker gates `data` to `:wat::core::Error` (a String
         // `message` field), so this only fires for an out-of-band caller — fall
         // back to the EDN rendering rather than an empty message.
-        .unwrap_or_else(|| wat_edn::write(&crate::edn_shim::value_to_edn_with(&data, types)));
+        .unwrap_or_else(|| wat_edn::write(&crate::edn::render::value_to_edn_with(&data, types)));
     let frames = snapshot_call_stack();
     let location = frames.first().map(|f| f.call_span.clone());
     let payload = crate::assertion::AssertionPayload {
@@ -18043,9 +18043,9 @@ fn eval_edn_validate(
             reason: "validate requires the type registry, but the SymbolTable has no TypeEnv attached (programmer error: this build path didn't go through startup_from_source / freeze)".into()
         }).into());
     }
-    let edn = crate::edn_shim::value_to_edn_with(&value, sym.types().map(|a| a.as_ref()));
+    let edn = crate::edn::render::value_to_edn_with(&value, sym.types().map(|a| a.as_ref()));
     Ok(
-        match crate::edn_shim::edn_to_typed_value(&texpr, &edn, sym) {
+        match crate::edn::render::edn_to_typed_value(&texpr, &edn, sym) {
             Ok(_) => Value::Enum(Arc::new(EnumValue {
                 type_path: ":wat::edn::Validation".into(),
                 variant_name: "Valid".into(),
@@ -26442,7 +26442,7 @@ pub(crate) fn eval_listener_prime(
                     }
                 }
             } else {
-                crate::edn_shim::DEFAULT_MAX_FRAME_BYTES
+                crate::edn::render::DEFAULT_MAX_FRAME_BYTES
             };
             // autobind_listener creates the socket SOCK_NONBLOCK (the C0b.3a-i invariant).
             let (ul, name_bytes) = crate::comms::process::autobind_listener(128).map_err(|e| {
@@ -27772,7 +27772,7 @@ pub(crate) fn thread_crash_panic_edn(
     types: Option<&crate::types::TypeEnv>,
 ) -> String {
     let chain = single_died_chain(thread_died_error_panic(message, assertion));
-    let edn = crate::edn_shim::value_to_edn_with(&chain, types);
+    let edn = crate::edn::render::value_to_edn_with(&chain, types);
     wat_edn::write(&edn)
 }
 
@@ -27785,8 +27785,8 @@ pub(crate) fn thread_crash_runtime_edn(
     re: &RuntimeError,
     types: Option<&crate::types::TypeEnv>,
 ) -> String {
-    let chain = single_died_chain(thread_died_error_runtime(crate::to_edn::to_wire_edn(re)));
-    let edn = crate::edn_shim::value_to_edn_with(&chain, types);
+    let chain = single_died_chain(thread_died_error_runtime(crate::edn::contract::to_wire_edn(re)));
+    let edn = crate::edn::render::value_to_edn_with(&chain, types);
     wat_edn::write(&edn)
 }
 
@@ -27865,13 +27865,13 @@ fn process_died_error_runtime(message: String) -> Value {
 /// Cross-module pub(crate) accessor for spawn_process.rs / fork.rs
 /// (arc 170 slice 1i — structured runtime-error exit path).
 ///
-/// Arc 296 strike 2 — generic over [`crate::to_edn::WatError`]: the payload
+/// Arc 296 strike 2 — generic over [`crate::edn::contract::WatError`]: the payload
 /// is produced from the error's `WatError::error_edn()` via
-/// [`crate::to_edn::to_wire_edn`], so a non-`WatError` type cannot reach this
+/// [`crate::edn::contract::to_wire_edn`], so a non-`WatError` type cannot reach this
 /// wire boundary (it is a compile error). The floor (:message :location :causes)
 /// is always present in the wire payload.
-pub(crate) fn process_died_error_runtime_value(e: &impl crate::to_edn::WatError) -> Value {
-    process_died_error_runtime(crate::to_edn::to_wire_edn(e))
+pub(crate) fn process_died_error_runtime_value(e: &impl crate::edn::contract::WatError) -> Value {
+    process_died_error_runtime(crate::edn::contract::to_wire_edn(e))
 }
 
 /// Build a `:wat::kernel::ProcessDiedError::MainSignature(message)`
@@ -27888,12 +27888,12 @@ fn process_died_error_main_signature(message: String) -> Value {
 
 /// Cross-module pub(crate) accessor.
 ///
-/// Arc 296 strike 2 — generic over [`crate::to_edn::WatError`]. The
+/// Arc 296 strike 2 — generic over [`crate::edn::contract::WatError`]. The
 /// main-signature validation message is a flat message carried via a
-/// [`crate::to_edn::FlatMessage`] (itself a `WatError`), so it too crosses
+/// [`crate::edn::contract::FlatMessage`] (itself a `WatError`), so it too crosses
 /// through the floor.
-pub(crate) fn process_died_error_main_signature_value(e: &impl crate::to_edn::WatError) -> Value {
-    process_died_error_main_signature(crate::to_edn::to_wire_edn(e))
+pub(crate) fn process_died_error_main_signature_value(e: &impl crate::edn::contract::WatError) -> Value {
+    process_died_error_main_signature(crate::edn::contract::to_wire_edn(e))
 }
 
 /// Build a `:wat::kernel::ProcessDiedError::BadReturn(message)`
@@ -27910,11 +27910,11 @@ fn process_died_error_bad_return(message: String) -> Value {
 
 /// Cross-module pub(crate) accessor.
 ///
-/// Arc 296 strike 2 — generic over [`crate::to_edn::WatError`]. The bad-return
-/// type name is a flat message carried via a [`crate::to_edn::FlatMessage`]
+/// Arc 296 strike 2 — generic over [`crate::edn::contract::WatError`]. The bad-return
+/// type name is a flat message carried via a [`crate::edn::contract::FlatMessage`]
 /// (itself a `WatError`), so it too crosses through the floor.
-pub(crate) fn process_died_error_bad_return_value(e: &impl crate::to_edn::WatError) -> Value {
-    process_died_error_bad_return(crate::to_edn::to_wire_edn(e))
+pub(crate) fn process_died_error_bad_return_value(e: &impl crate::edn::contract::WatError) -> Value {
+    process_died_error_bad_return(crate::edn::contract::to_wire_edn(e))
 }
 
 /// Derive the human message from a `LociDiedError` variant's carried payload.
@@ -28256,7 +28256,7 @@ fn loci_died_error_from_reason(reason: String, types: Option<&crate::types::Type
         if edn_is_loci_died_chain(&parsed) {
             // ctx=None: this decodes only the fixed core `LociDiedError` enum — never a
             // user-declared HolonRecord class — so no EncodingCtx is ever needed here.
-            if let Ok(Value::Vec(items)) = crate::edn_shim::edn_to_value(&parsed, types, None) {
+            if let Ok(Value::Vec(items)) = crate::edn::render::edn_to_value(&parsed, types, None) {
                 if let Some(head) = items.first() {
                     return head.clone();
                 }
@@ -28265,7 +28265,7 @@ fn loci_died_error_from_reason(reason: String, types: Option<&crate::types::Type
         // A single #wat.kernel.LociDiedError/… tagged value → bridge as-is.
         if let wat_edn::OwnedValue::Tagged(tag, _) = &parsed {
             if tag.namespace() == "wat.kernel.LociDiedError" {
-                if let Ok(v) = crate::edn_shim::edn_to_value(&parsed, types, None) {
+                if let Ok(v) = crate::edn::render::edn_to_value(&parsed, types, None) {
                     return v;
                 }
             }
@@ -28847,7 +28847,7 @@ fn form_outcome(variant: &str, fields: Vec<Value>) -> Value {
 /// own decision. This variant is newly minted, so it takes the honest carrier from birth
 /// and inherits none of that debt.
 fn check_failed_cause(e: &crate::freeze::StartupError, sym: &SymbolTable) -> Value {
-    use crate::to_edn::WatError;
+    use crate::edn::contract::WatError;
     let cause_edn = wat_edn::write(&e.error_edn());
     let types = sym.types().map(|t| &**t);
     let ctx = sym.encoding_ctx().map(|c| &**c);
@@ -28867,11 +28867,11 @@ fn check_failed_cause(e: &crate::freeze::StartupError, sym: &SymbolTable) -> Val
     // returned value, so `:CheckFailed`'s declared `:wat::core::Error` is always
     // satisfied by a genuinely typed record — the dynamic part is contained in the
     // causes chain, which is exactly what a causes chain is for.
-    let nested = crate::edn_shim::decode_trusted_wire(&cause_edn, types, ctx).or_else(|_| {
+    let nested = crate::edn::render::decode_trusted_wire(&cause_edn, types, ctx).or_else(|_| {
         wat_edn::parse_owned(&cause_edn)
             .map_err(|_| ())
             .and_then(|owned| {
-                crate::edn_shim::edn_to_value_foreign(&owned, types, ctx).map_err(|_| ())
+                crate::edn::render::edn_to_value_foreign(&owned, types, ctx).map_err(|_| ())
             })
     });
 
@@ -31372,7 +31372,7 @@ pub(crate) fn eval_peer_send_prime(
             // receiver side uses sym.types() too (arc 258.5b / 272 6c.2), so the
             // named-field map round-trips exactly. Before 258.5b, send' called
             // value_to_edn (no registry) and recv' expected a `-> :T` hint.
-            let edn_str = wat_edn::write(&crate::edn_shim::value_to_edn_with(
+            let edn_str = wat_edn::write(&crate::edn::render::value_to_edn_with(
                 &payload_val,
                 sym.types().map(|a| a.as_ref()),
             ));
@@ -31428,7 +31428,7 @@ pub(crate) fn eval_peer_send_prime(
                         None => send_outcome_closed(),
                         Some(peer) if peer.is_socket_tier() => {
                             // Socket-tier: encode with type registry in eval, ship the wire String.
-                            let wire = crate::edn_shim::value_to_edn_string_with(
+                            let wire = crate::edn::render::value_to_edn_string_with(
                                 &payload_val,
                                 sym.types().map(|a| a.as_ref()),
                             );
@@ -31514,7 +31514,7 @@ pub(crate) fn eval_peer_try_send_prime(
                         // Already closed → Closed (never an error).
                         None => try_send_outcome_closed(),
                         Some(peer) if peer.is_socket_tier() => {
-                            let wire = crate::edn_shim::value_to_edn_string_with(
+                            let wire = crate::edn::render::value_to_edn_string_with(
                                 &payload_val,
                                 sym.types().map(|a| a.as_ref()),
                             );
@@ -31817,7 +31817,7 @@ pub(crate) fn eval_peer_recv_prime(
                         Some(crate::kernel::spawn::ProcessSelectable::Spawned(bundle)) => {
                             use crate::kernel::spawn::PeerRecvError;
                             Ok(match bundle.recv() {
-                                Ok(edn_str) => match crate::edn_shim::decode_trusted_wire(
+                                Ok(edn_str) => match crate::edn::render::decode_trusted_wire(
                                     &edn_str,
                                     sym.types().map(|a| a.as_ref()),
                                     sym.encoding_ctx().map(|a| a.as_ref()),
@@ -31878,7 +31878,7 @@ pub(crate) fn eval_peer_recv_prime(
                         Some(peer) if peer.is_socket_tier() => {
                             match peer.recv_wire() {
                                 Ok(wire) => Ok(
-                                    match crate::edn_shim::decode_trusted_wire(
+                                    match crate::edn::render::decode_trusted_wire(
                                         &wire,
                                         sym.types().map(|a| a.as_ref()),
                                         sym.encoding_ctx().map(|a| a.as_ref()),
@@ -32852,7 +32852,7 @@ pub(crate) fn eval_peer_select_prime(
                     Ok(edn_str) => {
                         // Arc 258.5b / 272 6a-i / step 5 / 6c.2 — select' is the TRUSTED peer wire:
                         // decode through the capability door with the full type registry.
-                        let value = crate::edn_shim::decode_trusted_wire(
+                        let value = crate::edn::render::decode_trusted_wire(
                             &edn_str,
                             sym.types().map(|a| a.as_ref()),
                             sym.encoding_ctx().map(|a| a.as_ref()),
@@ -33101,7 +33101,7 @@ pub(crate) fn eval_peer_select_prime(
                                             reason: "select (process tier): peer message is not valid UTF-8".into(),
                                         }))
                                 })?;
-                                let msg = crate::edn_shim::decode_trusted_wire(
+                                let msg = crate::edn::render::decode_trusted_wire(
                                     wire_str,
                                     sym.types().map(|a| a.as_ref()),
                                     sym.encoding_ctx().map(|a| a.as_ref()),
@@ -33324,7 +33324,7 @@ pub(crate) fn eval_kernel_after(
         // Encode msg to a wire frame (tagged EDN + '\n') — same framing as send'
         // and as a real socket peer's frames, so `poll'`/`select'` decode it via
         // `decode_trusted_wire` identically to any accepted connection.
-        let edn_node = crate::edn_shim::value_to_edn_with(&msg, sym.types().map(|a| a.as_ref()));
+        let edn_node = crate::edn::render::value_to_edn_with(&msg, sym.types().map(|a| a.as_ref()));
         let edn_str = wat_edn::write(&edn_node);
         let mut frame: Vec<u8> = edn_str.into_bytes();
         frame.push(b'\n');
@@ -33873,7 +33873,7 @@ pub(crate) fn eval_poll_prime(
                                             reason: "poll (process tier): admin message is not valid UTF-8".into(),
                                         }))
                                 })?;
-                                let msg = crate::edn_shim::decode_trusted_wire(
+                                let msg = crate::edn::render::decode_trusted_wire(
                                     wire_str,
                                     sym.types().map(|a| a.as_ref()),
                                     sym.encoding_ctx().map(|a| a.as_ref()),
@@ -33926,7 +33926,7 @@ pub(crate) fn eval_poll_prime(
                                 // service, and its reason vanished on the EPIPE'd err pipe).
                                 // The serve loop replies the cause to THIS client (Reply::Failed)
                                 // and keeps serving — the peer is ALIVE.
-                                match crate::edn_shim::decode_trusted_wire(
+                                match crate::edn::render::decode_trusted_wire(
                                     wire_str,
                                     sym.types().map(|a| a.as_ref()),
                                     sym.encoding_ctx().map(|a| a.as_ref()),
@@ -34134,7 +34134,7 @@ pub(crate) fn eval_poll_prime(
                                                             // service-fatal: return Malformed{idx,cause}
                                                             // instead of raising (mirrors the main
                                                             // client arm above).
-                                                            match crate::edn_shim::decode_trusted_wire(
+                                                            match crate::edn::render::decode_trusted_wire(
                                                                 ws2,
                                                                 sym.types().map(|a| a.as_ref()),
                                                                 sym.encoding_ctx().map(|a| a.as_ref()),
@@ -34371,7 +34371,7 @@ mod tests {
         // The owner's recv' Lost decoder STRICT-decodes the chain.
         let types = crate::types::TypeEnv::with_builtins();
         let parsed = wat_edn::parse_owned(&line).expect("emitted chain must parse");
-        let decoded = crate::edn_shim::edn_to_value(&parsed, Some(&types), None).unwrap_or_else(|err| {
+        let decoded = crate::edn::render::edn_to_value(&parsed, Some(&types), None).unwrap_or_else(|err| {
             panic!("the emitted StartupError chain must STRICT-decode to typed records; got {err:?}\n  line: {line}")
         });
 

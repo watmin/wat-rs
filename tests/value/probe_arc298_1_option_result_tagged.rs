@@ -17,7 +17,7 @@
 //! Round-trip: `edn_to_value(parse(write(v))) == v` for all four.
 
 use std::sync::Arc;
-use wat::edn_shim::{edn_to_value, value_to_edn};
+use wat::edn::render::{edn_to_value, value_to_edn};
 use wat::runtime::Value;
 
 fn write_value(v: &Value) -> String {

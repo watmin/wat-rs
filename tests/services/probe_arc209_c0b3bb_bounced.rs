@@ -74,7 +74,7 @@ fn stranger_is_bounced() {
     // The golden #probe.Outcome/Bounced [] is captured (UPDATE_EDN=1), never hand-authored.
     let v = apply_function(func, vec![], world.symbols(), wat::rust_caller_span!())
         .unwrap_or_else(|e| panic!("the stranger's bounce must surface as a VALUE compute FACES (never a raise past apply_function); got Err: {e:?}"));
-    let edn = ::wat_edn::write(&wat::edn_shim::value_to_edn(&v));
+    let edn = ::wat_edn::write(&wat::edn::render::value_to_edn(&v));
     wat::assert_edn_matches_file!(edn, "c0b3bb_bounced__stranger_is_bounced.edn",
       "the stranger (pid ∉ allow-set) must be BOUNCED — its recv' EOFs → it dies → the owner FACES the death as a matchable Outcome::Bounced, never Served");
 }

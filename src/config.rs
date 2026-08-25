@@ -232,13 +232,13 @@ impl fmt::Display for ConfigErrorKind {
 impl fmt::Debug for ConfigError {
     // Stone B: Debug emits EDN, not Rust struct layout.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&crate::to_edn::to_wire_edn(self))
+        f.write_str(&crate::edn::contract::to_wire_edn(self))
     }
 }
 
 impl fmt::Display for ConfigError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&crate::to_edn::to_wire_edn(self))
+        f.write_str(&crate::edn::contract::to_wire_edn(self))
     }
 }
 
@@ -246,29 +246,29 @@ impl std::error::Error for ConfigError {}
 
 // ─── Arc 296 — structured EDN ────────────────────────────────────────────────
 
-impl crate::to_edn::WatError for ConfigError {
+impl crate::edn::contract::WatError for ConfigError {
     /// Concise single-line headline: the span-free kind Display (no `file:line`
     /// prefix — that lives in `:location`).
     fn message(&self) -> String {
-        crate::to_edn::first_line(self.kind.to_string())
+        crate::edn::contract::first_line(self.kind.to_string())
     }
     fn location(&self) -> wat_edn::OwnedValue {
-        crate::to_edn::location_from_span(&self.span)
+        crate::edn::contract::location_from_span(&self.span)
     }
     fn causes(&self) -> wat_edn::OwnedValue {
         wat_edn::OwnedValue::Vector(vec![])
     }
     fn variant(&self) -> wat_edn::OwnedValue {
-        use crate::to_edn::ToEdn;
-        crate::to_edn::strip_span_from_tagged(self.to_edn())
+        use crate::edn::contract::ToEdn;
+        crate::edn::contract::strip_span_from_tagged(self.to_edn())
     }
 }
 
-impl crate::to_edn::ToEdn for ConfigError {
+impl crate::edn::contract::ToEdn for ConfigError {
     /// Pattern A: derive on ConfigErrorKind generates the variant body;
     /// `:span` appended via `span.to_edn()` (Stone B).
     fn to_edn(&self) -> wat_edn::OwnedValue {
-        use crate::to_edn::edn_kw;
+        use crate::edn::contract::edn_kw;
         use wat_edn::OwnedValue;
         let kind_val = self.kind.to_edn();
         match kind_val {

@@ -18,7 +18,7 @@
 //! (`wat-reader`'s grammar is wider than `wat-edn`'s). When arc 300 retires the
 //! rust-scheme surface, the encode-side round-trip test stops firing on its own.
 
-use wat::wat_edn_bridge::{edn_to_program, program_to_edn};
+use wat::edn::bridge::{edn_to_program, program_to_edn};
 
 /// Cross a program and require an exact (span-agnostic) identity back.
 fn crosses(src: &str, file: &str) -> Result<Vec<String>, String> {

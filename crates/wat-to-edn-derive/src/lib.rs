@@ -31,7 +31,7 @@
 //! - **`#[to_edn(via = path::to::fn)]`** — Instead of calling `field.to_edn()`,
 //!   emit `(key, path::to::fn(field))`. Fn signature: `fn(&FieldType) -> ::wat_edn::OwnedValue`.
 //! - **Span fields** — A field whose type's last path segment is `Span` is
-//!   emitted via `crate::to_edn::push_span_field`. The key defaults to snake→kebab
+//!   emitted via `crate::edn::contract::push_span_field`. The key defaults to snake→kebab
 //!   or the `#[to_edn(key="…")]` override.
 //!
 //! ### Variant-level directives

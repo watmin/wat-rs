@@ -8,7 +8,7 @@
 //!      reconstructs a Value::Aggregate (not an UnknownTag error).
 //! C3 — The write side still emits `#wat.core/Pos {:line N :col N}`.
 
-use wat::edn_shim::read_edn;
+use wat::edn::render::read_edn;
 use wat::runtime::Value;
 use wat::types::TypeEnv;
 use wat_reader::span::Pos;

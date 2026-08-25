@@ -12,21 +12,21 @@ pub use wat_reader::parser::*;
 // rule: both trait and type are now foreign to `wat`; the impl must live
 // in the crate that owns the type).
 
-impl crate::to_edn::WatError for ParseError {
+impl crate::edn::contract::WatError for ParseError {
     /// Concise single-line headline: the span-free kind Display (no `file:line`
     /// prefix — that lives in `:location`).
     fn message(&self) -> String {
-        crate::to_edn::first_line(self.kind.to_string())
+        crate::edn::contract::first_line(self.kind.to_string())
     }
     fn location(&self) -> wat_edn::OwnedValue {
-        crate::to_edn::location_from_span(&self.span)
+        crate::edn::contract::location_from_span(&self.span)
     }
     fn causes(&self) -> wat_edn::OwnedValue {
         wat_edn::OwnedValue::Vector(vec![])
     }
     fn variant(&self) -> wat_edn::OwnedValue {
-        use crate::to_edn::ToEdn;
-        crate::to_edn::strip_span_from_tagged(self.to_edn())
+        use crate::edn::contract::ToEdn;
+        crate::edn::contract::strip_span_from_tagged(self.to_edn())
     }
 }
 

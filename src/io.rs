@@ -998,7 +998,7 @@ pub fn eval_ioreader_read_line(
 /// cap defaults to `DEFAULT_MAX_FRAME_BYTES` (512 KiB). The 2-arg form is
 /// used by `StdInService/handle` when `readln'` passes a caller-supplied cap.
 ///
-/// Consumes `crate::edn_shim::read_framed_edn` — the live wire-protocol
+/// Consumes `crate::edn::render::read_framed_edn` — the live wire-protocol
 /// accumulator.
 pub fn eval_ioreader_read_frame(
     args: &[WatAST],
@@ -1017,7 +1017,7 @@ pub fn eval_ioreader_read_frame(
             }));
     }
     let reader = expect_reader(op, eval(&args[0], env, sym)?, args[0].span().clone())?;
-    use crate::edn_shim::{read_framed_edn, FramedRead, DEFAULT_MAX_FRAME_BYTES};
+    use crate::edn::render::{read_framed_edn, FramedRead, DEFAULT_MAX_FRAME_BYTES};
     let cap: usize = if args.len() == 2 {
         match eval(&args[1], env, sym)?.value_owned() {
             Value::i64(n) if n > 0 => n as usize,
@@ -1048,7 +1048,7 @@ pub fn eval_ioreader_read_frame(
     let broadcast_fd = crate::runtime::SHUTDOWN_BROADCAST_READ_FD.load(
         std::sync::atomic::Ordering::SeqCst,
     );
-    use crate::edn_shim::LineRead;
+    use crate::edn::render::LineRead;
     let next_line = |span: Span| -> Result<LineRead, RuntimeError> {
         if let (Some(pfd), true) = (pipe_fd_opt, broadcast_fd >= 0) {
             loop {
