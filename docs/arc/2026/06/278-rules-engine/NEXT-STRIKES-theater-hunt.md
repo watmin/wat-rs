@@ -320,7 +320,7 @@ hash (`u64`) of the span would key the set without materializing. Care: must
 preserve the distinct-inner-binds semantics Clara's `test-simple-exists`
 asserts. Do after T2 (same code region).
 
-### T7 — `Op::Or` / `Op::Not` allocate a SlotFrame per branch, per element — ⚠ RECLASSIFIED 2026-08-24: it was never "cold", it was UNEXERCISED
+### T7 — `Op::Or` / `Op::Not` allocate a SlotFrame per branch, per element — ✅ **CLOSED 2026-08-25** (Or hoisted; Not affirmatively cut — see the CLOSING TALLY). Previously ⚠ RECLASSIFIED 2026-08-24: it was never "cold", it was UNEXERCISED
 
 > **"COLD" was the wrong word and it cost this entry its priority.** It meant "no perf
 > axis measures this" and read as "we have looked at this." Grounded by arming a
@@ -1132,20 +1132,57 @@ one away) · `excusare` 2 L2 · `perspicere` 2 of 3 L2 · **`solvere` all 7 L2**
 `vocare` 4 of 6 · `complectens` 1 of 2 · `conferre` 1 of 2 · `circumspicere` 1 of 3
 (one DEFERRED by ruling, one correctly scoped as unrunnable in CI).
 
-**STILL OPEN — nothing here can compute a wrong answer.**
-- `conferre` 1 L2 — `wat_scripts_grid_axes_live.rs` header prose says "18 axes"; the
-  arrays hold 41. Prose drift, load-bearing only for a reader reasoning about coverage.
-- `exigere` 1 L1 + 1 L2 — a cache-stone "a later stone" that never came and is tracked
-  nowhere; one "not a v1 blocker" row with no owner, arc, or gate.
-- `perspicere` 1 L2 — `fire/mod.rs`'s `harvested` re-spells the existing `QueryMemory`
-  alias, which is in scope and is literally what it is assigned into.
-- `sequi` 2 L3 — `arm.rs`'s `ARM_TABLE` rune is categorised `host-idiom` where the
-  structurally identical `EXEC_ARENA` two files over is `ambient-context`; and
-  `bind_only`/`cond_key_ids` exist as two live copies (round-local + session) whose
-  reason is nowhere stated, having already misled two scans.
-- `vocare` 2 of 6 — `probe_arc278_49_one_core_covers_the_surfaces` (an honest DESIGN
-  probe; NOT a vantage defect — see the retraction below) and
-  `differential_exists_no_multiplicity`, named for a contract its fixture cannot reach.
+**STILL OPEN — nothing here can compute a wrong answer.** (Rows marked CLOSED below were driven
+down on 2026-08-25; the remaining genuinely-open items are `complectens` 1, `circumspicere` 1, T7,
+the two TRACKED DECISIONS at the foot of this file, and the `CLAUDE.md` record defect that needs
+the builder.)
+- `conferre` 1 L2 — **CLOSED 2026-08-25, and it was worse than "prose drift".** The header said
+  "18 axes / 9 sized + 10 where-*"; the disk held 43 / 11 + 32. The floor assertion
+  `stems.len() >= 18` carried the same stale number, so the gate was measuring less than half the
+  corpus while reading as current. Cured by DELETING the counts rather than correcting them: both
+  populations are now asserted EXACTLY equal to their arrays (`SIZED_AXES`, `WHERE_FAMILY`), so
+  the arrays are the count and there is no second place for a number to rot. Mutation-proven —
+  an unassigned axis file fails the gate by name.
+- `exigere` 1 L1 + 1 L2 — **CLOSED 2026-08-25 by BOUNDING, not by shipping.** Both were
+  deferral-prose with no owner, arc, or gate; both are now rows in "TRACKED DECISIONS" at the
+  foot of this file, and the source comments point AT those rows instead of promising a future
+  stone. Bounding is the honest close here because both need a builder's ruling on a shipped
+  surface — but note what the grounding turned up: the cache row's stated blocker had EXPIRED,
+  and nothing would ever have noticed, because an untracked deferral has no re-read.
+- `perspicere` 1 L2 — **CLOSED 2026-08-25.** `fire/mod.rs:1111` now declares `harvested` as
+  `QueryMemory`, the alias already in scope and the type of the field it is assigned into.
+- `sequi` 2 L3 — **BOTH CLOSED 2026-08-25.**
+  - `ARM_TABLE` recategorised to `ambient-context` (it holds domain state reached by id, not a
+    stateless host mechanism). The root was that the four-category vocabulary had **no written
+    definition anywhere**, so two identical `thread_local!`s could carry different labels and
+    nothing could notice. Cured with a table + discriminating question in `docs/CONVENTIONS.md`
+    ("The `rune:sequi` vocabulary") and `tests/lint/no_unknown_sequi_rune.rs`, which closes the
+    SET (a fifth category is a red build) — stated plainly in the lint's own header as NOT able
+    to catch a wrong choice among the four, because claiming otherwise would be the decoration
+    this arc keeps removing.
+  - `bind_only`/`cond_key_ids`: the reason is now stated at both ends, and it is a **borrow
+    split**, not an oversight — PROVEN, not asserted. Collapsing to the single `wm.*` copy was
+    compiled: `error[E0502]` ×4, "cannot borrow `wm.bind_only` as immutable because it is also
+    borrowed as mutable". The comment also records why they cannot drift (cleared at fire start,
+    one `clone_from` writer, no later mutation), so no reader has to carry that question.
+- `vocare` 2 of 6 — **BOTH CLOSED 2026-08-25.**
+  - `differential_exists_no_multiplicity` was named for a contract its fixture could not reach,
+    and this was the sharpest find of the day: `:w::watched`'s `:then` binds only `?loc`, so
+    three token passes derive the SAME `Watched` and `production_delta`'s value-dedup collapses
+    them — the assertion read 1 on a correct engine AND on a fully-multiplying one. **The same
+    mask hid the real leading-filter defect for the whole arc.** Renamed to
+    `differential_exists_three_readings_derive_one_fact` (what it observes), and the contract now
+    has a gate that CAN go red: `:w::q-watched-tokens` carries the rule's `:when` verbatim so
+    `query` reads BETA, below the dedup. Its sensitivity is proven in-tree rather than assumed —
+    `:w::q-watched-join` is the same query with the `exists` wrapper removed, and reads 3 where
+    the existential reads 1 on identical facts.
+  - `probe_arc278_49_one_core_covers_the_surfaces` stands as an honest disconfirming DESIGN probe
+    (vocare's read confirmed on the disk). But its header claimed `Op` had "six variants" — it
+    had FIVE at the commit that introduced it (`5e2216db8`) and has seven now, so the number was
+    wrong the day it was written AND drifted since, with nothing able to catch either: `Op` is
+    `pub(crate)` and this is an integration test. The count is removed; the real gate is named
+    instead — `every_op_variant_lands_in_core_or_driver`'s `lands()` is an exhaustive match, so
+    an eighth variant cannot compile until someone classifies it.
 - `complectens` 1 of 2 — the leading-filter contract has no base-layer unit test.
   DELIBERATELY not taken: `filter_pass` is unreachable from an integration test, and
   going in-crate means the empty-`:rhs` implementer vantage just marked as a runed
@@ -1153,12 +1190,42 @@ one away) · `excusare` 2 L2 · `perspicere` 2 of 3 L2 · **`solvere` all 7 L2**
 - `circumspicere` 1 L2 — the grid's SPEED half runs in no CI job. Correctly scoped: it
   needs Clara and a JDK the runner lacks. The CORRECTNESS half never needed Clara and
   now runs on every floor.
-- **T7** — `Op::Or`/`Op::Not` allocate a `SlotFrame` per branch per element. Last, and
-  reclassified: it was never "cold", it was UNEXERCISED, and that half is now closed by
-  `where-or-inline`. The allocation itself remains, on a rare shape, measurable only by
-  building an axis for it — more work than the fix.
-- **RECORD** — `wat-rs/CLAUDE.md`'s delivery claim (fix lives in the FROZEN holon root:
-  builder's call) and `tmp/VIGILIA-LOOP.md`, stale and untracked.
+- **T7 — CLOSED 2026-08-25, half shipped and half affirmatively CUT.** `Op::Or` now takes ONE
+  frame for the whole disjunction (`clear` + `extend_from_slice` per branch) instead of one
+  allocation per branch — the copy IS the semantics and is preserved exactly; only the repeated
+  malloc, which was invariant work inside the loop, goes. Taken as arithmetic, **not** as a
+  measured win, and the comment says so: no perf axis reaches these arms, so there is no
+  before/after to cite. `Op::Not` is a single shot with nothing to hoist; driving it to zero
+  needs a nesting-aware frame arena, and standing up a SECOND arena beside `expr_ir.rs`'s
+  `EXEC_ARENA` — the duplication `solvere` exists to catch — to buy a saving nothing can measure
+  is the wrong trade. Cut, with the reason at the arm and the re-entry condition named (build an
+  intra-condition `or`/`not` axis first). Done is done: shipped or cut, not deferred.
+  - Also corrected while there: the executor's doc said these arms were "not exercised by
+    anything in the live grid corpus". True when written, **false since `where-or-inline`
+    landed** — they are exercised for CORRECTNESS on every floor. The narrower true statement
+    (no PERF axis reaches them) is what the doc says now. Two different claims that one sentence
+    had been blurring, which is how "unexercised" survived as a reason to not look.
+- **RECORD** — `wat-rs/CLAUDE.md`'s delivery claim STILL OPEN (fix lives in the FROZEN holon
+  root: builder's call; re-confirmed 2026-08-25 — `grep -c wat-rs holon/CLAUDE.md` → 0).
+  `tmp/VIGILIA-LOOP.md` CLOSED: moved to `docs/VIGILIA-LOOP.md`, tracked, freshness re-tended;
+  `/tmp/` gitignored so the scratch run-dirs stop showing as untracked work.
+- **RECORD — FOUND DURING THE 2026-08-25 RECOLLIGERE, not on any ward's list.** The recovery
+  map itself had drifted, in the two places that cost a waking instance the most:
+  - `COMPACTION-AMNESIA-RECOVERY.md`'s ledger named the live breadcrumb as
+    `CLIFFNOTES "Currently"` — **arc 170's** cliff notes. An instance filling that ledger
+    honestly would read the wrong file and still tick every box. (A prior self had already
+    recorded this exact defect as OWED at `REALIZATIONS.md:10578` and it was never actioned.)
+    Fixed: the file now names the one breadcrumb by path, with the freshness probe spelled out.
+  - Its arc-enumeration step was `ls docs/arc/2026/$(date +%m)/`, which **exits 2** — the active
+    arc is 2026/06 and `2026/08/` does not exist. A step that errors is a step a hurried
+    instance skips. Replaced with `ls -dt docs/arc/2026/*/*/ | head -5`.
+  - **The breadcrumb had FORKED FOUR WAYS.** `SEAM.md` ("the ONE live breadcrumb", HEAD
+    `7263551a`, floor 4391), `DESIGN-no-hidden-failures.md` (SIX stacked SEAM blocks, oldest
+    HEAD `90317e86`), `BACKLOG.md` ("CURRENT STATE — read first", saying 278 is PARKED), and the
+    true one. `SEAM.md`'s own rule condemned the rest — *"There is exactly ONE seam. If you find
+    a second, one of them is lying — prune it"* — and nobody had ever run it. All three demoted
+    in place with banners naming the live breadcrumb; none deleted, since each is accurate about
+    its own period.
 
 ## WHAT THIS ARC LEARNED THAT OUTLIVES IT
 
@@ -1183,3 +1250,67 @@ one away) · `excusare` 2 L2 · `perspicere` 2 of 3 L2 · **`solvere` all 7 L2**
 7. **A gate that cannot go red is decoration** — mutation-test every one before landing
    it — and a gate that can silently compare a value to ITSELF is worse than none
    (`:derived` vs `:oracle-derived`; the `q-scan` control row).
+8. **The corollary, learned 2026-08-25: a gate can be red-able and still blind.** A test whose
+   assertion holds identically on a correct engine and a broken one has not been mutation-proven,
+   it has been *named*. `differential_exists_no_multiplicity` could go red — on the wrong things.
+   The cure is a CONTROL in the same fixture that exercises the failing shape and reads a
+   different number: `q-watched-join` reports 3 where the existential reports 1, which is what
+   turns the sibling from a restatement into a measurement.
+9. **A rule written in prose that nothing runs is a convention, and its confidence SUPPRESSES the
+   audit.** `SEAM.md` said "there is exactly ONE seam; if you find a second, prune it" — and four
+   had accumulated in the same directory. Nobody had run it, precisely because it read as
+   enforced. When you write a rule into a document, name which rung of extirpare's ladder it sits
+   on, so the next reader knows it is unenforced instead of assuming otherwise.
+10. **A deferral's REASON expires silently; only a tracked row gets re-read.** The cache panics
+   cited a marshalling limitation that had been fixed long before, in two files, and every reader
+   accepted it. Prose has no review point. And **bounding is a real close, not a dodge** — a row
+   with an owner, a cost, and the open question stated is what exigere asks for when shipping
+   needs a ruling you do not own. "A later stone" is what it forbids.
+
+
+## TRACKED DECISIONS — deferrals that are BOUNDED, not promised (2026-08-25)
+
+`exigere`'s rule: what cannot ship in this stone either ships now or is bounded by a named,
+owned, re-readable row. Prose in a source comment saying "a later stone" is neither — it has no
+owner, and crucially **no re-read**, so its premise can rot without anyone learning. Both rows
+below were that shape until this stamp. Each names its owner, what it would cost, and the
+question that has to be answered before it can move.
+
+### ① The cache primitive's two panics — DECISION: builder
+
+**Where:** `src/rust_deps/cache.rs` (module doc + `Lru::new` / `put` / `get`), `wat/cache.wat`.
+
+**What:** `:wat::cache::Lru::new` panics on `capacity <= 0`; `put`/`get` panic on a non-hashable
+(opaque-handle) key. Stone 1 surfaced this as a question and left it to "a later stone".
+
+**⚠ The reason it was deferred is no longer true, and that is the finding.** Stone 1's ground
+was that `#[wat_dispatch]` could not marshal a method-internal error back to wat. At this HEAD
+it can: `Result<T, E>` marshals natively through the blanket `ToWat`/`FromWat` impls, INCLUDING
+`Result<Self, E>` for a constructor — verified against `src/rust_deps/sqlite.rs`'s
+"Errors-as-values — the exact mechanism", which states it needs ZERO macro changes. So the
+conversion is mechanically available today and has been for some time.
+
+**The open question is now purely a design call:** does the no-hidden-failures law reach a
+*programming-error* input, or stop at a *fallible* one? sqlite's verbs are fallible — a disk can
+be missing. A non-positive capacity is a bug in the caller, and the checker already rejects an
+opaque-typed key at most call sites. Both readings are defensible; that is why it is a ruling
+and not a cleanup.
+
+**Cost if ruled "convert":** a SHIPPED public surface changes — every caller of `Lru::new` must
+match a Result — and `wat/cache.wat`'s `lru-svc` (including the durable-record rebuild path)
+moves in the same breath. Not a one-file strike.
+
+### ② `match` map-destructure field index — DECISION: builder, LOW
+
+**Where:** the superseded history block of `CURRENT-STATE-annihilate-interpretation.md`, in the
+"Open / settled" table.
+
+**What:** the sibling row `(:Type/field ?var)` was SETTLED as "compile the index" — the class and
+field are both in the accessor head, so `TypeEnv` yields the `usize` at rule-compile. The
+map-destructure arm of `match` was left at "Only that arm. Possible; not specified. Not a v1
+blocker." — a status with no owner and no gate.
+
+**The question:** should that arm compile its field index the same way its settled sibling does,
+or is the arm genuinely different? Nobody has specified it, which is the actual gap; "not a v1
+blocker" is a priority, not an answer, and a priority with no row attached is how an item stops
+being looked at at all.

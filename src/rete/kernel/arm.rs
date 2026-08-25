@@ -570,11 +570,18 @@ struct InternEntry {
     leases: usize,
 }
 
-// rune:sequi(host-idiom) — ZERO-MUTEX intern index is thread-owned RefCell
+// rune:sequi(ambient-context) — ZERO-MUTEX intern index is thread-owned RefCell
 // (`DESIGN-STONE-intern-zero-mutex` THE ONE CONTRACT: Session stays 8 fields;
 // `DESIGN-STONE-intern-eviction` forbids an intern handle on Session). Circuits
 // are a pure function of network+rules; fire threads `Arc<InternedNetwork>`
 // after `get_or_build`. The table is the worker memo, not a Session overlay.
+// It holds DOMAIN state (the armed network + its lease count) reached by id
+// rather than through any signature, which is what makes it ambient-context and
+// not host-idiom — cf. `EXEC_ARENA` (expr_ir.rs), the same shape, same category.
+// Recategorised 2026-08-25: `sequi` found it labelled `host-idiom` beside an
+// identical `ambient-context` neighbour. See CONVENTIONS.md, "The `rune:sequi`
+// vocabulary" — the categories had no written definition, so nothing could
+// notice the two disagreeing.
 // rune:circumspicere(accepted-by-design) — lease is `arm-session`/`release-session`,
 // not Session Drop (stone 29). Connection-thread affinity is the ZERO-MUTEX
 // contract (DESIGN-STONE-intern-zero-mutex): fire/release on another thread
