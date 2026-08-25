@@ -483,7 +483,7 @@ pub(crate) fn eval_string_split(
 /// first (the uniform thing), pieces second (the per-call thing). `pieces`
 /// accepts the full `Seqable :- [T]` surface (Vector, PersistentVector,
 /// List, Stream) — each element renders through the same total door `str`
-/// uses (`render_str_total`, `string_ops.rs`, 279.3), so `join` and `str`
+/// uses (`render_str_total`, `string/mod.rs`, 279.3), so `join` and `str`
 /// cannot drift.
 ///
 /// @added         1.0.0

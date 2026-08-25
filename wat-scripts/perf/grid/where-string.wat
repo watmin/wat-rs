@@ -36,7 +36,7 @@
 ;;   r=2 → n = "zzcatzz"     — the needle in the MIDDLE, with trailing content after it too, so
 ;;                              `contains?` and `ends-with?` disagree on this row — length 7.
 ;;   r=3 → n = "ねこcat"      — UNICODE. Two BMP hiragana chars (each 3 UTF-8 bytes, 0 surrogate
-;;                              pairs — wat's `char` is BMP-only per `src/string_ops.rs`, so this
+;;                              pairs — wat's `char` is BMP-only per `src/intrinsic/char.rs`, so this
 ;;                              stays inside what both engines can represent as a single "char") in
 ;;                              front of the needle — length 5 CHARS (not bytes: 6+3=9 UTF-8 bytes),
 ;;                              directly exercising `string::length`'s "unicode scalar count, not

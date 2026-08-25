@@ -252,11 +252,11 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
     }
     // Pure ∧ deterministic by namespace prefix — every op here is referentially transparent.
     // `total` is NOT blanket over the prefix (unlike pure/deterministic): `string::subs` is
-    // GENUINELY PARTIAL — verified `string_ops.rs::eval_string_subs` raises `MalformedForm` when
+    // GENUINELY PARTIAL — verified `intrinsic/string.rs::eval_string_subs` raises `MalformedForm` when
     // `start`/`end` fall outside the string's char-length (out-of-range indices), the exact
     // domain-fault shape this axis exists to catch. The three below are the ones the where-corpus
     // (`where-string.wat`) demonstrates a need for, each verified total by reading its own
-    // implementation (`string_ops.rs`): `length`/`trim`/`to-lowercase` always return, for any
+    // implementation (`intrinsic/string.rs`): `length`/`trim`/`to-lowercase` always return, for any
     // string input, no raise. Every other `string::`/`regex::` verb (incl. `subs`, `split`,
     // `to-uppercase`, the whole `regex::` family) is left `false` — undemanded, unmeasured.
     if head.starts_with(":wat::string::") || head.starts_with(":wat::regex::") {
@@ -610,7 +610,7 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
     //   `PersistentVector/get` — ALREADY total by design (returns `Option`, `None` on
     //     out-of-range — verified `persistentvector_get_inner`, never raises for a valid index).
     //   `String/concat` `/starts-with?` `/ends-with?` `/contains?` `/empty?` — verified
-    //     (`string_ops.rs`) total for any two strings, no domain restriction.
+    //     (`intrinsic/string.rs`) total for any two strings, no domain restriction.
     //   `foldl` — CONDITIONALLY total exactly like its pure∧det entry above: the verb ITSELF never
     //     raises (an empty seq returns the seed), so marking the head total and letting
     //     `classify_expr`'s general-list arm recurse into the fn-literal argument (checking ITS

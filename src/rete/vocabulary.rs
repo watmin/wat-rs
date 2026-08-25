@@ -615,10 +615,10 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // to-lowercase}` are the three the namespace-prefix arm carves out of `total: false` by name
     // (`purity.rs:176-190`, "each verified total by reading its own implementation"). Signatures
     // verified against the CHECKER's own registration (`check.rs`'s `env.register` calls for each
-    // core head — the `String/*` family's public type, not `string_ops.rs`'s doc comment, which
+    // core head — the `String/*` family's public type, not `intrinsic/string.rs`'s doc comment, which
     // documents the underlying variadic `eval_string_concat` `String/concat` itself delegates to
     // but the checker constrains to exactly two args); `string::*`/`i64::to-f64` verified against
-    // `string_ops.rs`'s own doc comments, which match exactly.
+    // `intrinsic/string.rs`'s own doc comments, which match exactly.
     ReteOp {
         type_params: &[],
         rete_name: ":wat::rete::core::String/concat",

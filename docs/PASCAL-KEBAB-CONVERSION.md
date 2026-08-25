@@ -83,7 +83,7 @@ There is no heuristic that makes consecutive-capital acronyms round-trip. Two ap
 
 ## What HEAD gives you (grounded, arc 265)
 
-Shipped string primitives (`src/string_ops.rs`, `wat/` registrations):
+Shipped string primitives (`src/intrinsic/string.rs`, `wat/` registrations):
 
 - `:wat::core::string::length s` → char count.
 - `:wat::core::string::subs s start end` → **char-indexed** substring (start-incl, end-excl).
