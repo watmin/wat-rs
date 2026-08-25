@@ -249,6 +249,8 @@ pub(super) fn validate_pure_total(form: &WatAST) -> Result<(), MacroError> {
         | WatAST::RationalLit(_, _)
         // Arc 300 stone C1 — bigint literal is a leaf too.
         | WatAST::BigIntLit(_, _)
+        // Arc 300 stone D — char literal is a leaf too.
+        | WatAST::CharLit(_, _)
         | WatAST::BoolLit(_, _)
         | WatAST::StringLit(_, _)
         | WatAST::NilLit(_)

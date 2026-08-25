@@ -134,6 +134,10 @@ const TAG_RATIONAL: u8 = 0x1d;
 /// Arc 300 stone C1 — bigint literal tag `<int>N`. Distinct from every
 /// other numeric tag so a `BigIntLit` never hash-collides with them.
 const TAG_BIGINT: u8 = 0x1e;
+/// Arc 300 stone D — char literal tag `\c`. Distinct from every other
+/// tag (in particular `TAG_STRING`) so a `CharLit('a')` never
+/// hash-collides with `StringLit("a")`.
+const TAG_CHAR: u8 = 0x1f;
 
 /// Ed25519 signature length in bytes.
 const ED25519_SIG_LEN: usize = 64;
@@ -203,6 +207,13 @@ fn write_canonical_wat(ast: &WatAST, out: &mut Vec<u8>, renumber: &mut ScopeRenu
             let digits = n.to_string();
             out.extend_from_slice(&(digits.len() as u32).to_le_bytes());
             out.extend_from_slice(digits.as_bytes());
+        }
+        // Arc 300 stone D — char literal. Encode the scalar codepoint as a
+        // fixed-width u32 (chars are BMP-only by construction, but the
+        // full u32 range costs nothing and needs no length prefix).
+        WatAST::CharLit(c, _) => {
+            out.push(TAG_CHAR);
+            out.extend_from_slice(&(*c as u32).to_le_bytes());
         }
         WatAST::BoolLit(b, _) => {
             out.push(TAG_BOOL);

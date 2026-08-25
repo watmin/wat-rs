@@ -1164,6 +1164,8 @@ fn classify_expr(ast: &WatAST, axes: &[Axis], sym: &SymbolTable, seen: &mut Hash
         | WatAST::RationalLit(_, _)
         // Arc 300 stone C1 — bigint literal is pure, deterministic data too.
         | WatAST::BigIntLit(_, _)
+        // Arc 300 stone D — char literal is pure, deterministic data too.
+        | WatAST::CharLit(_, _)
         | WatAST::BoolLit(_, _)
         | WatAST::StringLit(_, _)
         | WatAST::NilLit(_)

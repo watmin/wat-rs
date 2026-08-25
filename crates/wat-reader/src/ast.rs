@@ -80,6 +80,18 @@ pub enum WatAST {
     /// magnitude (clj: `(class 1N)` is `clojure.lang.BigInt`).
     BigIntLit(BigInt, Span),
 
+    /// Character literal, as in `\a`, `\newline`, `A` (arc 300 stone D).
+    /// Scalar-literal lane, NOT a desugared constructor call (arc 244 /
+    /// arc 300 B / C1 precedent) — the parser previously desugared `\c`
+    /// into `(:wat::core::char/of "c")`, a three-node call where a
+    /// one-node literal belonged. The lexer resolves named
+    /// (`\newline`/`\space`/`\tab`) and unicode forms to a `char` before
+    /// this point; the parser sees only the resolved value. The
+    /// `:wat::core::char/of` verb keeps working as a real runtime
+    /// String→char conversion; it simply stops being the reader's parse
+    /// target.
+    CharLit(char, Span),
+
     /// Boolean literal, as in `true` or `false`.
     BoolLit(bool, Span),
 
@@ -166,6 +178,7 @@ impl WatAST {
             | WatAST::FloatLit(_, s)
             | WatAST::RationalLit(_, s)
             | WatAST::BigIntLit(_, s)
+            | WatAST::CharLit(_, s)
             | WatAST::BoolLit(_, s)
             | WatAST::StringLit(_, s)
             | WatAST::NilLit(s)
@@ -195,6 +208,10 @@ impl WatAST {
     /// Synthetic bigint literal. Arc 300 stone C1.
     pub fn bigint(n: BigInt) -> Self {
         WatAST::BigIntLit(n, crate::rust_caller_span!())
+    }
+    /// Synthetic char literal. Arc 300 stone D.
+    pub fn char(c: char) -> Self {
+        WatAST::CharLit(c, crate::rust_caller_span!())
     }
     pub fn bool(b: bool) -> Self {
         WatAST::BoolLit(b, crate::rust_caller_span!())
@@ -443,6 +460,7 @@ impl WatAST {
             WatAST::FloatLit(_, _) => "float",
             WatAST::RationalLit(_, _) => "rational",
             WatAST::BigIntLit(_, _) => "bigint",
+            WatAST::CharLit(_, _) => "char",
             WatAST::BoolLit(_, _) => "bool",
             WatAST::StringLit(_, _) => "string",
             WatAST::NilLit(_) => "nil",
@@ -498,6 +516,7 @@ impl std::hash::Hash for WatAST {
             WatAST::FloatLit(x, _) => x.to_bits().hash(state),
             WatAST::RationalLit(r, _) => r.hash(state),
             WatAST::BigIntLit(n, _) => n.hash(state),
+            WatAST::CharLit(c, _) => c.hash(state),
             WatAST::BoolLit(b, _) => b.hash(state),
             WatAST::StringLit(s, _) => s.hash(state),
             // NilLit: leaf literal — discriminant (above) fully identifies it.

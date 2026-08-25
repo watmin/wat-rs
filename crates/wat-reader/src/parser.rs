@@ -394,20 +394,15 @@ impl<'a> Cursor<'a> {
             Token::Unquote => self.parse_reader_macro(":wat::core::unquote", span),
             Token::UnquoteSplicing => self.parse_reader_macro(":wat::core::unquote-splicing", span),
             // Arc 220 slice 2 — `\c` character literal reader macro.
-            // Desugars to `(:wat::core::char/of "x")` at parse time, matching
-            // the Clojure/EDN `\c` form. The single-char string carries the
-            // literal value; `char/of` constructs the typed `:wat::core::char`.
-            // Named chars (`\newline` etc.) are resolved by the lexer before
-            // this point; the parser sees only the resolved `char` value.
-            // Stone 242.1 — renamed from :wat::core::Char/of to :wat::core::char/of
-            // (scalar types lowercase per Doctrine 2).
-            Token::Char(c) => Ok(Some(WatAST::List(
-                vec![
-                    WatAST::Keyword(":wat::core::char/of".into(), span.clone()),
-                    WatAST::StringLit(c.to_string(), span.clone()),
-                ],
-                span,
-            ))),
+            // Arc 300 stone D — joins the scalar-literal lane (mirrors the
+            // BigInt/Rational arms above, one type over) rather than
+            // desugaring into a `(:wat::core::char/of "x")` call. Named
+            // chars (`\newline` etc.) are resolved by the lexer before this
+            // point; the parser sees only the resolved `char` value. The
+            // `:wat::core::char/of` verb keeps working as a real runtime
+            // String→char conversion; it simply stops being the reader's
+            // parse target.
+            Token::Char(c) => Ok(Some(WatAST::CharLit(*c, span))),
         }
     }
 

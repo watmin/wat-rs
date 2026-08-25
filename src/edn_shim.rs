@@ -755,14 +755,17 @@ pub fn eval_ast_to_source(
 }
 
 /// Recursive verbatim printer for [`eval_ast_to_source`]. Resurrects the retired
-/// `write_wat_ast` (`b5bca8be^:src/ast.rs:101-138`) and ADDS the 6 variants born since:
-/// `RationalLit`, `BigIntLit`, `NilLit`, `Vector`, `Map`, `Set`. Each spelling is grounded
-/// against the parser (`crates/wat-reader/src/parser.rs`) / lexer
+/// `write_wat_ast` (`b5bca8be^:src/ast.rs:101-138`) and ADDS the 7 variants born since:
+/// `RationalLit`, `BigIntLit`, `CharLit`, `NilLit`, `Vector`, `Map`, `Set`. Each spelling is
+/// grounded against the parser (`crates/wat-reader/src/parser.rs`) / lexer
 /// (`crates/wat-reader/src/lexer.rs`) so `read-string` re-reads the printed text to an
 /// identical node:
 /// - `RationalLit`: `BigRational`'s `Display` prints `numer/denom` (already-reduced, sign on
 ///   numerator, den >= 2 by construction — `lexer.rs:888-902` mirrors this on the read side).
 /// - `BigIntLit`: digits + trailing `N` suffix (`lexer.rs:911-917`, the `N`-suffix lane).
+/// - `CharLit` (arc 300 stone D): `\c`, using the named forms (`\newline`/`\return`/`\space`/
+///   `\tab`) for the four chars a bare `\<char>` can't spell unambiguously — mirrors
+///   `lexer.rs::lex_char`'s read side.
 /// - `NilLit`: bare `nil` (parser produces `NilLit` for bare `nil`, per `ast.rs:94-98`).
 /// - `Vector`: `[` items space-joined `]` (`parser.rs:283-296`, `Token::LBracket`).
 /// - `Map`: `{` alternating key/value space-joined `}` (`parser.rs:528-556`,
@@ -783,6 +786,19 @@ pub(crate) fn write_wat_source(ast: &WatAST, out: &mut String) {
             out.push_str(&n.to_string());
             out.push('N');
         }
+        // Arc 300 stone D — CharLit prints as `\c`, using the lexer's named
+        // forms (`lexer.rs::lex_char`) for the four whitespace-family
+        // chars a bare `\<char>` couldn't spell unambiguously, and
+        // `\uNNNN` for anything outside BMP printable single-char form
+        // (defensive; CharLit is BMP-only by construction). Every other
+        // char (alphanumeric or not) round-trips as a literal `\c`.
+        WatAST::CharLit(c, _) => match c {
+            '\n' => out.push_str("\\newline"),
+            '\r' => out.push_str("\\return"),
+            ' ' => out.push_str("\\space"),
+            '\t' => out.push_str("\\tab"),
+            other => out.push_str(&format!("\\{}", other)),
+        },
         WatAST::BoolLit(b, _) => out.push_str(if *b { "true" } else { "false" }),
         WatAST::StringLit(s, _) => {
             out.push('"');
@@ -997,6 +1013,7 @@ pub fn eval_ast_kind(
         WatAST::FloatLit(..) => "float",
         WatAST::RationalLit(..) => "rational",
         WatAST::BigIntLit(..) => "bigint",
+        WatAST::CharLit(..) => "char",
         WatAST::BoolLit(..) => "bool",
         WatAST::StringLit(..) => "string",
         WatAST::NilLit(..) => "nil",

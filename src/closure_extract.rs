@@ -752,6 +752,8 @@ fn walk_free_symbols(
         | WatAST::RationalLit(..)
         // Arc 300 stone C1 — BigIntLit is a leaf literal too.
         | WatAST::BigIntLit(..)
+        // Arc 300 stone D — CharLit is a leaf literal too.
+        | WatAST::CharLit(..)
         | WatAST::BoolLit(..)
         | WatAST::StringLit(..)
         // Arc 244 — NilLit is a leaf literal; no free symbols to collect.
@@ -1379,6 +1381,8 @@ fn collect_pattern_bindings(
         | WatAST::RationalLit(..)
         // Arc 300 stone C1: BigIntLit joins it too.
         | WatAST::BigIntLit(..)
+        // Arc 300 stone D: CharLit joins it too.
+        | WatAST::CharLit(..)
         | WatAST::BoolLit(..)
         | WatAST::StringLit(..)
         | WatAST::NilLit(..) => Ok(()),
@@ -1996,17 +2000,13 @@ fn encode_value_with_path(
             ],
             span,
         )),
-        // Arc 220 — Char is portable: encode as a `char/of` call on a
-        // length-1 String. Round-trips cleanly (BMP guaranteed by construct).
-        // Stone 242.1 — renamed from :wat::core::Char/of to :wat::core::char/of
-        // (scalar types lowercase per Doctrine 2).
-        Value::wat__core__Char(c) => Ok(WatAST::List(
-            vec![
-                WatAST::Keyword(":wat::core::char/of".into(), span.clone()),
-                WatAST::StringLit(c.to_string(), span.clone()),
-            ],
-            span,
-        )),
+        // Arc 300 stone D — Char is a leaf literal at both ends of the
+        // substrate now: re-encode directly as a `CharLit` (mirrors the
+        // BigInt arm immediately above, one type over). Round-trips
+        // cleanly. Was: a `char/of` call on a length-1 String
+        // (arc 220 / stone 242.1) — that workaround is retired now that
+        // WatAST can hold a char literal directly.
+        Value::wat__core__Char(c) => Ok(WatAST::CharLit(*c, span)),
         // Arc 220 Stone 220.4 — List is portable: encode as a variadic
         // `(:wat::core::List/of item1 item2 ...)` call. Each item is recursively
         // encoded. Round-trips cleanly.
@@ -2626,6 +2626,8 @@ fn rewrite_with_scope(
         | WatAST::RationalLit(_, _)
         // Arc 300 stone C1 — BigIntLit is a leaf too.
         | WatAST::BigIntLit(_, _)
+        // Arc 300 stone D — CharLit is a leaf too.
+        | WatAST::CharLit(_, _)
         | WatAST::BoolLit(_, _)
         | WatAST::StringLit(_, _)
         // Arc 244 — NilLit is a leaf; no scope rewrite needed.

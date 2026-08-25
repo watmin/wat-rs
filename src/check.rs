@@ -1931,6 +1931,8 @@ pub(crate) fn infer(
         WatAST::RationalLit(_, _) => CheckResult::ok(TypeExpr::Path(":wat::core::rational".into())),
         // Arc 300 stone C1 — bigint literal infers as :wat::core::bigint (lowercase from birth).
         WatAST::BigIntLit(_, _) => CheckResult::ok(TypeExpr::Path(":wat::core::bigint".into())),
+        // Arc 300 stone D — char literal infers as :wat::core::char.
+        WatAST::CharLit(_, _) => CheckResult::ok(TypeExpr::Path(":wat::core::char".into())),
         WatAST::BoolLit(_, _) => CheckResult::ok(TypeExpr::Path(":wat::core::bool".into())),
         WatAST::StringLit(_, _) => CheckResult::ok(TypeExpr::Path(":wat::core::String".into())),
         // Arc 244 — NilLit is the canonical nil VALUE literal; infers as :wat::core::nil.
@@ -6943,6 +6945,21 @@ fn check_subpattern(
                     head: ":wat::core::match".into(),
                     reason: format!(
                         "bigint literal pattern in {} position",
+                        format_type(other)
+                    ),
+                    remedies: vec![],
+                } });
+                None
+            }
+        },
+        // Arc 300 stone D — char literal sub-pattern.
+        WatAST::CharLit(_, _) => match expected_ty {
+            TypeExpr::Path(p) if p == ":wat::core::char" => Some(false),
+            other => {
+                errors.push(CheckError { span: pat.span().clone(), kind: CheckErrorKind::MalformedForm {
+                    head: ":wat::core::match".into(),
+                    reason: format!(
+                        "char literal pattern in {} position",
                         format_type(other)
                     ),
                     remedies: vec![],

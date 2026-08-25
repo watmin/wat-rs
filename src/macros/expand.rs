@@ -1019,6 +1019,7 @@ fn restamp_unknown_spans(form: WatAST, call_site: &Span, head_span: &Span, head_
         WatAST::FloatLit(v, s) => WatAST::FloatLit(v, restamp_span(&s, call_site)),
         WatAST::RationalLit(v, s) => WatAST::RationalLit(v, restamp_span(&s, call_site)),
         WatAST::BigIntLit(v, s) => WatAST::BigIntLit(v, restamp_span(&s, call_site)),
+        WatAST::CharLit(v, s) => WatAST::CharLit(v, restamp_span(&s, call_site)),
         WatAST::BoolLit(v, s) => WatAST::BoolLit(v, restamp_span(&s, call_site)),
         WatAST::StringLit(v, s) => WatAST::StringLit(v, restamp_span(&s, call_site)),
         WatAST::NilLit(s) => WatAST::NilLit(restamp_span(&s, call_site)),

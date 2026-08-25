@@ -301,9 +301,11 @@ fn wrap_spanned(content: OwnedValue, span: &Span, origins: &mut OriginTable) -> 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WatEdnBridgeError {
     /// An EDN form shape that has no `WatAST` counterpart appeared in the
-    /// encoded program frame (e.g. `Tagged`, `Inst`, `Uuid`, `Char`,
+    /// encoded program frame (e.g. `Tagged`, `Inst`, `Uuid`,
     /// `BigDec`, namespaced `Symbol`). Arc 300 stone C1: `BigInt` now HAS a
     /// counterpart (`WatAST::BigIntLit`) and is no longer in this list.
+    /// Arc 300 stone D: `Char` now HAS a counterpart (`WatAST::CharLit`)
+    /// and is no longer in this list either.
     UnsupportedEdnForm { shape: String },
     /// A keyword in the EDN frame could not be decoded to a wat keyword path.
     KeywordDecode { raw: String },
@@ -447,6 +449,12 @@ fn watast_to_edn_with(a: &WatAST, carriage: Carriage, origins: &mut OriginTable)
         // Arc 300 stone C1 — bigint literal (mirrors Rational immediately above,
         // one type over).
         WatAST::BigIntLit(n, _) => OwnedValue::BigInt(Box::new(n.clone())),
+        // Arc 300 stone D — char literal decodes to/from `Edn::Char` directly
+        // (mirrors BigInt/Rational immediately above, one type over). This is
+        // the motion arc 300 C1 already performed for BigInt — see the
+        // `Char` doc-line update at `:540`-ish and the `Edn::Char` decode arm
+        // near `:816`.
+        WatAST::CharLit(c, _) => OwnedValue::Char(*c),
         WatAST::BoolLit(b, _) => OwnedValue::Bool(*b),
         WatAST::StringLit(s, _) => OwnedValue::String(std::borrow::Cow::Owned(s.clone())),
         WatAST::NilLit(_) => OwnedValue::Nil,
@@ -537,9 +545,10 @@ fn watast_to_edn_with(a: &WatAST, carriage: Carriage, origins: &mut OriginTable)
 /// identical to every other decode site.
 ///
 /// Returns a `WatEdnBridgeError` (never panics) for EDN forms that have
-/// no WatAST counterpart: `Tagged`, `Inst`, `Uuid`, `Char`, `BigDec`, or a
+/// no WatAST counterpart: `Tagged`, `Inst`, `Uuid`, `BigDec`, or a
 /// namespaced `Symbol`. Arc 300 stone C1: `BigInt` now decodes to
-/// `WatAST::BigIntLit` — no longer in this list.
+/// `WatAST::BigIntLit` — no longer in this list. Arc 300 stone D: `Char`
+/// now decodes to `WatAST::CharLit` — no longer in this list either.
 ///
 /// Span survives ONLY when the wire actually carries one — a node written
 /// under `Carriage::Transport` arrives wrapped `#wat.ast/Spanned {…}` (see
@@ -655,6 +664,13 @@ fn edn_to_watast_node(
         // immediately above, one type over; symmetric with this file's own
         // `watast_to_edn` encode arm, which now emits `OwnedValue::BigInt`).
         Edn::BigInt(n) => Ok(WatAST::BigIntLit((**n).clone(), span)),
+        // Arc 300 stone D — char literal round-trip (mirrors BigInt
+        // immediately above, one type over; symmetric with this file's own
+        // `watast_to_edn` encode arm, which now emits `OwnedValue::Char`).
+        // This is the one arm the brief called non-mechanical: it retires
+        // the `Edn::Char => Err(UnsupportedEdnForm)` refusal below (near the
+        // other "no WatAST counterpart" arms) into an honest decode.
+        Edn::Char(c) => Ok(WatAST::CharLit(*c, span)),
         Edn::String(s) => Ok(WatAST::StringLit(s.as_ref().to_owned(), span)),
         Edn::Keyword(kw) => {
             let path = match kw.namespace() {
@@ -812,9 +828,6 @@ fn edn_to_watast_node(
         }),
         Edn::Uuid(u) => Err(WatEdnBridgeError::UnsupportedEdnForm {
             shape: format!("Uuid({u})"),
-        }),
-        Edn::Char(c) => Err(WatEdnBridgeError::UnsupportedEdnForm {
-            shape: format!("Char({c:?})"),
         }),
         Edn::BigDec(d) => Err(WatEdnBridgeError::UnsupportedEdnForm {
             shape: format!("BigDec({d})"),

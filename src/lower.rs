@@ -158,8 +158,10 @@ pub fn lower(ast: &WatAST) -> Result<HolonAST, LowerError> {
         // Arc 300 stone B — RationalLit joins the bare-literal group (no
         // algebra-core lowering, same as its IntLit/FloatLit siblings).
         // Arc 300 stone C1 — BigIntLit joins it too.
+        // Arc 300 stone D — CharLit joins it too.
         WatAST::IntLit(_, span) | WatAST::FloatLit(_, span) | WatAST::RationalLit(_, span)
         | WatAST::BigIntLit(_, span)
+        | WatAST::CharLit(_, span)
         | WatAST::BoolLit(_, span)
         | WatAST::StringLit(_, span) | WatAST::Keyword(_, span) => Err(LowerError { span: span.clone(), kind: LowerErrorKind::UnsupportedForm("bare literal outside of an (:wat::holon::...) call".into()) }),
         // Arc 244 — NilLit: bare nil literal has no algebra-core lowering (like its literal siblings).

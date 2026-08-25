@@ -4919,6 +4919,13 @@ pub(crate) fn eval_inner(
             Value::wat__core__BigInt(Box::new(n.clone())),
             Provenance::Literal { span: span.clone() },
         )),
+        // Arc 300 stone D — char literal, representation only (mirrors
+        // BigInt/Rational immediately above, one type over). Was a
+        // desugared `(:wat::core::char/of "c")` call before this stone.
+        WatAST::CharLit(c, span) => Ok(TrackedValue::new(
+            Value::wat__core__Char(*c),
+            Provenance::Literal { span: span.clone() },
+        )),
         WatAST::BoolLit(b, span) => Ok(TrackedValue::new(
             Value::bool(*b),
             Provenance::Literal { span: span.clone() },
@@ -16928,6 +16935,12 @@ fn try_match_pattern(
             Value::wat__core__BigInt(v) if v.as_ref() == n => Ok(Some(outer.clone())),
             _ => Ok(None),
         },
+        // Arc 300 stone D — char literal sub-pattern; compares by equality
+        // (mirrors the BigInt/Rational arms immediately above).
+        WatAST::CharLit(c, _) => match value {
+            Value::wat__core__Char(v) if v == c => Ok(Some(outer.clone())),
+            _ => Ok(None),
+        },
         WatAST::BoolLit(b, _) => match value {
             Value::bool(v) if v == b => Ok(Some(outer.clone())),
             _ => Ok(None),
@@ -20342,6 +20355,11 @@ fn watast_to_holon(a: &WatAST) -> HolonAST {
         // native holon-rs bigint leaf. Lower to its canonical rendered string
         // ("<n>N"), same lossy-but-honest shape family as the Rational arm.
         WatAST::BigIntLit(n, _) => HolonAST::string(format!("{}N", n)),
+        // Arc 300 stone D — unlike Rational/BigInt immediately above,
+        // holon-rs's `HolonAST` DOES have a native `Char` leaf
+        // (`holon-rs/src/kernel/holon_ast.rs:77`, `HolonAST::char_`
+        // constructor) — no lossy string rendering needed.
+        WatAST::CharLit(c, _) => HolonAST::char_(*c),
         WatAST::BoolLit(b, _) => HolonAST::bool_(*b),
         WatAST::StringLit(s, _) => HolonAST::string(s.as_str()),
         // Arc 244 — NilLit lowers to HolonAST::symbol("nil") — the HolonAST nil
@@ -21363,18 +21381,12 @@ fn holon_to_watast(h: &HolonAST) -> WatAST {
             ],
             crate::rust_caller_span!(),
         ),
-        // Arc 221 Stone 221.2 — Char primitive leaf. WatAST has no CharLit
-        // variant; render as (:wat::core::char/of "c") so that
-        // `(eval-ast! (to-wat char-holon))` round-trips via char/of.
-        // Stone 242.1 — renamed from :wat::core::Char/of to :wat::core::char/of
-        // (scalar types lowercase per Doctrine 2).
-        HolonAST::Char(c) => WatAST::List(
-            vec![
-                WatAST::Keyword(":wat::core::char/of".into(), crate::rust_caller_span!()),
-                WatAST::StringLit(c.to_string(), crate::rust_caller_span!()),
-            ],
-            crate::rust_caller_span!(),
-        ),
+        // Arc 300 stone D — Char primitive leaf now renders directly to
+        // `WatAST::CharLit`; `(eval-ast! (to-wat char-holon))` round-trips
+        // via the literal, not a `char/of` call. Was: `(:wat::core::char/of
+        // "c")` (arc 221 Stone 221.2 / stone 242.1) — retired now that
+        // WatAST can hold a char literal directly.
+        HolonAST::Char(c) => WatAST::CharLit(*c, crate::rust_caller_span!()),
         // SlotMarker (arc 073) is a substrate-internal sentinel. Non-round-trippable.
         HolonAST::SlotMarker { min, max } => WatAST::List(
             vec![
@@ -29558,6 +29570,9 @@ fn step_form(form: &WatAST, env: &Environment, sym: &SymbolTable) -> Result<Step
         )))),
         // Arc 300 stone C1 — same SURPRISE as Rational immediately above.
         WatAST::BigIntLit(n, _) => Ok(StepValue::Terminal(HolonAST::string(format!("{}N", n)))),
+        // Arc 300 stone D — native holon-rs Char leaf (see `watast_to_holon`'s
+        // note); no lossy string rendering needed.
+        WatAST::CharLit(c, _) => Ok(StepValue::Terminal(HolonAST::char_(*c))),
         WatAST::BoolLit(b, _) => Ok(StepValue::Terminal(HolonAST::bool_(*b))),
         WatAST::StringLit(s, _) => Ok(StepValue::Terminal(HolonAST::string(s.as_str()))),
         // Arc 244 — NilLit terminal step → HolonAST::symbol("nil") (nil HolonAST representation).
@@ -29630,6 +29645,9 @@ fn try_recognize_holon_value(form: &WatAST) -> Option<HolonAST> {
         WatAST::RationalLit(r, _) => Some(HolonAST::string(format!("{}/{}", r.numer(), r.denom()))),
         // Arc 300 stone C1 — same SURPRISE as Rational immediately above.
         WatAST::BigIntLit(n, _) => Some(HolonAST::string(format!("{}N", n))),
+        // Arc 300 stone D — native holon-rs Char leaf (see `watast_to_holon`'s
+        // note); no lossy string rendering needed.
+        WatAST::CharLit(c, _) => Some(HolonAST::char_(*c)),
         WatAST::BoolLit(b, _) => Some(HolonAST::bool_(*b)),
         WatAST::StringLit(s, _) => Some(HolonAST::string(s.as_str())),
         // Arc 221 Stone 221.4b — Keyword value-shape recognition → HolonAST::Keyword leaf.
@@ -29667,6 +29685,8 @@ fn try_recognize_holon_value(form: &WatAST) -> Option<HolonAST> {
                             | WatAST::RationalLit(_, _)
                             // Arc 300 stone C1 — BigInt joins it too.
                             | WatAST::BigIntLit(_, _)
+                            // Arc 300 stone D — Char joins it too.
+                            | WatAST::CharLit(_, _)
                             | WatAST::BoolLit(_, _)
                             | WatAST::StringLit(_, _)
                             | WatAST::Keyword(_, _) => None,
@@ -29688,6 +29708,8 @@ fn try_recognize_holon_value(form: &WatAST) -> Option<HolonAST> {
                             | WatAST::RationalLit(_, _)
                             // Arc 300 stone C1 — BigInt joins it too.
                             | WatAST::BigIntLit(_, _)
+                            // Arc 300 stone D — Char joins it too.
+                            | WatAST::CharLit(_, _)
                             | WatAST::BoolLit(_, _)
                             | WatAST::StringLit(_, _)
                             | WatAST::Keyword(_, _) => {
@@ -30554,6 +30576,12 @@ fn try_match_pattern_ast(
         // the Rational arm immediately above, one type over).
         WatAST::BigIntLit(n, _) => Ok(match scrutinee {
             WatAST::BigIntLit(s, _) if s == n => Some(Vec::new()),
+            _ => None,
+        }),
+        // Arc 300 stone D — char literal pattern (parse-tree level; mirrors
+        // the BigInt/Rational arms immediately above).
+        WatAST::CharLit(c, _) => Ok(match scrutinee {
+            WatAST::CharLit(s, _) if s == c => Some(Vec::new()),
             _ => None,
         }),
         WatAST::BoolLit(b, _) => Ok(match scrutinee {
