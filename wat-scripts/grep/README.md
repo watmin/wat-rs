@@ -22,6 +22,7 @@ difference is not noise.**
 | `head-position.wat` | where is a partial verb actually CALLED? | 159 calls · text finds 164 occurrences |
 | `unwrap-of-lookup.wat` | where does a missing key become a crash? | 30 sites · a one-line regex finds 7, one a comment |
 | `bare-variant-constructors.wat` | how big is the Option/Result migration, really? | 211 constructor calls · text finds 212 |
+| `defined-twice.wat` | does one file define the same name twice? | 0 real · 2 false positives, both macro templates |
 
 ## What the differences were
 
@@ -85,9 +86,46 @@ is not kept.** Three rules that each read as one sentence beat one rule carrying
 conditionals, and a conditional inside a `:then` puts branching where a fact assertion belongs.
 Fewer lines was the only thing it won.
 
+## The self-join, and the blind spot it exposed
+
+`defined-twice.wat` teaches the pattern no text search can reach even in principle: the same
+condition written twice with a shared variable, comparing two occurrences TO EACH OTHER. Every
+other program here asks "is there a node like X"; this one asks "are there TWO that agree."
+
+Two things it taught that are worth more than its answer:
+
+**The ordering guard.** A self-join matches both directions — (a,b) and (b,a) — so every duplicate
+reports twice, mirrored. `(i64::< ?a ?b)` keeps one of each. Without it the count is exactly
+doubled, which is the kind of wrong number that looks plausible enough to publish.
+
+**The fact base has no notion of quote-as-data.** The program's only 2 hits across the stdlib are
+both inside a QUASIQUOTE — two mutually-exclusive arms of an `if` in a macro template, of which
+exactly one is ever emitted. `facts-of` walks every node including template interiors;
+`src/rete/purity.rs:1257` by contrast has an explicit arm skipping `quote`/`quasiquote` because
+they are data. **A rule about "definitions" currently cannot tell a definition from a template for
+one.** A `:wat::grep::Quoted [id]` fact would close it. Structure beats text, and structure has its
+own way of being wrong; naming that is the job.
+
 ## What is NOT here yet
 
-Negation (`a form with no docstring`), transitive depth (`nested more than N deep`), and cross-file
-joins. The first two want rules this corpus has not written; the third wants a different lifetime —
-wat-grep resets between files BY DESIGN, and a corpus-wide join would use `with-network` rather than
-`with-overlay`.
+Transitive depth (`nested more than N deep`), quote-awareness (above), and cross-file joins. The
+last wants a different lifetime — wat-grep resets between files BY DESIGN, and a corpus-wide join
+would use `with-network` rather than `with-overlay`.
+
+Available and unused so far, all real: `(:wat::rete::exists (Fact (?k <- :k)))`,
+`(:wat::rete::not …)`, and the accumulators — `acc::count` / `sum` / `min` / `max` / `mean` /
+`distinct` / `all` / `group-by` / `gather-vals`, bound as
+`(?n <- (:wat::rete::acc::count) :from (:Fact))`.
+
+## ⛔ A GUARD MUST BE THE LAST THING IN A `:when`
+
+Measured 2026-08-24, and it cost a rule that read correctly and answered zero: **a
+`(:wat::rete::where …)` followed by a FACT condition silently matches nothing.** No error, exit 0,
+empty result. The same rule with the guard moved after the last fact condition matches correctly —
+11 vs 0 on identical input.
+
+Every program in this directory places its guards last. That was luck before it was knowledge:
+`rules-corpus-03-source-to-facts.wat` was written that way and everything copied its shape.
+
+Filed for the rete agent:
+`~/work/NOTE-rete-a-where-before-a-fact-condition-silently-matches-nothing.md`.
