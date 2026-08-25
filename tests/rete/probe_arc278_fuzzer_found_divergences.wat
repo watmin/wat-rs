@@ -33,6 +33,18 @@
   :when [(?n <- (:wat::rete::acc::count) :from (:user::W))
          (:wat::rete::where (:wat::rete::core::i64::>= ?n 2))])
 
+;; ── C — `:not` over a DERIVED class ignores the derivation ─────────────────
+;; STRATIFIED NEGATION. `S2` exists only because `r1` derives it from `S1`, so a
+;; `not S2` must BLOCK once the chain has run. The oracle blocks (0). Native passes
+;; (1) — while its OWN query confirms S2 is present. Both engines derive the fact;
+;; only one of them lets the negation see it.
+(:wat::rete::defquery :user::qC :params []
+  :when [(:wat::rete::not (:user::S2 (?s <- :k)))])
+
+;; The control that makes the claim airtight: is S2 actually there?
+(:wat::rete::defquery :user::qS2 :params []
+  :when [(?fact <- :user::S2)])
+
 (:wat::core::defn :user::two
   [q <- :wat::rete::Query  rules <- (:wat::core::PersistentVector :- [:wat::rete::Rule])]
   -> (:wat::core::Vector :- [:wat::core::i64])
@@ -66,3 +78,26 @@
                         (:user::two (:user::qB2) (:user::norules)))
       (:user::two (:user::qA) (:user::one-rule)))
     (:user::two (:user::qA) (:wat::rete::collect-rules :user))))
+
+;; [C-noChain-native C-noChain-oracle | C-chain-native C-chain-oracle | S2-native S2-oracle]
+;; With no chain S2 is absent and both must pass (1,1). With the chain S2 exists
+;; and both must block (0,0). The last pair proves S2 really is derived in BOTH.
+(:wat::core::defn :user::rows-c [] -> (:wat::core::Vector :- [:wat::core::i64])
+  (:wat::core::let [both (:wat::core::PersistentVector (:user::qC) (:user::qS2))
+                    s0 (:wat::rete::compile-all (:user::one-rule) both)
+                    st (:wat::rete::insert-all s0 (:wat::core::PersistentVector (:user::S1 1)))
+                    nf (:wat::rete::fire-rules st)
+                    of (:wat::rete::fire-rules$oracle st)
+                    n0 (:wat::rete::compile-all (:user::norules) both)
+                    t0 (:wat::rete::insert-all n0 (:wat::core::PersistentVector (:user::S1 1)))
+                    nf0 (:wat::rete::fire-rules t0)
+                    of0 (:wat::rete::fire-rules$oracle t0)]
+    (:wat::core::mapv
+      (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64 n)
+      (:wat::core::PersistentVector
+        (:wat::core::length (:wat::rete::query nf0 (:user::qC)))
+        (:wat::core::length (:wat::rete::query of0 (:user::qC)))
+        (:wat::core::length (:wat::rete::query nf (:user::qC)))
+        (:wat::core::length (:wat::rete::query of (:user::qC)))
+        (:wat::core::length (:wat::rete::query nf (:user::qS2)))
+        (:wat::core::length (:wat::rete::query of (:user::qS2)))))))

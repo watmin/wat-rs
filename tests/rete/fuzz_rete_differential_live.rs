@@ -88,7 +88,7 @@ fn rete_fuzzer_finds_no_native_oracle_divergence() {
     // has appeared and the MISMATCH lines name its coordinate. A pinned count is only honest
     // while every case behind it is documented — if you cannot map a mismatch to a family above,
     // it is new, and it does not belong under this number.
-    const KNOWN_OPEN: i64 = 22;
+    const KNOWN_OPEN: i64 = 76;
     assert_eq!(
         bad, KNOWN_OPEN,
         "the fuzzer's divergence count MOVED: {bad} of {cases} shapes, expected {KNOWN_OPEN}.\n\

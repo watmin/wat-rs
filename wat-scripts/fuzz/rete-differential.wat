@@ -72,6 +72,8 @@
 ;; more than one LHS element (accumulate carries its own threshold `where`).
 ;;
 ;;   0 none · 1 exists · 2 not · 3 accumulate+threshold · 4 intra-condition :or
+;;   5 intra-condition :not-of-a-constraint · 6 top-level :or ACROSS conditions
+;;   7 :not over a DERIVED class (stratified negation)
 ;;
 ;; 3 and 4 are the widening. The accumulate threshold is `>= 2` deliberately, so
 ;; the answer VARIES with the `dups` dimension instead of being vacuously true —
@@ -91,11 +93,32 @@
           (:wat::core::PersistentVector
             (:wat::core::quasiquote (?n <- (:wat::rete::acc::count) :from (:user::W)))
             (:wat::core::quasiquote (:wat::rete::where (:wat::rete::core::i64::>= ?n 2))))
-          (:wat::core::PersistentVector
-            (:wat::core::quasiquote
-              (:user::W (?w <- :k)
-                (:wat::rete::or (:wat::rete::core::i64::> ?w 5)
-                                (:wat::rete::core::i64::< ?w 3))))))))))
+          (:wat::core::if (:wat::core::= f 4)
+            (:wat::core::PersistentVector
+              (:wat::core::quasiquote
+                (:user::W (?w <- :k)
+                  (:wat::rete::or (:wat::rete::core::i64::> ?w 5)
+                                  (:wat::rete::core::i64::< ?w 3)))))
+            (:wat::core::if (:wat::core::= f 5)
+              ;; 5 — intra-condition :not of a CONSTRAINT (not of a condition).
+              (:wat::core::PersistentVector
+                (:wat::core::quasiquote
+                  (:user::W (?w <- :k)
+                    (:wat::rete::not (:wat::rete::core::i64::> ?w 100)))))
+              (:wat::core::if (:wat::core::= f 6)
+                ;; 6 — top-level :or ACROSS conditions: network branches, the
+                ;; first of rete's three `or` engines, and the only one that
+                ;; binds a DIFFERENT variable per branch.
+                (:wat::core::PersistentVector
+                  (:wat::core::quasiquote
+                    (:wat::rete::or (:user::P1 (?a <- :k))
+                                    (:user::W (?w <- :k)))))
+                ;; 7 — :not over a DERIVED class. STRATIFICATION: S2 exists only
+                ;; because the chain derives it, so the answer must depend on the
+                ;; depth dimension. This is where family C lives.
+                (:wat::core::PersistentVector
+                  (:wat::core::quasiquote
+                    (:wat::rete::not (:user::S2 (?s <- :k)))))))))))))
 
 ;; A CONSTANT predicate: POSITION is the variable under test here. A `where`
 ;; naming a variable bound LATER is a compile-time question, not a differential
@@ -181,12 +204,12 @@
   (:wat::core::not (:wat::core::and (:wat::core::= (:user::Case/filt c) 0)
                                     (:wat::core::= (:user::Case/prefix c) 0))))
 
-;; dups 0..3 · wpos 0..3 · prefix 0..3 · filter 0..5 · depth 0..4
+;; dups 0..3 · wpos 0..3 · prefix 0..3 · filter 0..8 · depth 0..4
 (:wat::core::defn :user::space [] -> (:user::Gen :- [:user::Case])
   (:user::gen-such-that :user::shape-is-matchable
     (:user::gen-record :user::Case
       (:user::gen-ints 0 3) (:user::gen-ints 0 3) (:user::gen-ints 0 3)
-      (:user::gen-ints 0 5) (:user::gen-ints 0 4))))
+      (:user::gen-ints 0 8) (:user::gen-ints 0 4))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let [g   (:user::space)
