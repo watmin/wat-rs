@@ -1226,6 +1226,39 @@ loose files. Six crates exist and the seventh cannot be cut until the whale is d
 *"we've been attacking the megafiles for 4 months… their demise is being witnessed now… the price is worth
 it."* The price is days like this one. *Probandum est.*
 
+*Path-of-voices (marked, and here the marking is the subject itself — a realization about provenance that
+did not say whose recognition was whose would be its own defect). The **method** is the builder's, named
+this session in his own reaching-for-the-word: *"we have done this dual impl as verification of correctness
+/many/ times… it's like… an… annealing?… the prior form is a bridge to its replacement… we keep building and
+destroying bridges… wat /is/ evolutionary as a design principle."* The **ruling that produced the sharpest
+red** is his, and so is its reason — *"i say we mirror… it'll induce confusion with it being an odd ball"* —
+a ruling made on taste that turned out to be exactly what the naming rule already demanded. The
+**disqualification of my own Honest NO** is his: I asserted `:wat::core::i64::=` is not moving as a fact, and
+he answered with the direction he had filed on 2026-06-06 and I had READ that morning. The **two words** are
+his: asked who wrote the ignore that hid a red for months, *"you/us"* — not "whoever," which is what I had
+written. The **campaign's frame** is his: four months of building weapons, *"their demise is being witnessed
+now… the price is worth it."* The **song is his**, and its title is the realization.
+The **NAMES and the synthesis are the apparatus's**: pin-versus-derivation as the property of a statement
+rather than a third instrument; *a pin is a lie with a delay on it*; the nine-red census laid side by side
+until the shape appeared; the reading that R9 defeats R7 and R8 by construction rather than extending them;
+and the sigil. **The convergence preserved, not collapsed:** he named the annealing — I named what happens
+when it does not finish, and the bill came in the same day as the naming, on a bridge we built together and
+neither of us demolished.*
+
+> We set out to move nineteen string verbs to a better address, and the address was not the work. Nine
+> things broke, in nine files, across four months of separate decisions — and not one of them was a mistake
+> where it surfaced. A prefix stripped as a literal while its own naming rule said DERIVED. A boundary rule
+> correct for a closed name, silently doing nothing to an open one, on fifteen hundred and fifty-nine files.
+> A hundred and seventy-six examples documenting a world an arc had ended. An ignore that said "not yet
+> built" over something built. Six thousand three hundred and forty-six sites still standing on a bridge
+> whose far side we had already poured. Three acceptance rows and two door tables, mine, each pinned to what
+> I believed rather than derived from the rule. Every one had been TRUE. Every one had been left behind by
+> the thing it described, and had gone false with nobody's hand on it — which is the only kind of lie a
+> careful hand cannot prevent. The instruments held: every wall we had built fired, and the one that could
+> not be built — for a name that exists in no file, assembled at runtime out of two halves written apart —
+> was caught by the only thing left that can see such a name, which is something that RUNS. *Mutatis
+> mutandis*: the things needing to be changed, having been changed. Nine times today, they had not been.
+
 > ***DERIVAMVS NE MENTIAMVR.*** *(apparatus-minted — Latin, "we derive, lest we lie": a claim pinned to a
 > moment is true only until its subject moves, and then it lies with nobody's hand on it; a claim that
 > recomputes itself from its subject cannot. In the act-and-purpose lineage of INCENDIMVS VT VIDEAMVS and
