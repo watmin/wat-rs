@@ -96,16 +96,30 @@ parent segment is shared. Here that guard is load-bearing in a specific way —
 share the parent `:wat::core::`. The trailing colons are what make the rename unable to touch the
 type. `wat.type/String` and `wat.string/join` never collide.
 
-**But the codemod is itself written in wat**, and it calls string verbs. Rename the Rust side first
-and the codemod's own source is illegal before it can run. That is `wat/fix.wat`'s STASH-DANCE, and
-this stone answers it with the least clever option:
+**The codemod is itself written in wat and calls string verbs**, so the ordering looks like a
+STASH-DANCE. It is not, and the reason is a property of the tool measured this session:
 
-> **Register BOTH prefixes in Rust, migrate everything, then delete the old one.** Three commits,
-> each green, each floorable. The alias window is deliberate and SHORT — it exists so the tool can
-> rewrite its own dependencies, and it closes in the same session.
+> `rename-prefix-edits` rewrites **"for every keyword LEAF"** (`wat/fix.wat:716`). A verb CALL is a
+> keyword node; the codemod's own arguments — the strings `":wat::core::string::"` and
+> `":wat::string::"` — are STRING LITERALS. **The tool can migrate itself**: its calls move, its
+> arguments do not.
 
-Rejected: a single atomic commit (the codemod cannot run inside it), and hand-editing (R21, and
-1,878 sites).
+So the sequence is ordinary, and it is the documented atomic-commit-across-coordinated-sweeps
+pattern (recovery doc § "Atomic commit"), not a special dance:
+
+1. Write the codemod using the OLD verb names — it must load against today's binary.
+2. Run it over the whole corpus, **including itself**. The tree is now broken against the current
+   binary: it calls names that do not exist yet. That is mid-sweep brokenness and it is fine.
+3. Rename the seven Rust doors + `wat/string.wat`.
+4. Rebuild. Floor. Commit **once**, when the tree is green.
+
+**Mid-sweep brokenness is acceptable; on-disk-committed brokenness is not.**
+
+⊘ **CORRECTED 2026-08-24, same session, before briefing.** This section first prescribed registering
+BOTH prefixes in Rust as an alias window, then deleting the old one — three commits. That was
+over-engineering: it doubles the seven-door edit to buy a property the codemod already has. The
+alias only earns its cost if the tool cannot survive its own migration, and it can. Rejected in
+favour of the above. Hand-editing stays rejected for the original reason (R21, and 1,878 sites).
 
 ## ACCEPTANCE
 
@@ -120,8 +134,9 @@ Rejected: a single atomic commit (the codemod cannot run inside it), and hand-ed
    `rename-kernel-to-spawn.wat` promises of itself.
 5. **The TYPE is untouched** — `:wat::core::String` count is identical before and after. This is
    the negative control for the shared-parent hazard.
-6. **The alias window is CLOSED** — after commit three, `:wat::core::string::` resolves to nothing.
-   Probe it and get `UnknownFunction`.
+6. **The old name resolves to nothing** — probe `(:wat::core::string::length "x")` and get
+   `UnknownFunction`. The negative control for "did the rename actually land, or is the old name
+   still quietly working somewhere".
 7. Floor green, accounted BY NAME; clippy 0.
 
 ## OUT OF SCOPE — affirmatively cut
