@@ -262,7 +262,7 @@
              (:wat::kernel::assertion-failed! "assert-stderr-matches-pass: expected Lost[Panic], got Stopped" :wat::core::None :wat::core::None))
            (:wat::kernel::RecvOutcome::Closed
              (:wat::kernel::assertion-failed! "assert-stderr-matches-pass: expected Lost[Panic], got Closed" :wat::core::None :wat::core::None)))]
-    (:wat::test::assert-true (:wat::core::regex::matches? "code [0-9]+" msg))))
+    (:wat::test::assert-true (:wat::regex::matches? "code [0-9]+" msg))))
 
 ;; :wat-tests::test::test-assert-stderr-matches-fail-reports-pattern
 ;; DELETED (arc 278 wave 2d) — it existed solely to verify

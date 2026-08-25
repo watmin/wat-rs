@@ -43,18 +43,18 @@
 
 (:wat::core::defn :t::p3-same [] -> :wat::core::bool
   (:wat::core::let
-    [ns    (:wat::core::Uuid/nil)
-     u1    (:wat::core::Uuid/v5 ns "hello")
-     u2    (:wat::core::Uuid/v5 ns "hello")
+    [ns    (:wat::uuid::nil)
+     u1    (:wat::uuid::v5 ns "hello")
+     u2    (:wat::uuid::v5 ns "hello")
      a1    (:wat::holon::to-holon u1)
      a2    (:wat::holon::to-holon u2)]
     (:wat::core::= a1 a2)))
 
 (:wat::core::defn :t::p3-diff [] -> :wat::core::bool
   (:wat::core::let
-    [ns    (:wat::core::Uuid/nil)
-     u1    (:wat::core::Uuid/v5 ns "hello")
-     u2    (:wat::core::Uuid/v5 ns "world")
+    [ns    (:wat::uuid::nil)
+     u1    (:wat::uuid::v5 ns "hello")
+     u2    (:wat::uuid::v5 ns "world")
      a1    (:wat::holon::to-holon u1)
      a2    (:wat::holon::to-holon u2)
      eq    (:wat::core::= a1 a2)]
@@ -114,8 +114,8 @@
 
 (:wat::core::defn :t::p6-retrieved [] -> :wat::core::String
   (:wat::core::let
-    [ns   (:wat::core::Uuid/nil)
-     u1   (:wat::core::Uuid/v5 ns "hello")
+    [ns   (:wat::uuid::nil)
+     u1   (:wat::uuid::v5 ns "hello")
      m    (:wat::core::HashMap :wat::core::Uuid :wat::core::String)
      m2   (:wat::core::HashMap/assoc m u1 "world-entry")]
     (:wat::core::match (:wat::core::HashMap/get m2 u1) 
@@ -124,9 +124,9 @@
 
 (:wat::core::defn :t::p6-not-found [] -> :wat::core::String
   (:wat::core::let
-    [ns   (:wat::core::Uuid/nil)
-     u1   (:wat::core::Uuid/v5 ns "hello")
-     u2   (:wat::core::Uuid/v5 ns "world")
+    [ns   (:wat::uuid::nil)
+     u1   (:wat::uuid::v5 ns "hello")
+     u2   (:wat::uuid::v5 ns "world")
      m    (:wat::core::HashMap :wat::core::Uuid :wat::core::String)
      m2   (:wat::core::HashMap/assoc m u1 "hello-entry")]
     (:wat::core::match (:wat::core::HashMap/get m2 u2) 

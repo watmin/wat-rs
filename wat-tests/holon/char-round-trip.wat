@@ -1,6 +1,6 @@
 ;; wat-tests/holon/char-round-trip.wat — Arc 220 slice 2: :wat::core::Char.
 ;;
-;; Exercises the `\c` literal + `(:wat::core::Char/of "x")` constructor.
+;; Exercises the `\c` literal + `(:wat::core::char "x")` constructor.
 ;; All cases pass if the Char primitive is correctly wired (lexer, eval,
 ;; edn_shim bridge, equality, EDN round-trip).
 
@@ -9,8 +9,8 @@
 (:wat::test::deftest :wat-tests::holon::char-round-trip::char-of-constructor
   
   (:wat::core::let
-    [a (:wat::core::char/of "a")
-     b (:wat::core::char/of "a")]
+    [a (:wat::core::char "a")
+     b (:wat::core::char "a")]
     (:wat::test::assert-eq a b)))
 
 ;; ─── 2: `\c` literal equals Char/of ──────────────────────────────────────
@@ -19,7 +19,7 @@
   
   (:wat::core::let
     [lit \a
-     con (:wat::core::char/of "a")]
+     con (:wat::core::char "a")]
     (:wat::test::assert-eq lit con)))
 
 ;; ─── 3: Named char `\newline` ─────────────────────────────────────────────
@@ -28,7 +28,7 @@
   
   (:wat::core::let
     [nl      \newline
-     nl-con  (:wat::core::char/of "\n")]
+     nl-con  (:wat::core::char "\n")]
     (:wat::test::assert-eq nl nl-con)))
 
 ;; ─── 4: Named char `\space` ───────────────────────────────────────────────
@@ -37,7 +37,7 @@
   
   (:wat::core::let
     [sp     \space
-     sp-con (:wat::core::char/of " ")]
+     sp-con (:wat::core::char " ")]
     (:wat::test::assert-eq sp sp-con)))
 
 ;; ─── 5: Different chars are not equal ────────────────────────────────────

@@ -25,7 +25,7 @@
      journal (:wat::core::match (:wat::kernel::connect (:wat::telemetry::journal::Handle/addr jh)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      tags    (:wat::core::HashMap :wat::core::keyword :wat::core::String)
      m       (:wat::telemetry::Metric
-               :namespace "probe-ns" :uuid (:wat::core::Uuid/nil) :tags tags :time-ns 123
+               :namespace "probe-ns" :uuid (:wat::uuid::nil) :tags tags :time-ns 123
                :start-time-ns 100 :name :requests :value (:wat::telemetry::Numeric::I64 7)
                :unit :wat::telemetry::Unit::Count)
      batch   (:wat::core::Vector :wat::telemetry::Metric m)

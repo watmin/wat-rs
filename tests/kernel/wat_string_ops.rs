@@ -1,4 +1,4 @@
-//! Integration coverage for `:wat::core::string::*` + `:wat::core::regex::*`.
+//! Integration coverage for `:wat::core::string::*` + `:wat::regex::*`.
 //!
 //! Each test calls a named fn in the co-located fixture via eval_in_frozen.
 //! Bool fns return Value::bool; String fns return Value::String.
@@ -92,7 +92,7 @@ fn split_empty_separator_rejected() {
     );
 }
 
-// ─── :wat::core::regex::matches? ────────────────────────────────────────
+// ─── :wat::regex::matches? ────────────────────────────────────────
 
 #[test]
 fn regex_matches_unanchored() {

@@ -49,6 +49,16 @@
 //! | `":wat::core::Record::def"`             | 293.2  | base record decl macro          | defrecord (`:wat::core::defrecord`)  |
 //! | `":wat::holon::Record::def"`      | 293.2  | holonic record decl macro       | defrecord (`:wat::holon::defrecord`) |
 //! | `":wat::core::foldr"`             | 118.B6b | right fold (reverse+foldl wearing a Haskell name) | reduce (`:wat::core::reduce f init (:wat::core::reverse coll)`) |
+//! | `":wat::core::Uuid/v4"`               | 255 | Uuid v4 constructor, junk-drawer home         | `:wat::uuid::v4` |
+//! | `":wat::core::Uuid/v5"`               | 255 | Uuid v5 constructor, junk-drawer home         | `:wat::uuid::v5` |
+//! | `":wat::core::Uuid/from-string"`      | 255 | Uuid parse-safe constructor, junk-drawer home | `:wat::uuid::from-string` |
+//! | `":wat::core::Uuid/to-string"`        | 255 | Uuid render, junk-drawer home                 | `:wat::uuid::to-string` |
+//! | `":wat::core::Uuid/nil"`              | 255 | Uuid nil sentinel, junk-drawer home           | `:wat::uuid::nil` |
+//! | `":wat::core::Uuid/version"`          | 255 | Uuid version-nibble accessor, junk-drawer home | `:wat::uuid::version` |
+//! | `":wat::core::Uuid/rfc4122-variant?"` | 255 | Uuid variant probe, junk-drawer home          | `:wat::uuid::rfc4122-variant?` |
+//! | `":wat::core::regex::matches?"`       | 255 | regex match predicate, junk-drawer home       | `:wat::regex::matches?` |
+//! | `":wat::core::List/of"`               | 255 | List constructor's redundant `/of` suffix     | `:wat::core::List` (finishing, not starting) |
+//! | `":wat::core::char/of"`               | 255 | char constructor's redundant `/of` suffix     | `:wat::core::char` (finishing, not starting) |
 
 use super::{Remedy, RemedyKind};
 
@@ -139,6 +149,22 @@ const RETIREMENT_TABLE: &[RetirementEntry] = &[
     // being a word.
     RetirementEntry { retired: ":wat::core::foldr", replacement: ":wat::core::reduce",
         note: Some("wat is STRICT, so a right fold is `(:wat::core::reduce f init (:wat::core::reverse coll))` — `foldr` was `reverse`+`foldl` wearing a name borrowed from Haskell, where the verb is distinct only because it is LAZY (arc 118.B6b)") },
+    // Arc 255 — "the four that got homes": ten Rust-implemented verbs move off the
+    // `:wat::core::` junk-drawer to the namespace each earns. Handler bodies untouched;
+    // name-only. `List/of` and `char/of` FINISH a migration — both types already had their
+    // own constructor names, and these two verbs simply drop the redundant `/of` suffix.
+    RetirementEntry { retired: ":wat::core::Uuid/v4",               replacement: ":wat::uuid::v4",               note: None },
+    RetirementEntry { retired: ":wat::core::Uuid/v5",               replacement: ":wat::uuid::v5",               note: None },
+    RetirementEntry { retired: ":wat::core::Uuid/from-string",      replacement: ":wat::uuid::from-string",      note: None },
+    RetirementEntry { retired: ":wat::core::Uuid/to-string",        replacement: ":wat::uuid::to-string",        note: None },
+    RetirementEntry { retired: ":wat::core::Uuid/nil",              replacement: ":wat::uuid::nil",              note: None },
+    RetirementEntry { retired: ":wat::core::Uuid/version",          replacement: ":wat::uuid::version",          note: None },
+    RetirementEntry { retired: ":wat::core::Uuid/rfc4122-variant?", replacement: ":wat::uuid::rfc4122-variant?", note: None },
+    RetirementEntry { retired: ":wat::core::regex::matches?",       replacement: ":wat::regex::matches?",        note: None },
+    RetirementEntry { retired: ":wat::core::List/of",               replacement: ":wat::core::List",
+        note: Some("finishing, not starting — every other collection type is already its own constructor") },
+    RetirementEntry { retired: ":wat::core::char/of",               replacement: ":wat::core::char",
+        note: Some("finishing, not starting — the type is already named `:wat::core::char`; the constructor drops the redundant `/of`") },
 ];
 
 /// Look up `needle` in the retirement table.

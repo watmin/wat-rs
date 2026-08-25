@@ -149,3 +149,58 @@ count with a non-empty stderr is not a count.
 - Any of the four `Char/of` retirement comments deleted.
 - Prose in `gate_char_literal_is_a_literal.rs` lines 4/11/54 rewritten to say `char` — those record
   what the parser **used to emit**, and `char/of` is what it emitted.
+
+
+---
+
+# ⛔ SCORED 2026-08-25 — TWO ROWS WERE UNMEETABLE, AND ONE OF THEM IN A NEW WAY
+
+**Row 1b (`old name -> MalformedForm naming its replacement`) — NOT MET, and could not be.**
+The table was fed (25 -> 35, verified) and all ten old names still give a bare `UnknownFunction`,
+measured on a freshly-built binary. `retirement_lookup` reaches production only through
+hand-written per-name arms, and a slash-form name never reaches one. Full census, mechanism, and
+the proposed fix: `NOTE-the-retirement-table-is-inert-for-half-its-rows.md` — **13 of 35 rows are
+inert, three of them since before this stone.**
+
+★ **How the bar went wrong is worth separating from the other six this session.** I *did* derive
+it — I ran `(:wat::core::Char "x")` and read the retirement message off the screen. What I never
+checked was **which mechanism produced it**: a hand-written `if s == ":wat::core::Char"` at
+`check.rs:955`, not the table. **Deriving the SHAPE is not deriving the CAUSE.**
+
+**Row 7 (`.rs occurrences -> 0`) — the bar was wrong; the work is right.** 34 survive and every one
+is correct: **20** are `retirement.rs`'s own `retired:` strings and its arc-history rows, which MUST
+name the old names; the rest are historical prose (stone D's gate at lines 4/11/54, and the
+`242.1` retirement comments). The pattern needed to exclude the retirement table and the prose.
+Corrected bar: **0 live call sites**, which is met.
+
+**Row 7b was stale by two stones.** It expected four `Char/of` gravestones. Stone D had already
+removed three of them when it rewrote the regions they annotated — verified with `git grep` at
+`151acb67e` (5 files) versus `39c098738` (2 files). Not a violation; my room table was two stones
+old.
+
+## ⚠ AND ONE FILE THE BRIEF SHOULD HAVE FLAGGED AS A SECOND SPLIT
+
+`tests/program/probe_arc213_program_edn_roundtrip.rs`. The rider left it entirely and was right to:
+its `stop_trigger_slash_in_name_keyword` uses `:wat::core::char/of` as **data exhibiting a
+structural property** — a `/` in a keyword's name segment breaks EDN round-trip — not as a call.
+Renaming it to `:wat::core::char` (no slash) would have falsified the test's own premise.
+
+But leaving it cites a verb that no longer exists, which is a pin in waiting. **The witness moved to
+`:wat::core::HashMap/length`**, still live, still slash-in-name, and already named in that file's
+own doc comment as sharing the defect. Its pinned golden was recaptured — same error class, byte 17
+-> 24 and the name — and the file's four tests pass.
+
+## THE ROWS THAT MET
+
+```
+1a  the ten answer metadata-of under their NEW names        MET   (:wat::uuid::nil, :wat::regex::matches?, …)
+2   (:wat::core::List 1 2 3) evaluates                      MET
+3   (:wat::core::char "x") evaluates                        MET
+5   finder BEFORE                                190, exit 0, EMPTY stderr
+6   finder AFTER                                   0, exit 0, EMPTY stderr
+7   .rs LIVE call sites                            0  (34 correct survivors, above)
+9   RetirementEntry count                         35  (from 25)
+10  every_tracked_wat_file_parses                 green
+11  floor                    5056/5056, 19 skipped — BY NAME: 0 gained, 0 lost
+12  clippy                   0 under -D warnings
+```

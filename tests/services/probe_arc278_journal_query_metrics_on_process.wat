@@ -16,10 +16,10 @@
              :record (:wat::telemetry::journal::Record) :store-addr saddr)
      journal (:wat::core::match (:wat::kernel::connect (:wat::telemetry::journal::Handle/addr jh)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      tags  (:wat::core::HashMap :wat::core::keyword :wat::core::String)
-     m1    (:wat::telemetry::Metric :namespace "probe-ns" :uuid (:wat::core::Uuid/nil) :tags tags
+     m1    (:wat::telemetry::Metric :namespace "probe-ns" :uuid (:wat::uuid::nil) :tags tags
              :time-ns 1000000000 :start-time-ns 0 :name :a
              :value (:wat::telemetry::Numeric::I64 1) :unit :wat::telemetry::Unit::Count)
-     m2    (:wat::telemetry::Metric :namespace "probe-ns" :uuid (:wat::core::Uuid/nil) :tags tags
+     m2    (:wat::telemetry::Metric :namespace "probe-ns" :uuid (:wat::uuid::nil) :tags tags
              :time-ns 2000000000 :start-time-ns 0 :name :b
              :value (:wat::telemetry::Numeric::I64 2) :unit :wat::telemetry::Unit::Count)
      _wr   (:wat::telemetry::Journal/write-metrics journal

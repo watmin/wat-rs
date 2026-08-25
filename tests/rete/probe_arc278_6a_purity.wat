@@ -5,7 +5,7 @@
   (:wat::core::* n 2))
 
 (:wat::core::defn :test::nondet-uuid [] -> :wat::core::Uuid
-  (:wat::core::Uuid/v4))
+  (:wat::uuid::v4))
 
 (:wat::core::defn :test::io-fn [] -> :wat::io::IOReader
   (:wat::io::IOReader/open-file "x"))
@@ -19,11 +19,11 @@
 
 ;; ─── THE orthogonality proof: Uuid/v4 is pure ∧ non-deterministic ──────────────
 (:wat::core::defn :user::uuid-v4-pure? [] -> :wat::core::bool
-  (:wat::rete::pure? (:wat::core::quote (:wat::core::Uuid/v4))))
+  (:wat::rete::pure? (:wat::core::quote (:wat::uuid::v4))))
 (:wat::core::defn :user::uuid-v4-deterministic? [] -> :wat::core::bool
-  (:wat::rete::deterministic? (:wat::core::quote (:wat::core::Uuid/v4))))
+  (:wat::rete::deterministic? (:wat::core::quote (:wat::uuid::v4))))
 (:wat::core::defn :user::uuid-v5-deterministic? [] -> :wat::core::bool
-  (:wat::rete::deterministic? (:wat::core::quote (:wat::core::Uuid/v5 (:wat::core::Uuid/nil) "x"))))
+  (:wat::rete::deterministic? (:wat::core::quote (:wat::uuid::v5 (:wat::uuid::nil) "x"))))
 
 ;; ─── pure? axis (effect-free) ───────────────────────────────────────────────────
 (:wat::core::defn :user::pure-arithmetic-pure? [] -> :wat::core::bool
@@ -57,7 +57,7 @@
 (:wat::core::defn :user::io-op-deterministic? [] -> :wat::core::bool
   (:wat::rete::deterministic? (:wat::core::quote (:wat::io::IOReader/open-file "x"))))
 (:wat::core::defn :user::match-on-nondeterministic-scrutinee-deterministic? [] -> :wat::core::bool
-  (:wat::rete::deterministic? (:wat::core::quote (:wat::core::match (:wat::core::Uuid/v4)  (:wat::core::None nil)))))
+  (:wat::rete::deterministic? (:wat::core::quote (:wat::core::match (:wat::uuid::v4)  (:wat::core::None nil)))))
 (:wat::core::defn :user::self-recursive-fn-deterministic? [] -> :wat::core::bool
   (:wat::rete::deterministic? (:wat::core::quote (:test::countdown 3))))
 

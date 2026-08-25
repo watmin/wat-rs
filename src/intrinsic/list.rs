@@ -1,7 +1,7 @@
-//! `:wat::core::List/of` — arc 220 Stone 220.4's typed `List` constructor.
+//! `:wat::core::List` — arc 220 Stone 220.4's typed `List` constructor.
 //!
 //! A FIFTH family `string_ops.rs` held (unnamed by the builder's amendment,
-//! which named string/Uuid/char/regex) — `:wat::core::List/of` is none of
+//! which named string/Uuid/char/regex) — `:wat::core::List` is none of
 //! those; it is a generic core-collection constructor that happened to sit
 //! in the same file, right after `char/of`, because its doc comment says it
 //! "mirrors `eval_char_of`'s pattern". Since `string_ops.rs` ceases to
@@ -15,7 +15,7 @@ use crate::runtime::eval_inner;
 use crate::span::Span;
 use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 
-/// `(:wat::core::List/of arg1 arg2 ...)` → a `:wat::core::List` holding each
+/// `(:wat::core::List arg1 arg2 ...)` → a `:wat::core::List` holding each
 /// argument, in order.
 ///
 /// Evaluates each argument and pushes it to the back of a new
@@ -28,8 +28,8 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// @Category      Transform
 /// @arg     args… :wat::core::Value the elements of the new list, in order
 /// @ret     :wat::core::List a `List` holding each argument, in order
-/// @example (:wat::core::List/of 1 2 3) #=> (:wat::core::List/of 1 2 3)
-#[wat_intrinsic(":wat::core::List/of")]
+/// @example (:wat::core::List 1 2 3) #=> (:wat::core::List 1 2 3)
+#[wat_intrinsic(":wat::core::List")]
 pub(crate) fn eval_list_of(
     args: &[WatAST],
     env: &Environment,

@@ -32,7 +32,7 @@
 //! fixed-arg `#[wat_intrinsic]` handlers, every one of their call sites
 //! (`contains?`/`starts-with?`/`ends-with?`/`length`/`trim`/
 //! `to-lowercase`/`to-uppercase`/`pascal->kebab`/`split`/
-//! `:wat::core::regex::matches?`) moved to a handler that type-checks its
+//! `:wat::regex::matches?`) moved to a handler that type-checks its
 //! own named `&WatAST` arg directly (`arg_string` in `intrinsic/string.rs`,
 //! or an inline match in `intrinsic/regex.rs` — the arity half of
 //! `one_string`/`two_strings`' job is now the `#[wat_intrinsic]` shim's,

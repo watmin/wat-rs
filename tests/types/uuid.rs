@@ -65,7 +65,7 @@ fn run(path: &str) -> Vec<String> {
 
 // ─── 1: Uuid/v4 returns typed :wat::core::Uuid (not :String) ───────────────
 
-/// `(:wat::core::Uuid/v4)` returns a `:wat::core::Uuid` value.
+/// `(:wat::uuid::v4)` returns a `:wat::core::Uuid` value.
 /// We verify by calling `Uuid/to-string` on it (which requires a typed Uuid
 /// arg) and asserting the result is a 36-char string. If `Uuid/v4` returned
 /// `:String`, `Uuid/to-string` would TypeMismatch at runtime.
@@ -77,7 +77,7 @@ fn uuid_v4_returns_typed_uuid() {
 
 // ─── 2: Uuid/v5 with typed namespace ────────────────────────────────────────
 
-/// `(:wat::core::Uuid/v5 ns name)` with a typed `:Uuid` namespace arg.
+/// `(:wat::uuid::v5 ns name)` with a typed `:Uuid` namespace arg.
 /// Deterministic: same (ns, name) always produces the same result.
 /// Verifies the namespace param is `:Uuid` (eliminates arc 206's panic foot-gun).
 #[test]
@@ -132,7 +132,7 @@ fn uuid_to_string_roundtrip() {
 
 // ─── 5: Uuid/nil returns the nil UUID ──────────────────────────────────────
 
-/// `(:wat::core::Uuid/nil)` returns the zero-UUID sentinel.
+/// `(:wat::uuid::nil)` returns the zero-UUID sentinel.
 /// `Uuid/to-string` on it produces `"00000000-0000-0000-0000-000000000000"`.
 #[test]
 fn uuid_nil_is_zero() {

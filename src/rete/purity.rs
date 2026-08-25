@@ -7,7 +7,7 @@
 //! - **pure** — effect-free: no IO/mutation/spawn (seed: the negation of `is_effectful_op`).
 //! - **deterministic** — referentially transparent: same inputs → same output (no randomness/clock).
 //!
-//! They are genuinely orthogonal. `:wat::core::Uuid/v4` does no IO and mutates nothing → it is PURE,
+//! They are genuinely orthogonal. `:wat::uuid::v4` does no IO and mutates nothing → it is PURE,
 //! yet it is random → NON-deterministic. The exposed rete check is therefore
 //! `(and (pure? f) (deterministic? f) (total? f) (primitive? f))`; each axis is
 //! its own predicate.
@@ -247,7 +247,7 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
     // Pure but NON-deterministic: random. Not corpus-demanded for `total` (Uuid/v4 can never
     // reach a `where` fence today — it already fails the determinism conjunct — so DEFAULT-DENY
     // stands; it is trivially total in the absolute sense but that claim was never measured).
-    if head == ":wat::core::Uuid/v4" {
+    if head == ":wat::uuid::v4" {
         return Some(OpMeta { pure: true, deterministic: false, total: false });
     }
     // Pure ∧ deterministic by namespace prefix — every op here is referentially transparent.
@@ -259,7 +259,7 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
     // implementation (`string_ops.rs`): `length`/`trim`/`to-lowercase` always return, for any
     // string input, no raise. Every other `string::`/`regex::` verb (incl. `subs`, `split`,
     // `to-uppercase`, the whole `regex::` family) is left `false` — undemanded, unmeasured.
-    if head.starts_with(":wat::string::") || head.starts_with(":wat::core::regex::") {
+    if head.starts_with(":wat::string::") || head.starts_with(":wat::regex::") {
         let total = matches!(
             head,
             ":wat::string::length" | ":wat::string::trim" | ":wat::string::to-lowercase"
@@ -486,10 +486,10 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             | ":wat::core::HashMap/keys"
             | ":wat::core::HashMap/values"
             // Deterministic Uuid ops (v5 = SHA1(ns,name); from-string/to-string/nil)
-            | ":wat::core::Uuid/v5"
-            | ":wat::core::Uuid/from-string"
-            | ":wat::core::Uuid/to-string"
-            | ":wat::core::Uuid/nil"
+            | ":wat::uuid::v5"
+            | ":wat::uuid::from-string"
+            | ":wat::uuid::to-string"
+            | ":wat::uuid::nil"
             // Higher-order fold combinators — CONDITIONALLY pure∧det: the combinator itself is
             // referentially transparent + effect-free; its purity/determinism falls out of the
             // arg-recursion over its fn-argument (classify_expr recurses every arg, incl. the
@@ -548,7 +548,7 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             | ":wat::core::Vector"        | ":wat::core::Vector/length"   | ":wat::core::Vector/get"
             | ":wat::core::Vector/conj"   | ":wat::core::Vector/contains?" | ":wat::core::Vector/empty?"
             | ":wat::core::Vector/concat" | ":wat::core::Vector/extend"
-            | ":wat::core::List?"         | ":wat::core::List/of"         | ":wat::core::List/length"
+            | ":wat::core::List?"         | ":wat::core::List"            | ":wat::core::List/length"
             | ":wat::core::List/get"      | ":wat::core::List/conj"       | ":wat::core::List/contains?"
             | ":wat::core::List/empty?"
             | ":wat::core::HashSet"       | ":wat::core::HashSet/length"  | ":wat::core::HashSet/conj"
@@ -560,7 +560,7 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             | ":wat::core::i64/to-f64" | ":wat::core::i64/to-string"
             // Uuid READERS (contrast `Uuid/v4`, which is pure but NON-deterministic and is handled
             // by its own arm at the top): these read bits out of a value already in hand.
-            | ":wat::core::Uuid/version" | ":wat::core::Uuid/rfc4122-variant?"
+            | ":wat::uuid::version" | ":wat::uuid::rfc4122-variant?"
 
             // ── The VSA SEAM — `:wat::holon::` (builder-ruled, 2026-08-01: these four) ─────────
             //
@@ -1600,19 +1600,19 @@ mod classify_native_fn_tests {
     #[test]
     fn pure_but_nondeterministic_native_head_fails_only_the_deterministic_axis() {
         // Uuid/v4 — the one hand-documented pure-but-random op.
-        assert!(classify_native_fn(":wat::core::Uuid/v4", Axis::Pure).is_ok());
-        assert!(classify_native_fn(":wat::core::Uuid/v4", Axis::Deterministic).is_err());
+        assert!(classify_native_fn(":wat::uuid::v4", Axis::Pure).is_ok());
+        assert!(classify_native_fn(":wat::uuid::v4", Axis::Deterministic).is_err());
     }
 }
 
 // ─── Public axis classifiers (fresh `seen` per call) — also for stone 6b+ ──────
 
-/// Is `ast` effect-free (no IO/mutation/spawn)? `:wat::core::Uuid/v4` is pure (it does no IO).
+/// Is `ast` effect-free (no IO/mutation/spawn)? `:wat::uuid::v4` is pure (it does no IO).
 pub(crate) fn is_pure_expr(ast: &WatAST, sym: &SymbolTable) -> bool {
     classify_expr(ast, &[Axis::Pure], sym, &mut HashSet::new()).is_ok()
 }
 
-/// Is `ast` referentially transparent (same inputs → same output)? `:wat::core::Uuid/v4` is NOT.
+/// Is `ast` referentially transparent (same inputs → same output)? `:wat::uuid::v4` is NOT.
 pub(crate) fn is_deterministic_expr(ast: &WatAST, sym: &SymbolTable) -> bool {
     classify_expr(ast, &[Axis::Deterministic], sym, &mut HashSet::new()).is_ok()
 }
@@ -2212,7 +2212,7 @@ mod completeness_gate {
     ":wat::core::ann-form",
     ":wat::core::apply",
     ":wat::core::assoc",
-    ":wat::core::char/of",
+    ":wat::core::char",
     ":wat::core::conforms?",
     ":wat::core::conj",
     ":wat::core::def",

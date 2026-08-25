@@ -63,7 +63,7 @@
         "1,3,5")
       (:wat::test::assert-eq
         (:wat::string::join ","
-          (:wat::core::into [] (:wat::core::remove pred (:wat::core::List/of 1 2 3 4 5 6))))
+          (:wat::core::into [] (:wat::core::remove pred (:wat::core::List 1 2 3 4 5 6))))
         "1,3,5")
       (:wat::test::assert-eq
         (:wat::string::join ","
@@ -101,7 +101,7 @@
         "1,2,3")
       (:wat::test::assert-eq
         (:wat::string::join ","
-          (:wat::core::into [] (:wat::core::take-while pred (:wat::core::List/of 1 2 3 4 1 2))))
+          (:wat::core::into [] (:wat::core::take-while pred (:wat::core::List 1 2 3 4 1 2))))
         "1,2,3")
       (:wat::test::assert-eq
         (:wat::string::join ","
@@ -139,7 +139,7 @@
         "4,1,2")
       (:wat::test::assert-eq
         (:wat::string::join ","
-          (:wat::core::into [] (:wat::core::drop-while pred (:wat::core::List/of 1 2 3 4 1 2))))
+          (:wat::core::into [] (:wat::core::drop-while pred (:wat::core::List 1 2 3 4 1 2))))
         "4,1,2")
       (:wat::test::assert-eq
         (:wat::string::join ","
@@ -161,7 +161,7 @@
       "1,3,5")
     (:wat::test::assert-eq
       (:wat::string::join ","
-        (:wat::core::into [] (:wat::core::take-nth 2 (:wat::core::List/of 1 2 3 4 5 6))))
+        (:wat::core::into [] (:wat::core::take-nth 2 (:wat::core::List 1 2 3 4 5 6))))
       "1,3,5")
     (:wat::test::assert-eq
       (:wat::string::join ","
@@ -210,7 +210,7 @@
         "0,1,3,6,10")
       (:wat::test::assert-eq
         (:wat::string::join ","
-          (:wat::core::into [] (:wat::core::reductions f 0 (:wat::core::List/of 1 2 3 4))))
+          (:wat::core::into [] (:wat::core::reductions f 0 (:wat::core::List 1 2 3 4))))
         "0,1,3,6,10")
       (:wat::test::assert-eq
         (:wat::string::join ","
@@ -233,7 +233,7 @@
         "1,3,6,10")
       (:wat::test::assert-eq
         (:wat::string::join ","
-          (:wat::core::into [] (:wat::core::reductions f (:wat::core::List/of 1 2 3 4))))
+          (:wat::core::into [] (:wat::core::reductions f (:wat::core::List 1 2 3 4))))
         "1,3,6,10")
       (:wat::test::assert-eq
         (:wat::string::join ","
@@ -302,7 +302,7 @@
            (:wat::kernel::RecvOutcome::Closed
              (:wat::kernel::assertion-failed! "expected Lost[Panic], got Closed" :wat::core::None :wat::core::None)))]
     (:wat::test::assert-true
-      (:wat::core::regex::matches? "reductions: the 2-arity form needs at least one element" msg))))
+      (:wat::regex::matches? "reductions: the 2-arity form needs at least one element" msg))))
 
 (:wat::test::deftest-hermetic :wat-tests::core::core-seq-walkers::reductions-2arity-on-empty-stream-raises
   (:wat::core::let
@@ -328,4 +328,4 @@
            (:wat::kernel::RecvOutcome::Closed
              (:wat::kernel::assertion-failed! "expected Lost[Panic], got Closed" :wat::core::None :wat::core::None)))]
     (:wat::test::assert-true
-      (:wat::core::regex::matches? "reductions: the 2-arity form needs at least one element" msg))))
+      (:wat::regex::matches? "reductions: the 2-arity form needs at least one element" msg))))

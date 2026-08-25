@@ -254,7 +254,7 @@
 ;; AxisViolation — BRIEF-the-fence-names-the-head. The result of `:wat::rete::axis-violation`:
 ;; the offending head when a `where`/accumulator expr falsifies an axis (pure, deterministic,
 ;; total, or rete-primitive).
-;;   head: the violating verb's fqdn (e.g. ":wat::io::IOReader/open-file", ":wat::core::Uuid/v4").
+;;   head: the violating verb's fqdn (e.g. ":wat::io::IOReader/open-file", ":wat::uuid::v4").
 ;;   axis: which axis was asked about (`:Pure` / `:Deterministic` / `:Total` / `:RetePrimitive`) —
 ;;         echoed back for self-description.
 ;;   span: the failing call's source Location. Native stubs with no body AST use

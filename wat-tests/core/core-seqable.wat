@@ -30,7 +30,7 @@
 
 (:wat::test::deftest :wat-tests::core::core-seqable::seq-of-list
   (:wat::core::let [out (:wat::core::into [] (:wat::core::Seqable/seq
-                          (:wat::core::List/of 1 2 3 4 5)))]
+                          (:wat::core::List 1 2 3 4 5)))]
     (:wat::test::assert-eq (:wat::string::join "," out) "1,2,3,4,5")))
 
 (:wat::test::deftest :wat-tests::core::core-seqable::seq-of-stream
@@ -58,7 +58,7 @@
     (:wat::test::assert-eq
       (:wat-tests::core::core-seqable::count-via-seq (:wat::core::PersistentVector 1 2 3 4)) 4)
     (:wat::test::assert-eq
-      (:wat-tests::core::core-seqable::count-via-seq (:wat::core::List/of 1 2 3 4 5)) 5)
+      (:wat-tests::core::core-seqable::count-via-seq (:wat::core::List 1 2 3 4 5)) 5)
     (:wat::test::assert-eq
       (:wat-tests::core::core-seqable::count-via-seq
         (:wat::stream::cons 1

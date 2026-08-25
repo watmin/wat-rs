@@ -55,13 +55,13 @@
 ;; ─── regex::matches? ─────────────────────────────────────────────────────────
 
 (:wat::core::defn :my::compute-regex-match [] -> :wat::core::bool
-  (:wat::core::regex::matches? "[0-9]+" "order #42 shipped"))
+  (:wat::regex::matches? "[0-9]+" "order #42 shipped"))
 
 (:wat::core::defn :my::compute-regex-no-match [] -> :wat::core::bool
-  (:wat::core::regex::matches? "^foo$" "foobar"))
+  (:wat::regex::matches? "^foo$" "foobar"))
 
 (:wat::core::defn :my::compute-regex-invalid [] -> :wat::core::bool
   (:wat::core::let
-    [_ (:wat::core::regex::matches? "[unclosed" "x")]
+    [_ (:wat::regex::matches? "[unclosed" "x")]
     false))
 

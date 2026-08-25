@@ -42,7 +42,7 @@
      ;; Arc 294 item (C) — kwargs construction of the spliced Metric (bare-positional retired).
      m       (:wat::telemetry::Metric
                :namespace     "probe-ns"                      ;; spliced from Scope
-               :uuid          (:wat::core::Uuid/nil)          ;; spliced
+               :uuid          (:wat::uuid::nil)          ;; spliced
                :tags          tags                            ;; spliced
                :time-ns       123                             ;; spliced
                :start-time-ns 100                             ;; own

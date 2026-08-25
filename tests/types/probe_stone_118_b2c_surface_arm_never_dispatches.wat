@@ -28,7 +28,7 @@
   (:my::count-via-clause (:wat::core::Vector :wat::core::i64 1 2 3)))
 
 (:wat::core::defn :my::clause-list [] -> :wat::core::i64
-  (:my::count-via-clause (:wat::core::List/of 1 2 3)))
+  (:my::count-via-clause (:wat::core::List 1 2 3)))
 
 (:wat::core::defn :my::clause-persistentvector [] -> :wat::core::i64
   (:my::count-via-clause (:wat::core::PersistentVector 1 2 3)))
@@ -45,7 +45,7 @@
   (:my::count-via-defn (:wat::core::Vector :wat::core::i64 1 2 3)))
 
 (:wat::core::defn :my::defn-list [] -> :wat::core::i64
-  (:my::count-via-defn (:wat::core::List/of 1 2 3)))
+  (:my::count-via-defn (:wat::core::List 1 2 3)))
 
 (:wat::core::defn :my::defn-persistentvector [] -> :wat::core::i64
   (:my::count-via-defn (:wat::core::PersistentVector 1 2 3)))

@@ -66,7 +66,7 @@
       (:wat::core::Vector :wat::core::i64
         (:sq::count-of (:wat::core::Vector :wat::core::i64 1 2 3))
         (:sq::count-of (:wat::core::PersistentVector 1 2 3 4))
-        (:sq::count-of (:wat::core::List/of 1 2 3 4 5))
+        (:sq::count-of (:wat::core::List 1 2 3 4 5))
         (:sq::count-of (:wat::stream::cons 1
                           (:wat::stream::lazy
                             (:wat::stream::cons 2

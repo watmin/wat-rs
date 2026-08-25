@@ -1,4 +1,4 @@
-//! `:wat::core::Uuid/*` intrinsics — arc 255 carve (builder amendment to
+//! `:wat::uuid::*` intrinsics — arc 255 carve (builder amendment to
 //! home #4 phase 2, the string carve): "own home, same shape" as
 //! `intrinsic/bytes.rs`. Arc 207 slice 2 minted `:wat::core::Uuid` as a
 //! typed primitive; arc 299 slice 1 added the `version`/`rfc4122-variant?`
@@ -37,7 +37,7 @@ fn is_canonical_uuid_string(s: &str) -> bool {
         })
 }
 
-/// `(:wat::core::Uuid/v4)` → a fresh, randomly-minted `:wat::core::Uuid`.
+/// `(:wat::uuid::v4)` → a fresh, randomly-minted `:wat::core::Uuid`.
 ///
 /// Mints a fresh v4 (random) UUID on every call — different on every
 /// invocation, hence Nondeterministic (matches `:wat::time::now`'s
@@ -50,9 +50,9 @@ fn is_canonical_uuid_string(s: &str) -> bool {
 /// @Determinism   Nondeterministic
 /// @Category      Entropic
 /// @ret     :wat::core::Uuid a freshly-minted random UUID
-/// @example-norun (:wat::core::Uuid/v4) #=> #uuid "a random v4 UUID, different every call"
-/// @see     :wat::core::Uuid/v5
-#[wat_intrinsic(":wat::core::Uuid/v4")]
+/// @example-norun (:wat::uuid::v4) #=> #uuid "a random v4 UUID, different every call"
+/// @see     :wat::uuid::v5
+#[wat_intrinsic(":wat::uuid::v4")]
 pub(crate) fn eval_uuid_v4(
     _env: &Environment, // rune:lint(unused-env) — 0-arity constructor, no args to evaluate
     _sym: &SymbolTable, // rune:lint(unused-sym) — see above
@@ -61,7 +61,7 @@ pub(crate) fn eval_uuid_v4(
     Ok(Value::wat__core__Uuid(wat_edn::new_uuid_v4()))
 }
 
-/// `(:wat::core::Uuid/v5 ns name)` → a deterministic SHA-1-based
+/// `(:wat::uuid::v5 ns name)` → a deterministic SHA-1-based
 /// `:wat::core::Uuid`.
 ///
 /// `ns` is `:wat::core::Uuid` (type-enforced, eliminating the runtime-panic
@@ -75,9 +75,9 @@ pub(crate) fn eval_uuid_v4(
 /// @arg     ns   :wat::core::Uuid   the namespace UUID
 /// @arg     name :wat::core::String the name, scoped by `ns`
 /// @ret     :wat::core::Uuid the deterministic SHA-1-based UUID for `(ns, name)`
-/// @example (:wat::core::Uuid/v5 (:wat::core::Uuid/nil) "x") #=> (:wat::core::Uuid/v5 (:wat::core::Uuid/nil) "x")
-/// @see     :wat::core::Uuid/v4
-#[wat_intrinsic(":wat::core::Uuid/v5")]
+/// @example (:wat::uuid::v5 (:wat::uuid::nil) "x") #=> (:wat::uuid::v5 (:wat::uuid::nil) "x")
+/// @see     :wat::uuid::v4
+#[wat_intrinsic(":wat::uuid::v5")]
 pub(crate) fn eval_uuid_v5(
     ns: &WatAST,
     name: &WatAST,
@@ -85,7 +85,7 @@ pub(crate) fn eval_uuid_v5(
     sym: &SymbolTable,
     _span: &Span, // rune:lint(unused-span) — located elsewhere: every error (TypeMismatch) locates at its own arg's span (`ns`'s or `name`'s)
 ) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::core::Uuid/v5";
+    const OP: &str = ":wat::uuid::v5";
     let ns_val = eval_inner(ns, env, sym)?.value_owned();
     let ns_uuid = match ns_val {
         Value::wat__core__Uuid(u) => u,
@@ -113,7 +113,7 @@ pub(crate) fn eval_uuid_v5(
     Ok(Value::wat__core__Uuid(wat_edn::new_uuid_v5(ns_uuid, &name_str)))
 }
 
-/// `(:wat::core::Uuid/from-string s)` → `s` parsed as a canonical UUID, or
+/// `(:wat::uuid::from-string s)` → `s` parsed as a canonical UUID, or
 /// `None`.
 ///
 /// Parse-safe constructor. Accepts ONLY canonical 8-4-4-4-12 lowercase
@@ -126,16 +126,16 @@ pub(crate) fn eval_uuid_v5(
 /// @Category      Transform
 /// @arg     s :wat::core::String the candidate UUID text
 /// @ret     (:wat::core::Option :- [:wat::core::Uuid]) `Some(u)` iff `s` is a canonical UUID string, `None` otherwise
-/// @example (:wat::core::Uuid/from-string "not-a-uuid") #=> :None
-/// @see     :wat::core::Uuid/to-string
-#[wat_intrinsic(":wat::core::Uuid/from-string")]
+/// @example (:wat::uuid::from-string "not-a-uuid") #=> :None
+/// @see     :wat::uuid::to-string
+#[wat_intrinsic(":wat::uuid::from-string")]
 pub(crate) fn eval_uuid_from_string(
     s: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
     _span: &Span, // rune:lint(unused-span) — located elsewhere: the only error (TypeMismatch) locates at `s`'s own span; malformed UUID text is a non-error `Ok(None)`
 ) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::core::Uuid/from-string";
+    const OP: &str = ":wat::uuid::from-string";
     let s_val = eval_inner(s, env, sym)?.value_owned();
     let s_str = match &s_val {
         Value::String(v) => v.as_str().to_string(),
@@ -156,7 +156,7 @@ pub(crate) fn eval_uuid_from_string(
     Ok(Value::Option(Arc::new(result)))
 }
 
-/// `(:wat::core::Uuid/to-string u)` → the canonical 8-4-4-4-12 lowercase
+/// `(:wat::uuid::to-string u)` → the canonical 8-4-4-4-12 lowercase
 /// hyphenated rendering of `u`.
 ///
 /// @added         1.0.0
@@ -165,16 +165,16 @@ pub(crate) fn eval_uuid_from_string(
 /// @Category      Transform
 /// @arg     u :wat::core::Uuid the UUID to render
 /// @ret     :wat::core::String the canonical 8-4-4-4-12 lowercase hyphenated rendering of `u`
-/// @example (:wat::core::Uuid/to-string (:wat::core::Uuid/nil)) #=> "00000000-0000-0000-0000-000000000000"
-/// @see     :wat::core::Uuid/from-string
-#[wat_intrinsic(":wat::core::Uuid/to-string")]
+/// @example (:wat::uuid::to-string (:wat::uuid::nil)) #=> "00000000-0000-0000-0000-000000000000"
+/// @see     :wat::uuid::from-string
+#[wat_intrinsic(":wat::uuid::to-string")]
 pub(crate) fn eval_uuid_to_string(
     u: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
     _span: &Span, // rune:lint(unused-span) — located elsewhere: the only error (TypeMismatch) locates at `u`'s own span
 ) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::core::Uuid/to-string";
+    const OP: &str = ":wat::uuid::to-string";
     let u_val = eval_inner(u, env, sym)?.value_owned();
     let uu = match &u_val {
         Value::wat__core__Uuid(v) => *v,
@@ -190,7 +190,7 @@ pub(crate) fn eval_uuid_to_string(
     Ok(Value::String(Arc::new(uu.to_string())))
 }
 
-/// `(:wat::core::Uuid/nil)` → the nil UUID
+/// `(:wat::uuid::nil)` → the nil UUID
 /// (`00000000-0000-0000-0000-000000000000`).
 ///
 /// @added         1.0.0
@@ -198,8 +198,8 @@ pub(crate) fn eval_uuid_to_string(
 /// @Determinism   Deterministic
 /// @Category      Transform
 /// @ret     :wat::core::Uuid the nil UUID (`00000000-0000-0000-0000-000000000000`)
-/// @example (:wat::core::Uuid/nil) #=> (:wat::core::Uuid/nil)
-#[wat_intrinsic(":wat::core::Uuid/nil")]
+/// @example (:wat::uuid::nil) #=> (:wat::uuid::nil)
+#[wat_intrinsic(":wat::uuid::nil")]
 pub(crate) fn eval_uuid_nil(
     _env: &Environment, // rune:lint(unused-env) — 0-arity constructor, no args to evaluate
     _sym: &SymbolTable, // rune:lint(unused-sym) — see above
@@ -208,7 +208,7 @@ pub(crate) fn eval_uuid_nil(
     Ok(Value::wat__core__Uuid(uuid::Uuid::nil()))
 }
 
-/// `(:wat::core::Uuid/version u)` → the version nibble of `u`.
+/// `(:wat::uuid::version u)` → the version nibble of `u`.
 ///
 /// Returns the version nibble as an integer (e.g. `4` for a v4 UUID). Arc
 /// 299 slice 1.
@@ -219,15 +219,15 @@ pub(crate) fn eval_uuid_nil(
 /// @Category      Projection
 /// @arg     u :wat::core::Uuid the UUID to inspect
 /// @ret     :wat::core::i64 the version nibble of `u` (e.g. 4 for a v4 UUID)
-/// @example (:wat::core::Uuid/version (:wat::core::Uuid/nil)) #=> 0
-#[wat_intrinsic(":wat::core::Uuid/version")]
+/// @example (:wat::uuid::version (:wat::uuid::nil)) #=> 0
+#[wat_intrinsic(":wat::uuid::version")]
 pub(crate) fn eval_uuid_version(
     u: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
     _span: &Span, // rune:lint(unused-span) — located elsewhere: the only error (TypeMismatch) locates at `u`'s own span
 ) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::core::Uuid/version";
+    const OP: &str = ":wat::uuid::version";
     let u_val = eval_inner(u, env, sym)?.value_owned();
     let uu = match &u_val {
         Value::wat__core__Uuid(v) => *v,
@@ -243,7 +243,7 @@ pub(crate) fn eval_uuid_version(
     Ok(Value::i64(uu.get_version_num() as i64))
 }
 
-/// `(:wat::core::Uuid/rfc4122-variant? u)` → whether `u`'s variant nibble
+/// `(:wat::uuid::rfc4122-variant? u)` → whether `u`'s variant nibble
 /// indicates RFC-4122.
 ///
 /// True iff the variant bits are `10xx` (nibble ∈ {8,9,a,b}). Arc 299
@@ -255,15 +255,15 @@ pub(crate) fn eval_uuid_version(
 /// @Category      Probe
 /// @arg     u :wat::core::Uuid the UUID to inspect
 /// @ret     :wat::core::bool true iff `u`'s variant nibble indicates RFC-4122
-/// @example (:wat::core::Uuid/rfc4122-variant? (:wat::core::Uuid/nil)) #=> false
-#[wat_intrinsic(":wat::core::Uuid/rfc4122-variant?")]
+/// @example (:wat::uuid::rfc4122-variant? (:wat::uuid::nil)) #=> false
+#[wat_intrinsic(":wat::uuid::rfc4122-variant?")]
 pub(crate) fn eval_uuid_rfc4122_variant(
     u: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
     _span: &Span, // rune:lint(unused-span) — located elsewhere: the only error (TypeMismatch) locates at `u`'s own span
 ) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::core::Uuid/rfc4122-variant?";
+    const OP: &str = ":wat::uuid::rfc4122-variant?";
     let u_val = eval_inner(u, env, sym)?.value_owned();
     let uu = match &u_val {
         Value::wat__core__Uuid(v) => *v,

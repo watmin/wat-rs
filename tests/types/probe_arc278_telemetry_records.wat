@@ -11,7 +11,7 @@
      ;; retired (positional belongs to the prime `:T'`).
      m    (:wat::telemetry::Metric
             :namespace     "market-eval"                     ;; spliced from Scope
-            :uuid          (:wat::core::Uuid/nil)            ;; spliced
+            :uuid          (:wat::uuid::nil)            ;; spliced
             :tags          tags                              ;; spliced
             :time-ns       123                               ;; spliced
             :start-time-ns 100                               ;; own

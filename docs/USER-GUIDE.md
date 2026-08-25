@@ -2555,24 +2555,24 @@ unify them. Five constructors + two accessors cover all use-cases:
 ```scheme
 ;; --- constructors ---
 
-(:wat::core::Uuid/v4)
+(:wat::uuid::v4)
 ;;   -> :wat::core::Uuid — 122-bit random UUID (secret witness, capability tokens)
 
-(:wat::core::Uuid/v5 namespace name)
+(:wat::uuid::v5 namespace name)
 ;;   namespace : :wat::core::Uuid — typed UUID namespace
 ;;   name      : :wat::core::String — arbitrary identifying string
 ;;   -> :wat::core::Uuid — deterministic SHA-1 of (namespace, name)
 
-(:wat::core::Uuid/from-string s)
+(:wat::uuid::from-string s)
 ;;   s  : :wat::core::String — must be canonical 36-char hyphenated form
 ;;   -> (:wat::core::Option :- [:wat::core::Uuid]) — None when s is not a valid UUID
 
-(:wat::core::Uuid/nil)
+(:wat::uuid::nil)
 ;;   -> :wat::core::Uuid — nil UUID (all zeros); useful as a well-known constant
 
 ;; --- accessor ---
 
-(:wat::core::Uuid/to-string u)
+(:wat::uuid::to-string u)
 ;;   u  : :wat::core::Uuid
 ;;   -> :wat::core::String — canonical hyphenated form, e.g. "550e8400-e29b-41d4-a716-446655440000"
 ```
@@ -2584,8 +2584,8 @@ useless to an attacker who hasn't been handed one.
 
 ```scheme
 (:wat::core::let
-  [server-id  (:wat::core::Uuid/v4)    ;; capability witness — :Uuid, not :String
-   user-id    (:wat::core::Uuid/v4)]   ;; per-user identifier
+  [server-id  (:wat::uuid::v4)    ;; capability witness — :Uuid, not :String
+   user-id    (:wat::uuid::v4)]   ;; per-user identifier
   ...)
 ```
 
@@ -2599,10 +2599,10 @@ different namespace OR different name yields a different UUID.
 (:wat::core::let
   ;; Mint a stable namespace once (or use a published RFC 4122 namespace).
   ;; Here we use Uuid/nil as the root; in production pin a real v4 constant.
-  [dns-ns        (:wat::core::Uuid/nil)
-   service-id    (:wat::core::Uuid/v5 dns-ns "users.example.com")
+  [dns-ns        (:wat::uuid::nil)
+   service-id    (:wat::uuid::v5 dns-ns "users.example.com")
    ;; service-id is the same in every wat-vm process that runs this code.
-   user-x-id     (:wat::core::Uuid/v5 service-id "user-x")]
+   user-x-id     (:wat::uuid::v5 service-id "user-x")]
   ...)
 ```
 
@@ -2614,7 +2614,7 @@ namespaces, convert it first:
 ```scheme
 (:wat::core::let
   ;; RFC 4122 DNS namespace as a typed Uuid.
-  [dns-ns-opt  (:wat::core::Uuid/from-string "6ba7b810-9dad-11d1-80b4-00c04fd430c8")
+  [dns-ns-opt  (:wat::uuid::from-string "6ba7b810-9dad-11d1-80b4-00c04fd430c8")
    dns-ns      (:wat::core::Option/unwrap dns-ns-opt)]
   ...)
 ```
@@ -2635,7 +2635,7 @@ in typed `readln -> :T` pipelines. The EDN serializer emits
 (:wat::core::let
   [raw  "#uuid \"550e8400-e29b-41d4-a716-446655440000\""
    uid  (:wat::edn::read raw)]   ;; uid : :wat::core::Uuid
-  (:wat::core::Uuid/to-string uid))
+  (:wat::uuid::to-string uid))
 ;;   -> "550e8400-e29b-41d4-a716-446655440000"
 ```
 
@@ -2643,9 +2643,9 @@ in typed `readln -> :T` pipelines. The EDN serializer emits
 `:wat::core::uuid::v4` and `:wat::core::uuid::v5` no longer exist in
 the substrate; new code MUST use `Uuid/v4` and `Uuid/v5`.
 `:wat::telemetry::uuid::v4` still works — it delegates to
-`:wat::core::Uuid/v4` at the wat layer and returns a typed `:Uuid`.
+`:wat::uuid::v4` at the wat layer and returns a typed `:Uuid`.
 Existing callers of the telemetry alias see no behavior change; new
-code should reach for `:wat::core::Uuid/v4` directly (no telemetry dep
+code should reach for `:wat::uuid::v4` directly (no telemetry dep
 needed).
 
 ---
@@ -3671,7 +3671,7 @@ spell out. For each: the path, the arity, and what it produces.
 | `:wat::core::string::length` | `s` | `:i64` — char count |
 | `:wat::core::string::trim` | `s` | `:String` |
 | `:wat::core::string::split` / `join` | `hay sep` / `sep pieces` | `(:Vec :- [String])` / `:String` |
-| `:wat::core::regex::matches?` | `pattern haystack` | `:bool` — unanchored |
+| `:wat::regex::matches?` | `pattern haystack` | `:bool` — unanchored |
 | `:wat::kernel::run-sandboxed` | `src stdin scope` | `:wat::kernel::RunResult` — wat stdlib define in `wat/kernel/sandbox.wat` (arc 105c), atop spawn-program |
 | `:wat::kernel::run-sandboxed-ast` | `forms stdin scope` | `:wat::kernel::RunResult` — same file, atop spawn-program-ast |
 | `:wat::kernel::run-sandboxed-hermetic-ast` | `forms stdin scope` | `:wat::kernel::RunResult` — forks a child via `:wat::kernel::fork-program-ast`; wat stdlib define in `wat/kernel/hermetic.wat` |

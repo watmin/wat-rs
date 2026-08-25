@@ -13,7 +13,7 @@
         (:wat::core::into [] (:wat::core::interpose 0 (:wat::core::Vector :wat::core::i64 1 2 3)))))
     (:wat::kernel::println
       (:wat::string::join ","
-        (:wat::core::into [] (:wat::core::interpose 0 (:wat::core::List/of 1 2 3)))))
+        (:wat::core::into [] (:wat::core::interpose 0 (:wat::core::List 1 2 3)))))
     (:wat::kernel::println
       (:wat::string::join ","
         (:wat::core::into [] (:wat::core::interpose 0 (:wat::core::PersistentVector 1 2 3)))))
@@ -29,7 +29,7 @@
         (:wat::core::into [] (:wat::core::keep
           (:wat::core::fn [x <- :wat::core::i64] -> (:wat::core::Option :- [:wat::core::i64])
             (:wat::core::if (:wat::core::= 0 (:wat::core::mod x 2)) (:wat::core::Some x) :wat::core::None))
-          (:wat::core::List/of 1 2 3 4 5 6)))))
+          (:wat::core::List 1 2 3 4 5 6)))))
 
     ;; keep-indexed — f : [i64 T :-> (Option :- [U])]; keep values at even indices.
     (:wat::kernel::println

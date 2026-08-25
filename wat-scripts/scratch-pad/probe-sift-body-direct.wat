@@ -45,7 +45,7 @@
                    [hot? (:wat::core::i64::< (:wat::core::mod i 2) 1)
                     c    (:wat::core::if hot? 60 10)
                     msg  (:wat::edn::write (:usr::Temp :c c))]
-                   (:wat::telemetry::Log :namespace "sift-ns" :uuid (:wat::core::Uuid/nil) :tags tags
+                   (:wat::telemetry::Log :namespace "sift-ns" :uuid (:wat::uuid::nil) :tags tags
                      :time-ns (:wat::core::i64::+ i 1) :emitted-from (:wat::kernel::call-site)
                      :level :wat::telemetry::Level::Info :message msg)))
                idxs))

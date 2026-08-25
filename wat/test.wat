@@ -38,7 +38,7 @@
 ;; :wat::kernel::run-sandboxed family (manual spawn + pipe-drain +
 ;; stderr-scrape) is annihilated; the primed peer wire subsumes it.
 ;; Plus the string/regex basics from :wat::core::string::* and
-;; :wat::core::regex::*.
+;; :wat::regex::*.
 
 ;; ─── :wat::test::TestResult — alias of kernel::RunResult ─────────────
 ;;

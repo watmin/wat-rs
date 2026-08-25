@@ -12,7 +12,7 @@
 //! (`src/rete/purity.rs`) actually denies — never a fabricated/asserted-without-cause failure:
 //! - `_impure` — `(:wat::io::read-file ...)`: `is_effectful_op` denies the whole `:wat::io::`
 //!   namespace outright (Pure).
-//! - `_nondeterministic` — `(:wat::core::Uuid/v4)`: `intrinsic_meta` declares it
+//! - `_nondeterministic` — `(:wat::uuid::v4)`: `intrinsic_meta` declares it
 //!   `pure: true, deterministic: false` (the one hand-documented pure-but-random op).
 //! - `_nontotal` — `(:wat::core::i64::+ d 1)`: pure ∧ deterministic (in the `pure_det` list) but
 //!   NOT in the `total` allow-list — `i64::+`/`-`/`*` all raise `IntegerOverflow` (verified against

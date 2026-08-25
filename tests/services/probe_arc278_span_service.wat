@@ -16,7 +16,7 @@
      jaddr (:wat::telemetry::journal::Handle/addr jh)
      tags  (:wat::core::HashMap :wat::core::keyword :wat::core::String)
      span-rec (:wat::telemetry::span::Record
-                :namespace "probe-ns" :uuid (:wat::core::Uuid/nil) :tags tags :start-time-ns 0
+                :namespace "probe-ns" :uuid (:wat::uuid::nil) :tags tags :start-time-ns 0
                 :counters (:wat::core::HashMap :wat::core::keyword :wat::core::i64)
                 :durations (:wat::core::HashMap :wat::core::keyword :wat::telemetry::Samples))
      sph   (:wat::telemetry::span/start :locus (:wat::spawn::thread)

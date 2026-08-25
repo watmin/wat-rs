@@ -87,7 +87,7 @@ pub enum WatAST {
     /// one-node literal belonged. The lexer resolves named
     /// (`\newline`/`\space`/`\tab`) and unicode forms to a `char` before
     /// this point; the parser sees only the resolved value. The
-    /// `:wat::core::char/of` verb keeps working as a real runtime
+    /// `:wat::core::char` verb keeps working as a real runtime
     /// String→char conversion; it simply stops being the reader's parse
     /// target.
     CharLit(char, Span),

@@ -17,7 +17,7 @@
 
 (:wat::core::defn :p::conj-list [] -> :wat::core::i64
   (:wat::core::length
-    (:wat::core::conj (:wat::core::List/of 1 2) 3)))
+    (:wat::core::conj (:wat::core::List 1 2) 3)))
 
 (:wat::core::defn :p::first-watast [] -> :wat::WatAST
   (:wat::core::first (:wat::core::quote (a b c))))

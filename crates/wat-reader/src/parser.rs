@@ -399,7 +399,7 @@ impl<'a> Cursor<'a> {
             // desugaring into a `(:wat::core::char/of "x")` call. Named
             // chars (`\newline` etc.) are resolved by the lexer before this
             // point; the parser sees only the resolved `char` value. The
-            // `:wat::core::char/of` verb keeps working as a real runtime
+            // `:wat::core::char` verb keeps working as a real runtime
             // String→char conversion; it simply stops being the reader's
             // parse target.
             Token::Char(c) => Ok(Some(WatAST::CharLit(*c, span))),

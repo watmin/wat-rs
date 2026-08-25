@@ -20,7 +20,7 @@
     [inv (:wat::service::SelfInvocation
            :namespace     :probe::ticker
            :operation     "-tick"
-           :invocation-id (:wat::core::Uuid/v4)
+           :invocation-id (:wat::uuid::v4)
            :start-ns      42)]
     (:wat::service::SelfInvocation/operation inv)))
 
@@ -29,7 +29,7 @@
     [inv (:wat::service::LifecycleInvocation
            :namespace     :probe::ticker
            :operation     "-on-connect"
-           :invocation-id (:wat::core::Uuid/v4)
+           :invocation-id (:wat::uuid::v4)
            :start-ns      42
            :conn-id       7)]
     (:wat::service::LifecycleInvocation/conn-id inv)))
@@ -39,7 +39,7 @@
     [inv (:wat::service::Invocation
            :namespace     :probe::ticker
            :operation     "whoami"
-           :invocation-id (:wat::core::Uuid/v4)
+           :invocation-id (:wat::uuid::v4)
            :start-ns      42
            :conn-id       2)]
     (:wat::core::i64::+

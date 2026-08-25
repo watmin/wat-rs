@@ -254,9 +254,9 @@ test --release` from `wat-rs/`.
   scope disciplines. See [Rust interop](#rust-interop).
 - [`stdlib`] — baked-in wat source files, registered before user code
   parses. See [Stdlib](#stdlib).
-- [`string_ops`] — `:wat::core::string::*` + `:wat::core::regex::*`
-  primitives (arc 007 slice 3 precursor). Seven char-oriented string
-  ops plus regex match.
+- [`intrinsic/string`, `intrinsic/regex`] — `:wat::string::*` + `:wat::regex::*`
+  primitives (arc 007 slice 3 precursor; arc 255 carved the old `string_ops`
+  module apart by family). Seven char-oriented string ops plus regex match.
 
 ## Rust interop
 

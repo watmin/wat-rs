@@ -1,4 +1,4 @@
-//! `:wat::core::regex::*` intrinsics — arc 255 carve (builder amendment to
+//! `:wat::regex::*` intrinsics — arc 255 carve (builder amendment to
 //! home #4 phase 2, the string carve): "own home, same shape" as
 //! `intrinsic/bytes.rs`. One verb: `matches?`. Lives in its own namespace
 //! (not folded into `:wat::string::*`) since the `regex` crate is its own
@@ -11,7 +11,7 @@ use crate::span::Span;
 use crate::value::{Environment, EvalBreak, RuntimeError, RuntimeErrorKind, SymbolTable, Value, ValueSnapshot};
 use wat_macros::wat_intrinsic;
 
-/// `(:wat::core::regex::matches? pattern haystack)` → whether `pattern`
+/// `(:wat::regex::matches? pattern haystack)` → whether `pattern`
 /// matches anywhere in `haystack`.
 ///
 /// Not anchored — use `^...$` inside the pattern for full-string match.
@@ -26,8 +26,8 @@ use wat_macros::wat_intrinsic;
 /// @arg     pattern  :wat::core::String the regex pattern (not anchored)
 /// @arg     haystack :wat::core::String the string searched
 /// @ret     :wat::core::bool true iff `pattern` matches anywhere in `haystack`
-/// @example (:wat::core::regex::matches? "wor" "hello world") #=> true
-#[wat_intrinsic(":wat::core::regex::matches?")]
+/// @example (:wat::regex::matches? "wor" "hello world") #=> true
+#[wat_intrinsic(":wat::regex::matches?")]
 pub(crate) fn eval_regex_matches(
     pattern: &WatAST,
     haystack: &WatAST,
@@ -35,7 +35,7 @@ pub(crate) fn eval_regex_matches(
     sym: &SymbolTable,
     _span: &Span, // rune:lint(unused-span) — located elsewhere: TypeMismatch locates at the offending arg's own span; a bad pattern locates at `pattern`'s own span too
 ) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::core::regex::matches?";
+    const OP: &str = ":wat::regex::matches?";
     let pattern_val = eval_inner(pattern, env, sym)?.value_owned();
     let pattern_str = match &pattern_val {
         Value::String(s) => s.as_str().to_string(),

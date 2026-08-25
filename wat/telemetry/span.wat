@@ -230,7 +230,7 @@
      result-sym (:wat::core::fresh-symbol "result")
      close-sym  (:wat::core::fresh-symbol "close")]
     `(:wat::core::let
-       [~uuid-sym  (:wat::core::Uuid/v4)
+       [~uuid-sym  (:wat::uuid::v4)
         ~start-sym (:wat::time::epoch-nanos (:wat::time::now))
         ~rec-sym   (:wat::telemetry::span::Record
                      :namespace ~namespace :uuid ~uuid-sym :tags ~tags :start-time-ns ~start-sym

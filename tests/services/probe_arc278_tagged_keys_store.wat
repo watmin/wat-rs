@@ -22,7 +22,7 @@
     "\""))
 
 (:wat::core::defn :user::uuid-edn [s <- :wat::core::String] -> :wat::core::String
-  (:wat::edn::write (:wat::core::Uuid/from-string s)))
+  (:wat::edn::write (:wat::uuid::from-string s)))
 
 ;; ── TEST A — a constant-width #inst sk sorts chronologically ─────────────────────
 ;; Put three rows OUT OF ORDER (late, early, mid) on one tagged pk; scan; return the returned

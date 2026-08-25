@@ -166,7 +166,7 @@
 (:wat::core::defn :arena::log-for-i
   [i <- :wat::core::i64  tags <- (:wat::core::HashMap :wat::core::keyword :wat::core::String)]
   -> :wat::telemetry::Log
-  (:wat::telemetry::Log :namespace "arena-rules-ns" :uuid (:wat::core::Uuid/nil) :tags tags
+  (:wat::telemetry::Log :namespace "arena-rules-ns" :uuid (:wat::uuid::nil) :tags tags
     :time-ns (:wat::core::i64::+ i 1) :emitted-from (:wat::kernel::call-site)
     :level :wat::telemetry::Level::Info :message (:wat::edn::write (:arena::event-for-i i))))
 
@@ -334,10 +334,10 @@
      jaddr (:wat::telemetry::journal::Handle/addr jh)
      journal (:wat::core::match (:wat::kernel::connect jaddr) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      tags  (:wat::core::HashMap :wat::core::keyword :wat::core::String)
-     l1    (:wat::telemetry::Log :namespace "arena-rules-fatal-ns" :uuid (:wat::core::Uuid/nil) :tags tags
+     l1    (:wat::telemetry::Log :namespace "arena-rules-fatal-ns" :uuid (:wat::uuid::nil) :tags tags
              :time-ns 1 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level::Info
              :message (:wat::edn::write (:arena::event-for-i 2)))
-     l2    (:wat::telemetry::Log :namespace "arena-rules-fatal-ns" :uuid (:wat::core::Uuid/nil) :tags tags
+     l2    (:wat::telemetry::Log :namespace "arena-rules-fatal-ns" :uuid (:wat::uuid::nil) :tags tags
              :time-ns 2 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level::Info
              :message (:wat::edn::write (:arena::Bogus :x 1)))
      _wr   (:wat::telemetry::Journal/write-logs journal
@@ -367,10 +367,10 @@
      jaddr (:wat::telemetry::journal::Handle/addr jh)
      journal (:wat::core::match (:wat::kernel::connect jaddr) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      tags  (:wat::core::HashMap :wat::core::keyword :wat::core::String)
-     l1    (:wat::telemetry::Log :namespace "arena-rules-fatal-ns" :uuid (:wat::core::Uuid/nil) :tags tags
+     l1    (:wat::telemetry::Log :namespace "arena-rules-fatal-ns" :uuid (:wat::uuid::nil) :tags tags
              :time-ns 1 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level::Info
              :message (:wat::edn::write (:arena::event-for-i 2)))
-     l2    (:wat::telemetry::Log :namespace "arena-rules-fatal-ns" :uuid (:wat::core::Uuid/nil) :tags tags
+     l2    (:wat::telemetry::Log :namespace "arena-rules-fatal-ns" :uuid (:wat::uuid::nil) :tags tags
              :time-ns 2 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level::Info
              :message (:wat::edn::write (:arena::Bogus :x 1)))
      _wr   (:wat::telemetry::Journal/write-logs journal

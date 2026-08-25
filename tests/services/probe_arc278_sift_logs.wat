@@ -19,13 +19,13 @@
              :record (:wat::telemetry::journal::Record) :store-addr maddr)
      journal (:wat::core::match (:wat::kernel::connect (:wat::telemetry::journal::Handle/addr jh)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      tags  (:wat::core::HashMap :wat::core::keyword :wat::core::String)
-     l1    (:wat::telemetry::Log :namespace "probe-ns" :uuid (:wat::core::Uuid/nil) :tags tags
+     l1    (:wat::telemetry::Log :namespace "probe-ns" :uuid (:wat::uuid::nil) :tags tags
              :time-ns 1000000000 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level::Info
              :message (:wat::edn::write (:probe::Note :text "info-one")))
-     l2    (:wat::telemetry::Log :namespace "probe-ns" :uuid (:wat::core::Uuid/nil) :tags tags
+     l2    (:wat::telemetry::Log :namespace "probe-ns" :uuid (:wat::uuid::nil) :tags tags
              :time-ns 2000000000 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level::Error
              :message (:wat::edn::write (:probe::Note :text "error-one")))
-     l3    (:wat::telemetry::Log :namespace "probe-ns" :uuid (:wat::core::Uuid/nil) :tags tags
+     l3    (:wat::telemetry::Log :namespace "probe-ns" :uuid (:wat::uuid::nil) :tags tags
              :time-ns 3000000000 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level::Warn
              :message (:wat::edn::write (:probe::Note :text "warn-one")))
      _wr   (:wat::telemetry::Journal/write-logs journal
@@ -51,7 +51,7 @@
              :record (:wat::telemetry::journal::Record) :store-addr maddr)
      journal (:wat::core::match (:wat::kernel::connect (:wat::telemetry::journal::Handle/addr jh)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      tags  (:wat::core::HashMap :wat::core::keyword :wat::core::String)
-     l1    (:wat::telemetry::Log :namespace "probe-ns" :uuid (:wat::core::Uuid/nil) :tags tags
+     l1    (:wat::telemetry::Log :namespace "probe-ns" :uuid (:wat::uuid::nil) :tags tags
              :time-ns 1000000000 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level::Error
              :message (:wat::edn::write (:probe::Note :text "one")))
      _wr   (:wat::telemetry::Journal/write-logs journal
@@ -84,13 +84,13 @@
              :record (:wat::telemetry::journal::Record) :store-addr maddr)
      journal (:wat::core::match (:wat::kernel::connect (:wat::telemetry::journal::Handle/addr jh)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      tags  (:wat::core::HashMap :wat::core::keyword :wat::core::String)
-     l1    (:wat::telemetry::Log :namespace "probe-ns" :uuid (:wat::core::Uuid/nil) :tags tags
+     l1    (:wat::telemetry::Log :namespace "probe-ns" :uuid (:wat::uuid::nil) :tags tags
              :time-ns 1000000000 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level::Info
              :message (:wat::edn::write (:probe::Note :text "info-one")))
-     l2    (:wat::telemetry::Log :namespace "probe-ns" :uuid (:wat::core::Uuid/nil) :tags tags
+     l2    (:wat::telemetry::Log :namespace "probe-ns" :uuid (:wat::uuid::nil) :tags tags
              :time-ns 2000000000 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level::Error
              :message (:wat::edn::write (:probe::Note :text "error-one")))
-     l3    (:wat::telemetry::Log :namespace "probe-ns" :uuid (:wat::core::Uuid/nil) :tags tags
+     l3    (:wat::telemetry::Log :namespace "probe-ns" :uuid (:wat::uuid::nil) :tags tags
              :time-ns 3000000000 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level::Warn
              :message (:wat::edn::write (:probe::Note :text "warn-one")))
      _wr   (:wat::telemetry::Journal/write-logs journal
@@ -120,7 +120,7 @@
              :record (:wat::telemetry::journal::Record) :store-addr maddr)
      journal (:wat::core::match (:wat::kernel::connect (:wat::telemetry::journal::Handle/addr jh)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      tags  (:wat::core::HashMap :wat::core::keyword :wat::core::String)
-     l1    (:wat::telemetry::Log :namespace "probe-ns" :uuid (:wat::core::Uuid/nil) :tags tags
+     l1    (:wat::telemetry::Log :namespace "probe-ns" :uuid (:wat::uuid::nil) :tags tags
              :time-ns 1000000000 :emitted-from (:wat::kernel::call-site) :level :wat::telemetry::Level::Error
              :message (:wat::edn::write (:probe::Note :text "one")))
      _wr   (:wat::telemetry::Journal/write-logs journal

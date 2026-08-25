@@ -27,7 +27,7 @@
         (:wat::core::Vector :wat::core::i64 7 8 9) :undefined -1))       ;; expect 7
     (:wat::kernel::println
       (:wat::rete::core::List/first
-        (:wat::core::List/of 7 8 9) :undefined -1))                      ;; expect 7
+        (:wat::core::List 7 8 9) :undefined -1))                      ;; expect 7
 
     ;; ── first, fallback FIRES on empty, all three containers ────────────────────────
     (:wat::kernel::println
@@ -38,7 +38,7 @@
         (:wat::core::Vector :wat::core::i64) :undefined -1))            ;; expect -1
     (:wat::kernel::println
       (:wat::rete::core::List/first
-        (:wat::core::List/of) :undefined -1))                           ;; expect -1
+        (:wat::core::List) :undefined -1))                           ;; expect -1
 
     ;; ── NON-VACUITY — the row that matters most: the SAME empty-container expression,
     ;; run twice, with DIFFERENT `:undefined` fallback values. A `first` fallback arm that

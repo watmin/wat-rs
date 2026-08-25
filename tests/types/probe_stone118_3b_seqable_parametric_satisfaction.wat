@@ -72,7 +72,7 @@
   (:t118b::count-of (:wat::core::PersistentVector 1 2 3 4)))
 
 (:wat::core::defn :t::param-list [] -> :wat::core::i64
-  (:t118b::count-of (:wat::core::List/of 1 2 3 4 5)))
+  (:t118b::count-of (:wat::core::List 1 2 3 4 5)))
 
 (:wat::core::defn :t::param-stream [] -> :wat::core::i64
   (:t118b::count-of (:wat::stream::cons 1

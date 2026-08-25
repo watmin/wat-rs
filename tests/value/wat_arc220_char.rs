@@ -8,10 +8,10 @@
 //!   2 — Lexer accepts named chars: `\newline`, `\space`, `\tab`, `\return`
 //!   3 — Lexer accepts `\uNNNN` Unicode escape (BMP)
 //!   4 — Lexer rejects supplementary-plane literal (produces diagnostic)
-//!   5 — `(:wat::core::char/of "x")` returns Value::wat__core__Char('x')
-//!   6 — `(:wat::core::char/of "")` errors with "length-1" diagnostic
-//!   7 — `(:wat::core::char/of "ab")` errors with "length-2" diagnostic
-//!   8 — `(:wat::core::char/of "\u{1F600}")` errors with "supplementary-plane"
+//!   5 — `(:wat::core::char "x")` returns Value::wat__core__Char('x')
+//!   6 — `(:wat::core::char "")` errors with "length-1" diagnostic
+//!   7 — `(:wat::core::char "ab")` errors with "length-2" diagnostic
+//!   8 — `(:wat::core::char "\u{1F600}")` errors with "supplementary-plane"
 //!   9 — Round-trip: `\x` in wat source → Value → EDN write → reparse → identical
 //!  10 — `(= \a \a)` true; `(= \a \b)` false
 //!
@@ -55,7 +55,7 @@ fn run_expecting_runtime_err(world: &wat::freeze::FrozenWorld, fn_name: &str) ->
 // ─── 1: Lexer accepts `\a` single-char literal ──────────────────────────────
 
 /// The `\a` literal produces a `:wat::core::char` value (Stone 242.1).
-/// Verified by using `(= \a (:wat::core::char/of "a"))` — if the lexer
+/// Verified by using `(= \a (:wat::core::char "a"))` — if the lexer
 /// produces the correct typed Char, both sides are equal.
 #[test]
 fn char_literal_single_letter() {
@@ -77,7 +77,7 @@ fn char_literal_named_chars() {
 
 // ─── 3: Lexer accepts `\uNNNN` Unicode BMP escape ────────────────────────────
 
-/// `A` (U+0041 = 'A') produces a Char equal to `(:wat::core::char/of "A")`.
+/// `A` (U+0041 = 'A') produces a Char equal to `(:wat::core::char "A")`.
 #[test]
 fn char_literal_unicode_escape() {
     let world = startup_beside(file!()).expect("startup");
@@ -103,7 +103,7 @@ fn char_literal_supplementary_plane_rejected() {
     wat::assert_edn_matches_file!(msg, "wat_arc220_char__char_literal_supplementary_plane_rejected.edn", "error must be exact lex rejection golden");
 }
 
-// ─── 5: `(:wat::core::char/of "x")` returns typed Char ──────────────────────
+// ─── 5: `(:wat::core::char "x")` returns typed Char ──────────────────────
 
 /// `Char/of` with a valid single-char string constructs a typed Char.
 /// We verify by equality with another Char/of call (proving the type is correct).
@@ -160,7 +160,7 @@ fn char_of_supplementary_plane_rejected() {
 
 // ─── 9: Round-trip: Char/of → EDN write → parse → identical ─────────────────
 
-/// `(:wat::core::char/of "x")` → EDN write → `(:wat::edn::read ...)` → typed Char.
+/// `(:wat::core::char "x")` → EDN write → `(:wat::edn::read ...)` → typed Char.
 /// Proves the EDN bridge is bidirectional for Char values.
 #[test]
 fn char_edn_round_trip() {

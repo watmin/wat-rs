@@ -74,7 +74,7 @@
             (:wat::string::join "," (:wat::core::into [] (:probe::keep-one keep-even
               (:wat::core::PersistentVector 1 2 3 4 5))))
             (:wat::string::join "," (:wat::core::into [] (:probe::keep-one keep-even
-              (:wat::core::List/of 1 2 3 4 5))))
+              (:wat::core::List 1 2 3 4 5))))
             ;; 4th slot: a CONCRETE (Stream :- [i64]). It was `(Seqable/seq (Vector …))` while this
             ;; probe was B2's RED gate; that form is still RED, but for an UNRELATED reason —
             ;; task #95, a dotted call head is not type-checked, so a dotted surface method's
@@ -88,7 +88,7 @@
       ;; state-carrying, over a List. Expect 0,1,2,3,4
       (:wat::kernel::println
         (:wat::string::join ","
-          (:wat::core::into [] (:probe::index-one 0 (:wat::core::List/of 9 9 9 9 9)))))
+          (:wat::core::into [] (:probe::index-one 0 (:wat::core::List 9 9 9 9 9)))))
       ;; LAZINESS over an INFINITE source through the migrated shape. Expect 0,2,4 — and it must
       ;; TERMINATE; an eager collapse here would hang rather than print.
       (:wat::kernel::println

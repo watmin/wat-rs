@@ -1,8 +1,8 @@
-//! `:wat::core::char/*` intrinsics — arc 255 carve (builder amendment to
+//! `:wat::core::char` intrinsics — arc 255 carve (builder amendment to
 //! home #4 phase 2, the string carve): "own home, same shape" as
-//! `intrinsic/bytes.rs`. One verb: arc 220 slice 2's `char/of` constructor
-//! (renamed from `Char/of` in stone 242.1, scalar types lowercase per
-//! Doctrine 2).
+//! `intrinsic/bytes.rs`. One verb: arc 220 slice 2's `char` constructor
+//! (renamed from `char/of` in this arc's four-homes stone; before that,
+//! from `Char/of` in stone 242.1, scalar types lowercase per Doctrine 2).
 
 use crate::ast::WatAST;
 use crate::runtime::eval_inner;
@@ -10,7 +10,7 @@ use crate::span::Span;
 use crate::value::{Environment, EvalBreak, RuntimeError, RuntimeErrorKind, SymbolTable, Value, ValueSnapshot};
 use wat_macros::wat_intrinsic;
 
-/// `(:wat::core::char/of s)` → the single `:wat::core::char` in the length-1
+/// `(:wat::core::char s)` → the single `:wat::core::char` in the length-1
 /// String `s`.
 ///
 /// BMP-only: codepoints above U+FFFF (supplementary-plane) are rejected
@@ -25,15 +25,15 @@ use wat_macros::wat_intrinsic;
 /// @Category      Transform
 /// @arg     s :wat::core::String a length-1 BMP string
 /// @ret     :wat::core::char the single character in `s`
-/// @example (:wat::core::char/of "x") #=> (:wat::core::char/of "x")
-#[wat_intrinsic(":wat::core::char/of")]
+/// @example (:wat::core::char "x") #=> (:wat::core::char "x")
+#[wat_intrinsic(":wat::core::char")]
 pub(crate) fn eval_char_of(
     s: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
     _span: &Span, // rune:lint(unused-span) — located elsewhere: every error (TypeMismatch/MalformedForm) locates at `s`'s own span
 ) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::core::char/of";
+    const OP: &str = ":wat::core::char";
     let val = eval_inner(s, env, sym)?.value_owned();
     let text = match val {
         Value::String(v) => (*v).clone(),

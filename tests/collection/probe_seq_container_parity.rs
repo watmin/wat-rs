@@ -67,7 +67,7 @@ fn rest_on_persistent_vector() {
 
 #[test]
 fn conj_on_list() {
-    // `:wat::core::List/of` is the List constructor (variadic, no type keyword; check.rs:4073).
+    // `:wat::core::List` is the List constructor (variadic, no type keyword; check.rs:4073).
     expect_i64(":p::conj-list", 3);
 }
 

@@ -12,7 +12,7 @@
 //! Four fixtures, mirroring `probe_arc278_6b_ii_a_where_oracle_impure.wat`'s shape exactly:
 //!   - `probe_arc278_6b_ii_a_where_oracle_impure.wat` — `(:wat::io::IOReader/open-file "x")`:
 //!     impure (does IO) — the :pure axis must be named.
-//!   - `probe_fence_names_the_head_nondet.wat` — `(:wat::core::Uuid/v4)`: pure but NOT
+//!   - `probe_fence_names_the_head_nondet.wat` — `(:wat::uuid::v4)`: pure but NOT
 //!     deterministic (random) — the :deterministic axis must be named, not :pure.
 //!   - `probe_fence_names_the_head_partial.wat` — `(:wat::core::i64::/ ?c 1)`: pure and
 //!     deterministic but NOT total — the :total axis must be named.
@@ -84,7 +84,7 @@ fn nondeterministic_where_names_the_offending_head_and_axis() {
     let msg = r.expect_err("a non-deterministic (Uuid/v4) where must fail to compile");
     assert_eq!(
         msg,
-        "compile-condition: where expr is not deterministic — ':wat::core::Uuid/v4' is not deterministic"
+        "compile-condition: where expr is not deterministic — ':wat::uuid::v4' is not deterministic"
     );
 }
 

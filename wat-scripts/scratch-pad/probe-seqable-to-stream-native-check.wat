@@ -18,7 +18,7 @@
   (:wat::core::foldl
     (:wat::core::fn [acc <- (:wat::core::List :- [:wat::core::i64])  i <- :wat::core::i64] -> (:wat::core::List :- [:wat::core::i64])
       (:wat::core::List/conj acc i))
-    (:wat::core::List/of)
+    (:wat::core::List)
     (:wat::core::reverse (:wat::core::range 0 n))))
 
 (:wat::core::defn :cx::build-pv [n <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::core::i64])

@@ -99,7 +99,7 @@
       ((:wat::kernel::RecvOutcome::Message _m)
         (:wat::kernel::assertion-failed! "eprintln-string: eprintln is terminal — expected the child to crash before any value, but a value arrived" :wat::core::None :wat::core::None))
       ((:wat::kernel::RecvOutcome::Lost cause)
-        (:wat::core::if (:wat::core::regex::matches? "err" (:wat::kernel::LociDiedError/message cause))
+        (:wat::core::if (:wat::regex::matches? "err" (:wat::kernel::LociDiedError/message cause))
           nil
           (:wat::kernel::assertion-failed! "eprintln-string: crash reason did not carry the emitted value"
             (:wat::core::Some (:wat::kernel::LociDiedError/message cause))

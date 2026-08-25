@@ -1,7 +1,7 @@
 //! Arc 220 Stone 220.4 — `:wat::core::List<T>` integration tests.
 //!
 //! Exercises:
-//! - Construction via `(:wat::core::List/of ...)` constructor
+//! - Construction via `(:wat::core::List ...)` constructor
 //! - Empty list
 //! - first/rest/conj (List conj PREPENDS; Vector conj APPENDS — distinct semantics)
 //! - length/empty?/contains?/get
@@ -29,14 +29,14 @@ fn ev(fn_name: &str) -> Value {
 
 #[test]
 fn list_constructor_of_builds_list() {
-    // (:wat::core::List/of 1 2 3) returns a List with 3 elements
+    // (:wat::core::List 1 2 3) returns a List with 3 elements
     let v = ev(":list::length-of-3");
     assert_eq!(v, Value::i64(3), "List/of 1 2 3 should have length 3");
 }
 
 #[test]
 fn list_constructor_of_returns_list_type() {
-    // Verify that (:wat::core::List/of 1 2) produces a wat__core__List at Rust level.
+    // Verify that (:wat::core::List 1 2) produces a wat__core__List at Rust level.
     let length = ev(":list::length-of-2");
     assert_eq!(length, Value::i64(2), "List/of 1 2 has length 2");
     // Confirm the Rust variant is wat__core__List, not Vec
@@ -51,7 +51,7 @@ fn list_constructor_of_returns_list_type() {
 
 #[test]
 fn list_constructor_empty() {
-    // (:wat::core::List/of) returns an empty List — verify via empty?
+    // (:wat::core::List) returns an empty List — verify via empty?
     let v = ev(":list::empty-q-of-empty");
     assert_eq!(v, Value::bool(true), "empty List/of should satisfy empty?");
 }

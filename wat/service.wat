@@ -1517,13 +1517,13 @@
                           self-ctx-ctor-expr `(:wat::service::SelfInvocation
                                                  :namespace      ~fqdn-kw
                                                  :operation      ~op-str
-                                                 :invocation-id (:wat::core::Uuid/v4)
+                                                 :invocation-id (:wat::uuid::v4)
                                                  :start-ns       (:wat::time::epoch-nanos (:wat::time::now)))
                           pub-ctx-ctor-expr  `(:wat::service::Invocation
                                                  :conn-id        (:wat::core::first (:wat::core::nth selectables idx))
                                                  :namespace      ~fqdn-kw
                                                  :operation      ~op-str
-                                                 :invocation-id (:wat::core::Uuid/v4)
+                                                 :invocation-id (:wat::uuid::v4)
                                                  :start-ns       (:wat::time::epoch-nanos (:wat::time::now)))
                           ;; let-bindings [s-binder state ctx-binder self-ctx-ctor-expr] — the
                           ;; INTERNAL arm's binding vector. STOP-0, FIXED: a SelfInvocation ctx is now

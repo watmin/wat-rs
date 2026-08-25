@@ -3014,10 +3014,10 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
-            // Arc 220 Stone 220.4 — `:wat::core::List/of` variadic constructor.
-            // `(:wat::core::List/of x1 x2 ...)` → `(List :- [T])`.  No leading type keyword;
+            // Arc 220 Stone 220.4 — `:wat::core::List` variadic constructor.
+            // `(:wat::core::List x1 x2 ...)` → `(List :- [T])`.  No leading type keyword;
             // T is inferred from the elements.
-            ":wat::core::List/of" => {
+            ":wat::core::List" => {
                 let (val, mut errs) = infer_linked_list_constructor(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
                 return match val {
@@ -15286,9 +15286,9 @@ fn check_compound_against_expected(
     }
 }
 
-/// Arc 220 Stone 220.4 — `:wat::core::List/of` variadic constructor.
+/// Arc 220 Stone 220.4 — `:wat::core::List` variadic constructor.
 ///
-/// `(:wat::core::List/of x1 x2 ...)` — no leading type-keyword; all args
+/// `(:wat::core::List x1 x2 ...)` — no leading type-keyword; all args
 /// are data elements.  Infers T from the first element (fresh var then
 /// unification); returns `(List :- [T])`.  Zero args → `(List :- [T])` with a fresh T.
 /// Mirrors `infer_list_constructor` but for the `:wat::core::List` head.
@@ -15308,7 +15308,7 @@ fn infer_linked_list_constructor(
         if let Some(arg_ty) = arg_ty {
             if unify(&arg_ty, &elem_ty, subst, env.types()).is_err() {
                 local_errors.push(CheckError { span: arg.span().clone(), kind: CheckErrorKind::TypeMismatch {
-                    callee: ":wat::core::List/of".into(),
+                    callee: ":wat::core::List".into(),
                     param: format!("#{}", i + 1),
                     expected: format_type(&apply_subst(&elem_ty, subst)),
                     got: format_type(&apply_subst(&arg_ty, subst))
@@ -17592,10 +17592,10 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
-    // Regex — :wat::core::regex::*. matches? is unanchored (pattern
+    // Regex — :wat::regex::*. matches? is unanchored (pattern
     // match anywhere in haystack); wrap with ^...$ for full-string.
     env.register(
-        ":wat::core::regex::matches?".to_string(),
+        ":wat::regex::matches?".to_string(),
         TypeScheme {
             type_params: vec![],
             params: vec![string_ty(), string_ty()],
@@ -17617,7 +17617,7 @@ fn register_builtins(env: &mut CheckEnv) {
     };
     // Uuid/v4 — 0-arg constructor; produces a random UUID.
     env.register(
-        ":wat::core::Uuid/v4".to_string(),
+        ":wat::uuid::v4".to_string(),
         TypeScheme {
             type_params: vec![],
             params: vec![],
@@ -17629,7 +17629,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // Namespace is now typed `:Uuid`, eliminating the runtime-panic
     // foot-gun in arc 206's string-typed namespace param.
     env.register(
-        ":wat::core::Uuid/v5".to_string(),
+        ":wat::uuid::v5".to_string(),
         TypeScheme {
             type_params: vec![],
             params: vec![uuid_ty(), string_ty()],
@@ -17640,7 +17640,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // Uuid/from-string — parse-safe; returns (Option :- [Uuid]). Accepts only
     // canonical 8-4-4-4-12 lowercase hyphenated form; None for all others.
     env.register(
-        ":wat::core::Uuid/from-string".to_string(),
+        ":wat::uuid::from-string".to_string(),
         TypeScheme {
             type_params: vec![],
             params: vec![string_ty()],
@@ -17650,7 +17650,7 @@ fn register_builtins(env: &mut CheckEnv) {
     );
     // Uuid/to-string — renders as canonical 8-4-4-4-12 hyphenated form.
     env.register(
-        ":wat::core::Uuid/to-string".to_string(),
+        ":wat::uuid::to-string".to_string(),
         TypeScheme {
             type_params: vec![],
             params: vec![uuid_ty()],
@@ -17660,7 +17660,7 @@ fn register_builtins(env: &mut CheckEnv) {
     );
     // Uuid/nil — 0-arg; returns the nil UUID (all zeros).
     env.register(
-        ":wat::core::Uuid/nil".to_string(),
+        ":wat::uuid::nil".to_string(),
         TypeScheme {
             type_params: vec![],
             params: vec![],
@@ -17670,7 +17670,7 @@ fn register_builtins(env: &mut CheckEnv) {
     );
     // Uuid/version — returns the version nibble as i64 (4 for v4). Arc 299 slice 1.
     env.register(
-        ":wat::core::Uuid/version".to_string(),
+        ":wat::uuid::version".to_string(),
         TypeScheme {
             type_params: vec![],
             params: vec![uuid_ty()],
@@ -17680,7 +17680,7 @@ fn register_builtins(env: &mut CheckEnv) {
     );
     // Uuid/rfc4122-variant? — true iff variant nibble is RFC-4122. Arc 299 slice 1.
     env.register(
-        ":wat::core::Uuid/rfc4122-variant?".to_string(),
+        ":wat::uuid::rfc4122-variant?".to_string(),
         TypeScheme {
             type_params: vec![],
             params: vec![uuid_ty()],
@@ -17690,9 +17690,9 @@ fn register_builtins(env: &mut CheckEnv) {
     );
 
     // Arc 220 slice 2 / Arc 221 Stone 221.2 — `:wat::core::char` typed primitive.
-    // `char/of` is the only constructor; it takes a length-1 BMP String and
+    // `char` is the only constructor; it takes a length-1 BMP String and
     // returns a `:wat::core::char`. The `\c` literal reader macro desugars to
-    // `(:wat::core::char/of "c")` at parse time (parser.rs). Without this
+    // `(:wat::core::char "c")` at parse time (parser.rs). Without this
     // registration the type checker returns `<unresolved>` for char literals,
     // causing spurious TypeMismatch on dispatch sites (e.g. `contains?` on
     // `(HashSet :- [char])` where the element arg must unify to char).
@@ -17700,7 +17700,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // (scalar types lowercase per Doctrine 2).
     let char_ty = || TypeExpr::Path(":wat::core::char".into());
     env.register(
-        ":wat::core::char/of".to_string(),
+        ":wat::core::char".to_string(),
         TypeScheme {
             type_params: vec![],
             params: vec![string_ty()],

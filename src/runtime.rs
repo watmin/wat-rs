@@ -6013,8 +6013,8 @@ fn dispatch_keyword_head_value(
         // Arc 255 home #4 phase 2 (the string carve, builder-amended to all four
         // `string_ops.rs` families + the fifth unnamed one, `List/of`) — the 19
         // `:wat::string::*` verbs (including `declare-acronyms`), the 7
-        // `:wat::core::Uuid/*` verbs, `:wat::core::char/of`, `:wat::core::List/of`,
-        // and `:wat::core::regex::matches?` are REGISTERED now (`intrinsic/string.rs`,
+        // `:wat::uuid::*` verbs, `:wat::core::char`, `:wat::core::List`,
+        // and `:wat::regex::matches?` are REGISTERED now (`intrinsic/string.rs`,
         // `intrinsic/uuid.rs`, `intrinsic/char.rs`, `intrinsic/list.rs`,
         // `intrinsic/regex.rs`) and resolve via the registry hoist above
         // (`crate::intrinsic::registry().lookup(head)`, this fn's `Arc 255 Stone

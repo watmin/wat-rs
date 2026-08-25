@@ -9,7 +9,7 @@
 (:wat::test::deftest :wat-tests::holon::list-round-trip::list-of-length
   
   (:wat::core::let
-    [xs (:wat::core::List/of 1 2 3)
+    [xs (:wat::core::List 1 2 3)
      n  (:wat::core::List/length xs)]
     (:wat::test::assert-eq n 3)))
 
@@ -18,7 +18,7 @@
 (:wat::test::deftest :wat-tests::holon::list-round-trip::empty-list
   
   (:wat::core::let
-    [xs (:wat::core::List/of)]
+    [xs (:wat::core::List)]
     (:wat::test::assert-eq (:wat::core::List/empty? xs) true)))
 
 ;; ─── 3: List/empty? false ─────────────────────────────────────────────────
@@ -26,7 +26,7 @@
 (:wat::test::deftest :wat-tests::holon::list-round-trip::nonempty-list-not-empty
   
   (:wat::core::let
-    [xs (:wat::core::List/of 1)]
+    [xs (:wat::core::List 1)]
     (:wat::test::assert-eq (:wat::core::List/empty? xs) false)))
 
 ;; ─── 4: List/contains? found ─────────────────────────────────────────────
@@ -34,7 +34,7 @@
 (:wat::test::deftest :wat-tests::holon::list-round-trip::contains-found
   
   (:wat::core::let
-    [xs (:wat::core::List/of 1 2 3)]
+    [xs (:wat::core::List 1 2 3)]
     (:wat::test::assert-eq (:wat::core::List/contains? xs 2) true)))
 
 ;; ─── 5: List/contains? not found ─────────────────────────────────────────
@@ -42,7 +42,7 @@
 (:wat::test::deftest :wat-tests::holon::list-round-trip::contains-not-found
   
   (:wat::core::let
-    [xs (:wat::core::List/of 1 2 3)]
+    [xs (:wat::core::List 1 2 3)]
     (:wat::test::assert-eq (:wat::core::List/contains? xs 99) false)))
 
 ;; ─── 6: rest length ────────────────────────────────────────────────────────
@@ -50,7 +50,7 @@
 (:wat::test::deftest :wat-tests::holon::list-round-trip::rest-length
   
   (:wat::core::let
-    [xs (:wat::core::List/of 1 2 3)
+    [xs (:wat::core::List 1 2 3)
      tl (:wat::core::rest xs)]
     (:wat::test::assert-eq (:wat::core::List/length tl) 2)))
 
@@ -59,7 +59,7 @@
 (:wat::test::deftest :wat-tests::holon::list-round-trip::conj-length
   
   (:wat::core::let
-    [xs (:wat::core::List/of 2 3)
+    [xs (:wat::core::List 2 3)
      ys (:wat::core::List/conj xs 1)]
     (:wat::test::assert-eq (:wat::core::List/length ys) 3)))
 
@@ -68,7 +68,7 @@
 (:wat::test::deftest :wat-tests::holon::list-round-trip::list-eq-vector
   
   (:wat::core::let
-    [lst  (:wat::core::List/of 1 2 3)
-     lst2 (:wat::core::List/of 1 2 3)
+    [lst  (:wat::core::List 1 2 3)
+     lst2 (:wat::core::List 1 2 3)
      eq   (:wat::core::= lst lst2)]
     (:wat::test::assert-eq eq true)))

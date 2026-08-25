@@ -308,7 +308,7 @@ pub enum Value {
     /// Matches wat-edn's `Value::Char` and Clojure's character literal `\c`.
     /// BMP-only inherits Stone 218.6b discipline (supplementary-plane
     /// codepoints U+10000–U+10FFFF rejected at construction + lex time).
-    /// Constructed via `(:wat::core::char/of "x")` or `\c` literal.
+    /// Constructed via `(:wat::core::char "x")` or `\c` literal.
     wat__core__Char(char),
     /// Arc 300 stone B — `:wat::core::rational` (Stone C1 lowercased the surface;
     /// see the `char` precedent). Typed rational primitive,
@@ -336,7 +336,7 @@ pub enum Value {
     /// `List(1,2,3) == Vector(1,2,3)` returns true.
     /// Hash invariant preserved: List + Vector with same contents hash equal.
     /// conj = PREPEND (Clojure semantic; distinct from Vector conj = APPEND).
-    /// Constructed via `(:wat::core::List/of ...)` or `'(...)` literal.
+    /// Constructed via `(:wat::core::List ...)` or `'(...)` literal.
     wat__core__List(std::sync::Arc<std::collections::LinkedList<Value>>),
     /// Arc 118 — `(:wat::stream::Stream :- [T])`. Lazy sequence (Option C: closures + thunks).
     /// SINGLE-PASS — NO memoization (builder, 2026-06-27: *"you cannot walk back a stream …

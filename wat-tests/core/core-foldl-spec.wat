@@ -36,7 +36,7 @@
       (:wat::core::foldl-spec :wat-tests::core::core-foldl-spec::shift-add 0 v))))
 
 (:wat::test::deftest :wat-tests::core::core-foldl-spec::agree-on-list
-  (:wat::core::let [l (:wat::core::List/of 1 2 3 4 5)]
+  (:wat::core::let [l (:wat::core::List 1 2 3 4 5)]
     (:wat::test::assert-eq
       (:wat::core::foldl      :wat-tests::core::core-foldl-spec::shift-add 0 l)
       (:wat::core::foldl-spec :wat-tests::core::core-foldl-spec::shift-add 0 l))))

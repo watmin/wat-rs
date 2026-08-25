@@ -92,14 +92,14 @@ fn a_char_literals_span_covers_exactly_its_own_text() {
 /// The VERB survives — a companion property, not a regression gate (it stayed green under the
 /// desugar control, as it should: an explicitly written call is a `List` in both worlds).
 ///
-/// `(:wat::core::char/of "x")` is a real runtime String→char
+/// `(:wat::core::char "x")` is a real runtime String→char
 /// conversion with its own error surface (length-1, BMP-only); this stone changed what
 /// the READER emits, and deliberately did not retire the verb. It still parses as an
 /// ordinary call, and the head keyword's span is its own written text.
 #[test]
 fn the_char_of_verb_still_parses_as_an_ordinary_call() {
-    const HEAD: &str = ":wat::core::char/of";
-    match parse_one("(:wat::core::char/of \"x\")") {
+    const HEAD: &str = ":wat::core::char";
+    match parse_one("(:wat::core::char \"x\")") {
         WatAST::List(items, _) => {
             match items.first().expect("a head") {
                 WatAST::Keyword(k, span) => {

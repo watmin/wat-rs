@@ -1059,7 +1059,7 @@ mod tests {
 
     #[test]
     fn norun_example_may_carry_an_unverified_marker() {
-        let raw = "Read a uuid.\n\n@added 1.0.0\n@Purity Effectful\n@Determinism Nondeterministic\n@Category Reflection\n@ret :wat::core::String a fresh uuid\n@example-norun (:wat::core::Uuid/v4) #=> #uuid \"…\"";
+        let raw = "Read a uuid.\n\n@added 1.0.0\n@Purity Effectful\n@Determinism Nondeterministic\n@Category Reflection\n@ret :wat::core::String a fresh uuid\n@example-norun (:wat::uuid::v4) #=> #uuid \"…\"";
         let doc = parse(raw).expect("norun-with-marker parses");
         assert!(!doc.examples[0].run);
         assert_eq!(doc.examples[0].expected.as_deref(), Some("#uuid \"…\""));

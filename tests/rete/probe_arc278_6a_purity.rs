@@ -2,7 +2,7 @@
 //! `:wat::rete::deterministic?`. A rete condition must be (pure AND deterministic); each axis is its
 //! own predicate. Contract: DESIGN-STONE-6a-purity-inference.md.
 //!
-//! THE load-bearing reframe (the orthogonality proof): `:wat::core::Uuid/v4` does no IO and mutates
+//! THE load-bearing reframe (the orthogonality proof): `:wat::uuid::v4` does no IO and mutates
 //! nothing → it is PURE; but it is random → NON-deterministic. So `pure?` → true AND `deterministic?`
 //! → false on the same op. Each classifier is DEFAULT-DENY and transitive over user-fn bodies.
 //!

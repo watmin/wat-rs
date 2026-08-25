@@ -138,7 +138,7 @@
      ;; NONDETERMINISTIC residual. Both oracles must call it non-deterministic.
      _  (:wat::kernel::println
           (:seam::row "C fence det?   Uuid/v4 .... "
-                      (:wat::rete::deterministic? (:wat::core::quote (:wat::core::Uuid/v4)))))
+                      (:wat::rete::deterministic? (:wat::core::quote (:wat::uuid::v4)))))
 
      ;; ── ROW D — ★ THE SEAM, made observable ───────────────────────────────────────────────
      ;; `:wat::core::Bytes::to-hex` is the discriminator, and it is chosen by MEASUREMENT, not
