@@ -25,6 +25,7 @@ pub(crate) fn filter_pass(
     scratch: &mut RoundScratch<'_>,
     d_beta: &mut BetaMemory,
     gather_cache: &mut GatherCache,
+    leading_emitted: &mut LeadingEmitted,
     sym: &SymbolTable,
 ) -> Result<(), EvalBreak> {
     let kind_ids = &arm.kind_ids;
@@ -38,7 +39,7 @@ pub(crate) fn filter_pass(
     // Only `match_scratch` is this pass's: the scan that suggested `bind_only`
     // and `cond_key_ids` was matching `wm.bind_only` / `wm.cond_key_ids`,
     // i.e. the SESSION fields, not the round locals of the same name.
-    let RoundScratch { match_scratch, .. } = scratch;
+    let RoundScratch { match_scratch, d_alpha, .. } = scratch;
 
 // ── 3.5 Filter-pass: dispatch TestNode, NegationNode, ExistsNode. ─────
 let __pt4 = phase_start();
@@ -95,39 +96,46 @@ for node_id in &kind_ids.filter {
         let Some(alpha_id) = node_ref_alpha_id(node) else {
             continue;
         };
+        // ROUND GATE. The extension set is a pure function of this leaf's
+        // CUMULATIVE alpha, so if that alpha gained nothing this round it can only
+        // re-derive bindings `leading_emitted` already holds. `contains_key` is the
+        // "have we run at all" test — no round counter needed, and none available
+        // outside `cfg(test)`. This is not only cheaper: on the non-Leaf arm below,
+        // re-deriving would re-intern a whole extension set into the bind pool every
+        // idle round.
+        if leading_emitted.contains_key(node_id) && !d_alpha.contains_key(&alpha_id) {
+            continue;
+        }
         let driver = driver_of(compiled_drivers, alpha_id)?;
-        let mut seen = std::collections::HashSet::new();
         if matches!(driver, CondDriver::Leaf(_)) {
-            let els: Vec<Element> = wm
-                .alpha
-                .get(&alpha_id)
-                .map(|v| v.as_ref().clone())
-                .unwrap_or_default();
-            // rune:perspicere(read-once) — one leaf; Clara test-simple-exists distinct inner binds; alias would be a mumble
-            let candidates: Vec<(BindSpan, Vec<(u32, u32)>)> = els
-                .iter()
-                .map(|el| {
-                    let binds = if el.binds.len > 0 {
-                        el.binds
-                    } else {
-                        span_from_row(
-                            &mut wm.bind_pool,
-                            el,
-                            alpha_id,
-                            &wm.i64_by_fact,
-                            &wm.bind_only,
-                            &wm.cond_key_ids,
-                        )
-                    };
-                    (binds, pool_slice(&wm.bind_pool, binds).to_vec())
-                })
-                .collect();
-            // rune:perspicere(read-once) — content-keyed distinct set for this leaf
-            // rune:temperare(simplicity-win) — distinct inner bindings require a
-            // content-keyed set of already-interned (u32,u32) pairs (Clara test-simple-exists)
-            let mut seen_pairs: HashSet<Vec<(u32, u32)>> = HashSet::new(); // rune:perspicere(read-once) — one leaf; a name would be a mumble
-            for (binds, pairs) in candidates {
-                if !seen_pairs.insert(pairs) {
+            // An Arc bump, not a memcpy of the bag — the contract that landed for
+            // catch-up (`DESIGN-STONE-catchup-arc-occupancy`), applied to its last
+            // unconverted sibling. Holding the Arc is also what releases `wm.alpha`,
+            // and THAT is what lets the walk below take `&mut wm.bind_pool` per
+            // element: the intermediate `candidates` Vec this replaced existed only
+            // to buy that same freedom, and bought it with an allocation per element.
+            let els = wm.alpha.get(&alpha_id).cloned().unwrap_or_default();
+            for el in els.iter() {
+                let binds = if el.binds.len > 0 {
+                    el.binds
+                } else {
+                    span_from_row(
+                        &mut wm.bind_pool,
+                        el,
+                        alpha_id,
+                        &wm.i64_by_fact,
+                        &wm.bind_only,
+                        &wm.cond_key_ids,
+                    )
+                };
+                // ONE token per distinct inner binding, for the WHOLE fire (Clara
+                // test-simple-exists: two Winds at MCI -> one {?loc MCI}). The set is
+                // fire-scoped on purpose; as a round-local it re-emitted every round.
+                if !leading_emitted
+                    .entry(*node_id)
+                    .or_default()
+                    .insert(pool_slice(&wm.bind_pool, binds).to_vec())
+                {
                     continue;
                 }
                 let tok = Token {
@@ -153,20 +161,27 @@ for node_id in &kind_ids.filter {
             gather_cache,
         )?;
         for ext in exts {
-            if !seen.insert(ext.clone()) {
+            let binds = span_from_pairs(
+                &mut BindIntern {
+                    keys: &mut wm.bind_keys,
+                    vals: &mut wm.bind_vals,
+                    ids: &mut wm.bind_val_ids,
+                    pool: &mut wm.bind_pool,
+                },
+                ext.iter().map(|(k, v)| (k.clone(), v.clone())),
+            );
+            // Keyed on the INTERNED pairs, same as the Leaf arm — one dedup rule for
+            // both drivers rather than one on `ext` and one on the span.
+            if !leading_emitted
+                .entry(*node_id)
+                .or_default()
+                .insert(pool_slice(&wm.bind_pool, binds).to_vec())
+            {
                 continue;
             }
             let tok = Token {
                 matches: empty_span(),
-                binds: span_from_pairs(
-                    &mut BindIntern {
-                        keys: &mut wm.bind_keys,
-                        vals: &mut wm.bind_vals,
-                        ids: &mut wm.bind_val_ids,
-                        pool: &mut wm.bind_pool,
-                    },
-                    ext.iter().map(|(k, v)| (k.clone(), v.clone())),
-                ),
+                binds,
             };
             if beta_readers.contains(node_id) {
                 beta_written(*node_id, 1);
@@ -238,6 +253,20 @@ for node_id in &kind_ids.filter {
             // ExistsNode passes iff any-compat; NegationNode passes iff NOT any-compat.
             let pass = if is_exists { any_compat } else { !any_compat };
             if pass {
+                // A LEADING filter (no parent) passes at most once per distinct
+                // binding for the whole FIRE. A non-leading one needs no guard: its
+                // tokens come from a parent's delta, which is already round-scoped.
+                // Leading `:not` binds nothing, so its key is the empty vector — the
+                // same mechanism, no special case. Without this it re-seeded and
+                // re-passed one empty token on EVERY round into a cumulative beta.
+                if pids.is_empty()
+                    && !leading_emitted
+                        .entry(*node_id)
+                        .or_default()
+                        .insert(pool_slice(&wm.bind_pool, tok.binds).to_vec())
+                {
+                    continue;
+                }
                 if beta_readers.contains(node_id) {
                     beta_written(*node_id, 1);
                     wm.beta.entry(*node_id).or_default().push(tok);

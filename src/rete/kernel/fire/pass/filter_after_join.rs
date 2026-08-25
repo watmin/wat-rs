@@ -63,6 +63,33 @@ while !frontier.is_empty() {
                 None => continue,
             };
             let fkind = kind_of(filter_node);
+            // A HashJoin child of a frontier HashJoin. THIS CASE WAS MISSING, and its
+            // absence was a silent wrong answer: this walk descends through FILTER
+            // children, so `:where → HashJoin(a) → HashJoin(b)` stalled at (a) — (b) was
+            // not a filter, nothing left-activated it, production read an empty d_beta,
+            // and the fixpoint exited having matched nothing. See `left_activate_join`.
+            if fkind == NodeKind::HashJoin {
+                let new_tokens: Vec<Token> = match d_beta.get(&hj_id) {
+                    Some(ts) if !ts.is_empty() => ts.clone(),
+                    _ => continue,
+                };
+                if super::left_activate_join(
+                    wm,
+                    arm,
+                    d_beta,
+                    &mut super::JoinIdx {
+                        right_idx,
+                        right_idx_n,
+                        join_keys_cache,
+                        match_scratch,
+                    },
+                    &new_tokens,
+                    filter_id,
+                )? {
+                    next_frontier.push(filter_id);
+                }
+                continue;
+            }
             if fkind != NodeKind::Test
                 && fkind != NodeKind::Negation
                 && fkind != NodeKind::Exists

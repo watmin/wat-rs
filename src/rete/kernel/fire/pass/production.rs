@@ -23,7 +23,6 @@ use super::super::*;
 
 /// Fire production nodes on the tokens that are NEW this round, returning the
 /// derived-fact indices that seed the next round.
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn production_delta(
     wm: &mut FireSession,
     arm: &InternedNetwork,

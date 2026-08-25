@@ -529,6 +529,21 @@ fn pack_expr(e: &Expr) -> Value {
     }
 }
 
+/// Decode one EDN-packed expression back into an `Expr` — the exact inverse of
+/// [`pack_expr`], which sits directly above it.
+///
+/// **The two are a pair and must be edited as one.** Every `Expr` variant needs
+/// an arm in `pack_expr` that writes its keyword tag and an arm here that reads
+/// it back; a variant added to only one side compiles cleanly and breaks the
+/// export/import round-trip at runtime instead. `tests/rete/probe_arc278_export.wat`
+/// and `probe_arc278_rete_edn.wat` are what catch that — a new variant belongs in
+/// their corpus in the same change.
+///
+/// Shape: every packed expr is a sequence whose head is the variant's keyword
+/// tag and whose tail is that variant's fields, in declaration order. Unknown
+/// tags and missing fields raise `MalformedForm` under `IMPORT_OP` rather than
+/// defaulting, because a silently-defaulted field would import a DIFFERENT rule
+/// than the one exported.
 fn unpack_expr(v: &Value, span: &Span) -> Result<Expr, EvalBreak> {
     let items = expect_seq(v, IMPORT_OP, span)?;
     let tag = items.first().ok_or_else(|| malformed(span, IMPORT_OP, "empty expr"))?;
@@ -1162,7 +1177,7 @@ fn pack_rhs_op(op: &RhsOp) -> Value {
     match op {
         // Slot name only. The second Bind field is a Debug rendering of
         // WatAST for fire-time unbound errors — source, not residual.
-        RhsOp::Bind(k, _) => pv([kw(":rbind"), k.clone()]),
+        RhsOp::Bind(k, _, _) => pv([kw(":rbind"), k.clone()]),
         RhsOp::Lit(v) => pv([kw(":rlit"), v.clone()]),
         RhsOp::Expr(p) => pv([kw(":rexpr"), pack_prog(p)]),
     }
@@ -1183,7 +1198,9 @@ fn unpack_rhs_op(v: &Value, span: &Span) -> Result<RhsOp, EvalBreak> {
                     _ => String::new(),
                 },
             };
-            Ok(RhsOp::Bind(k, dbg))
+            // Restamped from the import site — the truthful location for an
+            // imported rule, whose original source is not on this disk.
+            Ok(RhsOp::Bind(k, dbg, span.clone()))
         }
         ":rlit" => Ok(RhsOp::Lit(expect_at(&items, 1, span, "rlit value")?.clone())),
         ":rexpr" => Ok(RhsOp::Expr(Arc::new(unpack_prog(

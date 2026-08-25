@@ -32,7 +32,7 @@ use crate::rete::clause::CmpKind;
 use crate::rete::matcher::{compare_values, Bindings};
 use crate::rete::vocabulary::RETE_OPS;
 use crate::runtime::{
-    project_holon_rete_fallback, EvalBreak, HolonReteProject, RuntimeError, RuntimeErrorKind, Value,
+    EvalBreak, RuntimeError, RuntimeErrorKind, Value,
 };
 use crate::span::Span;
 
@@ -467,6 +467,12 @@ fn to_dim(e: &Expr, slots: &HashMap<u16, String>) -> Option<DimKey> {
     }
 }
 
+/// Evaluate one `DimKey` — the where-tree's compiled dimension expression — against a row's bindings.
+///
+/// Recursive over the `DimKey` tree: `Lit` and `Bind` are leaves, `Call`,
+/// `CallFallback` and `Field` recurse into their operands first. `span` is the
+/// whole `:where` form's span and is reused for every diagnostic raised in here,
+/// because a `DimKey` is compiled from that form and carries no span of its own.
 fn exec_dim<B: Bindings + ?Sized>(d: &DimKey, bindings: &B, span: &Span) -> Result<Value, EvalBreak> {
     match d {
         DimKey::Lit(v) => Ok(v.clone()),
@@ -486,6 +492,16 @@ fn exec_dim<B: Bindings + ?Sized>(d: &DimKey, bindings: &B, span: &Span) -> Resu
             }
             apply_op(*op, &vs, span, None)
         }
+        // `CallFallback` is `Call` plus a rule for "this op has no answer for THIS row",
+        // and that rule is NOT stated here: `runtime::classify_fallback_outcome` is its
+        // single home, with the five no-answer shapes and why each is narrow.
+        //
+        // It used to be restated here in full — and this file's copy was WRONG. It
+        // sniffed the runtime value instead of guarding on the row's declared `ret`, so
+        // a generic-`ret` row returning a non-finite float took the fallback here and
+        // not in the core evaluator: native answering `1` where the `$oracle` answered
+        // `0`. Three hand-written copies of one classification, and the prose beside each
+        // read like the definition. Do not restate it again — call the classifier.
         DimKey::CallFallback {
             op,
             args,
@@ -496,35 +512,18 @@ fn exec_dim<B: Bindings + ?Sized>(d: &DimKey, bindings: &B, span: &Span) -> Resu
             for a in args.iter() {
                 vs.push(exec_dim(a, bindings, span)?);
             }
-            match apply_op(*op, &vs, span, None) {
-                Ok(Value::f64(x)) if !x.is_finite() => exec_dim(fallback, bindings, span),
-                Ok(Value::Option(opt)) => match opt.as_ref() {
-                    Some(v) => Ok(v.clone()),
-                    None => exec_dim(fallback, bindings, span),
-                },
-                Ok(v) => match project_holon_rete_fallback(&v, row.rete_name, span)? {
-                    HolonReteProject::Scalar(x) => Ok(Value::f64(x)),
-                    HolonReteProject::Fallback => exec_dim(fallback, bindings, span),
-                    HolonReteProject::NotHolon => Ok(v),
-                },
-                Err(EvalBreak::Diagnostic(e))
-                    if matches!(
-                        e.kind(),
-                        RuntimeErrorKind::IntegerOverflow { .. }
-                            | RuntimeErrorKind::DivisionByZero
-                    ) =>
-                {
-                    exec_dim(fallback, bindings, span)
-                }
-                Err(EvalBreak::Diagnostic(e))
-                    if matches!(
-                        e.kind(),
-                        RuntimeErrorKind::MalformedForm { head, .. } if head.as_str() == row.core_name
-                    ) =>
-                {
-                    exec_dim(fallback, bindings, span)
-                }
-                Err(e) => Err(e),
+            // ONE classification, shared with `expr_ir`'s walk and the core evaluator.
+            // It used to be hand-written here, and the copies diverged — see
+            // `classify_fallback_outcome`. Only the RECURSION is this site's own.
+            match crate::runtime::classify_fallback_outcome(
+                apply_op(*op, &vs, span, None),
+                &row.ret,
+                row.core_name,
+                row.rete_name,
+                span,
+            )? {
+                crate::runtime::FallbackVerdict::Value(v) => Ok(v),
+                crate::runtime::FallbackVerdict::UseFallback => exec_dim(fallback, bindings, span),
             }
         }
         DimKey::Field { recv, idx } => {

@@ -167,7 +167,31 @@ pub(crate) type ExplainSupport = HashMap<Value, (String, Value)>;
 /// HashJoin id → cached join-key names. Not production memory.
 pub(crate) type JoinKeysCache = HashMap<i64, Vec<Value>>;
 pub(crate) type AlphasByType = HashMap<String, Vec<i64>>;
+/// Class name → the ids of that class's LEAF alphas only. Shape-identical to
+/// [`AlphasByType`] and deliberately a separate noun: that one holds EVERY alpha
+/// of a class, this one only the leaves, so reusing its name would be wrong
+/// rather than merely vague.
+pub(crate) type LeafAidsByClass = HashMap<String, Vec<i64>>;
 pub(crate) type CondKeyIds = HashMap<i64, Vec<u32>>;
+/// Per-alpha output field indexes into the packed row, for bind-only alphas
+/// (`DESIGN-STONE-fire-i64-columns`). Absent → the alpha needs compiled exec.
+pub(crate) type BindOnlyFields = HashMap<i64, Vec<u8>>;
+/// Bindings a LEADING (parentless) `:not` / `:exists` has ALREADY passed, per node,
+/// for the whole fire — not per round.
+///
+/// This is the one piece of leading-filter memory that must outlive a round, and
+/// forgetting that was a real bug: the leading arms are re-evaluated every round
+/// of the delta fixpoint, `wm.beta` is cumulative, and the dedup set used to be a
+/// round-local. A query over a leading `:not`/`:exists` therefore returned one row
+/// PER ROUND where one row is correct — exactly, at every chain length measured
+/// (2→2, 3→3, 4→4, 6→6). Every existing test fired a single round, so the two
+/// readings coincided and nothing saw it.
+///
+/// A leading `:not` binds nothing, so its key is the empty vector; it needs no
+/// special case. Growth still works: a binding first derived in a later round is
+/// absent from the set and passes normally.
+/// Gate: `tests/rete/probe_arc278_leading_filter_multiplicity.rs`.
+pub(crate) type LeadingEmitted = HashMap<i64, std::collections::HashSet<Vec<(u32, u32)>>>;
 pub(crate) type AlphaDelta = FxHashMap<i64, Vec<usize>>;
 /// Interned join-key (`DESIGN-STONE-gather-unary-index` applied to HashJoin).
 /// Empty = cartesian; Unary = interned filler id; Nary = interned filler ids.
@@ -234,7 +258,7 @@ pub(crate) struct FireSession {
     pub(crate) i64_by_fact: Vec<Option<I64Row>>,
     /// Bind-only alphas: output field indexes into the packed row
     /// (`DESIGN-STONE-column-gather-fold`). Fire-scoped.
-    pub(crate) bind_only: HashMap<i64, Vec<u8>>,
+    pub(crate) bind_only: BindOnlyFields,
     /// Interned cond keys, parallel to `bind_only` outputs after an
     /// optional fact_bind (`DESIGN-STONE-column-gather-fold`).
     pub(crate) cond_key_ids: CondKeyIds,

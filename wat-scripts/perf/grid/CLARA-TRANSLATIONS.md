@@ -157,6 +157,48 @@ differential should surface (and is *not* an accuracy risk).
 
 ---
 
+## A9 — LEADING `:exists` read through a query, across a multi-round fixpoint
+
+**Why this axis exists at all.** Added 2026-08-24, after a full vigilia found that wat's
+LEADING (parentless) `:not`/`:exists` emitted one token **per fixpoint round** into the
+cumulative beta. A query over such a rule returned `rounds x locs` rows where `locs` is
+correct — exactly, at every chain length measured (2→2, 3→3, 4→4, 6→6).
+
+**It was never a differential failure. Both references were right.**
+- **Clara** does not share the flaw. Measured on 0.24.0: a leading `[:exists [Wind (= ?loc loc)]]`
+  activates once, with an unrelated cascade running.
+- **The wat `$oracle`** does not share it either, and is immune **by construction**:
+  `fire-once$oracle` (`wat/rete/oracle/fire.wat:131`) rebuilds `new-amem` and `new-bmem` from an
+  **empty** `PersistentMap` on every fire. It has no cumulative memory for a re-emission to
+  compound into. The native engine accumulates for speed — and accumulation is exactly what
+  turned a per-round re-emission into a duplicate.
+
+So the machinery would have caught this instantly; **the corpus had no case of this shape.**
+Three properties must ALL hold or the defect hides again: the filter must be **leading** (a
+mid-chain one is fed by its parent's delta and was never wrong), it must be observed **through a
+query** (`production_delta` dedups derived facts by value and masks token multiplicity), and the
+fixpoint must run **more than one round** (at one round, "once per fire" and "once per round" are
+the same number).
+
+**(a) wat form.** `(:wat::rete::defquery ... :when [(:wat::rete::exists (:lx::Wind (?loc <- :loc)))])`
+— one token per DISTINCT inner binding, so two `Wind` at one loc yield one `{?loc}`.
+
+**(b) Clara form.** `(defquery q-exists [] [:exists [Wind (= ?loc loc)]])` — verified to bind
+`?loc` outward and yield one row per distinct loc (5 Winds over 3 distinct locs → 3 rows,
+`{:?loc "A"}`). Clara's `:exists` is implemented over accumulators, so `clara.rules.accumulators`
+must be loaded or the run dies with `ClassNotFoundException` rather than a wrong answer.
+
+**(c) Equivalence.** Same semantics, same witness — the sorted distinct locs, comparable
+byte-for-byte. Verified against the pre-fix engine before landing: it produced each loc six times
+(36 entries for 6 locs) against the oracle's 6, failing on **both** `:accuracy` and
+`:port-accuracy`. This axis can fail, which is the only thing that makes it a gate.
+
+**(d) The `:not` arm.** Deliberately not a separate axis. Clara rejects `[:not [Ghost (= ?k k)]]`
+outright (*"Unbound variables: #{?k}"*) and accepts only the unbound `[:not [Ghost]]`, so a
+leading-`:not` axis could witness a bare count where this one witnesses the whole set. Both arms
+share one code path and one fix, and both are gated on every floor by
+`tests/rete/probe_arc278_leading_filter_multiplicity`.
+
 ## A6 — user reducers / custom accumulator (`(PV<T>) -> R`; percentile/stddev/top-k)
 
 **(a) wat capability.** `docs/arc/2026/06/278-rules-engine/DESIGN-STONE-8-custom.md` + the differential

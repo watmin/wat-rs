@@ -805,6 +805,30 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
 
 // ─── Per-head leaf decision ─────────────────────────────────────────────────────
 
+/// INTERIM recognizer keyed on the frozen TypeEnv. Arc 255 is the registry
+/// (`docs/arc/2026/06/255-builtin-registry/`).
+/// Is `items` a MACRO-LOWERED construction of a **declared** aggregate?
+///
+/// `(:wat::core::kwargs-construct :cg::Rate :count c …)` / `(:wat::core::aggregate-new :cg::Rate c …)`
+/// — the two forms a record/struct's surface constructor lowers to, where the TYPE is argument 0
+/// rather than the head. `constructor_meta` recognises the pre-lowering shape (type AS head); this
+/// recognises the post-lowering one, so the declaration-derived door covers both spellings of the
+/// same act. See the call site's comment for why that is the law working, not an exception to it.
+///
+/// ⛔ TIGHT BY CONSTRUCTION: the verb alone is NOT enough — argument 0 must resolve to a declared
+/// `TypeDef::Aggregate`, the identical test `constructor_meta` applies to a head. A bare
+/// `(:wat::core::kwargs-construct x 1)` over an undeclared name stays refused, and the gate proves
+/// that direction too. Without it this door would admit anything wearing the verb.
+fn is_declaration_derived_construction(items: &[WatAST], sym: &SymbolTable) -> bool {
+    let Some(WatAST::Keyword(head, _)) = items.first() else { return false };
+    if head != ":wat::core::kwargs-construct" && head != ":wat::core::aggregate-new" {
+        return false;
+    }
+    let Some(WatAST::Keyword(type_name, _)) = items.get(1) else { return false };
+    let Some(types) = sym.types_deref() else { return false };
+    matches!(types.get(type_name.as_str()), Some(crate::types::TypeDef::Aggregate(_)))
+}
+
 /// `constructor_meta`'s two sites, AUDITED (BRIEF-constructor-meta-audit.md) — closing the
 /// inconsistency `b98cf189` named and did not touch: that strike classified the EXPANDED
 /// constructor verbs (`aggregate-new` / `kwargs-construct`, the block above) `pure ∧
@@ -923,30 +947,6 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
 /// own wiring newly exposed) now has a freeze-time wall naming it, in place of a fire-time
 /// surprise naming only the reader that tripped over it.
 ///
-/// INTERIM recognizer keyed on the frozen TypeEnv. Arc 255 is the registry
-/// (`docs/arc/2026/06/255-builtin-registry/`).
-/// Is `items` a MACRO-LOWERED construction of a **declared** aggregate?
-///
-/// `(:wat::core::kwargs-construct :cg::Rate :count c …)` / `(:wat::core::aggregate-new :cg::Rate c …)`
-/// — the two forms a record/struct's surface constructor lowers to, where the TYPE is argument 0
-/// rather than the head. `constructor_meta` recognises the pre-lowering shape (type AS head); this
-/// recognises the post-lowering one, so the declaration-derived door covers both spellings of the
-/// same act. See the call site's comment for why that is the law working, not an exception to it.
-///
-/// ⛔ TIGHT BY CONSTRUCTION: the verb alone is NOT enough — argument 0 must resolve to a declared
-/// `TypeDef::Aggregate`, the identical test `constructor_meta` applies to a head. A bare
-/// `(:wat::core::kwargs-construct x 1)` over an undeclared name stays refused, and the gate proves
-/// that direction too. Without it this door would admit anything wearing the verb.
-fn is_declaration_derived_construction(items: &[WatAST], sym: &SymbolTable) -> bool {
-    let Some(WatAST::Keyword(head, _)) = items.first() else { return false };
-    if head != ":wat::core::kwargs-construct" && head != ":wat::core::aggregate-new" {
-        return false;
-    }
-    let Some(WatAST::Keyword(type_name, _)) = items.get(1) else { return false };
-    let Some(types) = sym.types_deref() else { return false };
-    matches!(types.get(type_name.as_str()), Some(crate::types::TypeDef::Aggregate(_)))
-}
-
 fn constructor_meta(head: &str, sym: &SymbolTable) -> Option<OpMeta> {
     let types = sym.types_deref()?;
     // TypeEnv keys carry the leading colon (e.g. ":p::Rec") — use the head verbatim.
@@ -1125,8 +1125,13 @@ fn head_ok(head: &str, axis: Axis, sym: &SymbolTable, seen: &mut HashSet<String>
 
 // ─── Shared structural walk (parameterized by axis) ─────────────────────────────
 
-/// Recursively classify an AST node against `axes` (one or all four). One structural
-/// walk; `head_ok` per axis at each call head (Pure → Det → Total → Rete).
+/// Refuse `cond` / `match` / `fn` as a RETE PRIMITIVE when more than one axis is
+/// being asked at once — a narrow, non-recursive guard on `items.first()`.
+///
+/// It fires only for a multi-axis query that includes `RetePrimitive`: those three
+/// core heads are pure, deterministic and total, so a single-axis walk must keep
+/// admitting them; it is only as a rete primitive that they are refused. The
+/// recursive walk this guards is [`classify_expr`], directly below.
 fn refuse_core_structural_on_multi(axes: &[Axis], items: &[WatAST]) -> Result<(), AxisViolation> {
     if axes.len() <= 1 || !axes.contains(&Axis::RetePrimitive) {
         return Ok(());
@@ -1144,6 +1149,12 @@ fn refuse_core_structural_on_multi(axes: &[Axis], items: &[WatAST]) -> Result<()
     Ok(())
 }
 
+/// Recursively classify an AST node against `axes` (one or all four). One structural
+/// walk; `head_ok` per axis at each call head (Pure → Det → Total → Rete).
+///
+/// The `WatAST::List` arm recurses into EVERY argument of EVERY call form on the
+/// same axis, whatever `head_ok` returned at the outer head — so a resource
+/// acquisition buried in an argument is caught even under a head the axis admits.
 fn classify_expr(ast: &WatAST, axes: &[Axis], sym: &SymbolTable, seen: &mut HashSet<String>) -> Result<(), AxisViolation> {
     match ast {
         // Non-list forms are pure, deterministic data.

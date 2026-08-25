@@ -13,7 +13,7 @@ use crate::rete::matcher::{compare_values, Bindings, FieldNames};
 use crate::rete::vocabulary::{resolve_core_name, OpClass, RETE_OPS};
 use crate::runtime::{
     coincident_q_from_values, cosine_outcome_from_values, dot_outcome_from_values,
-    presence_q_from_values, project_holon_rete_fallback, EvalBreak, FunctionBody, HolonReteProject,
+    presence_q_from_values, EvalBreak, FunctionBody,
     RuntimeError, RuntimeErrorKind, SymbolTable, Value, ValueSnapshot,
 };
 use crate::span::Span;
@@ -1049,34 +1049,19 @@ fn exec(
             for a in args.iter() {
                 vs.push(exec(a, frame, names, sym, span)?);
             }
-            match apply_op(*op, &vs, span, Some(sym)) {
-                Ok(Value::f64(x)) if !x.is_finite() => exec(fallback, frame, names, sym, span),
-                Ok(Value::Option(opt)) => match opt.as_ref() {
-                    Some(v) => Ok(v.clone()),
-                    None => exec(fallback, frame, names, sym, span),
-                },
-                Ok(v) => match project_holon_rete_fallback(&v, row.rete_name, span)? {
-                    HolonReteProject::Scalar(x) => Ok(Value::f64(x)),
-                    HolonReteProject::Fallback => exec(fallback, frame, names, sym, span),
-                    HolonReteProject::NotHolon => Ok(v),
-                },
-                Err(EvalBreak::Diagnostic(e))
-                    if matches!(
-                        e.kind(),
-                        RuntimeErrorKind::IntegerOverflow { .. } | RuntimeErrorKind::DivisionByZero
-                    ) =>
-                {
+            // ONE classification — see `where_tree.rs`'s twin and
+            // `classify_fallback_outcome`. Only the recursion is this site's own.
+            match crate::runtime::classify_fallback_outcome(
+                apply_op(*op, &vs, span, Some(sym)),
+                &row.ret,
+                row.core_name,
+                row.rete_name,
+                span,
+            )? {
+                crate::runtime::FallbackVerdict::Value(v) => Ok(v),
+                crate::runtime::FallbackVerdict::UseFallback => {
                     exec(fallback, frame, names, sym, span)
                 }
-                Err(EvalBreak::Diagnostic(e))
-                    if matches!(
-                        e.kind(),
-                        RuntimeErrorKind::MalformedForm { head, .. } if head.as_str() == row.core_name
-                    ) =>
-                {
-                    exec(fallback, frame, names, sym, span)
-                }
-                Err(e) => Err(e),
             }
         }
         Expr::CallUser { program, args } => {
@@ -1334,6 +1319,29 @@ pub(crate) fn apply_op(
     apply_core_kind(kind, args, span, sym)
 }
 
+/// Apply one compiled core op to its ALREADY-EVALUATED arguments.
+///
+/// This is the leaf of the compiled-expression interpreter: `expr_ir` lowers a
+/// `:where` form to `Op`s, the walker evaluates the operands, and every actual
+/// computation lands here. The 53 arms are a flat dispatch table — one per
+/// `OpExec` — and are deliberately uncommented: each matches on `(kind, args)`
+/// and its body IS its specification. Reach for the arm, not for prose.
+///
+/// Two things a reader cannot recover from the arms themselves:
+///
+/// **The pattern is the arity-and-type check.** An arm matches only when the
+/// operand shapes match too (`[Value::i64(a), Value::i64(b)]`), so a wrong
+/// arity or a wrong operand type does not reach a body — it falls through to
+/// the catch-all. There is no separate validation pass; this table is it.
+///
+/// **The catch-all raises with head `"compiled-exec"`, and that head matters.**
+/// `exec_dim`'s `CallFallback` swallows a `MalformedForm` only when its head
+/// equals the op's own `core_name` (see `where_tree::exec_dim`). `"compiled-exec"`
+/// never equals one, so a dispatch failure PROPAGATES rather than being
+/// silently replaced by a fallback value. Do not retag this error to an op name.
+///
+/// `sym` is `None` off the encoding path; the holon arms that need it raise
+/// `NoEncodingCtx` rather than assuming a context they were not given.
 fn apply_core_kind(
     kind: OpExec,
     args: &[Value],

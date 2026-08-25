@@ -119,7 +119,14 @@ Making `acc_facts` a native `Vec` in the frozen Session.
 
 ---
 
-### T2 — the Exists leaf still memcpys occupancy — ⚠ RE-RANKED, needs its own probe
+### T2 — the Exists leaf still memcpys occupancy — ✅ **LANDED 2026-08-24 (in `71d0e700e`)**
+
+> Struck as part of the leading-filter correctness strike, because it was the SAME
+> block. `.map(|v| v.as_ref().clone())` → `.cloned()`, an Arc bump — the contract
+> already proven for catch-up, applied to its last unconverted sibling. The probe
+> this entry demanded was never needed in the end: the change rode a CORRECTNESS
+> gate (`probe_arc278_leading_filter_multiplicity`), not a perf claim, so no
+> unmeasured win is asserted here. The memcpy is gone; no ms are claimed for it.
 
 **Site:** `src/rete/kernel/fire/delta.rs:1250`.
 
@@ -228,7 +235,12 @@ vector of values) — it changes the Session shape the oracle reads.
 
 ---
 
-### T4 — `token_assoc` heap-allocates per call to walk the pool — ⚠ VOLUME CORRECTED
+### T4 — `token_assoc` heap-allocates per call to walk the pool — ✅ **ALREADY LANDED; this entry was STALE**
+
+> Found 2026-08-24 during `recolligere`: `extend_from_within` was already in
+> `fire/mod.rs`, with a comment explaining it, while this list still carried T4 as
+> open. The list was wrong, not the code. Recorded because a work list that claims
+> open work already done is the same class of defect as one that hides work.
 
 > **CORRECTION 2026-08-23.** This entry implied per-token volume. Grounded:
 > `token_assoc` has exactly ONE caller (`delta.rs:1084`), the accumulate fold
@@ -287,7 +299,16 @@ One clone feeds the dedup set, one feeds the vec. Both are Arc bumps of
 `Value::Aggregate`. Kin to T1 — the same stratum loop. Consider folding into
 T1's carried-set change rather than a separate strike.
 
-### T6 — Exists candidates materialize a Vec purely to key a HashSet
+### T6 — Exists candidates materialize a Vec purely to key a HashSet — ✅ **LANDED 2026-08-24 (in `71d0e700e`)**
+
+> It DISSOLVED rather than being optimized. The `candidates` Vec existed only to
+> escape the `wm.alpha` borrow that T2's memcpy was buying; convert the memcpy to an
+> Arc bump and the second allocation has no reason to exist. T2 and T6 were one
+> defect wearing two hats.
+>
+> NOT done by a u64 content hash, which this entry originally floated: a collision
+> silently DROPS a distinct binding, trading a correctness lie for a malloc. The
+> dedup is still exact, keyed on the interned pairs.
 `src/rete/kernel/fire/delta.rs:1268`
 ```rust
 (binds, pool_slice(&wm.bind_pool, binds).to_vec())
@@ -299,7 +320,31 @@ hash (`u64`) of the span would key the set without materializing. Care: must
 preserve the distinct-inner-binds semantics Clara's `test-simple-exists`
 asserts. Do after T2 (same code region).
 
-### T7 — `Op::Or` / `Op::Not` allocate a SlotFrame per branch, per element — ⚠ COLD, source says so
+### T7 — `Op::Or` / `Op::Not` allocate a SlotFrame per branch, per element — ⚠ RECLASSIFIED 2026-08-24: it was never "cold", it was UNEXERCISED
+
+> **"COLD" was the wrong word and it cost this entry its priority.** It meant "no perf
+> axis measures this" and read as "we have looked at this." Grounded by arming a
+> `panic!` in BOTH arms and rebuilding: the ENTIRE where-family differential passed,
+> and a direct run of `where-boolean.wat` (whose rows include `not(or ...)`) never
+> fired it. Nothing in the corpus reached `compiled_cond`'s `Op::Or`/`Op::Not` — not
+> the perf grid, not the correctness corpus, not the oracle, not Clara.
+>
+> **They are LIVE, not dead** (`purgare` would be the wrong ward): the same panic
+> fires instantly on an `:or` nested INSIDE one condition's constraint list. There
+> are THREE different `or`s in this engine and the corpus had only two —
+> top-level-across-conditions (network branches, 11 fixtures), a where-EXPRESSION
+> (`where-boolean`), and INTRA-CONDITION, which is the only shape reaching these arms.
+> Same surface syntax, three engines, one untested.
+>
+> **CLOSED as a coverage hole** by `where-or-inline.{wat,clj}` — native + oracle on
+> every floor via `spec_equals_native_on_every_where_family`, Clara via
+> `check-where-shapes.sh` (5/5 rows agree). Row 4 is the load-bearing one: `compile_one`
+> compiles `or`/`not` branches against "a throwaway clone/scratch ... matching
+> `eval_clause`'s discard of branch-local binds", an invariant that had no test; row 4
+> nests the scopes two deep, where a clone bug would surface.
+>
+> **The allocation itself remains OPEN and is now honestly measurable** — the arms
+> finally execute. It was always the least interesting thing about this site.
 
 > **CORRECTION 2026-08-23.** This entry claimed the site is "hot in any `where`
 > with `:or`/`:not` over a large alpha". The source already says otherwise —
@@ -734,3 +779,344 @@ flattering number picked from the low end of the range is the same error wearing
 a nicer face, and this file has one of those in its own history.
 
 `fanout [40000]` sits at **23.45 ± 0.75 ms**. Quote that, not a single run.
+
+
+## AND CHECK THE LOAD BEFORE YOU RUN THE GRID (2026-08-24)
+
+The range rule above catches a grid cell compared against one lucky run. It does
+NOT catch a grid run taken on a busy box, and that produced the sixth false alarm
+of this campaign — the first one with an identifiable cause rather than plain
+variance.
+
+The post-merge grid was started immediately after a floor and two release builds,
+with `load average` still at **4.45** and stray processes from a killed run. It
+reported `deep-cascade` up on all three rungs, +46.9% at `[10 100]`. That cell is
+the TIGHTEST in the whole grid — 1.64, 1.69, 1.66, 1.67, 1.65, 1.64, 1.65 across
+seven prior runs, a range of ±0.03 — so a reading of 2.42 was many multiples
+outside it and looked unarguable.
+
+Re-measured on a quieter box: **1.67 and 1.67.** The other flagged cells came back
+the same way (strat-neg `[6 2000]` 12.45 → 11.13; fanout `[40000]` inside range).
+
+Two things follow:
+
+- **`uptime` before `run-all.sh`.** The floor's `nice -n 19` protects the
+  *builder's keyboard*, not a later benchmark; the machine stays warm and loaded
+  for minutes afterwards. A grid started in that window measures the weather.
+- **A tight cell is not a safe cell.** `deep-cascade [10 100]`'s ±0.03 range made
+  the load artefact look like a certainty — the tighter the history, the more
+  convincing a contaminated reading appears. Tight history raises the value of a
+  re-measure, it does not remove the need for one.
+
+---
+
+## THE HUNT AS OF 2026-08-24 — theater is done; the exemplar hunt is not
+
+The theater list above is closed **except T7**: **T1/T3/T5 struck**, **T8 cleared
+as not theater**, **T2/T6 struck 2026-08-24** (one defect, two hats — see their
+entries), **T4 was already landed and this list was stale about it**. **T7 alone
+remains, and it is COLD** — no grid axis reaches it, so it needs its own probe
+before anyone claims a win. The perf campaign is at
+the floor on every measured axis.
+
+What replaced it is a different question — *is this code the exemplar the rest
+of wat's subsystems should copy?* — and it is measured differently: **code
+volume × nesting**, not milliseconds. Current state of rete, longest first:
+
+| function | lines | comment | nesting | verdict |
+|---|---:|---:|---:|---|
+| `intrinsic_meta` (`purity.rs`) | 701 | **71%** | **2** | **NOT a defect.** ~200 code lines, flat cascade, 500 lines of justification. Line count is the wrong lens here. |
+| `eval_axis_violation` (`purity.rs`) | 590 | 18% | **7** | **open** — ~480 code lines, never examined |
+| `exec_compiled_rhs_at` (`compiled_rhs.rs`) | 451 | 10% | 4 | **open** — ~405 code lines, never examined |
+| `fire_fixpoint_delta_armed` | 448 | 17% | 4 | done — was 1774 at nesting 12 |
+| `hash_join_delta` | 361 | 18% | 9 | depth **explained** on `FireCtx`, not fixable without over-borrowing |
+| `exec_dim` (`where_tree.rs`) | 388 | **0%** | 6 | **open** — zero comments in a codebase this documented is its own defect |
+
+### Two findings that generalise beyond rete
+
+They are mirrors, and only fixing the first made the second testable:
+
+- **`AlphaNews::of` claimed a borrow it never took** — `alpha: &'a AlphaMemory`
+  when `alpha` is read once for a `usize`. The false claim propagated into every
+  caller and was the sole reason `hash_join_delta` sat at nesting 9. **A
+  too-tight lifetime is a defect that shows up as DEPTH somewhere else.**
+- **`FireCtx`'s thirteen-field literal cannot be collapsed** — a constructor must
+  take `&mut wm` whole; the literal borrows eleven *named fields* and leaves
+  `wm.alpha`/`wm.beta` free, which every call site needs. Tried, reverted within
+  the hour, documented on the struct. **Verbosity that encodes field-level
+  disjointness is data flow, not repetition.**
+
+The same shape appeared a third time in the `d_beta` copies: what reads as a
+borrow-checker workaround is often the data flow. **Before removing an apparent
+workaround, check whether the type over-claims (fix it) or claims exactly what it
+takes (leave it).**
+
+### Next target
+
+`exec_dim` — 388 lines, nesting 6, and the only place in rete where the house
+style is simply absent. Then `eval_axis_violation`, the largest un-examined body
+of code left in the subsystem.
+
+---
+
+## THE VIGILIA OF 2026-08-24 — rete answered "are we an exemplar?" with NO
+
+Cast at HEAD `d55899373`, after `recolligere` against the disk. Seventeen inward
+wards in parallel, then `circumspicere` last. Every ward fetched its own spell
+from the signed datamancy channel — established by probe, not assumed: a
+haiku-tier worker could NOT invoke the MCP tool, a sonnet-tier worker could, so
+every ward was cast at sonnet.
+
+**The verdict: 4 CONVERGED, 13 diverged.** `sequi`, `secare`, `cernere` and
+`probare` came back clean. The rest did not, and the two most valuable findings
+were things no amount of measuring would ever have surfaced — this campaign had
+spent weeks on milliseconds and had a live correctness bug the whole time.
+
+### ★ L1 — a leading `:not`/`:exists` emitted one token PER FIXPOINT ROUND
+
+`temperare` found it; verified here by a repro built from scratch. The leading
+arms of `filter_pass` are re-evaluated every round with no round gating, and
+`wm.beta` is cumulative, so the token was appended again each round. Causation,
+not correlation — varying ONLY the length of an inert chain that forces rounds:
+
+    chain 2 -> 2 rows | chain 3 -> 3 | chain 4 -> 4 | chain 6 -> 6   (correct: 1)
+
+Both arms. Leading `:not` over an empty class: 6 for 1.
+
+**Why 5016 tests never saw it — TWO independent masking layers.**
+1. `production_delta` dedups derived FACTS by value, so rule output stays correct
+   and every oracle-differential passes regardless of token multiplicity.
+2. `harvest_stratified_queries` (`rules.rs:361`) rebuilds query memory after a
+   STRATIFIED fire from a fresh session with empty memories, replayed with
+   `FireKind::Once` — a single round. (`complectens` found this one.)
+Between them the duplication is observable only through a query on a
+SINGLE-stratum leading filter — and `vocare` proved no such test existed:
+`differential_exists_no_multiplicity` is NAMED for this contract but its fixture
+puts `:exists` second, never leading, so it cannot reach the configuration it
+claims to guard. It passed while the defect was live.
+
+**The fix is one sentence: the dedup state lived at ROUND scope and belongs at
+FIRE scope.** `LeadingEmitted` (session.rs) replaces two round-locals; the round
+gate needs no counter because `leading_emitted.contains_key(node_id)` IS the
+"have we run" test. Leading `:not` binds nothing, so its key is the empty vector
+— one mechanism, no special case. Gate:
+`tests/rete/probe_arc278_leading_filter_multiplicity`, which holds two namespaces
+with identical queries over identical facts differing ONLY in round count, so a
+fix that special-cases round 0 passes one and fails the other.
+
+**It absorbed both open theater items, because they were one defect.** T2's
+`Vec<Element>` memcpy was buying the borrow freedom that T6's per-candidate `Vec`
+was also buying; convert the memcpy to an `Arc` bump and T6's allocation
+dissolves. T4 was already landed and the list was stale about it.
+
+### ★ L1 — the census told root-join twice, and the type allowed it
+
+`purgare` (L1) and `struere` (L2) found it independently. `root_join.rs` called
+`phase_end("root-join", __pt1)` twice against one mark: both the nanoseconds and
+the PAIR COUNT — the calibration divisor — doubled, so every `root-join` figure
+since `ae957b51a` is ~2x. That commit's message claims "MECHANICALLY VERIFIED...
+identical... none of them a logic change." It added a line.
+
+Deleting it is the stem. The root: `PhaseMark` was `Instant`, which is `Copy`, so
+the second call compiled in silence. It is now a non-Copy newtype — a second
+close is `E0382`, proven by reintroducing the defect. A whole-crate balance audit
+confirms root_join was the only unbalanced site.
+
+### THE MEASUREMENT DEFECT THAT STEERED THE HUNT FOR THREE SESSIONS
+
+The exemplar hunt's target table was taken by hand and wrong the same way twice —
+first `fn`-line-to-EOF (swallowing the test module), then missing the `///` block
+ABOVE the `fn`. Recorded 388/451/590-line bodies are really 87/35/72, and
+`compiled_rhs.rs` was not even at the recorded path. The table was not merely
+inflating numbers, it was naming the WRONG functions: `wat-scripts/hunt/fn-census.py`
+found `apply_core_kind` (267 lines, 0% comment) and `unpack_expr` (262, 0%),
+which the broken table never saw. Both now documented; `eval_axis_violation` and
+`exec_compiled_rhs_at` are CLEARED, the latter documented all along above the
+line the measurement was not looking at.
+
+**Do not re-derive these numbers by eye. The tool is the instrument.**
+
+### WHAT REMAINS OPEN — the honest list
+
+L1, unaddressed:
+- `conformare` x9 — a real wat span was in scope and discarded for
+  `rust_caller_span!()` (`eval_insert.rs:74,85,132,187`, `arm.rs:179,193,208,231,293`).
+  A user's malformed `:then` points at wat-rs's own Rust source, not their file.
+  `arm.rs:316` does it correctly in the same file — the pattern is known.
+- `intueri` x3 — doc comments attached to the WRONG function (`purity.rs:808-939`
+  describes `constructor_meta` but sits on `is_declaration_derived_construction`;
+  `purity.rs:1128` describes `classify_expr` but sits on a non-recursive guard;
+  `validate.rs:1089` promises source-form rendering and emits Rust `Debug`).
+- `vocare` x6 — four join tests with a deliberately empty `:rhs` reading `wm.beta`
+  with no `rune:vocare(vantage-bypass-test)` marker; one test that asserts a
+  hand-written belief-array against itself and touches no production code;
+  `differential_exists_no_multiplicity` misnamed for a contract it cannot detect.
+- `exigere` x1 — a cache-stone brief promising "a later stone" that never came and
+  is tracked nowhere.
+
+L2, unaddressed (highlights):
+- `solvere` — the `CallFallback` five-shape classification is written THREE times
+  (`where_tree.rs:515`, `expr_ir.rs:1046`, `runtime.rs:10075`) and the third GUARDS
+  on `matches!(op.ret, ParamType::F64)` while the two rete copies sniff the runtime
+  value. `runtime.rs`'s own comment says why that is wrong. No current RETE_OPS row
+  exercises the gap. **This makes the exec_dim doc committed in 8788601de a true
+  description of a DIVERGENT copy — amend it, and unify to one classifier.**
+- `solvere` — `where_tree.rs:331` bypasses `clause.rs`'s documented ONE DOOR
+  `classify_constraint_head`, which has an anti-drift gate test for this exact
+  pattern; enum-variant-constructor resolution hand-written at three sites.
+- `conferre` — 4 of 10 grid axes (`fanout`, `min-finding`, `node-share`,
+  `user-reduce`) compute `:oracle-derived` but NOTHING in CI compares it; only a
+  standalone shell script does, and no test invokes it. Also the differential
+  gate's header prose says 18 axes where the arrays hold 41.
+- `excusare` x2 — `#[allow(clippy::too_many_arguments)]` at exactly 7 args in
+  `join_after_filter.rs:26` and `production.rs:26`; the threshold is 8. Both
+  carried over from sibling extractions that genuinely need it.
+- `partire` x7 — split proposals for `fire/mod.rs` (3), `validate.rs` (2),
+  `expr_ir.rs` (1), `arm.rs` (2). `purity.rs`, `export.rs`, `vocabulary.rs`,
+  `session.rs`, `compiled_cond.rs` all LEAVE.
+- `complectens` — the `harvest_stratified_queries` replay path is isolated by no
+  test; my new probe is the contract's only gate and is end-to-end.
+- MY OWN, verified: `RoundScratch` declared `bind_only` AND `cond_key_ids` as
+  `&'a mut` while every consumer takes them shared — the `AlphaNews::of` class
+  again. FIXED. And `matcher.rs:81` / `validate.rs:817` are byte-equivalent
+  registry lookups while matcher's doc claims to be the sole reader — `solvere`
+  RETRACTED this one; I verified it on the disk before the retraction and it
+  stands. A ward's retraction is also just a report.
+
+### circumspicere — cast LAST, against what the inward seventeen missed (0 L1, 3 L2)
+
+- **The fixpoint has no cap.** `fire_fixpoint_delta_armed` (delta.rs) ends only when
+  the delta empties — no round counter, no deadline, no memory ceiling — and the
+  memories accumulate across rounds by design. A rule whose `:then` derives a
+  structurally-novel fact each round hangs the calling thread and grows heap with no
+  diagnostic. `DESIGN-STONE-4b-cascade-fixpoint` names this as a deliberate Datalog
+  choice, but that reasoning lives ONLY there: README, USER-GUIDE, CLAUDE.md and
+  `rete.wat` say nothing. Not hypothetical — the grid harness needed a cgroup blast
+  door after an analogous run OOM'd the build machine. Nothing protects an embedder.
+- **The arc's own closing condition is checked by no CI job.** `PERF-ARC` states it as
+  "differential-tested bit-for-bit against the wat oracle AND benched at or past
+  Clara." The parity scripts need a JDK+Clojure the runner lacks, so they never run
+  there. A Clara-parity or throughput regression merges fully green. `run-all.sh`
+  documents this already happening once — four axes sat dead for days.
+- **The breadcrumb's census warranty went stale by its own rule** — it claims "read
+  before citing ANY census number" and "this file wins", but predated the root-join
+  double-count fix by 44 minutes. FIXED in this session's stamp, which now names both
+  census defects.
+
+**Cleared by circumspicere, worth knowing:** the purity/determinism/totality fence is
+a genuinely closed default-deny system with a completeness ledger and no
+foreign/extern/catch-all escape hatch. `build.rs`'s auto-generated module list reaches
+every probe; migrate/fix tooling is one-shot and CI-uninvoked; the bench harness
+honestly self-labels as non-gating.
+
+### The corrected census — run the tool, do not read by eye
+
+| function | file:lines | lines | comment | nesting |
+|---|---|---:|---:|---:|
+| `intrinsic_meta` | `src/rete/purity.rs:205-804` | 600 | 66% | 2 |
+| `fire_fixpoint_delta_armed` | `src/rete/kernel/fire/delta.rs:217-662` | 446 | 17% | 4 |
+| `hash_join_delta` | `src/rete/kernel/fire/pass/hash_join.rs:33-383` | 351 | 22% | 9 |
+| `accum_alpha_seed_after_fold_split` | `src/rete/kernel/tests.rs:5730-6036` | 307 | 1% | 7 |
+| `apply_core_kind` | `src/rete/expr_ir.rs:1337-1626` | 290 | 8% | 6 |
+| `unpack_expr` | `src/rete/export.rs:532-808` | 277 | 5% | 4 |
+| `node_share_where_cost_decomposition` | `src/rete/kernel/tests.rs:1018-1291` | 274 | 20% | 4 |
+| `fire_rules_stratified` | `src/rete/kernel/fire/rules.rs:12-279` | 268 | 40% | 7 |
+
+`intrinsic_meta` (600 lines, 66% comment, nesting 2) stays CLEARED — a flat table;
+line count is the wrong lens. `apply_core_kind` and `unpack_expr` were found by the
+tool and documented; `eval_axis_violation` (85) and `exec_compiled_rhs_at` (37) are
+CLEARED, the latter documented all along above the line the old measurement missed.
+
+### conformare's nine — CLOSED, and the block's priority was INVERTED (2026-08-24)
+
+All nine `rust_caller_span!()` sites that had a real wat span in scope now carry it
+(`arm.rs` x5, `eval_insert.rs` x4; zero left in either file). Three got MORE precise
+than the ward asked: `eval_insert.rs:85` points at `other`, the offending head
+itself; both operand loops point at `arg` rather than the enclosing form; `arm.rs`'s
+alpha site points at `cond`.
+
+**But grounding inverted the block, and this is the part worth keeping.** It reads as
+nine user-facing diagnostic bugs. It is not:
+
+- **`arm.rs` x5 — genuinely user-facing.** `compile_acc_fold` /
+  `compile_alpha_conds_from_index` run at `compile-all`, so a malformed `accumulate`
+  form now names the user's own line instead of `src/rete/kernel/arm.rs`.
+- **`eval_insert.rs` x4 — the ORACLE path, not native fire.** The source says so in
+  four places: "Native production runs `exec_compiled_rhs`" (`eval_insert.rs:44`,
+  `:288`), "this file is the interpreter / differential" (`:4`), and "fire does not
+  walk `build_insert_fact`" (`arm.rs:319`). Correct to fix, cheap, and it improves
+  the interpreter's diagnostics — not the one a user hits.
+- **THE GAP conformare DID NOT NAME.** A real user firing natively hits
+  `unbound_operand` (`compiled_rhs.rs:250`), which takes only a debug STRING —
+  `RhsOp::Bind` carries no span at all. So the native-fire diagnostic gap is
+  STRUCTURAL. The ward audited the sites that HAD a span to discard; it did not
+  audit the path that had already thrown one away.
+
+**Deliberately NOT fixed, and why.** Widening `RhsOp::Bind` to carry a `Span` touches
+`compile_rhs`, both exec paths, and `export.rs`'s pack/unpack — the SERIALIZED ABI,
+guarded by a round-trip identity test and an ABI hash. That is a design change with
+real blast radius, not a mechanical span swap, and it deserves its own decision
+rather than riding along in a cleanup commit. **It is the highest-value remaining
+diagnostic work in rete.**
+
+Floor 5023/5023. Clippy silent.
+
+### circumspicere's uncapped fixpoint — DEFERRED BY DECISION, bounded (2026-08-24)
+
+`fire_fixpoint_delta_armed` ends only when the delta empties: no round counter, no
+deadline, no memory ceiling, and the memories accumulate across rounds by design. A
+rule deriving a structurally-novel fact each round hangs the calling thread with
+unbounded heap and no diagnostic.
+
+**Builder's ruling, 2026-08-24 — an affirmative cut, not an open item:** *"this one
+does not concern me — if the caller dos's themselves that's their problem … when we
+build rete-as-a-service is a problem for us to handle then, not now."*
+
+So the boundary is named and it is not a date: **the cap becomes required when rete
+is exposed as a SERVICE**, i.e. when the caller stops being the rule author. Until
+then a self-inflicted hang is the author's own, exactly like an infinite loop in any
+other language they write. `DESIGN-STONE-4b-cascade-fixpoint` already frames the
+unbounded fixpoint as the deliberate Datalog-semantics choice; this ruling confirms
+it and supplies the trigger the stone left as "let need reveal."
+
+**What this does NOT excuse:** the reasoning still lives only in arc docs. README,
+USER-GUIDE, CLAUDE.md and `wat/rete.wat` say nothing about fixpoint termination. A
+rule author cannot read the decision that makes their hang their own fault. Documenting
+the bound where a CALLER reads it is separate from capping it, and remains open.
+
+### ⚠ A CLAIM I MADE AND RETRACT — the diagnostic goldens are NOT a vocare defect (2026-08-24)
+
+While landing the `CallFallback` unification I twice described the five
+`probe_diagnostic_value_snapshot_in_errors` goldens — which pin
+`:location src/runtime.rs :line N` — as "`vocare`'s wrong-altitude class,
+demonstrating itself." **Both halves of that were wrong.**
+
+**It is not what vocare found.** vocare's six were: four join tests that hand-build
+a `Rule` with an empty `:rhs` and read `wm.beta` (no production ever runs), one test
+asserting a hand-written belief-array against itself, and
+`differential_exists_no_multiplicity`. It explicitly CLEARED the rendered-output
+family — "CLEAN, stated for contrast". I attributed to the ward a finding it never
+made, which is precisely the phantom `examinare` forbids, committed about my own
+ward's report.
+
+**And it is wrong on the merits.** vocare measures VANTAGE: does the test stand
+where the CALLER stands? The `:location` span is part of the error EDN a caller
+receives, so pinning it asserts shipped output, not internals. The golden compares
+the whole error structurally, so it cannot go green on a real break; and when it
+reddened for me it reddened on a genuinely caller-visible change — the location
+moved 25695→25722. That is signal: "the code raising this moved, confirm that is
+intentional." Had the unification changed WHICH code raises `NotCallable`, the
+recapture diff would have carried more than a `:line`.
+
+**The distinguishing property**, worth keeping: a vocare defect asserts on something
+NO CALLER CAN OBSERVE — it reddens on internal churn and stays green when the
+behaviour breaks. The goldens are the opposite: they redden only on caller-visible
+change and are maximally sensitive.
+
+**Why it fooled me:** a Rust line number FEELS like an implementation detail. But a
+`rust_caller_span!()` in an error is the honest answer to "where did this come from"
+when there is no wat source — and this same session proved the converse mattered,
+since `RhsOp::Bind`'s MISSING span was a real user-facing defect (`15064c9eb`). The
+location cannot be load-bearing when absent and noise when pinned.
+
+No action. Recorded so the retraction outlives the claim.

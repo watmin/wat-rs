@@ -675,9 +675,114 @@ fn expand_make_rule(
     if let Some(when_arg) = iter.next() {
         out.push(expand_make_rule_when(when_arg, registry, expansion_depth + 1, env, sym, privilege)?);
     }
-    // items[3..]: quoted :then vector + any trailing args — untouched data.
+    // items[3]: quoted :then vector — a fact-form's VALUE positions are code.
+    if let Some(then_arg) = iter.next() {
+        out.push(expand_make_rule_then(then_arg, registry, expansion_depth + 1, env, sym, privilege)?);
+    }
+    // items[4..]: any trailing args — untouched data.
     out.extend(iter);
     Ok(WatAST::List(out, list_span))
+}
+
+/// Expand a `make-rule` call's `:then` argument — the RHS twin of
+/// [`expand_make_rule_when`], and shaped identically on purpose.
+///
+/// WHY THIS EXISTS. `:then` used to be passed through as "untouched data", so a macro
+/// written in a `:then` never expanded and reached the RHS lowerer raw. `cond` is the
+/// case that surfaced it: it has a `RETE_OPS` row, a dedicated clause-aware purity arm,
+/// and is its OWN `defmacro` expanding to rete `if` — so on the LHS (where a `where`
+/// body IS a boundary) it expands and the rule fires, while the identical form in a
+/// `:then` died at `compile-all` with "call head must be a keyword". That message was
+/// accurate about what the lowerer saw and useless about what was wrong: to the
+/// lowerer, a `cond` CLAUSE looks like a call with a non-keyword head.
+///
+/// The fix is NOT a `cond` arm in the lowerer — that would be a second, Rust-side copy
+/// of a wat `defmacro`. It is that `:then` was missing the boundary `:when` already
+/// had. `boundary.rs` states the principle: `where` is "the one place inside a
+/// `MakeRule` call's quoted `:when` vector where a condition's DATA gives way to a
+/// live-code BODY". A `:then` fact-form's field VALUES are exactly that same live code
+/// — `resolve_rhs_value` evaluates fenced expressions there — so the principle applied
+/// to the RHS all along and simply had not been extended. This is not `cond`-specific:
+/// EVERY rete macro was unusable in a `:then`.
+fn expand_make_rule_then(
+    then_arg: WatAST,
+    registry: &mut MacroRegistry,
+    expansion_depth: usize,
+    env: &Environment,
+    sym: &SymbolTable,
+    privilege: crate::resolve::Privilege,
+) -> Result<WatAST, MacroError> {
+    let WatAST::List(qitems, qspan) = then_arg else { return Ok(then_arg) };
+    let is_quote = matches!(qitems.first(), Some(WatAST::Keyword(h, _)) if h == ":wat::core::quote");
+    if !is_quote {
+        return Ok(WatAST::List(qitems, qspan));
+    }
+    let mut qiter = qitems.into_iter();
+    let mut new_q = Vec::with_capacity(2);
+    new_q.extend(qiter.next()); // quote head, as-is
+    if let Some(vec_node) = qiter.next() {
+        new_q.push(expand_make_rule_facts(vec_node, registry, expansion_depth + 1, env, sym, privilege)?);
+    }
+    new_q.extend(qiter); // shouldn't appear in a well-formed quote; conservative
+    Ok(WatAST::List(new_q, qspan))
+}
+
+/// Per-element dispatch over the `:then` fact vector — the twin of
+/// [`expand_make_rule_conditions`].
+fn expand_make_rule_facts(
+    vec_node: WatAST,
+    registry: &mut MacroRegistry,
+    expansion_depth: usize,
+    env: &Environment,
+    sym: &SymbolTable,
+    privilege: crate::resolve::Privilege,
+) -> Result<WatAST, MacroError> {
+    let WatAST::Vector(facts, vspan) = vec_node else { return Ok(vec_node) };
+    let mut new_facts = Vec::with_capacity(facts.len());
+    for fact in facts {
+        new_facts.push(expand_make_rule_fact(fact, registry, expansion_depth + 1, env, sym, privilege)?);
+    }
+    Ok(WatAST::Vector(new_facts, vspan))
+}
+
+/// Expand ONE `:then` fact-form `(:RecordType arg…)` — its VALUE positions only.
+///
+/// THE HEAD AND THE FIELD KEYWORDS ARE DATA AND STAY BYTE-IDENTICAL. That is not
+/// caution, it is the same hazard the `:when` side documents (STOP-2): a record's
+/// registered kwargs companion macro shares the record's name, so expanding the form
+/// itself would rewrite the fact-form into something the RHS never meant. Only the
+/// values are code.
+///
+/// Which positions ARE values is decided by [`rete_is_kwargs`] — the SAME predicate
+/// `build_insert_fact`, `compile_rhs`, `lower_construct` and the freeze wall use. It is
+/// not re-derived here: if the expander and the evaluator disagreed about kwargs-vs-
+/// positional, the expander would expand a field KEYWORD or skip a real value, and the
+/// two would be reading different programs.
+fn expand_make_rule_fact(
+    fact: WatAST,
+    registry: &mut MacroRegistry,
+    expansion_depth: usize,
+    env: &Environment,
+    sym: &SymbolTable,
+    privilege: crate::resolve::Privilege,
+) -> Result<WatAST, MacroError> {
+    let WatAST::List(fitems, fspan) = fact else { return Ok(fact) };
+    if fitems.is_empty() {
+        return Ok(WatAST::List(fitems, fspan));
+    }
+    let kwargs = crate::rete::eval_insert::rete_is_kwargs(&fitems[1..]);
+    let mut new_f = Vec::with_capacity(fitems.len());
+    for (i, item) in fitems.into_iter().enumerate() {
+        // i == 0 is the record-type head. In kwargs shape the odd indices are the
+        // `:field` keywords; in positional shape every index past the head is a value.
+        let is_value = i > 0 && (!kwargs || i % 2 == 0);
+        if is_value {
+            new_f.push(expand_form(item, registry, expansion_depth + 1, env, sym, privilege)?);
+        } else {
+            new_f.push(item);
+        }
+    }
+    Ok(WatAST::List(new_f, fspan))
 }
 
 /// Expand a `make-rule` call's `:when` argument. Expected shape

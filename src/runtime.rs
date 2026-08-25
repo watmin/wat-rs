@@ -10028,7 +10028,7 @@ fn dispatch_rete_op(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    use crate::rete::vocabulary::{OpClass, ParamType};
+    use crate::rete::vocabulary::OpClass;
     match op.class {
         // Arc 278 #57 round 1b — `Redispatch` joins `Alias`/`Form` here: same generic
         // re-invoke on `core_name`, zero new runtime logic (the checker's routing is the
@@ -10073,91 +10073,26 @@ fn dispatch_rete_op(
                     reason: "the fallback-carrying rete op requires the literal keyword `:undefined` as its second-to-last argument, e.g. `(:wat::rete::core::i64::+ a b :undefined fallback)`".into(),
                 }).into()),
             }
-            match dispatch_keyword_head_value(
+            // ONE classification, shared with the two rete walks — see
+            // `classify_fallback_outcome`, which this arm's body became. Only the
+            // recursion into the caller's `:undefined` arg stays here.
+            match classify_fallback_outcome(
+                dispatch_keyword_head_value(
+                    op.core_name,
+                    &args[0..marker_idx],
+                    list_span,
+                    env,
+                    sym,
+                ),
+                &op.ret,
                 op.core_name,
-                &args[0..marker_idx],
+                head,
                 list_span,
-                env,
-                sym,
-            ) {
-                // A fallback-carrying op is TOTAL, so it must face EVERY way its core op can
-                // reach its undefined point — and this family reaches it two DIFFERENT ways.
-                // The i64 family fails by RAISING (caught below, unchanged). The f64 family
-                // fails by RETURNING: `eval_f64_arith` is raw IEEE 754 with no overflow guard,
-                // so a domain failure surfaces as an `Ok` holding NaN or ±Inf, never an `Err`.
-                // Decided from the ROW's declared `ret`, not by sniffing the runtime value's
-                // type — a value-sniff would silently change behaviour for any future row that
-                // happens to return a float for a non-arithmetic reason. `f64::is_finite()` is
-                // exactly the predicate: `!is_finite()` is true for NaN, `+Inf`, `-Inf` and
-                // nothing else — ordinary finite floats, `-0.0`, and subnormals all pass through
-                // untouched. Both paths are now faced; this arm is exhaustive over the family.
-                Ok(Value::f64(x)) if matches!(op.ret, ParamType::F64) && !x.is_finite() => {
+            )? {
+                FallbackVerdict::Value(v) => Ok(v),
+                FallbackVerdict::UseFallback => {
                     eval_inner(&args[fallback_idx], env, sym).map(|tv| tv.value_owned())
                 }
-                // BRIEF-get-is-total-by-fallback.md (2026-08-05) — the FOURTH failure mode,
-                // shaped like none of the three above: a core op that signals its domain hole by
-                // RETURNING `Value::Option(None)` (`PersistentVector/get`/`Vector/get`/`List/get`
-                // today; any future `(Option :- [T])`-returning verb tomorrow, per STOP-1 — this arm is
-                // written generically over `Value::Option`, never special-cased to `get`).
-                // ⚠ `Option` is `Value::Option(_)`, NOT `Value::Enum` (`runtime.rs`'s own
-                // `val_type_path`: `Value::Option(_) => ":wat::core::Option"`) — the holon
-                // projection below matches `Value::Enum` and does not and cannot fire on this
-                // shape; it needs its own arm. `Some(v)` unwraps the payload (a clone off the
-                // `Arc<Option<Value>>` — `Value` is Clone throughout this file, same as every
-                // other arm's `.value_owned()`); `None` is this family's undefined point and
-                // takes the caller's `:undefined` value, exactly like the arms above.
-                Ok(Value::Option(opt)) => match opt.as_ref() {
-                    Some(v) => Ok(v.clone()),
-                    None => eval_inner(&args[fallback_idx], env, sym).map(|tv| tv.value_owned()),
-                },
-                // DESIGN-STONE-the-vsa-seam-opens.md (2026-08-05) — the THIRD failure mode.
-                // Shared with native CallFallback via `project_holon_rete_fallback`: one
-                // projection, two mouths. Happy payload → f64; Degenerate /
-                // DimensionMismatch → the caller's `:undefined`. NotHolon is every other
-                // Ok value this arm already returned unchanged.
-                Ok(v) => match project_holon_rete_fallback(&v, head, list_span)? {
-                    HolonReteProject::Scalar(x) => Ok(Value::f64(x)),
-                    HolonReteProject::Fallback => {
-                        eval_inner(&args[fallback_idx], env, sym).map(|tv| tv.value_owned())
-                    }
-                    HolonReteProject::NotHolon => Ok(v),
-                },
-                // With the args already checked as (i64, i64), the i64 arithmetic family raises
-                // exactly two domain failures and no third: overflow (+ - * and the MIN/-1
-                // division edge) and division by zero (/ mod rem quot). Both are the undefined
-                // point the caller's `:undefined` value exists to cover. This is an EXHAUSTIVE
-                // list for this family, not a catch-all: a type error or an arity error is a bug
-                // in the caller and still propagates.
-                Err(EvalBreak::Diagnostic(e))
-                    if matches!(
-                        e.kind(),
-                        RuntimeErrorKind::IntegerOverflow { .. } | RuntimeErrorKind::DivisionByZero
-                    ) =>
-                {
-                    eval_inner(&args[fallback_idx], env, sym).map(|tv| tv.value_owned())
-                }
-                // BRIEF-one-naming-rule-then-first-nth-to-string.md (2026-08-05) — the FOURTH
-                // failure mode, shaped like none of the three above: the sequence-accessor family
-                // (`:wat::core::first`, `eval_positional_accessor`) fails by RAISING
-                // `RuntimeErrorKind::MalformedForm` on an empty container, not `IntegerOverflow`/
-                // `DivisionByZero`. Matched on `head == op.core_name` — `eval_positional_accessor`
-                // sets `MalformedForm.head` to the exact `op` string it was called with (literally
-                // `:wat::core::first` for every one of this family's rows, since core's `first` is
-                // ONE polymorphic accessor across containers), never a message substring. This
-                // deliberately does NOT widen to catch every `MalformedForm` this arm's own
-                // `:undefined`-marker check (above) can also raise — that raise's `head` is the
-                // RETE name, not `core_name`, so the two are structurally distinguishable: a
-                // caller's malformed CALL SHAPE is a bug and must still propagate; only the core
-                // op's OWN domain-exhaustion raise is this family's undefined point.
-                Err(EvalBreak::Diagnostic(e))
-                    if matches!(
-                        e.kind(),
-                        RuntimeErrorKind::MalformedForm { head, .. } if head == op.core_name
-                    ) =>
-                {
-                    eval_inner(&args[fallback_idx], env, sym).map(|tv| tv.value_owned())
-                }
-                Err(e) => Err(e),
             }
         }
     }
@@ -23693,6 +23628,98 @@ pub(crate) enum HolonReteProject {
     NotHolon,
     Scalar(f64),
     Fallback,
+}
+
+/// What a fallback-carrying op's outcome MEANS for this row: use the value, or take
+/// the caller's `:undefined` expression.
+///
+/// The recursion is deliberately NOT in here. Each caller reaches its fallback
+/// expression differently — `eval_inner` in the core evaluator, `exec_dim` in the
+/// where-tree, `exec` in the compiled-expression walk — and that is the caller's own
+/// business. What must NOT differ, and used to, is the CLASSIFICATION.
+pub(crate) enum FallbackVerdict {
+    /// Use this value as the op's result.
+    Value(Value),
+    /// This row reached its undefined point — evaluate the caller's `:undefined` arg.
+    UseFallback,
+}
+
+/// THE one classification of a fallback-carrying op's outcome. Was written by hand
+/// three times (`runtime.rs`, `where_tree.rs`'s `exec_dim`, `expr_ir.rs`'s `exec`),
+/// and the copies DIVERGED: only this one guarded on the row's declared `ret`, so a
+/// generic-`ret` row (`get`/`first`, `ret: Var("T")`) returning a non-finite float
+/// took the fallback in the rete paths and not here — native answering `1` where the
+/// `$oracle` answered `0`, on a total op. Gated by
+/// `tests/rete/probe_arc278_fallback_generic_ret`.
+///
+/// A fallback-carrying op is TOTAL, so it must face EVERY way its core op reaches its
+/// undefined point, and the families reach it differently:
+///
+/// 1. **A non-finite `f64`, and ONLY when the row DECLARES `ret: F64`.** The f64
+///    arithmetic family fails by RETURNING — `eval_f64_arith` is raw IEEE 754 with no
+///    overflow guard, so a domain failure surfaces as an `Ok` holding NaN or ±Inf,
+///    never an `Err`. Decided from the row's declared `ret`, NEVER by sniffing the
+///    runtime value's type: a value-sniff silently changes behaviour for any row that
+///    returns a float for a non-arithmetic reason, and six such rows already exist.
+///    `!is_finite()` is exactly the predicate — true for NaN, +Inf, -Inf and nothing
+///    else; ordinary finites, `-0.0` and subnormals pass through.
+/// 2. **`Option::None`** — an op that reports absence by `Option` (`get` today; any
+///    future `(Option :- [T])`-returning verb). `Value::Option` is NOT `Value::Enum`,
+///    so the holon projection below cannot fire on it; it needs its own arm.
+/// 3. **A holon outcome enum** whose variant means degenerate/mismatch. `Scalar`
+///    unwraps to its number and `NotHolon` passes the value through untouched — only
+///    the middle case is a fallback.
+/// 4. **`IntegerOverflow` / `DivisionByZero`** — the i64 arithmetic family fails by
+///    RAISING. With args already checked as (i64, i64) this is EXHAUSTIVE for that
+///    family, not a catch-all: a type or arity error is a caller bug and propagates.
+/// 5. **`MalformedForm` whose head is this op's own `core_name`** — the sequence
+///    accessors (`first`, `eval_positional_accessor`) fail by raising on an empty
+///    container. The head test is what keeps this narrow: a `MalformedForm` raised
+///    DEEPER carries that callee's head, and the `:undefined`-marker check raises with
+///    the RETE name, so both stay structurally distinguishable and both propagate.
+///
+/// Everything else propagates. Widening any of the five turns a real error into a
+/// silently-substituted value, which is the one failure this shape exists to prevent.
+pub(crate) fn classify_fallback_outcome(
+    outcome: Result<Value, EvalBreak>,
+    ret: &crate::rete::vocabulary::ParamType,
+    core_name: &str,
+    holon_name: &str,
+    span: &Span,
+) -> Result<FallbackVerdict, EvalBreak> {
+    match outcome {
+        Ok(Value::f64(x))
+            if matches!(ret, crate::rete::vocabulary::ParamType::F64) && !x.is_finite() =>
+        {
+            Ok(FallbackVerdict::UseFallback)
+        }
+        Ok(Value::Option(opt)) => match opt.as_ref() {
+            Some(v) => Ok(FallbackVerdict::Value(v.clone())),
+            None => Ok(FallbackVerdict::UseFallback),
+        },
+        Ok(v) => match project_holon_rete_fallback(&v, holon_name, span)? {
+            HolonReteProject::Scalar(x) => Ok(FallbackVerdict::Value(Value::f64(x))),
+            HolonReteProject::Fallback => Ok(FallbackVerdict::UseFallback),
+            HolonReteProject::NotHolon => Ok(FallbackVerdict::Value(v)),
+        },
+        Err(EvalBreak::Diagnostic(e))
+            if matches!(
+                e.kind(),
+                RuntimeErrorKind::IntegerOverflow { .. } | RuntimeErrorKind::DivisionByZero
+            ) =>
+        {
+            Ok(FallbackVerdict::UseFallback)
+        }
+        Err(EvalBreak::Diagnostic(e))
+            if matches!(
+                e.kind(),
+                RuntimeErrorKind::MalformedForm { head, .. } if head.as_str() == core_name
+            ) =>
+        {
+            Ok(FallbackVerdict::UseFallback)
+        }
+        Err(e) => Err(e),
+    }
 }
 
 pub(crate) fn project_holon_rete_fallback(

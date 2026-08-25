@@ -1087,11 +1087,17 @@ fn resolve_operand_type(
 }
 
 /// How to name an operand in a diagnostic: a field by its name, anything else by its source form.
+///
+/// The fallback goes through [`render_form`], not Rust `Debug` — this file's own
+/// contract (`RhsUnresolvableOperand.operand`: "rendered as wat source
+/// (`render_form`) — never Rust `Debug`"). It used to be `{other:?}`, so a
+/// diagnostic about a literal operand printed Rust struct and span noise at the
+/// exact moment the reader needed to see their own source.
 fn describe_operand(operand: &WatAST) -> String {
     match operand {
         WatAST::Keyword(k, _) => k.trim_start_matches(':').to_string(),
         WatAST::Symbol(s, _) => s.as_str().to_string(),
-        other => format!("{other:?}"),
+        other => render_form(other),
     }
 }
 

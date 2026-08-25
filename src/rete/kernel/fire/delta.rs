@@ -30,7 +30,7 @@ pub(crate) struct AlphaActivateCx<'a> {
     pub(crate) cond_key_ids: &'a CondKeyIds,
     /// Bind-only alphas: output field indexes into the packed row
     /// (`DESIGN-STONE-fire-i64-columns`). Absent → compiled exec.
-    pub(crate) bind_only: &'a HashMap<i64, Vec<u8>>,
+    pub(crate) bind_only: &'a BindOnlyFields,
 }
 
 pub(crate) fn alpha_activate_fact(
@@ -106,7 +106,7 @@ pub(crate) fn record_seed_leaf_vs_alpha(
     wm: &FireSession,
     alpha_tree: &crate::rete::alpha_tree::AlphaTree,
     compiled_conds: &HashMap<i64, crate::rete::compiled_cond::CompiledCond>,
-    bind_only: &HashMap<i64, Vec<u8>>,
+    bind_only: &BindOnlyFields,
     input_facts: &crate::value::pvec::PVec,
 ) {
     if !crate::rete::kernel::census::leaf_occ_armed() {
@@ -311,6 +311,11 @@ pub(crate) fn fire_fixpoint_delta_armed(
     // P6-for-gathers: persist across rounds, append d_alpha
     // (`DESIGN-STONE-persist-gather-across-rounds`). Not a Session field.
     let mut gather_cache: GatherCache = FxHashMap::default();
+    // Fire-scoped, NOT round-scoped, and that distinction is the whole point: a
+    // leading (parentless) `:not`/`:exists` is re-evaluated every round, `wm.beta`
+    // is cumulative, and the dedup set used to live inside the round body — so a
+    // query over such a rule returned one row PER ROUND. See `LeadingEmitted`.
+    let mut leading_emitted: LeadingEmitted = HashMap::new();
 
     // One scratch buffer, reused for every compiled-condition call this whole fire pass: sized
     // once to the largest `n_slots` any compiled alpha needs, so `exec_compiled_with_key_ids`'s
@@ -319,7 +324,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
     let mut match_scratch: SlotFrame = Vec::with_capacity(arm.compiled_max_slots);
     let mut cand_scratch: Vec<i64> = Vec::new();
     let mut cond_key_ids: CondKeyIds = HashMap::new();
-    let mut bind_only: HashMap<i64, Vec<u8>> = HashMap::new();
+    let mut bind_only: BindOnlyFields = HashMap::new();
     for (&id, c) in compiled_conds {
         cond_key_ids.insert(
             id,
@@ -334,7 +339,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
 
     // Leaf-set fill: pack every fact (activate side effect), occupancy from
     // the column (`DESIGN-STONE-occupancy-leaf-column` recolligere).
-    let mut leaf_aids: HashMap<String, Vec<i64>> = HashMap::new();
+    let mut leaf_aids: LeafAidsByClass = HashMap::new();
     for (class, leaves) in alpha_tree.undiscriminated_leaves() {
         let batchable = leaves.iter().all(|&id| {
             compiled_conds
@@ -383,8 +388,8 @@ pub(crate) fn fire_fixpoint_delta_armed(
                 &mut crate::rete::kernel::fire::pass::RoundScratch {
                     d_alpha: &mut d_alpha,
                     packed_full: &mut packed_full,
-                    bind_only: &mut bind_only,
-                    cond_key_ids: &mut cond_key_ids,
+                    bind_only: &bind_only,
+                    cond_key_ids: &cond_key_ids,
                     cand_scratch: &mut cand_scratch,
                     match_scratch: &mut match_scratch,
                     seen_ids: &mut seen_ids,
@@ -403,8 +408,8 @@ pub(crate) fn fire_fixpoint_delta_armed(
                 &mut crate::rete::kernel::fire::pass::RoundScratch {
                     d_alpha: &mut d_alpha,
                     packed_full: &mut packed_full,
-                    bind_only: &mut bind_only,
-                    cond_key_ids: &mut cond_key_ids,
+                    bind_only: &bind_only,
+                    cond_key_ids: &cond_key_ids,
                     cand_scratch: &mut cand_scratch,
                     match_scratch: &mut match_scratch,
                     seen_ids: &mut seen_ids,
@@ -435,8 +440,8 @@ pub(crate) fn fire_fixpoint_delta_armed(
             &mut crate::rete::kernel::fire::pass::RoundScratch {
                 d_alpha: &mut d_alpha,
                 packed_full: &mut packed_full,
-                bind_only: &mut bind_only,
-                cond_key_ids: &mut cond_key_ids,
+                bind_only: &bind_only,
+                cond_key_ids: &cond_key_ids,
                 cand_scratch: &mut cand_scratch,
                 match_scratch: &mut match_scratch,
                 seen_ids: &mut seen_ids,
@@ -455,8 +460,8 @@ pub(crate) fn fire_fixpoint_delta_armed(
             &mut crate::rete::kernel::fire::pass::RoundScratch {
                 d_alpha: &mut d_alpha,
                 packed_full: &mut packed_full,
-                bind_only: &mut bind_only,
-                cond_key_ids: &mut cond_key_ids,
+                bind_only: &bind_only,
+                cond_key_ids: &cond_key_ids,
                 cand_scratch: &mut cand_scratch,
                 match_scratch: &mut match_scratch,
                 seen_ids: &mut seen_ids,
@@ -474,8 +479,8 @@ pub(crate) fn fire_fixpoint_delta_armed(
             &mut crate::rete::kernel::fire::pass::RoundScratch {
                 d_alpha: &mut d_alpha,
                 packed_full: &mut packed_full,
-                bind_only: &mut bind_only,
-                cond_key_ids: &mut cond_key_ids,
+                bind_only: &bind_only,
+                cond_key_ids: &cond_key_ids,
                 cand_scratch: &mut cand_scratch,
                 match_scratch: &mut match_scratch,
                 seen_ids: &mut seen_ids,
@@ -484,6 +489,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
             },
             &mut d_beta,
             &mut gather_cache,
+            &mut leading_emitted,
             sym,
         )?;
 
@@ -503,8 +509,8 @@ pub(crate) fn fire_fixpoint_delta_armed(
             &mut crate::rete::kernel::fire::pass::RoundScratch {
                 d_alpha: &mut d_alpha,
                 packed_full: &mut packed_full,
-                bind_only: &mut bind_only,
-                cond_key_ids: &mut cond_key_ids,
+                bind_only: &bind_only,
+                cond_key_ids: &cond_key_ids,
                 cand_scratch: &mut cand_scratch,
                 match_scratch: &mut match_scratch,
                 seen_ids: &mut seen_ids,
