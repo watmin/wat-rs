@@ -17,7 +17,7 @@ use crate::runtime::{
     RuntimeError, RuntimeErrorKind, SymbolTable, Value, ValueSnapshot,
 };
 use crate::span::Span;
-use crate::types::{EnumVariant, TypeDef};
+use crate::types::TypeDef;
 use crate::value::value::{AggregateValue, EnumValue};
 
 /// A lowered rete expression. Children are nested (builder: "matches the precedent").
@@ -744,41 +744,33 @@ fn lower_construct(
     }
 
     // Enum variant constructor `:ns::Type::Variant` (unit or tagged).
-    if let Some((enum_path, variant)) = head.rsplit_once("::") {
-        if let Some(TypeDef::Enum(e)) = types.get(enum_path) {
-            let found = e.variants.iter().find(|v| match v {
-                EnumVariant::Unit(n) => n == variant,
-                EnumVariant::Tagged { name, .. } => name == variant,
-            });
-            let Some(found) = found else {
-                return Ok(None);
-            };
-            let (arity, names) = match found {
-                EnumVariant::Unit(_) => (0usize, Arc::new(Vec::new())),
-                EnumVariant::Tagged { fields, .. } => (
-                    fields.len(),
-                    e.variant_names_arc(variant)
-                        .unwrap_or_else(|| Arc::new(Vec::new())),
-                ),
-            };
-            let args = &items[1..];
-            if args.len() != arity {
-                return Err(LowerError::unsupported(span.clone(), format!(
-                        "constructor {head} wants {arity} fields, got {}",
-                        args.len()
-                    )));
-            }
-            let mut fields = Vec::with_capacity(args.len());
-            for a in args {
-                fields.push(lower_expr(a, cx)?);
-            }
-            return Ok(Some(Expr::Variant {
-                type_path: enum_path.to_string(),
-                variant_name: variant.to_string(),
-                names,
-                fields: fields.into_boxed_slice(),
-            }));
+    // Resolution through `matcher::enum_variant_ctor` — the one registry read. The lowerer is
+    // the caller that needs all three parts: the `EnumDef` to reach `variant_names_arc`, the
+    // variant name to key it, and the arity to check the call against.
+    if let Some((e, variant, arity)) = crate::rete::matcher::enum_variant_ctor(types, head) {
+        let names = if arity == 0 {
+            Arc::new(Vec::new())
+        } else {
+            e.variant_names_arc(variant)
+                .unwrap_or_else(|| Arc::new(Vec::new()))
+        };
+        let args = &items[1..];
+        if args.len() != arity {
+            return Err(LowerError::unsupported(span.clone(), format!(
+                    "constructor {head} wants {arity} fields, got {}",
+                    args.len()
+                )));
         }
+        let mut fields = Vec::with_capacity(args.len());
+        for a in args {
+            fields.push(lower_expr(a, cx)?);
+        }
+        return Ok(Some(Expr::Variant {
+            type_path: e.name.clone(),
+            variant_name: variant.to_string(),
+            names,
+            fields: fields.into_boxed_slice(),
+        }));
     }
     Ok(None)
 }

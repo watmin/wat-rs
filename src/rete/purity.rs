@@ -961,16 +961,11 @@ fn constructor_meta(head: &str, sym: &SymbolTable) -> Option<OpMeta> {
     // 2. Enum-variant constructor — the head is `{EnumPath}::{Variant}` (unit or tagged).
     //    `total: true` — EARNED, #3: `walk_nested_constructors` now resolves a bare
     //    `:Enum::Variant` head against the TypeEnv and walls a wrong-arity call at freeze.
-    if let Some((enum_path, variant)) = head.rsplit_once("::") {
-        if let Some(crate::types::TypeDef::Enum(e)) = types.get(enum_path) {
-            let is_variant = e.variants.iter().any(|v| match v {
-                crate::types::EnumVariant::Unit(n) => n == variant,
-                crate::types::EnumVariant::Tagged { name, .. } => name == variant,
-            });
-            if is_variant {
-                return Some(OpMeta { pure: true, deterministic: true, total: true });
-            }
-        }
+    // Resolution through `matcher::enum_variant_ctor` — the one registry read. This arm only
+    // needs to know it RESOLVED; the arity the resolver also returns is the lowerer's and the
+    // validator's business, not purity's.
+    if crate::rete::matcher::enum_variant_ctor(types, head).is_some() {
+        return Some(OpMeta { pure: true, deterministic: true, total: true });
     }
     None
 }

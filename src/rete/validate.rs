@@ -45,7 +45,7 @@ use wat_edn::{Keyword, OwnedValue, Tag};
 use crate::ast::WatAST;
 use crate::rete::clause::{classify_constraint_head, classify_rete_clause, ConstraintSpelling, ReteClauseShape};
 use crate::span::Span;
-use crate::types::{EnumVariant, TypeDef, TypeEnv};
+use crate::types::{TypeDef, TypeEnv};
 
 // ─── Error types (Pattern A: span at the outer struct, kind carries variant data) ────────────
 
@@ -814,12 +814,11 @@ fn validate_fact_type_head_only(cond: &WatAST, rule_name: &str, types: &TypeEnv,
 /// matcher uses (proven reachable by the `rete_wall_probe`).
 type FieldList = Vec<String>;
 
+/// Reads the registry through `matcher::aggregate_field_names` — the same body
+/// `class_field_names` uses. This used to be a byte-equivalent second copy, while
+/// `matcher.rs`'s doc claimed to be the registry's one reader and did not list this file.
 fn lookup_fields(types: &TypeEnv, fact_type: &str) -> Option<FieldList> {
-    let type_key = format!(":{fact_type}");
-    match types.get(&type_key) {
-        Some(TypeDef::Aggregate(a)) => Some(a.field_names().map(|s| s.to_string()).collect()),
-        _ => None,
-    }
+    crate::rete::matcher::aggregate_field_names(types, fact_type)
 }
 
 /// Sibling of `lookup_fields`, same key and same registry — the DECLARED TYPE of each field, in
@@ -1269,13 +1268,12 @@ fn walk_nested_constructors(
         }
         // Bare enum-variant constructor head (`{EnumPath}::{Variant}`) — mirrors
         // `constructor_meta`'s own resolution (`purity.rs`).
-        if let Some((enum_path, variant)) = head.rsplit_once("::") {
-            if let Some(TypeDef::Enum(e)) = types.get(enum_path) {
-                let expected = e.variants.iter().find_map(|v| match v {
-                    EnumVariant::Unit(n) if n == variant => Some(0usize),
-                    EnumVariant::Tagged { name, fields } if name == variant => Some(fields.len()),
-                    _ => None,
-                });
+        // Resolution through `matcher::enum_variant_ctor` — the one registry read. What to DO
+        // with the answer stays here: the validator's job is the arity diagnostic.
+        {
+            {
+                let expected =
+                    crate::rete::matcher::enum_variant_ctor(types, head).map(|(_, _, n)| n);
                 if let Some(expected) = expected {
                     let got = args.len();
                     if got != expected {
