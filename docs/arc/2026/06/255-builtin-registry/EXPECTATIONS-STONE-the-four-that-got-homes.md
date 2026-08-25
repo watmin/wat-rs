@@ -96,3 +96,56 @@ dry-run diff. Stone E's comparable was one family and one codemod.
 - Any of the four `Char/of` retirement comments deleted — they record that stone 242.1 killed that
   name, and deleting a gravestone is how the record forgets what it cost.
 - A floor reported green by arithmetic rather than by name.
+
+
+---
+
+# ⛔ REFRESHED 2026-08-25 against `c5f1ee487` — EVERY BAR RE-DERIVED
+
+The rows above were written before arc 300 stone D, arc 278's wat-grep stone, and arc 282's
+`fix-text-apply` wall. All three moved this stone's ground. **Nothing below is carried forward; each
+was run again after them.**
+
+## What the three later stones changed
+
+| | then | now |
+|---|---|---|
+| `.wat` keyword leaves | 239 | **190** — CharLit deleted 50 phantoms; +1 from a new fixture using `Uuid/v4` |
+| of which `char/of` | 67 | **17** — the original `grep -c` draw's number, vindicated twice |
+| the census instrument | silently dropped unreadable files | **exit 0, stderr EMPTY** over 1582 files |
+| `\c` desugars to `char/of` at parse time | the sharpest door | **gone** — `parser.rs` and `runtime.rs:21386` are prose now |
+| a codemod with a wrong claim | corrupts silently | **RAISES** — arc 282's wall |
+
+## The scorecard, superseding the table above
+
+| # | what | expected | derived? |
+|---|---|---|---|
+| 1a | the ten answer `metadata-of` under their NEW names | 10/10 `Some {…}` | **DERIVED** — `(metadata-of :wat::string::length)` answers today; stone E proved the path for a name outside `:wat::core::` |
+| 1b | each OLD name is a `MalformedForm` naming its replacement with a `:retirement` remedy | 10/10 | **DERIVED** — measured on `:wat::core::Char`; a bare `UnknownFunction` means the table was not fed |
+| 2 | `(:wat::core::List 1 2 3)` evaluates | `(1 2 3)` | **DERIVED** — `UnknownFunction` at HEAD |
+| 3 | `(:wat::core::char "x")` evaluates | the char | **DERIVED** — `UnknownFunction` at HEAD |
+| 4 | both still work in **annotation** position | silent, exit 0 | **DERIVED** — passes at HEAD |
+| 5 | finder BEFORE | **190**, exit 0, empty stderr | **DERIVED** — the codemod's own finder, this session |
+| 6 | finder AFTER | **0** | idempotence as a query |
+| 7 | `.rs` occurrences of the ten live names | **0** (from 134) | **DERIVED** — 134 at HEAD |
+| 7b | the four `Char/of` gravestones survive | **4**, unchanged | **DERIVED** — the row-7 pattern must exclude `Char/of` or its bar is unreachable |
+| 8 | doctest failure count | **still 5** | **DERIVED** — ran the ignored gate; `left: 5` |
+| 9 | `grep -c RetirementEntry src/remedy/retirement.rs` | **35** (from 25) | **DERIVED** — 25 at HEAD |
+| 10 | `every_tracked_wat_file_parses` still green | green | arc 278's new wall; a `.wat` this stone breaks now fails the floor |
+| 11 | floor | 5056/5056, 19 skipped, **BY NAME** | baseline at `c5f1ee487` |
+| 12 | clippy | 0 under `-D warnings` | |
+
+★ **Row 5's "empty stderr" is not decoration.** Before arc 278 the same command reported a number with
+an unknowable denominator — it silently skipped two files that had been unreadable for months. A
+count with a non-empty stderr is not a count.
+
+## What would make me reject the result
+
+- Any `.wat` hand-edited where the codemod should have reached it (R21).
+- A dry-run diff hunk that moved anything but one of the ten names.
+- Row 8 rising above 5 — an `@example` names a verb that no longer exists.
+- An old name yielding a bare `UnknownFunction` — the table was not fed and row 1b measured the
+  lesser thing.
+- Any of the four `Char/of` retirement comments deleted.
+- Prose in `gate_char_literal_is_a_literal.rs` lines 4/11/54 rewritten to say `char` — those record
+  what the parser **used to emit**, and `char/of` is what it emitted.
