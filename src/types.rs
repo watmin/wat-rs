@@ -3203,7 +3203,7 @@ fn synthesize_surface_protocol(
             let surface_base = surface.name.as_str();
             let required = format!(
                 "{surface_base}::{}Response",
-                crate::string_ops::kebab_to_pascal_with_acronyms(name, ns_acronyms),
+                crate::string::kebab_to_pascal_with_acronyms(name, ns_acronyms),
             );
             if declared_base != required {
                 return Err(TypeError::new(
@@ -3264,7 +3264,7 @@ fn synthesize_surface_protocol(
             let surface_base = surface.name.as_str();
             let required = format!(
                 "{surface_base}::{}Request",
-                crate::string_ops::kebab_to_pascal_with_acronyms(name, ns_acronyms),
+                crate::string::kebab_to_pascal_with_acronyms(name, ns_acronyms),
             );
             if declared_base != required {
                 return Err(TypeError::new(
@@ -3417,7 +3417,7 @@ fn synthesize_surface_protocol(
         // (`put` → `Put`, `scan-index` → `ScanIndex`), threading the surface's namespace
         // acronyms so `create-web-acl` → `CreateWebACL` when `ACL` is declared — the SAME
         // registry `defservice :impls` consults, so the two paths agree on casing.
-        let variant = crate::string_ops::kebab_to_pascal_with_acronyms(name, ns_acronyms);
+        let variant = crate::string::kebab_to_pascal_with_acronyms(name, ns_acronyms);
         op_variants.push(EnumVariant::Tagged {
             name: variant.clone(),
             fields: vec![("req".to_string(), request_ty)],

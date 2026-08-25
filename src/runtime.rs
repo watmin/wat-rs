@@ -6000,118 +6000,21 @@ fn dispatch_keyword_head_value(
         // Arc 300 stone C2 — numerator/denominator slash-form accessors (cf Uuid/version).
         ":wat::core::rational/numerator" => eval_rational_numerator(args, list_span, env, sym),
         ":wat::core::rational/denominator" => eval_rational_denominator(args, list_span, env, sym),
-        // String basics — per-type ops under :wat::core::string namespace,
-        // following the :wat::core::i64 namespace precedent. Char-oriented.
-        ":wat::string::contains?" => {
-            crate::string_ops::eval_string_contains(args, list_span, env, sym).map_err(Into::into)
-        }
-        ":wat::string::starts-with?" => {
-            crate::string_ops::eval_string_starts_with(args, list_span, env, sym)
-                .map_err(Into::into)
-        }
-        ":wat::string::ends-with?" => {
-            crate::string_ops::eval_string_ends_with(args, list_span, env, sym).map_err(Into::into)
-        }
-        ":wat::string::length" => {
-            crate::string_ops::eval_string_length(args, list_span, env, sym).map_err(Into::into)
-        }
-        ":wat::string::trim" => {
-            crate::string_ops::eval_string_trim(args, list_span, env, sym).map_err(Into::into)
-        }
-        ":wat::string::to-lowercase" => {
-            crate::string_ops::eval_string_to_lowercase(args, list_span, env, sym)
-                .map_err(Into::into)
-        }
-        ":wat::string::to-uppercase" => {
-            crate::string_ops::eval_string_to_uppercase(args, list_span, env, sym)
-                .map_err(Into::into)
-        }
-        ":wat::string::pascal->kebab" => {
-            crate::string_ops::eval_string_pascal_to_kebab(args, list_span, env, sym)
-                .map_err(Into::into)
-        }
-        // Arc 265 — namespace-scoped PascalCase⇄kebab converters.
-        ":wat::string::pascal->kebab-in" => {
-            crate::string_ops::eval_string_pascal_to_kebab_in(args, list_span, env, sym)
-                .map_err(Into::into)
-        }
-        ":wat::string::kebab->pascal-in" => {
-            crate::string_ops::eval_string_kebab_to_pascal_in(args, list_span, env, sym)
-                .map_err(Into::into)
-        }
         // Arc 237 follow-on — derive is a no-op at runtime (edge already registered
         // at splice/pre-check time by splice_type_decls in types.rs). Accept as unit.
         ":wat::core::derive" => Ok(Value::Unit),
-        // Arc 265 — declare-acronyms is a no-op at runtime (registry already populated
-        // at freeze time by preregister_acronyms). Accept it as unit.
-        ":wat::string::declare-acronyms" => Ok(Value::Unit),
-        ":wat::string::subs" => {
-            crate::string_ops::eval_string_subs(args, list_span, env, sym).map_err(Into::into)
-        }
-        ":wat::string::split" => {
-            crate::string_ops::eval_string_split(args, list_span, env, sym).map_err(Into::into)
-        }
-        ":wat::string::join" => {
-            crate::string_ops::eval_string_join(args, list_span, env, sym).map_err(Into::into)
-        }
-        ":wat::string::concat" => {
-            crate::string_ops::eval_string_concat(args, list_span, env, sym).map_err(Into::into)
-        }
-        // Arc 284 — pure-total interpolation intrinsic: same {name} + :name val grammar as
-        // the format macro, but interpolates at call time → expand-time-legal.
-        ":wat::string::interpolate" => {
-            crate::string_ops::eval_string_interpolate(args, list_span, env, sym)
-                .map_err(Into::into)
-        }
-
-        // Arc 207 slice 2 — typed `:wat::core::Uuid` constructors + accessors.
-        // Five verbs: v4 (random), v5 (deterministic SHA-1 with typed namespace),
-        // from-string (parse-safe, canonical-only → (Option :- [Uuid])),
-        // to-string (canonical render), nil (zero-UUID sentinel).
-        ":wat::core::Uuid/v4" => {
-            crate::string_ops::eval_uuid_typed_v4(args, list_span, env, sym).map_err(Into::into)
-        }
-        ":wat::core::Uuid/v5" => {
-            crate::string_ops::eval_uuid_typed_v5(args, list_span, env, sym).map_err(Into::into)
-        }
-        ":wat::core::Uuid/from-string" => {
-            crate::string_ops::eval_uuid_typed_from_string(args, list_span, env, sym)
-                .map_err(Into::into)
-        }
-        ":wat::core::Uuid/to-string" => {
-            crate::string_ops::eval_uuid_typed_to_string(args, list_span, env, sym)
-                .map_err(Into::into)
-        }
-        ":wat::core::Uuid/nil" => {
-            crate::string_ops::eval_uuid_typed_nil(args, list_span, env, sym).map_err(Into::into)
-        }
-        ":wat::core::Uuid/version" => {
-            crate::string_ops::eval_uuid_version(args, list_span, env, sym).map_err(Into::into)
-        }
-        ":wat::core::Uuid/rfc4122-variant?" => {
-            crate::string_ops::eval_uuid_rfc4122_variant(args, list_span, env, sym)
-                .map_err(Into::into)
-        }
-
-        // Arc 220 slice 2 — typed `:wat::core::char` constructor.
-        // One verb: `char/of` (from length-1 BMP String).
-        // Stone 242.1 — renamed from :wat::core::Char/of to :wat::core::char/of
-        // (scalar types lowercase per Doctrine 2).
-        ":wat::core::char/of" => {
-            crate::string_ops::eval_char_of(args, list_span, env, sym).map_err(Into::into)
-        }
-
-        // Arc 220 Stone 220.4 — typed `:wat::core::List` constructor.
-        // Variadic: `List/of` takes 0 or more args and builds a LinkedList.
-        ":wat::core::List/of" => {
-            crate::string_ops::eval_list_of(args, list_span, env, sym).map_err(Into::into)
-        }
-
-        // Regex — pattern matching. Lives in its own :wat::core::regex::*
-        // namespace since the regex crate is a distinct concern.
-        ":wat::core::regex::matches?" => {
-            crate::string_ops::eval_regex_matches(args, list_span, env, sym).map_err(Into::into)
-        }
+        // Arc 255 home #4 phase 2 (the string carve, builder-amended to all four
+        // `string_ops.rs` families + the fifth unnamed one, `List/of`) — the 19
+        // `:wat::string::*` verbs (including `declare-acronyms`), the 7
+        // `:wat::core::Uuid/*` verbs, `:wat::core::char/of`, `:wat::core::List/of`,
+        // and `:wat::core::regex::matches?` are REGISTERED now (`intrinsic/string.rs`,
+        // `intrinsic/uuid.rs`, `intrinsic/char.rs`, `intrinsic/list.rs`,
+        // `intrinsic/regex.rs`) and resolve via the registry hoist above
+        // (`crate::intrinsic::registry().lookup(head)`, this fn's `Arc 255 Stone
+        // 255.1c-guard` a few dozen lines up) — this match no longer carries their
+        // arms. `string_ops.rs` itself is deleted; do not re-add a match arm here for
+        // any of these FQDNs, or it becomes silently-dead code the registry always
+        // shadows (see that hoist's own comment).
 
         // Float arithmetic — strict f64. No promotion from i64.
         // Stone 237.8b — drop '2 suffix (same rationale as i64 above).
@@ -6179,10 +6082,10 @@ fn dispatch_keyword_head_value(
         ":wat::core::f64::to-string" => eval_f64_to_string(args, list_span, env, sym),
         ":wat::core::f64::to-i64" => eval_f64_to_i64(args, list_span, env, sym),
         ":wat::core::f64::round" => eval_f64_round(args, list_span, env, sym),
-        ":wat::string::to-i64" => eval_string_to_i64(args, list_span, env, sym),
-        ":wat::string::to-f64" => eval_string_to_f64(args, list_span, env, sym),
+        // `:wat::string::to-i64` / `to-f64` / `to-bool` are REGISTERED now
+        // (`intrinsic/string.rs`, arc 255 home #4 phase 2) — no arm here; see the
+        // registry-hoist note a few dozen lines up this match.
         ":wat::core::bool::to-string" => eval_bool_to_string(args, list_span, env, sym),
-        ":wat::string::to-bool" => eval_string_to_bool(args, list_span, env, sym),
         // Arc 170 slice 3 Gap A — keyword reflection primitives.
         ":wat::core::keyword/to-string" => eval_keyword_to_string(args, list_span, env, sym),
         // ":wat::core::keyword/from-string" is routed by dispatch_keyword_head directly (producer).
@@ -6261,19 +6164,47 @@ fn dispatch_keyword_head_value(
         ":wat::core::i64/to-string" => eval_i64_to_string(args, list_span, env, sym),
 
         // Stone 237.3 — String/ namespace aliases (uppercase; probe 14).
-        // Delegates to the existing lowercase string:: ops.
-        ":wat::core::String/concat" => {
-            crate::string_ops::eval_string_concat(args, list_span, env, sym).map_err(Into::into)
-        }
+        // Delegates to the same handlers the registered `:wat::string::*` verbs use
+        // (`intrinsic/string.rs`, arc 255 home #4 phase 2 carve). Those are now
+        // FIXED-ARG (each wat arg its own `&WatAST` param, arity checked by the
+        // `#[wat_intrinsic]` shim) rather than the old slice-taking
+        // `Result<Value, RuntimeError>` form — this arm is NOT a registry entry (a
+        // different FQDN prefix, `:wat::core::String/` not `:wat::string::`), so it
+        // does not go through that shim and must arity-check for itself, same shape
+        // the shim generates.
+        ":wat::core::String/concat" => crate::intrinsic::string::eval_string_concat(args, env, sym, list_span),
         ":wat::core::String/starts-with?" => {
-            crate::string_ops::eval_string_starts_with(args, list_span, env, sym)
-                .map_err(Into::into)
+            if args.len() != 2 {
+                return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::ArityMismatch {
+                        op: ":wat::core::String/starts-with?".into(),
+                        expected: 2,
+                        got: args.len(),
+                    })
+                .into());
+            }
+            crate::intrinsic::string::eval_string_starts_with(&args[0], &args[1], env, sym, list_span)
         }
         ":wat::core::String/ends-with?" => {
-            crate::string_ops::eval_string_ends_with(args, list_span, env, sym).map_err(Into::into)
+            if args.len() != 2 {
+                return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::ArityMismatch {
+                        op: ":wat::core::String/ends-with?".into(),
+                        expected: 2,
+                        got: args.len(),
+                    })
+                .into());
+            }
+            crate::intrinsic::string::eval_string_ends_with(&args[0], &args[1], env, sym, list_span)
         }
         ":wat::core::String/contains?" => {
-            crate::string_ops::eval_string_contains(args, list_span, env, sym).map_err(Into::into)
+            if args.len() != 2 {
+                return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::ArityMismatch {
+                        op: ":wat::core::String/contains?".into(),
+                        expected: 2,
+                        got: args.len(),
+                    })
+                .into());
+            }
+            crate::intrinsic::string::eval_string_contains(&args[0], &args[1], env, sym, list_span)
         }
         ":wat::core::String/empty?" => {
             // :String/empty? :: :String -> :bool. True iff string is empty.
@@ -7080,7 +7011,7 @@ fn dispatch_keyword_head_value(
                                         )
                                         .into());
                                     }
-                                    let variant = crate::string_ops::kebab_to_pascal_with_acronyms(
+                                    let variant = crate::string::kebab_to_pascal_with_acronyms(
                                         method_name,
                                         &[],
                                     );
@@ -10877,50 +10808,6 @@ fn eval_f64_clamp(
     Ok(Value::f64(v.clamp(lo, hi)))
 }
 
-fn eval_string_to_i64(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    let s = eval_one_arg(
-        ":wat::string::to-i64",
-        args,
-        list_span,
-        env,
-        sym,
-        "String",
-        |v| match v {
-            Value::String(s) => Ok(s),
-            other => Err(other),
-        },
-    )?;
-    let parsed = s.parse::<i64>().ok().map(Value::i64);
-    Ok(Value::Option(Arc::new(parsed)))
-}
-
-fn eval_string_to_f64(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    let s = eval_one_arg(
-        ":wat::string::to-f64",
-        args,
-        list_span,
-        env,
-        sym,
-        "String",
-        |v| match v {
-            Value::String(s) => Ok(s),
-            other => Err(other),
-        },
-    )?;
-    let parsed = s.parse::<f64>().ok().map(Value::f64);
-    Ok(Value::Option(Arc::new(parsed)))
-}
-
 fn eval_bool_to_string(
     args: &[WatAST],
     list_span: &Span,
@@ -10942,32 +10829,6 @@ fn eval_bool_to_string(
     Ok(Value::String(Arc::new(
         if b { "true" } else { "false" }.to_string(),
     )))
-}
-
-fn eval_string_to_bool(
-    args: &[WatAST],
-    list_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    let s = eval_one_arg(
-        ":wat::string::to-bool",
-        args,
-        list_span,
-        env,
-        sym,
-        "String",
-        |v| match v {
-            Value::String(s) => Ok(s),
-            other => Err(other),
-        },
-    )?;
-    let parsed = match s.as_str() {
-        "true" => Some(Value::bool(true)),
-        "false" => Some(Value::bool(false)),
-        _ => None,
-    };
-    Ok(Value::Option(Arc::new(parsed)))
 }
 
 // ─── Arc 170 slice 3 Gap A — keyword reflection primitives ───────────────
@@ -24321,7 +24182,7 @@ fn eval_str(
     // the same value answered `#user/Pt {:x 1 :y 2}`: one value, two faces. Now shared
     // via `render_str_total` (279.3) so `join`'s per-element render cannot drift from
     // this one.
-    let s = crate::string_ops::render_str_total(&v, sym.types().map(|a| a.as_ref()));
+    let s = crate::string::render_str_total(&v, sym.types().map(|a| a.as_ref()));
     Ok(Value::String(Arc::new(s)))
 }
 

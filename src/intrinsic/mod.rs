@@ -372,9 +372,19 @@ pub(crate) fn registry() -> &'static IntrinsicRegistry {
 }
 
 mod bytes;
+mod char;
 mod io;
 mod kernel;
+mod list;
 mod reflect;
+mod regex;
+// `pub(crate)` — NOT the same default-private shape as its siblings above. The
+// `:wat::core::String/*` uppercase alias arms in `runtime.rs` (Stone 237.3) call
+// four of these handlers DIRECTLY (a different FQDN prefix than the registered
+// `:wat::string::*` verbs, so they bypass the registry and cannot reach them via
+// `crate::intrinsic::registry().lookup(...)`); those call sites need the path.
+pub(crate) mod string;
+mod uuid;
 mod witness;
 mod special;
 mod time;

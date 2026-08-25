@@ -17450,7 +17450,7 @@ fn register_builtins(env: &mut CheckEnv) {
 
     // String basics — :wat::string::*. Per-type ops, char-
     // oriented (length counts unicode scalars, not bytes). See
-    // src/string_ops.rs for the handlers.
+    // src/intrinsic/string.rs (registry) + src/string/ (implementation) for the handlers.
     for op in &[
         ":wat::string::contains?",
         ":wat::string::starts-with?",
@@ -17564,7 +17564,7 @@ fn register_builtins(env: &mut CheckEnv) {
                 string_ty(),
                 // Stone D (arc 255) — widened from `Vector` to the `Seqable` surface
                 // (Vector · PersistentVector · List · Stream). Runtime door:
-                // `eval_string_join` in string_ops.rs.
+                // `eval_string_join` in src/intrinsic/string.rs.
                 TypeExpr::Parametric {
                     head: "wat::core::Seqable".into(),
                     args: vec![TypeExpr::Path("T".into())],

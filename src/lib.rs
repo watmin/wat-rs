@@ -103,7 +103,7 @@ pub mod span;
 pub mod services;
 pub mod special_forms;
 pub(crate) mod stdlib;
-pub mod string_ops;
+pub mod string;
 pub mod test_runner;
 pub use services::{
     install_thread_io, uninstall_thread_io,
