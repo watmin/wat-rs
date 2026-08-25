@@ -7,14 +7,14 @@ use std::sync::Arc;
 use crate::ast::WatAST;
 use crate::runtime::{EvalBreak, RuntimeError, RuntimeErrorKind, SymbolTable, Value};
 use crate::span::Span;
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_hash::FxHashMap;
 
 use super::{
     alpha_cond_from_node, alpha_cond_of, cond_text, get_node, kind_of, node_children,
     node_named_ast, session_named_field,
     session_network, rule_asts_field, rule_bag_consumes, rule_consumes, rule_name_of, rule_negates,
     rule_produces, sorted_node_ids,
-    AlphaDelta, AlphasByType, BetaMemory, ChildrenOf, JoinsFedBy, NodeKind, ParentsOf, TestChildren,
+    AlphasByType, ChildrenOf, JoinsFedBy, NodeKind, ParentsOf, TestChildren,
     TestSibs, StratifyView,
 };
 use crate::runtime::ValueSnapshot;
@@ -501,49 +501,6 @@ pub(crate) fn index_network_edges(network: &Value, node_ids: &[i64]) -> NetworkE
     }
 }
 
-/// Seed dirty join-parents: left `d_beta` or a HashJoin child whose
-/// feeding alpha has right-delta. The hash-join pass grows this set as
-/// it emits (middle joins: J1's tokens dirty J1 as parent of J2).
-pub(crate) fn seed_dirty_join_parents(
-    join_parent: &[i64],
-    d_beta: &BetaMemory,
-    d_alpha: &AlphaDelta,
-    packed_full: &HashSet<i64>,
-    joins_fed_by: &JoinsFedBy,
-    parents_of: &ParentsOf,
-) -> FxHashSet<i64> {
-    let mut dirty = FxHashSet::default();
-    for (pid, toks) in d_beta {
-        if !toks.is_empty() && join_parent.binary_search(pid).is_ok() {
-            dirty.insert(*pid);
-        }
-    }
-    let mut dirty_from_alpha = |aid: i64| {
-        let Some(joins) = joins_fed_by.get(&aid) else {
-            return;
-        };
-        for j in joins {
-            let Some(ps) = parents_of.get(j) else {
-                continue;
-            };
-            for p in ps {
-                if join_parent.binary_search(p).is_ok() {
-                    dirty.insert(*p);
-                }
-            }
-        }
-    };
-    for (aid, idxs) in d_alpha {
-        if idxs.is_empty() {
-            continue;
-        }
-        dirty_from_alpha(*aid);
-    }
-    for &aid in packed_full {
-        dirty_from_alpha(aid);
-    }
-    dirty
-}
 
 pub(crate) fn merge_sorted_ids(a: &[i64], b: &[i64]) -> Vec<i64> {
     let mut out = Vec::with_capacity(a.len() + b.len());
