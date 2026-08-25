@@ -85,6 +85,53 @@ row is admitted by the `RETE_MODULES` set. A half-moved mirror **screams** rathe
 dropping rows. The other six doors have no such wall — which is exactly where a rider will lose a
 verb, and why the acceptance rows below are per-door.
 
+## ⛔⛔ BLOCKED 2026-08-24 — THE TOOL CANNOT DO THIS MIGRATION
+
+**A rider stopped before touching the corpus and it was right.** `rename-keyword-prefix` is a
+SILENT NO-OP for an open namespace prefix. Verified independently by the orchestrator:
+
+```
+(rename-keyword-prefix ":wat::core::string::" ":wat::string::" "(:wat::core::string::length \"hi\")")
+  => "(:wat::core::string::length \"hi\")"        UNCHANGED
+(rename-keyword-prefix ":wat::kernel::Bound" ":wat::spawn::Bound" "(:wat::kernel::Bound/listener x)")
+  => "(:wat::spawn::Bound/listener x)"           renamed — the prior art's shape
+```
+
+`wat/fix.wat:641`'s `rename-valid-match?` states the rule in its own doc comment:
+
+> `right-valid: i+old-len==len(name) OR char-at(name,i+old-len) ∉ ident-chars`
+
+A prefix ending in `::` is **by definition** followed by identifier characters — the verb name — so
+`right-valid` can never hold. The rule is CORRECT for a closed name (`:wat::kernel::Bound` is always
+followed by `/accessor`, `::Variant`, or nothing), and every prior art in `wat-scripts/fixes/` is a
+closed name. **None has ever renamed a `::`-terminated prefix. The gap has never been exercised.**
+
+★ **It reports `[renamed]` on every file and changes nothing.** The rider dry-ran across 1559 files
+and `cmp` found not one byte different — `total=1559 changed=0`. Without that byte-level check the
+run would have "succeeded" corpus-wide and the stone would have shipped as a no-op with green
+paperwork.
+
+**So E has a PREREQUISITE that did not exist when this was drawn:** `wat/fix.wat` needs a
+prefix-rename whose right-boundary rule admits a `::`-terminated prefix. That is a substrate stone
+of its own, on the codemod framework, and it must land first. The codemod itself is written and
+correct in shape — parked at `wat-scripts/scratch-pad/BLOCKED-rename-core-string-to-string.wat`.
+
+## ⊘ AND TWO CORRECTIONS TO THIS DOCUMENT
+
+**1 — the door table gives LINE counts, not OCCURRENCE counts, and did not say so.** The rider
+measured occurrences, saw `purity.rs` 5 against the table's 3, and fired STOP-2 correctly.
+`src/rete/purity.rs:265` carries three on one line:
+`":wat::core::string::length" | ":wat::core::string::trim" | ":wat::core::string::to-lowercase"`.
+Both numbers are right. **A file count is not an item count**, and a table that does not name its
+unit invites a rider to stop on a phantom. Occurrences: `purity.rs` 5, `wat/string.wat` 22; lines:
+3 and 19. The rewrite is per-occurrence, so occurrences is the honest unit.
+
+**2 — `wat/string.wat`'s 22 include 7 in COMMENTS**, and `rename-keyword-prefix` is deliberately
+comment-faithful. Acceptance row 1's literal `grep -c == 0` bar therefore **cannot be met by the
+codemod alone** even once the tool gap closes. Either the row admits prose, or the prose is a
+separate hand pass with its own justification. Not resolved here; a rider must not be asked to
+decide it mid-stone.
+
 ## THE BOOTSTRAP — and it is the thing to get right
 
 The `.wat` corpus migrates by **wat-fix codemod** (R21), prior art
