@@ -66,6 +66,6 @@
           "PROBE-PASS: SendOutcome::Stopped (a VALUE, not a raise) after send' to a dead peer"))
       ((:wat::kernel::SendOutcome::Lost cause)
         (:wat::kernel::println
-          (:wat::core::string::concat
+          (:wat::string::concat
             "PROBE-PASS: SendOutcome::Lost (a VALUE, not a raise): "
             (:wat::kernel::LociDiedError/message cause)))))))

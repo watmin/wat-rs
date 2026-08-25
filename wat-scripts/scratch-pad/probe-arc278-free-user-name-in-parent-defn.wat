@@ -46,14 +46,14 @@
      p        (:wat::test::spawn-peer (:wat::spawn::process) forms)]
     (:wat::core::match (:wat::kernel::recv p)
       ((:wat::kernel::RecvOutcome::Message m)
-        (:wat::kernel::println (:wat::core::string::concat label " RAN, child returned:")))
+        (:wat::kernel::println (:wat::string::concat label " RAN, child returned:")))
       ((:wat::kernel::RecvOutcome::Lost cause)
-        (:wat::kernel::println (:wat::core::string::concat label
-          (:wat::core::string::concat " DIED " (:wat::kernel::LociDiedError/message cause)))))
+        (:wat::kernel::println (:wat::string::concat label
+          (:wat::string::concat " DIED " (:wat::kernel::LociDiedError/message cause)))))
       (:wat::kernel::RecvOutcome::Stopped
-        (:wat::kernel::println (:wat::core::string::concat label " STOPPED")))
+        (:wat::kernel::println (:wat::string::concat label " STOPPED")))
       (:wat::kernel::RecvOutcome::Closed
-        (:wat::kernel::println (:wat::core::string::concat label " CLOSED-NO-MARKER"))))))
+        (:wat::kernel::println (:wat::string::concat label " CLOSED-NO-MARKER"))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

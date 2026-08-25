@@ -23,9 +23,9 @@
      file      (:wat::kernel::Frame/file frame)
      line      (:wat::kernel::Frame/line frame)
      symbol    (:wat::kernel::Frame/symbol frame)
-     file-ok   (:wat::core::string::contains? file "probe_arc278_call_site")
+     file-ok   (:wat::string::contains? file "probe_arc278_call_site")
      line-ok   (:wat::core::> line 0)
-     symbol-ok (:wat::core::string::contains? symbol "probe::here")]
+     symbol-ok (:wat::string::contains? symbol "probe::here")]
     (:wat::core::do
       (:wat::test::assert-true file-ok)
       (:wat::test::assert-true line-ok)

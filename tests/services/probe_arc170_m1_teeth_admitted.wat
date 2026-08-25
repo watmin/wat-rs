@@ -23,7 +23,7 @@
   :impls [(echo [s ctx req]
             (:wat::service::Outcome::Reply s
               (:probe::Echo::EchoResponse::Ok
-                (:wat::core::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))))])
+                (:wat::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))))])
 
 (:wat::core::defn :user::compute [] -> :wat::core::String
   (:wat::core::let

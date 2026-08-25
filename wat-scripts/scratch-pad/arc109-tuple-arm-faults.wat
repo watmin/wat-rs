@@ -26,7 +26,7 @@
   [label <- :wat::core::String kw <- :wat::core::String] -> :wat::core::nil
   (:wat::core::let [node (:wat::core::keyword/to-type-form-colon (:wat::core::keyword-node kw))]
     (:wat::kernel::println
-      (:wat::core::string::interpolate "{l} : {v}" :l label :v (:wat::core::ast->source node)))))
+      (:wat::string::interpolate "{l} : {v}" :l label :v (:wat::core::ast->source node)))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::do

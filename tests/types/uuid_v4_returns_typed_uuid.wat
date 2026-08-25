@@ -3,7 +3,7 @@
   (:wat::core::let
     [u  (:wat::core::Uuid/v4)
      s  (:wat::core::Uuid/to-string u)
-     ok (:wat::core::= (:wat::core::string::length s) 36)]
+     ok (:wat::core::= (:wat::string::length s) 36)]
     (:wat::core::if ok 
       (:wat::kernel::println "TYPED-UUID-OK")
       (:wat::kernel::println "TYPED-UUID-FAIL"))))

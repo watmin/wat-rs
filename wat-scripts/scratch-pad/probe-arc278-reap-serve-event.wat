@@ -52,19 +52,19 @@
   (:wat::core::do
     (:wat::core::match (:wat::kernel::send c 7)
       (:wat::kernel::SendOutcome::Sent nil)
-      (:wat::kernel::SendOutcome::Closed (:wat::kernel::println (:wat::core::string::concat label " send => CLOSED")))
-      (:wat::kernel::SendOutcome::Stopped (:wat::kernel::println (:wat::core::string::concat label " send => STOPPED")))
+      (:wat::kernel::SendOutcome::Closed (:wat::kernel::println (:wat::string::concat label " send => CLOSED")))
+      (:wat::kernel::SendOutcome::Stopped (:wat::kernel::println (:wat::string::concat label " send => STOPPED")))
       ((:wat::kernel::SendOutcome::Lost _c) nil))
     (:wat::core::match (:wat::kernel::recv c)
       ((:wat::kernel::RecvOutcome::Message m)
-        (:wat::kernel::println (:wat::core::string::concat label
-          (:wat::core::string::concat " => Message " (:wat::core::i64/to-string m)))))
+        (:wat::kernel::println (:wat::string::concat label
+          (:wat::string::concat " => Message " (:wat::core::i64/to-string m)))))
       ((:wat::kernel::RecvOutcome::Lost _cause)
-        (:wat::kernel::println (:wat::core::string::concat label " => LOST")))
+        (:wat::kernel::println (:wat::string::concat label " => LOST")))
       (:wat::kernel::RecvOutcome::Stopped
-        (:wat::kernel::println (:wat::core::string::concat label " => STOPPED")))
+        (:wat::kernel::println (:wat::string::concat label " => STOPPED")))
       (:wat::kernel::RecvOutcome::Closed
-        (:wat::kernel::println (:wat::core::string::concat label " => CLOSED"))))
+        (:wat::kernel::println (:wat::string::concat label " => CLOSED"))))
     nil))
 
 (:wat::core::defn :se::row-tail [] -> :wat::core::nil

@@ -5,7 +5,7 @@
      s        (:wat::core::Uuid/to-string u)
      reparsed (:wat::core::Uuid/from-string s)]
     (:wat::core::do
-      (:wat::core::if (:wat::core::= (:wat::core::string::length s) 36) 
+      (:wat::core::if (:wat::core::= (:wat::string::length s) 36) 
         (:wat::kernel::println "LEN-36-OK")
         (:wat::kernel::println "LEN-36-FAIL"))
       (:wat::core::match reparsed 

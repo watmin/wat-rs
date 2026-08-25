@@ -22,7 +22,7 @@
   :satisfies :probe::Echo  :durable [] :ephemeral []
   :impls [(echo [s ctx req]
             (:wat::service::Outcome::Reply s
-              (:probe::Echo::EchoResponse::Ok (:wat::core::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))))])
+              (:probe::Echo::EchoResponse::Ok (:wat::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))))])
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
@@ -75,7 +75,7 @@
                        (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None))
                      (:wat::kernel::RecvOutcome::Closed
                        (:wat::kernel::assertion-failed! "recv': prober closed unexpectedly" :wat::core::None :wat::core::None)))]
-               (:wat::kernel::println (:wat::core::string::concat "NOREVOKE-REACHED-END: " r2))))
+               (:wat::kernel::println (:wat::string::concat "NOREVOKE-REACHED-END: " r2))))
            (:wat::core::None
              (:wat::kernel::assertion-failed! "peer-pid None on process prober"
                :wat::core::None :wat::core::None)))]

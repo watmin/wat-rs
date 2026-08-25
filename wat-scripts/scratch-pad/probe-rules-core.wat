@@ -65,6 +65,6 @@
      cold     (:usr::deduce-one template (:usr::Temp :c 10))   ;; expect 0 (below threshold)
      total    (:wat::core::+ (:wat::core::length hot) (:wat::core::length cold))]
     (:wat::core::do
-      (:wat::kernel::println (:wat::core::string::concat "hot="   (:wat::core::str (:wat::core::length hot))))
-      (:wat::kernel::println (:wat::core::string::concat "cold="  (:wat::core::str (:wat::core::length cold))))
-      (:wat::kernel::println (:wat::core::string::concat "total=" (:wat::core::str total))))))
+      (:wat::kernel::println (:wat::string::concat "hot="   (:wat::core::str (:wat::core::length hot))))
+      (:wat::kernel::println (:wat::string::concat "cold="  (:wat::core::str (:wat::core::length cold))))
+      (:wat::kernel::println (:wat::string::concat "total=" (:wat::core::str total))))))

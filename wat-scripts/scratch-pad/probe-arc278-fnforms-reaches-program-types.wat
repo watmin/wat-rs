@@ -61,7 +61,7 @@
   (:wat::core::if (:wat::core::i64::>= i (:wat::core::length forms))
     acc
     (:user::render-forms forms (:wat::core::i64::+ i 1)
-      (:wat::core::string::concat acc
+      (:wat::string::concat acc
         (:wat::core::ast->source (:wat::core::nth forms i))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
@@ -71,11 +71,11 @@
      man-src   (:user::render-forms manifest 0 "")
      clo-src   (:user::render-forms closure  0 "")
      _counts   (:wat::kernel::println
-                 (:wat::core::string::concat "COUNTS manifest="
-                   (:wat::core::string::concat (:wat::core::i64::to-string (:wat::core::length manifest))
-                     (:wat::core::string::concat " closure="
+                 (:wat::string::concat "COUNTS manifest="
+                   (:wat::string::concat (:wat::core::i64::to-string (:wat::core::length manifest))
+                     (:wat::string::concat " closure="
                        (:wat::core::i64::to-string (:wat::core::length closure))))))
-     _m        (:wat::kernel::println (:wat::core::string::concat "MANIFEST_SRC " man-src))]
+     _m        (:wat::kernel::println (:wat::string::concat "MANIFEST_SRC " man-src))]
     ;; the shell greps these two lines for the needle — a substring test wat has no verb for
     ;; (`str-in?` is (Vector :- [String]) membership, as the checker said when this probe first tried it)
-    (:wat::kernel::println (:wat::core::string::concat "CLOSURE_SRC " clo-src))))
+    (:wat::kernel::println (:wat::string::concat "CLOSURE_SRC " clo-src))))

@@ -21,7 +21,7 @@
 ;; 3 — a pure intrinsic predicate (string::starts-with?) over a string binding.
 (:wat::core::defn :user::string-predicate-over-binding [] -> :wat::core::bool
   (:wat::rete::eval-test
-    (:wat::core::quote (:wat::core::string::starts-with? ?path "/admin"))
+    (:wat::core::quote (:wat::string::starts-with? ?path "/admin"))
     (:wat::core::PersistentMap/assoc (:wat::core::PersistentMap) "?path" "/admin/x")))
 
 ;; 4 — a COMPUTED operand `(> (- ?hi ?lo) 10)` → true (the "any pure expr" proof, not just a 2-var cmp).

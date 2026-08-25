@@ -97,8 +97,8 @@
      head (:wat::core::ast-name (:wat::core::first ch))]
     (:wat::core::if (:wat::core::= head ":wat::core::do")
       (:user::decl-key (:wat::core::first (:wat::core::rest ch)))
-      (:wat::core::string::concat head
-        (:wat::core::string::concat " "
+      (:wat::string::concat head
+        (:wat::string::concat " "
           (:wat::core::ast-name (:wat::core::first (:wat::core::rest ch))))))))
 
 ;; ── dedup a forms vector by declaration KEY (first occurrence wins) ──────────────────────
@@ -163,9 +163,9 @@
     (:wat::core::if (:wat::core::= (:user::decl-name (:wat::core::nth forms i)) target)
       (:wat::core::do
         (:wat::kernel::println
-          (:wat::core::string::concat "  ["
-            (:wat::core::string::concat (:wat::core::i64::to-string i)
-              (:wat::core::string::concat "] "
+          (:wat::string::concat "  ["
+            (:wat::string::concat (:wat::core::i64::to-string i)
+              (:wat::string::concat "] "
                 (:wat::core::ast->source (:wat::core::nth forms i))))))
         (:user::dump-named forms (:wat::core::i64::+ i 1) target))
       (:user::dump-named forms (:wat::core::i64::+ i 1) target))))
@@ -196,12 +196,12 @@
     [raw   (:user::raw-union true)
      dedup (:user::union-forms true)
      _a    (:wat::kernel::println
-             (:wat::core::string::concat "RAW union size="
+             (:wat::string::concat "RAW union size="
                (:wat::core::i64::to-string (:wat::core::length raw))))
      _b    (:wat::kernel::println "RAW forms declaring :probe::ffx::Record —")
      _c    (:user::dump-named raw 0 ":probe::ffx::Record")
      _d    (:wat::kernel::println
-             (:wat::core::string::concat "DEDUPED union size="
+             (:wat::string::concat "DEDUPED union size="
                (:wat::core::i64::to-string (:wat::core::length dedup))))
      _e    (:wat::kernel::println "DEDUPED forms declaring :probe::ffx::Record —")]
     (:user::dump-named dedup 0 ":probe::ffx::Record")))
@@ -213,25 +213,25 @@
   (:wat::core::let
     [forms (:user::union-forms with-init?)
      _n    (:wat::kernel::println
-             (:wat::core::string::concat label
-               (:wat::core::string::concat " forms=" (:wat::core::i64::to-string (:wat::core::length forms)))))
+             (:wat::string::concat label
+               (:wat::string::concat " forms=" (:wat::core::i64::to-string (:wat::core::length forms)))))
      ;; What did the union actually DECLARE? The child's "unresolved reference" names a
      ;; symbol; this names what was shipped. Without both, the gap is a guess.
-     _dl   (:wat::kernel::println (:wat::core::string::concat label " declares:"))
+     _dl   (:wat::kernel::println (:wat::string::concat label " declares:"))
      _d    (:wat::kernel::println (:user::decl-names forms 0 (:wat::core::Vector :wat::core::String)))
      p     (:wat::test::spawn-peer (:wat::spawn::process) forms)]
     (:wat::core::match (:wat::kernel::recv p)
       ((:wat::kernel::RecvOutcome::Message _m)
-        (:wat::core::do (:wat::kernel::println (:wat::core::string::concat label " BOOTED-AND-RAN")) true))
+        (:wat::core::do (:wat::kernel::println (:wat::string::concat label " BOOTED-AND-RAN")) true))
       ((:wat::kernel::RecvOutcome::Lost cause)
         (:wat::core::do
-          (:wat::kernel::println (:wat::core::string::concat label " DIED "
+          (:wat::kernel::println (:wat::string::concat label " DIED "
             (:wat::kernel::LociDiedError/message cause)))
           false))
       (:wat::kernel::RecvOutcome::Stopped
-        (:wat::core::do (:wat::kernel::println (:wat::core::string::concat label " STOPPED")) false))
+        (:wat::core::do (:wat::kernel::println (:wat::string::concat label " STOPPED")) false))
       (:wat::kernel::RecvOutcome::Closed
-        (:wat::core::do (:wat::kernel::println (:wat::core::string::concat label " CLOSED-NO-MARKER")) false)))))
+        (:wat::core::do (:wat::kernel::println (:wat::string::concat label " CLOSED-NO-MARKER")) false)))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

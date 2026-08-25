@@ -3,5 +3,5 @@
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::kernel::println
-    (:wat::core::string::interpolate "B={b}"
+    (:wat::string::interpolate "B={b}"
       :b (:wat::core::i64::to-string (:dm109b::hold 5)))))

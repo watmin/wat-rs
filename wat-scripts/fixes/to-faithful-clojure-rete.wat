@@ -52,16 +52,16 @@
 ;; ── pure string predicates (used in :where guards) ──────────────────────────
 (:wat::core::defn :fix::head-keyword-str?
   [name <- :wat::core::String] -> :wat::core::bool
-  (:wat::core::string::contains? name "::"))
+  (:wat::string::contains? name "::"))
 
 (:wat::core::defn :fix::type-shaped-keyword-str?
   [name <- :wat::core::String] -> :wat::core::bool
-  (:wat::core::if (:wat::core::if (:wat::core::string::contains? name "<")
-                    (:wat::core::string::contains? name ">")
+  (:wat::core::if (:wat::core::if (:wat::string::contains? name "<")
+                    (:wat::string::contains? name ">")
                     false)
     true
-    (:wat::core::if (:wat::core::string::contains? name "(")
-      (:wat::core::string::contains? name ")")
+    (:wat::core::if (:wat::string::contains? name "(")
+      (:wat::string::contains? name ")")
       false)))
 
 ;; ── the rules: each :then is PURE (bindings only, no transform) ──────────────
@@ -73,7 +73,7 @@
      (?kind       <- :kind)
      (?name       <- :name)
      (?post-arrow <- :post-arrow)
-     (:wat::rete::core::string::= ?kind "keyword"))
+     (:wat::rete::string::= ?kind "keyword"))
    (:wat::rete::where (:fix::head-keyword-str? ?name))
    (:wat::rete::where (:wat::rete::core::not ?post-arrow))
    (:wat::rete::where (:wat::rete::core::not (:fix::type-shaped-keyword-str? ?name)))]
@@ -87,10 +87,10 @@
      (?len    <- :len)
      (?kind   <- :kind)
      (?name   <- :name)
-     (:wat::rete::core::string::= ?kind "symbol"))
+     (:wat::rete::string::= ?kind "symbol"))
    (:wat::rete::where (:wat::rete::core::or
-                        (:wat::rete::core::string::= ?name "<-")
-                        (:wat::rete::core::string::= ?name "->")))]
+                        (:wat::rete::string::= ?name "<-")
+                        (:wat::rete::string::= ?name "->")))]
   :then
   [(:fix::ArrowConv ?offset ?len)])
 
@@ -102,7 +102,7 @@
      (?kind       <- :kind)
      (?name       <- :name)
      (?post-arrow <- :post-arrow)
-     (:wat::rete::core::string::= ?kind "keyword"))
+     (:wat::rete::string::= ?kind "keyword"))
    (:wat::rete::where (:wat::rete::core::or
                         ?post-arrow
                         (:fix::type-shaped-keyword-str? ?name)))]
@@ -137,7 +137,7 @@
                                       (:wat::core::= kind "symbol"))
         (:wat::core::let [name (:wat::core::ast-name node)
                           off  (:wat::fix::fix-text-offset-of (:wat::core::ast-span node) lines)
-                          len  (:wat::core::string::length name)]
+                          len  (:wat::string::length name)]
           (:wat::core::Vector :fix::Node (:fix::Node :kind kind :name name :offset off :len len :post-arrow prev-arrow?)))
         (:wat::core::Vector :fix::Node)))))
 
@@ -234,7 +234,7 @@
 (:wat::core::defn :fix::convert
   [src <- :wat::core::String]
   -> :wat::core::String
-  (:wat::core::let [lines   (:wat::core::string::split src "\n")
+  (:wat::core::let [lines   (:wat::string::split src "\n")
                     tree    (:wat::core::match (:wat::core::read-string src) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)))
                     forms   (:wat::core::ast->children tree)
                     ;; walk → :fix::Node facts (kind/name/offset/len/post-arrow)
@@ -269,7 +269,7 @@
       (:wat::core::do
         (:wat::io::write-file path
           (:fix::convert (:wat::io::read-file path)))
-        (:wat::kernel::println (:wat::core::string::concat "[to-faithful-clojure-rete] " path))
+        (:wat::kernel::println (:wat::string::concat "[to-faithful-clojure-rete] " path))
         (:user::apply-each (:wat::core::rest paths))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

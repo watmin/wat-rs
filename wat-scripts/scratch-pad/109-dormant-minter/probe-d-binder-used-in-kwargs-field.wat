@@ -9,5 +9,5 @@
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::kernel::println
-    (:wat::core::string::interpolate "D={d}"
+    (:wat::string::interpolate "D={d}"
       :d (:wat::core::i64::to-string (:dm109d::hold :payload 7)))))

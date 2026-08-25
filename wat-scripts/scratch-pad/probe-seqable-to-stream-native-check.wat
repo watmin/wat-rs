@@ -76,7 +76,7 @@
             ((:wat::core::not= take-nth-v take-nth-l) false)
             (:else (:wat::core::= take-nth-v take-nth-pv)))
 
-    __ (:wat::kernel::println (:wat::core::string::concat "cross-container-agree=" (:wat::core::bool::to-string agree)))
+    __ (:wat::kernel::println (:wat::string::concat "cross-container-agree=" (:wat::core::bool::to-string agree)))
 
     ;; (b) laziness — force ONLY ONE cell of a `keep` pipeline over a BIG Vector. If the
     ;; predicate prints once, only ONE element was ever touched; the pipeline did not
@@ -92,4 +92,4 @@
               (:wat::stream::NextOutcome::Exhausted
                 (:wat::kernel::assertion-failed! "keep: unexpectedly exhausted" :wat::core::None :wat::core::None)))
     __ftr   (:wat::kernel::println "--- end laziness probe ---")]
-    (:wat::kernel::println (:wat::core::string::concat "first=" (:wat::core::i64::to-string fst)))))
+    (:wat::kernel::println (:wat::string::concat "first=" (:wat::core::i64::to-string fst)))))

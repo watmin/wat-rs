@@ -69,7 +69,7 @@
                           false))
                       true
                       qlogs)
-           _p1 (:wat::kernel::println (:wat::core::string::concat "class-ok=" (:wat::core::str class-ok)))
+           _p1 (:wat::kernel::println (:wat::string::concat "class-ok=" (:wat::core::str class-ok)))
            tmpl (:usr::template)
            deds (:wat::core::foldl
                   (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Value]) log <- :wat::telemetry::Log]
@@ -95,6 +95,6 @@
                               (:wat::rete::query fired (:usr::q-Warn))))))))
                   (:wat::core::PersistentVector)
                   qlogs)
-           _p2 (:wat::kernel::println (:wat::core::string::concat "deds=" (:wat::core::str (:wat::core::length deds))))]
+           _p2 (:wat::kernel::println (:wat::string::concat "deds=" (:wat::core::str (:wat::core::length deds))))]
           nil))
       (_ (:wat::kernel::println "query-logs failed")))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Stopped (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))))

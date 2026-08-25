@@ -14,6 +14,6 @@
      inner    (:wat::core::Option/expect (:wat::core::get kids 0) "no child 0")
      pure     (:wat::rete::pure? inner)
      det      (:wat::rete::deterministic? inner)]
-    (:wat::kernel::println (:wat::core::string::concat "CAPTURED-STRING=" captured))
+    (:wat::kernel::println (:wat::string::concat "CAPTURED-STRING=" captured))
     (:wat::kernel::println (:wat::core::str pure))
     (:wat::kernel::println (:wat::core::str det))))

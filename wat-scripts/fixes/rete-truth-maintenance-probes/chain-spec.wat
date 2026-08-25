@@ -34,6 +34,6 @@
                     s2    (:wat::rete::insert s1 (:c::A 2))
                     fired (:wat::rete::fire-rules$oracle s2)]
     (:wat::core::do
-      (:wat::kernel::println (:wat::core::string::concat "A (input)  = " (:wat::core::str (:wat::core::length (:wat::rete::query fired (:c::q-A))))))
-      (:wat::kernel::println (:wat::core::string::concat "B (derived)= " (:wat::core::str (:wat::core::length (:wat::rete::query fired (:c::q-B))))))
-      (:wat::kernel::println (:wat::core::string::concat "C (expect 2)= " (:wat::core::str (:wat::core::length (:wat::rete::query fired (:c::q-C)))))))))
+      (:wat::kernel::println (:wat::string::concat "A (input)  = " (:wat::core::str (:wat::core::length (:wat::rete::query fired (:c::q-A))))))
+      (:wat::kernel::println (:wat::string::concat "B (derived)= " (:wat::core::str (:wat::core::length (:wat::rete::query fired (:c::q-B))))))
+      (:wat::kernel::println (:wat::string::concat "C (expect 2)= " (:wat::core::str (:wat::core::length (:wat::rete::query fired (:c::q-C)))))))))

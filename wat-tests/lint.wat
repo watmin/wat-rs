@@ -199,19 +199,19 @@
     (:wat::core::do
       ;; type-arg must rename
       (:wat::test::assert-true
-        (:wat::core::string::contains? result "(:wat::core::Vector :- [:t::New])"))
+        (:wat::string::contains? result "(:wat::core::Vector :- [:t::New])"))
       ;; return type must rename
       (:wat::test::assert-true
-        (:wat::core::string::contains? result "-> :t::New "))
+        (:wat::string::contains? result "-> :t::New "))
       ;; accessor must rename
       (:wat::test::assert-true
-        (:wat::core::string::contains? result ":t::New/make"))
+        (:wat::string::contains? result ":t::New/make"))
       ;; boundary decoy must survive untouched
       (:wat::test::assert-true
-        (:wat::core::string::contains? result ":t::OldExtra"))
+        (:wat::string::contains? result ":t::OldExtra"))
       ;; old type-arg form must be gone
       (:wat::test::assert-false
-        (:wat::core::string::contains? result "(:wat::core::Vector :- [:t::Old])")))))
+        (:wat::string::contains? result "(:wat::core::Vector :- [:t::Old])")))))
 
 ;; ─── Case 8: concat-format-fix — bare-symbol rewrites to format; compound stays; dedup ────
 
@@ -241,33 +241,33 @@
     (:wat::core::do
       ;; Part A: must contain format call with {a}/{b} slots and kwargs
       (:wat::test::assert-true
-        (:wat::core::string::contains? fixed-a "(:wat::core::format"))
+        (:wat::string::contains? fixed-a "(:wat::core::format"))
       (:wat::test::assert-true
-        (:wat::core::string::contains? fixed-a "{a}"))
+        (:wat::string::contains? fixed-a "{a}"))
       (:wat::test::assert-true
-        (:wat::core::string::contains? fixed-a "{b}"))
+        (:wat::string::contains? fixed-a "{b}"))
       (:wat::test::assert-true
-        (:wat::core::string::contains? fixed-a ":a a"))
+        (:wat::string::contains? fixed-a ":a a"))
       (:wat::test::assert-true
-        (:wat::core::string::contains? fixed-a ":b b"))
+        (:wat::string::contains? fixed-a ":b b"))
       ;; Part A: the concat call must be gone
       (:wat::test::assert-false
-        (:wat::core::string::contains? fixed-a "string::concat"))
+        (:wat::string::contains? fixed-a "string::concat"))
       ;; Part B: compound-slot must stay report-only (concat must remain)
       (:wat::test::assert-true
-        (:wat::core::string::contains? fixed-b "string::concat"))
+        (:wat::string::contains? fixed-b "string::concat"))
       (:wat::test::assert-false
-        (:wat::core::string::contains? fixed-b "(:wat::core::format"))
+        (:wat::string::contains? fixed-b "(:wat::core::format"))
       ;; Part C: format present, {x} appears, but :x x appears only once
       (:wat::test::assert-true
-        (:wat::core::string::contains? fixed-c "(:wat::core::format"))
+        (:wat::string::contains? fixed-c "(:wat::core::format"))
       (:wat::test::assert-true
-        (:wat::core::string::contains? fixed-c "{x}"))
+        (:wat::string::contains? fixed-c "{x}"))
       (:wat::test::assert-true
-        (:wat::core::string::contains? fixed-c ":x x"))
+        (:wat::string::contains? fixed-c ":x x"))
       ;; Part C: concat must be gone
       (:wat::test::assert-false
-        (:wat::core::string::contains? fixed-c "string::concat")))))
+        (:wat::string::contains? fixed-c "string::concat")))))
 
 ;; ─── Case 9: concat-fix position gate — defmacro→interpolate, defn→format ─────
 
@@ -285,13 +285,13 @@
     (:wat::core::do
       ;; defmacro-body concat must become interpolate
       (:wat::test::assert-true
-        (:wat::core::string::contains? fixed "(:wat::core::string::interpolate \"{s}::Op\" :s s)"))
+        (:wat::string::contains? fixed "(:wat::core::string::interpolate \"{s}::Op\" :s s)"))
       ;; defn-body concat must become format
       (:wat::test::assert-true
-        (:wat::core::string::contains? fixed "(:wat::core::format \"x: {a}\" :a a)"))
+        (:wat::string::contains? fixed "(:wat::core::format \"x: {a}\" :a a)"))
       ;; no string::concat must survive
       (:wat::test::assert-false
-        (:wat::core::string::contains? fixed "string::concat")))))
+        (:wat::string::contains? fixed "string::concat")))))
 
 ;; ─── Case 7: ladder-autofix rewrites to contains? + clean file round-trips ────
 
@@ -312,11 +312,11 @@
     (:wat::core::do
       ;; Part A: fixed source must contain "contains?" and "HashSet"
       (:wat::test::assert-true
-        (:wat::core::string::contains? fixed "contains?"))
+        (:wat::string::contains? fixed "contains?"))
       (:wat::test::assert-true
-        (:wat::core::string::contains? fixed "HashSet"))
+        (:wat::string::contains? fixed "HashSet"))
       ;; Part A: the original ladder must be gone
       (:wat::test::assert-false
-        (:wat::core::string::contains? fixed "(:wat::core::if (:wat::core::= x"))
+        (:wat::string::contains? fixed "(:wat::core::if (:wat::core::= x"))
       ;; Part B: clean file must round-trip byte-identical
       (:wat::test::assert-eq fixed-clean src-clean))))

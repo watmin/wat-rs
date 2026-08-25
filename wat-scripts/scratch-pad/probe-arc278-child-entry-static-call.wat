@@ -92,7 +92,7 @@
     [forms (:wat::kernel::fn-forms :probe::ce::child-entry-shape :user::root-entry)
      names (:user::declared-names forms 0 (:wat::core::Vector :wat::core::String))
      _n    (:wat::kernel::println
-             (:wat::core::string::concat "closure forms="
+             (:wat::string::concat "closure forms="
                (:wat::core::i64::to-string (:wat::core::length forms))))
      _d    (:wat::kernel::println names)
      ;; CLAIM B, asserted by membership — with the full set printed above so an empty walk

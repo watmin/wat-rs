@@ -36,7 +36,7 @@
 (:wat::core::defn :probe::pl [n <- :wat::core::i64] -> :wat::core::String
   (:wat::core::foldl
     (:wat::core::fn [acc <- :wat::core::String  _i <- :wat::core::i64] -> :wat::core::String
-      (:wat::core::string::concat acc "0123456789ABCDEF0123456789ABCDEF"))
+      (:wat::string::concat acc "0123456789ABCDEF0123456789ABCDEF"))
     ""
     (:wat::core::range 0 n)))
 

@@ -31,12 +31,12 @@
      lproc (:user::read-blind (:wat::spawn::process/runner-count 8))       ;; expect 8
      lthr  (:user::read-blind (:wat::spawn::thread))]                      ;; expect cpu-count (14)
     (:wat::kernel::println
-      (:wat::core::string::concat
+      (:wat::string::concat
         (:wat::core::i64::to-string n8)
-        (:wat::core::string::concat " "
-          (:wat::core::string::concat (:wat::core::i64::to-string ndef)
-            (:wat::core::string::concat " "
-              (:wat::core::string::concat (:wat::core::i64::to-string n4)
-                (:wat::core::string::concat " reader="
-                  (:wat::core::string::concat (:wat::core::i64::to-string lproc)
-                    (:wat::core::string::concat " " (:wat::core::i64::to-string lthr))))))))))))
+        (:wat::string::concat " "
+          (:wat::string::concat (:wat::core::i64::to-string ndef)
+            (:wat::string::concat " "
+              (:wat::string::concat (:wat::core::i64::to-string n4)
+                (:wat::string::concat " reader="
+                  (:wat::string::concat (:wat::core::i64::to-string lproc)
+                    (:wat::string::concat " " (:wat::core::i64::to-string lthr))))))))))))

@@ -78,7 +78,7 @@
       (:wat::core::let
         [op-node     (:wat::core::first ch)
          op-str      (:user::kw-name op-node)
-         is-internal (:wat::core::string::starts-with? op-str "-")
+         is-internal (:wat::string::starts-with? op-str "-")
          param-vec   (:wat::core::nth ch 1)
          param-ch    (:wat::core::ast->children param-vec)
          arity       (:wat::core::length param-ch)
@@ -142,7 +142,7 @@
 ;; ── per-file migrate ────────────────────────────────────────────────────────────────────────
 (:wat::core::defn :user::migrate [src <- :wat::core::String] -> :wat::core::String
   (:wat::core::let
-    [lines (:wat::core::string::split src "\n")
+    [lines (:wat::string::split src "\n")
      tree  (:wat::core::match (:wat::core::read-string src)
              ((:wat::core::ReadOutcome::Forms __forms) __forms)
              ((:wat::core::ReadOutcome::Malformed __cause)
@@ -163,7 +163,7 @@
     (:wat::core::let [path (:wat::core::first paths)]
       (:wat::core::do
         (:wat::io::write-file path (:user::migrate (:wat::io::read-file path)))
-        (:wat::kernel::println (:wat::core::string::concat "[ctx-param] " path))
+        (:wat::kernel::println (:wat::string::concat "[ctx-param] " path))
         (:user::apply-each (:wat::core::rest paths))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

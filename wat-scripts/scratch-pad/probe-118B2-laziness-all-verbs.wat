@@ -12,11 +12,11 @@
   (:wat::core::do
     ;; interpose over an infinite source — must not try to find "the last element".
     (:wat::kernel::println
-      (:wat::core::string::join ","
+      (:wat::string::join ","
         (:wat::core::into [] (:wat::core::take (:wat::core::interpose 0 (:probe::nat 0)) 5))))
     ;; keep-indexed over an infinite source.
     (:wat::kernel::println
-      (:wat::core::string::join ","
+      (:wat::string::join ","
         (:wat::core::into [] (:wat::core::take
           (:wat::core::keep-indexed
             (:wat::core::fn [i <- :wat::core::i64 x <- :wat::core::i64] -> (:wat::core::Option :- [:wat::core::i64])
@@ -25,7 +25,7 @@
           3))))
     ;; map-indexed over an infinite source.
     (:wat::kernel::println
-      (:wat::core::string::join ","
+      (:wat::string::join ","
         (:wat::core::into [] (:wat::core::take
           (:wat::core::map-indexed
             (:wat::core::fn [i <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::+ i x))
@@ -33,9 +33,9 @@
           4))))
     ;; dedupe over an infinite source (already non-repeating, so it's just `nat` under `take`).
     (:wat::kernel::println
-      (:wat::core::string::join ","
+      (:wat::string::join ","
         (:wat::core::into [] (:wat::core::take (:wat::core::dedupe (:probe::nat 0)) 4))))
     ;; distinct over an infinite source.
     (:wat::kernel::println
-      (:wat::core::string::join ","
+      (:wat::string::join ","
         (:wat::core::into [] (:wat::core::take (:wat::core::distinct (:probe::nat 0)) 4))))))

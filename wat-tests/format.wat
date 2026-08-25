@@ -27,7 +27,7 @@
     (:wat::core::do
       (:wat::test::assert-eq s "ada is 42")
       ;; Confirm string has no surrounding quotes (unquoted, not EDN-show).
-      (:wat::test::assert-eq (:wat::core::string::contains? s "\"") false))))
+      (:wat::test::assert-eq (:wat::string::contains? s "\"") false))))
 
 ;; ── 3. Full probe case — multi-placeholder with static text between ───────────
 ;;

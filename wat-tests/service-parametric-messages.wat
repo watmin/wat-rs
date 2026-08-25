@@ -137,21 +137,21 @@
           ;; this string. `edn::write` rather than `nth`+concat on the K side is deliberate: it
           ;; renders whatever actually arrived, which is what makes probe (3)'s answer legible
           ;; instead of a crash.
-          (:wat::core::string::concat (:wat::edn::write echo)
-            (:wat::core::string::concat "|"
-              (:wat::core::string::concat
+          (:wat::string::concat (:wat::edn::write echo)
+            (:wat::string::concat "|"
+              (:wat::string::concat
                 (:wat::core::i64::to-string
                   (:wat::core::i64::+ (:wat::core::nth results 0)
                                       (:wat::core::nth results 1)))
-                (:wat::core::string::concat "|"
+                (:wat::string::concat "|"
                   (:wat::core::i64::to-string limit))))))
         ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
         ((:wat-tests::PCache::GetResponse::RequestTooLarge bytes cap) "TooLarge")
         ((:wat-tests::PCache::GetResponse::RequestMalformed mpath mexpected mgot)
-          (:wat::core::string::concat "Malformed"
-            (:wat::core::string::concat (:wat::edn::write mpath)
-              (:wat::core::string::concat "/" (:wat::core::string::concat mexpected
-                (:wat::core::string::concat "/" mgot))))))))
+          (:wat::string::concat "Malformed"
+            (:wat::string::concat (:wat::edn::write mpath)
+              (:wat::string::concat "/" (:wat::string::concat mexpected
+                (:wat::string::concat "/" mgot))))))))
     ((:wat::kernel::RecvOutcome::Lost __cause)
       (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None))
     (:wat::kernel::RecvOutcome::Stopped
@@ -195,9 +195,9 @@
                 (:wat::edn::read
                   "#wat-tests.PCache/GetRequest {:probes [1 2] :limit 7}")))
      _    (:wat-tests::pcache-svc/stop h)]
-    (:wat::core::string::concat good
-      (:wat::core::string::concat " | " (:wat::core::string::concat bad
-        (:wat::core::string::concat " | " opaque))))))
+    (:wat::string::concat good
+      (:wat::string::concat " | " (:wat::string::concat bad
+        (:wat::string::concat " | " opaque))))))
 
 ;; ── thread tier ─────────────────────────────────────────────────────────────────────────────
 (:wat::test::deftest :wat-tests::service::parametric-messages-round-trip-on-thread

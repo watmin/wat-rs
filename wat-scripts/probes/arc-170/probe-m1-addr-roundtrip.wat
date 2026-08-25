@@ -20,7 +20,7 @@
   :satisfies :probe::Echo  :durable [] :ephemeral []
   :impls [(echo [s ctx req]
             (:wat::service::Outcome::Reply s
-              (:probe::Echo::EchoResponse::Ok (:wat::core::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))))])
+              (:probe::Echo::EchoResponse::Ok (:wat::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))))])
 
 ;; a typed helper: the param pins the reconstructed addr's S,R (unify ? = Echo::Op/Reply).
 (:wat::core::defn :probe::dial-and-echo
@@ -40,7 +40,7 @@
     [eh    (:probe::echo/start :locus (:wat::spawn::process) :record (:probe::echo::Record))
      ea    (:probe::echo::Handle/addr eh)
      s     (:wat::edn::write ea)
-     _     (:wat::kernel::println (:wat::core::string::concat "wire: " s))
+     _     (:wat::kernel::println (:wat::string::concat "wire: " s))
      ;; reconstruct from the wire form, dial through the typed helper (unifies the addr type)
      out   (:probe::dial-and-echo (:wat::edn::read s))]
-    (:wat::kernel::println (:wat::core::string::concat "result: " out))))
+    (:wat::kernel::println (:wat::string::concat "result: " out))))

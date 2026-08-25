@@ -142,30 +142,30 @@
      ;; strip-leading-colon inline (defrule's own idiom — can't call a user-defn from a
      ;; program-body macro).
      raw-name   (:wat::core::ast-name name-node)
-     name-str   (:wat::core::if (:wat::core::= (:wat::core::string::subs raw-name 0 1) ":")
-                  (:wat::core::string::subs raw-name 1 (:wat::core::string::length raw-name))
+     name-str   (:wat::core::if (:wat::core::= (:wat::string::subs raw-name 0 1) ":")
+                  (:wat::string::subs raw-name 1 (:wat::string::length raw-name))
                   raw-name)
-     svc-str    (:wat::core::string::interpolate "{name-str}'" :name-str name-str)
+     svc-str    (:wat::string::interpolate "{name-str}'" :name-str name-str)
 
-     surface-kw  (:wat::core::keyword-node (:wat::core::string::interpolate ":{name-str}" :name-str name-str))
-     svc-kw      (:wat::core::keyword-node (:wat::core::string::interpolate ":{svc-str}" :svc-str svc-str))
-     req-kw      (:wat::core::keyword-node (:wat::core::string::concat ":" (:wat::core::string::concat name-str "::SiftRulesRequest")))
-     resp-kw     (:wat::core::keyword-node (:wat::core::string::concat ":" (:wat::core::string::concat name-str "::SiftRulesResponse")))
-     resp-ded-kw (:wat::core::keyword-node (:wat::core::string::concat ":" (:wat::core::string::concat name-str "::SiftRulesResponse::Deductions")))
-     resp-fat-kw (:wat::core::keyword-node (:wat::core::string::concat ":" (:wat::core::string::concat name-str "::SiftRulesResponse::Fatal")))
-     resp-rtl-kw (:wat::core::keyword-node (:wat::core::string::concat ":" (:wat::core::string::concat name-str "::SiftRulesResponse::RequestTooLarge")))
-     resp-rm-kw  (:wat::core::keyword-node (:wat::core::string::concat ":" (:wat::core::string::concat name-str "::SiftRulesResponse::RequestMalformed")))
-     req-ns-kw   (:wat::core::keyword-node (:wat::core::string::concat ":" (:wat::core::string::concat name-str "::SiftRulesRequest/namespace")))
-     req-lo-kw   (:wat::core::keyword-node (:wat::core::string::concat ":" (:wat::core::string::concat name-str "::SiftRulesRequest/time-lo")))
-     req-hi-kw   (:wat::core::keyword-node (:wat::core::string::concat ":" (:wat::core::string::concat name-str "::SiftRulesRequest/time-hi")))
-     req-lim-kw  (:wat::core::keyword-node (:wat::core::string::concat ":" (:wat::core::string::concat name-str "::SiftRulesRequest/limit")))
-     req-cur-kw  (:wat::core::keyword-node (:wat::core::string::concat ":" (:wat::core::string::concat name-str "::SiftRulesRequest/cursor")))
+     surface-kw  (:wat::core::keyword-node (:wat::string::interpolate ":{name-str}" :name-str name-str))
+     svc-kw      (:wat::core::keyword-node (:wat::string::interpolate ":{svc-str}" :svc-str svc-str))
+     req-kw      (:wat::core::keyword-node (:wat::string::concat ":" (:wat::string::concat name-str "::SiftRulesRequest")))
+     resp-kw     (:wat::core::keyword-node (:wat::string::concat ":" (:wat::string::concat name-str "::SiftRulesResponse")))
+     resp-ded-kw (:wat::core::keyword-node (:wat::string::concat ":" (:wat::string::concat name-str "::SiftRulesResponse::Deductions")))
+     resp-fat-kw (:wat::core::keyword-node (:wat::string::concat ":" (:wat::string::concat name-str "::SiftRulesResponse::Fatal")))
+     resp-rtl-kw (:wat::core::keyword-node (:wat::string::concat ":" (:wat::string::concat name-str "::SiftRulesResponse::RequestTooLarge")))
+     resp-rm-kw  (:wat::core::keyword-node (:wat::string::concat ":" (:wat::string::concat name-str "::SiftRulesResponse::RequestMalformed")))
+     req-ns-kw   (:wat::core::keyword-node (:wat::string::concat ":" (:wat::string::concat name-str "::SiftRulesRequest/namespace")))
+     req-lo-kw   (:wat::core::keyword-node (:wat::string::concat ":" (:wat::string::concat name-str "::SiftRulesRequest/time-lo")))
+     req-hi-kw   (:wat::core::keyword-node (:wat::string::concat ":" (:wat::string::concat name-str "::SiftRulesRequest/time-hi")))
+     req-lim-kw  (:wat::core::keyword-node (:wat::string::concat ":" (:wat::string::concat name-str "::SiftRulesRequest/limit")))
+     req-cur-kw  (:wat::core::keyword-node (:wat::string::concat ":" (:wat::string::concat name-str "::SiftRulesRequest/cursor")))
 
-     record-ty-kw (:wat::core::keyword-node (:wat::core::string::concat ":" (:wat::core::string::concat svc-str "::Record")))
-     state-ty-kw  (:wat::core::keyword-node (:wat::core::string::concat ":" (:wat::core::string::concat svc-str "::State")))
-     state-journal-kw  (:wat::core::keyword-node (:wat::core::string::concat ":" (:wat::core::string::concat svc-str "::State/journal")))
-     state-template-kw (:wat::core::keyword-node (:wat::core::string::concat ":" (:wat::core::string::concat svc-str "::State/template")))
-     state-durable-kw  (:wat::core::keyword-node (:wat::core::string::concat ":" (:wat::core::string::concat svc-str "::State/durable")))
+     record-ty-kw (:wat::core::keyword-node (:wat::string::concat ":" (:wat::string::concat svc-str "::Record")))
+     state-ty-kw  (:wat::core::keyword-node (:wat::string::concat ":" (:wat::string::concat svc-str "::State")))
+     state-journal-kw  (:wat::core::keyword-node (:wat::string::concat ":" (:wat::string::concat svc-str "::State/journal")))
+     state-template-kw (:wat::core::keyword-node (:wat::string::concat ":" (:wat::string::concat svc-str "::State/template")))
+     state-durable-kw  (:wat::core::keyword-node (:wat::string::concat ":" (:wat::string::concat svc-str "::State/durable")))
 
      defs-children  (:wat::core::ast->children defs-node)
      rules-children (:wat::core::ast->children rules-node)
@@ -182,8 +182,8 @@
              [rch        (:wat::core::ast->children rf)
               rname      (:wat::core::Option/expect (:wat::core::get rch 1) "sift-rules-defsvc: rule missing name")
               raw-rname  (:wat::core::ast-name rname)
-              rname-str  (:wat::core::if (:wat::core::= (:wat::core::string::subs raw-rname 0 1) ":")
-                           (:wat::core::string::subs raw-rname 1 (:wat::core::string::length raw-rname))
+              rname-str  (:wat::core::if (:wat::core::= (:wat::string::subs raw-rname 0 1) ":")
+                           (:wat::string::subs raw-rname 1 (:wat::string::length raw-rname))
                            raw-rname)
               when-vec   (:wat::core::Option/expect (:wat::core::get rch 3) "sift-rules-defsvc: rule missing :when")
               then-vec   (:wat::core::Option/expect (:wat::core::get rch 5) "sift-rules-defsvc: rule missing :then")
@@ -213,8 +213,8 @@
                     tkw  (:wat::core::Option/expect (:wat::core::get cch 0)
                            "sift-rules-defsvc: :then fact-form missing a type")
                     traw (:wat::core::ast-name tkw)
-                    tstr (:wat::core::if (:wat::core::= (:wat::core::string::subs traw 0 1) ":")
-                           (:wat::core::string::subs traw 1 (:wat::core::string::length traw))
+                    tstr (:wat::core::if (:wat::core::= (:wat::string::subs traw 0 1) ":")
+                           (:wat::string::subs traw 1 (:wat::string::length traw))
                            traw)]
                    (:wat::core::if (:wat::core::Vector/contains? acc2 tstr) acc2 (:wat::core::conj acc2 tstr))))
                acc
@@ -243,8 +243,8 @@
                     ckw  (:wat::core::Option/expect (:wat::core::get cch 0)
                            "sift-rules-defsvc: :when condition missing a type")
                     craw (:wat::core::ast-name ckw)
-                    cstr (:wat::core::if (:wat::core::= (:wat::core::string::subs craw 0 1) ":")
-                           (:wat::core::string::subs craw 1 (:wat::core::string::length craw))
+                    cstr (:wat::core::if (:wat::core::= (:wat::string::subs craw 0 1) ":")
+                           (:wat::string::subs craw 1 (:wat::string::length craw))
                            craw)]
                    (:wat::core::if (:wat::core::Vector/contains? acc2 cstr) acc2 (:wat::core::conj acc2 cstr))))
                acc
@@ -278,7 +278,7 @@
            -> (:wat::core::Vector :- [:wat::WatAST])
            (:wat::core::let
              [tkw  (:wat::core::keyword-node
-                      (:wat::core::string::interpolate ":{tstr}" :tstr tstr))
+                      (:wat::string::interpolate ":{tstr}" :tstr tstr))
               cond `(~fact-sym <- ~tkw)]
              (:wat::core::conj acc
                `(:wat::rete::make-query ~tstr
@@ -326,8 +326,8 @@
              [dch  (:wat::core::ast->children df)
               dn   (:wat::core::Option/expect (:wat::core::get dch 1) "sift-rules-defsvc: def missing a name")
               draw (:wat::core::ast-name dn)
-              dstr (:wat::core::if (:wat::core::= (:wat::core::string::subs draw 0 1) ":")
-                     (:wat::core::string::subs draw 1 (:wat::core::string::length draw))
+              dstr (:wat::core::if (:wat::core::= (:wat::string::subs draw 0 1) ":")
+                     (:wat::string::subs draw 1 (:wat::string::length draw))
                      draw)]
              (:wat::core::conj acc dstr)))
          (:wat::core::Vector :wat::core::String)

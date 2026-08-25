@@ -26,9 +26,9 @@
 (:wat::rete::defrule :ul::unwrap
   :when [(:wat::grep::Node  (?id <- :id) (?p <- :parent) (?i <- :index) (?k <- :kind))
          (:wat::grep::Named (?id <- :id) (?n <- :name))
-         (:wat::rete::where (:wat::rete::core::string::= ?k "keyword"))
+         (:wat::rete::where (:wat::rete::string::= ?k "keyword"))
          (:wat::rete::where (:wat::rete::core::i64::= ?i 0))
-         (:wat::rete::where (:wat::rete::core::string::= ?n ":wat::core::Option/expect"))]
+         (:wat::rete::where (:wat::rete::string::= ?n ":wat::core::Option/expect"))]
   :then [(:ul::Unwrap :id ?id :parent ?p)])
 
 ;; that unwrap's FIRST ARGUMENT, when the argument is itself a form
@@ -36,7 +36,7 @@
   :when [(:ul::Unwrap (?outer <- :parent))
          (:wat::grep::Node (?arg <- :id) (?outer <- :parent) (?ai <- :index) (?ak <- :kind))
          (:wat::rete::where (:wat::rete::core::i64::= ?ai 1))
-         (:wat::rete::where (:wat::rete::core::string::= ?ak "list"))]
+         (:wat::rete::where (:wat::rete::string::= ?ak "list"))]
   :then [(:ul::ArgIsList :outer ?outer :arg ?arg)])
 
 ;; ...and that argument's own head is the lookup. Report at the OUTER form's span, because the
@@ -48,7 +48,7 @@
          (:wat::grep::Span  (?outer <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
          (:wat::grep::Source (?f <- :file))
          (:wat::rete::where (:wat::rete::core::i64::= ?hi 0))
-         (:wat::rete::where (:wat::rete::core::string::= ?hn ":wat::core::HashMap/get"))]
+         (:wat::rete::where (:wat::rete::string::= ?hn ":wat::core::HashMap/get"))]
   :then [(:wat::grep::Match
            :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "unwrap-of-a-map-lookup"

@@ -58,7 +58,7 @@
           nil
           (:wat::core::let [h (:user::head-name node)]
             (:wat::core::if (:wat::core::= h "") nil
-              (:wat::kernel::println (:wat::core::string::concat tag h))))))
+              (:wat::kernel::println (:wat::string::concat tag h))))))
       nil)
     (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
       (:wat::core::let [ch (:wat::core::ast->children node) h (:user::head-name node)]
@@ -96,16 +96,16 @@
                            (:wat::core::let
                              [n    (:wat::core::+ ctr 1)
                               ln   (:wat::core::Option/expect (:wat::core::HashMap/get (:wat::core::ast-span node) :line) "line")
-                              tag  (:wat::core::string::concat path
-                                     (:wat::core::string::concat " #"
-                                       (:wat::core::string::concat (:wat::core::str n)
-                                         (:wat::core::string::concat " @L"
-                                           (:wat::core::string::concat (:wat::core::str ln) " ")))))]
+                              tag  (:wat::string::concat path
+                                     (:wat::string::concat " #"
+                                       (:wat::string::concat (:wat::core::str n)
+                                         (:wat::string::concat " @L"
+                                           (:wat::string::concat (:wat::core::str ln) " ")))))]
                              (:wat::core::do
-                               (:wat::kernel::println (:wat::core::string::concat "WHERE " tag))
+                               (:wat::kernel::println (:wat::string::concat "WHERE " tag))
                                (:user::walk-collect-seq
                                  (:wat::core::into [] (:wat::core::rest (:wat::core::ast->children node)))
-                                 (:wat::core::string::concat "HEAD " tag))
+                                 (:wat::string::concat "HEAD " tag))
                                n))
                            ctr)]
     (:wat::core::if (:user::structural? node)
@@ -126,7 +126,7 @@
         (:wat::core::do (:user::find-wheres-seq (:wat::core::ast->children __f) path 0) nil))
       ((:wat::core::ReadOutcome::Malformed __c)
         (:wat::core::do
-          (:wat::kernel::println (:wat::core::string::concat "PARSE-FAIL " path))
+          (:wat::kernel::println (:wat::string::concat "PARSE-FAIL " path))
           nil)))))
 
 (:wat::core::defn :user::process-seq [paths <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::nil

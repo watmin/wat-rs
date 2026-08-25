@@ -64,10 +64,10 @@
     [msg     (:wat::core::Option/expect (:wat::core::get ch 2) "msg")
      n0      (:user::start-off node lines)
      n1      (:user::end-off node lines)
-     msg-txt (:wat::core::string::subs src (:user::start-off msg lines) (:user::end-off msg lines))]
+     msg-txt (:wat::string::subs src (:user::start-off msg lines) (:user::end-off msg lines))]
     (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])
       (:wat::core::Tuple n0 (:wat::core::- n1 n0)
-        (:wat::core::string::concat "(:wat::kernel::message-only-failure " msg-txt ")")))))
+        (:wat::string::concat "(:wat::kernel::message-only-failure " msg-txt ")")))))
 
 ;; walk one node → its edits + descendants'. A matched struct-new-failure node does NOT recurse
 ;; into its own children (MSG is re-emitted verbatim by span, not walked; the defaulted tail args
@@ -94,7 +94,7 @@
 ;; ── per-file migrate ─────────────────────────────────────────────────────────
 (:wat::core::defn :user::migrate [src <- :wat::core::String] -> :wat::core::String
   (:wat::core::let
-    [lines (:wat::core::string::split src "\n")
+    [lines (:wat::string::split src "\n")
      forms (:wat::core::ast->children (:wat::core::match (:wat::core::read-string src) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None))))
      eds   (:user::seq-edits forms src lines)
      rev   (:wat::core::reverse (:wat::core::sort eds))]
@@ -107,7 +107,7 @@
     (:wat::core::let [path (:wat::core::first paths)]
       (:wat::core::do
         (:wat::io::write-file path (:user::migrate (:wat::io::read-file path)))
-        (:wat::kernel::println (:wat::core::string::concat "[struct-new-Failure->message-only-failure] " path))
+        (:wat::kernel::println (:wat::string::concat "[struct-new-Failure->message-only-failure] " path))
         (:user::apply-each (:wat::core::rest paths))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

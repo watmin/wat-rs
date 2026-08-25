@@ -35,25 +35,25 @@
   (:wat::core::match v
     (:wat::edn::Validation::Valid "VALID")
     ((:wat::edn::Validation::Invalid path expected got)
-      (:wat::core::string::concat "INVALID at "
-        (:wat::core::string::concat (:wat::edn::write path)
-          (:wat::core::string::concat " expected="
-            (:wat::core::string::concat expected
-              (:wat::core::string::concat " got=" got))))))))
+      (:wat::string::concat "INVALID at "
+        (:wat::string::concat (:wat::edn::write path)
+          (:wat::string::concat " expected="
+            (:wat::string::concat expected
+              (:wat::string::concat " got=" got))))))))
 
 ;; ── GATE ROW 3 — a bare (not Vector-wrapped) :wat::WatAST field ────────────────
 (:wat::core::defn :vprobe2::gate-row-3 [] -> :wat::core::nil
   (:wat::core::let
     [good (:vprobe2::WatAstField :form (:wat::core::quote (:wat::core::defrecord :usr::A [c <- :wat::core::i64])))]
     (:wat::kernel::println
-      (:wat::core::string::concat "GATE-3 bare WatAST field => " (:vprobe2::render (:wat::edn::validate good :vprobe2::WatAstField))))))
+      (:wat::string::concat "GATE-3 bare WatAST field => " (:vprobe2::render (:wat::edn::validate good :vprobe2::WatAstField))))))
 
 ;; ── GATE ROW 4 — THE NEGATIVE ROW: a genuinely wrong field must still refuse ───
 (:wat::core::defn :vprobe2::gate-row-4 [] -> :wat::core::nil
   (:wat::core::let
     [bad (:wat::edn::read "#vprobe2/I64Field {:n \"not-an-i64\"}")]
     (:wat::kernel::println
-      (:wat::core::string::concat "GATE-4 i64 field handed a String => " (:vprobe2::render (:wat::edn::validate bad :vprobe2::I64Field))))))
+      (:wat::string::concat "GATE-4 i64 field handed a String => " (:vprobe2::render (:wat::edn::validate bad :vprobe2::I64Field))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::do

@@ -149,11 +149,11 @@
       ((:wat::kernel::RecvOutcome::Message resp)
         (:wat::core::match resp
           ((:probe::WireKind::EchoResponse::Ok n)
-            (:wat::kernel::println (:wat::core::string::concat "CONTROL echo(i64)        => Ok n=" (:wat::core::i64::to-string n))))
+            (:wat::kernel::println (:wat::string::concat "CONTROL echo(i64)        => Ok n=" (:wat::core::i64::to-string n))))
           ((:probe::WireKind::EchoResponse::RequestTooLarge _b _c) (:wat::kernel::println "CONTROL echo(i64)        => REQUEST-TOO-LARGE"))
           ((:probe::WireKind::EchoResponse::RequestMalformed _p _e _g) (:wat::kernel::println "CONTROL echo(i64)        => REQUEST-MALFORMED"))))
       ((:wat::kernel::RecvOutcome::Lost cause)
-        (:wat::kernel::println (:wat::core::string::concat "CONTROL echo(i64)        => LOST " (:wat::kernel::LociDiedError/message cause))))
+        (:wat::kernel::println (:wat::string::concat "CONTROL echo(i64)        => LOST " (:wat::kernel::LociDiedError/message cause))))
       (:wat::kernel::RecvOutcome::Stopped (:wat::kernel::println "CONTROL echo(i64)        => STOPPED"))
       (:wat::kernel::RecvOutcome::Closed  (:wat::kernel::println "CONTROL echo(i64)        => CLOSED")))))
 
@@ -165,11 +165,11 @@
       ((:wat::kernel::RecvOutcome::Message resp)
         (:wat::core::match resp
           ((:probe::WireKind::CountResponse::Ok n)
-            (:wat::kernel::println (:wat::core::string::concat "SUBJECT count(Vec<WatAST>) => Ok n=" (:wat::core::i64::to-string n))))
+            (:wat::kernel::println (:wat::string::concat "SUBJECT count(Vec<WatAST>) => Ok n=" (:wat::core::i64::to-string n))))
           ((:probe::WireKind::CountResponse::RequestTooLarge _b _c) (:wat::kernel::println "SUBJECT count(Vec<WatAST>) => REQUEST-TOO-LARGE"))
           ((:probe::WireKind::CountResponse::RequestMalformed _p _e _g) (:wat::kernel::println "SUBJECT count(Vec<WatAST>) => REQUEST-MALFORMED"))))
       ((:wat::kernel::RecvOutcome::Lost cause)
-        (:wat::kernel::println (:wat::core::string::concat "SUBJECT count(Vec<WatAST>) => LOST " (:wat::kernel::LociDiedError/message cause))))
+        (:wat::kernel::println (:wat::string::concat "SUBJECT count(Vec<WatAST>) => LOST " (:wat::kernel::LociDiedError/message cause))))
       (:wat::kernel::RecvOutcome::Stopped (:wat::kernel::println "SUBJECT count(Vec<WatAST>) => STOPPED"))
       (:wat::kernel::RecvOutcome::Closed  (:wat::kernel::println "SUBJECT count(Vec<WatAST>) => CLOSED")))))
 
@@ -185,14 +185,14 @@
       ((:wat::kernel::RecvOutcome::Message resp)
         (:wat::core::match resp
           ((:probe::WireKind::CountResponse::Ok n)
-            (:wat::kernel::println (:wat::core::string::concat "ISOLATOR count THREAD      => Ok n=" (:wat::core::i64::to-string n))))
+            (:wat::kernel::println (:wat::string::concat "ISOLATOR count THREAD      => Ok n=" (:wat::core::i64::to-string n))))
           ((:probe::WireKind::CountResponse::RequestTooLarge _b _c) (:wat::kernel::println "ISOLATOR count THREAD      => REQUEST-TOO-LARGE"))
           ((:probe::WireKind::CountResponse::RequestMalformed p expected got)
             (:wat::core::do
-              (:wat::kernel::println (:wat::core::string::concat "ISOLATOR count THREAD      => REQUEST-MALFORMED expected=" expected " got=" got))
+              (:wat::kernel::println (:wat::string::concat "ISOLATOR count THREAD      => REQUEST-MALFORMED expected=" expected " got=" got))
               (:wat::kernel::println p)))))
       ((:wat::kernel::RecvOutcome::Lost cause)
-        (:wat::kernel::println (:wat::core::string::concat "ISOLATOR count THREAD      => LOST " (:wat::kernel::LociDiedError/message cause))))
+        (:wat::kernel::println (:wat::string::concat "ISOLATOR count THREAD      => LOST " (:wat::kernel::LociDiedError/message cause))))
       (:wat::kernel::RecvOutcome::Stopped (:wat::kernel::println "ISOLATOR count THREAD      => STOPPED"))
       (:wat::kernel::RecvOutcome::Closed  (:wat::kernel::println "ISOLATOR count THREAD      => CLOSED")))))
 

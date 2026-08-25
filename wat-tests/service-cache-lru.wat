@@ -61,7 +61,7 @@
   [r <- (:wat::cache::Cache::GetResult :- [:wat::core::i64])]
   -> :wat::core::String
   (:wat::core::match r
-    ((:wat::cache::Cache::GetResult::Hit v) (:wat::core::string::concat "Hit:" (:wat::core::i64::to-string v)))
+    ((:wat::cache::Cache::GetResult::Hit v) (:wat::string::concat "Hit:" (:wat::core::i64::to-string v)))
     ((:wat::cache::Cache::GetResult::Miss) "Miss")))
 
 ;; the whole batch's results, index order preserved, rendered "[tok,tok,...]" — the fold walks
@@ -73,9 +73,9 @@
     ((:wat::kernel::RecvOutcome::Message __recv)
       (:wat::core::match __recv
         ((:wat::cache::Cache::GetResponse::Ok results)
-          (:wat::core::string::concat "["
-            (:wat::core::string::concat
-              (:wat::core::string::join ","
+          (:wat::string::concat "["
+            (:wat::string::concat
+              (:wat::string::join ","
                 (:wat::core::foldl
                   (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String])
                                    res <- (:wat::cache::Cache::GetResult :- [:wat::core::i64])]
@@ -160,11 +160,11 @@
                  (:wat::cache::lru-svc/get b
                    (:wat::cache::Cache::GetRequest :probes (:wat::core::Vector :wat::core::String))))
      _ (:wat::cache::lru-svc/stop h)]
-    (:wat::core::string::concat put-batch
-      (:wat::core::string::concat " | " (:wat::core::string::concat get-jumbled
-        (:wat::core::string::concat " | " (:wat::core::string::concat put-k3
-          (:wat::core::string::concat " | " (:wat::core::string::concat get-k2-miss
-            (:wat::core::string::concat " | " get-empty))))))))))
+    (:wat::string::concat put-batch
+      (:wat::string::concat " | " (:wat::string::concat get-jumbled
+        (:wat::string::concat " | " (:wat::string::concat put-k3
+          (:wat::string::concat " | " (:wat::string::concat get-k2-miss
+            (:wat::string::concat " | " get-empty))))))))))
 
 ;; ── thread tier ────────────────────────────────────────────────────────────────────────────
 (:wat::test::deftest :wat-tests::service::cache-lru-multi-client-on-thread

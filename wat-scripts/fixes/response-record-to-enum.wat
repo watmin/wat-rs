@@ -31,7 +31,7 @@
 
 ;; ── small helpers ────────────────────────────────────────────────────────────
 (:wat::core::defn :user::strip-params [name <- :wat::core::String] -> :wat::core::String
-  (:wat::core::first (:wat::core::string::split name "<")))
+  (:wat::core::first (:wat::string::split name "<")))
 
 (:wat::core::defn :user::start-off [n <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])]
   -> :wat::core::i64
@@ -188,12 +188,12 @@
      expr (:wat::core::Option/expect (:wat::core::get ch 1) "fa expr")
      h0   (:user::start-off head lines)
      h1   (:user::end-off head lines)
-     arms (:wat::core::string::concat " -> " ftype
-            (:wat::core::string::concat "\n  ((" prefix
-              (:wat::core::string::concat "::Ok " field
-                (:wat::core::string::concat ") " field
-                  (:wat::core::string::concat ")\n  ((" prefix
-                    (:wat::core::string::concat "::RequestTooLarge bytes cap)\n    (:wat::kernel::assertion-failed! \"unexpected RequestTooLarge\" :wat::core::None :wat::core::None))"
+     arms (:wat::string::concat " -> " ftype
+            (:wat::string::concat "\n  ((" prefix
+              (:wat::string::concat "::Ok " field
+                (:wat::string::concat ") " field
+                  (:wat::string::concat ")\n  ((" prefix
+                    (:wat::string::concat "::RequestTooLarge bytes cap)\n    (:wat::kernel::assertion-failed! \"unexpected RequestTooLarge\" :wat::core::None :wat::core::None))"
                       ""))))))]
     (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])
       (:wat::core::Tuple h0 (:wat::core::- h1 h0) ":wat::core::match")
@@ -213,7 +213,7 @@
           [hname (:user::kw-name (:wat::core::first ch))
            tyname (:wat::core::if (:wat::core::>= (:wat::core::length ch) 2)
                     (:user::strip-params (:user::kw-name (:wat::core::Option/expect (:wat::core::get ch 1) "h1"))) "")
-           prefix (:wat::core::first (:wat::core::string::split hname "/"))
+           prefix (:wat::core::first (:wat::string::split hname "/"))
            this
            (:wat::core::if
              (:wat::core::if (:wat::core::= hname ":wat::core::defrecord")
@@ -222,7 +222,7 @@
              (:wat::core::if (:wat::core::HashMap/contains-key? rm hname)
                (:user::ctor-edits ch lines)
                (:wat::core::if
-                 (:wat::core::if (:wat::core::string::contains? hname "/")
+                 (:wat::core::if (:wat::string::contains? hname "/")
                    (:wat::core::HashMap/contains-key? rm prefix) false)
                  (:wat::core::let [ft (:wat::core::Option/expect (:wat::core::HashMap/get rm prefix) "ft")]
                    (:user::field-edits ch prefix (:wat::core::first ft) (:wat::core::second ft) lines))
@@ -247,7 +247,7 @@
 ;; ── per-file migrate ─────────────────────────────────────────────────────────
 (:wat::core::defn :user::migrate [src <- :wat::core::String] -> :wat::core::String
   (:wat::core::let
-    [lines (:wat::core::string::split src "\n")
+    [lines (:wat::string::split src "\n")
      forms (:wat::core::ast->children (:wat::core::match (:wat::core::read-string src) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None))))
      rm    (:user::resp-map forms)
      eds   (:user::seq-edits forms rm lines)
@@ -261,7 +261,7 @@
     (:wat::core::let [path (:wat::core::first paths)]
       (:wat::core::do
         (:wat::io::write-file path (:user::migrate (:wat::io::read-file path)))
-        (:wat::kernel::println (:wat::core::string::concat "[response->enum] " path))
+        (:wat::kernel::println (:wat::string::concat "[response->enum] " path))
         (:user::apply-each (:wat::core::rest paths))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

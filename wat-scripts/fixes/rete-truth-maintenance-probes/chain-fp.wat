@@ -34,6 +34,6 @@
                     s2 (:wat::rete::insert s1 (:c::A 2))
                     fired (:wat::rete::fire-fixpoint s2)]
     (:wat::core::do
-      (:wat::kernel::println (:wat::core::string::concat "A (input, queried) = " (:wat::core::str (:wat::core::length (:wat::rete::query fired (:c::q-A))))))
-      (:wat::kernel::println (:wat::core::string::concat "B (derived)        = " (:wat::core::str (:wat::core::length (:wat::rete::query fired (:c::q-B))))))
-      (:wat::kernel::println (:wat::core::string::concat "C (B join A)       = " (:wat::core::str (:wat::core::length (:wat::rete::query fired (:c::q-C)))))))))
+      (:wat::kernel::println (:wat::string::concat "A (input, queried) = " (:wat::core::str (:wat::core::length (:wat::rete::query fired (:c::q-A))))))
+      (:wat::kernel::println (:wat::string::concat "B (derived)        = " (:wat::core::str (:wat::core::length (:wat::rete::query fired (:c::q-B))))))
+      (:wat::kernel::println (:wat::string::concat "C (B join A)       = " (:wat::core::str (:wat::core::length (:wat::rete::query fired (:c::q-C)))))))))

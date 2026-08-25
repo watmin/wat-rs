@@ -42,7 +42,7 @@
 
 ;; ── small helpers (mirrors wat-scripts/fixes/response-record-to-enum.wat) ──────────────────
 (:wat::core::defn :user::strip-params [name <- :wat::core::String] -> :wat::core::String
-  (:wat::core::first (:wat::core::string::split name "<")))
+  (:wat::core::first (:wat::string::split name "<")))
 
 (:wat::core::defn :user::end-off [n <- :wat::WatAST  lines <- (:wat::core::Vector :- [:wat::core::String])]
   -> :wat::core::i64
@@ -135,7 +135,7 @@
              end       (:user::real-end-off ret-node lines)
              val       (:user::budget-for surface-name op-name)]
             (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])
-              (:wat::core::Tuple end 0 (:wat::core::string::concat " :max-request-bytes " val)))))))
+              (:wat::core::Tuple end 0 (:wat::string::concat " :max-request-bytes " val)))))))
     (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))))
 
 (:wat::core::defn :user::ops-edits
@@ -206,7 +206,7 @@
 ;; ── per-file migrate ─────────────────────────────────────────────────────────
 (:wat::core::defn :user::migrate [src <- :wat::core::String] -> :wat::core::String
   (:wat::core::let
-    [lines (:wat::core::string::split src "\n")
+    [lines (:wat::string::split src "\n")
      forms (:wat::core::ast->children (:wat::core::match (:wat::core::read-string src) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None))))
      eds   (:user::seq-edits forms lines)
      rev   (:wat::core::reverse (:wat::core::sort eds))]
@@ -219,7 +219,7 @@
     (:wat::core::let [path (:wat::core::first paths)]
       (:wat::core::do
         (:wat::io::write-file path (:user::migrate (:wat::io::read-file path)))
-        (:wat::kernel::println (:wat::core::string::concat "[max-request-bytes] " path))
+        (:wat::kernel::println (:wat::string::concat "[max-request-bytes] " path))
         (:user::apply-each (:wat::core::rest paths))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

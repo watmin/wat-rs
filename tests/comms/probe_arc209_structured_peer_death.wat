@@ -38,10 +38,10 @@
                   e (:wat::core::match (:wat::kernel::Failure/expected f)
                       ((:wat::core::Some ev) ev)
                       (:wat::core::None "NO-EXPECTED"))]
-                 (:wat::core::string::concat msg
-                   (:wat::core::string::concat "|"
-                     (:wat::core::string::concat a
-                       (:wat::core::string::concat "|" e))))))
+                 (:wat::string::concat msg
+                   (:wat::string::concat "|"
+                     (:wat::string::concat a
+                       (:wat::string::concat "|" e))))))
               (:wat::core::None "NO-FAILURE")))
           ((:wat::kernel::LociDiedError::RuntimeError _m) "WRONG:RuntimeError")
           (:wat::kernel::LociDiedError::Disconnected "WRONG:Disconnected")

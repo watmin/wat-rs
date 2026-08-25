@@ -156,7 +156,7 @@
                                 "acc-operand-keys")]
           (:wat::core::if (:wat::core::= (:wat::core::ast-kind kid) "symbol")
             (:wat::core::let [nm (:wat::core::ast-name kid)]
-              (:wat::core::if (:wat::core::string::starts-with? nm "?")
+              (:wat::core::if (:wat::string::starts-with? nm "?")
                 (:wat::core::PersistentVector/conj acc nm)
                 acc))
             acc)))

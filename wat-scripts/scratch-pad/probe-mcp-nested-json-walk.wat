@@ -28,7 +28,7 @@
             ((:wat::core::Some args)
               (:wat::core::match (:wat::core::HashMap/get args "edn")
                 ((:wat::core::Some s)
-                  (:wat::kernel::println (:wat::core::string::concat "WALKS -> " s)))
+                  (:wat::kernel::println (:wat::string::concat "WALKS -> " s)))
                 (:wat::core::None (:wat::kernel::println "MISS at edn"))))
             (:wat::core::None (:wat::kernel::println "MISS at arguments"))))
         (:wat::core::None (:wat::kernel::println "MISS at params"))))

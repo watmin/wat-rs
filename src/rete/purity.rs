@@ -259,10 +259,10 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
     // implementation (`string_ops.rs`): `length`/`trim`/`to-lowercase` always return, for any
     // string input, no raise. Every other `string::`/`regex::` verb (incl. `subs`, `split`,
     // `to-uppercase`, the whole `regex::` family) is left `false` — undemanded, unmeasured.
-    if head.starts_with(":wat::core::string::") || head.starts_with(":wat::core::regex::") {
+    if head.starts_with(":wat::string::") || head.starts_with(":wat::core::regex::") {
         let total = matches!(
             head,
-            ":wat::core::string::length" | ":wat::core::string::trim" | ":wat::core::string::to-lowercase"
+            ":wat::string::length" | ":wat::string::trim" | ":wat::string::to-lowercase"
         );
         return Some(OpMeta { pure: true, deterministic: true, total });
     }
@@ -537,7 +537,7 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             | ":wat::core::f64::round" | ":wat::core::f64::clamp"
             | ":wat::core::f64::max-of" | ":wat::core::f64::min-of"
             | ":wat::core::f64::to-i64" | ":wat::core::f64::to-string"
-            // The `String/` family — ENTIRELY absent. Note `:wat::core::string::` (lowercase, a
+            // The `String/` family — ENTIRELY absent. Note `:wat::string::` (lowercase, a
             // namespace) is whitelisted by prefix above; `String/` is the per-Type family users
             // actually call, and it is a different namespace, so the prefix never covered it.
             | ":wat::core::String/concat"      | ":wat::core::String/contains?"

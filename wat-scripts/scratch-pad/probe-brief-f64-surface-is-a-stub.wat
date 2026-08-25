@@ -38,8 +38,8 @@
       (:wat::kernel::println (:wat::rete::core::f64::> nan 1.0))) ;; expect false, no raise
 
     ;; ── row 6 — the casing rename resolves and runs ───────────────────────────────
-    (:wat::kernel::println (:wat::rete::core::string::= "abc" "abc"))     ;; expect true
-    (:wat::kernel::println (:wat::rete::core::string::not= "abc" "xyz"))  ;; expect true
+    (:wat::kernel::println (:wat::rete::string::= "abc" "abc"))     ;; expect true
+    (:wat::kernel::println (:wat::rete::string::not= "abc" "xyz"))  ;; expect true
 
     ;; ── row 7 — the re-point: right door, right boolean ───────────────────────────
     (:wat::kernel::println (:wat::rete::core::i64::= 3 3))       ;; expect true

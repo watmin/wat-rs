@@ -21,17 +21,17 @@
 (:wat::test::deftest :wat-tests::core::core-seqable::seq-of-vector
   (:wat::core::let [out (:wat::core::into [] (:wat::core::Seqable/seq
                           (:wat::core::Vector :wat::core::i64 1 2 3)))]
-    (:wat::test::assert-eq (:wat::core::string::join "," out) "1,2,3")))
+    (:wat::test::assert-eq (:wat::string::join "," out) "1,2,3")))
 
 (:wat::test::deftest :wat-tests::core::core-seqable::seq-of-persistentvector
   (:wat::core::let [out (:wat::core::into [] (:wat::core::Seqable/seq
                           (:wat::core::PersistentVector 1 2 3 4)))]
-    (:wat::test::assert-eq (:wat::core::string::join "," out) "1,2,3,4")))
+    (:wat::test::assert-eq (:wat::string::join "," out) "1,2,3,4")))
 
 (:wat::test::deftest :wat-tests::core::core-seqable::seq-of-list
   (:wat::core::let [out (:wat::core::into [] (:wat::core::Seqable/seq
                           (:wat::core::List/of 1 2 3 4 5)))]
-    (:wat::test::assert-eq (:wat::core::string::join "," out) "1,2,3,4,5")))
+    (:wat::test::assert-eq (:wat::string::join "," out) "1,2,3,4,5")))
 
 (:wat::test::deftest :wat-tests::core::core-seqable::seq-of-stream
   (:wat::core::let [out (:wat::core::into [] (:wat::core::Seqable/seq
@@ -39,7 +39,7 @@
                             (:wat::stream::lazy
                               (:wat::stream::cons 8
                                 (:wat::stream::lazy (:wat::stream::empty)))))))]
-    (:wat::test::assert-eq (:wat::core::string::join "," out) "7,8")))
+    (:wat::test::assert-eq (:wat::string::join "," out) "7,8")))
 
 ;; ─── ★ THE STONE — one generic fn over ANY (Seqable :- [T]), CALLED with all four ─────────────────
 ;;
@@ -80,4 +80,4 @@
   (:wat::core::let [out (:wat::core::into []
                           (:wat::core::take
                             (:wat::core::Seqable/seq (:wat-tests::core::core-seqable::nat 0)) 3))]
-    (:wat::test::assert-eq (:wat::core::string::join "," out) "0,1,2")))
+    (:wat::test::assert-eq (:wat::string::join "," out) "0,1,2")))

@@ -10,6 +10,6 @@
      inner     (:wat::core::Option/expect (:wat::core::get kids 0) "no child 0")
      edn-inner (:wat::core::write-forms inner)
      same      (:wat::core::= edn edn-inner)]
-    (:wat::kernel::println (:wat::core::string::concat "EDN1=" edn))
-    (:wat::kernel::println (:wat::core::string::concat "INNER=" edn-inner))
+    (:wat::kernel::println (:wat::string::concat "EDN1=" edn))
+    (:wat::kernel::println (:wat::string::concat "INNER=" edn-inner))
     (:wat::kernel::println (:wat::core::str same))))

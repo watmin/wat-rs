@@ -319,7 +319,7 @@
   [node <- :wat::core::Record]
   -> :wat::core::String
   (:wat::core::let [fqdn   (:wat::core::type node)
-                    parts  (:wat::core::string::split fqdn "::")
+                    parts  (:wat::string::split fqdn "::")
                     n      (:wat::core::length parts)]
     (:wat::core::if (:wat::core::i64::> n 0)
       (:wat::core::Option/expect  
@@ -365,10 +365,10 @@
                                (:wat::core::let [id-s (:wat::core::i64::to-string id)]
                                  (:wat::core::if (:wat::core::= acc "")
                                    id-s
-                                   (:wat::core::string::interpolate "{acc} {id-s}" :acc acc :id-s id-s))))
+                                   (:wat::string::interpolate "{acc} {id-s}" :acc acc :id-s id-s))))
                              ""
                              ids)]
-    (:wat::core::string::interpolate "[{inner}]" :inner inner)))
+    (:wat::string::interpolate "[{inner}]" :inner inner)))
 
 ;; render-dag — walk Session.network (id→Node records), emit one readable line
 ;; per node: "  <id>  <kind> -> [<child-ids>]\n". Returns the whole graph as a String.
@@ -396,17 +396,17 @@
                           ;; nested string::concat is left intentionally. The arc-277 auto-fix
                           ;; is bare-symbol-only and cannot reach this compound case.
                           ;; Do NOT hand-fix.
-                          line  (:wat::core::string::concat
+                          line  (:wat::string::concat
                                    "  "
-                                   (:wat::core::string::concat
+                                   (:wat::string::concat
                                      id-s
-                                     (:wat::core::string::concat
+                                     (:wat::string::concat
                                        "  "
-                                       (:wat::core::string::concat
+                                       (:wat::string::concat
                                          kind
-                                         (:wat::core::string::concat
+                                         (:wat::string::concat
                                            " -> "
-                                           (:wat::core::string::concat edge "\n"))))))]
-          (:wat::core::string::concat acc line)))
+                                           (:wat::string::concat edge "\n"))))))]
+          (:wat::string::concat acc line)))
       ""
       keys)))

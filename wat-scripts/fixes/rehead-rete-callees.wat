@@ -80,7 +80,7 @@
       (:wat::core::do
         (:wat::io::write-file path out)
         (:wat::kernel::println
-          (:wat::core::string::concat
+          (:wat::string::concat
             (:wat::core::if (:wat::core::= src out) "[unchanged] " "[reheaded]  ") path))
         (:user::apply-each (:wat::core::rest paths))))))
 

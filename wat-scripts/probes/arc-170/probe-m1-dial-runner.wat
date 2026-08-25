@@ -15,7 +15,7 @@
   :satisfies :probe::Echo  :durable [] :ephemeral []
   :impls [(echo [s ctx req]
             (:wat::service::Outcome::Reply s
-              (:probe::Echo::EchoResponse::Ok (:wat::core::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))))])
+              (:probe::Echo::EchoResponse::Ok (:wat::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))))])
 
 ;; PARENT-side PoolMsg alias: bare-D Setup so we can send the erased address.
 (:wat::core::defn :user::main [] -> :wat::core::nil
@@ -75,8 +75,8 @@
                         (:wat::kernel::RecvOutcome::Closed
                           (:wat::kernel::assertion-failed! "recv': worker closed unexpectedly" :wat::core::None :wat::core::None)))
                       (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String]))]
-                (:wat::core::string::concat (:wat::core::second r1)
-                  (:wat::core::string::concat " | " (:wat::core::second r2)))))
+                (:wat::string::concat (:wat::core::second r1)
+                  (:wat::string::concat " | " (:wat::core::second r2)))))
             (:wat::core::None
               (:wat::kernel::assertion-failed! "peer-pid None" :wat::core::None :wat::core::None)))]
     (:wat::kernel::println out)))

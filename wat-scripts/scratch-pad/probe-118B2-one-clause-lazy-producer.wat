@@ -67,13 +67,13 @@
     (:wat::core::do
       ;; ONE definition, FOUR container kinds at the call site — the payoff. Expect 2,4 / 2,4 / 2,4 / 2,4
       (:wat::kernel::println
-        (:wat::core::string::join " | "
+        (:wat::string::join " | "
           (:wat::core::Vector :wat::core::String
-            (:wat::core::string::join "," (:wat::core::into [] (:probe::keep-one keep-even
+            (:wat::string::join "," (:wat::core::into [] (:probe::keep-one keep-even
               (:wat::core::Vector :wat::core::i64 1 2 3 4 5))))
-            (:wat::core::string::join "," (:wat::core::into [] (:probe::keep-one keep-even
+            (:wat::string::join "," (:wat::core::into [] (:probe::keep-one keep-even
               (:wat::core::PersistentVector 1 2 3 4 5))))
-            (:wat::core::string::join "," (:wat::core::into [] (:probe::keep-one keep-even
+            (:wat::string::join "," (:wat::core::into [] (:probe::keep-one keep-even
               (:wat::core::List/of 1 2 3 4 5))))
             ;; 4th slot: a CONCRETE (Stream :- [i64]). It was `(Seqable/seq (Vector …))` while this
             ;; probe was B2's RED gate; that form is still RED, but for an UNRELATED reason —
@@ -82,15 +82,15 @@
             ;; Isolated: a concrete `(Stream :- [i64])` from an ordinary defn satisfies `(Seqable :- [i64])`
             ;; fine. Changed to the concrete form so this probe measures B1a and not #95 —
             ;; the #95 instance is recorded in MEASURED-118.B1a, not silently dropped.
-            (:wat::core::string::join "," (:wat::core::into [] (:probe::keep-one keep-even
+            (:wat::string::join "," (:wat::core::into [] (:probe::keep-one keep-even
               (:wat::core::map (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x)
                 (:wat::core::Vector :wat::core::i64 1 2 3 4 5))))))))
       ;; state-carrying, over a List. Expect 0,1,2,3,4
       (:wat::kernel::println
-        (:wat::core::string::join ","
+        (:wat::string::join ","
           (:wat::core::into [] (:probe::index-one 0 (:wat::core::List/of 9 9 9 9 9)))))
       ;; LAZINESS over an INFINITE source through the migrated shape. Expect 0,2,4 — and it must
       ;; TERMINATE; an eager collapse here would hang rather than print.
       (:wat::kernel::println
-        (:wat::core::string::join ","
+        (:wat::string::join ","
           (:wat::core::into [] (:wat::core::take (:probe::keep-one keep-even (:probe::nat 0)) 3)))))))

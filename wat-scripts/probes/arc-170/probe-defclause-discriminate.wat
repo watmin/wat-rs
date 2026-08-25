@@ -15,9 +15,9 @@
 ;; the multi-backend client — concrete clauses + the OPEN-surface fallback
 (:wat::core::defclause :probe::describe
   ([r <- :probe::SqliteReason] -> :wat::core::String
-    (:wat::core::string::concat "sqlite " (:wat::core::i64::to-string (:probe::SqliteReason/code r))))
+    (:wat::string::concat "sqlite " (:wat::core::i64::to-string (:probe::SqliteReason/code r))))
   ([r <- :probe::RedisReason]  -> :wat::core::String
-    (:wat::core::string::concat "redis "  (:wat::core::i64::to-string (:probe::RedisReason/errno r))))
+    (:wat::string::concat "redis "  (:wat::core::i64::to-string (:probe::RedisReason/errno r))))
   ([r <- :probe::Reason]       -> :wat::core::String
     "unknown backend"))
 
@@ -31,4 +31,4 @@
      unknown (:probe::as-reason-m (:probe::MongoReason "app.users"))                     ; : Reason, concrete = Mongo
      d1 (:probe::describe known)      ; want "sqlite 2067"      (concrete clause wins over fallback)
      d2 (:probe::describe unknown)]   ; want "unknown backend"  (fallback catches the type with no clause)
-    (:wat::kernel::println (:wat::core::string::concat (:wat::core::string::concat d1 " | ") d2))))
+    (:wat::kernel::println (:wat::string::concat (:wat::string::concat d1 " | ") d2))))

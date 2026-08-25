@@ -76,7 +76,7 @@
   (:wat::core::foldl
     (:wat::core::fn [acc <- :wat::core::bool  arm <- :wat::WatAST] -> :wat::core::bool
       (:wat::core::if acc true
-        (:wat::core::string::contains? (:user::arm-head-name arm) needle)))
+        (:wat::string::contains? (:user::arm-head-name arm) needle)))
     false arms))
 
 ;; read-string-call? — a list whose head keyword is exactly `:wat::core::read-string`.
@@ -145,7 +145,7 @@
 ;; ── per-file migrate ─────────────────────────────────────────────────────────
 (:wat::core::defn :user::migrate [src <- :wat::core::String] -> :wat::core::String
   (:wat::core::let
-    [lines (:wat::core::string::split src "\n")
+    [lines (:wat::string::split src "\n")
      forms (:wat::core::ast->children (:wat::core::match (:wat::core::read-string src) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None))))
      eds   (:user::seq-edits forms lines)
      rev   (:wat::core::reverse (:wat::core::sort eds))]

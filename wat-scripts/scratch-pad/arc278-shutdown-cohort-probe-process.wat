@@ -27,7 +27,7 @@
         ((:wat::kernel::RecvOutcome::Lost cause)
           (:wat::core::match cause
             (:wat::kernel::LociDiedError::Stopped (:wat::kernel::println "OUTCOME:Lost:Stopped"))
-            (_ (:wat::kernel::println (:wat::core::string::concat "OUTCOME:Lost:Other:" (:wat::kernel::LociDiedError/message cause))))))
+            (_ (:wat::kernel::println (:wat::string::concat "OUTCOME:Lost:Other:" (:wat::kernel::LociDiedError/message cause))))))
         ;; arc 278 #73 — this is the exact top-level arm the shutdown-cohort question
         ;; was probing for: post-migration, `recv_outcome_shutdown()` builds this
         ;; variant directly rather than `Lost[LociDiedError::Stopped]`, so a live run

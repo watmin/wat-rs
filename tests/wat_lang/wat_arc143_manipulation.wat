@@ -78,7 +78,7 @@
      names    (:wat::runtime::extract-arg-names sig)
      len      (:wat::core::length names)
      rendered (:wat::edn::write names)]
-    (:wat::core::string::concat
+    (:wat::string::concat
       (:wat::edn::write len)
       " "
       rendered)))
@@ -103,7 +103,7 @@
      names    (:wat::runtime::extract-arg-names renamed)
      len      (:wat::core::length names)
      rendered (:wat::edn::write names)]
-    (:wat::core::string::concat
+    (:wat::string::concat
       (:wat::edn::write len)
       " "
       rendered)))

@@ -119,7 +119,7 @@
   (:wat::core::let
     [src1  (:wat::fix::rename-keyword-prefix ":wat::kernel::ThreadDiedError" ":wat::kernel::LociDiedError" src)
      src2  (:wat::fix::rename-keyword-prefix ":wat::kernel::ProcessDiedError" ":wat::kernel::LociDiedError" src1)
-     lines (:wat::core::string::split src2 "\n")
+     lines (:wat::string::split src2 "\n")
      forms (:wat::core::ast->children (:wat::core::match (:wat::core::read-string src2) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None))))
      eds   (:user::seq-edits forms "" lines)
      rev   (:wat::core::reverse (:wat::core::sort eds))]
@@ -132,7 +132,7 @@
     (:wat::core::let [path (:wat::core::first paths)]
       (:wat::core::do
         (:wat::io::write-file path (:user::migrate (:wat::io::read-file path)))
-        (:wat::kernel::println (:wat::core::string::concat "[diederror->loci-died-error] " path))
+        (:wat::kernel::println (:wat::string::concat "[diederror->loci-died-error] " path))
         (:user::apply-each (:wat::core::rest paths))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

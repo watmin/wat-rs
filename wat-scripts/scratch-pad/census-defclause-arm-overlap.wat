@@ -46,8 +46,8 @@
       (:wat::core::if (:wat::core::= t "<-")
         (:wat::core::match (:wat::stream::next rest)
           ((:wat::stream::NextOutcome::Item ty more)
-            (:wat::core::string::concat
-              (:wat::core::string::concat ty " ~ ")
+            (:wat::string::concat
+              (:wat::string::concat ty " ~ ")
               (:census::types-after-arrows (:wat::core::into [] more))))
           (:wat::stream::NextOutcome::Exhausted "<MISSING-TYPE>"))
         (:census::types-after-arrows (:wat::core::into [] rest))))
@@ -73,12 +73,12 @@
                   (:wat::core::ast->children (:wat::core::first ch)))))
      guard  (:wat::core::if (:census::has-guard? arm) "yes" "no")]
     (:wat::kernel::println
-      (:wat::core::string::concat
-        (:wat::core::string::concat
-          (:wat::core::string::concat
-            (:wat::core::string::concat (:wat::core::string::concat path " || CLAUSE ") name)
+      (:wat::string::concat
+        (:wat::string::concat
+          (:wat::string::concat
+            (:wat::string::concat (:wat::string::concat path " || CLAUSE ") name)
             " | GUARD ") guard)
-        (:wat::core::string::concat " | TYPES " (:census::types-after-arrows binder))))))
+        (:wat::string::concat " | TYPES " (:census::types-after-arrows binder))))))
 
 (:wat::core::defn :census::walk [path <- :wat::core::String form <- :wat::WatAST] -> :wat::core::nil
   (:wat::core::do
@@ -100,7 +100,7 @@
                     (:wat::core::let [cc (:wat::core::into [] (:wat::core::ast->children c))]
                       (:wat::core::if (:wat::core::empty? cc)
                         false
-                        (:wat::core::string::contains?
+                        (:wat::string::contains?
                           (:wat::core::ast->source (:wat::core::first cc)) "["))))
                   (:wat::core::into [] (:wat::core::drop ch 2))))]
         ;; No arm INDEX is emitted: the rows come out in declaration order, which IS the arm

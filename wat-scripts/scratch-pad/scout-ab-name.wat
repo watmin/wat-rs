@@ -15,6 +15,6 @@
      pure    (:wat::rete::pure? form)
      pf      (:wat::core::Result/expect (:wat::eval-ast! form) "eval failed")
      keeps5  (:wat::core::apply  pf [5])]
-    (:wat::kernel::println (:wat::core::string::concat "HEAD-NAME=" hname))
-    (:wat::kernel::println (:wat::core::string::concat "HEAD-KIND=" hkind))
-    (:wat::kernel::println (:wat::core::string::concat "pure=" (:wat::core::str pure) " keeps5=" (:wat::core::str keeps5)))))
+    (:wat::kernel::println (:wat::string::concat "HEAD-NAME=" hname))
+    (:wat::kernel::println (:wat::string::concat "HEAD-KIND=" hkind))
+    (:wat::kernel::println (:wat::string::concat "pure=" (:wat::core::str pure) " keeps5=" (:wat::core::str keeps5)))))

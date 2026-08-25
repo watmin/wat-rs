@@ -48,27 +48,27 @@
                     o-b      (:wat::core::length (:wat::rete::query oracle (:c::q-B)))
                     o-c      (:wat::core::length (:wat::rete::query oracle (:c::q-C)))]
     (:wat::core::do
-      (:wat::kernel::println (:wat::core::string::concat "=== native (fire-rules') ==="))
-      (:wat::kernel::println (:wat::core::string::concat "A (input, queried) = " (:wat::core::str n-a)))
-      (:wat::kernel::println (:wat::core::string::concat "B (derived)        = " (:wat::core::str n-b)))
-      (:wat::kernel::println (:wat::core::string::concat "C (B join A)       = " (:wat::core::str n-c)))
-      (:wat::kernel::println (:wat::core::string::concat "=== oracle (fire-fixpoint) ==="))
-      (:wat::kernel::println (:wat::core::string::concat "A (input, queried) = " (:wat::core::str o-a)))
-      (:wat::kernel::println (:wat::core::string::concat "B (derived)        = " (:wat::core::str o-b)))
-      (:wat::kernel::println (:wat::core::string::concat "C (B join A)       = " (:wat::core::str o-c)))
+      (:wat::kernel::println (:wat::string::concat "=== native (fire-rules') ==="))
+      (:wat::kernel::println (:wat::string::concat "A (input, queried) = " (:wat::core::str n-a)))
+      (:wat::kernel::println (:wat::string::concat "B (derived)        = " (:wat::core::str n-b)))
+      (:wat::kernel::println (:wat::string::concat "C (B join A)       = " (:wat::core::str n-c)))
+      (:wat::kernel::println (:wat::string::concat "=== oracle (fire-fixpoint) ==="))
+      (:wat::kernel::println (:wat::string::concat "A (input, queried) = " (:wat::core::str o-a)))
+      (:wat::kernel::println (:wat::string::concat "B (derived)        = " (:wat::core::str o-b)))
+      (:wat::kernel::println (:wat::string::concat "C (B join A)       = " (:wat::core::str o-c)))
       ;; Equality assertions: native must match oracle for every derived type.
       (:wat::core::if (:wat::core::= n-b o-b) 
         (:wat::kernel::println "PASS: B native == B oracle")
         (:wat::kernel::assertion-failed!
-          (:wat::core::string::concat "FAIL: B native=" (:wat::core::str n-b) " oracle=" (:wat::core::str o-b))
+          (:wat::string::concat "FAIL: B native=" (:wat::core::str n-b) " oracle=" (:wat::core::str o-b))
           :wat::core::None :wat::core::None))
       (:wat::core::if (:wat::core::= n-c o-c) 
         (:wat::kernel::println "PASS: C native == C oracle")
         (:wat::kernel::assertion-failed!
-          (:wat::core::string::concat "FAIL: C native=" (:wat::core::str n-c) " oracle=" (:wat::core::str o-c))
+          (:wat::string::concat "FAIL: C native=" (:wat::core::str n-c) " oracle=" (:wat::core::str o-c))
           :wat::core::None :wat::core::None))
       (:wat::core::if (:wat::core::= n-c 2) 
         (:wat::kernel::println "PASS: C = 2 (expected)")
         (:wat::kernel::assertion-failed!
-          (:wat::core::string::concat "FAIL: C expected=2 got=" (:wat::core::str n-c))
+          (:wat::string::concat "FAIL: C expected=2 got=" (:wat::core::str n-c))
           :wat::core::None :wat::core::None)))))

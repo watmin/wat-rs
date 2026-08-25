@@ -29,7 +29,7 @@
 (:wat::core::defn :user::pure-arithmetic-pure? [] -> :wat::core::bool
   (:wat::rete::pure? (:wat::core::quote (:wat::core::> (:wat::core::- 5 3) 1))))
 (:wat::core::defn :user::pure-string-predicate-pure? [] -> :wat::core::bool
-  (:wat::rete::pure? (:wat::core::quote (:wat::core::string::starts-with? "abc" "a"))))
+  (:wat::rete::pure? (:wat::core::quote (:wat::string::starts-with? "abc" "a"))))
 (:wat::core::defn :user::io-op-pure? [] -> :wat::core::bool
   (:wat::rete::pure? (:wat::core::quote (:wat::io::IOReader/open-file "x"))))
 (:wat::core::defn :user::transitively-effectful-user-fn-pure? [] -> :wat::core::bool

@@ -32,7 +32,7 @@
     (:wat::core::match a 
       ((:wat::core::Some sa)
        (:wat::core::match b 
-         ((:wat::core::Some sb) (:wat::core::string::join "," (:wat::core::Vector :wat::core::String sa sb)))
+         ((:wat::core::Some sb) (:wat::string::join "," (:wat::core::Vector :wat::core::String sa sb)))
          (:wat::core::None     "second-missing")))
       (:wat::core::None "first-missing"))))
 

@@ -17,7 +17,7 @@
 
 ;; Probe 3 — mangled-namespace user defn via apply (result "hello world")
 (:wat::core::defn :ns::greeting [name <- :wat::core::String] -> :wat::core::String
-  (:wat::core::string::concat "hello " name))
+  (:wat::string::concat "hello " name))
 (:wat::core::defn :user::probe-3 [] -> :wat::core::String
   (:wat::core::let [verb (:wat::core::keyword/from-string "ns::greeting")]
     (:wat::core::apply  verb ["world"])))

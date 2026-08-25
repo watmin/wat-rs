@@ -85,9 +85,9 @@
       ;; and it fires correctly on the base case (n = 0). A fact with n > 0 would hang the
       ;; fire forever, with no diagnostic. DO NOT ADD ONE.
       (:wat::kernel::println
-        (:wat::core::string::concat ":derived-at-n0 "
+        (:wat::string::concat ":derived-at-n0 "
           (:wat::core::str (:wat::core::length (:wat::rete::query fired (:probe-term::q-Done))))))
       ;; the bounded twin, for contrast — repetition the vocabulary CAN prove terminates
       (:wat::kernel::println
-        (:wat::core::string::concat ":bounded-fold "
+        (:wat::string::concat ":bounded-fold "
           (:wat::core::str (:probe-term::all-even? (:wat::core::PersistentVector 2 4 6))))))))

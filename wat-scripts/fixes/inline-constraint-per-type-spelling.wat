@@ -82,7 +82,7 @@
       (:wat::core::match (:user::rename-lookup (:wat::core::ast-name node) table)
         ((:wat::core::Some new)
           (:wat::core::let [off     (:wat::fix::fix-text-offset-of (:wat::core::ast-span node) lines)
-                            old-len (:wat::core::string::length (:wat::core::ast-name node))]
+                            old-len (:wat::string::length (:wat::core::ast-name node))]
             (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])
               (:wat::core::Tuple off old-len new))))
         (:wat::core::None
@@ -149,7 +149,7 @@
 (:wat::core::defn :user::migrate
   [src <- :wat::core::String]
   -> :wat::core::String
-  (:wat::core::let [lines     (:wat::core::string::split src "\n")
+  (:wat::core::let [lines     (:wat::string::split src "\n")
                     tree      (:wat::core::match (:wat::core::read-string src) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)))
                     forms     (:wat::core::ast->children tree)
                     table     (:user::rename-table)
@@ -166,7 +166,7 @@
       (:wat::core::do
         (:wat::io::write-file path
           (:user::migrate (:wat::io::read-file path)))
-        (:wat::kernel::println (:wat::core::string::concat "[inline-constraint-per-type-spelling] " path))
+        (:wat::kernel::println (:wat::string::concat "[inline-constraint-per-type-spelling] " path))
         (:user::apply-each (:wat::core::rest paths))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

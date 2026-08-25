@@ -15,4 +15,4 @@
   (:wat::core::let
     [c (:probe::Counter 41)
      r (:probe::Bumper/bump c)]
-    (:wat::kernel::println (:wat::core::string::concat "struct-as-Bumper bump = " (:wat::core::i64::to-string r)))))
+    (:wat::kernel::println (:wat::string::concat "struct-as-Bumper bump = " (:wat::core::i64::to-string r)))))

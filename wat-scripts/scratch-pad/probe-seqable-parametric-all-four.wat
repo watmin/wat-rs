@@ -62,7 +62,7 @@
 ;; (the exact defect MEASURED-118.3-B names). Post-fix: type-checks AND runs, "3,4,5,2".
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::kernel::println
-    (:wat::core::string::join ","
+    (:wat::string::join ","
       (:wat::core::Vector :wat::core::i64
         (:sq::count-of (:wat::core::Vector :wat::core::i64 1 2 3))
         (:sq::count-of (:wat::core::PersistentVector 1 2 3 4))

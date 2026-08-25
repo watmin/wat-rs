@@ -172,13 +172,13 @@
      ;; Arc 294 item 9a — a GENERIC type name registers its kwargs companion + references
      ;; its positional prime under the BARE name (params ride ONLY on the recordtype decl,
      ;; `~fqdn` below). Matches register_aggregate_methods (`format!("{}'", agg.name)`).
-     fqdn-bare-str (:wat::core::first (:wat::core::string::split fqdn-str "<"))
-     fqdn-bare-kw  (:wat::core::keyword-node (:wat::core::string::interpolate ":{fqdn-bare-str}" :fqdn-bare-str fqdn-bare-str))
+     fqdn-bare-str (:wat::core::first (:wat::string::split fqdn-str "<"))
+     fqdn-bare-kw  (:wat::core::keyword-node (:wat::string::interpolate ":{fqdn-bare-str}" :fqdn-bare-str fqdn-bare-str))
      ;; Arc 294 item (C) — the bare `:T` keyword STRING, spliced into the companion's
      ;; live `kwargs-construct` form (check/eval read the field order off the registry).
-     bare-kw-str   (:wat::core::string::interpolate ":{fqdn-bare-str}" :fqdn-bare-str fqdn-bare-str)
-     prime-kw-str  (:wat::core::string::concat ":" (:wat::core::string::concat fqdn-bare-str "'"))
-     ns-parts      (:wat::core::string::split fqdn-bare-str "::")
+     bare-kw-str   (:wat::string::interpolate ":{fqdn-bare-str}" :fqdn-bare-str fqdn-bare-str)
+     prime-kw-str  (:wat::string::concat ":" (:wat::string::concat fqdn-bare-str "'"))
+     ns-parts      (:wat::string::split fqdn-bare-str "::")
      n-ns-parts    (:wat::core::length ns-parts)
      ns-lead       (:wat::core::foldl
                      (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String]) i <- :wat::core::i64] -> (:wat::core::Vector :- [:wat::core::String])
@@ -186,8 +186,8 @@
                          (:wat::core::Option/expect (:wat::core::get ns-parts i) "defrecord kwargs companion: ns-part index")))
                      (:wat::core::Vector :wat::core::String)
                      (:wat::core::range 0 (:wat::core::i64::- n-ns-parts 1)))
-     ns-joined     (:wat::core::string::join "::" ns-lead)
-     ns-colon-str  (:wat::core::string::concat ":" (:wat::core::string::concat ns-joined "::"))
+     ns-joined     (:wat::string::join "::" ns-lead)
+     ns-colon-str  (:wat::string::concat ":" (:wat::string::concat ns-joined "::"))
      call-args-sym (:wat::core::symbol-node "call-args")]
     ;; The macro now expands to `(do recordtype companion)` — NOT emptied by `register_types`
     ;; (which strips only the type decl from a `do` body): the companion `defmacro` survives.
@@ -268,12 +268,12 @@
      ;; Arc 294 item 9a — a GENERIC type name registers its kwargs companion + references
      ;; its positional prime under the BARE name (params ride ONLY on the recordtype decl,
      ;; `~fqdn` below). Matches register_aggregate_methods (`format!("{}'", agg.name)`).
-     fqdn-bare-str (:wat::core::first (:wat::core::string::split fqdn-str "<"))
-     fqdn-bare-kw  (:wat::core::keyword-node (:wat::core::string::interpolate ":{fqdn-bare-str}" :fqdn-bare-str fqdn-bare-str))
+     fqdn-bare-str (:wat::core::first (:wat::string::split fqdn-str "<"))
+     fqdn-bare-kw  (:wat::core::keyword-node (:wat::string::interpolate ":{fqdn-bare-str}" :fqdn-bare-str fqdn-bare-str))
      ;; Arc 294 item (C) — the bare `:T` keyword STRING for the live `kwargs-construct`.
-     bare-kw-str   (:wat::core::string::interpolate ":{fqdn-bare-str}" :fqdn-bare-str fqdn-bare-str)
-     prime-kw-str  (:wat::core::string::concat ":" (:wat::core::string::concat fqdn-bare-str "'"))
-     ns-parts      (:wat::core::string::split fqdn-bare-str "::")
+     bare-kw-str   (:wat::string::interpolate ":{fqdn-bare-str}" :fqdn-bare-str fqdn-bare-str)
+     prime-kw-str  (:wat::string::concat ":" (:wat::string::concat fqdn-bare-str "'"))
+     ns-parts      (:wat::string::split fqdn-bare-str "::")
      n-ns-parts    (:wat::core::length ns-parts)
      ns-lead       (:wat::core::foldl
                      (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String]) i <- :wat::core::i64] -> (:wat::core::Vector :- [:wat::core::String])
@@ -281,8 +281,8 @@
                          (:wat::core::Option/expect (:wat::core::get ns-parts i) "holon defrecord kwargs companion: ns-part index")))
                      (:wat::core::Vector :wat::core::String)
                      (:wat::core::range 0 (:wat::core::i64::- n-ns-parts 1)))
-     ns-joined     (:wat::core::string::join "::" ns-lead)
-     ns-colon-str  (:wat::core::string::concat ":" (:wat::core::string::concat ns-joined "::"))
+     ns-joined     (:wat::string::join "::" ns-lead)
+     ns-colon-str  (:wat::string::concat ":" (:wat::string::concat ns-joined "::"))
      call-args-sym (:wat::core::symbol-node "call-args")]
     `(:wat::core::do
        (:wat::core::recordtype ~fqdn ~@binder :wat::holon::Record

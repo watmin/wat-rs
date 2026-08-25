@@ -48,13 +48,13 @@
      ctl (:wat::kernel::fn-forms :probe::control
            (:wat::core::keyword/from-string "user::root-ctl"))
      _c  (:wat::kernel::println
-           (:wat::core::string::concat "CONTROL forms="
+           (:wat::string::concat "CONTROL forms="
              (:wat::core::i64::to-string (:wat::core::length ctl))))
      ;; ARM 2 — the subject. This raised before the fix, naming `=` from inside the pattern.
      sub (:wat::kernel::fn-forms :probe::subject
            (:wat::core::keyword/from-string "user::root-sub"))
      _s  (:wat::kernel::println
-           (:wat::core::string::concat "SUBJECT forms="
+           (:wat::string::concat "SUBJECT forms="
              (:wat::core::i64::to-string (:wat::core::length sub))))]
     (:wat::kernel::println
       "PASS — both arms extracted; a matches? PATTERN is DATA to the closure walker, not code")))

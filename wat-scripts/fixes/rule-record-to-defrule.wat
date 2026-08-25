@@ -62,7 +62,7 @@
    lines <- (:wat::core::Vector :- [:wat::core::String])
    src   <- :wat::core::String]
   -> :wat::core::String
-  (:wat::core::string::subs src
+  (:wat::string::subs src
     (:wat::fix::node-start-offset node lines)
     (:wat::fix::node-end-offset node lines)))
 
@@ -78,11 +78,11 @@
 
 ;; ends-with? — s ends with suf (bare string compare; suf shorter-or-equal-length required).
 (:wat::core::defn :user::ends-with? [s <- :wat::core::String suf <- :wat::core::String] -> :wat::core::bool
-  (:wat::core::let [ls   (:wat::core::string::length s)
-                    lsuf (:wat::core::string::length suf)]
+  (:wat::core::let [ls   (:wat::string::length s)
+                    lsuf (:wat::string::length suf)]
     (:wat::core::if (:wat::core::< ls lsuf)
       false
-      (:wat::core::= (:wat::core::string::subs s (:wat::core::i64::- ls lsuf) ls) suf))))
+      (:wat::core::= (:wat::string::subs s (:wat::core::i64::- ls lsuf) ls) suf))))
 
 ;; ── rule-defn? — a top-level `(:wat::core::defn NAME [] -> :wat::rete::Rule BODY)` form.
 ;; Gated on rettype ONLY (":wat::rete::Rule"); the conds/ins helpers return :wat::WatAST and are
@@ -278,7 +278,7 @@
 ;; ── per-file migrate ─────────────────────────────────────────────────────────────────────────
 (:wat::core::defn :user::migrate [src <- :wat::core::String] -> :wat::core::String
   (:wat::core::let
-    [lines          (:wat::core::string::split src "\n")
+    [lines          (:wat::string::split src "\n")
      tree           (:wat::core::match (:wat::core::read-string src) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)))
      forms          (:wat::core::ast->children tree)
      conds-text-opt (:user::helper-text-opt forms lines src "::conds")

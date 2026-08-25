@@ -48,7 +48,7 @@
 ;; in wat core). `old` must be non-empty (string::split rejects an empty separator).
 (:wat::core::defn :user::literal-replace
   [src <- :wat::core::String  old <- :wat::core::String  new <- :wat::core::String] -> :wat::core::String
-  (:wat::core::string::join new (:wat::core::string::split src old)))
+  (:wat::string::join new (:wat::string::split src old)))
 
 (:wat::core::defn :user::migrate [src <- :wat::core::String] -> :wat::core::String
   (:wat::core::let
@@ -66,7 +66,7 @@
       (:wat::core::do
         (:wat::io::write-file path
           (:user::migrate (:wat::io::read-file path)))
-        (:wat::kernel::println (:wat::core::string::concat "[shutdown->stopped] " path))
+        (:wat::kernel::println (:wat::string::concat "[shutdown->stopped] " path))
         (:user::apply-each (:wat::core::rest paths))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

@@ -91,7 +91,7 @@
 ;; `keyword/to-symbol` converts. Bare data keywords (`:else`) have no `::` and are left alone.
 (:wat::core::defn :wat::fix::head-keyword? [node <- :wat::WatAST] -> :wat::core::bool
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "keyword")
-    (:wat::core::string::contains? (:wat::core::ast-name node) "::")
+    (:wat::string::contains? (:wat::core::ast-name node) "::")
     false))
 
 ;; arrow? — a bare binder/return annotation arrow SYMBOL (<- or ->). NOTE: the threading
@@ -109,12 +109,12 @@
 (:wat::core::defn :wat::fix::type-shaped-keyword? [node <- :wat::WatAST] -> :wat::core::bool
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "keyword")
     (:wat::core::let [name (:wat::core::ast-name node)]
-      (:wat::core::if (:wat::core::if (:wat::core::string::contains? name "<")
-                        (:wat::core::string::contains? name ">")
+      (:wat::core::if (:wat::core::if (:wat::string::contains? name "<")
+                        (:wat::string::contains? name ">")
                         false)
         true
-        (:wat::core::if (:wat::core::string::contains? name "(")
-          (:wat::core::string::contains? name ")")
+        (:wat::core::if (:wat::string::contains? name "(")
+          (:wat::string::contains? name ")")
           false)))
     false))
 
@@ -170,7 +170,7 @@
   (:wat::core::if (:wat::core::= n 1)
     0
     (:wat::core::let [fst (:wat::core::first lines)]
-      (:wat::core::+ (:wat::core::string::length fst)
+      (:wat::core::+ (:wat::string::length fst)
         (:wat::core::+ 1
           (:wat::fix::fix-text-line-start
             (:wat::core::- n 1)
@@ -212,7 +212,7 @@
    lines <- (:wat::core::Vector :- [:wat::core::String])]
   -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::let [off     (:wat::fix::fix-text-offset-of (:wat::core::ast-span node) lines)
-                    old-len (:wat::core::string::length (:wat::core::ast-name node))]
+                    old-len (:wat::string::length (:wat::core::ast-name node))]
     (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])
       (:wat::core::Tuple off old-len ""))))
 
@@ -230,7 +230,7 @@
       (:wat::core::let [span    (:wat::core::ast-span node)
                         off     (:wat::fix::fix-text-offset-of span lines)
                         nm      (:wat::core::ast-name node)
-                        old-len (:wat::core::string::length nm)]
+                        old-len (:wat::string::length nm)]
         (:wat::core::if prev-arrow?
           ;; post-arrow keyword is a type annotation → convert to type form
           (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])
@@ -254,7 +254,7 @@
           (:wat::core::let [span    (:wat::core::ast-span node)
                             off     (:wat::fix::fix-text-offset-of span lines)
                             nm      (:wat::core::ast-name node)
-                            old-len (:wat::core::string::length nm)]
+                            old-len (:wat::string::length nm)]
             (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])
               (:wat::core::Tuple off old-len ":-")))
           ;; non-arrow symbol — no edit
@@ -332,12 +332,12 @@
                       old-len  (:wat::core::second edit)
                       new-text (:wat::core::third edit)
                       tl       (:wat::core::rest edits)
-                      new-src  (:wat::core::string::concat
-                                  (:wat::core::string::subs src 0 off)
+                      new-src  (:wat::string::concat
+                                  (:wat::string::subs src 0 off)
                                   new-text
-                                  (:wat::core::string::subs src
+                                  (:wat::string::subs src
                                     (:wat::core::+ off old-len)
-                                    (:wat::core::string::length src)))]
+                                    (:wat::string::length src)))]
       (:wat::fix::fix-text-apply new-src tl))))
 
 ;; fix-text — comment-faithful codemod: src string → migrated-src string.
@@ -347,7 +347,7 @@
 (:wat::core::defn :wat::fix::fix-text
   [src <- :wat::core::String]
   -> :wat::core::String
-  (:wat::core::let [lines     (:wat::core::string::split src "\n")
+  (:wat::core::let [lines     (:wat::string::split src "\n")
                     tree      (:wat::core::match (:wat::core::read-string src) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)))
                     forms     (:wat::core::ast->children tree)
                     all-edits (:wat::fix::fix-text-seq-edits forms false lines)
@@ -431,7 +431,7 @@
   [src   <- :wat::core::String
    heads <- (:wat::core::Vector :- [:wat::core::String])]
   -> :wat::core::String
-  (:wat::core::let [lines     (:wat::core::string::split src "\n")
+  (:wat::core::let [lines     (:wat::string::split src "\n")
                     tree      (:wat::core::match (:wat::core::read-string src) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)))
                     forms     (:wat::core::ast->children tree)
                     all-edits (:wat::fix::strip-arrow-seq forms heads lines)]
@@ -497,7 +497,7 @@
                       head-edits (:wat::core::if is-type-slot?
                                    (:wat::core::let [span    (:wat::core::ast-span h)
                                                      off     (:wat::fix::fix-text-offset-of span lines)
-                                                     old-len (:wat::core::string::length (:wat::core::ast-name h))
+                                                     old-len (:wat::string::length (:wat::core::ast-name h))
                                                      new-text (:wat::core::if after-amp?
                                                                  "(:wat::core::Vector :- [:wat::WatAST])"
                                                                  ":wat::WatAST")]
@@ -533,7 +533,7 @@
         ;; emit the single rettype replacement edit; stop (return type consumed)
         (:wat::core::let [span    (:wat::core::ast-span h)
                           off     (:wat::fix::fix-text-offset-of span lines)
-                          old-len (:wat::core::string::length (:wat::core::ast-name h))]
+                          old-len (:wat::string::length (:wat::core::ast-name h))]
           (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])
             (:wat::core::Tuple off old-len ":wat::WatAST")))
         ;; not yet — recurse tracking whether current token is `->`
@@ -597,7 +597,7 @@
 (:wat::core::defn :wat::fix::fix-macro-param-types
   [src <- :wat::core::String]
   -> :wat::core::String
-  (:wat::core::let [lines     (:wat::core::string::split src "\n")
+  (:wat::core::let [lines     (:wat::string::split src "\n")
                     tree      (:wat::core::match (:wat::core::read-string src) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)))
                     forms     (:wat::core::ast->children tree)
                     all-edits (:wat::fix::macro-param-edits forms lines)
@@ -625,13 +625,13 @@
 ;; rename-ident-char? — true if the single-char string c is an identifier-continuation char.
 ;; [a-zA-Z0-9_-] — right-INVALID chars that signal the match bleeds into a sibling name.
 (:wat::core::defn :wat::fix::rename-ident-char? [c <- :wat::core::String] -> :wat::core::bool
-  (:wat::core::string::contains? "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-" c))
+  (:wat::string::contains? "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-" c))
 
 ;; rename-strip-colon — thin alias over :wat::core::string::strip-leading-colon.
 ;; ":t::Old" → "t::Old"; "t::Old" → "t::Old" (idempotent on bare strings).
 ;; Promoted to core in Arc 260.1b Part A; kept here so call sites at lines 722/723 are untouched.
 (:wat::core::defn :wat::fix::rename-strip-colon [s <- :wat::core::String] -> :wat::core::String
-  (:wat::core::string::strip-leading-colon s))
+  (:wat::string::strip-leading-colon s))
 
 ;; rename-valid-match? — true iff old-bare (colon-stripped prefix) matches at index i in name
 ;; with a valid left and right boundary.
@@ -649,15 +649,15 @@
     (:wat::core::if (:wat::core::> end name-len)
       ;; not enough chars to match — absent
       false
-      (:wat::core::if (:wat::core::= (:wat::core::string::subs name i end) old-bare)
+      (:wat::core::if (:wat::core::= (:wat::string::subs name i end) old-bare)
         ;; present — check left-valid
         (:wat::core::let [left-ok (:wat::core::if (:wat::core::= i 1)
                                     ;; head case: i==1 and name[0]==":"
-                                    (:wat::core::= (:wat::core::string::subs name 0 1) ":")
+                                    (:wat::core::= (:wat::string::subs name 0 1) ":")
                                     ;; type-arg case: preceded by "<", ",", or " "
                                     (:wat::core::if (:wat::core::< i 1)
                                       false
-                                      (:wat::core::let [prev (:wat::core::string::subs name (:wat::core::- i 1) i)]
+                                      (:wat::core::let [prev (:wat::string::subs name (:wat::core::- i 1) i)]
                                         (:wat::core::if (:wat::core::= prev "<") true
                                           (:wat::core::if (:wat::core::= prev ",") true
                                             (:wat::core::if (:wat::core::= prev " ") true
@@ -668,7 +668,7 @@
             ;; check right-valid: at-end or not an ident char
             (:wat::core::if (:wat::core::= end name-len)
               true
-              (:wat::core::not (:wat::fix::rename-ident-char? (:wat::core::string::subs name end (:wat::core::+ end 1)))))
+              (:wat::core::not (:wat::fix::rename-ident-char? (:wat::string::subs name end (:wat::core::+ end 1)))))
             false))
         ;; substr doesn't match — absent
         false))))
@@ -691,11 +691,11 @@
       ;; valid match — emit new-bare, advance by old-len
       (:wat::fix::rename-in-name name old-bare new-bare old-len name-len
         (:wat::core::+ i old-len)
-        (:wat::core::string::concat acc new-bare))
+        (:wat::string::concat acc new-bare))
       ;; no match — emit one char, advance by 1
       (:wat::fix::rename-in-name name old-bare new-bare old-len name-len
         (:wat::core::+ i 1)
-        (:wat::core::string::concat acc (:wat::core::string::subs name i (:wat::core::+ i 1)))))))
+        (:wat::string::concat acc (:wat::string::subs name i (:wat::core::+ i 1)))))))
 
 ;; rename-prefix-edits-walk — walk a vector of nodes, concating prefix-swap edits.
 ;; Internal helper mirroring macro-param-edits; not a public API.
@@ -731,8 +731,8 @@
       (:wat::core::let [name     (:wat::core::ast-name node)
                         old-bare (:wat::fix::rename-strip-colon old-prefix)
                         new-bare (:wat::fix::rename-strip-colon new-prefix)
-                        old-len  (:wat::core::string::length old-bare)
-                        name-len (:wat::core::string::length name)
+                        old-len  (:wat::string::length old-bare)
+                        name-len (:wat::string::length name)
                         new-name (:wat::fix::rename-in-name name old-bare new-bare old-len name-len 0 "")]
         (:wat::core::if (:wat::core::= new-name name)
           ;; no change — no edit
@@ -753,7 +753,7 @@
    new-prefix <- :wat::core::String
    src        <- :wat::core::String]
   -> :wat::core::String
-  (:wat::core::let [lines     (:wat::core::string::split src "\n")
+  (:wat::core::let [lines     (:wat::string::split src "\n")
                     tree      (:wat::core::match (:wat::core::read-string src) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)))
                     forms     (:wat::core::ast->children tree)
                     all-edits (:wat::fix::rename-prefix-edits-walk forms old-prefix new-prefix lines)
@@ -798,7 +798,7 @@
       (:wat::core::if (:wat::core::= (:wat::core::ast-name node) old)
         (:wat::core::let [off (:wat::fix::fix-text-offset-of (:wat::core::ast-span node) lines)]
           (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])
-            (:wat::core::Tuple off (:wat::core::string::length old) new)))
+            (:wat::core::Tuple off (:wat::string::length old) new)))
         (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])))
       (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])))))
 
@@ -807,7 +807,7 @@
    new <- :wat::core::String
    src <- :wat::core::String]
   -> :wat::core::String
-  (:wat::core::let [lines     (:wat::core::string::split src "\n")
+  (:wat::core::let [lines     (:wat::string::split src "\n")
                     tree      (:wat::core::match (:wat::core::read-string src) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)))
                     forms     (:wat::core::ast->children tree)
                     all-edits (:wat::fix::rename-exact-edits-walk forms old new lines)
@@ -854,7 +854,7 @@
       (:wat::core::if (:wat::core::= (:wat::core::ast-name node) old)
         (:wat::core::let [off (:wat::fix::fix-text-offset-of (:wat::core::ast-span node) lines)]
           (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])
-            (:wat::core::Tuple off (:wat::core::string::length old) new)))
+            (:wat::core::Tuple off (:wat::string::length old) new)))
         (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])))
       (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])))))
 
@@ -863,7 +863,7 @@
    new <- :wat::core::String
    src <- :wat::core::String]
   -> :wat::core::String
-  (:wat::core::let [lines     (:wat::core::string::split src "\n")
+  (:wat::core::let [lines     (:wat::string::split src "\n")
                     tree      (:wat::core::match (:wat::core::read-string src) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)))
                     forms     (:wat::core::ast->children tree)
                     all-edits (:wat::fix::rename-symbol-exact-edits-walk forms old new lines)
@@ -950,7 +950,7 @@
   (:wat::core::foldl
     (:wat::core::fn [acc <- :wat::core::bool  arm <- :wat::WatAST] -> :wat::core::bool
       (:wat::core::if acc true
-        (:wat::core::string::contains? (:wat::fix::arm-head-name arm) needle)))
+        (:wat::string::contains? (:wat::fix::arm-head-name arm) needle)))
     false arms))
 
 ;; wrapped-in-match? — a `match` whose arm heads already mention `needle`: our prior output.
@@ -1016,7 +1016,7 @@
    before <- :wat::core::String  after <- :wat::core::String]
   -> :wat::core::String
   (:wat::core::let
-    [lines (:wat::core::string::split src "\n")
+    [lines (:wat::string::split src "\n")
      forms (:wat::core::ast->children (:wat::core::match (:wat::core::read-string src) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None))))
      eds   (:wat::fix::wrap-seq-edits forms head needle before after lines)
      rev   (:wat::core::reverse (:wat::core::sort eds))]
@@ -1067,7 +1067,7 @@
           (:wat::core::Vector :wat::fix::Edit
             (:wat::core::Tuple
               (:wat::fix::fix-text-offset-of (:wat::core::ast-span (:wat::core::first kids)) lines)
-              (:wat::core::string::length ":wat::core::defn")
+              (:wat::string::length ":wat::core::defn")
               ":wat::rete::core::defn"))
           inner)
         inner))
@@ -1079,7 +1079,7 @@
   [names <- (:wat::core::Vector :- [:wat::core::String])
    src   <- :wat::core::String] -> :wat::core::String
   (:wat::core::let
-    [lines (:wat::core::string::split src "\n")
+    [lines (:wat::string::split src "\n")
      tree  (:wat::core::match (:wat::core::read-string src) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)))
      eds   (:wat::fix::rehead-rete-defn-walk (:wat::core::ast->children tree) names lines)
      rev   (:wat::core::reverse (:wat::core::sort eds))]
@@ -1142,10 +1142,10 @@
      ach       (:wat::core::ast->children drop-list)
      drop-head (:wat::core::first ach)
      head-off  (:wat::fix::fix-text-offset-of (:wat::core::ast-span head) lines)
-     head-len  (:wat::core::string::length (:wat::core::ast-name head))
+     head-len  (:wat::string::length (:wat::core::ast-name head))
      head-end  (:wat::core::+ head-off head-len)
      dh-off    (:wat::fix::fix-text-offset-of (:wat::core::ast-span drop-head) lines)
-     dh-len    (:wat::core::string::length (:wat::core::ast-name drop-head))
+     dh-len    (:wat::string::length (:wat::core::ast-name drop-head))
      dh-end    (:wat::core::+ dh-off dh-len)
      dl-end    (:wat::fix::fix-text-offset-of (:wat::core::ast-end-span drop-list) lines)]
     (:wat::core::Vector :wat::fix::Edit
@@ -1193,7 +1193,7 @@
 (:wat::core::defn :wat::fix::first-of-drop-to-nth
   [src <- :wat::core::String] -> :wat::core::String
   (:wat::core::let
-    [lines (:wat::core::string::split src "\n")
+    [lines (:wat::string::split src "\n")
      tree  (:wat::core::match (:wat::core::read-string src) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)))
      eds   (:wat::fix::first-of-drop-walk (:wat::core::ast->children tree) lines)
      rev   (:wat::core::reverse (:wat::core::sort eds))]

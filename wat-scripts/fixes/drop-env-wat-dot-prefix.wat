@@ -51,16 +51,16 @@
 ;; exists in wat core). `old` must be non-empty (string::split rejects an empty separator).
 (:wat::core::defn :user::literal-replace
   [src <- :wat::core::String  old <- :wat::core::String  new <- :wat::core::String] -> :wat::core::String
-  (:wat::core::string::join new (:wat::core::string::split src old)))
+  (:wat::string::join new (:wat::string::split src old)))
 
 (:wat::core::defn :user::migrate-field
   [src <- :wat::core::String  bare-old <- :wat::core::String  bare-new <- :wat::core::String]
   -> :wat::core::String
   (:wat::core::let
-    [kw-old  (:wat::core::string::concat ":" bare-old)
-     kw-new  (:wat::core::string::concat ":" bare-new)
-     acc-old (:wat::core::string::concat ":wat::program::Env/" bare-old)
-     acc-new (:wat::core::string::concat ":wat::program::Env/" bare-new)
+    [kw-old  (:wat::string::concat ":" bare-old)
+     kw-new  (:wat::string::concat ":" bare-new)
+     acc-old (:wat::string::concat ":wat::program::Env/" bare-old)
+     acc-new (:wat::string::concat ":wat::program::Env/" bare-new)
      s1      (:wat::fix::rename-symbol-exact bare-old bare-new src)
      s2      (:wat::fix::rename-keyword-exact kw-old kw-new s1)
      s3      (:wat::fix::rename-keyword-exact acc-old acc-new s2)
@@ -86,7 +86,7 @@
       (:wat::core::do
         (:wat::io::write-file path
           (:user::migrate (:wat::io::read-file path)))
-        (:wat::kernel::println (:wat::core::string::concat "[env-dot-drop] " path))
+        (:wat::kernel::println (:wat::string::concat "[env-dot-drop] " path))
         (:user::apply-each (:wat::core::rest paths))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

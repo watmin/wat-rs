@@ -203,13 +203,13 @@
   [peer    <- (:wat::kernel::Peer :- [:wat::kernel::StdOut::Op :wat::kernel::StdOut::Reply])
    payload <- :wat::core::String]
   -> :wat::core::nil
-  (:wat::core::let [len (:wat::core::string::length payload)]
+  (:wat::core::let [len (:wat::string::length payload)]
     (:wat::core::if (:wat::core::= len 0)
       nil
       (:wat::core::let
         [take  (:wat::core::if (:wat::core::i64::< len :wat::kernel::STDIO-WRITE-CHUNK-CHARS) len :wat::kernel::STDIO-WRITE-CHUNK-CHARS)
-         chunk (:wat::core::string::subs payload 0 take)
-         rest  (:wat::core::string::subs payload take len)
+         chunk (:wat::string::subs payload 0 take)
+         rest  (:wat::string::subs payload take len)
          _ack  (:wat::core::match (:wat::kernel::StdOut/write peer (:wat::kernel::StdOut::WriteRequest :bytes chunk))
                  ((:wat::kernel::RecvOutcome::Message resp)
                    (:wat::core::match resp
@@ -232,13 +232,13 @@
   [peer    <- (:wat::kernel::Peer :- [:wat::kernel::StdErr::Op :wat::kernel::StdErr::Reply])
    payload <- :wat::core::String]
   -> :wat::core::nil
-  (:wat::core::let [len (:wat::core::string::length payload)]
+  (:wat::core::let [len (:wat::string::length payload)]
     (:wat::core::if (:wat::core::= len 0)
       nil
       (:wat::core::let
         [take  (:wat::core::if (:wat::core::i64::< len :wat::kernel::STDIO-WRITE-CHUNK-CHARS) len :wat::kernel::STDIO-WRITE-CHUNK-CHARS)
-         chunk (:wat::core::string::subs payload 0 take)
-         rest  (:wat::core::string::subs payload take len)
+         chunk (:wat::string::subs payload 0 take)
+         rest  (:wat::string::subs payload take len)
          _ack  (:wat::core::match (:wat::kernel::StdErr/write peer (:wat::kernel::StdErr::WriteRequest :bytes chunk))
                  ((:wat::kernel::RecvOutcome::Message resp)
                    (:wat::core::match resp

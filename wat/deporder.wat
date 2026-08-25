@@ -57,7 +57,7 @@
   [node <- :wat::WatAST]
   -> :wat::core::bool
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "keyword")
-    (:wat::core::string::contains? (:wat::core::ast-name node) "::")
+    (:wat::string::contains? (:wat::core::ast-name node) "::")
     false))
 
 ;; is-def-head? — true if the ast-name of the form head is a recognized

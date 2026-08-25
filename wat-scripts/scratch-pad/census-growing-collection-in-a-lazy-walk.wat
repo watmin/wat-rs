@@ -107,11 +107,11 @@
         (:census::is-self-call? declared (:census::head form))
         (:census::has-growth-arg? form))
       (:wat::kernel::println
-        (:wat::core::string::concat "  HIT  "
-          (:wat::core::string::concat path
-            (:wat::core::string::concat "  ::  "
-              (:wat::core::string::concat declared
-                (:wat::core::string::concat "  ::  " (:census::src form)))))))
+        (:wat::string::concat "  HIT  "
+          (:wat::string::concat path
+            (:wat::string::concat "  ::  "
+              (:wat::string::concat declared
+                (:wat::string::concat "  ::  " (:census::src form)))))))
       nil)
     (:wat::core::run!
       (:wat::core::fn [c <- :wat::WatAST] -> :wat::core::nil (:census::hunt path declared c))
@@ -144,7 +144,7 @@
           [declared (:census::src (:wat::core::nth ch 1))]
           (:wat::core::do
             (:wat::kernel::println
-              (:wat::core::string::concat
+              (:wat::string::concat
                 (:wat::core::if (:census::is-lazy-body? form) "  [LAZY] " "  [eager] ")
                 declared))
             (:census::hunt path declared form)))
@@ -156,7 +156,7 @@
 (:wat::core::defn :census::file
   [path <- :wat::core::String] -> :wat::core::nil
   (:wat::core::do
-    (:wat::kernel::println (:wat::core::string::concat "== " path))
+    (:wat::kernel::println (:wat::string::concat "== " path))
     (:census::walk path
       (:wat::core::match (:wat::core::read-string (:wat::io::read-file path))
         ((:wat::core::ReadOutcome::Forms __forms) __forms)

@@ -28,7 +28,7 @@
 (:wat::rete::defrule :bv::head
   :when [(:wat::grep::Node  (?id <- :id) (?k <- :kind) (?i <- :index))
          (:wat::grep::Named (?id <- :id) (?n <- :name))
-         (:wat::rete::where (:wat::rete::core::string::= ?k "keyword"))
+         (:wat::rete::where (:wat::rete::string::= ?k "keyword"))
          (:wat::rete::where (:wat::rete::core::i64::= ?i 0))]
   :then [(:bv::Head :id ?id :name ?n)])
 
@@ -36,7 +36,7 @@
   :when [(:bv::Head (?id <- :id) (?n <- :name))
          (:wat::grep::Span (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
          (:wat::grep::Source (?f <- :file))
-         (:wat::rete::where (:wat::rete::core::string::= ?n ":wat::core::Some"))]
+         (:wat::rete::where (:wat::rete::string::= ?n ":wat::core::Some"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "bare-variant-constructor"
            :captures (:wat::rete::core::PersistentVector
@@ -47,7 +47,7 @@
   :when [(:bv::Head (?id <- :id) (?n <- :name))
          (:wat::grep::Span (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
          (:wat::grep::Source (?f <- :file))
-         (:wat::rete::where (:wat::rete::core::string::= ?n ":wat::core::Ok"))]
+         (:wat::rete::where (:wat::rete::string::= ?n ":wat::core::Ok"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "bare-variant-constructor"
            :captures (:wat::rete::core::PersistentVector
@@ -58,7 +58,7 @@
   :when [(:bv::Head (?id <- :id) (?n <- :name))
          (:wat::grep::Span (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
          (:wat::grep::Source (?f <- :file))
-         (:wat::rete::where (:wat::rete::core::string::= ?n ":wat::core::Err"))]
+         (:wat::rete::where (:wat::rete::string::= ?n ":wat::core::Err"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "bare-variant-constructor"
            :captures (:wat::rete::core::PersistentVector

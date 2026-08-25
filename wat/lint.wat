@@ -250,7 +250,7 @@
                                 (:wat::core::HashMap/get ep :col)
                                 "make-ladder-finding: end :col")
                     n-lits  (:wat::core::length lits)
-                    msg     (:wat::core::string::concat
+                    msg     (:wat::string::concat
                               "nested-if-=-ladder: var `"
                               var-name
                               "` compared against "
@@ -258,7 +258,7 @@
                               " literals — use (:wat::core::contains? (:wat::core::HashSet :T lit…) var) instead")
                     new-text (:wat::core::format
                                "(:wat::core::contains? (:wat::core::HashSet :wat::type::Infer {lits}) {var})"
-                               :lits (:wat::core::string::join " " lits)
+                               :lits (:wat::string::join " " lits)
                                :var var-name)
                     fe      (:wat::lint::FixEdit :start-line ln :start-col co :end-line end-ln :end-col end-co :new-text new-text)]
     (:wat::lint::Finding
@@ -408,9 +408,9 @@
                                      ;; this tool exists to abolish; intueri caught the author's hand)
                                      (:wat::core::let [inner (:wat::core::ast-name arg)]
                                        (:wat::core::not
-                                         (:wat::core::or (:wat::core::string::contains? inner "\"")
-                                           (:wat::core::or (:wat::core::string::contains? inner "{")
-                                             (:wat::core::string::contains? inner "}")))))
+                                         (:wat::core::or (:wat::string::contains? inner "\"")
+                                           (:wat::core::or (:wat::string::contains? inner "{")
+                                             (:wat::string::contains? inner "}")))))
                                      ;; non-literal: must be a bare symbol
                                      (:wat::core::= (:wat::core::ast-kind arg) "symbol"))
                                    false))
@@ -429,14 +429,14 @@
                                (:wat::core::if (:wat::core::= (:wat::core::ast-kind arg) "string")
                                  ;; literal → append inner text to template
                                  (:wat::core::Tuple
-                                   (:wat::core::string::concat tmpl (:wat::core::ast-name arg))
+                                   (:wat::string::concat tmpl (:wat::core::ast-name arg))
                                    names)
                                  ;; symbol → append {name} to template; dedup-add to names
                                  (:wat::core::let [nm (:wat::core::ast-name arg)]
                                    (:wat::core::Tuple
-                                     (:wat::core::string::concat tmpl
-                                       (:wat::core::string::concat "{"
-                                         (:wat::core::string::concat nm "}")))
+                                     (:wat::string::concat tmpl
+                                       (:wat::string::concat "{"
+                                         (:wat::string::concat nm "}")))
                                      (:wat::core::if (:wat::core::contains? names nm)
                                        names
                                        (:wat::core::conj names nm)))))))
@@ -454,18 +454,18 @@
                                       (:wat::core::fn [acc <- :wat::core::String
                                                        nm  <- :wat::core::String]
                                         -> :wat::core::String
-                                        (:wat::core::string::concat acc
-                                          (:wat::core::string::concat " :"
-                                            (:wat::core::string::concat nm
-                                              (:wat::core::string::concat " " nm)))))
+                                        (:wat::string::concat acc
+                                          (:wat::string::concat " :"
+                                            (:wat::string::concat nm
+                                              (:wat::string::concat " " nm)))))
                                       ""
                                       kwarg-names)
-                        new-text   (:wat::core::string::concat
+                        new-text   (:wat::string::concat
                                      (:wat::core::format "({head-str}" :head-str head-str)
-                                     (:wat::core::string::concat " \""
-                                       (:wat::core::string::concat template
-                                         (:wat::core::string::concat "\""
-                                           (:wat::core::string::concat kwargs-text ")")))))
+                                     (:wat::string::concat " \""
+                                       (:wat::string::concat template
+                                         (:wat::string::concat "\""
+                                           (:wat::string::concat kwargs-text ")")))))
                         ;; ── Step 4: span from ast-span + ast-end-span of form ─
                         span    (:wat::core::ast-span form)
                         ep      (:wat::core::ast-end-span form)
@@ -501,7 +501,7 @@
                     co   (:wat::core::Option/expect  
                              (:wat::core::HashMap/get span :col)
                              "make-concat-finding: :col")
-                    msg  (:wat::core::string::concat
+                    msg  (:wat::string::concat
                             "concat-abuse: string::concat interleaves "
                             (:wat::core::i64::to-string n-lits)
                             " literal(s) with "
@@ -594,7 +594,7 @@
     :line 0
     :col 0
     :severity "error"
-    :message (:wat::core::string::concat
+    :message (:wat::string::concat
       "load-order violation: "
       (:wat::deporder::Violation/referencer v)
       " (pos "
@@ -650,7 +650,7 @@
    findings <- (:wat::core::Vector :- [:wat::lint::Finding])]
   -> :wat::core::String
   (:wat::core::let [src   (:wat::source::File/source sf)
-                    lines (:wat::core::string::split src "\n")
+                    lines (:wat::string::split src "\n")
                     edits (:wat::core::foldl
                             (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
                                              f   <- :wat::lint::Finding]

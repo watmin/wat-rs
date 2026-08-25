@@ -8,8 +8,8 @@
   [head <- :wat::WatAST arg <- :wat::WatAST] -> :wat::WatAST
   (:wat::core::let [head-text (:wat::core::keyword/to-string head)
                     arg-text  (:wat::core::keyword/to-string arg)
-                    full (:wat::core::string::concat head-text
-                           (:wat::core::string::concat "-" arg-text))]
+                    full (:wat::string::concat head-text
+                           (:wat::string::concat "-" arg-text))]
     `~(:wat::core::keyword/from-string full)))
 (:wat::core::defmacro :my::mk
   [e <- :wat::WatAST] -> :wat::WatAST

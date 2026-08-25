@@ -29,10 +29,10 @@
     (:wat::core::if (:wat::core::> (:wat::core::+ i old-len) s-len)
       ;; not enough chars left to match old — emit the rest one char at a time
       (:user::subst-emit-char s old new old-len s-len i acc)
-      (:wat::core::if (:wat::core::= (:wat::core::string::subs s i (:wat::core::+ i old-len)) old)
+      (:wat::core::if (:wat::core::= (:wat::string::subs s i (:wat::core::+ i old-len)) old)
         ;; match — emit `new`, advance past `old`
         (:user::subst-walk s old new old-len s-len
-          (:wat::core::+ i old-len) (:wat::core::string::concat acc new))
+          (:wat::core::+ i old-len) (:wat::string::concat acc new))
         ;; no match — emit one char, advance by 1
         (:user::subst-emit-char s old new old-len s-len i acc)))))
 
@@ -43,13 +43,13 @@
   -> :wat::core::String
   (:user::subst-walk s old new old-len s-len
     (:wat::core::+ i 1)
-    (:wat::core::string::concat acc (:wat::core::string::subs s i (:wat::core::+ i 1)))))
+    (:wat::string::concat acc (:wat::string::subs s i (:wat::core::+ i 1)))))
 
 (:wat::core::defn :user::subst-all
   [s <- :wat::core::String  old <- :wat::core::String  new <- :wat::core::String]
   -> :wat::core::String
   (:user::subst-walk s old new
-    (:wat::core::string::length old) (:wat::core::string::length s) 0 ""))
+    (:wat::string::length old) (:wat::string::length s) 0 ""))
 
 ;; ── the token rewrite: :wat::kernel::Timer'< → :wat::kernel::Peer'<wat::core::nil, ──────────
 (:wat::core::defn :user::rewrite-name [name <- :wat::core::String] -> :wat::core::String
@@ -77,11 +77,11 @@
           (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))
           (:wat::core::let [off (:wat::fix::fix-text-offset-of (:wat::core::ast-span node) lines)]
             (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])
-              (:wat::core::Tuple off (:wat::core::string::length name) new-name)))))
+              (:wat::core::Tuple off (:wat::string::length name) new-name)))))
       (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])))))
 
 (:wat::core::defn :user::migrate [src <- :wat::core::String] -> :wat::core::String
-  (:wat::core::let [lines     (:wat::core::string::split src "\n")
+  (:wat::core::let [lines     (:wat::string::split src "\n")
                     tree      (:wat::core::match (:wat::core::read-string src) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)))
                     forms     (:wat::core::ast->children tree)
                     all-edits (:user::edits-walk forms lines)
@@ -95,7 +95,7 @@
     (:wat::core::let [path (:wat::core::first paths)]
       (:wat::core::do
         (:wat::io::write-file path (:user::migrate (:wat::io::read-file path)))
-        (:wat::kernel::println (:wat::core::string::concat "[timer->peer] " path))
+        (:wat::kernel::println (:wat::string::concat "[timer->peer] " path))
         (:user::apply-each (:wat::core::rest paths))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

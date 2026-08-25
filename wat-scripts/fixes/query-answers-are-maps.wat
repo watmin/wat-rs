@@ -23,8 +23,8 @@
   [node <- :wat::WatAST] -> :wat::core::bool
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "keyword")
     (:wat::core::let [nm (:wat::core::ast-name node)]
-      (:wat::core::if (:wat::core::string::contains? nm "::")
-        (:wat::core::not (:wat::core::string::starts-with? nm ":wat::"))
+      (:wat::core::if (:wat::string::contains? nm "::")
+        (:wat::core::not (:wat::string::starts-with? nm ":wat::"))
         false))
     false))
 
@@ -63,7 +63,7 @@
    src   <- :wat::core::String
    lines <- (:wat::core::Vector :- [:wat::core::String])]
   -> :wat::core::String
-  (:wat::core::string::subs src
+  (:wat::string::subs src
     (:wat::fix::node-start-offset node lines)
     (:wat::fix::node-end-offset node lines)))
 
@@ -200,17 +200,17 @@
                         "")
                     head
                       (:wat::core::if has-arrow
-                        (:wat::core::string::concat
+                        (:wat::string::concat
                           "(:wat::core::fn [p <- :wat::core::PersistentMap] -> "
-                          (:wat::core::string::concat ret " "))
+                          (:wat::string::concat ret " "))
                         "(:wat::core::fn [p <- :wat::core::PersistentMap] ")]
-    (:wat::core::string::concat head
-      (:wat::core::string::concat
+    (:wat::string::concat head
+      (:wat::string::concat
         "(:wat::core::let ["
-        (:wat::core::string::concat item
-          (:wat::core::string::concat
+        (:wat::string::concat item
+          (:wat::string::concat
             " (:wat::core::Option/expect (:wat::core::PersistentMap/get p \"?fact\") \"query: ?fact\")] "
-            (:wat::core::string::concat body-t "))")))))))
+            (:wat::string::concat body-t "))")))))))
 
 (:wat::core::defn :user::hof-fn-edits
   [node  <- :wat::WatAST
@@ -272,7 +272,7 @@
 (:wat::core::defn :user::migrate
   [src <- :wat::core::String] -> :wat::core::String
   (:wat::core::let
-    [lines (:wat::core::string::split src "\n")
+    [lines (:wat::string::split src "\n")
      tree  (:wat::core::match (:wat::core::read-string src)
              ((:wat::core::ReadOutcome::Forms __forms) __forms)
              ((:wat::core::ReadOutcome::Malformed __cause)
@@ -296,7 +296,7 @@
       (:wat::core::do
         (:wat::io::write-file path out)
         (:wat::kernel::println
-          (:wat::core::string::concat
+          (:wat::string::concat
             (:wat::core::if (:wat::core::= src out) "[unchanged] " "[rewritten] ")
             path))
         (:user::rewrite-each (:wat::core::into [] (:wat::core::rest paths)))))))

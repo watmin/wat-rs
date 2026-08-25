@@ -45,14 +45,14 @@
 (:wat::rete::defrule :dt::declarator
   :when [(:wat::grep::Node  (?id <- :id) (?p <- :parent) (?i <- :index) (?k <- :kind))
          (:wat::grep::Named (?id <- :id) (?n <- :name))
-         (:wat::rete::where (:wat::rete::core::string::= ?k "keyword"))
+         (:wat::rete::where (:wat::rete::string::= ?k "keyword"))
          (:wat::rete::where (:wat::rete::core::i64::= ?i 0))
          (:wat::rete::where
            (:wat::rete::core::or
-             (:wat::rete::core::string::= ?n ":wat::core::defn")
+             (:wat::rete::string::= ?n ":wat::core::defn")
              (:wat::rete::core::or
-               (:wat::rete::core::string::= ?n ":wat::core::defrecord")
-               (:wat::rete::core::string::= ?n ":wat::core::defmacro"))))]
+               (:wat::rete::string::= ?n ":wat::core::defrecord")
+               (:wat::rete::string::= ?n ":wat::core::defmacro"))))]
   :then [(:dt::Declarator :parent ?p)])
 
 (:wat::rete::defrule :dt::defines

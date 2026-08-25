@@ -92,11 +92,11 @@
 ;; "wnab::Hit" → "wnab::q-Hit". STOPS on a bare (unnamespaced) type.
 (:wat::core::defn :user::type->qname
   [fqdn <- :wat::core::String] -> :wat::core::String
-  (:wat::core::let [parts (:wat::core::string::split fqdn "::")
+  (:wat::core::let [parts (:wat::string::split fqdn "::")
                     n     (:wat::core::length parts)]
     (:wat::core::if (:wat::core::< n 2)
       (:wat::kernel::assertion-failed!
-        (:wat::core::string::concat
+        (:wat::string::concat
           "type-query-to-defquery: type has no namespace: " fqdn)
         :wat::core::None :wat::core::None)
       (:wat::core::let [ty (:wat::core::Option/expect
@@ -111,17 +111,17 @@
                                                        "type->qname: ns")]
                                  (:wat::core::if (:wat::core::= acc "")
                                    seg
-                                   (:wat::core::string::concat acc
-                                     (:wat::core::string::concat "::" seg)))))
+                                   (:wat::string::concat acc
+                                     (:wat::string::concat "::" seg)))))
                              ""
                              (:wat::core::range 0 (:wat::core::i64::- n 1)))]
-        (:wat::core::string::concat ns
-          (:wat::core::string::concat "::q-" ty))))))
+        (:wat::string::concat ns
+          (:wat::string::concat "::q-" ty))))))
 
 (:wat::core::defn :user::strip-colon
   [s <- :wat::core::String] -> :wat::core::String
-  (:wat::core::if (:wat::core::= (:wat::core::string::subs s 0 1) ":")
-    (:wat::core::string::subs s 1 (:wat::core::string::length s))
+  (:wat::core::if (:wat::core::= (:wat::string::subs s 0 1) ":")
+    (:wat::string::subs s 1 (:wat::string::length s))
     s))
 
 (:wat::core::defn :user::unique-conj
@@ -235,7 +235,7 @@
    src   <- :wat::core::String
    lines <- (:wat::core::Vector :- [:wat::core::String])]
   -> :wat::core::String
-  (:wat::core::string::subs src
+  (:wat::string::subs src
     (:wat::fix::node-start-offset node lines)
     (:wat::fix::node-end-offset node lines)))
 
@@ -250,22 +250,22 @@
 
 (:wat::core::defn :user::q-call
   [fqdn <- :wat::core::String] -> :wat::core::String
-  (:wat::core::string::concat "(:"
-    (:wat::core::string::concat (:user::type->qname fqdn) ")")))
+  (:wat::string::concat "(:"
+    (:wat::string::concat (:user::type->qname fqdn) ")")))
 
 (:wat::core::defn :user::q-kw
   [fqdn <- :wat::core::String] -> :wat::core::String
-  (:wat::core::string::concat ":" (:user::type->qname fqdn)))
+  (:wat::string::concat ":" (:user::type->qname fqdn)))
 
 (:wat::core::defn :user::defquery-text
   [fqdn <- :wat::core::String] -> :wat::core::String
-  (:wat::core::string::concat
+  (:wat::string::concat
     "(:wat::rete::defquery "
-    (:wat::core::string::concat
+    (:wat::string::concat
       (:user::q-kw fqdn)
-      (:wat::core::string::concat
+      (:wat::string::concat
         "\n  :params []\n  :when [(:"
-        (:wat::core::string::concat fqdn ")])\n")))))
+        (:wat::string::concat fqdn ")])\n")))))
 
 (:wat::core::defn :user::needed-texts
   [types    <- (:wat::core::Vector :- [:wat::core::String])
@@ -276,20 +276,20 @@
       -> :wat::core::String
       (:wat::core::if (:wat::fix::str-in? (:user::q-kw t) existing)
         acc
-        (:wat::core::string::concat acc
-          (:wat::core::string::concat "\n\n" (:user::defquery-text t)))))
+        (:wat::string::concat acc
+          (:wat::string::concat "\n\n" (:user::defquery-text t)))))
     ""
     types))
 
 (:wat::core::defn :user::q-vec-text
   [types <- (:wat::core::Vector :- [:wat::core::String])]
   -> :wat::core::String
-  (:wat::core::string::concat
+  (:wat::string::concat
     (:wat::core::foldl
       (:wat::core::fn [acc <- :wat::core::String  t <- :wat::core::String]
         -> :wat::core::String
-        (:wat::core::string::concat acc
-          (:wat::core::string::concat " " (:user::q-call t))))
+        (:wat::string::concat acc
+          (:wat::string::concat " " (:user::q-call t))))
       "(:wat::core::PersistentVector"
       types)
     ")"))
@@ -331,15 +331,15 @@
                         ty (:wat::core::Option/expect
                              (:user::node-type node)
                              "call-edit: qbts type")
-                        new (:wat::core::string::concat
+                        new (:wat::string::concat
                               "(:wat::rete::query "
-                              (:wat::core::string::concat
+                              (:wat::string::concat
                                 (:user::node-text sess src lines)
-                                (:wat::core::string::concat " "
+                                (:wat::string::concat " "
                                   (:user::q-call ty))))]
         (:wat::core::Vector :wat::fix::Edit
           (:user::span-edit node
-            (:wat::core::string::concat new ")")
+            (:wat::string::concat new ")")
             lines)))
       (:wat::core::Vector :wat::fix::Edit))))
 
@@ -353,15 +353,15 @@
     (:wat::core::let [rules (:wat::core::Option/expect
                               (:wat::core::get (:wat::core::ast->children node) 1)
                               "compile-edit: rules")
-                      new (:wat::core::string::concat
+                      new (:wat::string::concat
                             "(:wat::rete::compile-all "
-                            (:wat::core::string::concat
+                            (:wat::string::concat
                               (:user::node-text rules src lines)
-                              (:wat::core::string::concat " "
+                              (:wat::string::concat " "
                                 (:user::q-vec-text types))))]
       (:wat::core::Vector :wat::fix::Edit
         (:user::span-edit node
-          (:wat::core::string::concat new ")")
+          (:wat::string::concat new ")")
           lines)))
     (:wat::core::Vector :wat::fix::Edit)))
 
@@ -399,7 +399,7 @@
 (:wat::core::defn :user::migrate
   [src <- :wat::core::String] -> :wat::core::String
   (:wat::core::let
-    [lines (:wat::core::string::split src "\n")
+    [lines (:wat::string::split src "\n")
      tree  (:wat::core::match (:wat::core::read-string src)
              ((:wat::core::ReadOutcome::Forms __forms) __forms)
              ((:wat::core::ReadOutcome::Malformed __cause)
@@ -447,7 +447,7 @@
       (:wat::core::do
         (:wat::io::write-file path out)
         (:wat::kernel::println
-          (:wat::core::string::concat
+          (:wat::string::concat
             (:wat::core::if (:wat::core::= src out) "[unchanged] " "[rewritten] ")
             path))
         (:user::rewrite-each (:wat::core::into [] (:wat::core::rest paths)))))))

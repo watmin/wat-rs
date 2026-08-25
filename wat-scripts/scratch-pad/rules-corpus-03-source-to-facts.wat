@@ -21,14 +21,14 @@
 (:wat::rete::defrule :fx::arrow
   :when [(:wat::grep::Node  (?id <- :id) (?k <- :kind))
          (:wat::grep::Named (?id <- :id) (?n <- :name))
-         (:wat::rete::where (:wat::rete::core::string::= ?k "symbol"))
-         (:wat::rete::where (:wat::rete::core::string::= ?n "<-"))]
+         (:wat::rete::where (:wat::rete::string::= ?k "symbol"))
+         (:wat::rete::where (:wat::rete::string::= ?n "<-"))]
   :then [(:fx::IsArrow :id ?id)])
 
 (:wat::rete::defrule :fx::head-kw
   :when [(:wat::grep::Node  (?id <- :id) (?k <- :kind))
          (:wat::grep::Named (?id <- :id) (?n <- :name))
-         (:wat::rete::where (:wat::rete::core::string::= ?k "keyword"))
+         (:wat::rete::where (:wat::rete::string::= ?k "keyword"))
          (:wat::rete::where (:wat::rete::core::String/contains? ?n "::"))]
   :then [(:fx::IsHeadKw :id ?id)])
 
@@ -50,8 +50,8 @@
   :when [(:wat::grep::Node  (?id <- :id) (?k <- :kind))
          (:wat::grep::Named (?id <- :id) (?n <- :name))
          (:wat::grep::Span  (?id <- :id) (?l <- :line))
-         (:wat::rete::where (:wat::rete::core::string::= ?k "symbol"))
-         (:wat::rete::where (:wat::rete::core::string::= ?n "<-"))]
+         (:wat::rete::where (:wat::rete::string::= ?k "symbol"))
+         (:wat::rete::where (:wat::rete::string::= ?n "<-"))]
   :then [(:fx::ArrowLine :id ?id :line ?l)])
 
 (:wat::rete::defquery :fx::q-ArrowLine
@@ -103,10 +103,10 @@
                     m   (:wat::core::length (:wat::grep::Facts/named facts))
                     sp  (:wat::core::length (:wat::grep::Facts/spans facts))]
     (:wat::kernel::println
-      (:wat::core::string::concat path
-        (:wat::core::string::concat "  Node=" (:wat::core::str n)
-          (:wat::core::string::concat "  Named=" (:wat::core::str m)
-            (:wat::core::string::concat "  Span=" (:wat::core::str sp))))))))
+      (:wat::string::concat path
+        (:wat::string::concat "  Node=" (:wat::core::str n)
+          (:wat::string::concat "  Named=" (:wat::core::str m)
+            (:wat::string::concat "  Span=" (:wat::core::str sp))))))))
 
 
 (:wat::core::defn :fx::classify [path <- :wat::core::String] -> :wat::core::nil
@@ -123,12 +123,12 @@
      arrow-lines (:wat::rete::query fired (:fx::q-ArrowLine))
      n-arrow-lines (:wat::core::length arrow-lines)]
     (:wat::kernel::println
-      (:wat::core::string::concat path
-        (:wat::core::string::concat "  arrows=" (:wat::core::str (:wat::core::length (:wat::rete::query fired (:fx::q-IsArrow))))
-          (:wat::core::string::concat "  head-kw=" (:wat::core::str (:wat::core::length (:wat::rete::query fired (:fx::q-IsHeadKw))))
-            (:wat::core::string::concat "  type-pos=" (:wat::core::str (:wat::core::length (:wat::rete::query fired (:fx::q-IsTypePos))))
-              (:wat::core::string::concat "  arrow-line=" (:wat::core::str n-arrow-lines)
-                (:wat::core::string::concat "  sample-line="
+      (:wat::string::concat path
+        (:wat::string::concat "  arrows=" (:wat::core::str (:wat::core::length (:wat::rete::query fired (:fx::q-IsArrow))))
+          (:wat::string::concat "  head-kw=" (:wat::core::str (:wat::core::length (:wat::rete::query fired (:fx::q-IsHeadKw))))
+            (:wat::string::concat "  type-pos=" (:wat::core::str (:wat::core::length (:wat::rete::query fired (:fx::q-IsTypePos))))
+              (:wat::string::concat "  arrow-line=" (:wat::core::str n-arrow-lines)
+                (:wat::string::concat "  sample-line="
                   (:wat::core::if (:wat::core::i64::> n-arrow-lines 0)
                     (:wat::core::str
                       (:wat::core::Option/expect

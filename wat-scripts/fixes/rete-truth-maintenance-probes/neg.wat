@@ -25,5 +25,5 @@
                     s2    (:wat::rete::insert s1 (:n::A 2))
                     fired (:wat::rete::fire-rules$oracle s2)]
     (:wat::core::do
-      (:wat::kernel::println (:wat::core::string::concat "Bad (expect 1) = " (:wat::core::str (:wat::core::length (:wat::rete::query fired (:n::q-Bad))))))
-      (:wat::kernel::println (:wat::core::string::concat "Ok  (expect 1, k=1) = " (:wat::core::str (:wat::core::length (:wat::rete::query fired (:n::q-Ok)))))))))
+      (:wat::kernel::println (:wat::string::concat "Bad (expect 1) = " (:wat::core::str (:wat::core::length (:wat::rete::query fired (:n::q-Bad))))))
+      (:wat::kernel::println (:wat::string::concat "Ok  (expect 1, k=1) = " (:wat::core::str (:wat::core::length (:wat::rete::query fired (:n::q-Ok)))))))))

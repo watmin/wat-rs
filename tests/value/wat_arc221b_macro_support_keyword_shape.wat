@@ -49,7 +49,7 @@
     [v   (:wat::core::Vector :wat::core::i64 1 2 3)
      r1  (:wat::core::length v)
      r2  (:t::my-length v)]
-    (:wat::core::string::concat
+    (:wat::string::concat
       (:wat::edn::write r1)
       " "
       (:wat::edn::write r2))))

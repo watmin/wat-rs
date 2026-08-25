@@ -59,7 +59,7 @@
    state <- :wat::rete::CompileState]
   -> :wat::rete::MintResult
   (:wat::core::let [cond-text (:wat::core::write-forms cond)
-                    dkey      (:wat::core::string::interpolate "alpha:{cond-text}" :cond-text cond-text)
+                    dkey      (:wat::string::interpolate "alpha:{cond-text}" :cond-text cond-text)
                     network   (:wat::rete::CompileState/network state)
                     next-id   (:wat::rete::CompileState/next-id state)
                     dedup     (:wat::rete::CompileState/dedup   state)
@@ -151,7 +151,7 @@
    state <- :wat::rete::CompileState]
   -> :wat::rete::MintResult
   (:wat::core::let [cond-text (:wat::core::write-forms cond)
-                    dkey      (:wat::core::string::interpolate "rootjoin:{cond-text}" :cond-text cond-text)
+                    dkey      (:wat::string::interpolate "rootjoin:{cond-text}" :cond-text cond-text)
                     network   (:wat::rete::CompileState/network state)
                     next-id   (:wat::rete::CompileState/next-id state)
                     dedup     (:wat::rete::CompileState/dedup   state)
@@ -180,7 +180,7 @@
   -> :wat::rete::MintResult
   (:wat::core::let [cond-text (:wat::core::write-forms cond)
                     pid-s     (:wat::core::i64::to-string parent-id)
-                    dkey      (:wat::core::string::interpolate "hashjoin:{pid-s}:{cond-text}" :pid-s pid-s :cond-text cond-text)
+                    dkey      (:wat::string::interpolate "hashjoin:{pid-s}:{cond-text}" :pid-s pid-s :cond-text cond-text)
                     network   (:wat::rete::CompileState/network state)
                     next-id   (:wat::rete::CompileState/next-id state)
                     dedup     (:wat::rete::CompileState/dedup   state)
@@ -328,21 +328,21 @@
     (:wat::rete::Axis::Pure
      (:wat::core::match (:wat::rete::axis-violation expr :wat::rete::Axis::Pure)
        ((:wat::core::Some v)
-        (:wat::core::string::concat "compile-condition: " context " expr is not pure — '"
+        (:wat::string::concat "compile-condition: " context " expr is not pure — '"
                                      (:wat::rete::AxisViolation/head v) "' is not pure"))
        (:wat::core::None
         (:wat::core::format "compile-condition: {context} expr is not pure (offending head could not be attributed)" :context context))))
     (:wat::rete::Axis::Deterministic
      (:wat::core::match (:wat::rete::axis-violation expr :wat::rete::Axis::Deterministic)
        ((:wat::core::Some v)
-        (:wat::core::string::concat "compile-condition: " context " expr is not deterministic — '"
+        (:wat::string::concat "compile-condition: " context " expr is not deterministic — '"
                                      (:wat::rete::AxisViolation/head v) "' is not deterministic"))
        (:wat::core::None
         (:wat::core::format "compile-condition: {context} expr is not deterministic (offending head could not be attributed)" :context context))))
     (:wat::rete::Axis::Total
      (:wat::core::match (:wat::rete::axis-violation expr :wat::rete::Axis::Total)
        ((:wat::core::Some v)
-        (:wat::core::string::concat "compile-condition: " context " expr is not total — '"
+        (:wat::string::concat "compile-condition: " context " expr is not total — '"
                                      (:wat::rete::AxisViolation/head v) "' is not total"))
        (:wat::core::None
         (:wat::core::format "compile-condition: {context} expr is not total (offending head could not be attributed)" :context context))))
@@ -355,7 +355,7 @@
     (:wat::rete::Axis::RetePrimitive
      (:wat::core::match (:wat::rete::axis-violation expr :wat::rete::Axis::RetePrimitive)
        ((:wat::core::Some v)
-        (:wat::core::string::concat "compile-condition: " context " expr is not a rete primitive — '"
+        (:wat::string::concat "compile-condition: " context " expr is not a rete primitive — '"
                                      (:wat::rete::AxisViolation/head v)
                                      "' is not a rete primitive; a " context " admits only :wat::rete:: ops"))
        (:wat::core::None
@@ -575,7 +575,7 @@
                             acc-ch       (:wat::core::ast->children acc-form)
                             acc-hd       (:wat::core::first acc-ch)
                             acc-hd-nm    (:wat::core::ast-name acc-hd)
-                            is-builtin   (:wat::core::string::starts-with? acc-hd-nm ":wat::rete::acc::")
+                            is-builtin   (:wat::string::starts-with? acc-hd-nm ":wat::rete::acc::")
                             fence-call   (:wat::core::quasiquote
                                             ((:wat::core::unquote acc-hd) __acc__))
                             ;; fence: pure ∧ det ∧ total ∧ rete (skipped for :wat::rete::acc::*
@@ -782,7 +782,7 @@
                     ;; PRIME `:T'` to reach the constructor fn (see this defn's doc). A plain
                     ;; `defn` already resolved to a fn above and takes the `is-fn-val` branch.
                     prime-kw  (:wat::core::keyword-node
-                                  (:wat::core::string::concat (:wat::core::ast-name head) "'"))
+                                  (:wat::string::concat (:wat::core::ast-name head) "'"))
                     head-fn   (:wat::core::if is-fn-val
                                   head-val0
                                   (:wat::core::Result/expect
@@ -805,7 +805,7 @@
   (:wat::core::let [k (:wat::core::ast-kind ast)]
     (:wat::core::if (:wat::core::= k "symbol")
       (:wat::core::let [nm (:wat::core::ast-name ast)]
-        (:wat::core::if (:wat::core::string::starts-with? nm "?")
+        (:wat::core::if (:wat::string::starts-with? nm "?")
           (:wat::core::PersistentVector/conj (:wat::core::PersistentVector) nm)
           (:wat::core::PersistentVector)))
       (:wat::core::if
@@ -870,7 +870,7 @@
                   (:wat::core::PersistentVector/conj (:wat::core::PersistentVector) hnm)
                   (:wat::core::range 3 n))
                 (:wat::core::if
-                  (:wat::core::if (:wat::core::string::starts-with? hnm "?")
+                  (:wat::core::if (:wat::string::starts-with? hnm "?")
                     (:wat::core::if (:wat::core::= n 3)
                       (:wat::core::if (:wat::core::= (:wat::core::ast-kind
                                                       (:wat::core::Option/expect
@@ -887,7 +887,7 @@
                     false)
                   (:wat::core::PersistentVector/conj (:wat::core::PersistentVector) hnm)
                   (:wat::core::if
-                    (:wat::core::if (:wat::core::string::starts-with? hnm "?")
+                    (:wat::core::if (:wat::string::starts-with? hnm "?")
                       (:wat::core::if (:wat::core::= n 5)
                         (:wat::core::= (:wat::core::ast-name
                                         (:wat::core::Option/expect
@@ -951,7 +951,7 @@
         false
         (:wat::core::if
           (:wat::core::if (:wat::core::= (:wat::core::ast-kind (:wat::core::first ch)) "symbol")
-            (:wat::core::string::starts-with? (:wat::core::ast-name (:wat::core::first ch)) "?")
+            (:wat::string::starts-with? (:wat::core::ast-name (:wat::core::first ch)) "?")
             false)
           (:wat::core::if
             (:wat::core::if (:wat::core::= (:wat::core::ast-kind
@@ -970,7 +970,7 @@
                                               (:wat::core::get ch 2)
                                               "cond-is-fact-bind: type"))
                                           "keyword")
-              (:wat::core::string::contains?
+              (:wat::string::contains?
                 (:wat::core::ast-name
                   (:wat::core::Option/expect
                     (:wat::core::get ch 2)
@@ -992,7 +992,7 @@
         (:wat::core::if (:wat::core::= (:wat::core::length ch) 0)
           false
           (:wat::core::if (:wat::core::= (:wat::core::ast-kind (:wat::core::first ch)) "symbol")
-            (:wat::core::string::starts-with? (:wat::core::ast-name (:wat::core::first ch)) "?")
+            (:wat::string::starts-with? (:wat::core::ast-name (:wat::core::first ch)) "?")
             false))))))
 
 ;; sort-lhs — Clara defers accumulators so a later fact can bind the group

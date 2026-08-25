@@ -69,9 +69,9 @@
                         v (:wat::core::first (:wat::core::rest items))
                         knm (:wat::core::ast-name k)
                         kstr (:wat::core::if
-                               (:wat::core::= (:wat::core::string::subs knm 0 1) ":")
-                               (:wat::core::string::subs knm 1
-                                 (:wat::core::string::length knm))
+                               (:wat::core::= (:wat::string::subs knm 0 1) ":")
+                               (:wat::string::subs knm 1
+                                 (:wat::string::length knm))
                                knm)]
         `(:wat::rete::query-params-form
            (:wat::core::PersistentMap/assoc ~acc ~kstr ~v)
@@ -207,8 +207,8 @@
                     ;; strip it to get the bare FQDN matching (:wat::core::type fact).
                     raw-name  (:wat::core::ast-name name)
                     ;; strip-leading-colon inline (can't call user-defn from program-body macro)
-                    name-str  (:wat::core::if (:wat::core::= (:wat::core::string::subs raw-name 0 1) ":")
-                                 (:wat::core::string::subs raw-name 1 (:wat::core::string::length raw-name))
+                    name-str  (:wat::core::if (:wat::core::= (:wat::string::subs raw-name 0 1) ":")
+                                 (:wat::string::subs raw-name 1 (:wat::string::length raw-name))
                                  raw-name)
                     ;; rest = (:when <when-vec> :then <then-vec>); canonical order assumed.
                     when-vec  (:wat::core::Option/expect
@@ -253,8 +253,8 @@
    & rest <- (:wat::core::Vector :- [:wat::WatAST])]
   -> :wat::WatAST
   (:wat::core::let [raw-name  (:wat::core::ast-name name)
-                    name-str  (:wat::core::if (:wat::core::= (:wat::core::string::subs raw-name 0 1) ":")
-                                 (:wat::core::string::subs raw-name 1 (:wat::core::string::length raw-name))
+                    name-str  (:wat::core::if (:wat::core::= (:wat::string::subs raw-name 0 1) ":")
+                                 (:wat::string::subs raw-name 1 (:wat::string::length raw-name))
                                  raw-name)
                     params-vec (:wat::core::Option/expect
                                   (:wat::core::get rest 1)

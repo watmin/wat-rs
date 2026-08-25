@@ -14,6 +14,6 @@
      ;; the SAME call on a process pool of 2 (not-shared — fn-forms the work, ships forms)
      pr (:wat::bracket::map (:wat::spawn::process/runner-count 2) nums :my::double)]
     (:wat::kernel::println
-      (:wat::core::string::concat
+      (:wat::string::concat
         (:wat::edn::write tr)
-        (:wat::core::string::concat " " (:wat::edn::write pr))))))  ;; expect [2 4 6 8 10] [2 4 6 8 10]
+        (:wat::string::concat " " (:wat::edn::write pr))))))  ;; expect [2 4 6 8 10] [2 4 6 8 10]

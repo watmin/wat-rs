@@ -164,23 +164,23 @@
         (:wat::core::match resp
           ((:probe::RuleWire::InstallResponse::Derived n)
             (:wat::kernel::println
-              (:wat::core::string::concat label " => DERIVED n=" (:wat::core::i64::to-string n))))
+              (:wat::string::concat label " => DERIVED n=" (:wat::core::i64::to-string n))))
           ((:probe::RuleWire::InstallResponse::Rejected reason)
-            (:wat::kernel::println (:wat::core::string::concat label " => REJECTED " reason)))
+            (:wat::kernel::println (:wat::string::concat label " => REJECTED " reason)))
           ((:probe::RuleWire::InstallResponse::RequestTooLarge bytes cap)
             (:wat::kernel::println
-              (:wat::core::string::concat label " => REQUEST-TOO-LARGE bytes="
+              (:wat::string::concat label " => REQUEST-TOO-LARGE bytes="
                 (:wat::core::i64::to-string bytes) " cap=" (:wat::core::i64::to-string cap))))
           ((:probe::RuleWire::InstallResponse::RequestMalformed _p expected got)
             (:wat::kernel::println
-              (:wat::core::string::concat label " => REQUEST-MALFORMED expected=" expected " got=" got)))))
+              (:wat::string::concat label " => REQUEST-MALFORMED expected=" expected " got=" got)))))
       ((:wat::kernel::RecvOutcome::Lost cause)
         (:wat::kernel::println
-          (:wat::core::string::concat label " => LOST " (:wat::kernel::LociDiedError/message cause))))
+          (:wat::string::concat label " => LOST " (:wat::kernel::LociDiedError/message cause))))
       (:wat::kernel::RecvOutcome::Stopped
-        (:wat::kernel::println (:wat::core::string::concat label " => STOPPED before reply")))
+        (:wat::kernel::println (:wat::string::concat label " => STOPPED before reply")))
       (:wat::kernel::RecvOutcome::Closed
-        (:wat::kernel::println (:wat::core::string::concat label " => CLOSED before reply"))))))
+        (:wat::kernel::println (:wat::string::concat label " => CLOSED before reply"))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::do

@@ -37,7 +37,7 @@
 (:wat::core::defn :probe::payload-of [n <- :wat::core::i64] -> :wat::core::String
   (:wat::core::foldl
     (:wat::core::fn [acc <- :wat::core::String  _i <- :wat::core::i64] -> :wat::core::String
-      (:wat::core::string::concat acc "0123456789ABCDEF0123456789ABCDEF"))
+      (:wat::string::concat acc "0123456789ABCDEF0123456789ABCDEF"))
     ""
     (:wat::core::range 0 n)))
 
@@ -83,7 +83,7 @@
     (:wat::core::match (:wat::kernel::recv c)
       ((:wat::kernel::RecvOutcome::Message _m) (:probe::Outcome::Message))
       ((:wat::kernel::RecvOutcome::Lost cause)
-        (:probe::Outcome::Lost (:wat::core::string::contains? (:wat::kernel::LociDiedError/message cause) "max-frame-bytes")))
+        (:probe::Outcome::Lost (:wat::string::contains? (:wat::kernel::LociDiedError/message cause) "max-frame-bytes")))
       (:wat::kernel::RecvOutcome::Stopped (:probe::Outcome::Stopped))
       (:wat::kernel::RecvOutcome::Closed (:probe::Outcome::Closed)))))
 

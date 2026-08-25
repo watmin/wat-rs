@@ -28,7 +28,7 @@
   [(echo [s ctx req]
      (:wat::service::Outcome::Reply s
        (:probe::Echo::EchoResponse::Ok
-         (:wat::core::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))))])
+         (:wat::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))))])
 
 ;; ── CALLER: a surface + a service that DIALS echo' (the s2s peer) ───────────────
 (:wat::core::defsurface :probe::Caller :nature :wat::kernel::Peer

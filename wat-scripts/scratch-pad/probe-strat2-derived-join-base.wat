@@ -79,7 +79,7 @@
 
 
 (:wat::core::defn :z::show [label <- :wat::core::String n <- :wat::core::i64] -> :wat::core::nil
-  (:wat::kernel::println (:wat::core::string::concat label (:wat::core::str n))))
+  (:wat::kernel::println (:wat::string::concat label (:wat::core::str n))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

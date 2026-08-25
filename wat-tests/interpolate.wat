@@ -7,7 +7,7 @@
 (:wat::test::deftest :wat-tests::interpolate::runtime-named-unquoted-escaped
 
   (:wat::test::assert-eq
-    (:wat::core::string::interpolate "{a}::{b} {{lit}}" :a "x" :b 5)
+    (:wat::string::interpolate "{a}::{b} {{lit}}" :a "x" :b 5)
     "x::5 {lit}"))
 
 ;; Stone 279.4 — `interpolate` renders ANYTHING, not just the five-arm scalar
@@ -22,5 +22,5 @@
 (:wat::test::deftest :wat-tests::interpolate::runtime-record-named-fields
 
   (:wat::test::assert-eq
-    (:wat::core::string::interpolate "{r}" :r (:wat-tests::interpolate::Rec :x 1))
+    (:wat::string::interpolate "{r}" :r (:wat-tests::interpolate::Rec :x 1))
     "#wat-tests.interpolate/Rec {:x 1}"))

@@ -46,8 +46,8 @@
     [fired (:wat::rete::fire-rules (:wat::rete::insert template seed))
      s (:wat::core::length (:wat::rete::query fired (:usr::q-Suspect)))
      a (:wat::core::length (:wat::rete::query fired (:usr::q-Anomaly)))]
-    (:wat::core::string::concat "Suspect=" (:wat::core::string::concat (:wat::core::str s)
-      (:wat::core::string::concat " Anomaly=" (:wat::core::str a))))))
+    (:wat::string::concat "Suspect=" (:wat::string::concat (:wat::core::str s)
+      (:wat::string::concat " Anomaly=" (:wat::core::str a))))))
 
 (:wat::core::defn :usr::mk [ctry <- :wat::core::String rep <- :wat::core::i64 lat <- :wat::core::i64 st <- :wat::core::i64] -> :usr::Event
   (:usr::Event
@@ -60,7 +60,7 @@
     (:wat::core::let [rules (:wat::core::PersistentVector (:usr::suspect) (:usr::anomaly))
                       template (:wat::rete::compile-all rules (:wat::core::PersistentVector (:usr::q-Suspect) (:usr::q-Anomaly)))]
       (:wat::core::do
-        (:wat::kernel::println (:wat::core::string::concat "XX/-5/9e6/200 (want S=1 A=1): " (:usr::fire-one template (:usr::mk "XX" -5 9000000 200))))
-        (:wat::kernel::println (:wat::core::string::concat "US/-5/9e6/200 (want S=0 A=0): " (:usr::fire-one template (:usr::mk "US" -5 9000000 200))))
-        (:wat::kernel::println (:wat::core::string::concat "XX/-5/2e6/200 (want S=1 A=0): " (:usr::fire-one template (:usr::mk "XX" -5 2000000 200))))
-        (:wat::kernel::println (:wat::core::string::concat "XX/5/9e6/200  (want S=0 A=0): " (:usr::fire-one template (:usr::mk "XX" 5 9000000 200))))))))
+        (:wat::kernel::println (:wat::string::concat "XX/-5/9e6/200 (want S=1 A=1): " (:usr::fire-one template (:usr::mk "XX" -5 9000000 200))))
+        (:wat::kernel::println (:wat::string::concat "US/-5/9e6/200 (want S=0 A=0): " (:usr::fire-one template (:usr::mk "US" -5 9000000 200))))
+        (:wat::kernel::println (:wat::string::concat "XX/-5/2e6/200 (want S=1 A=0): " (:usr::fire-one template (:usr::mk "XX" -5 2000000 200))))
+        (:wat::kernel::println (:wat::string::concat "XX/5/9e6/200  (want S=0 A=0): " (:usr::fire-one template (:usr::mk "XX" 5 9000000 200))))))))

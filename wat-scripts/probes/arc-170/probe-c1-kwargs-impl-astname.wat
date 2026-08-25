@@ -37,7 +37,7 @@
      ret-ty    (:wat::core::Option/expect (:wat::core::get dn-ch 4) "no ret-ty")
      ret-nm    (:wat::core::ast-name ret-ty)]
     (:wat::core::do
-      (:wat::kernel::println (:wat::core::string::concat "head0-kind: " head0k))
-      (:wat::kernel::println (:wat::core::string::concat "head0-nm: " head0n))
-      (:wat::kernel::println (:wat::core::string::concat "item-nm: " item-nm))
-      (:wat::kernel::println (:wat::core::string::concat "ret-nm: " ret-nm)))))
+      (:wat::kernel::println (:wat::string::concat "head0-kind: " head0k))
+      (:wat::kernel::println (:wat::string::concat "head0-nm: " head0n))
+      (:wat::kernel::println (:wat::string::concat "item-nm: " item-nm))
+      (:wat::kernel::println (:wat::string::concat "ret-nm: " ret-nm)))))

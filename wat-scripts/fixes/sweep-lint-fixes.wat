@@ -23,7 +23,7 @@
       nil
       (:wat::core::do
         (:wat::io::write-file path fixed)
-        (:wat::kernel::println (:wat::core::string::concat "[fixed] " path))
+        (:wat::kernel::println (:wat::string::concat "[fixed] " path))
         nil))))
 
 (:wat::core::defn :user::sweep-each

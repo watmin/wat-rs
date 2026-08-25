@@ -25,8 +25,8 @@
                      [rch       (:wat::core::ast->children rf)
                       rname     (:wat::core::Option/expect (:wat::core::get rch 1) "mk-deduce: rule missing name")
                       raw-name  (:wat::core::ast-name rname)
-                      name-str  (:wat::core::if (:wat::core::= (:wat::core::string::subs raw-name 0 1) ":")
-                                   (:wat::core::string::subs raw-name 1 (:wat::core::string::length raw-name))
+                      name-str  (:wat::core::if (:wat::core::= (:wat::string::subs raw-name 0 1) ":")
+                                   (:wat::string::subs raw-name 1 (:wat::string::length raw-name))
                                    raw-name)
                       when-vec  (:wat::core::Option/expect (:wat::core::get rch 3) "mk-deduce: rule missing :when")
                       then-vec  (:wat::core::Option/expect (:wat::core::get rch 5) "mk-deduce: rule missing :then")
@@ -51,8 +51,8 @@
                            [cch  (:wat::core::ast->children tf)
                             tkw  (:wat::core::Option/expect (:wat::core::get cch 0) "mk-deduce: :then fact-form missing a type")
                             traw (:wat::core::ast-name tkw)
-                            tstr (:wat::core::if (:wat::core::= (:wat::core::string::subs traw 0 1) ":")
-                                   (:wat::core::string::subs traw 1 (:wat::core::string::length traw))
+                            tstr (:wat::core::if (:wat::core::= (:wat::string::subs traw 0 1) ":")
+                                   (:wat::string::subs traw 1 (:wat::string::length traw))
                                    traw)]
                            (:wat::core::if (:wat::core::Vector/contains? acc2 tstr) acc2 (:wat::core::conj acc2 tstr))))
                        acc
@@ -65,7 +65,7 @@
                  (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST]) tstr <- :wat::core::String]
                    -> (:wat::core::Vector :- [:wat::WatAST])
                    (:wat::core::let
-                     [tkw  (:wat::core::keyword-node (:wat::core::string::concat ":" tstr))
+                     [tkw  (:wat::core::keyword-node (:wat::string::concat ":" tstr))
                       cond `(~tkw)]
                      (:wat::core::conj acc
                        `(:wat::rete::make-query ~tstr
@@ -106,5 +106,5 @@
      hot   (:usr::deduce-one template (:usr::Temp :c 60))
      cold  (:usr::deduce-one template (:usr::Temp :c 10))]
     (:wat::core::do
-      (:wat::kernel::println (:wat::core::string::concat "hot="  (:wat::core::str (:wat::core::length hot))))
-      (:wat::kernel::println (:wat::core::string::concat "cold=" (:wat::core::str (:wat::core::length cold)))))))
+      (:wat::kernel::println (:wat::string::concat "hot="  (:wat::core::str (:wat::core::length hot))))
+      (:wat::kernel::println (:wat::string::concat "cold=" (:wat::core::str (:wat::core::length cold)))))))

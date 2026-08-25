@@ -59,7 +59,7 @@
 ;; "recv': … closed …"). ast-name on a StringLit returns the unquoted content.
 (:wat::core::defn :user::recv-closed-arg? [arg <- :wat::WatAST] -> :wat::core::bool
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind arg) "string")
-    (:wat::core::= (:wat::core::first (:wat::core::string::split (:wat::core::ast-name arg) ":")) "recv'")
+    (:wat::core::= (:wat::core::first (:wat::string::split (:wat::core::ast-name arg) ":")) "recv'")
     false))
 
 ;; recv-arm-eprintln? — a list `(:wat::kernel::eprintln ARG)` (exactly 2 children) whose ARG is a
@@ -113,7 +113,7 @@
 ;; ── per-file migrate ─────────────────────────────────────────────────────────
 (:wat::core::defn :user::migrate [src <- :wat::core::String] -> :wat::core::String
   (:wat::core::let
-    [lines (:wat::core::string::split src "\n")
+    [lines (:wat::string::split src "\n")
      forms (:wat::core::ast->children (:wat::core::match (:wat::core::read-string src) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None))))
      eds   (:user::seq-edits forms lines)
      rev   (:wat::core::reverse (:wat::core::sort eds))]
@@ -126,7 +126,7 @@
     (:wat::core::let [path (:wat::core::first paths)]
       (:wat::core::do
         (:wat::io::write-file path (:user::migrate (:wat::io::read-file path)))
-        (:wat::kernel::println (:wat::core::string::concat "[eprintln->assertion-failed!] " path))
+        (:wat::kernel::println (:wat::string::concat "[eprintln->assertion-failed!] " path))
         (:user::apply-each (:wat::core::rest paths))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

@@ -98,7 +98,7 @@
 ;; Colon-mode output.
 (:wat::core::defn :user::safe-colon-rendering?
   [rendered <- :wat::core::String] -> :wat::core::bool
-  (:wat::core::not (:wat::core::string::contains? rendered "wat.type/")))
+  (:wat::core::not (:wat::string::contains? rendered "wat.type/")))
 
 ;; declarator-head-keyword? — node is a keyword leaf whose full name (":wat::core::defn" etc.)
 ;; is one of the heads that open a declaration form whose OWN name sits at index 1 — a binder,
@@ -149,12 +149,12 @@
 ;; corpus shape to paper over — STOP via assertion-failed! rather than emit a guess.
 (:wat::core::defn :user::strip-outer-parens
   [rendered <- :wat::core::String] -> :wat::core::String
-  (:wat::core::if (:wat::core::if (:wat::core::= (:wat::core::string::subs rendered 0 1) "(")
-                    (:wat::core::string::ends-with? rendered ")")
+  (:wat::core::if (:wat::core::if (:wat::core::= (:wat::string::subs rendered 0 1) "(")
+                    (:wat::string::ends-with? rendered ")")
                     false)
-    (:wat::core::string::subs rendered 1 (:wat::core::i64::- (:wat::core::string::length rendered) 1))
+    (:wat::string::subs rendered 1 (:wat::core::i64::- (:wat::string::length rendered) 1))
     (:wat::kernel::assertion-failed!
-      (:wat::core::string::concat "parametrics-take-a-type-vector: declarator-name rendering is not application-shaped: " rendered)
+      (:wat::string::concat "parametrics-take-a-type-vector: declarator-name rendering is not application-shaped: " rendered)
       :wat::core::None :wat::core::None)))
 
 ;; leaf-edits — a keyword leaf gets ONE edit iff it is structurally type-shaped
@@ -179,7 +179,7 @@
         (:wat::core::let [span    (:wat::core::ast-span node)
                           off     (:wat::fix::fix-text-offset-of span lines)
                           nm      (:wat::core::ast-name node)
-                          old-len (:wat::core::string::length nm)
+                          old-len (:wat::string::length nm)
                           text    (:wat::core::if prev-decl-head?
                                     (:user::strip-outer-parens rendered)
                                     rendered)]
@@ -230,7 +230,7 @@
 (:wat::core::defn :user::convert
   [src <- :wat::core::String]
   -> :wat::core::String
-  (:wat::core::let [lines     (:wat::core::string::split src "\n")
+  (:wat::core::let [lines     (:wat::string::split src "\n")
                     tree      (:wat::core::match (:wat::core::read-string src) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)))
                     forms     (:wat::core::ast->children tree)
                     all-edits (:user::seq-edits forms lines true false)
@@ -246,7 +246,7 @@
       (:wat::core::do
         (:wat::io::write-file path
           (:user::convert (:wat::io::read-file path)))
-        (:wat::kernel::println (:wat::core::string::concat "[parametrics-take-a-type-vector] " path))
+        (:wat::kernel::println (:wat::string::concat "[parametrics-take-a-type-vector] " path))
         (:user::apply-each (:wat::core::rest paths))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

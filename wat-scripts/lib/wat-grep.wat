@@ -38,10 +38,10 @@
                     off        (:wat::fix::fix-text-offset-of start-span lines)
                     old-len    (:wat::fix::fix-text-span-len start-span end-span lines)
                     ;; eat the trailing newline (if any) to avoid a dangling blank line
-                    src-len    (:wat::core::string::length src)
+                    src-len    (:wat::string::length src)
                     end-off    (:wat::core::+ off old-len)
                     next-is-nl (:wat::core::if (:wat::core::< end-off src-len)
-                                  (:wat::core::= (:wat::core::string::subs src end-off
+                                  (:wat::core::= (:wat::string::subs src end-off
                                                    (:wat::core::+ end-off 1)) "\n")
                                   false)
                     eat        (:wat::core::if next-is-nl 1 0)]
@@ -82,7 +82,7 @@
   [src  <- :wat::core::String
    pred <- :wat::core::Fn(wat::WatAST)->wat::core::bool]
   -> :wat::core::String
-  (:wat::core::let [lines     (:wat::core::string::split src "\n")
+  (:wat::core::let [lines     (:wat::string::split src "\n")
                     tree      (:wat::core::match (:wat::core::read-string src) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)))
                     forms     (:wat::core::ast->children tree)
                     ;; Arc 118.2a — `filter` flipped LAZY; `matches` feeds `wat-grep-strip-edits`

@@ -58,7 +58,7 @@
 ;; (depth starts at 1, `i` is the position right after that open bracket).
 (:wat::core::defn :user::scan-for-close
   [s <- :wat::core::String i <- :wat::core::i64 depth <- :wat::core::i64] -> :wat::core::i64
-  (:wat::core::let [c (:wat::core::string::subs s i (:wat::core::i64::+ i 1))]
+  (:wat::core::let [c (:wat::string::subs s i (:wat::core::i64::+ i 1))]
     (:wat::core::if (:user::open-bracket? c)
       (:user::scan-for-close s (:wat::core::i64::+ i 1) (:wat::core::i64::+ depth 1))
       (:wat::core::if (:user::close-bracket? c)
@@ -72,16 +72,16 @@
   [s <- :wat::core::String i <- :wat::core::i64 depth <- :wat::core::i64 start <- :wat::core::i64
    acc <- (:wat::core::Vector :- [:wat::core::String])]
   -> (:wat::core::Vector :- [:wat::core::String])
-  (:wat::core::if (:wat::core::i64::>= i (:wat::core::string::length s))
-    (:wat::core::conj acc (:wat::core::string::trim (:wat::core::string::subs s start i)))
-    (:wat::core::let [c (:wat::core::string::subs s i (:wat::core::i64::+ i 1))]
+  (:wat::core::if (:wat::core::i64::>= i (:wat::string::length s))
+    (:wat::core::conj acc (:wat::string::trim (:wat::string::subs s start i)))
+    (:wat::core::let [c (:wat::string::subs s i (:wat::core::i64::+ i 1))]
       (:wat::core::if (:user::open-bracket? c)
         (:user::split-top-level s (:wat::core::i64::+ i 1) (:wat::core::i64::+ depth 1) start acc)
         (:wat::core::if (:user::close-bracket? c)
           (:user::split-top-level s (:wat::core::i64::+ i 1) (:wat::core::i64::- depth 1) start acc)
           (:wat::core::if (:wat::core::if (:wat::core::= c ",") (:wat::core::i64::= depth 0) false)
             (:user::split-top-level s (:wat::core::i64::+ i 1) depth (:wat::core::i64::+ i 1)
-              (:wat::core::conj acc (:wat::core::string::trim (:wat::core::string::subs s start i))))
+              (:wat::core::conj acc (:wat::string::trim (:wat::string::subs s start i))))
             (:user::split-top-level s (:wat::core::i64::+ i 1) depth start acc)))))))
 
 ;; render-ref — full REFERENCE-role rendering of a `:(`-leading keyword's TEXT (leading colon
@@ -101,15 +101,15 @@
 ;;   - otherwise — a bare short identifier (K, V, T, Xt) — a lexical type VARIABLE; verbatim.
 (:wat::core::defn :user::render-one-arg
   [s <- :wat::core::String] -> :wat::core::String
-  (:wat::core::if (:wat::core::string::starts-with? s "(")
-    (:user::render-tuple (:wat::core::string::concat ":" s))
-    (:wat::core::if (:wat::core::string::contains? s "::")
-      (:wat::core::string::concat ":" s)
+  (:wat::core::if (:wat::string::starts-with? s "(")
+    (:user::render-tuple (:wat::string::concat ":" s))
+    (:wat::core::if (:wat::string::contains? s "::")
+      (:wat::string::concat ":" s)
       s)))
 
 (:wat::core::defn :user::render-args
   [args <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::String
-  (:wat::core::string::join " "
+  (:wat::string::join " "
     (:wat::core::foldl
       (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String]) a <- :wat::core::String]
         -> (:wat::core::Vector :- [:wat::core::String])
@@ -119,10 +119,10 @@
 
 (:wat::core::defn :user::render-tuple
   [kw-text <- :wat::core::String] -> :wat::core::String
-  (:wat::core::let [inner         (:wat::core::string::subs kw-text 2 (:wat::core::i64::- (:wat::core::string::length kw-text) 1))
+  (:wat::core::let [inner         (:wat::string::subs kw-text 2 (:wat::core::i64::- (:wat::string::length kw-text) 1))
                     args          (:user::split-top-level inner 0 0 0 (:wat::core::Vector :wat::core::String))
                     rendered-args (:user::render-args args)]
-    (:wat::core::string::interpolate "(:wat::core::Tuple :- [{a}])" :a rendered-args)))
+    (:wat::string::interpolate "(:wat::core::Tuple :- [{a}])" :a rendered-args)))
 
 ;; ── the raw-text scanner — replaces fix.wat's `read-string`-based walk ──────────────────────────
 ;;
@@ -136,7 +136,7 @@
 
 (:wat::core::defn :user::char-at
   [s <- :wat::core::String i <- :wat::core::i64] -> :wat::core::String
-  (:wat::core::string::subs s i (:wat::core::i64::+ i 1)))
+  (:wat::string::subs s i (:wat::core::i64::+ i 1)))
 
 ;; has-top-level-comma? — does `inner` (a tuple's paren-interior text) contain a depth-0 comma?
 ;; Reuses split-top-level: more than one segment means a real separator fired.
@@ -189,10 +189,10 @@
    edits <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])]
   -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
   (:wat::core::let [close (:user::scan-for-close text (:wat::core::i64::+ i 2) 1)
-                    inner (:wat::core::string::subs text (:wat::core::i64::+ i 2) close)
+                    inner (:wat::string::subs text (:wat::core::i64::+ i 2) close)
                     next-i (:wat::core::i64::+ close 1)]
     (:wat::core::if (:user::has-top-level-comma? inner)
-      (:wat::core::let [old-text (:wat::core::string::subs text i next-i)
+      (:wat::core::let [old-text (:wat::string::subs text i next-i)
                         new-text (:user::render-tuple old-text)
                         old-len  (:wat::core::i64::- next-i i)]
         (:user::scan text next-i len false (:wat::core::conj edits (:wat::core::Tuple i old-len new-text))))
@@ -200,7 +200,7 @@
 
 (:wat::core::defn :user::convert
   [src <- :wat::core::String] -> :wat::core::String
-  (:wat::core::let [all-edits (:user::scan src 0 (:wat::core::string::length src) false
+  (:wat::core::let [all-edits (:user::scan src 0 (:wat::string::length src) false
                                  (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])))
                     rev-edits (:wat::core::reverse all-edits)]
     (:wat::fix::fix-text-apply src rev-edits)))
@@ -214,7 +214,7 @@
       (:wat::core::do
         (:wat::io::write-file path
           (:user::convert (:wat::io::read-file path)))
-        (:wat::kernel::println (:wat::core::string::concat "[tuple-parens-to-binder] " path))
+        (:wat::kernel::println (:wat::string::concat "[tuple-parens-to-binder] " path))
         (:user::apply-each (:wat::core::rest paths))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

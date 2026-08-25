@@ -20,14 +20,14 @@
      zero  (:wat::holon::Blend h h 1.0 -1.0)
 
      ;; ROW 2 — happy path, fallback not taken.
-     row2-happy (:wat::rete::core::string::subs "hello" 1 3 :undefined "?")
+     row2-happy (:wat::rete::string::subs "hello" 1 3 :undefined "?")
 
      ;; ROW 3 — out-of-range, fallback fires.
-     row3-out-of-range (:wat::rete::core::string::subs "hello" 2 99 :undefined "?")
+     row3-out-of-range (:wat::rete::string::subs "hello" 2 99 :undefined "?")
 
      ;; ROW 4 — same out-of-range call, two different fallback values.
-     row4-run-a (:wat::rete::core::string::subs "hello" 2 99 :undefined "?")
-     row4-run-b (:wat::rete::core::string::subs "hello" 2 99 :undefined "gone")
+     row4-run-a (:wat::rete::string::subs "hello" 2 99 :undefined "?")
+     row4-run-b (:wat::rete::string::subs "hello" 2 99 :undefined "gone")
 
      ;; ROW 6 — every other Fallback family, unregressed.
      row6-i64-div    (:wat::rete::core::i64::/ 1 0 :undefined -1)

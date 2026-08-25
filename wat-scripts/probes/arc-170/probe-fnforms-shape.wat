@@ -7,4 +7,4 @@
      forms   (:wat::kernel::fn-forms work-fn :bracket::__pool-work)]
     (:wat::core::do
       (:wat::kernel::println (:wat::edn::write forms))
-      (:wat::kernel::println (:wat::core::string::concat "return-type-of = " (:wat::runtime::return-type-of work-fn))))))
+      (:wat::kernel::println (:wat::string::concat "return-type-of = " (:wat::runtime::return-type-of work-fn))))))

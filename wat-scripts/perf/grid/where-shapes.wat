@@ -243,7 +243,7 @@
   (:wat::core::foldl
     (:wat::core::fn [acc <- :wat::core::String  seg <- :wat::core::String] -> :wat::core::String seg)
     full
-    (:wat::core::string::split full "::")))
+    (:wat::string::split full "::")))
 
 (:wat::core::defn :wsh::run-row [row <- :wat::core::i64] -> :wat::core::String
   (:wat::core::let [rules   (:wsh::build-rules row)

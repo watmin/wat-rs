@@ -33,4 +33,4 @@
   (:wat::form::matches? p
     (:test::PaperResolved
       (= ?outcome :outcome)
-      (:where (:wat::core::string::contains? ?outcome "Grace")))))
+      (:where (:wat::string::contains? ?outcome "Grace")))))

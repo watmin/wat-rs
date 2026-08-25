@@ -49,11 +49,11 @@
                (:probe::Acc :nodes 0 :spans 0)
                (:wat::core::ast->children forms))]
         (:wat::kernel::println
-          (:wat::core::string::concat label
-            (:wat::core::string::concat "  Node=" (:wat::core::str (:probe::Acc/nodes acc))
-              (:wat::core::string::concat "  Span=" (:wat::core::str (:probe::Acc/spans acc))))))))
+          (:wat::string::concat label
+            (:wat::string::concat "  Node=" (:wat::core::str (:probe::Acc/nodes acc))
+              (:wat::string::concat "  Span=" (:wat::core::str (:probe::Acc/spans acc))))))))
     ((:wat::core::ReadOutcome::Malformed cause)
-      (:wat::kernel::println (:wat::core::string::concat label (:wat::core::string::concat "  MALFORMED " (:wat::core::str cause)))))))
+      (:wat::kernel::println (:wat::string::concat label (:wat::string::concat "  MALFORMED " (:wat::core::str cause)))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::do

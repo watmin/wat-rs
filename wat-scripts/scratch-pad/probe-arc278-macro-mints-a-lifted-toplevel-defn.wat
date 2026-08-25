@@ -21,7 +21,7 @@
   -> :wat::WatAST
   (:wat::core::let
     [raw         (:wat::core::ast-name name)
-     lifted-str  (:wat::core::string::concat raw "$where0")
+     lifted-str  (:wat::string::concat raw "$where0")
      lifted-node (:wat::core::keyword-node lifted-str)]
     `(:wat::core::do
        ;; the LIFTED body — ordinary top-level code, computed name
@@ -36,5 +36,5 @@
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::kernel::println
-    (:wat::core::string::concat "STOP-3 macro-minted top-level lifted defn = "
+    (:wat::string::concat "STOP-3 macro-minted top-level lifted defn = "
       (:wat::core::if (:probe::r1) "true" "false"))))

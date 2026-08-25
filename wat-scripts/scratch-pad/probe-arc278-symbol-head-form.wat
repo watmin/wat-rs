@@ -57,7 +57,7 @@
   (:wat::core::do
     ;; (1) does it evaluate? if normalize rewrites the head, this is 4.
     (:wat::kernel::println
-      (:wat::core::string::concat "1. (wat.core/+ 2 2) evaluates to "
+      (:wat::string::concat "1. (wat.core/+ 2 2) evaluates to "
         (:wat::core::i64::to-string (:probe::eval-symbol-head))))
 
     ;; (2) what is it as data? THE load-bearing line — a symbol head or a normalized keyword?
@@ -72,5 +72,5 @@
       ((:wat::edn::Validation::Invalid path expected got)
         (:wat::core::do
           (:wat::kernel::println
-            (:wat::core::string::concat "   INVALID expected=" expected " got=" got))
+            (:wat::string::concat "   INVALID expected=" expected " got=" got))
           (:wat::kernel::println path))))))

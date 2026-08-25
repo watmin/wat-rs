@@ -95,7 +95,7 @@
     ((:proto::Frame::Chunk text)
       (:wat::core::do
         (:wat::kernel::println (:proto::Ack::Got n))
-        (:proto::read-section (:wat::core::string::concat acc text)
+        (:proto::read-section (:wat::string::concat acc text)
                               (:wat::core::i64::+ n 1))))
 
     ;; The marker: the section is closed. Ack with OUR count — if it disagrees
@@ -118,5 +118,5 @@
   (:wat::core::let
     [header  (:proto::read-section "" 0)
      body    (:proto::read-section "" 0)]
-    (:wat::kernel::println (:wat::core::string::length header))
-    (:wat::kernel::println (:wat::core::string::length body))))
+    (:wat::kernel::println (:wat::string::length header))
+    (:wat::kernel::println (:wat::string::length body))))

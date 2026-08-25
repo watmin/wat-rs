@@ -9,12 +9,12 @@
   -> :wat::WatAST
   (:wat::core::let
     [str   (:wat::core::ast-name s)
-     len   (:wat::core::string::length str)
+     len   (:wat::string::length str)
      ;; Arc 118.2a — `map` flipped LAZY; this macro evaluates at expand time (pure-total
      ;; program-body, bootstrap-adjacent), so `foldl`+`conj` (Rust-native) stand in.
      chars (:wat::core::foldl
              (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String]) i <- :wat::core::i64] -> (:wat::core::Vector :- [:wat::core::String])
-               (:wat::core::conj acc (:wat::core::string::subs str i (:wat::core::i64::+ i 1))))
+               (:wat::core::conj acc (:wat::string::subs str i (:wat::core::i64::+ i 1))))
              (:wat::core::Vector :wat::core::String)
              (:wat::core::range 0 len))
      final (:wat::core::foldl
@@ -28,16 +28,16 @@
                    (:wat::core::= c "{")
                    
                    (:wat::core::Tuple kept (:wat::core::i64::+ nopen 1))
-                   (:wat::core::Tuple (:wat::core::string::concat kept c) nopen))))
+                   (:wat::core::Tuple (:wat::string::concat kept c) nopen))))
              (:wat::core::Tuple "" 0)
              chars)
      kept   (:wat::core::first final)
      nopen  (:wat::core::second final)
-     out    (:wat::core::string::concat kept
-              (:wat::core::string::concat "|" (:wat::core::i64::to-string nopen)))]
+     out    (:wat::string::concat kept
+              (:wat::string::concat "|" (:wat::core::i64::to-string nopen)))]
     (:wat::core::first
       (:wat::core::ast->children
         (:wat::core::match (:wat::core::read-string
-          (:wat::core::string::concat "\"" (:wat::core::string::concat out "\""))) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::core::macro-error (:wat::core::string::concat "expand-time read-string failed: " (:wat::core::Error/message __cause)))))))))
+          (:wat::string::concat "\"" (:wat::string::concat out "\""))) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::core::macro-error (:wat::string::concat "expand-time read-string failed: " (:wat::core::Error/message __cause)))))))))
 
 (:wat::core::defn :user::probe [] -> :wat::core::String (:user::strip-braces "a{b{c"))

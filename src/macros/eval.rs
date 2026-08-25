@@ -409,9 +409,9 @@ fn is_pure_total(head: &str) -> bool {
         | ":wat::core::f64::to-string"
         | ":wat::core::f64::to-i64"
         | ":wat::core::bool::to-string"
-        | ":wat::core::string::to-i64"
-        | ":wat::core::string::to-f64"
-        | ":wat::core::string::to-bool"
+        | ":wat::string::to-i64"
+        | ":wat::string::to-f64"
+        | ":wat::string::to-bool"
 
         // ── Keyword / symbol ops (pure) ────────────────────────────────
         | ":wat::core::keyword/to-string"
@@ -434,26 +434,26 @@ fn is_pure_total(head: &str) -> bool {
         | ":wat::kernel::macro-call-site"
 
         // ── String ops (pure) ─────────────────────────────────────────
-        | ":wat::core::string::concat"
+        | ":wat::string::concat"
         // Arc 284 — pure-total interpolation intrinsic: same {name} + :name val grammar as
         // the format macro, but interpolates at call time → expand-time-legal in macro bodies.
-        | ":wat::core::string::interpolate"
+        | ":wat::string::interpolate"
         | ":wat::core::String/concat"
-        | ":wat::core::string::contains?"
+        | ":wat::string::contains?"
         | ":wat::core::String/contains?"
-        | ":wat::core::string::starts-with?"
+        | ":wat::string::starts-with?"
         | ":wat::core::String/starts-with?"
-        | ":wat::core::string::ends-with?"
+        | ":wat::string::ends-with?"
         | ":wat::core::String/ends-with?"
-        | ":wat::core::string::length"
+        | ":wat::string::length"
         // Arc 279.1 — subs is on is_pure_total: the `format` macro walks the template
         // character-by-character at expand time (length + subs i (i+1)) to collapse the
         // `{{`/`}}` literal-brace escape. Char-indexed + total-deterministic (out-of-range
         // is a deterministic abort, like split's empty-sep refusal). "Does a macro need it?" — yes.
-        | ":wat::core::string::subs"
-        | ":wat::core::string::trim"
-        | ":wat::core::string::to-lowercase"
-        | ":wat::core::string::to-uppercase"
+        | ":wat::string::subs"
+        | ":wat::string::trim"
+        | ":wat::string::to-lowercase"
+        | ":wat::string::to-uppercase"
         // Arc 209 naming-conversion — pascal->kebab is on is_pure_total (the defservice macro
         // calls it at expand time to derive fn names). Arc 278 #16.2 — to-uppercase joins it:
         // serve-op-arms calls it at expand time to derive the `<OP>-MAX-REQUEST-BYTES` const
@@ -462,11 +462,11 @@ fn is_pure_total(head: &str) -> bool {
         // macro calls it at expand time to derive fn names using the namespace's declared acronyms.
         // Arc 293 S2 — kebab->pascal-in joins it: `defservice … :satisfies` derives the surface's
         // PascalCase Op/Reply variant names from the kebab :impls op names at expand time.
-        | ":wat::core::string::pascal->kebab"
-        | ":wat::core::string::pascal->kebab-in"
-        | ":wat::core::string::kebab->pascal-in"
-        | ":wat::core::string::split"
-        | ":wat::core::string::join"
+        | ":wat::string::pascal->kebab"
+        | ":wat::string::pascal->kebab-in"
+        | ":wat::string::kebab->pascal-in"
+        | ":wat::string::split"
+        | ":wat::string::join"
         | ":wat::core::String/empty?"
 
         // ── Type inspection (pure) ─────────────────────────────────────

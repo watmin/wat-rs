@@ -82,7 +82,7 @@
 (:wat::rete::defrule :m::concept-of
   :when [(:m::Member (?id <- :id) (?p <- :prefix) (?s <- :style))]
   :then [(:m::Concept :id ?id
-                      :concept (:wat::rete::core::string::to-lowercase ?p)
+                      :concept (:wat::rete::string::to-lowercase ?p)
                       :style ?s)])
 
 ;; G2 — STYLE SEEN. Project each occurrence down to (concept, style). Two members of the
@@ -97,7 +97,7 @@
 (:wat::rete::defrule :m::inconsistent
   :when [(:m::StyleSeen (?c <- :concept) (?s1 <- :style))
          (:m::StyleSeen (?c <- :concept) (?s2 <- :style))
-         (:wat::rete::where (:wat::rete::core::not (:wat::rete::core::string::= ?s1 ?s2)))]
+         (:wat::rete::where (:wat::rete::core::not (:wat::rete::string::= ?s1 ?s2)))]
   :then [(:m::Inconsistent :concept ?c)])
 
 ;; G3' — SETTLED. The negation is the gate: a concept is settled only if nothing derived it
@@ -188,7 +188,7 @@
       (:m::Ruling :concept "i64" :target "wat.core.i64"))))
 
 (:wat::core::defn :m::show [label <- :wat::core::String n <- :wat::core::i64] -> :wat::core::nil
-  (:wat::kernel::println (:wat::core::string::concat label (:wat::core::str n))))
+  (:wat::kernel::println (:wat::string::concat label (:wat::core::str n))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

@@ -33,7 +33,7 @@
       (:wat::core::do
         (:wat::io::write-file path
           (:wat::fix::fix-text (:wat::io::read-file path)))
-        (:wat::kernel::println (:wat::core::string::concat "[to-faithful-clojure] " path))
+        (:wat::kernel::println (:wat::string::concat "[to-faithful-clojure] " path))
         (:user::apply-each (:wat::core::rest paths))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

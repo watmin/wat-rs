@@ -22,7 +22,7 @@
       :end #wat.core.Option/Some [
         #wat.core/Pos {
           :line 1951
-          :col 84
+          :col 78
         }
       ]
     }

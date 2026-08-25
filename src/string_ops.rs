@@ -1,4 +1,4 @@
-//! `:wat::core::string::*` + `:wat::core::regex::*` + `:wat::core::Uuid/*`
+//! `:wat::string::*` + `:wat::core::regex::*` + `:wat::core::Uuid/*`
 //! — string basics, regex, and typed UUID primitives.
 //!
 //! Follows the `:wat::core::i64` precedent: per-type operations live
@@ -26,40 +26,40 @@ use crate::runtime::{eval, Environment, EvalBreak, RuntimeError, RuntimeErrorKin
 use crate::span::Span;
 use std::sync::Arc;
 
-/// `(:wat::core::string::contains? haystack needle)` → `:bool`.
+/// `(:wat::string::contains? haystack needle)` → `:bool`.
 pub fn eval_string_contains(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    let (hay, needle) = two_strings(":wat::core::string::contains?", args, env, sym, list_span)?;
+    let (hay, needle) = two_strings(":wat::string::contains?", args, env, sym, list_span)?;
     Ok(Value::bool(hay.contains(needle.as_str())))
 }
 
-/// `(:wat::core::string::starts-with? haystack prefix)` → `:bool`.
+/// `(:wat::string::starts-with? haystack prefix)` → `:bool`.
 pub fn eval_string_starts_with(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    let (hay, prefix) = two_strings(":wat::core::string::starts-with?", args, env, sym, list_span)?;
+    let (hay, prefix) = two_strings(":wat::string::starts-with?", args, env, sym, list_span)?;
     Ok(Value::bool(hay.starts_with(prefix.as_str())))
 }
 
-/// `(:wat::core::string::ends-with? haystack suffix)` → `:bool`.
+/// `(:wat::string::ends-with? haystack suffix)` → `:bool`.
 pub fn eval_string_ends_with(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    let (hay, suffix) = two_strings(":wat::core::string::ends-with?", args, env, sym, list_span)?;
+    let (hay, suffix) = two_strings(":wat::string::ends-with?", args, env, sym, list_span)?;
     Ok(Value::bool(hay.ends_with(suffix.as_str())))
 }
 
-/// `(:wat::core::string::length s)` → `:i64`.
+/// `(:wat::string::length s)` → `:i64`.
 ///
 /// Unicode scalar count — matches the user's mental model of "string
 /// length" for scripts that use grapheme-sized characters. For byte
@@ -70,22 +70,22 @@ pub fn eval_string_length(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    let s = one_string(":wat::core::string::length", args, env, sym, list_span)?;
+    let s = one_string(":wat::string::length", args, env, sym, list_span)?;
     Ok(Value::i64(s.chars().count() as i64))
 }
 
-/// `(:wat::core::string::trim s)` → `:String`.
+/// `(:wat::string::trim s)` → `:String`.
 pub fn eval_string_trim(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    let s = one_string(":wat::core::string::trim", args, env, sym, list_span)?;
+    let s = one_string(":wat::string::trim", args, env, sym, list_span)?;
     Ok(Value::String(Arc::new(s.trim().to_string())))
 }
 
-/// `(:wat::core::string::to-lowercase s)` → `:String`.
+/// `(:wat::string::to-lowercase s)` → `:String`.
 ///
 /// Converts all ASCII/Unicode characters in `s` to their lowercase equivalent.
 /// Pure and total (Rust `String::to_lowercase` is deterministic, no IO).
@@ -96,11 +96,11 @@ pub fn eval_string_to_lowercase(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    let s = one_string(":wat::core::string::to-lowercase", args, env, sym, list_span)?;
+    let s = one_string(":wat::string::to-lowercase", args, env, sym, list_span)?;
     Ok(Value::String(Arc::new(s.to_lowercase())))
 }
 
-/// `(:wat::core::string::to-uppercase s)` → `:String`.
+/// `(:wat::string::to-uppercase s)` → `:String`.
 ///
 /// Converts all ASCII/Unicode characters in `s` to their uppercase equivalent.
 /// Pure and total (Rust `String::to_uppercase` is deterministic, no IO).
@@ -113,11 +113,11 @@ pub fn eval_string_to_uppercase(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    let s = one_string(":wat::core::string::to-uppercase", args, env, sym, list_span)?;
+    let s = one_string(":wat::string::to-uppercase", args, env, sym, list_span)?;
     Ok(Value::String(Arc::new(s.to_uppercase())))
 }
 
-/// `(:wat::core::string::pascal->kebab s)` → `:String`.
+/// `(:wat::string::pascal->kebab s)` → `:String`.
 ///
 /// PascalCase → kebab-case. Inserts a `-` before each uppercase character that
 /// is NOT at position 0, then lowercases every character. Digits ride the current
@@ -133,7 +133,7 @@ pub fn eval_string_pascal_to_kebab(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    let s = one_string(":wat::core::string::pascal->kebab", args, env, sym, list_span)?;
+    let s = one_string(":wat::string::pascal->kebab", args, env, sym, list_span)?;
     let mut result = String::with_capacity(s.len() + 4);
     for (i, ch) in s.chars().enumerate() {
         if i > 0 && ch.is_uppercase() {
@@ -183,7 +183,7 @@ fn keyword_value_to_registry_key(
     }
 }
 
-/// `(:wat::core::string::pascal->kebab-in ns s)` → `:String`.
+/// `(:wat::string::pascal->kebab-in ns s)` → `:String`.
 ///
 /// Namespace-scoped PascalCase → kebab-case. Reads `sym.acronym_registry[ns]`;
 /// a registered acronym is ONE segment (e.g. `"ACL"` → one token `"acl"`);
@@ -200,7 +200,7 @@ pub fn eval_string_pascal_to_kebab_in(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    const OP: &str = ":wat::core::string::pascal->kebab-in";
+    const OP: &str = ":wat::string::pascal->kebab-in";
     if args.len() != 2 {
         return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
@@ -286,7 +286,7 @@ fn pascal_to_kebab_with_acronyms(s: &str, acronyms: &[String]) -> String {
     segments.join("-")
 }
 
-/// `(:wat::core::string::kebab->pascal-in ns s)` → `:String`.
+/// `(:wat::string::kebab->pascal-in ns s)` → `:String`.
 ///
 /// Namespace-scoped kebab-case → PascalCase. Reads `sym.acronym_registry[ns]`;
 /// each segment matching a declared acronym (case-insensitive) is replaced by
@@ -303,7 +303,7 @@ pub fn eval_string_kebab_to_pascal_in(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    const OP: &str = ":wat::core::string::kebab->pascal-in";
+    const OP: &str = ":wat::string::kebab->pascal-in";
     if args.len() != 2 {
         return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::ArityMismatch {
             op: OP.into(),
@@ -354,7 +354,7 @@ pub(crate) fn kebab_to_pascal_with_acronyms(s: &str, acronyms: &[String]) -> Str
     result
 }
 
-/// `(:wat::core::string::subs s start end)` → `:String`.
+/// `(:wat::string::subs s start end)` → `:String`.
 ///
 /// Clojure's `subs`: start-inclusive, end-exclusive, CHAR-indexed.
 /// `(subs "hello world" 0 5)` → `"hello"`.
@@ -366,7 +366,7 @@ pub fn eval_string_subs(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    const OP: &str = ":wat::core::string::subs";
+    const OP: &str = ":wat::string::subs";
     if args.len() != 3 {
         let span = args
             .first()
@@ -420,7 +420,7 @@ pub fn eval_string_subs(
     Ok(Value::String(Arc::new(result)))
 }
 
-/// `(:wat::core::string::split haystack sep)` → `:wat::core::Vector<String>`.
+/// `(:wat::string::split haystack sep)` → `:wat::core::Vector<String>`.
 ///
 /// Splits every occurrence of `sep`. An empty `sep` — the edge case
 /// `str::split("")` would degenerate to per-char — is refused as a
@@ -433,7 +433,7 @@ pub fn eval_string_split(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    const OP: &str = ":wat::core::string::split";
+    const OP: &str = ":wat::string::split";
     let (hay, sep) = two_strings(OP, args, env, sym, list_span)?;
     if sep.is_empty() {
         return Err(RuntimeError::new(args[1].span().clone(), RuntimeErrorKind::MalformedForm {
@@ -448,7 +448,7 @@ pub fn eval_string_split(
     Ok(Value::Vec(Arc::new(pieces)))
 }
 
-/// `(:wat::core::string::join sep pieces)` → `:String`.
+/// `(:wat::string::join sep pieces)` → `:String`.
 ///
 /// Signature order matches Rust's `Vec::<String>::join(&sep)`: separator
 /// first (the uniform thing), pieces second (the per-call thing).
@@ -458,7 +458,7 @@ pub fn eval_string_join(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    const OP: &str = ":wat::core::string::join";
+    const OP: &str = ":wat::string::join";
     if args.len() != 2 {
         let span = args
             .first()
@@ -547,7 +547,7 @@ pub(crate) fn render_str_total(v: &Value, types: Option<&crate::types::TypeEnv>)
     }
 }
 
-/// `(:wat::core::string::interpolate tmpl :k1 v1 :k2 v2 …)` → `:String`.
+/// `(:wat::string::interpolate tmpl :k1 v1 :k2 v2 …)` → `:String`.
 ///
 /// Pure-total runtime interpolation intrinsic. Same `{name}` + trailing `:name val`
 /// kwargs grammar and `{{`/`}}` escape as the `format` macro (arc 279), but
@@ -564,7 +564,7 @@ pub fn eval_string_interpolate(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    const OP: &str = ":wat::core::string::interpolate";
+    const OP: &str = ":wat::string::interpolate";
 
     // Need at least the template arg.
     if args.is_empty() {
@@ -739,13 +739,13 @@ pub fn eval_string_interpolate(
     Ok(Value::String(Arc::new(result)))
 }
 
-/// `(:wat::core::string::concat s1 s2 ... sn)` → `:String`.
+/// `(:wat::string::concat s1 s2 ... sn)` → `:String`.
 ///
 /// Variadic concatenation. Differs from `join` in that there's no
 /// separator and the args are passed positionally rather than packed
 /// into a `Vec<String>` — the natural form for "stitch a few strings
 /// together at the call site." Equivalent to
-/// `(:wat::core::string::join "" (:wat::core::Vector :String s1 s2 ...))`
+/// `(:wat::string::join "" (:wat::core::Vector :String s1 s2 ...))`
 /// but spares the caller the Vec ceremony when concatenation is the
 /// goal and the arity is fixed at the call site.
 ///
@@ -757,7 +757,7 @@ pub fn eval_string_concat(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<Value, RuntimeError> {
-    const OP: &str = ":wat::core::string::concat";
+    const OP: &str = ":wat::string::concat";
     if args.is_empty() {
         return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::ArityMismatch {
             op: OP.into(),

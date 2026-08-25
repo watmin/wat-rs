@@ -165,7 +165,7 @@
 ;; c=i%7 ⇒ 71 of 200.
 (:wat::rete::defrule :wmv::mixed-type
   :when
-  [(:wmv::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e) (?s <- :s)) (:wat::rete::where (:wat::rete::core::i64::> (:wat::rete::core::string::length ?s) ?c))]
+  [(:wmv::Req (?k <- :k) (?a <- :a) (?b <- :b) (?c <- :c) (?d <- :d) (?e <- :e) (?s <- :s)) (:wat::rete::where (:wat::rete::core::i64::> (:wat::rete::string::length ?s) ?c))]
   :then
   [(:wmv::Hit ?k)])
 
@@ -291,7 +291,7 @@
   (:wat::core::foldl
     (:wat::core::fn [acc <- :wat::core::String  seg <- :wat::core::String] -> :wat::core::String seg)
     full
-    (:wat::core::string::split full "::")))
+    (:wat::string::split full "::")))
 
 (:wat::core::defn :wmv::run-row [row <- :wat::core::i64] -> :wat::core::String
   (:wat::core::let

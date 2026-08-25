@@ -10,7 +10,7 @@
         (:wat::core::fn [a <- :wat::core::i64 b <- :wat::core::i64] -> :wat::core::bool
           (:wat::core::< a b))
         xs)]
-    (:wat::core::string::join ","
+    (:wat::string::join ","
       (:wat::core::mapv
         (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::String
           (:wat::core::i64::to-string n))
@@ -24,7 +24,7 @@
         (:wat::core::fn [a <- :wat::core::f64 b <- :wat::core::f64] -> :wat::core::bool
           (:wat::core::> a b))
         xs)]
-    (:wat::core::string::join ","
+    (:wat::string::join ","
       (:wat::core::mapv
         (:wat::core::fn [x <- :wat::core::f64] -> :wat::core::String
           (:wat::core::f64::to-string x))
@@ -38,7 +38,7 @@
         (:wat::core::fn [a <- :wat::core::String b <- :wat::core::String] -> :wat::core::bool
           (:wat::core::< a b))
         xs)]
-    (:wat::core::string::join "," sorted)))
+    (:wat::string::join "," sorted)))
 
 (:wat::core::defn :sort::empty-length [] -> :wat::core::i64
   (:wat::core::let
@@ -62,7 +62,7 @@
         (:wat::core::fn [a <- (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String]) b <- (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String])] -> :wat::core::bool
           (:wat::core::< (:wat::core::first a) (:wat::core::first b)))
         xs)]
-    (:wat::core::string::join ","
+    (:wat::string::join ","
       (:wat::core::mapv
         (:wat::core::fn [p <- (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String])] -> :wat::core::String
           (:wat::core::second p))

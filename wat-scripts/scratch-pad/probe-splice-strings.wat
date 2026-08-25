@@ -15,5 +15,5 @@
      ok   (:wat::core::Vector/contains? v "usr::Hot")
      bad  (:wat::core::Vector/contains? v "nope")]
     (:wat::core::do
-      (:wat::kernel::println (:wat::core::string::concat "ok="  (:wat::core::str ok)))
-      (:wat::kernel::println (:wat::core::string::concat "bad=" (:wat::core::str bad))))))
+      (:wat::kernel::println (:wat::string::concat "ok="  (:wat::core::str ok)))
+      (:wat::kernel::println (:wat::string::concat "bad=" (:wat::core::str bad))))))

@@ -63,7 +63,7 @@
   [(put [s ctx req]
      (:wat::service::Outcome::Reply s
        (:wat-tests::MalBag::PutResponse::Ok
-         (:wat::core::string::length
+         (:wat::string::length
            (:wat::core::nth (:wat-tests::MalBag::PutRequest/items req) 0)))))])
 
 ;; ── the probe verbs ──────────────────────────────────────────────────────────────────────
@@ -78,10 +78,10 @@
         ((:wat-tests::MalBag::PutResponse::Ok n) "Ok")
         ((:wat-tests::MalBag::PutResponse::RequestTooLarge b cap) "TooLarge")
         ((:wat-tests::MalBag::PutResponse::RequestMalformed path expected got)
-          (:wat::core::string::concat "Malformed"
-            (:wat::core::string::concat (:wat::edn::write path)
-              (:wat::core::string::concat "/" (:wat::core::string::concat expected
-                (:wat::core::string::concat "/" got))))))))
+          (:wat::string::concat "Malformed"
+            (:wat::string::concat (:wat::edn::write path)
+              (:wat::string::concat "/" (:wat::string::concat expected
+                (:wat::string::concat "/" got))))))))
     ((:wat::kernel::RecvOutcome::Lost cause) "LOST")
     ;; arc 278 #73 — distinct from LOST (the peer died) and Closed (a clean hangup): the
     ;; substrate was asked to stop while this recv was parked; the peer was ALIVE.
@@ -116,9 +116,9 @@
      b    (:wat-tests::mal/dial (:wat-tests::mal-bag::Handle/addr h))
      r3   (:wat-tests::mal/try b good)
      _    (:wat-tests::mal-bag/stop h)]
-    (:wat::core::string::concat r1
-      (:wat::core::string::concat " | " (:wat::core::string::concat r2
-        (:wat::core::string::concat " | " r3))))))
+    (:wat::string::concat r1
+      (:wat::string::concat " | " (:wat::string::concat r2
+        (:wat::string::concat " | " r3))))))
 
 ;; ── thread tier ──────────────────────────────────────────────────────────────────────────
 (:wat::test::deftest :wat-tests::service::request-malformed-on-thread

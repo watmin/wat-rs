@@ -86,7 +86,7 @@
 //! violate): three rows sharing one name means only the LAST-registered `TypeScheme` survives, so
 //! two of the three types silently lose their monomorphic gate. Confirmed against a live call site
 //! (`wat-scripts/scratch-pad/probe-brief-f64-surface-is-a-stub.wat`'s PRE-RENAME
-//! `(:wat::rete::string::= "abc" "abc")`, now `:wat::rete::core::string::=`): applying the rule
+//! `(:wat::rete::string::= "abc" "abc")`, now `:wat::rete::string::=`): applying the rule
 //! verbatim makes that call fail `--check` under whichever scheme won the collision — a real
 //! floor regression, not a theoretical one. So these six keep their per-type qualifier, nested
 //! under `core::` exactly like their
@@ -666,8 +666,8 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     },
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::core::string::length",
-        core_name: ":wat::core::string::length",
+        rete_name: ":wat::rete::string::length",
+        core_name: ":wat::string::length",
         class: OpClass::Alias,
         params: &[ParamType::String],
         ret: ParamType::I64,
@@ -675,8 +675,8 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     },
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::core::string::trim",
-        core_name: ":wat::core::string::trim",
+        rete_name: ":wat::rete::string::trim",
+        core_name: ":wat::string::trim",
         class: OpClass::Alias,
         params: &[ParamType::String],
         ret: ParamType::String,
@@ -684,8 +684,8 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     },
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::core::string::to-lowercase",
-        core_name: ":wat::core::string::to-lowercase",
+        rete_name: ":wat::rete::string::to-lowercase",
+        core_name: ":wat::string::to-lowercase",
         class: OpClass::Alias,
         params: &[ParamType::String],
         ret: ParamType::String,
@@ -945,7 +945,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // `ParamType` leaves). `class: Alias` throughout — same shape as round 1a, one round larger.
     // `total: true` per row: TOTALITY IS DELIVERED BY THE SIGNATURE, not by the routine
     // underneath — a row declaring `[T, T] -> Bool` makes an incomparable pair (e.g.
-    // `(:wat::rete::core::string::= "a" 1)`) a TYPE ERROR before anything runs, which is the entire
+    // `(:wat::rete::string::= "a" 1)`) a TYPE ERROR before anything runs, which is the entire
     // domain hole a per-type surface exists to delete (DESIGN-STONE-where-admits-only-rete-ops.md,
     // "★★ RULED — THE RETE SURFACE IS PER-TYPE, PERIOD"). `meta` TRANSCRIBED, not decided, from
     // generic `=`/`not=` (`rete/purity.rs:307-308` pure∧det, `:511-512` total) for every one of
@@ -1013,8 +1013,8 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // BRIEF-the-f64-surface-is-a-stub.md Part D (2026-08-05) — casing bug fixed. Round 1c
     // (`6d5af2c8`) minted these with a capital-S `String::`, derived from the TYPE instead of
     // the MODULE; every other string row in both surfaces is lowercase
-    // (`:wat::core::string::{length,concat,trim,…}`, `:wat::rete::core::string::{length,to-lowercase,
-    // trim}`). Renamed `:wat::rete::String::{=,not=}` → `:wat::rete::core::string::{=,not=}`. Zero
+    // (`:wat::string::{length,concat,trim,…}`, `:wat::rete::string::{length,to-lowercase,
+    // trim}`). Renamed `:wat::rete::String::{=,not=}` → `:wat::rete::string::{=,not=}`. Zero
     // call sites existed at rename time (`grep -rn 'rete::String::' --include=*.wat
     // --include=*.rs .` found only this file's own three occurrences: the comment above and
     // these two rows) — a rename, not a migration.
@@ -1065,7 +1065,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     },
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::core::string::=",
+        rete_name: ":wat::rete::string::=",
         core_name: ":wat::core::=",
         class: OpClass::Alias,
         params: &[ParamType::String, ParamType::String],
@@ -1074,7 +1074,7 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     },
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::core::string::not=",
+        rete_name: ":wat::rete::string::not=",
         core_name: ":wat::core::not=",
         class: OpClass::Alias,
         params: &[ParamType::String, ParamType::String],
@@ -1314,9 +1314,9 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         ret: ParamType::Var("T"),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
-    // arc 278 #57 round 2 — `string::subs`, `Fallback` class. `:wat::core::string::subs` is
+    // arc 278 #57 round 2 — `string::subs`, `Fallback` class. `:wat::string::subs` is
     // PARTIAL — proven by run: `(subs "hello" 2 99)` raises `MalformedForm` with `head:
-    // ":wat::core::string::subs"` and reason "index out of range: start=2, end=99,
+    // ":wat::string::subs"` and reason "index out of range: start=2, end=99,
     // char-length=5; require 0 <= start <= end <= char-length" (`check.rs`'s registered scheme
     // is `(String, i64, i64) -> String`). This is the FIRST 3-real-arg `Fallback` row (i64/f64/
     // holon take two real args before the marker, `first` takes one); `dispatch_rete_op`'s
@@ -1324,11 +1324,11 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // real args as `&args[0..marker_idx]` — genuinely arity-generic, not hardcoded to `first`'s
     // one-real-arg shape, so no runtime change was needed here. The existing `MalformedForm {
     // head, .. } if head == op.core_name` catch (added for `first`) matches this row's raise
-    // exactly, since `head` here is likewise the literal `:wat::core::string::subs` `op` string.
+    // exactly, since `head` here is likewise the literal `:wat::string::subs` `op` string.
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::core::string::subs",
-        core_name: ":wat::core::string::subs",
+        rete_name: ":wat::rete::string::subs",
+        core_name: ":wat::string::subs",
         class: OpClass::Fallback,
         params: &[ParamType::String, ParamType::I64, ParamType::I64, ParamType::Keyword, ParamType::String],
         ret: ParamType::String,
@@ -1354,17 +1354,30 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
 pub(crate) const RETE_PREFIX: &str = ":wat::rete::";
 
 /// CLOSED by the naming rule (module doc, "The naming rule"): `rete_name = core_name` with
-/// `rete::` inserted after `wat::` means every row is rooted at `:wat::rete::core::` or
-/// `:wat::rete::holon::` BY CONSTRUCTION — there is no third root a core verb can have, so no new
-/// container, scalar type, or module ever needs an edit here again. Two entries, not five: the
-/// pre-rename table needed `i64::`/`f64::`/`string::` as SEPARATE entries only because its three
-/// naming rules put those rows directly under `:wat::rete::{i64,f64,string}::` instead of
-/// `:wat::rete::core::{i64,f64,string}::` — the rename moved them under `core::`, so those three
-/// entries are now redundant with it (measured 2026-08-05: 17 of 57 rows were falling through this
-/// list's gaps before the rename made it closed).
+/// `rete::` inserted after `wat::` means every row is rooted at `:wat::rete::core::`,
+/// `:wat::rete::holon::`, or `:wat::rete::string::` BY CONSTRUCTION — no new container, scalar
+/// type, or module ever needs an edit here again as long as it stays under one of these three.
+///
+/// ⚠ arc 255 Stone E — `string::` UN-CONSOLIDATED. The doc this replaced said "two entries, not
+/// five: the pre-rename table needed `i64::`/`f64::`/`string::` as SEPARATE entries only because
+/// its three naming rules put those rows directly under `:wat::rete::{i64,f64,string}::` instead
+/// of `:wat::rete::core::{i64,f64,string}::` — the rename moved them under `core::`, so those
+/// three entries are now redundant with it (measured 2026-08-05: 17 of 57 rows were falling
+/// through this list's gaps before the rename made it closed)." That was true until THIS rename:
+/// the builder's ruling (`DESIGN-STONE-E-the-string-home.md`, "the rete mirror MOVES") moves the
+/// rete-side string ops back OUT of the `core` sub-namespace to sit directly under
+/// `:wat::rete::string::`, mirroring the wat-side string ops' own move out of `:wat::core::` to
+/// sit directly under `:wat::string::`. `i64`/`f64` are untouched by this
+/// stone and stay consolidated under `core::`; `string` alone needs its prefix back, for the same
+/// reason the 2026-08-05 rename needed it in the first place — `rete_vocabulary_admitted` is an
+/// exact-prefix scan (STOP-1: never a substring match), so a row no longer rooted at an admitted
+/// prefix silently fails admission (`compile-condition`'s Law A, "not a rete primitive") even
+/// though its `RETE_OPS` row exists — measured this session: `(:wat::rete::string::length "abc")`
+/// in a `:then` raised exactly that before this entry was added.
 pub(crate) const RETE_MODULES: &[&str] = &[
     ":wat::rete::core::",
     ":wat::rete::holon::",
+    ":wat::rete::string::",
 ];
 
 /// Look up `head`'s row, if it is a minted rete-vocabulary op. Exact match — never a prefix scan
@@ -1534,8 +1547,8 @@ mod naming_rule_tests {
         // rows, so the literal insert rule would collapse them onto one name.
         ":wat::rete::core::enum::=",
         ":wat::rete::core::enum::not=",
-        ":wat::rete::core::string::=",
-        ":wat::rete::core::string::not=",
+        ":wat::rete::string::=",
+        ":wat::rete::string::not=",
         ":wat::rete::core::bool::=",
         ":wat::rete::core::bool::not=",
         ":wat::rete::core::keyword::=",

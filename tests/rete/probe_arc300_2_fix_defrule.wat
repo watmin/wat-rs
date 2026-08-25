@@ -64,7 +64,7 @@
      (?kind       <- :kind)
      (?name       <- :name)
      (?post-arrow <- :post-arrow)
-     (:wat::rete::core::string::= ?kind "keyword"))
+     (:wat::rete::string::= ?kind "keyword"))
    (:wat::rete::where (:fix::head-keyword-str? ?name))
    (:wat::rete::where (:wat::rete::core::not ?post-arrow))
    (:wat::rete::where (:wat::rete::core::not (:fix::type-shaped-keyword-str? ?name)))]
@@ -80,10 +80,10 @@
      (?len    <- :len)
      (?kind   <- :kind)
      (?name   <- :name)
-     (:wat::rete::core::string::= ?kind "symbol"))
+     (:wat::rete::string::= ?kind "symbol"))
    (:wat::rete::where (:wat::rete::core::or
-                        (:wat::rete::core::string::= ?name "<-")
-                        (:wat::rete::core::string::= ?name "->")))]
+                        (:wat::rete::string::= ?name "<-")
+                        (:wat::rete::string::= ?name "->")))]
   :then
   [(:fix::ArrowConv :offset ?offset :len ?len)])
 
@@ -97,7 +97,7 @@
      (?kind       <- :kind)
      (?name       <- :name)
      (?post-arrow <- :post-arrow)
-     (:wat::rete::core::string::= ?kind "keyword"))
+     (:wat::rete::string::= ?kind "keyword"))
    (:wat::rete::where (:wat::rete::core::or
                         ?post-arrow
                         (:fix::type-shaped-keyword-str? ?name)))]

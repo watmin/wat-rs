@@ -69,22 +69,22 @@
       (:wat::core::match resp
         ((:probe-wire::Bag::PutResponse::Ok seen)
           (:wat::kernel::println
-            (:wat::core::string::concat label " => Ok, server saw items = " seen)))
+            (:wat::string::concat label " => Ok, server saw items = " seen)))
         ((:probe-wire::Bag::PutResponse::RequestTooLarge bytes cap)
           (:wat::kernel::println
-            (:wat::core::string::concat label " => RequestTooLarge")))
+            (:wat::string::concat label " => RequestTooLarge")))
         ((:probe-wire::Bag::PutResponse::RequestMalformed mpath mexpected mgot)
           (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None))))
     ((:wat::kernel::RecvOutcome::Lost cause)
       (:wat::kernel::println
-        (:wat::core::string::concat label " => RecvOutcome::Lost: "
+        (:wat::string::concat label " => RecvOutcome::Lost: "
           (:wat::kernel::LociDiedError/message cause))))
     (:wat::kernel::RecvOutcome::Stopped
       (:wat::kernel::println
-        (:wat::core::string::concat label " => RecvOutcome::Stopped")))
+        (:wat::string::concat label " => RecvOutcome::Stopped")))
     (:wat::kernel::RecvOutcome::Closed
       (:wat::kernel::println
-        (:wat::core::string::concat label " => RecvOutcome::Closed")))))
+        (:wat::string::concat label " => RecvOutcome::Closed")))))
 
 ;; ── one tier: stand up, connect, send a GOOD payload then a MISTYPED one ─────
 (:wat::core::defn :probe-wire::measure-tier
@@ -108,13 +108,13 @@
      ;; Show the exact wire form the ctor produces, so the hand-written EDN below
      ;; is provably the SAME tag with a wrong-typed body.
      _ (:wat::kernel::println
-         (:wat::core::string::concat tier " control wire form = " (:wat::edn::write good)))
-     _ (:probe-wire::round-trip c (:wat::core::string::concat tier " control  ") good)
+         (:wat::string::concat tier " control wire form = " (:wat::edn::write good)))
+     _ (:probe-wire::round-trip c (:wat::string::concat tier " control  ") good)
      ;; THE PROBE — well-formed EDN, WRONG TYPE: i64s where (Vector :- [String]) is declared.
      bad (:wat::edn::read "#probe-wire.Bag/PutRequest {:items [1 2 3]}")
      _ (:wat::kernel::println
-         (:wat::core::string::concat tier " mistyped wire form = " (:wat::edn::write bad)))
-     _ (:probe-wire::round-trip c (:wat::core::string::concat tier " MISTYPED ") bad)]
+         (:wat::string::concat tier " mistyped wire form = " (:wat::edn::write bad)))
+     _ (:probe-wire::round-trip c (:wat::string::concat tier " MISTYPED ") bad)]
     nil))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

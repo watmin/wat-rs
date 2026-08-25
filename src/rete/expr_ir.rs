@@ -1242,12 +1242,12 @@ impl OpExec {
             ":wat::core::i64::<=" | ":wat::core::<=" => Self::Le,
             ":wat::core::i64::=" => Self::I64Eq,
             ":wat::core::i64::not=" => Self::I64NotEq,
-            ":wat::core::string::=" => Self::StrEq,
-            ":wat::core::string::not=" => Self::StrNotEq,
-            ":wat::core::string::length" => Self::StrLen,
-            ":wat::core::string::starts-with?" | ":wat::core::String/starts-with?" => Self::StartsWith,
-            ":wat::core::string::ends-with?" | ":wat::core::String/ends-with?" => Self::EndsWith,
-            ":wat::core::string::contains?" | ":wat::core::String/contains?" => Self::Contains,
+            ":wat::string::=" => Self::StrEq,
+            ":wat::string::not=" => Self::StrNotEq,
+            ":wat::string::length" => Self::StrLen,
+            ":wat::string::starts-with?" | ":wat::core::String/starts-with?" => Self::StartsWith,
+            ":wat::string::ends-with?" | ":wat::core::String/ends-with?" => Self::EndsWith,
+            ":wat::string::contains?" | ":wat::core::String/contains?" => Self::Contains,
             ":wat::core::not" => Self::Not,
             ":wat::core::i64::+" => Self::I64Add,
             ":wat::core::i64::-" => Self::I64Sub,
@@ -1271,9 +1271,9 @@ impl OpExec {
             ":wat::core::bool::to-string" => Self::BoolToStr,
             ":wat::core::String/empty?" => Self::StrEmpty,
             ":wat::core::String/concat" => Self::StrConcat,
-            ":wat::core::string::trim" => Self::StrTrim,
-            ":wat::core::string::to-lowercase" => Self::StrLower,
-            ":wat::core::string::subs" => Self::StrSubs,
+            ":wat::string::trim" => Self::StrTrim,
+            ":wat::string::to-lowercase" => Self::StrLower,
+            ":wat::string::subs" => Self::StrSubs,
             ":wat::core::PersistentVector/length" => Self::PvLen,
             ":wat::core::PersistentVector/contains?" => Self::PvContains,
             ":wat::core::PersistentVector/get" => Self::PvGet,
@@ -1516,7 +1516,7 @@ fn apply_core_kind(
                 return Err(RuntimeError::new(
                     span.clone(),
                     RuntimeErrorKind::MalformedForm {
-                        head: ":wat::core::string::subs".into(),
+                        head: ":wat::string::subs".into(),
                         reason: format!(
                             "index out of range: start={start}, end={end}, char-length={char_len}; \
                              require 0 <= start <= end <= char-length"

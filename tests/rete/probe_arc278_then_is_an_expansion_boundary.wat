@@ -34,15 +34,15 @@
 (:wat::rete::defrule :teb::kw
   :when [(:teb::In (?n <- :n))]
   :then [(:teb::Out :v (:wat::rete::core::cond
-                         ((:wat::rete::core::string::= ?n "a") "was-a")
-                         ((:wat::rete::core::string::= ?n "b") "was-b")
+                         ((:wat::rete::string::= ?n "a") "was-a")
+                         ((:wat::rete::string::= ?n "b") "was-b")
                          (:else "other")))])
 
 ;; positional `:then` — every arg past the head is a value
 (:wat::rete::defrule :teb::pos
   :when [(:teb::In (?n <- :n))]
   :then [(:teb::Pair (:wat::rete::core::cond
-                       ((:wat::rete::core::string::= ?n "a") "pos-a")
+                       ((:wat::rete::string::= ?n "a") "pos-a")
                        (:else "pos-other"))
                      ?n)])
 
@@ -50,7 +50,7 @@
 (:wat::rete::defrule :teb::nest
   :when [(:teb::In (?n <- :n))]
   :then [(:teb::Wrap :p (:teb::Pair :a (:wat::rete::core::cond
-                                         ((:wat::rete::core::string::= ?n "a") "nest-a")
+                                         ((:wat::rete::string::= ?n "a") "nest-a")
                                          (:else "nest-other"))
                                     :b ?n))])
 
@@ -59,7 +59,7 @@
 (:wat::rete::defrule :teb::lhs
   :when [(:teb::In (?n <- :n))
          (:wat::rete::where (:wat::rete::core::cond
-                              ((:wat::rete::core::string::= ?n "a") true)
+                              ((:wat::rete::string::= ?n "a") true)
                               (:else false)))]
   :then [(:teb::LhsOut :v ?n)])
 

@@ -45,7 +45,7 @@
      c0 (:wat::time::now) rc (:bench::via-foldl v) c1 (:wat::time::now)
      d0 (:wat::time::now) rd (:bench::via-walk v)  d1 (:wat::time::now)]
     (:wat::kernel::println
-      (:wat::core::string::interpolate
+      (:wat::string::interpolate
         "n={n} NONVACUITY ra={ra} rb={rb} rc={rc} rd={rd} | A: walk={ad}ms foldl={bd}ms | B: foldl={cd}ms walk={dd}ms"
         :n n :ra ra :rb rb :rc rc :rd rd
         :ad (:wat::core::i64::/ (:bench::ns a0 a1) 1000000)

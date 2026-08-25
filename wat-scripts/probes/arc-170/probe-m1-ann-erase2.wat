@@ -16,7 +16,7 @@
   :satisfies :probe::Echo  :durable [] :ephemeral []
   :impls [(echo [s ctx req]
             (:wat::service::Outcome::Reply s
-              (:probe::Echo::EchoResponse::Ok (:wat::core::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))))])
+              (:probe::Echo::EchoResponse::Ok (:wat::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))))])
 
 ;; PARENT-side PoolMsg with BARE Address' payload (erased D).
 (:wat::core::defenum :probe::PoolMsg :- [I] :wat::enum::Pure

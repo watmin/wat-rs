@@ -34,14 +34,14 @@
      clean-forms (:wat::kernel::fn-forms :probe::clean
                    (:wat::core::keyword/from-string "user::root-clean"))
      _c (:wat::kernel::println
-          (:wat::core::string::concat "CONTROL closure forms="
+          (:wat::string::concat "CONTROL closure forms="
             (:wat::core::i64::to-string (:wat::core::length clean-forms))))
      ;; ARM 2 — the subject. If the walker reads quoted data as code, THIS raises, and the raise
      ;; names `mystery-symbol` — a symbol that appears nowhere except inside a quote.
      junk-forms (:wat::kernel::fn-forms :probe::quoted-junk
                   (:wat::core::keyword/from-string "user::root-junk"))
      _j (:wat::kernel::println
-          (:wat::core::string::concat "SUBJECT closure forms="
+          (:wat::string::concat "SUBJECT closure forms="
             (:wat::core::i64::to-string (:wat::core::length junk-forms))))]
     ;; ★ THIS FILE CHANGED ROLE WHEN THE FIX LANDED. It was written as a RED gate: reaching
     ;; this line at all was the DISCONFIRMATION, because the subject arm raised before it.

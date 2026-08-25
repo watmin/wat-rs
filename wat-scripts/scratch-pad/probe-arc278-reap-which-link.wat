@@ -34,13 +34,13 @@
                            label <- :wat::core::String] -> :wat::core::nil
   (:wat::core::match (:rw::Bag/put c (:rw::Bag::PutRequest :n 1))
     ((:wat::kernel::RecvOutcome::Message resp)
-      (:wat::kernel::println (:wat::core::string::concat label " => Message (served)")))
+      (:wat::kernel::println (:wat::string::concat label " => Message (served)")))
     ((:wat::kernel::RecvOutcome::Lost cause)
-      (:wat::kernel::println (:wat::core::string::concat label " => LOST")))
+      (:wat::kernel::println (:wat::string::concat label " => LOST")))
     (:wat::kernel::RecvOutcome::Stopped
-      (:wat::kernel::println (:wat::core::string::concat label " => STOPPED")))
+      (:wat::kernel::println (:wat::string::concat label " => STOPPED")))
     (:wat::kernel::RecvOutcome::Closed
-      (:wat::kernel::println (:wat::core::string::concat label " => CLOSED")))))
+      (:wat::kernel::println (:wat::string::concat label " => CLOSED")))))
 
 ;; The discriminator: the Handle rides in as an argument, so it outlives the caller's env.
 (:wat::core::defn :rw::try-with-handle [c <- (:wat::kernel::Peer :- [:rw::Bag::Op :rw::Bag::Reply])

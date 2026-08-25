@@ -19,7 +19,7 @@
 ;; a node in head position — index 0 of its parent form
 (:wat::rete::defrule :hp::head
   :when [(:wat::grep::Node (?id <- :id) (?k <- :kind) (?i <- :index))
-         (:wat::rete::where (:wat::rete::core::string::= ?k "keyword"))
+         (:wat::rete::where (:wat::rete::string::= ?k "keyword"))
          (:wat::rete::where (:wat::rete::core::i64::= ?i 0))]
   :then [(:hp::IsHead :id ?id)])
 
@@ -29,7 +29,7 @@
          (:wat::grep::Named (?id <- :id) (?n <- :name))
          (:wat::grep::Span  (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
          (:wat::grep::Source (?f <- :file))
-         (:wat::rete::where (:wat::rete::core::string::= ?n ":wat::core::first"))]
+         (:wat::rete::where (:wat::rete::string::= ?n ":wat::core::first"))]
   :then [(:wat::grep::Match
            :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "calls-a-partial-verb"

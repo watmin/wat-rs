@@ -14,7 +14,7 @@
                (:wat::core::= (:wat::telemetry::Log/level log) :wat::telemetry::Level::Error)))
      pred-src (:wat::core::match sieve 
                 ((:wat::query::Sieve::Predicate pred) pred))]
-    (:wat::core::string::contains? pred-src "::")))
+    (:wat::string::contains? pred-src "::")))
 
 ;; round-trip: read-string(pred) reproduces the SAME fn-form the user wrote (compared against an
 ;; independently-quoted copy of the identical form, per the ast-to-source probe's pattern).

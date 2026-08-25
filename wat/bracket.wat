@@ -287,9 +287,9 @@
 ;; "wat.kernel/Peer" -> "wat" "kernel/Peer" (split ".") -> "wat::kernel/Peer"
 ;;                     -> "wat::kernel" "Peer" (split "/") -> "wat::kernel::Peer"
 (:wat::core::defn :wat::bracket::dotpath->colonpath [s <- :wat::core::String] -> :wat::core::String
-  (:wat::core::string::join "::"
-    (:wat::core::string::split
-      (:wat::core::string::join "::" (:wat::core::string::split s "."))
+  (:wat::string::join "::"
+    (:wat::string::split
+      (:wat::string::join "::" (:wat::string::split s "."))
       "/")))
 
 ;; Arc 170 M1-pool — the AST-walk now also distinguishes the DIAL work-fn. A
@@ -346,7 +346,7 @@
   [node <- :wat::WatAST old <- :wat::core::String new <- :wat::core::String] -> :wat::WatAST
   (:wat::core::let
     [nm         (:wat::bracket::-type-slot-name node)
-     swapped-kw (:wat::core::keyword-node (:wat::core::string::join new (:wat::core::string::split nm old)))]
+     swapped-kw (:wat::core::keyword-node (:wat::string::join new (:wat::string::split nm old)))]
     (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
       (:wat::core::let
         [ch     (:wat::core::ast->children node)
@@ -415,7 +415,7 @@
                          "bracket process-work-forms: field-names-of/field-types-of length mismatch"
                          :wat::core::None :wat::core::None))
        coords-ty-str (:wat::core::format "{base-str}::Coords" :base-str base-str)
-       coords-ty-kw  (:wat::core::keyword-node (:wat::core::string::concat ":" coords-ty-str))
+       coords-ty-kw  (:wat::core::keyword-node (:wat::string::concat ":" coords-ty-str))
        ;; Arc 109 ③ — angle brackets are ILLEGAL for types; sp-out/sp-in/runner-self-kw/
        ;; ctx-ty-kw used to round-trip `item-ty`/`ret-ty` through `ast-name` + string
        ;; concatenation into an angle-bracket keyword — now illegal, and it would have raised
@@ -427,12 +427,12 @@
        sp-in         `(:wat::bracket::PoolMsg :- [~coords-ty-kw ~item-ty])
        runner-self-kw `(:wat::kernel::Peer :- [~sp-out ~sp-in])
        ;; ctx holds the assembled ::Kwargs (the N-heterogeneous dialed-peer bundle), None until Setup.
-       ctx-ty-kw     `(:wat::core::Option :- [~(:wat::core::keyword-node (:wat::core::string::concat ":" kwargs-ty-str))])
+       ctx-ty-kw     `(:wat::core::Option :- [~(:wat::core::keyword-node (:wat::string::concat ":" kwargs-ty-str))])
        kwargs-kw     (:wat::core::keyword-node (:wat::core::format ":{kwargs-ty-str}" :kwargs-ty-str kwargs-ty-str))
        ;; kwargs-prime-kw: the POSITIONAL ctor for the just-defined ::Kwargs aggregate. Post-flip,
        ;; the bare `kwargs-kw` name is the KWARGS MACRO (unresolved as a positional call) — generated
        ;; construction must go through the type-name PRIME, mirroring core.wat's coords-prime-kw.
-       kwargs-prime-kw (:wat::core::keyword-node (:wat::core::string::concat ":" (:wat::core::string::concat kwargs-ty-str "'")))
+       kwargs-prime-kw (:wat::core::keyword-node (:wat::string::concat ":" (:wat::string::concat kwargs-ty-str "'")))
        ;; kwargs-ctor-args: one form per ::Kwargs field, DECLARED order, each read off the ::Coords
        ;; record BY NAME (`(:<base>::Coords/<field> deps)`). A Peer-typed field (its ::Kwargs type
        ;; is a (Peer :- [S R]) — an `ast-kind` "list" whose head names Peer) gets `connect'`ed
@@ -445,12 +445,12 @@
            (:wat::core::let
              [fname-str   (:wat::core::keyword/to-string (:wat::core::Option/expect (:wat::core::get fnames i) "process-work-forms(kwargs): fnames index"))
               accessor-kw (:wat::core::keyword-node
-                            (:wat::core::string::concat ":"
-                              (:wat::core::string::concat coords-ty-str
-                                (:wat::core::string::concat "/" fname-str))))
+                            (:wat::string::concat ":"
+                              (:wat::string::concat coords-ty-str
+                                (:wat::string::concat "/" fname-str))))
               ft          (:wat::core::Option/expect (:wat::core::get ftypes i) "process-work-forms(kwargs): ftypes index")
               is-peer     (:wat::core::if (:wat::core::= (:wat::core::ast-kind ft) "list")
-                            (:wat::core::string::contains?
+                            (:wat::string::contains?
                               (:wat::core::ast-name (:wat::core::first (:wat::core::ast->children ft))) "Peer")
                             false)
               ;; arc 278 the connect'-outcome wall — a Peer-typed field's generated dial
@@ -625,13 +625,13 @@
               (:wat::core::conj pairs-acc pair) cursor' (:wat::core::+ collected 1) m)))
         ((:wat::spawn::ServiceEvent::Closed idx)
           (:wat::kernel::assertion-failed!
-            (:wat::core::string::interpolate
+            (:wat::string::interpolate
               "bracket collect-loop: runner {idx} closed unexpectedly"
               :idx idx)
             :wat::core::None :wat::core::None))
         ((:wat::spawn::ServiceEvent::Lost idx cause)
           (:wat::kernel::assertion-failed!
-            (:wat::core::string::interpolate
+            (:wat::string::interpolate
               "bracket collect-loop: runner {idx} crashed: {cause}"
               :idx idx :cause (:wat::kernel::Failure/message cause))
             :wat::core::None :wat::core::None))
@@ -641,7 +641,7 @@
         ;; that would re-hide the failure this arc forbids).
         ((:wat::spawn::ServiceEvent::Malformed idx cause)
           (:wat::kernel::assertion-failed!
-            (:wat::core::string::interpolate
+            (:wat::string::interpolate
               "bracket collect-loop: runner {idx} sent an undecodable result: {cause}"
               :idx idx :cause (:wat::kernel::Failure/message cause))
             :wat::core::None :wat::core::None))
@@ -650,7 +650,7 @@
         ;; Mirror :Malformed — raise LOUD with the reason (never a `_` wildcard that re-hides it).
         ((:wat::spawn::ServiceEvent::Rejected idx cause)
           (:wat::kernel::assertion-failed!
-            (:wat::core::string::interpolate
+            (:wat::string::interpolate
               "bracket collect-loop: runner {idx} sent an over-budget frame: {cause}"
               :idx idx :cause (:wat::kernel::Failure/message cause))
             :wat::core::None :wat::core::None))
@@ -886,15 +886,15 @@
          (:wat::core::Vector :wat::core::nil)))
     (:wat::core::let
       [work-fn-name  (:wat::core::ast-name work-fn)
-       base-str      (:wat::core::string::subs work-fn-name 1 (:wat::core::string::length work-fn-name))
+       base-str      (:wat::string::subs work-fn-name 1 (:wat::string::length work-fn-name))
        checker-kw    (:wat::core::keyword-node
-                        (:wat::core::string::concat ":" (:wat::core::string::concat base-str "::kwargs-check")))
+                        (:wat::string::concat ":" (:wat::string::concat base-str "::kwargs-check")))
        grant-fn-kw   (:wat::core::keyword-node
-                        (:wat::core::string::concat ":" (:wat::core::string::concat base-str "::grant-worker")))
+                        (:wat::string::concat ":" (:wat::string::concat base-str "::grant-worker")))
        revoke-fn-kw  (:wat::core::keyword-node
-                        (:wat::core::string::concat ":" (:wat::core::string::concat base-str "::revoke-worker")))
+                        (:wat::string::concat ":" (:wat::string::concat base-str "::revoke-worker")))
        coords-ty-kw  (:wat::core::keyword-node
-                        (:wat::core::string::concat ":" (:wat::core::string::concat base-str "::Coords")))
+                        (:wat::string::concat ":" (:wat::string::concat base-str "::Coords")))
        ;; 293.W.2f — process runner door. A ProcessOpts constructor locus (or
        ;; with-label wrapping one) must not receive a Shared-memory handle.
        locus-head    (:wat::core::if (:wat::core::= (:wat::core::ast-kind locus) "list")
@@ -911,7 +911,7 @@
                                   (:wat::core::if (:wat::core::empty? ich) "" (:wat::core::ast-name (:wat::core::first ich))))
                                 ""))))
                         locus-head)
-       process-door? (:wat::core::string::starts-with?
+       process-door? (:wat::string::starts-with?
                        (:wat::core::if (:wat::core::= locus-head ":wat::spawn::with-label") locus-inner locus-head)
                        ":wat::spawn::process")
        wire-pairs    (:wat::core::if process-door?
@@ -970,15 +970,15 @@
          (:wat::core::Vector :wat::core::nil)))
     (:wat::core::let
       [work-fn-name  (:wat::core::ast-name work-fn)
-       base-str      (:wat::core::string::subs work-fn-name 1 (:wat::core::string::length work-fn-name))
+       base-str      (:wat::string::subs work-fn-name 1 (:wat::string::length work-fn-name))
        checker-kw    (:wat::core::keyword-node
-                        (:wat::core::string::concat ":" (:wat::core::string::concat base-str "::kwargs-check")))
+                        (:wat::string::concat ":" (:wat::string::concat base-str "::kwargs-check")))
        grant-fn-kw   (:wat::core::keyword-node
-                        (:wat::core::string::concat ":" (:wat::core::string::concat base-str "::grant-worker")))
+                        (:wat::string::concat ":" (:wat::string::concat base-str "::grant-worker")))
        revoke-fn-kw  (:wat::core::keyword-node
-                        (:wat::core::string::concat ":" (:wat::core::string::concat base-str "::revoke-worker")))
+                        (:wat::string::concat ":" (:wat::string::concat base-str "::revoke-worker")))
        coords-ty-kw  (:wat::core::keyword-node
-                        (:wat::core::string::concat ":" (:wat::core::string::concat base-str "::Coords")))
+                        (:wat::string::concat ":" (:wat::string::concat base-str "::Coords")))
        ;; 293.W.2f — process runner door (twin of map).
        locus-head    (:wat::core::if (:wat::core::= (:wat::core::ast-kind locus) "list")
                         (:wat::core::let [lch (:wat::core::ast->children locus)]
@@ -994,7 +994,7 @@
                                   (:wat::core::if (:wat::core::empty? ich) "" (:wat::core::ast-name (:wat::core::first ich))))
                                 ""))))
                         locus-head)
-       process-door? (:wat::core::string::starts-with?
+       process-door? (:wat::string::starts-with?
                        (:wat::core::if (:wat::core::= locus-head ":wat::spawn::with-label") locus-inner locus-head)
                        ":wat::spawn::process")
        wire-pairs    (:wat::core::if process-door?

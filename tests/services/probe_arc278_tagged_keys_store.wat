@@ -17,8 +17,8 @@
 
 ;; sk = #inst "<iso8601 with 9 fixed fractional digits, Z>" — constant width, sort-safe.
 (:wat::core::defn :user::mk-sk [ns <- :wat::core::i64] -> :wat::core::String
-  (:wat::core::string::concat
-    (:wat::core::string::concat "#inst \"" (:wat::time::to-iso8601 (:wat::time::at-nanos ns) 9))
+  (:wat::string::concat
+    (:wat::string::concat "#inst \"" (:wat::time::to-iso8601 (:wat::time::at-nanos ns) 9))
     "\""))
 
 (:wat::core::defn :user::uuid-edn [s <- :wat::core::String] -> :wat::core::String

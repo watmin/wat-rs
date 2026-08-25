@@ -52,7 +52,7 @@
   (:wat::core::if (:wat::core::empty? unit)
     false
     (:wat::core::and
-      (:wat::core::string::contains? (:wat::core::ast->source (:wat::core::first unit))
+      (:wat::string::contains? (:wat::core::ast->source (:wat::core::first unit))
                                      "stream::Stream<")
       (:wat::core::reduce
         (:wat::core::fn [acc <- :wat::core::bool f <- :wat::WatAST] -> :wat::core::bool
@@ -63,7 +63,7 @@
 (:wat::core::defn :census::report-unit
   [label <- :wat::core::String unit <- (:wat::core::Vector :- [:wat::WatAST])] -> :wat::core::nil
   (:wat::core::if (:census::unit-hit? unit)
-    (:wat::kernel::println (:wat::core::string::concat "  THREE-CALL  " label))
+    (:wat::kernel::println (:wat::string::concat "  THREE-CALL  " label))
     nil))
 
 ;; One top-level form → zero or more units.
@@ -88,7 +88,7 @@
 (:wat::core::defn :census::file
   [path <- :wat::core::String] -> :wat::core::nil
   (:wat::core::do
-    (:wat::kernel::println (:wat::core::string::concat "== " path))
+    (:wat::kernel::println (:wat::string::concat "== " path))
     (:wat::core::run!
       (:wat::core::fn [f <- :wat::WatAST] -> :wat::core::nil (:census::form f))
       (:wat::core::into []

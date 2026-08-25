@@ -17,14 +17,14 @@
 ;; Compaction is a fact about the mind, not the disk.
 (:wat::rete::defrule :dm::gap
   :when [(:dm::Beat (?t <- :t) (?k <- :kind))
-         (:wat::rete::where (:wat::rete::core::string::= ?k "gap"))]
+         (:wat::rete::where (:wat::rete::string::= ?k "gap"))]
   :then [(:dm::Gap :t ?t)])
 
 ;; A read of the log AFTER the gap is recollection — the first move.
 (:wat::rete::defrule :dm::read-after
   :when [(:dm::Gap (?g <- :t))
          (:dm::Beat (?t <- :t) (?k <- :kind))
-         (:wat::rete::where (:wat::rete::core::string::= ?k "read-log"))
+         (:wat::rete::where (:wat::rete::string::= ?k "read-log"))
          (:wat::rete::where (:wat::rete::core::i64::< ?g ?t))]
   :then [(:dm::ReadAfter :t ?t)])
 
@@ -38,37 +38,37 @@
 (:wat::rete::defrule :dm::recolligere
   :when [(:dm::ReadAfter (?t <- :t))
          (:dm::Beat (?p <- :t) (?k <- :kind))
-         (:wat::rete::where (:wat::rete::core::string::= ?k "fetch-primer"))
+         (:wat::rete::where (:wat::rete::string::= ?k "fetch-primer"))
          (:wat::rete::exists
            (:dm::Artifact (?ak <- :kind)
-             (:wat::rete::core::string::= ?ak "log")))]
+             (:wat::rete::string::= ?ak "log")))]
   :then [(:dm::Primer :name "recolligere")])
 
 (:wat::rete::defrule :dm::curare
   :when [(:dm::Beat (?t <- :t) (?k <- :kind))
-         (:wat::rete::where (:wat::rete::core::string::= ?k "tend-record"))]
+         (:wat::rete::where (:wat::rete::string::= ?k "tend-record"))]
   :then [(:dm::Primer :name "curare")])
 
 (:wat::rete::defrule :dm::examinare
   :when [(:dm::Beat (?t <- :t) (?k <- :kind))
-         (:wat::rete::where (:wat::rete::core::string::= ?k "weigh-disk"))]
+         (:wat::rete::where (:wat::rete::string::= ?k "weigh-disk"))]
   :then [(:dm::Primer :name "examinare")])
 
 (:wat::rete::defrule :dm::extirpare
   :when [(:dm::Beat (?t <- :t) (?k <- :kind))
-         (:wat::rete::where (:wat::rete::core::string::= ?k "root-failure"))]
+         (:wat::rete::where (:wat::rete::string::= ?k "root-failure"))]
   :then [(:dm::Primer :name "extirpare")])
 
 ;; The four primers by name — each one, not a count of four things.
 (:wat::rete::defrule :dm::four
   :when [(:dm::Primer (?a <- :name))
-         (:wat::rete::where (:wat::rete::core::string::= ?a "recolligere"))
+         (:wat::rete::where (:wat::rete::string::= ?a "recolligere"))
          (:dm::Primer (?b <- :name))
-         (:wat::rete::where (:wat::rete::core::string::= ?b "curare"))
+         (:wat::rete::where (:wat::rete::string::= ?b "curare"))
          (:dm::Primer (?c <- :name))
-         (:wat::rete::where (:wat::rete::core::string::= ?c "examinare"))
+         (:wat::rete::where (:wat::rete::string::= ?c "examinare"))
          (:dm::Primer (?d <- :name))
-         (:wat::rete::where (:wat::rete::core::string::= ?d "extirpare"))]
+         (:wat::rete::where (:wat::rete::string::= ?d "extirpare"))]
   :then [(:dm::Four :n 4)])
 
 ;; We are the datamancer iff the practice holds and we are not hollow.
@@ -128,14 +128,14 @@
   (:wat::core::let [s0 (:wat::rete::compile-all (:dm::rules) (:dm::queries))
                     exp (:wat::rete::export s0)]
     (:wat::core::PersistentVector
-      (:wat::core::string::length (:wat::edn::write s0))
-      (:wat::core::string::length (:wat::edn::write exp))
-      (:wat::core::string::length (:wat::edn::write-pretty exp)))))
+      (:wat::string::length (:wat::edn::write s0))
+      (:wat::string::length (:wat::edn::write exp))
+      (:wat::string::length (:wat::edn::write-pretty exp)))))
 
 ;; Writes tests/rete/datamancer.rete.edn. Invoked only by the wat CLI, never by probes.
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::io::write-file
     "tests/rete/datamancer.rete.edn"
-    (:wat::core::string::concat
+    (:wat::string::concat
       ";; The compiled program. Native fire only.\n;; Beats in, Datamancer or Hollow out.\n"
       (:user::export-edn))))

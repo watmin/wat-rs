@@ -43,7 +43,7 @@
      d0 (:wat::time::now) rd (:bench::via-foldl v)  d1 (:wat::time::now)
      e0 (:wat::time::now) re (:bench::via-reduce v) e1 (:wat::time::now)]
     (:wat::kernel::println
-      (:wat::core::string::interpolate
+      (:wat::string::interpolate
         "n={n} NONVACUITY ra={ra} rb={rb} rc={rc} rd={rd} re={re} | reduce={ad}ms foldl={bd}ms spec={cd}ms | foldl={dd}ms reduce={ed}ms"
         :n n :ra ra :rb rb :rc rc :rd rd :re re
         :ad (:wat::core::i64::/ (:bench::ns a0 a1) 1000000)

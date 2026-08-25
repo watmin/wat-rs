@@ -57,7 +57,7 @@
                             (:user::def-head? (:wat::core::ast-name head)) false)
             (:wat::core::let [;; strip `<T,U,…>` type-params: a parametric def is `:ns::T<S,R>` but
                               ;; constructions write the bare `:ns::T`. Key on the bare name.
-                              tyname (:wat::core::first (:wat::core::string::split
+                              tyname (:wat::core::first (:wat::string::split
                                        (:wat::core::ast-name (:wat::core::Option/expect (:wat::core::get ch 1) "add-form ty"))
                                        "<"))
                               fvopt  (:user::fieldvec-at ch 2)]
@@ -89,7 +89,7 @@
       -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])])
       (:wat::core::let [arg (:wat::core::Option/expect (:wat::core::get args i) "arg-edits arg")
                         off (:wat::fix::fix-text-offset-of (:wat::core::ast-span arg) lines)
-                        kw  (:wat::core::string::concat ":" (:wat::core::Option/expect (:wat::core::get fields i) "arg-edits f") " ")]
+                        kw  (:wat::string::concat ":" (:wat::core::Option/expect (:wat::core::get fields i) "arg-edits f") " ")]
         (:wat::core::conj acc (:wat::core::Tuple off 0 kw))))
     (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))
     (:wat::core::range 0 (:wat::core::length args))))
@@ -141,7 +141,7 @@
   [src <- :wat::core::String
    m   <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Vector :- [:wat::core::String])])]
   -> :wat::core::String
-  (:wat::core::let [lines (:wat::core::string::split src "\n")
+  (:wat::core::let [lines (:wat::string::split src "\n")
                     tree  (:wat::core::match (:wat::core::read-string src) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)))
                     forms (:wat::core::ast->children tree)
                     eds   (:user::edits-seq forms m lines)
@@ -173,7 +173,7 @@
     (:wat::core::let [p (:wat::core::first paths)]
       (:wat::core::do
         (:wat::io::write-file p (:user::migrate (:wat::io::read-file p) m))
-        (:wat::kernel::println (:wat::core::string::concat "[kwargs] " p))
+        (:wat::kernel::println (:wat::string::concat "[kwargs] " p))
         (:user::rewrite-each (:wat::core::into [] (:wat::core::rest paths)) m)))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

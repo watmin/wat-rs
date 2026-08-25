@@ -15,15 +15,15 @@
   (:wat::core::do
     ;; order-free kwargs: b before a — only possible if the companion macro still fires.
     (:wat::kernel::println
-      (:wat::core::string::interpolate "record  a={a} b={b}"
+      (:wat::string::interpolate "record  a={a} b={b}"
         :a (:wat::core::i64::to-string (:arc109row3::Pair/a (:arc109row3::Pair :b 2 :a 1)))
         :b (:wat::core::i64::to-string (:arc109row3::Pair/b (:arc109row3::Pair :b 2 :a 1)))))
     (:wat::kernel::println
-      (:wat::core::string::interpolate "struct  a={a} b={b}"
+      (:wat::string::interpolate "struct  a={a} b={b}"
         :a (:wat::core::i64::to-string (:arc109row3::SPair/a (:arc109row3::SPair :b 20 :a 10)))
         :b (:wat::core::i64::to-string (:arc109row3::SPair/b (:arc109row3::SPair :b 20 :a 10)))))
     (:wat::kernel::println
-      (:wat::core::string::interpolate "holon   a={a} b={b}"
+      (:wat::string::interpolate "holon   a={a} b={b}"
         :a (:wat::core::i64::to-string (:arc109row3::HPair/a (:arc109row3::HPair :b 200 :a 100)))
         :b (:wat::core::i64::to-string (:arc109row3::HPair/b (:arc109row3::HPair :b 200 :a 100)))))
     nil))

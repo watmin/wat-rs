@@ -4,7 +4,7 @@
 
 (:wat::core::defn :diag::poll [n <- :wat::core::i64] -> :wat::core::nil
   (:wat::core::if (:wat::kernel::stopped?)
-    (:wat::kernel::println (:wat::core::string::concat "STOPPED_TRUE at n=" (:wat::core::i64::to-string n)))
+    (:wat::kernel::println (:wat::string::concat "STOPPED_TRUE at n=" (:wat::core::i64::to-string n)))
     (:wat::core::if (:wat::core::i64::> n 200000000)
       (:wat::kernel::println "GAVE_UP_NEVER_STOPPED")
       (:diag::poll (:wat::core::i64::+ n 1)))))

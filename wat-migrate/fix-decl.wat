@@ -26,11 +26,11 @@
 ;; Always produces a Symbol, never a parametric form.
 (:wat::core::defn :migrate::name-fix [kw <- :wat::WatAST] -> :wat::WatAST
   (:wat::core::let [stripped (:wat::core::first
-                                (:wat::core::string::split (:wat::core::ast-name kw) "<"))]
-    (:wat::core::if (:wat::core::string::contains? stripped "::")
+                                (:wat::string::split (:wat::core::ast-name kw) "<"))]
+    (:wat::core::if (:wat::string::contains? stripped "::")
       (:wat::core::keyword/to-symbol (:wat::core::keyword-node stripped))
       (:wat::core::symbol-node
-        (:wat::core::string::subs stripped 1 (:wat::core::string::length stripped))))))
+        (:wat::string::subs stripped 1 (:wat::string::length stripped))))))
 
 ;; type-slot-2? — TRUE when the declaration head names a form whose child[2] is a
 ;; bare non-arrow'd type-slot (typealias, newtype, recordtype). All others have no

@@ -35,9 +35,9 @@
 ;; Two concrete-satisfier clauses, SAME return type — the sound narrowing shape.
 (:wat::core::defclause :probe::describe
   ([r <- :probe::SqliteReason] -> :wat::core::String
-    (:wat::core::string::concat "sqlite " (:wat::core::i64::to-string (:probe::SqliteReason/code r))))
+    (:wat::string::concat "sqlite " (:wat::core::i64::to-string (:probe::SqliteReason/code r))))
   ([r <- :probe::RedisReason]  -> :wat::core::String
-    (:wat::core::string::concat "redis "  (:wat::core::i64::to-string (:probe::RedisReason/errno r)))))
+    (:wat::string::concat "redis "  (:wat::core::i64::to-string (:probe::RedisReason/errno r)))))
 
 ;; UP: concrete records flow into a Reason-typed slot (structural satisfaction) —
 ;; this is how the value arrives OPEN-surface-typed, as it would out of an

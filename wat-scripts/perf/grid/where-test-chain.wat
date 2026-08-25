@@ -89,7 +89,7 @@
                              (:wat::core::fn [acc <- :wat::core::String  seg <- :wat::core::String]
                                -> :wat::core::String seg)
                              (:wat::rete::Rule/name rule)
-                             (:wat::core::string::split (:wat::rete::Rule/name rule) "::"))]
+                             (:wat::string::split (:wat::rete::Rule/name rule) "::"))]
     (:wat::core::String/concat
       (:wat::core::String/concat "row " (:wat::core::i64::to-string row))
       (:wat::core::String/concat (:wat::core::String/concat " " name) (:wtc::render fired)))))

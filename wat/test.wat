@@ -95,7 +95,7 @@
 ;; we can populate actual/expected with the real values — the failure
 ;; in a RunResult shows the user which haystack/needle fired.
 (:wat::core::defn :wat::test::assert-contains [haystack <- :wat::core::String needle <- :wat::core::String] -> :wat::core::nil
-  (:wat::core::if (:wat::core::string::contains? haystack needle) 
+  (:wat::core::if (:wat::string::contains? haystack needle) 
       nil
       (:wat::kernel::assertion-failed!
         "assert-contains failed"
@@ -143,7 +143,7 @@
 ;; story without horizontal scrolling. Used by assert-coincident;
 ;; consumers wanting raw values call coincident-explain directly.
 (:wat::core::defn :wat::test::render-coincident-explanation [expl <- :wat::holon::CoincidentExplanation] -> :wat::core::String
-  (:wat::core::string::concat
+  (:wat::string::concat
       "\n  cosine            = "
       (:wat::core::f64::to-string
         (:wat::holon::CoincidentExplanation/cosine expl))

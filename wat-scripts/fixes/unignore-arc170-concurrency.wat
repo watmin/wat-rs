@@ -53,7 +53,7 @@
                           arg  (:wat::core::first (:wat::core::rest ch))]
           (:wat::core::if (:wat::core::= (:wat::core::ast-kind head) "keyword")
             (:wat::core::if (:wat::core::= (:wat::core::ast-name head) ":wat::test::ignore")
-              (:wat::core::string::contains?
+              (:wat::string::contains?
                 (:wat::core::ast-name arg)
                 "arc-170 concurrency layer")
               false)
@@ -87,7 +87,7 @@
       (:user::scan (:wat::core::rest forms) lines))))
 
 (:wat::core::defn :user::migrate [src <- :wat::core::String] -> :wat::core::String
-  (:wat::core::let [lines     (:wat::core::string::split src "\n")
+  (:wat::core::let [lines     (:wat::string::split src "\n")
                     tree      (:wat::core::match (:wat::core::read-string src) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)))
                     forms     (:wat::core::ast->children tree)
                     all-edits (:user::scan forms lines)]
@@ -100,7 +100,7 @@
     (:wat::core::let [path (:wat::core::first paths)]
       (:wat::core::do
         (:wat::io::write-file path (:user::migrate (:wat::io::read-file path)))
-        (:wat::kernel::println (:wat::core::string::concat "[unignore] " path))
+        (:wat::kernel::println (:wat::string::concat "[unignore] " path))
         (:user::apply-each (:wat::core::rest paths))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

@@ -26,8 +26,8 @@
   [label <- :wat::core::String kw <- :wat::core::String] -> :wat::core::i64
   (:wat::core::let [node (:wat::core::keyword/to-type-form-colon (:wat::core::keyword-node kw))]
     (:wat::core::do
-      (:wat::kernel::println (:wat::core::string::interpolate "{l} verbatim(ast->source) : {v}" :l label :v (:wat::core::ast->source node)))
-      (:wat::kernel::println (:wat::core::string::interpolate "{l} display  (write-forms) : {v}" :l label :v (:wat::core::write-forms node)))
+      (:wat::kernel::println (:wat::string::interpolate "{l} verbatim(ast->source) : {v}" :l label :v (:wat::core::ast->source node)))
+      (:wat::kernel::println (:wat::string::interpolate "{l} display  (write-forms) : {v}" :l label :v (:wat::core::write-forms node)))
       0)))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

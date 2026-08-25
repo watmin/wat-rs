@@ -61,6 +61,6 @@
   (:wat::kernel::println "e"))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
-  (:wat::kernel::println (:wat::core::string::interpolate "pair={a} flat={b}"
+  (:wat::kernel::println (:wat::string::interpolate "pair={a} flat={b}"
     :a (:user::takes-pair (:wat::core::Tuple 1 "x"))
     :b (:user::flat-still-reads (:wat::core::Tuple 2 "y")))))

@@ -48,13 +48,13 @@
                            label <- :wat::core::String] -> :wat::core::nil
   (:wat::core::match (:tl::Bag/put c (:tl::Bag::PutRequest :n 1))
     ((:wat::kernel::RecvOutcome::Message resp)
-      (:wat::kernel::println (:wat::core::string::concat label " => Message (served)")))
+      (:wat::kernel::println (:wat::string::concat label " => Message (served)")))
     ((:wat::kernel::RecvOutcome::Lost cause)
-      (:wat::kernel::println (:wat::core::string::concat label " => LOST")))
+      (:wat::kernel::println (:wat::string::concat label " => LOST")))
     (:wat::kernel::RecvOutcome::Stopped
-      (:wat::kernel::println (:wat::core::string::concat label " => STOPPED")))
+      (:wat::kernel::println (:wat::string::concat label " => STOPPED")))
     (:wat::kernel::RecvOutcome::Closed
-      (:wat::kernel::println (:wat::core::string::concat label " => CLOSED")))))
+      (:wat::kernel::println (:wat::string::concat label " => CLOSED")))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

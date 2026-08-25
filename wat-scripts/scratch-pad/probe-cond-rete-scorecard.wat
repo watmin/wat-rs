@@ -58,13 +58,13 @@
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::do
-    (:wat::kernel::println (:wat::core::string::concat "row2 gold="   (:wat::core::str (:probe::tier-score :gold))))
-    (:wat::kernel::println (:wat::core::string::concat "row2 silver=" (:wat::core::str (:probe::tier-score :silver))))
-    (:wat::kernel::println (:wat::core::string::concat "row2 other="  (:wat::core::str (:probe::tier-score :bronze))))
-    (:wat::kernel::println (:wat::core::string::concat "row3 first="  (:probe::first-match 5)))
-    (:wat::kernel::println (:wat::core::string::concat "row4 else="   (:probe::else-fires 5)))
-    (:wat::kernel::println (:wat::core::string::concat "row7 core-silver=" (:wat::core::str (:probe::core-tier-score :silver))))
-    (:wat::kernel::println (:wat::core::string::concat "row9 alias="  (:wat::core::str (:probe::alias-check))))
-    (:wat::kernel::println (:wat::core::string::concat "row9 fallback=" (:wat::core::str (:probe::fallback-check))))
-    (:wat::kernel::println (:wat::core::string::concat "row9 form-if=" (:wat::core::str (:probe::form-if-check))))
-    (:wat::kernel::println (:wat::core::string::concat "row9 redispatch=" (:wat::core::str (:probe::redispatch-check))))))
+    (:wat::kernel::println (:wat::string::concat "row2 gold="   (:wat::core::str (:probe::tier-score :gold))))
+    (:wat::kernel::println (:wat::string::concat "row2 silver=" (:wat::core::str (:probe::tier-score :silver))))
+    (:wat::kernel::println (:wat::string::concat "row2 other="  (:wat::core::str (:probe::tier-score :bronze))))
+    (:wat::kernel::println (:wat::string::concat "row3 first="  (:probe::first-match 5)))
+    (:wat::kernel::println (:wat::string::concat "row4 else="   (:probe::else-fires 5)))
+    (:wat::kernel::println (:wat::string::concat "row7 core-silver=" (:wat::core::str (:probe::core-tier-score :silver))))
+    (:wat::kernel::println (:wat::string::concat "row9 alias="  (:wat::core::str (:probe::alias-check))))
+    (:wat::kernel::println (:wat::string::concat "row9 fallback=" (:wat::core::str (:probe::fallback-check))))
+    (:wat::kernel::println (:wat::string::concat "row9 form-if=" (:wat::core::str (:probe::form-if-check))))
+    (:wat::kernel::println (:wat::string::concat "row9 redispatch=" (:wat::core::str (:probe::redispatch-check))))))

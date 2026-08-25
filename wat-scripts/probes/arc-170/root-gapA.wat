@@ -2,10 +2,10 @@
 (:wat::core::defstruct :probe::Bag [n <- :wat::core::String])
 (:wat::core::defn :probe::hand
   [item <- :wat::core::String  bag <- :probe::Bag] -> :wat::core::String
-  (:wat::core::let [x (:probe::Bag/n bag)] (:wat::core::string::concat x item)))
+  (:wat::core::let [x (:probe::Bag/n bag)] (:wat::string::concat x item)))
 (:wat::core::defn :probe::work
   [item <- :wat::core::String  & [n <- :wat::core::String]] -> :wat::core::String
-  (:wat::core::string::concat n item))
+  (:wat::string::concat n item))
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [_  (:wat::kernel::println "--- fn-forms HAND-WRITTEN ---")

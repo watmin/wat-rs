@@ -98,7 +98,7 @@
 (:wat::rete::core::defn :wst::feline? [s <- :wat::core::String] -> :wat::core::bool
   (:wat::rete::core::and
     (:wat::rete::core::String/contains? s "cat")
-    (:wat::rete::core::i64::> (:wat::rete::core::string::length s) 3)))
+    (:wat::rete::core::i64::> (:wat::rete::string::length s) 3)))
 
 ;; THE SHARED LEADING CONDITION, quoted once and reused by every row — only `where-c` varies.
 (:wat::core::defn :wst::conds [] -> :wat::WatAST
@@ -153,7 +153,7 @@
 ;; ⇒ 180/400 over the 10 cycles in [0,400).
 (:wat::rete::defrule :wst::length-bound
   :when
-  [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where (:wat::rete::core::i64::> (:wat::rete::core::string::length ?n) ?minlen))]
+  [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where (:wat::rete::core::i64::> (:wat::rete::string::length ?n) ?minlen))]
   :then
   [(:wst::Hit ?k)])
 
@@ -209,7 +209,7 @@
 (:wat::rete::defrule :wst::lowercase-chain
   :when
   [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where
-                                 (:wat::rete::core::String/starts-with? (:wat::rete::core::string::to-lowercase ?n) "dog"))]
+                                 (:wat::rete::core::String/starts-with? (:wat::rete::string::to-lowercase ?n) "dog"))]
   :then
   [(:wst::Hit ?k)])
 
@@ -225,8 +225,8 @@
   :when
   [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where
                                  (:wat::rete::core::and
-                                   (:wat::rete::core::i64::>= (:wat::rete::core::string::length ?n) 3)
-                                   (:wat::rete::core::String/starts-with? (:wat::rete::core::string::subs ?n 0 3 :undefined "") "cat")))]
+                                   (:wat::rete::core::i64::>= (:wat::rete::string::length ?n) 3)
+                                   (:wat::rete::core::String/starts-with? (:wat::rete::string::subs ?n 0 3 :undefined "") "cat")))]
   :then
   [(:wst::Hit ?k)])
 
@@ -235,7 +235,7 @@
 ;; Half of the stream ⇒ 200/400.
 (:wat::rete::defrule :wst::trim-eq
   :when
-  [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where (:wat::rete::core::string::= (:wat::rete::core::string::trim ?padded) "cat"))]
+  [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where (:wat::rete::string::= (:wat::rete::string::trim ?padded) "cat"))]
   :then
   [(:wst::Hit ?k)])
 
@@ -322,7 +322,7 @@
   (:wat::core::foldl
     (:wat::core::fn [acc <- :wat::core::String  seg <- :wat::core::String] -> :wat::core::String seg)
     full
-    (:wat::core::string::split full "::")))
+    (:wat::string::split full "::")))
 
 (:wat::core::defn :wst::run-row [row <- :wat::core::i64] -> :wat::core::String
   (:wat::core::let [rules   (:wst::build-rules row)

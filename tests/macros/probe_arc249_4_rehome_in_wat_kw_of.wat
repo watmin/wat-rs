@@ -6,10 +6,10 @@
                                 (:wat::core::fn [a <- :wat::holon::HolonAST] -> :wat::core::String
                                    (:wat::core::keyword/to-string a))
                                 args)
-                    joined (:wat::core::string::join "," arg-texts)
-                    full (:wat::core::string::concat head-text
-                           (:wat::core::string::concat "<"
-                             (:wat::core::string::concat joined ">")))]
+                    joined (:wat::string::join "," arg-texts)
+                    full (:wat::string::concat head-text
+                           (:wat::string::concat "<"
+                             (:wat::string::concat joined ">")))]
     `~(:wat::core::keyword/from-string full)))
 (:wat::core::defn :user::compute [] -> :wat::core::String
   (:wat::core::keyword/to-string (:test::kw-of :foo :bar :baz)))

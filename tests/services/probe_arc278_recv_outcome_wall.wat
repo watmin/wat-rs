@@ -69,7 +69,7 @@
     (:wat::core::match (:wat::kernel::recv c)
       ((:wat::kernel::RecvOutcome::Message _m) (:probe::Outcome::Message))
       ((:wat::kernel::RecvOutcome::Lost cause)
-        (:probe::Outcome::Lost (:wat::core::string::contains? (:wat::kernel::LociDiedError/message cause) "BOOM-CRASH-SENTINEL-9173")))
+        (:probe::Outcome::Lost (:wat::string::contains? (:wat::kernel::LociDiedError/message cause) "BOOM-CRASH-SENTINEL-9173")))
       (:wat::kernel::RecvOutcome::Stopped (:probe::Outcome::Stopped))
       (:wat::kernel::RecvOutcome::Closed (:probe::Outcome::Closed)))))
 
@@ -80,7 +80,7 @@
     (:wat::core::match (:wat::kernel::recv c)
       ((:wat::kernel::RecvOutcome::Message _m) (:probe::Outcome::Message))
       ((:wat::kernel::RecvOutcome::Lost cause)
-        (:probe::Outcome::Lost (:wat::core::string::contains? (:wat::kernel::LociDiedError/message cause) "DivisionByZero")))
+        (:probe::Outcome::Lost (:wat::string::contains? (:wat::kernel::LociDiedError/message cause) "DivisionByZero")))
       (:wat::kernel::RecvOutcome::Stopped (:probe::Outcome::Stopped))
       (:wat::kernel::RecvOutcome::Closed (:probe::Outcome::Closed)))))
 
@@ -94,7 +94,7 @@
     (:wat::core::match (:wat::kernel::recv (:probe::crash::Handle/handle h))
       ((:wat::kernel::RecvOutcome::Message _m) (:probe::Outcome::Message))
       ((:wat::kernel::RecvOutcome::Lost cause)
-        (:probe::Outcome::Lost (:wat::core::string::contains? (:wat::kernel::LociDiedError/message cause) "BOOM-CRASH-SENTINEL-9173")))
+        (:probe::Outcome::Lost (:wat::string::contains? (:wat::kernel::LociDiedError/message cause) "BOOM-CRASH-SENTINEL-9173")))
       (:wat::kernel::RecvOutcome::Stopped (:probe::Outcome::Stopped))
       (:wat::kernel::RecvOutcome::Closed (:probe::Outcome::Closed)))))
 
@@ -105,7 +105,7 @@
     (:wat::core::match (:wat::kernel::recv (:probe::crash::Handle/handle h))
       ((:wat::kernel::RecvOutcome::Message _m) (:probe::Outcome::Message))
       ((:wat::kernel::RecvOutcome::Lost cause)
-        (:probe::Outcome::Lost (:wat::core::string::contains? (:wat::kernel::LociDiedError/message cause) "DivisionByZero")))
+        (:probe::Outcome::Lost (:wat::string::contains? (:wat::kernel::LociDiedError/message cause) "DivisionByZero")))
       (:wat::kernel::RecvOutcome::Stopped (:probe::Outcome::Stopped))
       (:wat::kernel::RecvOutcome::Closed (:probe::Outcome::Closed)))))
 

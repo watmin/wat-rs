@@ -26,7 +26,7 @@
           ((:wat::core::Some s)
             (:wat::core::do
               (:wat::test::assert-eq s "42")
-              (:wat::kernel::println (:wat::core::string::concat "2 CRUX-1 HashMap/get -> " s))))
+              (:wat::kernel::println (:wat::string::concat "2 CRUX-1 HashMap/get -> " s))))
           (:wat::core::None (:wat::test::assert-true false))))
       ((:wat::edn::ReadJsonOutcome::Malformed cause) (:wat::test::assert-true false)))
 

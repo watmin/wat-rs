@@ -11,7 +11,7 @@
   :when [(:wnw::Temp (?a <- :loc))
          (:wnw::Wind (?b <- :loc))
          (:wat::rete::not
-           (:wat::rete::where (:wat::rete::core::string::= ?a ?b)))]
+           (:wat::rete::where (:wat::rete::string::= ?a ?b)))]
   :then [(:wnw::Hit :a ?a :b ?b)])
 
 (:wat::rete::defquery :wnw::q-Hit

@@ -60,7 +60,7 @@
      e0 (:wat::time::now) re (:bench::drain-only v)    e1 (:wat::time::now)
      f0 (:wat::time::now) rf (:bench::drain-only v)    f1 (:wat::time::now)]
     (:wat::kernel::println
-      (:wat::core::string::interpolate
+      (:wat::string::interpolate
         "n={n} NONVACUITY map+drain={ra}/{rd} native={rb}/{rc} drain-only={re}/{rf} | map+drain={ad}/{dd}ms | native={bd}/{cd}ms | DRAIN-ONLY={ed}/{fd}ms"
         :n n :ra ra :rb rb :rc rc :rd rd :re re :rf rf
         :ed (:wat::core::i64::/ (:bench::ns e0 e1) 1000000)

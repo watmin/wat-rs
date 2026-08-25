@@ -42,9 +42,9 @@
           (:wat::kernel::RecvOutcome::Closed
             (:wat::kernel::assertion-failed! "recv': w closed unexpectedly" :wat::core::None :wat::core::None)))]
     (:wat::kernel::println
-      (:wat::core::string::concat
+      (:wat::string::concat
         (:wat::core::i64::to-string (:wat::core::second a))
-        (:wat::core::string::concat " " (:wat::core::i64::to-string (:wat::core::second b)))))))
+        (:wat::string::concat " " (:wat::core::i64::to-string (:wat::core::second b)))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

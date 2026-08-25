@@ -10,7 +10,7 @@
 ;; `(:user::req-n)` constructs + matches that exact synthesized variant and round-trips 7 through
 ;; it — the program only type-checks/evals if the acronym casing carried through both the surface's
 ;; S1 synthesis and the service's `:impls` op-name derivation (the two paths must agree).
-(:wat::core::string::declare-acronyms :my::aws::Waf ["ACL"])
+(:wat::string::declare-acronyms :my::aws::Waf ["ACL"])
 
 (:wat::core::defsurface :my::aws::Waf :nature :wat::kernel::Peer
   :messages

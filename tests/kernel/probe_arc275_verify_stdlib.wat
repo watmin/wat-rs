@@ -12,14 +12,14 @@
   (:wat::core::let [viols (:wat::deporder::verify-stdlib)]
     (:wat::core::mapv
       (:wat::core::fn [v <- :wat::deporder::Violation] -> :wat::core::String
-        (:wat::core::string::concat (:wat::deporder::Violation/referencer v)
-        (:wat::core::string::concat " @"
-        (:wat::core::string::concat (:wat::core::show (:wat::deporder::Violation/referencer-pos v))
-        (:wat::core::string::concat " -> "
-        (:wat::core::string::concat (:wat::deporder::Violation/definer v)
-        (:wat::core::string::concat " @"
-        (:wat::core::string::concat (:wat::core::show (:wat::deporder::Violation/definer-pos v))
-        (:wat::core::string::concat " ["
-        (:wat::core::string::concat (:wat::deporder::Violation/symbol v) "]"))))))))))
+        (:wat::string::concat (:wat::deporder::Violation/referencer v)
+        (:wat::string::concat " @"
+        (:wat::string::concat (:wat::core::show (:wat::deporder::Violation/referencer-pos v))
+        (:wat::string::concat " -> "
+        (:wat::string::concat (:wat::deporder::Violation/definer v)
+        (:wat::string::concat " @"
+        (:wat::string::concat (:wat::core::show (:wat::deporder::Violation/definer-pos v))
+        (:wat::string::concat " ["
+        (:wat::string::concat (:wat::deporder::Violation/symbol v) "]"))))))))))
       viols)))
 

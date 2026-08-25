@@ -44,12 +44,12 @@
            :conn-id       2)]
     (:wat::core::i64::+
       (:wat::service::Invocation/conn-id inv)
-      (:wat::core::string::length (:wat::service::Invocation/operation inv)))))
+      (:wat::string::length (:wat::service::Invocation/operation inv)))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::kernel::println
-    (:wat::core::string::concat
+    (:wat::string::concat
       (:user::self-invocation-reads-core)
-      (:wat::core::string::concat
+      (:wat::string::concat
         (:wat::core::i64::to-string (:user::lifecycle-invocation-reads-core-and-conn))
         (:wat::core::i64::to-string (:user::invocation-reads-core-and-conn))))))

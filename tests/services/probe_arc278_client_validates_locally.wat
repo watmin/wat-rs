@@ -45,7 +45,7 @@
 (:wat::core::defn :probe::budget-payload-of [n <- :wat::core::i64] -> :wat::core::String
   (:wat::core::foldl
     (:wat::core::fn [acc <- :wat::core::String  _i <- :wat::core::i64] -> :wat::core::String
-      (:wat::core::string::concat acc "0123456789ABCDEF0123456789ABCDEF"))
+      (:wat::string::concat acc "0123456789ABCDEF0123456789ABCDEF"))
     ""
     (:wat::core::range 0 n)))
 
@@ -82,7 +82,7 @@
                      (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None))))
                ((:wat::kernel::RecvOutcome::Lost cause)
                  (:wat::kernel::assertion-failed!
-                   (:wat::core::string::concat
+                   (:wat::string::concat
                      "DISCRIMINATOR: the poison request reached the wire (client did not refuse locally) — "
                      (:wat::kernel::LociDiedError/message cause))
                    :wat::core::None :wat::core::None))
@@ -108,7 +108,7 @@
             (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None))))
       ((:wat::kernel::RecvOutcome::Lost cause)
         (:wat::kernel::assertion-failed!
-          (:wat::core::string::concat "DISCRIMINATOR: the connection did not survive — "
+          (:wat::string::concat "DISCRIMINATOR: the connection did not survive — "
             (:wat::kernel::LociDiedError/message cause))
           :wat::core::None :wat::core::None))
       (:wat::kernel::RecvOutcome::Stopped

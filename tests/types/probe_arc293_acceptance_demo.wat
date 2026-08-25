@@ -17,7 +17,7 @@
 (:wat::core::defn :geo::Circle/area [self <- :geo::Circle] -> :wat::core::f64
   (:wat::core::f64::* 3.14159 (:wat::core::f64::* (:geo::Circle/radius self) (:geo::Circle/radius self))))
 (:wat::core::defn :geo::Circle/label [self <- :geo::Circle] -> :wat::core::String
-  (:wat::core::string::concat "circle(r=" (:wat::core::str (:geo::Circle/radius self)) ")"))
+  (:wat::string::concat "circle(r=" (:wat::core::str (:geo::Circle/radius self)) ")"))
 ;;  ⇒ Circle exposes color+area+label ⇒ STRUCTURALLY satisfies :geo::Shape. No declaration.
 
 ;; ── OWN TYPE #2 — Square. Same surface, different fields. ──
@@ -25,7 +25,7 @@
 (:wat::core::defn :geo::Square/area [self <- :geo::Square] -> :wat::core::f64
   (:wat::core::f64::* (:geo::Square/side self) (:geo::Square/side self)))
 (:wat::core::defn :geo::Square/label [self <- :geo::Square] -> :wat::core::String
-  (:wat::core::string::concat "square(s=" (:wat::core::str (:geo::Square/side self)) ")"))
+  (:wat::string::concat "square(s=" (:wat::core::str (:geo::Square/side self)) ")"))
 
 ;; ── THE MONKEYPATCH — teach a FOREIGN built-in (core Vector) to be a Shape (you don't own it) ──
 ;; NOTE: (:wat::core::Vector ...) constructs a Value::Vec whose type_name is "wat::core::Vector",
@@ -34,16 +34,16 @@
   (color [self] -> :wat::core::String "grey")
   (area  [self] -> :wat::core::f64 (:wat::core::i64::to-f64 (:wat::core::length self)))
   (label [self] -> :wat::core::String
-    (:wat::core::string::concat "vector[" (:wat::core::str (:wat::core::length self)) "]")))
+    (:wat::string::concat "vector[" (:wat::core::str (:wat::core::length self)) "]")))
 
 ;; ── POLYMORPHIC CONSUMER — accepts ANY Shape; the dispatcher routes :T/<accessor> by runtime type ──
 (:wat::core::defn :geo::describe [s <- :geo::Shape] -> :wat::core::String
-  (:wat::core::string::concat
+  (:wat::string::concat
     (:geo::Shape/color s) " " (:geo::Shape/label s) " area="
     (:wat::core::str (:geo::Shape/area s))))
 
 (:wat::core::defn :geo::demo [] -> :wat::core::String
-  (:wat::core::string::concat
+  (:wat::string::concat
     (:geo::describe (:geo::Circle :color "red" :radius 2.0))
     "  |  "
     (:geo::describe (:geo::Square :color "blue" :side 3.0))

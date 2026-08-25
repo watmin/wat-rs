@@ -58,19 +58,19 @@
             (:wat::core::= 0 (:wat::core::mod x 2)))]
     (:wat::core::do
       (:wat::test::assert-eq
-        (:wat::core::string::join ","
+        (:wat::string::join ","
           (:wat::core::into [] (:wat::core::remove pred (:wat::core::Vector :wat::core::i64 1 2 3 4 5 6))))
         "1,3,5")
       (:wat::test::assert-eq
-        (:wat::core::string::join ","
+        (:wat::string::join ","
           (:wat::core::into [] (:wat::core::remove pred (:wat::core::List/of 1 2 3 4 5 6))))
         "1,3,5")
       (:wat::test::assert-eq
-        (:wat::core::string::join ","
+        (:wat::string::join ","
           (:wat::core::into [] (:wat::core::remove pred (:wat::core::PersistentVector 1 2 3 4 5 6))))
         "1,3,5")
       (:wat::test::assert-eq
-        (:wat::core::string::join ","
+        (:wat::string::join ","
           (:wat::core::into []
             (:wat::core::remove pred (:wat-tests::core::core-seq-walkers::lazy-six))))
         "1,3,5"))))
@@ -79,7 +79,7 @@
 ;; test terminating at all is the assertion.
 (:wat::test::deftest :wat-tests::core::core-seq-walkers::remove-stays-lazy-over-an-infinite-source
   (:wat::test::assert-eq
-    (:wat::core::string::join ","
+    (:wat::string::join ","
       (:wat::core::into []
         (:wat::core::take
           (:wat::core::remove
@@ -96,19 +96,19 @@
     [pred (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::bool (:wat::core::< x 4))]
     (:wat::core::do
       (:wat::test::assert-eq
-        (:wat::core::string::join ","
+        (:wat::string::join ","
           (:wat::core::into [] (:wat::core::take-while pred (:wat::core::Vector :wat::core::i64 1 2 3 4 1 2))))
         "1,2,3")
       (:wat::test::assert-eq
-        (:wat::core::string::join ","
+        (:wat::string::join ","
           (:wat::core::into [] (:wat::core::take-while pred (:wat::core::List/of 1 2 3 4 1 2))))
         "1,2,3")
       (:wat::test::assert-eq
-        (:wat::core::string::join ","
+        (:wat::string::join ","
           (:wat::core::into [] (:wat::core::take-while pred (:wat::core::PersistentVector 1 2 3 4 1 2))))
         "1,2,3")
       (:wat::test::assert-eq
-        (:wat::core::string::join ","
+        (:wat::string::join ","
           (:wat::core::into []
             (:wat::core::take-while pred (:wat-tests::core::core-seq-walkers::lazy-1234-12))))
         "1,2,3"))))
@@ -118,7 +118,7 @@
 ;; `tests/types/probe_arc118_2z_takewhile_lazy.rs`.)
 (:wat::test::deftest :wat-tests::core::core-seq-walkers::take-while-terminates-on-an-infinite-source
   (:wat::test::assert-eq
-    (:wat::core::string::join ","
+    (:wat::string::join ","
       (:wat::core::into []
         (:wat::core::take-while
           (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::bool (:wat::core::< x 3))
@@ -134,19 +134,19 @@
     [pred (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::bool (:wat::core::< x 4))]
     (:wat::core::do
       (:wat::test::assert-eq
-        (:wat::core::string::join ","
+        (:wat::string::join ","
           (:wat::core::into [] (:wat::core::drop-while pred (:wat::core::Vector :wat::core::i64 1 2 3 4 1 2))))
         "4,1,2")
       (:wat::test::assert-eq
-        (:wat::core::string::join ","
+        (:wat::string::join ","
           (:wat::core::into [] (:wat::core::drop-while pred (:wat::core::List/of 1 2 3 4 1 2))))
         "4,1,2")
       (:wat::test::assert-eq
-        (:wat::core::string::join ","
+        (:wat::string::join ","
           (:wat::core::into [] (:wat::core::drop-while pred (:wat::core::PersistentVector 1 2 3 4 1 2))))
         "4,1,2")
       (:wat::test::assert-eq
-        (:wat::core::string::join ","
+        (:wat::string::join ","
           (:wat::core::into []
             (:wat::core::drop-while pred (:wat-tests::core::core-seq-walkers::lazy-1234-12))))
         "4,1,2"))))
@@ -156,25 +156,25 @@
 (:wat::test::deftest :wat-tests::core::core-seq-walkers::take-nth-over-every-container
   (:wat::core::do
     (:wat::test::assert-eq
-      (:wat::core::string::join ","
+      (:wat::string::join ","
         (:wat::core::into [] (:wat::core::take-nth 2 (:wat::core::Vector :wat::core::i64 1 2 3 4 5 6))))
       "1,3,5")
     (:wat::test::assert-eq
-      (:wat::core::string::join ","
+      (:wat::string::join ","
         (:wat::core::into [] (:wat::core::take-nth 2 (:wat::core::List/of 1 2 3 4 5 6))))
       "1,3,5")
     (:wat::test::assert-eq
-      (:wat::core::string::join ","
+      (:wat::string::join ","
         (:wat::core::into [] (:wat::core::take-nth 2 (:wat::core::PersistentVector 1 2 3 4 5 6))))
       "1,3,5")
     (:wat::test::assert-eq
-      (:wat::core::string::join ","
+      (:wat::string::join ","
         (:wat::core::into []
           (:wat::core::take-nth 2 (:wat-tests::core::core-seq-walkers::lazy-six))))
       "1,3,5")
     ;; n = 1 is every element — the control that separates "take-nth works" from "n=0 is special".
     (:wat::test::assert-eq
-      (:wat::core::string::join ","
+      (:wat::string::join ","
         (:wat::core::into [] (:wat::core::take-nth 1 (:wat::core::Vector :wat::core::i64 1 2 3))))
       "1,2,3")))
 
@@ -185,14 +185,14 @@
 ;; probe. The `take` is what keeps this test finite; without it the stream never ends.
 (:wat::test::deftest :wat-tests::core::core-seq-walkers::take-nth-0-repeats-the-head
   (:wat::test::assert-eq
-    (:wat::core::string::join ","
+    (:wat::string::join ","
       (:wat::core::into []
         (:wat::core::take (:wat::core::take-nth 0 (:wat::core::Vector :wat::core::i64 1 2 3)) 5)))
     "1,1,1,1,1"))
 
 (:wat::test::deftest :wat-tests::core::core-seq-walkers::take-nth-stays-lazy-over-an-infinite-source
   (:wat::test::assert-eq
-    (:wat::core::string::join ","
+    (:wat::string::join ","
       (:wat::core::into []
         (:wat::core::take (:wat::core::take-nth 3 (:wat-tests::core::core-seq-walkers::nat 0)) 4)))
     "0,3,6,9"))
@@ -205,19 +205,19 @@
          (:wat::core::+ a b))]
     (:wat::core::do
       (:wat::test::assert-eq
-        (:wat::core::string::join ","
+        (:wat::string::join ","
           (:wat::core::into [] (:wat::core::reductions f 0 (:wat::core::Vector :wat::core::i64 1 2 3 4))))
         "0,1,3,6,10")
       (:wat::test::assert-eq
-        (:wat::core::string::join ","
+        (:wat::string::join ","
           (:wat::core::into [] (:wat::core::reductions f 0 (:wat::core::List/of 1 2 3 4))))
         "0,1,3,6,10")
       (:wat::test::assert-eq
-        (:wat::core::string::join ","
+        (:wat::string::join ","
           (:wat::core::into [] (:wat::core::reductions f 0 (:wat::core::PersistentVector 1 2 3 4))))
         "0,1,3,6,10")
       (:wat::test::assert-eq
-        (:wat::core::string::join ","
+        (:wat::string::join ","
           (:wat::core::into []
             (:wat::core::reductions f 0 (:wat-tests::core::core-seq-walkers::lazy-four))))
         "0,1,3,6,10"))))
@@ -228,19 +228,19 @@
          (:wat::core::+ a b))]
     (:wat::core::do
       (:wat::test::assert-eq
-        (:wat::core::string::join ","
+        (:wat::string::join ","
           (:wat::core::into [] (:wat::core::reductions f (:wat::core::Vector :wat::core::i64 1 2 3 4))))
         "1,3,6,10")
       (:wat::test::assert-eq
-        (:wat::core::string::join ","
+        (:wat::string::join ","
           (:wat::core::into [] (:wat::core::reductions f (:wat::core::List/of 1 2 3 4))))
         "1,3,6,10")
       (:wat::test::assert-eq
-        (:wat::core::string::join ","
+        (:wat::string::join ","
           (:wat::core::into [] (:wat::core::reductions f (:wat::core::PersistentVector 1 2 3 4))))
         "1,3,6,10")
       (:wat::test::assert-eq
-        (:wat::core::string::join ","
+        (:wat::string::join ","
           (:wat::core::into []
             (:wat::core::reductions f (:wat-tests::core::core-seq-walkers::lazy-four))))
         "1,3,6,10"))))
@@ -249,7 +249,7 @@
 ;; (This is the row that would go red if the walker ever became eager.)
 (:wat::test::deftest :wat-tests::core::core-seq-walkers::reductions-stays-lazy-over-an-infinite-source
   (:wat::test::assert-eq
-    (:wat::core::string::join ","
+    (:wat::string::join ","
       (:wat::core::into []
         (:wat::core::take
           (:wat::core::reductions

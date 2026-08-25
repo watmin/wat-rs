@@ -6,9 +6,9 @@
                line
                 (:wat::core::match row 
                   ((:wat::core::Some (ts open high low close volume))
-                    (:wat::core::string::concat
+                    (:wat::string::concat
                       (:wat::core::i64::to-string ts)
-                      (:wat::core::string::concat ":"
+                      (:wat::string::concat ":"
                         (:wat::core::f64::to-string close))))
                   (:wat::core::None "end"))]
               (:wat::kernel::println line)))

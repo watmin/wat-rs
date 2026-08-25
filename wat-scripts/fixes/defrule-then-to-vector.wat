@@ -73,7 +73,7 @@
     [fact (:wat::core::Option/expect (:wat::core::get (:wat::core::ast->children f) 1) "fact-text: unreachable (insert-wrapped? already checked)")
      off  (:wat::fix::node-start-offset fact lines)
      end  (:wat::fix::node-end-offset fact lines)]
-    (:wat::core::string::subs src off end)))
+    (:wat::string::subs src off end)))
 
 (:wat::core::defn :user::fact-texts
   [forms <- (:wat::core::Vector :- [:wat::WatAST]) src <- :wat::core::String lines <- (:wat::core::Vector :- [:wat::core::String])]
@@ -91,7 +91,7 @@
     (:wat::core::let [h (:wat::core::first xs) tl (:wat::core::rest xs)]
       (:wat::core::if (:wat::core::empty? tl)
         h
-        (:wat::core::string::concat h (:wat::core::string::concat " " (:user::join-with-space tl)))))))
+        (:wat::string::concat h (:wat::string::concat " " (:user::join-with-space tl)))))))
 
 ;; ── per-defrule edit ────────────────────────────────────────────────────────────────────────
 
@@ -109,14 +109,14 @@
         ;; corpus (verified pre-strike); stay honest rather than silently no-op a shape that
         ;; was never checked.
         (:wat::kernel::assertion-failed!
-          (:wat::core::string::concat "defrule-then-to-vector: :then has no forms in " (:wat::core::write-forms node))
+          (:wat::string::concat "defrule-then-to-vector: :then has no forms in " (:wat::core::write-forms node))
           :wat::core::None :wat::core::None)
         (:wat::core::let [then-forms (:wat::core::into [] (:wat::core::drop ch 5))]
           (:wat::core::if (:user::then-already-vector? then-forms)
             (:wat::core::Vector :wat::fix::Edit) ;; idempotent no-op — already migrated
             (:wat::core::if (:wat::core::not (:user::all-insert-wrapped? then-forms))
               (:wat::kernel::assertion-failed!
-                (:wat::core::string::concat
+                (:wat::string::concat
                   "defrule-then-to-vector: STOP-2 — a :then entry is not a plain (:wat::rete::insert <fact>) form in "
                   (:wat::core::write-forms node))
                 :wat::core::None :wat::core::None)
@@ -130,7 +130,7 @@
                  len        (:wat::core::i64::- last-off first-off)]
                 (:wat::core::Vector :wat::fix::Edit
                   (:wat::core::Tuple first-off len
-                    (:wat::core::string::concat "[" (:wat::core::string::concat joined "]"))))))))))
+                    (:wat::string::concat "[" (:wat::string::concat joined "]"))))))))))
     (:wat::core::Vector :wat::fix::Edit)))
 
 ;; ── deep walk (defrule forms may be nested inside a data literal, not just top-level) ─────────
@@ -160,7 +160,7 @@
 
 (:wat::core::defn :user::migrate [src <- :wat::core::String] -> :wat::core::String
   (:wat::core::let
-    [lines (:wat::core::string::split src "\n")
+    [lines (:wat::string::split src "\n")
      tree  (:wat::core::match (:wat::core::read-string src)
              ((:wat::core::ReadOutcome::Forms __forms) __forms)
              ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)))
@@ -175,7 +175,7 @@
     (:wat::core::let [path (:wat::core::first paths)]
       (:wat::core::do
         (:wat::io::write-file path (:user::migrate (:wat::io::read-file path)))
-        (:wat::kernel::println (:wat::core::string::concat "[defrule-then-to-vector] " path))
+        (:wat::kernel::println (:wat::string::concat "[defrule-then-to-vector] " path))
         (:user::rewrite-each (:wat::core::into [] (:wat::core::rest paths)))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

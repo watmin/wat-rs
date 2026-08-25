@@ -19,7 +19,7 @@
      arg-name (:wat::core::ast-name arg-ty)
      ret-name (:wat::core::ast-name ret-ty)]
     (:wat::core::do
-      (:wat::kernel::println (:wat::core::string::concat "arg-kind=" (:wat::core::ast-kind arg-ty)))
-      (:wat::kernel::println (:wat::core::string::concat "arg-name=" arg-name))
-      (:wat::kernel::println (:wat::core::string::concat "ret-kind=" (:wat::core::ast-kind ret-ty)))
-      (:wat::kernel::println (:wat::core::string::concat "ret-name=" ret-name)))))
+      (:wat::kernel::println (:wat::string::concat "arg-kind=" (:wat::core::ast-kind arg-ty)))
+      (:wat::kernel::println (:wat::string::concat "arg-name=" arg-name))
+      (:wat::kernel::println (:wat::string::concat "ret-kind=" (:wat::core::ast-kind ret-ty)))
+      (:wat::kernel::println (:wat::string::concat "ret-name=" ret-name)))))

@@ -45,7 +45,7 @@
      ;; uses the field AT ITS DECLARED TYPE — correct against the declaration
      (:wat::service::Outcome::Reply s
        (:dos::Bag::PutResponse::Ok
-         (:wat::core::string::length
+         (:wat::string::length
            (:wat::core::nth (:dos::Bag::PutRequest/items req) 0)))))])
 
 (:wat::core::defn :dos::try
@@ -55,27 +55,27 @@
     ((:wat::kernel::RecvOutcome::Message resp)
       (:wat::core::match resp
         ((:dos::Bag::PutResponse::Ok n)
-          (:wat::kernel::println (:wat::core::string::concat label " => Ok")))
+          (:wat::kernel::println (:wat::string::concat label " => Ok")))
         ((:dos::Bag::PutResponse::RequestTooLarge b cap)
-          (:wat::kernel::println (:wat::core::string::concat label " => TooLarge")))
+          (:wat::kernel::println (:wat::string::concat label " => TooLarge")))
         ;; the codemod's default body for this arm is `assertion-failed!` (a terminal caller that
         ;; builds its own typed request cannot be malformed, so an unexpected refusal must be
         ;; loud). THIS probe is the one place that deliberately sends a malformed frame, so the
         ;; refusal is the expected observation and is printed with its full coordinate.
         ((:dos::Bag::PutResponse::RequestMalformed mpath mexpected mgot)
           (:wat::kernel::println
-            (:wat::core::string::concat label
-              (:wat::core::string::concat " => MALFORMED at "
-                (:wat::core::string::concat (:wat::edn::write mpath)
-                  (:wat::core::string::concat " expected="
-                    (:wat::core::string::concat mexpected
-                      (:wat::core::string::concat " got=" mgot))))))))))
+            (:wat::string::concat label
+              (:wat::string::concat " => MALFORMED at "
+                (:wat::string::concat (:wat::edn::write mpath)
+                  (:wat::string::concat " expected="
+                    (:wat::string::concat mexpected
+                      (:wat::string::concat " got=" mgot))))))))))
     ((:wat::kernel::RecvOutcome::Lost cause)
-      (:wat::kernel::println (:wat::core::string::concat label " => LOST (peer gone)")))
+      (:wat::kernel::println (:wat::string::concat label " => LOST (peer gone)")))
     (:wat::kernel::RecvOutcome::Stopped
-      (:wat::kernel::println (:wat::core::string::concat label " => Stopped")))
+      (:wat::kernel::println (:wat::string::concat label " => Stopped")))
     (:wat::kernel::RecvOutcome::Closed
-      (:wat::kernel::println (:wat::core::string::concat label " => Closed")))))
+      (:wat::kernel::println (:wat::string::concat label " => Closed")))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

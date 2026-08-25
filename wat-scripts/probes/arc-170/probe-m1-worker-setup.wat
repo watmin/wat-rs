@@ -17,7 +17,7 @@
   :satisfies :probe::Echo  :durable [] :ephemeral []
   :impls [(echo [s ctx req]
             (:wat::service::Outcome::Reply s
-              (:probe::Echo::EchoResponse::Ok (:wat::core::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))))])
+              (:probe::Echo::EchoResponse::Ok (:wat::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))))])
 
 ;; the union the worker recv's: Setup hands the address; Work is one unit of work.
 (:wat::core::defenum :probe::Msg :wat::enum::Pure
@@ -88,7 +88,7 @@
                          (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None))
                        (:wat::kernel::RecvOutcome::Closed
                          (:wat::kernel::assertion-failed! "recv': worker closed unexpectedly" :wat::core::None :wat::core::None)))]
-                (:wat::core::string::concat r1 (:wat::core::string::concat " " r2))))
+                (:wat::string::concat r1 (:wat::string::concat " " r2))))
             (:wat::core::None
               (:wat::kernel::assertion-failed! "peer-pid None on process worker"
                 :wat::core::None :wat::core::None)))]

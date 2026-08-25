@@ -20,7 +20,7 @@
   :impls [(echo [s ctx req]
             (:wat::service::Outcome::Reply s
               (:probe::Echo::EchoResponse::Ok
-                (:wat::core::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))))])
+                (:wat::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))))])
 
 (:wat::core::defenum :probe::Msg :wat::enum::Pure
   :Setup [addr <- (:wat::kernel::Address :- [:probe::Echo::Op :probe::Echo::Reply])]
@@ -115,10 +115,10 @@
                         (:wat::kernel::assertion-failed! "recv': stopped before reply c — the peer was ALIVE" :wat::core::None :wat::core::None))
                       (:wat::kernel::RecvOutcome::Closed
                         (:wat::kernel::assertion-failed! "recv': worker closed before reply c" :wat::core::None :wat::core::None)))]
-                (:wat::core::string::concat r1
-                  (:wat::core::string::concat " "
-                    (:wat::core::string::concat r2
-                      (:wat::core::string::concat " " r3))))))
+                (:wat::string::concat r1
+                  (:wat::string::concat " "
+                    (:wat::string::concat r2
+                      (:wat::string::concat " " r3))))))
             (:wat::core::None
               (:wat::kernel::assertion-failed! "peer-pid None on process worker"
                 :wat::core::None :wat::core::None)))]

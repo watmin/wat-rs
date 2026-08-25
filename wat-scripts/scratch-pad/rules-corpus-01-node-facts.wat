@@ -58,15 +58,15 @@
 (:wat::rete::defrule :fixr::arrow
   :when [(:fixr::Node  (?id <- :id) (?k <- :kind))
          (:fixr::Named (?id <- :id) (?n <- :name))
-         (:wat::rete::where (:wat::rete::core::string::= ?k "symbol"))
-         (:wat::rete::where (:wat::rete::core::string::= ?n "<-"))]
+         (:wat::rete::where (:wat::rete::string::= ?k "symbol"))
+         (:wat::rete::where (:wat::rete::string::= ?n "<-"))]
   :then [(:fixr::IsArrow :id ?id)])
 
 ;; RULE B — the ::-namespaced call head / reference keyword.
 (:wat::rete::defrule :fixr::head-kw
   :when [(:fixr::Node  (?id <- :id) (?k <- :kind))
          (:fixr::Named (?id <- :id) (?n <- :name))
-         (:wat::rete::where (:wat::rete::core::string::= ?k "keyword"))
+         (:wat::rete::where (:wat::rete::string::= ?k "keyword"))
          (:wat::rete::where (:wat::rete::core::String/contains? ?n "::"))]
   :then [(:fixr::IsHeadKw :id ?id)])
 
@@ -134,7 +134,7 @@
       (:fixr::Named :id 5 :name ":wat::core::foo"))))
 
 (:wat::core::defn :fixr::show [label <- :wat::core::String n <- :wat::core::i64] -> :wat::core::nil
-  (:wat::kernel::println (:wat::core::string::concat label (:wat::core::str n))))
+  (:wat::kernel::println (:wat::string::concat label (:wat::core::str n))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

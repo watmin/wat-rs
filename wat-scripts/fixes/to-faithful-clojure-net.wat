@@ -43,33 +43,33 @@
 
 ;; ══ PURE STRING PREDICATES (used in :where guards) ══════════════════════════
 (:wat::core::defn :fix::has-ns? [name <- :wat::core::String] -> :wat::core::bool
-  (:wat::core::string::contains? name "::"))
+  (:wat::string::contains? name "::"))
 
 (:wat::core::defn :fix::type-shaped? [name <- :wat::core::String] -> :wat::core::bool
-  (:wat::core::if (:wat::core::if (:wat::core::string::contains? name "<")
-                    (:wat::core::string::contains? name ">")
+  (:wat::core::if (:wat::core::if (:wat::string::contains? name "<")
+                    (:wat::string::contains? name ">")
                     false)
     true
-    (:wat::core::if (:wat::core::string::contains? name "(")
-      (:wat::core::string::contains? name ")")
+    (:wat::core::if (:wat::string::contains? name "(")
+      (:wat::string::contains? name ")")
       false)))
 
 ;; ══ LAYER 1 · TOKEN TYPING ══════════════════════════════════════════════════
 ;; G1 keyword?
 (:wat::rete::defrule :fix::g1-keyword
-  :when [(:fix::Node (?off <- :offset) (?kind <- :kind) (:wat::rete::core::string::= ?kind "keyword"))]
+  :when [(:fix::Node (?off <- :offset) (?kind <- :kind) (:wat::rete::string::= ?kind "keyword"))]
   :then [(:fix::Keyword ?off)])
 
 ;; G2 symbol?
 (:wat::rete::defrule :fix::g2-symbol
-  :when [(:fix::Node (?off <- :offset) (?kind <- :kind) (:wat::rete::core::string::= ?kind "symbol"))]
+  :when [(:fix::Node (?off <- :offset) (?kind <- :kind) (:wat::rete::string::= ?kind "symbol"))]
   :then [(:fix::Symbol ?off)])
 
 ;; G3 genuine?  — span source-len == name-len (a desugared sigil never passes; THE SKIP)
 (:wat::rete::defrule :fix::g3-genuine
   :when [(:fix::Keyword (?off <- :offset))
          (:fix::Node (?off <- :offset) (?len <- :len) (?slen <- :span-len))
-         (:wat::rete::where (:wat::rete::core::string::= ?slen ?len))]
+         (:wat::rete::where (:wat::rete::string::= ?slen ?len))]
   :then [(:fix::Genuine ?off)])
 
 ;; ══ LAYER 2 · LEXICAL SHAPE (only genuine keywords) ═════════════════════════
@@ -92,7 +92,7 @@
 (:wat::rete::defrule :fix::g6-arrow
   :when [(:fix::Symbol (?off <- :offset))
          (:fix::Node (?off <- :offset) (?name <- :name))
-         (:wat::rete::where (:wat::rete::core::or (:wat::rete::core::string::= ?name "<-") (:wat::rete::core::string::= ?name "->")))]
+         (:wat::rete::where (:wat::rete::core::or (:wat::rete::string::= ?name "<-") (:wat::rete::string::= ?name "->")))]
   :then [(:fix::Arrow ?off)])
 
 ;; G7 post-arrow?  — the node one child-index after an arrow, same parent (SELF-JOIN)
@@ -100,7 +100,7 @@
   :when [(:fix::Arrow (?aoff <- :offset))
          (:fix::Node (?aoff <- :offset) (?p <- :parent) (?ai <- :child-idx))
          (:fix::Node (?boff <- :offset) (?p <- :parent) (?bi <- :child-idx))
-         (:wat::rete::where (:wat::rete::core::string::= ?bi (:wat::core::+ ?ai 1)))]
+         (:wat::rete::where (:wat::rete::string::= ?bi (:wat::core::+ ?ai 1)))]
   :then [(:fix::PostArrow ?boff)])
 
 ;; TypeCandidate ← type-shaped OR post-arrow (the ∪, as two trivial gates)
@@ -180,7 +180,7 @@
       (:wat::core::if (:wat::core::or (:wat::core::= kind "keyword") (:wat::core::= kind "symbol"))
         (:wat::core::let [name (:wat::core::ast-name node)
                           off  (:wat::fix::fix-text-offset-of (:wat::core::ast-span node) lines)
-                          len  (:wat::core::string::length name)
+                          len  (:wat::string::length name)
                           slen (:wat::fix::fix-text-span-len
                                  (:wat::core::ast-span node)
                                  (:wat::core::ast-end-span node)
@@ -259,7 +259,7 @@
 (:wat::core::defn :fix::convert
   [src <- :wat::core::String]
   -> :wat::core::String
-  (:wat::core::let [lines   (:wat::core::string::split src "\n")
+  (:wat::core::let [lines   (:wat::string::split src "\n")
                     tree    (:wat::core::match (:wat::core::read-string src) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)))
                     forms   (:wat::core::ast->children tree)
                     ;; top-level forms have no enclosing list → :fix::Parent::Root (no sentinel).
@@ -288,7 +288,7 @@
     (:wat::core::let [path (:wat::core::first paths)]
       (:wat::core::do
         (:wat::io::write-file path (:fix::convert (:wat::io::read-file path)))
-        (:wat::kernel::println (:wat::core::string::concat "[to-faithful-clojure-net] " path))
+        (:wat::kernel::println (:wat::string::concat "[to-faithful-clojure-net] " path))
         (:user::apply-each (:wat::core::rest paths))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

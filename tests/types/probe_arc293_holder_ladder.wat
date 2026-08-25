@@ -19,7 +19,7 @@
 (:wat::core::defn :lad::when  [x <- :lad::Stamped] -> :wat::core::i64    (:lad::Stamped/at x))
 
 (:wat::core::defn :lad::demo [] -> :wat::core::String
-  (:wat::core::string::concat
+  (:wat::string::concat
     (:lad::greet (:lad::Person :name "alice"))                  ; record → :nature :Struct  (ladder accepts down)
     " @ "
     (:wat::core::str (:lad::when (:lad::Event :at 100)))))     ; holon  → :nature :Record  (ladder accepts down)

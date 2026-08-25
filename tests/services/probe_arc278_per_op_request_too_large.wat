@@ -32,7 +32,7 @@
   [(do-op [s ctx req]
      (:wat::core::let
        [enc (:wat::edn::write req)
-        n   (:wat::core::string::length enc)
+        n   (:wat::string::length enc)
         cap 200]
        (:wat::core::if (:wat::core::> n cap)
          (:wat::service::Outcome::Reply s (:probe::Op1::DoOpResponse::RequestTooLarge n cap))
@@ -42,7 +42,7 @@
 (:wat::core::defn :probe::pl [n <- :wat::core::i64] -> :wat::core::String
   (:wat::core::foldl
     (:wat::core::fn [acc <- :wat::core::String  _i <- :wat::core::i64] -> :wat::core::String
-      (:wat::core::string::concat acc "0123456789ABCDEF0123456789ABCDEF"))
+      (:wat::string::concat acc "0123456789ABCDEF0123456789ABCDEF"))
     ""
     (:wat::core::range 0 n)))
 

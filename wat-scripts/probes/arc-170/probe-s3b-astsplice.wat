@@ -34,9 +34,9 @@
           (:wat::kernel::RecvOutcome::Closed
             (:wat::kernel::assertion-failed! "recv': w closed unexpectedly" :wat::core::None :wat::core::None)))]
     (:wat::kernel::println
-      (:wat::core::string::concat
+      (:wat::string::concat
         (:wat::core::i64::to-string (:wat::core::second a))
-        (:wat::core::string::concat " " (:wat::core::i64::to-string (:wat::core::second b)))))))
+        (:wat::string::concat " " (:wat::core::i64::to-string (:wat::core::second b)))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
@@ -53,20 +53,20 @@
      ;; ast-name → ":wat::core::i64"; strip leading colon → "wat::core::i64" for tuple bodies
      arg-nm   (:wat::core::ast-name arg-ty)
      ret-nm   (:wat::core::ast-name ret-ty)
-     arg-t    (:wat::core::string::subs arg-nm 1 (:wat::core::string::length arg-nm))
-     ret-t    (:wat::core::string::subs ret-nm 1 (:wat::core::string::length ret-nm))
+     arg-t    (:wat::string::subs arg-nm 1 (:wat::string::length arg-nm))
+     ret-t    (:wat::string::subs ret-nm 1 (:wat::string::length ret-nm))
      ;; ── build the concrete tuple-type keyword nodes ──
      peer-node (:wat::core::keyword-node
-                 (:wat::core::string::concat ":wat::kernel::Peer<(wat::core::i64,"
-                   (:wat::core::string::concat arg-t
-                     (:wat::core::string::concat "),(wat::core::i64,"
-                       (:wat::core::string::concat ret-t ")>")))))
+                 (:wat::string::concat ":wat::kernel::Peer<(wat::core::i64,"
+                   (:wat::string::concat arg-t
+                     (:wat::string::concat "),(wat::core::i64,"
+                       (:wat::string::concat ret-t ")>")))))
      sp1-node  (:wat::core::keyword-node
-                 (:wat::core::string::concat ":(wat::core::i64,"
-                   (:wat::core::string::concat ret-t ")")))
+                 (:wat::string::concat ":(wat::core::i64,"
+                   (:wat::string::concat ret-t ")")))
      sp2-node  (:wat::core::keyword-node
-                 (:wat::core::string::concat ":(wat::core::i64,"
-                   (:wat::core::string::concat arg-t ")")))
+                 (:wat::string::concat ":(wat::core::i64,"
+                   (:wat::string::concat arg-t ")")))
      ;; ── build the shipped runner via quasiquote, splicing the concrete types ──
      runner-def `(:wat::core::defn :probe::__runner
                    [prn <- ~peer-node] -> :wat::core::nil

@@ -12,7 +12,7 @@
   :satisfies :probe::Echo  :durable [] :ephemeral []
   :impls [(echo [s ctx req]
             (:wat::service::Outcome::Reply s
-              (:probe::Echo::EchoResponse::Ok (:wat::core::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))))])
+              (:probe::Echo::EchoResponse::Ok (:wat::string::concat "echo:" (:probe::Echo::EchoRequest/msg req)))))])
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
@@ -32,6 +32,6 @@
           [ch (:wat::core::ast->children f)
            hd (:wat::core::ast-name (:wat::core::first ch))
            nm (:wat::core::ast-name (:wat::core::nth ch 1))]
-          (:wat::kernel::println (:wat::core::string::concat hd (:wat::core::string::concat "  " nm)))))
+          (:wat::kernel::println (:wat::string::concat hd (:wat::string::concat "  " nm)))))
       nil
       forms)))

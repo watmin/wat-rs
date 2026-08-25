@@ -50,7 +50,7 @@
      s3    (:wat::rete::insert s2 (:g278get::PV (:wat::core::PersistentVector)))
      fired (:wat::rete::fire-rules$oracle s3)]
     (:wat::kernel::println
-      (:wat::core::string::concat "row7 seam-composes Hit-count (expect 1) = "
+      (:wat::string::concat "row7 seam-composes Hit-count (expect 1) = "
         (:wat::core::str (:wat::core::length (:wat::rete::query fired (:g278get::q-Hit))))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
@@ -65,41 +65,41 @@
     (:wat::core::do
       ;; ── row 2 — in-range returns the element, fallback NOT taken ──────────────
       (:wat::kernel::println
-        (:wat::core::string::concat "row2 in-range (expect 8) = "
+        (:wat::string::concat "row2 in-range (expect 8) = "
           (:wat::core::str (:wat::rete::core::PersistentVector/get pv 1 :undefined -1))))
 
       ;; ── row 3 — out-of-range takes the fallback ───────────────────────────────
       (:wat::kernel::println
-        (:wat::core::string::concat "row3 out-of-range (expect -1) = "
+        (:wat::string::concat "row3 out-of-range (expect -1) = "
           (:wat::core::str (:wat::rete::core::PersistentVector/get pv 9 :undefined -1))))
 
       ;; ── row 4 — NON-VACUITY: the SAME out-of-range expression, two DIFFERENT
       ;; fallback values. Rows 2/3/5 all pass if the arm returns a constant; only
       ;; this pair proves it returns the caller's own value.
       (:wat::kernel::println
-        (:wat::core::string::concat "row4 run-a :undefined -1 (expect -1) = "
+        (:wat::string::concat "row4 run-a :undefined -1 (expect -1) = "
           (:wat::core::str (:wat::rete::core::PersistentVector/get pv 9 :undefined -1))))
       (:wat::kernel::println
-        (:wat::core::string::concat "row4 run-b :undefined 42 (expect 42) = "
+        (:wat::string::concat "row4 run-b :undefined 42 (expect 42) = "
           (:wat::core::str (:wat::rete::core::PersistentVector/get pv 9 :undefined 42))))
 
       ;; ── row 5 — empty container ────────────────────────────────────────────────
       (:wat::kernel::println
-        (:wat::core::string::concat "row5 empty-container (expect -1) = "
+        (:wat::string::concat "row5 empty-container (expect -1) = "
           (:wat::core::str (:wat::rete::core::PersistentVector/get empty-pv 0 :undefined -1))))
 
       ;; ── row 6 — all three containers behave identically ───────────────────────
       (:wat::kernel::println
-        (:wat::core::string::concat "row6 Vector/get in-range (expect 8) = "
+        (:wat::string::concat "row6 Vector/get in-range (expect 8) = "
           (:wat::core::str (:wat::rete::core::Vector/get vec 1 :undefined -1))))
       (:wat::kernel::println
-        (:wat::core::string::concat "row6 List/get in-range (expect 8) = "
+        (:wat::string::concat "row6 List/get in-range (expect 8) = "
           (:wat::core::str (:wat::rete::core::List/get lst 1 :undefined -1))))
       (:wat::kernel::println
-        (:wat::core::string::concat "row6 Vector/get out-of-range (expect -1) = "
+        (:wat::string::concat "row6 Vector/get out-of-range (expect -1) = "
           (:wat::core::str (:wat::rete::core::Vector/get vec 9 :undefined -1))))
       (:wat::kernel::println
-        (:wat::core::string::concat "row6 List/get out-of-range (expect -1) = "
+        (:wat::string::concat "row6 List/get out-of-range (expect -1) = "
           (:wat::core::str (:wat::rete::core::List/get lst 9 :undefined -1))))
 
       ;; ── row 7 — the seam still composes (real defrule, above) ─────────────────
@@ -108,18 +108,18 @@
       ;; ── row 8 — i64/f64/holon fallbacks UNREGRESSED (this strike edits the
       ;; SHARED `Fallback` arm all four families run through) ────────────────────
       (:wat::kernel::println
-        (:wat::core::string::concat "row8 i64::/ 1 0 :undefined -1 (expect -1) = "
+        (:wat::string::concat "row8 i64::/ 1 0 :undefined -1 (expect -1) = "
           (:wat::core::str (:wat::rete::core::i64::/ 1 0 :undefined -1))))
       (:wat::kernel::println
-        (:wat::core::string::concat "row8 f64::/ 0.0 0.0 :undefined -1.0 (expect -1) = "
+        (:wat::string::concat "row8 f64::/ 0.0 0.0 :undefined -1.0 (expect -1) = "
           (:wat::core::str (:wat::rete::core::f64::/ 0.0 0.0 :undefined -1.0))))
       (:wat::kernel::println
-        (:wat::core::string::concat "row8 holon::cosine degenerate :undefined -1.0 (expect -1) = "
+        (:wat::string::concat "row8 holon::cosine degenerate :undefined -1.0 (expect -1) = "
           (:wat::core::str (:wat::rete::holon::cosine zero other :undefined -1.0))))
 
       ;; ── row 9 — `first` unregressed (STOP-2: its three rows were untouched) ───
       (:wat::kernel::println
-        (:wat::core::string::concat "row9 PersistentVector/first empty :undefined -1 (expect -1) = "
+        (:wat::string::concat "row9 PersistentVector/first empty :undefined -1 (expect -1) = "
           (:wat::core::str (:wat::rete::core::PersistentVector/first empty-pv :undefined -1))))
 
       nil)))

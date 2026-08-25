@@ -300,7 +300,7 @@
 ;; LIVE field set — a field added/removed/retyped tomorrow needs no hand edits here.
 (:wat::core::defn :wat::telemetry::framing-floor-of [ty <- :wat::core::keyword] -> :wat::core::i64
   (:wat::core::let
-    [tag-cost   (:wat::core::string::length (:wat::core::keyword/to-string ty))
+    [tag-cost   (:wat::string::length (:wat::core::keyword/to-string ty))
      fixed-cost (:wat::core::foldl
                   (:wat::core::fn [acc <- :wat::core::i64  t <- :wat::WatAST] -> :wat::core::i64
                     (:wat::core::i64::+ acc
@@ -313,7 +313,7 @@
                   0 (:wat::runtime::field-types-of ty))
      key-cost   (:wat::core::foldl
                   (:wat::core::fn [acc <- :wat::core::i64  k <- :wat::core::keyword] -> :wat::core::i64
-                    (:wat::core::i64::+ acc (:wat::core::string::length (:wat::core::keyword/to-string k))))
+                    (:wat::core::i64::+ acc (:wat::string::length (:wat::core::keyword/to-string k))))
                   0 (:wat::runtime::field-names-of ty))]
     (:wat::core::i64::+ tag-cost (:wat::core::i64::+ fixed-cost key-cost))))
 

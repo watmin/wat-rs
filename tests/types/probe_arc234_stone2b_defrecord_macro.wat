@@ -33,7 +33,7 @@
     [a (:user::probe-5-a)
      b (:user::probe-5-b)
      c (:user::probe-5-c)]
-    (:wat::core::string::concat
+    (:wat::string::concat
       (:wat::core::i64::to-string a)
       "|"
       b

@@ -6,7 +6,7 @@
              (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::bool
                (:wat::core::> n 3)))
      wire (:wat::edn::write form)]
-    (:wat::kernel::println (:wat::core::string::concat "WIRE=" wire))
+    (:wat::kernel::println (:wat::string::concat "WIRE=" wire))
     ;; read it back through the general codec, then try to write-forms it:
     (:wat::core::let [back (:wat::edn::read wire)]
       (:wat::kernel::pprintln back))))

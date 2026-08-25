@@ -71,7 +71,7 @@
 ;; bare-defrule? — a defrule-form whose NAME keyword has no "::" in it.
 (:wat::core::defn :user::bare-defrule? [f <- :wat::WatAST] -> :wat::core::bool
   (:wat::core::if (:user::defrule-form? f)
-    (:wat::core::not (:wat::core::string::contains? (:wat::core::ast-name (:user::defrule-name-node f)) "::"))
+    (:wat::core::not (:wat::string::contains? (:wat::core::ast-name (:user::defrule-name-node f)) "::"))
     false))
 
 ;; any-bare-defrule? — the idempotence gate: does ANY top-level form need renaming?
@@ -91,7 +91,7 @@
       (:wat::core::let [namekw (:wat::core::Option/expect (:wat::core::get (:wat::core::ast->children f) 1) "namespaced-defn-name: name")]
         (:wat::core::if (:wat::core::= (:wat::core::ast-kind namekw) "keyword")
           (:wat::core::let [nm (:wat::core::ast-name namekw)]
-            (:wat::core::if (:wat::core::string::contains? nm "::") (:wat::core::Some nm) :wat::core::None))
+            (:wat::core::if (:wat::string::contains? nm "::") (:wat::core::Some nm) :wat::core::None))
           :wat::core::None))
       :wat::core::None)))
 
@@ -104,9 +104,9 @@
       :wat::core::None :wat::core::None)
     (:wat::core::match (:user::namespaced-defn-name (:wat::core::first forms))
       ((:wat::core::Some nm)
-        (:wat::core::let [seg0 (:wat::core::Option/expect (:wat::core::get (:wat::core::string::split nm "::") 0)
+        (:wat::core::let [seg0 (:wat::core::Option/expect (:wat::core::get (:wat::string::split nm "::") 0)
                                   "find-ns: split always yields >= 1 element")]
-          (:wat::core::string::strip-leading-colon seg0)))
+          (:wat::string::strip-leading-colon seg0)))
       (:wat::core::None (:user::find-ns (:wat::core::rest forms))))))
 
 ;; ── collecting the (old, new) rule-name rename pairs ────────────────────────────────────────────
@@ -119,7 +119,7 @@
     (:wat::core::let [f (:wat::core::first forms) tl (:wat::core::rest forms)]
       (:wat::core::if (:user::bare-defrule? f)
         (:wat::core::let [old  (:wat::core::ast-name (:user::defrule-name-node f))
-                          bare (:wat::core::string::strip-leading-colon old)
+                          bare (:wat::string::strip-leading-colon old)
                           new  (:wat::core::String/concat ":"
                                  (:wat::core::String/concat ns
                                    (:wat::core::String/concat "::" bare)))]
@@ -142,10 +142,10 @@
 ;; ── locating run-row's `(:wat::rete::Rule/name rule)` read, post-rename ────────────────────────
 
 (:wat::core::defn :user::ends-with? [s <- :wat::core::String suf <- :wat::core::String] -> :wat::core::bool
-  (:wat::core::let [ls (:wat::core::string::length s) lsuf (:wat::core::string::length suf)]
+  (:wat::core::let [ls (:wat::string::length s) lsuf (:wat::string::length suf)]
     (:wat::core::if (:wat::core::< ls lsuf)
       false
-      (:wat::core::= (:wat::core::string::subs s (:wat::core::i64::- ls lsuf) ls) suf))))
+      (:wat::core::= (:wat::string::subs s (:wat::core::i64::- ls lsuf) ls) suf))))
 
 ;; run-row-defn? — a top-level `(:wat::core::defn NAME:...::run-row ...)` form.
 (:wat::core::defn :user::run-row-defn? [f <- :wat::WatAST] -> :wat::core::bool
@@ -217,7 +217,7 @@
         [ns       (:user::find-ns forms0)
          renames  (:user::rule-renames forms0 ns)
          text1    (:user::apply-renames src renames)
-         lines1   (:wat::core::string::split text1 "\n")
+         lines1   (:wat::string::split text1 "\n")
          tree1    (:wat::core::match (:wat::core::read-string text1) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)))
          forms1   (:wat::core::ast->children tree1)
          run-row  (:user::find-run-row forms1)

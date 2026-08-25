@@ -44,14 +44,14 @@
      h (:wat::core::length (:wat::rete::query fired (:usr::q-Hot)))
      a (:wat::core::length (:wat::rete::query fired (:usr::q-Alert)))
      cr (:wat::core::length (:wat::rete::query fired (:usr::q-Critical)))]
-    (:wat::core::string::concat "Hot=" (:wat::core::string::concat (:wat::core::str h)
-      (:wat::core::string::concat " Alert=" (:wat::core::string::concat (:wat::core::str a)
-        (:wat::core::string::concat " Critical=" (:wat::core::str cr))))))))
+    (:wat::string::concat "Hot=" (:wat::string::concat (:wat::core::str h)
+      (:wat::string::concat " Alert=" (:wat::string::concat (:wat::core::str a)
+        (:wat::string::concat " Critical=" (:wat::core::str cr))))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [rules    (:wat::core::PersistentVector (:usr::hot) (:usr::alert) (:usr::critical))
      template (:wat::rete::compile-all rules (:wat::core::PersistentVector (:usr::q-Hot) (:usr::q-Alert) (:usr::q-Critical)))]
     (:wat::core::do
-      (:wat::kernel::println (:wat::core::string::concat "Temp=60: " (:usr::fire-one template (:usr::Temp :c 60))))
-      (:wat::kernel::println (:wat::core::string::concat "Temp=95: " (:usr::fire-one template (:usr::Temp :c 95)))))))
+      (:wat::kernel::println (:wat::string::concat "Temp=60: " (:usr::fire-one template (:usr::Temp :c 60))))
+      (:wat::kernel::println (:wat::string::concat "Temp=95: " (:usr::fire-one template (:usr::Temp :c 95)))))))

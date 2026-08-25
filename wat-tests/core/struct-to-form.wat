@@ -40,7 +40,7 @@
       ((:wat::kernel::RecvOutcome::Message _m) nil)
       ((:wat::kernel::RecvOutcome::Lost cause)
         (:wat::kernel::assertion-failed!
-          (:wat::core::string::concat "roundtrip-via-eval failed: "
+          (:wat::string::concat "roundtrip-via-eval failed: "
             (:wat::kernel::LociDiedError/message cause))
           :wat::core::None :wat::core::None))
       (:wat::kernel::RecvOutcome::Stopped

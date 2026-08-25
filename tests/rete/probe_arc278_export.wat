@@ -68,8 +68,8 @@
                          (:wat::core::PersistentVector (:exp::cool))
                          (:wat::core::PersistentVector (:exp::q-Hit)))
                     exp (:wat::rete::export s0)
-                    sl (:wat::core::string::length (:wat::edn::write s0))
-                    el (:wat::core::string::length (:wat::edn::write exp))
+                    sl (:wat::string::length (:wat::edn::write s0))
+                    el (:wat::string::length (:wat::edn::write exp))
                     nc (:wat::core::length (:wat::rete::Export/classes exp))
                     nn (:wat::core::length (:wat::rete::Export/nodes exp))
                     ncond (:wat::core::length (:wat::rete::Export/conds exp))]

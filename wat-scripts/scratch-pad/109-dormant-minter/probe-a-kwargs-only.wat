@@ -7,5 +7,5 @@
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::kernel::println
-    (:wat::core::string::interpolate "A={a}"
+    (:wat::string::interpolate "A={a}"
       :a (:wat::core::i64::to-string (:dm109a::hold 1 :times 3)))))

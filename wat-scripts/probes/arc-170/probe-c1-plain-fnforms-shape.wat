@@ -30,4 +30,4 @@
      c-nm      (:wat::core::ast-name c-ty)]
     (:wat::core::do
       (:wat::kernel::println forms)
-      (:wat::kernel::println (:wat::core::string::concat "c-nm: " c-nm)))))
+      (:wat::kernel::println (:wat::string::concat "c-nm: " c-nm)))))

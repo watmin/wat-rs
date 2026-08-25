@@ -7,7 +7,7 @@
   [f <- :wat::lint::Finding] -> :wat::core::i64
   (:wat::core::do
     (:wat::kernel::println
-      (:wat::core::string::interpolate "{rule} | {sev} | {file}:{line}"
+      (:wat::string::interpolate "{rule} | {sev} | {file}:{line}"
         :rule (:wat::lint::Finding/rule f)
         :sev  (:wat::lint::Finding/severity f)
         :file (:wat::lint::Finding/file f)
@@ -18,7 +18,7 @@
   (:wat::core::let [findings (:wat::lint::lint-stdlib)]
     (:wat::core::do
       (:wat::kernel::println
-        (:wat::core::string::interpolate "TOTAL {n}" :n (:wat::core::i64::to-string (:wat::core::length findings))))
+        (:wat::string::interpolate "TOTAL {n}" :n (:wat::core::i64::to-string (:wat::core::length findings))))
       (:wat::core::foldl
         (:wat::core::fn [acc <- :wat::core::i64 f <- :wat::lint::Finding] -> :wat::core::i64
           (:user::print-finding f))

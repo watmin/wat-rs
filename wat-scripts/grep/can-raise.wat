@@ -43,14 +43,14 @@
 (:wat::rete::defrule :cr::c-partial
   :when [(:wat::grep::Node  (?id <- :id) (?k <- :kind) (?i <- :index))
          (:wat::grep::Named (?id <- :id) (?n <- :name))
-         (:wat::rete::where (:wat::rete::core::string::= ?k "keyword"))
+         (:wat::rete::where (:wat::rete::string::= ?k "keyword"))
          (:wat::rete::where (:wat::rete::core::i64::= ?i 0))
          (:wat::rete::where
            (:wat::rete::core::or
-             (:wat::rete::core::string::= ?n ":wat::core::first")
+             (:wat::rete::string::= ?n ":wat::core::first")
              (:wat::rete::core::or
-               (:wat::rete::core::string::= ?n ":wat::core::Option/expect")
-               (:wat::rete::core::string::= ?n ":wat::core::nth"))))]
+               (:wat::rete::string::= ?n ":wat::core::Option/expect")
+               (:wat::rete::string::= ?n ":wat::core::nth"))))]
   :then [(:cr::Partial :id ?id :verb ?n)])
 
 ;; ── a TOP-LEVEL defn — its parent is 0, the walk's root ─────────────────────────────
@@ -63,7 +63,7 @@
          (:wat::rete::where (:wat::rete::core::i64::= ?hi 0))
          (:wat::rete::where (:wat::rete::core::i64::= ?ni 1))
          (:wat::rete::where (:wat::rete::core::i64::= ?root 0))
-         (:wat::rete::where (:wat::rete::core::string::= ?hn ":wat::core::defn"))]
+         (:wat::rete::where (:wat::rete::string::= ?hn ":wat::core::defn"))]
   :then [(:cr::Defn :id ?p :name ?fname)])
 
 ;; ── ★ the containment join: a defn that CONTAINS a raising call, at any depth ───────

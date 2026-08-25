@@ -36,7 +36,7 @@
   [(put [s ctx req]
      (:wat::service::Outcome::Reply s
        (:probe-det::Bag::PutResponse::Ok
-         (:wat::core::string::length
+         (:wat::string::length
            (:wat::core::nth (:probe-det::Bag::PutRequest/items req) 0)))))])
 
 (:wat::core::defn :probe-det::round-trip
@@ -49,11 +49,11 @@
       (:wat::core::match resp
         ((:probe-det::Bag::PutResponse::Ok len)
           (:wat::kernel::println
-            (:wat::core::string::concat label " => Ok, string::length = "
+            (:wat::string::concat label " => Ok, string::length = "
               (:wat::core::i64::to-string len))))
         ((:probe-det::Bag::PutResponse::RequestTooLarge bytes cap)
           (:wat::kernel::println
-            (:wat::core::string::concat label " => RequestTooLarge")))
+            (:wat::string::concat label " => RequestTooLarge")))
         ((:probe-det::Bag::PutResponse::RequestMalformed mpath mexpected mgot)
           (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None))))
     ;; NB (measured): on this path the payload that actually arrives in the `Lost`
@@ -65,14 +65,14 @@
     ;;   "service peer lost (reason on the owner's crash channel)" (wat/spawn.wat:351)
     ((:wat::kernel::RecvOutcome::Lost cause)
       (:wat::kernel::println
-        (:wat::core::string::concat label
+        (:wat::string::concat label
           " => RecvOutcome::Lost — THE SERVICE DIED serving this request")))
     (:wat::kernel::RecvOutcome::Stopped
       (:wat::kernel::println
-        (:wat::core::string::concat label " => RecvOutcome::Stopped")))
+        (:wat::string::concat label " => RecvOutcome::Stopped")))
     (:wat::kernel::RecvOutcome::Closed
       (:wat::kernel::println
-        (:wat::core::string::concat label " => RecvOutcome::Closed")))))
+        (:wat::string::concat label " => RecvOutcome::Closed")))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

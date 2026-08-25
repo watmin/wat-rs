@@ -80,7 +80,7 @@
      c0 (:wat::time::now) rc (:bench::loop-direct n v) c1 (:wat::time::now)
      d0 (:wat::time::now) rd (:bench::loop-disp n v)   d1 (:wat::time::now)]
     (:wat::kernel::println
-      (:wat::core::string::interpolate
+      (:wat::string::interpolate
         "n={n} NONVACUITY ra={ra} rb={rb} rc={rc} rd={rd} | A: disp={ad}ms direct={bd}ms | B: direct={cd}ms disp={dd}ms"
         :n n :ra ra :rb rb :rc rc :rd rd
         :ad (:wat::core::i64::/ (:bench::ns a0 a1) 1000000)

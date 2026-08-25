@@ -72,7 +72,7 @@
     (:wat::core::match (:wat::kernel::recv echo)
       ((:wat::kernel::RecvOutcome::Message _m) (:probe::Outcome::Message))
       ((:wat::kernel::RecvOutcome::Lost cause)
-        (:probe::Outcome::Lost (:wat::core::string::contains? (:wat::kernel::LociDiedError/message cause) "no matching struct or enum")))
+        (:probe::Outcome::Lost (:wat::string::contains? (:wat::kernel::LociDiedError/message cause) "no matching struct or enum")))
       ;; arc 278 #73 — reported as ITSELF. This test never stops mid-read, so the arm is
       ;; unreachable today; naming it honestly is what keeps it unreachable-and-legible rather
       ;; than unreachable-and-mislabelled.

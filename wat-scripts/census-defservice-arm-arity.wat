@@ -64,7 +64,7 @@
   (:wat::core::let [ch (:wat::core::ast->children arm)]
     (:wat::core::if (:wat::core::empty? ch)
       false
-      (:wat::core::string::starts-with?
+      (:wat::string::starts-with?
         (:wat::core::ast->source (:wat::core::first ch)) "-"))))
 
 ;; ── one defservice form → its arms ─────────────────────────────────────────────────────
@@ -90,11 +90,11 @@
               (:wat::core::ast->source (:wat::core::first ch)))]
       (:wat::core::do
         (:wat::kernel::println
-          (:wat::core::string::concat path
-            (:wat::core::string::concat " "
-              (:wat::core::string::concat name
-                (:wat::core::string::concat " arity="
-                  (:wat::core::string::concat
+          (:wat::string::concat path
+            (:wat::string::concat " "
+              (:wat::string::concat name
+                (:wat::string::concat " arity="
+                  (:wat::string::concat
                     (:wat::core::i64::to-string (:user::arm-arity arm))
                     (:wat::core::if (:user::arm-internal? arm) " INTERNAL" " public")))))))
         (:user::report-arms arms path (:wat::core::i64::+ i 1))))))

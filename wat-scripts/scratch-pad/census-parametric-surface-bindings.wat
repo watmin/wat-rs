@@ -41,12 +41,12 @@
     (:wat::core::let [h (:census::head-of form)]
       (:wat::core::if (:wat::core::= h ":wat::core::defsurface")
         (:wat::kernel::println
-          (:wat::core::string::concat "  SURFACE     " (:census::nth-source form 1)))
+          (:wat::string::concat "  SURFACE     " (:census::nth-source form 1)))
         (:wat::core::if (:wat::core::= h ":wat::core::extend-type")
           (:wat::kernel::println
-            (:wat::core::string::concat
-              (:wat::core::string::concat
-                (:wat::core::string::concat "  EXTEND      " (:census::nth-source form 1))
+            (:wat::string::concat
+              (:wat::string::concat
+                (:wat::string::concat "  EXTEND      " (:census::nth-source form 1))
                 "   AS   ")
               (:census::nth-source form 2)))
           nil)))

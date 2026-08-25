@@ -30,13 +30,13 @@
 ;; is asserted, not just the count: a coercion that reversed or shuffled would pass a length check.
 (:wat::core::defn :probe::elems-of :- [T]
   [s <- (:wat::core::Seqable :- [T])] -> :wat::core::String
-  (:wat::core::string::join "," (:wat::core::into [] (:wat::core::Seqable/seq s))))
+  (:wat::string::join "," (:wat::core::into [] (:wat::core::Seqable/seq s))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::do
     ;; rows 2-5 — order-preserving drain through the surface, one line per container.
     (:wat::kernel::println
-      (:wat::core::string::join " | "
+      (:wat::string::join " | "
         (:wat::core::Vector :wat::core::String
           (:probe::elems-of (:wat::core::Vector :wat::core::i64 1 2 3))
           (:probe::elems-of (:wat::core::PersistentVector 1 2 3 4))
@@ -47,7 +47,7 @@
                                   (:wat::stream::lazy (:wat::stream::empty)))))))))
     ;; ★ row 6 — the generic fn CALLED with all four. Expect 3,4,5,2.
     (:wat::kernel::println
-      (:wat::core::string::join ","
+      (:wat::string::join ","
         (:wat::core::Vector :wat::core::i64
           (:probe::count-via-seq (:wat::core::Vector :wat::core::i64 1 2 3))
           (:probe::count-via-seq (:wat::core::PersistentVector 1 2 3 4))
@@ -59,6 +59,6 @@
     ;; row 7 — LAZINESS. `seq` over an INFINITE source, bounded by `take`. Termination IS the
     ;; assertion; a materialising `seq` would hang here rather than print.
     (:wat::kernel::println
-      (:wat::core::string::join ","
+      (:wat::string::join ","
         (:wat::core::into []
           (:wat::core::take (:wat::core::Seqable/seq (:probe::nat 0)) 3))))))

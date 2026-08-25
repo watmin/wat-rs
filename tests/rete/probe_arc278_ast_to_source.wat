@@ -26,4 +26,4 @@
     [form (:wat::core::quote
             (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64
               (:wat::core::+ x 1)))]
-    (:wat::core::string::contains? (:wat::core::ast->source form) "::")))
+    (:wat::string::contains? (:wat::core::ast->source form) "::")))

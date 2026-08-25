@@ -140,7 +140,7 @@
      _  (:wat::core::if (:wat::core::= final 12) nil
           (:wat::kernel::assertion-failed! "SERIALIZATION LOST: final counter != 12" :wat::core::None :wat::core::None))]
     (:wat::kernel::println
-      (:wat::core::string::concat "PROBE-A GREEN: workers-ok="
-        (:wat::core::string::concat (:wat::core::i64::to-string total-ops)
-          (:wat::core::string::concat " final-counter="
+      (:wat::string::concat "PROBE-A GREEN: workers-ok="
+        (:wat::string::concat (:wat::core::i64::to-string total-ops)
+          (:wat::string::concat " final-counter="
             (:wat::core::i64::to-string final)))))))

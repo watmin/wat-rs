@@ -197,7 +197,7 @@
 ;; ── classifying a collected name ─────────────────────────────────────────────────────────
 
 (:wat::core::defn :user::already-ns? [nn <- :wat::WatAST] -> :wat::core::bool
-  (:wat::core::string::contains? (:wat::core::ast-name nn) "::"))
+  (:wat::string::contains? (:wat::core::ast-name nn) "::"))
 
 (:wat::core::defn :user::needs-fix? [nn <- :wat::WatAST] -> :wat::core::bool
   (:wat::core::not (:user::already-ns? nn)))
@@ -218,26 +218,26 @@
     (:wat::core::let [n (:wat::core::first names) tl (:wat::core::rest names)]
       (:wat::core::if (:user::already-ns? n)
         (:wat::core::let [nm   (:wat::core::ast-name n)
-                          seg0 (:wat::core::first (:wat::core::string::split nm "::"))]
-          (:wat::core::Some (:wat::core::string::strip-leading-colon seg0)))
+                          seg0 (:wat::core::first (:wat::string::split nm "::"))]
+          (:wat::core::Some (:wat::string::strip-leading-colon seg0)))
         (:user::find-ns tl)))))
 
 ;; basename — the path's final "/"-segment (the filename with extension).
 (:wat::core::defn :user::basename [path <- :wat::core::String] -> :wat::core::String
-  (:wat::core::Option/expect (:wat::core::last (:wat::core::string::split path "/")) "basename: split always >= 1"))
+  (:wat::core::Option/expect (:wat::core::last (:wat::string::split path "/")) "basename: split always >= 1"))
 
 ;; strip-wat-ext — drop a trailing ".wat.bad" or ".wat" (checked longest-first).
 (:wat::core::defn :user::strip-wat-ext [base <- :wat::core::String] -> :wat::core::String
-  (:wat::core::if (:wat::core::string::ends-with? base ".wat.bad")
-    (:wat::core::string::subs base 0 (:wat::core::i64::- (:wat::core::string::length base) 8))
-    (:wat::core::if (:wat::core::string::ends-with? base ".wat")
-      (:wat::core::string::subs base 0 (:wat::core::i64::- (:wat::core::string::length base) 4))
+  (:wat::core::if (:wat::string::ends-with? base ".wat.bad")
+    (:wat::string::subs base 0 (:wat::core::i64::- (:wat::string::length base) 8))
+    (:wat::core::if (:wat::string::ends-with? base ".wat")
+      (:wat::string::subs base 0 (:wat::core::i64::- (:wat::string::length base) 4))
       base)))
 
 ;; mint-ns — PER FILE, from the file's OWN basename stem, "_" -> "-". Never shared: a file
 ;; with no namespaced name at all gets a namespace that belongs to it alone.
 (:wat::core::defn :user::mint-ns [path <- :wat::core::String] -> :wat::core::String
-  (:wat::core::string::join "-" (:wat::core::string::split (:user::strip-wat-ext (:user::basename path)) "_")))
+  (:wat::string::join "-" (:wat::string::split (:user::strip-wat-ext (:user::basename path)) "_")))
 
 ;; resolve-ns — derive from the file's own first namespaced name; mint from its basename
 ;; only when the file has none at all.
@@ -251,18 +251,18 @@
 ;; swap-slash — ":rw/try" -> ":rw::try" (swap the FIRST "/" for "::"; a name with more than
 ;; one "/" keeps the rest joined by "/", so only the first separator is reinterpreted).
 (:wat::core::defn :user::swap-slash [nm <- :wat::core::String] -> :wat::core::String
-  (:wat::core::let [segs (:wat::core::string::split nm "/")
+  (:wat::core::let [segs (:wat::string::split nm "/")
                     seg0 (:wat::core::first segs)
                     tail (:wat::core::rest segs)]
-    (:wat::core::String/concat seg0 (:wat::core::String/concat "::" (:wat::core::string::join "/" tail)))))
+    (:wat::core::String/concat seg0 (:wat::core::String/concat "::" (:wat::string::join "/" tail)))))
 
 ;; new-name-for — the fixed spelling for a name already known to need-fix.
 (:wat::core::defn :user::new-name-for [nn <- :wat::WatAST ns <- :wat::core::String] -> :wat::core::String
   (:wat::core::let [nm (:wat::core::ast-name nn)]
-    (:wat::core::if (:wat::core::string::contains? nm "/")
+    (:wat::core::if (:wat::string::contains? nm "/")
       (:user::swap-slash nm)
       (:wat::core::String/concat ":" (:wat::core::String/concat ns
-        (:wat::core::String/concat "::" (:wat::core::string::strip-leading-colon nm)))))))
+        (:wat::core::String/concat "::" (:wat::string::strip-leading-colon nm)))))))
 
 ;; collect-renames — (old,new) pairs for every collected name that needs fixing.
 (:wat::core::defn :user::collect-renames

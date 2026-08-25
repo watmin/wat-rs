@@ -41,7 +41,7 @@
       [fact (:wat::core::Option/expect (:wat::core::get (:wat::core::ast->children node) 1) "node-edit: unreachable")
        fact-off (:wat::fix::node-start-offset fact lines)
        fact-end (:wat::fix::node-end-offset fact lines)
-       fact-text (:wat::core::string::subs src fact-off fact-end)
+       fact-text (:wat::string::subs src fact-off fact-end)
        node-off (:wat::fix::node-start-offset node lines)
        node-end (:wat::fix::node-end-offset node lines)
        len (:wat::core::i64::- node-end node-off)]
@@ -77,7 +77,7 @@
 
 (:wat::core::defn :user::migrate [src <- :wat::core::String] -> :wat::core::String
   (:wat::core::let
-    [lines (:wat::core::string::split src "\n")
+    [lines (:wat::string::split src "\n")
      tree  (:wat::core::match (:wat::core::read-string src)
              ((:wat::core::ReadOutcome::Forms __forms) __forms)
              ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)))
@@ -92,7 +92,7 @@
     (:wat::core::let [path (:wat::core::first paths)]
       (:wat::core::do
         (:wat::io::write-file path (:user::migrate (:wat::io::read-file path)))
-        (:wat::kernel::println (:wat::core::string::concat "[strip-insert-rhs-marker] " path))
+        (:wat::kernel::println (:wat::string::concat "[strip-insert-rhs-marker] " path))
         (:user::rewrite-each (:wat::core::into [] (:wat::core::rest paths)))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

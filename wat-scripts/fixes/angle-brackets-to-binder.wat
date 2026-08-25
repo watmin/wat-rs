@@ -45,9 +45,9 @@
 ;; `split-top-level` below, which walk INSIDE that group where nesting is real).
 (:wat::core::defn :user::find-first-lt
   [s <- :wat::core::String i <- :wat::core::i64] -> :wat::core::i64
-  (:wat::core::if (:wat::core::i64::> i (:wat::core::i64::- (:wat::core::string::length s) 1))
+  (:wat::core::if (:wat::core::i64::> i (:wat::core::i64::- (:wat::string::length s) 1))
     -1
-    (:wat::core::if (:wat::core::= (:wat::core::string::subs s i (:wat::core::i64::+ i 1)) "<")
+    (:wat::core::if (:wat::core::= (:wat::string::subs s i (:wat::core::i64::+ i 1)) "<")
       i
       (:user::find-first-lt s (:wat::core::i64::+ i 1)))))
 
@@ -66,7 +66,7 @@
 ;; (depth starts at 1, `i` is the position right after that open bracket).
 (:wat::core::defn :user::scan-for-close
   [s <- :wat::core::String i <- :wat::core::i64 depth <- :wat::core::i64] -> :wat::core::i64
-  (:wat::core::let [c (:wat::core::string::subs s i (:wat::core::i64::+ i 1))]
+  (:wat::core::let [c (:wat::string::subs s i (:wat::core::i64::+ i 1))]
     (:wat::core::if (:user::open-bracket? c)
       (:user::scan-for-close s (:wat::core::i64::+ i 1) (:wat::core::i64::+ depth 1))
       (:wat::core::if (:user::close-bracket? c)
@@ -82,16 +82,16 @@
   [s <- :wat::core::String i <- :wat::core::i64 depth <- :wat::core::i64 start <- :wat::core::i64
    acc <- (:wat::core::Vector :- [:wat::core::String])]
   -> (:wat::core::Vector :- [:wat::core::String])
-  (:wat::core::if (:wat::core::i64::>= i (:wat::core::string::length s))
-    (:wat::core::conj acc (:wat::core::string::trim (:wat::core::string::subs s start i)))
-    (:wat::core::let [c (:wat::core::string::subs s i (:wat::core::i64::+ i 1))]
+  (:wat::core::if (:wat::core::i64::>= i (:wat::string::length s))
+    (:wat::core::conj acc (:wat::string::trim (:wat::string::subs s start i)))
+    (:wat::core::let [c (:wat::string::subs s i (:wat::core::i64::+ i 1))]
       (:wat::core::if (:user::open-bracket? c)
         (:user::split-top-level s (:wat::core::i64::+ i 1) (:wat::core::i64::+ depth 1) start acc)
         (:wat::core::if (:user::close-bracket? c)
           (:user::split-top-level s (:wat::core::i64::+ i 1) (:wat::core::i64::- depth 1) start acc)
           (:wat::core::if (:wat::core::if (:wat::core::= c ",") (:wat::core::i64::= depth 0) false)
             (:user::split-top-level s (:wat::core::i64::+ i 1) depth (:wat::core::i64::+ i 1)
-              (:wat::core::conj acc (:wat::core::string::trim (:wat::core::string::subs s start i))))
+              (:wat::core::conj acc (:wat::string::trim (:wat::string::subs s start i))))
             (:user::split-top-level s (:wat::core::i64::+ i 1) depth start acc)))))))
 
 ;; render-ref — full REFERENCE-role rendering of an angle-bracket-CARRYING keyword's TEXT
@@ -116,36 +116,36 @@
 ;; enforce at parse time (`src/types.rs`), now a corpus-authoring convention instead.
 (:wat::core::defn :user::render-ref
   [kw-text <- :wat::core::String] -> :wat::core::String
-  (:wat::core::let [stripped (:wat::core::string::subs kw-text 1 (:wat::core::string::length kw-text))]
-    (:wat::core::if (:wat::core::if (:wat::core::string::starts-with? stripped "fn(")
+  (:wat::core::let [stripped (:wat::string::subs kw-text 1 (:wat::string::length kw-text))]
+    (:wat::core::if (:wat::core::if (:wat::string::starts-with? stripped "fn(")
                       true
-                      (:wat::core::string::starts-with? stripped "wat::core::Fn("))
+                      (:wat::string::starts-with? stripped "wat::core::Fn("))
       kw-text
-      (:wat::core::if (:wat::core::string::starts-with? stripped "(")
+      (:wat::core::if (:wat::string::starts-with? stripped "(")
         (:wat::core::let [close         (:user::scan-for-close stripped 1 1)
-                          inner         (:wat::core::string::subs stripped 1 close)
+                          inner         (:wat::string::subs stripped 1 close)
                           args          (:user::split-top-level inner 0 0 0 (:wat::core::Vector :wat::core::String))
                           rendered-args (:user::render-args args)]
-          (:wat::core::string::interpolate "(:wat::core::Tuple :- [{a}])" :a rendered-args))
+          (:wat::string::interpolate "(:wat::core::Tuple :- [{a}])" :a rendered-args))
         (:wat::core::let [lt (:user::find-first-lt stripped 0)]
           (:wat::core::if (:wat::core::i64::< lt 0)
             kw-text
-            (:wat::core::let [base          (:wat::core::string::subs stripped 0 lt)
+            (:wat::core::let [base          (:wat::string::subs stripped 0 lt)
                               close         (:user::scan-for-close stripped (:wat::core::i64::+ lt 1) 1)
-                              inner         (:wat::core::string::subs stripped (:wat::core::i64::+ lt 1) close)
+                              inner         (:wat::string::subs stripped (:wat::core::i64::+ lt 1) close)
                               args          (:user::split-top-level inner 0 0 0 (:wat::core::Vector :wat::core::String))
                               rendered-args (:user::render-args args)]
-              (:wat::core::string::interpolate "(:{b} :- [{a}])" :b base :a rendered-args))))))))
+              (:wat::string::interpolate "(:{b} :- [{a}])" :b base :a rendered-args))))))))
 
 (:wat::core::defn :user::render-one-arg
   [s <- :wat::core::String] -> :wat::core::String
-  (:wat::core::if (:wat::core::string::contains? s "::")
-    (:user::render-ref (:wat::core::string::concat ":" s))
+  (:wat::core::if (:wat::string::contains? s "::")
+    (:user::render-ref (:wat::string::concat ":" s))
     s))
 
 (:wat::core::defn :user::render-args
   [args <- (:wat::core::Vector :- [:wat::core::String])] -> :wat::core::String
-  (:wat::core::string::join " "
+  (:wat::string::join " "
     (:wat::core::foldl
       (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String]) a <- :wat::core::String]
         -> (:wat::core::Vector :- [:wat::core::String])
@@ -159,8 +159,8 @@
 (:wat::core::defn :user::render-decl
   [kw-text <- :wat::core::String] -> :wat::core::String
   (:wat::core::let [ref (:user::render-ref kw-text)]
-    (:wat::core::if (:wat::core::string::starts-with? ref "(")
-      (:wat::core::string::subs ref 1 (:wat::core::i64::- (:wat::core::string::length ref) 1))
+    (:wat::core::if (:wat::string::starts-with? ref "(")
+      (:wat::string::subs ref 1 (:wat::core::i64::- (:wat::string::length ref) 1))
       ref)))
 
 ;; ── the walk — byte-identical shape to `parametrics-take-a-type-vector.wat` ─────────────
@@ -175,8 +175,8 @@
   [node <- :wat::WatAST] -> :wat::core::bool
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "keyword")
     (:wat::core::let [name (:wat::core::ast-name node)]
-      (:wat::core::if (:wat::core::string::contains? name "<")
-        (:wat::core::string::contains? name ">")
+      (:wat::core::if (:wat::string::contains? name "<")
+        (:wat::string::contains? name ">")
         false))
     false))
 
@@ -224,7 +224,7 @@
   (:wat::core::if (:user::angle-shaped-keyword? node)
     (:wat::core::if call-head?
       (:wat::kernel::assertion-failed!
-        (:wat::core::string::interpolate
+        (:wat::string::interpolate
           "angle-brackets-to-binder: refusing call-head site `{n}` — a call-site type application (class D) or method-member name (class C) has no REFERENCE-role render (it is not a callable/name, a form is not a name). Hand-fix it per BRIEF-STONE-annihilate-the-angle-bracket.md STEP 2 instead of running this codemod over it."
           :n (:wat::core::ast-name node))
         :wat::core::None :wat::core::None)
@@ -234,7 +234,7 @@
                                    (:user::render-ref nm))
                          span    (:wat::core::ast-span node)
                          off     (:wat::fix::fix-text-offset-of span lines)
-                         old-len (:wat::core::string::length nm)]
+                         old-len (:wat::string::length nm)]
         (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])
           (:wat::core::Tuple off old-len text))))
     (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))))
@@ -269,7 +269,7 @@
 (:wat::core::defn :user::convert
   [src <- :wat::core::String]
   -> :wat::core::String
-  (:wat::core::let [lines     (:wat::core::string::split src "\n")
+  (:wat::core::let [lines     (:wat::string::split src "\n")
                     tree      (:wat::core::match (:wat::core::read-string src)
                                  ((:wat::core::ReadOutcome::Forms __forms) __forms)
                                  ((:wat::core::ReadOutcome::Malformed __cause)
@@ -288,7 +288,7 @@
       (:wat::core::do
         (:wat::io::write-file path
           (:user::convert (:wat::io::read-file path)))
-        (:wat::kernel::println (:wat::core::string::concat "[angle-brackets-to-binder] " path))
+        (:wat::kernel::println (:wat::string::concat "[angle-brackets-to-binder] " path))
         (:user::apply-each (:wat::core::rest paths))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

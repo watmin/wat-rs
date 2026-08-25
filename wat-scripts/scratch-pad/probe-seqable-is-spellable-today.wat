@@ -38,7 +38,7 @@
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::kernel::println
-    (:wat::core::string::join ","
+    (:wat::string::join ","
       (:wat::core::Vector :wat::core::i64
         (:sq::count-of (:wat::core::Vector :wat::core::i64 10 20 30))
         (:sq::count-of (:wat::core::PersistentVector 1 2 3 4))))))

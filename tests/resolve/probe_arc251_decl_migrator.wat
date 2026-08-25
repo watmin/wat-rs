@@ -3,11 +3,11 @@
 
 (:wat::core::defn :migrate::name-fix [kw <- :wat::WatAST] -> :wat::WatAST
   (:wat::core::let [stripped (:wat::core::first
-                                (:wat::core::string::split (:wat::core::ast-name kw) "<"))]
-    (:wat::core::if (:wat::core::string::contains? stripped "::")
+                                (:wat::string::split (:wat::core::ast-name kw) "<"))]
+    (:wat::core::if (:wat::string::contains? stripped "::")
       (:wat::core::keyword/to-symbol (:wat::core::keyword-node stripped))
       (:wat::core::symbol-node
-        (:wat::core::string::subs stripped 1 (:wat::core::string::length stripped))))))
+        (:wat::string::subs stripped 1 (:wat::string::length stripped))))))
 
 (:wat::core::defn :migrate::type-slot-2? [head-name <- :wat::core::String] -> :wat::core::bool
   (:wat::core::if (:wat::core::= head-name ":wat::core::typealias") true

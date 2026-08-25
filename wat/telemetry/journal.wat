@@ -21,8 +21,8 @@
 ;; sk = #inst "<iso8601 with 9 fixed fractional digits, Z>" — CONSTANT WIDTH, so it sorts
 ;; lexicographically = chronologically (the store's `sort-by Row/sk` is the range order).
 (:wat::core::defn :wat::telemetry::time-sk [ns <- :wat::core::i64] -> :wat::core::String
-  (:wat::core::string::concat
-    (:wat::core::string::concat "#inst \"" (:wat::time::to-iso8601 (:wat::time::at-nanos ns) 9))
+  (:wat::string::concat
+    (:wat::string::concat "#inst \"" (:wat::time::to-iso8601 (:wat::time::at-nanos ns) 9))
     "\""))
 
 ;; the uuid correlation GSI's index-keys for a scope uuid + the row's sk.

@@ -42,7 +42,7 @@
      t2 (:wat::core::Record/assoc
           (:wat::core::Record/assoc t :a 100)
           :b "world")]
-    (:wat::core::string::concat
+    (:wat::string::concat
       (:wat::core::i64::to-string (:myapp::Triple/a t2))
       "|"
       (:myapp::Triple/b t2))))

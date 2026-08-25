@@ -104,7 +104,7 @@
 
 (:wat::core::defn :t::sig-string-concat [] -> :wat::core::bool
   (:wat::core::match
-    (:wat::runtime::signature-of-defn :wat::core::string::concat)
+    (:wat::runtime::signature-of-defn :wat::string::concat)
     
     ((:wat::core::Some _) true)
     (:wat::core::None    false)))

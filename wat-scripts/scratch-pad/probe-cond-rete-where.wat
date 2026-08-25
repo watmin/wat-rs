@@ -41,4 +41,4 @@
      staged (:wat::rete::insert (:wat::rete::compile-all rules (:wat::core::PersistentVector (:probe::q-Hit))) (:probe::Item :tier :silver))
      fired  (:wat::rete::fire-rules staged)
      hits   (:wat::rete::query fired (:probe::q-Hit))]
-    (:wat::kernel::println (:wat::core::string::concat "hits=" (:wat::core::str (:wat::core::length hits))))))
+    (:wat::kernel::println (:wat::string::concat "hits=" (:wat::core::str (:wat::core::length hits))))))

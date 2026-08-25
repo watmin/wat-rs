@@ -20,7 +20,7 @@
      ;; also: first param TYPE node (index 2) ast-name, and head-swap
      c-ty     (:wat::core::nth (:wat::core::ast->children argspec) 2)
      c-nm     (:wat::core::ast-name c-ty)
-     swapped  (:wat::core::string::join "Address" (:wat::core::string::split c-nm "Peer"))]
+     swapped  (:wat::string::join "Address" (:wat::string::split c-nm "Peer"))]
     (:wat::core::do
       (:wat::kernel::println c-nm)
       (:wat::kernel::println swapped)

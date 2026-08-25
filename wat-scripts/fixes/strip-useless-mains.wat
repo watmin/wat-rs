@@ -59,7 +59,7 @@
               (:wat::core::let [c1 (:wat::core::first r1)
                                 r2 (:wat::core::rest r1)]
                 (:wat::core::if (:wat::core::if (:wat::core::= (:wat::core::ast-kind c1) "keyword")
-                                  (:wat::core::string::ends-with? (:wat::core::ast-name c1) "::main")
+                                  (:wat::string::ends-with? (:wat::core::ast-name c1) "::main")
                                   false)
                   (:wat::core::if (:wat::core::empty? r2)
                     false
@@ -123,7 +123,7 @@
                     ch   (:wat::core::ast->children match)
                     name (:wat::core::ast-name (:wat::core::first (:wat::core::rest ch)))]
     (:wat::kernel::println
-      (:wat::core::string::concat "[useless-main] " path ":" (:wat::core::i64::to-string line) " " name))))
+      (:wat::string::concat "[useless-main] " path ":" (:wat::core::i64::to-string line) " " name))))
 
 ;; ── Report all matches for a file ────────────────────────────────────────────────────
 (:wat::core::defn :user::report-matches
@@ -169,7 +169,7 @@
               nil
               (:wat::core::do
                 (:wat::io::write-file path stripped)
-                (:wat::kernel::println (:wat::core::string::concat "[stripped] " path))
+                (:wat::kernel::println (:wat::string::concat "[stripped] " path))
                 nil))))))))
 
 ;; ── Walk all paths from the stdin EDN vector ─────────────────────────────────────────

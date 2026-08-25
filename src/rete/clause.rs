@@ -144,7 +144,38 @@ pub(crate) fn classify_constraint_head(head: &str) -> Option<(CmpKind, Constrain
 
     // The admissible per-type rete rows. Orderings exist only where the type totally orders;
     // equality exists for every comparable type.
-    let (ty, op) = head.strip_prefix(":wat::rete::core::")?.rsplit_once("::")?;
+    //
+    // ⛔ THE PREFIX IS DERIVED, NOT HARDCODED — and that is the whole of this line's history.
+    // It read `strip_prefix(":wat::rete::core::")` until arc 255 stone E moved the string ops to
+    // `:wat::string::*`, whose mirror is `:wat::rete::string::*` by the naming rule
+    // (`vocabulary.rs`: rete_name == core_name with `rete::` inserted after `:wat::`, gated by
+    // `rete_name_is_core_name_with_rete_inserted_after_wat`). A hardcoded `core::` asserts the
+    // mirror prefix is FIXED; the rule says it is DERIVED from wherever the subject lives. So
+    // `:wat::rete::string::=` stopped being recognised, every string `where` guard was refused as
+    // `Unrecognized`, and 15 tests went red at once — caught by
+    // `every_constraint_head_is_a_real_rete_row`, which exists for exactly this.
+    //
+    // Undo the naming rule instead: strip `:wat::rete::`, and what remains IS the core name
+    // (`core::i64::=` or `string::=`). Split the op off the end; the TYPE is the last segment of
+    // what is left. This is correct for every member today and stays correct as each type's leaf
+    // moves out of `core::` toward `wat.<type>/<op>`
+    // (`109/NOTE-operator-namespaces-dotted.md`) — string is simply the first to arrive. A
+    // hardcode would need editing once per type; a derivation needs editing never.
+    // ★ AND THE ROW MUST EXIST. Deriving the shape is not enough: `:wat::rete::i64::=` PARSES
+    // under the rule above but has no row, because i64's ops have not left `core::` yet. Admitting
+    // it would recreate the phantom class one type early — measured, the derivation alone admitted
+    // 20 such heads. Consulting the vocabulary makes a phantom UNREPRESENTABLE rather than checked:
+    // a head is admitted because a row EXISTS, never because its shape parses.
+    crate::rete::vocabulary::rete_op_for(head)?;
+
+    let core_name = head.strip_prefix(":wat::rete::")?;
+    let (ty_path, op) = core_name.rsplit_once("::")?;
+    // Through the ONE door — `identifier::leaf` is the sanctioned reader for "the last `::`
+    // segment". A hand-rolled `rsplit("::")` here is a SECOND NAME PARSER, and
+    // `only_identifier_rs_parses_a_name` caught exactly that when this line was first written
+    // (STONE-one-name-grammar, arc 109: a name is an atom, parsed exactly one way, or two
+    // parsers WILL disagree — its census found 33 that already had).
+    let ty = wat_reader::identifier::leaf(ty_path);
     let kind = match (ty, op) {
         ("i64" | "f64", "<") => Lt,
         ("i64" | "f64", ">") => Gt,
@@ -274,11 +305,28 @@ mod constraint_head_tests {
             RETE_OPS.iter().map(|op| op.rete_name).collect();
 
         let mut admitted = Vec::new();
+        // ⚠ The candidate heads are BUILT, and that is why no text census could find this door:
+        // the joined form (the old rete-core prefix, then a type segment, then the op) exists in
+        // no file — the prefix and the type are written apart and only ever meet at runtime. A
+        // census can only find text; this door had none, which is why it survived every table.
+        //
+        // ⛔ THE GENERATOR MUST STAY INDEPENDENT OF `RETE_OPS`. Sourcing these heads from the rows
+        // themselves would make `phantom` trivially empty and the assertion vacuous — a gate
+        // reading a copy of the truth it is meant to check. It generates the cross-product itself.
+        //
+        // BOTH spellings are generated per type: `:wat::rete::core::<ty>::<op>` (where a type's
+        // ops still live under `core::`) and `:wat::rete::<ty>::<op>` (where they have moved out,
+        // as `string` did in arc 255 stone E). The claim under test is spelling-agnostic —
+        // WHATEVER is admitted must have a row — so it keeps holding as each type migrates.
         for ty in ["i64", "f64", "string", "bool", "keyword", "enum"] {
             for op in ["=", "not=", "<", ">", "<=", ">="] {
-                let head = format!(":wat::rete::core::{ty}::{op}");
-                if classify_constraint_head(&head).is_some() {
-                    admitted.push(head);
+                for head in [
+                    format!(":wat::rete::core::{ty}::{op}"),
+                    format!(":wat::rete::{ty}::{op}"),
+                ] {
+                    if classify_constraint_head(&head).is_some() {
+                        admitted.push(head);
+                    }
                 }
             }
         }
@@ -291,6 +339,11 @@ mod constraint_head_tests {
             admitted.len()
         );
 
+        // ⊘ THE PHANTOM CHECK IS NOW STRUCTURAL, NOT ASSERTED. `classify_constraint_head` consults
+        // `rete_op_for` before admitting anything, so a head with no row cannot be admitted — the
+        // class this assertion policed is unrepresentable. It is KEPT as a regression guard on
+        // that property: if someone restores a shape-only admission path, this goes red again and
+        // names the offender, exactly as it did when stone E moved the string ops.
         let phantom: Vec<&String> = admitted.iter().filter(|h| !known.contains(h.as_str())).collect();
         assert!(
             phantom.is_empty(),
@@ -298,6 +351,28 @@ mod constraint_head_tests {
              row would silently stop matching and the clause would be refused as `Unrecognized` \
              (which teaches the wrong fix). Offenders: {phantom:#?}",
             phantom.len()
+        );
+
+        // ★ THE REVERSE DIRECTION — the claim that can still fail now that phantoms are
+        // structurally impossible: every comparison-shaped ROW must be CLASSIFIED. A row whose
+        // spelling `classify_constraint_head` cannot read would be inert — present in the
+        // vocabulary, invisible to the clause compiler, and refused as `Unrecognized`. That is
+        // precisely the failure stone E hit, from the other side.
+        let unclassified: Vec<&str> = RETE_OPS
+            .iter()
+            .map(|op| op.rete_name)
+            .filter(|n| {
+                n.rsplit_once("::")
+                    .is_some_and(|(_, op)| matches!(op, "=" | "not=" | "<" | ">" | "<=" | ">="))
+            })
+            .filter(|n| classify_constraint_head(n).is_none())
+            .collect();
+        assert!(
+            unclassified.is_empty(),
+            "{} comparison row(s) exist in RETE_OPS that classify_constraint_head cannot read — \
+             they are inert: present in the vocabulary, invisible to the clause compiler, and \
+             refused as `Unrecognized`. Offenders: {unclassified:#?}",
+            unclassified.len()
         );
     }
 

@@ -89,7 +89,7 @@
             :when [(:arena::Event (?client <- :client) (?route <- :route) (?timing <- :timing) (?bytes <- :bytes))
                    (:wat::rete::where (:wat::rete::core::i64::> (:arena::Timing/total-ns ?timing) 500000))
                    (:wat::rete::where (:wat::rete::core::i64::< (:arena::Client/reputation ?client) 0))
-                   (:wat::rete::where (:wat::rete::core::string::= (:arena::Geo/country (:arena::Client/geo ?client)) "XX"))]
+                   (:wat::rete::where (:wat::rete::string::= (:arena::Geo/country (:arena::Client/geo ?client)) "XX"))]
             :then [(:arena::Suspect :client ?client :route ?route :timing ?timing :bytes ?bytes)])
           ;; RULE 2a (Lemma -> Deduction, the cascade, HIGH threshold).
           (:wat::rete::defrule :arena::anomaly-rule

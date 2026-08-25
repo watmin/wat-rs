@@ -76,23 +76,23 @@
 (:wat::core::defn :user::spaces [n <- :wat::core::i64] -> :wat::core::String
   (:wat::core::if (:wat::core::<= n 0)
     ""
-    (:wat::core::string::concat " " (:user::spaces (:wat::core::- n 1)))))
+    (:wat::string::concat " " (:user::spaces (:wat::core::- n 1)))))
 
 (:wat::core::defn :user::ends-with? [s <- :wat::core::String  suf <- :wat::core::String]
   -> :wat::core::bool
-  (:wat::core::let [ls (:wat::core::string::length s)
-                    lf (:wat::core::string::length suf)]
+  (:wat::core::let [ls (:wat::string::length s)
+                    lf (:wat::string::length suf)]
     (:wat::core::if (:wat::core::< ls lf)
       false
-      (:wat::core::= (:wat::core::string::subs s (:wat::core::- ls lf) ls) suf))))
+      (:wat::core::= (:wat::string::subs s (:wat::core::- ls lf) ls) suf))))
 
 ;; rtl->rm — `:T::RequestTooLarge` → `:T::RequestMalformed` (suffix swap; caller has already
 ;; established the suffix via ends-with?).
 (:wat::core::defn :user::rtl->rm [s <- :wat::core::String] -> :wat::core::String
-  (:wat::core::string::concat
-    (:wat::core::string::subs s 0
-      (:wat::core::- (:wat::core::string::length s)
-        (:wat::core::string::length "::RequestTooLarge")))
+  (:wat::string::concat
+    (:wat::string::subs s 0
+      (:wat::core::- (:wat::string::length s)
+        (:wat::string::length "::RequestTooLarge")))
     "::RequestMalformed"))
 
 (:wat::core::defn :user::no-edits []
@@ -130,8 +130,8 @@
         (:wat::core::if (:wat::core::= (:wat::core::ast-kind fv) "vector")
           (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])
             (:wat::core::Tuple (:user::end-off fv lines) 0
-              (:wat::core::string::concat "\n"
-                (:wat::core::string::concat (:user::spaces (:wat::core::- (:user::col-of kw) 1))
+              (:wat::string::concat "\n"
+                (:wat::string::concat (:user::spaces (:wat::core::- (:user::col-of kw) 1))
                   ":RequestMalformed [path <- :wat::core::Vector<wat::core::String>  expected <- :wat::core::String  got <- :wat::core::String]"))))
           (:user::no-edits)))
       (:user::no-edits))))
@@ -164,7 +164,7 @@
               (:wat::core::if (:wat::core::empty? bch) "" (:user::kw-name (:wat::core::first bch))))
             "")]
     (:wat::core::if (:user::ends-with? bhd "::RequestTooLarge")
-      (:wat::core::string::concat "(" (:wat::core::string::concat (:user::rtl->rm bhd)
+      (:wat::string::concat "(" (:wat::string::concat (:user::rtl->rm bhd)
         " mpath mexpected mgot)"))
       "(:wat::kernel::assertion-failed! \"unexpected RequestMalformed\" :wat::core::None :wat::core::None)")))
 
@@ -197,12 +197,12 @@
          ind  (:wat::core::- (:user::col-of arm) 1)]
         (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])
           (:wat::core::Tuple (:user::end-off arm lines) 0
-            (:wat::core::string::concat "\n"
-              (:wat::core::string::concat (:user::spaces ind)
-                (:wat::core::string::concat "((" (:wat::core::string::concat (:user::rtl->rm head)
-                  (:wat::core::string::concat " mpath mexpected mgot)\n"
-                    (:wat::core::string::concat (:user::spaces (:wat::core::+ ind 2))
-                      (:wat::core::string::concat (:user::rm-arm-body arm) ")"))))))))))
+            (:wat::string::concat "\n"
+              (:wat::string::concat (:user::spaces ind)
+                (:wat::string::concat "((" (:wat::string::concat (:user::rtl->rm head)
+                  (:wat::string::concat " mpath mexpected mgot)\n"
+                    (:wat::string::concat (:user::spaces (:wat::core::+ ind 2))
+                      (:wat::string::concat (:user::rm-arm-body arm) ")"))))))))))
       (:user::no-edits))))
 
 ;; ── walk ─────────────────────────────────────────────────────────────────────
@@ -239,7 +239,7 @@
 ;; ── per-file migrate ─────────────────────────────────────────────────────────
 (:wat::core::defn :user::migrate [src <- :wat::core::String] -> :wat::core::String
   (:wat::core::let
-    [lines (:wat::core::string::split src "\n")
+    [lines (:wat::string::split src "\n")
      forms (:wat::core::ast->children (:wat::core::match (:wat::core::read-string src) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None))))
      eds   (:user::seq-edits forms lines)
      rev   (:wat::core::reverse (:wat::core::sort eds))]
@@ -252,7 +252,7 @@
     (:wat::core::let [path (:wat::core::first paths)]
       (:wat::core::do
         (:wat::io::write-file path (:user::migrate (:wat::io::read-file path)))
-        (:wat::kernel::println (:wat::core::string::concat "[mandate-request-malformed] " path))
+        (:wat::kernel::println (:wat::string::concat "[mandate-request-malformed] " path))
         (:user::apply-each (:wat::core::rest paths))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

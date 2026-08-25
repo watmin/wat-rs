@@ -10,5 +10,5 @@
      pr (:wat::bracket::map (:wat::spawn::process/grants (:wat::core::Vector :wat::capability::Grantable)) nums :probe::double)
      tr (:wat::bracket::map (:wat::spawn::thread) nums :probe::double)]
     (:wat::kernel::println
-      (:wat::core::string::concat (:wat::edn::write pr)
-        (:wat::core::string::concat " " (:wat::edn::write tr))))))
+      (:wat::string::concat (:wat::edn::write pr)
+        (:wat::string::concat " " (:wat::edn::write tr))))))

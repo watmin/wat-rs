@@ -20,7 +20,7 @@
 ;; One char of s at index i (i in [0, length)).
 (:wat::core::defn :user::ch
   [s <- :wat::core::String i <- :wat::core::i64] -> :wat::core::String
-  (:wat::core::string::subs s i (:wat::core::+ i 1)))
+  (:wat::string::subs s i (:wat::core::+ i 1)))
 
 ;; Left-valid for an UNCOLONED embed: preceded by "<" "," " " or "(".
 ;; A leading ":" is NOT left-valid — that is the colon-form of the same name.
@@ -37,11 +37,11 @@
 ;; Does `name` contain `pref` starting at i?
 (:wat::core::defn :user::at-prefix?
   [name <- :wat::core::String i <- :wat::core::i64 pref <- :wat::core::String] -> :wat::core::bool
-  (:wat::core::let [end (:wat::core::+ i (:wat::core::string::length pref))
-                    nlen (:wat::core::string::length name)]
+  (:wat::core::let [end (:wat::core::+ i (:wat::string::length pref))
+                    nlen (:wat::string::length name)]
     (:wat::core::if (:wat::core::> end nlen)
       false
-      (:wat::core::= (:wat::core::string::subs name i end) pref))))
+      (:wat::core::= (:wat::string::subs name i end) pref))))
 
 ;; Depth-walk: find the `>` that closes the `<` at `open` (open is the `<` index).
 ;; Tracks `<>` and `()` so tuple / nested parametric commas stay inner.
@@ -49,7 +49,7 @@
 (:wat::core::defn :user::matching-gt
   [name <- :wat::core::String open <- :wat::core::i64 i <- :wat::core::i64 depth <- :wat::core::i64]
   -> :wat::core::i64
-  (:wat::core::let [nlen (:wat::core::string::length name)]
+  (:wat::core::let [nlen (:wat::string::length name)]
     (:wat::core::if (:wat::core::>= i nlen)
       nlen
       (:wat::core::let [c (:user::ch name i)]
@@ -99,24 +99,24 @@
 (:wat::core::defn :user::match-len
   [name <- :wat::core::String i <- :wat::core::i64] -> :wat::core::i64
   (:wat::core::if (:user::at-prefix? name i ":wat::kernel::Address<")
-    (:wat::core::string::length ":wat::kernel::Address<")
+    (:wat::string::length ":wat::kernel::Address<")
     (:wat::core::if (:user::at-prefix? name i ":wat::spawn::Bound<")
-      (:wat::core::string::length ":wat::spawn::Bound<")
+      (:wat::string::length ":wat::spawn::Bound<")
       (:wat::core::if (:wat::core::if (:user::at-prefix? name i "wat::kernel::Address<")
                           (:user::embed-left-ok? name i)
                           false)
-        (:wat::core::string::length "wat::kernel::Address<")
+        (:wat::string::length "wat::kernel::Address<")
         (:wat::core::if (:wat::core::if (:user::at-prefix? name i "wat::spawn::Bound<")
                             (:user::embed-left-ok? name i)
                             false)
-          (:wat::core::string::length "wat::spawn::Bound<")
+          (:wat::string::length "wat::spawn::Bound<")
           0)))))
 
 ;; Rewrite every 2-arg Address/Bound occurrence in `name`. Tail-recursive.
 ;; i is the current index; acc accumulates the output.
 (:wat::core::defn :user::rewrite-name
   [name <- :wat::core::String i <- :wat::core::i64 acc <- :wat::core::String] -> :wat::core::String
-  (:wat::core::let [nlen (:wat::core::string::length name)]
+  (:wat::core::let [nlen (:wat::string::length name)]
     (:wat::core::if (:wat::core::>= i nlen)
       acc
       (:wat::core::let [ml (:user::match-len name i)]
@@ -126,13 +126,13 @@
                             arity (:user::type-arity name open close)]
             (:wat::core::if (:wat::core::= arity 2)
               (:user::rewrite-name name (:wat::core::+ close 1)
-                (:wat::core::string::concat
-                  (:wat::core::string::concat acc (:wat::core::string::subs name i close))
+                (:wat::string::concat
+                  (:wat::string::concat acc (:wat::string::subs name i close))
                   ",wat::kernel::Wire>"))
               (:user::rewrite-name name (:wat::core::+ close 1)
-                (:wat::core::string::concat acc (:wat::core::string::subs name i (:wat::core::+ close 1))))))
+                (:wat::string::concat acc (:wat::string::subs name i (:wat::core::+ close 1))))))
           (:user::rewrite-name name (:wat::core::+ i 1)
-            (:wat::core::string::concat acc (:user::ch name i))))))))
+            (:wat::string::concat acc (:user::ch name i))))))))
 
 ;; Walk a vector of nodes, concating arity-append edits.
 (:wat::core::defn :user::arity-edits-walk
@@ -157,7 +157,7 @@
     (:user::arity-edits-walk (:wat::core::ast->children node) lines)
     (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "keyword")
       (:wat::core::let [name     (:wat::core::ast-name node)
-                        name-len (:wat::core::string::length name)
+                        name-len (:wat::string::length name)
                         new-name (:user::rewrite-name name 0 "")]
         (:wat::core::if (:wat::core::= new-name name)
           (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))
@@ -168,7 +168,7 @@
 
 (:wat::core::defn :user::migrate
   [src <- :wat::core::String] -> :wat::core::String
-  (:wat::core::let [lines     (:wat::core::string::split src "\n")
+  (:wat::core::let [lines     (:wat::string::split src "\n")
                     tree      (:wat::core::match (:wat::core::read-string src) ((:wat::core::ReadOutcome::Forms __forms) __forms) ((:wat::core::ReadOutcome::Malformed __cause) (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)))
                     forms     (:wat::core::ast->children tree)
                     all-edits (:user::arity-edits-walk forms lines)

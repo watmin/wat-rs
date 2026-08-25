@@ -2669,12 +2669,12 @@ fn infer_list(
                     CheckResult::partial_with(TypeExpr::Tuple(vec![]), local_errors)
                 };
             }
-            // Arc 265 — `:wat::core::string::declare-acronyms` type-check arm.
-            // Shape: (:wat::core::string::declare-acronyms :ns ["ACL" ...])
+            // Arc 265 — `:wat::string::declare-acronyms` type-check arm.
+            // Shape: (:wat::string::declare-acronyms :ns ["ACL" ...])
             // Registry-only: parse for shape validation; registration already
             // happened in preregister_acronyms (freeze step 4 / 6.96).
             // Returns unit type — a declaration, not a value expression.
-            ":wat::core::string::declare-acronyms" => {
+            ":wat::string::declare-acronyms" => {
                 let form_as_list = WatAST::List(items.to_vec(), head_span.clone());
                 if let Err(e) = crate::runtime::parse_declare_acronyms_form(&form_as_list) {
                     local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::MalformedForm {
@@ -3123,7 +3123,7 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
-            ":wat::core::string::concat" => {
+            ":wat::string::concat" => {
                 let (val, mut errs) = infer_string_concat(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
                 return match val {
@@ -3133,7 +3133,7 @@ fn infer_list(
             }
             // Arc 284 — pure-total interpolation intrinsic: arg[0] = String template;
             // rest = (keyword, any-renderable-value) pairs; returns String.
-            ":wat::core::string::interpolate" => {
+            ":wat::string::interpolate" => {
                 let (val, mut errs) = infer_string_interpolate(args, head_span, env, locals, fresh, subst).into_parts();
                 local_errors.append(&mut errs);
                 return match val {
@@ -14731,7 +14731,7 @@ fn infer_tuple_constructor(
     if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) }
 }
 
-/// `(:wat::core::string::concat s1 s2 ... sn) -> :String`.
+/// `(:wat::string::concat s1 s2 ... sn) -> :String`.
 ///
 /// Variadic; each arg must unify with :String. Special-cased here
 /// rather than registered as a polymorphic scheme because the type
@@ -14759,7 +14759,7 @@ fn infer_string_concat(
         if let Some(ty) = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
             if unify(&ty, &string_ty, subst, env.types()).is_err() {
                 local_errors.push(CheckError { span: arg.span().clone(), kind: CheckErrorKind::TypeMismatch {
-                    callee: ":wat::core::string::concat".into(),
+                    callee: ":wat::string::concat".into(),
                     param: "arg".into(),
                     expected: ":wat::core::String".into(),
                     got: format_type(&apply_subst(&ty, subst))
@@ -14770,7 +14770,7 @@ fn infer_string_concat(
     if local_errors.is_empty() { CheckResult::ok(string_ty) } else { CheckResult::partial_with(string_ty, local_errors) }
 }
 
-/// Arc 284 — type inference for `:wat::core::string::interpolate`.
+/// Arc 284 — type inference for `:wat::string::interpolate`.
 ///
 /// `arg[0]` must unify with `String` (the template). The remaining args are
 /// (keyword, value) pairs: keyword slots are validated structurally; value slots
@@ -14788,7 +14788,7 @@ fn infer_string_interpolate(
     let string_ty = TypeExpr::Path(":wat::core::String".into());
     if args.is_empty() {
         local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
-            callee: ":wat::core::string::interpolate".into(),
+            callee: ":wat::string::interpolate".into(),
             expected: 1,
             got: 0,
         } });
@@ -14798,7 +14798,7 @@ fn infer_string_interpolate(
     if let Some(ty) = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors) {
         if unify(&ty, &string_ty, subst, env.types()).is_err() {
             local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
-                callee: ":wat::core::string::interpolate".into(),
+                callee: ":wat::string::interpolate".into(),
                 param: "template".into(),
                 expected: ":wat::core::String".into(),
                 got: format_type(&apply_subst(&ty, subst)),
@@ -14810,7 +14810,7 @@ fn infer_string_interpolate(
     let rest = &args[1..];
     if !rest.len().is_multiple_of(2) {
         local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
-            callee: ":wat::core::string::interpolate".into(),
+            callee: ":wat::string::interpolate".into(),
             expected: args.len() + 1,
             got: args.len(),
         } });
@@ -14826,7 +14826,7 @@ fn infer_string_interpolate(
                         let kw_ty = TypeExpr::Path(":wat::core::keyword".into());
                         if unify(&ty, &kw_ty, subst, env.types()).is_err() {
                             local_errors.push(CheckError { span: other.span().clone(), kind: CheckErrorKind::TypeMismatch {
-                                callee: ":wat::core::string::interpolate".into(),
+                                callee: ":wat::string::interpolate".into(),
                                 param: "kwarg key".into(),
                                 expected: "keyword (e.g. :name)".into(),
                                 got: format_type(&apply_subst(&ty, subst)),
@@ -17389,7 +17389,7 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     env.register(
-        ":wat::core::string::to-i64".to_string(),
+        ":wat::string::to-i64".to_string(),
         TypeScheme {
             type_params: vec![],
             params: vec![string_ty()],
@@ -17398,7 +17398,7 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     env.register(
-        ":wat::core::string::to-f64".to_string(),
+        ":wat::string::to-f64".to_string(),
         TypeScheme {
             type_params: vec![],
             params: vec![string_ty()],
@@ -17416,7 +17416,7 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     env.register(
-        ":wat::core::string::to-bool".to_string(),
+        ":wat::string::to-bool".to_string(),
         TypeScheme {
             type_params: vec![],
             params: vec![string_ty()],
@@ -17448,13 +17448,13 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
-    // String basics — :wat::core::string::*. Per-type ops, char-
+    // String basics — :wat::string::*. Per-type ops, char-
     // oriented (length counts unicode scalars, not bytes). See
     // src/string_ops.rs for the handlers.
     for op in &[
-        ":wat::core::string::contains?",
-        ":wat::core::string::starts-with?",
-        ":wat::core::string::ends-with?",
+        ":wat::string::contains?",
+        ":wat::string::starts-with?",
+        ":wat::string::ends-with?",
     ] {
         env.register(
             op.to_string(),
@@ -17467,7 +17467,7 @@ fn register_builtins(env: &mut CheckEnv) {
         );
     }
     env.register(
-        ":wat::core::string::length".to_string(),
+        ":wat::string::length".to_string(),
         TypeScheme {
             type_params: vec![],
             params: vec![string_ty()],
@@ -17476,7 +17476,7 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     env.register(
-        ":wat::core::string::trim".to_string(),
+        ":wat::string::trim".to_string(),
         TypeScheme {
             type_params: vec![],
             params: vec![string_ty()],
@@ -17485,7 +17485,7 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     env.register(
-        ":wat::core::string::to-lowercase".to_string(),
+        ":wat::string::to-lowercase".to_string(),
         TypeScheme {
             type_params: vec![],
             params: vec![string_ty()],
@@ -17494,7 +17494,7 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     env.register(
-        ":wat::core::string::to-uppercase".to_string(),
+        ":wat::string::to-uppercase".to_string(),
         TypeScheme {
             type_params: vec![],
             params: vec![string_ty()],
@@ -17503,7 +17503,7 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     env.register(
-        ":wat::core::string::pascal->kebab".to_string(),
+        ":wat::string::pascal->kebab".to_string(),
         TypeScheme {
             type_params: vec![],
             params: vec![string_ty()],
@@ -17517,7 +17517,7 @@ fn register_builtins(env: &mut CheckEnv) {
     {
         let keyword_ty = || TypeExpr::Path(":wat::core::keyword".into());
         env.register(
-            ":wat::core::string::pascal->kebab-in".to_string(),
+            ":wat::string::pascal->kebab-in".to_string(),
             TypeScheme {
                 type_params: vec![],
                 params: vec![keyword_ty(), string_ty()],
@@ -17526,7 +17526,7 @@ fn register_builtins(env: &mut CheckEnv) {
             },
         );
         env.register(
-            ":wat::core::string::kebab->pascal-in".to_string(),
+            ":wat::string::kebab->pascal-in".to_string(),
             TypeScheme {
                 type_params: vec![],
                 params: vec![keyword_ty(), string_ty()],
@@ -17536,7 +17536,7 @@ fn register_builtins(env: &mut CheckEnv) {
         );
     }
     env.register(
-        ":wat::core::string::subs".to_string(),
+        ":wat::string::subs".to_string(),
         TypeScheme {
             type_params: vec![],
             params: vec![string_ty(), TypeExpr::Path(":wat::core::i64".into()), TypeExpr::Path(":wat::core::i64".into())],
@@ -17545,7 +17545,7 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     env.register(
-        ":wat::core::string::split".to_string(),
+        ":wat::string::split".to_string(),
         TypeScheme {
             type_params: vec![],
             params: vec![string_ty(), string_ty()],
@@ -17557,7 +17557,7 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     env.register(
-        ":wat::core::string::join".to_string(),
+        ":wat::string::join".to_string(),
         TypeScheme {
             type_params: vec!["T".into()],
             params: vec![
@@ -20775,13 +20775,13 @@ fn register_builtins(env: &mut CheckEnv) {
     // adjacent to slice 2/3 blocks below) are the queryable rank-1
     // schemes.
 
-    // :wat::core::string::concat — variadic at runtime (0+ :String
+    // :wat::string::concat — variadic at runtime (0+ :String
     // args; infer_string_concat at check.rs:8096). TypeScheme has no
     // variadic shape today, so the fingerprint registers the canonical
     // 2-arg case; real per-arg :String unification + zero-arg accept
     // lives in the handler. Per arc 144 slice 3 limitation.
     env.register(
-        ":wat::core::string::concat".into(),
+        ":wat::string::concat".into(),
         TypeScheme {
             type_params: vec![],
             params: vec![string_ty(), string_ty()],

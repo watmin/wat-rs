@@ -144,7 +144,7 @@ pub struct SymbolTable {
     /// Maps namespace keyword string (e.g. `":my::aws"`) to the list of
     /// canonical acronyms declared for that namespace (e.g. `["ACL", "HTTP"]`).
     /// Populated by `preregister_acronyms` (freeze step 6.96, before macro
-    /// expansion) via `(:wat::core::string::declare-acronyms :ns ["ACL"])` forms.
+    /// expansion) via `(:wat::string::declare-acronyms :ns ["ACL"])` forms.
     /// Consulted by `pascal->kebab-in` and `kebab->pascal-in` at expand time.
     /// No entry for a namespace → plain `pascal->kebab` / `kebab->pascal` behavior.
     pub acronym_registry: HashMap<String, Vec<String>>,

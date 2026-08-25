@@ -127,14 +127,14 @@
   (:wat::core::let [p (:test::PaperResolved :outcome "Graceful" :grace-residue 7.5)]
     (:wat::form::matches? p (:test::PaperResolved
       (= ?o :outcome)
-      (:where (:wat::core::string::contains? ?o "Grace"))))))
+      (:where (:wat::string::contains? ?o "Grace"))))))
 
 ; where_can_fail
 (:wat::core::defn :t::test10-where-fail [] -> :wat::core::bool
   (:wat::core::let [p (:test::PaperResolved :outcome "Loss" :grace-residue 7.5)]
     (:wat::form::matches? p (:test::PaperResolved
       (= ?o :outcome)
-      (:where (:wat::core::string::contains? ?o "Grace"))))))
+      (:where (:wat::string::contains? ?o "Grace"))))))
 
 ; struct_type_mismatch_returns_false
 (:wat::core::defn :t::test11-struct-mismatch [] -> :wat::core::bool

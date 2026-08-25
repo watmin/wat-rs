@@ -44,14 +44,14 @@
     [inner (:wat::core::into [] (:wat::core::ast->children
              (:wat::core::nth (:wat::core::into [] (:wat::core::ast->children form)) 1)))]
     (:wat::kernel::println
-      (:wat::core::string::concat
-        (:wat::core::string::concat "  FIRST-OF-DROP  " path)
-        (:wat::core::string::concat "  ::  "
+      (:wat::string::concat
+        (:wat::string::concat "  FIRST-OF-DROP  " path)
+        (:wat::string::concat "  ::  "
           (:wat::core::if (:wat::core::< (:wat::core::length inner) 3)
             "<malformed drop — REPORT THIS, do not migrate it>"
-            (:wat::core::string::concat
+            (:wat::string::concat
               (:wat::core::ast->source (:wat::core::nth inner 1))
-              (:wat::core::string::concat " | "
+              (:wat::string::concat " | "
                 (:wat::core::ast->source (:wat::core::nth inner 2))))))))))
 
 ;; Walk every form beneath this one. A hit does not stop the descent — `(first (drop (first
@@ -69,7 +69,7 @@
 (:wat::core::defn :census::file
   [path <- :wat::core::String] -> :wat::core::nil
   (:wat::core::do
-    (:wat::kernel::println (:wat::core::string::concat "== " path))
+    (:wat::kernel::println (:wat::string::concat "== " path))
     (:census::walk path
       (:wat::core::match (:wat::core::read-string (:wat::io::read-file path))
         ((:wat::core::ReadOutcome::Forms __forms) __forms)

@@ -54,25 +54,25 @@
                             label <- :wat::core::String] -> :wat::core::nil
   (:wat::core::match (:tco::Bag/put c (:tco::Bag::PutRequest :n 1))
     ((:wat::kernel::RecvOutcome::Message resp)
-      (:wat::kernel::println (:wat::core::string::concat label " => Message (served)")))
+      (:wat::kernel::println (:wat::string::concat label " => Message (served)")))
     ((:wat::kernel::RecvOutcome::Lost cause)
-      (:wat::kernel::println (:wat::core::string::concat label " => LOST")))
+      (:wat::kernel::println (:wat::string::concat label " => LOST")))
     (:wat::kernel::RecvOutcome::Stopped
-      (:wat::kernel::println (:wat::core::string::concat label " => STOPPED")))
+      (:wat::kernel::println (:wat::string::concat label " => STOPPED")))
     (:wat::kernel::RecvOutcome::Closed
-      (:wat::kernel::println (:wat::core::string::concat label " => CLOSED")))))
+      (:wat::kernel::println (:wat::string::concat label " => CLOSED")))))
 
 (:wat::core::defn :tco::dial [a <- (:wat::kernel::Address :- [:wat::core::i64 :wat::core::i64])
                              label <- :wat::core::String] -> :wat::core::nil
   (:wat::core::match (:wat::kernel::connect a)
     ((:wat::kernel::ConnectOutcome::Connected p)
-      (:wat::kernel::println (:wat::core::string::concat label " => CONNECTED")))
+      (:wat::kernel::println (:wat::string::concat label " => CONNECTED")))
     ((:wat::kernel::ConnectOutcome::Refused f)
-      (:wat::kernel::println (:wat::core::string::concat label " => REFUSED")))
+      (:wat::kernel::println (:wat::string::concat label " => REFUSED")))
     ((:wat::kernel::ConnectOutcome::Rejected f)
-      (:wat::kernel::println (:wat::core::string::concat label " => REJECTED")))
+      (:wat::kernel::println (:wat::string::concat label " => REJECTED")))
     ((:wat::kernel::ConnectOutcome::Failed f)
-      (:wat::kernel::println (:wat::core::string::concat label " => FAILED")))))
+      (:wat::kernel::println (:wat::string::concat label " => FAILED")))))
 
 ;; ── row 1: the service call is NOT in tail position (a form follows it) ──────────
 (:wat::core::defn :tco::service-non-tail [] -> :wat::core::nil

@@ -1766,7 +1766,7 @@ pub fn register_aggregate_methods(
                 //         -> (:wat::core::Option :- [:wat::core::Record])
                 //         (:wat::core::Some self)
                 //         :wat::core::None)
-                //       (:wat::core::string::concat "<msg-prefix>" (:wat::core::type self)))
+                //       (:wat::string::concat "<msg-prefix>" (:wat::core::type self)))
                 //     <own_idx>)
                 let msg_prefix = format!(
                     "{}/{}: expected receiver of class {}, got class :",
@@ -1845,7 +1845,7 @@ pub fn register_aggregate_methods(
                                 WatAST::List(
                                     vec![
                                         WatAST::Keyword(
-                                            ":wat::core::string::concat".into(),
+                                            ":wat::string::concat".into(),
                                             crate::rust_caller_span!(),
                                         ),
                                         WatAST::StringLit(msg_prefix, crate::rust_caller_span!()),
@@ -2322,14 +2322,14 @@ pub fn register_type_predicates(
 
 /// Arc 265 — parse a `declare-acronyms` form and return `(namespace, acronyms)`.
 ///
-/// Shape: `(:wat::core::string::declare-acronyms :ns ["ACL" "HTTP"])`.
+/// Shape: `(:wat::string::declare-acronyms :ns ["ACL" "HTTP"])`.
 /// The namespace is the keyword string (with leading colon, e.g. `":my::aws"`).
 /// The acronym list is a `WatAST::Vector` of `WatAST::String` nodes.
 /// Returns `Err` on malformed input; callers silently skip errors (pre-pass).
 pub(crate) fn parse_declare_acronyms_form(
     form: &WatAST,
 ) -> Result<(String, Vec<String>), RuntimeError> {
-    const HEAD: &str = ":wat::core::string::declare-acronyms";
+    const HEAD: &str = ":wat::string::declare-acronyms";
     let form_span = form.span().clone();
     let items = match form {
         WatAST::List(items, _) => items,
@@ -2343,14 +2343,14 @@ pub(crate) fn parse_declare_acronyms_form(
             ))
         }
     };
-    // items[0] = :wat::core::string::declare-acronyms keyword
+    // items[0] = :wat::string::declare-acronyms keyword
     // items[1] = :ns namespace keyword
     // items[2] = ["ACL" ...] vector of string literals
     if items.len() != 3 {
         return Err(RuntimeError::new(form_span, RuntimeErrorKind::MalformedForm {
             head: HEAD.into(),
             reason: format!(
-                "expected (:wat::core::string::declare-acronyms :ns [\"ACL\" ...]); got {} elements",
+                "expected (:wat::string::declare-acronyms :ns [\"ACL\" ...]); got {} elements",
                 items.len()
             )
         }));
@@ -2426,7 +2426,7 @@ pub fn preregister_acronyms(residue: &[WatAST], sym: &mut SymbolTable) -> Result
             continue;
         }
         match &items[0] {
-            WatAST::Keyword(k, _) if k.as_str() == ":wat::core::string::declare-acronyms" => {
+            WatAST::Keyword(k, _) if k.as_str() == ":wat::string::declare-acronyms" => {
                 if let Ok((ns, acronyms)) = parse_declare_acronyms_form(form) {
                     sym.acronym_registry.entry(ns).or_default().extend(acronyms);
                 }
@@ -6002,40 +6002,40 @@ fn dispatch_keyword_head_value(
         ":wat::core::rational/denominator" => eval_rational_denominator(args, list_span, env, sym),
         // String basics — per-type ops under :wat::core::string namespace,
         // following the :wat::core::i64 namespace precedent. Char-oriented.
-        ":wat::core::string::contains?" => {
+        ":wat::string::contains?" => {
             crate::string_ops::eval_string_contains(args, list_span, env, sym).map_err(Into::into)
         }
-        ":wat::core::string::starts-with?" => {
+        ":wat::string::starts-with?" => {
             crate::string_ops::eval_string_starts_with(args, list_span, env, sym)
                 .map_err(Into::into)
         }
-        ":wat::core::string::ends-with?" => {
+        ":wat::string::ends-with?" => {
             crate::string_ops::eval_string_ends_with(args, list_span, env, sym).map_err(Into::into)
         }
-        ":wat::core::string::length" => {
+        ":wat::string::length" => {
             crate::string_ops::eval_string_length(args, list_span, env, sym).map_err(Into::into)
         }
-        ":wat::core::string::trim" => {
+        ":wat::string::trim" => {
             crate::string_ops::eval_string_trim(args, list_span, env, sym).map_err(Into::into)
         }
-        ":wat::core::string::to-lowercase" => {
+        ":wat::string::to-lowercase" => {
             crate::string_ops::eval_string_to_lowercase(args, list_span, env, sym)
                 .map_err(Into::into)
         }
-        ":wat::core::string::to-uppercase" => {
+        ":wat::string::to-uppercase" => {
             crate::string_ops::eval_string_to_uppercase(args, list_span, env, sym)
                 .map_err(Into::into)
         }
-        ":wat::core::string::pascal->kebab" => {
+        ":wat::string::pascal->kebab" => {
             crate::string_ops::eval_string_pascal_to_kebab(args, list_span, env, sym)
                 .map_err(Into::into)
         }
         // Arc 265 — namespace-scoped PascalCase⇄kebab converters.
-        ":wat::core::string::pascal->kebab-in" => {
+        ":wat::string::pascal->kebab-in" => {
             crate::string_ops::eval_string_pascal_to_kebab_in(args, list_span, env, sym)
                 .map_err(Into::into)
         }
-        ":wat::core::string::kebab->pascal-in" => {
+        ":wat::string::kebab->pascal-in" => {
             crate::string_ops::eval_string_kebab_to_pascal_in(args, list_span, env, sym)
                 .map_err(Into::into)
         }
@@ -6044,22 +6044,22 @@ fn dispatch_keyword_head_value(
         ":wat::core::derive" => Ok(Value::Unit),
         // Arc 265 — declare-acronyms is a no-op at runtime (registry already populated
         // at freeze time by preregister_acronyms). Accept it as unit.
-        ":wat::core::string::declare-acronyms" => Ok(Value::Unit),
-        ":wat::core::string::subs" => {
+        ":wat::string::declare-acronyms" => Ok(Value::Unit),
+        ":wat::string::subs" => {
             crate::string_ops::eval_string_subs(args, list_span, env, sym).map_err(Into::into)
         }
-        ":wat::core::string::split" => {
+        ":wat::string::split" => {
             crate::string_ops::eval_string_split(args, list_span, env, sym).map_err(Into::into)
         }
-        ":wat::core::string::join" => {
+        ":wat::string::join" => {
             crate::string_ops::eval_string_join(args, list_span, env, sym).map_err(Into::into)
         }
-        ":wat::core::string::concat" => {
+        ":wat::string::concat" => {
             crate::string_ops::eval_string_concat(args, list_span, env, sym).map_err(Into::into)
         }
         // Arc 284 — pure-total interpolation intrinsic: same {name} + :name val grammar as
         // the format macro, but interpolates at call time → expand-time-legal.
-        ":wat::core::string::interpolate" => {
+        ":wat::string::interpolate" => {
             crate::string_ops::eval_string_interpolate(args, list_span, env, sym)
                 .map_err(Into::into)
         }
@@ -6179,10 +6179,10 @@ fn dispatch_keyword_head_value(
         ":wat::core::f64::to-string" => eval_f64_to_string(args, list_span, env, sym),
         ":wat::core::f64::to-i64" => eval_f64_to_i64(args, list_span, env, sym),
         ":wat::core::f64::round" => eval_f64_round(args, list_span, env, sym),
-        ":wat::core::string::to-i64" => eval_string_to_i64(args, list_span, env, sym),
-        ":wat::core::string::to-f64" => eval_string_to_f64(args, list_span, env, sym),
+        ":wat::string::to-i64" => eval_string_to_i64(args, list_span, env, sym),
+        ":wat::string::to-f64" => eval_string_to_f64(args, list_span, env, sym),
         ":wat::core::bool::to-string" => eval_bool_to_string(args, list_span, env, sym),
-        ":wat::core::string::to-bool" => eval_string_to_bool(args, list_span, env, sym),
+        ":wat::string::to-bool" => eval_string_to_bool(args, list_span, env, sym),
         // Arc 170 slice 3 Gap A — keyword reflection primitives.
         ":wat::core::keyword/to-string" => eval_keyword_to_string(args, list_span, env, sym),
         // ":wat::core::keyword/from-string" is routed by dispatch_keyword_head directly (producer).
@@ -7308,7 +7308,7 @@ fn dispatch_keyword_head_value(
                                             WatAST::Vector(vec![
                                                 WatAST::Symbol(n_sym.clone(), span.clone()),
                                                 WatAST::List(vec![
-                                                    WatAST::Keyword(":wat::core::string::length".into(), span.clone()),
+                                                    WatAST::Keyword(":wat::string::length".into(), span.clone()),
                                                     WatAST::List(vec![
                                                         WatAST::Keyword(":wat::edn::write".into(), span.clone()),
                                                         WatAST::Symbol(Identifier::bare("__req"), span.clone()),
@@ -10884,7 +10884,7 @@ fn eval_string_to_i64(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     let s = eval_one_arg(
-        ":wat::core::string::to-i64",
+        ":wat::string::to-i64",
         args,
         list_span,
         env,
@@ -10906,7 +10906,7 @@ fn eval_string_to_f64(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     let s = eval_one_arg(
-        ":wat::core::string::to-f64",
+        ":wat::string::to-f64",
         args,
         list_span,
         env,
@@ -10951,7 +10951,7 @@ fn eval_string_to_bool(
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
     let s = eval_one_arg(
-        ":wat::core::string::to-bool",
+        ":wat::string::to-bool",
         args,
         list_span,
         env,
@@ -35020,28 +35020,28 @@ mod tests {
 
     #[test]
     fn string_to_i64_parses_valid_input() {
-        let some = expect_some(eval_expr(r#"(:wat::core::string::to-i64 "42")"#).unwrap());
+        let some = expect_some(eval_expr(r#"(:wat::string::to-i64 "42")"#).unwrap());
         assert_eq!(expect_i64(some), 42);
-        let some = expect_some(eval_expr(r#"(:wat::core::string::to-i64 "-7")"#).unwrap());
+        let some = expect_some(eval_expr(r#"(:wat::string::to-i64 "-7")"#).unwrap());
         assert_eq!(expect_i64(some), -7);
     }
 
     #[test]
     fn string_to_i64_returns_none_for_unparseable() {
-        expect_none(eval_expr(r#"(:wat::core::string::to-i64 "abc")"#).unwrap());
-        expect_none(eval_expr(r#"(:wat::core::string::to-i64 "")"#).unwrap());
-        expect_none(eval_expr(r#"(:wat::core::string::to-i64 " 42 ")"#).unwrap());
+        expect_none(eval_expr(r#"(:wat::string::to-i64 "abc")"#).unwrap());
+        expect_none(eval_expr(r#"(:wat::string::to-i64 "")"#).unwrap());
+        expect_none(eval_expr(r#"(:wat::string::to-i64 " 42 ")"#).unwrap());
     }
 
     #[test]
     fn string_to_f64_parses_valid_input() {
-        let some = expect_some(eval_expr(r#"(:wat::core::string::to-f64 "2.5")"#).unwrap());
+        let some = expect_some(eval_expr(r#"(:wat::string::to-f64 "2.5")"#).unwrap());
         assert_eq!(expect_f64(some), 2.5);
     }
 
     #[test]
     fn string_to_f64_returns_none_for_unparseable() {
-        expect_none(eval_expr(r#"(:wat::core::string::to-f64 "abc")"#).unwrap());
+        expect_none(eval_expr(r#"(:wat::string::to-f64 "abc")"#).unwrap());
     }
 
     #[test]
@@ -35058,17 +35058,17 @@ mod tests {
 
     #[test]
     fn string_to_bool_parses_valid_input() {
-        let some = expect_some(eval_expr(r#"(:wat::core::string::to-bool "true")"#).unwrap());
+        let some = expect_some(eval_expr(r#"(:wat::string::to-bool "true")"#).unwrap());
         assert!(matches!(some, Value::bool(true)));
-        let some = expect_some(eval_expr(r#"(:wat::core::string::to-bool "false")"#).unwrap());
+        let some = expect_some(eval_expr(r#"(:wat::string::to-bool "false")"#).unwrap());
         assert!(matches!(some, Value::bool(false)));
     }
 
     #[test]
     fn string_to_bool_returns_none_for_unparseable() {
-        expect_none(eval_expr(r#"(:wat::core::string::to-bool "True")"#).unwrap());
-        expect_none(eval_expr(r#"(:wat::core::string::to-bool "1")"#).unwrap());
-        expect_none(eval_expr(r#"(:wat::core::string::to-bool "")"#).unwrap());
+        expect_none(eval_expr(r#"(:wat::string::to-bool "True")"#).unwrap());
+        expect_none(eval_expr(r#"(:wat::string::to-bool "1")"#).unwrap());
+        expect_none(eval_expr(r#"(:wat::string::to-bool "")"#).unwrap());
     }
 
     #[test]
@@ -35079,7 +35079,7 @@ mod tests {
             _ => panic!("expected String"),
         };
         let round =
-            expect_some(eval_expr(&format!("(:wat::core::string::to-i64 {})", s_lit)).unwrap());
+            expect_some(eval_expr(&format!("(:wat::string::to-i64 {})", s_lit)).unwrap());
         assert_eq!(expect_i64(round), 12345);
     }
 
@@ -39083,7 +39083,7 @@ mod tests {
             (:wat::core::match
               (:wat::eval-ast!
                 (:wat::core::quote
-                  (:wat::core::string::concat "hello, " "world")))
+                  (:wat::string::concat "hello, " "world")))
               ((:wat::core::Ok s) s)
               ((:wat::core::Err _) "fail"))
         "#;
