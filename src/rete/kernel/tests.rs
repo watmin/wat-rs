@@ -263,6 +263,17 @@ fn guiding_light_matches_carry_support_chain() {
 //   3a: RootJoinNode seeds exactly 1 Token per matching Element (bindings + support carried).
 //   3b: HashJoinNode yields the exact compatible-cross cardinality (1, 0, or 2 for 2×2).
 
+// rune:vocare(vantage-bypass-test) — root-join seeding — the token count and bindings a RootJoin writes. The hand-built `Rule` below
+// carries an EMPTY `:rhs` on purpose, so no production runs and the caller
+// mouth cannot see the match; the assertions read `wm.beta` at implementer
+// vantage, which is what this test is FOR.
+//
+// What that costs, and where it is paid: nothing here can reach the
+// join->RHS boundary. The caller-level join fixture did not close it either
+// — `cold-and-windy`'s `:then` uses only `?loc`, the JOIN KEY, which the
+// second condition merely MATCHES, so a dropped or swapped binding from that
+// side still yields the right `?loc`. Covered now by
+// `tests/rete/probe_arc278_join_carries_both_sides_into_the_rhs`.
 /// P11/3a — `root_join_seeds_one_token_per_element`:
 ///
 /// 1-condition rule `(:user::Temp (?t <- :value) (:wat::rete::core::i64::> ?t 20))`.
@@ -353,6 +364,17 @@ fn root_join_seeds_one_token_per_element() {
     );
 }
 
+// rune:vocare(vantage-bypass-test) — hash-join token shape on a matching key. The hand-built `Rule` below
+// carries an EMPTY `:rhs` on purpose, so no production runs and the caller
+// mouth cannot see the match; the assertions read `wm.beta` at implementer
+// vantage, which is what this test is FOR.
+//
+// What that costs, and where it is paid: nothing here can reach the
+// join->RHS boundary. The caller-level join fixture did not close it either
+// — `cold-and-windy`'s `:then` uses only `?loc`, the JOIN KEY, which the
+// second condition merely MATCHES, so a dropped or swapped binding from that
+// side still yields the right `?loc`. Covered now by
+// `tests/rete/probe_arc278_join_carries_both_sides_into_the_rhs`.
 /// P11/3b — `hash_join_produces_one_token_on_same_loc`:
 ///
 /// 2-condition rule joining on `?loc`. Temperature(Oslo)+WindSpeed(Oslo) → exactly 1 joined Token
@@ -459,6 +481,17 @@ fn hash_join_produces_one_token_on_same_loc() {
     );
 }
 
+// rune:vocare(vantage-bypass-test) — hash-join rejection on a mismatched key. The hand-built `Rule` below
+// carries an EMPTY `:rhs` on purpose, so no production runs and the caller
+// mouth cannot see the match; the assertions read `wm.beta` at implementer
+// vantage, which is what this test is FOR.
+//
+// What that costs, and where it is paid: nothing here can reach the
+// join->RHS boundary. The caller-level join fixture did not close it either
+// — `cold-and-windy`'s `:then` uses only `?loc`, the JOIN KEY, which the
+// second condition merely MATCHES, so a dropped or swapped binding from that
+// side still yields the right `?loc`. Covered now by
+// `tests/rete/probe_arc278_join_carries_both_sides_into_the_rhs`.
 /// P11/3b — `hash_join_drops_on_mismatched_loc`:
 ///
 /// Temperature(Oslo) + WindSpeed(Bergen) → no joined Token at the HashJoinNode
@@ -521,6 +554,17 @@ fn hash_join_drops_on_mismatched_loc() {
     );
 }
 
+// rune:vocare(vantage-bypass-test) — hash-join isolation across keys. The hand-built `Rule` below
+// carries an EMPTY `:rhs` on purpose, so no production runs and the caller
+// mouth cannot see the match; the assertions read `wm.beta` at implementer
+// vantage, which is what this test is FOR.
+//
+// What that costs, and where it is paid: nothing here can reach the
+// join->RHS boundary. The caller-level join fixture did not close it either
+// — `cold-and-windy`'s `:then` uses only `?loc`, the JOIN KEY, which the
+// second condition merely MATCHES, so a dropped or swapped binding from that
+// side still yields the right `?loc`. Covered now by
+// `tests/rete/probe_arc278_join_carries_both_sides_into_the_rhs`.
 /// P11/3b — `hash_join_no_cross_loc_leakage` (N×M probe):
 ///
 /// 2 Temperatures × 2 WindSpeeds across 2 locations (Oslo + Bergen).
