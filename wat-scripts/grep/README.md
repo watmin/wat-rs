@@ -58,9 +58,11 @@ reflects the symbol table for every zero-arg fn in the namespace whose return ty
 `:wat::rete::Rule` — the marker `defrule` plants. A hand-list is a second copy of the same
 information, and the rule you add next month is the one that silently does not run.
 
-Order does not matter, and this was measured rather than assumed: `collect-rules` sorts by name, so
-`head-position.wat` compiles `:hp::calls-first` BEFORE the `:hp::head` rule that feeds it, and the
-answer is identical (159 either way). Forward chaining does not care about declaration order.
+Order does not matter — not the rules', and not the conditions'. Measured rather than assumed:
+`collect-rules` sorts by name, so `head-position.wat` compiles `:hp::calls-first` BEFORE the
+`:hp::head` rule that feeds it, and the answer is identical (159 either way). Within a `:when`,
+guards are positionally free — put a `(:wat::rete::where …)` next to the conditions whose variables
+it relates, which is where it reads best.
 
 Four things that will otherwise cost a cycle, all measured:
 
@@ -68,15 +70,12 @@ Four things that will otherwise cost a cycle, all measured:
   Core's fails the fence with *"is not total"*.
 - A **record** constructor takes kwargs; a **tagged enum variant** takes positions. They look
   identical at the call site.
-- **`cond` does not lower in a `:then`; `if` does.** Measured, and the reason is NOT the one this
-  README first gave. `cond` compiles fine in a `where` on the LHS (verified — the rule fires); it is
-  the RHS lowerer that has no `cond` arm (`src/rete/expr_ir.rs:314`), so a clause reaches generic
-  call lowering and is reported as `malformed :wat::rete::lower form: call head must be a keyword`.
-  `--check` passes it either way, so the failure arrives at `compile-all`.
-  Filed: `~/work/NOTE-rete-cond-lowers-on-the-lhs-but-not-the-rhs.md`.
-  ⚠ Note the clause shape: wat's `cond` is `(cond (test body) … (:else body))` — PARENTHESIZED
-  clauses, not Clojure's flat `test expr test expr`. The flat form is refused earlier, by the purity
-  classifier, with `'<malformed cond clause>' is not pure` — a shape problem wearing an axis's name.
+- **`cond`'s clauses are PARENTHESIZED**: `(cond (test body) … (:else body))`, not Clojure's flat
+  `test expr test expr`. The flat form is refused by the purity classifier with
+  `'<malformed cond clause>' is not pure` — a shape problem wearing an axis's name, so the message
+  sends you to think about purity when the problem is the clause shape.
+  (`cond` in a `:then` used to fail in the RHS lowerer; fixed 2026-08-24 by making `:then` an
+  expansion boundary. It works now — this line is about the clause shape only.)
 - **`or` is binary.** Three alternatives need `(or A (or B C))`.
 
 ### On collapsing rules — measured, and rejected
@@ -151,15 +150,16 @@ Available and unused so far, all real: `(:wat::rete::exists (Fact (?k <- :k)))`,
 `distinct` / `all` / `group-by` / `gather-vals`, bound as
 `(?n <- (:wat::rete::acc::count) :from (:Fact))`.
 
-## ⛔ A GUARD MUST BE THE LAST THING IN A `:when`
+## ⛔ A NEW RULE'S FIRST ANSWER IS NEVER EVIDENCE
 
-Measured 2026-08-24, and it cost a rule that read correctly and answered zero: **a
-`(:wat::rete::where …)` followed by a FACT condition silently matches nothing.** No error, exit 0,
-empty result. The same rule with the guard moved after the last fact condition matches correctly —
-11 vs 0 on identical input.
+`defined-twice.wat` returned **0 across all 54 stdlib files** — a completely plausible answer to
+"are there duplicate definitions", and one most readers would accept without checking. It was wrong.
+A positive-control fixture that defines the same name twice **also** returned 0, which is the only
+thing that separated *"nothing matched"* from *"the question was never asked"*.
 
-Every program in this directory places its guards last. That was luck before it was knowledge:
-`rules-corpus-03-source-to-facts.wat` was written that way and everything copied its shape.
+(The cause was a rete bug — a guard placed before a fact condition matched nothing, silently. Fixed
+2026-08-24; guards are positionally free and that is verified on this exact program. The bug is
+gone; the discipline it taught is not.)
 
-Filed for the rete agent:
-`~/work/NOTE-rete-a-where-before-a-fact-condition-silently-matches-nothing.md`.
+**So: before believing any count, including zero — especially zero — build a fixture the rule MUST
+match and one it must NOT.** Every program here has both.

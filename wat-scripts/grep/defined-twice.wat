@@ -66,15 +66,11 @@
 (:wat::rete::defrule :dt::twice
   :when [(:dt::Defines (?a <- :id) (?n <- :name))
          (:dt::Defines (?b <- :id) (?n <- :name))
+         ;; the ordering guard, back where it belongs: immediately after the two conditions
+         ;; whose variables it relates, before the span lookup that only the survivor needs.
+         (:wat::rete::where (:wat::rete::core::i64::< ?a ?b))
          (:wat::grep::Span (?b <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
-         (:wat::grep::Source (?f <- :file))
-         ;; ⛔ THIS GUARD MUST BE LAST. A `where` followed by a FACT condition silently matches
-         ;; NOTHING — no error, exit 0, empty result. This rule was written with the guard here
-         ;; in the middle and returned 0 across all 54 stdlib files, which is a completely
-         ;; plausible answer for "are there duplicate definitions". Only the positive control —
-         ;; a fixture defining the same name twice — caught it, by ALSO returning 0.
-         ;; Filed: ~/work/NOTE-rete-a-where-before-a-fact-condition-silently-matches-nothing.md
-         (:wat::rete::where (:wat::rete::core::i64::< ?a ?b))]
+         (:wat::grep::Source (?f <- :file))]
   :then [(:wat::grep::Match
            :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "defined-more-than-once-in-one-file"
