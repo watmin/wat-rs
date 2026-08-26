@@ -136,7 +136,36 @@ Plus the **~640 Rust-side string literals** naming these ops.
    read the screams.** My censuses have been wrong repeatedly this arc; a wall imposed once is worth
    five of them. `[[feedback_impose_the_check_and_read_the_screams]]`
 
-3. **The gate, and it must break a door.** A test proving `:wat::core::i64::+` now fails at CHECK
+3. **★ THE GATE IS ALREADY WRITTEN — DO NOT INVENT ONE.** A prior self committed the disconfirming
+   probe and disarmed it with the unlock condition attached. **We have circled back.**
+
+   ```
+   tests/wat_lang/probe_undefined_builtin_resolves.rs
+     :17  wrong_operator_leaf_is_a_check_error      (:wat::core::i64::+'2 1 2)
+     :31  bogus_leaf_under_known_namespace_...      (:wat::core::Bogus ...)
+          #[ignore = "RED-at-HEAD: checker rejection of undefined builtins
+                      (arc-255 builtin-registry) not yet built;
+                      unlock when we circle back to arc 255"]
+   ```
+
+   Its module doc names the mechanism this stone must build, in the prior self's own words:
+   *"resolve checks leaf membership against the dispatchable-builtin source of truth and rejects it
+   at check time."* And the first test is **literally a renamed-away i64 operator** — the exact case
+   Stone C manufactures when `:wat::core::i64::+` retires. **Stone C is done when those two ignores
+   are deleted and the tests pass.** That acceptance is inherited, not invented, and it outranks any
+   gate I would have written.
+
+   A sibling is banked against the other hole found this session:
+   `tests/types/probe_diag_typealias_leniency.rs:16` — *"undeclared field-type keywords are accepted
+   LENIENTLY today… un-ignore when 255 makes them check errors"* — which is exactly the
+   `:wat::core::NotARealType` acceptance a rider surfaced on 2026-08-25. Two findings I took for new
+   already had gates waiting.
+
+4. **And still break a door.** After the ignores come off and the tests pass, remove the narrowing on
+   purpose and confirm they go RED again. A gate that survives removal of the door it guards is a
+   claim. `NISI FRANGAS, NIHIL PROBAS.`
+
+5. **The old gate, for reference —** A test proving `:wat::core::i64::+` now fails at CHECK
    time with a remedy, and that an invented name under a promoted namespace fails too. Then remove
    the narrowing on purpose and confirm the gate goes green — a gate that survives removal of the
    door it guards is a claim. `NISI FRANGAS, NIHIL PROBAS.`
