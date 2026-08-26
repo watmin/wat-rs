@@ -15,7 +15,7 @@
 
 use std::sync::Arc;
 use wat::check::error::{CheckError, CheckErrorKind};
-use wat::load::{LoadError, LoadErrorKind, LoadFetchError};
+use wat::load::loader::{LoadError, LoadErrorKind, LoadFetchError};
 use wat::runtime::{RuntimeError, RuntimeErrorKind};
 use wat::span::Span;
 use wat::edn::contract::ToEdn;

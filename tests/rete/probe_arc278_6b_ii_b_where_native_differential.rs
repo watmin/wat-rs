@@ -9,7 +9,7 @@
 
 use std::sync::Arc;
 use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::load::loader::InMemoryLoader;
 use wat::runtime::{Environment, Value};
 
 /// cold-and-windy with a `where (> ?c THRESH)` filtering the joined token. The join is on ?loc

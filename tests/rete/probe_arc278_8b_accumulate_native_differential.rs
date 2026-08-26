@@ -8,7 +8,7 @@
 
 use std::sync::Arc;
 use wat::freeze::{eval_in_frozen, startup_from_source};
-use wat::load::InMemoryLoader;
+use wat::load::loader::InMemoryLoader;
 use wat::runtime::{Environment, Value};
 
 // rune:lint(no-inlined-wat) — world parameterized by runtime acc/gate strings — cartesian matrix of combinations cannot be pre-extracted

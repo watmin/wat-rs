@@ -95,13 +95,10 @@ pub mod restriction_entry;
 pub mod runtime;
 pub mod stream;
 pub mod rust_deps;
-pub mod sandbox;
 pub mod panic_hook;
-pub mod source;
 pub mod span;
 pub mod services;
 pub mod special_forms;
-pub(crate) mod stdlib;
 pub mod string;
 pub mod test_runner;
 pub use services::{
@@ -116,7 +113,7 @@ pub mod vm_registry;
 pub(crate) mod intrinsic;
 
 pub use compose::{compose_and_run, compose_and_run_with_loader};
-pub use source::WatSource;
+pub use load::source::WatSource;
 pub use span::Span;
 pub use wat_macros::{main, test};
 
@@ -148,7 +145,7 @@ pub use harness::{Harness, HarnessError, Outcome};
 pub use hash::{canonical_edn_wat, hash_canonical_ast, hex_encode, verify_source_hash, HashError};
 pub use scope::{fresh_scope, Identifier, ScopeId};
 pub use lexer::{LexError, LexErrorKind};
-pub use load::{
+pub use load::loader::{
     resolve_loads, FsLoader, InMemoryLoader, LoadError, LoadErrorKind, LoadFetchError, LoadSpec, LoadedSource,
     PayloadInterface, SourceInterface, SourceLoader, VerificationSpec,
 };

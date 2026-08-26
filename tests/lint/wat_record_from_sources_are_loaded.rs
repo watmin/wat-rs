@@ -58,7 +58,7 @@ fn macro_source_paths() -> Vec<String> {
 
 /// Every path in `STDLIB_FILES`, read from the load list's own text.
 fn stdlib_paths() -> Vec<String> {
-    const STDLIB_RS: &str = include_str!("../../src/stdlib.rs");
+    const STDLIB_RS: &str = include_str!("../../src/load/stdlib.rs");
     let mut out = Vec::new();
     for (i, _) in STDLIB_RS.match_indices("path: \"") {
         let after = &STDLIB_RS[i + "path: \"".len()..];

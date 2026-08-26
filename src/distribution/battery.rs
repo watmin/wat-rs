@@ -40,5 +40,5 @@ pub(super) fn install_batteries(batteries: &[Battery]) {
 
     let dep_sources: Vec<&'static [crate::WatSource]> =
         batteries.iter().map(|(_, sources)| sources()).collect();
-    let _ = crate::source::install_dep_sources(dep_sources);
+    let _ = crate::load::source::install_dep_sources(dep_sources);
 }

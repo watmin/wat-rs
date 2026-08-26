@@ -24,7 +24,7 @@
 //!
 //! The module also exposes [`startup_from_source`] — an orchestrator
 //! that runs the full 1–11 pipeline from a single entry-source string
-//! (plus a [`crate::load::SourceLoader`]) and returns either a
+//! (plus a [`crate::load::loader::SourceLoader`]) and returns either a
 //! `FrozenWorld` or a [`StartupError`] pointing at the failing pass.
 //!
 //! # What freeze is NOT
@@ -61,7 +61,7 @@ pub mod validator;
 use crate::ast::WatAST;
 use crate::check::{check_program, CheckErrors};
 use crate::config::{collect_entry_file, collect_entry_file_with_inherit, Config, ConfigError};
-use crate::load::{resolve_loads, LoadError, SourceLoader};
+use crate::load::loader::{resolve_loads, LoadError, SourceLoader};
 use crate::macros::{MacroError, MacroRegistry};
 use crate::parser::{parse_all_with_file, ParseError};
 use crate::resolve::ResolveError;
@@ -69,7 +69,7 @@ use crate::runtime::{
     apply_function, Environment, EvalBreak, Function, FunctionBody, RuntimeError, RuntimeErrorKind,
     SymbolTable, TrackedValue, Value,
 };
-use crate::stdlib::StdlibError;
+use crate::load::stdlib::StdlibError;
 use crate::types::{TypeEnv, TypeError, TypeExpr};
 use crate::value::EncodingCtx;
 use std::fmt;
@@ -514,7 +514,7 @@ impl FrozenWorld {
         macros: MacroRegistry,
         mut symbols: SymbolTable,
         program: Vec<WatAST>,
-        loader: Arc<dyn crate::load::SourceLoader>,
+        loader: Arc<dyn crate::load::loader::SourceLoader>,
         declared_rete_defns: std::collections::HashSet<String>,
     ) -> Result<Self, StartupError> {
         let ctx = Arc::new(EncodingCtx::from_config(&config));
@@ -928,7 +928,7 @@ pub fn startup_from_source(
     // Span file label: use the canonical path when known; fall back
     // to `<entry>` for in-memory / test sources. Arc 016 slice 1.
     let file_label = base_canonical.unwrap_or("<entry>");
-    let entry_forms = parse_all_with_file(entry_src, &crate::load::span_display_path(file_label))?;
+    let entry_forms = parse_all_with_file(entry_src, &crate::load::loader::span_display_path(file_label))?;
     let world = startup_from_forms(entry_forms, base_canonical, loader)?;
     // Arc 170 — the `:user::main` wall. Imposed HERE (not in
     // `startup_from_forms`) because this is the chokepoint every real
@@ -962,7 +962,7 @@ pub fn startup_from_file(rel_path: &str) -> Result<FrozenWorld, StartupError> {
     startup_from_source(
         &src,
         Some(rel_path),
-        Arc::new(crate::load::InMemoryLoader::new()),
+        Arc::new(crate::load::loader::InMemoryLoader::new()),
     )
 }
 
@@ -1183,11 +1183,11 @@ pub fn call_beside_value(caller_rs: &str, fn_name: &str) -> Result<Value, Runtim
 /// WITH wat-under-test, co-locate the wat and use [`startup_beside`].) The stdlib is loaded; only the
 /// user entry is empty.
 pub fn startup_bare() -> Result<FrozenWorld, StartupError> {
-    startup_from_source("", None, Arc::new(crate::load::InMemoryLoader::new()))
+    startup_from_source("", None, Arc::new(crate::load::loader::InMemoryLoader::new()))
 }
 
 // startup_from_source_with_deps retired in arc 015 slice 3a.
-// Dep sources now install globally via `wat::source::install_dep_sources`
+// Dep sources now install globally via `wat::load::source::install_dep_sources`
 // before any freezing; `stdlib_forms()` concatenates baked + installed
 // so every freeze pass — including `:wat::kernel::run-sandboxed-ast`
 // and `:wat::kernel::spawn-process` children — sees dep surface
@@ -1951,7 +1951,7 @@ pub fn is_declaration_form(head: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::load::InMemoryLoader;
+    use crate::load::loader::InMemoryLoader;
 
     /// Helper: start from an entry string with no loaded files.
     fn startup(entry: &str) -> Result<FrozenWorld, StartupError> {

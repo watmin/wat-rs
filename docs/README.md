@@ -198,7 +198,7 @@ organized as `arc/YYYY/MM/NNN-slug/`:
   `wat::test!` proc-macro (originally shipped as `wat::test_suite!`;
   renamed in arc 018) mirrors `wat::main!` for tests;
   `wat::test_runner` library is the callable substrate;
-  `wat::source::install_dep_sources` is the global OnceLock
+  `wat::load::source::install_dep_sources` is the global OnceLock
   (symmetric with `wat::rust_deps::install`) that lets every
   freeze — main, test, sandbox via `run-sandboxed-ast`, fork
   child via `run-hermetic-ast` — transparently see dep surface.

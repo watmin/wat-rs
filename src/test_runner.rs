@@ -60,11 +60,11 @@ use std::time::Instant;
 
 use crate::compose::DepRegistrar;
 use crate::freeze::{startup_from_source, FrozenWorld};
-use crate::load::{FsLoader, SourceLoader};
+use crate::load::loader::{FsLoader, SourceLoader};
 use crate::runtime::{apply_function, Function, Value};
 use crate::types::Nature;
 use crate::rust_deps::{self, RustDepsBuilder};
-use crate::source::{self, WatSource};
+use crate::load::source::{self, WatSource};
 
 /// Aggregated result of running every `.wat` file under a path.
 ///

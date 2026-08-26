@@ -1157,7 +1157,7 @@ mod tests {
                  (:wat::kernel::RecvOutcome::Stopped (:wat::kernel::assertion-failed! \"echo: stop requested before message — the peer was ALIVE\" :wat::core::None :wat::core::None)) \
                  (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! \"echo: channel closed before message\" :wat::core::None :wat::core::None))))",
             None,
-            Arc::new(crate::load::InMemoryLoader::new()),
+            Arc::new(crate::load::loader::InMemoryLoader::new()),
         )
         .expect("startup_from_source for self-peer echo fn must succeed");
 
@@ -1172,7 +1172,7 @@ mod tests {
         let init_world = crate::freeze::startup_from_source(
             "(:wat::core::defn :my::default-init [] -> :wat::core::Record (:wat::program::EmptyEnv'))",  // rune:lint(retired-name) — positional constructor idiom (arc 294 9a): bare name is the kwargs macro, prime is the generated-only positional ctor
             None,
-            Arc::new(crate::load::InMemoryLoader::new()),
+            Arc::new(crate::load::loader::InMemoryLoader::new()),
         )
         .expect("startup for default init fn must succeed");
         let default_init_fn: Arc<Function> = init_world
@@ -1185,7 +1185,7 @@ mod tests {
         let noop_world = crate::freeze::startup_from_source(
             "(:wat::core::defn :my::noop-post-spawn [_l <- :wat::spawn::ThreadLaunch] -> :wat::core::nil nil)",
             None,
-            Arc::new(crate::load::InMemoryLoader::new()),
+            Arc::new(crate::load::loader::InMemoryLoader::new()),
         )
         .expect("startup for noop post-spawn fn must succeed");
         let noop_post_spawn_fn: Arc<Function> = noop_world
@@ -1296,7 +1296,7 @@ mod tests {
                    ((:wat::kernel::RecvOutcome::Lost _c) nil)) \
                  nil))",
             None,
-            Arc::new(crate::load::InMemoryLoader::new()),
+            Arc::new(crate::load::loader::InMemoryLoader::new()),
         )
         .expect("startup for blocker fn must succeed");
 
@@ -1310,7 +1310,7 @@ mod tests {
         let init_world = crate::freeze::startup_from_source(
             "(:wat::core::defn :my::default-init [] -> :wat::core::Record (:wat::program::EmptyEnv'))",  // rune:lint(retired-name) — positional constructor idiom (arc 294 9a): bare name is the kwargs macro, prime is the generated-only positional ctor
             None,
-            Arc::new(crate::load::InMemoryLoader::new()),
+            Arc::new(crate::load::loader::InMemoryLoader::new()),
         )
         .expect("startup for default init fn must succeed");
         let default_init_fn: Arc<Function> = init_world
@@ -1323,7 +1323,7 @@ mod tests {
         let noop_world = crate::freeze::startup_from_source(
             "(:wat::core::defn :my::noop-post-spawn [_l <- :wat::spawn::ThreadLaunch] -> :wat::core::nil nil)",
             None,
-            Arc::new(crate::load::InMemoryLoader::new()),
+            Arc::new(crate::load::loader::InMemoryLoader::new()),
         )
         .expect("startup for noop post-spawn fn must succeed");
         let noop_post_spawn_fn: Arc<Function> = noop_world

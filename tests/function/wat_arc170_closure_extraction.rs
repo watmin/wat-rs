@@ -42,7 +42,7 @@ fn freeze(path: &str) -> wat::freeze::FrozenWorld {
 }
 
 fn re_freeze(forms: Vec<WatAST>) -> wat::freeze::FrozenWorld {
-    startup_from_forms(forms, None, Arc::new(wat::load::InMemoryLoader::new()))
+    startup_from_forms(forms, None, Arc::new(wat::load::loader::InMemoryLoader::new()))
         .expect("re-freeze should succeed")
 }
 

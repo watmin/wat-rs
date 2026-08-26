@@ -10,7 +10,7 @@ use crate::freeze::{
     FrozenWorld,
 };
 use crate::io::{PipeReader, PipeWriter, WatReader, WatWriter};
-use crate::load::InMemoryLoader;
+use crate::load::loader::InMemoryLoader;
 use crate::runtime::{
     RuntimeError, RuntimeErrorKind,
     TrackedValue, Value,

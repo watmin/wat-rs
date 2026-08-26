@@ -1,4 +1,4 @@
-//! `wat::source` — the user-facing surface for wat-source
+//! `wat::load::source` — the user-facing surface for wat-source
 //! contribution. Arc 015 slice 4 rename (formerly
 //! `wat::stdlib::StdlibFile` — renamed because community wat
 //! crates don't ship "stdlib" from their authors' perspective;
@@ -29,7 +29,7 @@
 //! wins. One test binary / consumer binary = one consistent dep
 //! set. Once installed, every subsequent freeze (main, test,
 //! sandbox, fork) transparently sees the dep surface via
-//! [`crate::stdlib::stdlib_forms`].
+//! [`crate::load::stdlib::stdlib_forms`].
 
 use std::sync::OnceLock;
 
@@ -52,7 +52,7 @@ static DEP_SOURCES: OnceLock<Vec<&'static [WatSource]>> = OnceLock::new();
 /// this process. After install, every subsequent freeze (main,
 /// test, sandbox via `run-sandboxed-ast`, fork child via
 /// `run-hermetic-ast`) transparently sees them as part of
-/// [`crate::stdlib::stdlib_forms`].
+/// [`crate::load::stdlib::stdlib_forms`].
 ///
 /// Returns `Err` if dep sources were already installed. Idempotent
 /// callers can ignore the result (best-effort install).
@@ -61,12 +61,12 @@ pub fn install_dep_sources(
 ) -> Result<(), &'static str> {
     DEP_SOURCES
         .set(sources)
-        .map_err(|_| "wat::source::install_dep_sources already called in this process")
+        .map_err(|_| "wat::load::source::install_dep_sources already called in this process")
 }
 
 /// Read the installed dep sources. Returns empty if no one has
 /// called [`install_dep_sources`]. Used by
-/// [`crate::stdlib::stdlib_forms`] to compose baked + installed
+/// [`crate::load::stdlib::stdlib_forms`] to compose baked + installed
 /// into every freeze pass.
 pub fn installed_dep_sources() -> &'static [&'static [WatSource]] {
     match DEP_SOURCES.get() {

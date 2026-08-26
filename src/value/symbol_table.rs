@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::ast::WatAST;
-use crate::load::SourceLoader;
+use crate::load::loader::SourceLoader;
 use crate::macros::MacroRegistry;
 use crate::value::{EnumValue, Value};
 use crate::sigma::SigmaFn;

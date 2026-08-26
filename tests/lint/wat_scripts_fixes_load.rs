@@ -17,7 +17,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use wat::freeze::startup_from_source;
-use wat::load::FsLoader;
+use wat::load::loader::FsLoader;
 
 fn collect_wat(dir: &Path, out: &mut Vec<PathBuf>) {
     for entry in std::fs::read_dir(dir).unwrap_or_else(|e| panic!("read {}: {e}", dir.display())) {

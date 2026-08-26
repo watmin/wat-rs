@@ -528,12 +528,12 @@ pub fn main(input: TokenStream) -> TokenStream {
                     #loader_expr
                 );
                 let __wat_loader: ::std::sync::Arc<
-                    dyn ::wat::load::SourceLoader,
+                    dyn ::wat::load::loader::SourceLoader,
                 > = ::std::sync::Arc::new(
-                    ::wat::load::ScopedLoader::new(__wat_loader_root).map_err(|e| {
+                    ::wat::load::loader::ScopedLoader::new(__wat_loader_root).map_err(|e| {
                         ::wat::harness::HarnessError::Startup(::std::boxed::Box::new(
                             ::wat::freeze::StartupError::Load(
-                                ::wat::load::LoadError::from(e),
+                                ::wat::load::loader::LoadError::from(e),
                             ),
                         ))
                     })?,
@@ -883,9 +883,9 @@ pub fn test(input: TokenStream) -> TokenStream {
                     .spawn(move || {
                     let __wat_loader_root: &'static str = #loader_root_local;
                     let __wat_loader: ::std::sync::Arc<
-                        dyn ::wat::load::SourceLoader,
+                        dyn ::wat::load::loader::SourceLoader,
                     > = ::std::sync::Arc::new(
-                        ::wat::load::ScopedLoader::new(__wat_loader_root)
+                        ::wat::load::loader::ScopedLoader::new(__wat_loader_root)
                             .expect("wat::test! loader path must exist"),
                     );
                     ::wat::test_runner::run_single_deftest(

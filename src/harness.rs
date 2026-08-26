@@ -40,10 +40,10 @@ use crate::compose::DepRegistrar;
 use crate::freeze::{
     invoke_user_main, startup_from_source, validate_user_main_signature, FrozenWorld, StartupError,
 };
-use crate::load::{InMemoryLoader, SourceLoader};
+use crate::load::loader::{InMemoryLoader, SourceLoader};
 use crate::rust_deps::{self, RustDepsBuilder};
 use crate::value::RuntimeError;
-use crate::source::{self, WatSource};
+use crate::load::source::{self, WatSource};
 use std::sync::Arc;
 
 /// A frozen wat program ready to invoke. Clone is NOT derived: the

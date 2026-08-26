@@ -1,6 +1,6 @@
 use super::*;
 use crate::freeze::{eval_in_frozen, startup_from_source};
-use crate::load::InMemoryLoader;
+use crate::load::loader::InMemoryLoader;
 use crate::rete::matcher::Bindings;
 use crate::runtime::{Environment, Value};
 use crate::types::Nature;

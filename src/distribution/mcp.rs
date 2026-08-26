@@ -148,7 +148,7 @@ pub(super) fn serve() -> ExitCode {
     // config off it and decodes freeze errors against it. The definitions themselves live in
     // `defs` and are re-frozen per turn — that is the oracle's deliberate slowness, not an
     // oversight (R1/R9); a fast incremental plane gets built behind a differential later.
-    let loader: Arc<dyn crate::load::SourceLoader> = Arc::new(crate::load::InMemoryLoader::new());
+    let loader: Arc<dyn crate::load::loader::SourceLoader> = Arc::new(crate::load::loader::InMemoryLoader::new());
     let base = match crate::freeze::startup_from_forms(Vec::new(), None, loader) {
         Ok(w) => w,
         Err(e) => {

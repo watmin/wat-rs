@@ -308,7 +308,7 @@ wat::main! {
 
 The macro expands to `fn main() -> Result<(), wat::HarnessError>`
 that installs both halves of each dep's contract
-(`wat::source::install_dep_sources` for wat source,
+(`wat::load::source::install_dep_sources` for wat source,
 `wat::rust_deps::install` for Rust shims), freezes the user source
 against the composed world, and invokes `:user::main` with real
 OS stdio. See `docs/USER-GUIDE.md` § 1 for the full consumer

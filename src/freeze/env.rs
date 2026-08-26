@@ -34,7 +34,7 @@ use crate::runtime::{
     register_stdlib_runtime_defs, register_struct_methods, register_type_predicates, Environment,
     EvalBreak, SymbolTable,
 };
-use crate::stdlib::stdlib_forms;
+use crate::load::stdlib::stdlib_forms;
 use crate::types::{register_stdlib_types, register_types_with_acronyms, TypeEnv};
 
 /// The output of [`build_env`]: all four build-time registries plus

@@ -29064,8 +29064,8 @@ pub(crate) fn eval_form_against_defs(
     // re-freeze for free).
     let freeze_forms =
         |program: Vec<WatAST>| -> Result<crate::freeze::FrozenWorld, crate::freeze::StartupError> {
-            let loader: std::sync::Arc<dyn crate::load::SourceLoader> =
-                std::sync::Arc::new(crate::load::InMemoryLoader::new());
+            let loader: std::sync::Arc<dyn crate::load::loader::SourceLoader> =
+                std::sync::Arc::new(crate::load::loader::InMemoryLoader::new());
             match &inherit {
                 Some(cfg) => {
                     crate::freeze::startup_from_forms_with_session(program, None, loader, cfg, sym)
@@ -34325,7 +34325,7 @@ mod tests {
         let (stdlib_sym, stdlib_macros, _) = stdlib_loaded();
         let mut macros = stdlib_macros.clone();
         let mut sym = stdlib_sym.clone();
-        sym.set_source_loader(std::sync::Arc::new(crate::load::FsLoader));
+        sym.set_source_loader(std::sync::Arc::new(crate::load::loader::FsLoader));
         let ast = crate::parse_one!(src).expect("parse ok");
         // LOAD-BEARING ORDER: expand_all must run before user-defn registration — see src/macros/eval.rs module doc + freeze.rs expand_runs_before_register_defines_phase_order
         let expanded = crate::macros::expand_all(vec![ast], &mut macros, &Environment::new(), &sym)
@@ -35131,7 +35131,7 @@ mod tests {
         // The run() helper panics on check errors, so we test that startup fails.
         // Use FQDN types (:wat::core::i64) since defn goes through check_program.
         use crate::freeze::startup_from_source;
-        use crate::load::InMemoryLoader;
+        use crate::load::loader::InMemoryLoader;
         use std::sync::Arc;
         let src = r#"
             (:wat::config::set-capacity-mode! :error)

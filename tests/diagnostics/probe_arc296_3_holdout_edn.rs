@@ -23,7 +23,7 @@ use std::sync::Arc;
 use wat::check::error::{CheckError, CheckErrorKind, CheckErrors};
 use wat::config::{ConfigError, ConfigErrorKind};
 use wat::freeze::StartupError;
-use wat::load::{LoadError, LoadErrorKind};
+use wat::load::loader::{LoadError, LoadErrorKind};
 use wat::macros::{MacroError, MacroErrorKind};
 use wat::resolve::ResolveError;
 use wat::runtime::{RuntimeError, RuntimeErrorKind};

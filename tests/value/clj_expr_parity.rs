@@ -33,7 +33,7 @@ const GOLDEN: &str = include_str!("../clj_expr_oracle/golden.txt");
 fn wat_eval_edn(expr: &str) -> String {
     let src = format!("(:wat::core::defn :probe::e [] -> :wat::core::Value {expr})");
     let world = match std::panic::catch_unwind(AssertUnwindSafe(|| {
-        startup_from_source(&src, None, Arc::new(wat::load::InMemoryLoader::new()))
+        startup_from_source(&src, None, Arc::new(wat::load::loader::InMemoryLoader::new()))
     })) {
         Ok(Ok(w)) => w,
         Ok(Err(_)) => return ":ERR".to_string(), // parse / check rejected

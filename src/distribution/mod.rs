@@ -164,7 +164,7 @@ pub use battery::Battery;
 pub use argv::strip_cargo_subcommand;
 
 use crate::freeze::startup_from_source;
-use crate::load::FsLoader;
+use crate::load::loader::FsLoader;
 use crate::runtime::set_argv;
 
 /// Check that a frozen `--grep` world's `:user::grep` declares the canonical
@@ -349,7 +349,7 @@ pub fn run_with_args(batteries: &[Battery], argv: Vec<String>) -> ExitCode {
     // side-effect-free verification suitable for editor save hooks and agent
     // sweep loops.
     if check_only {
-        let loader: Arc<dyn crate::load::SourceLoader> = Arc::new(FsLoader);
+        let loader: Arc<dyn crate::load::loader::SourceLoader> = Arc::new(FsLoader);
         match startup_from_source(&source, canonical.as_deref(), loader) {
             Ok(_world) => {
                 // Successful freeze. The world is dropped without invocation.
@@ -424,7 +424,7 @@ pub fn run_with_args(batteries: &[Battery], argv: Vec<String>) -> ExitCode {
     //
     // AssertUnwindSafe: nothing captured here is observed after the unwind — the
     // Err arm reads only the payload and returns.
-    let loader: Arc<dyn crate::load::SourceLoader> = Arc::new(FsLoader);
+    let loader: Arc<dyn crate::load::loader::SourceLoader> = Arc::new(FsLoader);
     let startup_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         startup_from_source(&source, canonical.as_deref(), loader)
     }));

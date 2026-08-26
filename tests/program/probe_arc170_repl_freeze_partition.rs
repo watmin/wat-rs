@@ -52,7 +52,7 @@ use std::sync::Arc;
 /// rendered head-first so a failure message names the actual forms.
 fn residue_of(src: &str, file: &str) -> Result<Vec<String>, String> {
     let forms = wat::parse_all_with_file(src, file).map_err(|e| format!("parse failed: {e:?}"))?;
-    let loader: Arc<dyn wat::load::SourceLoader> = Arc::new(wat::load::InMemoryLoader::new());
+    let loader: Arc<dyn wat::load::loader::SourceLoader> = Arc::new(wat::load::loader::InMemoryLoader::new());
     let world = wat::freeze::startup_from_forms(forms, None, loader)
         .map_err(|e| format!("freeze failed: {e}"))?;
     Ok(world.program.iter().map(|f| format!("{f:?}")).collect())

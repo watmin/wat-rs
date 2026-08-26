@@ -1842,7 +1842,7 @@ pub fn eval_stdlib_sources(
 ) -> Result<Value, RuntimeError> {
     let op = ":wat::stdlib::sources";
     arity(op, args, 0, list_span)?;
-    let pairs: Vec<Value> = crate::stdlib::stdlib_files()
+    let pairs: Vec<Value> = crate::load::stdlib::stdlib_files()
         .iter()
         .map(|ws| {
             Value::Vec(Arc::new(vec![

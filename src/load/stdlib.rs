@@ -17,7 +17,7 @@
 
 use crate::ast::WatAST;
 use crate::parser::{parse_all_with_file, ParseError};
-use crate::source::{installed_dep_sources, WatSource};
+use crate::load::source::{installed_dep_sources, WatSource};
 use crate::span::Span;
 
 /// Every stdlib source baked into the binary. Order here determines
@@ -38,14 +38,14 @@ const STDLIB_FILES: &[WatSource] = &[
     // and :wat::holon::HolonAST [a builtin]).
     WatSource {
         path: "wat/core.wat",
-        source: include_str!("../wat/core.wat"),
+        source: include_str!("../../wat/core.wat"),
     },
     // Arc 296 step 1b — the kernel diagnostics aggregates, declared in wat (wat is the
     // source of truth). Loads immediately after core.wat because `Failure`/`StopFailure`
     // reference the `:wat::core::Error` surface declared there.
     WatSource {
         path: "wat/kernel/diagnostics.wat",
-        source: include_str!("../wat/kernel/diagnostics.wat"),
+        source: include_str!("../../wat/kernel/diagnostics.wat"),
     },
     // Arc 278 stone S1 — :wat::sqlite::* — the RAW sqlite interop surface over the fresh
     // `:rust::sqlite` shim (src/rust_deps/sqlite.rs, core's FIRST default :rust:: shim).
@@ -54,7 +54,7 @@ const STDLIB_FILES: &[WatSource] = &[
     // typealias/Result/Option/Vector/keyword) — loads immediately after core.wat.
     WatSource {
         path: "wat/sqlite.wat",
-        source: include_str!("../wat/sqlite.wat"),
+        source: include_str!("../../wat/sqlite.wat"),
     },
     // Arc 118.2a — the clojure-named lazy/eager HOF surface (map/filter/take/drop are Rust
     // intrinsics, unconditionally available; this file adds `filter` [wat-defined], `mapv`/
@@ -65,58 +65,58 @@ const STDLIB_FILES: &[WatSource] = &[
     // (defclause/defalias/defn, `:wat::stream::*` builtins).
     WatSource {
         path: "wat/seq.wat",
-        source: include_str!("../wat/seq.wat"),
+        source: include_str!("../../wat/seq.wat"),
     },
     // Arc 255.1b-iv-c — closed-domain enum types for the metadata-of reflection
     // surface: Kind / DefinedIn / Layer. No eval-deps beyond :wat::core::defenum
     // (a builtin), so it may load immediately after core.wat.
     WatSource {
         path: "wat/runtime-meta.wat",
-        source: include_str!("../wat/runtime-meta.wat"),
+        source: include_str!("../../wat/runtime-meta.wat"),
     },
     WatSource {
         path: "wat/holon/Amplify.wat",
-        source: include_str!("../wat/holon/Amplify.wat"),
+        source: include_str!("../../wat/holon/Amplify.wat"),
     },
     WatSource {
         path: "wat/holon/Subtract.wat",
-        source: include_str!("../wat/holon/Subtract.wat"),
+        source: include_str!("../../wat/holon/Subtract.wat"),
     },
     WatSource {
         path: "wat/holon/Log.wat",
-        source: include_str!("../wat/holon/Log.wat"),
+        source: include_str!("../../wat/holon/Log.wat"),
     },
     WatSource {
         path: "wat/holon/ReciprocalLog.wat",
-        source: include_str!("../wat/holon/ReciprocalLog.wat"),
+        source: include_str!("../../wat/holon/ReciprocalLog.wat"),
     },
     WatSource {
         path: "wat/holon/Circular.wat",
-        source: include_str!("../wat/holon/Circular.wat"),
+        source: include_str!("../../wat/holon/Circular.wat"),
     },
     WatSource {
         path: "wat/holon/Reject.wat",
-        source: include_str!("../wat/holon/Reject.wat"),
+        source: include_str!("../../wat/holon/Reject.wat"),
     },
     WatSource {
         path: "wat/holon/Project.wat",
-        source: include_str!("../wat/holon/Project.wat"),
+        source: include_str!("../../wat/holon/Project.wat"),
     },
     WatSource {
         path: "wat/holon/Sequential.wat",
-        source: include_str!("../wat/holon/Sequential.wat"),
+        source: include_str!("../../wat/holon/Sequential.wat"),
     },
     WatSource {
         path: "wat/holon/Ngram.wat",
-        source: include_str!("../wat/holon/Ngram.wat"),
+        source: include_str!("../../wat/holon/Ngram.wat"),
     },
     WatSource {
         path: "wat/holon/Bigram.wat",
-        source: include_str!("../wat/holon/Bigram.wat"),
+        source: include_str!("../../wat/holon/Bigram.wat"),
     },
     WatSource {
         path: "wat/holon/Trigram.wat",
-        source: include_str!("../wat/holon/Trigram.wat"),
+        source: include_str!("../../wat/holon/Trigram.wat"),
     },
     // Arc 234 Stone 234.2b — :wat::core::defrecord macro. Mints user-defined
     // record-types as dual-form holograms (Value::wat__holon__Record): struct_form
@@ -129,14 +129,14 @@ const STDLIB_FILES: &[WatSource] = &[
     // now the canonical holonic record macro head, peer to :wat::core::defrecord).
     WatSource {
         path: "wat/Record.wat",
-        source: include_str!("../wat/Record.wat"),
+        source: include_str!("../../wat/Record.wat"),
     },
     // Arc 258 A2 — :wat::program::Env as a flat typed record (seven kernel-stamped fields).
     // Arc 293 annihilation: no longer an extensible base; it is a plain defrecord. Loaded
     // AFTER Record.wat (uses :wat::core::defrecord) and :wat::time::Instant (builtin).
     WatSource {
         path: "wat/program.wat",
-        source: include_str!("../wat/program.wat"),
+        source: include_str!("../../wat/program.wat"),
     },
     // Arc 170 capability circuit, stone 2 — :wat::capability::Capability (renamed from
     // Grantable, stone A), the uniform capability methods-surface every <fqdn>::Handle
@@ -146,7 +146,7 @@ const STDLIB_FILES: &[WatSource] = &[
     // on core.wat builtins.
     WatSource {
         path: "wat/capability.wat",
-        source: include_str!("../wat/capability.wat"),
+        source: include_str!("../../wat/capability.wat"),
     },
     // Arc 170 closure #6 — :wat::process::Bracket / :wat::process::Service, the closed set
     // of ps-visible spawned-process identities (the label `:wat::spawn::ProcessOpts/label`
@@ -154,24 +154,24 @@ const STDLIB_FILES: &[WatSource] = &[
     // two consumers (wat/bracket.wat, wat/service.wat) that construct these types.
     WatSource {
         path: "wat/process.wat",
-        source: include_str!("../wat/process.wat"),
+        source: include_str!("../../wat/process.wat"),
     },
     // Arc 259 (The Forced Hand) — the host opts for spawn-program (the Keymaker):
     // ThreadOpts / ProcessOpts / RemoteOpts + their constructors. Loaded AFTER
     // Record.wat (uses :wat::core::defrecord).
     WatSource {
         path: "wat/spawn.wat",
-        source: include_str!("../wat/spawn.wat"),
+        source: include_str!("../../wat/spawn.wat"),
     },
     // Arc 259 S3.2a — the brackets layer runner server-loop.  Loaded AFTER
     // spawn.wat which provides :wat::kernel::Peer, recv', send'.
     WatSource {
         path: "wat/bracket.wat",
-        source: include_str!("../wat/bracket.wat"),
+        source: include_str!("../../wat/bracket.wat"),
     },
     WatSource {
         path: "wat/holon.wat",
-        source: include_str!("../wat/holon.wat"),
+        source: include_str!("../../wat/holon.wat"),
     },
     // Arc 278 Cache Stone 1/3/4 — :wat::cache:: — the bounded LRU primitive (over the fresh
     // `:rust::cache::Lru` shim, src/rust_deps/cache.rs, core's SECOND default :rust:: shim), the
@@ -192,7 +192,7 @@ const STDLIB_FILES: &[WatSource] = &[
     // is the earliest legal position, not merely a legal one.
     WatSource {
         path: "wat/cache.wat",
-        source: include_str!("../wat/cache.wat"),
+        source: include_str!("../../wat/cache.wat"),
     },
     // Arc 076: wat/holon/Hologram.wat removed. Hologram/get / put /
     // make / len / capacity are all substrate primitives now; the
@@ -200,7 +200,7 @@ const STDLIB_FILES: &[WatSource] = &[
     // and the coincident-get / present-get conveniences (Q1 = a).
     WatSource {
         path: "wat/kernel/channel.wat",
-        source: include_str!("../wat/kernel/channel.wat"),
+        source: include_str!("../../wat/kernel/channel.wat"),
     },
     // Arc 170 Phase 3 — stdin.wat is now just the `readln` macro + `MAX-READLN-BYTES` cap. The
     // hand-rolled StdInService (Req/Rep + handle fn) is DELETED; stdin is the primed
@@ -209,7 +209,7 @@ const STDLIB_FILES: &[WatSource] = &[
     // the primed `stdout-svc`/`stderr-svc` defservices too.
     WatSource {
         path: "wat/kernel/readln.wat",
-        source: include_str!("../wat/kernel/readln.wat"),
+        source: include_str!("../../wat/kernel/readln.wat"),
     },
     // Arc 170 CULMINATION (arc 278 IPC de-prime) — wat/kernel/hermetic.wat
     // and wat/kernel/sandbox.wat ANNIHILATED. They defined the manual
@@ -258,7 +258,7 @@ const STDLIB_FILES: &[WatSource] = &[
     // typed-channel I/O.
     WatSource {
         path: "wat/test.wat",
-        source: include_str!("../wat/test.wat"),
+        source: include_str!("../../wat/test.wat"),
     },
     // Arc 170 slice 1f-η — Console namespace retired. The
     // paired-channel mini-TCP Console driver (arc 089 slice 5,
@@ -276,7 +276,7 @@ const STDLIB_FILES: &[WatSource] = &[
     // are registered before this file's defns are evaluated.
     WatSource {
         path: "wat/string.wat",
-        source: include_str!("../wat/string.wat"),
+        source: include_str!("../../wat/string.wat"),
     },
     // Arc 251 — fix-source: the wat-to-wat faithful-Clojure converter (the corpus migrator,
     // written IN wat). Loads after core.wat so its substrate verbs (keyword/to-symbol,
@@ -284,13 +284,13 @@ const STDLIB_FILES: &[WatSource] = &[
     // wat/ is the blessed stdlib dir — a vended tool, explicitly listed here.
     WatSource {
         path: "wat/fix.wat",
-        source: include_str!("../wat/fix.wat"),
+        source: include_str!("../../wat/fix.wat"),
     },
     // Arc 283 — :wat::source::File — the source-unit type (path + text), shared substrate for every
     // source-processing tool. Lifted out of deporder; MUST load before deporder (which references it).
     WatSource {
         path: "wat/source.wat",
-        source: include_str!("../wat/source.wat"),
+        source: include_str!("../../wat/source.wat"),
     },
     // Arc 255 Stone iv-b2-a — :wat::intrinsic::Example record (fqdn/expr/expected/run/pure/det).
     // The typed element returned by the `:wat::intrinsic::examples` reflection seam; records (not
@@ -299,7 +299,7 @@ const STDLIB_FILES: &[WatSource] = &[
     // Loads after source.wat (same deps; ordered here for locality with other type-only files).
     WatSource {
         path: "wat/doctest.wat",
-        source: include_str!("../wat/doctest.wat"),
+        source: include_str!("../../wat/doctest.wat"),
     },
     // Arc 275 Stone 275.1 — :wat::deporder:: — the stdlib load-order analyzer.
     // A pure-wat tool: given an ordered list of SourceFile{path,source} pairs,
@@ -313,7 +313,7 @@ const STDLIB_FILES: &[WatSource] = &[
     // in the pre-expansion pass); the defns evaluate at load time in order.
     WatSource {
         path: "wat/deporder.wat",
-        source: include_str!("../wat/deporder.wat"),
+        source: include_str!("../../wat/deporder.wat"),
     },
     // Arc 277 Stone 277.1 — :wat::lint:: — the wat-lint framework.
     // A pure-wat linter: a rule is (form → Vector<Finding>); lint-source runs
@@ -324,20 +324,20 @@ const STDLIB_FILES: &[WatSource] = &[
     // Loads after deporder.wat (uses SourceFile + stdlib-sources + verify).
     WatSource {
         path: "wat/lint.wat",
-        source: include_str!("../wat/lint.wat"),
+        source: include_str!("../../wat/lint.wat"),
     },
     // Arc 209 Stone C.1 — :wat::service::defservice (pure-wat defmacro).
     // C.1 emits the op enum from the defservice surface; C.2/C.3 extend.
     // Order is not load-bearing (register_stdlib_defmacros pre-expansion walk).
     WatSource {
         path: "wat/service.wat",
-        source: include_str!("../wat/service.wat"),
+        source: include_str!("../../wat/service.wat"),
     },
     // wat-level IO conveniences over the Rust IOWriter primitives — write-file (one-shot) +
     // with-open-file (managed scope). The `with-` naming law: `with-` = managed lifecycle.
     WatSource {
         path: "wat/io.wat",
-        source: include_str!("../wat/io.wat"),
+        source: include_str!("../../wat/io.wat"),
     },
     // Arc 170 stdio-as-defservice (PHASE 1) — the three primed stdio defservices
     // (:wat::kernel::{stdout,stderr,stdin}-svc + their StdOut/StdErr/StdIn surfaces).
@@ -349,7 +349,7 @@ const STDLIB_FILES: &[WatSource] = &[
     // src/freeze.rs; nothing flipped in Phase 1.
     WatSource {
         path: "wat/kernel/services/stdio.wat",
-        source: include_str!("../wat/kernel/services/stdio.wat"),
+        source: include_str!("../../wat/kernel/services/stdio.wat"),
     },
     // Arc 278 stone 1a — :wat::rete:: — the rete engine data model.
     // Pure data records (Token/Element, Rule, AlphaNode/RootJoinNode/
@@ -360,52 +360,52 @@ const STDLIB_FILES: &[WatSource] = &[
     // are Rust intrinsics — always available.
     WatSource {
         path: "wat/rete.wat",
-        source: include_str!("../wat/rete.wat"),
+        source: include_str!("../../wat/rete.wat"),
     },
     // Arc 278 — interpreted compile (rule-set → network). Dual of the native
     // compiler. Loads AFTER wat/rete.wat (records, Session).
     WatSource {
         path: "wat/rete/compile.wat",
-        source: include_str!("../wat/rete/compile.wat"),
+        source: include_str!("../../wat/rete/compile.wat"),
     },
     // Arc 278 Stone 8-i — acc::* fold library. Loads AFTER wat/rete.wat (Element).
     // Fire's accumulate-pass eval-depends on these names.
     WatSource {
         path: "wat/rete/acc.wat",
-        source: include_str!("../wat/rete/acc.wat"),
+        source: include_str!("../../wat/rete/acc.wat"),
     },
     // Arc 278 — interpreted fire oracle, split like rete.wat / kernel/fire/.
     // insert → pass (alpha/join/production) → accum-pass → stratify → fire (once/rules)
     // → explain. Dual of the native kernel. Loads AFTER compile and acc::*.
     WatSource {
         path: "wat/rete/oracle/insert.wat",
-        source: include_str!("../wat/rete/oracle/insert.wat"),
+        source: include_str!("../../wat/rete/oracle/insert.wat"),
     },
     WatSource {
         path: "wat/rete/oracle/pass.wat",
-        source: include_str!("../wat/rete/oracle/pass.wat"),
+        source: include_str!("../../wat/rete/oracle/pass.wat"),
     },
     WatSource {
         path: "wat/rete/oracle/accum-pass.wat",
-        source: include_str!("../wat/rete/oracle/accum-pass.wat"),
+        source: include_str!("../../wat/rete/oracle/accum-pass.wat"),
     },
     WatSource {
         path: "wat/rete/oracle/stratify.wat",
-        source: include_str!("../wat/rete/oracle/stratify.wat"),
+        source: include_str!("../../wat/rete/oracle/stratify.wat"),
     },
     WatSource {
         path: "wat/rete/oracle/fire.wat",
-        source: include_str!("../wat/rete/oracle/fire.wat"),
+        source: include_str!("../../wat/rete/oracle/fire.wat"),
     },
     WatSource {
         path: "wat/rete/oracle/explain.wat",
-        source: include_str!("../wat/rete/oracle/explain.wat"),
+        source: include_str!("../../wat/rete/oracle/explain.wat"),
     },
     // Arc 278 — query / cond / defrule / defquery. query-read reads Session.
     // defmacro refs are order-free.
     WatSource {
         path: "wat/rete/syntax.wat",
-        source: include_str!("../wat/rete/syntax.wat"),
+        source: include_str!("../../wat/rete/syntax.wat"),
     },
     // Arc 278 — DESIGN-STONE-wat-grep-is-a-feature — :wat::grep:: — wat-grep's vocabulary:
     // Node/Named/Span (the fact base wat-grep inserts, per file), Match/Capture (what a rule
@@ -415,7 +415,7 @@ const STDLIB_FILES: &[WatSource] = &[
     // :wat::rete::defquery (wat/rete/syntax.wat) — loads after both.
     WatSource {
         path: "wat/grep.wat",
-        source: include_str!("../wat/grep.wat"),
+        source: include_str!("../../wat/grep.wat"),
     },
     // Arc 278 stone S4 — :wat::query:: — the backend-agnostic storage CONTRACT (DynamoDB-shaped
     // narrow waist: (pk,sk,data) + named-GSI (ipk,isk), all keys EDN-form strings), on the
@@ -434,7 +434,7 @@ const STDLIB_FILES: &[WatSource] = &[
     // Stdlib in src/types.rs).
     WatSource {
         path: "wat/query.wat",
-        source: include_str!("../wat/query.wat"),
+        source: include_str!("../../wat/query.wat"),
     },
     // wat/query/mem.wat — `:wat::query::mem-store`, the FIRST `:wat::query::Store` satisfier (a
     // `:wat::service::defservice :satisfies :wat::query::Store` holding a
@@ -451,7 +451,7 @@ const STDLIB_FILES: &[WatSource] = &[
     // Loads after wat/query.wat (the Store contract) and wat/service.wat (defservice).
     WatSource {
         path: "wat/query/mem.wat",
-        source: include_str!("../wat/query/mem.wat"),
+        source: include_str!("../../wat/query/mem.wat"),
     },
     // wat/query/sqlite-store.wat — arc 278 stone S4: `:wat::query::sqlite-store`, the sqlite
     // `:wat::query::Store` satisfier (`:satisfies :wat::query::Store`; SQL over S1's
@@ -462,7 +462,7 @@ const STDLIB_FILES: &[WatSource] = &[
     // mem.wat, but grouped beside it as the query engine's second Store satisfier).
     WatSource {
         path: "wat/query/sqlite-store.wat",
-        source: include_str!("../wat/query/sqlite-store.wat"),
+        source: include_str!("../../wat/query/sqlite-store.wat"),
     },
     // wat/telemetry.wat — arc 278 stone ①: the `:wat::telemetry` DATA VOCABULARY, PLUS (stone
     // T1b.1) the `Journal` surface — the telemetry sink's S4c contract, write half
@@ -484,7 +484,7 @@ const STDLIB_FILES: &[WatSource] = &[
     // — already satisfies this dependency; no reorder needed.
     WatSource {
         path: "wat/telemetry.wat",
-        source: include_str!("../wat/telemetry.wat"),
+        source: include_str!("../../wat/telemetry.wat"),
     },
     // wat/telemetry/journal.wat — `:wat::telemetry::journal` (arc 278 T1b.2), the telemetry sink
     // service. `:satisfies :wat::telemetry::Journal`, HOLDS a `:wat::query::Store` peer (S4d
@@ -492,14 +492,14 @@ const STDLIB_FILES: &[WatSource] = &[
     // (Journal/Metric/Log/PartitionKey/Kind), query.wat (Store), and service.wat (defservice).
     WatSource {
         path: "wat/telemetry/journal.wat",
-        source: include_str!("../wat/telemetry/journal.wat"),
+        source: include_str!("../../wat/telemetry/journal.wat"),
     },
     // wat/telemetry/span.wat — `:wat::telemetry::span` (arc 278 Span.2), the PRODUCER service.
     // `:satisfies :wat::telemetry::Span`, HOLDS a `:wat::telemetry::Journal` peer; accumulates
     // counters/durations and emits them as Metrics on `close`. Loads after journal.wat.
     WatSource {
         path: "wat/telemetry/span.wat",
-        source: include_str!("../wat/telemetry/span.wat"),
+        source: include_str!("../../wat/telemetry/span.wat"),
     },
     // wat/repl.wat — `:repl::turn`, the read/eval/print loop, as a stdlib MODULE. It defines
     // no `:user::main`: the entry point is the CLI's `--repl` shim, so this file adds a
@@ -508,7 +508,7 @@ const STDLIB_FILES: &[WatSource] = &[
     // `read-frame`, `println`, `read-string` — so it loads last with no eval-deps to satisfy.
     WatSource {
         path: "wat/repl.wat",
-        source: include_str!("../wat/repl.wat"),
+        source: include_str!("../../wat/repl.wat"),
     },
 ];
 

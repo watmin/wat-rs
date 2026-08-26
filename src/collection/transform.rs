@@ -1388,7 +1388,7 @@ fn indexed_pv_stream(pv: crate::value::pvec::PVec, index: usize) -> Arc<crate::s
 #[cfg(test)]
 mod seqable_to_stream_tests {
     use crate::freeze::{eval_in_frozen, startup_from_source};
-    use crate::load::InMemoryLoader;
+    use crate::load::loader::InMemoryLoader;
     use crate::runtime::{Environment, Value};
     use std::sync::Arc;
     use std::time::{Duration, Instant};
@@ -1458,7 +1458,7 @@ mod seqable_to_stream_tests {
 #[cfg(test)]
 mod filter_native_tests {
     use crate::freeze::{eval_in_frozen, startup_from_source};
-    use crate::load::InMemoryLoader;
+    use crate::load::loader::InMemoryLoader;
     use crate::runtime::{Environment, Value};
     use std::sync::Arc;
     use std::time::{Duration, Instant};

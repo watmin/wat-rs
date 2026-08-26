@@ -33,12 +33,12 @@
 use crate::panic_hook;
 use crate::freeze::{invoke_user_main, startup_from_source, validate_user_main_signature};
 use crate::harness::HarnessError;
-use crate::load::{InMemoryLoader, SourceLoader};
+use crate::load::loader::{InMemoryLoader, SourceLoader};
 use crate::rust_deps::{self, RustDepsBuilder};
 use crate::runtime::{
     request_kernel_stop, set_kernel_sighup, set_kernel_sigusr1, set_kernel_sigusr2,
 };
-use crate::source::{self, WatSource};
+use crate::load::source::{self, WatSource};
 use std::sync::Arc;
 
 /// Function-pointer shape every external wat crate exposes for its
@@ -173,7 +173,7 @@ pub fn compose_and_run_with_loader(
     // globally, process-wide. Symmetric OnceLocks — first caller
     // wins for both. After this, every freeze in the process
     // (main, test, sandbox, fork) transparently sees:
-    // - dep wat sources via `wat::source::installed_dep_sources()` (+ baked via stdlib_forms)
+    // - dep wat sources via `wat::load::source::installed_dep_sources()` (+ baked via stdlib_forms)
     // - dep Rust shims via `wat::rust_deps::registry()`
     let mut builder = RustDepsBuilder::with_wat_rs_defaults();
     for registrar in dep_registrars {
