@@ -113,7 +113,7 @@ organized as `arc/YYYY/MM/NNN-slug/`:
   arc. ScopedLoader capability gate, `:wat::kernel::run-sandboxed`
   + its hermetic subprocess sibling, `:wat::test::*` stdlib with
   panic-and-catch assertions, AST-entry sandbox + `deftest`
-  defmacro, `wat::Harness` thin Rust embedding wrapper. (The `wat
+  defmacro, `wat::Guest` thin Rust embedding wrapper. (The `wat
   test <path>` CLI subcommand this arc also shipped was retired
   in arc 101 — `cargo test` via `wat::test!` is the canonical
   test path now.) Migrated every
@@ -170,7 +170,7 @@ organized as `arc/YYYY/MM/NNN-slug/`:
   (`crates/wat-lru/`). LocalCache left the baked stdlib
   entirely; repathed from `:wat::std::LocalCache` to
   `:user::wat::std::lru::LocalCache` under the community-tier
-  convention (later promoted to `:wat::lru::*` by arc 036). `wat::Harness::from_source_with_deps` accepts
+  convention (later promoted to `:wat::lru::*` by arc 036). `wat::Guest::from_source_with_deps` accepts
   external wat sources; `wat::main!` proc-macro composes
   baked + dep + user source in one declaration.
   `examples/with-lru/` is the walkable reference. Six slices,

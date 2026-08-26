@@ -1191,8 +1191,8 @@ pub fn startup_bare() -> Result<FrozenWorld, StartupError> {
 // before any freezing; `stdlib_forms()` concatenates baked + installed
 // so every freeze pass — including `:wat::kernel::run-sandboxed-ast`
 // and `:wat::kernel::spawn-process` children — sees dep surface
-// transparently. Callers build the composition through `compose_and_run`
-// / `Harness::from_source_with_deps` / `test_runner::run_tests_from_dir`,
+// transparently. Callers build the composition through `run_program`
+// / `Guest::from_source_with_deps` / `test_runner::run_tests_from_dir`,
 // each of which installs then calls `startup_from_source`.
 
 /// Post-parse entry to the startup pipeline: accepts already-parsed

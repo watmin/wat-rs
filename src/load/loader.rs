@@ -1189,7 +1189,7 @@ impl ScopedLoader {
     ///   inside a file that itself has a canonical path.
     /// - **Without caller base** (`base_canonical = None`) — resolve
     ///   relative to this loader's scope root. This is the entry-source
-    ///   case: `compose_and_run_with_loader` / the `wat::main!`
+    ///   case: `run_program_with_loader` / the `wat::main!`
     ///   `loader:` argument passes `None` for the entry's base because
     ///   `include_str!`'d source has no disk location. Rooting base-less
     ///   relative paths at the scope means `(:wat::load-file! "helper.wat")`

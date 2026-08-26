@@ -1,4 +1,4 @@
-//! Integration: `wat::Harness::from_source_with_deps` under arc 015
+//! Integration: `wat::Guest::from_source_with_deps` under arc 015
 //! slice 3a's global-install-once architecture.
 //!
 //! Dep sources and Rust shims install process-globally via OnceLock
@@ -10,7 +10,7 @@
 //! This file installs ONE dep set (two co-located `.wat` fixtures, read via
 //! `include_str!` into `WatSource`s) and exercises it from multiple entry-source
 //! shapes. The pattern mirrors how a consumer crate would use
-//! `Harness::from_source_with_deps` at test time: one superset, many callers.
+//! `Guest::from_source_with_deps` at test time: one superset, many callers.
 //!
 //! Arc 170 slice 1f-ζ: migrated from 3-arg main + stdout-capture to
 //! canonical nil main + eval_in_frozen via h.world(). Dep presence
@@ -22,7 +22,7 @@
 //! and `apply_function` it — no inline wat driver strings.
 
 use wat::runtime::{apply_function, Value};
-use wat::host::harness::Harness;
+use wat::host::guest::Guest;
 use wat::WatSource;
 
 /// Two co-located `.wat` fixtures — stand-ins for what an external wat crate's
@@ -42,7 +42,7 @@ const DEP_B: &[WatSource] = &[WatSource {
 const USER_MAIN: &str = include_str!("wat_harness_deps_user_main.wat");
 
 /// Fetch a zero-arg fn off the harness's frozen world and apply it.
-fn call(h: &Harness, fn_name: &str) -> Value {
+fn call(h: &Guest, fn_name: &str) -> Value {
     let world = h.world();
     let func = world
         .symbols()
@@ -62,7 +62,7 @@ fn call(h: &Harness, fn_name: &str) -> Value {
 fn harness_composes_multiple_deps_into_user_source() {
     // Arc 170 slice 1f-ζ: canonical nil main; dep functions verified
     // via eval_in_frozen on the frozen world.
-    let h = Harness::from_source_with_deps(USER_MAIN, &[DEP_A, DEP_B], &[]).expect("freeze");
+    let h = Guest::from_source_with_deps(USER_MAIN, &[DEP_A, DEP_B], &[]).expect("freeze");
     let out = h.run(&[]).expect("run");
     // Arc 170: stdio capture retired — stdout/stderr are always empty.
     assert!(out.stdout.is_empty());
@@ -83,7 +83,7 @@ fn harness_composes_multiple_deps_into_user_source() {
 #[test]
 fn harness_same_deps_usable_from_different_entry_source() {
     // Arc 170 slice 1f-ζ: canonical nil main; dep-a verified via eval.
-    let h = Harness::from_source_with_deps(USER_MAIN, &[DEP_A, DEP_B], &[]).expect("freeze");
+    let h = Guest::from_source_with_deps(USER_MAIN, &[DEP_A, DEP_B], &[]).expect("freeze");
     let out = h.run(&[]).expect("run");
     // Arc 170: stdio capture retired.
     assert!(out.stdout.is_empty());
@@ -98,8 +98,8 @@ fn harness_same_deps_usable_from_different_entry_source() {
 fn harness_with_zero_deps_matches_from_source() {
     // Arc 170 slice 1f-ζ: canonical nil main. Passing &[] uses no deps.
     // Verify both harness constructions succeed and run returns Ok.
-    let h_no_deps = Harness::from_source_with_deps(USER_MAIN, &[], &[]).expect("freeze-empty-deps");
-    let h_ref = Harness::from_source(USER_MAIN).expect("freeze-from-source");
+    let h_no_deps = Guest::from_source_with_deps(USER_MAIN, &[], &[]).expect("freeze-empty-deps");
+    let h_ref = Guest::from_source(USER_MAIN).expect("freeze-from-source");
     let out_a = h_no_deps.run(&[]).expect("run-no-deps");
     let out_b = h_ref.run(&[]).expect("run-from-source");
     // Arc 170: stdio capture retired — both return empty stdout/stderr.

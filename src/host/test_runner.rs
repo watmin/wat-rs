@@ -1,7 +1,7 @@
 //! `wat::test_runner` — library-callable entry for running `.wat`
 //! test files with external-crate composition. Arc 015 slice 1.
 //!
-//! Closes the symmetry gap arc 013 left: `wat::compose_and_run` +
+//! Closes the symmetry gap arc 013 left: `wat::run_program` +
 //! `wat::main!` let a consumer binary invoke `:user::main` with
 //! external wat crates composed in; this module does the same for
 //! the test runner that `wat test <path>` already ships.
@@ -50,7 +50,7 @@
 //! binary running `run_tests_from_dir` once against one dep set is
 //! the intended shape. Callers running multiple `run_tests_from_dir`
 //! invocations with *different* dep sets in one process will hit
-//! the first-call-wins limitation documented in `compose_and_run`'s
+//! the first-call-wins limitation documented in `run_program`'s
 //! docstring. Match each dep set to its own test binary (its own
 //! `tests/*.rs` file) and Cargo handles the rest.
 
@@ -58,7 +58,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Instant;
 
-use crate::host::compose::DepRegistrar;
+use crate::host::entry::DepRegistrar;
 use crate::freeze::{startup_from_source, FrozenWorld};
 use crate::load::loader::{FsLoader, SourceLoader};
 use crate::runtime::{apply_function, Function, Value};

@@ -612,7 +612,7 @@ pub fn run_with_args(batteries: &[Battery], argv: Vec<String>) -> ExitCode {
 /// Rust dep shims, and returns the matching exit code.
 ///
 /// Both halves of the external-crate contract install via
-/// process-global OnceLocks (per `wat::compose_and_run`'s docs);
+/// process-global OnceLocks (per `wat::run_program`'s docs);
 /// first caller wins, so test harnesses that spin up their own
 /// world inherit transparently. Calling `run` more than once in a
 /// process is allowed but only the first call's batteries take

@@ -1,4 +1,4 @@
-//! `wat::compose_and_run` + the `wat::main!` macro's runtime half —
+//! `wat::run_program` + the `wat::main!` macro's runtime half —
 //! arc 013 slice 3.
 //!
 //! A user building a wat-powered binary writes this at the top of
@@ -12,18 +12,20 @@
 //! ```
 //!
 //! That macro expands to a `fn main() -> Result<(),
-//! wat::HarnessError>` that calls [`compose_and_run`] with the
+//! wat::GuestError>` that calls [`run_program`] with the
 //! user's source + each dep's `wat_sources()` result. Every
 //! external-wat-crate binary reduces to that one declaration.
 //!
-//! Why this isn't just `wat::Harness::from_source_with_deps(...).
-//! run(&[])`: Harness uses `StringIo`-backed stdio (captured into
-//! strings) because its job is embedding-with-capture for tests.
-//! A user's binary wants its wat program's stdout / stderr /
-//! stdin to flow through the OS's real handles — same as the wat
-//! CLI (`src/bin/wat.rs`). `compose_and_run` wires
-//! [`crate::io::RealStdin`] / `RealStdout` / `RealStderr` directly
-//! onto the frozen world before invoking `:user::main`.
+//! Why this isn't just `wat::Guest::from_source_with_deps(...).
+//! run(&[])`: `Guest` is the in-process embedding facade — its
+//! `run` does not touch stdio at all (`:user::main` is a zero-arg
+//! function, arc 170 slice 1e; there is no stdio Value to seed or
+//! capture). A user's binary instead wants the `wat::main!` shape:
+//! install the process-global state once (panic hook, dep
+//! registry), install the real OS signal handlers, and invoke
+//! `:user::main` directly — same as the wat CLI (`src/bin/wat.rs`).
+//! `run_program` is that assembly. It does NOT wire stdio; the
+//! three substrate services own fd 0/1/2 now (arc 170 slice 1f).
 //!
 //! Signal handling matches the CLI: SIGINT/SIGTERM route to
 //! [`crate::runtime::request_kernel_stop`]; SIGUSR1/SIGUSR2/SIGHUP
@@ -32,7 +34,7 @@
 
 use crate::panic_hook;
 use crate::freeze::{invoke_user_main, startup_from_source, validate_user_main_signature};
-use crate::host::harness::HarnessError;
+use crate::host::guest::GuestError;
 use crate::load::loader::{InMemoryLoader, SourceLoader};
 use crate::rust_deps::{self, RustDepsBuilder};
 use crate::runtime::{
@@ -82,14 +84,17 @@ fn install_signal_handlers() {
 
 // ─── The entry point `wat::main!` expands to ─────────────────────────────
 
-/// Compose wat source + external dep sources into a frozen world,
-/// then invoke `:user::main` with REAL OS stdio. Returns `Ok(())`
-/// on successful program completion; `Err` on startup / signature
-/// / runtime failures.
+/// Assemble wat source + external dep sources into a frozen world,
+/// install process-global state (panic hook, dep registry) and the
+/// real OS **signal** handlers, then invoke `:user::main`. Returns
+/// `Ok(())` on successful program completion; `Err` on startup /
+/// signature / runtime failures. Does NOT wire stdio — `:user::main`
+/// takes no stdio Values (arc 170 slice 1e); stdin/stdout/stderr are
+/// substrate services now, owned elsewhere.
 ///
 /// This is what `wat::main!` expands to under the hood. Users who
 /// need per-call control (custom loader, test embedding, staged
-/// invocation) reach for [`crate::Harness`] directly.
+/// invocation) reach for [`crate::Guest`] directly.
 ///
 /// **Two-part external-crate contract.** Each dep crate exposes
 /// both:
@@ -111,20 +116,20 @@ fn install_signal_handlers() {
 /// installed at the top of this call** — same as the wat CLI.
 /// Idempotent: re-invocation reinstalls the same handlers. Callers
 /// that need different signal semantics compose their own main
-/// using `Harness` directly.
+/// using `Guest` directly.
 ///
 /// **Loader: `InMemoryLoader`.** No filesystem access for
 /// `(:wat::load-file! ...)` from inside the wat program. Callers
 /// needing filesystem-capable `(load! ...)` pass a `ScopedLoader`
 /// (or any [`SourceLoader`] impl) via
-/// [`compose_and_run_with_loader`] — which is what `wat::main!`
+/// [`run_program_with_loader`] — which is what `wat::main!`
 /// expands to when its `loader: "..."` argument is present
 /// (arc 017).
 ///
 /// **rust_deps install semantics (first-call-wins).** The registry
-/// is a process-global OnceLock. `compose_and_run` attempts to
+/// is a process-global OnceLock. `run_program` attempts to
 /// install the built registry; if another caller already
-/// installed one (e.g., a test running multiple `compose_and_run`
+/// installed one (e.g., a test running multiple `run_program`
 /// calls or a prior `rust_deps::registry()` lazy-initialized the
 /// defaults), the installation is best-effort and silently
 /// accepts whichever registry was installed first. User binaries
@@ -132,12 +137,12 @@ fn install_signal_handlers() {
 /// callers that need varying dep sets across one process must
 /// install the full superset via `rust_deps::install()` before
 /// any wat code runs.
-pub fn compose_and_run(
+pub fn run_program(
     source: &str,
     dep_sources: &[&'static [WatSource]],
     dep_registrars: &[DepRegistrar],
-) -> Result<(), HarnessError> {
-    compose_and_run_with_loader(
+) -> Result<(), GuestError> {
+    run_program_with_loader(
         source,
         dep_sources,
         dep_registrars,
@@ -145,9 +150,10 @@ pub fn compose_and_run(
     )
 }
 
-/// Loader-parametric sibling of [`compose_and_run`]. Same contract
-/// — real OS stdio, signal handlers, panic-hook install, first-
-/// call-wins rust_deps + dep_sources install — but the caller
+/// Loader-parametric sibling of [`run_program`]. Same contract
+/// — real OS **signal** handlers, panic-hook install, first-
+/// call-wins rust_deps + dep_sources install (no stdio wiring,
+/// same as [`run_program`]) — but the caller
 /// supplies the [`SourceLoader`] used to resolve
 /// `(:wat::load-file! ...)` from inside the wat program.
 ///
@@ -155,13 +161,13 @@ pub fn compose_and_run(
 /// form (arc 017) expands to this function with
 /// `Arc::new(ScopedLoader::new(path)?)` as the loader. Passing
 /// `Arc::new(InMemoryLoader::new())` reproduces the default
-/// [`compose_and_run`] behavior.
-pub fn compose_and_run_with_loader(
+/// [`run_program`] behavior.
+pub fn run_program_with_loader(
     source: &str,
     dep_sources: &[&'static [WatSource]],
     dep_registrars: &[DepRegistrar],
     loader: Arc<dyn SourceLoader>,
-) -> Result<(), HarnessError> {
+) -> Result<(), GuestError> {
     // Silence the default panic handler for assertion-failed!
     // payloads. The sandboxing primitives rely on
     // `panic_any(AssertionPayload)` for failure propagation;
@@ -183,20 +189,20 @@ pub fn compose_and_run_with_loader(
     let _ = source::install_dep_sources(dep_sources.to_vec());
 
     let world = startup_from_source(source, None, loader)
-        .map_err(|e| HarnessError::Startup(Box::new(e)))?;
+        .map_err(|e| GuestError::Startup(Box::new(e)))?;
 
-    validate_user_main_signature(&world).map_err(HarnessError::MainSignature)?;
+    validate_user_main_signature(&world).map_err(GuestError::MainSignature)?;
 
     install_signal_handlers();
 
     // Arc 170 slice 1e — `:user::main` is `[] -> :wat::core::nil`
     // (REALIZATIONS pass 7 + pass 10). No stdio Values; argv is
-    // ambient. compose_and_run is a library-bridge entry that
+    // ambient. run_program is a library-bridge entry that
     // doesn't go through wat-cli's argv pipeline; the ambient
     // remains whatever an embedder set via `runtime::set_argv`
     // (empty Vec by default). Slice 1f's three substrate services
     // will own fd 0/1/2; the Real* IO trait construction this fn
     // previously did retires alongside the four-arg main_args plumbing.
-    invoke_user_main(&world, Vec::new()).map_err(|e| HarnessError::Runtime(Box::new(e)))?;
+    invoke_user_main(&world, Vec::new()).map_err(|e| GuestError::Runtime(Box::new(e)))?;
     Ok(())
 }

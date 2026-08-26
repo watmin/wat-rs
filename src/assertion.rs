@@ -26,7 +26,7 @@
 //! handler. An assertion firing outside a harness IS a program error;
 //! the standard panic message carries the payload. If a future caller
 //! wants structured assertion results without sandboxing (a Rust-side
-//! `Harness::run_assert`, say), it can wrap its invocation in its own
+//! `Guest::run_assert`, say), it can wrap its invocation in its own
 //! `catch_unwind` + the same downcast this crate uses — the machinery
 //! is public for that reason.
 

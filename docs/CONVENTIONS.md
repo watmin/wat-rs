@@ -425,7 +425,7 @@ recommendation exists so consumer crates feel the same to readers.
 
 **Overrides**. Pass `source:` / `path:` / `loader:` explicitly to
 any macro to opt out of that default. Full escape hatch is the
-manual `wat::Harness::from_source_with_deps_and_loader` path.
+manual `wat::Guest::from_source_with_deps_and_loader` path.
 
 References: `wat-rs/examples/with-lru/` and
 `wat-rs/examples/with-loader/` both follow the minimal layout

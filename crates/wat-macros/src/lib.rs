@@ -362,12 +362,12 @@ pub fn restricted_to(attr: TokenStream, item: TokenStream) -> TokenStream {
 // [wat::WatSource]`. Omit `deps:` or write `deps: []` for
 // no external deps.
 //
-// Expands to `fn main() -> Result<(), ::wat::host::harness::HarnessError>`
-// calling `::wat::compose_and_run(source, &[deps.wat_sources()...])`.
+// Expands to `fn main() -> Result<(), ::wat::host::guest::GuestError>`
+// calling `::wat::run_program(source, &[deps.wat_sources()...])`.
 //
 // Requires the consumer's Cargo.toml to have a dep named `wat` (the
 // crate isn't configurable here). Users renaming the wat dep write
-// their own main against the public Harness API.
+// their own main against the public Guest API.
 
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
@@ -505,8 +505,8 @@ pub fn main(input: TokenStream) -> TokenStream {
 
     let expanded = match effective_loader {
         None => quote! {
-            fn main() -> ::std::result::Result<(), ::wat::host::harness::HarnessError> {
-                ::wat::compose_and_run(
+            fn main() -> ::std::result::Result<(), ::wat::host::guest::GuestError> {
+                ::wat::run_program(
                     #source_expr,
                     &[ #(#stdlib_calls),* ],
                     &[ #(#register_paths),* ],
@@ -514,14 +514,14 @@ pub fn main(input: TokenStream) -> TokenStream {
             }
         },
         Some(loader_expr) => quote! {
-            fn main() -> ::std::result::Result<(), ::wat::host::harness::HarnessError> {
+            fn main() -> ::std::result::Result<(), ::wat::host::guest::GuestError> {
                 // `loader:` is always resolved relative to the consumer
                 // crate's source directory (CARGO_MANIFEST_DIR). This
                 // makes `cargo run -p <crate>` from the workspace root
                 // work identically to running from the crate's own dir
                 // — the source tree's wat/ location is stable. Users
                 // who need absolute or cwd-relative paths drop to
-                // `Harness::from_source_with_deps_and_loader`.
+                // `Guest::from_source_with_deps_and_loader`.
                 let __wat_loader_root = concat!(
                     env!("CARGO_MANIFEST_DIR"),
                     "/",
@@ -531,14 +531,14 @@ pub fn main(input: TokenStream) -> TokenStream {
                     dyn ::wat::load::loader::SourceLoader,
                 > = ::std::sync::Arc::new(
                     ::wat::load::loader::ScopedLoader::new(__wat_loader_root).map_err(|e| {
-                        ::wat::host::harness::HarnessError::Startup(::std::boxed::Box::new(
+                        ::wat::host::guest::GuestError::Startup(::std::boxed::Box::new(
                             ::wat::freeze::StartupError::Load(
                                 ::wat::load::loader::LoadError::from(e),
                             ),
                         ))
                     })?,
                 );
-                ::wat::compose_and_run_with_loader(
+                ::wat::run_program_with_loader(
                     #source_expr,
                     &[ #(#stdlib_calls),* ],
                     &[ #(#register_paths),* ],

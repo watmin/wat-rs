@@ -1,34 +1,34 @@
-//! `wat::Harness` — a thin ergonomic wrapper for Rust programs that
+//! `wat::Guest` — a thin ergonomic wrapper for Rust programs that
 //! embed wat as a sub-language (arc 007 slice 5).
 //!
 //! Everything here is already possible with the raw public API — see
 //! the ~20-line boilerplate that every in-crate integration test used
-//! to hand-roll. Harness just captures the pattern. `from_source`
+//! to hand-roll. Guest just captures the pattern. `from_source`
 //! freezes; `run` invokes `:user::main`.
 //!
 //! ⚠ `run` does NOT capture stdio today — it ignores `stdin` and returns an
-//! `Outcome` whose `stdout`/`stderr` are always empty. This line used to say it
+//! `RunOutput` whose `stdout`/`stderr` are always empty. This line used to say it
 //! built StringIo stdio and returned captured output; that retired with arc 170
 //! slice 1e's zero-arg `:user::main`, and the sentence outlived the code it
-//! described. See `Harness::run`'s own doc for the full why and the interim
+//! described. See `Guest::run`'s own doc for the full why and the interim
 //! route (`wat-cli`, or `spawn-process` / `spawn-thread` directly).
 //!
-//! # What Harness is NOT
+//! # What Guest is NOT
 //!
 //! - A sandbox. No panic isolation, no scope enforcement beyond the
 //!   caller-supplied loader. Callers that want panic containment use
 //!   `:wat::kernel::run-sandboxed` from within their wat program.
 //! - A test runner. That's `wat test <path>` (arc 007 slice 4).
-//! - A `:user::main`-signature shim. Harness enforces the same
+//! - A `:user::main`-signature shim. Guest enforces the same
 //!   three-IO contract the CLI enforces; programs with a different
 //!   `:user::main` signature fail at `from_source`.
 //!
 //! # Typical shape
 //!
 //! ```no_run
-//! use wat::host::harness::Harness;
+//! use wat::host::guest::Guest;
 //!
-//! let h = Harness::from_source(r#"
+//! let h = Guest::from_source(r#"
 //!     (:wat::config::set-capacity-mode! :error)
 //!     (:wat::core::define (:user::main
 //!                          (stdin  :wat::io::IOReader)
@@ -39,13 +39,13 @@
 //! "#)?;
 //! let out = h.run(&[])?;
 //! // Aspirational: `run`'s stdio capture is currently a no-op (see
-//! // `Harness::run`'s doc) — this assertion does NOT hold today and
+//! // `Guest::run`'s doc) — this assertion does NOT hold today and
 //! // this block is `no_run` because of it, not merely for speed.
 //! assert_eq!(out.stdout, vec!["hello".to_string()]);
-//! # Ok::<(), wat::host::harness::HarnessError>(())
+//! # Ok::<(), wat::host::guest::GuestError>(())
 //! ```
 
-use crate::host::compose::DepRegistrar;
+use crate::host::entry::DepRegistrar;
 use crate::freeze::{
     invoke_user_main, startup_from_source, validate_user_main_signature, FrozenWorld, StartupError,
 };
@@ -57,48 +57,48 @@ use std::sync::Arc;
 
 /// A frozen wat program ready to invoke. Clone is NOT derived: the
 /// underlying `FrozenWorld` is intentionally share-only — hold the
-/// Harness across invocations rather than cloning.
+/// Guest across invocations rather than cloning.
 #[derive(Debug)]
-pub struct Harness {
+pub struct Guest {
     world: FrozenWorld,
 }
 
 /// Captured output from one `:user::main` invocation.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Outcome {
+pub struct RunOutput {
     pub stdout: Vec<String>,
     pub stderr: Vec<String>,
 }
 
-/// Errors surfaced across the Harness surface — one variant per pass,
+/// Errors surfaced across the Guest surface — one variant per pass,
 /// so callers that just want a `?`-able `Result` see a single error
 /// type.
 #[derive(Debug)]
-pub enum HarnessError {
+pub enum GuestError {
     Startup(Box<StartupError>),
     MainSignature(String),
     Runtime(Box<RuntimeError>),
     StdioSnapshot(String),
 }
 
-impl std::fmt::Display for HarnessError {
+impl std::fmt::Display for GuestError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            HarnessError::Startup(e) => write!(f, "startup: {}", e),
-            HarnessError::MainSignature(m) => write!(f, ":user::main: {}", m),
-            HarnessError::Runtime(e) => write!(f, "runtime: {}", e),
-            HarnessError::StdioSnapshot(s) => write!(f, "stdio snapshot: {}", s),
+            GuestError::Startup(e) => write!(f, "startup: {}", e),
+            GuestError::MainSignature(m) => write!(f, ":user::main: {}", m),
+            GuestError::Runtime(e) => write!(f, "runtime: {}", e),
+            GuestError::StdioSnapshot(s) => write!(f, "stdio snapshot: {}", s),
         }
     }
 }
 
-impl std::error::Error for HarnessError {}
+impl std::error::Error for GuestError {}
 
-impl Harness {
+impl Guest {
     /// Freeze wat source with an `InMemoryLoader` — zero filesystem
     /// access. Use [`Self::from_source_with_loader`] when the program
     /// needs `load!` to reach disk.
-    pub fn from_source(src: &str) -> Result<Self, HarnessError> {
+    pub fn from_source(src: &str) -> Result<Self, GuestError> {
         Self::from_source_with_loader(src, Arc::new(InMemoryLoader::new()))
     }
 
@@ -108,9 +108,9 @@ impl Harness {
     pub fn from_source_with_loader(
         src: &str,
         loader: Arc<dyn SourceLoader>,
-    ) -> Result<Self, HarnessError> {
-        let world = startup_from_source(src, None, loader).map_err(|e| HarnessError::Startup(Box::new(e)))?;
-        validate_user_main_signature(&world).map_err(HarnessError::MainSignature)?;
+    ) -> Result<Self, GuestError> {
+        let world = startup_from_source(src, None, loader).map_err(|e| GuestError::Startup(Box::new(e)))?;
+        validate_user_main_signature(&world).map_err(GuestError::MainSignature)?;
         Ok(Self { world })
     }
 
@@ -133,13 +133,13 @@ impl Harness {
     /// registration fails loud.
     ///
     /// **rust_deps install is first-call-wins.** Slice 4a's
-    /// OnceLock semantics apply. See [`crate::compose_and_run`]
+    /// OnceLock semantics apply. See [`crate::run_program`]
     /// for details.
     pub fn from_source_with_deps(
         src: &str,
         dep_sources: &[&'static [WatSource]],
         dep_registrars: &[DepRegistrar],
-    ) -> Result<Self, HarnessError> {
+    ) -> Result<Self, GuestError> {
         Self::from_source_with_deps_and_loader(
             src,
             dep_sources,
@@ -150,13 +150,13 @@ impl Harness {
 
     /// Full-form entry with both external dep sources, dep
     /// registrars, and a caller-supplied loader. The other three
-    /// `from_source*` variants on Harness are sugar over this one.
+    /// `from_source*` variants on Guest are sugar over this one.
     pub fn from_source_with_deps_and_loader(
         src: &str,
         dep_sources: &[&'static [WatSource]],
         dep_registrars: &[DepRegistrar],
         loader: Arc<dyn SourceLoader>,
-    ) -> Result<Self, HarnessError> {
+    ) -> Result<Self, GuestError> {
         // Install BOTH halves of the external-crate contract
         // globally — symmetric OnceLocks. First caller in the
         // process wins for each. After install, every subsequent
@@ -171,8 +171,8 @@ impl Harness {
         let _ = source::install_dep_sources(dep_sources.to_vec());
 
         let world =
-            startup_from_source(src, None, loader).map_err(|e| HarnessError::Startup(Box::new(e)))?;
-        validate_user_main_signature(&world).map_err(HarnessError::MainSignature)?;
+            startup_from_source(src, None, loader).map_err(|e| GuestError::Startup(Box::new(e)))?;
+        validate_user_main_signature(&world).map_err(GuestError::MainSignature)?;
         Ok(Self { world })
     }
 
@@ -183,7 +183,7 @@ impl Harness {
     }
 
     /// Invoke `:user::main`. **`stdin` is currently ignored and the
-    /// returned `Outcome` always carries empty `stdout`/`stderr`** —
+    /// returned `RunOutput` always carries empty `stdout`/`stderr`** —
     /// this is a no-op for stdio, not a bug: arc 170 slice 1e made
     /// `:user::main` a zero-arg `[] -> :wat::core::nil` function with
     /// no stdio Values to seed or capture, and the StringIo*-backed
@@ -192,7 +192,7 @@ impl Harness {
     /// 1f, which gives stdin/stdout/stderr three substrate services of
     /// their own. Until then, callers that need stdio capture use the
     /// `wat-cli` path (or invoke `spawn-process` / `spawn-thread`
-    /// directly) instead of `Harness::run`.
+    /// directly) instead of `Guest::run`.
     ///
     /// # Panic semantics
     ///
@@ -201,10 +201,10 @@ impl Harness {
     /// containment matters, have the wat program invoke
     /// `:wat::kernel::run-sandboxed` on itself and return the
     /// structured `RunResult`.
-    pub fn run(&self, stdin: &[&str]) -> Result<Outcome, HarnessError> {
+    pub fn run(&self, stdin: &[&str]) -> Result<RunOutput, GuestError> {
         // Arc 170 slice 1e — `:user::main` is `[] -> :wat::core::nil`
         // (REALIZATIONS pass 7 + pass 10). No stdio Values; argv is
-        // ambient. The Harness helper is a library-bridge for in-process
+        // ambient. The Guest helper is a library-bridge for in-process
         // testing; the StringIo* captures retire alongside the
         // four-arg main_args plumbing because slice 1f's three substrate
         // services own stdin/stdout/stderr at the substrate layer.
@@ -213,15 +213,15 @@ impl Harness {
         // path (or by invoking spawn-process / spawn-thread directly).
         let _ = stdin; // pre-seeded stdin retires with the four-arg shape.
 
-        invoke_user_main(&self.world, Vec::new()).map_err(|e| HarnessError::Runtime(Box::new(e)))?;
+        invoke_user_main(&self.world, Vec::new()).map_err(|e| GuestError::Runtime(Box::new(e)))?;
 
         let stdout: Vec<String> = Vec::new();
         let stderr: Vec<String> = Vec::new();
-        Ok(Outcome { stdout, stderr })
+        Ok(RunOutput { stdout, stderr })
     }
 }
 
 // Arc 170 slice 1e — `snapshot_lines` retired alongside the
 // StringIo*-backed stdio plumbing. Slice 1f's three substrate
 // services own stdin/stdout/stderr at the substrate layer; the
-// Harness helper's stdio capture path retires with them.
+// Guest helper's stdio capture path retires with them.

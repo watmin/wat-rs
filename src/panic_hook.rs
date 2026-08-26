@@ -39,7 +39,7 @@
 //! fires before `main()` in every binary that links `wat`.
 //! Impossible to forget by construction.
 //!
-//! Legacy explicit call sites (compose_and_run, test_runner, runtime,
+//! Legacy explicit call sites (run_program, test_runner, runtime,
 //! wat-cli) remain in place as idempotent no-ops; they may be cleaned
 //! up in a later sweep.
 //!

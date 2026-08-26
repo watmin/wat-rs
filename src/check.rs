@@ -21909,7 +21909,7 @@ mod tests {
     // arc 013 slice 4b — the wat-lru crate owns that surface now.
     // Equivalent check coverage lives in
     // crates/wat-lru/tests/wat_lru_tests.rs, exercised end-to-end
-    // via wat::Harness::from_source_with_deps with the dep wiring.
+    // via wat::Guest::from_source_with_deps with the dep wiring.
 
     // Wrong-key-type rejection was enforced by the hand-written lru
     // shim's scheme via unification of call-site K with the cache's

@@ -172,8 +172,8 @@ impl RustDepsBuilder {
     /// is CORE per the arc-278 ruling — `:wat::query` is backed by memory OR
     /// sqlite, both first-class core, so the baked `wat/sqlite.wat` surface,
     /// `cargo wat`, and the whole test suite must all resolve it without a
-    /// consumer crate registering anything extra. `compose_and_run` and
-    /// `Harness` call this before layering their own dep registrars on top.
+    /// consumer crate registering anything extra. `run_program` and
+    /// `Guest` call this before layering their own dep registrars on top.
     ///
     /// Arc 278 Cache Stone 1 — `:rust::cache::Lru` (`cache.rs`, a fresh
     /// thread-owned bounded LRU) joins as the SECOND core default shim, for the

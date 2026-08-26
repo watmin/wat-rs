@@ -151,10 +151,10 @@ default tiers; the substrate auto-routes per statement.
 `wat::main! { deps: [wat_lru] }` expands to approximately:
 
 ```rust
-fn main() -> Result<(), ::wat::harness::HarnessError> {
+fn main() -> Result<(), ::wat::guest::GuestError> {
     let loader_root = concat!(env!("CARGO_MANIFEST_DIR"), "/", "wat");
     let loader = Arc::new(ScopedLoader::new(loader_root)?);
-    ::wat::compose_and_run_with_loader(
+    ::wat::run_program_with_loader(
         include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/wat/main.wat")),
         &[wat_lru::wat_sources()],
         &[wat_lru::register],
@@ -473,7 +473,7 @@ fn main() -> std::process::ExitCode {
 Everything `wat_cli::run` does — argv parsing for `wat
 <entry.wat>`, signal handlers (SIGINT → kernel stop, SIGUSR1/2/HUP
 forwards), exit codes, dep registration via the same OnceLocks
-`wat::compose_and_run` uses — happens for free. You declare which
+`wat::run_program` uses — happens for free. You declare which
 `#[wat_dispatch]` extensions to install; `run` does the rest.
 
 The `Battery` type is a tuple alias:
@@ -3222,16 +3222,20 @@ never sees it.
 → in-process. Both have AST-entry siblings — strings are only for
 callers with runtime-generated source (fuzzers, template expansion).
 
-### Rust-side embedding — `wat::Harness`
+### Rust-side embedding — `wat::Guest`
 
 For Rust programs that host wat as a sub-language:
 
 ```rust
-use wat::Harness;
+use wat::Guest;
 
-let h = Harness::from_source(src)?;
+let h = Guest::from_source(src)?;
 let out = h.run(&["stdin line 1", "stdin line 2"])?;
-assert_eq!(out.stdout, vec!["captured".to_string()]);
+// Aspirational: `run`'s stdio capture is currently a no-op — `stdin`
+// is ignored and `out.stdout` / `out.stderr` are always empty
+// (arc 170 slice 1e made `:user::main` a zero-arg function). This
+// assertion does NOT hold today; see `Guest::run`'s own doc.
+assert_eq!(out.stdout, Vec::<String>::new());
 ```
 
 Thin wrapper over `startup_from_source` + `invoke_user_main` + stdio
@@ -3514,7 +3518,7 @@ digest. Startup halts if verification fails.
   - `005-stdlib-naming-audit/` — naming discipline
   - `006-stream-stdlib-completions/` — with-state + chunks rewrite
   - `007-wat-tests-wat/` — self-hosted testing (run-sandboxed,
-    `:wat::test::*`, `wat::Harness`; the `wat test` CLI subcommand
+    `:wat::test::*`, `wat::Guest`; the `wat test` CLI subcommand
     arc 007 also shipped was retired in arc 101)
   - `008-wat-io-substrate/` — `:u8`, `:wat::io::IOReader` / `IOWriter`,
     StringIo stand-ins

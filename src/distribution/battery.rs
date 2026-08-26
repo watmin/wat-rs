@@ -30,7 +30,7 @@ pub type Battery = (
 
 /// Install every battery's `register` (Rust shims) + `wat_sources`
 /// (baked wat sources). Both halves install via process-global
-/// OnceLocks per `wat::compose_and_run`'s docs.
+/// OnceLocks per `wat::run_program`'s docs.
 pub(super) fn install_batteries(batteries: &[Battery]) {
     let mut builder = crate::rust_deps::RustDepsBuilder::with_wat_rs_defaults();
     for (register, _) in batteries {

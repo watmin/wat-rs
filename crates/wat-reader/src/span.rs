@@ -109,7 +109,7 @@ impl std::fmt::Display for Span {
 /// Expand to a [`Span`] naming the call-site's Rust source
 /// location. Used when the wat runtime invokes a user function
 /// without a wat-source call site (test harness entry,
-/// `compose_and_run` entry, internal iteration in `map`/`foldl`/
+/// `run_program` entry, internal iteration in `map`/`foldl`/
 /// `fold`). Mirrors Rust's own backtrace convention — when a
 /// Rust panic prints a stack backtrace, stdlib frames carry
 /// `/rustc/.../library/core/.../function.rs:250:5` as their

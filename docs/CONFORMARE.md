@@ -142,7 +142,7 @@ The retired "Tier 1/2/3" taxonomy permitted infrastructure types to be location-
 Retrofit status:
 - **Done:** `TypeError` (243.3 / home 243.5), `ArgSpecError`, `CheckError` (243.6a).
 - **In flight:** `RuntimeError` → Stone 243.7a (the 605-site by-value-return retrofit; carries the `attested-arc` runes until it lands).
-- **Pending (rolling audit):** `ParseError`/`ParseStep`, `LexError` (byte-position location), `LoadError`/`LoadFetchError` (path location), `ResolveError` (path), `HashError`, `StdlibError`, `MacroError`, `LowerError`, `EdnReadError`, `ClauseGrammarError`, `ConfigError`, and the wrapper/aggregate types (`StartupError`, `HarnessError`, crate-root `Error`) — each gets a Pattern-A + home stone as the audit reaches it. Wrappers whose variants only wrap a conformant inner error inherit the inner location; wrapper variants carrying NEW data conform directly.
+- **Pending (rolling audit):** `ParseError`/`ParseStep`, `LexError` (byte-position location), `LoadError`/`LoadFetchError` (path location), `ResolveError` (path), `HashError`, `StdlibError`, `MacroError`, `LowerError`, `EdnReadError`, `ClauseGrammarError`, `ConfigError`, and the wrapper/aggregate types (`StartupError`, `GuestError`, crate-root `Error`) — each gets a Pattern-A + home stone as the audit reaches it. Wrappers whose variants only wrap a conformant inner error inherit the inner location; wrapper variants carrying NEW data conform directly.
 
 ## Audit: the conformare spell
 

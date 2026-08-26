@@ -239,7 +239,7 @@ test --release` from `wat-rs/`.
 - [`fork`] — the fork substrate (arc 012): `:wat::kernel::pipe`,
   `fork-program-ast`, `Process/join-result`. `PipeReader` / `PipeWriter`
   live in `io.rs` (same trait surface as `RealStdin` etc.).
-- [`harness`] — `wat::Harness` thin embedding wrapper for Rust programs
+- [`guest`] — `wat::Guest` thin embedding wrapper for Rust programs
   that host wat as a sub-language. Sugar over `startup_from_source` +
   `StringIo` + `invoke_user_main` + `snapshot_bytes` (arc 007 slice 5).
 - [`freeze`] — `FrozenWorld`, `startup_from_source`, `startup_from_forms`
@@ -306,13 +306,15 @@ wat::main! {
 }
 ```
 
-The macro expands to `fn main() -> Result<(), wat::HarnessError>`
+The macro expands to `fn main() -> Result<(), wat::GuestError>`
 that installs both halves of each dep's contract
 (`wat::load::source::install_dep_sources` for wat source,
 `wat::rust_deps::install` for Rust shims), freezes the user source
-against the composed world, and invokes `:user::main` with real
-OS stdio. See `docs/USER-GUIDE.md` § 1 for the full consumer
-shape + test suite companion (`wat::test!`).
+against the composed world, installs the real OS signal handlers,
+and invokes `:user::main` (no stdio wiring — `:user::main` is a
+zero-arg function; stdin/stdout/stderr are substrate services now).
+See `docs/USER-GUIDE.md` § 1 for the full consumer shape + test
+suite companion (`wat::test!`).
 
 Reference crate: `crates/wat-lru/` — the first external wat crate
 (arc 013). Shows the publisher-side contract; `examples/with-lru/`
@@ -482,16 +484,20 @@ semantics).
 
 Decision rule: **spawns-and-writes → hermetic; stays-on-main-thread → in-process**.
 
-### Rust embedding — `wat::Harness`
+### Rust embedding — `wat::Guest`
 
 For Rust programs that host wat as a sub-language:
 
 ```rust
-use wat::Harness;
+use wat::Guest;
 
-let h = Harness::from_source(src)?;
+let h = Guest::from_source(src)?;
 let out = h.run(&["stdin line 1", "stdin line 2"])?;
-assert_eq!(out.stdout, vec!["captured".to_string()]);
+// Aspirational: `run`'s stdio capture is currently a no-op — `stdin`
+// is ignored and `out.stdout` / `out.stderr` are always empty
+// (arc 170 slice 1e made `:user::main` a zero-arg function). This
+// assertion does NOT hold today; see `Guest::run`'s own doc.
+assert_eq!(out.stdout, Vec::<String>::new());
 ```
 
 Thin wrapper over `startup_from_source` + `invoke_user_main` + stdio
