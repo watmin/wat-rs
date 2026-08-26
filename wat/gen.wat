@@ -437,18 +437,32 @@
 ;; It is O(k) in the index, where the coordinate shrink is O(sum of bases). For a
 ;; coords-shaped space the coordinate version is sharper and should be preferred;
 ;; this one is what you reach for when the space has any other shape.
+;; ── descend — THE search both shrinkers run ─────────────────────────────────
+;; Walk 0..start and keep the FIRST (smallest) candidate that still fails; once
+;; lowered, `best` differs from `start` and every later candidate is skipped, so this
+;; is one linear pass and not a scan.
+;;
+;; `shrink-index` and `shrink-dim` were this fold written out twice — "comment and
+;; all" (`solvere`), and the duplicated comment is the tell. They differ in exactly
+;; one thing: what a candidate index MEANS. For `shrink-index` it is a point of a
+;; generator (`Gen/at`); for `shrink-dim` it is a value of one coordinate dimension
+;; (`with c j v`). That difference is a function, so it becomes a parameter.
+(:wat::core::defn :wat::gen::descend :- [T]
+  [start <- :wat::core::i64
+   probe <- [:wat::core::i64 :-> T]
+   still-fails? <- [T :-> :wat::core::bool]]
+  -> :wat::core::i64
+  (:wat::core::foldl
+    (:wat::core::fn [best <- :wat::core::i64  i <- :wat::core::i64] -> :wat::core::i64
+      (:wat::core::if (:wat::core::and (:wat::core::= best start) (still-fails? (probe i)))
+        i best))
+    start
+    (:wat::core::range 0 start)))
+
 (:wat::core::defn :wat::gen::shrink-index :- [T]
   [g <- (:wat::gen::Gen :- [T])  k <- :wat::core::i64  still-fails? <- [T :-> :wat::core::bool]]
   -> :wat::core::i64
-  (:wat::core::let [at (:wat::gen::Gen/at g)]
-    (:wat::core::foldl
-      (:wat::core::fn [best <- :wat::core::i64  i <- :wat::core::i64] -> :wat::core::i64
-        ;; keep the FIRST (smallest) index that still fails; once lowered, `best`
-        ;; differs from k and later candidates are skipped
-        (:wat::core::if (:wat::core::and (:wat::core::= best k) (still-fails? (at i)))
-          i best))
-      k
-      (:wat::core::range 0 k))))
+  (:wat::gen::descend k (:wat::gen::Gen/at g) still-fails?))
 
 ;; ── gen-elements: pick from a value vector ───────────────────────────────────
 ;; The most-used combinator in the QuickCheck tradition (`gen/elements`), and the
@@ -540,10 +554,17 @@
               (:wat::core::range 0 n)))
           "one-of: index outside the summed cardinality")))))
 
-;; ── gen-nth: read one digit out of a coordinate ─────────────────────────────
-(:wat::core::defn :wat::gen::nth
-  [c <- :wat::gen::Coord  i <- :wat::core::i64] -> :wat::core::i64
-  (:wat::core::Option/expect (:wat::core::get c i) "nth: coordinate digit out of range"))
+;; ── nth: total indexed read, at ONE type ────────────────────────────────────
+;; This was two functions — `nth` at `Coord -> i64` and `nth-str` at
+;; `PV<String> -> String`, "the String twin" — which is one generic written twice
+;; (`solvere`). The `Coord` typing was documentation rather than a constraint: aliases
+;; are transparent, and this was already being called on `cards`, a plain `PV<i64>`
+;; that is not a coordinate at all. So the narrow type was not buying the safety its
+;; message implied, and the message ("coordinate digit out of range") was wrong at
+;; those call sites.
+(:wat::core::defn :wat::gen::nth :- [T]
+  [v <- (:wat::core::PersistentVector :- [T])  i <- :wat::core::i64] -> T
+  (:wat::core::Option/expect (:wat::core::get v i) "nth: index out of range"))
 
 ;; ── gen-record: a generator for a RECORD, from one generator per field ───────
 ;;
@@ -717,11 +738,6 @@
                            (:wat::gen::Gen/card gb)
                            (:wat::gen::Gen/card gc))))))
 
-;; String element of a vector, by index — the String twin of `gen-nth`.
-(:wat::core::defn :wat::gen::nth-str
-  [v <- (:wat::core::PersistentVector :- [:wat::core::String])  i <- :wat::core::i64] -> :wat::core::String
-  (:wat::core::Option/expect (:wat::core::get v i) "nth-str: index out of range"))
-
 ;; ── SAMPLING, as composition rather than a second driver ─────────────────────
 ;;
 ;; The obvious design was `gen-check-sampled g order n prop` — a parallel driver
@@ -823,17 +839,13 @@
    j <- :wat::core::i64
    still-fails? <- [:wat::gen::Coord :-> :wat::core::bool]]
   -> :wat::gen::Coord
-  (:wat::core::let [cur (:wat::gen::nth c j)
-                    best (:wat::core::foldl
-                           (:wat::core::fn [b <- :wat::core::i64  v <- :wat::core::i64] -> :wat::core::i64
-                             ;; keep the FIRST (smallest) v that still fails; once
-                             ;; lowered, `b` differs from `cur` and later v are skipped
-                             (:wat::core::if
-                               (:wat::core::and (:wat::core::= b cur)
-                                                (still-fails? (:wat::gen::with c j v)))
-                               v b))
-                           cur
-                           (:wat::core::range 0 cur))]
+  ;; the SAME descent as `shrink-index`, differing only in what a candidate means:
+  ;; here it is a value of dimension `j`, so the probe rebuilds the coordinate.
+  (:wat::core::let [cur  (:wat::gen::nth c j)
+                    best (:wat::gen::descend cur
+                           (:wat::core::fn [v <- :wat::core::i64] -> :wat::gen::Coord
+                             (:wat::gen::with c j v))
+                           still-fails?)]
     (:wat::gen::with c j best)))
 
 ;; Descend every dimension, left to right.

@@ -2091,6 +2091,34 @@ mod completeness_gate {
 
     /// Namespace rules. Conservative by construction: `Impure` only where the namespace IS the
     /// effect; everything else is `Unreviewed` with what needs checking named.
+    ///
+    /// ⚠ THE POPULATION IS RUST DISPATCH VERBS, AND ONLY THOSE — a bound, recorded 2026-08-26
+    /// because `circumspicere` asked the right question of it and this file's own standard
+    /// demands the answer be written rather than assumed.
+    ///
+    /// `dispatch_verbs` scans `dispatch_keyword_head_value` / `dispatch_substrate_impl` and the
+    /// `#[wat_intrinsic]` homes. **A wat-DEFINED stdlib file contributes ZERO rows.** So when
+    /// `wat/gen.wat` added 24 verbs plus a macro to `:wat::gen::` on 2026-08-25, this ledger did
+    /// not move, and `:wat::gen::` appears nowhere in `RULES`. The gate is green and correct by
+    /// its own terms; the question is whether those verbs are governed at all.
+    ///
+    /// THEY ARE, BY A DIFFERENT MECHANISM, AND IT WAS PROVEN BY PROBE, not reasoned about.
+    /// `where`-admission is namespace-based (`DESIGN-STONE-where-admits-only-rete-ops.md`) with a
+    /// COMPOSITION DOOR: `sym.functions` recurses through `classify_fn`. A `where` calling a user
+    /// fn that calls `:wat::gen::card-of` is analysed TWO LEVELS DEEP and rejected — on
+    /// `:wat::core::i64::*` inside `card-of`'s own product fold, which is not total (checked
+    /// multiply can raise `IntegerOverflow`):
+    ///
+    /// ```text
+    /// compile-condition: where expr is not total — ':wat::core::i64::*' is not total
+    /// ```
+    ///
+    /// So a wat-defined stdlib verb reached from a rete predicate is governed PER-EXPRESSION at
+    /// where-compile time, by the totality analysis, rather than PER-NAMESPACE by this ledger.
+    /// Two mechanisms, two populations, and neither is a hole in the other. **Do not add a
+    /// `:wat::gen::` row here to close a gap that this ledger does not have** — that would be the
+    /// laundering the `KNOWN_UNREVIEWED` doc below already forbids, applied to a namespace this
+    /// scan cannot even see.
     const RULES: &[(&str, Disp, &str)] = &[
         (":wat::io::", Disp::Impure, "IO is the namespace's entire purpose"),
         (":wat::kernel::", Disp::Impure, "the effect surface — println/eprintln/readln/assertion-failed!"),

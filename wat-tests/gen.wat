@@ -299,7 +299,7 @@
                     ;; card 6, enumerated — the String column is a literal too, so a
                     ;; wrong `shift` cannot pick the "expected" string as well
                     en (:wat-tests::gen::at0 (:wat::core::PersistentVector 0 1 0 1 0 1) i)
-                    es (:wat::gen::nth-str (:wat::core::PersistentVector "a" "a" "b" "b" "c" "c") i)]
+                    es (:wat::gen::nth (:wat::core::PersistentVector "a" "a" "b" "b" "c" "c") i)]
     (:wat::core::if
       (:wat::core::and (:wat::core::= (:wat::gen::Gen/card g) 6)
         (:wat::core::and (:wat::core::= (:wat-tests::gen::Mix/n m) en)
