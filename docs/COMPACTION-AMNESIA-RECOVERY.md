@@ -1094,6 +1094,54 @@ four I had deliberately targeted. A true statement about one subject, read as
 reassurance about another. The structural check above takes one line and would have
 caught all five.
 
+### Failure mode 24 — Per-component proofs that never cross a SEAM
+
+**Signature:** every piece has a test, every test is green, every test was mutation-proven — and
+the defects are all in the paths BETWEEN the pieces. A law per component proves the components.
+It says nothing about composition, and a suite built one-law-per-verb will read as exhaustive
+while covering none of the joins.
+
+**Why it is invisible from inside:** the coverage instrument agrees with you. Nineteen laws, 100%
+of the public surface, every one able to go red under mutation — every signal a test suite can
+emit says "covered". The uncovered thing has no name in that vocabulary, because a seam is not a
+component and nothing enumerates it.
+
+**The tell, and it is reliable:** when a defect IS found, ask where it lived. If the answer is
+repeatedly "between two things I built separately", the suite has this shape, and the next defect
+will be in another seam rather than another component.
+
+**Real incident, 2026-08-25.** `wat/gen.wat` was declared feature-complete and promoted to the
+stdlib on 19 mutation-proven laws. An 18-ward vigilia the same day found: `card` and `at` able to
+disagree (two fields of one struct); `one-of`/`bind` trusting an unvalidated sum of other
+generators' cardinalities; a macro re-splicing a caller's expression (52x measured cost against a
+comment claiming 2x); `lift2` and the `coords` path encoding the same radix twice and disagreeing;
+and a law that an IDENTITY implementation passes. **Every one at a seam. Not one law crossed one.**
+Two earlier gaps that session (`check` returning no witness, `shrink` composing with nothing) were
+the same class and were found only because the builder asked a direct question.
+
+**The cure is not more laws.** It is a law per JOIN: build one thing two ways and require them to
+agree (this caught nothing only because the tripwire drove indices 0..5 and the divergence began
+at 6); assert the SUT's own reported denominator rather than re-reading the struct; and mutate to
+the do-nothing implementation, not to a wrong one — an identity passes far more gates than a
+scramble does.
+
+### Failure mode 25 — `git rm` after a failed generator, then `git checkout` eats the work
+
+**Signature:** a script that generates a replacement file fails partway; the surrounding command
+proceeds to `git rm` the originals anyway; the instinctive recovery (`git checkout -- <paths>`)
+restores them from HEAD — discarding every uncommitted change made since.
+
+**Real incident, 2026-08-25.** A python heredoc raised `ValueError: substring not found` before
+writing `wat-tests/rete/differential-fuzz.wat`. The same Bash invocation's `git rm -qf` ran
+regardless. `git checkout --` then restored the pre-edit version from HEAD, silently deleting an
+uncommitted `bind` rewiring that had taken several steps to build. It had to be redone from the
+transcript.
+
+**The cure is ordering, not care.** Commit before restructuring — the work was green and
+committable and was not committed. And a destructive step must not sit in the same command as the
+step that justifies it: if generation and removal share an invocation, a failed generation still
+reaches the removal.
+
 ### Failure mode 22 — A rule written in prose that nothing ever runs
 
 **Signature:** a document states a discipline in the imperative — *"there is exactly ONE X; if

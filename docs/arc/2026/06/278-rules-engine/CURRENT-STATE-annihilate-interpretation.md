@@ -5,85 +5,73 @@
 > `wat/rete.wat`. If a stone below disagrees with a dated ruling here,
 > **this file wins** and the stone is stale.
 
-**CURRENT STAMP 2026-08-25 — supersedes every dated block below it, INCLUDING all three
-2026-08-24 stamps. Written against HEAD `2615e94a5`; the commit carrying this stamp lands on
-top of it, so a ONE-COMMIT docs-only gap at your wake is expected and is not staleness.**
+**CURRENT STAMP 2026-08-25 (SECOND) — supersedes every dated block below it, INCLUDING the
+earlier 2026-08-25 stamp. Written against HEAD `e9a5e0156`; the commit carrying this stamp lands
+on top, so a ONE-COMMIT docs-only gap at your wake is expected and is not staleness.**
 
-**THE VIGILIA LIST IS DRIVEN TO ITS FLOOR.** Everything a ward raised that could be actioned
-without a builder's ruling is closed. What remains is three things, and none of them can compute
-a wrong answer: two TRACKED DECISIONS needing your call, one `CLAUDE.md` record defect whose fix
-lives in the FROZEN holon root, and two items correctly scoped as not-taken (`complectens`'
-base-layer unit test, `circumspicere`'s CI-unrunnable grid SPEED half). Per-item detail and the
-CLOSING TALLY live in `NEXT-STRIKES-theater-hunt.md`; read it before proposing rete work.
+**THE WORK MOVED OFF RETE AND ONTO TOOLING, THEN THE TOOLING WAS AUDITED AND FAILED.**
+Read `docs/GEN-VIGILIA-2026-08-25.md` FIRST — it is the live document, not this one, for anything
+touching `wat/gen.wat`.
 
-**CLOSED 2026-08-25:** `conferre` 1 · `perspicere` 1 · `sequi` 2 · `exigere` 2 (by BOUNDING) ·
-`vocare` 2 · **T7** (half shipped, half affirmatively cut) · the `tmp/VIGILIA-LOOP.md` record
-defect · and four RECORD defects the wards never saw, found by the recolligere itself.
+**⚠ READ THIS BEFORE ANY GEN WORK: `wat/gen.wat` IS PROMOTED TO STDLIB AND CARRIES DEFECTS THAT
+CAN COMPUTE A WRONG ANSWER.** A negative `card` reaches a `Checked` result as a vacuous pass AND
+silently eats points from a real space in `one-of`/`bind` dispatch (measured: card -2 branch
+beside a card-3 branch yields card 1, and two of three real points vanish). `lift2` and the
+`record`/`coords` path disagree. The `record` macro re-evaluates its generator arguments PER
+POINT, not twice — 52x measured at 800 points. And `test-shrink-index` is passed by an IDENTITY
+implementation. Nothing is fixed. The fix order is at the foot of the vigilia doc; do not start
+with the prose.
 
-**THE FOUR DEFECTS OF 2026-08-24 STILL STAND AS THE ARC'S CENTRAL LESSON** (all fixed, none
-reachable by measurement): a leading `:not`/`:exists` emitting one token PER FIXPOINT ROUND
-(`71d0e700e`, rows == rounds exactly); the census reporting `root-join` at ~2x (`d55899373`); a
-fallback op's undefined point decided by SNIFFING the runtime value instead of the declared `ret`
-(`89e09889a`); and `cond` never expanding in a `:then` plus a `:where` before two or more fact
-conditions matching NOTHING, silently (`444ba9239`).
+**WHAT SHIPPED TODAY, AND IT IS REAL DESPITE THE ABOVE.** A finite-generator library
+(`:wat::gen::`, promoted on the `wat/grep.wat` precedent), 23 laws in `wat-tests/gen.wat`, and a
+rete differential fuzzer at `wat-tests/rete/differential-fuzz.wat` — **which found THREE live rete
+defects on its first widened runs**, all reproduced minimally and all tracked in
+`docs/arc/2026/06/278-rules-engine/RETE-FIX-LIST.md` with `#[ignore]`d probes that a fix makes
+pass:
+  A  leading accumulate emits one row per FIXPOINT ROUND (native = depth+1, oracle = 1)
+  B  a SECOND `where` after an accumulate matches NOTHING (native = 0, oracle = 1)
+  C  `:not` over a DERIVED class ignores the derivation (native = 1, oracle = 0) — 54 of the
+     divergences, ALL at depth >= 1 and never depth 0, which is exactly the dependence stratified
+     negation should have. **C is a SEMANTICS question and deserves Clara before a fix**: if a
+     `defquery` is deliberately un-stratified then the ORACLE is wrong, and 54 of the ratchet's
+     120 are not defects.
 
-**THE ORACLE AND CLARA WERE RIGHT EVERY TIME.** On all three engine divergences the two
-references agreed with each other and against native. The differential machinery was never
-broken — the CORPUS lacked the shape. When native disagrees with both, native is wrong, and the
-question is what fixture was missing.
+**⚠⚠ AND ONE THING OUTRANKS EVERY GEN FINDING.** `excusare` reported `cargo test --test kernel` in
+DEBUG at **569 failed / 16 passed**, all on one `debug_assert!` — `src/types.rs:598`, "builtin leaf
+:wat::core::Option already registered as a structured TypeDef". Release is clean. **`scripts/floor.sh`
+runs `--release`, so the floor that has read GREEN all arc cannot see this by construction.**
+UNVERIFIED by me. Check it FIRST on resumption. CLAUDE.md's own rule: "only in debug" is the same
+dismissal wearing a compiler flag.
 
-**AND THE 2026-08-25 SWEEP FOUND THE SAME MASK ONE LAYER UP.**
-`differential_exists_no_multiplicity` was named for a contract its fixture could not reach: the
-rule's `:then` binds one variable, so three token passes derive the SAME fact and
-`production_delta`'s value-dedup collapses them — the test read 1 on a correct engine AND on a
-fully-multiplying one. **That is the identical mask that hid the leading-filter defect for the
-whole arc.** The contract now has a beta-reading gate, and that gate's sensitivity is proven
-in-tree by a sibling query with the `exists` wrapper removed: 3 rows where the existential
-reads 1, on identical facts.
+**THE VIGILIA'S ONE GENERALISABLE LESSON, now FM 24.** Every gen defect sat at a SEAM between two
+things built separately and tested separately. Nineteen laws, each proving one component, every
+one mutation-proven, and NOT ONE crossed a seam. A law per component proves the components and
+says nothing about the paths between them. The cure is a law per JOIN — build one thing two ways
+and require agreement; assert the SUT's reported denominator instead of re-reading the struct; and
+mutate to the DO-NOTHING implementation, because an identity passes far more gates than a scramble.
 
-**THE RECORD ITSELF HAD DRIFTED, AND THE WARDS COULD NOT SEE IT** — the gathering found it.
-The recovery ledger named arc 170's CLIFFNOTES as the live breadcrumb (a different arc); the
-arc-enumeration step used `$(date +%m)` and EXITED 2; and the breadcrumb had **forked four ways**
-(`SEAM.md`, six stacked seams in `DESIGN-no-hidden-failures.md`, `BACKLOG.md`, and this file),
-each announcing itself as the one live current-state. `SEAM.md`'s own rule condemned the others —
-*"There is exactly ONE seam. If you find a second, one of them is lying — prune it"* — and nobody
-had ever run it. All demoted in place, none deleted. A prior self had already logged the ledger
-defect as OWED at `REALIZATIONS.md:10578`; it sat unactioned. **An untracked or unread finding
-has no re-read, so its premise rots unwitnessed** — the same shape as the cache deferral below.
+**`circumspicere` WAS NEVER CAST.** 17 of 18 inward wards reported; the one aimed at what the whole
+guard walked past is still owed. Cast it first, before fixing anything.
 
-**A DEFERRAL'S REASON CAN EXPIRE WITHOUT ANYONE LEARNING.** The cache primitive's two panics were
-left to "a later stone" because the dispatch macro could not marshal method-internal errors back
-to wat. That has been FALSE for some time — `#[wat_dispatch]` marshals `Result<T, E>` natively,
-including `Result<Self, E>` for a constructor. The conversion is mechanically available today;
-what remains is a genuine design call (does no-hidden-failures reach a *programming-error* input,
-or stop at a *fallible* one?) and it is now a TRACKED DECISION, not prose.
+**THE ORACLE-AND-CLARA RULE STILL HOLDS AND EARNED ITS KEEP AGAIN.** When native disagrees with the
+wat `$oracle`, native is wrong and the question is which fixture was missing. Three more times
+today.
 
-**GRID, 2026-08-24 — 33/33 `:match`, 33/33 `:winner :us`.** `fanout [40000]` = 23.13 ms, INSIDE
-its 23.45 ± 0.75 range. NOT re-run on 2026-08-25; today's changes are comments, records, gates,
-and one allocation hoist on arms no axis reaches. Read `fire-share-pct` before quoting any ratio:
-it is ≤ 2.4% everywhere, so `:ratio` is a FIRE-vs-FIRE number and `:wall-ratio` (3.7–13.5x) is
-the honest end-to-end figure.
-
-**THE THREE READING RULES HOLD.** A grid cell is a DISTRIBUTION — compare to its recorded RANGE,
-never to whichever run was last. Run `uptime` first. And **NEVER PIPE A LONG GATE** — redirect to
-a file and read the file. That third one earned its place again today: the floor came back
-`EXIT=100` with one failure while the tail of the log read as a clean pass. See FM 20 and FM 21
-in `docs/COMPACTION-AMNESIA-RECOVERY.md`.
-
-**A GATE THAT CANNOT GO RED IS DECORATION — every gate landed today was mutation-proven.** The
-sequi-category lint was armed with a bogus category and named its site; the grid exact-set
-assertion was armed with an unassigned axis file and named it; the borrow-split claim was proven
-by compiling the single-copy form and reading `error[E0502]` ×4 rather than by reasoning.
+**THE READING RULES.** A grid cell is a DISTRIBUTION — compare to its recorded RANGE. Run `uptime`
+first. NEVER PIPE A LONG GATE. And new today: **a mutate/restore script must REBUILD after
+restoring**, or every later measurement runs the mutant — that cost an hour and produced a
+confident, entirely false report of a live defect.
 
 **⚠⚠ YOU ARE NOT THE INSTANCE THAT WROTE THIS. ⚠⚠**
 Everything above is a cache written by a prior self across a very long session. You did not live
-it. It felt continuous when you woke and that feeling is the failure, not the all-clear. Before
-you propose or move: fetch `recolligere` from the datamancy MCP and run it against the disk —
-`docs/COMPACTION-AMNESIA-RECOVERY.md`, `git log`, this file, `NEXT-STRIKES-theater-hunt.md`, and
-the source you are about to touch. The freshness probe is the HEAD named at the top of this stamp
-against `git rev-parse HEAD`; more than the one expected docs-only commit of drift means trust the
-log over every line above. **And this file is the ONLY live breadcrumb — if you find another
-claiming to be, it is lying; that happened four ways here and cost a full audit to unpick.**
+it. It felt continuous when you woke and that feeling is the failure, not the all-clear. Before you
+propose or move: fetch `recolligere` from the datamancy MCP and run it against the disk —
+`docs/COMPACTION-AMNESIA-RECOVERY.md`, `git log`, this file, `docs/GEN-VIGILIA-2026-08-25.md`,
+`RETE-FIX-LIST.md`, and the source you are about to touch. The freshness probe is the HEAD named at
+the top of this stamp against `git rev-parse HEAD`; more than the one expected docs-only commit of
+drift means trust the log over every line above. **And this file is the ONLY live breadcrumb — if
+you find another claiming to be, it is lying; that happened four ways here and cost a full audit to
+unpick.**
 
 **Right now (2026-08-23 — SUPERSEDED by the stamp above; kept as history):** class-scan query harvest LANDED.
 Fanout `[40000]` wat-ns **58.1 → 42.8**. With-query
