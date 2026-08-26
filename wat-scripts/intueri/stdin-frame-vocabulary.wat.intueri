@@ -7,7 +7,7 @@
 ;;
 ;; It reads a FRAME and relabels it a LINE. A frame is one-or-more physical lines
 ;; accumulated until the buffer forms a complete EDN value (`read_framed_edn`,
-;; src/edn_shim.rs). Layer 1 is already honest; only Layer 2 still says "line".
+;; src/edn/render.rs). Layer 1 is already honest; only Layer 2 still says "line".
 ;;
 ;; ── WHAT IS ALREADY RULED (anchors — do NOT propose changing these) ───────────
 ;;

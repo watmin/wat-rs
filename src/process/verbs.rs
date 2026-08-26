@@ -36,7 +36,7 @@ pub const EXIT_MAIN_SIGNATURE: i32 = 4;
 //
 // For startup failures the `Value::Enum` path (used by emit_structured_exit)
 // cannot carry a nested `MacroError` tree as a typed field — the field is
-// declared as `:wat::core::String` in `types.rs` and `edn_shim.rs` would
+// declared as `:wat::core::String` in `types.rs` and `edn/render.rs` would
 // emit a prose string instead of a structured tagged value.
 //
 // This helper bypasses Value entirely: it builds the wire-format EDN directly

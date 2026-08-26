@@ -679,7 +679,7 @@ pub fn eval_read_string(
 /// ALSO serializes a `wat__WatAST` FAITHFULLY (via `watast_to_edn`), NOT opaque-nil
 /// (only genuinely-opaque LIVE values nil). The real catch is the READ side: the general
 /// edn *decoder* cannot rebuild a form (a form's bare symbols have no value type — see
-/// the `Edn::Symbol` arm ~:1440), and every write path dialect-translates `::`→`.`. To
+/// `edn_to_value_caps`'s `Edn::Symbol` arm), and every write path dialect-translates `::`→`.`. To
 /// round-trip a form back to an evaluable `::`-AST use `read-string` (or an `ast->source`
 /// printer for `::`-faithful text), never the general edn codec. `write-forms` serializes
 /// the AST faithfully — `read-string → transform → write-forms` is the wat-to-wat fixer's
@@ -3974,7 +3974,7 @@ pub fn value_to_edn_with(
         }
 
         // ── Substrate compound values — opaque or structural ─────
-        // Arc 294.j RELAND — `edn_shim` forgets the algebra, and renders
+        // Arc 294.j RELAND — `edn::render` forgets the algebra, and renders
         // DATA, never a wat source form (DESIGN-STONE-294.j, the ⛔
         // CORRECTION section). The first strike reached for `holon_to_watast`
         // because it was total and adjacent — it renders wat SOURCE, which
@@ -4186,7 +4186,7 @@ pub(crate) fn keyword_from_wat_path(k: &str) -> OwnedValue {
 /// "unnamed" under a placeholder "opaque" namespace when `Tag::try_ns`
 /// rejected the split. Both were lies that raised nothing. `value_to_edn_with` (this
 /// fn's only callers) is infallible across 72 call sites outside
-/// `edn_shim.rs`, so threading `Result` here would escape this module
+/// `edn/render.rs`, so threading `Result` here would escape this module
 /// (STOP-2) — `panic!` is the wall, matching the house convention
 /// `holon_ast_to_edn_data` already uses for the same class of defect
 /// (DESIGN-STONE-294.j).
@@ -4450,7 +4450,7 @@ mod tests {
             err
         );
         // rune:lint(loose-assert) — Display embeds rust_caller_span!() (Rust file:line:col of the
-        // read_edn call-site inside edn_shim.rs); the file:line:col prefix shifts whenever lines
+        // read_edn call-site inside edn/render.rs); the file:line:col prefix shifts whenever lines
         // are added above that site, making full assert_eq! infeasible
         assert!(
             rendered.contains("no type registry"),

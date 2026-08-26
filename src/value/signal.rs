@@ -185,7 +185,7 @@ impl From<crate::resolve::Rejection> for RuntimeError {
 /// Arc 298.3: `#[derive(wat_edn::ToEdn)]` generates the kind enum's
 /// `impl ToEdn`. The outer `RuntimeError::to_edn()` wraps it with
 /// `splice_span(self.kind.to_edn(), &self.span)`. Replaces the deleted
-/// hand-written `runtime_error_to_edn` match in `runtime_error_edn.rs`.
+/// hand-written `runtime_error_to_edn` match in `edn/error.rs`.
 #[derive(Debug, wat_edn::ToEdn)]
 #[to_edn(namespace = crate::error_ns::RUNTIME)]
 pub enum RuntimeErrorKind {

@@ -55,7 +55,7 @@ use crate::value::{Environment, RuntimeError, RuntimeErrorKind, SymbolTable, Val
 /// - everything else → `value_to_edn_string_with`, passed `types` so a
 ///   record renders by field NAME (`{:x 1}`) rather than positionally
 ///   (`{:field-0 1}`) — the 296/279.2 fix. Callers with no registry pass
-///   `None` explicitly, per `edn_shim.rs:3490`'s stated discipline.
+///   `None` explicitly, per `edn::render::value_to_edn_string_with`'s stated discipline.
 pub(crate) fn render_str_total(v: &Value, types: Option<&crate::types::TypeEnv>) -> String {
     match v {
         Value::String(s) => (**s).clone(),

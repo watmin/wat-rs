@@ -1745,7 +1745,7 @@
                               ;; `:- [K V]` would hand the walker the letters `K` and `V` — no more
                               ;; information than the bare alias name already carries.
                               ;; `edn_to_typed_value` follows a `TypeDef::Alias` unconditionally
-                              ;; (src/edn_shim.rs) and treats a type-VARIABLE position as opaque,
+                              ;; (src/edn/render.rs) and treats a type-VARIABLE position as opaque,
                               ;; enforcing every concrete field around it exactly. The measured
                               ;; boundary is pinned in wat-tests/service-parametric-messages.wat,
                               ;; probes (2) and (3).

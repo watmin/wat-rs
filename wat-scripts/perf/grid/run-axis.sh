@@ -17,7 +17,7 @@
 #
 # CANONICALIZATION (STOP trigger #2 in the DESIGN — tag-form must be reconciled, not faked away):
 # wat's EDN printer tags every PersistentVector as `#wat.core/PersistentVector [...]` (a real,
-# load-bearing round-trip-identity decision, wat/src/edn_shim.rs) while Clojure's `pr-str` of a
+# load-bearing round-trip-identity decision, wat/src/edn/render.rs) while Clojure's `pr-str` of a
 # plain vector is bare `[...]`. The VALUES are identical either way — only the wire wrapper
 # differs — so this runner strips the wat-side tag before the string-compare. That is exactly
 # the canonicalization the DESIGN calls for, not a fudge: the accuracy check still fails loudly

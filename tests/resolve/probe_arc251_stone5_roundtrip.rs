@@ -4,7 +4,7 @@
 //! forms → `edn::write` → write .wat. The whole approach rests on ONE invariant:
 //! reading a program to EDN and writing it back is an IDENTITY (modulo span). If it
 //! is not, every transform bug hides behind a round-trip bug. This probe pins it,
-//! using the same `wat_edn_bridge` round-trip the `:wat::edn::read`/`write`
+//! using the same `edn::bridge` round-trip the `:wat::edn::read`/`write`
 //! primitives wrap.
 //!
 //! C01: a representative program (defn, parametric type, match, vector, map, nested

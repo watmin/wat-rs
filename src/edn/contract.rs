@@ -157,7 +157,7 @@ pub trait WatError {
 //
 // One canonical home for the tag/keyword/string/int/span constructors so a
 // new `ToEdn` impl does not copy the helpers a sixth time (the older
-// `runtime_error_edn.rs` / `macros/error_edn.rs` / `check/error_edn.rs`
+// `edn/error.rs` / `macros/error_edn.rs` / `check/error_edn.rs`
 // serializers each carry a private copy; new impls call these instead).
 
 use std::borrow::Cow;

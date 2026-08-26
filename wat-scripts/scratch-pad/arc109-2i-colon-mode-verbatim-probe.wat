@@ -4,7 +4,7 @@
 ;; :wat::core::Vector) when read through `write-forms`. Traced statically: `write-forms` goes
 ;; through `watast_to_edn` (Carriage::Display), whose Keyword arm is UNCONDITIONAL —
 ;; `keyword_from_wat_path` re-spells ANY `::`-keyword to dotted/slashed EDN form, regardless of
-;; where it came from. `edn_shim.rs`'s own doc on `ast->source` names this exact symptom:
+;; where it came from. `edn/render.rs`'s own doc on `ast->source` names this exact symptom:
 ;; "write-forms on a ::-form emits :wat.core/fn, not :wat::core::fn" — and names `ast->source`
 ;; as the verbatim tool (`WatAST::Keyword(k,_) => out.push_str(k)`, byte-literal, no translation).
 ;;

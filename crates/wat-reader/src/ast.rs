@@ -481,8 +481,8 @@ impl WatAST {
 // memory via COW — no textual round-trip, no serializer needed.
 //
 // REINTRODUCED in arc 278 Stone 1 as `:wat::core::ast->source`
-// (src/edn_shim.rs, `write_wat_source` beside `eval_write_forms`)
-// — the sift Predicate's enabling primitive. Lives in edn_shim
+// (src/edn/render.rs, `write_wat_source` beside `eval_write_forms`)
+// — the sift Predicate's enabling primitive. Lives in edn::render
 // rather than here because it's a runtime primitive (dispatched
 // from runtime.rs, typed in check.rs), not a wat-reader-internal
 // concern; the shape mirrors this retired printer plus the 6

@@ -1,6 +1,6 @@
 ;; wat-scripts/scratch-pad/arc109-tuple-arm-faults.wat — arc 109 Stone ②-iii's blocker.
 ;;
-;; The `TypeExpr::Tuple` arm of `type_expr_to_clojure_form` (src/edn_shim.rs) is the ONE arm
+;; The `TypeExpr::Tuple` arm of `type_expr_to_clojure_form` (src/edn/render.rs) is the ONE arm
 ;; ②-i left un-migrated: it is mode-blind (always the `wat.type/Tuple` Symbol head) AND it
 ;; splices its items FLAT (`(wat.type/Tuple a b)`) instead of bracketing them.
 ;;

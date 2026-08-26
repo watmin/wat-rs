@@ -17998,7 +17998,7 @@ fn eval_conforms(
 ///
 /// This is a THIN WRAPPER over the deep walker that already existed and had zero
 /// production callers since arc 258 Stone 258.5b deleted its last one on the
-/// trusted-wire premise: `edn_shim::edn_to_typed_value` walks the declared
+/// trusted-wire premise: `edn::render::edn_to_typed_value` walks the declared
 /// `TypeExpr` per-field / per-element and yields the offending path
 /// (`.items.[0]`). We render the runtime `Value` to EDN (`value_to_edn_with` —
 /// the same writer `:wat::edn::write` uses, so both tiers present identically:
@@ -18457,7 +18457,7 @@ fn eval_subtype(
 ///
 /// Called by `eval_aggregate_new` for `Nature::HolonRecord`; the caller already
 /// holds `ctx` from `require_encoding_ctx`.
-// Arc 294.g — `pub(crate)` (was private): the wire decode side (`edn_shim.rs
+// Arc 294.g — `pub(crate)` (was private): the wire decode side (`edn/render.rs
 // reconstruct_holon_record`) is the SECOND caller. A holon record's wire form no longer
 // carries the hologram (294.g collapses the encode arms), so the receiver derives its own
 // index from the decoded fields via this SAME function — no second implementation.
@@ -20128,7 +20128,7 @@ fn eval_holon_to_holon(
     to_holon_inner(v, args[0].span())
 }
 
-// Arc 294.j RELAND — widened from private to `pub(crate)`: `edn_shim`'s corrected HolonAST
+// Arc 294.j RELAND — widened from private to `pub(crate)`: `edn::render`'s corrected HolonAST
 // decoder (`edn_derive_holon`, DESIGN-STONE-294.j ⛔ CORRECTION) composes this with
 // `edn_to_value` to derive a HolonAST from decoded data — the SAME holon-side lift
 // `:wat::holon::literal` (`#holon <form>`, arc 294.b) already uses. Adopting an existing total
@@ -20333,9 +20333,9 @@ pub(crate) fn to_holon_inner(v: Value, arg_span: &Span) -> Result<Value, EvalBre
 /// per Stone 221.3 doctrine (holon-rs commit fa48b39). Pre-arc-221 used
 /// HolonAST::symbol(k.as_str()) which violated the honest-primitive
 /// discipline; retired here.
-// Arc 294.j RELAND — briefly widened to `pub(crate)` for the first strike's `edn_shim` encode
+// Arc 294.j RELAND — briefly widened to `pub(crate)` for the first strike's `edn::render` encode
 // arm; reverted here. The corrected design (DESIGN-STONE-294.j ⛔ CORRECTION) does not route
-// HolonAST↔EDN through the wat-source bijection at all — `edn_shim` now composes
+// HolonAST↔EDN through the wat-source bijection at all — `edn::render` now composes
 // `from_holon_item` / `to_holon_inner` instead (both already `pub(crate)`). This fn's only
 // callers are the 8 in this file (`from-wat`, macro support, etc.); private is correct again.
 fn watast_to_holon(a: &WatAST) -> HolonAST {
@@ -21287,9 +21287,9 @@ fn eval_therm_form(
     Ok(Value::holon__HolonAST(Arc::new(ast)))
 }
 
-// Arc 294.j RELAND — briefly widened to `pub(crate)` for the first strike's `edn_shim` encode
+// Arc 294.j RELAND — briefly widened to `pub(crate)` for the first strike's `edn::render` encode
 // arm; reverted here (DESIGN-STONE-294.j ⛔ CORRECTION: a HolonAST wire form is DATA, never the
-// wat source form this fn renders — `edn_shim` now composes `from_holon_item` /
+// wat source form this fn renders — `edn::render` now composes `from_holon_item` /
 // `to_holon_inner` instead). Its 8 `runtime.rs` callers are unaffected; private is correct again.
 fn holon_to_watast(h: &HolonAST) -> WatAST {
     // Arc 230: Symbol/Keyword/Nil/Tag variants retired; check via accessors
@@ -28899,7 +28899,7 @@ fn form_outcome_check_failed(e: &crate::freeze::StartupError, sym: &SymbolTable)
 /// Arc 109 — `pub(crate)` and location-taking. THE one door for "a decoded diagnostic
 /// becomes an `:wat::core::Error`". Three sites run the strict→foreign decode ladder
 /// (`check_failed_cause` here, `read_outcome_malformed` and `read_json_outcome_malformed`
-/// in `edn_shim.rs`); each feeds an enum variant whose cause field is DECLARED
+/// in `edn/render.rs`); each feeds an enum variant whose cause field is DECLARED
 /// `:wat::core::Error`, and the ladder's FOREIGN arm yields a `Value::ForeignRecord` —
 /// a dynamic bag that satisfies that surface NOWHERE. Two of the three used to return it
 /// directly, making the declared type a lie at the boundary. They route through here now,
@@ -31296,7 +31296,7 @@ fn is_mutation_head(head: &str) -> bool {
 // connect', accept', program-self-peer'). A struct can no longer be typed into
 // a wire peer at CHECK time; the runtime path is no longer reachable. The two
 // call sites (PROCESS branch and socket-tier PEER' branch of eval_peer_send_prime)
-// were removed. Symmetric to the decode backstop retirement in edn_shim.rs.
+// were removed. Symmetric to the decode backstop retirement in edn/render.rs.
 
 /// `(:wat::kernel::send peer payload)` — Stone 4.6a-ii / Arc 258.5b-ii.
 ///

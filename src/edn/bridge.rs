@@ -1,4 +1,4 @@
-//! `wat_edn_bridge` — plain-EDN serializer/deserializer for `WatAST`.
+//! `edn::bridge` — plain-EDN serializer/deserializer for `WatAST`.
 //!
 //! Converts a `Vec<WatAST>` program to a single plain-EDN frame and back
 //! so the program can be catted over a wire fd as the EDN it already is.
@@ -10,7 +10,7 @@
 //!
 //! Wat uses `::` as the segment separator (`:wat::core::foo`); EDN uses `/`
 //! to split namespace from name (`:wat.core/foo`). This module REUSES the
-//! proven codec already in `edn_shim`:
+//! proven codec already in `edn::render`:
 //! - Encode: `keyword_from_wat_path` — splits on last `::`, builds via
 //!   `Keyword::try_ns(ns, name)`.
 //! - Decode: `ns_to_wat_path` — rebuilds `:ns.sub/name` → `:ns::sub::name`.
@@ -99,7 +99,7 @@ const FIELD_PATH: &str = "path";
 
 /// A wat keyword carried verbatim: `#wat.ast/Keyword {:path "…"}`.
 ///
-/// `pub(crate)` because `edn_shim::keyword_from_wat_path` reaches for it as its
+/// `pub(crate)` because `edn::render::keyword_from_wat_path` reaches for it as its
 /// honest last resort. It used to fall back to a bare `OwnedValue::String`
 /// there — a SILENT TYPE CHANGE: a keyword went in, a string came out, and
 /// nothing said so. That is defensible for the logger it was written for and
@@ -378,7 +378,7 @@ impl std::error::Error for WatEdnBridgeError {}
 /// Convert a single `WatAST` node to its plain-EDN `OwnedValue` twin.
 ///
 /// This is a near-1:1 structural map — every `WatAST` variant has an
-/// EDN counterpart. Keyword encoding reuses `edn_shim::keyword_from_wat_path`
+/// EDN counterpart. Keyword encoding reuses `edn::render::keyword_from_wat_path`
 /// so the `::` ↔ `.` / `/` translation is identical everywhere.
 ///
 /// # Notes
@@ -541,7 +541,7 @@ fn watast_to_edn_with(a: &WatAST, carriage: Carriage, origins: &mut OriginTable)
 /// Convert a single plain-EDN `OwnedValue` back to a `WatAST` node.
 ///
 /// The inverse of `watast_to_edn`. Keyword decoding reuses
-/// `edn_shim::ns_to_wat_path` so the namespace→`::` path rebuild is
+/// `edn::render::ns_to_wat_path` so the namespace→`::` path rebuild is
 /// identical to every other decode site.
 ///
 /// Returns a `WatEdnBridgeError` (never panics) for EDN forms that have

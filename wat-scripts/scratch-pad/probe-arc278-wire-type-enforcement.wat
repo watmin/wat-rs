@@ -21,7 +21,7 @@
 ;;   (`src/check.rs:19203` — `type_params: ["T"], params: [String], ret: t_var()`),
 ;;   documented as trust-the-caller: "the caller's binding context unifies with
 ;;   whatever shape the parsed value takes; runtime mismatches surface as
-;;   pattern-match / accessor errors at the USE site" (src/edn_shim.rs:144).
+;;   pattern-match / accessor errors at the USE site" (`edn::render::eval_edn_read`'s doc comment).
 ;;   So `(:wat::edn::read "#probe-wire.Bag/PutRequest {:items [1 2 3]}")` type-checks
 ;;   as a `PutRequest` and at runtime produces a `PutRequest`-classed aggregate whose
 ;;   `items` field holds i64s. That is a REAL production verb, not a test hook — no

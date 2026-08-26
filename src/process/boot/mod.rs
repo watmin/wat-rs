@@ -64,7 +64,7 @@
 use crate::runtime::{RuntimeError, RuntimeErrorKind};
 use crate::span::Span;
 
-/// The per-frame transport budget. Mirrors `edn_shim::DEFAULT_MAX_FRAME_BYTES`.
+/// The per-frame transport budget. Mirrors `edn::render::DEFAULT_MAX_FRAME_BYTES`.
 ///
 /// This is a limit on ONE FRAME, never on the program: a large program is chunked
 /// across many program frames. The chunker below is what guarantees no single

@@ -5,7 +5,7 @@
 //! **byte-identical**, so the ~1438-site sweep can never change what a caller sees.
 //!
 //! Grounding, so the claim is mechanism and not hope: `RuntimeError`'s `ToEdn` is
-//! HAND-WRITTEN (`src/runtime_error_edn.rs:64-83`) and reads its kind through a plain
+//! HAND-WRITTEN (the `impl ToEdn for RuntimeError` block in `src/edn/error.rs`) and reads its kind through a plain
 //! method call — `let kind_val = self.kind.to_edn();`. Rust auto-derefs a `Box<T>`
 //! receiver, and `wat-edn` carries a blanket forwarding `impl<T: ToEdn> ToEdn for Box<T>`
 //! (`crates/wat-edn/src/lib.rs:217`), so BOTH resolutions produce the same `OwnedValue`.

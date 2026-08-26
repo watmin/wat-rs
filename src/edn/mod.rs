@@ -5,13 +5,14 @@
 //! named directory. This is that directory.
 //!
 //! ```text
-//! render    <- edn_shim.rs           "shim" is a name that says TEMPORARY, over 5,016 lines.
-//!                                    It renders any wat value as EDN/JSON text. It renders.
-//! bridge    <- wat_edn_bridge.rs     WatAST <-> plain EDN, both directions
-//! contract  <- to_edn.rs             the ONE serialization contract (`ToEdn`) every
-//!                                    error/diagnostic type implements
-//! error     <- runtime_error_edn.rs  errors-as-EDN
-//! derive_tests <- to_edn_derive_tests.rs   `#[cfg(test)]`; see below
+//! render    formerly a loose root file named for a word ("shim") that says
+//!           TEMPORARY, over 5,016 lines. It renders any wat value as EDN/JSON
+//!           text. It renders.
+//! bridge    formerly a loose root file — WatAST <-> plain EDN, both directions
+//! contract  formerly `to_edn.rs` — the ONE serialization contract (`ToEdn`)
+//!           every error/diagnostic type implements
+//! error     formerly a loose root file — errors-as-EDN
+//! derive_tests  formerly a loose root file; `#[cfg(test)]`; see below
 //! ```
 //!
 //! ## ⛔ NO RE-EXPORTS HERE. This file is declarations only.

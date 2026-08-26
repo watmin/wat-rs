@@ -29,14 +29,14 @@ purely that readers feed it ONE line. The fix is read-loop accumulation, NOT the
 
 ## The build
 
-### 1. Expose the incomplete signal (the only `wat_edn`/`edn_shim` change)
+### 1. Expose the incomplete signal (the only `wat_edn`/`edn::render` change)
 - `crates/wat-edn/src/error.rs`: add `impl ErrorKind { pub fn is_incomplete(&self) -> bool }` — true for
   `UnexpectedEof | UnclosedString | UnclosedList | UnclosedVector | UnclosedMap | UnclosedSet`, false
   otherwise. (Also expose it off `Error` if that's what callers hold.)
-- `src/edn_shim.rs`: add `pub fn edn_frame_status(s: &str) -> EdnFrameStatus` where
+- `src/edn/render.rs`: add `pub fn edn_frame_status(s: &str) -> EdnFrameStatus` where
   `enum EdnFrameStatus { Complete, Incomplete, Malformed(String) }`. It calls `wat_edn::parse_owned(s)`:
   `Ok(_) → Complete`; `Err(e) if e.kind.is_incomplete() → Incomplete`; else `Malformed(format!("{e}"))`.
-  (Note: `read_edn` currently *stringifies* the parser error at `edn_shim.rs:964`, discarding the kind —
+  (Note: `read_edn` currently *stringifies* the parser error in `edn::render::read_edn_caps`, discarding the kind —
   do NOT rely on that path for the signal; use `parse_owned` directly in `edn_frame_status`.)
 
 ### 2. The shared accumulate helper (transport-agnostic)

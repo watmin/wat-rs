@@ -2,7 +2,7 @@
 ;;
 ;; KNOWN-UNKNOWN #2: journal''s write path must serialize a live `Metric` record into
 ;; `StoredRow.data` (a `:wat::core::String` of the record's tagged EDN — arc-300 records-are-EDN).
-;; The candidate verb is `:wat::edn::write` (src/edn_shim.rs eval_edn_write → value_to_edn_with →
+;; The candidate verb is `:wat::edn::write` (src/edn/render.rs eval_edn_write → value_to_edn_with →
 ;; wat_edn::write). This probe DISCONFIRMS the assumption that it accepts an arbitrary record:
 ;; build a `Metric` (kwargs ctor, mirroring probe_arc278_journal_surface.wat) and encode it.
 ;;

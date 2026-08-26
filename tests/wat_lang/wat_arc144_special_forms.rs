@@ -146,7 +146,7 @@ fn lookup_form_struct_returns_special_form() {
     // Arc 293.2-parity: :wat::core::defstruct is a WAT MACRO, not a special form.
     //
     // Proven WITHOUT the holon-ast face. `lookup-define` still renders through the OLD
-    // `watast_to_holon` path (`wat_edn_bridge.rs:22` calls it exactly that), and arc 294's
+    // `watast_to_holon` path (`src/edn/bridge.rs`'s module doc calls it exactly that), and arc 294's
     // own realizations name that face as scar tissue: flaw #3 "the tagged-HolonAST wire
     // family (scar tissue from a hologram-canonical wire)" and #5 "HolonAST-as-the-code-AST
     // vestigial (WatAST took over)" — HolonAST reduces to Hologram. Pinning that rendering

@@ -24,7 +24,7 @@
 ;; The `readln` macro injects this as the cap arg when no :max-buffer-bytes
 ;; kwarg is supplied; `readln'` always takes an explicit max (no Rust default).
 ;; 512 × 1024 = 524 288 bytes (512 KiB) — mirrors DEFAULT_MAX_FRAME_BYTES in
-;; src/edn_shim.rs (kept for the Receiver/from-pipe channel path which has
+;; src/edn/render.rs (kept for the Receiver/from-pipe channel path which has
 ;; no macro layer).
 (:wat::core::def :wat::kernel::MAX-READLN-BYTES
   (:wat::core::i64::* 512 1024))

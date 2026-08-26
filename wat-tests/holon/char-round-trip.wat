@@ -2,7 +2,7 @@
 ;;
 ;; Exercises the `\c` literal + `(:wat::core::char "x")` constructor.
 ;; All cases pass if the Char primitive is correctly wired (lexer, eval,
-;; edn_shim bridge, equality, EDN round-trip).
+;; edn::render bridge, equality, EDN round-trip).
 
 ;; ─── 1: Char/of constructor and equality ──────────────────────────────────
 

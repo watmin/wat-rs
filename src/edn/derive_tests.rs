@@ -1,7 +1,7 @@
 //! Arc 296 Strike 2a + 3b — behavioral toy tests for `#[to_edn(...)]` attribute DSL.
 //!
-//! This file is declared as `#[cfg(test)] mod to_edn_derive_tests;` in
-//! `src/lib.rs`, so it is only compiled during test builds. All toy enums are
+//! This file is declared as `#[cfg(test)] mod derive_tests;` in
+//! `src/edn/mod.rs`, so it is only compiled during test builds. All toy enums are
 //! defined here rather than in an integration test because `#[derive(ToEdn)]`
 //! generates `impl crate::edn::contract::ToEdn for <Enum>`, which only resolves inside
 //! the `wat` crate.

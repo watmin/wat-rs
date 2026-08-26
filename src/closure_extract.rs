@@ -2841,7 +2841,7 @@ fn def_form(name: &str, encoded: &WatAST) -> WatAST {
 /// OTHER callers, e.g. `extend-type`'s internal bookkeeping key, which is never re-parsed as
 /// source — see its own doc), but closure extraction re-EMITS this as real wat source text
 /// that DOES get re-parsed, so the angle spelling is illegal here. Delegates to
-/// `edn_shim::type_expr_to_clojure_form`'s `Colon` mode — the SAME renderer backing
+/// `edn::render::type_expr_to_clojure_form`'s `Colon` mode — the SAME renderer backing
 /// `keyword/to-type-form-colon` — rather than a second hand-rolled spelling.
 fn type_expr_to_colon_ast(ty: &crate::types::TypeExpr, span: &Span) -> WatAST {
     match ty {

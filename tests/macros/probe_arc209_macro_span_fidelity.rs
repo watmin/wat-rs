@@ -1,7 +1,7 @@
 //! Macro span-fidelity — a macro-CONSTRUCTED node must carry the CALL-SITE span.
 //!
 //! The bridge constructors (`keyword/from-string`, `keyword-node`, `symbol-node`, `read-string`)
-//! stamp `wat::rust_caller_span!()` on the nodes they build (edn_shim.rs). So a node a macro *constructs*
+//! stamp `wat::rust_caller_span!()` on the nodes they build (edn/render.rs). So a node a macro *constructs*
 //! (vs splices from the template or via `with-children`, which carry real spans) lands in the
 //! expansion with no span — and a type error on it points at "unknown" instead of the user's
 //! macro call. `restamp_unknown_spans` (applied at `expand_macro_call`'s return) fills every

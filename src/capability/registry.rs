@@ -3,11 +3,11 @@
 //! A **portable capability** is a substrate value whose wire content is meaningful + safe across a
 //! process boundary (vs an ordinary opaque handle — an fd, a `Sender` — which must NOT cross). This
 //! module is the **frozen waist**: a registry of `PortableCapability` codecs + two generic dispatch
-//! fns (`encode_capability` / `decode_capability`) that `edn_shim` calls. Adding a new capability is a
-//! `CapCodec` row in [`registry`] (append-only) — `edn_shim`'s dispatch never changes. The rigidity of
+//! fns (`encode_capability` / `decode_capability`) that `edn::render` calls. Adding a new capability is a
+//! `CapCodec` row in [`registry`] (append-only) — `edn::render`'s dispatch never changes. The rigidity of
 //! the waist is what enables unbounded capabilities above it (the hourglass / narrow-waist law).
 //!
-//! The trust gating lives at the door (`edn_shim::decode_trusted_wire`): `decode_capability` is reached
+//! The trust gating lives at the door (`edn::render::decode_trusted_wire`): `decode_capability` is reached
 //! ONLY off the trusted peer wire — a capability is handed over a lineage channel, never forged from
 //! parsed data (object-capability transfer-only).
 
@@ -25,7 +25,7 @@ pub struct CapCodec {
     /// directions (arc 294.m collapsed the former two-key asymmetry: encode resolved by
     /// `type_path` while decode resolved by a separate `name` nickname stamped into a
     /// `wat-edn.cap` marker tag). The wire tag is now the capability's own type home, derived
-    /// from this same `type_path` via `edn_shim::tag_from_type_path` — e.g.
+    /// from this same `type_path` via `edn::render::tag_from_type_path` — e.g.
     /// `:wat::kernel::Address` → `#wat.kernel/Address`.
     pub type_path: &'static str,
     /// Encode the opaque's PORTABLE form to a wire body. `None` when this opaque instance has no
@@ -39,7 +39,7 @@ pub struct CapCodec {
 }
 
 /// THE registry — built once. **Adding a capability = a `CapCodec` row here (append-only); the
-/// `edn_shim` dispatch (the waist) never changes.** This central row is the open EDGE; the frozen
+/// `edn::render` dispatch (the waist) never changes.** This central row is the open EDGE; the frozen
 /// WAIST is the two generic dispatch fns + the wire contract.
 fn registry() -> &'static [CapCodec] {
     // rune:perspicere(read-once) — built once at registry init; a single-use CapRegistry alias would read worse
@@ -47,12 +47,12 @@ fn registry() -> &'static [CapCodec] {
     REG.get_or_init(|| {
         vec![
             address_codec(),
-            // ◄── future portable capabilities register HERE. Zero edit to edn_shim's dispatch.
+            // ◄── future portable capabilities register HERE. Zero edit to edn::render's dispatch.
         ]
     })
 }
 
-/// Generic ENCODE dispatch — called by `edn_shim`'s single `RustOpaque` arm. Returns the
+/// Generic ENCODE dispatch — called by `edn::render`'s single `RustOpaque` arm. Returns the
 /// capability's own type-home tag (`#wat.kernel/Address`, …) when `inner` is a registered
 /// portable capability WITH a portable form; `None` otherwise (→ the caller emits the
 /// non-portable opaque tag).
@@ -61,13 +61,13 @@ pub fn encode_capability(inner: &RustOpaqueInner, types: &TypeEnv) -> Option<Own
 }
 
 /// Arc 294.m — is `type_path` a registered capability codec? This is THE question the refusal
-/// (`edn_shim::tagged_to_value`) asks before deciding a tag needs the trusted door at all — the
+/// (`edn::render::tagged_to_value`) asks before deciding a tag needs the trusted door at all — the
 /// registry is the wall now, not a namespace string (arc 198's ruling).
 pub fn is_capability_type_path(type_path: &str) -> bool {
     registry().iter().any(|c| c.type_path == type_path)
 }
 
-/// Generic DECODE dispatch — called by `edn_shim`'s capability-tag arm, which is reached ONLY off
+/// Generic DECODE dispatch — called by `edn::render`'s capability-tag arm, which is reached ONLY off
 /// the trusted door (`decode_trusted_wire`), and only once [`is_capability_type_path`] has already
 /// confirmed `type_path` is registered. An unregistered `type_path` is refused.
 pub fn decode_capability(type_path: &str, body: &OwnedValue, types: &TypeEnv) -> Result<Value, EdnReadError> {
@@ -245,7 +245,7 @@ fn address_codec() -> CapCodec {
 #[cfg(test)]
 mod waist_proof {
     //! Arc 272 narrow-waist STRIKE 2 — the proof. A SECOND capability round-trips through the SAME
-    //! generic dispatch that carries `Address'`, with `edn_shim`'s core UNTOUCHED — the entire diff
+    //! generic dispatch that carries `Address'`, with `edn::render`'s core UNTOUCHED — the entire diff
     //! for capability #2 is one `CapCodec`. That is the waist working: N capabilities, one frozen core.
     use super::*;
     use crate::runtime::Value;
@@ -341,7 +341,7 @@ mod waist_proof {
             }
             _ => panic!("expected a reconstructed :test::Token opaque"),
         }
-        // ZERO lines of edn_shim changed to add this capability. The waist is frozen; the edge grew.
+        // ZERO lines of edn::render changed to add this capability. The waist is frozen; the edge grew.
     }
 
     #[test]

@@ -54,7 +54,7 @@ use crate::value::Value;
 /// sibling `StreamContainer` registry in `seq_container.rs`.
 ///
 /// `Record` is a member because it IS a keyed collection on the wire:
-/// `edn_shim.rs` decodes records as tagged maps; Clojure treats records as
+/// `edn/render.rs` decodes records as tagged maps; Clojure treats records as
 /// maps; `fields: Arc<Vec<Value>>` is the internal repr (ordered field
 /// values — declaration order), exactly as `Vec`/`LinkedList`/`VectorSync`
 /// are the inner reprs of seq-container members. Inner-repr ≠ family

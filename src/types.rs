@@ -441,7 +441,7 @@ pub enum SurfaceMember {
         /// OPTIONAL `:max-request-bytes N` key in the kwargs options map that may follow
         /// `-> :RetType` on a `:features` op (options are order-independent `:keyword value`
         /// pairs; a later stone adds `:max-page-bytes` to that same map). When the op omits
-        /// the key, this still defaults to `edn_shim::DEFAULT_MAX_FRAME_BYTES` (512 KiB) cast
+        /// the key, this still defaults to `edn::render::DEFAULT_MAX_FRAME_BYTES` (512 KiB) cast
         /// to `i64` at PARSE time (non-serviceable surfaces — `:Struct`/`:Record`/
         /// `:HolonRecord` — legitimately ride this default forever; their methods are
         /// in-thread accessors, not wire ops). See `max_request_bytes_explicit` below for
@@ -1342,7 +1342,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // Arc 170 — :wat::kernel::ReadFrameOutcome — what `:wat::kernel::read-frame` returns.
     //
     // A FRAME, not a line, and the name is load-bearing: `read_framed_edn`
-    // (`src/edn_shim.rs`) accumulates physical lines until the buffer forms a complete
+    // (`src/edn/render.rs`) accumulates physical lines until the buffer forms a complete
     // EDN value. `:wat::io::IOReader/read-line` (`src/io.rs`) is the genuinely-one-line
     // verb; that name is already spent with that meaning, so reusing it here would both
     // lie and collide.
@@ -1350,7 +1350,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // MEASURED, because the obvious inference from "it accumulates" is WRONG for wat
     // source and I shipped that inference before running it: `next_complete_frame`
     // continues ONLY on `EdnFrameStatus::Incomplete`, and terminates the frame on
-    // `Complete` *or* `Malformed` (`src/edn_shim.rs`). Wat source is never valid EDN —
+    // `Complete` *or* `Malformed` (`src/edn/render.rs`). Wat source is never valid EDN —
     // `:wat::core::defn` is precisely the "keyword begins with ::" that fails — so a
     // partial wat form scans as Malformed, not Incomplete, and the frame ENDS at the
     // first newline. Consequence: for wat input a frame is exactly one physical line, and
@@ -2116,7 +2116,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // the `TypeDef::Aggregate` arm → `concrete_type_name_matches`) — it never
     // recurses into a record's FIELDS, so `#dos.Bag/PutRequest {:items [1 2 3]}`
     // against `items <- (Vector :- [String])` passes it. `edn_to_typed_value`
-    // (edn_shim.rs) IS the deep walker (per-field, per-element, with the offending
+    // (edn/render.rs) IS the deep walker (per-field, per-element, with the offending
     // path); `validate` is its thin wat-facing wrapper.
     //   :Valid   []                       — the value matches the declared shape.
     //   :Invalid [path expected got]      — it does not, at `path` (segments, e.g.
@@ -2689,7 +2689,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
     // Any Rust type annotated with `#[derive(Edn)]` emits an
     // `::inventory::submit!(::wat_edn::EdnSchema { … })` at link time.  Here
     // we iterate those entries and call `register_builtin` for each, making
-    // the type readable by `reconstruct_record` in `edn_shim.rs` without any
+    // the type readable by `reconstruct_record` in `edn/render.rs` without any
     // hand-written registration.
     //
     // Ordering: this runs at `TypeEnv::with_builtins()` time — before stdlib
@@ -2838,7 +2838,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
 /// fields). That derive is WRITE-ONLY (no `EdnSchema` submit) — so STRICT
 /// `edn_to_value` hit `UnknownTag` and the cause was string-wrapped. Here we
 /// hand-register the DECODE schema for each variant so a startup / peer death
-/// cause round-trips to a typed record (`reconstruct_record`, `edn_shim.rs`).
+/// cause round-trips to a typed record (`reconstruct_record`, `edn/render.rs`).
 ///
 /// **Why a hand table and not the `#[derive(Edn)]` flip (the STOP):** flipping
 /// `RuntimeErrorKind` `ToEdn → Edn` runs the schema generator over ALL 32

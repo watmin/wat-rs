@@ -25,7 +25,7 @@
 ;; `:wat::core::keyword/to-type-form-colon` parses `nil` to the internal `TypeExpr::Tuple(vec![])`
 ;; (arc 153's canonical-unit reduction, `src/types.rs:4728`), and `type_expr_to_clojure_form`'s
 ;; `Tuple` arm is hard-coded to the Symbol `wat.type/Tuple` **in BOTH modes** (its own doc,
-;; `src/edn_shim.rs`: "the head is OUT OF SCOPE for `mode`... nothing in the acceptance
+;; `src/edn/render.rs`: "the head is OUT OF SCOPE for `mode`... nothing in the acceptance
 ;; criteria or the contract suite exercises a Colon-mode Tuple"). So the post-arrow rule,
 ;; applied literally, rewrites every `-> :wat::core::nil` to `-> (wat.type/Tuple)` — a
 ;; Clojure-mode symbol landing in the still-Colon-mode corpus. That is exactly the "third
@@ -36,7 +36,7 @@
 ;; Dropping rule 1 loses nothing (it was a no-op everywhere it wasn't corruption) and closes
 ;; the landmine entirely — `type-shaped-keyword?` is false for `nil` (no `<`/`>`/`(`/`)`), so
 ;; it is never touched. Reported to the orchestrator as a found defect in the ②-i renderer;
-;; not fixed here (`src/edn_shim.rs` / `src/types.rs` are out of this stone's blast radius).
+;; not fixed here (`src/edn/render.rs` / `src/types.rs` are out of this stone's blast radius).
 ;;
 ;; Reuses fix.wat's PUBLIC helpers only — structural?, type-shaped-keyword?,
 ;; fix-text-offset-of, fix-text-apply — never fix.wat's internal edit trio, and never

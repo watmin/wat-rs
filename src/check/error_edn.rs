@@ -17,7 +17,7 @@
 //! Single-word field names keep their name (`:callee`, `:expected`, `:got`).
 //! Multi-word snake_case field names from the Rust struct are translated to
 //! kebab-case (`:thread-binding`, `:process-identifier`). This mirrors the
-//! EDN idiom used throughout `runtime_error_edn.rs` and `macros/error_edn.rs`.
+//! EDN idiom used throughout `edn/error.rs` and `macros/error_edn.rs`.
 
 use wat_edn::{Keyword, OwnedValue, Tag};
 
@@ -108,7 +108,7 @@ impl crate::edn::contract::WatError for CheckErrors {
     }
 }
 
-// ─── Low-level builders (mirrors runtime_error_edn.rs) ───────────────────────
+// ─── Low-level builders (mirrors edn/error.rs) ───────────────────────
 
 fn tagged(variant: &str, body: OwnedValue) -> OwnedValue {
     OwnedValue::Tagged(Tag::ns(crate::error_ns::CHECK, variant), Box::new(body))

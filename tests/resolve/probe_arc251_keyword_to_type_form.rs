@@ -40,7 +40,7 @@ fn contract_01_scalar() {
 // `keyword/to-type-form`'s own type-parser (`src/types.rs`, "angle-bracket parametric types
 // are illegal") that caught these, because `keyword-node` itself was unwalled and happily
 // built the angle-bearing keyword first. `keyword-node` is walled now (`angle_type_head_in_name`,
-// `src/runtime.rs`/`src/edn_shim.rs`), so the fixture's own `keyword-node` call refuses BEFORE
+// `src/runtime.rs`/`src/edn/render.rs`), so the fixture's own `keyword-node` call refuses BEFORE
 // `keyword/to-type-form` is ever reached — the mechanism moved from "the type parser rejects a
 // parsed angle string" to "the minting primitive refuses to build the angle-bearing NAME at
 // all". Each assertion below checks for THAT mechanism: the `keyword-node` head, and the

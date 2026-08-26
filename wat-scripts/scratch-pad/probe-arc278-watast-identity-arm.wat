@@ -8,7 +8,7 @@
 ;;     of closing the edge is exactly what STOP-3 forbids.
 ;;
 ;; `:wat::edn::validate` is called DIRECTLY (no service, no locus) — the walker
-;; under test (`edn_shim::edn_to_typed_value`) is exercised the same way whether a
+;; under test (`edn::render::edn_to_typed_value`) is exercised the same way whether a
 ;; caller reaches it via a service's shape-guarded wall or directly, so this is the
 ;; cheapest fixture that isolates the walker from any locus/transport question.
 ;;

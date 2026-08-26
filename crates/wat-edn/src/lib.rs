@@ -193,7 +193,7 @@ impl<T: ToEdn> ToEdn for Vec<T> {
 
 impl<T: ToEdn> ToEdn for Option<T> {
     /// Arc 278 Stone A.0 — uniform VECTOR-bodied variant encoding, in lockstep
-    /// with `edn_shim`'s Option encoder/decoder:
+    /// with `edn::render`'s Option encoder/decoder:
     /// `None` → `#wat.core.Option/None []` (empty field-vector).
     /// `Some(v)` → `#wat.core.Option/Some [<v.to_edn()>]` (one-field vector).
     ///
@@ -262,7 +262,7 @@ pub use wat_to_edn_derive::Edn;
 // type it processes.  The drain in `wat/src/types.rs::register_builtin_types`
 // iterates `inventory::iter::<EdnSchema>()` at startup and calls
 // `TypeEnv::register_builtin` for each, making the type readable via
-// `reconstruct_record` in `edn_shim.rs`.
+// `reconstruct_record` in `edn/render.rs`.
 //
 // Design invariant: `inventory::collect!` MUST live in the same crate as the
 // type definition (`wat-edn`) so the linker sees both the collector and all
@@ -272,7 +272,7 @@ pub use wat_to_edn_derive::Edn;
 ///
 /// A `#[derive(Edn)]` emits `inventory::submit!(EdnSchema { … })` alongside
 /// the `ToEdn` write impl so `reconstruct_record` (the read path in
-/// `edn_shim.rs`) can find the type during startup without any hand-written
+/// `edn/render.rs`) can find the type during startup without any hand-written
 /// registration.
 ///
 /// The drain in `wat/src/types.rs::register_builtin_types` iterates

@@ -13,7 +13,7 @@
 //!      `HolonAST::Keyword` via the `leaf` verb.
 //!   4. `eval-step!` AlreadyTerminal Keyword (runtime.rs:21322 / try_recognize_holon_value)
 //!      — a bare keyword form recognized as already-terminal with Keyword leaf.
-//!   5. EDN keyword reader (edn_shim.rs:1899) — EDN `:foo::bar` parsed to
+//!   5. EDN keyword reader (`to_holon_inner`'s keyword arm, `src/runtime.rs`) — EDN `:foo::bar` parsed to
 //!      `HolonAST::Keyword("foo::bar")` (no leading colon).
 //!   6. Value::Unit consistency (Option A) — `Value::Unit` → `HolonAST::Nil` via
 //!      both the 14018 dispatcher and `:wat::holon::leaf`.
@@ -106,7 +106,7 @@ fn probe_3_eval_step_keyword_produces_already_terminal_keyword_leaf() {
     assert_eq!(s_b, "true", "same keyword must produce equal HolonAST identities");
 }
 
-// ─── Probe 4 — EDN keyword wire format (edn_shim.rs:1899) ───────────────────
+// ─── Probe 4 — EDN keyword wire format (`from_holon_item`'s keyword arm, `src/runtime.rs`) ───────────────────
 
 /// `HolonAST::Keyword("bar")` written via `edn::write` emits the bare EDN
 /// keyword `:bar` — arc 294.j: a Keyword composition is a leaf `holon_to_watast`

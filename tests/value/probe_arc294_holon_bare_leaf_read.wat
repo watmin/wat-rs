@@ -18,7 +18,7 @@
 ;; The round-trip: encode then decode back against the declared type. `:wat::edn::validate`
 ;; does exactly this (encode the given value, decode the result against the target type,
 ;; report Valid/Invalid) — the one primitive that exercises the TYPED coercion arm
-;; (edn_shim.rs's `:wat::holon::HolonAST` case) without hand-rolling the encode/decode pair.
+;; (edn/render.rs's `:wat::holon::HolonAST` case) without hand-rolling the encode/decode pair.
 (:wat::core::defn :t::leaf-roundtrips [] -> :wat::core::String
   (:wat::edn::write (:wat::edn::validate (:wat::holon::leaf 42) :wat::holon::HolonAST)))
 
@@ -42,7 +42,7 @@
 ;; ─── Row 3 — the OLD tag is REFUSED on decode (negative control) ────────────
 
 ;; `:wat::edn::read` is the UNTYPED reader — the one that used to dispatch on the tag
-;; NAMESPACE directly (edn_shim.rs's decode-dispatch block, now deleted). Feeding it the
+;; NAMESPACE directly (edn/render.rs's decode-dispatch block, now deleted). Feeding it the
 ;; old dead-tag text must RAISE — this function never returns; the Rust side asserts the
 ;; CALL itself errors (direction only, never message text). The text is a PARAMETER, not
 ;; inlined here — the Rust side assembles it by concatenation so the dead spelling doesn't

@@ -7,7 +7,7 @@
 ;; well-formed EDN frame with a wrong-typed body under a CORRECT tag sails through it.
 ;; That gap is the wire denial of service (probe-arc278-wire-dos-service-killed.wat).
 ;;
-;; validate reuses `edn_shim::edn_to_typed_value` — the deep walker that has had ZERO
+;; validate reuses `edn::render::edn_to_typed_value` — the deep walker that has had ZERO
 ;; production callers since arc 258 Stone 258.5b deleted its last one on the
 ;; trusted-wire premise. Nothing new is validated; the two halves are connected.
 

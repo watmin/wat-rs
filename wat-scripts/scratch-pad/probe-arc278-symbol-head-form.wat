@@ -4,7 +4,7 @@
 ;; no leading colon. `resolve::normalize` exists specifically to rewrite `wat.core/+` into
 ;; `:wat::core::+`, so the Clojure-idiom spelling is legitimate wat source.
 ;;
-;; WHY IT MATTERS RIGHT NOW. `edn_to_value_caps` (edn_shim.rs:1773) refuses EVERY `Edn::Symbol`
+;; WHY IT MATTERS RIGHT NOW. `edn_to_value_caps` (`edn::render::edn_to_value_caps`'s `Edn::Symbol` arm) refuses EVERY `Edn::Symbol`
 ;; — "wat has no symbol value type" — and that refusal is what kills any WatAST crossing a
 ;; process-locus service boundary (task #92). The open question is the BLAST RADIUS:
 ;;
@@ -38,7 +38,7 @@
 ;;   (3) The typed door ACCEPTS it — the identity arm (b472fe3e) is doing its job.
 ;;
 ;; And yet this form still cannot cross a PROCESS boundary, because `edn_to_value_caps`
-;; (edn_shim.rs:1773) refuses every `Edn::Symbol` upstream of the typed walk (task #92).
+;; (`edn::render::edn_to_value_caps`'s `Edn::Symbol` arm) refuses every `Edn::Symbol` upstream of the typed walk (task #92).
 ;;
 ;; The correction this file exists to record: the defect was first characterised as biting
 ;; DECLARATION forms, because the symbols noticed were field binders (`c`, `<-`). This form has

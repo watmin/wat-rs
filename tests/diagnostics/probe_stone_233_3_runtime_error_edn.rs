@@ -1,6 +1,6 @@
 //! FM 2-bis probe for arc 233 Stone 233.3 (Errors-as-EDN extension).
 //!
-//! Asserts that the new runtime_error_edn module mints:
+//! Asserts that the new `edn::error` module mints:
 //!   - `runtime_error_to_edn(err: &RuntimeError) -> wat_edn::OwnedValue`
 //!   - `value_snapshot_to_edn(snap: &ValueSnapshot) -> wat_edn::OwnedValue`
 //!   - `provenance_to_edn(prov: &Provenance) -> wat_edn::OwnedValue`

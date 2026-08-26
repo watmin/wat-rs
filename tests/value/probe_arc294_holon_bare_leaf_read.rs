@@ -1,4 +1,4 @@
-//! Arc 294.j RELAND — `edn_shim` renders DATA, not source forms (BRIEF-294.j-RELAND /
+//! Arc 294.j RELAND — `edn::render` renders DATA, not source forms (BRIEF-294.j-RELAND /
 //! DESIGN-STONE-294.j, the ⛔ CORRECTION section).
 //!
 //! The first strike (rows 1-3 below, unchanged) reached for `holon_to_watast` — total,
@@ -269,7 +269,7 @@ fn row7_bare_bundle_raises_on_encode_never_falls_back() {
         .or_else(|| err.downcast_ref::<&str>().map(|s| s.to_string()))
         .unwrap_or_else(|| "<non-string panic payload>".to_string());
     assert!( // rune:lint(loose-assert) — the panic message embeds a #wat.core/Span with a
-             // source :line/:col that legitimately drifts whenever edn_shim.rs gains or loses
+             // source :line/:col that legitimately drifts whenever edn/render.rs gains or loses
              // lines above the RAISE site; a byte-identical assert_eq! would fail on an
              // unrelated refactor even though the RAISE behavior is unchanged. Two targeted
              // substrings (both authored in `holon_ast_to_edn_data`'s own panic!, not the

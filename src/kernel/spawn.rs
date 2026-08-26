@@ -56,12 +56,12 @@
 //! receives EDN String, decodes to Value, applies fn, encodes result to
 //! EDN String, sends back. The process peer's Rust-level `send`/`recv` is
 //! thus `String`-typed; Stone 4.6a-ii's polymorphic verbs bridge to
-//! `Value` via `edn_shim::value_to_edn_string` / `edn_string_to_value`.
+//! `Value` via `edn::render::value_to_edn_string` / `edn_string_to_value`.
 //!
 //! ## Value wire form (EDN encoding for process tier)
 //!
 //! The process tier uses `String` as the wire type and encodes/decodes via
-//! `edn_shim::value_to_edn_string` / `edn_shim::edn_string_to_value` — the
+//! `edn::render::value_to_edn_string` / `edn::render::edn_string_to_value` — the
 //! single codec for this boundary, co-located with the edn shim home.
 //!
 //! ## Sandbox walker for `:process`

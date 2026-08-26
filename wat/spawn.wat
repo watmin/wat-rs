@@ -82,7 +82,7 @@
    label             <- (:wat::core::Option :wat::core::Record)])
 
 ;; Default max-message-bytes budget for process peers — mirrors DEFAULT_MAX_FRAME_BYTES
-;; in src/edn_shim.rs:1008.  Do NOT scatter the literal: change it here and there
+;; in `edn::render` (src/edn/render.rs).  Do NOT scatter the literal: change it here and there
 ;; together.  512 KiB = 524288 bytes.
 (:wat::core::def :wat::spawn::DEFAULT-MAX-MESSAGE-BYTES 524288)
 

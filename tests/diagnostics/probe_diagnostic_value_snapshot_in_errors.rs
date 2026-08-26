@@ -236,7 +236,7 @@ fn probe_7_from_holon_produces_tagged_value() {
 
 // ─── Probe 8 (arc 233 Stone 233.2.c) — edn::read produces tagged Value ──────
 //
-// :wat::edn::read (eval_edn_read @ src/edn_shim.rs:191) parses an EDN string
+// :wat::edn::read (eval_edn_read @ src/edn/render.rs) parses an EDN string
 // to a Value. The result is "runtime-built" from external (potentially
 // untrusted) input — diagnostic poverty surfaces when it flows to an error.
 //

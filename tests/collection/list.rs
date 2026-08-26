@@ -231,7 +231,7 @@ fn edn_roundtrip_list_parse_to_wat_core_list() {
         "EDN `(1 2 3)` should parse as Value::List in wat-edn"
     );
 
-    // Convert through edn_shim: wat-edn List → wat Value::wat__core__List
+    // Convert through edn::render: wat-edn List → wat Value::wat__core__List
     let wat_val = edn_to_value(&parsed, None, None)
         .expect("edn_to_value failed for List");
     match &wat_val {

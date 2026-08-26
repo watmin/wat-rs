@@ -390,7 +390,7 @@ pub(crate) fn eval_ioreader_read_line(
 //
 // Deciding line for `@Category Io`: `src/io.rs:1003`
 // `eval_ioreader_read_frame` — accumulates via repeated `reader.read_line`
-// calls (`edn_shim::read_framed_edn`). Same stream-boundary crossing as
+// calls (`edn::render::read_framed_edn`). Same stream-boundary crossing as
 // `read`/`read-line`, assembled into a wire-protocol frame instead of a
 // fixed byte count or physical line.
 //

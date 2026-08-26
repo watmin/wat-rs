@@ -185,7 +185,8 @@ pub fn to_json_string(v: &Value<'_>) -> String {
 }
 
 // rune:purgare(public-api) — symmetric pretty variant paired with
-// to_json_string (which IS actively consumed by src/edn_shim.rs:105,166
+// to_json_string (which IS actively consumed by src/edn/render.rs's
+// `eval_edn_write_json` / `eval_edn_write_json_natural`
 // for WAT_TEST_OUTPUT cargo integration per arc 116). to_json_string_pretty
 // itself has no current direct caller; justification is symmetric-
 // completeness with the live compact variant + future Clojure-IPC bridge

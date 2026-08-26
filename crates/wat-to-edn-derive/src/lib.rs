@@ -90,7 +90,7 @@ pub fn derive_to_edn(input: TokenStream) -> TokenStream {
 /// Generates BOTH:
 /// 1. `impl ::wat_edn::ToEdn for <Type>` (the write half — identical to `ToEdn`).
 /// 2. An `::inventory::submit!(::wat_edn::EdnSchema { … })` block (the register
-///    half) so the reader (`reconstruct_record` in `edn_shim.rs`) can reconstruct
+///    half) so the reader (`reconstruct_record` in `edn/render.rs`) can reconstruct
 ///    the type from its EDN form without any hand-written registration.
 ///
 /// The consumer crate must have `inventory = "0.3"` as a direct dependency so

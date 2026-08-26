@@ -1,7 +1,7 @@
 //! Arc 259 — disconfirming probe: the comms fd reader must VALUE-FRAME, not
 //! split on the first newline.
 //!
-//! THE GAP (the second framer): `read_framed_edn` (edn_shim) value-frames the
+//! THE GAP (the second framer): `read_framed_edn` (edn::render) value-frames the
 //! ambient/channel WatReader path, but the comms io_uring path
 //! (`comms/process.rs` `take_frame`, line 849) splits on the FIRST `'\n'` —
 //! it assumes wat-edn is single-line (process.rs:51). So a multi-line EDN value

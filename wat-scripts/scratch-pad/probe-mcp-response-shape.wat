@@ -10,7 +10,7 @@
 ;;
 ;;   `write-json`          → `{"#tag":"ns/Name","body":{…}}` — the round-trip sentinel. WRONG for
 ;;                            MCP: a harness expects bare keys, not our tag envelope.
-;;   `write-json-natural`  → documented (edn_shim.rs:132) to DROP the #tag/body wrapping "so
+;;   `write-json-natural`  → documented (`edn::render::eval_edn_write_json_natural`) to DROP the #tag/body wrapping "so
 ;;                            struct fields land at the top level of the JSON object" and to drop
 ;;                            the `:` prefix from keywords. That is exactly MCP's shape — IF it
 ;;                            holds for NESTED records and vectors too, which is the untested part.

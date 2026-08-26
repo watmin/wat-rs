@@ -16,7 +16,7 @@
 ;;
 ;; Why it decides a design: the REPL's durable state is the user's accumulated definition
 ;; set. The seam (278 24w) recorded that as `:durable [defs <- (Vector :- [WatAST])]`. But
-;; `src/edn_shim.rs` refuses an `Edn::Symbol` on the general value DECODE path ("wat has
+;; `src/edn/render.rs` refuses an `Edn::Symbol` on the general value DECODE path ("wat has
 ;; no symbol value type"), and a form is full of bare symbols — so a WatAST field may
 ;; ENCODE faithfully and still be un-decodable on the far side. If the wall fires here,
 ;; `:durable` carries `::`-SOURCE TEXT (String) and the forms are rebuilt with

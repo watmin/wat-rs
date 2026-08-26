@@ -57,7 +57,7 @@
 ;; ⚠ STILL NOT DETERMINED: where exactly the name comparison lives, and whether a BARE `WatAST`
 ;; field fails the same way as `(Vector :- [WatAST])`. Do not guess either.
 ;;
-;; ★ MEASURED 2026-08-12, after the identity arm (`edn_shim::edn_to_typed_value_inner`,
+;; ★ MEASURED 2026-08-12, after the identity arm (`edn::render::edn_to_typed_value_inner`,
 ;; `TypeExpr::Path` arm, `:wat::WatAST` case — DESIGN-STONE-watast-is-the-wire.md):
 ;;
 ;;   "CONTROL echo(i64)        => Ok n=7"
@@ -80,7 +80,7 @@
 ;; The GENERIC, untyped message dispatch decode (`edn_to_value`/`edn_to_value_caps`,
 ;; `runtime.rs:28719`'s `decode_trusted_wire` call, used to figure out WHICH op a frame is for
 ;; BEFORE any type-directed walk is possible) unconditionally refuses `Edn::Symbol`
-;; (`edn_shim.rs:1773`). A real WatAST form legitimately CONTAINS symbols (`<-`, bare
+;; (`edn::render::edn_to_value_caps`'s `Edn::Symbol` arm). A real WatAST form legitimately CONTAINS symbols (`<-`, bare
 ;; identifiers) as part of its structure — so ANY non-trivial form crossing the process wire
 ;; trips this refusal, upstream of and independent from the walker this stone's identity arm
 ;; fixes. Confirmed by isolation: a bare `:wat::WatAST` field crashes the SAME way even when

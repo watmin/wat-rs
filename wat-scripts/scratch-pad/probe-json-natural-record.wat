@@ -1,6 +1,6 @@
 ;; probe-json-natural-record.wat — does `write-json-natural` serve a RECORD, or only a STRUCT?
 ;;
-;; MEASURED by reading (`src/edn_shim.rs:2651`): the aggregate arm is guarded
+;; MEASURED by reading (`edn::render::value_to_json_natural`): the aggregate arm is guarded
 ;; `sv.nature == Nature::Struct`, and the TypeEnv lookup at `:2656` gates on
 ;; `Nature::Struct` again. A `Nature::Record` aggregate should therefore fall through the
 ;; `_ =>` at `:2744` to `value_to_edn_with` — the TAGGED walker — and come back as a

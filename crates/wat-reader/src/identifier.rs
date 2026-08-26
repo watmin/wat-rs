@@ -282,7 +282,7 @@ pub fn deprimed(name: &str) -> &str {
 ///
 /// This is a DIFFERENT grammar from the `::`/`/`/`'` name grammar above — dot-joined,
 /// not a wat `Identifier` spelling at all — but the same disease STONE-one-name-grammar
-/// (arc 109) attacks: `runtime_error_edn.rs::edn_path_segments` and
+/// (arc 109) attacks: `edn::error::edn_path_segments` and
 /// `runtime.rs::edn_coerce_path_segments` were two independent implementations of this
 /// exact split before the stone collapsed them onto this one. An empty `path` (the
 /// mismatch is the value itself, not a sub-field) yields an empty `Vec`.

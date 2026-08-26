@@ -5,7 +5,7 @@
 //! but a child can still `pprintln` a bare struct to its stdout and a parent
 //! `recv'` it — the untyped path the declaration gate cannot reach.
 //!
-//! Close it at the wire DECODE door: `decode_trusted_wire` (`src/edn_shim.rs`)
+//! Close it at the wire DECODE door: `decode_trusted_wire` (`src/edn/render.rs`)
 //! must refuse a top-level `Value::Aggregate` whose `nature == Nature::Struct`.
 //!
 //! RED at HEAD: the struct crosses — decode succeeds, parent gets the struct
