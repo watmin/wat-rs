@@ -95,6 +95,51 @@ Half the floor. This cannot close until the registry answers for far more than i
 — which is what the homes campaign is for. Its gate is already written and disarmed:
 `tests/wat_lang/probe_undefined_builtin_resolves.rs`, *"unlock when we circle back to arc 255"*.
 
+## ★ INSTANCE 4-bis — THE TWO DESIGNS NEVER MET, and 255.3 cannot land without one field
+
+Builder, 2026-08-26: *"our current arc 255 is the one who will address `@Total`, right?"* — and the
+answer is **yes, it already has the slice, but the slice cannot close as written.**
+
+`255/DESIGN.md` commits to exactly this collapse. All three of its `total` mentions are the
+FUNCTION name, not the property:
+
+```
+:380   macros::is_pure_total (eval.rs:344, the macro-expand allow-list) — DELETES; queries …
+:464   macros::is_pure_total (eval.rs:344) DELETES → queries `:expand-time-legal`
+:482   255.3 — consumers collapse (rete/purity + macros::is_pure_total delete; is_effectful_op …)
+```
+
+**But the LOCKED RECORD MODEL's Layer-1 baseline (2026-06-21) is:**
+
+```
+name · arity · kind · pure · deterministic · expand_time_legal · defined_in · layer
+```
+
+`pure` ✓ · `deterministic` ✓ · **`total` ✗.**
+
+The macro half is covered — `is_pure_total` deletes and queries `:expand-time-legal`. The rete half
+is not, because its fence is FOUR axes (arc 278 Stone 6a):
+
+```
+(and (pure? f) (deterministic? f) (total? f) (primitive? f))
+```
+
+Three of the four have a home in the baseline. The fourth has nowhere to move to, so **255.3 would
+delete a consumer whose property the destination cannot hold.**
+
+**The mechanism is a date.** 255's model was locked 2026-06-21. The four-axis fence is arc 278's, and
+it invented the Total axis *afterwards* — in a hand-list, because that was the only place available.
+Neither arc is wrong; they simply never met, and nothing in either document points at the other. That
+is this NOTE's class one level up: not a property nothing verifies, but a property no design **owns**.
+
+**Consequence for scoping:** 255.3 needs one field added to a model explicitly marked LOCKED, sitting
+beside `pure` and `deterministic` where it obviously belongs. That is a deliberate act on a locked
+model and the builder's ruling, not a rider's. Once the field exists, `@Total` at the registration
+site is mechanical — `@Purity` has 290 uses and `@Determinism` 282 across 256 registered intrinsics,
+so the shape is proven — and rete's curated per-op totality reasoning (`f64::*` is not total: it
+overflows to ±Inf; `f64::>` is: its output is a bool) moves to the site that declares the verb, where
+it can be read next to the code it describes.
+
 ## The shape a corrective stone would take
 
 Not "add the missing entries" — that is what this arc has been doing all week, six times, and the
