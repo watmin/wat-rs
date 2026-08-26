@@ -345,6 +345,34 @@
                              (:wat::core::= (:wat::gen::nth small 3) 0)))))
       0 1)))
 
+
+;; ── L19 — bind: DEPENDENT generation ────────────────────────────────────────
+;; `bind (ints 1 4) upto` where `upto n = ints 0 n`: branch cards are [1 2 3], so
+;; card is 6 and the sequence is 0 | 0 1 | 0 1 2.
+;;
+;; The expected value is computed by an INDEPENDENT closed form, not by walking
+;; the branches the way `bind` does. A law that re-derives the answer using the
+;; implementation's own algorithm proves only that the algorithm is deterministic
+;; — which is the trap `differential_exists_no_multiplicity` fell into, one layer
+;; down. Cumulative starts are 0, 1, 3; the value is k minus its branch's start.
+(:wat::core::defn :user::upto [n <- :wat::core::i64] -> (:wat::gen::Gen :- [:wat::core::i64])
+  (:wat::gen::ints 0 n))
+
+(:wat::core::defn :user::law-bind [c <- (:wat::core::PersistentVector :- [:wat::core::i64])]
+  -> :wat::core::i64
+  (:wat::core::let [k (:user::at0 c 0)
+                    g (:wat::gen::bind (:wat::gen::ints 1 4) :user::upto)
+                    v ((:wat::gen::Gen/at g) k)
+                    want (:wat::core::if (:wat::core::< k 1)
+                           0
+                           (:wat::core::if (:wat::core::< k 3)
+                             (:wat::core::i64::- k 1)
+                             (:wat::core::i64::- k 3)))]
+    (:wat::core::if
+      (:wat::core::and (:wat::core::= (:wat::gen::Gen/card g) 6)
+                       (:wat::core::= v want))
+      0 1)))
+
 ;; ── drive every law with gen-check, over spaces built by gen-coords ─────────
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let [seven  (:wat::gen::coords (:wat::core::PersistentVector 7))
@@ -376,11 +404,13 @@
                     b16 (:user::law-take)
                     b17 (:user::law-scatter-bijection)
                     b18 (:user::law-shrink)
+                    six3 (:wat::gen::coords (:wat::core::PersistentVector 6))
+                    b19 (:user::violations (:wat::gen::check six3 :user::law-bind))
                     bad (:wat::core::i64::+
                           (:wat::core::i64::+ (:wat::core::i64::+ b1 b2) (:wat::core::i64::+ b3 (:wat::core::i64::+ b4 b5)))
                           (:wat::core::i64::+ b6 (:wat::core::i64::+ b7 (:wat::core::i64::+ b8 (:wat::core::i64::+ b9 (:wat::core::i64::+ b10 (:wat::core::i64::+ b11 (:wat::core::i64::+ (:wat::core::i64::+ b12 b13) (:wat::core::i64::+ b14 (:wat::core::i64::+ b15 (:wat::core::i64::+ b16 (:wat::core::i64::+ b17 b18))))))))))))]
     (:wat::kernel::println
       (:wat::core::String/concat
-        (:wat::core::String/concat "laws=18 checked=" (:wat::core::i64::to-string
-          (:wat::core::i64::+ 7 (:wat::core::i64::+ 7 (:wat::core::i64::+ 120 (:wat::core::i64::+ 120 (:wat::core::i64::+ 1 (:wat::core::i64::+ 4 (:wat::core::i64::+ 5 (:wat::core::i64::+ 8 (:wat::core::i64::+ 6 (:wat::core::i64::+ 6 (:wat::core::i64::+ 12 (:wat::core::i64::+ 20 3))))))))))))))
+        (:wat::core::String/concat "laws=19 checked=" (:wat::core::i64::to-string
+          (:wat::core::i64::+ 7 (:wat::core::i64::+ 7 (:wat::core::i64::+ 120 (:wat::core::i64::+ 120 (:wat::core::i64::+ 1 (:wat::core::i64::+ 4 (:wat::core::i64::+ 5 (:wat::core::i64::+ 8 (:wat::core::i64::+ 6 (:wat::core::i64::+ 6 (:wat::core::i64::+ 12 (:wat::core::i64::+ 20 (:wat::core::i64::+ 3 6)))))))))))))))
         (:wat::core::String/concat " violations=" (:wat::core::i64::to-string bad))))))

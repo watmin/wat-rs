@@ -470,3 +470,67 @@
       (:wat::gen::shrink-dim acc j still-fails?))
     c
     (:wat::core::range 0 (:wat::core::length c))))
+
+;; ── bind: DEPENDENT generation — the shape of B depends on the VALUE of A ────
+;;
+;; `(bind (ints 1 4) (fn [n] (ints 0 n)))` — generate n, THEN generate something
+;; whose space is determined by n. This is the one combinator the finite model
+;; does not get for free from `coords`, because a coordinate space has a FIXED
+;; shape and this one does not.
+;;
+;; It is `one-of` over a COMPUTED branch list rather than a literal one:
+;;
+;;     card = SUM over a in ga of card(f(a))
+;;     at k = walk the branches, subtracting each card, until k lands in one
+;;
+;; so the same contiguous-block property holds: branch i occupies a run of
+;; consecutive indices, enumeration walks branch 0 exhaustively then branch 1,
+;; and a failing index still localizes.
+;;
+;; COST, stated because it is real and unlike every other combinator here. `f` is
+;; applied once per source point AT CONSTRUCTION to learn the branch cardinalities
+;; (cached in `cards`), and once more per `at` call to reach the chosen branch.
+;; So `bind` is O(card(ga)) per lookup where everything else is O(1)-ish. That is
+;; affordable when the source is small — which is the shape dependent generation
+;; actually takes — and it is why `cards` is precomputed rather than recomputed:
+;; without the cache, `card` alone would rebuild every branch generator on every
+;; call.
+(:wat::core::defstruct :wat::gen::BindPick :- [B]
+  [rest <- :wat::core::i64
+   got  <- (:wat::core::Option :- [B])])
+
+(:wat::core::defn :wat::gen::bind :- [A B]
+  [ga <- (:wat::gen::Gen :- [A])  f <- [A :-> (:wat::gen::Gen :- [B])]]
+  -> (:wat::gen::Gen :- [B])
+  (:wat::core::let
+    [ga-at (:wat::gen::Gen/at ga)
+     n     (:wat::gen::Gen/card ga)
+     cards (:wat::core::into (:wat::core::PersistentVector)
+             (:wat::core::mapv
+               (:wat::core::fn [i <- :wat::core::i64] -> :wat::core::i64
+                 (:wat::gen::Gen/card (f (ga-at i))))
+               (:wat::core::range 0 n)))]
+    (:wat::gen::Gen
+      :card (:wat::core::foldl
+              (:wat::core::fn [a <- :wat::core::i64  c <- :wat::core::i64] -> :wat::core::i64
+                (:wat::core::i64::+ a c))
+              0 cards)
+      :at (:wat::core::fn [k <- :wat::core::i64] -> B
+            (:wat::core::Option/expect
+              (:wat::gen::BindPick/got
+                (:wat::core::foldl
+                  (:wat::core::fn [acc <- (:wat::gen::BindPick :- [B])  i <- :wat::core::i64]
+                                  -> (:wat::gen::BindPick :- [B])
+                    (:wat::core::match (:wat::gen::BindPick/got acc)
+                      ((:wat::core::Some _v) acc)
+                      (:wat::core::None
+                        (:wat::core::let [c (:wat::gen::nth cards i)
+                                          r (:wat::gen::BindPick/rest acc)]
+                          (:wat::core::if (:wat::core::< r c)
+                            (:wat::gen::BindPick :rest r
+                              :got (:wat::core::Some ((:wat::gen::Gen/at (f (ga-at i))) r)))
+                            (:wat::gen::BindPick :rest (:wat::core::i64::- r c)
+                              :got :wat::core::None))))))
+                  (:wat::gen::BindPick :rest k :got :wat::core::None)
+                  (:wat::core::range 0 n)))
+              "bind: index outside the summed cardinality")))))
