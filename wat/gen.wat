@@ -135,8 +135,13 @@
 ;; not an error condition — a `such-that` whose predicate excludes everything is
 ;; usually a caller bug, but that is the CALLER's ruling to make, in its own arm.
 (:wat::core::defenum :wat::gen::CheckOutcome :wat::enum::Pure
-  :Checked    [points <- :wat::core::i64  violations <- :wat::core::i64]
+  :Checked    [points <- :wat::core::i64
+               violations <- :wat::core::i64
+               first-failure <- (:wat::core::Option :- [:wat::core::i64])]
   :EmptySpace)
+
+(:wat::core::defstruct :wat::gen::CheckAcc
+  [bad <- :wat::core::i64  first <- (:wat::core::Option :- [:wat::core::i64])])
 
 (:wat::core::defn :wat::gen::check :- [T]
   [g <- (:wat::gen::Gen :- [T])  prop <- [T :-> :wat::core::i64]] -> :wat::gen::CheckOutcome
@@ -144,12 +149,53 @@
                     at   (:wat::gen::Gen/at g)]
     (:wat::core::if (:wat::core::= card 0)
       :wat::gen::CheckOutcome::EmptySpace
-      (:wat::gen::CheckOutcome::Checked card
-        (:wat::core::foldl
-          (:wat::core::fn [acc <- :wat::core::i64  i <- :wat::core::i64] -> :wat::core::i64
-            (:wat::core::i64::+ acc (prop (at i))))
-          0
-          (:wat::core::range 0 card))))))
+      (:wat::core::let
+        [acc (:wat::core::foldl
+               (:wat::core::fn [a <- :wat::gen::CheckAcc  i <- :wat::core::i64] -> :wat::gen::CheckAcc
+                 (:wat::core::let [v (prop (at i))]
+                   (:wat::core::if (:wat::core::= v 0)
+                     a
+                     (:wat::gen::CheckAcc
+                       :bad (:wat::core::i64::+ (:wat::gen::CheckAcc/bad a) v)
+                       :first (:wat::core::match (:wat::gen::CheckAcc/first a)
+                                ((:wat::core::Some f) (:wat::core::Some f))
+                                (:wat::core::None (:wat::core::Some i)))))))
+               (:wat::gen::CheckAcc :bad 0 :first :wat::core::None)
+               (:wat::core::range 0 card))]
+        (:wat::gen::CheckOutcome::Checked card
+          (:wat::gen::CheckAcc/bad acc)
+          (:wat::gen::CheckAcc/first acc))))))
+
+;; ── shrink-index — GENERATOR-INDEPENDENT, unlike the coordinate shrink ──────
+;;
+;; ⚠ A CLAIM CORRECTED. This library's design record said "shrinking is
+;; generator-independent" from the day `shrink` was written. It was not true.
+;; `shrink` takes a COORDINATE (`PV<i64>`) and descends its digits, so it works on
+;; a raw `coords` space and composes with NONE of `bind`, `such-that`, `one-of` or
+;; `record` — the combinators that make the library worth having. The claim was
+;; about the design's potential; the code only ever delivered it for one shape.
+;;
+;; This is the general form: it shrinks an INDEX into any `Gen`, by walking down
+;; for the smallest index that still fails. That is meaningful precisely because
+;; enumeration order is a simplicity order here — `coords` yields all-zero first,
+;; `one-of`/`bind` place earlier branches first, `vector-upto` puts short vectors
+;; before long ones. "Earlier" IS "simpler" by construction.
+;;
+;; It is O(k) in the index, where the coordinate shrink is O(sum of bases). For a
+;; coords-shaped space the coordinate version is sharper and should be preferred;
+;; this one is what you reach for when the space has any other shape.
+(:wat::core::defn :wat::gen::shrink-index :- [T]
+  [g <- (:wat::gen::Gen :- [T])  k <- :wat::core::i64  still-fails? <- [T :-> :wat::core::bool]]
+  -> :wat::core::i64
+  (:wat::core::let [at (:wat::gen::Gen/at g)]
+    (:wat::core::foldl
+      (:wat::core::fn [best <- :wat::core::i64  i <- :wat::core::i64] -> :wat::core::i64
+        ;; keep the FIRST (smallest) index that still fails; once lowered, `best`
+        ;; differs from k and later candidates are skipped
+        (:wat::core::if (:wat::core::and (:wat::core::= best k) (still-fails? (at i)))
+          i best))
+      k
+      (:wat::core::range 0 k))))
 
 ;; ── gen-elements: pick from a value vector ───────────────────────────────────
 ;; The most-used combinator in the QuickCheck tradition (`gen/elements`), and the

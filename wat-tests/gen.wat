@@ -402,11 +402,44 @@
 ;; over zero points has not passed, it has not run.
 (:wat::core::defn :wat-tests::gen::held [o <- :wat::gen::CheckOutcome] -> :wat::core::nil
   (:wat::core::match o
-    ((:wat::gen::CheckOutcome::Checked pts v)
+    ((:wat::gen::CheckOutcome::Checked pts v _first)
       (:wat::core::let [_ (:wat::test::assert-true (:wat::core::> pts 0))]
         (:wat::test::assert-eq v 0)))
     (:wat::gen::CheckOutcome::EmptySpace
       (:wat::test::assert-true false))))
+
+
+;; ── L22 — check hands back a WITNESS, not just a count ──────────────────────
+;; Without the first failing index a caller learns "3 violations" and cannot reach
+;; a single one of them — and inside a `deftest` it cannot even print. The witness
+;; is what makes a failure actionable, so it is a law rather than a convenience.
+(:wat::core::defn :wat-tests::gen::fails-at-3 [c <- (:wat::core::PersistentVector :- [:wat::core::i64])]
+  -> :wat::core::i64
+  (:wat::core::if (:wat::core::>= (:wat::gen::nth c 0) 3) 1 0))
+
+(:wat::core::defn :wat-tests::gen::law-witness [] -> :wat::core::i64
+  (:wat::core::match
+    (:wat::gen::check (:wat::gen::coords (:wat::core::PersistentVector 6))
+                      :wat-tests::gen::fails-at-3)
+    ((:wat::gen::CheckOutcome::Checked pts bad first)
+      (:wat::core::match first
+        ((:wat::core::Some k)
+          (:wat::core::if (:wat::core::and (:wat::core::= bad 3) (:wat::core::= k 3)) 0 1))
+        (:wat::core::None 1)))
+    (:wat::gen::CheckOutcome::EmptySpace 1)))
+
+;; ── L23 — shrink-index is GENERATOR-INDEPENDENT ─────────────────────────────
+;; The coordinate shrink only ever worked on a raw `coords` space. This one walks
+;; an index into ANY Gen — here a `bind`-shaped space, which the coordinate shrink
+;; cannot touch at all — and finds the smallest index that still fails.
+;; `bind (ints 1 4) upto` enumerates 0 | 0 1 | 0 1 2; the values >= 2 start at
+;; index 5, so shrinking index 5 must stay at 5, and nothing below it may qualify.
+(:wat::core::defn :wat-tests::gen::big? [v <- :wat::core::i64] -> :wat::core::bool
+  (:wat::core::>= v 2))
+
+(:wat::core::defn :wat-tests::gen::law-shrink-index [] -> :wat::core::i64
+  (:wat::core::let [g (:wat::gen::bind (:wat::gen::ints 1 4) :wat-tests::gen::upto)]
+    (:wat::core::if (:wat::core::= (:wat::gen::shrink-index g 5 :wat-tests::gen::big?) 5) 0 1)))
 
 (:wat::test::deftest :wat-tests::gen::test-ints
   (:wat-tests::gen::held
@@ -504,3 +537,9 @@
 
 (:wat::test::deftest :wat-tests::gen::test-shrink
   (:wat::test::assert-eq (:wat-tests::gen::law-shrink) 0))
+
+(:wat::test::deftest :wat-tests::gen::test-witness
+  (:wat::test::assert-eq (:wat-tests::gen::law-witness) 0))
+
+(:wat::test::deftest :wat-tests::gen::test-shrink-index
+  (:wat::test::assert-eq (:wat-tests::gen::law-shrink-index) 0))

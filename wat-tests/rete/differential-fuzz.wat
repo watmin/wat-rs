@@ -269,7 +269,7 @@
 (:wat::test::deftest :wat-tests::rete::fuzz::test-native-matches-oracle
   (:wat::core::match
     (:wat::gen::check (:wat-tests::rete::fuzz::space) :wat-tests::rete::fuzz::prop)
-    ((:wat::gen::CheckOutcome::Checked cases bad)
+    ((:wat::gen::CheckOutcome::Checked cases bad _first)
       (:wat::core::let [_ (:wat::test::assert-true (:wat::core::> cases 0))]
         (:wat::test::assert-eq bad 120)))
     (:wat::gen::CheckOutcome::EmptySpace (:wat::test::assert-true false))))
