@@ -1,0 +1,75 @@
+;; host-surface-renames.rs.intueri — the names `src/host/` must now speak. Rust identifiers, not a
+;; wat namespace (hence `.rs.intueri`); the house shape kept — anchor vocabulary, the PROMISE each
+;; name must keep, candidates each with its own counter-argument.
+;;
+;; DESIGN: docs/arc/2026/06/255-builtin-registry/DESIGN-STONE-the-host-surface-renames.md
+;; PRIOR CAST: rust-entry-surface-naming.rs.intueri (0c1667524) — named `src/host/` on two
+;;             independent first-place votes, and cut panic_hook.rs from the family.
+;;
+;; ── ANCHOR VOCABULARY (already spoken; the new names must live beside these) ──────────────────
+;;   src/host/          compose.rs · harness.rs · test_runner.rs      ← the home, ruled by the ward
+;;   src/edn/           render · bridge · contract · error
+;;   src/load/          loader · stdlib · source
+;;   :user::main        wat's OWN entry point (arc 170). NOT this surface.
+;;   FrozenWorld        what `from_source` produces and `run` invokes against (src/freeze.rs)
+;;   wat::main!         the proc-macro whose GENERATED TEXT names these identifiers
+;;   wat_test!          ditto
+;;
+;;   ⚠ THE <Verb>Outcome FAMILY — measured, and it is large and consistent:
+;;     RecvOutcome 195 · SelectOutcome 100 · SendOutcome 79 · ReadFrameOutcome 56
+;;     CosineOutcome 46 · AcceptOutcome 43 · CloseOutcome 41 · ConnectOutcome 38
+;;     VectorDecodeOutcome 33 · DeftestOutcome 33 · ReadlnOutcome · ReadOutcome · FormOutcome
+;;   Every member carries a VERB. Harness's is bare `Outcome`, re-exported to the crate root, so an
+;;   external caller writes `wat::Outcome` among a dozen verbed siblings.
+;;
+;; ══ TARGET 1 — the facade type, today `Harness` (LEVEL 1 LIE per the prior cast) ══════════════
+;; PROMISE it must keep: it holds a FrozenWorld built from wat source and invokes `:user::main`
+;; from a host Rust process, returning a typed result. It is NOT test infrastructure — its own doc
+;; must currently fence that off ("A test runner. That's `wat test <path>`"), which is the evidence
+;; it fails Obvious. It is the thing an EXTERNAL crate writes: `use wat::???;`
+;;   candidates:  Guest · Embed · Program · Instance · Runner · Session · Loaded · Wat
+;;   counter-arguments, so the ward weighs a real trade:
+;;     Guest    — pairs with the home (`host` runs a `guest`), but is "guest" spoken anywhere else
+;;                in this codebase, or is it a metaphor arriving with the name?
+;;     Embed    — the file's OWN verb ("embed wat as a sub-language"), BUT `embed` was KILLED as the
+;;                home name for over-promising; reusing it re-imports that argument one level down
+;;     Program  — accurate and plain, but `:user::main` is also "the program"; two senses again
+;;     Instance — interpreter-embedding term of art (cf. wasm), but generic
+;;     Runner   — collides with test_runner.rs, a sibling IN THIS HOME
+;;     Session  — implies statefulness across calls that this type does not have
+;;     Loaded   — an adjective where every sibling type is a noun
+;;
+;; ══ TARGET 2 — its error, today `HarnessError` ════════════════════════════════════════════════
+;; PROMISE: the typed failure of building-or-invoking. Follows TARGET 1 mechanically UNLESS the ward
+;; sees a reason it should not. Note the house has both shapes: `LoadError` / `StdlibError` /
+;; `ConfigError` (noun+Error) and `EdnReadError` (verb-phrase+Error).
+;;
+;; ══ TARGET 3 — the result struct, today `Outcome` ═════════════════════════════════════════════
+;; PROMISE: what `run` hands back — today `{stdout, stderr}`, both ALWAYS EMPTY (a no-op pending arc
+;; 170 slice 1f; the doc now says so). Its own surface is 2 sites; the crate-root re-export is the
+;; problem. THE QUESTION IS WHICH VERB. `RunOutcome`? `<Target1>Outcome`? Or does it leave the
+;; family entirely — is it an Outcome at all, given every sibling names a fallible I/O act and this
+;; one names "the program finished"?
+;;   ⚠ Do not assume it must join the family. Ask whether it belongs to it.
+;;
+;; ══ TARGET 4 — the free functions, today `compose_and_run` / `compose_and_run_with_loader` ═════
+;; PROMISE: assemble the frozen world from user source + dep sources + dep Rust shims, wire it to
+;; REAL OS stdio and REAL OS signals (SIGINT/TERM/USR1/USR2/HUP), invoke `:user::main`. It is what
+;; `wat::main!` expands to. The prior cast's reader called `compose` a mumble because the verb was
+;; compounded EVERY time it was used, and because the OS-wiring half is unnamed by it. That reader
+;; nominated `bootstrap` / `launch` for the ACTIVITY.
+;;   candidates:  run · launch · boot · bootstrap · main · start · run_program
+;;   counter-arguments:
+;;     run        — collides with `Harness::run`, a method on TARGET 1 in the same home
+;;     launch     — reads well; is it distinguishable from `spawn`, which this codebase already
+;;                  spends on process/thread creation (`spawn-program`, `spawn-process`)?
+;;     boot       — `src/time.rs` already says "Process boot clock"; a second sense of boot
+;;     bootstrap  — precise about the activity, but generic the way `api` is
+;;     main       — `wat::main!` the macro vs `wat::main` the fn: two things one word
+;;     start      — pairs with nothing; what is `stop`?
+;;
+;; ══ TARGET 5 — the file names, today `harness.rs` and `compose.rs` ════════════════════════════
+;; PROMISE: name what the file holds, sitting beside `test_runner.rs` in `src/host/`. A file may
+;; keep its name even if its TYPE renames — say so if that is the honest answer.
+;;
+;;   src/host/???.rs   <- the facade (Harness) · src/host/???.rs   <- the OS-wiring entry (compose)
