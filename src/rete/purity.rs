@@ -421,6 +421,19 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             | ":wat::core::f64::abs"
             | ":wat::core::f64::max"
             | ":wat::core::f64::min"
+            // Arc 255 Stone A-ii — `:wat::f64::*` is the new f64 home; every one of these
+            // forwards straight to the SAME `crate::runtime::eval_f64_arith` /
+            // `crate::runtime::eval_f64_unary` fns the `:wat::core::f64::*` spelling above
+            // already calls (see `src/intrinsic/f64.rs`'s module doc — the six arithmetic
+            // ops share the named `f64_*_op` fns, `abs`/`max`/`min` share the same engine
+            // fn). Same ruling, new spelling, not debt.
+            | ":wat::f64::+"
+            | ":wat::f64::-"
+            | ":wat::f64::*"
+            | ":wat::f64::/"
+            | ":wat::f64::abs"
+            | ":wat::f64::max"
+            | ":wat::f64::min"
             | ":wat::core::u8"
             // Comparison
             | ":wat::core::="
@@ -555,10 +568,27 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             | ":wat::i64::<"  | ":wat::i64::<=" | ":wat::i64::>" | ":wat::i64::>="
             | ":wat::i64::=" | ":wat::i64::not="
             | ":wat::i64::mod" | ":wat::i64::quot" | ":wat::i64::rem"
+            // Arc 255 Stone A-ii — `:wat::f64::*` new spellings of the six comparison/
+            // equality verbs immediately above (`:wat::core::f64::{<,<=,>,>=,=,not=}`).
+            // Each forwards to the same `crate::runtime::eval_f64_compare` engine its
+            // `:wat::core::f64::*` twin calls (`src/intrinsic/f64.rs`); same ruling, new
+            // spelling, not debt.
+            | ":wat::f64::<"  | ":wat::f64::<=" | ":wat::f64::>" | ":wat::f64::>="
+            | ":wat::f64::=" | ":wat::f64::not="
             // f64 numeric readers/roundings — total functions of their argument.
             | ":wat::core::f64::round" | ":wat::core::f64::clamp"
             | ":wat::core::f64::max-of" | ":wat::core::f64::min-of"
             | ":wat::core::f64::to-i64" | ":wat::core::f64::to-string"
+            // Arc 255 Stone A-ii — `:wat::f64::*` new spellings of the six readers/
+            // roundings immediately above. `round`/`clamp`/`to-i64`/`to-string` forward to
+            // the SAME `crate::runtime::eval_f64_{round,clamp,to_i64,to_string}` fns;
+            // `max-of`/`min-of` are variadic under the new spelling (bare args, not a
+            // single `Vector`) but reduce with the literal same `f64::max`/`f64::min` fn
+            // pointer their `:wat::core::f64::*` twin's `eval_f64_reduce` call uses — see
+            // `src/intrinsic/f64.rs`'s module doc. Same ruling, new spelling, not debt.
+            | ":wat::f64::round" | ":wat::f64::clamp"
+            | ":wat::f64::max-of" | ":wat::f64::min-of"
+            | ":wat::f64::to-i64" | ":wat::f64::to-string"
             // The `String/` family — ENTIRELY absent. Note `:wat::string::` (lowercase, a
             // namespace) is whitelisted by prefix above; `String/` is the per-Type family users
             // actually call, and it is a different namespace, so the prefix never covered it.

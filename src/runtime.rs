@@ -5956,18 +5956,10 @@ fn dispatch_keyword_head_value(
         // IEEE 754 semantics: f64 division by 0.0 produces ±Inf or NaN (not an error).
         // This is correct per the probe gate_4b_f64_nan_ordering (0.0 / 0.0 → NaN,
         // then 1.0 < NaN → false). Only i64 division by zero is a runtime error.
-        ":wat::core::f64::+" => {
-            eval_f64_arith(head, args, list_span, env, sym, |a, b, _| Ok(a + b))
-        }
-        ":wat::core::f64::-" => {
-            eval_f64_arith(head, args, list_span, env, sym, |a, b, _| Ok(a - b))
-        }
-        ":wat::core::f64::*" => {
-            eval_f64_arith(head, args, list_span, env, sym, |a, b, _| Ok(a * b))
-        }
-        ":wat::core::f64::/" => {
-            eval_f64_arith(head, args, list_span, env, sym, |a, b, _| Ok(a / b))
-        }
+        ":wat::core::f64::+" => eval_f64_arith(head, args, list_span, env, sym, f64_add_op),
+        ":wat::core::f64::-" => eval_f64_arith(head, args, list_span, env, sym, f64_sub_op),
+        ":wat::core::f64::*" => eval_f64_arith(head, args, list_span, env, sym, f64_mul_op),
+        ":wat::core::f64::/" => eval_f64_arith(head, args, list_span, env, sym, f64_div_op),
 
         // arc 237 Stone 237.8a — mixed-type binary leaf arms DELETED
         // under THE DECISION (`feedback_no_implicit_coercion`).
@@ -5977,12 +5969,8 @@ fn dispatch_keyword_head_value(
         // and Value-level inner helpers (arith_i64_f64_inner /
         // arith_f64_i64_inner) are also deleted below.
         // Float min/max — strict f64. Arc 046.
-        ":wat::core::f64::max" => {
-            eval_f64_arith(head, args, list_span, env, sym, |a, b, _| Ok(a.max(b)))
-        }
-        ":wat::core::f64::min" => {
-            eval_f64_arith(head, args, list_span, env, sym, |a, b, _| Ok(a.min(b)))
-        }
+        ":wat::core::f64::max" => eval_f64_arith(head, args, list_span, env, sym, f64_max_op),
+        ":wat::core::f64::min" => eval_f64_arith(head, args, list_span, env, sym, f64_min_op),
         // Float abs — strict f64, unary. Arc 046.
         ":wat::core::f64::abs" => {
             eval_f64_unary(args, list_span, env, sym, ":wat::core::f64::abs", f64::abs)
@@ -10437,7 +10425,7 @@ fn eval_u8_cast(
 
 /// Float arith: `:wat::core::f64::{+,-,*,/}`. Strictly f64 × f64 →
 /// f64. No promotion; an i64 arg is a type error.
-fn eval_f64_arith<F>(
+pub(crate) fn eval_f64_arith<F>(
     head: &str,
     args: &[WatAST],
     list_span: &Span,
@@ -10484,6 +10472,57 @@ where
         )
         .into()),
     }
+}
+
+// Arc 255 Stone A-ii — the six `eval_f64_arith` op bodies, lifted out of the
+// inline closures the `:wat::core::f64::{+,-,*,/,max,min}` dispatch arms used
+// to carry, so both that arm and the new `:wat::f64::*` home
+// (`src/intrinsic/f64.rs`) call the SAME fn — no duplicated "what does `+`
+// mean for two f64s" between the two spellings. Unlike `i64_add_op` and
+// friends, these take NO `head` param and cannot fail: f64 arithmetic has no
+// overflow/division-by-zero error path (IEEE 754 gives ±Inf/NaN instead), so
+// there is no `:op` to attribute an error to.
+pub(crate) fn f64_add_op(
+    a: f64,
+    b: f64,
+    _span: &Span, // rune:lint(unused-span) — infallible — no error path: IEEE 754 f64 addition is TOTAL (yields ±Inf/NaN, never an error), so there is no RuntimeError for this span to locate
+) -> Result<f64, EvalBreak> {
+    Ok(a + b)
+}
+pub(crate) fn f64_sub_op(
+    a: f64,
+    b: f64,
+    _span: &Span, // rune:lint(unused-span) — infallible — no error path: IEEE 754 f64 subtraction is TOTAL (yields ±Inf/NaN, never an error), so there is no RuntimeError for this span to locate
+) -> Result<f64, EvalBreak> {
+    Ok(a - b)
+}
+pub(crate) fn f64_mul_op(
+    a: f64,
+    b: f64,
+    _span: &Span, // rune:lint(unused-span) — infallible — no error path: IEEE 754 f64 multiplication is TOTAL (yields ±Inf/NaN, never an error), so there is no RuntimeError for this span to locate
+) -> Result<f64, EvalBreak> {
+    Ok(a * b)
+}
+pub(crate) fn f64_div_op(
+    a: f64,
+    b: f64,
+    _span: &Span, // rune:lint(unused-span) — infallible — no error path: IEEE 754 f64 division is TOTAL (yields ±Inf/NaN, never an error), so there is no RuntimeError for this span to locate
+) -> Result<f64, EvalBreak> {
+    Ok(a / b)
+}
+pub(crate) fn f64_max_op(
+    a: f64,
+    b: f64,
+    _span: &Span, // rune:lint(unused-span) — infallible — no error path: IEEE 754 f64 maximum is TOTAL (yields ±Inf/NaN, never an error), so there is no RuntimeError for this span to locate
+) -> Result<f64, EvalBreak> {
+    Ok(a.max(b))
+}
+pub(crate) fn f64_min_op(
+    a: f64,
+    b: f64,
+    _span: &Span, // rune:lint(unused-span) — infallible — no error path: IEEE 754 f64 minimum is TOTAL (yields ±Inf/NaN, never an error), so there is no RuntimeError for this span to locate
+) -> Result<f64, EvalBreak> {
+    Ok(a.min(b))
 }
 
 // arc 237 Stone 237.8a — eval_i64_f64_arith and eval_f64_i64_arith
@@ -10629,7 +10668,7 @@ fn eval_bigint_to_f64(
     Ok(Value::f64(x))
 }
 
-fn eval_f64_to_string(
+pub(crate) fn eval_f64_to_string(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
@@ -10650,7 +10689,7 @@ fn eval_f64_to_string(
     Ok(Value::String(Arc::new(format!("{}", f))))
 }
 
-fn eval_f64_to_i64(
+pub(crate) fn eval_f64_to_i64(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
@@ -10684,7 +10723,7 @@ fn eval_f64_to_i64(
 /// has no load-bearing use case and feels like asking for a
 /// divide-by-zero answer; if a real caller surfaces, a future
 /// arc extends. NaN and ±∞ pass through unchanged.
-fn eval_f64_round(
+pub(crate) fn eval_f64_round(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
@@ -10752,7 +10791,7 @@ fn eval_f64_round(
 /// family is consistently strict (matches `eval_f64_arith`'s
 /// `f64::+/-/*//` discipline), while `:wat::std::math` permits
 /// `i64 -> f64` promotion for ergonomic transcendental calls.
-fn eval_f64_unary(
+pub(crate) fn eval_f64_unary(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
@@ -10795,7 +10834,7 @@ fn eval_f64_unary(
 /// `f64::clamp` panics if `lo > hi` or either is NaN — we surface
 /// that as a `MalformedForm` rather than letting it propagate as
 /// a panic, since wat-side errors should be catchable.
-fn eval_f64_clamp(
+pub(crate) fn eval_f64_clamp(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
@@ -11718,7 +11757,7 @@ pub(crate) fn eval_compare<F: Fn(std::cmp::Ordering) -> bool>(
 /// - `a < NaN` = false, `NaN < a` = false, `NaN <= NaN` = false, etc.
 ///
 /// This is correct per the DESIGN gate `gate_4b_f64_nan_ordering`.
-fn eval_f64_compare<F: Fn(f64, f64) -> bool>(
+pub(crate) fn eval_f64_compare<F: Fn(f64, f64) -> bool>(
     head: &str,
     args: &[WatAST],
     list_span: &Span,
