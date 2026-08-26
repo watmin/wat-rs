@@ -24,6 +24,7 @@ difference is not noise.**
 | `bare-variant-constructors.wat` | how big is the Option/Result migration, really? | 211 constructor calls · text finds 212 |
 | `defined-twice.wat` | does one file define the same name twice? | 0 real · 2 false positives, both macro templates |
 | `can-raise.wat` | which functions contain a call that can panic? | 207 call sites across 121 functions · 2.6s |
+| `core-numerics-ops.wat` | how big is the numerics rehome, really? | **1495** keyword leaves · text finds 1571 · *(whole corpus, 1577 files)* |
 
 ## What the differences were
 
@@ -41,6 +42,26 @@ reports a comment as a site.
 by one: `wat/spawn.wat:603`, a comment describing a MATCH ARM — `((:wat::core::Err _died) acc)` — a
 pattern, not a constructor. The one place in 212 where the two instruments disagree, and structure
 is right.
+
+**`core-numerics-ops`** — the arc 255 numerics rehome (`:wat::core::{i64,f64}::*` →
+`:wat::{i64,f64}::*`). Text finds **1571**; the migration is **1495**. The 76-site gap is **39
+comments** (`;; metadata-of on a rust builtin (:wat::core::i64::+) — RED at HEAD returns None`) and
+**42 string literals** (`"(:wat::core::i64::+ 1 2)"` — wat source embedded in test fixtures). The
+string literals are the dangerous half: a literal's span covers its surrounding quotes while its
+`name` does not, so splicing a replacement into that span corrupts the literal into unquoted keyword
+syntax. That is what the KEYWORD-ONLY guard exists for.
+
+There is a second cut this program makes that text cannot make safely at all. `:wat::core::i64`
+**without** a trailing `::` is the TYPE — 6,670 `.wat` occurrences bound for arc 251's `wat.type/`,
+a different destination in a different arc. `grep -oF ':wat::core::i64'` returns **8111**, one number
+covering both populations. The trailing `::` separates them, and the rule's `starts-with?` cannot
+match the shorter bare type by construction — but only the structural instrument can then also drop
+the comments and strings, and it is the combination that makes the number the migration's size.
+
+⚠ **Written 2026-08-26, mid-migration, because the orchestrator had already briefed the wrong
+number.** A text census of 1613 went into a rider's acceptance row as a bar to reconcile against.
+The rider was told to explain any difference before applying — which would have made a correct tool
+look like a discrepancy. The census that should precede the brief was written after it.
 
 ## The shape to copy
 
