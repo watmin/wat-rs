@@ -223,9 +223,14 @@ it survived the fork it warns about and died of staleness instead. `:467` and `:
   — keep both vectors.
 - **Nested `bind` multiplies**: depth-3 nested bind vs `coords` on identical 10,000-point spaces
   — 18.1s vs 0.73s, ~25x (struere).
-- **Four laws re-derive expected values with the implementation's own arithmetic** (vocare,
-  complectens) — L9, L11, L12, L20. L11's comment says the second digit is *"the easiest place
-  for the radix wiring to be wrong"*, then writes that wiring out as its oracle.
+- ~~**Four laws re-derive expected values with the implementation's own arithmetic**~~ —
+  **CLOSED 2026-08-26.** L9, L11, L12, L20 now compare against LITERAL TABLES enumerated from the
+  real spaces. **Proven blind by mutation for three of the four** — the mutation must break the
+  verb the law's own oracle calls: L9 + `digit` off-by-one, L11 + `shift` off-by-one, L20 +
+  `shift` off-by-one all show *self-oracle PASSES, literal table FAILS*. **L12 is not
+  demonstrated** — both mutations catch it either way, because its String column reaches its
+  value through `elements`/`nth-str` rather than the mutated arithmetic; its table is there on
+  principle, and that distinction is recorded rather than rounded up to "all four".
 - **`Coord` is unnamed** (perspicere) — 23 spellings of `PV<i64>`; `Bases` is the same type, so
   `reverse-index` accepts a coordinate where bases belong and type-checks clean. Parametric
   `typealias` is available (`wat/kernel/channel.wat:42`). Watch the name: `wat/core.wat:1096`

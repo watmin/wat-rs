@@ -146,6 +146,27 @@
 ;; is an ArityMismatch; a String generator for an i64 field is a TypeMismatch).
 ;; What remains for a runtime law is that the mixed-radix product is wired to the
 ;; right fields in the right order — which is what this checks.
+;;
+;; ⚠ THE EXPECTED VALUES BELOW ARE A LITERAL TABLE, AND THAT IS THE POINT. Until
+;; 2026-08-26 this law computed what it expected with `:wat::gen::digit` and
+;; `:wat::gen::shift` — the library's own radix verbs, the very wiring under test.
+;; A law whose oracle is the implementation cannot fail for the reason it exists:
+;; break `digit`, and the SUT and the "expected" value move together and it stays
+;; green. Four laws shared this shape (L9, L11, L12, L20 — GEN-VIGILIA L2), and
+;; L11's own comment convicted it, calling the second digit "the easiest place for
+;; the radix wiring to be wrong" and then writing that wiring out as its oracle.
+;; The tables are enumerations of the real space, recorded 2026-08-26.
+;;
+;; PROVEN BLIND BY MUTATION for three of the four. The mutation has to break the
+;; verb the law's OWN ORACLE calls, or the law fails for an unrelated reason:
+;;   L9  + `digit` off by one  ->  self-oracle PASSES, literal table FAILS
+;;   L11 + `shift` off by one  ->  self-oracle PASSES, literal table FAILS
+;;   L20 + `shift` off by one  ->  self-oracle PASSES, literal table FAILS
+;; L12 is NOT demonstrated: both mutations tried catch it either way, because its
+;; String column reaches its value through `elements`/`nth-str` rather than through
+;; the mutated arithmetic. Its table is here on PRINCIPLE — an oracle that shares
+;; the implementation is unsound whether or not today's mutation separates it — and
+;; that distinction is recorded rather than rounded up to "all four".
 (:wat::core::defrecord :wat-tests::gen::Pair [a <- :wat::core::i64  b <- :wat::core::i64])
 
 (:wat::core::defn :wat-tests::gen::law-record [c <- (:wat::core::PersistentVector :- [:wat::core::i64])]
@@ -153,8 +174,9 @@
   (:wat::core::let [i (:wat-tests::gen::at0 c 0)
                     g (:wat::gen::record :wat-tests::gen::Pair (:wat::gen::ints 0 3) (:wat::gen::ints 10 12))
                     p ((:wat::gen::Gen/at g) i)
-                    ea (:wat::gen::digit i 3)
-                    eb (:wat::core::i64::+ 10 (:wat::gen::digit (:wat::gen::shift i 3) 2))]
+                    ;; card 6: a = i mod 3, b = 10 + i/3 — as a TABLE, not as arithmetic
+                    ea (:wat-tests::gen::at0 (:wat::core::PersistentVector 0 1 2 0 1 2) i)
+                    eb (:wat-tests::gen::at0 (:wat::core::PersistentVector 10 10 10 11 11 11) i)]
     (:wat::core::if
       (:wat::core::and (:wat::core::= (:wat::gen::Gen/card g) 6)
                        (:wat::core::and (:wat::core::= (:wat-tests::gen::Pair/a p) ea)
@@ -202,6 +224,16 @@
 ;; ternary case is not a formality — its second digit needs BOTH a shift and a
 ;; digit (`shift i ca` then `digit .. cb`), which is exactly the step a binary lift
 ;; never exercises and the easiest place for the radix wiring to be wrong.
+;;
+;; ⚠ THE EXPECTED VALUES BELOW ARE A LITERAL TABLE, AND THAT IS THE POINT. Until
+;; 2026-08-26 this law computed what it expected with `:wat::gen::digit` and
+;; `:wat::gen::shift` — the library's own radix verbs, the very wiring under test.
+;; A law whose oracle is the implementation cannot fail for the reason it exists:
+;; break `digit`, and the SUT and the "expected" value move together and it stays
+;; green. Four laws shared this shape (L9, L11, L12, L20 — GEN-VIGILIA L2), and
+;; L11's own comment convicted it, calling the second digit "the easiest place for
+;; the radix wiring to be wrong" and then writing that wiring out as its oracle.
+;; The tables are enumerations of the real space, recorded 2026-08-26.
 (:wat::core::defrecord :wat-tests::gen::Tri
   [a <- :wat::core::i64  b <- :wat::core::i64  c <- :wat::core::i64])
 
@@ -211,9 +243,11 @@
                     g (:wat::gen::lift3 :wat-tests::gen::Tri'
                         (:wat::gen::ints 0 2) (:wat::gen::ints 10 13) (:wat::gen::ints 100 102))
                     t ((:wat::gen::Gen/at g) i)
-                    ea (:wat::gen::digit i 2)
-                    eb (:wat::core::i64::+ 10 (:wat::gen::digit (:wat::gen::shift i 2) 3))
-                    ec (:wat::core::i64::+ 100 (:wat::gen::shift (:wat::gen::shift i 2) 3))]
+                    ;; card 12, enumerated — the second digit (eb) is the one L11 exists
+                    ;; for, so it above all must NOT be re-derived from `shift`+`digit`
+                    ea (:wat-tests::gen::at0 (:wat::core::PersistentVector 0 1 0 1 0 1 0 1 0 1 0 1) i)
+                    eb (:wat-tests::gen::at0 (:wat::core::PersistentVector 10 10 11 11 12 12 10 10 11 11 12 12) i)
+                    ec (:wat-tests::gen::at0 (:wat::core::PersistentVector 100 100 100 100 100 100 101 101 101 101 101 101) i)]
     (:wat::core::if
       (:wat::core::and
         (:wat::core::= (:wat::gen::Gen/card g) 12)
@@ -246,14 +280,26 @@
 
 ;; ── L12 — lift over a NON-i64 generator. The library must work off i64 at all;
 ;; every law before this one used i64 exclusively.
+;;
+;; ⚠ THE EXPECTED VALUES BELOW ARE A LITERAL TABLE, AND THAT IS THE POINT. Until
+;; 2026-08-26 this law computed what it expected with `:wat::gen::digit` and
+;; `:wat::gen::shift` — the library's own radix verbs, the very wiring under test.
+;; A law whose oracle is the implementation cannot fail for the reason it exists:
+;; break `digit`, and the SUT and the "expected" value move together and it stays
+;; green. Four laws shared this shape (L9, L11, L12, L20 — GEN-VIGILIA L2), and
+;; L11's own comment convicted it, calling the second digit "the easiest place for
+;; the radix wiring to be wrong" and then writing that wiring out as its oracle.
+;; The tables are enumerations of the real space, recorded 2026-08-26.
 (:wat::core::defn :wat-tests::gen::law-mixed-types [c <- (:wat::core::PersistentVector :- [:wat::core::i64])]
   -> :wat::core::i64
   (:wat::core::let [i (:wat-tests::gen::at0 c 0)
                     g (:wat::gen::lift2 :wat-tests::gen::Mix' (:wat::gen::ints 0 2)
                         (:wat::gen::elements (:wat-tests::gen::pool3)))
                     m ((:wat::gen::Gen/at g) i)
-                    en (:wat::gen::digit i 2)
-                    es (:wat::gen::nth-str (:wat-tests::gen::pool3) (:wat::gen::shift i 2))]
+                    ;; card 6, enumerated — the String column is a literal too, so a
+                    ;; wrong `shift` cannot pick the "expected" string as well
+                    en (:wat-tests::gen::at0 (:wat::core::PersistentVector 0 1 0 1 0 1) i)
+                    es (:wat::gen::nth-str (:wat::core::PersistentVector "a" "a" "b" "b" "c" "c") i)]
     (:wat::core::if
       (:wat::core::and (:wat::core::= (:wat::gen::Gen/card g) 6)
         (:wat::core::and (:wat::core::= (:wat-tests::gen::Mix/n m) en)
@@ -382,7 +428,17 @@
 
 ;; ── L20 — vector-of: FIXED length, card = c^n ───────────────────────────────
 ;; Each digit of the coordinate is read through the element generator, so the
-;; k-th vector is k in base c. Checked against an independent decode.
+;; k-th vector is k in base c.
+;;
+;; ⚠ THE EXPECTED VALUES BELOW ARE A LITERAL TABLE, AND THAT IS THE POINT. Until
+;; 2026-08-26 this law computed what it expected with `:wat::gen::digit` and
+;; `:wat::gen::shift` — the library's own radix verbs, the very wiring under test.
+;; A law whose oracle is the implementation cannot fail for the reason it exists:
+;; break `digit`, and the SUT and the "expected" value move together and it stays
+;; green. Four laws shared this shape (L9, L11, L12, L20 — GEN-VIGILIA L2), and
+;; L11's own comment convicted it, calling the second digit "the easiest place for
+;; the radix wiring to be wrong" and then writing that wiring out as its oracle.
+;; The tables are enumerations of the real space, recorded 2026-08-26.
 (:wat::core::defn :wat-tests::gen::law-vector-of [c <- (:wat::core::PersistentVector :- [:wat::core::i64])]
   -> :wat::core::i64
   (:wat::core::let [k (:wat-tests::gen::at0 c 0)
@@ -391,8 +447,11 @@
     (:wat::core::if
       (:wat::core::and (:wat::core::= (:wat::gen::Gen/card g) 9)
         (:wat::core::and (:wat::core::= (:wat::core::length v) 2)
-          (:wat::core::and (:wat::core::= (:wat::gen::nth v 0) (:wat::gen::digit k 3))
-                           (:wat::core::= (:wat::gen::nth v 1) (:wat::gen::shift k 3)))))
+          (:wat::core::and
+            (:wat::core::= (:wat::gen::nth v 0)
+              (:wat-tests::gen::at0 (:wat::core::PersistentVector 0 1 2 0 1 2 0 1 2) k))
+            (:wat::core::= (:wat::gen::nth v 1)
+              (:wat-tests::gen::at0 (:wat::core::PersistentVector 0 0 0 1 1 1 2 2 2) k)))))
       0 1)))
 
 ;; ── L21 — vector-upto: VARIABLE length, card = SUM over lengths ─────────────
