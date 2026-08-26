@@ -2,7 +2,7 @@
 ;;
 ;; ⛔ UNDER AUDIT (2026-08-25). An 18-ward vigilia found defects in this file that can compute a
 ;; WRONG ANSWER, and several claims in the comments below are known FALSE. Read
-;; `docs/GEN-VIGILIA-2026-08-25.md` before trusting anything here or changing anything.
+;; `docs/arc/2026/06/278-rules-engine/GEN-VIGILIA-2026-08-25.md` before trusting anything here or changing anything.
 ;; Known-false in THIS file, pending the fix pass:
 ;;   :53   "No native i64 mod/rem" — false since 2026-07-05; i64::mod/rem/quot all ship.
 ;;   :8-9  the cited gate files were deleted the same day this was written.
@@ -32,7 +32,7 @@
 ;; `:user::wat-grep` became `:wat::grep::`. `(:wat::gen::ints 0 3)`, not
 ;; `gen-ints`.
 ;;
-;; Design record + what wat needs LESS of than Clojure: docs/GENERATIVE-TESTING.md
+;; Design record + what wat needs LESS of than Clojure: docs/arc/2026/06/278-rules-engine/GENERATIVE-TESTING.md
 ;;
 ;; A generator is an INDEXED SET, not a seeded random source:
 ;;

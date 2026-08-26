@@ -303,7 +303,39 @@ reach, with three `#[ignore]`d probes asserting the CORRECT behaviour so the fix
 called green all day *cannot see this*, by construction.
 
 `wat-rs/CLAUDE.md` is explicit that *"only in debug" is the same dismissal wearing a compiler
-flag*, and that a `debug_assert!` panic is a real failure. **Unverified by me** — it is a long
-run and the session was closing. It is the first thing to check on resumption, ahead of every
-gen finding, because if it is real then a whole class of assertion has been invisible to the
-floor for the entire arc.
+flag*, and that a `debug_assert!` panic is a real failure.
+
+### VERIFIED 2026-08-26 — real, diagnosed, and NOT OURS TO FIX
+
+Measured at `c43473e38`, `cargo nextest run --test kernel` (debug): **16 passed, 569 failed**,
+every one `src/types.rs:598:9`. `cargo nextest run --lib` (debug): **667 passed, 490 failed**,
+same arm. Release green for both.
+
+**Cause.** `:wat::core::Option` and `:wat::core::Result` are written into BOTH of `TypeEnv`'s two
+stores, which are meant to be disjoint: as `TypeDef::Enum` at `src/types.rs:1231` (the 2026-08-05
+"Option and Result ARE ENUMS" block, into `types`), then AGAIN as structureless leaves by the
+`BARE_CONTAINER_HEADS` loop at `:2746`, into `builtin_names`. `register_builtin_leaf`'s first
+`debug_assert!` exists precisely to keep them disjoint, so it fires — on every `TypeEnv`
+construction. Only 2 of the 7 heads collide; the other five have no `TypeDef`.
+
+**Age — it is NOT gen's doing.** Both halves are present in `src/types.rs` at `10599eb36`
+(2026-08-22, arc 255 "THE DOOR tells the truth for the first time"), **216 commits before this
+stamp**. A gen ward merely tripped over it.
+
+**A one-line guard fixes it** — in the loop, `if env.get(&name).is_some() { continue; }`, derived
+from the registry rather than a hardcoded `Option`/`Result` skip-list. Measured with it applied:
+debug kernel goes **571 passed / 13 failed / 1 timed out**. Release behaviour is byte-identical —
+`contains()` already answered `true` for both names through `types`, so the second registration
+bought no lookup, only the collision.
+
+**NOT APPLIED. Builder's ruling, 2026-08-26: out of scope and reverted.** This is arc 255 ground,
+not rete and not gen, and the builder has a pending task to change how `Option`/`Result`/enums
+behave — which lands on exactly these lines. The tree is unmodified. Whoever takes that task
+should take this with it.
+
+**And the class finding, which outlives the fix:** the tree holds **13 `debug_assert!`** and
+BOTH gates run release — `scripts/floor.sh:96` and `.github/workflows/ci.yml:96`. **No gate has
+ever exercised one.** Note before anyone proposes "add a debug run to the floor": with the guard
+applied, debug still failed 13 + 1, every one at exactly the 5000ms `deftest` budget or nextest's
+30s ceiling — budget exhaustion in an unoptimized build, not defects. A debug gate needs those
+budgets scaled first, or it is a red gate on day one.

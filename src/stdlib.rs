@@ -82,7 +82,7 @@ const STDLIB_FILES: &[WatSource] = &[
     // 18 laws over 319 points all mutation-proven, three live rete defects found by its
     // first consumer, linear to 500k points at ~23us/point.
     // Loads after wat/seq.wat (uses `into`/`filter`/`foldl`/`mapv`) and needs nothing
-    // further — no holon, no rete, no comms. Design: docs/GENERATIVE-TESTING.md.
+    // further — no holon, no rete, no comms. Design: docs/arc/2026/06/278-rules-engine/GENERATIVE-TESTING.md.
     WatSource {
         path: "wat/gen.wat",
         source: include_str!("../wat/gen.wat"),

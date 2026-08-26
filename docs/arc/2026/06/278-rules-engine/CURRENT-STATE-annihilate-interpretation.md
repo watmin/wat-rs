@@ -10,7 +10,7 @@ earlier 2026-08-25 stamp. Written against HEAD `e9a5e0156`; the commit carrying 
 on top, so a ONE-COMMIT docs-only gap at your wake is expected and is not staleness.**
 
 **THE WORK MOVED OFF RETE AND ONTO TOOLING, THEN THE TOOLING WAS AUDITED AND FAILED.**
-Read `docs/GEN-VIGILIA-2026-08-25.md` FIRST — it is the live document, not this one, for anything
+Read `docs/arc/2026/06/278-rules-engine/GEN-VIGILIA-2026-08-25.md` FIRST — it is the live document, not this one, for anything
 touching `wat/gen.wat`.
 
 **⚠ READ THIS BEFORE ANY GEN WORK: `wat/gen.wat` IS PROMOTED TO STDLIB AND CARRIES DEFECTS THAT
@@ -66,7 +66,7 @@ confident, entirely false report of a live defect.
 Everything above is a cache written by a prior self across a very long session. You did not live
 it. It felt continuous when you woke and that feeling is the failure, not the all-clear. Before you
 propose or move: fetch `recolligere` from the datamancy MCP and run it against the disk —
-`docs/COMPACTION-AMNESIA-RECOVERY.md`, `git log`, this file, `docs/GEN-VIGILIA-2026-08-25.md`,
+`docs/COMPACTION-AMNESIA-RECOVERY.md`, `git log`, this file, `docs/arc/2026/06/278-rules-engine/GEN-VIGILIA-2026-08-25.md`,
 `RETE-FIX-LIST.md`, and the source you are about to touch. The freshness probe is the HEAD named at
 the top of this stamp against `git rev-parse HEAD`; more than the one expected docs-only commit of
 drift means trust the log over every line above. **And this file is the ONLY live breadcrumb — if

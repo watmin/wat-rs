@@ -4,7 +4,7 @@
 >
 > A vigilia of 18 wards was cast against `wat/gen.wat` on 2026-08-25 — the day it was declared
 > feature-complete and promoted. **17 reported; the findings are in
-> `docs/GEN-VIGILIA-2026-08-25.md`, which supersedes this file wherever they disagree.**
+> `docs/arc/2026/06/278-rules-engine/GEN-VIGILIA-2026-08-25.md`, which supersedes this file wherever they disagree.**
 > Nothing is fixed yet.
 >
 > Known false HERE, pending the fix pass — do not trust these sections:
