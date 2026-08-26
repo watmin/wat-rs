@@ -111,6 +111,12 @@ pub(crate) struct RoundScratch<'a> {
     pub(crate) seen_ids: &'a mut rustc_hash::FxHashSet<u64>,
     pub(crate) seen_rest: &'a mut rustc_hash::FxHashSet<Value>,
     pub(crate) leaf_aids: &'a LeafAidsByClass,
+    /// Tests the ACCUMULATE pass (3.20) had to dispatch early to feed an accumulate whose parent
+    /// is a Test. The FILTER pass (3.5) must skip them: a Test dispatched twice against one
+    /// parent delta duplicates its tokens all the way into production. Written by 3.20, read by
+    /// 3.5, cleared by 3.20 at the top of every round — per-round scratch, which is what this
+    /// struct is for, and it keeps both passes at their argument budget.
+    pub(crate) pre_dispatched: &'a mut std::collections::HashSet<i64>,
 }
 
 mod accumulate;

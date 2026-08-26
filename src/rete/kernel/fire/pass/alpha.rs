@@ -45,6 +45,7 @@ pub(crate) fn alpha_seed(
         seen_ids,
         seen_rest,
         leaf_aids,
+        ..
     } = scratch;
     // Two pairs / fire, not per fact (`DESIGN-STONE-alpha-leftover-split`).
     let __seed = phase_start();
