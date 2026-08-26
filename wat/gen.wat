@@ -64,6 +64,49 @@
   [card <- :wat::core::i64
    at   <- [:wat::core::i64 :-> T]])
 
+;; THE ONLY CONSTRUCTOR ANY VERB IN THIS FILE USES. A `card` is a COUNT, and a
+;; count below zero is not a small space -- it is not a space. `(ints 5 2)` is an
+;; EMPTY range, and 0 is its true cardinality, so flooring here is the right
+;; answer rather than a suppressed error. It is also what this file already
+;; decided: `EmptySpace` is documented above as "the honest name for card 0, not
+;; an error condition", whose ruling belongs to the caller's own match arm.
+;;
+;; WHY A CONSTRUCTOR AND NOT A TEST AT EACH CONSUMER. Before this existed, twelve
+;; sites each computed `card` freely and four could go negative -- `ints` on
+;; `hi < lo`, `card-of` on a negative base, `take` on a negative `n`, and anything
+;; downstream. Two defects followed, and neither announced itself
+;; (GEN-VIGILIA-2026-08-25, findings A and B):
+;;   A  `check`'s emptiness guard is `(= card 0)`, and -3 is not 0, so the fold ran
+;;      zero iterations and reported `Checked(points -3, violations 0)` -- a clean
+;;      pass over a NEGATIVE denominator, for a property that always fails.
+;;   B  `one-of`/`bind` dispatch by SUBTRACTING each branch's card from the offset,
+;;      so a negative branch ADVANCES it. Measured: a card -2 branch beside a card 3
+;;      branch yielded card 1, and two of the three real points were unreachable.
+;;      No raise, no `EmptySpace`, no signal of any kind.
+;; Both dissolve here, and NEITHER dispatch needed changing: with no negative card
+;; in existence the subtraction cannot run backwards.
+;;
+;; HOW HIGH THIS RUNG IS, stated honestly (`extirpare`'s ladder). This is a CHECK
+;; AT CONSTRUCTION, not an unrepresentable shape, and it cannot be raised further
+;; with the material wat has today:
+;;   - a `card` that cannot HOLD a negative needs an unsigned type; BARE_PRIMITIVES
+;;     (src/check.rs:993) is i64/f64/bool/String/u8, and u8 is nowhere near wide
+;;     enough for a cardinality.
+;;   - a constructor that cannot be BYPASSED needs privacy; wat has none.
+;;     `:wat::core::Fault/of` (wat/core.wat:2114) is the precedent -- the raw
+;;     `Fault` constructor stays reachable beside its smart one.
+;; So the guarantee is exactly this and no more: NO VERB IN THIS LIBRARY PRODUCES
+;; A NEGATIVE CARD. A caller hand-building the raw struct with a negative card
+;; still can. `law-no-producer-yields-a-negative-card` (wat-tests/gen.wat) is the
+;; gate, and it drives the PRODUCERS, never this function -- a law aimed here
+;; would prove the floor and say nothing about the twelve callers, which is
+;; exactly the seam-blindness (FM 24) that let A and B ship.
+(:wat::core::defn :wat::gen::gen :- [T]
+  [card <- :wat::core::i64  at <- [:wat::core::i64 :-> T]] -> (:wat::gen::Gen :- [T])
+  (:wat::gen::Gen
+    :card (:wat::core::if (:wat::core::< card 0) 0 card)
+    :at   at))
+
 ;; ── index arithmetic ─────────────────────────────────────────────────────────
 ;; No native i64 mod/rem (only + - * /), so mod is the truncating-division idiom
 ;; the grid axes already use. Both args are non-negative at every call here.
@@ -76,16 +119,16 @@
 ;; ── the primitive generator ──────────────────────────────────────────────────
 (:wat::core::defn :wat::gen::ints [lo <- :wat::core::i64  hi <- :wat::core::i64]
   -> (:wat::gen::Gen :- [:wat::core::i64])
-  (:wat::gen::Gen :card (:wat::core::i64::- hi lo)
-              :at   (:wat::core::fn [i <- :wat::core::i64] -> :wat::core::i64
+  (:wat::gen::gen (:wat::core::i64::- hi lo)
+              (:wat::core::fn [i <- :wat::core::i64] -> :wat::core::i64
                       (:wat::core::i64::+ lo i))))
 
 ;; ── fmap: reshape what a generator yields, keeping its cardinality ────────────
 (:wat::core::defn :wat::gen::fmap :- [A B]
   [f <- [A :-> B]  g <- (:wat::gen::Gen :- [A])] -> (:wat::gen::Gen :- [B])
   (:wat::core::let [inner (:wat::gen::Gen/at g)]
-    (:wat::gen::Gen :card (:wat::gen::Gen/card g)
-                :at   (:wat::core::fn [i <- :wat::core::i64] -> B (f (inner i))))))
+    (:wat::gen::gen (:wat::gen::Gen/card g)
+                (:wat::core::fn [i <- :wat::core::i64] -> B (f (inner i))))))
 
 ;; ── the workhorse: a COORDINATE generator over mixed bases ───────────────────
 ;; `gen-coords [b0 b1 b2]` has card b0*b1*b2 and yields [d0 d1 d2] with di < bi —
@@ -117,9 +160,9 @@
 
 (:wat::core::defn :wat::gen::coords [bases <- (:wat::core::PersistentVector :- [:wat::core::i64])]
   -> (:wat::gen::Gen :- [(:wat::core::PersistentVector :- [:wat::core::i64])])
-  (:wat::gen::Gen
-    :card (:wat::gen::card-of bases)
-    :at (:wat::core::fn [i <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::core::i64])
+  (:wat::gen::gen
+    (:wat::gen::card-of bases)
+    (:wat::core::fn [i <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::core::i64])
           (:wat::gen::GenAcc/out
             (:wat::core::foldl
               (:wat::core::fn [acc <- :wat::gen::GenAcc  b <- :wat::core::i64] -> :wat::gen::GenAcc
@@ -217,8 +260,8 @@
 ;; one every non-numeric dimension reaches for first.
 (:wat::core::defn :wat::gen::elements :- [T]
   [vs <- (:wat::core::PersistentVector :- [T])] -> (:wat::gen::Gen :- [T])
-  (:wat::gen::Gen :card (:wat::core::length vs)
-              :at   (:wat::core::fn [i <- :wat::core::i64] -> T
+  (:wat::gen::gen (:wat::core::length vs)
+              (:wat::core::fn [i <- :wat::core::i64] -> T
                       (:wat::core::Option/expect (:wat::core::get vs i)
                         "gen-elements: index outside the vector it was built from"))))
 
@@ -238,8 +281,8 @@
                            (:wat::core::filter
                              (:wat::core::fn [i <- :wat::core::i64] -> :wat::core::bool (pred (at i)))
                              (:wat::core::range 0 (:wat::gen::Gen/card g))))]
-    (:wat::gen::Gen :card (:wat::core::length keep)
-                :at   (:wat::core::fn [j <- :wat::core::i64] -> T
+    (:wat::gen::gen (:wat::core::length keep)
+                (:wat::core::fn [j <- :wat::core::i64] -> T
                         (at (:wat::core::Option/expect (:wat::core::get keep j)
                               "gen-such-that: index outside the surviving set"))))))
 
@@ -254,12 +297,12 @@
 
 (:wat::core::defn :wat::gen::one-of :- [T]
   [gs <- (:wat::core::PersistentVector :- [(:wat::gen::Gen :- [T])])] -> (:wat::gen::Gen :- [T])
-  (:wat::gen::Gen
-    :card (:wat::core::foldl
+  (:wat::gen::gen
+    (:wat::core::foldl
             (:wat::core::fn [a <- :wat::core::i64  g <- (:wat::gen::Gen :- [T])] -> :wat::core::i64
               (:wat::core::i64::+ a (:wat::gen::Gen/card g)))
             0 gs)
-    :at (:wat::core::fn [i <- :wat::core::i64] -> T
+    (:wat::core::fn [i <- :wat::core::i64] -> T
           (:wat::core::Option/expect
             (:wat::gen::Pick/got
               (:wat::core::foldl
@@ -384,8 +427,8 @@
   (:wat::core::let [ca (:wat::gen::Gen/card ga)
                     fa (:wat::gen::Gen/at ga)
                     fb (:wat::gen::Gen/at gb)]
-    (:wat::gen::Gen :card (:wat::core::i64::* ca (:wat::gen::Gen/card gb))
-                :at (:wat::core::fn [i <- :wat::core::i64] -> R
+    (:wat::gen::gen (:wat::core::i64::* ca (:wat::gen::Gen/card gb))
+                (:wat::core::fn [i <- :wat::core::i64] -> R
                       (f (fa (:wat::gen::digit i ca)) (fb (:wat::gen::shift i ca)))))))
 
 (:wat::core::defn :wat::gen::lift3 :- [A B C R]
@@ -396,8 +439,8 @@
                     fa (:wat::gen::Gen/at ga)
                     fb (:wat::gen::Gen/at gb)
                     fc (:wat::gen::Gen/at gc)]
-    (:wat::gen::Gen :card (:wat::core::i64::* (:wat::core::i64::* ca cb) (:wat::gen::Gen/card gc))
-                :at (:wat::core::fn [i <- :wat::core::i64] -> R
+    (:wat::gen::gen (:wat::core::i64::* (:wat::core::i64::* ca cb) (:wat::gen::Gen/card gc))
+                (:wat::core::fn [i <- :wat::core::i64] -> R
                       (f (fa (:wat::gen::digit i ca))
                          (fb (:wat::gen::digit (:wat::gen::shift i ca) cb))
                          (fc (:wat::gen::shift (:wat::gen::shift i ca) cb)))))))
@@ -424,9 +467,9 @@
 ;; A PREFIX of a generator. Refuses to invent points it does not have.
 (:wat::core::defn :wat::gen::take :- [T]
   [n <- :wat::core::i64  g <- (:wat::gen::Gen :- [T])] -> (:wat::gen::Gen :- [T])
-  (:wat::gen::Gen
-    :card (:wat::core::if (:wat::core::< n (:wat::gen::Gen/card g)) n (:wat::gen::Gen/card g))
-    :at   (:wat::gen::Gen/at g)))
+  (:wat::gen::gen
+    (:wat::core::if (:wat::core::< n (:wat::gen::Gen/card g)) n (:wat::gen::Gen/card g))
+    (:wat::gen::Gen/at g)))
 
 ;; MIXED-RADIX DIGIT REVERSAL — van der Corput / Halton, adapted to mixed bases.
 ;; Digit j of k sits at position (n-1-j) of the reversed sequence, whose place
@@ -465,8 +508,8 @@
   -> (:wat::gen::Gen :- [(:wat::core::PersistentVector :- [:wat::core::i64])])
   (:wat::core::let [g (:wat::gen::coords bases)
                     at (:wat::gen::Gen/at g)]
-    (:wat::gen::Gen :card (:wat::gen::Gen/card g)
-                :at (:wat::core::fn [k <- :wat::core::i64]
+    (:wat::gen::gen (:wat::gen::Gen/card g)
+                (:wat::core::fn [k <- :wat::core::i64]
                                     -> (:wat::core::PersistentVector :- [:wat::core::i64])
                       (at (:wat::gen::reverse-index bases k))))))
 
@@ -571,12 +614,12 @@
                (:wat::core::fn [i <- :wat::core::i64] -> :wat::core::i64
                  (:wat::gen::Gen/card (f (ga-at i))))
                (:wat::core::range 0 n)))]
-    (:wat::gen::Gen
-      :card (:wat::core::foldl
+    (:wat::gen::gen
+      (:wat::core::foldl
               (:wat::core::fn [a <- :wat::core::i64  c <- :wat::core::i64] -> :wat::core::i64
                 (:wat::core::i64::+ a c))
               0 cards)
-      :at (:wat::core::fn [k <- :wat::core::i64] -> B
+      (:wat::core::fn [k <- :wat::core::i64] -> B
             (:wat::core::Option/expect
               (:wat::gen::BindPick/got
                 (:wat::core::foldl
@@ -618,9 +661,9 @@
                (:wat::core::range 0 n)))
      coords (:wat::gen::coords bases)
      cat    (:wat::gen::Gen/at coords)]
-    (:wat::gen::Gen
-      :card (:wat::gen::Gen/card coords)
-      :at (:wat::core::fn [k <- :wat::core::i64] -> (:wat::core::PersistentVector :- [T])
+    (:wat::gen::gen
+      (:wat::gen::Gen/card coords)
+      (:wat::core::fn [k <- :wat::core::i64] -> (:wat::core::PersistentVector :- [T])
             (:wat::core::into (:wat::core::PersistentVector)
               (:wat::core::mapv at (cat k)))))))
 

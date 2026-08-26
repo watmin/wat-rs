@@ -543,3 +543,90 @@
 
 (:wat::test::deftest :wat-tests::gen::test-shrink-index
   (:wat::test::assert-eq (:wat-tests::gen::law-shrink-index) 0))
+
+
+;; ── L24 — NO PRODUCER YIELDS A NEGATIVE CARD ────────────────────────────────
+;;
+;; THIS LAW EXISTS BECAUSE THE OTHER 23 COULD NOT SEE THE DEFECT IT GATES.
+;; Findings A and B of GEN-VIGILIA-2026-08-25 were both live while every law in
+;; this file was green and mutation-proven, because each law proves ONE verb in
+;; isolation and a negative `card` is only ever born at the SEAM between a
+;; producer and the `Gen` it hands back (FM 24 — "a law per component proves the
+;; components; it says nothing about the paths between them").
+;;
+;; So this law is deliberately shaped the other way: it names no single verb and
+;; proves no single verb correct. It drives EVERY PRODUCER with the input that
+;; used to poison it, and asserts the one invariant they must all share. It is a
+;; law per JOIN.
+;;
+;; ⚠ IT MUST NOT BE POINTED AT `:wat::gen::gen`. A law that constructed a Gen
+;; with -3 and checked it came back 0 would prove the floor works and say nothing
+;; about whether the twelve construction sites route through it — which is the
+;; entire defect. Every entry below therefore goes through a PUBLIC verb.
+(:wat::core::defn :wat-tests::gen::neg? [c <- :wat::core::i64] -> :wat::core::i64
+  (:wat::core::if (:wat::core::< c 0) 1 0))
+
+(:wat::core::defn :wat-tests::gen::law-no-negative-card [] -> :wat::core::i64
+  (:wat::core::let
+    ;; every one of these arguments produced a negative card before the floor
+    [a (:wat-tests::gen::neg? (:wat::gen::Gen/card (:wat::gen::ints 5 2)))
+     b (:wat-tests::gen::neg? (:wat::gen::Gen/card
+         (:wat::gen::take -3 (:wat::gen::ints 0 10))))
+     c (:wat-tests::gen::neg? (:wat::gen::Gen/card
+         (:wat::gen::coords (:wat::core::PersistentVector 3 -2))))
+     d (:wat-tests::gen::neg? (:wat::gen::Gen/card
+         (:wat::gen::vector-of (:wat::gen::ints 0 3) -2)))
+     ;; and every one of these PROPAGATES a poisoned card if one can exist
+     e (:wat-tests::gen::neg? (:wat::gen::Gen/card
+         (:wat::gen::fmap (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x)
+                          (:wat::gen::ints 5 2))))
+     f (:wat-tests::gen::neg? (:wat::gen::Gen/card
+         (:wat::gen::lift2 (:wat::core::fn [x <- :wat::core::i64  y <- :wat::core::i64]
+                             -> :wat::core::i64 (:wat::core::i64::+ x y))
+                           (:wat::gen::ints 5 2)
+                           (:wat::gen::ints 0 3))))
+     g (:wat-tests::gen::neg? (:wat::gen::Gen/card
+         (:wat::gen::bind (:wat::gen::ints 5 2)
+                          (:wat::core::fn [x <- :wat::core::i64]
+                            -> (:wat::gen::Gen :- [:wat::core::i64])
+                            (:wat::gen::ints 0 2)))))
+     h (:wat-tests::gen::neg? (:wat::gen::Gen/card
+         (:wat::gen::such-that (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::bool false)
+                               (:wat::gen::ints 0 5))))
+
+     ;; FINDING B, REPRODUCED EXACTLY. A card -2 branch beside a card 3 branch
+     ;; yielded card 1 and at(0) = 102: one point enumerated, TWO REAL POINTS
+     ;; UNREACHABLE, with no raise and no `EmptySpace`. The empty branch must now
+     ;; contribute nothing and the good branch must arrive whole and in order.
+     ob      (:wat::gen::one-of (:wat::core::PersistentVector
+               (:wat::gen::ints 5 3) (:wat::gen::ints 100 103)))
+     ob-card (:wat::gen::Gen/card ob)
+     ob-at   (:wat::gen::Gen/at ob)
+     i (:wat::core::if
+         (:wat::core::and (:wat::core::= ob-card 3)
+           (:wat::core::and (:wat::core::= (ob-at 0) 100)
+             (:wat::core::and (:wat::core::= (ob-at 1) 101)
+                              (:wat::core::= (ob-at 2) 102))))
+         0 1)
+
+     ;; FINDING A, REPRODUCED EXACTLY. `(ints 5 2)` reached `check` as card -3 and
+     ;; came back `Checked(points -3, violations 0)` -- a PASS, over a negative
+     ;; denominator, for a property that fails at every point it is given. The
+     ;; honest answer is `EmptySpace`, which `held` already treats as a failure.
+     j (:wat::core::match
+         (:wat::gen::check (:wat::gen::ints 5 2)
+                           (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 1))
+         ((:wat::gen::CheckOutcome::Checked _pts _v _first) 1)
+         (:wat::gen::CheckOutcome::EmptySpace 0))]
+    (:wat::core::i64::+ a
+      (:wat::core::i64::+ b
+        (:wat::core::i64::+ c
+          (:wat::core::i64::+ d
+            (:wat::core::i64::+ e
+              (:wat::core::i64::+ f
+                (:wat::core::i64::+ g
+                  (:wat::core::i64::+ h
+                    (:wat::core::i64::+ i j))))))))))) 
+
+(:wat::test::deftest :wat-tests::gen::test-no-negative-card
+  (:wat::test::assert-eq (:wat-tests::gen::law-no-negative-card) 0))
