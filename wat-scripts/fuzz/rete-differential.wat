@@ -23,7 +23,7 @@
 ;; quasiquoted forms — no source-text generation, no external tool. A case is a
 ;; COORDINATE, so a finding reproduces forever from its tuple.
 
-(:wat::load-file! "../lib/gen.wat")
+;; `:wat::gen::` is STDLIB as of 2026-08-25 — no load-file! needed.
 
 (:wat::core::defrecord :user::W  [k <- :wat::core::i64])
 (:wat::core::defrecord :user::G  [k <- :wat::core::i64])
@@ -205,17 +205,26 @@
                                     (:wat::core::= (:user::Case/prefix c) 0))))
 
 ;; dups 0..3 · wpos 0..3 · prefix 0..3 · filter 0..8 · depth 0..4
-(:wat::core::defn :user::space [] -> (:user::Gen :- [:user::Case])
-  (:user::gen-such-that :user::shape-is-matchable
-    (:user::gen-record :user::Case
-      (:user::gen-ints 0 3) (:user::gen-ints 0 3) (:user::gen-ints 0 3)
-      (:user::gen-ints 0 8) (:user::gen-ints 0 4))))
+(:wat::core::defn :user::space [] -> (:wat::gen::Gen :- [:user::Case])
+  (:wat::gen::such-that :user::shape-is-matchable
+    (:wat::gen::record :user::Case
+      (:wat::gen::ints 0 3) (:wat::gen::ints 0 3) (:wat::gen::ints 0 3)
+      (:wat::gen::ints 0 8) (:wat::gen::ints 0 4))))
+
+
+;; `check` returns a MATCHABLE outcome — a violation count cannot be read without
+;; the point count arriving in the same arm. This fuzzer owns its ruling on an
+;; empty space: a shape-space that filtered to nothing means the run tested
+;; NOTHING, which must never be mistaken for "no divergences found".
+(:wat::core::defn :user::report [o <- :wat::gen::CheckOutcome] -> :wat::core::nil
+  (:wat::core::match o
+    ((:wat::gen::CheckOutcome::Checked pts bad)
+      (:wat::kernel::println
+        (:wat::core::String/concat
+          (:wat::core::String/concat "cases=" (:wat::core::i64::to-string pts))
+          (:wat::core::String/concat " mismatches=" (:wat::core::i64::to-string bad)))))
+    (:wat::gen::CheckOutcome::EmptySpace
+      (:wat::kernel::println "cases=0 mismatches=0 EMPTY-SPACE: the generator filtered to nothing; this run tested NOTHING"))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
-  (:wat::core::let [g   (:user::space)
-                    ran (:user::Gen/card g)
-                    bad (:user::gen-check g :user::prop)]
-    (:wat::kernel::println
-      (:wat::core::String/concat
-        (:wat::core::String/concat "cases=" (:wat::core::i64::to-string (:user::Gen/card g)))
-        (:wat::core::String/concat " mismatches=" (:wat::core::i64::to-string bad))))))
+  (:user::report (:wat::gen::check (:user::space) :user::prop)))

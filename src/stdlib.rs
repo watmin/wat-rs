@@ -74,6 +74,19 @@ const STDLIB_FILES: &[WatSource] = &[
         path: "wat/runtime-meta.wat",
         source: include_str!("../wat/runtime-meta.wat"),
     },
+    // Arc 278 — :wat::gen:: — FINITE GENERATORS, the core of generative testing.
+    // A generator is an INDEXED SET (`{card, at : i64 -> T}`), not a seeded random
+    // source, which collapses enumerate / sample / shrink into one operation and makes
+    // a failing case a PERMANENT coordinate rather than a seed. PROMOTED from
+    // wat-scripts/lib/gen.wat on the wat/grep.wat precedent — a move of proven code:
+    // 18 laws over 319 points all mutation-proven, three live rete defects found by its
+    // first consumer, linear to 500k points at ~23us/point.
+    // Loads after wat/seq.wat (uses `into`/`filter`/`foldl`/`mapv`) and needs nothing
+    // further — no holon, no rete, no comms. Design: docs/GENERATIVE-TESTING.md.
+    WatSource {
+        path: "wat/gen.wat",
+        source: include_str!("../wat/gen.wat"),
+    },
     WatSource {
         path: "wat/holon/Amplify.wat",
         source: include_str!("../wat/holon/Amplify.wat"),

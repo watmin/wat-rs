@@ -16,18 +16,30 @@
 ;; detect. L4 proves the bijection constructively by reconstructing the index
 ;; from the digits in mixed radix and requiring it back.
 
-(:wat::load-file! "../lib/gen.wat")
+;; `:wat::gen::` is STDLIB as of 2026-08-25 — no load-file! needed.
 
 (:wat::core::defn :user::at0 [v <- (:wat::core::PersistentVector :- [:wat::core::i64])  i <- :wat::core::i64]
   -> :wat::core::i64
   (:wat::core::Option/expect (:wat::core::get v i) "digit"))
 
+
+;; `check` returns a MATCHABLE outcome, so a caller cannot read a violation count
+;; without the point count arriving in the same arm. This law suite owns its own
+;; ruling on an empty space: for a LAW, a space with no points means the law was
+;; never tested, which is a failure of the suite — so it counts as a violation and
+;; says so, rather than being silently absorbed.
+(:wat::core::defn :user::violations [o <- :wat::gen::CheckOutcome] -> :wat::core::i64
+  (:wat::core::match o
+    ((:wat::gen::CheckOutcome::Checked pts v) v)
+    (:wat::gen::CheckOutcome::EmptySpace
+      (:wat::core::let [_ (:wat::kernel::println "EMPTY SPACE: a law was driven over zero points")] 1))))
+
 ;; ── L1 — gen-ints: card is the width, and `at` is the shifted identity ───────
 (:wat::core::defn :user::law-ints [c <- (:wat::core::PersistentVector :- [:wat::core::i64])]
   -> :wat::core::i64
   (:wat::core::let [i  (:user::at0 c 0)
-                    g  (:user::gen-ints 5 12)
-                    at (:user::Gen/at g)]
+                    g  (:wat::gen::ints 5 12)
+                    at (:wat::gen::Gen/at g)]
     (:wat::core::if (:wat::core::= (at i) (:wat::core::i64::+ 5 i)) 0 1)))
 
 ;; ── L2 — gen-fmap: cardinality preserved, and the mapped value is f(inner) ───
@@ -37,13 +49,13 @@
 (:wat::core::defn :user::law-fmap [c <- (:wat::core::PersistentVector :- [:wat::core::i64])]
   -> :wat::core::i64
   (:wat::core::let [i     (:user::at0 c 0)
-                    base  (:user::gen-ints 5 12)
-                    m     (:user::gen-fmap :user::dbl base)
-                    bat   (:user::Gen/at base)
-                    mat   (:user::Gen/at m)]
+                    base  (:wat::gen::ints 5 12)
+                    m     (:wat::gen::fmap :user::dbl base)
+                    bat   (:wat::gen::Gen/at base)
+                    mat   (:wat::gen::Gen/at m)]
     (:wat::core::if
       (:wat::core::and
-        (:wat::core::= (:user::Gen/card m) (:user::Gen/card base))
+        (:wat::core::= (:wat::gen::Gen/card m) (:wat::gen::Gen/card base))
         (:wat::core::= (mat i) (:user::dbl (bat i))))
       0 1)))
 
@@ -54,8 +66,8 @@
 (:wat::core::defn :user::law-digits [c <- (:wat::core::PersistentVector :- [:wat::core::i64])]
   -> :wat::core::i64
   (:wat::core::let [i  (:user::at0 c 0)
-                    g  (:user::gen-coords (:user::bases))
-                    d  ((:user::Gen/at g) i)
+                    g  (:wat::gen::coords (:user::bases))
+                    d  ((:wat::gen::Gen/at g) i)
                     ok (:wat::core::and
                          (:wat::core::and (:wat::core::< (:user::at0 d 0) 2)
                                           (:wat::core::< (:user::at0 d 1) 3))
@@ -75,8 +87,8 @@
   -> :wat::core::i64
   (:wat::core::let [i  (:user::at0 c 0)
                     bs (:user::bases)
-                    g  (:user::gen-coords bs)
-                    d  ((:user::Gen/at g) i)
+                    g  (:wat::gen::coords bs)
+                    d  ((:wat::gen::Gen/at g) i)
                     r  (:wat::core::foldl
                          (:wat::core::fn [acc <- :user::Recon  b <- :wat::core::i64] -> :user::Recon
                            (:user::Recon
@@ -91,7 +103,7 @@
 
 ;; ── L5 — card is the product of the bases ───────────────────────────────────
 (:wat::core::defn :user::law-card [] -> :wat::core::i64
-  (:wat::core::if (:wat::core::= (:user::Gen/card (:user::gen-coords (:user::bases))) 120) 0 1))
+  (:wat::core::if (:wat::core::= (:wat::gen::Gen/card (:wat::gen::coords (:user::bases))) 120) 0 1))
 
 
 ;; ── L6 — gen-elements: card is the length, `at` is indexing ─────────────────
@@ -101,10 +113,10 @@
 (:wat::core::defn :user::law-elements [c <- (:wat::core::PersistentVector :- [:wat::core::i64])]
   -> :wat::core::i64
   (:wat::core::let [i (:user::at0 c 0)
-                    g (:user::gen-elements (:user::pool))]
+                    g (:wat::gen::elements (:user::pool))]
     (:wat::core::if
-      (:wat::core::and (:wat::core::= (:user::Gen/card g) 4)
-                       (:wat::core::= ((:user::Gen/at g) i) (:user::at0 (:user::pool) i)))
+      (:wat::core::and (:wat::core::= (:wat::gen::Gen/card g) 4)
+                       (:wat::core::= ((:wat::gen::Gen/at g) i) (:user::at0 (:user::pool) i)))
       0 1)))
 
 ;; ── L7 — gen-such-that: EVERY yielded value satisfies the predicate ──────────
@@ -117,24 +129,24 @@
 (:wat::core::defn :user::law-such-that [c <- (:wat::core::PersistentVector :- [:wat::core::i64])]
   -> :wat::core::i64
   (:wat::core::let [i (:user::at0 c 0)
-                    g (:user::gen-such-that :user::even? (:user::gen-ints 0 10))]
+                    g (:wat::gen::such-that :user::even? (:wat::gen::ints 0 10))]
     (:wat::core::if
-      (:wat::core::and (:wat::core::= (:user::Gen/card g) 5)
-                       (:user::even? ((:user::Gen/at g) i)))
+      (:wat::core::and (:wat::core::= (:wat::gen::Gen/card g) 5)
+                       (:user::even? ((:wat::gen::Gen/at g) i)))
       0 1)))
 
 ;; ── L8 — gen-one-of: card is the SUM, and branches occupy contiguous blocks ──
 (:wat::core::defn :user::law-one-of [c <- (:wat::core::PersistentVector :- [:wat::core::i64])]
   -> :wat::core::i64
   (:wat::core::let [i  (:user::at0 c 0)
-                    a  (:user::gen-ints 0 3)
-                    b  (:user::gen-ints 100 105)
-                    o  (:user::gen-one-of (:wat::core::PersistentVector a b))
-                    v  ((:user::Gen/at o) i)
+                    a  (:wat::gen::ints 0 3)
+                    b  (:wat::gen::ints 100 105)
+                    o  (:wat::gen::one-of (:wat::core::PersistentVector a b))
+                    v  ((:wat::gen::Gen/at o) i)
                     ok (:wat::core::if (:wat::core::< i 3)
                          (:wat::core::= v i)
                          (:wat::core::= v (:wat::core::i64::+ 100 (:wat::core::i64::- i 3))))]
-    (:wat::core::if (:wat::core::and (:wat::core::= (:user::Gen/card o) 8) ok) 0 1)))
+    (:wat::core::if (:wat::core::and (:wat::core::= (:wat::gen::Gen/card o) 8) ok) 0 1)))
 
 
 ;; ── L9 — gen-record: the PRODUCT of its field generators, constructed ────────
@@ -148,12 +160,12 @@
 (:wat::core::defn :user::law-record [c <- (:wat::core::PersistentVector :- [:wat::core::i64])]
   -> :wat::core::i64
   (:wat::core::let [i (:user::at0 c 0)
-                    g (:user::gen-record :user::Pair (:user::gen-ints 0 3) (:user::gen-ints 10 12))
-                    p ((:user::Gen/at g) i)
-                    ea (:user::gen-digit i 3)
-                    eb (:wat::core::i64::+ 10 (:user::gen-digit (:user::gen-shift i 3) 2))]
+                    g (:wat::gen::record :user::Pair (:wat::gen::ints 0 3) (:wat::gen::ints 10 12))
+                    p ((:wat::gen::Gen/at g) i)
+                    ea (:wat::gen::digit i 3)
+                    eb (:wat::core::i64::+ 10 (:wat::gen::digit (:wat::gen::shift i 3) 2))]
     (:wat::core::if
-      (:wat::core::and (:wat::core::= (:user::Gen/card g) 6)
+      (:wat::core::and (:wat::core::= (:wat::gen::Gen/card g) 6)
                        (:wat::core::and (:wat::core::= (:user::Pair/a p) ea)
                                         (:wat::core::= (:user::Pair/b p) eb)))
       0 1)))
@@ -167,12 +179,12 @@
 (:wat::core::defn :user::law-lift2 [c <- (:wat::core::PersistentVector :- [:wat::core::i64])]
   -> :wat::core::i64
   (:wat::core::let [i (:user::at0 c 0)
-                    g (:user::gen-lift2 :user::Pair' (:user::gen-ints 0 3) (:user::gen-ints 10 12))
-                    p ((:user::Gen/at g) i)
-                    r (:user::gen-record :user::Pair (:user::gen-ints 0 3) (:user::gen-ints 10 12))
-                    q ((:user::Gen/at r) i)]
+                    g (:wat::gen::lift2 :user::Pair' (:wat::gen::ints 0 3) (:wat::gen::ints 10 12))
+                    p ((:wat::gen::Gen/at g) i)
+                    r (:wat::gen::record :user::Pair (:wat::gen::ints 0 3) (:wat::gen::ints 10 12))
+                    q ((:wat::gen::Gen/at r) i)]
     (:wat::core::if
-      (:wat::core::and (:wat::core::= (:user::Gen/card g) 6)
+      (:wat::core::and (:wat::core::= (:wat::gen::Gen/card g) 6)
                        (:wat::core::and (:wat::core::= (:user::Pair/a p) (:user::Pair/a q))
                                         (:wat::core::= (:user::Pair/b p) (:user::Pair/b q))))
       0 1)))
@@ -190,15 +202,15 @@
 (:wat::core::defn :user::law-lift3 [c <- (:wat::core::PersistentVector :- [:wat::core::i64])]
   -> :wat::core::i64
   (:wat::core::let [i (:user::at0 c 0)
-                    g (:user::gen-lift3 :user::Tri'
-                        (:user::gen-ints 0 2) (:user::gen-ints 10 13) (:user::gen-ints 100 102))
-                    t ((:user::Gen/at g) i)
-                    ea (:user::gen-digit i 2)
-                    eb (:wat::core::i64::+ 10 (:user::gen-digit (:user::gen-shift i 2) 3))
-                    ec (:wat::core::i64::+ 100 (:user::gen-shift (:user::gen-shift i 2) 3))]
+                    g (:wat::gen::lift3 :user::Tri'
+                        (:wat::gen::ints 0 2) (:wat::gen::ints 10 13) (:wat::gen::ints 100 102))
+                    t ((:wat::gen::Gen/at g) i)
+                    ea (:wat::gen::digit i 2)
+                    eb (:wat::core::i64::+ 10 (:wat::gen::digit (:wat::gen::shift i 2) 3))
+                    ec (:wat::core::i64::+ 100 (:wat::gen::shift (:wat::gen::shift i 2) 3))]
     (:wat::core::if
       (:wat::core::and
-        (:wat::core::= (:user::Gen/card g) 12)
+        (:wat::core::= (:wat::gen::Gen/card g) 12)
         (:wat::core::and (:wat::core::= (:user::Tri/a t) ea)
                          (:wat::core::and (:wat::core::= (:user::Tri/b t) eb)
                                           (:wat::core::= (:user::Tri/c t) ec))))
@@ -231,13 +243,13 @@
 (:wat::core::defn :user::law-mixed-types [c <- (:wat::core::PersistentVector :- [:wat::core::i64])]
   -> :wat::core::i64
   (:wat::core::let [i (:user::at0 c 0)
-                    g (:user::gen-lift2 :user::Mix' (:user::gen-ints 0 2)
-                        (:user::gen-elements (:user::pool3)))
-                    m ((:user::Gen/at g) i)
-                    en (:user::gen-digit i 2)
-                    es (:user::gen-nth-str (:user::pool3) (:user::gen-shift i 2))]
+                    g (:wat::gen::lift2 :user::Mix' (:wat::gen::ints 0 2)
+                        (:wat::gen::elements (:user::pool3)))
+                    m ((:wat::gen::Gen/at g) i)
+                    en (:wat::gen::digit i 2)
+                    es (:wat::gen::nth-str (:user::pool3) (:wat::gen::shift i 2))]
     (:wat::core::if
-      (:wat::core::and (:wat::core::= (:user::Gen/card g) 6)
+      (:wat::core::and (:wat::core::= (:wat::gen::Gen/card g) 6)
         (:wat::core::and (:wat::core::= (:user::Mix/n m) en)
                          (:wat::core::= (:user::Mix/s m) es)))
       0 1)))
@@ -247,25 +259,25 @@
 (:wat::core::defn :user::law-oneof-over-filter [c <- (:wat::core::PersistentVector :- [:wat::core::i64])]
   -> :wat::core::i64
   (:wat::core::let [i  (:user::at0 c 0)
-                    ev (:user::gen-such-that :user::evenp (:user::gen-ints 0 10))
-                    g  (:user::gen-one-of (:wat::core::PersistentVector ev (:user::gen-ints 100 102)))
-                    v  ((:user::Gen/at g) i)
+                    ev (:wat::gen::such-that :user::evenp (:wat::gen::ints 0 10))
+                    g  (:wat::gen::one-of (:wat::core::PersistentVector ev (:wat::gen::ints 100 102)))
+                    v  ((:wat::gen::Gen/at g) i)
                     ok (:wat::core::if (:wat::core::< i 5)
                          (:user::evenp v)
                          (:wat::core::= v (:wat::core::i64::+ 100 (:wat::core::i64::- i 5))))]
-    (:wat::core::if (:wat::core::and (:wat::core::= (:user::Gen/card g) 7) ok) 0 1)))
+    (:wat::core::if (:wat::core::and (:wat::core::= (:wat::gen::Gen/card g) 7) ok) 0 1)))
 
 ;; ── L14 — fmap AFTER such-that. Order of composition must hold: the mapped value
 ;; is f applied to the SURVIVING element, not to the pre-filter index.
 (:wat::core::defn :user::law-fmap-after-filter [c <- (:wat::core::PersistentVector :- [:wat::core::i64])]
   -> :wat::core::i64
   (:wat::core::let [i  (:user::at0 c 0)
-                    ev (:user::gen-such-that :user::evenp (:user::gen-ints 0 10))
-                    g  (:user::gen-fmap :user::dbl2 ev)]
+                    ev (:wat::gen::such-that :user::evenp (:wat::gen::ints 0 10))
+                    g  (:wat::gen::fmap :user::dbl2 ev)]
     (:wat::core::if
-      (:wat::core::and (:wat::core::= (:user::Gen/card g) 5)
-                       (:wat::core::= ((:user::Gen/at g) i)
-                                      (:user::dbl2 ((:user::Gen/at ev) i))))
+      (:wat::core::and (:wat::core::= (:wat::gen::Gen/card g) 5)
+                       (:wat::core::= ((:wat::gen::Gen/at g) i)
+                                      (:user::dbl2 ((:wat::gen::Gen/at ev) i))))
       0 1)))
 
 ;; ── L15 — one-of with an EMPTY branch. A filtered-to-nothing branch must be
@@ -275,47 +287,100 @@
 (:wat::core::defn :user::law-oneof-empty-branch [c <- (:wat::core::PersistentVector :- [:wat::core::i64])]
   -> :wat::core::i64
   (:wat::core::let [i     (:user::at0 c 0)
-                    empty (:user::gen-such-that :user::nevr (:user::gen-ints 0 10))
-                    g     (:user::gen-one-of (:wat::core::PersistentVector empty (:user::gen-ints 7 9)))]
+                    empty (:wat::gen::such-that :user::nevr (:wat::gen::ints 0 10))
+                    g     (:wat::gen::one-of (:wat::core::PersistentVector empty (:wat::gen::ints 7 9)))]
     (:wat::core::if
-      (:wat::core::and (:wat::core::= (:user::Gen/card empty) 0)
-        (:wat::core::and (:wat::core::= (:user::Gen/card g) 2)
-                         (:wat::core::= ((:user::Gen/at g) i) (:wat::core::i64::+ 7 i))))
+      (:wat::core::and (:wat::core::= (:wat::gen::Gen/card empty) 0)
+        (:wat::core::and (:wat::core::= (:wat::gen::Gen/card g) 2)
+                         (:wat::core::= ((:wat::gen::Gen/at g) i) (:wat::core::i64::+ 7 i))))
+      0 1)))
+
+
+;; ══ SAMPLING + SHRINKING LAWS ═══════════════════════════════════════════════
+
+(:wat::core::defn :user::sbases [] -> (:wat::core::PersistentVector :- [:wat::core::i64])
+  (:wat::core::PersistentVector 3 3 3 3 4))
+
+;; ── L16 — gen-take CLAMPS. A prefix longer than the space must not invent
+;; points; asking for 9999 of 324 yields 324, not 9999 with 9675 out-of-range
+;; lookups that would panic deep inside a property.
+(:wat::core::defn :user::law-take [] -> :wat::core::i64
+  (:wat::core::let [g (:wat::gen::coords (:user::sbases))]
+    (:wat::core::if
+      (:wat::core::and (:wat::core::= (:wat::gen::Gen/card (:wat::gen::take 16 g)) 16)
+                       (:wat::core::= (:wat::gen::Gen/card (:wat::gen::take 9999 g)) 324))
+      0 1)))
+
+;; ── L17 — THE SAMPLER'S BIJECTION, and it is L4 again for exactly the same
+;; reason. If the scattered ORDER is not a permutation of 0..card, sampling
+;; silently revisits points and misses others while reporting a clean count —
+;; and a prefix of a non-permutation is not a sample of anything.
+(:wat::core::defn :user::law-scatter-bijection [] -> :wat::core::i64
+  (:wat::core::let [bs   (:user::sbases)
+                    card (:wat::gen::card-of bs)
+                    seen (:wat::core::foldl
+                           (:wat::core::fn [acc <- (:wat::core::HashSet :- [:wat::core::i64])  k <- :wat::core::i64]
+                                           -> (:wat::core::HashSet :- [:wat::core::i64])
+                             (:wat::core::HashSet/conj acc (:wat::gen::reverse-index bs k)))
+                           (:wat::core::HashSet :wat::core::i64)
+                           (:wat::core::range 0 card))]
+    (:wat::core::if (:wat::core::= (:wat::core::length seen) card) 0 1)))
+
+;; ── L18 — gen-shrink reaches the MINIMUM, and the result still fails. Both
+;; halves matter: a shrinker that returns something minimal-but-passing has
+;; produced a confident wrong answer, which is worse than not shrinking.
+(:wat::core::defn :user::sfails? [c <- (:wat::core::PersistentVector :- [:wat::core::i64])]
+  -> :wat::core::bool
+  (:wat::core::and (:wat::core::>= (:wat::gen::nth c 0) 1)
+                   (:wat::core::>= (:wat::gen::nth c 2) 2)))
+
+(:wat::core::defn :user::law-shrink [] -> :wat::core::i64
+  (:wat::core::let [big  (:wat::core::PersistentVector 3 4 5 6)
+                    small (:wat::gen::shrink big :user::sfails?)]
+    (:wat::core::if
+      (:wat::core::and (:user::sfails? small)
+        (:wat::core::and (:wat::core::= (:wat::gen::nth small 0) 1)
+          (:wat::core::and (:wat::core::= (:wat::gen::nth small 1) 0)
+            (:wat::core::and (:wat::core::= (:wat::gen::nth small 2) 2)
+                             (:wat::core::= (:wat::gen::nth small 3) 0)))))
       0 1)))
 
 ;; ── drive every law with gen-check, over spaces built by gen-coords ─────────
 (:wat::core::defn :user::main [] -> :wat::core::nil
-  (:wat::core::let [seven  (:user::gen-coords (:wat::core::PersistentVector 7))
-                    onetwenty (:user::gen-coords (:wat::core::PersistentVector 120))
-                    b1 (:user::gen-check seven :user::law-ints)
-                    b2 (:user::gen-check seven :user::law-fmap)
-                    b3 (:user::gen-check onetwenty :user::law-digits)
-                    b4 (:user::gen-check onetwenty :user::law-bijection)
+  (:wat::core::let [seven  (:wat::gen::coords (:wat::core::PersistentVector 7))
+                    onetwenty (:wat::gen::coords (:wat::core::PersistentVector 120))
+                    b1 (:user::violations (:wat::gen::check seven :user::law-ints))
+                    b2 (:user::violations (:wat::gen::check seven :user::law-fmap))
+                    b3 (:user::violations (:wat::gen::check onetwenty :user::law-digits))
+                    b4 (:user::violations (:wat::gen::check onetwenty :user::law-bijection))
                     b5 (:user::law-card)
-                    four  (:user::gen-coords (:wat::core::PersistentVector 4))
-                    five  (:user::gen-coords (:wat::core::PersistentVector 5))
-                    eight (:user::gen-coords (:wat::core::PersistentVector 8))
-                    b6 (:user::gen-check four  :user::law-elements)
-                    b7 (:user::gen-check five  :user::law-such-that)
-                    b8 (:user::gen-check eight :user::law-one-of)
-                    six (:user::gen-coords (:wat::core::PersistentVector 6))
-                    b9 (:user::gen-check six :user::law-record)
-                    b10 (:user::gen-check six :user::law-lift2)
-                    twelve (:user::gen-coords (:wat::core::PersistentVector 12))
-                    b11 (:user::gen-check twelve :user::law-lift3)
-                    six2  (:user::gen-coords (:wat::core::PersistentVector 6))
-                    seven (:user::gen-coords (:wat::core::PersistentVector 7))
-                    five2 (:user::gen-coords (:wat::core::PersistentVector 5))
-                    two2  (:user::gen-coords (:wat::core::PersistentVector 2))
-                    b12 (:user::gen-check six2  :user::law-mixed-types)
-                    b13 (:user::gen-check seven :user::law-oneof-over-filter)
-                    b14 (:user::gen-check five2 :user::law-fmap-after-filter)
-                    b15 (:user::gen-check two2  :user::law-oneof-empty-branch)
+                    four  (:wat::gen::coords (:wat::core::PersistentVector 4))
+                    five  (:wat::gen::coords (:wat::core::PersistentVector 5))
+                    eight (:wat::gen::coords (:wat::core::PersistentVector 8))
+                    b6 (:user::violations (:wat::gen::check four  :user::law-elements))
+                    b7 (:user::violations (:wat::gen::check five  :user::law-such-that))
+                    b8 (:user::violations (:wat::gen::check eight :user::law-one-of))
+                    six (:wat::gen::coords (:wat::core::PersistentVector 6))
+                    b9 (:user::violations (:wat::gen::check six :user::law-record))
+                    b10 (:user::violations (:wat::gen::check six :user::law-lift2))
+                    twelve (:wat::gen::coords (:wat::core::PersistentVector 12))
+                    b11 (:user::violations (:wat::gen::check twelve :user::law-lift3))
+                    six2  (:wat::gen::coords (:wat::core::PersistentVector 6))
+                    seven (:wat::gen::coords (:wat::core::PersistentVector 7))
+                    five2 (:wat::gen::coords (:wat::core::PersistentVector 5))
+                    two2  (:wat::gen::coords (:wat::core::PersistentVector 2))
+                    b12 (:user::violations (:wat::gen::check six2  :user::law-mixed-types))
+                    b13 (:user::violations (:wat::gen::check seven :user::law-oneof-over-filter))
+                    b14 (:user::violations (:wat::gen::check five2 :user::law-fmap-after-filter))
+                    b15 (:user::violations (:wat::gen::check two2  :user::law-oneof-empty-branch))
+                    b16 (:user::law-take)
+                    b17 (:user::law-scatter-bijection)
+                    b18 (:user::law-shrink)
                     bad (:wat::core::i64::+
                           (:wat::core::i64::+ (:wat::core::i64::+ b1 b2) (:wat::core::i64::+ b3 (:wat::core::i64::+ b4 b5)))
-                          (:wat::core::i64::+ b6 (:wat::core::i64::+ b7 (:wat::core::i64::+ b8 (:wat::core::i64::+ b9 (:wat::core::i64::+ b10 (:wat::core::i64::+ b11 (:wat::core::i64::+ (:wat::core::i64::+ b12 b13) (:wat::core::i64::+ b14 b15)))))))))]
+                          (:wat::core::i64::+ b6 (:wat::core::i64::+ b7 (:wat::core::i64::+ b8 (:wat::core::i64::+ b9 (:wat::core::i64::+ b10 (:wat::core::i64::+ b11 (:wat::core::i64::+ (:wat::core::i64::+ b12 b13) (:wat::core::i64::+ b14 (:wat::core::i64::+ b15 (:wat::core::i64::+ b16 (:wat::core::i64::+ b17 b18))))))))))))]
     (:wat::kernel::println
       (:wat::core::String/concat
-        (:wat::core::String/concat "laws=15 checked=" (:wat::core::i64::to-string
-          (:wat::core::i64::+ 7 (:wat::core::i64::+ 7 (:wat::core::i64::+ 120 (:wat::core::i64::+ 120 (:wat::core::i64::+ 1 (:wat::core::i64::+ 4 (:wat::core::i64::+ 5 (:wat::core::i64::+ 8 (:wat::core::i64::+ 6 (:wat::core::i64::+ 6 (:wat::core::i64::+ 12 20)))))))))))))
+        (:wat::core::String/concat "laws=18 checked=" (:wat::core::i64::to-string
+          (:wat::core::i64::+ 7 (:wat::core::i64::+ 7 (:wat::core::i64::+ 120 (:wat::core::i64::+ 120 (:wat::core::i64::+ 1 (:wat::core::i64::+ 4 (:wat::core::i64::+ 5 (:wat::core::i64::+ 8 (:wat::core::i64::+ 6 (:wat::core::i64::+ 6 (:wat::core::i64::+ 12 (:wat::core::i64::+ 20 3))))))))))))))
         (:wat::core::String/concat " violations=" (:wat::core::i64::to-string bad))))))

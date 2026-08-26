@@ -14,7 +14,7 @@
 ;; mirror of sequential order. Decisive here: dim4 of the rete space is CHAIN
 ;; DEPTH, the dial that exposed the leading-filter class.
 
-(:wat::load-file! "../lib/gen.wat")
+;; `:wat::gen::` is STDLIB as of 2026-08-25 — no load-file! needed.
 
 (:wat::core::defn :user::bases [] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:wat::core::PersistentVector 3 3 3 3 4))
@@ -28,14 +28,14 @@
 
 (:wat::core::defn :user::rev [k <- :wat::core::i64] -> :wat::core::i64
   (:wat::core::let [bs   (:user::bases)
-                    card (:user::gen-card-of bs)]
+                    card (:wat::gen::card-of bs)]
     (:user::Rev/idx
       (:wat::core::foldl
         (:wat::core::fn [a <- :user::Rev  b <- :wat::core::i64] -> :user::Rev
-          (:wat::core::let [d  (:user::gen-digit (:user::Rev/rem a) b)
+          (:wat::core::let [d  (:wat::gen::digit (:user::Rev/rem a) b)
                             pf (:wat::core::i64::* (:user::Rev/pref a) b)]
             (:user::Rev
-              :rem  (:user::gen-shift (:user::Rev/rem a) b)
+              :rem  (:wat::gen::shift (:user::Rev/rem a) b)
               :idx  (:wat::core::i64::+ (:user::Rev/idx a)
                       (:wat::core::i64::* d (:wat::core::i64::/ card pf)))
               :pref pf)))
@@ -50,19 +50,19 @@
                       -> (:wat::core::HashSet :- [:wat::core::i64])
         (:wat::core::HashSet/conj s (:user::rev k)))
       (:wat::core::HashSet :wat::core::i64)
-      (:wat::core::range 0 (:user::gen-card-of (:user::bases))))))
+      (:wat::core::range 0 (:wat::gen::card-of (:user::bases))))))
 
 ;; PROPERTY B — distinct values of dimension `dim` seen in the first K.
 (:wat::core::defn :user::cover
   [dim <- :wat::core::i64  k-count <- :wat::core::i64  reversed <- :wat::core::i64]
   -> :wat::core::i64
-  (:wat::core::let [g (:user::gen-coords (:user::bases))]
+  (:wat::core::let [g (:wat::gen::coords (:user::bases))]
     (:wat::core::length
       (:wat::core::foldl
         (:wat::core::fn [s <- (:wat::core::HashSet :- [:wat::core::i64])  k <- :wat::core::i64]
                         -> (:wat::core::HashSet :- [:wat::core::i64])
           (:wat::core::HashSet/conj s
-            (:user::gen-nth ((:user::Gen/at g) (:wat::core::if (:wat::core::= reversed 1) (:user::rev k) k)) dim)))
+            (:wat::gen::nth ((:wat::gen::Gen/at g) (:wat::core::if (:wat::core::= reversed 1) (:user::rev k) k)) dim)))
         (:wat::core::HashSet :wat::core::i64)
         (:wat::core::range 0 k-count)))))
 
@@ -74,7 +74,7 @@
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
-    [card (:user::gen-card-of (:user::bases))
+    [card (:wat::gen::card-of (:user::bases))
      _ (:wat::kernel::println (:wat::core::PersistentVector card))
      _ (:wat::kernel::println (:wat::core::PersistentVector (:user::distinct-images)))
      _ (:wat::kernel::println (:user::row 16 0))
