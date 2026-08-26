@@ -1,3 +1,22 @@
+> ⛔⛔ **STALE ON ITS HEADLINE NUMBERS — 2026-08-25.** This note's finding (the June registry is
+> real; the arc is half-built) **stands and was correct**. Its *magnitudes* no longer are, and they
+> are the lines a reader trusts fastest:
+>
+> | this note says | measured 2026-08-25 |
+> |---|---|
+> | "Registered production names today: **SIX**" | **189** `#[wat_intrinsic]` + 5 `#[wat_special_form]` |
+> | "the carve reached **one home**" | `src/intrinsic/` is **8,443 lines**, ~20 homes |
+>
+> **STILL TRUE, and it is the arc's whole point:** the blanket-accept at `src/resolve/walk.rs`
+> is LIVE (line **268** now, not 257), and its excuse is refuted — see the seam's THESIS section
+> for the positive/negative control pair that proves the type checker does not do the leaf-level
+> validation the comment delegates to it.
+>
+> ⚠ Validate any count here before quoting it. The one that catches people:
+> `#[wat_intrinsic]` bare returns **27**; `#[wat_intrinsic` (the attribute takes an argument)
+> returns **189**. A 7× error, and it is the same instrument-vs-question defect this arc keeps
+> paying for.
+
 # ⛔ NOTE — ARC 255 IS HALF-BUILT. The seam, the re-grounding note, and `255.1b-i`'s brief are all stale about it.
 
 > Written the session AFTER the `2026-08-14` curare, at HEAD `a4c5bd1d`, before touching anything.

@@ -6,6 +6,12 @@
 > ground HEAD against the disk, and read this whole file before you touch anything.
 
 > `255/SEAM.md`, `251/SEAM.md`, `278/SEAM.md` are PARKED and point here.
+>
+> ⛔ **PARKED IS NOT DEAD — IT MEANS THE SCOPE NARROWED.** A parked seam still holds **its own arc's
+> state**, and that is the half this file does not carry. `255/SEAM.md`'s banner says so in its own
+> words: *"come back here only for arc 255's own state."* **2026-08-25: I read PARKED as "skip it",
+> worked arc 255 all day out of this file alone, and had to be told by the builder what 255 is FOR.**
+> If you are working an arc, read ITS seam, whatever this one says about parking.
 
 ## GROUND FIRST
 
@@ -51,6 +57,36 @@ both ends.**
 ⚠ **A FIFTH BLIND SPOT, found by the compiler and by no grep: the BARE MODULE PATH.**
 `use crate::host::compose::DepRegistrar;` matches none of the four identifier patterns.
 TRAP 1 is `lib.rs`'s unprefixed re-exports; this is the same defect one level up.
+
+## ⛔ THE THESIS — read this before you pick any next step
+
+**ARC 255 EXISTS TO KILL ONE LINE.** `src/resolve/walk.rs:268`:
+
+```rust
+if is_reserved_prefix(head) { return true }     // :wat:: — the WHOLE language namespace
+```
+
+Every `:wat::`-prefixed name is accepted **unchecked** — real, retired, or invented. Proven
+2026-08-25 with a positive AND a negative control:
+
+```
+:wat::core::string::length              a REAL name that MOVED   --check 0 · run 1 UnknownFunction
+:wat::core::string::utterly-invented    NEVER existed            --check 0
+```
+
+Its comment excuses this as *"leaf-level validation is the type checker's concern."* **The type
+checker does not do it.** The excuse names a layer that never took the responsibility.
+
+**THE REGISTRY IS THE ANSWER, AND THE HOMES CAMPAIGN IS HOW THE REGISTRY GETS POPULATED.** A home is
+not carved to make a file smaller. It is carved so a namespace's names become *addressable*, so the
+resolver can consult `sym`-or-registry instead of waving the prefix through. `src/intrinsic/` is
+**8,443 lines** across ~20 homes today; **189** `#[wat_intrinsic]` registrations.
+
+⚠ **WHY THIS PARAGRAPH EXISTS.** This seam used to record the campaign as a SIZE story — `37 → 24`,
+`74% of the root` — and never once said what it was FOR. So the next self (me, 2026-08-25) read it
+and started choosing the next home **by line count**. **A breadcrumb that keeps what was measured
+but drops what it was for sends its reader to optimize the metric.** The measurements below are
+still true. They are not the reason.
 
 ## WHERE WE ARE
 

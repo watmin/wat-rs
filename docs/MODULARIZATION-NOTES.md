@@ -1,3 +1,17 @@
+> ⛔ **STALE — 2026-08-25.** This plan was written **2026-05-08** and its premises have moved.
+> `runtime.rs` was **23,801** lines here; it is **40,616**. `check.rs` was 15,108; it is 22,418.
+> The campaign that actually ran (HOMES #4–#7 — `src/edn/`, `src/load/`, `src/host/`, the
+> `string_ops.rs` dissolution) is **not in this document at all**, and `src/check/`, `src/types/`,
+> `src/freeze/` already exist beside their megafiles.
+>
+> **More importantly, its SELECTION CRITERION is superseded.** This doc picks the next extraction by
+> *coupling and size*. The live criterion is the **registry**: a home is carved so a namespace's
+> names become addressable and `:wat::` stops being blindly accepted. See
+> `docs/arc/2026/06/294-holon-returns-to-vsa/SEAM.md` § THE THESIS.
+>
+> Kept for its boundary analysis inside `runtime.rs`, which is still the best map of that file's
+> internal seams. Do not take its ORDER.
+
 # `src/` modularization — queued notes
 
 **Status:** queued 2026-05-08; not yet a numbered arc. Triggers
