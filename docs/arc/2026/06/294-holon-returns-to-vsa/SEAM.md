@@ -26,16 +26,31 @@ host ........... JohnDesktop · john · ~/work/holon/wat-rs
 stash@{0} ...... the lifecycle strike. NEVER drop. base ff7705ba.
 ```
 
-## ⛔⛔ A RIDER MAY STILL BE LIVE
-
-The **host surface renames** were briefed at `e33c9373b` and released. If `git status` is dirty with
-`src/host/guest.rs` / `src/host/entry.rs`, that is its work — **weigh it, do not re-run it.**
+## ✓ THE HOST SURFACE RENAMES LANDED — `0aab74e7d`
 
 ```
 src/host/harness.rs -> guest.rs     Harness -> Guest · HarnessError -> GuestError · Outcome -> RunOutput
 src/host/compose.rs -> entry.rs     compose_and_run[_with_loader] -> run_program[_with_loader]
 ```
-Its acceptance demands the **`docs/arc/` count before AND after** — 204 references there must not move.
+Both register as renames (75% / 77%). `docs/arc/` byte-identical. floor 5057/5057 · clippy 0.
+A **fourth** lying doc fell (`run_program_with_loader`, one function below the third), and
+`lib.rs:142`'s **bare `Outcome`** — which a 2026-07-28 intueri ruling had already rejected —
+is gone. `crate::io` is 0 occurrences in `entry.rs`.
+
+⛔ **THE ACCEPTANCE ROW I WROTE COULD NOT DERIVE ITS OWN BAR.** The brief pinned `docs/arc/**`
+at "204, UNCHANGED" beside the command that measures it. That command gives **164** at the
+brief's own base and **181** now. All three magnitudes (341 / 204 / 137) re-derived: **367 /
+223 / 144**. Not one reproduces. `[[feedback_an_acceptance_row_is_a_pin_unless_it_derives_its_bar]]`
+— recorded ONE DAY EARLIER, and committed into the acceptance block of a brief whose own
+warning line says *validate any pattern before quoting its count*.
+**A bar that is a MAGNITUDE rots the moment anything else lands** — including my own curare,
+which wrote `Harness` into `docs/arc/` after I pinned a number over that zone. The bars that
+survive are pattern-independent: **non-arc → ZERO**, and **before == after by ONE command at
+both ends.**
+
+⚠ **A FIFTH BLIND SPOT, found by the compiler and by no grep: the BARE MODULE PATH.**
+`use crate::host::compose::DepRegistrar;` matches none of the four identifier patterns.
+TRAP 1 is `lib.rs`'s unprefixed re-exports; this is the same defect one level up.
 
 ## WHERE WE ARE
 
@@ -46,7 +61,7 @@ HOME #4  string_ops.rs DELETED — 29 verbs to five homes
 HOME #5  src/edn/    render · bridge · contract · error · derive_tests     (~7,000 lines)
 HOME #6  src/load/   loader · stdlib · source   + sandbox.rs DELETED (a namespace anchor
                      anchoring nothing: 13 lines, zero items, one `pub mod` keeping it alive)
-HOME #7  src/host/   compose · harness · test_runner   — NAMED BY THE WARD, cut from four to three
+HOME #7  src/host/   entry · guest · test_runner        — NAMED BY THE WARD, cut from four to three
 ```
 
 `runtime.rs` 40,616 + `check.rs` 22,418 = **74% of an 84,844-line root.** Six crates exist; the
@@ -107,6 +122,25 @@ Four readers all missed that `Outcome` is the only verbless member of a 12-stron
 the graph nor the ward is the method; each sees what the other cannot.
 
 ## ⬜ NEXT — measured, not guessed
+
+- ⛔ **THE FLAGSHIP EXAMPLE DOES NOT START — AND NO GATE CAN SEE IT.** `./target/release/console-demo`
+  dies at startup with **4 type-check errors**: `:wat::core::enum` (retired Stone 241.9, line 29),
+  two cascaded `UnknownCallee :demo::Event::CircuitBreak`, and `:wat::core::nil` in value position
+  (Doctrine 1, arc 242). Broken across **two separate retirements**. `examples/console-demo/wat/main.wat`
+  was last touched by **arc 241 Stone 241.11 — the stone that shipped the `enum` retirement** and swept
+  `define → defn` in this very file while leaving `enum`. It BUILDS green, so every gate says fine.
+  **The root is not main.wat**: `every_tracked_wat_parses` only PARSES, and `every_wat_scripts_file_loads`
+  walks `wat-scripts/`. **Nothing type-checks `examples/*/wat/`** — an ungated corpus that is the first
+  thing a new reader runs. Fix the corpus AND the hole. (The retirement table works: it emitted the
+  `:wat::core::defenum` remedy at score 0. The mechanism was fine; nobody ran the demo.)
+- ⚠ **`cargo fmt --all` FROM wat-rs WRITES INTO `../holon-rs/`** — a FROZEN sibling. Caught with
+  `--check`, which only read. Without it, it edits another project. Scope every fmt to `-p wat …`.
+  (Separately: **163 wat-rs files are not rustfmt-clean**; there is no rustfmt gate. Pre-existing.)
+- ⚠ **PLAIN `cargo test` RESURRECTS TESTS THE FLOOR DELIBERATELY EXCLUDES.** A rider ran
+  `cargo test --release --test macros` and got a RED: `diag_first_over_form`. It is a
+  **deliberately-failing diagnostic** — its `.wat` fixture is MEANT not to load, and it is excluded by
+  `.config/nextest.toml:32` (default) and `:217` (slow). `cargo test` does not read nextest's config.
+  The rider was right to capture it verbatim and refuse to adjudicate. **The floor is nextest, only.**
 
 - **A DIAGNOSTICS HOME** — `panic_hook.rs` + ~350 reporting lines inside `test_runner.rs`.
   **Two independent readers converged on it without seeing each other.** The largest thing the cast
