@@ -880,3 +880,31 @@
 
 (:wat::test::deftest :wat-tests::gen::test-sampling-order
   (:wat::test::assert-eq (:wat-tests::gen::law-sampling-order) 0))
+
+
+;; ── L27 — bools is TOTAL: both values, in order, and nothing else ───────────
+;; The law of a total generator is stronger than the law of a sampled one: it does
+;; not assert "some booleans were seen", it pins the whole space. card 2, at(0)
+;; false, at(1) true — and the two are distinct, which is what makes `check` over
+;; it exhaustive rather than merely non-empty.
+(:wat::core::defn :wat-tests::gen::law-bools [] -> :wat::core::i64
+  (:wat::core::let
+    [g  (:wat::gen::bools)
+     at (:wat::gen::Gen/at g)
+     a  (:wat::core::if (:wat::core::= (:wat::gen::Gen/card g) 2) 0 1)
+     b  (:wat::core::if (:wat::core::not (at 0)) 0 1)
+     c  (:wat::core::if (at 1) 0 1)
+     ;; and it composes: lifted with an i64 dimension the product is 2 * 3
+     d  (:wat::core::if (:wat::core::= (:wat::gen::Gen/card
+                                         (:wat::gen::lift2
+                                           (:wat::core::fn [x <- :wat::core::bool  y <- :wat::core::i64]
+                                             -> :wat::core::i64
+                                             (:wat::core::if x y 0))
+                                           (:wat::gen::bools)
+                                           (:wat::gen::ints 0 3)))
+                                       6)
+          0 1)]
+    (:wat::core::i64::+ a (:wat::core::i64::+ b (:wat::core::i64::+ c d)))))
+
+(:wat::test::deftest :wat-tests::gen::test-bools
+  (:wat::test::assert-eq (:wat-tests::gen::law-bools) 0))

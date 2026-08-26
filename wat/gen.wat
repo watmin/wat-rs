@@ -73,7 +73,7 @@
 ;;                    bootstrap, this box:
 ;;                       ints                            ~2.4 us/point  (500k)
 ;;                       coords, bases [50 100 100]      ~33  us/point  (500k)
-;;                       such-that o bind o record       ~410 us/point  (1260)
+;;                       such-that o bind o record       ~265 us/point  (1260)
 ;;                    The last row is the ONLY shape that ships — it is the rete
 ;;                    differential fuzzer's own space, replicated to its exact
 ;;                    card of 1260 (wat-tests/rete/differential-fuzz.wat:236).
@@ -199,6 +199,35 @@
   (:wat::gen::gen (:wat::core::i64::- hi lo)
               (:wat::core::fn [i <- :wat::core::i64] -> :wat::core::i64
                       (:wat::core::i64::+ lo i))))
+
+;; ── bools — the TOTAL generator, and why it is the only one ─────────────────
+;;
+;; `ints` and `elements` both make the CALLER choose: a range, a pool. That is
+;; RIGHT for an unbounded domain. A `Gen` is `{card, at}` — finite by construction
+;; — so "all i64" is a 2^64-point space, which is not a test. WHICH SUBSET is
+;; interesting is the test design itself, and no type and no reflection knows it.
+;; That is also why this library has no `Arbitrary`-style derivation: a type
+;; carries no bounds, and a finite generator is nothing but bounds.
+;;
+;; `bool` is the other case, and it earns a verb of its own. Its domain is finite,
+;; total, and two points wide: there is no range to pick, no pool to write, and
+;; nothing the author knows that this library does not. A caller hand-writing
+;; `(elements [false true])` is transcribing the one generator that CAN be derived
+;; with certainty — so it ships instead.
+;;
+;; ⚠ EXHAUSTIVE, NOT A SAMPLE — the enumerative advantage, in its smallest case.
+;; `test.check`'s `gen/boolean` DRAWS; a property checked against it has seen some
+;; booleans. `check` over this has seen BOTH, always, and the `Checked(2, ...)` it
+;; returns says so in the same match arm.
+;;
+;; The same reasoning extends to any all-unit enum (card = variant count) and to
+;; `u8` (card 256 — small enough to enumerate). NEITHER IS BUILT: they have no
+;; caller, and a verb with no caller is a claim, not a capability. When one
+;; appears, this comment is the argument for building it.
+(:wat::core::defn :wat::gen::bools [] -> (:wat::gen::Gen :- [:wat::core::bool])
+  (:wat::gen::gen 2
+    (:wat::core::fn [i <- :wat::core::i64] -> :wat::core::bool
+      (:wat::core::= i 1))))
 
 ;; ── fmap: reshape what a generator yields, keeping its cardinality ────────────
 (:wat::core::defn :wat::gen::fmap :- [A B]
@@ -773,11 +802,39 @@
   (:wat::core::let
     [ga-at (:wat::gen::Gen/at ga)
      n     (:wat::gen::Gen/card ga)
+     ;; `f` RUNS EXACTLY ONCE PER BRANCH, HERE, and the Gen it returns is KEPT.
+     ;; This used to build `cards` by calling `f` and throwing the Gen away, so the
+     ;; dispatch fold below had to call `f` AGAIN on every lookup — measured at
+     ;; 29-35% of the rete fuzzer's generator time (GEN-VIGILIA L2, temperare +
+     ;; struere + sequi). `f` may be arbitrarily expensive: in that fuzzer it
+     ;; builds a whole `record` of six generators per branch.
+     ;;
+     ;; BOTH VECTORS ARE KEPT, deliberately. Collapsing `bind` onto `one-of` by
+     ;; materialising every branch is the obvious simplification and temperare
+     ;; warns it is a REGRESSION when `f` is cheap — `one-of` would then pay for a
+     ;; vector it did not need. Keeping `gens` beside `cards` costs one reference
+     ;; per branch and no extra computation, because `f` was already being run
+     ;; once per branch to compute the cardinality.
+     ;;
+     ;; MEASURED 2026-08-26, release, minus the ~330ms stdlib bootstrap, with a
+     ;; REBUILD on each side (the stdlib is `include_str!`'d — editing this file
+     ;; without rebuilding measures the old binary and reads as "no difference"):
+     ;;   the rete fuzzer's own space, card 1260:  ~406 -> ~265 us/point  (-35%)
+     ;;   depth-4 nested bind, 10,000 points:      ~17.6s -> ~1.94s       (~10.7x)
+     ;; The nested case is where it compounds: every level re-ran every level below
+     ;; it. Against `coords` on the identical 10,000-point space (~708ms), nested
+     ;; `bind` was ~45x and is now ~4.3x. `coords` is still the right shape for a
+     ;; fixed product; `bind` is for spaces a product cannot express.
+     gens  (:wat::core::into (:wat::core::PersistentVector)
+             (:wat::core::mapv
+               (:wat::core::fn [i <- :wat::core::i64] -> (:wat::gen::Gen :- [B])
+                 (f (ga-at i)))
+               (:wat::core::range 0 n)))
      cards (:wat::core::into (:wat::core::PersistentVector)
              (:wat::core::mapv
-               (:wat::core::fn [i <- :wat::core::i64] -> :wat::core::i64
-                 (:wat::gen::Gen/card (f (ga-at i))))
-               (:wat::core::range 0 n)))]
+               (:wat::core::fn [g <- (:wat::gen::Gen :- [B])] -> :wat::core::i64
+                 (:wat::gen::Gen/card g))
+               gens))]
     (:wat::gen::gen
       (:wat::core::foldl
               (:wat::core::fn [a <- :wat::core::i64  c <- :wat::core::i64] -> :wat::core::i64
@@ -796,7 +853,10 @@
                                           r (:wat::gen::BindPick/rest acc)]
                           (:wat::core::if (:wat::core::< r c)
                             (:wat::gen::BindPick :rest r
-                              :got (:wat::core::Some ((:wat::gen::Gen/at (f (ga-at i))) r)))
+                              :got (:wat::core::Some
+                                     ((:wat::gen::Gen/at
+                                        (:wat::core::Option/expect (:wat::core::get gens i)
+                                          "bind: branch index outside the cached generators")) r)))
                             (:wat::gen::BindPick :rest (:wat::core::i64::- r c)
                               :got :wat::core::None))))))
                   (:wat::gen::BindPick :rest k :got :wat::core::None)

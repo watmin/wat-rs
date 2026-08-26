@@ -81,7 +81,7 @@ const STDLIB_FILES: &[WatSource] = &[
     // wat-scripts/lib/gen.wat on the wat/grep.wat precedent — a move of proven code:
     // 24 laws all mutation-proven, three live rete defects found by its first consumer.
     // Cost is PER SHAPE and no single number is honest: ~2.4us/point for `ints`,
-    // ~33us/point for `coords`, ~410us/point for the `such-that o bind o record` shape
+    // ~33us/point for `coords`, ~265us/point for the `such-that o bind o record` shape
     // the rete fuzzer actually uses (measured 2026-08-26). The former "~23us/point"
     // here was a `coords` figure with the qualifier dropped. No oracle ratio is quoted:
     // the $oracle has no perf requirement and gets passively faster as wat stops being
