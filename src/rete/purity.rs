@@ -250,6 +250,31 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
     if head == ":wat::uuid::v4" {
         return Some(OpMeta { pure: true, deterministic: false, total: false });
     }
+    // Keyed-collection ITERATION is pure and total but NOT deterministic — measured
+    // 2026-08-26, three consecutive processes, three different orders, for BOTH containers:
+    //
+    //   HashMap/keys        [:c :a :b :d :e] · [:c :d :a :e :b] · [:e :b :c :d :a]
+    //   PersistentMap/keys  [:i :d :a :f :j …] · [:f :e :g :a :j …] · [:e :h :d :a :g …]
+    //
+    // Both were previously in `pure_det`, i.e. classified DETERMINISTIC. That was a lie in a
+    // first-class axis: the fence admits a head into a `where` on the strength of this claim.
+    // `src/value/pmap.rs` says it plainly for the persistent side — *"iteration order is
+    // deliberately NOT part of the contract (the trie has no meaningful order, so promising one
+    // would be a lie the array arm could keep and the trie arm could not)"* — and the same is
+    // true of `Arc<std::HashMap>`, whose default hasher is seeded per process.
+    //
+    // ⚠ NON-VACUITY, stated because the floor did not move when this landed: ZERO `.wat` rules
+    // use these verbs inside a `where`/`then`/accumulator today (39 call sites, none in a fence),
+    // so nothing could break. This is prophylaxis — it closes the lie BEFORE the persistent-backend
+    // swap makes it load-bearing, at which point changing which container a literal produces would
+    // change observed key order while this axis said that was impossible.
+    // Scrutiny of the wider class: `docs/arc/2026/06/255-builtin-registry/NOTE-the-registry-asserts-properties-nothing-verifies.md`
+    if matches!(head,
+        ":wat::core::HashMap/keys" | ":wat::core::HashMap/values"
+        | ":wat::core::PersistentMap/keys" | ":wat::core::PersistentMap/values")
+    {
+        return Some(OpMeta { pure: true, deterministic: false, total: true });
+    }
     // Pure ∧ deterministic by namespace prefix — every op here is referentially transparent.
     // `total` is NOT blanket over the prefix (unlike pure/deterministic): `string::subs` is
     // GENUINELY PARTIAL — verified `intrinsic/string.rs::eval_string_subs` raises `MalformedForm` when

@@ -66,6 +66,42 @@ discrepancy as drift.
 
 **The collection collapse alone is ~5,700 sites across four pairs.** That is larger than stone E.
 
+## ★ OPEN QUESTION 1 IS ANSWERED — 2026-08-26, and the answer is this note's own stated finding
+
+This note asks: *"Which family wins, and what happens to the loser's semantics? … Measure what
+actually differs before scoping. Nothing in this note establishes that they differ only in name —
+**and if they turn out to be the same thing wearing two names, the collapse is mechanical after all
+and this paragraph is the finding.**"*
+
+Measured. **They differ in REPRESENTATION, not in observable semantics.**
+
+- **Capability matrix identical** (`src/collection/map_container.rs`): `can_assoc ✓ · keyed_lookup ✓ ·
+  has_key ✓ · measurable ✓ · ordered ∅` for HashMap and PersistentMap alike. Nothing one does that
+  the other cannot.
+- **Verb sets identical, byte for byte**: `assoc contains-key? dissoc empty? get keys length values`.
+- **Neither is mutable.** `HashMap` is `Arc<std::HashMap>` — immutable by value, but `assoc` CLONES
+  the whole map. `PersistentMap` is a *promoting* map (`src/value/pmap.rs`): a flat array below 8
+  entries, an rpds HAMT above. So `wat.type.mut/map` would name something that is not mutable, and
+  `hash` is no better — a HashTrieMap is also hash-based. **The honest axis is
+  structurally-shared vs copy-on-write.**
+- **Order is not a contract for either**, and both are non-reproducible across processes (three runs,
+  three orders, measured for both).
+- **PersistentMap dominates at both ends** — cheaper than a hash table below the threshold, O(log n)
+  sharing above, against HashMap's O(n) clone per assoc. There is no workload where the loser wins.
+
+So the collapse IS mechanical at the value level. **What it is NOT mechanical in is the TYPE
+POSITION**: `Vector` and `PersistentVector` are distinct declared types, so every annotation naming
+the loser changes meaning, not just spelling. That is the ~5,700 sites this note already counted, and
+it remains the real work.
+
+⚠ One thing this measurement did NOT settle: whether a `HashMap` value and a `PersistentMap` value
+with the same entries compare EQUAL. `pmap.rs` guarantees equality across its own two arms; equality
+ACROSS the two families is untested here and is load-bearing for any collapse. Measure it before
+scoping.
+
+Fuller evidence, and the class this belongs to:
+`docs/arc/2026/06/255-builtin-registry/NOTE-the-registry-asserts-properties-nothing-verifies.md`
+
 ## OPEN — the proposal does not cover these, and a stone cannot guess
 
 1. **Which family wins, and what happens to the loser's semantics?** If `Vector` is the mutable-ish
