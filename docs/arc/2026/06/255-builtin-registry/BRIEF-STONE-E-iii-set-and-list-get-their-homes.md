@@ -1,4 +1,4 @@
-# STONE E-iii — set + list get their homes: `:wat::hashset::` and `:wat::llist::`
+# STONE E-iii — set + list get their homes: `:wat::hashset::` and `:wat::linkedlist::`
 
 DRAWN + BRIEFED 2026-08-26 against `0d303f780`.
 PRIOR ART — **read E-ii's commit message first** (`0d303f780`); its two-renderings finding is why
@@ -9,7 +9,7 @@ E-i `110335bd5` · E-ii `0d303f780`.
 
 ```
 :wat::core::HashSet/*  ->  :wat::hashset::*    conj · contains? · empty? · length         (4)
-:wat::core::List/*     ->  :wat::llist::*      conj · contains? · empty? · get · length   (5)
+:wat::core::List/*     ->  :wat::linkedlist::*      conj · contains? · empty? · get · length   (5)
 ```
 
 **Neither may take the unmarked name, and this is measured, not taste:**
@@ -26,7 +26,9 @@ persistent structs (including the ones we don't have now list.. set...)"*). **So
 `:wat::list::` must both stay FREE for the flavors that will become the default.** Squatting either
 guarantees a second migration of the very family that ends up unmarked.
 
-`llist` names what it is — a `LinkedList` — the same way `hashset` names a `HashSet`. Both marked
+`linkedlist` names what it is (SPELLED OUT: the house pattern is `hash`+`map`, `hash`+`set`,
+so it is `linked`+`list`; an elided `llist` communicates only to a reader who already knows what the
+first `l` stands for, which fails Obvious before anything else is weighed) — a `LinkedList` — the same way `hashset` names a `HashSet`. Both marked
 spellings are provisional; when the builder rules the marker, changing them is ONE prefix rename,
 which is the entire point of keeping the unmarked slot empty.
 
@@ -71,7 +73,7 @@ named it as missed; **I left it out of E-ii's brief anyway.** One arm here.
 
 And the rete naming invariant fires as always — `rete_name == core_name` with `::rete::` spliced
 after `:wat::`, enforced by a test, 4 rows. `RETE_MODULES` will need `:wat::rete::hashset::` and
-`:wat::rete::llist::`. Expect `tests/rete/datamancer.rete.edn` to need regeneration (its `:abi`
+`:wat::rete::linkedlist::`. Expect `tests/rete/datamancer.rete.edn` to need regeneration (its `:abi`
 hashes every `rete_name`); regenerate via its documented command and diff to confirm only `:abi`
 changed. **Do NOT add a `NAMING_RULE_EXCEPTIONS` entry — STOP-1.**
 
@@ -99,7 +101,7 @@ You may run `cargo build --release`, `cargo build --release --all-targets`,
 ⚠ **`cargo test` is not a diagnostic** — it runs N tests in one process, which
 `src/host/test_runner.rs:48-55` documents as unsupported. Use `cargo nextest -E` instead.
 
-**Structure:** `src/intrinsic/hashset.rs` + `src/intrinsic/llist.rs`, thin `#[wat_intrinsic]` shims
+**Structure:** `src/intrinsic/hashset.rs` + `src/intrinsic/linkedlist.rs`, thin `#[wat_intrinsic]` shims
 copying `src/intrinsic/vector.rs` (E-ii's, closest prior art). Algorithms stay in `src/collection/`.
 Non-pure-det verbs need `@example-norun`; these are all pure∧det, so `@example` is right — but
 confirm rather than assume.
