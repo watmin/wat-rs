@@ -5,7 +5,7 @@
 >
 > Numbers verified 2026-08-26 against the tree. The library is `wat/gen.wat` (stdlib, loads after
 > `wat/seq.wat`); its laws are `wat-tests/gen.wat` (**27 deftests**, discovered by `wat::test! {}`);
-> its pattern corpus is `wat-tests/gen-patterns.wat` (**5 deftests**); its first real consumer is
+> its pattern corpus is `wat-tests/gen-patterns.wat` (**8 deftests**); its first real consumer is
 > `wat-tests/rete/differential-fuzz.wat` (**1**, the ratchet).
 >
 > **Audience:** someone who writes wat and wants to test it. You do not need to know this library;
@@ -371,15 +371,16 @@ proven patch in
 
 ## Patterns — the corpus you should copy from
 
-`wat-tests/gen-patterns.wat` is **documentation that runs**: **five** shapes, each a deftest on the
-floor and each asserting against real substrate. The sixth — DIFFERENTIAL — is not in that file
+`wat-tests/gen-patterns.wat` is **documentation that runs**: **seven** shapes, each a deftest on the
+floor and each asserting against real substrate. DIFFERENTIAL is the eighth and is not in that file
 because it already ships as `wat-tests/rete/differential-fuzz.wat`. Find the shape that matches your
 problem, copy it, swap the domain.
 
-Three of the five carry non-toy data (P1/P2 multi-token strings, P3 payload enums and generated
-command sequences); **P4 and P5 are deliberately bare `i64` spaces** — they demonstrate the SHAPE,
-and their domains are the toy kind this library's own §6 warns against. Copy their structure, not
-their spaces.
+**⚠ Two of them (P4, P5) are bare `i64` spaces, and you should not copy their DOMAINS.** `ints` is
+the easiest generator to write and almost never the one your problem has; a corpus that leans on
+integers teaches integers. P4 and P5 are there for their SHAPE. **P6 and P7 exist specifically to
+break that pull** — P6 builds a record whose every field has its own bespoke pool, and P7 shows the
+capability that makes this library worth having.
 
 | | pattern | reach for it when | worked example |
 |---|---|---|---|
@@ -389,6 +390,8 @@ their spaces.
 | P3 | MODEL-BASED | the thing is **stateful** | a command program vs a simpler model |
 | P4 | ALGEBRAIC | the thing is an **operation** | `HashSet/conj` idempotent + commutative |
 | P5 | DEPENDENT | valid inputs are a **relation** | an index that is in range *by construction* |
+| P6 | **DOMAIN** | your problem is not integers | a `Req` record of method × resource × id pools |
+| P7 | **PARAMETERIC** | one property, many domains | `check-parts` takes the caller's `Gen` |
 
 **P0 is first for a reason, and the ranking is empirical rather than aesthetic.** Differential is
 the only one of the six that has actually found a defect here: **three live rete defects, all
@@ -404,6 +407,36 @@ property, and a property you state is a property you already thought of. A diffe
 asserts only *"these two agree"* — so it finds the disagreements you would never have predicted.
 That is exactly how family C was found (`:not` over a derived class), which nobody would have
 written a law for.
+
+### Generating something that is not an integer
+
+The three moves, in the order you need them:
+
+**A pool per field, not a range.** A domain is a record whose fields each have their own bounded
+set — and those sets are the part only you can supply. `record` composes them:
+
+```
+(record :user::Req  (elements methods) (elements resources) (elements ids))   ;; card 3*3*3
+```
+
+**Compose text from different generators.** Most domains are text assembled from parts — a path, a
+version, an identifier, a log line. Build the parts, then `fmap` the assembly over them; do not try
+to generate the finished string. P6 renders `"GET/users/42"` this way.
+
+**Take the generator as an ARGUMENT.** This is the one worth internalising: **a generator is an
+ordinary value.** Write the property once, over the shape it needs, and let each caller pass a space
+with bounds bespoke to whatever they are measuring:
+
+```
+(defn check-parts [g <- (Gen :- [(PersistentVector :- [String]))]] -> CheckOutcome
+  (check g parts-survive))
+```
+
+P7 hands that same function two unrelated domains — variable-length dotted words (card 39) and
+fixed-length API segments (card 9) — and the property holds over both. A caller who needs a narrower
+space for one condition passes a narrower generator; the property does not change. **If you find
+yourself writing the same assertion twice with different data, hoist the property and parameterise
+the generator.**
 
 ## ⛔ When generative testing is the WRONG tool
 
@@ -522,7 +555,7 @@ matching the shape you are building.
 
 ```
 wat/gen.wat    <->  wat-tests/gen.wat                     27 deftests  (the laws)
-wat/gen.wat    <->  wat-tests/gen-patterns.wat             5 deftests  (the pattern corpus)
+wat/gen.wat    <->  wat-tests/gen-patterns.wat             8 deftests  (the pattern corpus)
 wat/rete.wat   <->  wat-tests/rete/differential-fuzz.wat   1 deftest   (the ratchet)
 ```
 

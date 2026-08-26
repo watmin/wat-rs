@@ -2,8 +2,8 @@
 ;;
 ;; ⚠ THIS FILE IS DOCUMENTATION THAT RUNS. Its job is not to test `wat/gen.wat` —
 ;; `wat-tests/gen.wat` does that, one law per verb. Its job is to be the thing a future
-;; self COPIES: five recognizable shapes of generative test, each against REAL
-;; SUBSTRATE, each with data that is not a toy.
+;; self COPIES: seven recognizable shapes of generative test, each against REAL
+;; SUBSTRATE.
 ;;
 ;; WHY IT EXISTS. The law suite proves the machinery and every one of its spaces is
 ;; `ints 0 3` or `elements ["a" "b" "c"]`. Builder, on reading it: *"i think i saw
@@ -21,6 +21,8 @@
 ;;   P3 MODEL-BASED    you have a stateful thing         a simpler model must agree
 ;;   P4 ALGEBRAIC      you have an operation             its laws must hold
 ;;   P5 DEPENDENT      valid inputs are a shape          generate only valid ones
+;;   P6 DOMAIN         your problem is not integers      a record of bespoke pools
+;;   P7 PARAMETERIC    the same property, many domains   take the Gen as an argument
 ;;
 ;; AND THE SIXTH, WHICH IS NOT HERE BECAUSE IT ALREADY SHIPS: DIFFERENTIAL — two
 ;; implementations of one contract must agree. `wat-tests/rete/differential-fuzz.wat`
@@ -86,10 +88,10 @@
           0 (:wat::core::range 0 n))))))
 
 (:wat::test::deftest :wat-tests::pat::p1-round-trip
-  (:wat-tests::pat::held-39
+  (:wat-tests::pat::held
     (:wat::gen::check
       (:wat::gen::vector-upto (:wat::gen::elements (:wat-tests::pat::words)) 1 3)
-      :wat-tests::pat::law-roundtrip)))
+      :wat-tests::pat::law-roundtrip) 39))
 
 
 ;; ── P2 · METAMORPHIC — when you have NO oracle ──────────────────────────────
@@ -124,10 +126,10 @@
                                        (:wat::core::i64::- n 1)))))
 
 (:wat::test::deftest :wat-tests::pat::p2-metamorphic
-  (:wat-tests::pat::held-39
+  (:wat-tests::pat::held
     (:wat::gen::check
       (:wat::gen::vector-upto (:wat::gen::elements (:wat-tests::pat::words)) 1 3)
-      :wat-tests::pat::law-metamorphic)))
+      :wat-tests::pat::law-metamorphic) 39))
 
 
 ;; ── P3 · MODEL-BASED — a generated COMMAND SEQUENCE against a simpler model ──
@@ -216,10 +218,10 @@
                        (:wat-tests::pat::agrees-at cmds 3)))))
 
 (:wat::test::deftest :wat-tests::pat::p3-model-based
-  (:wat-tests::pat::held-273
+  (:wat-tests::pat::held
     (:wat::gen::check
       (:wat::gen::vector-upto (:wat-tests::pat::gen-cmd) 0 2)
-      :wat-tests::pat::law-model)))
+      :wat-tests::pat::law-model) 273))
 
 
 ;; ── P4 · ALGEBRAIC — an operation's laws must hold ──────────────────────────
@@ -254,10 +256,10 @@
                              (:wat::core::HashSet/contains? ba b))))))))
 
 (:wat::test::deftest :wat-tests::pat::p4-algebraic
-  (:wat-tests::pat::held-25
+  (:wat-tests::pat::held
     (:wat::gen::check
       (:wat::gen::coords (:wat::core::PersistentVector 5 5))
-      :wat-tests::pat::law-set-algebra)))
+      :wat-tests::pat::law-set-algebra) 25))
 
 
 ;; ── P5 · DEPENDENT — generate only VALID inputs, never filter for them ──────
@@ -308,8 +310,94 @@
         (:wat-tests::pat::index-space len)))))
 
 (:wat::test::deftest :wat-tests::pat::p5-dependent
-  (:wat-tests::pat::held-10
-    (:wat::gen::check (:wat-tests::pat::gen-valid-index) :wat-tests::pat::law-dependent)))
+  (:wat-tests::pat::held
+    (:wat::gen::check (:wat-tests::pat::gen-valid-index) :wat-tests::pat::law-dependent) 10))
+
+
+;; ── P6 · A DOMAIN, NOT A NUMBER — the antidote to i64 tunnel vision ─────────
+;;
+;; ⚠ READ THIS ONE IF YOU ARE ABOUT TO REACH FOR `ints`. P4 and P5 above are bare
+;; `i64` spaces, and a corpus that leans on integers teaches integers. That is a real
+;; hazard for a shared tool: the builder's own read of the first draft was *"it feels
+;; like its still heavily int focused - my concern is that agents will unfairly prefer
+;; testing with ints rather than something meaningful for a problem domain."* Correct.
+;; `ints` is the easiest generator to write and almost never the one your problem has.
+;;
+;; A REAL DOMAIN IS A RECORD WHOSE FIELDS EACH HAVE THEIR OWN BOUNDED POOL — and those
+;; pools are the part only you can supply. Here: three methods, three resources, three
+;; ids. Card 27, and every point is a request someone could actually send.
+;;
+;; The text is COMPOSED from different generators, not repeated from one. That is the
+;; shape most domains have — a path, a version string, an identifier, a log line, a
+;; query — and `fmap` over a `record` is how you get it.
+(:wat::core::defrecord :wat-tests::pat::Req
+  [method   <- :wat::core::String
+   resource <- :wat::core::String
+   id       <- :wat::core::String])
+
+(:wat::core::defn :wat-tests::pat::render [r <- :wat-tests::pat::Req] -> :wat::core::String
+  (:wat::core::string::join "/" (:wat::core::PersistentVector
+    (:wat-tests::pat::Req/method r) (:wat-tests::pat::Req/resource r) (:wat-tests::pat::Req/id r))))
+
+(:wat::core::defn :wat-tests::pat::gen-req [] -> (:wat::gen::Gen :- [:wat-tests::pat::Req])
+  (:wat::gen::record :wat-tests::pat::Req
+    (:wat::gen::elements (:wat::core::PersistentVector "GET" "POST" "DELETE"))
+    (:wat::gen::elements (:wat::core::PersistentVector "users" "orders" "carts"))
+    (:wat::gen::elements (:wat::core::PersistentVector "1" "42" "999"))))
+
+;; the property is about the DOMAIN, and it uses two real substrate verbs
+(:wat::core::defn :wat-tests::pat::law-domain [r <- :wat-tests::pat::Req] -> :wat::core::bool
+  (:wat::core::let [line  (:wat-tests::pat::render r)
+                    parts (:wat::core::string::split line "/")]
+    (:wat::core::and (:wat::core::string::starts-with? line (:wat-tests::pat::Req/method r))
+                     (:wat::core::= (:wat::core::length parts) 3))))
+
+(:wat::test::deftest :wat-tests::pat::p6-domain
+  (:wat-tests::pat::held
+    (:wat::gen::check (:wat-tests::pat::gen-req) :wat-tests::pat::law-domain) 27))
+
+
+;; ── P7 · THE PROPERTY IS REUSABLE; THE DOMAIN IS YOURS ──────────────────────
+;;
+;; THE CAPABILITY THE OTHER SIX PATTERNS DO NOT SHOW, and the reason this library is
+;; worth having: **a generator is an ordinary value**, so a property can be written
+;; ONCE and applied to any caller's space. You publish the property; each caller
+;; brings a domain with bounds bespoke to whatever they are measuring.
+;;
+;; `check-parts` below takes a `Gen` as a PARAMETER. It knows nothing about anyone's
+;; domain — only that the points are vectors of strings. Two callers below hand it two
+;; unrelated spaces with different shapes AND different cardinalities (39 and 9), and
+;; the same property holds over both.
+;;
+;; This is what to reach for when you find yourself writing the same assertion twice
+;; with different data: hoist the property, take the generator as an argument, and let
+;; each caller bound its own space. A caller who needs a narrower space for one
+;; condition just passes a narrower generator — no change to the property at all.
+(:wat::core::defn :wat-tests::pat::parts-survive
+  [v <- (:wat::core::PersistentVector :- [:wat::core::String])] -> :wat::core::bool
+  (:wat::core::let [joined (:wat::core::string::join "/" v)
+                    back   (:wat::core::string::split joined "/")]
+    (:wat::core::= (:wat::core::length back) (:wat::core::length v))))
+
+;; ONE property, ANY caller's generator. Note the parameter type: a `Gen` of the shape
+;; the property needs, and nothing more — this is the "arg-spec" the caller conforms to.
+(:wat::core::defn :wat-tests::pat::check-parts
+  [g <- (:wat::gen::Gen :- [(:wat::core::PersistentVector :- [:wat::core::String])])]
+  -> :wat::gen::CheckOutcome
+  (:wat::gen::check g :wat-tests::pat::parts-survive))
+
+;; caller A — variable-length dotted words, bounded 1..3.  card 3 + 9 + 27 = 39
+(:wat::test::deftest :wat-tests::pat::p7-caller-a
+  (:wat-tests::pat::held
+    (:wat-tests::pat::check-parts
+      (:wat::gen::vector-upto (:wat::gen::elements (:wat-tests::pat::words)) 1 3)) 39))
+
+;; caller B — a DIFFERENT domain: fixed-length API path segments.  card 3 * 3 = 9
+(:wat::test::deftest :wat-tests::pat::p7-caller-b
+  (:wat-tests::pat::held
+    (:wat-tests::pat::check-parts
+      (:wat::gen::vector-of
+        (:wat::gen::elements (:wat::core::PersistentVector "api" "v1" "v2")) 2)) 9))
 
 
 ;; ── the shared assertion ─────────────────────────────────────────────────────
@@ -330,14 +418,6 @@
 ;; caller can state it. `wat-tests/gen.wat`'s L25 (`law-check-not-vacuous`) already
 ;; pins points, violations and witness against literals; this brings the corpus to
 ;; the same standard, because the corpus is the thing that gets COPIED.
-(:wat::core::defn :wat-tests::pat::held-39 [o <- :wat::gen::CheckOutcome] -> :wat::core::nil
-  (:wat-tests::pat::held o 39))
-(:wat::core::defn :wat-tests::pat::held-273 [o <- :wat::gen::CheckOutcome] -> :wat::core::nil
-  (:wat-tests::pat::held o 273))
-(:wat::core::defn :wat-tests::pat::held-25 [o <- :wat::gen::CheckOutcome] -> :wat::core::nil
-  (:wat-tests::pat::held o 25))
-(:wat::core::defn :wat-tests::pat::held-10 [o <- :wat::gen::CheckOutcome] -> :wat::core::nil
-  (:wat-tests::pat::held o 10))
 
 (:wat::core::defn :wat-tests::pat::held
   [o <- :wat::gen::CheckOutcome  expect-pts <- :wat::core::i64] -> :wat::core::nil
