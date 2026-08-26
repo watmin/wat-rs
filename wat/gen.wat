@@ -1,10 +1,18 @@
 ;; wat/gen.wat — FINITE GENERATORS: the core of generative testing, in wat.
 ;;
-;; ⛔ UNDER AUDIT. An 18-ward vigilia (2026-08-25) plus `circumspicere` (2026-08-26) found
-;; defects in this file that can compute a WRONG ANSWER, and several claims in the comments
-;; below are known FALSE. Read
-;; `docs/arc/2026/06/278-rules-engine/GEN-VIGILIA-2026-08-25.md` before trusting anything here
-;; or changing anything.
+;; AUDITED — 18-ward vigilia 2026-08-25, `circumspicere` 2026-08-26, doc-review vigilia
+;; 2026-08-26. Every defect that could compute a WRONG ANSWER is fixed; the ledger below records
+;; each one and how, because the reasoning behind a guard is what stops the next hand removing it.
+;; Full record: `docs/arc/2026/06/278-rules-engine/GEN-VIGILIA-2026-08-25.md`.
+;;
+;; ⚠ THE SHIPPED NUMBERS AND THE VERB SURFACE LIVE IN `docs/GENERATIVE-TESTING.md`, NOT HERE.
+;; This banner used to restate them, and a doc-review vigilia caught the consequence: two
+;; hand-maintained descriptions of one library, disagreeing (the cost table's bootstrap constant
+;; read 337ms here and 325ms there; "every one mutation-proven" was overstated in both). One home
+;; per fact. This file explains the CODE; the doc carries the numbers.
+;;
+;; ⛔ THE ONE THING STILL OPEN is at the foot of this banner — nothing gates the diagnostic
+;; strings. Read it before adding a `raise` message.
 ;;
 ;; ⚠ ENTRIES NAME THE VERB, NEVER A LINE NUMBER. The first version of this banner cited
 ;; `:53`, `:150`, `:311` and six error-string lines — and EVERY ONE of those numbers was wrong
@@ -80,7 +88,7 @@
 ;;                    THREE live rete defects found by the first consumer
 ;;                    (`docs/arc/2026/06/278-rules-engine/RETE-FIX-LIST.md`).
 ;;                    COST IS PER SHAPE, and there is no single number. Measured
-;;                    2026-08-26, release, wall-clock minus the ~337ms stdlib
+;;                    2026-08-26, release, mean of six, minus the ~325ms stdlib
 ;;                    bootstrap, this box:
 ;;                       ints                            ~2.4 us/point  (500k)
 ;;                       coords, bases [50 100 100]      ~33  us/point  (500k)
@@ -590,7 +598,7 @@
 ;; was wrong, and the builder caught it: a type's constructor IS a first-class
 ;; function value.**
 ;;
-;;     (:user::apply2 :user::Point' 3 4)   ->   #user/Point {:x 3 :y 4}
+;;     (:wat::gen::lift2 :user::Point' gx gy)   ->   a Gen of #user/Point
 ;;
 ;; What is genuinely unavailable is construction from a type KEYWORD — and that is
 ;; not a gap to fill: the result type could not be known statically, which is a
@@ -704,7 +712,7 @@
 ;; have been built on. It takes a FUNCTION, not a type — which matters because in
 ;; wat a constructor IS a first-class function value:
 ;;
-;;     (:user::apply2 :user::Point' 3 4)   ->   #user/Point {:x 3 :y 4}
+;;     (:wat::gen::lift2 :user::Point' gx gy)   ->   a Gen of #user/Point
 ;;
 ;; so `(gen-lift2 :user::Point' gx gy)` generates records with no macro, no
 ;; hygiene ceremony, and no reflection. It also generalizes past records for free:

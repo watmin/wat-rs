@@ -26,8 +26,10 @@
 ;; implementations of one contract must agree. `wat-tests/rete/differential-fuzz.wat`
 ;; is the worked example, and it is the pattern that has actually paid: three live rete
 ;; defects, all silent, none reachable by the 57-query hand-written corpus. If you have
-;; a reference implementation, reach for that one FIRST. It is the strongest of the six
-;; because it needs no oracle you had to invent — the oracle is the other implementation.
+;; a reference implementation, reach for that one FIRST — it is the only one of the six that has
+;; actually found a defect here (three, in rete), because it needs no oracle you had to invent:
+;; the oracle is the other implementation. The five below are GREEN against the substrate, which
+;; is evidence the substrate is sound on those paths and NOT evidence that they are powerful.
 ;;
 ;; ⛔ WHEN NOT TO REACH FOR THIS — see the last section of `docs/GENERATIVE-TESTING.md`.
 ;; A generator here is FINITE and TOTAL over a product. If your inputs cannot be bounded,
@@ -43,10 +45,11 @@
   [v <- (:wat::core::PersistentVector :- [:wat::core::String])] -> :wat::core::String
   (:wat::core::string::join "." v))
 
-;; 1..3 dotted words: 3 + 9 + 27 = 39 distinct multi-token strings, none of them "a"
-(:wat::core::defn :wat-tests::pat::gen-path [] -> (:wat::gen::Gen :- [:wat::core::String])
-  (:wat::gen::fmap :wat-tests::pat::join-dots
-    (:wat::gen::vector-upto (:wat::gen::elements (:wat-tests::pat::words)) 1 3)))
+;; DELETED: a `gen-path` helper lived here, defined and never called — P1 and P2 build the
+;; vector space directly because they assert over the PARTS, not the joined string. A doc-review
+;; vigilia caught it against this library's own rule, quoted at the top of `wat/gen.wat`:
+;; a verb with no caller is a claim, not a capability. In the file that exists to be copied,
+;; an uncalled helper is the first thing a reader would copy and the last thing they need.
 
 
 ;; ── P1 · ROUND-TRIP — `decode(encode(x)) == x` ──────────────────────────────
@@ -63,16 +66,27 @@
 ;; compares the input to itself.
 (:wat::core::defn :wat-tests::pat::law-roundtrip
   [v <- (:wat::core::PersistentVector :- [:wat::core::String])] -> :wat::core::bool
+  ;; ⚠ EVERY ELEMENT, NOT ELEMENT 0. This first asserted only the length and `[0]` —
+  ;; which a `split` that transposed elements 1 and 2 would pass. The advertised
+  ;; property is `split ∘ join == id`, so the law has to be that, or the table is
+  ;; advertising a strength the law does not carry — and this is the file people copy.
+  ;; NOTE `string::split` returns a `Vector`, not a `PersistentVector`, so the generic
+  ;; `:wat::core::get` is the accessor here rather than `:wat::gen::nth`.
   (:wat::core::let [joined (:wat-tests::pat::join-dots v)
-                    back   (:wat::core::string::split joined ".")]
-    ;; NOTE `string::split` returns a `Vector`, not a `PersistentVector` — so the
-    ;; generic `:wat::core::get` is the accessor here, not `:wat::gen::nth`.
-    (:wat::core::and (:wat::core::= (:wat::core::length back) (:wat::core::length v))
-                     (:wat::core::= (:wat::core::Option/expect (:wat::core::get back 0) "split[0]")
-                                    (:wat::gen::nth v 0)))))
+                    back   (:wat::core::string::split joined ".")
+                    n      (:wat::core::length v)]
+    (:wat::core::and (:wat::core::= (:wat::core::length back) n)
+      (:wat::core::= 0
+        (:wat::core::foldl
+          (:wat::core::fn [bad <- :wat::core::i64  i <- :wat::core::i64] -> :wat::core::i64
+            (:wat::core::if
+              (:wat::core::= (:wat::core::Option/expect (:wat::core::get back i) "split[i]")
+                             (:wat::gen::nth v i))
+              bad (:wat::core::i64::+ bad 1)))
+          0 (:wat::core::range 0 n))))))
 
 (:wat::test::deftest :wat-tests::pat::p1-round-trip
-  (:wat-tests::pat::held
+  (:wat-tests::pat::held-39
     (:wat::gen::check
       (:wat::gen::vector-upto (:wat::gen::elements (:wat-tests::pat::words)) 1 3)
       :wat-tests::pat::law-roundtrip)))
@@ -80,7 +94,7 @@
 
 ;; ── P2 · METAMORPHIC — when you have NO oracle ──────────────────────────────
 ;;
-;; THE PATTERN THAT UNLOCKS THE MOST GROUND, and the least known. You often cannot say
+;; THE PATTERN FOR WHEN THERE IS NOTHING TO COMPARE AGAINST. You often cannot say
 ;; what `f(x)` should BE — but you can say how `f` must RESPOND when you perturb `x`.
 ;; That relation is checkable without ever computing the expected answer.
 ;;
@@ -88,11 +102,12 @@
 ;; the joined LENGTH must be the sum of the parts plus one separator per gap. That is
 ;; a relation between input and output, and it cannot be satisfied by a wrong join.
 ;;
-;; Other metamorphic relations worth knowing, by shape:
+;; Other metamorphic relations by shape — NOT shipped here, so they are further reading rather
+;; than something to copy. Only the length relation below has a runnable instance:
 ;;   f(sorted(x)) == f(x)          — the answer must not depend on order
 ;;   f(x ++ x) == f(x)             — idempotence under duplication
 ;;   f(x) <= f(x ++ y)             — monotonicity
-;;   f(rename(x)) == rename(f(x))  — equivariance; the strongest, and the rarest
+;;   f(rename(x)) == rename(f(x))  — equivariance
 (:wat::core::defn :wat-tests::pat::sum-lengths
   [v <- (:wat::core::PersistentVector :- [:wat::core::String])] -> :wat::core::i64
   (:wat::core::foldl
@@ -109,7 +124,7 @@
                                        (:wat::core::i64::- n 1)))))
 
 (:wat::test::deftest :wat-tests::pat::p2-metamorphic
-  (:wat-tests::pat::held
+  (:wat-tests::pat::held-39
     (:wat::gen::check
       (:wat::gen::vector-upto (:wat::gen::elements (:wat-tests::pat::words)) 1 3)
       :wat-tests::pat::law-metamorphic)))
@@ -117,7 +132,7 @@
 
 ;; ── P3 · MODEL-BASED — a generated COMMAND SEQUENCE against a simpler model ──
 ;;
-;; THE PATTERN WORTH LEARNING PROPERLY. Everything above generates a VALUE; this
+;; THE ONE THAT GENERATES A PROGRAM. Everything above generates a VALUE; this
 ;; generates a PROGRAM — a sequence of operations — and checks the real thing against a
 ;; model too simple to have the same bugs.
 ;;
@@ -201,7 +216,7 @@
                        (:wat-tests::pat::agrees-at cmds 3)))))
 
 (:wat::test::deftest :wat-tests::pat::p3-model-based
-  (:wat-tests::pat::held
+  (:wat-tests::pat::held-273
     (:wat::gen::check
       (:wat::gen::vector-upto (:wat-tests::pat::gen-cmd) 0 2)
       :wat-tests::pat::law-model)))
@@ -239,7 +254,7 @@
                              (:wat::core::HashSet/contains? ba b))))))))
 
 (:wat::test::deftest :wat-tests::pat::p4-algebraic
-  (:wat-tests::pat::held
+  (:wat-tests::pat::held-25
     (:wat::gen::check
       (:wat::gen::coords (:wat::core::PersistentVector 5 5))
       :wat-tests::pat::law-set-algebra)))
@@ -293,17 +308,42 @@
         (:wat-tests::pat::index-space len)))))
 
 (:wat::test::deftest :wat-tests::pat::p5-dependent
-  (:wat-tests::pat::held
+  (:wat-tests::pat::held-10
     (:wat::gen::check (:wat-tests::pat::gen-valid-index) :wat-tests::pat::law-dependent)))
 
 
 ;; ── the shared assertion ─────────────────────────────────────────────────────
-;; An EMPTY space is a failure, not a pass: a property driven over zero points has not
-;; held, it has not run. Every pattern above goes through this.
-(:wat::core::defn :wat-tests::pat::held [o <- :wat::gen::CheckOutcome] -> :wat::core::nil
+;;
+;; ⚠ IT PINS THE CARD, NOT `> 0`, AND THAT IS THE WHOLE POINT OF AN INDEXED SET.
+;; This first read `(assert-true (> pts 0))` — an empty space is a failure, a property
+;; driven over zero points has not held. True, and far too weak. `circumspicere`
+;; measured the hole: `(such-that only-7 (ints 0 50))` yields `Checked(points 1,
+;; violations 0)` and sails through `> 0`. A 50-point space silently filtered to ONE
+;; passes as cleanly as a full one.
+;;
+;; That is the same shape as the incident this library's own history records — a
+;; suite reporting `laws=21 checked=325 violations=0` while three laws had silently
+;; fallen out of the total. `deftest` removed the hand-summed total; the weak
+;; denominator assertion carried the shape forward into the exemplar.
+;;
+;; The card is KNOWABLE BEFORE THE RUN — that is what `{card, at}` buys — so every
+;; caller can state it. `wat-tests/gen.wat`'s L25 (`law-check-not-vacuous`) already
+;; pins points, violations and witness against literals; this brings the corpus to
+;; the same standard, because the corpus is the thing that gets COPIED.
+(:wat::core::defn :wat-tests::pat::held-39 [o <- :wat::gen::CheckOutcome] -> :wat::core::nil
+  (:wat-tests::pat::held o 39))
+(:wat::core::defn :wat-tests::pat::held-273 [o <- :wat::gen::CheckOutcome] -> :wat::core::nil
+  (:wat-tests::pat::held o 273))
+(:wat::core::defn :wat-tests::pat::held-25 [o <- :wat::gen::CheckOutcome] -> :wat::core::nil
+  (:wat-tests::pat::held o 25))
+(:wat::core::defn :wat-tests::pat::held-10 [o <- :wat::gen::CheckOutcome] -> :wat::core::nil
+  (:wat-tests::pat::held o 10))
+
+(:wat::core::defn :wat-tests::pat::held
+  [o <- :wat::gen::CheckOutcome  expect-pts <- :wat::core::i64] -> :wat::core::nil
   (:wat::core::match o
     ((:wat::gen::CheckOutcome::Checked pts v _first)
-      (:wat::core::let [_ (:wat::test::assert-true (:wat::core::> pts 0))]
+      (:wat::core::let [_ (:wat::test::assert-eq pts expect-pts)]
         (:wat::test::assert-eq v 0)))
     (:wat::gen::CheckOutcome::EmptySpace
       (:wat::test::assert-true false))))

@@ -3,6 +3,13 @@
 Tests written in wat, for wat. The sibling to `wat/` the way Cargo's
 `tests/` is the sibling to `src/`.
 
+**Testing over MANY inputs?** `docs/GENERATIVE-TESTING.md` is the design
+record for `:wat::gen::`, the finite-generator library; `gen-patterns.wat`
+in this directory is a corpus of five copyable shapes (round-trip,
+metamorphic, model-based, algebraic, dependent), and
+`rete/differential-fuzz.wat` is the differential pattern that has actually
+found defects. That doc's last section says when NOT to reach for it.
+
 Each `.wat` file uses `:wat::test::deftest` to register named test
 functions. `cargo test` (via `tests/test.rs` and `wat::test! {}`)
 auto-discovers every top-level `:wat::core::define` whose path's final
