@@ -237,24 +237,41 @@
   (:wat::gen::such-that :wat-tests::rete::fuzz::shape-is-matchable
     (:wat::gen::bind (:wat::gen::ints 0 8) :wat-tests::rete::fuzz::for-shape)))
 
-;; ── THE GATE — a RATCHET, not a zero ────────────────────────────────────────
+;; ── THE GATE — NOW A ZERO, AND IT WAS EARNED RATHER THAN ASSERTED ───────────
 ;;
-;; 72 real divergences of 1260 shapes, TWO remaining families, all reproduced in
+;; This was a RATCHET for three days because a zero it could not honestly hold would have been a
+;; lie: 120 real divergences of 1260 shapes, then 72, each family reproduced standalone in
 ;; tests/rete/probe_arc278_fuzzer_found_divergences.{rs,wat} and listed in
-;; docs/arc/2026/06/278-rules-engine/RETE-FIX-LIST.md:
+;; docs/arc/2026/06/278-rules-engine/RETE-FIX-LIST.md. Every one of them is now closed, so the
+;; count is 0 and this is an AGREEMENT GATE: native and the `$oracle` agree bit-for-bit on the
+;; whole generated space, and ANY nonzero is a regression with a coordinate attached.
 ;;
-;;    18  f=3  accumulate  A leading accum: native = depth+1, oracle = 1
-;;    54  f=7  :not over a DERIVED class
-;;                         C native = 1, oracle = 0 — ALL at depth >= 1, never
-;;                           depth 0: exactly the dependence stratified negation
-;;                           should have.
+;; A ratchet is the right shape while defects are known-and-open — asserting 0 then would have
+;; reddened the floor and blocked unrelated work, and deleting the shape that found them to keep
+;; a gate green is the trade this codebase refuses. It is the WRONG shape once the count reaches
+;; 0: a pinned 72 would have gone on passing after the fix and said nothing.
 ;;
-;; Asserting 0 would redden the floor and block unrelated work; deleting the
-;; accumulate shape to keep a gate green is the trade this codebase refuses. So
-;; the count is PINNED, and movement either way demands an explanation. FEWER
-;; means a fix landed — lower this and un-ignore the matching probe. MORE means a
-;; new divergence, and each MISMATCH line names its coordinate: a permanent case
-;; name, not a seed.
+;; ── FAMILIES A AND C CLOSED 2026-08-26: 72 -> 0. ONE ROOT, NOT TWO. ─────────
+;;    18  f=3  accumulate  A leading accum in a QUERY: native = round count, oracle = 1
+;;    54  f=7  :not over a DERIVED class, in a QUERY
+;;                         C native = 1, oracle = 0 — ALL at depth >= 1, never depth 0
+;;
+;; They read as two defects and are one sentence: A QUERY'S NON-MONOTONIC CONDITION WAS EVALUATED
+;; INSIDE THE FIXPOINT INSTEAD OF ONCE AGAINST THE CLOSED WORLD. A constrained query is harvested
+;; from `wm.beta`, which by the semi-naive contract accumulates across rounds and is never
+;; cleared — so it holds tokens that were only ever true of the round that produced them. A
+;; leading accumulate's parent gains one per round (A); a `:not` propagated in round 0 is never
+;; retracted when a later round derives the fact (C). Non-monotonic is exactly the class a later
+;; round can invalidate, which is why all 72 were `:not` and accumulate and nothing else.
+;;
+;; The STRATIFIED driver never had it — it fires the query slice once against the closure — and
+;; that is what `fire_unstratified` (src/rete/kernel/fire/rules.rs) now gives the fast path, at
+;; ONE door both `max_s == 0` exits go through, so the requery cannot be skipped by taking the
+;; other one. Held by grid axes `where-accum-lead-cascade` (A) and `where-not-derived-in-query`
+;; (C), where native, the `$oracle` AND Clara 0.24.0 all print identical rows.
+;;
+;; Clara also settled the question that had blocked C: a `defquery`'s negation IS stratified the
+;; way a `defrule`'s is. The oracle was right; native was wrong; the arc's standing rule held.
 ;;
 ;; ── FAMILY B CLOSED 2026-08-26: 120 -> 72, and the 48 it removed are named. ──
 ;; A `:where` binding NOTHING sorts into `sort-lhs`'s INDEPENDENT partition and lands ABOVE the
@@ -299,5 +316,5 @@
     (:wat::gen::check (:wat-tests::rete::fuzz::space) :wat-tests::rete::fuzz::prop)
     ((:wat::gen::CheckOutcome::Checked cases bad _first)
       (:wat::core::let [_ (:wat::test::assert-true (:wat::core::> cases 0))]
-        (:wat::test::assert-eq bad 72)))
+        (:wat::test::assert-eq bad 0)))
     (:wat::gen::CheckOutcome::EmptySpace (:wat::test::assert-true false))))
