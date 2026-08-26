@@ -174,7 +174,7 @@
   (:wat::core::if (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "keyword")
                     (:wat::fix::type-shaped-keyword? node)
                     false)
-    (:wat::core::let [rendered (:wat::core::ast->source (:wat::core::keyword/to-type-form-colon node))]
+    (:wat::core::let [rendered (:wat::core::ast->source (:wat::keyword::to-type-form-colon node))]
       (:wat::core::if (:user::safe-colon-rendering? rendered)
         (:wat::core::let [span    (:wat::core::ast-span node)
                           off     (:wat::fix::fix-text-offset-of span lines)

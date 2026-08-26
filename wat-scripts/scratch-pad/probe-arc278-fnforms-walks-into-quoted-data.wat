@@ -32,14 +32,14 @@
   (:wat::core::let
     [;; ARM 1 — the control. Expect a closure to come back.
      clean-forms (:wat::kernel::fn-forms :probe::clean
-                   (:wat::core::keyword/from-string "user::root-clean"))
+                   (:wat::keyword::from-string "user::root-clean"))
      _c (:wat::kernel::println
           (:wat::string::concat "CONTROL closure forms="
             (:wat::i64::to-string (:wat::core::length clean-forms))))
      ;; ARM 2 — the subject. If the walker reads quoted data as code, THIS raises, and the raise
      ;; names `mystery-symbol` — a symbol that appears nowhere except inside a quote.
      junk-forms (:wat::kernel::fn-forms :probe::quoted-junk
-                  (:wat::core::keyword/from-string "user::root-junk"))
+                  (:wat::keyword::from-string "user::root-junk"))
      _j (:wat::kernel::println
           (:wat::string::concat "SUBJECT closure forms="
             (:wat::i64::to-string (:wat::core::length junk-forms))))]

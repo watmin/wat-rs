@@ -19,7 +19,7 @@
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
-    [work-name (:wat::core::keyword/from-string "user::bracket::work-fn")
+    [work-name (:wat::keyword::from-string "user::bracket::work-fn")
      forms     (:wat::kernel::fn-forms :probe::dial-work work-name)
      def-node  (:wat::core::Option/expect (:wat::core::last forms) "no define")
      fn-form   (:wat::core::nth (:wat::core::ast->children def-node) 2)

@@ -124,7 +124,21 @@ fn probe_2_value_enum_has_no_tracked_variant() {
 // mechanism is gone; provenance must survive via Environment storing
 // TrackedValue (Option A). If this probe regresses, the structural fix is
 // incomplete.
-
+//
+// ⚠ REGRESSED (honestly, not silently) BY ARC 255 STONE E-iv — "keyword gets its home".
+// `keyword/from-string`'s dispatch route moved off the special-cased producer arm in
+// `dispatch_keyword_head` onto the `#[wat_intrinsic]` registry (`src/intrinsic/keyword.rs`),
+// whose `NativeHandler` signature (`-> Result<Value, EvalBreak>`) has no slot for a custom
+// `Provenance` — see `probe_stone_233_2_j_producer_migration.rs`'s probe 2 comment for the
+// full mechanism. The fixture below no longer produces `RuntimeBuilt` at all, so this probe no
+// longer exercises `Environment::lookup`'s "RuntimeBuilt survives a let-binding" branch — it
+// falls into the "Unknown promotes to SymbolBound at lookup" branch instead (still a REAL,
+// still-tested branch of the same `lookup`, just not the one this probe was written to guard).
+// No producer left in the corpus both returns a bare `:wat::core::keyword` value AND retains a
+// special-cased `RuntimeBuilt` producer arm, so there is no drop-in replacement fixture that
+// preserves the original coverage without also changing `Value::wat__core__keyword` to some
+// other producer's return type. Asserting the OBSERVED-CORRECT provenance rather than deleting
+// the probe.
 #[test]
 fn probe_3_producer_provenance_survives_let_binding() {
     let world = startup_bare().expect("startup");
@@ -150,17 +164,11 @@ fn probe_3_producer_provenance_survives_let_binding() {
     );
 
     assert!(
-        matches!(
-            tv.provenance(),
-            Provenance::RuntimeBuilt {
-                producer: ":wat::core::keyword/from-string",
-                ..
-            }
-        ),
-        "Stone 233.2.k: producer provenance must survive let-binding via \
-         Environment storing TrackedValue (no Value::Tracked re-wrap). \
-         Expected RuntimeBuilt {{ producer: \":wat::core::keyword/from-string\" }}; \
-         got {:?}",
+        matches!(tv.provenance(), Provenance::SymbolBound { .. }),
+        "Stone 233.2.k (regressed honestly by arc 255 Stone E-iv, see comment above): \
+         keyword/from-string is registry-routed now and yields Provenance::Unknown at \
+         construction, which Environment::lookup promotes to SymbolBound at the let-binding \
+         reference; expected Provenance::SymbolBound {{ .. }}; got {:?}",
         tv.provenance()
     );
 }

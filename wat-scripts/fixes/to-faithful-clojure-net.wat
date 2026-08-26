@@ -219,7 +219,7 @@
             (:wat::core::Tuple
               (:wat::core::Option/expect (:wat::map::get hc "?offset") "q-HeadConv: ?offset")
               old-name
-              (:wat::core::ast-name (:wat::core::keyword/to-symbol (:wat::core::keyword-node old-name))))))))
+              (:wat::core::ast-name (:wat::keyword::to-symbol (:wat::core::keyword-node old-name))))))))
     acc convs))
 
 (:wat::core::defn :fix::arrow-edits
@@ -255,7 +255,7 @@
             (:wat::core::Tuple
               (:wat::core::Option/expect (:wat::map::get tc "?offset") "q-TypeConv: ?offset")
               old-name
-              (:wat::core::write-forms (:wat::core::keyword/to-type-form (:wat::core::keyword-node old-name))))))))
+              (:wat::core::write-forms (:wat::keyword::to-type-form (:wat::core::keyword-node old-name))))))))
     acc convs))
 
 ;; ══ CONVERT — walk → fire the network → query out → edit → batch-apply ══════

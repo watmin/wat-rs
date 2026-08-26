@@ -30,7 +30,7 @@
     [origin (:wat::kernel::call-site)]
     (:wat::spawn::with-label (:wat::spawn::process)
       (:wat::process::Service
-        :name (:wat::core::keyword/from-string "my::demo::labeled-svc")
+        :name (:wat::keyword::from-string "my::demo::labeled-svc")
         :file (:wat::kernel::Frame/file origin)
         :line (:wat::kernel::Frame/line origin)))))
 

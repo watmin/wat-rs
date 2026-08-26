@@ -3,7 +3,7 @@
 
 (:wat::core::defn :probe::argcount [f <- :wat::core::Fn(wat::core::i64)->wat::core::i64] -> :wat::core::i64
   (:wat::core::let
-    [forms   (:wat::kernel::fn-forms f (:wat::core::keyword/from-string "user::probe::wf"))
+    [forms   (:wat::kernel::fn-forms f (:wat::keyword::from-string "user::probe::wf"))
      def-node (:wat::core::Option/expect (:wat::core::last forms) "no def")
      fn-form  (:wat::core::nth (:wat::core::ast->children def-node) 2)
      fn-ch    (:wat::core::ast->children fn-form)
@@ -12,7 +12,7 @@
 
 (:wat::core::defn :probe::argcount2 :- [W] [f <- :W] -> :wat::core::i64
   (:wat::core::let
-    [forms   (:wat::kernel::fn-forms f (:wat::core::keyword/from-string "user::probe::wf"))
+    [forms   (:wat::kernel::fn-forms f (:wat::keyword::from-string "user::probe::wf"))
      def-node (:wat::core::Option/expect (:wat::core::last forms) "no def")
      fn-form  (:wat::core::nth (:wat::core::ast->children def-node) 2)
      fn-ch    (:wat::core::ast->children fn-form)

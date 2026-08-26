@@ -13,8 +13,11 @@ use crate::span::Span;
 /// Stone 233.1 ships only `Unknown`. Stone 233.2.a adds three variants:
 /// - `Provenance::Literal { span }` — the value appeared as a literal in source.
 /// - `Provenance::SymbolBound { binding_span, head_span }` — bound via let-symbol lookup.
-/// - `Provenance::RuntimeBuilt { producer, call_span }` — built by `keyword/from-string`,
-///   `from-holon`, mailbox payload, etc.
+/// - `Provenance::RuntimeBuilt { producer, call_span }` — built by `from-holon`, `edn::read`,
+///   `keyword-node`, mailbox payload, etc. ⚠ NOT `keyword/from-string` as of arc 255 Stone
+///   E-iv — that verb moved to the `#[wat_intrinsic]` registry (`src/intrinsic/keyword.rs`),
+///   whose `NativeHandler` signature has no slot for a custom `Provenance`; it now yields
+///   `Unknown`, the same as every other registry-routed verb.
 #[derive(Debug, Clone)]
 pub enum Provenance {
     /// Default — no provenance information attached.

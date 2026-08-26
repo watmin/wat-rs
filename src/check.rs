@@ -17473,9 +17473,12 @@ fn register_builtins(env: &mut CheckEnv) {
     // Arc 170 slice 3 Gap A — keyword reflection primitives.
     // keyword/to-string: keyword → String (colon-free text).
     // keyword/from-string: String → keyword (inverse; rejects ':'-prefixed input).
+    // Arc 255 Stone E-iv — `:wat::core::keyword/{to-string,from-string}` RETIRED this stone;
+    // `:wat::keyword::{to-string,from-string}` (registered here, VERBATIM schemes — name-only
+    // rename) are their replacements (see `src/remedy/retirement.rs`).
     let keyword_ty = || TypeExpr::Path(":wat::core::keyword".into());
     env.register(
-        ":wat::core::keyword/to-string".to_string(),
+        ":wat::keyword::to-string".to_string(),
         TypeScheme {
             type_params: vec![],
             params: vec![keyword_ty()],
@@ -17484,7 +17487,7 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     env.register(
-        ":wat::core::keyword/from-string".to_string(),
+        ":wat::keyword::from-string".to_string(),
         TypeScheme {
             type_params: vec![],
             params: vec![string_ty()],
@@ -19285,19 +19288,16 @@ fn register_builtins(env: &mut CheckEnv) {
         ret: TypeExpr::Path(":wat::WatAST".into()), rest_param_type: None });
     // Arc 251 head role-inversion — a rust-scheme call-head Keyword node → a faithful-Clojure
     // Symbol node (the inverse of `ns_to_wat_path`'s grammar; the kind change IS the inversion).
-    env.register(":wat::core::keyword/to-symbol".into(), TypeScheme {
+    // Arc 255 Stone E-iv — `:wat::core::keyword/{to-symbol,to-type-form,to-type-form-colon}`
+    // RETIRED this stone; `:wat::keyword::{to-symbol,to-type-form,to-type-form-colon}`
+    // (registered here, VERBATIM schemes) are their replacements (see `src/remedy/retirement.rs`).
+    env.register(":wat::keyword::to-symbol".into(), TypeScheme {
         type_params: vec![], params: vec![TypeExpr::Path(":wat::WatAST".into())],
         ret: TypeExpr::Path(":wat::WatAST".into()), rest_param_type: None });
-    // Arc 251 type-position rendering — a rust-scheme TYPE Keyword node → the faithful-Clojure
-    // type FORM node (`:wat::core::Vector<wat::core::i64>` → `(wat.type/Vector [wat.type/i64])`).
-    env.register(":wat::core::keyword/to-type-form".into(), TypeScheme {
+    env.register(":wat::keyword::to-type-form".into(), TypeScheme {
         type_params: vec![], params: vec![TypeExpr::Path(":wat::WatAST".into())],
         ret: TypeExpr::Path(":wat::WatAST".into()), rest_param_type: None });
-    // Arc 109 Stone ②-i — Colon-mode sibling of `keyword/to-type-form`: same parse+render, the
-    // rust-ish `:wat::core::` head spelling instead of the Clojure `wat.type/` flip
-    // (`:wat::core::Vector<wat::core::i64>` → `(:wat::core::Vector [:wat::core::i64])`). Step ②'s
-    // corpus codemod needs this spelling; the Clojure head-flip is separate and later.
-    env.register(":wat::core::keyword/to-type-form-colon".into(), TypeScheme {
+    env.register(":wat::keyword::to-type-form-colon".into(), TypeScheme {
         type_params: vec![], params: vec![TypeExpr::Path(":wat::WatAST".into())],
         ret: TypeExpr::Path(":wat::WatAST".into()), rest_param_type: None });
     // Arc 170 slice 1f-α / 1f-ι — thread-aware stdio helpers.

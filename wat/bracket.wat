@@ -193,10 +193,10 @@
    ctx     <- (:wat::core::Option :K)]
   -> :wat::core::nil
   (:wat::core::let
-    [base-str     (:wat::core::keyword/to-string work-fn)
-     assemble-kw  (:wat::core::keyword/from-string
+    [base-str     (:wat::keyword::to-string work-fn)
+     assemble-kw  (:wat::keyword::from-string
                     (:wat::core::format "{base-str}::assemble" :base-str base-str))
-     impl-kw      (:wat::core::keyword/from-string
+     impl-kw      (:wat::keyword::from-string
                     (:wat::core::format "{base-str}$impl" :base-str base-str))]
     (:wat::core::match (:wat::kernel::recv self)
       ((:wat::kernel::RecvOutcome::Message m)
@@ -377,11 +377,11 @@
   ;; ground case of the same fold (a 1-element Tuple carrier/ctx).
   ([work-fn <- :wat::core::keyword] -> (:wat::core::Vector :- [:wat::WatAST])
     (:wat::core::let
-      [base-str      (:wat::core::keyword/to-string work-fn)
-       impl-kw       (:wat::core::keyword/from-string (:wat::core::format "{base-str}$impl" :base-str base-str))
+      [base-str      (:wat::keyword::to-string work-fn)
+       impl-kw       (:wat::keyword::from-string (:wat::core::format "{base-str}$impl" :base-str base-str))
        kwargs-ty-str (:wat::core::format "{base-str}::Kwargs" :base-str base-str)
-       kwargs-ty     (:wat::core::keyword/from-string kwargs-ty-str)
-       work-name     (:wat::core::keyword/from-string "user::bracket::work-fn")
+       kwargs-ty     (:wat::keyword::from-string kwargs-ty-str)
+       work-name     (:wat::keyword::from-string "user::bracket::work-fn")
        forms         (:wat::kernel::fn-forms impl-kw work-name)
        nforms        (:wat::core::length forms)
        ;; The $impl fn-def-node — the SECOND-TO-LAST shipped form (fn-forms, given a
@@ -443,7 +443,7 @@
        (:wat::core::foldl
          (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST]) i <- :wat::core::i64] -> (:wat::core::Vector :- [:wat::WatAST])
            (:wat::core::let
-             [fname-str   (:wat::core::keyword/to-string (:wat::core::Option/expect (:wat::core::get fnames i) "process-work-forms(kwargs): fnames index"))
+             [fname-str   (:wat::keyword::to-string (:wat::core::Option/expect (:wat::core::get fnames i) "process-work-forms(kwargs): fnames index"))
               accessor-kw (:wat::core::keyword-node
                             (:wat::string::concat ":"
                               (:wat::string::concat coords-ty-str
@@ -517,7 +517,7 @@
   ;; both clauses share the one call site above.
   ([work-fn <- :W] -> (:wat::core::Vector :- [:wat::WatAST])
     (:wat::core::let
-      [work-name (:wat::core::keyword/from-string "user::bracket::work-fn")
+      [work-name (:wat::keyword::from-string "user::bracket::work-fn")
        forms     (:wat::kernel::fn-forms work-fn work-name)
        ;; ── derive the concrete arg/return type keywords off the reified work-fn ──
        def-node  (:wat::core::Option/expect (:wat::core::last forms) "spawn-runner: fn-forms produced no define")

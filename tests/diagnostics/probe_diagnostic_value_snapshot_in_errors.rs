@@ -178,15 +178,26 @@ fn probe_4_type_mismatch_renders_non_vector_spread() {
 // (closes the "what value" gap).
 // After Stone 233.2.a: substrate has Value::Tracked + Provenance::RuntimeBuilt
 // (scaffolding; no producers tag yet).
-// After Stone 233.2.b (THIS): eval_keyword_from_string wraps return in
+// After Stone 233.2.b: eval_keyword_from_string wraps return in
 // Value::Tracked { provenance: Provenance::RuntimeBuilt { producer:
 // ":wat::core::keyword/from-string", call_span } }. ValueSnapshot::Display
 // renders producer info inline.
 //
-// This probe asserts the error message now mentions the producer.
-// Currently FAILS (Provenance always Unknown even from keyword/from-string).
-// After 233.2.b ships, PASSES — closes the load-bearing runtime-built case
-// from INVENTORY § O three-case table.
+// ⚠ REGRESSED (honestly, not silently) BY ARC 255 STONE E-iv — "keyword gets its home".
+// `keyword/from-string`'s dispatch route moved off the special-cased producer arm in
+// `dispatch_keyword_head` (the only door that could construct a `TrackedValue` carrying a
+// custom `Provenance::RuntimeBuilt`) onto the `#[wat_intrinsic]` registry
+// (`src/intrinsic/keyword.rs`), whose `NativeHandler` signature is fixed at
+// `-> Result<Value, EvalBreak>` — no slot for a custom `Provenance`. So a keyword built via
+// EITHER spelling of `keyword/from-string` now carries `Provenance::Unknown` at the point of
+// construction (the SAME downgrade every other registry-routed verb already accepts); by the
+// time it is bound via `let` and referenced as `head` below, `Environment::lookup` promotes
+// that to `SymbolBound` (binding-span + head-span), not `RuntimeBuilt`. The golden below was
+// RECAPTURED (`UPDATE_EDN=1`) to match — it is now BYTE-IDENTICAL to Probe 2's golden, because
+// both probes now observe the same (correct, just less specific) provenance. This probe no
+// longer demonstrates "producer info surfaces" for THIS verb; `probe_7`/`probe_8`
+// (`from-holon`/`edn::read`) still exercise a real `RuntimeBuilt` producer and remain the
+// regression guard for that capability.
 #[test]
 fn probe_6_runtime_built_keyword_renders_producer_info() {
     // Fixture: probe_diagnostic_value_snapshot_in_errors_p2.wat (same WAT as probe_2)
@@ -201,7 +212,7 @@ fn probe_6_runtime_built_keyword_renders_producer_info() {
             wat::assert_edn_matches_file!(
                 e.trim_start_matches("eval: ").to_string(),
                 "probe_diagnostic_value_snapshot_in_errors__probe_6_runtime_built_keyword_renders_producer_info.edn",
-                "Probe 6: must surface rendered keyword content + producer info (Stone 233.1+233.2.b)"
+                "Probe 6: must surface rendered keyword content (producer info retired for this verb, arc 255 Stone E-iv — see comment above)"
             );
         }
     }

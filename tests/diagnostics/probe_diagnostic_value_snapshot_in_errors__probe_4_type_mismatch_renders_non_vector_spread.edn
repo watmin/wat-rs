@@ -3,11 +3,11 @@
   :location #wat.core/Span {
     :file "tests/diagnostics/probe_diagnostic_value_snapshot_in_errors_p4.wat"
     :line 1
-    :col 130
+    :col 125
     :end #wat.core.Option/Some [
       #wat.core/Pos {
         :line 1
-        :col 132
+        :col 127
       }
     ]
   }

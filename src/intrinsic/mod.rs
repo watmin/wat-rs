@@ -395,6 +395,7 @@ mod hashset;
 mod i64;
 mod io;
 mod kernel;
+mod keyword;
 mod linkedlist;
 mod list;
 mod map;

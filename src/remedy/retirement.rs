@@ -69,6 +69,7 @@
 //! | `":wat::core::Vector/*"` (7 ops)        | 255 Stone E-ii | per-type Vector verbs, junk-drawer home        | `:wat::vec::*` (the flavor-marked home; `extend` is Vector-only, no PersistentVector twin) |
 //! | `":wat::core::HashSet/*"` (4 ops)       | 255 Stone E-iii | per-type HashSet verbs, junk-drawer home     | `:wat::hashset::*` (the flavor-marked home; `:wat::set::` stays free for the persistent sibling) |
 //! | `":wat::core::List/*"` (5 ops)          | 255 Stone E-iii | per-type List verbs, junk-drawer home        | `:wat::linkedlist::*` (the flavor-marked home; `:wat::list::` stays free for the persistent sibling) |
+//! | `":wat::core::keyword/*"` (5 ops)       | 255 Stone E-iv | keyword verbs, junk-drawer home; the LAST scalar without a home | `:wat::keyword::*` (the plain, unmarked home — `keyword` has only one flavor) |
 
 use super::{Remedy, RemedyKind};
 
@@ -294,6 +295,16 @@ const RETIREMENT_TABLE: &[RetirementEntry] = &[
     RetirementEntry { retired: ":wat::core::List/contains?",   replacement: ":wat::linkedlist::contains?", note: None },
     RetirementEntry { retired: ":wat::core::List/get",         replacement: ":wat::linkedlist::get",      note: None },
     RetirementEntry { retired: ":wat::core::List/conj",        replacement: ":wat::linkedlist::conj",     note: None },
+    // Arc 255 Stone E-iv — "keyword gets its home": the LAST scalar without one. One flavor,
+    // so the plain unmarked name (contrast E-iii's hashset/linkedlist, both marked). Name-only;
+    // handler bodies untouched (`eval_keyword_to_string`/`eval_keyword_from_string` stay in
+    // `runtime.rs`; `eval_keyword_to_symbol`/`eval_keyword_to_type_form`/
+    // `eval_keyword_to_type_form_colon` stay in `edn/render.rs`).
+    RetirementEntry { retired: ":wat::core::keyword/to-string",         replacement: ":wat::keyword::to-string",         note: None },
+    RetirementEntry { retired: ":wat::core::keyword/from-string",       replacement: ":wat::keyword::from-string",       note: None },
+    RetirementEntry { retired: ":wat::core::keyword/to-symbol",         replacement: ":wat::keyword::to-symbol",         note: None },
+    RetirementEntry { retired: ":wat::core::keyword/to-type-form",      replacement: ":wat::keyword::to-type-form",      note: None },
+    RetirementEntry { retired: ":wat::core::keyword/to-type-form-colon", replacement: ":wat::keyword::to-type-form-colon", note: None },
 ];
 
 /// Look up `needle` in the retirement table.

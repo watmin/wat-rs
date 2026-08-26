@@ -12,4 +12,4 @@
 ;; exact provenance this probe exists to check. So the raw expression is read + parsed here at
 ;; runtime (never an inlined Rust string) and driven straight through `eval_in_frozen`, which returns
 ;; `TrackedValue` — the one path that preserves the inner producer's provenance.
-(:wat::core::let [k (:wat::core::keyword/from-string "wat::core::nil")] k)
+(:wat::core::let [k (:wat::keyword::from-string "wat::core::nil")] k)

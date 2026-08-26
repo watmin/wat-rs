@@ -82,31 +82,34 @@ fn probe_2_eval_result_yields_tracked_value_with_api() {
 }
 
 // ─── Probe 3 — TrackedValue carries provenance from producer-tagged path ────
-
+//
+// ⚠ REGRESSED (honestly, not silently) BY ARC 255 STONE E-iv — "keyword gets its home".
+// `keyword/from-string`'s dispatch route moved off the special-cased producer arm in
+// `dispatch_keyword_head` onto the `#[wat_intrinsic]` registry (`src/intrinsic/keyword.rs`),
+// whose `NativeHandler` signature (`-> Result<Value, EvalBreak>`) has no slot for a custom
+// `Provenance` — see `probe_stone_233_2_j_producer_migration.rs`'s probe 2 comment for the
+// full mechanism. It no longer wraps its return with `RuntimeBuilt`; asserting the
+// OBSERVED-CORRECT provenance (Unknown) rather than deleting the probe. The "eval boundary
+// preserves producer-attached provenance" MECHANISM this probe was written to guard is still
+// exercised by every producer that remains special-cased (`:wat::holon::from-holon`,
+// `:wat::edn::read`, `:wat::core::keyword-node`, …) — this probe just no longer demonstrates
+// it via `keyword/from-string`.
 #[test]
 fn probe_3_runtime_built_producer_provenance_survives_eval_boundary() {
     let world = startup_beside(file!()).expect("startup");
-    // keyword/from-string is a producer (Stone 233.2.b) — wraps return with provenance.
-    // Through the eval boundary, the wrapping survives at the TrackedValue layer.
     let tv: TrackedValue = eval_beside(&world, ":user::kw-from-string");
 
-    // The value is a keyword
+    // The value is still a keyword.
     assert!(
         matches!(tv.value(), Value::wat__core__keyword(_)),
         "keyword/from-string should yield TrackedValue wrapping Value::wat__core__keyword"
     );
 
-    // Provenance is RuntimeBuilt with the producer string ":wat::core::keyword/from-string"
-    // (This asserts the eval boundary preserves producer-attached provenance.)
+    // Provenance is Unknown — registry-routed verbs carry no custom Provenance (see comment above).
     assert!(
-        matches!(
-            tv.provenance(),
-            wat::value::Provenance::RuntimeBuilt {
-                producer: ":wat::core::keyword/from-string",
-                ..
-            }
-        ),
-        "TrackedValue from keyword/from-string should carry RuntimeBuilt provenance; got {:?}",
+        matches!(tv.provenance(), wat::value::Provenance::Unknown),
+        "keyword/from-string is registry-routed now (arc 255 Stone E-iv) and cannot carry \
+         RuntimeBuilt provenance; expected Provenance::Unknown; got {:?}",
         tv.provenance()
     );
 }

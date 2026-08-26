@@ -126,13 +126,13 @@
     (:wat::core::let [h   (:wat::core::first items)
                       tl  (:wat::core::rest items)
                       out (:wat::core::if (:wat::core::if prev-arrow? (:wat::core::= (:wat::core::ast-kind h) "keyword") false)
-                            (:wat::core::keyword/to-type-form h)
+                            (:wat::keyword::to-type-form h)
                           (:wat::core::if (:wat::fix::type-shaped-keyword? h)
-                            (:wat::core::keyword/to-type-form h)
+                            (:wat::keyword::to-type-form h)
                           (:wat::core::if (:wat::fix::arrow? h)
                             (:wat::core::keyword-node ":-")
                           (:wat::core::if (:wat::fix::head-keyword? h)
-                            (:wat::core::keyword/to-symbol h)
+                            (:wat::keyword::to-symbol h)
                             (:wat::fix::fix-source h)))))]
       (:wat::core::concat (:wat::core::Vector :wat::WatAST out)
                           (:wat::fix::fix-seq tl (:wat::fix::arrow? h))))))
@@ -268,17 +268,17 @@
           ;; post-arrow keyword is a type annotation → convert to type form
           (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])
             (:wat::core::Tuple off old-len
-              (:wat::core::write-forms (:wat::core::keyword/to-type-form node))))
+              (:wat::core::write-forms (:wat::keyword::to-type-form node))))
           (:wat::core::if (:wat::fix::type-shaped-keyword? node)
             ;; parametric/tuple keyword → type form
             (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])
               (:wat::core::Tuple off old-len
-                (:wat::core::write-forms (:wat::core::keyword/to-type-form node))))
+                (:wat::core::write-forms (:wat::keyword::to-type-form node))))
             (:wat::core::if (:wat::fix::head-keyword? node)
               ;; ::-namespaced call head → faithful-Clojure symbol
               (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])
                 (:wat::core::Tuple off old-len
-                  (:wat::core::ast-name (:wat::core::keyword/to-symbol node))))
+                  (:wat::core::ast-name (:wat::keyword::to-symbol node))))
               ;; bare data keyword (no ::, not type-shaped) — no edit
               (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String]))))))
       (:wat::core::if (:wat::core::= kind "symbol")

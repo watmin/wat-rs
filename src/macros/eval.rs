@@ -416,8 +416,10 @@ fn is_pure_total(head: &str) -> bool {
         | ":wat::string::to-bool"
 
         // ── Keyword / symbol ops (pure) ────────────────────────────────
-        | ":wat::core::keyword/to-string"
-        | ":wat::core::keyword/from-string"  // pure constructor (routed via dispatch_keyword_head)
+        // Arc 255 Stone E-iv — `keyword` gets its home. `:wat::core::keyword/{to-string,
+        // from-string}` RETIRED this stone; `:wat::keyword::*` (below) is their replacement.
+        | ":wat::keyword::to-string"
+        | ":wat::keyword::from-string"  // pure constructor (routed via the intrinsic registry)
 
         // ── Macro diagnostics (pure: deterministic abort, no IO) ────────
         // Arc 258 Stone 258.2b — first-class macro-abort. Aborts expansion
@@ -693,11 +695,12 @@ fn is_pure_total(head: &str) -> bool {
         // scoped symbols that cannot collide with caller variables. "Does a macro need it?" → YES.
         | ":wat::core::fresh-symbol"
         | ":wat::core::keyword-node"
-        | ":wat::core::keyword/to-symbol"
-        | ":wat::core::keyword/to-type-form"
-        // Arc 109 Stone ②-i — Colon-mode sibling of keyword/to-type-form (Room 3); same
-        // pure/deterministic category, just the rust-ish `:wat::core::` head spelling.
-        | ":wat::core::keyword/to-type-form-colon"
+        // Arc 255 Stone E-iv — `:wat::core::keyword/{to-symbol,to-type-form,
+        // to-type-form-colon}` RETIRED this stone; `:wat::keyword::*` (below) is their
+        // replacement.
+        | ":wat::keyword::to-symbol"
+        | ":wat::keyword::to-type-form"
+        | ":wat::keyword::to-type-form-colon"
 
         // ── Form-shape predicates (pure over WatAST form-values) ──────
         // core form-shape predicate over WatAST::List; distinct from

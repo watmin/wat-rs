@@ -168,7 +168,7 @@
                     (:wat::core::Vector :wat::WatAST)
                     (:wat::core::range 0 n-fields))
      field-names-ast-vec (:wat::core::with-children fields fname-nodes)
-     fqdn-str      (:wat::core::keyword/to-string fqdn)
+     fqdn-str      (:wat::keyword::to-string fqdn)
      ;; Arc 294 item 9a — a GENERIC type name registers its kwargs companion + references
      ;; its positional prime under the BARE name (params ride ONLY on the recordtype decl,
      ;; `~fqdn` below). Matches register_aggregate_methods (`format!("{}'", agg.name)`).
@@ -264,7 +264,7 @@
                     (:wat::core::Vector :wat::WatAST)
                     (:wat::core::range 0 n-fields))
      field-names-ast-vec (:wat::core::with-children fields fname-nodes)
-     fqdn-str      (:wat::core::keyword/to-string fqdn)
+     fqdn-str      (:wat::keyword::to-string fqdn)
      ;; Arc 294 item 9a — a GENERIC type name registers its kwargs companion + references
      ;; its positional prime under the BARE name (params ride ONLY on the recordtype decl,
      ;; `~fqdn` below). Matches register_aggregate_methods (`format!("{}'", agg.name)`).

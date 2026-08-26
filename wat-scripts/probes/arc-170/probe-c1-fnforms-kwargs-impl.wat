@@ -21,7 +21,7 @@
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
-    [impl-kw (:wat::core::keyword/from-string "probe::work$impl")
+    [impl-kw (:wat::keyword::from-string "probe::work$impl")
      forms   (:wat::kernel::fn-forms impl-kw :user::bracket::work-fn)
      n       (:wat::core::length forms)
      _       (:wat::kernel::println n)

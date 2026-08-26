@@ -2294,8 +2294,6 @@ mod completeness_gate {
     ":wat::core::find-last-index",
     ":wat::core::fn",
     ":wat::core::forms",
-    ":wat::core::keyword/from-string",
-    ":wat::core::keyword/to-string",
     ":wat::core::last",
     ":wat::core::macroexpand",
     ":wat::core::macroexpand-1",
@@ -2410,6 +2408,21 @@ mod completeness_gate {
     ":wat::holon::vector-bundle",
     ":wat::holon::vector-bytes",
     ":wat::holon::vector-permute",
+    // Arc 255 Stone E-iv — `keyword` gets its home. `to-string`/`from-string` carry forward
+    // the SAME open ruling under their OLD spelling (this ledger never classified them
+    // either); `to-symbol`/`to-type-form`/`to-type-form-colon` are newly VISIBLE to this scan
+    // for the first time — registering all five via `#[wat_intrinsic]` makes `dispatch_verbs`'
+    // intrinsic-homes scan see them, where before the three producers lived only in
+    // `dispatch_keyword_head`'s producer match (a region this scan never reads). Parked here
+    // rather than classified in `intrinsic_meta`: the F5 `is_pure_total` allow-list
+    // (`macros/eval.rs`) already treats all five as pure/deterministic, but ruling on THIS
+    // axis (RETE-fireability) for a verb nothing forces into a `where` is out of this stone's
+    // scope — same restraint as E-iii's refused `RETE_MODULES` entry.
+    ":wat::keyword::from-string",
+    ":wat::keyword::to-string",
+    ":wat::keyword::to-symbol",
+    ":wat::keyword::to-type-form",
+    ":wat::keyword::to-type-form-colon",
     ":wat::rete::alpha-match",
     ":wat::rete::alpha-match-local",
     ":wat::rete::alpha-match-under",
