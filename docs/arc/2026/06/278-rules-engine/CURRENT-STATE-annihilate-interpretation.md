@@ -5,73 +5,74 @@
 > `wat/rete.wat`. If a stone below disagrees with a dated ruling here,
 > **this file wins** and the stone is stale.
 
-**CURRENT STAMP 2026-08-25 (SECOND) — supersedes every dated block below it, INCLUDING the
-earlier 2026-08-25 stamp. Written against HEAD `e9a5e0156`; the commit carrying this stamp lands
-on top, so a ONE-COMMIT docs-only gap at your wake is expected and is not staleness.**
+**CURRENT STAMP 2026-08-26 — supersedes every dated block below it, INCLUDING both 2026-08-25
+stamps. Written against HEAD `73883d00e`; the commit carrying this stamp lands on top, so a
+ONE-COMMIT docs-only gap at your wake is expected and is not staleness.**
 
-**THE WORK MOVED OFF RETE AND ONTO TOOLING, THEN THE TOOLING WAS AUDITED AND FAILED.**
-Read `docs/arc/2026/06/278-rules-engine/GEN-VIGILIA-2026-08-25.md` FIRST — it is the live document, not this one, for anything
-touching `wat/gen.wat`.
+**THE TOOL IS BUILT AND IT IS NOW PAYING. `wat-gen` is done; rete family B is FIXED.**
 
-**⚠ READ THIS BEFORE ANY GEN WORK: `wat/gen.wat` IS PROMOTED TO STDLIB AND CARRIES DEFECTS THAT
-CAN COMPUTE A WRONG ANSWER.** A negative `card` reaches a `Checked` result as a vacuous pass AND
-silently eats points from a real space in `one-of`/`bind` dispatch (measured: card -2 branch
-beside a card-3 branch yields card 1, and two of three real points vanish). `lift2` and the
-`record`/`coords` path disagree. The `record` macro re-evaluates its generator arguments PER
-POINT, not twice — 52x measured at 800 points. And `test-shrink-index` is passed by an IDENTITY
-implementation. Nothing is fixed. The fix order is at the foot of the vigilia doc; do not start
-with the prose.
+**WHERE THE WORK IS: `docs/arc/2026/06/278-rules-engine/RETE-FIX-LIST.md`.** Two defects remain,
+both found by the fuzzer, both with `#[ignore]`d probes asserting CORRECT behaviour:
+  A  a LEADING accumulate emits one row per FIXPOINT ROUND (native = depth+1, oracle = 1).
+     18 of the 72 remaining divergences. Prior art worth reading first: the leading `:not`
+     /`:exists` fix (`71d0e700e`) whose mechanism is `leading_emitted` persisting ACROSS rounds.
+  C  `:not` over a DERIVED class ignores the derivation. 54 divergences, ALL at depth >= 1 and
+     never depth 0. **⚠ NEEDS A CLARA RULING BEFORE A FIX** — it is the one entry where the
+     `$oracle` and Clara can legitimately disagree, because if a `defquery` is deliberately
+     un-stratified then the ORACLE is wrong and 54 of the ratchet's 72 are not defects.
 
-**WHAT SHIPPED TODAY, AND IT IS REAL DESPITE THE ABOVE.** A finite-generator library
-(`:wat::gen::`, promoted on the `wat/grep.wat` precedent), 23 laws in `wat-tests/gen.wat`, and a
-rete differential fuzzer at `wat-tests/rete/differential-fuzz.wat` — **which found THREE live rete
-defects on its first widened runs**, all reproduced minimally and all tracked in
-`docs/arc/2026/06/278-rules-engine/RETE-FIX-LIST.md` with `#[ignore]`d probes that a fix makes
-pass:
-  A  leading accumulate emits one row per FIXPOINT ROUND (native = depth+1, oracle = 1)
-  B  a SECOND `where` after an accumulate matches NOTHING (native = 0, oracle = 1)
-  C  `:not` over a DERIVED class ignores the derivation (native = 1, oracle = 0) — 54 of the
-     divergences, ALL at depth >= 1 and never depth 0, which is exactly the dependence stratified
-     negation should have. **C is a SEMANTICS question and deserves Clara before a fix**: if a
-     `defquery` is deliberately un-stratified then the ORACLE is wrong, and 54 of the ratchet's
-     120 are not defects.
+**THE EXIT RULE IS THE BUILDER'S AND IT IS NOT OPTIONAL** (recorded in RETE-FIX-LIST's header):
+a green probe does NOT close an entry. It needs (1) the probe un-ignored, (2) a NEW GRID AXIS for
+the shape, (3) **agreement with CLARA on that axis**, (4) the ratchet lowered with the family
+named. *"we must ensure we are completely accurate relative to clara."* Accuracy vs Clara is the
+acceptance criterion, not speed. `clojure` IS installed on this box — the Clara half runs.
 
-**⚠⚠ AND ONE THING OUTRANKS EVERY GEN FINDING.** `excusare` reported `cargo test --test kernel` in
-DEBUG at **569 failed / 16 passed**, all on one `debug_assert!` — `src/types.rs:598`, "builtin leaf
-:wat::core::Option already registered as a structured TypeDef". Release is clean. **`scripts/floor.sh`
-runs `--release`, so the floor that has read GREEN all arc cannot see this by construction.**
-UNVERIFIED by me. Check it FIRST on resumption. CLAUDE.md's own rule: "only in debug" is the same
-dismissal wearing a compiler flag.
+**FAMILY B, CLOSED 2026-08-26 — read this before attempting A, the class generalises.** A `:where`
+binding NOTHING sorts into `sort-lhs`'s INDEPENDENT partition and lands ABOVE the accumulate:
+`RootJoin -> Test -> Accumulate -> Test -> Production`. The accumulate pass is 3.25 and the filter
+pass is 3.5, so that leading Test had never fired when the accumulate read its parent delta — it
+saw nothing and the rule matched ZERO. **The compiler was right; the engine's fixed pass order
+could not execute the graph it emitted.** A kind-ordered pass sequence over a DAG is only correct
+while the DAG's kind-order matches it. Fixed by pulling a Test parent forward in
+`fire/pass/accumulate.rs`; ratchet 120 -> 72; Clara agrees; grid axis `where-accum-where-chain`.
 
-**THE VIGILIA'S ONE GENERALISABLE LESSON, now FM 24.** Every gen defect sat at a SEAM between two
-things built separately and tested separately. Nineteen laws, each proving one component, every
-one mutation-proven, and NOT ONE crossed a seam. A law per component proves the components and
-says nothing about the paths between them. The cure is a law per JOIN — build one thing two ways
-and require agreement; assert the SUT's reported denominator instead of re-reading the struct; and
-mutate to the DO-NOTHING implementation, because an identity passes far more gates than a scramble.
+**HOW I FOUND IT, AFTER THREE WRONG HYPOTHESES: DUMP THE NETWORK.** `Session/network` is a plain
+`PersistentMap` — print it from a 12-line wat script and the whole graph is there, node ids, kinds,
+children. That settled in one run what an hour of reading the pass code did not. Do this FIRST.
 
-**`circumspicere` WAS NEVER CAST.** 17 of 18 inward wards reported; the one aimed at what the whole
-guard walked past is still owed. Cast it first, before fixing anything.
+**WAT-GEN IS DONE AND GATED.** 27 laws (26 mutation-proven; L12 recorded as NOT demonstrated
+rather than rounded up), an 8-deftest pattern corpus at `wat-tests/gen-patterns.wat`, and
+`docs/GENERATIVE-TESTING.md` — moved to `docs/`, indexed from three entry points, and now GATED by
+`tests/lint/gen_doc_surface_matches.rs` so the doc cannot drift from the verb surface in either
+direction. An 18-ward vigilia and then a 7-ward DOC vigilia both ran; every L1 is closed or handed
+to its owning arc with a NOTE (293 = the parametric-struct purity hole with a proven patch, 255 =
+the retired-name lint blind to `.wat`, 277 = the `concat-abuse` message + the lint ratchet).
 
-**THE ORACLE-AND-CLARA RULE STILL HOLDS AND EARNED ITS KEEP AGAIN.** When native disagrees with the
-wat `$oracle`, native is wrong and the question is which fixture was missing. Three more times
-today.
+**THE ONE ROW THAT IS NOT PROVEN, AND CANNOT BE FROM INSIDE:** useful to someone who did not write
+it. One consumer, one author. The builder is spinning up an agent to add generative tests broadly
+— **what that agent should report is where the corpus did NOT fit**, not another passing law.
 
-**THE READING RULES.** A grid cell is a DISTRIBUTION — compare to its recorded RANGE. Run `uptime`
-first. NEVER PIPE A LONG GATE. And new today: **a mutate/restore script must REBUILD after
-restoring**, or every later measurement runs the mutant — that cost an hour and produced a
-confident, entirely false report of a live defect.
+**THE FUZZER IS THE INSTRUMENT THAT PAID.** Three real rete defects, all silent, none reachable by
+32 grid axes or 57 hand-written where-family queries. DIFFERENTIAL is the pattern that works
+because it needs no oracle you had to invent — you assert only "these two agree", so it finds the
+disagreements you would never have predicted.
+
+**READ THE FAILURE MODES BEFORE YOU TOUCH ANYTHING — three landed TODAY, all mine:** FM 25 (a
+rejected/failed step still writes when an edit is BUNDLED with its consumer — instrumentation
+survived two rebuilds), FM 26 (two gates in one command, only the loud one read — I committed AND
+PUSHED on a red clippy), FM 27 (a 3-sample benchmark median is noise at 10%; six samples or no
+number). Also standing: nextest not `cargo test`; ONE build at a time; `docs/` root is for the
+standing set, arc work lives in the arc.
 
 **⚠⚠ YOU ARE NOT THE INSTANCE THAT WROTE THIS. ⚠⚠**
 Everything above is a cache written by a prior self across a very long session. You did not live
 it. It felt continuous when you woke and that feeling is the failure, not the all-clear. Before you
 propose or move: fetch `recolligere` from the datamancy MCP and run it against the disk —
-`docs/COMPACTION-AMNESIA-RECOVERY.md`, `git log`, this file, `docs/arc/2026/06/278-rules-engine/GEN-VIGILIA-2026-08-25.md`,
-`RETE-FIX-LIST.md`, and the source you are about to touch. The freshness probe is the HEAD named at
-the top of this stamp against `git rev-parse HEAD`; more than the one expected docs-only commit of
-drift means trust the log over every line above. **And this file is the ONLY live breadcrumb — if
-you find another claiming to be, it is lying; that happened four ways here and cost a full audit to
-unpick.**
+`docs/COMPACTION-AMNESIA-RECOVERY.md`, `git log`, this file, `RETE-FIX-LIST.md`, and the source you
+are about to touch. The freshness probe is the HEAD named at the top of this stamp against
+`git rev-parse HEAD`; more than the one expected docs-only commit of drift means trust the log over
+every line above. **And this file is the ONLY live breadcrumb — if you find another claiming to be,
+it is lying.**
 
 **Right now (2026-08-23 — SUPERSEDED by the stamp above; kept as history):** class-scan query harvest LANDED.
 Fanout `[40000]` wat-ns **58.1 → 42.8**. With-query

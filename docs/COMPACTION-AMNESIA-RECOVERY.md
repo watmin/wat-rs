@@ -1142,6 +1142,60 @@ committable and was not committed. And a destructive step must not sit in the sa
 step that justifies it: if generation and removal share an invocation, a failed generation still
 reaches the removal.
 
+**⚠ RECURRED 2026-08-26, IN A NEW GUISE, AFTER THE CURE ABOVE WAS WRITTEN.** The builder REJECTED
+a tool call that bundled `cp` (backup) + a python edit injecting an `eprintln!` + `cargo nextest`
++ `cp` (restore). A rejection stops the call — but the edit had ALREADY WRITTEN. Debug
+instrumentation sat in `src/rete/kernel/fire/pass/filter.rs` through TWO release rebuilds before
+it was noticed, and it would have shipped in a commit.
+
+**The generalisation, which is what this FM is actually about:** *any* command that bundles a file
+edit with the step that consumes it converts a partial failure — or a refusal — into residue on
+disk. Generation + removal was the first instance; edit + run is the second; edit + rejection is
+the third. **Write the edit, run the consumer separately, and let each be individually
+rejectable.** A rejected call must be able to leave the tree exactly as it found it, and it can
+only do that if the call did one thing.
+
+### Failure mode 26 — Two gates in one command, and only the first verdict read
+
+**Signature:** a single Bash invocation runs the floor AND clippy (or any two gates), the first
+prints a big obvious `Summary ... all passed`, the second prints one quiet line — and the commit
+goes out on the strength of the first.
+
+**Real incident, 2026-08-26.** `./scripts/floor.sh; cargo clippy ...; echo "clippy exit=$?"` was
+run as one command. The floor read 5098/5098. **`clippy exit=101` was printed in the same output,
+three lines down, and went unread.** The commit was written, committed AND PUSHED on a red gate.
+The defect was trivial (a parameter pushed a function to 8 args, over clippy's 7) — the failure
+was not the defect, it was reporting green while a gate was red, which `wat-rs/CLAUDE.md` names
+as its first dismissal: *"A rider that reports a floor green while a test went red has reported a
+FALSE result."*
+
+**Why FM 20 does not cover it.** FM 20 is a verdict LOST to a pipe that discards the exit code.
+Here nothing was lost — the verdict was printed, correctly, and simply not looked at. A big green
+Summary immediately above a small red line is a legibility trap, not a plumbing one.
+
+**The cure: one gate per command, and read the LAST line of each before writing anything.** If two
+gates must share an invocation, the command's own last act should be a combined verdict that
+cannot be true while either half is false — not two independent prints where the loud one wins.
+
+### Failure mode 27 — A benchmark figure from too few samples, then reasoned with
+
+**Signature:** a wall-clock measurement is taken 3 times, the median is published as a number, and
+later work is planned against it — including ratios computed from two such medians.
+
+**Real incident, 2026-08-26.** Generator cost on a ~700 ms benchmark with ~5% run-to-run spread.
+Two successive 3-sample reads **of the same binary** gave 265 and 288 µs/point. A ~9% "regression"
+was chased that did not exist, and three figures shipped into five files were wrong: 406 → 437,
+265 → 287, and a nested multiple of 10.7x → 8.7x. The DIRECTION and the −34% delta survived
+re-measurement; the absolutes did not.
+
+**The cure: six samples and a stated mean, or no number.** And never a ratio computed from two
+few-sample medians — the errors compound. If a number is worth putting in a document, it is worth
+six runs; if it is not worth six runs, say "roughly" and give the shape instead of the digits.
+
+**The kin.** This is the same family as the oracle-ratio defect found the same day: a number is a
+CLAIM, and a claim needs the evidence standard of a finding. A figure with no stated method cannot
+be re-verified by anyone, which sits badly beside a document that gates everything else.
+
 ### Failure mode 22 — A rule written in prose that nothing ever runs
 
 **Signature:** a document states a discipline in the imperative — *"there is exactly ONE X; if
