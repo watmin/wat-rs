@@ -204,37 +204,83 @@ but a different arrangement, and the earlier fix does not cover it.
 
 ## OPEN
 
-### D — wat ACCEPTS a binding inside `:not` that Clara REFUSES
+*Nothing. Every entry on this list is closed.*
 
-**Found** 2026-08-26, while writing C's Clara twin · **No probe yet** · ⚠ **NEEDS A RULING — this
-one is a language decision, not a defect the `$oracle` can arbitrate.**
+---
 
-wat's own C fixture writes the negation as:
+## CLOSED — entry D
 
-```
-(:wat::rete::not (:user::S2 (?s <- :k)))
-```
+### ~~D — wat ACCEPTS a binding inside `:not` that Clara REFUSES~~ · **CLOSED 2026-08-26**
 
-`?s` is bound inside the negation and used nowhere — it cannot be used anywhere, because a
-negation that matches nothing binds nothing. wat compiles this silently. Clara 0.24.0 refuses it,
-at compile time:
-
-```
-Using variable that is not previously bound. ... Note that variables used in negations are not
-bound for subsequent rules since the negation can never match.
-Unbound variables: #{?s}
-```
-
-**Why it is on this list.** It is a divergence in what the two engines ACCEPT rather than what they
-compute, so no fuzzer run and no `$oracle` differential can see it — both wat sides agree, because
-both wat sides are wat. It surfaced only because a Clara twin was written for an axis, which is an
-argument for the twins beyond arbitration.
-
-**Why it is not folded into C.** A fix for one is not a fix for the other, and this one has a real
-question in front of it: is the binding a *user error wat should reject* (Clara's position, and the
-`extirpare` reading — the wrong thing currently has a form), or a *harmless no-op wat tolerates*?
-Rejecting is a source-compatibility change for any existing rule that writes it, including this
-arc's own fixture. **The builder's call, not mine.**
+> **Found** 2026-08-26 while writing C's Clara twin — an ACCEPTANCE divergence no wat-vs-wat
+> differential could ever see, since both sides of one are wat. It surfaced only because a Clara
+> twin got written, which is an argument for the twins beyond arbitration.
+>
+> #### The ruling, and it was not "Clara is right"
+>
+> Builder: *"clara feels correct here — is our expression even logical to support?"* Probed on the
+> live binary rather than reasoned about, and the answer split three ways:
+>
+> | shape | verdict |
+> |---|---|
+> | `(:not (Temp (?c <- :c) (< ?c 20)))` — fresh bind, consumed by an inner constraint | **legal, and the bind is REQUIRED** — wat constraints reference variables, so it is the only way to say "no Temp under 20". Clara needs no variable because its constraints name the field directly |
+> | `(:not (Reading (?loc <- :loc)))` after `(Station (?loc <- :loc))` | **legal** — `?loc` is already bound, so inside the negation it is a USE, not a declaration |
+> | `(:not (S2 (?s <- :k)))` — fresh bind, consumed nowhere | **refused** |
+>
+> So Clara's blanket rejection is stricter than wat needs: `(?x <- :f)` is OVERLOADED in wat —
+> declaration when fresh, correlation when already bound. A "no binds in negations" rule would
+> have destroyed `where-not-bound` and `where-not-fact`.
+>
+> #### The precedent the builder named, and it fits exactly
+>
+> *"we have a similar restriction on parametric types — we refuse forms who declare a type and
+> never use it."* That is arc 109's `DESIGN-STONE-a-param-spec-must-be-consumed`
+> (`TypeErrorKind::UnconsumedTypeParam`), whose own rationale transfers with one word swapped:
+> *"an unused param still discriminates types ... the declaration is rejected for READABILITY: a
+> reader cannot tell a deliberate tag from a leftover edit."* Declared must be consumed.
+>
+> #### What made it worth more than tidiness
+>
+> The same rule kills a strictly worse shape: a fresh bind consumed OUTSIDE the negation. It does
+> fail at fire (`unbound symbol`) — but the `:where` referencing it runs only when the negation
+> PASSES, so it **hides behind the data**. Measured, same binary, same rule: fact present →
+> `n=0`, exit 0; fact absent → UnboundSymbol, exit 1. It compiles, survives any test whose
+> fixtures happen to contain a matching fact, and dies the first time production has none.
+>
+> #### The fix — declaration-check time, the strongest rung (builder's call)
+>
+> `src/rete/validate.rs` — arc 294's freeze-time `defrule` wall, which already walks `:when`
+> recursively through wrappers. Two located variants, `UnconsumedWrapperBind` and
+> `EscapedWrapperBind`. The rule:
+>
+> > A variable **fresh** inside a `:not` is a declaration and must be consumed within that same
+> > `:not`. A variable already declared elsewhere is a use, and is untouched.
+>
+> **It never asks whether a variable is bound** — only whether every DECLARATION of it sits inside
+> one negation. That is what keeps it clear of the trap `RhsUnresolvableOperand` names in its own
+> doc comment: binder analysis that UNDER-collects rejects legal rules, *"the one failure a wall
+> must not have."*
+>
+> #### ⚠ THE NEAR-MISS, RECORDED BECAUSE IT IS THE MOST USEFUL THING HERE
+>
+> The wall covered `:exists` too for exactly one build — Clara traps both, and `validate.rs`'s own
+> doc comment asserted *"`exists` binds nothing outward."* **That comment is false**, and acting on
+> it would have rejected a live accuracy axis: `leading-exists.wat` is a leading `:exists` binding
+> `?loc`, and the axis reads that binding back out of the query rows by string key
+> (`PersistentMap/get p "?loc"`) to build `:derived`. A consumer in HOST CODE is invisible to any
+> syntactic check, so **no syntactic check may judge an outward-binding construct.**
+>
+> Caught by sweeping all 46 grid axes before committing, one step from shipping. `:not` is safe to
+> judge because it binds nothing outward BY CONSTRUCTION — it admits a token precisely when no
+> fact matched — and the runtime says so out loud. The false comment is corrected in place, and
+> `an_unconsumed_bind_inside_exists_is_left_alone_because_exists_binds_outward` is the regression
+> guard: textually identical to the refused shape but for the wrapper.
+>
+> **Blast radius, measured:** 6 violations in 4 files across 1562 `.wat` files, **zero in the
+> stdlib** — all fixtures, probes and the grid. Each fixed by dropping the dead bind to the bare
+> class. `where-not-not` re-checked against Clara after the edit: byte-identical, as a dead bind
+> must be. **Known scope:** the wall sees DECLARED rules (`make-rule`/`make-query`); rules the
+> fuzzer builds at runtime bypass it, as they bypass every other check in this validator.
 
 ---
 
@@ -245,6 +291,10 @@ arc's own fixture. **The builder's call, not mine.**
 - **A — a leading accumulate emitted one row per fixpoint round.** Closed 2026-08-26.
 - **C — `:not` over a derived class ignored the derivation.** Closed 2026-08-26. A and C were ONE
   root; see C's entry. Ratchet 72 → **0**.
+
+- **D — wat accepted a binding inside `:not` that Clara refuses.** Closed 2026-08-26 at
+  DECLARATION-CHECK time, the strongest rung: `src/rete/validate.rs`. See D's entry for the rule,
+  the arc-109 precedent it mirrors, and the `:exists` false positive it nearly shipped.
 
 **The fuzzer's divergence count is now 0 and the gate is an equality, not a ratchet.** Native and
 the `$oracle` agree bit-for-bit across all 1260 generated shapes. Any nonzero from here is a

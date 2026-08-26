@@ -105,9 +105,20 @@ pub enum ReteCheckErrorKind {
     ///
     /// SCOPE, deliberately narrow: only operands that can NEVER resolve. An unbound `?var` is
     /// equally a compile-time property but needs binder analysis over `:when` (an `Or` arm binds
-    /// conditionally, `exists` binds nothing outward, `accumulate` binds its result var) — and
-    /// under-collecting that set would reject LEGAL rules, which is the one failure a wall must
-    /// not have. This variant carries no binder claim.
+    /// conditionally, `accumulate` binds its result var) — and under-collecting that set would
+    /// reject LEGAL rules, which is the one failure a wall must not have. This variant carries no
+    /// binder claim.
+    ///
+    /// ⚠ CORRECTED 2026-08-26. This list used to include "`exists` binds nothing outward". **That
+    /// is false in wat, and it was nearly acted on.** `wat-scripts/perf/grid/leading-exists.wat`
+    /// is an accuracy axis built entirely on the opposite: its query is a LEADING `:exists`
+    /// binding `?loc`, and the axis reads that binding back out of the query rows
+    /// (`PersistentMap/get p "?loc"`) to produce `:derived`. So a bind under `:exists` not only
+    /// escapes, its consumer can be HOST CODE addressing the row by string key — which no
+    /// syntactic check can see. `:not` is the opposite and is proven so: reference a `:not`-bound
+    /// variable outside and fire reports `unbound symbol`. The asymmetry is real, it is not
+    /// symmetric with Clara (which traps both), and it is why the wrapper wall below is scoped to
+    /// `:not` alone.
     RhsUnresolvableOperand {
         rule: String,
         fact_type: String,
@@ -192,6 +203,56 @@ pub enum ReteCheckErrorKind {
         operand: String,
         field_type: String,
     },
+    /// A `(?v <- :field)` bind inside a `:not` whose variable is consumed NOWHERE — not by a
+    /// constraint inside the negation, not anywhere else in the rule.
+    ///
+    /// This is the rete twin of `TypeErrorKind::UnconsumedTypeParam`
+    /// (`DESIGN-STONE-a-param-spec-must-be-consumed`, arc 109) and it is refused for the SAME
+    /// reason, which is readability rather than soundness: an unused bind changes no answer, but
+    /// a reader cannot tell a deliberate one from a leftover edit unless every bind is written
+    /// into the shape somewhere. Declared must be consumed.
+    ///
+    /// SCOPE — `:not` ONLY, and the exclusions are each proven rather than assumed:
+    /// - **`:exists` is NOT covered**, though Clara traps both. In wat `:exists` binds OUTWARD,
+    ///   and its consumer may be host code reading the query row by string key — see the
+    ///   correction on `RhsUnresolvableOperand`. A wall over `:exists` would reject
+    ///   `leading-exists.wat`, a live accuracy axis.
+    /// - **An ordinary join bind is not covered.** Its consumer may legitimately be another
+    ///   condition, another rule's `:then`, or host code; judging those needs the binder analysis
+    ///   `RhsUnresolvableOperand` deliberately refused.
+    ///
+    /// A `:not` is the one wrapper where the question is answerable without binder analysis,
+    /// because it binds nothing outward BY CONSTRUCTION: it admits a token precisely when no fact
+    /// matched, so there is no value to carry. And this check still never asks whether a variable
+    /// is bound — only whether every DECLARATION of it sits inside one negation. A variable
+    /// declared anywhere else is a correlation and is untouched.
+    UnconsumedWrapperBind {
+        rule: String,
+        /// The offending variable, as written (`?s`).
+        var: String,
+        /// The fact type the bind reads a field of, so the error names where to look.
+        fact_type: String,
+    },
+    /// A `(?v <- :field)` bind inside a `:not` whose variable is referenced OUTSIDE the negation,
+    /// where it provably cannot have a value.
+    ///
+    /// Worse than [`Self::UnconsumedWrapperBind`], and the reason this wall is at declaration
+    /// time rather than at `compile-all`: the reference DOES fail at fire — `#wat.runtime/
+    /// UnboundSymbol` — but only along the path where the wrapper PASSES. A `:where` after a
+    /// `:not` runs only when the negation admits a token, so the rule compiles, fires, and
+    /// answers cleanly on any data where a matching fact happens to exist, then dies the first
+    /// time none does. Measured, same binary, same rule: fact present → `n=0`, exit 0; fact
+    /// absent → UnboundSymbol, exit 1. A failure whose visibility depends on the data is the
+    /// one this wall exists to convert into a build error.
+    ///
+    /// Clara 0.24.0 refuses the same shape at session construction: *"Using variable that is not
+    /// previously bound ... variables used in negations are not bound for subsequent rules since
+    /// the negation can never match."*
+    EscapedWrapperBind {
+        rule: String,
+        var: String,
+        fact_type: String,
+    },
 }
 
 impl fmt::Display for ReteCheckErrorKind {
@@ -252,6 +313,26 @@ impl fmt::Display for ReteCheckErrorKind {
                 f,
                 "defrule `{rule}` (`:{fact_type}`): `{head}` compares at `{op_type}`, but field \
                  `:{field}` is declared `{field_type}` — use the rete comparator for `{field_type}`"
+            ),
+            ReteCheckErrorKind::UnconsumedWrapperBind { rule, var, fact_type } => write!(
+                f,
+                "defrule `{rule}`: `{var}` is bound inside a `:wat::rete::not` of `:{fact_type}` \
+                 and consumed nowhere — a `:not` binds nothing outward, so a bind under it is \
+                 meaningful only where it is written, as a constraint on the negated fact: \
+                 `(:wat::rete::not (:{fact_type} ({var} <- :field) \
+                 (:wat::rete::core::i64::< {var} 10)))`. An unused bind changes no answer, but a \
+                 reader cannot tell a deliberate one from a leftover edit. Drop it — \
+                 `(:{fact_type})` negates the whole class — or consume it"
+            ),
+            ReteCheckErrorKind::EscapedWrapperBind { rule, var, fact_type } => write!(
+                f,
+                "defrule `{rule}`: `{var}` is bound inside a `:wat::rete::not` of `:{fact_type}` \
+                 and referenced OUTSIDE it, where it can never have a value — a `:not` admits a \
+                 token precisely because NO fact matched, so there is nothing to bind. At fire \
+                 this is `unbound symbol: {var}`, but ONLY along the path where the `:not` \
+                 passes: the rule answers cleanly on data where a matching `:{fact_type}` exists \
+                 and dies the first time none does. Bind `{var}` in a positive condition, or drop \
+                 the reference"
             ),
         }
     }
@@ -525,6 +606,8 @@ fn validate_query_when(mq: &[WatAST], types: &TypeEnv, errors: &mut Vec<ReteChec
         for cond in when_conds {
             validate_when_entry(cond, &qname, types, &binds, errors);
         }
+        // A query has no `:then`, so a bind can only escape into a `:where`.
+        validate_wrapper_binds(when_conds, &[], &qname, errors);
     }
 }
 
@@ -549,6 +632,15 @@ fn validate_rule_when_and_reorder_then(
         for cond in when_conds {
             validate_when_entry(cond, &rule_name, types, &binds, errors);
         }
+        // `:then` variable uses are read HERE, immutably, before the kwargs reorder takes `mr`
+        // mutably below — a bind escaping into the RHS must count as an escape.
+        let mut then_occ: Vec<String> = Vec::new();
+        if let Some(then_forms) = quote_vector(mr.get(3)) {
+            for t in then_forms {
+                collect_var_occurrences(t, &mut then_occ);
+            }
+        }
+        validate_wrapper_binds(when_conds, &then_occ, &rule_name, errors);
     }
 
     // :then (mr[3] = (quote [<fact-form>…])) — validate, then reorder kwargs. Arc 278 Stone A:
@@ -1111,6 +1203,236 @@ fn malformed(span: Span, rule_name: &str, fact_type: &str, clause: &WatAST) -> R
     }
 }
 
+// ─── The `:not` bind wall ────────────────────────────────────────────────────────────────────
+//
+// A bind under a `:not` must be consumed under that `:not`. The rete twin of arc 109's
+// `DESIGN-STONE-a-param-spec-must-be-consumed`, and refused for the same stated reason: an unused
+// declaration changes no answer, but a reader cannot tell a deliberate one from a leftover edit.
+//
+// ★ HOW THIS AVOIDS THE TRAP `RhsUnresolvableOperand` NAMED. That variant deliberately declines
+// binder analysis, because under-collecting the bound set would reject LEGAL rules — the one
+// failure a wall must not have. This check never asks whether a variable IS bound. It asks a
+// purely syntactic question: are ALL of this variable's declarations inside one negation? If it
+// is declared anywhere else it is a correlation (`(Station (?loc <- :loc))` then
+// `(:not (Reading (?loc <- :loc)))`, which is "no Reading AT THIS loc") and is left alone. Only a
+// variable whose sole declaration site is under the negation can be judged, and for that one the
+// answer needs no binder analysis at all.
+//
+// ★ WHY `:exists` IS NOT HERE, THOUGH CLARA TRAPS BOTH. This wall covered `:exists` for exactly
+// one build, and it was WRONG: in wat `:exists` binds OUTWARD, and `leading-exists.wat` — a live
+// accuracy axis — reads its `:exists`-bound `?loc` back out of the query rows by string key to
+// build `:derived`. A consumer in HOST CODE is invisible to any syntactic check, so no such check
+// may judge an outward-binding construct. The sweep over every grid axis is what caught it, one
+// step before it shipped; the prior warning it would have violated is quoted above. `:not` is
+// safe to judge because it binds nothing outward BY CONSTRUCTION — it admits a token precisely
+// when no fact matched, so there is no value to carry, and the runtime says so out loud
+// (`unbound symbol` at fire).
+
+/// One bind declared INSIDE a `:not`, attributed to its INNERMOST enclosing negation — so `not`
+/// of `not` judges the declaration once, at the negation that actually traps it.
+struct WrapperBind<'a> {
+    var: &'a str,
+    fact_type: &'a str,
+    span: &'a Span,
+    /// The negation's inner form: the scope the variable must be consumed within.
+    scope: &'a WatAST,
+}
+
+/// Every `?var` OCCURRENCE in a form, at any depth — a raw symbol walk, deliberately NOT
+/// classifier-driven.
+///
+/// Consumption can happen anywhere a symbol can appear, including inside a `:where` predicate
+/// whose interior this validator otherwise holds out of scope (design call 3). Out of scope for
+/// JUDGING is not out of scope for COUNTING: a `:where` is exactly where an escaped bind gets
+/// referenced, and missing it would turn an escape into a false "unconsumed".
+///
+/// The match is exhaustive with no wildcard, so a new `WatAST` container is a compile error here
+/// rather than a silent blind spot — under-counting occurrences is precisely how this wall would
+/// come to reject a legal rule.
+fn collect_var_occurrences(form: &WatAST, out: &mut Vec<String>) {
+    match form {
+        WatAST::Symbol(sym, _) => {
+            let name = sym.as_str();
+            if name.starts_with('?') {
+                out.push(name.to_string());
+            }
+        }
+        WatAST::List(xs, _) | WatAST::Vector(xs, _) | WatAST::Set(xs, _) => {
+            for x in xs {
+                collect_var_occurrences(x, out);
+            }
+        }
+        WatAST::Map(pairs, _) => {
+            for (k, v) in pairs {
+                collect_var_occurrences(k, out);
+                collect_var_occurrences(v, out);
+            }
+        }
+        // Scalars carry no variable. Enumerated rather than wildcarded — see the doc comment.
+        WatAST::IntLit(..)
+        | WatAST::FloatLit(..)
+        | WatAST::RationalLit(..)
+        | WatAST::BigIntLit(..)
+        | WatAST::BoolLit(..)
+        | WatAST::StringLit(..)
+        | WatAST::NilLit(..)
+        | WatAST::Keyword(..) => {}
+    }
+}
+
+/// Every variable DECLARED by a bind, fact-bind or accumulate result, at any depth and under any
+/// wrapper. Used only to answer "is this variable declared anywhere ELSE?", which is what
+/// separates a correlation from a trapped declaration.
+fn collect_all_declarations<'a>(cond: &'a WatAST, out: &mut Vec<&'a str>) {
+    match classify_rete_clause(cond) {
+        ReteClauseShape::Not(inner) | ReteClauseShape::Exists(inner) => {
+            collect_all_declarations(inner, out);
+        }
+        ReteClauseShape::And(arms) | ReteClauseShape::Or(arms) => {
+            for a in arms {
+                collect_all_declarations(a, out);
+            }
+        }
+        ReteClauseShape::Accumulate { var, from, .. } => {
+            out.push(var);
+            collect_all_declarations(from, out);
+        }
+        ReteClauseShape::Bind { var, .. } => out.push(var),
+        ReteClauseShape::FactBind { var, clauses, .. } => {
+            out.push(var);
+            for c in clauses {
+                collect_all_declarations(c, out);
+            }
+        }
+        // A `where` fence declares nothing, and a constraint only USES. Named rather than left to
+        // the fallback so neither is walked as if it were a pattern.
+        ReteClauseShape::Where(_) | ReteClauseShape::Constraint { .. } => {}
+        ReteClauseShape::Unrecognized => {
+            if let Some(pat) = crate::rete::matcher::alpha_pattern(cond) {
+                if let Some(v) = pat.fact_var {
+                    out.push(v);
+                }
+                for c in pat.clauses {
+                    collect_all_declarations(c, out);
+                }
+            }
+        }
+    }
+}
+
+/// Record binds that sit under a `:not`. `wrapper` is the innermost enclosing negation's inner
+/// form (`None` outside any negation); `type_head` is the nearest enclosing pattern's fact type,
+/// so the error can say which type's field the dead bind reads.
+fn collect_wrapper_binds<'a>(
+    cond: &'a WatAST,
+    wrapper: Option<&'a WatAST>,
+    type_head: &'a str,
+    out: &mut Vec<WrapperBind<'a>>,
+) {
+    match classify_rete_clause(cond) {
+        ReteClauseShape::Not(inner) => {
+            collect_wrapper_binds(inner, Some(inner), type_head, out);
+        }
+        // `:exists` does NOT open a scope — it binds outward (see the banner). It passes the
+        // ENCLOSING wrapper through, so a bind under `not(exists(…))` is still trapped by the
+        // `:not` and still judged.
+        ReteClauseShape::Exists(inner) => {
+            collect_wrapper_binds(inner, wrapper, type_head, out);
+        }
+        ReteClauseShape::And(arms) | ReteClauseShape::Or(arms) => {
+            for a in arms {
+                collect_wrapper_binds(a, wrapper, type_head, out);
+            }
+        }
+        // An accumulate's RESULT var binds OUTWARD and is not this wall's business; its `:from`
+        // inner is an ordinary pattern and keeps whatever wrapper it sits under.
+        ReteClauseShape::Accumulate { from, .. } => {
+            collect_wrapper_binds(from, wrapper, type_head, out);
+        }
+        ReteClauseShape::Bind { var, .. } => {
+            if let Some(scope) = wrapper {
+                out.push(WrapperBind { var, fact_type: type_head, span: cond.span(), scope });
+            }
+        }
+        ReteClauseShape::FactBind { var, type_head: th, clauses } => {
+            if let Some(scope) = wrapper {
+                out.push(WrapperBind { var, fact_type: th, span: cond.span(), scope });
+            }
+            for c in clauses {
+                collect_wrapper_binds(c, wrapper, th, out);
+            }
+        }
+        ReteClauseShape::Where(_) | ReteClauseShape::Constraint { .. } => {}
+        ReteClauseShape::Unrecognized => {
+            if let Some(pat) = crate::rete::matcher::alpha_pattern(cond) {
+                for c in pat.clauses {
+                    collect_wrapper_binds(c, wrapper, pat.type_head, out);
+                }
+            }
+        }
+    }
+}
+
+/// The wall. `extra_occurrences` carries the rule's `:then` variable uses (a query has none), so
+/// a bind escaping into the RHS is caught the same as one escaping into a `:where`.
+fn validate_wrapper_binds(
+    when_conds: &[WatAST],
+    extra_occurrences: &[String],
+    rule_name: &str,
+    errors: &mut Vec<ReteCheckError>,
+) {
+    let mut binds: Vec<WrapperBind<'_>> = Vec::new();
+    for cond in when_conds {
+        collect_wrapper_binds(cond, None, "", &mut binds);
+    }
+    if binds.is_empty() {
+        return;
+    }
+
+    let count = |hay: &[String], needle: &str| hay.iter().filter(|v| v.as_str() == needle).count();
+
+    let mut whole_occ: Vec<String> = extra_occurrences.to_vec();
+    let mut all_decls: Vec<&str> = Vec::new();
+    for cond in when_conds {
+        collect_var_occurrences(cond, &mut whole_occ);
+        collect_all_declarations(cond, &mut all_decls);
+    }
+
+    for b in &binds {
+        let declared_everywhere = all_decls.iter().filter(|v| **v == b.var).count();
+        let mut scope_decls: Vec<&str> = Vec::new();
+        collect_all_declarations(b.scope, &mut scope_decls);
+        let declared_in_scope = scope_decls.iter().filter(|v| **v == b.var).count();
+        // Declared outside this wrapper too ⇒ a correlation, not a trapped declaration. Untouched,
+        // and this is the clause that makes the wall unable to reject a legal rule.
+        if declared_everywhere > declared_in_scope {
+            continue;
+        }
+
+        let mut scope_occ: Vec<String> = Vec::new();
+        collect_var_occurrences(b.scope, &mut scope_occ);
+        let inside = count(&scope_occ, b.var);
+        let outside = count(&whole_occ, b.var).saturating_sub(inside);
+
+        let kind = if outside > 0 {
+            ReteCheckErrorKind::EscapedWrapperBind {
+                rule: rule_name.to_string(),
+                var: b.var.to_string(),
+                fact_type: b.fact_type.to_string(),
+            }
+        } else if inside <= 1 {
+            ReteCheckErrorKind::UnconsumedWrapperBind {
+                rule: rule_name.to_string(),
+                var: b.var.to_string(),
+                fact_type: b.fact_type.to_string(),
+            }
+        } else {
+            continue;
+        };
+        errors.push(ReteCheckError { span: b.span.clone(), kind });
+    }
+}
+
 // ─── :then validation + reorder (S3) ─────────────────────────────────────────────────────────
 
 /// A `:then` value-position operand that can NEVER resolve at fire
@@ -1601,6 +1923,116 @@ mod tests {
         // build_env hooks validate_rete_rules internally (step 7.8) — a well-formed rule
         // must not turn a clean build_env into an error.
         build_env(forms).expect("a well-formed rule freezes clean");
+    }
+
+    // ─── The `:not` bind wall ────────────────────────────────────────────────────────────────
+
+    /// The rete twin of `UnconsumedTypeParam`: a bind under a `:not`, consumed nowhere.
+    #[test]
+    fn an_unconsumed_bind_inside_a_not_is_refused() {
+        let src = r#"
+(:wat::core::defrecord :w::S2  [k <- :wat::core::i64])
+(:wat::core::defrecord :w::Hit [k <- :wat::core::i64])
+(:wat::rete::defrule :w::r
+  :when [(:wat::rete::not (:w::S2 (?s <- :k)))]
+  :then [(:w::Hit :k 1)])
+"#;
+        let forms = crate::parse_all!(src).expect("parse");
+        let boxed = match build_env(forms) {
+            Err(crate::freeze::StartupError::Validator(e)) => e,
+            Err(other) => panic!("expected StartupError::Validator; got {other:?}"),
+            Ok(_) => panic!("a bind under `:not` consumed nowhere must be a located freeze error"),
+        };
+        let edn = wat_edn::write(&boxed.to_edn());
+        let e = rete_error(&edn, "UnconsumedWrapperBind");
+        assert_eq!(field_str(&e, "rule"), "w::r");
+        assert_eq!(field_str(&e, "var"), "?s");
+        assert!(rete_error_is_located(&e), "the wall's errors are LOCATED; got: {edn}");
+    }
+
+    /// The escape, and the reason this wall is at DECLARATION time rather than at `compile-all`:
+    /// the reference fails at fire with `unbound symbol`, but only along the path where the
+    /// `:not` PASSES — so on data where a matching fact exists the rule answers cleanly and the
+    /// defect stays invisible. Measured, same binary, same rule: fact present → `n=0`, exit 0;
+    /// fact absent → UnboundSymbol, exit 1.
+    #[test]
+    fn a_bind_escaping_a_not_is_refused_at_declaration_time() {
+        let src = r#"
+(:wat::core::defrecord :w::S2  [k <- :wat::core::i64])
+(:wat::core::defrecord :w::Hit [k <- :wat::core::i64])
+(:wat::rete::defrule :w::r
+  :when [(:wat::rete::not (:w::S2 (?s <- :k)))
+         (:wat::rete::where (:wat::rete::core::i64::>= ?s 0))]
+  :then [(:w::Hit :k 1)])
+"#;
+        let forms = crate::parse_all!(src).expect("parse");
+        let boxed = match build_env(forms) {
+            Err(crate::freeze::StartupError::Validator(e)) => e,
+            Err(other) => panic!("expected StartupError::Validator; got {other:?}"),
+            Ok(_) => panic!("a `:not`-bound variable referenced outside must not reach fire"),
+        };
+        let edn = wat_edn::write(&boxed.to_edn());
+        let e = rete_error(&edn, "EscapedWrapperBind");
+        assert_eq!(field_str(&e, "var"), "?s");
+        assert!(rete_error_is_located(&e), "the wall's errors are LOCATED; got: {edn}");
+    }
+
+    /// ⛔ THE REGRESSION GUARD FOR THE FALSE POSITIVE THIS WALL NEARLY SHIPPED.
+    ///
+    /// The wall covered `:exists` for exactly one build. That was WRONG: in wat `:exists` binds
+    /// OUTWARD, and `wat-scripts/perf/grid/leading-exists.wat` — a live accuracy axis — reads its
+    /// `:exists`-bound `?loc` back out of the query rows by string key
+    /// (`PersistentMap/get p "?loc"`) to build `:derived`. A consumer in HOST CODE is invisible to
+    /// any syntactic check, so no such check may judge an outward-binding construct.
+    ///
+    /// This shape is textually identical to the refused one above except for the wrapper. If it
+    /// ever starts failing, the wall has re-grown over `:exists` and `leading-exists` is about to
+    /// break — fix the wall, never this test.
+    #[test]
+    fn an_unconsumed_bind_inside_exists_is_left_alone_because_exists_binds_outward() {
+        let src = r#"
+(:wat::core::defrecord :w::Wind [loc <- :wat::core::String])
+(:wat::core::defrecord :w::Hit  [k <- :wat::core::i64])
+(:wat::rete::defrule :w::r
+  :when [(:wat::rete::exists (:w::Wind (?loc <- :loc)))]
+  :then [(:w::Hit :k 1)])
+"#;
+        let forms = crate::parse_all!(src).expect("parse");
+        build_env(forms).expect("`:exists` binds outward — its binds are NOT this wall's to judge");
+    }
+
+    /// A CORRELATION: `?loc` is bound by an earlier condition, so inside the `:not` it is a USE,
+    /// not a declaration — "no Reading AT THIS loc". The single most important legal shape, and
+    /// the one a naive "no binds in negations" rule would destroy.
+    #[test]
+    fn a_correlated_bind_inside_a_not_is_legal() {
+        let src = r#"
+(:wat::core::defrecord :w::Station [loc <- :wat::core::String])
+(:wat::core::defrecord :w::Reading [loc <- :wat::core::String])
+(:wat::core::defrecord :w::Hit     [loc <- :wat::core::String])
+(:wat::rete::defrule :w::r
+  :when [(:w::Station (?loc <- :loc))
+         (:wat::rete::not (:w::Reading (?loc <- :loc)))]
+  :then [(:w::Hit :loc ?loc)])
+"#;
+        let forms = crate::parse_all!(src).expect("parse");
+        build_env(forms).expect("a correlated bind inside `:not` is a use, not a declaration");
+    }
+
+    /// A FRESH bind consumed by a constraint INSIDE the same `:not` — "there is no Temp under
+    /// 20". In wat the bind is load-bearing: constraints reference variables, so this is the only
+    /// way to say it (Clara needs no variable because its constraints name the field directly).
+    #[test]
+    fn a_bind_consumed_inside_the_not_is_legal() {
+        let src = r#"
+(:wat::core::defrecord :w::Temp [c <- :wat::core::i64])
+(:wat::core::defrecord :w::Hit  [k <- :wat::core::i64])
+(:wat::rete::defrule :w::r
+  :when [(:wat::rete::not (:w::Temp (?c <- :c) (:wat::rete::core::i64::< ?c 20)))]
+  :then [(:w::Hit :k 1)])
+"#;
+        let forms = crate::parse_all!(src).expect("parse");
+        build_env(forms).expect("a bind consumed by a constraint inside the `:not` is legal");
     }
 
     /// A quoted `make-query` is payload data (`Boundary::AllData`), not a live query
