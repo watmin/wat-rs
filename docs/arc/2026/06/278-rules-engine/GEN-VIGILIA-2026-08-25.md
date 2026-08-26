@@ -233,9 +233,23 @@ it survived the fork it warns about and died of staleness instead. `:467` and `:
   L17 stays green — sampling degrades to a sequential prefix silently. Its only documentation is
   a comment (`:402`) written in the retired `gen-` names.
 - **11 verbs + 3 structs reachable only from their own law** (purgare) — ~200 of 618 lines.
-- **`one-of` and `bind` are one dispatch fold written twice** (solvere); `shrink-dim` and
-  `shrink-index` share one descent fold, comment and all. `nth`/`nth-str` are one generic
-  function at two types.
+- ~~**`one-of` and `bind` are one dispatch fold written twice**~~ — **CLOSED 2026-08-26, and the
+  ORDER is the lesson.** `bind` is now literally `(one-of <materialised branches>)`; `BindPick`
+  is deleted. This dedup was a REGRESSION until the `f`-runs-once fix made it free: `temperare`
+  warned against collapsing `bind` onto `one-of` *because it would materialise every branch* —
+  correct against the old body, and void once that body materialises them anyway. Landing the
+  perf fix first is what turned a warned-against simplification into a free one. `one-of` also
+  gained the hoisted `cards` vector that `bind`'s copy had: it was re-reading `Gen/card` twice
+  per branch per lookup. Measured free — 287 us/point both sides, mean of 6.
+- **`shrink-dim`/`shrink-index` share a descent fold, and `nth`/`nth-str` are one generic at two
+  types** (solvere) — still open.
+- ~~**`Coord` is unnamed**~~ — **CLOSED 2026-08-26.** `:wat::gen::Coord` and `:wat::gen::Bases`
+  now name the two nouns across all 25 sites (21 coordinates, 4 bases). ⚠ **Transparent aliases,
+  and the file says so:** `is_pure_type` canonicalizes by expanding aliases, so the two remain the
+  same type and handing a coordinate where bases belong still type-checks — verified by probe.
+  Naming buys legibility, not distinctness. Making the swap unrepresentable needs a wrapper record
+  whose unwrap lands on the hot enumeration path, for a confusion with no recorded instance; not
+  taken, and the note to overturn is at the aliases.
 - ~~**`bind` caches cardinalities but discards the generators**~~ — **CLOSED 2026-08-26.** `f` now
   runs exactly once per branch and the `Gen` it returns is kept, so the dispatch fold indexes a
   cached vector instead of re-calling `f` per lookup. Both vectors kept, per temperare's warning
@@ -563,3 +577,26 @@ argument for building them is recorded at `bools` for when one appears.
 correct?"; this needed "what is a caller trying to DO?" — and that came from the builder using the
 thing. It is the same shape as the `check`-has-no-witness and `shrink`-doesn't-compose gaps two
 rounds earlier, which also arrived as questions rather than findings.
+
+---
+
+## ⚠ A MEASUREMENT DISCIPLINE CORRECTION (2026-08-26)
+
+Several figures in this document and in the source were first published from **3-sample medians**.
+On these benchmarks — ~700ms wall-clock, run-to-run spread ~5% — three samples cannot resolve a
+10% difference. Two successive 3-sample reads of the SAME binary gave 265 and 288 us/point, and a
+"regression" was chased on that basis that did not exist.
+
+Re-measured as **mean of six**, with a rebuild on each side:
+
+| | first published | honest (mean of 6) |
+|---|---|---|
+| shipped shape, pre-`bind`-fix | ~406 us/pt | **~437 us/pt** |
+| shipped shape, current | ~265 us/pt | **~287 us/pt** |
+| the `bind` fix's delta | −35% | **−34%** ✓ (the claim survived) |
+| depth-4 nested `bind` | ~17.6s → ~1.94s, ~10.7x | **~14.7s → ~1.98s, ~8.7x** |
+| nested `bind` vs `coords` | ~45x → ~4.3x | **~38x → ~4.3x** |
+
+**The direction and the −34% were right; the absolutes and the nested multiple were not.** All
+five shipped sites are corrected. The rule going forward: **six samples and a stated mean, or no
+number** — and never a ratio computed from two 3-sample medians.
