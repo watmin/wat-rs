@@ -640,7 +640,16 @@
      ;; The POSITIONAL constructor is the PRIME name: bare-positional construction
      ;; is retired (the bare name is the kwargs macro), so `:user::Point` becomes
      ;; `:user::Point'`. Same node-building idiom `:wat::core::kwargs-lower` uses.
-     ctor  (:wat::core::keyword-node (:wat::core::string::concat (:wat::core::ast-name T) "'"))
+     ;; `string::interpolate`, NOT `string::concat` — `wat-lint`'s `concat-abuse` rule
+     ;; flagged this line and was RIGHT to. Note the spelling: the rule's suggested
+     ;; remedy is `:wat::core::format`, and `format` is a MACRO, refused inside a macro
+     ;; body by arc 249's default-deny F5 gate ("not on the pure-combinator allow-list").
+     ;; Its runtime twin IS on that list and is documented there as exactly this case —
+     ;; "the format macro, but interpolates at call time → expand-time-legal in macro
+     ;; bodies" (arc 284, src/macros/eval.rs). `wat/core.wat:704` uses it in the same
+     ;; position for the same reason.
+     ctor  (:wat::core::keyword-node
+             (:wat::core::string::interpolate "{n}'" :n (:wat::core::ast-name T)))
      n     (:wat::core::length gens)
      ;; ONE hygienic binder per generator argument — this is what stops the `at`
      ;; copy re-evaluating its whole expression on every generated point.

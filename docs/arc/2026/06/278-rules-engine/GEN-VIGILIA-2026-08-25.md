@@ -4,20 +4,31 @@
 > declared feature-complete and promoted into the stdlib. **17 reported on 2026-08-25;
 > `circumspicere` was cast 2026-08-26** — its report is the last section of this file.
 >
-> **Fix status is tracked per finding.**
+> **Fix status is tracked per finding. As of 2026-08-26 the CODE list is empty.**
 >
-> **CLOSED:** **A**+**B** (negative card) · **C** (`lift2`/`lift3` onto `coords`) · **D** (both
-> gates that could not go red) · **F** (`record`'s per-point re-evaluation) · **G** (`digit` IS
-> `i64::rem` — the code, not just the prose) · **K** (retired `gen-` names in diagnostics, STEMS
-> only — its root is circumspicere 4, still open) · **circumspicere 1** and **2**.
+> **CLOSED IN CODE:** **A**+**B** (negative card, unproducible by any verb) · **C**
+> (`lift2`/`lift3` onto `coords`) · **D** (both gates that could not go red) · **E** (gen half —
+> the false claim; substrate half handed to arc 293 with a proven patch) · **F** (`record`'s
+> per-point re-evaluation) · **G** (`digit` IS `i64::rem` — the code, not just the prose) ·
+> **K** (retired `gen-` names, STEMS; root handed to arc 255) · **every L2** (self-oracle laws ·
+> `prop` → `bool` · `EmptySpace` ruled · `bind`'s discarded generators · nested `bind` ·
+> `one-of`/`bind` one dispatch · `descend` · `nth` one generic · `Coord`/`Bases` ·
+> `coords-scattered`'s first consumer) · **circumspicere 1, 2, 3, 5, 6**.
 >
-> **STILL OPEN:** **E** (the containment claim — a substrate gap gen.wat certifies) · **H**/**I**/
-> **J**/**L** (the prose sweep, deferred by ruling until the CODE is exemplar) · every L2 ·
-> **circumspicere 3, 4, 5, 6**.
+> **HANDED OVER, each with a NOTE in the owning arc:** the substrate half of **E** → arc 293 ·
+> **circumspicere 4** (the retired-name lint is blind to `.wat`) → arc 255 · **circumspicere 5**'s
+> ratchet and the `concat-abuse` message → arc 277.
 >
-> Every closure below is MUTATION-PROVEN: the fix is reverted, the gate must go red, and the
-> file is diffed back to identical. Three of those mutations are recorded because of what they
-> revealed — in each case the pre-existing laws stayed green and exactly ONE law caught it.
+> **STILL OPEN HERE:** **H**/**I**/**J**/**L** — the prose sweep, deferred by the builder's ruling
+> *"we polish the gen testing doc — AFTER — the wat-gen tooling is deemed an exemplar. code, then
+> docs."*
+>
+> Every closure is MUTATION-PROVEN: the fix is reverted, the gate must go red, and the file is
+> diffed back to identical. **Four of those mutations are recorded for what they revealed — in
+> each case the pre-existing laws stayed green and exactly ONE law caught it.** And two entries
+> record a correction to THIS document: `circumspicere`'s "gen.wat is clean" was wrong (finding
+> 5), and several perf figures were published from 3-sample noise (the measurement-discipline
+> note at the foot).
 
 ## Why this document exists
 
@@ -518,7 +529,39 @@ name a user can type"* — scans `src/**/*.rs` only, and matches only the prime-
 `gen-` raise strings (finding K) sit outside both axes. The stdlib is now a first-class diagnostic
 surface and no gate reads its user-facing strings.
 
-## 5 · OPEN — `lint-stdlib` exists, gates nothing, reports 91 findings
+## 5 · gen.wat FIXED / the ratchet LEFT TO ARC 277 — `lint-stdlib` gates nothing
+
+> **⚠ THE RECORDED ABSENCE BELOW WAS FALSE.** The ward reported *"filtered to `file ==
+> "wat/gen.wat"` → 0. gen.wat is clean under both shipped rules."* Re-run 2026-08-26: **1
+> finding**, `concat-abuse` on the `record` macro — and that line is BYTE-IDENTICAL at
+> `a20f063a6`, the ward's own HEAD (341 there, 643 now). Tree-wide totals also disagree (ward 91,
+> this session 87); not chased.
+>
+> **That sharpens the ward's point instead of weakening it.** Its argument was "nothing would have
+> said so." The truth is stronger: gen.wat was never clean, nothing said so, and the one cast that
+> looked directly at it got the number wrong. **A gate would have been right where a reading was
+> not.**
+>
+> **FIXED — and my first diagnosis of it was ALSO wrong.** Acting on the rule's advice fails:
+> `:wat::core::format` is a MACRO, refused inside a macro body by arc 249's F5 gate. I recorded
+> that as a false positive in the rule. The builder pushed back — *"format is absolutely a pure
+> func"* — and was right: the refusal is about `format` being a macro, not about purity, and its
+> runtime twin `:wat::core::string::interpolate` IS on the allow-list, documented there (arc 284)
+> as *"the format macro, but interpolates at call time → expand-time-legal in macro bodies"*.
+> `wat/core.wat:704` already uses it in the same position. The site now uses it, tests 27/27, and
+> `lint-stdlib` drops 87 → 86 with **gen.wat at a true 0**.
+>
+> **What survives as a real finding for 277:** the rule's message hardcodes the one spelling that
+> is refused at the only kind of site a macro body offers, with no hint that a legal twin exists —
+> finding it cost a compile failure and a read of `src/macros/eval.rs`. Reported:
+> `docs/arc/2026/06/277-wat-lint-fix-fmt/NOTE-concat-abuse-suggests-a-remedy-refused-in-macro-bodies.md`
+>
+> **The ratchet is now buildable and deliberately NOT built here.** Arc 277 is OPEN (no
+> INSCRIPTION, no SCORE), `lint-stdlib` is its surface, and a gate belongs to the arc that owns the
+> rules it freezes while that rule set is still growing. The builder's caution was well placed:
+> 277's form-level half ships and runs, but its RETE-RULE half is blocked on us —
+> `NOTE-raise-abuse-rete-lint.md` records arc 278 R21's thesis, *"we need rete for writing lints;
+> lints are rete rules."*
 
 `wat/lint.wat`'s `:wat::lint::lint-stdlib` has exactly one consumer in the tree: a scratch script.
 Ward ran it: **91** findings overall, **0** for `wat/gen.wat`. gen.wat is clean — the finding is
