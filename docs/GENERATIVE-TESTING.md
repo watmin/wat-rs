@@ -304,7 +304,7 @@ library having no tests at all:
 | `gen-coords`, `gen-check`, `gen-such-that` | 1 each |
 | the other **seven** | **0** |
 
-Eleven laws over 296 points, every one mutation-proven, is evidence the library is
+Fifteen laws over 316 points, every one mutation-proven, is evidence the library is
 **self-consistent**. It is not evidence that it is **useful**, and the distinction is the whole
 finding. Combinators were added because the QuickCheck tradition has them, then proven against
 laws written by the same hand that added them — a closed loop with no consumer pulling. `gen-lift3`
@@ -314,7 +314,33 @@ shipped with zero laws AND zero consumers and was only caught by counting.
 is not repeated here — repeating it is how this doc forked in the first place.
 
 `gen-such-that` also has an untested cost: it materializes one `i64` per surviving index and
-walks the whole source space at construction. Fine at 324; unmeasured beyond.
+walks the whole source space at construction. Fine at 828; unmeasured beyond.
+
+### Composition — the half the isolated laws did not cover
+
+L1–L11 prove each verb ALONE, at tiny cardinality, and every one of them at **i64**. A combinator
+library's value is in composition, and none of that was tested — which is a different claim from
+"no consumer pulls it", and the two were wrongly collapsed. L12–L15 are that missing half, all
+mutation-proven:
+
+| law | composition | result |
+|---|---|---|
+| L12 | `lift2` over `elements` of **String** — the library off i64 at all | `Mix{n:0 s:"a"}`, card 6 |
+| L13 | `one-of` over a **filtered** generator | card 7 = 5+2, dispatch correct |
+| L14 | `fmap` **after** `such-that` — order of composition | mapped from the SURVIVOR, not the pre-filter index |
+| L15 | `one-of` with an **empty** branch | card-0 branch skipped, not swallowing indices |
+
+### `gen-check` REFUSES an empty generator
+
+The composition probe turned up the real hazard: `gen-such-that` with a predicate nothing
+satisfies yields `card 0`, `gen-check` then applies the property to **nothing**, and the caller
+reads `0 violations` — indistinguishable from passing. The rete gate defends itself with a
+`cases > 0` check, but that is a convention every future consumer must remember, and a convention
+every caller must remember is the rot this codebase keeps pulling out.
+
+`gen-check` now raises on an empty space, so the trap is closed once in the library rather than
+re-defended at each call site. An empty branch inside `gen-one-of` remains legitimate (L15) — it
+is *enumerating* nothing that is a caller bug, not *containing* nothing.
 
 ## Promotion
 

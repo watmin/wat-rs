@@ -100,13 +100,25 @@
               bases)))))
 
 ;; ── the driver ───────────────────────────────────────────────────────────────
+;; REFUSES AN EMPTY GENERATOR, and that guard is the point rather than politeness.
+;; A `gen-such-that` whose predicate excludes everything yields card 0; enumerating
+;; it applies the property to NOTHING and returns 0 violations — which reads
+;; exactly like passing. Every gate built on this library would have to remember a
+;; `card > 0` check of its own, and a convention every caller must remember is the
+;; rot this codebase keeps pulling out. Checked here once instead.
+;;
 ;; `prop` returns 0 for a pass and 1 for a failure, and OWNS its own reporting —
 ;; it is the only party that knows what its values mean. The driver's job is to
 ;; walk the space and tally, nothing more. A target that wants its coordinate in
 ;; the report generates coordinates (`gen-coords`) and prints them itself.
 (:wat::core::defn :user::gen-check :- [T]
   [g <- (:user::Gen :- [T])  prop <- [T :-> :wat::core::i64]] -> :wat::core::i64
-  (:wat::core::let [at (:user::Gen/at g)]
+  (:wat::core::let [_ (:wat::core::if (:wat::core::= (:user::Gen/card g) 0)
+                        (:wat::kernel::assertion-failed!
+                          "gen-check: the generator is EMPTY (card 0) — enumerating it applies the property to nothing and returns 0, which is indistinguishable from passing. A `gen-such-that` whose predicate excludes everything is the usual cause."
+                          :wat::core::None :wat::core::None)
+                        0)
+                    at (:user::Gen/at g)]
     (:wat::core::foldl
       (:wat::core::fn [acc <- :wat::core::i64  i <- :wat::core::i64] -> :wat::core::i64
         (:wat::core::i64::+ acc (prop (at i))))
@@ -303,3 +315,8 @@
                       (f (fa (:user::gen-digit i ca))
                          (fb (:user::gen-digit (:user::gen-shift i ca) cb))
                          (fc (:user::gen-shift (:user::gen-shift i ca) cb)))))))
+
+;; String element of a vector, by index — the String twin of `gen-nth`.
+(:wat::core::defn :user::gen-nth-str
+  [v <- (:wat::core::PersistentVector :- [:wat::core::String])  i <- :wat::core::i64] -> :wat::core::String
+  (:wat::core::Option/expect (:wat::core::get v i) "gen-nth-str: index out of range"))

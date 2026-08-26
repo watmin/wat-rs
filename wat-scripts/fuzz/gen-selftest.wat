@@ -204,6 +204,85 @@
                                           (:wat::core::= (:user::Tri/c t) ec))))
       0 1)))
 
+
+;; ══ COMPOSITION LAWS ════════════════════════════════════════════════════════
+;; L1-L11 prove each verb IN ISOLATION, at tiny cardinality, and every one of them
+;; at i64. A combinator library's value is in COMPOSITION, and none of that was
+;; tested — five verbs had laws and no consumer, which proves self-consistency and
+;; says nothing about whether they can be trusted in a real program. These four
+;; laws are that missing half: verbs used TOGETHER, and off i64.
+
+(:wat::core::defrecord :user::Mix [n <- :wat::core::i64  s <- :wat::core::String])
+
+(:wat::core::defn :user::pool3 [] -> (:wat::core::PersistentVector :- [:wat::core::String])
+  (:wat::core::PersistentVector "a" "b" "c"))
+
+(:wat::core::defn :user::evenp [x <- :wat::core::i64] -> :wat::core::bool
+  (:wat::core::= x (:wat::core::i64::* 2 (:wat::core::i64::/ x 2))))
+
+(:wat::core::defn :user::dbl2 [x <- :wat::core::i64] -> :wat::core::i64
+  (:wat::core::i64::* 2 x))
+
+(:wat::core::defn :user::nevr [x <- :wat::core::i64] -> :wat::core::bool
+  (:wat::core::< x 0))
+
+;; ── L12 — lift over a NON-i64 generator. The library must work off i64 at all;
+;; every law before this one used i64 exclusively.
+(:wat::core::defn :user::law-mixed-types [c <- (:wat::core::PersistentVector :- [:wat::core::i64])]
+  -> :wat::core::i64
+  (:wat::core::let [i (:user::at0 c 0)
+                    g (:user::gen-lift2 :user::Mix' (:user::gen-ints 0 2)
+                        (:user::gen-elements (:user::pool3)))
+                    m ((:user::Gen/at g) i)
+                    en (:user::gen-digit i 2)
+                    es (:user::gen-nth-str (:user::pool3) (:user::gen-shift i 2))]
+    (:wat::core::if
+      (:wat::core::and (:wat::core::= (:user::Gen/card g) 6)
+        (:wat::core::and (:wat::core::= (:user::Mix/n m) en)
+                         (:wat::core::= (:user::Mix/s m) es)))
+      0 1)))
+
+;; ── L13 — one-of over a FILTERED generator. Cardinalities compose (5 + 2), the
+;; first branch still satisfies its predicate, and the second is untouched.
+(:wat::core::defn :user::law-oneof-over-filter [c <- (:wat::core::PersistentVector :- [:wat::core::i64])]
+  -> :wat::core::i64
+  (:wat::core::let [i  (:user::at0 c 0)
+                    ev (:user::gen-such-that :user::evenp (:user::gen-ints 0 10))
+                    g  (:user::gen-one-of (:wat::core::PersistentVector ev (:user::gen-ints 100 102)))
+                    v  ((:user::Gen/at g) i)
+                    ok (:wat::core::if (:wat::core::< i 5)
+                         (:user::evenp v)
+                         (:wat::core::= v (:wat::core::i64::+ 100 (:wat::core::i64::- i 5))))]
+    (:wat::core::if (:wat::core::and (:wat::core::= (:user::Gen/card g) 7) ok) 0 1)))
+
+;; ── L14 — fmap AFTER such-that. Order of composition must hold: the mapped value
+;; is f applied to the SURVIVING element, not to the pre-filter index.
+(:wat::core::defn :user::law-fmap-after-filter [c <- (:wat::core::PersistentVector :- [:wat::core::i64])]
+  -> :wat::core::i64
+  (:wat::core::let [i  (:user::at0 c 0)
+                    ev (:user::gen-such-that :user::evenp (:user::gen-ints 0 10))
+                    g  (:user::gen-fmap :user::dbl2 ev)]
+    (:wat::core::if
+      (:wat::core::and (:wat::core::= (:user::Gen/card g) 5)
+                       (:wat::core::= ((:user::Gen/at g) i)
+                                      (:user::dbl2 ((:user::Gen/at ev) i))))
+      0 1)))
+
+;; ── L15 — one-of with an EMPTY branch. A filtered-to-nothing branch must be
+;; skipped by the range dispatch rather than swallowing indices. The empty
+;; generator itself is never enumerated — `gen-check` refuses that — but it is a
+;; legitimate BRANCH, and the dispatch has to survive a card of 0.
+(:wat::core::defn :user::law-oneof-empty-branch [c <- (:wat::core::PersistentVector :- [:wat::core::i64])]
+  -> :wat::core::i64
+  (:wat::core::let [i     (:user::at0 c 0)
+                    empty (:user::gen-such-that :user::nevr (:user::gen-ints 0 10))
+                    g     (:user::gen-one-of (:wat::core::PersistentVector empty (:user::gen-ints 7 9)))]
+    (:wat::core::if
+      (:wat::core::and (:wat::core::= (:user::Gen/card empty) 0)
+        (:wat::core::and (:wat::core::= (:user::Gen/card g) 2)
+                         (:wat::core::= ((:user::Gen/at g) i) (:wat::core::i64::+ 7 i))))
+      0 1)))
+
 ;; ── drive every law with gen-check, over spaces built by gen-coords ─────────
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let [seven  (:user::gen-coords (:wat::core::PersistentVector 7))
@@ -224,11 +303,19 @@
                     b10 (:user::gen-check six :user::law-lift2)
                     twelve (:user::gen-coords (:wat::core::PersistentVector 12))
                     b11 (:user::gen-check twelve :user::law-lift3)
+                    six2  (:user::gen-coords (:wat::core::PersistentVector 6))
+                    seven (:user::gen-coords (:wat::core::PersistentVector 7))
+                    five2 (:user::gen-coords (:wat::core::PersistentVector 5))
+                    two2  (:user::gen-coords (:wat::core::PersistentVector 2))
+                    b12 (:user::gen-check six2  :user::law-mixed-types)
+                    b13 (:user::gen-check seven :user::law-oneof-over-filter)
+                    b14 (:user::gen-check five2 :user::law-fmap-after-filter)
+                    b15 (:user::gen-check two2  :user::law-oneof-empty-branch)
                     bad (:wat::core::i64::+
                           (:wat::core::i64::+ (:wat::core::i64::+ b1 b2) (:wat::core::i64::+ b3 (:wat::core::i64::+ b4 b5)))
-                          (:wat::core::i64::+ b6 (:wat::core::i64::+ b7 (:wat::core::i64::+ b8 (:wat::core::i64::+ b9 (:wat::core::i64::+ b10 b11))))))]
+                          (:wat::core::i64::+ b6 (:wat::core::i64::+ b7 (:wat::core::i64::+ b8 (:wat::core::i64::+ b9 (:wat::core::i64::+ b10 (:wat::core::i64::+ b11 (:wat::core::i64::+ (:wat::core::i64::+ b12 b13) (:wat::core::i64::+ b14 b15)))))))))]
     (:wat::kernel::println
       (:wat::core::String/concat
-        (:wat::core::String/concat "laws=11 checked=" (:wat::core::i64::to-string
-          (:wat::core::i64::+ 7 (:wat::core::i64::+ 7 (:wat::core::i64::+ 120 (:wat::core::i64::+ 120 (:wat::core::i64::+ 1 (:wat::core::i64::+ 4 (:wat::core::i64::+ 5 (:wat::core::i64::+ 8 (:wat::core::i64::+ 6 (:wat::core::i64::+ 6 12))))))))))))
+        (:wat::core::String/concat "laws=15 checked=" (:wat::core::i64::to-string
+          (:wat::core::i64::+ 7 (:wat::core::i64::+ 7 (:wat::core::i64::+ 120 (:wat::core::i64::+ 120 (:wat::core::i64::+ 1 (:wat::core::i64::+ 4 (:wat::core::i64::+ 5 (:wat::core::i64::+ 8 (:wat::core::i64::+ 6 (:wat::core::i64::+ 6 (:wat::core::i64::+ 12 20)))))))))))))
         (:wat::core::String/concat " violations=" (:wat::core::i64::to-string bad))))))
