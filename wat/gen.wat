@@ -39,12 +39,14 @@
 ;;     (0,3) (7,3) (8,4) (1234,10) before the swap.
 ;;   ✓ five `raise` strings naming retired `gen-` verbs, renamed to the shipping names
 ;;     (finding K). ⚠ THE ROOT IS STILL OPEN — see below.
+;;   ✓ the containment claim (finding E) — the false sentence is gone and the real behaviour is
+;;     stated at the `Gen` defstruct. The SUBSTRATE half is diagnosed with a proven patch and
+;;     handed to arc 293; until it lands, nothing stops a Gen crossing a boundary.
+;;   ✓ every aggregate here that holds only pure data is now a `defrecord` (GenAcc, CheckAcc,
+;;     GenRev, Pick, BindPick). A record is FORCED pure; a struct merely may be. `Gen` is the
+;;     one struct, and it earns it by carrying a function.
 ;;
 ;; STILL FALSE / STILL OPEN
-;;   ✗ the `Gen` defstruct's comment: "The checker names this itself if you try" — it does not.
-;;     A parametric struct passes the purity gate, so a `Gen` CAN enter a `defrecord` and crosses
-;;     the wire with `at` nil (finding E). This is a SUBSTRATE gap, not a gen.wat one — but
-;;     gen.wat is the file certifying the gate holds, so the sentence must go or the gate must.
 ;;   ✗ NOTHING GATES THE NAMES ABOVE (circumspicere finding 4). `tests/lint/retired_name_justified.rs`
 ;;     exists to stop exactly this — "a wat name in a Rust string must be a name a user can type" —
 ;;     but it scans `src/**/*.rs` ONLY and matches only the prime-suffix shape, so it is
@@ -123,8 +125,28 @@
 ;;
 ;; `defstruct`, not `defrecord`: a Gen carries a FUNCTION, and the containment rule (arc 293.W)
 ;; holds that a pure aggregate must survive an EDN round-trip across a comms boundary. A
-;; generator is local computation and never crosses one. The checker names this itself if you
-;; try — it is a good error.
+;; generator is local computation and never crosses one. This is also the general rule for
+;; everything in this file — a `defrecord` is FORCED pure, a `defstruct` merely may be, so
+;; anything that only ever holds pure data is a record here and only `Gen` is a struct.
+;;
+;; ⚠ AND THE CHECKER DOES NOT ENFORCE IT FOR THIS TYPE. This comment used to end "The checker
+;; names this itself if you try — it is a good error." That is TRUE of a bare function field
+;; and FALSE of a `Gen`, which is the shape it was actually about. Both measured 2026-08-26:
+;;
+;;   (defrecord Holder [at <- [i64 :-> i64]])          -> REFUSED, ImpureFieldInPureAggregate
+;;   (defrecord Wrap   [g  <- (Gen :- [i64])])         -> LOADS CLEAN
+;;
+;; `is_pure_type`'s Parametric arm (src/check.rs:13782) resolves a head against a hardcoded
+;; list and otherwise falls through to "pure iff its type args are pure" — it never asks the
+;; TypeEnv what the head IS. So `(Gen :- [i64])` reads pure because `i64` is, and a Gen enters
+;; a record and crosses the wire arriving `:at #wat.core/fn nil` — `card` honest, `at` dead,
+;; and nothing in the value saying so.
+;;
+;; A SUBSTRATE GAP, NOT A GEN GAP, and not this arc's to close — but gen.wat is the file that
+;; certifies the gate, so the claim had to go. Diagnosed, with a proven patch and a floor
+;; result, in
+;; `docs/arc/2026/06/293-struct-record-symmetry/NOTE-a-parametric-struct-passes-the-purity-gate.md`.
+;; Until it lands, DO NOT rely on the checker to stop a Gen crossing a boundary — nothing does.
 ;;
 
 (:wat::core::defstruct :wat::gen::Gen :- [T]
@@ -241,7 +263,7 @@
 ;; positional notation in mixed radix. This is `gen/tuple` for the enumerable
 ;; case, and it is what a target actually wants: one index in, its own tuple of
 ;; dimension choices out, with no heterogeneous tuple type needed.
-(:wat::core::defstruct :wat::gen::GenAcc
+(:wat::core::defrecord :wat::gen::GenAcc
   [rem <- :wat::core::i64
    out <- (:wat::core::PersistentVector :- [:wat::core::i64])])
 
@@ -336,7 +358,7 @@
                first-failure <- (:wat::core::Option :- [:wat::core::i64])]
   :EmptySpace)
 
-(:wat::core::defstruct :wat::gen::CheckAcc
+(:wat::core::defrecord :wat::gen::CheckAcc
   [bad <- :wat::core::i64  first <- (:wat::core::Option :- [:wat::core::i64])])
 
 (:wat::core::defn :wat::gen::check :- [T]
@@ -432,7 +454,7 @@
 ;; so branch k occupies a contiguous block of indices. Enumeration therefore walks
 ;; branch 0 exhaustively, then branch 1, and so on — which means a failure's
 ;; coordinate still localizes it, exactly as with a product space.
-(:wat::core::defstruct :wat::gen::Pick :- [T]
+(:wat::core::defrecord :wat::gen::Pick :- [T]
   [rest <- :wat::core::i64
    got  <- (:wat::core::Option :- [T])])
 
@@ -668,7 +690,7 @@
 ;; value is the product of the bases AFTER j — that is card / (b0*..*bj). A
 ;; running prefix product gives each digit its reversed place in ONE fold, with no
 ;; vector reversal.
-(:wat::core::defstruct :wat::gen::GenRev
+(:wat::core::defrecord :wat::gen::GenRev
   [rem <- :wat::core::i64  idx <- :wat::core::i64  pref <- :wat::core::i64])
 
 (:wat::core::defn :wat::gen::reverse-index
@@ -792,7 +814,7 @@
 ;; actually takes — and it is why `cards` is precomputed rather than recomputed:
 ;; without the cache, `card` alone would rebuild every branch generator on every
 ;; call.
-(:wat::core::defstruct :wat::gen::BindPick :- [B]
+(:wat::core::defrecord :wat::gen::BindPick :- [B]
   [rest <- :wat::core::i64
    got  <- (:wat::core::Option :- [B])])
 
