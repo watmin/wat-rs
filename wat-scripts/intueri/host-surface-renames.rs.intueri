@@ -73,3 +73,75 @@
 ;; keep its name even if its TYPE renames — say so if that is the honest answer.
 ;;
 ;;   src/host/???.rs   <- the facade (Harness) · src/host/???.rs   <- the OS-wiring entry (compose)
+
+;; ══════════════════════════════════════════════════════════════════════════════════════════════
+;; ⊘ CAST 2026-08-25 — three casts: harness.rs · compose.rs · the <Verb>Outcome vocabulary.
+;;   None saw the others. Builder ruled `guest.rs`, and `entry.rs` under host/.
+;; ══════════════════════════════════════════════════════════════════════════════════════════════
+;;
+;;   Harness              -> Guest          src/host/harness.rs -> src/host/guest.rs
+;;   HarnessError         -> GuestError
+;;   Outcome              -> RunOutput
+;;   compose_and_run      -> run_program    src/host/compose.rs -> src/host/entry.rs
+;;   compose_and_run_with_loader -> run_program_with_loader
+;;
+;; ── TARGET 1 `Guest` — the ward FALSIFIED ITS OWN COUNTER-ARGUMENT FROM THE DISK ──────────────
+;;   The framing asked: "is `guest` spoken anywhere else in this codebase, or is it a metaphor
+;;   arriving with the name?" Answer, found one file up: src/host/mod.rs:4 —
+;;       "the `Harness` facade for embedding wat as a GUEST in a Rust process"
+;;   Written hours earlier by HOME #7's own rider. `host` names the directory; `guest` was ALREADY
+;;   the word for what lives inside it. The counter-argument I wrote was answerable from the disk
+;;   and I had not looked.
+;;   Rejected with evidence: Program (this 228-line file uses "the wat program" in TWO live senses
+;;   — :user::main at :199/:201 and the struct itself at :58); Runner (test_runner.rs is a literal
+;;   sibling); Session (each run() is independent against an immutable world — no session state);
+;;   Instance (generic in a crate saturated with unrelated "instance" senses); Embed (already
+;;   killed one level up; reusing it repeats the objection rather than answering it); Loaded (an
+;;   adjective where every sibling type is a noun).
+;;
+;; ── TARGET 3 `RunOutput` — AND THE PREMISE WAS WRONG IN A BETTER DIRECTION ────────────────────
+;;   I framed `Outcome` as "the only VERBLESS member of the family." Both casts destroyed that
+;;   independently: IT IS NOT A MEMBER AT ALL.
+;;
+;;   The family, defined precisely by the vocabulary cast (and it NAMES ITSELF — types.rs:1423,
+;;   1789, 1889, 1940 say "the recv'-outcome wall", "the send'-outcome wall"):
+;;     THE MATCHABLE, DISCRIMINATED RESULT OF ONE PREVIOUSLY-RAISING OPERATION, converted so
+;;     failure is a VALUE instead of an unwind. Membership = enum + verb + replaces a raise +
+;;     variants the caller MUST branch on + purity derived from the payload.
+;;   harness::Outcome has NONE of the five: a plain struct of two Vec<String>, already inside
+;;   Result<Outcome, HarnessError> so fallibility is handled OUTSIDE it, both fields ALWAYS EMPTY,
+;;   and ZERO consumers beyond its own definition, ctor, and the lib.rs re-export.
+;;
+;;   ★★ AND THIS WARD ALREADY RULED ON THIS EXACT NAME, A MONTH AGO. src/types.rs:1543-1547:
+;;       "Named by an INTUERI CAST (2026-07-28) ... and a bare `Outcome` would read ambiguously
+;;        beside `:wat::service::Outcome` in the defservice handler that is its first consumer."
+;;   FormOutcome carries its verb BECAUSE OF THAT RULING. And src/lib.rs:142 re-exports a bare
+;;   `Outcome` to the crate root anyway. Naming it RunOutcome would have been a WORSE lie than
+;;   leaving it: false resemblance to a dozen enums, promising branches a struct cannot have.
+;;
+;; ── TARGET 4/5 `run_program` / `entry.rs` — EVERY REJECT DIED ON A GREP-VERIFIED COLLISION ────
+;;   launch     ThreadLaunch / ProcessLaunch (spawn.rs:445,531,834,1090) — already the NOUN for
+;;              "what you get once something has been spawned". Confirmed collision, not a risk.
+;;   bootstrap  bootstrap_wat_vm_process (freeze.rs:262) is IN THIS VERY CALL CHAIN — called at
+;;              freeze.rs:1452 from the orchestrator compose_and_run_with_loader reaches.
+;;              host::bootstrap() would call freeze::bootstrap_wat_vm_process() two frames down.
+;;   boot       collides TWICE: time.rs's "Process boot clock" and src/process/boot/'s "boot wire".
+;;   start      start-primed-stdio (freeze.rs:306-345), same call chain.
+;;   run        the module doc's own paragraph exists to explain "why this isn't just `.run()`" —
+;;              naming it `run` makes that sentence self-undermining.
+;;   run_program is the CLI's OWN established term: "Program mode" (distribution/mod.rs:77-90).
+;;   entry.rs   from the file's own section header: "The entry point `wat::main!` expands to".
+;;              ⚠ NOTE THE TENSION, RULED BY THE BUILDER: the FIRST round rejected `entry` as a
+;;              HOME name because arc 170 owns "entry point" for :user::main. As a FILE name under
+;;              src/host/, the home supplies the context a bare src/entry/ lacked. Same word,
+;;              opposite rulings, and the difference is the scope it sits in.
+;;
+;; ── ⛔ A THIRD LYING DOC — AND MY OWN FRAMING REPEATED IT ─────────────────────────────────────
+;;   compose.rs:25 asserts the fn wires `crate::io::RealStdin`/`RealStdout`/`RealStderr` directly
+;;   onto the frozen world. That doc line is THE ONLY OCCURRENCE OF `crate::io` IN THE FILE. The
+;;   body (:192-199) says the Real* IO construction "retires alongside the four-arg main_args
+;;   plumbing" — arc 170 slice 1f's substrate services own fd 0/1/2 now.
+;;   ★ AND THE PROMISE I WROTE INTO TARGET 4 ABOVE — "wire it to REAL OS stdio and REAL OS
+;;     signals" — WAS COPIED FROM THAT STALE DOC. Only the SIGNAL half is true. The question I
+;;     asked was built on the lie the ward was sent to look past. It caught it anyway.
+;;   Third lying doc in this family: Harness::run's, test_runner's discovery rule, and this.
