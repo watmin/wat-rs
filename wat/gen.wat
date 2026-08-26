@@ -534,3 +534,39 @@
                   (:wat::gen::BindPick :rest k :got :wat::core::None)
                   (:wat::core::range 0 n)))
               "bind: index outside the summed cardinality")))))
+
+;; ── bounded collections ──────────────────────────────────────────────────────
+;;
+;; `vector-of g n` is a FIXED-length vector: card(g)^n, which is `coords` over n
+;; uniform bases with each digit read through `g`. Nothing new is needed for it —
+;; it is the coordinate model applied to itself.
+;;
+;; `vector-upto g lo hi` is VARIABLE length, and that one genuinely needs `bind`:
+;; the element space depends on a generated length. Its card is the SUM over
+;; lengths, so short vectors are enumerated before long ones and a failing index
+;; still names a length.
+(:wat::core::defn :wat::gen::vector-of :- [T]
+  [g <- (:wat::gen::Gen :- [T])  n <- :wat::core::i64]
+  -> (:wat::gen::Gen :- [(:wat::core::PersistentVector :- [T])])
+  (:wat::core::let
+    [c     (:wat::gen::Gen/card g)
+     at    (:wat::gen::Gen/at g)
+     bases (:wat::core::into (:wat::core::PersistentVector)
+             (:wat::core::mapv
+               (:wat::core::fn [i <- :wat::core::i64] -> :wat::core::i64 c)
+               (:wat::core::range 0 n)))
+     coords (:wat::gen::coords bases)
+     cat    (:wat::gen::Gen/at coords)]
+    (:wat::gen::Gen
+      :card (:wat::gen::Gen/card coords)
+      :at (:wat::core::fn [k <- :wat::core::i64] -> (:wat::core::PersistentVector :- [T])
+            (:wat::core::into (:wat::core::PersistentVector)
+              (:wat::core::mapv at (cat k)))))))
+
+(:wat::core::defn :wat::gen::vector-upto :- [T]
+  [g <- (:wat::gen::Gen :- [T])  lo <- :wat::core::i64  hi <- :wat::core::i64]
+  -> (:wat::gen::Gen :- [(:wat::core::PersistentVector :- [T])])
+  (:wat::gen::bind (:wat::gen::ints lo (:wat::core::i64::+ hi 1))
+    (:wat::core::fn [n <- :wat::core::i64]
+                    -> (:wat::gen::Gen :- [(:wat::core::PersistentVector :- [T])])
+      (:wat::gen::vector-of g n))))
