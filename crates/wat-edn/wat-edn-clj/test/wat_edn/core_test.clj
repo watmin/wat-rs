@@ -25,13 +25,13 @@
     (is (contains? tags 'enterprise.treasury.events/Fill))))
 
 (deftest load-types-skips-non-struct-forms
-  ;; The fixture has a (:wat::core::define ...) inside; should NOT
+  ;; The fixture has a (:wat::core::defn ...) inside; should NOT
   ;; have been registered as a type.
   (let [tags (set (wat/list-types))]
     (is (not (some #(= "TradeSignal/show" (str %)) tags)))))
 
 (deftest type-fields-returns-schema
-  (is (= {:asset "Keyword" :factor "wat::core::f64" :reason "wat::core::String"}
+  (is (= {:asset "wat::core::keyword" :factor "wat::core::f64" :reason "wat::core::String"}
          (wat/type-fields 'enterprise.config/SizeAdjust))))
 
 ;; ─── Generators ────────────────────────────────────────────────

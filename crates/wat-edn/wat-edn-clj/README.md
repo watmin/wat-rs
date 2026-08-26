@@ -58,13 +58,14 @@ standalone Clojars artifact once the API stabilizes.
 ## How load-types! works
 
 `load-types!` reads `.wat` source text and extracts every
-`(:wat::core::struct :ns::path::Name ...)` form into the registry.
-Function declarations, macros, imports — everything else — is
-silently skipped. The scanner is hand-rolled (~150 LOC) because
-wat's `::` namespace separator collides with Clojure's reader.
+`(:wat::core::defstruct :ns::path::Name [field <- :Type ...])` form
+into the registry. Function declarations, macros, imports —
+everything else — is silently skipped. The scanner is hand-rolled
+(~150 LOC) because wat's `::` namespace separator collides with
+Clojure's reader.
 
 The same `.wat` file is consumed by:
-- **wat-rs's type checker** as code (struct registration in the
+- **wat-rs's type checker** as code (defstruct registration in the
   SymbolTable)
 - **wat-edn-clj's load-types!** as schema (Clojure registry of
   field types per tag)
@@ -73,11 +74,13 @@ One file. Two readers. The schema is shared.
 
 ## v0.1 scope
 
-- Reads `(:wat::core::struct ...)` forms; ignores `:wat::core::enum`
-  (will land when wat-rs's enum surface stabilizes)
-- Validates primitive field types strictly (`:Keyword`, `:String`,
-  `:i64`, `:f64`, `:bool`, `:Bytes`); collections and user-defined
-  types are accepted as opaque (no recursive validation yet)
+- Reads `(:wat::core::defstruct ...)` forms; ignores
+  `:wat::core::defenum` (will land when wat-rs's enum surface
+  stabilizes)
+- Validates primitive field types strictly (`:wat::core::keyword`,
+  `:String`, `:i64`, `:f64`, `:bool`, `:Bytes`); collections and
+  user-defined types are accepted as opaque (no recursive
+  validation yet)
 - Round-trips through `clojure.edn/read` — no helper required for
   the standard EDN spec types
 

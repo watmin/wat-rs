@@ -1,6 +1,6 @@
 (ns wat-edn.scanner
   "Tiny scanner that extracts type declarations from `.wat` source.
-  Recognizes only `(:wat::core::struct ...)` forms — the surface
+  Recognizes only `(:wat::core::defstruct ...)` forms — the surface
   Clojure consumers care about. Everything else (functions, macros,
   imports) is skipped.
 
@@ -40,8 +40,10 @@
   "Tokenize `.wat` source into a vector of tokens. Tokens are:
     :lparen          — `(`
     :rparen          — `)`
+    :lbracket        — `[`  (defstruct's field-binder vector)
+    :rbracket        — `]`
     {:kw \"...\"}    — keyword body (without leading `:`)
-    {:sym \"...\"}   — symbol body
+    {:sym \"...\"}   — symbol body (includes the `<-` binder arrow)
   Strings and other literals aren't relevant to type extraction
   and are skipped."
   [^String s]
@@ -57,6 +59,12 @@
 
             (= \) c)
             (do (conj! out :rparen) (recur (skip-trivia s (inc i))))
+
+            (= \[ c)
+            (do (conj! out :lbracket) (recur (skip-trivia s (inc i))))
+
+            (= \] c)
+            (do (conj! out :rbracket) (recur (skip-trivia s (inc i))))
 
             (= \" c)
             ;; Skip strings — not relevant for type extraction.
@@ -113,41 +121,47 @@
            (subs body (+ last-idx 2))))))
 
 (defn- parse-field-form
-  "Parse a single (field-name :Type) form. Returns
+  "Parse a single `name <- :Type` triple inside a defstruct's
+  field-binder vector, starting at token index `i` (pointing at the
+  field's `{:sym name}` token). Returns
   [field-keyword type-spec next-index] or nil."
   [tokens i]
-  (when (= :lparen (nth tokens i nil))
-    (let [name-tok (nth tokens (+ i 1) nil)
-          type-tok (nth tokens (+ i 2) nil)
-          close    (nth tokens (+ i 3) nil)]
-      (when (and (map? name-tok) (:sym name-tok)
-                 (map? type-tok) (:kw type-tok)
-                 (= :rparen close))
-        [(keyword (:sym name-tok))
-         (:kw type-tok)
-         (+ i 4)]))))
+  (let [name-tok  (nth tokens i nil)
+        arrow-tok (nth tokens (+ i 1) nil)
+        type-tok  (nth tokens (+ i 2) nil)]
+    (when (and (map? name-tok) (:sym name-tok)
+               (map? arrow-tok) (= "<-" (:sym arrow-tok))
+               (map? type-tok) (:kw type-tok))
+      [(keyword (:sym name-tok))
+       (:kw type-tok)
+       (+ i 3)])))
 
 (defn- parse-struct-form
-  "Given tokens starting at the struct's outer `:lparen`, parse the
+  "Given tokens starting at the defstruct's outer `:lparen`, parse the
   full form. Returns {:tag-symbol ... :fields {field type ...}} or
   throws on malformed input."
   [tokens start]
   (let [end (find-paren-balanced-end tokens start)
-        ;; Layout: ( :wat::core::struct :path::Name (field :Type) ...)
-        ;;         ^start                ^marker     ^bodies     ^end
-        marker (nth tokens (+ start 1))
-        path   (nth tokens (+ start 2))]
+        ;; Layout: ( :wat::core::defstruct :path::Name [field <- :Type ...] )
+        ;;         ^start                   ^marker     ^bracket        ^end
+        marker  (nth tokens (+ start 1))
+        path    (nth tokens (+ start 2))
+        bracket (nth tokens (+ start 3) nil)]
     (when-not (and (map? marker)
-                   (= "wat::core::struct" (:kw marker)))
-      (throw (ex-info "expected :wat::core::struct marker"
+                   (= "wat::core::defstruct" (:kw marker)))
+      (throw (ex-info "expected :wat::core::defstruct marker"
                       {:got marker :index start})))
     (when-not (and (map? path) (:kw path))
-      (throw (ex-info "expected :path::TypeName after struct marker"
+      (throw (ex-info "expected :path::TypeName after defstruct marker"
                       {:got path :index (+ start 2)})))
+    (when-not (= :lbracket bracket)
+      (throw (ex-info "expected `[` field-binder vector after :path::TypeName"
+                      {:got bracket :index (+ start 3)})))
     (let [tag (wat-path->edn-tag (:kw path))
-          fields (loop [i (+ start 3) acc {}]
-                   (if (or (>= i end) (= i end))
-                     acc
+          fields (loop [i (+ start 4) acc {}]
+                   (cond
+                     (or (>= i end) (= :rbracket (nth tokens i nil))) acc
+                     :else
                      (if-let [[fname ftype next-i] (parse-field-form tokens i)]
                        (recur next-i (assoc acc fname ftype))
                        (recur (inc i) acc))))]
@@ -156,24 +170,42 @@
 
 (defn extract-structs
   "Return a vector of {:tag :fields} maps, one per
-  (:wat::core::struct ...) form found in `wat-source`."
+  (:wat::core::defstruct ...) form found in `wat-source`.
+
+  Forms whose head is not `:wat::core::defstruct` are silently
+  skipped — deliberate, so function definitions, macros, and imports
+  pass through untouched (see the fixture comment in shared.wat).
+
+  But an EMPTY result from a source that visibly mentions `struct`
+  (a retired pre-arc-241 head spelling, a malformed `defstruct`, or
+  any other near-miss) is not itself silent: it is printed to *err*.
+  A scanner that quietly finds zero types in a file that plainly
+  declares some is exactly the failure mode that broke every Clojure
+  consumer of `load-types!` the last time this grammar moved out
+  from under it, with no error anywhere."
   [^String wat-source]
   (let [tokens (tokenize wat-source)
-        n (count tokens)]
-    (loop [i 0 acc []]
-      (cond
-        (>= i n) acc
+        n (count tokens)
+        acc (loop [i 0 acc []]
+              (cond
+                (>= i n) acc
 
-        ;; Match `( :wat::core::struct ...`
-        (and (= :lparen (nth tokens i))
-             (= "wat::core::struct"
-                (:kw (nth tokens (inc i) nil))))
-        (let [end (find-paren-balanced-end tokens i)
-              parsed (parse-struct-form tokens i)]
-          (recur (inc end) (conj acc parsed)))
+                ;; Match `( :wat::core::defstruct ...`
+                (and (= :lparen (nth tokens i))
+                     (= "wat::core::defstruct"
+                        (:kw (nth tokens (inc i) nil))))
+                (let [end (find-paren-balanced-end tokens i)
+                      parsed (parse-struct-form tokens i)]
+                  (recur (inc end) (conj acc parsed)))
 
-        :else
-        (recur (inc i) acc)))))
+                :else
+                (recur (inc i) acc)))]
+    (when (and (empty? acc) (str/includes? wat-source "struct"))
+      (binding [*out* *err*]
+        (println "WARNING: wat-edn.scanner/extract-structs found 0 defstruct"
+                  "forms in a source that mentions \"struct\" — grammar"
+                  "mismatch, a retired head spelling, or malformed input?")))
+    acc))
 
 (defn extract-from-file
   "Read a `.wat` file from disk and extract its struct declarations."

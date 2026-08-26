@@ -3,7 +3,7 @@ name = "console-demo"
 version = "0.1.0"
 edition = "2021"
 publish = false
-description = "Walkable demo of the ambient-stdio API. Renders a tiny domain enum five ways (EDN / NoTagEdn / Json / NoTagJson / Pretty) and emits via :wat::kernel::println + eprintln. Arc 170 slice 1f-η — Console driver retired."
+description = "Walkable demo of the ambient-stdio API. Emits five domain events as EDN-encoded stdout lines via :wat::kernel::println; stderr stays empty (eprintln is wat's PANIC channel). Arc 170 slice 1f-η — Console driver retired."
 
 [[bin]]
 name = "console-demo"

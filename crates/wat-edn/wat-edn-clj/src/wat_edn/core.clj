@@ -79,7 +79,7 @@
 
 (defn load-types!
   "Load type declarations from one or more `.wat` files (paths
-  on the local filesystem). Each (:wat::core::struct ...) form
+  on the local filesystem). Each (:wat::core::defstruct ...) form
   is parsed and added to the registry, keyed by its EDN tag form
   (last `::` → `/`, preceding `::` → `.`).
 

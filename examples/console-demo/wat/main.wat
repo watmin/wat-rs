@@ -19,43 +19,43 @@
 ;; the default path is the EDN one this demo walks.
 ;;
 ;; Run:
-;;   cargo run -p console-demo                 # shows stdout
-;;   cargo run -p console-demo 2>&1 >/dev/null # shows stderr
-;;   cargo run -p console-demo 2>err.log       # split streams
+;;   cargo run -p console-demo                 # five EDN lines on stdout, stderr empty
 
 
 ;; ─── Domain enum — what the trader emits as structured events ──
 
-(:wat::core::enum :demo::Event
-  (Buy
-    (price :wat::core::f64)
-    (qty :wat::core::i64))
-  (Sell
-    (price :wat::core::f64)
-    (qty :wat::core::i64)
-    (reason :wat::core::String))
-  (CircuitBreak
-    (reason :wat::core::String)))
+(:wat::core::defenum :demo::Event :wat::enum::Pure
+  :Buy          [price <- :wat::core::f64  qty <- :wat::core::i64]
+  :Sell         [price <- :wat::core::f64  qty <- :wat::core::i64  reason <- :wat::core::String]
+  :CircuitBreak [reason <- :wat::core::String])
 
 
-;; ─── Wiring — five events, ambient println / eprintln routing.
+;; ─── Wiring — five events, every one through ambient `println`.
 ;;
-;; :debug + :info shaped emissions go through stdout
-;; (`:wat::kernel::println`); :warn + :error go through stderr
-;; (`:wat::kernel::eprintln`). The ambient ops EDN-encode each
-;; value before writing, so the produced lines round-trip via
-;; `:wat::edn::read` cleanly. `:user::main` returns
-;; `:wat::core::nil` (arc 170 slice 1e canonical entry shape).
+;; ⚠ THERE IS NO BENIGN STDERR WRITE. `:wat::kernel::eprintln` is
+;; wat's PANIC channel (`wat/kernel/diagnostics.wat:52`; registered
+;; in `src/check.rs` as a TERMINATING form): it emits to stderr and
+;; then TERMINATES the program non-zero. This demo used to route
+;; ":warn / :error" events through it as though it were a second
+;; ordinary print. It is not, and that version died on its first
+;; "concerning" event without ever reaching the last one.
+;;
+;; What the substrate actually offers is the IPC triangle:
+;;   stdout     — complex RETURN values (this demo's five events)
+;;   stderr     — complex ERROR values (panic cascades; terminating)
+;;   exit code  — a SIGNAL telling the parent which channel to read
+;; So a program that has something to SAY says it on stdout. Only a
+;; program that is DYING writes to stderr, and it dies as it writes.
+;;
+;; The ambient ops EDN-encode each value and write one line per
+;; call, so every emission round-trips through `:wat::edn::read`.
+;; `:user::main` returns bare `nil` (arc 170 slice 1e entry shape).
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
-      [;; Routine flow → stdout
-       _a (:wat::kernel::println (:demo::Event::Buy 100.5 7))
+      [_a (:wat::kernel::println (:demo::Event::Buy 100.5 7))
        _b (:wat::kernel::println (:demo::Event::Sell 102.25 3 "stop-loss"))
-       ;; Diagnostic detail → stdout
        _c (:wat::kernel::println (:demo::Event::Buy 99.0 12))
-       ;; Concerning event → stderr
-       _d (:wat::kernel::eprintln (:demo::Event::CircuitBreak "spike-volume"))
-       ;; Failure → stderr
-       _e (:wat::kernel::eprintln (:demo::Event::CircuitBreak "exchange-disconnected"))]
-      :wat::core::nil))
+       _d (:wat::kernel::println (:demo::Event::CircuitBreak "spike-volume"))
+       _e (:wat::kernel::println (:demo::Event::CircuitBreak "exchange-disconnected"))]
+      nil))

@@ -2767,7 +2767,7 @@ fn register_builtin_types(env: &mut TypeEnv) {
         ":wat::core::rational",
         ":wat::core::keyword",
         // AST leaves — `wat-tests/holon/Reject.wat:31` (`HolonAST` param+return),
-        // `wat-migrate/fix-decl.wat:27` `[kw <- :wat::WatAST] -> :wat::WatAST`.
+        // `tests/resolve/probe_arc251_decl_migrator.wat:4` `[kw <- :wat::WatAST] -> :wat::WatAST`.
         ":wat::holon::HolonAST",
         ":wat::WatAST",
         // sentinels — `:wat::core::Value` is the universal top, genuinely used

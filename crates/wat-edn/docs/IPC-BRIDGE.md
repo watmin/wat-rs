@@ -141,13 +141,13 @@ calls `read-stdin!` to pop one form.
 **Service-loop helper.** A common pattern:
 
 ```scheme
-(:wat::core::define (:user::main
-                     (stdin  :wat::io::IOReader)
-                     (stdout :wat::io::IOWriter)
-                     (stderr :wat::io::IOWriter)
-                     -> :())
+(:wat::core::defn :user::main
+  [stdin  <- :wat::io::IOReader
+   stdout <- :wat::io::IOWriter
+   stderr <- :wat::io::IOWriter]
+  -> :wat::core::nil
   (:wat::edn::serve! stdin stdout
-    (:wat::core::fn (req :MyReq) -> :MyResp
+    (:wat::core::fn [req <- :MyReq] -> :MyResp
       ; ... compute ...)))
 ```
 
@@ -336,13 +336,13 @@ differ.
 (:wat::edn::serve! stdin stdout handler)
 
 ;; Hello-world service:
-(:wat::core::define (:user::main
-                     (stdin  :wat::io::IOReader)
-                     (stdout :wat::io::IOWriter)
-                     (stderr :wat::io::IOWriter)
-                     -> :())
+(:wat::core::defn :user::main
+  [stdin  <- :wat::io::IOReader
+   stdout <- :wat::io::IOWriter
+   stderr <- :wat::io::IOWriter]
+  -> :wat::core::nil
   (:wat::edn::serve! stdin stdout
-    (:wat::core::fn (req :myapp::Req) -> :myapp::Resp
+    (:wat::core::fn [req <- :myapp::Req] -> :myapp::Resp
       (:myapp::compute req))))
 ```
 
