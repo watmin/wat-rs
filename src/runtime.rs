@@ -6097,48 +6097,38 @@ fn dispatch_keyword_head_value(
         // RETIRED this stone; `:wat::vec::length`/`:wat::vector::length` (`src/intrinsic/{vec,vector}.rs`)
         // are their replacements, reached via the registry-first door (`dispatch_keyword_head_value`'s
         // `crate::intrinsic::registry().lookup(head)`, above this match) — no arm needed here.
-        ":wat::core::HashSet/length" => {
-            crate::collection::eval::eval_hashset_length(args, list_span, env, sym)
-        }
-        // Arc 220 Stone 220.4 — List per-Type ops.
-        ":wat::core::List/length" => {
-            crate::collection::eval::eval_list_length(args, list_span, env, sym)
-        }
+        // Arc 255 Stone E-iii — `:wat::core::HashSet/length` and `:wat::core::List/length` RETIRED
+        // this stone; `:wat::hashset::length`/`:wat::linkedlist::length`
+        // (`src/intrinsic/{hashset,linkedlist}.rs`) are their replacements, reached the same
+        // registry-first way — no arm needed here either.
+        //
         // Arc 146 slice 3 — empty? / contains? / get / conj are now
         // Dispatches (declared in `wat/core.wat`). Per-Type impls also
         // directly callable; the dispatch_keyword_head guard above
         // intercepts the polymorphic surface name first.
         // Arc 255 Stone E-ii — `:wat::core::Vector/empty?` and `:wat::core::PersistentVector/empty?`
         // RETIRED this stone; `:wat::vec::empty?`/`:wat::vector::empty?` are their replacements.
-        ":wat::core::HashSet/empty?" => {
-            crate::collection::eval::eval_hashset_empty_q(args, list_span, env, sym)
-        }
-        // Arc 220 Stone 220.4 — List empty?
-        ":wat::core::List/empty?" => {
-            crate::collection::eval::eval_list_empty_q(args, list_span, env, sym)
-        }
+        // Arc 255 Stone E-iii — `:wat::core::HashSet/empty?` and `:wat::core::List/empty?` RETIRED
+        // this stone; `:wat::hashset::empty?`/`:wat::linkedlist::empty?` are their replacements.
+        //
         // Arc 255 Stone E-ii — `:wat::core::Vector/contains?` and `:wat::core::PersistentVector/contains?`
         // RETIRED this stone; `:wat::vec::contains?`/`:wat::vector::contains?` are their replacements.
-        ":wat::core::HashSet/contains?" => {
-            crate::collection::eval::eval_hashset_contains_q(args, list_span, env, sym)
-        }
-        // Arc 220 Stone 220.4 — List contains?
-        ":wat::core::List/contains?" => {
-            crate::collection::eval::eval_list_contains_q(args, list_span, env, sym)
-        }
+        // Arc 255 Stone E-iii — `:wat::core::HashSet/contains?` and `:wat::core::List/contains?`
+        // RETIRED this stone; `:wat::hashset::contains?`/`:wat::linkedlist::contains?` are their
+        // replacements.
+        //
         // Arc 255 Stone E-ii — `:wat::core::Vector/get` and `:wat::core::PersistentVector/get`
         // RETIRED this stone; `:wat::vec::get`/`:wat::vector::get` are their replacements.
-        // Arc 220 Stone 220.4 — List get
-        ":wat::core::List/get" => crate::collection::eval::eval_list_get(args, list_span, env, sym),
+        // Arc 255 Stone E-iii — `:wat::core::List/get` RETIRED this stone; `:wat::linkedlist::get`
+        // is its replacement. (HashSet has no direct-call `get` verb — its "get-by-equality" is
+        // `contains?`, reached only via the generic `:wat::core::get` polymorphic surface.)
+        //
         // Arc 255 Stone E-ii — `:wat::core::Vector/conj` and `:wat::core::PersistentVector/conj`
         // RETIRED this stone; `:wat::vec::conj`/`:wat::vector::conj` are their replacements.
-        ":wat::core::HashSet/conj" => {
-            crate::collection::eval::eval_hashset_conj(args, list_span, env, sym)
-        }
-        // Arc 220 Stone 220.4 — List/conj PREPENDS (Clojure semantic; distinct from Vector/conj = APPEND)
-        ":wat::core::List/conj" => {
-            crate::collection::eval::eval_list_conj(args, list_span, env, sym)
-        }
+        // Arc 255 Stone E-iii — `:wat::core::HashSet/conj` and `:wat::core::List/conj` (PREPENDS —
+        // Clojure semantic, distinct from Vector's/HashSet's APPEND/insert `conj`) RETIRED this
+        // stone; `:wat::hashset::conj`/`:wat::linkedlist::conj` are their replacements.
+        //
         // Arc 146 slice 4 — per-Type assoc / dissoc / keys / values / concat.
         // Single-impl-per-container ops. Surface short names
         // (:assoc / :dissoc / :keys / :values / :concat) become user-define
@@ -11838,11 +11828,13 @@ pub(crate) fn dispatch_substrate_impl(
         ":wat::hashmap::length" => Some(ceval::hashmap_length_inner(
             vals.first().expect("arity-checked"),
         )),
-        ":wat::core::HashSet/length" => Some(ceval::hashset_length_inner(
+        // arc 255 Stone E-iii — `:wat::core::HashSet/length` RETIRED this stone.
+        ":wat::hashset::length" => Some(ceval::hashset_length_inner(
             vals.first().expect("arity-checked"),
         )),
         // Arc 220 Stone 220.4 — List/length
-        ":wat::core::List/length" => Some(ceval::list_length_inner(
+        // arc 255 Stone E-iii — `:wat::core::List/length` RETIRED this stone.
+        ":wat::linkedlist::length" => Some(ceval::list_length_inner(
             vals.first().expect("arity-checked"),
         )),
         // empty? — 1 arg
@@ -11853,11 +11845,13 @@ pub(crate) fn dispatch_substrate_impl(
         ":wat::hashmap::empty?" => Some(ceval::hashmap_empty_q_inner(
             vals.first().expect("arity-checked"),
         )),
-        ":wat::core::HashSet/empty?" => Some(ceval::hashset_empty_q_inner(
+        // arc 255 Stone E-iii — `:wat::core::HashSet/empty?` RETIRED this stone.
+        ":wat::hashset::empty?" => Some(ceval::hashset_empty_q_inner(
             vals.first().expect("arity-checked"),
         )),
         // Arc 220 Stone 220.4 — List/empty?
-        ":wat::core::List/empty?" => Some(ceval::list_empty_q_inner(
+        // arc 255 Stone E-iii — `:wat::core::List/empty?` RETIRED this stone.
+        ":wat::linkedlist::empty?" => Some(ceval::list_empty_q_inner(
             vals.first().expect("arity-checked"),
         )),
         // contains? — 2 args (mixed verbs)
@@ -11870,12 +11864,14 @@ pub(crate) fn dispatch_substrate_impl(
             vals.first().expect("arity-checked"),
             vals.get(1).expect("arity-checked"),
         )),
-        ":wat::core::HashSet/contains?" => Some(ceval::hashset_contains_q_inner(
+        // arc 255 Stone E-iii — `:wat::core::HashSet/contains?` RETIRED this stone.
+        ":wat::hashset::contains?" => Some(ceval::hashset_contains_q_inner(
             vals.first().expect("arity-checked"),
             vals.get(1).expect("arity-checked"),
         )),
         // Arc 220 Stone 220.4 — List/contains?
-        ":wat::core::List/contains?" => Some(ceval::list_contains_q_inner(
+        // arc 255 Stone E-iii — `:wat::core::List/contains?` RETIRED this stone.
+        ":wat::linkedlist::contains?" => Some(ceval::list_contains_q_inner(
             vals.first().expect("arity-checked"),
             vals.get(1).expect("arity-checked"),
         )),
@@ -11890,7 +11886,8 @@ pub(crate) fn dispatch_substrate_impl(
             vals.get(1).expect("arity-checked"),
         )),
         // Arc 220 Stone 220.4 — List/get
-        ":wat::core::List/get" => Some(ceval::list_get_inner(
+        // arc 255 Stone E-iii — `:wat::core::List/get` RETIRED this stone.
+        ":wat::linkedlist::get" => Some(ceval::list_get_inner(
             vals.first().expect("arity-checked"),
             vals.get(1).expect("arity-checked"),
         )),
@@ -11900,12 +11897,14 @@ pub(crate) fn dispatch_substrate_impl(
             vals.first().expect("arity-checked"),
             vals.get(1).expect("arity-checked"),
         )),
-        ":wat::core::HashSet/conj" => Some(ceval::hashset_conj_inner(
+        // arc 255 Stone E-iii — `:wat::core::HashSet/conj` RETIRED this stone.
+        ":wat::hashset::conj" => Some(ceval::hashset_conj_inner(
             vals.first().expect("arity-checked"),
             vals.get(1).expect("arity-checked"),
         )),
         // Arc 220 Stone 220.4 — List/conj (PREPEND semantic)
-        ":wat::core::List/conj" => Some(ceval::list_conj_inner(
+        // arc 255 Stone E-iii — `:wat::core::List/conj` RETIRED this stone.
+        ":wat::linkedlist::conj" => Some(ceval::list_conj_inner(
             vals.first().expect("arity-checked"),
             vals.get(1).expect("arity-checked"),
         )),

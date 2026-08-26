@@ -62,7 +62,7 @@
               (:wat::core::if (:wat::core::= (:wat::core::ast-kind cur) "symbol")
                 (:wat::core::if (:wat::core::= (:wat::core::ast-name cur) "->")
                   (:wat::core::= (:wat::core::ast-kind nn) "keyword") false) false)
-              (:wat::core::HashSet/conj s (:user::strip-params (:wat::core::ast-name nn)))
+              (:wat::hashset::conj s (:user::strip-params (:wat::core::ast-name nn)))
               s)))))
     acc
     (:wat::core::range 0 (:wat::core::length ch))))
@@ -137,7 +137,7 @@
     (:wat::core::foldl
       (:wat::core::fn [m <- (:wat::core::HashMap :- [:wat::core::String (:wat::core::Tuple :- [:wat::core::String :wat::core::String])]) k <- :wat::core::String]
         -> (:wat::core::HashMap :- [:wat::core::String (:wat::core::Tuple :- [:wat::core::String :wat::core::String])])
-        (:wat::core::if (:wat::core::HashSet/contains? rets k)
+        (:wat::core::if (:wat::hashset::contains? rets k)
           (:wat::hashmap::assoc m k (:wat::core::Option/expect (:wat::hashmap::get recs k) "resp"))
           m))
       (:wat::core::HashMap :wat::core::String (:wat::core::Tuple :- [:wat::core::String :wat::core::String]))

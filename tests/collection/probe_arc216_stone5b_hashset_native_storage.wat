@@ -5,22 +5,22 @@
 
 ;; p1a: i64 set length 3
 (:wat::core::defn :t::p1a-i64-set-len [] -> :wat::core::i64
-  (:wat::core::HashSet/length
+  (:wat::hashset::length
     (:wat::core::HashSet :wat::core::i64 1 2 3)))
 
 ;; p1b: String set length 3
 (:wat::core::defn :t::p1b-str-set-len [] -> :wat::core::i64
-  (:wat::core::HashSet/length
+  (:wat::hashset::length
     (:wat::core::HashSet :wat::core::String "a" "b" "c")))
 
 ;; p1c: bool set length 2
 (:wat::core::defn :t::p1c-bool-set-len [] -> :wat::core::i64
-  (:wat::core::HashSet/length
+  (:wat::hashset::length
     (:wat::core::HashSet :wat::core::bool true false)))
 
 ;; p1d: keyword set length 3
 (:wat::core::defn :t::p1d-kw-set-len [] -> :wat::core::i64
-  (:wat::core::HashSet/length
+  (:wat::hashset::length
     (:wat::core::HashSet :wat::core::keyword :foo :bar :baz)))
 
 ;; ─── Probe 2 — contains? ────────────────────────────────────────────────────
@@ -58,19 +58,19 @@
 ;; ─── Probe 3 — HashSet/length ────────────────────────────────────────────────
 
 (:wat::core::defn :t::p3-length [] -> :wat::core::i64
-  (:wat::core::HashSet/length
+  (:wat::hashset::length
     (:wat::core::HashSet :wat::core::i64 1 2 3 4 5)))
 
 ;; ─── Probe 4 — HashSet/empty? ────────────────────────────────────────────────
 
 ;; p4a: non-empty is false
 (:wat::core::defn :t::p4a-nonempty [] -> :wat::core::bool
-  (:wat::core::HashSet/empty?
+  (:wat::hashset::empty?
     (:wat::core::HashSet :wat::core::i64 1)))
 
 ;; p4b: deduped to one still non-empty
 (:wat::core::defn :t::p4b-dedup-nonempty [] -> :wat::core::bool
-  (:wat::core::HashSet/empty?
+  (:wat::hashset::empty?
     (:wat::core::HashSet :wat::core::i64 42 42 42)))
 
 ;; ─── Probe 5 — HashSet/conj ──────────────────────────────────────────────────
@@ -87,7 +87,7 @@
   (:wat::core::let
     [s0 (:wat::core::HashSet :wat::core::i64 1 2)
      s1 (:wat::core::conj s0 1)]
-    (:wat::core::HashSet/length s1)))
+    (:wat::hashset::length s1)))
 
 ;; p5c: conj functional — original unchanged
 (:wat::core::defn :t::p5c-conj-immutable [] -> :wat::core::bool
@@ -110,7 +110,7 @@
   (:wat::core::let
     [s0 (:wat::core::HashSet :wat::core::bool true false)
      s1 (:wat::core::conj s0 true)]
-    (:wat::core::HashSet/length s1)))
+    (:wat::hashset::length s1)))
 
 ;; ─── Probe 7 — Nested HashSet ────────────────────────────────────────────────
 
@@ -120,7 +120,7 @@
     [inner1 (:wat::core::HashSet :wat::core::i64 1 2)
      inner2 (:wat::core::HashSet :wat::core::i64 3 4)
      outer  (:wat::core::HashSet :wat::type::Infer inner1 inner2)]
-    (:wat::core::HashSet/length outer)))
+    (:wat::hashset::length outer)))
 
 ;; p7b: inner HashSet found by value equality
 (:wat::core::defn :t::p7b-nested-contains [] -> :wat::core::bool
@@ -136,7 +136,7 @@
   (:wat::core::let
     [inner (:wat::core::HashSet :wat::core::i64 1 2)
      outer (:wat::core::HashSet :wat::type::Infer inner inner)]
-    (:wat::core::HashSet/length outer)))
+    (:wat::hashset::length outer)))
 
 ;; ─── Probe 8 — Round-trip to-holon + from-holon ─────────────────────────────
 
@@ -146,7 +146,7 @@
     [s    (:wat::core::HashSet :wat::core::i64 10 20 30)
      atom (:wat::holon::to-holon s)
      back (:wat::holon::from-holon atom)]
-    (:wat::core::HashSet/length back)))
+    (:wat::hashset::length back)))
 
 ;; p8b: round-trip preserves membership
 (:wat::core::defn :t::p8b-rt-contains [] -> :wat::core::bool

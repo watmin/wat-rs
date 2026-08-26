@@ -71,23 +71,6 @@ pub(crate) fn hashset_length_inner(v: &Value) -> Result<Value, EvalBreak> {
     }
 }
 
-pub(crate) fn eval_hashset_length(
-    args: &[WatAST],
-    call_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::HashSet/length".into(),
-            expected: 1,
-            got: args.len()
-        }).into());
-    }
-    let v = eval_inner(&args[0], env, sym)?.value_owned();
-    hashset_length_inner(&v)
-}
-
 // ─── Arc 146 slice 3 — per-Type empty? / contains? / get / conj impls ────────
 
 pub(crate) fn vector_empty_q_inner(v: &Value) -> Result<Value, EvalBreak> {
@@ -133,23 +116,6 @@ pub(crate) fn list_empty_q_inner(v: &Value) -> Result<Value, EvalBreak> {
             got: Box::new(ValueSnapshot::of(other))
         }).into()),
     }
-}
-
-pub(crate) fn eval_hashset_empty_q(
-    args: &[WatAST],
-    call_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::HashSet/empty?".into(),
-            expected: 1,
-            got: args.len()
-        }).into());
-    }
-    let v = eval_inner(&args[0], env, sym)?.value_owned();
-    hashset_empty_q_inner(&v)
 }
 
 // ─── contains? — Vector/List/HashSet use `contains?`; HashMap dispatches `contains-key?` ─────
@@ -224,24 +190,6 @@ pub(crate) fn hashset_contains_q_inner(container: &Value, item: &Value) -> Resul
             got: Box::new(ValueSnapshot::of(other))
         }).into()),
     }
-}
-
-pub(crate) fn eval_hashset_contains_q(
-    args: &[WatAST],
-    call_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::HashSet/contains?".into(),
-            expected: 2,
-            got: args.len()
-        }).into());
-    }
-    let container = eval_inner(&args[0], env, sym)?.value_owned();
-    let item = eval_inner(&args[1], env, sym)?.value_owned();
-    hashset_contains_q_inner(&container, &item)
 }
 
 // ─── get — return type varies per arm (Option<T> vs Option<V>) ──────────────
@@ -327,76 +275,6 @@ pub(crate) fn hashmap_get_inner(container: &Value, key: &Value) -> Result<Value,
 
 // ─── Arc 220 Stone 220.4 — List eval wrappers ────────────────────────────────
 
-pub(crate) fn eval_list_length(
-    args: &[WatAST],
-    call_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::List/length".into(),
-            expected: 1,
-            got: args.len()
-        }).into());
-    }
-    let v = eval_inner(&args[0], env, sym)?.value_owned();
-    list_length_inner(&v)
-}
-
-pub(crate) fn eval_list_empty_q(
-    args: &[WatAST],
-    call_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::List/empty?".into(),
-            expected: 1,
-            got: args.len()
-        }).into());
-    }
-    let v = eval_inner(&args[0], env, sym)?.value_owned();
-    list_empty_q_inner(&v)
-}
-
-pub(crate) fn eval_list_contains_q(
-    args: &[WatAST],
-    call_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::List/contains?".into(),
-            expected: 2,
-            got: args.len()
-        }).into());
-    }
-    let container = eval_inner(&args[0], env, sym)?.value_owned();
-    let item = eval_inner(&args[1], env, sym)?.value_owned();
-    list_contains_q_inner(&container, &item)
-}
-
-pub(crate) fn eval_list_get(
-    args: &[WatAST],
-    call_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::List/get".into(),
-            expected: 2,
-            got: args.len()
-        }).into());
-    }
-    let container = eval_inner(&args[0], env, sym)?.value_owned();
-    let index = eval_inner(&args[1], env, sym)?.value_owned();
-    list_get_inner(&container, &index)
-}
-
 // ─── conj inner helpers ──────────────────────────────────────────────────────
 
 pub(crate) fn vector_conj_inner(container: &Value, item: &Value) -> Result<Value, EvalBreak> {
@@ -432,24 +310,6 @@ pub(crate) fn list_conj_inner(container: &Value, item: &Value) -> Result<Value, 
     }
 }
 
-pub(crate) fn eval_list_conj(
-    args: &[WatAST],
-    call_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::List/conj".into(),
-            expected: 2,
-            got: args.len()
-        }).into());
-    }
-    let container = eval_inner(&args[0], env, sym)?.value_owned();
-    let item = eval_inner(&args[1], env, sym)?.value_owned();
-    list_conj_inner(&container, &item)
-}
-
 // Stone 216.5b — suppress `mutable_key_type` for `HashSet<Value>`.
 // `Value` contains `Arc`-wrapped types with interior mutability (Sender, AtomicBool, etc.)
 // which triggers the lint. The interior-mutability variants are opaque handles that never
@@ -480,24 +340,6 @@ pub(crate) fn hashset_conj_inner(container: &Value, item: &Value) -> Result<Valu
             got: Box::new(ValueSnapshot::of(other))
         }).into()),
     }
-}
-
-pub(crate) fn eval_hashset_conj(
-    args: &[WatAST],
-    call_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::HashSet/conj".into(),
-            expected: 2,
-            got: args.len()
-        }).into());
-    }
-    let container = eval_inner(&args[0], env, sym)?.value_owned();
-    let item = eval_inner(&args[1], env, sym)?.value_owned();
-    hashset_conj_inner(&container, &item)
 }
 
 // ─── Arc 146 slice 4 — per-Type assoc / dissoc / keys / values / concat impls ─

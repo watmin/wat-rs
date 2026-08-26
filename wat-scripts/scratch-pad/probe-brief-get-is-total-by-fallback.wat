@@ -94,13 +94,13 @@
           (:wat::core::str (:wat::rete::vec::get vec 1 :undefined -1))))
       (:wat::kernel::println
         (:wat::string::concat "row6 List/get in-range (expect 8) = "
-          (:wat::core::str (:wat::rete::core::List/get lst 1 :undefined -1))))
+          (:wat::core::str (:wat::rete::linkedlist::get lst 1 :undefined -1))))
       (:wat::kernel::println
         (:wat::string::concat "row6 Vector/get out-of-range (expect -1) = "
           (:wat::core::str (:wat::rete::vec::get vec 9 :undefined -1))))
       (:wat::kernel::println
         (:wat::string::concat "row6 List/get out-of-range (expect -1) = "
-          (:wat::core::str (:wat::rete::core::List/get lst 9 :undefined -1))))
+          (:wat::core::str (:wat::rete::linkedlist::get lst 9 :undefined -1))))
 
       ;; ── row 7 — the seam still composes (real defrule, above) ─────────────────
       (:g278get::row7)

@@ -18,7 +18,7 @@
 
 (:wat::core::defn :probe::structural? [node <- :wat::WatAST] -> :wat::core::bool
   (:wat::core::let [k (:wat::core::ast-kind node)]
-    (:wat::core::HashSet/contains?
+    (:wat::hashset::contains?
       (:wat::core::HashSet :wat::type::Infer "list" "vector" "map" "set") k)))
 
 ;; walk — call ast-span AND ast-end-span on EVERY node. Both are unguarded on purpose: this probe

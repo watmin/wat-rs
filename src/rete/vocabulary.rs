@@ -887,10 +887,15 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         ret: ParamType::Var("T"),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
+    // Arc 255 Stone E-iii — both `core_name` AND `rete_name` retargeted together
+    // (`:wat::core::List/get` retired this stone), same rule as the vector/vec pair above.
+    // The frozen `:wat::rete::core::List/first` exception (NAMING_RULE_EXCEPTIONS below) is a
+    // SEPARATE row sharing the polymorphic `:wat::core::first` core_name — untouched by this
+    // move, and this exact-match (not prefix) codemod rule is why it stays untouched.
     ReteOp {
         type_params: &["T"],
-        rete_name: ":wat::rete::core::List/get",
-        core_name: ":wat::core::List/get",
+        rete_name: ":wat::rete::linkedlist::get",
+        core_name: ":wat::linkedlist::get",
         class: OpClass::Fallback,
         params: &[ParamType::ListOf("T"), ParamType::I64, ParamType::Keyword, ParamType::Var("T")],
         ret: ParamType::Var("T"),
@@ -1404,6 +1409,11 @@ pub(crate) const RETE_PREFIX: &str = ":wat::rete::";
 /// `PersistentVector/{length,contains?,get}`'s `core_name` moved onto `:wat::vector::*`;
 /// `Vector/get`'s onto `:wat::vec::*`. Both prefixes are needed (unlike E-i's map-only need)
 /// because BOTH families have a moved `RETE_OPS` row here.
+/// ⚠ arc 255 Stone E-iii adds `:wat::rete::linkedlist::` ONLY — `List/get`'s `core_name` moved
+/// onto `:wat::linkedlist::get`, forcing this entry the same way E-i's `map::` and E-ii's
+/// `vector::`/`vec::` were forced. Measured (not assumed, per E-i's own `hashmap::` note above):
+/// `RETE_OPS` has NO HashSet row at all, so no `:wat::rete::hashset::` entry is needed here —
+/// adding one anyway would be exactly the unforced entry E-i's `hashmap::` note warns against.
 pub(crate) const RETE_MODULES: &[&str] = &[
     ":wat::rete::core::",
     ":wat::rete::holon::",
@@ -1413,6 +1423,7 @@ pub(crate) const RETE_MODULES: &[&str] = &[
     ":wat::rete::map::",
     ":wat::rete::vector::",
     ":wat::rete::vec::",
+    ":wat::rete::linkedlist::",
 ];
 
 /// Look up `head`'s row, if it is a minted rete-vocabulary op. Exact match — never a prefix scan

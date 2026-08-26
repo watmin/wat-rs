@@ -72,4 +72,4 @@
 (:wat::core::defn :t::p3-len [] -> :wat::core::i64
   (:wat::core::let
     [vowels (:wat::core::HashSet :wat::core::char \a \e \i \o \u)]
-    (:wat::core::HashSet/length vowels)))
+    (:wat::hashset::length vowels)))

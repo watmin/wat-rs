@@ -67,6 +67,8 @@
 //! | `":wat::core::HashMap/*"` (8 ops)       | 255 Stone E-i | per-type HashMap verbs, junk-drawer home       | `:wat::hashmap::*` (the flavor-marked home) |
 //! | `":wat::core::PersistentVector/*"` (6 ops) | 255 Stone E-ii | per-type PersistentVector verbs, junk-drawer home | `:wat::vector::*` (the UNMARKED home — never moves again once the persistent-backend swap lands) |
 //! | `":wat::core::Vector/*"` (7 ops)        | 255 Stone E-ii | per-type Vector verbs, junk-drawer home        | `:wat::vec::*` (the flavor-marked home; `extend` is Vector-only, no PersistentVector twin) |
+//! | `":wat::core::HashSet/*"` (4 ops)       | 255 Stone E-iii | per-type HashSet verbs, junk-drawer home     | `:wat::hashset::*` (the flavor-marked home; `:wat::set::` stays free for the persistent sibling) |
+//! | `":wat::core::List/*"` (5 ops)          | 255 Stone E-iii | per-type List verbs, junk-drawer home        | `:wat::linkedlist::*` (the flavor-marked home; `:wat::list::` stays free for the persistent sibling) |
 
 use super::{Remedy, RemedyKind};
 
@@ -276,6 +278,22 @@ const RETIREMENT_TABLE: &[RetirementEntry] = &[
     RetirementEntry { retired: ":wat::core::Vector/conj",               replacement: ":wat::vec::conj",        note: None },
     RetirementEntry { retired: ":wat::core::Vector/concat",             replacement: ":wat::vec::concat",      note: None },
     RetirementEntry { retired: ":wat::core::Vector/extend",             replacement: ":wat::vec::extend",      note: None },
+    // Arc 255 Stone E-iii — "set + list get their homes": both HashSet and List are the
+    // copy-on-write flavor (same axis-side as HashMap/Vector), so BOTH take a MARKED name —
+    // `:wat::set::`/`:wat::list::` stay free for the persistent-backed siblings the builder has
+    // ruled are coming, same reason `:wat::map::`/`:wat::vector::` stayed free above. Verb sets
+    // are NOT symmetric: HashSet has no `get` (its "get-by-equality" is `contains?`); List has
+    // no `concat`/`extend`. Name-only; handler bodies untouched (they already lived in
+    // `src/collection/eval.rs`, unmoved by this stone).
+    RetirementEntry { retired: ":wat::core::HashSet/length",   replacement: ":wat::hashset::length",   note: None },
+    RetirementEntry { retired: ":wat::core::HashSet/empty?",   replacement: ":wat::hashset::empty?",   note: None },
+    RetirementEntry { retired: ":wat::core::HashSet/contains?", replacement: ":wat::hashset::contains?", note: None },
+    RetirementEntry { retired: ":wat::core::HashSet/conj",     replacement: ":wat::hashset::conj",     note: None },
+    RetirementEntry { retired: ":wat::core::List/length",      replacement: ":wat::linkedlist::length",   note: None },
+    RetirementEntry { retired: ":wat::core::List/empty?",      replacement: ":wat::linkedlist::empty?",   note: None },
+    RetirementEntry { retired: ":wat::core::List/contains?",   replacement: ":wat::linkedlist::contains?", note: None },
+    RetirementEntry { retired: ":wat::core::List/get",         replacement: ":wat::linkedlist::get",      note: None },
+    RetirementEntry { retired: ":wat::core::List/conj",        replacement: ":wat::linkedlist::conj",     note: None },
 ];
 
 /// Look up `needle` in the retirement table.

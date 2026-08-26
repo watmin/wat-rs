@@ -3026,12 +3026,18 @@ fn infer_list(
                 };
             }
             // Arc 220 Stone 220.4 — `:wat::core::List/conj` prepend.
-            // `(:wat::core::List/conj list item)` → `(List :- [T])`.
+            // `(:wat::linkedlist::conj list item)` → `(List :- [T])`.
             // Clojure semantic: prepends item to front; distinct from Vector/conj (append).
-            ":wat::core::List/conj" => {
+            // Arc 255 Stone E-iii — `:wat::core::List/conj` RETIRED this stone;
+            // `:wat::linkedlist::conj` is its replacement. This custom arm lives entirely in
+            // check.rs (no `collection::infer` delegate the way `Vector/extend`/
+            // `PersistentVector/concat` do), so BOTH the match key and its internal `callee`
+            // diagnostics move together — there is no separate "algorithm home" left on the
+            // old spelling.
+            ":wat::linkedlist::conj" => {
                 if args.len() != 2 {
                     local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
-                        callee: ":wat::core::List/conj".into(),
+                        callee: ":wat::linkedlist::conj".into(),
                         expected: 2,
                         got: args.len()
                     } });
@@ -3056,7 +3062,7 @@ fn infer_list(
                         TypeExpr::Var(_) => {}
                         _ => {
                             local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
-                                callee: ":wat::core::List/conj".into(),
+                                callee: ":wat::linkedlist::conj".into(),
                                 param: "#1".into(),
                                 expected: "(List :- [T])".into(),
                                 got: format_type(&apply_subst(lt, subst))
@@ -20389,23 +20395,13 @@ fn register_builtins(env: &mut CheckEnv) {
     //
     // Arc 255 Stone E-ii — `:wat::core::Vector/length` RETIRED this stone;
     // `:wat::vec::length` (registered below, near its E-ii siblings) is its replacement.
+    // Arc 255 Stone E-iii — `:wat::core::HashSet/length` RETIRED this stone;
+    // `:wat::hashset::length` (registered below, near its E-iii siblings) is its replacement.
     //
     // `t_var()` / `k_var()` / `v_var()` defined below at line ~11770
     // return `Path(":T")` etc. — the substrate's convention for
     // user-named type variables (instantiated to fresh unification
     // vars during scheme instantiation).
-    env.register(
-        ":wat::core::HashSet/length".into(),
-        TypeScheme {
-            type_params: vec!["T".into()],
-            params: vec![TypeExpr::Parametric {
-                head: "wat::core::HashSet".into(),
-                args: vec![t_var()],
-            }],
-            ret: i64_ty(),
-            rest_param_type: None,
-        },
-    );
 
     // Arc 146 slice 3 — per-Type empty? / contains? / get / conj impls.
     // Same shape as slice 2's length registrations: each impl is a
@@ -20415,49 +20411,16 @@ fn register_builtins(env: &mut CheckEnv) {
     //
     // Arc 255 Stone E-ii — `:wat::core::Vector/{empty?,contains?,get,conj}` RETIRED this
     // stone; `:wat::vec::{empty?,contains?,get,conj}` (registered below) are their replacements.
-
-    // empty? — HashMap / HashSet → :bool (Vector moved to `:wat::vec::empty?` below)
-    env.register(
-        ":wat::core::HashSet/empty?".into(),
-        TypeScheme {
-            type_params: vec!["T".into()],
-            params: vec![hashset_of(t_var())],
-            ret: bool_ty(),
-            rest_param_type: None,
-        },
-    );
-
-    // contains? — HashMap tests KEY membership (verb `contains-key?`); Vector + HashSet
-    // test ELEMENT membership (verb `contains?`, Vector moved to `:wat::vec::contains?`
-    // below). Per arc 146 slice 3 BRIEF: the surface dispatch `(:contains? c x)` routes by
-    // container shape; impl name verbs differ by semantic role.
-    env.register(
-        ":wat::core::HashSet/contains?".into(),
-        TypeScheme {
-            type_params: vec!["T".into()],
-            params: vec![hashset_of(t_var()), t_var()],
-            ret: bool_ty(),
-            rest_param_type: None,
-        },
-    );
+    // Arc 255 Stone E-iii — `:wat::core::HashSet/{empty?,contains?,conj}` RETIRED this
+    // stone; `:wat::hashset::{empty?,contains?,conj}` (registered below) are their replacements.
+    // HashSet has no direct-call `get` verb (its "get-by-equality" is `contains?`, per arc 146
+    // DESIGN audit table) — nothing to retire on that verb.
 
     // get — per-arm return-type variance:
     //   Vector/get (moved to `:wat::vec::get` below) :: ∀T. (Vec :- [T]) × :i64 -> (:Option :- [T])
     //   HashMap/get :: ∀K,V. (HashMap :- [K V]) × K -> (:Option :- [V])
     // infer_dispatch_call returns the matched arm's specific (Option :- [_]);
     // no union-type machinery needed (per arc 146 DESIGN).
-
-    // conj — HashMap excluded (HashMap uses assoc); Vector moved to `:wat::vec::conj` below.
-    //   HashSet/conj :: ∀T. (HashSet :- [T]) × T -> (HashSet :- [T])
-    env.register(
-        ":wat::core::HashSet/conj".into(),
-        TypeScheme {
-            type_params: vec!["T".into()],
-            params: vec![hashset_of(t_var()), t_var()],
-            ret: hashset_of(t_var()),
-            rest_param_type: None,
-        },
-    );
 
     // Arc 146 slice 4 — per-Type assoc / dissoc / keys / values / concat
     // impls. These ops aren't dispatched (only one container per name);
@@ -20785,6 +20748,56 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec!["T".into()],
             params: vec![vec_of(t_var()), vec_of(t_var())],
             ret: vec_of(t_var()),
+            rest_param_type: None,
+        },
+    );
+
+    // ── arc 255 Stone E-iii — set + list get their homes ────────────────────
+    // `:wat::hashset::*` — `HashSet`'s new, flavor-marked home (`Arc<HashSet<Value>>` is the
+    // copy-on-write flavor, same axis-side as `HashMap`/`Vector`; `:wat::set::` stays FREE for
+    // the persistent-backed sibling the builder has ruled is coming, the same reason
+    // `:wat::map::`/`:wat::vector::` stayed free above). Both spellings LIVE alongside the
+    // `:wat::core::HashSet/*` schemes above during Phase 1/2; Phase 3 retires the old spelling
+    // (see `src/remedy/retirement.rs`). Each scheme below is its old spelling's, VERBATIM —
+    // name-only rename. `List`'s non-`conj` per-Type verbs (`length`/`empty?`/`contains?`/`get`)
+    // carry NO scheme here, matching their old `:wat::core::List/*` spellings above, which
+    // ALSO carried none (measured: check.rs never registered them) — they fall through to the
+    // same "no scheme found for multi-arg form" silent-accept both before and after this
+    // stone. `List/conj` is the one exception: it has a bespoke `infer_list` arm (below,
+    // renamed to `:wat::linkedlist::conj`), not a scheme.
+    env.register(
+        ":wat::hashset::length".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![hashset_of(t_var())],
+            ret: i64_ty(),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::hashset::empty?".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![hashset_of(t_var())],
+            ret: bool_ty(),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::hashset::contains?".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![hashset_of(t_var()), t_var()],
+            ret: bool_ty(),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::hashset::conj".into(),
+        TypeScheme {
+            type_params: vec!["T".into()],
+            params: vec![hashset_of(t_var()), t_var()],
+            ret: hashset_of(t_var()),
             rest_param_type: None,
         },
     );

@@ -29,7 +29,7 @@
      outer  (:wat::core::HashSet :wat::type::Infer v1 v2)
      h      (:wat::holon::to-holon outer)
      back   (:wat::holon::from-holon h)]
-    (:wat::core::HashSet/length back)))
+    (:wat::hashset::length back)))
 
 ;; Probe 4: (HashMap :- [keyword (Vector :- [(HashSet :- [i64])])]) round-trip length = 1
 (:wat::core::defn :t::probe4-triple-nested [] -> :wat::core::i64

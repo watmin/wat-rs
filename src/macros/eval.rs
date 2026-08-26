@@ -546,10 +546,14 @@ fn is_pure_total(head: &str) -> bool {
         | ":wat::hashmap::dissoc"
         | ":wat::hashmap::keys"
         | ":wat::hashmap::values"
-        | ":wat::core::HashSet/length"
-        | ":wat::core::HashSet/empty?"
-        | ":wat::core::HashSet/contains?"
-        | ":wat::core::HashSet/conj"
+        // Arc 255 Stone E-iii — `:wat::core::HashSet/*` retired this stone;
+        // `:wat::hashset::*` is its replacement (List was never on this list — that
+        // asymmetry predates this stone and is not this stone's to fix; `:wat::linkedlist::*`
+        // is therefore deliberately absent here too, same shape as E-i/E-ii's notes above).
+        | ":wat::hashset::length"
+        | ":wat::hashset::empty?"
+        | ":wat::hashset::contains?"
+        | ":wat::hashset::conj"
 
         // ── Collections — HOFs (bounded iteration over finite lists) ──
         | ":wat::core::map"

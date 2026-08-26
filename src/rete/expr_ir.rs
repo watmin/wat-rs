@@ -1289,7 +1289,9 @@ impl OpExec {
             ":wat::vector::contains?" => Self::PvContains,
             ":wat::vector::get" => Self::PvGet,
             ":wat::vec::get" => Self::VecGet,
-            ":wat::core::List/get" => Self::ListGet,
+            // Arc 255 Stone E-iii — `:wat::core::List/get` retired this stone;
+            // `:wat::linkedlist::get` is its replacement. Mirrors the E-ii note above.
+            ":wat::linkedlist::get" => Self::ListGet,
             ":wat::core::first" => Self::First,
             ":wat::core::PersistentVector" => Self::PvNew,
             ":wat::core::Vector" => Self::VecNew,

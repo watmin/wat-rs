@@ -108,7 +108,7 @@
 (:wat::core::defn :t::p5-len [] -> :wat::core::i64
   (:wat::core::let
     [tags (:wat::core::HashSet :wat::core::keyword :foo :bar :baz)]
-    (:wat::core::HashSet/length tags)))
+    (:wat::hashset::length tags)))
 
 ;; ─── Probe 6 — (HashMap :- [Uuid String]) insert + lookup — closes arc 207 ────────
 

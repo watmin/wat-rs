@@ -612,11 +612,15 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             | ":wat::core::Vector"      | ":wat::vec::length"   | ":wat::vec::get"
             | ":wat::vec::conj"         | ":wat::vec::contains?" | ":wat::vec::empty?"
             | ":wat::vec::concat"       | ":wat::vec::extend"
-            | ":wat::core::List?"         | ":wat::core::List"            | ":wat::core::List/length"
-            | ":wat::core::List/get"      | ":wat::core::List/conj"       | ":wat::core::List/contains?"
-            | ":wat::core::List/empty?"
-            | ":wat::core::HashSet"       | ":wat::core::HashSet/length"  | ":wat::core::HashSet/conj"
-            | ":wat::core::HashSet/contains?" | ":wat::core::HashSet/empty?"
+            // Arc 255 Stone E-iii — the bare TYPE `:wat::core::List` (and `List?`) is unmoved
+            // (STOP-3); the 5 `/`-verbs moved to `:wat::linkedlist::*` this stone.
+            | ":wat::core::List?"         | ":wat::core::List"            | ":wat::linkedlist::length"
+            | ":wat::linkedlist::get"     | ":wat::linkedlist::conj"      | ":wat::linkedlist::contains?"
+            | ":wat::linkedlist::empty?"
+            // Arc 255 Stone E-iii — the bare TYPE `:wat::core::HashSet` is unmoved (STOP-3);
+            // the 4 `/`-verbs moved to `:wat::hashset::*` this stone.
+            | ":wat::core::HashSet"       | ":wat::hashset::length"  | ":wat::hashset::conj"
+            | ":wat::hashset::contains?" | ":wat::hashset::empty?"
             // The persistent sibling the `into` stone minted; its `Vector/extend` twin is above.
             // Arc 255 Stone E-ii — moved to `:wat::vector::concat`.
             | ":wat::vector::concat"
