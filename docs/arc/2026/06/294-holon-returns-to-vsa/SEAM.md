@@ -83,6 +83,35 @@ THE RETIREMENT TABLE        was INERT for 14 of 33 rows — a lookup 13 hand-wri
                             walks the TABLE.
 ```
 
+### ALSO SHIPPED — the ungated corpora (`a87b91b8c`)
+
+```
+THE DETECTOR FIRES ITSELF     examples/console-demo was DEAD SINCE ARC 241 and every gate said fine
+                              — it BUILDS green (macro expansion is text). Now runs: exit 0, five
+                              EDN lines, empty stderr, and a smoke test that SPAWNS ITS BINARY.
+                              n=2, perfect correlation: with-loader had a smoke test and survived
+                              two retirement sweeps; console-demo had none and did not.
+A WALL OVER THE UNGATED       tests/lint/every_ungated_wat_checks.rs — scope DERIVED from git
+                              ls-files, mandatory NON-VACUITY (goes red if the corpus vanishes, so
+                              deleting it is deliberate), proven by breaking a door.
+THE HEADER FILE COMPILES      crates/wat-edn/.../shared.wat said the checker "WOULD BE" a consumer.
+                              Now it IS, and it names the wall. Its Clojure parser hand-read the
+                              RETIRED grammar as literal text and SKIPS non-matching heads — so
+                              migrating the wat alone returns [] with NO ERROR. Both halves moved.
+A CORPSE DELETED              wat-migrate/fix-decl.wat — two epitaphs on disk called it a throwaway
+                              already baked into the test that consumed it.
+```
+
+⛔ **TYPE-CHECKING IS NOT ENOUGH, AND ONLY THE PROBE KNEW.** console-demo reached `--check` EXIT=0
+and **still died at runtime, exit 2**, three lines in. `:wat::kernel::eprintln` is wat's **PANIC
+channel** — `wat/grep.wat:421`: *"there is no benign, non-terminating stderr-write primitive in the
+substrate."* The demo's whole thesis was **unrepresentable**. Briefing from the census instead of the
+probe would have shipped a checker wall and a demo that dies.
+
+⛔ **THE RETIREMENT REMEDY NAMES THE NEW NAME, NEVER THE NEW SHAPE.** `enum`→`defenum` at **score 0**
+needs FOUR changes (head, mandatory purity marker, keyword variants, binder-vector fields). Same for
+`struct`→`defstruct` and `define`→`defn`. Score 0 is a promise the remedy cannot keep.
+
 ## ⛔ THE LESSONS THAT COST THE MOST
 
 **1. THE NUMBER AND THE INSTRUMENT MUST ASK THE SAME QUESTION.** Five wrong counts, five *different*
@@ -123,16 +152,11 @@ the graph nor the ward is the method; each sees what the other cannot.
 
 ## ⬜ NEXT — measured, not guessed
 
-- ⛔ **THE FLAGSHIP EXAMPLE DOES NOT START — AND NO GATE CAN SEE IT.** `./target/release/console-demo`
-  dies at startup with **4 type-check errors**: `:wat::core::enum` (retired Stone 241.9, line 29),
-  two cascaded `UnknownCallee :demo::Event::CircuitBreak`, and `:wat::core::nil` in value position
-  (Doctrine 1, arc 242). Broken across **two separate retirements**. `examples/console-demo/wat/main.wat`
-  was last touched by **arc 241 Stone 241.11 — the stone that shipped the `enum` retirement** and swept
-  `define → defn` in this very file while leaving `enum`. It BUILDS green, so every gate says fine.
-  **The root is not main.wat**: `every_tracked_wat_parses` only PARSES, and `every_wat_scripts_file_loads`
-  walks `wat-scripts/`. **Nothing type-checks `examples/*/wat/`** — an ungated corpus that is the first
-  thing a new reader runs. Fix the corpus AND the hole. (The retirement table works: it emitted the
-  `:wat::core::defenum` remedy at score 0. The mechanism was fine; nobody ran the demo.)
+- ⛔ **`wat --check` ACCEPTS AN UNREGISTERED SCALAR TYPE.** A field typed
+  `:wat::core::NotARealType` **passes**. Found by a rider while proving the checker non-vacuous, and
+  surfaced rather than dismissed. A checker that accepts a type nobody registered is lying about
+  what it verified — and every wall built on `--check` (including the new one) inherits that hole.
+  **This is the next stone.**
 - ⚠ **`cargo fmt --all` FROM wat-rs WRITES INTO `../holon-rs/`** — a FROZEN sibling. Caught with
   `--check`, which only read. Without it, it edits another project. Scope every fmt to `-p wat …`.
   (Separately: **163 wat-rs files are not rustfmt-clean**; there is no rustfmt gate. Pre-existing.)
