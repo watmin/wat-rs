@@ -39,9 +39,9 @@
 
 ;; A recursive predicate helper. Every head is a rete primitive; law A is satisfied.
 (:wat::core::defn :probe-term::countdown [n <- :wat::core::i64] -> :wat::core::bool
-  (:wat::rete::core::if (:wat::rete::core::i64::<= n 0)
+  (:wat::rete::core::if (:wat::rete::i64::<= n 0)
     true
-    (:probe-term::countdown (:wat::rete::core::i64::- n 1 :undefined 0))))
+    (:probe-term::countdown (:wat::rete::i64::- n 1 :undefined 0))))
 
 ;; The SAFE twin — bounded iteration, which is how the closed vocabulary expresses repetition.
 ;; `foldl` visits each element exactly once and nothing in the vocabulary can extend the
@@ -51,7 +51,7 @@
   (:wat::rete::core::foldl
     (:wat::rete::core::fn [acc <- :wat::core::bool  x <- :wat::core::i64] -> :wat::core::bool
       (:wat::rete::core::and acc
-        (:wat::rete::core::i64::= 0 (:wat::rete::core::i64::mod x 2 :undefined 1))))
+        (:wat::rete::i64::= 0 (:wat::rete::i64::mod x 2 :undefined 1))))
     true
     xs))
 

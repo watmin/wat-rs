@@ -222,9 +222,9 @@ impl ParamType {
 
 /// One rete-surface op. THE single place any rete op is named (STOP-2).
 pub(crate) struct ReteOp {
-    /// The rete-surface FQDN, e.g. `":wat::rete::core::i64::>"`.
+    /// The rete-surface FQDN, e.g. `":wat::rete::i64::>"`.
     pub(crate) rete_name: &'static str,
-    /// The core routine this surfaces, e.g. `":wat::core::i64::>"`. For a `Form` this is the
+    /// The core routine this surfaces, e.g. `":wat::i64::>"`. For a `Form` this is the
     /// core form whose checker/eval arm is mirrored generically (re-dispatch, never a duplicate
     /// implementation).
     pub(crate) core_name: &'static str,
@@ -251,13 +251,13 @@ pub(crate) struct ReteOp {
 /// call. A row with `total: false` is a red build (`every_rete_row_is_total`).
 pub(crate) const RETE_OPS: &[ReteOp] = &[
     // ── Alias — the cheap path, and the table's baseline row. `total: true` mirrors
-    // `:wat::core::i64::>`'s own hand-list entry (`purity.rs`'s `total` match, `i64::{> < >= <=}`
+    // `:wat::i64::>`'s own hand-list entry (`purity.rs`'s `total` match, `i64::{> < >= <=}`
     // row): an i64-i64 comparison never raises on any input pair — it is genuinely total, not a
     // default-deny placeholder.
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::core::i64::>",
-        core_name: ":wat::core::i64::>",
+        rete_name: ":wat::rete::i64::>",
+        core_name: ":wat::i64::>",
         class: OpClass::Alias,
         params: &[ParamType::I64, ParamType::I64],
         ret: ParamType::Bool,
@@ -268,13 +268,13 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // `check.rs:19286`'s own comment: "arming the fence needs the `:undefined`-carrying total
     // variants (T2/T3) to exist first, or a refused `first`/`i64::/` has nowhere to go") — for
     // any two well-typed i64 inputs this ALWAYS returns some i64 (the sum, or the fallback), and
-    // it never raises. Call shape: `(:wat::rete::core::i64::+ a b :undefined fallback)` — 4 positional
+    // it never raises. Call shape: `(:wat::rete::i64::+ a b :undefined fallback)` — 4 positional
     // args; the literal keyword `:undefined` in slot 3 is a mandatory marker (see
     // `runtime.rs`'s `dispatch_rete_op`, `OpClass::Fallback` arm).
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::core::i64::+",
-        core_name: ":wat::core::i64::+",
+        rete_name: ":wat::rete::i64::+",
+        core_name: ":wat::i64::+",
         class: OpClass::Fallback,
         params: &[ParamType::I64, ParamType::I64, ParamType::Keyword, ParamType::I64],
         ret: ParamType::I64,
@@ -293,37 +293,37 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         ret: ParamType::Bool,
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
-    // Comparison alias — `:wat::core::i64::<` is already `total: true` in `intrinsic_meta`'s
+    // Comparison alias — `:wat::i64::<` is already `total: true` in `intrinsic_meta`'s
     // own list (an i64-i64 comparison never raises on any input pair). Zero new logic: the rete
     // name re-dispatches to the same routine.
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::core::i64::<",
-        core_name: ":wat::core::i64::<",
+        rete_name: ":wat::rete::i64::<",
+        core_name: ":wat::i64::<",
         class: OpClass::Alias,
         params: &[ParamType::I64, ParamType::I64],
         ret: ParamType::Bool,
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
-    // Comparison alias — `:wat::core::i64::>=` is already `total: true` in `intrinsic_meta`'s
+    // Comparison alias — `:wat::i64::>=` is already `total: true` in `intrinsic_meta`'s
     // own list (an i64-i64 comparison never raises on any input pair). Zero new logic: the rete
     // name re-dispatches to the same routine.
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::core::i64::>=",
-        core_name: ":wat::core::i64::>=",
+        rete_name: ":wat::rete::i64::>=",
+        core_name: ":wat::i64::>=",
         class: OpClass::Alias,
         params: &[ParamType::I64, ParamType::I64],
         ret: ParamType::Bool,
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
-    // Comparison alias — `:wat::core::i64::<=` is already `total: true` in `intrinsic_meta`'s
+    // Comparison alias — `:wat::i64::<=` is already `total: true` in `intrinsic_meta`'s
     // own list (an i64-i64 comparison never raises on any input pair). Zero new logic: the rete
     // name re-dispatches to the same routine.
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::core::i64::<=",
-        core_name: ":wat::core::i64::<=",
+        rete_name: ":wat::rete::i64::<=",
+        core_name: ":wat::i64::<=",
         class: OpClass::Alias,
         params: &[ParamType::I64, ParamType::I64],
         ret: ParamType::Bool,
@@ -334,13 +334,13 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // matches `purity.rs:515`'s `total` list (Part A of this brief adds the three siblings of
     // `f64::>`, already present there): each is a comparison whose OUTPUT is a bool, never
     // itself the undefined value, and `eval_f64_compare` is NaN-correct — no raise on any
-    // input pair. Core targets `:wat::core::f64::{>,<,>=,<=}` are already registered
+    // input pair. Core targets `:wat::f64::{>,<,>=,<=}` are already registered
     // (`check.rs:15875-15889`) and dispatched (`runtime.rs:5223-5226`) — zero new core logic,
     // a rete-surface alias only.
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::core::f64::>",
-        core_name: ":wat::core::f64::>",
+        rete_name: ":wat::rete::f64::>",
+        core_name: ":wat::f64::>",
         class: OpClass::Alias,
         params: &[ParamType::F64, ParamType::F64],
         ret: ParamType::Bool,
@@ -348,8 +348,8 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     },
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::core::f64::<",
-        core_name: ":wat::core::f64::<",
+        rete_name: ":wat::rete::f64::<",
+        core_name: ":wat::f64::<",
         class: OpClass::Alias,
         params: &[ParamType::F64, ParamType::F64],
         ret: ParamType::Bool,
@@ -357,8 +357,8 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     },
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::core::f64::>=",
-        core_name: ":wat::core::f64::>=",
+        rete_name: ":wat::rete::f64::>=",
+        core_name: ":wat::f64::>=",
         class: OpClass::Alias,
         params: &[ParamType::F64, ParamType::F64],
         ret: ParamType::Bool,
@@ -366,74 +366,74 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     },
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::core::f64::<=",
-        core_name: ":wat::core::f64::<=",
+        rete_name: ":wat::rete::f64::<=",
+        core_name: ":wat::f64::<=",
         class: OpClass::Alias,
         params: &[ParamType::F64, ParamType::F64],
         ret: ParamType::Bool,
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
-    // Fallback-carrying — `:wat::core::i64::-` overflows at the i64 boundary. Total BY CONSTRUCTION: the caller's `:undefined` value covers
+    // Fallback-carrying — `:wat::i64::-` overflows at the i64 boundary. Total BY CONSTRUCTION: the caller's `:undefined` value covers
     // the undefined point, and `dispatch_rete_op` faces both i64 domain failures.
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::core::i64::-",
-        core_name: ":wat::core::i64::-",
+        rete_name: ":wat::rete::i64::-",
+        core_name: ":wat::i64::-",
         class: OpClass::Fallback,
         params: &[ParamType::I64, ParamType::I64, ParamType::Keyword, ParamType::I64],
         ret: ParamType::I64,
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
-    // Fallback-carrying — `:wat::core::i64::*` overflows at the i64 boundary. Total BY CONSTRUCTION: the caller's `:undefined` value covers
+    // Fallback-carrying — `:wat::i64::*` overflows at the i64 boundary. Total BY CONSTRUCTION: the caller's `:undefined` value covers
     // the undefined point, and `dispatch_rete_op` faces both i64 domain failures.
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::core::i64::*",
-        core_name: ":wat::core::i64::*",
+        rete_name: ":wat::rete::i64::*",
+        core_name: ":wat::i64::*",
         class: OpClass::Fallback,
         params: &[ParamType::I64, ParamType::I64, ParamType::Keyword, ParamType::I64],
         ret: ParamType::I64,
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
-    // Fallback-carrying — `:wat::core::i64::/` is undefined at a zero divisor, and overflows at MIN/-1. Total BY CONSTRUCTION: the caller's `:undefined` value covers
+    // Fallback-carrying — `:wat::i64::/` is undefined at a zero divisor, and overflows at MIN/-1. Total BY CONSTRUCTION: the caller's `:undefined` value covers
     // the undefined point, and `dispatch_rete_op` faces both i64 domain failures.
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::core::i64::/",
-        core_name: ":wat::core::i64::/",
+        rete_name: ":wat::rete::i64::/",
+        core_name: ":wat::i64::/",
         class: OpClass::Fallback,
         params: &[ParamType::I64, ParamType::I64, ParamType::Keyword, ParamType::I64],
         ret: ParamType::I64,
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
-    // Fallback-carrying — `:wat::core::i64::mod` is undefined at a zero divisor (floored; sign of the divisor). Total BY CONSTRUCTION: the caller's `:undefined` value covers
+    // Fallback-carrying — `:wat::i64::mod` is undefined at a zero divisor (floored; sign of the divisor). Total BY CONSTRUCTION: the caller's `:undefined` value covers
     // the undefined point, and `dispatch_rete_op` faces both i64 domain failures.
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::core::i64::mod",
-        core_name: ":wat::core::i64::mod",
+        rete_name: ":wat::rete::i64::mod",
+        core_name: ":wat::i64::mod",
         class: OpClass::Fallback,
         params: &[ParamType::I64, ParamType::I64, ParamType::Keyword, ParamType::I64],
         ret: ParamType::I64,
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
-    // Fallback-carrying — `:wat::core::i64::rem` is undefined at a zero divisor (sign of the dividend). Total BY CONSTRUCTION: the caller's `:undefined` value covers
+    // Fallback-carrying — `:wat::i64::rem` is undefined at a zero divisor (sign of the dividend). Total BY CONSTRUCTION: the caller's `:undefined` value covers
     // the undefined point, and `dispatch_rete_op` faces both i64 domain failures.
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::core::i64::rem",
-        core_name: ":wat::core::i64::rem",
+        rete_name: ":wat::rete::i64::rem",
+        core_name: ":wat::i64::rem",
         class: OpClass::Fallback,
         params: &[ParamType::I64, ParamType::I64, ParamType::Keyword, ParamType::I64],
         ret: ParamType::I64,
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
-    // Fallback-carrying — `:wat::core::i64::quot` is undefined at a zero divisor (truncates toward zero). Total BY CONSTRUCTION: the caller's `:undefined` value covers
+    // Fallback-carrying — `:wat::i64::quot` is undefined at a zero divisor (truncates toward zero). Total BY CONSTRUCTION: the caller's `:undefined` value covers
     // the undefined point, and `dispatch_rete_op` faces both i64 domain failures.
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::core::i64::quot",
-        core_name: ":wat::core::i64::quot",
+        rete_name: ":wat::rete::i64::quot",
+        core_name: ":wat::i64::quot",
         class: OpClass::Fallback,
         params: &[ParamType::I64, ParamType::I64, ParamType::Keyword, ParamType::I64],
         ret: ParamType::I64,
@@ -693,8 +693,8 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     },
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::core::i64::to-f64",
-        core_name: ":wat::core::i64::to-f64",
+        rete_name: ":wat::rete::i64::to-f64",
+        core_name: ":wat::i64::to-f64",
         class: OpClass::Alias,
         params: &[ParamType::I64],
         ret: ParamType::F64,
@@ -976,8 +976,8 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // when written and is false now; a stale comment is a lie the next reader inherits.
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::core::i64::=",
-        core_name: ":wat::core::i64::=",
+        rete_name: ":wat::rete::i64::=",
+        core_name: ":wat::i64::=",
         class: OpClass::Alias,
         params: &[ParamType::I64, ParamType::I64],
         ret: ParamType::Bool,
@@ -985,8 +985,8 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     },
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::core::i64::not=",
-        core_name: ":wat::core::i64::not=",
+        rete_name: ":wat::rete::i64::not=",
+        core_name: ":wat::i64::not=",
         class: OpClass::Alias,
         params: &[ParamType::I64, ParamType::I64],
         ret: ParamType::Bool,
@@ -994,8 +994,8 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     },
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::core::f64::=",
-        core_name: ":wat::core::f64::=",
+        rete_name: ":wat::rete::f64::=",
+        core_name: ":wat::f64::=",
         class: OpClass::Alias,
         params: &[ParamType::F64, ParamType::F64],
         ret: ParamType::Bool,
@@ -1003,8 +1003,8 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     },
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::core::f64::not=",
-        core_name: ":wat::core::f64::not=",
+        rete_name: ":wat::rete::f64::not=",
+        core_name: ":wat::f64::not=",
         class: OpClass::Alias,
         params: &[ParamType::F64, ParamType::F64],
         ret: ParamType::Bool,
@@ -1121,20 +1121,20 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // ruling: "±Inf and NaN are undefined - mint the fallback rows." Mirrors the i64
     // fallback quartet's shape exactly, but the mechanism it leans on is DIFFERENT: the i64
     // family fails by RAISING (`IntegerOverflow`/`DivisionByZero`), while
-    // `:wat::core::f64::{+,-,*,/}` is raw IEEE 754 with no overflow guard (`purity.rs`'s own
+    // `:wat::f64::{+,-,*,/}` is raw IEEE 754 with no overflow guard (`purity.rs`'s own
     // `total: false` reasoning for these core rows) and never raises on these inputs — a
     // domain failure surfaces as an `Ok` holding NaN or ±Inf instead. `dispatch_rete_op`'s
     // `OpClass::Fallback` arm now faces both paths, keyed off this row's `ret: ParamType::F64`
     // (never a runtime-value sniff). `total: true` is earned by that: for any two well-typed
     // f64 inputs this always returns some f64 (the result, or the fallback) and never raises.
-    // Core itself is untouched — `:wat::core::f64::{+,-,*,/}` keep returning raw IEEE values
+    // Core itself is untouched — `:wat::f64::{+,-,*,/}` keep returning raw IEEE values
     // and keep their `total: false` classification; totality is bought here, at the rete row,
     // by carrying a fallback. Call shape unchanged from i64:
-    // `(:wat::rete::core::f64::/ hits total :undefined 0.0)`.
+    // `(:wat::rete::f64::/ hits total :undefined 0.0)`.
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::core::f64::+",
-        core_name: ":wat::core::f64::+",
+        rete_name: ":wat::rete::f64::+",
+        core_name: ":wat::f64::+",
         class: OpClass::Fallback,
         params: &[ParamType::F64, ParamType::F64, ParamType::Keyword, ParamType::F64],
         ret: ParamType::F64,
@@ -1142,8 +1142,8 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     },
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::core::f64::-",
-        core_name: ":wat::core::f64::-",
+        rete_name: ":wat::rete::f64::-",
+        core_name: ":wat::f64::-",
         class: OpClass::Fallback,
         params: &[ParamType::F64, ParamType::F64, ParamType::Keyword, ParamType::F64],
         ret: ParamType::F64,
@@ -1151,8 +1151,8 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     },
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::core::f64::*",
-        core_name: ":wat::core::f64::*",
+        rete_name: ":wat::rete::f64::*",
+        core_name: ":wat::f64::*",
         class: OpClass::Fallback,
         params: &[ParamType::F64, ParamType::F64, ParamType::Keyword, ParamType::F64],
         ret: ParamType::F64,
@@ -1160,8 +1160,8 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     },
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::core::f64::/",
-        core_name: ":wat::core::f64::/",
+        rete_name: ":wat::rete::f64::/",
+        core_name: ":wat::f64::/",
         class: OpClass::Fallback,
         params: &[ParamType::F64, ParamType::F64, ParamType::Keyword, ParamType::F64],
         ret: ParamType::F64,
@@ -1231,8 +1231,8 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // as the rest of this table's scalar family.
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::core::i64::to-string",
-        core_name: ":wat::core::i64::to-string",
+        rete_name: ":wat::rete::i64::to-string",
+        core_name: ":wat::i64::to-string",
         class: OpClass::Alias,
         params: &[ParamType::I64],
         ret: ParamType::String,
@@ -1240,8 +1240,8 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     },
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::core::f64::to-string",
-        core_name: ":wat::core::f64::to-string",
+        rete_name: ":wat::rete::f64::to-string",
+        core_name: ":wat::f64::to-string",
         class: OpClass::Alias,
         params: &[ParamType::F64],
         ret: ParamType::String,
@@ -1355,29 +1355,34 @@ pub(crate) const RETE_PREFIX: &str = ":wat::rete::";
 
 /// CLOSED by the naming rule (module doc, "The naming rule"): `rete_name = core_name` with
 /// `rete::` inserted after `wat::` means every row is rooted at `:wat::rete::core::`,
-/// `:wat::rete::holon::`, or `:wat::rete::string::` BY CONSTRUCTION — no new container, scalar
-/// type, or module ever needs an edit here again as long as it stays under one of these three.
+/// `:wat::rete::holon::`, `:wat::rete::string::`, `:wat::rete::i64::`, or `:wat::rete::f64::`
+/// BY CONSTRUCTION — no new container, scalar type, or module ever needs an edit here again as
+/// long as it stays under one of these five.
 ///
-/// ⚠ arc 255 Stone E — `string::` UN-CONSOLIDATED. The doc this replaced said "two entries, not
-/// five: the pre-rename table needed `i64::`/`f64::`/`string::` as SEPARATE entries only because
-/// its three naming rules put those rows directly under `:wat::rete::{i64,f64,string}::` instead
-/// of `:wat::rete::core::{i64,f64,string}::` — the rename moved them under `core::`, so those
-/// three entries are now redundant with it (measured 2026-08-05: 17 of 57 rows were falling
-/// through this list's gaps before the rename made it closed)." That was true until THIS rename:
-/// the builder's ruling (`DESIGN-STONE-E-the-string-home.md`, "the rete mirror MOVES") moves the
-/// rete-side string ops back OUT of the `core` sub-namespace to sit directly under
-/// `:wat::rete::string::`, mirroring the wat-side string ops' own move out of `:wat::core::` to
-/// sit directly under `:wat::string::`. `i64`/`f64` are untouched by this
-/// stone and stay consolidated under `core::`; `string` alone needs its prefix back, for the same
-/// reason the 2026-08-05 rename needed it in the first place — `rete_vocabulary_admitted` is an
-/// exact-prefix scan (STOP-1: never a substring match), so a row no longer rooted at an admitted
-/// prefix silently fails admission (`compile-condition`'s Law A, "not a rete primitive") even
-/// though its `RETE_OPS` row exists — measured this session: `(:wat::rete::string::length "abc")`
-/// in a `:then` raised exactly that before this entry was added.
+/// ⚠ arc 255 Stone E — `string::` UN-CONSOLIDATED, and Stone B-ii repeats the same move for
+/// `i64::`/`f64::`. The doc this replaced said "two entries, not five: the pre-rename table
+/// needed `i64::`/`f64::`/`string::` as SEPARATE entries only because its three naming rules put
+/// those rows directly under `:wat::rete::{i64,f64,string}::` instead of
+/// `:wat::rete::core::{i64,f64,string}::` — the rename moved them under `core::`, so those three
+/// entries are now redundant with it (measured 2026-08-05: 17 of 57 rows were falling through
+/// this list's gaps before the rename made it closed)." That was true only until the naming rule
+/// itself moved the underlying `core_name`s: Stone E moved `string::`'s `core_name` off
+/// `:wat::core::string::` onto `:wat::string::` (`DESIGN-STONE-E-the-string-home.md`, "the rete
+/// mirror MOVES"), and B-ii (`DESIGN-STONE-the-numerics-get-their-homes.md`) does the identical
+/// thing for `i64::`/`f64::` — each `core_name` now reads `:wat::i64::*` / `:wat::f64::*` (B-i's
+/// corpus-only rename made that spelling live; B-ii lets the naming rule derive the paired rete
+/// row), so the naming rule now roots those rows at `:wat::rete::i64::` / `:wat::rete::f64::`
+/// directly, not under `core::`. `rete_vocabulary_admitted` is an exact-prefix scan (STOP-1:
+/// never a substring match), so a row no longer rooted at an admitted prefix silently fails
+/// admission (`compile-condition`'s Law A, "not a rete primitive") even though its `RETE_OPS` row
+/// exists — measured this session: `every_row_is_admitted` failed on `:wat::rete::i64::>` before
+/// these two entries were added, exactly as Stone E's `string::` measurement predicted.
 pub(crate) const RETE_MODULES: &[&str] = &[
     ":wat::rete::core::",
     ":wat::rete::holon::",
     ":wat::rete::string::",
+    ":wat::rete::i64::",
+    ":wat::rete::f64::",
 ];
 
 /// Look up `head`'s row, if it is a minted rete-vocabulary op. Exact match — never a prefix scan
@@ -1426,7 +1431,7 @@ pub(crate) fn rete_vocabulary_admitted(head: &str) -> bool {
 /// Not consulted by `compile-condition` — the fence's Law A check is `primitive?`.
 ///
 /// Takes a QUOTED keyword (`(:wat::rete::vocabulary-admitted? (:wat::core::quote
-/// :wat::rete::core::i64::>))`), mirroring `pure?`/`deterministic?`'s own `:wat::WatAST` argument
+/// :wat::rete::i64::>))`), mirroring `pure?`/`deterministic?`'s own `:wat::WatAST` argument
 /// shape (`eval_axis_predicate`, above) — NOT a bare `:wat::core::keyword` value: a bare keyword
 /// literal that names a REGISTERED function resolves at check time to that function's `Fn` type
 /// (first-class function reference), not a `:wat::core::keyword` value, so an unquoted head name

@@ -11,14 +11,14 @@
 
 (:wat::rete::defrule :wqp::mark
   :when [(:wqp::Wind (?loc <- :loc) (?w <- :kph)
-           (:wat::rete::core::i64::> ?w 10))]
+           (:wat::rete::i64::> ?w 10))]
   :then [(:wqp::Hit :loc ?loc)])
 
 (:wat::rete::defquery :wqp::temps-at
   :params [?loc]
   :when [(?n <- (:wat::rete::acc::count) :from (:wqp::Temp (?loc <- :loc)))
          (:wqp::Wind (?loc <- :loc) (?w <- :kph)
-           (:wat::rete::core::i64::> ?w 10))])
+           (:wat::rete::i64::> ?w 10))])
 
 (:wat::rete::defquery :wqp::all-wind
   :params []

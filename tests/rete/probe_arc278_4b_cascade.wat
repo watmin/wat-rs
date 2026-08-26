@@ -20,8 +20,8 @@
 
 (:wat::core::defn :test::compile-ab [] -> :wat::rete::Session
   (:wat::core::let
-    [ca1   (:wat::core::quote (:weather::Temperature (?loc <- :location) (?t <- :celsius) (:wat::rete::core::i64::< ?t 20)))
-     ca2   (:wat::core::quote (:weather::WindSpeed (?loc <- :location) (?w <- :kph) (:wat::rete::core::i64::> ?w 30)))
+    [ca1   (:wat::core::quote (:weather::Temperature (?loc <- :location) (?t <- :celsius) (:wat::rete::i64::< ?t 20)))
+     ca2   (:wat::core::quote (:weather::WindSpeed (?loc <- :location) (?w <- :kph) (:wat::rete::i64::> ?w 30)))
      ra1   (:wat::core::quote (:weather::ColdAndWindy ?loc))
      ruleA (:wat::rete::Rule :name "A" :lhs (:wat::core::PersistentVector ca1 ca2) :rhs (:wat::core::PersistentVector ra1))
      cb1   (:wat::core::quote (:weather::ColdAndWindy (?loc <- :location)))

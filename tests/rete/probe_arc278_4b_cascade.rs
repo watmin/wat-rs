@@ -3,8 +3,8 @@
 //! A 2-rule chain proves it: rule A derives ColdAndWindy from Temp+Wind; rule B fires on ColdAndWindy and
 //! derives WeatherAlert. Live mouths: `compile-all`, `insert`, `fire-rules`, `query`.
 //!
-//!   A :when [(:weather::Temperature (?loc <- :location) (?t <- :celsius) (:wat::rete::core::i64::< ?t 20))
-//!            (:weather::WindSpeed    (?loc <- :location) (?w <- :kph)     (:wat::rete::core::i64::> ?w 30))]
+//!   A :when [(:weather::Temperature (?loc <- :location) (?t <- :celsius) (:wat::rete::i64::< ?t 20))
+//!            (:weather::WindSpeed    (?loc <- :location) (?w <- :kph)     (:wat::rete::i64::> ?w 30))]
 //!     :then [(:weather::ColdAndWindy :location ?loc)]
 //!   B :when [(:weather::ColdAndWindy (?loc <- :location))]
 //!     :then [(:weather::WeatherAlert :location ?loc)]

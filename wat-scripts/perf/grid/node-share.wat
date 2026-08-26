@@ -83,9 +83,9 @@
                     b-c     (:wat::core::quasiquote (:nsh::B (?k <- :k)))
                     where-c (:wat::core::quasiquote
                               (:wat::rete::where
-                                (:wat::rete::core::i64::= (:wat::core::unquote i)
-                                  (:wat::rete::core::i64::- ?k
-                                    (:wat::rete::core::i64::* (:wat::rete::core::i64::/ ?k (:wat::core::unquote n) :undefined -1) (:wat::core::unquote n) :undefined -1)
+                                (:wat::rete::i64::= (:wat::core::unquote i)
+                                  (:wat::rete::i64::- ?k
+                                    (:wat::rete::i64::* (:wat::rete::i64::/ ?k (:wat::core::unquote n) :undefined -1) (:wat::core::unquote n) :undefined -1)
                                     :undefined -1))))
                     ins     (:wat::core::quasiquote (:nsh::Out ?k))]
     (:wat::rete::Rule :name (:wat::i64::to-string i)

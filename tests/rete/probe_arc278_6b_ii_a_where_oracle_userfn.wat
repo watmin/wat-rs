@@ -4,7 +4,7 @@
 (:wat::core::defrecord :weather::Temperature [celsius <- :wat::core::i64  location <- :wat::core::String])
 (:wat::core::defrecord :wb::Gate            [celsius <- :wat::core::i64])
 
-(:wat::rete::core::defn :test::big? [n <- :wat::core::i64] -> :wat::core::bool (:wat::rete::core::i64::> n 100))
+(:wat::rete::core::defn :test::big? [n <- :wat::core::i64] -> :wat::core::bool (:wat::rete::i64::> n 100))
 
 (:wat::rete::defrule :wb::big-gate
   :when

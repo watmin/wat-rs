@@ -12,7 +12,7 @@
 ;; fix THIS first, then re-read the gap.
 
 (:wat::core::defn :probe::ordinary [n <- :wat::core::i64] -> :wat::core::bool
-  (:wat::rete::core::i64::> n 100))
+  (:wat::rete::i64::> n 100))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::kernel::println (:probe::ordinary 42)))

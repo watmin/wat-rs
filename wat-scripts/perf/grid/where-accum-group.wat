@@ -16,7 +16,7 @@
 (:wat::rete::defrule :wag::acc-first-wind
   :when [(?n <- (:wat::rete::acc::count) :from (:wag::Temp (?loc <- :loc)))
          (:wag::Wind (?loc <- :loc) (?w <- :kph)
-           (:wat::rete::core::i64::> ?w 10))]
+           (:wat::rete::i64::> ?w 10))]
   :then [(:wag::Busy :loc ?loc :n ?n)])
 
 (:wat::rete::defquery :wag::q-Busy

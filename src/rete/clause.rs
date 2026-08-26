@@ -402,7 +402,7 @@ mod constraint_head_tests {
     fn unrelated_heads_are_not_constraints() {
         for op in [
             ":wat::rete::fire-rules",
-            ":wat::rete::core::i64::+",
+            ":wat::rete::i64::+",
             ":wat::rete::core::vector::=",
             ":wat::core::foldl",
         ] {

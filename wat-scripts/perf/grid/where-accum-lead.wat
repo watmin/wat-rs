@@ -9,17 +9,17 @@
 
 (:wat::rete::defrule :wal::count-zero
   :when [(?n <- (:wat::rete::acc::count) :from (:wal::Reading))
-         (:wat::rete::where (:wat::rete::core::i64::= ?n 0))]
+         (:wat::rete::where (:wat::rete::i64::= ?n 0))]
   :then [(:wal::Busy :n ?n)])
 
 (:wat::rete::defrule :wal::count-three
   :when [(?n <- (:wat::rete::acc::count) :from (:wal::Reading))
-         (:wat::rete::where (:wat::rete::core::i64::= ?n 3))]
+         (:wat::rete::where (:wat::rete::i64::= ?n 3))]
   :then [(:wal::Busy :n ?n)])
 
 (:wat::rete::defrule :wal::max-hi
   :when [(?m <- (:wat::rete::acc::max ?v) :from (:wal::Reading (?v <- :v)))
-         (:wat::rete::where (:wat::rete::core::i64::> ?m 40))]
+         (:wat::rete::where (:wat::rete::i64::> ?m 40))]
   :then [(:wal::Busy :n ?m)])
 
 (:wat::rete::defquery :wal::q-Busy

@@ -9,23 +9,23 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [;; row 2 — ordinary arithmetic untouched.
-     r2 (:wat::rete::core::f64::+ 1.5 2.0 :undefined 0.0)
+     r2 (:wat::rete::f64::+ 1.5 2.0 :undefined 0.0)
      ;; row 3 — NaN result takes the fallback.
-     r3 (:wat::rete::core::f64::/ 0.0 0.0 :undefined -1.0)
+     r3 (:wat::rete::f64::/ 0.0 0.0 :undefined -1.0)
      ;; row 4 — +Inf result takes the fallback.
-     r4 (:wat::rete::core::f64::/ 1.0 0.0 :undefined -1.0)
+     r4 (:wat::rete::f64::/ 1.0 0.0 :undefined -1.0)
      ;; o4 is a plain finite literal; o4*o4 (~1e400) overflows f64::MAX (~1.8e308)
      ;; to +Inf.
      o4 1e200
      ;; row 5 — overflow-to-Inf takes the fallback.
-     r5 (:wat::rete::core::f64::* o4 o4 :undefined -1.0)
+     r5 (:wat::rete::f64::* o4 o4 :undefined -1.0)
      ;; row 6 — SAME expression as row 5, DIFFERENT fallback value.
-     r6a (:wat::rete::core::f64::* o4 o4 :undefined -1.0)
-     r6b (:wat::rete::core::f64::* o4 o4 :undefined 42.0)
+     r6a (:wat::rete::f64::* o4 o4 :undefined -1.0)
+     r6b (:wat::rete::f64::* o4 o4 :undefined 42.0)
      ;; row 7 — -0.0 is finite, passes through (not the fallback).
-     r7 (:wat::rete::core::f64::* 0.0 -1.0 :undefined 99.0)
+     r7 (:wat::rete::f64::* 0.0 -1.0 :undefined 99.0)
      ;; row 9 — i64 rows still fall back (Part A must not regress the Err path).
-     r9 (:wat::rete::core::i64::/ 1 0 :undefined -1)
+     r9 (:wat::rete::i64::/ 1 0 :undefined -1)
      ;; row 14 — core is untouched, still raw IEEE, still exit 0.
      r14 (:wat::f64::/ 0.0 0.0)]
     (:wat::kernel::println (:wat::string::concat "row2  ordinary (expect 3.5): "   (:wat::core::str r2)))

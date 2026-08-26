@@ -177,8 +177,8 @@
   (:wat::core::let [item-c  (:wat::core::quasiquote (:strat::Item (?k <- :k)))
                     where-c (:wat::core::quasiquote
                               (:wat::rete::where
-                                (:wat::rete::core::i64::= ?k
-                                  (:wat::rete::core::i64::* (:wat::rete::core::i64::/ ?k 2 :undefined -1) 2 :undefined -1))))
+                                (:wat::rete::i64::= ?k
+                                  (:wat::rete::i64::* (:wat::rete::i64::/ ?k 2 :undefined -1) 2 :undefined -1))))
                     ins     (:strat::insert-form lvl)
                     conds   (:wat::core::if (:wat::core::= lvl 0)
                               (:wat::core::PersistentVector item-c where-c)

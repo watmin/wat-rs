@@ -14,13 +14,13 @@
 (:wat::core::defrecord :usr::Critical [c <- :wat::core::i64])
 
 (:wat::rete::defrule :usr::hot
-  :when [(:usr::Temp (?c <- :c) (:wat::rete::core::i64::> ?c 50))]
+  :when [(:usr::Temp (?c <- :c) (:wat::rete::i64::> ?c 50))]
   :then [(:usr::Hot :c ?c)])
 (:wat::rete::defrule :usr::alert
   :when [(:usr::Hot (?c <- :c))]
   :then [(:usr::Alert :c ?c)])
 (:wat::rete::defrule :usr::critical
-  :when [(:usr::Temp (?c <- :c) (:wat::rete::core::i64::> ?c 90))]
+  :when [(:usr::Temp (?c <- :c) (:wat::rete::i64::> ?c 90))]
   :then [(:usr::Critical :c ?c)])
 
 (:wat::rete::defquery :usr::q-Hot

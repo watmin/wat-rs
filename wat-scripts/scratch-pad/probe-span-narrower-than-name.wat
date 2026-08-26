@@ -29,17 +29,17 @@
          (:wat::grep::Source (?f <- :file))
          (:wat::rete::where (:wat::rete::string::= ?k "keyword"))
          ;; a keyword cannot straddle a line, so a single-line span is the only comparable case
-         (:wat::rete::where (:wat::rete::core::i64::= ?l ?el))
+         (:wat::rete::where (:wat::rete::i64::= ?l ?el))
          ;; ★ THE DISAGREEMENT: the span is not as wide as the name it claims to cover.
-         (:wat::rete::where (:wat::rete::core::i64::not=
-                              (:wat::rete::core::i64::- ?ec ?c :undefined 0)
+         (:wat::rete::where (:wat::rete::i64::not=
+                              (:wat::rete::i64::- ?ec ?c :undefined 0)
                               (:wat::rete::string::length ?n)))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "span-disagrees-with-name"
            :captures (:wat::rete::core::PersistentVector
                        (:wat::grep::Capture :name "name"  :value ?n)
-                       (:wat::grep::Capture :name "width" :value (:wat::rete::core::i64::to-string
-                                                                  (:wat::rete::core::i64::- ?ec ?c :undefined 0)))))])
+                       (:wat::grep::Capture :name "width" :value (:wat::rete::i64::to-string
+                                                                  (:wat::rete::i64::- ?ec ?c :undefined 0)))))])
 
 (:wat::core::defn :user::grep [] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
   (:wat::rete::collect-rules :spn))

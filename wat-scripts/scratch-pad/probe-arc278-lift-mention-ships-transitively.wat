@@ -17,7 +17,7 @@
 
 ;; the leaf helper
 (:wat::rete::core::defn :usr::big? [n <- :wat::core::i64] -> :wat::core::bool
-  (:wat::rete::core::i64::> n 100))
+  (:wat::rete::i64::> n 100))
 
 ;; a MIDDLE fn that calls the leaf — this is what a lifted where-body looks like
 (:wat::rete::core::defn :usr::ok-rule$where0 [?c <- :wat::core::i64] -> :wat::core::bool

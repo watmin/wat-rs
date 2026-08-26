@@ -27,10 +27,10 @@
          (:wat::core::defrecord :usr::Hot  [c <- :wat::core::i64])
          (:wat::core::defrecord :usr::Warn [c <- :wat::core::i64])]
   :rules [(:wat::rete::defrule :usr::hot-rule
-            :when [(:usr::Temp (?c <- :c) (:wat::rete::core::i64::> ?c 50))]
+            :when [(:usr::Temp (?c <- :c) (:wat::rete::i64::> ?c 50))]
             :then [(:usr::Hot :c ?c)])
           (:wat::rete::defrule :usr::warn-rule
-            :when [(:usr::Temp (?c <- :c) (:wat::rete::core::i64::> ?c 50))]
+            :when [(:usr::Temp (?c <- :c) (:wat::rete::i64::> ?c 50))]
             :then [(:usr::Warn :c ?c)])])
 
 ;; ── shared log-building helper form, inlined per :user:: fn (a plain top-level defn would not

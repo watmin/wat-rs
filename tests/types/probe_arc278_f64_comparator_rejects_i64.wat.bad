@@ -4,4 +4,4 @@
 ;; exists ("Generic `>` is PARTIAL. Its domain hole is 'these two operands are not comparable.'
 ;; Monomorphising … deletes the domain hole."). See
 ;; docs/arc/2026/06/278-rules-engine/BRIEF-the-f64-surface-is-a-stub.md, EXPECTATIONS row 3.
-(:wat::core::defn :user::compute [] -> :wat::core::bool (:wat::rete::core::f64::> 1.0 1))
+(:wat::core::defn :user::compute [] -> :wat::core::bool (:wat::rete::f64::> 1.0 1))

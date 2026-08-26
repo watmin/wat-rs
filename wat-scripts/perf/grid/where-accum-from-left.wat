@@ -14,7 +14,7 @@
   [(:wafl::Temp (?loc <- :loc) (?c <- :c))
    (?n <- (:wat::rete::acc::count) :from
      (:wafl::Wind (?loc <- :loc)
-       (:wat::rete::core::i64::> :kph ?c)))]
+       (:wat::rete::i64::> :kph ?c)))]
   :then
   [(:wafl::Hit :loc ?loc :n ?n)])
 

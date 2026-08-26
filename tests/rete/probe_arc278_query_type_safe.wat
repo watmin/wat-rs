@@ -9,8 +9,8 @@
 
 (:wat::rete::defrule :weather::cold-and-windy
   :when
-  [(:weather::Temperature (?loc <- :location) (?c <- :celsius) (:wat::rete::core::i64::< ?c 20))
-   (:weather::WindSpeed    (?loc <- :location) (?k <- :kph)     (:wat::rete::core::i64::> ?k 30))]
+  [(:weather::Temperature (?loc <- :location) (?c <- :celsius) (:wat::rete::i64::< ?c 20))
+   (:weather::WindSpeed    (?loc <- :location) (?k <- :kph)     (:wat::rete::i64::> ?k 30))]
   :then
   [(:weather::ColdAndWindy :location ?loc)])
 

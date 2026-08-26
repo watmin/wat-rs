@@ -47,7 +47,7 @@
 (:wat::core::defrecord :cc::Safe [k <- :wat::core::i64])
 
 (:wat::rete::defrule :cc::mark-bad
-  :when [(:cc::Item (?k <- :k)) (:wat::rete::where (:wat::rete::core::i64::= ?k 2))]
+  :when [(:cc::Item (?k <- :k)) (:wat::rete::where (:wat::rete::i64::= ?k 2))]
   :then [(:cc::Bad :k ?k)])
 
 (:wat::rete::defrule :cc::mark-warn
@@ -69,7 +69,7 @@
 (:wat::core::defrecord :dd::Ok   [k <- :wat::core::i64])
 
 (:wat::rete::defrule :dd::mark-bad
-  :when [(:dd::Item (?k <- :k)) (:wat::rete::where (:wat::rete::core::i64::= ?k 3))]
+  :when [(:dd::Item (?k <- :k)) (:wat::rete::where (:wat::rete::i64::= ?k 3))]
   :then [(:dd::Bad :k ?k)])
 
 (:wat::rete::defrule :dd::mark-ok

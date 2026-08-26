@@ -24,7 +24,7 @@
 
 ;; ── form #1 — CONTROL, an ordinary defn. Never checked at its OWN declaration. Live today.
 (:wat::core::defn :probe::ordinary [n <- :wat::core::i64] -> :wat::core::bool
-  (:wat::rete::core::i64::> n 100))
+  (:wat::rete::i64::> n 100))
 
 ;; ── form #2 — THE MEMBRANE'S REFUSAL. Same signature, a NON-rete body. Refused at load. ──
 (:wat::rete::core::defn :probe::declared [n <- :wat::core::i64] -> :wat::core::bool

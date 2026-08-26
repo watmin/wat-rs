@@ -7,7 +7,7 @@
 (:wat::rete::defrule :wg::cold-gate
   :when
   [(:weather::Temperature (?c <- :celsius))
-   (:wat::rete::where (:wat::rete::core::i64::> ?c 0))]
+   (:wat::rete::where (:wat::rete::i64::> ?c 0))]
   :then
   [(:wg::Gate :celsius ?c)])
 

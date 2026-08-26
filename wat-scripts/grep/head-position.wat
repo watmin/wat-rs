@@ -20,7 +20,7 @@
 (:wat::rete::defrule :hp::head
   :when [(:wat::grep::Node (?id <- :id) (?k <- :kind) (?i <- :index))
          (:wat::rete::where (:wat::rete::string::= ?k "keyword"))
-         (:wat::rete::where (:wat::rete::core::i64::= ?i 0))]
+         (:wat::rete::where (:wat::rete::i64::= ?i 0))]
   :then [(:hp::IsHead :id ?id)])
 
 ;; ...whose name is the partial verb

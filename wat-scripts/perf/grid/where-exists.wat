@@ -26,7 +26,7 @@
            (:wat::rete::exists (:wex::Caw (?t <- :t)))
            (:wat::rete::exists
              (:wex::Temp (?c <- :c)
-               (:wat::rete::core::i64::< ?c 20))))]
+               (:wat::rete::i64::< ?c 20))))]
   :then [(:wex::Hit :k 1)])
 
 ;; Mid-chain: Loc is the left token. Exists binds nothing; two Winds → one At.

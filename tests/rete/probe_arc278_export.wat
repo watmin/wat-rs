@@ -7,7 +7,7 @@
 
 (:wat::rete::defrule :exp::cool
   :when [(:exp::Temp (?c <- :c))
-         (:wat::rete::where (:wat::rete::core::i64::< ?c 20))]
+         (:wat::rete::where (:wat::rete::i64::< ?c 20))]
   :then [(:exp::Hit ?c)])
 
 (:wat::core::defn :exp::seed [s <- :wat::rete::Session] -> :wat::rete::Session
@@ -82,7 +82,7 @@
 
 (:wat::rete::defrule :sn::mark-bad
   :when [(:sn::A (?k <- :k))
-         (:wat::rete::where (:wat::rete::core::i64::= ?k 2))]
+         (:wat::rete::where (:wat::rete::i64::= ?k 2))]
   :then [(:sn::Bad :k ?k)])
 
 (:wat::rete::defrule :sn::ok

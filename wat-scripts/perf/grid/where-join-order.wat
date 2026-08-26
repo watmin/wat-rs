@@ -42,7 +42,7 @@
 (:wat::rete::defrule :wjo::where-between
   :when
   [(:wjo::Left (?k <- :k) (?n <- :n))
-   (:wat::rete::where (:wat::rete::core::i64::> ?n 10))
+   (:wat::rete::where (:wat::rete::i64::> ?n 10))
    (:wjo::Right (?k <- :k))]
   :then
   [(:wjo::Hit ?k)])
@@ -52,7 +52,7 @@
   :when
   [(:wjo::Left (?k <- :k) (?n <- :n))
    (:wjo::Right (?k <- :k))
-   (:wat::rete::where (:wat::rete::core::i64::> ?n 10))]
+   (:wat::rete::where (:wat::rete::i64::> ?n 10))]
   :then
   [(:wjo::Hit ?k)])
 
@@ -60,7 +60,7 @@
 (:wat::rete::defrule :wjo::where-between-hi
   :when
   [(:wjo::Left (?k <- :k) (?n <- :n))
-   (:wat::rete::where (:wat::rete::core::i64::> ?n 25))
+   (:wat::rete::where (:wat::rete::i64::> ?n 25))
    (:wjo::Right (?k <- :k))]
   :then
   [(:wjo::Hit ?k)])
@@ -70,7 +70,7 @@
   :when
   [(:wjo::Left (?k <- :k) (?n <- :n))
    (:wjo::Right (?k <- :k))
-   (:wat::rete::where (:wat::rete::core::i64::> ?n 25))]
+   (:wat::rete::where (:wat::rete::i64::> ?n 25))]
   :then
   [(:wjo::Hit ?k)])
 
@@ -79,9 +79,9 @@
 (:wat::rete::defrule :wjo::where-between-then-where
   :when
   [(:wjo::Left (?k <- :k) (?n <- :n))
-   (:wat::rete::where (:wat::rete::core::i64::> ?n 10))
+   (:wat::rete::where (:wat::rete::i64::> ?n 10))
    (:wjo::Right (?k <- :k) (?m <- :m))
-   (:wat::rete::where (:wat::rete::core::i64::< ?m 25))]
+   (:wat::rete::where (:wat::rete::i64::< ?m 25))]
   :then
   [(:wjo::Hit ?k)])
 
@@ -90,8 +90,8 @@
   :when
   [(:wjo::Left (?k <- :k) (?n <- :n))
    (:wjo::Right (?k <- :k) (?m <- :m))
-   (:wat::rete::where (:wat::rete::core::i64::> ?n 10))
-   (:wat::rete::where (:wat::rete::core::i64::< ?m 25))]
+   (:wat::rete::where (:wat::rete::i64::> ?n 10))
+   (:wat::rete::where (:wat::rete::i64::< ?m 25))]
   :then
   [(:wjo::Hit ?k)])
 

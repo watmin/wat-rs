@@ -86,7 +86,7 @@
 ;; VERIFIED (standalone counting probe over the real i64::quot): 94 of 200.
 (:wat::rete::defrule :wnm::quot-neg
   :when
-  [(:wnm::Num (?k <- :k) (?a <- :a) (?z <- :z) (?x <- :x) (?y <- :y)) (:wat::rete::where (:wat::rete::core::i64::< (:wat::rete::core::i64::quot ?a 7 :undefined 0) 0))]
+  [(:wnm::Num (?k <- :k) (?a <- :a) (?z <- :z) (?x <- :x) (?y <- :y)) (:wat::rete::where (:wat::rete::i64::< (:wat::rete::i64::quot ?a 7 :undefined 0) 0))]
   :then
   [(:wnm::Hit ?k)])
 
@@ -94,7 +94,7 @@
 ;; rem(a,7) < 0, i.e. a<0 AND a not evenly divisible by 7. VERIFIED: 86 of 200.
 (:wat::rete::defrule :wnm::rem-neg
   :when
-  [(:wnm::Num (?k <- :k) (?a <- :a) (?z <- :z) (?x <- :x) (?y <- :y)) (:wat::rete::where (:wat::rete::core::i64::< (:wat::rete::core::i64::rem ?a 7 :undefined 0) 0))]
+  [(:wnm::Num (?k <- :k) (?a <- :a) (?z <- :z) (?x <- :x) (?y <- :y)) (:wat::rete::where (:wat::rete::i64::< (:wat::rete::i64::rem ?a 7 :undefined 0) 0))]
   :then
   [(:wnm::Hit ?k)])
 
@@ -102,7 +102,7 @@
 ;; in (-7,0]. Hit(k) :- Num(…) AND mod(a,-7) < -3. VERIFIED: 85 of 200.
 (:wat::rete::defrule :wnm::mod-negdiv
   :when
-  [(:wnm::Num (?k <- :k) (?a <- :a) (?z <- :z) (?x <- :x) (?y <- :y)) (:wat::rete::where (:wat::rete::core::i64::< (:wat::rete::core::i64::mod ?a -7 :undefined 0) -3))]
+  [(:wnm::Num (?k <- :k) (?a <- :a) (?z <- :z) (?x <- :x) (?y <- :y)) (:wat::rete::where (:wat::rete::i64::< (:wat::rete::i64::mod ?a -7 :undefined 0) -3))]
   :then
   [(:wnm::Hit ?k)])
 
@@ -111,7 +111,7 @@
 ;; (a / -3) > 0, i.e. a < 0 and not a multiple of 3 landing exactly at the flip. VERIFIED: 98 of 200.
 (:wat::rete::defrule :wnm::div-negdiv
   :when
-  [(:wnm::Num (?k <- :k) (?a <- :a) (?z <- :z) (?x <- :x) (?y <- :y)) (:wat::rete::where (:wat::rete::core::i64::> (:wat::rete::core::i64::/ ?a -3 :undefined 0) 0))]
+  [(:wnm::Num (?k <- :k) (?a <- :a) (?z <- :z) (?x <- :x) (?y <- :y)) (:wat::rete::where (:wat::rete::i64::> (:wat::rete::i64::/ ?a -3 :undefined 0) 0))]
   :then
   [(:wnm::Hit ?k)])
 
@@ -122,9 +122,9 @@
 (:wat::rete::defrule :wnm::rem-mod-diverge
   :when
   [(:wnm::Num (?k <- :k) (?a <- :a) (?z <- :z) (?x <- :x) (?y <- :y)) (:wat::rete::where
-                                (:wat::rete::core::i64::not=
-                                  (:wat::rete::core::i64::rem ?a 6 :undefined 0)
-                                  (:wat::rete::core::i64::mod ?a 6 :undefined 0)))]
+                                (:wat::rete::i64::not=
+                                  (:wat::rete::i64::rem ?a 6 :undefined 0)
+                                  (:wat::rete::i64::mod ?a 6 :undefined 0)))]
   :then
   [(:wnm::Hit ?k)])
 
@@ -135,10 +135,10 @@
   :when
   [(:wnm::Num (?k <- :k) (?a <- :a) (?z <- :z) (?x <- :x) (?y <- :y)) (:wat::rete::where
                                 (:wat::rete::core::and
-                                  (:wat::rete::core::i64::>= ?a -50)
+                                  (:wat::rete::i64::>= ?a -50)
                                   (:wat::rete::core::and
-                                    (:wat::rete::core::i64::<= ?a 50)
-                                    (:wat::rete::core::i64::not= (:wat::rete::core::i64::mod ?a 3 :undefined 0) 0))))]
+                                    (:wat::rete::i64::<= ?a 50)
+                                    (:wat::rete::i64::not= (:wat::rete::i64::mod ?a 3 :undefined 0) 0))))]
   :then
   [(:wnm::Hit ?k)])
 
@@ -152,7 +152,7 @@
 ;; a < 0.5, a integer ⇒ a <= 0 ⇒ i <= 100. VERIFIED: 101 of 200.
 (:wat::rete::defrule :wnm::gencmp
   :when
-  [(:wnm::Num (?k <- :k) (?a <- :a) (?z <- :z) (?x <- :x) (?y <- :y)) (:wat::rete::where (:wat::rete::core::f64::< (:wat::rete::core::i64::to-f64 ?a) 0.5))]
+  [(:wnm::Num (?k <- :k) (?a <- :a) (?z <- :z) (?x <- :x) (?y <- :y)) (:wat::rete::where (:wat::rete::f64::< (:wat::rete::i64::to-f64 ?a) 0.5))]
   :then
   [(:wnm::Hit ?k)])
 
@@ -162,7 +162,7 @@
 ;; y=0.1i, a=i-100 ⇒ 0.1i > i-100 ⇒ i < 111.11 ⇒ i<=111. VERIFIED: 112 of 200.
 (:wat::rete::defrule :wnm::fmix
   :when
-  [(:wnm::Num (?k <- :k) (?a <- :a) (?z <- :z) (?x <- :x) (?y <- :y)) (:wat::rete::where (:wat::rete::core::f64::> ?y (:wat::rete::core::i64::to-f64 ?a)))]
+  [(:wnm::Num (?k <- :k) (?a <- :a) (?z <- :z) (?x <- :x) (?y <- :y)) (:wat::rete::where (:wat::rete::f64::> ?y (:wat::rete::i64::to-f64 ?a)))]
   :then
   [(:wnm::Hit ?k)])
 
@@ -171,7 +171,7 @@
 ;; x=0.25i-25.0 ⇒ x>10 (i>140) or x<-10 (i<60). VERIFIED: 119 of 200.
 (:wat::rete::defrule :wnm::fsq
   :when
-  [(:wnm::Num (?k <- :k) (?a <- :a) (?z <- :z) (?x <- :x) (?y <- :y)) (:wat::rete::where (:wat::rete::core::f64::> (:wat::rete::core::f64::* ?x ?x :undefined 0.0) 100.0))]
+  [(:wnm::Num (?k <- :k) (?a <- :a) (?z <- :z) (?x <- :x) (?y <- :y)) (:wat::rete::where (:wat::rete::f64::> (:wat::rete::f64::* ?x ?x :undefined 0.0) 100.0))]
   :then
   [(:wnm::Hit ?k)])
 
@@ -183,8 +183,8 @@
   :when
   [(:wnm::Num (?k <- :k) (?a <- :a) (?z <- :z) (?x <- :x) (?y <- :y)) (:wat::rete::where
                                 (:wat::rete::core::and
-                                  (:wat::rete::core::i64::= (:wat::rete::core::i64::mod ?k 4 :undefined 1) 0)
-                                  (:wat::rete::core::i64::>= ?k 101)))]
+                                  (:wat::rete::i64::= (:wat::rete::i64::mod ?k 4 :undefined 1) 0)
+                                  (:wat::rete::i64::>= ?k 101)))]
   :then
   [(:wnm::Hit ?k)])
 
@@ -196,7 +196,7 @@
 ;; row exists to be the crash, not to report a set. Placed last so rows 1-10 complete first.
 (:wat::rete::defrule :wnm::div-by-zero
   :when
-  [(:wnm::Num (?k <- :k) (?a <- :a) (?z <- :z) (?x <- :x) (?y <- :y)) (:wat::rete::where (:wat::rete::core::i64::> (:wat::rete::core::i64::/ ?a ?z :undefined 0) 1))]
+  [(:wnm::Num (?k <- :k) (?a <- :a) (?z <- :z) (?x <- :x) (?y <- :y)) (:wat::rete::where (:wat::rete::i64::> (:wat::rete::i64::/ ?a ?z :undefined 0) 1))]
   :then
   [(:wnm::Hit ?k)])
 

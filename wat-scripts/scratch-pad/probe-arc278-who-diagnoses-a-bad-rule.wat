@@ -23,14 +23,14 @@
 
 ;; ── CONTROL — well-formed: `?c` is bound by the `<-` in :when and consumed in :then.
 (:wat::rete::defrule :usr::ok-rule
-  :when [(:usr::Temp (?c <- :c) (:wat::rete::core::i64::> ?c 50))]
+  :when [(:usr::Temp (?c <- :c) (:wat::rete::i64::> ?c 50))]
   :then [(:usr::Hot :c ?c)])
 
 ;; ── SUBJECT — a real user mistake: `?missing` is consumed in :then but NEVER bound in :when.
 ;; This is precisely the class the closure walker CANNOT diagnose (it does not know what a rule
 ;; is) and the rules layer CAN (it compiles them).
 (:wat::rete::defrule :usr::bad-rule
-  :when [(:usr::Temp (?c <- :c) (:wat::rete::core::i64::> ?c 50))]
+  :when [(:usr::Temp (?c <- :c) (:wat::rete::i64::> ?c 50))]
   :then [(:usr::Hot :c ?missing)])
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

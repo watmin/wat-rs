@@ -1,6 +1,6 @@
 //! Coverage for `docs/arc/2026/06/278-rules-engine/BRIEF-f64-fallback-rows.md`
 //! EXPECTATIONS row 10 ("★ a type error still PROPAGATES"): the newly minted
-//! `:wat::rete::core::f64::+` `Fallback` row is `[F64, F64, Keyword, F64] -> F64` BY SIGNATURE, so an
+//! `:wat::rete::f64::+` `Fallback` row is `[F64, F64, Keyword, F64] -> F64` BY SIGNATURE, so an
 //! i64 literal in an arithmetic slot must be a check-time `TypeMismatch` — the fallback covers
 //! the family's DOMAIN hole (a NaN/±Inf *result*), never a caller bug. `dispatch_rete_op`'s
 //! `OpClass::Fallback` arm's `Err` path is unchanged and still only catches
@@ -30,7 +30,7 @@ fn f64_fallback_arithmetic_rejects_an_i64_operand() {
     assert_eq!(errs.len(), 1, "expected exactly one check error; got {errs:?}");
     match &errs[0] {
         CheckError { kind: CheckErrorKind::TypeMismatch { callee, param, expected, got }, .. } => {
-            assert_eq!(callee, ":wat::rete::core::f64::+", "wrong callee named in the error");
+            assert_eq!(callee, ":wat::rete::f64::+", "wrong callee named in the error");
             assert_eq!(param, "#2", "wrong parameter named in the error");
             assert_eq!(expected, ":wat::core::f64", "expected type must name f64");
             assert_eq!(got, ":wat::core::i64", "got type must name the offending i64");

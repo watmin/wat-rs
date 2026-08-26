@@ -29,7 +29,7 @@
 (:wat::rete::defrule :fgr::r
   :when [(:fgr::Item (?k <- :k) (?vs <- :vs))
          (:wat::rete::where
-           (:wat::rete::core::f64::< (:wat::rete::core::PersistentVector/first ?vs :undefined -1.0) 0.0))]
+           (:wat::rete::f64::< (:wat::rete::core::PersistentVector/first ?vs :undefined -1.0) 0.0))]
   :then [(:fgr::Hit :k ?k)])
 
 (:wat::rete::defquery :fgr::q :params [] :when [(?fact <- :fgr::Hit)])

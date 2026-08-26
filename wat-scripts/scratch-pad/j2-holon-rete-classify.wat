@@ -19,7 +19,7 @@
   [(:j2::Catalog (?name <- :name) (?cobs <- :obs))
    (:j2::Observation (?obs <- :obs))
    (:wat::rete::where
-     (:wat::rete::core::f64::>
+     (:wat::rete::f64::>
        (:wat::rete::holon::cosine ?obs ?cobs :undefined 0.0)
        0.9))]
   :then

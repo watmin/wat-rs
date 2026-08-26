@@ -56,7 +56,7 @@
       ;; sum-of-squares over readings is always >= 0 (a square is never negative, and a sum of
       ;; non-negative squares is never negative) — -1 is impossible as a legitimate result at
       ;; either op, so it cannot be confused with a real value if the undefined point is ever hit.
-      (:wat::rete::core::i64::+ acc (:wat::rete::core::i64::* x x :undefined -1) :undefined -1))
+      (:wat::rete::i64::+ acc (:wat::rete::i64::* x x :undefined -1) :undefined -1))
     0 xs))
 
 ;; mod7 n — n mod 7 via (n - (n/7)*7); wat has no i64::mod, and strat-neg.wat uses this same

@@ -28,22 +28,22 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::do
     ;; ── row 2 — a float rule is now expressible ──────────────────────────────────
-    (:wat::kernel::println (:wat::rete::core::f64::> 0.9 0.8))    ;; expect true
-    (:wat::kernel::println (:wat::rete::core::f64::<= 0.1 0.2))   ;; expect true
-    (:wat::kernel::println (:wat::rete::core::f64::< 0.2 0.1))    ;; expect false
-    (:wat::kernel::println (:wat::rete::core::f64::>= 0.1 0.1))   ;; expect true
+    (:wat::kernel::println (:wat::rete::f64::> 0.9 0.8))    ;; expect true
+    (:wat::kernel::println (:wat::rete::f64::<= 0.1 0.2))   ;; expect true
+    (:wat::kernel::println (:wat::rete::f64::< 0.2 0.1))    ;; expect false
+    (:wat::kernel::println (:wat::rete::f64::>= 0.1 0.1))   ;; expect true
 
     ;; ── row 4 — NaN is total, not a hole (NaN built by computation) ──────────────
     (:wat::core::let [nan (:wat::f64::/ 0.0 0.0)]
-      (:wat::kernel::println (:wat::rete::core::f64::> nan 1.0))) ;; expect false, no raise
+      (:wat::kernel::println (:wat::rete::f64::> nan 1.0))) ;; expect false, no raise
 
     ;; ── row 6 — the casing rename resolves and runs ───────────────────────────────
     (:wat::kernel::println (:wat::rete::string::= "abc" "abc"))     ;; expect true
     (:wat::kernel::println (:wat::rete::string::not= "abc" "xyz"))  ;; expect true
 
     ;; ── row 7 — the re-point: right door, right boolean ───────────────────────────
-    (:wat::kernel::println (:wat::rete::core::i64::= 3 3))       ;; expect true
-    (:wat::kernel::println (:wat::rete::core::i64::not= 3 4))    ;; expect true
-    (:wat::kernel::println (:wat::rete::core::f64::= 1.5 1.5))   ;; expect true
-    (:wat::kernel::println (:wat::rete::core::f64::not= 1.5 2.5)) ;; expect true
+    (:wat::kernel::println (:wat::rete::i64::= 3 3))       ;; expect true
+    (:wat::kernel::println (:wat::rete::i64::not= 3 4))    ;; expect true
+    (:wat::kernel::println (:wat::rete::f64::= 1.5 1.5))   ;; expect true
+    (:wat::kernel::println (:wat::rete::f64::not= 1.5 2.5)) ;; expect true
     nil))

@@ -23,7 +23,7 @@ use std::sync::Arc;
 /// - **bindings** (per-step): the binder-clause vars that THIS condition bound, projected
 ///   from the token's accumulated bindings.
 /// - **constraints**: the rule's satisfied predicates with bound values substituted:
-///   `(:wat::rete::core::i64::< -5 0)` from `(:wat::rete::core::i64::< ?c 0)` with `?c=-5`.
+///   `(:wat::rete::i64::< -5 0)` from `(:wat::rete::i64::< ?c 0)` with `?c=-5`.
 ///
 /// **Faithfulness by construction**: `classify_rete_clause` + `resolve_operand` reconstruct
 /// the matched clause for the payload. Native fire matches via `exec_compiled_with_key_ids`

@@ -19,11 +19,11 @@ const WORLD: &str = "\
   [(:weather::Temperature\n\
      (?loc <- :location)\n\
      (?c   <- :celsius)\n\
-     (:wat::rete::core::i64::< ?c 20))\n\
+     (:wat::rete::i64::< ?c 20))\n\
    (:weather::WindSpeed\n\
      (?loc <- :location)\n\
      (?k   <- :kph)\n\
-     (:wat::rete::core::i64::> ?k 30))]\n\
+     (:wat::rete::i64::> ?k 30))]\n\
   :then\n\
   [(:weather::ColdAndWindy ?loc)])\n\
 \n\
@@ -265,7 +265,7 @@ fn guiding_light_matches_carry_support_chain() {
 
 /// P11/3a — `root_join_seeds_one_token_per_element`:
 ///
-/// 1-condition rule `(:user::Temp (?t <- :value) (:wat::rete::core::i64::> ?t 20))`.
+/// 1-condition rule `(:user::Temp (?t <- :value) (:wat::rete::i64::> ?t 20))`.
 /// After alpha+root-join passes with one matching fact inserted (Temp 25):
 ///   (1) exactly one beta node (the RootJoinNode) is populated,
 ///   (2) it holds exactly one Token,
@@ -293,7 +293,7 @@ fn root_join_seeds_one_token_per_element() {
     let session = eval_in(
             &world,
             "(:wat::core::let \
-               [cond  (:wat::core::quote (:user::Temp (?t <- :value) (:wat::rete::core::i64::> ?t 20)))\
+               [cond  (:wat::core::quote (:user::Temp (?t <- :value) (:wat::rete::i64::> ?t 20)))\
                 rule  (:wat::rete::Rule :name \"r\" :lhs (:wat::core::PersistentVector cond) :rhs (:wat::core::PersistentVector))\
                 sess0 (:wat::rete::compile (:wat::core::PersistentVector rule))\
                 sess1 (:wat::rete::insert sess0 (:user::Temp :value 25))]\
@@ -642,9 +642,9 @@ const NODE_SHARE_WORLD: &str = "\
                     b-c     (:wat::core::quasiquote (:nsh::B (?k <- :k)))\n\
                     where-c (:wat::core::quasiquote\n\
                               (:wat::rete::where\n\
-                                (:wat::rete::core::i64::= (:wat::core::unquote i)\n\
-                                  (:wat::rete::core::i64::- ?k\n\
-                                    (:wat::rete::core::i64::* (:wat::rete::core::i64::/ ?k (:wat::core::unquote n) :undefined 0) (:wat::core::unquote n) :undefined 0)\n\
+                                (:wat::rete::i64::= (:wat::core::unquote i)\n\
+                                  (:wat::rete::i64::- ?k\n\
+                                    (:wat::rete::i64::* (:wat::rete::i64::/ ?k (:wat::core::unquote n) :undefined 0) (:wat::core::unquote n) :undefined 0)\n\
                                     :undefined 0))))\n\
                     ins     (:wat::core::quasiquote (:nsh::Out ?k))]\n\
     (:wat::rete::Rule :name (:wat::core::i64::to-string i)\n\
@@ -2484,8 +2484,8 @@ const DEPTH_SPLIT_WORLD: &str = "\
 \n\
 (:wat::core::defn :dc::build-rule [k <- :wat::core::i64] -> :wat::rete::Rule\n\
   (:wat::core::let [prev (:wat::core::i64::- k 1)\n\
-                    c1 (:wat::core::quasiquote (:cascade::Node (?id <- :id) (?l <- :level) (:wat::rete::core::i64::= ?l (:wat::core::unquote prev))))\n\
-                    c2 (:wat::core::quasiquote (:cascade::Tag  (?id <- :id) (?m <- :level) (:wat::rete::core::i64::= ?m (:wat::core::unquote prev))))\n\
+                    c1 (:wat::core::quasiquote (:cascade::Node (?id <- :id) (?l <- :level) (:wat::rete::i64::= ?l (:wat::core::unquote prev))))\n\
+                    c2 (:wat::core::quasiquote (:cascade::Tag  (?id <- :id) (?m <- :level) (:wat::rete::i64::= ?m (:wat::core::unquote prev))))\n\
                     t1 (:wat::core::quasiquote (:cascade::Node (:wat::core::unquote k) ?id))\n\
                     t2 (:wat::core::quasiquote (:cascade::Tag  (:wat::core::unquote k) ?id))]\n\
     (:wat::rete::Rule :name (:wat::core::i64::to-string k)\n\
@@ -4999,7 +4999,7 @@ fn class_scan_harvest_includes_input() {
 (:wat::core::defrecord :hs::T [x <- :wat::core::i64])\n\
 (:wat::core::defrecord :hs::U [x <- :wat::core::i64])\n\
 (:wat::rete::defrule :hs::never\n\
-  :when [(:hs::T (?x <- :x) (:wat::rete::core::i64::< ?x 0))]\n\
+  :when [(:hs::T (?x <- :x) (:wat::rete::i64::< ?x 0))]\n\
   :then [(:hs::U ?x)])\n\
 (:wat::rete::defquery :hs::q-T\n\
   :params []\n\
@@ -9230,7 +9230,7 @@ fn n3_leaf_set_vs_occupancy() {
 (:wat::core::defrecord :n3::Warn [k <- :wat::core::i64])\n\
 (:wat::core::defrecord :n3::Safe [k <- :wat::core::i64])\n\
 (:wat::rete::defrule :n3::mark-bad\n\
-  :when [(:n3::A (?k <- :k)) (:wat::rete::where (:wat::rete::core::i64::= ?k 2))]\n\
+  :when [(:n3::A (?k <- :k)) (:wat::rete::where (:wat::rete::i64::= ?k 2))]\n\
   :then [(:n3::Bad :k ?k)])\n\
 (:wat::rete::defrule :n3::mark-warn\n\
   :when [(:n3::A (?k <- :k)) (:wat::rete::not (:n3::Bad (?k <- :k)))]\n\

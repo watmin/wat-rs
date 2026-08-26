@@ -44,7 +44,7 @@
   :when [(:wat::grep::Node  (?id <- :id) (?k <- :kind) (?i <- :index))
          (:wat::grep::Named (?id <- :id) (?n <- :name))
          (:wat::rete::where (:wat::rete::string::= ?k "keyword"))
-         (:wat::rete::where (:wat::rete::core::i64::= ?i 0))
+         (:wat::rete::where (:wat::rete::i64::= ?i 0))
          (:wat::rete::where
            (:wat::rete::core::or
              (:wat::rete::string::= ?n ":wat::core::first")
@@ -60,9 +60,9 @@
          (:wat::grep::Node  (?nm <- :id) (?p <- :parent) (?ni <- :index))
          (:wat::grep::Named (?nm <- :id) (?fname <- :name))
          (:wat::grep::Node  (?p <- :id) (?root <- :parent))
-         (:wat::rete::where (:wat::rete::core::i64::= ?hi 0))
-         (:wat::rete::where (:wat::rete::core::i64::= ?ni 1))
-         (:wat::rete::where (:wat::rete::core::i64::= ?root 0))
+         (:wat::rete::where (:wat::rete::i64::= ?hi 0))
+         (:wat::rete::where (:wat::rete::i64::= ?ni 1))
+         (:wat::rete::where (:wat::rete::i64::= ?root 0))
          (:wat::rete::where (:wat::rete::string::= ?hn ":wat::core::defn"))]
   :then [(:cr::Defn :id ?p :name ?fname)])
 

@@ -32,7 +32,7 @@
 
 ;; the ONE helper, shared by the positive control and the subject
 (:wat::rete::core::defn :usr::big? [n <- :wat::core::i64] -> :wat::core::bool
-  (:wat::rete::core::i64::> n 100))
+  (:wat::rete::i64::> n 100))
 
 ;; ── POSITIVE CONTROL — ordinary call position. Collection here MUST work.
 (:wat::core::defn :usr::calls-helper-plainly [] -> :wat::core::bool
@@ -41,7 +41,7 @@
 ;; ── BASELINE — a where body with NO user dep (rete-core only)
 (:wat::rete::defrule :usr::rule-baseline
   :when [(:usr::Temp (?c <- :c))
-         (:wat::rete::where (:wat::rete::core::i64::> ?c 100))]
+         (:wat::rete::where (:wat::rete::i64::> ?c 100))]
   :then [(:usr::Hot :c ?c)])
 
 ;; ── SUBJECT — identical shape; the where body calls the USER fn instead

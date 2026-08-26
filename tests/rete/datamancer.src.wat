@@ -25,7 +25,7 @@
   :when [(:dm::Gap (?g <- :t))
          (:dm::Beat (?t <- :t) (?k <- :kind))
          (:wat::rete::where (:wat::rete::string::= ?k "read-log"))
-         (:wat::rete::where (:wat::rete::core::i64::< ?g ?t))]
+         (:wat::rete::where (:wat::rete::i64::< ?g ?t))]
   :then [(:dm::ReadAfter :t ?t)])
 
 ;; Gap and no recollection: the summary talking in our voice.

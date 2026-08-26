@@ -11,13 +11,13 @@
 (:wat::rete::defrule :waw::count-eq-3
   :when [(:waw::Station (?loc <- :loc))
          (?n <- (:wat::rete::acc::count) :from (:waw::Reading (?loc <- :loc)))
-         (:wat::rete::where (:wat::rete::core::i64::= ?n 3))]
+         (:wat::rete::where (:wat::rete::i64::= ?n 3))]
   :then [(:waw::Busy :loc ?loc :n ?n)])
 
 (:wat::rete::defrule :waw::max-gt-40
   :when [(:waw::Station (?loc <- :loc))
          (?m <- (:wat::rete::acc::max ?v) :from (:waw::Reading (?loc <- :loc) (?v <- :v)))
-         (:wat::rete::where (:wat::rete::core::i64::> ?m 40))]
+         (:wat::rete::where (:wat::rete::i64::> ?m 40))]
   :then [(:waw::Busy :loc ?loc :n ?m)])
 
 (:wat::rete::defquery :waw::q-Busy

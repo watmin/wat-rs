@@ -420,10 +420,10 @@ mod tests {
             // 5. Arc 278 Stone B, widening (b) — a fenced EXPRESSION operand (`RhsOp::Expr`),
             //    composed of an admitted rete op. This USED to be shape-5 below (the two-op
             //    model's rejection case); a `List` is no longer rejected.
-            ("(:fan::Pair (:wat::rete::core::i64::+ ?k 1 :undefined 0) ?l ?r)", &bound),
+            ("(:fan::Pair (:wat::rete::i64::+ ?k 1 :undefined 0) ?l ?r)", &bound),
             // 6. a fenced expression that is itself unbound underneath — proves the Expr op's
             //    error path (not just its success path) is exercised, and stays byte-identical.
-            ("(:fan::Pair (:wat::rete::core::i64::+ ?nope 1 :undefined 0) ?l ?r)", &bound),
+            ("(:fan::Pair (:wat::rete::i64::+ ?nope 1 :undefined 0) ?l ?r)", &bound),
         ];
 
         for (src, binds) in cases {

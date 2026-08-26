@@ -8,9 +8,9 @@
 
 (:wat::rete::defrule :wnwdy::windy-not-cold
   :when [(:wnwdy::Wind (?loc <- :loc) (?w <- :kph))
-         (:wat::rete::where (:wat::rete::core::i64::> ?w 30))
+         (:wat::rete::where (:wat::rete::i64::> ?w 30))
          (:wat::rete::not (:wnwdy::Temp (?c <- :c)
-                            (:wat::rete::core::i64::< ?c 20)))]
+                            (:wat::rete::i64::< ?c 20)))]
   :then [(:wnwdy::Hit :loc ?loc)])
 
 (:wat::rete::defquery :wnwdy::q-Hit

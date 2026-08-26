@@ -4,23 +4,23 @@
 
 ;; ── the four ops dispatch correctly (EXPECTATIONS row 7) ────────────────────────────────────
 (:wat::core::defn :user::alias-gt [] -> :wat::core::bool
-  (:wat::rete::core::i64::> 5 3))
+  (:wat::rete::i64::> 5 3))
 
 (:wat::core::defn :user::fallback-no-overflow [] -> :wat::core::i64
-  (:wat::rete::core::i64::+ 2 3 :undefined -1))
+  (:wat::rete::i64::+ 2 3 :undefined -1))
 
 (:wat::core::defn :user::form-and [] -> :wat::core::bool
-  (:wat::rete::core::and true (:wat::rete::core::i64::> 5 3)))
+  (:wat::rete::core::and true (:wat::rete::i64::> 5 3)))
 
 ;; ── row 9: the fallback FIRES on overflow — no raise, `-1` substituted ──────────────────────
 (:wat::core::defn :user::fallback-overflow [] -> :wat::core::i64
-  (:wat::rete::core::i64::+ 9223372036854775807 1 :undefined -1))
+  (:wat::rete::i64::+ 9223372036854775807 1 :undefined -1))
 
 ;; ── row 6: COMPOSITION, proven by a run — a user defn built from all four ops ───────────────
 (:wat::core::defn :test::rete-combo [a <- :wat::core::i64  b <- :wat::core::i64] -> :wat::core::bool
   (:wat::rete::core::and
-    (:wat::rete::core::i64::> (:wat::rete::core::i64::+ a b :undefined -1) 0)
-    (:wat::rete::core::i64::> a 0)))
+    (:wat::rete::i64::> (:wat::rete::i64::+ a b :undefined -1) 0)
+    (:wat::rete::i64::> a 0)))
 
 (:wat::core::defn :user::combo-is-pure? [] -> :wat::core::bool
   (:wat::rete::pure? (:wat::core::quote (:test::rete-combo 3 4))))
@@ -109,7 +109,7 @@
 (:wat::core::defn :user::rete-fn-target-form [] -> :wat::core::i64
   (:wat::core::apply
     (:wat::rete::core::fn [x <- :wat::core::i64] -> :wat::core::i64
-      (:wat::rete::core::i64::+ 0 x :undefined -1))
+      (:wat::rete::i64::+ 0 x :undefined -1))
     [5]))
 
 ;; rows 4+5 — the fence checks the BODY, in BOTH directions (together, not separately — a
@@ -128,11 +128,11 @@
 (:wat::core::defn :user::rete-fn-pure-body-is-pure [] -> :wat::core::bool
   (:wat::rete::pure? (:wat::core::quote
     (:wat::rete::core::fn [] -> :wat::core::i64
-      (:wat::rete::core::i64::+ 1 2)))))
+      (:wat::rete::i64::+ 1 2)))))
 (:wat::core::defn :user::rete-fn-pure-body-is-deterministic [] -> :wat::core::bool
   (:wat::rete::deterministic? (:wat::core::quote
     (:wat::rete::core::fn [] -> :wat::core::i64
-      (:wat::rete::core::i64::+ 1 2)))))
+      (:wat::rete::i64::+ 1 2)))))
 
 ;; row 6 — the structural guard fires: the RETURN-TYPE SLOT (never evaluated — `parse_type_node`,
 ;; `src/types.rs`, accepts a parametric `(Ctor arg…)` List there) holds an impure-LOOKING head.
@@ -148,16 +148,16 @@
 (:wat::core::defn :user::rete-fn-return-type-slot-not-classified-as-expr-pure [] -> :wat::core::bool
   (:wat::rete::pure? (:wat::core::quote
     (:wat::rete::core::fn [] -> (:wat::io::IOReader/open-file "unused-return-type-slot")
-      (:wat::rete::core::i64::+ 1 2)))))
+      (:wat::rete::i64::+ 1 2)))))
 (:wat::core::defn :user::rete-fn-return-type-slot-not-classified-as-expr-det [] -> :wat::core::bool
   (:wat::rete::deterministic? (:wat::core::quote
     (:wat::rete::core::fn [] -> (:wat::io::IOReader/open-file "unused-return-type-slot")
-      (:wat::rete::core::i64::+ 1 2)))))
+      (:wat::rete::i64::+ 1 2)))))
 
 ;; ── rows 3-5: THE ADMISSION TEST, in BOTH directions ────────────────────────────────────────
 ;; row 3 — a rete-module head IS admitted.
 (:wat::core::defn :user::admit-rete-module? [] -> :wat::core::bool
-  (:wat::rete::vocabulary-admitted? (:wat::core::quote :wat::rete::core::i64::>)))
+  (:wat::rete::vocabulary-admitted? (:wat::core::quote :wat::rete::i64::>)))
 ;; row 4 — the bare rete ENGINE API (not a vocabulary sub-namespace) is refused.
 (:wat::core::defn :user::refuse-engine-api? [] -> :wat::core::bool
   (:wat::rete::vocabulary-admitted? (:wat::core::quote :wat::rete::fire-rules)))

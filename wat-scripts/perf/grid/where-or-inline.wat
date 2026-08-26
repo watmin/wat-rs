@@ -36,14 +36,14 @@
 (:wat::rete::defrule :woi::extreme
   :when [(:woi::Reading (?k <- :k) (?v <- :v)
            (:wat::rete::or
-             (:wat::rete::core::i64::> ?v 30)
-             (:wat::rete::core::i64::< ?v 10)))]
+             (:wat::rete::i64::> ?v 30)
+             (:wat::rete::i64::< ?v 10)))]
   :then [(:woi::Hit :k ?k)])
 
 ;; ROW 3 — inline :not of a single constraint. NOT extreme-high.
 (:wat::rete::defrule :woi::not-high
   :when [(:woi::Reading (?k <- :k) (?v <- :v)
-           (:wat::rete::not (:wat::rete::core::i64::> ?v 30)))]
+           (:wat::rete::not (:wat::rete::i64::> ?v 30)))]
   :then [(:woi::Hit :k ?k)])
 
 ;; ROW 4 — De Morgan: inline :not of an inline :or. Also the SCOPE-LEAK row: ?hi is
@@ -52,8 +52,8 @@
   :when [(:woi::Reading (?k <- :k) (?v <- :v)
            (:wat::rete::not
              (:wat::rete::or
-               (:wat::rete::core::i64::> ?v 30)
-               (:wat::rete::core::i64::< ?v 10))))]
+               (:wat::rete::i64::> ?v 30)
+               (:wat::rete::i64::< ?v 10))))]
   :then [(:woi::Hit :k ?k)])
 
 ;; ROW 5 — the same inline :or behind a join prefix, so the branch scope is cloned
@@ -62,8 +62,8 @@
   :when [(:woi::Station (?loc <- :loc))
          (:woi::Reading (?loc <- :loc) (?k <- :k) (?v <- :v)
            (:wat::rete::or
-             (:wat::rete::core::i64::> ?v 30)
-             (:wat::rete::core::i64::< ?v 10)))]
+             (:wat::rete::i64::> ?v 30)
+             (:wat::rete::i64::< ?v 10)))]
   :then [(:woi::At :loc ?loc)])
 
 (:wat::rete::defquery :woi::q-Hit :params [] :when [(?fact <- :woi::Hit)])

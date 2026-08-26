@@ -4,7 +4,7 @@
 //!
 //! ⚠ DEVIATION FROM THE PREDICTED SHAPE, named plainly: EXPECTATIONS predicted the omission
 //! would surface as `kwargs-lower: missing argument :undefined` — the error text a kwargs-
-//! lowering DEFMACRO would produce. `:wat::rete::core::i64::+` is NOT implemented as a kwargs
+//! lowering DEFMACRO would produce. `:wat::rete::i64::+` is NOT implemented as a kwargs
 //! defmacro (that would need a `wat/` file, out of this slice's scope — see the brief's own
 //! supporting fact: "a kwargs surface is a defmacro lowering to a positional prime, so a
 //! keyword argument never reaches an intrinsic"). It is a plain 4-ary positional Rust

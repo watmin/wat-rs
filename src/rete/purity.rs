@@ -628,7 +628,7 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             // can use directly; `cosine`/`dot` are measurements, so at the RETE surface they carry
             // a mandatory `:undefined` fallback (DESIGN-STONE-the-vsa-seam-opens.md, 2026-08-05,
             // ruled by the builder) rather than handing back their outcome enum unwrapped —
-            // `(:wat::rete::core::f64::> (:wat::rete::holon::cosine ?a ?b :undefined 0.0) 0.9)` now
+            // `(:wat::rete::f64::> (:wat::rete::holon::cosine ?a ?b :undefined 0.0) 0.9)` now
             // composes, where before BOTH halves were unclassified. (This comment previously named
             // a stale motivating expression that could not type-check, since `cosine` returns
             // `CosineOutcome`, not a bare f64 — the exact guarded-`0.0`-as-confident-no-match

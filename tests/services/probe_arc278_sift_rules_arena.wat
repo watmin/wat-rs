@@ -87,37 +87,37 @@
   :rules [;; RULE 1 (Event -> Lemma): 2-level nested-accessor `where` — client.geo.country.
           (:wat::rete::defrule :arena::suspect-rule
             :when [(:arena::Event (?client <- :client) (?route <- :route) (?timing <- :timing) (?bytes <- :bytes))
-                   (:wat::rete::where (:wat::rete::core::i64::> (:arena::Timing/total-ns ?timing) 500000))
-                   (:wat::rete::where (:wat::rete::core::i64::< (:arena::Client/reputation ?client) 0))
+                   (:wat::rete::where (:wat::rete::i64::> (:arena::Timing/total-ns ?timing) 500000))
+                   (:wat::rete::where (:wat::rete::i64::< (:arena::Client/reputation ?client) 0))
                    (:wat::rete::where (:wat::rete::string::= (:arena::Geo/country (:arena::Client/geo ?client)) "XX"))]
             :then [(:arena::Suspect :client ?client :route ?route :timing ?timing :bytes ?bytes)])
           ;; RULE 2a (Lemma -> Deduction, the cascade, HIGH threshold).
           (:wat::rete::defrule :arena::anomaly-rule
             :when [(:arena::Suspect (?client <- :client) (?route <- :route) (?timing <- :timing))
-                   (:wat::rete::where (:wat::rete::core::i64::> (:arena::Timing/total-ns ?timing) 5000000))
-                   (:wat::rete::where (:wat::rete::core::i64::= (:arena::Route/status ?route) 200))]
+                   (:wat::rete::where (:wat::rete::i64::> (:arena::Timing/total-ns ?timing) 5000000))
+                   (:wat::rete::where (:wat::rete::i64::= (:arena::Route/status ?route) 200))]
             :then [(:arena::Anomaly :client ?client)])
           ;; RULE 2b (Lemma -> Deduction, GRADED PARALLEL to 2a — same Lemma, LOW threshold).
           (:wat::rete::defrule :arena::breach-rule
             :when [(:arena::Suspect (?client <- :client) (?route <- :route) (?timing <- :timing))
-                   (:wat::rete::where (:wat::rete::core::i64::> (:arena::Timing/total-ns ?timing) 2000000))
-                   (:wat::rete::where (:wat::rete::core::i64::= (:arena::Route/status ?route) 200))]
+                   (:wat::rete::where (:wat::rete::i64::> (:arena::Timing/total-ns ?timing) 2000000))
+                   (:wat::rete::where (:wat::rete::i64::= (:arena::Route/status ?route) 200))]
             :then [(:arena::Breach :client ?client)])
           ;; RULE 3 (Event -> Deduction, DIRECT single-level, no gate).
           (:wat::rete::defrule :arena::overflow-rule
             :when [(:arena::Event (?bytes <- :bytes))
-                   (:wat::rete::where (:wat::rete::core::i64::> ?bytes 10000000))]
+                   (:wat::rete::where (:wat::rete::i64::> ?bytes 10000000))]
             :then [(:arena::Overflow :bytes ?bytes)])
           ;; RULE 4 (Event -> Lemma, a 2nd independent gate — enum equality on route.method).
           (:wat::rete::defrule :arena::flagged-rule
             :when [(:arena::Event (?client <- :client) (?route <- :route) (?timing <- :timing))
                    (:wat::rete::where (:wat::rete::core::enum::= (:arena::Route/method ?route) :arena::Method::POST))
-                   (:wat::rete::where (:wat::rete::core::i64::< (:arena::Client/reputation ?client) -50))]
+                   (:wat::rete::where (:wat::rete::i64::< (:arena::Client/reputation ?client) -50))]
             :then [(:arena::Flagged :client ?client :route ?route :timing ?timing)])
           ;; RULE 5 (Lemma -> Deduction, the 2nd cascade's terminal).
           (:wat::rete::defrule :arena::critical-rule
             :when [(:arena::Flagged (?client <- :client) (?timing <- :timing))
-                   (:wat::rete::where (:wat::rete::core::i64::> (:arena::Timing/dns-ns ?timing) 300000))]
+                   (:wat::rete::where (:wat::rete::i64::> (:arena::Timing/dns-ns ?timing) 300000))]
             :then [(:arena::Critical :client ?client)])])
 
 ;; page-loop accumulator — orchestrator-side (not inside a forked service, so a plain top-level

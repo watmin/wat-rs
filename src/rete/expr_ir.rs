@@ -1233,6 +1233,21 @@ enum OpExec {
 
 impl OpExec {
     fn of(core: &str) -> Self {
+        // Arc 255 Stone B-ii — `core` arrives as `row.core_name`, which for the per-type
+        // numerics now reads `:wat::i64::+` (B-i's home), not `:wat::core::i64::+`. This
+        // table's arms are still written in the OLD spelling (36 arms is the cost of a
+        // second copy this stone refuses to pay — STOP-2), so fold the new spelling back
+        // onto its old twin before matching, exactly as `runtime.rs::dispatch_substrate_impl`
+        // already does for the same two spellings. A non-numeric `core` round-trips through
+        // `fold_numeric_home` unchanged (`None` -> the original string).
+        let folded;
+        let core = match crate::runtime::fold_numeric_home(core) {
+            Some(old) => {
+                folded = old;
+                folded.as_str()
+            }
+            None => core,
+        };
         match core {
             ":wat::core::=" => Self::Eq,
             ":wat::core::not=" => Self::NotEq,

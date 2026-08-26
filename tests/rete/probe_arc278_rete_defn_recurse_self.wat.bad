@@ -5,8 +5,8 @@
 ;; otherwise law-A clean (rete `if` + rete i64). The cycle is the only refuse.
 
 (:wat::rete::core::defn :probe::countdown [n <- :wat::core::i64] -> :wat::core::i64
-  (:wat::rete::core::if (:wat::rete::core::i64::> n 0)
-    (:probe::countdown (:wat::rete::core::i64::- n 1 :undefined 0))
+  (:wat::rete::core::if (:wat::rete::i64::> n 0)
+    (:probe::countdown (:wat::rete::i64::- n 1 :undefined 0))
     0))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

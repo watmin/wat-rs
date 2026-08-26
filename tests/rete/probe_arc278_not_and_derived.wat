@@ -8,7 +8,7 @@
 
 (:wat::rete::defrule :nad::mark-bad
   :when [(:nad::A (?k <- :k))
-         (:wat::rete::where (:wat::rete::core::i64::= ?k 2))]
+         (:wat::rete::where (:wat::rete::i64::= ?k 2))]
   :then [(:nad::Bad :k ?k)])
 
 (:wat::rete::defrule :nad::ok

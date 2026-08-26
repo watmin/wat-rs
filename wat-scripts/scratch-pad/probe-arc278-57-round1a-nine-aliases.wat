@@ -10,4 +10,4 @@
 (def :probe-string-length (:wat::rete::string::length "abc"))
 (def :probe-string-trim (:wat::rete::string::trim "  abc  "))
 (def :probe-string-to-lowercase (:wat::rete::string::to-lowercase "ABC"))
-(def :probe-i64-to-f64 (:wat::rete::core::i64::to-f64 42))
+(def :probe-i64-to-f64 (:wat::rete::i64::to-f64 42))

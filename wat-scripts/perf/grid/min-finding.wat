@@ -81,7 +81,7 @@
                                 ;; OpClass::Alias (params [I64, I64]): a pure RENAME, no `:undefined`.
                                 ;; A BUCKET C judgement site by the codemod's own table (no bare `>=`
                                 ;; row exists — only i64::>= / f64::>=), which is why it is hand-decided.
-                                (:wat::rete::where (:wat::rete::core::i64::>= ?n (:wat::core::unquote threshold))))
+                                (:wat::rete::where (:wat::rete::i64::>= ?n (:wat::core::unquote threshold))))
                     ins       (:wat::core::quasiquote (:mf::Busy ?loc ?n))]
     (:wat::rete::Rule :name "min-finding"
       :lhs (:wat::core::PersistentVector station-c acc-c where-c)

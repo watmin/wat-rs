@@ -9,7 +9,7 @@
 
 (:wat::rete::defrule :tf::compute
   :when [(:tf::In (?n <- :n))]
-  :then [(:tf::Rate :count (:wat::rete::core::i64::+ ?n 1 :undefined 0))])
+  :then [(:tf::Rate :count (:wat::rete::i64::+ ?n 1 :undefined 0))])
 
 (:wat::rete::defquery :tf::q-Rate
   :params []

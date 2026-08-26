@@ -9,7 +9,7 @@
 (:wat::rete::defrule :wnf::not-cold
   :when [(:wat::rete::not
            (:wnf::Temp (?c <- :c)
-             (:wat::rete::core::i64::< ?c 20)))]
+             (:wat::rete::i64::< ?c 20)))]
   :then [(:wnf::Hit :k 1)])
 
 (:wat::rete::defquery :wnf::q-Hit

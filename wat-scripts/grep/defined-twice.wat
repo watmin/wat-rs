@@ -46,7 +46,7 @@
   :when [(:wat::grep::Node  (?id <- :id) (?p <- :parent) (?i <- :index) (?k <- :kind))
          (:wat::grep::Named (?id <- :id) (?n <- :name))
          (:wat::rete::where (:wat::rete::string::= ?k "keyword"))
-         (:wat::rete::where (:wat::rete::core::i64::= ?i 0))
+         (:wat::rete::where (:wat::rete::i64::= ?i 0))
          (:wat::rete::where
            (:wat::rete::core::or
              (:wat::rete::string::= ?n ":wat::core::defn")
@@ -59,7 +59,7 @@
   :when [(:dt::Declarator (?p <- :parent))
          (:wat::grep::Node  (?id <- :id) (?p <- :parent) (?i <- :index))
          (:wat::grep::Named (?id <- :id) (?n <- :name))
-         (:wat::rete::where (:wat::rete::core::i64::= ?i 1))]
+         (:wat::rete::where (:wat::rete::i64::= ?i 1))]
   :then [(:dt::Defines :id ?id :name ?n)])
 
 ;; ★ THE SELF-JOIN — the same condition twice, `?n` shared, `?a < ?b` keeping one of each mirror
@@ -68,7 +68,7 @@
          (:dt::Defines (?b <- :id) (?n <- :name))
          ;; the ordering guard, back where it belongs: immediately after the two conditions
          ;; whose variables it relates, before the span lookup that only the survivor needs.
-         (:wat::rete::where (:wat::rete::core::i64::< ?a ?b))
+         (:wat::rete::where (:wat::rete::i64::< ?a ?b))
          (:wat::grep::Span (?b <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
          (:wat::grep::Source (?f <- :file))]
   :then [(:wat::grep::Match

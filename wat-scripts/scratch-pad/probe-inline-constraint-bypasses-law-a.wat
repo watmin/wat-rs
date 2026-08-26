@@ -32,7 +32,7 @@
 (:wat::rete::defrule :probe::via-where
   :when
   [(:probe::Reading (?loc <- :location) (?v <- :value))
-   (:wat::rete::where (:wat::rete::core::i64::> ?v 10))]
+   (:wat::rete::where (:wat::rete::i64::> ?v 10))]
   :then
   [(:probe::Flagged :location ?loc)])
 
@@ -40,7 +40,7 @@
 ;; generic `>`. It compiles. Law A does not govern the whole LHS.
 (:wat::rete::defrule :probe::via-inline-constraint
   :when
-  [(:probe::Reading (?loc <- :location) (?v <- :value) (:wat::rete::core::i64::> :value 10))]
+  [(:probe::Reading (?loc <- :location) (?v <- :value) (:wat::rete::i64::> :value 10))]
   :then
   [(:probe::Flagged :location ?loc)])
 

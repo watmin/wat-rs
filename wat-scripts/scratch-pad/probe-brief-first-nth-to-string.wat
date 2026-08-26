@@ -14,8 +14,8 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::do
     ;; ── to-string, all three scalars ──────────────────────────────────────────────
-    (:wat::kernel::println (:wat::rete::core::i64::to-string 42))        ;; expect "42"
-    (:wat::kernel::println (:wat::rete::core::f64::to-string 1.5))       ;; expect "1.5"
+    (:wat::kernel::println (:wat::rete::i64::to-string 42))        ;; expect "42"
+    (:wat::kernel::println (:wat::rete::f64::to-string 1.5))       ;; expect "1.5"
     (:wat::kernel::println (:wat::rete::core::bool::to-string true))     ;; expect "true"
 
     ;; ── first, happy path, all three containers (fallback NOT taken) ────────────────

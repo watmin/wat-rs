@@ -8,7 +8,7 @@
 
 (:wat::rete::defrule :wfb::cool
   :when [(?t <- :wfb::Temp)
-         (:wat::rete::where (:wat::rete::core::i64::< (:wfb::Temp/c ?t) 20))]
+         (:wat::rete::where (:wat::rete::i64::< (:wfb::Temp/c ?t) 20))]
   :then [(:wfb::Hit :c (:wfb::Temp/c ?t))])
 
 (:wat::rete::defquery :wfb::q-bound

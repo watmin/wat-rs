@@ -918,7 +918,7 @@ mod tests {
 
     #[test]
     fn leftover_seed_cmp_populate_skips_rematch_enforces() {
-        let ast = crate::parse_one!("(:wjl::Wind (?w <- :kph) (:wat::rete::core::i64::> ?w ?c))")
+        let ast = crate::parse_one!("(:wjl::Wind (?w <- :kph) (:wat::rete::i64::> ?w ?c))")
             .expect("parse leftover cond");
         let fields = vec!["kph".to_string()];
         let compiled = compile_condition_local(&ast, &fields).expect("compile leftover-as-seed");
@@ -973,7 +973,7 @@ mod tests {
 
     #[test]
     fn leftover_strict_compile_is_still_fail() {
-        let ast = crate::parse_one!("(:wjl::Wind (?w <- :kph) (:wat::rete::core::i64::> ?w ?c))")
+        let ast = crate::parse_one!("(:wjl::Wind (?w <- :kph) (:wat::rete::i64::> ?w ?c))")
             .expect("parse leftover cond");
         let fields = vec!["kph".to_string()];
         let compiled = compile_alpha_ops(&ast, &fields).expect("strict compile");
@@ -1013,8 +1013,8 @@ mod tests {
         // coming back.
         let cases = [
             "(:wjl::Wind (?w <- :kph))",
-            "(:wjl::Wind (?w <- :kph) (:wat::rete::core::i64::> ?w 30))",
-            "(:wjl::Wind (?w <- :kph) (:wat::rete::core::i64::> ?w ?c))",
+            "(:wjl::Wind (?w <- :kph) (:wat::rete::i64::> ?w 30))",
+            "(:wjl::Wind (?w <- :kph) (:wat::rete::i64::> ?w ?c))",
             "(?p <- :wjl::Wind (?w <- :kph))",
         ];
         for src in cases {

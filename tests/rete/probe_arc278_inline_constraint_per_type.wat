@@ -11,7 +11,7 @@
 
 (:wat::rete::defrule :probe::per-type-ordering
   :when
-  [(:probe::Reading (?loc <- :location) (:wat::rete::core::i64::> :value 10))]
+  [(:probe::Reading (?loc <- :location) (:wat::rete::i64::> :value 10))]
   :then
   [(:probe::Hot :location ?loc)])
 

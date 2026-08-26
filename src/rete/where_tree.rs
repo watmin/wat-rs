@@ -650,14 +650,14 @@ mod tests {
     fn gt_op() -> u16 {
         RETE_OPS
             .iter()
-            .position(|r| r.core_name == ":wat::core::i64::>")
+            .position(|r| r.core_name == ":wat::i64::>")
             .expect("RETE_OPS has i64::>") as u16
     }
 
     fn lt_op() -> u16 {
         RETE_OPS
             .iter()
-            .position(|r| r.core_name == ":wat::core::i64::<")
+            .position(|r| r.core_name == ":wat::i64::<")
             .expect("RETE_OPS has i64::<") as u16
     }
 

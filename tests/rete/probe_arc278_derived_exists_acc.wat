@@ -11,7 +11,7 @@
 
 (:wat::rete::defrule :dea::mark-bad
   :when [(:dea::A (?k <- :k))
-         (:wat::rete::where (:wat::rete::core::i64::= ?k 2))]
+         (:wat::rete::where (:wat::rete::i64::= ?k 2))]
   :then [(:dea::Bad :k ?k)])
 
 (:wat::rete::defrule :dea::ok
@@ -27,7 +27,7 @@
 (:wat::rete::defrule :dea::tally
   :when [(:dea::Seed (?id <- :id))
          (?n <- (:wat::rete::acc::count) :from (:dea::Ok))
-         (:wat::rete::where (:wat::rete::core::i64::= ?n 1))]
+         (:wat::rete::where (:wat::rete::i64::= ?n 1))]
   :then [(:dea::Tally :n ?n)])
 
 (:wat::rete::defquery :dea::q-Bad   :params [] :when [(?f <- :dea::Bad)])

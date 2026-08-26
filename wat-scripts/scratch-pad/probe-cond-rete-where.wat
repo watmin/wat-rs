@@ -21,7 +21,7 @@
   :when
   [(:probe::Item (?tier <- :tier))
    (:wat::rete::where
-     (:wat::rete::core::f64::>
+     (:wat::rete::f64::>
        (:wat::rete::core::cond
          ((:wat::rete::core::keyword::= ?tier :gold)   0.5)
          ((:wat::rete::core::keyword::= ?tier :silver) 0.7)

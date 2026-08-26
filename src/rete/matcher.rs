@@ -18,7 +18,7 @@
 //!
 //! `classify_clause` in `form_match.rs` is `form::matches?`'s grammar (`:=`,
 //! bare `<` heads, `where`). The rete DSL uses `<-` bind, FQDN ops
-//! (`:wat::rete::core::i64::>`), and `:wat::rete::and/or/not` combinators.
+//! (`:wat::rete::i64::>`), and `:wat::rete::and/or/not` combinators.
 //! Generic `:wat::core::>` is freeze-walled (`NonReteConstraint`), not the rete spelling.
 //! Shape recognition lives in `clause.rs`; this matcher is a consumer (`eval_clause`).
 //!

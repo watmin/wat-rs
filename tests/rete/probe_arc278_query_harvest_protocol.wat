@@ -6,7 +6,7 @@
 
 (:wat::rete::defrule :qhp::cool
   :when [(:qhp::Temp (?c <- :c))
-         (:wat::rete::where (:wat::rete::core::i64::< ?c 20))]
+         (:wat::rete::where (:wat::rete::i64::< ?c 20))]
   :then [(:qhp::Hit ?c)])
 
 (:wat::rete::defquery :qhp::q-Hit :params [] :when [(?f <- :qhp::Hit)])

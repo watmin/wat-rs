@@ -25,7 +25,7 @@ fn world(gate: &str) -> String {
          (:wat::rete::core::defn :w::sum-of-squares [xs <- (:wat::core::PersistentVector :- [:wat::core::i64])] -> :wat::core::i64\n\
            (:wat::rete::core::foldl\n\
              (:wat::rete::core::fn [acc <- :wat::core::i64  x <- :wat::core::i64] -> :wat::core::i64\n\
-               (:wat::rete::core::i64::+ acc (:wat::rete::core::i64::* x x :undefined 0) :undefined 0))\n\
+               (:wat::rete::i64::+ acc (:wat::rete::i64::* x x :undefined 0) :undefined 0))\n\
              0 xs))\n\
          \n\
          (:wat::rete::defrule :w::flag\n\
@@ -77,20 +77,20 @@ fn diff(gate: &str, readings: &[i64], expect: i64) {
 /// 1 — DIFFERENTIAL: sum-of-squares([1,2,3]) = 14; gate `= 14` → both fire (1).
 #[test]
 fn differential_custom_fold() {
-    diff("(:wat::rete::core::i64::= ?s 14)", &[1, 2, 3], 1);
+    diff("(:wat::rete::i64::= ?s 14)", &[1, 2, 3], 1);
 }
 
 /// 2 — DIFFERENTIAL: the fold's value is EXACTLY 14, not something else; gate `= 99` → both 0.
 #[test]
 fn differential_custom_fold_value() {
-    diff("(:wat::rete::core::i64::= ?s 99)", &[1, 2, 3], 0);
+    diff("(:wat::rete::i64::= ?s 99)", &[1, 2, 3], 0);
 }
 
 /// 3 — DIFFERENTIAL empty: sum-of-squares([]) = 0 (the fn handles empty); gate `= 0` → both fire (1).
 ///     v1 contract: a custom fold is `(PV<T>) -> R` and always emits (the fn handles the empty gather).
 #[test]
 fn differential_custom_empty() {
-    diff("(:wat::rete::core::i64::= ?s 0)", &[], 1);
+    diff("(:wat::rete::i64::= ?s 0)", &[], 1);
 }
 
 /// 4 — the compile FENCE rejects an IMPURE custom fold (calls println). The rule must fail to compile.

@@ -14,7 +14,7 @@
 
 (:wat::rete::defrule :wqc::mark
   :when [(:wqc::Wind (?loc <- :loc) (?w <- :kph)
-           (:wat::rete::core::i64::> ?w 10))]
+           (:wat::rete::i64::> ?w 10))]
   :then [(:wqc::Hit :loc ?loc)])
 
 (:wat::rete::defquery :wqc::q-fields
@@ -60,7 +60,7 @@
 (:wat::rete::defquery :wqc::q-cool
   :params []
   :when [(:wqc::Temp (?c <- :c) (?loc <- :loc))
-         (:wat::rete::where (:wat::rete::core::i64::< ?c 20))])
+         (:wat::rete::where (:wat::rete::i64::< ?c 20))])
 
 (:wat::rete::defquery :wqc::q-Hit
   :params []

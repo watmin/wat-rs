@@ -70,34 +70,34 @@ const SUM: &str = "(?n <- (:wat::rete::acc::sum ?v) :from (:w::Reading (?loc <- 
 #[test]
 fn count_binds_exact_value() {
     let three = &[("Oslo", 10), ("Oslo", 20), ("Oslo", 30)];
-    assert!(matches!(busy_count(COUNT, "(:wat::rete::core::i64::= ?n 3)", three), Ok(1)), "count = 3 → fires");
-    assert!(matches!(busy_count(COUNT, "(:wat::rete::core::i64::= ?n 5)", three), Ok(0)), "count ≠ 5 → no fire");
+    assert!(matches!(busy_count(COUNT, "(:wat::rete::i64::= ?n 3)", three), Ok(1)), "count = 3 → fires");
+    assert!(matches!(busy_count(COUNT, "(:wat::rete::i64::= ?n 5)", three), Ok(0)), "count ≠ 5 → no fire");
 }
 
 /// 2 — the JOIN: a Reading at a DIFFERENT location is NOT counted (shared ?loc). Oslo count stays 3.
 #[test]
 fn accumulate_joins_on_shared_var() {
     let mixed = &[("Oslo", 10), ("Oslo", 20), ("Oslo", 30), ("Bergen", 99)];
-    assert!(matches!(busy_count(COUNT, "(:wat::rete::core::i64::= ?n 3)", mixed), Ok(1)), "Bergen not counted → still 3");
+    assert!(matches!(busy_count(COUNT, "(:wat::rete::i64::= ?n 3)", mixed), Ok(1)), "Bergen not counted → still 3");
 }
 
 /// 3 — sum folds the bound ?v: values 10+20+30 = 60 (gate `= 60` fires).
 #[test]
 fn sum_folds_the_value() {
     let three = &[("Oslo", 10), ("Oslo", 20), ("Oslo", 30)];
-    assert!(matches!(busy_count(SUM, "(:wat::rete::core::i64::= ?n 60)", three), Ok(1)), "sum = 60 → fires");
+    assert!(matches!(busy_count(SUM, "(:wat::rete::i64::= ?n 60)", three), Ok(1)), "sum = 60 → fires");
 }
 
 /// 4 — the "minimum finding set to activate" (composition: acc + where ≥ N).
 #[test]
 fn minimum_finding_set_composition() {
     let three = &[("Oslo", 1), ("Oslo", 2), ("Oslo", 3)];
-    assert!(matches!(busy_count(COUNT, "(:wat::rete::core::i64::>= ?n 3)", three), Ok(1)), "3 ≥ 3 → fires");
-    assert!(matches!(busy_count(COUNT, "(:wat::rete::core::i64::>= ?n 4)", three), Ok(0)), "3 ≥ 4 → no fire");
+    assert!(matches!(busy_count(COUNT, "(:wat::rete::i64::>= ?n 3)", three), Ok(1)), "3 ≥ 3 → fires");
+    assert!(matches!(busy_count(COUNT, "(:wat::rete::i64::>= ?n 4)", three), Ok(0)), "3 ≥ 4 → no fire");
 }
 
 /// 5 — EMPTY: a Station with zero Readings → count = 0 (count emits on empty; gate `= 0` fires).
 #[test]
 fn count_emits_on_empty() {
-    assert!(matches!(busy_count(COUNT, "(:wat::rete::core::i64::= ?n 0)", &[]), Ok(1)), "no readings → count 0 → fires");
+    assert!(matches!(busy_count(COUNT, "(:wat::rete::i64::= ?n 0)", &[]), Ok(1)), "no readings → count 0 → fires");
 }

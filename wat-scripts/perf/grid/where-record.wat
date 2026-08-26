@@ -143,23 +143,23 @@
 
 ;; row 8's whole-record fn: takes the Client itself and reaches inside it.
 (:wat::rete::core::defn :wr::rep-pos? [c <- :wr::Client] -> :wat::core::bool
-  (:wat::rete::core::i64::> (:wr::Client/rep c) 0))
+  (:wat::rete::i64::> (:wr::Client/rep c) 0))
 
 ;; row 9's contrast: the SAME constraint, but the caller reaches in and hands over a bare scalar.
 (:wat::rete::core::defn :wr::pos? [x <- :wat::core::i64] -> :wat::core::bool
-  (:wat::rete::core::i64::> x 0))
+  (:wat::rete::i64::> x 0))
 
 ;; row 10's predicate over the enum field — `match` over a user-defined enum, called from `where`.
 (:wat::rete::core::defn :wr::is-risky? [st <- :wr::Status] -> :wat::core::bool
   (:wat::rete::core::match st
-    ((:wr::Status::Active lvl)    (:wat::rete::core::i64::> lvl 3))
+    ((:wr::Status::Active lvl)    (:wat::rete::i64::> lvl 3))
     (:wr::Status::Inactive        false)
-    ((:wr::Status::Pending reason) (:wat::rete::core::i64::> reason 1))))
+    ((:wr::Status::Pending reason) (:wat::rete::i64::> reason 1))))
 
 ;; row 11's predicate over the Option field — `match` over Some/None, called from `where`.
 (:wat::rete::core::defn :wr::note-positive? [nt <- (:wat::core::Option :- [:wat::core::i64])] -> :wat::core::bool
   (:wat::rete::core::match nt
-    ((:wat::core::Some v) (:wat::rete::core::i64::> v 2))
+    ((:wat::core::Some v) (:wat::rete::i64::> v 2))
     (:wat::core::None     false)))
 
 ;; THE SHARED LEADING CONDITION, quoted once and reused by every row — only `where-c` varies.
@@ -173,7 +173,7 @@
 ;; ROW 1 — 2-level accessor chain. u2(i) > 8 <=> i mod 13 in {9,10,11,12} -> 60 of 200.
 (:wat::rete::defrule :wr::chain2
   :when
-  [(:wr::Req (?k <- :k) (?c <- :client) (?c2 <- :client2) (?st <- :status) (?nt <- :note)) (:wat::rete::where (:wat::rete::core::i64::> (:wr::L2/u (:wr::Client/l2 ?c)) 8))]
+  [(:wr::Req (?k <- :k) (?c <- :client) (?c2 <- :client2) (?st <- :status) (?nt <- :note)) (:wat::rete::where (:wat::rete::i64::> (:wr::L2/u (:wr::Client/l2 ?c)) 8))]
   :then
   [(:wr::Hit ?k)])
 
@@ -181,7 +181,7 @@
 (:wat::rete::defrule :wr::chain3
   :when
   [(:wr::Req (?k <- :k) (?c <- :client) (?c2 <- :client2) (?st <- :status) (?nt <- :note)) (:wat::rete::where
-                 (:wat::rete::core::i64::> (:wr::L3/w (:wr::L2/l3 (:wr::Client/l2 ?c))) 7))]
+                 (:wat::rete::i64::> (:wr::L3/w (:wr::L2/l3 (:wr::Client/l2 ?c))) 7))]
   :then
   [(:wr::Hit ?k)])
 
@@ -189,7 +189,7 @@
 (:wat::rete::defrule :wr::chain4
   :when
   [(:wr::Req (?k <- :k) (?c <- :client) (?c2 <- :client2) (?st <- :status) (?nt <- :note)) (:wat::rete::where
-                 (:wat::rete::core::i64::>
+                 (:wat::rete::i64::>
                    (:wr::L4/v (:wr::L3/l4 (:wr::L2/l3 (:wr::Client/l2 ?c))))
                    5))]
   :then
@@ -200,7 +200,7 @@
 (:wat::rete::defrule :wr::collection
   :when
   [(:wr::Req (?k <- :k) (?c <- :client) (?c2 <- :client2) (?st <- :status) (?nt <- :note)) (:wat::rete::where
-                 (:wat::rete::core::i64::> (:wat::rete::core::PersistentVector/length (:wr::Client/tags ?c)) 2))]
+                 (:wat::rete::i64::> (:wat::rete::core::PersistentVector/length (:wr::Client/tags ?c)) 2))]
   :then
   [(:wr::Hit ?k)])
 
@@ -209,7 +209,7 @@
 (:wat::rete::defrule :wr::record-collection
   :when
   [(:wr::Req (?k <- :k) (?c <- :client) (?c2 <- :client2) (?st <- :status) (?nt <- :note)) (:wat::rete::where
-                 (:wat::rete::core::i64::>
+                 (:wat::rete::i64::>
                    (:wat::rete::core::PersistentVector/length (:wr::Bag/items (:wr::Client/bag ?c)))
                    1))]
   :then
@@ -220,7 +220,7 @@
 (:wat::rete::defrule :wr::same-var-two-chains
   :when
   [(:wr::Req (?k <- :k) (?c <- :client) (?c2 <- :client2) (?st <- :status) (?nt <- :note)) (:wat::rete::where
-                 (:wat::rete::core::i64::>
+                 (:wat::rete::i64::>
                    (:wr::Client/rep ?c)
                    (:wr::L4/v (:wr::L3/l4 (:wr::L2/l3 (:wr::Client/l2 ?c))))))]
   :then
@@ -230,7 +230,7 @@
 ;; compared to each other: rep(c) > rep(c2). rep(i) > rep(j(i)) -> 80 of 200.
 (:wat::rete::defrule :wr::cross-var-scalar
   :when
-  [(:wr::Req (?k <- :k) (?c <- :client) (?c2 <- :client2) (?st <- :status) (?nt <- :note)) (:wat::rete::where (:wat::rete::core::i64::> (:wr::Client/rep ?c) (:wr::Client/rep ?c2)))]
+  [(:wr::Req (?k <- :k) (?c <- :client) (?c2 <- :client2) (?st <- :status) (?nt <- :note)) (:wat::rete::where (:wat::rete::i64::> (:wr::Client/rep ?c) (:wr::Client/rep ?c2)))]
   :then
   [(:wr::Hit ?k)])
 
@@ -274,8 +274,8 @@
   :when
   [(:wr::Req (?k <- :k) (?c <- :client) (?c2 <- :client2) (?st <- :status) (?nt <- :note)) (:wat::rete::where
                  (:wat::rete::core::and
-                   (:wat::rete::core::i64::> (:wr::Client/rep ?c) 0)
-                   (:wat::rete::core::i64::>
+                   (:wat::rete::i64::> (:wr::Client/rep ?c) 0)
+                   (:wat::rete::i64::>
                      (:wr::L4/v (:wr::L3/l4 (:wr::L2/l3 (:wr::Client/l2 ?c))))
                      3)))]
   :then
@@ -286,7 +286,7 @@
 (:wat::rete::defrule :wr::cross-var-chain
   :when
   [(:wr::Req (?k <- :k) (?c <- :client) (?c2 <- :client2) (?st <- :status) (?nt <- :note)) (:wat::rete::where
-                 (:wat::rete::core::i64::>
+                 (:wat::rete::i64::>
                    (:wr::L2/u (:wr::Client/l2 ?c))
                    (:wr::L2/u (:wr::Client/l2 ?c2))))]
   :then

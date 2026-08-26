@@ -3,7 +3,7 @@
 ;; namespace. Declare a clean rete-defn and call it directly, outside any `where`/rule context.
 
 (:wat::rete::core::defn :probe88::big? [n <- :wat::core::i64] -> :wat::core::bool
-  (:wat::rete::core::i64::> n 100))
+  (:wat::rete::i64::> n 100))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::kernel::println (:probe88::big? 150)))

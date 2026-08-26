@@ -4,4 +4,4 @@
 ;; the `:undefined` fallback (that fallback covers a DOMAIN hole — NaN/±Inf — never a caller
 ;; bug). See BRIEF-f64-fallback-rows.md, EXPECTATIONS row 10.
 (:wat::core::defn :user::bad-f64-fallback-call [] -> :wat::core::f64
-  (:wat::rete::core::f64::+ 1.0 1 :undefined 0.0))
+  (:wat::rete::f64::+ 1.0 1 :undefined 0.0))

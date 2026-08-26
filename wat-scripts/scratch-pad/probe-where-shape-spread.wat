@@ -67,7 +67,7 @@
 ;; record accessor, one level — the corpus's commonest non-arithmetic shape
 (:wat::core::defn :shape::rule-accessor [] -> :wat::rete::Rule
   (:wat::core::let [conds   (:wat::core::quasiquote (:shape::Req (?k <- :k) (?c <- :client)))
-                    where-c (:wat::core::quasiquote (:wat::rete::where (:wat::rete::core::i64::> (:shape::Client/rep ?c) 0)))
+                    where-c (:wat::core::quasiquote (:wat::rete::where (:wat::rete::i64::> (:shape::Client/rep ?c) 0)))
                     ins     (:wat::core::quasiquote (:shape::Hit ?k))]
     (:wat::rete::Rule :name "accessor"
       :lhs (:wat::core::PersistentVector conds where-c)
@@ -94,7 +94,7 @@
 ;; a PersistentVector verb over a collection binding
 (:wat::core::defn :shape::rule-collection [] -> :wat::rete::Rule
   (:wat::core::let [conds   (:wat::core::quasiquote (:shape::Req (?k <- :k) (?t <- :tags)))
-                    where-c (:wat::core::quasiquote (:wat::rete::where (:wat::rete::core::i64::> (:wat::rete::core::PersistentVector/length ?t) 1)))
+                    where-c (:wat::core::quasiquote (:wat::rete::where (:wat::rete::i64::> (:wat::rete::core::PersistentVector/length ?t) 1)))
                     ins     (:wat::core::quasiquote (:shape::Hit ?k))]
     (:wat::rete::Rule :name "collection"
       :lhs (:wat::core::PersistentVector conds where-c)
@@ -121,7 +121,7 @@
 ;; 3 bound vars, 5 levels — separates per-EVALUATION cost from per-NODE cost
 (:wat::core::defn :shape::rule-multivar-deep [] -> :wat::rete::Rule
   (:wat::core::let [conds   (:wat::core::quasiquote (:shape::Req (?k <- :k) (?a <- :a) (?b <- :b)))
-                    where-c (:wat::core::quasiquote (:wat::rete::where (:wat::rete::core::i64::> (:wat::i64::+ ?a (:wat::i64::* ?b (:wat::i64::- ?k (:wat::i64::/ (:wat::i64::+ ?a ?b) 2)))) 0)))
+                    where-c (:wat::core::quasiquote (:wat::rete::where (:wat::rete::i64::> (:wat::i64::+ ?a (:wat::i64::* ?b (:wat::i64::- ?k (:wat::i64::/ (:wat::i64::+ ?a ?b) 2)))) 0)))
                     ins     (:wat::core::quasiquote (:shape::Hit ?k))]
     (:wat::rete::Rule :name "multivar-deep"
       :lhs (:wat::core::PersistentVector conds where-c)

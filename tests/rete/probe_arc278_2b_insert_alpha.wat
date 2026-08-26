@@ -14,7 +14,7 @@
 
 (:wat::core::defn :test::compile-temp-rule [] -> :wat::rete::Session
   (:wat::core::let
-    [cond  (:wat::core::quote (:user::Temp (?t <- :value) (:wat::rete::core::i64::> ?t 20)))
+    [cond  (:wat::core::quote (:user::Temp (?t <- :value) (:wat::rete::i64::> ?t 20)))
      rule  (:wat::rete::Rule :name "r" :lhs (:wat::core::PersistentVector cond) :rhs (:wat::core::PersistentVector))]
     (:wat::rete::compile (:wat::core::PersistentVector rule))))
 

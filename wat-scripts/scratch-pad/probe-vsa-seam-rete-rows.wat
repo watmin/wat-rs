@@ -35,7 +35,7 @@
 
      ;; ROW 2 — the seam: unwrapped scalar feeds :wat::rete::core::f64::> directly.
      row2-similar-above-0.9
-       (:wat::rete::core::f64::> (:wat::rete::holon::cosine h h :undefined 0.0) 0.9)
+       (:wat::rete::f64::> (:wat::rete::holon::cosine h h :undefined 0.0) 0.9)
 
      ;; ROW 5 — the happy payload as a bare f64 (row 2 already proves it composes
      ;; with f64::>; this captures the raw value too).
@@ -60,8 +60,8 @@
      row7-coincident (:wat::rete::holon::coincident? h h)
 
      ;; ROW 9 — i64/f64 fallback quartets unregressed.
-     row9-i64-div (:wat::rete::core::i64::/ 1 0 :undefined -1)
-     row9-f64-div (:wat::rete::core::f64::/ 0.0 0.0 :undefined -1.0)]
+     row9-i64-div (:wat::rete::i64::/ 1 0 :undefined -1)
+     row9-f64-div (:wat::rete::f64::/ 0.0 0.0 :undefined -1.0)]
 
     (:wat::core::do
       (:wat::kernel::println (:wat::core::PersistentMap :row2-similar-above-0.9 row2-similar-above-0.9))

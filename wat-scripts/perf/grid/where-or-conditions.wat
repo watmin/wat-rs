@@ -17,9 +17,9 @@
 (:wat::rete::defrule :wor::or-hit
   :when [(:wat::rete::or
            (:wor::Temp (?loc <- :loc) (?c <- :c)
-             (:wat::rete::core::i64::< ?c 20))
+             (:wat::rete::i64::< ?c 20))
            (:wor::Wind (?loc <- :loc) (?w <- :kph)
-             (:wat::rete::core::i64::> ?w 30)))]
+             (:wat::rete::i64::> ?w 30)))]
   :then [(:wor::Hit :loc ?loc)])
 
 ;; ROW 4–7 — Station, then `:or`. Cold-only / wind-only / both / no-station.
@@ -27,18 +27,18 @@
   :when [(:wor::Station (?loc <- :loc))
          (:wat::rete::or
            (:wor::Temp (?loc <- :loc) (?c <- :c)
-             (:wat::rete::core::i64::< ?c 20))
+             (:wat::rete::i64::< ?c 20))
            (:wor::Wind (?loc <- :loc) (?w <- :kph)
-             (:wat::rete::core::i64::> ?w 30)))]
+             (:wat::rete::i64::> ?w 30)))]
   :then [(:wor::Hit :loc ?loc)])
 
 ;; ROW 8–11 — `:or`, then Station. Same bag as prefix-then-or.
 (:wat::rete::defrule :wor::or-then-fact
   :when [(:wat::rete::or
            (:wor::Temp (?loc <- :loc) (?c <- :c)
-             (:wat::rete::core::i64::< ?c 20))
+             (:wat::rete::i64::< ?c 20))
            (:wor::Wind (?loc <- :loc) (?w <- :kph)
-             (:wat::rete::core::i64::> ?w 30)))
+             (:wat::rete::i64::> ?w 30)))
          (:wor::Station (?loc <- :loc))]
   :then [(:wor::Hit :loc ?loc)])
 
@@ -48,7 +48,7 @@
          (:wat::rete::or
            (:wor::Temp (?loc <- :loc))
            (:wor::Wind (?loc <- :loc)))
-         (:wat::rete::where (:wat::rete::core::i64::> ?v 10))]
+         (:wat::rete::where (:wat::rete::i64::> ?v 10))]
   :then [(:wor::Hit :loc ?loc)])
 
 (:wat::rete::defquery :wor::q-Hit

@@ -5,7 +5,7 @@
 //! LHS):
 //!
 //!   - `probe_arc278_then_user_forms_expr.wat`     — GREEN, widening (b): a constructor item
-//!     whose value-position operand is a fenced expression (`(:wat::rete::core::i64::+ ?n 1 :undefined 0)`,
+//!     whose value-position operand is a fenced expression (`(:wat::rete::i64::+ ?n 1 :undefined 0)`,
 //!     the brief's own headline example). Fired through BOTH the oracle (`fire-rules$oracle`, the
 //!     interpreted `build_insert_fact` reference) and the native kernel (`fire-rules`, the
 //!     compiled `RhsOp::Expr` path) — same expected value proves compiled == interpreted

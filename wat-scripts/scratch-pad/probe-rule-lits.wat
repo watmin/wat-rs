@@ -94,10 +94,10 @@
 
 (:probe::mk-deduce
   [(:wat::rete::defrule :usr::hot-rule
-     :when [(:usr::Temp (?c <- :c) (:wat::rete::core::i64::> ?c 50))]
+     :when [(:usr::Temp (?c <- :c) (:wat::rete::i64::> ?c 50))]
      :then [(:usr::Hot :c ?c)])
    (:wat::rete::defrule :usr::warn-rule
-     :when [(:usr::Temp (?c <- :c) (:wat::rete::core::i64::> ?c 50))]
+     :when [(:usr::Temp (?c <- :c) (:wat::rete::i64::> ?c 50))]
      :then [(:usr::Warn :c ?c)])])
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

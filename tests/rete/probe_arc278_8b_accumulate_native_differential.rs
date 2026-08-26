@@ -71,30 +71,30 @@ fn diff(acc: &str, gate: &str, readings: &[(&str, i64)], expect: i64) {
 /// 1 — DIFFERENTIAL count exact: 3 Oslo Readings, gate `= 3` → both fire (1).
 #[test]
 fn differential_count_value() {
-    diff(COUNT, "(:wat::rete::core::i64::= ?n 3)", &[("Oslo", 1), ("Oslo", 2), ("Oslo", 3)], 1);
+    diff(COUNT, "(:wat::rete::i64::= ?n 3)", &[("Oslo", 1), ("Oslo", 2), ("Oslo", 3)], 1);
 }
 
 /// 2 — DIFFERENTIAL the shared-var join: a Bergen Reading is not counted for Oslo (still 3 → fires).
 #[test]
 fn differential_join() {
-    diff(COUNT, "(:wat::rete::core::i64::= ?n 3)", &[("Oslo", 1), ("Oslo", 2), ("Oslo", 3), ("Bergen", 9)], 1);
+    diff(COUNT, "(:wat::rete::i64::= ?n 3)", &[("Oslo", 1), ("Oslo", 2), ("Oslo", 3), ("Bergen", 9)], 1);
 }
 
 /// 3 — DIFFERENTIAL sum: 10+20+30 = 60, gate `= 60` → both fire.
 #[test]
 fn differential_sum() {
-    diff(SUM, "(:wat::rete::core::i64::= ?n 60)", &[("Oslo", 10), ("Oslo", 20), ("Oslo", 30)], 1);
+    diff(SUM, "(:wat::rete::i64::= ?n 60)", &[("Oslo", 10), ("Oslo", 20), ("Oslo", 30)], 1);
 }
 
 /// 4 — DIFFERENTIAL the minimum-finding-set composition: count >= 3 fires with 3, blocks with 2.
 #[test]
 fn differential_minimum_finding_set() {
-    diff(COUNT, "(:wat::rete::core::i64::>= ?n 3)", &[("Oslo", 1), ("Oslo", 2), ("Oslo", 3)], 1);
-    diff(COUNT, "(:wat::rete::core::i64::>= ?n 3)", &[("Oslo", 1), ("Oslo", 2)], 0);
+    diff(COUNT, "(:wat::rete::i64::>= ?n 3)", &[("Oslo", 1), ("Oslo", 2), ("Oslo", 3)], 1);
+    diff(COUNT, "(:wat::rete::i64::>= ?n 3)", &[("Oslo", 1), ("Oslo", 2)], 0);
 }
 
 /// 5 — DIFFERENTIAL count-on-empty: no readings → count 0, gate `= 0` → both fire (count emits on empty).
 #[test]
 fn differential_count_empty() {
-    diff(COUNT, "(:wat::rete::core::i64::= ?n 0)", &[], 1);
+    diff(COUNT, "(:wat::rete::i64::= ?n 0)", &[], 1);
 }

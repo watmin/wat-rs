@@ -18,7 +18,7 @@
   :when
   [(:wjl::Temp (?loc <- :loc) (?c <- :c))
    (:wjl::Wind (?loc <- :loc) (?w <- :kph)
-     (:wat::rete::core::i64::> ?w ?c))]
+     (:wat::rete::i64::> ?w ?c))]
   :then
   [(:wjl::Hit :loc ?loc)])
 
@@ -27,7 +27,7 @@
   :when
   [(:wjl::Temp (?loc <- :loc) (?c <- :c))
    (:wjl::Wind (?loc <- :loc) (?w <- :kph))
-   (:wat::rete::where (:wat::rete::core::i64::> ?w ?c))]
+   (:wat::rete::where (:wat::rete::i64::> ?w ?c))]
   :then
   [(:wjl::Hit :loc ?loc)])
 

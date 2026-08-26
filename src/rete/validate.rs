@@ -161,7 +161,7 @@ pub enum ReteCheckErrorKind {
         twin: String,
     },
     /// A per-type rete constraint applied to a field of a DIFFERENT declared type —
-    /// `(:wat::rete::core::i64::> :location 10)` where `:location` is `String`.
+    /// `(:wat::rete::i64::> :location 10)` where `:location` is `String`.
     ///
     /// This is the payoff of forcing the per-type spelling: monomorphising does not merely make
     /// the comparison faster, it moves the incomparable-operands case from a runtime question to

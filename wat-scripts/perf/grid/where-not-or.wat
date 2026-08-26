@@ -14,9 +14,9 @@
   :when [(:wat::rete::not
            (:wat::rete::or
              (:wno::Wind (?w <- :kph)
-               (:wat::rete::core::i64::> ?w 30))
+               (:wat::rete::i64::> ?w 30))
              (:wno::Temp (?c <- :c)
-               (:wat::rete::core::i64::< ?c 20))))]
+               (:wat::rete::i64::< ?c 20))))]
   :then [(:wno::Hit :k 1)])
 
 (:wat::rete::defrule :wno::station-not-either
@@ -24,9 +24,9 @@
          (:wat::rete::not
            (:wat::rete::or
              (:wno::Wind (?loc <- :loc) (?w <- :kph)
-               (:wat::rete::core::i64::> ?w 30))
+               (:wat::rete::i64::> ?w 30))
              (:wno::Temp (?loc <- :loc) (?c <- :c)
-               (:wat::rete::core::i64::< ?c 20))))]
+               (:wat::rete::i64::< ?c 20))))]
   :then [(:wno::At :loc ?loc)])
 
 (:wat::rete::defquery :wno::q-Hit

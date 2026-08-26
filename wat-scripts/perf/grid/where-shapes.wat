@@ -80,8 +80,8 @@
 ;; row 5's user-defined pure fn — the shape a compiled executor CANNOT model and must hand back to
 ;; the interpreter. big?(k) := k mod 7 > 3 (k mod 7 in {4,5,6}), so it discriminates a proper subset.
 (:wat::rete::core::defn :wsh::big? [k <- :wat::core::i64] -> :wat::core::bool
-  (:wat::rete::core::i64::>
-    (:wat::rete::core::i64::- k (:wat::rete::core::i64::* (:wat::rete::core::i64::/ k 7 :undefined 0) 7 :undefined 0) :undefined 0)
+  (:wat::rete::i64::>
+    (:wat::rete::i64::- k (:wat::rete::i64::* (:wat::rete::i64::/ k 7 :undefined 0) 7 :undefined 0) :undefined 0)
     3))
 
 ;; ROW 1 — arithmetic. Hit(k) :- Req(…) AND (3 == k - (k/10)*10).  k mod 10 == 3 ⇒ 20 of 200.
@@ -89,9 +89,9 @@
 (:wat::rete::defrule :wsh::arith
   :when
   [(:wsh::Req (?k <- :k) (?c <- :client) (?n <- :name) (?t <- :tags) (?l <- :limit)) (:wat::rete::where
-                                (:wat::rete::core::i64::= 3
-                                  (:wat::rete::core::i64::- ?k
-                                    (:wat::rete::core::i64::* (:wat::rete::core::i64::/ ?k 10 :undefined 0) 10 :undefined 0)
+                                (:wat::rete::i64::= 3
+                                  (:wat::rete::i64::- ?k
+                                    (:wat::rete::i64::* (:wat::rete::i64::/ ?k 10 :undefined 0) 10 :undefined 0)
                                     :undefined 0)))]
   :then
   [(:wsh::Hit ?k)])
@@ -100,7 +100,7 @@
 ;; rep(k) = (k mod 5) - 2, so rep > 0 selects k mod 5 in {3,4} ⇒ 80 of 200.
 (:wat::rete::defrule :wsh::accessor
   :when
-  [(:wsh::Req (?k <- :k) (?c <- :client) (?n <- :name) (?t <- :tags) (?l <- :limit)) (:wat::rete::where (:wat::rete::core::i64::> (:wsh::Client/rep ?c) 0))]
+  [(:wsh::Req (?k <- :k) (?c <- :client) (?n <- :name) (?t <- :tags) (?l <- :limit)) (:wat::rete::where (:wat::rete::i64::> (:wsh::Client/rep ?c) 0))]
   :then
   [(:wsh::Hit ?k)])
 
@@ -116,7 +116,7 @@
 ;; tags(k) has length (k mod 4) ⇒ length > 1 selects k mod 4 in {2,3} ⇒ 100 of 200.
 (:wat::rete::defrule :wsh::collection
   :when
-  [(:wsh::Req (?k <- :k) (?c <- :client) (?n <- :name) (?t <- :tags) (?l <- :limit)) (:wat::rete::where (:wat::rete::core::i64::> (:wat::rete::core::PersistentVector/length ?t) 1))]
+  [(:wsh::Req (?k <- :k) (?c <- :client) (?n <- :name) (?t <- :tags) (?l <- :limit)) (:wat::rete::where (:wat::rete::i64::> (:wat::rete::core::PersistentVector/length ?t) 1))]
   :then
   [(:wsh::Hit ?k)])
 
@@ -142,7 +142,7 @@
 ;; NOT a round number, because a count that is easy to guess can match by accident.
 (:wat::rete::defrule :wsh::cross-var
   :when
-  [(:wsh::Req (?k <- :k) (?c <- :client) (?n <- :name) (?t <- :tags) (?l <- :limit)) (:wat::rete::where (:wat::rete::core::i64::> ?k ?l))]
+  [(:wsh::Req (?k <- :k) (?c <- :client) (?n <- :name) (?t <- :tags) (?l <- :limit)) (:wat::rete::where (:wat::rete::i64::> ?k ?l))]
   :then
   [(:wsh::Hit ?k)])
 

@@ -2,4 +2,4 @@
 ;; `:undefined` marker OMITTED. `:wat::rete::core::i64::+` is registered with a 4-param TypeScheme
 ;; (a, b, :undefined-marker, fallback); a 3-arg call must fail to type-check.
 (:wat::core::defn :user::bad-fallback-call [] -> :wat::core::i64
-  (:wat::rete::core::i64::+ 2 3 -1))
+  (:wat::rete::i64::+ 2 3 -1))

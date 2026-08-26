@@ -12,7 +12,7 @@
 
 ;; derive Bad for k=2 only
 (:wat::rete::defrule :n::mark-bad
-  :when [(:n::A (?k <- :k)) (:wat::rete::where (:wat::rete::core::i64::= ?k 2))]
+  :when [(:n::A (?k <- :k)) (:wat::rete::where (:wat::rete::i64::= ?k 2))]
   :then [(:n::Bad :k ?k)])
 
 ;; Ok = A with NO Bad (negation over a DERIVED fact — needs stratification)
@@ -30,7 +30,7 @@
 (:wat::core::defrecord :n3::Safe [k <- :wat::core::i64])
 
 (:wat::rete::defrule :n3::mark-bad
-  :when [(:n3::A (?k <- :k)) (:wat::rete::where (:wat::rete::core::i64::= ?k 2))]
+  :when [(:n3::A (?k <- :k)) (:wat::rete::where (:wat::rete::i64::= ?k 2))]
   :then [(:n3::Bad :k ?k)])
 (:wat::rete::defrule :n3::mark-warn
   :when [(:n3::A (?k <- :k)) (:wat::rete::not (:n3::Bad (?k <- :k)))]

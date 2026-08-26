@@ -148,7 +148,7 @@ fn per_type_constraint_is_admitted_and_discriminates() {
 fn cross_type_constraint_is_refused_at_compile() {
     let r = run_fixture(CROSS_TYPE);
     let msg = r.expect_err(
-        "`(:wat::rete::core::i64::> :location 10)` on a String-typed field must be a COMPILE error \
+        "`(:wat::rete::i64::> :location 10)` on a String-typed field must be a COMPILE error \
          — the per-type surface is what deletes the incomparable-operands domain hole",
     );
     // ⛔ NON-VACUITY. The refusal must be a TYPE check, not a shape error. A `MalformedClause:
@@ -160,7 +160,7 @@ fn cross_type_constraint_is_refused_at_compile() {
     assert!(
         !msg.contains("not a recognized :when shape") && !msg.contains("MalformedClause"),
         "VACUOUS: refused as a malformed SHAPE, not as a type mismatch. The grammar must first \
-         ACCEPT `:wat::rete::core::i64::>`, and the checker must then reject it against a \
+         ACCEPT `:wat::rete::i64::>`, and the checker must then reject it against a \
          String-typed field. Got:\n{msg}"
     );
     // rune:lint(loose-assert) — ConstraintTypeMismatch Display embeds a Span path; pin the

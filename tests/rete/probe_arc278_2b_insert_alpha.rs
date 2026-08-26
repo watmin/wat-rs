@@ -4,7 +4,7 @@
 //! through the network's AlphaNodes via compiled alpha exec and populates alpha-memory. (v1 = alpha slice only;
 //! beta join = stone 3, production/cascade = stone 4.)
 //!
-//! The network: one rule, one condition `(:user::Temp (?t <- :value) (:wat::rete::core::i64::> ?t 20))`. We stage a
+//! The network: one rule, one condition `(:user::Temp (?t <- :value) (:wat::rete::i64::> ?t 20))`. We stage a
 //! matching fact (25) AND a non-matching one (15, fails > 20), fire-once, and inspect alpha-memory:
 //!   (1) exactly one AlphaNode is populated,
 //!   (2) it holds exactly one Element (15 was rejected — activation honors alpha-match's constraints),

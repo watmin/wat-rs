@@ -3,7 +3,7 @@
 //! Live mouths: `fire-rules-explain`, `explain`, `DerivationNode/via`, `DerivationNode/rule`,
 //! `DerivationStep/pattern`, `DerivationStep/bindings`, `DerivationStep/constraints`. Each support
 //! edge (`DerivationStep`) carries the satisfied constraint with concrete values substituted
-//! (`(:wat::rete::core::i64::< -5 0)`), the per-step bound vars, the matched type, and the node's rule.
+//! (`(:wat::rete::i64::< -5 0)`), the per-step bound vars, the matched type, and the node's rule.
 //! `via[0]` is the Temperature step: pattern `weather::Temperature`, `?c = -5`, one constraint.
 //! Root rule is Some("weather::cold-and-windy"); a base fact's rule is None.
 //!
@@ -65,7 +65,7 @@ fn step_has_one_constraint() {
 }
 
 /// CONSTRAINTS substitution (THE load-bearing assertion) — the satisfied predicate is the form with the bound
-/// value substituted: `(:wat::rete::core::i64::< -5 0)` (?c → -5), NOT `(:wat::rete::core::i64::< ?c 0)`. Span-agnostic structural match.
+/// value substituted: `(:wat::rete::i64::< -5 0)` (?c → -5), NOT `(:wat::rete::i64::< ?c 0)`. Span-agnostic structural match.
 #[test]
 fn constraint_is_the_substituted_form() {
     let v = nav(":user::step-constraint-0");

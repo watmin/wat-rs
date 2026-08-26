@@ -7,16 +7,16 @@
 
 (:wat::rete::defrule :eir::cool
   :when [(:eir::Temp (?c <- :c))
-         (:wat::rete::where (:wat::rete::core::i64::< ?c 20))]
+         (:wat::rete::where (:wat::rete::i64::< ?c 20))]
   :then [(:eir::Hit ?c)])
 
 (:wat::core::defn :user::cmp-eval [] -> :wat::core::bool
   (:wat::rete::eval-test
-    (:wat::core::quote (:wat::rete::core::i64::< ?c 20))
+    (:wat::core::quote (:wat::rete::i64::< ?c 20))
     (:wat::core::PersistentMap "?c" 10)))
 
 (:wat::core::defn :user::cmp-lower-ok [] -> :wat::core::nil
-  (:wat::rete::lower (:wat::core::quote (:wat::rete::core::i64::< ?c 20))))
+  (:wat::rete::lower (:wat::core::quote (:wat::rete::i64::< ?c 20))))
 
 (:wat::core::defn :user::fire-cool [] -> :wat::core::i64
   (:wat::core::let [s0 (:wat::rete::compile-all

@@ -27,11 +27,11 @@ fn eval_i64(entry: &str) -> i64 {
 
 // ─── THE ADMISSION TEST (rows 3-5) ───────────────────────────────────────────────
 
-/// Row 3: a rete-module head (`:wat::rete::core::i64::>`, inside the declared `core::` sub-namespace)
+/// Row 3: a rete-module head (`:wat::rete::i64::>`, inside the declared `core::` sub-namespace)
 /// IS admitted.
 #[test]
 fn admission_admits_a_rete_module_head() {
-    assert!(is_true(":user::admit-rete-module?"), "`:wat::rete::core::i64::>` falls under the `core::` vocabulary sub-namespace");
+    assert!(is_true(":user::admit-rete-module?"), "`:wat::rete::i64::>` falls under the `core::` vocabulary sub-namespace");
 }
 
 /// Row 4: the bare rete ENGINE API is refused — `:wat::rete::` alone is already
@@ -49,7 +49,7 @@ fn admission_refuses_a_core_head() {
 
 // ─── the four ops dispatch (row 7) ────────────────────────────────────────────────
 
-/// The `Alias` class: `:wat::rete::core::i64::>` reaches the SAME `eval_compare` routine
+/// The `Alias` class: `:wat::rete::i64::>` reaches the SAME `eval_compare` routine
 /// `:wat::core::i64::>` uses.
 #[test]
 fn alias_dispatches_to_the_same_routine() {

@@ -69,7 +69,7 @@
 (:wat::rete::defrule :stopa::overflow-in-where
   :when
   [(:stopa::Big (?k <- :k) (?n <- :n))
-   (:wat::rete::where (:wat::rete::core::i64::> (:wat::i64::+ ?n 1) 0))]
+   (:wat::rete::where (:wat::rete::i64::> (:wat::i64::+ ?n 1) 0))]
   :then
   [(:stopa::Hit ?k)])
 

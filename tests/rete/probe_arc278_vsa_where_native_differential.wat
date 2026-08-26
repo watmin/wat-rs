@@ -29,7 +29,7 @@
   [(:vsa::Catalog (?name <- :name) (?cobs <- :obs))
    (:vsa::Observation (?obs <- :obs))
    (:wat::rete::where
-     (:wat::rete::core::f64::>
+     (:wat::rete::f64::>
        (:wat::rete::holon::cosine ?obs ?cobs :undefined 0.0)
        0.9))]
   :then
@@ -55,7 +55,7 @@
   :when
   [(:vsa::Pair (?a <- :a) (?b <- :b))
    (:wat::rete::where
-     (:wat::rete::core::f64::=
+     (:wat::rete::f64::=
        (:wat::rete::holon::cosine ?a ?b :undefined -1.0)
        -1.0))]
   :then
@@ -65,7 +65,7 @@
   :when
   [(:vsa::Pair (?a <- :a) (?b <- :b))
    (:wat::rete::where
-     (:wat::rete::core::f64::=
+     (:wat::rete::f64::=
        (:wat::rete::holon::cosine ?a ?b :undefined 7.0)
        7.0))]
   :then

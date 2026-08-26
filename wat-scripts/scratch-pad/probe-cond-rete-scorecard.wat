@@ -42,10 +42,10 @@
 ;; Row 9 — every other rete family unregressed: one Alias (i64::>), one Fallback (i64::+ with
 ;; :undefined), one other Form (if), one Redispatch (foldl).
 (:wat::core::defn :probe::alias-check [] -> :wat::core::bool
-  (:wat::rete::core::i64::> 5 3))
+  (:wat::rete::i64::> 5 3))
 
 (:wat::core::defn :probe::fallback-check [] -> :wat::core::i64
-  (:wat::rete::core::i64::+ 1 2 :undefined -1))
+  (:wat::rete::i64::+ 1 2 :undefined -1))
 
 (:wat::core::defn :probe::form-if-check [] -> :wat::core::i64
   (:wat::rete::core::if true 10 20))

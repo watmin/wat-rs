@@ -9,7 +9,7 @@
 
 (:wat::rete::defrule :probe::per-type-cross
   :when
-  [(:probe::Reading (?loc <- :location) (:wat::rete::core::i64::> :location 10))]
+  [(:probe::Reading (?loc <- :location) (:wat::rete::i64::> :location 10))]
   :then
   [(:probe::Hot :location ?loc)])
 

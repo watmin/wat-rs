@@ -82,7 +82,7 @@
          ;; `(+ a b :undefined <fallback>)`. The literal keyword `:undefined` is mandatory and the
          ;; caller MUST name the value the undefined case yields. There is no jump-table opcode for
          ;; "raises", so a partial op simply has no form here (#80: every rete row must be TOTAL).
-         (:wat::rete::where (:wat::rete::core::i64::= ?i (:wat::rete::core::i64::+ ?ai 1 :undefined 0)))]
+         (:wat::rete::where (:wat::rete::i64::= ?i (:wat::rete::i64::+ ?ai 1 :undefined 0)))]
   :then [(:fixr::IsTypePos :id ?id)])
 
 (:wat::rete::defquery :fixr::q-IsArrow

@@ -98,7 +98,7 @@
 (:wat::rete::core::defn :wst::feline? [s <- :wat::core::String] -> :wat::core::bool
   (:wat::rete::core::and
     (:wat::rete::core::String/contains? s "cat")
-    (:wat::rete::core::i64::> (:wat::rete::string::length s) 3)))
+    (:wat::rete::i64::> (:wat::rete::string::length s) 3)))
 
 ;; THE SHARED LEADING CONDITION, quoted once and reused by every row — only `where-c` varies.
 (:wat::core::defn :wst::conds [] -> :wat::WatAST
@@ -153,7 +153,7 @@
 ;; ⇒ 180/400 over the 10 cycles in [0,400).
 (:wat::rete::defrule :wst::length-bound
   :when
-  [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where (:wat::rete::core::i64::> (:wat::rete::string::length ?n) ?minlen))]
+  [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where (:wat::rete::i64::> (:wat::rete::string::length ?n) ?minlen))]
   :then
   [(:wst::Hit ?k)])
 
@@ -189,7 +189,7 @@
   [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where
                                  (:wat::rete::core::and
                                    (:wat::rete::core::String/contains? ?n "cat")
-                                   (:wat::rete::core::i64::> ?minlen 3)))]
+                                   (:wat::rete::i64::> ?minlen 3)))]
   :then
   [(:wst::Hit ?k)])
 
@@ -225,7 +225,7 @@
   :when
   [(:wst::Req (?k <- :k) (?n <- :n) (?tag <- :tag) (?minlen <- :minlen) (?padded <- :padded)) (:wat::rete::where
                                  (:wat::rete::core::and
-                                   (:wat::rete::core::i64::>= (:wat::rete::string::length ?n) 3)
+                                   (:wat::rete::i64::>= (:wat::rete::string::length ?n) 3)
                                    (:wat::rete::core::String/starts-with? (:wat::rete::string::subs ?n 0 3 :undefined "") "cat")))]
   :then
   [(:wst::Hit ?k)])

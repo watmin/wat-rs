@@ -33,7 +33,7 @@
 (:wat::rete::defrule :g278get::big-at-0
   :when
   [(:g278get::PV (?v <- :v))
-   (:wat::rete::where (:wat::rete::core::i64::> (:wat::rete::core::PersistentVector/get ?v 0 :undefined -1) 5))]
+   (:wat::rete::where (:wat::rete::i64::> (:wat::rete::core::PersistentVector/get ?v 0 :undefined -1) 5))]
   :then
   [(:g278get::Hit 1)])
 
@@ -109,10 +109,10 @@
       ;; SHARED `Fallback` arm all four families run through) ────────────────────
       (:wat::kernel::println
         (:wat::string::concat "row8 i64::/ 1 0 :undefined -1 (expect -1) = "
-          (:wat::core::str (:wat::rete::core::i64::/ 1 0 :undefined -1))))
+          (:wat::core::str (:wat::rete::i64::/ 1 0 :undefined -1))))
       (:wat::kernel::println
         (:wat::string::concat "row8 f64::/ 0.0 0.0 :undefined -1.0 (expect -1) = "
-          (:wat::core::str (:wat::rete::core::f64::/ 0.0 0.0 :undefined -1.0))))
+          (:wat::core::str (:wat::rete::f64::/ 0.0 0.0 :undefined -1.0))))
       (:wat::kernel::println
         (:wat::string::concat "row8 holon::cosine degenerate :undefined -1.0 (expect -1) = "
           (:wat::core::str (:wat::rete::holon::cosine zero other :undefined -1.0))))

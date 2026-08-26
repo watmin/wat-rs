@@ -10,7 +10,7 @@
 
 (:wat::rete::defrule :fhp::cool
   :when [(:fhp::Temp (?c <- :c))
-         (:wat::rete::where (:wat::rete::core::i64::< ?c 20))]
+         (:wat::rete::where (:wat::rete::i64::< ?c 20))]
   :then [(:fhp::as-hit ?c)])
 
 (:wat::rete::defrule :fhp::seen

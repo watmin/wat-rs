@@ -38,7 +38,7 @@
          (:wat::grep::Node (?aid <- :id) (?p <- :parent) (?ai <- :index))
          (:fx::IsArrow (?aid <- :id))
          (:wat::rete::where
-           (:wat::rete::core::i64::= ?i (:wat::rete::core::i64::+ ?ai 1 :undefined 0)))]
+           (:wat::rete::i64::= ?i (:wat::rete::i64::+ ?ai 1 :undefined 0)))]
   :then [(:fx::IsTypePos :id ?id)])
 
 ;; ★ THE SPAN JOIN — proves the coordinate is reachable from a condition. A three-way join,

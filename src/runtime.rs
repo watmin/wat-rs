@@ -10029,7 +10029,7 @@ fn dispatch_rete_op(
                 WatAST::Keyword(k, _) if k == ":undefined" => {}
                 other => return Err(RuntimeError::new(other.span().clone(), RuntimeErrorKind::MalformedForm {
                     head: head.into(),
-                    reason: "the fallback-carrying rete op requires the literal keyword `:undefined` as its second-to-last argument, e.g. `(:wat::rete::core::i64::+ a b :undefined fallback)`".into(),
+                    reason: "the fallback-carrying rete op requires the literal keyword `:undefined` as its second-to-last argument, e.g. `(:wat::rete::i64::+ a b :undefined fallback)`".into(),
                 }).into()),
             }
             // ONE classification, shared with the two rete walks — see
@@ -12020,7 +12020,19 @@ pub(crate) fn require_i64(op: &'static str, v: Value) -> Result<i64, EvalBreak> 
 /// census honest instead of teaching it an exception.
 ///
 /// Retires at Stone C, when the old half is deleted and the fold reverses.
-fn fold_numeric_home(impl_name: &str) -> Option<String> {
+///
+/// `pub(crate)` since Stone B-ii (255): `rete/expr_ir.rs`'s `OpExec::of` keys 36 match
+/// arms on the OLD `:wat::core::i64::*`/`:wat::core::f64::*` spelling, and B-ii's rename
+/// of `RETE_OPS`' numeric rows' `core_name` field to the NEW `:wat::i64::*`/`:wat::f64::*`
+/// spelling would otherwise fold every numeric rete call to `OpExec::Unknown`. `OpExec::of`
+/// folds through this one function rather than growing a second copy of its arms (STOP-2).
+///
+/// `check.rs:2365`'s `infer_rete_form` — the brief's other named consumer — turns out NOT
+/// to need this: it is keyed on `core_name` too, but only ever CALLED for `Form`/`Redispatch`
+/// class rows (`check.rs`'s own call site gates on `op.class`), and every numeric row is
+/// `Alias`/`Fallback`. Verified by census: `.core_name` appears exactly once in check.rs,
+/// at that one call site. No fold needed there — the brief's 4-consumer list over-counted.
+pub(crate) fn fold_numeric_home(impl_name: &str) -> Option<String> {
     let mut seg = impl_name.split("::");
     if seg.next()? != ":wat" {
         return None;

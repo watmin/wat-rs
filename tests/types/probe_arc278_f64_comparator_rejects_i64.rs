@@ -1,6 +1,6 @@
 //! Coverage for `docs/arc/2026/06/278-rules-engine/BRIEF-the-f64-surface-is-a-stub.md`
 //! EXPECTATIONS row 3 ("★ the domain hole stays deleted"): the freshly minted
-//! `:wat::rete::core::f64::>` comparator (Part C of that brief) is `[F64, F64] -> Bool` BY SIGNATURE,
+//! `:wat::rete::f64::>` comparator (Part C of that brief) is `[F64, F64] -> Bool` BY SIGNATURE,
 //! so an i64 literal in either slot must be a check-time `TypeMismatch` — the exact per-type
 //! domain-hole deletion `DESIGN-STONE-where-admits-only-rete-ops.md` cites as the whole reason a
 //! per-type rete surface exists over the generic ops: "Generic `>` is PARTIAL. Its domain hole
@@ -28,7 +28,7 @@ fn f64_comparator_rejects_an_i64_operand() {
     assert_eq!(errs.len(), 1, "expected exactly one check error; got {errs:?}");
     match &errs[0] {
         CheckError { kind: CheckErrorKind::TypeMismatch { callee, param, expected, got }, .. } => {
-            assert_eq!(callee, ":wat::rete::core::f64::>", "wrong callee named in the error");
+            assert_eq!(callee, ":wat::rete::f64::>", "wrong callee named in the error");
             assert_eq!(param, "#2", "wrong parameter named in the error");
             assert_eq!(expected, ":wat::core::f64", "expected type must name f64");
             assert_eq!(got, ":wat::core::i64", "got type must name the offending i64");

@@ -8,7 +8,7 @@
 //!
 //! WAS a disconfirming probe pinning that the form did not exist. NOW it is the acceptance gate
 //! for THE MEMBRANE: the fixture declares `:probe::declared` with a body that is deliberately a
-//! NON-rete op (`:wat::core::i64::>`, not the `:wat::rete::core::i64::>` RETE_OPS row) — the
+//! NON-rete op (`:wat::core::i64::>`, not the `:wat::rete::i64::>` RETE_OPS row) — the
 //! exact "reproduced live" shape DESIGN-STONE-the-rete-defn.md opens with. That declaration must
 //! be refused AT LOAD, with a located error naming `:probe::declared` directly — the inversion
 //! the whole stone exists for (today's `where`-clause failure used to name the calling RULE).
@@ -18,7 +18,7 @@
 //! refused" (R59 `NISI FRANGAS, NIHIL PROBAS`).
 //!
 //! MUTATION, both directions (see the rider's report for the hand-run): repoint the fixture's
-//! form #2 body back to `:wat::rete::core::i64::>` (rete-clean) and the file loads GREEN: the
+//! form #2 body back to `:wat::rete::i64::>` (rete-clean) and the file loads GREEN: the
 //! membrane's refusal flips off exactly when the body becomes law-A clean, proving this gate can
 //! actually go both ways rather than being permanently red or permanently green by construction.
 

@@ -15,7 +15,7 @@
   [(:wnb::Station (?loc <- :loc))
    (?m <- (:wat::rete::acc::max ?v) :from (:wnb::Reading (?loc <- :loc) (?v <- :v)))
    (:wat::rete::not (:wnb::Reading (?loc <- :loc) (?v <- :v)
-                      (:wat::rete::core::i64::< ?v ?m)))]
+                      (:wat::rete::i64::< ?v ?m)))]
   :then
   [(:wnb::Busy :loc ?loc :n ?m)])
 
