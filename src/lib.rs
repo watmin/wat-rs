@@ -70,7 +70,6 @@ pub(crate) mod remedy;
 pub mod capability;
 pub mod comms;
 pub mod kernel;
-pub mod compose;
 pub mod config;
 pub mod distribution;
 pub mod edn;
@@ -78,7 +77,6 @@ pub mod error_ns;
 pub mod sigma;
 pub mod process;
 pub mod form_match;
-pub mod harness;
 pub mod freeze;
 pub(crate) mod function;
 pub mod hash;
@@ -100,7 +98,7 @@ pub mod span;
 pub mod services;
 pub mod special_forms;
 pub mod string;
-pub mod test_runner;
+pub mod host;
 pub use services::{
     install_thread_io, uninstall_thread_io,
     ThreadIO,
@@ -112,7 +110,7 @@ pub mod value;
 pub mod vm_registry;
 pub(crate) mod intrinsic;
 
-pub use compose::{compose_and_run, compose_and_run_with_loader};
+pub use host::compose::{compose_and_run, compose_and_run_with_loader};
 pub use load::source::WatSource;
 pub use span::Span;
 pub use wat_macros::{main, test};
@@ -141,7 +139,7 @@ pub use freeze::{
     invoke_user_main, invoke_user_main_with_program, resolve_env_program, startup_from_forms, startup_from_forms_with_inherit, startup_from_source,
     BootstrapArgs, FrozenWorld, ProcessRuntime, StartupError, USER_MAIN_PATH,
 };
-pub use harness::{Harness, HarnessError, Outcome};
+pub use host::harness::{Harness, HarnessError, Outcome};
 pub use hash::{canonical_edn_wat, hash_canonical_ast, hex_encode, verify_source_hash, HashError};
 pub use scope::{fresh_scope, Identifier, ScopeId};
 pub use lexer::{LexError, LexErrorKind};

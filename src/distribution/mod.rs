@@ -642,6 +642,6 @@ pub fn run(batteries: &[Battery]) -> ExitCode {
 // Arc 101 — the `wat test <path>` subcommand was dropped. Wat tests
 // run via `cargo test` against a Rust crate that uses the
 // `wat::test!` macro to compile the wat source into per-test
-// `#[test] fn`s. The macro's runtime arm is `wat::test_runner::
+// `#[test] fn`s. The macro's runtime arm is `wat::host::test_runner::
 // run_and_assert` — same library code the dropped CLI subcommand
 // used, but now reachable only through cargo-style harnesses.

@@ -32,7 +32,7 @@
 
 use crate::panic_hook;
 use crate::freeze::{invoke_user_main, startup_from_source, validate_user_main_signature};
-use crate::harness::HarnessError;
+use crate::host::harness::HarnessError;
 use crate::load::loader::{InMemoryLoader, SourceLoader};
 use crate::rust_deps::{self, RustDepsBuilder};
 use crate::runtime::{

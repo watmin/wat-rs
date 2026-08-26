@@ -27,7 +27,7 @@
 //!
 //! ```text
 //! use std::path::Path;
-//! let summary = wat::test_runner::run_tests_from_dir(
+//! let summary = wat::host::test_runner::run_tests_from_dir(
 //!     Path::new("wat-tests"),
 //!     &[wat_lru::wat_sources()],
 //!     &[wat_lru::register],
@@ -58,7 +58,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Instant;
 
-use crate::compose::DepRegistrar;
+use crate::host::compose::DepRegistrar;
 use crate::freeze::{startup_from_source, FrozenWorld};
 use crate::load::loader::{FsLoader, SourceLoader};
 use crate::runtime::{apply_function, Function, Value};
@@ -102,9 +102,17 @@ pub struct TestSummary {
 /// # Discovery convention
 ///
 /// A top-level `:wat::core::define` is a test iff:
-/// 1. The path's final `::`-segment starts with `test-`.
-/// 2. `param_types` is empty (zero-arg).
-/// 3. `ret_type` is the plain path `:wat::kernel::RunResult`.
+/// 1. `param_types` is empty (zero-arg).
+/// 2. `ret_type` is `:wat::test::TestResult` (the role-honest alias
+///    `deftest` expands with) or `:wat::kernel::RunResult` (the
+///    underlying type — what `run-sandboxed-ast` returns).
+///
+/// The signature IS the declaration — `(:wat::test::deftest)` is the
+/// canonical producer. Pre-2026-04-25 this also required the name's
+/// final `::`-segment to start with `test-`; that name filter has
+/// been dropped (see `is_test_function` below) because the signature
+/// criterion is unambiguous on its own. Tests use descriptive names;
+/// the runner discovers them by shape, not by name.
 ///
 /// Tests within one file run in randomized order (Fisher-Yates,
 /// nanos-seeded xorshift) to surface accidental inter-dependencies.

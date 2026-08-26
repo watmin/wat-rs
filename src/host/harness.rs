@@ -4,8 +4,14 @@
 //! Everything here is already possible with the raw public API — see
 //! the ~20-line boilerplate that every in-crate integration test used
 //! to hand-roll. Harness just captures the pattern. `from_source`
-//! freezes; `run` builds StringIo stdio, invokes `:user::main`, and
-//! returns captured stdout/stderr.
+//! freezes; `run` invokes `:user::main`.
+//!
+//! ⚠ `run` does NOT capture stdio today — it ignores `stdin` and returns an
+//! `Outcome` whose `stdout`/`stderr` are always empty. This line used to say it
+//! built StringIo stdio and returned captured output; that retired with arc 170
+//! slice 1e's zero-arg `:user::main`, and the sentence outlived the code it
+//! described. See `Harness::run`'s own doc for the full why and the interim
+//! route (`wat-cli`, or `spawn-process` / `spawn-thread` directly).
 //!
 //! # What Harness is NOT
 //!
@@ -20,7 +26,7 @@
 //! # Typical shape
 //!
 //! ```no_run
-//! use wat::harness::Harness;
+//! use wat::host::harness::Harness;
 //!
 //! let h = Harness::from_source(r#"
 //!     (:wat::config::set-capacity-mode! :error)
@@ -32,11 +38,14 @@
 //!       (:wat::io::IOWriter/println stdout "hello"))
 //! "#)?;
 //! let out = h.run(&[])?;
+//! // Aspirational: `run`'s stdio capture is currently a no-op (see
+//! // `Harness::run`'s doc) — this assertion does NOT hold today and
+//! // this block is `no_run` because of it, not merely for speed.
 //! assert_eq!(out.stdout, vec!["hello".to_string()]);
-//! # Ok::<(), wat::harness::HarnessError>(())
+//! # Ok::<(), wat::host::harness::HarnessError>(())
 //! ```
 
-use crate::compose::DepRegistrar;
+use crate::host::compose::DepRegistrar;
 use crate::freeze::{
     invoke_user_main, startup_from_source, validate_user_main_signature, FrozenWorld, StartupError,
 };
@@ -173,10 +182,17 @@ impl Harness {
         &self.world
     }
 
-    /// Invoke `:user::main` with pre-seeded stdin lines and return
-    /// captured stdout + stderr. Lines are joined with `\n` between
-    /// (no trailing newline added); the StringIoReader delivers the
-    /// joined buffer to the wat program's IOReader.
+    /// Invoke `:user::main`. **`stdin` is currently ignored and the
+    /// returned `Outcome` always carries empty `stdout`/`stderr`** —
+    /// this is a no-op for stdio, not a bug: arc 170 slice 1e made
+    /// `:user::main` a zero-arg `[] -> :wat::core::nil` function with
+    /// no stdio Values to seed or capture, and the StringIo*-backed
+    /// capture this doc used to describe retired with the four-arg
+    /// `main_args` shape it depended on. Real capture is pending slice
+    /// 1f, which gives stdin/stdout/stderr three substrate services of
+    /// their own. Until then, callers that need stdio capture use the
+    /// `wat-cli` path (or invoke `spawn-process` / `spawn-thread`
+    /// directly) instead of `Harness::run`.
     ///
     /// # Panic semantics
     ///
