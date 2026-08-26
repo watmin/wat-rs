@@ -20,8 +20,8 @@
              (:wat::core::let
                [n  (:wat::core::match (:wat::kernel::readln ) ((:wat::kernel::ReadlnOutcome::Datum __datum) __datum) (:wat::kernel::ReadlnOutcome::Eof (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None)) (:wat::kernel::ReadlnOutcome::Stopped (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)))
                 _  (:wat::kernel::println n)
-                _  (:wat::kernel::println (:wat::core::i64::* n 2))
-                _  (:wat::kernel::println (:wat::core::i64::* n 3))]
+                _  (:wat::kernel::println (:wat::i64::* n 2))
+                _  (:wat::kernel::println (:wat::i64::* n 3))]
                nil))))
      _ (:wat::core::match (:wat::kernel::send p 7)
          (:wat::kernel::SendOutcome::Sent nil)

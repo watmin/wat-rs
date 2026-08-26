@@ -4,4 +4,4 @@
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::intrinsic::yields-witness
     (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64
-      (:wat::core::i64::+ x 1))))
+      (:wat::i64::+ x 1))))

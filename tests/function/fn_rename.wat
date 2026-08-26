@@ -30,11 +30,11 @@
 (:wat::core::defn :my::invoke_t6 [] -> :wat::core::i64
   (:user::apply_t6
               (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64
-                (:wat::core::i64::+ x 1))
+                (:wat::i64::+ x 1))
               10))
 
 ;; T8: fn in tail position type-checks
-(:wat::core::defn :user::double_t8 [n <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::* n 2))
+(:wat::core::defn :user::double_t8 [n <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::* n 2))
 
 (:wat::core::defn :my::apply_t8 [] -> :wat::core::i64
   ((:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64
@@ -47,21 +47,21 @@
 (:wat::core::defn :my::invoke_t9 [] -> :wat::core::i64
   (:user::apply_t9
               (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64
-                (:wat::core::i64::+ x 1))
+                (:wat::i64::+ x 1))
               5))
 
 ;; T10: fn body with let
 (:wat::core::defn :my::apply_t10 [] -> :wat::core::i64
   ((:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64
                (:wat::core::let
-                 [a (:wat::core::i64::+ x 5)
-                  b (:wat::core::i64::* a 2)]
+                 [a (:wat::i64::+ x 5)
+                  b (:wat::i64::* a 2)]
                  b))
              3))
 
 ;; T11: reflection — :wat::core::fn registry entry exists
 (:wat::core::defn :my::apply_t11 [] -> :wat::core::i64
   ((:wat::core::fn [a <- :wat::core::i64 b <- :wat::core::i64] -> :wat::core::i64
-               (:wat::core::i64::+ a b))
+               (:wat::i64::+ a b))
              10 20))
 

@@ -7,8 +7,8 @@
                 (:wat::core::match row 
                   ((:wat::core::Some (ts open high low close volume))
                     (:wat::string::concat
-                      (:wat::core::i64::to-string ts)
+                      (:wat::i64::to-string ts)
                       (:wat::string::concat ":"
-                        (:wat::core::f64::to-string close))))
+                        (:wat::f64::to-string close))))
                   (:wat::core::None "end"))]
               (:wat::kernel::println line)))

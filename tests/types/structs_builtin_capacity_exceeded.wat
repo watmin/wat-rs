@@ -4,4 +4,4 @@
     [e      (:wat::holon::CapacityExceeded :cost 200 :budget 100)
      cost   (:wat::holon::CapacityExceeded/cost e)
      budget (:wat::holon::CapacityExceeded/budget e)]
-    (:wat::core::i64::- cost budget)))
+    (:wat::i64::- cost budget)))

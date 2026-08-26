@@ -73,11 +73,11 @@
   [vch <- (:wat::core::Vector :- [:wat::WatAST])  lines <- (:wat::core::Vector :- [:wat::core::String])]
   -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
   (:wat::core::let [n (:wat::core::length vch)
-                    npairs (:wat::core::i64::/ n 2)]
+                    npairs (:wat::i64::/ n 2)]
     (:wat::core::foldl
       (:wat::core::fn [acc <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])]) i <- :wat::core::i64]
         -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
-        (:wat::core::let [idx  (:wat::core::i64::* i 2)
+        (:wat::core::let [idx  (:wat::i64::* i 2)
                           name (:wat::core::Option/expect (:wat::core::get vch idx) "pair name")
                           rhs  (:wat::core::Option/expect (:wat::core::get vch (:wat::core::+ idx 1)) "pair rhs")]
           (:wat::core::if (:user::underscore-bound-send'? name rhs)

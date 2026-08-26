@@ -24,7 +24,7 @@
     [h  (:probe::seedy/start :locus (:wat::spawn::process) :record (:probe::seedy::Record) :seed 99)
      c  (:wat::core::match (:wat::kernel::connect (:probe::seedy::Handle/addr h)) ((:wat::kernel::ConnectOutcome::Connected p) p) ((:wat::kernel::ConnectOutcome::Refused c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Rejected c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)) ((:wat::kernel::ConnectOutcome::Failed c) (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message c) :wat::core::None :wat::core::None)))
      r  (:probe::Seedy/get c (:probe::Seedy::GetRequest))]
-    (:wat::kernel::println (:wat::core::i64::to-string (:wat::core::match r ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
+    (:wat::kernel::println (:wat::i64::to-string (:wat::core::match r ((:wat::kernel::RecvOutcome::Message __recv) (:wat::core::match __recv 
   ((:probe::Seedy::GetResponse::Ok v) v)
   ((:probe::Seedy::GetResponse::RequestTooLarge bytes cap)
     (:wat::kernel::assertion-failed! "unexpected RequestTooLarge" :wat::core::None :wat::core::None))

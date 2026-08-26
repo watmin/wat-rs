@@ -2,7 +2,7 @@
 ;; in a real process bracket, WITHOUT any user record (dodging the pre-existing freeze bug
 ;; where type_def_to_ast drops a user record's fields). grantables is EMPTY, so the foldl is
 ;; a no-op — but the peer-pid Some branch + the whole map-worker grant/revoke path EXECUTES.
-(:wat::core::defn :probe::double [n <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::* n 2))
+(:wat::core::defn :probe::double [n <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::* n 2))
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [nums (:wat::core::Vector :wat::core::i64 1 2 3 4 5)

@@ -96,7 +96,7 @@
       (:wat::core::do
         (:wat::kernel::println (:proto::Ack::Got n))
         (:proto::read-section (:wat::string::concat acc text)
-                              (:wat::core::i64::+ n 1))))
+                              (:wat::i64::+ n 1))))
 
     ;; The marker: the section is closed. Ack with OUR count — if it disagrees
     ;; with the sender's, the sender is the one who can act on it.

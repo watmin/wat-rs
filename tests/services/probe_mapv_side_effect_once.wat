@@ -36,7 +36,7 @@
        (:probe::Counter::GetResponse::Ok
          (:probe::counter::Record/count (:probe::counter::State/durable s)))))
    (increment [s ctx req]
-     (:wat::core::let [c (:wat::core::i64::+
+     (:wat::core::let [c (:wat::i64::+
                            (:probe::counter::Record/count (:probe::counter::State/durable s))
                            (:probe::Counter::IncrementRequest/n req))]
        (:wat::service::Outcome::Reply

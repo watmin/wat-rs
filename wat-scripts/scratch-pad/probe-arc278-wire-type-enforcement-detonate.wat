@@ -50,7 +50,7 @@
         ((:probe-det::Bag::PutResponse::Ok len)
           (:wat::kernel::println
             (:wat::string::concat label " => Ok, string::length = "
-              (:wat::core::i64::to-string len))))
+              (:wat::i64::to-string len))))
         ((:probe-det::Bag::PutResponse::RequestTooLarge bytes cap)
           (:wat::kernel::println
             (:wat::string::concat label " => RequestTooLarge")))

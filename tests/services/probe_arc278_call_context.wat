@@ -209,12 +209,12 @@
 ;; seen-op becoming non-empty (i.e. `-mark` has genuinely fired and its ctx landed in state).
 (:wat::core::defn :probe::peek-until
   [c <- :probe::CallCtx3  attempts <- :wat::core::i64] -> (:wat::core::Tuple :- [:wat::core::String :wat::core::keyword])
-  (:wat::core::if (:wat::core::i64::<= attempts 0)
+  (:wat::core::if (:wat::i64::<= attempts 0)
     (:wat::kernel::assertion-failed! "peek-until: bound exhausted — -mark never fired" :wat::core::None :wat::core::None)
     (:wat::core::let [got (:probe::peek-mark! c)]
       (:wat::core::if (:wat::core::= (:wat::core::first got) "")
         (:wat::core::let [_ (:probe::nap!)]
-          (:probe::peek-until c (:wat::core::i64::- attempts 1)))
+          (:probe::peek-until c (:wat::i64::- attempts 1)))
         got))))
 
 ;; Returns Tuple(operation-is-dash-mark, namespace-is-fqdn) — both booleans, computed here (a

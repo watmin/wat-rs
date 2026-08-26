@@ -29,4 +29,4 @@
      ;; Arc 109 — Frame/line is a concrete (non-Option) i64, read directly.
      l1  (:wat::kernel::Frame/line f1)
      l2  (:wat::kernel::Frame/line f2)]
-    (:wat::test::assert-true (:wat::core::= (:wat::core::i64::- l2 l1) 1))))
+    (:wat::test::assert-true (:wat::core::= (:wat::i64::- l2 l1) 1))))

@@ -72,7 +72,7 @@
       (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  i <- :wat::core::i64]
                       -> (:wat::core::PersistentVector :- [:wat::core::Record])
         (:wat::core::let [a2 (:wat::core::PersistentVector/conj acc (:neg::Item i))]
-          (:wat::core::if (:wat::core::= i (:wat::core::i64::* (:wat::core::i64::/ i 2) 2))
+          (:wat::core::if (:wat::core::= i (:wat::i64::* (:wat::i64::/ i 2) 2))
             (:wat::core::PersistentVector/conj a2 (:neg::Bad i))
             a2)))
       (:wat::core::PersistentVector)
@@ -95,7 +95,7 @@
 
 ;; ns-between t0 t1 — nanoseconds between two Instants (mirrors strat-neg.wat's ns-between).
 (:wat::core::defn :neg::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> :wat::core::i64
-  (:wat::core::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
+  (:wat::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let [params  (:wat::core::match (:wat::kernel::readln ) ((:wat::kernel::ReadlnOutcome::Datum __datum) __datum) (:wat::kernel::ReadlnOutcome::Eof (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None)) (:wat::kernel::ReadlnOutcome::Stopped (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)))

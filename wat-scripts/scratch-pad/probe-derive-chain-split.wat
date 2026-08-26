@@ -73,10 +73,10 @@
                     where-c (:wat::core::quasiquote
                               (:wat::rete::where
                                 (:wat::core::= (:wat::core::unquote i)
-                                  (:wat::core::i64::- ?k
-                                    (:wat::core::i64::* (:wat::core::i64::/ ?k (:wat::core::unquote n)) (:wat::core::unquote n))))))
+                                  (:wat::i64::- ?k
+                                    (:wat::i64::* (:wat::i64::/ ?k (:wat::core::unquote n)) (:wat::core::unquote n))))))
                     ins     (:wat::core::quasiquote (:dc::Out ?k))]
-    (:wat::rete::Rule :name (:wat::core::i64::to-string i)
+    (:wat::rete::Rule :name (:wat::i64::to-string i)
       :lhs (:wat::core::PersistentVector a-c b-c where-c)
       :rhs (:wat::core::PersistentVector ins))))
 
@@ -96,7 +96,7 @@
     (:wat::core::range 0 items)))
 
 (:wat::core::defn :dc::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> :wat::core::i64
-  (:wat::core::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
+  (:wat::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
 
 ;; ── main — one fire, then the derive chain link by link, then the control ────
 (:wat::core::defn :user::main [] -> :wat::core::nil

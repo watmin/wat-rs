@@ -7,4 +7,4 @@
   :Right)
 (:wat::core::newtype :my::PriceUsd :wat::core::f64)
 (:wat::core::typealias :my::Coord :wat::core::i64)
-(:wat::core::defn :my::compute [p <- :my::Point] -> :wat::core::i64 (:wat::core::i64::+ (:my::Point/x p) (:my::Point/y p)))
+(:wat::core::defn :my::compute [p <- :my::Point] -> :wat::core::i64 (:wat::i64::+ (:my::Point/x p) (:my::Point/y p)))

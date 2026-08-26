@@ -47,20 +47,20 @@
 (:wat::core::defn :user::index-after-keyword
   [ch <- (:wat::core::Vector :- [:wat::WatAST])  kw <- :wat::core::String  i <- :wat::core::i64]
   -> :wat::core::i64
-  (:wat::core::if (:wat::core::i64::>= i (:wat::core::length ch))
+  (:wat::core::if (:wat::i64::>= i (:wat::core::length ch))
     -1
     (:wat::core::if (:wat::core::= (:user::kw-name (:wat::core::nth ch i)) kw)
-      (:wat::core::i64::+ i 1)
-      (:user::index-after-keyword ch kw (:wat::core::i64::+ i 1)))))
+      (:wat::i64::+ i 1)
+      (:user::index-after-keyword ch kw (:wat::i64::+ i 1)))))
 
 ;; ── one defservice form → its :impls arms (empty Vector if no :impls) ─────────────────────
 (:wat::core::defn :user::arms-of
   [form <- :wat::WatAST] -> (:wat::core::Vector :- [:wat::WatAST])
   (:wat::core::let [ch  (:wat::core::ast->children form)
                     idx (:user::index-after-keyword ch ":impls" 0)]
-    (:wat::core::if (:wat::core::i64::< idx 0)
+    (:wat::core::if (:wat::i64::< idx 0)
       (:wat::core::Vector :wat::WatAST)
-      (:wat::core::if (:wat::core::i64::>= idx (:wat::core::length ch))
+      (:wat::core::if (:wat::i64::>= idx (:wat::core::length ch))
         (:wat::core::Vector :wat::WatAST)
         (:wat::core::ast->children (:wat::core::nth ch idx))))))
 

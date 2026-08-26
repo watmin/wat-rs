@@ -11,4 +11,4 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::kernel::println
     (:wat::string::interpolate "C={c}"
-      :c (:wat::core::i64::to-string (:dm109c::hold 1 :times 3)))))
+      :c (:wat::i64::to-string (:dm109c::hold 1 :times 3)))))

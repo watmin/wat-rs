@@ -34,14 +34,14 @@
 (:wat::core::defn :user::fieldvec-names [fv <- :wat::WatAST] -> (:wat::core::Vector :- [:wat::core::String])
   (:wat::core::let [ch (:wat::core::ast->children fv)
                     n  (:wat::core::length ch)]
-    (:wat::core::if (:wat::core::= (:wat::core::i64::rem n 3) 0)
+    (:wat::core::if (:wat::core::= (:wat::i64::rem n 3) 0)
       (:wat::core::foldl
         (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String]) i <- :wat::core::i64]
           -> (:wat::core::Vector :- [:wat::core::String])
           (:wat::core::conj acc
-            (:wat::core::ast-name (:wat::core::Option/expect (:wat::core::get ch (:wat::core::i64::* i 3)) "fv-name"))))
+            (:wat::core::ast-name (:wat::core::Option/expect (:wat::core::get ch (:wat::i64::* i 3)) "fv-name"))))
         (:wat::core::Vector :wat::core::String)
-        (:wat::core::range 0 (:wat::core::i64::/ n 3)))
+        (:wat::core::range 0 (:wat::i64::/ n 3)))
       (:wat::core::Vector :wat::core::String))))
 
 ;; add one form to the map if it is a mappable def with a clean (non-splice) field-vec.

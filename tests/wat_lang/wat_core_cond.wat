@@ -43,7 +43,7 @@
   (:wat::core::cond -> :wat::core::i64
     ((:wat::core::= n 0) 0)
     ((:wat::core::< n 0) -1)
-    (:else (:t::countdown (:wat::core::i64::- n 1)))))
+    (:else (:t::countdown (:wat::i64::- n 1)))))
 (:wat::core::defn :t::cond-tail [] -> :wat::core::i64 (:t::countdown 100000))
 
 ; test: cond_composes_with_other_cond

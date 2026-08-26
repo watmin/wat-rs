@@ -5,7 +5,7 @@
   [& items <- (:wat::core::Vector :- [:wat::WatAST])] -> :wat::WatAST
   (:wat::core::let [mapped (:wat::core::foldl
                              (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST]) x <- :wat::holon::HolonAST] -> (:wat::core::Vector :- [:wat::WatAST])
-                               (:wat::core::conj acc `(:wat::core::i64::+ ~x 1)))
+                               (:wat::core::conj acc `(:wat::i64::+ ~x 1)))
                              (:wat::core::Vector :wat::WatAST)
                              items)]
     `(:wat::core::Vector :wat::core::i64 ~@mapped)))

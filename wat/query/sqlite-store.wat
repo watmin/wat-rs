@@ -112,7 +112,7 @@
 (:wat::core::defn :wat::query::cell->string [c <- :wat::sqlite::Cell] -> :wat::core::String
   (:wat::core::match c 
     ((:wat::sqlite::Cell::Str s) s)
-    ((:wat::sqlite::Cell::I64 n) (:wat::core::i64::to-string n))
+    ((:wat::sqlite::Cell::I64 n) (:wat::i64::to-string n))
     ((:wat::sqlite::Cell::F64 _) "")
     ((:wat::sqlite::Cell::Nil) "")))
 

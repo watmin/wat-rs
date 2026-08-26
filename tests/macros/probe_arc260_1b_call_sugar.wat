@@ -8,7 +8,7 @@
   [host <- :wat::core::String
    & [port <- :wat::core::i64  tls <- :wat::core::bool]]
   -> :wat::core::i64
-  (:wat::core::i64::+ port (:wat::core::if tls  1 0)))
+  (:wat::i64::+ port (:wat::core::if tls  1 0)))
 
 ;; inline :k v, in order
 (:wat::core::defn :user::via-kv [] -> :wat::core::i64

@@ -34,7 +34,7 @@
     (:wat::kernel::println (:wat::rete::core::f64::>= 0.1 0.1))   ;; expect true
 
     ;; ── row 4 — NaN is total, not a hole (NaN built by computation) ──────────────
-    (:wat::core::let [nan (:wat::core::f64::/ 0.0 0.0)]
+    (:wat::core::let [nan (:wat::f64::/ 0.0 0.0)]
       (:wat::kernel::println (:wat::rete::core::f64::> nan 1.0))) ;; expect false, no raise
 
     ;; ── row 6 — the casing rename resolves and runs ───────────────────────────────

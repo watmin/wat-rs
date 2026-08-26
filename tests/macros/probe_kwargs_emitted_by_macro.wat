@@ -7,7 +7,7 @@
      (:wat::core::defn :t::svc/add
        [& [a <- :wat::core::i64  b <- :wat::core::i64]]
        -> :wat::core::i64
-       (:wat::core::i64::+ a b))))
+       (:wat::i64::+ a b))))
 
 ;; CONTROL: a wrapper emitting a PLAIN (non-kwargs) defn.
 (:wat::core::defmacro :t::make-plain [] -> :wat::WatAST

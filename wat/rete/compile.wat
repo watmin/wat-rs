@@ -76,7 +76,7 @@
                          new-dedup (:wat::core::HashMap/assoc dedup dkey next-id)
                          new-state (:wat::rete::CompileState
                                       :network new-net
-                                      :next-id (:wat::core::i64::+ next-id 1)
+                                      :next-id (:wat::i64::+ next-id 1)
                                       :dedup new-dedup)]
          (:wat::rete::MintResult :id next-id :state new-state))))))
 
@@ -167,7 +167,7 @@
                          new-dedup (:wat::core::HashMap/assoc dedup dkey next-id)
                          new-state (:wat::rete::CompileState
                                       :network new-net
-                                      :next-id (:wat::core::i64::+ next-id 1)
+                                      :next-id (:wat::i64::+ next-id 1)
                                       :dedup new-dedup)]
          (:wat::rete::MintResult :id next-id :state new-state))))))
 
@@ -179,7 +179,7 @@
    state     <- :wat::rete::CompileState]
   -> :wat::rete::MintResult
   (:wat::core::let [cond-text (:wat::core::write-forms cond)
-                    pid-s     (:wat::core::i64::to-string parent-id)
+                    pid-s     (:wat::i64::to-string parent-id)
                     dkey      (:wat::string::interpolate "hashjoin:{pid-s}:{cond-text}" :pid-s pid-s :cond-text cond-text)
                     network   (:wat::rete::CompileState/network state)
                     next-id   (:wat::rete::CompileState/next-id state)
@@ -196,7 +196,7 @@
                          new-dedup (:wat::core::HashMap/assoc dedup dkey next-id)
                          new-state (:wat::rete::CompileState
                                       :network new-net
-                                      :next-id (:wat::core::i64::+ next-id 1)
+                                      :next-id (:wat::i64::+ next-id 1)
                                       :dedup new-dedup)]
          (:wat::rete::MintResult :id next-id :state new-state))))))
 
@@ -397,7 +397,7 @@
                                  (:wat::core::PersistentVector)
                                  (:wat::core::range 1 (:wat::core::length or-ch)))
                         _or-n (:wat::core::Option/expect
-                                 (:wat::core::if (:wat::core::i64::> (:wat::core::length arms) 0)
+                                 (:wat::core::if (:wat::i64::> (:wat::core::length arms) 0)
                                    (:wat::core::Some nil)
                                    :wat::core::None)
                                  "compile-condition: or of conditions has no arms")
@@ -433,7 +433,7 @@
                                  (:wat::core::PersistentVector)
                                  (:wat::core::range 1 (:wat::core::length and-ch)))
                         _and-n (:wat::core::Option/expect
-                                 (:wat::core::if (:wat::core::i64::> (:wat::core::length kids) 0)
+                                 (:wat::core::if (:wat::i64::> (:wat::core::length kids) 0)
                                    (:wat::core::Some nil)
                                    :wat::core::None)
                                  "compile-condition: and of conditions has no children")]
@@ -478,7 +478,7 @@
                         net1      (:wat::core::PersistentMap/assoc network0 next-id0 test-node)
                         state1    (:wat::rete::CompileState
                                      :network net1
-                                     :next-id (:wat::core::i64::+ next-id0 1)
+                                     :next-id (:wat::i64::+ next-id0 1)
                                      :dedup dedup0)
                         ;; wire every parent → test (`:or` may leave N terminals)
                         net2      (:wat::rete::wire-parents
@@ -510,7 +510,7 @@
                           net2        (:wat::core::PersistentMap/assoc network1 next-id1 neg-node)
                           state2      (:wat::rete::CompileState
                                          :network net2
-                                         :next-id (:wat::core::i64::+ next-id1 1)
+                                         :next-id (:wat::i64::+ next-id1 1)
                                          :dedup dedup1)
                           net3        (:wat::rete::wire-parents
                                           (:wat::rete::CompileState/network state2)
@@ -541,7 +541,7 @@
                             net2         (:wat::core::PersistentMap/assoc network1 next-id1 ex-node)
                             state2       (:wat::rete::CompileState
                                            :network net2
-                                           :next-id (:wat::core::i64::+ next-id1 1)
+                                           :next-id (:wat::i64::+ next-id1 1)
                                            :dedup dedup1)
                             net3         (:wat::rete::wire-parents
                                             (:wat::rete::CompileState/network state2)
@@ -645,7 +645,7 @@
                             net2         (:wat::core::PersistentMap/assoc network1 next-id1 acc-node)
                             state2       (:wat::rete::CompileState
                                             :network net2
-                                            :next-id (:wat::core::i64::+ next-id1 1)
+                                            :next-id (:wat::i64::+ next-id1 1)
                                             :dedup dedup1)
                             net3         (:wat::rete::wire-parents
                                              (:wat::rete::CompileState/network state2)
@@ -1096,7 +1096,7 @@
                     prod       (:wat::rete::ProductionNode :id next-id2 :rule-name rname)
                     net3       (:wat::core::PersistentMap/assoc network2 next-id2 prod)
                     net4       (:wat::rete::wire-parents net3 pids next-id2)]
-    (:wat::rete::CompileState :network net4 :next-id (:wat::core::i64::+ next-id2 1)
+    (:wat::rete::CompileState :network net4 :next-id (:wat::i64::+ next-id2 1)
       :dedup (:wat::rete::CompileState/dedup state2))))
 
 ;; compile-query — same LHS fold as compile-rule; terminal is a QueryNode.
@@ -1120,7 +1120,7 @@
                                  :param-keys (:wat::rete::Query/params q))
                     net3       (:wat::core::PersistentMap/assoc network2 next-id2 qnode)
                     net4       (:wat::rete::wire-parents net3 pids next-id2)]
-    (:wat::rete::CompileState :network net4 :next-id (:wat::core::i64::+ next-id2 1)
+    (:wat::rete::CompileState :network net4 :next-id (:wat::i64::+ next-id2 1)
       :dedup (:wat::rete::CompileState/dedup state2))))
 
 ;; compile — rules only (existing callers). Use compile-all to add queries.

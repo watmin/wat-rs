@@ -25,7 +25,7 @@
      work-name (:wat::core::keyword/from-string "user::bracket::work-fn")
      forms     (:wat::kernel::fn-forms impl-kw work-name)
      nforms    (:wat::core::length forms)
-     def-node  (:wat::core::Option/expect (:wat::core::get forms (:wat::core::i64::- nforms 2)) "no define")
+     def-node  (:wat::core::Option/expect (:wat::core::get forms (:wat::i64::- nforms 2)) "no define")
      dn-ch     (:wat::core::ast->children def-node)
      head0     (:wat::core::first dn-ch)
      head0k    (:wat::core::ast-kind head0)

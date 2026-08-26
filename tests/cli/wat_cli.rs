@@ -585,7 +585,7 @@ fn check_output_edn_emits_record_per_diagnostic() {
     );
     // Structured fields preserved verbatim — not text-wrapped.
     // :file field is prepended first; callee and function follow.
-    assert!(lines[0].contains(":callee \":wat::core::i64::+\"")); // rune:lint(loose-assert) — EDN line includes variable :file field (temp path with pid + nanosecond timestamp); targeted field check is the contract
+    assert!(lines[0].contains(":callee \":wat::i64::+\"")); // rune:lint(loose-assert) — EDN line includes variable :file field (temp path with pid + nanosecond timestamp); targeted field check is the contract
     assert!(lines[1].contains(":function \":user::main\"")); // rune:lint(loose-assert) — EDN line includes variable :file field (temp path with pid + nanosecond timestamp); targeted field check is the contract
 }
 
@@ -622,7 +622,7 @@ fn check_output_json_emits_record_per_diagnostic() {
         lines[1]
     );
     // Keyword field keys carry leading colon in JSON (EDN keyword serialization).
-    assert!(lines[0].contains("\":callee\":\":wat::core::i64::+\"")); // rune:lint(loose-assert) — JSON line includes variable \":file\":\"...\" field (temp path with pid + nanosecond timestamp); targeted field check is the contract
+    assert!(lines[0].contains("\":callee\":\":wat::i64::+\"")); // rune:lint(loose-assert) — JSON line includes variable \":file\":\"...\" field (temp path with pid + nanosecond timestamp); targeted field check is the contract
     assert!(lines[1].contains("\":function\":\":user::main\"")); // rune:lint(loose-assert) — JSON line includes variable \":file\":\"...\" field (temp path with pid + nanosecond timestamp); targeted field check is the contract
 }
 

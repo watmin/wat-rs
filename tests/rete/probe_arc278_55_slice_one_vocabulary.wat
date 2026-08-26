@@ -36,12 +36,12 @@
 ;; is the short-circuit, not the answer: were `or` strict, the second operand raises
 ;; DivisionByZero and this entry never returns.
 (:wat::core::defn :user::form-or-short-circuits [] -> :wat::core::bool
-  (:wat::rete::core::or true (:wat::core::i64::> (:wat::core::i64::/ 1 0) 0)))
+  (:wat::rete::core::or true (:wat::i64::> (:wat::i64::/ 1 0) 0)))
 
 ;; The NON-VACUITY CONTROL for the entry above: the identical operand, REACHED, does raise. Without
 ;; this the short-circuit test could pass on an operand that was simply harmless.
 (:wat::core::defn :user::form-or-control-raises [] -> :wat::core::bool
-  (:wat::rete::core::or false (:wat::core::i64::> (:wat::core::i64::/ 1 0) 0)))
+  (:wat::rete::core::or false (:wat::i64::> (:wat::i64::/ 1 0) 0)))
 
 ;; ── #56 phase 1: the head-table pair (`if`/`let`) ───────────────────────────────────────────
 ;; EXPECTATIONS row 3 — `if` routes to `infer_if`, NOT the bool short-circuit arm: non-bool
@@ -53,12 +53,12 @@
 
 ;; row 4 — `if` does not evaluate the untaken branch: the untaken (else) branch raises.
 (:wat::core::defn :user::rete-if-short-circuits [] -> :wat::core::i64
-  (:wat::rete::core::if true 1 (:wat::core::i64::/ 1 0)))
+  (:wat::rete::core::if true 1 (:wat::i64::/ 1 0)))
 
 ;; row 5 — the NON-VACUITY CONTROL for row 4: the identical raising operand, actually REACHED
 ;; (condition now false, so the else branch fires), DOES raise.
 (:wat::core::defn :user::rete-if-control-raises [] -> :wat::core::i64
-  (:wat::rete::core::if false 1 (:wat::core::i64::/ 1 0)))
+  (:wat::rete::core::if false 1 (:wat::i64::/ 1 0)))
 
 ;; row 6 — `let` actually scopes a binding: bind, then read it back.
 (:wat::core::defn :user::rete-let-scopes [] -> :wat::core::i64
@@ -70,9 +70,9 @@
 ;; whose `and`-tailed sibling — a Form `eval_tail` does NOT intercept — segfaults at this exact
 ;; depth). Depth chosen to match that proof exactly, not a smaller number that TCO doesn't need.
 (:wat::core::defn :probe::rete-countdown-if [n <- :wat::core::i64] -> :wat::core::i64
-  (:wat::rete::core::if (:wat::core::i64::<= n 0)
+  (:wat::rete::core::if (:wat::i64::<= n 0)
     0
-    (:probe::rete-countdown-if (:wat::core::i64::- n 1))))
+    (:probe::rete-countdown-if (:wat::i64::- n 1))))
 
 (:wat::core::defn :user::rete-if-tail-tco-survives-depth [] -> :wat::core::i64
   (:probe::rete-countdown-if 200000))
@@ -92,7 +92,7 @@
 
 (:wat::core::defn :test::rete-match-shape-area [s <- :test::S5Shape] -> :wat::core::i64
   (:wat::rete::core::match s
-    ((:test::S5Shape::Circle r) (:wat::core::i64::* r r))
+    ((:test::S5Shape::Circle r) (:wat::i64::* r r))
     (:test::S5Shape::Square    0)))
 
 (:wat::core::defn :user::rete-match-pattern-not-classified-as-expr-pure [] -> :wat::core::bool
@@ -163,4 +163,4 @@
   (:wat::rete::vocabulary-admitted? (:wat::core::quote :wat::rete::fire-rules)))
 ;; row 5 — a `:wat::core::` head is refused (never rete-namespaced at all).
 (:wat::core::defn :user::refuse-core-head? [] -> :wat::core::bool
-  (:wat::rete::vocabulary-admitted? (:wat::core::quote :wat::core::i64::+)))
+  (:wat::rete::vocabulary-admitted? (:wat::core::quote :wat::i64::+)))

@@ -100,7 +100,7 @@
           "type-query-to-defquery: type has no namespace: " fqdn)
         :wat::core::None :wat::core::None)
       (:wat::core::let [ty (:wat::core::Option/expect
-                             (:wat::core::get parts (:wat::core::i64::- n 1))
+                             (:wat::core::get parts (:wat::i64::- n 1))
                              "type->qname: last")
                         ns (:wat::core::foldl
                              (:wat::core::fn [acc <- :wat::core::String
@@ -114,7 +114,7 @@
                                    (:wat::string::concat acc
                                      (:wat::string::concat "::" seg)))))
                              ""
-                             (:wat::core::range 0 (:wat::core::i64::- n 1)))]
+                             (:wat::core::range 0 (:wat::i64::- n 1)))]
         (:wat::string::concat ns
           (:wat::string::concat "::q-" ty))))))
 

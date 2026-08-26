@@ -358,37 +358,63 @@ fn is_pure_total(head: &str) -> bool {
         // `/` (runtime.rs) — div-by-zero is a deterministic located abort
         // (RuntimeErrorKind::DivisionByZero), never a panic, same as `/`.
         ":wat::core::i64::+"
+        | ":wat::i64::+"
         | ":wat::core::i64::-"
+        | ":wat::i64::-"
         | ":wat::core::i64::*"
+        | ":wat::i64::*"
         | ":wat::core::i64::/"
+        | ":wat::i64::/"
         | ":wat::core::i64::mod"
+        | ":wat::i64::mod"
         | ":wat::core::i64::rem"
+        | ":wat::i64::rem"
         | ":wat::core::i64::quot"
+        | ":wat::i64::quot"
 
         // ── Integer comparison ─────────────────────────────────────────
         | ":wat::core::i64::>"
+        | ":wat::i64::>"
         | ":wat::core::i64::<"
+        | ":wat::i64::<"
         | ":wat::core::i64::>="
+        | ":wat::i64::>="
         | ":wat::core::i64::<="
+        | ":wat::i64::<="
 
         // ── Float arithmetic (pure, IEEE 754) ─────────────────────────
         | ":wat::core::f64::+"
+        | ":wat::f64::+"
         | ":wat::core::f64::-"
+        | ":wat::f64::-"
         | ":wat::core::f64::*"
+        | ":wat::f64::*"
         | ":wat::core::f64::/"
+        | ":wat::f64::/"
         | ":wat::core::f64::abs"
+        | ":wat::f64::abs"
         | ":wat::core::f64::max"
+        | ":wat::f64::max"
         | ":wat::core::f64::min"
+        | ":wat::f64::min"
         | ":wat::core::f64::round"
+        | ":wat::f64::round"
         | ":wat::core::f64::clamp"
+        | ":wat::f64::clamp"
         | ":wat::core::f64::max-of"
+        | ":wat::f64::max-of"
         | ":wat::core::f64::min-of"
+        | ":wat::f64::min-of"
 
         // ── Float comparison ───────────────────────────────────────────
         | ":wat::core::f64::>"
+        | ":wat::f64::>"
         | ":wat::core::f64::<"
+        | ":wat::f64::<"
         | ":wat::core::f64::>="
+        | ":wat::f64::>="
         | ":wat::core::f64::<="
+        | ":wat::f64::<="
 
         // ── Polymorphic equality / relational ─────────────────────────
         | ":wat::core::="
@@ -405,11 +431,15 @@ fn is_pure_total(head: &str) -> bool {
         // both are listed here intentionally so either spelling in a macro
         // program-body is allowed.
         | ":wat::core::i64::to-string"
+        | ":wat::i64::to-string"
         | ":wat::core::i64::to-f64"
+        | ":wat::i64::to-f64"
         | ":wat::core::i64/to-f64"
         | ":wat::core::i64/to-string"
         | ":wat::core::f64::to-string"
+        | ":wat::f64::to-string"
         | ":wat::core::f64::to-i64"
+        | ":wat::f64::to-i64"
         | ":wat::core::bool::to-string"
         | ":wat::string::to-i64"
         | ":wat::string::to-f64"
@@ -718,5 +748,31 @@ fn is_pure_total(head: &str) -> bool {
         // never a `fn` form), unlike signature-of-fn above.
         | ":wat::runtime::field-names-of"
         | ":wat::runtime::field-types-of"
+
+        // ── Arc 255 — GAP CLOSURE, not a rename (builder ruling 2026-08-26:
+        // "if we're missing logical stuff, we add it - we are cleaning up months
+        // of hacking"). These six per-type verbs were absent under BOTH spellings.
+        // Surfaced by the numerics rehome: mirroring the old list exactly would have
+        // preserved the hole, so the hole is closed instead.
+        //
+        // Every one is pure and TOTAL by the standard this list already applies —
+        // their only `Err` arms are argument type/arity checks, which every listed
+        // op performs. They are at least as total as `/`, whose division-by-zero is
+        // explicitly blessed above as "a deterministic located abort, never a panic".
+        //   =, not=      comparison over two same-category scalars
+        //   to-bigint    i64 -> BigInt, a widening; no domain failure
+        //   to-rational  i64 -> Rational (n/1); no domain failure
+        | ":wat::core::i64::="
+        | ":wat::i64::="
+        | ":wat::core::i64::not="
+        | ":wat::i64::not="
+        | ":wat::core::i64::to-bigint"
+        | ":wat::i64::to-bigint"
+        | ":wat::core::i64::to-rational"
+        | ":wat::i64::to-rational"
+        | ":wat::core::f64::="
+        | ":wat::f64::="
+        | ":wat::core::f64::not="
+        | ":wat::f64::not="
     )
 }

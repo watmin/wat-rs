@@ -6,7 +6,7 @@
   (:wat::core::let
     [wrapped   (:wat::core::Ok 42)
      extracted (:wat::core::match wrapped 
-                 ((:wat::core::Ok n) (:wat::core::i64::+ n 1))
+                 ((:wat::core::Ok n) (:wat::i64::+ n 1))
                  ((:wat::core::Err _) -1))]
     extracted))
 

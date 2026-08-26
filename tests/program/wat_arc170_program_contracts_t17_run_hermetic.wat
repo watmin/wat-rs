@@ -14,7 +14,7 @@
     [p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
-             (:wat::kernel::println (:wat::core::i64::+ 2 2)))))]
+             (:wat::kernel::println (:wat::i64::+ 2 2)))))]
     (:wat::core::match (:wat::kernel::recv p)
       ((:wat::kernel::RecvOutcome::Message m) m)
       ((:wat::kernel::RecvOutcome::Lost cause)

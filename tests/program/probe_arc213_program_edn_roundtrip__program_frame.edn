@@ -246,49 +246,49 @@
             #wat.ast/Spanned {
               :node (
                 #wat.ast/Spanned {
-                  :node :wat.core.i64/+
+                  :node :wat.i64/+
                   :origin 0
                   :line 12
                   :col 41
                   :end-line 12
-                  :end-col 59
+                  :end-col 53
                 }
                 #wat.ast/Spanned {
                   :node x
                   :origin 0
                   :line 12
-                  :col 60
+                  :col 54
                   :end-line 12
-                  :end-col 61
+                  :end-col 55
                 }
                 #wat.ast/Spanned {
                   :node y
                   :origin 0
                   :line 12
-                  :col 62
+                  :col 56
                   :end-line 12
-                  :end-col 63
+                  :end-col 57
                 }
               )
               :origin 0
               :line 12
               :col 40
               :end-line 12
-              :end-col 64
+              :end-col 58
             }
           )
           :origin 0
           :line 12
           :col 5
           :end-line 12
-          :end-col 65
+          :end-col 59
         }
       )
       :origin 0
       :line 11
       :col 1
       :end-line 12
-      :end-col 66
+      :end-col 60
     }
     #wat.ast/Spanned {
       :node (

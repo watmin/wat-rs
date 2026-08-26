@@ -30,17 +30,17 @@
       (:wat::core::let [f (:wat::core::Option/expect
                              (:wat::core::PersistentMap/get p "?fact")
                              "query: ?fact")]
-        (:wat::core::i64::+ acc (:wafl::Hit/n f))))
+        (:wat::i64::+ acc (:wafl::Hit/n f))))
     0
     (:wat::rete::query s (:wafl::q-Hit))))
 
 (:wat::core::defn :wafl::line [row <- :wat::core::i64 name <- :wat::core::String n <- :wat::core::i64] -> :wat::core::nil
   (:wat::kernel::println
     (:wat::core::String/concat
-      (:wat::core::String/concat "row " (:wat::core::i64::to-string row))
+      (:wat::core::String/concat "row " (:wat::i64::to-string row))
       (:wat::core::String/concat
         (:wat::core::String/concat " " name)
-        (:wat::core::String/concat " n=" (:wat::core::i64::to-string n))))))
+        (:wat::core::String/concat " n=" (:wat::i64::to-string n))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let [base (:wat::rete::compile-all

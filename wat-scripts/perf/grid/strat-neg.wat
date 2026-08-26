@@ -114,7 +114,7 @@
 ;; items is always far below 1,000,000 in every size this axis is run at (grid scale, not
 ;; production scale), so the encoding is injective for the sizes this ward ever sees.
 (:wat::core::defn :strat::encode [stratum <- :wat::core::i64  k <- :wat::core::i64] -> :wat::core::i64
-  (:wat::core::i64::+ (:wat::core::i64::* stratum 1000000) k))
+  (:wat::i64::+ (:wat::i64::* stratum 1000000) k))
 
 ;; insert-form lvl — the full (:wat::rete::insert (:strat::S<lvl> ?k)) action form for stratum
 ;; lvl. Each branch is a LITERAL nested quasiquote (no cross-boundary AST splicing of a computed
@@ -135,7 +135,7 @@
     (:else (:wat::core::Option/expect  :wat::core::None
              (:wat::string::interpolate
                "strat-neg: strata exceeds MAX_STRATA=10 (S0..S9); requested level {lvl-s}"
-               :lvl-s (:wat::core::i64::to-string lvl))))))
+               :lvl-s (:wat::i64::to-string lvl))))))
 
 ;; not-pattern prev — the full (:wat::rete::not (:strat::S<prev> (?k <- :k))) condition form,
 ;; negating stratum `prev`'s derived facts. Same literal-dispatch shape as insert-form.
@@ -154,7 +154,7 @@
     (:else (:wat::core::Option/expect  :wat::core::None
              (:wat::string::interpolate
                "strat-neg: strata exceeds MAX_STRATA=10 (S0..S9); requested level {prev-s}"
-               :prev-s (:wat::core::i64::to-string prev))))))
+               :prev-s (:wat::i64::to-string prev))))))
 
 ;; build-rule lvl — the lvl-th stratum's rule.
 ;;   lvl == 0: S0(k) :- Item(k) AND (k mod 2 == 0)     [2 conditions: bind, then a :where test]
@@ -182,8 +182,8 @@
                     ins     (:strat::insert-form lvl)
                     conds   (:wat::core::if (:wat::core::= lvl 0)
                               (:wat::core::PersistentVector item-c where-c)
-                              (:wat::core::PersistentVector item-c (:strat::not-pattern (:wat::core::i64::- lvl 1))))]
-    (:wat::rete::Rule :name (:wat::core::i64::to-string lvl) :lhs conds :rhs (:wat::core::PersistentVector ins))))
+                              (:wat::core::PersistentVector item-c (:strat::not-pattern (:wat::i64::- lvl 1))))]
+    (:wat::rete::Rule :name (:wat::i64::to-string lvl) :lhs conds :rhs (:wat::core::PersistentVector ins))))
 
 ;; build-rules strata — the rule set [rule0 .. rule(strata-1)], folding build-rule over
 ;; (range 1 strata) atop a seeded rule0 (mirrors deep-cascade.wat's build-rules exactly).
@@ -258,7 +258,7 @@
     (:else (:wat::core::Option/expect  :wat::core::None
              (:wat::string::interpolate
                "strat-neg: strata exceeds MAX_STRATA=10 (S0..S9); requested level {lvl-s}"
-               :lvl-s (:wat::core::i64::to-string lvl))))))
+               :lvl-s (:wat::i64::to-string lvl))))))
 
 ;; vec->pvec v — materialize a (Vector :- [i64]) into a (PersistentVector :- [i64]). DESIGN-STONE-into-pv-
 ;; from-vector.md: `into` now has a native ((PersistentVector :- [T]), (Vector :- [T])) clause backed by one
@@ -282,7 +282,7 @@
 
 ;; ns-between t0 t1 — nanoseconds between two Instants (mirrors deep-cascade.wat's ns-between).
 (:wat::core::defn :strat::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> :wat::core::i64
-  (:wat::core::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
+  (:wat::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let [params  (:wat::core::match (:wat::kernel::readln ) ((:wat::kernel::ReadlnOutcome::Datum __datum) __datum) (:wat::kernel::ReadlnOutcome::Eof (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None)) (:wat::kernel::ReadlnOutcome::Stopped (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)))

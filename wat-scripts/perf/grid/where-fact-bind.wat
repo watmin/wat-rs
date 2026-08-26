@@ -49,7 +49,7 @@
   -> :wat::core::nil
   (:wat::kernel::println
     (:wat::core::String/concat
-      (:wat::core::String/concat "row " (:wat::core::i64::to-string row))
+      (:wat::core::String/concat "row " (:wat::i64::to-string row))
       (:wat::core::String/concat (:wat::core::String/concat " " name) body))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
@@ -68,23 +68,23 @@
                     hits  (:wat::rete::query world (:wfb::q-Hit))]
     (:wfb::line 1 "bound"
       (:wat::core::String/concat
-        (:wat::core::String/concat " n=" (:wat::core::i64::to-string (:wat::core::length bound)))
+        (:wat::core::String/concat " n=" (:wat::i64::to-string (:wat::core::length bound)))
         (:wat::core::String/concat " has=?t " (:wfb::has-key bound "?t"))))
     (:wfb::line 2 "plain"
       (:wat::core::String/concat
-        (:wat::core::String/concat " n=" (:wat::core::i64::to-string (:wat::core::length plain)))
+        (:wat::core::String/concat " n=" (:wat::i64::to-string (:wat::core::length plain)))
         (:wat::core::String/concat " has=?t " (:wfb::has-key plain "?t"))))
     (:wfb::line 3 "both"
       (:wat::core::String/concat
-        (:wat::core::String/concat " n=" (:wat::core::i64::to-string (:wat::core::length both)))
+        (:wat::core::String/concat " n=" (:wat::i64::to-string (:wat::core::length both)))
         (:wat::core::String/concat
           (:wat::core::String/concat " has=?t " (:wfb::has-key both "?t"))
           (:wat::core::String/concat " has=?c " (:wfb::has-key both "?c")))))
     (:wfb::line 4 "cool"
       (:wat::core::String/concat
-        (:wat::core::String/concat " n=" (:wat::core::i64::to-string (:wat::core::length hits)))
+        (:wat::core::String/concat " n=" (:wat::i64::to-string (:wat::core::length hits)))
         (:wat::core::String/concat " -> "
-          (:wat::core::i64::to-string
+          (:wat::i64::to-string
             (:wat::core::Option/expect
               (:wat::core::PersistentMap/get (:wat::core::first hits) "?c")
               "q-Hit: ?c")))))
@@ -98,4 +98,4 @@
                                    (:wfb::Temp :c 80 :loc "MCI")))
                         grouped (:wat::rete::query only-q (:wfb::q-from))]
         (:wat::core::String/concat
-          " n=" (:wat::core::i64::to-string (:wat::core::length grouped)))))))
+          " n=" (:wat::i64::to-string (:wat::core::length grouped)))))))

@@ -38,7 +38,7 @@
 
 (def :probe-foldl
   (:wat::rete::core::foldl
-    (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ acc x))
+    (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::+ acc x))
     0
     (:wat::core::PersistentVector 1 2 3)))
 
@@ -54,13 +54,13 @@
 (def :probe-map
   (:wat::core::into (:wat::core::PersistentVector)
     (:wat::rete::core::map
-      (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::* x 2))
+      (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::* x 2))
       (:wat::core::PersistentVector 1 2 3))))
 
 (def :probe-filter
   (:wat::core::into (:wat::core::PersistentVector)
     (:wat::rete::core::filter
-      (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::bool (:wat::core::i64::> x 1))
+      (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::bool (:wat::i64::> x 1))
       (:wat::core::PersistentVector 1 2 3))))
 
 ;; `reduce` is a wat-level `defclause` (`wat/seq.wat`), not a checker special form like its
@@ -69,6 +69,6 @@
 ;; infer_rete_form, the `:wat::core::reduce` arm).
 (def :probe-reduce
   (:wat::rete::core::reduce
-    (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ acc x))
+    (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::+ acc x))
     0
     (:wat::core::PersistentVector 1 2 3)))

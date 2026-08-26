@@ -37,7 +37,7 @@
      rch   (:wat::core::ast->children rule)]
     (:wat::core::do
       (:wat::kernel::println (:wat::core::String/concat "rule-defn child kinds:" (:user::kinds rch)))
-      (:wat::kernel::println (:wat::core::String/concat "rule-defn child count: " (:wat::core::i64::to-string (:wat::core::length rch))))
+      (:wat::kernel::println (:wat::core::String/concat "rule-defn child count: " (:wat::i64::to-string (:wat::core::length rch))))
       (:wat::core::let [body (:wat::core::Option/expect (:wat::core::get rch 5) "body")]
         (:wat::core::do
           (:wat::kernel::println (:wat::core::String/concat "body kind: " (:wat::core::ast-kind body)))
@@ -50,7 +50,7 @@
                   (:wat::core::let [bindch (:wat::core::ast->children bindings)]
                     (:wat::core::do
                       (:wat::kernel::println (:wat::core::String/concat "bindings child kinds:" (:user::kinds bindch)))
-                      (:wat::kernel::println (:wat::core::String/concat "bindings child count: " (:wat::core::i64::to-string (:wat::core::length bindch))))
+                      (:wat::kernel::println (:wat::core::String/concat "bindings child count: " (:wat::i64::to-string (:wat::core::length bindch))))
                       (:wat::core::let [conds-val (:wat::core::Option/expect (:wat::core::get bindch 1) "conds-val")]
                         (:wat::core::do
                           (:wat::kernel::println (:wat::core::String/concat "conds-val kind: " (:wat::core::ast-kind conds-val)))

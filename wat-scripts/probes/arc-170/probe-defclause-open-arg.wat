@@ -13,9 +13,9 @@
 ;; a client that knows sqlite + redis — CONCRETE clauses ONLY
 (:wat::core::defclause :probe::describe
   ([r <- :probe::SqliteReason] -> :wat::core::String
-    (:wat::string::concat "sqlite " (:wat::core::i64::to-string (:probe::SqliteReason/code r))))
+    (:wat::string::concat "sqlite " (:wat::i64::to-string (:probe::SqliteReason/code r))))
   ([r <- :probe::RedisReason]  -> :wat::core::String
-    (:wat::string::concat "redis "  (:wat::core::i64::to-string (:probe::RedisReason/errno r)))))
+    (:wat::string::concat "redis "  (:wat::i64::to-string (:probe::RedisReason/errno r)))))
 
 ;; the value flows as the OPEN surface (as it would out of an agnostic Store error)
 (:wat::core::defn :probe::as-reason [r <- :probe::SqliteReason] -> :probe::Reason r)

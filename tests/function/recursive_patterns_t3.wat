@@ -9,4 +9,4 @@
                   ((:wat::core::Some :wat::core::None) -1)
                   (:wat::core::None -2)
                   (_ -3))]
-              (:wat::kernel::println (:wat::core::i64::to-string v))))
+              (:wat::kernel::println (:wat::i64::to-string v))))

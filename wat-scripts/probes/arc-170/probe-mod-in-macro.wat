@@ -8,7 +8,7 @@
 ;; it expands + runs green.
 (:wat::core::defmacro :my::list-parity [& xs <- (:wat::core::Vector :- [:wat::WatAST])]
   -> :wat::WatAST
-  (:wat::core::if (:wat::core::= (:wat::core::i64::mod (:wat::core::length xs) 2) 0)
+  (:wat::core::if (:wat::core::= (:wat::i64::mod (:wat::core::length xs) 2) 0)
     
     `"even"
     `"odd"))

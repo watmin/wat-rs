@@ -6,4 +6,4 @@
   [x <- :wat::core::i64
    y <- :wat::core::i64]
   -> :wat::core::i64
-  (:wat::core::i64::+ x y))
+  (:wat::i64::+ x y))

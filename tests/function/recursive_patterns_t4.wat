@@ -7,4 +7,4 @@
                 (:wat::core::match row 
                   ((:wat::core::Some (_ x _)) x)
                   (:wat::core::None 0))]
-              (:wat::kernel::println (:wat::core::i64::to-string mid))))
+              (:wat::kernel::println (:wat::i64::to-string mid))))

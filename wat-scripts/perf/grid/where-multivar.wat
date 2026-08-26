@@ -226,7 +226,7 @@
       ((:wat::core::= row 12) (:wmv::chain-arith))
       (:else
         (:wat::kernel::assertion-failed!
-          (:wat::core::String/concat "where-multivar: unknown row " (:wat::core::i64::to-string row))
+          (:wat::core::String/concat "where-multivar: unknown row " (:wat::i64::to-string row))
           :wat::core::None :wat::core::None)))))
 
 ;; seed session items — stage Req(i) for i in [0, items) via the BATCH verb (one rebuild).
@@ -246,12 +246,12 @@
       (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  i <- :wat::core::i64]
                       -> (:wat::core::PersistentVector :- [:wat::core::Record])
         (:wat::core::let
-          [a (:wat::core::i64::mod i 11)
-           b (:wat::core::i64::mod i 13)
-           c (:wat::core::i64::mod i 7)
-           d (:wat::core::i64::mod i 5)
-           e (:wat::core::i64::mod i 3)
-           s (:wat::core::i64::to-string i)]
+          [a (:wat::i64::mod i 11)
+           b (:wat::i64::mod i 13)
+           c (:wat::i64::mod i 7)
+           d (:wat::i64::mod i 5)
+           e (:wat::i64::mod i 3)
+           s (:wat::i64::to-string i)]
           (:wat::core::PersistentVector/conj acc
             (:wmv::Req :k i :a a :b b :c c :d d :e e :s s))))
       (:wat::core::PersistentVector)
@@ -272,7 +272,7 @@
   (:wat::core::foldl
     (:wat::core::fn [acc <- :wat::core::String  x <- :wat::core::i64] -> :wat::core::String
       (:wat::core::String/concat acc
-        (:wat::core::String/concat " " (:wat::core::i64::to-string x))))
+        (:wat::core::String/concat " " (:wat::i64::to-string x))))
     ""
     v))
 
@@ -303,10 +303,10 @@
      n       (:wat::core::Vector/length derived)]
     (:wat::core::String/concat
       (:wat::core::String/concat
-        (:wat::core::String/concat "row " (:wat::core::i64::to-string row))
+        (:wat::core::String/concat "row " (:wat::i64::to-string row))
         (:wat::core::String/concat " " (:wmv::rule-display-name (:wat::rete::Rule/name rule))))
       (:wat::core::String/concat
-        (:wat::core::String/concat " n=" (:wat::core::i64::to-string n))
+        (:wat::core::String/concat " n=" (:wat::i64::to-string n))
         (:wat::core::String/concat " ->" (:wmv::render-ints derived))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
@@ -314,4 +314,4 @@
     (:wat::core::fn [acc <- :wat::core::nil  row <- :wat::core::i64] -> :wat::core::nil
       (:wat::kernel::println (:wmv::run-row row)))
     nil
-    (:wat::core::range 1 (:wat::core::i64::+ (:wmv::row-count) 1))))
+    (:wat::core::range 1 (:wat::i64::+ (:wmv::row-count) 1))))

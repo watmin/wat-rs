@@ -11,7 +11,7 @@
         (:wat::core::let
           [doubled (:wat::core::foldl
                      (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::i64]) x <- :wat::core::i64] -> (:wat::core::Vector :- [:wat::core::i64])
-                       (:wat::core::conj acc (:wat::core::i64::* x 2)))
+                       (:wat::core::conj acc (:wat::i64::* x 2)))
                      (:wat::core::Vector :wat::core::i64)
                      xs)]
           doubled)))))

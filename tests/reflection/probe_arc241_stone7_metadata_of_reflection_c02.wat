@@ -4,6 +4,6 @@
 (:wat::core::defn :my::f
   {:doc "doubles x"}
   [x <- :wat::core::i64] -> :wat::core::i64
-  (:wat::core::i64::+ x x))
+  (:wat::i64::+ x x))
 (:wat::core::defn :user::compute [] -> (:wat::core::Option :- [:wat::core::i64])
   (:wat::runtime::metadata-of :my::f))

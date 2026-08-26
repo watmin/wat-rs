@@ -145,7 +145,7 @@
   (:wat::core::let [ls (:wat::string::length s) lsuf (:wat::string::length suf)]
     (:wat::core::if (:wat::core::< ls lsuf)
       false
-      (:wat::core::= (:wat::string::subs s (:wat::core::i64::- ls lsuf) ls) suf))))
+      (:wat::core::= (:wat::string::subs s (:wat::i64::- ls lsuf) ls) suf))))
 
 ;; run-row-defn? — a top-level `(:wat::core::defn NAME:...::run-row ...)` form.
 (:wat::core::defn :user::run-row-defn? [f <- :wat::WatAST] -> :wat::core::bool

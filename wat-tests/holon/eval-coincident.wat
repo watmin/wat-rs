@@ -25,8 +25,8 @@
   (:wat::core::let
     [r
       (:wat::holon::eval-coincident?
-        (:wat::core::quote (:wat::core::i64::+ 2 2))
-        (:wat::core::quote (:wat::core::i64::* 1 4)))]
+        (:wat::core::quote (:wat::i64::+ 2 2))
+        (:wat::core::quote (:wat::i64::* 1 4)))]
     (:wat::test::assert-eq
       (:wat::core::match r 
         ((:wat::core::Ok b)  b)

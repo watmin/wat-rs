@@ -22,7 +22,7 @@
 ;; contribution depend on how many elements followed it.
 (:wat::core::defn :wat-tests::core::core-foldl-spec::shift-add
   [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
-  (:wat::core::i64::+ (:wat::core::i64::* acc 2) x))
+  (:wat::i64::+ (:wat::i64::* acc 2) x))
 
 (:wat::core::defn :wat-tests::core::core-foldl-spec::id
   [x <- :wat::core::i64] -> :wat::core::i64 x)

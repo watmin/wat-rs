@@ -17,7 +17,7 @@
          (:wat::core::forms
            ;; the work-fn, shipped as SOURCE (crosses the fork like a defservice :impl)
            (:wat::core::defn :probe::dbl [x <- :wat::core::i64] -> :wat::core::i64
-             (:wat::core::i64::* x 2))
+             (:wat::i64::* x 2))
            ;; the streaming runner loop (TCO; recv' raises when the parent peer drops → clean exit)
            ;; PROCESS child's self-peer is Peer' (wire-capable, pure I/O) — NOT ThreadSelfPeer'
            ;; (the checker taught this; it's why bracket.wat:21's ThreadSelfPeer' runner is thread-pinned).
@@ -54,5 +54,5 @@
             (:wat::kernel::assertion-failed! "recv': w closed unexpectedly" :wat::core::None :wat::core::None)))]
     (:wat::kernel::println
       (:wat::string::concat
-        (:wat::core::i64::to-string a)
-        (:wat::string::concat " " (:wat::core::i64::to-string b))))))
+        (:wat::i64::to-string a)
+        (:wat::string::concat " " (:wat::i64::to-string b))))))

@@ -83,7 +83,7 @@
   -> :wat::core::i64
   (:wat::core::foldl
     (:wat::core::fn [acc <- :wat::core::i64  f <- :wat::core::String] -> :wat::core::i64
-      (:wat::core::i64::+ acc (:user::grep-one-file armed f)))
+      (:wat::i64::+ acc (:user::grep-one-file armed f)))
     0
     files))
 
@@ -140,7 +140,7 @@
         -> :wat::core::i64
         (:wat::core::foldl
           (:wat::core::fn [acc <- :wat::core::i64  loc <- :wat::core::String] -> :wat::core::i64
-            (:wat::core::i64::+ acc
+            (:wat::i64::+ acc
               (:wat::core::length
                 (:wat::rete::query
                   (overlay (:wat::core::PersistentVector :- [:wat::core::Record]

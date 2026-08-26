@@ -49,7 +49,7 @@
               (:wat::core::let [bindch (:wat::core::ast->children bindings)]
                 (:wat::core::do
                   (:wat::kernel::println (:wat::core::String/concat "bindings child kinds:" (:user::kinds bindch)))
-                  (:wat::kernel::println (:wat::core::String/concat "bindings child count: " (:wat::core::i64::to-string (:wat::core::length bindch))))))))))
+                  (:wat::kernel::println (:wat::core::String/concat "bindings child count: " (:wat::i64::to-string (:wat::core::length bindch))))))))))
       (:wat::kernel::println (:wat::core::String/concat "conds-fn child kinds:" (:user::kinds cch)))
       (:wat::core::let [cbody (:wat::core::Option/expect (:wat::core::get cch 5) "cbody")]
         (:wat::core::let [cbch (:wat::core::ast->children cbody)]

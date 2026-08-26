@@ -88,7 +88,7 @@
                       -> (:wat::core::PersistentVector :- [:wat::core::Record])
         (:wat::core::let [a2 (:wat::core::PersistentVector/conj acc (:nc::Item i))
                           a3 (:wat::core::PersistentVector/conj a2 (:nc::Tag i))]
-          (:wat::core::if (:wat::core::= i (:wat::core::i64::* (:wat::core::i64::/ i 2) 2))
+          (:wat::core::if (:wat::core::= i (:wat::i64::* (:wat::i64::/ i 2) 2))
             (:wat::core::PersistentVector/conj a3 (:nc::Bad i))
             a3)))
       (:wat::core::PersistentVector)
@@ -105,7 +105,7 @@
     (:nc::vec->pvec (:wat::core::sort codes))))
 
 (:wat::core::defn :nc::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> :wat::core::i64
-  (:wat::core::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
+  (:wat::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let [params  (:wat::core::match (:wat::kernel::readln ) ((:wat::kernel::ReadlnOutcome::Datum __datum) __datum) (:wat::kernel::ReadlnOutcome::Eof (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None)) (:wat::kernel::ReadlnOutcome::Stopped (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)))

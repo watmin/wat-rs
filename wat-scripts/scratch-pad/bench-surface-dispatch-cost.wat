@@ -58,16 +58,16 @@
 
 (:wat::core::defn :bench::loop-direct [n <- :wat::core::i64 v <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::i64
   (:wat::core::foldl (:wat::core::fn [acc <- :wat::core::i64 _i <- :wat::core::i64] -> :wat::core::i64
-                       (:wat::core::i64::+ acc (:bench::direct v)))
+                       (:wat::i64::+ acc (:bench::direct v)))
                      0 (:wat::core::range 0 n)))
 
 (:wat::core::defn :bench::loop-disp [n <- :wat::core::i64 v <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::i64
   (:wat::core::foldl (:wat::core::fn [acc <- :wat::core::i64 _i <- :wat::core::i64] -> :wat::core::i64
-                       (:wat::core::i64::+ acc (:bench::dispatched v)))
+                       (:wat::i64::+ acc (:bench::dispatched v)))
                      0 (:wat::core::range 0 n)))
 
 (:wat::core::defn :bench::ns [t0 <- :wat::time::Instant t1 <- :wat::time::Instant] -> :wat::core::i64
-  (:wat::core::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
+  (:wat::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
@@ -83,7 +83,7 @@
       (:wat::string::interpolate
         "n={n} NONVACUITY ra={ra} rb={rb} rc={rc} rd={rd} | A: disp={ad}ms direct={bd}ms | B: direct={cd}ms disp={dd}ms"
         :n n :ra ra :rb rb :rc rc :rd rd
-        :ad (:wat::core::i64::/ (:bench::ns a0 a1) 1000000)
-        :bd (:wat::core::i64::/ (:bench::ns b0 b1) 1000000)
-        :cd (:wat::core::i64::/ (:bench::ns c0 c1) 1000000)
-        :dd (:wat::core::i64::/ (:bench::ns d0 d1) 1000000)))))
+        :ad (:wat::i64::/ (:bench::ns a0 a1) 1000000)
+        :bd (:wat::i64::/ (:bench::ns b0 b1) 1000000)
+        :cd (:wat::i64::/ (:bench::ns c0 c1) 1000000)
+        :dd (:wat::i64::/ (:bench::ns d0 d1) 1000000)))))

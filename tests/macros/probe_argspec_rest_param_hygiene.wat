@@ -12,8 +12,8 @@
        & rest <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::i64
        (:wat::core::foldl
          (:wat::core::fn [acc <- :wat::core::i64 n <- :wat::core::i64] -> :wat::core::i64
-           (:wat::core::i64::+ acc n))
-         (:wat::core::i64::+ x y)
+           (:wat::i64::+ acc n))
+         (:wat::i64::+ x y)
          rest))))
 
 (:test::make-rest-sum)

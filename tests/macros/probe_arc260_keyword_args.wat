@@ -5,7 +5,7 @@
 ;; A user fn called with OUT-OF-ORDER keyword args; only a real kwargs feature
 ;; (reorder by param name) yields the right answer.
 (:wat::core::defn :user::sub [a <- :wat::core::i64  b <- :wat::core::i64] -> :wat::core::i64
-  (:wat::core::i64::- a b))
+  (:wat::i64::- a b))
 
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:user::sub :b 3 :a 10))

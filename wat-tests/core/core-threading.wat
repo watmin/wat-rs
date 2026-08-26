@@ -28,8 +28,8 @@
 (:wat::test::deftest :wat-tests::core::core-threading::thread-first-list-step
   
   (:wat::core::let
-    [threaded (:wat::core::-> 10 (:wat::core::i64::- 3))
-     direct   (:wat::core::i64::- 10 3)]
+    [threaded (:wat::core::-> 10 (:wat::i64::- 3))
+     direct   (:wat::i64::- 10 3)]
     (:wat::test::assert-eq threaded direct)))
 
 ;; ─── Thread-first: two list steps ────────────────────────────────────────
@@ -43,9 +43,9 @@
   
   (:wat::core::let
     [threaded (:wat::core::-> 10
-                (:wat::core::i64::- 3)
-                (:wat::core::i64::* 2))
-     direct   (:wat::core::i64::* (:wat::core::i64::- 10 3) 2)]
+                (:wat::i64::- 3)
+                (:wat::i64::* 2))
+     direct   (:wat::i64::* (:wat::i64::- 10 3) 2)]
     (:wat::test::assert-eq threaded direct)))
 
 ;; ─── Thread-last: multi-arg list step ────────────────────────────────────
@@ -57,8 +57,8 @@
 (:wat::test::deftest :wat-tests::core::core-threading::thread-last-list-step
   
   (:wat::core::let
-    [threaded (:wat::core::->> 5 (:wat::core::i64::- 3))
-     direct   (:wat::core::i64::- 3 5)]
+    [threaded (:wat::core::->> 5 (:wat::i64::- 3))
+     direct   (:wat::i64::- 3 5)]
     (:wat::test::assert-eq threaded direct)))
 
 ;; ─── Thread-last: two list steps ─────────────────────────────────────────
@@ -72,9 +72,9 @@
   
   (:wat::core::let
     [threaded (:wat::core::->> 1
-                (:wat::core::i64::+ 2)
-                (:wat::core::i64::* 4))
-     direct   (:wat::core::i64::* 4 (:wat::core::i64::+ 2 1))]
+                (:wat::i64::+ 2)
+                (:wat::i64::* 4))
+     direct   (:wat::i64::* 4 (:wat::i64::+ 2 1))]
     (:wat::test::assert-eq threaded direct)))
 
 ;; ─── Thread-first vs thread-last: asymmetry proof ────────────────────────
@@ -87,8 +87,8 @@
 (:wat::test::deftest :wat-tests::core::core-threading::thread-first-vs-last-asymmetry
   
   (:wat::core::let
-    [tf  (:wat::core::-> 5 (:wat::core::i64::- 3))
-     tl  (:wat::core::->> 5 (:wat::core::i64::- 3))]
+    [tf  (:wat::core::-> 5 (:wat::i64::- 3))
+     tl  (:wat::core::->> 5 (:wat::i64::- 3))]
     (:wat::test::assert-eq (:wat::core::= tf tl) false)))
 
 ;; ─── Thread-first: bare keyword step ─────────────────────────────────────
@@ -99,7 +99,7 @@
 
 (:wat::core::defn :wat-tests::core::core-threading::inc1
   [x <- :wat::core::i64] -> :wat::core::i64
-  (:wat::core::i64::+ x 1))
+  (:wat::i64::+ x 1))
 
 (:wat::test::deftest :wat-tests::core::core-threading::thread-first-bare-step
   
@@ -115,7 +115,7 @@
 
 (:wat::core::defn :wat-tests::core::core-threading::double
   [x <- :wat::core::i64] -> :wat::core::i64
-  (:wat::core::i64::* x 2))
+  (:wat::i64::* x 2))
 
 (:wat::test::deftest :wat-tests::core::core-threading::thread-last-bare-step
   
@@ -138,12 +138,12 @@
 
 (:wat::core::defn :wat-tests::core::core-threading::square
   [n <- :wat::core::i64] -> :wat::core::i64
-  (:wat::core::i64::* n n))
+  (:wat::i64::* n n))
 
 (:wat::core::defn :wat-tests::core::core-threading::add
   [a <- :wat::core::i64
    b <- :wat::core::i64] -> :wat::core::i64
-  (:wat::core::i64::+ a b))
+  (:wat::i64::+ a b))
 
 (:wat::test::deftest :wat-tests::core::core-threading::pipeline-sum-of-squares
   

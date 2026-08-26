@@ -65,7 +65,7 @@
 (:wat::core::defn :t::item4g-map-with-index-happy [] -> :wat::core::i64
   (:wat::core::foldl
     (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
-      (:wat::core::i64::+ acc x))
+      (:wat::i64::+ acc x))
     0
     (:wat::std::list::map-with-index
       (:wat::core::Vector :wat::core::i64 10 20 30)
@@ -84,7 +84,7 @@
     (:wat::core::find-last-index
       (:wat::core::Vector :wat::core::i64 5 12 3 18 7)
       (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::bool
-        (:wat::core::i64::> x 10)))
+        (:wat::i64::> x 10)))
     
     ((:wat::core::Some i) i)
     (:wat::core::None -1)))
@@ -95,7 +95,7 @@
     (:wat::core::find-last-index
       (:wat::core::Vector :wat::core::i64 1 2 3)
       (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::bool
-        (:wat::core::i64::> x 99)))
+        (:wat::i64::> x 99)))
     
     ((:wat::core::Some i) i)
     (:wat::core::None -1)))

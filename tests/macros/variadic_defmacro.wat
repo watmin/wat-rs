@@ -28,7 +28,7 @@
   -> :wat::WatAST
   `(:wat::core::foldl
       (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
-        (:wat::core::i64::+ acc x))
+        (:wat::i64::+ acc x))
       ~init
       (:wat::core::Vector :wat::core::i64 ~@items)))
 

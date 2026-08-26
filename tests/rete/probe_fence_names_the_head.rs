@@ -14,9 +14,9 @@
 //!     impure (does IO) — the :pure axis must be named.
 //!   - `probe_fence_names_the_head_nondet.wat` — `(:wat::uuid::v4)`: pure but NOT
 //!     deterministic (random) — the :deterministic axis must be named, not :pure.
-//!   - `probe_fence_names_the_head_partial.wat` — `(:wat::core::i64::/ ?c 1)`: pure and
+//!   - `probe_fence_names_the_head_partial.wat` — `(:wat::i64::/ ?c 1)`: pure and
 //!     deterministic but NOT total — the :total axis must be named.
-//!   - `probe_fence_names_the_head_core_op.wat` — `(:wat::core::i64::> ?c 0)`: pure, det,
+//!   - `probe_fence_names_the_head_core_op.wat` — `(:wat::i64::> ?c 0)`: pure, det,
 //!     AND total, but a core spelling — Law A (`is not a rete primitive`) must be named,
 //!     not :total. This is the pin that first-failing-axis's fourth arg exists for.
 //!
@@ -96,7 +96,7 @@ fn partial_where_names_the_offending_head_and_axis() {
     let msg = r.expect_err("a partial (i64::/) where must fail to compile");
     assert_eq!(
         msg,
-        "compile-condition: where expr is not total — ':wat::core::i64::/' is not total"
+        "compile-condition: where expr is not total — ':wat::i64::/' is not total"
     );
 }
 
@@ -108,7 +108,7 @@ fn core_op_where_names_law_a_not_total() {
     let msg = r.expect_err("a total core op in where must fail to compile on Law A");
     assert_eq!(
         msg,
-        "compile-condition: where expr is not a rete primitive — ':wat::core::i64::>' is not a rete primitive; a where admits only :wat::rete:: ops"
+        "compile-condition: where expr is not a rete primitive — ':wat::i64::>' is not a rete primitive; a where admits only :wat::rete:: ops"
     );
 }
 
@@ -119,7 +119,7 @@ fn partial_then_names_the_offending_head_and_axis() {
     let msg = r.expect_err("a partial (i64::/) then item must fail to compile");
     assert_eq!(
         msg,
-        "compile-condition: then expr is not total — ':wat::core::i64::/' is not total"
+        "compile-condition: then expr is not total — ':wat::i64::/' is not total"
     );
 }
 
@@ -130,7 +130,7 @@ fn core_op_then_names_law_a_not_total() {
     let msg = r.expect_err("a total core op in then must fail to compile on Law A");
     assert_eq!(
         msg,
-        "compile-condition: then expr is not a rete primitive — ':wat::core::i64::>' is not a rete primitive; a then admits only :wat::rete:: ops"
+        "compile-condition: then expr is not a rete primitive — ':wat::i64::>' is not a rete primitive; a then admits only :wat::rete:: ops"
     );
 }
 
@@ -152,7 +152,7 @@ fn partial_accumulator_names_the_offending_head_and_axis() {
     let msg = r.expect_err("a partial (i64::/) user fold must fail to compile");
     assert_eq!(
         msg,
-        "compile-condition: accumulator expr is not total — ':wat::core::i64::/' is not total"
+        "compile-condition: accumulator expr is not total — ':wat::i64::/' is not total"
     );
 }
 

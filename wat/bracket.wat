@@ -389,7 +389,7 @@
        ;; verbatim + a trailing `(def work-name <the-name>)` rebind; unlike the Fn-VALUE
        ;; path, which inlines the fn body directly into ONE trailing `(def work-name (fn …))`
        ;; — measured via scratchpad/probe-c1-kwargs-impl-astname.wat).
-       def-node      (:wat::core::Option/expect (:wat::core::get forms (:wat::core::i64::- nforms 2))
+       def-node      (:wat::core::Option/expect (:wat::core::get forms (:wat::i64::- nforms 2))
                        "process-work-forms(kwargs): fn-forms produced no $impl define")
        dn-ch         (:wat::core::ast->children def-node)
        argspec       (:wat::core::Option/expect (:wat::core::get dn-ch 2) "process-work-forms(kwargs): no argspec")
@@ -923,7 +923,7 @@
                               [item (:wat::core::Option/expect
                                       (:wat::core::get kwpairs i)
                                       "bracket/map: kwpair")]
-                              (:wat::core::if (:wat::core::= (:wat::core::i64::mod i 2) 1)
+                              (:wat::core::if (:wat::core::= (:wat::i64::mod i 2) 1)
                                 (:wat::core::conj acc `(:wat::kernel::require-wire-address ~item))
                                 (:wat::core::conj acc item))))
                           (:wat::core::Vector :wat::WatAST)
@@ -1006,7 +1006,7 @@
                               [item (:wat::core::Option/expect
                                       (:wat::core::get kwpairs i)
                                       "bracket/each: kwpair")]
-                              (:wat::core::if (:wat::core::= (:wat::core::i64::mod i 2) 1)
+                              (:wat::core::if (:wat::core::= (:wat::i64::mod i 2) 1)
                                 (:wat::core::conj acc `(:wat::kernel::require-wire-address ~item))
                                 (:wat::core::conj acc item))))
                           (:wat::core::Vector :wat::WatAST)

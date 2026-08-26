@@ -9,7 +9,7 @@
 
 ;; defined in the PARENT universe only
 (:wat::core::defn :probe::dbl [x <- :wat::core::i64] -> :wat::core::i64
-  (:wat::core::i64::* x 2))
+  (:wat::i64::* x 2))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
@@ -48,5 +48,5 @@
             (:wat::kernel::assertion-failed! "recv': w closed unexpectedly" :wat::core::None :wat::core::None)))]
     (:wat::kernel::println
       (:wat::string::concat
-        (:wat::core::i64::to-string a)
-        (:wat::string::concat " " (:wat::core::i64::to-string b))))))
+        (:wat::i64::to-string a)
+        (:wat::string::concat " " (:wat::i64::to-string b))))))

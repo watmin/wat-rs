@@ -18,6 +18,6 @@
 ;; and would fail with UnresolvedReference on a call head that structtype never
 ;; promised. The primitive's own construction surface is the prime.
 (:wat::core::defn :probe::drive [] -> :wat::core::i64
-  (:wat::core::i64::+
+  (:wat::i64::+
     (:my::Point/x (:my::Point' 3 4))
     (:my::Point/y (:my::Point' 3 4))))

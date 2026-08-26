@@ -713,11 +713,11 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             | ":wat::core::not"
             | ":wat::core::if"
             | ":wat::core::let"
-            | ":wat::core::i64::>"
-            | ":wat::core::i64::<"
-            | ":wat::core::i64::>="
-            | ":wat::core::i64::<="
-            | ":wat::core::i64::to-f64"
+            | ":wat::core::i64::>" | ":wat::i64::>"
+            | ":wat::core::i64::<" | ":wat::i64::<"
+            | ":wat::core::i64::>=" | ":wat::i64::>="
+            | ":wat::core::i64::<=" | ":wat::i64::<="
+            | ":wat::core::i64::to-f64" | ":wat::i64::to-f64"
             // BRIEF-one-naming-rule-then-first-nth-to-string.md (2026-08-05) — `i64::to-string` /
             // `f64::to-string` / `bool::to-string`: verified by reading `eval_i64_to_string`
             // (`n.to_string()`) / `eval_f64_to_string` (`format!("{}", f)`, defined for NaN/±Inf/
@@ -727,15 +727,15 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             // the pure∧det block above, NOT here — the brief that asked for these rete rows named
             // it "already in the total list", which this file's own text did not support; grounded
             // and promoted here rather than trusted.
-            | ":wat::core::i64::to-string"
-            | ":wat::core::f64::to-string"
+            | ":wat::core::i64::to-string" | ":wat::i64::to-string"
+            | ":wat::core::f64::to-string" | ":wat::f64::to-string"
             | ":wat::core::bool::to-string"
             // per-type-equality-restored (2026-08-05) — `i64::=`/`i64::not=`: an
             // equality compare over i64 never raises, same class as the ordering
             // family immediately above.
-            | ":wat::core::i64::="
-            | ":wat::core::i64::not="
-            | ":wat::core::f64::>"
+            | ":wat::core::i64::=" | ":wat::i64::="
+            | ":wat::core::i64::not=" | ":wat::i64::not="
+            | ":wat::core::f64::>" | ":wat::f64::>"
             // BRIEF-the-f64-surface-is-a-stub.md Part A (2026-08-05) — `f64::<`/`f64::<=`/
             // `f64::>=` ADDED beside `f64::>`. Same warrant: each is a comparison whose OUTPUT
             // is a bool, never itself the undefined value, and `eval_f64_compare` is
@@ -743,15 +743,15 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             // any of the four fails to produce an ordinary bool. #52's own STOP-3 ("do not
             // widen the audit past entries already `true`") swept false-trues and never
             // revisited entries already `false`; these three were the mirror image it missed.
-            | ":wat::core::f64::<"
-            | ":wat::core::f64::<="
-            | ":wat::core::f64::>="
+            | ":wat::core::f64::<" | ":wat::f64::<"
+            | ":wat::core::f64::<=" | ":wat::f64::<="
+            | ":wat::core::f64::>=" | ":wat::f64::>="
             // per-type-equality-restored (2026-08-05) — `f64::=`/`f64::not=`: a
             // comparison, not arithmetic — `eval_f64_compare` returns a `bool` for any
             // two f64 inputs including NaN/±Inf (never raises), the same reasoning
             // `f64::>` (kept total) already uses immediately above.
-            | ":wat::core::f64::="
-            | ":wat::core::f64::not="
+            | ":wat::core::f64::=" | ":wat::f64::="
+            | ":wat::core::f64::not=" | ":wat::f64::not="
             | ":wat::core::PersistentVector/length"
             | ":wat::core::PersistentVector/contains?"
             | ":wat::core::PersistentVector/get"

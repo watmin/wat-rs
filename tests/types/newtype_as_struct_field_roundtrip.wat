@@ -10,4 +10,4 @@
      o         (:my::Order :label "BTC" :price p :qty 7)
      retrieved (:my::Order/price o)
      inner     (:my::trading::Price/0 retrieved)]
-    (:wat::core::f64::to-string inner)))
+    (:wat::f64::to-string inner)))

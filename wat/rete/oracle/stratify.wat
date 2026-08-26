@@ -65,10 +65,10 @@
       :wat::core::None
       (:wat::core::let [raw (:wat::core::ast-name (:wat::core::first ch))
                         n   (:wat::string::length raw)
-                        q?  (:wat::core::if (:wat::core::i64::>= n 1)
+                        q?  (:wat::core::if (:wat::i64::>= n 1)
                               (:wat::core::= (:wat::string::subs raw 0 1) "?")
                               false)
-                        rete? (:wat::core::if (:wat::core::i64::>= n 12)
+                        rete? (:wat::core::if (:wat::i64::>= n 12)
                                 (:wat::core::= (:wat::string::subs raw 0 12) ":wat::rete::")
                                 false)]
         (:wat::core::if (:wat::core::if q? true rete?)
@@ -160,7 +160,7 @@
                                ""
                                (:wat::core::ast-name (:wat::core::first ch)))
                           n  (:wat::string::length hd)
-                          q? (:wat::core::if (:wat::core::i64::>= n 1)
+                          q? (:wat::core::if (:wat::i64::>= n 1)
                                (:wat::core::= (:wat::string::subs hd 0 1) "?")
                                false)]
           (:wat::core::if (:wat::core::= hd ":wat::rete::exists")
@@ -168,7 +168,7 @@
               ((:wat::core::Some t) (:wat::core::PersistentVector/conj acc t))
               (:wat::core::None acc))
             (:wat::core::if (:wat::core::if q?
-                              (:wat::core::if (:wat::core::i64::>= (:wat::core::length ch) 5)
+                              (:wat::core::if (:wat::i64::>= (:wat::core::length ch) 5)
                                 (:wat::core::= (:wat::core::ast-name
                                                  (:wat::core::Option/expect
                                                    (:wat::core::get ch 3)
@@ -182,7 +182,7 @@
                                      "rule-consumes: acc :from inner"))
                 ((:wat::core::Some t) (:wat::core::PersistentVector/conj acc t))
                 (:wat::core::None acc))
-              (:wat::core::if (:wat::core::if (:wat::core::i64::>= n 12)
+              (:wat::core::if (:wat::core::if (:wat::i64::>= n 12)
                                 (:wat::core::= (:wat::string::subs hd 0 12) ":wat::rete::")
                                 false)
                 acc
@@ -215,8 +215,8 @@
                                                              
                                                            ((:wat::core::Some v) v)
                                                            (:wat::core::None 0))
-                                                       v  (:wat::core::i64::+ ns 1)]
-                                       (:wat::core::if (:wat::core::i64::> v mx) v mx)))
+                                                       v  (:wat::i64::+ ns 1)]
+                                       (:wat::core::if (:wat::i64::> v mx) v mx)))
                                    0
                                    negated)
                         ;; req-pos = max(stratum[c] for c in consumed, default 0) — task #94.
@@ -230,10 +230,10 @@
                                                              (:wat::core::HashMap/get ts con)
                                                            ((:wat::core::Some v) v)
                                                            (:wat::core::None 0))]
-                                       (:wat::core::if (:wat::core::i64::> cs mx) cs mx)))
+                                       (:wat::core::if (:wat::i64::> cs mx) cs mx)))
                                    0
                                    consumed)
-                        required (:wat::core::if (:wat::core::i64::> req-neg req-pos) req-neg req-pos)
+                        required (:wat::core::if (:wat::i64::> req-neg req-pos) req-neg req-pos)
                         ;; for each produced type: raise stratum to required if higher
                         new-acc  (:wat::core::foldl
                                    (:wat::core::fn [inner <- :wat::rete::StratifyAcc
@@ -246,7 +246,7 @@
                                                               
                                                             ((:wat::core::Some v) v)
                                                             (:wat::core::None 0))]
-                                       (:wat::core::if (:wat::core::i64::> required cur)
+                                       (:wat::core::if (:wat::i64::> required cur)
                                          (:wat::rete::StratifyAcc
                                            :type-strata (:wat::core::HashMap/assoc its p required)
                                            :changed true)
@@ -272,11 +272,11 @@
       new-ts
       ;; still changing — check for cycle before recursing
       (:wat::core::let [_cycle (:wat::core::Option/expect
-                                  (:wat::core::if (:wat::core::i64::> remaining 0)
+                                  (:wat::core::if (:wat::i64::> remaining 0)
                                     (:wat::core::Some nil)
                                     :wat::core::None)
                                   "stratify: negation cycle detected — rule set is not stratifiable")]
-        (:wat::rete::stratify-fix rules new-ts (:wat::core::i64::- remaining 1))))))
+        (:wat::rete::stratify-fix rules new-ts (:wat::i64::- remaining 1))))))
 
 ;; rule-stratum — compute the stratum of one rule given the final type-strata.
 ;; = max(max strata[p] for produced p, max strata[n]+1 for negated n).
@@ -295,7 +295,7 @@
                                                          
                                                        ((:wat::core::Some v) v)
                                                        (:wat::core::None 0))]
-                                   (:wat::core::if (:wat::core::i64::> ps mx) ps mx)))
+                                   (:wat::core::if (:wat::i64::> ps mx) ps mx)))
                                0
                                produced)
                     from-n   (:wat::core::foldl
@@ -307,11 +307,11 @@
                                                          
                                                        ((:wat::core::Some v) v)
                                                        (:wat::core::None 0))
-                                                   v  (:wat::core::i64::+ ns 1)]
-                                   (:wat::core::if (:wat::core::i64::> v mx) v mx)))
+                                                   v  (:wat::i64::+ ns 1)]
+                                   (:wat::core::if (:wat::i64::> v mx) v mx)))
                                0
                                negated)]
-    (:wat::core::if (:wat::core::i64::> from-n from-p) from-n from-p)))
+    (:wat::core::if (:wat::i64::> from-n from-p) from-n from-p)))
 
 ;; stratify — compute the type→stratum HashMap for a rule set.
 ;; Returns (HashMap :- [String i64]) mapping each produced-type FQDN to its stratum number.
@@ -321,5 +321,5 @@
   -> (:wat::core::HashMap :- [:wat::core::String :wat::core::i64])
   (:wat::core::let [init-ts (:wat::core::HashMap :wat::core::String :wat::core::i64)
                     ;; length(rules)+1 sweeps is always enough for a stratifiable set
-                    bound   (:wat::core::i64::+ (:wat::core::length rules) 1)]
+                    bound   (:wat::i64::+ (:wat::core::length rules) 1)]
     (:wat::rete::stratify-fix rules init-ts bound)))

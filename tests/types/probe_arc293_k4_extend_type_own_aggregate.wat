@@ -17,9 +17,9 @@
 ;; extend-type on :k4::Pt — a type I OWN — to satisfy :k4::Located (impl reads Pt's own fields):
 (:wat::core::extend-type :k4::Pt :k4::Located
   (mag2 [self] -> :wat::core::i64
-    (:wat::core::i64::+
-      (:wat::core::i64::* (:k4::Pt/x self) (:k4::Pt/x self))
-      (:wat::core::i64::* (:k4::Pt/y self) (:k4::Pt/y self)))))
+    (:wat::i64::+
+      (:wat::i64::* (:k4::Pt/x self) (:k4::Pt/x self))
+      (:wat::i64::* (:k4::Pt/y self) (:k4::Pt/y self)))))
 
 ;; consume through the surface — dispatch routes :k4::Located/mag2 → :k4::Pt/mag2 by runtime type:
 (:wat::core::defn :k4::report [s <- :k4::Located] -> :wat::core::i64

@@ -71,7 +71,7 @@
 
         ;; Mutate: fold the delta into the state and carry it forward.
         ((:repl::Cmd::Bump by)
-          (:wat::core::let [next (:wat::core::i64::+ count by)]
+          (:wat::core::let [next (:wat::i64::+ count by)]
             (:wat::kernel::println (:repl::Reply::Value next))
             (:repl::serve next)))
 

@@ -276,7 +276,7 @@
       ((:wat::core::= row 9) (:wsc::if-let-arm))
       (:else
         (:wat::kernel::assertion-failed!
-          (:wat::core::String/concat "where-control: unknown row " (:wat::core::i64::to-string row))
+          (:wat::core::String/concat "where-control: unknown row " (:wat::i64::to-string row))
           :wat::core::None :wat::core::None)))))
 
 ;; seed — stage Req(i) for i in [0, items) via the BATCH verb (one rebuild). Every field is a
@@ -287,10 +287,10 @@
     (:wat::core::foldl
       (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  i <- :wat::core::i64]
                       -> (:wat::core::PersistentVector :- [:wat::core::Record])
-        (:wat::core::let [a       (:wat::core::i64::- i (:wat::core::i64::* (:wat::core::i64::/ i 4) 4))
-                          b       (:wat::core::i64::- i (:wat::core::i64::* (:wat::core::i64::/ i 9) 9))
-                          n       (:wat::core::= 0 (:wat::core::i64::- i (:wat::core::i64::* (:wat::core::i64::/ i 6) 6)))
-                          is-mult3 (:wat::core::= 0 (:wat::core::i64::- i (:wat::core::i64::* (:wat::core::i64::/ i 3) 3)))
+        (:wat::core::let [a       (:wat::i64::- i (:wat::i64::* (:wat::i64::/ i 4) 4))
+                          b       (:wat::i64::- i (:wat::i64::* (:wat::i64::/ i 9) 9))
+                          n       (:wat::core::= 0 (:wat::i64::- i (:wat::i64::* (:wat::i64::/ i 6) 6)))
+                          is-mult3 (:wat::core::= 0 (:wat::i64::- i (:wat::i64::* (:wat::i64::/ i 3) 3)))
                           o       (:wat::core::if is-mult3 :wat::core::None (:wat::core::Some i))]
           (:wat::core::PersistentVector/conj acc
             (:wsc::Req :k i :a a :b b :n n :o o))))
@@ -312,7 +312,7 @@
   (:wat::core::foldl
     (:wat::core::fn [acc <- :wat::core::String  x <- :wat::core::i64] -> :wat::core::String
       (:wat::core::String/concat acc
-        (:wat::core::String/concat " " (:wat::core::i64::to-string x))))
+        (:wat::core::String/concat " " (:wat::i64::to-string x))))
     ""
     v))
 
@@ -341,10 +341,10 @@
                     n       (:wat::core::Vector/length derived)]
     (:wat::core::String/concat
       (:wat::core::String/concat
-        (:wat::core::String/concat "row " (:wat::core::i64::to-string row))
+        (:wat::core::String/concat "row " (:wat::i64::to-string row))
         (:wat::core::String/concat " " (:wsc::rule-display-name (:wat::rete::Rule/name rule))))
       (:wat::core::String/concat
-        (:wat::core::String/concat " n=" (:wat::core::i64::to-string n))
+        (:wat::core::String/concat " n=" (:wat::i64::to-string n))
         (:wat::core::String/concat " ->" (:wsc::render-ints derived))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
@@ -352,4 +352,4 @@
     (:wat::core::fn [acc <- :wat::core::nil  row <- :wat::core::i64] -> :wat::core::nil
       (:wat::kernel::println (:wsc::run-row row)))
     nil
-    (:wat::core::range 1 (:wat::core::i64::+ (:wsc::row-count) 1))))
+    (:wat::core::range 1 (:wat::i64::+ (:wsc::row-count) 1))))

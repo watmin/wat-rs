@@ -68,4 +68,4 @@
   ;; a Vector (its length may be zero or more — the enforcement test is 275.2).
   (:wat::core::let
     [viols (:wat::deporder::verify-stdlib)]
-    (:wat::test::assert-true (:wat::core::i64::>= (:wat::core::length viols) 0))))
+    (:wat::test::assert-true (:wat::i64::>= (:wat::core::length viols) 0))))

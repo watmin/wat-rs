@@ -8,5 +8,5 @@
 (:wat::core::defclause :my::bad
   ([x <- :wat::core::i64] -> :wat::core::i64
     :ensure (:wat::core::fn [result <- :wat::core::String] -> :wat::core::bool
-              (:wat::core::i64::> 1 0))
+              (:wat::i64::> 1 0))
     x))

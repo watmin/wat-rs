@@ -32,21 +32,21 @@
 (:wat::core::defn :nin::seed-spec [n <- :wat::core::i64] -> :wat::rete::Session
   (:wat::core::foldl
     (:wat::core::fn [s <- :wat::rete::Session  i <- :wat::core::i64] -> :wat::rete::Session
-      (:wat::rete::insert$oracle s (:nin::Reading :g i :v (:wat::core::i64::* i 10))))
+      (:wat::rete::insert$oracle s (:nin::Reading :g i :v (:wat::i64::* i 10))))
     (:nin::base)
     (:wat::core::range 0 n)))
 
 (:wat::core::defn :nin::seed-native [n <- :wat::core::i64] -> :wat::rete::Session
   (:wat::core::foldl
     (:wat::core::fn [s <- :wat::rete::Session  i <- :wat::core::i64] -> :wat::rete::Session
-      (:wat::rete::insert$native s (:nin::Reading :g i :v (:wat::core::i64::* i 10))))
+      (:wat::rete::insert$native s (:nin::Reading :g i :v (:wat::i64::* i 10))))
     (:nin::base)
     (:wat::core::range 0 n)))
 
 (:wat::core::defn :nin::seed-public [n <- :wat::core::i64] -> :wat::rete::Session
   (:wat::core::foldl
     (:wat::core::fn [s <- :wat::rete::Session  i <- :wat::core::i64] -> :wat::rete::Session
-      (:wat::rete::insert s (:nin::Reading :g i :v (:wat::core::i64::* i 10))))
+      (:wat::rete::insert s (:nin::Reading :g i :v (:wat::i64::* i 10))))
     (:nin::base)
     (:wat::core::range 0 n)))
 
@@ -73,7 +73,7 @@
       (:wat::core::let [o (:wat::core::Option/expect
                             (:wat::core::PersistentMap/get p "?fact")
                             "q-Out: ?fact")]
-        (:wat::core::i64::+ a (:nin::Out/g o))))
+        (:wat::i64::+ a (:nin::Out/g o))))
     0
     (:nin::fired-outs s)))
 

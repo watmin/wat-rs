@@ -25,14 +25,14 @@
   (:wat::core::let
     [a (:wat::core::Result/try (:wat::core::Ok 10))
      b (:wat::core::Result/try (:wat::core::Ok 32))]
-    (:wat::core::Ok (:wat::core::i64::+ a b))))
+    (:wat::core::Ok (:wat::i64::+ a b))))
 
 ;; test5: try short-circuits let on first err → Result(Err("early"))
 (:wat::core::defn :t::test5-try-let-short-circuit [] -> (:wat::core::Result :- [:wat::core::i64 :wat::core::String])
   (:wat::core::let
     [a (:wat::core::Result/try (:wat::core::Err "early"))
      b (:wat::core::Result/try (:wat::core::Ok 99))]
-    (:wat::core::Ok (:wat::core::i64::+ a b))))
+    (:wat::core::Ok (:wat::i64::+ a b))))
 
 ;; helper for test6
 (:wat::core::defn :t::app-describe

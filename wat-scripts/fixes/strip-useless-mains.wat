@@ -123,7 +123,7 @@
                     ch   (:wat::core::ast->children match)
                     name (:wat::core::ast-name (:wat::core::first (:wat::core::rest ch)))]
     (:wat::kernel::println
-      (:wat::string::concat "[useless-main] " path ":" (:wat::core::i64::to-string line) " " name))))
+      (:wat::string::concat "[useless-main] " path ":" (:wat::i64::to-string line) " " name))))
 
 ;; ── Report all matches for a file ────────────────────────────────────────────────────
 (:wat::core::defn :user::report-matches

@@ -20,7 +20,7 @@
 ;; private choice; the surface sees only accessors.
 (:wat::core::defrecord :t::Sq [color <- :wat::core::String  side <- :wat::core::f64])
 (:wat::core::defn :t::Sq/area [self <- :t::Sq] -> :wat::core::f64
-  (:wat::core::f64::* (:t::Sq/side self) (:t::Sq/side self)))
+  (:wat::f64::* (:t::Sq/side self) (:t::Sq/side self)))
 
 ;; A consumer that REQUIRES the surface in a param position. Passing a Sq makes the
 ;; checker run `struct_satisfies_surface` (color field + area method) — structural,

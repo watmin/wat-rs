@@ -16,14 +16,14 @@
 ;; (second, would also match — 1 = 1 always true), the "first" should be taken.
 (:wat::core::defn :probe::first-match [x <- :wat::core::i64] -> :wat::core::String
   (:wat::rete::core::cond
-    ((:wat::core::i64::= x x) "first")
-    ((:wat::core::i64::= x x) "second")
+    ((:wat::i64::= x x) "first")
+    ((:wat::i64::= x x) "second")
     (:else                    "else")))
 
 ;; Row 4 — :else terminal fires when every test is false.
 (:wat::core::defn :probe::else-fires [x <- :wat::core::i64] -> :wat::core::String
   (:wat::rete::core::cond
-    ((:wat::core::i64::> x 1000000) "huge")
+    ((:wat::i64::> x 1000000) "huge")
     (:else                          "normal")))
 
 ;; Row 5 — non-exhaustive cond (no terminal :else) is a LOCATED macro-expansion error, not a
@@ -52,7 +52,7 @@
 
 (:wat::core::defn :probe::redispatch-check [] -> :wat::core::i64
   (:wat::rete::core::foldl
-    (:wat::core::fn [a <- :wat::core::i64 b <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ a b))
+    (:wat::core::fn [a <- :wat::core::i64 b <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::+ a b))
     0
     [1 2 3 4]))
 

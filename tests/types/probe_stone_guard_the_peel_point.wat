@@ -24,7 +24,7 @@
 
 (:wat::core::defn :t::row4_exact_count [] -> (:wat::core::Result :- [:wat::core::i64 :wat::core::EvalError])
   (:wat::core::let
-    [program (:wat::core::quote (:wat::core::i64::+ 40 2))]
+    [program (:wat::core::quote (:wat::i64::+ 40 2))]
     (:wat::eval-ast! :- [:wat::core::i64] program)))
 
 ;; ─── Row 5 — fewer than declared (one of `eprintln`'s two params, `T` bound, `R` inferred

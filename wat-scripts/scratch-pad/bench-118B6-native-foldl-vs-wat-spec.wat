@@ -20,7 +20,7 @@
 ;; `wat-tests/core/core-foldl-spec.wat`; this file measures only the RATIO, and its non-vacuity is
 ;; that both arms return the same sum.
 (:wat::core::defn :bench::shift-add [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
-  (:wat::core::i64::+ acc x))
+  (:wat::i64::+ acc x))
 
 (:wat::core::defn :bench::native [v <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::i64
   (:wat::core::foldl :bench::shift-add 0 v))
@@ -29,7 +29,7 @@
   (:wat::core::foldl-spec :bench::shift-add 0 v))
 
 (:wat::core::defn :bench::ns [t0 <- :wat::time::Instant t1 <- :wat::time::Instant] -> :wat::core::i64
-  (:wat::core::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
+  (:wat::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
@@ -43,7 +43,7 @@
       (:wat::string::interpolate
         "n={n} NONVACUITY ra={ra} rb={rb} rc={rc} rd={rd} | A: spec={ad}ms native={bd}ms | B: native={cd}ms spec={dd}ms"
         :n n :ra ra :rb rb :rc rc :rd rd
-        :ad (:wat::core::i64::/ (:bench::ns a0 a1) 1000000)
-        :bd (:wat::core::i64::/ (:bench::ns b0 b1) 1000000)
-        :cd (:wat::core::i64::/ (:bench::ns c0 c1) 1000000)
-        :dd (:wat::core::i64::/ (:bench::ns d0 d1) 1000000)))))
+        :ad (:wat::i64::/ (:bench::ns a0 a1) 1000000)
+        :bd (:wat::i64::/ (:bench::ns b0 b1) 1000000)
+        :cd (:wat::i64::/ (:bench::ns c0 c1) 1000000)
+        :dd (:wat::i64::/ (:bench::ns d0 d1) 1000000)))))

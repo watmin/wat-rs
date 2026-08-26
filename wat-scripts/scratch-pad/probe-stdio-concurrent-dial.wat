@@ -38,7 +38,7 @@
      (:wat::service::Outcome::Reply s
        (:probe::Counter::GetResponse::Ok (:probe::counter::Record/count (:probe::counter::State/durable s)))))
    (increment [s ctx req]
-     (:wat::core::let [c (:wat::core::i64::+ (:probe::counter::Record/count (:probe::counter::State/durable s))
+     (:wat::core::let [c (:wat::i64::+ (:probe::counter::Record/count (:probe::counter::State/durable s))
                                              (:probe::Counter::IncrementRequest/n req))]
        (:wat::service::Outcome::Reply (:probe::counter::State :durable (:probe::counter::Record :count c))
                                       (:probe::Counter::IncrementResponse::Ok c))))])
@@ -57,7 +57,7 @@
       ((:wat::kernel::RecvOutcome::Message __recv)
         (:wat::core::match __recv
           ((:probe::Counter::IncrementResponse::Ok _v)
-            (:probe::do-increments c (:wat::core::i64::- remaining 1) (:wat::core::i64::+ acc 1)))
+            (:probe::do-increments c (:wat::i64::- remaining 1) (:wat::i64::+ acc 1)))
           ((:probe::Counter::IncrementResponse::RequestTooLarge bytes cap)
             (:wat::kernel::assertion-failed! "do-increments: unexpected RequestTooLarge" :wat::core::None :wat::core::None))
           ((:probe::Counter::IncrementResponse::RequestMalformed mpath mexpected mgot)
@@ -115,7 +115,7 @@
      r1 (:probe::join-count w1)
      r2 (:probe::join-count w2)
      r3 (:probe::join-count w3)
-     total-ops (:wat::core::i64::+ r1 (:wat::core::i64::+ r2 r3))
+     total-ops (:wat::i64::+ r1 (:wat::i64::+ r2 r3))
      ;; main dials its OWN peer for the final read (h stays alive → service lives).
      mc (:wat::core::match (:wat::kernel::connect addr)
           ((:wat::kernel::ConnectOutcome::Connected p) p)
@@ -141,6 +141,6 @@
           (:wat::kernel::assertion-failed! "SERIALIZATION LOST: final counter != 12" :wat::core::None :wat::core::None))]
     (:wat::kernel::println
       (:wat::string::concat "PROBE-A GREEN: workers-ok="
-        (:wat::string::concat (:wat::core::i64::to-string total-ops)
+        (:wat::string::concat (:wat::i64::to-string total-ops)
           (:wat::string::concat " final-counter="
-            (:wat::core::i64::to-string final)))))))
+            (:wat::i64::to-string final)))))))

@@ -32,13 +32,13 @@
 (:wat::core::defn :test::timer::retry-until
   [target <- :wat::core::i64  attempt <- :wat::core::i64  millis <- :wat::core::i64]
   -> :wat::core::i64
-  (:wat::core::if (:wat::core::i64::>= attempt target) 
+  (:wat::core::if (:wat::i64::>= attempt target) 
     attempt
     (:wat::core::let [_ (:test::timer::nap (:wat::time::Millisecond millis))]
       (:test::timer::retry-until
         target
-        (:wat::core::i64::+ attempt 1)
-        (:wat::core::i64::* millis 2)))))
+        (:wat::i64::+ attempt 1)
+        (:wat::i64::* millis 2)))))
 
 ;; Proof: 3 re-armed `after` naps (1ms → 2ms → 4ms backoff), succeeds on attempt 3.
 (:wat::test::deftest :wat-tests::timer::family-backoff-rides-after

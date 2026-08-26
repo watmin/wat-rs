@@ -1,4 +1,4 @@
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let
-      [plus :wat::core::i64::+]
+      [plus :wat::i64::+]
       (plus 2 3)))

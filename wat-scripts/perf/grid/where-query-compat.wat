@@ -104,7 +104,7 @@
         (:wat::core::map
           (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::String
             (:wat::core::String/concat
-              (:wat::core::i64::to-string (:wqc::i64-of p "?c"))
+              (:wat::i64::to-string (:wqc::i64-of p "?c"))
               (:wat::core::String/concat "," (:wqc::str-of p "?loc"))))
           answers)))))
 
@@ -117,10 +117,10 @@
         (:wat::core::map
           (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::String
             (:wat::core::String/concat
-              (:wat::core::i64::to-string (:wqc::i64-of p "?c"))
+              (:wat::i64::to-string (:wqc::i64-of p "?c"))
               (:wat::core::String/concat ","
                 (:wat::core::String/concat
-                  (:wat::core::i64::to-string (:wqc::i64-of p "?w"))
+                  (:wat::i64::to-string (:wqc::i64-of p "?w"))
                   (:wat::core::String/concat "," (:wqc::str-of p "?loc"))))))
           answers)))))
 
@@ -131,7 +131,7 @@
     (:wat::core::into (:wat::core::Vector :wat::core::String)
       (:wat::core::map
         (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::String
-          (:wat::core::i64::to-string x))
+          (:wat::i64::to-string x))
         (:wat::core::sort
           (:wat::core::into (:wat::core::Vector :wat::core::i64)
             (:wat::core::map
@@ -156,14 +156,14 @@
   (:wat::core::if (:wat::core::= (:wat::core::length answers) 0)
     ""
     (:wat::core::String/concat " "
-      (:wat::core::i64::to-string (:wqc::i64-of (:wat::core::first answers) "?n")))))
+      (:wat::i64::to-string (:wqc::i64-of (:wat::core::first answers) "?n")))))
 
 (:wat::core::defn :wqc::line
   [row <- :wat::core::i64 name <- :wat::core::String body <- :wat::core::String]
   -> :wat::core::nil
   (:wat::kernel::println
     (:wat::core::String/concat
-      (:wat::core::String/concat "row " (:wat::core::i64::to-string row))
+      (:wat::core::String/concat "row " (:wat::i64::to-string row))
       (:wat::core::String/concat (:wat::core::String/concat " " name) body))))
 
 (:wat::core::defn :wqc::seed [session <- :wat::rete::Session] -> :wat::rete::Session
@@ -208,51 +208,51 @@
               (:wqc::q-fields))]
     (:wqc::line 1 "fields"
       (:wat::core::String/concat
-        (:wat::core::String/concat " n=" (:wat::core::i64::to-string (:wat::core::length fields)))
+        (:wat::core::String/concat " n=" (:wat::i64::to-string (:wat::core::length fields)))
         (:wat::core::String/concat " ->" (:wqc::pairs-c-loc fields))))
     (:wqc::line 2 "plain"
       (:wat::core::String/concat
-        (:wat::core::String/concat " n=" (:wat::core::i64::to-string (:wat::core::length plain)))
+        (:wat::core::String/concat " n=" (:wat::i64::to-string (:wat::core::length plain)))
         (:wat::core::String/concat " has=?c " (:wqc::has-key plain "?c"))))
     (:wqc::line 3 "fact-bind"
       (:wat::core::String/concat
-        (:wat::core::String/concat " n=" (:wat::core::i64::to-string (:wat::core::length bound)))
+        (:wat::core::String/concat " n=" (:wat::i64::to-string (:wat::core::length bound)))
         (:wat::core::String/concat
           (:wat::core::String/concat " has=?t " (:wqc::has-key bound "?t"))
           (:wat::core::String/concat " ->" (:wqc::vals-c bound)))))
     (:wqc::line 4 "params-mci"
       (:wat::core::String/concat
-        (:wat::core::String/concat " n=" (:wat::core::i64::to-string (:wat::core::length at-mci)))
+        (:wat::core::String/concat " n=" (:wat::i64::to-string (:wat::core::length at-mci)))
         (:wat::core::String/concat " ->" (:wqc::pairs-c-loc at-mci))))
     (:wqc::line 5 "params-xxx"
-      (:wat::core::String/concat " n=" (:wat::core::i64::to-string (:wat::core::length at-xxx))))
+      (:wat::core::String/concat " n=" (:wat::i64::to-string (:wat::core::length at-xxx))))
     (:wqc::line 6 "join"
       (:wat::core::String/concat
-        (:wat::core::String/concat " n=" (:wat::core::i64::to-string (:wat::core::length join)))
+        (:wat::core::String/concat " n=" (:wat::i64::to-string (:wat::core::length join)))
         (:wat::core::String/concat " ->" (:wqc::pairs-join join))))
     (:wqc::line 7 "count-mci"
       (:wat::core::String/concat
-        (:wat::core::String/concat " n=" (:wat::core::i64::to-string (:wat::core::length n-mci)))
+        (:wat::core::String/concat " n=" (:wat::i64::to-string (:wat::core::length n-mci)))
         (:wat::core::String/concat " ->" (:wqc::one-n n-mci))))
     (:wqc::line 8 "count-zero"
       (:wat::core::String/concat
-        (:wat::core::String/concat " n=" (:wat::core::i64::to-string (:wat::core::length n-lax)))
+        (:wat::core::String/concat " n=" (:wat::i64::to-string (:wat::core::length n-lax)))
         (:wat::core::String/concat " ->" (:wqc::one-n n-lax))))
     (:wqc::line 9 "not-wind"
       (:wat::core::String/concat
-        (:wat::core::String/concat " n=" (:wat::core::i64::to-string (:wat::core::length none)))
+        (:wat::core::String/concat " n=" (:wat::i64::to-string (:wat::core::length none)))
         (:wat::core::String/concat " ->" (:wqc::pairs-c-loc none))))
     (:wqc::line 10 "exists-wind"
       (:wat::core::String/concat
-        (:wat::core::String/concat " n=" (:wat::core::i64::to-string (:wat::core::length some)))
+        (:wat::core::String/concat " n=" (:wat::i64::to-string (:wat::core::length some)))
         (:wat::core::String/concat " ->" (:wqc::pairs-c-loc some))))
     (:wqc::line 11 "where-cool"
       (:wat::core::String/concat
-        (:wat::core::String/concat " n=" (:wat::core::i64::to-string (:wat::core::length cool)))
+        (:wat::core::String/concat " n=" (:wat::i64::to-string (:wat::core::length cool)))
         (:wat::core::String/concat " ->" (:wqc::pairs-c-loc cool))))
     (:wqc::line 12 "derived"
       (:wat::core::String/concat
-        (:wat::core::String/concat " n=" (:wat::core::i64::to-string (:wat::core::length hits)))
+        (:wat::core::String/concat " n=" (:wat::i64::to-string (:wat::core::length hits)))
         (:wat::core::String/concat " ->" (:wqc::vals-loc hits))))
     (:wqc::line 13 "empty"
-      (:wat::core::String/concat " n=" (:wat::core::i64::to-string (:wat::core::length empty))))))
+      (:wat::core::String/concat " n=" (:wat::i64::to-string (:wat::core::length empty))))))

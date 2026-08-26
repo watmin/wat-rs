@@ -14,7 +14,7 @@
      ;; program-body, bootstrap-adjacent), so `foldl`+`conj` (Rust-native) stand in.
      chars (:wat::core::foldl
              (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String]) i <- :wat::core::i64] -> (:wat::core::Vector :- [:wat::core::String])
-               (:wat::core::conj acc (:wat::string::subs str i (:wat::core::i64::+ i 1))))
+               (:wat::core::conj acc (:wat::string::subs str i (:wat::i64::+ i 1))))
              (:wat::core::Vector :wat::core::String)
              (:wat::core::range 0 len))
      final (:wat::core::foldl
@@ -27,14 +27,14 @@
                  (:wat::core::if
                    (:wat::core::= c "{")
                    
-                   (:wat::core::Tuple kept (:wat::core::i64::+ nopen 1))
+                   (:wat::core::Tuple kept (:wat::i64::+ nopen 1))
                    (:wat::core::Tuple (:wat::string::concat kept c) nopen))))
              (:wat::core::Tuple "" 0)
              chars)
      kept   (:wat::core::first final)
      nopen  (:wat::core::second final)
      out    (:wat::string::concat kept
-              (:wat::string::concat "|" (:wat::core::i64::to-string nopen)))]
+              (:wat::string::concat "|" (:wat::i64::to-string nopen)))]
     (:wat::core::first
       (:wat::core::ast->children
         (:wat::core::match (:wat::core::read-string

@@ -73,9 +73,9 @@
    i     <- :wat::core::i64
    acc   <- (:wat::core::Vector :- [:wat::core::String])]
   -> (:wat::core::Vector :- [:wat::core::String])
-  (:wat::core::if (:wat::core::i64::>= i (:wat::core::length forms))
+  (:wat::core::if (:wat::i64::>= i (:wat::core::length forms))
     acc
-    (:user::decl-names forms (:wat::core::i64::+ i 1)
+    (:user::decl-names forms (:wat::i64::+ i 1)
       (:wat::core::conj acc (:user::decl-name (:wat::core::nth forms i))))))
 
 ;; ── the DEDUP KEY of a top-level form: its declaration HEAD *and* its name ───────────────
@@ -114,14 +114,14 @@
    seen  <- (:wat::core::Vector :- [:wat::core::String])
    out   <- (:wat::core::Vector :- [:wat::WatAST])]
   -> (:wat::core::Vector :- [:wat::WatAST])
-  (:wat::core::if (:wat::core::i64::>= i (:wat::core::length forms))
+  (:wat::core::if (:wat::i64::>= i (:wat::core::length forms))
     out
     (:wat::core::let
       [form (:wat::core::nth forms i)
        k    (:user::decl-key form)]
       (:wat::core::if (:wat::fix::str-in? k seen)
-        (:user::dedup-forms forms (:wat::core::i64::+ i 1) seen out)
-        (:user::dedup-forms forms (:wat::core::i64::+ i 1)
+        (:user::dedup-forms forms (:wat::i64::+ i 1) seen out)
+        (:user::dedup-forms forms (:wat::i64::+ i 1)
           (:wat::core::conj seen k)
           (:wat::core::conj out form))))))
 
@@ -158,17 +158,17 @@
    i      <- :wat::core::i64
    target <- :wat::core::String]
   -> :wat::core::nil
-  (:wat::core::if (:wat::core::i64::>= i (:wat::core::length forms))
+  (:wat::core::if (:wat::i64::>= i (:wat::core::length forms))
     nil
     (:wat::core::if (:wat::core::= (:user::decl-name (:wat::core::nth forms i)) target)
       (:wat::core::do
         (:wat::kernel::println
           (:wat::string::concat "  ["
-            (:wat::string::concat (:wat::core::i64::to-string i)
+            (:wat::string::concat (:wat::i64::to-string i)
               (:wat::string::concat "] "
                 (:wat::core::ast->source (:wat::core::nth forms i))))))
-        (:user::dump-named forms (:wat::core::i64::+ i 1) target))
-      (:user::dump-named forms (:wat::core::i64::+ i 1) target))))
+        (:user::dump-named forms (:wat::i64::+ i 1) target))
+      (:user::dump-named forms (:wat::i64::+ i 1) target))))
 
 ;; ── the union of closures over the child main's callees ──────────────────────────────────
 ;; `with-init?` false is the NEGATIVE CONTROL: omit init's closure and the child must die
@@ -197,12 +197,12 @@
      dedup (:user::union-forms true)
      _a    (:wat::kernel::println
              (:wat::string::concat "RAW union size="
-               (:wat::core::i64::to-string (:wat::core::length raw))))
+               (:wat::i64::to-string (:wat::core::length raw))))
      _b    (:wat::kernel::println "RAW forms declaring :probe::ffx::Record —")
      _c    (:user::dump-named raw 0 ":probe::ffx::Record")
      _d    (:wat::kernel::println
              (:wat::string::concat "DEDUPED union size="
-               (:wat::core::i64::to-string (:wat::core::length dedup))))
+               (:wat::i64::to-string (:wat::core::length dedup))))
      _e    (:wat::kernel::println "DEDUPED forms declaring :probe::ffx::Record —")]
     (:user::dump-named dedup 0 ":probe::ffx::Record")))
 
@@ -214,7 +214,7 @@
     [forms (:user::union-forms with-init?)
      _n    (:wat::kernel::println
              (:wat::string::concat label
-               (:wat::string::concat " forms=" (:wat::core::i64::to-string (:wat::core::length forms)))))
+               (:wat::string::concat " forms=" (:wat::i64::to-string (:wat::core::length forms)))))
      ;; What did the union actually DECLARE? The child's "unresolved reference" names a
      ;; symbol; this names what was shipped. Without both, the gap is a guess.
      _dl   (:wat::kernel::println (:wat::string::concat label " declares:"))

@@ -7,4 +7,4 @@
     [b (:my::market::Bar :open 1.0 :close 2.0)
      o (:my::market::Bar/open b)
      c (:my::market::Bar/close b)]
-    (:wat::core::f64::- c o)))
+    (:wat::f64::- c o)))

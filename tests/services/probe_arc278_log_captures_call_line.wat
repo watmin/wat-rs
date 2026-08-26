@@ -44,6 +44,6 @@
             ;; Arc 109 — Frame/line is a concrete (non-Option) i64, read directly.
             [ln1 (:wat::kernel::Frame/line (:wat::telemetry::Log/emitted-from (:wat::core::first logs)))
              ln2 (:wat::kernel::Frame/line (:wat::telemetry::Log/emitted-from (:wat::core::second logs)))]
-            (:wat::core::i64::- ln2 ln1))
+            (:wat::i64::- ln2 ln1))
           -1))
       (_ -2))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Stopped (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))))

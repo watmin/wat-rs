@@ -33,7 +33,7 @@
 
 ;; ── the CONTROL: no matches?, no pattern, no DSL tokens ─────────────────────────────────────
 (:wat::core::defn :probe::control [p <- :probe::Paper] -> :wat::core::bool
-  (:wat::core::f64::< (:probe::Paper/grace-residue p) 5.0))
+  (:wat::f64::< (:probe::Paper/grace-residue p) 5.0))
 
 ;; ── the SUBJECT: identical shipping, but the body holds a `matches?`. `=` and `<` here are
 ;; PATTERN GRAMMAR owned by check.rs's `infer_form_matches` walker — not call heads — and `?gr`
@@ -49,12 +49,12 @@
            (:wat::core::keyword/from-string "user::root-ctl"))
      _c  (:wat::kernel::println
            (:wat::string::concat "CONTROL forms="
-             (:wat::core::i64::to-string (:wat::core::length ctl))))
+             (:wat::i64::to-string (:wat::core::length ctl))))
      ;; ARM 2 — the subject. This raised before the fix, naming `=` from inside the pattern.
      sub (:wat::kernel::fn-forms :probe::subject
            (:wat::core::keyword/from-string "user::root-sub"))
      _s  (:wat::kernel::println
            (:wat::string::concat "SUBJECT forms="
-             (:wat::core::i64::to-string (:wat::core::length sub))))]
+             (:wat::i64::to-string (:wat::core::length sub))))]
     (:wat::kernel::println
       "PASS — both arms extracted; a matches? PATTERN is DATA to the closure walker, not code")))

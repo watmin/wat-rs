@@ -263,7 +263,7 @@
                      (:wat::core::None viols)
                      ((:wat::core::Some def-pos)
                       ;; violation: definer loads AFTER referencer
-                      (:wat::core::if (:wat::core::i64::> def-pos ref-pos)
+                      (:wat::core::if (:wat::i64::> def-pos ref-pos)
                         (:wat::core::concat viols
                           (:wat::core::Vector :wat::deporder::Violation
                             (:wat::deporder::Violation :referencer path :referencer-pos ref-pos :definer def-path :definer-pos def-pos :symbol kwd)))

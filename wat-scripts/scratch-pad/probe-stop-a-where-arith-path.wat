@@ -69,7 +69,7 @@
 (:wat::rete::defrule :stopa::overflow-in-where
   :when
   [(:stopa::Big (?k <- :k) (?n <- :n))
-   (:wat::rete::where (:wat::rete::core::i64::> (:wat::core::i64::+ ?n 1) 0))]
+   (:wat::rete::where (:wat::rete::core::i64::> (:wat::i64::+ ?n 1) 0))]
   :then
   [(:stopa::Hit ?k)])
 
@@ -89,6 +89,6 @@
      fired   (:wat::rete::fire-rules session)
      _       (:wat::kernel::println "after-fire")]
     (:wat::kernel::println
-      (:wat::core::i64::to-string
+      (:wat::i64::to-string
         (:wat::core::PersistentVector/length
           (:wat::rete::query fired (:stopa::q-Hit)))))))

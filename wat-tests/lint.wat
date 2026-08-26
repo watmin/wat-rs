@@ -27,7 +27,7 @@
     (:wat::core::do
       ;; must find at least 1 finding
       (:wat::test::assert-true
-        (:wat::core::i64::>= (:wat::core::length findings) 1))
+        (:wat::i64::>= (:wat::core::length findings) 1))
       ;; the first finding must be the ladder rule
       (:wat::test::assert-eq
         (:wat::lint::Finding/rule
@@ -102,7 +102,7 @@
   (:wat::core::let
     [findings (:wat::lint::lint-stdlib)]
     (:wat::test::assert-true
-      (:wat::core::i64::>= (:wat::core::length findings) 0))))
+      (:wat::i64::>= (:wat::core::length findings) 0))))
 
 (:wat::test::deftest :wat-tests::lint::rule-zero-finding-on-out-of-order-input
   
@@ -119,10 +119,10 @@
     (:wat::core::do
       ;; must produce at least 1 violation (a refs b's defn but loads before b)
       (:wat::test::assert-true
-        (:wat::core::i64::>= (:wat::core::length viols) 1))
+        (:wat::i64::>= (:wat::core::length viols) 1))
       ;; the rule-zero finding must exist and have rule == "load-order"
       (:wat::test::assert-true
-        (:wat::core::i64::>= (:wat::core::length rule-zero-findings) 1))
+        (:wat::i64::>= (:wat::core::length rule-zero-findings) 1))
       (:wat::test::assert-eq
         (:wat::lint::Finding/rule
           (:wat::core::first rule-zero-findings))
@@ -143,11 +143,11 @@
     (:wat::core::do
       ;; must find at least 1 finding
       (:wat::test::assert-true
-        (:wat::core::i64::>= (:wat::core::length findings) 1))
+        (:wat::i64::>= (:wat::core::length findings) 1))
       ;; there must be a finding with rule == "concat-abuse"
       ;; Arc 118.2a — `filter` flipped LAZY; `length` needs a concrete container, so `filterv`.
       (:wat::test::assert-true
-        (:wat::core::i64::>=
+        (:wat::i64::>=
           (:wat::core::length
             (:wat::core::filterv
               (:wat::core::fn [f <- :wat::lint::Finding] -> :wat::core::bool

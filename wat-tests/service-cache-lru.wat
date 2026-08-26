@@ -61,7 +61,7 @@
   [r <- (:wat::cache::Cache::GetResult :- [:wat::core::i64])]
   -> :wat::core::String
   (:wat::core::match r
-    ((:wat::cache::Cache::GetResult::Hit v) (:wat::string::concat "Hit:" (:wat::core::i64::to-string v)))
+    ((:wat::cache::Cache::GetResult::Hit v) (:wat::string::concat "Hit:" (:wat::i64::to-string v)))
     ((:wat::cache::Cache::GetResult::Miss) "Miss")))
 
 ;; the whole batch's results, index order preserved, rendered "[tok,tok,...]" — the fold walks

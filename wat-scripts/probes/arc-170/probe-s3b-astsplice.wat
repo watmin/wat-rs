@@ -6,7 +6,7 @@
 ;;
 ;; EXPECT "6 10".
 
-(:wat::core::defn :my::double [n <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::* n 2))
+(:wat::core::defn :my::double [n <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::* n 2))
 
 ;; typed drain: the param pins the Process I/O (parent sends (idx,I), recvs (idx,O)); I=O=i64.
 (:wat::core::defn :probe::drain
@@ -35,12 +35,12 @@
             (:wat::kernel::assertion-failed! "recv': w closed unexpectedly" :wat::core::None :wat::core::None)))]
     (:wat::kernel::println
       (:wat::string::concat
-        (:wat::core::i64::to-string (:wat::core::second a))
-        (:wat::string::concat " " (:wat::core::i64::to-string (:wat::core::second b)))))))
+        (:wat::i64::to-string (:wat::core::second a))
+        (:wat::string::concat " " (:wat::i64::to-string (:wat::core::second b)))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
-    [work-fn  (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::* x 2))
+    [work-fn  (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::* x 2))
      forms    (:wat::kernel::fn-forms work-fn :probe::__work)
      ;; ── extract the concrete arg/return type keywords off the reified work-fn ──
      def-node (:wat::core::Option/expect (:wat::core::last forms) "no def")

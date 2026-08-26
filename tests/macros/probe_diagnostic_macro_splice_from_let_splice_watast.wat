@@ -12,7 +12,7 @@
                    (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST]) x <- :wat::core::i64] -> (:wat::core::Vector :- [:wat::WatAST])
                      (:wat::core::conj acc
                        (:wat::core::quasiquote
-                         (:wat::core::unquote (:wat::core::i64::* x 10)))))
+                         (:wat::core::unquote (:wat::i64::* x 10)))))
                    (:wat::core::Vector :wat::WatAST)
                    xs)]
           forms)))))

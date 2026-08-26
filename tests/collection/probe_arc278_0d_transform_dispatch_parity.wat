@@ -21,73 +21,73 @@
 
 (:wat::core::defn :user::p-foldl [] -> :wat::core::i64
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ acc x))
+    (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::+ acc x))
     0
     (:wat::core::PersistentVector 1 2 3)))
 
 (:wat::core::defn :user::p-fold-reverse [] -> :wat::core::i64
   (:wat::core::reduce
-    (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ acc x))
+    (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::+ acc x))
     0
     (:wat::core::reverse (:wat::core::PersistentVector 1 2 3))))
 
 (:wat::core::defn :user::p-map [] -> :wat::core::i64
   (:wat::core::reduce
-    (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ acc x))
+    (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::+ acc x))
     0
     (:wat::core::map
-      (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::* x 2))
+      (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::* x 2))
       (:wat::core::PersistentVector 1 2 3))))
 
 (:wat::core::defn :user::p-filter [] -> :wat::core::i64
   (:wat::core::reduce
-    (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ acc x))
+    (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::+ acc x))
     0
     (:wat::core::filter
-      (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::bool (:wat::core::i64::> x 1))
+      (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::bool (:wat::i64::> x 1))
       (:wat::core::PersistentVector 1 2 3))))
 
 (:wat::core::defn :user::p-rev [] -> :wat::core::i64
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ acc x))
+    (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::+ acc x))
     0
     (:wat::core::reverse (:wat::core::PersistentVector 1 2 3))))
 
 (:wat::core::defn :user::p-take [] -> :wat::core::i64
   (:wat::core::reduce
-    (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ acc x))
+    (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::+ acc x))
     0
     (:wat::core::take (:wat::core::PersistentVector 1 2 3) 2)))
 
 (:wat::core::defn :user::p-drop [] -> :wat::core::i64
   (:wat::core::reduce
-    (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ acc x))
+    (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::+ acc x))
     0
     (:wat::core::drop (:wat::core::PersistentVector 1 2 3) 1)))
 
 (:wat::core::defn :user::p-concat [] -> :wat::core::i64
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ acc x))
+    (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::+ acc x))
     0
     (:wat::core::concat (:wat::core::PersistentVector 1 2 3) (:wat::core::PersistentVector 1 2 3))))
 
 (:wat::core::defn :user::fold-bare-pv [xs <- :wat::core::PersistentVector] -> :wat::core::i64
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ acc x))
+    (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::+ acc x))
     0
     xs))
 
 (:wat::core::defn :user::fold-bare-vec [xs <- :wat::core::Vector] -> :wat::core::i64
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ acc x))
+    (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::+ acc x))
     0
     xs))
 
 (:wat::core::defn :user::map-bare-pv [xs <- :wat::core::PersistentVector] -> :wat::core::i64
   (:wat::core::reduce
-    (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ acc x))
+    (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::+ acc x))
     0
     (:wat::core::map
-      (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::* x 2))
+      (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::* x 2))
       xs)))
 

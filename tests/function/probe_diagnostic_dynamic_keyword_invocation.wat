@@ -7,7 +7,7 @@
 
 ;; Probe 1 — bound substrate-verb keyword dispatched via apply (result 5)
 (:wat::core::defn :user::probe-1 [] -> :wat::core::i64
-  (:wat::core::let [plus :wat::core::i64::+]
+  (:wat::core::let [plus :wat::i64::+]
     (:wat::core::apply  plus [2 3])))
 
 ;; Probe 2 — runtime-built keyword dispatched via apply (result 5)
@@ -26,7 +26,7 @@
 (:wat::core::defn :ns::add4
   [a <- :wat::core::i64 b <- :wat::core::i64
    c <- :wat::core::i64 d <- :wat::core::i64] -> :wat::core::i64
-  (:wat::core::do (:wat::core::i64::+ (:wat::core::i64::+ a b) (:wat::core::i64::+ c d))))
+  (:wat::core::do (:wat::i64::+ (:wat::i64::+ a b) (:wat::i64::+ c d))))
 (:wat::core::defn :user::probe-4 [] -> :wat::core::i64
   (:wat::core::apply  :ns::add4 1 2 [3 4]))
 

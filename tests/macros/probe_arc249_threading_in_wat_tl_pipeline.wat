@@ -10,6 +10,6 @@
 ;; materialize the final pipeline result.
 (:wat::core::defn :user::compute [] -> :wat::core::bool
   (:wat::core::= (:test::thread-last [1 2 3]
-                   (:wat::core::map (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ x 1)))
-                   (:wat::core::filterv (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::bool (:wat::core::i64::> x 2))))
+                   (:wat::core::map (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::+ x 1)))
+                   (:wat::core::filterv (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::bool (:wat::i64::> x 2))))
                  [3 4]))

@@ -38,5 +38,5 @@
                               (:wat::core::range 0 keys))
                     n0 (:wat::time::now)  fn (:wat::rete::fire-rules staged)       n1 (:wat::time::now)
                     pairs   (:wat::core::length (:wat::rete::query fn (:fan::q-Pair)))
-                    nat-ns  (:wat::core::i64::- (:wat::time::epoch-nanos n1) (:wat::time::epoch-nanos n0))]
+                    nat-ns  (:wat::i64::- (:wat::time::epoch-nanos n1) (:wat::time::epoch-nanos n0))]
     (:wat::kernel::println (:perf::FanResult :keys keys :fanout fanout :pairs pairs :native-ns nat-ns))))

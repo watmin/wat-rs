@@ -4,11 +4,11 @@
 
 (:wat::core::defn :test::double [n <- :wat::core::i64] -> :wat::core::i64
   ((:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64
-     (:wat::core::i64::+ x x))
+     (:wat::i64::+ x x))
    n))
 
 (:wat::core::defn :test::compute [a <- :wat::core::i64 b <- :wat::core::i64] -> :wat::core::i64
   ((:wat::core::fn [x <- :wat::core::i64 y <- :wat::core::i64] -> :wat::core::i64
-      (:wat::core::i64::+ x y))
+      (:wat::i64::+ x y))
    a b))
 

@@ -56,16 +56,16 @@
            (:wat::core::keyword/from-string "user::root-pc"))
      _p  (:wat::kernel::println
            (:wat::string::concat "POSITIVE-CONTROL (ordinary call) forms="
-             (:wat::core::i64::to-string (:wat::core::length pc))))
+             (:wat::i64::to-string (:wat::core::length pc))))
      bl  (:wat::kernel::fn-forms :usr::rule-baseline
            (:wat::core::keyword/from-string "user::root-bl"))
      _b  (:wat::kernel::println
            (:wat::string::concat "BASELINE (where, no user dep)   forms="
-             (:wat::core::i64::to-string (:wat::core::length bl))))
+             (:wat::i64::to-string (:wat::core::length bl))))
      sj  (:wat::kernel::fn-forms :usr::rule-userfn
            (:wat::core::keyword/from-string "user::root-sj"))
      _s  (:wat::kernel::println
            (:wat::string::concat "SUBJECT  (where CALLS :usr::big?) forms="
-             (:wat::core::i64::to-string (:wat::core::length sj))))]
+             (:wat::i64::to-string (:wat::core::length sj))))]
     (:wat::kernel::println
       "compare SUBJECT vs BASELINE: equal => the where-body dep was NOT collected")))

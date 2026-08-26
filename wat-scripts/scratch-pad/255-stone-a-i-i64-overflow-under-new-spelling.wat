@@ -21,5 +21,5 @@
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::do
-    (:wat::kernel::println (:wat::core::i64::to-string (:wat::i64::+ 9223372036854775807 1)))
+    (:wat::kernel::println (:wat::i64::to-string (:wat::i64::+ 9223372036854775807 1)))
     nil))

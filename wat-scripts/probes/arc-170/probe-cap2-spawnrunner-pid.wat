@@ -3,7 +3,7 @@
 ;; peer-pid is correct for the real use case.
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
-    [work (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::* x 2))
+    [work (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::* x 2))
      ;; the PROCESS worker peer — exactly what map-worker holds
      pp   (:wat::spawn::Locus/spawn-runner (:wat::spawn::process) work)
      _    (:wat::kernel::println "process spawn-runner peer-pid:")

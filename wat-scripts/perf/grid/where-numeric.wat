@@ -221,7 +221,7 @@
       ((:wat::core::= row 10) (:wnm::mix-and))
       (:else
         (:wat::kernel::assertion-failed!
-          (:wat::core::String/concat "where-numeric: unknown row " (:wat::core::i64::to-string row))
+          (:wat::core::String/concat "where-numeric: unknown row " (:wat::i64::to-string row))
           :wat::core::None :wat::core::None)))))
 
 ;; seed session items — stage Num(i) for i in [0, items). Every field a FORMULA over i (rule 3):
@@ -235,10 +235,10 @@
     (:wat::core::foldl
       (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  i <- :wat::core::i64]
                       -> (:wat::core::PersistentVector :- [:wat::core::Record])
-        (:wat::core::let [a (:wat::core::i64::- i 100)
-                          z (:wat::core::i64::- (:wat::core::i64::mod i 5) 2)
-                          x (:wat::core::f64::- (:wat::core::f64::* (:wat::core::i64::to-f64 i) 0.25) 25.0)
-                          y (:wat::core::f64::* (:wat::core::i64::to-f64 i) 0.1)]
+        (:wat::core::let [a (:wat::i64::- i 100)
+                          z (:wat::i64::- (:wat::i64::mod i 5) 2)
+                          x (:wat::f64::- (:wat::f64::* (:wat::i64::to-f64 i) 0.25) 25.0)
+                          y (:wat::f64::* (:wat::i64::to-f64 i) 0.1)]
           (:wat::core::PersistentVector/conj acc
             (:wnm::Num :k i :a a :z z :x x :y y))))
       (:wat::core::PersistentVector)
@@ -259,7 +259,7 @@
   (:wat::core::foldl
     (:wat::core::fn [acc <- :wat::core::String  x <- :wat::core::i64] -> :wat::core::String
       (:wat::core::String/concat acc
-        (:wat::core::String/concat " " (:wat::core::i64::to-string x))))
+        (:wat::core::String/concat " " (:wat::i64::to-string x))))
     ""
     v))
 
@@ -290,10 +290,10 @@
                     n       (:wat::core::Vector/length derived)]
     (:wat::core::String/concat
       (:wat::core::String/concat
-        (:wat::core::String/concat "row " (:wat::core::i64::to-string row))
+        (:wat::core::String/concat "row " (:wat::i64::to-string row))
         (:wat::core::String/concat " " (:wnm::rule-display-name (:wat::rete::Rule/name rule))))
       (:wat::core::String/concat
-        (:wat::core::String/concat " n=" (:wat::core::i64::to-string n))
+        (:wat::core::String/concat " n=" (:wat::i64::to-string n))
         (:wat::core::String/concat " ->" (:wnm::render-ints derived))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
@@ -301,4 +301,4 @@
     (:wat::core::fn [acc <- :wat::core::nil  row <- :wat::core::i64] -> :wat::core::nil
       (:wat::kernel::println (:wnm::run-row row)))
     nil
-    (:wat::core::range 1 (:wat::core::i64::+ (:wnm::row-count) 1))))
+    (:wat::core::range 1 (:wat::i64::+ (:wnm::row-count) 1))))

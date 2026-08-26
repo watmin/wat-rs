@@ -129,7 +129,7 @@
             (:wat::string::concat "  type-pos=" (:wat::core::str (:wat::core::length (:wat::rete::query fired (:fx::q-IsTypePos))))
               (:wat::string::concat "  arrow-line=" (:wat::core::str n-arrow-lines)
                 (:wat::string::concat "  sample-line="
-                  (:wat::core::if (:wat::core::i64::> n-arrow-lines 0)
+                  (:wat::core::if (:wat::i64::> n-arrow-lines 0)
                     (:wat::core::str
                       (:wat::core::Option/expect
                         (:wat::core::PersistentMap/get (:wat::core::first arrow-lines) "?l")

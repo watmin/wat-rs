@@ -11,6 +11,6 @@
 (:wat::core::defn :probe::measure
     [t <- :wat::time::Instant  lo <- :wat::core::i64  hi <- :wat::core::i64] -> :wat::core::bool
   (:wat::core::let [ns (:wat::time::epoch-nanos t)]
-    (:wat::core::and (:wat::core::i64::> ns 0)
-      (:wat::core::and (:wat::core::i64::>= ns lo)
-                       (:wat::core::i64::<= ns hi)))))
+    (:wat::core::and (:wat::i64::> ns 0)
+      (:wat::core::and (:wat::i64::>= ns lo)
+                       (:wat::i64::<= ns hi)))))

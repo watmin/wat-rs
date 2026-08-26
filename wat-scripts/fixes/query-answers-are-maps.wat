@@ -44,7 +44,7 @@
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
     (:wat::core::let [ch (:wat::core::ast->children node)
                       n  (:wat::core::length ch)]
-      (:wat::core::if (:wat::core::i64::> n 3)
+      (:wat::core::if (:wat::i64::> n 3)
         (:wat::core::if (:wat::core::= (:wat::core::ast-name (:wat::core::first ch)) "?fact")
           (:wat::core::if (:wat::core::= (:wat::core::ast-name
                                            (:wat::core::Option/expect
@@ -86,7 +86,7 @@
    lines <- (:wat::core::Vector :- [:wat::core::String])]
   -> :wat::fix::Edit
   (:wat::core::Tuple
-    (:wat::core::i64::+ (:wat::fix::node-start-offset node lines) 1)
+    (:wat::i64::+ (:wat::fix::node-start-offset node lines) 1)
     ""
     "?fact <- "))
 
@@ -106,7 +106,7 @@
    n     <- :wat::core::i64
    lines <- (:wat::core::Vector :- [:wat::core::String])]
   -> (:wat::core::Vector :- [:wat::fix::Edit])
-  (:wat::core::if (:wat::core::i64::>= i n)
+  (:wat::core::if (:wat::i64::>= i n)
     (:wat::core::Vector :wat::fix::Edit)
     (:wat::core::let [kid (:wat::core::Option/expect
                             (:wat::core::get ch i)
@@ -115,14 +115,14 @@
         (:wat::core::if (:wat::core::= (:wat::core::ast-kind kid) "keyword")
           (:wat::core::= (:wat::core::ast-name kid) ":when")
           false)
-        (:wat::core::if (:wat::core::i64::< (:wat::core::i64::+ i 1) n)
+        (:wat::core::if (:wat::i64::< (:wat::i64::+ i 1) n)
           (:user::when-vec-edits
             (:wat::core::Option/expect
-              (:wat::core::get ch (:wat::core::i64::+ i 1))
+              (:wat::core::get ch (:wat::i64::+ i 1))
               "when-edits-scan: vec")
             lines)
           (:wat::core::Vector :wat::fix::Edit))
-        (:user::when-edits-scan ch (:wat::core::i64::+ i 1) n lines)))))
+        (:user::when-edits-scan ch (:wat::i64::+ i 1) n lines)))))
 
 (:wat::core::defn :user::when-vec-edits
   [vec   <- :wat::WatAST
@@ -139,7 +139,7 @@
    n     <- :wat::core::i64
    lines <- (:wat::core::Vector :- [:wat::core::String])]
   -> (:wat::core::Vector :- [:wat::fix::Edit])
-  (:wat::core::if (:wat::core::i64::>= i n)
+  (:wat::core::if (:wat::i64::>= i n)
     (:wat::core::Vector :wat::fix::Edit)
     (:wat::core::let [c (:wat::core::Option/expect (:wat::core::get items i) "when-vec-scan")]
       (:wat::core::concat
@@ -152,11 +152,11 @@
             ;; literal, not "whatever's there").
             (:wat::core::Vector :wat::fix::Edit
               (:wat::core::Tuple
-                (:wat::core::i64::+ (:wat::fix::node-start-offset c lines) 1)
+                (:wat::i64::+ (:wat::fix::node-start-offset c lines) 1)
                 "?fact <- "
                 ""))
             (:wat::core::Vector :wat::fix::Edit)))
-        (:user::when-vec-scan items (:wat::core::i64::+ i 1) n lines)))))
+        (:user::when-vec-scan items (:wat::i64::+ i 1) n lines)))))
 
 (:wat::core::defn :user::record-item-name
   [params <- :wat::WatAST] -> (:wat::core::Option :- [:wat::core::String])
@@ -167,8 +167,8 @@
         :wat::core::None
         (:wat::core::let [last3 0
                           a (:wat::core::Option/expect (:wat::core::get pch last3) "rec-name a")
-                          b (:wat::core::Option/expect (:wat::core::get pch (:wat::core::i64::+ last3 1)) "rec-name b")
-                          c (:wat::core::Option/expect (:wat::core::get pch (:wat::core::i64::+ last3 2)) "rec-name c")]
+                          b (:wat::core::Option/expect (:wat::core::get pch (:wat::i64::+ last3 1)) "rec-name b")
+                          c (:wat::core::Option/expect (:wat::core::get pch (:wat::i64::+ last3 2)) "rec-name c")]
           (:wat::core::if
             (:wat::core::if (:wat::core::= (:wat::core::ast-kind a) "symbol")
               (:wat::core::if (:wat::core::= (:wat::core::ast-name b) "<-")
@@ -188,11 +188,11 @@
   (:wat::core::let [ch (:wat::core::ast->children fn-node)
                     n  (:wat::core::length ch)
                     body (:wat::core::Option/expect
-                           (:wat::core::get ch (:wat::core::i64::- n 1))
+                           (:wat::core::get ch (:wat::i64::- n 1))
                            "rewrite-fn: body")
                     body-t (:user::node-text body src lines)
                     has-arrow
-                      (:wat::core::if (:wat::core::i64::> n 3)
+                      (:wat::core::if (:wat::i64::> n 3)
                         (:wat::core::= (:wat::core::ast-name
                                          (:wat::core::Option/expect
                                            (:wat::core::get ch 2)
@@ -233,7 +233,7 @@
         true
         (:wat::fix::calls-to? node ":wat::core::foldl")))
     (:wat::core::let [ch (:wat::core::ast->children node)]
-      (:wat::core::if (:wat::core::i64::< (:wat::core::length ch) 2)
+      (:wat::core::if (:wat::i64::< (:wat::core::length ch) 2)
         (:wat::core::Vector :wat::fix::Edit)
         (:wat::core::let [fn-node (:wat::core::Option/expect
                                     (:wat::core::get ch 1)

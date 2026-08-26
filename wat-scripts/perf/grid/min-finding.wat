@@ -61,7 +61,7 @@
 ;; finding count (< 2*threshold, far below 1,000,000) and `loc` is < 1,000,000 at every grid size,
 ;; so the encoding is injective for the sizes this axis is ever run at.
 (:wat::core::defn :mf::encode [loc <- :wat::core::i64  n <- :wat::core::i64] -> :wat::core::i64
-  (:wat::core::i64::+ (:wat::core::i64::* loc 1000000) n))
+  (:wat::i64::+ (:wat::i64::* loc 1000000) n))
 
 ;; build-rule threshold — the single minimum-finding-set rule:
 ;;   Busy(loc, n) :- Station(loc) AND (?n <- count :from Reading(loc)) AND (?n >= threshold)
@@ -91,7 +91,7 @@
 ;; + - * / exist — same idiom strat-neg.wat uses for its even test `(* (/ ?k 2) 2)`). a >= 0 and
 ;; b > 0 for every call here (station indices and 2*threshold), so truncation-toward-zero is exact.
 (:wat::core::defn :mf::i64-mod [a <- :wat::core::i64  b <- :wat::core::i64] -> :wat::core::i64
-  (:wat::core::i64::- a (:wat::core::i64::* (:wat::core::i64::/ a b) b)))
+  (:wat::i64::- a (:wat::i64::* (:wat::i64::/ a b) b)))
 
 ;; seed-readings session loc count — stage `count` Reading(loc) findings for one station.
 ;; reading-facts loc count — `count` Reading(loc) facts as a FACT VECTOR. No longer threads a
@@ -112,7 +112,7 @@
 (:wat::core::defn :mf::seed
   [session <- :wat::rete::Session  stations <- :wat::core::i64  threshold <- :wat::core::i64]
   -> :wat::rete::Session
-  (:wat::core::let [span (:wat::core::i64::* 2 threshold)]
+  (:wat::core::let [span (:wat::i64::* 2 threshold)]
     (:wat::rete::insert-all
       session
       (:wat::core::foldl
@@ -145,7 +145,7 @@
 
 ;; ns-between t0 t1 — nanoseconds between two Instants (mirrors strat-neg.wat's ns-between).
 (:wat::core::defn :mf::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> :wat::core::i64
-  (:wat::core::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
+  (:wat::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let [params    (:wat::core::match (:wat::kernel::readln ) ((:wat::kernel::ReadlnOutcome::Datum __datum) __datum) (:wat::kernel::ReadlnOutcome::Eof (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None)) (:wat::kernel::ReadlnOutcome::Stopped (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)))

@@ -24,7 +24,7 @@
 ;;     ./target/release/wat wat-scripts/scratch-pad/bench-118B5-into-stream-vs-native-concat.wat
 
 (:wat::core::defn :bench::ns [t0 <- :wat::time::Instant t1 <- :wat::time::Instant] -> :wat::core::i64
-  (:wat::core::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
+  (:wat::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
 
 ;; STREAM path — `map` is lazy, so this is the two-arm interpreted drain under test.
 (:wat::core::defn :bench::stream-drain
@@ -63,9 +63,9 @@
       (:wat::string::interpolate
         "n={n} NONVACUITY map+drain={ra}/{rd} native={rb}/{rc} drain-only={re}/{rf} | map+drain={ad}/{dd}ms | native={bd}/{cd}ms | DRAIN-ONLY={ed}/{fd}ms"
         :n n :ra ra :rb rb :rc rc :rd rd :re re :rf rf
-        :ed (:wat::core::i64::/ (:bench::ns e0 e1) 1000000)
-        :fd (:wat::core::i64::/ (:bench::ns f0 f1) 1000000)
-        :ad (:wat::core::i64::/ (:bench::ns a0 a1) 1000000)
-        :bd (:wat::core::i64::/ (:bench::ns b0 b1) 1000000)
-        :cd (:wat::core::i64::/ (:bench::ns c0 c1) 1000000)
-        :dd (:wat::core::i64::/ (:bench::ns d0 d1) 1000000)))))
+        :ed (:wat::i64::/ (:bench::ns e0 e1) 1000000)
+        :fd (:wat::i64::/ (:bench::ns f0 f1) 1000000)
+        :ad (:wat::i64::/ (:bench::ns a0 a1) 1000000)
+        :bd (:wat::i64::/ (:bench::ns b0 b1) 1000000)
+        :cd (:wat::i64::/ (:bench::ns c0 c1) 1000000)
+        :dd (:wat::i64::/ (:bench::ns d0 d1) 1000000)))))

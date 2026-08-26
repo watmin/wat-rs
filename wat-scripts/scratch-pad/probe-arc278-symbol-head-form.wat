@@ -58,7 +58,7 @@
     ;; (1) does it evaluate? if normalize rewrites the head, this is 4.
     (:wat::kernel::println
       (:wat::string::concat "1. (wat.core/+ 2 2) evaluates to "
-        (:wat::core::i64::to-string (:probe::eval-symbol-head))))
+        (:wat::i64::to-string (:probe::eval-symbol-head))))
 
     ;; (2) what is it as data? THE load-bearing line — a symbol head or a normalized keyword?
     (:wat::kernel::println "2. quoted, as EDN:")

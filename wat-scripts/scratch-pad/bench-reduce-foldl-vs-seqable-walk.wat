@@ -22,17 +22,17 @@
 ;; ARM A — what `reduce` does TODAY for a Vector: the native foldl intrinsic.
 (:wat::core::defn :bench::via-foldl [v <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::i64
   (:wat::core::foldl (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
-                       (:wat::core::i64::+ acc x))
+                       (:wat::i64::+ acc x))
     0 v))
 
 ;; ARM B — what a collapsed `reduce` would do: normalise to a Stream, then walk it interpreted.
 (:wat::core::defn :bench::via-walk [v <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::i64
   (:wat::core::reduce-walk (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
-                             (:wat::core::i64::+ acc x))
+                             (:wat::i64::+ acc x))
     0 (:wat::core::Seqable/seq v)))
 
 (:wat::core::defn :bench::ns [t0 <- :wat::time::Instant t1 <- :wat::time::Instant] -> :wat::core::i64
-  (:wat::core::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
+  (:wat::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
@@ -48,7 +48,7 @@
       (:wat::string::interpolate
         "n={n} NONVACUITY ra={ra} rb={rb} rc={rc} rd={rd} | A: walk={ad}ms foldl={bd}ms | B: foldl={cd}ms walk={dd}ms"
         :n n :ra ra :rb rb :rc rc :rd rd
-        :ad (:wat::core::i64::/ (:bench::ns a0 a1) 1000000)
-        :bd (:wat::core::i64::/ (:bench::ns b0 b1) 1000000)
-        :cd (:wat::core::i64::/ (:bench::ns c0 c1) 1000000)
-        :dd (:wat::core::i64::/ (:bench::ns d0 d1) 1000000)))))
+        :ad (:wat::i64::/ (:bench::ns a0 a1) 1000000)
+        :bd (:wat::i64::/ (:bench::ns b0 b1) 1000000)
+        :cd (:wat::i64::/ (:bench::ns c0 c1) 1000000)
+        :dd (:wat::i64::/ (:bench::ns d0 d1) 1000000)))))

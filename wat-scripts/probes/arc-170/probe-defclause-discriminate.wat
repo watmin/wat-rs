@@ -15,9 +15,9 @@
 ;; the multi-backend client — concrete clauses + the OPEN-surface fallback
 (:wat::core::defclause :probe::describe
   ([r <- :probe::SqliteReason] -> :wat::core::String
-    (:wat::string::concat "sqlite " (:wat::core::i64::to-string (:probe::SqliteReason/code r))))
+    (:wat::string::concat "sqlite " (:wat::i64::to-string (:probe::SqliteReason/code r))))
   ([r <- :probe::RedisReason]  -> :wat::core::String
-    (:wat::string::concat "redis "  (:wat::core::i64::to-string (:probe::RedisReason/errno r))))
+    (:wat::string::concat "redis "  (:wat::i64::to-string (:probe::RedisReason/errno r))))
   ([r <- :probe::Reason]       -> :wat::core::String
     "unknown backend"))
 

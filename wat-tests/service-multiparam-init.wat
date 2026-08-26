@@ -36,7 +36,7 @@
   [(total [s ctx req]
      (:wat::service::Outcome::Reply s
        (:wat-tests::OffsetCounter::TotalResponse::Ok
-         (:wat::core::i64::+
+         (:wat::i64::+
            (:wat-tests::offset-counter::Record/count (:wat-tests::offset-counter::State/durable s))
            (:wat-tests::offset-counter::State/base s)))))])
 

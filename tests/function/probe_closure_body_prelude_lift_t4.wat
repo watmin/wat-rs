@@ -23,7 +23,7 @@
                 k    (:wat::core::match kind
                        (:h::LocalKind::A 1)
                        (:h::LocalKind::B 2))
-                n    (:wat::core::i64::+ (:h::LocalItem/value item) k)
+                n    (:wat::i64::+ (:h::LocalItem/value item) k)
                 _out (:wat::kernel::println n)]
                nil))))]
     (:wat::core::match (:wat::kernel::recv p)

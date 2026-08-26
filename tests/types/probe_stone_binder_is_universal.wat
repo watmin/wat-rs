@@ -17,7 +17,7 @@
 
 (:wat::core::defn :t::row1_generic_binder [] -> (:wat::core::Result :- [:wat::core::i64 :wat::core::EvalError])
   (:wat::core::let
-    [program (:wat::core::quote (:wat::core::i64::+ 40 2))]
+    [program (:wat::core::quote (:wat::i64::+ 40 2))]
     (:wat::eval-ast! :- [:wat::core::i64] program)))
 
 ;; ─── Rows 2 / 3 — a NON-generic form (`:wat::eval-edn!`, `type_params: vec![]`) with an

@@ -47,7 +47,7 @@
 ;; A user-defined predicate fn — the shape a compiled executor CANNOT model and must hand back to
 ;; the interpreter. Its presence in the spread is the point: users write these.
 (:wat::core::defn :shape::big? [n <- :wat::core::i64] -> :wat::core::bool
-  (:wat::core::i64::> n 4))
+  (:wat::i64::> n 4))
 
 ;; ── the NINE shapes ───────────────────────────────────────────────────────────────────────
 ;; Built the way node-share builds its rules — quasiquoted LHS/RHS forms folded into a `Rule`
@@ -58,7 +58,7 @@
 ;; arithmetic (4 i64 ops, 1 var) — the shape EVERY Step-0 number came from
 (:wat::core::defn :shape::rule-arith [] -> :wat::rete::Rule
   (:wat::core::let [conds   (:wat::core::quasiquote (:shape::Req (?k <- :k)))
-                    where-c (:wat::core::quasiquote (:wat::rete::where (:wat::core::= 3 (:wat::core::i64::- ?k (:wat::core::i64::* (:wat::core::i64::/ ?k 10) 10)))))
+                    where-c (:wat::core::quasiquote (:wat::rete::where (:wat::core::= 3 (:wat::i64::- ?k (:wat::i64::* (:wat::i64::/ ?k 10) 10)))))
                     ins     (:wat::core::quasiquote (:shape::Hit ?k))]
     (:wat::rete::Rule :name "arith"
       :lhs (:wat::core::PersistentVector conds where-c)
@@ -121,7 +121,7 @@
 ;; 3 bound vars, 5 levels — separates per-EVALUATION cost from per-NODE cost
 (:wat::core::defn :shape::rule-multivar-deep [] -> :wat::rete::Rule
   (:wat::core::let [conds   (:wat::core::quasiquote (:shape::Req (?k <- :k) (?a <- :a) (?b <- :b)))
-                    where-c (:wat::core::quasiquote (:wat::rete::where (:wat::rete::core::i64::> (:wat::core::i64::+ ?a (:wat::core::i64::* ?b (:wat::core::i64::- ?k (:wat::core::i64::/ (:wat::core::i64::+ ?a ?b) 2)))) 0)))
+                    where-c (:wat::core::quasiquote (:wat::rete::where (:wat::rete::core::i64::> (:wat::i64::+ ?a (:wat::i64::* ?b (:wat::i64::- ?k (:wat::i64::/ (:wat::i64::+ ?a ?b) 2)))) 0)))
                     ins     (:wat::core::quasiquote (:shape::Hit ?k))]
     (:wat::rete::Rule :name "multivar-deep"
       :lhs (:wat::core::PersistentVector conds where-c)
@@ -162,22 +162,22 @@
         (:wat::core::PersistentVector/conj acc
           (:shape::Req
             :k      i
-            :a      (:wat::core::i64::- i 1)
-            :b      (:wat::core::i64::+ i 2)
-            :name   (:wat::core::if (:wat::core::= 0 (:wat::core::i64::- i (:wat::core::i64::* (:wat::core::i64::/ i 2) 2))) "admin" "guest")
-            :flag   (:wat::core::= 0 (:wat::core::i64::- i (:wat::core::i64::* (:wat::core::i64::/ i 3) 3)))
-            :tags   (:wat::core::PersistentVector i (:wat::core::i64::+ i 1))
+            :a      (:wat::i64::- i 1)
+            :b      (:wat::i64::+ i 2)
+            :name   (:wat::core::if (:wat::core::= 0 (:wat::i64::- i (:wat::i64::* (:wat::i64::/ i 2) 2))) "admin" "guest")
+            :flag   (:wat::core::= 0 (:wat::i64::- i (:wat::i64::* (:wat::i64::/ i 3) 3)))
+            :tags   (:wat::core::PersistentVector i (:wat::i64::+ i 1))
             :attrs  (:wat::core::PersistentMap "hot" i)
             :client (:shape::Client
                       :id  i
-                      :geo (:shape::Geo :country (:wat::core::if (:wat::core::= 0 (:wat::core::i64::- i (:wat::core::i64::* (:wat::core::i64::/ i 5) 5))) "XX" "US"))
-                      :rep (:wat::core::i64::- i 5)))))
+                      :geo (:shape::Geo :country (:wat::core::if (:wat::core::= 0 (:wat::i64::- i (:wat::i64::* (:wat::i64::/ i 5) 5))) "XX" "US"))
+                      :rep (:wat::i64::- i 5)))))
       (:wat::core::PersistentVector)
       (:wat::core::range 0 n))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::kernel::println
-    (:wat::core::i64::to-string
+    (:wat::i64::to-string
       (:wat::core::length
         (:wat::rete::query
           (:wat::rete::fire-rules

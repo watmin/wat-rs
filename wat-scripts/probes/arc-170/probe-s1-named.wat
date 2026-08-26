@@ -1,4 +1,4 @@
-(:wat::core::defn :my::adder [n <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ n 5))
+(:wat::core::defn :my::adder [n <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::+ n 5))
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [wf (:wat::kernel::fn-forms :my::adder :probe::work)
@@ -28,4 +28,4 @@
             (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None))
           (:wat::kernel::RecvOutcome::Closed
             (:wat::kernel::assertion-failed! "recv': w closed unexpectedly" :wat::core::None :wat::core::None)))]
-    (:wat::kernel::println (:wat::string::concat (:wat::core::i64::to-string a) (:wat::string::concat " " (:wat::core::i64::to-string b))))))
+    (:wat::kernel::println (:wat::string::concat (:wat::i64::to-string a) (:wat::string::concat " " (:wat::i64::to-string b))))))

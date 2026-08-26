@@ -26,7 +26,7 @@
      fired   (:wat::rete::fire-rules$oracle session)
      derived (:wat::rete::query fired (:cr2g::q-Rate))
      r       (:wat::core::first derived)]
-    (:wat::core::i64::+
+    (:wat::i64::+
       (:wat::core::Option/expect
         (:wat::core::PersistentMap/get r "?count")
         "q-Rate: ?count")
@@ -43,7 +43,7 @@
      fired   (:wat::rete::fire-rules session)
      derived (:wat::rete::query fired (:cr2g::q-Rate))
      r       (:wat::core::first derived)]
-    (:wat::core::i64::+
+    (:wat::i64::+
       (:wat::core::Option/expect
         (:wat::core::PersistentMap/get r "?count")
         "q-Rate: ?count")

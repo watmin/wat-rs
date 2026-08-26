@@ -18,7 +18,7 @@
          (:wat::core::forms
            (:wat::core::defn :user::main [] -> :wat::core::nil
              ;; Division by zero → RuntimeError::DivisionByZero.
-             (:wat::core::let [_ (:wat::core::i64::/ 1 0)] nil))))]
+             (:wat::core::let [_ (:wat::i64::/ 1 0)] nil))))]
     (:wat::core::match (:wat::kernel::recv p)
       ((:wat::kernel::RecvOutcome::Message _m) "UNEXPECTED-MESSAGE")
       ((:wat::kernel::RecvOutcome::Lost cause)

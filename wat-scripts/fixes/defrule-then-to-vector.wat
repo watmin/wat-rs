@@ -124,7 +124,7 @@
                 [fact-texts (:user::fact-texts then-forms src lines)
                  joined     (:user::join-with-space fact-texts)
                  first-fact (:wat::core::Option/expect (:wat::core::get then-forms 0) "defrule-edits: unreachable")
-                 last-fact  (:wat::core::Option/expect (:wat::core::get then-forms (:wat::core::i64::- (:wat::core::count then-forms) 1)) "defrule-edits: unreachable")
+                 last-fact  (:wat::core::Option/expect (:wat::core::get then-forms (:wat::i64::- (:wat::core::count then-forms) 1)) "defrule-edits: unreachable")
                  first-off  (:wat::fix::node-start-offset first-fact lines)
                  ;; old-text = fix-text-span-text spanning first-fact's start to last-fact's
                  ;; end (arc 282) — sanctioned: this is a REFLOW of a known multi-form region

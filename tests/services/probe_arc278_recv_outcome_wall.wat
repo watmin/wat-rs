@@ -55,7 +55,7 @@
    (boomrt [s ctx req]
      (:wat::core::let
        [zero (:probe::crash::Record/x (:probe::crash::State/durable s))
-        _    (:wat::core::i64::quot 987654321 zero)]        ;; RTERR-QUOT-SENTINEL: DivisionByZero at runtime
+        _    (:wat::i64::quot 987654321 zero)]        ;; RTERR-QUOT-SENTINEL: DivisionByZero at runtime
        (:wat::service::Outcome::Reply s (:probe::Crash::BoomrtResponse::Ok true))))])
 
 ;; ── CLIENT helpers: raw connect' + send' + recv', MATCH the RecvOutcome directly. ────────────────────

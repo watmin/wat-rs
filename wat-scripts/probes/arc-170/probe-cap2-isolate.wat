@@ -9,7 +9,7 @@
   :satisfies :probe::Echo  :durable [] :ephemeral []
   :impls [(echo [s ctx req] (:wat::service::Outcome::Reply s
                           (:probe::Echo::EchoResponse::Ok (:probe::Echo::EchoRequest/msg req))))])
-(:wat::core::defn :probe::double [n <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::* n 2))
+(:wat::core::defn :probe::double [n <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::* n 2))
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [nums (:wat::core::Vector :wat::core::i64 1 2 3 4 5)

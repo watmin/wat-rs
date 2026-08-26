@@ -149,13 +149,13 @@
 
 
 (:wat::core::defn :acp::val [g <- :wat::core::i64  j <- :wat::core::i64] -> :wat::core::i64
-  (:wat::core::let [x (:wat::core::i64::+ (:wat::core::i64::* g 31) (:wat::core::i64::* j 17))]
-    (:wat::core::i64::- x (:wat::core::i64::* (:wat::core::i64::/ x 1000) 1000))))
+  (:wat::core::let [x (:wat::i64::+ (:wat::i64::* g 31) (:wat::i64::* j 17))]
+    (:wat::i64::- x (:wat::i64::* (:wat::i64::/ x 1000) 1000))))
 
 (:wat::core::defn :acp::enc [kind <- :wat::core::i64  g <- :wat::core::i64  val <- :wat::core::i64]
   -> :wat::core::i64
-  (:wat::core::i64::+
-    (:wat::core::i64::+ (:wat::core::i64::* kind 1000000000000000) (:wat::core::i64::* g 1000000000))
+  (:wat::i64::+
+    (:wat::i64::+ (:wat::i64::* kind 1000000000000000) (:wat::i64::* g 1000000000))
     val))
 
 (:wat::core::defn :acp::vec->pvec [v <- (:wat::core::Vector :- [:wat::core::i64])] -> (:wat::core::PersistentVector :- [:wat::core::i64])
@@ -203,7 +203,7 @@
   (:acp::vec->pvec (:wat::core::sort (:acp::codes fired))))
 
 (:wat::core::defn :acp::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> :wat::core::i64
-  (:wat::core::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
+  (:wat::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
 
 ;; ─── main — five instants, four phases, nothing else between them ────────────
 ;;
@@ -236,11 +236,11 @@
       (:acp::Split
         :groups         groups
         :readings       reads
-        :facts          (:wat::core::i64::* groups (:wat::core::i64::+ reads 1))
+        :facts          (:wat::i64::* groups (:wat::i64::+ reads 1))
         :build-ns       (:acp::ns-between t0 t1)
         :compile-ns     (:acp::ns-between t1 t2)
         :seed-ns        (:acp::ns-between t2 t3)
         :fire-ns        (:acp::ns-between t3 t4)
         :derive-ns      (:acp::ns-between t4 t5)
         :derived-count  (:wat::core::length derived)
-        :expected-count (:wat::core::i64::* groups 5)))))
+        :expected-count (:wat::i64::* groups 5)))))

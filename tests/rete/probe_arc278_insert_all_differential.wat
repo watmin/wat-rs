@@ -90,7 +90,7 @@
       (:wat::core::let [o (:wat::core::Option/expect
                             (:wat::core::PersistentMap/get p "?fact")
                             "q-Out: ?fact")]
-        (:wat::core::i64::+ a (:nia::Out/g o))))
+        (:wat::i64::+ a (:nia::Out/g o))))
     0
     (:nia::fired-outs s)))
 

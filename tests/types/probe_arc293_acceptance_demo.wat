@@ -15,7 +15,7 @@
 ;; ── OWN TYPE #1 — Circle (core record). :geo::Circle/color is generated FREE by the field. ──
 (:wat::core::defrecord :geo::Circle [color <- :wat::core::String  radius <- :wat::core::f64])
 (:wat::core::defn :geo::Circle/area [self <- :geo::Circle] -> :wat::core::f64
-  (:wat::core::f64::* 3.14159 (:wat::core::f64::* (:geo::Circle/radius self) (:geo::Circle/radius self))))
+  (:wat::f64::* 3.14159 (:wat::f64::* (:geo::Circle/radius self) (:geo::Circle/radius self))))
 (:wat::core::defn :geo::Circle/label [self <- :geo::Circle] -> :wat::core::String
   (:wat::string::concat "circle(r=" (:wat::core::str (:geo::Circle/radius self)) ")"))
 ;;  ⇒ Circle exposes color+area+label ⇒ STRUCTURALLY satisfies :geo::Shape. No declaration.
@@ -23,7 +23,7 @@
 ;; ── OWN TYPE #2 — Square. Same surface, different fields. ──
 (:wat::core::defrecord :geo::Square [color <- :wat::core::String  side <- :wat::core::f64])
 (:wat::core::defn :geo::Square/area [self <- :geo::Square] -> :wat::core::f64
-  (:wat::core::f64::* (:geo::Square/side self) (:geo::Square/side self)))
+  (:wat::f64::* (:geo::Square/side self) (:geo::Square/side self)))
 (:wat::core::defn :geo::Square/label [self <- :geo::Square] -> :wat::core::String
   (:wat::string::concat "square(s=" (:wat::core::str (:geo::Square/side self)) ")"))
 
@@ -32,7 +32,7 @@
 ;; NOT ":wat::holon::Vector" (a different Value variant). Extend target must match the runtime type.
 (:wat::core::extend-type :wat::core::Vector :geo::Shape
   (color [self] -> :wat::core::String "grey")
-  (area  [self] -> :wat::core::f64 (:wat::core::i64::to-f64 (:wat::core::length self)))
+  (area  [self] -> :wat::core::f64 (:wat::i64::to-f64 (:wat::core::length self)))
   (label [self] -> :wat::core::String
     (:wat::string::concat "vector[" (:wat::core::str (:wat::core::length self)) "]")))
 

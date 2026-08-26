@@ -11,7 +11,7 @@
 ;; (builtins registered nowhere); GREEN after arc 255.1 returns Some(baseline).
 (:wat::core::defn :user::builtin-metadata []
   -> (:wat::core::Option :- [(:wat::core::HashMap :- [:wat::core::keyword :wat::holon::HolonAST])])
-  (:wat::runtime::metadata-of :wat::core::i64::+))
+  (:wat::runtime::metadata-of :wat::i64::+))
 
 ;; metadata-of on the Bytes::to-hex intrinsic — the full map, for the diagnostic dump.
 (:wat::core::defn :user::to-hex-metadata []

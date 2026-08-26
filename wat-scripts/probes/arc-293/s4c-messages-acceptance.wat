@@ -26,7 +26,7 @@
      (:wat::service::Outcome::Reply s
        (:my::Counter::GetResponse::Ok (:my::counter::Record/count (:my::counter::State/durable s)))))
    (increment [s ctx req]
-     (:wat::core::let [c (:wat::core::i64::+ (:my::counter::Record/count (:my::counter::State/durable s))
+     (:wat::core::let [c (:wat::i64::+ (:my::counter::Record/count (:my::counter::State/durable s))
                                              (:my::Counter::IncrementRequest/n req))]
        (:wat::service::Outcome::Reply (:my::counter::State :durable (:my::counter::Record :count c))
                                       (:my::Counter::IncrementResponse::Ok c))))])
@@ -49,4 +49,4 @@
     (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None)))) ((:wat::kernel::RecvOutcome::Lost __cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message __cause) :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Stopped (:wat::kernel::assertion-failed! "recv': stopped — the substrate was asked to stop; the peer was ALIVE and the channel open" :wat::core::None :wat::core::None)) (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "recv': peer closed" :wat::core::None :wat::core::None)))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
-  (:wat::kernel::println (:wat::core::i64::to-string (:user::compute))))
+  (:wat::kernel::println (:wat::i64::to-string (:user::compute))))

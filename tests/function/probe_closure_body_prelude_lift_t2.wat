@@ -14,7 +14,7 @@
            (:wat::core::defn :user::main [] -> :wat::core::nil
              (:wat::core::let
                [pt   (:h::LocalPoint :x 3 :y 4)
-                n    (:wat::core::i64::+ (:h::LocalPoint/x pt) (:h::LocalPoint/y pt))
+                n    (:wat::i64::+ (:h::LocalPoint/x pt) (:h::LocalPoint/y pt))
                 _out (:wat::kernel::println n)]
                nil))))]
     (:wat::core::match (:wat::kernel::recv p)

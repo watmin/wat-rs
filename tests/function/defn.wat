@@ -4,7 +4,7 @@
 ;; T1: simple defn — add(2,3)=5
 (:wat::core::defn :my::add_t1
   [x <- :wat::core::i64 y <- :wat::core::i64] -> :wat::core::i64
-  (:wat::core::i64::+ x y))
+  (:wat::i64::+ x y))
 
 (:wat::core::defn :my::compute_t1 [] -> :wat::core::i64 (:my::add_t1 2 3))
 
@@ -13,23 +13,23 @@
   [n <- :wat::core::i64] -> :wat::core::i64
   (:wat::core::if (:wat::core::= n 0) 
     1
-    (:wat::core::i64::* n (:my::fact (:wat::core::i64::- n 1)))))
+    (:wat::i64::* n (:my::fact (:wat::i64::- n 1)))))
 
 (:wat::core::defn :my::compute_t2 [] -> :wat::core::i64 (:my::fact 5))
 
 ;; T3: defn at top-level position (structural check — just needs to freeze)
 (:wat::core::defn :user::double
   [x <- :wat::core::i64] -> :wat::core::i64
-  (:wat::core::i64::* x 2))
+  (:wat::i64::* x 2))
 
 ;; T4: defn inside top-level do
 (:wat::core::do
   (:wat::core::defn :user::inc
     [x <- :wat::core::i64] -> :wat::core::i64
-    (:wat::core::i64::+ x 1))
+    (:wat::i64::+ x 1))
   (:wat::core::defn :user::dec
     [x <- :wat::core::i64] -> :wat::core::i64
-    (:wat::core::i64::- x 1)))
+    (:wat::i64::- x 1)))
 
 (:wat::core::defn :my::compute_t4 [] -> :wat::core::i64 (:user::inc (:user::dec 10)))
 
@@ -38,7 +38,7 @@
   [offset 10]
   (:wat::core::defn :user::add-offset
     [x <- :wat::core::i64] -> :wat::core::i64
-    (:wat::core::i64::+ x offset)))
+    (:wat::i64::+ x offset)))
 
 (:wat::core::defn :my::compute_t5 [] -> :wat::core::i64 (:user::add-offset 5))
 
@@ -63,7 +63,7 @@
 ;; T10: reflection — lookup-define :my::add_t10 returns Some
 (:wat::core::defn :my::add_t10
   [x <- :wat::core::i64 y <- :wat::core::i64] -> :wat::core::i64
-  (:wat::core::i64::+ x y))
+  (:wat::i64::+ x y))
 
 (:wat::core::defn :my::compute_t10 [] -> :wat::core::i64
   (:wat::core::match

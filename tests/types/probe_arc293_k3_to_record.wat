@@ -23,6 +23,6 @@
     [p  (:k3::Pt :x 3 :y 4)
      cr (:wat::core::to-record  p :k3::Planar)    ; -> :k3::Planar$core-record  {x 3 y 4}
      hr (:wat::holon::to-record p :k3::Planar)]   ; -> :k3::Planar$holon-record {x 3 y 4} + hologram
-    (:wat::core::i64::+
+    (:wat::i64::+
       (:k3::Planar$core-record/y cr)              ; 4   — read y off the core-record projection
       (:k3::Planar$holon-record/x hr))))          ; 3   — read x off the holon-record projection => 7

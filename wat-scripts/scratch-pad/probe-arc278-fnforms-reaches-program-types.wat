@@ -58,9 +58,9 @@
 (:wat::core::defn :user::render-forms
   [forms <- (:wat::core::Vector :- [:wat::WatAST])  i <- :wat::core::i64  acc <- :wat::core::String]
   -> :wat::core::String
-  (:wat::core::if (:wat::core::i64::>= i (:wat::core::length forms))
+  (:wat::core::if (:wat::i64::>= i (:wat::core::length forms))
     acc
-    (:user::render-forms forms (:wat::core::i64::+ i 1)
+    (:user::render-forms forms (:wat::i64::+ i 1)
       (:wat::string::concat acc
         (:wat::core::ast->source (:wat::core::nth forms i))))))
 
@@ -72,9 +72,9 @@
      clo-src   (:user::render-forms closure  0 "")
      _counts   (:wat::kernel::println
                  (:wat::string::concat "COUNTS manifest="
-                   (:wat::string::concat (:wat::core::i64::to-string (:wat::core::length manifest))
+                   (:wat::string::concat (:wat::i64::to-string (:wat::core::length manifest))
                      (:wat::string::concat " closure="
-                       (:wat::core::i64::to-string (:wat::core::length closure))))))
+                       (:wat::i64::to-string (:wat::core::length closure))))))
      _m        (:wat::kernel::println (:wat::string::concat "MANIFEST_SRC " man-src))]
     ;; the shell greps these two lines for the needle — a substring test wat has no verb for
     ;; (`str-in?` is (Vector :- [String]) membership, as the checker said when this probe first tried it)

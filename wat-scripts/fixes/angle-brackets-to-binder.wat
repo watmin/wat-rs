@@ -45,11 +45,11 @@
 ;; `split-top-level` below, which walk INSIDE that group where nesting is real).
 (:wat::core::defn :user::find-first-lt
   [s <- :wat::core::String i <- :wat::core::i64] -> :wat::core::i64
-  (:wat::core::if (:wat::core::i64::> i (:wat::core::i64::- (:wat::string::length s) 1))
+  (:wat::core::if (:wat::i64::> i (:wat::i64::- (:wat::string::length s) 1))
     -1
-    (:wat::core::if (:wat::core::= (:wat::string::subs s i (:wat::core::i64::+ i 1)) "<")
+    (:wat::core::if (:wat::core::= (:wat::string::subs s i (:wat::i64::+ i 1)) "<")
       i
-      (:user::find-first-lt s (:wat::core::i64::+ i 1)))))
+      (:user::find-first-lt s (:wat::i64::+ i 1)))))
 
 ;; open-bracket? / close-bracket? — bracket-KIND-agnostic depth predicates. `scan-for-close`/
 ;; `split-top-level` track `<…>` AND `(…)` nesting TOGETHER (one depth counter, either kind
@@ -66,14 +66,14 @@
 ;; (depth starts at 1, `i` is the position right after that open bracket).
 (:wat::core::defn :user::scan-for-close
   [s <- :wat::core::String i <- :wat::core::i64 depth <- :wat::core::i64] -> :wat::core::i64
-  (:wat::core::let [c (:wat::string::subs s i (:wat::core::i64::+ i 1))]
+  (:wat::core::let [c (:wat::string::subs s i (:wat::i64::+ i 1))]
     (:wat::core::if (:user::open-bracket? c)
-      (:user::scan-for-close s (:wat::core::i64::+ i 1) (:wat::core::i64::+ depth 1))
+      (:user::scan-for-close s (:wat::i64::+ i 1) (:wat::i64::+ depth 1))
       (:wat::core::if (:user::close-bracket? c)
-        (:wat::core::if (:wat::core::i64::= depth 1)
+        (:wat::core::if (:wat::i64::= depth 1)
           i
-          (:user::scan-for-close s (:wat::core::i64::+ i 1) (:wat::core::i64::- depth 1)))
-        (:user::scan-for-close s (:wat::core::i64::+ i 1) depth)))))
+          (:user::scan-for-close s (:wat::i64::+ i 1) (:wat::i64::- depth 1)))
+        (:user::scan-for-close s (:wat::i64::+ i 1) depth)))))
 
 ;; split-top-level — split `s` on commas at depth 0 (nested-bracket commas are NOT split
 ;; points). `i` is the scan cursor, `start` is the pending segment's start, `acc` accumulates
@@ -82,17 +82,17 @@
   [s <- :wat::core::String i <- :wat::core::i64 depth <- :wat::core::i64 start <- :wat::core::i64
    acc <- (:wat::core::Vector :- [:wat::core::String])]
   -> (:wat::core::Vector :- [:wat::core::String])
-  (:wat::core::if (:wat::core::i64::>= i (:wat::string::length s))
+  (:wat::core::if (:wat::i64::>= i (:wat::string::length s))
     (:wat::core::conj acc (:wat::string::trim (:wat::string::subs s start i)))
-    (:wat::core::let [c (:wat::string::subs s i (:wat::core::i64::+ i 1))]
+    (:wat::core::let [c (:wat::string::subs s i (:wat::i64::+ i 1))]
       (:wat::core::if (:user::open-bracket? c)
-        (:user::split-top-level s (:wat::core::i64::+ i 1) (:wat::core::i64::+ depth 1) start acc)
+        (:user::split-top-level s (:wat::i64::+ i 1) (:wat::i64::+ depth 1) start acc)
         (:wat::core::if (:user::close-bracket? c)
-          (:user::split-top-level s (:wat::core::i64::+ i 1) (:wat::core::i64::- depth 1) start acc)
-          (:wat::core::if (:wat::core::if (:wat::core::= c ",") (:wat::core::i64::= depth 0) false)
-            (:user::split-top-level s (:wat::core::i64::+ i 1) depth (:wat::core::i64::+ i 1)
+          (:user::split-top-level s (:wat::i64::+ i 1) (:wat::i64::- depth 1) start acc)
+          (:wat::core::if (:wat::core::if (:wat::core::= c ",") (:wat::i64::= depth 0) false)
+            (:user::split-top-level s (:wat::i64::+ i 1) depth (:wat::i64::+ i 1)
               (:wat::core::conj acc (:wat::string::trim (:wat::string::subs s start i))))
-            (:user::split-top-level s (:wat::core::i64::+ i 1) depth start acc)))))))
+            (:user::split-top-level s (:wat::i64::+ i 1) depth start acc)))))))
 
 ;; render-ref — full REFERENCE-role rendering of an angle-bracket-CARRYING keyword's TEXT
 ;; (leading colon included, e.g. ":wat::cache::Lru<K,V>") -> "(:wat::cache::Lru :- [K V])".
@@ -128,11 +128,11 @@
                           rendered-args (:user::render-args args)]
           (:wat::string::interpolate "(:wat::core::Tuple :- [{a}])" :a rendered-args))
         (:wat::core::let [lt (:user::find-first-lt stripped 0)]
-          (:wat::core::if (:wat::core::i64::< lt 0)
+          (:wat::core::if (:wat::i64::< lt 0)
             kw-text
             (:wat::core::let [base          (:wat::string::subs stripped 0 lt)
-                              close         (:user::scan-for-close stripped (:wat::core::i64::+ lt 1) 1)
-                              inner         (:wat::string::subs stripped (:wat::core::i64::+ lt 1) close)
+                              close         (:user::scan-for-close stripped (:wat::i64::+ lt 1) 1)
+                              inner         (:wat::string::subs stripped (:wat::i64::+ lt 1) close)
                               args          (:user::split-top-level inner 0 0 0 (:wat::core::Vector :wat::core::String))
                               rendered-args (:user::render-args args)]
               (:wat::string::interpolate "(:{b} :- [{a}])" :b base :a rendered-args))))))))
@@ -160,7 +160,7 @@
   [kw-text <- :wat::core::String] -> :wat::core::String
   (:wat::core::let [ref (:user::render-ref kw-text)]
     (:wat::core::if (:wat::string::starts-with? ref "(")
-      (:wat::string::subs ref 1 (:wat::core::i64::- (:wat::string::length ref) 1))
+      (:wat::string::subs ref 1 (:wat::i64::- (:wat::string::length ref) 1))
       ref)))
 
 ;; ── the walk — byte-identical shape to `parametrics-take-a-type-vector.wat` ─────────────

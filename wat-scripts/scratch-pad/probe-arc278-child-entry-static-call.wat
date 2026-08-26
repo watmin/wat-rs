@@ -74,7 +74,7 @@
    i     <- :wat::core::i64
    acc   <- (:wat::core::Vector :- [:wat::core::String])]
   -> (:wat::core::Vector :- [:wat::core::String])
-  (:wat::core::if (:wat::core::i64::>= i (:wat::core::length forms))
+  (:wat::core::if (:wat::i64::>= i (:wat::core::length forms))
     acc
     (:wat::core::let
       [form (:wat::core::nth forms i)
@@ -85,7 +85,7 @@
                 (:wat::core::first (:wat::core::rest (:wat::core::ast->children
                   (:wat::core::first (:wat::core::rest ch))))))
               (:wat::core::ast-name (:wat::core::first (:wat::core::rest ch))))]
-      (:user::declared-names forms (:wat::core::i64::+ i 1) (:wat::core::conj acc nm)))))
+      (:user::declared-names forms (:wat::i64::+ i 1) (:wat::core::conj acc nm)))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
@@ -93,7 +93,7 @@
      names (:user::declared-names forms 0 (:wat::core::Vector :wat::core::String))
      _n    (:wat::kernel::println
              (:wat::string::concat "closure forms="
-               (:wat::core::i64::to-string (:wat::core::length forms))))
+               (:wat::i64::to-string (:wat::core::length forms))))
      _d    (:wat::kernel::println names)
      ;; CLAIM B, asserted by membership — with the full set printed above so an empty walk
      ;; cannot masquerade as a pass.

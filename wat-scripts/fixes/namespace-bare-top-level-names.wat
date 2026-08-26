@@ -229,9 +229,9 @@
 ;; strip-wat-ext — drop a trailing ".wat.bad" or ".wat" (checked longest-first).
 (:wat::core::defn :user::strip-wat-ext [base <- :wat::core::String] -> :wat::core::String
   (:wat::core::if (:wat::string::ends-with? base ".wat.bad")
-    (:wat::string::subs base 0 (:wat::core::i64::- (:wat::string::length base) 8))
+    (:wat::string::subs base 0 (:wat::i64::- (:wat::string::length base) 8))
     (:wat::core::if (:wat::string::ends-with? base ".wat")
-      (:wat::string::subs base 0 (:wat::core::i64::- (:wat::string::length base) 4))
+      (:wat::string::subs base 0 (:wat::i64::- (:wat::string::length base) 4))
       base)))
 
 ;; mint-ns — PER FILE, from the file's OWN basename stem, "_" -> "-". Never shared: a file

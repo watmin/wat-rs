@@ -10,7 +10,7 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
     [;; the work-fn as a runtime anonymous block (Ruby's Parallel { |x| x*2 })
-     work       (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::* x 2))
+     work       (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::* x 2))
      ;; reify it to shippable forms that define it under :probe::work in the child's fresh universe
      work-forms (:wat::kernel::fn-forms work :probe::work)
      ;; assemble the child program: the reified work FIRST (so :probe::work resolves), then the
@@ -49,5 +49,5 @@
             (:wat::kernel::assertion-failed! "recv': w closed unexpectedly" :wat::core::None :wat::core::None)))]
     (:wat::kernel::println
       (:wat::string::concat
-        (:wat::core::i64::to-string a)
-        (:wat::string::concat " " (:wat::core::i64::to-string b))))))
+        (:wat::i64::to-string a)
+        (:wat::string::concat " " (:wat::i64::to-string b))))))

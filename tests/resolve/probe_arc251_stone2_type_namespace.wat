@@ -1,6 +1,6 @@
-(:wat::core::defn :user::inc [x <- wat.type/i64] -> wat.type/i64 (:wat::core::i64::+ x 1))
+(:wat::core::defn :user::inc [x <- wat.type/i64] -> wat.type/i64 (:wat::i64::+ x 1))
 (:wat::core::defn :user::id [x <- :wat::core::i64] -> :wat::core::i64 x)
-(:wat::core::defn :user::fadd [x <- wat.type/f64] -> wat.type/f64 (:wat::core::f64::+ x 1.0))
+(:wat::core::defn :user::fadd [x <- wat.type/f64] -> wat.type/f64 (:wat::f64::+ x 1.0))
 (:wat::core::defn :user::neg [b <- wat.type/bool] -> wat.type/bool (:wat::core::not b))
 (:wat::core::defn :user::sink [t <- :wat::core::String] -> :wat::core::i64 0)
 (:wat::core::defn :user::pass [s <- wat.type/String] -> :wat::core::i64 (:user::sink s))

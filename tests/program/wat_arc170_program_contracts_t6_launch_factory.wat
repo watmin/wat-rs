@@ -13,7 +13,7 @@
                   (:wat::core::let
                     [n    (:wat::core::match (:wat::kernel::readln ) ((:wat::kernel::ReadlnOutcome::Datum __datum) __datum) (:wat::kernel::ReadlnOutcome::Eof (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None)) (:wat::kernel::ReadlnOutcome::Stopped (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)))
                      _out (:wat::kernel::println
-                            (:wat::core::i64::+ n ~offset))]
+                            (:wat::i64::+ n ~offset))]
                     nil))
      p (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::Vector :wat::WatAST main-form))

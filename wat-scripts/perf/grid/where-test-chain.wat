@@ -48,7 +48,7 @@
       ((:wat::core::= row 2) (:wtc::join-first))
       (:else
         (:wat::kernel::assertion-failed!
-          (:wat::core::String/concat "where-test-chain: unknown row " (:wat::core::i64::to-string row))
+          (:wat::core::String/concat "where-test-chain: unknown row " (:wat::i64::to-string row))
           :wat::core::None :wat::core::None)))))
 
 (:wat::core::defn :wtc::seed [session <- :wat::rete::Session] -> :wat::rete::Session
@@ -66,19 +66,19 @@
                                (:wat::core::String/concat acc
                                  (:wat::core::String/concat " "
                                    (:wat::core::String/concat
-                                     (:wat::core::i64::to-string
+                                     (:wat::i64::to-string
                                        (:wat::core::Option/expect
                                          (:wat::core::PersistentMap/get p "?a")
                                          "q-Pair: ?a"))
                                      (:wat::core::String/concat ","
-                                       (:wat::core::i64::to-string
+                                       (:wat::i64::to-string
                                          (:wat::core::Option/expect
                                            (:wat::core::PersistentMap/get p "?b")
                                            "q-Pair: ?b")))))))
                              ""
                              pairs)]
     (:wat::core::String/concat
-      (:wat::core::String/concat " n=" (:wat::core::i64::to-string n))
+      (:wat::core::String/concat " n=" (:wat::i64::to-string n))
       (:wat::core::String/concat " ->" shown))))
 
 (:wat::core::defn :wtc::run-row [row <- :wat::core::i64] -> :wat::core::String
@@ -91,7 +91,7 @@
                              (:wat::rete::Rule/name rule)
                              (:wat::string::split (:wat::rete::Rule/name rule) "::"))]
     (:wat::core::String/concat
-      (:wat::core::String/concat "row " (:wat::core::i64::to-string row))
+      (:wat::core::String/concat "row " (:wat::i64::to-string row))
       (:wat::core::String/concat (:wat::core::String/concat " " name) (:wtc::render fired)))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

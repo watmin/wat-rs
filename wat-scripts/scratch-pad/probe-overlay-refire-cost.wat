@@ -67,8 +67,8 @@
                       where-c (:wat::core::quasiquote
                                 (:wat::rete::where
                                   (:wat::core::= 3
-                                    (:wat::core::i64::- ?k
-                                      (:wat::core::i64::* (:wat::core::i64::/ ?k 10) 10)))))
+                                    (:wat::i64::- ?k
+                                      (:wat::i64::* (:wat::i64::/ ?k 10) 10)))))
                       ins     (:wat::core::quasiquote (:ovl::Hit ?k))]
       (:wat::rete::Rule :name "mod10"
         :lhs (:wat::core::PersistentVector conds where-c)
@@ -95,7 +95,7 @@
         (:wat::rete::query fired (:ovl::q-Hit))))))
 
 (:wat::core::defn :ovl::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> :wat::core::i64
-  (:wat::core::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
+  (:wat::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
 
 ;; TEMP-BASE — the overlay's facts start here, far past any base rung, so they cannot collide with
 ;; base keys. All 10 are ≡ 3 (mod 10), so every one of them MUST derive a Hit.
@@ -120,8 +120,8 @@
 
      ;; (3) OVERLAY — the with-block's real shape: already-fired base + a FIXED small delta.
      scratch   (:ovl::stage fired (:ovl::temp-lo)
-                 (:wat::core::i64::+ (:ovl::temp-lo)
-                   (:wat::core::i64::* (:ovl::temp-n) 10)))
+                 (:wat::i64::+ (:ovl::temp-lo)
+                   (:wat::i64::* (:ovl::temp-n) 10)))
      o0        (:wat::time::now)
      overlaid  (:wat::rete::fire-rules scratch)
      o1        (:wat::time::now)
@@ -133,22 +133,22 @@
      ;; than the base. If it does not, the overlay derived nothing (or the wrong thing) and every
      ;; timing above is measuring air — fail loudly rather than report a flattering number.
      _guard    (:wat::core::if
-                 (:wat::core::= ovl-d (:wat::core::i64::+ base-d (:ovl::temp-n)))
+                 (:wat::core::= ovl-d (:wat::i64::+ base-d (:ovl::temp-n)))
                  nil
                  (:wat::kernel::assertion-failed!
                    (:wat::core::String/concat
-                     (:wat::core::String/concat "overlay derived " (:wat::core::i64::to-string ovl-d))
-                     (:wat::core::String/concat " but base was " (:wat::core::i64::to-string base-d)))
+                     (:wat::core::String/concat "overlay derived " (:wat::i64::to-string ovl-d))
+                     (:wat::core::String/concat " but base was " (:wat::i64::to-string base-d)))
                    :wat::core::None :wat::core::None))]
     (:wat::core::String/concat
       (:wat::core::String/concat
-        (:wat::core::String/concat "n=" (:wat::core::i64::to-string n))
-        (:wat::core::String/concat " cold-ns=" (:wat::core::i64::to-string (:ovl::ns-between c0 c1))))
+        (:wat::core::String/concat "n=" (:wat::i64::to-string n))
+        (:wat::core::String/concat " cold-ns=" (:wat::i64::to-string (:ovl::ns-between c0 c1))))
       (:wat::core::String/concat
-        (:wat::core::String/concat " noop-ns=" (:wat::core::i64::to-string (:ovl::ns-between p0 p1)))
+        (:wat::core::String/concat " noop-ns=" (:wat::i64::to-string (:ovl::ns-between p0 p1)))
         (:wat::core::String/concat
-          (:wat::core::String/concat " ovl-ns=" (:wat::core::i64::to-string (:ovl::ns-between o0 o1)))
-          (:wat::core::String/concat " base-derived=" (:wat::core::i64::to-string base-d)))))))
+          (:wat::core::String/concat " ovl-ns=" (:wat::i64::to-string (:ovl::ns-between o0 o1)))
+          (:wat::core::String/concat " base-derived=" (:wat::i64::to-string base-d)))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::foldl

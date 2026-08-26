@@ -35,12 +35,12 @@
 ;; build-rule k — the k-th cascade level: join Node⋈Tag at level (k-1) on ?id, derive Node,Tag at level k.
 ;; The level literals (k-1 in the conditions, k in the inserts) are spliced via quasiquote/unquote.
 (:wat::core::defn :perf::build-rule [k <- :wat::core::i64] -> :wat::rete::Rule
-  (:wat::core::let [prev (:wat::core::i64::- k 1)
+  (:wat::core::let [prev (:wat::i64::- k 1)
                     c1 (:wat::core::quasiquote (:cascade::Node (?id <- :id) (?l <- :level) (:wat::rete::core::i64::= ?l (:wat::core::unquote prev))))
                     c2 (:wat::core::quasiquote (:cascade::Tag  (?id <- :id) (?m <- :level) (:wat::rete::core::i64::= ?m (:wat::core::unquote prev))))
                     t1 (:wat::core::quasiquote (:cascade::Node (:wat::core::unquote k) ?id))
                     t2 (:wat::core::quasiquote (:cascade::Tag  (:wat::core::unquote k) ?id))]
-    (:wat::rete::Rule :name (:wat::core::i64::to-string k)
+    (:wat::rete::Rule :name (:wat::i64::to-string k)
       :lhs (:wat::core::PersistentVector c1 c2)
       :rhs (:wat::core::PersistentVector t1 t2))))
 
@@ -50,7 +50,7 @@
     (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::rete::Rule])  k <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
       (:wat::core::PersistentVector/conj acc (:perf::build-rule k)))
     (:wat::core::PersistentVector (:perf::build-rule 1))
-    (:wat::core::range 2 (:wat::core::i64::+ depth 1))))
+    (:wat::core::range 2 (:wat::i64::+ depth 1))))
 
 ;; seed-level-0 session width — stage Node(0,i)+Tag(0,i) for i in 0..width, threading the staging session.
 (:wat::core::defn :perf::seed-level-0 [session <- :wat::rete::Session  width <- :wat::core::i64] -> :wat::rete::Session
@@ -69,7 +69,7 @@
 
 ;; elapsed-ns thunk-result-start-end — nanoseconds between two Instants.
 (:wat::core::defn :perf::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> :wat::core::i64
-  (:wat::core::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
+  (:wat::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let [params  (:wat::core::match (:wat::kernel::readln ) ((:wat::kernel::ReadlnOutcome::Datum __datum) __datum) (:wat::kernel::ReadlnOutcome::Eof (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None)) (:wat::kernel::ReadlnOutcome::Stopped (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)))
@@ -86,7 +86,7 @@
                     fired-n (:wat::rete::fire-rules staged)
                     n1      (:wat::time::now)
                     deepest (:perf::count-at-level fired-n depth)
-                    derived (:wat::core::i64::* 2 (:wat::core::i64::* depth width))
+                    derived (:wat::i64::* 2 (:wat::i64::* depth width))
                     wat-ns  (:perf::ns-between w0 w1)
                     nat-ns  (:perf::ns-between n0 n1)]
     ;; println is ∀T → EDN: hand it the Result record, the stdout service renders it to EDN.

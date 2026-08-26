@@ -59,12 +59,12 @@
 
 (:wat::core::defn :user::derived-length-oslo [] -> :wat::core::i64
   (:wat::core::let [fired (:test::cascade-fired-session)]
-    (:wat::core::i64::+
+    (:wat::i64::+
       (:test::query-count fired (:weather::q-ColdAndWindy))
       (:test::query-count fired (:weather::q-WeatherAlert)))))
 
 (:wat::core::defn :user::derived-length-bergen [] -> :wat::core::i64
   (:wat::core::let [fired (:test::cascade-fired-bergen)]
-    (:wat::core::i64::+
+    (:wat::i64::+
       (:test::query-count fired (:weather::q-ColdAndWindy))
       (:test::query-count fired (:weather::q-WeatherAlert)))))

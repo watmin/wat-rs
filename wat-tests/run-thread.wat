@@ -33,7 +33,7 @@
     [p (:wat::test::spawn-peer (:wat::spawn::thread)
          (:wat::core::fn [self <- (:wat::kernel::ThreadSelfPeer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
            (:wat::core::do
-             (:wat::test::assert-eq 4 (:wat::core::i64::+ 2 2))
+             (:wat::test::assert-eq 4 (:wat::i64::+ 2 2))
              (:wat::core::match (:wat::kernel::send self 0)
                (:wat::kernel::SendOutcome::Sent   nil)
                (:wat::kernel::SendOutcome::Closed nil)
@@ -74,7 +74,7 @@
     [p (:wat::test::spawn-peer (:wat::spawn::thread)
          (:wat::core::fn [self <- (:wat::kernel::ThreadSelfPeer :- [:wat::core::i64 :wat::core::i64])] -> :wat::core::nil
            (:wat::core::do
-             (:wat::test::assert-eq 99 (:wat::core::i64::+ 2 2))
+             (:wat::test::assert-eq 99 (:wat::i64::+ 2 2))
              (:wat::core::match (:wat::kernel::send self 0)
                (:wat::kernel::SendOutcome::Sent   nil)
                (:wat::kernel::SendOutcome::Closed nil)

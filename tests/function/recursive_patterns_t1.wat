@@ -7,4 +7,4 @@
                 (:wat::core::match row 
                   ((:wat::core::Some (a b c)) (:wat::core::+ a (:wat::core::+ b c)))
                   (:wat::core::None 0))]
-              (:wat::kernel::println (:wat::core::i64::to-string sum))))
+              (:wat::kernel::println (:wat::i64::to-string sum))))

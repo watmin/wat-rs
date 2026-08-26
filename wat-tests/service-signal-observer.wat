@@ -58,7 +58,7 @@
   [(observe [s ctx req]
      (:wat::core::let
        [d          (:wat-tests::signal-observer::State/durable s)
-        new-reqs   (:wat::core::i64::+ (:wat-tests::signal-observer::Record/requests d) 1)
+        new-reqs   (:wat::i64::+ (:wat-tests::signal-observer::Record/requests d) 1)
         new-sighup (:wat::kernel::sighup?)
         new-user1  (:wat::kernel::sigusr1?)
         new-user2  (:wat::kernel::sigusr2?)

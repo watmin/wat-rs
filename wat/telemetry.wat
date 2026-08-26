@@ -303,7 +303,7 @@
     [tag-cost   (:wat::string::length (:wat::core::keyword/to-string ty))
      fixed-cost (:wat::core::foldl
                   (:wat::core::fn [acc <- :wat::core::i64  t <- :wat::WatAST] -> :wat::core::i64
-                    (:wat::core::i64::+ acc
+                    (:wat::i64::+ acc
                       (:wat::core::cond
                         ((:wat::core::= (:wat::core::ast-name t) "wat.type/i64")  20)
                         ((:wat::core::= (:wat::core::ast-name t) "wat.type/f64")  24)
@@ -313,9 +313,9 @@
                   0 (:wat::runtime::field-types-of ty))
      key-cost   (:wat::core::foldl
                   (:wat::core::fn [acc <- :wat::core::i64  k <- :wat::core::keyword] -> :wat::core::i64
-                    (:wat::core::i64::+ acc (:wat::string::length (:wat::core::keyword/to-string k))))
+                    (:wat::i64::+ acc (:wat::string::length (:wat::core::keyword/to-string k))))
                   0 (:wat::runtime::field-names-of ty))]
-    (:wat::core::i64::+ tag-cost (:wat::core::i64::+ fixed-cost key-cost))))
+    (:wat::i64::+ tag-cost (:wat::i64::+ fixed-cost key-cost))))
 
 ;; ─── LOG-MSG-CAPACITY — the derived, zero-waste-ish log message byte budget. ──────
 ;; BUDGET is the named server read ceiling (10 MiB — matches the `journal'`/`mem-store`
@@ -327,5 +327,5 @@
 ;; runtime remainder against the actually-filled-in required params (§3, deferred wiring).
 (:wat::core::def :wat::telemetry::LOG-JOURNAL-BUDGET-BYTES 10485760)
 (:wat::core::def :wat::telemetry::LOG-MSG-CAPACITY
-  (:wat::core::i64::- :wat::telemetry::LOG-JOURNAL-BUDGET-BYTES
+  (:wat::i64::- :wat::telemetry::LOG-JOURNAL-BUDGET-BYTES
     (:wat::telemetry::framing-floor-of :wat::telemetry::Log)))

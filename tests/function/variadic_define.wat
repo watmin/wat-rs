@@ -5,7 +5,7 @@
 (:wat::core::defn :my::sum-of [init <- :wat::core::i64 & xs <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::i64
   (:wat::core::foldl
               (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
-                (:wat::core::i64::+ acc x))
+                (:wat::i64::+ acc x))
               init
               xs))
 
@@ -22,7 +22,7 @@
 (:wat::core::defn :my::sum [& xs <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::i64
   (:wat::core::foldl
               (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
-                (:wat::core::i64::+ acc x))
+                (:wat::i64::+ acc x))
               0
               xs))
 
@@ -50,7 +50,7 @@
 (:wat::core::defn :my::add-all [seed <- :wat::core::i64 & xs <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::i64
   (:wat::core::foldl
               (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
-                (:wat::core::i64::+ acc x))
+                (:wat::i64::+ acc x))
               seed
               xs))
 
@@ -58,6 +58,6 @@
 (:wat::core::defn :user::compute_t10 [] -> :wat::core::i64 (:my::add-all 0 1 2 3 4 5 6 7 8 9 10))
 
 ;; T13 (regression: strict-arity define unchanged)
-(:wat::core::defn :my::add_strict [a <- :wat::core::i64 b <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ a b))
+(:wat::core::defn :my::add_strict [a <- :wat::core::i64 b <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::+ a b))
 
 (:wat::core::defn :user::compute_t13 [] -> :wat::core::i64 (:my::add_strict 40 2))

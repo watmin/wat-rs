@@ -34,10 +34,10 @@
 
 
 (:wat::core::defn :dd::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> :wat::core::i64
-  (:wat::core::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
+  (:wat::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
 
 (:wat::core::defn :dd::enc [key <- :wat::core::i64  lid <- :wat::core::i64  rid <- :wat::core::i64] -> :wat::core::i64
-  (:wat::core::i64::+ (:wat::core::i64::+ (:wat::core::i64::* key 1000000) (:wat::core::i64::* lid 1000)) rid))
+  (:wat::i64::+ (:wat::i64::+ (:wat::i64::* key 1000000) (:wat::i64::* lid 1000)) rid))
 
 (:wat::core::defn :dd::seed-key [s <- :wat::rete::Session  k <- :wat::core::i64  fanout <- :wat::core::i64] -> :wat::rete::Session
   (:wat::core::foldl
@@ -61,7 +61,7 @@
               (:wat::kernel::ReadlnOutcome::Stopped (:wat::kernel::assertion-failed! "readln: stop" :wat::core::None :wat::core::None)))
      items   (:wat::core::Option/expect (:wat::core::get params 0) "stdin: [items]")
      fanout  20
-     keys    (:wat::core::i64::/ items (:wat::core::i64::* fanout fanout))
+     keys    (:wat::i64::/ items (:wat::i64::* fanout fanout))
      c1      (:wat::core::quote (:dd::Left  (?k <- :key) (?l <- :lid)))
      c2      (:wat::core::quote (:dd::Right (?k <- :key) (?r <- :rid)))
      rhs     (:wat::core::quote (:dd::Pair ?k ?l ?r))

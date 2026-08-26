@@ -5,7 +5,7 @@
 (:wat::core::defn :t::worker/start
   [& [count <- :wat::core::i64  step <- :wat::core::i64]]
   -> :wat::core::i64
-  (:wat::core::i64::+ count step))
+  (:wat::i64::+ count step))
 
 ;; inline :k v, in order
 (:wat::core::defn :t::via-kv [] -> :wat::core::i64

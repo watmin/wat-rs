@@ -113,7 +113,7 @@
     ((:wat::eval::FormOutcome::Evaluated v)
       (:wat::kernel::println
         (:wat::string::concat label " => EVALUATED derived="
-          (:wat::core::i64::to-string v))))
+          (:wat::i64::to-string v))))
 
     ((:wat::eval::FormOutcome::CheckFailed cause)
       (:wat::core::do

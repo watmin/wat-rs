@@ -6,7 +6,7 @@
 (:wat::core::defn :wf::partial-fold
   [v <- :wat::core::i64]
   -> :wat::core::i64
-  (:wat::core::i64::/ v 1))
+  (:wat::i64::/ v 1))
 
 (:wat::rete::defrule :wf::bad-acc
   :when

@@ -21570,6 +21570,64 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
+
+    // ── Arc 255 — the per-type numeric home, DERIVED rather than listed.
+    //
+    // Builder ruling, 2026-08-26: *"these /must/ be properties of the registry."*
+    //
+    // `:wat::i64::+` and `:wat::core::i64::+` are ONE operation under two spellings
+    // while both live. This was the FOURTH hand-maintained name list the numerics
+    // rename broke (after `is_pure_total`, rete's `pure_det`, and rete's `total`) —
+    // so it does not restate 36 names. It takes the names from the registry that
+    // already holds them, and aliases each new spelling onto the OLD spelling's
+    // scheme. The scheme stays written exactly once; the two spellings cannot drift,
+    // because one IS the other.
+    //
+    // Retires at Stone C with the old names, when the `:wat::core::` half is deleted.
+    let numeric_aliases: Vec<(String, String)> = crate::intrinsic::registry()
+        .all_entries()
+        .filter_map(|e| {
+            let (fam, leaf) = e
+                .name
+                .strip_prefix(":wat::i64::")
+                .map(|l| ("i64", l))
+                .or_else(|| e.name.strip_prefix(":wat::f64::").map(|l| ("f64", l)))?;
+            // `max-of` / `min-of` are the ONE place where "same operation, two
+            // spellings" is FALSE, so they are the one place an alias would lie.
+            // Builder ruling 2026-08-26 — *"keep variadic - clojure is the
+            // destination"*: the new spelling takes N f64s, the old takes ONE
+            // Vector. Aliasing the old scheme onto the new name registered
+            // `expected 1 argument(s)` against a 4-argument call, and this loop
+            // surfaced that at CHECK time the moment it ran — which is the
+            // derivation earning its keep, not failing. They get their own
+            // variadic scheme below.
+            if leaf == "max-of" || leaf == "min-of" {
+                return None;
+            }
+            Some((format!(":wat::core::{fam}::{leaf}"), e.name.to_string()))
+        })
+        .collect();
+    for (old, new) in numeric_aliases {
+        if let Some(scheme) = env.get(&old).cloned() {
+            env.register(new, scheme);
+        }
+    }
+
+    // The two that are NOT aliases — VARIADIC under the new spelling (N f64s),
+    // where the `:wat::core::` spelling takes one Vector. Written out because they
+    // are genuinely a different signature, not a renaming of the same one.
+    for op in [":wat::f64::max-of", ":wat::f64::min-of"] {
+        env.register(
+            op.to_string(),
+            TypeScheme {
+                type_params: vec![],
+                params: vec![],
+                ret: opt(f64_ty()),
+                rest_param_type: Some(vec_of(f64_ty())),
+            },
+        );
+    }
+
 }
 
 #[cfg(test)]

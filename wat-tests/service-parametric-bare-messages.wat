@@ -54,7 +54,7 @@
   [(put [s ctx req]
      (:wat::service::Outcome::Reply s
        (:wat-tests::BareBox::PutResponse::Ok
-         (:wat::core::i64::+
+         (:wat::i64::+
            (:wat-tests::BareBox::PutRequest/item req)
            ;; read the T-typed durable field generically — `v` is bound at type T
            (:wat::core::match

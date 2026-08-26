@@ -34,7 +34,7 @@
   :ephemeral []
   :impls
   [(increment [s ctx req]
-     (:wat::core::let [c (:wat::core::i64::+
+     (:wat::core::let [c (:wat::i64::+
                            (:wat-tests::admin-counter::Record/count (:wat-tests::admin-counter::State/durable s))
                            (:wat-tests::AdminCounter::IncrementRequest/n req))]
        (:wat::service::Outcome::Reply

@@ -7,7 +7,7 @@
   [host <- :wat::core::String
    & [port <- :wat::core::i64  tls <- :wat::core::bool]]
   -> :wat::core::i64
-  (:wat::core::i64::+ port (:wat::core::if tls  1 0)))
+  (:wat::i64::+ port (:wat::core::if tls  1 0)))
 
 ;; Arc 294 item 9a: the bundle is built with KWARGS (the bare name is the kwargs macro;
 ;; the positional prime is generated-code-only). "Constructs the record explicitly (no

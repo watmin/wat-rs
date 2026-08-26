@@ -45,7 +45,7 @@
                   (:wat::core::keyword/from-string "user::root-rule"))
      _r  (:wat::kernel::println
            (:wat::string::concat "fn-forms OVER A RULE FN: closure forms="
-             (:wat::core::i64::to-string (:wat::core::length rule-forms))))
+             (:wat::i64::to-string (:wat::core::length rule-forms))))
      ctl (:wat::core::PersistentVector (:usr::ok-rule))
      _a  (:wat::kernel::println "CONTROL rule built")
      cs  (:wat::rete::compile ctl)

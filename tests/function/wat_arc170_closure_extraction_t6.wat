@@ -7,6 +7,6 @@
                cfg (:my::Cfg :label "ok")
                xs (:wat::core::Vector :wat::core::i64 1 2 3)]
               (:wat::core::fn [m <- :wat::core::i64] -> :wat::core::i64
-                (:wat::core::i64::+ m
-                  (:wat::core::i64::+ n
+                (:wat::i64::+ m
+                  (:wat::i64::+ n
                     (:wat::core::Vector/length xs))))))

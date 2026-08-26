@@ -4,7 +4,7 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
               [sig
-                (:wat::runtime::signature-of-defn :wat::core::i64::+)
+                (:wat::runtime::signature-of-defn :wat::i64::+)
                rendered
                 sig]
               (:wat::kernel::println rendered)))

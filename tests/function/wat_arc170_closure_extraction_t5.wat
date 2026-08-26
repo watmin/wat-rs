@@ -5,4 +5,4 @@
   (:wat::core::let
               [cfg (:my::Config :offset 10)]
               (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64
-                (:wat::core::i64::+ n (:my::Config/offset cfg)))))
+                (:wat::i64::+ n (:my::Config/offset cfg)))))

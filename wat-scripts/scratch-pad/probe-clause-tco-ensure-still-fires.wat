@@ -13,7 +13,7 @@
 (:wat::core::defclause :probe::never-negative
   ([n <- :wat::core::i64] -> :wat::core::i64
     :ensure (:wat::core::fn [r <- :wat::core::i64] -> :wat::core::bool
-              (:wat::core::i64::>= r 0))
+              (:wat::i64::>= r 0))
     (:wat::core::if (:wat::core::= n 0)
       -1
       (:probe::never-negative (:wat::core::- n 1)))))

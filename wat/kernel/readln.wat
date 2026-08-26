@@ -27,7 +27,7 @@
 ;; src/edn/render.rs (kept for the Receiver/from-pipe channel path which has
 ;; no macro layer).
 (:wat::core::def :wat::kernel::MAX-READLN-BYTES
-  (:wat::core::i64::* 512 1024))
+  (:wat::i64::* 512 1024))
 
 ;; ─── readln macro ─────────────────────────────────────────────────────────
 ;;

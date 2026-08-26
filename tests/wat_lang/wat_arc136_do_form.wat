@@ -9,14 +9,14 @@
 ; test 3: multi form — side effects discarded; final value returned
 (:wat::core::defn :t::test3-multi [] -> :wat::core::i64
   (:wat::core::do
-    (:wat::core::i64::+ 1 0)
-    (:wat::core::i64::+ 2 0)
+    (:wat::i64::+ 1 0)
+    (:wat::i64::+ 2 0)
     99))
 
 ; test 4: recipient unification — probe returns i64 via do's final form
 (:wat::core::defn :t::probe4 [] -> :wat::core::i64
   (:wat::core::do
-    (:wat::core::i64::+ 1 1)
+    (:wat::i64::+ 1 1)
     42))
 (:wat::core::defn :t::test4-recipient [] -> :wat::core::i64 (:t::probe4))
 
@@ -24,7 +24,7 @@
 (:wat::core::defn :t::test6-non-final [] -> :wat::core::i64
   (:wat::core::do
     "string-not-unit"
-    (:wat::core::i64::+ 1 1)
+    (:wat::i64::+ 1 1)
     42))
 
 ; test 7: reflection — signature-of-defn :wat::core::do renders variadic sketch
@@ -40,8 +40,8 @@
     
     n
     (:wat::core::do
-      (:wat::core::i64::+ n 0)
-      (:t::countdown8 (:wat::core::i64::- n 1)))))
+      (:wat::i64::+ n 0)
+      (:t::countdown8 (:wat::i64::- n 1)))))
 (:wat::core::defn :t::test8-tail [] -> :wat::core::i64
   (:t::countdown8 100000))
 
@@ -49,7 +49,7 @@
 (:wat::core::defn :t::test9-nested [] -> :wat::core::i64
   (:wat::core::do
     (:wat::core::do
-      (:wat::core::i64::+ 0 0)
+      (:wat::i64::+ 0 0)
       1)
     2))
 
@@ -57,5 +57,5 @@
 (:wat::core::defn :t::test10-let-body [] -> :wat::core::i64
   (:wat::core::let [x 7]
     (:wat::core::do
-      (:wat::core::i64::+ x 1)
+      (:wat::i64::+ x 1)
       x)))

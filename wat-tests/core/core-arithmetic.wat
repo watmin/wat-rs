@@ -125,8 +125,8 @@
   ;; work alongside each other. Per arc 237.8b the typed leaves are strictly
   ;; 2-ary; variadic on the typed surface is ArityMismatch.
   (:wat::core::let
-    [a (:wat::core::i64::+ 1 2)
-     b (:wat::core::f64::+ 1.0 2.0)
+    [a (:wat::i64::+ 1 2)
+     b (:wat::f64::+ 1.0 2.0)
      c (:wat::core::+ 1 2)]
     (:wat::core::do
       (:wat::test::assert-eq a 3)

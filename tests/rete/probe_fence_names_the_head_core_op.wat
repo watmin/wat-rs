@@ -1,5 +1,5 @@
 ;; tests/rete/probe_fence_names_the_head_core_op.wat — total-but-not-rete where world for the
-;; probe_fence_names_the_head RED probe. `(:wat::core::i64::> ?c 0)` is pure, deterministic, AND
+;; probe_fence_names_the_head RED probe. `(:wat::i64::> ?c 0)` is pure, deterministic, AND
 ;; total, but it is a core spelling — Law A (rete-primitive) must be named, not :total.
 ;; Mirrors tests/rete/probe_arc278_6b_ii_a_where_oracle_impure.wat's shape exactly, swapping
 ;; the violating verb. A regression that reports this as "is not total" stays red.
@@ -10,7 +10,7 @@
 (:wat::rete::defrule :wf::bad-gate
   :when
   [(:weather::Temperature (?c <- :celsius))
-   (:wat::rete::where (:wat::core::i64::> ?c 0))]
+   (:wat::rete::where (:wat::i64::> ?c 0))]
   :then
   [(:wf::Gate :celsius ?c)])
 

@@ -8,7 +8,7 @@
               (:wat::core::defn :user::main [] -> :wat::core::nil
                 (:wat::core::let
                   [n (:wat::core::match (:wat::kernel::readln ) ((:wat::kernel::ReadlnOutcome::Datum __datum) __datum) (:wat::kernel::ReadlnOutcome::Eof (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None)) (:wat::kernel::ReadlnOutcome::Stopped (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)))
-                   _ (:wat::kernel::println (:wat::core::i64::+ n 1))]
+                   _ (:wat::kernel::println (:wat::i64::+ n 1))]
                   nil))))
      _   (:wat::core::match (:wat::kernel::send peer 41) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil) (:wat::kernel::SendOutcome::Stopped nil)) ;; arc 278 #73 — fire-and-forget request; outcome ignored uniformly regardless of cause
      got (:wat::core::match (:wat::kernel::recv peer)

@@ -5,7 +5,7 @@
 (:wat::core::defrecord :probe::Foo [x <- :wat::core::i64])
 
 (:wat::core::defn :probe::double [n <- :wat::core::i64] -> :wat::core::i64
-  (:wat::core::i64::* n 2))
+  (:wat::i64::* n 2))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::kernel::println

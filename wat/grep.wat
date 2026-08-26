@@ -211,7 +211,7 @@
      written? (:wat::core::if (:wat::grep::nameable? node)
                 (:wat::core::if (:wat::core::= (:wat::grep::Extent/line ex) (:wat::grep::Extent/end-line ex))
                   (:wat::core::=
-                    (:wat::core::i64::- (:wat::grep::Extent/end-col ex) (:wat::grep::Extent/col ex))
+                    (:wat::i64::- (:wat::grep::Extent/end-col ex) (:wat::grep::Extent/col ex))
                     (:wat::string::length (:wat::core::ast-name node)))
                   false)
                 false)
@@ -223,14 +223,14 @@
                             :end-line (:wat::grep::Extent/end-line ex)
                             :end-col  (:wat::grep::Extent/end-col ex)))
                (:wat::grep::Acc/written acc))
-     acc'  (:wat::grep::Acc :next-id (:wat::core::i64::+ id 1) :nodes nodes :named named :spans spans :written written)]
+     acc'  (:wat::grep::Acc :next-id (:wat::i64::+ id 1) :nodes nodes :named named :spans spans :written written)]
     (:wat::core::if (:wat::grep::structural? node)
       (:wat::grep::ChildAcc/acc
         (:wat::core::foldl
           (:wat::core::fn [ca <- :wat::grep::ChildAcc  child <- :wat::WatAST] -> :wat::grep::ChildAcc
             (:wat::grep::ChildAcc
               :acc (:wat::grep::walk (:wat::grep::ChildAcc/acc ca) child id (:wat::grep::ChildAcc/idx ca))
-              :idx (:wat::core::i64::+ (:wat::grep::ChildAcc/idx ca) 1)))
+              :idx (:wat::i64::+ (:wat::grep::ChildAcc/idx ca) 1)))
           (:wat::grep::ChildAcc :acc acc' :idx 0)
           (:wat::core::ast->children node)))
       acc')))
@@ -273,7 +273,7 @@
                            (:wat::core::fn [ca <- :wat::grep::ChildAcc  form <- :wat::WatAST] -> :wat::grep::ChildAcc
                              (:wat::grep::ChildAcc
                                :acc (:wat::grep::walk (:wat::grep::ChildAcc/acc ca) form 0 (:wat::grep::ChildAcc/idx ca))
-                               :idx (:wat::core::i64::+ (:wat::grep::ChildAcc/idx ca) 1)))
+                               :idx (:wat::i64::+ (:wat::grep::ChildAcc/idx ca) 1)))
                            (:wat::grep::ChildAcc :acc (:wat::grep::empty-acc) :idx 0)
                            (:wat::core::ast->children forms)))
                   :unreadable (:wat::core::PersistentVector :- [:wat::grep::Unreadable])))

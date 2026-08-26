@@ -8,19 +8,19 @@
   (:wat::rete::pure?
     (:wat::core::quote
       (:wat::core::foldl (:wat::core::fn [acc <- :wat::core::i64  x <- :wat::core::i64] -> :wat::core::i64
-                            (:wat::core::i64::+ acc (:wat::core::i64::* x x))) 0 xs))))
+                            (:wat::i64::+ acc (:wat::i64::* x x))) 0 xs))))
 
 (:wat::core::defn :user::pure-fold-is-deterministic [] -> :wat::core::bool
   (:wat::rete::deterministic?
     (:wat::core::quote
       (:wat::core::foldl (:wat::core::fn [acc <- :wat::core::i64  x <- :wat::core::i64] -> :wat::core::i64
-                            (:wat::core::i64::+ acc (:wat::core::i64::* x x))) 0 xs))))
+                            (:wat::i64::+ acc (:wat::i64::* x x))) 0 xs))))
 
 (:wat::core::defn :user::pure-map-is-pure [] -> :wat::core::bool
   (:wat::rete::pure?
     (:wat::core::quote
       (:wat::core::map (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64
-                          (:wat::core::i64::* x x)) xs))))
+                          (:wat::i64::* x x)) xs))))
 
 ;; GUARD: an IMPURE fold (fn body calls println) must STILL be rejected — the fix must NOT
 ;; blanket-allow HOFs; the impurity of the fn-arg must propagate (conditional purity).

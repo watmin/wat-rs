@@ -50,7 +50,7 @@
      (:wat::service::Outcome::Reply
        (:wat-tests::recorder::State :durable
          (:wat-tests::recorder::Record :total
-           (:wat::core::i64::+
+           (:wat::i64::+
              (:wat-tests::recorder::Record/total (:wat-tests::recorder::State/durable s))
              (:wat-tests::Recorder::RecordRequest/n req))))
        (:wat-tests::Recorder::RecordResponse::Ok true)))

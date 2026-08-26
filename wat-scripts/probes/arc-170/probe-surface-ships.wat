@@ -13,7 +13,7 @@
   [(f [self <- :probe::Foo  req <- :probe::Foo::FRequest] -> :probe::Foo::FResponse :max-request-bytes 524288)])
 
 (:wat::core::defn :probe::double [n <- :wat::core::i64] -> :wat::core::i64
-  (:wat::core::i64::* n 2))
+  (:wat::i64::* n 2))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

@@ -18,7 +18,7 @@
 ;; Shape discipline: fixed n, BOTH block orderings, non-vacuity proving all arms agree.
 
 (:wat::core::defn :bench::add [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
-  (:wat::core::i64::+ acc x))
+  (:wat::i64::+ acc x))
 
 (:wat::core::defn :bench::via-reduce [v <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::i64
   (:wat::core::reduce :bench::add 0 v))
@@ -31,7 +31,7 @@
   (:wat::core::foldl-spec :bench::add 0 v))
 
 (:wat::core::defn :bench::ns [t0 <- :wat::time::Instant t1 <- :wat::time::Instant] -> :wat::core::i64
-  (:wat::core::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
+  (:wat::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
@@ -46,8 +46,8 @@
       (:wat::string::interpolate
         "n={n} NONVACUITY ra={ra} rb={rb} rc={rc} rd={rd} re={re} | reduce={ad}ms foldl={bd}ms spec={cd}ms | foldl={dd}ms reduce={ed}ms"
         :n n :ra ra :rb rb :rc rc :rd rd :re re
-        :ad (:wat::core::i64::/ (:bench::ns a0 a1) 1000000)
-        :bd (:wat::core::i64::/ (:bench::ns b0 b1) 1000000)
-        :cd (:wat::core::i64::/ (:bench::ns c0 c1) 1000000)
-        :dd (:wat::core::i64::/ (:bench::ns d0 d1) 1000000)
-        :ed (:wat::core::i64::/ (:bench::ns e0 e1) 1000000)))))
+        :ad (:wat::i64::/ (:bench::ns a0 a1) 1000000)
+        :bd (:wat::i64::/ (:bench::ns b0 b1) 1000000)
+        :cd (:wat::i64::/ (:bench::ns c0 c1) 1000000)
+        :dd (:wat::i64::/ (:bench::ns d0 d1) 1000000)
+        :ed (:wat::i64::/ (:bench::ns e0 e1) 1000000)))))

@@ -42,11 +42,11 @@
              (:wat::core::map
                (:wat::core::fn [i <- :wat::core::i64] -> :wat::telemetry::Log
                  (:wat::core::let
-                   [hot? (:wat::core::i64::< (:wat::core::mod i 2) 1)
+                   [hot? (:wat::i64::< (:wat::core::mod i 2) 1)
                     c    (:wat::core::if hot? 60 10)
                     msg  (:wat::edn::write (:usr::Temp :c c))]
                    (:wat::telemetry::Log :namespace "sift-ns" :uuid (:wat::uuid::nil) :tags tags
-                     :time-ns (:wat::core::i64::+ i 1) :emitted-from (:wat::kernel::call-site)
+                     :time-ns (:wat::i64::+ i 1) :emitted-from (:wat::kernel::call-site)
                      :level :wat::telemetry::Level::Info :message msg)))
                idxs))
      _wr   (:wat::telemetry::Journal/write-logs journal (:wat::telemetry::Journal::WriteLogsRequest logs))

@@ -31,12 +31,12 @@
                 dv   (:wat::core::match d
                        (:h::MixDir8::Up 10)
                        (:h::MixDir8::Down 20))
-                n    (:wat::core::i64::+
-                       (:wat::core::i64::+
+                n    (:wat::i64::+
+                       (:wat::i64::+
                          ans
-                         (:wat::core::i64::+ (:h::MixPoint8/x pt) (:h::MixPoint8/y pt)))
-                       (:wat::core::i64::+
-                         (:wat::core::i64::+ dv (:h::MixAmount8/0 a))
+                         (:wat::i64::+ (:h::MixPoint8/x pt) (:h::MixPoint8/y pt)))
+                       (:wat::i64::+
+                         (:wat::i64::+ dv (:h::MixAmount8/0 a))
                          (:h::mix-i64-fn8 (:h::mix-id8 7))))
                 _out (:wat::kernel::println n)]
                nil))))]

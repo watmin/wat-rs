@@ -11,6 +11,6 @@
 (:wat::core::newtype   :b::Price :wat::core::i64)
 
 (:wat::core::defn :b::probe [] -> :wat::core::i64
-  (:wat::core::i64::+
+  (:wat::i64::+
     (:b::Pt/x    (:b::Pt :x 3 :y 4))      ;; bare struct ctor
     (:b::Price/0 (:b::Price 38))))  ;; bare newtype ctor

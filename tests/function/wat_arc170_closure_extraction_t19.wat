@@ -3,6 +3,6 @@
   (:wat::core::match opt 
               ((:wat::core::Some i)
                (:wat::core::let
-                 [s (:wat::core::i64::+ i 1)]
+                 [s (:wat::i64::+ i 1)]
                  s))
               (:wat::core::None 0)))

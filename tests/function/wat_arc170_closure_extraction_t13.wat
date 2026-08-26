@@ -4,5 +4,5 @@
   [x <- :wat::WatAST]
   -> :wat::WatAST
   (:wat::core::quasiquote
-    (:wat::core::i64::* (:wat::core::unquote x) 3)))
+    (:wat::i64::* (:wat::core::unquote x) 3)))
 (:wat::core::defn :my::compute [n <- :wat::core::i64] -> :wat::core::i64 (:my::triple n))

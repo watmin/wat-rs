@@ -9,7 +9,7 @@
 (:wat::config::set-capacity-mode! :error)
 (:wat::core::defstruct :myapp::Pt [x <- :wat::core::i64  y <- :wat::core::i64])
 (:wat::core::defn :myapp::sum [p <- :myapp::Pt] -> :wat::core::i64
-    (:wat::core::let [{:keys [x y]} p] (:wat::core::i64::+ x y)))
+    (:wat::core::let [{:keys [x y]} p] (:wat::i64::+ x y)))
 (:wat::core::defn :myapp::tags [] -> :wat::core::i64
     (:wat::core::let [m {:a 1 :b 2}  s #{:x :y :z}]
         42))

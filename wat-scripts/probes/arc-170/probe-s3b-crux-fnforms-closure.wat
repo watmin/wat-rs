@@ -35,12 +35,12 @@
             (:wat::kernel::assertion-failed! "recv': w closed unexpectedly" :wat::core::None :wat::core::None)))]
     (:wat::kernel::println
       (:wat::string::concat
-        (:wat::core::i64::to-string (:wat::core::second a))
-        (:wat::string::concat " " (:wat::core::i64::to-string (:wat::core::second b)))))))
+        (:wat::i64::to-string (:wat::core::second a))
+        (:wat::string::concat " " (:wat::i64::to-string (:wat::core::second b)))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
-    [work-fn (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::* n 2))
+    [work-fn (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::* n 2))
      ;; wf — the index-wrapping closure that CAPTURES work-fn (the exact bracket shape)
      wf (:wat::core::fn [pair <- (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])] -> (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64])
           (:wat::core::Tuple (:wat::core::first pair)

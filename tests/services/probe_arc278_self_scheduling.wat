@@ -54,10 +54,10 @@
    (-tick [s ctx]
      (:wat::core::let
        [rec  (:probe::ticker::State/durable s)
-        n    (:wat::core::i64::+ (:probe::ticker::Record/count rec) 1)
+        n    (:wat::i64::+ (:probe::ticker::Record/count rec) 1)
         rec' (:probe::ticker::Record :count n :target (:probe::ticker::Record/target rec))
         s'   (:probe::ticker::State :durable rec')]
-       (:wat::core::if (:wat::core::i64::< n (:probe::ticker::Record/target rec))
+       (:wat::core::if (:wat::i64::< n (:probe::ticker::Record/target rec))
          (:wat::service::Outcome::NoReplyAndArm s'
            [(:wat::service::Alarm :after (:wat::time::Millisecond 5) :op :-tick)])
          (:wat::service::Outcome::NoReply s'))))])
@@ -83,16 +83,16 @@
 ;; a generous `attempts` failsafe with a small non-correctness-bearing `nap 5` backoff between polls.
 (:wat::core::defn :probe::poll-until
   [c <- (:wat::kernel::Peer :- [:probe::Ticker::Op :probe::Ticker::Reply])  target <- :wat::core::i64  attempts <- :wat::core::i64] -> :wat::core::i64
-  (:wat::core::if (:wat::core::i64::<= attempts 0)
+  (:wat::core::if (:wat::i64::<= attempts 0)
     -2                                              ;; bound exhausted without reaching target
     (:wat::core::match (:probe::Ticker/poll c (:probe::Ticker::PollRequest))
       ((:wat::kernel::RecvOutcome::Message __recv)
         (:wat::core::match __recv
           ((:probe::Ticker::PollResponse::Count n)
-            (:wat::core::if (:wat::core::i64::>= n target)
+            (:wat::core::if (:wat::i64::>= n target)
               n                                     ;; observed the target — done, no timing guess
               (:wat::core::let [_ (:probe::nap 5)]  ;; bounded backoff, NOT a correctness-bearing sleep
-                (:probe::poll-until c target (:wat::core::i64::- attempts 1)))))
+                (:probe::poll-until c target (:wat::i64::- attempts 1)))))
           ((:probe::Ticker::PollResponse::RequestTooLarge _b _cp) -1)
           ((:probe::Ticker::PollResponse::RequestMalformed mpath mexpected mgot)
             (:wat::kernel::assertion-failed! "unexpected RequestMalformed" :wat::core::None :wat::core::None))))

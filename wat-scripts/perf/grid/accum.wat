@@ -125,15 +125,15 @@
 ;; The IDENTICAL fn runs on the Clara side (gen-accum.sh uses (mod (+ (* g 31) (* j 17)) 1000)),
 ;; so both engines fold byte-identical Reading facts.
 (:wat::core::defn :acc::val [g <- :wat::core::i64  j <- :wat::core::i64] -> :wat::core::i64
-  (:wat::core::let [x (:wat::core::i64::+ (:wat::core::i64::* g 31) (:wat::core::i64::* j 17))]
-    (:wat::core::i64::- x (:wat::core::i64::* (:wat::core::i64::/ x 1000) 1000))))
+  (:wat::core::let [x (:wat::i64::+ (:wat::i64::* g 31) (:wat::i64::* j 17))]
+    (:wat::i64::- x (:wat::i64::* (:wat::i64::/ x 1000) 1000))))
 
 ;; enc kind g val — canonical single-i64 witness for one derived fact.
 ;; kind*1e15 + g*1e9 + val. g < 1e6 and val < ~2e6 at grid scale ⇒ injective, no i64 overflow.
 (:wat::core::defn :acc::enc [kind <- :wat::core::i64  g <- :wat::core::i64  val <- :wat::core::i64]
   -> :wat::core::i64
-  (:wat::core::i64::+
-    (:wat::core::i64::+ (:wat::core::i64::* kind 1000000000000000) (:wat::core::i64::* g 1000000000))
+  (:wat::i64::+
+    (:wat::i64::+ (:wat::i64::* kind 1000000000000000) (:wat::i64::* g 1000000000))
     val))
 
 ;; vec->pvec v — materialize a (Vector :- [i64]) into a (PersistentVector :- [i64]). DESIGN-STONE-into-pv-
@@ -196,7 +196,7 @@
 
 ;; ns-between t0 t1 — nanoseconds between two Instants (mirrors strat-neg.wat's ns-between).
 (:wat::core::defn :acc::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> :wat::core::i64
-  (:wat::core::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
+  (:wat::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let [params  (:wat::core::match (:wat::kernel::readln ) ((:wat::kernel::ReadlnOutcome::Datum __datum) __datum) (:wat::kernel::ReadlnOutcome::Eof (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None)) (:wat::kernel::ReadlnOutcome::Stopped (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)))

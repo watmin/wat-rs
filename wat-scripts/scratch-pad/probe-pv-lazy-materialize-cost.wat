@@ -53,7 +53,7 @@
    rest-walk-sum <- :wat::core::i64])
 
 (:wat::core::defn :cx::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> :wat::core::i64
-  (:wat::core::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
+  (:wat::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
 
 ;; keep? — the all-pass predicate. Matches query-by-type-string's real behaviour on this
 ;; workload: every production fact IS of the queried type, so its filter keeps 100%. A
@@ -69,7 +69,7 @@
   [pv <- (:wat::core::PersistentVector :- [:wat::core::i64])  acc <- :wat::core::i64] -> :wat::core::i64
   (:wat::core::if (:wat::core::empty? pv)
     acc
-    (:cx::rest-walk (:wat::core::rest pv) (:wat::core::i64::+ acc (:wat::core::first pv)))))
+    (:cx::rest-walk (:wat::core::rest pv) (:wat::i64::+ acc (:wat::core::first pv)))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let [params (:wat::core::match (:wat::kernel::readln )

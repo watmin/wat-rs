@@ -21,7 +21,7 @@
     [n0 (:wat::core::Option/expect (:wat::core::get params 0) "make-adder: missing param name 0")
      n1 (:wat::core::Option/expect (:wat::core::get params 3) "make-adder: missing param name 1")]
     `(:wat::core::fn [~@params] -> :wat::core::i64
-        (:wat::core::i64::+ ~n0 ~n1))))
+        (:wat::i64::+ ~n0 ~n1))))
 
 (:wat::core::defn :my::adder [] -> [:wat::core::i64 :wat::core::i64 :-> :wat::core::i64]
   (:my::make-adder a <- :wat::core::i64 b <- :wat::core::i64))
@@ -33,15 +33,15 @@
 (:wat::core::defmacro :my::sum-list
   [& xs <- (:wat::core::Vector :- [:wat::WatAST])]
   -> :wat::WatAST
-  `(:wat::core::i64::+ ~@xs))
+  `(:wat::i64::+ ~@xs))
 
 (:wat::core::defmacro :my::sum-vec
   [xs <- :wat::WatAST]
   -> :wat::WatAST
-  `(:wat::core::i64::+ ~@xs))
+  `(:wat::i64::+ ~@xs))
 
 (:wat::core::defn :my::compute-round-trip [] -> :wat::core::i64
-  (:wat::core::i64::-
+  (:wat::i64::-
               (:my::sum-vec [10 32])
               (:my::sum-list 10 32)))
 

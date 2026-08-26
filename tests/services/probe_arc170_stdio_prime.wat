@@ -37,7 +37,7 @@
           ((:wat::kernel::RecvOutcome::Lost cause) (:wat::kernel::assertion-failed! (:wat::kernel::LociDiedError/message cause) :wat::core::None :wat::core::None))
           (:wat::kernel::RecvOutcome::Stopped (:wat::kernel::assertion-failed! "write: stopped — the substrate was asked to stop; the peer was ALIVE" :wat::core::None :wat::core::None))
           (:wat::kernel::RecvOutcome::Closed (:wat::kernel::assertion-failed! "write: peer closed" :wat::core::None :wat::core::None)))]
-    (:wat::core::i64::+ r1 r2)))
+    (:wat::i64::+ r1 r2)))
 
 ;; ── run-stdout-batched: start stdout-svc on `fd`, connect', then drive the BATCHED helper
 ;;    (:wat::kernel::stdio-write-out) with the FULL `payload` — the write-side fragmentation path the

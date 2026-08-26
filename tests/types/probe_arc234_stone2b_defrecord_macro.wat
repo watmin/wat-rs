@@ -34,7 +34,7 @@
      b (:user::probe-5-b)
      c (:user::probe-5-c)]
     (:wat::string::concat
-      (:wat::core::i64::to-string a)
+      (:wat::i64::to-string a)
       "|"
       b
       "|"

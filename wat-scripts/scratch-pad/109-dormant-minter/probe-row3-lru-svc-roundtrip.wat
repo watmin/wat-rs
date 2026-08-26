@@ -26,7 +26,7 @@
         (:wat::core::match resp
           ((:wat::cache::Cache::GetResponse::Ok results)
             (:wat::core::match (:wat::core::first results)
-              ((:wat::cache::Cache::GetResult::Hit v) (:wat::kernel::println (:wat::string::interpolate "ROW3={v}" :v (:wat::core::i64::to-string v))))
+              ((:wat::cache::Cache::GetResult::Hit v) (:wat::kernel::println (:wat::string::interpolate "ROW3={v}" :v (:wat::i64::to-string v))))
               ((:wat::cache::Cache::GetResult::Miss) (:wat::kernel::assertion-failed! "ROW3: unexpected Miss" :wat::core::None :wat::core::None))))
           ((:wat::cache::Cache::GetResponse::RequestTooLarge bytes cap) (:wat::kernel::assertion-failed! "ROW3: RequestTooLarge" :wat::core::None :wat::core::None))
           ((:wat::cache::Cache::GetResponse::RequestMalformed p e g) (:wat::kernel::assertion-failed! "ROW3: RequestMalformed" :wat::core::None :wat::core::None))))

@@ -31,7 +31,7 @@
 ;; A side-effecting "predicate" — println's, then always keeps. Lets us COUNT invocations by
 ;; counting printed lines (rather than eyeballing timing).
 (:wat::core::defn :cx::counting-keep [x <- :wat::core::i64] -> (:wat::core::Option :- [:wat::core::i64])
-  (:wat::core::let [__ (:wat::kernel::println (:wat::core::i64::to-string x))]
+  (:wat::core::let [__ (:wat::kernel::println (:wat::i64::to-string x))]
     (:wat::core::Some x)))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
@@ -54,9 +54,9 @@
     distinct-l  (:wat::core::into (:wat::core::Vector :wat::core::i64) (:wat::core::distinct l))
     distinct-pv (:wat::core::into (:wat::core::Vector :wat::core::i64) (:wat::core::distinct pv))
 
-    map-idx-v  (:wat::core::into (:wat::core::Vector :wat::core::i64) (:wat::core::map-indexed (:wat::core::fn [i <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ i x)) v))
-    map-idx-l  (:wat::core::into (:wat::core::Vector :wat::core::i64) (:wat::core::map-indexed (:wat::core::fn [i <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ i x)) l))
-    map-idx-pv (:wat::core::into (:wat::core::Vector :wat::core::i64) (:wat::core::map-indexed (:wat::core::fn [i <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ i x)) pv))
+    map-idx-v  (:wat::core::into (:wat::core::Vector :wat::core::i64) (:wat::core::map-indexed (:wat::core::fn [i <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::+ i x)) v))
+    map-idx-l  (:wat::core::into (:wat::core::Vector :wat::core::i64) (:wat::core::map-indexed (:wat::core::fn [i <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::+ i x)) l))
+    map-idx-pv (:wat::core::into (:wat::core::Vector :wat::core::i64) (:wat::core::map-indexed (:wat::core::fn [i <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::+ i x)) pv))
 
     take-nth-v  (:wat::core::into (:wat::core::Vector :wat::core::i64) (:wat::core::take-nth 3 v))
     take-nth-l  (:wat::core::into (:wat::core::Vector :wat::core::i64) (:wat::core::take-nth 3 l))
@@ -92,4 +92,4 @@
               (:wat::stream::NextOutcome::Exhausted
                 (:wat::kernel::assertion-failed! "keep: unexpectedly exhausted" :wat::core::None :wat::core::None)))
     __ftr   (:wat::kernel::println "--- end laziness probe ---")]
-    (:wat::kernel::println (:wat::string::concat "first=" (:wat::core::i64::to-string fst)))))
+    (:wat::kernel::println (:wat::string::concat "first=" (:wat::i64::to-string fst)))))

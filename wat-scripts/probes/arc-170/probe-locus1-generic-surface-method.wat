@@ -13,5 +13,5 @@
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::kernel::println
-    (:wat::core::i64::to-string
+    (:wat::i64::to-string
       (:wat::core::nth (:probe::Maker/make (:probe::Dup) 5) 0))))  ;; expect 5

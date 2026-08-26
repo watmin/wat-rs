@@ -26,7 +26,7 @@
     `(:wat::core::do
        ;; the LIFTED body — ordinary top-level code, computed name
        (:wat::core::defn ~lifted-node [?c <- :wat::core::i64] -> :wat::core::bool
-         (:wat::core::i64::> ?c 100))
+         (:wat::i64::> ?c 100))
        ;; the consumer — mentions the lifted fn, then calls it
        (:wat::core::defn ~name [] -> :wat::core::bool
          (:wat::core::let [~(:wat::core::symbol-node "$where0") ~lifted-node]

@@ -22,7 +22,7 @@
    batch-facts    <- :wat::core::i64])
 
 (:wat::core::defn :seedp::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> :wat::core::i64
-  (:wat::core::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
+  (:wat::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
 
 ;; an empty session — one rule so `compile` has something to chew, never fired here.
 (:wat::core::defn :seedp::fresh [] -> :wat::rete::Session

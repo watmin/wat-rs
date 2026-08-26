@@ -5,14 +5,14 @@
 (:wat::core::defn :my::compute_t1 [] -> :wat::core::i64
   ((:wat::core::fn [x <- :wat::core::i64 y <- :wat::core::i64]
                -> :wat::core::i64
-               (:wat::core::i64::+ x y))
+               (:wat::i64::+ x y))
              2 3))
 
 ;; T2: defn_with_flat_shape_compiles_and_runs
 (:wat::core::defn :user::add_t2
   [x <- :wat::core::i64 y <- :wat::core::i64]
   -> :wat::core::i64
-  (:wat::core::i64::+ x y))
+  (:wat::i64::+ x y))
 
 (:wat::core::defn :my::compute_t2 [] -> :wat::core::i64 (:user::add_t2 2 3))
 
@@ -22,7 +22,7 @@
   -> :wat::core::i64
   (:wat::core::if (:wat::core::= n 0) 
     1
-    (:wat::core::i64::* n (:user::fact_t3 (:wat::core::i64::- n 1)))))
+    (:wat::i64::* n (:user::fact_t3 (:wat::i64::- n 1)))))
 
 (:wat::core::defn :my::compute_t3 [] -> :wat::core::i64 (:user::fact_t3 5))
 

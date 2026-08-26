@@ -7,4 +7,4 @@
 
 (:wat::core::defn :user::f
   [x <- :wat::core::i64] -> :wat::core::i64
-  (:wat::core::i64::+ x 1))
+  (:wat::i64::+ x 1))

@@ -96,4 +96,4 @@
           (:wat::core::PersistentMap/get (:teb::fact fa (:teb::q-pair)) "?fact") "pair"))
         (:teb::Pair/a (:teb::Wrap/p wa))
         (:teb::Pair/b (:teb::Wrap/p wa))
-        (:wat::core::i64::to-string (:wat::core::length (:wat::rete::query fa (:teb::q-lhs))))))))
+        (:wat::i64::to-string (:wat::core::length (:wat::rete::query fa (:teb::q-lhs))))))))

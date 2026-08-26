@@ -36,9 +36,9 @@
       (:wat::kernel::println
         (:wat::core::format "GROUND TRUTH: uhead ast-name={n} (len {nl}) but its OWN span covers {sl} char(s) — off={o}"
           :n (:wat::core::ast-name uhead)
-          :nl (:wat::core::i64::to-string (:wat::string::length (:wat::core::ast-name uhead)))
-          :sl (:wat::core::i64::to-string span-len)
-          :o (:wat::core::i64::to-string off)))
+          :nl (:wat::i64::to-string (:wat::string::length (:wat::core::ast-name uhead)))
+          :sl (:wat::i64::to-string span-len)
+          :o (:wat::i64::to-string off)))
       ;; THE LIAR: claims old-text is the canonical 20-char name — the SAME claim the OLD
       ;; (pre-282) apply would have silently trusted via a span-derived old-len of 1 (it would
       ;; have overwritten `~` plus whatever followed, believing it was replacing 20 chars of

@@ -17,6 +17,6 @@
   :features [x <- :wat::core::i64  y <- :wat::core::i64])
 
 (:wat::core::defn :k2::demo [] -> :wat::core::i64
-  (:wat::core::i64::+
+  (:wat::i64::+
     (:k2::Pt$core-record/x (:k2::Pt$core-record' 3 4))     ; construct the emitted backing record + read x
     (:k2::Pt$core-record/y (:k2::Pt$core-record' 3 4))))   ; … + read y   ⇒ 3 + 4 = 7

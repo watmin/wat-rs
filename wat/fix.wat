@@ -206,7 +206,7 @@
    end-span   <- (:wat::core::HashMap :- [:wat::core::keyword :wat::core::i64])
    lines      <- (:wat::core::Vector :- [:wat::core::String])]
   -> :wat::core::i64
-  (:wat::core::i64::-
+  (:wat::i64::-
     (:wat::fix::fix-text-offset-of end-span lines)
     (:wat::fix::fix-text-offset-of start-span lines)))
 
@@ -409,9 +409,9 @@
                                (:wat::string::concat overrun-note
                                  " — the rule's belief and the source disagree; refusing to splice."))))
            msg (:wat::core::format "fix-text-apply: edit at offset {o} claims old-text {c} ({l} char(s)) but the source there is {w}"
-                 :o (:wat::core::i64::to-string off)
+                 :o (:wat::i64::to-string off)
                  :c (:wat::string::concat q (:wat::string::concat old-text q))
-                 :l (:wat::core::i64::to-string old-len)
+                 :l (:wat::i64::to-string old-len)
                  :w what-is-there)]
           (:wat::kernel::assertion-failed! msg :wat::core::None :wat::core::None))))))
 
@@ -1240,7 +1240,7 @@
     (:wat::core::Vector :wat::fix::Edit
       (:wat::core::Tuple head-off head-name ":wat::core::nth")
       (:wat::core::Tuple head-end gap-text "")
-      (:wat::core::Tuple (:wat::core::i64::- dl-end 1) ")" ""))))
+      (:wat::core::Tuple (:wat::i64::- dl-end 1) ")" ""))))
 
 ;; first-of-drop-scan — recursive walk. A match emits its 3 edits AND still recurses into
 ;; X and n (a nested hit inside either operand is a SEPARATE hit, per the census's own

@@ -88,7 +88,7 @@
                                     (:wat::rete::core::i64::* (:wat::rete::core::i64::/ ?k (:wat::core::unquote n) :undefined -1) (:wat::core::unquote n) :undefined -1)
                                     :undefined -1))))
                     ins     (:wat::core::quasiquote (:nsh::Out ?k))]
-    (:wat::rete::Rule :name (:wat::core::i64::to-string i)
+    (:wat::rete::Rule :name (:wat::i64::to-string i)
       :lhs (:wat::core::PersistentVector a-c b-c where-c)
       :rhs (:wat::core::PersistentVector ins))))
 
@@ -136,7 +136,7 @@
 
 ;; ns-between t0 t1 — nanoseconds between two Instants (cf. min-finding.wat).
 (:wat::core::defn :nsh::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> :wat::core::i64
-  (:wat::core::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
+  (:wat::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let [params  (:wat::core::match (:wat::kernel::readln ) ((:wat::kernel::ReadlnOutcome::Datum __datum) __datum) (:wat::kernel::ReadlnOutcome::Eof (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None)) (:wat::kernel::ReadlnOutcome::Stopped (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)))

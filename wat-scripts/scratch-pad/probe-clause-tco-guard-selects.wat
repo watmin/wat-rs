@@ -3,7 +3,7 @@
 ;; factorial: the first arm's guard is false for n>0, the second selects. 5! = 120.
 (:wat::core::defclause :probe::factorial
   ([n <- :wat::core::i64] :guard (:wat::core::= n 0) -> :wat::core::i64 1)
-  ([n <- :wat::core::i64] :guard (:wat::core::i64::> n 0) -> :wat::core::i64
-    (:wat::core::i64::* n (:probe::factorial (:wat::core::i64::- n 1)))))
+  ([n <- :wat::core::i64] :guard (:wat::i64::> n 0) -> :wat::core::i64
+    (:wat::i64::* n (:probe::factorial (:wat::i64::- n 1)))))
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::kernel::println (:probe::factorial 5)))

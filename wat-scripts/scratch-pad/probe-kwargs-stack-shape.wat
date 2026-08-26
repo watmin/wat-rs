@@ -25,12 +25,12 @@
 (:wat::core::defn :probe::middle [] -> :wat::core::i64
   (:wat::core::let
     [r (:probe::kw :tag "x")]
-    (:wat::core::i64::+ r 1)))
+    (:wat::i64::+ r 1)))
 
 (:wat::core::defn :probe::outer [] -> :wat::core::i64
   (:wat::core::let
     [r (:probe::middle)]
-    (:wat::core::i64::+ r 1)))
+    (:wat::i64::+ r 1)))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

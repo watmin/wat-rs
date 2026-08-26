@@ -53,4 +53,4 @@
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::kernel::println
     (:wat::string::concat "forms payload length="
-      (:wat::core::i64::to-string (:wat::core::length (:probe278b::payload))))))
+      (:wat::i64::to-string (:wat::core::length (:probe278b::payload))))))

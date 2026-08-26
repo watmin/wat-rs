@@ -48,16 +48,16 @@
           (:wat::core::keyword/from-string "user::root-pc"))
      _p (:wat::kernel::println
           (:wat::string::concat "PC        (both in call position) forms="
-            (:wat::core::i64::to-string (:wat::core::length pc))))
+            (:wat::i64::to-string (:wat::core::length pc))))
      bs (:wat::kernel::fn-forms :usr::rule-base
           (:wat::core::keyword/from-string "user::root-bs"))
      _b (:wat::kernel::println
           (:wat::string::concat "BASE      (quote only)            forms="
-            (:wat::core::i64::to-string (:wat::core::length bs))))
+            (:wat::i64::to-string (:wat::core::length bs))))
      mn (:wat::kernel::fn-forms :usr::rule-mentioned
           (:wat::core::keyword/from-string "user::root-mn"))
      _m (:wat::kernel::println
           (:wat::string::concat "MENTION-1 (one mention of $where0) forms="
-            (:wat::core::i64::to-string (:wat::core::length mn))))]
+            (:wat::i64::to-string (:wat::core::length mn))))]
     (:wat::kernel::println
       "MENTION-1 == PC => transitive; ONE mention ships the whole chain")))

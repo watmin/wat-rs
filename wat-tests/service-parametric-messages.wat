@@ -140,11 +140,11 @@
           (:wat::string::concat (:wat::edn::write echo)
             (:wat::string::concat "|"
               (:wat::string::concat
-                (:wat::core::i64::to-string
-                  (:wat::core::i64::+ (:wat::core::nth results 0)
+                (:wat::i64::to-string
+                  (:wat::i64::+ (:wat::core::nth results 0)
                                       (:wat::core::nth results 1)))
                 (:wat::string::concat "|"
-                  (:wat::core::i64::to-string limit))))))
+                  (:wat::i64::to-string limit))))))
         ;; terminal caller: an unexpected wire-breach must SURFACE, never swallow.
         ((:wat-tests::PCache::GetResponse::RequestTooLarge bytes cap) "TooLarge")
         ((:wat-tests::PCache::GetResponse::RequestMalformed mpath mexpected mgot)

@@ -1,7 +1,7 @@
 ;; tests/reflection/wat_arc201_holon_ast_accessors_children_sig.wat
 ;; Fixture for test bundle_children_returns_vec_of_holonast_from_signature.
 ;; Probe: Bundle/children on signature-of-defn :user::add-two returns structured children.
-(:wat::core::defn :user::add-two [a <- :wat::core::i64 b <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ a b))
+(:wat::core::defn :user::add-two [a <- :wat::core::i64 b <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::+ a b))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

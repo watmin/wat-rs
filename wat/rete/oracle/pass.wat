@@ -161,7 +161,7 @@
     (:wat::core::fn [found   <- :wat::core::i64
                      node-id <- :wat::core::i64]
       -> :wat::core::i64
-      (:wat::core::if (:wat::core::i64::>= found 0)
+      (:wat::core::if (:wat::i64::>= found 0)
         found
         (:wat::core::let [node (:wat::core::Option/expect  
                                    (:wat::core::PersistentMap/get network node-id)
@@ -207,7 +207,7 @@
                               (:wat::core::fn [acc     <- :wat::core::i64
                                                node-id <- :wat::core::i64]
                                 -> :wat::core::i64
-                                (:wat::core::if (:wat::core::i64::>= acc 0)
+                                (:wat::core::if (:wat::i64::>= acc 0)
                                   acc
                                   (:wat::core::let [node (:wat::core::Option/expect
                                                            (:wat::core::PersistentMap/get network node-id)
@@ -222,7 +222,7 @@
                                       -1))))
                               -1
                               (:wat::core::PersistentMap/keys network))]
-      (:wat::core::if (:wat::core::i64::>= found 0)
+      (:wat::core::if (:wat::i64::>= found 0)
         (:wat::core::Some found)
         :wat::core::None))))
 
@@ -581,7 +581,7 @@
                               (:wat::core::first (:wat::core::ast->children cond)))]
     (:wat::core::cond
       ((:wat::core::= head-nm ":wat::rete::and")
-       (:wat::core::i64::> (:wat::core::length
+       (:wat::i64::> (:wat::core::length
                              (:wat::rete::binding-extensions cond facts bindings
                                network alpha-mem))
                            0))

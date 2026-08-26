@@ -56,7 +56,7 @@
           
         ;; the TIMER delivered its :Tick (an internal op — passed through the re-tag):
         ((:probe-retag::Svc::Op::Tick)
-          (:wat::core::if (:wat::core::i64::>= client-idx 0)
+          (:wat::core::if (:wat::i64::>= client-idx 0)
             (:wat::core::let
               [_ (:wat::core::match (:wat::kernel::send (:wat::core::nth selectables client-idx) (:probe-retag::Surface::Reply::Pong)) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) (:wat::kernel::SendOutcome::Stopped nil) ((:wat::kernel::SendOutcome::Lost _c) nil))]
               nil)
@@ -132,7 +132,7 @@
                         (:wat::kernel::retag-op op :probe-retag::Surface::Op :probe-retag::Svc::Op)
                         
                       ((:probe-retag::Svc::Op::Tick)
-                        (:wat::core::if (:wat::core::i64::>= client-idx 0)
+                        (:wat::core::if (:wat::i64::>= client-idx 0)
                           (:wat::core::let
                             [_ (:wat::core::match (:wat::kernel::send (:wat::core::nth selectables client-idx) (:probe-retag::Surface::Reply::Pong)) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) (:wat::kernel::SendOutcome::Stopped nil) ((:wat::kernel::SendOutcome::Lost _c) nil))]
                             nil)

@@ -145,19 +145,19 @@
 (:wat::core::defn :wat::test::render-coincident-explanation [expl <- :wat::holon::CoincidentExplanation] -> :wat::core::String
   (:wat::string::concat
       "\n  cosine            = "
-      (:wat::core::f64::to-string
+      (:wat::f64::to-string
         (:wat::holon::CoincidentExplanation/cosine expl))
       "\n  floor             = "
-      (:wat::core::f64::to-string
+      (:wat::f64::to-string
         (:wat::holon::CoincidentExplanation/floor expl))
       "\n  dim               = "
-      (:wat::core::i64::to-string
+      (:wat::i64::to-string
         (:wat::holon::CoincidentExplanation/dim expl))
       "\n  sigma             = "
-      (:wat::core::i64::to-string
+      (:wat::i64::to-string
         (:wat::holon::CoincidentExplanation/sigma expl))
       "\n  min-sigma-to-pass = "
-      (:wat::core::i64::to-string
+      (:wat::i64::to-string
         (:wat::holon::CoincidentExplanation/min-sigma-to-pass expl))))
 
 ;; ─── assert-stdout-is / assert-stderr-matches — RETIRED (arc 278 wave 2d) ──

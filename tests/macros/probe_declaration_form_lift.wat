@@ -103,10 +103,10 @@
                 dv   (:wat::core::match d
                        (:h::MixDir::Up 10)
                        (:h::MixDir::Down 20))
-                n    (:wat::core::i64::+
-                       (:wat::core::i64::+ (:h::MixPoint/x pt) (:h::MixPoint/y pt))
-                       (:wat::core::i64::+
-                         (:wat::core::i64::+ dv (:h::MixAmount/0 a))
+                n    (:wat::i64::+
+                       (:wat::i64::+ (:h::MixPoint/x pt) (:h::MixPoint/y pt))
+                       (:wat::i64::+
+                         (:wat::i64::+ dv (:h::MixAmount/0 a))
                          (:h::mix-i64 (:h::mix-id 7))))
                 _out (:wat::kernel::println n)]
                nil))))]

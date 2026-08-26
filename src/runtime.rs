@@ -11995,11 +11995,75 @@ pub(crate) fn require_i64(op: &'static str, v: Value) -> Result<i64, EvalBreak> 
 /// dispatched (alias-expansion goes through user-define), but the
 /// substrate-impl entries here let the alias body resolve when the
 /// per-Type impl is the named target.
+/// Fold a new-spelling per-type numeric onto its `:wat::core::` twin.
+///
+/// Arc 255 — `:wat::i64::+` and `:wat::core::i64::+` are ONE operation under two
+/// spellings while both live, so `dispatch_substrate_impl` does not grow a second
+/// copy of 36 arms; it folds first and matches once.
+///
+/// Reached via `apply` of a BOUND keyword — `(let [plus :wat::i64::+] (apply plus
+/// [2 3]))` — which arrives at that table directly, NOT through the registry-first
+/// door in `dispatch_keyword_head_value`. Stone A-i reasoned the table was
+/// unreachable for the new spelling on the strength of that door;
+/// `probe_diagnostic_dynamic_keyword_invocation::probe_1` refuted it.
+///
+/// `max-of`/`min-of` are excluded: they are the one place "same operation, two
+/// spellings" is FALSE — the new spelling is variadic, the old takes a single
+/// Vector (builder ruling 2026-08-26). Folding them would hand N args to a
+/// one-arg impl.
+///
+/// ⚠ THIS LIVES OUTSIDE `dispatch_substrate_impl` ON PURPOSE. The rete purity
+/// completeness gate censuses that function's body for `":wat::…"` literals to
+/// find every dispatched verb. A prefix or a `format!` template sitting in that
+/// body reads to the scan as an unclassified VERB — it flagged exactly that when
+/// this fold was written inline. Keeping the literals out here leaves the gate's
+/// census honest instead of teaching it an exception.
+///
+/// Retires at Stone C, when the old half is deleted and the fold reverses.
+fn fold_numeric_home(impl_name: &str) -> Option<String> {
+    let mut seg = impl_name.split("::");
+    if seg.next()? != ":wat" {
+        return None;
+    }
+    let fam = seg.next()?;
+    let leaf = seg.next()?;
+    if seg.next().is_some() || (fam != "i64" && fam != "f64") {
+        return None;
+    }
+    if leaf == "max-of" || leaf == "min-of" {
+        return None;
+    }
+    Some([":wat", "core", fam, leaf].join("::"))
+}
+
 pub(crate) fn dispatch_substrate_impl(
     impl_name: &str,
     vals: &[Value],
 ) -> Option<Result<Value, EvalBreak>> {
     use crate::collection::eval as ceval;
+    // ── Arc 255 — the per-type numeric home, FOLDED rather than duplicated.
+    //
+    // `:wat::i64::+` and `:wat::core::i64::+` are ONE operation under two spellings
+    // while both live, so this table does not grow a second copy of 36 arms: the new
+    // spelling folds onto the old before the match. Reached via `apply` of a BOUND
+    // keyword — `(let [plus :wat::i64::+] (apply plus [2 3]))` — which arrives here
+    // directly, NOT through the registry-first door in `dispatch_keyword_head_value`.
+    // A-i reasoned this table was unreachable for the new spelling on the strength of
+    // that door; `probe_diagnostic_dynamic_keyword_invocation::probe_1` refuted it.
+    //
+    // `max-of`/`min-of` are excluded because they are the one place "same operation,
+    // two spellings" is FALSE — the new spelling is variadic, the old takes one Vector
+    // (builder ruling 2026-08-26). Folding them would hand N args to a one-arg impl.
+    //
+    // Retires at Stone C, when the old half is deleted and the fold reverses.
+    let folded_numeric;
+    let impl_name = match fold_numeric_home(impl_name) {
+        Some(old) => {
+            folded_numeric = old;
+            folded_numeric.as_str()
+        }
+        None => impl_name,
+    };
     match impl_name {
         ":wat::core::Vector/length" => Some(ceval::vector_length_inner(
             vals.first().expect("arity-checked"),

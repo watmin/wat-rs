@@ -135,7 +135,7 @@
   -> :wat::core::String
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
     (:wat::core::let [ch (:wat::core::ast->children node)]
-      (:wat::core::if (:wat::core::i64::< (:wat::core::length ch) 3)
+      (:wat::core::if (:wat::i64::< (:wat::core::length ch) 3)
         ""
         (:wat::core::let [head (:wat::core::first ch)
                           c1   (:wat::core::nth ch 1)]
@@ -154,7 +154,7 @@
   [node <- :wat::WatAST]
   -> :wat::core::String
   (:wat::core::let [ch (:wat::core::ast->children node)]
-    (:wat::core::if (:wat::core::i64::< (:wat::core::length ch) 3)
+    (:wat::core::if (:wat::i64::< (:wat::core::length ch) 3)
       ""
       (:wat::core::let [c2 (:wat::core::nth ch 2)]
         (:wat::lint::node-write c2)))))
@@ -178,7 +178,7 @@
   -> (:wat::core::Vector :- [:wat::core::String])
   (:wat::core::if (:wat::lint::if-head? form)
     (:wat::core::let [ch (:wat::core::ast->children form)]
-      (:wat::core::if (:wat::core::i64::< (:wat::core::length ch) 4)
+      (:wat::core::if (:wat::i64::< (:wat::core::length ch) 4)
         (:wat::core::Vector :wat::core::String)
         (:wat::core::let [cond (:wat::core::nth ch 1)
                           then (:wat::core::nth ch 2)
@@ -222,7 +222,7 @@
   -> :wat::core::String
   (:wat::core::if (:wat::lint::if-head? form)
     (:wat::core::let [ch (:wat::core::ast->children form)]
-      (:wat::core::if (:wat::core::i64::< (:wat::core::length ch) 2)
+      (:wat::core::if (:wat::i64::< (:wat::core::length ch) 2)
         ""
         (:wat::core::let [cond (:wat::core::nth ch 1)]
           (:wat::lint::eq-sym-name cond))))
@@ -254,7 +254,7 @@
                               "nested-if-=-ladder: var `"
                               var-name
                               "` compared against "
-                              (:wat::core::i64::to-string n-lits)
+                              (:wat::i64::to-string n-lits)
                               " literals — use (:wat::core::contains? (:wat::core::HashSet :T lit…) var) instead")
                     new-text (:wat::core::format
                                "(:wat::core::contains? (:wat::core::HashSet :wat::type::Infer {lits}) {var})"
@@ -278,7 +278,7 @@
   -> (:wat::core::Vector :- [:wat::lint::Finding])
   ;; Check if THIS form is the root of a ladder
   (:wat::core::let [lits (:wat::lint::collect-ladder-lits form "")]
-    (:wat::core::if (:wat::core::i64::>= (:wat::core::length lits) 3)
+    (:wat::core::if (:wat::i64::>= (:wat::core::length lits) 3)
       ;; This form IS a ladder — report it (don't recurse into it)
       (:wat::core::Vector :wat::lint::Finding
         (:wat::lint::make-ladder-finding form file
@@ -311,7 +311,7 @@
   -> :wat::core::bool
   (:wat::core::if (:wat::core::= (:wat::core::ast-kind node) "list")
     (:wat::core::let [children (:wat::core::ast->children node)]
-      (:wat::core::if (:wat::core::i64::>= (:wat::core::length children) 1)
+      (:wat::core::if (:wat::i64::>= (:wat::core::length children) 1)
         (:wat::core::let [head (:wat::core::first children)]
           (:wat::core::if (:wat::lint::kw-or-sym? head)
             (:wat::core::let [n (:wat::core::ast-name head)]
@@ -355,8 +355,8 @@
         (:wat::core::let [lits (:wat::core::first acc)
                           vals (:wat::core::second acc)]
           (:wat::core::if (:wat::core::= (:wat::core::ast-kind arg) "string")
-            (:wat::core::Tuple (:wat::core::i64::+ lits 1) vals)
-            (:wat::core::Tuple lits (:wat::core::i64::+ vals 1)))))
+            (:wat::core::Tuple (:wat::i64::+ lits 1) vals)
+            (:wat::core::Tuple lits (:wat::i64::+ vals 1)))))
       (:wat::core::Tuple 0 0)
       args)))
 
@@ -368,8 +368,8 @@
     (:wat::core::let [counts (:wat::lint::concat-arg-counts node)
                       n-lits (:wat::core::first counts)
                       n-vals (:wat::core::second counts)]
-      (:wat::core::if (:wat::core::i64::>= n-lits 1)
-        (:wat::core::i64::>= n-vals 1)
+      (:wat::core::if (:wat::i64::>= n-lits 1)
+        (:wat::i64::>= n-vals 1)
         false))
     false))
 
@@ -503,9 +503,9 @@
                              "make-concat-finding: :col")
                     msg  (:wat::string::concat
                             "concat-abuse: string::concat interleaves "
-                            (:wat::core::i64::to-string n-lits)
+                            (:wat::i64::to-string n-lits)
                             " literal(s) with "
-                            (:wat::core::i64::to-string n-vals)
+                            (:wat::i64::to-string n-vals)
                             " value(s) — use (:wat::core::format \"…{name}…\" :name v …) instead")]
     (:wat::lint::Finding
       :rule "concat-abuse"
@@ -598,11 +598,11 @@
       "load-order violation: "
       (:wat::deporder::Violation/referencer v)
       " (pos "
-      (:wat::core::i64::to-string (:wat::deporder::Violation/referencer-pos v))
+      (:wat::i64::to-string (:wat::deporder::Violation/referencer-pos v))
       ") eval-depends on "
       (:wat::deporder::Violation/definer v)
       " (pos "
-      (:wat::core::i64::to-string (:wat::deporder::Violation/definer-pos v))
+      (:wat::i64::to-string (:wat::deporder::Violation/definer-pos v))
       ") which loads later — symbol: "
       (:wat::deporder::Violation/symbol v))
     :fix :wat::core::None))

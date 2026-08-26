@@ -6,7 +6,7 @@
 (:wat::core::defn :wf::core-fold
   [v <- :wat::core::i64]
   -> :wat::core::i64
-  (:wat::core::if (:wat::core::i64::> v 0) v v))
+  (:wat::core::if (:wat::i64::> v 0) v v))
 
 (:wat::rete::defrule :wf::bad-acc
   :when

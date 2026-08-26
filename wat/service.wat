@@ -288,8 +288,8 @@
                             ;; DEFINITION, taking the whole stdlib down). This is the same
                             ;; arithmetic the original suffix derivation used.
                             (:wat::string::subs fqdn-str
-                              (:wat::core::i64::+ (:wat::string::length fqdn-base) 1)
-                              (:wat::core::i64::- (:wat::string::length fqdn-str) 1))
+                              (:wat::i64::+ (:wat::string::length fqdn-base) 1)
+                              (:wat::i64::- (:wat::string::length fqdn-str) 1))
                             ","))
                         (:wat::core::Vector :wat::WatAST)))
      ;; DERIVED — "has params", not "a binder was written". An empty binder (`:- []`) is the
@@ -348,10 +348,10 @@
                       ;; of EVERY service, always.
                       "max-frame-bytes" true)
      clauses-len    (:wat::core::length clauses-body)
-     n-clause-pairs (:wat::core::i64::/ clauses-len 2)
+     n-clause-pairs (:wat::i64::/ clauses-len 2)
      ;; even-length guard
      _clauses-even  (:wat::core::if
-                      (:wat::core::= (:wat::core::i64::* n-clause-pairs 2) clauses-len)
+                      (:wat::core::= (:wat::i64::* n-clause-pairs 2) clauses-len)
                       
                       nil
                       (:wat::core::macro-error
@@ -362,7 +362,7 @@
                                        i <- :wat::core::i64]
                         -> (:wat::core::HashMap :- [:wat::core::String :wat::WatAST])
                         (:wat::core::let
-                          [k   (:wat::core::i64::* i 2)
+                          [k   (:wat::i64::* i 2)
                            key (:wat::core::keyword/to-string
                                  (:wat::core::Option/expect
                                    (:wat::core::get clauses-body k) "defservice: malformed clause key"))]
@@ -370,7 +370,7 @@
 
                             (:wat::core::HashMap/assoc m key
                               (:wat::core::Option/expect
-                                (:wat::core::get clauses-body (:wat::core::i64::+ k 1))
+                                (:wat::core::get clauses-body (:wat::i64::+ k 1))
                                 "defservice: clause missing a value"))
                             (:wat::core::macro-error
                               (:wat::string::concat "defservice: unknown clause :"
@@ -524,7 +524,7 @@
 
      ;; Is ephemeral non-empty? (child count > 0)
      ephemeral-len  (:wat::core::length (:wat::core::ast->children ephemeral-fields))
-     has-ephemeral  (:wat::core::i64::> ephemeral-len 0)
+     has-ephemeral  (:wat::i64::> ephemeral-len 0)
 
      ;; :durable-parent — optional, default :wat::core::Record. The user-supplied branch is
      ;; already a `:wat::WatAST` node (every clause value in this macro is); the default must
@@ -653,10 +653,10 @@
                         -> (:wat::core::Vector :- [:wat::WatAST])
                         (:wat::core::conj acc
                           (:wat::core::Option/expect
-                            (:wat::core::get init-param (:wat::core::i64::* i 3))
+                            (:wat::core::get init-param (:wat::i64::* i 3))
                             "defservice: init param name out of bounds")))
                       (:wat::core::Vector :wat::WatAST)
-                      (:wat::core::range 0 (:wat::core::i64::/ (:wat::core::length init-param) 3)))
+                      (:wat::core::range 0 (:wat::i64::/ (:wat::core::length init-param) 3)))
      ;; init-name: :<fqdn>::init — the emitted defn's name keyword
      init-name-str  (:wat::string::interpolate "{b}::init" :b fqdn-base)
      init-name      (:wat::core::keyword/from-string init-name-str)
@@ -829,7 +829,7 @@
                         (:wat::core::let
                           [ty-node (:wat::core::Option/expect
                                      (:wat::core::get ephemeral-children
-                                       (:wat::core::i64::+ (:wat::core::i64::* i 3) 2))
+                                       (:wat::i64::+ (:wat::i64::* i 3) 2))
                                      "defservice: ephemeral field type out of bounds")
                            ty-form (:wat::core::if (:wat::core::= (:wat::core::ast-kind ty-node) "keyword")
                                      (:wat::core::keyword/to-type-form-colon ty-node)
@@ -848,12 +848,12 @@
 
                                     (:wat::core::conj acc
                                       (:wat::string::subs first-arg-str 0
-                                        (:wat::core::i64::- (:wat::string::length first-arg-str) 4)))
+                                        (:wat::i64::- (:wat::string::length first-arg-str) 4)))
                                     acc))
                                 acc))
                             acc)))
                       (:wat::core::Vector :wat::core::String)
-                      (:wat::core::range 0 (:wat::core::i64::/ ephemeral-len 3)))
+                      (:wat::core::range 0 (:wat::i64::/ ephemeral-len 3)))
      ;; BIJECTION check 1 (missing): every :peers surface must have a matching ephemeral peer field.
      _peers-missing (:wat::core::foldl
                       (:wat::core::fn [ok <- :wat::core::bool  ps <- :wat::core::String]
@@ -1418,7 +1418,7 @@
                acc)))
          (:wat::core::Vector :wat::core::String)
          impl-clauses)
-     has-internal-ops? (:wat::core::i64::> (:wat::core::length internal-op-kw-strs) 0)
+     has-internal-ops? (:wat::i64::> (:wat::core::length internal-op-kw-strs) 0)
 
      ;; ── Arc 293 S2: serve op-arms for :impls (bodies-only over the surface's protocol) ──
      ;; Each impl is `(<op> [s req] body)` — `s` = the :State (server self), `req` = the WHOLE
@@ -1476,14 +1476,14 @@
                                               (:wat::string::concat "defservice: internal op '"
                                                 (:wat::string::concat op-str
                                                   (:wat::string::concat "' must have shape [s ctx] (2 params); got "
-                                                    (:wat::string::concat (:wat::core::i64::to-string arity) " params"))))))
+                                                    (:wat::string::concat (:wat::i64::to-string arity) " params"))))))
                                           (:wat::core::if (:wat::core::= arity 3)
                                             nil
                                             (:wat::core::macro-error
                                               (:wat::string::concat "defservice: public op '"
                                                 (:wat::string::concat op-str
                                                   (:wat::string::concat "' must have shape [s ctx req] (3 params); got "
-                                                    (:wat::string::concat (:wat::core::i64::to-string arity) " params")))))))
+                                                    (:wat::string::concat (:wat::i64::to-string arity) " params")))))))
                           s-binder      (:wat::core::first param-ch)
                           ;; ctx-binder — the SECOND param, ALWAYS: both valid shapes ([s ctx] and
                           ;; [s ctx req]) place ctx at index 1. Safe once _arity-ok has passed (every
@@ -1776,7 +1776,7 @@
                                                    ((:wat::kernel::SendOutcome::Lost _c) (~serve-name self l selectables next-id state)))))
                               guarded-arm   `(:wat::core::let
                                                  [~n-sym (:wat::string::length (:wat::edn::write ~req-binder))]
-                                               (:wat::core::if (:wat::core::i64::> ~n-sym ~cap-const-kw)
+                                               (:wat::core::if (:wat::i64::> ~n-sym ~cap-const-kw)
                                                  ;; arc 278 the send'-outcome wall — a gone client here is
                                                  ;; not fatal either; every arm keeps serving the rest.
                                                  (:wat::core::match (:wat::kernel::send (:wat::core::second (:wat::core::nth selectables idx))
@@ -1828,7 +1828,7 @@
                        ;; mint THIS connection's id = the current next-id (pre-increment);
                        ;; pair it with the peer so it travels together from birth (STOP-2);
                        ;; the recursive call's OWN next-id is next-id+1, for the NEXT connect.
-                       (~serve-name self l (:wat::core::conj selectables (:wat::core::Tuple next-id peer)) (:wat::core::i64::+ next-id 1) state))
+                       (~serve-name self l (:wat::core::conj selectables (:wat::core::Tuple next-id peer)) (:wat::i64::+ next-id 1) state))
                      ((:wat::spawn::ServiceEvent::Admin admin-msg)
                        (:wat::core::match admin-msg 
                          ;; arc 278 the send'-outcome wall — the owner's `recv'` (the `/stop`
@@ -2129,7 +2129,7 @@
                           ;; stays the server's own dismissal.
                           method-body     `(:wat::core::if (:wat::kernel::peer-wire? c)
                                              (:wat::core::let [~n-sym (:wat::string::length (:wat::edn::write req))]
-                                               (:wat::core::if (:wat::core::i64::> ~n-sym ~cap-const-kw)
+                                               (:wat::core::if (:wat::i64::> ~n-sym ~cap-const-kw)
                                                  (:wat::kernel::RecvOutcome::Message (~rtl-ctor-kw ~n-sym ~cap-const-kw))
                                                  ~send-recv-form))
                                              ~send-recv-form)]
@@ -2674,16 +2674,16 @@
                                  acc
                                  (:wat::core::let
                                    [k (:wat::core::Option/expect
-                                        (:wat::core::get flat (:wat::core::i64::* i 2))
+                                        (:wat::core::get flat (:wat::i64::* i 2))
                                         "start kwargs: locus key")
                                     v (:wat::core::Option/expect
-                                        (:wat::core::get flat (:wat::core::i64::+ (:wat::core::i64::* i 2) 1))
+                                        (:wat::core::get flat (:wat::i64::+ (:wat::i64::* i 2) 1))
                                         "start kwargs: locus val")]
                                    (:wat::core::if (:wat::core::= (:wat::core::ast-name k) ":locus")
                                      (:wat::core::conj acc v)
                                      acc))))
                              (:wat::core::Vector :wat::WatAST)
-                             (:wat::core::range 0 (:wat::core::i64::/ (:wat::core::length flat) 2)))
+                             (:wat::core::range 0 (:wat::i64::/ (:wat::core::length flat) 2)))
                            ~(:wat::core::symbol-node "locus-ast")
                            (:wat::core::if (:wat::core::empty? found) :wat::core::nil (:wat::core::first found))
                            ~(:wat::core::symbol-node "head-nm")
@@ -2798,16 +2798,16 @@
                                   acc
                                   (:wat::core::let
                                     [k (:wat::core::Option/expect
-                                         (:wat::core::get flat (:wat::core::i64::* i 2))
+                                         (:wat::core::get flat (:wat::i64::* i 2))
                                          "resume kwargs: locus key")
                                      v (:wat::core::Option/expect
-                                         (:wat::core::get flat (:wat::core::i64::+ (:wat::core::i64::* i 2) 1))
+                                         (:wat::core::get flat (:wat::i64::+ (:wat::i64::* i 2) 1))
                                          "resume kwargs: locus val")]
                                     (:wat::core::if (:wat::core::= (:wat::core::ast-name k) ":locus")
                                       (:wat::core::conj acc v)
                                       acc))))
                               (:wat::core::Vector :wat::WatAST)
-                              (:wat::core::range 0 (:wat::core::i64::/ (:wat::core::length flat) 2)))
+                              (:wat::core::range 0 (:wat::i64::/ (:wat::core::length flat) 2)))
                             ~(:wat::core::symbol-node "locus-ast")
                             (:wat::core::if (:wat::core::empty? found) :wat::core::nil (:wat::core::first found))
                             ~(:wat::core::symbol-node "head-nm")

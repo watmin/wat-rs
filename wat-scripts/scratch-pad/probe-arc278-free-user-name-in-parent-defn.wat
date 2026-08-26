@@ -28,7 +28,7 @@
 ;; in the shipped one-liner — data in the parent, and type-checked in the CHILD, where it IS
 ;; defined. Exactly bracket's shape: its main passes `:user::bracket::work-fn` INTO the runner.
 (:wat::core::defn :probe::uses-free [n <- :wat::core::i64] -> :wat::core::i64
-  (:wat::core::i64::+ n 1))
+  (:wat::i64::+ n 1))
 
 (:wat::core::defn :user::run-arm
   [label <- :wat::core::String  with-def? <- :wat::core::bool]

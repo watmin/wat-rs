@@ -35,7 +35,7 @@
 (:wat::rete::defquery :fgr::q :params [] :when [(?fact <- :fgr::Hit)])
 
 (:wat::core::defn :fgr::staged [] -> :wat::rete::Session
-  (:wat::core::let [inf (:wat::core::f64::/ 1.0 0.0)]
+  (:wat::core::let [inf (:wat::f64::/ 1.0 0.0)]
     (:wat::rete::insert-all
       (:wat::rete::compile-all (:wat::rete::collect-rules :fgr)
                                (:wat::core::PersistentVector (:fgr::q)))

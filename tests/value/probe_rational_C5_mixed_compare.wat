@@ -41,16 +41,16 @@
 (:wat::core::defn :probe::c5b-row10c [] -> :wat::core::bool (:wat::core::> 18014398509481985/2 9007199254740992.0)) ; RED at HEAD -> true
 
 ;; row 11 — +/-inf must survive the exact path (produced by division; `##Inf`/`##NaN` are NOT wat literals).
-(:wat::core::defn :probe::c5b-row11-inf [] -> :wat::core::bool (:wat::core::< 1 (:wat::core::f64::/ 1.0 0.0)))     ; green, must stay -> true
-(:wat::core::defn :probe::c5b-row11-neg-inf [] -> :wat::core::bool (:wat::core::> 1 (:wat::core::f64::/ -1.0 0.0))) ; green, must stay -> true
+(:wat::core::defn :probe::c5b-row11-inf [] -> :wat::core::bool (:wat::core::< 1 (:wat::f64::/ 1.0 0.0)))     ; green, must stay -> true
+(:wat::core::defn :probe::c5b-row11-neg-inf [] -> :wat::core::bool (:wat::core::> 1 (:wat::f64::/ -1.0 0.0))) ; green, must stay -> true
 
 ;; row 12 — was NaN policy PRESERVED exactly, wart and all, under C5b (`values_compare` maps NaN -> Equal,
 ;; so `<=` read Equal as true). SUPERSEDED by DESIGN-STONE-C5c-no-warts-NaN-is-unordered.md: `eval_compare`
 ;; now consults `numeric_order` first and returns false for all four ops on `Incomparable`. `values_compare`
 ;; itself is still unchanged (that collection-totality seam stays); this row exercises `eval_compare`'s
 ;; corrected policy.
-(:wat::core::defn :probe::c5b-row12-nan-lt [] -> :wat::core::bool (:wat::core::< 1 (:wat::core::f64::/ 0.0 0.0)))  ; green, must stay -> false
-(:wat::core::defn :probe::c5b-row12-nan-le [] -> :wat::core::bool (:wat::core::<= 1 (:wat::core::f64::/ 0.0 0.0))) ; C5c: -> false (was the wart, true; superseded)
+(:wat::core::defn :probe::c5b-row12-nan-lt [] -> :wat::core::bool (:wat::core::< 1 (:wat::f64::/ 0.0 0.0)))  ; green, must stay -> false
+(:wat::core::defn :probe::c5b-row12-nan-le [] -> :wat::core::bool (:wat::core::<= 1 (:wat::f64::/ 0.0 0.0))) ; C5c: -> false (was the wart, true; superseded)
 
 ;; row 13 — ordinary small mixed numerics, unaffected by the fix.
 (:wat::core::defn :probe::c5b-row13a [] -> :wat::core::bool (:wat::core::< 1 2.0)) ; green, must stay -> true

@@ -1,6 +1,6 @@
 ;; probe-s3b-extract.wat — verify extraction of the concrete arg/return type keywords
 ;; off the fn-forms output, and building the tuple-type keyword strings.
-(:wat::core::defn :my::double [n <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::* n 2))
+(:wat::core::defn :my::double [n <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::* n 2))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

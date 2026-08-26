@@ -27,5 +27,5 @@
 ;; Runtime probes for T-runtime-1, T-runtime-2, T-runtime-3
 (:wat::core::defn :t::test-pi [] -> :wat::core::f64 :t::pi)
 (:wat::core::defn :t::test-pi-plus [] -> :wat::core::f64
-  (:wat::core::let [x 2.0] (:wat::core::f64::+ x :t::pi)))
+  (:wat::core::let [x 2.0] (:wat::f64::+ x :t::pi)))
 (:wat::core::defn :t::test-closure [] -> :wat::core::i64 (:t::get-config))

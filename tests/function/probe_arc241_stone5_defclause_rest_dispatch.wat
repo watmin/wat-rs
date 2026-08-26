@@ -10,7 +10,7 @@
     (:wat::core::foldl
       (:wat::core::fn [acc <- :wat::core::i64
                        n <- :wat::core::i64] -> :wat::core::i64
-        (:wat::core::i64::+ acc n))
+        (:wat::i64::+ acc n))
       first
       rest)))
 (:wat::core::defn :user::c01-variadic [] -> :wat::core::i64 (:c12::sum-all 1 2 3 4))
@@ -31,7 +31,7 @@
     (:wat::core::foldl
       (:wat::core::fn [acc <- :wat::core::i64
                        n <- :wat::core::i64] -> :wat::core::i64
-        (:wat::core::i64::+ acc n))
+        (:wat::i64::+ acc n))
       first
       rest)))
 (:wat::core::defn :user::c08-mixed [] -> :wat::core::i64 (:c8::flex 10 20 30))

@@ -107,7 +107,7 @@
         (:wat::core::let [subj      (:wat::core::nth (:wat::core::ast->children b) 1)
                           subj-text (:user::node-text subj src lines)]
           (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])
-            (:wat::core::Tuple (:user::start-off b lines) (:wat::core::i64::- (:user::end-off b lines) (:user::start-off b lines)) subj-text)))
+            (:wat::core::Tuple (:user::start-off b lines) (:wat::i64::- (:user::end-off b lines) (:user::start-off b lines)) subj-text)))
         (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))))
     (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String]))))
 
@@ -127,14 +127,14 @@
             (:wat::core::if (:wat::core::= (:wat::core::ast-name node) nm) 1 0)
             0)]
     (:wat::core::if (:wat::fix::structural? node)
-      (:wat::core::i64::+ here (:user::seq-count-symbol (:wat::core::ast->children node) nm))
+      (:wat::i64::+ here (:user::seq-count-symbol (:wat::core::ast->children node) nm))
       here)))
 
 (:wat::core::defn :user::seq-count-symbol
   [items <- (:wat::core::Vector :- [:wat::WatAST])  nm <- :wat::core::String] -> :wat::core::i64
   (:wat::core::if (:wat::core::empty? items)
     0
-    (:wat::core::i64::+ (:user::count-symbol-occurrences (:wat::core::first items) nm)
+    (:wat::i64::+ (:user::count-symbol-occurrences (:wat::core::first items) nm)
       (:user::seq-count-symbol (:wat::core::rest items) nm))))
 
 ;; count-symbol-as-tuple-arg2 — occurrences of symbol `nm` SPECIFICALLY as a value-tuple's
@@ -148,14 +148,14 @@
                 0))
             0)]
     (:wat::core::if (:wat::fix::structural? node)
-      (:wat::core::i64::+ here (:user::seq-count-symbol-arg2 (:wat::core::ast->children node) nm))
+      (:wat::i64::+ here (:user::seq-count-symbol-arg2 (:wat::core::ast->children node) nm))
       here)))
 
 (:wat::core::defn :user::seq-count-symbol-arg2
   [items <- (:wat::core::Vector :- [:wat::WatAST])  nm <- :wat::core::String] -> :wat::core::i64
   (:wat::core::if (:wat::core::empty? items)
     0
-    (:wat::core::i64::+ (:user::count-symbol-as-tuple-arg2 (:wat::core::first items) nm)
+    (:wat::i64::+ (:user::count-symbol-as-tuple-arg2 (:wat::core::first items) nm)
       (:user::seq-count-symbol-arg2 (:wat::core::rest items) nm))))
 
 ;; symbol-used-ONLY-as-tuple-arg2? — every occurrence of `nm` inside `node` is a value-tuple's
@@ -196,7 +196,7 @@
         (:wat::core::let [subj      (:wat::core::nth (:wat::core::ast->children val-node) 1)
                           subj-text (:user::node-text subj src lines)
                           off       (:user::start-off val-node lines)
-                          len       (:wat::core::i64::- (:user::end-off val-node lines) off)]
+                          len       (:wat::i64::- (:user::end-off val-node lines) off)]
           (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])
             (:wat::core::Tuple off len subj-text)))
         (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::i64 :wat::core::String])))

@@ -107,12 +107,12 @@
 ;; second table.
 (:wat::core::defn :wr::client-of [i <- :wat::core::i64] -> :wr::Client
   (:wat::core::let
-    [v4          (:wat::core::i64::mod i 9)
-     w3          (:wat::core::i64::+ (:wat::core::i64::mod i 11) 1)
-     u2          (:wat::core::i64::mod i 13)
-     rep         (:wat::core::i64::- (:wat::core::i64::mod i 5) 2)
-     tagslen     (:wat::core::i64::mod i 5)
-     bagitemslen (:wat::core::i64::mod i 4)
+    [v4          (:wat::i64::mod i 9)
+     w3          (:wat::i64::+ (:wat::i64::mod i 11) 1)
+     u2          (:wat::i64::mod i 13)
+     rep         (:wat::i64::- (:wat::i64::mod i 5) 2)
+     tagslen     (:wat::i64::mod i 5)
+     bagitemslen (:wat::i64::mod i 4)
      l4          (:wr::L4 :v v4)
      l3          (:wr::L3 :l4 l4 :w w3)
      l2          (:wr::L2 :l3 l3 :u u2)
@@ -120,26 +120,26 @@
                    (:wat::core::into (:wat::core::Vector :wat::core::i64) (:wat::core::range 0 tagslen)))
      bagitems    (:wat::core::into (:wat::core::PersistentVector)
                    (:wat::core::into (:wat::core::Vector :wat::core::i64) (:wat::core::range 0 bagitemslen)))
-     bag         (:wr::Bag :items bagitems :label (:wat::core::String/concat "b" (:wat::core::i64::to-string i)))]
+     bag         (:wr::Bag :items bagitems :label (:wat::core::String/concat "b" (:wat::i64::to-string i)))]
     (:wr::Client :l2 l2 :rep rep :tags tags :bag bag)))
 
 ;; row 10's field-value builder. Active/Pending are TAGGED variants, constructed POSITIONALLY
 ;; (`(:wr::Status::Active level)`), mirroring tests/types/enums_tagged_variant.wat; Inactive is a
 ;; unit variant referenced BARE (`:wr::Status::Inactive`), mirroring :wat::program::PeerKind::thread.
 (:wat::core::defn :wr::status-of [i <- :wat::core::i64] -> :wr::Status
-  (:wat::core::let [m (:wat::core::i64::mod i 3)]
+  (:wat::core::let [m (:wat::i64::mod i 3)]
     (:wat::core::cond
-      ((:wat::core::= m 0) (:wr::Status::Active  (:wat::core::i64::mod i 5)))
+      ((:wat::core::= m 0) (:wr::Status::Active  (:wat::i64::mod i 5)))
       ((:wat::core::= m 1) :wr::Status::Inactive)
-      (:else               (:wr::Status::Pending (:wat::core::i64::mod i 4))))))
+      (:else               (:wr::Status::Pending (:wat::i64::mod i 4))))))
 
 ;; row 11's field-value builder. None is bare (mirrors :wat::core::None used bare elsewhere); Some
 ;; wraps a value positionally.
 (:wat::core::defn :wr::note-of [i <- :wat::core::i64] -> (:wat::core::Option :- [:wat::core::i64])
-  (:wat::core::let [nm (:wat::core::i64::mod i 4)]
+  (:wat::core::let [nm (:wat::i64::mod i 4)]
     (:wat::core::if (:wat::core::= nm 0)
       :wat::core::None
-      (:wat::core::Some (:wat::core::i64::mod i 6)))))
+      (:wat::core::Some (:wat::i64::mod i 6)))))
 
 ;; row 8's whole-record fn: takes the Client itself and reaches inside it.
 (:wat::rete::core::defn :wr::rep-pos? [c <- :wr::Client] -> :wat::core::bool
@@ -316,7 +316,7 @@
       ((:wat::core::= row 13) (:wr::cross-var-chain))
       (:else
         (:wat::kernel::assertion-failed!
-          (:wat::core::String/concat "where-record: unknown row " (:wat::core::i64::to-string row))
+          (:wat::core::String/concat "where-record: unknown row " (:wat::i64::to-string row))
           :wat::core::None :wat::core::None)))))
 
 ;; seed session items — stage Req(i) for i in [0, items) via the BATCH verb (one rebuild).
@@ -326,7 +326,7 @@
     (:wat::core::foldl
       (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  i <- :wat::core::i64]
                       -> (:wat::core::PersistentVector :- [:wat::core::Record])
-        (:wat::core::let [j (:wat::core::i64::mod (:wat::core::i64::+ i 97) items)]
+        (:wat::core::let [j (:wat::i64::mod (:wat::i64::+ i 97) items)]
           (:wat::core::PersistentVector/conj acc
             (:wr::Req :k i
               :client  (:wr::client-of i)
@@ -351,7 +351,7 @@
   (:wat::core::foldl
     (:wat::core::fn [acc <- :wat::core::String  x <- :wat::core::i64] -> :wat::core::String
       (:wat::core::String/concat acc
-        (:wat::core::String/concat " " (:wat::core::i64::to-string x))))
+        (:wat::core::String/concat " " (:wat::i64::to-string x))))
     ""
     v))
 
@@ -382,10 +382,10 @@
      n       (:wat::core::Vector/length derived)]
     (:wat::core::String/concat
       (:wat::core::String/concat
-        (:wat::core::String/concat "row " (:wat::core::i64::to-string row))
+        (:wat::core::String/concat "row " (:wat::i64::to-string row))
         (:wat::core::String/concat " " (:wr::rule-display-name (:wat::rete::Rule/name rule))))
       (:wat::core::String/concat
-        (:wat::core::String/concat " n=" (:wat::core::i64::to-string n))
+        (:wat::core::String/concat " n=" (:wat::i64::to-string n))
         (:wat::core::String/concat " ->" (:wr::render-ints derived))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
@@ -393,4 +393,4 @@
     (:wat::core::fn [acc <- :wat::core::nil  row <- :wat::core::i64] -> :wat::core::nil
       (:wat::kernel::println (:wr::run-row row)))
     nil
-    (:wat::core::range 1 (:wat::core::i64::+ (:wr::row-count) 1))))
+    (:wat::core::range 1 (:wat::i64::+ (:wr::row-count) 1))))

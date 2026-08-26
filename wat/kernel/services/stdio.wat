@@ -207,7 +207,7 @@
     (:wat::core::if (:wat::core::= len 0)
       nil
       (:wat::core::let
-        [take  (:wat::core::if (:wat::core::i64::< len :wat::kernel::STDIO-WRITE-CHUNK-CHARS) len :wat::kernel::STDIO-WRITE-CHUNK-CHARS)
+        [take  (:wat::core::if (:wat::i64::< len :wat::kernel::STDIO-WRITE-CHUNK-CHARS) len :wat::kernel::STDIO-WRITE-CHUNK-CHARS)
          chunk (:wat::string::subs payload 0 take)
          rest  (:wat::string::subs payload take len)
          _ack  (:wat::core::match (:wat::kernel::StdOut/write peer (:wat::kernel::StdOut::WriteRequest :bytes chunk))
@@ -236,7 +236,7 @@
     (:wat::core::if (:wat::core::= len 0)
       nil
       (:wat::core::let
-        [take  (:wat::core::if (:wat::core::i64::< len :wat::kernel::STDIO-WRITE-CHUNK-CHARS) len :wat::kernel::STDIO-WRITE-CHUNK-CHARS)
+        [take  (:wat::core::if (:wat::i64::< len :wat::kernel::STDIO-WRITE-CHUNK-CHARS) len :wat::kernel::STDIO-WRITE-CHUNK-CHARS)
          chunk (:wat::string::subs payload 0 take)
          rest  (:wat::string::subs payload take len)
          _ack  (:wat::core::match (:wat::kernel::StdErr/write peer (:wat::kernel::StdErr::WriteRequest :bytes chunk))

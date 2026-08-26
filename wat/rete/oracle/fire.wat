@@ -22,14 +22,14 @@
    i       <- :wat::core::i64
    acc     <- :wat::rete::AlphaMemory]
   -> :wat::rete::AlphaMemory
-  (:wat::core::if (:wat::core::i64::>= i (:wat::core::length ids))
+  (:wat::core::if (:wat::i64::>= i (:wat::core::length ids))
     acc
     (:wat::core::let [node-id (:wat::core::Option/expect
                                  (:wat::core::get ids i)
                                  "walk-alpha-ids: id")
                       acc1    (:wat::rete::activate-alpha facts network acc node-id)]
       (:wat::rete::walk-alpha-ids facts network ids
-        (:wat::core::i64::+ i 1) acc1))))
+        (:wat::i64::+ i 1) acc1))))
 
 ;; walk-beta-ids — root-join-pass over sorted node-ids. Reads amem; writes beta.
 ;; acc: node-id → (PV :- [Token]).
@@ -40,14 +40,14 @@
    i       <- :wat::core::i64
    acc     <- :wat::rete::BetaMemory]
   -> :wat::rete::BetaMemory
-  (:wat::core::if (:wat::core::i64::>= i (:wat::core::length ids))
+  (:wat::core::if (:wat::i64::>= i (:wat::core::length ids))
     acc
     (:wat::core::let [node-id (:wat::core::Option/expect
                                  (:wat::core::get ids i)
                                  "walk-beta-ids: id")
                       acc1    (:wat::rete::root-join-pass amem network acc node-id)]
       (:wat::rete::walk-beta-ids network amem ids
-        (:wat::core::i64::+ i 1) acc1))))
+        (:wat::i64::+ i 1) acc1))))
 
 ;; walk-filter-ids — populate-then-emit walk (accumulate-pass, then filter-pass,
 ;; then hash-join-pass). Reads facts+amem; threads beta. acc: node-id → (PV :- [Token]).
@@ -62,7 +62,7 @@
    i       <- :wat::core::i64
    acc     <- :wat::rete::BetaMemory]
   -> :wat::rete::BetaMemory
-  (:wat::core::if (:wat::core::i64::>= i (:wat::core::length ids))
+  (:wat::core::if (:wat::i64::>= i (:wat::core::length ids))
     acc
     (:wat::core::let [node-id (:wat::core::Option/expect
                                  (:wat::core::get ids i)
@@ -73,7 +73,7 @@
                                   node-id)
                                 node-id)]
       (:wat::rete::walk-filter-ids facts network amem ids
-        (:wat::core::i64::+ i 1) acc1))))
+        (:wat::i64::+ i 1) acc1))))
 
 ;; walk-prod-ids — production-pass over sorted node-ids. Reads bmem+rules; writes
 ;; production. acc: node-id → (PV :- [Record]).
@@ -85,14 +85,14 @@
    i       <- :wat::core::i64
    acc     <- :wat::rete::ProductionMemory]
   -> :wat::rete::ProductionMemory
-  (:wat::core::if (:wat::core::i64::>= i (:wat::core::length ids))
+  (:wat::core::if (:wat::i64::>= i (:wat::core::length ids))
     acc
     (:wat::core::let [node-id (:wat::core::Option/expect
                                  (:wat::core::get ids i)
                                  "walk-prod-ids: id")
                       acc1    (:wat::rete::production-pass network bmem rules acc node-id)]
       (:wat::rete::walk-prod-ids network bmem rules ids
-        (:wat::core::i64::+ i 1) acc1))))
+        (:wat::i64::+ i 1) acc1))))
 
 ;; collect-query-memory — QueryNode name → parent-token bindings (the fire's answers).
 (:wat::core::defn :wat::rete::collect-query-memory
@@ -269,7 +269,7 @@
    acc-facts   <- :wat::core::PersistentVector
    acc-derived <- :wat::core::PersistentVector]
   -> :wat::rete::FireStratAcc
-  (:wat::core::if (:wat::core::i64::> current max-s)
+  (:wat::core::if (:wat::i64::> current max-s)
     (:wat::rete::FireStratAcc :facts acc-facts :derived acc-derived)
     (:wat::core::let [;; Arc 118.2a — `filter` flipped LAZY; `compile` needs `(PersistentVector :- [Rule])`
                       ;; eagerly, so materialize via `into` (was container-preserving from `rules`).
@@ -296,7 +296,7 @@
                       new-facts   (:wat::rete::Session/facts fired)]
       (:wat::rete::fire-stratified-loop
         rules type-strata
-        (:wat::core::i64::+ current 1)
+        (:wat::i64::+ current 1)
         max-s
         new-facts
         merged-d))))
@@ -322,7 +322,7 @@
                                                  rule <- :wat::rete::Rule]
                                   -> :wat::core::i64
                                   (:wat::core::let [rs (:wat::rete::rule-stratum rule final-ts)]
-                                    (:wat::core::if (:wat::core::i64::> rs mx) rs mx)))
+                                    (:wat::core::if (:wat::i64::> rs mx) rs mx)))
                                 0
                                 rules)
                     final-acc (:wat::rete::fire-stratified-loop

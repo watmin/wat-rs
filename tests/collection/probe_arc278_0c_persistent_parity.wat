@@ -13,13 +13,13 @@
 ;; wearing a name borrowed from Haskell, distinct only under laziness wat does not have).
 (:wat::core::defn :t::p1-foldl [] -> :wat::core::i64
   (:wat::core::foldl
-    (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ acc x))
+    (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::+ acc x))
     0
     (:wat::core::PersistentVector 1 2 3)))
 
 (:wat::core::defn :t::p2-fold-reverse [] -> :wat::core::i64
   (:wat::core::reduce
-    (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ acc x))
+    (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::+ acc x))
     0
     (:wat::core::reverse (:wat::core::PersistentVector 1 2 3))))
 
@@ -28,14 +28,14 @@
   (:wat::core::PersistentVector/length
     (:wat::core::into (:wat::core::PersistentVector)
       (:wat::core::map
-        (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::* x 2))
+        (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::* x 2))
         (:wat::core::PersistentVector 1 2 3)))))
 
 (:wat::core::defn :t::p4-filter [] -> :wat::core::i64
   (:wat::core::PersistentVector/length
     (:wat::core::into (:wat::core::PersistentVector)
       (:wat::core::filter
-        (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::bool (:wat::core::i64::> x 1))
+        (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::bool (:wat::i64::> x 1))
         (:wat::core::PersistentVector 1 2 3)))))
 
 ;; reverse (type-preserving; head after reverse == 3 — get returns (Option :- [T]))

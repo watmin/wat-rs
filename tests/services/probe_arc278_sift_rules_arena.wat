@@ -167,7 +167,7 @@
   [i <- :wat::core::i64  tags <- (:wat::core::HashMap :wat::core::keyword :wat::core::String)]
   -> :wat::telemetry::Log
   (:wat::telemetry::Log :namespace "arena-rules-ns" :uuid (:wat::uuid::nil) :tags tags
-    :time-ns (:wat::core::i64::+ i 1) :emitted-from (:wat::kernel::call-site)
+    :time-ns (:wat::i64::+ i 1) :emitted-from (:wat::kernel::call-site)
     :level :wat::telemetry::Level::Info :message (:wat::edn::write (:arena::event-for-i i))))
 
 ;; ── THREAD locus — flood 800 rich Events (10-way cycle) in ONE write-logs call (fine on thread —

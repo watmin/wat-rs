@@ -8,7 +8,7 @@
   -> :wat::WatAST
   (:wat::core::let
     [t (:wat::core::fresh-symbol "t")]
-    `(:wat::core::let [~t 100] (:wat::core::i64::+ ~t ~x))))
+    `(:wat::core::let [~t 100] (:wat::i64::+ ~t ~x))))
 
 (:wat::core::defn :user::compute [] -> :wat::core::i64
   (:wat::core::let [t 5] (:test::add-via-fresh t)))

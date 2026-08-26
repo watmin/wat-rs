@@ -29,7 +29,7 @@
      (:wat::service::Outcome::Reply s
        (:my::Counter::GetResponse::Ok (:my::counter::Record/count (:my::counter::State/durable s)))))
    (increment [s ctx req]
-     (:wat::core::let [c (:wat::core::i64::+ (:my::counter::Record/count (:my::counter::State/durable s))
+     (:wat::core::let [c (:wat::i64::+ (:my::counter::Record/count (:my::counter::State/durable s))
                                              (:my::Counter::IncrementRequest/n req))]
        (:wat::service::Outcome::Reply (:my::counter::State :durable (:my::counter::Record :count c))
                                       (:my::Counter::IncrementResponse::Ok c))))])

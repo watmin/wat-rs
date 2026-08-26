@@ -321,9 +321,9 @@
   (:wat::core::let [fqdn   (:wat::core::type node)
                     parts  (:wat::string::split fqdn "::")
                     n      (:wat::core::length parts)]
-    (:wat::core::if (:wat::core::i64::> n 0)
+    (:wat::core::if (:wat::i64::> n 0)
       (:wat::core::Option/expect  
-        (:wat::core::get parts (:wat::core::i64::- n 1))
+        (:wat::core::get parts (:wat::i64::- n 1))
         "node-kind-label: last segment")
       fqdn)))
 
@@ -362,7 +362,7 @@
                              (:wat::core::fn [acc <- :wat::core::String
                                               id  <- :wat::core::i64]
                                -> :wat::core::String
-                               (:wat::core::let [id-s (:wat::core::i64::to-string id)]
+                               (:wat::core::let [id-s (:wat::i64::to-string id)]
                                  (:wat::core::if (:wat::core::= acc "")
                                    id-s
                                    (:wat::string::interpolate "{acc} {id-s}" :acc acc :id-s id-s))))
@@ -389,7 +389,7 @@
                                     (:wat::core::PersistentMap/get network k)
                                     "render-dag: node not found")
                           kind  (:wat::rete::node-kind-label node)
-                          id-s  (:wat::core::i64::to-string k)
+                          id-s  (:wat::i64::to-string k)
                           edge  (:wat::rete::children-ids-text
                                    (:wat::rete::node-children-ids node))
                           ;; rune:exigere(scope-affirmative) — arc 278 proof-by-diff fixture:

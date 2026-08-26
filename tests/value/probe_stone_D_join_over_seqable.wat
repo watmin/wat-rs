@@ -20,7 +20,7 @@
 (:wat::core::defn :probe::join-stream [] -> :wat::core::String
   (:wat::string::join "-"
     (:wat::core::map
-      (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ x 1))
+      (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::+ x 1))
       (:wat::core::Vector :- [:wat::core::i64] 1 2 3))))
 
 ;; ── row 3: List — the whole Seqable set, not just Stream.

@@ -21,4 +21,4 @@
 ;; preserved exactly: two records, first carrying a `:callee` field, second
 ;; carrying a `:function` field.
 (:wat::core::defn :user::main [] -> :wat::core::nil
-  (:wat::core::i64::+ "not-a-number" 1))
+  (:wat::i64::+ "not-a-number" 1))

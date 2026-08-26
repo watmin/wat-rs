@@ -58,13 +58,13 @@
 
     ;; reduce — 3-arity and 2-arity Stream arms (via a `map` stage so coll is (Stream :- [T])).
     (:wat::kernel::println
-      (:wat::core::i64::to-string (:wat::core::reduce
+      (:wat::i64::to-string (:wat::core::reduce
         (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::+ acc x))
         0
         (:wat::core::map (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x)
           (:wat::core::Vector :wat::core::i64 1 2 3 4 5)))))
     (:wat::kernel::println
-      (:wat::core::i64::to-string (:wat::core::reduce
+      (:wat::i64::to-string (:wat::core::reduce
         (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::+ acc x))
         (:wat::core::map (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x)
           (:wat::core::Vector :wat::core::i64 1 2 3 4 5)))))

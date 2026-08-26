@@ -4,6 +4,6 @@
   [x <- (:AST :- [:wat::core::i64])
    &]
   -> (:AST :- [:wat::holon::HolonAST])
-  `(:wat::core::i64::+ ~x 0))
+  `(:wat::i64::+ ~x 0))
 
 (:wat::core::defn :user::main [] -> :wat::core::i64 0)

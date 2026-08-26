@@ -82,7 +82,7 @@
                     lsuf (:wat::string::length suf)]
     (:wat::core::if (:wat::core::< ls lsuf)
       false
-      (:wat::core::= (:wat::string::subs s (:wat::core::i64::- ls lsuf) ls) suf))))
+      (:wat::core::= (:wat::string::subs s (:wat::i64::- ls lsuf) ls) suf))))
 
 ;; ── rule-defn? — a top-level `(:wat::core::defn NAME [] -> :wat::rete::Rule BODY)` form.
 ;; Gated on rettype ONLY (":wat::rete::Rule"); the conds/ins helpers return :wat::WatAST and are
@@ -222,7 +222,7 @@
           ;; Neither shape — STOP. Never a silent skip, never a hand-fix.
           (:wat::kernel::assertion-failed!
             (:wat::core::String/concat "rule-record-to-defrule: unrecognized let-bindings arity "
-              (:wat::core::String/concat (:wat::core::i64::to-string n)
+              (:wat::core::String/concat (:wat::i64::to-string n)
                 (:wat::core::String/concat " in rule " name-str)))
             :wat::core::None :wat::core::None))))
     (:wat::core::Vector :wat::fix::Edit)))

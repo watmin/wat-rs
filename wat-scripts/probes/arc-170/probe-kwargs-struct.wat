@@ -17,6 +17,6 @@
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::kernel::println
-    (:wat::core::i64::to-string
-      (:probe::apply-it :f (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::* x 2))
+    (:wat::i64::to-string
+      (:probe::apply-it :f (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::* x 2))
                         :n 21))))  ;; expect 42

@@ -42,7 +42,7 @@
            :invocation-id (:wat::uuid::v4)
            :start-ns      42
            :conn-id       2)]
-    (:wat::core::i64::+
+    (:wat::i64::+
       (:wat::service::Invocation/conn-id inv)
       (:wat::string::length (:wat::service::Invocation/operation inv)))))
 
@@ -51,5 +51,5 @@
     (:wat::string::concat
       (:user::self-invocation-reads-core)
       (:wat::string::concat
-        (:wat::core::i64::to-string (:user::lifecycle-invocation-reads-core-and-conn))
-        (:wat::core::i64::to-string (:user::invocation-reads-core-and-conn))))))
+        (:wat::i64::to-string (:user::lifecycle-invocation-reads-core-and-conn))
+        (:wat::i64::to-string (:user::invocation-reads-core-and-conn))))))

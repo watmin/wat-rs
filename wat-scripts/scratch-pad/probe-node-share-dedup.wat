@@ -56,10 +56,10 @@
                     where-c (:wat::core::quasiquote
                               (:wat::rete::where
                                 (:wat::core::= (:wat::core::unquote i)
-                                  (:wat::core::i64::- ?k
-                                    (:wat::core::i64::* (:wat::core::i64::/ ?k (:wat::core::unquote n)) (:wat::core::unquote n))))))
+                                  (:wat::i64::- ?k
+                                    (:wat::i64::* (:wat::i64::/ ?k (:wat::core::unquote n)) (:wat::core::unquote n))))))
                     ins     (:wat::core::quasiquote (:nsp::Out ?k))]
-    (:wat::rete::Rule :name (:wat::core::i64::to-string i)
+    (:wat::rete::Rule :name (:wat::i64::to-string i)
       :lhs (:wat::core::PersistentVector a-c b-c where-c)
       :rhs (:wat::core::PersistentVector ins))))
 
@@ -89,7 +89,7 @@
                           cur  (:wat::core::match (:wat::core::HashMap/get acc kind)
                                  ((:wat::core::Some v) v)
                                  (:wat::core::None 0))]
-          (:wat::core::HashMap/assoc acc kind (:wat::core::i64::+ cur 1))))
+          (:wat::core::HashMap/assoc acc kind (:wat::i64::+ cur 1))))
       ;; the empty HashMap takes its KEY and VALUE types as arguments (cf. rete.wat:801's dedup)
       (:wat::core::HashMap :wat::core::String :wat::core::i64)
       keys)))

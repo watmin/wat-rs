@@ -41,7 +41,7 @@
    batch-len      <- :wat::core::i64]) ;; witness: must equal n
 
 (:wat::core::defn :iac::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> :wat::core::i64
-  (:wat::core::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
+  (:wat::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
 
 ;; ── arm 1 — the existing hot path: construct + 2-ary insert, one fact at a time ──────────────
 (:wat::core::defn :iac::seed-chained [session <- :wat::rete::Session  n <- :wat::core::i64] -> :wat::rete::Session
@@ -89,6 +89,6 @@
         :n            n
         :chained-ns   chained-ns
         :batch-ns     batch-ns
-        :drop-ns      (:wat::core::i64::- chained-ns batch-ns)
+        :drop-ns      (:wat::i64::- chained-ns batch-ns)
         :chained-len  (:wat::core::length (:wat::rete::Session/facts sa))
         :batch-len    (:wat::core::length (:wat::rete::Session/facts sb))))))

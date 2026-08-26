@@ -5,7 +5,7 @@
 ;; ─── Test 1: named define is a function value ─────────────────────────────────
 
 (:wat::core::defn :t::test1-double [x <- :wat::core::i64] -> :wat::core::i64
-  (:wat::core::i64::* x 2))
+  (:wat::i64::* x 2))
 
 (:wat::core::defn :t::test1 [] -> :wat::core::i64
   (:wat::core::let
@@ -16,7 +16,7 @@
 ;; ─── Test 2: named define as higher-order argument ────────────────────────────
 
 (:wat::core::defn :t::test2-inc [n <- :wat::core::i64] -> :wat::core::i64
-  (:wat::core::i64::+ n 1))
+  (:wat::i64::+ n 1))
 
 (:wat::core::defn :t::test2-apply-twice
   [f <- :wat::core::Fn(wat::core::i64)->wat::core::i64
@@ -55,7 +55,7 @@
 ;;  the intent is named-defn-as-HOF-arg, the collection vehicle is incidental.)
 
 (:wat::core::defn :t::test5-double [n <- :wat::core::i64] -> :wat::core::i64
-  (:wat::core::i64::* n 2))
+  (:wat::i64::* n 2))
 
 ;; Arc 118.2a — `map` flipped LAZY; `doubled` is consumed TWICE (`first` and `length`) and
 ;; `length` needs a concrete container regardless, so `mapv`.

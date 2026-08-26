@@ -7,8 +7,8 @@
   [id <- :wat::core::i64])
 
 (:wat::core::defn :probe::pos-str [p <- (:wat::core::HashMap :- [:wat::core::keyword :wat::core::i64])] -> :wat::core::String
-  (:wat::string::concat "l" (:wat::core::i64::to-string (:wat::core::Option/expect (:wat::core::HashMap/get p :line) "line"))
-    ":c" (:wat::core::i64::to-string (:wat::core::Option/expect (:wat::core::HashMap/get p :col) "col"))))
+  (:wat::string::concat "l" (:wat::i64::to-string (:wat::core::Option/expect (:wat::core::HashMap/get p :line) "line"))
+    ":c" (:wat::i64::to-string (:wat::core::Option/expect (:wat::core::HashMap/get p :col) "col"))))
 
 (:wat::core::defn :probe::dump-children [kids <- (:wat::core::Vector :- [:wat::WatAST]) i <- :wat::core::i64 depth <- :wat::core::i64] -> :wat::core::nil
   (:wat::core::match (:wat::core::Vector/get kids i)
@@ -18,7 +18,7 @@
 (:wat::core::defn :probe::dump [node <- :wat::WatAST depth <- :wat::core::i64] -> :wat::core::nil
   (:wat::core::do
     (:wat::kernel::println
-      (:wat::string::concat "depth=" (:wat::core::i64::to-string depth)
+      (:wat::string::concat "depth=" (:wat::i64::to-string depth)
         " kind=" (:wat::core::ast-kind node)
         " form=" (:wat::core::ast->source node)
         "  span=[" (:probe::pos-str (:wat::core::ast-span node))

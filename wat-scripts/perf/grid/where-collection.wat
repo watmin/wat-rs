@@ -258,34 +258,34 @@
       ((:wat::core::= row 10) (:wc::nested-fold-bound))
       (:else
         (:wat::kernel::assertion-failed!
-          (:wat::core::String/concat "where-collection: unknown row " (:wat::core::i64::to-string row))
+          (:wat::core::String/concat "where-collection: unknown row " (:wat::i64::to-string row))
           :wat::core::None :wat::core::None)))))
 
 ;; build-tags i -> a (PersistentVector :- [i64]) of length (i mod 6), element j = (i + 3j) mod 13.
 (:wat::core::defn :wc::build-tags [i <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::core::i64])
-  (:wat::core::let [len (:wat::core::i64::mod i 6)]
+  (:wat::core::let [len (:wat::i64::mod i 6)]
     (:wat::core::foldl
       (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::i64])  j <- :wat::core::i64]
                       -> (:wat::core::PersistentVector :- [:wat::core::i64])
         (:wat::core::PersistentVector/conj acc
-          (:wat::core::i64::mod (:wat::core::i64::+ i (:wat::core::i64::* j 3)) 13)))
+          (:wat::i64::mod (:wat::i64::+ i (:wat::i64::* j 3)) 13)))
       (:wat::core::PersistentVector)
       (:wat::core::range 0 len))))
 
 ;; build-inner i a -> a (PersistentVector :- [i64]) of length ((i+a) mod 4), element b = (i+a+b) mod 9.
 (:wat::core::defn :wc::build-inner [i <- :wat::core::i64  a <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::core::i64])
-  (:wat::core::let [base (:wat::core::i64::+ i a)
-                    len  (:wat::core::i64::mod base 4)]
+  (:wat::core::let [base (:wat::i64::+ i a)
+                    len  (:wat::i64::mod base 4)]
     (:wat::core::foldl
       (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::i64])  b <- :wat::core::i64]
                       -> (:wat::core::PersistentVector :- [:wat::core::i64])
-        (:wat::core::PersistentVector/conj acc (:wat::core::i64::mod (:wat::core::i64::+ base b) 9)))
+        (:wat::core::PersistentVector/conj acc (:wat::i64::mod (:wat::i64::+ base b) 9)))
       (:wat::core::PersistentVector)
       (:wat::core::range 0 len))))
 
 ;; build-grid i -> a (PersistentVector :- [(PersistentVector :- [i64])]) of (i mod 3) inner vectors.
 (:wat::core::defn :wc::build-grid [i <- :wat::core::i64] -> (:wat::core::PersistentVector :- [(:wat::core::PersistentVector :- [:wat::core::i64])])
-  (:wat::core::let [outer-len (:wat::core::i64::mod i 3)]
+  (:wat::core::let [outer-len (:wat::i64::mod i 3)]
     (:wat::core::foldl
       (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [(:wat::core::PersistentVector :- [:wat::core::i64])])  a <- :wat::core::i64]
                       -> (:wat::core::PersistentVector :- [(:wat::core::PersistentVector :- [:wat::core::i64])])
@@ -303,7 +303,7 @@
       (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  i <- :wat::core::i64]
                       -> (:wat::core::PersistentVector :- [:wat::core::Record])
         (:wat::core::PersistentVector/conj acc
-          (:wc::Item :k i :tags (:wc::build-tags i) :bound (:wat::core::i64::mod i 8) :grid (:wc::build-grid i))))
+          (:wc::Item :k i :tags (:wc::build-tags i) :bound (:wat::i64::mod i 8) :grid (:wc::build-grid i))))
       (:wat::core::PersistentVector)
       (:wat::core::range 0 items))))
 
@@ -322,7 +322,7 @@
   (:wat::core::foldl
     (:wat::core::fn [acc <- :wat::core::String  x <- :wat::core::i64] -> :wat::core::String
       (:wat::core::String/concat acc
-        (:wat::core::String/concat " " (:wat::core::i64::to-string x))))
+        (:wat::core::String/concat " " (:wat::i64::to-string x))))
     ""
     v))
 
@@ -351,10 +351,10 @@
                     n       (:wat::core::Vector/length derived)]
     (:wat::core::String/concat
       (:wat::core::String/concat
-        (:wat::core::String/concat "row " (:wat::core::i64::to-string row))
+        (:wat::core::String/concat "row " (:wat::i64::to-string row))
         (:wat::core::String/concat " " (:wc::rule-display-name (:wat::rete::Rule/name rule))))
       (:wat::core::String/concat
-        (:wat::core::String/concat " n=" (:wat::core::i64::to-string n))
+        (:wat::core::String/concat " n=" (:wat::i64::to-string n))
         (:wat::core::String/concat " ->" (:wc::render-ints derived))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
@@ -362,4 +362,4 @@
     (:wat::core::fn [acc <- :wat::core::nil  row <- :wat::core::i64] -> :wat::core::nil
       (:wat::kernel::println (:wc::run-row row)))
     nil
-    (:wat::core::range 1 (:wat::core::i64::+ (:wc::row-count) 1))))
+    (:wat::core::range 1 (:wat::i64::+ (:wc::row-count) 1))))

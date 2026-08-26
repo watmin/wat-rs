@@ -17,11 +17,11 @@
 
 (:wat::core::defrecord :t::Circle [radius <- :wat::core::f64])
 (:wat::core::defn :t::Circle/area [self <- :t::Circle] -> :wat::core::f64
-  (:wat::core::f64::* 3.14159 (:wat::core::f64::* (:t::Circle/radius self) (:t::Circle/radius self))))
+  (:wat::f64::* 3.14159 (:wat::f64::* (:t::Circle/radius self) (:t::Circle/radius self))))
 
 (:wat::core::defrecord :t::Square [side <- :wat::core::f64])
 (:wat::core::defn :t::Square/area [self <- :t::Square] -> :wat::core::f64
-  (:wat::core::f64::* (:t::Square/side self) (:t::Square/side self)))
+  (:wat::f64::* (:t::Square/side self) (:t::Square/side self)))
 
 ;; THE DISPATCHER under test — one consumer, accepts ANY Shape, routes :Shape/area by type.
 (:wat::core::defn :t::describe [s <- :t::Shape] -> :wat::core::f64 (:t::Shape/area s))

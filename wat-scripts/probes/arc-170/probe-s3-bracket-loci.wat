@@ -4,7 +4,7 @@
 ;; RED at HEAD: bracket::map takes :wat::spawn::ThreadOpts, so (process/runner-count 2) — a
 ;; ProcessOpts — is a type error; and the not-shared path isn't built. GREEN after S3.
 
-(:wat::core::defn :my::double [n <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::* n 2))
+(:wat::core::defn :my::double [n <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::* n 2))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let

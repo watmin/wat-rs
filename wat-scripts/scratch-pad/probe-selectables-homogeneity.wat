@@ -49,7 +49,7 @@
       (:wat::core::match op 
         ;; the TIMER delivered its :Tick (an internal op) through the SAME poll' as the client:
         ((:probe-homog::Op::Tick)
-          (:wat::core::if (:wat::core::i64::>= client-idx 0)
+          (:wat::core::if (:wat::i64::>= client-idx 0)
             (:wat::core::let
               [_ (:wat::core::match (:wat::kernel::send (:wat::core::nth selectables client-idx) (:probe-homog::Reply::Pong)) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) (:wat::kernel::SendOutcome::Stopped nil) ((:wat::kernel::SendOutcome::Lost _c) nil))]
               nil)
@@ -125,7 +125,7 @@
                   ((:wat::spawn::ServiceEvent::Message idx op)
                     (:wat::core::match op 
                       ((:probe-homog::Op::Tick)
-                        (:wat::core::if (:wat::core::i64::>= client-idx 0)
+                        (:wat::core::if (:wat::i64::>= client-idx 0)
                           (:wat::core::let
                             [_ (:wat::core::match (:wat::kernel::send (:wat::core::nth selectables client-idx) (:probe-homog::Reply::Pong)) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) (:wat::kernel::SendOutcome::Stopped nil) ((:wat::kernel::SendOutcome::Lost _c) nil))]
                             nil)

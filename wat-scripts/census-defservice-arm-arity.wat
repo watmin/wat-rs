@@ -44,11 +44,11 @@
 (:wat::core::defn :user::index-after-keyword
   [ch <- (:wat::core::Vector :- [:wat::WatAST])  kw <- :wat::core::String  i <- :wat::core::i64]
   -> :wat::core::i64
-  (:wat::core::if (:wat::core::i64::>= i (:wat::core::length ch))
+  (:wat::core::if (:wat::i64::>= i (:wat::core::length ch))
     -1
     (:wat::core::if (:wat::core::= (:wat::core::ast->source (:wat::core::nth ch i)) kw)
-      (:wat::core::i64::+ i 1)
-      (:user::index-after-keyword ch kw (:wat::core::i64::+ i 1)))))
+      (:wat::i64::+ i 1)
+      (:user::index-after-keyword ch kw (:wat::i64::+ i 1)))))
 
 ;; ── one arm → its param-vector arity (0 if the arm has no param vector) ────────────────
 (:wat::core::defn :user::arm-arity
@@ -72,16 +72,16 @@
   [form <- :wat::WatAST] -> (:wat::core::Vector :- [:wat::WatAST])
   (:wat::core::let [ch  (:wat::core::ast->children form)
                     idx (:user::index-after-keyword ch ":impls" 0)]
-    (:wat::core::if (:wat::core::i64::< idx 0)
+    (:wat::core::if (:wat::i64::< idx 0)
       (:wat::core::Vector :wat::WatAST)
-      (:wat::core::if (:wat::core::i64::>= idx (:wat::core::length ch))
+      (:wat::core::if (:wat::i64::>= idx (:wat::core::length ch))
         (:wat::core::Vector :wat::WatAST)
         (:wat::core::ast->children (:wat::core::nth ch idx))))))
 
 ;; ── report one arm as a line: "<file> <op> <arity> <internal?>" ────────────────────────
 (:wat::core::defn :user::report-arms
   [arms <- (:wat::core::Vector :- [:wat::WatAST])  path <- :wat::core::String  i <- :wat::core::i64] -> :wat::core::nil
-  (:wat::core::if (:wat::core::i64::>= i (:wat::core::length arms))
+  (:wat::core::if (:wat::i64::>= i (:wat::core::length arms))
     nil
     (:wat::core::let
       [arm  (:wat::core::nth arms i)
@@ -95,23 +95,23 @@
               (:wat::string::concat name
                 (:wat::string::concat " arity="
                   (:wat::string::concat
-                    (:wat::core::i64::to-string (:user::arm-arity arm))
+                    (:wat::i64::to-string (:user::arm-arity arm))
                     (:wat::core::if (:user::arm-internal? arm) " INTERNAL" " public")))))))
-        (:user::report-arms arms path (:wat::core::i64::+ i 1))))))
+        (:user::report-arms arms path (:wat::i64::+ i 1))))))
 
 (:wat::core::defn :user::census-forms
   [forms <- (:wat::core::Vector :- [:wat::WatAST])  path <- :wat::core::String  i <- :wat::core::i64] -> :wat::core::nil
-  (:wat::core::if (:wat::core::i64::>= i (:wat::core::length forms))
+  (:wat::core::if (:wat::i64::>= i (:wat::core::length forms))
     nil
     (:wat::core::do
       (:wat::core::if (:user::defservice-form? (:wat::core::nth forms i))
         (:user::report-arms (:user::arms-of (:wat::core::nth forms i)) path 0)
         nil)
-      (:user::census-forms forms path (:wat::core::i64::+ i 1)))))
+      (:user::census-forms forms path (:wat::i64::+ i 1)))))
 
 (:wat::core::defn :user::census-each
   [paths <- (:wat::core::Vector :- [:wat::core::String])  i <- :wat::core::i64] -> :wat::core::nil
-  (:wat::core::if (:wat::core::i64::>= i (:wat::core::length paths))
+  (:wat::core::if (:wat::i64::>= i (:wat::core::length paths))
     nil
     (:wat::core::let
       [path (:wat::core::nth paths i)
@@ -121,7 +121,7 @@
                 (:wat::kernel::assertion-failed! (:wat::core::Error/message __cause) :wat::core::None :wat::core::None)))]
       (:wat::core::do
         (:user::census-forms (:wat::core::ast->children tree) path 0)
-        (:user::census-each paths (:wat::core::i64::+ i 1))))))
+        (:user::census-each paths (:wat::i64::+ i 1))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:user::census-each

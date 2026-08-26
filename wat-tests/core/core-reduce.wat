@@ -25,7 +25,7 @@
       (:wat::core::reduce
         (:wat::core::fn [acc <- :wat::core::i64
                          n   <- :wat::core::i64] -> :wat::core::i64
-          (:wat::core::i64::+ acc n))
+          (:wat::i64::+ acc n))
         0
         xs)]
     (:wat::test::assert-eq result 10)))
@@ -42,7 +42,7 @@
       (:wat::core::reduce
         (:wat::core::fn [acc <- :wat::core::i64
                          n   <- :wat::core::i64] -> :wat::core::i64
-          (:wat::core::i64::+ acc n))
+          (:wat::i64::+ acc n))
         xs)]
     (:wat::test::assert-eq result 10)))
 
@@ -56,13 +56,13 @@
     [xs      (:wat::core::Vector :wat::core::i64 1 2 3 4)
      doubled (:wat::core::map
                (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64
-                 (:wat::core::i64::* n 2))
+                 (:wat::i64::* n 2))
                xs)
      result
       (:wat::core::reduce
         (:wat::core::fn [acc <- :wat::core::i64
                          n   <- :wat::core::i64] -> :wat::core::i64
-          (:wat::core::i64::+ acc n))
+          (:wat::i64::+ acc n))
         0
         doubled)]
     (:wat::test::assert-eq result 20)))

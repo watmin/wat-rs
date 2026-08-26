@@ -5,6 +5,6 @@
                 (:wat::core::Ok (:wat::core::Tuple "ok" 7))
                line
                 (:wat::core::match resp 
-                  ((:wat::core::Ok (k v)) (:wat::string::concat k (:wat::core::i64::to-string v)))
+                  ((:wat::core::Ok (k v)) (:wat::string::concat k (:wat::i64::to-string v)))
                   ((:wat::core::Err msg) msg))]
               (:wat::kernel::println line)))

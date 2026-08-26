@@ -60,9 +60,9 @@
   [(put [s ctx req]
      (:wat::service::Outcome::Reply s
        (:wat-tests::Pair::PutResponse::Ok
-         (:wat::core::i64::+
+         (:wat::i64::+
            (:wat-tests::Pair::PutRequest/item req)
-           (:wat::core::i64::+
+           (:wat::i64::+
              ;; read the K-typed durable field generically — `kk` is bound at type K
              (:wat::core::match
                  (:wat-tests::pair-svc::Record/k (:wat-tests::pair-svc::State/durable s))

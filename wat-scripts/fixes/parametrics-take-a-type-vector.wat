@@ -152,7 +152,7 @@
   (:wat::core::if (:wat::core::if (:wat::core::= (:wat::string::subs rendered 0 1) "(")
                     (:wat::string::ends-with? rendered ")")
                     false)
-    (:wat::string::subs rendered 1 (:wat::core::i64::- (:wat::string::length rendered) 1))
+    (:wat::string::subs rendered 1 (:wat::i64::- (:wat::string::length rendered) 1))
     (:wat::kernel::assertion-failed!
       (:wat::string::concat "parametrics-take-a-type-vector: declarator-name rendering is not application-shaped: " rendered)
       :wat::core::None :wat::core::None)))

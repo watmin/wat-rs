@@ -31,11 +31,11 @@
 ;; restored_i64_not_eq / restored_f64_eq / restored_f64_not_eq (7 assertions,
 ;; including the f64 NaN case — NaN != NaN falls out of eval_f64_compare for free,
 ;; not special-cased).
-(:wat::core::defn :user::restored-i64-eq-true [] -> :wat::core::bool (:wat::core::i64::= 1 1))
-(:wat::core::defn :user::restored-i64-eq-false [] -> :wat::core::bool (:wat::core::i64::= 1 2))
-(:wat::core::defn :user::restored-i64-not-eq-true [] -> :wat::core::bool (:wat::core::i64::not= 1 2))
-(:wat::core::defn :user::restored-i64-not-eq-false [] -> :wat::core::bool (:wat::core::i64::not= 1 1))
-(:wat::core::defn :user::restored-f64-eq-true [] -> :wat::core::bool (:wat::core::f64::= 1.5 1.5))
-(:wat::core::defn :user::restored-f64-eq-false [] -> :wat::core::bool (:wat::core::f64::= 0.0 1.0))
-(:wat::core::defn :user::restored-f64-not-eq-true [] -> :wat::core::bool (:wat::core::f64::not= 1.5 2.5))
-(:wat::core::defn :user::restored-f64-nan-not-eq-itself [] -> :wat::core::bool (:wat::core::f64::not= (:wat::core::f64::/ 0.0 0.0) (:wat::core::f64::/ 0.0 0.0)))
+(:wat::core::defn :user::restored-i64-eq-true [] -> :wat::core::bool (:wat::i64::= 1 1))
+(:wat::core::defn :user::restored-i64-eq-false [] -> :wat::core::bool (:wat::i64::= 1 2))
+(:wat::core::defn :user::restored-i64-not-eq-true [] -> :wat::core::bool (:wat::i64::not= 1 2))
+(:wat::core::defn :user::restored-i64-not-eq-false [] -> :wat::core::bool (:wat::i64::not= 1 1))
+(:wat::core::defn :user::restored-f64-eq-true [] -> :wat::core::bool (:wat::f64::= 1.5 1.5))
+(:wat::core::defn :user::restored-f64-eq-false [] -> :wat::core::bool (:wat::f64::= 0.0 1.0))
+(:wat::core::defn :user::restored-f64-not-eq-true [] -> :wat::core::bool (:wat::f64::not= 1.5 2.5))
+(:wat::core::defn :user::restored-f64-nan-not-eq-itself [] -> :wat::core::bool (:wat::f64::not= (:wat::f64::/ 0.0 0.0) (:wat::f64::/ 0.0 0.0)))

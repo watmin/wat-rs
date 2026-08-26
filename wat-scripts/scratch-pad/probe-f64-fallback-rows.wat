@@ -27,7 +27,7 @@
      ;; row 9 — i64 rows still fall back (Part A must not regress the Err path).
      r9 (:wat::rete::core::i64::/ 1 0 :undefined -1)
      ;; row 14 — core is untouched, still raw IEEE, still exit 0.
-     r14 (:wat::core::f64::/ 0.0 0.0)]
+     r14 (:wat::f64::/ 0.0 0.0)]
     (:wat::kernel::println (:wat::string::concat "row2  ordinary (expect 3.5): "   (:wat::core::str r2)))
     (:wat::kernel::println (:wat::string::concat "row3  NaN->fallback (expect -1.0): " (:wat::core::str r3)))
     (:wat::kernel::println (:wat::string::concat "row4  +Inf->fallback (expect -1.0): " (:wat::core::str r4)))

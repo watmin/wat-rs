@@ -4,4 +4,4 @@
 (:wat::core::defn :my::f
   {:doc "doubles its input"}
   [x <- :wat::core::i64] -> :wat::core::i64
-  (:wat::core::i64::+ x x))
+  (:wat::i64::+ x x))

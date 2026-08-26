@@ -164,13 +164,13 @@
         (:wat::core::match resp
           ((:probe::RuleWire::InstallResponse::Derived n)
             (:wat::kernel::println
-              (:wat::string::concat label " => DERIVED n=" (:wat::core::i64::to-string n))))
+              (:wat::string::concat label " => DERIVED n=" (:wat::i64::to-string n))))
           ((:probe::RuleWire::InstallResponse::Rejected reason)
             (:wat::kernel::println (:wat::string::concat label " => REJECTED " reason)))
           ((:probe::RuleWire::InstallResponse::RequestTooLarge bytes cap)
             (:wat::kernel::println
               (:wat::string::concat label " => REQUEST-TOO-LARGE bytes="
-                (:wat::core::i64::to-string bytes) " cap=" (:wat::core::i64::to-string cap))))
+                (:wat::i64::to-string bytes) " cap=" (:wat::i64::to-string cap))))
           ((:probe::RuleWire::InstallResponse::RequestMalformed _p expected got)
             (:wat::kernel::println
               (:wat::string::concat label " => REQUEST-MALFORMED expected=" expected " got=" got)))))

@@ -70,7 +70,7 @@
                  (:wat::core::match resp
                    ((:probe::Budget::PutResponse::RequestTooLarge bytes cap)
                      (:wat::core::if (:wat::core::= cap 100)
-                       (:wat::core::if (:wat::core::i64::> bytes cap)
+                       (:wat::core::if (:wat::i64::> bytes cap)
                          nil
                          (:wat::kernel::assertion-failed! "RequestTooLarge.bytes must exceed cap" :wat::core::None :wat::core::None))
                        (:wat::kernel::assertion-failed!

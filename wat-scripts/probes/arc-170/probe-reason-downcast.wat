@@ -24,4 +24,4 @@
     [reason (:probe::as-reason (:probe::SqliteReason :code 2067 :sql "INSERT INTO users ..."))   ; reason : :probe::Reason
      code   (:probe::code-of reason)]                                                 ; open Reason -> concrete clause
     (:wat::kernel::println
-      (:wat::string::concat "downcast ok, sqlite code = " (:wat::core::i64::to-string code)))))
+      (:wat::string::concat "downcast ok, sqlite code = " (:wat::i64::to-string code)))))

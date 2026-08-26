@@ -8,7 +8,7 @@
   :when
   [(:weather::Temperature (?c <- :celsius))]
   :then
-  [(:wat::core::i64::/ ?c 1)])
+  [(:wat::i64::/ ?c 1)])
 
 (:wat::core::defn :user::run-compile [] -> :wat::core::i64
   (:wat::core::let

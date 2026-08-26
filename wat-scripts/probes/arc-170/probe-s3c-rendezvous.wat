@@ -43,12 +43,12 @@
             (:wat::kernel::assertion-failed! "recv': w closed unexpectedly" :wat::core::None :wat::core::None)))]
     (:wat::kernel::println
       (:wat::string::concat
-        (:wat::core::i64::to-string (:wat::core::second a))
-        (:wat::string::concat " " (:wat::core::i64::to-string (:wat::core::second b)))))))
+        (:wat::i64::to-string (:wat::core::second a))
+        (:wat::string::concat " " (:wat::i64::to-string (:wat::core::second b)))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
-    [work (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::* x 2))
+    [work (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::* x 2))
      w (:wat::test::spawn-peer (:wat::spawn::process)
          (:wat::core::concat
            ;; the user's work-fn, reified to the RENDEZVOUS coordinate (non-reserved, clean name)

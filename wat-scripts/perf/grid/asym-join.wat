@@ -54,7 +54,7 @@
 ;; encode tag k — canonical single-i64 witness for one derived fact (B=tag 0, C=tag 1).
 ;; items is always far below 1,000,000 at grid scale, so the encoding is injective here.
 (:wat::core::defn :asym::encode [tag <- :wat::core::i64  k <- :wat::core::i64] -> :wat::core::i64
-  (:wat::core::i64::+ (:wat::core::i64::* tag 1000000) k))
+  (:wat::i64::+ (:wat::i64::* tag 1000000) k))
 
 ;; build-rules — the fixed 2-rule chain: R1 A->B, R2 B⋈A->C. Mirrors chain_expr in
 ;; probe_arc278_P6_delta_asymmetric_join.rs exactly (conditions as (:type (?k <- :k)) patterns;
@@ -111,7 +111,7 @@
 
 ;; ns-between t0 t1 — nanoseconds between two Instants (cf. strat-neg.wat).
 (:wat::core::defn :asym::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> :wat::core::i64
-  (:wat::core::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
+  (:wat::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let [params  (:wat::core::match (:wat::kernel::readln ) ((:wat::kernel::ReadlnOutcome::Datum __datum) __datum) (:wat::kernel::ReadlnOutcome::Eof (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None)) (:wat::kernel::ReadlnOutcome::Stopped (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)))

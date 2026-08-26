@@ -51,7 +51,7 @@
   (:wat::core::let [conds   (:wat::core::quasiquote (:pcf::Req (?k <- :k)))
                     where-c (:wat::core::quasiquote
                               (:wat::rete::where
-                                (:wat::rete::core::if (:wat::core::= 0 (:wat::core::i64::- ?k (:wat::core::i64::* (:wat::core::i64::/ ?k 2) 2)))
+                                (:wat::rete::core::if (:wat::core::= 0 (:wat::i64::- ?k (:wat::i64::* (:wat::i64::/ ?k 2) 2)))
                                   true
                                   false)))
                     ins     (:wat::core::quasiquote (:pcf::Hit ?k))]
@@ -66,7 +66,7 @@
                     where-c (:wat::core::quasiquote
                               (:wat::rete::where
                                 (:wat::rete::core::cond
-                                  ((:wat::core::= 0 (:wat::core::i64::- ?k (:wat::core::i64::* (:wat::core::i64::/ ?k 2) 2))) true)
+                                  ((:wat::core::= 0 (:wat::i64::- ?k (:wat::i64::* (:wat::i64::/ ?k 2) 2))) true)
                                   (:else false))))
                     ins     (:wat::core::quasiquote (:pcf::Hit ?k))]
     (:wat::rete::Rule :name "cond-subject"
@@ -96,7 +96,7 @@
     [ctl     (:wat::rete::fire-rules
                (:pcf::seed (:wat::rete::compile-all (:wat::core::PersistentVector (:pcf::rule-if)) (:wat::core::PersistentVector (:pcf::q-Hit)))))
      _ok     (:wat::kernel::println
-               (:wat::core::String/concat "if-control derived n=" (:wat::core::i64::to-string (:pcf::derived ctl))))
+               (:wat::core::String/concat "if-control derived n=" (:wat::i64::to-string (:pcf::derived ctl))))
 
      ;; 2. COMPILE the cond rule. The purity fence runs HERE and passes — this line does not raise,
      ;;    which is precisely the defect: every static gate has now said yes.

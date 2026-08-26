@@ -65,7 +65,7 @@
   (:wat::core::foldl
     (:wat::core::fn [acc <- :wat::core::i64  sv <- :wat::rete::Support]
       -> :wat::core::i64
-      (:wat::core::i64::+ acc
+      (:wat::i64::+ acc
         (:wat::core::length (:wat::rete::Token/matches (:wat::rete::Support/token sv)))))
     0
     (:wat::core::PersistentMap/values (:wat::rete::Explained/support (:test::explain-oslo)))))

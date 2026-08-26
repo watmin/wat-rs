@@ -13,7 +13,7 @@
     (:wat::string::join ","
       (:wat::core::mapv
         (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::String
-          (:wat::core::i64::to-string n))
+          (:wat::i64::to-string n))
         sorted))))
 
 (:wat::core::defn :sort::descending-f64 [] -> :wat::core::String
@@ -27,7 +27,7 @@
     (:wat::string::join ","
       (:wat::core::mapv
         (:wat::core::fn [x <- :wat::core::f64] -> :wat::core::String
-          (:wat::core::f64::to-string x))
+          (:wat::f64::to-string x))
         sorted))))
 
 (:wat::core::defn :sort::string-asc [] -> :wat::core::String

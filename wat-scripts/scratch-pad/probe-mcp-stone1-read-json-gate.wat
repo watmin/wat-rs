@@ -37,5 +37,5 @@
         (:wat::test::assert-true false))
       ((:wat::edn::ReadJsonOutcome::Malformed cause)
         (:wat::kernel::println "3 malformed: OK -> ::Malformed")))
-    (:wat::test::assert-eq (:wat::core::i64::+ 2 2) 4)
+    (:wat::test::assert-eq (:wat::i64::+ 2 2) 4)
     (:wat::kernel::println "3 survived: OK -> (+ 2 2) = 4")))

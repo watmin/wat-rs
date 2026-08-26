@@ -29,10 +29,10 @@
 (:wat::core::defn :woa::line [row <- :wat::core::i64 name <- :wat::core::String n <- :wat::core::i64] -> :wat::core::nil
   (:wat::kernel::println
     (:wat::core::String/concat
-      (:wat::core::String/concat "row " (:wat::core::i64::to-string row))
+      (:wat::core::String/concat "row " (:wat::i64::to-string row))
       (:wat::core::String/concat
         (:wat::core::String/concat " " name)
-        (:wat::core::String/concat " n=" (:wat::core::i64::to-string n))))))
+        (:wat::core::String/concat " n=" (:wat::i64::to-string n))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let [rules (:wat::core::PersistentVector (:woa::really-cold-or-cold-and-windy))]

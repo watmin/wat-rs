@@ -14,7 +14,7 @@
 (:wat::core::defn :user::mint-map-fn-first [] -> :wat::core::bool
   (:wat::core::= (:wat::core::mapv
                    (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64
-                     (:wat::core::i64::+ x 1))
+                     (:wat::i64::+ x 1))
                    [1 2 3])
                  [2 3 4]))
 
@@ -22,7 +22,7 @@
 (:wat::core::defn :user::mint-filter-fn-first [] -> :wat::core::bool
   (:wat::core::= (:wat::core::filterv
                    (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::bool
-                     (:wat::core::i64::> x 1))
+                     (:wat::i64::> x 1))
                    [1 2 3])
                  [2 3]))
 
@@ -30,7 +30,7 @@
 (:wat::core::defn :user::mint-foldl-fn-first [] -> :wat::core::bool
   (:wat::core::= (:wat::core::foldl
                    (:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
-                     (:wat::core::i64::+ acc x))
+                     (:wat::i64::+ acc x))
                    0
                    [1 2 3])
                  6))

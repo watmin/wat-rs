@@ -1,6 +1,6 @@
 #wat.core.Option/Some [
   (
-    :wat.core.i64/+
+    :wat.i64/+
     (_a0 wat.type/i64)
     (_a1 wat.type/i64)
     ->

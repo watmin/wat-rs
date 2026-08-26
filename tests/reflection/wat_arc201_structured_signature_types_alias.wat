@@ -13,4 +13,4 @@
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::kernel::println
-              (:wat::core::i64::to-string (:my::compute))))
+              (:wat::i64::to-string (:my::compute))))

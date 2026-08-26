@@ -79,7 +79,7 @@
    insert-len       <- :wat::core::i64]) ;; witness: must equal n
 
 (:wat::core::defn :ins::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> :wat::core::i64
-  (:wat::core::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
+  (:wat::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
 
 ;; ── arm 1 — the interpreted harness floor ────────────────────────────────────
 ;; Constructs the record and READS A FIELD back, so the construction cannot be elided and the
@@ -87,7 +87,7 @@
 (:wat::core::defn :ins::baseline [n <- :wat::core::i64] -> :wat::core::i64
   (:wat::core::foldl
     (:wat::core::fn [acc <- :wat::core::i64  i <- :wat::core::i64] -> :wat::core::i64
-      (:wat::core::i64::+ acc (:ins::Reading/v (:ins::Reading :g 0 :v i))))
+      (:wat::i64::+ acc (:ins::Reading/v (:ins::Reading :g 0 :v i))))
     0
     (:wat::core::range 0 n)))
 
@@ -152,7 +152,7 @@
         :insert-ns    (:ins::ns-between i0 i1)
         :baseline-sum bsum
         ;; 0+1+…+(n-1) = n(n-1)/2 — computed, never eyeballed against a magic number.
-        :expected-sum (:wat::core::i64::/ (:wat::core::i64::* n (:wat::core::i64::- n 1)) 2)
+        :expected-sum (:wat::i64::/ (:wat::i64::* n (:wat::i64::- n 1)) 2)
         :conj-len     (:wat::core::length cv)
         :insert-prime-len (:wat::core::length (:wat::rete::Session/facts primed))
         :insert-len   (:wat::core::length (:wat::rete::Session/facts staged))))))

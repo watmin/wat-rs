@@ -5,5 +5,5 @@
   :Circle [r <- :wat::core::i64])
 (:wat::core::defn :my::shape-area [s <- :my::Shape] -> :wat::core::i64
   (:wat::core::match s 
-              ((:my::Shape::Rect w h) (:wat::core::i64::* w h))
-              ((:my::Shape::Circle r) (:wat::core::i64::* r r))))
+              ((:my::Shape::Rect w h) (:wat::i64::* w h))
+              ((:my::Shape::Circle r) (:wat::i64::* r r))))

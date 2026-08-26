@@ -62,11 +62,11 @@
 ;; mod7 n — n mod 7 via (n - (n/7)*7); wat has no i64::mod, and strat-neg.wat uses this same
 ;; div/mul/sub identity for its mod-2 test. Keeps reading values in [0,7) so Σx² stays small.
 (:wat::core::defn :ur::mod7 [n <- :wat::core::i64] -> :wat::core::i64
-  (:wat::core::i64::- n (:wat::core::i64::* (:wat::core::i64::/ n 7) 7)))
+  (:wat::i64::- n (:wat::i64::* (:wat::i64::/ n 7) 7)))
 
 ;; encode loc s — canonical single-i64 witness for one derived Agg(loc, s) fact.
 (:wat::core::defn :ur::encode [loc <- :wat::core::i64  s <- :wat::core::i64] -> :wat::core::i64
-  (:wat::core::i64::+ (:wat::core::i64::* loc 1000000) s))
+  (:wat::i64::+ (:wat::i64::* loc 1000000) s))
 
 ;; the ONE rule: per Station, fold the user sum-of-squares over that location's Readings → Agg.
 (:wat::rete::defrule :ur::flag
@@ -90,7 +90,7 @@
   (:wat::core::foldl
     (:wat::core::fn [a <- (:wat::core::PersistentVector :- [:wat::core::Record])  j <- :wat::core::i64]
                     -> (:wat::core::PersistentVector :- [:wat::core::Record])
-      (:wat::core::PersistentVector/conj a (:ur::Reading :loc loc :value (:ur::mod7 (:wat::core::i64::+ loc j)))))
+      (:wat::core::PersistentVector/conj a (:ur::Reading :loc loc :value (:ur::mod7 (:wat::i64::+ loc j)))))
     (:wat::core::PersistentVector/conj acc (:ur::Station loc))
     (:wat::core::range 0 reads)))
 
@@ -126,7 +126,7 @@
 
 ;; ns-between t0 t1 — nanoseconds between two Instants (mirrors strat-neg.wat's ns-between).
 (:wat::core::defn :ur::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> :wat::core::i64
-  (:wat::core::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
+  (:wat::i64::- (:wat::time::epoch-nanos t1) (:wat::time::epoch-nanos t0)))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let [params  (:wat::core::match (:wat::kernel::readln ) ((:wat::kernel::ReadlnOutcome::Datum __datum) __datum) (:wat::kernel::ReadlnOutcome::Eof (:wat::kernel::assertion-failed! "readln: end of input" :wat::core::None :wat::core::None)) (:wat::kernel::ReadlnOutcome::Stopped (:wat::kernel::assertion-failed! "readln: stop requested" :wat::core::None :wat::core::None)))

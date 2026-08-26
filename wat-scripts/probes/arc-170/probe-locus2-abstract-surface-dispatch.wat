@@ -14,7 +14,7 @@
 
 (:wat::core::defstruct :probe::Doubler [])
 (:wat::core::extend-type :probe::Doubler :probe::Runner
-  (run [self n] (:wat::core::i64::* n 2)))
+  (run [self n] (:wat::i64::* n 2)))
 
 ;; hold at the ABSTRACT surface type; dispatch on the concrete satisfier at runtime
 (:wat::core::defn :probe::drive [r <- :probe::Runner  n <- :wat::core::i64] -> :wat::core::i64
@@ -22,4 +22,4 @@
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::kernel::println
-    (:wat::core::i64::to-string (:probe::drive (:probe::Doubler) 21))))  ;; expect 42
+    (:wat::i64::to-string (:probe::drive (:probe::Doubler) 21))))  ;; expect 42

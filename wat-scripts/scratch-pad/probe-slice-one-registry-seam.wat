@@ -129,10 +129,10 @@
      ;; POSITIVE CONTROL: i64::+ is classified in the fence's hand map.
      _  (:wat::kernel::println
           (:seam::row "B fence pure?  i64::+ ..... "
-                      (:wat::rete::pure? (:wat::core::quote (:wat::core::i64::+ 1 2)))))
+                      (:wat::rete::pure? (:wat::core::quote (:wat::i64::+ 1 2)))))
      _  (:wat::kernel::println
           (:seam::row "B fence det?   i64::+ ..... "
-                      (:wat::rete::deterministic? (:wat::core::quote (:wat::core::i64::+ 1 2)))))
+                      (:wat::rete::deterministic? (:wat::core::quote (:wat::i64::+ 1 2)))))
 
      ;; NEGATIVE CONTROL on the determinism axis: pure, but the one entry in the deriver's
      ;; NONDETERMINISTIC residual. Both oracles must call it non-deterministic.
