@@ -415,7 +415,7 @@ under even the OLD 15s warn, so an absent SLOW line proves nothing. Dropping the
 **`excusare` had UPHELD this annotation** as "the sanctioned escape hatch". It verified the budget
 was *permitted*; it never asked whether the runner could *grant* it. That gap is the perimeter.
 
-## 3 · OPEN — the sampling-order probe never runs, and triplicates what it certifies
+## 3 · CLOSED 2026-08-26 — the sampling-order probe never ran, and triplicated what it certified
 
 `wat-scripts/fuzz/sampling-order-probe.wat` exists to stop a Python-model verification — its own
 header says *"the thing under test is the thing that ships"*. But nothing invokes `:user::main`
@@ -425,9 +425,27 @@ header says *"the thing under test is the thing that ships"*. But nothing invoke
 A **third** independent copy of the reversal arithmetic that no ward counted. Ward ran it manually:
 324/324, no live defect today.
 
-**Closure:** move to `wat-tests/` as a deftest asserting `distinct-images == card`, calling
-`reverse-index`/`coords-scattered` directly. That also gives `coords-scattered` its first consumer,
-closing an L2 above in the same move.
+**CLOSED exactly as the ward proposed.** `wat-tests/gen.wat` L26 `test-sampling-order` runs on
+every floor, calls `:wat::gen::reverse-index` and `:wat::gen::coords-scattered` directly, and the
+`wat-scripts/` probe is deleted (its two live citations repointed). It pins BOTH halves rather
+than an inequality — asserting only "scattered >= sequential" would pass if scattering did nothing:
+
+| first N | order | dim4 (chain depth) |
+|---|---|---|
+| 16 | sequential | **1** of 4 |
+| 16 | scattered | **4** of 4 |
+| 64 | sequential | **1** of 4 |
+| 64 | scattered | **4** of 4 |
+
+A sequential prefix has seen ONE value of the slowest dimension after 64 of 324 points. In the
+rete fuzzer that dimension is chain depth — so "sample the first K sequentially" would have tested
+depth 0 and nothing else.
+
+**Mutation-proven** with the ward's own mutation — `reverse-index` deleted from `coords-scattered`'s
+`at`, degrading sampling to a sequential prefix: **25 passed, 1 failed.** Only the new law sees it,
+L17 included, which is what "its own law bypasses it" meant.
+
+**This also closes the L2 above:** `coords-scattered` now has its first consumer in the tree.
 
 ## 4 · HANDED TO ARC 255 — the retired-name lint is structurally blind to `.wat`
 

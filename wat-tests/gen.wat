@@ -731,3 +731,88 @@
 
 (:wat::test::deftest :wat-tests::gen::test-check-not-vacuous
   (:wat::test::assert-eq (:wat-tests::gen::law-check-not-vacuous) 0))
+
+
+;; ── L26 — SAMPLING ORDER: the bijection, and what a prefix actually covers ──
+;;
+;; THIS LAW REPLACES A PROBE THAT NEVER RAN. `wat-scripts/fuzz/sampling-order-probe.wat`
+;; was written to stop a Python-model verification — its header said "the thing
+;; under test is the thing that ships". It was not, twice over
+;; (GEN-VIGILIA, circumspicere finding 3):
+;;   - nothing invoked it. Its only gate, `tests/lint/wat_scripts_fixes_load.rs`,
+;;     LOADS every wat-script without running `main`. It `println`ed its numbers
+;;     and asserted nothing, so the Python failure mode it existed to kill was
+;;     reproduced one level up: computed by the real library, read by nobody.
+;;   - and it re-implemented what it certified. Its `:user::rev` was a structural
+;;     clone of `:wat::gen::reverse-index` — same fold, same rem/idx/pref triple —
+;;     so it never called `reverse-index` and never called `coords-scattered`,
+;;     which is the ENTIRE thing `coords-scattered` adds over `coords`. A third
+;;     independent copy of the reversal arithmetic that no ward had counted.
+;;
+;; Both properties below now run on every floor and go through the shipping verbs.
+;; This is also `coords-scattered`'s FIRST consumer — it previously had none
+;; anywhere in the tree, and its own law bypassed it to test `reverse-index`
+;; directly, so deleting `reverse-index` from its `at` left the suite green while
+;; sampling silently degraded to a sequential prefix.
+;;
+;; PROPERTY A — digit reversal is a BIJECTION on 0..card. Without it, sampling
+;; revisits points and misses others while reporting a clean count.
+;;
+;; PROPERTY B — a SEQUENTIAL prefix never varies the slowest dimension, and a
+;; SCATTERED one covers it. Measured on bases [3 3 3 3 4] (card 324):
+;;
+;;      first 16   sequential  [3 3 2 1 1]     scattered  [1 2 3 3 4]
+;;      first 64   sequential  [3 3 3 3 1]     scattered  [3 3 3 3 4]
+;;
+;; Dimension 4 is the one that matters and the numbers are stark: a sequential
+;; prefix has seen ONE of its four values after 64 of 324 points; scattered has
+;; seen all four after 16. In the rete fuzzer that dimension is CHAIN DEPTH — the
+;; dial that exposed the leading-filter defect class — so "sample the first K
+;; sequentially" would have tested depth 0 and nothing else.
+(:wat::core::defn :wat-tests::gen::sbases [] -> (:wat::core::PersistentVector :- [:wat::core::i64])
+  (:wat::core::PersistentVector 3 3 3 3 4))
+
+(:wat::core::defn :wat-tests::gen::distinct-images [] -> :wat::core::i64
+  (:wat::core::length
+    (:wat::core::foldl
+      (:wat::core::fn [s <- (:wat::core::HashSet :- [:wat::core::i64])  k <- :wat::core::i64]
+                      -> (:wat::core::HashSet :- [:wat::core::i64])
+        (:wat::core::HashSet/conj s (:wat::gen::reverse-index (:wat-tests::gen::sbases) k)))
+      (:wat::core::HashSet :wat::core::i64)
+      (:wat::core::range 0 (:wat::gen::card-of (:wat-tests::gen::sbases))))))
+
+;; distinct values of dimension `dim` seen in the first `k-count` points
+(:wat::core::defn :wat-tests::gen::cover
+  [dim <- :wat::core::i64  k-count <- :wat::core::i64  scattered <- :wat::core::i64]
+  -> :wat::core::i64
+  (:wat::core::let
+    [g  (:wat::core::if (:wat::core::= scattered 1)
+          (:wat::gen::coords-scattered (:wat-tests::gen::sbases))
+          (:wat::gen::coords (:wat-tests::gen::sbases)))
+     at (:wat::gen::Gen/at g)]
+    (:wat::core::length
+      (:wat::core::foldl
+        (:wat::core::fn [s <- (:wat::core::HashSet :- [:wat::core::i64])  k <- :wat::core::i64]
+                        -> (:wat::core::HashSet :- [:wat::core::i64])
+          (:wat::core::HashSet/conj s (:wat::gen::nth (at k) dim)))
+        (:wat::core::HashSet :wat::core::i64)
+        (:wat::core::range 0 k-count)))))
+
+(:wat::core::defn :wat-tests::gen::law-sampling-order [] -> :wat::core::i64
+  (:wat::core::let
+    ;; A — bijection: 324 indices in, 324 DISTINCT indices out
+    [a (:wat::core::if (:wat::core::= (:wat-tests::gen::distinct-images)
+                                      (:wat::gen::card-of (:wat-tests::gen::sbases)))
+         0 1)
+     ;; B — the slowest dimension. Scattered sees ALL FOUR values in 16 points;
+     ;; sequential still sees ONE after 64. Both halves are pinned: asserting only
+     ;; "scattered >= sequential" would pass if scattering did nothing at all.
+     b (:wat::core::if (:wat::core::= (:wat-tests::gen::cover 4 16 1) 4) 0 1)
+     c (:wat::core::if (:wat::core::= (:wat-tests::gen::cover 4 16 0) 1) 0 1)
+     d (:wat::core::if (:wat::core::= (:wat-tests::gen::cover 4 64 1) 4) 0 1)
+     e (:wat::core::if (:wat::core::= (:wat-tests::gen::cover 4 64 0) 1) 0 1)]
+    (:wat::core::i64::+ a
+      (:wat::core::i64::+ b (:wat::core::i64::+ c (:wat::core::i64::+ d e))))))
+
+(:wat::test::deftest :wat-tests::gen::test-sampling-order
+  (:wat::test::assert-eq (:wat-tests::gen::law-sampling-order) 0))
