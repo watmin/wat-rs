@@ -41,8 +41,8 @@
     (:wat::test::assert-eq (:wat::i64::not= 2 3) true)
 
     ;; to-bigint (no simpler bigint literal — round-trip to f64 instead)
-    (:wat::test::assert-eq (:wat::core::bigint::to-f64 (:wat::i64::to-bigint 5)) 5.0)
+    (:wat::test::assert-eq (:wat::bigint::to-f64 (:wat::i64::to-bigint 5)) 5.0)
     (:wat::test::assert-eq (:wat::i64::to-f64 5) 5.0)
     ;; to-rational (no simpler rational literal — round-trip to f64 instead)
-    (:wat::test::assert-eq (:wat::core::rational::to-f64 (:wat::i64::to-rational 5)) 5.0)
+    (:wat::test::assert-eq (:wat::rational::to-f64 (:wat::i64::to-rational 5)) 5.0)
     (:wat::test::assert-eq (:wat::i64::to-string 42) "42")))

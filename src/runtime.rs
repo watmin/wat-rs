@@ -5844,56 +5844,17 @@ fn dispatch_keyword_head_value(
         // there is nothing left for this match to do for i64 arithmetic; a wrong
         // per-type name is now a check-time retirement error, not a fallthrough
         // here.
-        // Arc 300 stone C1 — bigint arithmetic. Arbitrary precision — NO
-        // wrapping/overflow branch (contrast i64 above); `+ - *` always
-        // succeed. `/` collapses to bigint (divisible) or rational (else),
-        // reusing Stone B's `BigRational` — never a runtime error except
-        // division by zero.
-        ":wat::core::bigint::+" => eval_bigint_arith(head, args, list_span, env, sym, |a, b, _| {
-            Ok(Value::wat__core__BigInt(Box::new(a + b)))
-        }),
-        ":wat::core::bigint::-" => eval_bigint_arith(head, args, list_span, env, sym, |a, b, _| {
-            Ok(Value::wat__core__BigInt(Box::new(a - b)))
-        }),
-        ":wat::core::bigint::*" => eval_bigint_arith(head, args, list_span, env, sym, |a, b, _| {
-            Ok(Value::wat__core__BigInt(Box::new(a * b)))
-        }),
-        ":wat::core::bigint::/" => eval_bigint_arith(head, args, list_span, env, sym, bigint_div),
-        // Arc 255 Stone C — `:wat::core::i64::to-bigint`'s arm retired; the
-        // surviving `:wat::i64::to-bigint` resolves via the registry-first door
-        // above (`intrinsic/i64.rs`'s `eval_i64_to_bigint`, same shared fn this
-        // arm used to call directly). `wat/core.wat`'s i64⊕bigint contagion arms
-        // now spell the new name.
-        // Arc 300 stone C1 — bigint -> f64 (lossy beyond f64's 53-bit
-        // mantissa; same posture as i64::to-f64).
-        ":wat::core::bigint::to-f64" => eval_bigint_to_f64(args, list_span, env, sym),
-        // Arc 300 stone C2 — rational arithmetic. Every op COLLAPSES: a
-        // BigRational result reducing to a whole number becomes `:wat::core::
-        // bigint` (C1's type), the inverse of C1's `bigint::/` -> rational
-        // collapse. Arbitrary precision — never overflows.
-        ":wat::core::rational::+" => {
-            eval_rational_arith(head, args, list_span, env, sym, |a, b, _| Ok(a + b))
-        }
-        ":wat::core::rational::-" => {
-            eval_rational_arith(head, args, list_span, env, sym, |a, b, _| Ok(a - b))
-        }
-        ":wat::core::rational::*" => {
-            eval_rational_arith(head, args, list_span, env, sym, |a, b, _| Ok(a * b))
-        }
-        ":wat::core::rational::/" => {
-            eval_rational_arith(head, args, list_span, env, sym, rational_div)
-        }
-        // Arc 255 Stone C — `:wat::core::i64::to-rational`'s arm retired (same
-        // shape as `i64::to-bigint` above); the surviving `:wat::i64::to-rational`
-        // resolves via the registry-first door.
-        // Arc 300 stone C2 — bigint → rational promotion (infallible; used by the
-        // bigint⊕rational contagion arm in `wat/core.wat`'s arithmetic defclauses).
-        ":wat::core::bigint::to-rational" => eval_bigint_to_rational(args, list_span, env, sym),
-        // Arc 300 stone C2 — rational -> f64 (float-contagion path + explicit cast).
-        ":wat::core::rational::to-f64" => eval_rational_to_f64(args, list_span, env, sym),
-        // Arc 300 stone C2 — numerator/denominator slash-form accessors (cf Uuid/version).
-        ":wat::core::rational/numerator" => eval_rational_numerator(args, list_span, env, sym),
-        ":wat::core::rational/denominator" => eval_rational_denominator(args, list_span, env, sym),
+        // Arc 255 Stone D — the old `:wat::core::bigint::{+,-,*,/,to-f64,to-rational}`
+        // and `:wat::core::rational::{+,-,*,/,to-f64}` /
+        // `:wat::core::rational/{numerator,denominator}` arms that lived here are
+        // RETIRED. The registry-first door above (`crate::intrinsic::registry().lookup(head)`)
+        // already dispatches the surviving `:wat::bigint::*` / `:wat::rational::*` spellings to
+        // `intrinsic/bigint.rs` / `intrinsic/rational.rs`'s handlers, which call the SAME shared
+        // fns (`eval_bigint_arith`, `bigint_div`, `eval_bigint_to_{f64,rational}`,
+        // `eval_rational_arith`, `rational_div`, `eval_rational_{to_f64,numerator,denominator}`,
+        // all still defined above/below) this match's old arms used to call directly — so there
+        // is nothing left for this match to do for bigint/rational; a wrong per-type name is now
+        // a check-time retirement error, not a fallthrough here.
         // arc 237 Stone 237.8a — mixed-type binary leaf arms DELETED
         // under THE DECISION (`feedback_no_implicit_coercion`).
         // +'i64'f64, -'i64'f64, *'i64'f64, /'i64'f64,
@@ -9942,7 +9903,7 @@ fn dispatch_rete_op(
 /// directly (not a `BigInt`) because `/` can collapse to EITHER
 /// `Value::wat__core__BigInt` (divisible) or `Value::wat__core__Rational`
 /// (else) — a single-output-type shape can't express that.
-fn eval_bigint_arith<F>(
+pub(crate) fn eval_bigint_arith<F>(
     head: &str,
     args: &[WatAST],
     list_span: &Span,
@@ -9996,7 +9957,7 @@ where
 /// REUSING Stone B's rational representation — no new rational impl).
 /// Division by zero is a clean runtime error, never a panic (BigInt's `Div`
 /// would otherwise panic on zero divisor like a primitive integer divide).
-fn bigint_div(a: &BigInt, b: &BigInt, b_span: &Span) -> Result<Value, EvalBreak> {
+pub(crate) fn bigint_div(a: &BigInt, b: &BigInt, b_span: &Span) -> Result<Value, EvalBreak> {
     use num_traits::Zero;
     if b.is_zero() {
         return Err(RuntimeError::new(b_span.clone(), RuntimeErrorKind::DivisionByZero).into());
@@ -10050,7 +10011,7 @@ fn collapse_bigrational(r: BigRational) -> Value {
 /// uniformly. Operands are coerced via [`to_bigrational`] (rational or
 /// bigint; i64 is still a type error — promote explicitly via
 /// `:wat::i64::to-rational`).
-fn eval_rational_arith<F>(
+pub(crate) fn eval_rational_arith<F>(
     head: &str,
     args: &[WatAST],
     list_span: &Span,
@@ -10104,7 +10065,7 @@ where
 
 /// `:wat::core::rational::/`'s op fn: division by zero is a clean runtime
 /// error, never a panic (mirrors `bigint_div`'s zero-divisor guard).
-fn rational_div(a: &BigRational, b: &BigRational, b_span: &Span) -> Result<BigRational, EvalBreak> {
+pub(crate) fn rational_div(a: &BigRational, b: &BigRational, b_span: &Span) -> Result<BigRational, EvalBreak> {
     use num_traits::Zero;
     if b.is_zero() {
         return Err(RuntimeError::new(b_span.clone(), RuntimeErrorKind::DivisionByZero).into());
@@ -10145,14 +10106,19 @@ pub(crate) fn eval_i64_to_rational(
 
 /// `:wat::core::bigint::to-rational` — infallible promotion. Used by the
 /// `wat/core.wat` `+ - * /` defclauses' bigint⊕rational contagion arms.
-fn eval_bigint_to_rational(
+///
+/// Arc 255 Stone D — `op` is now a caller-supplied parameter (was a hardcoded
+/// `:wat::core::bigint::to-rational` literal through Stone C) so a raised error
+/// names whichever spelling the caller actually used.
+pub(crate) fn eval_bigint_to_rational(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
+    op: &str,
 ) -> Result<Value, EvalBreak> {
     let n = eval_one_arg(
-        ":wat::core::bigint::to-rational",
+        op,
         args,
         list_span,
         env,
@@ -10171,14 +10137,19 @@ fn eval_bigint_to_rational(
 /// `:wat::core::rational::to-f64` — `BigRational::to_f64` via num-traits
 /// `ToPrimitive` (mirrors `eval_bigint_to_f64`'s posture). Also the float-
 /// contagion path (`rational ⊕ f64 → f64`) used by the `core.wat` defclauses.
-fn eval_rational_to_f64(
+///
+/// Arc 255 Stone D — `op` is now a caller-supplied parameter (was a hardcoded
+/// `:wat::core::rational::to-f64` literal through Stone C) so a raised error
+/// names whichever spelling the caller actually used.
+pub(crate) fn eval_rational_to_f64(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
+    op: &str,
 ) -> Result<Value, EvalBreak> {
     let r = eval_one_arg(
-        ":wat::core::rational::to-f64",
+        op,
         args,
         list_span,
         env,
@@ -10212,14 +10183,19 @@ fn bigint_component_to_value(n: BigInt) -> Value {
 }
 
 /// `:wat::core::rational/numerator` — slash-form accessor (cf `Uuid/version`).
-fn eval_rational_numerator(
+///
+/// Arc 255 Stone D — `op` is now a caller-supplied parameter (was a hardcoded
+/// `:wat::core::rational/numerator` literal through Stone C) so a raised error
+/// names whichever spelling the caller actually used.
+pub(crate) fn eval_rational_numerator(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
+    op: &str,
 ) -> Result<Value, EvalBreak> {
     let r = eval_one_arg(
-        ":wat::core::rational/numerator",
+        op,
         args,
         list_span,
         env,
@@ -10234,14 +10210,19 @@ fn eval_rational_numerator(
 }
 
 /// `:wat::core::rational/denominator` — slash-form accessor (cf `Uuid/version`).
-fn eval_rational_denominator(
+///
+/// Arc 255 Stone D — `op` is now a caller-supplied parameter (was a hardcoded
+/// `:wat::core::rational/denominator` literal through Stone C) so a raised error
+/// names whichever spelling the caller actually used.
+pub(crate) fn eval_rational_denominator(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
+    op: &str,
 ) -> Result<Value, EvalBreak> {
     let r = eval_one_arg(
-        ":wat::core::rational/denominator",
+        op,
         args,
         list_span,
         env,
@@ -10535,14 +10516,19 @@ pub(crate) fn eval_i64_to_bigint(
 
 /// `:wat::core::bigint::to-f64` — lossy beyond f64's 53-bit mantissa (same
 /// posture as `:wat::i64::to-f64`). Arc 300 stone C1.
-fn eval_bigint_to_f64(
+///
+/// Arc 255 Stone D — `op` is now a caller-supplied parameter (was a hardcoded
+/// `:wat::core::bigint::to-f64` literal through Stone C) so a raised error
+/// names whichever spelling the caller actually used.
+pub(crate) fn eval_bigint_to_f64(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
     sym: &SymbolTable,
+    op: &str,
 ) -> Result<Value, EvalBreak> {
     let n = eval_one_arg(
-        ":wat::core::bigint::to-f64",
+        op,
         args,
         list_span,
         env,
@@ -12105,17 +12091,21 @@ pub(crate) fn dispatch_substrate_impl(
         // Stone 237.8b — IEEE 754: f64 / 0.0 = ±Inf or NaN; not an error.
         ":wat::f64::/" => Some(arith_f64_f64_inner(impl_name, vals, |a, b| Ok(a / b))),
         // Arc 300 stone C1 — bigint arithmetic leaves. Arbitrary precision —
-        // `+ - *` never overflow (contrast the i64 leaves above).
-        ":wat::core::bigint::+" => Some(arith_bigint_bigint_inner(impl_name, vals, |a, b| {
+        // `+ - *` never overflow (contrast the i64 leaves above). Arc 255
+        // Stone D — match keys are the new `:wat::bigint::*` spelling
+        // directly (the old `:wat::core::bigint::*` spelling is retired);
+        // this table is reached only via `apply` of a bound keyword, not via
+        // `dispatch_keyword_head_value`'s registry-first door.
+        ":wat::bigint::+" => Some(arith_bigint_bigint_inner(impl_name, vals, |a, b| {
             Ok(Value::wat__core__BigInt(Box::new(a + b)))
         })),
-        ":wat::core::bigint::-" => Some(arith_bigint_bigint_inner(impl_name, vals, |a, b| {
+        ":wat::bigint::-" => Some(arith_bigint_bigint_inner(impl_name, vals, |a, b| {
             Ok(Value::wat__core__BigInt(Box::new(a - b)))
         })),
-        ":wat::core::bigint::*" => Some(arith_bigint_bigint_inner(impl_name, vals, |a, b| {
+        ":wat::bigint::*" => Some(arith_bigint_bigint_inner(impl_name, vals, |a, b| {
             Ok(Value::wat__core__BigInt(Box::new(a * b)))
         })),
-        ":wat::core::bigint::/" => Some(arith_bigint_bigint_inner(impl_name, vals, |a, b| {
+        ":wat::bigint::/" => Some(arith_bigint_bigint_inner(impl_name, vals, |a, b| {
             use num_traits::Zero;
             if b.is_zero() {
                 return Err(());
@@ -12132,23 +12122,24 @@ pub(crate) fn dispatch_substrate_impl(
         // Arc 300 stone C2 — rational arithmetic leaves. Every op COLLAPSES
         // (contrast bigint above, where only `/` collapses) — the shared
         // `arith_rational_rational_inner` helper applies `collapse_bigrational`
-        // after `op` returns the raw `BigRational`.
-        ":wat::core::rational::+" => {
+        // after `op` returns the raw `BigRational`. Arc 255 Stone D — match
+        // keys are the new `:wat::rational::*` spelling directly.
+        ":wat::rational::+" => {
             Some(arith_rational_rational_inner(impl_name, vals, |a, b| {
                 Ok(a + b)
             }))
         }
-        ":wat::core::rational::-" => {
+        ":wat::rational::-" => {
             Some(arith_rational_rational_inner(impl_name, vals, |a, b| {
                 Ok(a - b)
             }))
         }
-        ":wat::core::rational::*" => {
+        ":wat::rational::*" => {
             Some(arith_rational_rational_inner(impl_name, vals, |a, b| {
                 Ok(a * b)
             }))
         }
-        ":wat::core::rational::/" => {
+        ":wat::rational::/" => {
             Some(arith_rational_rational_inner(impl_name, vals, |a, b| {
                 use num_traits::Zero;
                 if b.is_zero() {

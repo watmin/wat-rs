@@ -89,66 +89,66 @@
   ;; above, one type over; arbitrary precision — NEVER overflows).
   ([x <- :wat::core::bigint] -> :wat::core::bigint x)
   ([x <- :wat::core::bigint
-    y <- :wat::core::bigint] -> :wat::core::bigint (:wat::core::bigint::+ x y))
+    y <- :wat::core::bigint] -> :wat::core::bigint (:wat::bigint::+ x y))
   ([x <- :wat::core::bigint
     y <- :wat::core::bigint
     & rest <- (:wat::core::Vector :- [:wat::core::bigint])] -> :wat::core::bigint
     (:wat::core::foldl
       (:wat::core::fn [acc <- :wat::core::bigint
                        n <- :wat::core::bigint] -> :wat::core::bigint
-        (:wat::core::bigint::+ acc n))
-      (:wat::core::bigint::+ x y)
+        (:wat::bigint::+ acc n))
+      (:wat::bigint::+ x y)
       rest))
   ;; Contagion: i64 ⊕ bigint → bigint (i64 promotes via i64::to-bigint; NEVER
   ;; demotes the bigint side back to i64).
   ([x <- :wat::core::i64
     y <- :wat::core::bigint] -> :wat::core::bigint
-    (:wat::core::bigint::+ (:wat::i64::to-bigint x) y))
+    (:wat::bigint::+ (:wat::i64::to-bigint x) y))
   ([x <- :wat::core::bigint
     y <- :wat::core::i64] -> :wat::core::bigint
-    (:wat::core::bigint::+ x (:wat::i64::to-bigint y)))
+    (:wat::bigint::+ x (:wat::i64::to-bigint y)))
   ;; Arc 300 stone C2 — rational: 1-ary identity (a genuine rational is
   ;; never integer-valued — Stone B's invariant — so identity never
   ;; collapses), 2-ary, N-ary fold. The fold step calls the raw per-type
-  ;; intrinsic exactly like i64/f64/bigint above; `:wat::core::rational::+`
+  ;; intrinsic exactly like i64/f64/bigint above; `:wat::rational::+`
   ;; itself accepts a bigint accumulator (self-promoted) so the fold can
   ;; carry a COLLAPSED intermediate (this stone's pinned collapse: a
   ;; BigRational result reducing to a whole number becomes bigint) across
   ;; steps without needing a separate contagion arm inside the fold body.
   ([x <- :wat::core::rational] -> :wat::core::rational x)
   ([x <- :wat::core::rational
-    y <- :wat::core::rational] -> :wat::core::rational (:wat::core::rational::+ x y))
+    y <- :wat::core::rational] -> :wat::core::rational (:wat::rational::+ x y))
   ([x <- :wat::core::rational
     y <- :wat::core::rational
     & rest <- (:wat::core::Vector :- [:wat::core::rational])] -> :wat::core::rational
     (:wat::core::foldl
       (:wat::core::fn [acc <- :wat::core::rational
                        n <- :wat::core::rational] -> :wat::core::rational
-        (:wat::core::rational::+ acc n))
-      (:wat::core::rational::+ x y)
+        (:wat::rational::+ acc n))
+      (:wat::rational::+ x y)
       rest))
   ;; Contagion: i64 ⊕ rational → rational (i64 promotes via i64::to-rational).
   ([x <- :wat::core::i64
     y <- :wat::core::rational] -> :wat::core::rational
-    (:wat::core::rational::+ (:wat::i64::to-rational x) y))
+    (:wat::rational::+ (:wat::i64::to-rational x) y))
   ([x <- :wat::core::rational
     y <- :wat::core::i64] -> :wat::core::rational
-    (:wat::core::rational::+ x (:wat::i64::to-rational y)))
+    (:wat::rational::+ x (:wat::i64::to-rational y)))
   ;; Contagion: bigint ⊕ rational → rational (bigint promotes via bigint::to-rational).
   ([x <- :wat::core::bigint
     y <- :wat::core::rational] -> :wat::core::rational
-    (:wat::core::rational::+ (:wat::core::bigint::to-rational x) y))
+    (:wat::rational::+ (:wat::bigint::to-rational x) y))
   ([x <- :wat::core::rational
     y <- :wat::core::bigint] -> :wat::core::rational
-    (:wat::core::rational::+ x (:wat::core::bigint::to-rational y)))
+    (:wat::rational::+ x (:wat::bigint::to-rational y)))
   ;; Contagion: rational ⊕ f64 → f64 (FLOAT CONTAGION — no collapse; convert
   ;; the rational down to f64, never promotes f64 to rational).
   ([x <- :wat::core::rational
     y <- :wat::core::f64] -> :wat::core::f64
-    (:wat::f64::+ (:wat::core::rational::to-f64 x) y))
+    (:wat::f64::+ (:wat::rational::to-f64 x) y))
   ([x <- :wat::core::f64
     y <- :wat::core::rational] -> :wat::core::f64
-    (:wat::f64::+ x (:wat::core::rational::to-f64 y)))
+    (:wat::f64::+ x (:wat::rational::to-f64 y)))
   ;; Arc 300 stone C4 — mixed-float contagion: i64 ⊕ f64 → f64, bigint ⊕ f64
   ;; → f64 (both operand orders; FLOAT CONTAGION — no collapse). Promote the
   ;; non-f64 operand via i64::to-f64 / bigint::to-f64 (both already exist),
@@ -162,10 +162,10 @@
     (:wat::f64::+ x (:wat::i64::to-f64 y)))
   ([x <- :wat::core::bigint
     y <- :wat::core::f64] -> :wat::core::f64
-    (:wat::f64::+ (:wat::core::bigint::to-f64 x) y))
+    (:wat::f64::+ (:wat::bigint::to-f64 x) y))
   ([x <- :wat::core::f64
     y <- :wat::core::bigint] -> :wat::core::f64
-    (:wat::f64::+ x (:wat::core::bigint::to-f64 y))))
+    (:wat::f64::+ x (:wat::bigint::to-f64 y))))
 
 (:wat::core::defclause :wat::core::-
   ;; NO 0-ary clause — :NoMatchingClause fires
@@ -199,64 +199,64 @@
   ;; Arc 300 stone C1 — bigint: 1-ary negate (identity-on-left = 0, promoted
   ;; via i64::to-bigint), 2-ary, N-ary fold (mirrors i64/f64 above).
   ([x <- :wat::core::bigint] -> :wat::core::bigint
-    (:wat::core::bigint::- (:wat::i64::to-bigint 0) x))
+    (:wat::bigint::- (:wat::i64::to-bigint 0) x))
   ([x <- :wat::core::bigint
-    y <- :wat::core::bigint] -> :wat::core::bigint (:wat::core::bigint::- x y))
+    y <- :wat::core::bigint] -> :wat::core::bigint (:wat::bigint::- x y))
   ([x <- :wat::core::bigint
     y <- :wat::core::bigint
     & rest <- (:wat::core::Vector :- [:wat::core::bigint])] -> :wat::core::bigint
     (:wat::core::foldl
       (:wat::core::fn [acc <- :wat::core::bigint
                        n <- :wat::core::bigint] -> :wat::core::bigint
-        (:wat::core::bigint::- acc n))
-      (:wat::core::bigint::- x y)
+        (:wat::bigint::- acc n))
+      (:wat::bigint::- x y)
       rest))
   ;; Contagion: i64 ⊕ bigint → bigint.
   ([x <- :wat::core::i64
     y <- :wat::core::bigint] -> :wat::core::bigint
-    (:wat::core::bigint::- (:wat::i64::to-bigint x) y))
+    (:wat::bigint::- (:wat::i64::to-bigint x) y))
   ([x <- :wat::core::bigint
     y <- :wat::core::i64] -> :wat::core::bigint
-    (:wat::core::bigint::- x (:wat::i64::to-bigint y)))
+    (:wat::bigint::- x (:wat::i64::to-bigint y)))
   ;; Arc 300 stone C2 — rational: 1-ary negate (identity-on-left = 0,
   ;; promoted via i64::to-rational — never collapses: negating a genuine
   ;; rational keeps its denominator unchanged), 2-ary, N-ary fold (mirrors
   ;; the `+` rational arms immediately above the previous defclause, one
   ;; operator over).
   ([x <- :wat::core::rational] -> :wat::core::rational
-    (:wat::core::rational::- (:wat::i64::to-rational 0) x))
+    (:wat::rational::- (:wat::i64::to-rational 0) x))
   ([x <- :wat::core::rational
-    y <- :wat::core::rational] -> :wat::core::rational (:wat::core::rational::- x y))
+    y <- :wat::core::rational] -> :wat::core::rational (:wat::rational::- x y))
   ([x <- :wat::core::rational
     y <- :wat::core::rational
     & rest <- (:wat::core::Vector :- [:wat::core::rational])] -> :wat::core::rational
     (:wat::core::foldl
       (:wat::core::fn [acc <- :wat::core::rational
                        n <- :wat::core::rational] -> :wat::core::rational
-        (:wat::core::rational::- acc n))
-      (:wat::core::rational::- x y)
+        (:wat::rational::- acc n))
+      (:wat::rational::- x y)
       rest))
   ;; Contagion: i64 ⊕ rational → rational.
   ([x <- :wat::core::i64
     y <- :wat::core::rational] -> :wat::core::rational
-    (:wat::core::rational::- (:wat::i64::to-rational x) y))
+    (:wat::rational::- (:wat::i64::to-rational x) y))
   ([x <- :wat::core::rational
     y <- :wat::core::i64] -> :wat::core::rational
-    (:wat::core::rational::- x (:wat::i64::to-rational y)))
+    (:wat::rational::- x (:wat::i64::to-rational y)))
   ;; Contagion: bigint ⊕ rational → rational.
   ([x <- :wat::core::bigint
     y <- :wat::core::rational] -> :wat::core::rational
-    (:wat::core::rational::- (:wat::core::bigint::to-rational x) y))
+    (:wat::rational::- (:wat::bigint::to-rational x) y))
   ([x <- :wat::core::rational
     y <- :wat::core::bigint] -> :wat::core::rational
-    (:wat::core::rational::- x (:wat::core::bigint::to-rational y)))
+    (:wat::rational::- x (:wat::bigint::to-rational y)))
   ;; Contagion: rational ⊕ f64 → f64 (FLOAT CONTAGION).
   ([x <- :wat::core::rational
     y <- :wat::core::f64] -> :wat::core::f64
-    (:wat::f64::- (:wat::core::rational::to-f64 x) y))
+    (:wat::f64::- (:wat::rational::to-f64 x) y))
   ([x <- :wat::core::f64
     y <- :wat::core::rational] -> :wat::core::f64
-    (:wat::f64::- x (:wat::core::rational::to-f64 y)))
+    (:wat::f64::- x (:wat::rational::to-f64 y)))
   ;; Arc 300 stone C4 — mixed-float contagion: i64 ⊕ f64 → f64, bigint ⊕ f64
   ;; → f64 (both operand orders; FLOAT CONTAGION). Mirrors the `+` C4 arms
   ;; immediately above the previous defclause, one operator over.
@@ -268,10 +268,10 @@
     (:wat::f64::- x (:wat::i64::to-f64 y)))
   ([x <- :wat::core::bigint
     y <- :wat::core::f64] -> :wat::core::f64
-    (:wat::f64::- (:wat::core::bigint::to-f64 x) y))
+    (:wat::f64::- (:wat::bigint::to-f64 x) y))
   ([x <- :wat::core::f64
     y <- :wat::core::bigint] -> :wat::core::f64
-    (:wat::f64::- x (:wat::core::bigint::to-f64 y))))
+    (:wat::f64::- x (:wat::bigint::to-f64 y))))
 
 (:wat::core::defclause :wat::core::*
   ;; 0-ary identity: i64 1 (Lisp multiplicative identity)
@@ -307,58 +307,58 @@
   ;; above, one type over; arbitrary precision — NEVER overflows).
   ([x <- :wat::core::bigint] -> :wat::core::bigint x)
   ([x <- :wat::core::bigint
-    y <- :wat::core::bigint] -> :wat::core::bigint (:wat::core::bigint::* x y))
+    y <- :wat::core::bigint] -> :wat::core::bigint (:wat::bigint::* x y))
   ([x <- :wat::core::bigint
     y <- :wat::core::bigint
     & rest <- (:wat::core::Vector :- [:wat::core::bigint])] -> :wat::core::bigint
     (:wat::core::foldl
       (:wat::core::fn [acc <- :wat::core::bigint
                        n <- :wat::core::bigint] -> :wat::core::bigint
-        (:wat::core::bigint::* acc n))
-      (:wat::core::bigint::* x y)
+        (:wat::bigint::* acc n))
+      (:wat::bigint::* x y)
       rest))
   ;; Contagion: i64 ⊕ bigint → bigint.
   ([x <- :wat::core::i64
     y <- :wat::core::bigint] -> :wat::core::bigint
-    (:wat::core::bigint::* (:wat::i64::to-bigint x) y))
+    (:wat::bigint::* (:wat::i64::to-bigint x) y))
   ([x <- :wat::core::bigint
     y <- :wat::core::i64] -> :wat::core::bigint
-    (:wat::core::bigint::* x (:wat::i64::to-bigint y)))
+    (:wat::bigint::* x (:wat::i64::to-bigint y)))
   ;; Arc 300 stone C2 — rational: 1-ary identity, 2-ary, N-ary fold (mirrors
   ;; the `+`/`-` rational arms above, one operator over).
   ([x <- :wat::core::rational] -> :wat::core::rational x)
   ([x <- :wat::core::rational
-    y <- :wat::core::rational] -> :wat::core::rational (:wat::core::rational::* x y))
+    y <- :wat::core::rational] -> :wat::core::rational (:wat::rational::* x y))
   ([x <- :wat::core::rational
     y <- :wat::core::rational
     & rest <- (:wat::core::Vector :- [:wat::core::rational])] -> :wat::core::rational
     (:wat::core::foldl
       (:wat::core::fn [acc <- :wat::core::rational
                        n <- :wat::core::rational] -> :wat::core::rational
-        (:wat::core::rational::* acc n))
-      (:wat::core::rational::* x y)
+        (:wat::rational::* acc n))
+      (:wat::rational::* x y)
       rest))
   ;; Contagion: i64 ⊕ rational → rational.
   ([x <- :wat::core::i64
     y <- :wat::core::rational] -> :wat::core::rational
-    (:wat::core::rational::* (:wat::i64::to-rational x) y))
+    (:wat::rational::* (:wat::i64::to-rational x) y))
   ([x <- :wat::core::rational
     y <- :wat::core::i64] -> :wat::core::rational
-    (:wat::core::rational::* x (:wat::i64::to-rational y)))
+    (:wat::rational::* x (:wat::i64::to-rational y)))
   ;; Contagion: bigint ⊕ rational → rational.
   ([x <- :wat::core::bigint
     y <- :wat::core::rational] -> :wat::core::rational
-    (:wat::core::rational::* (:wat::core::bigint::to-rational x) y))
+    (:wat::rational::* (:wat::bigint::to-rational x) y))
   ([x <- :wat::core::rational
     y <- :wat::core::bigint] -> :wat::core::rational
-    (:wat::core::rational::* x (:wat::core::bigint::to-rational y)))
+    (:wat::rational::* x (:wat::bigint::to-rational y)))
   ;; Contagion: rational ⊕ f64 → f64 (FLOAT CONTAGION).
   ([x <- :wat::core::rational
     y <- :wat::core::f64] -> :wat::core::f64
-    (:wat::f64::* (:wat::core::rational::to-f64 x) y))
+    (:wat::f64::* (:wat::rational::to-f64 x) y))
   ([x <- :wat::core::f64
     y <- :wat::core::rational] -> :wat::core::f64
-    (:wat::f64::* x (:wat::core::rational::to-f64 y)))
+    (:wat::f64::* x (:wat::rational::to-f64 y)))
   ;; Arc 300 stone C4 — mixed-float contagion: i64 ⊕ f64 → f64, bigint ⊕ f64
   ;; → f64 (both operand orders; FLOAT CONTAGION). Mirrors the `+`/`-` C4 arms
   ;; above, one operator over.
@@ -370,10 +370,10 @@
     (:wat::f64::* x (:wat::i64::to-f64 y)))
   ([x <- :wat::core::bigint
     y <- :wat::core::f64] -> :wat::core::f64
-    (:wat::f64::* (:wat::core::bigint::to-f64 x) y))
+    (:wat::f64::* (:wat::bigint::to-f64 x) y))
   ([x <- :wat::core::f64
     y <- :wat::core::bigint] -> :wat::core::f64
-    (:wat::f64::* x (:wat::core::bigint::to-f64 y))))
+    (:wat::f64::* x (:wat::bigint::to-f64 y))))
 
 (:wat::core::defclause :wat::core::/
   ;; NO 0-ary clause — :NoMatchingClause fires
@@ -404,7 +404,7 @@
         (:wat::f64::/ acc n))
       (:wat::f64::/ x y)
       rest))
-  ;; Arc 300 stone C1 — bigint: 1-ary reciprocal, 2-ary. `:wat::core::bigint::/`
+  ;; Arc 300 stone C1 — bigint: 1-ary reciprocal, 2-ary. `:wat::bigint::/`
   ;; COLLAPSES to `:wat::core::rational` when not evenly divisible (clj: `(/ 1N
   ;; 2N) => 1/2`), so unlike +/-/*, there is deliberately NO N-ary fold arm here
   ;; — folding would feed a possibly-Rational intermediate back into
@@ -414,56 +414,56 @@
   ;; rational arithmetic is the natural home for a fold that can carry a
   ;; collapsed intermediate).
   ([x <- :wat::core::bigint] -> :wat::core::bigint
-    (:wat::core::bigint::/ (:wat::i64::to-bigint 1) x))
+    (:wat::bigint::/ (:wat::i64::to-bigint 1) x))
   ([x <- :wat::core::bigint
-    y <- :wat::core::bigint] -> :wat::core::bigint (:wat::core::bigint::/ x y))
+    y <- :wat::core::bigint] -> :wat::core::bigint (:wat::bigint::/ x y))
   ;; Contagion: i64 ⊕ bigint → bigint (2-ary only, same collapse caveat as above).
   ([x <- :wat::core::i64
     y <- :wat::core::bigint] -> :wat::core::bigint
-    (:wat::core::bigint::/ (:wat::i64::to-bigint x) y))
+    (:wat::bigint::/ (:wat::i64::to-bigint x) y))
   ([x <- :wat::core::bigint
     y <- :wat::core::i64] -> :wat::core::bigint
-    (:wat::core::bigint::/ x (:wat::i64::to-bigint y)))
+    (:wat::bigint::/ x (:wat::i64::to-bigint y)))
   ;; Arc 300 stone C2 — rational: 1-ary reciprocal (COLLAPSE-aware — e.g.
   ;; reciprocal of 1/3 is 3, which collapses to bigint), 2-ary, AND (unlike
-  ;; bigint's `/` immediately above) an N-ary fold: `:wat::core::rational::/`
+  ;; bigint's `/` immediately above) an N-ary fold: `:wat::rational::/`
   ;; accepts a bigint accumulator (self-promoted — see its Rust doc), so this
   ;; fold CAN carry a collapsed intermediate across steps — this is the
   ;; "natural home" the bigint comment above points to.
   ([x <- :wat::core::rational] -> :wat::core::rational
-    (:wat::core::rational::/ (:wat::i64::to-rational 1) x))
+    (:wat::rational::/ (:wat::i64::to-rational 1) x))
   ([x <- :wat::core::rational
-    y <- :wat::core::rational] -> :wat::core::rational (:wat::core::rational::/ x y))
+    y <- :wat::core::rational] -> :wat::core::rational (:wat::rational::/ x y))
   ([x <- :wat::core::rational
     y <- :wat::core::rational
     & rest <- (:wat::core::Vector :- [:wat::core::rational])] -> :wat::core::rational
     (:wat::core::foldl
       (:wat::core::fn [acc <- :wat::core::rational
                        n <- :wat::core::rational] -> :wat::core::rational
-        (:wat::core::rational::/ acc n))
-      (:wat::core::rational::/ x y)
+        (:wat::rational::/ acc n))
+      (:wat::rational::/ x y)
       rest))
   ;; Contagion: i64 ⊕ rational → rational.
   ([x <- :wat::core::i64
     y <- :wat::core::rational] -> :wat::core::rational
-    (:wat::core::rational::/ (:wat::i64::to-rational x) y))
+    (:wat::rational::/ (:wat::i64::to-rational x) y))
   ([x <- :wat::core::rational
     y <- :wat::core::i64] -> :wat::core::rational
-    (:wat::core::rational::/ x (:wat::i64::to-rational y)))
+    (:wat::rational::/ x (:wat::i64::to-rational y)))
   ;; Contagion: bigint ⊕ rational → rational.
   ([x <- :wat::core::bigint
     y <- :wat::core::rational] -> :wat::core::rational
-    (:wat::core::rational::/ (:wat::core::bigint::to-rational x) y))
+    (:wat::rational::/ (:wat::bigint::to-rational x) y))
   ([x <- :wat::core::rational
     y <- :wat::core::bigint] -> :wat::core::rational
-    (:wat::core::rational::/ x (:wat::core::bigint::to-rational y)))
+    (:wat::rational::/ x (:wat::bigint::to-rational y)))
   ;; Contagion: rational ⊕ f64 → f64 (FLOAT CONTAGION).
   ([x <- :wat::core::rational
     y <- :wat::core::f64] -> :wat::core::f64
-    (:wat::f64::/ (:wat::core::rational::to-f64 x) y))
+    (:wat::f64::/ (:wat::rational::to-f64 x) y))
   ([x <- :wat::core::f64
     y <- :wat::core::rational] -> :wat::core::f64
-    (:wat::f64::/ x (:wat::core::rational::to-f64 y)))
+    (:wat::f64::/ x (:wat::rational::to-f64 y)))
   ;; Arc 300 stone C4 — mixed-float contagion: i64 ⊕ f64 → f64, bigint ⊕ f64
   ;; → f64 (both operand orders; FLOAT CONTAGION). Mirrors the `+`/`-`/`*`
   ;; C4 arms above, one operator over.
@@ -475,10 +475,10 @@
     (:wat::f64::/ x (:wat::i64::to-f64 y)))
   ([x <- :wat::core::bigint
     y <- :wat::core::f64] -> :wat::core::f64
-    (:wat::f64::/ (:wat::core::bigint::to-f64 x) y))
+    (:wat::f64::/ (:wat::bigint::to-f64 x) y))
   ([x <- :wat::core::f64
     y <- :wat::core::bigint] -> :wat::core::f64
-    (:wat::f64::/ x (:wat::core::bigint::to-f64 y))))
+    (:wat::f64::/ x (:wat::bigint::to-f64 y))))
 
 ;; ─── mod / rem / quot — clj's integer-division trio (i64 only) ──────────────
 ;;

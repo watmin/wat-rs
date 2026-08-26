@@ -61,6 +61,8 @@
 //! | `":wat::core::char/of"`               | 255 | char constructor's redundant `/of` suffix     | `:wat::core::char` (finishing, not starting) |
 //! | `":wat::core::i64::*"` (17 ops)       | 255 Stone C | per-type i64 verbs, junk-drawer home | `:wat::i64::*` |
 //! | `":wat::core::f64::*"` (19 ops)       | 255 Stone C | per-type f64 verbs, junk-drawer home | `:wat::f64::*` (`max-of`/`min-of` also change calling convention — see the table) |
+//! | `":wat::core::bigint::*"` (6 ops)     | 255 Stone D | per-type bigint verbs, junk-drawer home   | `:wat::bigint::*` |
+//! | `":wat::core::rational::*"` (5 ops) + `":wat::core::rational/*"` (2 ops) | 255 Stone D | per-type rational verbs, junk-drawer home | `:wat::rational::*` (the two slash-form accessors also become `::` verbs — see the table) |
 
 use super::{Remedy, RemedyKind};
 
@@ -212,6 +214,22 @@ const RETIREMENT_TABLE: &[RetirementEntry] = &[
     RetirementEntry { retired: ":wat::core::f64::round",       replacement: ":wat::f64::round",       note: None },
     RetirementEntry { retired: ":wat::core::f64::to-i64",      replacement: ":wat::f64::to-i64",      note: None },
     RetirementEntry { retired: ":wat::core::f64::to-string",   replacement: ":wat::f64::to-string",   note: None },
+    // Stone D (arc 255) — bigint/rational, the numeric tower's last two verb families.
+    RetirementEntry { retired: ":wat::core::bigint::+",             replacement: ":wat::bigint::+",             note: None },
+    RetirementEntry { retired: ":wat::core::bigint::-",             replacement: ":wat::bigint::-",             note: None },
+    RetirementEntry { retired: ":wat::core::bigint::*",             replacement: ":wat::bigint::*",             note: None },
+    RetirementEntry { retired: ":wat::core::bigint::/",             replacement: ":wat::bigint::/",             note: None },
+    RetirementEntry { retired: ":wat::core::bigint::to-f64",        replacement: ":wat::bigint::to-f64",        note: None },
+    RetirementEntry { retired: ":wat::core::bigint::to-rational",   replacement: ":wat::bigint::to-rational",   note: None },
+    RetirementEntry { retired: ":wat::core::rational::+",           replacement: ":wat::rational::+",           note: None },
+    RetirementEntry { retired: ":wat::core::rational::-",           replacement: ":wat::rational::-",           note: None },
+    RetirementEntry { retired: ":wat::core::rational::*",           replacement: ":wat::rational::*",           note: None },
+    RetirementEntry { retired: ":wat::core::rational::/",           replacement: ":wat::rational::/",           note: None },
+    RetirementEntry { retired: ":wat::core::rational::to-f64",      replacement: ":wat::rational::to-f64",      note: None },
+    RetirementEntry { retired: ":wat::core::rational/numerator",    replacement: ":wat::rational::numerator",
+        note: Some("the slash-form accessor becomes an ordinary `::` verb (arc 255's `:wat::core::Uuid/v4 -> :wat::uuid::v4` precedent), not just a namespace move") },
+    RetirementEntry { retired: ":wat::core::rational/denominator",  replacement: ":wat::rational::denominator",
+        note: Some("the slash-form accessor becomes an ordinary `::` verb (arc 255's `:wat::core::Uuid/v4 -> :wat::uuid::v4` precedent), not just a namespace move") },
 ];
 
 /// Look up `needle` in the retirement table.

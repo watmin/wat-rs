@@ -387,25 +387,36 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             | ":wat::i64::/"
             | ":wat::i64::to-string"
             | ":wat::i64::to-f64"
-            // Arc 300 stone C1 — bigint arithmetic + conversions.
-            | ":wat::core::bigint::+"
-            | ":wat::core::bigint::-"
-            | ":wat::core::bigint::*"
-            | ":wat::core::bigint::/"
-            | ":wat::core::bigint::to-f64"
+            // Arc 300 stone C1 — bigint arithmetic + conversions. Arc 255
+            // Stone D — `:wat::bigint::*` is the bigint home (the old
+            // `:wat::core::bigint::*` spelling is retired); every one of
+            // these forwards straight to `crate::runtime::eval_bigint_arith` /
+            // `crate::runtime::eval_bigint_to_{f64,rational}` (see
+            // `src/intrinsic/bigint.rs`'s module doc).
+            | ":wat::bigint::+"
+            | ":wat::bigint::-"
+            | ":wat::bigint::*"
+            | ":wat::bigint::/"
+            | ":wat::bigint::to-f64"
+            | ":wat::bigint::to-rational"
             // Arc 255 Stone C — i64→bigint promotion, i64 home spelling.
             | ":wat::i64::to-bigint"
-            // Arc 300 stone C2 — rational arithmetic + conversions.
-            | ":wat::core::rational::+"
-            | ":wat::core::rational::-"
-            | ":wat::core::rational::*"
-            | ":wat::core::rational::/"
+            // Arc 300 stone C2 — rational arithmetic + conversions. Arc 255
+            // Stone D — `:wat::rational::*` is the rational home (the old
+            // `:wat::core::rational::*` / `:wat::core::rational/*` spellings
+            // are retired). Every one of these forwards straight to
+            // `crate::runtime::eval_rational_arith` /
+            // `crate::runtime::eval_rational_{to_f64,numerator,denominator}`
+            // (see `src/intrinsic/rational.rs`'s module doc).
+            | ":wat::rational::+"
+            | ":wat::rational::-"
+            | ":wat::rational::*"
+            | ":wat::rational::/"
+            | ":wat::rational::to-f64"
+            | ":wat::rational::numerator"
+            | ":wat::rational::denominator"
             // Arc 255 Stone C — i64→rational promotion, i64 home spelling.
             | ":wat::i64::to-rational"
-            | ":wat::core::bigint::to-rational"
-            | ":wat::core::rational::to-f64"
-            | ":wat::core::rational/numerator"
-            | ":wat::core::rational/denominator"
             // Arc 255 Stone C — `:wat::f64::*` is the f64 home (the old
             // `:wat::core::f64::*` spelling is retired); every one of these forwards
             // straight to `crate::runtime::eval_f64_arith` / `crate::runtime::eval_f64_unary`

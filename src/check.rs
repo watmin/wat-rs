@@ -16951,11 +16951,13 @@ fn register_builtins(env: &mut CheckEnv) {
     // 2-ary signature mirrors i64/f64; the `wat/core.wat` defclause folds
     // these into 0/1/N-ary surface + the i64⊕bigint contagion arms (which
     // reuse `:wat::i64::to-bigint` to promote i64 before calling in).
-    for op in &[
-        ":wat::core::bigint::+",
-        ":wat::core::bigint::-",
-        ":wat::core::bigint::*",
-    ] {
+    //
+    // Arc 255 Stone D — `:wat::bigint::*` is the bigint home (the old
+    // `:wat::core::bigint::*` spelling is retired); every one of these
+    // forwards straight to `crate::runtime::eval_bigint_arith` /
+    // `crate::runtime::eval_bigint_to_{f64,rational}` (see
+    // `src/intrinsic/bigint.rs`'s module doc).
+    for op in &[":wat::bigint::+", ":wat::bigint::-", ":wat::bigint::*"] {
         env.register(
             op.to_string(),
             TypeScheme {
@@ -16975,7 +16977,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // are the honest runtime backstop) — the same posture already used
     // throughout this file's comments.
     env.register(
-        ":wat::core::bigint::/".to_string(),
+        ":wat::bigint::/".to_string(),
         TypeScheme {
             type_params: vec![],
             params: vec![bigint_ty(), bigint_ty()],
@@ -16996,9 +16998,10 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     // Arc 300 stone C1 — bigint -> f64 (lossy for magnitudes beyond f64's
-    // 53-bit mantissa; same posture as i64::to-f64 above).
+    // 53-bit mantissa; same posture as i64::to-f64 above). Arc 255 Stone D —
+    // `:wat::bigint::to-f64`, the new home.
     env.register(
-        ":wat::core::bigint::to-f64".to_string(),
+        ":wat::bigint::to-f64".to_string(),
         TypeScheme {
             type_params: vec![],
             params: vec![bigint_ty()],
@@ -17017,12 +17020,17 @@ fn register_builtins(env: &mut CheckEnv) {
     // only `/` collapses) — same "sound-enough" posture as `bigint::/`
     // immediately above (check is the optimistic primary gate; the runtime
     // collapse is the honest backstop).
+    //
+    // Arc 255 Stone D — `:wat::rational::*` is the rational home (the old
+    // `:wat::core::rational::*` spelling is retired); every one of these
+    // forwards straight to `crate::runtime::eval_rational_arith` (see
+    // `src/intrinsic/rational.rs`'s module doc).
     let rational_ty = || TypeExpr::Path(":wat::core::rational".into());
     for op in &[
-        ":wat::core::rational::+",
-        ":wat::core::rational::-",
-        ":wat::core::rational::*",
-        ":wat::core::rational::/",
+        ":wat::rational::+",
+        ":wat::rational::-",
+        ":wat::rational::*",
+        ":wat::rational::/",
     ] {
         env.register(
             op.to_string(),
@@ -17045,8 +17053,9 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
+    // Arc 255 Stone D — `:wat::bigint::to-rational`, the new home.
     env.register(
-        ":wat::core::bigint::to-rational".to_string(),
+        ":wat::bigint::to-rational".to_string(),
         TypeScheme {
             type_params: vec![],
             params: vec![bigint_ty()],
@@ -17055,9 +17064,10 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     // Arc 300 stone C2 — rational -> f64 (float-contagion path + explicit
-    // cast; same posture as bigint::to-f64 above).
+    // cast; same posture as bigint::to-f64 above). Arc 255 Stone D —
+    // `:wat::rational::to-f64`, the new home.
     env.register(
-        ":wat::core::rational::to-f64".to_string(),
+        ":wat::rational::to-f64".to_string(),
         TypeScheme {
             type_params: vec![],
             params: vec![rational_ty()],
@@ -17065,12 +17075,16 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
-    // Arc 300 stone C2 — numerator/denominator slash-form accessors (cf
-    // Uuid/version). Declared optimistically as returning i64 (the common
-    // case); the runtime returns bigint for a component that overflows i64
-    // (same "sound-enough" posture as bigint::/ above).
+    // Arc 300 stone C2 — numerator/denominator accessors (cf Uuid/version).
+    // Declared optimistically as returning i64 (the common case); the
+    // runtime returns bigint for a component that overflows i64 (same
+    // "sound-enough" posture as bigint::/ above). Arc 255 Stone D — the new
+    // home. The old slash form (`:wat::core::rational/numerator`) becomes an
+    // ordinary `::` verb (`:wat::rational::numerator`) — the
+    // `:wat::core::Uuid/v4 -> :wat::uuid::v4` precedent this stone's brief
+    // names.
     env.register(
-        ":wat::core::rational/numerator".to_string(),
+        ":wat::rational::numerator".to_string(),
         TypeScheme {
             type_params: vec![],
             params: vec![rational_ty()],
@@ -17079,7 +17093,7 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     env.register(
-        ":wat::core::rational/denominator".to_string(),
+        ":wat::rational::denominator".to_string(),
         TypeScheme {
             type_params: vec![],
             params: vec![rational_ty()],

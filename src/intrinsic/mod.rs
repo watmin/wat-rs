@@ -386,6 +386,7 @@ pub(crate) fn registry() -> &'static IntrinsicRegistry {
     })
 }
 
+mod bigint;
 mod bytes;
 mod char;
 mod f64;
@@ -393,6 +394,7 @@ mod i64;
 mod io;
 mod kernel;
 mod list;
+mod rational;
 mod reflect;
 mod regex;
 // `pub(crate)` — NOT the same default-private shape as its siblings above. The
