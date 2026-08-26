@@ -79,8 +79,13 @@ const STDLIB_FILES: &[WatSource] = &[
     // source, which collapses enumerate / sample / shrink into one operation and makes
     // a failing case a PERMANENT coordinate rather than a seed. PROMOTED from
     // wat-scripts/lib/gen.wat on the wat/grep.wat precedent — a move of proven code:
-    // 18 laws over 319 points all mutation-proven, three live rete defects found by its
-    // first consumer, linear to 500k points at ~23us/point.
+    // 24 laws all mutation-proven, three live rete defects found by its first consumer.
+    // Cost is PER SHAPE and no single number is honest: ~2.4us/point for `ints`,
+    // ~33us/point for `coords`, ~490us/point for the `such-that o bind o record` shape
+    // the rete fuzzer actually uses (measured 2026-08-26). The former "~23us/point"
+    // here was a `coords` figure with the qualifier dropped. No oracle ratio is quoted:
+    // the $oracle has no perf requirement and gets passively faster as wat stops being
+    // interpreted, so any ratio against it decays toward false on its own.
     // Loads after wat/seq.wat (uses `into`/`filter`/`foldl`/`mapv`) and needs nothing
     // further — no holon, no rete, no comms. Design: docs/arc/2026/06/278-rules-engine/GENERATIVE-TESTING.md.
     WatSource {

@@ -259,12 +259,32 @@
 ;;
 ;; An EMPTY space fails outright — a shape-space filtered to nothing means the run
 ;; tested NOTHING, which must never read as "no divergences found".
-;; The default deftest budget is 5000ms and this run takes ~9.5s: 1260 shapes,
-;; each firing BOTH engines, and the wat `$oracle` is ~300x the cost of everything
-;; else here (measured: ~7ms/case against the library's ~23us/point). The budget is
-;; raised rather than the space shrunk — cutting shapes to fit a timer would be
-;; trading coverage for a green clock, and every shape in this space is one that
-;; has either found a defect or proved one absent.
+;; THE BUDGET, AND THE RUNNER THAT HAS TO GRANT IT. The default deftest budget is
+;; 5000ms. This run takes ~9.2s alone and 17.175s on a loaded floor
+;; (.floor/2026-08-26T06-16-14Z) — 1260 shapes, each firing BOTH engines. The
+;; budget is raised rather than the space shrunk: cutting shapes to fit a timer
+;; trades coverage for a green clock, and every shape here has either found a
+;; defect or proved one absent.
+;;
+;; ⚠ RAISING IT HERE IS ONLY HALF. Until 2026-08-26 this annotation was
+;; UNREACHABLE and nothing said so. `scripts/floor.sh` passes no `--profile`, so
+;; nextest's `[profile.default]` SIGTERMed at 30s — half the budget argued for
+;; above — and the rete cohort's 60s/120s override missed this test because it
+;; filters `binary_id(wat::rete)` while a wat deftest compiles into `wat::kernel`.
+;; `.config/nextest.toml` now names `test(deftest_wat_tests_rete_fuzz)` in all
+;; three profile mirrors. If this test is ever renamed, THAT FILTER MUST MOVE WITH
+;; IT or the 30s kill returns silently.
+;;
+;; ⛔ NO ORACLE RATIO IS QUOTED, DELIBERATELY. This comment used to say the
+;; `$oracle` is "~300x the cost of everything else here (measured: ~7ms/case
+;; against the library's ~23us/point)". The library figure was a `coords`
+;; measurement; this file's space is `such-that o bind o record`, measured
+;; 2026-08-26 at ~490us/point — ~20x dearer. What is true and stays true: the
+;; generator is a SMALL fraction of a case (~0.49ms of the floor's 13.6ms/case,
+;; ~3.6%) and the engines-plus-oracle are the rest. The RATIO itself is not worth
+;; pinning: the `$oracle` is slow-but-correct by design, carries no perf
+;; requirement, and gets passively faster as wat stops being interpreted — so any
+;; multiple against it shrinks on its own, and the generator's SHARE grows.
 (:wat::test::time-limit "60s")
 (:wat::test::deftest :wat-tests::rete::fuzz::test-native-matches-oracle
   (:wat::core::match

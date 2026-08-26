@@ -1,32 +1,78 @@
 ;; wat/gen.wat — FINITE GENERATORS: the core of generative testing, in wat.
 ;;
-;; ⛔ UNDER AUDIT (2026-08-25). An 18-ward vigilia found defects in this file that can compute a
-;; WRONG ANSWER, and several claims in the comments below are known FALSE. Read
-;; `docs/arc/2026/06/278-rules-engine/GEN-VIGILIA-2026-08-25.md` before trusting anything here or changing anything.
-;; Known-false in THIS file, pending the fix pass:
-;;   :53   "No native i64 mod/rem" — false since 2026-07-05; i64::mod/rem/quot all ship.
-;;   :8-9  the cited gate files were deleted the same day this was written.
-;;   :6    "18 laws over 319 points" — the suite has 23.
-;;   :42-45 "The checker names this itself if you try" — it does not; a parametric struct passes
-;;         the purity gate, so a Gen CAN enter a record and crosses the wire with `at` nil.
-;;   :150  the emptiness guard is `= 0`, so a NEGATIVE card reaches Checked as a vacuous pass —
-;;         and silently eats points in one-of/bind dispatch.
-;;   :311  "emitted TWICE" — the `at` copy re-runs PER POINT. Measured 52x at 800 points.
-;;   error strings at :208 :229 :262 :267 :338 :393 name the retired `gen-` verbs.
+;; ⛔ UNDER AUDIT. An 18-ward vigilia (2026-08-25) plus `circumspicere` (2026-08-26) found
+;; defects in this file that can compute a WRONG ANSWER, and several claims in the comments
+;; below are known FALSE. Read
+;; `docs/arc/2026/06/278-rules-engine/GEN-VIGILIA-2026-08-25.md` before trusting anything here
+;; or changing anything.
+;;
+;; ⚠ ENTRIES NAME THE VERB, NEVER A LINE NUMBER. The first version of this banner cited
+;; `:53`, `:150`, `:311` and six error-string lines — and EVERY ONE of those numbers was wrong
+;; within a day, because fixing the entries above them moved the lines below. A retraction
+;; notice that rots on each edit is the same hand-maintained-number defect this file's own test
+;; suite was restructured to eliminate (wat-tests/gen.wat's header). Cite the verb; grep finds it.
+;;
+;; FIXED 2026-08-26
+;;   ✓ negative `card` (findings A + B) — `:wat::gen::gen` is now the only constructor any verb
+;;     uses and it floors card at 0, so `check` can no longer report a pass over a negative
+;;     denominator and `one-of`/`bind` dispatch can no longer run its offset backwards. Gated by
+;;     `law-no-negative-card` (L24), which drives the PRODUCERS, not the constructor.
+;;   ✓ the "~23us/point / ~300x cheaper / never the bottleneck" claim — deleted, not corrected.
+;;     See SHIPPED NUMBERS below for why a ratio against the `$oracle` cannot be repaired.
+;;
+;; STILL FALSE, pending the fix pass
+;;   ✗ `digit`/`shift`'s comment: "No native i64 mod/rem" — false since 2026-07-05;
+;;     `:wat::core::i64::{mod,rem,quot}` all ship (wat/core.wat:493-501).
+;;   ✗ the `Gen` defstruct's comment: "The checker names this itself if you try" — it does not.
+;;     A parametric struct passes the purity gate, so a `Gen` CAN enter a `defrecord` and crosses
+;;     the wire with `at` nil.
+;;   ✗ `record`'s comment: "emitted TWICE" — the `at` copy re-runs PER POINT. Measured 52x at
+;;     800 points.
+;;   ✗ six `raise` strings still name the retired `gen-` verbs: in `elements`, `such-that`,
+;;     `one-of`, `nth`, `record`, `nth-str`. Grep `"gen-` to find them.
+;;   ✗ `test-shrink-index` is passed by an IDENTITY implementation (finding D).
 ;;
 ;;
 ;; PROMOTED from `wat-scripts/lib/gen.wat` 2026-08-25, on the `wat/grep.wat`
 ;; precedent: a MOVE of proven code, with the numbers that earned it.
 ;;
-;;   SHIPPED NUMBERS  18 laws over 319 points, every one mutation-proven — the
-;;                    library proves its own laws THROUGH its own driver
-;;                    (`wat-scripts/fuzz/gen-selftest.wat`, gated by
-;;                    `tests/lint/gen_lib_laws.rs`).
+;;   SHIPPED NUMBERS  24 laws, every one mutation-proven — the library proves its
+;;                    own laws THROUGH its own driver. They live in
+;;                    `wat-tests/gen.wat` and are discovered by `wat::test! {}`
+;;                    (`tests/kernel/test.rs`), so there is no hand-maintained
+;;                    total to drift. (This block used to cite
+;;                    `wat-scripts/fuzz/gen-selftest.wat` + `tests/lint/gen_lib_laws.rs`
+;;                    as the gate; BOTH were deleted the same day it was written,
+;;                    by the commit that moved the laws — so the file's
+;;                    load-bearing honesty claim pointed at nothing.)
 ;;                    THREE live rete defects found by the first consumer
 ;;                    (`docs/arc/2026/06/278-rules-engine/RETE-FIX-LIST.md`).
-;;                    Linear to 500k points at ~23us/point, measured — roughly
-;;                    300x cheaper than the oracle it drives, so the library is
-;;                    never the bottleneck.
+;;                    COST IS PER SHAPE, and there is no single number. Measured
+;;                    2026-08-26, release, wall-clock minus the ~337ms stdlib
+;;                    bootstrap, this box:
+;;                       ints                            ~2.4 us/point  (500k)
+;;                       coords, bases [50 100 100]      ~33  us/point  (500k)
+;;                       such-that o bind o record       ~490 us/point  (1260)
+;;                    The last row is the ONLY shape that ships — it is the rete
+;;                    differential fuzzer's own space, replicated to its exact
+;;                    card of 1260 (wat-tests/rete/differential-fuzz.wat:236).
+;;                    Budget from the row you are actually building.
+;;
+;;                    ⛔ NO RATIO AGAINST THE `$oracle` IS QUOTED HERE, AND THAT
+;;                    IS DELIBERATE. This header used to claim "~23us/point,
+;;                    roughly 300x cheaper than the oracle it drives, so the
+;;                    library is never the bottleneck". Every clause was wrong or
+;;                    rotting: 23us/point was a `coords` measurement generalised
+;;                    to a claim with no shape qualifier, while the shape that
+;;                    ships is ~20x dearer. And the RATIO cannot be repaired by
+;;                    re-measuring, because the `$oracle` is slow-but-correct BY
+;;                    DESIGN and carries no perf requirement — it gets passively
+;;                    faster as wat stops being interpreted. A ratio whose
+;;                    denominator is expected to shrink is a claim that decays
+;;                    toward false with nobody touching it, and "never the
+;;                    bottleneck" decays fastest of all: as the oracle speeds up,
+;;                    this library's SHARE grows. Absolute per-shape cost is the
+;;                    only figure that stays true.
 ;;
 ;; The `gen-` name prefix dissolved into the namespace on promotion, the way
 ;; `:user::wat-grep` became `:wat::grep::`. `(:wat::gen::ints 0 3)`, not

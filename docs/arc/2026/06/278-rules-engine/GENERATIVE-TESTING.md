@@ -35,8 +35,19 @@
 > |---|---|
 > | laws, all mutation-proven, driven through the library's own driver | **19 over 325 points** |
 > | live rete defects found by its first consumer | **3** |
-> | scale, measured | linear to **500k points at ~23us/point** |
-> | cost relative to the oracle it drives | **~300x cheaper** — never the bottleneck |
+> | cost, `ints` | **~2.4us/point** (500k, measured 2026-08-26) |
+> | cost, `coords` bases `[50 100 100]` | **~33us/point** (500k) |
+> | cost, `such-that o bind o record` — *the only shape that ships* | **~490us/point** (card 1260) |
+>
+> **There is no single per-point number, and no ratio against the `$oracle` is quoted.** The row
+> above that used to read *"linear to 500k points at ~23us/point"* was a `coords` measurement with
+> the shape qualifier dropped; the shape the rete fuzzer actually builds is ~20x dearer. The
+> companion claim, *"~300x cheaper than the oracle — never the bottleneck"*, is deleted rather
+> than corrected: the `$oracle` is slow-but-correct by design and carries **no perf requirement**,
+> and it gets passively faster as wat stops being interpreted. A ratio whose denominator is
+> expected to shrink decays toward false untouched — and *"never the bottleneck"* decays fastest,
+> since the library's share of a case **grows** as the oracle speeds up. Budget from the absolute
+> row matching the shape you are building.
 >
 > The `gen-` name prefix dissolved into the namespace on promotion, as `:user::wat-grep` became
 > `:wat::grep::`: it is `(:wat::gen::ints 0 3)`, not `gen-ints`. This doc is the design record —
@@ -414,8 +425,18 @@ true point count was **341**. One law per `deftest` removes the shape entirely �
 so there is nothing to drop a law from.
 
 The fuzzer carries `(:wat::test::time-limit "60s")`: the default deftest budget is 5000ms and the
-run takes ~9.3s, because the `$oracle` is ~300x the cost of everything else. The budget was raised
-rather than the space shrunk — cutting shapes to fit a timer trades coverage for a green clock.
+run takes ~9.2s alone, 17.175s on a loaded floor. The budget was raised rather than the space
+shrunk — cutting shapes to fit a timer trades coverage for a green clock.
+
+**Raising it in the wat file was only half, and the other half was missing until 2026-08-26.**
+`scripts/floor.sh` passes no `--profile`, so nextest's `[profile.default]` killed at **30s** —
+half the budget the file argues for — and the rete cohort's 60s/120s override missed this test
+because it filters `binary_id(wat::rete)` while a wat `deftest` compiles into `wat::kernel`.
+`.config/nextest.toml` now names `test(deftest_wat_tests_rete_fuzz)` in all three profile mirrors.
+(Found by `circumspicere`; no inward ward looks outside the wat harness.)
+
+The old sentence here said the run is slow *"because the `$oracle` is ~300x the cost of everything
+else"* — see the numbers table above for why no oracle ratio is quoted anywhere any more.
 
 ## Promotion — done 2026-08-25, and what actually earned it
 
