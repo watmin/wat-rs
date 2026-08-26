@@ -239,12 +239,11 @@
 
 ;; ── THE GATE — a RATCHET, not a zero ────────────────────────────────────────
 ;;
-;; 120 real divergences of 1260 shapes, three families, all reproduced in
+;; 72 real divergences of 1260 shapes, TWO remaining families, all reproduced in
 ;; tests/rete/probe_arc278_fuzzer_found_divergences.{rs,wat} and listed in
 ;; docs/arc/2026/06/278-rules-engine/RETE-FIX-LIST.md:
 ;;
-;;    66  f=3  accumulate  A leading accum: native = depth+1, oracle = 1
-;;                         B second `where`: native = 0,      oracle = 1
+;;    18  f=3  accumulate  A leading accum: native = depth+1, oracle = 1
 ;;    54  f=7  :not over a DERIVED class
 ;;                         C native = 1, oracle = 0 — ALL at depth >= 1, never
 ;;                           depth 0: exactly the dependence stratified negation
@@ -256,6 +255,15 @@
 ;; means a fix landed — lower this and un-ignore the matching probe. MORE means a
 ;; new divergence, and each MISMATCH line names its coordinate: a permanent case
 ;; name, not a seed.
+;;
+;; ── FAMILY B CLOSED 2026-08-26: 120 -> 72, and the 48 it removed are named. ──
+;; A `:where` binding NOTHING sorts into `sort-lhs`'s INDEPENDENT partition and lands ABOVE the
+;; accumulate, so the graph is RootJoin -> Test -> Accumulate -> Test -> Production. The
+;; accumulate pass is 3.25 and the filter pass is 3.5, so that leading Test had never fired when
+;; the accumulate read its parent delta: it saw nothing and the rule matched ZERO, while the SAME
+;; rule without the bindless `:where` matched fine. Fixed by pulling a Test parent forward in
+;; `src/rete/kernel/fire/pass/accumulate.rs`. Held by grid axis `where-accum-where-chain`, where
+;; native, the `$oracle` AND Clara 0.24.0 all now print the same two rows.
 ;;
 ;; An EMPTY space fails outright — a shape-space filtered to nothing means the run
 ;; tested NOTHING, which must never read as "no divergences found".
@@ -291,5 +299,5 @@
     (:wat::gen::check (:wat-tests::rete::fuzz::space) :wat-tests::rete::fuzz::prop)
     ((:wat::gen::CheckOutcome::Checked cases bad _first)
       (:wat::core::let [_ (:wat::test::assert-true (:wat::core::> cases 0))]
-        (:wat::test::assert-eq bad 120)))
+        (:wat::test::assert-eq bad 72)))
     (:wat::gen::CheckOutcome::EmptySpace (:wat::test::assert-true false))))

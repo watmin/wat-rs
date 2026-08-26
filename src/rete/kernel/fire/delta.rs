@@ -474,7 +474,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
             &mut join_keys_cache,
         )?;
 
-        crate::rete::kernel::fire::pass::accumulate_pass(
+        let pre_dispatched = crate::rete::kernel::fire::pass::accumulate_pass(
             &mut wm,
             &arm,
             &mut crate::rete::kernel::fire::pass::RoundScratch {
@@ -510,6 +510,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
             &mut d_beta,
             &mut gather_cache,
             &mut leading_emitted,
+            &pre_dispatched,
             sym,
         )?;
 

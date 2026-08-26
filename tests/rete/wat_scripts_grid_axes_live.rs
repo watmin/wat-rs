@@ -143,6 +143,7 @@ const WHERE_FAMILY: &[&str] = &[
     "where-accum-group",
     "where-accum-lead",
     "where-accum-where",
+    "where-accum-where-chain",
     "where-boolean",
     "where-collection",
     "where-control",

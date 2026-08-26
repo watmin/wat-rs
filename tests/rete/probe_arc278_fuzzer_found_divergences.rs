@@ -77,7 +77,6 @@ fn accumulate_after_a_fact_condition_agrees_with_the_oracle() {
 }
 
 #[test]
-#[ignore = "RED: family B is a live defect — a second `where` after an accumulate matches nothing"]
 fn a_second_where_after_an_accumulate_must_not_kill_the_match() {
     let r = rows();
     assert_eq!(
