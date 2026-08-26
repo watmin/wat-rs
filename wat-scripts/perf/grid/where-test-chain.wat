@@ -68,12 +68,12 @@
                                    (:wat::core::String/concat
                                      (:wat::i64::to-string
                                        (:wat::core::Option/expect
-                                         (:wat::core::PersistentMap/get p "?a")
+                                         (:wat::map::get p "?a")
                                          "q-Pair: ?a"))
                                      (:wat::core::String/concat ","
                                        (:wat::i64::to-string
                                          (:wat::core::Option/expect
-                                           (:wat::core::PersistentMap/get p "?b")
+                                           (:wat::map::get p "?b")
                                            "q-Pair: ?b")))))))
                              ""
                              pairs)]

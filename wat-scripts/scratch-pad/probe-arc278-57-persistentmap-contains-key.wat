@@ -1,4 +1,4 @@
-;; Arc 278 #57 — `:wat::rete::core::PersistentMap/contains-key?`, the LAST UNSURE-bucket
+;; Arc 278 #57 — `:wat::rete::map::contains-key?` (arc 255 Stone E-i: renamed together with its core_name pair), the LAST UNSURE-bucket
 ;; straggler, minted after an AUDIT (the evening seam's own instruction: "audit, do not guess").
 ;;
 ;; This file is the loadable, type-checked reference. It proves three things, and each line
@@ -37,11 +37,11 @@
 
 ;; ── 1 + 3: resolution, and a HIT and a MISS on one map ────────────────────────────────────
 (def :probe-pm-contains-hit
-  (:wat::rete::core::PersistentMap/contains-key?
+  (:wat::rete::map::contains-key?
     (:wat::core::PersistentMap :alpha 1 :beta 2) :alpha))
 
 (def :probe-pm-contains-miss
-  (:wat::rete::core::PersistentMap/contains-key?
+  (:wat::rete::map::contains-key?
     (:wat::core::PersistentMap :alpha 1 :beta 2) :gamma))
 
 ;; ── 2: PARAMETRICITY — K and V are independent ────────────────────────────────────────────
@@ -50,11 +50,11 @@
 ;; a K≠V-only scheme would wrongly refuse. Both must pass, and only genuinely independent
 ;; `["K", "V"]` type params satisfy both.
 (def :probe-pm-contains-str-hit
-  (:wat::rete::core::PersistentMap/contains-key?
+  (:wat::rete::map::contains-key?
     (:wat::core::PersistentMap "k1" "v1" "k2" "v2") "k1"))
 
 (def :probe-pm-contains-str-miss
-  (:wat::rete::core::PersistentMap/contains-key?
+  (:wat::rete::map::contains-key?
     (:wat::core::PersistentMap "k1" "v1" "k2" "v2") "nope"))
 
 ;; ── The sibling, for the differential the audit rests on ──────────────────────────────────
@@ -73,16 +73,16 @@
   (:wat::kernel::println
     (:wat::core::PersistentMap
       :hit
-      (:wat::rete::core::PersistentMap/contains-key?
+      (:wat::rete::map::contains-key?
         (:wat::core::PersistentMap :alpha 1 :beta 2) :alpha)
       :miss
-      (:wat::rete::core::PersistentMap/contains-key?
+      (:wat::rete::map::contains-key?
         (:wat::core::PersistentMap :alpha 1 :beta 2) :gamma)
       :str-hit
-      (:wat::rete::core::PersistentMap/contains-key?
+      (:wat::rete::map::contains-key?
         (:wat::core::PersistentMap "k1" "v1" "k2" "v2") "k1")
       :str-miss
-      (:wat::rete::core::PersistentMap/contains-key?
+      (:wat::rete::map::contains-key?
         (:wat::core::PersistentMap "k1" "v1" "k2" "v2") "nope")
       :pv-sibling
       (:wat::rete::core::PersistentVector/contains? (:wat::core::PersistentVector 1 2 3) 2))))

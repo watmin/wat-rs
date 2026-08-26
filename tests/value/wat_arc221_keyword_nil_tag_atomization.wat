@@ -65,27 +65,27 @@
 (:wat::core::defn :t::p4-a-val [] -> :wat::core::i64
   (:wat::core::let
     [m   (:wat::core::HashMap :wat::core::keyword :wat::core::i64)
-     m2  (:wat::core::HashMap/assoc m :tag-a 10)
-     m3  (:wat::core::HashMap/assoc m2 :tag-b 20)]
-    (:wat::core::match (:wat::core::HashMap/get m3 :tag-a) 
+     m2  (:wat::hashmap::assoc m :tag-a 10)
+     m3  (:wat::hashmap::assoc m2 :tag-b 20)]
+    (:wat::core::match (:wat::hashmap::get m3 :tag-a) 
       ((:wat::core::Some v) v)
       (_ -1))))
 
 (:wat::core::defn :t::p4-b-val [] -> :wat::core::i64
   (:wat::core::let
     [m   (:wat::core::HashMap :wat::core::keyword :wat::core::i64)
-     m2  (:wat::core::HashMap/assoc m :tag-a 10)
-     m3  (:wat::core::HashMap/assoc m2 :tag-b 20)]
-    (:wat::core::match (:wat::core::HashMap/get m3 :tag-b) 
+     m2  (:wat::hashmap::assoc m :tag-a 10)
+     m3  (:wat::hashmap::assoc m2 :tag-b 20)]
+    (:wat::core::match (:wat::hashmap::get m3 :tag-b) 
       ((:wat::core::Some v) v)
       (_ -1))))
 
 (:wat::core::defn :t::p4-len [] -> :wat::core::i64
   (:wat::core::let
     [m   (:wat::core::HashMap :wat::core::keyword :wat::core::i64)
-     m2  (:wat::core::HashMap/assoc m :tag-a 10)
-     m3  (:wat::core::HashMap/assoc m2 :tag-b 20)]
-    (:wat::core::HashMap/length m3)))
+     m2  (:wat::hashmap::assoc m :tag-a 10)
+     m3  (:wat::hashmap::assoc m2 :tag-b 20)]
+    (:wat::hashmap::length m3)))
 
 ;; ─── Probe 5 — (HashSet :- [keyword]) insert + contains? ───────────────────────────
 
@@ -117,8 +117,8 @@
     [ns   (:wat::uuid::nil)
      u1   (:wat::uuid::v5 ns "hello")
      m    (:wat::core::HashMap :wat::core::Uuid :wat::core::String)
-     m2   (:wat::core::HashMap/assoc m u1 "world-entry")]
-    (:wat::core::match (:wat::core::HashMap/get m2 u1) 
+     m2   (:wat::hashmap::assoc m u1 "world-entry")]
+    (:wat::core::match (:wat::hashmap::get m2 u1) 
       ((:wat::core::Some v) v)
       (_ "NOT-FOUND"))))
 
@@ -128,7 +128,7 @@
      u1   (:wat::uuid::v5 ns "hello")
      u2   (:wat::uuid::v5 ns "world")
      m    (:wat::core::HashMap :wat::core::Uuid :wat::core::String)
-     m2   (:wat::core::HashMap/assoc m u1 "hello-entry")]
-    (:wat::core::match (:wat::core::HashMap/get m2 u2) 
+     m2   (:wat::hashmap::assoc m u1 "hello-entry")]
+    (:wat::core::match (:wat::hashmap::get m2 u2) 
       ((:wat::core::Some v) v)
       (_ "NOT-FOUND"))))

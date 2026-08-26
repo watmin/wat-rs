@@ -238,16 +238,16 @@
   (:wat::core::let [span    (:wat::core::ast-span form)
                     ep      (:wat::core::ast-end-span form)
                     ln      (:wat::core::Option/expect  
-                                (:wat::core::HashMap/get span :line)
+                                (:wat::hashmap::get span :line)
                                 "make-ladder-finding: :line")
                     co      (:wat::core::Option/expect  
-                                (:wat::core::HashMap/get span :col)
+                                (:wat::hashmap::get span :col)
                                 "make-ladder-finding: :col")
                     end-ln  (:wat::core::Option/expect  
-                                (:wat::core::HashMap/get ep :line)
+                                (:wat::hashmap::get ep :line)
                                 "make-ladder-finding: end :line")
                     end-co  (:wat::core::Option/expect  
-                                (:wat::core::HashMap/get ep :col)
+                                (:wat::hashmap::get ep :col)
                                 "make-ladder-finding: end :col")
                     n-lits  (:wat::core::length lits)
                     msg     (:wat::string::concat
@@ -470,16 +470,16 @@
                         span    (:wat::core::ast-span form)
                         ep      (:wat::core::ast-end-span form)
                         ln      (:wat::core::Option/expect  
-                                    (:wat::core::HashMap/get span :line)
+                                    (:wat::hashmap::get span :line)
                                     "concat-format-fix: :line")
                         co      (:wat::core::Option/expect  
-                                    (:wat::core::HashMap/get span :col)
+                                    (:wat::hashmap::get span :col)
                                     "concat-format-fix: :col")
                         end-ln  (:wat::core::Option/expect  
-                                    (:wat::core::HashMap/get ep :line)
+                                    (:wat::hashmap::get ep :line)
                                     "concat-format-fix: end :line")
                         end-co  (:wat::core::Option/expect  
-                                    (:wat::core::HashMap/get ep :col)
+                                    (:wat::hashmap::get ep :col)
                                     "concat-format-fix: end :col")
                         fe      (:wat::lint::FixEdit :start-line ln :start-col co :end-line end-ln :end-col end-co :new-text new-text)]
         (:wat::core::Some fe))
@@ -496,10 +496,10 @@
   -> :wat::lint::Finding
   (:wat::core::let [span (:wat::core::ast-span form)
                     ln   (:wat::core::Option/expect  
-                             (:wat::core::HashMap/get span :line)
+                             (:wat::hashmap::get span :line)
                              "make-concat-finding: :line")
                     co   (:wat::core::Option/expect  
-                             (:wat::core::HashMap/get span :col)
+                             (:wat::hashmap::get span :col)
                              "make-concat-finding: :col")
                     msg  (:wat::string::concat
                             "concat-abuse: string::concat interleaves "

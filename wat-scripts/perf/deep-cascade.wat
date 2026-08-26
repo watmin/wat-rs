@@ -64,7 +64,7 @@
 (:wat::core::defn :perf::count-at-level [fired <- :wat::rete::Session  lvl <- :wat::core::i64] -> :wat::core::i64
   (:wat::core::length
     (:wat::core::filter
-      (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::bool (:wat::core::let [n (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:wat::core::= (:cascade::Node/level n) lvl)))
+      (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::bool (:wat::core::let [n (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:wat::core::= (:cascade::Node/level n) lvl)))
       (:wat::rete::query fired (:cascade::q-Node)))))
 
 ;; elapsed-ns thunk-result-start-end — nanoseconds between two Instants.

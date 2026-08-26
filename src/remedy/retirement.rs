@@ -63,6 +63,8 @@
 //! | `":wat::core::f64::*"` (19 ops)       | 255 Stone C | per-type f64 verbs, junk-drawer home | `:wat::f64::*` (`max-of`/`min-of` also change calling convention — see the table) |
 //! | `":wat::core::bigint::*"` (6 ops)     | 255 Stone D | per-type bigint verbs, junk-drawer home   | `:wat::bigint::*` |
 //! | `":wat::core::rational::*"` (5 ops) + `":wat::core::rational/*"` (2 ops) | 255 Stone D | per-type rational verbs, junk-drawer home | `:wat::rational::*` (the two slash-form accessors also become `::` verbs — see the table) |
+//! | `":wat::core::PersistentMap/*"` (8 ops) | 255 Stone E-i | per-type PersistentMap verbs, junk-drawer home | `:wat::map::*` (the UNMARKED home — never moves again once the persistent-backend swap lands) |
+//! | `":wat::core::HashMap/*"` (8 ops)       | 255 Stone E-i | per-type HashMap verbs, junk-drawer home       | `:wat::hashmap::*` (the flavor-marked home) |
 
 use super::{Remedy, RemedyKind};
 
@@ -230,6 +232,29 @@ const RETIREMENT_TABLE: &[RetirementEntry] = &[
         note: Some("the slash-form accessor becomes an ordinary `::` verb (arc 255's `:wat::core::Uuid/v4 -> :wat::uuid::v4` precedent), not just a namespace move") },
     RetirementEntry { retired: ":wat::core::rational/denominator",  replacement: ":wat::rational::denominator",
         note: Some("the slash-form accessor becomes an ordinary `::` verb (arc 255's `:wat::core::Uuid/v4 -> :wat::uuid::v4` precedent), not just a namespace move") },
+    // Arc 255 Stone E-i — "the maps get their homes": PersistentMap moves to the UNMARKED
+    // `:wat::map::*` home (it never moves again once the persistent-backend swap lands, "probably
+    // a week or two" out per the builder); HashMap moves to the flavor-marked `:wat::hashmap::*`
+    // home. Both flavors survive — this is a spelling migration, not a backend decision. Each
+    // slash-form op becomes an ordinary `::` verb (same shape as the Uuid/v4 and rational/numerator
+    // precedents above). Name-only; handler bodies untouched (they already lived in
+    // `src/collection/eval.rs`, unmoved by this stone).
+    RetirementEntry { retired: ":wat::core::PersistentMap/length",         replacement: ":wat::map::length",         note: None },
+    RetirementEntry { retired: ":wat::core::PersistentMap/empty?",         replacement: ":wat::map::empty?",         note: None },
+    RetirementEntry { retired: ":wat::core::PersistentMap/contains-key?",  replacement: ":wat::map::contains-key?",  note: None },
+    RetirementEntry { retired: ":wat::core::PersistentMap/get",            replacement: ":wat::map::get",            note: None },
+    RetirementEntry { retired: ":wat::core::PersistentMap/assoc",          replacement: ":wat::map::assoc",          note: None },
+    RetirementEntry { retired: ":wat::core::PersistentMap/dissoc",         replacement: ":wat::map::dissoc",         note: None },
+    RetirementEntry { retired: ":wat::core::PersistentMap/keys",           replacement: ":wat::map::keys",           note: None },
+    RetirementEntry { retired: ":wat::core::PersistentMap/values",         replacement: ":wat::map::values",         note: None },
+    RetirementEntry { retired: ":wat::core::HashMap/length",               replacement: ":wat::hashmap::length",     note: None },
+    RetirementEntry { retired: ":wat::core::HashMap/empty?",               replacement: ":wat::hashmap::empty?",     note: None },
+    RetirementEntry { retired: ":wat::core::HashMap/contains-key?",        replacement: ":wat::hashmap::contains-key?", note: None },
+    RetirementEntry { retired: ":wat::core::HashMap/get",                  replacement: ":wat::hashmap::get",        note: None },
+    RetirementEntry { retired: ":wat::core::HashMap/assoc",                replacement: ":wat::hashmap::assoc",      note: None },
+    RetirementEntry { retired: ":wat::core::HashMap/dissoc",               replacement: ":wat::hashmap::dissoc",     note: None },
+    RetirementEntry { retired: ":wat::core::HashMap/keys",                 replacement: ":wat::hashmap::keys",       note: None },
+    RetirementEntry { retired: ":wat::core::HashMap/values",               replacement: ":wat::hashmap::values",     note: None },
 ];
 
 /// Look up `needle` in the retirement table.

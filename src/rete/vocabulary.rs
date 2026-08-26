@@ -824,10 +824,18 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // making the honest path non-compliant.
     //
     // Already pure ∧ deterministic (`rete/purity.rs:345`); the audit adds only `total`.
+    //
+    // Arc 255 Stone E-i — both `core_name` AND `rete_name` retargeted together
+    // (`:wat::core::PersistentMap/contains-key?` retired this stone). Unlike the numerics'
+    // Stone B-i, there is no separate rete-DSL-clone stone to defer `rete_name` to here —
+    // `naming_rule_tests::rete_name_is_core_name_with_rete_inserted_after_wat` enforces that
+    // `rete_name` MUST equal `core_name` with `::rete::` spliced in after `:wat::`, for every
+    // row, always; leaving `rete_name` on the old spelling while `core_name` moved would violate
+    // that invariant, not honor a B-i-style exclusion.
     ReteOp {
         type_params: &["K", "V"],
-        rete_name: ":wat::rete::core::PersistentMap/contains-key?",
-        core_name: ":wat::core::PersistentMap/contains-key?",
+        rete_name: ":wat::rete::map::contains-key?",
+        core_name: ":wat::map::contains-key?",
         class: OpClass::Alias,
         params: &[ParamType::PersistentMapOf("K", "V"), ParamType::Var("K")],
         ret: ParamType::Bool,
@@ -1377,12 +1385,18 @@ pub(crate) const RETE_PREFIX: &str = ":wat::rete::";
 /// admission (`compile-condition`'s Law A, "not a rete primitive") even though its `RETE_OPS` row
 /// exists — measured this session: `every_row_is_admitted` failed on `:wat::rete::i64::>` before
 /// these two entries were added, exactly as Stone E's `string::` measurement predicted.
+/// ⚠ arc 255 Stone E-i adds `:wat::rete::map::` — the identical move Stone E (`string::`) and
+/// B-ii (`i64::`/`f64::`) made: `PersistentMap/contains-key?`'s `core_name` moved off
+/// `:wat::core::` onto its own top-level home (`:wat::map::contains-key?`), so the naming rule
+/// now roots that row at `:wat::rete::map::` directly, not under `core::`. No `hashmap::` entry
+/// is needed — `RETE_OPS` has no HashMap row to force one.
 pub(crate) const RETE_MODULES: &[&str] = &[
     ":wat::rete::core::",
     ":wat::rete::holon::",
     ":wat::rete::string::",
     ":wat::rete::i64::",
     ":wat::rete::f64::",
+    ":wat::rete::map::",
 ];
 
 /// Look up `head`'s row, if it is a minted rete-vocabulary op. Exact match — never a prefix scan

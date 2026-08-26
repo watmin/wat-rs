@@ -121,7 +121,7 @@
   (:wat::core::let [locs (:wat::core::into (:wat::core::Vector :wat::core::i64)
                            (:wat::core::map
                              (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64
-                               (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?loc") "query: ?loc"))
+                               (:wat::core::Option/expect (:wat::map::get p "?loc") "query: ?loc"))
                              (:wat::rete::query fired (:lx::q-exists))))]
     (:lx::vec->pvec (:wat::core::sort locs))))
 

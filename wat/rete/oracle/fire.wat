@@ -104,7 +104,7 @@
                      node-id <- :wat::core::i64]
       -> :wat::core::PersistentMap
       (:wat::core::let [node (:wat::core::Option/expect
-                                (:wat::core::PersistentMap/get network node-id)
+                                (:wat::map::get network node-id)
                                 "collect-query-memory: node")]
         (:wat::core::if (:wat::core::= (:wat::rete::node-kind-label node) "QueryNode")
           (:wat::core::let [qname (:wat::rete::QueryNode/query-name node)
@@ -118,10 +118,10 @@
                                          (:wat::rete::Token/bindings tok)))
                                      (:wat::core::PersistentVector)
                                      toks)]
-            (:wat::core::PersistentMap/assoc acc qname maps))
+            (:wat::map::assoc acc qname maps))
           acc)))
     (:wat::core::PersistentMap)
-    (:wat::core::PersistentMap/keys network)))
+    (:wat::map::keys network)))
 
 ;; fire-once — single-pass fire cycle: alpha → root-join → hash-join → production.
 ;; Pure value-semantics: takes a Session, returns a new frozen Session with fresh memories.
@@ -152,7 +152,7 @@
                     ;; (sorted_node_ids); the spec must too.
                     node-ids (:wat::core::sort
                                 (:wat::core::into (:wat::core::Vector :wat::core::i64)
-                                  (:wat::core::PersistentMap/keys network)))
+                                  (:wat::map::keys network)))
                     new-amem (:wat::rete::walk-alpha-ids facts network node-ids 0
                                  (:wat::core::PersistentMap))
                     new-bmem (:wat::rete::walk-beta-ids network new-amem node-ids 0
@@ -195,7 +195,7 @@
         acc
         pv))
     (:wat::core::PersistentVector)
-    (:wat::core::PersistentMap/values prod-mem)))
+    (:wat::map::values prod-mem)))
 
 ;; merge-facts — fold derived facts into the existing fact PV, conj-ing only new ones (dedup by value-equality).
 ;; WHY contains?-before-conj: the dedup guard is the termination invariant — if a derived fact is already in
@@ -331,7 +331,7 @@
                                 (:wat::core::PersistentVector))
                     all-d     (:wat::rete::FireStratAcc/derived final-acc)
                     ;; pack derived facts into a production-memory structure the caller can query
-                    fprod-m   (:wat::core::PersistentMap/assoc (:wat::core::PersistentMap) 0 all-d)
+                    fprod-m   (:wat::map::assoc (:wat::core::PersistentMap) 0 all-d)
                     closed    (:wat::rete::FireStratAcc/facts final-acc)
                     q-seed    (:wat::rete::Session
                                 :network (:wat::rete::Session/network session)
@@ -373,11 +373,11 @@
       (:wat::core::if acc
         true
         (:wat::core::let [node (:wat::core::Option/expect
-                                  (:wat::core::PersistentMap/get net k)
+                                  (:wat::map::get net k)
                                   "network-has-production?: node")]
           (:wat::core::= (:wat::rete::node-kind-label node) "ProductionNode"))))
     false
-    (:wat::core::PersistentMap/keys net)))
+    (:wat::map::keys net)))
 
 (:wat::core::defn :wat::rete::fire-rules$oracle
   [session <- :wat::rete::Session]

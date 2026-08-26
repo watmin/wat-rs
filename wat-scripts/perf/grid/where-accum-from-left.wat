@@ -28,7 +28,7 @@
                      p   <- :wat::core::PersistentMap]
       -> :wat::core::i64
       (:wat::core::let [f (:wat::core::Option/expect
-                             (:wat::core::PersistentMap/get p "?fact")
+                             (:wat::map::get p "?fact")
                              "query: ?fact")]
         (:wat::i64::+ acc (:wafl::Hit/n f))))
     0

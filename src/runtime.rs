@@ -6096,16 +6096,9 @@ fn dispatch_keyword_head_value(
         ":wat::core::Vector/length" => {
             crate::collection::eval::eval_vector_length(args, list_span, env, sym)
         }
-        ":wat::core::HashMap/length" => {
-            crate::collection::eval::eval_hashmap_length(args, list_span, env, sym)
-        }
         // Arc-278-0b — PersistentVector per-type ops.
         ":wat::core::PersistentVector/length" => {
             crate::collection::eval::eval_persistentvector_length(args, list_span, env, sym)
-        }
-        // Arc-278-0a — PersistentMap per-type ops.
-        ":wat::core::PersistentMap/length" => {
-            crate::collection::eval::eval_persistentmap_length(args, list_span, env, sym)
         }
         ":wat::core::HashSet/length" => {
             crate::collection::eval::eval_hashset_length(args, list_span, env, sym)
@@ -6121,14 +6114,8 @@ fn dispatch_keyword_head_value(
         ":wat::core::Vector/empty?" => {
             crate::collection::eval::eval_vector_empty_q(args, list_span, env, sym)
         }
-        ":wat::core::HashMap/empty?" => {
-            crate::collection::eval::eval_hashmap_empty_q(args, list_span, env, sym)
-        }
         ":wat::core::PersistentVector/empty?" => {
             crate::collection::eval::eval_persistentvector_empty_q(args, list_span, env, sym)
-        }
-        ":wat::core::PersistentMap/empty?" => {
-            crate::collection::eval::eval_persistentmap_empty_q(args, list_span, env, sym)
         }
         ":wat::core::HashSet/empty?" => {
             crate::collection::eval::eval_hashset_empty_q(args, list_span, env, sym)
@@ -6140,14 +6127,8 @@ fn dispatch_keyword_head_value(
         ":wat::core::Vector/contains?" => {
             crate::collection::eval::eval_vector_contains_q(args, list_span, env, sym)
         }
-        ":wat::core::HashMap/contains-key?" => {
-            crate::collection::eval::eval_hashmap_contains_key_q(args, list_span, env, sym)
-        }
         ":wat::core::PersistentVector/contains?" => {
             crate::collection::eval::eval_persistentvector_contains_q(args, list_span, env, sym)
-        }
-        ":wat::core::PersistentMap/contains-key?" => {
-            crate::collection::eval::eval_persistentmap_contains_key_q(args, list_span, env, sym)
         }
         ":wat::core::HashSet/contains?" => {
             crate::collection::eval::eval_hashset_contains_q(args, list_span, env, sym)
@@ -6159,14 +6140,8 @@ fn dispatch_keyword_head_value(
         ":wat::core::Vector/get" => {
             crate::collection::eval::eval_vector_get(args, list_span, env, sym)
         }
-        ":wat::core::HashMap/get" => {
-            crate::collection::eval::eval_hashmap_get(args, list_span, env, sym)
-        }
         ":wat::core::PersistentVector/get" => {
             crate::collection::eval::eval_persistentvector_get(args, list_span, env, sym)
-        }
-        ":wat::core::PersistentMap/get" => {
-            crate::collection::eval::eval_persistentmap_get(args, list_span, env, sym)
         }
         // Arc 220 Stone 220.4 — List get
         ":wat::core::List/get" => crate::collection::eval::eval_list_get(args, list_span, env, sym),
@@ -6189,31 +6164,6 @@ fn dispatch_keyword_head_value(
         // (:assoc / :dissoc / :keys / :values / :concat) become user-define
         // aliases via `wat/core-aliases.wat`; they delegate to these per-Type
         // impls (each is also directly callable as `:HashMap/assoc` etc.).
-        ":wat::core::HashMap/assoc" => {
-            crate::collection::eval::eval_hashmap_assoc(args, list_span, env, sym)
-        }
-        ":wat::core::HashMap/dissoc" => {
-            crate::collection::eval::eval_hashmap_dissoc(args, list_span, env, sym)
-        }
-        ":wat::core::HashMap/keys" => {
-            crate::collection::eval::eval_hashmap_keys(args, list_span, env, sym)
-        }
-        ":wat::core::HashMap/values" => {
-            crate::collection::eval::eval_hashmap_values(args, list_span, env, sym)
-        }
-        // Arc-278-0a — PersistentMap per-type ops.
-        ":wat::core::PersistentMap/assoc" => {
-            crate::collection::eval::eval_persistentmap_assoc(args, list_span, env, sym)
-        }
-        ":wat::core::PersistentMap/dissoc" => {
-            crate::collection::eval::eval_persistentmap_dissoc(args, list_span, env, sym)
-        }
-        ":wat::core::PersistentMap/keys" => {
-            crate::collection::eval::eval_persistentmap_keys(args, list_span, env, sym)
-        }
-        ":wat::core::PersistentMap/values" => {
-            crate::collection::eval::eval_persistentmap_values(args, list_span, env, sym)
-        }
         ":wat::core::Vector/concat" => {
             crate::collection::eval::eval_vector_concat(args, list_span, env, sym)
         }
@@ -11912,7 +11862,7 @@ pub(crate) fn dispatch_substrate_impl(
         ":wat::core::Vector/length" => Some(ceval::vector_length_inner(
             vals.first().expect("arity-checked"),
         )),
-        ":wat::core::HashMap/length" => Some(ceval::hashmap_length_inner(
+        ":wat::hashmap::length" => Some(ceval::hashmap_length_inner(
             vals.first().expect("arity-checked"),
         )),
         ":wat::core::HashSet/length" => Some(ceval::hashset_length_inner(
@@ -11926,7 +11876,7 @@ pub(crate) fn dispatch_substrate_impl(
         ":wat::core::Vector/empty?" => Some(ceval::vector_empty_q_inner(
             vals.first().expect("arity-checked"),
         )),
-        ":wat::core::HashMap/empty?" => Some(ceval::hashmap_empty_q_inner(
+        ":wat::hashmap::empty?" => Some(ceval::hashmap_empty_q_inner(
             vals.first().expect("arity-checked"),
         )),
         ":wat::core::HashSet/empty?" => Some(ceval::hashset_empty_q_inner(
@@ -11941,7 +11891,7 @@ pub(crate) fn dispatch_substrate_impl(
             vals.first().expect("arity-checked"),
             vals.get(1).expect("arity-checked"),
         )),
-        ":wat::core::HashMap/contains-key?" => Some(ceval::hashmap_contains_key_q_inner(
+        ":wat::hashmap::contains-key?" => Some(ceval::hashmap_contains_key_q_inner(
             vals.first().expect("arity-checked"),
             vals.get(1).expect("arity-checked"),
         )),
@@ -11959,7 +11909,7 @@ pub(crate) fn dispatch_substrate_impl(
             vals.first().expect("arity-checked"),
             vals.get(1).expect("arity-checked"),
         )),
-        ":wat::core::HashMap/get" => Some(ceval::hashmap_get_inner(
+        ":wat::hashmap::get" => Some(ceval::hashmap_get_inner(
             vals.first().expect("arity-checked"),
             vals.get(1).expect("arity-checked"),
         )),
@@ -11986,19 +11936,19 @@ pub(crate) fn dispatch_substrate_impl(
         // per-Type impls. Routed here so alias-expanded user-defines
         // resolve to the substrate impl when the body's call lands on
         // a per-Type primitive name.
-        ":wat::core::HashMap/assoc" => Some(ceval::hashmap_assoc_inner(
+        ":wat::hashmap::assoc" => Some(ceval::hashmap_assoc_inner(
             vals.first().expect("arity-checked"),
             vals.get(1).expect("arity-checked"),
             vals.get(2).expect("arity-checked"),
         )),
-        ":wat::core::HashMap/dissoc" => Some(ceval::hashmap_dissoc_inner(
+        ":wat::hashmap::dissoc" => Some(ceval::hashmap_dissoc_inner(
             vals.first().expect("arity-checked"),
             vals.get(1).expect("arity-checked"),
         )),
-        ":wat::core::HashMap/keys" => Some(ceval::hashmap_keys_inner(
+        ":wat::hashmap::keys" => Some(ceval::hashmap_keys_inner(
             vals.first().expect("arity-checked"),
         )),
-        ":wat::core::HashMap/values" => Some(ceval::hashmap_values_inner(
+        ":wat::hashmap::values" => Some(ceval::hashmap_values_inner(
             vals.first().expect("arity-checked"),
         )),
         ":wat::core::Vector/concat" => Some(ceval::vector_concat_inner(

@@ -34,5 +34,5 @@
      derived (:wat::rete::query fired (:cg::q-Handle))
      r       (:wat::core::first derived)]
     (:wat::core::Option/expect
-      (:wat::core::PersistentMap/get r "?label")
+      (:wat::map::get r "?label")
       "q-Handle: ?label")))

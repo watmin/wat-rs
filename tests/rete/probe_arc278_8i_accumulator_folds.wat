@@ -15,14 +15,14 @@
            (:wat::core::PersistentVector/conj
              (:wat::core::PersistentVector/conj (:wat::core::PersistentVector)
                (:wat::rete::Element :fact (:net::Packet :src "a") :bindings
-                 (:wat::core::PersistentMap/assoc
-                   (:wat::core::PersistentMap/assoc (:wat::core::PersistentMap) "?bytes" 100) "?port" 80)))
+                 (:wat::map::assoc
+                   (:wat::map::assoc (:wat::core::PersistentMap) "?bytes" 100) "?port" 80)))
              (:wat::rete::Element :fact (:net::Packet :src "b") :bindings
-               (:wat::core::PersistentMap/assoc
-                 (:wat::core::PersistentMap/assoc (:wat::core::PersistentMap) "?bytes" 200) "?port" 443)))
+               (:wat::map::assoc
+                 (:wat::map::assoc (:wat::core::PersistentMap) "?bytes" 200) "?port" 443)))
            (:wat::rete::Element :fact (:net::Packet :src "c") :bindings
-             (:wat::core::PersistentMap/assoc
-               (:wat::core::PersistentMap/assoc (:wat::core::PersistentMap) "?bytes" 300) "?port" 80)))]
+             (:wat::map::assoc
+               (:wat::map::assoc (:wat::core::PersistentMap) "?bytes" 300) "?port" 80)))]
     (:wat::rete::acc::count els)))
 
 ;; sum ?bytes → BARE 600 (empty sum = 0; never Option).
@@ -32,14 +32,14 @@
            (:wat::core::PersistentVector/conj
              (:wat::core::PersistentVector/conj (:wat::core::PersistentVector)
                (:wat::rete::Element :fact (:net::Packet :src "a") :bindings
-                 (:wat::core::PersistentMap/assoc
-                   (:wat::core::PersistentMap/assoc (:wat::core::PersistentMap) "?bytes" 100) "?port" 80)))
+                 (:wat::map::assoc
+                   (:wat::map::assoc (:wat::core::PersistentMap) "?bytes" 100) "?port" 80)))
              (:wat::rete::Element :fact (:net::Packet :src "b") :bindings
-               (:wat::core::PersistentMap/assoc
-                 (:wat::core::PersistentMap/assoc (:wat::core::PersistentMap) "?bytes" 200) "?port" 443)))
+               (:wat::map::assoc
+                 (:wat::map::assoc (:wat::core::PersistentMap) "?bytes" 200) "?port" 443)))
            (:wat::rete::Element :fact (:net::Packet :src "c") :bindings
-             (:wat::core::PersistentMap/assoc
-               (:wat::core::PersistentMap/assoc (:wat::core::PersistentMap) "?bytes" 300) "?port" 80)))]
+             (:wat::map::assoc
+               (:wat::map::assoc (:wat::core::PersistentMap) "?bytes" 300) "?port" 80)))]
     (:wat::rete::acc::sum "?bytes" els)))
 
 ;; min ?bytes → Some(100).
@@ -49,14 +49,14 @@
            (:wat::core::PersistentVector/conj
              (:wat::core::PersistentVector/conj (:wat::core::PersistentVector)
                (:wat::rete::Element :fact (:net::Packet :src "a") :bindings
-                 (:wat::core::PersistentMap/assoc
-                   (:wat::core::PersistentMap/assoc (:wat::core::PersistentMap) "?bytes" 100) "?port" 80)))
+                 (:wat::map::assoc
+                   (:wat::map::assoc (:wat::core::PersistentMap) "?bytes" 100) "?port" 80)))
              (:wat::rete::Element :fact (:net::Packet :src "b") :bindings
-               (:wat::core::PersistentMap/assoc
-                 (:wat::core::PersistentMap/assoc (:wat::core::PersistentMap) "?bytes" 200) "?port" 443)))
+               (:wat::map::assoc
+                 (:wat::map::assoc (:wat::core::PersistentMap) "?bytes" 200) "?port" 443)))
            (:wat::rete::Element :fact (:net::Packet :src "c") :bindings
-             (:wat::core::PersistentMap/assoc
-               (:wat::core::PersistentMap/assoc (:wat::core::PersistentMap) "?bytes" 300) "?port" 80)))]
+             (:wat::map::assoc
+               (:wat::map::assoc (:wat::core::PersistentMap) "?bytes" 300) "?port" 80)))]
     (:wat::rete::acc::min "?bytes" els)))
 
 ;; max ?bytes → Some(300).
@@ -66,14 +66,14 @@
            (:wat::core::PersistentVector/conj
              (:wat::core::PersistentVector/conj (:wat::core::PersistentVector)
                (:wat::rete::Element :fact (:net::Packet :src "a") :bindings
-                 (:wat::core::PersistentMap/assoc
-                   (:wat::core::PersistentMap/assoc (:wat::core::PersistentMap) "?bytes" 100) "?port" 80)))
+                 (:wat::map::assoc
+                   (:wat::map::assoc (:wat::core::PersistentMap) "?bytes" 100) "?port" 80)))
              (:wat::rete::Element :fact (:net::Packet :src "b") :bindings
-               (:wat::core::PersistentMap/assoc
-                 (:wat::core::PersistentMap/assoc (:wat::core::PersistentMap) "?bytes" 200) "?port" 443)))
+               (:wat::map::assoc
+                 (:wat::map::assoc (:wat::core::PersistentMap) "?bytes" 200) "?port" 443)))
            (:wat::rete::Element :fact (:net::Packet :src "c") :bindings
-             (:wat::core::PersistentMap/assoc
-               (:wat::core::PersistentMap/assoc (:wat::core::PersistentMap) "?bytes" 300) "?port" 80)))]
+             (:wat::map::assoc
+               (:wat::map::assoc (:wat::core::PersistentMap) "?bytes" 300) "?port" 80)))]
     (:wat::rete::acc::max "?bytes" els)))
 
 ;; mean ?bytes → Some(200) — THE composition: sum(600)/count(3).
@@ -83,14 +83,14 @@
            (:wat::core::PersistentVector/conj
              (:wat::core::PersistentVector/conj (:wat::core::PersistentVector)
                (:wat::rete::Element :fact (:net::Packet :src "a") :bindings
-                 (:wat::core::PersistentMap/assoc
-                   (:wat::core::PersistentMap/assoc (:wat::core::PersistentMap) "?bytes" 100) "?port" 80)))
+                 (:wat::map::assoc
+                   (:wat::map::assoc (:wat::core::PersistentMap) "?bytes" 100) "?port" 80)))
              (:wat::rete::Element :fact (:net::Packet :src "b") :bindings
-               (:wat::core::PersistentMap/assoc
-                 (:wat::core::PersistentMap/assoc (:wat::core::PersistentMap) "?bytes" 200) "?port" 443)))
+               (:wat::map::assoc
+                 (:wat::map::assoc (:wat::core::PersistentMap) "?bytes" 200) "?port" 443)))
            (:wat::rete::Element :fact (:net::Packet :src "c") :bindings
-             (:wat::core::PersistentMap/assoc
-               (:wat::core::PersistentMap/assoc (:wat::core::PersistentMap) "?bytes" 300) "?port" 80)))]
+             (:wat::map::assoc
+               (:wat::map::assoc (:wat::core::PersistentMap) "?bytes" 300) "?port" 80)))]
     (:wat::rete::acc::mean "?bytes" els)))
 
 ;; distinct ?port → BARE vec of length 2 (80, 443 — the duplicate 80 collapses).
@@ -100,14 +100,14 @@
            (:wat::core::PersistentVector/conj
              (:wat::core::PersistentVector/conj (:wat::core::PersistentVector)
                (:wat::rete::Element :fact (:net::Packet :src "a") :bindings
-                 (:wat::core::PersistentMap/assoc
-                   (:wat::core::PersistentMap/assoc (:wat::core::PersistentMap) "?bytes" 100) "?port" 80)))
+                 (:wat::map::assoc
+                   (:wat::map::assoc (:wat::core::PersistentMap) "?bytes" 100) "?port" 80)))
              (:wat::rete::Element :fact (:net::Packet :src "b") :bindings
-               (:wat::core::PersistentMap/assoc
-                 (:wat::core::PersistentMap/assoc (:wat::core::PersistentMap) "?bytes" 200) "?port" 443)))
+               (:wat::map::assoc
+                 (:wat::map::assoc (:wat::core::PersistentMap) "?bytes" 200) "?port" 443)))
            (:wat::rete::Element :fact (:net::Packet :src "c") :bindings
-             (:wat::core::PersistentMap/assoc
-               (:wat::core::PersistentMap/assoc (:wat::core::PersistentMap) "?bytes" 300) "?port" 80)))]
+             (:wat::map::assoc
+               (:wat::map::assoc (:wat::core::PersistentMap) "?bytes" 300) "?port" 80)))]
     (:wat::core::length (:wat::rete::acc::distinct "?port" els))))
 
 ;; all → BARE vec of length 3 (the gathered facts).
@@ -117,14 +117,14 @@
            (:wat::core::PersistentVector/conj
              (:wat::core::PersistentVector/conj (:wat::core::PersistentVector)
                (:wat::rete::Element :fact (:net::Packet :src "a") :bindings
-                 (:wat::core::PersistentMap/assoc
-                   (:wat::core::PersistentMap/assoc (:wat::core::PersistentMap) "?bytes" 100) "?port" 80)))
+                 (:wat::map::assoc
+                   (:wat::map::assoc (:wat::core::PersistentMap) "?bytes" 100) "?port" 80)))
              (:wat::rete::Element :fact (:net::Packet :src "b") :bindings
-               (:wat::core::PersistentMap/assoc
-                 (:wat::core::PersistentMap/assoc (:wat::core::PersistentMap) "?bytes" 200) "?port" 443)))
+               (:wat::map::assoc
+                 (:wat::map::assoc (:wat::core::PersistentMap) "?bytes" 200) "?port" 443)))
            (:wat::rete::Element :fact (:net::Packet :src "c") :bindings
-             (:wat::core::PersistentMap/assoc
-               (:wat::core::PersistentMap/assoc (:wat::core::PersistentMap) "?bytes" 300) "?port" 80)))]
+             (:wat::map::assoc
+               (:wat::map::assoc (:wat::core::PersistentMap) "?bytes" 300) "?port" 80)))]
     (:wat::core::length (:wat::rete::acc::all els))))
 
 ;; group-by ?port → BARE map with 2 keys (80 → [a,c], 443 → [b]).
@@ -134,15 +134,15 @@
            (:wat::core::PersistentVector/conj
              (:wat::core::PersistentVector/conj (:wat::core::PersistentVector)
                (:wat::rete::Element :fact (:net::Packet :src "a") :bindings
-                 (:wat::core::PersistentMap/assoc
-                   (:wat::core::PersistentMap/assoc (:wat::core::PersistentMap) "?bytes" 100) "?port" 80)))
+                 (:wat::map::assoc
+                   (:wat::map::assoc (:wat::core::PersistentMap) "?bytes" 100) "?port" 80)))
              (:wat::rete::Element :fact (:net::Packet :src "b") :bindings
-               (:wat::core::PersistentMap/assoc
-                 (:wat::core::PersistentMap/assoc (:wat::core::PersistentMap) "?bytes" 200) "?port" 443)))
+               (:wat::map::assoc
+                 (:wat::map::assoc (:wat::core::PersistentMap) "?bytes" 200) "?port" 443)))
            (:wat::rete::Element :fact (:net::Packet :src "c") :bindings
-             (:wat::core::PersistentMap/assoc
-               (:wat::core::PersistentMap/assoc (:wat::core::PersistentMap) "?bytes" 300) "?port" 80)))]
-    (:wat::core::PersistentMap/length (:wat::rete::acc::group-by "?port" els))))
+             (:wat::map::assoc
+               (:wat::map::assoc (:wat::core::PersistentMap) "?bytes" 300) "?port" 80)))]
+    (:wat::map::length (:wat::rete::acc::group-by "?port" els))))
 
 ;; EMPTY: count over an empty set → BARE 0 (count always concrete — never None).
 (:wat::core::defn :user::count-empty-is-zero [] -> :wat::core::i64

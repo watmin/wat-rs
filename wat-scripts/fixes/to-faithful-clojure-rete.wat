@@ -177,13 +177,13 @@
     (:wat::core::fn [a  <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
                      hc <- :wat::core::PersistentMap]
       -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
-      (:wat::core::let [old-name (:wat::core::Option/expect (:wat::core::PersistentMap/get hc "?name") "q-HeadConv: ?name")]
+      (:wat::core::let [old-name (:wat::core::Option/expect (:wat::map::get hc "?name") "q-HeadConv: ?name")]
         ;; old-text = ?name directly (arc 282) — NEVER ?len; see wat-scripts/fixes/to-
         ;; faithful-clojure-net.wat's sibling comment for the full reasoning.
         (:wat::core::concat a
           (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])
             (:wat::core::Tuple
-              (:wat::core::Option/expect (:wat::core::PersistentMap/get hc "?offset") "q-HeadConv: ?offset")
+              (:wat::core::Option/expect (:wat::map::get hc "?offset") "q-HeadConv: ?offset")
               old-name
               (:wat::core::ast-name (:wat::core::keyword/to-symbol (:wat::core::keyword-node old-name))))))))
     acc
@@ -202,8 +202,8 @@
       (:wat::core::concat a
         (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])
           (:wat::core::Tuple
-            (:wat::core::Option/expect (:wat::core::PersistentMap/get ac "?offset") "q-ArrowConv: ?offset")
-            (:wat::core::Option/expect (:wat::core::PersistentMap/get ac "?name") "q-ArrowConv: ?name")
+            (:wat::core::Option/expect (:wat::map::get ac "?offset") "q-ArrowConv: ?offset")
+            (:wat::core::Option/expect (:wat::map::get ac "?name") "q-ArrowConv: ?name")
             ":-"))))
     acc
     convs))
@@ -217,12 +217,12 @@
     (:wat::core::fn [a  <- (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
                      tc <- :wat::core::PersistentMap]
       -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
-      (:wat::core::let [old-name (:wat::core::Option/expect (:wat::core::PersistentMap/get tc "?name") "q-TypeConv: ?name")]
+      (:wat::core::let [old-name (:wat::core::Option/expect (:wat::map::get tc "?name") "q-TypeConv: ?name")]
         ;; old-text = ?name directly (arc 282) — NEVER ?len.
         (:wat::core::concat a
           (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])
             (:wat::core::Tuple
-              (:wat::core::Option/expect (:wat::core::PersistentMap/get tc "?offset") "q-TypeConv: ?offset")
+              (:wat::core::Option/expect (:wat::map::get tc "?offset") "q-TypeConv: ?offset")
               old-name
               (:wat::core::write-forms (:wat::core::keyword/to-type-form (:wat::core::keyword-node old-name))))))))
     acc

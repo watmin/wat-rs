@@ -211,7 +211,7 @@
                                                     neg <- :wat::core::String]
                                      -> :wat::core::i64
                                      (:wat::core::let [ns (:wat::core::match
-                                                             (:wat::core::HashMap/get ts neg)
+                                                             (:wat::hashmap::get ts neg)
                                                              
                                                            ((:wat::core::Some v) v)
                                                            (:wat::core::None 0))
@@ -227,7 +227,7 @@
                                                     con <- :wat::core::String]
                                      -> :wat::core::i64
                                      (:wat::core::let [cs (:wat::core::match
-                                                             (:wat::core::HashMap/get ts con)
+                                                             (:wat::hashmap::get ts con)
                                                            ((:wat::core::Some v) v)
                                                            (:wat::core::None 0))]
                                        (:wat::core::if (:wat::i64::> cs mx) cs mx)))
@@ -242,13 +242,13 @@
                                      (:wat::core::let [its (:wat::rete::StratifyAcc/type-strata inner)
                                                        ich (:wat::rete::StratifyAcc/changed inner)
                                                        cur (:wat::core::match
-                                                              (:wat::core::HashMap/get its p)
+                                                              (:wat::hashmap::get its p)
                                                               
                                                             ((:wat::core::Some v) v)
                                                             (:wat::core::None 0))]
                                        (:wat::core::if (:wat::i64::> required cur)
                                          (:wat::rete::StratifyAcc
-                                           :type-strata (:wat::core::HashMap/assoc its p required)
+                                           :type-strata (:wat::hashmap::assoc its p required)
                                            :changed true)
                                          inner)))
                                    (:wat::rete::StratifyAcc :type-strata ts :changed changed)
@@ -291,7 +291,7 @@
                                                 p  <- :wat::core::String]
                                  -> :wat::core::i64
                                  (:wat::core::let [ps (:wat::core::match
-                                                         (:wat::core::HashMap/get type-strata p)
+                                                         (:wat::hashmap::get type-strata p)
                                                          
                                                        ((:wat::core::Some v) v)
                                                        (:wat::core::None 0))]
@@ -303,7 +303,7 @@
                                                 n  <- :wat::core::String]
                                  -> :wat::core::i64
                                  (:wat::core::let [ns (:wat::core::match
-                                                         (:wat::core::HashMap/get type-strata n)
+                                                         (:wat::hashmap::get type-strata n)
                                                          
                                                        ((:wat::core::Some v) v)
                                                        (:wat::core::None 0))

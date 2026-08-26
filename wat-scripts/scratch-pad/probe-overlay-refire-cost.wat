@@ -91,7 +91,7 @@
   (:wat::core::Vector/length
     (:wat::core::into (:wat::core::Vector :wat::core::i64)
       (:wat::core::map
-        (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:ovl::Hit/k f)))
+        (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:ovl::Hit/k f)))
         (:wat::rete::query fired (:ovl::q-Hit))))))
 
 (:wat::core::defn :ovl::ns-between [t0 <- :wat::time::Instant  t1 <- :wat::time::Instant] -> :wat::core::i64

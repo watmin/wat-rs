@@ -88,6 +88,24 @@ filter = 'test(every_wat_scripts_file_loads_on_the_current_runtime)'
 slow-timeout = { period = "300s", terminate-after = 2 }   # warn 300s, kill 600s
 priority = 100                                            # schedule first
 
+# ⏱ retirement_table_is_fully_reachable — spawn-bound, and the ARC GROWS ITS INPUT.
+# The gate probes EVERY row of RETIREMENT_TABLE by writing a temp program and spawning
+# `wat` on it: one process per row. Arc 255 took the table from 34 rows to 99 in a week
+# (36 numerics + 13 bigint/rational + 16 maps), so the wall-clock is ~O(rows) in process
+# spawns and it crossed the 15s/30s default under end-of-run contention — a TIMEOUT, not
+# a hang. Same argument as `a_counter_increments_across_turns` above.
+#
+# ⚠ THIS IS A THRESHOLD, AND A THRESHOLD IS NOT THE FIX. Every home carved adds rows, so
+# this number will need raising again — which is the tell that the SHAPE is wrong. The
+# real fix is to batch the probe: one program exercising all rows instead of N processes,
+# O(1) in spawns. Filed rather than done here, because the stone that found it was a
+# rehome, not a test-harness stone.
+[[profile.default.overrides]]
+filter = 'test(retirement_table_is_fully_reachable)'
+slow-timeout = { period = "120s", terminate-after = 2 }
+priority = 97                                             # spawn-heavy: start it early
+
+
 # The REST of the lint binary, immediately behind the scripts gate.
 #
 # The `lint` target (Cargo.toml:219, tests/lint/mod.rs) is the second-longest
@@ -180,6 +198,11 @@ priority = 98                                             # just below the lint 
 [[profile.ci.overrides]]
 filter = 'test(a_counter_increments_across_turns)'
 slow-timeout = { period = "120s", terminate-after = 2 }
+
+[[profile.ci.overrides]]
+filter = 'test(retirement_table_is_fully_reachable)'
+slow-timeout = { period = "180s", terminate-after = 2 }
+priority = 97
 
 [[profile.ci.overrides]]
 filter = 'test(every_wat_scripts_file_loads_on_the_current_runtime)'

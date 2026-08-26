@@ -295,7 +295,7 @@
                 (:wat::core::map
                   (:wat::core::fn [~pmap-sym <- :wat::core::PersistentMap] -> :wat::core::Value
                     (:wat::core::Option/expect
-                      (:wat::core::PersistentMap/get ~pmap-sym "?fact")
+                      (:wat::map::get ~pmap-sym "?fact")
                       "sift-rules: ?fact"))
                   (:wat::rete::query ~fired-sym ~lit)))))
          (:wat::core::Vector :wat::WatAST)

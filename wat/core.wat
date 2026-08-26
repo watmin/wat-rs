@@ -38,9 +38,9 @@
 ;;
 ;; Single-impl ops below get a short-name alias (not a dispatch — dispatch is
 ;; for genuine polymorphism); both the short and long names are honest.
-(:wat::core::defalias :wat::core::dissoc  :wat::core::HashMap/dissoc)
-(:wat::core::defalias :wat::core::keys    :wat::core::HashMap/keys)
-(:wat::core::defalias :wat::core::values  :wat::core::HashMap/values)
+(:wat::core::defalias :wat::core::dissoc  :wat::hashmap::dissoc)
+(:wat::core::defalias :wat::core::keys    :wat::hashmap::keys)
+(:wat::core::defalias :wat::core::values  :wat::hashmap::values)
 (:wat::core::defalias :wat::core::concat  :wat::core::Vector/concat)
 
 ;; ─── Polymorphic arithmetic defclauses ───────────────────────────────────────
@@ -1686,7 +1686,7 @@
                         val   (:wat::core::Option/expect  
                                  (:wat::core::get opts (:wat::i64::+ k 1))
                                  "format: kwargs pair value missing")]
-                       (:wat::core::HashMap/assoc m key val)))
+                       (:wat::hashmap::assoc m key val)))
                    (:wat::core::HashMap :wat::core::String :wat::WatAST)
                    (:wat::core::range 0 n-pairs))
 
@@ -1913,7 +1913,7 @@
                           ;; slot segment → validate kwarg, emit (:wat::core::str val-ast)
                           (:wat::core::let
                             [_vn     (:wat::core::if
-                                       (:wat::core::HashMap/contains-key? kwargs-map pay)
+                                       (:wat::hashmap::contains-key? kwargs-map pay)
                                        
                                        nil
                                        (:wat::core::macro-error
@@ -1922,11 +1922,11 @@
                                            (:wat::string::concat pay
                                              "} has no matching kwarg"))))
                              val-ast (:wat::core::Option/expect  
-                                        (:wat::core::HashMap/get kwargs-map pay)
+                                        (:wat::hashmap::get kwargs-map pay)
                                         "format: internal — kwargs-map get post-contains?")]
                             (:wat::core::Tuple
                               (:wat::core::conj ps2 `(:wat::core::str ~val-ast))
-                              (:wat::core::HashMap/assoc used2 pay true))))))
+                              (:wat::hashmap::assoc used2 pay true))))))
                     (:wat::core::Tuple
                       (:wat::core::Vector :wat::WatAST)
                       (:wat::core::HashMap :wat::core::String :wat::core::bool))
@@ -1936,12 +1936,12 @@
      used-set    (:wat::core::second pass2-result)
 
      ;; ── 5. Strict check: every kwarg must be consumed ───────────────
-     kwarg-keys  (:wat::core::HashMap/keys kwargs-map)
+     kwarg-keys  (:wat::hashmap::keys kwargs-map)
      _unused-chk (:wat::core::foldl
                    (:wat::core::fn [_ <- :wat::core::nil key <- :wat::core::String]
                      -> :wat::core::nil
                      (:wat::core::if
-                       (:wat::core::HashMap/contains-key? used-set key)
+                       (:wat::hashmap::contains-key? used-set key)
                        
                        nil
                        (:wat::core::macro-error

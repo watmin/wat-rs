@@ -105,10 +105,10 @@
   (:wat::core::let [sp (:wat::core::ast-span node)
                     ep (:wat::core::ast-end-span node)]
     (:wat::grep::Extent
-      :line     (:wat::core::Option/expect (:wat::core::HashMap/get sp :line) "extent-of: :line")
-      :col      (:wat::core::Option/expect (:wat::core::HashMap/get sp :col)  "extent-of: :col")
-      :end-line (:wat::core::Option/expect (:wat::core::HashMap/get ep :line) "extent-of: :end-line")
-      :end-col  (:wat::core::Option/expect (:wat::core::HashMap/get ep :col)  "extent-of: :end-col"))))
+      :line     (:wat::core::Option/expect (:wat::hashmap::get sp :line) "extent-of: :line")
+      :col      (:wat::core::Option/expect (:wat::hashmap::get sp :col)  "extent-of: :col")
+      :end-line (:wat::core::Option/expect (:wat::hashmap::get ep :line) "extent-of: :end-line")
+      :end-col  (:wat::core::Option/expect (:wat::hashmap::get ep :col)  "extent-of: :end-col"))))
 
 ;; ── source → facts ──────────────────────────────────────────────────────────────────
 
@@ -367,7 +367,7 @@
   (:wat::kernel::println
     (:wat::core::str
       (:wat::core::Option/expect
-        (:wat::core::PersistentMap/get binding "?fact")
+        (:wat::map::get binding "?fact")
         "wat::grep::print-match: q-match binding has no ?fact"))))
 
 ;; run-one — one file, through the ALREADY-COMPILED network via `overlay`. `overlay` always

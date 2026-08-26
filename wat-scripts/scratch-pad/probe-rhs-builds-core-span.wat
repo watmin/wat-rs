@@ -73,7 +73,7 @@
      fired (:wat::rete::fire-rules s0)
      hits  (:wat::rete::query fired (:p::q-Hit))
      hit   (:wat::core::Option/expect
-             (:wat::core::PersistentMap/get (:wat::core::first hits) "?fact")
+             (:wat::map::get (:wat::core::first hits) "?fact")
              "q-Hit: ?fact")]
     (:wat::kernel::println hit)))
 

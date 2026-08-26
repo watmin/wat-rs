@@ -89,7 +89,7 @@
 (:wat::core::defn :neg::derived-vector [fired <- :wat::rete::Session] -> (:wat::core::PersistentVector :- [:wat::core::i64])
   (:wat::core::let [codes (:wat::core::into (:wat::core::Vector :wat::core::i64)
                             (:wat::core::map
-                              (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:neg::Ok/k f)))
+                              (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:neg::Ok/k f)))
                               (:wat::rete::query fired (:neg::q-Ok))))]
     (:neg::vec->pvec (:wat::core::sort codes))))
 

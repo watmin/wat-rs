@@ -189,10 +189,10 @@
    lines <- (:wat::core::Vector :- [:wat::core::String])]
   -> :wat::core::i64
   (:wat::core::let [ln (:wat::core::Option/expect  
-                           (:wat::core::HashMap/get loc :line)
+                           (:wat::hashmap::get loc :line)
                            "fix-text-offset-of: :line")
                     co (:wat::core::Option/expect  
-                           (:wat::core::HashMap/get loc :col)
+                           (:wat::hashmap::get loc :col)
                            "fix-text-offset-of: :col")]
     (:wat::core::+ (:wat::fix::fix-text-line-start ln lines)
                    (:wat::core::- co 1))))

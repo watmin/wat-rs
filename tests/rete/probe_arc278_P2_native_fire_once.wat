@@ -49,7 +49,7 @@
 
 (:wat::core::defn :test::cw-loc [s <- :wat::rete::Session] -> :wat::core::String
   (:wat::core::Option/expect
-    (:wat::core::PersistentMap/get
+    (:wat::map::get
       (:wat::core::Option/expect
         (:wat::core::PersistentVector/get (:wat::rete::query s (:weather::q-ColdAndWindy)) 0)
         "row")

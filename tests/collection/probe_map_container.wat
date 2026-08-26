@@ -19,13 +19,13 @@
   (:wat::core::let
     [m  (:wat::core::HashMap :wat::core::String :wat::core::i64)
      m2 (:wat::core::assoc m "answer" 42)]
-    (:wat::core::HashMap/contains-key? m2 "answer")))
+    (:wat::hashmap::contains-key? m2 "answer")))
 
 (:wat::core::defn :p::hashmap-assoc-type-preserving [] -> :wat::core::bool
   (:wat::core::let
     [m  (:wat::core::HashMap :wat::core::String :wat::core::i64)
      m2 (:wat::core::assoc m "k" 1)]
-    (:wat::core::HashMap/contains-key? m2 "k")))
+    (:wat::hashmap::contains-key? m2 "k")))
 
 ;; ── assoc round-trip — PersistentMap ──
 
@@ -33,13 +33,13 @@
   (:wat::core::let
     [pm  (:wat::core::PersistentMap :a 1)
      pm2 (:wat::core::assoc pm :b 2)]
-    (:wat::core::PersistentMap/length pm2)))
+    (:wat::map::length pm2)))
 
 (:wat::core::defn :p::persistentmap-assoc-immutable [] -> :wat::core::i64
   (:wat::core::let
     [pm  (:wat::core::PersistentMap :a 1)
      _   (:wat::core::assoc pm :b 2)]
-    (:wat::core::PersistentMap/length pm)))
+    (:wat::map::length pm)))
 
 ;; ── assoc round-trip — base Record ──
 

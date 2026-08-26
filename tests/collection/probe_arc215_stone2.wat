@@ -54,7 +54,7 @@
 
 ;; probe 11b: int-keyed map contains key 1
 (:wat::core::defn :t::p11b-int-keyed-contains [] -> :wat::core::bool
-  (:wat::core::HashMap/contains-key? {1 "v" 2 "w"} 1))
+  (:wat::hashmap::contains-key? {1 "v" 2 "w"} 1))
 
 ;; probe 12a: string-keyed map {"a" 1 "b" 2} length 2
 (:wat::core::defn :t::p12a-str-keyed-len [] -> :wat::core::i64
@@ -62,4 +62,4 @@
 
 ;; probe 12b: string-keyed map contains "a"
 (:wat::core::defn :t::p12b-str-keyed-contains [] -> :wat::core::bool
-  (:wat::core::HashMap/contains-key? {"a" 1 "b" 2} "a"))
+  (:wat::hashmap::contains-key? {"a" 1 "b" 2} "a"))

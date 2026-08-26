@@ -83,14 +83,14 @@
                             (:wat::core::map
                               (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::Value
                                 (:wat::core::Option/expect
-                                  (:wat::core::PersistentMap/get p "?fact")
+                                  (:wat::map::get p "?fact")
                                   "q-Hot: ?fact"))
                               (:wat::rete::query fired (:usr::q-Hot))))
                           (:wat::core::into (:wat::core::PersistentVector)
                             (:wat::core::map
                               (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::Value
                                 (:wat::core::Option/expect
-                                  (:wat::core::PersistentMap/get p "?fact")
+                                  (:wat::map::get p "?fact")
                                   "q-Warn: ?fact"))
                               (:wat::rete::query fired (:usr::q-Warn))))))))
                   (:wat::core::PersistentVector)

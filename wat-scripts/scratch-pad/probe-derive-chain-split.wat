@@ -116,7 +116,7 @@
                     q       (:wat::rete::query fired (:dc::q-Out))
                     q1      (:wat::time::now)
                     mapped  (:wat::core::map
-                              (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:dc::Out/k f)))
+                              (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:dc::Out/k f)))
                               q)
                     q2      (:wat::time::now)
                     vec     (:wat::core::into (:wat::core::Vector :wat::core::i64) mapped)
@@ -141,7 +141,7 @@
                                                p   <- :wat::core::PersistentMap]
                                 -> (:wat::core::PersistentVector :- [:wat::core::i64])
                                 (:wat::core::let [f (:wat::core::Option/expect
-                                                      (:wat::core::PersistentMap/get p "?fact")
+                                                      (:wat::map::get p "?fact")
                                                       "q-Out: ?fact")]
                                   (:wat::core::PersistentVector/conj acc (:dc::Out/k f))))
                               (:wat::core::PersistentVector)

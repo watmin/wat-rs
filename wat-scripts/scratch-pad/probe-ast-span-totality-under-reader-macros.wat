@@ -27,8 +27,8 @@
   (:wat::core::let
     [s    (:wat::core::ast-span node)
      e    (:wat::core::ast-end-span node)
-     _l   (:wat::core::Option/expect (:wat::core::HashMap/get s :line) "start :line")
-     _c   (:wat::core::Option/expect (:wat::core::HashMap/get e :col)  "end :col")
+     _l   (:wat::core::Option/expect (:wat::hashmap::get s :line) "start :line")
+     _c   (:wat::core::Option/expect (:wat::hashmap::get e :col)  "end :col")
      acc' (:probe::Acc :nodes (:wat::i64::+ (:probe::Acc/nodes acc) 1)
                        :spans (:wat::i64::+ (:probe::Acc/spans acc) 1))]
     (:wat::core::if (:probe::structural? node)

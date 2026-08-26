@@ -1,76 +1,59 @@
-;; wat-scripts/fixes/rename-core-numerics-to-their-homes.wat — arc 255 Stone B-i.
+;; wat-scripts/fixes/rename-core-maps-to-their-homes.wat — arc 255 Stone E-i.
 ;; Self-hosted fix-wat codemod: no hand-editing of .wat files — use the tool.
 ;;
-;; DESIGN: docs/arc/2026/06/255-builtin-registry/DESIGN-STONE-the-numerics-get-their-homes.md
-;; BRIEF:  docs/arc/2026/06/255-builtin-registry/BRIEF-STONE-B-i-the-core-numerics-corpus.md
+;; BRIEF: docs/arc/2026/06/255-builtin-registry/BRIEF-STONE-E-i-the-maps-get-their-homes.md
 ;;
-;; Moves the i64/f64 ops off the `core::` junk-drawer to their honest homes — the CORE corpus
-;; only. This is Stone B-i, copied from `rename-core-string-to-string.wat` one namespace over:
-;;   :wat::core::i64::*   -> :wat::i64::*      1441 occurrences
-;;   :wat::core::f64::*   -> :wat::f64::*       172 occurrences
+;; Moves the two map families off the `:wat::core::` junk-drawer to their honest homes —
+;; copied from `rename-core-bigint-rational-to-their-homes.wat` (Stone D)'s THIRD rule shape
+;; (the slash-form accessor), because BOTH families here are slash-form ONLY — neither has a
+;; `::`-terminated per-type verb the way i64/f64/bigint/rational did:
 ;;
-;; ⛔ NOT the rete DSL clone. `:wat::rete::core::{i64,f64}::` is Stone B-ii, deliberately
-;; excluded here: `src/rete/vocabulary.rs` pairs each rete spelling with a `core_name` that
-;; points at the OLD core op and must not move until Stone C retires it — a paired Rust edit
-;; the corpus-only rename cannot make. This file carries no rete rule at all.
+;;   :wat::core::PersistentMap/*  -> :wat::map::*       (the UNMARKED home — PersistentMap
+;;                                                        never moves again once the
+;;                                                        persistent-backend swap lands)
+;;   :wat::core::HashMap/*        -> :wat::hashmap::*   (the flavor-marked home)
 ;;
-;; ⛔ NO SHAPE-REWRITING RULE. `max-of`/`min-of` are variadic under the new spelling and take
-;; one Vector under the old (builder's ruling 2026-08-26: "keep variadic - clojure is the
-;; destination") — but their only `.wat` occurrences anywhere in the corpus live in the two
-;; excluded probes below, so a pure prefix rewrite is correct for every site this file touches.
-;; If `--grep` ever surfaces a `max-of`/`min-of` site outside those two files, STOP — the
-;; census was wrong and that site needs a shape change, not this rule.
+;; verbs (union, both families): assoc, contains-key?, dissoc, empty?, get, keys, length, values
 ;;
-;; ⚠ EXCLUDE TWO FILES BY NAME, NOT BY RULE — the applier takes an explicit path list, so they
-;; are simply omitted from stdin, never fed through the rules:
-;;   wat-scripts/scratch-pad/255-stone-a-i-both-i64-spellings.wat
-;;   wat-scripts/scratch-pad/255-stone-a-ii-both-f64-spellings.wat
-;; They are A-i's and A-ii's probes and deliberately assert BOTH spellings — that is their
-;; entire job, and the only artifact proving the old names still work. Rewriting their old
-;; halves would silently convert them into probes that test one spelling twice.
-;;
-;; The trailing `::` is the entire discrimination that keeps this off `:wat::core::i64`-the-
-;; TYPE (6,670 `.wat` occurrences bound for arc 251's `wat.type/`, shorter than the `::`-
-;; terminated prefix this rule matches, so it cannot match) and off `:wat::core::f64`-the-type
-;; likewise. Same argument as the string codemod's header; do not weaken it.
+;; ⛔ Both flavors survive this stone — this is a SPELLING migration, not a backend decision.
+;; ⛔ Do NOT touch the bare TYPE keywords `:wat::core::PersistentMap` / `:wat::core::HashMap`
+;; (no trailing `/` or `::`) — those are a SEPARATE future stone (the numerics precedent's
+;; type/ops split), and this rule's `/`-terminated `starts-with?` guard cannot match them
+;; anyway (a bare type keyword is strictly shorter than the `/`-terminated prefix).
 ;;
 ;; ★ THIS IS A RULES CODEMOD, NOT A CHAR-WALK. `wat/fix.wat`'s `rename-keyword-prefix` is a
-;; silent no-op for an open (`::`-terminated) namespace prefix — see
-;; wat-scripts/scratch-pad/BLOCKED-rename-core-string-to-string.wat for the string-namespace
-;; instance of the same trap. `wat/grep.wat`'s `Named` fact hands back
-;; ":wat::core::i64::+" as ONE WHOLE TOKEN, so there is no boundary question left to ask — a
-;; rule that matches nothing produces no Match facts, countable before anything is written
-;; (`--grep` mode below).
+;; silent no-op for an open (`::`-terminated, or here `/`-terminated) namespace prefix.
+;; `wat/grep.wat`'s `Named` fact hands back ":wat::core::HashMap/get" as ONE WHOLE TOKEN, so
+;; there is no boundary question left to ask — a rule that matches nothing produces no Match
+;; facts, countable before anything is written (`--grep` mode below).
 ;;
 ;; TWO ENTRY POINTS, one rule set:
 ;;   `wat --grep` <this file>     -> :user::grep  (the finder: prints every Match, unapplied)
 ;;   `wat` <this file>            -> :user::main  (the applier: rewrites files in place)
 ;;
-;; Usage — finder (count before writing anything; list EVERY path, excluding the two probes):
-;;   git ls-files '*.wat' \
-;;     ':!wat-scripts/scratch-pad/255-stone-a-i-both-i64-spellings.wat' \
-;;     ':!wat-scripts/scratch-pad/255-stone-a-ii-both-f64-spellings.wat' \
+;; Usage — finder (count before writing anything; list EVERY path across ALL FIVE extensions
+;; this stone's census found — .wat/.rs/.edn/.bad/.md are NOT all `git ls-files '*.wat'`-visible;
+;; `.bad` in particular is invisible to that glob by extension):
+;;   git grep -lE ':wat::core::(HashMap|PersistentMap)[:/]' -- ':!docs' \
 ;;     | sed 's/.*/"&"/' | tr '\n' ' ' | sed 's/^/[/;s/ $/]/' \
-;;     | ./target/release/wat --grep ./wat-scripts/fixes/rename-core-numerics-to-their-homes.wat | wc -l
+;;     | ./target/release/wat --grep ./wat-scripts/fixes/rename-core-maps-to-their-homes.wat | wc -l
 ;;
-;; Usage — apply (one EDN vector of paths on stdin, same exclusion):
-;;   git ls-files '*.wat' \
-;;     ':!wat-scripts/scratch-pad/255-stone-a-i-both-i64-spellings.wat' \
-;;     ':!wat-scripts/scratch-pad/255-stone-a-ii-both-f64-spellings.wat' \
+;; Usage — apply (one EDN vector of paths on stdin, same path list — the applier's own `.wat`
+;; parse only succeeds on `.wat`/`.edn`/`.bad` text; feed it the wat-shaped corpus, not `.rs`/`.md`):
+;;   git grep -lE ':wat::core::(HashMap|PersistentMap)[:/]' -- ':!docs' ':!*.rs' ':!*.md' \
 ;;     | sed 's/.*/"&"/' | tr '\n' ' ' | sed 's/^/[/;s/ $/]/' \
-;;     | ./target/release/wat ./wat-scripts/fixes/rename-core-numerics-to-their-homes.wat
+;;     | ./target/release/wat ./wat-scripts/fixes/rename-core-maps-to-their-homes.wat
 ;;
 ;; The rewrite is comment-faithful (rete's fact base has no notion of prose — a comment is not
 ;; a node, so a rule cannot touch it, by construction) and idempotent as a QUERY: after
 ;; applying, re-running the finder returns zero Match facts, because the old prefix is gone.
 ;; Safe to run over the whole corpus including itself: its own verb CALLS migrate along with
-;; everything else; its STRING LITERAL prefixes (above and below, in the usage comments and
-;; the KEYWORD-ONLY guard) do not, because the finder matches keyword leaves, and a string
-;; literal is not a keyword leaf.
+;; everything else; its STRING LITERAL prefixes (above and below, in the usage comments) do
+;; not, because the finder matches keyword leaves, and a string literal is not a keyword leaf.
 
 ;; ── the finder — two rules over wat/grep.wat's stdlib fact base ─────────────────────────
 
-(:wat::rete::defrule :rn::core-i64
+(:wat::rete::defrule :rn::core-persistentmap-slash
   :when [(:wat::grep::Node   (?id <- :id) (?k <- :kind))
          (:wat::grep::Named  (?id <- :id) (?n <- :name))
          (:wat::grep::Span   (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
@@ -81,32 +64,32 @@
          ;; the literal into unquoted keyword syntax. See rename-core-string-to-string.wat's
          ;; header for the fuller argument; the same trap applies here verbatim.
          (:wat::rete::where (:wat::rete::string::= ?k "keyword"))
-         (:wat::rete::where (:wat::rete::core::String/starts-with? ?n ":wat::core::i64::"))]
+         (:wat::rete::where (:wat::rete::core::String/starts-with? ?n ":wat::core::PersistentMap/"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
-           :rule "core-i64-to-i64"
+           :rule "core-persistentmap-slash-to-map-colon"
            :captures (:wat::rete::core::PersistentVector
                        (:wat::grep::Capture :name "old" :value ?n)
                        (:wat::grep::Capture :name "new"
-                         :value (:wat::rete::core::String/concat ":wat::i64::"
-                                  (:wat::rete::string::subs ?n 17
+                         :value (:wat::rete::core::String/concat ":wat::map::"
+                                  (:wat::rete::string::subs ?n 26
                                     (:wat::rete::string::length ?n)
                                     :undefined "")))))])
 
-(:wat::rete::defrule :rn::core-f64
+(:wat::rete::defrule :rn::core-hashmap-slash
   :when [(:wat::grep::Node   (?id <- :id) (?k <- :kind))
          (:wat::grep::Named  (?id <- :id) (?n <- :name))
          (:wat::grep::Span   (?id <- :id) (?l <- :line) (?c <- :col) (?el <- :end-line) (?ec <- :end-col))
          (:wat::grep::Source (?f <- :file))
-         ;; ⚠ KEYWORD ONLY — see :rn::core-i64's comment.
+         ;; ⚠ KEYWORD ONLY — see :rn::core-persistentmap-slash's comment.
          (:wat::rete::where (:wat::rete::string::= ?k "keyword"))
-         (:wat::rete::where (:wat::rete::core::String/starts-with? ?n ":wat::core::f64::"))]
+         (:wat::rete::where (:wat::rete::core::String/starts-with? ?n ":wat::core::HashMap/"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
-           :rule "core-f64-to-f64"
+           :rule "core-hashmap-slash-to-hashmap-colon"
            :captures (:wat::rete::core::PersistentVector
                        (:wat::grep::Capture :name "old" :value ?n)
                        (:wat::grep::Capture :name "new"
-                         :value (:wat::rete::core::String/concat ":wat::f64::"
-                                  (:wat::rete::string::subs ?n 17
+                         :value (:wat::rete::core::String/concat ":wat::hashmap::"
+                                  (:wat::rete::string::subs ?n 20
                                     (:wat::rete::string::length ?n)
                                     :undefined "")))))])
 
@@ -190,7 +173,7 @@
      out     (:wat::fix::fix-text-apply src sorted)]
     (:wat::core::do
       (:wat::io::write-file path out)
-      (:wat::kernel::println (:wat::string::concat "[core-numerics-to-their-homes] " path)))))
+      (:wat::kernel::println (:wat::string::concat "[core-maps-to-their-homes] " path)))))
 
 (:wat::core::defn :rn::convert-each
   [overlay <- :wat::rete::Overlay

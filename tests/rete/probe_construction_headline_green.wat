@@ -33,7 +33,7 @@
      derived (:wat::rete::query fired (:cg::q-Rate))
      r       (:wat::core::first derived)]
     (:wat::core::Option/expect
-      (:wat::core::PersistentMap/get r "?count")
+      (:wat::map::get r "?count")
       "q-Rate: ?count")))
 
 ;; Fires via the NATIVE KERNEL — same rule, same expected value, through the compiled RHS path.
@@ -46,5 +46,5 @@
      derived (:wat::rete::query fired (:cg::q-Rate))
      r       (:wat::core::first derived)]
     (:wat::core::Option/expect
-      (:wat::core::PersistentMap/get r "?count")
+      (:wat::map::get r "?count")
       "q-Rate: ?count")))

@@ -174,19 +174,19 @@
 (:wat::core::defn :acc::codes [fired <- :wat::rete::Session] -> (:wat::core::Vector :- [:wat::core::i64])
   (:wat::core::let
     [c0 (:wat::core::into (:wat::core::Vector :wat::core::i64)
-          (:wat::core::map (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:acc::enc 0 (:acc::CountF/g f) (:acc::CountF/n f))))
+          (:wat::core::map (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:acc::enc 0 (:acc::CountF/g f) (:acc::CountF/n f))))
             (:wat::rete::query fired (:acc::q-CountF))))
      c1 (:wat::core::into c0
-          (:wat::core::map (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:acc::enc 1 (:acc::SumF/g f) (:acc::SumF/n f))))
+          (:wat::core::map (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:acc::enc 1 (:acc::SumF/g f) (:acc::SumF/n f))))
             (:wat::rete::query fired (:acc::q-SumF))))
      c2 (:wat::core::into c1
-          (:wat::core::map (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:acc::enc 2 (:acc::MinF/g f) (:acc::MinF/n f))))
+          (:wat::core::map (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:acc::enc 2 (:acc::MinF/g f) (:acc::MinF/n f))))
             (:wat::rete::query fired (:acc::q-MinF))))
      c3 (:wat::core::into c2
-          (:wat::core::map (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:acc::enc 3 (:acc::MaxF/g f) (:acc::MaxF/n f))))
+          (:wat::core::map (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:acc::enc 3 (:acc::MaxF/g f) (:acc::MaxF/n f))))
             (:wat::rete::query fired (:acc::q-MaxF))))
      c4 (:wat::core::into c3
-          (:wat::core::map (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:acc::enc 4 (:acc::ExistsF/g f) 0)))
+          (:wat::core::map (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:acc::enc 4 (:acc::ExistsF/g f) 0)))
             (:wat::rete::query fired (:acc::q-ExistsF))))]
     c4))
 

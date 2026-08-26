@@ -15,7 +15,7 @@
 ;;   HIT   => `Some "v"`                            -> the rider's diagnosis is wrong
 
 (:wat::core::defn :probe::string-keyed [] -> (:wat::core::HashMap :wat::core::String :wat::core::String)
-  (:wat::core::HashMap/assoc
+  (:wat::hashmap::assoc
     (:wat::core::HashMap :wat::core::String :wat::core::String)
     "edn" "the-value"))
 
@@ -25,7 +25,7 @@
     (:wat::core::do
       ;; CONTROL — the direct accessor on a concretely-typed map. This must HIT; if it does not,
       ;; the map itself is wrong and nothing below means anything.
-      (:wat::kernel::println (:wat::core::HashMap/get m "edn"))
+      (:wat::kernel::println (:wat::hashmap::get m "edn"))
       ;; THE SUBJECT — the destructure sugar on the SAME map, same key.
       (:wat::kernel::println
         (:wat::core::match m

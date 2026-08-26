@@ -174,4 +174,4 @@
     [key   (:wat::core::HashSet :wat::core::i64 7 8 9)
      m     (:wat::core::HashMap :wat::type::Infer :wat::core::String key "found-it")
      probe (:wat::core::HashSet :wat::core::i64 7 8 9)]
-    (:wat::core::HashMap/contains-key? m probe)))
+    (:wat::hashmap::contains-key? m probe)))

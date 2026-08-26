@@ -83,7 +83,7 @@
      m0      (:wat::time::now)
      codes   (:wat::core::into (:wat::core::Vector :wat::core::i64)
                (:wat::core::map
-                 (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:dd::enc (:dd::Pair/key f) (:dd::Pair/lid f) (:dd::Pair/rid f))))
+                 (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:dd::enc (:dd::Pair/key f) (:dd::Pair/lid f) (:dd::Pair/rid f))))
                  pairs))
      m1      (:wat::time::now)
 

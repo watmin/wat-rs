@@ -66,7 +66,7 @@
 ;; projected into this GSI.
 (:wat::core::defn :wat::query::row-index-key
   [row <- :wat::query::StoredRow index <- :wat::core::String] -> (:wat::core::Option :wat::query::IndexKey)
-  (:wat::core::HashMap/get (:wat::query::StoredRow/index-keys row) index))
+  (:wat::hashmap::get (:wat::query::StoredRow/index-keys row) index))
 
 (:wat::core::defn :wat::query::index-key-in-range?
   [ik <- :wat::query::IndexKey ipk <- :wat::core::String lo <- :wat::core::String

@@ -43,7 +43,7 @@
                -> (:wat::core::PersistentVector :- [:wat::core::Value])
                (:wat::core::PersistentVector/conj a
                  (:wat::core::Option/expect
-                   (:wat::core::PersistentMap/get p "?fact")
+                   (:wat::map::get p "?fact")
                    "q-Hot: ?fact")))
              (:wat::core::PersistentVector)
              hots)]
@@ -52,7 +52,7 @@
         -> (:wat::core::PersistentVector :- [:wat::core::Value])
         (:wat::core::PersistentVector/conj a
           (:wat::core::Option/expect
-            (:wat::core::PersistentMap/get p "?fact")
+            (:wat::map::get p "?fact")
             "q-Warn: ?fact")))
       acc0
       warns)))

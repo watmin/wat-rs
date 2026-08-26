@@ -73,18 +73,18 @@
   (:wat::core::if (:wat::core::= (:wat::core::length answers) 0)
     "empty"
     (:wat::core::match
-      (:wat::core::PersistentMap/get (:wat::core::first answers) k)
+      (:wat::map::get (:wat::core::first answers) k)
       ((:wat::core::Some _) "yes")
       (:wat::core::None "none"))))
 
 (:wat::core::defn :wqc::i64-of
   [p <- :wat::core::PersistentMap k <- :wat::core::String] -> :wat::core::i64
-  (:wat::core::Option/expect (:wat::core::PersistentMap/get p k)
+  (:wat::core::Option/expect (:wat::map::get p k)
     (:wat::core::String/concat "query-compat missing " k)))
 
 (:wat::core::defn :wqc::str-of
   [p <- :wat::core::PersistentMap k <- :wat::core::String] -> :wat::core::String
-  (:wat::core::Option/expect (:wat::core::PersistentMap/get p k)
+  (:wat::core::Option/expect (:wat::map::get p k)
     (:wat::core::String/concat "query-compat missing " k)))
 
 (:wat::core::defn :wqc::render-strs

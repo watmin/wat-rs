@@ -110,7 +110,7 @@ A substrate that ends up with both has two names for one concept. **Pick one.**
 ```clojure
 (sift-rules [s ctx req]
   (:wat::core::let [who   (:wat::service::Ctx/<the-field> ctx)
-                    world (:wat::core::HashMap/get (worlds s) who)]
+                    world (:wat::hashmap::get (worlds s) who)]
     …))
 ```
 

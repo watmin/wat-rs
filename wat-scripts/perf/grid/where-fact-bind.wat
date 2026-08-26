@@ -40,7 +40,7 @@
   (:wat::core::if (:wat::core::= (:wat::core::length answers) 0)
     "empty"
     (:wat::core::match
-      (:wat::core::PersistentMap/get (:wat::core::first answers) k)
+      (:wat::map::get (:wat::core::first answers) k)
       ((:wat::core::Some _) "yes")
       (:wat::core::None "none"))))
 
@@ -86,7 +86,7 @@
         (:wat::core::String/concat " -> "
           (:wat::i64::to-string
             (:wat::core::Option/expect
-              (:wat::core::PersistentMap/get (:wat::core::first hits) "?c")
+              (:wat::map::get (:wat::core::first hits) "?c")
               "q-Hit: ?c")))))
     (:wfb::line 5 "from"
       (:wat::core::let [only-q (:wat::rete::fire-rules

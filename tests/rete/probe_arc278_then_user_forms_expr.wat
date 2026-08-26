@@ -26,7 +26,7 @@
 
 (:wat::core::defn :test::count-rate [s <- :wat::rete::Session] -> :wat::core::i64
   (:wat::core::Option/expect
-    (:wat::core::PersistentMap/get
+    (:wat::map::get
       (:wat::core::first (:wat::rete::query s (:tf::q-Rate)))
       "?count")
     "q-Rate: ?count"))

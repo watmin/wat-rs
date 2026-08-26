@@ -250,7 +250,7 @@
   (:wat::core::sort
     (:wat::core::into (:wat::core::Vector :wat::core::i64)
       (:wat::core::map
-        (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:wnm::Hit/k f)))
+        (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:wnm::Hit/k f)))
         (:wat::rete::query fired (:wnm::q-Hit))))))
 
 ;; render-ints — mirrors where-shapes.wat's render-ints EXACTLY (own rendering, not the EDN

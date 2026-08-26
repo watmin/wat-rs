@@ -31,7 +31,7 @@
     [fired (:wat::rete::fire-rules (:afs::built))
      ;; rune:vocare(vantage-bypass-test) — fire-scoped alpha is implementer layout, not query
      amem  (:wat::rete::Session/alpha-memory fired)]
-    (:wat::core::length (:wat::core::PersistentMap/keys amem))))
+    (:wat::core::length (:wat::map::keys amem))))
 
 ;; (2) oracle-alpha-key-count — fired via `fire-rules$oracle` (the wat ORACLE, never optimized). Expect
 ;; 0: `fire-stratified` returns alpha-memory empty (wat/rete/oracle/fire.wat:349) — asserted here, not assumed.
@@ -40,7 +40,7 @@
     [fired (:wat::rete::fire-rules$oracle (:afs::built))
      ;; rune:vocare(vantage-bypass-test) — fire-scoped alpha is implementer layout, not query
      amem  (:wat::rete::Session/alpha-memory fired)]
-    (:wat::core::length (:wat::core::PersistentMap/keys amem))))
+    (:wat::core::length (:wat::map::keys amem))))
 
 ;; (4) single-pass-alpha-key-count — fired via native `fire-once` (single-pass). Expect > 0: THE
 ;; ANCHOR — proves this workload really does populate alpha, so (1)/(2)/(3) are not vacuously true
@@ -50,7 +50,7 @@
     [fired (:wat::rete::fire-once (:afs::built))
      ;; rune:vocare(vantage-bypass-test) — fire-scoped alpha is implementer layout, not query
      amem  (:wat::rete::Session/alpha-memory fired)]
-    (:wat::core::length (:wat::core::PersistentMap/keys amem))))
+    (:wat::core::length (:wat::map::keys amem))))
 
 ;; (5) native-derived-count / oracle-derived-count — the RESULT (production output), expected equal
 ;; and > 0: closing the alpha divergence must not move what fire actually derives.

@@ -530,14 +530,18 @@ fn is_pure_total(head: &str) -> bool {
         | ":wat::core::Vector/get"
         | ":wat::core::Vector/conj"
         | ":wat::core::Vector/concat"
-        | ":wat::core::HashMap/length"
-        | ":wat::core::HashMap/empty?"
-        | ":wat::core::HashMap/contains-key?"
-        | ":wat::core::HashMap/get"
-        | ":wat::core::HashMap/assoc"
-        | ":wat::core::HashMap/dissoc"
-        | ":wat::core::HashMap/keys"
-        | ":wat::core::HashMap/values"
+        // Arc 255 Stone E-i — the maps get their homes. `:wat::core::HashMap/*` retired this
+        // stone; `:wat::hashmap::*` is its replacement (PersistentMap was never on this list —
+        // that asymmetry predates this stone and is not this stone's to fix; `:wat::map::*` is
+        // therefore deliberately absent here too).
+        | ":wat::hashmap::length"
+        | ":wat::hashmap::empty?"
+        | ":wat::hashmap::contains-key?"
+        | ":wat::hashmap::get"
+        | ":wat::hashmap::assoc"
+        | ":wat::hashmap::dissoc"
+        | ":wat::hashmap::keys"
+        | ":wat::hashmap::values"
         | ":wat::core::HashSet/length"
         | ":wat::core::HashSet/empty?"
         | ":wat::core::HashSet/contains?"

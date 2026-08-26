@@ -103,7 +103,7 @@
 ;; a PersistentMap verb — the HAMT lookup path
 (:wat::core::defn :shape::rule-map [] -> :wat::rete::Rule
   (:wat::core::let [conds   (:wat::core::quasiquote (:shape::Req (?k <- :k) (?m <- :attrs)))
-                    where-c (:wat::core::quasiquote (:wat::rete::where (:wat::rete::core::PersistentMap/contains-key? ?m "hot")))
+                    where-c (:wat::core::quasiquote (:wat::rete::where (:wat::rete::map::contains-key? ?m "hot")))
                     ins     (:wat::core::quasiquote (:shape::Hit ?k))]
     (:wat::rete::Rule :name "map"
       :lhs (:wat::core::PersistentVector conds where-c)

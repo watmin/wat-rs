@@ -62,7 +62,7 @@ fn run_for(n: usize) {
     }
     let expr = format!(
         "(:wat::core::let [{binds}\n fired (:wat::rete::fire-rules$oracle s{prev})\n pmem (:wat::rete::Session/production-memory fired)]\
-           (:wat::core::length (:wat::core::PersistentMap/keys pmem)))"
+           (:wat::core::length (:wat::map::keys pmem)))"
     );
     let ast = wat::parse_one!(&expr).expect("parse");
 
@@ -105,7 +105,7 @@ fn run_native(n: usize) {
     }
     let expr = format!(
         "(:wat::core::let [{binds}\n fired (:wat::rete::fire-once s{prev})\n pmem (:wat::rete::Session/production-memory fired)]\
-           (:wat::core::length (:wat::core::PersistentMap/keys pmem)))"
+           (:wat::core::length (:wat::map::keys pmem)))"
     );
     let ast = wat::parse_one!(&expr).expect("parse");
     let t = Instant::now();

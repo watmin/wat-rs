@@ -20398,18 +20398,6 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     env.register(
-        ":wat::core::HashMap/length".into(),
-        TypeScheme {
-            type_params: vec!["K".into(), "V".into()],
-            params: vec![TypeExpr::Parametric {
-                head: "wat::core::HashMap".into(),
-                args: vec![TypeExpr::Path(":K".into()), TypeExpr::Path(":V".into())],
-            }],
-            ret: i64_ty(),
-            rest_param_type: None,
-        },
-    );
-    env.register(
         ":wat::core::HashSet/length".into(),
         TypeScheme {
             type_params: vec!["T".into()],
@@ -20441,15 +20429,6 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     env.register(
-        ":wat::core::HashMap/empty?".into(),
-        TypeScheme {
-            type_params: vec!["K".into(), "V".into()],
-            params: vec![hashmap_of(k_var(), v_var())],
-            ret: bool_ty(),
-            rest_param_type: None,
-        },
-    );
-    env.register(
         ":wat::core::HashSet/empty?".into(),
         TypeScheme {
             type_params: vec!["T".into()],
@@ -20469,15 +20448,6 @@ fn register_builtins(env: &mut CheckEnv) {
         TypeScheme {
             type_params: vec!["T".into()],
             params: vec![vec_of(t_var()), t_var()],
-            ret: bool_ty(),
-            rest_param_type: None,
-        },
-    );
-    env.register(
-        ":wat::core::HashMap/contains-key?".into(),
-        TypeScheme {
-            type_params: vec!["K".into(), "V".into()],
-            params: vec![hashmap_of(k_var(), v_var()), k_var()],
             ret: bool_ty(),
             rest_param_type: None,
         },
@@ -20503,15 +20473,6 @@ fn register_builtins(env: &mut CheckEnv) {
             type_params: vec!["T".into()],
             params: vec![vec_of(t_var()), i64_ty()],
             ret: opt(t_var()),
-            rest_param_type: None,
-        },
-    );
-    env.register(
-        ":wat::core::HashMap/get".into(),
-        TypeScheme {
-            type_params: vec!["K".into(), "V".into()],
-            params: vec![hashmap_of(k_var(), v_var()), k_var()],
-            ret: opt(v_var()),
             rest_param_type: None,
         },
     );
@@ -20549,43 +20510,6 @@ fn register_builtins(env: &mut CheckEnv) {
     //   HashMap/assoc  :: ∀K,V. (HashMap :- [K V]) × K × V -> (HashMap :- [K V])
     //   HashMap/dissoc :: ∀K,V. (HashMap :- [K V]) × K     -> (HashMap :- [K V])
     //   HashMap/keys   :: ∀K,V. (HashMap :- [K V])         -> (Vector :- [K])
-    //   HashMap/values :: ∀K,V. (HashMap :- [K V])         -> (Vector :- [V])
-    env.register(
-        ":wat::core::HashMap/assoc".into(),
-        TypeScheme {
-            type_params: vec!["K".into(), "V".into()],
-            params: vec![hashmap_of(k_var(), v_var()), k_var(), v_var()],
-            ret: hashmap_of(k_var(), v_var()),
-            rest_param_type: None,
-        },
-    );
-    env.register(
-        ":wat::core::HashMap/dissoc".into(),
-        TypeScheme {
-            type_params: vec!["K".into(), "V".into()],
-            params: vec![hashmap_of(k_var(), v_var()), k_var()],
-            ret: hashmap_of(k_var(), v_var()),
-            rest_param_type: None,
-        },
-    );
-    env.register(
-        ":wat::core::HashMap/keys".into(),
-        TypeScheme {
-            type_params: vec!["K".into(), "V".into()],
-            params: vec![hashmap_of(k_var(), v_var())],
-            ret: vec_of(k_var()),
-            rest_param_type: None,
-        },
-    );
-    env.register(
-        ":wat::core::HashMap/values".into(),
-        TypeScheme {
-            type_params: vec!["K".into(), "V".into()],
-            params: vec![hashmap_of(k_var(), v_var())],
-            ret: vec_of(v_var()),
-            rest_param_type: None,
-        },
-    );
 
     // concat — Vector-only (DESIGN audit; string::concat already
     // namespaced separately). 2-arg fingerprint per arc 144 slice 3
@@ -20633,9 +20557,16 @@ fn register_builtins(env: &mut CheckEnv) {
     // `persistentmap_of` (above) and `pv_of` (just above, for PersistentVector/concat) rather
     // than minting fresh helpers.
 
-    // PersistentMap/get ← HashMap/get (check.rs:19990)
+
+    // ── arc 255 Stone E-i — the maps get their homes ────────────────────────
+    // `:wat::map::*` (PersistentMap's new, UNMARKED home — it never moves again
+    // once the persistent-backend swap lands) and `:wat::hashmap::*` (HashMap's
+    // new, flavor-marked home). Both spellings LIVE alongside the
+    // `:wat::core::{PersistentMap,HashMap}/*` schemes above during Phase 1/2;
+    // Phase 3 retires the old spellings (see `src/remedy/retirement.rs`).
+    // Each scheme below is its old spelling's, VERBATIM — name-only rename.
     env.register(
-        ":wat::core::PersistentMap/get".into(),
+        ":wat::map::get".into(),
         TypeScheme {
             type_params: vec!["K".into(), "V".into()],
             params: vec![persistentmap_of(k_var(), v_var()), k_var()],
@@ -20643,9 +20574,8 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
-    // PersistentMap/assoc ← HashMap/assoc (check.rs:20034)
     env.register(
-        ":wat::core::PersistentMap/assoc".into(),
+        ":wat::map::assoc".into(),
         TypeScheme {
             type_params: vec!["K".into(), "V".into()],
             params: vec![persistentmap_of(k_var(), v_var()), k_var(), v_var()],
@@ -20653,9 +20583,8 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
-    // PersistentMap/dissoc ← HashMap/dissoc (check.rs:20043)
     env.register(
-        ":wat::core::PersistentMap/dissoc".into(),
+        ":wat::map::dissoc".into(),
         TypeScheme {
             type_params: vec!["K".into(), "V".into()],
             params: vec![persistentmap_of(k_var(), v_var()), k_var()],
@@ -20663,9 +20592,8 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
-    // PersistentMap/keys ← HashMap/keys (check.rs:20052)
     env.register(
-        ":wat::core::PersistentMap/keys".into(),
+        ":wat::map::keys".into(),
         TypeScheme {
             type_params: vec!["K".into(), "V".into()],
             params: vec![persistentmap_of(k_var(), v_var())],
@@ -20673,9 +20601,8 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
-    // PersistentMap/values ← HashMap/values (check.rs:20061)
     env.register(
-        ":wat::core::PersistentMap/values".into(),
+        ":wat::map::values".into(),
         TypeScheme {
             type_params: vec!["K".into(), "V".into()],
             params: vec![persistentmap_of(k_var(), v_var())],
@@ -20683,9 +20610,8 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
-    // PersistentMap/length ← HashMap/length (check.rs:19881)
     env.register(
-        ":wat::core::PersistentMap/length".into(),
+        ":wat::map::length".into(),
         TypeScheme {
             type_params: vec!["K".into(), "V".into()],
             params: vec![persistentmap_of(k_var(), v_var())],
@@ -20693,9 +20619,8 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
-    // PersistentMap/empty? ← HashMap/empty? (check.rs:19924)
     env.register(
-        ":wat::core::PersistentMap/empty?".into(),
+        ":wat::map::empty?".into(),
         TypeScheme {
             type_params: vec!["K".into(), "V".into()],
             params: vec![persistentmap_of(k_var(), v_var())],
@@ -20703,12 +20628,83 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
-    // PersistentMap/contains-key? ← HashMap/contains-key? (check.rs:19957)
     env.register(
-        ":wat::core::PersistentMap/contains-key?".into(),
+        ":wat::map::contains-key?".into(),
         TypeScheme {
             type_params: vec!["K".into(), "V".into()],
             params: vec![persistentmap_of(k_var(), v_var()), k_var()],
+            ret: bool_ty(),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::hashmap::get".into(),
+        TypeScheme {
+            type_params: vec!["K".into(), "V".into()],
+            params: vec![hashmap_of(k_var(), v_var()), k_var()],
+            ret: opt(v_var()),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::hashmap::assoc".into(),
+        TypeScheme {
+            type_params: vec!["K".into(), "V".into()],
+            params: vec![hashmap_of(k_var(), v_var()), k_var(), v_var()],
+            ret: hashmap_of(k_var(), v_var()),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::hashmap::dissoc".into(),
+        TypeScheme {
+            type_params: vec!["K".into(), "V".into()],
+            params: vec![hashmap_of(k_var(), v_var()), k_var()],
+            ret: hashmap_of(k_var(), v_var()),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::hashmap::keys".into(),
+        TypeScheme {
+            type_params: vec!["K".into(), "V".into()],
+            params: vec![hashmap_of(k_var(), v_var())],
+            ret: vec_of(k_var()),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::hashmap::values".into(),
+        TypeScheme {
+            type_params: vec!["K".into(), "V".into()],
+            params: vec![hashmap_of(k_var(), v_var())],
+            ret: vec_of(v_var()),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::hashmap::length".into(),
+        TypeScheme {
+            type_params: vec!["K".into(), "V".into()],
+            params: vec![hashmap_of(k_var(), v_var())],
+            ret: i64_ty(),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::hashmap::empty?".into(),
+        TypeScheme {
+            type_params: vec!["K".into(), "V".into()],
+            params: vec![hashmap_of(k_var(), v_var())],
+            ret: bool_ty(),
+            rest_param_type: None,
+        },
+    );
+    env.register(
+        ":wat::hashmap::contains-key?".into(),
+        TypeScheme {
+            type_params: vec!["K".into(), "V".into()],
+            params: vec![hashmap_of(k_var(), v_var()), k_var()],
             ret: bool_ty(),
             rest_param_type: None,
         },

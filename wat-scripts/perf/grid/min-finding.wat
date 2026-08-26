@@ -140,7 +140,7 @@
     (:wat::core::sort
       (:wat::core::into (:wat::core::Vector :wat::core::i64)
         (:wat::core::map
-          (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")] (:mf::encode (:mf::Busy/loc f) (:mf::Busy/n f))))
+          (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:mf::encode (:mf::Busy/loc f) (:mf::Busy/n f))))
           (:wat::rete::query fired (:mf::q-Busy)))))))
 
 ;; ns-between t0 t1 — nanoseconds between two Instants (mirrors strat-neg.wat's ns-between).

@@ -140,9 +140,9 @@
                      row <- :wat::core::PersistentMap]
       -> (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::String :wat::core::String])])
       (:wat::core::let
-        [line     (:wat::core::Option/expect (:wat::core::PersistentMap/get row "?line")     "q-match: ?line")
-         col      (:wat::core::Option/expect (:wat::core::PersistentMap/get row "?col")      "q-match: ?col")
-         captures (:wat::core::Option/expect (:wat::core::PersistentMap/get row "?captures") "q-match: ?captures")
+        [line     (:wat::core::Option/expect (:wat::map::get row "?line")     "q-match: ?line")
+         col      (:wat::core::Option/expect (:wat::map::get row "?col")      "q-match: ?col")
+         captures (:wat::core::Option/expect (:wat::map::get row "?captures") "q-match: ?captures")
          old-text (:wat::grep::Capture/value (:rn::first-capture captures))
          new-text (:wat::grep::Capture/value (:rn::second-capture captures))
          start    {:line line     :col col}

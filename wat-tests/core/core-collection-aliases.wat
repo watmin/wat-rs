@@ -33,7 +33,7 @@
      m2 (:wat::core::assoc m1 "b" 2)
      ;; short-name alias under test
      m3 (:wat::core::dissoc m2 "a")
-     ks (:wat::core::HashMap/keys m3)]
+     ks (:wat::hashmap::keys m3)]
     (:wat::test::assert-eq (:wat::core::length ks) 1)))
 
 ;; ─── dissoc: result is a HashMap, not a tombstoned original ──────────────
@@ -46,7 +46,7 @@
     [m0 (:wat::core::HashMap :wat::core::String :wat::core::i64)
      m1 (:wat::core::assoc m0 "only" 42)
      m2 (:wat::core::dissoc m1 "only")
-     ks (:wat::core::HashMap/keys m2)]
+     ks (:wat::hashmap::keys m2)]
     (:wat::test::assert-eq (:wat::core::length ks) 0)))
 
 ;; ─── keys: returns a vector of all keys ───────────────────────────────────

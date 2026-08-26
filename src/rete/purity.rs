@@ -269,9 +269,13 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
     // swap makes it load-bearing, at which point changing which container a literal produces would
     // change observed key order while this axis said that was impossible.
     // Scrutiny of the wider class: `docs/arc/2026/06/255-builtin-registry/NOTE-the-registry-asserts-properties-nothing-verifies.md`
+    // Arc 255 Stone E-i — the maps get their homes. The old `:wat::core::{HashMap,
+    // PersistentMap}/{keys,values}` spelling retired this stone; `:wat::hashmap::{keys,values}`
+    // and `:wat::map::{keys,values}` carry the identical non-deterministic classification
+    // (name-only rename; the iteration-order argument is unchanged).
     if matches!(head,
-        ":wat::core::HashMap/keys" | ":wat::core::HashMap/values"
-        | ":wat::core::PersistentMap/keys" | ":wat::core::PersistentMap/values")
+        ":wat::hashmap::keys" | ":wat::hashmap::values"
+        | ":wat::map::keys" | ":wat::map::values")
     {
         return Some(OpMeta { pure: true, deterministic: false, total: true });
     }
@@ -513,26 +517,26 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             | ":wat::core::PersistentVector/contains?"
             | ":wat::core::PersistentVector/get"
             | ":wat::core::PersistentVector/conj"
-            // PersistentMap ops
+            // PersistentMap / HashMap TYPE constructors — bare, no rename this stone
+            // (arc 255 Stone E-i moved only the `/`-verb ops; the type constructors are a
+            // separate future stone, per the numerics type/ops split precedent).
             | ":wat::core::PersistentMap"
-            | ":wat::core::PersistentMap/length"
-            | ":wat::core::PersistentMap/empty?"
-            | ":wat::core::PersistentMap/contains-key?"
-            | ":wat::core::PersistentMap/get"
-            | ":wat::core::PersistentMap/assoc"
-            | ":wat::core::PersistentMap/dissoc"
-            | ":wat::core::PersistentMap/keys"
-            | ":wat::core::PersistentMap/values"
-            // HashMap ops
             | ":wat::core::HashMap"
-            | ":wat::core::HashMap/length"
-            | ":wat::core::HashMap/empty?"
-            | ":wat::core::HashMap/contains-key?"
-            | ":wat::core::HashMap/get"
-            | ":wat::core::HashMap/assoc"
-            | ":wat::core::HashMap/dissoc"
-            | ":wat::core::HashMap/keys"
-            | ":wat::core::HashMap/values"
+            // Arc 255 Stone E-i — the maps get their homes. `:wat::core::{PersistentMap,
+            // HashMap}/*` retired this stone; `keys`/`values` excluded here (classified
+            // non-deterministic by the special-case block earlier in this fn).
+            | ":wat::map::length"
+            | ":wat::map::empty?"
+            | ":wat::map::contains-key?"
+            | ":wat::map::get"
+            | ":wat::map::assoc"
+            | ":wat::map::dissoc"
+            | ":wat::hashmap::length"
+            | ":wat::hashmap::empty?"
+            | ":wat::hashmap::contains-key?"
+            | ":wat::hashmap::get"
+            | ":wat::hashmap::assoc"
+            | ":wat::hashmap::dissoc"
             // Deterministic Uuid ops (v5 = SHA1(ns,name); from-string/to-string/nil)
             | ":wat::uuid::v5"
             | ":wat::uuid::from-string"
