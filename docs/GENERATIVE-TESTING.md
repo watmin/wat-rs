@@ -407,7 +407,33 @@ reserved-prefix gate admits only baked sources), so **promotion was the only ava
 Loads after `wat/seq.wat` (uses `into`/`filter`/`foldl`/`mapv`) and needs nothing further — no
 holon, no rete, no comms. `:wat::deporder::verify-stdlib` enforces the position.
 
-## Feature completeness
+## Feature completeness — YES, as of 2026-08-25
+
+Checked by trying to express everything left in the QuickCheck / `test.check` surface, rather
+than by reading the built list and feeling done. Nothing in it is inexpressible:
+
+| tradition surface | expressed here as | verified |
+|---|---|---|
+| `return` / `pure` | `(ints v (v+1))` | card 1 |
+| **recursive generators** | plain wat recursion over `bind` — no combinator needed | depth-3 tree, card 8 |
+| booleans | `(elements [true false])` | card 2 |
+| `set-of` / `map-of` | `fmap` a `vector-of` into a HashSet | card 4 |
+| `sized` / `resize` | "size" is a parameter you pass | card 9 |
+| `tuple` | `lift2`/`lift3` over a constructor — names the result type | §4 |
+| `frequency` | **deliberately absent**: cardinality IS the weight | §5 below |
+| `no-shrink` | meaningless — shrinking here is caller-invoked, never automatic | — |
+| `sample` | `Gen/at` directly | — |
+
+**Recursive generators deserve the note.** `test.check` needs a `recursive-gen` combinator because
+its generators are opaque. Here a generator is an ordinary value returned by an ordinary function,
+so recursion is just recursion — `(defn tree [d] (if (= d 0) leaf (bind ... (tree (- d 1)))))`
+works, bounded by the depth argument. Having `bind` bought recursion for free.
+
+**What is NOT added, deliberately:** one-line conveniences — `pure`, `bools`, `set-of` — that each
+expand to a single existing call. Adding them speculatively is the closed loop this library
+already fell into once, when combinators were built because the tradition has them and then proved
+against laws written by the same hand. If a consumer writes one twice, it earns its slot.
+
 
 **Two gaps were found at the SEAMS, 2026-08-25, and they were invisible while each piece was
 built alone.** Asked whether the tooling was complete, the pieces all looked done; what was
