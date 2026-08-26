@@ -62,19 +62,18 @@ fn probe_1_not_callable_renders_offending_keyword() {
         Ok(v) => panic!("Probe 1: expected NotCallable; got {:?}", v),
         Err(e) => {
             println!("Probe 1 error: {}", e);
-            // 296 recapture: staleness — EDN face (Stone B), same type_name/rendered/
-            // provenance/binding-span/head-span values as the pre-stone-B Debug face;
-            // additive :message/:causes. The outer src/runtime.rs span moved internally
-            // (line 18900→21351→25369→25361→25366→25429→…→25695→25722) — an internal
-            // src/*.rs span move is staleness, recaptured and kept pinned.
-            // (`cosine_outcome_from_values` helpers shifted apply_tracked_callee; the
-            // 25695→25722 move is `classify_fallback_outcome` landing above this site,
-            // 2026-08-24.)
-            //
-            // ⚠ THIS TRAIL HAD ITSELF GONE STALE: it ended at 25429 while the golden
-            // pinned 25695, so at least one recapture updated the .edn and not the note.
-            // The `…` is that gap, left visible rather than invented. A history that
-            // silently skips entries is worse than one that admits it.
+            // HISTORICAL (closed by arc 255 Stone A-i repair, 2026-08-25): this outer
+            // src/runtime.rs span used to move every time runtime.rs grew or shrank above
+            // the call site, and each move forced a golden recapture — this trail records
+            // four such moves (18900→21351→25369→25361→25366→25429→…→25695→25722→25647)
+            // and one instance where the trail itself went stale (it ended at 25429 while
+            // the golden pinned 25695 — at least one recapture updated the .edn and not the
+            // note; the `…` above is that admitted gap). `assert_edn_eq!`
+            // (`normalize_rust_source_span_lines`, src/lib.rs) now normalizes the `:line` of
+            // any `#wat.core/Span` whose `:file` ends in `.rs` before comparing, so a
+            // src/runtime.rs line move is no longer a golden diff — this chase is CLOSED,
+            // and this note need not be extended again. `.wat`-facing spans below are
+            // unaffected: normalization never touches a span whose `:file` is not `.rs`.
             wat::assert_edn_matches_file!(
                 e.trim_start_matches("eval: ").to_string(),
                 "probe_diagnostic_value_snapshot_in_errors__probe_1_not_callable_renders_offending_keyword.edn",
@@ -99,8 +98,10 @@ fn probe_2_not_callable_renders_runtime_built_keyword() {
         Ok(v) => panic!("Probe 2: expected NotCallable; got {:?}", v),
         Err(e) => {
             println!("Probe 2 error: {}", e);
-            // 296 recapture: staleness, same reasoning as Probe 1 (internal src/*.rs span
-            // moved; all wat-source-facing values identical).
+            // HISTORICAL, same closed class as Probe 1's note above: the internal
+            // src/*.rs span used to move independently of any wat-source-facing value.
+            // CLOSED by arc 255 Stone A-i repair — `.rs`-file spans are now
+            // line-normalized before comparing, so this can't recur.
             wat::assert_edn_matches_file!(
                 e.trim_start_matches("eval: ").to_string(),
                 "probe_diagnostic_value_snapshot_in_errors__probe_2_not_callable_renders_runtime_built_keyword.edn",
@@ -193,8 +194,10 @@ fn probe_6_runtime_built_keyword_renders_producer_info() {
         Ok(v) => panic!("Probe 6: expected NotCallable; got {:?}", v),
         Err(e) => {
             println!("Probe 6 error: {}", e);
-            // 296 recapture: staleness — identical wat-facing values to Probe 2 (same p2.wat
-            // fixture); only the internal src/runtime.rs span moved.
+            // HISTORICAL: identical wat-facing values to Probe 2 (same p2.wat fixture);
+            // only the internal src/runtime.rs span used to move. CLOSED by arc 255
+            // Stone A-i repair — `.rs`-file spans are now line-normalized before
+            // comparing, so this can't recur.
             wat::assert_edn_matches_file!(
                 e.trim_start_matches("eval: ").to_string(),
                 "probe_diagnostic_value_snapshot_in_errors__probe_6_runtime_built_keyword_renders_producer_info.edn",
@@ -223,8 +226,10 @@ fn probe_7_from_holon_produces_tagged_value() {
         Ok(v) => panic!("Probe 7: expected error; got {:?}", v),
         Err(e) => {
             println!("Probe 7 error: {}", e);
-            // 296 recapture: staleness — call_span into p7.wat (line 5, col 12-47) is
-            // unchanged from the old golden; only the internal src/runtime.rs span moved.
+            // HISTORICAL: call_span into p7.wat (line 5, col 12-47) is unchanged from the
+            // old golden; only the internal src/runtime.rs span used to move. CLOSED by
+            // arc 255 Stone A-i repair — `.rs`-file spans are now line-normalized before
+            // comparing, so this can't recur.
             wat::assert_edn_matches_file!(
                 e.trim_start_matches("eval: ").to_string(),
                 "probe_diagnostic_value_snapshot_in_errors__probe_7_from_holon_produces_tagged_value.edn",
@@ -252,8 +257,10 @@ fn probe_8_edn_read_produces_tagged_value() {
         Ok(v) => panic!("Probe 8: expected error; got {:?}", v),
         Err(e) => {
             println!("Probe 8 error: {}", e);
-            // 296 recapture: staleness — call_span into p8.wat (line 3, col 10-48) is
-            // unchanged from the old golden; only the internal src/runtime.rs span moved.
+            // HISTORICAL: call_span into p8.wat (line 3, col 10-48) is unchanged from the
+            // old golden; only the internal src/runtime.rs span used to move. CLOSED by
+            // arc 255 Stone A-i repair — `.rs`-file spans are now line-normalized before
+            // comparing, so this can't recur.
             wat::assert_edn_matches_file!(
                 e.trim_start_matches("eval: ").to_string(),
                 "probe_diagnostic_value_snapshot_in_errors__probe_8_edn_read_produces_tagged_value.edn",

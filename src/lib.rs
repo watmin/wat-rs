@@ -155,10 +155,80 @@ pub use parser::{parse_all_with_file, parse_one_with_file, ParseError, ParseErro
 // The parse_one! and parse_all! macros are exported at crate root via
 // #[macro_export] in parser.rs — consumers call them as `wat::parse_one!(src)`.
 
-/// Assert two EDN strings are DATA-equal: parse both via `wat_edn::parse_owned`
-/// and compare the parsed `OwnedValue`s. A malformed emission FAILS to parse →
-/// the test fails (you cannot green a non-EDN error face). On mismatch the
-/// failure message shows the raw strings so the diff is readable.
+/// Normalize, IN PLACE and recursively, the `:line` of every `#wat.core/Span`
+/// tagged record whose `:file` entry is a string ending in `.rs` — a span
+/// pointing into the substrate's OWN Rust source. Called on BOTH sides of an
+/// `assert_edn_eq!` comparison before the `assert_eq!`, arc 255 Stone A-i
+/// repair (the diagnostics-goldens cascade).
+///
+/// The rationale (from the brief this closes): a `.rs` span is an
+/// implementation detail — it drifts every time `src/runtime.rs` gains or
+/// loses a line above the call site, which has nothing to do with what the
+/// diagnostic is asserting. A span into user `.wat` IS the diagnostic's
+/// content (the user-facing location the probes exist to assert) and is
+/// therefore never touched here, neither `:line` nor `:col`.
+///
+/// **How `.rs` is told apart from `.wat`**: purely by reading the sibling
+/// `:file` entry inside the SAME `#wat.core/Span` map and checking its string
+/// suffix. Nothing about the `#wat.core/Span` tag itself says which language
+/// the span points into — a `.wat` fixture span and a `.rs` source span use
+/// the identical tag and shape, so the tag name alone cannot be the signal.
+/// Only `:line` is rewritten; `:file` is left byte-exact (it still proves the
+/// error was raised from the expected module) and `:col` is left byte-exact
+/// even on a `.rs` span (the brief scopes normalization to `:line` only).
+///
+/// The rewrite target is a fixed sentinel (`0`), not "copy the other side's
+/// value" — so a REAL difference elsewhere in the same `#wat.core/Span` map
+/// (e.g. a wrong `:file`, a `:col` this fn doesn't touch, or a `:end` that
+/// doesn't match) still fails loudly, and `assert_eq!`'s own diff still names
+/// exactly which field disagrees. This function only ever makes a `.rs`
+/// `:line` pair EQUAL to each other; it can never manufacture equality out of
+/// two values that were compared on any other field.
+pub fn normalize_rust_source_span_lines(v: &mut ::wat_edn::OwnedValue) {
+    use ::wat_edn::Value;
+    if let Value::Tagged(tag, boxed) = v {
+        if tag.namespace() == "wat.core" && tag.name() == "Span" {
+            if let Value::Map(entries) = boxed.as_mut() {
+                let is_rust_span = entries.iter().any(|(k, val)| {
+                    matches!(k.as_keyword(), Some(kw) if kw.namespace().is_none() && kw.name() == "file")
+                        && matches!(val.as_str(), Some(s) if s.ends_with(".rs"))
+                });
+                if is_rust_span {
+                    for (k, val) in entries.iter_mut() {
+                        if matches!(k.as_keyword(), Some(kw) if kw.namespace().is_none() && kw.name() == "line") {
+                            *val = Value::Integer(0);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    // Recurse regardless of whether this node was a Span — a Span's own
+    // `:end` field (and any container) can nest further Span records.
+    match v {
+        Value::Tagged(_, boxed) => normalize_rust_source_span_lines(boxed.as_mut()),
+        Value::List(items) | Value::Vector(items) | Value::Set(items) => {
+            for item in items.iter_mut() {
+                normalize_rust_source_span_lines(item);
+            }
+        }
+        Value::Map(entries) => {
+            for (k, val) in entries.iter_mut() {
+                normalize_rust_source_span_lines(k);
+                normalize_rust_source_span_lines(val);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Assert two EDN strings are DATA-equal: parse both via `wat_edn::parse_owned`,
+/// normalize any `.rs`-file `#wat.core/Span` `:line` (see
+/// [`normalize_rust_source_span_lines`] — arc 255 Stone A-i), and compare the
+/// parsed `OwnedValue`s. A malformed emission FAILS to parse → the test fails
+/// (you cannot green a non-EDN error face). On mismatch the failure message
+/// shows the raw (PRE-normalization) strings so the diff is readable — a real
+/// difference, `.rs`-span or not, is never swallowed.
 ///
 /// Stone C (arc 296): this is the wall — the test proves EDN-ness by PARSING,
 /// not by trusting a string. A non-EDN face cannot pass; key-order / whitespace
@@ -172,16 +242,18 @@ macro_rules! assert_edn_eq {
     ($actual:expr, $expected:expr) => {{
         let a_raw: String = $actual;
         let e_raw: &str = $expected;
-        let a_val = ::wat_edn::parse_owned(&a_raw)
+        let mut a_val = ::wat_edn::parse_owned(&a_raw)
             .unwrap_or_else(|err| panic!(
                 "STOP-1: ACTUAL is not valid EDN — a non-EDN error face survived stone B.\n\
                  parse error: {}\n\
                  actual: {}", err, a_raw));
-        let e_val = ::wat_edn::parse_owned(e_raw)
+        let mut e_val = ::wat_edn::parse_owned(e_raw)
             .unwrap_or_else(|err| panic!(
                 "EXPECTED golden is not valid EDN.\n\
                  parse error: {}\n\
                  expected: {}", err, e_raw));
+        $crate::normalize_rust_source_span_lines(&mut a_val);
+        $crate::normalize_rust_source_span_lines(&mut e_val);
         assert_eq!(a_val, e_val,
             "EDN data mismatch\n--- actual (raw) ---\n{}\n--- expected (raw) ---\n{}",
             a_raw, e_raw);
@@ -189,18 +261,20 @@ macro_rules! assert_edn_eq {
     ($actual:expr, $expected:expr, $msg:expr) => {{
         let a_raw: String = $actual;
         let e_raw: &str = $expected;
-        let a_val = ::wat_edn::parse_owned(&a_raw)
+        let mut a_val = ::wat_edn::parse_owned(&a_raw)
             .unwrap_or_else(|err| panic!(
                 "STOP-1: ACTUAL is not valid EDN — a non-EDN error face survived stone B.\n\
                  message: {}\n\
                  parse error: {}\n\
                  actual: {}", $msg, err, a_raw));
-        let e_val = ::wat_edn::parse_owned(e_raw)
+        let mut e_val = ::wat_edn::parse_owned(e_raw)
             .unwrap_or_else(|err| panic!(
                 "EXPECTED golden is not valid EDN.\n\
                  message: {}\n\
                  parse error: {}\n\
                  expected: {}", $msg, err, e_raw));
+        $crate::normalize_rust_source_span_lines(&mut a_val);
+        $crate::normalize_rust_source_span_lines(&mut e_val);
         assert_eq!(a_val, e_val,
             "EDN data mismatch ({})\n--- actual (raw) ---\n{}\n--- expected (raw) ---\n{}",
             $msg, a_raw, e_raw);

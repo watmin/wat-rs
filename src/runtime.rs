@@ -5845,63 +5845,24 @@ fn dispatch_keyword_head_value(
         // Stone 237.8b — drop '2 suffix; per-Type binary primitives are
         // strictly 2-ary Rust intrinsics; suffix was arity-disambiguation
         // scaffolding now superseded by defclause polymorphic surface.
+        // Arc 255 Stone A-i — these seven arms now call the SHARED named op
+        // fns (`i64_add_op` etc., defined beside `eval_i64_arith` above)
+        // instead of carrying the arithmetic inline. Behavior is byte-for-byte
+        // identical (the closure body moved, verbatim, into a named fn); the
+        // point is that `intrinsic/i64.rs`'s `:wat::i64::*` handlers call the
+        // SAME fns, so there is exactly one implementation of the
+        // overflow/division contract, not two.
         ":wat::core::i64::+" => eval_i64_arith(head, args, list_span, env, sym, |a, b, b_span| {
-            a.checked_add(b).ok_or_else(|| {
-                RuntimeError::new(
-                    b_span.clone(),
-                    RuntimeErrorKind::IntegerOverflow {
-                        op: head.into(),
-                        a,
-                        b,
-                    },
-                )
-                .into()
-            })
+            i64_add_op(head, a, b, b_span)
         }),
         ":wat::core::i64::-" => eval_i64_arith(head, args, list_span, env, sym, |a, b, b_span| {
-            a.checked_sub(b).ok_or_else(|| {
-                RuntimeError::new(
-                    b_span.clone(),
-                    RuntimeErrorKind::IntegerOverflow {
-                        op: head.into(),
-                        a,
-                        b,
-                    },
-                )
-                .into()
-            })
+            i64_sub_op(head, a, b, b_span)
         }),
         ":wat::core::i64::*" => eval_i64_arith(head, args, list_span, env, sym, |a, b, b_span| {
-            a.checked_mul(b).ok_or_else(|| {
-                RuntimeError::new(
-                    b_span.clone(),
-                    RuntimeErrorKind::IntegerOverflow {
-                        op: head.into(),
-                        a,
-                        b,
-                    },
-                )
-                .into()
-            })
+            i64_mul_op(head, a, b, b_span)
         }),
         ":wat::core::i64::/" => eval_i64_arith(head, args, list_span, env, sym, |a, b, b_span| {
-            if b == 0 {
-                Err(RuntimeError::new(b_span.clone(), RuntimeErrorKind::DivisionByZero).into())
-            } else {
-                // i64::MIN / -1 is the one division overflow edge (checked_div
-                // returns None here since b != 0 was already ruled out above).
-                a.checked_div(b).ok_or_else(|| {
-                    RuntimeError::new(
-                        b_span.clone(),
-                        RuntimeErrorKind::IntegerOverflow {
-                            op: head.into(),
-                            a,
-                            b,
-                        },
-                    )
-                    .into()
-                })
-            }
+            i64_div_op(head, a, b, b_span)
         }),
         // Arc 278 numeric-tower increment — clj's mod/rem/quot trio for i64
         // (i64 only this stone; bigint/rational is a named out-of-scope
@@ -5914,50 +5875,17 @@ fn dispatch_keyword_head_value(
         //          sign with the divisor).
         ":wat::core::i64::quot" => {
             eval_i64_arith(head, args, list_span, env, sym, |a, b, b_span| {
-                if b == 0 {
-                    Err(RuntimeError::new(b_span.clone(), RuntimeErrorKind::DivisionByZero).into())
-                } else {
-                    // i64::MIN quot -1 is the one division overflow edge, same as `/`.
-                    a.checked_div(b).ok_or_else(|| {
-                        RuntimeError::new(
-                            b_span.clone(),
-                            RuntimeErrorKind::IntegerOverflow {
-                                op: head.into(),
-                                a,
-                                b,
-                            },
-                        )
-                        .into()
-                    })
-                }
+                i64_quot_op(head, a, b, b_span)
             })
         }
         ":wat::core::i64::rem" => {
             eval_i64_arith(head, args, list_span, env, sym, |a, b, b_span| {
-                if b == 0 {
-                    Err(RuntimeError::new(b_span.clone(), RuntimeErrorKind::DivisionByZero).into())
-                } else {
-                    // i64::MIN rem -1 is mathematically 0 but `checked_rem` returns
-                    // `None` (would need the same overflowing quotient as `/`) —
-                    // clj-faithful special-case rather than IntegerOverflow (`rem`
-                    // itself never overflows: |remainder| < |divisor|).
-                    Ok(a.checked_rem(b).unwrap_or(0))
-                }
+                i64_rem_op(head, a, b, b_span)
             })
         }
         ":wat::core::i64::mod" => {
             eval_i64_arith(head, args, list_span, env, sym, |a, b, b_span| {
-                if b == 0 {
-                    Err(RuntimeError::new(b_span.clone(), RuntimeErrorKind::DivisionByZero).into())
-                } else {
-                    // Same MIN/-1 special-case as `rem` above (mod(MIN,-1) = 0).
-                    let r = a.checked_rem(b).unwrap_or(0);
-                    Ok(if r != 0 && (r < 0) != (b < 0) {
-                        r + b
-                    } else {
-                        r
-                    })
-                }
+                i64_mod_op(head, a, b, b_span)
             })
         }
         // Arc 300 stone C1 — bigint arithmetic. Arbitrary precision — NO
@@ -9890,7 +9818,11 @@ fn eval_if(
 
 /// Integer arith: `:wat::core::i64::{+,-,*,/}`. Strictly i64 × i64 →
 /// i64. No promotion; a f64 arg is a type error.
-fn eval_i64_arith<F>(
+///
+/// `pub(crate)` — arc 255 Stone A-i: `intrinsic/i64.rs`'s `:wat::i64::*`
+/// registered handlers call this SAME fn (not a second copy) so both
+/// spellings share one arity/type-check/dispatch path.
+pub(crate) fn eval_i64_arith<F>(
     head: &str,
     args: &[WatAST],
     list_span: &Span,
@@ -9936,6 +9868,107 @@ where
             },
         )
         .into()),
+    }
+}
+
+// ─── Arc 255 Stone A-i — the SHARED i64 op fns ─────────────────────────────
+//
+// Named, `pub(crate)` op fns for `+ - * / mod quot rem`, factored out of what
+// used to be inline closures on the `:wat::core::i64::*` dispatch arm above.
+// BOTH that arm (unchanged in behavior — it now calls these fns instead of
+// carrying the logic inline) AND `intrinsic/i64.rs`'s `:wat::i64::*`
+// registered handlers call these SAME fns. One implementation of the
+// overflow/division contract, never two — the brief's STOP-1 concern.
+// `head` is a parameter (not a captured closure variable) so the
+// `IntegerOverflow`/`DivisionByZero` error's `op` field always names
+// whichever spelling the caller actually used.
+
+pub(crate) fn i64_add_op(head: &str, a: i64, b: i64, b_span: &Span) -> Result<i64, EvalBreak> {
+    a.checked_add(b).ok_or_else(|| {
+        RuntimeError::new(
+            b_span.clone(),
+            RuntimeErrorKind::IntegerOverflow { op: head.into(), a, b },
+        )
+        .into()
+    })
+}
+
+pub(crate) fn i64_sub_op(head: &str, a: i64, b: i64, b_span: &Span) -> Result<i64, EvalBreak> {
+    a.checked_sub(b).ok_or_else(|| {
+        RuntimeError::new(
+            b_span.clone(),
+            RuntimeErrorKind::IntegerOverflow { op: head.into(), a, b },
+        )
+        .into()
+    })
+}
+
+pub(crate) fn i64_mul_op(head: &str, a: i64, b: i64, b_span: &Span) -> Result<i64, EvalBreak> {
+    a.checked_mul(b).ok_or_else(|| {
+        RuntimeError::new(
+            b_span.clone(),
+            RuntimeErrorKind::IntegerOverflow { op: head.into(), a, b },
+        )
+        .into()
+    })
+}
+
+/// `/` — truncating division; `i64::MIN / -1` is the one division-overflow
+/// edge (`checked_div` returns `None` here since `b != 0` was already ruled
+/// out above).
+pub(crate) fn i64_div_op(head: &str, a: i64, b: i64, b_span: &Span) -> Result<i64, EvalBreak> {
+    if b == 0 {
+        Err(RuntimeError::new(b_span.clone(), RuntimeErrorKind::DivisionByZero).into())
+    } else {
+        a.checked_div(b).ok_or_else(|| {
+            RuntimeError::new(
+                b_span.clone(),
+                RuntimeErrorKind::IntegerOverflow { op: head.into(), a, b },
+            )
+            .into()
+        })
+    }
+}
+
+/// `quot` — truncate toward zero, same as `/` (clj's mod/rem/quot trio).
+pub(crate) fn i64_quot_op(head: &str, a: i64, b: i64, b_span: &Span) -> Result<i64, EvalBreak> {
+    if b == 0 {
+        Err(RuntimeError::new(b_span.clone(), RuntimeErrorKind::DivisionByZero).into())
+    } else {
+        a.checked_div(b).ok_or_else(|| {
+            RuntimeError::new(
+                b_span.clone(),
+                RuntimeErrorKind::IntegerOverflow { op: head.into(), a, b },
+            )
+            .into()
+        })
+    }
+}
+
+/// `rem` — sign of the DIVIDEND. Never overflows (`|remainder| < |divisor|`);
+/// `head` is unused (no `IntegerOverflow` branch exists for `rem`).
+pub(crate) fn i64_rem_op(_head: &str, a: i64, b: i64, b_span: &Span) -> Result<i64, EvalBreak> {
+    if b == 0 {
+        Err(RuntimeError::new(b_span.clone(), RuntimeErrorKind::DivisionByZero).into())
+    } else {
+        // i64::MIN rem -1 is mathematically 0 but `checked_rem` returns `None`
+        // (would need the same overflowing quotient as `/`) — clj-faithful
+        // special-case rather than IntegerOverflow (`rem` itself never
+        // overflows: |remainder| < |divisor|).
+        Ok(a.checked_rem(b).unwrap_or(0))
+    }
+}
+
+/// `mod` — sign of the DIVISOR, floored (adjust `rem`'s result by `+ b` when
+/// the remainder is nonzero and disagrees in sign with the divisor). Never
+/// overflows; `head` unused, same reason as `rem`.
+pub(crate) fn i64_mod_op(_head: &str, a: i64, b: i64, b_span: &Span) -> Result<i64, EvalBreak> {
+    if b == 0 {
+        Err(RuntimeError::new(b_span.clone(), RuntimeErrorKind::DivisionByZero).into())
+    } else {
+        // Same MIN/-1 special-case as `rem` above (mod(MIN,-1) = 0).
+        let r = a.checked_rem(b).unwrap_or(0);
+        Ok(if r != 0 && (r < 0) != (b < 0) { r + b } else { r })
     }
 }
 
@@ -10217,7 +10250,7 @@ fn rational_div(a: &BigRational, b: &BigRational, b_span: &Span) -> Result<BigRa
 /// `:wat::core::i64::to-rational` — infallible promotion (mirrors C1's
 /// `i64::to-bigint`). Used by the `wat/core.wat` `+ - * /` defclauses'
 /// i64⊕rational contagion arms.
-fn eval_i64_to_rational(
+pub(crate) fn eval_i64_to_rational(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
@@ -10500,7 +10533,7 @@ fn eval_one_arg<T>(
     })
 }
 
-fn eval_i64_to_string(
+pub(crate) fn eval_i64_to_string(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
@@ -10521,7 +10554,7 @@ fn eval_i64_to_string(
     Ok(Value::String(Arc::new(n.to_string())))
 }
 
-fn eval_i64_to_f64(
+pub(crate) fn eval_i64_to_f64(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
@@ -10545,7 +10578,7 @@ fn eval_i64_to_f64(
 /// `:wat::core::i64::to-bigint` — infallible promotion (arbitrary precision
 /// never loses i64 range). Arc 300 stone C1: used by the `wat/core.wat`
 /// `+ - * /` defclauses' i64⊕bigint contagion arms.
-fn eval_i64_to_bigint(
+pub(crate) fn eval_i64_to_bigint(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
@@ -11626,7 +11659,7 @@ fn values_compare(a: &Value, b: &Value) -> Option<std::cmp::Ordering> {
     }
 }
 
-fn eval_compare<F: Fn(std::cmp::Ordering) -> bool>(
+pub(crate) fn eval_compare<F: Fn(std::cmp::Ordering) -> bool>(
     head: &str,
     args: &[WatAST],
     list_span: &Span,

@@ -382,6 +382,17 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             | ":wat::core::i64::/"
             | ":wat::core::i64::to-string"
             | ":wat::core::i64::to-f64"
+            // Arc 255 Stone A-i — `:wat::i64::*` is the new i64 home; every one of these
+            // forwards straight to the SAME `crate::runtime::eval_i64_arith` /
+            // `crate::runtime::eval_i64_to_{string,f64}` fns the `:wat::core::i64::*`
+            // spelling above already calls (see `src/intrinsic/i64.rs`'s module doc — "No
+            // arithmetic is re-implemented here"). Same ruling, new spelling, not debt.
+            | ":wat::i64::+"
+            | ":wat::i64::-"
+            | ":wat::i64::*"
+            | ":wat::i64::/"
+            | ":wat::i64::to-string"
+            | ":wat::i64::to-f64"
             // Arc 300 stone C1 — bigint arithmetic + conversions.
             | ":wat::core::bigint::+"
             | ":wat::core::bigint::-"
@@ -389,12 +400,16 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             | ":wat::core::bigint::/"
             | ":wat::core::i64::to-bigint"
             | ":wat::core::bigint::to-f64"
+            // Arc 255 Stone A-i — same ruling as `:wat::core::i64::to-bigint` above.
+            | ":wat::i64::to-bigint"
             // Arc 300 stone C2 — rational arithmetic + conversions.
             | ":wat::core::rational::+"
             | ":wat::core::rational::-"
             | ":wat::core::rational::*"
             | ":wat::core::rational::/"
             | ":wat::core::i64::to-rational"
+            // Arc 255 Stone A-i — same ruling as `:wat::core::i64::to-rational` above.
+            | ":wat::i64::to-rational"
             | ":wat::core::bigint::to-rational"
             | ":wat::core::rational::to-f64"
             | ":wat::core::rational/numerator"
@@ -533,6 +548,13 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             | ":wat::core::f64::=" | ":wat::core::f64::not="
             // Per-Type integer division family (`i64::/` was already here; its siblings were not).
             | ":wat::core::i64::mod" | ":wat::core::i64::quot" | ":wat::core::i64::rem"
+            // Arc 255 Stone A-i — `:wat::i64::*` new spellings of the ten comparison/
+            // equality/division-family verbs immediately above. Each forwards to the same
+            // `crate::runtime::eval_compare` / `eval_i64_arith` fns its `:wat::core::i64::*`
+            // twin calls (`src/intrinsic/i64.rs`); same ruling, new spelling, not debt.
+            | ":wat::i64::<"  | ":wat::i64::<=" | ":wat::i64::>" | ":wat::i64::>="
+            | ":wat::i64::=" | ":wat::i64::not="
+            | ":wat::i64::mod" | ":wat::i64::quot" | ":wat::i64::rem"
             // f64 numeric readers/roundings — total functions of their argument.
             | ":wat::core::f64::round" | ":wat::core::f64::clamp"
             | ":wat::core::f64::max-of" | ":wat::core::f64::min-of"
