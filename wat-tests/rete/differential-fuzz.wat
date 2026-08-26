@@ -155,7 +155,7 @@
    depth  <- :wat::core::i64])
 
 ;; ── the property ─────────────────────────────────────────────────────────────
-(:wat::core::defn :wat-tests::rete::fuzz::prop [c <- :wat-tests::rete::fuzz::Case] -> :wat::core::i64
+(:wat::core::defn :wat-tests::rete::fuzz::prop [c <- :wat-tests::rete::fuzz::Case] -> :wat::core::bool
   (:wat::core::let [dups   (:wat::core::i64::+ (:wat-tests::rete::fuzz::Case/dups c) 1)
                     wpos   (:wat-tests::rete::fuzz::Case/wpos c)
                     prefix (:wat-tests::rete::fuzz::Case/prefix c)
@@ -183,7 +183,7 @@
     ;; recoverable at any time because the space is finite, ordered and
     ;; deterministic — re-running with a printing `prop` is a one-line change, and
     ;; a coordinate is a permanent case name rather than a seed.
-    (:wat::core::if (:wat::core::= n o) 0 1)))
+    (:wat::core::= n o)))
 
 
 ;; ── the SPACE excludes unmatchable shapes; the property no longer has to ─────

@@ -266,9 +266,41 @@
 ;; `Checked` therefore carries BOTH numbers. A caller cannot extract a violation
 ;; count without the point count arriving in the same match arm, so "0 violations"
 ;; can no longer be reported without knowing what it was 0 out of. The wrong
-;; reading has no form. `EmptySpace` is then simply the honest name for card 0,
+;; reading has no form.
+;;
+;; AND THE TWO NUMBERS ARE NOW ORDERED BY CONSTRUCTION: 0 <= violations <= points.
+;; `prop` returns `bool`, not `i64`. It used to be `[T :-> :wat::core::i64]` and the
+;; driver SUMMED what it returned, which permitted two states that cannot be true of
+;; any real check (GEN-VIGILIA L2, conformare + struere + sequi):
+;;   - `violations > points` — a prop returning 5 counted five failures at one point;
+;;   - a WITNESS beside a ZERO count — negative returns cancelling positive ones, so
+;;     `first-failure` was `Some i` while `violations` summed to 0.
+;; Every `prop` in the tree already returned only 0 or 1, so the extra width bought
+;; nothing and cost exactly those two readings. `bool` removes them at the type: a
+;; weight has no form, so neither does either state. The wrong thing is not caught,
+;; it is unrepresentable — the rung above the guard that `:wat::gen::gen` holds. `EmptySpace` is then simply the honest name for card 0,
 ;; not an error condition — a `such-that` whose predicate excludes everything is
 ;; usually a caller bug, but that is the CALLER's ruling to make, in its own arm.
+;; `EmptySpace` IS NULLARY, AND THAT IS A DECISION — recorded because `conformare`
+;; flagged it and the flag is fair on its face: eight distinct producers can yield a
+;; card-0 space (`ints lo lo`, a `such-that` that excludes everything, `take 0`,
+;; `elements []`, a `coords` base of 0, …) and they all collapse to one dataless
+;; token, so a caller told to "make a ruling" is handed nothing to rule on.
+;;
+;; It stays nullary because `check` CANNOT HONESTLY KNOW. A `Gen` is `{card, at}` and
+;; carries no provenance — that absence is the library's whole thesis, the reason
+;; every combinator returns the same type and composes without a hierarchy. Giving
+;; this arm a reason means threading a reason through all twelve construction sites
+;; and through `fmap`/`take`/`one-of`/`bind`, so that every generator carries an
+;; explanation of an emptiness that most of them never have. That is a large, viral
+;; change to buy a field whose only consumer today discards it: the ONE arm in the
+;; tree is `(assert-true false)`, because for a LAW an empty space is always a
+;; failure — it was not tested.
+;;
+;; So the bound is: this arm says THAT the space is empty and never WHY, and the
+;; caller that needs why must look at the generator it built rather than the outcome
+;; it got back. If a consumer ever appears that must branch on the reason, this is
+;; the note to overturn — the cost above is the price, and it was not paid blind.
 (:wat::core::defenum :wat::gen::CheckOutcome :wat::enum::Pure
   :Checked    [points <- :wat::core::i64
                violations <- :wat::core::i64
@@ -279,7 +311,7 @@
   [bad <- :wat::core::i64  first <- (:wat::core::Option :- [:wat::core::i64])])
 
 (:wat::core::defn :wat::gen::check :- [T]
-  [g <- (:wat::gen::Gen :- [T])  prop <- [T :-> :wat::core::i64]] -> :wat::gen::CheckOutcome
+  [g <- (:wat::gen::Gen :- [T])  prop <- [T :-> :wat::core::bool]] -> :wat::gen::CheckOutcome
   (:wat::core::let [card (:wat::gen::Gen/card g)
                     at   (:wat::gen::Gen/at g)]
     (:wat::core::if (:wat::core::= card 0)
@@ -287,14 +319,17 @@
       (:wat::core::let
         [acc (:wat::core::foldl
                (:wat::core::fn [a <- :wat::gen::CheckAcc  i <- :wat::core::i64] -> :wat::gen::CheckAcc
-                 (:wat::core::let [v (prop (at i))]
-                   (:wat::core::if (:wat::core::= v 0)
+                 ;; `true` = the property HELD at this point (the QuickCheck reading).
+                 ;; A failing point contributes EXACTLY 1 — see the type note above
+                 ;; `prop`: a weight is not expressible, so `violations` cannot exceed
+                 ;; `points` and cannot go negative.
+                 (:wat::core::if (prop (at i))
                      a
                      (:wat::gen::CheckAcc
-                       :bad (:wat::core::i64::+ (:wat::gen::CheckAcc/bad a) v)
+                       :bad (:wat::core::i64::+ (:wat::gen::CheckAcc/bad a) 1)
                        :first (:wat::core::match (:wat::gen::CheckAcc/first a)
                                 ((:wat::core::Some f) (:wat::core::Some f))
-                                (:wat::core::None (:wat::core::Some i)))))))
+                                (:wat::core::None (:wat::core::Some i))))))
                (:wat::gen::CheckAcc :bad 0 :first :wat::core::None)
                (:wat::core::range 0 card))]
         (:wat::gen::CheckOutcome::Checked card

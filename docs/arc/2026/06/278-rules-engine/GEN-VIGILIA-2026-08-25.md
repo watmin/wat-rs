@@ -235,11 +235,19 @@ it survived the fork it warns about and died of staleness instead. `:467` and `:
   `reverse-index` accepts a coordinate where bases belong and type-checks clean. Parametric
   `typealias` is available (`wat/kernel/channel.wat:42`). Watch the name: `wat/core.wat:1096`
   already generates `<fqdn>::Coords`.
-- **`EmptySpace` is nullary** (conformare) — eight distinct producers collapse to one dataless
-  token, so the caller told to "make a ruling" has nothing to rule on. The only arm in existence
-  is `(assert-true false)`.
-- **`prop` is `[T :-> i64]` summed into `violations`** (conformare, struere, sequi) — permits
-  `violations > points`, and negative weights let a witness coexist with a zero count.
+- **`EmptySpace` is nullary** (conformare) — **RULED, 2026-08-26, and recorded in place.** It
+  stays nullary because `check` cannot honestly know why: a `Gen` is `{card, at}` and carries no
+  provenance, which is the library's whole thesis. Giving the arm a reason means threading one
+  through all twelve construction sites plus `fmap`/`take`/`one-of`/`bind`, to buy a field whose
+  only consumer today discards it — for a LAW, an empty space is always a failure. The bound
+  ("says THAT, never WHY") and the price of overturning it are written at the `defenum`.
+- ~~**`prop` is `[T :-> i64]` summed into `violations`**~~ — **CLOSED 2026-08-26 at the TYPE.**
+  `prop` is now `[T :-> :wat::core::bool]` and a failing point contributes exactly 1, so
+  `0 <= violations <= points` holds by construction. Every prop in the tree already returned only
+  0 or 1, so the extra width bought nothing and cost exactly two wrong readings. **Proven
+  unrepresentable, not merely gated:** a weighted prop is now a `TypeMismatch` at check time —
+  *"parameter #2 expects [i64 :-> bool]; got [i64 :-> i64]"* — refused before it runs. 21 call
+  sites migrated, every one of them found by the type checker rather than by grep.
 - **7 `Option/expect` sites, not 6** (conformare); 6 are caller-reachable. `Gen/at` is typed
   TOTAL, so a domain violation has nowhere to *return* — the raises are the type's fault, not
   discipline's.
