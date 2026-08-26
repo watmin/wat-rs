@@ -1,0 +1,140 @@
+;; rust-entry-surface-naming.rs.intueri — the HOME #7 naming decision, materialized.
+;;
+;; ⚠ UNLIKE ITS SIBLINGS IN THIS DIRECTORY, THE TARGET IS A RUST MODULE DIRECTORY, not a wat
+;; namespace — hence `.rs.intueri`. The house shape is kept: anchor vocabulary, the promise each
+;; name must keep, candidates. intueri: which name KEEPS ITS PROMISE — says what it is — to a
+;; reader with no context, sitting beside the established siblings?
+;;
+;; ── ANCHOR VOCABULARY (already spoken; the new name must live beside these) ──────────────────
+;;   src/edn/          HOME #5 — render · bridge · contract · error        (the EDN domain)
+;;   src/load/         HOME #6 — loader · stdlib · source                  (getting SOURCE TEXT in)
+;;   src/resolve/      name-and-scope resolution (ruled DISTINCT from load, 2026-08-25)
+;;   src/kernel/       address · listener · peer · spawn
+;;   src/process/      the process tier
+;;   src/comms/ · src/channel/ · src/stream/ · src/distribution/
+;;   src/value/ · src/types/ · src/collection/ · src/string/ · src/rete/ · src/intrinsic/
+;;   src/capability/ · src/scope/ · src/function/ · src/argspec/ · src/freeze/ · src/services/
+;;
+;;   :user::main                      wat's OWN entry point — arc 170's "program entry points"
+;;   :wat::kernel::assertion-failed!  the raise primitive (src/assertion.rs — a LEAF this family
+;;                                    USES, referencing none of them back; NOT a member)
+;;
+;; ══ THE TARGET — one home for four files, measured cohesive ══════════════════════════════════
+;;   src/test_runner.rs  1215  "library-callable entry for running .wat [files]"
+;;   src/panic_hook.rs    426  "EDN-structured failure output for wat tests"
+;;   src/harness.rs       211  "a thin ergonomic wrapper for Rust programs that [run wat]"
+;;   src/compose.rs       202  "wat::compose_and_run + the wat::main! macro's runtime half"
+;;
+;;   cohesion (measured):  compose <-> harness MUTUAL · test_runner -> compose
+;;                         panic_hook pulled by BOTH compose and test_runner
+;;
+;; PROMISE the home's name must keep: it holds the surface a RUST program uses to drive wat —
+;; compose-and-run, the Harness wrapper, the test runner, and the panic hook that shapes their
+;; failure output. It is NOT wat's own entry point (`:user::main`, arc 170's sense) and NOT the
+;; CLI binary (src/bin/wat.rs). It IS what `wat::main!` and `wat_test!` expand into, and what an
+;; external crate calls.
+;;
+;;   candidates:  embed · entry · host · driver · run · runner · invoke · frontend · api · rust
+;;
+;;   ⚠ each candidate's own counter-argument, so the ward weighs the real trade:
+;;     embed   — but test_runner also backs the `wat test` CLI subcommand, which is not embedding
+;;     entry   — but arc 170 already spent "entry point" on :user::main; two senses, one word
+;;     host    — accurate (the Rust host) but is it a word this codebase speaks anywhere else?
+;;     driver  — "drives wat" is the description; is `driver/` a domain or a role?
+;;     run     — src/run/run.rs stutters; and `run` is a verb where siblings are nouns
+;;     runner  — collides with test_runner, the member
+;;
+;;   src/???/  <- test_runner.rs · panic_hook.rs · harness.rs · compose.rs
+
+;; ══════════════════════════════════════════════════════════════════════════════════════════════
+;; ⊘ CAST 2026-08-25 — four independent casts, one per file. None saw the others' reads.
+;; ══════════════════════════════════════════════════════════════════════════════════════════════
+;;
+;; ── THE HOME IS `host` ────────────────────────────────────────────────────────────────────────
+;;   harness's read     — `host` FIRST, "I'd have proposed it independently before seeing it listed"
+;;   test_runner's read — `host` FIRST, "my strongest independent pick"
+;;   compose's read     — preferred `bootstrap`; rated host/driver "plausible... imported labels"
+;;   panic_hook's read  — "the least dishonest of the set" (while arguing it is not a member)
+;;
+;;   Two first-place votes from agents that never saw each other. `host` is the term-of-art for
+;;   the program embedding an interpreter, and it is the ONE word that does not fracture between
+;;   the two consumers: a Rust binary embedding wat as a library, AND the `wat` CLI running a
+;;   test file. It also needs no disclaimer to head off a wrong first read — which `harness` does.
+;;
+;; ── `embed` IS DEAD, AND IT WAS THE ORCHESTRATOR'S OWN PICK ───────────────────────────────────
+;;   compose      — the module doc's CENTRAL ARGUMENT is that compose exists BY CONTRAST with
+;;                  embedding ("Harness ... its job is embedding-with-capture for tests"). A
+;;                  folder called `embed/` would hold the one file whose stated reason for
+;;                  existing is "I am not embedding."
+;;   harness      — over-promises for test_runner: the `wat test` CLI subcommand is the CLI
+;;                  HOSTING wat, not a program EMBEDDING it as a dependency.
+;;   test_runner  — says nothing about the ~350 lines of failure-reporting.
+;;
+;;   Also dead: `entry` (arc 170 owns it for :user::main — all three readers confirmed the
+;;   collision from their own file), `runner`/`run` (collides with the member; verb among nouns),
+;;   `invoke` (crate::freeze already owns invoke_user_main), `api`/`rust`/`frontend` (the
+;;   utils/common trap the ward names by name), `runtime` (compose.rs itself imports
+;;   crate::runtime — a second collision).
+;;
+;; ── ⛔ THE FINDING OF THE CAST: panic_hook IS NOT A MEMBER, AND TWO READS SAY SO ──────────────
+;;   panic_hook's own read:  "the cohesion is real, but it is a CONSUMER relationship — call
+;;                            install() once so failures print correctly while you run something
+;;                            — not a shared-subject one. THE FILE NEVER DRIVES ANYTHING."
+;;                            95 of ~140 non-test lines are EDN serialization of an
+;;                            AssertionPayload. Its second production caller is kernel/spawn.rs
+;;                            forwarding a crash over a thread channel — not a panic at all.
+;;
+;;   test_runner's read, INDEPENDENTLY, without seeing the above:
+;;                            "lines 620-975 are not running tests, they are shaping a failure
+;;                            into a structured diagnostic envelope ... thematically nearer to
+;;                            what panic_hook.rs is described as doing."
+;;
+;;   ★ TWO FILES, TWO READERS, NEITHER SEEING THE OTHER, CONVERGING ON THE SAME LATENT DOMAIN:
+;;     a failure-reporting / diagnostics home holding panic_hook.rs ENTIRELY and ~350 lines
+;;     currently inside test_runner.rs. That is a real domain nobody had named.
+;;
+;; ── ⛔ AND IT CONVICTS THE ORCHESTRATOR'S FAMILY-SELECTION METHOD ─────────────────────────────
+;;   Every family this campaign has picked (loading, entry-points) was chosen by ONE test: do
+;;   these files reference each other? panic_hook scored HIGHEST of the four on that metric —
+;;   pulled by BOTH compose and test_runner — precisely because it is a utility they both
+;;   CONFIGURE. Reference-cohesion is not shared domain, and the method had no test that told
+;;   them apart. The ward did.
+;;
+;; ── PER-FILE NAME VERDICTS ────────────────────────────────────────────────────────────────────
+;;   harness      LEVEL 1 LIE     its own doc must fence off the first reading: "A test runner.
+;;                                That's `wat test <path>`." A name needing its doc to say "I am
+;;                                not the thing you just assumed" has failed Obvious.
+;;   compose      LEVEL 2 MUMBLE  every public fn is compose_and_run / compose_and_run_with_loader
+;;                                — the author compounded the verb EVERY time. Half the file is
+;;                                OS stdio + signal wiring, which "compose" does not name.
+;;   panic_hook   LEVEL 2 MUMBLE  names the WIRING (set_hook) while the body's centre of mass is
+;;                                the ARTIFACT (#wat.kernel/AssertionFailure envelope).
+;;   test_runner  honest for 2/3  silent about the reporting third; and if the home were `runner`,
+;;                                `runner::test_runner` is an echo, not a hierarchy.
+;;
+;; ── REAL DEFECTS, BEYOND NAMING (two verified by the orchestrator's own reading) ──────────────
+;;   ✓VERIFIED harness.rs   Harness::run's PUBLIC DOC promises "return captured stdout + stderr";
+;;                          the body is `let _ = stdin;` and two hardcoded Vec::new(). The WHY
+;;                          lives in a body comment the doc-reader never sees.
+;;   ✓VERIFIED test_runner  the PRIMARY PUBLIC doc states discovery rule 1 as "the final
+;;                          ::-segment starts with `test-`"; is_test_function's own doc says
+;;                          "the name filter has been dropped" (2026-04-25). Two contradicting
+;;                          docs in ONE file, and the stale one is on the entry point.
+;;             harness.rs   the module doctest asserts out.stdout == vec!["hello"] and is marked
+;;                          `no_run` — it would FAIL if run. no_run hides the lie from cargo test,
+;;                          not from a reader.
+;;             harness.rs   HarnessError::StdioSnapshot — never constructed anywhere.
+;;             panic_hook   the module doc's "Design" omits assertion_failure_envelope AND its
+;;                          second, production, non-panic caller.
+;;             panic_hook   AssertionPayload::raised_error set in every test literal, encoded by
+;;                          nothing — payload_to_edn builds 7 keys and that is not one.
+;;             test_runner  doc-link to `failure_to_diagnostic`, a fn arc 296 replaced.
+;;             test_runner  source_has_config_setter ORs two conditions; its own doc says so, the
+;;                          name lags. → source_is_entry_file.
+;;             test_runner  a rationale comment names `call_beside_value / call_beside_value` —
+;;                          the same identifier twice where two call sites were meant.
+;;
+;; ── THE RULING ────────────────────────────────────────────────────────────────────────────────
+;;   src/host/  <-  compose.rs · harness.rs · test_runner.rs        (three, not four)
+;;   panic_hook.rs stays put pending a diagnostics home — with ~350 lines of test_runner.rs
+;;   named as wanting to join it. That carve is partire's question and does not ride in.
