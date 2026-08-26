@@ -429,7 +429,13 @@ A **third** independent copy of the reversal arithmetic that no ward counted. Wa
 `reverse-index`/`coords-scattered` directly. That also gives `coords-scattered` its first consumer,
 closing an L2 above in the same move.
 
-## 4 · OPEN — the retired-name lint is structurally blind to `.wat`
+## 4 · HANDED TO ARC 255 — the retired-name lint is structurally blind to `.wat`
+
+> **Not ours to fix.** Arc 255 owns what a name IS, and `main` is actively working registry
+> items. Restated in full (with ①, the `Option`/`Result` double-registration) at
+> `docs/arc/2026/06/255-builtin-registry/NOTE-two-registry-adjacent-findings-from-arc-278.md`,
+> so it arrives on the next merge. The six `gen-` names themselves are fixed on `grok-rete`
+> (`78e344bac`) as STEMS; this is the root.
 
 `tests/lint/retired_name_justified.rs` — whose thesis is *"a wat name in a Rust string must be a
 name a user can type"* — scans `src/**/*.rs` only, and matches only the prime-suffix shape. The six

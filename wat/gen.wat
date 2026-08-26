@@ -50,7 +50,8 @@
 ;;     but it scans `src/**/*.rs` ONLY and matches only the prime-suffix shape, so it is
 ;;     structurally blind to `.wat`. The five renames above are STEMS; the root is that the stdlib
 ;;     is now a first-class diagnostic surface and no gate reads its user-facing strings. They can
-;;     rot again tomorrow and nothing will say so.
+;;     rot again tomorrow and nothing will say so. HANDED TO ARC 255 (it owns what a name IS):
+;;     `docs/arc/2026/06/255-builtin-registry/NOTE-two-registry-adjacent-findings-from-arc-278.md`.
 ;;
 ;;
 ;; PROMOTED from `wat-scripts/lib/gen.wat` 2026-08-25, on the `wat/grep.wat`
