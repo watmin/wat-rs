@@ -70,8 +70,8 @@
   (:wat::core::foldl
     (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  f <- :wat::core::i64]
                     -> (:wat::core::PersistentVector :- [:wat::core::Record])
-      (:wat::core::PersistentVector/conj
-        (:wat::core::PersistentVector/conj acc (:fan::Left :key k :lid f))
+      (:wat::vector::conj
+        (:wat::vector::conj acc (:fan::Left :key k :lid f))
         (:fan::Right :key k :rid f)))
     (:wat::core::PersistentVector)
     (:wat::core::range 0 fanout)))
@@ -81,7 +81,7 @@
   (:wat::core::foldl
     (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  k <- :wat::core::i64]
                     -> (:wat::core::PersistentVector :- [:wat::core::Record])
-      (:wat::core::PersistentVector/concat acc (:fan::facts-key k fanout)))
+      (:wat::vector::concat acc (:fan::facts-key k fanout)))
     (:wat::core::PersistentVector)
     (:wat::core::range 0 keys)))
 

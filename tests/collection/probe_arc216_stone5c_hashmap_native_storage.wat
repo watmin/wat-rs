@@ -76,7 +76,7 @@
 (:wat::core::defn :t::p5a-keys-len [] -> :wat::core::i64
   (:wat::core::let [m (:wat::core::HashMap :wat::core::keyword :wat::core::i64
                                  :foo 10 :bar 20)]
-    (:wat::core::Vector/length (:wat::hashmap::keys m))))
+    (:wat::vec::length (:wat::hashmap::keys m))))
 
 ;; Probe 5b: keys returns actual keyword Values that round-trip through contains-key?
 (:wat::core::defn :t::p5b-keys-values [] -> :wat::core::bool
@@ -84,7 +84,7 @@
                                  :foo 10)]
     (:wat::core::let [ks (:wat::hashmap::keys m)]
       (:wat::core::let [first-key (:wat::core::match
-                                     (:wat::core::Vector/get ks 0) 
+                                     (:wat::vec::get ks 0) 
                                      ((:wat::core::Some k) k)
                                      (_ :missing))]
         (:wat::hashmap::contains-key? m first-key)))))
@@ -93,7 +93,7 @@
 (:wat::core::defn :t::p6-values-len [] -> :wat::core::i64
   (:wat::core::let [m (:wat::core::HashMap :wat::core::keyword :wat::core::i64
                                  :foo 10 :bar 20 :baz 30)]
-    (:wat::core::Vector/length (:wat::hashmap::values m))))
+    (:wat::vec::length (:wat::hashmap::values m))))
 
 ;; Probe 7a: contains-key? hit
 (:wat::core::defn :t::p7a-contains-hit [] -> :wat::core::bool

@@ -406,6 +406,8 @@ mod regex;
 // `crate::intrinsic::registry().lookup(...)`); those call sites need the path.
 pub(crate) mod string;
 mod uuid;
+mod vec;
+mod vector;
 mod witness;
 mod special;
 mod time;

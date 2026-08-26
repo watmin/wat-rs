@@ -120,8 +120,8 @@
     (:wat::core::foldl
       (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  i <- :wat::core::i64]
                       -> (:wat::core::PersistentVector :- [:wat::core::Record])
-        (:wat::core::PersistentVector/conj
-          (:wat::core::PersistentVector/conj acc (:wjo::Left :k i :n i))
+        (:wat::vector::conj
+          (:wat::vector::conj acc (:wjo::Left :k i :n i))
           (:wjo::Right :k i :m i)))
       (:wat::core::PersistentVector)
       (:wat::core::range 0 items))))
@@ -155,7 +155,7 @@
                     staged  (:wjo::seed (:wat::rete::compile-all rules (:wat::core::PersistentVector (:wjo::q-Hit))) (:wjo::items))
                     fired   (:wat::rete::fire-rules staged)
                     derived (:wjo::derived-ints fired)
-                    n       (:wat::core::Vector/length derived)]
+                    n       (:wat::vec::length derived)]
     (:wat::core::String/concat
       (:wat::core::String/concat
         (:wat::core::String/concat "row " (:wat::i64::to-string row))

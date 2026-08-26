@@ -93,6 +93,6 @@
 (:wat::core::defn :user::native-and-oracle [] -> (:wat::core::Vector :- [:wat::core::i64])
   (:wat::core::mapv
     (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64 n)
-    (:wat::core::PersistentVector/concat
+    (:wat::vector::concat
       (:wpf::counts (:wat::rete::fire-rules (:wpf::staged)))
       (:wpf::counts (:wat::rete::fire-rules$oracle (:wpf::staged))))))

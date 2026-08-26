@@ -74,7 +74,7 @@
 (:wat::core::defn :dc::build-rules [depth <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
   (:wat::core::foldl
     (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::rete::Rule])  k <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
-      (:wat::core::PersistentVector/conj acc (:dc::build-rule k)))
+      (:wat::vector::conj acc (:dc::build-rule k)))
     (:wat::core::PersistentVector (:dc::build-rule 1))
     (:wat::core::range 2 (:wat::i64::+ depth 1))))
 
@@ -84,8 +84,8 @@
   (:wat::core::foldl
     (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  i <- :wat::core::i64]
                     -> (:wat::core::PersistentVector :- [:wat::core::Record])
-      (:wat::core::PersistentVector/conj
-        (:wat::core::PersistentVector/conj acc (:cascade::Node :level 0 :id i))
+      (:wat::vector::conj
+        (:wat::vector::conj acc (:cascade::Node :level 0 :id i))
         (:cascade::Tag :level 0 :id i)))
     (:wat::core::PersistentVector)
     (:wat::core::range 0 width)))

@@ -116,7 +116,7 @@
 ;; tags(k) has length (k mod 4) ⇒ length > 1 selects k mod 4 in {2,3} ⇒ 100 of 200.
 (:wat::rete::defrule :wsh::collection
   :when
-  [(:wsh::Req (?k <- :k) (?c <- :client) (?n <- :name) (?t <- :tags) (?l <- :limit)) (:wat::rete::where (:wat::rete::i64::> (:wat::rete::core::PersistentVector/length ?t) 1))]
+  [(:wsh::Req (?k <- :k) (?c <- :client) (?n <- :name) (?t <- :tags) (?l <- :limit)) (:wat::rete::where (:wat::rete::i64::> (:wat::rete::vector::length ?t) 1))]
   :then
   [(:wsh::Hit ?k)])
 
@@ -197,7 +197,7 @@
                           tags     (:wat::core::into (:wat::core::PersistentVector)
                                      (:wat::core::into (:wat::core::Vector :wat::core::i64) (:wat::core::range 0 tags-len)))
                           lim      (:wat::i64::* (:wat::i64::- i (:wat::i64::* (:wat::i64::/ i 7) 7)) 20)]
-          (:wat::core::PersistentVector/conj acc
+          (:wat::vector::conj acc
             (:wsh::Req :k i :client (:wsh::Client :rep rep) :name nm :tags tags :limit lim))))
       (:wat::core::PersistentVector)
       (:wat::core::range 0 items))))
@@ -251,7 +251,7 @@
                     staged  (:wsh::seed (:wat::rete::compile-all rules (:wat::core::PersistentVector (:wsh::q-Hit))) (:wsh::items))
                     fired   (:wat::rete::fire-rules staged)
                     derived (:wsh::derived-ints fired)
-                    n       (:wat::core::Vector/length derived)]
+                    n       (:wat::vec::length derived)]
     (:wat::core::String/concat
       (:wat::core::String/concat
         (:wat::core::String/concat "row " (:wat::i64::to-string row))

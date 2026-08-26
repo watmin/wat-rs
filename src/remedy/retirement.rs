@@ -65,6 +65,8 @@
 //! | `":wat::core::rational::*"` (5 ops) + `":wat::core::rational/*"` (2 ops) | 255 Stone D | per-type rational verbs, junk-drawer home | `:wat::rational::*` (the two slash-form accessors also become `::` verbs — see the table) |
 //! | `":wat::core::PersistentMap/*"` (8 ops) | 255 Stone E-i | per-type PersistentMap verbs, junk-drawer home | `:wat::map::*` (the UNMARKED home — never moves again once the persistent-backend swap lands) |
 //! | `":wat::core::HashMap/*"` (8 ops)       | 255 Stone E-i | per-type HashMap verbs, junk-drawer home       | `:wat::hashmap::*` (the flavor-marked home) |
+//! | `":wat::core::PersistentVector/*"` (6 ops) | 255 Stone E-ii | per-type PersistentVector verbs, junk-drawer home | `:wat::vector::*` (the UNMARKED home — never moves again once the persistent-backend swap lands) |
+//! | `":wat::core::Vector/*"` (7 ops)        | 255 Stone E-ii | per-type Vector verbs, junk-drawer home        | `:wat::vec::*` (the flavor-marked home; `extend` is Vector-only, no PersistentVector twin) |
 
 use super::{Remedy, RemedyKind};
 
@@ -255,6 +257,25 @@ const RETIREMENT_TABLE: &[RetirementEntry] = &[
     RetirementEntry { retired: ":wat::core::HashMap/dissoc",               replacement: ":wat::hashmap::dissoc",     note: None },
     RetirementEntry { retired: ":wat::core::HashMap/keys",                 replacement: ":wat::hashmap::keys",       note: None },
     RetirementEntry { retired: ":wat::core::HashMap/values",               replacement: ":wat::hashmap::values",     note: None },
+    // Arc 255 Stone E-ii — "the vectors get their homes": PersistentVector moves to the
+    // UNMARKED `:wat::vector::*` home (it never moves again once the persistent-backend swap
+    // lands); Vector moves to the flavor-marked `:wat::vec::*` home. Both flavors survive —
+    // this is a spelling migration, not a backend decision. Verb sets are NOT symmetric:
+    // `extend` exists only on Vector. Name-only; handler bodies untouched (they already lived
+    // in `src/collection/eval.rs`, unmoved by this stone).
+    RetirementEntry { retired: ":wat::core::PersistentVector/length",   replacement: ":wat::vector::length",   note: None },
+    RetirementEntry { retired: ":wat::core::PersistentVector/empty?",   replacement: ":wat::vector::empty?",   note: None },
+    RetirementEntry { retired: ":wat::core::PersistentVector/contains?", replacement: ":wat::vector::contains?", note: None },
+    RetirementEntry { retired: ":wat::core::PersistentVector/get",      replacement: ":wat::vector::get",      note: None },
+    RetirementEntry { retired: ":wat::core::PersistentVector/conj",     replacement: ":wat::vector::conj",     note: None },
+    RetirementEntry { retired: ":wat::core::PersistentVector/concat",   replacement: ":wat::vector::concat",   note: None },
+    RetirementEntry { retired: ":wat::core::Vector/length",             replacement: ":wat::vec::length",      note: None },
+    RetirementEntry { retired: ":wat::core::Vector/empty?",             replacement: ":wat::vec::empty?",      note: None },
+    RetirementEntry { retired: ":wat::core::Vector/contains?",          replacement: ":wat::vec::contains?",   note: None },
+    RetirementEntry { retired: ":wat::core::Vector/get",                replacement: ":wat::vec::get",         note: None },
+    RetirementEntry { retired: ":wat::core::Vector/conj",               replacement: ":wat::vec::conj",        note: None },
+    RetirementEntry { retired: ":wat::core::Vector/concat",             replacement: ":wat::vec::concat",      note: None },
+    RetirementEntry { retired: ":wat::core::Vector/extend",             replacement: ":wat::vec::extend",      note: None },
 ];
 
 /// Look up `needle` in the retirement table.

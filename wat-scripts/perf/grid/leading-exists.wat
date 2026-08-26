@@ -101,12 +101,12 @@
 (:wat::core::defn :lx::seed [session <- :wat::rete::Session  items <- :wat::core::i64] -> :wat::rete::Session
   (:wat::rete::insert-all
     session
-    (:wat::core::PersistentVector/conj
+    (:wat::vector::conj
       (:wat::core::foldl
         (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  i <- :wat::core::i64]
                         -> (:wat::core::PersistentVector :- [:wat::core::Record])
-          (:wat::core::PersistentVector/conj
-            (:wat::core::PersistentVector/conj acc (:lx::Wind i))
+          (:wat::vector::conj
+            (:wat::vector::conj acc (:lx::Wind i))
             (:lx::Wind i)))
         (:wat::core::PersistentVector)
         (:wat::core::range 0 items))

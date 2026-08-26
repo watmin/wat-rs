@@ -1281,10 +1281,14 @@ impl OpExec {
             ":wat::string::trim" => Self::StrTrim,
             ":wat::string::to-lowercase" => Self::StrLower,
             ":wat::string::subs" => Self::StrSubs,
-            ":wat::core::PersistentVector/length" => Self::PvLen,
-            ":wat::core::PersistentVector/contains?" => Self::PvContains,
-            ":wat::core::PersistentVector/get" => Self::PvGet,
-            ":wat::core::Vector/get" => Self::VecGet,
+            // Arc 255 Stone E-ii — `core` arrives as `row.core_name`, which for the moved
+            // PersistentVector/Vector verbs now reads `:wat::vector::*`/`:wat::vec::*` (E-ii's
+            // homes), not `:wat::core::PersistentVector/*`/`:wat::core::Vector/*`. Mirrors Stone
+            // C's numerics fold-removal note above: keyed on the new spelling directly.
+            ":wat::vector::length" => Self::PvLen,
+            ":wat::vector::contains?" => Self::PvContains,
+            ":wat::vector::get" => Self::PvGet,
+            ":wat::vec::get" => Self::VecGet,
             ":wat::core::List/get" => Self::ListGet,
             ":wat::core::first" => Self::First,
             ":wat::core::PersistentVector" => Self::PvNew,

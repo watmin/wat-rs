@@ -71,23 +71,6 @@ pub(crate) fn hashset_length_inner(v: &Value) -> Result<Value, EvalBreak> {
     }
 }
 
-pub(crate) fn eval_vector_length(
-    args: &[WatAST],
-    call_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::Vector/length".into(),
-            expected: 1,
-            got: args.len()
-        }).into());
-    }
-    let v = eval_inner(&args[0], env, sym)?.value_owned();
-    vector_length_inner(&v)
-}
-
 pub(crate) fn eval_hashset_length(
     args: &[WatAST],
     call_span: &Span,
@@ -150,23 +133,6 @@ pub(crate) fn list_empty_q_inner(v: &Value) -> Result<Value, EvalBreak> {
             got: Box::new(ValueSnapshot::of(other))
         }).into()),
     }
-}
-
-pub(crate) fn eval_vector_empty_q(
-    args: &[WatAST],
-    call_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::Vector/empty?".into(),
-            expected: 1,
-            got: args.len()
-        }).into());
-    }
-    let v = eval_inner(&args[0], env, sym)?.value_owned();
-    vector_empty_q_inner(&v)
 }
 
 pub(crate) fn eval_hashset_empty_q(
@@ -258,24 +224,6 @@ pub(crate) fn hashset_contains_q_inner(container: &Value, item: &Value) -> Resul
             got: Box::new(ValueSnapshot::of(other))
         }).into()),
     }
-}
-
-pub(crate) fn eval_vector_contains_q(
-    args: &[WatAST],
-    call_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::Vector/contains?".into(),
-            expected: 2,
-            got: args.len()
-        }).into());
-    }
-    let container = eval_inner(&args[0], env, sym)?.value_owned();
-    let item = eval_inner(&args[1], env, sym)?.value_owned();
-    vector_contains_q_inner(&container, &item)
 }
 
 pub(crate) fn eval_hashset_contains_q(
@@ -375,24 +323,6 @@ pub(crate) fn hashmap_get_inner(container: &Value, key: &Value) -> Result<Value,
             got: Box::new(ValueSnapshot::of(other))
         }).into()),
     }
-}
-
-pub(crate) fn eval_vector_get(
-    args: &[WatAST],
-    call_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::Vector/get".into(),
-            expected: 2,
-            got: args.len()
-        }).into());
-    }
-    let container = eval_inner(&args[0], env, sym)?.value_owned();
-    let index = eval_inner(&args[1], env, sym)?.value_owned();
-    vector_get_inner(&container, &index)
 }
 
 // ─── Arc 220 Stone 220.4 — List eval wrappers ────────────────────────────────
@@ -550,24 +480,6 @@ pub(crate) fn hashset_conj_inner(container: &Value, item: &Value) -> Result<Valu
             got: Box::new(ValueSnapshot::of(other))
         }).into()),
     }
-}
-
-pub(crate) fn eval_vector_conj(
-    args: &[WatAST],
-    call_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::Vector/conj".into(),
-            expected: 2,
-            got: args.len()
-        }).into());
-    }
-    let container = eval_inner(&args[0], env, sym)?.value_owned();
-    let item = eval_inner(&args[1], env, sym)?.value_owned();
-    vector_conj_inner(&container, &item)
 }
 
 pub(crate) fn eval_hashset_conj(
@@ -1083,23 +995,6 @@ pub(crate) fn persistentvector_length_inner(v: &Value) -> Result<Value, EvalBrea
     }
 }
 
-pub(crate) fn eval_persistentvector_length(
-    args: &[WatAST],
-    call_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::PersistentVector/length".into(),
-            expected: 1,
-            got: args.len()
-        }).into());
-    }
-    let v = eval_inner(&args[0], env, sym)?.value_owned();
-    persistentvector_length_inner(&v)
-}
-
 pub(crate) fn persistentvector_empty_q_inner(v: &Value) -> Result<Value, EvalBreak> {
     match v {
         Value::wat__core__PersistentVector(pv) => Ok(Value::bool(pv.is_empty())),
@@ -1109,23 +1004,6 @@ pub(crate) fn persistentvector_empty_q_inner(v: &Value) -> Result<Value, EvalBre
             got: Box::new(ValueSnapshot::of(other))
         }).into()),
     }
-}
-
-pub(crate) fn eval_persistentvector_empty_q(
-    args: &[WatAST],
-    call_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::PersistentVector/empty?".into(),
-            expected: 1,
-            got: args.len()
-        }).into());
-    }
-    let v = eval_inner(&args[0], env, sym)?.value_owned();
-    persistentvector_empty_q_inner(&v)
 }
 
 pub(crate) fn persistentvector_contains_q_inner(container: &Value, item: &Value) -> Result<Value, EvalBreak> {
@@ -1140,24 +1018,6 @@ pub(crate) fn persistentvector_contains_q_inner(container: &Value, item: &Value)
             got: Box::new(ValueSnapshot::of(other))
         }).into()),
     }
-}
-
-pub(crate) fn eval_persistentvector_contains_q(
-    args: &[WatAST],
-    call_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::PersistentVector/contains?".into(),
-            expected: 2,
-            got: args.len()
-        }).into());
-    }
-    let container = eval_inner(&args[0], env, sym)?.value_owned();
-    let item = eval_inner(&args[1], env, sym)?.value_owned();
-    persistentvector_contains_q_inner(&container, &item)
 }
 
 /// `(:wat::core::PersistentVector/get pv i)` — index lookup, returns `Option<T>`.
@@ -1191,24 +1051,6 @@ pub(crate) fn persistentvector_get_inner(container: &Value, index: &Value) -> Re
     }
 }
 
-pub(crate) fn eval_persistentvector_get(
-    args: &[WatAST],
-    call_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::PersistentVector/get".into(),
-            expected: 2,
-            got: args.len()
-        }).into());
-    }
-    let container = eval_inner(&args[0], env, sym)?.value_owned();
-    let index = eval_inner(&args[1], env, sym)?.value_owned();
-    persistentvector_get_inner(&container, &index)
-}
-
 /// `(:wat::core::PersistentVector/conj pv elem)` — persistent append.
 /// Returns a NEW PersistentVector with `elem` appended; the original `pv` is UNCHANGED.
 /// Array copies the Vec (below threshold) or promotes; Tree shares the RRB spine.
@@ -1223,24 +1065,6 @@ pub(crate) fn persistentvector_conj_inner(container: &Value, item: &Value) -> Re
             got: Box::new(ValueSnapshot::of(other))
         }).into()),
     }
-}
-
-pub(crate) fn eval_persistentvector_conj(
-    args: &[WatAST],
-    call_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::PersistentVector/conj".into(),
-            expected: 2,
-            got: args.len()
-        }).into());
-    }
-    let container = eval_inner(&args[0], env, sym)?.value_owned();
-    let item = eval_inner(&args[1], env, sym)?.value_owned();
-    persistentvector_conj_inner(&container, &item)
 }
 
 /// `(:wat::core::Vector/extend to from)` — Arc 278: a Vector extended by every element of a
@@ -1355,42 +1179,6 @@ pub(crate) fn persistentvector_concat_inner(to: &Value, from: &Value) -> Result<
     Ok(Value::wat__core__PersistentVector(out))
 }
 
-pub(crate) fn eval_vector_extend(
-    args: &[WatAST],
-    call_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::Vector/extend".into(),
-            expected: 2,
-            got: args.len()
-        }).into());
-    }
-    let to = eval_inner(&args[0], env, sym)?.value_owned();
-    let from = eval_inner(&args[1], env, sym)?.value_owned();
-    vector_extend_inner(&to, &from)
-}
-
-pub(crate) fn eval_persistentvector_concat(
-    args: &[WatAST],
-    call_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::PersistentVector/concat".into(),
-            expected: 2,
-            got: args.len()
-        }).into());
-    }
-    let to = eval_inner(&args[0], env, sym)?.value_owned();
-    let from = eval_inner(&args[1], env, sym)?.value_owned();
-    persistentvector_concat_inner(&to, &from)
-}
-
 /// `(:wat::core::PersistentVector e1 e2 ...)` — constructor.
 /// Takes bare elements in order (NO leading type keyword).
 /// Types are inferred from the actual elements (checked at check-time by
@@ -1408,24 +1196,6 @@ pub(crate) fn eval_persistentvector_ctor(
         pv.push_back_mut(v);
     }
     Ok(Value::wat__core__PersistentVector(pv))
-}
-
-pub(crate) fn eval_vector_concat(
-    args: &[WatAST],
-    call_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(call_span.clone(), RuntimeErrorKind::ArityMismatch {
-            op: ":wat::core::Vector/concat".into(),
-            expected: 2,
-            got: args.len()
-        }).into());
-    }
-    let left = eval_inner(&args[0], env, sym)?.value_owned();
-    let right = eval_inner(&args[1], env, sym)?.value_owned();
-    vector_concat_inner(&left, &right)
 }
 
 // ─── Container-polymorphic rest — Vec/List/WatAST-form/PersistentVector ──────

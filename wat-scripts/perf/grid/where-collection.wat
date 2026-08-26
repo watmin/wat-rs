@@ -107,8 +107,8 @@
 ;; heavy?(v) := length(v) > 2 AND v contains 7.
 (:wat::rete::core::defn :wc::heavy? [v <- (:wat::core::PersistentVector :- [:wat::core::i64])] -> :wat::core::bool
   (:wat::rete::core::and
-    (:wat::rete::i64::> (:wat::rete::core::PersistentVector/length v) 2)
-    (:wat::rete::core::PersistentVector/contains? v 7)))
+    (:wat::rete::i64::> (:wat::rete::vector::length v) 2)
+    (:wat::rete::vector::contains? v 7)))
 
 ;; THE SHARED LEADING CONDITION, quoted once and reused by every row — only `where-c` varies.
 (:wat::core::defn :wc::conds [] -> :wat::WatAST
@@ -121,7 +121,7 @@
 ;; tags-len in {0..5}, bound in {0..7}; simulated => 48/200.
 (:wat::rete::defrule :wc::length-bound
   :when
-  [(:wc::Item (?k <- :k) (?t <- :tags) (?b <- :bound) (?g <- :grid)) (:wat::rete::where (:wat::rete::i64::> (:wat::rete::core::PersistentVector/length ?t) ?b))]
+  [(:wc::Item (?k <- :k) (?t <- :tags) (?b <- :bound) (?g <- :grid)) (:wat::rete::where (:wat::rete::i64::> (:wat::rete::vector::length ?t) ?b))]
   :then
   [(:wc::Hit ?k)])
 
@@ -133,14 +133,14 @@
 (:wat::rete::defrule :wc::get-const
   :when
   [(:wc::Item (?k <- :k) (?t <- :tags) (?b <- :bound) (?g <- :grid)) (:wat::rete::where
-                                 (:wat::rete::i64::> (:wat::rete::core::PersistentVector/get ?t 2 :undefined 0) 5))]
+                                 (:wat::rete::i64::> (:wat::rete::vector::get ?t 2 :undefined 0) 5))]
   :then
   [(:wc::Hit ?k)])
 
 ;; ROW 3 — MEMBERSHIP. tags contains 6. Simulated => 38/200.
 (:wat::rete::defrule :wc::contains
   :when
-  [(:wc::Item (?k <- :k) (?t <- :tags) (?b <- :bound) (?g <- :grid)) (:wat::rete::where (:wat::rete::core::PersistentVector/contains? ?t 6))]
+  [(:wc::Item (?k <- :k) (?t <- :tags) (?b <- :bound) (?g <- :grid)) (:wat::rete::where (:wat::rete::vector::contains? ?t 6))]
   :then
   [(:wc::Hit ?k)])
 
@@ -151,10 +151,10 @@
   :when
   [(:wc::Item (?k <- :k) (?t <- :tags) (?b <- :bound) (?g <- :grid)) (:wat::rete::where
                                  (:wat::rete::core::and
-                                   (:wat::rete::i64::> (:wat::rete::core::PersistentVector/length ?g) 0)
+                                   (:wat::rete::i64::> (:wat::rete::vector::length ?g) 0)
                                    (:wat::rete::i64::>
-                                     (:wat::rete::core::PersistentVector/length
-                                       (:wat::rete::core::PersistentVector/get ?g 0 :undefined (:wat::rete::core::PersistentVector)))
+                                     (:wat::rete::vector::length
+                                       (:wat::rete::vector::get ?g 0 :undefined (:wat::rete::core::PersistentVector)))
                                      1)))]
   :then
   [(:wc::Hit ?k)])
@@ -180,7 +180,7 @@
 (:wat::rete::defrule :wc::get-dynamic
   :when
   [(:wc::Item (?k <- :k) (?t <- :tags) (?b <- :bound) (?g <- :grid)) (:wat::rete::where
-                                 (:wat::rete::i64::> (:wat::rete::core::PersistentVector/get ?t ?b :undefined 0) 3))]
+                                 (:wat::rete::i64::> (:wat::rete::vector::get ?t ?b :undefined 0) 3))]
   :then
   [(:wc::Hit ?k)])
 
@@ -227,12 +227,12 @@
   :when
   [(:wc::Item (?k <- :k) (?t <- :tags) (?b <- :bound) (?g <- :grid)) (:wat::rete::where
                                  (:wat::rete::core::and
-                                   (:wat::rete::i64::> (:wat::rete::core::PersistentVector/length ?g) 0)
+                                   (:wat::rete::i64::> (:wat::rete::vector::length ?g) 0)
                                    (:wat::rete::i64::>
                                      (:wat::rete::core::foldl
                                        (:wat::rete::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64
                                          (:wat::rete::i64::+ acc x :undefined 0))
-                                       0 (:wat::rete::core::PersistentVector/get ?g 0 :undefined (:wat::rete::core::PersistentVector)))
+                                       0 (:wat::rete::vector::get ?g 0 :undefined (:wat::rete::core::PersistentVector)))
                                      ?b)))]
   :then
   [(:wc::Hit ?k)])
@@ -267,7 +267,7 @@
     (:wat::core::foldl
       (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::i64])  j <- :wat::core::i64]
                       -> (:wat::core::PersistentVector :- [:wat::core::i64])
-        (:wat::core::PersistentVector/conj acc
+        (:wat::vector::conj acc
           (:wat::i64::mod (:wat::i64::+ i (:wat::i64::* j 3)) 13)))
       (:wat::core::PersistentVector)
       (:wat::core::range 0 len))))
@@ -279,7 +279,7 @@
     (:wat::core::foldl
       (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::i64])  b <- :wat::core::i64]
                       -> (:wat::core::PersistentVector :- [:wat::core::i64])
-        (:wat::core::PersistentVector/conj acc (:wat::i64::mod (:wat::i64::+ base b) 9)))
+        (:wat::vector::conj acc (:wat::i64::mod (:wat::i64::+ base b) 9)))
       (:wat::core::PersistentVector)
       (:wat::core::range 0 len))))
 
@@ -289,7 +289,7 @@
     (:wat::core::foldl
       (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [(:wat::core::PersistentVector :- [:wat::core::i64])])  a <- :wat::core::i64]
                       -> (:wat::core::PersistentVector :- [(:wat::core::PersistentVector :- [:wat::core::i64])])
-        (:wat::core::PersistentVector/conj acc (:wc::build-inner i a)))
+        (:wat::vector::conj acc (:wc::build-inner i a)))
       (:wat::core::PersistentVector)
       (:wat::core::range 0 outer-len))))
 
@@ -302,7 +302,7 @@
     (:wat::core::foldl
       (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  i <- :wat::core::i64]
                       -> (:wat::core::PersistentVector :- [:wat::core::Record])
-        (:wat::core::PersistentVector/conj acc
+        (:wat::vector::conj acc
           (:wc::Item :k i :tags (:wc::build-tags i) :bound (:wat::i64::mod i 8) :grid (:wc::build-grid i))))
       (:wat::core::PersistentVector)
       (:wat::core::range 0 items))))
@@ -348,7 +348,7 @@
                     staged  (:wc::seed (:wat::rete::compile-all rules (:wat::core::PersistentVector (:wc::q-Hit))) (:wc::items))
                     fired   (:wat::rete::fire-rules staged)
                     derived (:wc::derived-ints fired)
-                    n       (:wat::core::Vector/length derived)]
+                    n       (:wat::vec::length derived)]
     (:wat::core::String/concat
       (:wat::core::String/concat
         (:wat::core::String/concat "row " (:wat::i64::to-string row))

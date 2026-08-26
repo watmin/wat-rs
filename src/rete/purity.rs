@@ -510,13 +510,14 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             | ":wat::core::stream->pvec"
             | ":wat::core::record?"
             | ":wat::core::str"
-            // PersistentVector ops
+            // PersistentVector ops — bare TYPE constructor unmoved (STOP-3); the 5 `/`-verbs
+            // below moved to `:wat::vector::*` this stone (arc 255 Stone E-ii).
             | ":wat::core::PersistentVector"
-            | ":wat::core::PersistentVector/length"
-            | ":wat::core::PersistentVector/empty?"
-            | ":wat::core::PersistentVector/contains?"
-            | ":wat::core::PersistentVector/get"
-            | ":wat::core::PersistentVector/conj"
+            | ":wat::vector::length"
+            | ":wat::vector::empty?"
+            | ":wat::vector::contains?"
+            | ":wat::vector::get"
+            | ":wat::vector::conj"
             // PersistentMap / HashMap TYPE constructors — bare, no rename this stone
             // (arc 255 Stone E-i moved only the `/`-verb ops; the type constructors are a
             // separate future stone, per the numerics type/ops split precedent).
@@ -606,16 +607,19 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             | ":wat::core::String/ends-with?"
             // `Vector/`, `List/`, `HashSet/` — the value containers. `PersistentVector/`,
             // `PersistentMap/` and `HashMap/` were classified; these three were skipped.
-            | ":wat::core::Vector"        | ":wat::core::Vector/length"   | ":wat::core::Vector/get"
-            | ":wat::core::Vector/conj"   | ":wat::core::Vector/contains?" | ":wat::core::Vector/empty?"
-            | ":wat::core::Vector/concat" | ":wat::core::Vector/extend"
+            // Arc 255 Stone E-ii — the bare TYPE `:wat::core::Vector` is unmoved (STOP-3); the
+            // 7 `/`-verbs moved to `:wat::vec::*` this stone.
+            | ":wat::core::Vector"      | ":wat::vec::length"   | ":wat::vec::get"
+            | ":wat::vec::conj"         | ":wat::vec::contains?" | ":wat::vec::empty?"
+            | ":wat::vec::concat"       | ":wat::vec::extend"
             | ":wat::core::List?"         | ":wat::core::List"            | ":wat::core::List/length"
             | ":wat::core::List/get"      | ":wat::core::List/conj"       | ":wat::core::List/contains?"
             | ":wat::core::List/empty?"
             | ":wat::core::HashSet"       | ":wat::core::HashSet/length"  | ":wat::core::HashSet/conj"
             | ":wat::core::HashSet/contains?" | ":wat::core::HashSet/empty?"
             // The persistent sibling the `into` stone minted; its `Vector/extend` twin is above.
-            | ":wat::core::PersistentVector/concat"
+            // Arc 255 Stone E-ii — moved to `:wat::vector::concat`.
+            | ":wat::vector::concat"
             // Scalar conversions — total, same-in-same-out.
             | ":wat::core::bool::to-string"
             | ":wat::core::i64/to-f64" | ":wat::core::i64/to-string"
@@ -667,9 +671,10 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
     //     two f64 inputs including NaN/±Inf (IEEE says `NaN > x` is `false`, never a raise), so the
     //     OUTPUT itself can never be the undefined thing this axis polices — same shape as the
     //     `coincident?`/`presence?` predicates below.
-    //   `PersistentVector/length` `/contains?` — always defined.
-    //   `PersistentVector/get` — ALREADY total by design (returns `Option`, `None` on
-    //     out-of-range — verified `persistentvector_get_inner`, never raises for a valid index).
+    //   `vector::length` `/contains?` (arc 255 Stone E-ii home for `PersistentVector`'s verbs)
+    //     — always defined.
+    //   `vector::get` — ALREADY total by design (returns `Option`, `None` on out-of-range —
+    //     verified `persistentvector_get_inner`, never raises for a valid index).
     //   `String/concat` `/starts-with?` `/ends-with?` `/contains?` `/empty?` — verified
     //     (`intrinsic/string.rs`) total for any two strings, no domain restriction.
     //   `foldl` — CONDITIONALLY total exactly like its pure∧det entry above: the verb ITSELF never
@@ -761,9 +766,11 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             // `f64::>` (kept total) already uses immediately above.
             | ":wat::f64::="
             | ":wat::f64::not="
-            | ":wat::core::PersistentVector/length"
-            | ":wat::core::PersistentVector/contains?"
-            | ":wat::core::PersistentVector/get"
+            // Arc 255 Stone E-ii — moved to `:wat::vector::*` this stone (name-only; the
+            // totality argument above is unchanged).
+            | ":wat::vector::length"
+            | ":wat::vector::contains?"
+            | ":wat::vector::get"
             | ":wat::core::String/concat"
             | ":wat::core::String/starts-with?"
             | ":wat::core::String/ends-with?"

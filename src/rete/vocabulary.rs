@@ -709,10 +709,14 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // sit in its pure∧det hand-list (`:336-339`) AND its total hand-list (`:525-527`) —
     // "always defined". `/get` originally joined this pair as an `Alias`; BRIEF-get-is-total-
     // by-fallback.md (2026-08-05) converted it to `Fallback` below — see that row's own comment.
+    // Arc 255 Stone E-ii — both `core_name` AND `rete_name` retargeted together
+    // (`:wat::core::PersistentVector/length` retired this stone). Same rule as E-i's
+    // `PersistentMap/contains-key?` row: `naming_rule_tests::rete_name_is_core_name_with_rete_inserted_after_wat`
+    // enforces that `rete_name` MUST equal `core_name` with `::rete::` spliced in after `:wat::`.
     ReteOp {
         type_params: &["T"],
-        rete_name: ":wat::rete::core::PersistentVector/length",
-        core_name: ":wat::core::PersistentVector/length",
+        rete_name: ":wat::rete::vector::length",
+        core_name: ":wat::vector::length",
         class: OpClass::Alias,
         params: &[ParamType::PersistentVectorOf("T")],
         ret: ParamType::I64,
@@ -796,10 +800,12 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         ret: ParamType::Bool,
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
+    // Arc 255 Stone E-ii — both `core_name` AND `rete_name` retargeted together
+    // (`:wat::core::PersistentVector/contains?` retired this stone), same rule as above.
     ReteOp {
         type_params: &["T"],
-        rete_name: ":wat::rete::core::PersistentVector/contains?",
-        core_name: ":wat::core::PersistentVector/contains?",
+        rete_name: ":wat::rete::vector::contains?",
+        core_name: ":wat::vector::contains?",
         class: OpClass::Alias,
         params: &[ParamType::PersistentVectorOf("T"), ParamType::Var("T")],
         ret: ParamType::Bool,
@@ -859,19 +865,23 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // "absent" from "present and equal to the caller's own default" inside a `where` — the
     // deliberate trade the ruling makes. The `Option`-returning form remains available in core
     // for ordinary wat code (STOP-4); only the rete spelling changes shape.
+    // Arc 255 Stone E-ii — both `core_name` AND `rete_name` retargeted together
+    // (`:wat::core::PersistentVector/get` retired this stone), same rule as above.
     ReteOp {
         type_params: &["T"],
-        rete_name: ":wat::rete::core::PersistentVector/get",
-        core_name: ":wat::core::PersistentVector/get",
+        rete_name: ":wat::rete::vector::get",
+        core_name: ":wat::vector::get",
         class: OpClass::Fallback,
         params: &[ParamType::PersistentVectorOf("T"), ParamType::I64, ParamType::Keyword, ParamType::Var("T")],
         ret: ParamType::Var("T"),
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
+    // Arc 255 Stone E-ii — both `core_name` AND `rete_name` retargeted together
+    // (`:wat::core::Vector/get` retired this stone), same rule as above.
     ReteOp {
         type_params: &["T"],
-        rete_name: ":wat::rete::core::Vector/get",
-        core_name: ":wat::core::Vector/get",
+        rete_name: ":wat::rete::vec::get",
+        core_name: ":wat::vec::get",
         class: OpClass::Fallback,
         params: &[ParamType::VectorOf("T"), ParamType::I64, ParamType::Keyword, ParamType::Var("T")],
         ret: ParamType::Var("T"),
@@ -1390,6 +1400,10 @@ pub(crate) const RETE_PREFIX: &str = ":wat::rete::";
 /// `:wat::core::` onto its own top-level home (`:wat::map::contains-key?`), so the naming rule
 /// now roots that row at `:wat::rete::map::` directly, not under `core::`. No `hashmap::` entry
 /// is needed — `RETE_OPS` has no HashMap row to force one.
+/// ⚠ arc 255 Stone E-ii adds `:wat::rete::vector::` and `:wat::rete::vec::` — the identical move:
+/// `PersistentVector/{length,contains?,get}`'s `core_name` moved onto `:wat::vector::*`;
+/// `Vector/get`'s onto `:wat::vec::*`. Both prefixes are needed (unlike E-i's map-only need)
+/// because BOTH families have a moved `RETE_OPS` row here.
 pub(crate) const RETE_MODULES: &[&str] = &[
     ":wat::rete::core::",
     ":wat::rete::holon::",
@@ -1397,6 +1411,8 @@ pub(crate) const RETE_MODULES: &[&str] = &[
     ":wat::rete::i64::",
     ":wat::rete::f64::",
     ":wat::rete::map::",
+    ":wat::rete::vector::",
+    ":wat::rete::vec::",
 ];
 
 /// Look up `head`'s row, if it is a minted rete-vocabulary op. Exact match — never a prefix scan

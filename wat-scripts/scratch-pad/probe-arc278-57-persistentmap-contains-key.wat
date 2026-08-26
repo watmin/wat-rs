@@ -61,7 +61,7 @@
 ;; Kept in this file deliberately: the totality ruling above is an argument FROM this verb, so
 ;; the two spellings live side by side and regress together.
 (def :probe-pv-contains-sibling
-  (:wat::rete::core::PersistentVector/contains? (:wat::core::PersistentVector 1 2 3) 2))
+  (:wat::rete::vector::contains? (:wat::core::PersistentVector 1 2 3) 2))
 
 ;; ⚠ THE CALLS ARE INLINE HERE, DELIBERATELY. The first draft of this main printed the `def`
 ;; names above (`:hit :probe-pm-contains-hit …`) and the output came back as the KEYWORDS
@@ -85,4 +85,4 @@
       (:wat::rete::map::contains-key?
         (:wat::core::PersistentMap "k1" "v1" "k2" "v2") "nope")
       :pv-sibling
-      (:wat::rete::core::PersistentVector/contains? (:wat::core::PersistentVector 1 2 3) 2))))
+      (:wat::rete::vector::contains? (:wat::core::PersistentVector 1 2 3) 2))))

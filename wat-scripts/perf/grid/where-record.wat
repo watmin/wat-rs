@@ -200,7 +200,7 @@
 (:wat::rete::defrule :wr::collection
   :when
   [(:wr::Req (?k <- :k) (?c <- :client) (?c2 <- :client2) (?st <- :status) (?nt <- :note)) (:wat::rete::where
-                 (:wat::rete::i64::> (:wat::rete::core::PersistentVector/length (:wr::Client/tags ?c)) 2))]
+                 (:wat::rete::i64::> (:wat::rete::vector::length (:wr::Client/tags ?c)) 2))]
   :then
   [(:wr::Hit ?k)])
 
@@ -210,7 +210,7 @@
   :when
   [(:wr::Req (?k <- :k) (?c <- :client) (?c2 <- :client2) (?st <- :status) (?nt <- :note)) (:wat::rete::where
                  (:wat::rete::i64::>
-                   (:wat::rete::core::PersistentVector/length (:wr::Bag/items (:wr::Client/bag ?c)))
+                   (:wat::rete::vector::length (:wr::Bag/items (:wr::Client/bag ?c)))
                    1))]
   :then
   [(:wr::Hit ?k)])
@@ -327,7 +327,7 @@
       (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  i <- :wat::core::i64]
                       -> (:wat::core::PersistentVector :- [:wat::core::Record])
         (:wat::core::let [j (:wat::i64::mod (:wat::i64::+ i 97) items)]
-          (:wat::core::PersistentVector/conj acc
+          (:wat::vector::conj acc
             (:wr::Req :k i
               :client  (:wr::client-of i)
               :client2 (:wr::client-of j)
@@ -379,7 +379,7 @@
      staged  (:wr::seed (:wat::rete::compile-all rules (:wat::core::PersistentVector (:wr::q-Hit))) (:wr::items))
      fired   (:wat::rete::fire-rules staged)
      derived (:wr::derived-ints fired)
-     n       (:wat::core::Vector/length derived)]
+     n       (:wat::vec::length derived)]
     (:wat::core::String/concat
       (:wat::core::String/concat
         (:wat::core::String/concat "row " (:wat::i64::to-string row))

@@ -191,7 +191,7 @@
   (:wat::core::foldl
     (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::rete::Rule])  lvl <- :wat::core::i64]
       -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
-      (:wat::core::PersistentVector/conj acc (:strat::build-rule lvl)))
+      (:wat::vector::conj acc (:strat::build-rule lvl)))
     (:wat::core::PersistentVector (:strat::build-rule 0))
     (:wat::core::range 1 strata)))
 
@@ -203,7 +203,7 @@
     (:wat::core::foldl
       (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  i <- :wat::core::i64]
                       -> (:wat::core::PersistentVector :- [:wat::core::Record])
-        (:wat::core::PersistentVector/conj acc (:strat::Item i)))
+        (:wat::vector::conj acc (:strat::Item i)))
       (:wat::core::PersistentVector)
       (:wat::core::range 0 items))))
 

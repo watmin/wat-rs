@@ -102,7 +102,7 @@
   (:wat::core::foldl
     (:wat::core::fn [a <- (:wat::core::PersistentVector :- [:wat::core::Record])  _r <- :wat::core::i64]
                     -> (:wat::core::PersistentVector :- [:wat::core::Record])
-      (:wat::core::PersistentVector/conj a (:mf::Reading loc)))
+      (:wat::vector::conj a (:mf::Reading loc)))
     acc
     (:wat::core::range 0 count)))
 
@@ -119,7 +119,7 @@
         (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  i <- :wat::core::i64]
                         -> (:wat::core::PersistentVector :- [:wat::core::Record])
           (:mf::reading-facts
-            (:wat::core::PersistentVector/conj acc (:mf::Station i))
+            (:wat::vector::conj acc (:mf::Station i))
             i
             (:mf::i64-mod i span)))
         (:wat::core::PersistentVector)

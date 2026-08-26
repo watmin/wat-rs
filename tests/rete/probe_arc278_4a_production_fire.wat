@@ -56,7 +56,7 @@
   (:wat::core::Option/expect
     (:wat::map::get
       (:wat::core::Option/expect
-        (:wat::core::PersistentVector/get (:wat::rete::query s (:weather::q-ColdAndWindy)) 0)
+        (:wat::vector::get (:wat::rete::query s (:weather::q-ColdAndWindy)) 0)
         "fact")
       "?fact")
     "fact"))

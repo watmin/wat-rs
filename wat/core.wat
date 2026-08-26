@@ -41,7 +41,7 @@
 (:wat::core::defalias :wat::core::dissoc  :wat::hashmap::dissoc)
 (:wat::core::defalias :wat::core::keys    :wat::hashmap::keys)
 (:wat::core::defalias :wat::core::values  :wat::hashmap::values)
-(:wat::core::defalias :wat::core::concat  :wat::core::Vector/concat)
+(:wat::core::defalias :wat::core::concat  :wat::vec::concat)
 
 ;; ─── Polymorphic arithmetic defclauses ───────────────────────────────────────
 ;;

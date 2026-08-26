@@ -19,7 +19,7 @@
      outer   (:wat::core::Vector :wat::type::Infer set1 set2)
      h       (:wat::holon::to-holon outer)
      back    (:wat::holon::from-holon h)]
-    (:wat::core::Vector/length back)))
+    (:wat::vec::length back)))
 
 ;; Probe 3: (HashSet :- [(Vector :- [i64])]) round-trip length = 2
 (:wat::core::defn :t::probe3-hashset-of-vector [] -> :wat::core::i64

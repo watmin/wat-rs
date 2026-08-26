@@ -32,7 +32,7 @@
      ;; ROW 6 — every other Fallback family, unregressed.
      row6-i64-div    (:wat::rete::i64::/ 1 0 :undefined -1)
      row6-f64-div    (:wat::rete::f64::/ 0.0 0.0 :undefined -1.0)
-     row6-pv-get     (:wat::rete::core::PersistentVector/get (:wat::core::PersistentVector 7 8 9) 99 :undefined -1)
+     row6-pv-get     (:wat::rete::vector::get (:wat::core::PersistentVector 7 8 9) 99 :undefined -1)
      row6-pv-first   (:wat::rete::core::PersistentVector/first (:wat::core::PersistentVector) :undefined -1)
      row6-cosine     (:wat::rete::holon::cosine zero other :undefined -1.0)]
 

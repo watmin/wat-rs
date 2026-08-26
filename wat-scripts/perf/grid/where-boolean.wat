@@ -255,7 +255,7 @@
                           b  (:wat::core::= 0 (:wat::i64::- i (:wat::i64::* (:wat::i64::/ i 3) 3)))
                           c  (:wat::core::= 0 (:wat::i64::- i (:wat::i64::* (:wat::i64::/ i 5) 5)))
                           d  (:wat::core::= 0 m7)]
-          (:wat::core::PersistentVector/conj acc
+          (:wat::vector::conj acc
             (:wsb::Req :k i :a a :b b :c c :d d :l m7))))
       (:wat::core::PersistentVector)
       (:wat::core::range 0 items))))
@@ -301,7 +301,7 @@
                     staged  (:wsb::seed (:wat::rete::compile-all rules (:wat::core::PersistentVector (:wsb::q-Hit))) (:wsb::items))
                     fired   (:wat::rete::fire-rules staged)
                     derived (:wsb::derived-ints fired)
-                    n       (:wat::core::Vector/length derived)]
+                    n       (:wat::vec::length derived)]
     (:wat::core::String/concat
       (:wat::core::String/concat
         (:wat::core::String/concat "row " (:wat::i64::to-string row))

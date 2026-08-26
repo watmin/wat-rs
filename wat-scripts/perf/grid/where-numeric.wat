@@ -239,7 +239,7 @@
                           z (:wat::i64::- (:wat::i64::mod i 5) 2)
                           x (:wat::f64::- (:wat::f64::* (:wat::i64::to-f64 i) 0.25) 25.0)
                           y (:wat::f64::* (:wat::i64::to-f64 i) 0.1)]
-          (:wat::core::PersistentVector/conj acc
+          (:wat::vector::conj acc
             (:wnm::Num :k i :a a :z z :x x :y y))))
       (:wat::core::PersistentVector)
       (:wat::core::range 0 items))))
@@ -287,7 +287,7 @@
                     staged  (:wnm::seed (:wat::rete::compile-all rules (:wat::core::PersistentVector (:wnm::q-Hit))) (:wnm::items))
                     fired   (:wat::rete::fire-rules staged)
                     derived (:wnm::derived-ints fired)
-                    n       (:wat::core::Vector/length derived)]
+                    n       (:wat::vec::length derived)]
     (:wat::core::String/concat
       (:wat::core::String/concat
         (:wat::core::String/concat "row " (:wat::i64::to-string row))

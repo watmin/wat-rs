@@ -252,7 +252,7 @@
            d (:wat::i64::mod i 5)
            e (:wat::i64::mod i 3)
            s (:wat::i64::to-string i)]
-          (:wat::core::PersistentVector/conj acc
+          (:wat::vector::conj acc
             (:wmv::Req :k i :a a :b b :c c :d d :e e :s s))))
       (:wat::core::PersistentVector)
       (:wat::core::range 0 items))))
@@ -300,7 +300,7 @@
      staged  (:wmv::seed (:wat::rete::compile-all rules (:wat::core::PersistentVector (:wmv::q-Hit))) (:wmv::items))
      fired   (:wat::rete::fire-rules staged)
      derived (:wmv::derived-ints fired)
-     n       (:wat::core::Vector/length derived)]
+     n       (:wat::vec::length derived)]
     (:wat::core::String/concat
       (:wat::core::String/concat
         (:wat::core::String/concat "row " (:wat::i64::to-string row))

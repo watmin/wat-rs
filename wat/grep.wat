@@ -190,16 +190,16 @@
   (:wat::core::let
     [id    (:wat::grep::Acc/next-id acc)
      kind  (:wat::core::ast-kind node)
-     nodes (:wat::core::PersistentVector/conj (:wat::grep::Acc/nodes acc)
+     nodes (:wat::vector::conj (:wat::grep::Acc/nodes acc)
              (:wat::grep::Node :id id :parent parent :index index :kind kind))
      ;; THE GUARD: no name fact for an unnameable node. `ast-name` is never reached for one.
      named (:wat::core::if (:wat::grep::nameable? node)
-             (:wat::core::PersistentVector/conj (:wat::grep::Acc/named acc)
+             (:wat::vector::conj (:wat::grep::Acc/named acc)
                (:wat::grep::Named :id id :name (:wat::core::ast-name node)))
              (:wat::grep::Acc/named acc))
      ;; NO GUARD: extent-of is total (ast-span / ast-end-span are total). Every node gets a Span.
      ex    (:wat::grep::extent-of node)
-     spans (:wat::core::PersistentVector/conj (:wat::grep::Acc/spans acc)
+     spans (:wat::vector::conj (:wat::grep::Acc/spans acc)
              (:wat::grep::Span :id id
                         :line     (:wat::grep::Extent/line ex)
                         :col      (:wat::grep::Extent/col ex)
@@ -216,7 +216,7 @@
                   false)
                 false)
      written (:wat::core::if written?
-               (:wat::core::PersistentVector/conj (:wat::grep::Acc/written acc)
+               (:wat::vector::conj (:wat::grep::Acc/written acc)
                  (:wat::grep::Written :id id
                             :line     (:wat::grep::Extent/line ex)
                             :col      (:wat::grep::Extent/col ex)
@@ -324,39 +324,39 @@
             (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])
                              n   <- :wat::grep::Node]
               -> (:wat::core::PersistentVector :- [:wat::core::Record])
-              (:wat::core::PersistentVector/conj acc n))
+              (:wat::vector::conj acc n))
             acc0
             (:wat::grep::Facts/nodes facts))
      acc2 (:wat::core::foldl
             (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])
                              nm  <- :wat::grep::Named]
               -> (:wat::core::PersistentVector :- [:wat::core::Record])
-              (:wat::core::PersistentVector/conj acc nm))
+              (:wat::vector::conj acc nm))
             acc1
             (:wat::grep::Facts/named facts))
      acc3 (:wat::core::foldl
             (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])
                              sp  <- :wat::grep::Span]
               -> (:wat::core::PersistentVector :- [:wat::core::Record])
-              (:wat::core::PersistentVector/conj acc sp))
+              (:wat::vector::conj acc sp))
             acc2
             (:wat::grep::Facts/spans facts))
      acc4 (:wat::core::foldl
             (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])
                              w   <- :wat::grep::Written]
               -> (:wat::core::PersistentVector :- [:wat::core::Record])
-              (:wat::core::PersistentVector/conj acc w))
+              (:wat::vector::conj acc w))
             acc3
             (:wat::grep::Facts/written facts))
      acc5 (:wat::core::foldl
             (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])
                              u   <- :wat::grep::Unreadable]
               -> (:wat::core::PersistentVector :- [:wat::core::Record])
-              (:wat::core::PersistentVector/conj acc u))
+              (:wat::vector::conj acc u))
             acc4
             (:wat::grep::Facts/unreadable facts))]
     ;; the ONE Source fact, last — a rule joins it to name the file it matched in.
-    (:wat::core::PersistentVector/conj acc5 (:wat::grep::Facts/source facts))))
+    (:wat::vector::conj acc5 (:wat::grep::Facts/source facts))))
 
 ;; print-match — the ONE printer. It knows exactly one type because wat-grep owns exactly one
 ;; query; nothing here ranks, filters, or counts. `query-read`'s binding maps key a query's
@@ -404,7 +404,7 @@
   -> (:wat::core::PersistentVector :- [:wat::grep::Unreadable])
   (:wat::core::if (:wat::core::empty? paths)
     (:wat::core::PersistentVector :- [:wat::grep::Unreadable])
-    (:wat::core::PersistentVector/concat
+    (:wat::vector::concat
       (:wat::grep::run-one overlay (:wat::core::first paths))
       (:wat::grep::run-each overlay (:wat::core::rest paths)))))
 

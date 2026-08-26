@@ -94,7 +94,7 @@
 ;; a PersistentVector verb over a collection binding
 (:wat::core::defn :shape::rule-collection [] -> :wat::rete::Rule
   (:wat::core::let [conds   (:wat::core::quasiquote (:shape::Req (?k <- :k) (?t <- :tags)))
-                    where-c (:wat::core::quasiquote (:wat::rete::where (:wat::rete::i64::> (:wat::rete::core::PersistentVector/length ?t) 1)))
+                    where-c (:wat::core::quasiquote (:wat::rete::where (:wat::rete::i64::> (:wat::rete::vector::length ?t) 1)))
                     ins     (:wat::core::quasiquote (:shape::Hit ?k))]
     (:wat::rete::Rule :name "collection"
       :lhs (:wat::core::PersistentVector conds where-c)
@@ -159,7 +159,7 @@
     (:wat::core::foldl
       (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  i <- :wat::core::i64]
                       -> (:wat::core::PersistentVector :- [:wat::core::Record])
-        (:wat::core::PersistentVector/conj acc
+        (:wat::vector::conj acc
           (:shape::Req
             :k      i
             :a      (:wat::i64::- i 1)

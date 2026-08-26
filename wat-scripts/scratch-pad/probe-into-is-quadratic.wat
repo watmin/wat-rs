@@ -73,4 +73,4 @@
         :pvec-drain-ns    (:iq::ns-between c0 c1)
         :drain-len  (:wat::core::length va)
         :concat-len (:wat::core::length vb)
-        :pvec-len   (:wat::core::PersistentVector/length vc)))))
+        :pvec-len   (:wat::vector::length vc)))))

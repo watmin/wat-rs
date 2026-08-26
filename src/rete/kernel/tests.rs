@@ -655,7 +655,7 @@ const NODE_SHARE_WORLD: &str = "\
   (:wat::core::foldl\n\
     (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::rete::Rule])  i <- :wat::core::i64]\n\
       -> (:wat::core::PersistentVector :- [:wat::rete::Rule])\n\
-      (:wat::core::PersistentVector/conj acc (:nsh::build-rule i n)))\n\
+      (:wat::vector::conj acc (:nsh::build-rule i n)))\n\
     (:wat::core::PersistentVector)\n\
     (:wat::core::range 0 n)))\n\
 \n\
@@ -2495,7 +2495,7 @@ const DEPTH_SPLIT_WORLD: &str = "\
 (:wat::core::defn :dc::build-rules [depth <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])\n\
   (:wat::core::foldl\n\
     (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::rete::Rule])  k <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])\n\
-      (:wat::core::PersistentVector/conj acc (:dc::build-rule k)))\n\
+      (:wat::vector::conj acc (:dc::build-rule k)))\n\
     (:wat::core::PersistentVector (:dc::build-rule 1))\n\
     (:wat::core::range 2 (:wat::i64::+ depth 1))))\n\
 \n\

@@ -54,7 +54,7 @@
                             tstr (:wat::core::if (:wat::core::= (:wat::string::subs traw 0 1) ":")
                                    (:wat::string::subs traw 1 (:wat::string::length traw))
                                    traw)]
-                           (:wat::core::if (:wat::core::Vector/contains? acc2 tstr) acc2 (:wat::core::conj acc2 tstr))))
+                           (:wat::core::if (:wat::vec::contains? acc2 tstr) acc2 (:wat::core::conj acc2 tstr))))
                        acc
                        then-forms)))
                  (:wat::core::Vector :wat::core::String)

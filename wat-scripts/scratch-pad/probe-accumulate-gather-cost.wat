@@ -162,7 +162,7 @@
   (:wat::core::foldl
     (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::i64])  x <- :wat::core::i64]
       -> (:wat::core::PersistentVector :- [:wat::core::i64])
-      (:wat::core::PersistentVector/conj acc x))
+      (:wat::vector::conj acc x))
     (:wat::core::PersistentVector)
     v))
 

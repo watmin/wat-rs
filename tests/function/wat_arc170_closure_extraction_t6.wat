@@ -9,4 +9,4 @@
               (:wat::core::fn [m <- :wat::core::i64] -> :wat::core::i64
                 (:wat::i64::+ m
                   (:wat::i64::+ n
-                    (:wat::core::Vector/length xs))))))
+                    (:wat::vec::length xs))))))

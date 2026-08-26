@@ -97,7 +97,7 @@
 
     (:wat::kernel::println
       (:probe::DeriveSplit
-        :derived-count (:wat::core::PersistentVector/length pv)   ; non-vacuity: a zero here means nothing was derived
+        :derived-count (:wat::vector::length pv)   ; non-vacuity: a zero here means nothing was derived
         :fire-ns  (:dd::ns-between f0 f1)
         :query-ns (:dd::ns-between q0 q1)
         :map-ns   (:dd::ns-between m0 m1)

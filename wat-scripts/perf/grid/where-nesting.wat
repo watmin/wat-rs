@@ -244,7 +244,7 @@
                       -> (:wat::core::PersistentVector :- [:wat::core::Record])
         (:wat::core::let [mraw (:wat::i64::+ (:wat::i64::* 7 i) 11)
                           m    (:wat::i64::- mraw (:wat::i64::* (:wat::i64::/ mraw 40) 40))]
-          (:wat::core::PersistentVector/conj acc (:wnst::Req :k i :m m))))
+          (:wat::vector::conj acc (:wnst::Req :k i :m m))))
       (:wat::core::PersistentVector)
       (:wat::core::range 0 items))))
 
@@ -290,7 +290,7 @@
                     staged  (:wnst::seed (:wat::rete::compile-all rules (:wat::core::PersistentVector (:wnst::q-Hit))) (:wnst::items))
                     fired   (:wat::rete::fire-rules staged)
                     derived (:wnst::derived-ints fired)
-                    n       (:wat::core::Vector/length derived)]
+                    n       (:wat::vec::length derived)]
     (:wat::core::String/concat
       (:wat::core::String/concat
         (:wat::core::String/concat "row " (:wat::i64::to-string row))

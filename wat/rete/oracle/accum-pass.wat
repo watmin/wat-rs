@@ -157,7 +157,7 @@
           (:wat::core::if (:wat::core::= (:wat::core::ast-kind kid) "symbol")
             (:wat::core::let [nm (:wat::core::ast-name kid)]
               (:wat::core::if (:wat::string::starts-with? nm "?")
-                (:wat::core::PersistentVector/conj acc nm)
+                (:wat::vector::conj acc nm)
                 acc))
             acc)))
       (:wat::core::PersistentVector)
@@ -172,9 +172,9 @@
     (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::String])
                      k   <- :wat::core::String]
       -> (:wat::core::PersistentVector :- [:wat::core::String])
-      (:wat::core::if (:wat::core::PersistentVector/contains? drop k)
+      (:wat::core::if (:wat::vector::contains? drop k)
         acc
-        (:wat::core::PersistentVector/conj acc k)))
+        (:wat::vector::conj acc k)))
     (:wat::core::PersistentVector)
     from))
 
@@ -248,7 +248,7 @@
                                                                  (:wat::rete::Element/fact el)
                                                                  (:wat::rete::Token/bindings tok))
                                               ((:wat::core::Some _)
-                                               (:wat::core::PersistentVector/conj acc el))
+                                               (:wat::vector::conj acc el))
                                               (:wat::core::None acc)))
                                           (:wat::core::PersistentVector)
                                           from-els)
@@ -256,7 +256,7 @@
                                           (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::String])
                                                            k   <- :wat::core::String]
                                             -> (:wat::core::PersistentVector :- [:wat::core::String])
-                                            (:wat::core::PersistentVector/conj acc k))
+                                            (:wat::vector::conj acc k))
                                           (:wat::core::PersistentVector)
                                           (:wat::map::keys
                                             (:wat::rete::Token/bindings tok)))
@@ -274,7 +274,7 @@
                                         (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::PersistentMap])
                                                          el  <- :wat::rete::Element]
                                           -> (:wat::core::PersistentVector :- [:wat::core::PersistentMap])
-                                          (:wat::core::PersistentVector/conj
+                                          (:wat::vector::conj
                                             acc
                                             (:wat::rete::project-group-keys el group-keys)))
                                         (:wat::core::PersistentVector)
@@ -289,11 +289,11 @@
                                                              el  <- :wat::rete::Element]
                                               -> (:wat::core::PersistentVector :- [:wat::rete::Element])
                                               (:wat::core::if
-                                                (:wat::core::PersistentVector/contains?
-                                                  (:wat::core::PersistentVector/conj
+                                                (:wat::vector::contains?
+                                                  (:wat::vector::conj
                                                     (:wat::core::PersistentVector) km)
                                                   (:wat::rete::project-group-keys el group-keys))
-                                                (:wat::core::PersistentVector/conj acc el)
+                                                (:wat::vector::conj acc el)
                                                 acc))
                                             (:wat::core::PersistentVector)
                                             gathered)

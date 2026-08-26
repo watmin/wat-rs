@@ -11,9 +11,9 @@
 ;; count → BARE 3 (length is always concrete; never Option).
 (:wat::core::defn :user::count-folds [] -> :wat::core::i64
   (:wat::core::let
-    [els (:wat::core::PersistentVector/conj
-           (:wat::core::PersistentVector/conj
-             (:wat::core::PersistentVector/conj (:wat::core::PersistentVector)
+    [els (:wat::vector::conj
+           (:wat::vector::conj
+             (:wat::vector::conj (:wat::core::PersistentVector)
                (:wat::rete::Element :fact (:net::Packet :src "a") :bindings
                  (:wat::map::assoc
                    (:wat::map::assoc (:wat::core::PersistentMap) "?bytes" 100) "?port" 80)))
@@ -28,9 +28,9 @@
 ;; sum ?bytes → BARE 600 (empty sum = 0; never Option).
 (:wat::core::defn :user::sum-folds [] -> :wat::core::i64
   (:wat::core::let
-    [els (:wat::core::PersistentVector/conj
-           (:wat::core::PersistentVector/conj
-             (:wat::core::PersistentVector/conj (:wat::core::PersistentVector)
+    [els (:wat::vector::conj
+           (:wat::vector::conj
+             (:wat::vector::conj (:wat::core::PersistentVector)
                (:wat::rete::Element :fact (:net::Packet :src "a") :bindings
                  (:wat::map::assoc
                    (:wat::map::assoc (:wat::core::PersistentMap) "?bytes" 100) "?port" 80)))
@@ -45,9 +45,9 @@
 ;; min ?bytes → Some(100).
 (:wat::core::defn :user::min-folds [] -> (:wat::core::Option :- [:wat::core::i64])
   (:wat::core::let
-    [els (:wat::core::PersistentVector/conj
-           (:wat::core::PersistentVector/conj
-             (:wat::core::PersistentVector/conj (:wat::core::PersistentVector)
+    [els (:wat::vector::conj
+           (:wat::vector::conj
+             (:wat::vector::conj (:wat::core::PersistentVector)
                (:wat::rete::Element :fact (:net::Packet :src "a") :bindings
                  (:wat::map::assoc
                    (:wat::map::assoc (:wat::core::PersistentMap) "?bytes" 100) "?port" 80)))
@@ -62,9 +62,9 @@
 ;; max ?bytes → Some(300).
 (:wat::core::defn :user::max-folds [] -> (:wat::core::Option :- [:wat::core::i64])
   (:wat::core::let
-    [els (:wat::core::PersistentVector/conj
-           (:wat::core::PersistentVector/conj
-             (:wat::core::PersistentVector/conj (:wat::core::PersistentVector)
+    [els (:wat::vector::conj
+           (:wat::vector::conj
+             (:wat::vector::conj (:wat::core::PersistentVector)
                (:wat::rete::Element :fact (:net::Packet :src "a") :bindings
                  (:wat::map::assoc
                    (:wat::map::assoc (:wat::core::PersistentMap) "?bytes" 100) "?port" 80)))
@@ -79,9 +79,9 @@
 ;; mean ?bytes → Some(200) — THE composition: sum(600)/count(3).
 (:wat::core::defn :user::mean-is-sum-over-count [] -> (:wat::core::Option :- [:wat::core::i64])
   (:wat::core::let
-    [els (:wat::core::PersistentVector/conj
-           (:wat::core::PersistentVector/conj
-             (:wat::core::PersistentVector/conj (:wat::core::PersistentVector)
+    [els (:wat::vector::conj
+           (:wat::vector::conj
+             (:wat::vector::conj (:wat::core::PersistentVector)
                (:wat::rete::Element :fact (:net::Packet :src "a") :bindings
                  (:wat::map::assoc
                    (:wat::map::assoc (:wat::core::PersistentMap) "?bytes" 100) "?port" 80)))
@@ -96,9 +96,9 @@
 ;; distinct ?port → BARE vec of length 2 (80, 443 — the duplicate 80 collapses).
 (:wat::core::defn :user::distinct-folds [] -> :wat::core::i64
   (:wat::core::let
-    [els (:wat::core::PersistentVector/conj
-           (:wat::core::PersistentVector/conj
-             (:wat::core::PersistentVector/conj (:wat::core::PersistentVector)
+    [els (:wat::vector::conj
+           (:wat::vector::conj
+             (:wat::vector::conj (:wat::core::PersistentVector)
                (:wat::rete::Element :fact (:net::Packet :src "a") :bindings
                  (:wat::map::assoc
                    (:wat::map::assoc (:wat::core::PersistentMap) "?bytes" 100) "?port" 80)))
@@ -113,9 +113,9 @@
 ;; all → BARE vec of length 3 (the gathered facts).
 (:wat::core::defn :user::all-folds [] -> :wat::core::i64
   (:wat::core::let
-    [els (:wat::core::PersistentVector/conj
-           (:wat::core::PersistentVector/conj
-             (:wat::core::PersistentVector/conj (:wat::core::PersistentVector)
+    [els (:wat::vector::conj
+           (:wat::vector::conj
+             (:wat::vector::conj (:wat::core::PersistentVector)
                (:wat::rete::Element :fact (:net::Packet :src "a") :bindings
                  (:wat::map::assoc
                    (:wat::map::assoc (:wat::core::PersistentMap) "?bytes" 100) "?port" 80)))
@@ -130,9 +130,9 @@
 ;; group-by ?port → BARE map with 2 keys (80 → [a,c], 443 → [b]).
 (:wat::core::defn :user::group-by-folds [] -> :wat::core::i64
   (:wat::core::let
-    [els (:wat::core::PersistentVector/conj
-           (:wat::core::PersistentVector/conj
-             (:wat::core::PersistentVector/conj (:wat::core::PersistentVector)
+    [els (:wat::vector::conj
+           (:wat::vector::conj
+             (:wat::vector::conj (:wat::core::PersistentVector)
                (:wat::rete::Element :fact (:net::Packet :src "a") :bindings
                  (:wat::map::assoc
                    (:wat::map::assoc (:wat::core::PersistentMap) "?bytes" 100) "?port" 80)))

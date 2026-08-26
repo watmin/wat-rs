@@ -18,7 +18,7 @@
                            (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::String])
                                             k   <- :wat::core::String]
                              -> (:wat::core::PersistentVector :- [:wat::core::String])
-                             (:wat::core::PersistentVector/conj acc k))
+                             (:wat::vector::conj acc k))
                            (:wat::core::PersistentVector)
                            (:wat::map::keys params))
                     missing (:wat::rete::keys-minus want got)
@@ -166,14 +166,14 @@
                                (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::WatAST])
                                                 c   <- :wat::WatAST]
                                  -> (:wat::core::PersistentVector :- [:wat::WatAST])
-                                 (:wat::core::PersistentVector/conj acc c))
+                                 (:wat::vector::conj acc c))
                                (:wat::core::PersistentVector)
                                (:wat::core::ast->children when-ast))
                     rhs-pv (:wat::core::foldl
                                (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::WatAST])
                                                 c   <- :wat::WatAST]
                                  -> (:wat::core::PersistentVector :- [:wat::WatAST])
-                                 (:wat::core::PersistentVector/conj acc c))
+                                 (:wat::vector::conj acc c))
                                (:wat::core::PersistentVector)
                                (:wat::core::ast->children then-ast))]
     (:wat::rete::Rule :name name :lhs lhs-pv :rhs rhs-pv)))
@@ -232,14 +232,14 @@
                                  (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::String])
                                                   p   <- :wat::WatAST]
                                    -> (:wat::core::PersistentVector :- [:wat::core::String])
-                                   (:wat::core::PersistentVector/conj acc (:wat::core::ast-name p)))
+                                   (:wat::vector::conj acc (:wat::core::ast-name p)))
                                  (:wat::core::PersistentVector)
                                  (:wat::core::ast->children params-ast))
                     lhs-pv (:wat::core::foldl
                               (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::WatAST])
                                                c   <- :wat::WatAST]
                                 -> (:wat::core::PersistentVector :- [:wat::WatAST])
-                                (:wat::core::PersistentVector/conj acc c))
+                                (:wat::vector::conj acc c))
                               (:wat::core::PersistentVector)
                               (:wat::core::ast->children when-ast))]
     (:wat::rete::Query :name name :params params-pv :lhs lhs-pv)))

@@ -151,7 +151,7 @@
   (:wat::core::foldl
     (:wat::core::fn [a <- (:wat::core::PersistentVector :- [:wat::core::Record])  j <- :wat::core::i64]
                     -> (:wat::core::PersistentVector :- [:wat::core::Record])
-      (:wat::core::PersistentVector/conj a (:acc::Reading :g g :v (:acc::val g j))))
+      (:wat::vector::conj a (:acc::Reading :g g :v (:acc::val g j))))
     acc
     (:wat::core::range 0 W)))
 
@@ -161,7 +161,7 @@
   (:wat::core::foldl
     (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  g <- :wat::core::i64]
                     -> (:wat::core::PersistentVector :- [:wat::core::Record])
-      (:acc::reading-facts (:wat::core::PersistentVector/conj acc (:acc::Group g)) g W))
+      (:acc::reading-facts (:wat::vector::conj acc (:acc::Group g)) g W))
     (:wat::core::PersistentVector)
     (:wat::core::range 0 G)))
 

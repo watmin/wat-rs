@@ -25,7 +25,7 @@
     :alpha-memory (:wat::rete::Session/alpha-memory      session)
     :beta-memory (:wat::rete::Session/beta-memory       session)
     :production-memory (:wat::rete::Session/production-memory session)
-    :facts (:wat::core::PersistentVector/conj (:wat::rete::Session/facts session) fact)
+    :facts (:wat::vector::conj (:wat::rete::Session/facts session) fact)
     :next-id (:wat::rete::Session/next-id           session)
     :query-memory (:wat::rete::Session/query-memory session)))
 
@@ -64,8 +64,8 @@
       (:wat::core::foldl
         (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])
                          f   <- :T] -> (:wat::core::PersistentVector :- [:wat::core::Record])
-          (:wat::core::PersistentVector/conj acc f))
-        (:wat::core::PersistentVector/conj (:wat::core::PersistentVector) fact)
+          (:wat::vector::conj acc f))
+        (:wat::vector::conj (:wat::core::PersistentVector) fact)
         rest))))
 
 ;; retract — stage a fact removal from Session.facts, by value equality. Zero activation.
@@ -84,7 +84,7 @@
                                                   f   <- :wat::core::Record]
                                    -> (:wat::core::PersistentVector :- [:wat::core::Record])
                                    (:wat::core::if (:wat::core::not (:wat::core::= f fact))
-                                     (:wat::core::PersistentVector/conj acc f)
+                                     (:wat::vector::conj acc f)
                                      acc))
                                  (:wat::core::PersistentVector)
                                  old-facts)]

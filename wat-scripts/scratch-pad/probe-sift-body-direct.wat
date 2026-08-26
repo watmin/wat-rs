@@ -58,7 +58,7 @@
           [class-ok (:wat::core::foldl
                       (:wat::core::fn [ok <- :wat::core::bool log <- :wat::telemetry::Log] -> :wat::core::bool
                         (:wat::core::if ok
-                          (:wat::core::Vector/contains?
+                          (:wat::vec::contains?
                             (:wat::core::Vector :wat::core::String "usr::Temp" "usr::Hot" "usr::Warn")
                             (:wat::core::match
                               (:wat::edn::read-foreign (:wat::telemetry::Log/message log))

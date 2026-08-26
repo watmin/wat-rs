@@ -53,7 +53,7 @@
                           type-nm   (:wat::core::if (:wat::core::= (:wat::string::subs raw-nm 0 1) ":")
                                       (:wat::string::subs raw-nm 1 (:wat::string::length raw-nm))
                                       raw-nm)]
-          (:wat::core::PersistentVector/conj acc type-nm)))
+          (:wat::vector::conj acc type-nm)))
       (:wat::core::PersistentVector)
       rhs)))
 
@@ -96,7 +96,7 @@
             (:wat::core::fn [a <- (:wat::core::PersistentVector :- [:wat::core::String])
                              t <- :wat::core::String]
               -> (:wat::core::PersistentVector :- [:wat::core::String])
-              (:wat::core::PersistentVector/conj a t))
+              (:wat::vector::conj a t))
             acc
             (:wat::rete::negated-types-under kid)))
         (:wat::core::PersistentVector)
@@ -125,7 +125,7 @@
               (:wat::core::fn [a <- (:wat::core::PersistentVector :- [:wat::core::String])
                                t <- :wat::core::String]
                 -> (:wat::core::PersistentVector :- [:wat::core::String])
-                (:wat::core::PersistentVector/conj a t))
+                (:wat::vector::conj a t))
               acc
               (:wat::rete::negated-types-under (:wat::core::second ch)))
             acc)))
@@ -165,7 +165,7 @@
                                false)]
           (:wat::core::if (:wat::core::= hd ":wat::rete::exists")
             (:wat::core::match (:wat::rete::type-name-of (:wat::core::second ch))
-              ((:wat::core::Some t) (:wat::core::PersistentVector/conj acc t))
+              ((:wat::core::Some t) (:wat::vector::conj acc t))
               (:wat::core::None acc))
             (:wat::core::if (:wat::core::if q?
                               (:wat::core::if (:wat::i64::>= (:wat::core::length ch) 5)
@@ -180,14 +180,14 @@
                                    (:wat::core::Option/expect
                                      (:wat::core::get ch 4)
                                      "rule-consumes: acc :from inner"))
-                ((:wat::core::Some t) (:wat::core::PersistentVector/conj acc t))
+                ((:wat::core::Some t) (:wat::vector::conj acc t))
                 (:wat::core::None acc))
               (:wat::core::if (:wat::core::if (:wat::i64::>= n 12)
                                 (:wat::core::= (:wat::string::subs hd 0 12) ":wat::rete::")
                                 false)
                 acc
                 (:wat::core::match (:wat::rete::type-name-of form)
-                  ((:wat::core::Some t) (:wat::core::PersistentVector/conj acc t))
+                  ((:wat::core::Some t) (:wat::vector::conj acc t))
                   (:wat::core::None acc)))))))
       (:wat::core::PersistentVector)
       lhs)))

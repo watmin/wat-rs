@@ -32,7 +32,7 @@
   (:wat::core::= (:wat::core::first (:wat::core::List/conj (:wat::core::List 2 3) 1)) 1))
 
 (:wat::core::defn :list::vec-conj-appends [] -> :wat::core::bool
-  (:wat::core::= (:wat::core::first (:wat::core::Vector/conj [2 3] 1)) 2))
+  (:wat::core::= (:wat::core::first (:wat::vec::conj [2 3] 1)) 2))
 
 (:wat::core::defn :list::contains-found [] -> :wat::core::bool
   (:wat::core::List/contains? (:wat::core::List 1 2 3) 2))

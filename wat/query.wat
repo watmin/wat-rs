@@ -216,7 +216,7 @@
                     tstr (:wat::core::if (:wat::core::= (:wat::string::subs traw 0 1) ":")
                            (:wat::string::subs traw 1 (:wat::string::length traw))
                            traw)]
-                   (:wat::core::if (:wat::core::Vector/contains? acc2 tstr) acc2 (:wat::core::conj acc2 tstr))))
+                   (:wat::core::if (:wat::vec::contains? acc2 tstr) acc2 (:wat::core::conj acc2 tstr))))
                acc
                then-forms)))
          (:wat::core::Vector :wat::core::String)
@@ -246,7 +246,7 @@
                     cstr (:wat::core::if (:wat::core::= (:wat::string::subs craw 0 1) ":")
                            (:wat::string::subs craw 1 (:wat::string::length craw))
                            craw)]
-                   (:wat::core::if (:wat::core::Vector/contains? acc2 cstr) acc2 (:wat::core::conj acc2 cstr))))
+                   (:wat::core::if (:wat::vec::contains? acc2 cstr) acc2 (:wat::core::conj acc2 cstr))))
                acc
                conds)))
          (:wat::core::Vector :wat::core::String)
@@ -259,7 +259,7 @@
        (:wat::core::foldl
          (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::core::String]) tstr <- :wat::core::String]
            -> (:wat::core::Vector :- [:wat::core::String])
-           (:wat::core::if (:wat::core::Vector/contains? fired-upon-type-strs tstr)
+           (:wat::core::if (:wat::vec::contains? fired-upon-type-strs tstr)
              acc
              (:wat::core::conj acc tstr)))
          (:wat::core::Vector :wat::core::String)
@@ -430,7 +430,7 @@
                               (:wat::core::match
                                 (:wat::edn::read-foreign (:wat::telemetry::Log/message ~log-sym))
                                 ((:wat::edn::ReadForeignOutcome::Value ~payload-sym)
-                                  (:wat::core::Vector/contains?
+                                  (:wat::vec::contains?
                                     (:wat::core::Vector :wat::core::String ~@def-type-strs)
                                     (:wat::core::type ~payload-sym)))
                                 ((:wat::edn::ReadForeignOutcome::Malformed ~cause-sym)

@@ -6093,13 +6093,10 @@ fn dispatch_keyword_head_value(
         // these per-Type impls by inspecting the arg's value tag.
         // Direct calls to the per-Type names are also legal and
         // bypass the dispatch hop.
-        ":wat::core::Vector/length" => {
-            crate::collection::eval::eval_vector_length(args, list_span, env, sym)
-        }
-        // Arc-278-0b — PersistentVector per-type ops.
-        ":wat::core::PersistentVector/length" => {
-            crate::collection::eval::eval_persistentvector_length(args, list_span, env, sym)
-        }
+        // Arc 255 Stone E-ii — `:wat::core::Vector/length` and `:wat::core::PersistentVector/length`
+        // RETIRED this stone; `:wat::vec::length`/`:wat::vector::length` (`src/intrinsic/{vec,vector}.rs`)
+        // are their replacements, reached via the registry-first door (`dispatch_keyword_head_value`'s
+        // `crate::intrinsic::registry().lookup(head)`, above this match) — no arm needed here.
         ":wat::core::HashSet/length" => {
             crate::collection::eval::eval_hashset_length(args, list_span, env, sym)
         }
@@ -6111,12 +6108,8 @@ fn dispatch_keyword_head_value(
         // Dispatches (declared in `wat/core.wat`). Per-Type impls also
         // directly callable; the dispatch_keyword_head guard above
         // intercepts the polymorphic surface name first.
-        ":wat::core::Vector/empty?" => {
-            crate::collection::eval::eval_vector_empty_q(args, list_span, env, sym)
-        }
-        ":wat::core::PersistentVector/empty?" => {
-            crate::collection::eval::eval_persistentvector_empty_q(args, list_span, env, sym)
-        }
+        // Arc 255 Stone E-ii — `:wat::core::Vector/empty?` and `:wat::core::PersistentVector/empty?`
+        // RETIRED this stone; `:wat::vec::empty?`/`:wat::vector::empty?` are their replacements.
         ":wat::core::HashSet/empty?" => {
             crate::collection::eval::eval_hashset_empty_q(args, list_span, env, sym)
         }
@@ -6124,12 +6117,8 @@ fn dispatch_keyword_head_value(
         ":wat::core::List/empty?" => {
             crate::collection::eval::eval_list_empty_q(args, list_span, env, sym)
         }
-        ":wat::core::Vector/contains?" => {
-            crate::collection::eval::eval_vector_contains_q(args, list_span, env, sym)
-        }
-        ":wat::core::PersistentVector/contains?" => {
-            crate::collection::eval::eval_persistentvector_contains_q(args, list_span, env, sym)
-        }
+        // Arc 255 Stone E-ii — `:wat::core::Vector/contains?` and `:wat::core::PersistentVector/contains?`
+        // RETIRED this stone; `:wat::vec::contains?`/`:wat::vector::contains?` are their replacements.
         ":wat::core::HashSet/contains?" => {
             crate::collection::eval::eval_hashset_contains_q(args, list_span, env, sym)
         }
@@ -6137,21 +6126,12 @@ fn dispatch_keyword_head_value(
         ":wat::core::List/contains?" => {
             crate::collection::eval::eval_list_contains_q(args, list_span, env, sym)
         }
-        ":wat::core::Vector/get" => {
-            crate::collection::eval::eval_vector_get(args, list_span, env, sym)
-        }
-        ":wat::core::PersistentVector/get" => {
-            crate::collection::eval::eval_persistentvector_get(args, list_span, env, sym)
-        }
+        // Arc 255 Stone E-ii — `:wat::core::Vector/get` and `:wat::core::PersistentVector/get`
+        // RETIRED this stone; `:wat::vec::get`/`:wat::vector::get` are their replacements.
         // Arc 220 Stone 220.4 — List get
         ":wat::core::List/get" => crate::collection::eval::eval_list_get(args, list_span, env, sym),
-        ":wat::core::Vector/conj" => {
-            crate::collection::eval::eval_vector_conj(args, list_span, env, sym)
-        }
-        // Arc-278-0b — PersistentVector per-type conj.
-        ":wat::core::PersistentVector/conj" => {
-            crate::collection::eval::eval_persistentvector_conj(args, list_span, env, sym)
-        }
+        // Arc 255 Stone E-ii — `:wat::core::Vector/conj` and `:wat::core::PersistentVector/conj`
+        // RETIRED this stone; `:wat::vec::conj`/`:wat::vector::conj` are their replacements.
         ":wat::core::HashSet/conj" => {
             crate::collection::eval::eval_hashset_conj(args, list_span, env, sym)
         }
@@ -6164,17 +6144,9 @@ fn dispatch_keyword_head_value(
         // (:assoc / :dissoc / :keys / :values / :concat) become user-define
         // aliases via `wat/core-aliases.wat`; they delegate to these per-Type
         // impls (each is also directly callable as `:HashMap/assoc` etc.).
-        ":wat::core::Vector/concat" => {
-            crate::collection::eval::eval_vector_concat(args, list_span, env, sym)
-        }
-        // DESIGN-STONE-into-pv-from-vector.md — per-Type sibling; own eval fn (NOT
-        // eval_vector_concat/vector_concat_inner — those stay same-kind-only).
-        ":wat::core::Vector/extend" => {
-            crate::collection::eval::eval_vector_extend(args, list_span, env, sym)
-        }
-        ":wat::core::PersistentVector/concat" => {
-            crate::collection::eval::eval_persistentvector_concat(args, list_span, env, sym)
-        }
+        // Arc 255 Stone E-ii — `:wat::core::Vector/concat`, `:wat::core::Vector/extend`, and
+        // `:wat::core::PersistentVector/concat` RETIRED this stone; `:wat::vec::concat`,
+        // `:wat::vec::extend`, and `:wat::vector::concat` are their replacements.
         ":wat::core::reverse" => {
             crate::collection::transform::eval_vec_reverse(args, list_span, env, sym)
         }
@@ -11859,7 +11831,8 @@ pub(crate) fn dispatch_substrate_impl(
 ) -> Option<Result<Value, EvalBreak>> {
     use crate::collection::eval as ceval;
     match impl_name {
-        ":wat::core::Vector/length" => Some(ceval::vector_length_inner(
+        // arc 255 Stone E-ii — `:wat::core::Vector/length` RETIRED this stone.
+        ":wat::vec::length" => Some(ceval::vector_length_inner(
             vals.first().expect("arity-checked"),
         )),
         ":wat::hashmap::length" => Some(ceval::hashmap_length_inner(
@@ -11873,7 +11846,8 @@ pub(crate) fn dispatch_substrate_impl(
             vals.first().expect("arity-checked"),
         )),
         // empty? — 1 arg
-        ":wat::core::Vector/empty?" => Some(ceval::vector_empty_q_inner(
+        // arc 255 Stone E-ii — `:wat::core::Vector/empty?` RETIRED this stone.
+        ":wat::vec::empty?" => Some(ceval::vector_empty_q_inner(
             vals.first().expect("arity-checked"),
         )),
         ":wat::hashmap::empty?" => Some(ceval::hashmap_empty_q_inner(
@@ -11887,7 +11861,8 @@ pub(crate) fn dispatch_substrate_impl(
             vals.first().expect("arity-checked"),
         )),
         // contains? — 2 args (mixed verbs)
-        ":wat::core::Vector/contains?" => Some(ceval::vector_contains_q_inner(
+        // arc 255 Stone E-ii — `:wat::core::Vector/contains?` RETIRED this stone.
+        ":wat::vec::contains?" => Some(ceval::vector_contains_q_inner(
             vals.first().expect("arity-checked"),
             vals.get(1).expect("arity-checked"),
         )),
@@ -11905,7 +11880,8 @@ pub(crate) fn dispatch_substrate_impl(
             vals.get(1).expect("arity-checked"),
         )),
         // get — 2 args (return type varies per arm: (Option :- [T]) vs (Option :- [V]))
-        ":wat::core::Vector/get" => Some(ceval::vector_get_inner(
+        // arc 255 Stone E-ii — `:wat::core::Vector/get` RETIRED this stone.
+        ":wat::vec::get" => Some(ceval::vector_get_inner(
             vals.first().expect("arity-checked"),
             vals.get(1).expect("arity-checked"),
         )),
@@ -11919,7 +11895,8 @@ pub(crate) fn dispatch_substrate_impl(
             vals.get(1).expect("arity-checked"),
         )),
         // conj — 2 args (returns container type)
-        ":wat::core::Vector/conj" => Some(ceval::vector_conj_inner(
+        // arc 255 Stone E-ii — `:wat::core::Vector/conj` RETIRED this stone.
+        ":wat::vec::conj" => Some(ceval::vector_conj_inner(
             vals.first().expect("arity-checked"),
             vals.get(1).expect("arity-checked"),
         )),
@@ -11951,7 +11928,8 @@ pub(crate) fn dispatch_substrate_impl(
         ":wat::hashmap::values" => Some(ceval::hashmap_values_inner(
             vals.first().expect("arity-checked"),
         )),
-        ":wat::core::Vector/concat" => Some(ceval::vector_concat_inner(
+        // arc 255 Stone E-ii — `:wat::core::Vector/concat` RETIRED this stone.
+        ":wat::vec::concat" => Some(ceval::vector_concat_inner(
             vals.first().expect("arity-checked"),
             vals.get(1).expect("arity-checked"),
         )),
@@ -11961,12 +11939,14 @@ pub(crate) fn dispatch_substrate_impl(
         // const-eval path); every other per-Type leaf on this list has both entries, so
         // registering only the runtime.rs:5174 keyword-dispatch arm would leave `apply`
         // unable to reach the new op — an avoidable split-brain.
-        ":wat::core::PersistentVector/concat" => Some(ceval::persistentvector_concat_inner(
+        // arc 255 Stone E-ii — `:wat::core::PersistentVector/concat` RETIRED this stone.
+        ":wat::vector::concat" => Some(ceval::persistentvector_concat_inner(
             vals.first().expect("arity-checked"),
             vals.get(1).expect("arity-checked"),
         )),
         // Arc 278 — the mirror, present here for the same reason: `apply` reaches this path.
-        ":wat::core::Vector/extend" => Some(ceval::vector_extend_inner(
+        // arc 255 Stone E-ii — `:wat::core::Vector/extend` RETIRED this stone.
+        ":wat::vec::extend" => Some(ceval::vector_extend_inner(
             vals.first().expect("arity-checked"),
             vals.get(1).expect("arity-checked"),
         )),

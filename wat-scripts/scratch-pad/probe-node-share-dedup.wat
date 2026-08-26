@@ -67,7 +67,7 @@
   (:wat::core::foldl
     (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::rete::Rule])  i <- :wat::core::i64]
       -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
-      (:wat::core::PersistentVector/conj acc (:nsp::build-rule i n)))
+      (:wat::vector::conj acc (:nsp::build-rule i n)))
     (:wat::core::PersistentVector)
     (:wat::core::range 0 n)))
 

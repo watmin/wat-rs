@@ -90,5 +90,5 @@
      _       (:wat::kernel::println "after-fire")]
     (:wat::kernel::println
       (:wat::i64::to-string
-        (:wat::core::PersistentVector/length
+        (:wat::vector::length
           (:wat::rete::query fired (:stopa::q-Hit)))))))

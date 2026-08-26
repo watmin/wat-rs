@@ -79,12 +79,12 @@
     (:wat::core::foldl
       (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  i <- :wat::core::i64]
                       -> (:wat::core::PersistentVector :- [:wat::core::Record])
-        (:wat::core::PersistentVector/conj acc (:pcf::Req :k i)))
+        (:wat::vector::conj acc (:pcf::Req :k i)))
       (:wat::core::PersistentVector)
       (:wat::core::range 0 10))))
 
 (:wat::core::defn :pcf::derived [fired <- :wat::rete::Session] -> :wat::core::i64
-  (:wat::core::Vector/length
+  (:wat::vec::length
     (:wat::core::into (:wat::core::Vector :wat::core::i64)
       (:wat::core::map
         (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64 (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")] (:pcf::Hit/k f)))

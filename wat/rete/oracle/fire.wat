@@ -114,7 +114,7 @@
                                      (:wat::core::fn [a   <- (:wat::core::PersistentVector :- [:wat::core::PersistentMap])
                                                       tok <- :wat::rete::Token]
                                        -> (:wat::core::PersistentVector :- [:wat::core::PersistentMap])
-                                       (:wat::core::PersistentVector/conj a
+                                       (:wat::vector::conj a
                                          (:wat::rete::Token/bindings tok)))
                                      (:wat::core::PersistentVector)
                                      toks)]
@@ -191,7 +191,7 @@
         (:wat::core::fn [a <- :wat::core::PersistentVector
                          f <- :wat::core::Record]
           -> :wat::core::PersistentVector
-          (:wat::core::PersistentVector/conj a f))
+          (:wat::vector::conj a f))
         acc
         pv))
     (:wat::core::PersistentVector)
@@ -208,9 +208,9 @@
     (:wat::core::fn [acc <- :wat::core::PersistentVector
                      f   <- :wat::core::Record]
       -> :wat::core::PersistentVector
-      (:wat::core::if (:wat::core::PersistentVector/contains? acc f)
+      (:wat::core::if (:wat::vector::contains? acc f)
         acc
-        (:wat::core::PersistentVector/conj acc f)))
+        (:wat::vector::conj acc f)))
     facts
     derived))
 

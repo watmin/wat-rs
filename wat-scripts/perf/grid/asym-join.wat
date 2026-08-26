@@ -81,7 +81,7 @@
     (:wat::core::foldl
       (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  i <- :wat::core::i64]
                       -> (:wat::core::PersistentVector :- [:wat::core::Record])
-        (:wat::core::PersistentVector/conj acc (:asym::A i)))
+        (:wat::vector::conj acc (:asym::A i)))
       (:wat::core::PersistentVector)
       (:wat::core::range 0 items))))
 

@@ -111,7 +111,7 @@
                  (:wat::core::fn [acc <- (:wat::core::PersistentVector :wat::query::StoredRow)
                                   r   <- :wat::query::StoredRow]
                    -> (:wat::core::PersistentVector :wat::query::StoredRow)
-                   (:wat::core::PersistentVector/conj acc r))
+                   (:wat::vector::conj acc r))
                  (:wat::query::mem-store::Record/rows (:wat::query::mem-store::State/durable s))
                  new-rows)]
        (:wat::service::Outcome::Reply

@@ -33,7 +33,7 @@
 (:wat::rete::defrule :g278get::big-at-0
   :when
   [(:g278get::PV (?v <- :v))
-   (:wat::rete::where (:wat::rete::i64::> (:wat::rete::core::PersistentVector/get ?v 0 :undefined -1) 5))]
+   (:wat::rete::where (:wat::rete::i64::> (:wat::rete::vector::get ?v 0 :undefined -1) 5))]
   :then
   [(:g278get::Hit 1)])
 
@@ -66,38 +66,38 @@
       ;; ── row 2 — in-range returns the element, fallback NOT taken ──────────────
       (:wat::kernel::println
         (:wat::string::concat "row2 in-range (expect 8) = "
-          (:wat::core::str (:wat::rete::core::PersistentVector/get pv 1 :undefined -1))))
+          (:wat::core::str (:wat::rete::vector::get pv 1 :undefined -1))))
 
       ;; ── row 3 — out-of-range takes the fallback ───────────────────────────────
       (:wat::kernel::println
         (:wat::string::concat "row3 out-of-range (expect -1) = "
-          (:wat::core::str (:wat::rete::core::PersistentVector/get pv 9 :undefined -1))))
+          (:wat::core::str (:wat::rete::vector::get pv 9 :undefined -1))))
 
       ;; ── row 4 — NON-VACUITY: the SAME out-of-range expression, two DIFFERENT
       ;; fallback values. Rows 2/3/5 all pass if the arm returns a constant; only
       ;; this pair proves it returns the caller's own value.
       (:wat::kernel::println
         (:wat::string::concat "row4 run-a :undefined -1 (expect -1) = "
-          (:wat::core::str (:wat::rete::core::PersistentVector/get pv 9 :undefined -1))))
+          (:wat::core::str (:wat::rete::vector::get pv 9 :undefined -1))))
       (:wat::kernel::println
         (:wat::string::concat "row4 run-b :undefined 42 (expect 42) = "
-          (:wat::core::str (:wat::rete::core::PersistentVector/get pv 9 :undefined 42))))
+          (:wat::core::str (:wat::rete::vector::get pv 9 :undefined 42))))
 
       ;; ── row 5 — empty container ────────────────────────────────────────────────
       (:wat::kernel::println
         (:wat::string::concat "row5 empty-container (expect -1) = "
-          (:wat::core::str (:wat::rete::core::PersistentVector/get empty-pv 0 :undefined -1))))
+          (:wat::core::str (:wat::rete::vector::get empty-pv 0 :undefined -1))))
 
       ;; ── row 6 — all three containers behave identically ───────────────────────
       (:wat::kernel::println
         (:wat::string::concat "row6 Vector/get in-range (expect 8) = "
-          (:wat::core::str (:wat::rete::core::Vector/get vec 1 :undefined -1))))
+          (:wat::core::str (:wat::rete::vec::get vec 1 :undefined -1))))
       (:wat::kernel::println
         (:wat::string::concat "row6 List/get in-range (expect 8) = "
           (:wat::core::str (:wat::rete::core::List/get lst 1 :undefined -1))))
       (:wat::kernel::println
         (:wat::string::concat "row6 Vector/get out-of-range (expect -1) = "
-          (:wat::core::str (:wat::rete::core::Vector/get vec 9 :undefined -1))))
+          (:wat::core::str (:wat::rete::vec::get vec 9 :undefined -1))))
       (:wat::kernel::println
         (:wat::string::concat "row6 List/get out-of-range (expect -1) = "
           (:wat::core::str (:wat::rete::core::List/get lst 9 :undefined -1))))

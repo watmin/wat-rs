@@ -284,7 +284,7 @@
                           tg      (:wat::core::if is-even "ca" "xy")
                           ml      (:wat::i64::- i (:wat::i64::* (:wat::i64::/ i 8) 8))
                           pd      (:wat::core::if is-even "  cat  " "  dog  ")]
-          (:wat::core::PersistentVector/conj acc
+          (:wat::vector::conj acc
             (:wst::Req :k i :n nm :tag tg :minlen ml :padded pd))))
       (:wat::core::PersistentVector)
       (:wat::core::range 0 items))))
@@ -330,7 +330,7 @@
                     staged  (:wst::seed (:wat::rete::compile-all rules (:wat::core::PersistentVector (:wst::q-Hit))) (:wst::items))
                     fired   (:wat::rete::fire-rules staged)
                     derived (:wst::derived-ints fired)
-                    n       (:wat::core::Vector/length derived)]
+                    n       (:wat::vec::length derived)]
     (:wat::core::String/concat
       (:wat::core::String/concat
         (:wat::core::String/concat "row " (:wat::i64::to-string row))

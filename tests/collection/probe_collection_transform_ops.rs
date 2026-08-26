@@ -19,7 +19,7 @@
 //!
 //! ### Vector conj immutability (Item 5)
 //!
-//! Witnesses that `(:wat::core::Vector/conj v0 x)` does not mutate `v0`
+//! Witnesses that `(:wat::vec::conj v0 x)` does not mutate `v0`
 //! (analogous to the HashSet witness in `probe_arc216_stone5b_hashset_native_storage.rs`).
 
 use wat::freeze::call_beside_value;
@@ -162,7 +162,7 @@ fn item4_find_last_index_no_match() {
 
 // ─── Item 5 — Vector conj immutability ───────────────────────────────────────
 
-/// `(:wat::core::Vector/conj v0 x)` does not mutate `v0`.
+/// `(:wat::vec::conj v0 x)` does not mutate `v0`.
 #[test]
 fn item5_vector_conj_does_not_mutate_input() {
 

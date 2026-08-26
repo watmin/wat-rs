@@ -524,12 +524,16 @@ fn is_pure_total(head: &str) -> bool {
         | ":wat::core::rest"
 
         // ── Collections — per-type ops ────────────────────────────────
-        | ":wat::core::Vector/length"
-        | ":wat::core::Vector/empty?"
-        | ":wat::core::Vector/contains?"
-        | ":wat::core::Vector/get"
-        | ":wat::core::Vector/conj"
-        | ":wat::core::Vector/concat"
+        // Arc 255 Stone E-ii — the vectors get their homes. `:wat::core::Vector/*` retired this
+        // stone; `:wat::vec::*` is its replacement (PersistentVector was never on this list —
+        // that asymmetry predates this stone and is not this stone's to fix; `:wat::vector::*`
+        // is therefore deliberately absent here too, same shape as E-i's map/hashmap note below).
+        | ":wat::vec::length"
+        | ":wat::vec::empty?"
+        | ":wat::vec::contains?"
+        | ":wat::vec::get"
+        | ":wat::vec::conj"
+        | ":wat::vec::concat"
         // Arc 255 Stone E-i — the maps get their homes. `:wat::core::HashMap/*` retired this
         // stone; `:wat::hashmap::*` is its replacement (PersistentMap was never on this list —
         // that asymmetry predates this stone and is not this stone's to fix; `:wat::map::*` is

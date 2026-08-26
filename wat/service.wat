@@ -858,7 +858,7 @@
      _peers-missing (:wat::core::foldl
                       (:wat::core::fn [ok <- :wat::core::bool  ps <- :wat::core::String]
                         -> :wat::core::bool
-                        (:wat::core::if (:wat::core::Vector/contains? ephemeral-peer-surfaces ps)
+                        (:wat::core::if (:wat::vec::contains? ephemeral-peer-surfaces ps)
                           
                           ok
                           (:wat::core::macro-error
@@ -875,7 +875,7 @@
      _peers-extra   (:wat::core::foldl
                       (:wat::core::fn [ok <- :wat::core::bool  es <- :wat::core::String]
                         -> :wat::core::bool
-                        (:wat::core::if (:wat::core::Vector/contains? peers-surfaces es)
+                        (:wat::core::if (:wat::vec::contains? peers-surfaces es)
                           
                           ok
                           (:wat::core::macro-error

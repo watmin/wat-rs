@@ -67,7 +67,7 @@ const FIELD_NAME: &str = "name";
 const FIELD_SCOPES: &str = "scopes";
 
 /// Tag namespace/name for a wat keyword EDN cannot spell:
-/// `#wat.ast/Keyword {:path ":wat::core::Vector/length"}`.
+/// `#wat.ast/Keyword {:path ":wat::vec::length"}`.
 ///
 /// # Why this exists
 ///

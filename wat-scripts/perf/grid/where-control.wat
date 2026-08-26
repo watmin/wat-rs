@@ -292,7 +292,7 @@
                           n       (:wat::core::= 0 (:wat::i64::- i (:wat::i64::* (:wat::i64::/ i 6) 6)))
                           is-mult3 (:wat::core::= 0 (:wat::i64::- i (:wat::i64::* (:wat::i64::/ i 3) 3)))
                           o       (:wat::core::if is-mult3 :wat::core::None (:wat::core::Some i))]
-          (:wat::core::PersistentVector/conj acc
+          (:wat::vector::conj acc
             (:wsc::Req :k i :a a :b b :n n :o o))))
       (:wat::core::PersistentVector)
       (:wat::core::range 0 items))))
@@ -338,7 +338,7 @@
                     staged  (:wsc::seed (:wat::rete::compile-all rules (:wat::core::PersistentVector (:wsc::q-Hit))) (:wsc::items))
                     fired   (:wat::rete::fire-rules staged)
                     derived (:wsc::derived-ints fired)
-                    n       (:wat::core::Vector/length derived)]
+                    n       (:wat::vec::length derived)]
     (:wat::core::String/concat
       (:wat::core::String/concat
         (:wat::core::String/concat "row " (:wat::i64::to-string row))

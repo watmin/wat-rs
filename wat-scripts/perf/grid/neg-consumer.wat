@@ -86,10 +86,10 @@
     (:wat::core::foldl
       (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  i <- :wat::core::i64]
                       -> (:wat::core::PersistentVector :- [:wat::core::Record])
-        (:wat::core::let [a2 (:wat::core::PersistentVector/conj acc (:nc::Item i))
-                          a3 (:wat::core::PersistentVector/conj a2 (:nc::Tag i))]
+        (:wat::core::let [a2 (:wat::vector::conj acc (:nc::Item i))
+                          a3 (:wat::vector::conj a2 (:nc::Tag i))]
           (:wat::core::if (:wat::core::= i (:wat::i64::* (:wat::i64::/ i 2) 2))
-            (:wat::core::PersistentVector/conj a3 (:nc::Bad i))
+            (:wat::vector::conj a3 (:nc::Bad i))
             a3)))
       (:wat::core::PersistentVector)
       (:wat::core::range 0 items))))
