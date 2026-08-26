@@ -22,7 +22,7 @@
 //! and `apply_function` it — no inline wat driver strings.
 
 use wat::runtime::{apply_function, Value};
-use wat::harness::Harness;
+use wat::host::harness::Harness;
 use wat::WatSource;
 
 /// Two co-located `.wat` fixtures — stand-ins for what an external wat crate's

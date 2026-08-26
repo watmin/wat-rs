@@ -10,7 +10,7 @@
 //! vecs (stdio capture retired with the four-arg shape; substrate
 //! services own stdio at the substrate layer).
 
-use wat::harness::{Harness, HarnessError};
+use wat::host::harness::{Harness, HarnessError};
 
 const DIMS_AND_MODE: &str = r##"
 "##;

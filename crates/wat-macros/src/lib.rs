@@ -362,7 +362,7 @@ pub fn restricted_to(attr: TokenStream, item: TokenStream) -> TokenStream {
 // [wat::WatSource]`. Omit `deps:` or write `deps: []` for
 // no external deps.
 //
-// Expands to `fn main() -> Result<(), ::wat::harness::HarnessError>`
+// Expands to `fn main() -> Result<(), ::wat::host::harness::HarnessError>`
 // calling `::wat::compose_and_run(source, &[deps.wat_sources()...])`.
 //
 // Requires the consumer's Cargo.toml to have a dep named `wat` (the
@@ -505,7 +505,7 @@ pub fn main(input: TokenStream) -> TokenStream {
 
     let expanded = match effective_loader {
         None => quote! {
-            fn main() -> ::std::result::Result<(), ::wat::harness::HarnessError> {
+            fn main() -> ::std::result::Result<(), ::wat::host::harness::HarnessError> {
                 ::wat::compose_and_run(
                     #source_expr,
                     &[ #(#stdlib_calls),* ],
@@ -514,7 +514,7 @@ pub fn main(input: TokenStream) -> TokenStream {
             }
         },
         Some(loader_expr) => quote! {
-            fn main() -> ::std::result::Result<(), ::wat::harness::HarnessError> {
+            fn main() -> ::std::result::Result<(), ::wat::host::harness::HarnessError> {
                 // `loader:` is always resolved relative to the consumer
                 // crate's source directory (CARGO_MANIFEST_DIR). This
                 // makes `cargo run -p <crate>` from the workspace root
@@ -531,7 +531,7 @@ pub fn main(input: TokenStream) -> TokenStream {
                     dyn ::wat::load::loader::SourceLoader,
                 > = ::std::sync::Arc::new(
                     ::wat::load::loader::ScopedLoader::new(__wat_loader_root).map_err(|e| {
-                        ::wat::harness::HarnessError::Startup(::std::boxed::Box::new(
+                        ::wat::host::harness::HarnessError::Startup(::std::boxed::Box::new(
                             ::wat::freeze::StartupError::Load(
                                 ::wat::load::loader::LoadError::from(e),
                             ),
@@ -573,7 +573,7 @@ pub fn main(input: TokenStream) -> TokenStream {
 // for no external deps.
 //
 // Expands to `#[test] fn wat_suite()` calling
-// `::wat::test_runner::run_and_assert(path, &[deps::wat_sources()...],
+// `::wat::host::test_runner::run_and_assert(path, &[deps::wat_sources()...],
 // &[deps::register...])`. On failure, the panic carries all
 // individual test failure summaries — cargo's `#[test]` harness
 // captures stdout + panic message and surfaces them.
@@ -888,7 +888,7 @@ pub fn test(input: TokenStream) -> TokenStream {
                         ::wat::load::loader::ScopedLoader::new(__wat_loader_root)
                             .expect("wat::test! loader path must exist"),
                     );
-                    ::wat::test_runner::run_single_deftest(
+                    ::wat::host::test_runner::run_single_deftest(
                         ::std::path::Path::new(#file_path_str),
                         #deftest_name,
                         &[ #(#stdlib_calls),* ],
