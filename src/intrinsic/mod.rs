@@ -12,9 +12,24 @@
 //!     255.1b-iii: consumed by `metadata-of`'s intrinsic branch.
 //!   - `prose` / `added` / `ret` → parsed from the `///` via `wat-doc` by the macro
 //!     (255.1b-iv-b1); consumed by `metadata-of`'s intrinsic branch.
-//!   - `purity` / `determinism` → DERIVED at the reflection site (namespace deriver
-//!     via `is_effectful_op` + a small nondeterministic-set),
-//!     not stored on the entry.
+//!   - `purity` / `determinism` / `category` → parsed from `@Purity` / `@Determinism` /
+//!     `@Category` in the `///` by the same macro, and **stored on the entry**
+//!     (`Entry::purity`, `Entry::determinism`, `Entry::category`, below).
+//!     `metadata-of` reads them straight off the row — `runtime.rs`'s `:purity` /
+//!     `:determinism` puts are the declared enum values, not derived bools.
+//!
+//!     ⚠ CORRECTED 2026-08-25. These three lines used to read *"DERIVED at the reflection
+//!     site (namespace deriver via `is_effectful_op` + a small nondeterministic-set), not
+//!     stored on the entry."* That was true before 255.1b-iv-b1 taught the macro to parse
+//!     the doc; it went false when the design moved, and stood twelve lines above the very
+//!     fields it denied. A header describing its own struct is the last place that should
+//!     drift, and it is the section whose whole job is to say where each field comes from.
+//!
+//!     What IS derived — and deliberately kept independent — is `effectful_by_prefix`, the
+//!     namespace guess `declared_purity_vs_effectful_by_prefix_census` weighs the declared
+//!     value against. It never touches the registry, which is exactly what makes it an
+//!     oracle rather than a copy of the truth
+//!     (`[[feedback_a_gate_over_two_hand_lists_is_a_hand_list]]`).
 //!
 //! **The one bounded exception (builder-sanctioned, 2026-06-21):** `args` /
 //! `examples` / `deprecated` / `see` are parsed + carried by the iv-b1 macro but
