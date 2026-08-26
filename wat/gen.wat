@@ -19,18 +19,38 @@
 ;;     `law-no-negative-card` (L24), which drives the PRODUCERS, not the constructor.
 ;;   ✓ the "~23us/point / ~300x cheaper / never the bottleneck" claim — deleted, not corrected.
 ;;     See SHIPPED NUMBERS below for why a ratio against the `$oracle` cannot be repaired.
+;;   ✓ the two gates that could not go red (finding D). `test-shrink-index` was passed by an
+;;     IDENTITY `shrink-index` — it now pins the SEARCH, and the identity fails it. And `check`
+;;     had NO gate on its own enumeration: mutating it to `(range 1 card)`, skipping the first
+;;     point of every space in the library, left all 23 laws green. `law-check-not-vacuous`
+;;     (L25) pins points/witness against literals the TEST states, and catches it.
 ;;
-;; STILL FALSE, pending the fix pass
-;;   ✗ `digit`/`shift`'s comment: "No native i64 mod/rem" — false since 2026-07-05;
-;;     `:wat::core::i64::{mod,rem,quot}` all ship (wat/core.wat:493-501).
+;;   ✓ `record` re-evaluated each generator ARGUMENT once per generated point (finding F), not
+;;     twice as its comment claimed. The expansion now binds every argument once, via the
+;;     `fresh-symbol` the macro already carried. Measured ~16x on an 800-point space; the
+;;     multiple scales with the space, so it is not quoted as a constant.
+;;   ✓ `lift2`/`lift3` hand-encoded mixed radix a SECOND time and disagreed with the
+;;     `record`/`coords` path past the card (finding C). Both are now expressed over `coords`;
+;;     there is exactly one mixed-radix encoding in this file. L10 — written as the tripwire for
+;;     this exact drift, and which missed it by stopping one index short — is widened past the
+;;     card boundary and now kills a re-introduced hand encoding.
+;;   ✓ `digit` was a hand-rolled `i - (i/base)*base` justified by "No native i64 mod/rem", false
+;;     since 2026-07-05 (finding G). `digit` IS `:wat::core::i64::rem`, verified equal on
+;;     (0,3) (7,3) (8,4) (1234,10) before the swap.
+;;   ✓ five `raise` strings naming retired `gen-` verbs, renamed to the shipping names
+;;     (finding K). ⚠ THE ROOT IS STILL OPEN — see below.
+;;
+;; STILL FALSE / STILL OPEN
 ;;   ✗ the `Gen` defstruct's comment: "The checker names this itself if you try" — it does not.
 ;;     A parametric struct passes the purity gate, so a `Gen` CAN enter a `defrecord` and crosses
-;;     the wire with `at` nil.
-;;   ✗ `record`'s comment: "emitted TWICE" — the `at` copy re-runs PER POINT. Measured 52x at
-;;     800 points.
-;;   ✗ six `raise` strings still name the retired `gen-` verbs: in `elements`, `such-that`,
-;;     `one-of`, `nth`, `record`, `nth-str`. Grep `"gen-` to find them.
-;;   ✗ `test-shrink-index` is passed by an IDENTITY implementation (finding D).
+;;     the wire with `at` nil (finding E). This is a SUBSTRATE gap, not a gen.wat one — but
+;;     gen.wat is the file certifying the gate holds, so the sentence must go or the gate must.
+;;   ✗ NOTHING GATES THE NAMES ABOVE (circumspicere finding 4). `tests/lint/retired_name_justified.rs`
+;;     exists to stop exactly this — "a wat name in a Rust string must be a name a user can type" —
+;;     but it scans `src/**/*.rs` ONLY and matches only the prime-suffix shape, so it is
+;;     structurally blind to `.wat`. The five renames above are STEMS; the root is that the stdlib
+;;     is now a first-class diagnostic surface and no gate reads its user-facing strings. They can
+;;     rot again tomorrow and nothing will say so.
 ;;
 ;;
 ;; PROMOTED from `wat-scripts/lib/gen.wat` 2026-08-25, on the `wat/grep.wat`
@@ -52,7 +72,7 @@
 ;;                    bootstrap, this box:
 ;;                       ints                            ~2.4 us/point  (500k)
 ;;                       coords, bases [50 100 100]      ~33  us/point  (500k)
-;;                       such-that o bind o record       ~490 us/point  (1260)
+;;                       such-that o bind o record       ~410 us/point  (1260)
 ;;                    The last row is the ONLY shape that ships — it is the rete
 ;;                    differential fuzzer's own space, replicated to its exact
 ;;                    card of 1260 (wat-tests/rete/differential-fuzz.wat:236).
@@ -154,10 +174,20 @@
     :at   at))
 
 ;; ── index arithmetic ─────────────────────────────────────────────────────────
-;; No native i64 mod/rem (only + - * /), so mod is the truncating-division idiom
-;; the grid axes already use. Both args are non-negative at every call here.
+;; `digit` IS `rem`, and `shift` IS truncating division. Both args are non-negative
+;; at every call here, so the truncating and flooring readings coincide.
+;;
+;; ⚠ THIS USED TO SAY "No native i64 mod/rem (only + - * /)", which justified a
+;; hand-rolled `i - (i/base)*base`. That was FALSE for seven weeks before this file
+;; was promoted: `:wat::core::i64::{mod,rem,quot}` all ship (wat/core.wat:493-501,
+;; src/runtime.rs:5928,5941), landed 2026-07-05 in `720303f46`. The claim was TRUE
+;; when it was first written in a grid axis two days earlier, was copied forward
+;; into a scratch probe, and by 2026-08-01 a sibling in the SAME directory had
+;; already corrected it — I inherited the retired version into the stdlib while
+;; citing the very files where the correction lived. Verified equal on
+;; (0,3) (7,3) (8,4) (1234,10) before the swap.
 (:wat::core::defn :wat::gen::digit [i <- :wat::core::i64  base <- :wat::core::i64] -> :wat::core::i64
-  (:wat::core::i64::- i (:wat::core::i64::* (:wat::core::i64::/ i base) base)))
+  (:wat::core::i64::rem i base))
 
 (:wat::core::defn :wat::gen::shift [i <- :wat::core::i64  base <- :wat::core::i64] -> :wat::core::i64
   (:wat::core::i64::/ i base))
@@ -309,7 +339,7 @@
   (:wat::gen::gen (:wat::core::length vs)
               (:wat::core::fn [i <- :wat::core::i64] -> T
                       (:wat::core::Option/expect (:wat::core::get vs i)
-                        "gen-elements: index outside the vector it was built from"))))
+                        "elements: index outside the vector it was built from"))))
 
 ;; ── gen-such-that: an EXACT filter, with no retries ──────────────────────────
 ;; `test.check`'s `such-that` filters an opaque random source by retry-and-discard:
@@ -330,7 +360,7 @@
     (:wat::gen::gen (:wat::core::length keep)
                 (:wat::core::fn [j <- :wat::core::i64] -> T
                         (at (:wat::core::Option/expect (:wat::core::get keep j)
-                              "gen-such-that: index outside the surviving set"))))))
+                              "such-that: index outside the surviving set"))))))
 
 ;; ── gen-one-of: the SUM, where gen-coords is the PRODUCT ─────────────────────
 ;; `card` is the sum of the branches' cardinalities and `at` dispatches by range,
@@ -363,12 +393,12 @@
                                      :got :wat::core::None)))))
                 (:wat::gen::Pick :rest i :got :wat::core::None)
                 gs))
-            "gen-one-of: index outside the summed cardinality"))))
+            "one-of: index outside the summed cardinality"))))
 
 ;; ── gen-nth: read one digit out of a coordinate ─────────────────────────────
 (:wat::core::defn :wat::gen::nth
   [c <- (:wat::core::PersistentVector :- [:wat::core::i64])  i <- :wat::core::i64] -> :wat::core::i64
-  (:wat::core::Option/expect (:wat::core::get c i) "gen-nth: coordinate digit out of range"))
+  (:wat::core::Option/expect (:wat::core::get c i) "nth: coordinate digit out of range"))
 
 ;; ── gen-record: a generator for a RECORD, from one generator per field ───────
 ;;
@@ -412,9 +442,26 @@
 ;; wrongly-typed generators and the type-checker rejects the expansion — proven,
 ;; `ArityMismatch` and `expects :wat::core::i64; got :wat::core::String`.
 ;;
-;; NOTE: each generator expression is emitted TWICE (once for its `card`, once for
-;; its `at`). Generator constructors are pure and cheap, but `gen-such-that`
-;; enumerates its source — let-bind that at the call site rather than inlining it.
+;; ⚠ EACH GENERATOR ARGUMENT IS EVALUATED EXACTLY ONCE — and until 2026-08-26 it
+;; was not. This comment used to read "each generator expression is emitted TWICE
+;; (once for its `card`, once for its `at`)... let-bind that at the call site
+;; rather than inlining it". Both halves were wrong:
+;;   - the `card` copy is evaluated once, but the `at` copy was spliced into the
+;;     fmap lambda's BODY, so it re-ran ONCE PER GENERATED POINT. The cost model
+;;     was wrong by a factor of the point count, not by 2.
+;;   - MEASURED 2026-08-26, an 800-point `record` whose first argument is an
+;;     inlined `such-that` over a 200-point source, release, minus the ~324ms
+;;     stdlib bootstrap: pre-fix 395ms of generator, post-fix 25ms — ~16x here.
+;;     THE MULTIPLE IS NOT A CONSTANT and must not be quoted as one: the waste is
+;;     (cost of the inlined expression) x (point count), so it grows with the
+;;     space. An earlier note here said 52x from a different space; that is the
+;;     same defect measured on a dearer argument, not a disagreement.
+;;   - and it documented the footgun instead of removing it, while the macro
+;;     already carried `fresh-symbol`, which is exactly what binding each
+;;     generator once requires.
+;; The expansion now opens with a `let` that binds every generator argument to its
+;; own hygienic `fresh-symbol`, and both the `card` and the `at` reference that
+;; binding. A caller may inline `such-that` (or any enumerating combinator) freely.
 (:wat::core::defmacro :wat::gen::record
   [T <- :wat::WatAST  & gens <- (:wat::core::Vector :- [:wat::WatAST])]
   -> :wat::WatAST
@@ -429,24 +476,44 @@
      ;; `:user::Point'`. Same node-building idiom `:wat::core::kwargs-lower` uses.
      ctor  (:wat::core::keyword-node (:wat::core::string::concat (:wat::core::ast-name T) "'"))
      n     (:wat::core::length gens)
+     ;; ONE hygienic binder per generator argument — this is what stops the `at`
+     ;; copy re-evaluating its whole expression on every generated point.
+     syms  (:wat::core::foldl
+             (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST])  _i <- :wat::core::i64]
+                             -> (:wat::core::Vector :- [:wat::WatAST])
+               (:wat::core::conj acc (:wat::core::fresh-symbol "gen")))
+             (:wat::core::Vector :wat::WatAST)
+             (:wat::core::range 0 n))
+     ;; the `let` binder vector, flat: sym expr sym expr ...
+     binds (:wat::core::foldl
+             (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST])  i <- :wat::core::i64]
+                             -> (:wat::core::Vector :- [:wat::WatAST])
+               (:wat::core::conj
+                 (:wat::core::conj acc
+                   (:wat::core::Option/expect (:wat::core::get syms i) "record: sym index"))
+                 (:wat::core::Option/expect (:wat::core::get gens i) "record: gen index")))
+             (:wat::core::Vector :wat::WatAST)
+             (:wat::core::range 0 n))
+     ;; both `card` and `at` now reference the BINDING, never the expression
      cards (:wat::core::foldl
              (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST])  g <- :wat::WatAST]
                              -> (:wat::core::Vector :- [:wat::WatAST])
                (:wat::core::conj acc `(:wat::gen::Gen/card ~g)))
              (:wat::core::Vector :wat::WatAST)
-             gens)
+             syms)
      args  (:wat::core::foldl
              (:wat::core::fn [acc <- (:wat::core::Vector :- [:wat::WatAST])  i <- :wat::core::i64]
                              -> (:wat::core::Vector :- [:wat::WatAST])
                (:wat::core::conj acc
-                 `((:wat::gen::Gen/at ~(:wat::core::Option/expect (:wat::core::get gens i) "gen-record: gen index"))
+                 `((:wat::gen::Gen/at ~(:wat::core::Option/expect (:wat::core::get syms i) "record: sym index"))
                    (:wat::gen::nth ~cv ~i))))
              (:wat::core::Vector :wat::WatAST)
              (:wat::core::range 0 n))]
-    `(:wat::gen::fmap
-       (:wat::core::fn [~cv <- (:wat::core::PersistentVector :- [:wat::core::i64])] -> ~T
-         (~ctor ~@args))
-       (:wat::gen::coords (:wat::core::PersistentVector ~@cards)))))
+    `(:wat::core::let [~@binds]
+       (:wat::gen::fmap
+         (:wat::core::fn [~cv <- (:wat::core::PersistentVector :- [:wat::core::i64])] -> ~T
+           (~ctor ~@args))
+         (:wat::gen::coords (:wat::core::PersistentVector ~@cards))))))
 
 ;; ── gen-lift2 / gen-lift3: apply an N-ary FUNCTION across N generators ───────
 ;;
@@ -470,31 +537,45 @@
 (:wat::core::defn :wat::gen::lift2 :- [A B R]
   [f <- [A B :-> R]  ga <- (:wat::gen::Gen :- [A])  gb <- (:wat::gen::Gen :- [B])]
   -> (:wat::gen::Gen :- [R])
-  (:wat::core::let [ca (:wat::gen::Gen/card ga)
-                    fa (:wat::gen::Gen/at ga)
+  ;; EXPRESSED OVER `coords`, not over a second hand-written mixed radix. Until
+  ;; 2026-08-26 this encoded the radix itself with `digit`/`shift`, which made it a
+  ;; SECOND implementation of what `coords` already does — and the two disagreed
+  ;; (GEN-VIGILIA finding C: same card-6 space, index 6, `lift2` said b=12 and the
+  ;; `record`/`coords` path said b=10). Out of contract, since 6 is past a card of
+  ;; 6 — but `ints`' `at` has no bounds check, so neither refused, and a disagreement
+  ;; between two encodings of one idea is a defect whichever side is "right".
+  ;; `coords` survives because `record`, `vector-of` and `coords-scattered` all
+  ;; already go through it; there is now exactly one mixed-radix encoding in the file.
+  (:wat::core::let [fa (:wat::gen::Gen/at ga)
                     fb (:wat::gen::Gen/at gb)]
-    (:wat::gen::gen (:wat::core::i64::* ca (:wat::gen::Gen/card gb))
-                (:wat::core::fn [i <- :wat::core::i64] -> R
-                      (f (fa (:wat::gen::digit i ca)) (fb (:wat::gen::shift i ca)))))))
+    (:wat::gen::fmap
+      (:wat::core::fn [c <- (:wat::core::PersistentVector :- [:wat::core::i64])] -> R
+        (f (fa (:wat::gen::nth c 0)) (fb (:wat::gen::nth c 1))))
+      (:wat::gen::coords (:wat::core::PersistentVector
+                           (:wat::gen::Gen/card ga)
+                           (:wat::gen::Gen/card gb))))))
 
 (:wat::core::defn :wat::gen::lift3 :- [A B C R]
   [f <- [A B C :-> R]  ga <- (:wat::gen::Gen :- [A])  gb <- (:wat::gen::Gen :- [B])  gc <- (:wat::gen::Gen :- [C])]
   -> (:wat::gen::Gen :- [R])
-  (:wat::core::let [ca (:wat::gen::Gen/card ga)
-                    cb (:wat::gen::Gen/card gb)
-                    fa (:wat::gen::Gen/at ga)
+  ;; over `coords`, for the same reason as `lift2` above.
+  (:wat::core::let [fa (:wat::gen::Gen/at ga)
                     fb (:wat::gen::Gen/at gb)
                     fc (:wat::gen::Gen/at gc)]
-    (:wat::gen::gen (:wat::core::i64::* (:wat::core::i64::* ca cb) (:wat::gen::Gen/card gc))
-                (:wat::core::fn [i <- :wat::core::i64] -> R
-                      (f (fa (:wat::gen::digit i ca))
-                         (fb (:wat::gen::digit (:wat::gen::shift i ca) cb))
-                         (fc (:wat::gen::shift (:wat::gen::shift i ca) cb)))))))
+    (:wat::gen::fmap
+      (:wat::core::fn [c <- (:wat::core::PersistentVector :- [:wat::core::i64])] -> R
+        (f (fa (:wat::gen::nth c 0))
+           (fb (:wat::gen::nth c 1))
+           (fc (:wat::gen::nth c 2))))
+      (:wat::gen::coords (:wat::core::PersistentVector
+                           (:wat::gen::Gen/card ga)
+                           (:wat::gen::Gen/card gb)
+                           (:wat::gen::Gen/card gc))))))
 
 ;; String element of a vector, by index — the String twin of `gen-nth`.
 (:wat::core::defn :wat::gen::nth-str
   [v <- (:wat::core::PersistentVector :- [:wat::core::String])  i <- :wat::core::i64] -> :wat::core::String
-  (:wat::core::Option/expect (:wat::core::get v i) "gen-nth-str: index out of range"))
+  (:wat::core::Option/expect (:wat::core::get v i) "nth-str: index out of range"))
 
 ;; ── SAMPLING, as composition rather than a second driver ─────────────────────
 ;;

@@ -37,7 +37,7 @@
 > | live rete defects found by its first consumer | **3** |
 > | cost, `ints` | **~2.4us/point** (500k, measured 2026-08-26) |
 > | cost, `coords` bases `[50 100 100]` | **~33us/point** (500k) |
-> | cost, `such-that o bind o record` — *the only shape that ships* | **~490us/point** (card 1260) |
+> | cost, `such-that o bind o record` — *the only shape that ships* | **~410us/point** (card 1260) |
 >
 > **There is no single per-point number, and no ratio against the `$oracle` is quoted.** The row
 > above that used to read *"linear to 500k points at ~23us/point"* was a `coords` measurement with

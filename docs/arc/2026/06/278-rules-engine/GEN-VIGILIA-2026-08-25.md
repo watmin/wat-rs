@@ -4,8 +4,20 @@
 > declared feature-complete and promoted into the stdlib. **17 reported on 2026-08-25;
 > `circumspicere` was cast 2026-08-26** — its report is the last section of this file.
 >
-> **Fix status is tracked per finding.** Closed so far: **A**, **B** (negative card, `762771096`)
-> and **circumspicere 1** and **2**. Everything else below is still open.
+> **Fix status is tracked per finding.**
+>
+> **CLOSED:** **A**+**B** (negative card) · **C** (`lift2`/`lift3` onto `coords`) · **D** (both
+> gates that could not go red) · **F** (`record`'s per-point re-evaluation) · **G** (`digit` IS
+> `i64::rem` — the code, not just the prose) · **K** (retired `gen-` names in diagnostics, STEMS
+> only — its root is circumspicere 4, still open) · **circumspicere 1** and **2**.
+>
+> **STILL OPEN:** **E** (the containment claim — a substrate gap gen.wat certifies) · **H**/**I**/
+> **J**/**L** (the prose sweep, deferred by ruling until the CODE is exemplar) · every L2 ·
+> **circumspicere 3, 4, 5, 6**.
+>
+> Every closure below is MUTATION-PROVEN: the fix is reverted, the gate must go red, and the
+> file is diffed back to identical. Three of those mutations are recorded because of what they
+> revealed — in each case the pre-existing laws stayed green and exactly ONE law caught it.
 
 ## Why this document exists
 

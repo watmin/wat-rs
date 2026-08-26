@@ -167,6 +167,21 @@
 ;; records with no macro and no reflection. Same mixed-radix wiring as L9, reached
 ;; a different way — which is the point: if these two ever disagree, one of the
 ;; two construction paths has drifted.
+;;
+;; ⚠ DRIVEN OVER 8 INDICES FOR A CARD-6 SPACE, DELIBERATELY. This law was written
+;; as the tripwire for exactly the drift that later happened — and it MISSED it,
+;; because it drove `coords [6]`, i.e. indices 0..5, and the two paths first
+;; disagreed at index 6 (GEN-VIGILIA finding C: `lift2` said b=12, the
+;; `record`/`coords` path said b=10). It stopped one index short of the defect it
+;; existed to catch.
+;;
+;; Indices 6 and 7 are PAST the card and therefore out of contract — but `ints`'
+;; `at` has no bounds check, so both paths answer, and while they both answer they
+;; must answer the SAME. Two encodings of one idea disagreeing is a defect no
+;; matter which side is declared right. `lift2` is now expressed over `coords`
+;; rather than re-encoding the radix, so this law is redundancy rather than a
+;; tripwire — kept, and widened, so that re-introducing a second encoding goes red
+;; here instead of shipping.
 (:wat::core::defn :wat-tests::gen::law-lift2 [c <- (:wat::core::PersistentVector :- [:wat::core::i64])]
   -> :wat::core::i64
   (:wat::core::let [i (:wat-tests::gen::at0 c 0)
@@ -437,9 +452,39 @@
 (:wat::core::defn :wat-tests::gen::big? [v <- :wat::core::i64] -> :wat::core::bool
   (:wat::core::>= v 2))
 
+;; ⚠ THIS LAW WAS PASSED BY AN IDENTITY IMPLEMENTATION UNTIL 2026-08-26, and that
+;; is the whole reason it now looks like this. It read, in full:
+;;
+;;     (if (= (shrink-index g 5 big?) 5) 0 1)
+;;
+;; The space is `bind (ints 1 4) upto`: card 6, values [0 0 1 0 1 2] (verified by
+;; enumeration, not by reading the code). `big?` is `(>= v 2)`, which is true at
+;; index 5 AND NOWHERE ELSE — so the smallest still-failing index IS 5, the k it
+;; was handed. The correct answer and the DO-NOTHING answer were the same number.
+;; Replacing `shrink-index`'s entire body with `k` passed this law. It asserted the
+;; negative half ("does not wrongly lower") and never once asserted the SEARCH,
+;; which is the entire function.
+;;
+;; A law must be able to go red for the reason it exists. So the two clauses that
+;; matter now use `nonzero?`, true at indices 2, 4 and 5 — the smallest is 2, and
+;; an identity returns the k it was given. Its sibling `law-shrink` always had this
+;; shape (it pins [3 4 5 6] -> [1 0 2 0]); this one had drifted from it.
+;;
+;; The negative half is KEPT, as clauses c and d, because "must not lower when
+;; nothing below fails" is also a real property — it just cannot be the only one.
+(:wat::core::defn :wat-tests::gen::nonzero? [v <- :wat::core::i64] -> :wat::core::bool
+  (:wat::core::>= v 1))
+
 (:wat::core::defn :wat-tests::gen::law-shrink-index [] -> :wat::core::i64
-  (:wat::core::let [g (:wat::gen::bind (:wat::gen::ints 1 4) :wat-tests::gen::upto)]
-    (:wat::core::if (:wat::core::= (:wat::gen::shrink-index g 5 :wat-tests::gen::big?) 5) 0 1)))
+  (:wat::core::let
+    [g (:wat::gen::bind (:wat::gen::ints 1 4) :wat-tests::gen::upto)
+     ;; a, b — IT SEARCHES. An identity returns k (5, then 4); the answer is 2.
+     a (:wat::core::if (:wat::core::= (:wat::gen::shrink-index g 5 :wat-tests::gen::nonzero?) 2) 0 1)
+     b (:wat::core::if (:wat::core::= (:wat::gen::shrink-index g 4 :wat-tests::gen::nonzero?) 2) 0 1)
+     ;; c, d — IT DOES NOT WRONGLY LOWER when nothing below k still fails.
+     c (:wat::core::if (:wat::core::= (:wat::gen::shrink-index g 5 :wat-tests::gen::big?) 5) 0 1)
+     d (:wat::core::if (:wat::core::= (:wat::gen::shrink-index g 2 :wat-tests::gen::nonzero?) 2) 0 1)]
+    (:wat::core::i64::+ a (:wat::core::i64::+ b (:wat::core::i64::+ c d)))))
 
 (:wat::test::deftest :wat-tests::gen::test-ints
   (:wat-tests::gen::held
@@ -483,7 +528,7 @@
 
 (:wat::test::deftest :wat-tests::gen::test-lift2
   (:wat-tests::gen::held
-    (:wat::gen::check (:wat::gen::coords (:wat::core::PersistentVector 6))
+    (:wat::gen::check (:wat::gen::coords (:wat::core::PersistentVector 8))
                       :wat-tests::gen::law-lift2)))
 
 (:wat::test::deftest :wat-tests::gen::test-lift3
@@ -630,3 +675,59 @@
 
 (:wat::test::deftest :wat-tests::gen::test-no-negative-card
   (:wat::test::assert-eq (:wat-tests::gen::law-no-negative-card) 0))
+
+
+;; ── L25 — check ENUMERATES EVERY POINT AND REPORTS THE TRUE COUNT ───────────
+;;
+;; THE VACUITY DEFENCE HAD NO GATE OF ITS OWN. `held` asserts `(> pts 0)`, and
+;; every deftest in this file drives a space with a LITERAL positive card, so that
+;; clause is CONSTANT-TRUE — it has never once been the thing that failed. Worse,
+;; `pts` is the SUT echoing its own `Gen/card` field straight back, so asserting it
+;; against `Gen/card` proves nothing at all.
+;;
+;; Measured consequence (GEN-VIGILIA-2026-08-25, finding D): mutate `check` to
+;; enumerate `(range 1 card)` instead of `(range 0 card)` — silently skipping the
+;; FIRST point of every space in the library — or to report any wrong POSITIVE
+;; count, and all 23 laws stayed green.
+;;
+;; This law is the missing gate, and every number in it is a LITERAL THIS TEST
+;; STATES, never a field read back off the SUT:
+;;   - `elements` of a four-element vector => points MUST be 4. A wrong positive
+;;     count fails here.
+;;   - the property fires on 10, the FIRST value => witness index MUST be 0.
+;;     `(range 1 card)` skips it, reports 0 violations, and fails here.
+;;   - the property fires on 40, the LAST value => witness index MUST be 3.
+;;     `(range 0 (- card 1))` drops it and fails here.
+(:wat::core::defn :wat-tests::gen::is10 [x <- :wat::core::i64] -> :wat::core::i64
+  (:wat::core::if (:wat::core::= x 10) 1 0))
+
+(:wat::core::defn :wat-tests::gen::is40 [x <- :wat::core::i64] -> :wat::core::i64
+  (:wat::core::if (:wat::core::= x 40) 1 0))
+
+(:wat::core::defn :wat-tests::gen::outcome-is
+  [o   <- :wat::gen::CheckOutcome
+   pts <- :wat::core::i64
+   vio <- :wat::core::i64
+   wit <- :wat::core::i64] -> :wat::core::i64
+  (:wat::core::match o
+    ((:wat::gen::CheckOutcome::Checked p v f)
+      (:wat::core::if
+        (:wat::core::and (:wat::core::= p pts)
+          (:wat::core::and (:wat::core::= v vio)
+                           (:wat::core::= (:wat::core::match f
+                                            ((:wat::core::Some i) i)
+                                            (:wat::core::None -1))
+                                          wit)))
+        0 1))
+    ;; an EmptySpace here is a failure: the space has four points by construction
+    (:wat::gen::CheckOutcome::EmptySpace 1)))
+
+(:wat::core::defn :wat-tests::gen::law-check-not-vacuous [] -> :wat::core::i64
+  (:wat::core::let
+    [g (:wat::gen::elements (:wat::core::PersistentVector 10 20 30 40))
+     a (:wat-tests::gen::outcome-is (:wat::gen::check g :wat-tests::gen::is10) 4 1 0)
+     b (:wat-tests::gen::outcome-is (:wat::gen::check g :wat-tests::gen::is40) 4 1 3)]
+    (:wat::core::i64::+ a b)))
+
+(:wat::test::deftest :wat-tests::gen::test-check-not-vacuous
+  (:wat::test::assert-eq (:wat-tests::gen::law-check-not-vacuous) 0))
