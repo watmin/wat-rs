@@ -3,6 +3,6 @@
 
 (:wat::core::defn :t::probe [] -> :wat::core::String
   (:wat::core::do
-    (:wat::core::i64::+ 1 1)
+    (:wat::i64::+ 1 1)
     42))
 (:wat::core::defn :t::compute [] -> :wat::core::String (:t::probe))

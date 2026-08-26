@@ -10,29 +10,27 @@
 //! type one level too deep (see the design's "why the destination" section).
 //!
 //! **Self-contained, no separate namespace-home file** — follows `bytes.rs`'s
-//! shape, not `string.rs`'s two-home split. Unlike the string carve (which
-//! moved live algorithms out of a retiring `string_ops.rs` into a new
-//! `src/string/mod.rs`), the i64 arithmetic ALREADY lives in `runtime.rs`
-//! (`eval_i64_arith`, `eval_compare`, the seven named `i64_*_op` fns, and the
-//! four `eval_i64_to_*` scalar-conversion fns) — nothing here duplicates it.
-//! Every handler below is a thin `#[wat_intrinsic]` shim that calls straight
-//! into those `pub(crate)` fns.
+//! shape, not `string.rs`'s two-home split. The i64 arithmetic lives in
+//! `runtime.rs` (`eval_i64_arith`, `eval_compare`, the seven named
+//! `i64_*_op` fns, and the four `eval_i64_to_*` scalar-conversion fns) —
+//! nothing here duplicates it. Every handler below is a thin
+//! `#[wat_intrinsic]` shim that calls straight into those `pub(crate)` fns.
 //!
-//! ## ⛔ Nothing is retired this stone
+//! ## Arc 255 Stone C — the old spelling is retired
 //!
-//! `:wat::core::i64::*` keeps working exactly as before — its dispatch arm in
-//! `runtime.rs` (`dispatch_keyword_head_value`'s giant match) and the
-//! separate substrate-addressed table (`dispatch_substrate_impl` /
-//! `arith_i64_i64_inner`) are both untouched in shape; only the OLD arm's
-//! inline closures were factored into the named `i64_*_op` fns this stone
-//! also introduces, so both spellings share ONE implementation of the
-//! overflow/division contract (never two copies of `checked_add` semantics
-//! that must agree forever). 2,330 call sites still spell the old name; they
-//! migrate in Stone B, and the old names die in Stone C. This module ADDS a
-//! second address for the same 17 behaviors — it deletes nothing.
+//! Through Stone B, `:wat::core::i64::*` kept working exactly as before —
+//! this module ADDED a second address for the same 17 behaviors, deleting
+//! nothing. Stone C deletes the OLD half: `dispatch_keyword_head_value`'s
+//! per-type i64 arms in `runtime.rs` are gone, `dispatch_substrate_impl` /
+//! `arith_i64_i64_inner`'s match keys are the new spelling directly, and
+//! `:wat::core::i64::*` is now a `RETIREMENT_TABLE` hit
+//! (`src/remedy/retirement.rs`) — a check-time error naming this module's
+//! spelling as the remedy, not a silent fallthrough. The shared `i64_*_op`
+//! fns this module's handlers call are untouched; only their OLD callers in
+//! `runtime.rs` are gone.
 //!
 //! `:wat::core::+` — the polymorphic generic — is untouched; only the
-//! per-type spelling moves (enabling arc 256's generic defclause later).
+//! per-type spelling moved (enabling arc 256's generic defclause later).
 
 use wat_macros::wat_intrinsic;
 
@@ -44,14 +42,14 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 //
 // Each handler clones its two `&WatAST` args into a 2-element array and
 // forwards to `crate::runtime::eval_i64_arith` — the EXACT arity-check /
-// type-check / dispatch fn the old `:wat::core::i64::*` arm calls — with a
+// type-check / dispatch fn the old `:wat::i64::*` arm calls — with a
 // closure that forwards straight to the shared named op fn
 // (`crate::runtime::i64_add_op` etc). No arithmetic is re-implemented here.
 
 /// `(:wat::i64::+ a b)` → the sum of `a` and `b`, strict i64 (no promotion
 /// from f64). Overflow raises a distinct `RuntimeErrorKind::IntegerOverflow`
 /// — never wrapped, never conflated with `DivisionByZero` — via the SAME
-/// shared op fn `:wat::core::i64::+` calls.
+/// shared op fn `:wat::i64::+` calls.
 ///
 /// @added         1.0.0
 /// @Purity        Pure
@@ -76,7 +74,7 @@ pub(crate) fn eval_i64_add(
 }
 
 /// `(:wat::i64::- a b)` → `a` minus `b`, strict i64. Overflow raises
-/// `RuntimeErrorKind::IntegerOverflow`, same shared op fn as `:wat::core::i64::-`.
+/// `RuntimeErrorKind::IntegerOverflow`, same shared op fn as `:wat::i64::-`.
 ///
 /// @added         1.0.0
 /// @Purity        Pure
@@ -101,7 +99,7 @@ pub(crate) fn eval_i64_sub(
 }
 
 /// `(:wat::i64::* a b)` → `a` times `b`, strict i64. Overflow raises
-/// `RuntimeErrorKind::IntegerOverflow`, same shared op fn as `:wat::core::i64::*`.
+/// `RuntimeErrorKind::IntegerOverflow`, same shared op fn as `:wat::i64::*`.
 ///
 /// @added         1.0.0
 /// @Purity        Pure
@@ -127,7 +125,7 @@ pub(crate) fn eval_i64_mul(
 
 /// `(:wat::i64::/ a b)` → `a` divided by `b`, truncating toward zero. `b = 0`
 /// raises `DivisionByZero`; `i64::MIN / -1` raises `IntegerOverflow` — the
-/// one division-overflow edge. Same shared op fn as `:wat::core::i64::/`.
+/// one division-overflow edge. Same shared op fn as `:wat::i64::/`.
 ///
 /// @added         1.0.0
 /// @Purity        Pure
@@ -153,7 +151,7 @@ pub(crate) fn eval_i64_div(
 
 /// `(:wat::i64::mod a b)` → `a` modulo `b`, floored — sign follows the
 /// DIVISOR (clj's `mod`). `b = 0` raises `DivisionByZero`. Same shared op fn
-/// as `:wat::core::i64::mod`.
+/// as `:wat::i64::mod`.
 ///
 /// @added         1.0.0
 /// @Purity        Pure
@@ -179,7 +177,7 @@ pub(crate) fn eval_i64_mod(
 
 /// `(:wat::i64::quot a b)` → `a` divided by `b`, truncated toward zero
 /// (clj's `quot`). `b = 0` raises `DivisionByZero`. Same shared op fn as
-/// `:wat::core::i64::quot`.
+/// `:wat::i64::quot`.
 ///
 /// @added         1.0.0
 /// @Purity        Pure
@@ -205,7 +203,7 @@ pub(crate) fn eval_i64_quot(
 
 /// `(:wat::i64::rem a b)` → the remainder of `a` divided by `b` — sign
 /// follows the DIVIDEND (clj's `rem`). `b = 0` raises `DivisionByZero`. Same
-/// shared op fn as `:wat::core::i64::rem`.
+/// shared op fn as `:wat::i64::rem`.
 ///
 /// @added         1.0.0
 /// @Purity        Pure
@@ -231,11 +229,11 @@ pub(crate) fn eval_i64_rem(
 
 // ─── comparisons: < <= > >= = not= ─────────────────────────────────────────
 //
-// `crate::runtime::eval_compare` is the SAME engine `:wat::core::i64::{<,<=,
+// `crate::runtime::eval_compare` is the SAME engine `:wat::i64::{<,<=,
 // >,>=,=,not=}` calls (NaN-aware `numeric_order` first, `values_compare`
 // fallback). Each predicate closure below is trivial (an `Ordering` compare,
 // not an arithmetic contract) and is duplicated the same way the existing
-// `:wat::core::<` / `:wat::core::i64::<` pair already duplicates it in
+// `:wat::core::<` / `:wat::i64::<` pair already duplicates it in
 // runtime.rs — there is no algorithm here to share beyond the engine itself.
 
 /// `(:wat::i64::< a b)` → whether `a` is less than `b`.
@@ -397,7 +395,7 @@ pub(crate) fn eval_i64_not_eq(
 /// @Category      Transform
 /// @arg     n :wat::core::i64 the i64 to promote
 /// @ret     :wat::core::bigint `n`, promoted to bigint
-/// @example (:wat::i64::to-bigint 5) #=> (:wat::core::i64::to-bigint 5)
+/// @example (:wat::i64::to-bigint 5) #=> (:wat::i64::to-bigint 5)
 #[wat_intrinsic(":wat::i64::to-bigint")]
 pub(crate) fn eval_i64_to_bigint(
     n: &WatAST,
@@ -405,7 +403,7 @@ pub(crate) fn eval_i64_to_bigint(
     sym: &SymbolTable,
     span: &Span,
 ) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_i64_to_bigint(std::slice::from_ref(n), span, env, sym)
+    crate::runtime::eval_i64_to_bigint(std::slice::from_ref(n), span, env, sym, ":wat::i64::to-bigint")
 }
 
 /// `(:wat::i64::to-f64 n)` → `n` cast to `:wat::core::f64`. Lossy beyond
@@ -426,7 +424,7 @@ pub(crate) fn eval_i64_to_f64(
     sym: &SymbolTable,
     span: &Span,
 ) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_i64_to_f64(std::slice::from_ref(n), span, env, sym)
+    crate::runtime::eval_i64_to_f64(std::slice::from_ref(n), span, env, sym, ":wat::i64::to-f64")
 }
 
 /// `(:wat::i64::to-rational n)` → `n` promoted to `:wat::core::rational`.
@@ -438,7 +436,7 @@ pub(crate) fn eval_i64_to_f64(
 /// @Category      Transform
 /// @arg     n :wat::core::i64 the i64 to promote
 /// @ret     :wat::core::rational `n`, promoted to rational
-/// @example (:wat::i64::to-rational 5) #=> (:wat::core::i64::to-rational 5)
+/// @example (:wat::i64::to-rational 5) #=> (:wat::i64::to-rational 5)
 #[wat_intrinsic(":wat::i64::to-rational")]
 pub(crate) fn eval_i64_to_rational(
     n: &WatAST,
@@ -446,7 +444,7 @@ pub(crate) fn eval_i64_to_rational(
     sym: &SymbolTable,
     span: &Span,
 ) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_i64_to_rational(std::slice::from_ref(n), span, env, sym)
+    crate::runtime::eval_i64_to_rational(std::slice::from_ref(n), span, env, sym, ":wat::i64::to-rational")
 }
 
 /// `(:wat::i64::to-string n)` → the base-10 rendering of `n`.
@@ -465,5 +463,5 @@ pub(crate) fn eval_i64_to_string(
     sym: &SymbolTable,
     span: &Span,
 ) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_i64_to_string(std::slice::from_ref(n), span, env, sym)
+    crate::runtime::eval_i64_to_string(std::slice::from_ref(n), span, env, sym, ":wat::i64::to-string")
 }

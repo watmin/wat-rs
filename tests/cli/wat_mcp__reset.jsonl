@@ -1,4 +1,4 @@
-{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"eval","arguments":{"edn":"(:wat::core::defn :usr::double [n <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::* n 2))"}}}
+{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"eval","arguments":{"edn":"(:wat::core::defn :usr::double [n <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::* n 2))"}}}
 {"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"eval","arguments":{"edn":"(:usr::double 21)"}}}
 {"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"reset","arguments":{}}}
 {"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"eval","arguments":{"edn":"(:usr::double 21)"}}}

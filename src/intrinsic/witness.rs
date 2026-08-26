@@ -59,7 +59,7 @@ pub(crate) fn eval_variadic_args_measurement(
 /// @arg f [:wat::core::i64 :-> :wat::core::i64] the fn applied to the yielded value
 /// @yields :wat::core::i64 the value handed to f (always 42 for this witness)
 /// @ret :wat::core::i64 the result of applying f to 42
-/// @example (:wat::intrinsic::yields-witness (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ x 1))) #=> 43
+/// @example (:wat::intrinsic::yields-witness (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::+ x 1))) #=> 43
 // `@Category ControlFlow` (corrected 2026-08-15; was `Reflection`). This body
 // applies a callable — it directs evaluation, exactly as `if` selects a branch.
 // It introspects nothing, so `Reflection` was a lie. NOT a new `HigherOrder`

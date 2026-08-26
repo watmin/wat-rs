@@ -748,8 +748,8 @@
                     ;; measurement below). The `where` fence got `is-rete` first and this one was
                     ;; deliberately left at three conjuncts — which MEASURED as a real gap:
                     ;;
-                    ;;     :then item using (:wat::core::i64::+ …)                      -> refused (not total)
-                    ;;     :then item using (:wat::core::if (:wat::core::i64::> n 5) …) -> COMPILED
+                    ;;     :then item using (:wat::i64::+ …)                      -> refused (not total)
+                    ;;     :then item using (:wat::core::if (:wat::i64::> n 5) …) -> COMPILED
                     ;;
                     ;; A core-spelled TOTAL op sailed straight through. The ruling is general —
                     ;; *"rete forms must only be composed of rete forms and primitives"* — and the

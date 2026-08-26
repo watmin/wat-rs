@@ -5,5 +5,5 @@
   (:wat::core::= (:wat::core::map
                    [1 2 3]
                    (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64
-                     (:wat::core::i64::+ x 1)))
+                     (:wat::i64::+ x 1)))
                  [2 3 4]))

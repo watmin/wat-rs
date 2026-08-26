@@ -41,16 +41,16 @@ fn admission_refuses_the_bare_engine_api() {
     assert!(is_false(":user::refuse-engine-api?"), "`:wat::rete::fire-rules` is engine API, not a vocabulary op — it names no declared sub-namespace");
 }
 
-/// Row 5: a `:wat::core::` head is refused — it never falls under `:wat::rete::` at all.
+/// Row 5: a plain (non-`:wat::rete::`) head is refused — it never falls under `:wat::rete::` at all.
 #[test]
 fn admission_refuses_a_core_head() {
-    assert!(is_false(":user::refuse-core-head?"), "`:wat::core::i64::+` is not rete-namespaced");
+    assert!(is_false(":user::refuse-core-head?"), "`:wat::i64::+` is not rete-namespaced");
 }
 
 // ─── the four ops dispatch (row 7) ────────────────────────────────────────────────
 
 /// The `Alias` class: `:wat::rete::i64::>` reaches the SAME `eval_compare` routine
-/// `:wat::core::i64::>` uses.
+/// `:wat::i64::>` uses.
 #[test]
 fn alias_dispatches_to_the_same_routine() {
     assert!(is_true(":user::alias-gt"), "5 > 3");

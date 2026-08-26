@@ -53,7 +53,7 @@ fn run_compute(path: &str) -> Result<Value, String> {
 // NotCallable because eval_list's regular dispatch doesn't handle
 // Symbol-bound keyword Values.
 //
-// Error message should include ":wat::core::i64::+" (the rendered
+// Error message should include ":wat::i64::+" (the rendered
 // keyword content), not just "wat::core::keyword" (the type name).
 #[test]
 fn probe_1_not_callable_renders_offending_keyword() {

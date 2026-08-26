@@ -7,7 +7,7 @@
 ;; declared (Option :- [(HashMap :- [keyword HolonAST])]) here mirrors its documented shape
 ;; (runtime.rs eval_metadata_of). The Rust driver inspects the returned Value.
 
-;; metadata-of on a rust builtin (:wat::core::i64::+) — RED at HEAD returns None
+;; metadata-of on a rust builtin (:wat::i64::+) — RED at HEAD returns None
 ;; (builtins registered nowhere); GREEN after arc 255.1 returns Some(baseline).
 (:wat::core::defn :user::builtin-metadata []
   -> (:wat::core::Option :- [(:wat::core::HashMap :- [:wat::core::keyword :wat::holon::HolonAST])])

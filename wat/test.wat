@@ -208,7 +208,7 @@
 ;;
 ;;   (:wat::test::deftest :my::test::two-plus-two
 ;;     ()
-;;     (:wat::test::assert-eq (:wat::core::i64::+ 2 2) 4))
+;;     (:wat::test::assert-eq (:wat::i64::+ 2 2) 4))
 ;;
 ;; Shape — type declarations in prelude:
 ;;

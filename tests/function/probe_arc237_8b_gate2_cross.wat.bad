@@ -3,6 +3,6 @@
 ;; startup MUST fail.
 
 (:wat::core::defclause :my::add
-  ([x <- :wat::core::i64 y <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ x y))
-  ([x <- :wat::core::f64 y <- :wat::core::f64] -> :wat::core::f64 (:wat::core::f64::+ x y)))
+  ([x <- :wat::core::i64 y <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::+ x y))
+  ([x <- :wat::core::f64 y <- :wat::core::f64] -> :wat::core::f64 (:wat::f64::+ x y)))
 (:wat::core::defn :user::bad [] -> :wat::core::f64 (:my::add 1 2.0))

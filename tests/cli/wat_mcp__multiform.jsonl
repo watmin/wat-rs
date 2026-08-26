@@ -1,3 +1,3 @@
 {"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"eval","arguments":{"edn":"(:wat::core::defn :usr::a [] -> :wat::core::i64 1) (:wat::core::defn :usr::b [] -> :wat::core::i64 2)"}}}
-{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"eval","arguments":{"edn":"(:wat::core::i64::+ (:usr::a) (:usr::b))"}}}
+{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"eval","arguments":{"edn":"(:wat::i64::+ (:usr::a) (:usr::b))"}}}
 {"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"eval","arguments":{"edn":"(:wat::core::defn :usr::c [] -> :wat::core::i64 9) (:usr::never-declared)"}}}

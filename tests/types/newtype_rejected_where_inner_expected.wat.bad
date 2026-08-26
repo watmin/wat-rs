@@ -3,5 +3,5 @@
 (:wat::core::defn :my::probe [] -> :wat::core::String
   (:wat::core::let
     [p     (:my::trading::Price 100.0)
-     bogus (:wat::core::f64::+ p 1.0)]
-    (:wat::core::f64::to-string bogus)))
+     bogus (:wat::f64::+ p 1.0)]
+    (:wat::f64::to-string bogus)))

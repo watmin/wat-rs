@@ -1,7 +1,7 @@
 ;; Co-located fixture for probe_rational_C5c_nan_unordered.rs — arc 300 C5c.
 ;; docs/arc/2026/07/300-wat-source-is-edn/DESIGN-STONE-C5c-no-warts-NaN-is-unordered.md governs.
 ;; NaN is produced by division, not a literal: `##NaN` is NOT wat syntax.
-;; (:wat::core::f64::/ 0.0 0.0) => nan, (.../ 1.0 0.0) => +inf, (.../ -1.0 0.0) => -inf.
+;; (:wat::f64::/ 0.0 0.0) => nan, (.../ 1.0 0.0) => +inf, (.../ -1.0 0.0) => -inf.
 
 ;; row 1/4 — NaN on the right, polymorphic < and >. Correct pre-stone; must stay correct.
 (:wat::core::defn :probe::row1-lt [] -> :wat::core::bool (:wat::core::< 1 (:wat::f64::/ 0.0 0.0))) ; -> false

@@ -1,6 +1,6 @@
 ;; POSITIVE FIXTURE — per-type `i64::>` inline constraint. GREEN admit: compiles, fires, prunes.
 ;;
-;; `(:wat::rete::core::i64::> :value 10)` sits inside a fact pattern.
+;; `(:wat::rete::i64::> :value 10)` sits inside a fact pattern.
 ;; `classify_rete_clause` (`clause.rs:173`) names the per-type rete spelling;
 ;; `compile-condition` (`wat/rete/compile.wat:364`) admits it. Discriminates
 ;; Oslo only, never Bergen.

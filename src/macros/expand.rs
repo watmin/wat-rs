@@ -1188,7 +1188,7 @@ fn expand_program_body(
     //   - fixed param   → Value::wat__WatAST(Arc::new(arg_form))
     //   - rest param    → Value::Vec(Arc::new([wat__WatAST(arg0), ...]))
     // This is what lets `(foldl … nums)` fold over the arg-forms: each `n` is a
-    // `wat__WatAST` value, and `` `(:wat::core::i64::+ ~acc ~n) `` → eval_quasiquote
+    // `wat__WatAST` value, and `` `(:wat::i64::+ ~acc ~n) `` → eval_quasiquote
     // evaluates `~n` → value_to_watast → the arg-form spliced in.
     let mut builder = env.child();
     for (name, ast_form) in bindings {
@@ -1748,7 +1748,7 @@ pub(super) fn substitute_bindings(form: &WatAST, bindings: &HashMap<String, WatA
 ///
 /// **Backward-compat heuristic (arc 143 slice 2):** a `WatAST::List`
 /// whose first element is a `WatAST::Keyword` is treated as a
-/// callable expression (e.g., `(:wat::core::i64::+ a 1)`) and
+/// callable expression (e.g., `(:wat::i64::+ a 1)`) and
 /// evaluated at expand-time with macro params substituted. A List
 /// whose head is NOT a Keyword (e.g., a data list from a `,,X`
 /// outer-pass substitution) returns as-is, preserving pre-slice-2

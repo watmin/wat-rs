@@ -60,7 +60,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// @Determinism   Deterministic
 /// @Category      Reflection
 /// @ret     :wat::kernel::Location the call form's own source coordinate
-/// @example (:wat::core::i64::> (:wat::kernel::Location/line (:wat::kernel::here)) 0) #=> true
+/// @example (:wat::i64::> (:wat::kernel::Location/line (:wat::kernel::here)) 0) #=> true
 // Registered `TypeScheme` — `check.rs:16158` — gate LIVE.
 //
 // Deciding line for `@Category Reflection`: `runtime.rs:16256`
@@ -158,7 +158,7 @@ pub(crate) fn eval_kernel_macro_call_site(
 /// @arg     f :wat::core::Fn the fn value to reify (or a keyword naming a registered fn)
 /// @arg     name :wat::core::keyword the bind name the reified fn carries when the forms are later evaluated
 /// @ret     (:wat::core::Vector :- [:wat::WatAST]) `prologue ++ [(def name entry-form)]`
-/// @example (:wat::core::i64::> (:wat::core::length (:wat::kernel::fn-forms (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x) :my-id)) 0) #=> true
+/// @example (:wat::i64::> (:wat::core::length (:wat::kernel::fn-forms (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 x) :my-id)) 0) #=> true
 // No registered `TypeScheme` — `check.rs`'s `infer_kernel_fn_forms`
 // (`:10406`) is the real authority.
 //

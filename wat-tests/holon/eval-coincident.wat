@@ -87,21 +87,21 @@
   (:wat::core::let
     [r
       (:wat::holon::eval-edn-coincident?
- "(:wat::core::i64::+ 2 2)"
- "(:wat::core::i64::* 1 4)")]
+ "(:wat::i64::+ 2 2)"
+ "(:wat::i64::* 1 4)")]
     (:wat::test::assert-eq
-      (:wat::core::match r 
+      (:wat::core::match r
         ((:wat::core::Ok b)  b)
         ((:wat::core::Err _) false))
       true)))
 
 (:wat::test::deftest :wat-tests::holon::eval-coincident::test-edn-different-sources
-  
+
   (:wat::core::let
     [r
       (:wat::holon::eval-edn-coincident?
- "(:wat::core::i64::+ 2 2)"
- "(:wat::core::i64::+ 2 3)")]
+ "(:wat::i64::+ 2 2)"
+ "(:wat::i64::+ 2 3)")]
     (:wat::test::assert-eq
       (:wat::core::match r 
         ((:wat::core::Ok b)  b)
@@ -111,45 +111,46 @@
 ;; ─── eval-digest-coincident? — SHA-256-verified per side ─────────
 ;;
 ;; Pre-computed digests (run `printf '%s' '<src>' | sha256sum`):
-;;   "(:wat::core::i64::+ 2 2)" ->
-;;     844049a88ac83175756184fd59e9b7746b3e8bbe745ba8afe8fa5f1ec5fb274e
-;;   "(:wat::core::i64::* 1 4)" ->
-;;     3571299726bb0f014a3cea5e91cd1623a94fffb7ac1641525ff1ca56c7140e45
-;; Stone 237.8b — regenerated after +'2 → + and *'2 → * rename in source strings.
+;;   "(:wat::i64::+ 2 2)" ->
+;;     efd1a5c550e45f66d8ecf0b7e1f849aa0d0ac86e34da831b14e4ba211acd4e79
+;;   "(:wat::i64::* 1 4)" ->
+;;     5f5d507c988d15471be262dbfc20fb228243512e32b72dcc45153a5ef689f8e3
+;; Arc 255 Stone C — regenerated after the `:wat::core::i64::+`/`*` ->
+;; `:wat::i64::+`/`*` rename in source strings (the old spelling retired).
 ;;
 ;; If a source string changes, regenerate; the load.rs digest-load
 ;; tests follow the same pattern for a runnable template.
 
 (:wat::test::deftest :wat-tests::holon::eval-coincident::test-digest-arithmetic-equivalence
-  
+
   (:wat::core::let
     [r
       (:wat::holon::eval-digest-string-coincident?
- "(:wat::core::i64::+ 2 2)"
+ "(:wat::i64::+ 2 2)"
         :wat::verify::digest-sha256
-        :wat::verify::string "844049a88ac83175756184fd59e9b7746b3e8bbe745ba8afe8fa5f1ec5fb274e"
- "(:wat::core::i64::* 1 4)"
+        :wat::verify::string "efd1a5c550e45f66d8ecf0b7e1f849aa0d0ac86e34da831b14e4ba211acd4e79"
+ "(:wat::i64::* 1 4)"
         :wat::verify::digest-sha256
-        :wat::verify::string "3571299726bb0f014a3cea5e91cd1623a94fffb7ac1641525ff1ca56c7140e45")]
+        :wat::verify::string "5f5d507c988d15471be262dbfc20fb228243512e32b72dcc45153a5ef689f8e3")]
     (:wat::test::assert-eq
-      (:wat::core::match r 
+      (:wat::core::match r
         ((:wat::core::Ok b)  b)
         ((:wat::core::Err _) false))
       true)))
 
 (:wat::test::deftest :wat-tests::holon::eval-coincident::test-digest-bad-hex-errs
-  
+
   ;; Side A carries a zero-hex digest that doesn't match the source;
   ;; verify fires before parse → Err(EvalError{kind=verification-failed}).
   (:wat::core::let
     [r
       (:wat::holon::eval-digest-string-coincident?
- "(:wat::core::i64::+ 2 2)"
+ "(:wat::i64::+ 2 2)"
         :wat::verify::digest-sha256
         :wat::verify::string "0000000000000000000000000000000000000000000000000000000000000000"
- "(:wat::core::i64::* 1 4)"
+ "(:wat::i64::* 1 4)"
         :wat::verify::digest-sha256
-        :wat::verify::string "3571299726bb0f014a3cea5e91cd1623a94fffb7ac1641525ff1ca56c7140e45")]
+        :wat::verify::string "5f5d507c988d15471be262dbfc20fb228243512e32b72dcc45153a5ef689f8e3")]
     (:wat::test::assert-eq
       (:wat::core::match r 
         ((:wat::core::Ok _)  true)     ;; unexpected — verify should have failed
@@ -166,43 +167,44 @@
 ;; with "SRC_X signature drifted." Regenerate by adding a temporary
 ;; eprintln to sign_src_ed25519, OR via a scratch binary that calls
 ;; the helper:
-;;   src-a sig = ZR3nyIPpRSKItQKfFH46p96UbwYpr2TlaysNbnnxZvpA6QiuXftuzmA3xUDfaZ+qWMNCk3m51XzXzXGguo6XCA==
-;;   src-b sig = PrDdUtimBlhGDD7atAdR9lHJc01Efok8VtsgX3/qHGjuGgkf+3GlbFE1ZGxf/uEA6VYkcd7tCWc4ipKr1AcCCw==
-;;   Stone 237.8b — regenerated after +'2 → + and *'2 → * rename.
+;;   src-a sig = LyePIYwXIW1CYKuv7BQeDMs0hV7+89uBVmbUCjTiLkZ9KKrcXkVVANj2BdX6bMUb4CwkwNMoGBZAWG/zI0rAAQ==
+;;   src-b sig = dT8mJMDyrhLj2GSQtwP6ptpP9USXuLPGyH6t5H47Xb9zkej3J7qSyEdl0SU2frQRSd4sySA4/Ogt2RnapekpAQ==
+;;   Arc 255 Stone C — regenerated after the `:wat::core::i64::+`/`*` ->
+;;   `:wat::i64::+`/`*` rename in source strings (the old spelling retired).
 
 (:wat::test::deftest :wat-tests::holon::eval-coincident::test-signed-arithmetic-equivalence
-  
+
   (:wat::core::let
     [r
       (:wat::holon::eval-signed-string-coincident?
- "(:wat::core::i64::+ 2 2)"
+ "(:wat::i64::+ 2 2)"
         :wat::verify::signed-ed25519
-        :wat::verify::string "ZR3nyIPpRSKItQKfFH46p96UbwYpr2TlaysNbnnxZvpA6QiuXftuzmA3xUDfaZ+qWMNCk3m51XzXzXGguo6XCA=="
+        :wat::verify::string "LyePIYwXIW1CYKuv7BQeDMs0hV7+89uBVmbUCjTiLkZ9KKrcXkVVANj2BdX6bMUb4CwkwNMoGBZAWG/zI0rAAQ=="
         :wat::verify::string "6kpsY+KcUgq+9VB7Ey7F+ZVHdq6+vnuSQh7qaRRG0iw="
- "(:wat::core::i64::* 1 4)"
+ "(:wat::i64::* 1 4)"
         :wat::verify::signed-ed25519
-        :wat::verify::string "PrDdUtimBlhGDD7atAdR9lHJc01Efok8VtsgX3/qHGjuGgkf+3GlbFE1ZGxf/uEA6VYkcd7tCWc4ipKr1AcCCw=="
+        :wat::verify::string "dT8mJMDyrhLj2GSQtwP6ptpP9USXuLPGyH6t5H47Xb9zkej3J7qSyEdl0SU2frQRSd4sySA4/Ogt2RnapekpAQ=="
         :wat::verify::string "6kpsY+KcUgq+9VB7Ey7F+ZVHdq6+vnuSQh7qaRRG0iw=")]
     (:wat::test::assert-eq
-      (:wat::core::match r 
+      (:wat::core::match r
         ((:wat::core::Ok b)  b)
         ((:wat::core::Err _) false))
       true)))
 
 (:wat::test::deftest :wat-tests::holon::eval-coincident::test-signed-wrong-sig-errs
-  
+
   ;; Side A carries src-B's sig against src-A; verify fails →
   ;; Err(EvalError{kind=verification-failed}).
   (:wat::core::let
     [r
       (:wat::holon::eval-signed-string-coincident?
- "(:wat::core::i64::+ 2 2)"
+ "(:wat::i64::+ 2 2)"
         :wat::verify::signed-ed25519
-        :wat::verify::string "PrDdUtimBlhGDD7atAdR9lHJc01Efok8VtsgX3/qHGjuGgkf+3GlbFE1ZGxf/uEA6VYkcd7tCWc4ipKr1AcCCw=="
+        :wat::verify::string "dT8mJMDyrhLj2GSQtwP6ptpP9USXuLPGyH6t5H47Xb9zkej3J7qSyEdl0SU2frQRSd4sySA4/Ogt2RnapekpAQ=="
         :wat::verify::string "6kpsY+KcUgq+9VB7Ey7F+ZVHdq6+vnuSQh7qaRRG0iw="
- "(:wat::core::i64::* 1 4)"
+ "(:wat::i64::* 1 4)"
         :wat::verify::signed-ed25519
-        :wat::verify::string "PrDdUtimBlhGDD7atAdR9lHJc01Efok8VtsgX3/qHGjuGgkf+3GlbFE1ZGxf/uEA6VYkcd7tCWc4ipKr1AcCCw=="
+        :wat::verify::string "dT8mJMDyrhLj2GSQtwP6ptpP9USXuLPGyH6t5H47Xb9zkej3J7qSyEdl0SU2frQRSd4sySA4/Ogt2RnapekpAQ=="
         :wat::verify::string "6kpsY+KcUgq+9VB7Ey7F+ZVHdq6+vnuSQh7qaRRG0iw=")]
     (:wat::test::assert-eq
       (:wat::core::match r 

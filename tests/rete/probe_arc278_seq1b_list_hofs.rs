@@ -50,9 +50,9 @@ fn expect_i64(defn: &str, call: &str, want: i64) {
 }
 
 const SUM: &str = "(:wat::core::fn [acc <- :wat::core::i64 x <- :wat::core::i64] -> :wat::core::i64 \
-                     (:wat::core::i64::+ acc x))";
-const DBL: &str = "(:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::* x 2))";
-const GT1: &str = "(:wat::core::fn [x <- :wat::core::i64] -> :wat::core::bool (:wat::core::i64::> x 1))";
+                     (:wat::i64::+ acc x))";
+const DBL: &str = "(:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::* x 2))";
+const GT1: &str = "(:wat::core::fn [x <- :wat::core::i64] -> :wat::core::bool (:wat::i64::> x 1))";
 const L123: &str = "(:wat::core::List 1 2 3)";
 const MAIN: &str = "";
 

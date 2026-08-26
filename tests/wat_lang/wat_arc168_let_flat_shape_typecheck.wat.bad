@@ -3,5 +3,5 @@
 
 (:wat::core::defn :t::compute [] -> :wat::core::i64
   (:wat::core::let [x 1]
-    (:wat::core::i64::+ x "not an int")
-    (:wat::core::i64::+ x 41)))
+    (:wat::i64::+ x "not an int")
+    (:wat::i64::+ x 41)))

@@ -1,4 +1,4 @@
-;; Negative fixture: `:wat::rete::core::f64::+` requires F64 in both arithmetic slots — an i64
+;; Negative fixture: `:wat::rete::f64::+` requires F64 in both arithmetic slots — an i64
 ;; literal in slot 2 must be a check-time TypeMismatch, proving the new f64 Fallback quartet
 ;; (BRIEF-f64-fallback-rows.md) still propagates a caller type error and never routes it into
 ;; the `:undefined` fallback (that fallback covers a DOMAIN hole — NaN/±Inf — never a caller

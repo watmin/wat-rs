@@ -4,20 +4,20 @@
   :causes []
   :errors [
     #wat.check/TypeMismatch {
-      :message ":wat::core::f64::+: parameter #1 expects :wat::core::f64; got :my::trading::Price"
+      :message ":wat::f64::+: parameter #1 expects :wat::core::f64; got :my::trading::Price"
       :location #wat.core/Span {
         :file "tests/types/newtype_rejected_where_inner_expected.wat.bad"
         :line 6
-        :col 32
+        :col 26
         :end #wat.core.Option/Some [
           #wat.core/Pos {
             :line 6
-            :col 33
+            :col 27
           }
         ]
       }
       :causes []
-      :callee ":wat::core::f64::+"
+      :callee ":wat::f64::+"
       :param "#1"
       :expected ":wat::core::f64"
       :got ":my::trading::Price"

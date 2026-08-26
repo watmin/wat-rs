@@ -104,7 +104,7 @@ fn render_doc_shows_yields_line() {
     let s = call_string(":user::render-yields");
     assert_eq!(
         s,
-        ":wat::intrinsic::yields-witness\n\nA minimal higher-order-function witness for `@yields` (arc 255 spec-complete).\n\nApplies `f` to the constant value `42` and returns `f(42)`. The yielded\nvalue is `:wat::core::i64`; `@yields` documents the type handed to `f`.\n\nSyntax: (yields-witness <f>)\n\nCategory: ControlFlow\n\nPurity: Pure\n\nDeterminism: Deterministic\n\nYields: :wat::core::i64\n\nExamples:\n  (:wat::intrinsic::yields-witness (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ x 1)))  #=> 43\n",
+        ":wat::intrinsic::yields-witness\n\nA minimal higher-order-function witness for `@yields` (arc 255 spec-complete).\n\nApplies `f` to the constant value `42` and returns `f(42)`. The yielded\nvalue is `:wat::core::i64`; `@yields` documents the type handed to `f`.\n\nSyntax: (yields-witness <f>)\n\nCategory: ControlFlow\n\nPurity: Pure\n\nDeterminism: Deterministic\n\nYields: :wat::core::i64\n\nExamples:\n  (:wat::intrinsic::yields-witness (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::+ x 1)))  #=> 43\n",
         "render-doc for yields-witness must match golden"
     );
 }

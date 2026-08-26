@@ -11,6 +11,6 @@ use wat_macros::wat_special_form;
 /// @Determinism Preserving
 /// @syntax (let [<binder> <expr> ...] <body>+)
 /// @ret :T the value of the final body form
-/// @example (:wat::core::let [x 1 y 2] (:wat::core::i64::+ x y)) #=> 3
+/// @example (:wat::core::let [x 1 y 2] (:wat::i64::+ x y)) #=> 3
 #[wat_special_form(":wat::core::let")]
 pub(crate) struct Let;

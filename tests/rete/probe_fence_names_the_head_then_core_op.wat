@@ -1,4 +1,4 @@
-;; then-item fence: `(:wat::core::i64::> ?c 0)` is pure, det, AND total, but a core spelling.
+;; then-item fence: `(:wat::i64::> ?c 0)` is pure, det, AND total, but not a rete spelling.
 ;; Law A must be named, not :total.
 
 (:wat::core::defrecord :weather::Temperature [celsius <- :wat::core::i64  location <- :wat::core::String])

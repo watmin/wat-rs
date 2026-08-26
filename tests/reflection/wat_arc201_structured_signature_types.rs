@@ -113,7 +113,7 @@ fn signature_of_defn_emits_structured_parametric_user_fn() {
 fn signature_of_defn_emits_atomic_for_monomorphic_path_types() {
     // All-Path types remain single keyword Symbols — slice 1 only
     // restructures Parametric / Tuple / Fn shapes; Path stays atomic.
-    // `:wat::core::i64::+` is a substrate primitive whose scheme is
+    // `:wat::i64::+` is a substrate primitive whose scheme is
     // monomorphic (`:i64 :i64 -> :i64`); it exercises the all-Path path.
     let line = render_signature_from_file(
         "tests/reflection/wat_arc201_structured_signature_types_atomic_plus.wat",

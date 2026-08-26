@@ -23,7 +23,7 @@
 //! # What this catches today
 //!
 //! - Arity mismatches in user-function and built-in calls at startup.
-//! - Type mismatches: `(:wat::core::i64::+ "hello" 3)`, `(:wat::core::< 1 "x")`
+//! - Type mismatches: `(:wat::i64::+ "hello" 3)`, `(:wat::core::< 1 "x")`
 //!   — `<` requires matching operand types.
 //! - Polymorphic failures: `(:wat::core::Vector 1 "two" 3)` — list
 //!   elements must unify to a common element type.
@@ -16907,15 +16907,15 @@ fn register_builtins(env: &mut CheckEnv) {
     // per-Type binary primitives are strictly 2-ary Rust intrinsics;
     // variadic surface now lives in wat defclauses.
     for op in &[
-        ":wat::core::i64::+",
-        ":wat::core::i64::-",
-        ":wat::core::i64::*",
-        ":wat::core::i64::/",
+        ":wat::i64::+",
+        ":wat::i64::-",
+        ":wat::i64::*",
+        ":wat::i64::/",
         // Arc 278 numeric-tower increment — clj's mod/rem/quot trio for i64
         // (i64 only this stone). Same (i64,i64)->i64 shape as +/-/*//.
-        ":wat::core::i64::mod",
-        ":wat::core::i64::rem",
-        ":wat::core::i64::quot",
+        ":wat::i64::mod",
+        ":wat::i64::rem",
+        ":wat::i64::quot",
     ] {
         env.register(
             op.to_string(),
@@ -16930,10 +16930,10 @@ fn register_builtins(env: &mut CheckEnv) {
     // Float arithmetic — strict f64 × f64 → f64 under the
     // `:wat::core::f64` namespace. Stone 237.8b — drop '2 suffix.
     for op in &[
-        ":wat::core::f64::+",
-        ":wat::core::f64::-",
-        ":wat::core::f64::*",
-        ":wat::core::f64::/",
+        ":wat::f64::+",
+        ":wat::f64::-",
+        ":wat::f64::*",
+        ":wat::f64::/",
     ] {
         env.register(
             op.to_string(),
@@ -16950,7 +16950,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // have NO overflow branch (contrast i64 above, which wraps). Same-type
     // 2-ary signature mirrors i64/f64; the `wat/core.wat` defclause folds
     // these into 0/1/N-ary surface + the i64⊕bigint contagion arms (which
-    // reuse `:wat::core::i64::to-bigint` to promote i64 before calling in).
+    // reuse `:wat::i64::to-bigint` to promote i64 before calling in).
     for op in &[
         ":wat::core::bigint::+",
         ":wat::core::bigint::-",
@@ -16987,7 +16987,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // precision never loses i64 range). Used by the contagion arms in
     // `wat/core.wat`'s `+ - * /` defclauses.
     env.register(
-        ":wat::core::i64::to-bigint".to_string(),
+        ":wat::i64::to-bigint".to_string(),
         TypeScheme {
             type_params: vec![],
             params: vec![i64_ty()],
@@ -17037,7 +17037,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // Arc 300 stone C2 — i64/bigint → rational promotion (infallible).
     // Used by the contagion arms in `wat/core.wat`'s `+ - * /` defclauses.
     env.register(
-        ":wat::core::i64::to-rational".to_string(),
+        ":wat::i64::to-rational".to_string(),
         TypeScheme {
             type_params: vec![],
             params: vec![i64_ty()],
@@ -17099,7 +17099,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // `digits=2` rounds to two decimals. Negative `digits` rounds
     // to tens / hundreds / etc. NaN and ±∞ pass through unchanged.
     env.register(
-        ":wat::core::f64::round".to_string(),
+        ":wat::f64::round".to_string(),
         TypeScheme {
             type_params: vec![],
             params: vec![f64_ty(), i64_ty()],
@@ -17112,7 +17112,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // surfaced these as substrate gaps while porting indicator
     // vocab; lifting them here means every wat consumer reaches
     // for the same names rather than reinventing in userland.
-    for op in &[":wat::core::f64::max", ":wat::core::f64::min"] {
+    for op in &[":wat::f64::max", ":wat::f64::min"] {
         env.register(
             op.to_string(),
             TypeScheme {
@@ -17124,7 +17124,7 @@ fn register_builtins(env: &mut CheckEnv) {
         );
     }
     env.register(
-        ":wat::core::f64::abs".to_string(),
+        ":wat::f64::abs".to_string(),
         TypeScheme {
             type_params: vec![],
             params: vec![f64_ty()],
@@ -17133,7 +17133,7 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     env.register(
-        ":wat::core::f64::clamp".to_string(),
+        ":wat::f64::clamp".to_string(),
         TypeScheme {
             type_params: vec![],
             params: vec![f64_ty(), f64_ty(), f64_ty()],
@@ -17177,24 +17177,10 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
-    env.register(
-        ":wat::core::f64::max-of".to_string(),
-        TypeScheme {
-            type_params: vec![],
-            params: vec![vec_of(f64_ty())],
-            ret: opt(f64_ty()),
-            rest_param_type: None,
-        },
-    );
-    env.register(
-        ":wat::core::f64::min-of".to_string(),
-        TypeScheme {
-            type_params: vec![],
-            params: vec![vec_of(f64_ty())],
-            ret: opt(f64_ty()),
-            rest_param_type: None,
-        },
-    );
+    // Arc 255 Stone C — `:wat::f64::max-of` / `min-of` (single-Vector-arg
+    // form) retired; the surviving `:wat::f64::max-of` / `min-of` are VARIADIC
+    // (a different signature, not a renaming) and registered further below,
+    // beside the retirement-table row that redirects the old form.
 
     // Scalar conversions — arc 014. :wat::core::<source>::to-<target>
     // between the four scalar tiers (i64, f64, bool, String).
@@ -17214,7 +17200,7 @@ fn register_builtins(env: &mut CheckEnv) {
         args: vec![bool_ty()],
     };
     env.register(
-        ":wat::core::i64::to-string".to_string(),
+        ":wat::i64::to-string".to_string(),
         TypeScheme {
             type_params: vec![],
             params: vec![i64_ty()],
@@ -17223,7 +17209,7 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     env.register(
-        ":wat::core::i64::to-f64".to_string(),
+        ":wat::i64::to-f64".to_string(),
         TypeScheme {
             type_params: vec![],
             params: vec![i64_ty()],
@@ -17257,14 +17243,14 @@ fn register_builtins(env: &mut CheckEnv) {
     // `>` — operands locked to i64, same asymmetry the 237.8d cut applied to one
     // family (equality) and not its twin (ordering).
     for op_name in &[
-        ":wat::core::i64::>",
-        ":wat::core::i64::<",
-        ":wat::core::i64::>=",
+        ":wat::i64::>",
+        ":wat::i64::<",
+        ":wat::i64::>=",
         // Stone 237.8b — minted (was missing from i64 ordering set).
-        ":wat::core::i64::<=",
+        ":wat::i64::<=",
         // per-type-equality-restored — 237.8d's cut reversed.
-        ":wat::core::i64::=",
-        ":wat::core::i64::not=",
+        ":wat::i64::=",
+        ":wat::i64::not=",
     ] {
         env.register(
             op_name.to_string(),
@@ -17281,7 +17267,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // this stone generalises, per the design stone's own citation). `Alias`/`Fallback` classes
     // get a `TypeScheme` here — a plain arity+type registration is enough; the generic
     // "unregistered-scheme fallback" path (this function's own doc, `k.as_str()`'s final `_ =>`
-    // arm below) does the rest, exactly as it already does for `:wat::core::i64::>` with zero
+    // arm below) does the rest, exactly as it already does for `:wat::i64::>` with zero
     // dedicated match arm. `Form`-class rows (no scheme) are filtered out here — they get the
     // dedicated `infer_boolean_shortcircuit` dispatch near this function's `and`/`or` arm instead.
     for op in crate::rete::vocabulary::RETE_OPS.iter() {
@@ -17323,13 +17309,13 @@ fn register_builtins(env: &mut CheckEnv) {
     // through `eval_f64_compare` at runtime, already NaN-correct — `NaN != NaN` falls
     // out for free, no special-casing.
     for op_name in &[
-        ":wat::core::f64::<",
-        ":wat::core::f64::>",
-        ":wat::core::f64::<=",
-        ":wat::core::f64::>=",
+        ":wat::f64::<",
+        ":wat::f64::>",
+        ":wat::f64::<=",
+        ":wat::f64::>=",
         // per-type-equality-restored — 237.8d's cut reversed.
-        ":wat::core::f64::=",
-        ":wat::core::f64::not=",
+        ":wat::f64::=",
+        ":wat::f64::not=",
     ] {
         env.register(
             op_name.to_string(),
@@ -17406,7 +17392,7 @@ fn register_builtins(env: &mut CheckEnv) {
     );
 
     env.register(
-        ":wat::core::f64::to-string".to_string(),
+        ":wat::f64::to-string".to_string(),
         TypeScheme {
             type_params: vec![],
             params: vec![f64_ty()],
@@ -17415,7 +17401,7 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
     env.register(
-        ":wat::core::f64::to-i64".to_string(),
+        ":wat::f64::to-i64".to_string(),
         TypeScheme {
             type_params: vec![],
             params: vec![f64_ty()],
@@ -21571,51 +21557,21 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
-    // ── Arc 255 — the per-type numeric home, DERIVED rather than listed.
+    // ── Arc 255 Stone C — the per-type numeric home, retired.
     //
-    // Builder ruling, 2026-08-26: *"these /must/ be properties of the registry."*
+    // Through Stone B, `:wat::i64::+` and `:wat::core::i64::+` were ONE operation
+    // under two spellings, and this function derived the new spelling's scheme by
+    // aliasing it onto the old spelling's — registered once above (this loop's
+    // predecessor). Stone C deletes the `:wat::core::` half outright: the 34
+    // non-variadic ops above are now registered DIRECTLY under `:wat::i64::*` /
+    // `:wat::f64::*` (the blocks this comment used to sit below), so there is
+    // nothing left to derive. The old spelling is a `RETIREMENT_TABLE` hit
+    // (`src/remedy/retirement.rs`), not a registered scheme — DOOR 1
+    // (`check.rs`'s `k`-dispatch retirement-remedy check) fires on it directly.
     //
-    // `:wat::i64::+` and `:wat::core::i64::+` are ONE operation under two spellings
-    // while both live. This was the FOURTH hand-maintained name list the numerics
-    // rename broke (after `is_pure_total`, rete's `pure_det`, and rete's `total`) —
-    // so it does not restate 36 names. It takes the names from the registry that
-    // already holds them, and aliases each new spelling onto the OLD spelling's
-    // scheme. The scheme stays written exactly once; the two spellings cannot drift,
-    // because one IS the other.
-    //
-    // Retires at Stone C with the old names, when the `:wat::core::` half is deleted.
-    let numeric_aliases: Vec<(String, String)> = crate::intrinsic::registry()
-        .all_entries()
-        .filter_map(|e| {
-            let (fam, leaf) = e
-                .name
-                .strip_prefix(":wat::i64::")
-                .map(|l| ("i64", l))
-                .or_else(|| e.name.strip_prefix(":wat::f64::").map(|l| ("f64", l)))?;
-            // `max-of` / `min-of` are the ONE place where "same operation, two
-            // spellings" is FALSE, so they are the one place an alias would lie.
-            // Builder ruling 2026-08-26 — *"keep variadic - clojure is the
-            // destination"*: the new spelling takes N f64s, the old takes ONE
-            // Vector. Aliasing the old scheme onto the new name registered
-            // `expected 1 argument(s)` against a 4-argument call, and this loop
-            // surfaced that at CHECK time the moment it ran — which is the
-            // derivation earning its keep, not failing. They get their own
-            // variadic scheme below.
-            if leaf == "max-of" || leaf == "min-of" {
-                return None;
-            }
-            Some((format!(":wat::core::{fam}::{leaf}"), e.name.to_string()))
-        })
-        .collect();
-    for (old, new) in numeric_aliases {
-        if let Some(scheme) = env.get(&old).cloned() {
-            env.register(new, scheme);
-        }
-    }
-
-    // The two that are NOT aliases — VARIADIC under the new spelling (N f64s),
-    // where the `:wat::core::` spelling takes one Vector. Written out because they
-    // are genuinely a different signature, not a renaming of the same one.
+    // `max-of` / `min-of` were the one place "same operation, two spellings" was
+    // FALSE even while both lived — the new spelling is variadic (N f64s), the old
+    // took ONE Vector — so they were never aliased and keep their own scheme below.
     for op in [":wat::f64::max-of", ":wat::f64::min-of"] {
         env.register(
             op.to_string(),
@@ -21837,7 +21793,7 @@ mod tests {
 
     #[test]
     fn correct_arity_passes() {
-        assert!(check("(:wat::core::i64::+ 1 2)").is_ok());
+        assert!(check("(:wat::i64::+ 1 2)").is_ok());
         assert!(check("(:wat::core::not true)").is_ok());
         // Arc 225 Stone 225.1: narrow Atom only accepts HolonAST; use
         // to-holon for integer literals (the polymorphic UP verb).
@@ -21846,7 +21802,7 @@ mod tests {
 
     #[test]
     fn too_few_args_rejected() {
-        let err = check("(:wat::core::i64::+ 1)").unwrap_err();
+        let err = check("(:wat::i64::+ 1)").unwrap_err();
         assert!(err
             .0
             .iter()
@@ -21866,7 +21822,7 @@ mod tests {
 
     #[test]
     fn string_to_add_rejected() {
-        let err = check(r#"(:wat::core::i64::+ "hello" 3)"#).unwrap_err();
+        let err = check(r#"(:wat::i64::+ "hello" 3)"#).unwrap_err();
         assert!(err.0.iter().any(|e| matches!(e, CheckError { kind: CheckErrorKind::TypeMismatch { .. }, .. })));
     }
 
@@ -21877,7 +21833,7 @@ mod tests {
     /// carry coordinates" doctrine.
     #[test]
     fn type_mismatch_message_carries_span() {
-        let err = check(r#"(:wat::core::i64::+ "hello" 3)"#).unwrap_err();
+        let err = check(r#"(:wat::i64::+ "hello" 3)"#).unwrap_err();
         let rendered = format!("{}", err);
         // rune:lint(loose-assert) — variable Rust source file path embedded in error Display output (varies by build environment)
         assert!(
@@ -21889,7 +21845,7 @@ mod tests {
 
     #[test]
     fn bool_to_add_rejected() {
-        let err = check("(:wat::core::i64::+ true 3)").unwrap_err();
+        let err = check("(:wat::i64::+ true 3)").unwrap_err();
         assert!(err.0.iter().any(|e| matches!(e, CheckError { kind: CheckErrorKind::TypeMismatch { .. }, .. })));
     }
 
@@ -21921,10 +21877,10 @@ mod tests {
         // with UnknownCallee (not TypeMismatch). The key invariant preserved: the call
         // REJECTS at check time (check returns Err). Use per-Type primitive for unit tests
         // that need check-time type precision.
-        let result = check(r#"(:wat::core::i64::< 1 2)"#);
+        let result = check(r#"(:wat::i64::< 1 2)"#);
         assert!(result.is_ok(), "i64::< 1 2 should pass");
         // Per-type with wrong arg type still TypeMismatches:
-        let err = check(r#"(:wat::core::i64::< 1 "x")"#).unwrap_err();
+        let err = check(r#"(:wat::i64::< 1 "x")"#).unwrap_err();
         assert!(err.0.iter().any(|e| matches!(e, CheckError { kind: CheckErrorKind::TypeMismatch { .. }, .. })));
     }
 
@@ -21989,7 +21945,7 @@ mod tests {
     #[test]
     fn user_define_body_matches_signature() {
         assert!(check(
-            r#"(:wat::core::defn :my::app::add [x <- :wat::core::i64 y <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::+ x y))"#
+            r#"(:wat::core::defn :my::app::add [x <- :wat::core::i64 y <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::+ x y))"#
         )
         .is_ok());
     }
@@ -21997,7 +21953,7 @@ mod tests {
     #[test]
     fn user_define_body_wrong_return_rejected() {
         let err = check(
-            r#"(:wat::core::defn :my::app::add [x <- :i64 y <- :i64] -> :bool (:wat::core::i64::+ x y))"#,
+            r#"(:wat::core::defn :my::app::add [x <- :i64 y <- :i64] -> :bool (:wat::i64::+ x y))"#,
         )
         .unwrap_err();
         assert!(err.0.iter().any(|e| matches!(e, CheckError { kind: CheckErrorKind::ReturnTypeMismatch { .. }, .. })));
@@ -22031,7 +21987,7 @@ mod tests {
     #[test]
     fn typed_let_binding_matches_rhs() {
         assert!(check(
-            r#"(:wat::core::let [x 42] (:wat::core::i64::+ x 1))"#
+            r#"(:wat::core::let [x 42] (:wat::i64::+ x 1))"#
         )
         .is_ok());
     }
@@ -22043,7 +21999,7 @@ mod tests {
                  [x 1
                   y 2
                   z 3]
-                 (:wat::core::i64::+ (:wat::core::i64::+ x y) z))"#
+                 (:wat::i64::+ (:wat::i64::+ x y) z))"#
         )
         .is_ok());
     }
@@ -22057,7 +22013,7 @@ mod tests {
             r#"(:wat::core::let
                  [doubler
                    (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::i64
-                     (:wat::core::i64::+ x x))]
+                     (:wat::i64::+ x x))]
                  true)"#
         )
         .is_ok());
@@ -22102,7 +22058,7 @@ mod tests {
 
     #[test]
     fn multiple_errors_reported() {
-        let err = check(r#"(:wat::core::i64::+ "s" 1) (:wat::core::not 42)"#).unwrap_err();
+        let err = check(r#"(:wat::i64::+ "s" 1) (:wat::core::not 42)"#).unwrap_err();
         assert!(err.0.len() >= 2, "expected >=2 errors, got {}", err.0.len());
     }
 

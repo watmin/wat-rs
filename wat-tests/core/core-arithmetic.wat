@@ -120,8 +120,8 @@
 
 (:wat::test::deftest :wat-tests::core::core-arithmetic::typed-leaves-coexist
   
-  ;; Mirrors typed_strict_arithmetic_coexists: :wat::core::i64::+ (2-ary),
-  ;; :wat::core::f64::+ (2-ary), and :wat::core::+ (polymorphic 2-ary) all
+  ;; Mirrors typed_strict_arithmetic_coexists: :wat::i64::+ (2-ary),
+  ;; :wat::f64::+ (2-ary), and :wat::core::+ (polymorphic 2-ary) all
   ;; work alongside each other. Per arc 237.8b the typed leaves are strictly
   ;; 2-ary; variadic on the typed surface is ArityMismatch.
   (:wat::core::let

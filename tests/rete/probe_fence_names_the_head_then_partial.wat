@@ -1,4 +1,4 @@
-;; then-item fence: `(:wat::core::i64::/ ?c 1)` is pure and deterministic but NOT total.
+;; then-item fence: `(:wat::i64::/ ?c 1)` is pure and deterministic but NOT total.
 ;; The message must name the :total axis and the offending head.
 
 (:wat::core::defrecord :weather::Temperature [celsius <- :wat::core::i64  location <- :wat::core::String])

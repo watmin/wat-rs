@@ -20,7 +20,7 @@
 ;;
 ;; Ordering (`<`/`>`/`<=`/`>=`) is a relational check-side intrinsic (Stone 245.8),
 ;; the sibling of equality. The defclauses that formerly lived here are retired;
-;; the per-Type leaves (`:wat::core::i64::<` etc.) remain as the type-locked tier.
+;; the per-Type leaves (`:wat::i64::<` etc.) remain as the type-locked tier.
 ;;
 ;; Position in the stdlib array is not load-bearing for visibility:
 ;; register_stdlib_defmacros (src/macros/parse.rs) walks the entire
@@ -1505,7 +1505,7 @@
 ;; `<`/`>`/`<=`/`>=` are now a relational check-side intrinsic (`infer_ordering`
 ;; in src/check.rs), the sibling of `infer_equality`. The runtime dispatch arms
 ;; in `dispatch_keyword_head_value` (src/runtime.rs) route directly to `eval_compare`.
-;; The per-Type leaves (`:wat::core::i64::<`, `:wat::core::f64::<`, etc.) remain
+;; The per-Type leaves (`:wat::i64::<`, `:wat::f64::<`, etc.) remain
 ;; as the type-locked tier in Rust.
 
 ;; ─── Instinct-faithful ordering surface (Arc 251 Stone) ──────────────────────

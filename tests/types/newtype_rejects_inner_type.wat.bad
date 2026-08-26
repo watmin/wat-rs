@@ -1,4 +1,4 @@
 ;; newtype_rejects_inner_type.wat.bad — passing f64 where Price expected. Must FAIL.
 (:wat::core::newtype :my::trading::Price :wat::core::f64)
-(:wat::core::defn :my::trading::pretty [p <- :my::trading::Price] -> :wat::core::String (:wat::core::f64::to-string (:my::trading::Price/0 p)))
+(:wat::core::defn :my::trading::pretty [p <- :my::trading::Price] -> :wat::core::String (:wat::f64::to-string (:my::trading::Price/0 p)))
 (:wat::core::defn :my::probe [] -> :wat::core::String (:my::trading::pretty 100.0))

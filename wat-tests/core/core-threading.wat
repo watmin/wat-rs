@@ -21,8 +21,8 @@
 
 ;; ─── Thread-first: multi-arg list step ───────────────────────────────────
 ;;
-;; (-> 10 (:wat::core::i64::- 3)) expands to (:wat::core::i64::- 10 3) = 7.
-;; Hand-written equivalent: (:wat::core::i64::- 10 3).
+;; (-> 10 (:wat::i64::- 3)) expands to (:wat::i64::- 10 3) = 7.
+;; Hand-written equivalent: (:wat::i64::- 10 3).
 ;; Asserts: threaded result == hand-written result.
 
 (:wat::test::deftest :wat-tests::core::core-threading::thread-first-list-step
@@ -37,7 +37,7 @@
 ;; (-> 10 (i64::- 3) (i64::* 2))
 ;;   step 1: (i64::- 10 3) = 7
 ;;   step 2: (i64::* 7 2)  = 14
-;; Hand-written: (:wat::core::i64::* (:wat::core::i64::- 10 3) 2) = 14.
+;; Hand-written: (:wat::i64::* (:wat::i64::- 10 3) 2) = 14.
 
 (:wat::test::deftest :wat-tests::core::core-threading::thread-first-two-list-steps
   
@@ -50,9 +50,9 @@
 
 ;; ─── Thread-last: multi-arg list step ────────────────────────────────────
 ;;
-;; (->> 5 (:wat::core::i64::- 3)) expands to (:wat::core::i64::- 3 5) = -2.
+;; (->> 5 (:wat::i64::- 3)) expands to (:wat::i64::- 3 5) = -2.
 ;; Contrast with thread-first (10 - 3 = 7 vs 3 - 5 = -2).
-;; Hand-written equivalent: (:wat::core::i64::- 3 5).
+;; Hand-written equivalent: (:wat::i64::- 3 5).
 
 (:wat::test::deftest :wat-tests::core::core-threading::thread-last-list-step
   
@@ -66,7 +66,7 @@
 ;; (->> 1 (i64::+ 2) (i64::* 4))
 ;;   step 1: (i64::+ 2 1) = 3
 ;;   step 2: (i64::* 4 3) = 12
-;; Hand-written: (:wat::core::i64::* 4 (:wat::core::i64::+ 2 1)) = 12.
+;; Hand-written: (:wat::i64::* 4 (:wat::i64::+ 2 1)) = 12.
 
 (:wat::test::deftest :wat-tests::core::core-threading::thread-last-two-list-steps
   

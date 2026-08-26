@@ -2,7 +2,7 @@
 //! (arc 170 slice 1i; arc 278 IPC de-prime).
 //!
 //! Path exercised: a forked child whose body errors at RUNTIME (not a Rust
-//! panic). Integer division by zero — `(:wat::core::i64::/ 1 0)` — passes the
+//! panic). Integer division by zero — `(:wat::i64::/ 1 0)` — passes the
 //! type-checker but fails at child runtime, flowing through `apply_function` as
 //! `Err(RuntimeError)` (the Ok(Err(runtime)) arm of the forked child).
 //!

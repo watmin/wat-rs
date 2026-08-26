@@ -376,17 +376,11 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             | ":wat::core::-"
             | ":wat::core::*"
             | ":wat::core::/"
-            | ":wat::core::i64::+"
-            | ":wat::core::i64::-"
-            | ":wat::core::i64::*"
-            | ":wat::core::i64::/"
-            | ":wat::core::i64::to-string"
-            | ":wat::core::i64::to-f64"
-            // Arc 255 Stone A-i — `:wat::i64::*` is the new i64 home; every one of these
-            // forwards straight to the SAME `crate::runtime::eval_i64_arith` /
-            // `crate::runtime::eval_i64_to_{string,f64}` fns the `:wat::core::i64::*`
-            // spelling above already calls (see `src/intrinsic/i64.rs`'s module doc — "No
-            // arithmetic is re-implemented here"). Same ruling, new spelling, not debt.
+            // Arc 255 Stone C — `:wat::i64::*` is the i64 home (the old
+            // `:wat::core::i64::*` spelling is retired); every one of these forwards
+            // straight to `crate::runtime::eval_i64_arith` /
+            // `crate::runtime::eval_i64_to_{string,f64}` (see `src/intrinsic/i64.rs`'s
+            // module doc — "No arithmetic is re-implemented here").
             | ":wat::i64::+"
             | ":wat::i64::-"
             | ":wat::i64::*"
@@ -398,35 +392,25 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             | ":wat::core::bigint::-"
             | ":wat::core::bigint::*"
             | ":wat::core::bigint::/"
-            | ":wat::core::i64::to-bigint"
             | ":wat::core::bigint::to-f64"
-            // Arc 255 Stone A-i — same ruling as `:wat::core::i64::to-bigint` above.
+            // Arc 255 Stone C — i64→bigint promotion, i64 home spelling.
             | ":wat::i64::to-bigint"
             // Arc 300 stone C2 — rational arithmetic + conversions.
             | ":wat::core::rational::+"
             | ":wat::core::rational::-"
             | ":wat::core::rational::*"
             | ":wat::core::rational::/"
-            | ":wat::core::i64::to-rational"
-            // Arc 255 Stone A-i — same ruling as `:wat::core::i64::to-rational` above.
+            // Arc 255 Stone C — i64→rational promotion, i64 home spelling.
             | ":wat::i64::to-rational"
             | ":wat::core::bigint::to-rational"
             | ":wat::core::rational::to-f64"
             | ":wat::core::rational/numerator"
             | ":wat::core::rational/denominator"
-            | ":wat::core::f64::+"
-            | ":wat::core::f64::-"
-            | ":wat::core::f64::*"
-            | ":wat::core::f64::/"
-            | ":wat::core::f64::abs"
-            | ":wat::core::f64::max"
-            | ":wat::core::f64::min"
-            // Arc 255 Stone A-ii — `:wat::f64::*` is the new f64 home; every one of these
-            // forwards straight to the SAME `crate::runtime::eval_f64_arith` /
-            // `crate::runtime::eval_f64_unary` fns the `:wat::core::f64::*` spelling above
-            // already calls (see `src/intrinsic/f64.rs`'s module doc — the six arithmetic
-            // ops share the named `f64_*_op` fns, `abs`/`max`/`min` share the same engine
-            // fn). Same ruling, new spelling, not debt.
+            // Arc 255 Stone C — `:wat::f64::*` is the f64 home (the old
+            // `:wat::core::f64::*` spelling is retired); every one of these forwards
+            // straight to `crate::runtime::eval_f64_arith` / `crate::runtime::eval_f64_unary`
+            // (see `src/intrinsic/f64.rs`'s module doc — the six arithmetic ops share the
+            // named `f64_*_op` fns, `abs`/`max`/`min` share the same engine fn).
             | ":wat::f64::+"
             | ":wat::f64::-"
             | ":wat::f64::*"
@@ -551,41 +535,26 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
 
             // Per-Type COMPARISON leaves. `i64::+ - * /` were here; `i64::< > <= >=` were not —
             // an inconsistency inside one family, and the single most common thing a rule says.
-            | ":wat::core::i64::<"  | ":wat::core::i64::<=" | ":wat::core::i64::>" | ":wat::core::i64::>="
-            | ":wat::core::f64::<"  | ":wat::core::f64::<=" | ":wat::core::f64::>" | ":wat::core::f64::>="
+            // Arc 255 Stone C — `:wat::i64::*` / `:wat::f64::*` is the i64/f64 home (the old
+            // `:wat::core::{i64,f64}::*` spelling is retired). Each forwards to the same
+            // `crate::runtime::eval_compare` / `eval_i64_arith` / `eval_f64_compare` fns
+            // (`src/intrinsic/{i64,f64}.rs`).
+            | ":wat::i64::<"  | ":wat::i64::<=" | ":wat::i64::>" | ":wat::i64::>="
+            | ":wat::f64::<"  | ":wat::f64::<=" | ":wat::f64::>" | ":wat::f64::>="
             // per-type-equality-restored (2026-08-05) — `i64::=`/`i64::not=`/`f64::=`/
             // `f64::not=`, restored beside their ordering twins above (237.8d's cut
             // reversed). Same shape: a value operation over already-evaluated
             // arguments, no IO, no entropy, no mutation, same inputs -> same output.
-            | ":wat::core::i64::=" | ":wat::core::i64::not="
-            | ":wat::core::f64::=" | ":wat::core::f64::not="
-            // Per-Type integer division family (`i64::/` was already here; its siblings were not).
-            | ":wat::core::i64::mod" | ":wat::core::i64::quot" | ":wat::core::i64::rem"
-            // Arc 255 Stone A-i — `:wat::i64::*` new spellings of the ten comparison/
-            // equality/division-family verbs immediately above. Each forwards to the same
-            // `crate::runtime::eval_compare` / `eval_i64_arith` fns its `:wat::core::i64::*`
-            // twin calls (`src/intrinsic/i64.rs`); same ruling, new spelling, not debt.
-            | ":wat::i64::<"  | ":wat::i64::<=" | ":wat::i64::>" | ":wat::i64::>="
             | ":wat::i64::=" | ":wat::i64::not="
-            | ":wat::i64::mod" | ":wat::i64::quot" | ":wat::i64::rem"
-            // Arc 255 Stone A-ii — `:wat::f64::*` new spellings of the six comparison/
-            // equality verbs immediately above (`:wat::core::f64::{<,<=,>,>=,=,not=}`).
-            // Each forwards to the same `crate::runtime::eval_f64_compare` engine its
-            // `:wat::core::f64::*` twin calls (`src/intrinsic/f64.rs`); same ruling, new
-            // spelling, not debt.
-            | ":wat::f64::<"  | ":wat::f64::<=" | ":wat::f64::>" | ":wat::f64::>="
             | ":wat::f64::=" | ":wat::f64::not="
-            // f64 numeric readers/roundings — total functions of their argument.
-            | ":wat::core::f64::round" | ":wat::core::f64::clamp"
-            | ":wat::core::f64::max-of" | ":wat::core::f64::min-of"
-            | ":wat::core::f64::to-i64" | ":wat::core::f64::to-string"
-            // Arc 255 Stone A-ii — `:wat::f64::*` new spellings of the six readers/
-            // roundings immediately above. `round`/`clamp`/`to-i64`/`to-string` forward to
-            // the SAME `crate::runtime::eval_f64_{round,clamp,to_i64,to_string}` fns;
-            // `max-of`/`min-of` are variadic under the new spelling (bare args, not a
-            // single `Vector`) but reduce with the literal same `f64::max`/`f64::min` fn
-            // pointer their `:wat::core::f64::*` twin's `eval_f64_reduce` call uses — see
-            // `src/intrinsic/f64.rs`'s module doc. Same ruling, new spelling, not debt.
+            // Per-Type integer division family (`i64::/` was already here; its siblings were not).
+            | ":wat::i64::mod" | ":wat::i64::quot" | ":wat::i64::rem"
+            // f64 numeric readers/roundings — total functions of their argument. `round` /
+            // `clamp` / `to-i64` / `to-string` forward to the SAME
+            // `crate::runtime::eval_f64_{round,clamp,to_i64,to_string}` fns; `max-of` /
+            // `min-of` are variadic (bare args, not a single `Vector`) but reduce with the
+            // literal same `f64::max`/`f64::min` fn pointer — see
+            // `src/intrinsic/f64.rs`'s module doc.
             | ":wat::f64::round" | ":wat::f64::clamp"
             | ":wat::f64::max-of" | ":wat::f64::min-of"
             | ":wat::f64::to-i64" | ":wat::f64::to-string"
@@ -713,11 +682,11 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             | ":wat::core::not"
             | ":wat::core::if"
             | ":wat::core::let"
-            | ":wat::core::i64::>" | ":wat::i64::>"
-            | ":wat::core::i64::<" | ":wat::i64::<"
-            | ":wat::core::i64::>=" | ":wat::i64::>="
-            | ":wat::core::i64::<=" | ":wat::i64::<="
-            | ":wat::core::i64::to-f64" | ":wat::i64::to-f64"
+            | ":wat::i64::>"
+            | ":wat::i64::<"
+            | ":wat::i64::>="
+            | ":wat::i64::<="
+            | ":wat::i64::to-f64"
             // BRIEF-one-naming-rule-then-first-nth-to-string.md (2026-08-05) — `i64::to-string` /
             // `f64::to-string` / `bool::to-string`: verified by reading `eval_i64_to_string`
             // (`n.to_string()`) / `eval_f64_to_string` (`format!("{}", f)`, defined for NaN/±Inf/
@@ -727,15 +696,15 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             // the pure∧det block above, NOT here — the brief that asked for these rete rows named
             // it "already in the total list", which this file's own text did not support; grounded
             // and promoted here rather than trusted.
-            | ":wat::core::i64::to-string" | ":wat::i64::to-string"
-            | ":wat::core::f64::to-string" | ":wat::f64::to-string"
+            | ":wat::i64::to-string"
+            | ":wat::f64::to-string"
             | ":wat::core::bool::to-string"
             // per-type-equality-restored (2026-08-05) — `i64::=`/`i64::not=`: an
             // equality compare over i64 never raises, same class as the ordering
             // family immediately above.
-            | ":wat::core::i64::=" | ":wat::i64::="
-            | ":wat::core::i64::not=" | ":wat::i64::not="
-            | ":wat::core::f64::>" | ":wat::f64::>"
+            | ":wat::i64::="
+            | ":wat::i64::not="
+            | ":wat::f64::>"
             // BRIEF-the-f64-surface-is-a-stub.md Part A (2026-08-05) — `f64::<`/`f64::<=`/
             // `f64::>=` ADDED beside `f64::>`. Same warrant: each is a comparison whose OUTPUT
             // is a bool, never itself the undefined value, and `eval_f64_compare` is
@@ -743,15 +712,15 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             // any of the four fails to produce an ordinary bool. #52's own STOP-3 ("do not
             // widen the audit past entries already `true`") swept false-trues and never
             // revisited entries already `false`; these three were the mirror image it missed.
-            | ":wat::core::f64::<" | ":wat::f64::<"
-            | ":wat::core::f64::<=" | ":wat::f64::<="
-            | ":wat::core::f64::>=" | ":wat::f64::>="
+            | ":wat::f64::<"
+            | ":wat::f64::<="
+            | ":wat::f64::>="
             // per-type-equality-restored (2026-08-05) — `f64::=`/`f64::not=`: a
             // comparison, not arithmetic — `eval_f64_compare` returns a `bool` for any
             // two f64 inputs including NaN/±Inf (never raises), the same reasoning
             // `f64::>` (kept total) already uses immediately above.
-            | ":wat::core::f64::=" | ":wat::f64::="
-            | ":wat::core::f64::not=" | ":wat::f64::not="
+            | ":wat::f64::="
+            | ":wat::f64::not="
             | ":wat::core::PersistentVector/length"
             | ":wat::core::PersistentVector/contains?"
             | ":wat::core::PersistentVector/get"
@@ -1670,7 +1639,7 @@ pub(crate) fn is_deterministic_expr(ast: &WatAST, sym: &SymbolTable) -> bool {
 }
 
 /// Is `ast` domain-total (defined on all its inputs)? ARMED: `compile-condition` consults
-/// this as the third fence conjunct. `:wat::core::i64::/` is NOT (undefined at a zero
+/// this as the third fence conjunct. `:wat::i64::/` is NOT (undefined at a zero
 /// divisor, and separately at the one input pair that overflows i64).
 pub(crate) fn is_total_expr(ast: &WatAST, sym: &SymbolTable) -> bool {
     classify_expr(ast, &[Axis::Total], sym, &mut HashSet::new()).is_ok()

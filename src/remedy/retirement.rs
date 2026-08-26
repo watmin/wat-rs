@@ -59,6 +59,8 @@
 //! | `":wat::core::regex::matches?"`       | 255 | regex match predicate, junk-drawer home       | `:wat::regex::matches?` |
 //! | `":wat::core::List/of"`               | 255 | List constructor's redundant `/of` suffix     | `:wat::core::List` (finishing, not starting) |
 //! | `":wat::core::char/of"`               | 255 | char constructor's redundant `/of` suffix     | `:wat::core::char` (finishing, not starting) |
+//! | `":wat::core::i64::*"` (17 ops)       | 255 Stone C | per-type i64 verbs, junk-drawer home | `:wat::i64::*` |
+//! | `":wat::core::f64::*"` (19 ops)       | 255 Stone C | per-type f64 verbs, junk-drawer home | `:wat::f64::*` (`max-of`/`min-of` also change calling convention — see the table) |
 
 use super::{Remedy, RemedyKind};
 
@@ -165,6 +167,51 @@ const RETIREMENT_TABLE: &[RetirementEntry] = &[
         note: Some("finishing, not starting — every other collection type is already its own constructor") },
     RetirementEntry { retired: ":wat::core::char/of",               replacement: ":wat::core::char",
         note: Some("finishing, not starting — the type is already named `:wat::core::char`; the constructor drops the redundant `/of`") },
+    // Arc 255 Stone C — "the numerics get their homes": the per-type i64/f64 verbs
+    // move off the `:wat::core::` junk-drawer to their own top-level namespace
+    // (`:wat::i64::*` / `:wat::f64::*`), adjacent to `:wat::string::*`. Name-only;
+    // handler bodies untouched (DESIGN-STONE-the-numerics-get-their-homes.md).
+    // `max-of` / `min-of` are the one pair where the replacement ALSO changes
+    // calling convention: the retired form took a single `(Vector :- [f64])`
+    // argument; the replacement is variadic (`(:wat::f64::max-of 1.0 2.0 3.0)`).
+    RetirementEntry { retired: ":wat::core::i64::+",           replacement: ":wat::i64::+",           note: None },
+    RetirementEntry { retired: ":wat::core::i64::-",           replacement: ":wat::i64::-",           note: None },
+    RetirementEntry { retired: ":wat::core::i64::*",           replacement: ":wat::i64::*",           note: None },
+    RetirementEntry { retired: ":wat::core::i64::/",           replacement: ":wat::i64::/",           note: None },
+    RetirementEntry { retired: ":wat::core::i64::<",           replacement: ":wat::i64::<",           note: None },
+    RetirementEntry { retired: ":wat::core::i64::<=",          replacement: ":wat::i64::<=",          note: None },
+    RetirementEntry { retired: ":wat::core::i64::>",           replacement: ":wat::i64::>",           note: None },
+    RetirementEntry { retired: ":wat::core::i64::>=",          replacement: ":wat::i64::>=",          note: None },
+    RetirementEntry { retired: ":wat::core::i64::=",           replacement: ":wat::i64::=",           note: None },
+    RetirementEntry { retired: ":wat::core::i64::not=",        replacement: ":wat::i64::not=",        note: None },
+    RetirementEntry { retired: ":wat::core::i64::mod",         replacement: ":wat::i64::mod",         note: None },
+    RetirementEntry { retired: ":wat::core::i64::quot",        replacement: ":wat::i64::quot",        note: None },
+    RetirementEntry { retired: ":wat::core::i64::rem",         replacement: ":wat::i64::rem",         note: None },
+    RetirementEntry { retired: ":wat::core::i64::to-bigint",   replacement: ":wat::i64::to-bigint",   note: None },
+    RetirementEntry { retired: ":wat::core::i64::to-f64",      replacement: ":wat::i64::to-f64",      note: None },
+    RetirementEntry { retired: ":wat::core::i64::to-rational", replacement: ":wat::i64::to-rational", note: None },
+    RetirementEntry { retired: ":wat::core::i64::to-string",   replacement: ":wat::i64::to-string",   note: None },
+    RetirementEntry { retired: ":wat::core::f64::+",           replacement: ":wat::f64::+",           note: None },
+    RetirementEntry { retired: ":wat::core::f64::-",           replacement: ":wat::f64::-",           note: None },
+    RetirementEntry { retired: ":wat::core::f64::*",           replacement: ":wat::f64::*",           note: None },
+    RetirementEntry { retired: ":wat::core::f64::/",           replacement: ":wat::f64::/",           note: None },
+    RetirementEntry { retired: ":wat::core::f64::<",           replacement: ":wat::f64::<",           note: None },
+    RetirementEntry { retired: ":wat::core::f64::<=",          replacement: ":wat::f64::<=",          note: None },
+    RetirementEntry { retired: ":wat::core::f64::>",           replacement: ":wat::f64::>",           note: None },
+    RetirementEntry { retired: ":wat::core::f64::>=",          replacement: ":wat::f64::>=",          note: None },
+    RetirementEntry { retired: ":wat::core::f64::=",           replacement: ":wat::f64::=",           note: None },
+    RetirementEntry { retired: ":wat::core::f64::not=",        replacement: ":wat::f64::not=",        note: None },
+    RetirementEntry { retired: ":wat::core::f64::abs",         replacement: ":wat::f64::abs",         note: None },
+    RetirementEntry { retired: ":wat::core::f64::clamp",       replacement: ":wat::f64::clamp",       note: None },
+    RetirementEntry { retired: ":wat::core::f64::max",         replacement: ":wat::f64::max",         note: None },
+    RetirementEntry { retired: ":wat::core::f64::max-of",      replacement: ":wat::f64::max-of",
+        note: Some("calling convention changed, not just the name: the retired form took a single `(Vector :- [f64])` argument; `:wat::f64::max-of` is variadic — `(:wat::f64::max-of 1.0 2.0 3.0)`, no Vector wrapper") },
+    RetirementEntry { retired: ":wat::core::f64::min",         replacement: ":wat::f64::min",         note: None },
+    RetirementEntry { retired: ":wat::core::f64::min-of",      replacement: ":wat::f64::min-of",
+        note: Some("calling convention changed, not just the name: the retired form took a single `(Vector :- [f64])` argument; `:wat::f64::min-of` is variadic — `(:wat::f64::min-of 1.0 2.0 3.0)`, no Vector wrapper") },
+    RetirementEntry { retired: ":wat::core::f64::round",       replacement: ":wat::f64::round",       note: None },
+    RetirementEntry { retired: ":wat::core::f64::to-i64",      replacement: ":wat::f64::to-i64",      note: None },
+    RetirementEntry { retired: ":wat::core::f64::to-string",   replacement: ":wat::f64::to-string",   note: None },
 ];
 
 /// Look up `needle` in the retirement table.

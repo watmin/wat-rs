@@ -1,2 +1,2 @@
 {"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"eval","arguments":{"edn":"(:usr::nope 1)"}}}
-{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"eval","arguments":{"edn":"(:wat::core::i64::+ 3 4)"}}}
+{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"eval","arguments":{"edn":"(:wat::i64::+ 3 4)"}}}

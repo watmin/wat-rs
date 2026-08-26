@@ -8,7 +8,7 @@
 //!
 //! WAS a disconfirming probe pinning that the form did not exist. NOW it is the acceptance gate
 //! for THE MEMBRANE: the fixture declares `:probe::declared` with a body that is deliberately a
-//! NON-rete op (`:wat::core::i64::>`, not the `:wat::rete::i64::>` RETE_OPS row) — the
+//! NON-rete op (`:wat::i64::>`, not the `:wat::rete::i64::>` RETE_OPS row) — the
 //! exact "reproduced live" shape DESIGN-STONE-the-rete-defn.md opens with. That declaration must
 //! be refused AT LOAD, with a located error naming `:probe::declared` directly — the inversion
 //! the whole stone exists for (today's `where`-clause failure used to name the calling RULE).
@@ -32,7 +32,7 @@ const CONTROL: &str = "tests/rete/probe_arc278_rete_defn_gap_control.wat";
 #[test]
 fn rete_defn_with_non_rete_body_refused_at_definition() {
     let err = startup_from_file(GAP).expect_err(
-        "(:wat::rete::core::defn :probe::declared …) has a non-rete body (:wat::core::i64::>) — \
+        "(:wat::rete::core::defn :probe::declared …) has a non-rete body (:wat::i64::>) — \
          the definition-site check must refuse to load this file",
     );
     // The definition-site check runs post-registration (`freeze::env::build_env`'s step

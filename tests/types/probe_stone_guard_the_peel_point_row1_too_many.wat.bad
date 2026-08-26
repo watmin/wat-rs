@@ -11,5 +11,5 @@
 
 (:wat::core::defn :t::too_many [] -> (:wat::core::Result :- [:wat::core::i64 :wat::core::EvalError])
   (:wat::core::let
-    [program (:wat::core::quote (:wat::core::i64::+ 40 2))]
+    [program (:wat::core::quote (:wat::i64::+ 40 2))]
     (:wat::eval-ast! :- [:wat::core::i64 :wat::core::String :wat::core::bool] program)))

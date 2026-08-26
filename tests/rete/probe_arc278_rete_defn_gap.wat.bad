@@ -5,20 +5,21 @@
 ;; the SECOND half of the stone — THE MEMBRANE — by exercising it directly rather than the
 ;; (now-closed) missing-form gap:
 ;;
-;; form #2's body is deliberately a NON-rete op (`:wat::core::i64::>`, the CORE spelling,
-;; not the `:wat::rete::core::i64::>` RETE_OPS row) — the exact "reproduced live" shape
-;; DESIGN-STONE-the-rete-defn.md opens with. A `(:wat::rete::core::defn …)` declaration
-;; checks its body AT THE DEFINITION SITE against law A (only rete primitives / other
-;; rete-defns) plus pure ∧ deterministic ∧ total; `:wat::core::i64::>` fails law A, so this
-;; file must be REFUSED AT LOAD, with a located error naming `:probe::declared` — the
-;; declared helper itself, not some caller. See EXPECTATIONS-rete-defn.md rows 2 and 3.
+;; form #2's body is deliberately a NON-rete op (`:wat::i64::>`, the top-level i64-home
+;; spelling arc 255 Stone C left this — the plain wat spelling, NOT the `:wat::rete::i64::>`
+;; RETE_OPS row) — the exact "reproduced live" shape DESIGN-STONE-the-rete-defn.md opens
+;; with. A `(:wat::rete::core::defn …)` declaration checks its body AT THE DEFINITION SITE
+;; against law A (only rete primitives / other rete-defns) plus pure ∧ deterministic ∧
+;; total; `:wat::i64::>` fails law A, so this file must be REFUSED AT LOAD, with a located
+;; error naming `:probe::declared` — the declared helper itself, not some caller. See
+;; EXPECTATIONS-rete-defn.md rows 2 and 3.
 ;;
 ;; Its non-vacuity control is the sibling `probe_arc278_rete_defn_gap_control.wat`:
 ;; byte-identical minus form #2, and it MUST load. Without that control this fixture
 ;; would prove only "some line is bad", not "exactly this declaration is what's refused".
 ;;
 ;; MUTATION (both directions, proven by hand — see the rider's report): repoint form #2's
-;; body back to `:wat::rete::core::i64::>` (rete-clean) and the file loads clean — RED ⇄
+;; body back to `:wat::rete::i64::>` (rete-clean) and the file loads clean — RED ⇄
 ;; GREEN, both ways, by mutation, exactly as EXPECTATIONS' "gate that cannot go red" trap
 ;; door warns against shipping without.
 
@@ -28,7 +29,7 @@
 
 ;; ── form #2 — THE MEMBRANE'S REFUSAL. Same signature, a NON-rete body. Refused at load. ──
 (:wat::rete::core::defn :probe::declared [n <- :wat::core::i64] -> :wat::core::bool
-  (:wat::core::i64::> n 100))
+  (:wat::i64::> n 100))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::kernel::println (:probe::ordinary 42)))

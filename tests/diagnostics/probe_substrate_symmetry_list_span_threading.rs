@@ -46,9 +46,15 @@ fn every_dispatch_arm_calling_eval_threads_list_span() {
 
     // Sanity check: the dispatch table is large; if parsing returned a
     // tiny count, something is wrong with the parser (not the substrate).
+    // Arc 255 Stone C — the old `:wat::core::{i64,f64}::*` per-type numeric
+    // arms (36 ops' worth of match arms) were DELETED from this table (the
+    // surviving `:wat::{i64,f64}::*` spelling dispatches through the
+    // registry-first door above the match instead), lowering the count from
+    // ~354 to ~318. The floor drops with it — 300 still catches a genuinely
+    // broken parser without re-triggering on this intentional shrinkage.
     assert!(
-        arms.len() >= 350,
-        "parser sanity: expected at least 350 dispatch arms; got {}. \
+        arms.len() >= 300,
+        "parser sanity: expected at least 300 dispatch arms; got {}. \
          Investigate the parser before trusting the symmetry verdict.",
         arms.len()
     );

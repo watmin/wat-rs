@@ -261,8 +261,8 @@
 ;;   pattern:     the matched condition's fact-type FQDN (e.g. "weather::Temperature").
 ;;   bindings:    per-step bound vars: only the variables this condition bound.
 ;;   constraints: the rule's satisfied predicates with bound values substituted.
-;;                Rendered as WatAST, e.g. (:wat::rete::core::i64::< -5 0) from
-;;                (:wat::rete::core::i64::< ?c 0) with ?c=-5.
+;;                Rendered as WatAST, e.g. (:wat::i64::< -5 0) from
+;;                (:wat::i64::< ?c 0) with ?c=-5.
 ;; EPHEMERAL — produced by explain; never serialized.
 (:wat::core::defrecord :wat::rete::DerivationStep
   [supporting  <- :wat::rete::DerivationNode

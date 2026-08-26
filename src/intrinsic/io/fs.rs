@@ -138,7 +138,7 @@ pub(crate) fn eval_io_temp_file_new(
 /// @Category      Projection
 /// @arg     temp_file :wat::io::TempFile the temp file handle to read the path from
 /// @ret     :wat::core::String the temp file's on-disk path
-/// @example (:wat::core::i64::> (:wat::string::length (:wat::io::TempFile/path (:wat::io::TempFile/new))) 0) #=> true
+/// @example (:wat::i64::> (:wat::string::length (:wat::io::TempFile/path (:wat::io::TempFile/new))) 0) #=> true
 // Registered `TypeScheme` — `check.rs:15955` — gate LIVE.
 //
 // Deciding line for `@Category Projection`: `src/io.rs:1722`
@@ -214,7 +214,7 @@ pub(crate) fn eval_io_temp_dir_new(
 /// @Category      Projection
 /// @arg     temp_dir :wat::io::TempDir the temp dir handle to read the path from
 /// @ret     :wat::core::String the temp dir's on-disk path
-/// @example (:wat::core::i64::> (:wat::string::length (:wat::io::TempDir/path (:wat::io::TempDir/new))) 0) #=> true
+/// @example (:wat::i64::> (:wat::string::length (:wat::io::TempDir/path (:wat::io::TempDir/new))) 0) #=> true
 // Registered `TypeScheme` — `check.rs:15973` — gate LIVE.
 //
 // Deciding line for `@Category Projection`: `src/io.rs:1751`

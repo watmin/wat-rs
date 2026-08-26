@@ -4,5 +4,5 @@
 (:wat::core::defclause :my::bad
   ([x <- :wat::core::i64] -> :wat::core::i64
     :ensure (:wat::core::fn [result <- :wat::core::i64] -> :wat::core::i64
-              (:wat::core::i64::+ result 1))
+              (:wat::i64::+ result 1))
     x))

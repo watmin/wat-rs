@@ -49,7 +49,7 @@
 ;;
 ;;   run:  wat --repl
 ;;   then: type a form per line —
-;;           (:wat::core::defn :usr::double [n <- :wat::core::i64] -> :wat::core::i64 (:wat::core::i64::* n 2))
+;;           (:wat::core::defn :usr::double [n <- :wat::core::i64] -> :wat::core::i64 (:wat::i64::* n 2))
 ;;           (:usr::double 21)
 ;;
 ;; EOF STOPS CLEANLY. `read-frame` hands EOF back as a VALUE (`ReadFrameOutcome::Eof`), so

@@ -6,7 +6,7 @@
   [& params <- (:wat::core::Vector :- [:wat::WatAST])]
   -> :wat::WatAST
   `(:wat::core::fn [~@params] -> :wat::core::i64
-      (:wat::core::i64::+ a b)))
+      (:wat::i64::+ a b)))
 
 (:wat::core::defn :my::adder [] -> [:wat::core::i64 :wat::core::i64 :-> :wat::core::i64]
   (:my::make-adder a <- :wat::core::i64 b <- :wat::core::i64))

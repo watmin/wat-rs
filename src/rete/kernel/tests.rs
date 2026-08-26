@@ -647,7 +647,7 @@ const NODE_SHARE_WORLD: &str = "\
                                     (:wat::rete::i64::* (:wat::rete::i64::/ ?k (:wat::core::unquote n) :undefined 0) (:wat::core::unquote n) :undefined 0)\n\
                                     :undefined 0))))\n\
                     ins     (:wat::core::quasiquote (:nsh::Out ?k))]\n\
-    (:wat::rete::Rule :name (:wat::core::i64::to-string i)\n\
+    (:wat::rete::Rule :name (:wat::i64::to-string i)\n\
       :lhs (:wat::core::PersistentVector a-c b-c where-c)\n\
       :rhs (:wat::core::PersistentVector ins))))\n\
 \n\
@@ -826,8 +826,8 @@ const ACCUM_AXIS_WORLD: &str = "\
   :then [(:apx::ExistsF ?g)])\n\
 \n\
 (:wat::core::defn :apx::val [g <- :wat::core::i64  j <- :wat::core::i64] -> :wat::core::i64\n\
-  (:wat::core::let [x (:wat::core::i64::+ (:wat::core::i64::* g 31) (:wat::core::i64::* j 17))]\n\
-    (:wat::core::i64::- x (:wat::core::i64::* (:wat::core::i64::/ x 1000) 1000))))\n\
+  (:wat::core::let [x (:wat::i64::+ (:wat::i64::* g 31) (:wat::i64::* j 17))]\n\
+    (:wat::i64::- x (:wat::i64::* (:wat::i64::/ x 1000) 1000))))\n\
 \n\
 (:wat::core::defn :apx::seed-readings [session <- :wat::rete::Session  g <- :wat::core::i64  w <- :wat::core::i64] -> :wat::rete::Session\n\
   (:wat::core::foldl\n\
@@ -1124,8 +1124,8 @@ fn node_share_where_cost_decomposition() {
     // would resolve to. Identical node count, identical operators, ZERO name lookups: the
     // identity control that separates "the interpreter's per-node dispatch" from "resolving a
     // ?var through the Environment" inside the walk.
-    let const_src = "(:wat::core::= 7 (:wat::core::i64::- 9 \
-               (:wat::core::i64::* (:wat::core::i64::/ 9 50) 50)))";
+    let const_src = "(:wat::core::= 7 (:wat::i64::- 9 \
+               (:wat::i64::* (:wat::i64::/ 9 50) 50)))";
     let const_expr = crate::parse_one!(const_src).expect("parse the var-free control predicate");
     // The control must actually EVALUATE, or arm D measures an error path, not a walk.
     assert!(
@@ -2483,12 +2483,12 @@ const DEPTH_SPLIT_WORLD: &str = "\
 (:wat::core::defrecord :cascade::Tag  [level <- :wat::core::i64  id <- :wat::core::i64])\n\
 \n\
 (:wat::core::defn :dc::build-rule [k <- :wat::core::i64] -> :wat::rete::Rule\n\
-  (:wat::core::let [prev (:wat::core::i64::- k 1)\n\
+  (:wat::core::let [prev (:wat::i64::- k 1)\n\
                     c1 (:wat::core::quasiquote (:cascade::Node (?id <- :id) (?l <- :level) (:wat::rete::i64::= ?l (:wat::core::unquote prev))))\n\
                     c2 (:wat::core::quasiquote (:cascade::Tag  (?id <- :id) (?m <- :level) (:wat::rete::i64::= ?m (:wat::core::unquote prev))))\n\
                     t1 (:wat::core::quasiquote (:cascade::Node (:wat::core::unquote k) ?id))\n\
                     t2 (:wat::core::quasiquote (:cascade::Tag  (:wat::core::unquote k) ?id))]\n\
-    (:wat::rete::Rule :name (:wat::core::i64::to-string k)\n\
+    (:wat::rete::Rule :name (:wat::i64::to-string k)\n\
       :lhs (:wat::core::PersistentVector c1 c2)\n\
       :rhs (:wat::core::PersistentVector t1 t2))))\n\
 \n\
@@ -2497,7 +2497,7 @@ const DEPTH_SPLIT_WORLD: &str = "\
     (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::rete::Rule])  k <- :wat::core::i64] -> (:wat::core::PersistentVector :- [:wat::rete::Rule])\n\
       (:wat::core::PersistentVector/conj acc (:dc::build-rule k)))\n\
     (:wat::core::PersistentVector (:dc::build-rule 1))\n\
-    (:wat::core::range 2 (:wat::core::i64::+ depth 1))))\n\
+    (:wat::core::range 2 (:wat::i64::+ depth 1))))\n\
 \n\
 (:wat::core::defn :dc::seed-level-0 [session <- :wat::rete::Session  width <- :wat::core::i64] -> :wat::rete::Session\n\
   (:wat::core::foldl\n\
@@ -3171,7 +3171,7 @@ fn scoped_work_with_overlay_reuses_one_build() {
   (:wat::core::fn [overlay <- :wat::rete::Overlay] -> :wat::core::i64\n\
     (:wat::core::foldl\n\
       (:wat::core::fn [acc <- :wat::core::i64  loc <- :wat::core::String] -> :wat::core::i64\n\
-        (:wat::core::i64::+ acc\n\
+        (:wat::i64::+ acc\n\
           (:wat::core::length (:wat::rete::query (overlay (:sw::facts-for loc)) (:sw::q-match)))))\n\
       0\n\
       (:wat::core::Vector :- [:wat::core::String] \"fileA\" \"fileB\" \"fileC\"))))";

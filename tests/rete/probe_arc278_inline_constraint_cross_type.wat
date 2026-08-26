@@ -1,6 +1,6 @@
 ;; NEGATIVE FIXTURE — per-type `i64::>` on a String field.
 ;;
-;; `(:wat::rete::core::i64::> :location 10)` sits inside a fact pattern.
+;; `(:wat::rete::i64::> :location 10)` sits inside a fact pattern.
 ;; Freeze wall (`validate.rs` ConstraintTypeMismatch) refuses at compile.
 ;; See DESIGN-STONE-inline-constraint-admits-non-rete.md.
 

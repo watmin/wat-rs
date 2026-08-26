@@ -11,7 +11,7 @@
 ;;
 ;; Arith is binary: `(* 2 pi (/ v p))` becomes nested binary
 ;; `(:wat::core::*` + `:wat::core::/)` calls. Polymorphic forms used;
-;; the typed-strict `:wat::core::f64::*` and `:wat::core::f64::/`
+;; the typed-strict `:wat::f64::*` and `:wat::f64::/`
 ;; remain available when callers want the type-guard behavior.
 ;; `:wat::std::math::pi` is a nullary primitive called as
 ;; `(:wat::std::math::pi)`; let bindings carry explicit

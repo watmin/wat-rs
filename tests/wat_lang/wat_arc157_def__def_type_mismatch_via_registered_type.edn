@@ -4,20 +4,20 @@
   :causes []
   :errors [
     #wat.check/TypeMismatch {
-      :message ":wat::core::i64::+: parameter #1 expects :wat::core::i64; got :wat::core::f64"
+      :message ":wat::i64::+: parameter #1 expects :wat::core::i64; got :wat::core::f64"
       :location #wat.core/Span {
         :file "tests/wat_lang/wat_arc157_def_type_mismatch.wat.bad"
         :line 3
-        :col 71
+        :col 65
         :end #wat.core.Option/Some [
           #wat.core/Pos {
             :line 3
-            :col 77
+            :col 71
           }
         ]
       }
       :causes []
-      :callee ":wat::core::i64::+"
+      :callee ":wat::i64::+"
       :param "#1"
       :expected ":wat::core::i64"
       :got ":wat::core::f64"

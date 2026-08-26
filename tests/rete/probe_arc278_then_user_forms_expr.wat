@@ -1,6 +1,6 @@
 ;; tests/rete/probe_arc278_then_user_forms_expr.wat — Stone B widening (b) GREEN world.
 ;; Loaded via startup_from_file. `:then`'s value-position operand is a fenced EXPRESSION
-;; (`(:wat::rete::core::i64::+ ?n 1 :undefined 0)`) composed of an admitted rete op — the brief's own
+;; (`(:wat::rete::i64::+ ?n 1 :undefined 0)`) composed of an admitted rete op — the brief's own
 ;; headline example (BRIEF-then-user-forms.md's opening code block). The item HEAD stays a plain
 ;; fact-type constructor (`:tf::Rate`) — this fixture exercises widening (b) ALONE.
 

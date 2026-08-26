@@ -3,6 +3,6 @@
 
 (:wat::core::defclause :my::bad
   ([x <- :wat::core::i64]
-    :guard (:wat::core::i64::> x 0)
-    :guard (:wat::core::i64::< x 100)
+    :guard (:wat::i64::> x 0)
+    :guard (:wat::i64::< x 100)
     -> :wat::core::i64 x))

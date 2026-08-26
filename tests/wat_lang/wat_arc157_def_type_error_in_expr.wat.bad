@@ -1,4 +1,4 @@
 ;; Negative fixture: test 4 — type error in def's expr (String where i64 expected).
 (:wat::core::defn :t::helper [x <- :wat::core::i64] -> :wat::core::i64
-  (:wat::core::i64::+ x 1))
+  (:wat::i64::+ x 1))
 (:wat::core::def :t::bad (:t::helper "not-an-int"))

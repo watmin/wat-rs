@@ -12,7 +12,7 @@
 
 ;; Probe 2 — runtime-built keyword dispatched via apply (result 5)
 (:wat::core::defn :user::probe-2 [] -> :wat::core::i64
-  (:wat::core::let [plus (:wat::core::keyword/from-string "wat::core::i64::+")]
+  (:wat::core::let [plus (:wat::core::keyword/from-string "wat::i64::+")]
     (:wat::core::apply  plus [2 3])))
 
 ;; Probe 3 — mangled-namespace user defn via apply (result "hello world")

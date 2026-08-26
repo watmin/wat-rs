@@ -17,56 +17,59 @@
 //! Every handler below is a thin `#[wat_intrinsic]` shim that calls straight
 //! into those (now `pub(crate)`) fns.
 //!
-//! ## ⛔ Nothing is retired this stone
+//! ## Arc 255 Stone C — the old spelling is retired
 //!
-//! `:wat::core::f64::*` keeps working exactly as before — its dispatch arm in
-//! `runtime.rs` (`dispatch_keyword_head_value`'s giant match) and the
-//! separate substrate-addressed table (`dispatch_substrate_impl` /
-//! `arith_f64_f64_inner`) are both untouched in shape; only the OLD arm's six
-//! inline arithmetic closures (`+ - * / max min`) were factored into six
-//! named `f64_*_op` fns this stone also introduces, so both spellings share
-//! ONE implementation of each op (never two copies of a float contract that
-//! must agree forever). 331 call sites still spell the old name; they
-//! migrate in Stone B, and the old names die in Stone C. This module ADDS a
-//! second address for the same 19 behaviors — it deletes nothing.
+//! Through Stone B, `:wat::core::f64::*` kept working exactly as before —
+//! this module ADDED a second address for the same 19 behaviors, deleting
+//! nothing; its dispatch arm in `runtime.rs` (`dispatch_keyword_head_value`'s
+//! giant match) and the separate substrate-addressed table
+//! (`dispatch_substrate_impl` / `arith_f64_f64_inner`) carried the OLD arm's
+//! six inline arithmetic closures (`+ - * / max min`) factored into six named
+//! `f64_*_op` fns, so both spellings shared ONE implementation of each op.
+//! Stone C deletes the OLD half: those `runtime.rs` arms are gone,
+//! `dispatch_substrate_impl`'s match keys are the new spelling directly, and
+//! `:wat::core::f64::*` is now a `RETIREMENT_TABLE` hit
+//! (`src/remedy/retirement.rs`) — a check-time error naming this module's
+//! spelling as the remedy. The shared `f64_*_op` fns this module's handlers
+//! call are untouched; only their OLD callers in `runtime.rs` are gone.
 //!
 //! `:wat::core::+` — the polymorphic generic — is untouched; only the
-//! per-type spelling moves.
+//! per-type spelling moved.
 //!
-//! ## The two shapes i64 did not have to solve
+//! ## The shape i64 did not have to solve
 //!
-//! **`max-of` / `min-of` are VARIADIC here, unlike their `:wat::core::f64::*`
-//! twins.** The OLD `:wat::core::f64::max-of` takes exactly ONE argument — a
-//! `(Vector :- [f64])` — and reduces its elements (`eval_f64_reduce`,
-//! `runtime.rs`). The brief's live examples for the variadic shape
-//! (`intrinsic/list.rs`'s `:wat::core::List`, `intrinsic/string.rs`'s
-//! `:wat::string::concat`) both take bare args directly, not a
-//! pre-constructed collection — so the NEW `:wat::f64::max-of` follows THAT
-//! convention: `(:wat::f64::max-of 1.0 2.0 3.0)`, no `Vector` wrapper. The
-//! two spellings therefore have genuinely different calling conventions, not
-//! just different names — but they do NOT duplicate the float contract:
-//! both reduce with the literal same Rust fn value, `f64::max` / `f64::min`
-//! (see `eval_f64_reduce`'s dispatch call in `runtime.rs` and
+//! **`max-of` / `min-of` are VARIADIC here, unlike the retired
+//! `:wat::core::f64::*` spelling's single-`Vector`-argument shape** (the OLD
+//! `:wat::core::f64::max-of` took exactly ONE `(Vector :- [f64])` and reduced
+//! its elements via `eval_f64_reduce`, `runtime.rs`). The brief's live
+//! examples for the variadic shape (`intrinsic/list.rs`'s `:wat::core::List`,
+//! `intrinsic/string.rs`'s `:wat::string::concat`) both take bare args
+//! directly, not a pre-constructed collection — so `:wat::f64::max-of`
+//! follows THAT convention: `(:wat::f64::max-of 1.0 2.0 3.0)`, no `Vector`
+//! wrapper. The two spellings had genuinely different calling conventions,
+//! not just different names — but never duplicated the float contract: both
+//! reduced with the literal same Rust fn value, `f64::max` / `f64::min` (see
 //! `f64_variadic_reduce` below — same fn pointer, not a re-implementation of
-//! "what does max mean for two f64s, including NaN"). What differs between
-//! them is genuinely-different plumbing (how the elements are gathered),
-//! which is exactly the class of duplication Stone A-i already accepted for
+//! "what does max mean for two f64s, including NaN"). What differed between
+//! them was genuinely-different plumbing (how the elements are gathered),
+//! the same class of duplication Stone A-i already accepted for
 //! `eval_compare`'s `|o| o == Ordering::Less` predicates — a shape mismatch
 //! in the harness, not two copies of an algorithm.
 //!
-//! Both empty-input contracts agree too: zero elements → `None` (never an
-//! error) — the OLD reduce's own documented rationale ("max/min of an empty
-//! set are undefined") carried over verbatim to the new variadic form.
+//! Zero elements → `None` (never an error) — the OLD reduce's own documented
+//! rationale ("max/min of an empty set are undefined") carried over verbatim
+//! to the variadic form.
 //!
 //! `eval_f64_round` / `eval_f64_clamp` / `eval_f64_to_i64` /
-//! `eval_f64_to_string` each hardcode their `:wat::core::f64::*` op name as
-//! an internal `const OP`, exactly like i64's `eval_i64_to_{string,f64,
-//! bigint,rational}` did — NOT parameterized by caller. Stone A-i left this
-//! as-is for its four conversions rather than touching working code beyond
-//! what the stone needs, and this stone follows the same precedent: a
-//! TypeMismatch/MalformedForm raised through `:wat::f64::round` (etc.) will
-//! report `:op ":wat::core::f64::round"`, not the spelling the caller
-//! actually used. See the report's "what the brief got wrong" section.
+//! `eval_f64_to_string` took their op name as an internal hardcoded
+//! `const OP` through Stone B — harmless while both spellings resolved to the
+//! same name's error text, exactly like i64's `eval_i64_to_{string,f64,
+//! bigint,rational}` did. Stone C makes `op` a caller-supplied PARAMETER on
+//! all eight of these fns (the four here, the four in `i64.rs`) instead: a
+//! TypeMismatch/MalformedForm raised through `:wat::f64::round` now reports
+//! `:op ":wat::f64::round"`, the spelling the caller actually used — the old
+//! constant would otherwise have named a retired spelling that no longer
+//! resolves to anything.
 
 use wat_macros::wat_intrinsic;
 
@@ -80,13 +83,13 @@ use crate::value::{
 //
 // Each handler clones its two `&WatAST` args into a 2-element array and
 // forwards to `crate::runtime::eval_f64_arith` — the EXACT arity-check /
-// type-check / dispatch fn the old `:wat::core::f64::*` arm calls — with the
+// type-check / dispatch fn the old `:wat::f64::*` arm calls — with the
 // SAME named op fn (`crate::runtime::f64_add_op` etc.) the old arm now also
 // calls. No arithmetic is re-implemented here.
 
 /// `(:wat::f64::+ a b)` → the sum of `a` and `b`, strict f64 (no promotion
 /// from i64). IEEE 754 throughout: never raises — a finite result overflows
-/// to `±Inf`, never an error — via the SAME shared op fn `:wat::core::f64::+`
+/// to `±Inf`, never an error — via the SAME shared op fn `:wat::f64::+`
 /// calls.
 ///
 /// @added         1.0.0
@@ -110,7 +113,7 @@ pub(crate) fn eval_f64_add(
 }
 
 /// `(:wat::f64::- a b)` → `a` minus `b`, strict f64. Same shared op fn as
-/// `:wat::core::f64::-`.
+/// `:wat::f64::-`.
 ///
 /// @added         1.0.0
 /// @Purity        Pure
@@ -133,7 +136,7 @@ pub(crate) fn eval_f64_sub(
 }
 
 /// `(:wat::f64::* a b)` → `a` times `b`, strict f64. Same shared op fn as
-/// `:wat::core::f64::*`.
+/// `:wat::f64::*`.
 ///
 /// @added         1.0.0
 /// @Purity        Pure
@@ -157,7 +160,7 @@ pub(crate) fn eval_f64_mul(
 
 /// `(:wat::f64::/ a b)` → `a` divided by `b`. IEEE 754 division: `b = 0.0`
 /// produces `±Inf` or `NaN`, never a runtime error (only `:wat::i64::/`
-/// raises on division by zero). Same shared op fn as `:wat::core::f64::/`.
+/// raises on division by zero). Same shared op fn as `:wat::f64::/`.
 ///
 /// @added         1.0.0
 /// @Purity        Pure
@@ -187,7 +190,7 @@ pub(crate) fn eval_f64_div(
 
 /// `(:wat::f64::max a b)` → the larger of `a` and `b` (`f64::max`, so a NaN
 /// operand loses to a non-NaN one — IEEE 754 `maxNum`). Same shared op fn as
-/// `:wat::core::f64::max`.
+/// `:wat::f64::max`.
 ///
 /// @added         1.0.0
 /// @Purity        Pure
@@ -210,7 +213,7 @@ pub(crate) fn eval_f64_max(
 }
 
 /// `(:wat::f64::min a b)` → the smaller of `a` and `b` (`f64::min`, IEEE 754
-/// `minNum`). Same shared op fn as `:wat::core::f64::min`.
+/// `minNum`). Same shared op fn as `:wat::f64::min`.
 ///
 /// @added         1.0.0
 /// @Purity        Pure
@@ -235,7 +238,7 @@ pub(crate) fn eval_f64_min(
 // ─── comparisons: < <= > >= = not= ─────────────────────────────────────────
 //
 // `crate::runtime::eval_f64_compare` is the SAME engine
-// `:wat::core::f64::{<,<=,>,>=,=,not=}` calls (already NaN-correct — IEEE 754
+// `:wat::f64::{<,<=,>,>=,=,not=}` calls (already NaN-correct — IEEE 754
 // falls out of a bare `a < b` / `a == b` with no special-casing). Each
 // predicate closure below is trivial (not an algorithm) and is duplicated
 // the same way `src/intrinsic/i64.rs` duplicates `eval_compare`'s Ordering
@@ -398,7 +401,7 @@ pub(crate) fn eval_f64_abs(
 
 /// `(:wat::f64::round v digits)` → `v` rounded to `digits` decimal places,
 /// round-half-away-from-zero. `digits` must be non-negative. Delegates to
-/// the SAME `crate::runtime::eval_f64_round` as `:wat::core::f64::round`;
+/// the SAME `crate::runtime::eval_f64_round` as `:wat::f64::round`;
 /// its `:op` in any raised error names the OLD spelling regardless of which
 /// name the caller used (see this module's header) — a pre-existing
 /// property of the shared fn, not new here.
@@ -419,12 +422,12 @@ pub(crate) fn eval_f64_round(
     sym: &SymbolTable,
     span: &Span,
 ) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_f64_round(&[v.clone(), digits.clone()], span, env, sym)
+    crate::runtime::eval_f64_round(&[v.clone(), digits.clone()], span, env, sym, ":wat::f64::round")
 }
 
 /// `(:wat::f64::to-i64 n)` → `(Some n)` truncated to `:wat::core::i64` when
 /// `n` is finite and in i64 range, `None` otherwise (NaN, ±Inf, or
-/// out-of-range). Same shared op fn as `:wat::core::f64::to-i64`.
+/// out-of-range). Same shared op fn as `:wat::f64::to-i64`.
 ///
 /// @added         1.0.0
 /// @Purity        Pure
@@ -432,7 +435,7 @@ pub(crate) fn eval_f64_round(
 /// @Category      Transform
 /// @arg     n :wat::core::f64 the f64 to truncate
 /// @ret     (:wat::core::Option :- [:wat::core::i64]) `Some(n as i64)` when in range, `None` otherwise
-/// @example (:wat::f64::to-i64 3.75) #=> (:wat::core::f64::to-i64 3.75)
+/// @example (:wat::f64::to-i64 3.75) #=> (:wat::f64::to-i64 3.75)
 #[wat_intrinsic(":wat::f64::to-i64")]
 pub(crate) fn eval_f64_to_i64(
     n: &WatAST,
@@ -440,11 +443,11 @@ pub(crate) fn eval_f64_to_i64(
     sym: &SymbolTable,
     span: &Span,
 ) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_f64_to_i64(std::slice::from_ref(n), span, env, sym)
+    crate::runtime::eval_f64_to_i64(std::slice::from_ref(n), span, env, sym, ":wat::f64::to-i64")
 }
 
 /// `(:wat::f64::to-string n)` → the rendering of `n`. Same shared op fn as
-/// `:wat::core::f64::to-string`.
+/// `:wat::f64::to-string`.
 ///
 /// @added         1.0.0
 /// @Purity        Pure
@@ -460,7 +463,7 @@ pub(crate) fn eval_f64_to_string(
     sym: &SymbolTable,
     span: &Span,
 ) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_f64_to_string(std::slice::from_ref(n), span, env, sym)
+    crate::runtime::eval_f64_to_string(std::slice::from_ref(n), span, env, sym, ":wat::f64::to-string")
 }
 
 // ─── ternary: clamp ─────────────────────────────────────────────────────────
@@ -477,7 +480,7 @@ pub(crate) fn eval_f64_to_string(
 
 /// `(:wat::f64::clamp v lo hi)` → `v` bounded into `[lo, hi]`. `lo > hi` or
 /// either NaN raises `MalformedForm`. Same shared op fn as
-/// `:wat::core::f64::clamp` (see this module's header re: its `:op`
+/// `:wat::f64::clamp` (see this module's header re: its `:op`
 /// attribution).
 ///
 /// @added         1.0.0
@@ -498,20 +501,20 @@ pub(crate) fn eval_f64_clamp(
     sym: &SymbolTable,
     span: &Span,
 ) -> Result<Value, EvalBreak> {
-    crate::runtime::eval_f64_clamp(&[v.clone(), lo.clone(), hi.clone()], span, env, sym)
+    crate::runtime::eval_f64_clamp(&[v.clone(), lo.clone(), hi.clone()], span, env, sym, ":wat::f64::clamp")
 }
 
 // ─── variadic: max-of min-of ────────────────────────────────────────────────
 //
 // See this module's header for why these are variadic here (bare args) while
-// their `:wat::core::f64::*` twins take a single `Vector` — and why that is
+// their `:wat::f64::*` twins take a single `Vector` — and why that is
 // a calling-convention difference, not a duplicated float contract: both
 // reduce with the literal same `f64::max` / `f64::min` fn pointer.
 
 /// Shared reduction core for `max-of` / `min-of`'s variadic form. Evaluates
 /// each arg, requires f64, and folds with `fold` — the exact same fn pointer
 /// (`f64::max` / `f64::min`) `eval_f64_reduce`'s dispatch call passes for the
-/// `:wat::core::f64::*` spelling. Zero args → `None` (empty extremum is
+/// `:wat::f64::*` spelling. Zero args → `None` (empty extremum is
 /// undefined, never an error — `eval_f64_reduce`'s own documented contract,
 /// carried over verbatim).
 fn f64_variadic_reduce(
@@ -547,7 +550,7 @@ fn f64_variadic_reduce(
 
 /// `(:wat::f64::max-of v1 v2 ...)` → `(Some max)` of the given f64s, or
 /// `None` for zero args. Variadic (bare args — contrast
-/// `:wat::core::f64::max-of`, which takes ONE `(Vector :- [f64])`; see this
+/// `:wat::f64::max-of`, which takes ONE `(Vector :- [f64])`; see this
 /// module's header).
 ///
 /// @added         1.0.0
@@ -556,7 +559,7 @@ fn f64_variadic_reduce(
 /// @Category      Arithmetic
 /// @arg     args… :wat::core::f64 the values to reduce
 /// @ret     (:wat::core::Option :- [:wat::core::f64]) the maximum, or `None` if no args given
-/// @example (:wat::f64::max-of 1.0 2.0 3.0) #=> (:wat::core::f64::max-of (:wat::core::Vector :f64 1.0 2.0 3.0))
+/// @example (:wat::f64::max-of 1.0 2.0 3.0) #=> (:wat::f64::max-of 1.0 2.0 3.0)
 #[wat_intrinsic(":wat::f64::max-of")]
 pub(crate) fn eval_f64_max_of(
     args: &[WatAST],
@@ -570,7 +573,7 @@ pub(crate) fn eval_f64_max_of(
 
 /// `(:wat::f64::min-of v1 v2 ...)` → `(Some min)` of the given f64s, or
 /// `None` for zero args. Variadic (bare args — contrast
-/// `:wat::core::f64::min-of`, which takes ONE `(Vector :- [f64])`; see this
+/// `:wat::f64::min-of`, which takes ONE `(Vector :- [f64])`; see this
 /// module's header).
 ///
 /// @added         1.0.0
@@ -579,7 +582,7 @@ pub(crate) fn eval_f64_max_of(
 /// @Category      Arithmetic
 /// @arg     args… :wat::core::f64 the values to reduce
 /// @ret     (:wat::core::Option :- [:wat::core::f64]) the minimum, or `None` if no args given
-/// @example (:wat::f64::min-of 1.0 2.0 3.0) #=> (:wat::core::f64::min-of (:wat::core::Vector :f64 1.0 2.0 3.0))
+/// @example (:wat::f64::min-of 1.0 2.0 3.0) #=> (:wat::f64::min-of 1.0 2.0 3.0)
 #[wat_intrinsic(":wat::f64::min-of")]
 pub(crate) fn eval_f64_min_of(
     args: &[WatAST],

@@ -1007,7 +1007,7 @@ fn computed_unquote_non_keyword_head_list_is_literal() {
 }
 
 /// `,(substrate-primitive-call)` in a macro body evaluates the call
-/// at expand-time with a bare SymbolTable. Uses `:wat::core::i64::+`
+/// at expand-time with a bare SymbolTable. Uses `:wat::i64::+`
 /// which dispatches as a substrate primitive (no sym.functions needed).
 #[test]
 fn computed_unquote_evaluates_substrate_call() {
@@ -1016,7 +1016,7 @@ fn computed_unquote_evaluates_substrate_call() {
         (:wat::core::defmacro :my::computed-test
           []
           -> :wat::WatAST
-          `(:result ~(:wat::core::i64::+ 10 32)))
+          `(:result ~(:wat::i64::+ 10 32)))
         (:my::computed-test)
         "#,
     )
@@ -1043,7 +1043,7 @@ fn computed_unquote_substitutes_params_before_eval() {
         (:wat::core::defmacro :my::succ
           [n <- :wat::WatAST]
           -> :wat::WatAST
-          `(:result ~(:wat::core::i64::+ n 1)))
+          `(:result ~(:wat::i64::+ n 1)))
         (:my::succ 41)
         "#,
     )
@@ -1107,7 +1107,7 @@ fn computed_unquote_in_nested_quasiquote_preserved_at_outer() {
              ~name
              []
              -> :wat::WatAST
-             `(:result ~(:wat::core::i64::+ 1 2))))
+             `(:result ~(:wat::i64::+ 1 2))))
         (:my::make-inner :my::inner)
         "#,
     )
@@ -1121,10 +1121,10 @@ fn computed_unquote_in_nested_quasiquote_preserved_at_outer() {
     };
     assert_eq!(body_items.len(), 2);
     assert!(matches!(&body_items[0], WatAST::Keyword(k, _) if k == ":result"));
-    // body_items[1] should be (:wat::core::unquote (:wat::core::i64::+ 1 2))
+    // body_items[1] should be (:wat::core::unquote (:wat::i64::+ 1 2))
     // — the unquote survived to the inner macro's body.
     let inner = expect_unquote(&body_items[1]);
-    // The inner arg should be the list (:wat::core::i64::+ 1 2),
+    // The inner arg should be the list (:wat::i64::+ 1 2),
     // NOT the evaluated IntLit(3).
     assert!(
         matches!(inner, WatAST::List(_, _)),

@@ -1233,30 +1233,22 @@ enum OpExec {
 
 impl OpExec {
     fn of(core: &str) -> Self {
-        // Arc 255 Stone B-ii — `core` arrives as `row.core_name`, which for the per-type
-        // numerics now reads `:wat::i64::+` (B-i's home), not `:wat::core::i64::+`. This
-        // table's arms are still written in the OLD spelling (36 arms is the cost of a
-        // second copy this stone refuses to pay — STOP-2), so fold the new spelling back
-        // onto its old twin before matching, exactly as `runtime.rs::dispatch_substrate_impl`
-        // already does for the same two spellings. A non-numeric `core` round-trips through
-        // `fold_numeric_home` unchanged (`None` -> the original string).
-        let folded;
-        let core = match crate::runtime::fold_numeric_home(core) {
-            Some(old) => {
-                folded = old;
-                folded.as_str()
-            }
-            None => core,
-        };
+        // Arc 255 Stone C — `core` arrives as `row.core_name`, which for the per-type
+        // numerics reads `:wat::i64::+` (B-i's home), not `:wat::core::i64::+`. Through
+        // Stone B this table's arms were still keyed on the OLD spelling, folding the new
+        // spelling back onto its old twin via `crate::runtime::fold_numeric_home` before
+        // matching (mirroring `runtime.rs::dispatch_substrate_impl`'s fold). Stone C
+        // retires the old spelling and deletes that fn, so the arms below are keyed on
+        // the new spelling DIRECTLY — no fold left to perform.
         match core {
             ":wat::core::=" => Self::Eq,
             ":wat::core::not=" => Self::NotEq,
-            ":wat::core::i64::>" | ":wat::core::>" => Self::Gt,
-            ":wat::core::i64::<" | ":wat::core::<" => Self::Lt,
-            ":wat::core::i64::>=" | ":wat::core::>=" => Self::Ge,
-            ":wat::core::i64::<=" | ":wat::core::<=" => Self::Le,
-            ":wat::core::i64::=" => Self::I64Eq,
-            ":wat::core::i64::not=" => Self::I64NotEq,
+            ":wat::i64::>" | ":wat::core::>" => Self::Gt,
+            ":wat::i64::<" | ":wat::core::<" => Self::Lt,
+            ":wat::i64::>=" | ":wat::core::>=" => Self::Ge,
+            ":wat::i64::<=" | ":wat::core::<=" => Self::Le,
+            ":wat::i64::=" => Self::I64Eq,
+            ":wat::i64::not=" => Self::I64NotEq,
             ":wat::string::=" => Self::StrEq,
             ":wat::string::not=" => Self::StrNotEq,
             ":wat::string::length" => Self::StrLen,
@@ -1264,25 +1256,25 @@ impl OpExec {
             ":wat::string::ends-with?" | ":wat::core::String/ends-with?" => Self::EndsWith,
             ":wat::string::contains?" | ":wat::core::String/contains?" => Self::Contains,
             ":wat::core::not" => Self::Not,
-            ":wat::core::i64::+" => Self::I64Add,
-            ":wat::core::i64::-" => Self::I64Sub,
-            ":wat::core::i64::*" => Self::I64Mul,
-            ":wat::core::i64::/" | ":wat::core::i64::quot" => Self::I64Div,
-            ":wat::core::i64::rem" => Self::I64Rem,
-            ":wat::core::i64::mod" => Self::I64Mod,
-            ":wat::core::i64::to-f64" => Self::I64ToF64,
-            ":wat::core::i64::to-string" => Self::I64ToStr,
-            ":wat::core::f64::>" => Self::F64Gt,
-            ":wat::core::f64::<" => Self::F64Lt,
-            ":wat::core::f64::>=" => Self::F64Ge,
-            ":wat::core::f64::<=" => Self::F64Le,
-            ":wat::core::f64::=" => Self::F64Eq,
-            ":wat::core::f64::not=" => Self::F64NotEq,
-            ":wat::core::f64::+" => Self::F64Add,
-            ":wat::core::f64::-" => Self::F64Sub,
-            ":wat::core::f64::*" => Self::F64Mul,
-            ":wat::core::f64::/" => Self::F64Div,
-            ":wat::core::f64::to-string" => Self::F64ToStr,
+            ":wat::i64::+" => Self::I64Add,
+            ":wat::i64::-" => Self::I64Sub,
+            ":wat::i64::*" => Self::I64Mul,
+            ":wat::i64::/" | ":wat::i64::quot" => Self::I64Div,
+            ":wat::i64::rem" => Self::I64Rem,
+            ":wat::i64::mod" => Self::I64Mod,
+            ":wat::i64::to-f64" => Self::I64ToF64,
+            ":wat::i64::to-string" => Self::I64ToStr,
+            ":wat::f64::>" => Self::F64Gt,
+            ":wat::f64::<" => Self::F64Lt,
+            ":wat::f64::>=" => Self::F64Ge,
+            ":wat::f64::<=" => Self::F64Le,
+            ":wat::f64::=" => Self::F64Eq,
+            ":wat::f64::not=" => Self::F64NotEq,
+            ":wat::f64::+" => Self::F64Add,
+            ":wat::f64::-" => Self::F64Sub,
+            ":wat::f64::*" => Self::F64Mul,
+            ":wat::f64::/" => Self::F64Div,
+            ":wat::f64::to-string" => Self::F64ToStr,
             ":wat::core::bool::to-string" => Self::BoolToStr,
             ":wat::core::String/empty?" => Self::StrEmpty,
             ":wat::core::String/concat" => Self::StrConcat,
