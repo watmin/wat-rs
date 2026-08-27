@@ -74,7 +74,7 @@
 ;; THE FILTER POOL — each entry is a VECTOR of conditions, because some shapes are
 ;; more than one LHS element (accumulate carries its own threshold `where`).
 ;;
-;;   0 none · 1 exists · 2 not · 3 accumulate+threshold · 4 intra-condition :or
+;;   0 none · 1 exists · 2 not · 3 accumulate(count|max)+threshold · 4 intra-condition :or
 ;;   5 intra-condition :not-of-a-constraint · 6 top-level :or ACROSS conditions
 ;;   7 :not over a DERIVED class (stratified negation)
 ;;
@@ -84,6 +84,53 @@
 ;; engine in rete (top-level-across-conditions, where-expression, and
 ;; intra-condition); the intra-condition one had no corpus at all until
 ;; `where-or-inline`, and reaching `Op::Or`/`Op::Not` is exactly what that found.
+;; ── family 3, the ACCUMULATE family — TWO KINDS, and the split is the point ──
+;;
+;; `fp` carries both parameters: kind = fp/3, threshold = (fp mod 3) + 1. Packing them into the
+;; existing dependent parameter costs no new dimension, and `param-space` already varies per shape
+;; — this is what `bind` is for.
+;;
+;; WHY THESE TWO AND NOT ALL NINE. The accumulator surface is nine verbs, but by RETURN TYPE it is
+;; only two classes (`wat/rete/acc.wat`): `count`/`sum` return a bare `i64` and always produce a
+;; token; `max`/`min`/`mean` return `(Option i64)` and produce NO TOKEN when the `:from` set is
+;; empty. Until 2026-08-27 the fuzzer generated `count` only, so the ENTIRE Option class — and with
+;; it the empty-set arm — was never differentially tested. `count` + `max` covers both classes;
+;; `sum` would be a second `count` and `min`/`mean` a second `max`, at 1.5x the budget each.
+;;
+;; THE THRESHOLD RANGE IS 0,1,2 AND THE ZERO IS LOAD-BEARING — measured, not assumed. The first
+;; cut of this used 1,2,3 (carried over from when `count` was the only kind) and it could NOT
+;; reach the class it was added for. On an EMPTY `:from` set, `count` returns 0 and FAILS a
+;; threshold of 1, while `max` returns None and emits no token — both produce zero rows, by
+;; different routes, indistinguishable. Only at threshold 0 do they split: `count` fires (0 >= 0)
+;; and `max` still does not. Measured directly, dups=1:
+;;
+;;     thr1  count non-empty 1 | max non-empty 0     <- the kinds differ (non-vacuous either way)
+;;     thr1  count EMPTIED   0 | max EMPTIED   0     <- SAME answer, different routes
+;;     thr0  count EMPTIED   1 | max EMPTIED   0     <- the None arm, only visible here
+;;
+;; And the empty set is only REACHABLE because of the retraction dimension: `dups=1` with
+;; `retr=1` retracts the one W and leaves `:from` empty. Two widenings that only pay together —
+;; neither alone reaches this row.
+(:wat::core::defn :wat-tests::rete::fuzz::acc-cond [fp <- :wat::core::i64]
+  -> (:wat::core::PersistentVector :- [:wat::WatAST])
+  (:wat::core::let [kind (:wat::core::i64::quot fp 3)
+                    ;; thresholds 0,1,2 — NOT 1,2,3. Zero is the load-bearing one and it was
+                    ;; missing: see the header note. It is not a vacuous gate, it is the ONLY
+                    ;; spelling that separates `max`'s None arm from `count`'s zero.
+                    thr  (:wat::core::i64::rem fp 3)]
+    (:wat::core::if (:wat::core::= kind 0)
+      (:wat::core::PersistentVector
+        (:wat::core::quasiquote (?n <- (:wat::rete::acc::count) :from (:wat-tests::rete::fuzz::W)))
+        ;; PARAMETERIZED: the threshold is generated, not hardcoded, so the
+        ;; gate genuinely changes its mind across the space.
+        (:wat::core::quasiquote
+          (:wat::rete::where (:wat::rete::core::i64::>= ?n (:wat::core::unquote thr)))))
+      (:wat::core::PersistentVector
+        (:wat::core::quasiquote
+          (?n <- (:wat::rete::acc::max ?v) :from (:wat-tests::rete::fuzz::W (?v <- :k))))
+        (:wat::core::quasiquote
+          (:wat::rete::where (:wat::rete::core::i64::>= ?n (:wat::core::unquote thr))))))))
+
 (:wat::core::defn :wat-tests::rete::fuzz::filt-cond [f <- :wat::core::i64  fp <- :wat::core::i64]
   -> (:wat::core::PersistentVector :- [:wat::WatAST])
   (:wat::core::if (:wat::core::= f 0)
@@ -93,12 +140,7 @@
       (:wat::core::if (:wat::core::= f 2)
         (:wat::core::PersistentVector (:wat::core::quasiquote (:wat::rete::not (:wat-tests::rete::fuzz::G (?g <- :k)))))
         (:wat::core::if (:wat::core::= f 3)
-          (:wat::core::PersistentVector
-            (:wat::core::quasiquote (?n <- (:wat::rete::acc::count) :from (:wat-tests::rete::fuzz::W)))
-            ;; PARAMETERIZED: the threshold is generated, not hardcoded, so the
-            ;; gate genuinely changes its mind across the space.
-            (:wat::core::quasiquote
-              (:wat::rete::where (:wat::rete::core::i64::>= ?n (:wat::core::unquote fp)))))
+          (:wat-tests::rete::fuzz::acc-cond fp)
           (:wat::core::if (:wat::core::= f 4)
             (:wat::core::PersistentVector
               (:wat::core::quasiquote
@@ -174,9 +216,10 @@
 ;;   depth > 0  → retract the chain SEED. S2/S3/S4 exist only by derivation, so this tests
 ;;                TRANSITIVE un-derivation — and for the `:not`-over-a-derived-class family it
 ;;                flips the answer, which is exactly where family C lived.
-;;   depth = 0  → nothing to cascade, so retract the `W` the accumulate and `:exists` read.
-;;                Note `retract` removes BY VALUE and every `W` here is `(W 7)`, so this takes ALL
-;;                `dups` of them at once and the count goes to 0 — a real flip, not a nudge.
+;;   depth = 0  → nothing to cascade, so retract `(W 0)`, which every case has. Since the W's are
+;;                DISTINCT this removes exactly ONE, so the accumulate's count drops by one rather
+;;                than to zero — and at `dups=1` it empties the set, which is the only way this
+;;                space reaches an `Option`-returning accumulate's None arm.
 ;;
 ;; A shape where the retraction touches nothing the query reads is NOT wasted: "an unrelated fact
 ;; leaving must not perturb this answer" is the same class of property as "an inert cascade's
@@ -187,7 +230,7 @@
     (:wat::rete::fire-rules
       (:wat::rete::retract (:wat::rete::fire-rules st) (:wat-tests::rete::fuzz::S1 1)))
     (:wat::rete::fire-rules
-      (:wat::rete::retract (:wat::rete::fire-rules st) (:wat-tests::rete::fuzz::W 7)))))
+      (:wat::rete::retract (:wat::rete::fire-rules st) (:wat-tests::rete::fuzz::W 0)))))
 
 (:wat::core::defn :wat-tests::rete::fuzz::refire-oracle
   [d <- :wat::core::i64  st <- :wat::rete::Session] -> :wat::rete::Session
@@ -195,7 +238,7 @@
     (:wat::rete::fire-rules$oracle
       (:wat::rete::retract (:wat::rete::fire-rules$oracle st) (:wat-tests::rete::fuzz::S1 1)))
     (:wat::rete::fire-rules$oracle
-      (:wat::rete::retract (:wat::rete::fire-rules$oracle st) (:wat-tests::rete::fuzz::W 7)))))
+      (:wat::rete::retract (:wat::rete::fire-rules$oracle st) (:wat-tests::rete::fuzz::W 0)))))
 
 ;; ── the property ─────────────────────────────────────────────────────────────
 (:wat::core::defn :wat-tests::rete::fuzz::prop [c <- :wat-tests::rete::fuzz::Case] -> :wat::core::bool
@@ -209,9 +252,16 @@
                     q  (:wat::rete::Query :name "q" :params (:wat::core::PersistentVector)
                          :lhs (:wat-tests::rete::fuzz::build-lhs prefix f fp wpos))
                     s0 (:wat::rete::compile-all (:wat-tests::rete::fuzz::chain d) (:wat::core::PersistentVector q))
+                    ;; W_i = (W i), DISTINCT — not `dups` copies of one value. Until 2026-08-27
+                    ;; every W was `(W 7)`, and that quietly made two dimensions vacuous: an
+                    ;; accumulate's `max`/`min` cannot vary when every value is equal, and family
+                    ;; 4's `(?w > fp)` was TRUE for every generated `fp` (0..2) because w was
+                    ;; always 7 — so its `:or` never once took the second arm. A gate that cannot
+                    ;; change its mind measures nothing; this makes count, sum, max and the inline
+                    ;; `:or` all vary with `dups`.
                     ws (:wat::core::into (:wat::core::PersistentVector)
                          (:wat::core::mapv
-                           (:wat::core::fn [i <- :wat::core::i64] -> :wat-tests::rete::fuzz::W (:wat-tests::rete::fuzz::W 7))
+                           (:wat::core::fn [i <- :wat::core::i64] -> :wat-tests::rete::fuzz::W (:wat-tests::rete::fuzz::W i))
                            (:wat::core::range 0 dups)))
                     s1 (:wat::rete::insert-all s0 ws)
                     s2 (:wat::rete::insert-all s1 (:wat::core::PersistentVector (:wat-tests::rete::fuzz::P1 1)))
@@ -267,7 +317,8 @@
 ;; only a second way to say the same thing.
 (:wat::core::defn :wat-tests::rete::fuzz::param-space [f <- :wat::core::i64] -> (:wat::gen::Gen :- [:wat::core::i64])
   (:wat::core::if (:wat::core::= f 3)
-    (:wat::gen::ints 1 4)
+    ;; 6 = 2 accumulator kinds x 3 thresholds, decoded by `acc-cond`.
+    (:wat::gen::ints 0 6)
     (:wat::core::if (:wat::core::= f 4)
       (:wat::gen::ints 0 3)
       (:wat::gen::ints 0 1))))
@@ -375,3 +426,70 @@
       (:wat::core::let [_ (:wat::test::assert-true (:wat::core::> cases 0))]
         (:wat::test::assert-eq bad 0)))
     (:wat::gen::CheckOutcome::EmptySpace (:wat::test::assert-true false))))
+
+
+;; ── THE SPACE'S OWN NON-VACUITY GATE ─────────────────────────────────────────
+;;
+;; `acc-cond`'s header states a measured table: which accumulator kind × threshold combinations
+;; actually distinguish `count` from `max`. That table is the JUSTIFICATION for generating 648
+;; extra shapes, and a justification behind no gate is exactly the drift this codebase keeps
+;; removing — the same reason `wat_scripts_grid_axes_live` refuses a new sized axis without a
+;; deliberately non-vacuous size.
+;;
+;; So the table is asserted, not merely written down. If any row moves, either the engine changed
+;; or the widening stopped reaching what it was added for; both must be loud. The first cut of
+;; `acc-cond` DID stop reaching it — thresholds were 1,2,3 and the `Option`/None arm needs 0 —
+;; and this gate is what that mistake bought.
+(:wat::rete::defquery :wat-tests::rete::fuzz::nv-count-1 :params []
+  :when [(?n <- (:wat::rete::acc::count) :from (:wat-tests::rete::fuzz::W))
+         (:wat::rete::where (:wat::rete::core::i64::>= ?n 1))])
+
+(:wat::rete::defquery :wat-tests::rete::fuzz::nv-count-0 :params []
+  :when [(?n <- (:wat::rete::acc::count) :from (:wat-tests::rete::fuzz::W))
+         (:wat::rete::where (:wat::rete::core::i64::>= ?n 0))])
+
+(:wat::rete::defquery :wat-tests::rete::fuzz::nv-max-1 :params []
+  :when [(?n <- (:wat::rete::acc::max ?v) :from (:wat-tests::rete::fuzz::W (?v <- :k)))
+         (:wat::rete::where (:wat::rete::core::i64::>= ?n 1))])
+
+(:wat::rete::defquery :wat-tests::rete::fuzz::nv-max-0 :params []
+  :when [(?n <- (:wat::rete::acc::max ?v) :from (:wat-tests::rete::fuzz::W (?v <- :k)))
+         (:wat::rete::where (:wat::rete::core::i64::>= ?n 0))])
+
+;; dups=1 — a single `(W 0)`, so count=1 and max=0; retracting it empties the `:from` set.
+(:wat::core::defn :wat-tests::rete::fuzz::nv-rows
+  [emptied <- :wat::core::bool  q <- :wat::rete::Query] -> :wat::core::i64
+  (:wat::core::let [s0 (:wat::rete::insert
+                         (:wat::rete::compile-all
+                           (:wat::core::PersistentVector)
+                           (:wat::core::PersistentVector
+                             (:wat-tests::rete::fuzz::nv-count-1) (:wat-tests::rete::fuzz::nv-count-0)
+                             (:wat-tests::rete::fuzz::nv-max-1)   (:wat-tests::rete::fuzz::nv-max-0)))
+                         (:wat-tests::rete::fuzz::W 0))
+                    fired (:wat::core::if emptied
+                            (:wat::rete::fire-rules
+                              (:wat::rete::retract (:wat::rete::fire-rules s0) (:wat-tests::rete::fuzz::W 0)))
+                            (:wat::rete::fire-rules s0))]
+    (:wat::core::length (:wat::rete::query fired q))))
+
+;; `deftest` takes a name and ONE body form, so the six rows are sequenced in a `let` —
+;; the same idiom the differential test above uses for its own two-step body.
+(:wat::test::deftest :wat-tests::rete::fuzz::test-accumulate-kinds-are-not-vacuous
+  (:wat::core::let
+    ;; A — the KINDS differ at a threshold the space generates. Without this row the `max`
+    ;; shapes would be 648 restatements of `count`.
+    [a1 (:wat-tests::rete::fuzz::nv-rows false (:wat-tests::rete::fuzz::nv-count-1))
+     a2 (:wat-tests::rete::fuzz::nv-rows false (:wat-tests::rete::fuzz::nv-max-1))
+     ;; B — on an EMPTY set at threshold 1 they agree, by different routes: count fails the
+     ;; threshold, max emits no token. This row is WHY threshold 0 had to be generated.
+     b1 (:wat-tests::rete::fuzz::nv-rows true (:wat-tests::rete::fuzz::nv-count-1))
+     b2 (:wat-tests::rete::fuzz::nv-rows true (:wat-tests::rete::fuzz::nv-max-1))
+     ;; C — threshold 0 on an empty set is the ONLY place the Option/None arm is observable.
+     c1 (:wat-tests::rete::fuzz::nv-rows true (:wat-tests::rete::fuzz::nv-count-0))
+     c2 (:wat-tests::rete::fuzz::nv-rows true (:wat-tests::rete::fuzz::nv-max-0))
+     _  (:wat::test::assert-eq a1 1)
+     _  (:wat::test::assert-eq a2 0)
+     _  (:wat::test::assert-eq b1 0)
+     _  (:wat::test::assert-eq b2 0)
+     _  (:wat::test::assert-eq c1 1)]
+    (:wat::test::assert-eq c2 0)))

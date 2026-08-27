@@ -188,13 +188,25 @@ priority = 99                                             # just below the scrip
 #
 # PROOF THIS FILTER MATCHES — by mutation, not by assertion (2026-08-26). Drop THIS rule's
 # period to 1s and the test prints `SLOW [> 1.000s]` once a second under
-# `cargo nextest run --release -E 'test(deftest_wat_tests_rete_fuzz)'`; restore 60s and it
-# goes silent. The NAIVE check does not work and was tried first: run in isolation the test
-# takes ~9.2s, under even the OLD 15s warn, so an absent SLOW line proves nothing either
-# way. 17.165s is its cost on a LOADED floor -- which is the only number the kill sees.
+# `cargo nextest run --release -E 'test(deftest_wat_tests_rete_fuzz)'`; restore the period and
+# it goes silent. The NAIVE check does not work and was tried first: run in isolation the test
+# was under even the OLD 15s warn, so an absent SLOW line proves nothing either way. The LOADED
+# cost is the only number the kill sees.
+#
+# BUDGET RAISED 60s -> 90s, 2026-08-27, because the space grew (retraction, then a second
+# accumulator kind: 1260 -> 2520 -> 3168 shapes). Loaded cost went 17.165s -> 52.064s, which left
+# only 8s under a 60s warn. Raised deliberately rather than shrinking the space — the fuzzer's own
+# header argues that trade and this follows it. Note the wat-side `(:wat::test::time-limit "90s")`
+# now equals this period, which is the ORDER we want: the wat harness fails first and names the
+# test and the budget, and nextest's kill (2 x 90s = 180s) is the backstop behind it.
+#
+# The filter is a SUBSTRING match and now covers TWO tests: the differential itself and
+# `..._test_accumulate_kinds_are_not_vacuous` (0.55s loaded), which gates the measured table
+# justifying the accumulate widening. Both wanted the same generous budget; the fast one does not
+# need it and does not suffer from it.
 [[profile.default.overrides]]
 filter = 'binary_id(wat::rete) or test(accum_fire_phase_census) or test(deftest_wat_tests_rete_fuzz)'
-slow-timeout = { period = "60s", terminate-after = 2 }    # warn 60s, kill 120s
+slow-timeout = { period = "90s", terminate-after = 2 }    # warn 90s, kill 180s
 priority = 98                                             # just below the lint binary
 
 [[profile.ci.overrides]]
@@ -217,7 +229,7 @@ priority = 99
 # scripts gate's ci override records).
 [[profile.ci.overrides]]
 filter = 'binary_id(wat::rete) or test(accum_fire_phase_census) or test(deftest_wat_tests_rete_fuzz)'
-slow-timeout = { period = "60s", terminate-after = 2 }
+slow-timeout = { period = "90s", terminate-after = 2 }
 priority = 98
 
 # 296 Stone K, move 3 — the slow profile. `all()` re-admits everything
@@ -250,5 +262,5 @@ priority = 99
 # raised with [profile.default] 2026-08-17 — same cohort, same box, same argument.
 [[profile.slow.overrides]]
 filter = 'binary_id(wat::rete) or test(accum_fire_phase_census) or test(deftest_wat_tests_rete_fuzz)'
-slow-timeout = { period = "60s", terminate-after = 2 }
+slow-timeout = { period = "90s", terminate-after = 2 }
 priority = 98
