@@ -45,7 +45,7 @@
 use std::sync::Arc;
 use crate::ast::WatAST;
 use crate::span::Span;
-use crate::value::{EnumValue, Environment, SymbolTable, Value, EvalBreak};
+use crate::value::{EnumValue, Environment, SymbolTable, Value, EvalBreak, TrackedValue};
 
 // ─── The closed-domain enums the reflection surface answers with ─────────────
 //
@@ -148,9 +148,19 @@ pub(crate) enum Arity {
     Variadic,
 }
 
-/// The native dispatch handler — matches the eval-fn signature exactly.
+/// The native dispatch handler — returns `TrackedValue`, not a bare `Value`, so a producer
+/// handler CAN stamp `Provenance::RuntimeBuilt { producer, call_span }` — "this value was
+/// manufactured, by that verb, there" — the same fact a hand-written `dispatch_keyword_head`
+/// arm has always been able to record. Arc 255 Stone G.
+///
+/// The `#[wat_intrinsic]`-generated shim (`crates/wat-macros/src/wat_intrinsic.rs`) is the ONE
+/// choke point that produces this signature: a handler written to return a bare `Value` (the
+/// ~250 pre-existing handlers, untouched) is wrapped by the shim as
+/// `TrackedValue::new(v, Provenance::Unknown)` — today's behaviour, unchanged; a handler that
+/// WANTS provenance returns `TrackedValue` itself and the shim's sniff (mirroring
+/// `SniffedArgs` for the argument side) passes it through un-rewrapped.
 pub(crate) type NativeHandler =
-    fn(&[WatAST], &Span, &Environment, &SymbolTable) -> Result<Value, EvalBreak>;
+    fn(&[WatAST], &Span, &Environment, &SymbolTable) -> Result<TrackedValue, EvalBreak>;
 
 /// One `@example` / `@example-norun` entry carried on the registry — the
 /// structured form of `wat_doc::DocExample`, lowered to `'static` literals

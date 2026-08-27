@@ -182,21 +182,15 @@ fn probe_4_type_mismatch_renders_non_vector_spread() {
 // ":wat::core::keyword/from-string", call_span } }. ValueSnapshot::Display
 // renders producer info inline.
 //
-// ⚠ REGRESSED (honestly, not silently) BY ARC 255 STONE E-iv — "keyword gets its home".
-// `keyword/from-string`'s dispatch route moved off the special-cased producer arm in
-// `dispatch_keyword_head` (the only door that could construct a `TrackedValue` carrying a
-// custom `Provenance::RuntimeBuilt`) onto the `#[wat_intrinsic]` registry
-// (`src/intrinsic/keyword.rs`), whose `NativeHandler` signature is fixed at
-// `-> Result<Value, EvalBreak>` — no slot for a custom `Provenance`. So a keyword built via
-// EITHER spelling of `keyword/from-string` now carries `Provenance::Unknown` at the point of
-// construction (the SAME downgrade every other registry-routed verb already accepts); by the
-// time it is bound via `let` and referenced as `head` below, `Environment::lookup` promotes
-// that to `SymbolBound` (binding-span + head-span), not `RuntimeBuilt`. The golden below was
-// RECAPTURED (`UPDATE_EDN=1`) to match — it is now BYTE-IDENTICAL to Probe 2's golden, because
-// both probes now observe the same (correct, just less specific) provenance. This probe no
-// longer demonstrates "producer info surfaces" for THIS verb; `probe_7`/`probe_8`
-// (`from-holon`/`edn::read`) still exercise a real `RuntimeBuilt` producer and remain the
-// regression guard for that capability.
+// Arc 255 Stone E-iv moved `keyword/from-string`'s dispatch route onto the
+// `#[wat_intrinsic]` registry, whose `NativeHandler` signature at the time had no slot for a
+// custom `Provenance` — this probe's golden was RECAPTURED to the degraded `SymbolBound`
+// shape, with an honest `⚠ REGRESSED` comment recording the mechanism (see arc 255 Stone G's
+// commit / `probe_stone_233_2_j_producer_migration.rs` probe 2 for the full account).
+// Arc 255 Stone G gave `NativeHandler` a `TrackedValue`-returning signature (sniffed from the
+// handler's own declared return type), so `src/intrinsic/keyword.rs`'s `from-string` handler
+// stamps `Provenance::RuntimeBuilt` again — this probe's golden is RESTORED to that shape,
+// now under the new `:wat::keyword::from-string` spelling.
 #[test]
 fn probe_6_runtime_built_keyword_renders_producer_info() {
     // Fixture: probe_diagnostic_value_snapshot_in_errors_p2.wat (same WAT as probe_2)
@@ -211,7 +205,7 @@ fn probe_6_runtime_built_keyword_renders_producer_info() {
             wat::assert_edn_matches_file!(
                 format!("{:?}", e),
                 "probe_diagnostic_value_snapshot_in_errors__probe_6_runtime_built_keyword_renders_producer_info.edn",
-                "Probe 6: must surface rendered keyword content (producer info retired for this verb, arc 255 Stone E-iv — see comment above)"
+                "Probe 6: must surface rendered keyword content and producer info"
             );
         }
     }

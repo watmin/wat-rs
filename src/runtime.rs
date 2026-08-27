@@ -5230,14 +5230,21 @@ fn dispatch_keyword_head(
     env: &Environment,
     sym: &SymbolTable,
 ) -> Result<TrackedValue, EvalBreak> {
+    // Arc 255 Stone G — the registry-first door, hoisted to THIS TrackedValue-returning
+    // function (not `dispatch_keyword_head_value`, whose `Result<Value, _>` signature would
+    // force a discard of whatever provenance the handler stamped). `NativeHandler` now returns
+    // `TrackedValue` directly, so a registered producer's `Provenance::RuntimeBuilt` survives
+    // un-rewrapped here; a non-producer handler still yields `Provenance::Unknown`, exactly as
+    // the shim's default arm always has (`crates/wat-macros/src/wat_intrinsic.rs`). Registered
+    // wins, always — same order guarantee `dispatch_keyword_head_value`'s own registry door
+    // documents (`DESIGN-STONE-255.1c-guard-hoist.md`); consulting it a second time there (for
+    // callers that reach that function directly, e.g. `dispatch_rete_op`) is redundant for
+    // heads that land here first but not incorrect, since a lookup is idempotent.
+    if let Some(handler) = crate::intrinsic::registry().lookup(head) {
+        return handler(args, list_span, env, sym);
+    }
     // Producers + forms that preserve provenance: return TrackedValue directly.
     match head {
-        // Arc 255 Stone E-iv — `:wat::core::keyword/from-string` RETIRED this stone; its
-        // replacement `:wat::keyword::from-string` (`src/intrinsic/keyword.rs`) is
-        // registry-routed (below, via the registry-first door in
-        // `dispatch_keyword_head_value`), NOT a literal arm here — the `NativeHandler`
-        // signature the registry requires has no slot for a custom `Provenance`, so it can no
-        // longer return `TrackedValue` with `RuntimeBuilt` provenance the way this arm did.
         ":wat::holon::from-holon" => return eval_holon_from_holon(args, list_span, env, sym),
         ":wat::edn::read" => {
             return crate::edn::render::eval_edn_read(args, list_span, env, sym).map_err(Into::into)
@@ -5397,8 +5404,14 @@ fn dispatch_keyword_head_value(
     // literal arm below this point can no longer shadow a registration by
     // sitting higher in the match (it was shadowable at HEAD — see
     // docs/arc/2026/06/255-builtin-registry/DESIGN-STONE-255.1c-guard-hoist.md).
+    // Arc 255 Stone G — `NativeHandler` now returns `TrackedValue`; THIS function's signature
+    // is the bare-`Value` inner dispatch (shared by `dispatch_rete_op`'s recursive calls, which
+    // have no use for provenance), so any provenance a producer handler stamped is discarded
+    // here via `value_owned()` — the caller that wants it, `dispatch_keyword_head`, now
+    // consults the registry itself BEFORE ever reaching this function, so a provenance-bearing
+    // producer never actually flows through this discard on that path.
     if let Some(handler) = crate::intrinsic::registry().lookup(head) {
-        return handler(args, list_span, env, sym);
+        return handler(args, list_span, env, sym).map(TrackedValue::value_owned);
     }
     match head {
         // Arc 232 Stone 232.0 — `:wat::core::apply` substrate primitive.
@@ -10736,10 +10749,10 @@ pub(crate) fn eval_keyword_to_string(
 /// Round-trip property: `(from-string (to-string k)) == k` for any keyword `k`.
 // Arc 233 Stone 233.2.j: returns TrackedValue directly (no Value::Tracked wrap).
 // Arc 255 Stone E-iv — bumped to `pub(crate)` so `src/intrinsic/keyword.rs`'s registry-home
-// shim (`:wat::keyword::from-string`) can call the SAME algorithm (unwrapping the returned
-// TrackedValue to a bare Value — the NativeHandler signature has no slot for Provenance, so the
-// registry-routed call carries `Provenance::Unknown` instead of this fn's own `RuntimeBuilt`,
-// the same trade-off every other `#[wat_intrinsic]` home already makes).
+// shim (`:wat::keyword::from-string`) can call the SAME algorithm.
+// Arc 255 Stone G — the shim now forwards this fn's returned `TrackedValue` un-rewrapped
+// (`NativeHandler` sniffs the handler's declared return type), so the registry-routed call
+// carries this fn's own `RuntimeBuilt` provenance again, not `Provenance::Unknown`.
 pub(crate) fn eval_keyword_from_string(
     args: &[WatAST],
     list_span: &Span,

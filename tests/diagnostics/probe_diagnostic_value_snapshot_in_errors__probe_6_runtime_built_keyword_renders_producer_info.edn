@@ -1,8 +1,8 @@
 #wat.runtime/NotCallable {
-  :message "not callable: expected Function, got wat::core::keyword `:ns::nonexistent-verb` (bound from tests/diagnostics/probe_diagnostic_value_snapshot_in_errors_p2.wat:3:8 at tests/diagnostics/probe_diagnostic_value_snapshot_in_errors_p2.wat:4:8)"
+  :message "not callable: expected Function, got wat::core::keyword `:ns::nonexistent-verb` (built by :wat::keyword::from-string at tests/diagnostics/probe_diagnostic_value_snapshot_in_errors_p2.wat:3:13)"
   :location #wat.core/Span {
     :file "src/runtime.rs"
-    :line 25481
+    :line 25430
     :col 17
     :end #wat.core.Option/None []
   }
@@ -10,26 +10,16 @@
   :got {
     :type "wat::core::keyword"
     :rendered ":ns::nonexistent-verb"
-    :provenance #wat.kernel/SymbolBound {
-      :binding-span #wat.core/Span {
+    :provenance #wat.kernel/RuntimeBuilt {
+      :producer ":wat::keyword::from-string"
+      :call-span #wat.core/Span {
         :file "tests/diagnostics/probe_diagnostic_value_snapshot_in_errors_p2.wat"
         :line 3
-        :col 8
+        :col 13
         :end #wat.core.Option/Some [
           #wat.core/Pos {
             :line 3
-            :col 12
-          }
-        ]
-      }
-      :head-span #wat.core/Span {
-        :file "tests/diagnostics/probe_diagnostic_value_snapshot_in_errors_p2.wat"
-        :line 4
-        :col 8
-        :end #wat.core.Option/Some [
-          #wat.core/Pos {
-            :line 4
-            :col 12
+            :col 64
           }
         ]
       }

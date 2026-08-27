@@ -22,18 +22,16 @@
 //! already lived in `runtime.rs`/`edn/render.rs`, and stay there (name-only rename of the
 //! DISPATCH ROUTE, not the implementation).
 //!
-//! ⚠ THREE of the five (`from-string`, `to-symbol`, `to-type-form`, `to-type-form-colon` —
-//! actually four) are PRODUCERS under their old spelling: `dispatch_keyword_head` calls them
-//! directly and they return `TrackedValue` carrying `Provenance::RuntimeBuilt { producer, .. }`
-//! (a diagnostic-quality "where did this value come from" trace, NOT load-bearing for
-//! correctness — `src/value/environment.rs`'s `lookup` and `src/value/observe.rs`'s Display are
-//! its only consumers). The `#[wat_intrinsic]`-generated shim's `NativeHandler` signature is
-//! fixed at `-> Result<Value, EvalBreak>` (`crates/wat-macros/src/wat_intrinsic.rs`) — there is
-//! no slot for a custom `Provenance`, so each shim below calls the producer fn and immediately
-//! unwraps its `TrackedValue` via `.value_owned()`, discarding the `RuntimeBuilt` tag. The
-//! caller (`dispatch_keyword_head_value`'s registry-first door, `runtime.rs`) re-wraps the bare
-//! `Value` as `Provenance::Unknown` — the SAME downgrade every other `#[wat_intrinsic]`-routed
-//! producer-shaped verb already accepts; this is not a regression particular to `keyword`.
+//! ★ FOUR of the five (`from-string`, `to-symbol`, `to-type-form`, `to-type-form-colon`) are
+//! PRODUCERS: their handlers below return `Result<TrackedValue, EvalBreak>` directly (not
+//! `Result<Value, EvalBreak>`), forwarding the `TrackedValue` their algorithm fn already builds
+//! — carrying `Provenance::RuntimeBuilt { producer, call_span }` — un-rewrapped. Arc 255 Stone
+//! G gave `NativeHandler` a `TrackedValue`-returning signature with a sniff (mirroring the
+//! macro's existing `SniffedArgs` on the argument side) precisely so a registry-routed producer
+//! could keep stamping its own provenance instead of being downgraded to `Provenance::Unknown`
+//! by the shim's default arm — restoring what Stone E-iv recorded as an open regression.
+//! `to-string` (the fifth verb) is a plain Probe, not a producer, and keeps the bare-`Value`
+//! shape — the shim wraps it as `Provenance::Unknown`, same as any other non-producer handler.
 //!
 //! Both the old `:wat::core::keyword/*` spelling and this new one are LIVE during Phase 1/2 of
 //! this stone (register, then move the corpus by codemod); Phase 3 retires the old spelling,
@@ -50,7 +48,7 @@ use wat_macros::wat_intrinsic;
 
 use crate::ast::WatAST;
 use crate::span::Span;
-use crate::value::{Environment, EvalBreak, SymbolTable, Value};
+use crate::value::{Environment, EvalBreak, SymbolTable, TrackedValue, Value};
 
 // ─── the 5 verbs ────────────────────────────────────────────────────────────
 
@@ -94,9 +92,8 @@ pub(crate) fn eval_keyword_from_string_home(
     env: &Environment,
     sym: &SymbolTable,
     span: &Span,
-) -> Result<Value, EvalBreak> {
-    let tv = crate::runtime::eval_keyword_from_string(std::slice::from_ref(s), span, env, sym)?;
-    Ok(tv.value_owned())
+) -> Result<TrackedValue, EvalBreak> {
+    crate::runtime::eval_keyword_from_string(std::slice::from_ref(s), span, env, sym)
 }
 
 /// `(:wat::keyword::to-symbol kw-node)` → convert a wat rust-scheme call-head Keyword FORM node
@@ -118,9 +115,9 @@ pub(crate) fn eval_keyword_to_symbol_home(
     env: &Environment,
     sym: &SymbolTable,
     span: &Span,
-) -> Result<Value, EvalBreak> {
-    let tv = crate::edn::render::eval_keyword_to_symbol(std::slice::from_ref(kw_node), span, env, sym)?;
-    Ok(tv.value_owned())
+) -> Result<TrackedValue, EvalBreak> {
+    crate::edn::render::eval_keyword_to_symbol(std::slice::from_ref(kw_node), span, env, sym)
+        .map_err(Into::into)
 }
 
 /// `(:wat::keyword::to-type-form kw-node)` → convert an old rust-scheme TYPE keyword
@@ -141,9 +138,9 @@ pub(crate) fn eval_keyword_to_type_form_home(
     env: &Environment,
     sym: &SymbolTable,
     span: &Span,
-) -> Result<Value, EvalBreak> {
-    let tv = crate::edn::render::eval_keyword_to_type_form(std::slice::from_ref(kw_node), span, env, sym)?;
-    Ok(tv.value_owned())
+) -> Result<TrackedValue, EvalBreak> {
+    crate::edn::render::eval_keyword_to_type_form(std::slice::from_ref(kw_node), span, env, sym)
+        .map_err(Into::into)
 }
 
 /// `(:wat::keyword::to-type-form-colon kw-node)` — Colon-mode sibling of `to-type-form`: same
@@ -164,7 +161,7 @@ pub(crate) fn eval_keyword_to_type_form_colon_home(
     env: &Environment,
     sym: &SymbolTable,
     span: &Span,
-) -> Result<Value, EvalBreak> {
-    let tv = crate::edn::render::eval_keyword_to_type_form_colon(std::slice::from_ref(kw_node), span, env, sym)?;
-    Ok(tv.value_owned())
+) -> Result<TrackedValue, EvalBreak> {
+    crate::edn::render::eval_keyword_to_type_form_colon(std::slice::from_ref(kw_node), span, env, sym)
+        .map_err(Into::into)
 }

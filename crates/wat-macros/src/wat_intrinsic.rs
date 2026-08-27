@@ -47,7 +47,8 @@
 
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
-use syn::{Error, Expr, ExprLit, FnArg, ItemFn, Lit, LitStr, Meta, Pat, Type};
+use syn::{Error, Expr, ExprLit, FnArg, GenericArgument, ItemFn, Lit, LitStr, Meta, Pat,
+    PathArguments, ReturnType, Type};
 
 /// Result of sniffing the handler signature's arg structure.
 enum SniffedArgs {
@@ -123,6 +124,60 @@ fn sniff_args(item: &ItemFn) -> syn::Result<SniffedArgs> {
         Ok(SniffedArgs::Variadic(name))
     } else {
         Ok(SniffedArgs::Exact(wat_args))
+    }
+}
+
+/// Result of sniffing the handler's RETURN type — the same shape as `SniffedArgs`, applied to
+/// the return side instead of the argument side (arc 255 Stone G).
+enum SniffedReturn {
+    /// `-> Result<Value, EvalBreak>` — the ~250 pre-existing handlers. The shim wraps the
+    /// returned bare `Value` as `TrackedValue::new(v, Provenance::Unknown)` — unchanged default.
+    BareValue,
+    /// `-> Result<TrackedValue, EvalBreak>` — a handler that WANTS to stamp its own
+    /// provenance (e.g. `Provenance::RuntimeBuilt`). The shim passes the returned
+    /// `TrackedValue` through un-rewrapped.
+    Tracked,
+}
+
+/// Sniff the handler fn's return type: `Result<Value, EvalBreak>` or
+/// `Result<TrackedValue, EvalBreak>`. Any other return type is rejected with a `compile_error!`
+/// naming the two accepted shapes — never silently guessed.
+fn sniff_return(item: &ItemFn) -> syn::Result<SniffedReturn> {
+    let ReturnType::Type(_, ty) = &item.sig.output else {
+        return Err(Error::new_spanned(
+            &item.sig,
+            "wat_intrinsic: handler must return `Result<Value, EvalBreak>` or \
+             `Result<TrackedValue, EvalBreak>`",
+        ));
+    };
+    if is_result_of(ty, "TrackedValue") {
+        Ok(SniffedReturn::Tracked)
+    } else if is_result_of(ty, "Value") {
+        Ok(SniffedReturn::BareValue)
+    } else {
+        Err(Error::new_spanned(
+            ty,
+            "wat_intrinsic: handler must return `Result<Value, EvalBreak>` or \
+             `Result<TrackedValue, EvalBreak>` — got a different Ok type",
+        ))
+    }
+}
+
+/// Is `ty` shaped `Result<Ok = name, _>`? (Tolerates a preceding module path on `Result`
+/// itself, e.g. `std::result::Result`; the Ok type is matched by its final path segment,
+/// same tolerance as `type_path_ends_with`.)
+fn is_result_of(ty: &Type, name: &str) -> bool {
+    let Type::Path(p) = ty else { return false };
+    let Some(seg) = p.path.segments.last() else { return false };
+    if seg.ident != "Result" {
+        return false;
+    }
+    let PathArguments::AngleBracketed(args) = &seg.arguments else {
+        return false;
+    };
+    match args.args.first() {
+        Some(GenericArgument::Type(t)) => type_path_ends_with(t, name),
+        _ => false,
     }
 }
 
@@ -265,6 +320,7 @@ fn render_doc_error(e: &wat_doc::DocError) -> String {
 
 pub(crate) fn emit(fqdn: &LitStr, item: &ItemFn) -> syn::Result<TokenStream2> {
     let sniffed = sniff_args(item)?;
+    let sniffed_return = sniff_return(item)?;
 
     // Require a doc comment; parse it through wat_doc.
     let raw_doc = match sniff_doc(item) {
@@ -406,16 +462,32 @@ pub(crate) fn emit(fqdn: &LitStr, item: &ItemFn) -> syn::Result<TokenStream2> {
         quote! { ::wat::intrinsic::Arity::Exact(#n) }
     };
 
+    // Wrap the raw handler call per the sniffed return shape (arc 255 Stone G): a bare-`Value`
+    // handler's `Ok` is lifted to `TrackedValue::new(v, Provenance::Unknown)` — today's
+    // behaviour, unchanged; a `TrackedValue`-returning handler's `Ok` passes through
+    // un-rewrapped, carrying whatever `Provenance` it stamped (e.g. `RuntimeBuilt`).
+    let wrap_call = |call: TokenStream2| -> TokenStream2 {
+        match sniffed_return {
+            SniffedReturn::BareValue => quote! {
+                #call.map(::wat::value::TrackedValue::from)
+            },
+            SniffedReturn::Tracked => call,
+        }
+    };
+
     // Build the shim body. For exact-arity: check len == N, then forward individual refs.
     // For variadic: pass the whole slice directly (no arity check — 0+ args all valid).
     let shim_body = if is_variadic {
         // Variadic: pass the whole slice to the handler.
-        quote! {
+        wrap_call(quote! {
             #fn_name(args, env, sym, list_span)
-        }
+        })
     } else {
         let n = arg_names.len();
         let arg_forwards: Vec<TokenStream2> = (0..n).map(|i| quote! { &args[#i] }).collect();
+        let call = wrap_call(quote! {
+            #fn_name(#(#arg_forwards,)* env, sym, list_span)
+        });
         quote! {
             if args.len() != #n {
                 return ::std::result::Result::Err(
@@ -427,7 +499,7 @@ pub(crate) fn emit(fqdn: &LitStr, item: &ItemFn) -> syn::Result<TokenStream2> {
                     .into(),
                 );
             }
-            #fn_name(#(#arg_forwards,)* env, sym, list_span)
+            #call
         }
     };
 
@@ -435,13 +507,15 @@ pub(crate) fn emit(fqdn: &LitStr, item: &ItemFn) -> syn::Result<TokenStream2> {
         // The annotated handler, passed through unchanged.
         #item
 
-        // Dispatch shim — canonical NativeHandler signature.
+        // Dispatch shim — canonical NativeHandler signature. Returns `TrackedValue`
+        // (arc 255 Stone G): a bare-`Value` handler is wrapped as `Provenance::Unknown`
+        // by `wrap_call` above; a `TrackedValue`-returning handler's own provenance survives.
         fn #shim_ident(
             args: &[::wat::ast::WatAST],
             list_span: &::wat::span::Span,
             env: &::wat::value::Environment,
             sym: &::wat::value::SymbolTable,
-        ) -> ::std::result::Result<::wat::value::Value, ::wat::value::EvalBreak> {
+        ) -> ::std::result::Result<::wat::value::TrackedValue, ::wat::value::EvalBreak> {
             #shim_body
         }
 
