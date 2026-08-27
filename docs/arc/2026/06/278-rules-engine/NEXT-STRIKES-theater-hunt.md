@@ -988,50 +988,78 @@ line the measurement was not looking at.
 
 ### WHAT REMAINS OPEN — the honest list
 
-L1, unaddressed:
-- `conformare` x9 — a real wat span was in scope and discarded for
-  `rust_caller_span!()` (`eval_insert.rs:74,85,132,187`, `arm.rs:179,193,208,231,293`).
-  A user's malformed `:then` points at wat-rs's own Rust source, not their file.
-  `arm.rs:316` does it correctly in the same file — the pattern is known.
-- `intueri` x3 — doc comments attached to the WRONG function (`purity.rs:808-939`
-  describes `constructor_meta` but sits on `is_declaration_derived_construction`;
-  `purity.rs:1128` describes `classify_expr` but sits on a non-recursive guard;
-  `validate.rs:1089` promises source-form rendering and emits Rust `Debug`).
-- `vocare` x6 — four join tests with a deliberately empty `:rhs` reading `wm.beta`
-  with no `rune:vocare(vantage-bypass-test)` marker; one test that asserts a
-  hand-written belief-array against itself and touches no production code;
-  `differential_exists_no_multiplicity` misnamed for a contract it cannot detect.
-- `exigere` x1 — a cache-stone brief promising "a later stone" that never came and
-  is tracked nowhere.
+> ⛔ **STATUS IS EDITED HERE, IN PLACE. Never append a closure below.** This section spent days
+> titled "WHAT REMAINS OPEN" while listing rows whose closures were written 100–250 lines further
+> down *in this same file* — so it lied about itself to anyone who trusted its title, and the
+> closure blocks below were invisible to anyone who stopped reading at the list. A row's status
+> living in two places IS the defect; one row, one place is the cure. The narrative blocks below
+> stay as the REASONING that produced each verdict and are POINTED at from here — never restated.
+> (Found 2026-08-27 by the audit the L1 block now records.)
 
-L2, unaddressed (highlights):
-- `solvere` — the `CallFallback` five-shape classification is written THREE times
-  (`where_tree.rs:515`, `expr_ir.rs:1046`, `runtime.rs:10075`) and the third GUARDS
-  on `matches!(op.ret, ParamType::F64)` while the two rete copies sniff the runtime
-  value. `runtime.rs`'s own comment says why that is wrong. No current RETE_OPS row
-  exercises the gap. **This makes the exec_dim doc committed in 8788601de a true
-  description of a DIVERGENT copy — amend it, and unify to one classifier.**
-- `solvere` — `where_tree.rs:331` bypasses `clause.rs`'s documented ONE DOOR
-  `classify_constraint_head`, which has an anti-drift gate test for this exact
-  pattern; enum-variant-constructor resolution hand-written at three sites.
-- `conferre` — 4 of 10 grid axes (`fanout`, `min-finding`, `node-share`,
-  `user-reduce`) compute `:oracle-derived` but NOTHING in CI compares it; only a
-  standalone shell script does, and no test invokes it. Also the differential
-  gate's header prose says 18 axes where the arrays hold 41.
-- `excusare` x2 — `#[allow(clippy::too_many_arguments)]` at exactly 7 args in
-  `join_after_filter.rs:26` and `production.rs:26`; the threshold is 8. Both
-  carried over from sibling extractions that genuinely need it.
-- `partire` x7 — split proposals for `fire/mod.rs` (3), `validate.rs` (2),
-  `expr_ir.rs` (1), `arm.rs` (2). `purity.rs`, `export.rs`, `vocabulary.rs`,
-  `session.rs`, `compiled_cond.rs` all LEAVE.
-- `complectens` — the `harvest_stratified_queries` replay path is isolated by no
-  test; my new probe is the contract's only gate and is end-to-end.
-- MY OWN, verified: `RoundScratch` declared `bind_only` AND `cond_key_ids` as
-  `&'a mut` while every consumer takes them shared — the `AlphaNews::of` class
-  again. FIXED. And `matcher.rs:81` / `validate.rs:817` are byte-equivalent
-  registry lookups while matcher's doc claims to be the sole reader — `solvere`
-  RETRACTED this one; I verified it on the disk before the retraction and it
-  stands. A ward's retraction is also just a report.
+**L1 — ALL FOUR ROWS CLOSED. Audited row-by-row against the tree on 2026-08-27; not one was live.**
+That is a finding about the LIST, not the code, and it is why the rule above exists. Each verdict
+was verified that session at the cited path:
+
+- ~~`conformare` x9~~ — **CLOSED 2026-08-24.** Zero `rust_caller_span!()` remain in
+  `eval_insert.rs` or `arm.rs`; the named sites carry real wat spans. Verified by BEHAVIOUR, not
+  grep: a malformed `:then` reports `:location` at the user's file, at the offending operand's
+  line. Reasoning: "conformare's nine — CLOSED" below.
+- ~~`intueri` x3~~ — **CLOSED / STALE, all three.** `validate.rs:1089` renders through
+  `render_form` and records in its own doc that it *"used to be `{other:?}`"*. `purity.rs:808`
+  sits on `is_declaration_derived_construction` and its doc names that function, explicitly
+  contrasting itself with `constructor_meta` — *"`constructor_meta` recognises the pre-lowering
+  shape (type AS head); this recognises the post-lowering one"*. `purity.rs:1128` sits on
+  `refuse_core_structural_on_multi` and its doc says *"a narrow, non-recursive guard on
+  `items.first()`… the recursive walk this guards is [`classify_expr`], directly below."* Each doc
+  describes the function it is attached to.
+- ~~`vocare` x6~~ — **CLOSED, 4 + 2.** The four join tests carry
+  `rune:vocare(vantage-bypass-test)` at `src/rete/kernel/tests.rs:266,367,484,557`. The
+  "hand-written array asserted against itself" is `probe_arc278_49_one_core_covers_the_surfaces`,
+  which now names the real in-crate gate (`every_op_variant_lands_in_core_or_driver`) instead of
+  carrying a variant count it could not hold from where it stands.
+  `differential_exists_no_multiplicity` was renamed to what it observes, and a gate that CAN go
+  red was written with its sensitivity proven in-tree. Reasoning: "`vocare` 2 of 6" below.
+- ~~`exigere` x1~~ — **CLOSED 2026-08-25 by BOUNDING**, not by shipping: it is now
+  TRACKED DECISIONS ① at the foot of this file, with an owner and a re-read.
+
+**L2 — audited 2026-08-27 in the same pass. Six of seven closed; ONE was tracked NOWHERE.**
+
+- ~~`solvere` — `CallFallback` five-shape classification written THREE times~~
+  (`where_tree.rs:515`, `expr_ir.rs:1046`, `runtime.rs:10075`), the third guarding on
+  `matches!(op.ret, ParamType::F64)` while the two rete copies sniff the runtime value.
+  **CLOSED** — unified; see "A CLAIM I MADE AND RETRACT" below, which was written while landing it.
+- ~~`solvere` — `where_tree.rs:331` bypasses `clause.rs`'s ONE DOOR `classify_constraint_head`~~
+  — **CLOSED** (part of `solvere` all 7).
+- ~~`conferre` — 4 of 10 grid axes compute `:oracle-derived` but nothing in CI compares it; the
+  header said 18 axes where the arrays held 41~~ — **CLOSED 2026-08-25**, and the cure was to
+  DELETE the counts rather than correct them: both populations are asserted exactly equal to
+  their arrays, so there is no second place for a number to rot. The CI half closed separately
+  as PILE 3 item 3.2 on 2026-08-27. Full reasoning in the "STILL OPEN" block below.
+- ~~`excusare` x2 — `#[allow(clippy::too_many_arguments)]` at exactly 7 args in
+  `join_after_filter.rs:26` and `production.rs:26`~~ — **CLOSED.** Re-verified 2026-08-27: neither
+  file carries the allow. ⚠ **But the CLASS outlives the row** — five other
+  `too_many_arguments` allows exist in `src/rete/` (`round_census.rs:25`,
+  `filter_after_join.rs:17`, `hash_join.rs:394`, `hash_join.rs:463`) that the ward never named.
+  Each is only a defect if it sits BELOW the 8-arg threshold, which is unmeasured. Closing a
+  ward's row is not closing the class it sampled.
+- ⚠ **`partire` x7 — GENUINELY OPEN, AND IT WAS TRACKED NOWHERE.** It appears in neither the
+  CLOSED tally nor the STILL-OPEN list below; it fell between the two and so was never looked at
+  again. That is `exigere`'s rule broken in the record that enforces it. Split proposals for
+  `fire/mod.rs` (3), `validate.rs` (2), `expr_ir.rs` (1), `arm.rs` (2); `purity.rs`, `export.rs`,
+  `vocabulary.rs`, `session.rs`, `compiled_cond.rs` all LEAVE. **Re-grounded 2026-08-27:**
+  `fire/mod.rs` 1893 lines, `validate.rs` 2169, `expr_ir.rs` 1719 — all still at the shapes that
+  drew the proposals — and `arm.rs` has MOVED to `src/rete/kernel/arm.rs` (1124 lines), so that
+  citation was stale as written. Nothing here can compute a wrong answer; it is a decomposition
+  call and it needs an owner or an affirmative CUT, not another silent pass.
+- `complectens` — the `harvest_stratified_queries` replay path is isolated by no test; the probe
+  is the contract's only gate and is end-to-end. **OPEN, and DELIBERATELY not taken** — see the
+  "STILL OPEN" block below for why (`filter_pass` is unreachable from an integration test).
+- ~~MY OWN, verified: `RoundScratch` declared `bind_only` AND `cond_key_ids` as `&'a mut` while
+  every consumer takes them shared~~ — **FIXED**, and later PROVEN to be a borrow split rather
+  than an oversight (collapsing them compiles to `error[E0502]` x4). See `sequi` 2 L3 below.
+  Separately: `matcher.rs:81` / `validate.rs:817` are byte-equivalent registry lookups while
+  matcher's doc claims sole readership — `solvere` RETRACTED that one; it was verified on the
+  disk before the retraction and it stands. A ward's retraction is also just a report.
 
 ### circumspicere — cast LAST, against what the inward seventeen missed (0 L1, 3 L2)
 
@@ -1182,10 +1210,13 @@ one away) · `excusare` 2 L2 · `perspicere` 2 of 3 L2 · **`solvere` all 7 L2**
 `vocare` 4 of 6 · `complectens` 1 of 2 · `conferre` 1 of 2 · `circumspicere` 1 of 3
 (one DEFERRED by ruling, one correctly scoped as unrunnable in CI).
 
-**STILL OPEN — nothing here can compute a wrong answer.** (Rows marked CLOSED below were driven
-down on 2026-08-25; the remaining genuinely-open items are `complectens` 1, `circumspicere` 1, T7,
-the two TRACKED DECISIONS at the foot of this file, and the `CLAUDE.md` record defect that needs
-the builder.)
+**STILL OPEN — nothing here can compute a wrong answer.** Rows marked CLOSED below were driven
+down on 2026-08-25/27. **Re-audited 2026-08-27; this roster is the answer to "what is left":**
+`partire` x7 (open and, until this audit, tracked in NO list — see L2 above), `complectens` 1
+(open, deliberately not taken), `circumspicere` 1 (open, and its stated reason has EXPIRED — see
+below), the two TRACKED DECISIONS at the foot of this file, and the `CLAUDE.md` record defect
+that needs the builder. **T7 was named here as open while being marked CLOSED thirty lines
+below** — the same two-places-per-row defect this section's L1 header now bans; it is closed.
 - `conferre` 1 L2 — **CLOSED 2026-08-25, and it was worse than "prose drift".** The header said
   "18 axes / 9 sized + 10 where-*"; the disk held 43 / 11 + 32. The floor assertion
   `stems.len() >= 18` carried the same stale number, so the gate was measuring less than half the
@@ -1237,9 +1268,17 @@ the builder.)
   DELIBERATELY not taken: `filter_pass` is unreachable from an integration test, and
   going in-crate means the empty-`:rhs` implementer vantage just marked as a runed
   exception.
-- `circumspicere` 1 L2 — the grid's SPEED half runs in no CI job. Correctly scoped: it
-  needs Clara and a JDK the runner lacks. The CORRECTNESS half never needed Clara and
-  now runs on every floor.
+- `circumspicere` 1 L2 — the grid's SPEED half runs in no CI job. **⚠ ITS STATED REASON EXPIRED
+  ON 2026-08-27 AND NOTHING NOTICED — same shape as TRACKED DECISIONS ①.** The row read
+  "correctly scoped: it needs Clara and a JDK the runner lacks." The runner no longer lacks
+  either: the `parity` job added that day installs Temurin 21 and a version-pinned Clojure CLI
+  (`.github/workflows/ci.yml`), which is exactly the toolchain this row said was unavailable. The
+  CORRECTNESS half never needed Clara and runs on every floor. **What remains is a DIFFERENT and
+  still-good argument that nobody has made in writing: a shared CI runner is a noisy instrument,
+  so a wall-clock regression gate there would flap.** That is a reason to scope it deliberately —
+  a ratio against Clara measured in the same job is far less noise-sensitive than a raw ms
+  threshold — not a reason it cannot run. Re-decide it on the live constraint; do not re-inherit
+  the dead one.
 - **T7 — CLOSED 2026-08-25, half shipped and half affirmatively CUT.** `Op::Or` now takes ONE
   frame for the whole disjunction (`clear` + `extend_from_slice` per branch) instead of one
   allocation per branch — the copy IS the semantics and is preserved exactly; only the repeated

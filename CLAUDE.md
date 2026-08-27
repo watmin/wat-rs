@@ -2,13 +2,24 @@
 
 Conventions specific to working in `wat-rs` (the Rust-hosted `wat` language).
 
-> ⚠ **This file is NOT auto-injected.** Verified 2026-07-21 (a subagent + the main session both
-> receive only `~/work/holon/CLAUDE.md`). Nothing here reaches a fresh session or a spawned
-> rider on its own. The **load-bearing subset** (the wat-fix codemod doctrine, the release floor, the
-> scratch-`.wat` convention) is carried in `holon/CLAUDE.md` — the only injected copy. Keep them in
-> sync; for anything that MUST reach a fresh session/subagent, edit `holon/CLAUDE.md`. This file is the
-> fuller reference, not the delivery channel. (Wiring it live via an `@wat-rs/CLAUDE.md` import in
-> `holon/CLAUDE.md` is a follow-up, pending verification that CLAUDE.md imports are inherited by subagents.)
+> ⚠ **This file is NOT auto-injected, and NOTHING carries it for you.** A fresh session or a
+> spawned rider receives only `~/work/holon/CLAUDE.md`, which contains **no** wat-rs doctrine —
+> no `wat-fix`, no codemod, no `floor.sh`, no known-flake list, no scratch-`.wat` convention, and
+> no mention of `wat-rs` at all. If you are reading this, you opened it; a rider will not. **Read
+> it in full before you work here** — the floor discipline and the codemod doctrine below reach
+> you by no other route.
+>
+> ⛔ **This file may not assert what is inside `holon/CLAUDE.md`.** It used to: a dated,
+> hand-verified line claiming the load-bearing subset "is carried in `holon/CLAUDE.md` — the only
+> injected copy", which measured **zero of five** items when finally checked (2026-08-23,
+> re-confirmed 2026-08-27). The claim was self-certifying — it stated its own delivery and dated
+> it — so for over a month nobody re-checked, and it instructed every future hand to fix the gap
+> by editing the **FROZEN** holon root. The root is not the staleness but the *shape*: `holon/`
+> is outside this repo, so no gate here can ever check a claim about it, and an unverifiable
+> assertion is one that rots undetected by construction. **State only what this repo can check.**
+> The real delivery gap stays tracked — and needs the builder, since the cure lives in the frozen
+> root — at `docs/arc/2026/06/278-rules-engine/NEXT-STRIKES-theater-hunt.md` § "Not perf — a
+> guardrail hole found during the same sweep".
 
 ## Scratch `.wat` files → `wat-scripts/scratch-pad/`, NOT the session scratchpad
 

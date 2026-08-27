@@ -1287,6 +1287,46 @@ gate's own prose. Same error, different costume.
 
 ---
 
+### Failure mode 30 — A status recorded in TWO places, so the open list lies about itself
+
+**Signature:** a tracking doc has a section titled "what remains open" and, further down, a
+running narrative of what got closed. Closures are recorded by APPENDING a block below; the open
+list above is never pruned. Both halves are individually truthful. The document as a whole is
+false, and the half that lies is the one people read first — a title is a claim, and a section
+called "WHAT REMAINS OPEN" is asserting that its rows are open.
+
+**Why it survives so long:** every reader who checks a row finds the truth (the closure block is
+right there) and concludes the doc is fine. Every reader who TRUSTS the row does not check, and
+so never learns. The doc is therefore self-reinforcing in exactly the population that matters —
+the hurried one — and it fails silently for a reader who is doing the honest thing: reading the
+section that says it is the list of open work.
+
+**The compounding cost is worse than a wasted pass.** A false-open list is where live items go to
+hide. Real work sits in it looking identical to the dead rows around it, so nobody triages, and
+the one row that IS live is camouflaged by the nine that are not.
+
+**The cure — one row, one place.** Status is edited IN PLACE in the list; narrative blocks below
+are the REASONING that produced a verdict and are POINTED at, never a second copy of the verdict.
+Note the rung honestly: in a prose arc doc this is a **convention written where it is broken**
+(the section's own header bans appending a closure below it), not a gate. A lint over markdown
+prose would be exactly the self-certifying gate FM 29 names, so the material runs out here — say
+so rather than dressing the convention up as a wall.
+
+**Real incident, 2026-08-27.** `NEXT-STRIKES-theater-hunt.md` § "WHAT REMAINS OPEN — the honest
+list" carried four L1 ward rows. **All four had been closed for days**, each closure written
+100–250 lines below in the same file. `RETE-OPEN-WORK.md` and the breadcrumb both inherited the
+false status and told the next instance to go work it. Two audits had already found individual
+rows stale and recorded "this list is 2-for-2 stale, audit before working it" — a warning that
+correctly identified the symptom and left the mechanism running. The full audit came back
+**4-for-4**. And the false-open list had two live items hiding in it: `partire` x7, which was in
+NEITHER the closed tally nor the open roster and so was never re-read at all, and a
+`circumspicere` row whose stated reason had expired (FM 23's second incident).
+
+**The tell, and it generalises past documents:** *a list is not evidence. It is a claim, and it
+ages.* The same instinct that says "do not trust a grep that found nothing" says "do not trust a
+row that says it is open" — in both cases the artifact is reporting a past act of looking, not
+the present state of the world. Check the tree.
+
 ### Failure mode 22 — A rule written in prose that nothing ever runs
 
 **Signature:** a document states a discipline in the imperative — *"there is exactly ONE X; if
@@ -1340,6 +1380,27 @@ states that `#[wat_dispatch]` marshals `Result<T, E>` natively via the blanket i
 `Lru::new`'s shape. The stated blocker had been false for some time and the deferral had gone on
 citing it, in two files, tracked nowhere. What actually remained was a design question nobody had
 been asked.
+
+
+**⛔ SECOND INCIDENT, 2026-08-27 — AND THIS TIME THE EXPIRED DEFERRAL WAS ONE OF MINE, WRITTEN
+THE SAME DAY IT DIED.** A `circumspicere` row said the grid's SPEED half "runs in no CI job.
+Correctly scoped: it needs Clara and a JDK the runner lacks." Hours later, on the same day, I
+landed the `parity` job — which installs Temurin 21 and a version-pinned Clojure CLI, exactly the
+toolchain the row called unavailable. Nothing connected the two. The row kept reading as
+"correctly scoped" and I would have re-inherited its dead reason on the next pass.
+
+**What this incident adds to the cure:** the gap between a deferral and its expiry can be HOURS,
+not months, and the strike that kills a premise is usually not the one that wrote it. So the
+re-read cannot be "revisit deferrals periodically" — that is a convention, and it is what already
+failed twice. **The mechanical form: when you land anything that removes a constraint — a
+toolchain, a marshalling path, a missing primitive — grep the record for the constraint's NAME
+before you commit.** `grep -rn "JDK\|Clojure" docs/arc/.../NEXT-STRIKES-*.md` would have taken
+five seconds and caught it in the same commit that caused it.
+
+**And the honest half:** killing the stated reason does not decide the item. A shared CI runner
+IS a noisy instrument for a wall-clock gate — that is a real argument, and it had never been
+written down, because the dead reason was doing its job. An expired premise usually hides a live
+one; find it and write it, or the row just rots again with a fresher-looking excuse.
 
 ### Failure mode 13 — Trusting a DESIGN section without cross-checking memory
 

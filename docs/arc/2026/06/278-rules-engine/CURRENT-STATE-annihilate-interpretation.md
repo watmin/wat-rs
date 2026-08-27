@@ -5,59 +5,76 @@
 > `wat/rete.wat`. If a stone below disagrees with a dated ruling here,
 > **this file wins** and the stone is stale.
 
-**CURRENT STAMP 2026-08-27 — supersedes every dated block below it, INCLUDING the 2026-08-26 one.
-Written against HEAD `86091edf7`; the commit carrying this stamp lands on top, so a ONE-COMMIT
-docs-only gap at your wake is expected and is not staleness.**
+**CURRENT STAMP 2026-08-27 (second) — supersedes every dated block below it, INCLUDING the earlier
+2026-08-27 and 2026-08-26 ones. Written against HEAD `48e331135`; the commit carrying this stamp
+lands on top, so a ONE-COMMIT docs-only gap at your wake is expected and is not staleness.**
 
-**RETE-FIX-LIST IS EMPTY. THE FUZZERS ARE THE INSTRUMENT AND THEY KEEP PAYING.**
+**RETE-FIX-LIST IS EMPTY AND SO IS PILE 2. THE WARD TAIL WAS AUDITED AND EVERY ROW WAS ALREADY
+CLOSED.**
 
-**WHERE THE WORK IS: `RETE-OPEN-WORK.md`** — the single index. PILE 1 (fuzzing) is CLOSED; what
-remains is PILE 2's ward tail, and **that list is 2-for-2 STALE on the entries checked — audit each
-against the tree before working it.** `conformare` x9 read as a live user-facing defect and was
-already fixed; probing it anyway is what found a real one beside it.
+**WHERE THE WORK IS: `RETE-OPEN-WORK.md`** — the single index, and its "The order, and why" now
+holds the whole remaining list. It is four items: **4.1** the `RETE_OPS` reachability ledger (the
+only one that can surface a wrong answer), **`partire` x7** (needs an owner or an affirmative
+cut), **three builder rulings** (TRACKED DECISIONS ① and ②, and the `CLAUDE.md` delivery gap),
+and **`circumspicere` 1** (grid speed half in CI — re-decide on runner noise, not on the dead
+no-JDK premise).
+
+**THE AUDIT IS THE RESULT, AND IT IS 4-FOR-4 STALE.** The prior stamp said PILE 2 was "2-for-2
+stale — audit before working it". The audit ran against the tree: `conformare` x9, `intueri` x3,
+`vocare` x6 and `exigere` x1 were ALL already closed. Nothing on the ward tail was live.
+
+**THE ROOT WAS THE RECORD, NOT THE CODE.** `NEXT-STRIKES-theater-hunt.md` recorded every closure
+by APPENDING a block BELOW the open list and never pruning the list. A section titled "WHAT
+REMAINS OPEN" listed rows whose closures sat 100–250 lines further down IN THE SAME FILE. Trusting
+the title was the mistake and it was the file's fault. Cured at the only rung prose allows — **one
+row, one place**: status is edited inline and appending a closure below is banned in the section's
+own header. It cannot be gated; a lint over prose is exactly the self-certifying gate FM 29 names.
+
+**TWO LIVE ITEMS WERE HIDING INSIDE THE FALSE-OPEN LIST** — which is the argument for auditing a
+stale list rather than deleting it:
+- **`partire` x7 was in NEITHER tally.** Not closed, not open — it fell between the two and was
+  never re-read. `exigere`'s own rule, broken inside the record that enforces it.
+- **`circumspicere` 1's stated reason EXPIRED the day it was written.** "The runner lacks Clara
+  and a JDK" — the `parity` job landed that same day installs Temurin 21 and a pinned Clojure
+  CLI. **Second deferral in this arc found resting on a dead premise** (TRACKED DECISIONS ① was
+  the first). An untracked deferral has no re-read; that is the entire failure mode.
+
+**AND THE `CLAUDE.md` DEFECT'S wat-rs HALF IS CLOSED.** The false clause lived in THIS repo:
+`wat-rs/CLAUDE.md` asserted the load-bearing doctrine "is carried in `holon/CLAUDE.md` — the only
+injected copy", dated and hand-verified, while the root holds **zero of five** items and never
+mentions wat-rs (re-measured this session). It also told every future hand to fix it by editing
+the FROZEN root. The root defect is the SHAPE: `holon/` is outside this repo, so no gate here can
+ever check a claim about it, and an unverifiable assertion rots undetected by construction. The
+claim is deleted; the delivery gap itself still needs the builder.
 
 **FIVE FUZZERS, 5612 generated shapes, all green:** shape-space (3168), scalar types (936),
-operation programs / TMS (1372), rule-sets and `:then` (72), nested combinators (64). Plus a round
-cap and a termination verifier standing behind them. Grid: **33/33 `:accuracy :match`, 33/33
-`:winner :us`** after a day of engine changes, and Clara parity now runs in CI rather than by hand.
+operation programs / TMS (1372), rule-sets and `:then` (72), nested combinators (64). A round cap
+and a termination verifier stand behind them. Grid: **33/33 `:accuracy :match`, 33/33
+`:winner :us`**. Clara parity runs in CI, not by hand.
 
-**CLOSED 2026-08-26/27:** fuzzer families A, B, C (silent wrong answers; ratchet 120 -> 72 -> 0, now
-an equality gate), D (`:not` bind wall), E (`:then` kwargs read positionally), a 4x perf regression
-in my own requery fix, the fixpoint round cap + `:wat::config::rete::set-max-fire-rounds!`, the
-termination verifier (refuses a computed head in a derivation cycle, at `compile-all` so it covers
-runtime-built rules), CI Clara parity + a lint that keeps it wired, and a Rust-`Debug` operand
-rendering in user-facing `:then` errors.
-
-**THE TWO LESSONS THAT COST THE MOST, AND BOTH ARE NEW FAILURE MODES:**
-- **FM 28 — a COUNT cannot see a VALUE defect, and two engines agreeing proves nothing when they
-  share an assumption.** Entry E: three fuzzers were green for a day over the same code; the fourth
-  found it on its first run because it compared `sum(a*1000+b)` instead of a row count. Native and
-  the `$oracle` transposed identically and agreed perfectly on the wrong answer.
-- **FM 29 — a gate that reads its own file certifies its own prose.** Three instances in one day. A
-  lint passed with the real evidence DELETED, twice. **Mutation-prove every new gate**: break the
-  thing it watches, confirm RED, restore. Nothing else finds this.
-
-**AND TWO RECURRENCES OF CURES THAT ALREADY EXISTED** (both amended in place rather than renumbered,
-so the cure is not hidden behind a new number): FM 18 — a BACKGROUNDED build is still RUNNING, and
-reading its silence as completion started a second floor on top of the first (`pgrep` before any
-build; empty is the only green light). FM 20 — a trailing `echo` makes a command's exit status 0 no
-matter what the gate said; write the gate to a file and read `$?` on the very next line.
+**THE FAILURE MODES THAT COST THE MOST — read `docs/COMPACTION-AMNESIA-RECOVERY.md` for all of
+them, but these four are the live ones:** FM 28 (a COUNT cannot see a VALUE defect; two engines
+agreeing proves nothing when they share an assumption). FM 29 (a gate that reads its own file
+certifies its own prose — mutation-prove every new gate). FM 18 (a BACKGROUNDED build is still
+RUNNING; `pgrep` before any build). FM 20 (a trailing `echo` makes exit status 0 no matter what
+the gate said).
 
 **DO NOT TRUST A GREP THAT FOUND NOTHING.** "I searched and found none" and "this cannot be
 written" are different statements. I reported the first as the second twice on 2026-08-27 — once
-claiming a keyword type did not exist, once claiming a termination hole was already guarded by
-three fences. Both were wrong, both were committed, and both were caught by the builder pushing
-back on a detail. PROBE THE BEHAVIOUR; the disk answers what a grep only gestures at.
+claiming a keyword type did not exist, once claiming a termination hole was already guarded. Both
+were wrong, both were committed, both were caught by the builder pushing back on a detail. PROBE
+THE BEHAVIOUR; the disk answers what a grep only gestures at. **The same shape one level up: a
+list that says a thing is open is not evidence that it is.**
 
 **⚠⚠ YOU ARE NOT THE INSTANCE THAT WROTE THIS. ⚠⚠**
 Everything above is a cache written by a prior self across a very long session. You did not live
-it. It felt continuous when you woke and that feeling is the failure, not the all-clear. Before you
-propose or move: fetch `recolligere` from the datamancy MCP and run it against the disk —
-`docs/COMPACTION-AMNESIA-RECOVERY.md`, `git log`, this file, `RETE-OPEN-WORK.md`, and the source you
-are about to touch. The freshness probe is the HEAD named at the top of this stamp against
-`git rev-parse HEAD`; more than the one expected docs-only commit of drift means trust the log over
-every line above. **And this file is the ONLY live breadcrumb — if you find another claiming to be,
-it is lying.**
+it. It felt continuous when you woke and that feeling is the failure, not the all-clear. Before
+you propose or move: fetch `recolligere` from the datamancy MCP and run it against the disk —
+`docs/COMPACTION-AMNESIA-RECOVERY.md`, `git log`, this file, `RETE-OPEN-WORK.md`, and the source
+you are about to touch. The freshness probe is the HEAD named at the top of this stamp against
+`git rev-parse HEAD`; more than the one expected docs-only commit of drift means trust the log
+over every line above. **And this file is the ONLY live breadcrumb — if you find another claiming
+to be, it is lying.**
 
 **Right now (2026-08-23 — SUPERSEDED by the stamp above; kept as history):** class-scan query harvest LANDED.
 Fanout `[40000]` wat-ns **58.1 → 42.8**. With-query

@@ -107,33 +107,63 @@ activations, and multiplicity is a shape this arc has been bitten by before.
 
 ---
 
-## PILE 2 — owned by `NEXT-STRIKES-theater-hunt.md` § "WHAT REMAINS OPEN". Read it there.
+## PILE 2 — THE WARD TAIL IS EMPTY. Audited row-by-row 2026-08-27; nothing on it was live.
 
-**⚠ AUDIT THE LIST BEFORE WORKING IT — 2026-08-27.** Two of these were checked against the tree
-and found STALE, which is a finding about the LIST, not the code:
+> Owned by `NEXT-STRIKES-theater-hunt.md` § "WHAT REMAINS OPEN", which now carries the per-row
+> verdicts and the evidence. Read it there. This is the index entry, not a second copy.
 
-- **`conformare` x9 — STALE.** Neither cited file (`eval_insert.rs`, `arm.rs`) contains
-  `rust_caller_span!` any more, and the sites it named now use real wat spans
-  (`acc_form.span().clone()`). Verified by BEHAVIOUR, not by grep: a user's malformed `:then`
-  reports `:location` at their own file, at the offending operand's line.
-- **`intueri` x3, the `validate.rs` row — STALE.** That file now renders through `render_form` and
-  says so in its own doc, recording that it *"used to be `{other:?}`"*.
+**The prior stamp said this list was "2-for-2 stale" and told you to audit before working it. The
+audit ran. It is 4-for-4 on L1 — every single row was already closed:**
 
-**But probing the stale finding surfaced a LIVE one it did not name**, now fixed: `eval_insert` and
-`compiled_rhs` rendered the offending operand into `:got` with Rust `Debug`, so an unbound `?var`
-in a `:then` showed the user
-`Symbol(Identifier { name: "?nope", scopes: {} }, Span { file: … })` — hygiene scopes and a nested
-span, for a typo. Routed to `validate::render_form` (the printer `write-forms` already uses) rather
-than growing a second renderer; both halves of the compiled/interpreted differential moved together
-because their errors are contracted BYTE-IDENTICAL. Gated by
-`tests/rete/probe_arc278_then_operand_rendered_as_source.rs`.
+| row | verdict | how it was checked |
+|---|---|---|
+| `conformare` x9 | CLOSED 2026-08-24 | zero `rust_caller_span!()` in either cited file; verified by BEHAVIOUR |
+| `intueri` x3 | CLOSED / STALE | each doc names the function it sits on; read all three |
+| `vocare` x6 | CLOSED (4 + 2) | `rune:vocare(...)` markers at `kernel/tests.rs:266,367,484,557`; the other two closed 2026-08-25 |
+| `exigere` x1 | CLOSED by BOUNDING | now TRACKED DECISIONS ① |
 
-**Still standing, unverified:** `vocare` x6, the two remaining `intueri` rows, `exigere` x1. Check
-each against the tree before working it — the hit rate on this list is now 2-for-2 stale.
+**⚠ THE FINDING IS ABOUT THE LIST, NOT THE CODE — and the root is structural.**
+`NEXT-STRIKES-theater-hunt.md` recorded every closure by APPENDING a block *below* the open list
+and never pruning the list itself. So a section titled "WHAT REMAINS OPEN" listed rows whose
+closures were written 100–250 lines further down in the same file. Trusting the title was the
+mistake, and it was the file's fault, not the reader's. **Cured by the only rung the material
+allows: one row, one place.** The section now states status inline and bans appending a closure
+below it. It cannot be gated — it is prose in a narrative arc doc, and a lint over prose is the
+self-satisfying gate FM 29 is about — so the rule is written where it is broken, and that is the
+honest ceiling here.
 
-**None of these can produce a wrong answer** — that is why they sit below the piles above, and
-also why they will never be found by a differential. `conformare` x9 is the one with real user
-impact.
+**TWO LIVE THINGS THE AUDIT SURFACED, both of which the list itself hid:**
+
+1. **`partire` x7 was tracked in NO list** — neither the CLOSED tally nor the STILL-OPEN roster.
+   It fell between them and so was never re-read: `exigere`'s own rule, broken inside the record
+   that enforces it. Re-grounded 2026-08-27: `fire/mod.rs` 1893 lines, `validate.rs` 2169,
+   `expr_ir.rs` 1719 — still the shapes that drew the proposals — and `arm.rs` has MOVED to
+   `src/rete/kernel/arm.rs`, so the citation was stale as written. It needs an owner or an
+   affirmative CUT.
+2. **`circumspicere` 1's stated reason EXPIRED the same day it was written.** The row said the
+   grid's SPEED half cannot run in CI because the runner lacks Clara and a JDK. The `parity` job
+   landed on 2026-08-27 installs Temurin 21 and a pinned Clojure CLI — precisely that toolchain.
+   The remaining argument (a shared runner is a noisy instrument for a wall-clock gate) is real
+   but has never been written down, and a ratio against Clara measured in the same job would be
+   far less noise-sensitive than a raw threshold. **This is the second deferral in this arc found
+   resting on a dead premise** — TRACKED DECISIONS ① was the first, where the `#[wat_dispatch]`
+   blocker had likewise expired unnoticed. An untracked deferral has no re-read; that is the
+   whole failure, and it has now happened twice.
+
+**What genuinely remains after the audit:** `partire` x7 · `complectens` 1 (open, deliberately
+not taken — `filter_pass` is unreachable from an integration test) · `circumspicere` 1 (re-decide
+on the live constraint) · TRACKED DECISIONS ① and ② (both need a builder ruling) · the
+`wat-rs/CLAUDE.md` delivery defect. **None can compute a wrong answer.**
+
+**And the CLAUDE.md defect got its wat-rs half closed 2026-08-27.** The false clause lived in
+*this* repo: `wat-rs/CLAUDE.md` asserted the load-bearing subset "is carried in
+`holon/CLAUDE.md` — the only injected copy", dated and hand-verified, while the holon root
+contains **zero of five** items and never mentions `wat-rs` (re-measured this session). Worse, it
+instructed every future hand to fix the gap by editing the FROZEN root. The root is not the
+staleness but the shape: `holon/` is outside this repo, so no gate here can ever check a claim
+about it — an unverifiable assertion rots undetected by construction. The claim is deleted and
+replaced with what this repo can check. **The delivery gap itself is unchanged and still needs
+the builder**, since the cure lives in the frozen root.
 
 ---
 
@@ -301,19 +331,33 @@ range-restricted because `z` comes from `edge`.
 
 ## The order, and why
 
-1. **4.1 the reachability ledger** — small, converts a proven-live defect class into a standing
-   gate, and immediately tells us how much dead surface there is.
-2. **1.1 interleaved retract** — DONE 2026-08-27.
-3. **4.2 the termination verifier** — DONE 2026-08-27. The fn-headed `:then` hole was named, then
-   investigated and found to be guarded by three adjacent fences with no exploit constructible. It
-   is NOT the head of the list; **3.2 (no CI job checks the arc's own closing condition) is**,
-   because every Clara agreement this session was established BY HAND and a parity regression
-   still merges fully green.
-4. ~~3.2 CI parity~~ DONE 2026-08-27. Next: **1.2 generated rules** (the whole `:then` side and
-   multi-rule interaction), then the PILE 2 tail with `conformare` x9 first — it is the only ward
-   finding with real user impact.
+**Everything below rung 1 is DONE. As of 2026-08-27 the list is: 4.1, then a decomposition
+ruling, then two builder rulings.**
 
-> ⚠ **A green fuzzer is not an empty list.** 4104 shapes at zero divergences means the engine is
-> correct IN THE REGION THESE GRAMMARS REACH. Both spaces are hand-authored; they cover what
+1. **4.1 the reachability ledger, per (row x call-site kind)** — the ONLY remaining item that can
+   surface a wrong answer, and the only one with a design already reasoned out (see PILE 4.1).
+   74 rows measured; 3 appear nowhere in the corpus, which is the FLOOR of the problem, not its
+   size. Do not start by hand-writing 74 snippets.
+2. **`partire` x7** — needs an owner or an affirmative CUT. It has been tracked in no list at all;
+   another silent pass is the one outcome that is not allowed.
+3. **TRACKED DECISIONS ① and ②, and the `CLAUDE.md` delivery gap** — three builder rulings. All
+   three are blocked on a judgment call, not on work, and ① is already known to have been
+   deferred on a premise that expired.
+4. **`circumspicere` 1 (grid SPEED half in CI)** — re-decide on the live constraint (runner noise),
+   not the dead one (no JDK). A Clara ratio is the noise-tolerant form.
+
+~~1.1 interleaved retract~~ · ~~1.2 generated rules~~ · ~~1.3 query params~~ ·
+~~1.4 nested combinators~~ · ~~3.1 fixpoint cap~~ · ~~3.2 CI parity~~ · ~~4.2 termination
+verifier~~ · ~~PILE 2's ward tail~~ — all DONE or audited-empty 2026-08-26/27.
+
+> ⚠ **A green fuzzer is not an empty list.** 5612 shapes at zero divergences means the engine is
+> correct IN THE REGION THESE GRAMMARS REACH. Every space is hand-authored; they cover what
 > someone thought to encode. That is why the vacuity findings of 2026-08-27 matter more than they
 > look — a vacuous dimension shrinks the region without shrinking the number.
+
+> ⚠ **AND AN EMPTY WARD LIST IS NOT AN AUDITED ONE.** The 2026-08-27 audit found PILE 2 was
+> already empty and had been for days, while the record still read as open — every row closed,
+> every closure written somewhere the list did not point. Two live items were hiding inside that
+> false-open list (`partire` untracked, `circumspicere`'s expired premise). **Before working ANY
+> row in this file, check it against the tree.** The hit rate on inherited rows in this arc is
+> now 4-for-4 stale.
