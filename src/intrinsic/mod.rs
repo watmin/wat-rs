@@ -402,6 +402,7 @@ mod char;
 mod f64;
 mod hashmap;
 mod hashset;
+mod holon;
 mod i64;
 mod io;
 mod kernel;

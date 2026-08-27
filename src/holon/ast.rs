@@ -23,6 +23,24 @@ use std::sync::Arc;
 /// Arc 225 Stone 225.1 — renamed from `holon_item_to_value`. `op: &str`
 /// parameter threaded through to close arc 224 L1-runtime-3 latent lie
 /// (hardcoded op name in error arm).
+///
+/// Arc 228 Stone 228.1 — updated decode dispatch. Previously dispatched by Bundle
+/// child-shape heuristic (three-way: bare-atom → HashSet, positional-Bind → Vec,
+/// arbitrary-Bind → HashMap). Now dispatches by classifier-atom first: if the outermost
+/// form is `Bind(Atom(String(name)), inner)`, dispatches by name
+/// ("Map" → HashMap, "Set" → HashSet, "Vector" → Vec, "List" → List, "Tuple" → Tuple).
+/// Bare Bundle (no classifier) errors with helpful diagnostic per HARD CUT discipline —
+/// the substrate refuses to decode unclassified collections. Callers must use
+/// `to_holon_inner` (or a Pascal-Case constructor) which always produces classifier-wrapped
+/// forms.
+///
+/// Polymorphic decode — the full HolonAST-to-Value materializer:
+///
+/// - Primitive leaf (Symbol/Keyword/Nil/Char/String/I64/F64/Bool) → corresponding
+///   runtime `Value`.
+/// - `Atom(inner)` → inner HolonAST as a `Value::holon__HolonAST`.
+/// - `Bind(Atom(String(name)), Bundle(items))` → classifier-dispatch by name.
+/// - `Bundle(items)` → TypeMismatch (unclassified Bundle; HARD CUT per arc 228 doctrine).
 // Stone 216.5b — suppress `mutable_key_type` for `HashSet<Value>`.
 // See comment on `hashset_conj_inner` for rationale.
 #[allow(clippy::mutable_key_type)]
