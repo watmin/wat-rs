@@ -450,7 +450,13 @@ fn kw(name: &str) -> OwnedValue {
 /// Render a clause/form for a diagnostic message — the same structural pretty-printer
 /// `:wat::core::write-forms` uses (`crate::wat_edn_bridge::watast_to_edn` + `wat_edn::write`),
 /// so a `#wat.rete/MalformedClause` names the offending form exactly as a wat reader would.
-fn render_form(ast: &WatAST) -> String {
+///
+/// `pub(crate)` since 2026-08-27: `eval_insert` and `compiled_rhs` rendered their `got` operand
+/// with Rust `Debug` — a user who wrote an unbound `?var` in a `:then` was shown
+/// `Symbol(Identifier { name: "?nope", scopes: {} }, Span { file: … })` instead of `?nope`. They
+/// now call THIS, rather than growing a second renderer, which is the whole reason it is exported
+/// instead of inlined.
+pub(crate) fn render_form(ast: &WatAST) -> String {
     wat_edn::write(&crate::wat_edn_bridge::watast_to_edn(ast))
 }
 

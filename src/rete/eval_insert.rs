@@ -133,7 +133,7 @@ pub(crate) fn build_insert_fact(
             return Err(RuntimeError::new(other.span().clone(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "keyword (record type) as fact-form head",
-                got: Box::new(ValueSnapshot::of(&Value::String(Arc::new(format!("{other:?}"))))),
+                got: Box::new(ValueSnapshot::of(&Value::String(Arc::new(crate::rete::validate::render_form(other))))),
             }).into());
         }
     };
@@ -195,7 +195,7 @@ pub(crate) fn build_insert_fact(
                 return Err(RuntimeError::new(arg.span().clone(), RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "resolvable operand (?var, literal, or a fenced expression) in RHS fact-form",
-                    got: Box::new(ValueSnapshot::of(&Value::String(Arc::new(format!("{arg:?}"))))),
+                    got: Box::new(ValueSnapshot::of(&Value::String(Arc::new(crate::rete::validate::render_form(arg))))),
                 }).into());
             }
         }
@@ -250,7 +250,7 @@ fn build_insert_fact_call(
                 return Err(RuntimeError::new(arg.span().clone(), RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "resolvable operand (?var, literal, or a fenced expression) in a RHS fn-call arg",
-                    got: Box::new(ValueSnapshot::of(&Value::String(Arc::new(format!("{arg:?}"))))),
+                    got: Box::new(ValueSnapshot::of(&Value::String(Arc::new(crate::rete::validate::render_form(arg))))),
                 }).into());
             }
         }
