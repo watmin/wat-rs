@@ -3495,7 +3495,7 @@ fn reconstruct_holon_record(
         )),
     })?;
     let span = crate::rust_caller_span!();
-    let hologram = crate::runtime::build_holon_hologram(&class, &field_names, &fields, ctx, &span)
+    let hologram = crate::holon::build_holon_hologram(&class, &field_names, &fields, ctx, &span)
         .map_err(|e| EdnReadError {
             span: crate::rust_caller_span!(),
             kind: EdnReadErrorKind::Other(format!(
@@ -4224,7 +4224,7 @@ fn opaque_nil(ns: &str, name: &str) -> OwnedValue {
 ///   `#wat.holon/Thermometer {:value :min :max}` /
 ///   `#wat.holon/SlotMarker {:min :max}` — legible, self-describing, plain
 ///   EDN, never a call form.
-/// - anything else that IS data — [`crate::runtime::from_holon_item`] (the
+/// - anything else that IS data — [`crate::holon::from_holon_item`] (the
 ///   holon→data inverse `:wat::holon::from-holon` already uses) recovers the
 ///   `Value` it derived from; that `Value` renders through the SAME
 ///   `value_to_edn_with` this function is itself an arm of, wrapped in
@@ -4260,7 +4260,7 @@ fn holon_ast_to_edn_data(h: &holon::HolonAST, types: Option<&crate::types::TypeE
                 (OwnedValue::Keyword(Keyword::new("max")), OwnedValue::Float(*max)),
             ])),
         ),
-        other => match crate::runtime::from_holon_item(
+        other => match crate::holon::from_holon_item(
             other,
             ":wat::edn::write",
             &crate::rust_caller_span!(),
@@ -4335,7 +4335,7 @@ fn edn_derive_holon(
 /// hand-kept-in-sync copies (the same reasoning as
 /// [`decode_holon_directive_tag`] for the directive tags).
 fn decode_holon_data_tag(value: Value) -> Result<holon::HolonAST, EdnReadError> {
-    match crate::runtime::to_holon_inner(value, &crate::rust_caller_span!()) {
+    match crate::holon::to_holon_inner(value, &crate::rust_caller_span!()) {
         Ok(Value::holon__HolonAST(h)) => Ok((*h).clone()),
         Ok(other) => unreachable!(
             "to_holon_inner always returns holon__HolonAST on Ok; got {other:?}"

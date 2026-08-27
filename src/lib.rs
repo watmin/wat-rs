@@ -74,13 +74,12 @@ pub mod config;
 pub mod distribution;
 pub mod edn;
 pub mod error_ns;
-pub mod sigma;
 pub mod process;
 pub mod form_match;
 pub mod freeze;
 pub(crate) mod function;
 pub mod hash;
-pub mod hologram;
+pub mod holon;
 pub mod scope;
 pub mod io;
 pub mod lexer;
@@ -132,7 +131,7 @@ pub use edn::render::{edn_to_value, read_edn, EdnReadError};
 pub use config::{
     collect_entry_file, collect_entry_file_with_inherit, CapacityMode, Config, ConfigError,
 };
-pub use sigma::{DefaultCoincidentSigma, DefaultPresenceSigma, SigmaFn, WatFnSigmaFn};
+pub use holon::sigma::{DefaultCoincidentSigma, DefaultPresenceSigma, SigmaFn, WatFnSigmaFn};
 pub use vm_registry::{Encoders, EncoderRegistry};
 pub use freeze::{
     bootstrap_wat_vm_process, eval_digest_in_frozen, eval_in_frozen, eval_signed_in_frozen,
@@ -433,7 +432,10 @@ pub use types::{
     AliasDef, EnumDef, EnumVariant, NewtypeDef, TypeDef, TypeEnv, TypeError, TypeExpr,
 };
 
-use holon::{encode, ScalarEncoder, Vector, VectorManager};
+// `::holon` (leading `::`) forces extern-crate resolution — this crate's own
+// `pub mod holon;` (Stone HOME-8, the VSA algebra home) shadows the bare
+// name `holon` at crate-root scope, same name as the external VSA crate.
+use ::holon::{encode, ScalarEncoder, Vector, VectorManager};
 
 /// Unified error type across the parse + lower pipeline.
 #[derive(Debug)]
