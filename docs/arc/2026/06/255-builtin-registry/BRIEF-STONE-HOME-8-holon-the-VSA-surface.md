@@ -67,7 +67,43 @@ src/intrinsic/holon/      the interface (~1208 lines)
     reckoner.rs           Reckoner/*
 ```
 
-## ⛔ PHASE ORDER — unchanged, and non-negotiable
+## ⛔⛔ CORRECTED 2026-08-27, BEFORE THE STRIKE — THERE IS NO CODEMOD AND NO RETIREMENT
+
+The phase order below was **inherited boilerplate from the six preceding home stones and is WRONG
+for this one.** Measured before striking:
+
+```
+:wat::holon::* corpus sites already on the FINAL spelling ... 3058
+legacy :wat::core::holon:: spellings anywhere in the tree ...    0
+```
+
+Every prior home moved a NAME — `:wat::core::String/concat` → `:wat::string::concat` — and needed
+three phases because the old spelling had to keep working while the corpus migrated. **`:wat::holon::`
+is ALREADY a top-level namespace, like `:wat::string::`. Nothing is renamed.** This stone is a pure
+RE-REGISTRATION: 95 arms leave `runtime.rs`'s match and are re-declared as
+`#[wat_intrinsic(":wat::holon::…")]` handlers under the same names.
+
+**So: no wat-fix codemod. No RetirementEntry rows. No dual-spelling window. No corpus churn.**
+Phase 1 is the whole stone. Writing a codemod here is **STOP-6**.
+
+⚠ **AND MY SURFACE COUNTS WERE TEXT GREPS OVER WHOLE FILES, COMMENTS INCLUDED.** Re-derive every one
+before acting on it; do not quote these forward:
+
+```
+                      raw-grep   CODE-only (comments stripped)
+src/check.rs             230          ~175
+src/rete/purity.rs       114          ~100
+src/macros/eval.rs        30           ~28
+src/rete/vocabulary.rs     9            ~5
+```
+
+⛔ **A LIVE BUILDER RULING SITS IN `src/rete/purity.rs:647`** — *"The VSA SEAM — `:wat::holon::`
+(builder-ruled, 2026-08-01: these four)."* **ZERO of the ~105 holon verbs are classified except four
+deliberate ones**, and the surrounding comment explains why the seam was welded shut and then opened
+for exactly those. **Re-classifying holon verbs is overturning a builder ruling — STOP-7.** Move what
+the carve requires; classify nothing new.
+
+## PHASE ORDER — SUPERSEDED for this stone (see the correction above); kept as the record
 
 ```
 PHASE 1   register.  BOTH SPELLINGS LIVE.  Nothing moves.
