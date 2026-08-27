@@ -103,12 +103,30 @@ legitimate workload shape.
 > is not "this program cannot diverge". The real answer is 4.2. A mitigation that removes the pain
 > removes the motivation, so this entry stays visible rather than being struck.
 
-### 3.2 The arc's closing condition is checked by no CI job
+### ~~3.2 The arc's closing condition is checked by no CI job~~ · **CLOSED 2026-08-27**
 `PERF-ARC` states it as "differential-tested bit-for-bit against the wat oracle AND benched at or
-past Clara". The parity scripts need a JDK + Clojure the runner lacks, so they never run there — a
-Clara-parity or throughput regression **merges fully green**. `run-all.sh` documents this having
-already happened once, with four axes dead for days. Every Clara agreement in this session was
-established BY HAND.
+past Clara". The oracle half was gated in nextest; the CLARA half was invoked by no job, so a
+parity regression merged fully green. `run-all.sh` records that having already happened once, four
+axes dead for days. Every Clara agreement in this session was established BY HAND.
+
+**Closed with both halves:** a dedicated `parity` job in `.github/workflows/ci.yml` (its own job,
+not a step, so a parity failure and a broken build cannot mask each other) installing Temurin + a
+VERSION-PINNED Clojure CLI and running the scripts — plus
+`tests/lint/every_parity_script_is_invoked.rs`, which WALKS the grid for `check-*.sh` and requires
+each to be invoked by CI or a test. Wiring alone would not have closed it: the failure mode is the
+YAML line going away, or a new script landing that nobody wires.
+
+**And the lint found a third dead gate while being written.** `check-query-compat.sh` — a working
+THREE-WAY check (Clara == oracle == native, 24 rows across three query families) — was referenced
+by ZERO files in the tree. Now wired.
+
+**⚠ THE LINT WAS SELF-SATISFYING TWICE, and only MUTATION found it.** Deleting a real invocation
+left it green, because the gate concatenated every `.rs` under `tests/` including its own file:
+first its doc comment named the scripts, then — after comment-stripping — its own SUPERSEDED table
+named one as a string literal. A gate may not be its own evidence. Both paths are now closed and
+the reason is written at the exclusion. `check-spec-native.sh` had been passing on prose the whole
+time; it is now an audited SUPERSEDED row naming the native gate that replaced it, asserted for
+exact set equality so a stale excuse goes red too.
 
 ---
 
@@ -233,7 +251,9 @@ range-restricted because `z` comes from `edge`.
    is NOT the head of the list; **3.2 (no CI job checks the arc's own closing condition) is**,
    because every Clara agreement this session was established BY HAND and a parity regression
    still merges fully green.
-4. **3.2 CI parity**, then **1.2 generated rules**, then the PILE 2 tail with `conformare` first.
+4. ~~3.2 CI parity~~ DONE 2026-08-27. Next: **1.2 generated rules** (the whole `:then` side and
+   multi-rule interaction), then the PILE 2 tail with `conformare` x9 first — it is the only ward
+   finding with real user impact.
 
 > ⚠ **A green fuzzer is not an empty list.** 4104 shapes at zero divergences means the engine is
 > correct IN THE REGION THESE GRAMMARS REACH. Both spaces are hand-authored; they cover what
