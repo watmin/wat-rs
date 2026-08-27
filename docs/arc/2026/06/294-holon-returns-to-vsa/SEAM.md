@@ -61,7 +61,7 @@ and **that gate cannot be un-ignored by anything smaller.**
 ## WHERE WE ARE
 
 ```
-registered intrinsics ... 250        src/intrinsic/ homes ... 21        retirement rows ... 126
+registered intrinsics ... 250        src/intrinsic/ homes ... 21        retirement rows ... 131
 src/ root .rs files ..... 24         runtime.rs 40,492 + check.rs 22,469 = 75% of the root
 ```
 
@@ -73,11 +73,24 @@ B-i · B-ii   the corpus        2,054 core sites + 408 rete sites, by codemod
 C            the retirement    the old numeric spellings became check-time errors
 D            bigint+rational   the numeric tower finished
 E-i…E-iv     the collections   map · hashmap · vector · vec · hashset · linkedlist · keyword
+F            the String verbs  the last per-type family — and the lint it fed was firing on a corpse
 ```
 
 **`wat.core/+` IS ALREADY A DEFCLAUSE** (`wat/core.wat:58+`, arc 300 stone C1) and **every one of its
 four numeric arms now points at a `wat.<type>/` home.** The builder's `wat.core/+ => [wat.i64/+ …]`
 was not a future shape; it was on disk with two arms in the junk drawer, and D finished the set.
+
+★ **RULED + PARKED 2026-08-26 — `:wat::core::String/*` AND `:wat::string::*` COEXIST ON PURPOSE.**
+They are not an inconsistency and **this is not an open naming question.** `String/<method>` is the
+namespace `extend-type` GENERATES — instance methods on the String type — and `:wat::string::<verb>`
+is the function home. Stone F evicted five plain functions from the former; it did **not** kill it,
+and `extend-type :wat::core::String` still mints there (proved: `DuplicateDefine` on
+`:wat::core::String/tag`). Builder: *"that would put 'instance method' in :wat::core::String/* which
+is logical … keep them there for now …. we'll figure out the naming problems later."*
+⚠ Production `wat/` extends **Vector · PersistentVector · List · Stream** (Seqable) and
+**ThreadOpts · ProcessOpts** (Locus) — it does **not** extend String, so String's slice is currently
+VACANT. A vacant namespace reads like a mistake; it is a ruled, deliberate reservation.
+`[[feedback_a_rejected_option_returns_in_new_clothes]]`
 
 ⚠ **`:wat::set::` and `:wat::list::` ARE RESERVED AND UNCLAIMED.** Persistent set and list do not
 exist yet; the builder has ruled they are coming. The unmarked name belongs to the flavor that will
