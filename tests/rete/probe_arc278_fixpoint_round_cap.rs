@@ -154,6 +154,33 @@ fn a_non_terminating_rule_set_is_refused_at_compile_by_the_verifier() {
     assert_eq!(field_str(&e, "fact-type"), "cap::N");
 }
 
+/// THE FN-HEADED EXPLOIT — the hole 4.2 shipped with, demonstrated and then closed.
+///
+/// The verifier inspects the `:then` ITEM, and `(:fm::bump ?n)`'s arguments are bare bound
+/// variables — the minting is one level down, in the rete fn's body. Before this closed, the
+/// fixture compiled clean and ran to the round cap.
+///
+/// It also pins the two things that made the exploit hard to write, both of which produced FALSE
+/// NEGATIVES first: the fn must be declared `:wat::rete::core::defn` (a plain `:wat::core::defn`
+/// is refused as a `:then` head for an unrelated reason), and the arithmetic must use the total
+/// fallback spelling. Three earlier attempts got one of those wrong, failed for the wrong reason,
+/// and briefly convinced me the hole was already guarded by other fences.
+///
+/// And the analysis had to know that `(:fm::N :k <expr>)` is kwargs SUGAR that macro-expands to
+/// `:wat::core::kwargs-construct` — a head starting with `:wat::`, which a "constructors are
+/// non-`:wat::` heads" heuristic skips. That one line silently disarmed the whole check.
+#[test]
+fn a_mint_hidden_inside_a_rete_fn_body_is_refused() {
+    let (ok, stdout, stderr) = run("tests/rete/probe_arc278_termination_fn_head.wat");
+    assert!(
+        !ok,
+        "a rete fn whose BODY constructs from a computed value, inside a derivation cycle, mints a \
+         novel fact every round — it must not compile\n{stdout}{stderr}"
+    );
+    let e = rete_error(&stderr, "RuleSetMayNotTerminate");
+    assert_eq!(field_str(&e, "rule"), "fm::grow");
+}
+
 /// THE BOUNDARY, and it is the row that justifies the deep fixture's size.
 ///
 /// "500 is comfortably under 10,000" tests nothing about the cap's EDGE. A `>` where a `>=`

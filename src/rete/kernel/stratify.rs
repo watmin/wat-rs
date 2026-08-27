@@ -362,6 +362,74 @@ struct RuleEdge {
     computed: Option<(String, crate::span::Span)>,
 }
 
+/// Does a rete fn's BODY construct a fact from a computed value?
+///
+/// THE HOLE THIS CLOSES, and it was demonstrated before it was fixed. The item-level check below
+/// inspects the `:then` ITEM only — so `(:my::bump ?n)` reads as "all arguments are bound
+/// variables" and passes, while `:my::bump`'s body does
+/// `(:my::N :k (:wat::rete::core::i64::+ (:my::N/k n) 1 :undefined 0))` and mints a novel fact
+/// every round. Measured 2026-08-27: it compiled clean and ran to the round cap.
+///
+/// The `:then` head must be a RETE fn (`:wat::rete::core::defn`) to be admitted at all — a plain
+/// `:wat::core::defn` is refused by `then-item-fence`'s Law A conjunct as "not a rete primitive".
+/// That door is why three earlier attempts at this exploit failed for the WRONG reason and briefly
+/// convinced me the hole was already guarded; it was not.
+///
+/// WHAT COUNTS AS A CONSTRUCTOR INSIDE THE BODY: a sub-form whose head does NOT start with
+/// `:wat::` — i.e. a user type or user fn, rather than a rete/core OP. That distinction matters:
+/// `probe_arc278_then_user_forms_userfn.wat`'s admitted fn is
+/// `(:wat::rete::core::PersistentVector/first rs :undefined (:tf::Rate :count 0))`, whose OUTER
+/// form is an op with a List argument — "computed" by the item-level test — but whose only
+/// constructor, `(:tf::Rate :count 0)`, takes a literal. Testing the outer form would refuse a
+/// legitimate extraction; testing constructors admits it and still refuses the minting one.
+fn rete_fn_body_mints(form: &WatAST, sym: &SymbolTable) -> bool {
+    let Some(head) = fact_type_head(form) else {
+        return false;
+    };
+    let path = if head.starts_with(':') { head } else { format!(":{head}") };
+    let Some(func) = sym.get(&path) else {
+        return false;
+    };
+    // NOT gated on `func.rete.is_some()`. That guard was defensive and it silently disarmed this
+    // whole check: the stamp is applied at rete-defn registration (`purity.rs`) but
+    // `freeze/env.rs` documents a path that rebuilds a fresh `Function` and DROPS it. The guard
+    // bought nothing either way — a non-rete fn cannot be a `:then` head at all, because
+    // `then-item-fence`'s Law A conjunct refuses it as "not a rete primitive".
+    let crate::value::environment::FunctionBody::Wat(body) = &func.body else {
+        return false;
+    };
+    body_constructs_computed(body)
+}
+
+/// Walk a fn body for a CONSTRUCTOR form carrying a computed argument.
+fn body_constructs_computed(ast: &WatAST) -> bool {
+    if let WatAST::List(items, _) = ast {
+        if let Some(head) = items.first().and_then(|h| match h {
+            WatAST::Keyword(k, _) => Some(k.as_str()),
+            _ => None,
+        }) {
+            // CONSTRUCTOR POSITIONS. A user type or user fn (`:my::N`, `:my::mk`) is one — but so
+            // are the two DESUGARED heads, and missing them silently disarmed this whole check:
+            // `(:my::N :k <expr>)` is kwargs SUGAR, and by the time it is a stored fn body the
+            // macro has rewritten it to `(:wat::core::kwargs-construct :my::N :k <expr>)`, whose
+            // head starts with `:wat::` and so read as an "op" to skip. The exploit compiled clean
+            // with `computed=None` until this line named them.
+            //
+            // These are the same two heads `purity.rs`'s KNOWN_UNREVIEWED ratchet lists as the
+            // surfaces every record-construction sugar bottoms out in — which is why there are
+            // exactly two, and why a third would show up there first.
+            let is_constructor = !head.starts_with(":wat::")
+                || head == ":wat::core::kwargs-construct"
+                || head == ":wat::core::aggregate-new";
+            if is_constructor && then_form_computes(ast) {
+                return true;
+            }
+        }
+        return items.iter().any(body_constructs_computed);
+    }
+    false
+}
+
 /// A `:then` fact-form COMPUTES rather than copies when any argument is itself a call.
 ///
 /// `(:N :k ?k)` copies a bound variable — range-restricted, finite domain, terminates.
@@ -407,7 +475,7 @@ pub(crate) fn refuse_non_terminating(
         }
         let computed = rhs
             .iter()
-            .find(|f| then_form_computes(f))
+            .find(|f| then_form_computes(f) || rete_fn_body_mints(f, sym))
             .map(|f| {
                 (
                     fact_type_head(f).unwrap_or_else(|| String::from("<unknown>")),
