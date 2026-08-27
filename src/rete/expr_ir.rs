@@ -724,7 +724,12 @@ fn lower_construct(
         let names = a.names_arc();
         let class = head.strip_prefix(':').unwrap_or(head).to_string();
         let args = &items[1..];
-        let value_asts = crate::rete::eval_insert::rete_kwargs_value_asts(args);
+        // BY NAME, against this type's declaration order — see `rete_kwargs_value_asts`. `None`
+        // (undeclared / duplicate / missing field) falls to the same `Ok(None)` this fn already
+        // uses for a construct it cannot lower.
+        let Some(value_asts) = crate::rete::eval_insert::rete_kwargs_value_asts(args, &names) else {
+            return Ok(None);
+        };
         let mut fields = Vec::with_capacity(value_asts.len());
         for v in value_asts {
             fields.push(lower_expr(v, cx)?);

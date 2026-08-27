@@ -49,7 +49,17 @@ is a one-line dial and the deeper setting was RUN, not imagined: at 4 it is card
 the floor for a space that found nothing at 3 either. Committed at 3 with that measurement
 recorded in the file.
 
-### 1.2 Generated rules — the whole `:then` side, and multi-rule interaction
+### ~~1.2 Generated rules — the whole `:then` side, and multi-rule interaction~~ · **DONE 2026-08-27**
+`wat-tests/rete/differential-fuzz-rules.wat` — 24 shapes over `:then` kwargs ORDER, `:then` arity
+(one derived fact or two), rule count with a SHARED first condition, and fact count. **It found a
+live defect on its first run: RETE-FIX-LIST entry E**, `:then` kwargs read positionally in
+runtime-built rules.
+
+The design lesson is bigger than the space: this file compares a **VALUE witness**, not a row
+count, because the defect class it targets — a `:then` writing into the wrong fields — derives
+exactly as many facts. Its three siblings would all have been blind, and so would an
+engine-vs-engine differential, since both engines transpose identically. **When the property is
+"the right values", agreement between two engines proves nothing.**
 Both fuzzers use a FIXED inert chain. Rule shapes ride along only because a query carries the
 rule's own LHS. Never generated: multiple rules sharing an alpha (the `node-share` shape), a
 generated `:then` (kwargs order, multi-fact, fn-headed), and rule-vs-rule stratification beyond

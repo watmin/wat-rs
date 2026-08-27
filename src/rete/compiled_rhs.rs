@@ -164,7 +164,12 @@ pub(crate) fn compile_rhs(
     // Arc 294 item 9a — kwargs `(:Type :field1 v1 :field2 v2)` vs legacy positional
     // `(:Type v1 v2)`, exactly `build_insert_fact`'s detection.
     let args = &fact_items[1..];
-    let value_asts = crate::rete::eval_insert::rete_kwargs_value_asts(args);
+    // BY NAME — `names` is this type's declaration order, already in hand. `None` is a field the
+    // type does not declare, a duplicate, or a missing one: a setup refuse, the same arm the
+    // unrepresentable operand shapes below take.
+    let Some(value_asts) = crate::rete::eval_insert::rete_kwargs_value_asts(args, &names) else {
+        return Ok(None);
+    };
 
     let mut ops: Vec<RhsOp> = Vec::with_capacity(value_asts.len());
     for arg in value_asts {
