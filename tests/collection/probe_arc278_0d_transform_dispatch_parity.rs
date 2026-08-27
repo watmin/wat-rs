@@ -22,6 +22,7 @@
 //! (slurped via startup_beside(file!())).
 //! Negative fixture: tests/collection/probe_arc278_0d_transform_dispatch_parity.wat.bad
 
+use wat::check::error::CheckErrorKind;
 use wat::freeze::{startup_beside, startup_from_file};
 
 #[test]
@@ -42,9 +43,14 @@ fn wrong_element_still_rejected() {
     // GUARD — parity is not permissiveness. A String reducer folded over an i64 PersistentVector must be
     // REJECTED (element type i64 ≠ String). Err today (PV rejected outright) AND after 0d (element mismatch).
     let r = startup_from_file("tests/collection/probe_arc278_0d_transform_dispatch_parity.wat.bad");
-    assert!(
-        r.is_err(),
-        "folding a String reducer over an i64 PersistentVector must be rejected (parity != permissiveness). Got: {r:?}"
+    wat::assert_startup_error!(r, check
+        CheckErrorKind::TypeMismatch { callee, param, expected, got, .. }
+            if callee == ":wat::core::foldl"
+            && param == "#1"
+            // rune:lint(no-inlined-edn) — arc 296 Stone L: a rendered FUNCTION TYPE (`[A B :-> C]`) compared exactly as one field of a compound match-guard on a TypeMismatch. Not an EDN golden — a golden moves to a co-located `.edn` file; a single guard field cannot, and moving it would trade an exact comparison for an indirection.
+            && expected == "[:wat::core::String :wat::core::i64 :-> :wat::core::String]"
+            // rune:lint(no-inlined-edn) — arc 296 Stone L: a rendered FUNCTION TYPE (`[A B :-> C]`) compared exactly as one field of a compound match-guard on a TypeMismatch. Not an EDN golden — a golden moves to a co-located `.edn` file; a single guard field cannot, and moving it would trade an exact comparison for an indirection.
+            && got == "[:wat::core::String :wat::core::String :-> :wat::core::String]"
     );
 }
 

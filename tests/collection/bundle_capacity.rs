@@ -121,7 +121,21 @@ fn bundle_over_budget_under_panic_mode_panics() {
     let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(move || {
         apply_function(func, vec![], world.symbols(), wat::rust_caller_span!())
     }));
-    assert!(caught.is_err(), ":panic + over budget must panic");
+    // Not a `StartupError`/`RuntimeError` at all — `CapacityMode::Panic` fires a plain Rust
+    // `panic!("... cost {} > budget {} (d={})", ...)` (src/runtime.rs), so the discriminant is
+    // the panic payload's message, downcast from `catch_unwind`'s `Box<dyn Any + Send>`.
+    // Grounded via `./target/release/wat` on this exact fixture (500 atoms, default d=10000,
+    // budget=floor(sqrt(10000))=100): the panic message is fully deterministic.
+    let payload = caught.expect_err(":panic + over budget must panic");
+    let msg = payload
+        .downcast_ref::<String>()
+        .cloned()
+        .or_else(|| payload.downcast_ref::<&str>().map(|s| (*s).to_string()))
+        .unwrap_or_else(|| "<non-string panic payload>".to_string());
+    assert_eq!(
+        msg,
+        ":wat::holon::Bundle: capacity exceeded under :panic — cost 500 > budget 100 (d=10000)"
+    );
 }
 
 // ─── Try form propagates Bundle's Err ────────────────────────────────

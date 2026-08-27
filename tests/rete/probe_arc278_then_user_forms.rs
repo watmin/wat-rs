@@ -25,7 +25,7 @@
 
 use wat::assertion::AssertionPayload;
 use wat::freeze::{startup_from_file, FrozenWorld};
-use wat::runtime::{apply_function, Value};
+use wat::runtime::{apply_function, RuntimeError, RuntimeErrorKind, Value};
 
 const WORLD_EXPR: &str = "tests/rete/probe_arc278_then_user_forms_expr.wat";
 const WORLD_USERFN: &str = "tests/rete/probe_arc278_then_user_forms_userfn.wat";
@@ -56,6 +56,15 @@ fn run(world_path: &str, fn_name: &str) -> Result<Value, String> {
             }
         }
     }
+}
+
+/// Sibling of `run` that keeps the typed `RuntimeError` instead of `format!`-collapsing it to a
+/// `String` — for a call site known NOT to hit the compile-fence panic path (arc 296 Stone L:
+/// `run`'s String-collapse erases the discriminant `non_fact_return_type_is_refused` needs).
+fn run_typed(world_path: &str, fn_name: &str) -> Result<Value, RuntimeError> {
+    let world: FrozenWorld = startup_from_file(world_path).expect("startup");
+    let func = world.symbols().get(fn_name).unwrap_or_else(|| panic!("no entry fn {fn_name:?}")).clone();
+    apply_function(func, vec![], world.symbols(), wat::rust_caller_span!())
 }
 
 /// GREEN, widening (b), oracle path: n=5 -> count=6. Unconfounded — no fact of count=6 could
@@ -111,8 +120,21 @@ fn impure_fn_head_names_the_offending_head_and_axis() {
 /// refused — `:then`'s own second check, independent of the axis fence `where` already has.
 #[test]
 fn non_fact_return_type_is_refused() {
+    // `run_typed`, not `run` — this path raises normally (no compile-fence panic, per this
+    // test's own doc comment above), so the typed `RuntimeError` survives; grounded via
+    // `./target/release/wat` on a scratch `:user::main` invoking `:user::run-compile`.
+    let typed = run_typed(WORLD_NOTFACT, ":user::run-compile");
+    assert!(
+        matches!(
+            typed.as_ref().map_err(RuntimeError::kind),
+            Err(RuntimeErrorKind::MalformedForm { head, reason })
+                if head == ":wat::runtime::field-names-of"
+                && reason == "unknown type ':wat::core::i64'"
+        ),
+        "expected RuntimeErrorKind::MalformedForm(field-names-of, unknown type i64); got {:?}",
+        typed
+    );
     let r = run(WORLD_NOTFACT, ":user::run-compile");
-    assert!(r.is_err(), "a :then item head fn that does not return a fact must fail to compile");
     let msg = r.unwrap_err();
     // rune:lint(loose-assert) — the diagnostic embeds an absolute file path (Span), which is
     // non-deterministic across machines/CI; assert the load-bearing SUBSTANCE (which type was

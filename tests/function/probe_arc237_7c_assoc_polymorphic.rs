@@ -26,6 +26,7 @@
 //! Ignored Record-arm fixtures: probe_arc237_7c_assoc_base_record.wat,
 //!   probe_arc237_7c_assoc_holonic_record.wat (un-ignored when Stone 237.7c ships).
 
+use wat::check::error::CheckErrorKind;
 use wat::freeze::{startup_beside, startup_from_file};
 use wat::runtime::{apply_function, Value};
 
@@ -66,19 +67,37 @@ fn assoc_hashmap_returns_hashmap_type_preserved() {
 #[test]
 fn assoc_hashmap_wrong_key_type_rejected_at_check() {
     let result = startup_from_file("tests/function/probe_arc237_7c_wrong_key.wat.bad");
-    assert!(result.is_err(), "assoc HashMap<String,i64> with i64 key MUST reject at check; got Ok");
+    wat::assert_startup_error!(result, check
+        CheckErrorKind::TypeMismatch { callee, param, expected, got, .. }
+            if callee == ":wat::core::assoc"
+            && param == "#2"
+            && expected == ":wat::core::String"
+            && got == ":wat::core::i64"
+    );
 }
 
 #[test]
 fn assoc_hashmap_wrong_value_type_rejected_at_check() {
     let result = startup_from_file("tests/function/probe_arc237_7c_wrong_value.wat.bad");
-    assert!(result.is_err(), "assoc HashMap<String,i64> with String value MUST reject at check; got Ok");
+    wat::assert_startup_error!(result, check
+        CheckErrorKind::TypeMismatch { callee, param, expected, got, .. }
+            if callee == ":wat::core::assoc"
+            && param == "#3"
+            && expected == ":wat::core::i64"
+            && got == ":wat::core::String"
+    );
 }
 
 #[test]
 fn assoc_non_collection_arg0_rejected() {
     let result = startup_from_file("tests/function/probe_arc237_7c_non_collection.wat.bad");
-    assert!(result.is_err(), "assoc with non-collection arg0 (i64) MUST reject; got Ok");
+    wat::assert_startup_error!(result, check
+        CheckErrorKind::TypeMismatch { callee, param, expected, got, .. }
+            if callee == ":wat::core::assoc"
+            && param == "#1"
+            && expected == "(HashMap :- [K V]) or :wat::core::Record"
+            && got == ":wat::core::i64"
+    );
 }
 
 // ─── Record arm — disconfirming AT HEAD; un-ignore in Stone 237.7c ─────────────────

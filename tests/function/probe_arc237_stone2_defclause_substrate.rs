@@ -40,8 +40,9 @@
 //! Negative fixtures: probe_arc237_stone2_p07.wat.bad, probe_arc237_stone2_p08.wat.bad,
 //!   probe_arc237_stone2_p11.wat.bad, probe_arc237_stone2_p12.wat.bad.
 
-use wat::freeze::{startup_beside, startup_from_file};
-use wat::runtime::{apply_function, Value};
+use wat::check::error::CheckErrorKind;
+use wat::freeze::{startup_beside, startup_from_file, StartupError};
+use wat::runtime::{apply_function, RuntimeErrorKind, Value};
 
 // just-eval (rubric): each `fn_name` names a zero-arg fn defined in the co-located
 // fixture; fetch it from the frozen world and `apply_function` it — no inline wat driver.
@@ -120,9 +121,11 @@ fn probe_06_per_clause_return_types_pick_at_call_site() {
 fn probe_07_body_return_type_mismatch_errors() {
     // Clause body returns f64 but declares -> :i64. Should fail at type-check.
     let result = startup_from_file("tests/function/probe_arc237_stone2_p07.wat.bad");
-    assert!(
-        result.is_err(),
-        "body returning :f64 with declared -> :i64 should fail type-check; got Ok",
+    wat::assert_startup_error!(result, check
+        CheckErrorKind::ReturnTypeMismatch { function, expected, got, .. }
+            if function == ":my::bad/clause#1"
+            && expected == ":wat::core::i64"
+            && got == ":wat::core::f64"
     );
 }
 
@@ -131,9 +134,11 @@ fn probe_07_body_return_type_mismatch_errors() {
 fn probe_08_no_matching_clause_at_call_site_errors() {
     // Call with arg types that no clause accepts.
     let result = startup_from_file("tests/function/probe_arc237_stone2_p08.wat.bad");
-    assert!(
-        result.is_err(),
-        "calling :i64-typed clause with :String arg should fail at type-check; got Ok",
+    wat::assert_startup_error!(result, check
+        CheckErrorKind::NoMatchingClauseAtCallSite { name, called_arity, called_arg_types, .. }
+            if name == ":my::only-i64"
+            && *called_arity == 1
+            && called_arg_types.as_slice() == [":wat::core::String".to_string()]
     );
 }
 
@@ -158,9 +163,13 @@ fn probe_10_single_clause_defclause_equivalent_to_defn() {
 fn probe_11_empty_defclause_rejected() {
     // defclause with ZERO clauses should be rejected at parse/registration.
     let result = startup_from_file("tests/function/probe_arc237_stone2_p11.wat.bad");
-    assert!(
-        result.is_err(),
-        "defclause with 0 clauses should be rejected; got Ok",
+    wat::assert_startup_error!(result,
+        StartupError::Runtime(e) if matches!(
+            e.kind(),
+            RuntimeErrorKind::MalformedForm { head, reason }
+                if head == ":wat::core::defclause"
+                && reason == "defclause must have at least one clause"
+        )
     );
 }
 
@@ -171,8 +180,12 @@ fn probe_12_binding_contract_preserved_no_literal_patterns() {
     // Literal patterns (e.g., [0 <- :i64]) are NOT a valid arg shape.
     // Sonnet should reject this at parse time.
     let result = startup_from_file("tests/function/probe_arc237_stone2_p12.wat.bad");
-    assert!(
-        result.is_err(),
-        "literal-pattern arg [0 <- :i64] should be rejected per binding contract; got Ok",
+    wat::assert_startup_error!(result,
+        StartupError::Runtime(e) if matches!(
+            e.kind(),
+            RuntimeErrorKind::MalformedForm { head, reason }
+                if head == ":wat::core::defclause"
+                && reason == "name must be a plain symbol (not a keyword, literal, or nested form)"
+        )
     );
 }

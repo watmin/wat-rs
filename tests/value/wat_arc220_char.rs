@@ -19,8 +19,9 @@
 //! (slurped via startup_beside(file!())).
 //! Test 4 uses: tests/value/wat_arc220_char_supplementary_plane.wat.bad (negative — fails at lex time).
 
-use wat::freeze::{startup_beside, startup_from_file};
+use wat::freeze::{startup_beside, startup_from_file, StartupError};
 use wat::runtime::{apply_function, Value};
+use wat::{LexError, LexErrorKind, ParseError, ParseErrorKind};
 
 // just-eval (rubric): each `:t::…` fixture fn is a zero-arg entry; fetch it from the frozen
 // world and `apply_function` it — no inline wat driver.
@@ -94,10 +95,16 @@ fn char_literal_unicode_escape() {
 #[test]
 fn char_literal_supplementary_plane_rejected() {
     let result = startup_from_file("tests/value/wat_arc220_char_supplementary_plane.wat.bad");
-    // Must fail at startup (lex/parse time).
-    assert!(
-        result.is_err(),
-        "supplementary-plane char literal must fail at lex time"
+    // Must fail at startup (lex/parse time). Not a `StartupError::Check` — a lex failure
+    // surfaces as `StartupError::Parse(ParseError { kind: ParseErrorKind::Lex(LexError { kind:
+    // LexErrorKind::InvalidChar(_), .. }), .. })` (verified via `--check`); `assert_startup_error!`'s
+    // `check` arm doesn't apply.
+    wat::assert_startup_error!(result,
+        StartupError::Parse(ParseError {
+            kind: ParseErrorKind::Lex(LexError { kind: LexErrorKind::InvalidChar(msg), .. }),
+            ..
+        }) if msg == "\\😀: supplementary-plane codepoint U+1F600 not supported; wat char \
+            literals are BMP-only (U+0000–U+FFFF)"
     );
     let msg = format!("{}", result.unwrap_err());
     wat::assert_edn_matches_file!(msg, "wat_arc220_char__char_literal_supplementary_plane_rejected.edn", "error must be exact lex rejection golden");

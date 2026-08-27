@@ -31,6 +31,7 @@
 //!
 //! Run: `cargo test --release --test probe_arc241_stone6_def_metadata_map`
 
+use wat::check::error::CheckErrorKind;
 use wat::freeze::startup_from_file;
 
 // ─── Contracts 1–3: def-with-metadata storage success paths ──────────────────
@@ -75,8 +76,10 @@ fn contract_05_defn_without_metadata_unchanged() {
 fn contract_06_empty_metadata_rejected() {
     // (def :name {} value) — empty metadata is ILLEGAL per FORM-COLLAPSE-NOTES
     // ("divide-by-zero"; presence/absence distinction MUST be honored).
-    assert!(
-        startup_from_file("tests/reflection/probe_arc241_stone6_def_metadata_map_c06.wat.bad").is_err(),
-        "empty {{}} metadata-map must error; got Ok"
+    let result = startup_from_file("tests/reflection/probe_arc241_stone6_def_metadata_map_c06.wat.bad");
+    wat::assert_startup_error!(result, check
+        CheckErrorKind::MalformedForm { head, reason, .. }
+            if head == ":wat::core::def"
+            && reason == "empty metadata-map `{}` is illegal; provide at least one key-value pair"
     );
 }

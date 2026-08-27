@@ -11,7 +11,8 @@
 //!
 //! Run: `cargo nextest run --release -E 'binary(macros)' -F probe_arc241_stone17_defmacro_canonical`
 
-use wat::freeze::startup_from_file;
+use wat::freeze::{startup_from_file, StartupError};
+use wat::macros::{MacroError, MacroErrorKind};
 
 // ─── C01: defmacro with new canonical Vector-triple shape WORKS ────────────────
 
@@ -30,9 +31,14 @@ fn contract_01_defmacro_canonical_shape_works() {
 #[test]
 fn contract_02_old_paren_pair_shape_rejected() {
     let result = startup_from_file("tests/macros/probe_arc241_stone17_defmacro_canonical_c02.wat.bad");
-    assert!(
-        result.is_err(),
-        "old paren-pair defmacro shape must be HARD-CUT-rejected post-stone (canonical Vector-triple is the only way); got Ok"
+    // Not a `StartupError::Check` — a defmacro signature-shape retirement raises
+    // `StartupError::Macro(MacroError { kind: MacroErrorKind::MalformedDefmacro, .. })`
+    // directly (verified via `--check`); `assert_startup_error!`'s `check` arm doesn't apply.
+    wat::assert_startup_error!(result,
+        StartupError::Macro(MacroError { kind: MacroErrorKind::MalformedDefmacro { reason }, .. })
+            if reason == "old defmacro signature shape (paren-pair-with-type) is retired \
+                (Stone 241.17); use canonical Vector-of-triples form: \
+                (:wat::core::defmacro :name [param <- :Type ...] -> :Ret body)"
     );
 }
 

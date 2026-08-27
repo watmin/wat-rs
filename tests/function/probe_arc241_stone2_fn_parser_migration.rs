@@ -51,6 +51,7 @@
 //!   probe_arc241_stone2_c07.wat.bad, probe_arc241_stone2_c08.wat.bad,
 //!   probe_arc241_stone2_c09.wat.bad, probe_arc241_stone2_c10.wat.bad.
 
+use wat::check::error::CheckErrorKind;
 use wat::freeze::{startup_beside, startup_from_file};
 use wat::runtime::{apply_function, Value};
 
@@ -103,21 +104,33 @@ fn contract_05_name_not_symbol_errors() {
     // keyword, literal, or nested form)" via From<ArgSpecError> for RuntimeError.
     // Either way: ERROR (not silent success).
     let result = startup_from_file("tests/function/probe_arc241_stone2_c05.wat.bad");
-    assert!(result.is_err(), "non-Symbol at name slot must error; got Ok");
+    wat::assert_startup_error!(result, check
+        CheckErrorKind::MalformedForm { head, reason, .. }
+            if head == ":wat::core::fn"
+            && reason == "name must be a plain symbol (not a keyword, literal, or nested form)"
+    );
 }
 
 #[test]
 fn contract_06_missing_arrow_errors() {
     // Slot 1 of triple is `=` not `<-`. Canonical: MissingArrow.
     let result = startup_from_file("tests/function/probe_arc241_stone2_c06.wat.bad");
-    assert!(result.is_err(), "missing `<-` arrow must error; got Ok");
+    wat::assert_startup_error!(result, check
+        CheckErrorKind::MalformedForm { head, reason, .. }
+            if head == ":wat::core::fn"
+            && reason == "triple must be `name <- :T`; expected `<-` as the second element"
+    );
 }
 
 #[test]
 fn contract_07_non_keyword_at_type_slot_errors() {
     // Slot 2 of triple is a string, not a Keyword. Canonical: TypeNotKeyword.
     let result = startup_from_file("tests/function/probe_arc241_stone2_c07.wat.bad");
-    assert!(result.is_err(), "non-Keyword at type slot must error; got Ok");
+    wat::assert_startup_error!(result, check
+        CheckErrorKind::MalformedForm { head, reason, .. }
+            if head == ":wat::core::fn"
+            && reason == "type slot must be a keyword (e.g. `:wat::core::i64`); got a non-keyword"
+    );
 }
 
 #[test]
@@ -125,7 +138,11 @@ fn contract_08_incomplete_triple_errors() {
     // Argspec has fewer than 3 items at a triple position. Canonical: IncompleteTriple.
     // `[x <-]` — name then arrow but no type slot.
     let result = startup_from_file("tests/function/probe_arc241_stone2_c08.wat.bad");
-    assert!(result.is_err(), "incomplete triple must error; got Ok");
+    wat::assert_startup_error!(result, check
+        CheckErrorKind::MalformedForm { head, reason, .. }
+            if head == ":wat::core::fn"
+            && reason == "triple is incomplete; expected `name <- :T` but ran out of items"
+    );
 }
 
 // ─── Contracts 9–10: ret-clause inline (stays unchanged by Stone 241.2) ──────
@@ -138,7 +155,11 @@ fn contract_09_missing_ret_arrow_errors() {
     // args-vector and return type". Post-migration: SAME inline check; same message.
     // (The ret-clause inline parsing is UNCHANGED in Stone 241.2 per DESIGN D2.)
     let result = startup_from_file("tests/function/probe_arc241_stone2_c09.wat.bad");
-    assert!(result.is_err(), "missing `->` ret-arrow must error; got Ok");
+    wat::assert_startup_error!(result, check
+        CheckErrorKind::MalformedForm { head, reason, .. }
+            if head == ":wat::core::fn"
+            && reason == "fn signature: expected `->` between args-vector and return type; got keyword"
+    );
 }
 
 #[test]
@@ -146,5 +167,9 @@ fn contract_10_non_keyword_ret_type_errors() {
     // Argspec is fine; `->` is present; ret-type slot is a string not a Keyword.
     // Inline ret-clause check at A1/A2/A3 (unchanged by Stone 241.2).
     let result = startup_from_file("tests/function/probe_arc241_stone2_c10.wat.bad");
-    assert!(result.is_err(), "non-Keyword ret-type must error; got Ok");
+    wat::assert_startup_error!(result, check
+        CheckErrorKind::MalformedForm { head, reason, .. }
+            if head == ":wat::core::fn"
+            && reason == "fn signature: expected a return-type keyword after `->` (e.g. `:wat::core::i64`); got string"
+    );
 }

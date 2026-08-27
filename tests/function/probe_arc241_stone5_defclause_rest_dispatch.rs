@@ -36,8 +36,9 @@
 //! Negative fixtures: probe_arc241_stone5_c05.wat.bad, probe_arc241_stone5_c06.wat.bad,
 //!   probe_arc241_stone5_c07.wat.bad.
 
+use wat::check::error::CheckErrorKind;
 use wat::freeze::{startup_beside, startup_from_file};
-use wat::runtime::{apply_function, Value};
+use wat::runtime::{apply_function, ClauseFailureReason, RuntimeErrorKind, Value};
 
 // just-eval (rubric): each `fn_name` names a zero-arg fn defined in the co-located
 // fixture; fetch it from the frozen world and `apply_function` it — no inline wat driver.
@@ -105,14 +106,37 @@ fn contract_05_rest_element_type_mismatch_errors() {
         .expect("startup should succeed (rest element type mismatch caught at dispatch, not check)");
     let func = world.symbols().get(":user::bad").expect(":user::bad").clone();
     let result = apply_function(func, vec![], world.symbols(), wat::rust_caller_span!());
-    assert!(result.is_err(), "rest element type mismatch must error at eval/dispatch; got Ok");
+    assert!(
+        matches!(
+            &result,
+            Err(e) if matches!(
+                e.kind(),
+                RuntimeErrorKind::NoMatchingClause { name, called_arity, attempted_clauses, .. }
+                    if name == ":my::sum-all"
+                    && *called_arity == 3
+                    && attempted_clauses.len() == 1
+                    && matches!(
+                        &attempted_clauses[0].failure_reason,
+                        ClauseFailureReason::ArgTypeMismatch { position, expected, got }
+                            if *position == 2 && expected == ":wat::core::i64" && got == ":wat::core::String"
+                    )
+            )
+        ),
+        "rest element type mismatch must error at eval/dispatch with RuntimeErrorKind::NoMatchingClause{{name: \":my::sum-all\", ArgTypeMismatch pos 2}}; got {:?}",
+        result
+    );
 }
 
 #[test]
 fn contract_06_under_supply_below_fixed_errors() {
     // Clause has 2 fixed args + rest; calling with only 1 arg must error. startup MUST fail.
     let result = startup_from_file("tests/function/probe_arc241_stone5_c06.wat.bad");
-    assert!(result.is_err(), "under-supply below fixed-arity must error; got Ok");
+    wat::assert_startup_error!(result, check
+        CheckErrorKind::NoMatchingClauseAtCallSite { name, called_arity, called_arg_types, .. }
+            if name == ":my::pair"
+            && *called_arity == 1
+            && called_arg_types.as_slice() == [":wat::core::i64".to_string()]
+    );
 }
 
 #[test]
@@ -120,7 +144,12 @@ fn contract_07_fixed_only_strict_arity_preserved() {
     // Clause WITHOUT rest_param. Called with extra args → strict arity rejection.
     // Stone 241.5's variadic-min behavior MUST NOT apply when rest_param is None.
     let result = startup_from_file("tests/function/probe_arc241_stone5_c07.wat.bad");
-    assert!(result.is_err(), "strict-arity clause should reject over-supply; got Ok");
+    wat::assert_startup_error!(result, check
+        CheckErrorKind::NoMatchingClauseAtCallSite { name, called_arity, called_arg_types, .. }
+            if name == ":my::strict"
+            && *called_arity == 2
+            && called_arg_types.as_slice() == [":wat::core::i64".to_string(), ":wat::core::i64".to_string()]
+    );
 }
 
 // ─── Contract 8: regression on mixed dispatch ────────────────────────────────

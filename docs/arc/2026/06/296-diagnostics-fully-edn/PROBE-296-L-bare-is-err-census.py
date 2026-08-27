@@ -28,8 +28,20 @@ def stmts(src):
     for m in re.finditer(r'\bassert!\s*\(', src):
         i=m.end()-1; d=0
         while i<len(src):
-            if src[i]=='(': d+=1
-            elif src[i]==')':
+            c=src[i]
+            # A char literal holding a paren -- e.g. `!w.starts_with('(')` -- desyncs the
+            # counter and swallows the rest of the file into one "statement". Found by the
+            # Phase 2 tail rider, in this instrument, after it had produced the 150.
+            # `[[feedback_state_what_the_instrument_can_see_before_quoting_it]]`
+            if c=="'" and i+2 < len(src) and src[i+2]=="'":
+                i+=3; continue
+            if c=='"':
+                i+=1
+                while i<len(src) and src[i]!='"':
+                    i += 2 if src[i]=='\\' else 1
+                i+=1; continue
+            if c=='(': d+=1
+            elif c==')':
                 d-=1
                 if d==0: break
             i+=1

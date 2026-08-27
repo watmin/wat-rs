@@ -7,6 +7,7 @@
 //! so `:nature :wat::core::Record` is a `MalformedDecl` → the world won't start. GREEN once `:nature`
 //! routes through `Nature::from_root_keyword` (the nature-root symbol, magic shorthand annihilated).
 
+use wat::check::error::CheckErrorKind;
 use wat::freeze::{call_beside_value, startup_from_file};
 use wat::runtime::Value;
 
@@ -23,8 +24,11 @@ fn surface_nature_root_symbol_accepts_record() {
 #[test]
 fn surface_nature_root_symbol_rejects_struct() {
     let r = startup_from_file("tests/types/probe_arc293_holder_root_symbol.wat.bad");
-    assert!(
-        r.is_err(),
-        "a struct must not satisfy a `:nature :wat::core::Record` surface (non-portable, Struct < Record); got Ok"
+    wat::assert_startup_error!(r, check
+        CheckErrorKind::TypeMismatch { callee, param, expected, got, .. }
+            if callee == ":env::take"
+            && param == "#1"
+            && expected == ":env::Portable"
+            && got == ":env::Stru"
     );
 }

@@ -8,15 +8,18 @@
 //!
 //! Run: `cargo test --release --test probe_arc251_implicit_generics`
 
+use wat::check::error::CheckErrorKind;
 use wat::freeze::{startup_beside, startup_from_file};
 
 #[test]
 fn fact_01_suffix_generic_is_really_checked() {
     let r = startup_from_file("tests/resolve/probe_arc251_implicit_generics_fact01.wat.bad");
-    assert!(
-        r.is_err(),
-        "suffix-generic SHOULD reject the ill-typed call (T:=i64 then b=String); \
-         if this passes, suffix-generics are NOT really checked. Got Ok."
+    wat::assert_startup_error!(r, check
+        CheckErrorKind::TypeMismatch { callee, param, expected, got, .. }
+            if callee == ":user::pair-first"
+            && param == "#2"
+            && expected == ":wat::core::i64"
+            && got == ":wat::core::String"
     );
 }
 
@@ -44,10 +47,12 @@ fn bare_var_no_suffix_now_checks() {
 fn bare_var_no_suffix_rejects_illtyped() {
     // Proves the auto-generalized vars are REALLY unified (not opaquely accepted).
     let r = startup_from_file("tests/resolve/probe_arc251_implicit_generics_bare.wat.bad");
-    assert!(
-        r.is_err(),
-        "bare-var generic MUST reject the ill-typed call (T:=i64 then b=String); \
-         auto-generalization must be real unification, not tolerance. Got Ok."
+    wat::assert_startup_error!(r, check
+        CheckErrorKind::TypeMismatch { callee, param, expected, got, .. }
+            if callee == ":user::pair-first3"
+            && param == "#2"
+            && expected == ":wat::core::i64"
+            && got == ":wat::core::String"
     );
 }
 

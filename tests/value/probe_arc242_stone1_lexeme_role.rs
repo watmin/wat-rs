@@ -22,6 +22,7 @@
 //! Negative fixture for C03: probe_arc242_stone1_lexeme_role.wat.bad
 //! (loaded via startup_from_file; startup FAILURE + retirement-remedy message is the assertion).
 
+use wat::check::error::CheckErrorKind;
 use wat::freeze::{startup_beside, startup_from_file};
 
 // ─── C01: bare `nil` works as primitive value in expression position ───────────
@@ -58,9 +59,11 @@ fn contract_03_legacy_char_hard_cut_with_remedy() {
     // Post-stone: HARD CUT rejection with structured retirement remedy pointing at :wat::core::char.
     // At HEAD: :wat::core::Char works → no error → assertion fails.
     let result = startup_from_file("tests/value/probe_arc242_stone1_lexeme_role.wat.bad");
-    assert!(
-        result.is_err(),
-        ":wat::core::Char must be rejected by the substrate (retirement hard-cut)"
+    wat::assert_startup_error!(result, check
+        CheckErrorKind::MalformedForm { head, reason, .. }
+            if head == ":wat::core::Char"
+            && reason == "':wat::core::Char' is retired (Stone 242.1); use ':wat::core::char' \
+                instead (scalar types lowercase per arc 242 Doctrine 2)"
     );
     let msg = format!("{}", result.unwrap_err());
     wat::assert_edn_matches_file!(msg, "probe_arc242_stone1_lexeme_role__contract_03_legacy_char_hard_cut_with_remedy.edn", "retirement remedy must carry exact golden");

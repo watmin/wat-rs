@@ -97,8 +97,7 @@ fn probe_02_cyclic_union_rejected_at_registration() {
         ":my::B",
         vec![path(":wat::core::f64"), path(":my::A")],
     );
-    assert!(result.is_err(), "cyclic typeunion should be rejected");
-    match result.unwrap_err().kind() {
+    match result.expect_err("cyclic typeunion should be rejected").kind() {
         TypeErrorKind::CyclicUnion { name } => {
             assert_eq!(name, ":my::B", "CyclicUnion should name the cycle-closing union");
         }
@@ -111,8 +110,7 @@ fn probe_02_cyclic_union_rejected_at_registration() {
 fn probe_03_empty_union_rejected() {
     let mut env = fresh_env();
     let result = register_union(&mut env, ":my::Empty", vec![]);
-    assert!(result.is_err(), "empty typeunion should be rejected");
-    match result.unwrap_err().kind() {
+    match result.expect_err("empty typeunion should be rejected").kind() {
         TypeErrorKind::EmptyUnion { name } => {
             assert_eq!(name, ":my::Empty");
         }
@@ -125,8 +123,7 @@ fn probe_03_empty_union_rejected() {
 fn probe_04_single_member_union_rejected_with_typealias_hint() {
     let mut env = fresh_env();
     let result = register_union(&mut env, ":my::Foo", vec![path(":wat::core::i64")]);
-    assert!(result.is_err(), "single-member typeunion should be rejected");
-    match result.unwrap_err().kind() {
+    match result.expect_err("single-member typeunion should be rejected").kind() {
         TypeErrorKind::SingleMemberUnion { name } => {
             assert_eq!(name, ":my::Foo");
             // Diagnostic message should recommend typealias (verified by SCORE
@@ -149,8 +146,7 @@ fn probe_05_fn_member_rejected() {
         ":my::WithFn",
         vec![path(":wat::core::i64"), fn_type],
     );
-    assert!(result.is_err(), "typeunion with Fn member should be rejected");
-    match result.unwrap_err().kind() {
+    match result.expect_err("typeunion with Fn member should be rejected").kind() {
         TypeErrorKind::InvalidUnionMember { union_name, .. } => {
             assert_eq!(union_name, ":my::WithFn");
         }
@@ -168,8 +164,7 @@ fn probe_06_var_member_rejected() {
         ":my::WithVar",
         vec![path(":wat::core::i64"), var],
     );
-    assert!(result.is_err(), "typeunion with Var member should be rejected");
-    match result.unwrap_err().kind() {
+    match result.expect_err("typeunion with Var member should be rejected").kind() {
         TypeErrorKind::InvalidUnionMember { union_name, .. } => {
             assert_eq!(union_name, ":my::WithVar");
         }
@@ -290,9 +285,12 @@ fn probe_13_typeunion_arg_rejects_non_member_value() {
     let result = startup_from_file(
         "tests/types/probe_arc237_stone1_typeunion_substrate_probe13.wat.bad",
     );
-    assert!(
-        result.is_err(),
-        "typeunion arg should reject :String (non-member); got Ok"
+    wat::assert_startup_error!(result, check
+        wat::check::error::CheckErrorKind::TypeMismatch { callee, param, expected, got, .. }
+            if callee == ":my::identity"
+            && param == "#1"
+            && expected == ":my::IorF"
+            && got == ":wat::core::String"
     );
 }
 

@@ -15,6 +15,7 @@
 
 use wat::freeze::{eval_in_frozen, startup_bare};
 use wat::runtime::{Environment, Value, ValueSnapshot};
+use wat::{LexError, LexErrorKind, ParseErrorKind};
 
 /// (type_name, rendered) for a source form evaluated through the real loader.
 fn eval_render(src: &str) -> (String, String) {
@@ -79,6 +80,28 @@ fn rational_literal_denominator_one_is_integer_not_ratio() {
 #[test]
 fn rational_literal_zero_denominator_is_clean_error() {
     // clj: "Divide by zero" at read time. wat: a clean parse Err, no panic.
-    assert!(wat::parse_one!("1/0").is_err(), "1/0 must refuse (divide by zero)");
-    assert!(wat::parse_one!("-5/0").is_err(), "-5/0 must refuse");
+    // `parse_one!` returns `Result<WatAST, ParseError>` directly — not a `StartupError` (no
+    // startup pipeline runs here at all), so `assert_startup_error!` doesn't apply; grounded
+    // directly against `ParseErrorKind::Lex(LexErrorKind::InvalidNumber(_))` (verified via
+    // `--check` on a scratch fixture evaluating each literal).
+    let err_pos = wat::parse_one!("1/0").expect_err("1/0 must refuse (divide by zero)");
+    assert!(
+        matches!(
+            &err_pos.kind,
+            ParseErrorKind::Lex(LexError { kind: LexErrorKind::InvalidNumber(msg), .. })
+                if msg == "divide by zero"
+        ),
+        "expected ParseErrorKind::Lex(InvalidNumber(\"divide by zero\")); got {:?}",
+        err_pos.kind
+    );
+    let err_neg = wat::parse_one!("-5/0").expect_err("-5/0 must refuse");
+    assert!(
+        matches!(
+            &err_neg.kind,
+            ParseErrorKind::Lex(LexError { kind: LexErrorKind::InvalidNumber(msg), .. })
+                if msg == "divide by zero"
+        ),
+        "expected ParseErrorKind::Lex(InvalidNumber(\"divide by zero\")); got {:?}",
+        err_neg.kind
+    );
 }

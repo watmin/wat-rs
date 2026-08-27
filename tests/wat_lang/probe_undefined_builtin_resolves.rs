@@ -19,6 +19,15 @@ fn wrong_operator_leaf_is_a_check_error() {
     let result = startup_from_file(
         "tests/wat_lang/probe_undefined_builtin_resolves_wrong_leaf.wat.bad",
     );
+    // ⛔ STOP-1-SHAPED FINDING (arc 296 Stone L) — NOT migrated, and no bare-is-err exemption
+    // taken either (that door is for a REAL error with no stable discriminant; this fixture
+    // raises NO error at all). Grounded via `./target/release/wat --check`: exits 0
+    // today, confirming the `#[ignore]` above's own "RED-at-HEAD: checker rejection ... not yet
+    // built" — the checker rejection this message describes does not exist yet. Lower-severity
+    // than an active green false-proof (this test is `#[ignore]`d, so it proves nothing to
+    // anyone today either way), but asserting a discriminant now would still be fabricating
+    // grounding for behavior that isn't there. Un-ignoring this test (arc 255 circling back) is
+    // the trigger to migrate it for real.
     assert!(
         result.is_err(),
         "(:wat::core::i64::+'2 ...) — a renamed-away operator leaf — must be caught \
@@ -33,6 +42,9 @@ fn bogus_leaf_under_known_namespace_is_a_check_error() {
     let result = startup_from_file(
         "tests/wat_lang/probe_undefined_builtin_resolves_bogus.wat.bad",
     );
+    // ⛔ STOP-1-SHAPED FINDING (arc 296 Stone L) — NOT migrated, same reasoning as the sibling
+    // test above: `--check` exits 0 on this fixture too (verified), so there is no error yet,
+    // let alone a discriminant, until arc 255's builtin-registry lands.
     assert!(
         result.is_err(),
         "(:wat::core::Bogus ...) — a wrong leaf under a real namespace — must be a \

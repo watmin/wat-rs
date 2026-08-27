@@ -15,6 +15,7 @@
 //!
 //! Post-stone: all 5 contracts PASS.
 
+use wat::check::error::CheckErrorKind;
 use wat::freeze::startup_from_file;
 
 // ─── C01: defn success path (baseline) ─────────────────────────────────────────
@@ -33,9 +34,10 @@ fn contract_02_legacy_define_hard_cut_rejected() {
     // Legacy `:wat::core::define` is RETIRED post-stone. HARD CUT.
     let result =
         startup_from_file("tests/wat_lang/probe_arc241_stone11_define_hard_cut.wat.bad");
-    assert!(
-        result.is_err(),
-        "legacy :wat::core::define must be HARD-CUT-rejected post-stone; got Ok"
+    wat::assert_startup_error!(result, check
+        CheckErrorKind::MalformedForm { head, reason, .. }
+            if head == ":wat::core::define"
+            && reason == "':wat::core::define' is retired (Stone 241.11; eval-time residue completed Stone 241.16)"
     );
 }
 

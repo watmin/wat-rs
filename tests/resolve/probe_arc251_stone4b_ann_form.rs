@@ -7,6 +7,7 @@
 //!
 //! Run: `cargo test --release --test probe_arc251_stone4b_ann_form`
 
+use wat::check::error::CheckErrorKind;
 use wat::freeze::{call_beside_value, startup_beside, startup_from_file};
 use wat::runtime::Value;
 
@@ -24,9 +25,13 @@ fn contract_01_ann_form_checks_and_evaluates() {
 
 #[test]
 fn contract_02_mismatched_ascription_rejected() {
-    assert!(
-        startup_from_file("tests/resolve/probe_arc251_stone4b_ann_form.wat.bad").is_err(),
-        "(ann-form 42 :String) must be REJECTED — 42 is i64, not String (ascription is checked)"
+    let result = startup_from_file("tests/resolve/probe_arc251_stone4b_ann_form.wat.bad");
+    wat::assert_startup_error!(result, check
+        CheckErrorKind::TypeMismatch { callee, param, expected, got, .. }
+            if callee == ":wat::core::ann-form"
+            && param == "expr"
+            && expected == ":wat::core::String"
+            && got == ":wat::core::i64"
     );
 }
 

@@ -40,7 +40,7 @@
 use holon::HolonAST;
 use std::sync::Arc;
 use wat::freeze::{call_beside_value, startup_beside};
-use wat::runtime::{apply_function, Value};
+use wat::runtime::{apply_function, RuntimeErrorKind, Value};
 use wat::types::TypeExpr;
 
 fn wire(target: &str) -> String {
@@ -122,9 +122,22 @@ fn row3_old_tag_is_refused_on_decode() {
         world.symbols(),
         wat::rust_caller_span!(),
     );
+    // Not a `StartupError` — `apply_function` returns `Result<_, RuntimeError>`; grounded via
+    // `./target/release/wat` on a scratch program calling `:wat::edn::read` with the same
+    // dead-tag text: `RuntimeErrorKind::MalformedForm { head: ":wat::edn::read", reason }`. The
+    // `head` field is the stable discriminant asserted here — `reason`'s text embeds a
+    // `src/edn/render.rs:<line>:<col>` source location for the raise site, which drifts
+    // whenever that file gains or loses lines above it (the SAME hazard the sibling assertion
+    // in `row7_bare_bundle_raises_on_encode_never_falls_back` below already documents for this
+    // file), so it is deliberately not asserted verbatim. This also matches the fixture's own
+    // "DIRECTION ONLY — never message text" comment above `:t::refuse-old-tag`.
+    let err = got.expect_err(
+        "decoding the old dead-tag spelling must be REFUSED, not silently accepted",
+    );
     assert!(
-        got.is_err(),
-        "decoding the old dead-tag spelling must be REFUSED, not silently accepted; got: {got:?}"
+        matches!(err.kind(), RuntimeErrorKind::MalformedForm { head, .. } if head == ":wat::edn::read"),
+        "expected RuntimeErrorKind::MalformedForm(head = :wat::edn::read); got {:?}",
+        err
     );
 }
 

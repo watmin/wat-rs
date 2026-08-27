@@ -17,7 +17,8 @@
 //! ⛔ IGNORE-LEDGER(293-surface-splice): un-ignore `surface_splice_merges_and_constructs`
 //! as the FINAL green step of the build; it must pass. (examinare: the RED gate.)
 
-use wat::freeze::{startup_beside, startup_from_file};
+use wat::freeze::{startup_beside, startup_from_file, StartupError};
+use wat::types::TypeErrorKind;
 
 /// POSITIVE (the RED gate): a `defrecord` splicing two surfaces' attributes + an own field
 /// must parse, construct positionally over the merged field list, and expose a `:Rec/field`
@@ -40,9 +41,12 @@ fn surface_splice_merges_and_constructs() {
 #[test]
 fn surface_splice_conflicting_field_types_rejected() {
     let world = startup_from_file("tests/types/probe_arc293_surface_splice.wat.bad");
-    assert!(
-        world.is_err(),
-        "splicing two surfaces that install `foobar` at conflicting types (:i64 vs :String) \
-         must be rejected as a MalformedDecl; but startup succeeded"
+    wat::assert_startup_error!(world,
+        StartupError::Type(e) if matches!(e.kind(), TypeErrorKind::MalformedDecl { head, reason }
+            if head == "recordtype"
+            && reason == "surface-splice conflict: field `foobar` is installed at conflicting \
+                           types (Path(\":wat::core::i64\") vs Path(\":wat::core::String\")) by \
+                           two splices (or a splice and an own field) — a field repeated across \
+                           splices must carry an identical type")
     );
 }

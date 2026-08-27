@@ -17,6 +17,7 @@
 //! Run: cargo test --release -p wat --test probe_arc278_seq1b_list_hofs
 
 use std::sync::Arc;
+use wat::check::error::CheckErrorKind;
 use wat::freeze::{eval_in_frozen, startup_from_source};
 use wat::load::loader::InMemoryLoader;
 use wat::runtime::{Environment, Value};
@@ -105,7 +106,19 @@ fn wrong_element_rejected() {
     let str_sum = "(:wat::core::fn [acc <- :wat::core::String x <- :wat::core::String] -> :wat::core::String \
                      (:wat::core::string::concat acc x))";
     let src = format!("(:wat::core::defn :user::bad [] -> :wat::core::String (:wat::core::foldl {str_sum} \"\" {L123}))\n{MAIN}");
-    assert!(check(&src).is_err(), "String reducer over i64 List must be rejected. Got: {:?}", check(&src));
+    // Not via `check()` here — it collapses the typed error to a Debug-formatted `String`
+    // (`.map_err(|e| format!("{e:?}"))`), erasing the discriminant. Call `startup_from_source`
+    // directly to keep the typed `StartupError`.
+    let result = startup_from_source(&src, None, Arc::new(InMemoryLoader::new()));
+    wat::assert_startup_error!(result, check
+        CheckErrorKind::TypeMismatch { callee, param, expected, got, .. }
+            if callee == ":wat::core::foldl"
+            && param == "#1"
+            // rune:lint(no-inlined-edn) — arc 296 Stone L: a rendered FUNCTION TYPE (`[A B :-> C]`) compared exactly as one field of a compound match-guard on a TypeMismatch. Not an EDN golden — a golden moves to a co-located `.edn` file; a single guard field cannot, and moving it would trade an exact comparison for an indirection.
+            && expected == "[:wat::core::String :wat::core::i64 :-> :wat::core::String]"
+            // rune:lint(no-inlined-edn) — arc 296 Stone L: a rendered FUNCTION TYPE (`[A B :-> C]`) compared exactly as one field of a compound match-guard on a TypeMismatch. Not an EDN golden — a golden moves to a co-located `.edn` file; a single guard field cannot, and moving it would trade an exact comparison for an indirection.
+            && got == "[:wat::core::String :wat::core::String :-> :wat::core::String]"
+    );
 }
 
 // ── Runtime values: each op produces the right elements ──
@@ -168,5 +181,16 @@ fn list_map_is_not_vector() {
     let src = format!(
         "(:wat::core::defn :user::wrong [] -> :wat::core::Vector<wat::core::i64> (:wat::core::map {DBL} {L123}))\n{MAIN}"
     );
+    // ⛔ STOP-1 FINDING (arc 296 Stone L) — NOT migrated. The message claims this proves
+    // "map over a List must NOT satisfy a Vector return (preservation, not coercion)" — a
+    // TYPE-level rejection. Grounded via `./target/release/wat --check` on this exact `src`:
+    // the ACTUAL failure is `StartupError::Parse(ParseError { kind: ParseErrorKind::Lex(
+    // LexError { kind: LexErrorKind::AngleTypeHeadInName, .. }), .. })` — a LEX-time rejection
+    // of the retired angle-bracket spelling `:wat::core::Vector<wat::core::i64>` itself (arc
+    // 109 "annihilate the angle bracket"), fired before the program ever reaches the checker's
+    // List/Vector preservation logic this test claims to exercise. The fixture's return-type
+    // annotation needs the surviving `(:wat::core::Vector :- [:wat::core::i64])` spelling to
+    // reach the intended check; left as a bare `is_err()` rather than asserting a discriminant
+    // for logic this `src` never reaches.
     assert!(check(&src).is_err(), "map over a List must NOT satisfy a Vector return (preservation, not coercion). Got: {:?}", check(&src));
 }

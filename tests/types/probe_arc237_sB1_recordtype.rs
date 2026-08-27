@@ -3,8 +3,9 @@
 //! Wat source: tests/types/probe_arc237_sB1_recordtype.wat (loaded via startup_beside).
 //! Probe 06 (negative) uses tests/types/probe_arc237_sB1_recordtype.wat.bad.
 
-use wat::freeze::{call_beside_value, startup_from_file};
+use wat::freeze::{call_beside_value, startup_from_file, StartupError};
 use wat::runtime::Value;
+use wat::types::TypeErrorKind;
 
 fn run_bool(fn_name: &str) -> Result<bool, String> {
     match call_beside_value(file!(), fn_name).map_err(|e| format!("eval: {:?}", e))? {
@@ -62,8 +63,10 @@ fn probe_05_holon_flavor_transitive() {
 #[test]
 fn probe_06_unknown_parent_rejected() {
     let r = startup_from_file("tests/types/probe_arc237_sB1_recordtype.wat.bad");
-    assert!(
-        r.is_err(),
-        "recordtype with an unknown parent must be rejected at registration; got Ok"
+    wat::assert_startup_error!(r,
+        StartupError::Type(e) if matches!(e.kind(), TypeErrorKind::MalformedDecl { head, reason }
+            if head == "recordtype"
+            && reason == "parent ':my::DoesNotExist' is not a nature-root; inheritance is \
+                           unsupported — reuse a shape via surface-splice `[~@:Surface …]`")
     );
 }

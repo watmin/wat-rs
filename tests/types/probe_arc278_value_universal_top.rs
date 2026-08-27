@@ -33,6 +33,7 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc278_value_universal_top
 
+use wat::check::error::CheckErrorKind;
 use wat::freeze::startup_from_file;
 use wat::types::{is_subtype, TypeEnv};
 
@@ -114,9 +115,14 @@ fn widen_record_value_field_accepts_i64_and_string() {
 /// still hold after the stone (for the right reason: `assignable(Value, i64)` falls to a failing unify).
 #[test]
 fn narrow_value_into_i64_param_is_type_error() {
-    assert!(
-        typechecks_file("tests/types/probe_arc278_value_universal_top_narrow.wat.bad").is_err(),
-        "NARROW must be rejected: a :wat::core::Value is NOT assignable where :wat::core::i64 is wanted \
-         (the non-negotiable discipline — if this type-checks, Value is a loose any)"
+    // Bypasses `typechecks_file` (formats to a bare String) — the discriminant needs the
+    // structured `StartupError` (arc 296 Stone L).
+    let r = startup_from_file("tests/types/probe_arc278_value_universal_top_narrow.wat.bad");
+    wat::assert_startup_error!(r, check
+        CheckErrorKind::TypeMismatch { callee, param, expected, got, .. }
+            if callee == ":my::needs-int"
+            && param == "#1"
+            && expected == ":wat::core::i64"
+            && got == ":wat::core::Value"
     );
 }

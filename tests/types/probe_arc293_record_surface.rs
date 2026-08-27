@@ -16,6 +16,7 @@
 //! RED at HEAD: a core/holon record passed where a `:geo::Shape` is wanted fails to
 //! type-check (`field_types = None` + no Record arm). GREEN when 293.3-records lands.
 
+use wat::check::error::CheckErrorKind;
 use wat::freeze::startup_from_file;
 
 /// A CORE record (`:wat::core::defrecord`) that HAS the surface's members satisfies it
@@ -47,8 +48,11 @@ fn holon_record_structurally_satisfies_a_core_surface() {
 #[test]
 fn record_missing_a_surface_member_is_rejected() {
     let world = startup_from_file("tests/types/probe_arc293_record_surface_missing.wat.bad");
-    assert!(
-        world.is_err(),
-        "a record lacking `color` must NOT satisfy :geo::Shape"
+    wat::assert_startup_error!(world, check
+        CheckErrorKind::TypeMismatch { callee, param, expected, got, .. }
+            if callee == ":geo::describe"
+            && param == "#1"
+            && expected == ":geo::Shape"
+            && got == ":geo::Bare"
     );
 }

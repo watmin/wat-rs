@@ -9,15 +9,17 @@
 //! existing parent → startup SUCCEEDS, so `is_err()` is false and this asserts-fail. GREEN once the
 //! nature-root guard rejects a non-nature-root parent at registration.
 
-use wat::freeze::startup_from_file;
+use wat::freeze::{startup_from_file, StartupError};
+use wat::types::TypeErrorKind;
 
 /// A `recordtype` whose parent is a USER type (inheritance) must be rejected at registration.
 #[test]
 fn recordtype_with_user_parent_is_rejected() {
     let r = startup_from_file("tests/types/probe_arc293_reject_user_parent.wat.bad");
-    assert!(
-        r.is_err(),
-        "a recordtype with a USER-type parent (inheritance) must be rejected — \
-         the parent must be a nature-root; got Ok"
+    wat::assert_startup_error!(r,
+        StartupError::Type(e) if matches!(e.kind(), TypeErrorKind::MalformedDecl { head, reason }
+            if head == "recordtype"
+            && reason == "parent ':my::Base' is not a nature-root; inheritance is unsupported — \
+                           reuse a shape via surface-splice `[~@:Surface …]`")
     );
 }

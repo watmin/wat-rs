@@ -32,6 +32,7 @@
 //! type-checks without error — `startup_beside` returns `Ok`. The probe asserting
 //! `Err` FAILs at HEAD. GREEN after the gate is added to `infer_send_prime`.
 
+use wat::check::error::CheckErrorKind;
 use wat::freeze::{startup_beside, startup_from_file};
 
 // ─── Main probe (compile-time rejection) ──────────────────────────────────────
@@ -47,11 +48,14 @@ use wat::freeze::{startup_beside, startup_from_file};
 #[test]
 fn struct_send_to_process_peer_is_check_error() {
     let result = startup_beside(file!());
-    assert!(
-        result.is_err(),
-        ":wat::program::self-peer with a struct type arg MUST fail at CHECK (arc 293.W.2d — \
-         a struct is impure, §7; the wire-peer producer's purity gate must reject \
-         this world). If this assertion fails, the peer-pair' purity gate is missing."
+    wat::assert_startup_error!(result, check
+        CheckErrorKind::MalformedForm { head, reason, .. }
+            if head == ":wat::program::self-peer"
+            && reason == "a wire peer (Peer<I,O>) carries only pure data — type :w2c::S is not \
+                pure (§7 purity wall). If this peer is used only within a thread (in-locus, \
+                shared memory), use ThreadSelfPeer<I,O> — any I/O types are allowed in-locus. \
+                If this peer must cross a process boundary (wire), redesign I/O types to use \
+                records, scalars, or pure enums (no Sender/Receiver/handle fields)."
     );
     let err_str = format!("{}", result.unwrap_err());
     let lower = err_str.to_lowercase();

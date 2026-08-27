@@ -22,6 +22,7 @@
 //! (`field_types = None`), so SOUND record-matching rides 293.2 (which gives records their field types). The
 //! same `assignable` Surface arm then serves both kinds.
 
+use wat::check::error::CheckErrorKind;
 use wat::freeze::{startup_beside, startup_from_file};
 
 #[test]
@@ -48,8 +49,11 @@ fn missing_surface_member_is_rejected() {
     let world = startup_from_file(
         "tests/types/probe_arc293_structural_surface_missing.wat.bad",
     );
-    assert!(
-        world.is_err(),
-        ":geo::Bare (missing `color`) should NOT satisfy :geo::Shape; but startup succeeded"
+    wat::assert_startup_error!(world, check
+        CheckErrorKind::TypeMismatch { callee, param, expected, got, .. }
+            if callee == ":geo::accepts-shape"
+            && param == "#1"
+            && expected == ":geo::Shape"
+            && got == ":geo::Bare"
     );
 }

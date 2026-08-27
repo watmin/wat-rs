@@ -16,6 +16,7 @@
 //! Wat source: tests/function/probe_arc237_7b_intrinsic_typing.wat
 //! Negative fixtures: probe_arc237_7b_contains_wrong_elem.wat.bad, probe_arc237_7b_conj_wrong_elem.wat.bad
 
+use wat::check::error::CheckErrorKind;
 use wat::freeze::{startup_beside, startup_from_file};
 use wat::runtime::{apply_function, Value};
 
@@ -82,17 +83,23 @@ fn conj_vector_preserves_collection_type() {
 #[test]
 fn contains_q_wrong_element_rejected_at_check() {
     let result = startup_from_file("tests/function/probe_arc237_7b_contains_wrong_elem.wat.bad");
-    assert!(
-        result.is_err(),
-        "contains? on Vector<i64> with String elem MUST reject at check; got Ok",
+    wat::assert_startup_error!(result, check
+        CheckErrorKind::TypeMismatch { callee, param, expected, got, .. }
+            if callee == ":wat::core::contains?"
+            && param == "#2"
+            && expected == ":wat::core::i64"
+            && got == ":wat::core::String"
     );
 }
 
 #[test]
 fn conj_wrong_element_rejected_at_check() {
     let result = startup_from_file("tests/function/probe_arc237_7b_conj_wrong_elem.wat.bad");
-    assert!(
-        result.is_err(),
-        "conj on Vector<i64> with String elem MUST reject at check; got Ok",
+    wat::assert_startup_error!(result, check
+        CheckErrorKind::TypeMismatch { callee, param, expected, got, .. }
+            if callee == ":wat::core::conj"
+            && param == "#2"
+            && expected == ":wat::core::i64"
+            && got == ":wat::core::String"
     );
 }

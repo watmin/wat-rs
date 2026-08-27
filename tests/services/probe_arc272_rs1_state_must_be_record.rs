@@ -14,7 +14,8 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc272_rs1_state_must_be_record
 
-use wat::freeze::{call_beside_value, startup_from_file};
+use wat::freeze::{call_beside_value, startup_from_file, StartupError};
+use wat::macros::{MacroError, MacroErrorKind};
 use wat::runtime::{apply_function, Value};
 
 #[test]
@@ -53,10 +54,19 @@ fn durable_parent_holon_parents_the_durable_record_not_the_struct() {
 fn bare_type_keyword_state_is_rejected() {
     // NEGATIVE: bare type keyword in :durable slot. Wat source: probe_arc272_rs1_state_must_be_record_type_keyword.wat
     let result = startup_from_file("tests/services/probe_arc272_rs1_state_must_be_record_type_keyword.wat");
-    assert!(
-        result.is_err(),
-        "expected a bare type-keyword :durable (:wat::core::i64) to be REJECTED — :durable takes a \
-         field vector; a scalar durable is unexpressible; got Ok"
+    wat::assert_startup_error!(result,
+        StartupError::Macro(MacroError {
+            kind: MacroErrorKind::ProgramBodyEvalFailed { macro_name, cause },
+            ..
+        }) if macro_name == ":wat::service::defservice"
+            && matches!(
+                &cause.kind,
+                MacroErrorKind::MalformedTemplate { reason }
+                    if reason == "defservice: :durable takes a FIELD VECTOR [name <- :Type …] \
+                        — a bare type keyword / scalar durable is unexpressible; the durable IS \
+                        the soul: a set of named fields that crosses the wire and survives \
+                        hibernation"
+            )
     );
 }
 
@@ -64,9 +74,17 @@ fn bare_type_keyword_state_is_rejected() {
 fn unknown_trailing_option_is_rejected() {
     // NEGATIVE: bogus trailing option. Wat source: probe_arc272_rs1_state_must_be_record_unknown_option.wat
     let result = startup_from_file("tests/services/probe_arc272_rs1_state_must_be_record_unknown_option.wat");
-    assert!(
-        result.is_err(),
-        "expected an unrecognized trailing option (:bogus-option) to be REJECTED directly — \
-         defservice walks clauses as keyword/value pairs and names any unknown key; got Ok"
+    wat::assert_startup_error!(result,
+        StartupError::Macro(MacroError {
+            kind: MacroErrorKind::ProgramBodyEvalFailed { macro_name, cause },
+            ..
+        }) if macro_name == ":wat::service::defservice"
+            && matches!(
+                &cause.kind,
+                MacroErrorKind::MalformedTemplate { reason }
+                    if reason == "defservice: unknown clause :bogus-option — recognized \
+                        clauses: :durable :ephemeral :ops :init :hibernate :stop \
+                        :durable-parent :satisfies :impls :peers :max-frame-bytes"
+            )
     );
 }

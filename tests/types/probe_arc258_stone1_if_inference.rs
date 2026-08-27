@@ -51,7 +51,9 @@ fn contract_03_branch_mismatch_rejected_for_the_right_reason() {
     let r = startup_from_file("tests/types/probe_arc258_stone1_if_inference_c03.wat.bad")
         .map(|_| ())
         .map_err(|e| format!("{e:?}"));
-    assert!(r.is_err(), "a branch-type mismatch must be rejected");
-    let msg = r.unwrap_err();
+    // `.expect_err` folds the presence check into the discriminant check below — a bare
+    // is_err() check here proved nothing about WHICH error (arc 296 Stone L); the golden-file
+    // compare is the actual non-vacuous discriminant (full EDN structural match).
+    let msg = r.expect_err("a branch-type mismatch must be rejected");
     wat::assert_edn_matches_file!(msg, "probe_arc258_stone1_if_inference__contract_03_branch_mismatch_rejected_for_the_right_reason.edn", "branch-type mismatch, not arity: TypeMismatch");
 }

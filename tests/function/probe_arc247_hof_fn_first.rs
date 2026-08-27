@@ -16,6 +16,7 @@
 //! Wat source: tests/function/probe_arc247_hof_fn_first.wat
 //! Negative fixture: probe_arc247_hof_coll_first.wat.bad.
 
+use wat::check::error::CheckErrorKind;
 use wat::freeze::{startup_beside, startup_from_file};
 use wat::runtime::{apply_function, Value};
 
@@ -70,5 +71,12 @@ fn mint_foldl_fn_first() {
 fn mint_map_coll_first_is_gone() {
     // (map [1 2 3] f) coll-first must be a check error after the flip.
     let result = startup_from_file("tests/function/probe_arc247_hof_coll_first.wat.bad");
-    assert!(result.is_err(), "coll-first `(map xs f)` must be a check error after the flip; got Ok");
+    wat::assert_startup_error!(result, check
+        CheckErrorKind::TypeMismatch { callee, param, expected, got, .. }
+            if callee == ":wat::core::map"
+            && param == "#2"
+            && expected == "(Vector :- [T]), (PersistentVector :- [T]), (List :- [T]), or (Stream :- [T])"
+            // rune:lint(no-inlined-edn) — arc 296 Stone L: a rendered FUNCTION TYPE (`[A B :-> C]`) compared exactly as one field of a compound match-guard on a TypeMismatch. Not an EDN golden — a golden moves to a co-located `.edn` file; a single guard field cannot, and moving it would trade an exact comparison for an indirection.
+            && got == "[:wat::core::i64 :-> :wat::core::i64]"
+    );
 }

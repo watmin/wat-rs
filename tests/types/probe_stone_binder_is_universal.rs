@@ -92,10 +92,22 @@ fn row4_second_form_empty_binder_is_also_identical_to_no_binder() {
     // Non-vacuity: the fixture's hash is deliberately wrong, so both sides must be the SAME
     // verification-failed Err, not two things that happen to Debug-format the same nil.
     match &with_binder {
-        Value::Result(r) => assert!(
-            (**r).is_err(),
-            "expected Err (deliberate hash mismatch); got {with_binder:?}"
-        ),
+        // `Value::Result` is wat's OWN `:wat::core::Result` value (Ok/Err over `Value`, not a
+        // Rust `Result<_, StartupError>`) — `eval-digest-string!` catches its `RuntimeError` and
+        // lowers it to a `#wat.core/EvalError {:kind :message}` Value (arc 296:
+        // `runtime_error_to_eval_error_value`). The `:kind` field IS the stable discriminant
+        // (its own doc: "a short machine-readable variant name"); a bare `is_err()` here is
+        // satisfied by ANY EvalError, not just the deliberate hash mismatch this test claims.
+        Value::Result(r) => match &**r {
+            Err(Value::Aggregate(a))
+                if a.class.as_ref() == "wat::core::EvalError"
+                    && matches!(a.fields.first(), Some(Value::String(k)) if k.as_str() == "verification-failed") => {}
+            other => panic!(
+                "expected Err(EvalError{{kind: \"verification-failed\", ..}}) (deliberate hash \
+                 mismatch); got {:?}",
+                other
+            ),
+        },
         other => panic!("expected Value::Result; got {other:?}"),
     }
 }

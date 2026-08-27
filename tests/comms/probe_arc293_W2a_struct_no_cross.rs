@@ -16,6 +16,7 @@
 //! Control: a base record still round-trips. The backstop must reject ONLY
 //! structs, never records; this guard catches over-rejection.
 
+use wat::check::error::CheckErrorKind;
 use wat::freeze::{call_beside_value, startup_from_file};
 use wat::runtime::Value;
 
@@ -83,11 +84,14 @@ fn record_still_round_trips_after_backstop() {
 #[allow(non_snake_case)]
 fn struct_rejected_at_wire_SEND() {
     let result = startup_from_file("tests/comms/probe_arc293_W2c_compile_time_send.wat");
-    assert!(
-        result.is_err(),
-        ":wat::program::self-peer with a struct type arg MUST fail at CHECK (arc 293.W.2d — \
-         a struct is impure §7; the wire-peer producer's purity gate must reject \
-         this world). got Ok"
+    wat::assert_startup_error!(result, check
+        CheckErrorKind::MalformedForm { head, reason, .. }
+            if head == ":wat::program::self-peer"
+            && reason == "a wire peer (Peer<I,O>) carries only pure data — type :w2c::S is not \
+                pure (§7 purity wall). If this peer is used only within a thread (in-locus, \
+                shared memory), use ThreadSelfPeer<I,O> — any I/O types are allowed in-locus. \
+                If this peer must cross a process boundary (wire), redesign I/O types to use \
+                records, scalars, or pure enums (no Sender/Receiver/handle fields)."
     );
     let err_str = format!("{}", result.unwrap_err());
     wat::assert_edn_matches_file!(err_str, "probe_arc293_W2a_struct_no_cross__struct_rejected_at_wire_SEND.edn", "check error must match arc 293 §7 purity wall golden");

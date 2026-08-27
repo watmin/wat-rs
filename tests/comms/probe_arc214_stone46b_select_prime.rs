@@ -20,6 +20,7 @@
 //!
 //! Run: `cargo test --release --test comms probe_arc214_stone46b_select_prime`
 
+use wat::check::error::CheckErrorKind;
 use wat::freeze::{call_beside_value, startup_from_file};
 use wat::runtime::Value;
 
@@ -74,8 +75,18 @@ fn probe_2_select_wrong_return_annotation_rejected() {
     let result = startup_from_file(
         "tests/comms/probe_arc214_stone46b_select_prime_probe2.wat.bad",
     );
-    assert!(
-        result.is_err(),
-        "expected startup failure (select' return typed as String); got Ok"
+    // Grounded via `--check`: this fixture actually raises FOUR check errors (a
+    // DefRestrictedCallerNotAllowed and a TypeMismatch on `send` are coincidental fallout
+    // of this probe's spawn-prog shape, not what the test targets). The one this test names —
+    // "select' return typed as String" — is the ReturnTypeMismatch on `:user::bad`; membership
+    // (not exclusivity) is what `assert_startup_error!`'s `check` arm proves, so the other three
+    // don't need to be named. `got`'s trailing `:?NNNN` is a fresh unification-variable id
+    // (confirmed non-deterministic across repeated `--check` runs: `:?2950`, `:?10`, `:?3098`),
+    // so only the stable prefix up to it is asserted, not the whole string.
+    wat::assert_startup_error!(result, check
+        CheckErrorKind::ReturnTypeMismatch { function, expected, got, .. }
+            if function == ":user::bad"
+            && expected == ":wat::core::String"
+            && got.starts_with("(:wat::spawn::ServiceEvent :- [:wat::core::i64 :wat::core::i64 :?")
     );
 }

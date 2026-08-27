@@ -5,7 +5,7 @@
 //! Run: `cargo test --release --test probe_arc251_type_namespace_fix`
 
 use wat::freeze::call_beside_value;
-use wat::runtime::Value;
+use wat::runtime::{RuntimeErrorKind, Value};
 
 // just-eval (rubric): each `:user::cNN` zero-arg fn lives in the co-located fixture;
 // drive it via `call_beside_value` and inspect the returned typed Value.
@@ -97,20 +97,64 @@ fn c07_type_var_stays_bare() {
 
 #[test]
 fn c08_bare_head_parametric_errors_cleanly() {
+    // Not a `StartupError`: `call_beside_value` returns `Result<Value, RuntimeError>` (arc
+    // 296 Stone L — these raise at RUNTIME, per the fixture's own comment above c08a/c08b/c09;
+    // `assert_startup_error!` doesn't apply). Grounded directly against `./target/release/wat`
+    // run on a scratch `:user::main` invoking each expression (matches the fixture exactly).
+    let err_a = call_beside_value(file!(), ":user::c08a")
+        .expect_err("bare parametric head must error cleanly, not panic");
     assert!(
-        call_beside_value(file!(), ":user::c08a").is_err(),
-        "bare parametric head must error cleanly, not panic"
+        matches!(
+            err_a.kind(),
+            RuntimeErrorKind::MalformedForm { head, reason }
+                if head == ":wat::core::keyword-node"
+                && reason == "angle-bracket type parameters are illegal in a name (arc 109, \
+                    \"annihilate the angle bracket\") — and that holds for a name BUILT at \
+                    expand time exactly as it holds for one written in source: \
+                    \":Stream<wat::core::i64>\". `:-` is the ONE parameterization operator. \
+                    A macro must emit the type-application FORM `(Head :- [A B])`, not \
+                    concatenate `Head` + \"<\" + args + \">\" into a keyword. A name is an \
+                    atom; structure encoded inside one has to be re-parsed by every consumer, \
+                    and that second parser is what this wall exists to make impossible."
+        ),
+        "expected RuntimeErrorKind::MalformedForm(keyword-node, angle-bracket); got {:?}",
+        err_a
     );
+    let err_b = call_beside_value(file!(), ":user::c08b")
+        .expect_err("higher-kinded head must error cleanly, not panic");
     assert!(
-        call_beside_value(file!(), ":user::c08b").is_err(),
-        "higher-kinded head must error cleanly, not panic"
+        matches!(
+            err_b.kind(),
+            RuntimeErrorKind::MalformedForm { head, reason }
+                if head == ":wat::core::keyword-node"
+                && reason == "angle-bracket type parameters are illegal in a name (arc 109, \
+                    \"annihilate the angle bracket\") — and that holds for a name BUILT at \
+                    expand time exactly as it holds for one written in source: \
+                    \":T<wat::core::i64>\". `:-` is the ONE parameterization operator. \
+                    A macro must emit the type-application FORM `(Head :- [A B])`, not \
+                    concatenate `Head` + \"<\" + args + \">\" into a keyword. A name is an \
+                    atom; structure encoded inside one has to be re-parsed by every consumer, \
+                    and that second parser is what this wall exists to make impossible."
+        ),
+        "expected RuntimeErrorKind::MalformedForm(keyword-node, angle-bracket); got {:?}",
+        err_b
     );
 }
 
 #[test]
 fn c09_trailing_colons_path_errors_cleanly() {
+    // Same non-`StartupError` situation as c08 above — RuntimeError, grounded the same way.
+    let err = call_beside_value(file!(), ":user::c09")
+        .expect_err("trailing-`::` path must error cleanly, not panic");
     assert!(
-        call_beside_value(file!(), ":user::c09").is_err(),
-        "trailing-`::` path must error cleanly, not panic"
+        matches!(
+            err.kind(),
+            RuntimeErrorKind::MalformedForm { head, reason }
+                if head == ":wat::keyword::to-type-form"
+                && reason == "cannot render type `:foo::` to a faithful form (malformed \
+                    namespaced path — trailing `::` or empty segment)"
+        ),
+        "expected RuntimeErrorKind::MalformedForm(to-type-form, trailing-colons); got {:?}",
+        err
     );
 }

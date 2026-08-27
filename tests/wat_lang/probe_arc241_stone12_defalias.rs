@@ -15,6 +15,7 @@
 //!
 //! Post-stone: all 5 contracts PASS.
 
+use wat::check::error::CheckErrorKind;
 use wat::freeze::startup_from_file;
 
 // ─── C01: defalias produces a callable alias ──────────────────────────────────
@@ -46,9 +47,10 @@ fn contract_03_defalias_can_alias_a_builtin() {
 #[test]
 fn contract_04_runtime_define_alias_hard_cut_rejected() {
     let result = startup_from_file("tests/wat_lang/probe_arc241_stone12_defalias.wat.bad");
-    assert!(
-        result.is_err(),
-        "`:wat::runtime::define-alias` must be HARD-CUT-rejected post-stone (Doctrine: no privileged paths); got Ok"
+    wat::assert_startup_error!(result, check
+        CheckErrorKind::MalformedForm { head, reason, .. }
+            if head == ":wat::runtime::define-alias"
+            && reason == "':wat::runtime::define-alias' is retired (Stone 241.12); use ':wat::core::defalias' instead"
     );
 }
 

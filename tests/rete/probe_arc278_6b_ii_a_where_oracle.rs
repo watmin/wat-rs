@@ -9,6 +9,7 @@
 //!
 //! Run: cargo test --release -p wat --test probe_arc278_6b_ii_a_where_oracle
 
+use wat::assertion::AssertionPayload;
 use wat::freeze::{startup_from_file, FrozenWorld};
 use wat::runtime::{apply_function, Value};
 
@@ -30,7 +31,16 @@ fn run_count(world_path: &str, fn_name: &str) -> Result<Value, String> {
     match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         apply_function(func, vec![], sym, wat::rust_caller_span!())
     })) {
-        Err(_) => Err("compile/eval rejected (fence panic)".to_string()),
+        // arc 296 Stone L: preserve the fence's `AssertionPayload.message` instead of a generic
+        // sentinel — the sentinel is exactly what made the corresponding `.is_err()` assertion
+        // vacuous (mirrors `probe_arc278_then_user_forms.rs`'s `run`, the sibling probe this
+        // module's own doc comment names).
+        Err(panic_payload) => Err(panic_payload
+            .downcast_ref::<AssertionPayload>()
+            .map(|p| p.message.clone())
+            .or_else(|| panic_payload.downcast_ref::<String>().cloned())
+            .or_else(|| panic_payload.downcast_ref::<&str>().map(|s| (*s).to_string()))
+            .unwrap_or_else(|| "panic-opaque".to_string())),
         Ok(res) => res.map_err(|e| format!("eval: {e:?}")),
     }
 }
@@ -66,6 +76,13 @@ fn where_with_user_fn_predicate_blocks() {
 /// 4 — the compile FENCE rejects an impure `where` (io): compiling the rule raises.
 #[test]
 fn fence_rejects_impure_where_at_compile() {
+    // Grounded via `./target/release/wat` on a scratch `:user::main` invoking the same body:
+    // the compile fence's `AssertionPayload.message`, now preserved by `run_count` above
+    // instead of collapsed to a generic sentinel.
     let r = run_count(WORLD_IMPURE_PATH, ":user::run-gate-c5");
-    assert!(r.is_err(), "an impure (io) where must fail to compile; got {r:?}");
+    let msg = r.expect_err("an impure (io) where must fail to compile");
+    assert_eq!(
+        msg,
+        "compile-condition: where expr is not pure — ':wat::io::IOReader/open-file' is not pure"
+    );
 }

@@ -10,7 +10,7 @@
 // rune:lint(no-inlined-wat) — reader/eval unit tests: the inline arithmetic forms ARE the
 // subject under test (proving mixed-float contagion evaluates). Not a world/driver.
 use wat::freeze::{eval_in_frozen, startup_bare};
-use wat::runtime::{Environment, ValueSnapshot};
+use wat::runtime::{Environment, RuntimeErrorKind, ValueSnapshot};
 
 /// Ok((type_name, rendered)) on success, Err(debug string) on eval failure.
 fn eval_try(src: &str) -> Result<(String, String), String> {
@@ -57,8 +57,31 @@ fn mixed_numeric_equality_is_category_aware_false() {
 fn mixed_n_ary_is_an_honest_gap() {
     // C4 adds only 2-ary mixed arms; a heterogeneous N-ary call tosses a clean NoMatchingClause —
     // the caller homogenizes ((apply + (map to-f64 …))) then folds. This must STAY true after C4.
+    //
+    // NOT via `eval_try` here — that helper collapses the error to a Debug-formatted `String`
+    // (`.map_err(|e| format!("{e:?}"))`), which erases the discriminant. This eval path is a
+    // direct `eval_in_frozen` on a hand-parsed AST (no `check_program` pass runs), so the
+    // failure surfaces as `RuntimeError` — not a `StartupError` — at dispatch time; grounded
+    // against the doc comment's own named mechanism (`RuntimeErrorKind::NoMatchingClause`).
+    // The full `attempted_clauses` list (25 clause shapes) is deliberately NOT asserted
+    // field-by-field here — it is `+`'s whole numeric-tower clause set, and reproducing it
+    // verbatim would be as brittle as it is long; `name` + `called_arity` + the called arg
+    // TYPES (the actual discriminating shape of a "heterogeneous N-ary" call) are the guard.
+    let world = startup_bare().expect("startup");
+    let env = Environment::new();
+    let ast = wat::parse_one!("(:wat::core::+ 1 2.0 3)").expect("must parse");
+    let err = eval_in_frozen(&ast, &world, &env)
+        .expect_err("mixed N-ary must toss (the honest gap), not silently coerce");
     assert!(
-        eval_try("(:wat::core::+ 1 2.0 3)").is_err(),
-        "mixed N-ary must toss (the honest gap), not silently coerce"
+        matches!(
+            err.kind(),
+            RuntimeErrorKind::NoMatchingClause { name, called_arity, called_args, .. }
+                if name == ":wat::core::+"
+                && *called_arity == 3
+                && called_args.iter().map(|v| v.type_name).collect::<Vec<_>>()
+                    == ["wat::core::i64", "wat::core::f64", "wat::core::i64"]
+        ),
+        "expected RuntimeErrorKind::NoMatchingClause(+, arity 3, [i64,f64,i64]); got {:?}",
+        err
     );
 }

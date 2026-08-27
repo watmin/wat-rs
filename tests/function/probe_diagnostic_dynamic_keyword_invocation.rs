@@ -27,7 +27,7 @@
 //! Runtime-fail fn in main fixture: :user::probe-6-err (probe 6).
 
 use wat::freeze::{startup_beside, startup_from_file};
-use wat::runtime::{apply_function, Value};
+use wat::runtime::{apply_function, RuntimeErrorKind, Value};
 
 // just-eval (rubric): each `fn_name` names a zero-arg fn defined in the co-located
 // fixture; fetch it from the frozen world and `apply_function` it — no inline wat driver.
@@ -122,8 +122,17 @@ fn probe_6_apply_rejects_special_form_head() {
     let world = startup_beside(file!()).expect("startup");
     let result = try_run_in(&world, ":user::probe-6-err");
     assert!(
-        result.is_err(),
-        "apply of special-form head (:defn) must error at runtime; got Ok",
+        matches!(
+            &result,
+            Err(e) if matches!(
+                e.kind(),
+                RuntimeErrorKind::MalformedForm { head, reason }
+                    if head == ":wat::core::apply"
+                    && reason == "cannot apply special form \":wat::core::defn\" — apply only dispatches callable verbs and user-defined functions, not declaration or language forms"
+            )
+        ),
+        "apply of special-form head (:defn) must error at runtime with RuntimeErrorKind::MalformedForm{{head: \":wat::core::apply\"}}; got {:?}",
+        result
     );
 }
 
@@ -138,7 +147,20 @@ fn probe_7_apply_rejects_non_keyword_head() {
     let world = startup_from_file("tests/function/probe_diagnostic_non_keyword.wat.bad")
         .expect("startup should succeed (non-keyword head in apply caught at eval, not check)");
     let result = try_run_in(&world, ":user::bad");
-    assert!(result.is_err(), "non-keyword head (String) must error at eval; got Ok");
+    assert!(
+        matches!(
+            &result,
+            Err(e) if matches!(
+                e.kind(),
+                RuntimeErrorKind::TypeMismatch { op, expected, got, .. }
+                    if op == ":wat::core::apply"
+                    && expected == &"wat::core::keyword"
+                    && got.type_name == "wat::core::String"
+            )
+        ),
+        "non-keyword head (String) must error at eval with RuntimeErrorKind::TypeMismatch{{op: \":wat::core::apply\", expected: keyword, got: String}}; got {:?}",
+        result
+    );
 }
 
 // ─── Probe 8 (new) ──────────────────────────────────────────────────────────
@@ -151,5 +173,18 @@ fn probe_8_apply_rejects_non_vector_last_arg() {
     let world = startup_from_file("tests/function/probe_diagnostic_non_vector.wat.bad")
         .expect("startup should succeed (non-vector spread arg caught at eval, not check)");
     let result = try_run_in(&world, ":user::bad");
-    assert!(result.is_err(), "non-vector spread arg (i64) must error at eval; got Ok");
+    assert!(
+        matches!(
+            &result,
+            Err(e) if matches!(
+                e.kind(),
+                RuntimeErrorKind::TypeMismatch { op, expected, got, .. }
+                    if op == ":wat::core::apply"
+                    && expected == &"wat::core::Vector"
+                    && got.type_name == "wat::core::i64"
+            )
+        ),
+        "non-vector spread arg (i64) must error at eval with RuntimeErrorKind::TypeMismatch{{op: \":wat::core::apply\", expected: Vector, got: i64}}; got {:?}",
+        result
+    );
 }
