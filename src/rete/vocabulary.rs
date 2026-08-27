@@ -619,10 +619,16 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // documents the underlying variadic `eval_string_concat` `String/concat` itself delegates to
     // but the checker constrains to exactly two args); `string::*`/`i64::to-f64` verified against
     // `intrinsic/string.rs`'s own doc comments, which match exactly.
+    // Arc 255 Stone F, Phase 3 — the four rows below MOVED in place (both `rete_name` and
+    // `core_name` edited from the `:wat::core::String/*` / `:wat::rete::core::String/*`
+    // spelling to their `:wat::string::*` / `:wat::rete::string::*` home; the naming
+    // invariant forces the `rete_name` edit the moment `core_name` changes). `empty?` is NOT
+    // among them — it never had a row to move; its permanent row was born correctly-spelled
+    // in Phase 1 (below), and its old uppercase row is simply deleted here, not edited.
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::core::String/concat",
-        core_name: ":wat::core::String/concat",
+        rete_name: ":wat::rete::string::concat",
+        core_name: ":wat::string::concat",
         class: OpClass::Alias,
         params: &[ParamType::String, ParamType::String],
         ret: ParamType::String,
@@ -630,8 +636,8 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     },
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::core::String/starts-with?",
-        core_name: ":wat::core::String/starts-with?",
+        rete_name: ":wat::rete::string::starts-with?",
+        core_name: ":wat::string::starts-with?",
         class: OpClass::Alias,
         params: &[ParamType::String, ParamType::String],
         ret: ParamType::Bool,
@@ -639,8 +645,8 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     },
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::core::String/ends-with?",
-        core_name: ":wat::core::String/ends-with?",
+        rete_name: ":wat::rete::string::ends-with?",
+        core_name: ":wat::string::ends-with?",
         class: OpClass::Alias,
         params: &[ParamType::String, ParamType::String],
         ret: ParamType::Bool,
@@ -648,17 +654,22 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     },
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::core::String/contains?",
-        core_name: ":wat::core::String/contains?",
+        rete_name: ":wat::rete::string::contains?",
+        core_name: ":wat::string::contains?",
         class: OpClass::Alias,
         params: &[ParamType::String, ParamType::String],
         ret: ParamType::Bool,
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
+    // Arc 255 Stone F, Phase 1 — `:wat::string::empty?`'s permanent rete mirror, born
+    // correctly-spelled (there was no existing lowercase row to move). Its Phase-3 sibling,
+    // the OLD `:wat::rete::core::String/empty?` / `:wat::core::String/empty?` row, is
+    // deleted outright rather than edited (nothing to move onto — this row already IS the
+    // destination).
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::core::String/empty?",
-        core_name: ":wat::core::String/empty?",
+        rete_name: ":wat::rete::string::empty?",
+        core_name: ":wat::string::empty?",
         class: OpClass::Alias,
         params: &[ParamType::String],
         ret: ParamType::Bool,

@@ -254,15 +254,15 @@
   (:wat::core::let [segs (:wat::string::split nm "/")
                     seg0 (:wat::core::first segs)
                     tail (:wat::core::rest segs)]
-    (:wat::core::String/concat seg0 (:wat::core::String/concat "::" (:wat::string::join "/" tail)))))
+    (:wat::string::concat seg0 (:wat::string::concat "::" (:wat::string::join "/" tail)))))
 
 ;; new-name-for — the fixed spelling for a name already known to need-fix.
 (:wat::core::defn :user::new-name-for [nn <- :wat::WatAST ns <- :wat::core::String] -> :wat::core::String
   (:wat::core::let [nm (:wat::core::ast-name nn)]
     (:wat::core::if (:wat::string::contains? nm "/")
       (:user::swap-slash nm)
-      (:wat::core::String/concat ":" (:wat::core::String/concat ns
-        (:wat::core::String/concat "::" (:wat::string::strip-leading-colon nm)))))))
+      (:wat::string::concat ":" (:wat::string::concat ns
+        (:wat::string::concat "::" (:wat::string::strip-leading-colon nm)))))))
 
 ;; collect-renames — (old,new) pairs for every collected name that needs fixing.
 (:wat::core::defn :user::collect-renames
@@ -320,7 +320,7 @@
     (:wat::core::let [p (:wat::core::first paths)]
       (:wat::core::do
         (:wat::io::write-file p (:user::migrate (:wat::io::read-file p) p))
-        (:wat::kernel::println (:wat::core::String/concat "[namespace-bare-top-level-names] " p))
+        (:wat::kernel::println (:wat::string::concat "[namespace-bare-top-level-names] " p))
         (:user::rewrite-each (:wat::core::into [] (:wat::core::rest paths)))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

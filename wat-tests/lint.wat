@@ -136,7 +136,7 @@
   ;; string literals ("x: ", " of ") with non-literal args (a, b) — the
   ;; textbook hand-rolled template that `format` cures.
   (:wat::core::let
-    [src "(:wat::core::defn :t::g [a <- :wat::core::String b <- :wat::core::String] -> :wat::core::String (:wat::core::string::concat \"x: \" a \" of \" b))"
+    [src "(:wat::core::defn :t::g [a <- :wat::core::String b <- :wat::core::String] -> :wat::core::String (:wat::string::concat \"x: \" a \" of \" b))"
      sf  (:wat::source::File :path "t.wat" :source src)
      files (:wat::core::Vector :wat::source::File sf)
      findings (:wat::lint::lint-source files)]
@@ -164,10 +164,10 @@
   ;;   b) all-value    (concat a b)     — no literal scaffolding
   (:wat::core::let
     [;; a: all-literal — both args are string literals
-     src-a "(:wat::core::string::concat \"a\" \"b\")"
+     src-a "(:wat::string::concat \"a\" \"b\")"
      sf-a  (:wat::source::File :path "a.wat" :source src-a)
      ;; b: all-value — both args are symbols (non-literals)
-     src-b "(:wat::core::string::concat a b)"
+     src-b "(:wat::string::concat a b)"
      sf-b  (:wat::source::File :path "b.wat" :source src-b)
      files (:wat::core::Vector :wat::source::File sf-a sf-b)
      findings (:wat::lint::lint-source files)]
@@ -227,15 +227,15 @@
   ;; The template must have {x} twice but the kwarg list must have :x x only once.
   (:wat::core::let
     [;; Part A: bare-symbol concat
-     src-a "(:wat::core::defn :u::g [a <- :wat::core::String b <- :wat::core::String] -> :wat::core::String (:wat::core::string::concat \"x: \" a \" y: \" b))"
+     src-a "(:wat::core::defn :u::g [a <- :wat::core::String b <- :wat::core::String] -> :wat::core::String (:wat::string::concat \"x: \" a \" y: \" b))"
      sf-a  (:wat::source::File :path "a.wat" :source src-a)
      fixed-a (:wat::lint::lint-fix-file sf-a)
      ;; Part B: compound-slot concat
-     src-b "(:wat::core::defn :u::h [n <- :wat::core::i64] -> :wat::core::String (:wat::core::string::concat \"n=\" (:wat::core::i64::to-string n)))"
+     src-b "(:wat::core::defn :u::h [n <- :wat::core::i64] -> :wat::core::String (:wat::string::concat \"n=\" (:wat::core::i64::to-string n)))"
      sf-b  (:wat::source::File :path "b.wat" :source src-b)
      fixed-b (:wat::lint::lint-fix-file sf-b)
      ;; Part C: same-symbol-twice dedup
-     src-c "(:wat::core::defn :u::k [x <- :wat::core::String] -> :wat::core::String (:wat::core::string::concat \"pre:\" x \"-\" x))"
+     src-c "(:wat::core::defn :u::k [x <- :wat::core::String] -> :wat::core::String (:wat::string::concat \"pre:\" x \"-\" x))"
      sf-c  (:wat::source::File :path "c.wat" :source src-c)
      fixed-c (:wat::lint::lint-fix-file sf-c)]
     (:wat::core::do
@@ -279,13 +279,13 @@
   ;; lint-fix-file must rewrite the defmacro-body one to string::interpolate and the
   ;; defn-body one to format; no string::concat survives.
   (:wat::core::let
-    [src "(:wat::core::defmacro :u::m [x <- :wat::WatAST] -> :wat::core::String (:wat::core::let [s (:wat::core::ast-name x) nm (:wat::core::string::concat s \"::Op\")] nm)) (:wat::core::defn :u::f [a <- :wat::core::String] -> :wat::core::String (:wat::core::string::concat \"x: \" a))"
+    [src "(:wat::core::defmacro :u::m [x <- :wat::WatAST] -> :wat::core::String (:wat::core::let [s (:wat::core::ast-name x) nm (:wat::string::concat s \"::Op\")] nm)) (:wat::core::defn :u::f [a <- :wat::core::String] -> :wat::core::String (:wat::string::concat \"x: \" a))"
      sf  (:wat::source::File :path "t.wat" :source src)
      fixed (:wat::lint::lint-fix-file sf)]
     (:wat::core::do
       ;; defmacro-body concat must become interpolate
       (:wat::test::assert-true
-        (:wat::string::contains? fixed "(:wat::core::string::interpolate \"{s}::Op\" :s s)"))
+        (:wat::string::contains? fixed "(:wat::string::interpolate \"{s}::Op\" :s s)"))
       ;; defn-body concat must become format
       (:wat::test::assert-true
         (:wat::string::contains? fixed "(:wat::core::format \"x: {a}\" :a a)"))

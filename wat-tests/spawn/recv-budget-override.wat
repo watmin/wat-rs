@@ -33,7 +33,7 @@
                (:wat::core::defn :my::rep [s <- :wat::core::String n <- :wat::core::i64] -> :wat::core::String
                  (:wat::core::if (:wat::core::= n 0)
                      s
-                     (:my::rep (:wat::core::String/concat s s) (:wat::i64::- n 1))))
+                     (:my::rep (:wat::string::concat s s) (:wat::i64::- n 1))))
                (:wat::core::defn :user::main [] -> :wat::core::nil
                  (:wat::kernel::println (:my::rep "x" 8)))))]
     ;; The 64-byte budget must reject the 258-byte complete message as ::Lost with

@@ -7,4 +7,4 @@
 (:wat::core::defn :t::fix [] -> :wat::core::String
   (:wat::lint::lint-fix-file
     (:wat::source::File :path "t.wat"
-      :source "(:wat::core::defmacro :u::m [x <- :wat::WatAST] -> :wat::core::String (:wat::core::let [s (:wat::core::ast-name x) nm (:wat::core::string::concat s \"::Op\")] nm)) (:wat::core::defn :u::f [a <- :wat::core::String] -> :wat::core::String (:wat::core::string::concat \"x: \" a))")))
+      :source "(:wat::core::defmacro :u::m [x <- :wat::WatAST] -> :wat::core::String (:wat::core::let [s (:wat::core::ast-name x) nm (:wat::string::concat s \"::Op\")] nm)) (:wat::core::defn :u::f [a <- :wat::core::String] -> :wat::core::String (:wat::string::concat \"x: \" a))")))

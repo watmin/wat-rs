@@ -386,7 +386,7 @@
   -> :wat::core::String
   (:wat::core::if (:wat::core::= n 0)
     s
-    (:wat::kernel::str-double (:wat::core::String/concat s s) (:wat::core::- n 1))))
+    (:wat::kernel::str-double (:wat::string::concat s s) (:wat::core::- n 1))))
 
 ;; flood-own-stdout — the TEST-namespaced entry, the ONLY flood path a `:user::` program can reach.
 ;; CHOKED DOWN so it cannot be exploited: ZERO ARGS, no knobs, fully HARDCODED behavior — flood the

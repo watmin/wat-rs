@@ -64,13 +64,13 @@
          ;; the literal into unquoted keyword syntax. See rename-core-string-to-string.wat's
          ;; header for the fuller argument; the same trap applies here verbatim.
          (:wat::rete::where (:wat::rete::string::= ?k "keyword"))
-         (:wat::rete::where (:wat::rete::core::String/starts-with? ?n ":wat::core::PersistentMap/"))]
+         (:wat::rete::where (:wat::rete::string::starts-with? ?n ":wat::core::PersistentMap/"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "core-persistentmap-slash-to-map-colon"
            :captures (:wat::rete::core::PersistentVector
                        (:wat::grep::Capture :name "old" :value ?n)
                        (:wat::grep::Capture :name "new"
-                         :value (:wat::rete::core::String/concat ":wat::map::"
+                         :value (:wat::rete::string::concat ":wat::map::"
                                   (:wat::rete::string::subs ?n 26
                                     (:wat::rete::string::length ?n)
                                     :undefined "")))))])
@@ -82,13 +82,13 @@
          (:wat::grep::Source (?f <- :file))
          ;; ⚠ KEYWORD ONLY — see :rn::core-persistentmap-slash's comment.
          (:wat::rete::where (:wat::rete::string::= ?k "keyword"))
-         (:wat::rete::where (:wat::rete::core::String/starts-with? ?n ":wat::core::HashMap/"))]
+         (:wat::rete::where (:wat::rete::string::starts-with? ?n ":wat::core::HashMap/"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "core-hashmap-slash-to-hashmap-colon"
            :captures (:wat::rete::core::PersistentVector
                        (:wat::grep::Capture :name "old" :value ?n)
                        (:wat::grep::Capture :name "new"
-                         :value (:wat::rete::core::String/concat ":wat::hashmap::"
+                         :value (:wat::rete::string::concat ":wat::hashmap::"
                                   (:wat::rete::string::subs ?n 20
                                     (:wat::rete::string::length ?n)
                                     :undefined "")))))])

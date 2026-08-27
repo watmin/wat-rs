@@ -85,7 +85,7 @@
 ;; a stdlib String verb over a String binding
 (:wat::core::defn :shape::rule-string [] -> :wat::rete::Rule
   (:wat::core::let [conds   (:wat::core::quasiquote (:shape::Req (?k <- :k) (?n <- :name)))
-                    where-c (:wat::core::quasiquote (:wat::rete::where (:wat::rete::core::String/starts-with? ?n "ad")))
+                    where-c (:wat::core::quasiquote (:wat::rete::where (:wat::rete::string::starts-with? ?n "ad")))
                     ins     (:wat::core::quasiquote (:shape::Hit ?k))]
     (:wat::rete::Rule :name "string"
       :lhs (:wat::core::PersistentVector conds where-c)

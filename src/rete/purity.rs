@@ -292,6 +292,19 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
         let total = matches!(
             head,
             ":wat::string::length" | ":wat::string::trim" | ":wat::string::to-lowercase"
+            // Arc 255 Stone F — the five verbs carried over from `:wat::core::String/*`.
+            // `intrinsic_meta` is consulted with the CORE-spelled head (e.g. a `where` clause
+            // written as `(:wat::string::concat ...)` directly, not through the rete-prefixed
+            // alias), which does NOT hit `rete_op_for`'s early return (that keys on
+            // `rete_name`, a different string) — so it falls through to this prefix block.
+            // Their totality was previously carried by the two hand-lists this stone deletes
+            // (`purity.rs`'s old pure_det/total lists, `:wat::core::String/*`-keyed); listed
+            // here so the fact survives the move, not merely the classification mechanism.
+            // Each is total by construction: `concat`/`contains?`/`starts-with?`/`ends-with?`
+            // always return for any two strings; `empty?` always returns for any one string.
+            | ":wat::string::concat" | ":wat::string::contains?"
+            | ":wat::string::starts-with?" | ":wat::string::ends-with?"
+            | ":wat::string::empty?"
         );
         return Some(OpMeta { pure: true, deterministic: true, total });
     }
@@ -599,12 +612,12 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             | ":wat::f64::round" | ":wat::f64::clamp"
             | ":wat::f64::max-of" | ":wat::f64::min-of"
             | ":wat::f64::to-i64" | ":wat::f64::to-string"
-            // The `String/` family — ENTIRELY absent. Note `:wat::string::` (lowercase, a
-            // namespace) is whitelisted by prefix above; `String/` is the per-Type family users
-            // actually call, and it is a different namespace, so the prefix never covered it.
-            | ":wat::core::String/concat"      | ":wat::core::String/contains?"
-            | ":wat::core::String/empty?"      | ":wat::core::String/starts-with?"
-            | ":wat::core::String/ends-with?"
+            // Arc 255 Stone F — the `:wat::core::String/{concat,contains?,empty?,starts-with?,
+            // ends-with?}` entries that lived HERE are DELETED, not migrated: their replacement
+            // (`:wat::string::*`) is already covered by the `:wat::string::` prefix whitelist
+            // above (this stone added the five verbs to ITS small `total` list), so a
+            // hand-list entry here would be redundant the moment the verbs moved — a hand-list
+            // deleted beats a hand-list migrated. `[[feedback_a_gate_over_two_hand_lists_is_a_hand_list]]`
             // `Vector/`, `List/`, `HashSet/` — the value containers. `PersistentVector/`,
             // `PersistentMap/` and `HashMap/` were classified; these three were skipped.
             // Arc 255 Stone E-ii — the bare TYPE `:wat::core::Vector` is unmoved (STOP-3); the
@@ -775,11 +788,9 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             | ":wat::vector::length"
             | ":wat::vector::contains?"
             | ":wat::vector::get"
-            | ":wat::core::String/concat"
-            | ":wat::core::String/starts-with?"
-            | ":wat::core::String/ends-with?"
-            | ":wat::core::String/contains?"
-            | ":wat::core::String/empty?"
+            // Arc 255 Stone F — the `:wat::core::String/*` five that lived here are DELETED,
+            // not migrated: their `:wat::string::*` replacement's totality is carried by the
+            // `:wat::string::` prefix block above, which this stone extended to cover them.
             | ":wat::core::foldl"
             // ★ THE FOUR HOF SIBLINGS, added 2026-08-05 (task #80) — `foldl` stood here ALONE for
             // three days and its four siblings did not, which was an inconsistency inside ONE

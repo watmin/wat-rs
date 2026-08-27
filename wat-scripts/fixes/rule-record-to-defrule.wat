@@ -157,14 +157,14 @@
    where-text <- :wat::core::String
    ins-text  <- :wat::core::String]
   -> :wat::core::String
-  (:wat::core::String/concat
-    (:wat::core::String/concat "(:wat::rete::defrule :" name-str)
-    (:wat::core::String/concat "\n  :when\n  ["
-      (:wat::core::String/concat cond-text
-        (:wat::core::String/concat " "
-          (:wat::core::String/concat where-text
-            (:wat::core::String/concat "]\n  :then\n  "
-              (:wat::core::String/concat ins-text ")"))))))))
+  (:wat::string::concat
+    (:wat::string::concat "(:wat::rete::defrule :" name-str)
+    (:wat::string::concat "\n  :when\n  ["
+      (:wat::string::concat cond-text
+        (:wat::string::concat " "
+          (:wat::string::concat where-text
+            (:wat::string::concat "]\n  :then\n  "
+              (:wat::string::concat ins-text ")"))))))))
 
 ;; rule-edit — for a rule-defn form, the one whole-span replacement edit; [] for anything else.
 ;; STOPS (assertion-failed!) on a bindings arity other than 2 (Shape B) / 6 (Shape A) — a shape the
@@ -209,21 +209,21 @@
           (:wat::core::let
             [wherec-val (:wat::core::Option/expect (:wat::core::get bindch 1) "rule-edit: wherec-val")
              cond-text  (:wat::core::Option/expect conds-text-opt
-                          (:wat::core::String/concat "rule-record-to-defrule: shape-B rule "
-                            (:wat::core::String/concat name-str
+                          (:wat::string::concat "rule-record-to-defrule: shape-B rule "
+                            (:wat::string::concat name-str
                               " needs a file-level `::conds` helper but none was found")))
              ins-text   (:wat::core::Option/expect ins-text-opt
-                          (:wat::core::String/concat "rule-record-to-defrule: shape-B rule "
-                            (:wat::core::String/concat name-str
+                          (:wat::string::concat "rule-record-to-defrule: shape-B rule "
+                            (:wat::string::concat name-str
                               " needs a file-level `::ins` helper but none was found")))
              new-text   (:user::build-defrule-text name-str cond-text
                           (:user::quasi-text wherec-val lines src) ins-text)]
             (:wat::core::Vector :wat::fix::Edit (:wat::core::Tuple off old-text new-text)))
           ;; Neither shape — STOP. Never a silent skip, never a hand-fix.
           (:wat::kernel::assertion-failed!
-            (:wat::core::String/concat "rule-record-to-defrule: unrecognized let-bindings arity "
-              (:wat::core::String/concat (:wat::i64::to-string n)
-                (:wat::core::String/concat " in rule " name-str)))
+            (:wat::string::concat "rule-record-to-defrule: unrecognized let-bindings arity "
+              (:wat::string::concat (:wat::i64::to-string n)
+                (:wat::string::concat " in rule " name-str)))
             :wat::core::None :wat::core::None))))
     (:wat::core::Vector :wat::fix::Edit)))
 
@@ -254,7 +254,7 @@
        rule-call (:wat::core::Option/expect (:wat::core::get bch 2) "rule-rename: rule-call")
        rcch      (:wat::core::ast->children rule-call)
        name-node (:wat::core::Option/expect (:wat::core::get rcch 2) "rule-rename: name-node")
-       new       (:wat::core::String/concat ":" (:wat::core::ast-name name-node))]
+       new       (:wat::string::concat ":" (:wat::core::ast-name name-node))]
       (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::String :wat::core::String]) (:wat::core::Tuple old new)))
     (:wat::core::Vector (:wat::core::Tuple :- [:wat::core::String :wat::core::String]))))
 
@@ -299,7 +299,7 @@
     (:wat::core::let [p (:wat::core::first paths)]
       (:wat::core::do
         (:wat::io::write-file p (:user::migrate (:wat::io::read-file p)))
-        (:wat::kernel::println (:wat::core::String/concat "[defrule] " p))
+        (:wat::kernel::println (:wat::string::concat "[defrule] " p))
         (:user::rewrite-each (:wat::core::into [] (:wat::core::rest paths)))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil

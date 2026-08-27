@@ -35,7 +35,7 @@ fn concat_fix_picks_head_by_position() {
             // rune:lint(no-inlined-edn) — is the EDN tooling correct: exact fixed-source output of the lint autofix; the golden holds double-colon namespace forms that are not reader-parseable, so a structural whitespace-blind compare cannot apply here
             "(:wat::core::let [s (:wat::core::ast-name x) nm ",
             // rune:lint(no-inlined-edn) — is the EDN tooling correct: exact fixed-source output of the lint autofix; the golden holds double-colon namespace forms that are not reader-parseable, so a structural whitespace-blind compare cannot apply here
-            "(:wat::core::string::interpolate ",
+            "(:wat::string::interpolate ",
             "\"{s}::Op\" :s s)] nm)) ",
             // rune:lint(no-inlined-edn) — is the EDN tooling correct: exact fixed-source output of the lint autofix; the golden holds double-colon namespace forms that are not reader-parseable, so a structural whitespace-blind compare cannot apply here
             "(:wat::core::defn :u::f [a <- :wat::core::String] -> :wat::core::String ",

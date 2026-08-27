@@ -136,19 +136,19 @@
                  (:wat::core::= ovl-d (:wat::i64::+ base-d (:ovl::temp-n)))
                  nil
                  (:wat::kernel::assertion-failed!
-                   (:wat::core::String/concat
-                     (:wat::core::String/concat "overlay derived " (:wat::i64::to-string ovl-d))
-                     (:wat::core::String/concat " but base was " (:wat::i64::to-string base-d)))
+                   (:wat::string::concat
+                     (:wat::string::concat "overlay derived " (:wat::i64::to-string ovl-d))
+                     (:wat::string::concat " but base was " (:wat::i64::to-string base-d)))
                    :wat::core::None :wat::core::None))]
-    (:wat::core::String/concat
-      (:wat::core::String/concat
-        (:wat::core::String/concat "n=" (:wat::i64::to-string n))
-        (:wat::core::String/concat " cold-ns=" (:wat::i64::to-string (:ovl::ns-between c0 c1))))
-      (:wat::core::String/concat
-        (:wat::core::String/concat " noop-ns=" (:wat::i64::to-string (:ovl::ns-between p0 p1)))
-        (:wat::core::String/concat
-          (:wat::core::String/concat " ovl-ns=" (:wat::i64::to-string (:ovl::ns-between o0 o1)))
-          (:wat::core::String/concat " base-derived=" (:wat::i64::to-string base-d)))))))
+    (:wat::string::concat
+      (:wat::string::concat
+        (:wat::string::concat "n=" (:wat::i64::to-string n))
+        (:wat::string::concat " cold-ns=" (:wat::i64::to-string (:ovl::ns-between c0 c1))))
+      (:wat::string::concat
+        (:wat::string::concat " noop-ns=" (:wat::i64::to-string (:ovl::ns-between p0 p1)))
+        (:wat::string::concat
+          (:wat::string::concat " ovl-ns=" (:wat::i64::to-string (:ovl::ns-between o0 o1)))
+          (:wat::string::concat " base-derived=" (:wat::i64::to-string base-d)))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::foldl

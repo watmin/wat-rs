@@ -96,7 +96,7 @@
     [ctl     (:wat::rete::fire-rules
                (:pcf::seed (:wat::rete::compile-all (:wat::core::PersistentVector (:pcf::rule-if)) (:wat::core::PersistentVector (:pcf::q-Hit)))))
      _ok     (:wat::kernel::println
-               (:wat::core::String/concat "if-control derived n=" (:wat::i64::to-string (:pcf::derived ctl))))
+               (:wat::string::concat "if-control derived n=" (:wat::i64::to-string (:pcf::derived ctl))))
 
      ;; 2. COMPILE the cond rule. The purity fence runs HERE and passes — this line does not raise,
      ;;    which is precisely the defect: every static gate has now said yes.

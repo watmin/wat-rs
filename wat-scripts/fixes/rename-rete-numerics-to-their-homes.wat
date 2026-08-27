@@ -69,13 +69,13 @@
          ;; the literal into unquoted keyword syntax. See `rename-core-numerics-to-their-
          ;; homes.wat`'s header for the fuller argument; the same trap applies here verbatim.
          (:wat::rete::where (:wat::rete::string::= ?k "keyword"))
-         (:wat::rete::where (:wat::rete::core::String/starts-with? ?n ":wat::rete::core::i64::"))]
+         (:wat::rete::where (:wat::rete::string::starts-with? ?n ":wat::rete::core::i64::"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "rete-core-i64-to-rete-i64"
            :captures (:wat::rete::core::PersistentVector
                        (:wat::grep::Capture :name "old" :value ?n)
                        (:wat::grep::Capture :name "new"
-                         :value (:wat::rete::core::String/concat ":wat::rete::i64::"
+                         :value (:wat::rete::string::concat ":wat::rete::i64::"
                                   (:wat::rete::string::subs ?n 23
                                     (:wat::rete::string::length ?n)
                                     :undefined "")))))])
@@ -87,13 +87,13 @@
          (:wat::grep::Source (?f <- :file))
          ;; ⚠ KEYWORD ONLY — see :rn::rete-i64's comment.
          (:wat::rete::where (:wat::rete::string::= ?k "keyword"))
-         (:wat::rete::where (:wat::rete::core::String/starts-with? ?n ":wat::rete::core::f64::"))]
+         (:wat::rete::where (:wat::rete::string::starts-with? ?n ":wat::rete::core::f64::"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "rete-core-f64-to-rete-f64"
            :captures (:wat::rete::core::PersistentVector
                        (:wat::grep::Capture :name "old" :value ?n)
                        (:wat::grep::Capture :name "new"
-                         :value (:wat::rete::core::String/concat ":wat::rete::f64::"
+                         :value (:wat::rete::string::concat ":wat::rete::f64::"
                                   (:wat::rete::string::subs ?n 23
                                     (:wat::rete::string::length ?n)
                                     :undefined "")))))])

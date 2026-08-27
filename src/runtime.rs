@@ -5923,76 +5923,12 @@ fn dispatch_keyword_head_value(
         // Stone 237.3 — slash-form alias for i64/to-string (probe 14).
         ":wat::core::i64/to-string" => eval_i64_to_string(args, list_span, env, sym, ":wat::core::i64/to-string"),
 
-        // Stone 237.3 — String/ namespace aliases (uppercase; probe 14).
-        // Delegates to the same handlers the registered `:wat::string::*` verbs use
-        // (`intrinsic/string.rs`, arc 255 home #4 phase 2 carve). Those are now
-        // FIXED-ARG (each wat arg its own `&WatAST` param, arity checked by the
-        // `#[wat_intrinsic]` shim) rather than the old slice-taking
-        // `Result<Value, RuntimeError>` form — this arm is NOT a registry entry (a
-        // different FQDN prefix, `:wat::core::String/` not `:wat::string::`), so it
-        // does not go through that shim and must arity-check for itself, same shape
-        // the shim generates.
-        ":wat::core::String/concat" => crate::intrinsic::string::eval_string_concat(args, env, sym, list_span),
-        ":wat::core::String/starts-with?" => {
-            if args.len() != 2 {
-                return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::ArityMismatch {
-                        op: ":wat::core::String/starts-with?".into(),
-                        expected: 2,
-                        got: args.len(),
-                    })
-                .into());
-            }
-            crate::intrinsic::string::eval_string_starts_with(&args[0], &args[1], env, sym, list_span)
-        }
-        ":wat::core::String/ends-with?" => {
-            if args.len() != 2 {
-                return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::ArityMismatch {
-                        op: ":wat::core::String/ends-with?".into(),
-                        expected: 2,
-                        got: args.len(),
-                    })
-                .into());
-            }
-            crate::intrinsic::string::eval_string_ends_with(&args[0], &args[1], env, sym, list_span)
-        }
-        ":wat::core::String/contains?" => {
-            if args.len() != 2 {
-                return Err(RuntimeError::new(list_span.clone(), RuntimeErrorKind::ArityMismatch {
-                        op: ":wat::core::String/contains?".into(),
-                        expected: 2,
-                        got: args.len(),
-                    })
-                .into());
-            }
-            crate::intrinsic::string::eval_string_contains(&args[0], &args[1], env, sym, list_span)
-        }
-        ":wat::core::String/empty?" => {
-            // :String/empty? :: :String -> :bool. True iff string is empty.
-            if args.len() != 1 {
-                return Err(RuntimeError::new(
-                    list_span.clone(),
-                    RuntimeErrorKind::ArityMismatch {
-                        op: ":wat::core::String/empty?".into(),
-                        expected: 1,
-                        got: args.len(),
-                    },
-                )
-                .into());
-            }
-            let val = eval_inner(&args[0], env, sym).map(|tv| tv.value_owned())?;
-            match val {
-                Value::String(s) => Ok(Value::bool(s.is_empty())),
-                other => Err(RuntimeError::new(
-                    args[0].span().clone(),
-                    RuntimeErrorKind::TypeMismatch {
-                        op: ":wat::core::String/empty?".into(),
-                        expected: "String",
-                        got: Box::new(ValueSnapshot::of(&other)),
-                    },
-                )
-                .into()),
-            }
-        }
+        // Arc 255 Stone F — the `String/` namespace aliases (Stone 237.3) that lived here
+        // (concat/starts-with?/ends-with?/contains?/empty?) are RETIRED. Their replacement is
+        // `:wat::string::*`, reached through the ordinary registry-first door above (each is a
+        // `#[wat_intrinsic]` in `intrinsic/string.rs`) — no explicit match arm needed here at
+        // all, unlike this Stone 237.3 shim which had to arity-check for itself. See
+        // `src/remedy/retirement.rs`'s five new rows for the old-spelling error message.
 
         // Stone 237.8b — HARD CUT: explicit `+`/`-`/`*`/`/` arms removed.
         // These ops are now wat defclauses (registered in runtime_def_values)

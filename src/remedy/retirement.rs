@@ -305,6 +305,17 @@ const RETIREMENT_TABLE: &[RetirementEntry] = &[
     RetirementEntry { retired: ":wat::core::keyword/to-symbol",         replacement: ":wat::keyword::to-symbol",         note: None },
     RetirementEntry { retired: ":wat::core::keyword/to-type-form",      replacement: ":wat::keyword::to-type-form",      note: None },
     RetirementEntry { retired: ":wat::core::keyword/to-type-form-colon", replacement: ":wat::keyword::to-type-form-colon", note: None },
+    // Arc 255 Stone F — the `String/` verbs leave the `extend-type`-generated instance-method
+    // namespace. `:wat::core::String` (the bare TYPE, no trailing `/`) is UNCHANGED and remains
+    // the home `extend-type` mints real instance methods into (e.g. `String/tag`); only these
+    // five plain functions — never methods — move. Name-only; handler bodies untouched
+    // (`intrinsic/string.rs`'s `eval_string_{concat,starts_with,ends_with,contains,empty}`,
+    // four of which already backed the old spelling via `runtime.rs`'s deleted alias arms).
+    RetirementEntry { retired: ":wat::core::String/concat",       replacement: ":wat::string::concat",       note: None },
+    RetirementEntry { retired: ":wat::core::String/starts-with?", replacement: ":wat::string::starts-with?", note: None },
+    RetirementEntry { retired: ":wat::core::String/ends-with?",   replacement: ":wat::string::ends-with?",   note: None },
+    RetirementEntry { retired: ":wat::core::String/contains?",    replacement: ":wat::string::contains?",    note: None },
+    RetirementEntry { retired: ":wat::core::String/empty?",       replacement: ":wat::string::empty?",       note: None },
 ];
 
 /// Look up `needle` in the retirement table.

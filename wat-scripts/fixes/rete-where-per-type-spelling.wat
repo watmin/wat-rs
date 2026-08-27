@@ -6,6 +6,16 @@
 ;; — to their rete-prefixed twins, per `src/rete/vocabulary.rs`'s RETE_OPS table:
 ;;   BUCKET A: :wat::core::X   -> :wat::rete::core::X    (55 heads — core_name appears EXACTLY once)
 ;;   BUCKET B: :wat::holon::X  -> :wat::rete::holon::X   (4 heads — ditto, note holon:: not core::)
+;; ⛔ THE DERIVATION CLAIM BELOW IS A SNAPSHOT, AND IT HAS EXPIRED IN PART — 2026-08-27.
+;; It says the table IS every such RETE_OPS row. That was true when written and is a PIN: the
+;; table copied RETE_OPS rather than recomputing from it, so it went false when RETE_OPS moved,
+;; with nobody's hand on it. Arc 255 Stone F retired all five `:wat::core::String/*` rows below
+;; (`concat` `contains?` `empty?` `ends-with?` `starts-with?`) to `:wat::string::*`, and their
+;; rete twins to `:wat::rete::string::*`. This codemod is SPENT — already applied — so the rows
+;; are KEPT as the record of what it did, not repaired to a spelling it never rewrote. Re-running
+;; it is a no-op: no corpus text matches those names any more. Read this file as history.
+;; `DERIVAMVS NE MENTIAMVR.`
+;;
 ;; The table below is not invented: it is every `core_name` row in RETE_OPS whose bare string
 ;; occurs EXACTLY ONCE across the whole table, grep-derived (2026-08-05):
 ;;   grep -n 'core_name:' src/rete/vocabulary.rs | sed -E 's/.*core_name: *"([^"]+)",?/\1/' \

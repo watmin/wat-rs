@@ -17363,57 +17363,13 @@ fn register_builtins(env: &mut CheckEnv) {
         },
     );
 
-    // Stone 237.3 — String/ namespace aliases (uppercase) for probe 14.
-    // String/concat :: :String :String -> :String (2-arg; matches probe usage).
-    env.register(
-        ":wat::core::String/concat".to_string(),
-        TypeScheme {
-            type_params: vec![],
-            params: vec![string_ty(), string_ty()],
-            ret: string_ty(),
-            rest_param_type: None,
-        },
-    );
-    // String/starts-with? :: :String :String -> :bool
-    env.register(
-        ":wat::core::String/starts-with?".to_string(),
-        TypeScheme {
-            type_params: vec![],
-            params: vec![string_ty(), string_ty()],
-            ret: bool_ty(),
-            rest_param_type: None,
-        },
-    );
-    // String/ends-with? :: :String :String -> :bool
-    env.register(
-        ":wat::core::String/ends-with?".to_string(),
-        TypeScheme {
-            type_params: vec![],
-            params: vec![string_ty(), string_ty()],
-            ret: bool_ty(),
-            rest_param_type: None,
-        },
-    );
-    // String/contains? :: :String :String -> :bool
-    env.register(
-        ":wat::core::String/contains?".to_string(),
-        TypeScheme {
-            type_params: vec![],
-            params: vec![string_ty(), string_ty()],
-            ret: bool_ty(),
-            rest_param_type: None,
-        },
-    );
-    // String/empty? :: :String -> :bool
-    env.register(
-        ":wat::core::String/empty?".to_string(),
-        TypeScheme {
-            type_params: vec![],
-            params: vec![string_ty()],
-            ret: bool_ty(),
-            rest_param_type: None,
-        },
-    );
+    // Arc 255 Stone F — the Stone 237.3 `String/` namespace aliases (uppercase; concat/
+    // starts-with?/ends-with?/contains?/empty?) that were registered here are RETIRED. Their
+    // replacement, `:wat::string::*`, is registered above/below (see the `for op in &[...]`
+    // loop and the standalone `:wat::string::empty?`/`:wat::string::concat` registrations in
+    // this function). Calling the old spelling now produces an unresolved-function error that
+    // the retirement table (`src/remedy/retirement.rs`) turns into a remedy naming the
+    // replacement, rather than a bare "unknown function".
 
     env.register(
         ":wat::f64::to-string".to_string(),
@@ -17499,6 +17455,19 @@ fn register_builtins(env: &mut CheckEnv) {
     // String basics — :wat::string::*. Per-type ops, char-
     // oriented (length counts unicode scalars, not bytes). See
     // src/intrinsic/string.rs (registry) + src/string/ (implementation) for the handlers.
+    // Arc 255 Stone F, Phase 1 — `:wat::string::empty?`, the home's missing twin
+    // (see `intrinsic/string.rs::eval_string_empty`'s doc). Registered ahead of the
+    // corpus migration so `wat/core.wat`'s `format` macro has a live target to move onto.
+    env.register(
+        ":wat::string::empty?".to_string(),
+        TypeScheme {
+            type_params: vec![],
+            params: vec![string_ty()],
+            ret: bool_ty(),
+            rest_param_type: None,
+        },
+    );
+
     for op in &[
         ":wat::string::contains?",
         ":wat::string::starts-with?",

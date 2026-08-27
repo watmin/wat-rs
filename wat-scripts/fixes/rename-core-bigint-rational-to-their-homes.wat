@@ -64,13 +64,13 @@
          ;; the literal into unquoted keyword syntax. See rename-core-string-to-string.wat's
          ;; header for the fuller argument; the same trap applies here verbatim.
          (:wat::rete::where (:wat::rete::string::= ?k "keyword"))
-         (:wat::rete::where (:wat::rete::core::String/starts-with? ?n ":wat::core::bigint::"))]
+         (:wat::rete::where (:wat::rete::string::starts-with? ?n ":wat::core::bigint::"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "core-bigint-to-bigint"
            :captures (:wat::rete::core::PersistentVector
                        (:wat::grep::Capture :name "old" :value ?n)
                        (:wat::grep::Capture :name "new"
-                         :value (:wat::rete::core::String/concat ":wat::bigint::"
+                         :value (:wat::rete::string::concat ":wat::bigint::"
                                   (:wat::rete::string::subs ?n 20
                                     (:wat::rete::string::length ?n)
                                     :undefined "")))))])
@@ -82,13 +82,13 @@
          (:wat::grep::Source (?f <- :file))
          ;; ⚠ KEYWORD ONLY — see :rn::core-bigint's comment.
          (:wat::rete::where (:wat::rete::string::= ?k "keyword"))
-         (:wat::rete::where (:wat::rete::core::String/starts-with? ?n ":wat::core::rational::"))]
+         (:wat::rete::where (:wat::rete::string::starts-with? ?n ":wat::core::rational::"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "core-rational-to-rational"
            :captures (:wat::rete::core::PersistentVector
                        (:wat::grep::Capture :name "old" :value ?n)
                        (:wat::grep::Capture :name "new"
-                         :value (:wat::rete::core::String/concat ":wat::rational::"
+                         :value (:wat::rete::string::concat ":wat::rational::"
                                   (:wat::rete::string::subs ?n 22
                                     (:wat::rete::string::length ?n)
                                     :undefined "")))))])
@@ -106,13 +106,13 @@
          (:wat::grep::Source (?f <- :file))
          ;; ⚠ KEYWORD ONLY — see :rn::core-bigint's comment.
          (:wat::rete::where (:wat::rete::string::= ?k "keyword"))
-         (:wat::rete::where (:wat::rete::core::String/starts-with? ?n ":wat::core::rational/"))]
+         (:wat::rete::where (:wat::rete::string::starts-with? ?n ":wat::core::rational/"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "core-rational-slash-to-rational-colon"
            :captures (:wat::rete::core::PersistentVector
                        (:wat::grep::Capture :name "old" :value ?n)
                        (:wat::grep::Capture :name "new"
-                         :value (:wat::rete::core::String/concat ":wat::rational::"
+                         :value (:wat::rete::string::concat ":wat::rational::"
                                   (:wat::rete::string::subs ?n 21
                                     (:wat::rete::string::length ?n)
                                     :undefined "")))))])

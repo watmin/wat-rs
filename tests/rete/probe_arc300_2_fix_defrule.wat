@@ -39,17 +39,17 @@
 ;; head-keyword-str? — name string is ::-namespaced.
 (:wat::rete::core::defn :fix::head-keyword-str?
   [name <- :wat::core::String] -> :wat::core::bool
-  (:wat::rete::core::String/contains? name "::"))
+  (:wat::rete::string::contains? name "::"))
 
 ;; type-shaped-keyword-str? — name has matching "<" + ">" OR "(" + ")".
 (:wat::rete::core::defn :fix::type-shaped-keyword-str?
   [name <- :wat::core::String] -> :wat::core::bool
-  (:wat::rete::core::if (:wat::rete::core::if (:wat::rete::core::String/contains? name "<")
-                    (:wat::rete::core::String/contains? name ">")
+  (:wat::rete::core::if (:wat::rete::core::if (:wat::rete::string::contains? name "<")
+                    (:wat::rete::string::contains? name ">")
                     false)
     true
-    (:wat::rete::core::if (:wat::rete::core::String/contains? name "(")
-      (:wat::rete::core::String/contains? name ")")
+    (:wat::rete::core::if (:wat::rete::string::contains? name "(")
+      (:wat::rete::string::contains? name ")")
       false)))
 
 ;; ── the rules: each :then is PURE (bindings only, no transform) ──────────────

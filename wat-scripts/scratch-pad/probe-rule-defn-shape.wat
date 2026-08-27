@@ -6,8 +6,8 @@
 (:wat::core::defn :user::kinds [ch <- (:wat::core::Vector :- [:wat::WatAST])] -> :wat::core::String
   (:wat::core::foldl
     (:wat::core::fn [acc <- :wat::core::String c <- :wat::WatAST] -> :wat::core::String
-      (:wat::core::String/concat acc
-        (:wat::core::String/concat " " (:wat::core::ast-kind c))))
+      (:wat::string::concat acc
+        (:wat::string::concat " " (:wat::core::ast-kind c))))
     ""
     ch))
 
@@ -36,31 +36,31 @@
                  forms)))
      rch   (:wat::core::ast->children rule)]
     (:wat::core::do
-      (:wat::kernel::println (:wat::core::String/concat "rule-defn child kinds:" (:user::kinds rch)))
-      (:wat::kernel::println (:wat::core::String/concat "rule-defn child count: " (:wat::i64::to-string (:wat::core::length rch))))
+      (:wat::kernel::println (:wat::string::concat "rule-defn child kinds:" (:user::kinds rch)))
+      (:wat::kernel::println (:wat::string::concat "rule-defn child count: " (:wat::i64::to-string (:wat::core::length rch))))
       (:wat::core::let [body (:wat::core::Option/expect (:wat::core::get rch 5) "body")]
         (:wat::core::do
-          (:wat::kernel::println (:wat::core::String/concat "body kind: " (:wat::core::ast-kind body)))
+          (:wat::kernel::println (:wat::string::concat "body kind: " (:wat::core::ast-kind body)))
           (:wat::core::let [bch (:wat::core::ast->children body)]
             (:wat::core::do
-              (:wat::kernel::println (:wat::core::String/concat "body child kinds:" (:user::kinds bch)))
+              (:wat::kernel::println (:wat::string::concat "body child kinds:" (:user::kinds bch)))
               (:wat::core::let [bindings (:wat::core::Option/expect (:wat::core::get bch 1) "bindings")]
                 (:wat::core::do
-                  (:wat::kernel::println (:wat::core::String/concat "bindings kind: " (:wat::core::ast-kind bindings)))
+                  (:wat::kernel::println (:wat::string::concat "bindings kind: " (:wat::core::ast-kind bindings)))
                   (:wat::core::let [bindch (:wat::core::ast->children bindings)]
                     (:wat::core::do
-                      (:wat::kernel::println (:wat::core::String/concat "bindings child kinds:" (:user::kinds bindch)))
-                      (:wat::kernel::println (:wat::core::String/concat "bindings child count: " (:wat::i64::to-string (:wat::core::length bindch))))
+                      (:wat::kernel::println (:wat::string::concat "bindings child kinds:" (:user::kinds bindch)))
+                      (:wat::kernel::println (:wat::string::concat "bindings child count: " (:wat::i64::to-string (:wat::core::length bindch))))
                       (:wat::core::let [conds-val (:wat::core::Option/expect (:wat::core::get bindch 1) "conds-val")]
                         (:wat::core::do
-                          (:wat::kernel::println (:wat::core::String/concat "conds-val kind: " (:wat::core::ast-kind conds-val)))
+                          (:wat::kernel::println (:wat::string::concat "conds-val kind: " (:wat::core::ast-kind conds-val)))
                           (:wat::core::let [cvch (:wat::core::ast->children conds-val)]
-                            (:wat::kernel::println (:wat::core::String/concat "conds-val child kinds:" (:user::kinds cvch))))))
+                            (:wat::kernel::println (:wat::string::concat "conds-val child kinds:" (:user::kinds cvch))))))
                       (:wat::core::let [rule-call (:wat::core::Option/expect (:wat::core::get bch 2) "rule-call")]
                         (:wat::core::let [rcch (:wat::core::ast->children rule-call)]
                           (:wat::core::do
-                            (:wat::kernel::println (:wat::core::String/concat "rule-call child kinds:" (:user::kinds rcch)))
+                            (:wat::kernel::println (:wat::string::concat "rule-call child kinds:" (:user::kinds rcch)))
                             (:wat::core::let [namestr (:wat::core::Option/expect (:wat::core::get rcch 2) "namestr")]
                               (:wat::core::do
-                                (:wat::kernel::println (:wat::core::String/concat "name-node kind: " (:wat::core::ast-kind namestr)))
-                                (:wat::kernel::println (:wat::core::String/concat "name-node ast-name: " (:wat::core::ast-name namestr)))))))))))))))))))
+                                (:wat::kernel::println (:wat::string::concat "name-node kind: " (:wat::core::ast-kind namestr)))
+                                (:wat::kernel::println (:wat::string::concat "name-node ast-name: " (:wat::core::ast-name namestr)))))))))))))))))))

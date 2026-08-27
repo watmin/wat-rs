@@ -104,7 +104,7 @@
       (:wat::core::Option/expect
         (:wat::map::get (:wat::core::first hits) "?name")
         "q-Guess: ?name")
-      (:wat::core::String/concat "count=" (:wat::i64::to-string n)))))
+      (:wat::string::concat "count=" (:wat::i64::to-string n)))))
 
 (:wat::core::defn :vsa::deg-count
   [fire <- :wat::core::Fn(wat::rete::Session)->wat::rete::Session
@@ -185,7 +185,7 @@
       (:wat::core::Option/expect
         (:wat::map::get (:wat::core::first hits) "?name")
         "q-Guess: ?name")
-      (:wat::core::String/concat "count=" (:wat::i64::to-string n)))))
+      (:wat::string::concat "count=" (:wat::i64::to-string n)))))
 
 (:wat::core::defn :user::oracle-presence-self [] -> :wat::core::String
   (:vsa::presence-pair :wat::rete::fire-rules$oracle "identity" (:vsa::id-fn) (:vsa::id-fn)))

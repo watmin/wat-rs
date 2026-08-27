@@ -304,8 +304,14 @@
 ;; All-value   (concat a b)     → not abuse (no literal scaffolding).
 ;; Only the mix triggers the rule.
 
-;; concat-head? — a list whose head is a keyword/symbol with name
-;; ":wat::core::string::concat" OR ":wat::core::String/concat".
+;; concat-head? — a list whose head is a keyword/symbol with name ":wat::string::concat".
+;;
+;; Arc 255 Stone F — this predicate used to compare against TWO dead literals: the
+;; core-namespaced lowercase spelling (retired by 23efc6056, before this stone) and
+;; ":wat::core::String/concat" (retired by THIS stone). Neither can occur in any program a
+;; user can actually write and run — a rule whose only real-world arm has no coverage is a rule
+;; that fires on a corpse. The live name is the ONE comparison now; the dead literal is
+;; deleted, not accumulated.
 (:wat::core::defn :wat::lint::concat-head?
   [node <- :wat::WatAST]
   -> :wat::core::bool
@@ -315,9 +321,7 @@
         (:wat::core::let [head (:wat::core::first children)]
           (:wat::core::if (:wat::lint::kw-or-sym? head)
             (:wat::core::let [n (:wat::core::ast-name head)]
-              (:wat::core::if (:wat::core::= n ":wat::core::string::concat")
-                true
-                (:wat::core::= n ":wat::core::String/concat")))
+              (:wat::core::= n ":wat::string::concat"))
             false))
         false))
     false))
@@ -383,7 +387,7 @@
 ;; When eligible: fold args in order building:
 ;;   - template  (String): literal args → their inner text; symbol args → "{name}"
 ;;   - kwarg-names (Vector :- [String]): symbol names, deduped first-seen-order
-;; head-str = if in-defmacro? ":wat::core::string::interpolate" else ":wat::core::format"
+;; head-str = if in-defmacro? ":wat::string::interpolate" else ":wat::core::format"
 ;; Emit: new-text = "(<head-str> \"<template>\" :a a :b b …)"
 ;; Return: Some(FixEdit start-line start-col end-line end-col new-text)
 ;; extent = ast-span..ast-end-span of the whole concat form (same as ladder fix).
@@ -445,9 +449,12 @@
                         template   (:wat::core::first build-result)
                         kwarg-names (:wat::core::second build-result)
                         ;; ── Step 3: emit new-text ────────────────────────────
-                        ;; head-str: interpolate inside a defmacro, format elsewhere
+                        ;; head-str: interpolate inside a defmacro, format elsewhere.
+                        ;; Arc 255 Stone F — was the DEAD core-namespaced lowercase spelling
+                        ;; (retired by 23efc6056, before this stone); its live twin is
+                        ;; ":wat::string::interpolate". Same treatment as concat-head?'s literal.
                         head-str   (:wat::core::if in-defmacro?
-                                     ":wat::core::string::interpolate"
+                                     ":wat::string::interpolate"
                                      ":wat::core::format")
                         ;; "(<head-str> \"<template>\"" + " :nm nm" … + ")"
                         kwargs-text (:wat::core::foldl

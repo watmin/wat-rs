@@ -438,17 +438,17 @@ fn is_pure_total(head: &str) -> bool {
         | ":wat::kernel::macro-call-site"
 
         // ── String ops (pure) ─────────────────────────────────────────
+        // Arc 255 Stone F — the dual-spelled `:wat::core::String/*` entries that lived beside
+        // each of these (concat/contains?/starts-with?/ends-with?/empty? below) are RETIRED and
+        // deleted, not carried forward: the uppercase spelling can no longer be produced by any
+        // corpus program, so listing it here would be dead weight.
         | ":wat::string::concat"
         // Arc 284 — pure-total interpolation intrinsic: same {name} + :name val grammar as
         // the format macro, but interpolates at call time → expand-time-legal in macro bodies.
         | ":wat::string::interpolate"
-        | ":wat::core::String/concat"
         | ":wat::string::contains?"
-        | ":wat::core::String/contains?"
         | ":wat::string::starts-with?"
-        | ":wat::core::String/starts-with?"
         | ":wat::string::ends-with?"
-        | ":wat::core::String/ends-with?"
         | ":wat::string::length"
         // Arc 279.1 — subs is on is_pure_total: the `format` macro walks the template
         // character-by-character at expand time (length + subs i (i+1)) to collapse the
@@ -471,7 +471,11 @@ fn is_pure_total(head: &str) -> bool {
         | ":wat::string::kebab->pascal-in"
         | ":wat::string::split"
         | ":wat::string::join"
-        | ":wat::core::String/empty?"
+        // Arc 255 Stone F — `:wat::string::empty?` is the home's missing twin
+        // (`intrinsic/string.rs::eval_string_empty`); `wat/core.wat`'s `format` macro calls it
+        // in its OWN body (two sites, migrated by the corpus codemod). The dual-listed
+        // `:wat::core::String/empty?` this replaced is retired and deleted, not carried forward.
+        | ":wat::string::empty?"
 
         // ── Type inspection (pure) ─────────────────────────────────────
         | ":wat::core::type"

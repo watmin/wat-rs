@@ -48,9 +48,9 @@
   [row <- :wat::core::i64 name <- :wat::core::String body <- :wat::core::String]
   -> :wat::core::nil
   (:wat::kernel::println
-    (:wat::core::String/concat
-      (:wat::core::String/concat "row " (:wat::i64::to-string row))
-      (:wat::core::String/concat (:wat::core::String/concat " " name) body))))
+    (:wat::string::concat
+      (:wat::string::concat "row " (:wat::i64::to-string row))
+      (:wat::string::concat (:wat::string::concat " " name) body))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let [rules   (:wat::core::PersistentVector (:wfb::cool))
@@ -67,23 +67,23 @@
                     both  (:wat::rete::query world (:wfb::q-both))
                     hits  (:wat::rete::query world (:wfb::q-Hit))]
     (:wfb::line 1 "bound"
-      (:wat::core::String/concat
-        (:wat::core::String/concat " n=" (:wat::i64::to-string (:wat::core::length bound)))
-        (:wat::core::String/concat " has=?t " (:wfb::has-key bound "?t"))))
+      (:wat::string::concat
+        (:wat::string::concat " n=" (:wat::i64::to-string (:wat::core::length bound)))
+        (:wat::string::concat " has=?t " (:wfb::has-key bound "?t"))))
     (:wfb::line 2 "plain"
-      (:wat::core::String/concat
-        (:wat::core::String/concat " n=" (:wat::i64::to-string (:wat::core::length plain)))
-        (:wat::core::String/concat " has=?t " (:wfb::has-key plain "?t"))))
+      (:wat::string::concat
+        (:wat::string::concat " n=" (:wat::i64::to-string (:wat::core::length plain)))
+        (:wat::string::concat " has=?t " (:wfb::has-key plain "?t"))))
     (:wfb::line 3 "both"
-      (:wat::core::String/concat
-        (:wat::core::String/concat " n=" (:wat::i64::to-string (:wat::core::length both)))
-        (:wat::core::String/concat
-          (:wat::core::String/concat " has=?t " (:wfb::has-key both "?t"))
-          (:wat::core::String/concat " has=?c " (:wfb::has-key both "?c")))))
+      (:wat::string::concat
+        (:wat::string::concat " n=" (:wat::i64::to-string (:wat::core::length both)))
+        (:wat::string::concat
+          (:wat::string::concat " has=?t " (:wfb::has-key both "?t"))
+          (:wat::string::concat " has=?c " (:wfb::has-key both "?c")))))
     (:wfb::line 4 "cool"
-      (:wat::core::String/concat
-        (:wat::core::String/concat " n=" (:wat::i64::to-string (:wat::core::length hits)))
-        (:wat::core::String/concat " -> "
+      (:wat::string::concat
+        (:wat::string::concat " n=" (:wat::i64::to-string (:wat::core::length hits)))
+        (:wat::string::concat " -> "
           (:wat::i64::to-string
             (:wat::core::Option/expect
               (:wat::map::get (:wat::core::first hits) "?c")
@@ -97,5 +97,5 @@
                                    (:wfb::Temp :c 15 :loc "MCI")
                                    (:wfb::Temp :c 80 :loc "MCI")))
                         grouped (:wat::rete::query only-q (:wfb::q-from))]
-        (:wat::core::String/concat
+        (:wat::string::concat
           " n=" (:wat::i64::to-string (:wat::core::length grouped)))))))

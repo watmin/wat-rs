@@ -29,7 +29,7 @@
   :when [(:wat::grep::Node  (?id <- :id) (?k <- :kind))
          (:wat::grep::Named (?id <- :id) (?n <- :name))
          (:wat::rete::where (:wat::rete::string::= ?k "keyword"))
-         (:wat::rete::where (:wat::rete::core::String/contains? ?n "::"))]
+         (:wat::rete::where (:wat::rete::string::contains? ?n "::"))]
   :then [(:fx::IsHeadKw :id ?id)])
 
 ;; the prev-sibling JOIN that replaces fix-seq's single carried boolean — over real source now

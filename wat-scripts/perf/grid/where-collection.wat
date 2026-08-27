@@ -258,7 +258,7 @@
       ((:wat::core::= row 10) (:wc::nested-fold-bound))
       (:else
         (:wat::kernel::assertion-failed!
-          (:wat::core::String/concat "where-collection: unknown row " (:wat::i64::to-string row))
+          (:wat::string::concat "where-collection: unknown row " (:wat::i64::to-string row))
           :wat::core::None :wat::core::None)))))
 
 ;; build-tags i -> a (PersistentVector :- [i64]) of length (i mod 6), element j = (i + 3j) mod 13.
@@ -321,8 +321,8 @@
 (:wat::core::defn :wc::render-ints [v <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::String
   (:wat::core::foldl
     (:wat::core::fn [acc <- :wat::core::String  x <- :wat::core::i64] -> :wat::core::String
-      (:wat::core::String/concat acc
-        (:wat::core::String/concat " " (:wat::i64::to-string x))))
+      (:wat::string::concat acc
+        (:wat::string::concat " " (:wat::i64::to-string x))))
     ""
     v))
 
@@ -349,13 +349,13 @@
                     fired   (:wat::rete::fire-rules staged)
                     derived (:wc::derived-ints fired)
                     n       (:wat::vec::length derived)]
-    (:wat::core::String/concat
-      (:wat::core::String/concat
-        (:wat::core::String/concat "row " (:wat::i64::to-string row))
-        (:wat::core::String/concat " " (:wc::rule-display-name (:wat::rete::Rule/name rule))))
-      (:wat::core::String/concat
-        (:wat::core::String/concat " n=" (:wat::i64::to-string n))
-        (:wat::core::String/concat " ->" (:wc::render-ints derived))))))
+    (:wat::string::concat
+      (:wat::string::concat
+        (:wat::string::concat "row " (:wat::i64::to-string row))
+        (:wat::string::concat " " (:wc::rule-display-name (:wat::rete::Rule/name rule))))
+      (:wat::string::concat
+        (:wat::string::concat " n=" (:wat::i64::to-string n))
+        (:wat::string::concat " ->" (:wc::render-ints derived))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::foldl

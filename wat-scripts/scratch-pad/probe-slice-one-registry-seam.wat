@@ -113,7 +113,7 @@
 ;;   it is the half that decides slice one's SHAPE.
 
 (:wat::core::defn :seam::row [label <- :wat::core::String  v <- :wat::core::bool] -> :wat::core::String
-  (:wat::core::String/concat label (:wat::core::if v " TRUE" " FALSE")))
+  (:wat::string::concat label (:wat::core::if v " TRUE" " FALSE")))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::let
@@ -123,7 +123,7 @@
     [expanded (:wat::core::write-forms
                 (:wat::core::macroexpand
                   (:wat::core::quote (:wat::kernel::readln :max-buffer-bytes 4096))))
-     _  (:wat::kernel::println (:wat::core::String/concat "A expansion ......... " expanded))
+     _  (:wat::kernel::println (:wat::string::concat "A expansion ......... " expanded))
 
      ;; ── ROWS B/C — the two purity oracles, same verb, side by side ────────────────────────
      ;; POSITIVE CONTROL: i64::+ is classified in the fence's hand map.

@@ -82,13 +82,13 @@
          ;; `name` does not, so splicing the unquoted replacement into that span would corrupt
          ;; the literal into unquoted keyword syntax.
          (:wat::rete::where (:wat::rete::string::= ?k "keyword"))
-         (:wat::rete::where (:wat::rete::core::String/starts-with? ?n ":wat::core::keyword/"))]
+         (:wat::rete::where (:wat::rete::string::starts-with? ?n ":wat::core::keyword/"))]
   :then [(:wat::grep::Match :file ?f :line ?l :col ?c :end-line ?el :end-col ?ec
            :rule "core-keyword-slash-to-keyword-colon"
            :captures (:wat::rete::core::PersistentVector
                        (:wat::grep::Capture :name "old" :value ?n)
                        (:wat::grep::Capture :name "new"
-                         :value (:wat::rete::core::String/concat ":wat::keyword::"
+                         :value (:wat::rete::string::concat ":wat::keyword::"
                                   (:wat::rete::string::subs ?n 20
                                     (:wat::rete::string::length ?n)
                                     :undefined "")))))])

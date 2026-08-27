@@ -1772,7 +1772,7 @@
                                ;; flush buf as text segment if non-empty, then start name
                                (:wat::core::let
                                  [segs-after (:wat::core::if
-                                               (:wat::core::String/empty? buf)
+                                               (:wat::string::empty? buf)
                                                
                                                segs
                                                (:wat::core::conj segs
@@ -1865,7 +1865,7 @@
 
      ;; Flush final text segment if non-empty.
      segments    (:wat::core::if
-                   (:wat::core::String/empty? fin-buf)
+                   (:wat::string::empty? fin-buf)
                    
                    fin-segs
                    (:wat::core::conj fin-segs (:wat::core::Tuple "text" fin-buf)))

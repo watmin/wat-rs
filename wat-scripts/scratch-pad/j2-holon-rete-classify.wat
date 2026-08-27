@@ -53,7 +53,7 @@
       (:wat::core::Option/expect
         (:wat::map::get (:wat::core::first hits) "?name")
         "q-Guess: ?name")
-      (:wat::core::String/concat "count=" (:wat::i64::to-string n)))))
+      (:wat::string::concat "count=" (:wat::i64::to-string n)))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::do

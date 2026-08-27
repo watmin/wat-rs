@@ -120,7 +120,7 @@
                    (:wat::core::into (:wat::core::Vector :wat::core::i64) (:wat::core::range 0 tagslen)))
      bagitems    (:wat::core::into (:wat::core::PersistentVector)
                    (:wat::core::into (:wat::core::Vector :wat::core::i64) (:wat::core::range 0 bagitemslen)))
-     bag         (:wr::Bag :items bagitems :label (:wat::core::String/concat "b" (:wat::i64::to-string i)))]
+     bag         (:wr::Bag :items bagitems :label (:wat::string::concat "b" (:wat::i64::to-string i)))]
     (:wr::Client :l2 l2 :rep rep :tags tags :bag bag)))
 
 ;; row 10's field-value builder. Active/Pending are TAGGED variants, constructed POSITIONALLY
@@ -316,7 +316,7 @@
       ((:wat::core::= row 13) (:wr::cross-var-chain))
       (:else
         (:wat::kernel::assertion-failed!
-          (:wat::core::String/concat "where-record: unknown row " (:wat::i64::to-string row))
+          (:wat::string::concat "where-record: unknown row " (:wat::i64::to-string row))
           :wat::core::None :wat::core::None)))))
 
 ;; seed session items — stage Req(i) for i in [0, items) via the BATCH verb (one rebuild).
@@ -350,8 +350,8 @@
 (:wat::core::defn :wr::render-ints [v <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::String
   (:wat::core::foldl
     (:wat::core::fn [acc <- :wat::core::String  x <- :wat::core::i64] -> :wat::core::String
-      (:wat::core::String/concat acc
-        (:wat::core::String/concat " " (:wat::i64::to-string x))))
+      (:wat::string::concat acc
+        (:wat::string::concat " " (:wat::i64::to-string x))))
     ""
     v))
 
@@ -380,13 +380,13 @@
      fired   (:wat::rete::fire-rules staged)
      derived (:wr::derived-ints fired)
      n       (:wat::vec::length derived)]
-    (:wat::core::String/concat
-      (:wat::core::String/concat
-        (:wat::core::String/concat "row " (:wat::i64::to-string row))
-        (:wat::core::String/concat " " (:wr::rule-display-name (:wat::rete::Rule/name rule))))
-      (:wat::core::String/concat
-        (:wat::core::String/concat " n=" (:wat::i64::to-string n))
-        (:wat::core::String/concat " ->" (:wr::render-ints derived))))))
+    (:wat::string::concat
+      (:wat::string::concat
+        (:wat::string::concat "row " (:wat::i64::to-string row))
+        (:wat::string::concat " " (:wr::rule-display-name (:wat::rete::Rule/name rule))))
+      (:wat::string::concat
+        (:wat::string::concat " n=" (:wat::i64::to-string n))
+        (:wat::string::concat " ->" (:wr::render-ints derived))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::foldl

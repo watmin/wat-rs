@@ -402,12 +402,11 @@ mod map;
 mod rational;
 mod reflect;
 mod regex;
-// `pub(crate)` — NOT the same default-private shape as its siblings above. The
-// `:wat::core::String/*` uppercase alias arms in `runtime.rs` (Stone 237.3) call
-// four of these handlers DIRECTLY (a different FQDN prefix than the registered
-// `:wat::string::*` verbs, so they bypass the registry and cannot reach them via
-// `crate::intrinsic::registry().lookup(...)`); those call sites need the path.
-pub(crate) mod string;
+// Arc 255 Stone F — reverted to the default-private shape of its siblings. The
+// `:wat::core::String/*` uppercase alias arms in `runtime.rs` (Stone 237.3) that needed
+// `pub(crate)` to call four of these handlers directly (bypassing the registry) are retired;
+// nothing outside this module calls into it anymore.
+mod string;
 mod uuid;
 mod vec;
 mod vector;

@@ -111,7 +111,7 @@
       ((:wat::core::= row 6) (:wjo::join-then-two-where))
       (:else
         (:wat::kernel::assertion-failed!
-          (:wat::core::String/concat "where-join-order: unknown row " (:wat::i64::to-string row))
+          (:wat::string::concat "where-join-order: unknown row " (:wat::i64::to-string row))
           :wat::core::None :wat::core::None)))))
 
 (:wat::core::defn :wjo::seed [session <- :wat::rete::Session  items <- :wat::core::i64] -> :wat::rete::Session
@@ -137,8 +137,8 @@
 (:wat::core::defn :wjo::render-ints [v <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::String
   (:wat::core::foldl
     (:wat::core::fn [acc <- :wat::core::String  x <- :wat::core::i64] -> :wat::core::String
-      (:wat::core::String/concat acc
-        (:wat::core::String/concat " " (:wat::i64::to-string x))))
+      (:wat::string::concat acc
+        (:wat::string::concat " " (:wat::i64::to-string x))))
     ""
     v))
 
@@ -156,13 +156,13 @@
                     fired   (:wat::rete::fire-rules staged)
                     derived (:wjo::derived-ints fired)
                     n       (:wat::vec::length derived)]
-    (:wat::core::String/concat
-      (:wat::core::String/concat
-        (:wat::core::String/concat "row " (:wat::i64::to-string row))
-        (:wat::core::String/concat " " (:wjo::rule-display-name (:wat::rete::Rule/name rule))))
-      (:wat::core::String/concat
-        (:wat::core::String/concat " n=" (:wat::i64::to-string n))
-        (:wat::core::String/concat " ->" (:wjo::render-ints derived))))))
+    (:wat::string::concat
+      (:wat::string::concat
+        (:wat::string::concat "row " (:wat::i64::to-string row))
+        (:wat::string::concat " " (:wjo::rule-display-name (:wat::rete::Rule/name rule))))
+      (:wat::string::concat
+        (:wat::string::concat " n=" (:wat::i64::to-string n))
+        (:wat::string::concat " ->" (:wjo::render-ints derived))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::foldl
