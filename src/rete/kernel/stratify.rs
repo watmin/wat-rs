@@ -333,11 +333,24 @@ pub(crate) fn native_rule_stratum(
 //     fallen into, while the shape actually MEASURED to kill the process — a computed ARGUMENT —
 //     is refused either way.
 //
-//     So the honest position: this verifier proves the absence of ONE unbounded-derivation shape,
-//     not of all of them. Closing the fn-headed case needs analysis of the fn's RETURN EXPRESSION
-//     (is every field of the constructed fact copied from a parameter?), which is real work and
-//     its own strike. Until then the runtime round cap is what stands behind it — which is the
-//     second honest reason that cap exists, alongside Export's missing AST.
+//     ⚠ AND THE HOLE IS NARROWER THAN THIS PARAGRAPH FIRST CLAIMED — investigated 2026-08-27,
+//     immediately after writing it. To slip past this verifier a fn-headed `:then` must MINT a
+//     novel fact, and three attempts at one were each refused by a DIFFERENT pre-existing fence:
+//
+//         fn body computes with `i64::+`            -> then-item-fence: "is not total"
+//         fn body computes with the total fallback  -> then-item-fence: "is not a rete primitive"
+//         fn body CONSTRUCTS a record at all        -> purity: "`kwargs-construct` is not pure"
+//           (`probe_arc278_then_user_forms_userfn.wat`'s own header records that last one, and it
+//            is why that fixture EXTRACTS an existing fact rather than building one)
+//
+//     An extracting fn cannot mint: it returns a fact already in the accumulated set, so it cannot
+//     produce an unbounded stream of distinct facts. `then-item-fence` also already walks the fn's
+//     BODY for admitted ops — which is most of the analysis this paragraph proposed writing.
+//
+//     THE HONEST CLAIM, then: no exploit found, and the shape is guarded by adjacent fences —
+//     which is NOT the same as proven impossible, and is not stated as such. What this verifier
+//     proves is the absence of ONE unbounded-derivation shape. The runtime round cap still stands
+//     behind both this and Export's missing AST.
 
 /// Every type the rule's `:then` derives, paired with the rule's `:when` types — the edge
 /// `consumed -> produced` this rule contributes to the derivation graph.
