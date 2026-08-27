@@ -18,27 +18,28 @@
 
 use std::sync::Arc;
 use wat::check::error::CheckErrorKind;
-use wat::freeze::{eval_in_frozen, startup_from_source};
+use wat::freeze::{eval_in_frozen, startup_from_source, StartupError};
 use wat::load::loader::InMemoryLoader;
 use wat::runtime::{Environment, Value};
 
 /// Type-check a whole program at freeze time. Ok = clean; Err = a CheckError fired.
 // rune:lint(no-inlined-wat) — world assembled at runtime from test-local defn strings — each test splices different HOF combinations; no static fixture covers the matrix
-fn check(src: &str) -> Result<(), String> {
-    startup_from_source(src, None, Arc::new(InMemoryLoader::new()))
-        .map(|_| ())
-        .map_err(|e| format!("{e:?}"))
+fn check(src: &str) -> Result<(), StartupError> {
+    startup_from_source(src, None, Arc::new(InMemoryLoader::new())).map(|_| ())
 }
 
 /// Build a world from one probe `defn`, start it (TYPE-CHECK fires here), then eval `call`.
+/// Arc 296 Stone M — THE CANONICAL CASE: this helper used to chain three distinct error types
+/// (`StartupError`, `ParseError`, `RuntimeError`) through one `?`, `format!`-collapsing each into
+/// a `String` and destroying the discriminant. `StartupError` is the union of all three, so each
+/// step now wraps into its REAL variant instead.
 // rune:lint(no-inlined-wat) — world assembled at runtime from test-local defn strings — each test splices different HOF combinations; no static fixture covers the matrix
-fn eval_probe(defn: &str, call: &str) -> Result<Value, String> {
+fn eval_probe(defn: &str, call: &str) -> Result<Value, StartupError> {
     let world = defn.to_string();
-    let w = startup_from_source(&world, None, Arc::new(InMemoryLoader::new()))
-        .map_err(|e| format!("startup (type-check): {e:?}"))?;
-    let ast = wat::parse_one!(call).map_err(|e| format!("parse: {e:?}"))?;
+    let w = startup_from_source(&world, None, Arc::new(InMemoryLoader::new()))?;
+    let ast = wat::parse_one!(call).map_err(StartupError::Parse)?;
     eval_in_frozen(&ast, &w, &Environment::new())
-        .map_err(|e| format!("eval: {e:?}"))
+        .map_err(|e| StartupError::Runtime(Box::new(e)))
         .map(|tv| tv.value_owned())
 }
 

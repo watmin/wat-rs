@@ -33,8 +33,8 @@
 //!
 //! Run: cargo test --release -p wat --test rete probe_constructor_meta_surface_audit
 
-use wat::freeze::startup_from_file;
-use wat::runtime::{apply_function, Value};
+use wat::freeze::{startup_from_file, StartupError};
+use wat::runtime::{apply_function, RuntimeError, RuntimeErrorKind, Value};
 
 const WORLD_PURE_GREEN: &str = "tests/rete/probe_constructor_meta_surface_pure_green.wat";
 const WORLD_NESTED_AGGREGATE_GREEN: &str =
@@ -49,8 +49,8 @@ const WORLD_KWARGS_FULL_GREEN: &str = "tests/rete/probe_constructor_meta_kwargs_
 /// ordinary raise OR the fence's `Option/expect` compile-time panic — the same dual capture
 /// `probe_construction_headline.rs::run` uses, since a regression on the `pure` fix would
 /// surface as a PANIC during `(:wat::rete::compile rules)`, not a clean `Err`.
-fn run(world_path: &str, fn_name: &str) -> Result<Value, String> {
-    let world = startup_from_file(world_path).map_err(|e| format!("startup: {e:?}"))?;
+fn run(world_path: &str, fn_name: &str) -> Result<Value, StartupError> {
+    let world = startup_from_file(world_path)?;
     let func = world
         .symbols()
         .get(fn_name)
@@ -60,15 +60,17 @@ fn run(world_path: &str, fn_name: &str) -> Result<Value, String> {
     match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         apply_function(func, vec![], sym, wat::rust_caller_span!())
     })) {
-        Ok(res) => res.map_err(|e| format!("eval: {e:?}")),
+        Ok(res) => res.map_err(|e| StartupError::Runtime(Box::new(e))),
         Err(panic_payload) => {
-            if let Some(s) = panic_payload.downcast_ref::<String>() {
-                Err(s.clone())
-            } else if let Some(s) = panic_payload.downcast_ref::<&str>() {
-                Err((*s).to_string())
-            } else {
-                Err("panic-opaque".to_string())
-            }
+            let message = panic_payload
+                .downcast_ref::<String>()
+                .cloned()
+                .or_else(|| panic_payload.downcast_ref::<&str>().map(|s| (*s).to_string()))
+                .unwrap_or_else(|| "panic-opaque".to_string());
+            Err(StartupError::Runtime(Box::new(RuntimeError::new(
+                wat::rust_caller_span!(),
+                RuntimeErrorKind::AssertionFailed { message, actual: None, expected: None },
+            ))))
         }
     }
 }

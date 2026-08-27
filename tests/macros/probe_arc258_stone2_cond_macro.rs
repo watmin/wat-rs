@@ -14,41 +14,45 @@
 //!
 //! Run: `cargo test --release --test probe_arc258_stone2_cond_macro`
 
-use wat::freeze::call_beside_value;
-use wat::runtime::Value;
+use wat::freeze::{call_beside_value, StartupError};
+use wat::runtime::{RuntimeError, RuntimeErrorKind, Value, ValueSnapshot};
 
 // just-eval (rubric): each contract is a zero-arg entry fn in the co-located fixture, driven via
 // call_beside_value — no inline wat driver expression.
-fn call_named_i64(fn_name: &str) -> Result<i64, String> {
-    match call_beside_value(file!(), fn_name).map_err(|e| format!("eval: {e:?}"))? {
+fn call_named_i64(fn_name: &str) -> Result<i64, StartupError> {
+    match call_beside_value(file!(), fn_name).map_err(|e| StartupError::Runtime(Box::new(e)))? {
         Value::i64(n) => Ok(n),
-        other => Err(format!("non-i64: {other:?}")),
+        other => Err(StartupError::Runtime(Box::new(RuntimeError::new(
+            wat::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: fn_name.to_string(),
+                expected: "i64",
+                got: Box::new(ValueSnapshot::of(&other)),
+            },
+        )))),
     }
 }
 
 #[test]
 fn contract_01_first_arm_taken() {
-    assert_eq!(
-        call_named_i64(":user::compute-1"),
-        Ok(10),
-        "bare cond (no -> :T) expands to nested if; the first true arm is taken"
-    );
+    match call_named_i64(":user::compute-1") {
+        Ok(n) => assert_eq!(n, 10, "bare cond (no -> :T) expands to nested if; the first true arm is taken"),
+        Err(e) => panic!("bare cond (no -> :T) expands to nested if; the first true arm is taken; got: {e:?}"),
+    }
 }
 
 #[test]
 fn contract_02_else_fallthrough() {
-    assert_eq!(
-        call_named_i64(":user::compute-2"),
-        Ok(20),
-        "no arm matches → the :else body"
-    );
+    match call_named_i64(":user::compute-2") {
+        Ok(n) => assert_eq!(n, 20, "no arm matches → the :else body"),
+        Err(e) => panic!("no arm matches → the :else body; got: {e:?}"),
+    }
 }
 
 #[test]
 fn contract_03_three_arm_recursion() {
-    assert_eq!(
-        call_named_i64(":user::compute-3"),
-        Ok(20),
-        "a middle arm is taken — proves the macro re-expands to fixpoint across N arms"
-    );
+    match call_named_i64(":user::compute-3") {
+        Ok(n) => assert_eq!(n, 20, "a middle arm is taken — proves the macro re-expands to fixpoint across N arms"),
+        Err(e) => panic!("a middle arm is taken — proves the macro re-expands to fixpoint across N arms; got: {e:?}"),
+    }
 }

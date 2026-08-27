@@ -36,7 +36,7 @@
 //! Per FM 2-bis (recovery doc § 6): probe COMMITTED before BRIEF; BRIEF cites
 //! this file verbatim as "the working contract sonnet must satisfy."
 
-use wat::freeze::startup_from_file;
+use wat::freeze::{startup_from_file, StartupError};
 use wat::runtime::{apply_function, RuntimeErrorKind, Value};
 use wat::types::{is_subtype, TypeEnv, TypeErrorKind};
 
@@ -118,15 +118,18 @@ fn probe_06_builtin_roots() {
 
 // ─── wat-surface helper ────────────────────────────────────────────────────────
 
-fn eval_probe(file: &str, fn_name: &str) -> Result<Value, String> {
-    let world = startup_from_file(file).map_err(|e| format!("startup: {:?}", e))?;
+fn eval_probe(file: &str, fn_name: &str) -> Result<Value, StartupError> {
+    let world = startup_from_file(file)?;
+    // Arc 296 Stone M: "no entry fn" is a fixture/test-authorship bug, not a startup-pipeline
+    // failure with a StartupError variant to wrap into — mirrors `call_beside_value`'s own
+    // `.unwrap_or_else(|| panic!(...))` for the identical condition (src/freeze.rs).
     let func = world
         .symbols()
         .get(fn_name)
-        .ok_or_else(|| format!("no entry fn {fn_name:?} in {file:?}"))?
+        .unwrap_or_else(|| panic!("no entry fn {fn_name:?} in {file:?}"))
         .clone();
     apply_function(func, vec![], world.symbols(), wat::rust_caller_span!())
-        .map_err(|e| format!("eval: {:?}", e))
+        .map_err(StartupError::from)
 }
 
 // ─── Probe 7 — subtype? roots → true ──────────────────────────────────────────

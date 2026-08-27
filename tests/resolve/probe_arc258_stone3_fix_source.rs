@@ -12,63 +12,77 @@
 //! Run: `cargo test --release --test probe_arc258_stone3_fix_source`
 
 use wat::freeze::call_beside_value;
-use wat::runtime::Value;
+use wat::runtime::{RuntimeError, RuntimeErrorKind, Value, ValueSnapshot};
 
 // just-eval (rubric): each `:user::cNN` zero-arg fn lives in the co-located fixture;
 // drive it via `call_beside_value` and inspect the returned typed Value.
-fn eval_bool(fn_name: &str) -> Result<bool, String> {
+//
+// arc 296 Stone M: `call_beside_value` already returns `Result<Value, RuntimeError>` — not a
+// `StartupError` chain — so the real (never-flattened) error type here is `RuntimeError`
+// itself; the "wrong Value shape" arm is minted as the same `RuntimeErrorKind::TypeMismatch`
+// the runtime itself raises for this shape (see `src/assertion.rs::eval_opt_string`).
+fn eval_bool(fn_name: &str) -> Result<bool, RuntimeError> {
     let full = format!(":user::{}", fn_name);
-    match call_beside_value(file!(), &full).map_err(|e| format!("eval: {e:?}"))? {
+    match call_beside_value(file!(), &full)? {
         Value::bool(b) => Ok(b),
-        other => Err(format!("non-bool: {other:?}")),
+        other => Err(RuntimeError::new(
+            wat::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: full,
+                expected: "bool",
+                got: Box::new(ValueSnapshot::of(&other)),
+            },
+        )),
     }
 }
 
-fn eval_string(fn_name: &str) -> Result<String, String> {
+fn eval_string(fn_name: &str) -> Result<String, RuntimeError> {
     let full = format!(":user::{}", fn_name);
-    match call_beside_value(file!(), &full).map_err(|e| format!("eval: {e:?}"))? {
+    match call_beside_value(file!(), &full)? {
         Value::String(s) => Ok((*s).clone()),
-        other => Err(format!("non-string: {other:?}")),
+        other => Err(RuntimeError::new(
+            wat::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: full,
+                expected: "String",
+                got: Box::new(ValueSnapshot::of(&other)),
+            },
+        )),
     }
 }
 
 #[test]
 fn contract_01_annotated_if_recognized() {
-    assert_eq!(
-        eval_bool("c01"),
-        Ok(true),
+    assert!(
+        eval_bool("c01").expect("eval_bool"),
         "an annotated if (head :wat::core::if, child[2] = sym \"->\") is recognized"
     );
 }
 
 #[test]
 fn contract_02_bare_if_not_annotated() {
-    assert_eq!(
-        eval_bool("c02"),
-        Ok(false),
+    assert!(
+        !eval_bool("c02").expect("eval_bool"),
         "a bare if is NOT annotated (child[2] is the then-branch, not the \"->\" symbol)"
     );
 }
 
 #[test]
 fn contract_03_option_expect_not_annotated_if() {
-    assert_eq!(
-        eval_bool("c03"),
-        Ok(false),
+    assert!(
+        !eval_bool("c03").expect("eval_bool"),
         "Option/expect's `-> :T` must NOT be mistaken for an if annotation"
     );
 }
 
 #[test]
 fn contract_04_fix_source_strips_if_annotation() {
-    assert_eq!(
-        eval_bool("c04a"),
-        Ok(false),
+    assert!(
+        !eval_bool("c04a").expect("eval_bool"),
         "fix-source strips the annotation (result no longer recognized as annotated)"
     );
-    assert_eq!(
-        eval_bool("c04b"),
-        Ok(true),
+    assert!(
+        eval_bool("c04b").expect("eval_bool"),
         "after strip, child[2] is the then-branch (int 1), proving -> :T was removed"
     );
 }
@@ -101,9 +115,8 @@ fn contract_07_end_to_end_clean_source() {
         include_str!("probe_arc258_stone3_fix_source__contract-07-end-to-end-clean.wat"),
         "fix-source + write-forms: cleaned if must carry no -> and preserve head :wat::core::if"
     );
-    assert_eq!(
-        eval_bool("c07-bool"),
-        Ok(true),
+    assert!(
+        eval_bool("c07-bool").expect("eval_bool"),
         "the cleaned form's head node is still the :wat::core::if keyword (verbatim token)"
     );
 }

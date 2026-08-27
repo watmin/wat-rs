@@ -23,8 +23,8 @@
 //! Run: cargo test --release -p wat --test probe_fence_names_the_head
 
 use wat::assertion::AssertionPayload;
-use wat::freeze::{startup_from_file, FrozenWorld};
-use wat::runtime::{apply_function, Value};
+use wat::freeze::{startup_from_file, FrozenWorld, StartupError};
+use wat::runtime::{apply_function, RuntimeError, RuntimeErrorKind, Value};
 
 const WORLD_IMPURE_PATH: &str = "tests/rete/probe_arc278_6b_ii_a_where_oracle_impure.wat";
 const WORLD_NONDET_PATH: &str = "tests/rete/probe_fence_names_the_head_nondet.wat";
@@ -39,24 +39,30 @@ const WORLD_ACC_CORE_OP_PATH: &str = "tests/rete/probe_fence_names_the_head_acc_
 /// Compile+run the world's zero-arg entry fn. The compile fence rejects by PANICKING
 /// (`Option/expect` → `panic_any(AssertionPayload)`), so catch the unwind and pull the human
 /// message back out of the payload — never just "did it reject".
-fn compile_message(world_path: &str, fn_name: &str) -> Result<Value, String> {
-    let world: FrozenWorld = startup_from_file(world_path).map_err(|e| format!("startup: {e:?}"))?;
+fn compile_message(world_path: &str, fn_name: &str) -> Result<Value, StartupError> {
+    let world: FrozenWorld = startup_from_file(world_path)?;
     let func = world.symbols().get(fn_name).unwrap_or_else(|| panic!("no entry fn {fn_name:?}")).clone();
     let sym = world.symbols();
     match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         apply_function(func, vec![], sym, wat::rust_caller_span!())
     })) {
-        Ok(res) => res.map_err(|e| format!("eval: {e:?}")),
+        Ok(res) => res.map_err(|e| StartupError::Runtime(Box::new(e))),
         Err(panic_payload) => {
-            if let Some(p) = panic_payload.downcast_ref::<AssertionPayload>() {
-                Err(p.message.clone())
-            } else if let Some(s) = panic_payload.downcast_ref::<String>() {
-                Err(s.clone())
-            } else if let Some(s) = panic_payload.downcast_ref::<&str>() {
-                Err((*s).to_string())
-            } else {
-                Err("panic-opaque".to_string())
-            }
+            let (message, actual, expected) = match panic_payload.downcast_ref::<AssertionPayload>() {
+                Some(p) => (p.message.clone(), p.actual.clone(), p.expected.clone()),
+                None => {
+                    let message = panic_payload
+                        .downcast_ref::<String>()
+                        .cloned()
+                        .or_else(|| panic_payload.downcast_ref::<&str>().map(|s| (*s).to_string()))
+                        .unwrap_or_else(|| "panic-opaque".to_string());
+                    (message, None, None)
+                }
+            };
+            Err(StartupError::Runtime(Box::new(RuntimeError::new(
+                wat::rust_caller_span!(),
+                RuntimeErrorKind::AssertionFailed { message, actual, expected },
+            ))))
         }
     }
 }
@@ -69,10 +75,13 @@ fn compile_message(world_path: &str, fn_name: &str) -> Result<Value, String> {
 #[test]
 fn impure_where_names_the_offending_head_and_axis() {
     let r = compile_message(WORLD_IMPURE_PATH, ":user::run-gate-c5");
-    let msg = r.expect_err("an impure (io) where must fail to compile");
-    assert_eq!(
-        msg,
-        "compile-condition: where expr is not pure — ':wat::io::IOReader/open-file' is not pure"
+    wat::assert_startup_error!(
+        r,
+        StartupError::Runtime(e) if matches!(
+            e.kind(),
+            RuntimeErrorKind::AssertionFailed { message, .. }
+                if message == "compile-condition: where expr is not pure — ':wat::io::IOReader/open-file' is not pure"
+        )
     );
 }
 
@@ -81,10 +90,13 @@ fn impure_where_names_the_offending_head_and_axis() {
 #[test]
 fn nondeterministic_where_names_the_offending_head_and_axis() {
     let r = compile_message(WORLD_NONDET_PATH, ":user::run-gate-c5");
-    let msg = r.expect_err("a non-deterministic (Uuid/v4) where must fail to compile");
-    assert_eq!(
-        msg,
-        "compile-condition: where expr is not deterministic — ':wat::uuid::v4' is not deterministic"
+    wat::assert_startup_error!(
+        r,
+        StartupError::Runtime(e) if matches!(
+            e.kind(),
+            RuntimeErrorKind::AssertionFailed { message, .. }
+                if message == "compile-condition: where expr is not deterministic — ':wat::uuid::v4' is not deterministic"
+        )
     );
 }
 
@@ -93,10 +105,13 @@ fn nondeterministic_where_names_the_offending_head_and_axis() {
 #[test]
 fn partial_where_names_the_offending_head_and_axis() {
     let r = compile_message(WORLD_PARTIAL_PATH, ":user::run-gate-c5");
-    let msg = r.expect_err("a partial (i64::/) where must fail to compile");
-    assert_eq!(
-        msg,
-        "compile-condition: where expr is not total — ':wat::i64::/' is not total"
+    wat::assert_startup_error!(
+        r,
+        StartupError::Runtime(e) if matches!(
+            e.kind(),
+            RuntimeErrorKind::AssertionFailed { message, .. }
+                if message == "compile-condition: where expr is not total — ':wat::i64::/' is not total"
+        )
     );
 }
 
@@ -105,10 +120,13 @@ fn partial_where_names_the_offending_head_and_axis() {
 #[test]
 fn core_op_where_names_law_a_not_total() {
     let r = compile_message(WORLD_CORE_OP_PATH, ":user::run-gate-c5");
-    let msg = r.expect_err("a total core op in where must fail to compile on Law A");
-    assert_eq!(
-        msg,
-        "compile-condition: where expr is not a rete primitive — ':wat::i64::>' is not a rete primitive; a where admits only :wat::rete:: ops"
+    wat::assert_startup_error!(
+        r,
+        StartupError::Runtime(e) if matches!(
+            e.kind(),
+            RuntimeErrorKind::AssertionFailed { message, .. }
+                if message == "compile-condition: where expr is not a rete primitive — ':wat::i64::>' is not a rete primitive; a where admits only :wat::rete:: ops"
+        )
     );
 }
 
@@ -116,10 +134,13 @@ fn core_op_where_names_law_a_not_total() {
 #[test]
 fn partial_then_names_the_offending_head_and_axis() {
     let r = compile_message(WORLD_THEN_PARTIAL_PATH, ":user::run-compile");
-    let msg = r.expect_err("a partial (i64::/) then item must fail to compile");
-    assert_eq!(
-        msg,
-        "compile-condition: then expr is not total — ':wat::i64::/' is not total"
+    wat::assert_startup_error!(
+        r,
+        StartupError::Runtime(e) if matches!(
+            e.kind(),
+            RuntimeErrorKind::AssertionFailed { message, .. }
+                if message == "compile-condition: then expr is not total — ':wat::i64::/' is not total"
+        )
     );
 }
 
@@ -127,10 +148,13 @@ fn partial_then_names_the_offending_head_and_axis() {
 #[test]
 fn core_op_then_names_law_a_not_total() {
     let r = compile_message(WORLD_THEN_CORE_OP_PATH, ":user::run-compile");
-    let msg = r.expect_err("a total core op in then must fail to compile on Law A");
-    assert_eq!(
-        msg,
-        "compile-condition: then expr is not a rete primitive — ':wat::i64::>' is not a rete primitive; a then admits only :wat::rete:: ops"
+    wat::assert_startup_error!(
+        r,
+        StartupError::Runtime(e) if matches!(
+            e.kind(),
+            RuntimeErrorKind::AssertionFailed { message, .. }
+                if message == "compile-condition: then expr is not a rete primitive — ':wat::i64::>' is not a rete primitive; a then admits only :wat::rete:: ops"
+        )
     );
 }
 
@@ -138,10 +162,13 @@ fn core_op_then_names_law_a_not_total() {
 #[test]
 fn impure_accumulator_names_the_offending_head_and_axis() {
     let r = compile_message(WORLD_ACC_IMPURE_PATH, ":user::run-compile");
-    let msg = r.expect_err("an impure user fold must fail to compile");
-    assert_eq!(
-        msg,
-        "compile-condition: accumulator expr is not pure — ':wat::io::IOReader/open-file' is not pure"
+    wat::assert_startup_error!(
+        r,
+        StartupError::Runtime(e) if matches!(
+            e.kind(),
+            RuntimeErrorKind::AssertionFailed { message, .. }
+                if message == "compile-condition: accumulator expr is not pure — ':wat::io::IOReader/open-file' is not pure"
+        )
     );
 }
 
@@ -149,10 +176,13 @@ fn impure_accumulator_names_the_offending_head_and_axis() {
 #[test]
 fn partial_accumulator_names_the_offending_head_and_axis() {
     let r = compile_message(WORLD_ACC_PARTIAL_PATH, ":user::run-compile");
-    let msg = r.expect_err("a partial (i64::/) user fold must fail to compile");
-    assert_eq!(
-        msg,
-        "compile-condition: accumulator expr is not total — ':wat::i64::/' is not total"
+    wat::assert_startup_error!(
+        r,
+        StartupError::Runtime(e) if matches!(
+            e.kind(),
+            RuntimeErrorKind::AssertionFailed { message, .. }
+                if message == "compile-condition: accumulator expr is not total — ':wat::i64::/' is not total"
+        )
     );
 }
 
@@ -160,9 +190,12 @@ fn partial_accumulator_names_the_offending_head_and_axis() {
 #[test]
 fn core_op_accumulator_names_law_a_not_total() {
     let r = compile_message(WORLD_ACC_CORE_OP_PATH, ":user::run-compile");
-    let msg = r.expect_err("a total core op in a user fold must fail to compile on Law A");
-    assert_eq!(
-        msg,
-        "compile-condition: accumulator expr is not a rete primitive — ':wf::core-fold' is not a rete primitive; a accumulator admits only :wat::rete:: ops"
+    wat::assert_startup_error!(
+        r,
+        StartupError::Runtime(e) if matches!(
+            e.kind(),
+            RuntimeErrorKind::AssertionFailed { message, .. }
+                if message == "compile-condition: accumulator expr is not a rete primitive — ':wf::core-fold' is not a rete primitive; a accumulator admits only :wat::rete:: ops"
+        )
     );
 }

@@ -10,21 +10,26 @@
 //! too, or nextest intersects any `-E`/name filter with the exclusion and finds nothing to run.)
 
 use std::sync::Arc;
-use wat::freeze::startup_from_file;
-use wat::runtime::{apply_function, Value};
+use wat::freeze::{startup_from_file, StartupError};
+use wat::runtime::{apply_function, RuntimeError, RuntimeErrorKind, Value};
 
 // just-eval (rubric): each `*.wat` fixture defines a zero-arg `:user::compute`; fetch it from
 // the frozen world and `apply_function` it — no inline wat driver. (Path-based rather than
 // `call_beside_value` because this probe drives five distinct co-located fixtures from one `.rs`.)
-fn try_eval(path: &str) -> Result<Value, String> {
-    let world = startup_from_file(path).map_err(|e| format!("startup: {:?}", e))?;
+fn try_eval(path: &str) -> Result<Value, StartupError> {
+    let world = startup_from_file(path)?;
     let func = world
         .symbols()
         .get(":user::compute")
-        .ok_or_else(|| format!("no :user::compute in {path:?}"))?
+        .ok_or_else(|| {
+            StartupError::Runtime(Box::new(RuntimeError::new(
+                wat::rust_caller_span!(),
+                RuntimeErrorKind::UnboundSymbol(":user::compute".to_string()),
+            )))
+        })?
         .clone();
     apply_function(func, vec![], world.symbols(), wat::rust_caller_span!())
-        .map_err(|e| format!("eval: {:?}", e))
+        .map_err(|e| StartupError::Runtime(Box::new(e)))
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

@@ -8,11 +8,11 @@
 //! Wat source lives in the co-located fixture: probe_nth_persistent_vector.wat
 //! (slurped via startup_beside(file!())).
 
-use wat::freeze::call_beside_value;
+use wat::freeze::{call_beside_value, StartupError};
 use wat::runtime::Value;
 
-fn run(fn_name: &str) -> Result<Value, String> {
-    call_beside_value(file!(), fn_name).map_err(|e| format!("eval: {e:?}"))
+fn run(fn_name: &str) -> Result<Value, StartupError> {
+    call_beside_value(file!(), fn_name).map_err(|e| StartupError::Runtime(Box::new(e)))
 }
 
 /// THE disconfirm — nth on a PersistentVector returns the element (bare). RED at HEAD: nth's `Vector<T>`

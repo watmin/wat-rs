@@ -21,11 +21,11 @@
 //!
 //! Post-stone 237.5.fix: 9/9 PASS. The 237.5 probe (12/12) must also stay green.
 
-use wat::freeze::call_beside_value;
+use wat::freeze::{call_beside_value, StartupError};
 use wat::runtime::Value;
 
-fn run_bool(fn_name: &str) -> Result<Value, String> {
-    call_beside_value(file!(), fn_name).map_err(|e| format!("eval: {:?}", e))
+fn run_bool(fn_name: &str) -> Result<Value, StartupError> {
+    call_beside_value(file!(), fn_name).map_err(StartupError::from)
 }
 
 fn assert_true(fn_name: &str) {
@@ -41,10 +41,12 @@ fn assert_false(fn_name: &str) {
     }
 }
 
-fn run_type(fn_name: &str) -> Result<String, String> {
-    match call_beside_value(file!(), fn_name).map_err(|e| format!("eval: {:?}", e))? {
+fn run_type(fn_name: &str) -> Result<String, StartupError> {
+    match call_beside_value(file!(), fn_name).map_err(StartupError::from)? {
         Value::String(s) => Ok((*s).clone()),
-        other => Err(format!("expected String; got {:?}", other)),
+        // Arc 296 Stone M: a wrong-shape return isn't a StartupError — the only caller
+        // (`assert_type_is`) already panics on anything but a matching string.
+        other => panic!("expected String; got {:?}", other),
     }
 }
 

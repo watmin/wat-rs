@@ -5,26 +5,38 @@
 //! Run: `cargo test --release --test probe_arc251_keyword_to_type_form`
 
 use wat::freeze::{call_beside_value, startup_beside};
-use wat::runtime::Value;
+use wat::runtime::{RuntimeError, RuntimeErrorKind, Value, ValueSnapshot};
 
 // just-eval (rubric): each `:user::cNN` zero-arg fn lives in the co-located fixture;
 // drive it via `call_beside_value` and inspect the returned typed String.
-fn eval_string(fn_name: &str) -> Result<String, String> {
-    match call_beside_value(file!(), fn_name).map_err(|e| format!("eval: {e:?}"))? {
+//
+// arc 296 Stone M: `call_beside_value` already returns `Result<Value, RuntimeError>` — not a
+// `StartupError` chain — so the real (never-flattened) error type here is `RuntimeError`
+// itself; the "wrong Value shape" arm is minted as the same `RuntimeErrorKind::TypeMismatch`
+// the runtime itself raises for this shape (see `src/assertion.rs::eval_opt_string`).
+fn eval_string(fn_name: &str) -> Result<String, RuntimeError> {
+    match call_beside_value(file!(), fn_name)? {
         Value::String(s) => Ok((*s).clone()),
-        other => Err(format!("non-string: {other:?}")),
+        other => Err(RuntimeError::new(
+            wat::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: fn_name.into(),
+                expected: "String",
+                got: Box::new(ValueSnapshot::of(&other)),
+            },
+        )),
     }
 }
 
 #[test]
 fn contract_01_scalar() {
     assert_eq!(
-        eval_string(":user::c01a"),
-        Ok(include_str!("probe_arc251_keyword_to_type_form__contract-01a-scalar-i64.wat").into())
+        eval_string(":user::c01a").expect("eval_string"),
+        include_str!("probe_arc251_keyword_to_type_form__contract-01a-scalar-i64.wat")
     );
     assert_eq!(
-        eval_string(":user::c01b"),
-        Ok(include_str!("probe_arc251_keyword_to_type_form__contract-01b-scalar-user.wat").into())
+        eval_string(":user::c01b").expect("eval_string"),
+        include_str!("probe_arc251_keyword_to_type_form__contract-01b-scalar-user.wat")
     );
 }
 
@@ -45,9 +57,13 @@ fn contract_01_scalar() {
 // parsed angle string" to "the minting primitive refuses to build the angle-bearing NAME at
 // all". Each assertion below checks for THAT mechanism: the `keyword-node` head, and the
 // minted-name wall's own reason text — not the (now unreachable) type-parser wording.
+//
+// arc 296 Stone M: `err` is now a typed `RuntimeError` (Debug renders EDN, Stone B), not a
+// pre-flattened `String` — the substring check now reads the EDN Debug rendering instead of
+// a hand-built "eval: {e:?}" string, same targeted substrings, same rune.
 #[test]
 fn contract_02_parametric() {
-    let err = eval_string(":user::c02").expect_err("angle-bracket parametric keyword must be REFUSED");
+    let err = format!("{:?}", eval_string(":user::c02").expect_err("angle-bracket parametric keyword must be REFUSED"));
     assert!( // rune:lint(loose-assert) — targeted substring: asserting the keyword-node minting wall fired, not the whole located error's structure
         err.contains(":wat::core::keyword-node") && err.contains("angle-bracket type parameters are illegal in a name"),
         "expected the keyword-node minting wall's reason; got: {err}"
@@ -56,7 +72,7 @@ fn contract_02_parametric() {
 
 #[test]
 fn contract_03_nested_parametric() {
-    let err = eval_string(":user::c03").expect_err("angle-bracket parametric keyword must be REFUSED");
+    let err = format!("{:?}", eval_string(":user::c03").expect_err("angle-bracket parametric keyword must be REFUSED"));
     assert!( // rune:lint(loose-assert) — targeted substring: asserting the keyword-node minting wall fired, not the whole located error's structure
         err.contains(":wat::core::keyword-node") && err.contains("angle-bracket type parameters are illegal in a name"),
         "expected the keyword-node minting wall's reason; got: {err}"
@@ -65,7 +81,7 @@ fn contract_03_nested_parametric() {
 
 #[test]
 fn contract_04_type_var_stays_bare() {
-    let err = eval_string(":user::c04").expect_err("angle-bracket parametric keyword must be REFUSED");
+    let err = format!("{:?}", eval_string(":user::c04").expect_err("angle-bracket parametric keyword must be REFUSED"));
     assert!( // rune:lint(loose-assert) — targeted substring: asserting the keyword-node minting wall fired, not the whole located error's structure
         err.contains(":wat::core::keyword-node") && err.contains("angle-bracket type parameters are illegal in a name"),
         "expected the keyword-node minting wall's reason; got: {err}"
@@ -74,7 +90,7 @@ fn contract_04_type_var_stays_bare() {
 
 #[test]
 fn contract_05_multi_arg() {
-    let err = eval_string(":user::c05").expect_err("angle-bracket parametric keyword must be REFUSED");
+    let err = format!("{:?}", eval_string(":user::c05").expect_err("angle-bracket parametric keyword must be REFUSED"));
     assert!( // rune:lint(loose-assert) — targeted substring: asserting the keyword-node minting wall fired, not the whole located error's structure
         err.contains(":wat::core::keyword-node") && err.contains("angle-bracket type parameters are illegal in a name"),
         "expected the keyword-node minting wall's reason; got: {err}"
@@ -84,16 +100,16 @@ fn contract_05_multi_arg() {
 #[test]
 fn contract_06_tuple() {
     assert_eq!(
-        eval_string(":user::c06"),
-        Ok(include_str!("probe_arc251_keyword_to_type_form__contract-06-tuple.wat").into())
+        eval_string(":user::c06").expect("eval_string"),
+        include_str!("probe_arc251_keyword_to_type_form__contract-06-tuple.wat")
     );
 }
 
 #[test]
 fn contract_07_empty_tuple_is_not_nil() {
     assert_eq!(
-        eval_string(":user::c07"),
-        Ok(include_str!("probe_arc251_keyword_to_type_form__contract-07-empty-tuple.wat").into())
+        eval_string(":user::c07").expect("eval_string"),
+        include_str!("probe_arc251_keyword_to_type_form__contract-07-empty-tuple.wat")
     );
 }
 
@@ -103,7 +119,7 @@ fn contract_08_nested_tuple() {
     // embeds an angle-bracket parametric INSIDE the native tuple spelling; same refusal
     // mechanism as contracts 02/03/04/05 above (see the block comment there) — the
     // `keyword-node` call refuses before `keyword/to-type-form` ever sees the string.
-    let err = eval_string(":user::c08").expect_err("angle-bracket parametric keyword must be REFUSED");
+    let err = format!("{:?}", eval_string(":user::c08").expect_err("angle-bracket parametric keyword must be REFUSED"));
     assert!( // rune:lint(loose-assert) — targeted substring: asserting the keyword-node minting wall fired, not the whole located error's structure
         err.contains(":wat::core::keyword-node") && err.contains("angle-bracket type parameters are illegal in a name"),
         "expected the keyword-node minting wall's reason; got: {err}"

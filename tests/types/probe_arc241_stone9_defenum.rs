@@ -8,10 +8,8 @@ use wat::check::error::CheckErrorKind;
 use wat::freeze::{startup_from_file, StartupError};
 use wat::types::TypeErrorKind;
 
-fn try_startup(path: &str) -> Result<(), String> {
-    startup_from_file(path)
-        .map(|_| ())
-        .map_err(|e| format!("{:?}", e))
+fn try_startup(path: &str) -> Result<(), StartupError> {
+    startup_from_file(path).map(|_| ())
 }
 
 // ─── Contracts 1-4: defenum success paths ─────────────────────────────────────

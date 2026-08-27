@@ -7,10 +7,12 @@ use wat::freeze::{call_beside_value, startup_from_file, StartupError};
 use wat::runtime::Value;
 use wat::types::TypeErrorKind;
 
-fn run_bool(fn_name: &str) -> Result<bool, String> {
-    match call_beside_value(file!(), fn_name).map_err(|e| format!("eval: {:?}", e))? {
+fn run_bool(fn_name: &str) -> Result<bool, StartupError> {
+    match call_beside_value(file!(), fn_name).map_err(StartupError::from)? {
         Value::bool(b) => Ok(b),
-        other => Err(format!("expected bool; got {:?}", other)),
+        // Arc 296 Stone M: a wrong-shape return isn't a StartupError — every caller
+        // (`assert_true`/`assert_false`) already panics on anything but the wanted bool.
+        other => panic!("expected bool; got {:?}", other),
     }
 }
 

@@ -32,13 +32,13 @@
 //! Per FM 2-bis (recovery doc § 6): probe COMMITTED before BRIEF; BRIEF cites this
 //! file verbatim as "the working contract sonnet must satisfy."
 
-use wat::freeze::call_beside_value;
+use wat::freeze::{call_beside_value, StartupError};
 use wat::runtime::{RuntimeErrorKind, Value};
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
-fn run_bool(fn_name: &str) -> Result<Value, String> {
-    call_beside_value(file!(), fn_name).map_err(|e| format!("eval: {:?}", e))
+fn run_bool(fn_name: &str) -> Result<Value, StartupError> {
+    call_beside_value(file!(), fn_name).map_err(StartupError::from)
 }
 
 fn assert_true(fn_name: &str) {

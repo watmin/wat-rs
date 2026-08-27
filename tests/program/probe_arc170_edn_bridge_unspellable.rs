@@ -21,10 +21,26 @@
 use wat::edn::bridge::{edn_to_program, program_to_edn};
 
 /// Cross a program and require an exact (span-agnostic) identity back.
-fn crosses(src: &str, file: &str) -> Result<Vec<String>, String> {
-    let forms = wat::parse_all_with_file(src, file).map_err(|e| format!("parse failed: {e:?}"))?;
+/// ⛔ ARC 296 STONE M — this helper returns NO `Result`, deliberately.
+///
+/// It used to be `-> Result<Vec<String>, String>`, flattening two typed errors
+/// (`ParseError`, `WatEdnBridgeError`) into one `String` because they have no common type.
+/// The stone's usual cure — return the union, `StartupError` — does NOT apply here:
+/// `WatEdnBridgeError` (`src/edn/bridge.rs:302`) has no `StartupError` variant, and inventing
+/// one to satisfy a rule would be a LIE (a bridge failure is not a startup failure).
+///
+/// The real question is what the `Err` was FOR. Measured: both call sites `.expect(…)` it and
+/// nothing in this file ever inspects it. A parse failure or a decode failure here is BROKEN
+/// FIXTURE, not the property under test — the test is round-trip identity, and `Ok` already
+/// carries the findings as `Vec<String>`. So the honest shape is no `Result` at all: panic on
+/// a broken precondition, carrying each error's OWN typed `Debug` plus the EDN frame, which is
+/// strictly more than the flattened string said.
+fn crosses(src: &str, file: &str) -> Vec<String> {
+    let forms = wat::parse_all_with_file(src, file)
+        .unwrap_or_else(|e| panic!("fixture must parse — {file}: {e:?}"));
     let edn = program_to_edn(&forms);
-    let back = edn_to_program(&edn).map_err(|e| format!("{e} — frame: {edn}"))?;
+    let back = edn_to_program(&edn)
+        .unwrap_or_else(|e| panic!("fixture must decode — {e:?} — frame: {edn}"));
     let mut bad = Vec::new();
     for (i, (a, b)) in forms.iter().zip(back.iter()).enumerate() {
         if a != b {
@@ -34,7 +50,7 @@ fn crosses(src: &str, file: &str) -> Result<Vec<String>, String> {
     if forms.len() != back.len() {
         bad.push(format!("ARITY changed: {} forms in, {} out", forms.len(), back.len()));
     }
-    Ok(bad)
+    bad
 }
 
 /// C01 — every class of wat lexeme EDN cannot spell crosses intact.
@@ -49,7 +65,7 @@ fn c01_every_unspellable_lexeme_crosses_intact() {
         "/tests/program/probe_arc170_edn_bridge_unspellable__lexemes.wat"
     );
     let src = std::fs::read_to_string(path).expect("the lexeme fixture must be readable");
-    let bad = crosses(&src, path).expect("the fixture must parse and decode");
+    let bad = crosses(&src, path);
     assert!(
         bad.is_empty(),
         "wat lexemes that did not survive the wire. Each is ONE token to \
@@ -122,7 +138,7 @@ fn c02_control_ordinary_forms_stay_plain_edn() {
          neither licenses wrapping anything else. Frame: {frame}"
     );
 
-    let bad = crosses(&src, path).expect("decode");
+    let bad = crosses(&src, path);
     assert!(bad.is_empty(), "and it must still round-trip: {bad:?}");
 }
 

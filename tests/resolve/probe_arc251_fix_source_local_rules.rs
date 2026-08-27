@@ -5,30 +5,42 @@
 //! Run: `cargo test --release --test probe_arc251_fix_source_local_rules`
 
 use wat::freeze::call_beside_value;
-use wat::runtime::Value;
+use wat::runtime::{RuntimeError, RuntimeErrorKind, Value, ValueSnapshot};
 
 // just-eval (rubric): each `:user::cNN` zero-arg fn lives in the co-located fixture;
 // drive it via `call_beside_value` and inspect the returned typed String.
-fn eval_string(fn_name: &str) -> Result<String, String> {
-    match call_beside_value(file!(), fn_name).map_err(|e| format!("eval: {e:?}"))? {
+//
+// arc 296 Stone M: `call_beside_value` already returns `Result<Value, RuntimeError>` — not a
+// `StartupError` chain — so the real (never-flattened) error type here is `RuntimeError`
+// itself; the "wrong Value shape" arm is minted as the same `RuntimeErrorKind::TypeMismatch`
+// the runtime itself raises for this shape (see `src/assertion.rs::eval_opt_string`).
+fn eval_string(fn_name: &str) -> Result<String, RuntimeError> {
+    match call_beside_value(file!(), fn_name)? {
         Value::String(s) => Ok((*s).clone()),
-        other => Err(format!("non-string: {other:?}")),
+        other => Err(RuntimeError::new(
+            wat::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: fn_name.into(),
+                expected: "String",
+                got: Box::new(ValueSnapshot::of(&other)),
+            },
+        )),
     }
 }
 
 #[test]
 fn contract_01_arrow_in_binder() {
     assert_eq!(
-        eval_string(":user::c01"),
-        Ok(include_str!("probe_arc251_fix_source_local_rules__contract-01-arrow-in-binder.wat").into())
+        eval_string(":user::c01").expect("eval_string"),
+        include_str!("probe_arc251_fix_source_local_rules__contract-01-arrow-in-binder.wat")
     );
 }
 
 #[test]
 fn contract_02_post_arrow_scalar_type() {
     assert_eq!(
-        eval_string(":user::c02"),
-        Ok(include_str!("probe_arc251_fix_source_local_rules__contract-02-post-arrow-scalar.wat").into())
+        eval_string(":user::c02").expect("eval_string"),
+        include_str!("probe_arc251_fix_source_local_rules__contract-02-post-arrow-scalar.wat")
     );
 }
 
@@ -58,16 +70,16 @@ fn contract_03_structural_parametric_type() {
 #[test]
 fn contract_04_head_still_inverts() {
     assert_eq!(
-        eval_string(":user::c04"),
-        Ok(include_str!("probe_arc251_fix_source_local_rules__contract-04-head-inverts.wat").into())
+        eval_string(":user::c04").expect("eval_string"),
+        include_str!("probe_arc251_fix_source_local_rules__contract-04-head-inverts.wat")
     );
 }
 
 #[test]
 fn contract_05_full_fn_literal() {
     assert_eq!(
-        eval_string(":user::c05"),
-        Ok(include_str!("probe_arc251_fix_source_local_rules__contract-05-full-fn-literal.wat").into()),
+        eval_string(":user::c05").expect("eval_string"),
+        include_str!("probe_arc251_fix_source_local_rules__contract-05-full-fn-literal.wat"),
         "head inverts, binder + return arrows -> :-, both types -> wat.type/, in one pass"
     );
 }
@@ -75,19 +87,19 @@ fn contract_05_full_fn_literal() {
 #[test]
 fn contract_06_less_than_operator_is_not_a_type() {
     assert_eq!(
-        eval_string(":user::c06a"),
-        Ok(include_str!("probe_arc251_fix_source_local_rules__contract-06a-less-than.wat").into())
+        eval_string(":user::c06a").expect("eval_string"),
+        include_str!("probe_arc251_fix_source_local_rules__contract-06a-less-than.wat")
     );
     assert_eq!(
-        eval_string(":user::c06b"),
-        Ok(include_str!("probe_arc251_fix_source_local_rules__contract-06b-less-equal.wat").into())
+        eval_string(":user::c06b").expect("eval_string"),
+        include_str!("probe_arc251_fix_source_local_rules__contract-06b-less-equal.wat")
     );
 }
 
 #[test]
 fn contract_07_greater_than_operator() {
     assert_eq!(
-        eval_string(":user::c07"),
-        Ok(include_str!("probe_arc251_fix_source_local_rules__contract-07-greater-than.wat").into())
+        eval_string(":user::c07").expect("eval_string"),
+        include_str!("probe_arc251_fix_source_local_rules__contract-07-greater-than.wat")
     );
 }

@@ -33,18 +33,17 @@
 //!              runtime path.
 //!   ANY FAIL — specific RuntimeError variant's promotion incomplete.
 
-use wat::freeze::startup_from_file;
+use wat::freeze::{startup_from_file, StartupError};
 use wat::runtime::{apply_function, Value};
 
-fn run_compute(path: &str) -> Result<Value, String> {
-    let world = startup_from_file(path)
-        .map_err(|e| format!("startup: {:?}", e))?;
+fn run_compute(path: &str) -> Result<Value, StartupError> {
+    let world = startup_from_file(path)?;
     let func = world
         .symbols()
         .get(":user::compute")
         .unwrap_or_else(|| panic!("fixture {path:?} must define :user::compute"));
     apply_function(func.clone(), vec![], world.symbols(), wat::rust_caller_span!())
-        .map_err(|e| format!("eval: {:?}", e))
+        .map_err(|e| StartupError::Runtime(Box::new(e)))
 }
 
 // ─── Probe 1: NotCallable renders the offending keyword content ─────────────
@@ -75,7 +74,7 @@ fn probe_1_not_callable_renders_offending_keyword() {
             // and this note need not be extended again. `.wat`-facing spans below are
             // unaffected: normalization never touches a span whose `:file` is not `.rs`.
             wat::assert_edn_matches_file!(
-                e.trim_start_matches("eval: ").to_string(),
+                format!("{:?}", e),
                 "probe_diagnostic_value_snapshot_in_errors__probe_1_not_callable_renders_offending_keyword.edn",
                 "Probe 1: NotCallable must surface type name + rendered keyword content"
             );
@@ -103,7 +102,7 @@ fn probe_2_not_callable_renders_runtime_built_keyword() {
             // CLOSED by arc 255 Stone A-i repair — `.rs`-file spans are now
             // line-normalized before comparing, so this can't recur.
             wat::assert_edn_matches_file!(
-                e.trim_start_matches("eval: ").to_string(),
+                format!("{:?}", e),
                 "probe_diagnostic_value_snapshot_in_errors__probe_2_not_callable_renders_runtime_built_keyword.edn",
                 "Probe 2: NotCallable must surface type name + rendered runtime-built keyword"
             );
@@ -136,7 +135,7 @@ fn probe_3_type_mismatch_renders_non_keyword_head() {
             // this session with a column-arithmetic script against the actual fixture text.
             // The old golden pinned a wrong value; the new value is the correct one.
             wat::assert_edn_matches_file!(
-                e.trim_start_matches("eval: ").to_string(),
+                format!("{:?}", e),
                 "probe_diagnostic_value_snapshot_in_errors__probe_3_type_mismatch_renders_non_keyword_head.edn",
                 "Probe 3: TypeMismatch must surface rendered String content"
             );
@@ -164,7 +163,7 @@ fn probe_4_type_mismatch_renders_non_vector_spread() {
             // byte-exact: `line[129:131]` (0-idx) == `"42"`, the i64 literal, verified this
             // session against the actual fixture text.
             wat::assert_edn_matches_file!(
-                e.trim_start_matches("eval: ").to_string(),
+                format!("{:?}", e),
                 "probe_diagnostic_value_snapshot_in_errors__probe_4_type_mismatch_renders_non_vector_spread.edn",
                 "Probe 4: TypeMismatch must surface rendered i64 content"
             );
@@ -210,7 +209,7 @@ fn probe_6_runtime_built_keyword_renders_producer_info() {
             // Stone A-i repair — `.rs`-file spans are now line-normalized before
             // comparing, so this can't recur.
             wat::assert_edn_matches_file!(
-                e.trim_start_matches("eval: ").to_string(),
+                format!("{:?}", e),
                 "probe_diagnostic_value_snapshot_in_errors__probe_6_runtime_built_keyword_renders_producer_info.edn",
                 "Probe 6: must surface rendered keyword content (producer info retired for this verb, arc 255 Stone E-iv — see comment above)"
             );
@@ -242,7 +241,7 @@ fn probe_7_from_holon_produces_tagged_value() {
             // arc 255 Stone A-i repair — `.rs`-file spans are now line-normalized before
             // comparing, so this can't recur.
             wat::assert_edn_matches_file!(
-                e.trim_start_matches("eval: ").to_string(),
+                format!("{:?}", e),
                 "probe_diagnostic_value_snapshot_in_errors__probe_7_from_holon_produces_tagged_value.edn",
                 "Probe 7: error must mention from-holon producer (Stone 233.2.c)"
             );
@@ -273,7 +272,7 @@ fn probe_8_edn_read_produces_tagged_value() {
             // arc 255 Stone A-i repair — `.rs`-file spans are now line-normalized before
             // comparing, so this can't recur.
             wat::assert_edn_matches_file!(
-                e.trim_start_matches("eval: ").to_string(),
+                format!("{:?}", e),
                 "probe_diagnostic_value_snapshot_in_errors__probe_8_edn_read_produces_tagged_value.edn",
                 "Probe 8: error must mention edn::read producer (Stone 233.2.c)"
             );

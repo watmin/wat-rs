@@ -13,11 +13,11 @@
 //! Wat source lives in the co-located fixture: probe_seq_container_registry.wat
 //! (slurped via startup_beside(file!())).
 
-use wat::freeze::{call_beside_value, startup_from_file};
+use wat::freeze::{call_beside_value, startup_from_file, StartupError};
 use wat::runtime::Value;
 
-fn eval_probe(fn_name: &str) -> Result<Value, String> {
-    call_beside_value(file!(), fn_name).map_err(|e| format!("eval: {e:?}"))
+fn eval_probe(fn_name: &str) -> Result<Value, StartupError> {
+    call_beside_value(file!(), fn_name).map_err(|e| StartupError::Runtime(Box::new(e)))
 }
 
 fn expect_i64(call: &str, want: i64) {

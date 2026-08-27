@@ -6,13 +6,15 @@
 //!
 //! Run: cargo test --release -p wat --test probe_first_bare_accessors
 
-use wat::freeze::startup_from_file;
+use wat::freeze::{startup_from_file, StartupError};
 use wat::runtime::{apply_function, RuntimeErrorKind, Value};
 
-fn run_file(path: &str) -> Result<Value, String> {
-    let w = startup_from_file(path).map_err(|e| format!("startup (type-check): {e:?}"))?;
-    let func = w.symbols().get(":p::f").ok_or_else(|| "no :p::f".to_string())?.clone();
-    apply_function(func, vec![], w.symbols(), wat::rust_caller_span!()).map_err(|e| format!("eval: {e:?}"))
+fn run_file(path: &str) -> Result<Value, StartupError> {
+    let w = startup_from_file(path)?;
+    // Arc 296 Stone M: "no :p::f" is a fixture/test-authorship bug, not a StartupError-worthy
+    // pipeline failure — mirrors `call_beside_value`'s own panic for the identical condition.
+    let func = w.symbols().get(":p::f").unwrap_or_else(|| panic!("no :p::f")).clone();
+    apply_function(func, vec![], w.symbols(), wat::rust_caller_span!()).map_err(StartupError::from)
 }
 
 /// BARE usage: the accessor's result is returned directly as `T` (no `Option/expect`). RED at HEAD.

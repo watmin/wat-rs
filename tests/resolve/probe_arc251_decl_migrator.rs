@@ -20,15 +20,27 @@
 //! Run: `cargo test --release --test probe_arc251_decl_migrator`
 
 use wat::freeze::call_beside_value;
-use wat::runtime::Value;
+use wat::runtime::{RuntimeError, RuntimeErrorKind, Value, ValueSnapshot};
 
 // just-eval (rubric): each `:user::cNN` zero-arg fn lives in the co-located fixture;
 // drive it via `call_beside_value` and inspect the returned typed String.
-fn eval_string(fn_name: &str) -> Result<String, String> {
+//
+// arc 296 Stone M: `call_beside_value` already returns `Result<Value, RuntimeError>` — not a
+// `StartupError` chain — so the real (never-flattened) error type here is `RuntimeError`
+// itself; the "wrong Value shape" arm is minted as the same `RuntimeErrorKind::TypeMismatch`
+// the runtime itself raises for this shape (see `src/assertion.rs::eval_opt_string`).
+fn eval_string(fn_name: &str) -> Result<String, RuntimeError> {
     let full = format!(":user::{}", fn_name);
-    match call_beside_value(file!(), &full).map_err(|e| format!("eval {fn_name}: {e:?}"))? {
+    match call_beside_value(file!(), &full)? {
         Value::String(s) => Ok((*s).clone()),
-        other => Err(format!("non-string from {fn_name}: {other:?}")),
+        other => Err(RuntimeError::new(
+            wat::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: fn_name.into(),
+                expected: "String",
+                got: Box::new(ValueSnapshot::of(&other)),
+            },
+        )),
     }
 }
 

@@ -33,12 +33,19 @@
 //! Run: cargo test --release -p wat --test probe_arc278_insert_all_differential
 
 use wat::freeze::call_beside_value;
-use wat::runtime::Value;
+use wat::runtime::{RuntimeError, RuntimeErrorKind, Value, ValueSnapshot};
 
-fn count(entry: &str) -> Result<i64, String> {
-    match call_beside_value(file!(), entry).map_err(|e| format!("eval: {e:?}"))? {
+fn count(entry: &str) -> Result<i64, RuntimeError> {
+    match call_beside_value(file!(), entry)? {
         Value::i64(n) => Ok(n),
-        other => Err(format!("expected i64; got {other:?}")),
+        other => Err(RuntimeError::new(
+            wat::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: format!("count({entry})"),
+                expected: "i64",
+                got: Box::new(ValueSnapshot::of(&other)),
+            },
+        )),
     }
 }
 

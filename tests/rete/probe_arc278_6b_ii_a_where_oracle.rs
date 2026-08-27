@@ -10,8 +10,8 @@
 //! Run: cargo test --release -p wat --test probe_arc278_6b_ii_a_where_oracle
 
 use wat::assertion::AssertionPayload;
-use wat::freeze::{startup_from_file, FrozenWorld};
-use wat::runtime::{apply_function, Value};
+use wat::freeze::{startup_from_file, FrozenWorld, StartupError};
+use wat::runtime::{apply_function, RuntimeError, RuntimeErrorKind, Value};
 
 // Paths to the co-located .wat fixtures (relative to the crate root).
 const WORLD_CMP_PATH: &str    = "tests/rete/probe_arc278_6b_ii_a_where_oracle_cmp.wat";
@@ -24,8 +24,8 @@ const WORLD_IMPURE_PATH: &str = "tests/rete/probe_arc278_6b_ii_a_where_oracle_im
 /// Catch it so a rejection surfaces as Err, not an uncaught test panic. (Before the arc-296
 /// None-fix an illegal `(:wat::core::None)` form threw a *catchable* UnknownFunction here
 /// instead — that form was never legal and is now corrected; the fence's real reject is a panic.)
-fn run_count(world_path: &str, fn_name: &str) -> Result<Value, String> {
-    let world: FrozenWorld = startup_from_file(world_path).map_err(|e| format!("startup: {e:?}"))?;
+fn run_count(world_path: &str, fn_name: &str) -> Result<Value, StartupError> {
+    let world: FrozenWorld = startup_from_file(world_path)?;
     let func = world.symbols().get(fn_name).unwrap_or_else(|| panic!("no entry fn {fn_name:?}")).clone();
     let sym = world.symbols();
     match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -34,14 +34,27 @@ fn run_count(world_path: &str, fn_name: &str) -> Result<Value, String> {
         // arc 296 Stone L: preserve the fence's `AssertionPayload.message` instead of a generic
         // sentinel — the sentinel is exactly what made the corresponding `.is_err()` assertion
         // vacuous (mirrors `probe_arc278_then_user_forms.rs`'s `run`, the sibling probe this
-        // module's own doc comment names).
-        Err(panic_payload) => Err(panic_payload
-            .downcast_ref::<AssertionPayload>()
-            .map(|p| p.message.clone())
-            .or_else(|| panic_payload.downcast_ref::<String>().cloned())
-            .or_else(|| panic_payload.downcast_ref::<&str>().map(|s| (*s).to_string()))
-            .unwrap_or_else(|| "panic-opaque".to_string())),
-        Ok(res) => res.map_err(|e| format!("eval: {e:?}")),
+        // module's own doc comment names). Arc 296 Stone M: the fields land in the REAL
+        // RuntimeErrorKind::AssertionFailed shape (mirrors AssertionPayload's own layout)
+        // instead of being flattened to a bare String.
+        Err(panic_payload) => {
+            let (message, actual, expected) = match panic_payload.downcast_ref::<AssertionPayload>() {
+                Some(p) => (p.message.clone(), p.actual.clone(), p.expected.clone()),
+                None => {
+                    let message = panic_payload
+                        .downcast_ref::<String>()
+                        .cloned()
+                        .or_else(|| panic_payload.downcast_ref::<&str>().map(|s| (*s).to_string()))
+                        .unwrap_or_else(|| "panic-opaque".to_string());
+                    (message, None, None)
+                }
+            };
+            Err(StartupError::Runtime(Box::new(RuntimeError::new(
+                wat::rust_caller_span!(),
+                RuntimeErrorKind::AssertionFailed { message, actual, expected },
+            ))))
+        }
+        Ok(res) => res.map_err(|e| StartupError::Runtime(Box::new(e))),
     }
 }
 
@@ -80,9 +93,12 @@ fn fence_rejects_impure_where_at_compile() {
     // the compile fence's `AssertionPayload.message`, now preserved by `run_count` above
     // instead of collapsed to a generic sentinel.
     let r = run_count(WORLD_IMPURE_PATH, ":user::run-gate-c5");
-    let msg = r.expect_err("an impure (io) where must fail to compile");
-    assert_eq!(
-        msg,
-        "compile-condition: where expr is not pure — ':wat::io::IOReader/open-file' is not pure"
+    wat::assert_startup_error!(
+        r,
+        StartupError::Runtime(e) if matches!(
+            e.kind(),
+            RuntimeErrorKind::AssertionFailed { message, .. }
+                if message == "compile-condition: where expr is not pure — ':wat::io::IOReader/open-file' is not pure"
+        )
     );
 }

@@ -26,23 +26,20 @@
 // and there is no file a single field of a compound match-guard could move to. Same class and
 // same reason as tests/services/probe_arc170_w2a_kwargs_check_mint.rs:35.
 use wat::check::error::CheckErrorKind;
-use wat::freeze::{startup_from_file, StartupError};
 
-/// Load a fixture, returning the raw `StartupError` — NOT `try_startup`'s (stone18a.rs)
-/// stringified `Result<(), String>`, which collapses the inner `CheckErrorKind` a
-/// site here needs to discriminate on (arc 296 Stone L: a bare `is_err()` cannot tell
-/// a real defect from a retirement/typo/renamed-fixture that also returns `Err`).
-/// `try_startup` stays untouched — its `Result<(), String>` shape is shared with the
-/// positive (`is_ok()`) contracts in `stone18a.rs`, which never need the inner kind.
-fn try_startup_typed(path: &str) -> Result<(), StartupError> {
-    startup_from_file(path).map(|_| ())
-}
+use super::stone18a::try_startup;
+
+// arc 296 Stone M: `try_startup` (stone18a.rs) now returns the raw `StartupError` itself
+// rather than a flattened `String` — the parallel `try_startup_typed` helper this file used
+// to carry (added at Stone L because widening `try_startup` was out of that stone's scope)
+// is retired; there is one typed path now, shared with the positive `is_ok()` contracts in
+// stone18a.rs.
 
 // ─── E01: fn-form argspec with disallowed rest binder ─────────────────────────
 
 #[test]
 fn error_01_fn_argspec_rest_binder_disallowed() {
-    let result = try_startup_typed("tests/function/stone18a_e01.wat");
+    let result = try_startup("tests/function/stone18a_e01.wat");
     wat::assert_startup_error!(result, check
         CheckErrorKind::ArityMismatch { callee, expected, got }
             if callee == "(value head)"
@@ -55,7 +52,7 @@ fn error_01_fn_argspec_rest_binder_disallowed() {
 
 #[test]
 fn error_02_fn_body_return_type_mismatch() {
-    let result = try_startup_typed("tests/function/stone18a_e02.wat");
+    let result = try_startup("tests/function/stone18a_e02.wat");
     wat::assert_startup_error!(result, check
         CheckErrorKind::ReturnTypeMismatch { function, expected, got, .. }
             if function == ":anonymous"
@@ -68,7 +65,7 @@ fn error_02_fn_body_return_type_mismatch() {
 
 #[test]
 fn error_03_fn_missing_arrow() {
-    let result = try_startup_typed("tests/function/stone18a_e03.wat");
+    let result = try_startup("tests/function/stone18a_e03.wat");
     wat::assert_startup_error!(result, check
         CheckErrorKind::MalformedForm { head, reason, .. }
             if head == ":wat::core::fn"
@@ -80,7 +77,7 @@ fn error_03_fn_missing_arrow() {
 
 #[test]
 fn error_04_fn_non_keyword_ret_type() {
-    let result = try_startup_typed("tests/function/stone18a_e04.wat");
+    let result = try_startup("tests/function/stone18a_e04.wat");
     wat::assert_startup_error!(result, check
         CheckErrorKind::MalformedForm { head, reason, .. }
             if head == ":wat::core::fn"
@@ -92,7 +89,7 @@ fn error_04_fn_non_keyword_ret_type() {
 
 #[test]
 fn error_05_fn_wrong_arrow_symbol() {
-    let result = try_startup_typed("tests/function/stone18a_e05.wat");
+    let result = try_startup("tests/function/stone18a_e05.wat");
     wat::assert_startup_error!(result, check
         CheckErrorKind::MalformedForm { head, reason, .. }
             if head == ":wat::core::fn"
@@ -104,7 +101,7 @@ fn error_05_fn_wrong_arrow_symbol() {
 
 #[test]
 fn error_06_infer_fn_malformed_argspec_name_slot() {
-    let result = try_startup_typed("tests/function/stone18a_e06.wat");
+    let result = try_startup("tests/function/stone18a_e06.wat");
     wat::assert_startup_error!(result, check
         CheckErrorKind::MalformedForm { head, reason, .. }
             if head == ":wat::core::fn"

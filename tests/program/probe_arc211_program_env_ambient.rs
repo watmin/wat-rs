@@ -17,20 +17,29 @@
 //!
 //! Run: `cargo test --release --test probe_arc211_program_env_ambient`
 
-use wat::freeze::{invoke_user_main, startup_beside};
-use wat::runtime::{apply_function, Value};
+use wat::freeze::{invoke_user_main, startup_beside, StartupError};
+use wat::runtime::{apply_function, RuntimeError, RuntimeErrorKind, Value, ValueSnapshot};
 use wat::services::install_program_env;
 
-fn call_i64(world: &wat::freeze::FrozenWorld, fn_name: &str) -> Result<i64, String> {
-    let func = world
-        .symbols()
-        .get(fn_name)
-        .ok_or_else(|| format!("{fn_name} not found in world"))?;
+fn call_i64(world: &wat::freeze::FrozenWorld, fn_name: &str) -> Result<i64, StartupError> {
+    let func = world.symbols().get(fn_name).ok_or_else(|| {
+        StartupError::Runtime(Box::new(RuntimeError::new(
+            wat::rust_caller_span!(),
+            RuntimeErrorKind::UnboundSymbol(fn_name.to_string()),
+        )))
+    })?;
     match apply_function(func.clone(), Vec::new(), world.symbols(), wat::rust_caller_span!())
-        .map_err(|e| format!("apply_function: {e:?}"))?
+        .map_err(|e| StartupError::Runtime(Box::new(e)))?
     {
         Value::i64(n) => Ok(n),
-        other => Err(format!("non-i64: {other:?}")),
+        other => Err(StartupError::Runtime(Box::new(RuntimeError::new(
+            wat::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: fn_name.to_string(),
+                expected: "i64",
+                got: Box::new(ValueSnapshot::of(&other)),
+            },
+        )))),
     }
 }
 
@@ -49,12 +58,16 @@ fn c02_program_env_carries_peer_started_at() {
     // RED at HEAD: program::Env has only `started-at` (arity 1) → the 2-arg
     // constructor is an arity error.
     let world = startup_beside(file!()).expect("startup");
-    let got = call_i64(&world, ":probe::c02-compute");
-    assert_eq!(
-        got,
-        Ok(6000),
-        "program::Env carries peer-started-at as its second field (re-stamped per frame)"
-    );
+    match call_i64(&world, ":probe::c02-compute") {
+        Ok(n) => assert_eq!(
+            n, 6000,
+            "program::Env carries peer-started-at as its second field (re-stamped per frame)"
+        ),
+        Err(e) => panic!(
+            "program::Env carries peer-started-at as its second field (re-stamped per frame); \
+             call failed: {e:?}"
+        ),
+    }
 }
 
 #[test]
@@ -77,13 +90,17 @@ fn c03_installed_env_flows_to_the_verb() {
     let _guard = install_program_env(env_val);
 
     // 3. Call :probe::c03-compute which reads started-at through the verb.
-    let got = call_i64(&world, ":probe::c03-compute");
-    assert_eq!(
-        got,
-        Ok(5000),
-        "(:wat::program::env) must return the installed :wat::program::Env; \
-         started-at epoch-millis must equal 5000"
-    );
+    match call_i64(&world, ":probe::c03-compute") {
+        Ok(n) => assert_eq!(
+            n, 5000,
+            "(:wat::program::env) must return the installed :wat::program::Env; \
+             started-at epoch-millis must equal 5000"
+        ),
+        Err(e) => panic!(
+            "(:wat::program::env) must return the installed :wat::program::Env; \
+             started-at epoch-millis must equal 5000; call failed: {e:?}"
+        ),
+    }
 }
 
 #[test]

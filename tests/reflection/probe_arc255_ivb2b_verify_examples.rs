@@ -16,16 +16,23 @@
 //! GREEN after b2-b: an empty failure vector (Bytes::to-hex's `@example` evals to
 //! `"ff0010"` and matches `#=>`; from-hex is `@example-norun`, skipped).
 
-use wat::freeze::call_beside_value;
-use wat::runtime::Value;
+use wat::freeze::{call_beside_value, StartupError};
+use wat::runtime::{RuntimeError, RuntimeErrorKind, Value, ValueSnapshot};
 
 /// just-eval (rubric): the `:wat::doctest::verify-examples` call lives in the
 /// co-located fixture (`:user::verify`), driven via `call_beside_value`. Returns the
 /// number of failures (the result Vector's length). RED at HEAD = `Err`.
-fn verify_examples_failure_count() -> Result<usize, String> {
-    match call_beside_value(file!(), ":user::verify").map_err(|e| format!("eval: {:?}", e))? {
+fn verify_examples_failure_count() -> Result<usize, StartupError> {
+    match call_beside_value(file!(), ":user::verify").map_err(|e| StartupError::Runtime(Box::new(e)))? {
         Value::Vec(failures) => Ok(failures.len()),
-        other => Err(format!("verify-examples must return a Vector of failures; got {:?}", other)),
+        other => Err(StartupError::Runtime(Box::new(RuntimeError::new(
+            wat::rust_caller_span!(),
+            RuntimeErrorKind::TypeMismatch {
+                op: ":wat::doctest::verify-examples".to_string(),
+                expected: "Vector",
+                got: Box::new(ValueSnapshot::of(&other)),
+            },
+        )))),
     }
 }
 
