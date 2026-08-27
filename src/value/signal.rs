@@ -314,6 +314,25 @@ pub enum RuntimeErrorKind {
     /// user-level channel primitives produces this variant. It
     /// remains only for the join-on-panic case.
     ChannelDisconnected { op: String },
+    /// The cascade fixpoint ran past its round cap — the rule set does not terminate.
+    ///
+    /// Its own variant rather than `MalformedForm`, deliberately: the forms are WELL FORMED and
+    /// saying otherwise would teach the wrong fix (R29 `RVINA ERVDIT` — the same call
+    /// `NonReteConstraint` made against reusing `MalformedClause`). Nothing is malformed; the
+    /// program diverges.
+    ///
+    /// `DESIGN-STONE-4b-cascade-fixpoint` argued termination from "facts is monotone-growing,
+    /// dedup-bounded, FINITE DOMAIN -> stops". The premise is false whenever a `:then` COMPUTES a
+    /// value: `N(k) :- N(k-1)` mints a structurally novel fact every round, so the dedup that
+    /// bounds the fixpoint never bites. Measured 2026-08-27 in 11 lines of legal wat — the process
+    /// died on `memory allocation of 545259536 bytes failed`, with no wat error, no span and no
+    /// rule named. This variant is what an embedder gets instead.
+    FixpointRoundCapExceeded {
+        cap: usize,
+        /// Facts still being derived in the round that hit the cap — the evidence that the
+        /// fixpoint was still GROWING rather than merely deep.
+        still_deriving: usize,
+    },
     /// A vector-level primitive (`:wat::holon::cosine`,
     /// `:wat::config::noise-floor`, etc.) was invoked but the
     /// [`SymbolTable`] has no attached [`EncodingCtx`]. Reachable from
@@ -674,6 +693,18 @@ impl RuntimeErrorKind {
             RuntimeErrorKind::EvalVerificationFailed { err } => {
                 write!(f, "eval verification failed: {}", err)
             }
+            RuntimeErrorKind::FixpointRoundCapExceeded { cap, still_deriving } => write!(
+                f,
+                "{}rete fire-rules: the cascade fixpoint ran past {} rounds and was still deriving \
+                 {} fact(s) — this rule set does not terminate. A Datalog fixpoint stops because \
+                 its fact domain is FINITE; a `:then` that COMPUTES a value breaks that, since \
+                 `(:N :k (:wat::rete::core::i64::+ ?k 1 :undefined 0))` mints a structurally novel \
+                 fact every round and the dedup never bites. Look for a rule whose `:then` derives \
+                 the same class its `:when` reads, with a computed field. The cap bounds \
+                 NON-TERMINATION, not memory: one round may still derive without bound, which is a \
+                 legitimate workload shape and is deliberately not limited here.",
+                prefix, cap, still_deriving
+            ),
             RuntimeErrorKind::ChannelDisconnected { op } => write!(
                 f,
                 "{}{}: channel disconnected — receiver was dropped. `recv` is now Option-returning (disconnect yields :None); only `send` to a dropped receiver raises this error.",

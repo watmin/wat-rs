@@ -84,13 +84,24 @@ impact.
 These two come from `circumspicere` and are tracked in `NEXT-STRIKES-theater-hunt.md`, but they
 are not tidiness and should not be read as part of the ward tail.
 
-### 3.1 The fixpoint has no cap
-`fire_fixpoint_delta_armed` ends only when the delta empties — no round counter, no deadline, no
-memory ceiling. A rule deriving a structurally-novel fact each round **hangs the calling thread
-and grows heap with no diagnostic**. `DESIGN-STONE-4b-cascade-fixpoint` names it as a deliberate
-Datalog choice, but that reasoning lives ONLY there — README, USER-GUIDE, CLAUDE.md and
-`rete.wat` say nothing. Not hypothetical: the grid harness needed a cgroup blast door after an
-analogous run OOM'd the build machine. **Nothing protects an embedder.**
+### ~~3.1 The fixpoint has no cap~~ · **BACKSTOP LANDED 2026-08-27 — the real item is 4.2 below**
+**Proven, not argued.** 11 lines of legal wat — `N(k) :- N(k-1)` with a computed `:then` — killed
+the process on `memory allocation of 545259536 bytes failed`: no wat error, no span, no rule named,
+and with no `ulimit` that is the machine's memory. `DESIGN-STONE-4b-cascade-fixpoint` had NAMED
+this exact shape and deferred a cap to "its own future stone (let need reveal)". The need revealed.
+
+**Landed:** a round cap in `fire_fixpoint_delta_armed`, defaulting to 10_000 and tunable per
+program via `(:wat::config::set-max-fire-rounds! n)` — carried on `Config`, so it inherits into
+spawned sub-programs like `dim-count`. Tunable because a round count **cannot distinguish DEEP
+from DIVERGENT**: transitive closure over a 50_000-node path is legitimate Datalog needing 50_000
+rounds, while the cap must stay low enough to fire before the allocator does. No single number is
+right for both. Gated by `tests/rete/probe_arc278_fixpoint_round_cap.rs` — three rows, including a
+500-round terminating twin that must still PASS, because a cap that refuses depth is capping a
+legitimate workload shape.
+
+> ⚠ **THIS IS A BACKSTOP AND MUST NOT BE MISTAKEN FOR THE GUARANTEE.** "I gave up after N rounds"
+> is not "this program cannot diverge". The real answer is 4.2. A mitigation that removes the pain
+> removes the motivation, so this entry stays visible rather than being struck.
 
 ### 3.2 The arc's closing condition is checked by no CI job
 `PERF-ARC` states it as "differential-tested bit-for-bit against the wat oracle AND benched at or
@@ -131,12 +142,57 @@ start by hand-writing 74 snippets.
 
 ---
 
+### 4.2 THE TERMINATION VERIFIER — refuse at load what cannot be proven to terminate
+**The rung above 3.1, and the builder's framing: rete should be like the kernel's eBPF verifier.**
+It already is, for everything except termination — `validate_rete_rules` refuses unregistered fact
+types, unrecognised clause shapes, unreal field-refs, non-rete constraints, and unconsumed `:not`
+binds; `stratify` refuses un-stratifiable sets outright ("negation cycle detected"). Termination is
+the hole.
+
+**All three ingredients exist.** `StratifyView { produced, consumed, … }` is built per rule and
+`native_stratify` already detects cycles; the `defrule` wall already classifies a `:then` operand
+as literal / `?var` / computed (that is what `RhsUnresolvableOperand` is); `compile-all` is a
+refusal point every rule passes. The missing piece is only the composition:
+
+> a **computed** head inside a positive produces→consumes cycle is REFUSED, named, at compile
+> time. Datalog range restriction. eBPF refuses an unbounded loop; this refuses an unbounded
+> derivation.
+
+**Blast radius measured 2026-08-27: ZERO.** Of 381 `defrule` forms in the corpus, 10 have a
+computed `:then` and **3** sit in a direct self-cycle — all three are fixtures written the same day
+to demonstrate the defect. Nothing in the stdlib, the tests, the grid or the scratch-pad would be
+refused.
+
+**NO ESCAPE HATCH, and that was a builder ruling.** A `rune:` was proposed and rejected — *"i do
+not know about using a rune for this..... i feel like we need a data form?... no magic comments?"*
+— and a data form (`Termination::Asserted [why <- String]` on the `Rule` record) was then rejected
+in turn: *"so.... we allow users to make mistakes that they own?... their strings are their reason
+for themselves?"* Correct. An author's string is not a proof; taking it as one would mint exactly
+the unchecked exemption `excusare` exists to hunt. **With no opt-out there is nothing to declare,
+so `Rule` needs no new field at all** — the enum, the fourth field and all 60 hand-built
+construction sites evaporate. If a bounded pattern must exist later, the answer is a FORM the
+verifier can check (eBPF's `bpf_loop()` move — the bound as a verified argument), never a promise
+it must trust.
+
+**Where 3.1's backstop keeps earning its place:** the static check needs rule ASTs, and
+`rules_lack_ast` is real — an imported Export carries none. That is the path where static proof is
+unavailable, which is a principled home for a runtime cap rather than an apologetic one.
+
+**One known consequence:** the `_deep.wat` fixture (a guarded counter) would be refused. The fix
+improves it — the truer "deep but terminating" workload is transitive closure,
+`reach(x,z) :- reach(x,y), edge(y,z)` over a 500-edge path, which runs 500 rounds and IS
+range-restricted because `z` comes from `edge`.
+
+---
+
 ## The order, and why
 
 1. **4.1 the reachability ledger** — small, converts a proven-live defect class into a standing
    gate, and immediately tells us how much dead surface there is.
 2. **1.1 interleaved retract** — the highest-yield fuzzing gap, in the territory that has paid.
-3. **3.1 the fixpoint cap** — the worst item here for anyone who is not us.
+3. **4.2 the termination verifier** — 3.1's backstop landed 2026-08-27, which makes this the open
+   item. Zero blast radius, all machinery present, and it is the difference between "I gave up"
+   and "this cannot diverge".
 4. **3.2 CI parity**, then **1.2 generated rules**, then the PILE 2 tail with `conformare` first.
 
 > ⚠ **A green fuzzer is not an empty list.** 4104 shapes at zero divergences means the engine is

@@ -704,6 +704,7 @@ fn config_to_wire(cfg: Option<&crate::config::Config>) -> String {
         coincident_sigma_ast,
         redef_allowed,
         eval_redef_allowed,
+        max_fire_rounds,
     } = cfg;
 
     let ast_field = |a: &Option<crate::ast::WatAST>| match a {
@@ -717,7 +718,7 @@ fn config_to_wire(cfg: Option<&crate::config::Config>) -> String {
     format!(
         "{{:capacity-mode {mode} :global-seed {global_seed} :dim-count {dim_count} \
          :presence-sigma {} :coincident-sigma {} :redef-allowed {redef_allowed} \
-         :eval-redef-allowed {eval_redef_allowed}}}",
+         :eval-redef-allowed {eval_redef_allowed} :max-fire-rounds {max_fire_rounds}}}",
         ast_field(presence_sigma_ast),
         ast_field(coincident_sigma_ast),
     )
@@ -803,6 +804,7 @@ pub(crate) fn wire_to_config(frame: &str) -> Result<Option<crate::config::Config
         coincident_sigma_ast: ast("coincident-sigma")?,
         redef_allowed: boolean("redef-allowed")?,
         eval_redef_allowed: boolean("eval-redef-allowed")?,
+        max_fire_rounds: int("max-fire-rounds")? as usize,
     }))
 }
 
