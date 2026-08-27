@@ -327,6 +327,18 @@ pub enum RuntimeErrorKind {
     /// bounds the fixpoint never bites. Measured 2026-08-27 in 11 lines of legal wat — the process
     /// died on `memory allocation of 545259536 bytes failed`, with no wat error, no span and no
     /// rule named. This variant is what an embedder gets instead.
+    /// A rule set that cannot be proven to terminate — refused at `compile-all`, before a fact is
+    /// ever inserted. The eBPF-verifier rung: refuse at load what you cannot prove.
+    ///
+    /// Datalog terminates because its fact domain is FINITE: every head value comes from the body,
+    /// so no rule can mint a value that was not already there. A `:then` that COMPUTES breaks that
+    /// RANGE RESTRICTION, and inside a derivation cycle it means a structurally novel fact every
+    /// round, forever. Outside a cycle a computed head is fine and stays legal.
+    RuleSetMayNotTerminate {
+        rule: String,
+        /// The `:then` fact type whose value is computed rather than copied.
+        fact_type: String,
+    },
     FixpointRoundCapExceeded {
         cap: usize,
         /// Facts still being derived in the round that hit the cap — the evidence that the
@@ -693,6 +705,17 @@ impl RuntimeErrorKind {
             RuntimeErrorKind::EvalVerificationFailed { err } => {
                 write!(f, "eval verification failed: {}", err)
             }
+            RuntimeErrorKind::RuleSetMayNotTerminate { rule, fact_type } => write!(
+                f,
+                "{}rete compile-all: rule `{}` derives `:{}` with a COMPUTED value, and `:{}` feeds \
+                 back into this rule's own `:when` — so every round mints a fact that did not \
+                 exist before and the fixpoint can never converge. A Datalog rule set terminates \
+                 because every head value comes FROM THE BODY (range restriction); computing one \
+                 breaks that. Either copy a bound variable (`:k ?k` rather than `:k (+ ?k 1)`), or \
+                 derive into a type that does not feed back. Computing OUTSIDE a derivation cycle \
+                 is fine and stays legal — the refusal is about the cycle, not the arithmetic.",
+                prefix, rule, fact_type, fact_type
+            ),
             RuntimeErrorKind::FixpointRoundCapExceeded { cap, still_deriving } => write!(
                 f,
                 "{}rete fire-rules: the cascade fixpoint ran past {} rounds and was still deriving \

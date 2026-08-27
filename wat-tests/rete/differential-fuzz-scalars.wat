@@ -396,6 +396,11 @@
       (:wat-tests::rete::scalars::Tally :zero 0 :nonzero 0)
       (:wat::core::range 0 card))))
 
+;; ⚠ ITS OWN, ADJACENT. `time-limit` binds to the deftest that IMMEDIATELY follows it, so the one
+;; above the differential does NOT cover this. It ran 4.27s loaded on 2026-08-27 and then 5.046s on
+;; a heavier floor — RED against the 5000ms default, from nothing but load. A test that close to a
+;; budget is a flake already, whether or not it has failed yet.
+(:wat::test::time-limit "60s")
 (:wat::test::deftest :wat-tests::rete::scalars::test-the-space-actually-discriminates
   (:wat::core::let [t  (:wat-tests::rete::scalars::tally)
                     z  (:wat-tests::rete::scalars::Tally/zero t)

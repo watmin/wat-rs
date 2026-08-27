@@ -1058,6 +1058,11 @@ pub(crate) fn eval_arm_session(
         )
         .into());
     }
+    // THE TERMINATION VERIFIER — before the arm is built, and before a fact can be inserted.
+    // Here rather than in the freeze-time `defrule` wall because `compile-all` is the one door
+    // EVERY rule passes: rules built at runtime as `Rule` values (both differential fuzzers do
+    // this) never see that wall. See `stratify::refuse_non_terminating`.
+    crate::rete::kernel::stratify::refuse_non_terminating(rules, sym)?;
     rete_arm_lease_or_build(network, rules, sym)?;
     Ok(session)
 }

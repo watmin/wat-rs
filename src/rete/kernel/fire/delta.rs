@@ -404,7 +404,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
     // legitimate workload shape this deliberately does not limit. Capping rounds catches the
     // qualitative bug (a fixpoint that never converges) without putting a ceiling on honest volume.
     //
-    // THE VALUE IS PER-PROGRAM: `(:wat::config::set-max-fire-rounds! n)`, defaulting to
+    // THE VALUE IS PER-PROGRAM: `(:wat::config::rete::set-max-fire-rounds! n)`, defaulting to
     // `crate::config::DEFAULT_MAX_FIRE_ROUNDS` (which carries why a single number cannot be right
     // for everyone). It is read through `config`, not through an encoding field, so it inherits
     // into spawned sub-programs like every other config value.

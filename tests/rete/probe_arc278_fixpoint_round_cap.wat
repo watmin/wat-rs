@@ -1,4 +1,4 @@
-;; RUNAWAY — must be REFUSED by the fixpoint round cap, not kill the process.
+;; RUNAWAY — must be REFUSED by the TERMINATION VERIFIER, at compile, before a fact is inserted.
 ;;
 ;; `N(k)` derives `N(k+1)` with no guard, so every round mints a structurally novel fact and the
 ;; dedup that bounds a Datalog fixpoint never bites. This is the exact shape
@@ -7,8 +7,9 @@
 ;; `memory allocation of 545259536 bytes failed` — no wat error, no span, no rule named, and with
 ;; no ulimit that is the machine's memory.
 ;;
-;; Its twin `probe_arc278_fixpoint_round_cap_deep.wat` is THIS FILE PLUS ONE `:where`, and must
-;; still succeed. The pair is the test: the cap must catch divergence without capping depth.
+;; Its twin `probe_arc278_fixpoint_round_cap_deep.wat` is deep (502 rounds) and CYCLIC and must
+;; still be accepted — because its head is COPIED from a body binding rather than computed. The
+;; pair is the test: refuse unbounded derivation without refusing depth.
 (:wat::core::defrecord :cap::N [k <- :wat::core::i64])
 
 (:wat::rete::defrule :cap::grow

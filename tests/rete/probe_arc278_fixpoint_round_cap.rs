@@ -69,7 +69,7 @@ fn run(rel: &str) -> (bool, String, String) {
 ///
 /// The wire shape is nested: the outer `LociDiedError/RuntimeError` carries a VECTOR OF STRINGS,
 /// each string being the EDN text of one error, so it is parsed twice.
-fn fixpoint_error(stderr: &str) -> Vec<(OwnedValue, OwnedValue)> {
+fn rete_error(stderr: &str, variant: &str) -> Vec<(OwnedValue, OwnedValue)> {
     let outer = wat_edn::parse_owned(stderr.trim())
         .unwrap_or_else(|e| panic!("the refusal must be EDN on stderr; got {stderr:?} ({e})"));
     let inner_text = match outer {
@@ -90,7 +90,7 @@ fn fixpoint_error(stderr: &str) -> Vec<(OwnedValue, OwnedValue)> {
         OwnedValue::Tagged(tag, body) => {
             assert_eq!(
                 tag,
-                Tag::ns("wat.runtime", "FixpointRoundCapExceeded"),
+                Tag::ns("wat.runtime", variant),
                 "the refusal must be the TYPED cap error — before the cap this was an allocator \
                  abort with no tag at all"
             );
@@ -100,6 +100,18 @@ fn fixpoint_error(stderr: &str) -> Vec<(OwnedValue, OwnedValue)> {
             }
         }
         other => panic!("expected a tagged error; got {other:?}"),
+    }
+}
+
+fn field_str(fields: &[(OwnedValue, OwnedValue)], name: &str) -> String {
+    let v = fields
+        .iter()
+        .find(|(k, _)| *k == OwnedValue::Keyword(Keyword::new(name)))
+        .map(|(_, v)| v)
+        .unwrap_or_else(|| panic!("the error must carry :{name}; got {fields:?}"));
+    match v {
+        OwnedValue::String(s) => s.to_string(),
+        other => panic!(":{name} must be a String; got {other:?}"),
     }
 }
 
@@ -115,42 +127,65 @@ fn field_i64(fields: &[(OwnedValue, OwnedValue)], name: &str) -> i64 {
     }
 }
 
+/// The runaway is refused by the TERMINATION VERIFIER at `compile-all` — before a fact is
+/// inserted, before a round runs. It never reaches the round cap, and the fixture's `"firing..."`
+/// never prints: that is the observable difference between "refused at load" and "gave up at run".
+///
+/// (The old `the_cap_is_a_per_program_config_value` row lived here and is gone deliberately — its
+/// fixture was a runaway, which the verifier now catches at compile, so it could no longer reach
+/// the cap it was testing. The boundary pair below proves the config knob instead, on a workload
+/// the verifier ACCEPTS.)
 #[test]
-fn a_non_terminating_rule_set_is_refused_and_names_the_cap() {
+fn a_non_terminating_rule_set_is_refused_at_compile_by_the_verifier() {
     let (ok, stdout, stderr) = run("tests/rete/probe_arc278_fixpoint_round_cap.wat");
     assert!(
         !ok,
-        "a rule set that never converges must NOT exit successfully\n{stdout}{stderr}"
+        "a rule set that cannot be proven to terminate must NOT compile\n{stdout}{stderr}"
     );
-    let e = fixpoint_error(&stderr);
-    assert_eq!(field_i64(&e, "cap"), 10_000, "the error must name the cap it hit");
     assert_eq!(
-        field_i64(&e, "still-deriving"),
-        1,
-        "and carry the evidence the fixpoint was still GROWING at the cap — that is what \
-         separates a runaway rule from a merely deep one"
+        stdout.trim(),
+        "",
+        "refusal is at COMPILE — nothing in the program body should have run. Output here means \
+         the rule set was armed and fired before being caught, which is the cap's job, not the \
+         verifier's.\n{stderr}"
     );
+    let e = rete_error(&stderr, "RuleSetMayNotTerminate");
+    assert_eq!(field_str(&e, "rule"), "cap::grow");
+    assert_eq!(field_str(&e, "fact-type"), "cap::N");
 }
 
-/// The cap is a per-program config value, not a hard constant —
-/// `(:wat::config::set-max-fire-rounds! n)`, carried on `Config` and therefore inherited by
-/// spawned sub-programs exactly like `dim-count`.
+/// THE BOUNDARY, and it is the row that justifies the deep fixture's size.
 ///
-/// Why tunable at all: a round count CANNOT distinguish deep from divergent. Transitive closure
-/// over a 50_000-node path is legitimate Datalog deriving one level per round, while the cap must
-/// stay low enough to fire before the allocator does. Those pressures have no single correct
-/// value. Raising it is a claim that your rule set terminates and is merely deep; it is never the
-/// fix for one that diverges.
+/// "500 is comfortably under 10,000" tests nothing about the cap's EDGE. A `>` where a `>=`
+/// belongs silently costs one round of legitimate depth and no comfortable-margin fixture would
+/// ever notice. So the same workload runs at its exact round count and one below.
+///
+/// The round count is 502, MEASURED by bisecting the cap rather than assumed — the extra two over
+/// the 500-edge path are the seed rule's round plus the final no-op round that proves convergence.
+/// I had assumed 500; being wrong by two is exactly why the number is pinned here instead of
+/// asserted in a comment.
 #[test]
-fn the_cap_is_a_per_program_config_value() {
-    let (ok, stdout, stderr) = run("tests/rete/probe_arc278_fixpoint_round_cap_tuned.wat");
-    assert!(!ok, "the runaway must still be refused at the tuned cap\n{stdout}{stderr}");
-    let e = fixpoint_error(&stderr);
+fn the_cap_fires_at_exactly_its_round_and_not_one_before() {
+    let (ok_pass, out_pass, err_pass) = run("tests/rete/probe_arc278_fixpoint_round_cap_boundary_pass.wat");
+    assert!(
+        ok_pass,
+        "at a cap EQUAL to the workload's round count the fire must complete — refusing here would \
+         be off-by-one in the strict direction, silently stealing a round of legitimate \
+         depth\n{out_pass}{err_pass}"
+    );
+    assert_eq!(out_pass.trim(), "\"501\"", "and derive the full closure");
+
+    let (ok_fail, out_fail, err_fail) = run("tests/rete/probe_arc278_fixpoint_round_cap_boundary_fail.wat");
+    assert!(
+        !ok_fail,
+        "one round SHORT of what the workload needs must be refused — passing here would be \
+         off-by-one in the permissive direction\n{out_fail}{err_fail}"
+    );
     assert_eq!(
-        field_i64(&e, "cap"),
-        25,
-        "the engine must honour `(:wat::config::set-max-fire-rounds! 25)` — a 10000 here means the \
-         setter parsed but never reached the fire loop, which is the silent half of a config knob"
+        field_i64(&rete_error(&err_fail, "FixpointRoundCapExceeded"), "cap"),
+        501,
+        "and at the boundary the refusal is the CAP's, not the verifier's — this workload is \
+         range-restricted, so the verifier accepts it and only the cap can stop it"
     );
 }
 
@@ -159,8 +194,10 @@ fn a_deep_but_terminating_rule_set_still_completes() {
     let (ok, stdout, stderr) = run("tests/rete/probe_arc278_fixpoint_round_cap_deep.wat");
     assert!(
         ok,
-        "500 rounds is DEPTH, not divergence — ten times the grid's deepest axis, and it must \
-         still run. A cap that fails here is capping a legitimate workload shape.\n{stdout}{stderr}"
+        "502 rounds is DEPTH, not divergence, and it must still run under the default cap. This \
+         fixture is also the TERMINATION VERIFIER's false-positive guard: the rule is plainly \
+         cyclic (Reach reads Reach) and must still be ACCEPTED, because `?y` is copied out of Edge \
+         rather than computed — range-restricted, finite domain, provable.\n{stdout}{stderr}"
     );
     assert_eq!(
         stdout.trim(),

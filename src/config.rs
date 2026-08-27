@@ -65,7 +65,7 @@ pub const DEFAULT_CAPACITY_MODE: CapacityMode = CapacityMode::Error;
 /// at dim-count=10000).
 pub const DEFAULT_DIM_COUNT: usize = 10000;
 
-/// Default cascade-fixpoint round cap when `(:wat::config::set-max-fire-rounds!)` is omitted.
+/// Default cascade-fixpoint round cap when `(:wat::config::rete::set-max-fire-rounds!)` is omitted.
 ///
 /// `fire-rules` converges when a round derives nothing new. A rule whose `:then` COMPUTES a value
 /// can mint a structurally novel fact every round, so the dedup that bounds a Datalog fixpoint
@@ -108,7 +108,7 @@ pub struct Config {
     pub dim_count: usize,
     /// Cascade-fixpoint round cap — see [`DEFAULT_MAX_FIRE_ROUNDS`]. Read by
     /// `fire_fixpoint_delta_armed` via `sym.encoding_ctx()`; user override via
-    /// `(:wat::config::set-max-fire-rounds! n)`.
+    /// `(:wat::config::rete::set-max-fire-rounds! n)`.
     pub max_fire_rounds: usize,
     /// User-supplied presence-sigma function AST. Signature
     /// `:fn(:i64) -> :i64` — takes d, returns sigma count.
@@ -385,7 +385,25 @@ fn collect_entry_file_inner(
         let form_span = form.span().clone();
 
         let setter_head = match setter_head_of(form) {
-            Some(head) if head.starts_with(":wat::config::set-") && head.ends_with('!') => {
+            // NAMESPACED SETTERS (2026-08-27). The predicate was
+            // `head.starts_with(":wat::config::set-")`, which structurally cannot admit
+            // `:wat::config::rete::set-max-fire-rounds!` — the head fell through, ENDED the setter
+            // section, and the form was silently treated as program text. No error, no effect: the
+            // config simply did not apply, which is the worst way for a knob to fail. Found by a
+            // fixture that started passing when it was supposed to be refused.
+            //
+            // The rule is now on the LAST SEGMENT: a config setter is `:wat::config::[<ns>::]set-*!`.
+            // The leaf comes from `identifier::leaf` — the ONE name-grammar door (arc 109's
+            // STONE-one-name-grammar). A hand-rolled `rsplit("::")` here was caught by
+            // `tests/lint/one_name_grammar.rs` on the floor, and rightly: a name is an atom, and
+            // two parsers of it WILL disagree — the arc's census found 33 that already had.
+            // Builder's ruling — config grows per-subsystem namespaces (`::rete::`, and `::holon::`
+            // when holon moves), so the flat prefix was never going to hold.
+            Some(head)
+                if head.starts_with(":wat::config::")
+                    && head.ends_with('!')
+                    && wat_reader::identifier::leaf(head).starts_with("set-") =>
+            {
                 head.to_string()
             }
             _ => {
@@ -457,7 +475,7 @@ fn collect_entry_file_inner(
                 // Pattern A: arg's own span for type/value errors.
                 global_seed = Some(parse_u64(&args[0], "global-seed", args[0].span().clone())?);
             }
-            ":wat::config::set-max-fire-rounds!" => {
+            ":wat::config::rete::set-max-fire-rounds!" => {
                 if set_max_fire_rounds {
                     return Err(ConfigError { span: form_span, kind: ConfigErrorKind::DuplicateField { field: "max-fire-rounds".into() } });
                 }
