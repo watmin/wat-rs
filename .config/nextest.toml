@@ -200,12 +200,18 @@ priority = 99                                             # just below the scrip
 # now equals this period, which is the ORDER we want: the wat harness fails first and names the
 # test and the budget, and nextest's kill (2 x 90s = 180s) is the backstop behind it.
 #
+# 2026-08-27: `deftest_wat_tests_rete_tms` added — the operation-sequence / truth-maintenance
+# fuzzer. It is a SEPARATE substring because the deftest namespace is `..::tms::`, not `..::fuzz::`,
+# and the existing filter would have missed it exactly the way `binary_id(wat::rete)` once missed
+# the wat deftests. It was caught the loud way: the test TIMED OUT at nextest's default 30s kill
+# on its first run.
+#
 # The filter is a SUBSTRING match and now covers TWO tests: the differential itself and
 # `..._test_accumulate_kinds_are_not_vacuous` (0.55s loaded), which gates the measured table
 # justifying the accumulate widening. Both wanted the same generous budget; the fast one does not
 # need it and does not suffer from it.
 [[profile.default.overrides]]
-filter = 'binary_id(wat::rete) or test(accum_fire_phase_census) or test(deftest_wat_tests_rete_fuzz)'
+filter = 'binary_id(wat::rete) or test(accum_fire_phase_census) or test(deftest_wat_tests_rete_fuzz) or test(deftest_wat_tests_rete_tms)'
 slow-timeout = { period = "90s", terminate-after = 2 }    # warn 90s, kill 180s
 priority = 98                                             # just below the lint binary
 
@@ -228,7 +234,7 @@ priority = 99
 # a deadline only the dev profile can meet is not a deadline (the same reasoning the
 # scripts gate's ci override records).
 [[profile.ci.overrides]]
-filter = 'binary_id(wat::rete) or test(accum_fire_phase_census) or test(deftest_wat_tests_rete_fuzz)'
+filter = 'binary_id(wat::rete) or test(accum_fire_phase_census) or test(deftest_wat_tests_rete_fuzz) or test(deftest_wat_tests_rete_tms)'
 slow-timeout = { period = "90s", terminate-after = 2 }
 priority = 98
 
@@ -261,6 +267,6 @@ priority = 99
 
 # raised with [profile.default] 2026-08-17 — same cohort, same box, same argument.
 [[profile.slow.overrides]]
-filter = 'binary_id(wat::rete) or test(accum_fire_phase_census) or test(deftest_wat_tests_rete_fuzz)'
+filter = 'binary_id(wat::rete) or test(accum_fire_phase_census) or test(deftest_wat_tests_rete_fuzz) or test(deftest_wat_tests_rete_tms)'
 slow-timeout = { period = "90s", terminate-after = 2 }
 priority = 98

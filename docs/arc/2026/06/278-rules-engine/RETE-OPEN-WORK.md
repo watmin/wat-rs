@@ -25,14 +25,29 @@
 ---
 
 ## PILE 1 — fuzzing gaps (owned here). More wat-gen use; ranked by yield.
+> **1.1 is done** (2026-08-27). 1.2 is now the head of this pile.
 
-### 1.1 Interleaved insert/retract — true truth maintenance
-Today's retraction dimension is fire → retract → fire, in both fuzzers. Real TMS retracts
-*between* derivations, mid-cascade. **This is the highest-yield gap on the list**: every defect
-this arc found lived in non-monotonic territory, and this is the one arrangement of it we have
-never generated. `wat/rete/oracle/insert.wat` documents retract as stage-only with the caller
-re-firing, so "mid-cascade" means interleaving at the STRATUM or ROUND boundary — the design
-question to settle first is what interleaving even means for a fixpoint that recomputes.
+### ~~1.1 Interleaved insert/retract — true truth maintenance~~ · **DONE 2026-08-27**
+`wat-tests/rete/differential-fuzz-tms.wat`. The design question this entry raised — *what does
+interleaving mean for a fixpoint that recomputes* — resolved to: **not "retract mid-fixpoint"**
+(there is no such hook, and `retract` is stage-only by contract) but **a PROGRAM of operations**
+with fires among them. That reframing bought a property stronger than engine-vs-engine:
+
+> **PATH INDEPENDENCE** — running a program of inserts, retracts and fires and then firing must
+> equal firing ONCE over the multiset that program ends with.
+
+Four numbers per case (native/oracle × interleaved/one-shot), all four must agree, and the
+coordinate separates the failures: `ni != oi` is engine disagreement, `ni != n1` is native
+carrying state across a FIRE, `oi != o1` would mean the REFERENCE is path-dependent and every
+other fuzzer's agreement is suspect. `fire-rules` is contracted as a function of `Session/facts`,
+so the only way an interleaved run can differ is state surviving a fire — families A and C one
+level up, where those were state surviving a ROUND.
+
+**card 1372 (7³ programs × 4 queries), violations 0**, 39.3s isolated / 73.4s loaded. `prog-len`
+is a one-line dial and the deeper setting was RUN, not imagined: at 4 it is card 9604, violations
+0, 4m47s isolated — real coverage (it reaches insert/fire/retract/fire) but it would nearly triple
+the floor for a space that found nothing at 3 either. Committed at 3 with that measurement
+recorded in the file.
 
 ### 1.2 Generated rules — the whole `:then` side, and multi-rule interaction
 Both fuzzers use a FIXED inert chain. Rule shapes ride along only because a query carries the
