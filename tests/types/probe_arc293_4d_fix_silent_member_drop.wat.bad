@@ -1,11 +1,13 @@
 ;; 293.4d-fix — members written OUTSIDE the single `[...]` vector must be a HARD ERROR.
 ;; This is the stale `definterface` shape (field in the vector, method members as separate
-;; top-level args). It has exactly 4 args after the head, and arg[1] is `[color]` (not :nature),
-;; so `parse_defsurface` USED to read `[color]` as the whole member list and SILENTLY DROP the
-;; (area …) / (label …) method members — declaring a surface weaker than written, no error.
-;; After 293.4d-fix: a leftover form after the member vector is rejected.
+;; top-level args). Arc 278 S4c (2026-07-07) made `:nature` MANDATORY, so a fixture missing it
+;; now dies at the arity gate BEFORE the parser ever reaches the member-vector logic this probe
+;; exists to pin — Phase 3 repair adds the mandatory `:nature`/`:features` clauses back so the
+;; leftover-args-after-the-member-vector case is reachable again: `(area …) / (label …)` are
+;; written as separate top-level forms AFTER the `:features [...]` member vector instead of
+;; inside it, which USED to be silently dropped and after 293.4d-fix is a hard error.
 
-(:wat::core::defsurface :t::Bad
-  [color <- :wat::core::String]
+(:wat::core::defsurface :t::Bad :nature :wat::core::Struct
+  :features [color <- :wat::core::String]
   (area  [self] -> :wat::core::f64)
   (label [self] -> :wat::core::String))
