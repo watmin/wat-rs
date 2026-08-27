@@ -20,21 +20,19 @@
 ;; had ever been differentially tested.
 ;;
 ;; WHAT IS NOT HERE, and why:
-;;   - `keyword` — UNREACHABLE, and the reason is a real defect rather than a limit of this file.
-;;     An earlier version of this header said "there is no `:wat::core::Keyword` record-field
-;;     type", which is FALSE; probing it properly found something worse. `:wat::core::Keyword` and
-;;     `:wat::core::keyword` are TWO DISJOINT TYPE NAMES: the capitalised one is accepted as a
-;;     field type and recognised by rete, but has NO INHABITANTS (a keyword value's type is the
-;;     lower-case one, so every construction is a type error); the lower-case one is constructible
-;;     but `rete_type_segment_of` does not map it, so a constraint on it is refused as
-;;     `ConstraintTypeNotComparable` — by a message that lists `keyword` as part of the surface in
-;;     the same sentence. And independently, a keyword LITERAL cannot be an operand at all: in
-;;     operand position a keyword is a FIELD REFERENCE by design (`src/rete/matcher.rs`'s
-;;     `ast_literal_value`). Three independent blocks, so `keyword::=` / `keyword::not=` are dead
-;;     surface — minted, gated, documented and unreachable from any user record. Handed to arc 109
-;;     (the type-NAME arc) as
+;;   - `keyword` — covered ONLY in the `where`-fence sense, and this file's shapes are INLINE
+;;     ALPHA CONSTRAINTS, so it is out of THIS space rather than out of rete. The distinction is a
+;;     real defect, not a limit of this file: `:wat::core::keyword` (lower-case) is a working field
+;;     type and `keyword::=` fires correctly inside a `(:wat::rete::where …)` fence — but the
+;;     IDENTICAL comparison as an inline constraint is refused `ConstraintTypeNotComparable`,
+;;     because `rete_type_segment_of` maps only `:wat::core::Keyword` (capital), a spelling that
+;;     has NO INHABITANTS. Same record, same op, two spellings of one rule: one fires, one is
+;;     refused. Handed to arc 109 (the type-NAME arc) as
 ;;     `NOTE-keyword-is-two-disjoint-type-names-and-rete-keyword-equality-is-dead-surface.md`.
-;;     This file covers 5 of 6 deliberately, and the 6th is tracked, not forgotten.
+;;     ⚠ An earlier version of this header claimed there is no keyword record-field type, and then
+;;     that keyword equality was dead surface. Both were wrong, in the same way: a grep that found
+;;     nothing was reported as "cannot be written". Adding keyword here needs a `where`-fence shape
+;;     dimension, which is a structural change to this file, not another `ty` row.
 ;;   - `enum` — reachable and worth adding; deferred to its own step so a failure here is
 ;;     attributable to the scalar surface alone.
 ;;   - arithmetic (`f64::+`, `i64::*`) — this file fuzzes COMPARISON, which is what a rete
