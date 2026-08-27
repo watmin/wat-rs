@@ -16,9 +16,14 @@ ratchet went 120 -> 72 -> **0** and is now an EQUALITY gate, not a ratchet: nati
 `$oracle` agree bit-for-bit across all its generated shapes, and any nonzero is a regression with
 a coordinate attached. Grid: 33/33 `:accuracy :match`, 33/33 `:winner :us`.
 
-**WHERE THE OPEN WORK IS NOW: `NEXT-STRIKES-theater-hunt.md` § "WHAT REMAINS OPEN — the honest
-list".** RETE-FIX-LIST no longer holds any; do not read its emptiness as "rete is done". Standing
-there, each with `file:line`:
+**WHERE THE OPEN WORK IS NOW: `RETE-OPEN-WORK.md`** — the single INDEX of everything still open on
+rete, written when RETE-FIX-LIST reached empty and "is rete done?" became a fair question. It is
+not. Four piles: fuzzing gaps (interleaved retract first), the 19 ward findings, two STRUCTURAL
+items, and a `RETE_OPS` reachability ledger. It indexes rather than copies — an item that lives in
+`NEXT-STRIKES-theater-hunt.md` still lives there and that file wins on any detail.
+
+Do not read RETE-FIX-LIST's emptiness as "rete is done". The ward findings standing in
+`NEXT-STRIKES-theater-hunt.md` § "WHAT REMAINS OPEN", each with `file:line`:
   - `conformare` x9 — a real wat span discarded for `rust_caller_span!()` (`eval_insert.rs:74,85,
     132,187`, `arm.rs:179,193,208,231,293`). A user's malformed `:then` points at wat-rs's own Rust
     source, not their file. `arm.rs:316` does it correctly in the same file — the pattern is known.
