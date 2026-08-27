@@ -1,7 +1,10 @@
 ;; wat-tests/rete/differential-fuzz.wat — the rete differential fuzzer, in wat.
 ;;
 ;; THE PROPERTY: for every generated rule/query shape, `fire-rules` (native) and
-;; `fire-rules$oracle` (the wat reference) must return the SAME number of rows.
+;; `fire-rules$oracle` (the wat reference) must return the SAME number of rows —
+;; after a single fire, and (the `retr` dimension, 2026-08-27) after a
+;; fire → retract → RE-fire, where the second fire runs over a reduced fact set
+;; on a session already carrying the first fire's memories.
 ;; Nothing here hardcodes a right answer — the oracle supplies every expected
 ;; value, which is what lets the space grow without hand-authoring per case.
 ;;
@@ -152,7 +155,47 @@
    prefix <- :wat::core::i64
    filt   <- :wat::core::i64
    fparam <- :wat::core::i64
-   depth  <- :wat::core::i64])
+   depth  <- :wat::core::i64
+   retr   <- :wat::core::i64])
+
+;; ── RETRACTION: fire, remove a fact, fire AGAIN ──────────────────────────────
+;;
+;; Added 2026-08-27. Until then every case only ever INSERTED, and that left the whole
+;; non-monotonic direction untested: a fact LEAVING must un-derive everything it supported.
+;; `retract` is stage-only — it removes from `Session/facts` by VALUE and the caller re-fires
+;; (`wat/rete/oracle/insert.wat`) — so this dimension is really "does a SECOND fire, over a
+;; reduced fact set, on a session that already carries memories from the first, agree between the
+;; engines". Memories accumulating across fires is precisely the shape that produced families A
+;; and C (a query harvested from a beta that was never cleared), which is why this is the widening
+;; worth having rather than another condition family.
+;;
+;; THE TARGET DEPENDS ON THE SHAPE, and costs no cardinality because it is a FUNCTION of `depth`
+;; rather than a generated dimension:
+;;   depth > 0  → retract the chain SEED. S2/S3/S4 exist only by derivation, so this tests
+;;                TRANSITIVE un-derivation — and for the `:not`-over-a-derived-class family it
+;;                flips the answer, which is exactly where family C lived.
+;;   depth = 0  → nothing to cascade, so retract the `W` the accumulate and `:exists` read.
+;;                Note `retract` removes BY VALUE and every `W` here is `(W 7)`, so this takes ALL
+;;                `dups` of them at once and the count goes to 0 — a real flip, not a nudge.
+;;
+;; A shape where the retraction touches nothing the query reads is NOT wasted: "an unrelated fact
+;; leaving must not perturb this answer" is the same class of property as "an inert cascade's
+;; round count must not leak into this answer", and that one was a live defect for three days.
+(:wat::core::defn :wat-tests::rete::fuzz::refire-native
+  [d <- :wat::core::i64  st <- :wat::rete::Session] -> :wat::rete::Session
+  (:wat::core::if (:wat::core::> d 0)
+    (:wat::rete::fire-rules
+      (:wat::rete::retract (:wat::rete::fire-rules st) (:wat-tests::rete::fuzz::S1 1)))
+    (:wat::rete::fire-rules
+      (:wat::rete::retract (:wat::rete::fire-rules st) (:wat-tests::rete::fuzz::W 7)))))
+
+(:wat::core::defn :wat-tests::rete::fuzz::refire-oracle
+  [d <- :wat::core::i64  st <- :wat::rete::Session] -> :wat::rete::Session
+  (:wat::core::if (:wat::core::> d 0)
+    (:wat::rete::fire-rules$oracle
+      (:wat::rete::retract (:wat::rete::fire-rules$oracle st) (:wat-tests::rete::fuzz::S1 1)))
+    (:wat::rete::fire-rules$oracle
+      (:wat::rete::retract (:wat::rete::fire-rules$oracle st) (:wat-tests::rete::fuzz::W 7)))))
 
 ;; ── the property ─────────────────────────────────────────────────────────────
 (:wat::core::defn :wat-tests::rete::fuzz::prop [c <- :wat-tests::rete::fuzz::Case] -> :wat::core::bool
@@ -162,6 +205,7 @@
                     f      (:wat-tests::rete::fuzz::Case/filt c)
                     fp     (:wat-tests::rete::fuzz::Case/fparam c)
                     d      (:wat-tests::rete::fuzz::Case/depth c)
+                    retr   (:wat-tests::rete::fuzz::Case/retr c)
                     q  (:wat::rete::Query :name "q" :params (:wat::core::PersistentVector)
                          :lhs (:wat-tests::rete::fuzz::build-lhs prefix f fp wpos))
                     s0 (:wat::rete::compile-all (:wat-tests::rete::fuzz::chain d) (:wat::core::PersistentVector q))
@@ -173,8 +217,12 @@
                     s2 (:wat::rete::insert-all s1 (:wat::core::PersistentVector (:wat-tests::rete::fuzz::P1 1)))
                     s3 (:wat::rete::insert-all s2 (:wat::core::PersistentVector (:wat-tests::rete::fuzz::P2 1)))
                     st (:wat::rete::insert-all s3 (:wat::core::PersistentVector (:wat-tests::rete::fuzz::S1 1)))
-                    nf (:wat::rete::fire-rules st)
-                    of (:wat::rete::fire-rules$oracle st)
+                    nf (:wat::core::if (:wat::core::= retr 0)
+                         (:wat::rete::fire-rules st)
+                         (:wat-tests::rete::fuzz::refire-native d st))
+                    of (:wat::core::if (:wat::core::= retr 0)
+                         (:wat::rete::fire-rules$oracle st)
+                         (:wat-tests::rete::fuzz::refire-oracle d st))
                     n  (:wat::core::length (:wat::rete::query nf q))
                     o  (:wat::core::length (:wat::rete::query of q))]
     ;; NO println here, deliberately: a deftest body runs before stdio services
@@ -231,7 +279,8 @@
     (:wat::gen::ints 0 3)
     (:wat::gen::ints f (:wat::core::i64::+ f 1))
     (:wat-tests::rete::fuzz::param-space f)
-    (:wat::gen::ints 0 4)))
+    (:wat::gen::ints 0 4)
+    (:wat::gen::ints 0 2)))
 
 (:wat::core::defn :wat-tests::rete::fuzz::space [] -> (:wat::gen::Gen :- [:wat-tests::rete::fuzz::Case])
   (:wat::gen::such-that :wat-tests::rete::fuzz::shape-is-matchable
@@ -285,8 +334,12 @@
 ;; An EMPTY space fails outright — a shape-space filtered to nothing means the run
 ;; tested NOTHING, which must never read as "no divergences found".
 ;; THE BUDGET, AND THE RUNNER THAT HAS TO GRANT IT. The default deftest budget is
-;; 5000ms. This run takes ~9.2s alone and 17.175s on a loaded floor
-;; (.floor/2026-08-26T06-16-14Z) — 1260 shapes, each firing BOTH engines. The
+;; 5000ms. This run takes ~21.9s alone — 2520 shapes, each firing BOTH engines, and the half with
+;; `retr=1` firing each engine TWICE (fire, retract, re-fire). Measured 2026-08-27 by driving
+;; `(:wat::gen::check (space) prop)` from a scratch `:user::main` on the ALREADY-BUILT binary,
+;; which is the right loop for a wat-only change: `card=2520 points=2520 violations=0` in 21.9s
+;; with ZERO compile. The loaded-floor cost is ~1.9x the isolated cost (9.2s -> 17.175s at the
+;; previous width), so budget against ~41s, not against 21.9s. The
 ;; budget is raised rather than the space shrunk: cutting shapes to fit a timer
 ;; trades coverage for a green clock, and every shape here has either found a
 ;; defect or proved one absent.
@@ -310,7 +363,11 @@
 ;; pinning: the `$oracle` is slow-but-correct by design, carries no perf
 ;; requirement, and gets passively faster as wat stops being interpreted — so any
 ;; multiple against it shrinks on its own, and the generator's SHARE grows.
-(:wat::test::time-limit "60s")
+;; 90s, not 60s: the measured loaded cost is ~41s, and 60s left only 1.46x of margin once
+;; retraction doubled the space. 90s keeps ~2.2x AND stays BELOW nextest's 120s kill — the
+;; ordering matters, because a wat-side time-limit failure names the test and the budget, while a
+;; SIGTERM at the harness level names neither.
+(:wat::test::time-limit "90s")
 (:wat::test::deftest :wat-tests::rete::fuzz::test-native-matches-oracle
   (:wat::core::match
     (:wat::gen::check (:wat-tests::rete::fuzz::space) :wat-tests::rete::fuzz::prop)

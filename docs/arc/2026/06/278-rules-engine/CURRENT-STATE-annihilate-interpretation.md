@@ -11,15 +11,27 @@ ONE-COMMIT docs-only gap at your wake is expected and is not staleness.**
 
 **THE TOOL IS BUILT AND IT IS NOW PAYING. `wat-gen` is done; rete family B is FIXED.**
 
-**WHERE THE WORK IS: `docs/arc/2026/06/278-rules-engine/RETE-FIX-LIST.md`.** Two defects remain,
-both found by the fuzzer, both with `#[ignore]`d probes asserting CORRECT behaviour:
-  A  a LEADING accumulate emits one row per FIXPOINT ROUND (native = depth+1, oracle = 1).
-     18 of the 72 remaining divergences. Prior art worth reading first: the leading `:not`
-     /`:exists` fix (`71d0e700e`) whose mechanism is `leading_emitted` persisting ACROSS rounds.
-  C  `:not` over a DERIVED class ignores the derivation. 54 divergences, ALL at depth >= 1 and
-     never depth 0. **⚠ NEEDS A CLARA RULING BEFORE A FIX** — it is the one entry where the
-     `$oracle` and Clara can legitimately disagree, because if a `defquery` is deliberately
-     un-stratified then the ORACLE is wrong and 54 of the ratchet's 72 are not defects.
+**RETE-FIX-LIST.md IS EMPTY — every entry closed (A, B, C, D), 2026-08-26/27.** The fuzzer's
+ratchet went 120 -> 72 -> **0** and is now an EQUALITY gate, not a ratchet: native and the
+`$oracle` agree bit-for-bit across all its generated shapes, and any nonzero is a regression with
+a coordinate attached. Grid: 33/33 `:accuracy :match`, 33/33 `:winner :us`.
+
+**WHERE THE OPEN WORK IS NOW: `NEXT-STRIKES-theater-hunt.md` § "WHAT REMAINS OPEN — the honest
+list".** RETE-FIX-LIST no longer holds any; do not read its emptiness as "rete is done". Standing
+there, each with `file:line`:
+  - `conformare` x9 — a real wat span discarded for `rust_caller_span!()` (`eval_insert.rs:74,85,
+    132,187`, `arm.rs:179,193,208,231,293`). A user's malformed `:then` points at wat-rs's own Rust
+    source, not their file. `arm.rs:316` does it correctly in the same file — the pattern is known.
+  - `vocare` x6 · `intueri` x3 · `exigere` x1 — see the list for each site.
+  - `circumspicere` L2, and these two are more than tidiness: **the fixpoint has no cap** (a rule
+    deriving a structurally-novel fact each round hangs the thread and grows heap with no
+    diagnostic; nothing protects an embedder), and **the arc's closing condition is checked by no
+    CI job** (the Clara parity scripts need a JDK the runner lacks, so a parity regression merges
+    fully green).
+
+**TWO LIMITS TO STATE BESIDE ANY "EXEMPLAR" CLAIM.** The fuzzer's zero is over ONE grammar's
+generated shapes — zero divergences is not no defects — and the new `:not` bind wall sees DECLARED
+rules only; rules built at runtime bypass it, as they bypass that whole validator.
 
 **THE EXIT RULE IS THE BUILDER'S AND IT IS NOT OPTIONAL** (recorded in RETE-FIX-LIST's header):
 a green probe does NOT close an entry. It needs (1) the probe un-ignored, (2) a NEW GRID AXIS for
