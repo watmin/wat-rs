@@ -133,40 +133,41 @@
 
 (:wat::core::defn :wat-tests::rete::fuzz::filt-cond [f <- :wat::core::i64  fp <- :wat::core::i64]
   -> (:wat::core::PersistentVector :- [:wat::WatAST])
-  (:wat::core::if (:wat::core::= f 0)
-    (:wat-tests::rete::fuzz::no-conds)
-    (:wat::core::if (:wat::core::= f 1)
-      (:wat::core::PersistentVector (:wat::core::quasiquote (:wat::rete::exists (:wat-tests::rete::fuzz::W (?w <- :k)))))
-      (:wat::core::if (:wat::core::= f 2)
-        (:wat::core::PersistentVector (:wat::core::quasiquote (:wat::rete::not (:wat-tests::rete::fuzz::G (?g <- :k)))))
-        (:wat::core::if (:wat::core::= f 3)
-          (:wat-tests::rete::fuzz::acc-cond fp)
-          (:wat::core::if (:wat::core::= f 4)
-            (:wat::core::PersistentVector
-              (:wat::core::quasiquote
-                (:wat-tests::rete::fuzz::W (?w <- :k)
-                  (:wat::rete::or (:wat::rete::core::i64::> ?w (:wat::core::unquote fp))
-                                  (:wat::rete::core::i64::< ?w 3)))))
-            (:wat::core::if (:wat::core::= f 5)
-              ;; 5 — intra-condition :not of a CONSTRAINT (not of a condition).
-              (:wat::core::PersistentVector
-                (:wat::core::quasiquote
-                  (:wat-tests::rete::fuzz::W (?w <- :k)
-                    (:wat::rete::not (:wat::rete::core::i64::> ?w 100)))))
-              (:wat::core::if (:wat::core::= f 6)
-                ;; 6 — top-level :or ACROSS conditions: network branches, the
-                ;; first of rete's three `or` engines, and the only one that
-                ;; binds a DIFFERENT variable per branch.
-                (:wat::core::PersistentVector
-                  (:wat::core::quasiquote
-                    (:wat::rete::or (:wat-tests::rete::fuzz::P1 (?a <- :k))
-                                    (:wat-tests::rete::fuzz::W (?w <- :k)))))
-                ;; 7 — :not over a DERIVED class. STRATIFICATION: S2 exists only
-                ;; because the chain derives it, so the answer must depend on the
-                ;; depth dimension. This is where family C lives.
-                (:wat::core::PersistentVector
-                  (:wat::core::quasiquote
-                    (:wat::rete::not (:wat-tests::rete::fuzz::S2 (?s <- :k)))))))))))))
+  (:wat::core::cond
+    ((:wat::core::= f 0) (:wat-tests::rete::fuzz::no-conds))
+    ((:wat::core::= f 1)
+      (:wat::core::PersistentVector
+        (:wat::core::quasiquote (:wat::rete::exists (:wat-tests::rete::fuzz::W (?w <- :k))))))
+    ((:wat::core::= f 2)
+      (:wat::core::PersistentVector
+        (:wat::core::quasiquote (:wat::rete::not (:wat-tests::rete::fuzz::G (?g <- :k))))))
+    ((:wat::core::= f 3) (:wat-tests::rete::fuzz::acc-cond fp))
+    ;; 4 — intra-condition `:or`, the SECOND of rete's three `or` engines.
+    ((:wat::core::= f 4)
+      (:wat::core::PersistentVector
+        (:wat::core::quasiquote
+          (:wat-tests::rete::fuzz::W (?w <- :k)
+            (:wat::rete::or (:wat::rete::core::i64::> ?w (:wat::core::unquote fp))
+                            (:wat::rete::core::i64::< ?w 3))))))
+    ;; 5 — intra-condition `:not` of a CONSTRAINT (not of a condition).
+    ((:wat::core::= f 5)
+      (:wat::core::PersistentVector
+        (:wat::core::quasiquote
+          (:wat-tests::rete::fuzz::W (?w <- :k)
+            (:wat::rete::not (:wat::rete::core::i64::> ?w 100))))))
+    ;; 6 — top-level `:or` ACROSS conditions: network branches, the first of rete's three `or`
+    ;; engines, and the only one that binds a DIFFERENT variable per branch.
+    ((:wat::core::= f 6)
+      (:wat::core::PersistentVector
+        (:wat::core::quasiquote
+          (:wat::rete::or (:wat-tests::rete::fuzz::P1 (?a <- :k))
+                          (:wat-tests::rete::fuzz::W (?w <- :k))))))
+    ;; 7 — `:not` over a DERIVED class. STRATIFICATION: S2 exists only because the chain derives
+    ;; it, so the answer must depend on the depth dimension. This is where family C lived.
+    (:else
+      (:wat::core::PersistentVector
+        (:wat::core::quasiquote
+          (:wat::rete::not (:wat-tests::rete::fuzz::S2)))))))
 
 ;; A CONSTANT predicate: POSITION is the variable under test here. A `where`
 ;; naming a variable bound LATER is a compile-time question, not a differential
@@ -316,12 +317,11 @@
 ;; `one-of [a a b]` is a 2:1 mix. The combinator would add no expressive power,
 ;; only a second way to say the same thing.
 (:wat::core::defn :wat-tests::rete::fuzz::param-space [f <- :wat::core::i64] -> (:wat::gen::Gen :- [:wat::core::i64])
-  (:wat::core::if (:wat::core::= f 3)
+  (:wat::core::cond
     ;; 6 = 2 accumulator kinds x 3 thresholds, decoded by `acc-cond`.
-    (:wat::gen::ints 0 6)
-    (:wat::core::if (:wat::core::= f 4)
-      (:wat::gen::ints 0 3)
-      (:wat::gen::ints 0 1))))
+    ((:wat::core::= f 3) (:wat::gen::ints 0 6))
+    ((:wat::core::= f 4) (:wat::gen::ints 0 3))
+    (:else               (:wat::gen::ints 0 1))))
 
 (:wat::core::defn :wat-tests::rete::fuzz::for-shape [f <- :wat::core::i64] -> (:wat::gen::Gen :- [:wat-tests::rete::fuzz::Case])
   (:wat::gen::record :wat-tests::rete::fuzz::Case
