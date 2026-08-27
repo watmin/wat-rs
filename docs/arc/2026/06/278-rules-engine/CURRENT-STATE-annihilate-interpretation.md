@@ -5,87 +5,55 @@
 > `wat/rete.wat`. If a stone below disagrees with a dated ruling here,
 > **this file wins** and the stone is stale.
 
-**CURRENT STAMP 2026-08-26 — supersedes every dated block below it, INCLUDING both 2026-08-25
-stamps. Written against HEAD `73883d00e`; the commit carrying this stamp lands on top, so a
-ONE-COMMIT docs-only gap at your wake is expected and is not staleness.**
+**CURRENT STAMP 2026-08-27 — supersedes every dated block below it, INCLUDING the 2026-08-26 one.
+Written against HEAD `86091edf7`; the commit carrying this stamp lands on top, so a ONE-COMMIT
+docs-only gap at your wake is expected and is not staleness.**
 
-**THE TOOL IS BUILT AND IT IS NOW PAYING. `wat-gen` is done; rete family B is FIXED.**
+**RETE-FIX-LIST IS EMPTY. THE FUZZERS ARE THE INSTRUMENT AND THEY KEEP PAYING.**
 
-**RETE-FIX-LIST.md IS EMPTY — every entry closed (A, B, C, D), 2026-08-26/27.** The fuzzer's
-ratchet went 120 -> 72 -> **0** and is now an EQUALITY gate, not a ratchet: native and the
-`$oracle` agree bit-for-bit across all its generated shapes, and any nonzero is a regression with
-a coordinate attached. Grid: 33/33 `:accuracy :match`, 33/33 `:winner :us`.
+**WHERE THE WORK IS: `RETE-OPEN-WORK.md`** — the single index. PILE 1 (fuzzing) is CLOSED; what
+remains is PILE 2's ward tail, and **that list is 2-for-2 STALE on the entries checked — audit each
+against the tree before working it.** `conformare` x9 read as a live user-facing defect and was
+already fixed; probing it anyway is what found a real one beside it.
 
-**WHERE THE OPEN WORK IS NOW: `RETE-OPEN-WORK.md`** — the single INDEX of everything still open on
-rete, written when RETE-FIX-LIST reached empty and "is rete done?" became a fair question. It is
-not. Four piles: fuzzing gaps (interleaved retract first), the 19 ward findings, two STRUCTURAL
-items, and a `RETE_OPS` reachability ledger. It indexes rather than copies — an item that lives in
-`NEXT-STRIKES-theater-hunt.md` still lives there and that file wins on any detail.
+**FIVE FUZZERS, 5612 generated shapes, all green:** shape-space (3168), scalar types (936),
+operation programs / TMS (1372), rule-sets and `:then` (72), nested combinators (64). Plus a round
+cap and a termination verifier standing behind them. Grid: **33/33 `:accuracy :match`, 33/33
+`:winner :us`** after a day of engine changes, and Clara parity now runs in CI rather than by hand.
 
-Do not read RETE-FIX-LIST's emptiness as "rete is done". The ward findings standing in
-`NEXT-STRIKES-theater-hunt.md` § "WHAT REMAINS OPEN", each with `file:line`:
-  - `conformare` x9 — a real wat span discarded for `rust_caller_span!()` (`eval_insert.rs:74,85,
-    132,187`, `arm.rs:179,193,208,231,293`). A user's malformed `:then` points at wat-rs's own Rust
-    source, not their file. `arm.rs:316` does it correctly in the same file — the pattern is known.
-  - `vocare` x6 · `intueri` x3 · `exigere` x1 — see the list for each site.
-  - `circumspicere` L2, and these two are more than tidiness: **the fixpoint has no cap** (a rule
-    deriving a structurally-novel fact each round hangs the thread and grows heap with no
-    diagnostic; nothing protects an embedder), and **the arc's closing condition is checked by no
-    CI job** (the Clara parity scripts need a JDK the runner lacks, so a parity regression merges
-    fully green).
+**CLOSED 2026-08-26/27:** fuzzer families A, B, C (silent wrong answers; ratchet 120 -> 72 -> 0, now
+an equality gate), D (`:not` bind wall), E (`:then` kwargs read positionally), a 4x perf regression
+in my own requery fix, the fixpoint round cap + `:wat::config::rete::set-max-fire-rounds!`, the
+termination verifier (refuses a computed head in a derivation cycle, at `compile-all` so it covers
+runtime-built rules), CI Clara parity + a lint that keeps it wired, and a Rust-`Debug` operand
+rendering in user-facing `:then` errors.
 
-**TWO LIMITS TO STATE BESIDE ANY "EXEMPLAR" CLAIM.** The fuzzer's zero is over ONE grammar's
-generated shapes — zero divergences is not no defects — and the new `:not` bind wall sees DECLARED
-rules only; rules built at runtime bypass it, as they bypass that whole validator.
+**THE TWO LESSONS THAT COST THE MOST, AND BOTH ARE NEW FAILURE MODES:**
+- **FM 28 — a COUNT cannot see a VALUE defect, and two engines agreeing proves nothing when they
+  share an assumption.** Entry E: three fuzzers were green for a day over the same code; the fourth
+  found it on its first run because it compared `sum(a*1000+b)` instead of a row count. Native and
+  the `$oracle` transposed identically and agreed perfectly on the wrong answer.
+- **FM 29 — a gate that reads its own file certifies its own prose.** Three instances in one day. A
+  lint passed with the real evidence DELETED, twice. **Mutation-prove every new gate**: break the
+  thing it watches, confirm RED, restore. Nothing else finds this.
 
-**THE EXIT RULE IS THE BUILDER'S AND IT IS NOT OPTIONAL** (recorded in RETE-FIX-LIST's header):
-a green probe does NOT close an entry. It needs (1) the probe un-ignored, (2) a NEW GRID AXIS for
-the shape, (3) **agreement with CLARA on that axis**, (4) the ratchet lowered with the family
-named. *"we must ensure we are completely accurate relative to clara."* Accuracy vs Clara is the
-acceptance criterion, not speed. `clojure` IS installed on this box — the Clara half runs.
+**AND TWO RECURRENCES OF CURES THAT ALREADY EXISTED** (both amended in place rather than renumbered,
+so the cure is not hidden behind a new number): FM 18 — a BACKGROUNDED build is still RUNNING, and
+reading its silence as completion started a second floor on top of the first (`pgrep` before any
+build; empty is the only green light). FM 20 — a trailing `echo` makes a command's exit status 0 no
+matter what the gate said; write the gate to a file and read `$?` on the very next line.
 
-**FAMILY B, CLOSED 2026-08-26 — read this before attempting A, the class generalises.** A `:where`
-binding NOTHING sorts into `sort-lhs`'s INDEPENDENT partition and lands ABOVE the accumulate:
-`RootJoin -> Test -> Accumulate -> Test -> Production`. The accumulate pass is 3.25 and the filter
-pass is 3.5, so that leading Test had never fired when the accumulate read its parent delta — it
-saw nothing and the rule matched ZERO. **The compiler was right; the engine's fixed pass order
-could not execute the graph it emitted.** A kind-ordered pass sequence over a DAG is only correct
-while the DAG's kind-order matches it. Fixed by pulling a Test parent forward in
-`fire/pass/accumulate.rs`; ratchet 120 -> 72; Clara agrees; grid axis `where-accum-where-chain`.
-
-**HOW I FOUND IT, AFTER THREE WRONG HYPOTHESES: DUMP THE NETWORK.** `Session/network` is a plain
-`PersistentMap` — print it from a 12-line wat script and the whole graph is there, node ids, kinds,
-children. That settled in one run what an hour of reading the pass code did not. Do this FIRST.
-
-**WAT-GEN IS DONE AND GATED.** 27 laws (26 mutation-proven; L12 recorded as NOT demonstrated
-rather than rounded up), an 8-deftest pattern corpus at `wat-tests/gen-patterns.wat`, and
-`docs/GENERATIVE-TESTING.md` — moved to `docs/`, indexed from three entry points, and now GATED by
-`tests/lint/gen_doc_surface_matches.rs` so the doc cannot drift from the verb surface in either
-direction. An 18-ward vigilia and then a 7-ward DOC vigilia both ran; every L1 is closed or handed
-to its owning arc with a NOTE (293 = the parametric-struct purity hole with a proven patch, 255 =
-the retired-name lint blind to `.wat`, 277 = the `concat-abuse` message + the lint ratchet).
-
-**THE ONE ROW THAT IS NOT PROVEN, AND CANNOT BE FROM INSIDE:** useful to someone who did not write
-it. One consumer, one author. The builder is spinning up an agent to add generative tests broadly
-— **what that agent should report is where the corpus did NOT fit**, not another passing law.
-
-**THE FUZZER IS THE INSTRUMENT THAT PAID.** Three real rete defects, all silent, none reachable by
-32 grid axes or 57 hand-written where-family queries. DIFFERENTIAL is the pattern that works
-because it needs no oracle you had to invent — you assert only "these two agree", so it finds the
-disagreements you would never have predicted.
-
-**READ THE FAILURE MODES BEFORE YOU TOUCH ANYTHING — three landed TODAY, all mine:** FM 25 (a
-rejected/failed step still writes when an edit is BUNDLED with its consumer — instrumentation
-survived two rebuilds), FM 26 (two gates in one command, only the loud one read — I committed AND
-PUSHED on a red clippy), FM 27 (a 3-sample benchmark median is noise at 10%; six samples or no
-number). Also standing: nextest not `cargo test`; ONE build at a time; `docs/` root is for the
-standing set, arc work lives in the arc.
+**DO NOT TRUST A GREP THAT FOUND NOTHING.** "I searched and found none" and "this cannot be
+written" are different statements. I reported the first as the second twice on 2026-08-27 — once
+claiming a keyword type did not exist, once claiming a termination hole was already guarded by
+three fences. Both were wrong, both were committed, and both were caught by the builder pushing
+back on a detail. PROBE THE BEHAVIOUR; the disk answers what a grep only gestures at.
 
 **⚠⚠ YOU ARE NOT THE INSTANCE THAT WROTE THIS. ⚠⚠**
 Everything above is a cache written by a prior self across a very long session. You did not live
 it. It felt continuous when you woke and that feeling is the failure, not the all-clear. Before you
 propose or move: fetch `recolligere` from the datamancy MCP and run it against the disk —
-`docs/COMPACTION-AMNESIA-RECOVERY.md`, `git log`, this file, `RETE-FIX-LIST.md`, and the source you
+`docs/COMPACTION-AMNESIA-RECOVERY.md`, `git log`, this file, `RETE-OPEN-WORK.md`, and the source you
 are about to touch. The freshness probe is the HEAD named at the top of this stamp against
 `git rev-parse HEAD`; more than the one expected docs-only commit of drift means trust the log over
 every line above. **And this file is the ONLY live breadcrumb — if you find another claiming to be,

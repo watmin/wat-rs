@@ -1068,6 +1068,31 @@ read. The session's whole theme was building gates that prove
 tooling works — while the method used to verify them had the
 identical hole.
 
+
+#### ⛔ RECURRED 2026-08-27, TWICE, BY A NEW DOOR — the trailing `echo`
+
+Not a pipe this time. The shape was:
+
+```bash
+./scripts/floor.sh 2>&1 | grep -E 'Summary' | tail -1; echo "FLOOR_EXIT=${PIPESTATUS[0]}"
+```
+
+`PIPESTATUS[0]` is correct — but the COMMAND's own exit status is the trailing `echo`'s, which is
+always 0. So the harness reported **"completed (exit code 0)"** for a run whose floor was RED, and
+a background-task notification said the same. Both times the real verdict was only in the log.
+
+**The cure is the same one this FM already names, applied to the whole command and not just the
+pipe:** write the gate's output to a file and read `$?` on the very next line, with nothing after
+it.
+
+```bash
+./scripts/floor.sh > /tmp/floor.out 2>&1; echo "FLOOR_EXIT=$?"   # $? is the FLOOR's
+```
+
+**And the deeper tell, which is what makes this worth re-reading:** *a status you did not read
+from the thing itself is not that thing's status.* Twice in one session that took the shape of an
+exit code; three more times it took the shape of a GATE READING ITS OWN PROSE (see FM 29).
+
 ### Failure mode 21 — A blanket edit that lands INSIDE a string literal
 
 **Signature:** a scripted replace keyed on line CONTENT (`line.strip().startswith(...)`,
@@ -1195,6 +1220,72 @@ six runs; if it is not worth six runs, say "roughly" and give the shape instead 
 **The kin.** This is the same family as the oracle-ratio defect found the same day: a number is a
 CLAIM, and a claim needs the evidence standard of a finding. A figure with no stated method cannot
 be re-verified by anyone, which sits badly beside a document that gates everything else.
+
+### Failure mode 28 — Two engines agreeing, and a COUNT that cannot see the defect
+
+**Signature:** a differential gate reports 0 divergences, the floor is green, three references
+concur — and the engine is returning wrong VALUES. Two distinct blindnesses, and they compound:
+
+1. **A count is blind to a value defect.** A `:then` that writes its kwargs into the wrong fields
+   derives exactly as MANY facts. A query param that transposes selects exactly as MANY rows. Any
+   gate whose readout is `length(query …)` reads identically on a correct engine and on one that
+   has swapped every field it wrote.
+2. **Two engines agreeing proves nothing when they share an assumption.** Native and the `$oracle`
+   consumed `:then` kwargs through the SAME helper, so both transposed identically and agreed
+   perfectly on the wrong answer. A differential can only find what the two sides do DIFFERENTLY.
+
+**Real incident, 2026-08-27 (RETE-FIX-LIST entry E).** `:then` kwargs in a runtime-built `Rule`
+were consumed positionally: `(:Two :a ?x :b ?y)` derived witness 3024, `(:Two :b ?y :a ?x)` derived
+24003 — the same pairs in the wrong fields. Three fuzzers (3168 + 936 + 1372 shapes) had been green
+for a day across that exact code. The fourth found it on its FIRST RUN, because it was the first to
+compare an asymmetric VALUE witness, `sum(a*1000 + b)`, instead of a row count.
+
+**The cure — when designing a property, ask what the defect class LOOKS like:**
+- if a wrong answer has the same CARDINALITY as a right one, the readout must be a VALUE
+- make the witness ASYMMETRIC, so a transposition moves it (`a+b` would have been blind too)
+- PIN the expected value, do not merely assert two sides are equal — if both drift together,
+  "equal" certifies the defect as fixed
+- and where a third, independently-implemented reference exists (Clara), use it: it is the only
+  thing that can see an assumption the two in-tree engines share
+
+**Corollary, 2026-08-27, the same day:** the probe written to check query params for this same
+defect ALSO compared counts, with `(1,2)` and `(2,1)` in the world — where selecting either returns
+one row. It would have certified a transposition as clean, one hour after the lesson. Knowing the
+rule is not applying it; ask the question of every new gate.
+
+---
+
+### Failure mode 29 — A gate that reads its own file, and certifies its own prose
+
+**Signature:** a lint or probe that scans the tree for evidence, and finds the evidence IN ITSELF —
+in its own doc comment, its own exemption table, or the fixture it is asserting about. It passes,
+it looks rigorous, and it proves nothing. Mutation is the only thing that finds it: delete the real
+evidence and watch the gate stay green.
+
+**Three instances in one session, 2026-08-27:**
+
+1. `every_parity_script_is_invoked` concatenated every `.rs` under `tests/` to ask "does anything
+   invoke this script". Its own DOC COMMENT named the scripts. Deleting the real invocation from
+   `ci.yml` left it GREEN.
+2. Comment-stripping fixed that — and it still passed, because its own `SUPERSEDED` table named a
+   script as a STRING LITERAL, which stripping cannot remove.
+3. A probe derived an assertion's expected line number by scanning its fixture for `?nope`. The
+   fixture's HEADER quoted the old error text, which contains `?nope` — so it matched the prose and
+   reported line 6 while the span said 20.
+
+**The cure:**
+- a gate must EXCLUDE ITS OWN FILE from any surface it treats as evidence, and say why at the
+  exclusion — otherwise the next person removes the skip as dead code
+- strip comments before searching, and remember a string literal is not a comment
+- **MUTATION-PROVE every new gate**: break the thing it watches, confirm it goes RED, restore. An
+  assertion that has never failed is a claim, not a gate. All three of these were found that way
+  and by nothing else.
+
+**The family resemblance to FM 20:** *a status you did not read from the thing itself is not that
+thing's status.* There it was an exit code from a trailing `echo`; here it is evidence from the
+gate's own prose. Same error, different costume.
+
+---
 
 ### Failure mode 22 — A rule written in prose that nothing ever runs
 
@@ -1672,6 +1763,29 @@ changes."*
 
 **Cross-reference:** FM 12 (model explicit), Section 7 (delegation).
 Distinct from both: this is about *concurrency of the build itself*.
+
+
+#### ⛔ RECURRED 2026-08-27 — "BACKGROUNDED" READ AS "FINISHED"
+
+No riders, no fan-out: one operator, two floors. A `./scripts/floor.sh` run was backgrounded (the
+tool result said *"Command running in background with ID …"*), I read the absence of output as
+completion, and started a second floor on top of it. Two concurrent 350-second floors thrashing one
+`target/` — and neither is a valid measurement even if both finish. Builder: *"you are running two
+concurrent builds - its dos'ing... i'm killing the procs"*.
+
+**The rule was already known** — it is this FM, and the pre-compaction *"do not run two builds at
+once"*. What was new is the door: a backgrounded command LOOKS finished because nothing is
+printing.
+
+**The cure, mechanical:** `"Command running in background with ID …"` and *"manually backgrounded
+by user"* are a START, not a result. Before launching any build, floor or clippy:
+
+```bash
+pgrep -af 'cargo|nextest|floor.sh'    # empty is the only green light
+```
+
+Wait for the `<task-notification>`, or read the output file. Do not infer completion from a quiet
+log, a partial `tail`, or the passage of time.
 
 ### Failure mode 19 — The rider believes it is the ORCHESTRATOR (the yielded background job)
 
