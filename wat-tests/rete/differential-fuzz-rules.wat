@@ -83,6 +83,22 @@
 (:wat::rete::defquery :wat-tests::rete::rules::q-alt :params []
   :when [(:wat-tests::rete::rules::Alt (?a <- :a) (?b <- :b))])
 
+;; ── PARAMETERISED queries ────────────────────────────────────────────────────
+;; RETE-OPEN-WORK 1.3: every fuzzer before this one declared `:params []`. Params are supplied as
+;; KWARGS at the call site — `(query s (q) :?a 1)` — which is the same shape entry E found being
+;; consumed positionally on the `:then` side. Probed directly first: a two-param query called in
+;; declaration order and REVERSED selects the same row (witness 1002 both ways), so params already
+;; resolve by NAME. That is a clean negative, and it is why this dimension varies WHICH value is
+;; selected rather than re-testing the ordering.
+;;
+;; ⚠ AND THE PROBE THAT SETTLED IT NEEDED A VALUE, NOT A COUNT. With `(1,2)` and `(2,1)` both in
+;; the world, selecting EITHER returns exactly one row — `n=1` is identical whether the params bound
+;; correctly or transposed. The first version of that probe compared counts and would have called
+;; a transposition clean.
+(:wat::rete::defquery :wat-tests::rete::rules::q-two-at
+  :params [?a]
+  :when [(:wat-tests::rete::rules::Two (?a <- :a) (?b <- :b))])
+
 (:wat::core::defn :wat-tests::rete::rules::witness-of
   [s <- :wat::rete::Session  q <- :wat::rete::Query] -> :wat::core::i64
   (:wat::core::foldl
@@ -104,7 +120,8 @@
   [ord    <- :wat::core::i64   ;; :then kwargs order — declaration vs reversed
    arity  <- :wat::core::i64   ;; 1 or 2 derived facts per activation
    nrules <- :wat::core::i64   ;; 1, or 2 sharing one alpha
-   srcs   <- :wat::core::i64]) ;; how many Src facts (distinct x,y per fact)
+   srcs   <- :wat::core::i64   ;; how many Src facts (distinct x,y per fact)
+   qparam <- :wat::core::i64]) ;; 0 unparameterised · 1 param SELECTS a row · 2 param matches NOTHING
 
 (:wat::core::defn :wat-tests::rete::rules::seed
   [c <- :wat-tests::rete::rules::Case] -> :wat::rete::Session
@@ -115,7 +132,8 @@
           (:wat-tests::rete::rules::Case/nrules c))
      s0 (:wat::rete::compile-all rs
           (:wat::core::PersistentVector
-            (:wat-tests::rete::rules::q-two) (:wat-tests::rete::rules::q-alt)))
+            (:wat-tests::rete::rules::q-two) (:wat-tests::rete::rules::q-alt)
+            (:wat-tests::rete::rules::q-two-at)))
      ;; x and y DIFFER per fact (i and i+7), so a transposed write moves the witness rather than
      ;; landing on the same number by symmetry.
      facts (:wat::core::into (:wat::core::PersistentVector)
@@ -125,11 +143,33 @@
                (:wat::core::range 0 (:wat-tests::rete::rules::Case/srcs c))))]
     (:wat::rete::insert-all s0 facts)))
 
+;; The parameterised readout. `qparam 1` selects `?a = 0`, which the first Src (x=0) derives;
+;; `qparam 2` selects a value no Src produces, so the correct answer is the EMPTY sum — a row that
+;; would hide a param being ignored entirely, since ignoring it returns every row instead of none.
+(:wat::core::defn :wat-tests::rete::rules::param-witness
+  [s <- :wat::rete::Session  qparam <- :wat::core::i64] -> :wat::core::i64
+  (:wat::core::foldl
+    (:wat::core::fn [acc <- :wat::core::i64  p <- :wat::core::PersistentMap] -> :wat::core::i64
+      (:wat::core::let [a (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?a") "?a")
+                        b (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?b") "?b")]
+        (:wat::core::i64::+ acc (:wat::core::i64::+ (:wat::core::i64::* a 1000) b))))
+    0
+    (:wat::core::if (:wat::core::= qparam 1)
+      (:wat::rete::query s (:wat-tests::rete::rules::q-two-at) :?a 0)
+      (:wat::rete::query s (:wat-tests::rete::rules::q-two-at) :?a 999))))
+
+(:wat::core::defn :wat-tests::rete::rules::readout
+  [s <- :wat::rete::Session  c <- :wat-tests::rete::rules::Case] -> :wat::core::i64
+  (:wat::core::let [qp (:wat-tests::rete::rules::Case/qparam c)]
+    (:wat::core::if (:wat::core::= qp 0)
+      (:wat-tests::rete::rules::witness s)
+      (:wat-tests::rete::rules::param-witness s qp))))
+
 (:wat::core::defn :wat-tests::rete::rules::prop [c <- :wat-tests::rete::rules::Case]
   -> :wat::core::bool
   (:wat::core::let [st (:wat-tests::rete::rules::seed c)]
-    (:wat::core::= (:wat-tests::rete::rules::witness (:wat::rete::fire-rules st))
-                   (:wat-tests::rete::rules::witness (:wat::rete::fire-rules$oracle st)))))
+    (:wat::core::= (:wat-tests::rete::rules::readout (:wat::rete::fire-rules st) c)
+                   (:wat-tests::rete::rules::readout (:wat::rete::fire-rules$oracle st) c))))
 
 (:wat::core::defn :wat-tests::rete::rules::space []
   -> (:wat::gen::Gen :- [:wat-tests::rete::rules::Case])
@@ -137,7 +177,8 @@
     (:wat::gen::ints 0 2)
     (:wat::gen::ints 1 3)
     (:wat::gen::ints 1 3)
-    (:wat::gen::ints 1 4)))
+    (:wat::gen::ints 1 4)
+    (:wat::gen::ints 0 3)))
 
 ;; ── the gates ────────────────────────────────────────────────────────────────
 (:wat::test::time-limit "60s")
@@ -161,7 +202,8 @@
         (:wat::rete::compile-all
           (:wat::core::PersistentVector)
           (:wat::core::PersistentVector
-            (:wat-tests::rete::rules::q-two) (:wat-tests::rete::rules::q-alt)))
+            (:wat-tests::rete::rules::q-two) (:wat-tests::rete::rules::q-alt)
+            (:wat-tests::rete::rules::q-two-at)))
         (:wat-tests::rete::rules::Two :a a :b b)))))
 
 (:wat::test::time-limit "60s")
@@ -192,8 +234,10 @@
 (:wat::test::time-limit "60s")
 (:wat::test::deftest :wat-tests::rete::rules::test-kwargs-order-does-not-change-the-fact
   (:wat::core::let
-    [base (:wat-tests::rete::rules::Case :ord 0 :arity 1 :nrules 1 :srcs 3)
-     rev  (:wat-tests::rete::rules::Case :ord 1 :arity 1 :nrules 1 :srcs 3)
+    ;; `:qparam 0` — the UNPARAMETERISED readout, deliberately: this gate is about `:then` kwargs
+    ;; order, and filtering the rows would let a param bug mask a transposition or vice versa.
+    [base (:wat-tests::rete::rules::Case :ord 0 :arity 1 :nrules 1 :srcs 3 :qparam 0)
+     rev  (:wat-tests::rete::rules::Case :ord 1 :arity 1 :nrules 1 :srcs 3 :qparam 0)
      w0   (:wat-tests::rete::rules::witness
             (:wat::rete::fire-rules (:wat-tests::rete::rules::seed base)))
      w1   (:wat-tests::rete::rules::witness
@@ -204,3 +248,34 @@
      ;; transposed 24003 together, "w0 == w1" would still hold and certify the defect as fixed.
      _    (:wat::test::assert-eq w0 3024)]
     (:wat::test::assert-eq w1 w0)))
+
+;; PARAMS ACTUALLY FILTER — non-vacuity for the `qparam` dimension.
+;;
+;; The differential above cannot see a param being IGNORED: if `query`'s `:?a` were dropped on the
+;; floor, both engines would return every row and agree perfectly. So the filtering is asserted
+;; against pinned values rather than inferred from agreement.
+;;
+;; With srcs=3 the Src facts are (0,7) (1,8) (2,9), so `Two` is (a=0,b=7) (1,8) (2,9):
+;;   unparameterised  7 + 1008 + 2009 = 3024   (every row)
+;;   :?a 0            0*1000 + 7      =    7   (a PROPER subset — one row)
+;;   :?a 999                               0   (no row matches)
+;; The 999 row is the load-bearing one: a param that is ignored returns EVERYTHING here, so 0 is
+;; the only value that proves it was consulted.
+(:wat::test::time-limit "60s")
+(:wat::test::deftest :wat-tests::rete::rules::test-query-params-actually-filter
+  (:wat::core::let
+    [mk (:wat::core::fn [qp <- :wat::core::i64] -> :wat-tests::rete::rules::Case
+          (:wat-tests::rete::rules::Case :ord 0 :arity 1 :nrules 1 :srcs 3 :qparam qp))
+     fire (:wat::core::fn [c <- :wat-tests::rete::rules::Case] -> :wat::core::i64
+            (:wat-tests::rete::rules::readout
+              (:wat::rete::fire-rules (:wat-tests::rete::rules::seed c)) c))
+     all  (fire (mk 0))
+     one  (fire (mk 1))
+     none (fire (mk 2))
+     _ (:wat::test::assert-eq all 3024)
+     ;; A PROPER subset: non-empty, and strictly less than the unfiltered readout. Either half
+     ;; alone would pass with the param ignored (which returns `all`) or over-filtering (0).
+     _ (:wat::test::assert-true (:wat::core::> one 0))
+     _ (:wat::test::assert-true (:wat::core::< one all))
+     _ (:wat::test::assert-eq one 7)]
+    (:wat::test::assert-eq none 0)))

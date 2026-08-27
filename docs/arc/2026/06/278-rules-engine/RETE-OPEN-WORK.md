@@ -66,9 +66,24 @@ generated `:then` (kwargs order, multi-fact, fn-headed), and rule-vs-rule strati
 the chain. Note `:then` corruption is the exact class arc 294's `defrule` wall exists for, which
 means the wall's own coverage is hand-written.
 
-### 1.3 Query params
-`:params []` in both files, always. `where-query-params` is a hand-written axis; nothing generates
-one.
+### ~~1.3 Query params~~ · **DONE 2026-08-27**
+`:params []` in every fuzzer. Now a `qparam` dimension on `differential-fuzz-rules.wat`
+(card 24 → 72): unparameterised · a param that SELECTS a row · a param that matches NOTHING.
+
+**The obvious hypothesis was tested first and REFUTED.** Params are supplied as kwargs at the call
+site — `(query s (q) :?a 1)` — the same shape entry E had just found being consumed positionally
+on the `:then` side. A two-param query called in declaration order and reversed selects the SAME
+row (witness 1002 both ways): params already resolve by name.
+
+**And that probe had to be rewritten to answer at all.** Its first version compared row COUNTS,
+with `(1,2)` and `(2,1)` both in the world — where selecting *either* returns exactly one row, so
+`n=1` is identical whether the params bound correctly or transposed. It would have called a
+transposition clean, one hour after entry E taught exactly that lesson.
+
+The differential alone is also blind to a param being IGNORED — both engines would return every
+row and agree — so `test-query-params-actually-filter` pins the three readouts (3024 / 7 / 0). The
+`:?a 999` row is the load-bearing one: an ignored param returns EVERYTHING, so 0 is the only value
+that proves it was consulted.
 
 ### 1.4 Deeper combinator nesting
 The filter families are FLAT — `:not` of a fact, `:or` across conditions, `:not` of a constraint.
