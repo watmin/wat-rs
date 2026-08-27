@@ -15,6 +15,7 @@
 //! family of synthetic diagnostic types.
 
 use wat::check::error::{CheckError, CheckErrorKind, CheckErrors};
+use wat::edn::render::EdnReadErrorKind;
 use wat::freeze::StartupError;
 use wat::span::Span;
 use wat::edn::contract::ToEdn;
@@ -36,10 +37,17 @@ fn check_errors_edn_does_not_round_trip_to_value() {
     // envelope) → NoTypeRegistry.
     let decoded = wat::edn::render::edn_to_value(&edn, None, None);
     eprintln!("edn_to_value(None) → {:?}", decoded.as_ref().map(|_| "Ok").map_err(|e| e.to_string()));
+    // Not a `StartupError` result (this is `edn_to_value`'s own `EdnReadError`), so
+    // `assert_startup_error!` doesn't apply here — matched directly against the inner
+    // `EdnReadErrorKind` discriminant instead (arc 296 Stone L: the outer bool-shaped
+    // `is_err()` asserted nothing about WHICH failure — `UnknownTag` and `UnsupportedTag`
+    // are both live siblings a retirement/regression could produce instead).
     assert!(
-        decoded.is_err(),
-        "EXPECTED edn_to_value to FAIL on the synthetic #wat.kernel/CheckErrors tag \
-         (no registered wat type, no generic tagged Value); if this ever passes, the \
-         STOP no longer holds and the nested-Value payload becomes possible"
+        matches!(&decoded, Err(e) if matches!(e.kind, EdnReadErrorKind::NoTypeRegistry)),
+        "EXPECTED edn_to_value to FAIL with EdnReadErrorKind::NoTypeRegistry on the synthetic \
+         #wat.kernel/CheckErrors tag (no registered wat type, no generic tagged Value); if this \
+         ever passes, the STOP no longer holds and the nested-Value payload becomes possible. \
+         got: {:?}",
+        decoded
     );
 }
