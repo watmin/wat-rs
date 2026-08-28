@@ -613,3 +613,58 @@ not rule on any member.
 known refusals and no further. Three span classifiers were retracted in one afternoon for this exact
 question. The compiler and a read remain the instruments; treat 16/25/19 as where to look, not what
 is true.
+
+---
+
+## ⛔ A FOURTH DISQUALIFIER — UNEVALUATED-ARGS — and the runtime had it written down all along
+
+O-iv-c-2's rider migrated **15**, not the briefed 16. The one it refused trips **none of the three
+disqualifiers this design had named**: `:wat::holon::literal` reads no argument's span, and its
+`env`/`sym` are literally `_env`/`_sym`, unused.
+
+**It needs its arguments UNEVALUATED.** `eval_holon_literal` delegates to `eval_quote` — quote
+semantics, the body is data. By the time `apply` calls any value-door handler every argument is an
+evaluated `Value`, so there is no unevaluated form left to quote. Migrating it would have silently
+turned `literal` into `to-holon` on a pre-evaluated value.
+
+★ **AND THE RUNTIME ALREADY KNEW — `eval_apply` names it, with the reason, at `runtime.rs:10724`:**
+
+```rust
+// Arc 294.b — holon literal is a special form (body is data, not a callable).
+":wat::holon::literal",
+```
+
+It sits in `eval_apply`'s Step-7 `SPECIAL_FORMS` list, which predates this entire arc. Proven live —
+the two refusals are not even the same error:
+
+```
+(apply :wat::holon::literal …)  →  "cannot apply special form … not declaration or language forms"
+(apply :wat::holon::Atom …)     →  "registered, but no handler taking EVALUATED arguments …"
+```
+
+**The substrate had the answer written down and my disposition axis never read it.** Same shape as
+`runtime.rs:11652`'s `apply` split-brain comment, which would have prevented HOME-13's retraction,
+and as the tail match's own comment naming the `serve-dispatch-op` precedent for P6. *"The tree keeps
+already saying it"* — the 294 seam's lesson 5, earning itself a fourth time.
+
+### The disposition axis is FOUR-valued
+
+| | reachable through `apply`? | |
+|---|---|---|
+| span-free algebra | ✅ | |
+| call-span algebra | ✅ | Stone Q |
+| ARG-SPAN | ❌ never | the arguments have no syntax to have a span *of* |
+| **UNEVALUATED-ARGS** | **❌ never** | the arguments are already evaluated; quote has nothing left to quote |
+| BINDING | ❌ never | needs `env`/`sym`, which imply ASTs |
+
+⚠ **Check `eval_apply`'s `SPECIAL_FORMS` list before classifying any verb.** A name on it is
+already ruled un-dispatchable, for a reason someone wrote down; a sweep that migrates one is
+overturning a ruling it never read.
+
+### Also recorded — the DELEGATE-BINDING class, verified rather than inferred
+
+Seven atom verbs (`cosine`, `presence?`, `coincident?`, `coincident-explain`, `dot`, `encode`,
+`Bundle`) read as plain arg-eval shells; their `sym` need is one level down, inside
+`pair_values_to_vectors` / `cosine_outcome_from_values` / `require_encoding_ctx`. **The rider checked
+every helper's signature instead of trusting the caller's shape** — the discipline the `max-of` /
+`f64_variadic_reduce` retraction bought, applied without being asked.

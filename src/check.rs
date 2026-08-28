@@ -18949,7 +18949,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // wire format the cryptographic-substrate protocol uses to
     // transmit V (the encoded vector) between users. 4-byte dim
     // header + 2-bit-per-cell ternary packing; see
-    // `eval_holon_vector_bytes` for the format. Arc 062 swaps the
+    // `holon_vector_bytes` for the format. Arc 062 swaps the
     // verbose `(:Vec :- [u8])` for `:wat::core::Bytes` (substrate-general
     // alias); both forms work at call sites because alias resolution
     // is structural.

@@ -19,8 +19,8 @@ Q + Q-2 the value door carries a SPAN,
         and USES it                          ✅ STRUCK — 20 diagnostics move from a Rust line to the caller
 O-iv-c-0 the require_* family takes a ref  ✅ STRUCK — TEN sigs, 75 sites (not 9/109)
 O-iv-c-1 holon sweep, the four small files ✅ STRUCK — 27 migrated (not 32), -377 lines
-O-iv-c-2 holon sweep, atom.rs             ← NEXT: 16 migratable (25 ARG-SPAN, 19 BINDING)
-O-iv-d  the remainder sweep                    26 verbs — same
+O-iv-c-2 holon sweep, atom.rs             ✅ STRUCK — 15 migrated; a FOURTH disqualifier found
+O-iv-d  the remainder sweep               ← NEXT: 26 verbs — classify against all FOUR disqualifiers
 P5  @yields becomes mandatory at expand time   the top rung; biggest change
 P6-a a special form NAMES its impls        ✅ STRUCK — show-source prints check·eval·tail
 P6-c the two matches collapse to lookups     the megafile: 111 eval arms + 8 tail arms
@@ -45,7 +45,7 @@ the floor (P1). Adding the population first and the wall second is the wrong ord
 | ~~Q-2~~ | ~~the threaded span must be USED~~ | | | ✅ **STRUCK** — 20 sites fixed, 0 runed |
 | ~~O-iv-c-0~~ | ~~the `require_*` family takes `&Value`~~ | | | ✅ **STRUCK** — 10 sigs, 75 sites |
 | ~~O-iv-c-1~~ | ~~holon sweep, four files~~ | | | ✅ **STRUCK** — 27 of 32; 5 refused for arg-spans |
-| **O-iv-c-2** | holon sweep — `atom.rs` | **16** migratable of 60 — 25 ARG-SPAN (permanent), 19 BINDING | `BRIEF-STONE-O-iv-c-2-the-holon-sweep-atom.md` | — **READY** |
+| ~~O-iv-c-2~~ | ~~holon sweep, `atom.rs`~~ | | | ✅ **STRUCK** — 15 of 60; UNEVALUATED-ARGS found |
 | **O-iv-d** | the remainder — `uuid` 7 · `ambient` 7 · `string`/`reflect`/`bytes` 2 · six singles | 26 verbs | *not drawn* | same |
 | **P5** | `@yields` mandatory when an `@arg` carries an Fn shape | macro-expand-time rule | *not drawn* | P4's measurement |
 | ~~P6-a~~ | ~~a special form names its implementations~~ | | | ✅ **STRUCK** — see Closed |

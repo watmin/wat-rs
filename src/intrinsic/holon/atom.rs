@@ -1138,29 +1138,15 @@ pub(crate) fn eval_algebra_permute(
 /// @example (:wat::holon::Thermometer 5.0 0.0 10.0) #=> (:wat::holon::Thermometer 5.0 0.0 10.0)
 /// @see     :wat::holon::therm-form
 #[wat_intrinsic(":wat::holon::Thermometer")]
-pub(crate) fn eval_algebra_thermometer(
-    v: &WatAST,
-    min: &WatAST,
-    max: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    list_span: &Span,
+pub(crate) fn algebra_thermometer(
+    v: &Value,
+    min: &Value,
+    max: &Value,
+    span: &Span,
 ) -> Result<Value, EvalBreak> {
-    let v = require_numeric(
-        ":wat::holon::Thermometer",
-        &eval_inner(v, env, sym)?.value_owned(),
-        list_span,
-    )?;
-    let mn = require_numeric(
-        ":wat::holon::Thermometer",
-        &eval_inner(min, env, sym)?.value_owned(),
-        list_span,
-    )?;
-    let mx = require_numeric(
-        ":wat::holon::Thermometer",
-        &eval_inner(max, env, sym)?.value_owned(),
-        list_span,
-    )?;
+    let v = require_numeric(":wat::holon::Thermometer", v, span)?;
+    let mn = require_numeric(":wat::holon::Thermometer", min, span)?;
+    let mx = require_numeric(":wat::holon::Thermometer", max, span)?;
     Ok(Value::holon__HolonAST(Arc::new(HolonAST::thermometer(
         v, mn, mx,
     ))))
@@ -1182,33 +1168,17 @@ pub(crate) fn eval_algebra_thermometer(
 /// @ret     :wat::holon::HolonAST the `Blend(a, b, w1, w2)` composition
 /// @example (:wat::holon::Blend (:wat::holon::leaf "role") (:wat::holon::leaf "filler") 0.7 0.3) #=> (:wat::holon::Blend (:wat::holon::leaf "role") (:wat::holon::leaf "filler") 0.7 0.3)
 #[wat_intrinsic(":wat::holon::Blend")]
-pub(crate) fn eval_algebra_blend(
-    a: &WatAST,
-    b: &WatAST,
-    w1: &WatAST,
-    w2: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    list_span: &Span,
+pub(crate) fn algebra_blend(
+    a: &Value,
+    b: &Value,
+    w1: &Value,
+    w2: &Value,
+    span: &Span,
 ) -> Result<Value, EvalBreak> {
-    let a = require_holon(
-        ":wat::holon::Blend",
-        &eval_inner(a, env, sym)?.value_owned(),
-    )?;
-    let b = require_holon(
-        ":wat::holon::Blend",
-        &eval_inner(b, env, sym)?.value_owned(),
-    )?;
-    let w1 = require_numeric(
-        ":wat::holon::Blend",
-        &eval_inner(w1, env, sym)?.value_owned(),
-        list_span,
-    )?;
-    let w2 = require_numeric(
-        ":wat::holon::Blend",
-        &eval_inner(w2, env, sym)?.value_owned(),
-        list_span,
-    )?;
+    let a = require_holon(":wat::holon::Blend", a)?;
+    let b = require_holon(":wat::holon::Blend", b)?;
+    let w1 = require_numeric(":wat::holon::Blend", w1, span)?;
+    let w2 = require_numeric(":wat::holon::Blend", w2, span)?;
     Ok(Value::holon__HolonAST(Arc::new(HolonAST::blend(
         (*a).clone(),
         (*b).clone(),
@@ -1450,15 +1420,9 @@ pub(crate) fn eval_bundle_first(
 /// @example (:wat::holon::is-Map? (:wat::holon::Map (:wat::core::Vector :wat::holon::HolonAST (:wat::holon::Bind (:wat::holon::leaf "k") (:wat::holon::leaf "v"))))) #=> (:wat::holon::is-Map? (:wat::holon::Map (:wat::core::Vector :wat::holon::HolonAST (:wat::holon::Bind (:wat::holon::leaf "k") (:wat::holon::leaf "v")))))
 /// @see     :wat::holon::is?
 #[wat_intrinsic(":wat::holon::is-Map?")]
-pub(crate) fn eval_holon_is_map_q(
-    x: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    _span: &Span, // rune:lint(unused-span) — infallible — no error path (the classifier match always falls through to `_ => false`)
-) -> Result<Value, EvalBreak> {
-    let value_val = eval_inner(x, env, sym)?.value_owned();
-    let matches = match value_val {
-        Value::holon__HolonAST(h) => extract_classifier(&h).as_deref() == Some("Map"),
+pub(crate) fn holon_is_map_q(x: &Value) -> Result<Value, EvalBreak> {
+    let matches = match x {
+        Value::holon__HolonAST(h) => extract_classifier(h).as_deref() == Some("Map"),
         _ => false,
     };
     Ok(Value::bool(matches))
@@ -1478,15 +1442,9 @@ pub(crate) fn eval_holon_is_map_q(
 /// @example (:wat::holon::is-Set? (:wat::holon::leaf "role")) #=> (:wat::holon::is-Set? (:wat::holon::leaf "role"))
 /// @see     :wat::holon::is?
 #[wat_intrinsic(":wat::holon::is-Set?")]
-pub(crate) fn eval_holon_is_set_q(
-    x: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    _span: &Span, // rune:lint(unused-span) — infallible — no error path (the classifier match always falls through to `_ => false`)
-) -> Result<Value, EvalBreak> {
-    let value_val = eval_inner(x, env, sym)?.value_owned();
-    let matches = match value_val {
-        Value::holon__HolonAST(h) => extract_classifier(&h).as_deref() == Some("Set"),
+pub(crate) fn holon_is_set_q(x: &Value) -> Result<Value, EvalBreak> {
+    let matches = match x {
+        Value::holon__HolonAST(h) => extract_classifier(h).as_deref() == Some("Set"),
         _ => false,
     };
     Ok(Value::bool(matches))
@@ -1506,15 +1464,9 @@ pub(crate) fn eval_holon_is_set_q(
 /// @example (:wat::holon::is-Vector? (:wat::holon::leaf "role")) #=> (:wat::holon::is-Vector? (:wat::holon::leaf "role"))
 /// @see     :wat::holon::is?
 #[wat_intrinsic(":wat::holon::is-Vector?")]
-pub(crate) fn eval_holon_is_vector_q(
-    x: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    _span: &Span, // rune:lint(unused-span) — infallible — no error path (the classifier match always falls through to `_ => false`)
-) -> Result<Value, EvalBreak> {
-    let value_val = eval_inner(x, env, sym)?.value_owned();
-    let matches = match value_val {
-        Value::holon__HolonAST(h) => extract_classifier(&h).as_deref() == Some("Vector"),
+pub(crate) fn holon_is_vector_q(x: &Value) -> Result<Value, EvalBreak> {
+    let matches = match x {
+        Value::holon__HolonAST(h) => extract_classifier(h).as_deref() == Some("Vector"),
         _ => false,
     };
     Ok(Value::bool(matches))
@@ -1534,15 +1486,9 @@ pub(crate) fn eval_holon_is_vector_q(
 /// @example (:wat::holon::is-List? (:wat::holon::leaf "role")) #=> (:wat::holon::is-List? (:wat::holon::leaf "role"))
 /// @see     :wat::holon::is?
 #[wat_intrinsic(":wat::holon::is-List?")]
-pub(crate) fn eval_holon_is_list_q(
-    x: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    _span: &Span, // rune:lint(unused-span) — infallible — no error path (the classifier match always falls through to `_ => false`)
-) -> Result<Value, EvalBreak> {
-    let value_val = eval_inner(x, env, sym)?.value_owned();
-    let matches = match value_val {
-        Value::holon__HolonAST(h) => extract_classifier(&h).as_deref() == Some("List"),
+pub(crate) fn holon_is_list_q(x: &Value) -> Result<Value, EvalBreak> {
+    let matches = match x {
+        Value::holon__HolonAST(h) => extract_classifier(h).as_deref() == Some("List"),
         _ => false,
     };
     Ok(Value::bool(matches))
@@ -1562,15 +1508,9 @@ pub(crate) fn eval_holon_is_list_q(
 /// @example (:wat::holon::is-Tuple? (:wat::holon::leaf "role")) #=> (:wat::holon::is-Tuple? (:wat::holon::leaf "role"))
 /// @see     :wat::holon::is?
 #[wat_intrinsic(":wat::holon::is-Tuple?")]
-pub(crate) fn eval_holon_is_tuple_q(
-    x: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    _span: &Span, // rune:lint(unused-span) — infallible — no error path (the classifier match always falls through to `_ => false`)
-) -> Result<Value, EvalBreak> {
-    let value_val = eval_inner(x, env, sym)?.value_owned();
-    let matches = match value_val {
-        Value::holon__HolonAST(h) => extract_classifier(&h).as_deref() == Some("Tuple"),
+pub(crate) fn holon_is_tuple_q(x: &Value) -> Result<Value, EvalBreak> {
+    let matches = match x {
+        Value::holon__HolonAST(h) => extract_classifier(h).as_deref() == Some("Tuple"),
         _ => false,
     };
     Ok(Value::bool(matches))
@@ -1590,15 +1530,9 @@ pub(crate) fn eval_holon_is_tuple_q(
 /// @example (:wat::holon::is-Symbol? (:wat::holon::from-wat (:wat::core::quote x))) #=> (:wat::holon::is-Symbol? (:wat::holon::from-wat (:wat::core::quote x)))
 /// @see     :wat::holon::is?
 #[wat_intrinsic(":wat::holon::is-Symbol?")]
-pub(crate) fn eval_holon_is_symbol_q(
-    x: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    _span: &Span, // rune:lint(unused-span) — infallible — no error path (the classifier match always falls through to `_ => false`)
-) -> Result<Value, EvalBreak> {
-    let value_val = eval_inner(x, env, sym)?.value_owned();
-    let matches = match value_val {
-        Value::holon__HolonAST(h) => extract_classifier(&h).as_deref() == Some("Symbol"),
+pub(crate) fn holon_is_symbol_q(x: &Value) -> Result<Value, EvalBreak> {
+    let matches = match x {
+        Value::holon__HolonAST(h) => extract_classifier(h).as_deref() == Some("Symbol"),
         _ => false,
     };
     Ok(Value::bool(matches))
@@ -1618,15 +1552,9 @@ pub(crate) fn eval_holon_is_symbol_q(
 /// @example (:wat::holon::is-Keyword? (:wat::holon::from-wat (:wat::core::quote :k))) #=> (:wat::holon::is-Keyword? (:wat::holon::from-wat (:wat::core::quote :k)))
 /// @see     :wat::holon::is?
 #[wat_intrinsic(":wat::holon::is-Keyword?")]
-pub(crate) fn eval_holon_is_keyword_q(
-    x: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    _span: &Span, // rune:lint(unused-span) — infallible — no error path (the classifier match always falls through to `_ => false`)
-) -> Result<Value, EvalBreak> {
-    let value_val = eval_inner(x, env, sym)?.value_owned();
-    let matches = match value_val {
-        Value::holon__HolonAST(h) => extract_classifier(&h).as_deref() == Some("Keyword"),
+pub(crate) fn holon_is_keyword_q(x: &Value) -> Result<Value, EvalBreak> {
+    let matches = match x {
+        Value::holon__HolonAST(h) => extract_classifier(h).as_deref() == Some("Keyword"),
         _ => false,
     };
     Ok(Value::bool(matches))
@@ -1646,15 +1574,9 @@ pub(crate) fn eval_holon_is_keyword_q(
 /// @example (:wat::holon::is-Tag? (:wat::holon::leaf "role")) #=> (:wat::holon::is-Tag? (:wat::holon::leaf "role"))
 /// @see     :wat::holon::is?
 #[wat_intrinsic(":wat::holon::is-Tag?")]
-pub(crate) fn eval_holon_is_tag_q(
-    x: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    _span: &Span, // rune:lint(unused-span) — infallible — no error path (the classifier match always falls through to `_ => false`)
-) -> Result<Value, EvalBreak> {
-    let value_val = eval_inner(x, env, sym)?.value_owned();
-    let matches = match value_val {
-        Value::holon__HolonAST(h) => extract_classifier(&h).as_deref() == Some("Tag"),
+pub(crate) fn holon_is_tag_q(x: &Value) -> Result<Value, EvalBreak> {
+    let matches = match x {
+        Value::holon__HolonAST(h) => extract_classifier(h).as_deref() == Some("Tag"),
         _ => false,
     };
     Ok(Value::bool(matches))
@@ -1672,14 +1594,8 @@ pub(crate) fn eval_holon_is_tag_q(
 /// @ret     :wat::core::bool true iff `x` is a nil-composition HolonAST
 /// @example (:wat::holon::is-Nil? (:wat::holon::to-holon nil)) #=> (:wat::holon::is-Nil? (:wat::holon::to-holon nil))
 #[wat_intrinsic(":wat::holon::is-Nil?")]
-pub(crate) fn eval_holon_is_nil_q(
-    x: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    _span: &Span, // rune:lint(unused-span) — infallible — no error path (the classifier match always falls through to `_ => false`)
-) -> Result<Value, EvalBreak> {
-    let value_val = eval_inner(x, env, sym)?.value_owned();
-    let matches = match value_val {
+pub(crate) fn holon_is_nil_q(x: &Value) -> Result<Value, EvalBreak> {
+    let matches = match x {
         Value::holon__HolonAST(h) => h.is_nil(),
         _ => false,
     };
@@ -2570,23 +2486,18 @@ pub(crate) fn eval_holon_encode(
 /// @example (:wat::holon::vector-bytes (:wat::holon::encode (:wat::holon::leaf "role"))) #=> (:wat::holon::vector-bytes (:wat::holon::encode (:wat::holon::leaf "role")))
 /// @see     :wat::holon::bytes-vector
 #[wat_intrinsic(":wat::holon::vector-bytes")]
-pub(crate) fn eval_holon_vector_bytes(
-    v: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    list_span: &Span,
-) -> Result<Value, EvalBreak> {
+pub(crate) fn holon_vector_bytes(v: &Value, span: &Span) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::vector-bytes";
-    let v = require_vector(OP, &eval_inner(v, env, sym)?.value_owned())?;
+    let v = require_vector(OP, v)?;
     let dim = v.dimensions();
     let dim_u32 = u32::try_from(dim).map_err(|_| {
         RuntimeError::new(
-            list_span.clone(),
+            span.clone(),
             RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "Vector with dim representable as u32",
                 got: Box::new(ValueSnapshot::unavailable("oversized Vector dim")),
-                // arc 138: no per-value AST span — dim comes from Vector value, not AST; list_span (call site) used instead
+                // arc 138: no per-value AST span — dim comes from Vector value, not AST; the call span is used instead
             },
         )
     })?;
@@ -2606,7 +2517,7 @@ pub(crate) fn eval_holon_vector_bytes(
                 -1 => 0b10,
                 other => {
                     return Err(RuntimeError::new(
-                        list_span.clone(),
+                        span.clone(),
                         RuntimeErrorKind::TypeMismatch {
                             op: OP.into(),
                             expected: "Vector cell in {-1, 0, +1}",
@@ -2614,7 +2525,7 @@ pub(crate) fn eval_holon_vector_bytes(
                                 "wat::core::i64",
                                 format!("cell value out of ternary range ({})", other),
                             )),
-                            // arc 138: no per-value AST span — cell value from Vector data, not AST; list_span (call site) used instead
+                            // arc 138: no per-value AST span — cell value from Vector data, not AST; the call span is used instead
                         },
                     )
                     .into());
@@ -2750,21 +2661,9 @@ pub(crate) fn eval_holon_bytes_vector(
 /// @ret     :wat::holon::CombineOutcome the matchable combine outcome
 /// @example (:wat::holon::vector-bind (:wat::holon::encode (:wat::holon::leaf "role")) (:wat::holon::encode (:wat::holon::leaf "filler"))) #=> (:wat::holon::vector-bind (:wat::holon::encode (:wat::holon::leaf "role")) (:wat::holon::encode (:wat::holon::leaf "filler")))
 #[wat_intrinsic(":wat::holon::vector-bind")]
-pub(crate) fn eval_holon_vector_bind(
-    a: &WatAST,
-    b: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    _span: &Span, // rune:lint(unused-span) — infallible relative to this span — `require_vector` locates its own error without a span param, and a dimension mismatch returns `Ok(combine_outcome_dimension_mismatch(..))`, not an error
-) -> Result<Value, EvalBreak> {
-    let va = require_vector(
-        ":wat::holon::vector-bind",
-        &eval_inner(a, env, sym)?.value_owned(),
-    )?;
-    let vb = require_vector(
-        ":wat::holon::vector-bind",
-        &eval_inner(b, env, sym)?.value_owned(),
-    )?;
+pub(crate) fn holon_vector_bind(a: &Value, b: &Value) -> Result<Value, EvalBreak> {
+    let va = require_vector(":wat::holon::vector-bind", a)?;
+    let vb = require_vector(":wat::holon::vector-bind", b)?;
     if va.dimensions() != vb.dimensions() {
         return Ok(combine_outcome_dimension_mismatch(
             va.dimensions() as i64,
@@ -2856,33 +2755,17 @@ pub(crate) fn eval_holon_vector_bundle(
 /// @ret     :wat::holon::CombineOutcome the matchable combine outcome
 /// @example (:wat::holon::vector-blend (:wat::holon::encode (:wat::holon::leaf "role")) (:wat::holon::encode (:wat::holon::leaf "filler")) 0.7 0.3) #=> (:wat::holon::vector-blend (:wat::holon::encode (:wat::holon::leaf "role")) (:wat::holon::encode (:wat::holon::leaf "filler")) 0.7 0.3)
 #[wat_intrinsic(":wat::holon::vector-blend")]
-pub(crate) fn eval_holon_vector_blend(
-    a: &WatAST,
-    b: &WatAST,
-    w1: &WatAST,
-    w2: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    list_span: &Span,
+pub(crate) fn holon_vector_blend(
+    a: &Value,
+    b: &Value,
+    w1: &Value,
+    w2: &Value,
+    span: &Span,
 ) -> Result<Value, EvalBreak> {
-    let va = require_vector(
-        ":wat::holon::vector-blend",
-        &eval_inner(a, env, sym)?.value_owned(),
-    )?;
-    let vb = require_vector(
-        ":wat::holon::vector-blend",
-        &eval_inner(b, env, sym)?.value_owned(),
-    )?;
-    let w1 = require_numeric(
-        ":wat::holon::vector-blend",
-        &eval_inner(w1, env, sym)?.value_owned(),
-        list_span,
-    )?;
-    let w2 = require_numeric(
-        ":wat::holon::vector-blend",
-        &eval_inner(w2, env, sym)?.value_owned(),
-        list_span,
-    )?;
+    let va = require_vector(":wat::holon::vector-blend", a)?;
+    let vb = require_vector(":wat::holon::vector-blend", b)?;
+    let w1 = require_numeric(":wat::holon::vector-blend", w1, span)?;
+    let w2 = require_numeric(":wat::holon::vector-blend", w2, span)?;
     if va.dimensions() != vb.dimensions() {
         return Ok(combine_outcome_dimension_mismatch(
             va.dimensions() as i64,
@@ -2951,16 +2834,8 @@ pub(crate) fn eval_holon_vector_permute(
 /// @ret     :wat::core::i64 the top-level form's structural size
 /// @example (:wat::holon::statement-length (:wat::holon::Bind (:wat::holon::leaf "role") (:wat::holon::leaf "filler"))) #=> (:wat::holon::statement-length (:wat::holon::Bind (:wat::holon::leaf "role") (:wat::holon::leaf "filler")))
 #[wat_intrinsic(":wat::holon::statement-length")]
-pub(crate) fn eval_holon_statement_length(
-    ast: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    _span: &Span, // rune:lint(unused-span) — infallible relative to this span — `require_holon` locates its own error without a span param, and the length computation itself cannot fail
-) -> Result<Value, EvalBreak> {
-    let ast = require_holon(
-        ":wat::holon::statement-length",
-        &eval_inner(ast, env, sym)?.value_owned(),
-    )?;
+pub(crate) fn holon_statement_length(ast: &Value) -> Result<Value, EvalBreak> {
+    let ast = require_holon(":wat::holon::statement-length", ast)?;
     // Arc 230 — Symbol/Keyword/Tag/Nil are now Bind compositions; intercept before
     // the generic match so they return 1 (conceptual leaf) not 2 (Bind structural count).
     let n = if ast.as_symbol().is_some() || ast.as_keyword().is_some() || ast.as_tag().is_some() {
