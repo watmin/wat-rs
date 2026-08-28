@@ -10,15 +10,13 @@ The ALGEBRA contract says an ALGEBRA fn takes `&Value` params and nothing else �
 **no span**. The first two are load-bearing: they are what make a handler need ASTs, so a handler
 needing them genuinely cannot be splatted. **The third was an over-reach**, and it caps the sweep:
 
-```
-                     of ALL 380 registered handlers
-  CALL-SPAN   302    body names `list_span`/`span` in an error path   ← unmigratable today
-  SPAN-FREE    60    names no span at all                              ← 38 already migrated
-  ARG-SPAN     18    names an ARGUMENT's own span                      ← NOT solved by this stone
-```
+⛔ **THE CENSUS THAT FIRST MOTIVATED THIS STONE IS RETRACTED — see the design's
+`RETRACTED THE SAME DAY` banner.** Three text instruments gave three answers and the third failed
+its own control (`eval_f64_max_of` came back SPAN-FREE while reaching `a.span()` inside
+`f64_variadic_reduce`, one level down). **Whether a verb can become ALGEBRA depends on what its
+HELPERS do, and no scan of a handler's body can see that.**
 
-**Every one of the 94 handlers under `src/intrinsic/holon/` is span-using.** O-iv-c cannot be struck
-until this lands. Without Q the ALGEBRA contract has **22 verbs** left it can ever serve.
+**Do not restore a number to this brief.** Q is justified by a design argument, not a population:
 
 ★ **A span is not binding state.** It is a location, and `apply` already holds one — it just does
 not thread it.

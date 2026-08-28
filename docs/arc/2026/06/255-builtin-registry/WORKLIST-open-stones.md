@@ -13,7 +13,7 @@ O-iv-b  the collections sweep                ✅ STRUCK — 8 new doors + 24 col
 P2  the special-form entry stops lying       ✅ STRUCK — show-source honest, `if` reports arity 3
 P3  the SEVEN ignores are re-diagnosed      ✅ STRUCK — 2 un-ignored, 5 re-pointed, a lint added
 P4  the silent skip is NAMED + FROZEN     ✅ STRUCK — 49 of 382, ward's 96/384 refuted
-Q       the value door carries a SPAN     ← NEXT: unblocks 302 handlers; without it the sweep STOPS
+Q       the value door carries a SPAN     ← NEXT: a span is not binding state; apply holds one
 O-iv-c  holon sweep                            73 verbs — ⛔ BLOCKED on Q
 O-iv-d  the remainder sweep                    26 verbs — same
 P5  @yields becomes mandatory at expand time   the top rung; biggest change
@@ -34,8 +34,8 @@ the floor (P1). Adding the population first and the wall second is the wrong ord
 | ~~P2~~ | ~~the special-form entry stops lying~~ | | | ✅ **STRUCK** — see Closed |
 | ~~P3~~ | ~~the ignore ledger re-diagnosed~~ | | | ✅ **STRUCK** — see Closed |
 | ~~P4~~ | ~~the silent skip becomes NAMED+FROZEN~~ | | | ✅ **STRUCK** — 49 of 382, see Closed |
-| **Q** | the value door carries the CALL SPAN — unblocks **302** handlers | `ValueHandler` type · `dispatch_substrate_impl` + its 1 caller · the macro sniff · 19 twins take an ignored param | `BRIEF-STONE-Q-the-value-door-carries-the-call-span.md` | — **READY** |
-| **O-iv-c** | holon sweep — `atom` 41 · `subspace` 10 · `engram` 10 · `reckoner` 8 · `hologram` 4 | 73 verbs | *not drawn* | ⛔ **BLOCKED on Q** — all 94 holon handlers are span-using; ZERO are the span-free shape |
+| **Q** | the value door carries the CALL SPAN — a span is not binding state | `ValueHandler` type · `dispatch_substrate_impl` + its 1 caller · the macro sniff · 19 twins take an ignored param | `BRIEF-STONE-Q-the-value-door-carries-the-call-span.md` | — **READY** |
+| **O-iv-c** | holon sweep — `atom` 41 · `subspace` 10 · `engram` 10 · `reckoner` 8 · `hologram` 4 | 73 verbs | *not drawn* | ⛔ **BLOCKED on Q** — holon's handlers use spans (READ, not counted); the value door has none |
 | **O-iv-d** | the remainder — `uuid` 7 · `ambient` 7 · `string`/`reflect`/`bytes` 2 · six singles | 26 verbs | *not drawn* | same |
 | **P5** | `@yields` mandatory when an `@arg` carries an Fn shape | macro-expand-time rule | *not drawn* | P4's measurement |
 | ~~P6-a~~ | ~~a special form names its implementations~~ | | | ✅ **STRUCK** — see Closed |

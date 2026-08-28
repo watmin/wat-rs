@@ -450,6 +450,58 @@ it into Stone O would braid two concerns. It needs its own draw.
 
 ---
 
+## ⛔⛔⛔ RETRACTED THE SAME DAY — THE NUMBERS BELOW ARE WRONG, AND THE THIRD INSTRUMENT FAILED ITS OWN CONTROL
+
+**Everything in the section below about `302 CALL-SPAN / 60 SPAN-FREE / 18 ARG-SPAN` is RETRACTED.**
+The builder's read is what exposed it: *"holon was some of the first tooling — we built wat to
+better use holon — it is very likely needing some degree of corrective change relative to the rest
+of the code base."* Looking again at what the spans are actually FOR, three separate defects fell out
+of my own measurement:
+
+1. **The first instrument could not match `args[0].span()` at all** — its pattern was
+   `[a-z_0-9]+\.span\(\)`, which the brackets defeat. So it filed genuine per-argument uses under
+   CALL-SPAN. The 18 was never real.
+2. **A refined second instrument disagreed with the first** — 38 ARG-SPAN in holon alone against a
+   global 18. Two instruments, two answers, so both were worthless.
+3. **The third instrument FAILED ITS OWN CONTROL.** `eval_f64_max_of` came back `SPAN-FREE` when I
+   had *read it myself* and knew it reaches `a.span()` — because it does so **inside
+   `f64_variadic_reduce`, one level down.** A handler that delegates its span use is invisible to any
+   scan of the handler's body.
+
+★ **THE QUESTION CANNOT BE ANSWERED BY SCANNING HANDLER BODIES.** Whether a verb can become ALGEBRA
+depends on what its *helpers* do, and that is the same DELEGATE class this design already recorded
+for `env`/`sym` (137 SHELL was a lower bound for exactly this reason). **Three text instruments, three
+wrong answers, and the only one that caught it was a hand-read control.**
+`[[feedback_validate_a_search_pattern_before_trusting_its_count]]`
+`[[feedback_impose_the_check_and_read_the_screams]]`
+
+**What survives, and it is the part that matters:** Stone Q's justification was never the census. It
+is a design argument, and it stands on its own —
+
+> `env`/`sym` are binding state: a handler needing them consumes ASTs and genuinely cannot be
+> splatted. **A span is not binding state.** It is a location, `apply` holds one (`runtime.rs:10773`,
+> the single caller of `dispatch_substrate_impl`, inside `eval_apply`), the AST door already passes
+> it, and the value door drops it only because `ValueHandler` has nowhere to put it.
+
+**And it stays true whatever the population turns out to be.** What Q unblocks will be measured by
+the COMPILER after Q lands — migrate a namespace and read what breaks — not guessed beforehand by a
+fourth pattern. `O-iv-c` remains blocked; the reason is that **holon's handlers use spans and the
+value door has none**, which was verified by reading them, not by counting them.
+
+⚠ **The `ARITY-ONLY` observation is the builder's point and it IS real, read directly:**
+`eval_holon_to_holon`'s entire `list_span` use is a hand-rolled `ArityMismatch` — the exact check
+`#[wat_intrinsic]`'s generated shim now performs. holon predates that generator, so it hand-rolls
+what the macro provides. That is corrective work of the kind he predicted, and it is **not** sized
+here, for the reasons above.
+
+⚠ **A second corrective finding, read directly in `eval_holon_from_holon`:** it parses a runtime
+`-> :T` annotation — `(from-holon h -> (:wat::core::HashMap :- [K V]))`. **Arc 258.4 retired the
+`-> :T` ascription**, and Stone P6-a corrected two `if` doc comments that still described it. holon
+still *implements* it. Not chased here; recorded because it is the same "holon predates the
+conventions" class.
+
+---
+
 ## ⛔⛔ O-iv-c IS BLOCKED, AND THE MEASUREMENT REFRAMES THE WHOLE SWEEP — 2026-08-28
 
 Drawing O-iv-c (the holon wave, 73 verbs) required the disposition rows this design demanded after
