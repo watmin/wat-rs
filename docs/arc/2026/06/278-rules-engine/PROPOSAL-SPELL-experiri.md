@@ -91,6 +91,34 @@ An executing ward can lie in ways a reading one cannot, and the harness has to a
 - **Not a test suite.** It is a census with a verdict per cell, and its output is a matrix a reader
   can disagree with — not a pass/fail.
 
+## ⛔ Would it have caught everything the others missed? NO — and the honest tally is the point
+
+A proposal that claims total coverage is the decoration this arc keeps removing. Every finding of
+2026-08-27/28 tested against the ward as specified above:
+
+| finding | would `experiri` catch it? |
+|---|---|
+| 6 rows passing every static gate that cannot execute | **YES** — this is precisely its class |
+| 39 rows accepted inline that compile, fire, and match nothing | **YES** — its unit is (declaration × POSITION), and a cell must change its answer |
+| `:wat::core::Tuple/length` is an unknown function (a surface I inferred from error-message string literals) | **YES** — drive it, and the phantom names itself |
+| the `Tuple` row unobservable | **YES, but only the SYMPTOM.** It reports "cannot be driven to a verdict". Whether the cure is *delete the row* or *add the accessors* is a judgment it does not make — and I drew the wrong one |
+| `filterv` shipped with no `infer_rete_form` route | **ONLY WITH THE RIGHT POSITION SET.** It fires in a fence and would refuse in ordinary wat. Caught if and only if "written in ordinary wat" is one of the positions driven |
+| `first_of` a second implementation of `first`, disagreeing with core about which containers exist | **NO.** No cell would exercise it, because the row that needed it did not exist yet. This is `solvere`'s class — duplicated encoding — and `solvere` ran and closed **all 7 L2** without it |
+| `reduce`'s 2-arity raise against its `total: true` row | **NO.** Needs edge-input driving, not a discriminating pair. This is `conferre`'s class — spec against implementation — and `conferre` ran and closed its L2 without it |
+
+**Three lessons, and they matter more than the yes-column.**
+
+1. **The POSITION SET is the ward's coverage, and choosing it is the whole difficulty.** The ledger
+   modelled two positions and missed a third the same row was reachable from. An `experiri` that
+   drives one surface and calls the row audited is the same false-completeness it exists to attack.
+2. **It finds symptoms; it does not diagnose.** "This cannot be driven" is a fact. "Therefore the
+   row should not exist" was my inference from it, and it was WRONG — the builder refused it, and
+   measuring proved core had served tuples correctly all along.
+3. **Two of the day's findings came from neither the wards nor the ledger — they came from the
+   BUILDER.** The corpus fallacy on `Tuple` ("never tell me we don't need something because a user
+   hasn't used it") and "foldl is reduce" were both human corrections of a confident instrument.
+   No spell in the book substitutes for that, and one claiming to would be lying.
+
 ## Precedent, already built
 
 `src/rete/reachability.rs` is this ward performed by hand against one table: 77 rows × 2 positions,
