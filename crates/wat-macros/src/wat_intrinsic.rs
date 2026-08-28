@@ -58,9 +58,11 @@ use syn::{Error, Expr, ExprLit, FnArg, GenericArgument, ItemFn, Lit, LitStr, Met
 /// implementation reachable from `:wat::core::apply`'s substrate-impl
 /// fallback (`dispatch_substrate_impl`, `src/runtime.rs`) may additionally
 /// name it: `#[wat_intrinsic(":wat::hashmap::length", value = eval_hashmap_length_value)]`.
-/// `value_fn` must name a fn matching `fn(&[Value]) -> Result<Value, EvalBreak>`
-/// in scope at the call site — the macro does not check the signature itself;
-/// a mismatch is a normal Rust type error at the `IntrinsicSubmission` literal.
+/// `value_fn` must name a fn matching `fn(&[Value], &Span) -> Result<Value, EvalBreak>`
+/// (arc 255 Stone Q widened `ValueHandler` with a trailing `&Span` — the call's own, not
+/// binding state; the fn may ignore it) in scope at the call site — the macro does not check
+/// the signature itself; a mismatch is a normal Rust type error at the `IntrinsicSubmission`
+/// literal.
 pub(crate) struct WatIntrinsicAttr {
     pub(crate) fqdn: LitStr,
     pub(crate) value_fn: Option<syn::Path>,
@@ -182,15 +184,19 @@ fn sniff_args(item: &ItemFn) -> syn::Result<SniffedArgs> {
 enum IntrinsicKind {
     /// Leading `&WatAST`/`&[WatAST]` params. AST door only; unchanged in every respect.
     Binding(SniffedArgs),
-    /// Leading `&Value`/`&[Value]` params, and NOTHING else. Both doors generated.
-    Algebra(SniffedArgs),
+    /// Leading `&Value`/`&[Value]` params, then NOTHING or a single trailing `&Span`
+    /// (arc 255 Stone Q). Both doors generated. The `bool` is `true` when the handler
+    /// itself declared the trailing `&Span` and wants it forwarded.
+    Algebra(SniffedArgs, bool),
 }
 
 /// Sniff the handler's kind, then (for ALGEBRA) parse its leading `&Value`/`&[Value]` params —
 /// same shape `sniff_args` parses for `&WatAST`/`&[WatAST]`, different predicate — and enforce
-/// STOP-1: an ALGEBRA handler's leading run must be followed by NOTHING (no `env`, `sym`,
-/// `&Span` — algebra by definition needs none of them) and STOP-3 in the ALGEBRA-leading
-/// direction (a later `&WatAST`/`&[WatAST]` param is the other kind's shape, rejected).
+/// STOP-1: an ALGEBRA handler's leading run must be followed by NOTHING or a single trailing
+/// `&Span` (arc 255 Stone Q — `env`/`sym` remain forbidden as binding state a splatted handler
+/// genuinely cannot use; a span is not binding state, it is a location) and STOP-3 in the
+/// ALGEBRA-leading direction (a later `&WatAST`/`&[WatAST]` param is the other kind's shape,
+/// rejected).
 fn sniff_kind(item: &ItemFn) -> syn::Result<IntrinsicKind> {
     let is_algebra = matches!(
         item.sig.inputs.iter().next(),
@@ -202,6 +208,10 @@ fn sniff_kind(item: &ItemFn) -> syn::Result<IntrinsicKind> {
 
     let mut wat_args: Vec<String> = Vec::new();
     let mut variadic_param: Option<String> = None;
+    // Arc 255 Stone Q — an ALGEBRA handler may take AT MOST one trailing `&Span`, and it must
+    // be the LAST param (nothing after it — same "context tail ends the signature" shape
+    // `sniff_args` enforces for BINDING's `&WatAST` run).
+    let mut span_seen = false;
 
     for input in item.sig.inputs.iter() {
         let FnArg::Typed(pt) = input else {
@@ -210,6 +220,14 @@ fn sniff_kind(item: &ItemFn) -> syn::Result<IntrinsicKind> {
                 "wat_intrinsic: handler fns take no `self` receiver",
             ));
         };
+        if span_seen {
+            // Stone Q: nothing may follow the trailing `&Span` — including another `&Span`.
+            return Err(Error::new_spanned(
+                &pt.ty,
+                "wat_intrinsic: an ALGEBRA handler's trailing `&Span` (arc 255 Stone Q) must be \
+                 the LAST param — nothing may follow it",
+            ));
+        }
         if is_ref_value_slice(&pt.ty) {
             if !wat_args.is_empty() || variadic_param.is_some() {
                 return Err(Error::new_spanned(
@@ -227,6 +245,12 @@ fn sniff_kind(item: &ItemFn) -> syn::Result<IntrinsicKind> {
                 ));
             }
             wat_args.push(pat_ident(&pt.pat)?);
+        } else if is_ref_span(&pt.ty) {
+            // Arc 255 Stone Q — the ONE thing allowed after the leading `&Value`/`&[Value]`
+            // run. Not binding state (STOP-1 still forbids `env`/`sym`): a span is a location,
+            // `apply` already holds one, and this is the ONLY place a value-door handler can
+            // receive it.
+            span_seen = true;
         } else if is_ref_watast(&pt.ty) || is_ref_watast_slice(&pt.ty) {
             return Err(Error::new_spanned(
                 &pt.ty,
@@ -235,16 +259,18 @@ fn sniff_kind(item: &ItemFn) -> syn::Result<IntrinsicKind> {
                  `&Value`/`&[Value]` only",
             ));
         } else {
-            // arc 255 Stone O-iii, STOP-1: a `&Value`-leading fn that also takes `env`, `sym`,
-            // or a `&Span` is a contradiction, not a shape to accommodate — algebra by
-            // definition needs none of them. If an existing `:wat::vector::` verb turns out to
-            // need one, it is BINDING, not ALGEBRA: give it `&WatAST` leading params instead.
+            // arc 255 Stone O-iii, STOP-1: a `&Value`-leading fn that also takes `env` or `sym`
+            // is a contradiction, not a shape to accommodate — algebra by definition needs
+            // neither. (A trailing `&Span` IS accommodated — see the `is_ref_span` arm above;
+            // arc 255 Stone Q — a span is not binding state.) If an existing `:wat::vector::`
+            // verb turns out to need env/sym, it is BINDING, not ALGEBRA: give it `&WatAST`
+            // leading params instead.
             return Err(Error::new_spanned(
                 &pt.ty,
                 "wat_intrinsic: an ALGEBRA handler (leading `&Value`/`&[Value]` params) cannot \
-                 also take `env`, `sym`, or `&Span` — algebra needs none of them; if this \
-                 handler genuinely needs the environment, it is BINDING: give it `&WatAST` \
-                 leading params instead",
+                 also take `env` or `sym` — algebra needs neither; a single trailing `&Span` IS \
+                 allowed (arc 255 Stone Q). If this handler genuinely needs the environment, it \
+                 is BINDING: give it `&WatAST` leading params instead",
             ));
         }
     }
@@ -254,7 +280,7 @@ fn sniff_kind(item: &ItemFn) -> syn::Result<IntrinsicKind> {
     } else {
         SniffedArgs::Exact(wat_args)
     };
-    Ok(IntrinsicKind::Algebra(sniffed))
+    Ok(IntrinsicKind::Algebra(sniffed, span_seen))
 }
 
 /// Extract the plain ident from a param pattern, or reject it. Shared by `sniff_args`'s
@@ -390,6 +416,16 @@ fn is_ref_value_slice(ty: &Type) -> bool {
     false
 }
 
+/// Is the type `&Span`? Arc 255 Stone Q — the ONE thing an ALGEBRA handler may take after its
+/// leading `&Value`/`&[Value]` run (STOP-1 still forbids `env`/`sym`; a span is not binding
+/// state). Mirrors `is_ref_value`.
+fn is_ref_span(ty: &Type) -> bool {
+    if let Type::Reference(r) = ty {
+        return type_path_ends_with(&r.elem, "Span");
+    }
+    false
+}
+
 /// Does the type's final path segment equal `name`? (Tolerates
 /// `WatAST`, `ast::WatAST`, `crate::ast::WatAST`, etc.)
 fn type_path_ends_with(ty: &Type, name: &str) -> bool {
@@ -490,7 +526,7 @@ pub(crate) fn emit(
     // arc 255 Stone O-iii, STOP-2 — an ALGEBRA handler cannot stamp provenance: `ValueHandler`
     // returns a bare `Value`, so a `TrackedValue` return could not survive the value door. Ruled
     // out by the design's first affirmative cut, not silently dropped or half-supported.
-    if let (IntrinsicKind::Algebra(_), SniffedReturn::Tracked) = (&kind, &sniffed_return) {
+    if let (IntrinsicKind::Algebra(_, _), SniffedReturn::Tracked) = (&kind, &sniffed_return) {
         return Err(Error::new_spanned(
             &item.sig,
             "wat_intrinsic: an ALGEBRA handler (leading `&Value`/`&[Value]` params) cannot \
@@ -504,7 +540,7 @@ pub(crate) fn emit(
     // arc 255 Stone O-iii — an ALGEBRA handler cannot ALSO name `value = <path>`: the handler
     // itself becomes the value door (the macro generates it), so a hand-named one would leave
     // two candidates and no rule for which wins.
-    if matches!(kind, IntrinsicKind::Algebra(_)) && value_fn.is_some() {
+    if matches!(kind, IntrinsicKind::Algebra(_, _)) && value_fn.is_some() {
         return Err(Error::new_spanned(
             item,
             "wat_intrinsic: an ALGEBRA handler (leading `&Value`/`&[Value]` params) cannot also \
@@ -514,7 +550,7 @@ pub(crate) fn emit(
     }
 
     let sniffed: &SniffedArgs = match &kind {
-        IntrinsicKind::Binding(s) | IntrinsicKind::Algebra(s) => s,
+        IntrinsicKind::Binding(s) | IntrinsicKind::Algebra(s, _) => s,
     };
 
     // Require a doc comment; parse it through wat_doc.
@@ -714,17 +750,36 @@ pub(crate) fn emit(
             };
             (body, TokenStream2::new(), vh_field)
         }
-        IntrinsicKind::Algebra(_) => {
+        IntrinsicKind::Algebra(_, wants_span) => {
+            // Arc 255 Stone Q — the door's OWN param is always named `_span`: `ValueHandler`
+            // fixes the fn-pointer shape to `fn(&[Value], &Span) -> …`, so every door takes
+            // one, but only a handler that itself declared a trailing `&Span` (`wants_span`)
+            // gets it forwarded. The underscore keeps an unused-param warning off the 38
+            // already-migrated (span-free) verbs' generated doors without an `#[allow]`.
+            let span_forward: Option<TokenStream2> = if *wants_span {
+                Some(quote! { , _span })
+            } else {
+                None
+            };
+
             // The value door: what `apply` reaches through `dispatch_substrate_impl`. Arity is
             // guarded HERE too (not only on the AST door below) — STOP triggers 3 and 5: the
             // adapter must be correct standing alone, raising the exact same `ArityMismatch`
             // shape (same op string, same expected/got) as the AST door and as
             // `dispatch_substrate_impl`'s own central guard (arc 255 Stone O-i).
             let value_door_body = if is_variadic {
-                quote! { #fn_name(vals) }
+                quote! { #fn_name(vals #span_forward) }
             } else {
                 let n = arg_names.len();
-                let val_forwards: Vec<TokenStream2> = (0..n).map(|i| quote! { &vals[#i] }).collect();
+                // Build the full comma-joined arg list (value forwards, then `_span` if
+                // wanted) as ONE list — not `#(#val_forwards),* #span_forward`, which emits a
+                // dangling leading comma when `n == 0` (a nullary ALGEBRA fn taking only a
+                // span is a legal, if unusual, shape).
+                let mut call_args: Vec<TokenStream2> =
+                    (0..n).map(|i| quote! { &vals[#i] }).collect();
+                if *wants_span {
+                    call_args.push(quote! { _span });
+                }
                 quote! {
                     if vals.len() != #n {
                         return ::std::result::Result::Err(
@@ -736,14 +791,17 @@ pub(crate) fn emit(
                             .into(),
                         );
                     }
-                    #fn_name(#(#val_forwards),*)
+                    #fn_name(#(#call_args),*)
                 }
             };
             let door_tokens = quote! {
-                // arc 255 Stone O-iii — the value door, generated from the ALGEBRA declaration
-                // itself. What `:wat::core::apply` reaches through `dispatch_substrate_impl`.
+                // arc 255 Stone O-iii/Q — the value door, generated from the ALGEBRA declaration
+                // itself. What `:wat::core::apply` reaches through `dispatch_substrate_impl`. The
+                // trailing `&Span` is the call's own (Stone Q); forwarded to `#fn_name` only when
+                // the handler declared it.
                 fn #value_door_ident(
                     vals: &[::wat::value::Value],
+                    _span: &::wat::span::Span,
                 ) -> ::std::result::Result<::wat::value::Value, ::wat::value::EvalBreak> {
                     #value_door_body
                 }
@@ -753,12 +811,14 @@ pub(crate) fn emit(
             // one implementation, not two. Arity is checked HERE too, before any arg is
             // evaluated (so a wrong-arity call fails fast, exactly like BINDING's shim), and
             // AGAIN in the value door (STOP-3/5) — same `ArityMismatch` shape both times.
+            // Arc 255 Stone Q — passes `list_span`, the shim's own real call span, not a
+            // synthesized one (both doors now see the SAME span for the SAME call).
             let ast_body = if is_variadic {
                 quote! {
                     let vals: ::std::vec::Vec<::wat::value::Value> = args.iter()
                         .map(|a| ::wat::runtime::eval_inner(a, env, sym).map(::wat::value::TrackedValue::value_owned))
                         .collect::<::std::result::Result<_, _>>()?;
-                    #value_door_ident(&vals).map(::wat::value::TrackedValue::from)
+                    #value_door_ident(&vals, list_span).map(::wat::value::TrackedValue::from)
                 }
             } else {
                 let n = arg_names.len();
@@ -776,7 +836,7 @@ pub(crate) fn emit(
                     let vals: ::std::vec::Vec<::wat::value::Value> = args.iter()
                         .map(|a| ::wat::runtime::eval_inner(a, env, sym).map(::wat::value::TrackedValue::value_owned))
                         .collect::<::std::result::Result<_, _>>()?;
-                    #value_door_ident(&vals).map(::wat::value::TrackedValue::from)
+                    #value_door_ident(&vals, list_span).map(::wat::value::TrackedValue::from)
                 }
             };
             let vh_field = quote! { ::std::option::Option::Some(#value_door_ident) };

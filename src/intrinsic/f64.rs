@@ -117,8 +117,8 @@ pub(crate) fn eval_f64_add(
 // implementation `dispatch_substrate_impl`'s own `:wat::f64::+` arm already
 // used before this stone — see `i64.rs`'s `eval_i64_add_value` comment for
 // why this is deliberately not merged with `eval_f64_arith` above.
-fn eval_f64_add_value(vals: &[Value]) -> Result<Value, EvalBreak> {
-    crate::runtime::arith_f64_f64_inner(":wat::f64::+", vals, |a, b| Ok(a + b))
+fn eval_f64_add_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
+    crate::runtime::arith_f64_f64_inner(":wat::f64::+", vals, span, |a, b| Ok(a + b))
 }
 
 /// `(:wat::f64::- a b)` → `a` minus `b`, strict f64. Same shared op fn as
@@ -145,8 +145,8 @@ pub(crate) fn eval_f64_sub(
 }
 
 // Arc 255 Stone N — value-level twin; see `eval_f64_add_value`'s comment above.
-fn eval_f64_sub_value(vals: &[Value]) -> Result<Value, EvalBreak> {
-    crate::runtime::arith_f64_f64_inner(":wat::f64::-", vals, |a, b| Ok(a - b))
+fn eval_f64_sub_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
+    crate::runtime::arith_f64_f64_inner(":wat::f64::-", vals, span, |a, b| Ok(a - b))
 }
 
 /// `(:wat::f64::* a b)` → `a` times `b`, strict f64. Same shared op fn as
@@ -173,8 +173,8 @@ pub(crate) fn eval_f64_mul(
 }
 
 // Arc 255 Stone N — value-level twin; see `eval_f64_add_value`'s comment above.
-fn eval_f64_mul_value(vals: &[Value]) -> Result<Value, EvalBreak> {
-    crate::runtime::arith_f64_f64_inner(":wat::f64::*", vals, |a, b| Ok(a * b))
+fn eval_f64_mul_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
+    crate::runtime::arith_f64_f64_inner(":wat::f64::*", vals, span, |a, b| Ok(a * b))
 }
 
 /// `(:wat::f64::/ a b)` → `a` divided by `b`. IEEE 754 division: `b = 0.0`
@@ -202,8 +202,8 @@ pub(crate) fn eval_f64_div(
 }
 
 // Arc 255 Stone N — value-level twin; see `eval_f64_add_value`'s comment above.
-fn eval_f64_div_value(vals: &[Value]) -> Result<Value, EvalBreak> {
-    crate::runtime::arith_f64_f64_inner(":wat::f64::/", vals, |a, b| Ok(a / b))
+fn eval_f64_div_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
+    crate::runtime::arith_f64_f64_inner(":wat::f64::/", vals, span, |a, b| Ok(a / b))
 }
 
 // ─── max / min (binary) ─────────────────────────────────────────────────────

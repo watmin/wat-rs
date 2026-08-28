@@ -72,8 +72,8 @@ pub(crate) fn eval_bigint_add(
 // based implementation that fn's own `:wat::bigint::+` arm already used
 // before this stone — see `i64.rs`'s `eval_i64_add_value` comment for why
 // this is deliberately not merged with `eval_bigint_arith` above.
-fn eval_bigint_add_value(vals: &[Value]) -> Result<Value, EvalBreak> {
-    crate::runtime::arith_bigint_bigint_inner(":wat::bigint::+", vals, |a, b| {
+fn eval_bigint_add_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
+    crate::runtime::arith_bigint_bigint_inner(":wat::bigint::+", vals, span, |a, b| {
         Ok(Value::wat__core__BigInt(Box::new(a + b)))
     })
 }
@@ -104,8 +104,8 @@ pub(crate) fn eval_bigint_sub(
 }
 
 // Arc 255 Stone N — value-level twin; see `eval_bigint_add_value`'s comment above.
-fn eval_bigint_sub_value(vals: &[Value]) -> Result<Value, EvalBreak> {
-    crate::runtime::arith_bigint_bigint_inner(":wat::bigint::-", vals, |a, b| {
+fn eval_bigint_sub_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
+    crate::runtime::arith_bigint_bigint_inner(":wat::bigint::-", vals, span, |a, b| {
         Ok(Value::wat__core__BigInt(Box::new(a - b)))
     })
 }
@@ -136,8 +136,8 @@ pub(crate) fn eval_bigint_mul(
 }
 
 // Arc 255 Stone N — value-level twin; see `eval_bigint_add_value`'s comment above.
-fn eval_bigint_mul_value(vals: &[Value]) -> Result<Value, EvalBreak> {
-    crate::runtime::arith_bigint_bigint_inner(":wat::bigint::*", vals, |a, b| {
+fn eval_bigint_mul_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
+    crate::runtime::arith_bigint_bigint_inner(":wat::bigint::*", vals, span, |a, b| {
         Ok(Value::wat__core__BigInt(Box::new(a * b)))
     })
 }
@@ -173,8 +173,8 @@ pub(crate) fn eval_bigint_div_intrinsic(
 // `crate::runtime::bigint_div` (a different fn, `(&BigInt,&BigInt,&Span) ->
 // Result<Value, EvalBreak>`, incompatible with `arith_bigint_bigint_inner`'s
 // `Fn(&BigInt,&BigInt) -> Result<Value, ()>`).
-fn eval_bigint_div_value(vals: &[Value]) -> Result<Value, EvalBreak> {
-    crate::runtime::arith_bigint_bigint_inner(":wat::bigint::/", vals, |a, b| {
+fn eval_bigint_div_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
+    crate::runtime::arith_bigint_bigint_inner(":wat::bigint::/", vals, span, |a, b| {
         use num_traits::Zero;
         if b.is_zero() {
             return Err(());
