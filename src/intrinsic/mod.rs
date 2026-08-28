@@ -1080,6 +1080,87 @@ mod tests {
             missing.join("\n")
         );
     }
+
+    /// Arc 255 Stone P5-a's frozen ledger for `source.rs`'s `f :wat::core::Fn` `@arg` on
+    /// `:wat::kernel::fn-forms`. `:wat::core::Fn` there is `ANON_FN_SYMBOL`
+    /// (`crate::value::frame::ANON_FN_SYMBOL`) — the string an anonymous fn VALUE renders
+    /// as, standing in a type position with no backing `TypeExpr::Fn` to derive a canonical
+    /// bracket spelling from. Its own prose accepts two shapes ("the fn value to reify (or a
+    /// keyword naming a registered fn)") and wat has no union type to name that with, so this
+    /// is named on a ledger — like `FROZEN_CHECKER_DEBT_LEDGER` above — rather than guessed
+    /// or fixed with a type-system feature.
+    const FN_ARG_ANON_SYMBOL_LEDGER: &[(&str, &str)] = &[(":wat::kernel::fn-forms", "f")];
+
+    /// Every `->` in a fn-type `@arg` string must be spelled `:->` (the renderer's arrow),
+    /// i.e. every occurrence of the two-byte substring `->` is immediately preceded by `:`.
+    fn arrow_correctly_spelled(ty: &str) -> bool {
+        let bytes = ty.as_bytes();
+        let mut idx = 0;
+        while let Some(pos) = ty[idx..].find("->") {
+            let abs = idx + pos;
+            if abs == 0 || bytes[abs - 1] != b':' {
+                return false;
+            }
+            idx = abs + 2;
+        }
+        true
+    }
+
+    /// ★ Arc 255 Stone P5-a's WALL — built and shown RED before any correction
+    /// (`NISI FRANGAS, NIHIL PROBAS`).
+    ///
+    /// A function type has ONE spelling in an `@arg`: whatever
+    /// `typeexpr_to_doc_string` emits for `TypeExpr::Fn` — `[:-> RET]` (nullary) or
+    /// `[ARGS :-> RET]` — bracket-delimited, arrow spelled `:->`. Walking
+    /// `registry().all_entries()`'s `entry.args`, a declared type is a fn-type CLAIM if it
+    /// contains `->` or equals `ANON_FN_SYMBOL` (the value-rendering standing in a type
+    /// position, `source.rs:158` — ledgered above, never elsewhere). Every other fn-type
+    /// claim must be bracket-delimited with the arrow spelled `:->`; `ANON_FN_SYMBOL` must
+    /// never appear as a type outside the frozen ledger.
+    #[test]
+    fn fn_typed_arg_has_one_canonical_spelling() {
+        let mut violations: Vec<String> = Vec::new();
+
+        for entry in super::registry().all_entries() {
+            for &(arg_name, ty, _desc, _is_rest) in entry.args.iter() {
+                let is_fn_type_claim = ty.contains("->") || ty == crate::value::frame::ANON_FN_SYMBOL;
+                if !is_fn_type_claim {
+                    continue;
+                }
+
+                if ty == crate::value::frame::ANON_FN_SYMBOL {
+                    if FN_ARG_ANON_SYMBOL_LEDGER.contains(&(entry.name, arg_name)) {
+                        continue; // STOP-1's single ledgered site — a value rendering, not a TypeExpr::Fn.
+                    }
+                    violations.push(format!(
+                        "{}'s `@arg {}` types as `{}` — ANON_FN_SYMBOL (a fn VALUE's \
+                         rendering) used as a type, and not on FN_ARG_ANON_SYMBOL_LEDGER",
+                        entry.name, arg_name, ty
+                    ));
+                    continue;
+                }
+
+                let bracket_delimited = ty.starts_with('[') && ty.ends_with(']');
+                let arrow_ok = arrow_correctly_spelled(ty);
+                if !bracket_delimited || !arrow_ok {
+                    violations.push(format!(
+                        "{}'s `@arg {}` types as `{}` — not the canonical bracket form \
+                         `[ARGS :-> RET]` that `typeexpr_to_doc_string` emits for \
+                         `TypeExpr::Fn` (bracket_delimited={}, arrow_spelled_correctly={})",
+                        entry.name, arg_name, ty, bracket_delimited, arrow_ok
+                    ));
+                }
+            }
+        }
+
+        violations.sort();
+        assert!(
+            violations.is_empty(),
+            "fn-typed @arg(s) not in the ONE canonical spelling `[ARGS :-> RET]` \
+             (arc 255 Stone P5-a):\n{}",
+            violations.join("\n")
+        );
+    }
 }
 
 // The `wat_mirror_tests` module that stood here is DELETED (2026-08-15). It
