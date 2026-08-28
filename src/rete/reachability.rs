@@ -180,23 +180,21 @@ struct Cell {
     hit: &'static str,
     /// Literal for the fact that should NOT.
     miss: &'static str,
-    /// How a NON-`bool` row is turned into a constraint, as `(comparator, expected)`.
+    /// The constraint expression, with `{f}` wherever the discriminating field is referenced.
     ///
-    /// `Alias` rows returning `bool` sit where a constraint goes as they are. Every other row
-    /// returns a VALUE — `i64::+` returns an i64, `PersistentVector/first` returns its element —
-    /// and a value is not a condition. So the cell wraps it: `(i64::= (i64::+ :v 2 :undefined 0) 12)`.
-    /// The wrap is part of the CELL rather than of the row because the comparator is chosen by the
-    /// return type and the expected value is chosen by the operands, neither of which the row
-    /// knows. `None` means the row is already a predicate.
-    wrap: Option<(&'static str, &'static str)>,
-    /// The right-hand operand, written identically in both positions — ignored when `arity == 1`.
+    /// This is the ONE representation of what a cell writes. `{f}` renders as `:v` inline (where a
+    /// bare keyword is a field reference) and `?v` in a fence (where it is the bound variable) —
+    /// the same text, read differently by each position, which is what makes the two columns
+    /// comparable.
     ///
-    /// It is the same TEXT in both, deliberately, because the two positions READ it differently
-    /// and that difference is a finding rather than something to paper over: inline, a bare
-    /// keyword is a field reference and never a keyword value (`matcher.rs`'s `ast_literal_value`);
-    /// inside a fence there is no such grammar. Writing one spelling and letting each position do
-    /// what it really does is what surfaces that.
-    rhs: &'static str,
+    /// Most rows get this from [`uniform_call`], which builds the `(op operands…)` shape from the
+    /// row's arity plus a wrap. Special forms cannot use that shape at all — `and` takes nested
+    /// predicates, `foldl` takes a `fn` — so they state their expression directly. One
+    /// representation, two builders; a builder is not a second source of truth.
+    expr: String,
+    /// Extra top-level declarations this cell needs before the records — an enum for `enum::=`,
+    /// say. Empty for almost every row.
+    extra: &'static str,
 }
 
 /// Build the complete program for one cell.
@@ -205,26 +203,17 @@ struct Cell {
 /// entry point. That is deliberate: it means a difference in outcome between two cells of the
 /// same row is attributable to the POSITION and to nothing else.
 fn synth(cell: &Cell, site: CallSite) -> String {
-    let (mut inline_call, mut fence_call) = if cell.arity <= 1 {
-        (format!("({} :v)", cell.op), format!("({} ?v)", cell.op))
-    } else {
-        (
-            format!("({} :v {})", cell.op, cell.rhs),
-            format!("({} ?v {})", cell.op, cell.rhs),
-        )
-    };
-    if let Some((cmp, expected)) = cell.wrap {
-        inline_call = format!("({cmp} {inline_call} {expected})");
-        fence_call = format!("({cmp} {fence_call} {expected})");
-    }
     let condition = match site {
-        CallSite::InlineConstraint => format!("(:probe::In (?k <- :k) {inline_call})"),
+        CallSite::InlineConstraint => {
+            format!("(:probe::In (?k <- :k) {})", cell.expr.replace("{f}", ":v"))
+        }
         CallSite::WhereFence => format!(
-            "(:probe::In (?k <- :k) (?v <- :v))\n   (:wat::rete::where {fence_call})"
+            "(:probe::In (?k <- :k) (?v <- :v))\n   (:wat::rete::where {})",
+            cell.expr.replace("{f}", "?v")
         ),
     };
     format!(
-        r#"(:wat::core::defrecord :probe::In  [k <- :wat::core::String  v <- {field_ty}])
+        r#"{extra}(:wat::core::defrecord :probe::In  [k <- :wat::core::String  v <- {field_ty}])
 (:wat::core::defrecord :probe::Out [k <- :wat::core::String])
 
 (:wat::rete::defrule :probe::rule
@@ -246,6 +235,7 @@ fn synth(cell: &Cell, site: CallSite) -> String {
      fired   (:wat::rete::fire-rules session)]
     (:wat::core::length (:wat::rete::query fired (:probe::q)))))
 "#,
+        extra = cell.extra,
         field_ty = cell.field_ty,
         condition = condition,
         hit = cell.hit,
@@ -339,27 +329,15 @@ fn as_diagnostics_spell_it(op: &str) -> String {
 }
 
 /// An i64 ordering comparison — the baseline row, reachable in BOTH positions.
-const I64_GT: Cell = Cell {
-    op: ":wat::rete::core::i64::>",
-    wrap: None,
-    arity: 2,
-    field_ty: ":wat::core::i64",
-    hit: "42",
-    miss: "3",
-    rhs: "10",
-};
+fn i64_gt() -> Cell {
+    operands_for(":wat::rete::core::i64::>").expect("the baseline row must be in the table")
+}
 
 /// Keyword equality — reachable in a fence, NOT as an inline constraint. The asymmetry this whole
 /// ledger exists because of.
-const KEYWORD_EQ: Cell = Cell {
-    op: ":wat::rete::core::keyword::=",
-    wrap: None,
-    arity: 2,
-    field_ty: ":wat::core::keyword",
-    hit: ":alpha",
-    miss: ":beta",
-    rhs: ":alpha",
-};
+fn keyword_eq() -> Cell {
+    operands_for(":wat::rete::core::keyword::=").expect("the keyword row must be in the table")
+}
 
 /// Report a cell's outcome with the SOURCE attached.
 ///
@@ -401,10 +379,10 @@ fn expect(cell: &Cell, site: CallSite, want: &Verdict) {
 /// only of fires. Only a mixed control can fail in both directions.
 #[test]
 fn the_ledger_reproduces_four_known_cells_before_it_reports_an_unknown_one() {
-    expect(&I64_GT, CallSite::InlineConstraint, &Verdict::Fires);
-    expect(&I64_GT, CallSite::WhereFence, &Verdict::Fires);
-    expect(&KEYWORD_EQ, CallSite::WhereFence, &Verdict::Fires);
-    expect(&KEYWORD_EQ, CallSite::InlineConstraint, &Verdict::Refused(String::new()));
+    expect(&i64_gt(), CallSite::InlineConstraint, &Verdict::Fires);
+    expect(&i64_gt(), CallSite::WhereFence, &Verdict::Fires);
+    expect(&keyword_eq(), CallSite::WhereFence, &Verdict::Fires);
+    expect(&keyword_eq(), CallSite::InlineConstraint, &Verdict::Refused(String::new()));
 }
 
 /// The asymmetry itself, stated as a property rather than as two independent cells.
@@ -415,8 +393,8 @@ fn the_ledger_reproduces_four_known_cells_before_it_reports_an_unknown_one() {
 /// either choice is a lie about half the surface.
 #[test]
 fn one_op_can_be_reachable_in_one_position_and_refused_in_another() {
-    let fence = drive(&synth(&KEYWORD_EQ, CallSite::WhereFence), KEYWORD_EQ.op);
-    let inline = drive(&synth(&KEYWORD_EQ, CallSite::InlineConstraint), KEYWORD_EQ.op);
+    let fence = drive(&synth(&keyword_eq(), CallSite::WhereFence), keyword_eq().op);
+    let inline = drive(&synth(&keyword_eq(), CallSite::InlineConstraint), keyword_eq().op);
     assert_eq!(fence, Verdict::Fires, "the fence position must be reachable");
     assert!(
         matches!(inline, Verdict::Refused(_)),
@@ -445,11 +423,11 @@ fn one_op_can_be_reachable_in_one_position_and_refused_in_another() {
 /// just proven reachable one cell earlier.
 #[test]
 fn a_refusal_that_does_not_name_the_op_is_a_template_defect_not_a_reachability_finding() {
-    let good = synth(&I64_GT, CallSite::InlineConstraint);
+    let good = synth(&i64_gt(), CallSite::InlineConstraint);
     let broken = good.replace("(?k <- :k)", "(?k <- :nope)");
     assert_ne!(good, broken, "the break must actually change the program");
 
-    match drive(&broken, I64_GT.op) {
+    match drive(&broken, i64_gt().op) {
         // EXACT, not a substring: the kind is the contract. `Unattributed` specifically — a
         // `DidNotDiscriminate` here would mean the broken field was silently ACCEPTED and the
         // rule merely stopped pruning, which is a completely different bug wearing the same
@@ -459,13 +437,13 @@ fn a_refusal_that_does_not_name_the_op_is_a_template_defect_not_a_reachability_f
             DefectKind::Unattributed,
             "the break was a field the record does not declare, so the refusal must be \
              unattributable to {op} — any other kind means the break did not land where intended",
-            op = I64_GT.op,
+            op = i64_gt().op,
         ),
         other => panic!(
             "a refusal unrelated to {op} must classify as TemplateDefect — recording it as a \
              reachability verdict would report a row DEAD that this same file proves reachable \
              in the very next cell; got {other:?}\n─── the program driven ───\n{broken}",
-            op = I64_GT.op,
+            op = i64_gt().op,
         ),
     }
 
@@ -473,7 +451,7 @@ fn a_refusal_that_does_not_name_the_op_is_a_template_defect_not_a_reachability_f
     // real answer. Without it this test would pass against an `attribute` that called everything
     // a TemplateDefect — which would silence the entire ledger while looking maximally careful.
     assert_eq!(
-        drive(&good, I64_GT.op),
+        drive(&good, i64_gt().op),
         Verdict::Fires,
         "the unbroken twin must still fire — otherwise this test proves only that the classifier \
          says TemplateDefect to everything"
@@ -493,7 +471,65 @@ fn a_refusal_that_does_not_name_the_op_is_a_template_defect_not_a_reachability_f
 /// `None` means "no entry", which the sweep treats as a failure. There is deliberately no
 /// "skip this row" value: an unclassifiable row must be argued in prose at the exclusion list
 /// below, where a reader can disagree with it.
+/// Build the ordinary `(op {f} operands…)` expression, optionally wrapped in a comparator.
+///
+/// The shorthand every row that IS a plain call uses. Unary rows render `(op {f})`; everything
+/// else `(op {f} rest)`, where `rest` is the operand text after the field — which is also how a
+/// `Fallback` row's mandatory `:undefined <value>` marker pair is supplied.
+fn uniform_call(op: &str, arity: usize, rest: &str, wrap: Option<(&str, &str)>) -> String {
+    let call =
+        if arity <= 1 { format!("({op} {{f}})") } else { format!("({op} {{f}} {rest})") };
+    match wrap {
+        None => call,
+        Some((cmp, expected)) => format!("({cmp} {call} {expected})"),
+    }
+}
+
+
+/// SPECIAL FORMS and re-dispatched functions — the rows `uniform_call` cannot build.
+///
+/// `Form` members are genuine special forms: `and` takes nested predicates, `let` binds, `cond`
+/// has arms. `Redispatch` members are plain functions whose type is polymorphic over the CONTAINER
+/// constructor, and several are constructors themselves, so the field has to be built INTO a
+/// larger expression rather than passed as an operand.
+///
+/// ⛔ **Every expression here still has to DISCRIMINATE** — the hit fact passes and the miss fact
+/// does not — which for a constructor means threading `{f}` inside the thing being constructed and
+/// then asking a question about it. A cell that merely mentions the op without letting the field
+/// change the answer would report `Fires` while proving nothing, and `MatchedTooMany` is what
+/// catches that.
+fn special_for(rete_name: &str) -> Option<(&'static str, &'static str, &'static str, &'static str, &'static str)> {
+    let t = match rete_name {
+        ":wat::rete::core::and" => (":wat::core::i64", "10", "1", "(:wat::rete::core::and (:wat::rete::core::i64::> {f} 5) (:wat::rete::core::i64::< {f} 20))", ""),
+        ":wat::rete::core::or" => (":wat::core::i64", "1", "10", "(:wat::rete::core::or (:wat::rete::core::i64::> {f} 100) (:wat::rete::core::i64::< {f} 5))", ""),
+        ":wat::rete::core::if" => (":wat::core::i64", "10", "1", "(:wat::rete::core::i64::= (:wat::rete::core::if (:wat::rete::core::i64::> {f} 5) 1 0) 1)", ""),
+        ":wat::rete::core::let" => (":wat::core::i64", "10", "1", "(:wat::rete::core::let [x {f}] (:wat::rete::core::i64::> x 5))", ""),
+        ":wat::rete::core::cond" => (":wat::core::i64", "10", "1", "(:wat::rete::core::cond ((:wat::rete::core::i64::> {f} 5) true) (:else false))", ""),
+        ":wat::rete::core::match" => (":probe::E", ":probe::E::A", ":probe::E::B", "(:wat::rete::core::match {f} (:probe::E::A true) (:probe::E::B false))", "(:wat::core::defenum :probe::E :wat::enum::Pure :A :B)\n\n"),
+        ":wat::rete::core::fn" => ("(:wat::core::PersistentVector :- [:wat::core::i64])", "(:wat::core::PersistentVector 1 2)", "(:wat::core::PersistentVector 9)", "(:wat::rete::core::i64::= (:wat::rete::core::foldl (:wat::rete::core::fn [acc <- :wat::core::i64  x <- :wat::core::i64] -> :wat::core::i64 (:wat::rete::core::i64::+ acc x :undefined 0)) 0 {f}) 3)", ""),
+        ":wat::rete::core::enum::=" => (":probe::E", ":probe::E::A", ":probe::E::B", "(:wat::rete::core::enum::= {f} :probe::E::A)", "(:wat::core::defenum :probe::E :wat::enum::Pure :A :B)\n\n"),
+        ":wat::rete::core::enum::not=" => (":probe::E", ":probe::E::B", ":probe::E::A", "(:wat::rete::core::enum::not= {f} :probe::E::A)", "(:wat::core::defenum :probe::E :wat::enum::Pure :A :B)\n\n"),
+        ":wat::rete::core::PersistentVector" => (":wat::core::i64", "7", "9", "(:wat::rete::core::PersistentVector/contains? (:wat::rete::core::PersistentVector {f} 99) 7)", ""),
+        ":wat::rete::core::Vector" => (":wat::core::i64", "7", "9", "(:wat::rete::core::i64::= (:wat::rete::core::Vector/first (:wat::rete::core::Vector {f}) :undefined 0) 7)", ""),
+        ":wat::rete::core::List" => (":wat::core::i64", "7", "9", "(:wat::rete::core::i64::= (:wat::rete::core::List/first (:wat::rete::core::List {f}) :undefined 0) 7)", ""),
+        ":wat::rete::core::foldl" => ("(:wat::core::PersistentVector :- [:wat::core::i64])", "(:wat::core::PersistentVector 1 2)", "(:wat::core::PersistentVector 9)", "(:wat::rete::core::i64::= (:wat::rete::core::foldl (:wat::rete::core::fn [acc <- :wat::core::i64  x <- :wat::core::i64] -> :wat::core::i64 (:wat::rete::core::i64::+ acc x :undefined 0)) 0 {f}) 3)", ""),
+        _ => return None,
+    };
+    Some(t)
+}
+
 fn operands_for(rete_name: &'static str) -> Option<Cell> {
+    if let Some((field_ty, hit, miss, expr, extra)) = special_for(rete_name) {
+        return Some(Cell {
+            op: rete_name,
+            arity: 0,
+            field_ty,
+            hit,
+            miss,
+            extra,
+            expr: expr.to_string(),
+        });
+    }
     let (arity, field_ty, hit, miss, rhs, wrap): (usize, &str, &str, &str, &str, Option<(&str, &str)>) = match rete_name {
         // i64 — the baseline. Note `<` needs its hit/miss SWAPPED relative to `>` against the
         // same literal, which is the whole argument for a per-row table.
@@ -596,8 +632,69 @@ fn operands_for(rete_name: &'static str) -> Option<Cell> {
 
         _ => return None,
     };
-    Some(Cell { op: rete_name, arity, field_ty, hit, miss, rhs, wrap })
+    Some(Cell {
+        op: rete_name,
+        arity,
+        field_ty,
+        hit,
+        miss,
+        extra: "",
+        expr: uniform_call(rete_name, arity, rhs, wrap),
+    })
 }
+
+/// Rows that ARE generable and are nonetheless excluded, because the compiled `where` EXECUTOR
+/// cannot run them — a DEFECT, deliberately not filed under `NOT_YET_GENERABLE`.
+///
+/// ⛔ **Calling this a tooling gap would be the mislabel this ledger exists to prevent.** These
+/// cells synthesize fine; they raise
+/// `#wat.runtime/MalformedForm "compiled apply cannot dispatch kind Unknown arity N"` at RUNTIME,
+/// after passing admission, totality, arity and type — the same shape as
+/// `PersistentMap/contains-key?`, which was found the same way and FIXED (see `expr_ir.rs`).
+///
+/// Verified structurally, not inferred from the message: `expr_ir.rs`'s `CoreKind` mapping carries
+/// `PvNew`/`VecNew`/`ListNew` for the three sibling constructors and has NO arm for either of
+/// these. Note that a missing arm is not on its own proof of a hole — `foldl` and the other HOFs
+/// map to `Unknown` too and reach the compiled path by their own dedicated route (`expr_ir.rs`
+/// line ~371). What makes these two a defect is the CONJUNCTION: no arm, no other route, and a
+/// runtime raise when driven.
+///
+/// **The extirpation is a gate, not two arms.** `RETE_OPS` and the `CoreKind` mapping are two
+/// lists that must agree and nothing checks that they do; `holon_rete_ops_have_opexec` checks it
+/// for holon rows only, and its own doc used to instruct the reader not to widen it. That widening
+/// is its own strike — see `RETE-OPEN-WORK` § 4.1.
+const COMPILED_EXECUTOR_CANNOT_RUN: &[(&str, &str)] = &[
+    (
+        ":wat::rete::core::PersistentMap",
+        "the map CONSTRUCTOR. `expr_ir.rs` has PvNew/VecNew/ListNew and no PmNew, so a compiled \
+         fence raises `cannot dispatch kind Unknown arity 2`. Its sibling accessor \
+         `PersistentMap/contains-key?` had the identical hole and was fixed 2026-08-28.",
+    ),
+    (
+        ":wat::rete::core::map",
+        "LOWERED as a higher-order fn (`expr_ir.rs:371-374` lists all four HOFs together) and then \
+         EXECUTED by a path that only knows one: `exec` routes to `exec_foldl` under \
+         `core_name == \":wat::core::foldl\"` and everything else falls through to the generic \
+         arg-eval + `apply_op`, where the lambda's parameters were never bound. The driven cell \
+         raises `unbound symbol: x`. Recognised in one place, wired in another, and the two \
+         disagree.",
+    ),
+    (
+        ":wat::rete::core::filter",
+        "same as `map` — lowered as a HOF, no exec arm; raises `unbound symbol: x`.",
+    ),
+    (
+        ":wat::rete::core::reduce",
+        "same as `map` — lowered as a HOF, no exec arm; raises `unbound symbol: acc`.",
+    ),
+    (
+        ":wat::rete::core::Tuple",
+        "same missing-arm shape, AND separately unobservable: no rete row accesses a Tuple's \
+         elements, so even with an arm a constructed Tuple could not be compared to anything from \
+         inside a fence. One of the three rows appearing nowhere in the 1569-file corpus — and \
+         now it is clear why nobody could have used it.",
+    ),
+];
 
 /// The rows deliberately NOT in the operand table, each with the reason a reader can argue with.
 ///
@@ -605,6 +702,10 @@ fn operands_for(rete_name: &'static str) -> Option<Cell> {
 /// arc has been wrong about twice (see the breadcrumb: "do not trust a grep that found nothing").
 /// So each one names what would refute it.
 const NOT_YET_GENERABLE: &[(&str, &str)] = &[
+    (
+    ":wat::rete::holon::coincident?",
+    "same as `presence?` — two `HolonAST` operands, no literal spelling for the second.",
+    ),
     (
     ":wat::rete::holon::cosine",
     "same as `presence?` — two `HolonAST` operands, no literal spelling for the second.",
@@ -648,16 +749,12 @@ const NOT_YET_GENERABLE: &[(&str, &str)] = &[
 /// The full matrix prints on every run, pass or fail. A ledger whose output is only visible when
 /// it breaks is a ledger nobody reads.
 fn sweep_shard(shard: usize, of: usize) {
-    let all: Vec<&ReteOp> = RETE_OPS
-        .iter()
-        .filter(|o| matches!(o.class, OpClass::Alias | OpClass::Fallback))
-        .collect();
+    let all: Vec<&ReteOp> = RETE_OPS.iter().collect();
     // NON-VACUITY on the POPULATION, checked before sharding — a shard of an empty set is empty
     // and would pass silently.
     assert!(
-        all.len() >= 55,
-        "the Alias+Fallback block looks empty or renamed ({} rows) — this sweep would pass \
-         vacuously",
+        all.len() >= 74,
+        "RETE_OPS looks empty or renamed ({} rows) — this sweep would pass vacuously",
         all.len()
     );
     // Partition by INDEX, not by hand-picked family: every row lands in exactly one shard, so
@@ -671,7 +768,12 @@ fn sweep_shard(shard: usize, of: usize) {
 
     for row in &rows {
         let Some(cell) = operands_for(row.rete_name) else {
-            if let Some((_, why)) = NOT_YET_GENERABLE.iter().find(|(n, _)| *n == row.rete_name) {
+            if let Some((_, why)) = COMPILED_EXECUTOR_CANNOT_RUN.iter().find(|(n, _)| *n == row.rete_name)
+            {
+                matrix.push(format!("{:<46} {:>17}  {}", row.rete_name, "NO-COMPILED-ARM", why));
+            } else if let Some((_, why)) =
+                NOT_YET_GENERABLE.iter().find(|(n, _)| *n == row.rete_name)
+            {
                 matrix.push(format!("{:<46} {:>17}  {}", row.rete_name, "NOT-GENERABLE", why));
             } else {
                 unclassified.push(row.rete_name);
@@ -679,15 +781,19 @@ fn sweep_shard(shard: usize, of: usize) {
             continue;
         };
         // The row's own arity is the authority; a table entry that disagrees is a table bug, and
-        // silently trusting either one would let the two drift.
-        assert_eq!(
-            cell.arity,
-            row.params.len(),
-            "operand table says arity {} for {} but the row declares {} params",
-            cell.arity,
-            row.rete_name,
-            row.params.len()
-        );
+        // silently trusting either one would let the two drift. Special-form cells carry arity 0
+        // and state their whole expression, so there is nothing to cross-check — `Form` and
+        // `Redispatch` rows declare no params either, which is exactly why they need one.
+        if !matches!(row.class, OpClass::Form | OpClass::Redispatch) {
+            assert_eq!(
+                cell.arity,
+                row.params.len(),
+                "operand table says arity {} for {} but the row declares {} params",
+                cell.arity,
+                row.rete_name,
+                row.params.len()
+            );
+        }
 
         // Drive BOTH positions before judging either. `MatchedNothing` is ambiguous alone — bad
         // operands look identical to a broken position — and the other position is the control
@@ -712,6 +818,20 @@ fn sweep_shard(shard: usize, of: usize) {
             let adjudicated = match verdict {
                 Verdict::TemplateDefect(DefectKind::MatchedNothing, _) if any_fires => {
                     Verdict::MatchesNothing
+                }
+                // An UNATTRIBUTED refusal is also adjudicated by the sibling position, and the
+                // reasoning is the same one step further. The expression text is IDENTICAL in both
+                // positions — only `{f}` renders differently — so a cell that fires anywhere is
+                // valid wat, and a refusal elsewhere is therefore about the POSITION, whatever the
+                // diagnostic happened to name.
+                //
+                // This is not a loosening; it closes a real blind spot. Some positions fail BEFORE
+                // reaching the op at all: inline, `(enum::= {f} :probe::E::A)` refuses with
+                // "`:probe::In` has no field `:probe::E::A`", because in operand position a bare
+                // keyword is a FIELD REFERENCE. No diagnostic will ever name the op there, so
+                // name-matching alone can only call a genuine finding a template bug.
+                Verdict::TemplateDefect(DefectKind::Unattributed, m) if any_fires => {
+                    Verdict::Refused(m.clone())
                 }
                 other => other.clone(),
             };
@@ -890,36 +1010,36 @@ fn the_head_spellings_rete_accepts_today_are_recorded_for_the_edn_migration() {
 /// milliseconds and answers one question — does every `Alias`/`Fallback` row have either operand
 /// data or an argued exclusion?
 #[test]
-fn every_alias_and_fallback_row_is_classified() {
-    let rows: Vec<&ReteOp> = RETE_OPS
-        .iter()
-        .filter(|o| matches!(o.class, OpClass::Alias | OpClass::Fallback))
-        .collect();
-    assert!(rows.len() >= 55, "population looks empty ({}) — vacuous", rows.len());
+fn every_rete_ops_row_is_classified() {
+    let rows: Vec<&ReteOp> = RETE_OPS.iter().collect();
+    assert!(rows.len() >= 74, "population looks empty ({}) — vacuous", rows.len());
 
     let unclassified: Vec<&str> = rows
         .iter()
         .filter(|r| {
             operands_for(r.rete_name).is_none()
                 && !NOT_YET_GENERABLE.iter().any(|(n, _)| *n == r.rete_name)
+                && !COMPILED_EXECUTOR_CANNOT_RUN.iter().any(|(n, _)| *n == r.rete_name)
         })
         .map(|r| r.rete_name)
         .collect();
     assert!(
         unclassified.is_empty(),
         "these rete rows have NO reachability classification — a row nothing exercises is a row \
-         nobody has shown a user can reach. Add operand data, or an argued exclusion in \
-         NOT_YET_GENERABLE: {unclassified:#?}"
+         nobody has shown a user can reach. Give it operand data, or an argued entry in \
+         NOT_YET_GENERABLE (a tooling gap) or COMPILED_EXECUTOR_CANNOT_RUN (a defect): \
+         {unclassified:#?}"
     );
 
     // The exclusion list may not name a row that does not exist, or it becomes a place stale
     // entries hide — the same rot the operand table is protected from by being driven.
     let ghosts: Vec<&str> = NOT_YET_GENERABLE
         .iter()
+        .chain(COMPILED_EXECUTOR_CANNOT_RUN.iter())
         .map(|(n, _)| *n)
         .filter(|n| !RETE_OPS.iter().any(|o| o.rete_name == *n))
         .collect();
-    assert!(ghosts.is_empty(), "NOT_YET_GENERABLE names rows that no longer exist: {ghosts:#?}");
+    assert!(ghosts.is_empty(), "an exclusion list names rows that no longer exist: {ghosts:#?}");
 }
 
 #[test]
