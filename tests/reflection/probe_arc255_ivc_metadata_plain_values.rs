@@ -9,20 +9,33 @@
 //! the codebase has been rooting out (`impl EdnRepresentable for Value`,
 //! comms/mod.rs:794 — plain values already serialize cleanly).
 //!
-//! THE CONTRACT (iv-c, locked-record-model §5):
+//! THE CONTRACT — RE-DIAGNOSED, arc 255 Stone P3 (2026-08-28). The `:pure` /
+//! `:deterministic` PLAIN-bool contract this test used to assert was never what
+//! shipped. `runtime.rs`'s `eval_metadata_of` intrinsic branch (~13716-13719) puts
+//! `:purity` / `:determinism` (not `:pure` / `:deterministic`) as DECLARED
+//! `Value::Enum`s parsed from the doc (`wat_doc::Purity`/`Determinism`), not derived
+//! bools — see `src/intrinsic/mod.rs`'s header, "CORRECTED 2026-08-25". Verified live
+//! this session (`wat-scripts/scratch-pad/255-p3/dump-to-hex-metadata.wat`):
+//! `metadata-of(:wat::core::Bytes::to-hex)` puts `:purity #wat.runtime.Purity/Pure`
+//! and `:determinism #wat.runtime.Determinism/Deterministic` — enums, not bools.
+//!
+//! THE CONTRACT (as shipped):
 //!  - The baseline scalar fields are PLAIN wat values:
-//!    :name  -> Value::wat__core__keyword   :arity -> Value::i64
-//!    :pure / :deterministic -> Value::bool :doc/:added/:ret -> Value::String
-//!  - The THREE closed-domain fields are `Value::Enum` (typo-proof; backed by
+//!    :name -> Value::wat__core__keyword   :arity -> Value::i64
+//!    :doc/:added/:ret -> Value::String
+//!  - FIVE closed-domain fields are `Value::Enum` (typo-proof; backed by
 //!    wat `defenum` + Rust enum mirror), rendering to EDN as a qualified
 //!    keyword (`:wat.runtime.Kind/Intrinsic`):
-//!    :kind       -> Value::Enum :wat::runtime::Kind / Intrinsic
-//!    :defined-in -> Value::Enum :wat::runtime::DefinedIn / Rust
-//!    :layer      -> Value::Enum :wat::runtime::Layer / Substrate
-//!  - NO value in the map is `Value::holon__HolonAST` (the cross-cutting RED).
+//!    :kind        -> Value::Enum :wat::runtime::Kind / Intrinsic
+//!    :defined-in  -> Value::Enum :wat::runtime::DefinedIn / Rust
+//!    :layer       -> Value::Enum :wat::runtime::Layer / Substrate
+//!    :purity      -> Value::Enum :wat::runtime::Purity / Pure
+//!    :determinism -> Value::Enum :wat::runtime::Determinism / Deterministic
+//!  - NO value in the map is `Value::holon__HolonAST` (the cross-cutting RED this
+//!    probe was written to catch, and which iv-c fixed).
 //!
-//! RED at HEAD: every value is `Value::holon__HolonAST` -> every assertion
-//! below fails. GREEN after iv-c: plain values + the three enums.
+//! RED at HEAD (pre-255.1b-iv-c): every value was `Value::holon__HolonAST`.
+//! GREEN (as shipped): plain values + the five enums above.
 
 use wat::freeze::call_beside_value;
 use wat::runtime::Value;
@@ -64,14 +77,17 @@ fn assert_enum(v: &Value, type_path: &str, variant: &str) {
 }
 
 #[test]
-#[ignore = "RED-at-HEAD: arc-255 metadata-of reflection (builtin-registry) not yet built; unlock when we circle back to arc 255"]
 fn metadata_of_emits_plain_values_and_enums_not_holon_ast() {
     let map = metadata_of(":wat::core::Bytes::to-hex");
 
-    // The three closed-domain fields are enums (locked-record-model §5).
+    // The five closed-domain fields are enums (as shipped — see the module doc
+    // above for the re-diagnosis; :purity/:determinism replaced the never-shipped
+    // :pure/:deterministic plain-bool contract this test used to assert).
     assert_enum(get(&map, ":kind"), ":wat::runtime::Kind", "Intrinsic");
     assert_enum(get(&map, ":defined-in"), ":wat::runtime::DefinedIn", "Rust");
     assert_enum(get(&map, ":layer"), ":wat::runtime::Layer", "Substrate");
+    assert_enum(get(&map, ":purity"), ":wat::runtime::Purity", "Pure");
+    assert_enum(get(&map, ":determinism"), ":wat::runtime::Determinism", "Deterministic");
 
     // The baseline scalars are PLAIN wat values (not holon-AST-wrapped).
     assert!(
@@ -79,11 +95,6 @@ fn metadata_of_emits_plain_values_and_enums_not_holon_ast() {
         ":name must be a plain keyword"
     );
     assert!(matches!(get(&map, ":arity"), Value::i64(_)), ":arity must be a plain i64");
-    assert!(matches!(get(&map, ":pure"), Value::bool(_)), ":pure must be a plain bool");
-    assert!(
-        matches!(get(&map, ":deterministic"), Value::bool(_)),
-        ":deterministic must be a plain bool"
-    );
     assert!(matches!(get(&map, ":doc"), Value::String(_)), ":doc must be a plain String");
 
     // The cross-cutting RED: NOT ONE value rides as holon AST.

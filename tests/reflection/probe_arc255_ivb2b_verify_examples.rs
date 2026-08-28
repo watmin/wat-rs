@@ -62,9 +62,18 @@ fn verify_examples_failure_count() -> Result<usize, StartupError> {
 // `type-params-used-in` keep an angle-bracket branch that nothing can reach. Rewriting the five
 // examples to pass would silently drop the documented guarantee — that is the STOP a rider
 // correctly refused to walk past. See 255/DESIGN-STONE-HOME-4-the-string-carve.md.
-#[ignore = "RED, KNOWN, COUNTED: 5 failures / 1 cause — arc 109 made type-equal?'s angle-bracket \
-            branch unreachable at the lexer. Needs a RULING on that branch, not a doc fix. \
-            The runner itself is FIXED and collects; see the comment above."]
+#[ignore = "RE-POINTED arc 255 Stone P3 (2026-08-28): the previous reason was itself stale — \
+            re-measured this session, it no longer collects a 5-failure vector; it PANICS before \
+            collecting anything (`:wat::core::=: expected matching comparable pair, got \
+            wat::core::Option`). See docs/arc/2026/06/296-diagnostics-fully-edn/\
+            NOTE-the-doctest-runner-masks-every-failure-behind-one-raise.md — wat/doctest.wat:67's \
+            unguarded `=` raises on a non-comparable pair, escaping the foldl and masking every \
+            other example. THREE fixes were attempted and refuted there (demote to \
+            @example-norun: refused by purity_mandated_examples; compare EDN renderings: `edn::write` \
+            is not total either; give the example a primitive field: refused by @ret's declared \
+            type). Do not attempt a fourth without first answering the NOTE's open question: should \
+            `=` raise or return false on a non-comparable pair, or should the runner catch the raise \
+            per-example. Check by re-reading that NOTE for a ruling before touching this."]
 fn verify_examples_reports_no_failures() {
     let n = verify_examples_failure_count()
         .expect("(:wat::doctest::verify-examples) must eval to a Vector<Failure>");

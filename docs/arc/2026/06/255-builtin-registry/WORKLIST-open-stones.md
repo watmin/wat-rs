@@ -11,8 +11,8 @@ P1  the registry can detect a collision      ✅ STRUCK — the wall stands befo
                                                puts ~130 more registrations behind it
 O-iv-b  the collections sweep                ✅ STRUCK — 8 new doors + 24 collapses, -556 lines
 P2  the special-form entry stops lying       ✅ STRUCK — show-source honest, `if` reports arity 3
-P3  the SEVEN ignores are re-diagnosed    ← NEXT: arc 255's OWN unlock list — 7, not 3
-P4  the skipped population is MEASURED         a measurement stone; nothing decided until it lands
+P3  the SEVEN ignores are re-diagnosed      ✅ STRUCK — 2 un-ignored, 5 re-pointed, a lint added
+P4  the skipped population is MEASURED     ← NEXT: a measurement stone; nothing decided until it lands
 O-iv-c  holon sweep                            73 verbs — needs disposition rows (span-carrying)
 O-iv-d  the remainder sweep                    26 verbs — same
 P5  @yields becomes mandatory at expand time   the top rung; biggest change
@@ -31,7 +31,7 @@ the floor (P1). Adding the population first and the wall second is the wrong ord
 | ~~P1~~ | ~~the registry can detect a collision~~ | | | ✅ **STRUCK** — see Closed |
 | ~~O-iv-b~~ | ~~the collections sweep~~ | | | ✅ **STRUCK** — see Closed |
 | ~~P2~~ | ~~the special-form entry stops lying~~ | | | ✅ **STRUCK** — see Closed |
-| **P3** | the arc's own ignore ledger is re-diagnosed — **7**, not 3 | 7 reasons · 1 un-ignore · 1 rewrite · a new `*_justified` lint | `BRIEF-STONE-P3-the-arcs-own-ignore-ledger-is-re-diagnosed.md` | — **READY** |
+| ~~P3~~ | ~~the ignore ledger re-diagnosed~~ | | | ✅ **STRUCK** — see Closed |
 | **P4** | the skipped population is measured | measurement only; no code change | *not drawn* | a VALIDATED instrument |
 | **O-iv-c** | holon sweep — `atom` 41 · `subspace` 10 · `engram` 10 · `reckoner` 8 · `hologram` 4 | 73 verbs | *not drawn* | disposition rows (span-carrying algebra) |
 | **O-iv-d** | the remainder — `uuid` 7 · `ambient` 7 · `string`/`reflect`/`bytes` 2 · six singles | 26 verbs | *not drawn* | same |
@@ -68,7 +68,8 @@ Full detail and the disk citations: `NOTE-an-absence-recorded-as-an-answer-the-c
 
 `A-i`…`F` (scalars, collections, String) · `HOME-8`…`HOME-13` · `STONE G` (provenance) ·
 `STONE N` (apply's authority) · `O-i` (the arity guard) · `O-ii` (the defclause door) ·
-`O-iii` (one declaration, both doors) · `O-iv-a` (the honest word) · `P6-a` (a special form names its impls — and publishing them exposed two INVERTED doc comments
+`O-iii` (one declaration, both doors) · `O-iv-a` (the honest word) · `P3` (the ignore ledger — 2 un-ignored, 5 re-pointed at their REAL blockers, and one of those
+blockers turned out not to belong to this arc at all) · `P6-a` (a special form names its impls — and publishing them exposed two INVERTED doc comments
 on `if`, buried since arc 258.4) · `P2` (the special-form entry — show-source stops returning "", `if` reports arity 3 not -1) ·
 `O-iv-b` (the collections sweep — 8 new doors, 24 two-fn collapses, 24 `expect("arity-checked")`
 sites deleted, −556 lines) · `P1` (the collision gate —
