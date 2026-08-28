@@ -1,4 +1,4 @@
-# SEAM — the ONE live breadcrumb. As of 2026-08-26. Arc 255: the homes campaign, seven stones in a day.
+# SEAM — the ONE live breadcrumb. As of 2026-08-27. Arc 255: the homes campaign — and the registry became apply's authority.
 
 > ⛔ **THE SELF PAST THIS LINE IS NEW.** You did not live this. It is a lossy cache in your own voice —
 > which is why it will feel like *continuing* rather than *waking*, and **that feeling is the failure.**
@@ -61,20 +61,29 @@ and **that gate cannot be un-ignored by anything smaller.**
 ## WHERE WE ARE
 
 ```
-registered intrinsics ... 250        src/intrinsic/ homes ... 21        retirement rows ... 131
-src/ root .rs files ..... 24         runtime.rs 40,492 + check.rs 22,469 = 75% of the root
+registered intrinsics ... 385        src/intrinsic/ homes ... 30        retirement rows ... 144
+src/ root .rs files ..... 22         runtime.rs 34,252  (was 40,441 — DOWN 6,189 in one day)
+dispatch arms left ...... 168        ⚠ 191 was the honest figure before HOME-13 deleted 44
 ```
 
-**SHIPPED 2026-08-25/26 — seven stones, one method:**
+**SHIPPED 2026-08-26/27 — the homes campaign, and then the thing under it:**
 
 ```
-A-i · A-ii   the numerics      :wat::core::{i64,f64}::*  ->  :wat::{i64,f64}::*
-B-i · B-ii   the corpus        2,054 core sites + 408 rete sites, by codemod
-C            the retirement    the old numeric spellings became check-time errors
-D            bigint+rational   the numeric tower finished
-E-i…E-iv     the collections   map · hashmap · vector · vec · hashset · linkedlist · keyword
-F            the String verbs  the last per-type family — and the lint it fed was firing on a corpse
+A-i … E-iv   the scalars + collections   numerics · bigint/rational · maps · vectors · sets · keyword
+F            the String verbs            the last per-type family
+HOME-8       holon        95 verbs       src/holon/ (algebra) + src/intrinsic/holon/ (interface)
+HOME-9       std DIES     14 verbs       math · stat · seq — and seq became Seqable-generic
+HOME-10      math/stat/seq homes         the row HOME-9 omitted: does the home EXIST?
+HOME-11      edn          13 verbs       17 producers kept their provenance
+HOME-12      ast          10 verbs       all ten producers; found a blind spot in the purity gate
+STONE G      provenance                  NativeHandler -> TrackedValue; E-iv's loss reversed
+STONE N      apply's authority           dispatch_substrate_impl now consults the registry
+HOME-13      44 dead arms deleted        REFUSED once, retracted, reinstated on new evidence
 ```
+
+★ **`env`/`sym` IN A SIGNATURE IS THE SEAM `runtime.rs` HAS BEEN MISSING.** A fn taking them is
+BINDING (an interface); one taking neither is ALGEBRA. The compiler already enforces that line on all
+941 fns. It decided every classification in HOME-8, twice, with zero ambiguous cases.
 
 **`wat.core/+` IS ALREADY A DEFCLAUSE** (`wat/core.wat:58+`, arc 300 stone C1) and **every one of its
 four numeric arms now points at a `wat.<type>/` home.** The builder's `wat.core/+ => [wat.i64/+ …]`
@@ -100,41 +109,42 @@ become the DEFAULT. `HashSet`→`hashset` and `List`→`linkedlist` are marked b
 
 ## ⛔ THE LESSONS THAT COST THE MOST
 
-**1. A CENSUS OF A NAME MUST ASK EVERY RENDERING AND EVERY EXTENSION.** The pattern was right five
-times while the POPULATION was wrong. `:wat::core::Vector/length` and `:wat.core/Vector/length` are
-the same name; a census in one is blind to the other, and a golden holding the dotted form took the
-floor down. Four extension misses too: `.wat.bad` (invisible to `git ls-files '*.wat'` BY EXTENSION),
-`.jsonl`, `.edn`, `.wat.expr`. **And a migration census is not a registration census** — ask the
-DISPATCH TABLE what exists, the CORPUS what moves.
-`[[feedback_a_census_of_a_name_must_ask_every_rendering]]`
+**1. A PROBE ANSWERS THE QUESTION YOU ASKED, NOT THE ONE YOU MEANT.** I sabotaged a registered
+handler, saw the direct call change, and wrote *"proven by experiment, not by reading"* into a brief
+concluding 44 arms were dead. The experiment was correct and showed *which path serves the direct
+call*. It never showed *nothing else calls the arm* — `apply` did. A rider fired STOP-1, deleted
+nothing, and was right. **To prove a thing dead, sabotage THE THING, not its replacement.**
+`[[feedback_a_probe_answers_the_question_you_asked_not_the_one_you_meant]]`
 
-**2. RETIRING A NAME DISARMED ELEVEN NEGATIVE TESTS AND THE FLOOR STAYED GREEN.** Their fixtures used
-the retired spelling in executable position; their tests asserted a bare `is_err()`. Each began
-passing on the RETIREMENT error instead of the defect it existed to prove. **It does not rot loudly;
-it rots green.** The pre-check now costs one command and has fired once more since.
-`[[feedback_retiring_a_name_disarms_every_bare_is_err_test]]`
+**2. A CENSUS WITHOUT ATTRIBUTION IS NOT A CENSUS.** That same stone grepped arms whole-file and
+intersected names with registrations. Deadness is a property of a name **in a function**; there are
+three dispatch fns and I had measured one. The count was wrong by 23% and I quoted it across three
+consecutive stones while choosing what to carve.
+`[[feedback_a_census_without_attribution_is_not_a_census]]`
 
-**3. A COMPLAINT FROM THE WRONG INSTRUMENT IS NOT A FINDING.** `cargo test` red, `cargo nextest`
-green, same 247 tests. I escalated it into *"our floor cannot see a class of shared-state defect"* —
-in a commit message — and was one message from a NOTE enshrining it. The contract was written in
-prose in a file I had already read. **The floor is nextest. A red from `cargo test` is information
-about `cargo test`.** This does NOT loosen red-is-a-red.
-`[[feedback_a_pass_answers_only_the_question_the_instrument_asks]]`
+**3. "HOME" MEANS TWO THINGS, AND I CONFLATED THEM THREE TIMES IN A DAY.** A FILE-DOMAIN carve
+(loose root files → `src/<domain>/`) is not a REGISTRY home (dispatch arms → `src/intrinsic/<ns>/`).
+HOME-5/6/7 all shipped the first kind on 2026-08-25; I called them "drawn but unbuilt" three times
+because I was checking `src/intrinsic/`. **Only the registry kind takes a name away from
+`walk.rs:268`.** Measure `src/intrinsic/<ns>` before calling a home built.
 
-**4. A LESSON LEARNED AND THEN DROPPED costs the same as one never learned.** I found the rete
-naming invariant in B-ii, wrote a brief around it, and omitted it from E-i AND E-ii. **Read the
-previous stone's COMMIT MESSAGE before writing the next brief** — that is where the surprises live,
-and briefs are otherwise written from the design and a fresh census.
-`[[feedback_a_lesson_learned_and_then_dropped]]`
+**4. AN ACCEPTANCE ROW THAT DOESN'T MEASURE THE DELIVERABLE SHIPS A HALF-STONE GREEN.** HOME-9's
+seven rows all measured *naming* — new spelling runs, old refused, `:wat::std::` gone. Not one asked
+whether a home EXISTED. The rider satisfied all seven and the homes were never built; HOME-10 had to
+finish it. **Row 0 of every home brief is now: does the home exist?**
 
-**5. A GATE PINNED TO A MAGNITUDE IS AT WAR WITH A CAMPAIGN THAT MOVES IT.** Both directions in one
-stone: an arm-count floor that trips as the carve SHRINKS the match (reshaped to a positive control),
-and a per-row gate that timed out as the carve GREW its table 34→126 rows. `[[feedback_a_gate_freezes_names_never_a_count]]`
+**5. THE TREE KEEPS ALREADY SAYING IT.** Three stones in a row turned on prose sitting in the file:
+`runtime.rs:11652` explained the `apply` split-brain that would have prevented HOME-13's error;
+`collection/transform.rs` confessed the `list::` verbs reject a `List`, four times verbatim;
+`intrinsic/mod.rs` documented that `mod string` was `pub(crate)` solely for arms I was about to
+delete. **Read the neighbourhood before measuring it.**
 
-**6. TWO OF MY ACCEPTANCE BARS COULD NOT MEASURE WHAT THEY CLAIMED.** One counted a STRING where the
-question was a MECHANISM. One was **UNSATISFIABLE AT BASELINE** — `wat --check wat/core.wat` fails
-by construction (`include_str!` + Stdlib privilege; as an entry file it parses twice and collides
-with itself). **A gate that cannot pass is the mirror of one that cannot fail.** I never ran it.
+**6. A RIDER WITH THE AUTHORITY TO REFUSE IS CHEAPER THAN A REVERT.** HOME-13's STOP-1 saved a
+deletion that would have broken `:wat::core::apply` across nine namespaces. Two other stones were
+corrected by riders catching defects in my own briefs (a count of 7 that was 6; a stale finding I
+carried forward without re-checking). **Write the STOP that names the most likely way the stone goes
+wrong — then believe it when it fires.**
+
 
 ## ★ WHAT ACTUALLY WORKS
 
@@ -183,31 +193,34 @@ REGISTRY home       dispatch arms    -> src/intrinsic/<ns>/  HOME-8 holon · 9/1
 
 ## ⬜ NEXT — measured, not guessed
 
-- **`@Total` HAS NO HOME, AND 255.3 CANNOT CLOSE WITHOUT IT.** `@Purity` (290) and `@Determinism`
-  (282) are declared at the registration site; **`@Total` does not exist**, so totality lives only in
-  a hand-curated list. 255's LOCKED baseline is `name·arity·kind·pure·deterministic·
-  expand_time_legal·defined_in·layer` — no `total` — while slice **255.3** already commits to
-  deleting `rete/purity` and `is_pure_total`. The two designs never met (255 locked 2026-06-21; the
-  four-axis fence is 278's, invented after). **Adding the field to a LOCKED model is the builder's
-  ruling.** `NOTE-the-registry-asserts-properties-nothing-verifies.md`
-- **⛔ AN OPEN RULING: REGISTRY ROUTING DROPS PRODUCER PROVENANCE.** `#[wat_intrinsic]`'s handler
-  signature has no provenance slot, so routing a PRODUCER through the registry downgrades
-  `RuntimeBuilt{producer, call-span}` to `SymbolBound`. Four keyword verbs lost producer attribution
-  in E-iv, and arc 233's own guards were rewritten to match — disclosed honestly, but **a guard
-  rewritten to match degraded behaviour is a green test that no longer proves what it was built to
-  prove.** STRUCTURAL: every future home carve routing a producer does this.
-- **THE REMAINING per-type family**: `String/*` — **373 sites, and `String/concat` is a LIVE
-  DUPLICATE** of a registered `:wat::string::concat` (verified: both return `true` on the same
-  input). The string carve moved the lowercase family and left the capital one behind.
-- **The collections' backend swap** — "probably a week or two". The homes are carved so it costs ONE
-  prefix rename on the marked families only; the persistent ones never move again.
-- **`wat --check` ACCEPTS AN UNREGISTERED SCALAR TYPE** (`:wat::core::NotARealType` passes). Gate
-  banked at `tests/types/probe_diag_typealias_leniency.rs:16`.
-- **A gate that proves a file LOADS does not prove it RUNS** — two instances: the console-demo built
-  green and died at startup; a scratch probe loaded green and died at runtime. Nothing runs
-  `examples/*/wat` or `wat-scripts/scratch-pad/` mains.
-- **The megafile carve** — `check.rs` 22,469 and `types.rs`/`freeze.rs` have `check/`, `types/`,
-  `freeze/` dirs holding three small files each. A different defect from a missing home.
+- ⛔ **`apply` LIES ABOUT WHAT EXISTS — 44 of 385.** Demonstrated live:
+  `(:wat::f64::max-of 3.0 9.0 41.0)` → `Some [41.0]`, but
+  `(:wat::core::apply :wat::f64::max-of […])` → **"unknown function"**. `max-of` is registered and
+  works; `apply` reports it absent because it has no `value_handler`, so `lookup_value` returns
+  `None` and `eval_apply` falls to its `UnknownFunction` arm. **Same failure shape as
+  `walk.rs:268`** — a dispatch path answering from its own incomplete picture — and it bites a
+  VARIADIC verb, the one that most wants splat. TWO separable follow-ups, both the builder's to rule:
+  (a) the diagnostic is a LIE regardless of the fix — honest text is *"registered, but not reachable
+  through apply"*; (b) ONE DECLARATION FEEDING BOTH DOORS: most handlers are shells (eval the args,
+  call a value-fn), so the macro could generate the AST shell from the value-fn. Touches all 385.
+  ⚠ **The two CALLING CONVENTIONS are forced by the language, not by us** — `apply`'s arguments have
+  no syntax. Proven: `(apply :wat::i64::+ (:mk::pair))` → 42, and the form's AST children are
+  `[apply, the verb, (:mk::pair)]` — no node for `20` or `22` exists anywhere. It is splat, and the
+  arity is decided at runtime. Two conventions is right; **two REGISTRATIONS is not.**
+- **`@Total` STILL HAS NO HOME**, and 255.3 cannot close without it. Unchanged; totality is **step 6**
+  of the road and must not be opened early.
+- **The doctest runner masks every failure behind ONE raise** — `wat/doctest.wat:67` guards both
+  `eval-ast!` calls and NOT the `=` between them. THREE fixes attempted and each refuted by
+  measurement; see `296/NOTE-the-doctest-runner-masks-every-failure-behind-one-raise.md`. Do not
+  re-attempt without reading the three refutations.
+- **`list_map_is_not_vector` is frozen by name** in `no_bare_is_err.rs`, blocked on a RULING not on
+  work: arc 118.2a made `map` lazy so it preserves NO container, and the test claims container
+  preservation. Retire it, or re-point it at `reverse`/`concat` — which changes what a test of that
+  name tests.
+- **The megafile is still the boss.** `runtime.rs` 34,252 · `check.rs` ~22,400. 168 arms remain, of
+  which 36 are SPECIAL FORMS (a different contract — `#[wat_special_form]`, not a home) and ~21 are
+  `rete::` (a coherent namespace with no home yet).
+
 
 ## ⛔ RULES THAT STILL COST TIME
 
