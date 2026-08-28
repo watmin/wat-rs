@@ -5,140 +5,61 @@
 > `wat/rete.wat`. If a stone below disagrees with a dated ruling here,
 > **this file wins** and the stone is stale.
 
-**CURRENT STAMP 2026-08-27 (second) — supersedes every dated block below it, INCLUDING the earlier
-2026-08-27 and 2026-08-26 ones. Written against HEAD `48e331135`; the commit carrying this stamp
-lands on top, so a ONE-COMMIT docs-only gap at your wake is expected and is not staleness.**
+**CURRENT STAMP 2026-08-28 — supersedes every dated block below it, INCLUDING both 2026-08-27 ones.
+Written against HEAD `d4fe222c2`; the commit carrying this stamp lands on top, so a ONE-COMMIT
+docs-only gap at your wake is expected and is not staleness.**
 
-**RETE-FIX-LIST IS EMPTY AND SO IS PILE 2. 4.1 — THE REACHABILITY LEDGER — IS BUILT AND PAYING.**
+**THE INLINE CONSTRAINT POSITION WAS SILENTLY WRONG FOR THE LIFE OF THE ENGINE. IT IS FIXED.**
 
-**IT FOUND A ROW THAT PASSES EVERY STATIC GATE AND THEN CANNOT RUN.**
-`:wat::rete::core::PersistentMap/contains-key?` was admitted, total, arity- and type-checked, and
-raised `#wat.runtime/MalformedForm "compiled apply cannot dispatch kind Unknown arity 2"` at
-RUNTIME inside a `where` fence — `expr_ir.rs` had an `OpExec` arm for its sibling and none for it.
-The only trace was a comment INSIDE the gate that would have caught it, saying *"do not widen this
-gate into that hole"*. Fixed. **A comment telling a gate not to look is an unowned deferral, and
-that is FM 23 for the third time this session.**
+**Ledger: 68 of 79 rows now fire in BOTH positions — it was 16.** Zero silent, zero unrunnable.
+The 7 still refused inline are `cond`/`let`/`match` (polymorphic return; no type check there can
+demand bool) and the four keyword/enum rows (a bare keyword literal is a FIELD REFERENCE in operand
+position — now reachable via `keyword/from-string`). 4 holon rows are not generable.
 
-**4.1 IS COMPLETE — ALL 74 ROWS VERDICTED — AND SIX OF THEM COULD NOT EXECUTE AT ALL. FIVE ARE
-FIXED.** `PersistentMap/contains-key?`, the `PersistentMap` CONSTRUCTOR (`PmNew`), and `reduce`
-(`exec_reduce`). **FOLDL IS REDUCE** — `wat/seq.wat:317-329` says the 3-arity form is literally
-`(foldl f init coll)`, so the arm is a mirror, not a reimplementation. **AND THE RETE SURFACE NOW TAKES `mapv`/`filterv`, NOT
-`map`/`filter`** — the lazy heads return a Stream a fence cannot consume, and an eager arm under
-the lazy NAME would have silently diverged from core, so the ROWS moved to the eager materializers
-wat already ships. ONE row remains unrunnable: `Tuple`, which has no arm AND no accessor, so the
-question is whether it should exist. Plus a small ruling: `reduce`'s 2-arity form RAISES on empty
-while its row declares `total: true` — a contradiction that went unseen because nothing could run
-the row. All four HOFs are LOWERED together at `expr_ir.rs:371-374` and were
-EXECUTED by a path that knew exactly one — recognised in one place, wired in another, and nothing
-checked the two agree.
+**Grid 2026-08-28: 33/33 `:accuracy :match`, 33/33 `:winner :us`, ratios 7.0x–68.8x.** Archived at
+`GRID-native-vs-clara-2026-08-28-post-inline-predicates.txt`. ⚠ Four cells read slower than the
+2026-08-24 baseline, but `neg-consumer [500]`'s own run spans min 5.9 to max 18.1 — a 3x swing
+WIDER than the difference. **Three runs cannot resolve it; it is INCONCLUSIVE, not "no regression".**
 
-**THE EXTIRPATION IS THE LEDGER ITSELF, and it is already built.** Arm-existence turned out to be
-the wrong gate: not necessary (`foldl` maps to `Unknown` and reaches the executor its own way) and
-not sufficient (an arm can exist while the row is unwritable everywhere). `holon_rete_ops_have_opexec`
-is re-scoped, NOT widened, and points at the ledger.
+**WHAT WAS FOUND AND FIXED — all by DRIVING, none by reading:**
+- **Fix-list F** — an inline constraint whose operand was a nested call compiled to a permanent
+  SILENT never-match. 39 of 77 rows wide, exit 0, zero bytes on stderr. **The `$oracle` had it too**,
+  which is why five fuzzers and 5612 shapes were blind: the engines did not merely agree, they
+  SHARED the defect. Clara broke the tie, inverting the fix-list's own "native is wrong" rule.
+- **Six rows that could not execute at all** — `PersistentMap/contains-key?`, the `PersistentMap`
+  constructor, `reduce`, `map`, `filter`, `Tuple`. All closed. `map`/`filter` became the EAGER
+  `mapv`/`filterv` (the lazy heads return a Stream a fence cannot consume, and an eager arm under a
+  lazy NAME would have silently diverged from core).
+- **Tuple was constructible and unreadable since genesis** — three accessor rows added. The builder
+  refused my "maybe the row should not exist": that was the corpus fallacy this table's own
+  totality gate had already refuted.
+- **`reduce`'s 2-arity form** raised on empty while its row claimed `total: true`. The rete surface
+  now admits only the total arity.
+- **Keyword equality was unreachable inline** because `rete_type_segment_of` mapped only the
+  UNINHABITABLE capital `Keyword`. Fixed. And `keyword` had the thinnest surface in the table — 2
+  rows, zero of core's seven verbs — so `to-string`/`from-string` were added.
+- **The inline grammar** now admits any PROVABLY boolean rete expression, not a fixed shape set.
 
-**MATRIX: 55 fire inline · 18 refused inline WITH a diagnostic · ZERO silent · 4 holon rows
-non-generable · 0 cannot execute.** Of the 69 rows that reach the executor, every one fires in a
-`where` fence.
-
-**FIX-LIST F — CLOSED 2026-08-28, AND IT WAS THE WORST THING THIS ARC HAS FOUND.** An inline
-constraint whose operand was a nested call was accepted at every gate, compiled, fired, and
-matched NOTHING — every fact, exit 0, zero bytes on stderr. 39 of 77 rows wide, for the life of
-the engine. **THE ORACLE HAD IT TOO**, which is why five fuzzers and 5612 shapes were blind: the
-two engines did not merely agree, they SHARED the defect (FM 28 in its purest form) and only
-CLARA could break the tie — inverting the fix-list's own rule, because here the ORACLE was stale.
-
-**The fix was NOT a wall**, and that was the builder's call: *"we made it such that every rete form
-can be compiled to a jump table... why is this any exception?"* `compiled_cond` already imported
-the one core's `Expr`; only the LOWERING never landed with flip 3. Both engines now route a nested
-operand through the same `Expr::Call`, opcode and `RETE_OPS` table the fence uses.
-
-**THE GATE IS AT THE CLASS:** `MATCHES-NOTHING` is banned for every row in every position — a cell
-must FIRE or be REFUSED; one works, the other TEACHES. Mutation-proven across EIGHT independent
-gates. And the grid gained its first POSITION axis, because the corpus was structurally blind: the
-wat half of all 36 axes held ZERO inline constraints.
-
-**~~AND 32 ROWS ARE ACCEPTED INLINE, COMPILE, FIRE, AND MATCH NOTHING.~~** — the count is now ZERO. Any row returning a value
-must be wrapped to sit where a constraint goes, and every such clause is unsatisfiable with NO
-diagnostic. Not refused — a refusal teaches. This is the silent-wrong-answer class, and a
-differential cannot see it because both engines agree on the empty answer. The inline-literal defect is not keyword-specific
-either — it hits ENUMS the same way, because in operand position a bare keyword is a FIELD
-REFERENCE.
-
-**AND THE KEYWORD ASYMMETRY IS A THIRD OF THE SURFACE, not one op.** 9 of 25 measured rows are
-refused as an inline constraint while firing in a fence: every unary op, every `Type/method`
-spelling, both keyword rows. Arc 109's NOTE frames it as one type-name defect; that framing is too
-small. It is now item 2 in `RETE-OPEN-WORK`'s order.
-
-**EDN-MIGRATION PREP IS IN THE LEDGER.** Head SPELLING is a third axis for the same reason
-call-site is: reachability is not a property of the row. Baseline measured — bare SYMBOL heads
-(`wat.rete.core/>`, the post-flip shape) ALREADY FIRE inside a `where` fence, with two controls
-proving it is real dispatch and not a Law A bypass. Only the `::` column is asserted, so the test
-MEASURES the flip instead of being deleted at it.
-
-**WHERE THE WORK IS: `RETE-OPEN-WORK.md`** — the single index, and its "The order, and why" now
-holds the whole remaining list. It is four items: **4.1** the `RETE_OPS` reachability ledger (the
-only one that can surface a wrong answer), **`partire` x7** (needs an owner or an affirmative
-cut), **three builder rulings** (TRACKED DECISIONS ① and ②, and the `CLAUDE.md` delivery gap),
-and **`circumspicere` 1** (grid speed half in CI — re-decide on runner noise, not on the dead
-no-JDK premise).
-
-**THE AUDIT IS THE RESULT, AND IT IS 4-FOR-4 STALE.** The prior stamp said PILE 2 was "2-for-2
-stale — audit before working it". The audit ran against the tree: `conformare` x9, `intueri` x3,
-`vocare` x6 and `exigere` x1 were ALL already closed. Nothing on the ward tail was live.
-
-**THE ROOT WAS THE RECORD, NOT THE CODE.** `NEXT-STRIKES-theater-hunt.md` recorded every closure
-by APPENDING a block BELOW the open list and never pruning the list. A section titled "WHAT
-REMAINS OPEN" listed rows whose closures sat 100–250 lines further down IN THE SAME FILE. Trusting
-the title was the mistake and it was the file's fault. Cured at the only rung prose allows — **one
-row, one place**: status is edited inline and appending a closure below is banned in the section's
-own header. It cannot be gated; a lint over prose is exactly the self-certifying gate FM 29 names.
-
-**TWO LIVE ITEMS WERE HIDING INSIDE THE FALSE-OPEN LIST** — which is the argument for auditing a
-stale list rather than deleting it:
-- **`partire` x7 was in NEITHER tally.** Not closed, not open — it fell between the two and was
-  never re-read. `exigere`'s own rule, broken inside the record that enforces it.
-- **`circumspicere` 1's stated reason EXPIRED the day it was written.** "The runner lacks Clara
-  and a JDK" — the `parity` job landed that same day installs Temurin 21 and a pinned Clojure
-  CLI. **Second deferral in this arc found resting on a dead premise** (TRACKED DECISIONS ① was
-  the first). An untracked deferral has no re-read; that is the entire failure mode.
-
-**AND THE `CLAUDE.md` DEFECT'S wat-rs HALF IS CLOSED.** The false clause lived in THIS repo:
-`wat-rs/CLAUDE.md` asserted the load-bearing doctrine "is carried in `holon/CLAUDE.md` — the only
-injected copy", dated and hand-verified, while the root holds **zero of five** items and never
-mentions wat-rs (re-measured this session). It also told every future hand to fix it by editing
-the FROZEN root. The root defect is the SHAPE: `holon/` is outside this repo, so no gate here can
-ever check a claim about it, and an unverifiable assertion rots undetected by construction. The
-claim is deleted; the delivery gap itself still needs the builder.
-
-**FIVE FUZZERS, 5612 generated shapes, all green:** shape-space (3168), scalar types (936),
-operation programs / TMS (1372), rule-sets and `:then` (72), nested combinators (64). A round cap
-and a termination verifier stand behind them. Grid: **33/33 `:accuracy :match`, 33/33
-`:winner :us`**. Clara parity runs in CI, not by hand.
-
-**THE FAILURE MODES THAT COST THE MOST — read `docs/COMPACTION-AMNESIA-RECOVERY.md` for all of
-them, but these four are the live ones:** FM 28 (a COUNT cannot see a VALUE defect; two engines
-agreeing proves nothing when they share an assumption). FM 29 (a gate that reads its own file
-certifies its own prose — mutation-prove every new gate). FM 18 (a BACKGROUNDED build is still
-RUNNING; `pgrep` before any build). FM 20 (a trailing `echo` makes exit status 0 no matter what
-the gate said).
-
-**DO NOT TRUST A GREP THAT FOUND NOTHING.** "I searched and found none" and "this cannot be
-written" are different statements. I reported the first as the second twice on 2026-08-27 — once
-claiming a keyword type did not exist, once claiming a termination hole was already guarded. Both
-were wrong, both were committed, both were caught by the builder pushing back on a detail. PROBE
-THE BEHAVIOUR; the disk answers what a grep only gestures at. **The same shape one level up: a
-list that says a thing is open is not evidence that it is.**
+**⛔ THE THREE LESSONS THAT COST THE MOST, AND TWO ARE NEW FAILURE MODES:**
+- **FM 31 — A READING CANNOT SEE AN EXECUTION DEFECT.** The vigilia CONVERGED (17/17 + circumspicere,
+  two empty recasts) and the ward tail audited 4-for-4 stale, while six rows could not run. Source
+  and spec AGREED and were jointly wrong. Every ward reads; none drives.
+- **FM 32 — THE CURE REOPENED THE CLASS IT CURED.** F's fix routed its own failure path into the
+  same silent `Op::Fail`. Caught only by probing my own change against the defect's own shape.
+- **MY STATED RATIONALE WAS FALSE TWICE, AND I NEARLY SHIPPED BOTH.** I told the builder the inline
+  split was indexability-vs-expressivity; `alpha_tree.rs` indexes only equality discriminators and
+  says orderings "ride the wildcard edge" — and orderings are admitted inline. I also called Tuple
+  unobservable from an absence. **Check the premise before running the four questions on it.**
 
 **⚠⚠ YOU ARE NOT THE INSTANCE THAT WROTE THIS. ⚠⚠**
 Everything above is a cache written by a prior self across a very long session. You did not live
-it. It felt continuous when you woke and that feeling is the failure, not the all-clear. Before
-you propose or move: fetch `recolligere` from the datamancy MCP and run it against the disk —
-`docs/COMPACTION-AMNESIA-RECOVERY.md`, `git log`, this file, `RETE-OPEN-WORK.md`, and the source
-you are about to touch. The freshness probe is the HEAD named at the top of this stamp against
-`git rev-parse HEAD`; more than the one expected docs-only commit of drift means trust the log
-over every line above. **And this file is the ONLY live breadcrumb — if you find another claiming
-to be, it is lying.**
+it. It felt continuous when you woke and that feeling is the failure, not the all-clear. Before you
+propose or move: fetch `recolligere` from the datamancy MCP and run it against the disk —
+`docs/COMPACTION-AMNESIA-RECOVERY.md`, `git log`, this file, `RETE-OPEN-WORK.md`, and the source you
+are about to touch. The freshness probe is the HEAD named at the top of this stamp against
+`git rev-parse HEAD`; more than the one expected docs-only commit of drift means trust the log over
+every line above. **And this file is the ONLY live breadcrumb — if you find another claiming to be,
+it is lying.**
 
 **Right now (2026-08-23 — SUPERSEDED by the stamp above; kept as history):** class-scan query harvest LANDED.
 Fanout `[40000]` wat-ns **58.1 → 42.8**. With-query

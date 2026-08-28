@@ -575,16 +575,25 @@ work, all of it a judgment call.**
    declares `total: true`, a wall every row must pass. Surfaced only by being able to RUN the row.
    (Everything else under this number is CLOSED: `map`/`filter` became the eager `mapv`/`filterv`;
    `Tuple` got its three accessors; the coverage GATE is the ledger.)
-3. **The inline-constraint gap — HALVED, and what remains is only a design question.**
-   **The wrong-answer half is CLOSED** (fix-list F): 39 rows that were accepted-and-silently-inert
-   now FIRE, taking the inline column from 16 to **55 of 77**, and `MATCHES-NOTHING` is banned
-   surface-wide. What is left is the 18 rows still REFUSED inline — every unary op, every
-   `Type/method` spelling, and both keyword/enum rows — which refuse WITH A DIAGNOSTIC and so are
-   a question about what the position should ADMIT, never a wrong answer. Arc 109's NOTE frames this as `keyword::=`'s
-   type-mapping bug; the ledger shows it is every unary op, every `Type/method` spelling, every
-   wrapped value-returning row, and enums as well. Whether that position SHOULD admit them is a
-   design question nobody has been asked; what is settled is that the current story is far too
-   small.
+3. ~~**The inline-constraint gap**~~ — **CLOSED 2026-08-28 except for a named residue.** The
+   inline column went **16 -> 68 of 79** rows. The wrong-answer half is gone (fix-list F: 39 rows
+   that compiled, fired and silently matched nothing, in BOTH engines); the keyword half was a real
+   BUG (`rete_type_segment_of` mapped only the uninhabitable capital `Keyword`); and the grammar
+   half is admitted — an inline constraint is now any PROVABLY boolean rete expression, replacing a
+   shape-set no reader could infer.
+
+   **My stated reason for the grammar split was FALSE and I nearly shipped it as the rationale.** I
+   argued indexability; `alpha_tree.rs` indexes only provable equality discriminators and states
+   that `< > <= >=` "ride the wildcard edge" — while being admitted inline. Check the premise
+   before running the four questions on it.
+
+   **The residue, each with its reason:** `cond`/`let`/`match` stay refused because they are
+   polymorphic in their body's type and the inline position has no type check that could demand
+   bool — admitting them on a placeholder `ret` would re-open F. And a bare keyword literal is a
+   FIELD REFERENCE in operand position (documented, load-bearing), now reachable through
+   `keyword/from-string`.
+
+
 4. **`partire` x7** — needs an owner or an affirmative CUT. It has been tracked in no list at all;
    another silent pass is the one outcome that is not allowed.
 5. **TRACKED DECISIONS ① and ②, and the `CLAUDE.md` delivery gap** — three builder rulings. All

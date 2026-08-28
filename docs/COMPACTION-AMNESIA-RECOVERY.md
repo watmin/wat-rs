@@ -1353,6 +1353,78 @@ ages.* The same instinct that says "do not trust a grep that found nothing" says
 row that says it is open" — in both cases the artifact is reporting a past act of looking, not
 the present state of the world. Check the tree.
 
+### Failure mode 31 — A READING cannot see an EXECUTION defect
+
+**Signature:** every checker you own inspects SOURCE. They hold a file against a spec, a name
+against its referent, a declaration against its use, and report where the two disagree. Then a
+defect ships where source and spec **agree and are jointly wrong** — the declaration promises
+something the implementation cannot do — and every one of them correctly reports harmony.
+
+**The tell:** a clean full audit followed by a defect that was there the whole time. Not one
+checker was lax; they were all answering a different question than the one that mattered.
+
+**Real incident, 2026-08-27/28 (arc 278).** The `vigilia` — 17 inward wards plus `circumspicere` —
+CONVERGED: two consecutive recasts at `0 L1 + 0 L2`, recorded in `REALIZATIONS.md` R68 as the
+milestone. The remaining ward findings were later audited row-by-row and came back **4-for-4
+stale**. By every instrument the watch had, the rete surface was clean.
+
+An instrument that DRIVES each row then found, in one day: **six** rows that pass admission,
+totality, arity and type and cannot execute at all; **39** rows accepted as an inline constraint
+that compile, fire and match nothing with no diagnostic; a first-class type constructible and
+never readable since genesis; and a duplicated accessor silently disagreeing with core about which
+containers exist.
+
+Why no reading could reach it: `:wat::rete::core::Tuple` was declared in the table, the fence
+admitted it, the checker typed it, purity approved it, the naming rule derived it, the totality
+gate passed it. **Source and spec were entirely consistent — and both wrong together.**
+
+**The cure is a different KIND of instrument, not a stricter one.** Synthesize a caller for every
+declared surface, DRIVE it in every position it claims to be usable, and demand a verdict per
+cell. Its evidence is an EVENT, not a source. Two things it must carry, because an executing
+checker can lie in ways a reading one cannot:
+  · a CALIBRATION of known-answer cells with **two of each verdict** — a driver that renders
+    nothing passes an all-refusal control, one that never applies its constraint passes an
+    all-fire control; only a mixed control fails both ways;
+  · a split between "refused, naming the thing under test" (a finding) and "refused, naming
+    something else" (a bug in the driver) — the second must be LOUD, never counted.
+A broken reader finds nothing and empty reads as clean; a broken driver finds a JACKPOT that looks
+exactly like a discovery. That asymmetry is why those two are the price of admission.
+
+**And it does not replace the wards.** Most questions have no runtime — no program tells you
+whether a name lies or prose rings true. This covers exactly one class the others structurally
+cannot. Written up as a proposed ward (`experiri`) at
+`docs/arc/2026/06/278-rules-engine/PROPOSAL-SPELL-experiri.md`, with an honest coverage table
+showing what it would still have missed.
+
+### Failure mode 32 — THE CURE REOPENS THE CLASS IT CURED
+
+**Signature:** you fix a defect by adding a capability, and the new capability has its own failure
+path — which you route into the SAME silent channel the original defect used. The class returns
+one level in, wearing the fix's clothes.
+
+**Real incident, 2026-08-28, and it was caught only by probing my own change.** Fix-list entry F
+was "could not lower" being reported as `Op::Fail` — a compiled, permanent, SILENT never-match. The
+repair lowered nested operands through the expression core. But the lowering returns an `Option`,
+and the caller still turned `None` into `Op::Fail` — so a nested operand that STILL would not
+lower, such as a non-rete head Law A must refuse, fell into the identical silent bucket. Measured:
+a core `(:wat::core::i64::+ …)` inline compiled and matched nothing while the same form in a fence
+was refused BY NAME.
+
+**Why the gate did not catch it:** the class gate banned `MATCHES-NOTHING` for every row in the
+vocabulary, and every vocabulary row is a RETE op. Nothing in the ledger writes a CORE op inline,
+because the ledger enumerates the table. **A gate built from an inventory cannot test what the
+inventory excludes.**
+
+**The cure — separate the outcomes by TYPE, not by discipline.** `Option` was the whole bug: two
+different facts, one `None`. An enum with `Lowered` / `Unresolvable` / `Refused` makes the
+conflation unrepresentable — `Unresolvable` (an unbound var, an undeclared field) still compiles to
+a permanent failure, which was always correct; `Refused` refuses the whole condition so the user
+gets a located error.
+
+**The discipline that found it:** after fixing a defect, take the defect's own shape and ask
+whether the FIX has an instance of it. Do not ask whether the tests pass — they did.
+
+
 ### Failure mode 22 — A rule written in prose that nothing ever runs
 
 **Signature:** a document states a discipline in the imperative — *"there is exactly ONE X; if
