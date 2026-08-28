@@ -47,7 +47,7 @@
   (:wat::core::let [rows (:wat::rete::query s (:jb::q))]
     (:wat::core::if (:wat::core::= (:wat::core::length rows) 1)
       (:wat::core::let [f (:wat::core::Option/expect
-                            (:wat::core::PersistentMap/get (:wat::core::first rows) "?fact") "fact")]
+                            (:wat::map::get (:wat::core::first rows) "?fact") "fact")]
         (:wat::core::PersistentVector (:wat::core::length rows) (:jb::Both/celsius f) (:jb::Both/kph f)))
       (:wat::core::PersistentVector (:wat::core::length rows) 0 0))))
 
@@ -55,6 +55,6 @@
 (:wat::core::defn :user::native-and-oracle [] -> (:wat::core::Vector :- [:wat::core::i64])
   (:wat::core::mapv
     (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64 n)
-    (:wat::core::PersistentVector/concat
+    (:wat::vector::concat
       (:jb::readback (:wat::rete::fire-rules (:jb::staged)))
       (:jb::readback (:wat::rete::fire-rules$oracle (:jb::staged))))))

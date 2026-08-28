@@ -137,10 +137,10 @@
   -> (:wat::core::PersistentVector :- [:wat::WatAST])
   (:wat::core::let [head (:wat::core::if (:wat::core::= wpos 1) (:wat-tests::rete::fuzz::where-cond) (:wat-tests::rete::fuzz::no-conds))
                     tail (:wat::core::if (:wat::core::= wpos 2) (:wat-tests::rete::fuzz::where-cond) (:wat-tests::rete::fuzz::no-conds))
-                    body (:wat::core::PersistentVector/concat
+                    body (:wat::vector::concat
                            (:wat-tests::rete::fuzz::prefix-conds prefix) (:wat-tests::rete::fuzz::filt-cond f fp))]
-    (:wat::core::PersistentVector/concat
-      (:wat::core::PersistentVector/concat head body) tail)))
+    (:wat::vector::concat
+      (:wat::vector::concat head body) tail)))
 
 ;; THE CASE IS A RECORD, not a bare coordinate — built by `gen-record` over five
 ;; `gen-ints`. The property then reads `(:wat-tests::rete::fuzz::Case/depth c)` instead of

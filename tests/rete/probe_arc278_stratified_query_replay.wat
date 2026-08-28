@@ -66,6 +66,6 @@
 (:wat::core::defn :user::native-and-oracle [] -> (:wat::core::Vector :- [:wat::core::i64])
   (:wat::core::mapv
     (:wat::core::fn [n <- :wat::core::i64] -> :wat::core::i64 n)
-    (:wat::core::PersistentVector/concat
+    (:wat::vector::concat
       (:sqr::counts (:wat::rete::fire-rules (:sqr::staged)))
       (:sqr::counts (:wat::rete::fire-rules$oracle (:sqr::staged))))))

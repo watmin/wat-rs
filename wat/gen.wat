@@ -274,7 +274,7 @@
               (:wat::core::fn [acc <- :wat::gen::GenAcc  b <- :wat::core::i64] -> :wat::gen::GenAcc
                 (:wat::gen::GenAcc
                   :rem (:wat::gen::shift (:wat::gen::GenAcc/rem acc) b)
-                  :out (:wat::core::PersistentVector/conj (:wat::gen::GenAcc/out acc)
+                  :out (:wat::vector::conj (:wat::gen::GenAcc/out acc)
                          (:wat::gen::digit (:wat::gen::GenAcc/rem acc) b))))
               (:wat::gen::GenAcc :rem i :out (:wat::core::PersistentVector))
               bases)))))
@@ -732,7 +732,7 @@
   (:wat::core::foldl
     (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::i64])  i <- :wat::core::i64]
                     -> (:wat::core::PersistentVector :- [:wat::core::i64])
-      (:wat::core::PersistentVector/conj acc
+      (:wat::vector::conj acc
         (:wat::core::if (:wat::core::= i j) v (:wat::gen::nth c i))))
     (:wat::core::PersistentVector)
     (:wat::core::range 0 (:wat::core::length c))))
