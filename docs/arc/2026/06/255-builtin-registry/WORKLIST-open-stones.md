@@ -28,7 +28,7 @@ the floor (P1). Adding the population first and the wall second is the wrong ord
 |---|---|---|---|---|
 | ~~P1~~ | ~~the registry can detect a collision~~ | | | ✅ **STRUCK** — see Closed |
 | ~~O-iv-b~~ | ~~the collections sweep~~ | | | ✅ **STRUCK** — see Closed |
-| **P2** | the special-form entry stops lying — `source: ""` and `arity: -1` | 2 sites in `mod.rs`, 1 in `reflect.rs` | *not drawn* | — |
+| **P2** | the special-form entry stops lying — `source: ""` and `arity: -1` | 2 sites in `mod.rs`, 1 gate in `reflect.rs` | `BRIEF-STONE-P2-the-special-form-entry-stops-lying.md` | — **READY** |
 | **P3** | the three ignores are re-diagnosed | 1 un-ignore, 1 rewrite, 1 stays | *not drawn* | — |
 | **P4** | the skipped population is measured | measurement only; no code change | *not drawn* | a VALIDATED instrument |
 | **O-iv-c** | holon sweep — `atom` 41 · `subspace` 10 · `engram` 10 · `reckoner` 8 · `hologram` 4 | 73 verbs | *not drawn* | disposition rows (span-carrying algebra) |
