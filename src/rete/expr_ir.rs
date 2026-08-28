@@ -1031,8 +1031,10 @@ fn exec(
             .into())
         }
         Expr::Call { op, args } => {
-            if RETE_OPS[*op as usize].core_name == ":wat::core::foldl" {
-                return exec_foldl(args, frame, names, sym, span);
+            match RETE_OPS[*op as usize].core_name {
+                ":wat::core::foldl" => return exec_foldl(args, frame, names, sym, span),
+                ":wat::core::reduce" => return exec_reduce(args, frame, names, sym, span),
+                _ => {}
             }
             let mut vs = Vec::with_capacity(args.len());
             for a in args.iter() {
@@ -1131,38 +1133,104 @@ fn exec_foldl(
         )
         .into());
     }
-    let program = match &args[0] {
-        Expr::CallUser { program, .. } => Arc::clone(program),
-        _ => {
-            return Err(RuntimeError::new(
-                span.clone(),
-                RuntimeErrorKind::MalformedForm {
-                    head: ":wat::core::foldl".into(),
-                    reason: "fn-arg must be a compiled fn".into(),
-                },
-            )
-            .into());
-        }
-    };
+    let program = compiled_fn_arg(&args[0], ":wat::core::foldl", span)?;
     let mut acc = exec(&args[1], frame, names, sym, span)?;
     let coll = exec(&args[2], frame, names, sym, span)?;
-    let items: Vec<Value> = match &coll {
-        Value::Vec(xs) => xs.iter().cloned().collect(),
-        Value::wat__core__PersistentVector(pv) => pv.iter().cloned().collect(),
-        Value::wat__core__List(xs) => xs.iter().cloned().collect(),
-        other => {
-            return Err(RuntimeError::new(
-                span.clone(),
-                RuntimeErrorKind::TypeMismatch {
-                    op: ":wat::core::foldl".into(),
-                    expected: "wat::core::Vector, wat::core::PersistentVector, or wat::core::List",
-                    got: Box::new(ValueSnapshot::of(other)),
-                },
-            )
-            .into());
-        }
-    };
+    let items = eager_items(&coll, ":wat::core::foldl", span)?;
     for x in items {
+        acc = exec_program_on(&program, &[acc.clone(), x], Some(frame), sym, span)?;
+    }
+    Ok(acc)
+}
+
+/// The fn operand of a HOF, as a compiled program. Shared so `reduce` cannot drift from `foldl`.
+fn compiled_fn_arg(arg: &Expr, op: &str, span: &Span) -> Result<Arc<Program>, EvalBreak> {
+    match arg {
+        Expr::CallUser { program, .. } => Ok(Arc::clone(program)),
+        _ => Err(RuntimeError::new(
+            span.clone(),
+            RuntimeErrorKind::MalformedForm {
+                head: op.into(),
+                reason: "fn-arg must be a compiled fn".into(),
+            },
+        )
+        .into()),
+    }
+}
+
+/// The eager containers a compiled fence can walk. A `Stream` is deliberately absent: it is lazy,
+/// and the compiled executor has no stream machinery — so it reports a type mismatch that NAMES
+/// the containers it does accept rather than silently producing nothing.
+fn eager_items(coll: &Value, op: &str, span: &Span) -> Result<Vec<Value>, EvalBreak> {
+    match coll {
+        Value::Vec(xs) => Ok(xs.iter().cloned().collect()),
+        Value::wat__core__PersistentVector(pv) => Ok(pv.iter().cloned().collect()),
+        Value::wat__core__List(xs) => Ok(xs.iter().cloned().collect()),
+        other => Err(RuntimeError::new(
+            span.clone(),
+            RuntimeErrorKind::TypeMismatch {
+                op: op.into(),
+                expected: "wat::core::Vector, wat::core::PersistentVector, or wat::core::List",
+                got: Box::new(ValueSnapshot::of(other)),
+            },
+        )
+        .into()),
+    }
+}
+
+/// `(:wat::core::reduce f init coll)` / `(:wat::core::reduce f coll)`.
+///
+/// ⛔ **FOLDL IS REDUCE, and this is a MIRROR of `wat/seq.wat:317-329`, not a reimplementation.**
+/// That `defclause` states both clauses outright: the 3-arity form is literally
+/// `(:wat::core::foldl f init coll)`, and the 2-arity form seeds the fold with the first element
+/// and RAISES BY NAME on an empty collection. Both are reproduced here and nowhere else, so the
+/// compiled answer and the interpreted one cannot diverge.
+///
+/// Why a compiled arm exists at all: `reduce` is a wat-level `defclause`, so unlike its siblings
+/// it has no Rust dispatch to re-enter, and a compiled `where` fence has no defclause machinery.
+/// Found 2026-08-28 by the § 4.1 ledger — the row passed admission, totality, arity and type and
+/// then raised `unbound symbol: acc`, because lowering treats all four HOFs alike while `exec`
+/// routed only `foldl`.
+///
+/// ⚠ The 2-arity empty case RAISES, while `RETE_OPS` declares this row `total: true`. That
+/// contradiction is inherited, not introduced — and it went unnoticed precisely because nothing
+/// could execute the row to find it. Recorded in `RETE-OPEN-WORK` § 4.1; not silently papered over
+/// here, because answering an empty reduce with some invented value would be the worse bug.
+fn exec_reduce(
+    args: &[Expr],
+    frame: &mut [Option<Value>],
+    names: &[SlotName],
+    sym: &SymbolTable,
+    span: &Span,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::core::reduce";
+    if args.len() == 3 {
+        return exec_foldl(args, frame, names, sym, span);
+    }
+    if args.len() != 2 {
+        return Err(RuntimeError::new(
+            span.clone(),
+            RuntimeErrorKind::ArityMismatch { op: OP.into(), expected: 3, got: args.len() },
+        )
+        .into());
+    }
+    let program = compiled_fn_arg(&args[0], OP, span)?;
+    let coll = exec(&args[1], frame, names, sym, span)?;
+    let items = eager_items(&coll, OP, span)?;
+    let mut it = items.into_iter();
+    let Some(mut acc) = it.next() else {
+        return Err(RuntimeError::new(
+            span.clone(),
+            RuntimeErrorKind::MalformedForm {
+                head: OP.into(),
+                reason: "the 2-arity form needs at least one element to seed the fold; got an \
+                         empty collection"
+                    .into(),
+            },
+        )
+        .into());
+    };
+    for x in it {
         acc = exec_program_on(&program, &[acc.clone(), x], Some(frame), sym, span)?;
     }
     Ok(acc)
@@ -1224,7 +1292,7 @@ enum OpExec {
     F64Gt, F64Lt, F64Ge, F64Le, F64Eq, F64NotEq, F64Add, F64Sub, F64Mul, F64Div, F64ToStr,
     BoolToStr, StrEmpty, StrConcat, StrTrim, StrLower, StrSubs,
     PvLen, PvContains, PvGet, VecGet, ListGet, First, PvNew, VecNew, ListNew,
-    PmContainsKey,
+    PmContainsKey, PmNew,
     Cosine, Dot, Coincident, Presence,
     Unknown,
 }
@@ -1282,6 +1350,7 @@ impl OpExec {
             ":wat::core::PersistentVector" => Self::PvNew,
             ":wat::core::Vector" => Self::VecNew,
             ":wat::core::List" => Self::ListNew,
+            ":wat::core::PersistentMap" => Self::PmNew,
             ":wat::holon::cosine" => Self::Cosine,
             ":wat::holon::dot" => Self::Dot,
             ":wat::holon::coincident?" => Self::Coincident,
@@ -1559,6 +1628,48 @@ fn apply_core_kind(
         (OpExec::ListNew, args) => Ok(Value::wat__core__List(Arc::new(
             args.iter().cloned().collect(),
         ))),
+        // The three sibling constructors above just collect; a map cannot, and the rules it must
+        // follow are NOT invented here — every one is read off `eval_persistentmap_ctor`
+        // (`collection/eval.rs`), which is what the interpreter runs: even arity, alternating
+        // key/value, each key `value_is_key_hashable`, built with `PMap::from_pairs`. The two
+        // semantic primitives are called directly rather than re-derived, so the compiled answer
+        // and the interpreted one cannot drift; only argument EVALUATION differs, and the compiled
+        // path has already done that.
+        //
+        // Found 2026-08-28 by the § 4.1 reachability ledger: this row passed admission, totality,
+        // arity and type and then raised `cannot dispatch kind Unknown arity 2` at RUNTIME, exactly
+        // like `PersistentMap/contains-key?` before it.
+        (OpExec::PmNew, args) => {
+            if !args.len().is_multiple_of(2) {
+                return Err(RuntimeError::new(
+                    span.clone(),
+                    RuntimeErrorKind::MalformedForm {
+                        head: ":wat::core::PersistentMap".into(),
+                        reason: format!(
+                            "arity must be even (alternating key/value pairs); got {}",
+                            args.len()
+                        ),
+                    },
+                )
+                .into());
+            }
+            let mut pairs: Vec<(Value, Value)> = Vec::with_capacity(args.len() / 2);
+            for pair in args.chunks(2) {
+                if !crate::runtime::value_is_key_hashable(&pair[0]) {
+                    return Err(RuntimeError::new(
+                        span.clone(),
+                        RuntimeErrorKind::TypeMismatch {
+                            op: ":wat::core::PersistentMap".into(),
+                            expected: "hashable key (primitive, HolonAST, WatAST, (HashSet :- [T]), (Vector :- [T]), or (HashMap :- [K V]))",
+                            got: Box::new(ValueSnapshot::of(&pair[0])),
+                        },
+                    )
+                    .into());
+                }
+                pairs.push((pair[0].clone(), pair[1].clone()));
+            }
+            Ok(Value::wat__core__PersistentMap(crate::value::pmap::PMap::from_pairs(pairs)))
+        }
         (OpExec::Cosine, [a, b]) => {
             let Some(sym) = sym else {
                 return Err(RuntimeError::new(
@@ -1720,8 +1831,18 @@ mod rete_ops_native_coverage {
     /// nothing would ever have surfaced it.
     ///
     /// Found 2026-08-28 by the § 4.1 reachability ledger (`rete/reachability.rs`), which drives
-    /// each row rather than reading about it. The arm now exists; the ledger is what keeps the
-    /// next one from hiding, since it asks every row the question this gate asks only of holon.
+    /// each row rather than reading about it. Four more of the same shape were found the same day:
+    /// the `PersistentMap` CONSTRUCTOR (fixed, `PmNew`), `reduce` (fixed, `exec_reduce` — a mirror
+    /// of `wat/seq.wat:317-329`, where 3-arity reduce IS `foldl`), and `map`/`filter`/`Tuple`,
+    /// which need a ruling rather than an arm.
+    ///
+    /// ⛔ **THIS GATE IS NOW THE NARROW ONE, AND THAT IS FINE — DO NOT WIDEN IT HERE.** Not for the
+    /// old reason (a hole nobody wanted to look at) but because the general question is answered
+    /// STRICTLY BETTER next door: `reachability.rs` DRIVES every row and requires a verdict, where
+    /// this can only ask whether an `OpExec` arm exists. Arm-existence is the wrong question — it
+    /// is neither necessary (`foldl` maps to `Unknown` and reaches the executor by its own route)
+    /// nor sufficient (an arm can exist and the row still be unwritable in every position). Keep
+    /// this one as the cheap holon-specific check it has always been; the wall is the ledger.
     #[test]
     fn holon_rete_ops_have_opexec() {
         let mut missing = Vec::new();

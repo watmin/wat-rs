@@ -513,6 +513,8 @@ fn special_for(rete_name: &str) -> Option<(&'static str, &'static str, &'static 
         ":wat::rete::core::Vector" => (":wat::core::i64", "7", "9", "(:wat::rete::core::i64::= (:wat::rete::core::Vector/first (:wat::rete::core::Vector {f}) :undefined 0) 7)", ""),
         ":wat::rete::core::List" => (":wat::core::i64", "7", "9", "(:wat::rete::core::i64::= (:wat::rete::core::List/first (:wat::rete::core::List {f}) :undefined 0) 7)", ""),
         ":wat::rete::core::foldl" => ("(:wat::core::PersistentVector :- [:wat::core::i64])", "(:wat::core::PersistentVector 1 2)", "(:wat::core::PersistentVector 9)", "(:wat::rete::core::i64::= (:wat::rete::core::foldl (:wat::rete::core::fn [acc <- :wat::core::i64  x <- :wat::core::i64] -> :wat::core::i64 (:wat::rete::core::i64::+ acc x :undefined 0)) 0 {f}) 3)", ""),
+        ":wat::rete::core::reduce" => ("(:wat::core::PersistentVector :- [:wat::core::i64])", "(:wat::core::PersistentVector 1 2)", "(:wat::core::PersistentVector 9)", "(:wat::rete::core::i64::= (:wat::rete::core::reduce (:wat::rete::core::fn [acc <- :wat::core::i64  x <- :wat::core::i64] -> :wat::core::i64 (:wat::rete::core::i64::+ acc x :undefined 0)) 0 {f}) 3)", ""),
+        ":wat::rete::core::PersistentMap" => (":wat::core::String", "\"a\"", "\"z\"", "(:wat::rete::core::PersistentMap/contains-key? (:wat::rete::core::PersistentMap {f} 1) \"a\")", ""),
         _ => return None,
     };
     Some(t)
@@ -665,12 +667,6 @@ fn operands_for(rete_name: &'static str) -> Option<Cell> {
 /// is its own strike — see `RETE-OPEN-WORK` § 4.1.
 const COMPILED_EXECUTOR_CANNOT_RUN: &[(&str, &str)] = &[
     (
-        ":wat::rete::core::PersistentMap",
-        "the map CONSTRUCTOR. `expr_ir.rs` has PvNew/VecNew/ListNew and no PmNew, so a compiled \
-         fence raises `cannot dispatch kind Unknown arity 2`. Its sibling accessor \
-         `PersistentMap/contains-key?` had the identical hole and was fixed 2026-08-28.",
-    ),
-    (
         ":wat::rete::core::map",
         "LOWERED as a higher-order fn (`expr_ir.rs:371-374` lists all four HOFs together) and then \
          EXECUTED by a path that only knows one: `exec` routes to `exec_foldl` under \
@@ -682,10 +678,6 @@ const COMPILED_EXECUTOR_CANNOT_RUN: &[(&str, &str)] = &[
     (
         ":wat::rete::core::filter",
         "same as `map` — lowered as a HOF, no exec arm; raises `unbound symbol: x`.",
-    ),
-    (
-        ":wat::rete::core::reduce",
-        "same as `map` — lowered as a HOF, no exec arm; raises `unbound symbol: acc`.",
     ),
     (
         ":wat::rete::core::Tuple",
