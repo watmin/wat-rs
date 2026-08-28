@@ -11544,6 +11544,20 @@ pub(crate) fn require_i64(op: &'static str, v: Value) -> Result<i64, EvalBreak> 
 /// **removable**, it does not remove them (STOP-2). A verb whose
 /// `value_handler` is sabotaged and whose result changes under `apply` is
 /// the proof the registry — not this match — now serves that verb.
+///
+/// Arc 255 Stone HOME-13 (reinstated) — the 44 arms Stone N made removable
+/// are now REMOVED; the registry lookup below is this fn's entire body for
+/// those fqdns, and unregistered names fall through to `None`. Before
+/// removal, the `:wat::vec::concat` / `:wat::vector::concat` pair (and
+/// `:wat::vec::extend` alongside it) carried a note worth keeping: this fn
+/// is also `eval_apply`'s substrate fallback, not only a const-eval path,
+/// so a per-Type leaf registered ONLY on `dispatch_keyword_head_value`'s
+/// keyword-dispatch arm would have left `apply` unable to reach it — an
+/// avoidable split-brain (see `docs/arc/2026/06/278-rules-engine/
+/// DESIGN-STONE-into-pv-from-vector.md` for the concat op itself; the
+/// split-brain risk was runtime.rs-local and undocumented there). The
+/// `value_handler` registrations above close that risk for all 44 at once,
+/// so it no longer needs a per-arm note now that there is no per-arm table.
 pub(crate) fn dispatch_substrate_impl(
     impl_name: &str,
     vals: &[Value],
@@ -11551,266 +11565,7 @@ pub(crate) fn dispatch_substrate_impl(
     if let Some(handler) = crate::intrinsic::registry().lookup_value(impl_name) {
         return Some(handler(vals));
     }
-    use crate::collection::eval as ceval;
-    match impl_name {
-        // arc 255 Stone E-ii — `:wat::core::Vector/length` RETIRED this stone.
-        ":wat::vec::length" => Some(ceval::vector_length_inner(
-            vals.first().expect("arity-checked"),
-        )),
-        ":wat::hashmap::length" => Some(ceval::hashmap_length_inner(
-            vals.first().expect("arity-checked"),
-        )),
-        // arc 255 Stone E-iii — `:wat::core::HashSet/length` RETIRED this stone.
-        ":wat::hashset::length" => Some(ceval::hashset_length_inner(
-            vals.first().expect("arity-checked"),
-        )),
-        // Arc 220 Stone 220.4 — List/length
-        // arc 255 Stone E-iii — `:wat::core::List/length` RETIRED this stone.
-        ":wat::linkedlist::length" => Some(ceval::list_length_inner(
-            vals.first().expect("arity-checked"),
-        )),
-        // empty? — 1 arg
-        // arc 255 Stone E-ii — `:wat::core::Vector/empty?` RETIRED this stone.
-        ":wat::vec::empty?" => Some(ceval::vector_empty_q_inner(
-            vals.first().expect("arity-checked"),
-        )),
-        ":wat::hashmap::empty?" => Some(ceval::hashmap_empty_q_inner(
-            vals.first().expect("arity-checked"),
-        )),
-        // arc 255 Stone E-iii — `:wat::core::HashSet/empty?` RETIRED this stone.
-        ":wat::hashset::empty?" => Some(ceval::hashset_empty_q_inner(
-            vals.first().expect("arity-checked"),
-        )),
-        // Arc 220 Stone 220.4 — List/empty?
-        // arc 255 Stone E-iii — `:wat::core::List/empty?` RETIRED this stone.
-        ":wat::linkedlist::empty?" => Some(ceval::list_empty_q_inner(
-            vals.first().expect("arity-checked"),
-        )),
-        // contains? — 2 args (mixed verbs)
-        // arc 255 Stone E-ii — `:wat::core::Vector/contains?` RETIRED this stone.
-        ":wat::vec::contains?" => Some(ceval::vector_contains_q_inner(
-            vals.first().expect("arity-checked"),
-            vals.get(1).expect("arity-checked"),
-        )),
-        ":wat::hashmap::contains-key?" => Some(ceval::hashmap_contains_key_q_inner(
-            vals.first().expect("arity-checked"),
-            vals.get(1).expect("arity-checked"),
-        )),
-        // arc 255 Stone E-iii — `:wat::core::HashSet/contains?` RETIRED this stone.
-        ":wat::hashset::contains?" => Some(ceval::hashset_contains_q_inner(
-            vals.first().expect("arity-checked"),
-            vals.get(1).expect("arity-checked"),
-        )),
-        // Arc 220 Stone 220.4 — List/contains?
-        // arc 255 Stone E-iii — `:wat::core::List/contains?` RETIRED this stone.
-        ":wat::linkedlist::contains?" => Some(ceval::list_contains_q_inner(
-            vals.first().expect("arity-checked"),
-            vals.get(1).expect("arity-checked"),
-        )),
-        // get — 2 args (return type varies per arm: (Option :- [T]) vs (Option :- [V]))
-        // arc 255 Stone E-ii — `:wat::core::Vector/get` RETIRED this stone.
-        ":wat::vec::get" => Some(ceval::vector_get_inner(
-            vals.first().expect("arity-checked"),
-            vals.get(1).expect("arity-checked"),
-        )),
-        ":wat::hashmap::get" => Some(ceval::hashmap_get_inner(
-            vals.first().expect("arity-checked"),
-            vals.get(1).expect("arity-checked"),
-        )),
-        // Arc 220 Stone 220.4 — List/get
-        // arc 255 Stone E-iii — `:wat::core::List/get` RETIRED this stone.
-        ":wat::linkedlist::get" => Some(ceval::list_get_inner(
-            vals.first().expect("arity-checked"),
-            vals.get(1).expect("arity-checked"),
-        )),
-        // conj — 2 args (returns container type)
-        // arc 255 Stone E-ii — `:wat::core::Vector/conj` RETIRED this stone.
-        ":wat::vec::conj" => Some(ceval::vector_conj_inner(
-            vals.first().expect("arity-checked"),
-            vals.get(1).expect("arity-checked"),
-        )),
-        // arc 255 Stone E-iii — `:wat::core::HashSet/conj` RETIRED this stone.
-        ":wat::hashset::conj" => Some(ceval::hashset_conj_inner(
-            vals.first().expect("arity-checked"),
-            vals.get(1).expect("arity-checked"),
-        )),
-        // Arc 220 Stone 220.4 — List/conj (PREPEND semantic)
-        // arc 255 Stone E-iii — `:wat::core::List/conj` RETIRED this stone.
-        ":wat::linkedlist::conj" => Some(ceval::list_conj_inner(
-            vals.first().expect("arity-checked"),
-            vals.get(1).expect("arity-checked"),
-        )),
-        // Arc 146 slice 4 — assoc / dissoc / keys / values / concat
-        // per-Type impls. Routed here so alias-expanded user-defines
-        // resolve to the substrate impl when the body's call lands on
-        // a per-Type primitive name.
-        ":wat::hashmap::assoc" => Some(ceval::hashmap_assoc_inner(
-            vals.first().expect("arity-checked"),
-            vals.get(1).expect("arity-checked"),
-            vals.get(2).expect("arity-checked"),
-        )),
-        ":wat::hashmap::dissoc" => Some(ceval::hashmap_dissoc_inner(
-            vals.first().expect("arity-checked"),
-            vals.get(1).expect("arity-checked"),
-        )),
-        ":wat::hashmap::keys" => Some(ceval::hashmap_keys_inner(
-            vals.first().expect("arity-checked"),
-        )),
-        ":wat::hashmap::values" => Some(ceval::hashmap_values_inner(
-            vals.first().expect("arity-checked"),
-        )),
-        // arc 255 Stone E-ii — `:wat::core::Vector/concat` RETIRED this stone.
-        ":wat::vec::concat" => Some(ceval::vector_concat_inner(
-            vals.first().expect("arity-checked"),
-            vals.get(1).expect("arity-checked"),
-        )),
-        // DESIGN-STONE-into-pv-from-vector.md — parity with the Vector/concat arm above.
-        // `(:wat::core::apply :wat::core::PersistentVector/concat [to from])` reaches this
-        // path (dispatch_substrate_impl is also `eval_apply`'s substrate fallback, not only a
-        // const-eval path); every other per-Type leaf on this list has both entries, so
-        // registering only the runtime.rs:5174 keyword-dispatch arm would leave `apply`
-        // unable to reach the new op — an avoidable split-brain.
-        // arc 255 Stone E-ii — `:wat::core::PersistentVector/concat` RETIRED this stone.
-        ":wat::vector::concat" => Some(ceval::persistentvector_concat_inner(
-            vals.first().expect("arity-checked"),
-            vals.get(1).expect("arity-checked"),
-        )),
-        // Arc 278 — the mirror, present here for the same reason: `apply` reaches this path.
-        // arc 255 Stone E-ii — `:wat::core::Vector/extend` RETIRED this stone.
-        ":wat::vec::extend" => Some(ceval::vector_extend_inner(
-            vals.first().expect("arity-checked"),
-            vals.get(1).expect("arity-checked"),
-        )),
-        // Arc 148 slice 4 — per-Type arithmetic leaves reachable via
-        // direct substrate addressing (no-privacy doctrine). The binary
-        // Dispatch entity decls were DELETED in arc 237 Stone 237.8a
-        // (no more cross-type arms); these per-Type leaves remain as
-        // the irreducible primitives.
-        //
-        // arc 237 Stone 237.8a — 4 same-type i64-i64 + 4 same-type
-        // f64-f64 = 8 leaves. Mixed-type leaves (+'i64'f64 etc.)
-        // DELETED under THE DECISION (`feedback_no_implicit_coercion`).
-        // Stone 237.8b — drop '2 suffix from per-Type binary primitives.
-        // Arc 300 stone C3 — checked on overflow (contrast the wrapping
-        // shown in the comment above, now retired): `checked_*` -> `None`
-        // becomes `I64ArithErr::Overflow`, mapped by `arith_i64_i64_inner`
-        // to a distinct `RuntimeErrorKind::IntegerOverflow` (never
-        // conflated with `DivisionByZero`, never silently wrapped).
-        ":wat::i64::+" => Some(arith_i64_i64_inner(impl_name, vals, |a, b| {
-            a.checked_add(b).ok_or(I64ArithErr::Overflow(a, b))
-        })),
-        ":wat::i64::-" => Some(arith_i64_i64_inner(impl_name, vals, |a, b| {
-            a.checked_sub(b).ok_or(I64ArithErr::Overflow(a, b))
-        })),
-        ":wat::i64::*" => Some(arith_i64_i64_inner(impl_name, vals, |a, b| {
-            a.checked_mul(b).ok_or(I64ArithErr::Overflow(a, b))
-        })),
-        ":wat::i64::/" => Some(arith_i64_i64_inner(impl_name, vals, |a, b| {
-            if b == 0 {
-                Err(I64ArithErr::DivByZero)
-            } else {
-                // i64::MIN / -1 is the one division overflow edge (checked_div
-                // returns None here since b != 0 was already ruled out above).
-                a.checked_div(b).ok_or(I64ArithErr::Overflow(a, b))
-            }
-        })),
-        // Arc 278 numeric-tower increment — clj's mod/rem/quot trio for i64,
-        // this tower's per-type intrinsic path (the surface defclause folds
-        // through here). Mirrors i64::/ above; see the primary dispatch arm's
-        // comment for the sign-rule rationale.
-        ":wat::i64::quot" => Some(arith_i64_i64_inner(impl_name, vals, |a, b| {
-            if b == 0 {
-                Err(I64ArithErr::DivByZero)
-            } else {
-                a.checked_div(b).ok_or(I64ArithErr::Overflow(a, b))
-            }
-        })),
-        ":wat::i64::rem" => Some(arith_i64_i64_inner(impl_name, vals, |a, b| {
-            if b == 0 {
-                Err(I64ArithErr::DivByZero)
-            } else {
-                // MIN rem -1 = 0 (clj-faithful special-case; checked_rem's
-                // None here never signals a real overflow — |rem| < |b|).
-                Ok(a.checked_rem(b).unwrap_or(0))
-            }
-        })),
-        ":wat::i64::mod" => Some(arith_i64_i64_inner(impl_name, vals, |a, b| {
-            if b == 0 {
-                Err(I64ArithErr::DivByZero)
-            } else {
-                let r = a.checked_rem(b).unwrap_or(0);
-                Ok(if r != 0 && (r < 0) != (b < 0) {
-                    r + b
-                } else {
-                    r
-                })
-            }
-        })),
-        ":wat::f64::+" => Some(arith_f64_f64_inner(impl_name, vals, |a, b| Ok(a + b))),
-        ":wat::f64::-" => Some(arith_f64_f64_inner(impl_name, vals, |a, b| Ok(a - b))),
-        ":wat::f64::*" => Some(arith_f64_f64_inner(impl_name, vals, |a, b| Ok(a * b))),
-        // Stone 237.8b — IEEE 754: f64 / 0.0 = ±Inf or NaN; not an error.
-        ":wat::f64::/" => Some(arith_f64_f64_inner(impl_name, vals, |a, b| Ok(a / b))),
-        // Arc 300 stone C1 — bigint arithmetic leaves. Arbitrary precision —
-        // `+ - *` never overflow (contrast the i64 leaves above). Arc 255
-        // Stone D — match keys are the new `:wat::bigint::*` spelling
-        // directly (the old `:wat::core::bigint::*` spelling is retired);
-        // this table is reached only via `apply` of a bound keyword, not via
-        // `dispatch_keyword_head_value`'s registry-first door.
-        ":wat::bigint::+" => Some(arith_bigint_bigint_inner(impl_name, vals, |a, b| {
-            Ok(Value::wat__core__BigInt(Box::new(a + b)))
-        })),
-        ":wat::bigint::-" => Some(arith_bigint_bigint_inner(impl_name, vals, |a, b| {
-            Ok(Value::wat__core__BigInt(Box::new(a - b)))
-        })),
-        ":wat::bigint::*" => Some(arith_bigint_bigint_inner(impl_name, vals, |a, b| {
-            Ok(Value::wat__core__BigInt(Box::new(a * b)))
-        })),
-        ":wat::bigint::/" => Some(arith_bigint_bigint_inner(impl_name, vals, |a, b| {
-            use num_traits::Zero;
-            if b.is_zero() {
-                return Err(());
-            }
-            let (q, r) = (a / b, a % b);
-            if r.is_zero() {
-                Ok(Value::wat__core__BigInt(Box::new(q)))
-            } else {
-                Ok(Value::wat__core__Rational(Box::new(
-                    num_rational::BigRational::new(a.clone(), b.clone()),
-                )))
-            }
-        })),
-        // Arc 300 stone C2 — rational arithmetic leaves. Every op COLLAPSES
-        // (contrast bigint above, where only `/` collapses) — the shared
-        // `arith_rational_rational_inner` helper applies `collapse_bigrational`
-        // after `op` returns the raw `BigRational`. Arc 255 Stone D — match
-        // keys are the new `:wat::rational::*` spelling directly.
-        ":wat::rational::+" => {
-            Some(arith_rational_rational_inner(impl_name, vals, |a, b| {
-                Ok(a + b)
-            }))
-        }
-        ":wat::rational::-" => {
-            Some(arith_rational_rational_inner(impl_name, vals, |a, b| {
-                Ok(a - b)
-            }))
-        }
-        ":wat::rational::*" => {
-            Some(arith_rational_rational_inner(impl_name, vals, |a, b| {
-                Ok(a * b)
-            }))
-        }
-        ":wat::rational::/" => {
-            Some(arith_rational_rational_inner(impl_name, vals, |a, b| {
-                use num_traits::Zero;
-                if b.is_zero() {
-                    return Err(());
-                }
-                Ok(a / b)
-            }))
-        }
-        _ => None,
-    }
+    None
 }
 
 /// Arc 148 slice 4 — Value-level arithmetic leaves used by
