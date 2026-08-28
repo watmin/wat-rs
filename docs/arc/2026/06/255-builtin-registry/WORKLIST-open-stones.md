@@ -20,7 +20,6 @@ Q + Q-2 the value door carries a SPAN,
 O-iv-c-0 the require_* family takes a ref  ← NEXT: 9 sigs + 109 call sites; makes the sweep a DELETION
 O-iv-c-1 holon sweep, the four small files    32 SHELL verbs
 O-iv-c-2 holon sweep, atom.rs                 41 SHELL verbs
-O-iv-c  holon sweep                            73 verbs — ⛔ BLOCKED on Q
 O-iv-d  the remainder sweep                    26 verbs — same
 P5  @yields becomes mandatory at expand time   the top rung; biggest change
 P6-a a special form NAMES its impls        ✅ STRUCK — show-source prints check·eval·tail
