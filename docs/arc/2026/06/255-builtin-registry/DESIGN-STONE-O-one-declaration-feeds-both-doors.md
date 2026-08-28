@@ -37,7 +37,7 @@
 > `wat-scripts/scratch-pad/255-stone-o-apply-has-three-broken-doors.wat`
 > ```
 > DOOR 1  defclause head                     REFUSED "expected keyword, got clauses"   22 production verbs
-> DOOR 2  registered intrinsic, no value door "unknown function"                       337 of 381
+> DOOR 2  registered intrinsic, no value door "unknown function"                       337 of 380
 > DOOR 3  registered intrinsic, value door    works — and wrong arity PANICS            44
 > DOOR 4  plain fn / defn                     correct                                   —
 > ```
@@ -76,7 +76,7 @@ the disconfirming probe committed with this design
 ```
 
 Four registered, working verbs reported ABSENT. The one that answers is the one carrying a
-`value = <path>` slot from Stone N. **44 of 381 registered names carry that slot** — so `apply` can
+`value = <path>` slot from Stone N. **44 of 380 registered names carry that slot** — so `apply` can
 reach 11.5% of the language and calls the other 88.5% nonexistent.
 
 ★ **This is `walk.rs:268` wearing the opposite mask.** The blanket-accept says YES to everything
@@ -217,7 +217,7 @@ SIGNATURE (which always names `env`/`sym` — the shim forces that) and is contr
                         no value door    has value door     total
 SHELL  (collapsible)         112               25            137
 BINDING (AST door only)      224               19            243
-                                                             380  (381 registered; see ⚠)
+                                                             380  ✓ THE TOTAL — see the correction below
 ```
 
 - **112** verbs gain `apply` for the first time — minus **1** (`eval_holon_from_holon`, the single
@@ -226,13 +226,26 @@ BINDING (AST door only)      224               19            243
   literally.
 - **243** stay BINDING and honestly cannot be splatted — they need `env`/`sym`. **They are the reason
   O-ii exists**: after this stone `apply` still cannot serve them, and it must say the true thing.
-- After O-i + O-iii, `apply` reaches **155 of 381**, and every one of the remaining 226 gets an
+- After O-i + O-iii, `apply` reaches **155 of 380**, and every one of the remaining 225 gets an
   honest diagnostic instead of a lie.
 
-⚠ **380, not 381.** The classifier reads one fewer than the registry does. The gap is not explained
-and it is not assumed benign — **O-i's row 0 is to name that one handler.** A census whose population
-is one short is a census with an unexamined edge.
-`[[feedback_a_census_without_attribution_is_not_a_census]]`
+⛔ **CORRECTED 2026-08-28 by the O-iii rider — 380 IS THE TOTAL, AND THE CLASSIFIER WAS RIGHT.**
+This section used to read *"380, not 381 — the classifier reads one fewer than the registry does…
+O-i's row 0 is to name that one handler."* **There is no such handler.** The `381` was my own
+baseline grep counting a DOC COMMENT as a registration: `src/intrinsic/holon/mod.rs:9` reads
+``//! `#[wat_intrinsic(":wat::holon::…")]` handlers under the SAME names, here.`` — prose about a
+migration, using `…` as a placeholder — and the `grep -v '<fqdn>'` filter knew only ONE spelling of
+"this is a placeholder" and let the other through. **Counting comments as code, for the third time
+in one day, in the very instrument I had written to make a number outlive itself.** The rider
+verified the correction three ways: the name-diff isolates exactly one spurious entry; per-file
+attribute counts match the awk's per-file rows with zero discrepancy anywhere; and an
+attribute-ANCHORED grep returns 380 with a list identical to the awk's, name for name.
+
+> **The honest one-liner anchors to attribute POSITION instead of matching text anywhere in a file:**
+> ```bash
+> grep -rhoP '^\s*#\[wat_intrinsic\(\s*"\K[^"]+' src/ --include=*.rs | sort -u | wc -l   # 380
+> ```
+> `[[feedback_a_file_count_is_not_an_item_count]]` · `[[feedback_validate_a_search_pattern_before_trusting_its_count]]`
 
 ## The contract's affirmative cuts
 

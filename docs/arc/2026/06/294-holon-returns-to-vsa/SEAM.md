@@ -61,14 +61,19 @@ and **that gate cannot be un-ignored by anything smaller.**
 ## WHERE WE ARE
 
 ```
-registered NAMES ........ 381        registered namespaces .. 27        retirement rows ... 144
-                ⚠ 385 WAS ATTRIBUTE SITES, and 4 of them are `<fqdn>` DOC PLACEHOLDERS. "30 homes"
-                  was `ls src/intrinsic | wc -l` — a FILE count (mod · witness · reflect · special
-                  are not namespaces). The instrument, so the number outlives it (2026-08-28):
-                    find src -name '*.rs' -exec cat {} + | tr '\n' ' ' \
-                      | grep -oP '#\[wat_intrinsic\(\s*"\K[^"]+' | grep -v '<fqdn>' | sort -u | wc -l
-                  ⚠ Newline-tolerant on purpose: a per-line grep misses multi-line attributes, and a
-                  bare `#[wat_intrinsic]` grep counts 48 PROSE mentions in doc comments as code.
+registered NAMES ........ 380        registered namespaces .. 27        retirement rows ... 144
+                ⛔ THIS ONE POPULATION WAS COUNTED WRONG THREE TIMES IN ONE DAY — 385, 434, 381 —
+                  and every time because the instrument could see PROSE. 385 counted attribute
+                  SITES (4 are `<fqdn>` doc placeholders); 434 counted 48 bare `#[wat_intrinsic]`
+                  mentions inside doc comments; 381 matched attribute text ANYWHERE in a file, so
+                  `src/intrinsic/holon/mod.rs:9`'s doc comment — which writes `:wat::holon::…`, a
+                  placeholder spelled differently from the `<fqdn>` the filter knew — became a
+                  "registered name". And "30 homes" was `ls src/intrinsic | wc -l`, a FILE count.
+                  ANCHOR TO ATTRIBUTE POSITION. Verified name-for-name against the awk census:
+                    grep -rhoP '^\s*#\[wat_intrinsic\(\s*"\K[^"]+' src/ --include=*.rs \
+                      | sort -u | wc -l          # 380
+                  `[[feedback_a_file_count_is_not_an_item_count]]`
+                  `[[feedback_validate_a_search_pattern_before_trusting_its_count]]`
 src/ root .rs files ..... 22         runtime.rs 34,252  (was 40,441 — DOWN 6,189 in one day)
 dispatch arms left ...... 168        ⚠ 191 was the honest figure before HOME-13 deleted 44
 ```
@@ -200,20 +205,25 @@ REGISTRY home       dispatch arms    -> src/intrinsic/<ns>/  HOME-8 holon · 9/1
 
 ## ⬜ NEXT — measured, not guessed
 
-- ⛔ **`apply` LIES ABOUT WHAT EXISTS — 44 of 381.** Demonstrated live:
-  `(:wat::f64::max-of 3.0 9.0 41.0)` → `Some [41.0]`, but
-  `(:wat::core::apply :wat::f64::max-of […])` → **"unknown function"**. `max-of` is registered and
-  works; `apply` reports it absent because it has no `value_handler`, so `lookup_value` returns
-  `None` and `eval_apply` falls to its `UnknownFunction` arm. **Same failure shape as
-  `walk.rs:268`** — a dispatch path answering from its own incomplete picture — and it bites a
-  VARIADIC verb, the one that most wants splat. TWO separable follow-ups, both the builder's to rule:
-  (a) the diagnostic is a LIE regardless of the fix — honest text is *"registered, but not reachable
-  through apply"*; (b) ONE DECLARATION FEEDING BOTH DOORS: most handlers are shells (eval the args,
-  call a value-fn), so the macro could generate the AST shell from the value-fn. Touches all 381.
+- ⛔ **`apply`'s FOURTH DOOR IS STILL SHUT — 331 of 380 report "unknown function".** Stone O closed
+  three of four; DOOR 2 is what remains and it is a SWEEP, not a design question — the machine is
+  built and proven (O-iii), so each namespace is a migration commit.
+  ```
+  DOOR 1  defclause head              ✓ O-ii    22 production verbs — + - * / reduce sort into …
+  DOOR 2  intrinsic, no value door    ⛔ 331     "unknown function" for verbs that plainly exist
+  DOOR 3  intrinsic, value door       ✓ O-i     43 explicit + 6 generated = 49, all arity-guarded
+  DOOR 4  plain fn / defn             ✓         was always correct
+  ```
+  **O-iv is drawn in the design and is two things:** migrate the remaining ~130 SHELL verbs (105 new
+  doors + 25 two-fn collapses), one commit per namespace; and give `eval_apply` the honest word —
+  consult `lookup_entry` before raising, so a registered-but-unreachable verb hears *"registered, but
+  not reachable through apply"* instead of a lie. The honest-word half is independent of the sweep
+  and true no matter how far the sweep gets.
   ⚠ **The two CALLING CONVENTIONS are forced by the language, not by us** — `apply`'s arguments have
   no syntax. Proven: `(apply :wat::i64::+ (:mk::pair))` → 42, and the form's AST children are
   `[apply, the verb, (:mk::pair)]` — no node for `20` or `22` exists anywhere. It is splat, and the
-  arity is decided at runtime. Two conventions is right; **two REGISTRATIONS is not.**
+  arity is decided at runtime. Two conventions is right; **two REGISTRATIONS is not** — and after
+  O-iii a verb that declares its algebra gets both doors generated, so it cannot be born with one.
 - **`@Total` STILL HAS NO HOME**, and 255.3 cannot close without it. Unchanged; totality is **step 6**
   of the road and must not be opened early.
 - **The doctest runner masks every failure behind ONE raise** — `wat/doctest.wat:67` guards both

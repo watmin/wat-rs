@@ -20,8 +20,19 @@
 #   NEGATIVE  eval_seq_zip_intrinsic             must classify BINDING (passes env/sym to a helper)
 # `[[feedback_validate_a_search_pattern_before_trusting_its_count]]`
 #
-# ⚠ KNOWN EDGE: this reads 380 handlers where the registry holds 381 names. The one it does not
-# reach is unexplained and is Stone O-i's row 0 — do not quote 380 as a total without it.
+# ⛔ 380 IS THE TOTAL, AND THIS INSTRUMENT WAS RIGHT — the "381" it was once measured against
+# was the WRONG number, corrected 2026-08-28 by the Stone O-iii rider. That baseline came from a
+# text grep run over whole files:
+#     grep -oP '#\[wat_intrinsic\(\s*"\K[^"]+' | grep -v '<fqdn>'
+# which counted a DOC COMMENT as a registration. `src/intrinsic/holon/mod.rs:9` reads:
+#     //! `#[wat_intrinsic(":wat::holon::…")]` handlers under the SAME names, here.
+# Prose about a migration, using `…` as a placeholder — and the `-v '<fqdn>'` filter knew only
+# ONE spelling of "this is a placeholder" and let the other through. Counting comments as code,
+# for the third time in one day. `[[feedback_a_file_count_is_not_an_item_count]]`
+#
+# The honest one-liner ANCHORS to attribute position instead of matching text anywhere in a file:
+#     grep -rhoP '^\s*#\[wat_intrinsic\(\s*"\K[^"]+' src/ --include=*.rs | sort -u | wc -l
+# It returns 380, and its list is IDENTICAL to this awk's — verified name-for-name, both ways.
 
 /^#\[wat_intrinsic\(/ { pend=1; hasval = ($0 ~ /value[ ]*=/) ? 1 : 0; next }
 pend && /^#\[/ { next }                                    # stacked attributes

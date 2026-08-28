@@ -46,12 +46,17 @@
 
 use wat_macros::wat_intrinsic;
 
-use crate::ast::WatAST;
-use crate::runtime::eval_inner;
-use crate::span::Span;
-use crate::value::{Environment, EvalBreak, SymbolTable, Value};
+use crate::value::{EvalBreak, Value};
 
 // ─── the 6 verbs ────────────────────────────────────────────────────────────
+//
+// arc 255 Stone O-iii — migrated to ALGEBRA. Each handler's leading params are now `&Value`
+// (not `&WatAST`), so `#[wat_intrinsic]` generates BOTH the AST door (the shim it always
+// generated) and the value door (what `:wat::core::apply` reaches through
+// `dispatch_substrate_impl`) from this ONE declaration, behind one arity check. The `env`/`sym`
+// eval-the-arg step and the `_span: &Span // rune:lint(unused-span)` param both disappear —
+// there is no span to justify and nothing left to hold it — because the macro now does that
+// step itself, once, for both doors.
 
 /// `(:wat::vector::length v)` → the number of elements in `v`.
 ///
@@ -65,14 +70,8 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// @example (:wat::vector::length (:wat::core::PersistentVector 1 2 3)) #=> 3
 /// @see     :wat::vector::empty?
 #[wat_intrinsic(":wat::vector::length")]
-pub(crate) fn eval_persistentvector_length_home(
-    v: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    _span: &Span, // rune:lint(unused-span) — the only error (TypeMismatch) locates at `v`'s own eval, not this call's span
-) -> Result<Value, EvalBreak> {
-    let v = eval_inner(v, env, sym)?.value_owned();
-    crate::collection::eval::persistentvector_length_inner(&v)
+pub(crate) fn persistentvector_length(v: &Value) -> Result<Value, EvalBreak> {
+    crate::collection::eval::persistentvector_length_inner(v)
 }
 
 /// `(:wat::vector::empty? v)` → whether `v` has zero elements.
@@ -87,14 +86,8 @@ pub(crate) fn eval_persistentvector_length_home(
 /// @example (:wat::vector::empty? (:wat::core::PersistentVector 1)) #=> false
 /// @see     :wat::vector::length
 #[wat_intrinsic(":wat::vector::empty?")]
-pub(crate) fn eval_persistentvector_empty_q_home(
-    v: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    _span: &Span, // rune:lint(unused-span)
-) -> Result<Value, EvalBreak> {
-    let v = eval_inner(v, env, sym)?.value_owned();
-    crate::collection::eval::persistentvector_empty_q_inner(&v)
+pub(crate) fn persistentvector_empty_q(v: &Value) -> Result<Value, EvalBreak> {
+    crate::collection::eval::persistentvector_empty_q_inner(v)
 }
 
 /// `(:wat::vector::contains? v item)` → whether `item` occurs as an element
@@ -111,16 +104,8 @@ pub(crate) fn eval_persistentvector_empty_q_home(
 /// @example (:wat::vector::contains? (:wat::core::PersistentVector 1 2 3) 9) #=> false
 /// @see     :wat::vector::get
 #[wat_intrinsic(":wat::vector::contains?")]
-pub(crate) fn eval_persistentvector_contains_q_home(
-    v: &WatAST,
-    item: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    _span: &Span, // rune:lint(unused-span)
-) -> Result<Value, EvalBreak> {
-    let v = eval_inner(v, env, sym)?.value_owned();
-    let item = eval_inner(item, env, sym)?.value_owned();
-    crate::collection::eval::persistentvector_contains_q_inner(&v, &item)
+pub(crate) fn persistentvector_contains_q(v: &Value, item: &Value) -> Result<Value, EvalBreak> {
+    crate::collection::eval::persistentvector_contains_q_inner(v, item)
 }
 
 /// `(:wat::vector::get v i)` → `Some` of the element at index `i` in `v`, or
@@ -138,16 +123,8 @@ pub(crate) fn eval_persistentvector_contains_q_home(
 /// @example (:wat::vector::get (:wat::core::PersistentVector 1 2 3) 9) #=> :None
 /// @see     :wat::vector::contains?
 #[wat_intrinsic(":wat::vector::get")]
-pub(crate) fn eval_persistentvector_get_home(
-    v: &WatAST,
-    i: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    _span: &Span, // rune:lint(unused-span)
-) -> Result<Value, EvalBreak> {
-    let v = eval_inner(v, env, sym)?.value_owned();
-    let i = eval_inner(i, env, sym)?.value_owned();
-    crate::collection::eval::persistentvector_get_inner(&v, &i)
+pub(crate) fn persistentvector_get(v: &Value, i: &Value) -> Result<Value, EvalBreak> {
+    crate::collection::eval::persistentvector_get_inner(v, i)
 }
 
 /// `(:wat::vector::conj v item)` → a NEW `PersistentVector` with `item`
@@ -163,16 +140,8 @@ pub(crate) fn eval_persistentvector_get_home(
 /// @example (:wat::vector::length (:wat::vector::conj (:wat::core::PersistentVector) 1)) #=> 1
 /// @see     :wat::vector::concat
 #[wat_intrinsic(":wat::vector::conj")]
-pub(crate) fn eval_persistentvector_conj_home(
-    v: &WatAST,
-    item: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    _span: &Span, // rune:lint(unused-span)
-) -> Result<Value, EvalBreak> {
-    let v = eval_inner(v, env, sym)?.value_owned();
-    let item = eval_inner(item, env, sym)?.value_owned();
-    crate::collection::eval::persistentvector_conj_inner(&v, &item)
+pub(crate) fn persistentvector_conj(v: &Value, item: &Value) -> Result<Value, EvalBreak> {
+    crate::collection::eval::persistentvector_conj_inner(v, item)
 }
 
 /// `(:wat::vector::concat to from)` — `DESIGN-STONE-into-pv-from-vector.md`.
@@ -192,24 +161,14 @@ pub(crate) fn eval_persistentvector_conj_home(
 /// @ret     (:wat::core::PersistentVector :- [T]) `to` with every element of `from` appended
 /// @example (:wat::vector::length (:wat::vector::concat (:wat::core::PersistentVector 1) (:wat::core::PersistentVector 2))) #=> 2
 /// @see     :wat::vector::conj
-#[wat_intrinsic(":wat::vector::concat", value = eval_persistentvector_concat_home_value)]
-pub(crate) fn eval_persistentvector_concat_home(
-    to: &WatAST,
-    from: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    _span: &Span, // rune:lint(unused-span)
-) -> Result<Value, EvalBreak> {
-    let to = eval_inner(to, env, sym)?.value_owned();
-    let from = eval_inner(from, env, sym)?.value_owned();
-    crate::collection::eval::persistentvector_concat_inner(&to, &from)
-}
-
-// Arc 255 Stone N — value-level twin of `eval_persistentvector_concat_home` (above), for
-// `dispatch_substrate_impl`'s registry-first door (`src/runtime.rs`,
-// `:wat::core::apply`'s substrate fallback). Calls the SAME
-// `persistentvector_concat_inner` fn `eval_persistentvector_concat_home` calls; no new algorithm, a slice-shaped
-// entry point onto it.
-fn eval_persistentvector_concat_home_value(vals: &[Value]) -> Result<Value, EvalBreak> {
-    crate::collection::eval::persistentvector_concat_inner(vals.first().expect("arity-checked"), vals.get(1).expect("arity-checked"))
+///
+/// arc 255 Stone O-iii — TWO fns became ONE. Before this stone this verb was written as a
+/// hand-written AST shell (`eval_persistentvector_concat_home`) PLUS a hand-written value twin
+/// (`eval_persistentvector_concat_home_value`, named via `value = <path>`) that each called
+/// `persistentvector_concat_inner` and each opened with an unchecked index into `vals`, guarded
+/// only by an `.expect` naming a check that happened on the OTHER door. One declaration now
+/// feeds both doors; the arity check is generated, and true on the door that raises it.
+#[wat_intrinsic(":wat::vector::concat")]
+pub(crate) fn persistentvector_concat(to: &Value, from: &Value) -> Result<Value, EvalBreak> {
+    crate::collection::eval::persistentvector_concat_inner(to, from)
 }
