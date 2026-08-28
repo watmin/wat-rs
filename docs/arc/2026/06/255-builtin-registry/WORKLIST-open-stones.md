@@ -27,7 +27,7 @@ the floor (P1). Adding the population first and the wall second is the wrong ord
 | id | stone | size | brief | blocked on |
 |---|---|---|---|---|
 | ~~P1~~ | ~~the registry can detect a collision~~ | | | ✅ **STRUCK** — see Closed |
-| **O-iv-b** | the collections sweep — `map` 8 · `hashmap` 8 · `vec` 7 · `linkedlist` 5 · `hashset` 4 | 32 verbs, 5 files | *not drawn* — copy `BRIEF-STONE-O-iii` and swap the namespace | — **UNBLOCKED**, P1 landed |
+| **O-iv-b** | the collections sweep — `map` 8 · `hashmap` 8 · `vec` 7 · `linkedlist` 5 · `hashset` 4 | 32 verbs — 8 new doors + **24 two-fn collapses** | `BRIEF-STONE-O-iv-b-the-collections-sweep.md` | — **READY**; disposition CLOSED, all 32 measured span-free |
 | **P2** | the special-form entry stops lying — `source: ""` and `arity: -1` | 2 sites in `mod.rs`, 1 in `reflect.rs` | *not drawn* | — |
 | **P3** | the three ignores are re-diagnosed | 1 un-ignore, 1 rewrite, 1 stays | *not drawn* | — |
 | **P4** | the skipped population is measured | measurement only; no code change | *not drawn* | a VALIDATED instrument |
