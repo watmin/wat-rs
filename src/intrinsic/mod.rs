@@ -406,13 +406,26 @@ pub(crate) fn registry() -> &'static IntrinsicRegistry {
         // Each `#[wat_special_form("<fqdn>")]` struct submits a SpecialFormSubmission
         // via `inventory`; fold them into the registry as Kind::SpecialForm entries.
         for submission in inventory::iter::<SpecialFormSubmission> {
+            // Arc 255 Stone P2 — derive arity from the form's own declared @args instead
+            // of hardcoding Variadic. `Exact(N)` only when the form actually enumerated
+            // its arguments and none of them is a rest param; a form that declares its
+            // shape as `@syntax` instead of `@arg` (e.g. `let`) has zero @args and is
+            // genuinely variadic — Exact(0) would be a WORSE lie than the one this
+            // replaces. This mirrors what `#[wat_intrinsic]` already does
+            // (crates/wat-macros/src/wat_intrinsic.rs:653-657).
+            let arity = match submission.args {
+                args if !args.is_empty() && !args.iter().any(|(_, _, _, is_rest)| *is_rest) => {
+                    Arity::Exact(args.len())
+                }
+                _ => Arity::Variadic,
+            };
             r.register(IntrinsicEntry {
                 name: submission.name,
                 handler: None,
                 value_handler: None,
                 kind: Kind::SpecialForm,
                 syntax: submission.syntax,
-                arity: Arity::Variadic, // special forms handle their own arity
+                arity,
                 prose: submission.prose,
                 added: submission.added,
                 args: submission.args,

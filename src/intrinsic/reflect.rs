@@ -238,9 +238,21 @@ pub(crate) fn eval_show_source(
     let _ = span;
     let name = extract_fqdn(OP, fqdn, env, sym)?;
 
-    // Intrinsic path: registry entry carries the captured Rust source.
+    // Registry path. Gate on `entry.kind`, NOT on `entry.source.is_empty()` — an empty
+    // capture from a genuine intrinsic must stay distinguishable from a special form's
+    // structural absence of source (arc 255 Stone P2; see NOTE-an-absence-recorded-as-
+    // an-answer). `Kind::SpecialForm` entries carry `source: ""` by construction (special
+    // forms are dispatched by the runtime engine, not a registered Rust fn) — route them
+    // to the SAME honest fallback text used below for `Binding::SpecialForm` et al., so
+    // there is exactly one wording for "no source available in this context", not two.
     if let Some(entry) = crate::intrinsic::registry().lookup_entry(&name) {
-        return Ok(Value::String(Arc::new(entry.source.to_string())));
+        return Ok(match entry.kind {
+            crate::intrinsic::Kind::SpecialForm => Value::String(Arc::new(format!(
+                ";; {} — substrate primitive (no source available in this context)",
+                name
+            ))),
+            _ => Value::String(Arc::new(entry.source.to_string())),
+        });
     }
 
     // User-form path: look up via the symbol table and write-forms the body.
