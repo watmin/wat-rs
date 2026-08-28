@@ -548,22 +548,36 @@ range-restricted because `z` comes from `edge`.
 
 ## The order, and why
 
-**As of 2026-08-28: 4.1 is COMPLETE — all 74 rows verdicted. It found SIX rows that pass every
-static gate and could not execute; FIVE are fixed and one needs a ruling. Below those,
-one decomposition ruling and three builder rulings — none of which is work, all of which is a
-judgment call.**
+**As of 2026-08-28: 4.1 is COMPLETE — all 77 rows verdicted (74 + the three Tuple accessors it
+forced), and ZERO cannot run. It found SIX rows that passed every static gate and could not
+execute, and all six are FIXED. What remains is one design question and five rulings — none of it
+work, all of it a judgment call.**
 
-1. ~~**4.1 the reachability ledger**~~ — **COMPLETE 2026-08-28**, all 74 rows verdicted. It found
-   six rows that pass every static gate and cannot execute (one fixed), 17 refused inline, and 32
-   accepted inline that silently match nothing.
-2. **Two small rulings, both surfaced only by being able to RUN the rows.** `Tuple` has no
-   compiled arm AND no accessor — nothing could compare a constructed Tuple even with one, so the
-   question is whether the row should exist. And `reduce`'s 2-arity form raises on an empty
-   collection while its row declares `total: true`, a wall every row must pass. (The coverage GATE
-   this item used to name is done — the ledger is it. `map`/`filter` are CLOSED: the rows moved to
-   the eager `mapv`/`filterv`.)
-3. **The inline-constraint gap.** Only 16 of 74 rows work as an inline constraint: 17 are refused
-   and **32 are accepted and silently match nothing**. Arc 109's NOTE frames this as `keyword::=`'s
+> ⛔ **NONE OF THIS WAS A VIGILIA ITEM, AND THAT IS THE FINDING UNDER THE FINDING.** The full watch
+> CONVERGED before any of it: recasts 12 and 13 both `0 L1 + 0 L2`, inward 17/17 plus
+> `circumspicere`, at HEAD `8839bb16` (`REALIZATIONS.md` R68 records the empty recasts as the
+> event). PILE 2 — the actual ward tail — was audited on 2026-08-27 and came back **4-for-4
+> stale**. Yet six rows could not execute, a `Tuple` could be built and never read since genesis,
+> and 39 rows are accepted inline while matching nothing.
+>
+> **Every ward READS.** They hold source against a spec and report where the two disagree. Here the
+> two AGREED — the row existed in `RETE_OPS`, the fence admitted it, the checker typed it — and the
+> SPEC was the thing that was wrong. A reader cannot see that; only running the row can. This is
+> FM 28 and FM 30 one level up: a count cannot see a value defect, a list is only a claim, and
+> **a reading cannot see an execution defect.** The ledger is the first instrument in this arc that
+> executes what it audits, which is exactly why it found what seventeen wards and two clean recasts
+> did not.
+
+1. ~~**4.1 the reachability ledger**~~ — **COMPLETE 2026-08-28**, all 77 rows verdicted, ZERO
+   unrunnable. It found six rows that passed every static gate and could not execute (all fixed),
+   18 refused inline, and 39 accepted inline that silently match nothing.
+2. **One small ruling.** `reduce`'s 2-arity form raises on an empty collection while its row
+   declares `total: true`, a wall every row must pass. Surfaced only by being able to RUN the row.
+   (Everything else under this number is CLOSED: `map`/`filter` became the eager `mapv`/`filterv`;
+   `Tuple` got its three accessors; the coverage GATE is the ledger.)
+3. **The inline-constraint gap — the largest thing still open, and a DESIGN question.** Only 16 of
+   77 rows work as an inline constraint: 18 are refused and **39 are accepted and silently match
+   nothing**. Arc 109's NOTE frames this as `keyword::=`'s
    type-mapping bug; the ledger shows it is every unary op, every `Type/method` spelling, every
    wrapped value-returning row, and enums as well. Whether that position SHOULD admit them is a
    design question nobody has been asked; what is settled is that the current story is far too
