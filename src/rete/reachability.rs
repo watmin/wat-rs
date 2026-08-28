@@ -676,10 +676,10 @@ fn operands_for(rete_name: &'static str) -> Option<Cell> {
         ":wat::rete::core::PersistentVector/length" => (1, "(:wat::core::PersistentVector :- [:wat::core::i64])", "(:wat::core::PersistentVector 1 2)", "(:wat::core::PersistentVector 9)", "", Some((":wat::rete::i64::=", "2"))),
         ":wat::rete::core::PersistentVector/get" => (4, "(:wat::core::PersistentVector :- [:wat::core::i64])", "(:wat::core::PersistentVector 7)", "(:wat::core::PersistentVector 9)", "0 :undefined 0", Some((":wat::rete::i64::=", "7"))),
         ":wat::rete::core::Vector/get" => (4, "(:wat::core::Vector :- [:wat::core::i64])", "(:wat::core::Vector :wat::core::i64 7)", "(:wat::core::Vector :wat::core::i64 9)", "0 :undefined 0", Some((":wat::rete::i64::=", "7"))),
-        ":wat::rete::core::List/get" => (4, "(:wat::core::List :- [:wat::core::i64])", "(:wat::core::List/of 7)", "(:wat::core::List/of 9)", "0 :undefined 0", Some((":wat::rete::i64::=", "7"))),
+        ":wat::rete::core::List/get" => (4, "(:wat::core::List :- [:wat::core::i64])", "(:wat::core::List 7)", "(:wat::core::List 9)", "0 :undefined 0", Some((":wat::rete::i64::=", "7"))),
         ":wat::rete::core::PersistentVector/first" => (3, "(:wat::core::PersistentVector :- [:wat::core::i64])", "(:wat::core::PersistentVector 7)", "(:wat::core::PersistentVector 9)", ":undefined 0", Some((":wat::rete::i64::=", "7"))),
         ":wat::rete::core::Vector/first" => (3, "(:wat::core::Vector :- [:wat::core::i64])", "(:wat::core::Vector :wat::core::i64 7)", "(:wat::core::Vector :wat::core::i64 9)", ":undefined 0", Some((":wat::rete::i64::=", "7"))),
-        ":wat::rete::core::List/first" => (3, "(:wat::core::List :- [:wat::core::i64])", "(:wat::core::List/of 7)", "(:wat::core::List/of 9)", ":undefined 0", Some((":wat::rete::i64::=", "7"))),
+        ":wat::rete::core::List/first" => (3, "(:wat::core::List :- [:wat::core::i64])", "(:wat::core::List 7)", "(:wat::core::List 9)", ":undefined 0", Some((":wat::rete::i64::=", "7"))),
 
         _ => return None,
     };

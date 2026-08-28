@@ -1800,7 +1800,7 @@ fn apply_core_kind(
             EvalBreak::from(RuntimeError::new(
                 span.clone(),
                 RuntimeErrorKind::TypeMismatch {
-                    op: ":wat::core::keyword/to-string".into(),
+                    op: ":wat::keyword::to-string".into(),
                     expected: "keyword",
                     got: Box::new(ValueSnapshot::of(v)),
                 },
@@ -1813,7 +1813,7 @@ fn apply_core_kind(
             EvalBreak::from(RuntimeError::new(
                 span.clone(),
                 RuntimeErrorKind::MalformedForm {
-                    head: ":wat::core::keyword/from-string".into(),
+                    head: ":wat::keyword::from-string".into(),
                     reason: "a keyword's text may not start with ':' or carry an angle-type head"
                         .into(),
                 },
