@@ -1,3 +1,32 @@
+# ✅ REINSTATED 2026-08-28 — Stone N CHANGED THE WORLD THIS BRIEF DESCRIBES.
+
+> **The retraction below STANDS as the record of a real error and is not edited.** What changed is
+> the tree, not the reasoning: **Stone N (`2d22ba4ee`)** gave `dispatch_substrate_impl` a registry
+> lookup *before* its match, and gave all 44 verbs a `value_handler`. The arms the retraction proved
+> LIVE are now genuinely dead.
+>
+> **Proven by the inverse of the experiment that misled me** — sabotage the MATCH ARM, not the
+> handler:
+> ```
+> ":wat::hashmap::length" => Some(Ok(Value::i64(777)))     <- arm sabotaged
+> (:wat::core::apply :wat::hashmap::length …)  ->  2        <- unchanged. The arm is DEAD.
+> restored; runtime.rs byte-identical
+> ```
+> Read that against the retraction's proof, where the same call returned the sabotaged value. **The
+> difference between those two runs is Stone N**, and it is why this stone is now strikeable on
+> evidence rather than on the assumption it was originally drawn from.
+>
+> ⚠ **The precedence claim must STILL be verified per dispatch function.** Stone N added the lookup
+> to `dispatch_substrate_impl` ONLY. `dispatch_keyword_head` and `dispatch_keyword_head_value` are
+> unchanged, and an arm living in either is not covered by this evidence. **STOP-1 stands verbatim** —
+> it is the trigger that saved this stone the first time.
+>
+> ⚠ **And the count in the retraction stands too: the wider carve target is 191 arms, not 147.**
+> These 44 are deletable because Stone N made them so, NOT because a name appearing in both the arm
+> table and the registry ever meant "dead". That inference was the original error and it remains wrong.
+
+---
+
 # ⛔⛔ RETRACTED 2026-08-27 — THE PREMISE IS FALSE. THE 44 ARMS ARE LIVE. DO NOT STRIKE THIS.
 
 > The rider fired **STOP-1** and deleted nothing. It was right, and its refutation is verified
