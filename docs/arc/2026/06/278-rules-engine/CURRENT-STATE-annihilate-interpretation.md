@@ -19,12 +19,24 @@ The only trace was a comment INSIDE the gate that would have caught it, saying *
 gate into that hole"*. Fixed. **A comment telling a gate not to look is an unowned deferral, and
 that is FM 23 for the third time this session.**
 
-**AND 27 ROWS ARE ACCEPTED INLINE, COMPILE, FIRE, AND MATCH NOTHING.** Any row returning a value
+**4.1 IS COMPLETE — ALL 74 ROWS VERDICTED — AND FIVE OF THEM CANNOT EXECUTE AT ALL.** Six counting
+the one already fixed. `PersistentMap` (the constructor) and `Tuple` have no `OpExec` arm where
+their siblings do. `map`, `filter` and `reduce` are the sharpest: all four HOFs are LOWERED
+together at `expr_ir.rs:371-374` and then EXECUTED by a path that knows exactly one — `exec` routes
+to `exec_foldl` by name and the rest fall through to a generic path where the lambda's parameters
+were never bound, so they raise `unbound symbol`. **Recognised in one place, wired in another, and
+nothing checks the two agree. That gate is now item 2 in `RETE-OPEN-WORK`'s order.**
+
+**MATRIX: 16 fire inline · 17 refused inline · 32 accepted-inline-and-match-nothing · 4 holon rows
+non-generable · 5 cannot execute.** Of the 65 rows that reach the executor, every one fires in a
+`where` fence.
+
+**AND 32 ROWS ARE ACCEPTED INLINE, COMPILE, FIRE, AND MATCH NOTHING.** Any row returning a value
 must be wrapped to sit where a constraint goes, and every such clause is unsatisfiable with NO
 diagnostic. Not refused — a refusal teaches. This is the silent-wrong-answer class, and a
-differential cannot see it because both engines agree on the empty answer. All 55 `Alias`+`Fallback`
-rows are measured: 16 fire inline, 9 are refused inline, 27 match nothing inline, and **all 52
-measurable rows fire in a `where` fence**.
+differential cannot see it because both engines agree on the empty answer. The inline-literal defect is not keyword-specific
+either — it hits ENUMS the same way, because in operand position a bare keyword is a FIELD
+REFERENCE.
 
 **AND THE KEYWORD ASYMMETRY IS A THIRD OF THE SURFACE, not one op.** 9 of 25 measured rows are
 refused as an inline constraint while firing in a fence: every unary op, every `Type/method`
