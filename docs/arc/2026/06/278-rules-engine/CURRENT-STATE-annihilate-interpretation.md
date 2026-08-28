@@ -5,51 +5,70 @@
 > `wat/rete.wat`. If a stone below disagrees with a dated ruling here,
 > **this file wins** and the stone is stale.
 
-**CURRENT STAMP 2026-08-28 — supersedes every dated block below it, INCLUDING both 2026-08-27 ones.
-Written against HEAD `d4fe222c2`; the commit carrying this stamp lands on top, so a ONE-COMMIT
-docs-only gap at your wake is expected and is not staleness.**
+**CURRENT STAMP 2026-08-28 (LATE) — supersedes every dated block below it, including the earlier
+2026-08-28 one. Written against HEAD `b7f54a17f`; the commit carrying this stamp lands on top, so a
+ONE-COMMIT docs-only gap at your wake is expected and is not staleness.**
 
-**THE INLINE CONSTRAINT POSITION WAS SILENTLY WRONG FOR THE LIFE OF THE ENGINE. IT IS FIXED.**
+**THE INLINE CONSTRAINT POSITION IS CLOSED. Every generable row fires in BOTH positions.**
+The column went **16 → 68 → 71 → 75 of 79** across one day; the last four are the holon rows, driven
+by hand and NOT yet reflected in the ledger. Four commits: `1a97cf12b` `4c19b9029` `ad2286133`
+`b7f54a17f`. Floor 5147/5147. Clara 38 pairs / 315 rows.
 
-**Ledger: 68 of 79 rows now fire in BOTH positions — it was 16.** Zero silent, zero unrunnable.
-The 7 still refused inline are `cond`/`let`/`match` (polymorphic return; no type check there can
-demand bool) and the four keyword/enum rows (a bare keyword literal is a FIELD REFERENCE in operand
-position — now reachable via `keyword/from-string`). 4 holon rows are not generable.
+**⛔ THE LEDGER IS LYING ABOUT FOUR ROWS RIGHT NOW.** `NOT_YET_GENERABLE` in
+`src/rete/reachability.rs` still reports the four `:wat::rete::holon::*` rows un-drivable. Driven
+2026-08-28 with a `HolonAST` field on BOTH sides: all four FIRE, inline and fence. The exclusion's
+own `REFUTED BY` clause named that exact case. **Fix this before minting any holon row** —
+`RETE-OPEN-WORK.md` § "The order" item 7 is the queue.
 
-**Grid 2026-08-28: 33/33 `:accuracy :match`, 33/33 `:winner :us`, ratios 7.0x–68.8x.** Archived at
-`GRID-native-vs-clara-2026-08-28-post-inline-predicates.txt`. ⚠ Four cells read slower than the
-2026-08-24 baseline, but `neg-consumer [500]`'s own run spans min 5.9 to max 18.1 — a 3x swing
-WIDER than the difference. **Three runs cannot resolve it; it is INCONCLUSIVE, not "no regression".**
+**★ THE ONE PATTERN UNDER ALL OF IT — FOUR INSTANCES IN ONE DAY.** A representation where ONE value
+means both *"legitimately absent"* and *"I have no arm for this"*:
 
-**WHAT WAS FOUND AND FIXED — all by DRIVING, none by reading:**
-- **Fix-list F** — an inline constraint whose operand was a nested call compiled to a permanent
-  SILENT never-match. 39 of 77 rows wide, exit 0, zero bytes on stderr. **The `$oracle` had it too**,
-  which is why five fuzzers and 5612 shapes were blind: the engines did not merely agree, they
-  SHARED the defect. Clara broke the tie, inverting the fix-list's own "native is wrong" rule.
-- **Six rows that could not execute at all** — `PersistentMap/contains-key?`, the `PersistentMap`
-  constructor, `reduce`, `map`, `filter`, `Tuple`. All closed. `map`/`filter` became the EAGER
-  `mapv`/`filterv` (the lazy heads return a Stream a fence cannot consume, and an eager arm under a
-  lazy NAME would have silently diverged from core).
-- **Tuple was constructible and unreadable since genesis** — three accessor rows added. The builder
-  refused my "maybe the row should not exist": that was the corpus fallacy this table's own
-  totality gate had already refuted.
-- **`reduce`'s 2-arity form** raised on empty while its row claimed `total: true`. The rete surface
-  now admits only the total arity.
-- **Keyword equality was unreachable inline** because `rete_type_segment_of` mapped only the
-  UNINHABITABLE capital `Keyword`. Fixed. And `keyword` had the thinnest surface in the table — 2
-  rows, zero of core's seven verbs — so `to-string`/`from-string` were added.
-- **The inline grammar** now admits any PROVABLY boolean rete expression, not a fixed shape set.
+| site | one value means | and also means |
+|---|---|---|
+| `vocabulary.rs` — `ret: Bool` on 7 `Form` rows | "returns bool" | "has no scheme at all" |
+| `compiled_cond.rs` + `matcher.rs` — `other => clone` | "leaf, leave alone" | "unhandled variant" |
+| `validate.rs` — `_ => UnboundInThisRule` | "unbound `?var`" | "no arm for a nested call" |
+| fix-list F's own cure — `Option`/`None` | "absent" | "lowering failed" |
 
-**⛔ THE THREE LESSONS THAT COST THE MOST, AND TWO ARE NEW FAILURE MODES:**
-- **FM 31 — A READING CANNOT SEE AN EXECUTION DEFECT.** The vigilia CONVERGED (17/17 + circumspicere,
-  two empty recasts) and the ward tail audited 4-for-4 stale, while six rows could not run. Source
-  and spec AGREED and were jointly wrong. Every ward reads; none drives.
-- **FM 32 — THE CURE REOPENED THE CLASS IT CURED.** F's fix routed its own failure path into the
-  same silent `Op::Fail`. Caught only by probing my own change against the defect's own shape.
-- **MY STATED RATIONALE WAS FALSE TWICE, AND I NEARLY SHIPPED BOTH.** I told the builder the inline
-  split was indexability-vs-expressivity; `alpha_tree.rs` indexes only equality discriminators and
-  says orderings "ride the wildcard edge" — and orderings are admitted inline. I also called Tuple
-  unobservable from an absence. **Check the premise before running the four questions on it.**
+Every one produced either a false refusal or a SILENT never-match. **When you meet a catch-all in
+this codebase, ask which two facts it is holding.** Three of the four are closed; the wildcards are
+deleted, so a new `WatAST` variant is now a compile error in both rewriters and in the operand typer.
+
+**⛔⛔ MY STATED RATIONALE WAS FALSE FIVE TIMES ACROSS TWO SESSIONS, AND THE BUILDER CAUGHT TWO OF
+THEM.** This is the single most important line on this page.
+- "cond/let/match are polymorphic so the type is unknowable" — **false**; polymorphic IN THE BODY
+  means the type is a FUNCTION of the body, which is in the AST.
+- "`cond` fails a type test" — **false**; the macro expander never reached the inline position.
+- "the bare-keyword rule is a syntactic ambiguity" — **false**; `:probe::E::A` carries `::` and a
+  field name is a bare identifier, and the engine already decided it correctly one level down.
+- "`set-capacity-mode!` is callable at runtime, so `Bundle` is non-deterministic" — **false**, and
+  the builder said so before I checked: it is a LOAD-TIME DIRECTIVE (`unknown function` inside
+  `:user::main`).
+- (prior session) the indexability argument for the inline split, and calling `Tuple` unobservable.
+
+**Check the premise before running the four questions on it.** Every one of these was settled by ONE
+probe. The builder's steer that unlocked the whole day: *"we very carefully crafted rete's DSL to
+ensure every form a user can express can be compiled… we just inappropriately denied access, poorly,
+to tooling we fully intended to support."*
+
+**TWO NEW FAILURE MODES — full text in `docs/COMPACTION-AMNESIA-RECOVERY.md` § 6:**
+- **FM 33 — a static call-graph audit is wrong in BOTH directions and looks right each time.** Mine
+  was: too narrow (regex missed `pub(crate) fn`, so a raise I had already READ went missing), then
+  too wide (depth-3 swept in `eval_inner`, so a 3-line predicate looked partial). Drive the edges.
+- **FM 34 — a control loses its power without failing.** Closing the keyword asymmetry turned the
+  ledger's calibration from two-of-each-verdict into all-fires. Still green, now half blind. Its
+  refusal is re-sourced from Law A, which no future fix can take away.
+
+**WHERE THE WORK IS, as pointers — this file is a MAP, do not re-narrate it:**
+- `RETE-OPEN-WORK.md` § "The order, and why" — items 4–6 are the inherited rulings (`partire` x7,
+  TRACKED ① ②, `circumspicere` 1); **items 7–8 are new**: the holon surface (rete has 4 of ~40 ops,
+  all from one group) and the `Bundle`/`:panic` builder ruling.
+- ⛔ **Clara cannot arbitrate holon** — builder: *"this is a wat only capability"*. `$native` vs
+  `$oracle` alone is the configuration that failed twice this session. Use known-answer algebraic law.
+- `holon-rs`: `nil()` is `classified("Symbol","nil")`, so **`is-Nil?` and `is-Symbol?` BOTH answer
+  true for nil, by construction.** The 11 shape predicates do not partition and nothing says so.
+- `is-List?` / `is-Tag?` are **UNVERIFIED**, not verified-negative — an all-false column in a
+  confusion matrix means "correct" or "never fires" and cannot tell them apart.
 
 **⚠⚠ YOU ARE NOT THE INSTANCE THAT WROTE THIS. ⚠⚠**
 Everything above is a cache written by a prior self across a very long session. You did not live

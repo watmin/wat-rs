@@ -1425,6 +1425,72 @@ gets a located error.
 whether the FIX has an instance of it. Do not ask whether the tests pass — they did.
 
 
+### Failure mode 33 — A STATIC AUDIT OF A CALL GRAPH IS WRONG IN BOTH DIRECTIONS, AND LOOKS RIGHT EACH TIME
+
+**Signature:** you need to know whether a set of functions can fail — is this op total? does it read
+ambient state? — and you answer it by walking the source: grep the dispatch arms, follow the calls,
+collect the error kinds. The table comes out clean and formatted and you believe it.
+
+**Real incident, 2026-08-28,** auditing ~40 `:wat::holon::*` ops against rete's `pure · deterministic
+· total` bar. The audit ran TWICE and was wrong BOTH times, in OPPOSITE directions:
+
+- **Too narrow.** The function-body regex matched `\nfn name`, so every `pub(crate) fn` helper was
+  invisible. `to_holon_inner` — which I had ALREADY READ raising on `HolonForm::Empty` — was
+  reported as total. The audit contradicted my own earlier reading and I nearly filed the audit.
+- **Too wide.** Widening the closure to depth 3 swept in `eval_inner`, which every op calls to
+  evaluate its arguments. Now `is-Map?` — three lines, a classifier compare, cannot raise — was
+  reported as carrying `MacroAbort`, `NotCallable`, `UnboundSymbol`. Every op looked partial.
+
+Neither pass announced itself as broken. Both produced a full, plausible, aligned table.
+
+**What actually answered it:** driving each op at its domain edge and reading the outcome.
+`Bind/left` on an Atom returns `Option/None` (total); `Bundle/first` on an Atom RAISES (partial) —
+two accessors in one family with two different partiality conventions, which no amount of call-graph
+walking made obvious and one probe each settled.
+
+**The tell you can act on:** when a static audit disagrees with something you read directly, the
+audit is the thing that is wrong. Do not reconcile it — replace the instrument. And an
+error-kind set that is IDENTICAL across many rows is the too-wide signature; an op whose known
+raise is absent is the too-narrow one.
+
+FM 31 says a reading cannot see an execution defect. This is one level meaner: **a reading
+instrument can be confidently wrong in both directions about the same question**, and the output
+format gives no hint which. Drive the edges.
+
+
+### Failure mode 34 — A CONTROL LOSES ITS POWER WITHOUT FAILING
+
+**Signature:** a calibration or control derives its strength from a MIX of outcomes — some pass,
+some refuse. You then fix the system so that one of those outcomes no longer occurs. Every
+assertion still passes. The control is now one-directional and proves half of what it claims, and
+nothing anywhere went red to tell you.
+
+**Real incident, 2026-08-28.** The `RETE_OPS` reachability ledger carries a four-cell calibration
+whose own doc states the load-bearing property: *"Two of each verdict… a template that renders
+NOTHING would pass a control made only of refusals; a template that never applies its constraint
+would pass one made only of fires. Only a mixed control can fail in both directions."* Its single
+`Refused` cell was `keyword::=` inline. That refusal was a DEFECT, and closing it — deliberately,
+correctly — turned the calibration into four fires. **Still green. Still "calibrated". Now blind to
+a driver that never applies its constraint.**
+
+The paired asymmetry test DID go red, and only because a prior self had written the alarm into its
+own failure message: *"if this ever starts firing, the asymmetry is GONE."* Without that sentence
+the whole degradation would have been silent.
+
+**Two cures, and take both:**
+1. **Re-source the missing verdict from something that CANNOT become reachable.** Law A — a
+   core-spelled head is refused in every position, by design, forever — is a refusal no future fix
+   can take away. A control built on a defect expires when the defect is fixed; a control built on
+   a founding rule does not.
+2. **When a gate pins a DEFECT, say so in the gate.** Then closing the defect takes the floor red
+   and the rewrite is forced rather than optional. Deleting such a test quietly erases the evidence
+   the hole ever existed — rewrite it, in the same commit, with the history in the doc comment.
+
+**The generalisation:** a control's power is a property of its INPUTS, not of its assertions. Fixing
+the system can drain it. Ask, of every control you own: *if the thing I am about to fix gets fixed,
+does this still discriminate?*
+
+
 ### Failure mode 22 — A rule written in prose that nothing ever runs
 
 **Signature:** a document states a discipline in the imperative — *"there is exactly ONE X; if
