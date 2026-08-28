@@ -1224,6 +1224,7 @@ enum OpExec {
     F64Gt, F64Lt, F64Ge, F64Le, F64Eq, F64NotEq, F64Add, F64Sub, F64Mul, F64Div, F64ToStr,
     BoolToStr, StrEmpty, StrConcat, StrTrim, StrLower, StrSubs,
     PvLen, PvContains, PvGet, VecGet, ListGet, First, PvNew, VecNew, ListNew,
+    PmContainsKey,
     Cosine, Dot, Coincident, Presence,
     Unknown,
 }
@@ -1273,6 +1274,7 @@ impl OpExec {
             ":wat::core::string::subs" => Self::StrSubs,
             ":wat::core::PersistentVector/length" => Self::PvLen,
             ":wat::core::PersistentVector/contains?" => Self::PvContains,
+            ":wat::core::PersistentMap/contains-key?" => Self::PmContainsKey,
             ":wat::core::PersistentVector/get" => Self::PvGet,
             ":wat::core::Vector/get" => Self::VecGet,
             ":wat::core::List/get" => Self::ListGet,
@@ -1535,6 +1537,15 @@ fn apply_core_kind(
         (OpExec::PvContains, [Value::wat__core__PersistentVector(pv), x]) => {
             Ok(Value::bool(pv.iter().any(|y| y == x)))
         }
+        // Delegates to the SAME inner the interpreter calls (`runtime.rs`'s
+        // `eval_persistentmap_contains_key_q` routes here too), rather than re-deriving map
+        // membership — the sibling `PvGet`/`VecGet` arms below establish that shape. Its two
+        // exits are audited in `vocabulary.rs`'s row comment: an unhashable key answers `false`
+        // (the predicate ruling, not a sentinel), a wrong receiver raises `TypeMismatch` and is
+        // refused by the checker before runtime because the row DECLARES its receiver.
+        (OpExec::PmContainsKey, [m, k]) => {
+            crate::collection::eval::persistentmap_contains_key_q_inner(m, k)
+        }
         (OpExec::PvGet, [pv, i]) => {
             crate::collection::eval::persistentvector_get_inner(pv, i)
         }
@@ -1697,9 +1708,20 @@ mod rete_ops_native_coverage {
     use super::*;
 
     /// BRIEF-native-where-vsa-ops: the four holon rows native-lower to
-    /// Call / CallFallback and must have an `OpExec` arm. Alias/Fallback
-    /// coverage beyond holon is a different census (`PersistentMap/contains-key?`
-    /// is still Unknown — do not widen this gate into that hole).
+    /// Call / CallFallback and must have an `OpExec` arm.
+    ///
+    /// ⚠ **THIS DOC USED TO SAY "`PersistentMap/contains-key?` is still Unknown — do not widen
+    /// this gate into that hole", AND THAT SENTENCE WAS THE WHOLE DEFECT.** The row was fully
+    /// reasoned into `RETE_OPS` (its two exits audited in the table's own row comment) and then
+    /// never wired here, so it passed admission, totality, arity and type — and raised
+    /// `#wat.runtime/MalformedForm "compiled apply cannot dispatch kind Unknown arity 2"` at
+    /// RUNTIME, inside a `where` fence, for any user who wrote it. A comment instructing a gate
+    /// not to look is not a scope note; it is an unowned deferral with no re-read (FM 23), and
+    /// nothing would ever have surfaced it.
+    ///
+    /// Found 2026-08-28 by the § 4.1 reachability ledger (`rete/reachability.rs`), which drives
+    /// each row rather than reading about it. The arm now exists; the ledger is what keeps the
+    /// next one from hiding, since it asks every row the question this gate asks only of holon.
     #[test]
     fn holon_rete_ops_have_opexec() {
         let mut missing = Vec::new();

@@ -53,7 +53,9 @@
 //
 // Run: cargo nextest run --release -E 'test(reachability)'
 
+use crate::ast::WatAST;
 use crate::freeze::startup_from_source;
+use crate::rete::vocabulary::{OpClass, ParamType, ReteOp, RETE_OPS};
 use crate::runtime::{apply_function, Value};
 use std::sync::Arc;
 
@@ -140,23 +142,40 @@ enum DefectKind {
     NonCount,
 }
 
-/// The knobs one cell needs. Hand-fed for the calibration; derived from `ReteOp::params`/`ret`
-/// once the mechanism is proven.
+/// The knobs one cell needs beyond what `RETE_OPS` already holds.
+///
+/// ⛔ **THIS DATA CANNOT BE DERIVED FROM `params`, AND THAT IS THE CENTRAL FACT OF THE GENERATOR.**
+/// The row's types give the SHAPE of a call — how many operands, of what type. They do not give a
+/// pair of facts the op tells APART, and telling them apart is the entire evidence: an op that is
+/// reached and then admits everything has not been shown to run at all (`DidNotDiscriminate`).
+///
+/// Worked: for a binary op over `{a, b}` constrained against the literal `a` — `=` selects one,
+/// `not=` selects the other, `>` selects one when `b > a`, and `<` selects **NONE**. Same types,
+/// same arity, four different discriminating literals. So the generator is fed a small table of
+/// literals per row and generates the PROGRAM; it does not guess the semantics.
+///
+/// The safety is that a wrong triple cannot pass quietly — it lands as `DidNotDiscriminate` and
+/// fails loudly, so this table is machine-checked rather than trusted.
 struct Cell {
     /// The rete-surface FQDN under test.
     op: &'static str,
+    /// How many operands the row declares (`ReteOp::params.len()`), so a unary op renders
+    /// `(OP :v)` and a binary one `(OP :v RHS)`.
+    arity: usize,
     /// wat type of the discriminating field.
     field_ty: &'static str,
     /// Literal for the fact that SHOULD survive the constraint.
     hit: &'static str,
     /// Literal for the fact that should NOT.
     miss: &'static str,
-    /// Right-hand operand as written INLINE (where a bare keyword is a field reference, never a
-    /// keyword value — `matcher.rs`'s `ast_literal_value`).
-    inline_rhs: &'static str,
-    /// Right-hand operand as written inside a fence (ordinary expression grammar; no field-ref
-    /// reading, which is half of why the two positions diverge).
-    where_rhs: &'static str,
+    /// The right-hand operand, written identically in both positions — ignored when `arity == 1`.
+    ///
+    /// It is the same TEXT in both, deliberately, because the two positions READ it differently
+    /// and that difference is a finding rather than something to paper over: inline, a bare
+    /// keyword is a field reference and never a keyword value (`matcher.rs`'s `ast_literal_value`);
+    /// inside a fence there is no such grammar. Writing one spelling and letting each position do
+    /// what it really does is what surfaces that.
+    rhs: &'static str,
 }
 
 /// Build the complete program for one cell.
@@ -165,13 +184,18 @@ struct Cell {
 /// entry point. That is deliberate: it means a difference in outcome between two cells of the
 /// same row is attributable to the POSITION and to nothing else.
 fn synth(cell: &Cell, site: CallSite) -> String {
+    let (inline_call, fence_call) = if cell.arity <= 1 {
+        (format!("({} :v)", cell.op), format!("({} ?v)", cell.op))
+    } else {
+        (
+            format!("({} :v {})", cell.op, cell.rhs),
+            format!("({} ?v {})", cell.op, cell.rhs),
+        )
+    };
     let condition = match site {
-        CallSite::InlineConstraint => {
-            format!("(:probe::In (?k <- :k) ({} :v {}))", cell.op, cell.inline_rhs)
-        }
+        CallSite::InlineConstraint => format!("(:probe::In (?k <- :k) {inline_call})"),
         CallSite::WhereFence => format!(
-            "(:probe::In (?k <- :k) (?v <- :v))\n   (:wat::rete::where ({} ?v {}))",
-            cell.op, cell.where_rhs
+            "(:probe::In (?k <- :k) (?v <- :v))\n   (:wat::rete::where {fence_call})"
         ),
     };
     format!(
@@ -256,32 +280,54 @@ fn drive(src: &str, op: &str) -> Verdict {
 /// the tree names its head. If one ever does not, this returns `TemplateDefect` and the cell goes
 /// loud instead of quietly joining the tally, which is the correct failure direction.
 fn attribute(message: String, op: &str) -> Verdict {
-    if message.contains(op) {
+    if message.contains(op) || message.contains(&as_diagnostics_spell_it(op)) {
         Verdict::Refused(message)
     } else {
         Verdict::TemplateDefect(DefectKind::Unattributed, message)
     }
 }
 
+/// The op's name as a DIAGNOSTIC writes it — asked of the renderer, never reconstructed.
+///
+/// ⛔ **THIS IS NOT A SPELLING CONVERTER AND MUST NOT BECOME ONE.** wat is mid-migration toward
+/// Clojure/EDN-compliant syntax: `:wat::core::+` is written `wat.core/+` there, and heads are
+/// moving from keywords to symbols. Diagnostics already render the EDN spelling — a
+/// `MalformedClause` for `:wat::rete::core::not` names it `:wat.rete.core/not` — while `RETE_OPS`
+/// holds the `::` form. So a refusal about an op can arrive under a name the table does not use.
+///
+/// The first draft compared only the `::` form and therefore filed real refusals as
+/// `TemplateDefect`: SEVEN cells, every one of them a genuine `MalformedClause` naming its op in
+/// the other spelling. Hand-rolling the `::`->`.`/`/` transform here would have fixed those cells
+/// and planted a SECOND encoding of the naming rule, to go stale at the exact moment the migration
+/// lands — the `solvere` duplication class this arc keeps pulling out.
+///
+/// Instead this asks `validate::render_form` — the very function the diagnostics use — what the
+/// name looks like. It is correct by construction today, and it follows the migration for free:
+/// when heads become symbols, the renderer changes and this changes with it, with nothing here
+/// to update.
+fn as_diagnostics_spell_it(op: &str) -> String {
+    crate::rete::validate::render_form(&WatAST::Keyword(op.to_string(), crate::rust_caller_span!()))
+}
+
 /// An i64 ordering comparison — the baseline row, reachable in BOTH positions.
 const I64_GT: Cell = Cell {
     op: ":wat::rete::core::i64::>",
+    arity: 2,
     field_ty: ":wat::core::i64",
     hit: "42",
     miss: "3",
-    inline_rhs: "10",
-    where_rhs: "10",
+    rhs: "10",
 };
 
 /// Keyword equality — reachable in a fence, NOT as an inline constraint. The asymmetry this whole
 /// ledger exists because of.
 const KEYWORD_EQ: Cell = Cell {
     op: ":wat::rete::core::keyword::=",
+    arity: 2,
     field_ty: ":wat::core::keyword",
     hit: ":alpha",
     miss: ":beta",
-    inline_rhs: ":alpha",
-    where_rhs: ":alpha",
+    rhs: ":alpha",
 };
 
 /// Report a cell's outcome with the SOURCE attached.
@@ -400,5 +446,315 @@ fn a_refusal_that_does_not_name_the_op_is_a_template_defect_not_a_reachability_f
         Verdict::Fires,
         "the unbroken twin must still fire — otherwise this test proves only that the classifier \
          says TemplateDefect to everything"
+    );
+}
+
+// ─── The generator ─────────────────────────────────────────────────────────────────────────────
+
+/// The operand table — one entry per Bool-returning `Alias` row.
+///
+/// This is the ONLY hand-written data in the sweep; everything else (arity, the op's name, which
+/// rows must appear here at all) comes from `RETE_OPS` itself, so the table cannot silently fall
+/// behind the vocabulary: a row minted without an entry is a RED BUILD, not a row nobody notices.
+/// That is the same shape as `every_rete_row_is_total` and for the same reason — a count cannot
+/// tell "+1 new, -1 fixed" from "nothing happened", so this names the offender instead.
+///
+/// `None` means "no entry", which the sweep treats as a failure. There is deliberately no
+/// "skip this row" value: an unclassifiable row must be argued in prose at the exclusion list
+/// below, where a reader can disagree with it.
+fn operands_for(rete_name: &'static str) -> Option<Cell> {
+    let (arity, field_ty, hit, miss, rhs) = match rete_name {
+        // i64 — the baseline. Note `<` needs its hit/miss SWAPPED relative to `>` against the
+        // same literal, which is the whole argument for a per-row table.
+        ":wat::rete::core::i64::>" => (2, ":wat::core::i64", "42", "3", "10"),
+        ":wat::rete::core::i64::<" => (2, ":wat::core::i64", "3", "42", "10"),
+        ":wat::rete::core::i64::>=" => (2, ":wat::core::i64", "10", "3", "10"),
+        ":wat::rete::core::i64::<=" => (2, ":wat::core::i64", "10", "42", "10"),
+        ":wat::rete::core::i64::=" => (2, ":wat::core::i64", "10", "3", "10"),
+        ":wat::rete::core::i64::not=" => (2, ":wat::core::i64", "3", "10", "10"),
+
+        // f64 — `>=`/`<=` pin the BOUNDARY (hit == rhs), so an implementation that dropped the
+        // `=` half would go red here rather than passing on the strict half alone.
+        ":wat::rete::core::f64::>" => (2, ":wat::core::f64", "42.0", "3.0", "10.0"),
+        ":wat::rete::core::f64::<" => (2, ":wat::core::f64", "3.0", "42.0", "10.0"),
+        ":wat::rete::core::f64::>=" => (2, ":wat::core::f64", "10.0", "3.0", "10.0"),
+        ":wat::rete::core::f64::<=" => (2, ":wat::core::f64", "10.0", "42.0", "10.0"),
+        ":wat::rete::core::f64::=" => (2, ":wat::core::f64", "10.0", "3.0", "10.0"),
+        ":wat::rete::core::f64::not=" => (2, ":wat::core::f64", "3.0", "10.0", "10.0"),
+
+        // String — the three predicates use a needle that is a strict INFIX/PREFIX/SUFFIX of the
+        // hit and absent from the miss, so each one tests its own half rather than plain equality.
+        ":wat::rete::core::String/starts-with?" => (2, ":wat::core::String", "\"alpha\"", "\"beta\"", "\"al\""),
+        ":wat::rete::core::String/ends-with?" => (2, ":wat::core::String", "\"alpha\"", "\"beta\"", "\"ha\""),
+        ":wat::rete::core::String/contains?" => (2, ":wat::core::String", "\"alpha\"", "\"beta\"", "\"lph\""),
+        ":wat::rete::core::String/empty?" => (1, ":wat::core::String", "\"\"", "\"x\"", ""),
+        ":wat::rete::core::string::=" => (2, ":wat::core::String", "\"alpha\"", "\"beta\"", "\"alpha\""),
+        ":wat::rete::core::string::not=" => (2, ":wat::core::String", "\"beta\"", "\"alpha\"", "\"alpha\""),
+
+        // bool
+        ":wat::rete::core::not" => (1, ":wat::core::bool", "false", "true", ""),
+        ":wat::rete::core::bool::=" => (2, ":wat::core::bool", "true", "false", "true"),
+        ":wat::rete::core::bool::not=" => (2, ":wat::core::bool", "false", "true", "true"),
+
+        // keyword — `=` is the motivating asymmetry; `not=` is one of the three rows that appear
+        // NOWHERE in the 1569-file corpus, so its cells are the first evidence it has ever had.
+        ":wat::rete::core::keyword::=" => (2, ":wat::core::keyword", ":alpha", ":beta", ":alpha"),
+        ":wat::rete::core::keyword::not=" => (2, ":wat::core::keyword", ":beta", ":alpha", ":alpha"),
+
+        // Containers — a parametric field, so these also test that the template survives a
+        // non-scalar declaration.
+        ":wat::rete::core::PersistentVector/contains?" => (
+            2,
+            "(:wat::core::PersistentVector :- [:wat::core::i64])",
+            "(:wat::core::PersistentVector 1 2)",
+            "(:wat::core::PersistentVector 9)",
+            "1",
+        ),
+        ":wat::rete::core::PersistentMap/contains-key?" => (
+            2,
+            "(:wat::core::PersistentMap :- [:wat::core::String :wat::core::i64])",
+            "(:wat::core::PersistentMap \"a\" 1)",
+            "(:wat::core::PersistentMap \"z\" 1)",
+            "\"a\"",
+        ),
+
+        _ => return None,
+    };
+    Some(Cell { op: rete_name, arity, field_ty, hit, miss, rhs })
+}
+
+/// The rows deliberately NOT in the operand table, each with the reason a reader can argue with.
+///
+/// An exclusion is a claim that a cell cannot be written, which is exactly the kind of claim this
+/// arc has been wrong about twice (see the breadcrumb: "do not trust a grep that found nothing").
+/// So each one names what would refute it.
+const NOT_YET_GENERABLE: &[(&str, &str)] = &[(
+    ":wat::rete::holon::presence?",
+    "takes TWO `:wat::holon::HolonAST` operands; a holon has no literal spelling, so the second \
+     operand cannot be written as a constant the way every scalar row's can. REFUTED BY: any rule \
+     that reaches this op with a constructed holon on both sides — at which point it belongs in \
+     the table above, not here.",
+)];
+
+/// ★★ THE SWEEP — every Bool-returning `Alias` row, in every modelled position.
+///
+/// These 26 rows are the block that is directly constraint-shaped: they return `bool`, so they can
+/// be written where a constraint goes without being wrapped in a comparison first. The other 48
+/// rows (non-`bool` `Alias`, all of `Fallback`, and the param-less `Form`/`Redispatch`) need a
+/// wrapping or a bespoke shape and are a separate strike — deliberately not guessed at here, since
+/// an un-calibrated position is how a template manufactures a column of false findings.
+///
+/// **What this gate makes impossible:** minting a rete row that no user can reach. `RETE_OPS`
+/// gates purity, totality, arity and type; none of them asks whether the op can be CALLED. A new
+/// Bool-returning `Alias` row with no operand entry fails here by name.
+///
+/// The full matrix prints on every run, pass or fail. A ledger whose output is only visible when
+/// it breaks is a ledger nobody reads.
+#[test]
+fn every_bool_returning_alias_row_has_a_verdict_in_every_modelled_position() {
+    let rows: Vec<&ReteOp> = RETE_OPS
+        .iter()
+        .filter(|o| o.class == OpClass::Alias && matches!(o.ret, ParamType::Bool))
+        .collect();
+
+    // NON-VACUITY: a filter that selects nothing finds nothing wrong. This number is asserted as
+    // a FLOOR rather than frozen exactly — new rows are expected, a collapse to zero is not.
+    assert!(
+        rows.len() >= 26,
+        "the Bool-returning Alias block looks empty or renamed ({} rows) — this sweep would pass \
+         vacuously",
+        rows.len()
+    );
+
+    let mut unclassified: Vec<&str> = Vec::new();
+    let mut defects: Vec<String> = Vec::new();
+    let mut matrix: Vec<String> = Vec::new();
+
+    for row in &rows {
+        let Some(cell) = operands_for(row.rete_name) else {
+            if let Some((_, why)) = NOT_YET_GENERABLE.iter().find(|(n, _)| *n == row.rete_name) {
+                matrix.push(format!("{:<46} {:>17}  {}", row.rete_name, "NOT-GENERABLE", why));
+            } else {
+                unclassified.push(row.rete_name);
+            }
+            continue;
+        };
+        // The row's own arity is the authority; a table entry that disagrees is a table bug, and
+        // silently trusting either one would let the two drift.
+        assert_eq!(
+            cell.arity,
+            row.params.len(),
+            "operand table says arity {} for {} but the row declares {} params",
+            cell.arity,
+            row.rete_name,
+            row.params.len()
+        );
+
+        let mut verdicts: Vec<String> = Vec::new();
+        for site in [CallSite::InlineConstraint, CallSite::WhereFence] {
+            let src = synth(&cell, site);
+            match drive(&src, cell.op) {
+                Verdict::Fires => verdicts.push(format!("{}=FIRES", site.label())),
+                Verdict::Refused(_) => verdicts.push(format!("{}=REFUSED", site.label())),
+                Verdict::TemplateDefect(kind, detail) => {
+                    verdicts.push(format!("{}=DEFECT", site.label()));
+                    defects.push(format!(
+                        "  {} @ {}: {kind:?} — {detail}\n─── the program driven ───\n{src}",
+                        cell.op,
+                        site.label()
+                    ));
+                }
+            }
+        }
+        matrix.push(format!("{:<46} {}", row.rete_name, verdicts.join("  ")));
+    }
+
+    println!("\n─── RETE_OPS reachability, Bool-returning Alias rows ───");
+    for line in &matrix {
+        println!("{line}");
+    }
+    println!("─── {} rows ───\n", rows.len());
+
+    assert!(
+        unclassified.is_empty(),
+        "these rete rows have NO reachability verdict — a row that no cell exercises is a row \
+         nobody has shown a user can reach. Add an operand entry, or an argued exclusion in \
+         NOT_YET_GENERABLE: {unclassified:#?}"
+    );
+    assert!(
+        defects.is_empty(),
+        "the GENERATOR is wrong for these cells, not rete — a TemplateDefect says the synthesized \
+         program is malformed, so no verdict may be recorded from it:\n{}",
+        defects.join("\n\n")
+    );
+}
+
+// ─── The third axis: SPELLING ──────────────────────────────────────────────────────────────────
+
+/// How the op's head is written. The migration axis.
+///
+/// wat is grinding toward Clojure/EDN-compliant SYNTAX (not a Clojure implementation — the
+/// spelling): `:wat::core::+` is `wat.core/+` there, and heads are moving from keywords to
+/// symbols. rete's `:when` DSL is believed to accept only the `::` form today.
+///
+/// This belongs in the reachability ledger for exactly the reason the call-site axis does:
+/// reachability is not a property of the ROW. An op reachable as `:wat::rete::core::>` and
+/// refused as `wat.rete.core/>` is the same defect shape as one reachable in a fence and refused
+/// inline — and once the flip lands, the column that is red today becomes the column that must be
+/// green, so measuring it now turns the migration's progress into something a gate can read.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Spelling {
+    /// `:wat::rete::core::>` — what `RETE_OPS` holds and what the DSL is believed to require.
+    RustyKeyword,
+    /// `:wat.rete.core/>` — EDN-compliant keyword; already what diagnostics PRINT.
+    DottedKeyword,
+    /// `wat.rete.core/>` — a bare SYMBOL head, the shape after the keyword->symbol flip.
+    DottedSymbol,
+}
+
+impl Spelling {
+    fn label(self) -> &'static str {
+        match self {
+            Spelling::RustyKeyword => "::keyword",
+            Spelling::DottedKeyword => ":dotted/kw",
+            Spelling::DottedSymbol => "dotted/sym",
+        }
+    }
+
+    /// Render an op's head in this spelling.
+    ///
+    /// The dotted forms come from `as_diagnostics_spell_it` — the renderer — rather than from a
+    /// local `replace("::", ".")`, so this file holds NO copy of the naming rule. `DottedSymbol`
+    /// is that same string minus the leading `:`, which is the whole difference between a keyword
+    /// and a symbol head.
+    fn render(self, op: &str) -> String {
+        match self {
+            Spelling::RustyKeyword => op.to_string(),
+            Spelling::DottedKeyword => as_diagnostics_spell_it(op),
+            Spelling::DottedSymbol => {
+                let kw = as_diagnostics_spell_it(op);
+                kw.strip_prefix(':').unwrap_or(&kw).to_string()
+            }
+        }
+    }
+}
+
+/// ★★ THE MIGRATION BASELINE — which head spellings rete's `:when` DSL accepts today.
+///
+/// This test asserts NOTHING about which spellings ought to work; it pins what IS, so the flip has
+/// a before-picture instead of a memory. It fails only if the `::` form — the one the whole corpus
+/// is written in — stops working, which would be a live regression rather than a migration step.
+///
+/// The other two columns print their verdict and are deliberately un-asserted: they are expected
+/// to be refused now and expected to be required later, so hard-coding either answer would make
+/// this test a thing to delete at the flip rather than the thing that MEASURES the flip.
+#[test]
+fn the_head_spellings_rete_accepts_today_are_recorded_for_the_edn_migration() {
+    let cell = operands_for(":wat::rete::core::i64::>").expect("the baseline row must be in the table");
+    let mut lines: Vec<String> = Vec::new();
+    let mut rusty_ok = 0usize;
+
+    for spelling in [Spelling::RustyKeyword, Spelling::DottedKeyword, Spelling::DottedSymbol] {
+        let head = spelling.render(cell.op);
+        for site in [CallSite::InlineConstraint, CallSite::WhereFence] {
+            // Surgical: synthesize in the canonical spelling, then rewrite ONLY the head. Every
+            // other byte of the program is identical across the three columns, so a difference
+            // is attributable to the spelling and to nothing else.
+            let src = synth(&cell, site).replace(cell.op, &head);
+            let verdict = match drive(&src, cell.op) {
+                Verdict::Fires => "FIRES",
+                Verdict::Refused(_) => "REFUSED",
+                Verdict::TemplateDefect(..) => "REFUSED(unattributed)",
+            };
+            if spelling == Spelling::RustyKeyword && verdict == "FIRES" {
+                rusty_ok += 1;
+            }
+            lines.push(format!("{:<12} {:<18} {}", spelling.label(), site.label(), verdict));
+        }
+    }
+
+    println!("\n─── head spelling x call site, `:wat::rete::core::i64::>` ───");
+    for l in &lines {
+        println!("{l}");
+    }
+    println!("─── EDN-migration baseline; only the `::` column is asserted ───\n");
+
+    assert_eq!(
+        rusty_ok, 2,
+        "the `::` spelling must work in BOTH positions — the entire corpus is written in it, so \
+         this going red is a live regression, not a migration step"
+    );
+
+    // ⛔ THE CONTROL, and the surprising column is why it exists. `dotted/sym` — a BARE SYMBOL
+    // head, the shape rete does not officially accept — comes back FIRES inside a `where` fence.
+    // That reads like a gift for the migration, and a green that surprising is exactly the kind
+    // this arc has twice reported without checking. So: a symbol head naming an op that DOES NOT
+    // EXIST must be refused. If a nonsense head also "fires", then symbol heads are not being
+    // dispatched at all — something else is satisfying the fence — and the whole column means
+    // nothing.
+    let nonsense = synth(&cell, CallSite::WhereFence)
+        .replace(cell.op, "wat.rete.core/no-such-op-exists");
+    let verdict = drive(&nonsense, cell.op);
+    assert!(
+        !matches!(verdict, Verdict::Fires),
+        "a SYMBOL head naming a nonexistent op fired — so the `dotted/sym` column above is not \
+         evidence that symbol heads dispatch, and no claim may be made from it; got {verdict:?}"
+    );
+
+    // ⛔⛔ THE SECOND CONTROL, and it decides what the first one MEANS. A symbol head dispatching
+    // is only good news if it dispatches to the RETE row. If `wat.core/>` — the CORE op, which
+    // Law A refuses inside a fence in every other spelling — also fires, then symbol heads are
+    // not a migration gift at all: they are a BYPASS of the fence whose entire job is
+    // *"the rete query language may only be composed from rete primitives"* (`purity.rs`'s
+    // `Axis::RetePrimitive`, which refuses `:wat::core::>` precisely because being pure,
+    // deterministic and total does not make an op rete).
+    let core_spelled = synth(&cell, CallSite::WhereFence).replace(cell.op, "wat.core/>");
+    let core_verdict = drive(&core_spelled, cell.op);
+    assert!(
+        !matches!(core_verdict, Verdict::Fires),
+        "LAW A IS BYPASSED BY SYMBOL SPELLING — `wat.core/>` is a CORE op and fired inside a \
+         `where` fence, where `:wat::core::>` is refused. The fence checks the head it was \
+         taught to check and this spelling walks past it, so the `dotted/sym` column is a HOLE \
+         and not readiness; got {core_verdict:?}\n─── the program driven ───\n{core_spelled}"
     );
 }
