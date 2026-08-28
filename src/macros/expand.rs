@@ -835,12 +835,31 @@ fn expand_make_rule_conditions(
     Ok(WatAST::Vector(new_conds, vspan))
 }
 
-/// Expand one `:when` condition. A `(:wat::rete::where <body>...)` form's
-/// body is code — expanded to fixpoint like any other code region (this is
-/// the whole point: a macro like `cond` used inside a `where` is now visible
-/// to the expander). Every other condition (a fact pattern — STOP-2:
-/// aggregate-shaped head, a registered kwargs companion macro post arc-294
-/// item 9a) is byte-identical, untouched.
+/// Expand one `:when` condition — a `where` fence's BODY, and a fact pattern's
+/// CONSTRAINT CLAUSES. Both are code; the pattern's head and its binds are data.
+///
+/// ⚠ **THE FACT PATTERN USED TO BE RETURNED BYTE-IDENTICAL, AND THAT WAS AN
+/// EXPRESSIVITY HOLE, NOT CAUTION.** A `where` body was expanded to fixpoint —
+/// *"the whole point: a macro like `cond` used inside a `where` is now visible to
+/// the expander"* — while an INLINE constraint in the very same `:when` was not.
+/// So `(:wat::rete::core::cond …)` worked in a fence and, two lines away, reached
+/// the compiler unexpanded as a head with no lowering arm, refused with
+/// `"alpha 0 cond did not compile"`. Measured 2026-08-28: the identical predicate
+/// answered correctly in a fence and was refused inline, and the refusal named
+/// nothing. `cond` is `RETE_OPS`' only MACRO-BACKED row (`vocabulary.rs` — it has
+/// zero runtime arm and expands to nested `:wat::rete::core::if`), so "not
+/// expanded" and "does not exist" are the same fact for it.
+///
+/// **THE HEAD AND THE BINDS STAY BYTE-IDENTICAL, and that is the STOP-2 hazard
+/// itself, not caution either.** A record's registered kwargs companion macro
+/// shares the record's NAME (arc 294 item 9a), so expanding the pattern form
+/// would fire `kwargs-lower` on raw DSL clauses. This mirrors exactly what the
+/// `:then` side already does — *"its VALUE positions only… the head and the field
+/// keywords are DATA"* — and, like that one, it decides which positions are code
+/// with the SAME predicate the evaluator uses rather than a second hand-rolled
+/// copy: `classify_rete_clause`, the one grammar the matcher and the freeze
+/// validator already share. If the expander and the matcher disagreed about which
+/// clause is a bind, the two would be reading different programs.
 fn expand_make_rule_condition(
     cond: WatAST,
     registry: &mut MacroRegistry,
@@ -850,15 +869,59 @@ fn expand_make_rule_condition(
     privilege: crate::resolve::Privilege,
 ) -> Result<WatAST, MacroError> {
     let WatAST::List(citems, cspan) = cond else { return Ok(cond) };
-    let is_where = matches!(citems.first(), Some(WatAST::Keyword(h, _)) if crate::resolve::boundary::is_where_form(h));
-    if !is_where {
-        return Ok(WatAST::List(citems, cspan));
-    }
+    let head_kw: Option<String> = match citems.first() {
+        Some(WatAST::Keyword(h, _)) => Some(h.clone()),
+        _ => None,
+    };
     let mut citer = citems.into_iter();
     let mut new_c = Vec::with_capacity(citer.len().max(1));
-    new_c.extend(citer.next()); // where head, as-is
-    for body in citer {
-        new_c.push(expand_form(body, registry, expansion_depth + 1, env, sym, privilege)?);
+    new_c.extend(citer.next()); // the head — a `where`, a combinator, or a fact type. DATA always.
+
+    match head_kw.as_deref() {
+        // A `where` fence: its body is CODE, expanded to fixpoint. Unchanged.
+        Some(h) if crate::resolve::boundary::is_where_form(h) => {
+            for body in citer {
+                new_c.push(expand_form(body, registry, expansion_depth + 1, env, sym, privilege)?);
+            }
+        }
+        // ⛔ A COMBINATOR'S ITEMS ARE NESTED **CONDITIONS**, NOT CLAUSES — recurse as conditions,
+        // never as forms. Expanding one as a form fires the nested pattern's own kwargs companion
+        // macro and rewrites `(:Some::Record …)` into `:wat::core::kwargs-construct`, which is
+        // STOP-2 exactly. Measured: doing it took 101 tests red in one floor, every one reporting
+        // `':wat::core::kwargs-construct' is not a registered fact type`.
+        Some(":wat::rete::and" | ":wat::rete::or" | ":wat::rete::not" | ":wat::rete::exists") => {
+            for inner in citer {
+                new_c.push(expand_make_rule_condition(
+                    inner, registry, expansion_depth + 1, env, sym, privilege,
+                )?);
+            }
+        }
+        // A FACT PATTERN. Its head is data (the kwargs hazard above); each clause after it is an
+        // expression unless it is a `(?v <- :field)` bind, which names a field and holds no code.
+        Some(_) => {
+            for clause in citer {
+                let is_bind = matches!(
+                    crate::rete::clause::classify_rete_clause(&clause),
+                    crate::rete::clause::ReteClauseShape::Bind { .. }
+                );
+                new_c.push(if is_bind {
+                    clause
+                } else {
+                    expand_form(clause, registry, expansion_depth + 1, env, sym, privilege)?
+                });
+            }
+        }
+        // SYMBOL-headed: an `accumulate` (`(?c <- (:acc…) :from (:Type …))`) or a fact-bind. Its
+        // items are conditions and markers, so recurse per item — a marker (`<-`, `:from`) is not
+        // a list and returns unchanged, the accumulator form has no clauses to touch, and the
+        // `:from` PATTERN gets its own clauses expanded like any other.
+        None => {
+            for item in citer {
+                new_c.push(expand_make_rule_condition(
+                    item, registry, expansion_depth + 1, env, sym, privilege,
+                )?);
+            }
+        }
     }
     Ok(WatAST::List(new_c, cspan))
 }

@@ -1351,3 +1351,123 @@ fn a_field_reference_inside_a_vector_binds_like_any_other_operand() {
          gate above is passing for a reason other than the one it claims"
     );
 }
+
+/// ★★ EVERY PROVABLY-BOOLEAN FORM IS ADMITTED INLINE — `cond`, `let`, `match`, `if`.
+///
+/// ⚠ **ALL FOUR WERE REFUSED, AND THE STATED REASON WAS WRONG.** The record said `cond`/`let`/
+/// `match` are *"polymorphic in their body's type and the inline position has no type check that
+/// could demand bool of them."* Both halves failed on the disk:
+///
+///   · **Polymorphic-in-the-body means the type is a FUNCTION of the body** — and the body is in
+///     the AST. `head_is_boolean_rete_predicate` asked only the HEAD, read `row.ret` (a
+///     PLACEHOLDER for `Form` rows) and stopped. Nothing was unknowable; nothing asked.
+///   · **`cond` was not failing a type test at all.** `vocabulary.rs` documents that the macro
+///     expander descends into `where` bodies ONLY, so an inline `cond` was never expanded to
+///     nested `if` and reached the compiler as a head with no lowering arm — refused with
+///     `"alpha 0 cond did not compile"`, a diagnostic that named nothing. The discriminating probe:
+///     wrapping `cond` in a provably-bool head SATISFIED the type objection and was still refused,
+///     which the type story cannot explain and the macro-boundary story predicts exactly.
+///
+/// **Why a shape-only pass can prove this.** Rete's vocabulary is closed and every row is
+/// `pure · deterministic · total`. Totality means no supported expression can fail to have a value;
+/// purity and determinism mean the value — and therefore the TYPE — is a function of the
+/// subexpressions, all present in the AST. The builder's ruling, 2026-08-28: *"we very carefully
+/// crafted rete's DSL to ensure every form a user can express can be compiled into our dag jump
+/// tree… we just inappropriately denied access, poorly, to tooling we fully intended to support."*
+///
+/// ⛔ **THE REFUSAL HALF IS THE LOAD-BEARING HALF OF THIS GATE.** Admitting a form whose body is
+/// NOT provably boolean would re-open fix-list F on the spot: the clause is required to evaluate
+/// TRUE, so a non-bool body compares unequal forever and the rule silently never fires. The three
+/// refusal rows below are therefore not decoration — without them this test passes against a change
+/// that admits everything, which is strictly worse than the denial it replaced.
+#[test]
+fn every_provably_boolean_form_is_admitted_inline() {
+    fn src(predicate: &str) -> String {
+        format!(
+            r#"(:wat::core::defrecord :probe::In  [k <- :wat::core::String  v <- :wat::core::i64])
+(:wat::core::defrecord :probe::Out [k <- :wat::core::String])
+
+(:wat::rete::defrule :probe::rule
+  :when
+  [(:probe::In (?k <- :k) {predicate})]
+  :then
+  [(:probe::Out :k ?k)])
+
+(:wat::rete::defquery :probe::q :params [] :when [(?fact <- :probe::Out)])
+
+(:wat::core::defn :probe::run [] -> :wat::core::i64
+  (:wat::core::let
+    [rules   (:wat::rete::collect-rules :probe)
+     session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:probe::q)))
+     session (:wat::rete::insert session (:probe::In :k "hit"  :v 10))
+     session (:wat::rete::insert session (:probe::In :k "miss" :v 1))
+     fired   (:wat::rete::fire-rules session)]
+    (:wat::core::length (:wat::rete::query fired (:probe::q)))))
+"#
+        )
+    }
+
+    // ── ADMITTED. `Ok(1)` is assertion and discrimination in one: the defect read `Err` (refused),
+    // and a form admitted but not actually applied would read 2 (the miss fact matching too).
+    for (name, predicate) in [
+        (
+            "cond",
+            "(:wat::rete::core::cond ((:wat::rete::core::i64::> :v 5) true) (:else false))",
+        ),
+        (
+            "let",
+            "(:wat::rete::core::let [x :v] (:wat::rete::core::i64::> x 5))",
+        ),
+        (
+            "match",
+            "(:wat::rete::core::match (:wat::rete::core::i64::> :v 5) (true true) (false false))",
+        ),
+        (
+            "if",
+            "(:wat::rete::core::if (:wat::rete::core::i64::> :v 5) true false)",
+        ),
+        // Nested: a `let` whose body is an `if` — the recursion, not just the top form.
+        (
+            "let-of-if",
+            "(:wat::rete::core::let [x :v] \
+             (:wat::rete::core::if (:wat::rete::core::i64::> x 5) true false))",
+        ),
+    ] {
+        let s = src(predicate);
+        assert_eq!(
+            raw_count(&s),
+            Ok(1),
+            "`{name}` is provably boolean and must fire inline, selecting exactly the hit"
+        );
+        // ⛔ THE ORACLE, every time. `$native` and `$oracle` agreeing on a wrong answer is this
+        // arc's repeat failure, so a native-only assertion is not evidence about the engine.
+        let oracle = s.replace(":wat::rete::fire-rules ", ":wat::rete::fire-rules$oracle ");
+        assert_ne!(s, oracle, "the rewrite must select the oracle");
+        assert_eq!(raw_count(&oracle), Ok(1), "`{name}`: the $oracle must agree");
+    }
+
+    // ── ⛔ REFUSED, and this is the half that keeps fix-list F closed. Each body below is a
+    // legitimate rete expression whose type is NOT boolean; admitting any of them would compile a
+    // constraint that can never be true and match nothing, silently, forever.
+    for (name, predicate) in [
+        // A `let` whose body is a bare binder — an i64, not a bool.
+        ("let-body-is-a-value", "(:wat::rete::core::let [x :v] x)"),
+        // A `let` whose body is arithmetic — provably i64, provably NOT bool.
+        (
+            "let-body-is-arithmetic",
+            "(:wat::rete::core::let [x :v] (:wat::rete::core::i64::+ x 1 :undefined 0))",
+        ),
+        // An `if` whose branches disagree. Neither the type nor the form is provable, and this is
+        // exactly the case a head-only test could never have seen.
+        (
+            "if-branches-disagree",
+            "(:wat::rete::core::if (:wat::rete::core::i64::> :v 5) true 1)",
+        ),
+    ] {
+        assert!(
+            raw_count(&src(predicate)).is_err(),
+            "`{name}` is NOT provably boolean and must be REFUSED — admitting it compiles a \
+             constraint that is never true and matches nothing, silently, which is fix-list F"
+        );
+    }
+}

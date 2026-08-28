@@ -194,36 +194,88 @@ pub(crate) fn classify_constraint_head(head: &str) -> Option<(CmpKind, Constrain
 
 /// Classify a single rete-DSL form (a `:when` clause OR a top-level `:when`-entry wrapper)
 /// by SHAPE alone — no fact/registry access, no bindings. See [`ReteClauseShape`].
-/// Is this head a rete op whose result is KNOWN to be boolean?
+/// Is this rete expression's result PROVABLY boolean, by shape alone?
 ///
-/// ⛔ **"Known" is the load-bearing word, and getting it wrong would re-open fix-list F.** A clause
-/// admitted here is required to evaluate TRUE; a predicate returning a non-bool would simply fail
-/// that comparison and the rule would silently never fire — the exact silent-wrong-answer shape
-/// this arc has now closed twice. So the test is static knowledge, never optimism:
+/// ⛔ **"Provably" is the load-bearing word, and getting it wrong would re-open fix-list F.** A
+/// clause admitted here is required to evaluate TRUE; a predicate returning a non-bool would
+/// simply fail that comparison and the rule would silently never fire — the exact
+/// silent-wrong-answer shape this arc has now closed three times. So the test is static
+/// knowledge, never optimism.
 ///
-///   · `Alias` / `Fallback` rows carry a REAL `ret`, so `ret == Bool` is a fact about the row.
-///   · `Form` / `Redispatch` rows carry `ret: Bool` as a PLACEHOLDER — they have no `TypeScheme`
-///     at all — so their `ret` says nothing and must not be read as if it did. `and`/`or`/`not`
-///     are boolean by definition and are named explicitly; `cond`/`let`/`match` are polymorphic in
-///     their body's type and stay REFUSED, because the inline position has no type check that
-///     could demand bool of them. That refusal is a diagnostic, which is the honest half of the
-///     pair: admit what is provably boolean, refuse the rest BY NAME, never accept-and-go-quiet.
-fn head_is_boolean_rete_predicate(head: &str) -> bool {
-    if matches!(
-        head,
-        ":wat::rete::core::and" | ":wat::rete::core::or" | ":wat::rete::core::not"
-    ) {
-        return true;
-    }
-    match crate::rete::vocabulary::rete_op_for(head) {
-        Some(row) => {
-            matches!(
-                row.class,
-                crate::rete::vocabulary::OpClass::Alias
-                    | crate::rete::vocabulary::OpClass::Fallback
-            ) && matches!(row.ret, crate::rete::vocabulary::ParamType::Bool)
+/// ⚠ **THIS USED TO ASK ONLY THE HEAD, AND SO REFUSED FORMS IT COULD HAVE PROVEN.** It read
+/// `row.ret` and stopped — which is a fact for `Alias`/`Fallback` rows and a PLACEHOLDER for
+/// `Form`/`Redispatch` ones, so `cond`/`let`/`match`/`if` were refused with the stated reason
+/// *"polymorphic in their body's type… the inline position has no type check that could demand
+/// bool of them."* **That reason was wrong.** Polymorphic-in-the-body means the type is a
+/// function OF THE BODY — and the body is right there in the AST. The builder's ruling,
+/// 2026-08-28: *"we very carefully crafted rete's DSL to ensure every form a user can express can
+/// be compiled… I see no reason why forms like what we're describing cannot be supported… we just
+/// inappropriately denied access, poorly, to tooling we fully intended to support."*
+///
+/// **Why the proof is decidable HERE, in a pass with no env.** Rete's vocabulary is closed, and
+/// every row is `pure · deterministic · total` (`every_rete_row_is_total` makes a non-total row a
+/// red build). Totality means every op is defined on its whole domain, so no supported expression
+/// can fail to have a value; purity and determinism mean that value depends only on the inputs, so
+/// the TYPE is a function of the subexpression types — all of which are in this AST. Nothing here
+/// needs a registry, which is what keeps `classify_rete_clause`'s "by SHAPE alone" contract intact.
+///
+/// The rules, each one the type rule of the form it names:
+///   · `and` / `or` / `not`        — boolean by definition.
+///   · an `Alias`/`Fallback` row   — its REAL `ret`, a fact about the row.
+///   · `if`                        — bool iff BOTH branches are. A `Form` row's `ret` is a
+///                                   placeholder and is never read.
+///   · `let`                       — its BODY's type.
+///   · `match`                     — bool iff EVERY arm's body is.
+///   · a `bool` literal            — itself.
+///
+/// `cond` needs no arm: it is `RETE_OPS`' one MACRO-BACKED row and expands to nested
+/// `:wat::rete::core::if` (`vocabulary.rs`) before any classification runs, so the `if` rule
+/// covers it. Anything this cannot prove stays REFUSED — a diagnostic, never accept-and-go-quiet.
+fn expr_is_provably_boolean(ast: &WatAST) -> bool {
+    match ast {
+        WatAST::BoolLit(..) => true,
+        WatAST::List(items, _) => {
+            let Some(WatAST::Keyword(head, _)) = items.first() else { return false };
+            match head.as_str() {
+                ":wat::rete::core::and" | ":wat::rete::core::or" | ":wat::rete::core::not" => true,
+                // `(if c then else)` — both branches, or the form is not provably anything.
+                ":wat::rete::core::if" => {
+                    items.len() == 4
+                        && expr_is_provably_boolean(&items[2])
+                        && expr_is_provably_boolean(&items[3])
+                }
+                // `(let [binds…] body)` — the BODY is the type. `last()` rather than `[2]` so a
+                // multi-form body answers on the form whose value the `let` actually yields.
+                ":wat::rete::core::let" => {
+                    items.len() >= 3 && items.last().is_some_and(expr_is_provably_boolean)
+                }
+                // `(match subject (pattern body)…)` — every arm, because any one of them can be
+                // the one that runs. An arm that is not a `(pattern body)` list is not provable.
+                ":wat::rete::core::match" => {
+                    items.len() >= 3
+                        && items[2..].iter().all(|arm| match arm {
+                            WatAST::List(a, _) if a.len() >= 2 => {
+                                a.last().is_some_and(expr_is_provably_boolean)
+                            }
+                            _ => false,
+                        })
+                }
+                // Every other head: the row's DECLARED `ret`, and ONLY for the classes that have
+                // a real one. A `Form`/`Redispatch` row not named above carries a placeholder and
+                // is refused rather than believed.
+                other => match crate::rete::vocabulary::rete_op_for(other) {
+                    Some(row) => {
+                        matches!(
+                            row.class,
+                            crate::rete::vocabulary::OpClass::Alias
+                                | crate::rete::vocabulary::OpClass::Fallback
+                        ) && matches!(row.ret, crate::rete::vocabulary::ParamType::Bool)
+                    }
+                    None => false,
+                },
+            }
         }
-        None => false,
+        _ => false,
     }
 }
 
@@ -311,7 +363,7 @@ pub(crate) fn classify_rete_clause(clause: &WatAST) -> ReteClauseShape<'_> {
             // A head outside the vocabulary still falls to `Unrecognized`, so Law A holds: the
             // rete query language is composed from rete primitives, and a core-spelled head is
             // refused with the diagnostic that names its per-type twin.
-            k if head_is_boolean_rete_predicate(k) => ReteClauseShape::Predicate(clause),
+            _ if expr_is_provably_boolean(clause) => ReteClauseShape::Predicate(clause),
             // Unknown head keyword → unrecognised clause shape.
             _ => ReteClauseShape::Unrecognized,
         },
