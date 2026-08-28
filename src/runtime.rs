@@ -11562,10 +11562,33 @@ pub(crate) fn dispatch_substrate_impl(
     impl_name: &str,
     vals: &[Value],
 ) -> Option<Result<Value, EvalBreak>> {
-    if let Some(handler) = crate::intrinsic::registry().lookup_value(impl_name) {
-        return Some(handler(vals));
+    // Arc 255 Stone O-i — the value door gets the same arity guard the AST
+    // door has always had (`crates/wat-macros/src/wat_intrinsic.rs`'s
+    // generated shim). Without this, every value handler's opening
+    // `vals.first().expect("arity-checked")` names a check that happened on
+    // the OTHER door only, and a wrong-arity `apply` panics the process
+    // instead of returning the clean `ArityMismatch` the direct call gives.
+    //
+    // ONE lookup, not two. `lookup_value` had exactly one caller — this line — so
+    // consulting the entry for BOTH the handler and its arity retires it rather than
+    // paying a second `HashMap::get` to keep a single-purpose accessor alive. Two ways
+    // to ask the registry one question is the shape this arc exists to delete.
+    let entry = crate::intrinsic::registry().lookup_entry(impl_name)?;
+    let handler = entry.value_handler?;
+    if let crate::intrinsic::Arity::Exact(n) = entry.arity {
+        if vals.len() != n {
+            return Some(Err(RuntimeError::new(
+                crate::rust_caller_span!(),
+                RuntimeErrorKind::ArityMismatch {
+                    op: impl_name.into(),
+                    expected: n,
+                    got: vals.len(),
+                },
+            )
+            .into()));
+        }
     }
-    None
+    Some(handler(vals))
 }
 
 /// Arc 148 slice 4 — Value-level arithmetic leaves used by

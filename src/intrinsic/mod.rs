@@ -1,4 +1,4 @@
-//! Intrinsic registry — arc 255. The home where wat **intrinsics** (callables
+//! Intrinsic rgistry — arc 255. The home where wat **intrinsics** (callables
 //! implemented in Rust, exposed under a `:wat::…` FQDN — `runtime.rs:23931`:
 //! "intrinsics are custom Rust by definition") become registered, queryable
 //! entities. The `#[wat_intrinsic]` preamble (255.1b-ii) lives over each handler
@@ -283,8 +283,10 @@ pub(crate) struct IntrinsicEntry {
     pub handler: Option<NativeHandler>,
     /// Arc 255 Stone N — mirrors `IntrinsicSubmission::value_handler`; `None`
     /// for `Kind::SpecialForm` and for any `Kind::Intrinsic` that hasn't
-    /// named one. Read by `lookup_value`, `dispatch_substrate_impl`'s
-    /// registry-first door (`src/runtime.rs`).
+    /// named one. Read through `lookup_entry` by `dispatch_substrate_impl`
+    /// (`src/runtime.rs`) — `:wat::core::apply`'s substrate door, which reads the
+    /// SAME entry for `arity` and guards on it (Stone O-i), so no handler is ever
+    /// called without the arity check the AST door has always had.
     pub value_handler: Option<ValueHandler>,
     /// What kind of callable this is (`Intrinsic` or `SpecialForm`).
     pub kind: Kind,
@@ -351,14 +353,6 @@ impl IntrinsicRegistry {
     /// `None` = not a registered intrinsic (or is a `Kind::SpecialForm` with no handler).
     pub(crate) fn lookup(&self, name: &str) -> Option<NativeHandler> {
         self.entries.get(name).and_then(|e| e.handler)
-    }
-
-    /// Arc 255 Stone N — the value-level dispatch route, read by
-    /// `dispatch_substrate_impl`'s registry-first door (`src/runtime.rs`),
-    /// `:wat::core::apply`'s substrate fallback. `None` = not registered, or
-    /// registered with no value-level implementation.
-    pub(crate) fn lookup_value(&self, name: &str) -> Option<ValueHandler> {
-        self.entries.get(name).and_then(|e| e.value_handler)
     }
 
     /// The reflection route — the full baseline entry for `name` (255.1b-iii),
