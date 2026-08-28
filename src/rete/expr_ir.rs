@@ -369,8 +369,8 @@ fn lower_list(items: &[WatAST], span: &Span, cx: &mut LowerCx) -> Result<Expr, L
         let hof = matches!(
             row.core_name,
             ":wat::core::foldl"
-                | ":wat::core::map"
-                | ":wat::core::filter"
+                | ":wat::core::mapv"
+                | ":wat::core::filterv"
                 | ":wat::core::reduce"
         );
         if row.class == OpClass::Fallback {
@@ -1034,6 +1034,8 @@ fn exec(
             match RETE_OPS[*op as usize].core_name {
                 ":wat::core::foldl" => return exec_foldl(args, frame, names, sym, span),
                 ":wat::core::reduce" => return exec_reduce(args, frame, names, sym, span),
+                ":wat::core::mapv" => return exec_mapv(args, frame, names, sym, span),
+                ":wat::core::filterv" => return exec_filterv(args, frame, names, sym, span),
                 _ => {}
             }
             let mut vs = Vec::with_capacity(args.len());
@@ -1234,6 +1236,87 @@ fn exec_reduce(
         acc = exec_program_on(&program, &[acc.clone(), x], Some(frame), sym, span)?;
     }
     Ok(acc)
+}
+
+/// `(:wat::core::mapv f coll)` — the EAGER map. Returns a `Vector`, matching `eval_mapv`
+/// (`collection/transform.rs`), whose every exit is `Ok(Value::Vec(..))`.
+///
+/// ⛔ **THE RETE SURFACE TAKES `mapv`, NOT `map`, AND THAT IS THE WHOLE POINT.** `:wat::core::map`
+/// returns a LAZY `Stream`; a compiled `where` fence has no stream machinery and nothing in a
+/// fence can consume one, so the `map` row was unreachable in every position. Adding an eager arm
+/// under the `map` name would have made `:wat::rete::core::map` mean something different from
+/// `:wat::core::map` — silently — when the `Redispatch` contract is "the same routine as
+/// `core_name`". wat already ships the eager materializer under its clojure name, so rete takes
+/// that instead: no invented semantics and no divergence. See `wat/seq.wat`'s "the eager forms".
+fn exec_mapv(
+    args: &[Expr],
+    frame: &mut [Option<Value>],
+    names: &[SlotName],
+    sym: &SymbolTable,
+    span: &Span,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::core::mapv";
+    if args.len() != 2 {
+        return Err(RuntimeError::new(
+            span.clone(),
+            RuntimeErrorKind::ArityMismatch { op: OP.into(), expected: 2, got: args.len() },
+        )
+        .into());
+    }
+    let program = compiled_fn_arg(&args[0], OP, span)?;
+    let coll = exec(&args[1], frame, names, sym, span)?;
+    let items = eager_items(&coll, OP, span)?;
+    let mut out = Vec::with_capacity(items.len());
+    for x in items {
+        out.push(exec_program_on(&program, &[x], Some(frame), sym, span)?);
+    }
+    Ok(Value::Vec(Arc::new(out)))
+}
+
+/// `(:wat::core::filterv pred coll)` — the EAGER filter. Returns a `Vector`, matching
+/// `wat/seq.wat`'s `defclause`, which is `(:wat::core::into [] (:wat::core::filter pred coll))`
+/// for both of its clauses.
+///
+/// The predicate must answer `bool`. A non-bool is refused BY NAME rather than coerced: a filter
+/// that silently treats a non-boolean as truthy would drop or keep rows for a reason no user
+/// wrote, which is the silent-wrong-answer class this arc exists to remove.
+fn exec_filterv(
+    args: &[Expr],
+    frame: &mut [Option<Value>],
+    names: &[SlotName],
+    sym: &SymbolTable,
+    span: &Span,
+) -> Result<Value, EvalBreak> {
+    const OP: &str = ":wat::core::filterv";
+    if args.len() != 2 {
+        return Err(RuntimeError::new(
+            span.clone(),
+            RuntimeErrorKind::ArityMismatch { op: OP.into(), expected: 2, got: args.len() },
+        )
+        .into());
+    }
+    let program = compiled_fn_arg(&args[0], OP, span)?;
+    let coll = exec(&args[1], frame, names, sym, span)?;
+    let items = eager_items(&coll, OP, span)?;
+    let mut out = Vec::with_capacity(items.len());
+    for x in items {
+        match exec_program_on(&program, std::slice::from_ref(&x), Some(frame), sym, span)? {
+            Value::bool(true) => out.push(x),
+            Value::bool(false) => {}
+            other => {
+                return Err(RuntimeError::new(
+                    span.clone(),
+                    RuntimeErrorKind::TypeMismatch {
+                        op: OP.into(),
+                        expected: "wat::core::bool",
+                        got: Box::new(ValueSnapshot::of(&other)),
+                    },
+                )
+                .into());
+            }
+        }
+    }
+    Ok(Value::Vec(Arc::new(out)))
 }
 
 fn pat_matches(pat: &Pat, v: &Value, frame: &mut [Option<Value>]) -> bool {

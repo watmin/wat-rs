@@ -904,10 +904,23 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         ret: ParamType::Bool,
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
+    // ── 2026-08-28: `map`/`filter` -> `mapv`/`filterv`, and the reason is the whole point of the
+    // § 4.1 reachability ledger. Both rows were `:wat::core::map`/`:wat::core::filter`, which
+    // return a LAZY `Stream` (`transform.rs`: `Value::wat__stream__Stream(lazy_map_stream(..))`).
+    // A compiled `where` fence has no stream machinery and nothing in a fence can CONSUME a
+    // Stream, so those rows were unreachable in every position — admitted, total, arity- and
+    // type-checked, and unusable. The ledger drove them and they raised `unbound symbol`.
+    //
+    // The fix is NOT an eager compiled arm for the lazy heads: that would make
+    // `:wat::rete::core::map` mean something different from `:wat::core::map`, silently, when the
+    // `Redispatch` contract is "the same routine as `core_name`". wat already ships the eager
+    // materializers under their clojure names — `wat/seq.wat`: *"mapv / filterv — the eager forms:
+    // force `map`/`filter`'s lazy Stream result to a Vector"* — so rete takes THOSE. No invented
+    // semantics, no divergence, and the naming rule derives both rete names unchanged.
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::core::map",
-        core_name: ":wat::core::map",
+        rete_name: ":wat::rete::core::mapv",
+        core_name: ":wat::core::mapv",
         class: OpClass::Redispatch,
         params: &[],
         ret: ParamType::Bool,
@@ -915,8 +928,8 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     },
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::core::filter",
-        core_name: ":wat::core::filter",
+        rete_name: ":wat::rete::core::filterv",
+        core_name: ":wat::core::filterv",
         class: OpClass::Redispatch,
         params: &[],
         ret: ParamType::Bool,

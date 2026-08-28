@@ -499,6 +499,9 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             | ":wat::core::map"
             | ":wat::core::mapv"
             | ":wat::core::filter"
+            // `filterv` joined 2026-08-28 with the rete row swap: the rete surface takes the EAGER
+            // materializers, since a `where` fence cannot consume `filter`'s lazy Stream.
+            | ":wat::core::filterv"
             | ":wat::core::reduce"
             // ── 2026-08-01: the EXPRESSIVITY GAP, closed by hand ──────────────────────────────
             //
@@ -732,7 +735,8 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             // `reverse`+`foldl` wearing a name borrowed from Haskell, where the verb is distinct
             // only because it is LAZY, a property strict wat cannot have. Its right-fold
             // replacement, `(reduce f init (reverse coll))`, is still covered here via `reduce`.
-            | ":wat::core::map" | ":wat::core::mapv" | ":wat::core::filter" | ":wat::core::reduce"
+            | ":wat::core::map" | ":wat::core::mapv" | ":wat::core::filter"
+            | ":wat::core::filterv" | ":wat::core::reduce"
             // ── BRIEF-total-column-honest.md Direction 2 (2026-08-02) — the VSA seam ───────────
             //
             // `:wat::holon::presence?` — TRUE. `eval_algebra_presence_q` (`runtime.rs:18623`)
