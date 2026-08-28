@@ -578,10 +578,17 @@ exclusion is a claim; this one is false and must be fixed before any holon row i
 1. ~~**4.1 the reachability ledger**~~ — **COMPLETE 2026-08-28**, all 77 rows verdicted, ZERO
    unrunnable. It found six rows that passed every static gate and could not execute (all fixed),
    18 refused inline, and 39 accepted inline that silently match nothing.
-2. **One small ruling.** `reduce`'s 2-arity form raises on an empty collection while its row
-   declares `total: true`, a wall every row must pass. Surfaced only by being able to RUN the row.
-   (Everything else under this number is CLOSED: `map`/`filter` became the eager `mapv`/`filterv`;
-   `Tuple` got its three accessors; the coverage GATE is the ledger.)
+2. ~~**One small ruling** — `reduce`'s 2-arity form raises on an empty collection while its row
+   declares `total: true`.~~ **ALREADY CLOSED, and this row was STALE THE DAY IT WAS WRITTEN.**
+   Shipped `97eac5a38` (2026-08-27) — the rete lowerer refuses the 2-arity form outright
+   (`expr_ir.rs:440`) with a located diagnostic naming the totality reason, and it shipped with a
+   119-line gate plus two fixtures. Driven 2026-08-28 to confirm: the refusal fires, and
+   `total: true` is honest because the partial arity cannot be reached.
+   **This is the SIXTH consecutive inherited row in this arc found stale on audit.** The rate is
+   not noise — treat every unstruck row here as a claim about the past, not a statement about the
+   tree, and check it before you work it.
+   (Everything else under this number was already closed: `map`/`filter` became the eager
+   `mapv`/`filterv`; `Tuple` got its three accessors; the coverage GATE is the ledger.)
 3. ~~**The inline-constraint gap**~~ — **FULLY CLOSED 2026-08-28. The residue this entry once named
    is gone too, and both of its stated reasons were wrong** (struck below). The inline column went
    **16 -> 68 -> 71 -> 75 of 79**, and the four not counted are the holon rows the LEDGER cannot
@@ -709,21 +716,47 @@ exclusion is a claim; this one is false and must be fixed before any holon row i
    subsume `max_fire_rounds`; is per-rule or per-cycle the right granularity; and an imported Export
    carries no AST, so a static bound is meaningless there and the round cap stays the only guard.
 
-   **TWO DIAGNOSTIC DEFECTS FOUND WHILE DRIVING IT — not in the report, not yet fixed:**
-   1. The message asserts *"the fixpoint can never converge"*. For the guarded counter that is
-      **FALSE** — it converges at k=500. R29 `RVINA ERVDIT`: the ruin must teach, and this one
-      teaches something untrue about the very program in front of the user.
-   2. With a fn-headed `:then` the message names the **FUNCTION** as the offending fact type —
-      *"derives `:bc::mk-next` ... and `:bc::mk-next` feeds back into this rule's own `:when`"* —
-      where `mk-next` is a fn appearing nowhere in the `:when`. **The DETECTION is correct**
-      (`produced` resolves the return type through `sym`); only the message is wrong, because
-      `computed` carries `fact_type_head(f)`, the raw head. A one-line resolve fixes it.
+   **TWO DIAGNOSTIC DEFECTS FOUND WHILE DRIVING IT — BOTH FIXED 2026-08-28, both mutation-proven:**
+   1. ~~The message asserts *"the fixpoint can never converge"*~~ — **FALSE for the guarded
+      counter; it converges at k=500.** R29 `RVINA ERVDIT`. The verifier computes a derivation
+      graph and does not compute convergence, so the diagnostic was asserting what the analysis
+      never established. It now says the rounds are UNBOUNDED and names itself *a refusal to
+      certify, not a proof of divergence* — and volunteers that `(where (< ?k 500))` is refused
+      too, though it terminates, so the reader meets the narrowing instead of discovering it.
+   2. ~~With a fn-headed `:then` the message names the **FUNCTION** as the offending fact type~~ —
+      *"derives `:bc::mk-next` … and `:bc::mk-next` feeds back into this rule's own `:when`"*,
+      where `mk-next` appears nowhere in the `:when`. **The DETECTION was always right**;
+      `computed` was built from `fact_type_head` (the raw head) while `produced` beside it resolved
+      through `sym`. Both now use `produced_type`. One resolver, two fields.
 
-   **Also measured: the doctrine block is now stale IN OUR FAVOUR.** It says a computing fn-headed
-   `:then` is caught by an adjacent fence ("is not total"). Driving one today gets the CYCLICITY
-   refusal instead — `rete_fn_body_mints` (a later addition) catches the minting fn directly. The
-   hole is narrower than the paragraph claims; the paragraph should be re-measured when someone
-   takes this item.
+   **⛔ WHY DEFECT 2 SURVIVED, AND IT IS THE REUSABLE PART.** The gate existed —
+   `a_mint_hidden_inside_a_rete_fn_body_is_refused` — and asserted `rule`, never `fact-type`. It
+   **held the wrong value in its hand and only ever looked at the field that was right.** A gate
+   that reads a subset of the structured error it already parsed is FM 28 in a new position: a
+   count cannot see a value defect, and neither can a partial field check. Both fields are asserted
+   now, and the mutation prints `left: "fm::bump" / right: "fm::N"`.
+
+   **The class now has a HOME THAT CAN GO RED**, which prose never could:
+   `tests/rete/probe_arc278_termination_guarded_counter.wat` +
+   `a_bounded_counter_is_refused_too_and_the_message_does_not_claim_divergence`. This is the very
+   fixture the report said had been rewritten around the refusal, restored as a gate. If anyone
+   ever teaches the verifier to read the fence, that test fails — which is the notification the
+   narrowing closed, not a regression.
+
+   **AND THE DOCTRINE BLOCK WAS WORSE THAN "STALE IN OUR FAVOUR" — it CONTRADICTED the function
+   twenty lines below it, and two of its three evidence rows were false.** Struck and rewritten
+   2026-08-28 after driving all three. It concluded *"no exploit found, the shape is guarded by
+   adjacent fences"* while `rete_fn_body_mints`'s own doc-comment says *"THE HOLE THIS CLOSES, and
+   it was demonstrated before it was fixed … it compiled clean and ran to the round cap."* Measured:
+   · row 1 (`i64::+` → "is not total") is TRUE and a genuine body fence.
+   · row 2 (`total fallback` → "is not a rete primitive") is **MIS-ATTRIBUTED** — that refusal names
+     the FN, not the body's op. All three probes used a plain `:wat::core::defn`, so the table
+     measured ONE door (Law A) three times and reported it as three independent fences.
+   · row 3 (`constructs a record at all` → "`kwargs-construct` is not pure") is **FALSE today** — a
+     rete defn whose body is `(:bc::N :k (…::i64::+ k 1 :undefined 0))` declares clean and reaches
+     the cyclicity check.
+   **The lesson, promoted:** *a refusal is evidence about the door you knocked on, not about the
+   room behind it.* Three probes failing for an unrelated reason read as safety for a full day.
 
    **Zero programs in the corpus trip the verifier today** (report's measurement, and consistent
    with our own green floor). That is exactly when this class is cheapest to widen.

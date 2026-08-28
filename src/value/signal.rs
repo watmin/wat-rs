@@ -708,12 +708,16 @@ impl RuntimeErrorKind {
             RuntimeErrorKind::RuleSetMayNotTerminate { rule, fact_type } => write!(
                 f,
                 "{}rete compile-all: rule `{}` derives `:{}` with a COMPUTED value, and `:{}` feeds \
-                 back into this rule's own `:when` — so every round mints a fact that did not \
-                 exist before and the fixpoint can never converge. A Datalog rule set terminates \
-                 because every head value comes FROM THE BODY (range restriction); computing one \
-                 breaks that. Either copy a bound variable (`:k ?k` rather than `:k (+ ?k 1)`), or \
-                 derive into a type that does not feed back. Computing OUTSIDE a derivation cycle \
-                 is fine and stays legal — the refusal is about the cycle, not the arithmetic.",
+                 back into this rule's own `:when` — so a round can mint a fact that did not exist \
+                 before, and NOTHING IN THE RULE BOUNDS THE ROUNDS. A Datalog rule set is PROVABLY \
+                 terminating because every head value comes FROM THE BODY (range restriction); \
+                 computing one breaks the proof. This is a refusal to certify, not a proof of \
+                 divergence — the check is structural (it reads the derivation graph, never your \
+                 `where` fence), so a genuinely bounded shape like `(where (< ?k 500))` is refused \
+                 too, though it does terminate. Either copy a bound variable (`:k ?k` rather than \
+                 `:k (+ ?k 1)`), or derive into a type that does not feed back. Computing OUTSIDE \
+                 a derivation cycle is fine and stays legal — the refusal is about the cycle, not \
+                 the arithmetic.",
                 prefix, rule, fact_type, fact_type
             ),
             RuntimeErrorKind::FixpointRoundCapExceeded { cap, still_deriving } => write!(

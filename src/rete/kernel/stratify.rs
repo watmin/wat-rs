@@ -360,24 +360,35 @@ pub(crate) fn native_rule_stratum(
 //     fallen into, while the shape actually MEASURED to kill the process — a computed ARGUMENT —
 //     is refused either way.
 //
-//     ⚠ AND THE HOLE IS NARROWER THAN THIS PARAGRAPH FIRST CLAIMED — investigated 2026-08-27,
-//     immediately after writing it. To slip past this verifier a fn-headed `:then` must MINT a
-//     novel fact, and three attempts at one were each refused by a DIFFERENT pre-existing fence:
+//     ⛔ WHAT THIS PARAGRAPH USED TO SAY WAS WRONG, AND IT CONTRADICTED `rete_fn_body_mints`'s own
+//     doc-comment twenty lines below it. Struck 2026-08-28, re-measured by driving all three rows.
 //
-//         fn body computes with `i64::+`            -> then-item-fence: "is not total"
-//         fn body computes with the total fallback  -> then-item-fence: "is not a rete primitive"
-//         fn body CONSTRUCTS a record at all        -> purity: "`kwargs-construct` is not pure"
-//           (`probe_arc278_then_user_forms_userfn.wat`'s own header records that last one, and it
-//            is why that fixture EXTRACTS an existing fact rather than building one)
+//     It read: "the hole is narrower than this paragraph first claimed — three attempts to mint
+//     were each refused by a DIFFERENT pre-existing fence", offering a table of three fences and
+//     concluding "no exploit found, the shape is guarded by adjacent fences." Two of its three
+//     rows were false, and the conclusion was superseded the same day it was written:
 //
-//     An extracting fn cannot mint: it returns a fact already in the accumulated set, so it cannot
-//     produce an unbounded stream of distinct facts. `then-item-fence` also already walks the fn's
-//     BODY for admitted ops — which is most of the analysis this paragraph proposed writing.
+//         computes with core `i64::+`      -> "is not total".  TRUE, and a genuine BODY fence.
+//         computes with the total fallback -> "is not a rete primitive".  MIS-ATTRIBUTED. That
+//           refusal names the FN (`:bc::mk-next`), not the body's op — it is Law A refusing a fn
+//           that was never declared `:wat::rete::core::defn`. All three attempts used a plain
+//           `:wat::core::defn`, so the table measured ONE door three times and read it as three.
+//         constructs a record at all       -> "`kwargs-construct` is not pure".  FALSE today. A
+//           rete defn whose body is `(:bc::N :k (…::i64::+ k 1 :undefined 0))` is ADMITTED — it
+//           declares clean and reaches the cyclicity check below. Driven 2026-08-28.
 //
-//     THE HONEST CLAIM, then: no exploit found, and the shape is guarded by adjacent fences —
-//     which is NOT the same as proven impossible, and is not stated as such. What this verifier
-//     proves is the absence of ONE unbounded-derivation shape. The runtime round cap still stands
-//     behind both this and Export's missing AST.
+//     THE EXPLOIT EXISTS AND WAS RUN. Declare the fn `:wat::rete::core::defn` and the minting body
+//     compiles clean and derives forever — measured 2026-08-27, which is exactly what
+//     `rete_fn_body_mints` (below) was written to catch and what
+//     `probe_arc278_termination_fn_head.wat` now pins. The paragraph survived because its three
+//     probes failed for an unrelated reason and it read that as safety: a refusal is evidence
+//     about the door you knocked on, not about the room behind it.
+//
+//     THE HONEST CLAIM, then: the minting shape is CAUGHT — by `rete_fn_body_mints`, which walks
+//     the fn body for a constructor carrying a computed argument — not merely fenced off by
+//     accident. What is still not proven is the general case: a fn body can compute in ways that
+//     walk does not model. What this verifier proves is the absence of ONE unbounded-derivation
+//     shape. The runtime round cap still stands behind both this and Export's missing AST.
 
 /// Every type the rule's `:then` derives, paired with the rule's `:when` types — the edge
 /// `consumed -> produced` this rule contributes to the derivation graph.
@@ -500,12 +511,20 @@ pub(crate) fn refuse_non_terminating(
         if lhs.is_empty() && rhs.is_empty() {
             continue;
         }
+        // `produced_type`, NOT `fact_type_head` — the two disagree on exactly one shape and the
+        // diagnostic is what pays. A fn-headed `:then` has the FUNCTION as its raw head, so
+        // `fact_type_head` yields `:bc::mk-next` while `produced` (which resolves the return type
+        // through `sym`) yields `:bc::N`. The message then reads "derives `:bc::mk-next` … and
+        // `:bc::mk-next` feeds back into this rule's own `:when`" — naming a function that appears
+        // nowhere in the `:when`, sending the reader hunting for a fact type that does not exist.
+        // The DETECTION was always right; only this one string was drawn from the wrong well.
+        // Driven 2026-08-28 (`RETE-OPEN-WORK` item 9, defect 2). One resolver, used by both fields.
         let computed = rhs
             .iter()
             .find(|f| then_form_computes(f) || rete_fn_body_mints(f, sym))
             .map(|f| {
                 (
-                    fact_type_head(f).unwrap_or_else(|| String::from("<unknown>")),
+                    produced_type(f, sym).unwrap_or_else(|| String::from("<unknown>")),
                     f.span().clone(),
                 )
             });
