@@ -2497,6 +2497,42 @@ mod completeness_gate {
     // inherits exactly their unreviewed status, not a fresh one. Ruling purity is out of
     // scope for this stone (additive: mint the verb, change nothing else).
     ":wat::stream::next",
+
+        // ── ADDED 2026-08-27 (HOME-12, the AST registry home). These ten were ALWAYS
+        // dispatched and ALWAYS unreviewed; the gate simply could not SEE them. Its scan
+        // anchors on `dispatch_keyword_head_value` and `dispatch_substrate_impl`
+        // (`dispatch_verbs`, below) and has never covered `dispatch_keyword_head` — the
+        // `Result<TrackedValue, _>` path where PRODUCERS live. All ten are producers, so all
+        // ten sat in the blind spot. HOME-12 registered them as `#[wat_intrinsic]`, the scan's
+        // other half, and the gate saw them for the first time and went red.
+        //
+        // ⚠ THE RED WAS THE GATE WORKING, and it is the mirror of this ledger's own 2026-08-20
+        // lesson: carve stones used to REMOVE verbs from the scan's sight and call the smaller
+        // number a review. This carve ADDED verbs to its sight. Parking them here is the honest
+        // disposition — nobody has ruled on their purity — not a ratchet being loosened.
+        //
+        // ⛔ FOUR ARMS REMAIN INVISIBLE for exactly the same reason and are NOT parked here,
+        // because the gate cannot count what it cannot see: `:wat::core::write-forms`,
+        // `with-children`, `macro-error`, `let` still live in `dispatch_keyword_head`. Widening
+        // `dispatch_verbs` to a third anchor is a separate stone; until it happens this ledger
+        // is exact only over what the scan reaches.
+        //
+        // Measured while parking, so the eventual ruling starts from evidence rather than a guess:
+        //   read-string   is TOTAL — malformed input returns `ReadOutcome/Malformed`, it does not raise.
+        //   fresh-symbol  is NONDETERMINISTIC — `fresh_scope()` is a process-global AtomicU64;
+        //                 two calls in ONE process returned `scopes [1069]` then `[1070]`.
+        //                 (Two calls in two PROCESSES both return [1069] — an instrument that
+        //                 cannot see the defect it is pointed at.)
+        ":wat::core::ast->children",
+        ":wat::core::ast->source",
+        ":wat::core::ast-end-span",
+        ":wat::core::ast-kind",
+        ":wat::core::ast-name",
+        ":wat::core::ast-span",
+        ":wat::core::fresh-symbol",
+        ":wat::core::keyword-node",
+        ":wat::core::read-string",
+        ":wat::core::symbol-node",
     ];
 
     /// Pull every verb the runtime dispatches, from BOTH doors: `dispatch_keyword_head_value` (the

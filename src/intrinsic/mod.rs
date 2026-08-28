@@ -396,6 +396,11 @@ pub(crate) fn registry() -> &'static IntrinsicRegistry {
     })
 }
 
+// Arc 255 Stone HOME-12 — the AST surface gets a registry home. Pure re-registration
+// (`:wat::core::ast-*`/`symbol-node`/`keyword-node`/`read-string`/`fresh-symbol` are already the
+// final spelling); the handlers stay in `src/edn/render.rs` (STOP-5 — a file carve is a separate
+// deliverable, reported not acted on).
+mod ast;
 mod bigint;
 mod bytes;
 mod char;

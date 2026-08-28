@@ -5249,59 +5249,20 @@ fn dispatch_keyword_head(
         // arms this stone; registry-routed via `src/intrinsic/edn.rs` (the registry-first door
         // above already reaches them, same reasoning as `keyword/from-string`'s note in
         // `src/intrinsic/keyword.rs`).
-        // Arc 251.5a-i — the homoiconic `read`: wat SOURCE text → forms-as-data
-        // (what `edn::read` can't do — it runs the EDN parser; this runs wat's own).
-        ":wat::core::read-string" => {
-            return crate::edn::render::eval_read_string(args, list_span, env, sym).map_err(Into::into)
-        }
+        // Arc 255 Stone HOME-12 — `:wat::core::{read-string, ast->source, ast->children,
+        // ast-kind, ast-name, ast-span, ast-end-span, symbol-node, fresh-symbol, keyword-node}`
+        // RETIRED as literal arms this stone; registry-routed via `src/intrinsic/ast.rs` (the
+        // registry-first door above already reaches them, same reasoning as above). `write-forms`
+        // and `with-children` stay literal arms here — they are not this stone's ten.
         // Arc 251.5a-ii — write side: forms-as-data → clean EDN String (the inverse
         // of read-string; the fixer's read→transform→write cycle closes here).
         ":wat::core::write-forms" => {
             return crate::edn::render::eval_write_forms(args, list_span, env, sym).map_err(Into::into)
         }
-        // Arc 278 Stone 1 — the sift Predicate's enabling primitive: forms-as-data →
-        // VERBATIM `::`-source text (does NOT dial `::`→`.` the way write-forms does).
-        ":wat::core::ast->source" => {
-            return crate::edn::render::eval_ast_to_source(args, list_span, env, sym)
-                .map_err(Into::into)
-        }
-        // Arc 251.5a-iii — the AST↔walkable bridge: decompose a :wat::WatAST node
-        // into a (Vector :- [:wat::WatAST]) the first/rest/map vocab walks (so a recursive
-        // role-inversion transform can be written IN WAT).
-        ":wat::core::ast->children" => {
-            return crate::edn::render::eval_ast_children(args, list_span, env, sym)
-                .map_err(Into::into)
-        }
         // Arc 251.5a-iv — the kind-preserving REBUILD: same kind as template, new children.
         // The inverse of ast->children given the decomposed node.
         ":wat::core::with-children" => {
             return crate::edn::render::eval_with_children(args, list_span, env, sym)
-                .map_err(Into::into)
-        }
-        // Arc 251.5a-v — node recognition + construction.
-        ":wat::core::ast-kind" => {
-            return crate::edn::render::eval_ast_kind(args, list_span, env, sym).map_err(Into::into)
-        }
-        ":wat::core::ast-name" => {
-            return crate::edn::render::eval_ast_name(args, list_span, env, sym).map_err(Into::into)
-        }
-        ":wat::core::ast-span" => {
-            return crate::edn::render::eval_ast_span(args, list_span, env, sym).map_err(Into::into)
-        }
-        ":wat::core::ast-end-span" => {
-            return crate::edn::render::eval_ast_end_span(args, list_span, env, sym)
-                .map_err(Into::into)
-        }
-        ":wat::core::symbol-node" => {
-            return crate::edn::render::eval_symbol_node(args, list_span, env, sym).map_err(Into::into)
-        }
-        // Arc 274.1 — capture-proof binder for program-body macros (sets-of-scopes, fresh ScopeId).
-        ":wat::core::fresh-symbol" => {
-            return crate::edn::render::eval_fresh_symbol(args, list_span, env, sym)
-                .map_err(Into::into)
-        }
-        ":wat::core::keyword-node" => {
-            return crate::edn::render::eval_keyword_node(args, list_span, env, sym)
                 .map_err(Into::into)
         }
         // Arc 255 Stone E-iv — `:wat::core::keyword/{to-symbol,to-type-form,
