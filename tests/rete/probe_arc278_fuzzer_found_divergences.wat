@@ -15,13 +15,13 @@
 (:wat::rete::defquery :user::qB1 :params []
   :when [(:user::P1 (?a <- :k))
          (?n <- (:wat::rete::acc::count) :from (:user::W))
-         (:wat::rete::where (:wat::rete::core::i64::>= ?n 2))])
+         (:wat::rete::where (:wat::rete::i64::>= ?n 2))])
 
 (:wat::rete::defquery :user::qB2 :params []
   :when [(:user::P1 (?a <- :k))
          (?n <- (:wat::rete::acc::count) :from (:user::W))
-         (:wat::rete::where (:wat::rete::core::i64::>= ?n 2))
-         (:wat::rete::where (:wat::rete::core::i64::> 1 0))])
+         (:wat::rete::where (:wat::rete::i64::>= ?n 2))
+         (:wat::rete::where (:wat::rete::i64::> 1 0))])
 
 ;; ── A — a LEADING accumulate emits one row per FIXPOINT ROUND ───────────────
 ;; The chain is inert: it derives S2/S3 and touches nothing the query reads. Its
@@ -31,7 +31,7 @@
 
 (:wat::rete::defquery :user::qA :params []
   :when [(?n <- (:wat::rete::acc::count) :from (:user::W))
-         (:wat::rete::where (:wat::rete::core::i64::>= ?n 2))])
+         (:wat::rete::where (:wat::rete::i64::>= ?n 2))])
 
 ;; ── C — `:not` over a DERIVED class ignores the derivation ─────────────────
 ;; STRATIFIED NEGATION. `S2` exists only because `r1` derives it from `S1`, so a

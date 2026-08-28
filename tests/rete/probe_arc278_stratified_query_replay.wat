@@ -32,7 +32,7 @@
 (:wat::core::defrecord :sqr::Ok   [k <- :wat::core::i64])
 
 (:wat::rete::defrule :sqr::mark-bad
-  :when [(:sqr::Item (?k <- :k)) (:wat::rete::where (:wat::rete::core::i64::= ?k 2))]
+  :when [(:sqr::Item (?k <- :k)) (:wat::rete::where (:wat::rete::i64::= ?k 2))]
   :then [(:sqr::Bad :k ?k)])
 
 ;; stratum 2 — negation over the DERIVED Bad, which is what forces stratification
