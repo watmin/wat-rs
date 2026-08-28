@@ -55,7 +55,7 @@
 
 use crate::ast::WatAST;
 use crate::freeze::startup_from_source;
-use crate::rete::vocabulary::{OpClass, ReteOp, RETE_OPS};
+use crate::rete::vocabulary::{ReteOp, RETE_OPS};
 use crate::runtime::{apply_function, Value};
 use std::sync::Arc;
 
@@ -192,6 +192,16 @@ struct Cell {
     /// predicates, `foldl` takes a `fn` — so they state their expression directly. One
     /// representation, two builders; a builder is not a second source of truth.
     expr: String,
+    /// True when `expr` was stated VERBATIM (from `special_for`) rather than built by
+    /// [`uniform_call`] from the row's arity.
+    ///
+    /// This is what the arity cross-check keys on, and the discriminator matters: the check used
+    /// to key on `Form | Redispatch`, which was a PROXY for "states its own expression" and stopped
+    /// being true the moment an `Alias` row needed a bespoke shape (the keyword converters, whose
+    /// operands must be wrapped because a keyword literal is unwritable in operand position). A
+    /// verbatim cell's arity drives NOTHING, so there is nothing to cross-check — and saying that
+    /// directly is honest where the class proxy was merely correct-so-far.
+    expr_is_verbatim: bool,
     /// Extra top-level declarations this cell needs before the records — an enum for `enum::=`,
     /// say. Empty for almost every row.
     extra: &'static str,
@@ -551,6 +561,8 @@ fn special_for(rete_name: &str) -> Option<(&'static str, &'static str, &'static 
         ":wat::rete::core::Tuple/first" => (":wat::core::i64", "7", "9", "(:wat::rete::core::i64::= (:wat::rete::core::Tuple/first (:wat::rete::core::Tuple {f} 99)) 7)", ""),
         ":wat::rete::core::Tuple/second" => (":wat::core::i64", "7", "9", "(:wat::rete::core::i64::= (:wat::rete::core::Tuple/second (:wat::rete::core::Tuple 99 {f})) 7)", ""),
         ":wat::rete::core::Tuple/third" => (":wat::core::i64", "7", "9", "(:wat::rete::core::i64::= (:wat::rete::core::Tuple/third (:wat::rete::core::Tuple 99 99 {f})) 7)", ""),
+        ":wat::rete::core::keyword/to-string" => (":wat::core::keyword", ":alpha", ":beta", "(:wat::rete::core::string::= (:wat::rete::core::keyword/to-string {f}) \"alpha\")", ""),
+        ":wat::rete::core::keyword/from-string" => (":wat::core::String", "\"alpha\"", "\"beta\"", "(:wat::rete::core::string::= (:wat::rete::core::keyword/to-string (:wat::rete::core::keyword/from-string {f} :undefined :none)) \"alpha\")", ""),
         _ => return None,
     };
     Some(t)
@@ -561,6 +573,7 @@ fn operands_for(rete_name: &'static str) -> Option<Cell> {
         return Some(Cell {
             op: rete_name,
             arity: 0,
+            expr_is_verbatim: true,
             field_ty,
             hit,
             miss,
@@ -673,6 +686,7 @@ fn operands_for(rete_name: &'static str) -> Option<Cell> {
     Some(Cell {
         op: rete_name,
         arity,
+        expr_is_verbatim: false,
         field_ty,
         hit,
         miss,
@@ -790,10 +804,9 @@ fn sweep_shard(shard: usize, of: usize) {
             continue;
         };
         // The row's own arity is the authority; a table entry that disagrees is a table bug, and
-        // silently trusting either one would let the two drift. Special-form cells carry arity 0
-        // and state their whole expression, so there is nothing to cross-check — `Form` and
-        // `Redispatch` rows declare no params either, which is exactly why they need one.
-        if !matches!(row.class, OpClass::Form | OpClass::Redispatch) {
+        // silently trusting either one would let the two drift. A VERBATIM cell states its whole
+        // expression, so its arity drives nothing and there is nothing to cross-check.
+        if !cell.expr_is_verbatim {
             assert_eq!(
                 cell.arity,
                 row.params.len(),
@@ -1160,5 +1173,65 @@ fn an_inline_constraint_that_computes_now_computes() {
         Ok(0),
         "expecting 99 from 10+2 must select NOTHING — otherwise the operand is not being compared, \
          only evaluated, and the cell would pass while proving nothing"
+    );
+}
+
+/// ★★ A KEYWORD CONSTANT IS WRITABLE INLINE — via the constructor, not by changing the grammar.
+///
+/// **The gap this closes, measured.** `ast_literal_value` admits Int / Float / Bool / String
+/// literals in operand position and NOT keyword — deliberately, because a bare keyword there is a
+/// FIELD REFERENCE (`matcher.rs`). Every other scalar could express a constant inline; keyword
+/// could not. And rete exposed NONE of core's seven keyword verbs — its only two keyword rows are
+/// `=`/`not=`, which fall out of the generic equality family — so there was no constructor to
+/// reach for either. Fewest rows of any type in the table, and the only one with no way to make a
+/// value.
+///
+/// `keyword/from-string` closes it as a SIDE EFFECT of parity rather than as a special case. The
+/// bare-keyword-is-a-field-reference rule is untouched and still documented; what changed is that
+/// there is now a spelling for the other meaning.
+///
+/// The row is `Fallback` because `from-string` is genuinely partial — it raises on a leading ':'
+/// and on an angle-type head — so the mandatory `:undefined` is what makes it `total: true`,
+/// exactly as it does for `i64::/`.
+#[test]
+fn a_keyword_constant_is_writable_in_an_inline_constraint() {
+    const SRC: &str = r#"(:wat::core::defrecord :probe::In  [k <- :wat::core::String  v <- :wat::core::keyword])
+(:wat::core::defrecord :probe::Out [k <- :wat::core::String])
+
+(:wat::rete::defrule :probe::rule
+  :when
+  [(:probe::In (?k <- :k)
+     (:wat::rete::core::keyword::= :v
+       (:wat::rete::core::keyword/from-string "alpha" :undefined :none)))]
+  :then
+  [(:probe::Out :k ?k)])
+
+(:wat::rete::defquery :probe::q :params [] :when [(?fact <- :probe::Out)])
+
+(:wat::core::defn :probe::run [] -> :wat::core::i64
+  (:wat::core::let
+    [rules   (:wat::rete::collect-rules :probe)
+     session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:probe::q)))
+     session (:wat::rete::insert session (:probe::In :k "hit"  :v :alpha))
+     session (:wat::rete::insert session (:probe::In :k "miss" :v :beta))
+     fired   (:wat::rete::fire-rules session)]
+    (:wat::core::length (:wat::rete::query fired (:probe::q)))))
+"#;
+    assert_eq!(
+        raw_count(SRC),
+        Ok(1),
+        "the constructor must select :alpha and reject :beta. Before the keyword converter rows \
+         this was UNWRITABLE — there was no spelling for a keyword constant in operand position"
+    );
+
+    // ⛔ THE DISCRIMINATION CONTROL. Without it this passes against a constructor that returns
+    // something equal to everything, or a comparison that is always true — both of which would
+    // also give a non-zero count while proving nothing.
+    let never = SRC.replace(r#""alpha" :undefined"#, r#""zeta" :undefined"#);
+    assert_ne!(SRC, never, "the rewrite must change the constant");
+    assert_eq!(
+        raw_count(&never),
+        Ok(0),
+        "constructing :zeta must match NEITHER fact — otherwise the comparison is not comparing"
     );
 }

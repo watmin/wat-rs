@@ -1182,6 +1182,52 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         ret: ParamType::Bool,
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
+    // ── 2026-08-28 — THE KEYWORD CONVERTERS. Measured gap, not a guess.
+    //
+    // Before these, `keyword` had TWO rete rows — the fewest of any type in this table — and both
+    // are `=`/`not=`, which fall out of the generic equality family rather than from the keyword
+    // surface. Core ships SEVEN keyword verbs (`from-string`, `to-string`, `to-symbol`,
+    // `to-type-form`, `to-type-form-colon`, `keyword-node`, the type) and rete exposed ZERO of
+    // them. A keyword could be compared to another keyword and nothing else.
+    //
+    // The consequence was concrete, not cosmetic: `ast_literal_value` admits Int/Float/Bool/String
+    // literals in operand position and NOT keyword — deliberately, because a bare keyword there is
+    // a FIELD REFERENCE (`matcher.rs`). Every other scalar can therefore express a constant inline;
+    // keyword could not, and with no constructor in the vocabulary there was no other spelling to
+    // reach for. `from-string` closes that as a SIDE EFFECT of parity rather than as a special
+    // case, and the position grammar is left exactly as documented.
+    //
+    // Found by arc 278's § 4.1 ledger asking why keyword equality was unreachable inline; the
+    // type-map half was fixed the same day (`validate.rs`'s `rete_type_segment_of`).
+    ReteOp {
+        type_params: &[],
+        rete_name: ":wat::rete::core::keyword/to-string",
+        core_name: ":wat::core::keyword/to-string",
+        class: OpClass::Alias,
+        params: &[ParamType::Keyword],
+        ret: ParamType::String,
+        // TOTAL, and audited rather than assumed. `eval_keyword_to_string` has exactly two failure
+        // exits and both are TYPE mismatches — a non-Keyword `WatAST`, and a value that is neither
+        // keyword nor WatAST. This row DECLARES its operand `Keyword`, so the checker refuses both
+        // before runtime: must-never-happen, the identical reasoning this table already applies to
+        // `PersistentMap/contains-key?`'s wrong-receiver exit.
+        meta: OpMeta { pure: true, deterministic: true, total: true },
+    },
+    ReteOp {
+        type_params: &[],
+        rete_name: ":wat::rete::core::keyword/from-string",
+        core_name: ":wat::core::keyword/from-string",
+        // ⛔ `Fallback`, NOT `Alias`, and that is the whole reason this row can exist at all.
+        // `eval_keyword_from_string` is genuinely PARTIAL: it raises on a leading `:` and on an
+        // angle-type head in the name. A partial op cannot be an Alias here — "a jump table over a
+        // partial op is not a thing" — so it buys totality the way this table's own comment says
+        // it must, with a mandatory `:undefined` value. Exactly why partial `i64::/` is
+        // `total: true` two hundred lines up.
+        class: OpClass::Fallback,
+        params: &[ParamType::String, ParamType::Keyword, ParamType::Keyword],
+        ret: ParamType::Keyword,
+        meta: OpMeta { pure: true, deterministic: true, total: true },
+    },
     // ── BRIEF-f64-fallback-rows.md (2026-08-05) — the f64 arithmetic quartet. Builder's
     // ruling: "±Inf and NaN are undefined - mint the fallback rows." Mirrors the i64
     // fallback quartet's shape exactly, but the mechanism it leans on is DIFFERENT: the i64

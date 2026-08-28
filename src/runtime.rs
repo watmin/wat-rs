@@ -11040,6 +11040,42 @@ fn eval_keyword_to_string(
     Ok(Value::String(Arc::new(text.to_string())))
 }
 
+/// VALUE-level `keyword/to-string` — the compiled rete executor's door into the same routine the
+/// interpreter runs (arc 278, the keyword converter rows).
+///
+/// Extracted 2026-08-28 rather than reimplemented: rete's `Alias` contract is "the same routine as
+/// `core_name`", and this arc has already paid twice for a second implementation quietly
+/// disagreeing with the first (`first_of` vs `positional_at`).
+///
+/// TOTAL on a value the checker has typed `keyword` — the only failure exits are type mismatches
+/// the row's declared `ParamType::Keyword` makes unreachable.
+pub(crate) fn keyword_to_string_value(v: &Value) -> Option<Value> {
+    let raw: String = match v {
+        Value::wat__core__keyword(k) => k.to_string(),
+        Value::wat__WatAST(ast) => match &**ast {
+            WatAST::Keyword(k, _) => k.clone(),
+            _ => return None,
+        },
+        _ => return None,
+    };
+    let text = raw.strip_prefix(':').unwrap_or(&raw);
+    Some(Value::String(Arc::new(text.to_string())))
+}
+
+/// VALUE-level `keyword/from-string`, and it is PARTIAL — which is exactly why its rete row is
+/// `OpClass::Fallback` and carries a mandatory `:undefined`.
+///
+/// `None` on the two refusals the interpreter raises: a leading ':' (the colon is the sigil, not
+/// payload) and an angle-type head in the name. The caller supplies the fallback value; nothing is
+/// invented here.
+pub(crate) fn keyword_from_string_value(v: &Value) -> Option<Value> {
+    let Value::String(s) = v else { return None };
+    if angle_type_head_in_name(s) || s.starts_with(':') {
+        return None;
+    }
+    Some(Value::wat__core__keyword(Arc::new(format!(":{s}"))))
+}
+
 /// `(:wat::core::keyword/from-string s)` — construct a keyword Value from
 /// a text string. The text MUST NOT start with ':' (the colon is the sigil,
 /// not part of the payload). Returns a MalformedForm error with a helpful

@@ -1440,7 +1440,7 @@ enum OpExec {
     F64Gt, F64Lt, F64Ge, F64Le, F64Eq, F64NotEq, F64Add, F64Sub, F64Mul, F64Div, F64ToStr,
     BoolToStr, StrEmpty, StrConcat, StrTrim, StrLower, StrSubs,
     PvLen, PvContains, PvGet, VecGet, ListGet, First, PvNew, VecNew, ListNew,
-    PmContainsKey, PmNew, Second, Third, TupleNew,
+    PmContainsKey, PmNew, Second, Third, TupleNew, KwToStr, KwFromStr,
     Cosine, Dot, Coincident, Presence,
     Unknown,
 }
@@ -1483,6 +1483,8 @@ impl OpExec {
             ":wat::core::f64::/" => Self::F64Div,
             ":wat::core::f64::to-string" => Self::F64ToStr,
             ":wat::core::bool::to-string" => Self::BoolToStr,
+            ":wat::core::keyword/to-string" => Self::KwToStr,
+            ":wat::core::keyword/from-string" => Self::KwFromStr,
             ":wat::core::String/empty?" => Self::StrEmpty,
             ":wat::core::String/concat" => Self::StrConcat,
             ":wat::core::string::trim" => Self::StrTrim,
@@ -1772,6 +1774,31 @@ fn apply_core_kind(
         (OpExec::VecGet, [v, i]) => crate::collection::eval::vector_get_inner(v, i),
         (OpExec::ListGet, [v, i]) => crate::collection::eval::list_get_inner(v, i),
         (OpExec::First, [v]) => first_of(v, span),
+        // The keyword converters, both delegating to the interpreter's own value-level routines so
+        // an `Alias`/`Fallback` row cannot mean something different here than in core.
+        (OpExec::KwToStr, [v]) => crate::runtime::keyword_to_string_value(v).ok_or_else(|| {
+            EvalBreak::from(RuntimeError::new(
+                span.clone(),
+                RuntimeErrorKind::TypeMismatch {
+                    op: ":wat::core::keyword/to-string".into(),
+                    expected: "keyword",
+                    got: Box::new(ValueSnapshot::of(v)),
+                },
+            ))
+        }),
+        // PARTIAL by design: a leading ':' or an angle-type head has no keyword. The row is
+        // `Fallback`, so `CallFallback` substitutes the caller's mandatory `:undefined` value on
+        // this Err — which is how the row is `total: true` without inventing an answer here.
+        (OpExec::KwFromStr, [v]) => crate::runtime::keyword_from_string_value(v).ok_or_else(|| {
+            EvalBreak::from(RuntimeError::new(
+                span.clone(),
+                RuntimeErrorKind::MalformedForm {
+                    head: ":wat::core::keyword/from-string".into(),
+                    reason: "a keyword's text may not start with ':' or carry an angle-type head"
+                        .into(),
+                },
+            ))
+        }),
         // `second`/`third` call the interpreter's own `positional_at`, so every container it
         // supports — Tuple included — is supported here by construction rather than by a list
         // someone remembered to keep in step. Arity is enforced at CHECK time
