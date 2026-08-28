@@ -152,6 +152,35 @@ with itself). **A gate that cannot pass is the mirror of one that cannot fail.**
 - **Breaking the door.** Every gate this campaign shipped was proven by removing what it guards and
   watching it go red. `NISI FRANGAS, NIHIL PROBAS.`
 
+## ⛔ THE ROAD — builder, 2026-08-27. THE ORDER IS THE RULING.
+
+> *"the first mass migration is homing everything.... then breaking everything up into crates...
+> then killing `::` in keywords ... then making every call head a symbol ... then we'll have
+> edn/clojure compliant syntax ... then we chase totality."*
+
+```
+1  HOME EVERYTHING          <- WE ARE HERE (arc 255)
+2  break into crates
+3  kill `::` in keywords
+4  every call head a symbol
+5  = EDN/Clojure-compliant syntax
+6  chase totality
+```
+
+**Totality is LAST, and that is a ruling, not a backlog position.** A defect whose honest fix is
+"make this total" gets RECORDED and left — see
+`296/NOTE-the-doctest-runner-masks-every-failure-behind-one-raise.md`, where `:wat::core::=` raises
+on 18 of 43 `Value` variants and the orchestrator offered to fix it mid-stone. The builder refused.
+**Do not open a totality front out of step order**, however cheap the instance looks.
+
+⚠ **AND "HOME" MEANS TWO THINGS** — conflated three times in one day before it was caught:
+```
+FILE-DOMAIN carve   loose root files -> src/<domain>/        HOME-5 edn · 6 load · 7 host  (all SHIPPED)
+REGISTRY home       dispatch arms    -> src/intrinsic/<ns>/  HOME-8 holon · 9/10 math,stat,seq · 11 edn · 12 ast
+```
+**Only the REGISTRY kind advances step 1.** A file carve tidies the tree and takes NOTHING away from
+`walk.rs:268`. Measure `src/intrinsic/<ns>` before calling a home built.
+
 ## ⬜ NEXT — measured, not guessed
 
 - **`@Total` HAS NO HOME, AND 255.3 CANNOT CLOSE WITHOUT IT.** `@Purity` (290) and `@Determinism`
