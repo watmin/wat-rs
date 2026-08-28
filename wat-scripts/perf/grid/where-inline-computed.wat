@@ -144,39 +144,39 @@
 ;; compile"` — a refusal that named nothing, because the expander never reached this position.
 (:wat::rete::defrule :wic::inline-cond
   :when [(:wic::Req (?k <- :k)
-           (:wat::rete::core::cond ((:wat::rete::core::i64::> :k 100) true) (:else false)))]
+           (:wat::rete::core::cond ((:wat::rete::i64::> :k 100) true) (:else false)))]
   :then [(:wic::Hit :k ?k)])
 
 ;; ROW 10 — FENCE. `cond` ALWAYS worked here, which is precisely how the inline refusal survived.
 (:wat::rete::defrule :wic::fence-cond
   :when [(:wic::Req (?k <- :k))
          (:wat::rete::where
-           (:wat::rete::core::cond ((:wat::rete::core::i64::> ?k 100) true) (:else false)))]
+           (:wat::rete::core::cond ((:wat::rete::i64::> ?k 100) true) (:else false)))]
   :then [(:wic::Hit :k ?k)])
 
 ;; ROW 11 — `let` as the inline HEAD. Provably bool because its BODY is.
 (:wat::rete::defrule :wic::inline-let-head
   :when [(:wic::Req (?k <- :k)
-           (:wat::rete::core::let [x :k] (:wat::rete::core::i64::> x 100)))]
+           (:wat::rete::core::let [x :k] (:wat::rete::i64::> x 100)))]
   :then [(:wic::Hit :k ?k)])
 
 ;; ROW 12 — FENCE.
 (:wat::rete::defrule :wic::fence-let-head
   :when [(:wic::Req (?k <- :k))
-         (:wat::rete::where (:wat::rete::core::let [x ?k] (:wat::rete::core::i64::> x 100)))]
+         (:wat::rete::where (:wat::rete::core::let [x ?k] (:wat::rete::i64::> x 100)))]
   :then [(:wic::Hit :k ?k)])
 
 ;; ROW 13 — `match` as the inline HEAD, on `= 100` so n=1 brackets it from both sides.
 (:wat::rete::defrule :wic::inline-match
   :when [(:wic::Req (?k <- :k)
-           (:wat::rete::core::match (:wat::rete::core::i64::= :k 100) (true true) (false false)))]
+           (:wat::rete::core::match (:wat::rete::i64::= :k 100) (true true) (false false)))]
   :then [(:wic::Hit :k ?k)])
 
 ;; ROW 14 — FENCE.
 (:wat::rete::defrule :wic::fence-match
   :when [(:wic::Req (?k <- :k))
          (:wat::rete::where
-           (:wat::rete::core::match (:wat::rete::core::i64::= ?k 100) (true true) (false false)))]
+           (:wat::rete::core::match (:wat::rete::i64::= ?k 100) (true true) (false false)))]
   :then [(:wic::Hit :k ?k)])
 
 (:wat::rete::defquery :wic::q-Hit :params [] :when [(?fact <- :wic::Hit)])

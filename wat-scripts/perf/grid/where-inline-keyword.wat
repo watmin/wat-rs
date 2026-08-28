@@ -114,12 +114,12 @@
     (:wat::core::foldl
       (:wat::core::fn [acc <- (:wat::core::PersistentVector :- [:wat::core::Record])  i <- :wat::core::i64]
                       -> (:wat::core::PersistentVector :- [:wat::core::Record])
-        (:wat::core::PersistentVector/conj acc
+        (:wat::vector::conj acc
           (:wik::Req
             :k i
-            :tag   (:wat::core::if (:wat::core::i64::< i 100) :alpha :beta)
-            :beta  (:wat::core::if (:wat::core::i64::< i 100) :alpha :beta)
-            :grade (:wat::core::if (:wat::core::i64::< i 60) :wik::G::Hi :wik::G::Lo))))
+            :tag   (:wat::core::if (:wat::i64::< i 100) :alpha :beta)
+            :beta  (:wat::core::if (:wat::i64::< i 100) :alpha :beta)
+            :grade (:wat::core::if (:wat::i64::< i 60) :wik::G::Hi :wik::G::Lo))))
       (:wat::core::PersistentVector)
       (:wat::core::range 0 items))))
 
@@ -129,15 +129,15 @@
     (:wat::core::into (:wat::core::Vector :wat::core::i64)
       (:wat::core::map
         (:wat::core::fn [p <- :wat::core::PersistentMap] -> :wat::core::i64
-          (:wat::core::let [f (:wat::core::Option/expect (:wat::core::PersistentMap/get p "?fact") "query: ?fact")]
+          (:wat::core::let [f (:wat::core::Option/expect (:wat::map::get p "?fact") "query: ?fact")]
             (:wik::Hit/k f)))
         (:wat::rete::query fired (:wik::q-Hit))))))
 
 (:wat::core::defn :wik::render-ints [v <- (:wat::core::Vector :- [:wat::core::i64])] -> :wat::core::String
   (:wat::core::foldl
     (:wat::core::fn [acc <- :wat::core::String  x <- :wat::core::i64] -> :wat::core::String
-      (:wat::core::String/concat acc
-        (:wat::core::String/concat " " (:wat::core::i64::to-string x))))
+      (:wat::string::concat acc
+        (:wat::string::concat " " (:wat::i64::to-string x))))
     ""
     v))
 
@@ -146,18 +146,18 @@
                     staged  (:wik::seed (:wat::rete::compile-all rules (:wat::core::PersistentVector (:wik::q-Hit))) (:wik::items))
                     fired   (:wat::rete::fire-rules staged)
                     derived (:wik::derived-ints fired)
-                    n       (:wat::core::Vector/length derived)]
-    (:wat::core::String/concat
-      (:wat::core::String/concat
-        (:wat::core::String/concat "row " (:wat::core::i64::to-string row))
-        (:wat::core::String/concat " " (:wik::rule-for row)))
-      (:wat::core::String/concat
-        (:wat::core::String/concat " n=" (:wat::core::i64::to-string n))
-        (:wat::core::String/concat " ->" (:wik::render-ints derived))))))
+                    n       (:wat::vec::length derived)]
+    (:wat::string::concat
+      (:wat::string::concat
+        (:wat::string::concat "row " (:wat::i64::to-string row))
+        (:wat::string::concat " " (:wik::rule-for row)))
+      (:wat::string::concat
+        (:wat::string::concat " n=" (:wat::i64::to-string n))
+        (:wat::string::concat " ->" (:wik::render-ints derived))))))
 
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::core::foldl
     (:wat::core::fn [acc <- :wat::core::nil  row <- :wat::core::i64] -> :wat::core::nil
       (:wat::kernel::println (:wik::run-row row)))
     nil
-    (:wat::core::range 1 (:wat::core::i64::+ (:wik::row-count) 1))))
+    (:wat::core::range 1 (:wat::i64::+ (:wik::row-count) 1))))

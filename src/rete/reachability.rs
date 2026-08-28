@@ -1477,25 +1477,25 @@ fn every_provably_boolean_form_is_admitted_inline() {
     for (name, predicate) in [
         (
             "cond",
-            "(:wat::rete::core::cond ((:wat::rete::core::i64::> :v 5) true) (:else false))",
+            "(:wat::rete::core::cond ((:wat::rete::i64::> :v 5) true) (:else false))",
         ),
         (
             "let",
-            "(:wat::rete::core::let [x :v] (:wat::rete::core::i64::> x 5))",
+            "(:wat::rete::core::let [x :v] (:wat::rete::i64::> x 5))",
         ),
         (
             "match",
-            "(:wat::rete::core::match (:wat::rete::core::i64::> :v 5) (true true) (false false))",
+            "(:wat::rete::core::match (:wat::rete::i64::> :v 5) (true true) (false false))",
         ),
         (
             "if",
-            "(:wat::rete::core::if (:wat::rete::core::i64::> :v 5) true false)",
+            "(:wat::rete::core::if (:wat::rete::i64::> :v 5) true false)",
         ),
         // Nested: a `let` whose body is an `if` — the recursion, not just the top form.
         (
             "let-of-if",
             "(:wat::rete::core::let [x :v] \
-             (:wat::rete::core::if (:wat::rete::core::i64::> x 5) true false))",
+             (:wat::rete::core::if (:wat::rete::i64::> x 5) true false))",
         ),
     ] {
         let s = src(predicate);
@@ -1520,13 +1520,13 @@ fn every_provably_boolean_form_is_admitted_inline() {
         // A `let` whose body is arithmetic — provably i64, provably NOT bool.
         (
             "let-body-is-arithmetic",
-            "(:wat::rete::core::let [x :v] (:wat::rete::core::i64::+ x 1 :undefined 0))",
+            "(:wat::rete::core::let [x :v] (:wat::rete::i64::+ x 1 :undefined 0))",
         ),
         // An `if` whose branches disagree. Neither the type nor the form is provable, and this is
         // exactly the case a head-only test could never have seen.
         (
             "if-branches-disagree",
-            "(:wat::rete::core::if (:wat::rete::core::i64::> :v 5) true 1)",
+            "(:wat::rete::core::if (:wat::rete::i64::> :v 5) true 1)",
         ),
     ] {
         assert!(
@@ -1778,7 +1778,7 @@ fn a_mistyped_field_still_names_the_field_and_only_once() {
 
 (:wat::rete::defrule :probe::rule
   :when
-  [(:probe::In (?k <- :k) (:wat::rete::core::i64::> :celcius 5))]
+  [(:probe::In (?k <- :k) (:wat::rete::i64::> :celcius 5))]
   :then
   [(:probe::Out :k ?k)])
 

@@ -27,9 +27,9 @@
 (:wat::rete::defrule :gc::count-up
   :when
   [(:gc::N (?k <- :k))
-   (:wat::rete::where (:wat::rete::core::i64::< ?k 500))]
+   (:wat::rete::where (:wat::rete::i64::< ?k 500))]
   :then
-  [(:gc::N :k (:wat::rete::core::i64::+ ?k 1 :undefined 0))])
+  [(:gc::N :k (:wat::rete::i64::+ ?k 1 :undefined 0))])
 
 (:wat::rete::defquery :gc::q :params [] :when [(?fact <- :gc::N)])
 
@@ -37,7 +37,7 @@
 ;; "compiled" first prints whether or not the compile then fails.
 (:wat::core::defn :user::main [] -> :wat::core::nil
   (:wat::kernel::println
-    (:wat::core::i64::to-string
+    (:wat::i64::to-string
       (:wat::core::length
         (:wat::rete::query
           (:wat::rete::fire-rules
