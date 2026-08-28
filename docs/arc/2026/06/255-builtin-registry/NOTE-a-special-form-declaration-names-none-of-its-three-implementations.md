@@ -166,3 +166,42 @@ TCO arm has two, not three), and whether it precedes or follows the O-iv sweep. 
 - `src/intrinsic/reflect.rs` — `show-source`, and P2's `Kind::SpecialForm` gate that would give way
   to a real answer.
 - `NOTE-an-absence-recorded-as-an-answer-…md` — the class; `source: ""` was finding 2.
+
+---
+
+## ⛔ SHIPPED 2026-08-28 (P6-a) — and it turned two buried lies into published ones the same hour
+
+The mechanism landed on `if` and `let`. **The first thing it did was publish an inverted doc comment
+to users**, which is a consequence worth carrying forward as a rule:
+
+`eval_if`'s doc read *"Arity: exactly 5 args. Positions: [cond, `->`, `:T`, then, else]. The old
+3-arg form is refused"* — **the precise opposite of the code beneath it.** Arc 258.4 retired the
+`-> :T` ascription; `args.len() == 3` is the live path and a stray `->` is what gets refused.
+`infer_if` carried the same inversion. Both were corrected in the same commit.
+
+> ★ **A fn named by `#[wat_special_form_impl]` has USER-FACING DOCUMENTATION in its doc comment.**
+> `show-source` prints the captured item, `#[doc = …]` attributes and all. Before P6-a that comment
+> was internal prose that only a Rust reader met; after it, it is what a wat programmer reads when
+> they ask what `if` is. **Stale prose on these fns is a shipped lie**, in exactly the sense the
+> `circumspicere` cast ranked highest — and the same is already true of all 380 `#[wat_intrinsic]`
+> handlers, which have been publishing their doc comments this whole time.
+
+The two inversions had been buried since arc 258.4. Nothing found them; making the source reachable
+did, within an hour. `[[feedback_a_comment_can_ship_a_gap_as_a_law]]`
+
+## ⚠ AND A CENSUS BLIND SPOT FOR P6-c, found by the rider
+
+`:wat::rete::insert` appears in the 8-arm tail match but is dispatched in the eval path by a
+**pre-match `if head == … { return … }` short-circuit** (`src/runtime.rs:~5340`), not by a literal
+match arm. **A line-anchored grep over the match body cannot see it.** P6-c's census must read the
+function preamble, not only the arms — the same instrument-blindness class this arc keeps paying
+for, one level removed: not prose mistaken for code, but code sitting *ahead of* the structure the
+instrument was pointed at.
+`[[feedback_state_what_the_instrument_can_see_before_quoting_it]]`
+
+⚠ The rider also measured the eval and check matches at **148 unique FQDN arms each**, intersecting
+at 68 — and correctly refused to call that 68 "special forms": most are ordinary polymorphic
+builtins (`get`, `assoc`, `conj`, `map`, `filter`, `HashMap`, …) that evaluate their arguments
+eagerly and are merely hardcoded rather than macro-declared. The true syntactic subset — heads that
+control *whether* their own subexpressions evaluate — is roughly a dozen, and **that dozen is not
+validated either.** Sizing it properly is P6-c's row 0.

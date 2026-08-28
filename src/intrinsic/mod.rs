@@ -270,6 +270,56 @@ pub(crate) struct SpecialFormSubmission {
 
 inventory::collect!(SpecialFormSubmission);
 
+/// Which of the three regimes an `#[wat_special_form_impl]` annotation names — arc 255 Stone
+/// P6-a. `check` runs once, statically, before any evaluation exists; `eval` and `tail` are
+/// mutually exclusive per-invocation regimes selected by call POSITION, never both
+/// (`NOTE-a-special-form-declaration-names-none-of-its-three-implementations.md`, "the three do
+/// not compose"). Hand-defined, not `wat_enum_from!`-generated (mirrors `Arity`, just above):
+/// this is a Rust-only reflection axis over a fixed, closed three-member set, not a wat-visible
+/// enum a `.wat` `defenum` needs to drive.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum SpecialFormRole {
+    /// Static type inference — `src/check.rs`'s `infer_*` fns.
+    Check,
+    /// Per-invocation evaluation — `src/runtime.rs`'s eval match.
+    Eval,
+    /// Per-invocation evaluation in tail position (TCO) — `src/runtime.rs`'s tail match.
+    /// Optional at the population level (`tail: None` is an honest "falls through to
+    /// `eval_inner`, correct but not tail-optimized" — never a wrong answer), but the WALL
+    /// below requires it for neither `if` nor `let`'s absence: both of THEM have one.
+    Tail,
+}
+
+impl SpecialFormRole {
+    /// Lowercase label — used by `show-source`'s `;; role: <label>` lines and by the wall
+    /// test's failure message. Kept as a method (not a `Display` impl) because nothing outside
+    /// this reflection surface needs to print a bare role.
+    pub(crate) fn label(&self) -> &'static str {
+        match self {
+            SpecialFormRole::Check => "check",
+            SpecialFormRole::Eval => "eval",
+            SpecialFormRole::Tail => "tail",
+        }
+    }
+}
+
+/// A link-time submission of one special form IMPLEMENTATION, gathered by `inventory` — the
+/// third inventory stream (arc 255 Stone P6-a), sibling to `IntrinsicSubmission` and
+/// `SpecialFormSubmission`. `#[wat_special_form_impl("<fqdn>", role = check|eval|tail)]` emits
+/// one of these per annotated fn (`infer_if`, `eval_if`, `eval_if_tail`, …), keyed by (name,
+/// role) — never by file, since a proc-macro cannot see across files to the OTHER two
+/// implementations of the same form.
+pub(crate) struct SpecialFormImplSubmission {
+    /// The form's FQDN — the SAME string `#[wat_special_form]` declared on the doc-only struct.
+    pub name: &'static str,
+    pub role: SpecialFormRole,
+    /// Restringified fn source — `quote!(#item).to_string()`, same mechanism
+    /// `#[wat_intrinsic]` uses for its `source` field (`wat_intrinsic.rs:565`).
+    pub source: &'static str,
+}
+
+inventory::collect!(SpecialFormImplSubmission);
+
 /// One registered intrinsic's full baseline. `handler` is consumed by the
 /// runtime dispatch route (`lookup`); `name`/`arity`/`prose`/`added`/`ret` are
 /// consumed by `metadata-of`'s intrinsic branch (`lookup_entry`); `args`/
@@ -331,6 +381,20 @@ pub(crate) struct IntrinsicEntry {
     /// Consumed by `yields_type_matches_fn_arg_param` (cfg(test)) and `eval_render_doc`.
     #[allow(dead_code)] // read by yields_type_matches_fn_arg_param (cfg(test)) + render-doc
     pub yields_type: Option<&'static str>,
+    /// Arc 255 Stone P6-a — the gathered `#[wat_special_form_impl]` submissions for this form,
+    /// (role, source) pairs in whatever order `inventory` handed them back (NOT necessarily
+    /// check→eval→tail; a reader that cares about order — `show-source` — sorts at read time).
+    /// Empty for `Kind::Intrinsic` (that kind's source lives in `source`, above) and for a
+    /// `Kind::SpecialForm` nobody has annotated yet — the exact case `impls.is_empty()` must
+    /// keep meaning "no impl found source", not "this kind never carries one" (STOP-4).
+    ///
+    /// ⚠ Every other field on this struct is `&'static` (macro-emitted literals / fn pointers
+    /// that outlive the program). This one is OWNED (`Vec`, gathered and allocated at fold
+    /// time inside `registry()`, not at compile time by a macro) because it is built by
+    /// bucketing a THIRD inventory stream per-form rather than captured directly on the
+    /// submission — `registry()` is a `OnceLock` that owns its entries, so an owned `Vec` here
+    /// is fine; it is the one asymmetry in an otherwise all-`&'static` struct.
+    pub impls: Vec<(SpecialFormRole, &'static str)>,
 }
 
 /// `name → entry`. Built once at startup; the dispatch route reads `handler`
@@ -401,7 +465,21 @@ pub(crate) fn registry() -> &'static IntrinsicRegistry {
                 determinism: submission.determinism,
                 category: submission.category,
                 yields_type: submission.yields_type,
+                impls: Vec::new(),
             });
+        }
+        // Arc 255 Stone P6-a — bucket the THIRD stream (`#[wat_special_form_impl]`
+        // submissions) ONCE, keyed by fqdn, before the special-form loop below drains it
+        // per form. Iterating the whole stream inside that loop would be O(n·m) and, more
+        // importantly, would read as if the (fqdn, role) association were incidental rather
+        // than the keyed relationship it is.
+        let mut impls_by_fqdn: std::collections::HashMap<&'static str, Vec<(SpecialFormRole, &'static str)>> =
+            std::collections::HashMap::new();
+        for submission in inventory::iter::<SpecialFormImplSubmission> {
+            impls_by_fqdn
+                .entry(submission.name)
+                .or_default()
+                .push((submission.role, submission.source));
         }
         // Each `#[wat_special_form("<fqdn>")]` struct submits a SpecialFormSubmission
         // via `inventory`; fold them into the registry as Kind::SpecialForm entries.
@@ -439,6 +517,7 @@ pub(crate) fn registry() -> &'static IntrinsicRegistry {
                 determinism: submission.determinism,
                 category: submission.category,
                 yields_type: None,
+                impls: impls_by_fqdn.remove(submission.name).unwrap_or_default(),
             });
         }
         r
@@ -824,6 +903,43 @@ mod tests {
             "duplicate FQDN registration(s) — two homes claiming the same name, which \
              IntrinsicRegistry::register silently overwrites via HashMap::insert in release \
              (its debug_assert! is compiled out there): {dupes:?}"
+        );
+    }
+
+    /// ★ Arc 255 Stone P6-a's WALL. Without this test, `entry.impls.is_empty()` silently means
+    /// BOTH "this special form has no source" (the honest population fact — nobody has
+    /// annotated it yet, e.g. every form P6-c will add) AND "this special form's checker/eval
+    /// fns forgot their `#[wat_special_form_impl]` annotation" (a real regression) — the exact
+    /// absence-read-as-an-answer defect this whole NOTE family exists to kill, re-created
+    /// inside the stone that answers it. This makes the second case loud: every registered
+    /// `Kind::SpecialForm` entry must carry at least a `check` and an `eval` impl.
+    ///
+    /// `tail` is deliberately NOT required — 8 of the eval match's heads have a tail rule, the
+    /// rest fall through to `eval_inner` correctly (just not tail-optimized); `tail: None` is
+    /// an honest absence, not a lie (see the NOTE's `None`-discriminator table). Asserting it
+    /// here would turn a real, safe default into a failure.
+    #[test]
+    fn every_special_form_carries_check_and_eval_impls() {
+        let mut missing: Vec<String> = Vec::new();
+        for entry in super::registry().all_entries() {
+            if entry.kind != super::Kind::SpecialForm {
+                continue;
+            }
+            let has_check = entry.impls.iter().any(|(role, _)| *role == super::SpecialFormRole::Check);
+            let has_eval = entry.impls.iter().any(|(role, _)| *role == super::SpecialFormRole::Eval);
+            if !has_check {
+                missing.push(format!("{} — missing role: check", entry.name));
+            }
+            if !has_eval {
+                missing.push(format!("{} — missing role: eval", entry.name));
+            }
+        }
+        missing.sort();
+        assert!(
+            missing.is_empty(),
+            "special form(s) registered via #[wat_special_form] but missing a required \
+             #[wat_special_form_impl] check or eval annotation:\n{}",
+            missing.join("\n")
         );
     }
 }

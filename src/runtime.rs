@@ -52,6 +52,7 @@ use std::os::fd::{AsRawFd, FromRawFd};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, OnceLock};
 use wat_macros::restricted_to;
+use wat_macros::wat_special_form_impl;
 
 /// Kernel-owned stop flag read by `(:wat::kernel::stopped?)`.
 ///
@@ -4551,6 +4552,7 @@ fn emit_tail_call(
 
 /// Tail-position twin of [`eval_if`]. Same validation; the selected
 /// branch body is evaluated via [`eval_tail`] instead of [`eval`].
+#[wat_special_form_impl(":wat::core::if", role = tail)]
 fn eval_if_tail(
     args: &[WatAST],
     list_span: &Span,
@@ -4608,6 +4610,7 @@ fn eval_if_tail(
 ///
 /// Mirrors the 233.2.j eval_let pattern: the tail-call path now preserves
 /// provenance through the trampoline boundary.
+#[wat_special_form_impl(":wat::core::let", role = tail)]
 fn eval_let_tail(
     args: &[WatAST],
     list_span: &Span,
@@ -8679,6 +8682,7 @@ fn val_type_path(val: &Value) -> &'static str {
 /// Non-Vector outer shape (e.g. legacy `((n e) ...)` nested-pair list)
 /// produces a clean `MalformedForm` naming the canonical shape.
 /// Arc 168 slice 3 retired the legacy outer-List fall-through arm.
+#[wat_special_form_impl(":wat::core::let", role = eval)]
 fn eval_let(
     args: &[WatAST],
     list_span: &Span,
@@ -9215,9 +9219,21 @@ fn parse_let_binding<'a>(binder: &'a WatAST, rhs: &'a WatAST) -> Result<LetBindi
 /// annotation is check-time only (runtime ignores it but validates
 /// the form's arity).
 ///
-/// Arity: exactly 5 args. Positions: [cond, `->`, `:T`, then, else].
-/// The old 3-arg form is refused with a migration-hint error; this
-/// is a hard break, no deprecation.
+/// Arity: exactly 3 args — `[cond, then, else]`.
+///
+/// ⛔ THIS DOC WAS INVERTED UNTIL 2026-08-28. It read *"Arity: exactly 5 args.
+/// Positions: [cond, `->`, `:T`, then, else]. The old 3-arg form is refused"* —
+/// the precise opposite of the code beneath it. **Arc 258.4 retired the `-> :T`
+/// ascription**: the 3-arg form is the live path (the `args.len() == 3` arm
+/// below) and a stray `->` is what gets refused now. The comment never moved.
+///
+/// It was caught because **arc 255 Stone P6-a made this comment PUBLIC**:
+/// `(:wat::core::show-source :wat::core::if)` now prints this fn, doc comment
+/// included, where it used to print `""`. A buried inverted claim became a
+/// published one the moment the source became reachable — so on this fn, and on
+/// every fn a `#[wat_special_form_impl]` names, the doc comment is USER-FACING
+/// DOCUMENTATION and stale prose here is a shipped lie.
+#[wat_special_form_impl(":wat::core::if", role = eval)]
 fn eval_if(
     args: &[WatAST],
     list_span: &Span,

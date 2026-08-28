@@ -247,10 +247,38 @@ pub(crate) fn eval_show_source(
     // there is exactly one wording for "no source available in this context", not two.
     if let Some(entry) = crate::intrinsic::registry().lookup_entry(&name) {
         return Ok(match entry.kind {
-            crate::intrinsic::Kind::SpecialForm => Value::String(Arc::new(format!(
+            // Arc 255 Stone P6-a — a special form's declaration names none of its own
+            // implementations (`#[wat_special_form]` sits on a doc-only unit struct; a
+            // proc-macro cannot reach into another file to capture `eval_if`'s body). The
+            // THIRD inventory stream (`#[wat_special_form_impl]`, gathered into `entry.impls`)
+            // is where the real source lives. `impls.is_empty()` must keep EXACTLY ONE meaning
+            // — "no source available in this context", P2's wording, unchanged — whether the
+            // cause is "nobody has annotated this form yet" (every form P6-c will add) or a
+            // genuinely source-less substrate primitive; a second wording here would be the
+            // same absence-as-answer defect this NOTE family exists to kill (STOP-4).
+            crate::intrinsic::Kind::SpecialForm if entry.impls.is_empty() => Value::String(Arc::new(format!(
                 ";; {} — substrate primitive (no source available in this context)",
                 name
             ))),
+            crate::intrinsic::Kind::SpecialForm => {
+                // check → eval → tail order (the NOTE's own regime order — check runs once
+                // statically, eval and tail are the mutually-exclusive per-invocation
+                // regimes), never inventory's arbitrary submission order.
+                let role_order = [
+                    crate::intrinsic::SpecialFormRole::Check,
+                    crate::intrinsic::SpecialFormRole::Eval,
+                    crate::intrinsic::SpecialFormRole::Tail,
+                ];
+                let mut out = format!(";; {} — special form (check · eval · tail)\n", name);
+                for role in role_order {
+                    for (r, source) in &entry.impls {
+                        if *r == role {
+                            out.push_str(&format!("\n;; role: {}\n{}\n", role.label(), source));
+                        }
+                    }
+                }
+                Value::String(Arc::new(out))
+            }
             _ => Value::String(Arc::new(entry.source.to_string())),
         });
     }

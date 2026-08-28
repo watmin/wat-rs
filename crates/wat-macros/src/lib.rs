@@ -29,6 +29,7 @@ mod codegen;
 mod discover;
 mod wat_intrinsic;
 mod wat_special_form;
+mod wat_special_form_impl;
 mod wat_value;
 
 /// `#[wat_value]` — structural seal for enum definitions.
@@ -233,6 +234,23 @@ pub fn wat_special_form(attr: TokenStream, item: TokenStream) -> TokenStream {
     let fqdn = parse_macro_input!(attr as LitStr);
     let parsed_struct = parse_macro_input!(item as syn::ItemStruct);
     match wat_special_form::emit(&fqdn, &parsed_struct) {
+        Ok(ts) => ts.into(),
+        Err(e) => e.to_compile_error().into(),
+    }
+}
+
+/// `#[wat_special_form_impl("<fqdn>", role = check|eval|tail)]` — arc 255 Stone P6-a. Goes ON
+/// each of a special form's real Rust implementations (the check/eval/tail fns that
+/// `#[wat_special_form]`'s doc-only unit struct cannot reach across files to capture), passing
+/// the fn through unchanged and submitting its restringified source, keyed by (fqdn, role), for
+/// `registry()` to gather into the matching `Kind::SpecialForm` entry. See
+/// `crates/wat-macros/src/wat_special_form_impl.rs` for the full design.
+#[proc_macro_attribute]
+pub fn wat_special_form_impl(attr: TokenStream, item: TokenStream) -> TokenStream {
+    let attr = parse_macro_input!(attr as wat_special_form_impl::WatSpecialFormImplAttr);
+    let parsed_fn = parse_macro_input!(item as syn::ItemFn);
+
+    match wat_special_form_impl::emit(&attr, &parsed_fn) {
         Ok(ts) => ts.into(),
         Err(e) => e.to_compile_error().into(),
     }

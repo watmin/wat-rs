@@ -16,7 +16,7 @@ P4  the skipped population is MEASURED         a measurement stone; nothing deci
 O-iv-c  holon sweep                            73 verbs — needs disposition rows (span-carrying)
 O-iv-d  the remainder sweep                    26 verbs — same
 P5  @yields becomes mandatory at expand time   the top rung; biggest change
-P6-a a special form NAMES its impls        ← NEXT: RULED — "we finish it"; mechanism on if+let
+P6-a a special form NAMES its impls        ✅ STRUCK — show-source prints check·eval·tail
 P6-c the two matches collapse to lookups     the megafile: 111 eval arms + 8 tail arms
 ```
 
@@ -36,7 +36,7 @@ the floor (P1). Adding the population first and the wall second is the wrong ord
 | **O-iv-c** | holon sweep — `atom` 41 · `subspace` 10 · `engram` 10 · `reckoner` 8 · `hologram` 4 | 73 verbs | *not drawn* | disposition rows (span-carrying algebra) |
 | **O-iv-d** | the remainder — `uuid` 7 · `ambient` 7 · `string`/`reflect`/`bytes` 2 · six singles | 26 verbs | *not drawn* | same |
 | **P5** | `@yields` mandatory when an `@arg` carries an Fn shape | macro-expand-time rule | *not drawn* | P4's measurement |
-| **P6-a** | a special form NAMES its implementations — `#[wat_special_form_impl]`, show-source prints check·eval·tail | new macro + 3rd inventory stream + a wall; **6 annotation lines** | `BRIEF-STONE-P6-a-a-special-form-names-its-implementations.md` | — **READY** (builder ruled: *"we finish it"*) |
+| ~~P6-a~~ | ~~a special form names its implementations~~ | | | ✅ **STRUCK** — see Closed |
 | **P6-c** | the eval and tail matches collapse into registry lookups | 111 eval arms + 8 tail arms | *not drawn* | P6-a's mechanism + its row-0 census |
 
 ## What each row is FOR — one line, so a fresh reader does not need the NOTE
@@ -68,7 +68,8 @@ Full detail and the disk citations: `NOTE-an-absence-recorded-as-an-answer-the-c
 
 `A-i`…`F` (scalars, collections, String) · `HOME-8`…`HOME-13` · `STONE G` (provenance) ·
 `STONE N` (apply's authority) · `O-i` (the arity guard) · `O-ii` (the defclause door) ·
-`O-iii` (one declaration, both doors) · `O-iv-a` (the honest word) · `P2` (the special-form entry — show-source stops returning "", `if` reports arity 3 not -1) ·
+`O-iii` (one declaration, both doors) · `O-iv-a` (the honest word) · `P6-a` (a special form names its impls — and publishing them exposed two INVERTED doc comments
+on `if`, buried since arc 258.4) · `P2` (the special-form entry — show-source stops returning "", `if` reports arity 3 not -1) ·
 `O-iv-b` (the collections sweep — 8 new doors, 24 two-fn collapses, 24 `expect("arity-checked")`
 sites deleted, −556 lines) · `P1` (the collision gate —
 proven by planting a real duplicate and watching the floor run 5065/5065 GREEN past it).

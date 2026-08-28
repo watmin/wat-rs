@@ -58,6 +58,7 @@ use crate::span::Span;
 use crate::types::{TypeError, TypeErrorKind, TypeEnv, TypeExpr};
 use std::borrow::Cow;
 use std::collections::HashMap;
+use wat_macros::wat_special_form_impl;
 
 /// A function's declared signature: universally-quantified type
 /// parameters, then parameter types and return type.
@@ -7432,15 +7433,15 @@ fn check_subpattern(
 /// `(:wat::core::if cond then else)` — typed conditional per
 /// the 2026-04-20 INSCRIPTION.
 ///
-/// Arity: 5 args exactly. Positions: [cond, `->`, `:T`, then, else].
-/// The declared `:T` is the expected type for BOTH branches; each
-/// branch body is checked against it independently so the error
-/// message names WHICH branch diverged (rather than "branches
-/// didn't unify" which doesn't name the author's intent).
+/// Arity: exactly 3 args — `[cond, then, else]`. Both branches are checked
+/// against one another so the error names WHICH branch diverged, rather than
+/// "branches didn't unify", which does not name the author's intent.
 ///
-/// The old 3-arg form is refused with a migration-hint MalformedForm
-/// at resolve time via the runtime's eval_if; by the time we reach
-/// infer_if with the wrong arity, we emit MalformedForm and bail.
+/// ⛔ THIS DOC WAS INVERTED UNTIL 2026-08-28, in the same way `eval_if`'s was:
+/// it claimed *"5 args exactly … the old 3-arg form is refused"*. Arc 258.4
+/// retired the `-> :T` ascription; 3 args is the live form. See `eval_if`'s
+/// comment for why this now matters — `show-source` publishes it.
+#[wat_special_form_impl(":wat::core::if", role = check)]
 fn infer_if(
     args: &[WatAST],
     head_span: &Span,
@@ -7715,6 +7716,7 @@ fn infer_do(
 // uniformity; functions that don't emit errors at the head site
 // underscore-prefix the parameter (`_head_span`) — the signature stays
 // consistent across the family.
+#[wat_special_form_impl(":wat::core::let", role = check)]
 fn infer_let(
     args: &[WatAST],
     _head_span: &Span, // rune:lint(unused-span) — located elsewhere: MalformedForm at the bad node's own span (the outer Vector's / `other.span()`); process-join errors at their threaded join/bind spans
