@@ -162,7 +162,19 @@ none forces an entry. The list is not currently growing, and the keyword case th
 hole is already fixed on `claude-compute`.
 
 So the pressure that justifies this work is spent for now, and doing it mid-flight buys little.
-The trigger to act on is the **next mass rename** — the pending clojure-syntax flip is exactly
-that shape, and it will force the same hand-maintained parity across both lists again. Do this
-BEFORE that lands, not during: the whole point is that the next campaign should not have to
-remember to measure.
+
+**The trigger is the three-way sync.** Builder's ruling 2026-08-28: this is handled after main,
+grok-rete and the integration branch next converge — not before. The reason it waits for the
+sync specifically, rather than for a quiet afternoon on any one branch:
+
+- Both lists are edited from BOTH sides. `RETE_MODULES` grew from main's rehoming stones;
+  `infer_rete_form`'s arms grew from grok-rete's new rows (`filterv`, `second`, `third`). A
+  derivation landed on one branch while the other is still appending re-opens the same parity
+  problem as a merge conflict — the fix would spend its first week fighting the disease it cures.
+- At a sync both tables are momentarily agreed, which is the only moment the derived set can be
+  shown equal to BOTH hand-maintained lists at once. That equality is the proof the change is
+  behaviour-preserving; away from a sync it can only be shown against one side.
+
+Do it at the sync, and before the next mass rename after it — the pending clojure-syntax flip is
+exactly the shape that will force this parity by hand all over again. The whole point is that the
+next campaign should not have to remember to measure.
