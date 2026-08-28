@@ -24,7 +24,7 @@
 ⚠ `git status` FIRST. `pgrep -af 'cargo|nextest'`.
 
 ```
-floor .......... 5059/5059, 0 FAIL, 19 skipped, ~90s   (scripts/floor.sh, exit read UNPIPED)
+floor .......... 5065/5065, 0 FAIL, 19 skipped, ~94s   (scripts/floor.sh, exit read UNPIPED)
                 ⚠ ACCOUNTED BY NAME, NEVER BY ARITHMETIC.
 clippy ......... 0 under `-D warnings`
 host ........... JohnDesktop · john · ~/work/holon/wat-rs
@@ -61,7 +61,14 @@ and **that gate cannot be un-ignored by anything smaller.**
 ## WHERE WE ARE
 
 ```
-registered intrinsics ... 385        src/intrinsic/ homes ... 30        retirement rows ... 144
+registered NAMES ........ 381        registered namespaces .. 27        retirement rows ... 144
+                ⚠ 385 WAS ATTRIBUTE SITES, and 4 of them are `<fqdn>` DOC PLACEHOLDERS. "30 homes"
+                  was `ls src/intrinsic | wc -l` — a FILE count (mod · witness · reflect · special
+                  are not namespaces). The instrument, so the number outlives it (2026-08-28):
+                    find src -name '*.rs' -exec cat {} + | tr '\n' ' ' \
+                      | grep -oP '#\[wat_intrinsic\(\s*"\K[^"]+' | grep -v '<fqdn>' | sort -u | wc -l
+                  ⚠ Newline-tolerant on purpose: a per-line grep misses multi-line attributes, and a
+                  bare `#[wat_intrinsic]` grep counts 48 PROSE mentions in doc comments as code.
 src/ root .rs files ..... 22         runtime.rs 34,252  (was 40,441 — DOWN 6,189 in one day)
 dispatch arms left ...... 168        ⚠ 191 was the honest figure before HOME-13 deleted 44
 ```
@@ -193,7 +200,7 @@ REGISTRY home       dispatch arms    -> src/intrinsic/<ns>/  HOME-8 holon · 9/1
 
 ## ⬜ NEXT — measured, not guessed
 
-- ⛔ **`apply` LIES ABOUT WHAT EXISTS — 44 of 385.** Demonstrated live:
+- ⛔ **`apply` LIES ABOUT WHAT EXISTS — 44 of 381.** Demonstrated live:
   `(:wat::f64::max-of 3.0 9.0 41.0)` → `Some [41.0]`, but
   `(:wat::core::apply :wat::f64::max-of […])` → **"unknown function"**. `max-of` is registered and
   works; `apply` reports it absent because it has no `value_handler`, so `lookup_value` returns
@@ -202,7 +209,7 @@ REGISTRY home       dispatch arms    -> src/intrinsic/<ns>/  HOME-8 holon · 9/1
   VARIADIC verb, the one that most wants splat. TWO separable follow-ups, both the builder's to rule:
   (a) the diagnostic is a LIE regardless of the fix — honest text is *"registered, but not reachable
   through apply"*; (b) ONE DECLARATION FEEDING BOTH DOORS: most handlers are shells (eval the args,
-  call a value-fn), so the macro could generate the AST shell from the value-fn. Touches all 385.
+  call a value-fn), so the macro could generate the AST shell from the value-fn. Touches all 381.
   ⚠ **The two CALLING CONVENTIONS are forced by the language, not by us** — `apply`'s arguments have
   no syntax. Proven: `(apply :wat::i64::+ (:mk::pair))` → 42, and the form's AST children are
   `[apply, the verb, (:mk::pair)]` — no node for `20` or `22` exists anywhere. It is splat, and the
