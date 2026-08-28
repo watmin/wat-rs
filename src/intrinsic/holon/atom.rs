@@ -70,6 +70,20 @@
 //! Only four `:wat::holon::` verbs are rete-classified
 //! (`src/rete/purity.rs:647`, builder-ruled 2026-08-01) — none of the 60
 //! below are among them, and this carve adds none (STOP-7).
+//!
+//! arc 255 Stone H-1b — 52 of these 60 handlers declare their real fixed
+//! arity (`&WatAST` per parameter) instead of `args: &[WatAST]`; their
+//! hand-rolled arity checks are gone, replaced by the check
+//! `#[wat_intrinsic]` now generates from the declared parameter count,
+//! exactly as Stone H-1a did for `subspace.rs`/`engram.rs`/`reckoner.rs`/
+//! `hologram.rs`. Eight stay variadic: `from-holon` is genuinely 1-or-3
+//! arity (STOP-1, untouched); `literal` and the six `eval-*-coincident?`
+//! verbs each hand off their arity check to a helper shared with another
+//! call site whose error shape (`op` text for `literal`; `RuntimeErrorKind`
+//! itself — `MalformedForm`, not `ArityMismatch` — for the coincident
+//! family) would silently change under the generated check, so they were
+//! left exactly as they were (STOP-2). See
+//! `docs/arc/2026/06/255-builtin-registry/DESIGN-STONE-H-holon-adopts-the-kernels-interface.md`.
 
 use std::sync::Arc;
 use std::collections::HashSet;
@@ -428,29 +442,18 @@ pub(crate) fn eval_holon_from_holon(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Transform
-/// @arg     args… :wat::core::Value the HolonAST to wrap, alone
+/// @arg     h :wat::holon::HolonAST the HolonAST to wrap, alone
 /// @ret     :wat::holon::HolonAST an `Atom` wrapping the given HolonAST
 /// @example (:wat::holon::Atom (:wat::holon::leaf "role")) #=> (:wat::holon::Atom (:wat::holon::leaf "role"))
 #[wat_intrinsic(":wat::holon::Atom")]
 pub(crate) fn eval_holon_atom_constructor(
-    args: &[WatAST],
+    h: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
-    list_span: &Span,
+    _span: &Span, // rune:lint(unused-span) — located elsewhere: the only error (from `wrap_holon_as_atom`) locates at `h`'s own span, more precise than the coarse list span
 ) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::Atom".into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let v = eval_inner(&args[0], env, sym)?.value_owned();
-    wrap_holon_as_atom(v, args[0].span())
+    let v = eval_inner(h, env, sym)?.value_owned();
+    wrap_holon_as_atom(v, h.span())
 }
 
 
@@ -463,30 +466,19 @@ pub(crate) fn eval_holon_atom_constructor(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Transform
-/// @arg     args… :wat::core::Value the value to encode, alone
+/// @arg     v :T the value to encode, alone
 /// @ret     :wat::holon::HolonAST the HolonAST composition encoding `v`
 /// @example (:wat::holon::to-holon "role") #=> (:wat::holon::to-holon "role")
 /// @see     :wat::holon::from-holon
 #[wat_intrinsic(":wat::holon::to-holon")]
 pub(crate) fn eval_holon_to_holon(
-    args: &[WatAST],
+    v: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
-    list_span: &Span,
+    _span: &Span, // rune:lint(unused-span) — located elsewhere: the only error (from `to_holon_inner`) locates at `v`'s own span, more precise than the coarse list span
 ) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::to-holon".into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let v = eval_inner(&args[0], env, sym)?.value_owned();
-    to_holon_inner(v, args[0].span())
+    let val = eval_inner(v, env, sym)?.value_owned();
+    to_holon_inner(val, v.span())
 }
 
 
@@ -498,30 +490,19 @@ pub(crate) fn eval_holon_to_holon(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Transform
-/// @arg     args… :wat::core::Value the primitive value to wrap, alone
+/// @arg     v :T the primitive value to wrap, alone
 /// @ret     :wat::holon::HolonAST the primitive leaf
 /// @example (:wat::holon::leaf 5) #=> (:wat::holon::leaf 5)
 #[wat_intrinsic(":wat::holon::leaf")]
 pub(crate) fn eval_holon_leaf(
-    args: &[WatAST],
+    v: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
-    list_span: &Span,
+    _span: &Span, // rune:lint(unused-span) — located elsewhere: the only error (TypeMismatch) locates at `v`'s own span, more precise than the coarse list span
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::leaf";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let v = eval_inner(&args[0], env, sym)?.value_owned();
-    let h = match v {
+    let val = eval_inner(v, env, sym)?.value_owned();
+    let h = match val {
         Value::i64(n) => HolonAST::i64(n),
         Value::f64(x) => HolonAST::f64(x),
         Value::bool(b) => HolonAST::bool_(b),
@@ -534,7 +515,7 @@ pub(crate) fn eval_holon_leaf(
         Value::Unit => HolonAST::nil(),
         other => {
             return Err(RuntimeError::new(
-                args[0].span().clone(),
+                v.span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "primitive (i64/f64/bool/String/keyword/nil); \
@@ -558,35 +539,24 @@ pub(crate) fn eval_holon_leaf(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Transform
-/// @arg     args… :wat::WatAST the quoted form to lower, alone
+/// @arg     a :wat::WatAST the quoted form to lower, alone
 /// @ret     :wat::holon::HolonAST the HolonAST composition encoding the form's structure
 /// @example (:wat::holon::from-wat (:wat::core::quote (:wat::i64::+ 1 2))) #=> (:wat::holon::from-wat (:wat::core::quote (:wat::i64::+ 1 2)))
 /// @see     :wat::holon::to-wat
 #[wat_intrinsic(":wat::holon::from-wat")]
 pub(crate) fn eval_holon_from_wat(
-    args: &[WatAST],
+    a: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
-    list_span: &Span,
+    _span: &Span, // rune:lint(unused-span) — located elsewhere: the only error (TypeMismatch) locates at `a`'s own span, more precise than the coarse list span
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::from-wat";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let v = eval_inner(&args[0], env, sym)?.value_owned();
+    let v = eval_inner(a, env, sym)?.value_owned();
     let h = match v {
         Value::wat__WatAST(a) => watast_to_holon(&a),
         other => {
             return Err(RuntimeError::new(
-                args[0].span().clone(),
+                a.span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: ":wat::WatAST (typically from :wat::core::quote); \
@@ -610,33 +580,22 @@ pub(crate) fn eval_holon_from_wat(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Transform
-/// @arg     args… :wat::core::Value the HolonAST to raise back to a form, alone
+/// @arg     h :wat::holon::HolonAST the HolonAST to raise back to a form, alone
 /// @ret     :wat::WatAST the reconstructed quoted form
 /// @example (:wat::holon::to-wat (:wat::holon::from-wat (:wat::core::quote x))) #=> (:wat::holon::to-wat (:wat::holon::from-wat (:wat::core::quote x)))
 /// @see     :wat::holon::from-wat
 #[wat_intrinsic(":wat::holon::to-wat")]
 pub(crate) fn eval_holon_to_wat(
-    args: &[WatAST],
+    h: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
-    list_span: &Span,
+    _span: &Span, // rune:lint(unused-span) — located elsewhere: the only error (TypeMismatch) locates at `h`'s own span, more precise than the coarse list span
 ) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::to-wat".into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let h = match eval_inner(&args[0], env, sym)?.value_owned() {
+    let h = match eval_inner(h, env, sym)?.value_owned() {
         Value::holon__HolonAST(h) => h,
         other => {
             return Err(RuntimeError::new(
-                args[0].span().clone(),
+                h.span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: ":wat::holon::to-wat".into(),
                     expected: "wat::holon::HolonAST",
@@ -691,18 +650,29 @@ pub(crate) fn eval_holon_literal(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Transform
-/// @arg     args… :wat::core::Value the value projected and its surface probe, in order
+/// @arg     x :wat::core::Value the value projected
+/// @arg     surface :wat::core::keyword the surface probe `x` is projected onto (a literal keyword, not evaluated)
 /// @ret     :wat::core::Value a `wat::holon::HolonRecord`-classed Aggregate
 /// @example (:wat::core::do (:wat::core::defstruct :probe::Pt [x <- :wat::core::i64]) (:wat::core::defsurface :probe::Planar :nature :wat::core::Struct :features [x <- :wat::core::i64]) (:wat::holon::to-record (:probe::Pt :x 3) :probe::Planar)) #=> (:wat::core::do (:wat::core::defstruct :probe::Pt [x <- :wat::core::i64]) (:wat::core::defsurface :probe::Planar :nature :wat::core::Struct :features [x <- :wat::core::i64]) (:wat::holon::to-record (:probe::Pt :x 3) :probe::Planar))
 #[wat_intrinsic(":wat::holon::to-record")]
 pub(crate) fn eval_to_holon_record(
-    args: &[WatAST],
+    x: &WatAST,
+    surface: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::to-record";
-    let (x_val, surface_kw, surf) = parse_projection_args(OP, args, list_span, env, sym)?;
+    // `parse_projection_args` still takes a slice — it is shared verbatim with
+    // its other call site in `runtime.rs` (a projection verb outside this
+    // file's scope), so its own signature is untouched. The two named
+    // params are re-packed into the 2-element slice it expects; its own
+    // hand-rolled arity check is therefore unreachable through this call
+    // site (the `#[wat_intrinsic]`-generated check now enforces arity 2
+    // before this body runs at all) but is left in place because the fn is
+    // still reached directly, with a real slice, from that other call site.
+    let call_args = [x.clone(), surface.clone()];
+    let (x_val, surface_kw, surf) = parse_projection_args(OP, &call_args, list_span, env, sym)?;
     let (field_names, field_values) = project_surface_attrs(&x_val, &surf, sym, list_span)?;
     let class = format!("{}$holon-record", surface_kw.trim_start_matches(':'));
     let ctx = require_encoding_ctx(OP, sym, list_span)?;
@@ -725,34 +695,23 @@ pub(crate) fn eval_to_holon_record(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Transform
-/// @arg     args… :wat::core::Value the `:wat::core::Vector` of child HolonASTs, alone
+/// @arg     items (:wat::core::Vector :- [:wat::holon::HolonAST]) the `:wat::core::Vector` of child HolonASTs, alone
 /// @ret     :wat::holon::HolonAST the classifier-wrapped composition
 /// @example (:wat::holon::Map (:wat::core::Vector :wat::holon::HolonAST (:wat::holon::Bind (:wat::holon::leaf "k") (:wat::holon::leaf "v")))) #=> (:wat::holon::Map (:wat::core::Vector :wat::holon::HolonAST (:wat::holon::Bind (:wat::holon::leaf "k") (:wat::holon::leaf "v"))))
 /// @see     :wat::holon::from-holon
 #[wat_intrinsic(":wat::holon::Map")]
 pub(crate) fn eval_algebra_map(
-    args: &[WatAST],
+    items: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
-    list_span: &Span,
+    _span: &Span, // rune:lint(unused-span) — located elsewhere: the only error (TypeMismatch) locates at `items`'s own span, more precise than the coarse list span
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::Map";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let list = match eval_inner(&args[0], env, sym)?.value_owned() {
+    let list = match eval_inner(items, env, sym)?.value_owned() {
         Value::Vec(l) => l,
         other => {
             return Err(RuntimeError::new(
-                args[0].span().clone(),
+                items.span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "(List :- [wat::holon::HolonAST]) from (:wat::core::Vector ...)",
@@ -784,34 +743,23 @@ pub(crate) fn eval_algebra_map(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Transform
-/// @arg     args… :wat::core::Value the `:wat::core::Vector` of child HolonASTs, alone
+/// @arg     items (:wat::core::Vector :- [:wat::holon::HolonAST]) the `:wat::core::Vector` of child HolonASTs, alone
 /// @ret     :wat::holon::HolonAST the classifier-wrapped composition
 /// @example (:wat::holon::Set (:wat::core::Vector :wat::holon::HolonAST (:wat::holon::leaf "role"))) #=> (:wat::holon::Set (:wat::core::Vector :wat::holon::HolonAST (:wat::holon::leaf "role")))
 /// @see     :wat::holon::from-holon
 #[wat_intrinsic(":wat::holon::Set")]
 pub(crate) fn eval_algebra_set(
-    args: &[WatAST],
+    items: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
-    list_span: &Span,
+    _span: &Span, // rune:lint(unused-span) — located elsewhere: the only error (TypeMismatch) locates at `items`'s own span, more precise than the coarse list span
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::Set";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let list = match eval_inner(&args[0], env, sym)?.value_owned() {
+    let list = match eval_inner(items, env, sym)?.value_owned() {
         Value::Vec(l) => l,
         other => {
             return Err(RuntimeError::new(
-                args[0].span().clone(),
+                items.span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "(List :- [wat::holon::HolonAST]) from (:wat::core::Vector ...)",
@@ -843,34 +791,23 @@ pub(crate) fn eval_algebra_set(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Transform
-/// @arg     args… :wat::core::Value the `:wat::core::Vector` of child HolonASTs, alone
+/// @arg     items (:wat::core::Vector :- [:wat::holon::HolonAST]) the `:wat::core::Vector` of child HolonASTs, alone
 /// @ret     :wat::holon::HolonAST the classifier-wrapped composition
 /// @example (:wat::holon::Vector (:wat::core::Vector :wat::holon::HolonAST (:wat::holon::leaf "role"))) #=> (:wat::holon::Vector (:wat::core::Vector :wat::holon::HolonAST (:wat::holon::leaf "role")))
 /// @see     :wat::holon::from-holon
 #[wat_intrinsic(":wat::holon::Vector")]
 pub(crate) fn eval_algebra_vector(
-    args: &[WatAST],
+    items: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
-    list_span: &Span,
+    _span: &Span, // rune:lint(unused-span) — located elsewhere: the only error (TypeMismatch) locates at `items`'s own span, more precise than the coarse list span
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::Vector";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let list = match eval_inner(&args[0], env, sym)?.value_owned() {
+    let list = match eval_inner(items, env, sym)?.value_owned() {
         Value::Vec(l) => l,
         other => {
             return Err(RuntimeError::new(
-                args[0].span().clone(),
+                items.span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "(List :- [wat::holon::HolonAST]) from (:wat::core::Vector ...)",
@@ -906,34 +843,23 @@ pub(crate) fn eval_algebra_vector(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Transform
-/// @arg     args… :wat::core::Value the `:wat::core::Vector` of child HolonASTs, alone
+/// @arg     items (:wat::core::Vector :- [:wat::holon::HolonAST]) the `:wat::core::Vector` of child HolonASTs, alone
 /// @ret     :wat::holon::HolonAST the classifier-wrapped composition
 /// @example (:wat::holon::List (:wat::core::Vector :wat::holon::HolonAST (:wat::holon::leaf "role"))) #=> (:wat::holon::List (:wat::core::Vector :wat::holon::HolonAST (:wat::holon::leaf "role")))
 /// @see     :wat::holon::from-holon
 #[wat_intrinsic(":wat::holon::List")]
 pub(crate) fn eval_algebra_list(
-    args: &[WatAST],
+    items: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
-    list_span: &Span,
+    _span: &Span, // rune:lint(unused-span) — located elsewhere: the only error (TypeMismatch) locates at `items`'s own span, more precise than the coarse list span
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::List";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let list = match eval_inner(&args[0], env, sym)?.value_owned() {
+    let list = match eval_inner(items, env, sym)?.value_owned() {
         Value::Vec(l) => l,
         other => {
             return Err(RuntimeError::new(
-                args[0].span().clone(),
+                items.span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "(List :- [wat::holon::HolonAST]) from (:wat::core::Vector ...)",
@@ -965,34 +891,23 @@ pub(crate) fn eval_algebra_list(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Transform
-/// @arg     args… :wat::core::Value the `:wat::core::Vector` of child HolonASTs, alone
+/// @arg     items (:wat::core::Vector :- [:wat::holon::HolonAST]) the `:wat::core::Vector` of child HolonASTs, alone
 /// @ret     :wat::holon::HolonAST the classifier-wrapped composition
 /// @example (:wat::holon::Tuple (:wat::core::Vector :wat::holon::HolonAST (:wat::holon::leaf "role"))) #=> (:wat::holon::Tuple (:wat::core::Vector :wat::holon::HolonAST (:wat::holon::leaf "role")))
 /// @see     :wat::holon::from-holon
 #[wat_intrinsic(":wat::holon::Tuple")]
 pub(crate) fn eval_algebra_tuple(
-    args: &[WatAST],
+    items: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
-    list_span: &Span,
+    _span: &Span, // rune:lint(unused-span) — located elsewhere: the only error (TypeMismatch) locates at `items`'s own span, more precise than the coarse list span
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::Tuple";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let list = match eval_inner(&args[0], env, sym)?.value_owned() {
+    let list = match eval_inner(items, env, sym)?.value_owned() {
         Value::Vec(l) => l,
         other => {
             return Err(RuntimeError::new(
-                args[0].span().clone(),
+                items.span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "(List :- [wat::holon::HolonAST]) from (:wat::core::Vector ...)",
@@ -1029,40 +944,31 @@ pub(crate) fn eval_algebra_tuple(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Combine
-/// @arg     args… :wat::holon::HolonAST the two operands bound together, in order
+/// @arg     a :wat::holon::HolonAST the two operands bound together, in order
+/// @arg     b :wat::holon::HolonAST the two operands bound together, in order
 /// @ret     :wat::holon::HolonAST the `Bind(a, b)` composition
 /// @example (:wat::holon::Bind (:wat::holon::leaf "role") (:wat::holon::leaf "filler")) #=> (:wat::holon::Bind (:wat::holon::leaf "role") (:wat::holon::leaf "filler"))
 /// @see     :wat::holon::Bind/left
 #[wat_intrinsic(":wat::holon::Bind")]
 pub(crate) fn eval_algebra_bind(
-    args: &[WatAST],
+    a: &WatAST,
+    b: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
-    list_span: &Span,
+    _span: &Span, // rune:lint(unused-span) — located elsewhere: the only errors (from `coerce_to_holon_ast`) locate at `a`'s/`b`'s own span, more precise than the coarse list span
 ) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::Bind".into(),
-                expected: 2,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
     // Arc 234 Stone 234.5 — D3: thread coerce_to_holon_ast for both args.
     // Accepts Value::holon__HolonAST (existing) OR Value::Aggregate(HolonRecord).
     // Records flow through natively; auto-dispatch extracts the hologram at the boundary.
     let a = coerce_to_holon_ast(
         ":wat::holon::Bind",
-        eval_inner(&args[0], env, sym)?.value_owned(),
-        args[0].span(),
+        eval_inner(a, env, sym)?.value_owned(),
+        a.span(),
     )?;
     let b = coerce_to_holon_ast(
         ":wat::holon::Bind",
-        eval_inner(&args[1], env, sym)?.value_owned(),
-        args[1].span(),
+        eval_inner(b, env, sym)?.value_owned(),
+        b.span(),
     )?;
 
     // No AST-level simplification. MAP's bind self-inverse — Bind(Bind(x,y),x) →
@@ -1086,32 +992,21 @@ pub(crate) fn eval_algebra_bind(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Combine
-/// @arg     args… :wat::core::Value the `:wat::core::Vector` of child HolonASTs bundled, alone
+/// @arg     items (:wat::core::Vector :- [:wat::holon::HolonAST]) the `:wat::core::Vector` of child HolonASTs bundled, alone
 /// @ret     (:wat::core::Result :- [:wat::holon::HolonAST :wat::holon::CapacityExceeded]) `Ok` the Bundle composition, or `Err` a `CapacityExceeded`
 /// @example (:wat::holon::Bundle (:wat::core::Vector :wat::holon::HolonAST (:wat::holon::leaf "role") (:wat::holon::leaf "filler"))) #=> (:wat::holon::Bundle (:wat::core::Vector :wat::holon::HolonAST (:wat::holon::leaf "role") (:wat::holon::leaf "filler")))
 #[wat_intrinsic(":wat::holon::Bundle")]
 pub(crate) fn eval_algebra_bundle(
-    args: &[WatAST],
+    items: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::Bundle".into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let list = match eval_inner(&args[0], env, sym)?.value_owned() {
+    let list = match eval_inner(items, env, sym)?.value_owned() {
         Value::Vec(l) => l,
         other => {
             return Err(RuntimeError::new(
-                args[0].span().clone(),
+                items.span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: ":wat::holon::Bundle".into(),
                     expected: "(List :- [wat::holon::HolonAST]) from (:wat::core::Vector ...)",
@@ -1182,35 +1077,26 @@ pub(crate) fn eval_algebra_bundle(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Transform
-/// @arg     args… :wat::core::Value the HolonAST permuted and the integer shift amount, in order
+/// @arg     h :wat::holon::HolonAST the HolonAST permuted and the integer shift amount, in order
+/// @arg     k :wat::core::i64 the HolonAST permuted and the integer shift amount, in order
 /// @ret     :wat::holon::HolonAST the `Permute(h, k)` composition
 /// @example (:wat::holon::Permute (:wat::holon::leaf "role") 1) #=> (:wat::holon::Permute (:wat::holon::leaf "role") 1)
 #[wat_intrinsic(":wat::holon::Permute")]
 pub(crate) fn eval_algebra_permute(
-    args: &[WatAST],
+    h: &WatAST,
+    k: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
-    list_span: &Span,
+    _span: &Span, // rune:lint(unused-span) — located elsewhere: the only errors (TypeMismatch, non-i32 step) locate at `k`'s own span, more precise than the coarse list span
 ) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::Permute".into(),
-                expected: 2,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
     let child = require_holon(
         ":wat::holon::Permute",
-        eval_inner(&args[0], env, sym)?.value_owned(),
+        eval_inner(h, env, sym)?.value_owned(),
     )?;
-    let k = match eval_inner(&args[1], env, sym)?.value_owned() {
+    let k = match eval_inner(k, env, sym)?.value_owned() {
         Value::i64(n) => i32::try_from(n).map_err(|_| {
             RuntimeError::new(
-                args[1].span().clone(),
+                k.span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: ":wat::holon::Permute".into(),
                     expected: "i32 step (integer fitting in i32)",
@@ -1220,7 +1106,7 @@ pub(crate) fn eval_algebra_permute(
         })?,
         other => {
             return Err(RuntimeError::new(
-                args[1].span().clone(),
+                k.span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: ":wat::holon::Permute".into(),
                     expected: "i32 step",
@@ -1245,41 +1131,34 @@ pub(crate) fn eval_algebra_permute(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Transform
-/// @arg     args… :wat::core::Value the value and its `[min, max]` range, in order
+/// @arg     v :wat::core::f64 the value and its `[min, max]` range, in order
+/// @arg     min :wat::core::f64 the value and its `[min, max]` range, in order
+/// @arg     max :wat::core::f64 the value and its `[min, max]` range, in order
 /// @ret     :wat::holon::HolonAST the Thermometer leaf
 /// @example (:wat::holon::Thermometer 5.0 0.0 10.0) #=> (:wat::holon::Thermometer 5.0 0.0 10.0)
 /// @see     :wat::holon::therm-form
 #[wat_intrinsic(":wat::holon::Thermometer")]
 pub(crate) fn eval_algebra_thermometer(
-    args: &[WatAST],
+    v: &WatAST,
+    min: &WatAST,
+    max: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    if args.len() != 3 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::Thermometer".into(),
-                expected: 3,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
     let v = require_numeric(
         ":wat::holon::Thermometer",
-        eval_inner(&args[0], env, sym)?.value_owned(),
+        eval_inner(v, env, sym)?.value_owned(),
         list_span,
     )?;
     let mn = require_numeric(
         ":wat::holon::Thermometer",
-        eval_inner(&args[1], env, sym)?.value_owned(),
+        eval_inner(min, env, sym)?.value_owned(),
         list_span,
     )?;
     let mx = require_numeric(
         ":wat::holon::Thermometer",
-        eval_inner(&args[2], env, sym)?.value_owned(),
+        eval_inner(max, env, sym)?.value_owned(),
         list_span,
     )?;
     Ok(Value::holon__HolonAST(Arc::new(HolonAST::thermometer(
@@ -1296,43 +1175,38 @@ pub(crate) fn eval_algebra_thermometer(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Combine
-/// @arg     args… :wat::core::Value the two HolonAST operands and their two weights, in order
+/// @arg     a :wat::holon::HolonAST the two HolonAST operands and their two weights, in order
+/// @arg     b :wat::holon::HolonAST the two HolonAST operands and their two weights, in order
+/// @arg     w1 :wat::core::f64 the two HolonAST operands and their two weights, in order
+/// @arg     w2 :wat::core::f64 the two HolonAST operands and their two weights, in order
 /// @ret     :wat::holon::HolonAST the `Blend(a, b, w1, w2)` composition
 /// @example (:wat::holon::Blend (:wat::holon::leaf "role") (:wat::holon::leaf "filler") 0.7 0.3) #=> (:wat::holon::Blend (:wat::holon::leaf "role") (:wat::holon::leaf "filler") 0.7 0.3)
 #[wat_intrinsic(":wat::holon::Blend")]
 pub(crate) fn eval_algebra_blend(
-    args: &[WatAST],
+    a: &WatAST,
+    b: &WatAST,
+    w1: &WatAST,
+    w2: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    if args.len() != 4 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::Blend".into(),
-                expected: 4,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
     let a = require_holon(
         ":wat::holon::Blend",
-        eval_inner(&args[0], env, sym)?.value_owned(),
+        eval_inner(a, env, sym)?.value_owned(),
     )?;
     let b = require_holon(
         ":wat::holon::Blend",
-        eval_inner(&args[1], env, sym)?.value_owned(),
+        eval_inner(b, env, sym)?.value_owned(),
     )?;
     let w1 = require_numeric(
         ":wat::holon::Blend",
-        eval_inner(&args[2], env, sym)?.value_owned(),
+        eval_inner(w1, env, sym)?.value_owned(),
         list_span,
     )?;
     let w2 = require_numeric(
         ":wat::holon::Blend",
-        eval_inner(&args[3], env, sym)?.value_owned(),
+        eval_inner(w2, env, sym)?.value_owned(),
         list_span,
     )?;
     Ok(Value::holon__HolonAST(Arc::new(HolonAST::blend(
@@ -1354,29 +1228,18 @@ pub(crate) fn eval_algebra_blend(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Projection
-/// @arg     args… :wat::core::Value the HolonAST or Record probed, alone
+/// @arg     x :wat::holon::HolonAST the HolonAST or Record probed, alone
 /// @ret     (:wat::core::Option :- [:wat::core::String]) the classifier name — a bare `String` (Record) or an `Option` (HolonAST)
 /// @example (:wat::holon::extract-classifier (:wat::holon::Vector (:wat::core::Vector :wat::holon::HolonAST (:wat::holon::leaf "role")))) #=> (:wat::holon::extract-classifier (:wat::holon::Vector (:wat::core::Vector :wat::holon::HolonAST (:wat::holon::leaf "role"))))
 #[wat_intrinsic(":wat::holon::extract-classifier")]
 pub(crate) fn eval_extract_classifier(
-    args: &[WatAST],
+    x: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
-    list_span: &Span,
+    _span: &Span, // rune:lint(unused-span) — located elsewhere: the only error (TypeMismatch) locates at `x`'s own span, more precise than the coarse list span
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::extract-classifier";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let arg_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let arg_val = eval_inner(x, env, sym)?.value_owned();
     // Arc 234 Stone 234.5 — D3: auto-dispatch on wat::core::Record.
     // Records always have a class_fqdn; return String directly (not Option).
     // This is honest: a record's classifier is NEVER absent (mandatory at construction).
@@ -1390,7 +1253,7 @@ pub(crate) fn eval_extract_classifier(
             Ok(Value::Option(Arc::new(result)))
         }
         other => Err(RuntimeError::new(
-            args[0].span().clone(),
+            x.span().clone(),
             RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "wat::holon::HolonAST or wat::core::Record",
@@ -1409,35 +1272,24 @@ pub(crate) fn eval_extract_classifier(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Projection
-/// @arg     args… :wat::core::Value the HolonAST probed, alone
+/// @arg     h :wat::holon::HolonAST the HolonAST probed, alone
 /// @ret     (:wat::core::Option :- [:wat::holon::HolonAST]) `h`'s left child, or `None`
 /// @example (:wat::holon::Bind/left (:wat::holon::Bind (:wat::holon::leaf "role") (:wat::holon::leaf "filler"))) #=> (:wat::holon::Bind/left (:wat::holon::Bind (:wat::holon::leaf "role") (:wat::holon::leaf "filler")))
 /// @see     :wat::holon::Bind/right
 #[wat_intrinsic(":wat::holon::Bind/left")]
 pub(crate) fn eval_bind_left(
-    args: &[WatAST],
+    h: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
-    list_span: &Span,
+    _span: &Span, // rune:lint(unused-span) — located elsewhere: the only error (TypeMismatch) locates at `h`'s own span, more precise than the coarse list span
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::Bind/left";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let arg_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let arg_val = eval_inner(h, env, sym)?.value_owned();
     let holon_arc = match arg_val {
         Value::holon__HolonAST(h) => h,
         other => {
             return Err(RuntimeError::new(
-                args[0].span().clone(),
+                h.span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "wat::holon::HolonAST",
@@ -1459,35 +1311,24 @@ pub(crate) fn eval_bind_left(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Projection
-/// @arg     args… :wat::core::Value the HolonAST probed, alone
+/// @arg     h :wat::holon::HolonAST the HolonAST probed, alone
 /// @ret     (:wat::core::Option :- [:wat::holon::HolonAST]) `h`'s right child, or `None`
 /// @example (:wat::holon::Bind/right (:wat::holon::Bind (:wat::holon::leaf "role") (:wat::holon::leaf "filler"))) #=> (:wat::holon::Bind/right (:wat::holon::Bind (:wat::holon::leaf "role") (:wat::holon::leaf "filler")))
 /// @see     :wat::holon::Bind/left
 #[wat_intrinsic(":wat::holon::Bind/right")]
 pub(crate) fn eval_bind_right(
-    args: &[WatAST],
+    h: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
-    list_span: &Span,
+    _span: &Span, // rune:lint(unused-span) — located elsewhere: the only error (TypeMismatch) locates at `h`'s own span, more precise than the coarse list span
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::Bind/right";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let arg_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let arg_val = eval_inner(h, env, sym)?.value_owned();
     let holon_arc = match arg_val {
         Value::holon__HolonAST(h) => h,
         other => {
             return Err(RuntimeError::new(
-                args[0].span().clone(),
+                h.span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "wat::holon::HolonAST",
@@ -1510,35 +1351,24 @@ pub(crate) fn eval_bind_right(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Projection
-/// @arg     args… :wat::core::Value the Bundle HolonAST probed, alone
+/// @arg     h :wat::holon::HolonAST the Bundle HolonAST probed, alone
 /// @ret     (:wat::core::Vector :- [:wat::holon::HolonAST]) `h`'s children, in order
 /// @example (:wat::core::match (:wat::holon::Bundle (:wat::core::Vector :wat::holon::HolonAST (:wat::holon::leaf "role") (:wat::holon::leaf "filler"))) ((:wat::core::Ok h) (:wat::holon::Bundle/children h)) (_ (:wat::holon::Bundle/children (:wat::holon::leaf "unreachable")))) #=> (:wat::core::match (:wat::holon::Bundle (:wat::core::Vector :wat::holon::HolonAST (:wat::holon::leaf "role") (:wat::holon::leaf "filler"))) ((:wat::core::Ok h) (:wat::holon::Bundle/children h)) (_ (:wat::holon::Bundle/children (:wat::holon::leaf "unreachable"))))
 /// @see     :wat::holon::Bundle/first
 #[wat_intrinsic(":wat::holon::Bundle/children")]
 pub(crate) fn eval_bundle_children(
-    args: &[WatAST],
+    h: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
-    list_span: &Span,
+    _span: &Span, // rune:lint(unused-span) — located elsewhere: the only error (TypeMismatch) locates at `h`'s own span, more precise than the coarse list span
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::Bundle/children";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let arg_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let arg_val = eval_inner(h, env, sym)?.value_owned();
     let holon_arc = match arg_val {
         Value::holon__HolonAST(h) => h,
         other => {
             return Err(RuntimeError::new(
-                args[0].span().clone(),
+                h.span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "wat::holon::HolonAST (Bundle)",
@@ -1548,7 +1378,7 @@ pub(crate) fn eval_bundle_children(
             .into());
         }
     };
-    let children = require_bundle(OP, &holon_arc, args[0].span())?;
+    let children = require_bundle(OP, &holon_arc, h.span())?;
     let out: Vec<Value> = children
         .iter()
         .map(|child| Value::holon__HolonAST(Arc::new(child.clone())))
@@ -1565,35 +1395,24 @@ pub(crate) fn eval_bundle_children(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Projection
-/// @arg     args… :wat::core::Value the Bundle HolonAST probed, alone
+/// @arg     h :wat::holon::HolonAST the Bundle HolonAST probed, alone
 /// @ret     :wat::holon::HolonAST `h`'s first child
 /// @example (:wat::core::match (:wat::holon::Bundle (:wat::core::Vector :wat::holon::HolonAST (:wat::holon::leaf "role") (:wat::holon::leaf "filler"))) ((:wat::core::Ok h) (:wat::holon::Bundle/first h)) (_ (:wat::holon::Bundle/first (:wat::holon::leaf "unreachable")))) #=> (:wat::core::match (:wat::holon::Bundle (:wat::core::Vector :wat::holon::HolonAST (:wat::holon::leaf "role") (:wat::holon::leaf "filler"))) ((:wat::core::Ok h) (:wat::holon::Bundle/first h)) (_ (:wat::holon::Bundle/first (:wat::holon::leaf "unreachable"))))
 /// @see     :wat::holon::Bundle/children
 #[wat_intrinsic(":wat::holon::Bundle/first")]
 pub(crate) fn eval_bundle_first(
-    args: &[WatAST],
+    h: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
-    list_span: &Span,
+    _span: &Span, // rune:lint(unused-span) — located elsewhere: the only errors (TypeMismatch, empty Bundle) locate at `h`'s own span, more precise than the coarse list span
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::Bundle/first";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let arg_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let arg_val = eval_inner(h, env, sym)?.value_owned();
     let holon_arc = match arg_val {
         Value::holon__HolonAST(h) => h,
         other => {
             return Err(RuntimeError::new(
-                args[0].span().clone(),
+                h.span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "wat::holon::HolonAST (Bundle)",
@@ -1603,10 +1422,10 @@ pub(crate) fn eval_bundle_first(
             .into());
         }
     };
-    let children = require_bundle(OP, &holon_arc, args[0].span())?;
+    let children = require_bundle(OP, &holon_arc, h.span())?;
     let first = children.first().ok_or_else(|| {
         RuntimeError::new(
-            args[0].span().clone(),
+            h.span().clone(),
             RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "Bundle with at least one child",
@@ -1626,30 +1445,18 @@ pub(crate) fn eval_bundle_first(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Probe
-/// @arg     args… :wat::core::Value the value probed, alone
+/// @arg     x :wat::holon::HolonAST the value probed, alone
 /// @ret     :wat::core::bool true iff `x` is a `Map`-classified HolonAST
 /// @example (:wat::holon::is-Map? (:wat::holon::Map (:wat::core::Vector :wat::holon::HolonAST (:wat::holon::Bind (:wat::holon::leaf "k") (:wat::holon::leaf "v"))))) #=> (:wat::holon::is-Map? (:wat::holon::Map (:wat::core::Vector :wat::holon::HolonAST (:wat::holon::Bind (:wat::holon::leaf "k") (:wat::holon::leaf "v")))))
 /// @see     :wat::holon::is?
 #[wat_intrinsic(":wat::holon::is-Map?")]
 pub(crate) fn eval_holon_is_map_q(
-    args: &[WatAST],
+    x: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
-    list_span: &Span,
+    _span: &Span, // rune:lint(unused-span) — infallible — no error path (the classifier match always falls through to `_ => false`)
 ) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::holon::is-Map?";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let value_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let value_val = eval_inner(x, env, sym)?.value_owned();
     let matches = match value_val {
         Value::holon__HolonAST(h) => extract_classifier(&h).as_deref() == Some("Map"),
         _ => false,
@@ -1666,30 +1473,18 @@ pub(crate) fn eval_holon_is_map_q(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Probe
-/// @arg     args… :wat::core::Value the value probed, alone
+/// @arg     x :wat::holon::HolonAST the value probed, alone
 /// @ret     :wat::core::bool true iff `x` is a `Set`-classified HolonAST
 /// @example (:wat::holon::is-Set? (:wat::holon::leaf "role")) #=> (:wat::holon::is-Set? (:wat::holon::leaf "role"))
 /// @see     :wat::holon::is?
 #[wat_intrinsic(":wat::holon::is-Set?")]
 pub(crate) fn eval_holon_is_set_q(
-    args: &[WatAST],
+    x: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
-    list_span: &Span,
+    _span: &Span, // rune:lint(unused-span) — infallible — no error path (the classifier match always falls through to `_ => false`)
 ) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::holon::is-Set?";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let value_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let value_val = eval_inner(x, env, sym)?.value_owned();
     let matches = match value_val {
         Value::holon__HolonAST(h) => extract_classifier(&h).as_deref() == Some("Set"),
         _ => false,
@@ -1706,30 +1501,18 @@ pub(crate) fn eval_holon_is_set_q(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Probe
-/// @arg     args… :wat::core::Value the value probed, alone
+/// @arg     x :wat::holon::HolonAST the value probed, alone
 /// @ret     :wat::core::bool true iff `x` is a `Vector`-classified HolonAST
 /// @example (:wat::holon::is-Vector? (:wat::holon::leaf "role")) #=> (:wat::holon::is-Vector? (:wat::holon::leaf "role"))
 /// @see     :wat::holon::is?
 #[wat_intrinsic(":wat::holon::is-Vector?")]
 pub(crate) fn eval_holon_is_vector_q(
-    args: &[WatAST],
+    x: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
-    list_span: &Span,
+    _span: &Span, // rune:lint(unused-span) — infallible — no error path (the classifier match always falls through to `_ => false`)
 ) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::holon::is-Vector?";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let value_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let value_val = eval_inner(x, env, sym)?.value_owned();
     let matches = match value_val {
         Value::holon__HolonAST(h) => extract_classifier(&h).as_deref() == Some("Vector"),
         _ => false,
@@ -1746,30 +1529,18 @@ pub(crate) fn eval_holon_is_vector_q(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Probe
-/// @arg     args… :wat::core::Value the value probed, alone
+/// @arg     x :wat::holon::HolonAST the value probed, alone
 /// @ret     :wat::core::bool true iff `x` is a `List`-classified HolonAST
 /// @example (:wat::holon::is-List? (:wat::holon::leaf "role")) #=> (:wat::holon::is-List? (:wat::holon::leaf "role"))
 /// @see     :wat::holon::is?
 #[wat_intrinsic(":wat::holon::is-List?")]
 pub(crate) fn eval_holon_is_list_q(
-    args: &[WatAST],
+    x: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
-    list_span: &Span,
+    _span: &Span, // rune:lint(unused-span) — infallible — no error path (the classifier match always falls through to `_ => false`)
 ) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::holon::is-List?";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let value_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let value_val = eval_inner(x, env, sym)?.value_owned();
     let matches = match value_val {
         Value::holon__HolonAST(h) => extract_classifier(&h).as_deref() == Some("List"),
         _ => false,
@@ -1786,30 +1557,18 @@ pub(crate) fn eval_holon_is_list_q(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Probe
-/// @arg     args… :wat::core::Value the value probed, alone
+/// @arg     x :wat::holon::HolonAST the value probed, alone
 /// @ret     :wat::core::bool true iff `x` is a `Tuple`-classified HolonAST
 /// @example (:wat::holon::is-Tuple? (:wat::holon::leaf "role")) #=> (:wat::holon::is-Tuple? (:wat::holon::leaf "role"))
 /// @see     :wat::holon::is?
 #[wat_intrinsic(":wat::holon::is-Tuple?")]
 pub(crate) fn eval_holon_is_tuple_q(
-    args: &[WatAST],
+    x: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
-    list_span: &Span,
+    _span: &Span, // rune:lint(unused-span) — infallible — no error path (the classifier match always falls through to `_ => false`)
 ) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::holon::is-Tuple?";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let value_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let value_val = eval_inner(x, env, sym)?.value_owned();
     let matches = match value_val {
         Value::holon__HolonAST(h) => extract_classifier(&h).as_deref() == Some("Tuple"),
         _ => false,
@@ -1826,30 +1585,18 @@ pub(crate) fn eval_holon_is_tuple_q(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Probe
-/// @arg     args… :wat::core::Value the value probed, alone
+/// @arg     x :wat::holon::HolonAST the value probed, alone
 /// @ret     :wat::core::bool true iff `x` is a `Symbol`-classified HolonAST
 /// @example (:wat::holon::is-Symbol? (:wat::holon::from-wat (:wat::core::quote x))) #=> (:wat::holon::is-Symbol? (:wat::holon::from-wat (:wat::core::quote x)))
 /// @see     :wat::holon::is?
 #[wat_intrinsic(":wat::holon::is-Symbol?")]
 pub(crate) fn eval_holon_is_symbol_q(
-    args: &[WatAST],
+    x: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
-    list_span: &Span,
+    _span: &Span, // rune:lint(unused-span) — infallible — no error path (the classifier match always falls through to `_ => false`)
 ) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::holon::is-Symbol?";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let value_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let value_val = eval_inner(x, env, sym)?.value_owned();
     let matches = match value_val {
         Value::holon__HolonAST(h) => extract_classifier(&h).as_deref() == Some("Symbol"),
         _ => false,
@@ -1866,30 +1613,18 @@ pub(crate) fn eval_holon_is_symbol_q(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Probe
-/// @arg     args… :wat::core::Value the value probed, alone
+/// @arg     x :wat::holon::HolonAST the value probed, alone
 /// @ret     :wat::core::bool true iff `x` is a `Keyword`-classified HolonAST
 /// @example (:wat::holon::is-Keyword? (:wat::holon::from-wat (:wat::core::quote :k))) #=> (:wat::holon::is-Keyword? (:wat::holon::from-wat (:wat::core::quote :k)))
 /// @see     :wat::holon::is?
 #[wat_intrinsic(":wat::holon::is-Keyword?")]
 pub(crate) fn eval_holon_is_keyword_q(
-    args: &[WatAST],
+    x: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
-    list_span: &Span,
+    _span: &Span, // rune:lint(unused-span) — infallible — no error path (the classifier match always falls through to `_ => false`)
 ) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::holon::is-Keyword?";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let value_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let value_val = eval_inner(x, env, sym)?.value_owned();
     let matches = match value_val {
         Value::holon__HolonAST(h) => extract_classifier(&h).as_deref() == Some("Keyword"),
         _ => false,
@@ -1906,30 +1641,18 @@ pub(crate) fn eval_holon_is_keyword_q(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Probe
-/// @arg     args… :wat::core::Value the value probed, alone
+/// @arg     x :wat::holon::HolonAST the value probed, alone
 /// @ret     :wat::core::bool true iff `x` is a `Tag`-classified HolonAST
 /// @example (:wat::holon::is-Tag? (:wat::holon::leaf "role")) #=> (:wat::holon::is-Tag? (:wat::holon::leaf "role"))
 /// @see     :wat::holon::is?
 #[wat_intrinsic(":wat::holon::is-Tag?")]
 pub(crate) fn eval_holon_is_tag_q(
-    args: &[WatAST],
+    x: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
-    list_span: &Span,
+    _span: &Span, // rune:lint(unused-span) — infallible — no error path (the classifier match always falls through to `_ => false`)
 ) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::holon::is-Tag?";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let value_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let value_val = eval_inner(x, env, sym)?.value_owned();
     let matches = match value_val {
         Value::holon__HolonAST(h) => extract_classifier(&h).as_deref() == Some("Tag"),
         _ => false,
@@ -1945,29 +1668,17 @@ pub(crate) fn eval_holon_is_tag_q(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Probe
-/// @arg     args… :wat::core::Value the value probed, alone
+/// @arg     x :wat::holon::HolonAST the value probed, alone
 /// @ret     :wat::core::bool true iff `x` is a nil-composition HolonAST
 /// @example (:wat::holon::is-Nil? (:wat::holon::to-holon nil)) #=> (:wat::holon::is-Nil? (:wat::holon::to-holon nil))
 #[wat_intrinsic(":wat::holon::is-Nil?")]
 pub(crate) fn eval_holon_is_nil_q(
-    args: &[WatAST],
+    x: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
-    list_span: &Span,
+    _span: &Span, // rune:lint(unused-span) — infallible — no error path (the classifier match always falls through to `_ => false`)
 ) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::holon::is-Nil?";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let value_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let value_val = eval_inner(x, env, sym)?.value_owned();
     let matches = match value_val {
         Value::holon__HolonAST(h) => h.is_nil(),
         _ => false,
@@ -1984,36 +1695,27 @@ pub(crate) fn eval_holon_is_nil_q(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Probe
-/// @arg     args… :wat::core::Value the value probed and the classifier name, in order
+/// @arg     x :wat::holon::HolonAST the value probed and the classifier name, in order
+/// @arg     class :wat::core::String the value probed and the classifier name, in order
 /// @ret     :wat::core::bool true iff `x` is a HolonAST classified `class`
 /// @example (:wat::holon::is? (:wat::holon::leaf "role") "Vector") #=> (:wat::holon::is? (:wat::holon::leaf "role") "Vector")
 /// @see     :wat::holon::extract-classifier
 #[wat_intrinsic(":wat::holon::is?")]
 pub(crate) fn eval_holon_is_predicate(
-    args: &[WatAST],
+    x: &WatAST,
+    class: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
-    list_span: &Span,
+    _span: &Span, // rune:lint(unused-span) — located elsewhere: the only error (TypeMismatch, non-String classifier) locates at `class`'s own span, more precise than the coarse list span
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::is?";
-    if args.len() != 2 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 2,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let value_val = eval_inner(&args[0], env, sym)?.value_owned();
-    let class_val = eval_inner(&args[1], env, sym)?.value_owned();
+    let value_val = eval_inner(x, env, sym)?.value_owned();
+    let class_val = eval_inner(class, env, sym)?.value_owned();
     let class_name = match class_val {
         Value::String(s) => s,
         other => {
             return Err(RuntimeError::new(
-                args[1].span().clone(),
+                class.span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "String (classifier name)",
@@ -2039,34 +1741,23 @@ pub(crate) fn eval_holon_is_predicate(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Projection
-/// @arg     args… :wat::core::Value the HolonAST templated, alone
+/// @arg     h :wat::holon::HolonAST the HolonAST templated, alone
 /// @ret     :wat::holon::HolonAST `h` with scalar leaves erased
 /// @example (:wat::holon::term::template (:wat::holon::Thermometer 5.0 0.0 10.0)) #=> (:wat::holon::term::template (:wat::holon::Thermometer 5.0 0.0 10.0))
 /// @see     :wat::holon::term::matches?
 #[wat_intrinsic(":wat::holon::term::template")]
 pub(crate) fn eval_term_template(
-    args: &[WatAST],
+    h: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
-    list_span: &Span,
+    _span: &Span, // rune:lint(unused-span) — located elsewhere: the only error (TypeMismatch) locates at `h`'s own span, more precise than the coarse list span
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::term::template";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let h = match eval_inner(&args[0], env, sym)?.value_owned() {
+    let h = match eval_inner(h, env, sym)?.value_owned() {
         Value::holon__HolonAST(h) => h,
         other => {
             return Err(RuntimeError::new(
-                args[0].span().clone(),
+                h.span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "wat::holon::HolonAST",
@@ -2088,34 +1779,23 @@ pub(crate) fn eval_term_template(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Projection
-/// @arg     args… :wat::core::Value the HolonAST probed, alone
+/// @arg     h :wat::holon::HolonAST the HolonAST probed, alone
 /// @ret     (:wat::core::Vector :- [:wat::core::f64]) `h`'s Thermometer leaf values, in pre-order
 /// @example (:wat::holon::term::slots (:wat::holon::Thermometer 5.0 0.0 10.0)) #=> (:wat::holon::term::slots (:wat::holon::Thermometer 5.0 0.0 10.0))
 /// @see     :wat::holon::term::ranges
 #[wat_intrinsic(":wat::holon::term::slots")]
 pub(crate) fn eval_term_slots(
-    args: &[WatAST],
+    h: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
-    list_span: &Span,
+    _span: &Span, // rune:lint(unused-span) — located elsewhere: the only error (TypeMismatch) locates at `h`'s own span, more precise than the coarse list span
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::term::slots";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let h = match eval_inner(&args[0], env, sym)?.value_owned() {
+    let h = match eval_inner(h, env, sym)?.value_owned() {
         Value::holon__HolonAST(h) => h,
         other => {
             return Err(RuntimeError::new(
-                args[0].span().clone(),
+                h.span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "wat::holon::HolonAST",
@@ -2138,34 +1818,23 @@ pub(crate) fn eval_term_slots(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Projection
-/// @arg     args… :wat::core::Value the HolonAST probed, alone
+/// @arg     h :wat::holon::HolonAST the HolonAST probed, alone
 /// @ret     (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::f64 :wat::core::f64])]) `h`'s Thermometer leaf `[min, max]` ranges, in pre-order
 /// @example (:wat::holon::term::ranges (:wat::holon::Thermometer 5.0 0.0 10.0)) #=> (:wat::holon::term::ranges (:wat::holon::Thermometer 5.0 0.0 10.0))
 /// @see     :wat::holon::term::slots
 #[wat_intrinsic(":wat::holon::term::ranges")]
 pub(crate) fn eval_term_ranges(
-    args: &[WatAST],
+    h: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
-    list_span: &Span,
+    _span: &Span, // rune:lint(unused-span) — located elsewhere: the only error (TypeMismatch) locates at `h`'s own span, more precise than the coarse list span
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::term::ranges";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let h = match eval_inner(&args[0], env, sym)?.value_owned() {
+    let h = match eval_inner(h, env, sym)?.value_owned() {
         Value::holon__HolonAST(h) => h,
         other => {
             return Err(RuntimeError::new(
-                args[0].span().clone(),
+                h.span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "wat::holon::HolonAST",
@@ -2192,33 +1861,24 @@ pub(crate) fn eval_term_ranges(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Probe
-/// @arg     args… :wat::core::Value the query and subject HolonASTs, in order
+/// @arg     q :wat::holon::HolonAST the query and subject HolonASTs, in order
+/// @arg     s :wat::holon::HolonAST the query and subject HolonASTs, in order
 /// @ret     :wat::core::bool true iff same template and every slot is within floor
 /// @example (:wat::holon::term::matches? (:wat::holon::Thermometer 5.0 0.0 10.0) (:wat::holon::Thermometer 5.0 0.0 10.0)) #=> (:wat::holon::term::matches? (:wat::holon::Thermometer 5.0 0.0 10.0) (:wat::holon::Thermometer 5.0 0.0 10.0))
 #[wat_intrinsic(":wat::holon::term::matches?")]
 pub(crate) fn eval_term_matches_q(
-    args: &[WatAST],
+    q: &WatAST,
+    s: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::term::matches?";
-    if args.len() != 2 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 2,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let q = match eval_inner(&args[0], env, sym)?.value_owned() {
+    let q = match eval_inner(q, env, sym)?.value_owned() {
         Value::holon__HolonAST(h) => h,
         other => {
             return Err(RuntimeError::new(
-                args[0].span().clone(),
+                q.span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "wat::holon::HolonAST",
@@ -2228,11 +1888,11 @@ pub(crate) fn eval_term_matches_q(
             .into());
         }
     };
-    let s = match eval_inner(&args[1], env, sym)?.value_owned() {
+    let s = match eval_inner(s, env, sym)?.value_owned() {
         Value::holon__HolonAST(h) => h,
         other => {
             return Err(RuntimeError::new(
-                args[1].span().clone(),
+                s.span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "wat::holon::HolonAST",
@@ -2284,34 +1944,27 @@ pub(crate) fn eval_term_matches_q(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Transform
-/// @arg     args… :wat::core::Value the low bound, high bound, and value, in order
+/// @arg     low :wat::core::f64 the low bound, high bound, and value, in order
+/// @arg     high :wat::core::f64 the low bound, high bound, and value, in order
+/// @arg     value :wat::core::f64 the low bound, high bound, and value, in order
 /// @ret     :wat::holon::HolonAST the Thermometer leaf
 /// @example (:wat::holon::therm-form 0.0 10.0 5.0) #=> (:wat::holon::therm-form 0.0 10.0 5.0)
 /// @see     :wat::holon::Thermometer
 #[wat_intrinsic(":wat::holon::therm-form")]
 pub(crate) fn eval_therm_form(
-    args: &[WatAST],
+    low: &WatAST,
+    high: &WatAST,
+    value: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::therm-form";
-    if args.len() != 3 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 3,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let low = match eval_inner(&args[0], env, sym)?.value_owned() {
+    let low = match eval_inner(low, env, sym)?.value_owned() {
         Value::f64(x) => x,
         other => {
             return Err(RuntimeError::new(
-                args[0].span().clone(),
+                low.span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "f64",
@@ -2321,11 +1974,11 @@ pub(crate) fn eval_therm_form(
             .into());
         }
     };
-    let high = match eval_inner(&args[1], env, sym)?.value_owned() {
+    let high = match eval_inner(high, env, sym)?.value_owned() {
         Value::f64(x) => x,
         other => {
             return Err(RuntimeError::new(
-                args[1].span().clone(),
+                high.span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "f64",
@@ -2335,11 +1988,11 @@ pub(crate) fn eval_therm_form(
             .into());
         }
     };
-    let value = match eval_inner(&args[2], env, sym)?.value_owned() {
+    let value = match eval_inner(value, env, sym)?.value_owned() {
         Value::f64(x) => x,
         other => {
             return Err(RuntimeError::new(
-                args[2].span().clone(),
+                value.span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "f64",
@@ -2381,42 +2034,31 @@ pub(crate) fn eval_therm_form(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Probe
-/// @arg     args… :wat::core::Value the vector dimension, alone
+/// @arg     d :wat::core::i64 the vector dimension, alone
 /// @ret     :wat::core::f64 the presence-detection noise floor at dimension `d`
 /// @example (:wat::holon::presence-floor 4096) #=> (:wat::holon::presence-floor 4096)
 /// @see     :wat::holon::presence?
 #[wat_intrinsic(":wat::holon::presence-floor")]
 pub(crate) fn eval_presence_floor(
-    args: &[WatAST],
+    d: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::presence-floor";
-    if args.len() != 1 {
+    let dval = require_i64(OP, eval_inner(d, env, sym)?.value_owned())?;
+    if dval <= 0 {
         return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let d = require_i64(OP, eval_inner(&args[0], env, sym)?.value_owned())?;
-    if d <= 0 {
-        return Err(RuntimeError::new(
-            args[0].span().clone(),
+            d.span().clone(),
             RuntimeErrorKind::MalformedForm {
                 head: OP.into(),
-                reason: format!("d must be positive; got {}", d),
+                reason: format!("d must be positive; got {}", dval),
             },
         )
         .into());
     }
     let ctx = require_encoding_ctx(OP, sym, list_span)?;
-    Ok(Value::f64(ctx.encoders.get(d as usize).presence_floor(sym)))
+    Ok(Value::f64(ctx.encoders.get(dval as usize).presence_floor(sym)))
 }
 
 
@@ -2428,43 +2070,32 @@ pub(crate) fn eval_presence_floor(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Probe
-/// @arg     args… :wat::core::Value the vector dimension, alone
+/// @arg     d :wat::core::i64 the vector dimension, alone
 /// @ret     :wat::core::f64 the coincident-detection noise floor at dimension `d`
 /// @example (:wat::holon::coincident-floor 4096) #=> (:wat::holon::coincident-floor 4096)
 /// @see     :wat::holon::coincident?
 #[wat_intrinsic(":wat::holon::coincident-floor")]
 pub(crate) fn eval_coincident_floor(
-    args: &[WatAST],
+    d: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::coincident-floor";
-    if args.len() != 1 {
+    let dval = require_i64(OP, eval_inner(d, env, sym)?.value_owned())?;
+    if dval <= 0 {
         return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let d = require_i64(OP, eval_inner(&args[0], env, sym)?.value_owned())?;
-    if d <= 0 {
-        return Err(RuntimeError::new(
-            args[0].span().clone(),
+            d.span().clone(),
             RuntimeErrorKind::MalformedForm {
                 head: OP.into(),
-                reason: format!("d must be positive; got {}", d),
+                reason: format!("d must be positive; got {}", dval),
             },
         )
         .into());
     }
     let ctx = require_encoding_ctx(OP, sym, list_span)?;
     Ok(Value::f64(
-        ctx.encoders.get(d as usize).coincident_floor(sym),
+        ctx.encoders.get(dval as usize).coincident_floor(sym),
     ))
 }
 
@@ -2479,29 +2110,20 @@ pub(crate) fn eval_coincident_floor(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Probe
-/// @arg     args… :wat::core::Value the two operands compared, in order
+/// @arg     a :wat::core::Value the two operands compared, in order
+/// @arg     b :wat::core::Value the two operands compared, in order
 /// @ret     :wat::holon::CosineOutcome the matchable cosine-similarity outcome
 /// @example (:wat::holon::cosine (:wat::holon::leaf "role") (:wat::holon::leaf "role")) #=> (:wat::holon::cosine (:wat::holon::leaf "role") (:wat::holon::leaf "role"))
 #[wat_intrinsic(":wat::holon::cosine")]
 pub(crate) fn eval_algebra_cosine(
-    args: &[WatAST],
+    a: &WatAST,
+    b: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::cosine".into(),
-                expected: 2,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let a = eval_inner(&args[0], env, sym)?.value_owned();
-    let b = eval_inner(&args[1], env, sym)?.value_owned();
+    let a = eval_inner(a, env, sym)?.value_owned();
+    let b = eval_inner(b, env, sym)?.value_owned();
     cosine_outcome_from_values(a, b, list_span, sym)
 }
 
@@ -2515,30 +2137,21 @@ pub(crate) fn eval_algebra_cosine(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Probe
-/// @arg     args… :wat::core::Value the target and reference operands, in order
+/// @arg     target :wat::holon::HolonAST the target and reference operands, in order
+/// @arg     reference :wat::holon::HolonAST the target and reference operands, in order
 /// @ret     :wat::core::bool true iff `target` clears the presence floor against `reference`
 /// @example (:wat::holon::presence? (:wat::holon::leaf "role") (:wat::holon::leaf "role")) #=> (:wat::holon::presence? (:wat::holon::leaf "role") (:wat::holon::leaf "role"))
 /// @see     :wat::holon::coincident?
 #[wat_intrinsic(":wat::holon::presence?")]
 pub(crate) fn eval_algebra_presence_q(
-    args: &[WatAST],
+    target: &WatAST,
+    reference: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::presence?".into(),
-                expected: 2,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let target = eval_inner(&args[0], env, sym)?.value_owned();
-    let reference = eval_inner(&args[1], env, sym)?.value_owned();
+    let target = eval_inner(target, env, sym)?.value_owned();
+    let reference = eval_inner(reference, env, sym)?.value_owned();
     presence_q_from_values(target, reference, list_span, sym)
 }
 
@@ -2551,31 +2164,21 @@ pub(crate) fn eval_algebra_presence_q(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Probe
-/// @arg     args… :wat::core::Value the two operands compared, in order
+/// @arg     a :wat::core::Value the two operands compared, in order
+/// @arg     b :wat::core::Value the two operands compared, in order
 /// @ret     :wat::core::bool true iff `a` clears the coincident floor against `b`
 /// @example (:wat::holon::coincident? (:wat::holon::leaf "role") (:wat::holon::leaf "role")) #=> (:wat::holon::coincident? (:wat::holon::leaf "role") (:wat::holon::leaf "role"))
 /// @see     :wat::holon::presence?
 #[wat_intrinsic(":wat::holon::coincident?")]
 pub(crate) fn eval_algebra_coincident_q(
-    args: &[WatAST],
+    a: &WatAST,
+    b: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::holon::coincident?";
-    if args.len() != 2 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 2,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let a = eval_inner(&args[0], env, sym)?.value_owned();
-    let b = eval_inner(&args[1], env, sym)?.value_owned();
+    let a = eval_inner(a, env, sym)?.value_owned();
+    let b = eval_inner(b, env, sym)?.value_owned();
     coincident_q_from_values(a, b, list_span, sym)
 }
 
@@ -2590,30 +2193,21 @@ pub(crate) fn eval_algebra_coincident_q(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Probe
-/// @arg     args… :wat::core::Value the two operands compared, in order
+/// @arg     a :wat::core::Value the two operands compared, in order
+/// @arg     b :wat::core::Value the two operands compared, in order
 /// @ret     :wat::core::Value a `wat::holon::CoincidentExplanation`-classed Aggregate
 /// @example (:wat::holon::coincident-explain (:wat::holon::leaf "role") (:wat::holon::leaf "role")) #=> (:wat::holon::coincident-explain (:wat::holon::leaf "role") (:wat::holon::leaf "role"))
 #[wat_intrinsic(":wat::holon::coincident-explain")]
 pub(crate) fn eval_algebra_coincident_explain(
-    args: &[WatAST],
+    a: &WatAST,
+    b: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::coincident-explain";
-    if args.len() != 2 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 2,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let a = eval_inner(&args[0], env, sym)?.value_owned();
-    let b = eval_inner(&args[1], env, sym)?.value_owned();
+    let a = eval_inner(a, env, sym)?.value_owned();
+    let b = eval_inner(b, env, sym)?.value_owned();
     let (va, vb) = match pair_values_to_vectors(OP, a, b, sym, list_span)? {
         // `coincident-explain`'s return shape is a fixed `CoincidentExplanation`
         // struct (STOP-5: do not touch it) with no field able to honestly
@@ -2852,31 +2446,22 @@ pub(crate) fn eval_form_signed_string_coincident_q(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Probe
-/// @arg     args… :wat::core::Value the two operands compared, in order
+/// @arg     a :wat::core::Value the two operands compared, in order
+/// @arg     b :wat::core::Value the two operands compared, in order
 /// @ret     :wat::holon::DotOutcome the matchable dot-product outcome
 /// @example (:wat::holon::dot (:wat::holon::leaf "role") (:wat::holon::leaf "role")) #=> (:wat::holon::dot (:wat::holon::leaf "role") (:wat::holon::leaf "role"))
 #[wat_intrinsic(":wat::holon::dot")]
 pub(crate) fn eval_algebra_dot(
-    args: &[WatAST],
+    a: &WatAST,
+    b: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::dot".into(),
-                expected: 2,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
     // Arc 052 — polymorphic input: HolonAST or Vector in either
     // position. Same dim-resolution rule as cosine.
-    let a = eval_inner(&args[0], env, sym)?.value_owned();
-    let b = eval_inner(&args[1], env, sym)?.value_owned();
+    let a = eval_inner(a, env, sym)?.value_owned();
+    let b = eval_inner(b, env, sym)?.value_owned();
     dot_outcome_from_values(a, b, list_span, sym)
 }
 
@@ -2890,32 +2475,21 @@ pub(crate) fn eval_algebra_dot(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Transform
-/// @arg     args… :wat::core::Value the value hashed, alone
+/// @arg     target :wat::core::Value the value hashed, alone
 /// @ret     :wat::core::i64 a 64-bit locality-sensitive hash
 /// @example (:wat::holon::simhash (:wat::holon::leaf "role")) #=> (:wat::holon::simhash (:wat::holon::leaf "role"))
 #[wat_intrinsic(":wat::holon::simhash")]
 pub(crate) fn eval_algebra_simhash(
-    args: &[WatAST],
+    target: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::simhash".into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let target = eval_inner(&args[0], env, sym)?.value_owned();
+    let val = eval_inner(target, env, sym)?.value_owned();
     let ctx = require_encoding_ctx(":wat::holon::simhash", sym, list_span)?;
     // Arc 052 — polymorphic input: HolonAST encodes at router-picked d;
     // Vector uses its native dim directly.
-    let (v, enc) = match target {
+    let (v, enc) = match val {
         Value::Vector(vec) => {
             let d = vec.dimensions();
             (vec.as_ref().clone(), ctx.encoders.get(d))
@@ -2927,7 +2501,7 @@ pub(crate) fn eval_algebra_simhash(
         }
         other => {
             return Err(RuntimeError::new(
-                args[0].span().clone(),
+                target.span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: ":wat::holon::simhash".into(),
                     expected: "wat::holon::HolonAST or wat::holon::Vector",
@@ -2962,30 +2536,19 @@ pub(crate) fn eval_algebra_simhash(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Transform
-/// @arg     args… :wat::core::Value the HolonAST encoded, alone
+/// @arg     target :wat::holon::HolonAST the HolonAST encoded, alone
 /// @ret     :wat::holon::Vector the encoded raw ternary vector
 /// @example (:wat::holon::encode (:wat::holon::leaf "role")) #=> (:wat::holon::encode (:wat::holon::leaf "role"))
 #[wat_intrinsic(":wat::holon::encode")]
 pub(crate) fn eval_holon_encode(
-    args: &[WatAST],
+    target: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::encode".into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
     let target = require_holon(
         ":wat::holon::encode",
-        eval_inner(&args[0], env, sym)?.value_owned(),
+        eval_inner(target, env, sym)?.value_owned(),
     )?;
     let ctx = require_encoding_ctx(":wat::holon::encode", sym, list_span)?;
     let enc = ctx.encoders.get(ctx.dim_count);
@@ -3002,30 +2565,19 @@ pub(crate) fn eval_holon_encode(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Transform
-/// @arg     args… :wat::core::Value the vector encoded, alone
+/// @arg     v :wat::holon::Vector the vector encoded, alone
 /// @ret     :wat::core::Bytes the packed byte representation
 /// @example (:wat::holon::vector-bytes (:wat::holon::encode (:wat::holon::leaf "role"))) #=> (:wat::holon::vector-bytes (:wat::holon::encode (:wat::holon::leaf "role")))
 /// @see     :wat::holon::bytes-vector
 #[wat_intrinsic(":wat::holon::vector-bytes")]
 pub(crate) fn eval_holon_vector_bytes(
-    args: &[WatAST],
+    v: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::vector-bytes";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let v = require_vector(OP, eval_inner(&args[0], env, sym)?.value_owned())?;
+    let v = require_vector(OP, eval_inner(v, env, sym)?.value_owned())?;
     let dim = v.dimensions();
     let dim_u32 = u32::try_from(dim).map_err(|_| {
         RuntimeError::new(
@@ -3085,35 +2637,24 @@ pub(crate) fn eval_holon_vector_bytes(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Transform
-/// @arg     args… :wat::core::Value the packed byte vector decoded, alone
+/// @arg     bs :wat::core::Bytes the packed byte vector decoded, alone
 /// @ret     :wat::holon::VectorDecodeOutcome the matchable decode outcome
 /// @example (:wat::holon::bytes-vector (:wat::holon::vector-bytes (:wat::holon::encode (:wat::holon::leaf "role")))) #=> (:wat::holon::bytes-vector (:wat::holon::vector-bytes (:wat::holon::encode (:wat::holon::leaf "role"))))
 /// @see     :wat::holon::vector-bytes
 #[wat_intrinsic(":wat::holon::bytes-vector")]
 pub(crate) fn eval_holon_bytes_vector(
-    args: &[WatAST],
+    bs: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::bytes-vector";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
     // Pull the byte vector contents out as Vec<u8>.
-    let xs = match eval_inner(&args[0], env, sym)?.value_owned() {
+    let xs = match eval_inner(bs, env, sym)?.value_owned() {
         Value::Vec(xs) => xs,
         other => {
             return Err(RuntimeError::new(
-                args[0].span().clone(),
+                bs.span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "(Vector :- [u8])",
@@ -3204,34 +2745,25 @@ pub(crate) fn eval_holon_bytes_vector(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Combine
-/// @arg     args… :wat::holon::Vector the two raw vectors bound together, in order
+/// @arg     a :wat::holon::Vector the two raw vectors bound together, in order
+/// @arg     b :wat::holon::Vector the two raw vectors bound together, in order
 /// @ret     :wat::holon::CombineOutcome the matchable combine outcome
 /// @example (:wat::holon::vector-bind (:wat::holon::encode (:wat::holon::leaf "role")) (:wat::holon::encode (:wat::holon::leaf "filler"))) #=> (:wat::holon::vector-bind (:wat::holon::encode (:wat::holon::leaf "role")) (:wat::holon::encode (:wat::holon::leaf "filler")))
 #[wat_intrinsic(":wat::holon::vector-bind")]
 pub(crate) fn eval_holon_vector_bind(
-    args: &[WatAST],
+    a: &WatAST,
+    b: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
-    list_span: &Span,
+    _span: &Span, // rune:lint(unused-span) — infallible relative to this span — `require_vector` locates its own error without a span param, and a dimension mismatch returns `Ok(combine_outcome_dimension_mismatch(..))`, not an error
 ) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::vector-bind".into(),
-                expected: 2,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
     let va = require_vector(
         ":wat::holon::vector-bind",
-        eval_inner(&args[0], env, sym)?.value_owned(),
+        eval_inner(a, env, sym)?.value_owned(),
     )?;
     let vb = require_vector(
         ":wat::holon::vector-bind",
-        eval_inner(&args[1], env, sym)?.value_owned(),
+        eval_inner(b, env, sym)?.value_owned(),
     )?;
     if va.dimensions() != vb.dimensions() {
         return Ok(combine_outcome_dimension_mismatch(
@@ -3253,33 +2785,22 @@ pub(crate) fn eval_holon_vector_bind(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Combine
-/// @arg     args… :wat::core::Value the `:wat::core::Vector` of raw vectors bundled, alone
+/// @arg     vs (:wat::core::Vector :- [:wat::holon::Vector]) the `:wat::core::Vector` of raw vectors bundled, alone
 /// @ret     :wat::holon::CombineOutcome the matchable combine outcome
 /// @example (:wat::holon::vector-bundle (:wat::core::Vector :wat::holon::Vector (:wat::holon::encode (:wat::holon::leaf "role")) (:wat::holon::encode (:wat::holon::leaf "filler")))) #=> (:wat::holon::vector-bundle (:wat::core::Vector :wat::holon::Vector (:wat::holon::encode (:wat::holon::leaf "role")) (:wat::holon::encode (:wat::holon::leaf "filler"))))
 #[wat_intrinsic(":wat::holon::vector-bundle")]
 pub(crate) fn eval_holon_vector_bundle(
-    args: &[WatAST],
+    vs: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
-    list_span: &Span,
+    _span: &Span, // rune:lint(unused-span) — located elsewhere: the only errors (TypeMismatch) locate at `vs`'s own span, more precise than the coarse list span
 ) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::vector-bundle".into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let vec_value = eval_inner(&args[0], env, sym)?.value_owned();
+    let vec_value = eval_inner(vs, env, sym)?.value_owned();
     let elements = match vec_value {
         Value::Vec(v) => v,
         other => {
             return Err(RuntimeError::new(
-                args[0].span().clone(),
+                vs.span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: ":wat::holon::vector-bundle".into(),
                     expected: "Vec of wat::holon::Vector",
@@ -3291,7 +2812,7 @@ pub(crate) fn eval_holon_vector_bundle(
     };
     if elements.is_empty() {
         return Err(RuntimeError::new(
-            args[0].span().clone(),
+            vs.span().clone(),
             RuntimeErrorKind::TypeMismatch {
                 op: ":wat::holon::vector-bundle".into(),
                 expected: "non-empty Vec of Vector",
@@ -3328,43 +2849,38 @@ pub(crate) fn eval_holon_vector_bundle(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Combine
-/// @arg     args… :wat::core::Value the two raw vectors and their two weights, in order
+/// @arg     a :wat::holon::Vector the two raw vectors and their two weights, in order
+/// @arg     b :wat::holon::Vector the two raw vectors and their two weights, in order
+/// @arg     w1 :wat::core::f64 the two raw vectors and their two weights, in order
+/// @arg     w2 :wat::core::f64 the two raw vectors and their two weights, in order
 /// @ret     :wat::holon::CombineOutcome the matchable combine outcome
 /// @example (:wat::holon::vector-blend (:wat::holon::encode (:wat::holon::leaf "role")) (:wat::holon::encode (:wat::holon::leaf "filler")) 0.7 0.3) #=> (:wat::holon::vector-blend (:wat::holon::encode (:wat::holon::leaf "role")) (:wat::holon::encode (:wat::holon::leaf "filler")) 0.7 0.3)
 #[wat_intrinsic(":wat::holon::vector-blend")]
 pub(crate) fn eval_holon_vector_blend(
-    args: &[WatAST],
+    a: &WatAST,
+    b: &WatAST,
+    w1: &WatAST,
+    w2: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    if args.len() != 4 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::vector-blend".into(),
-                expected: 4,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
     let va = require_vector(
         ":wat::holon::vector-blend",
-        eval_inner(&args[0], env, sym)?.value_owned(),
+        eval_inner(a, env, sym)?.value_owned(),
     )?;
     let vb = require_vector(
         ":wat::holon::vector-blend",
-        eval_inner(&args[1], env, sym)?.value_owned(),
+        eval_inner(b, env, sym)?.value_owned(),
     )?;
     let w1 = require_numeric(
         ":wat::holon::vector-blend",
-        eval_inner(&args[2], env, sym)?.value_owned(),
+        eval_inner(w1, env, sym)?.value_owned(),
         list_span,
     )?;
     let w2 = require_numeric(
         ":wat::holon::vector-blend",
-        eval_inner(&args[3], env, sym)?.value_owned(),
+        eval_inner(w2, env, sym)?.value_owned(),
         list_span,
     )?;
     if va.dimensions() != vb.dimensions() {
@@ -3386,37 +2902,28 @@ pub(crate) fn eval_holon_vector_blend(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Combine
-/// @arg     args… :wat::core::Value the raw vector permuted and the integer shift amount, in order
+/// @arg     v :wat::holon::Vector the raw vector permuted and the integer shift amount, in order
+/// @arg     k :wat::core::i64 the raw vector permuted and the integer shift amount, in order
 /// @ret     :wat::holon::Vector the shifted vector
 /// @example (:wat::holon::vector-permute (:wat::holon::encode (:wat::holon::leaf "role")) 1) #=> (:wat::holon::vector-permute (:wat::holon::encode (:wat::holon::leaf "role")) 1)
 #[wat_intrinsic(":wat::holon::vector-permute")]
 pub(crate) fn eval_holon_vector_permute(
-    args: &[WatAST],
+    v: &WatAST,
+    k: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
-    list_span: &Span,
+    _span: &Span, // rune:lint(unused-span) — located elsewhere: the only error (TypeMismatch, non-i32 step) locates at `k`'s own span, more precise than the coarse list span
 ) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::vector-permute".into(),
-                expected: 2,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
     let v = require_vector(
         ":wat::holon::vector-permute",
-        eval_inner(&args[0], env, sym)?.value_owned(),
+        eval_inner(v, env, sym)?.value_owned(),
     )?;
-    let k_val = eval_inner(&args[1], env, sym)?.value_owned();
+    let k_val = eval_inner(k, env, sym)?.value_owned();
     let k = match k_val {
         Value::i64(n) => n as i32,
         other => {
             return Err(RuntimeError::new(
-                args[1].span().clone(),
+                k.span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: ":wat::holon::vector-permute".into(),
                     expected: "i64 shift amount",
@@ -3440,30 +2947,19 @@ pub(crate) fn eval_holon_vector_permute(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Transform
-/// @arg     args… :wat::core::Value the HolonAST measured, alone
+/// @arg     ast :wat::holon::HolonAST the HolonAST measured, alone
 /// @ret     :wat::core::i64 the top-level form's structural size
 /// @example (:wat::holon::statement-length (:wat::holon::Bind (:wat::holon::leaf "role") (:wat::holon::leaf "filler"))) #=> (:wat::holon::statement-length (:wat::holon::Bind (:wat::holon::leaf "role") (:wat::holon::leaf "filler")))
 #[wat_intrinsic(":wat::holon::statement-length")]
 pub(crate) fn eval_holon_statement_length(
-    args: &[WatAST],
+    ast: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
-    list_span: &Span,
+    _span: &Span, // rune:lint(unused-span) — infallible relative to this span — `require_holon` locates its own error without a span param, and the length computation itself cannot fail
 ) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::statement-length".into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
     let ast = require_holon(
         ":wat::holon::statement-length",
-        eval_inner(&args[0], env, sym)?.value_owned(),
+        eval_inner(ast, env, sym)?.value_owned(),
     )?;
     // Arc 230 — Symbol/Keyword/Tag/Nil are now Bind compositions; intercept before
     // the generic match so they return 1 (conceptual leaf) not 2 (Bind structural count).
