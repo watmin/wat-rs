@@ -345,7 +345,24 @@ fn keyword_eq() -> Cell {
 /// is how that is paid back. A failing cell must never make anyone reconstruct what was driven.
 fn expect(cell: &Cell, site: CallSite, want: &Verdict) {
     let src = synth(cell, site);
-    let got = drive(&src, cell.op);
+    let mut got = drive(&src, cell.op);
+    // The SAME cross-position adjudication the sweep uses, and for the same reason: the expression
+    // text is identical in both positions, so a cell that fires anywhere is valid wat and a
+    // refusal elsewhere is about the POSITION whatever the diagnostic happened to name.
+    //
+    // This became load-bearing on 2026-08-28. The keyword-inline cell used to refuse with
+    // `ConstraintTypeNotComparable` — which NAMES the op — because `rete_type_segment_of` mapped
+    // only the uninhabitable capital `Keyword`. That is fixed, so the cell now refuses one step
+    // later with `UnknownField`: `:alpha` in operand position is read as a FIELD REFERENCE
+    // (`matcher.rs`'s `ast_literal_value`), and that error names the field, not the op. Still a
+    // genuine position refusal; only the reason moved.
+    if matches!(got, Verdict::TemplateDefect(DefectKind::Unattributed, _))
+        && matches!(drive(&synth(cell, CallSite::WhereFence), cell.op), Verdict::Fires)
+    {
+        if let Verdict::TemplateDefect(_, m) = got {
+            got = Verdict::Refused(m);
+        }
+    }
     // `TemplateDefect` matches NOTHING — it is never an expected outcome, only ever a bug in the
     // cell's own program. Folding it into `Refused` here is precisely the collapse this file was
     // rewritten to prevent.
@@ -372,7 +389,13 @@ fn expect(cell: &Cell, site: CallSite, want: &Verdict) {
 /// | `i64::>` inline | FIRES | `tests/rete/probe_arc278_inline_constraint_per_type.wat` compiles, fires, prunes |
 /// | `i64::>` fence | FIRES | the `where` family across the grid |
 /// | `keyword::=` fence | FIRES | arc 109's NOTE, proven twice (`where-eq=1`) |
-/// | `keyword::=` inline | REFUSED | arc 109's NOTE — `rete_type_segment_of` maps only the capital, uninhabitable `Keyword` |
+/// | `keyword::=` inline | REFUSED | a keyword LITERAL cannot be written there: `:alpha` in operand position is a FIELD REFERENCE |
+///
+/// ⚠ That last row's REASON changed on 2026-08-28 and the row survived, which is the calibration
+/// working. It used to refuse with `ConstraintTypeNotComparable` because `rete_type_segment_of`
+/// mapped only the uninhabitable capital `Keyword` (arc 109's NOTE). That is fixed — keyword
+/// equality FIELD-TO-FIELD now compiles and fires inline — so the cell refuses one step later, on
+/// the literal instead. The asymmetry is half closed, not gone.
 ///
 /// Two of each verdict is the load-bearing part. A template that renders NOTHING would pass a
 /// control made only of refusals; a template that never applies its constraint would pass one made
@@ -394,7 +417,14 @@ fn the_ledger_reproduces_four_known_cells_before_it_reports_an_unknown_one() {
 #[test]
 fn one_op_can_be_reachable_in_one_position_and_refused_in_another() {
     let fence = drive(&synth(&keyword_eq(), CallSite::WhereFence), keyword_eq().op);
-    let inline = drive(&synth(&keyword_eq(), CallSite::InlineConstraint), keyword_eq().op);
+    // Adjudicated the same way `expect` and the sweep do: the fence firing proves the expression
+    // is valid wat, so a refusal inline is about the POSITION however the diagnostic is worded.
+    // Since 2026-08-28 that wording is `UnknownField` (the literal `:alpha` reads as a field)
+    // rather than `ConstraintTypeNotComparable` (the keyword type-map, now fixed).
+    let inline = match drive(&synth(&keyword_eq(), CallSite::InlineConstraint), keyword_eq().op) {
+        Verdict::TemplateDefect(DefectKind::Unattributed, m) => Verdict::Refused(m),
+        other => other,
+    };
     assert_eq!(fence, Verdict::Fires, "the fence position must be reachable");
     assert!(
         matches!(inline, Verdict::Refused(_)),

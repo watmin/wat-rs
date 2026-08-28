@@ -466,7 +466,10 @@ fn compile_one(
             let lhs_e = compile_operand_expr(lhs, scope, field_slots, ctx, ops);
             let rhs_e = compile_operand_expr(rhs, scope, field_slots, ctx, ops);
             match (lhs_e, rhs_e) {
-                (Some(lhs), Some(rhs)) => {
+                // A form that will not lower is a USER ERROR: refuse the whole condition so
+                // `arm.rs` reports it, instead of compiling a silent never-match.
+                (OperandLowering::Refused, _) | (_, OperandLowering::Refused) => return false,
+                (OperandLowering::Lowered(lhs), OperandLowering::Lowered(rhs)) => {
                     if expr_reads_seed(&lhs, &ctx.seed_reads)
                         || expr_reads_seed(&rhs, &ctx.seed_reads)
                     {
@@ -555,44 +558,68 @@ fn expr_slot(slot: usize) -> Option<Expr> {
 /// (lists are `where`-territory on both sides; do not compile them here alone).
 /// Leftover-as-seed (`defer_unbound`): an unbound `?var` allocates a seed slot and
 /// returns `Expr::Slot` so the Constraint arm can emit [`Op::SeedCmp`].
+/// What compiling one operand produced — and the three cases must NOT collapse.
+///
+/// ⛔ **THIS ENUM IS FIX-LIST F's LESSON APPLIED TO F's OWN FIX.** F was "could not lower" being
+/// reported as `Op::Fail`, a compiled permanent never-match. The first repair lowered nested calls
+/// through the core but kept `Option`, so a nested operand that STILL would not lower — a
+/// non-rete head, which Law A must refuse — fell into the same silent bucket. Measured: a core
+/// `(:wat::core::i64::+ …)` inline compiled and matched nothing, while the identical form in a
+/// `where` fence was refused by name. The defect class re-entered through its own cure.
+///
+/// So the three outcomes are separated by TYPE rather than by discipline:
+///   · `Lowered`      — an expression the executor can run.
+///   · `Unresolvable` — an unbound `?var` or a field this class does not declare. It can NEVER
+///     match, and compiling that as `Op::Fail` is correct and always was.
+///   · `Refused`      — a form that will not lower at all. It is a USER ERROR and must reach the
+///     user as one; the whole condition refuses, which `arm.rs` turns into a located
+///     `MalformedForm`. Never `Op::Fail`, because silence is what F was.
+enum OperandLowering {
+    Lowered(Expr),
+    Unresolvable,
+    Refused,
+}
+
 fn compile_operand_expr(
     operand: &WatAST,
     scope: &mut HashMap<String, usize>,
     field_slots: &mut HashMap<usize, usize>,
     ctx: &mut AlphaCompileCx<'_>,
     ops: &mut Vec<Op>,
-) -> Option<Expr> {
+) -> OperandLowering {
     match operand {
         WatAST::Symbol(ident, _) => {
             let name = ident.as_str();
             if name.starts_with('?') {
                 if let Some(slot) = scope.get(name).copied() {
-                    expr_slot(slot)
+                    lowered(expr_slot(slot))
                 } else if ctx.defer_unbound {
                     let slot = ctx.next_slot;
                     ctx.next_slot += 1;
                     scope.insert(name.to_string(), slot);
                     ctx.seed_reads
                         .push((Value::String(Arc::new(name.to_string())), slot));
-                    expr_slot(slot)
+                    lowered(expr_slot(slot))
                 } else {
-                    None
+                    OperandLowering::Unresolvable
                 }
             } else {
-                None
+                OperandLowering::Unresolvable
             }
         }
         WatAST::Keyword(k, _) => {
             let field_name = k.strip_prefix(':').unwrap_or(k.as_str());
-            let field_idx = ctx.field_names.iter().position(|n| n == field_name)?;
+            let Some(field_idx) = ctx.field_names.iter().position(|n| n == field_name) else {
+                return OperandLowering::Unresolvable;
+            };
             if let Some(&slot) = field_slots.get(&field_idx) {
-                return expr_slot(slot);
+                return lowered(expr_slot(slot));
             }
             let slot = ctx.next_slot;
             ctx.next_slot += 1;
             field_slots.insert(field_idx, slot);
             ops.push(Op::Bind { field_idx, slot });
-            expr_slot(slot)
+            lowered(expr_slot(slot))
         }
         // ── FIX-LIST F: a NESTED CALL operand, lowered through the one expression core ────────
         //
@@ -610,7 +637,7 @@ fn compile_operand_expr(
             // the ORIGINAL, correct meaning of `Op::Fail`. Detect it before lowering, because
             // `lower_in_frame` would happily mint a fresh slot for it and leave it unfilled.
             if unbound_qvar_in(operand, scope) {
-                return None;
+                return OperandLowering::Unresolvable;
             }
             // Field refs are alpha-specific spelling: the core lowers a bare keyword to a keyword
             // LITERAL, so `:v` must become a slot read first. Each one gets the prologue `Op::Bind`
@@ -618,20 +645,42 @@ fn compile_operand_expr(
             // collide with.
             let mut names: HashMap<String, u16> =
                 scope.iter().map(|(k, v)| (k.clone(), *v as u16)).collect();
-            let rewritten = bind_field_refs(operand, scope, field_slots, ctx, ops, &mut names)?;
-            let mut next = u16::try_from(ctx.next_slot).ok()?;
-            let expr =
+            let Some(rewritten) = bind_field_refs(operand, scope, field_slots, ctx, ops, &mut names)
+            else {
+                return OperandLowering::Refused;
+            };
+            let Ok(mut next) = u16::try_from(ctx.next_slot) else {
+                return OperandLowering::Refused;
+            };
+            // ⛔ A LOWERING FAILURE IS A REFUSAL, NEVER `Op::Fail`. `lower_in_frame` rejects a
+            // non-rete head — which is Law A doing its job — and reporting that as "this fact does
+            // not match" is precisely the silence fix-list F was.
+            let Ok(expr) =
                 crate::rete::expr_ir::lower_in_frame(&rewritten, ctx.sym, &mut names, &mut next)
-                    .ok()?;
+            else {
+                return OperandLowering::Refused;
+            };
             ctx.next_slot = next as usize;
             // Materialise into a slot so `Cmp` keeps its `Slot | Lit` operands.
             let result = ctx.next_slot;
             ctx.next_slot += 1;
             ctx.slot_names = invert_slot_names(&names, ctx.next_slot);
             ops.push(Op::Eval { expr, slot: result });
-            expr_slot(result)
+            lowered(expr_slot(result))
         }
-        other => crate::rete::matcher::ast_literal_value(other).map(Expr::Lit),
+        other => match crate::rete::matcher::ast_literal_value(other) {
+            Some(v) => OperandLowering::Lowered(Expr::Lit(v)),
+            None => OperandLowering::Unresolvable,
+        },
+    }
+}
+
+/// `expr_slot` yields `Option<Expr>`; a `None` there is an internal slot-index failure, which is
+/// not a user error and not a match outcome.
+fn lowered(e: Option<Expr>) -> OperandLowering {
+    match e {
+        Some(x) => OperandLowering::Lowered(x),
+        None => OperandLowering::Refused,
     }
 }
 
