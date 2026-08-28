@@ -117,3 +117,63 @@ Order: **H → re-measure with the compiler → then Q or not → then O-iv-c.**
 - **Good UX? YES.** `metadata-of` reports `:arity` from the declaration, so today every holon verb
   reports **variadic** regardless of its real arity — the same defect Stone P2 just fixed for
   `:wat::core::if`, in a second place. This fixes it for 89 more.
+
+---
+
+## ⛔ H-1a SHIPPED — and it REFUTED this design's own hypothesis about spans
+
+**35 verbs converted, −542/+235.** All 35 reported `:arity -1` before; after, all report their real
+N (17×1, 11×2, 3×3, 3×4, 1×5). No verb in these four files is genuinely variadic — the only one in
+holon is `from-holon` (1-or-3), and it is `atom.rs`/H-1b.
+
+★ **THE HYPOTHESIS WAS WRONG, AND THE COMPILER SAID SO.** This design argued *"most of holon's
+apparent span-dependence is the arity artifact"*. Measured by the compiler, per verb:
+
+```
+list_span became UNUSED     5 of 35     the arity check was its only reader
+list_span STILL USED       30 of 35     require_subspace / require_engram / require_reckoner /
+                                        require_numeric / require_encoding_ctx / with_mut — all
+                                        take a call span and locate their TypeMismatch at it
+```
+
+**Five, not most.** The arity fix was right and worth doing on its own merits, but holon's span
+dependence is overwhelmingly REAL, carried by its `require_*` helper family. **Stone Q is therefore
+NOT optional for holon — it is required**, and this is the first sizing of it that did not come from
+a pattern I had to retract. `[[feedback_impose_the_check_and_read_the_screams]]`
+
+## ★ AND SPLITTING THE COLLAPSED `@arg` LINE EXPOSED FIVE DOC LIES
+
+Every one of these handlers documented its arguments as ONE collapsed line —
+`@arg args… :wat::core::Value the reckoner, the prediction's conviction, and whether it was
+correct, in order`. `doc_arg_ret_types_match_checker_scheme` compares per-argument doc types against
+the checker's scheme; **a single collapsed line has no per-argument type to compare, so the gate
+verified nothing.** Declaring the real arity gave it something to check, and it immediately failed
+five times:
+
+| verb | doc said | checker says |
+|---|---|---|
+| `Reckoner/resolve` arg 1 | `:wat::core::Value` | `:wat::core::f64` |
+| `Reckoner/observe` arg 3 | `:wat::core::Value` | `:wat::core::f64` |
+| `Reckoner/new-continuous` | `:wat::core::Value` | `:wat::core::f64` |
+| `Reckoner/new-discrete` arg 3 | `:wat::core::Vector` | `(:wat::core::Vector :- [:wat::holon::HolonAST])` |
+| `Hologram/make` arg 0 | *(see below)* | `[:wat::core::f64 :-> :wat::core::bool]` |
+
+**This is the same shape as Stone P6-a**, which published two inverted `if` doc comments by making
+`show-source` reach them. A claim nothing could check is not a claim that was true.
+
+⚠ **AND THE ORCHESTRATOR ADDED ONE OF THE FIVE.** The rider had typed `Hologram/make`'s filter as
+`:wat::core::fn`; I "corrected" it to `:wat::core::Fn` on the grounds that four other corpus sites
+spell it that way. **Both were wrong, and the authority was two directories over the whole time** —
+the checker says `[:wat::core::f64 :-> :wat::core::bool]`. Reaching for a corpus majority instead of
+asking the enforcing gate is the same reflex as reaching for a grep instead of the compiler.
+
+⚠ **A finding recorded, not chased:** `require_numeric` accepts `Value::i64` **or** `Value::f64`,
+while the checker admits only `f64` for every parameter that reaches it. **Its `i64` arm is
+unreachable through the checked path** — only via `eval-ast!`. Three separate declarations of one
+parameter's type (doc, checker, body) and all three disagreed; the docs now match the checker,
+because the checker is what a caller actually meets.
+
+⚠ **Clippy caught what the floor could not, again:** `eval_reckoner_new_continuous` is a 5-arg verb,
+so its Rust signature is 8 params with the `env`/`sym`/`span` tail — one over
+`clippy::too_many_arguments`. Carried as `#[expect(…, reason = …)]`, not `#[allow]`, so it goes red
+if the signature ever shrinks under the limit. `[[feedback_an_exemption_is_earned_when_the_alternative_is_worse]]`
