@@ -12661,7 +12661,10 @@ fn eval_assoc(
 /// `:wat::eval-ast!`, stored in environments, etc.
 ///
 /// Quote is how programs become holons without running.
-fn eval_quote(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBreak> {
+/// `pub(crate)` since 2026-08-28: the rete lowerer folds `#holon <form>` to a constant and needs
+/// the SAME capture this evaluator uses. A second copy of "quote a form into data" is exactly the
+/// kind of twin this arc keeps deleting.
+pub(crate) fn eval_quote(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBreak> {
     if args.len() != 1 {
         return Err(RuntimeError::new(
             list_span.clone(),

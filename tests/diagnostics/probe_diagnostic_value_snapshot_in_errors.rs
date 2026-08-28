@@ -71,15 +71,24 @@ fn probe_1_not_callable_renders_offending_keyword() {
             // 25695→25722 move is `classify_fallback_outcome` landing above this site,
             // 2026-08-24.)
             //
-            // ⚠ `classify_fallback_outcome` MOVED THIS SITE A SECOND TIME — 25793→25799,
-            // 2026-08-28, when its `ret` param became `vocabulary::Ret` and gained the comment
-            // explaining why. Nothing user-facing changed in any of the five goldens: the diff is
-            // ONE integer per file, this span's line. Twice from one function is the signal worth
-            // recording — a golden that pins an INTERPRETER line number goes red on edits that
-            // cannot affect it, and the value it pins (`rust_caller_span!()`, the sentinel for
-            // "no recoverable user location") teaches nothing at line granularity. Not changed
-            // here, because a probe strike is the wrong place to re-rule a golden's shape; noted
-            // so whoever does rule on it has the second data point rather than the first.
+            // ⛔⛔ THREE TIMES IN ONE SESSION — 25722→25793→25799→25802, all on 2026-08-28, and
+            // EVERY ONE OF THEM WAS A COMMENT. `classify_fallback_outcome` gaining a doc note
+            // (25793→25799); `eval_quote` gaining a three-line doc note (25799→25802). Not one of
+            // the three changed a single byte of behaviour, and each cost a full 375-second floor
+            // to discover. The five goldens' diff each time is ONE INTEGER.
+            //
+            // THE FINDING, now well past anecdote: this golden pins an INTERPRETER line number.
+            // The value is `rust_caller_span!()` — the sentinel meaning "no recoverable USER
+            // source location" — so what is worth asserting is that the location IS that sentinel
+            // (file `src/runtime.rs`), never which line of it. The line carries zero diagnostic
+            // value to a reader and full maintenance cost to every edit above it, which is the
+            // definition of a gate that tests its own accident.
+            //
+            // ⚠ DELIBERATELY NOT FIXED HERE, and this is a scope boundary rather than a deferral:
+            // the cure lives in `assert_edn_matches_file!` and would touch every golden in the
+            // repo, which is not a change to smuggle into a rete strike. Tracked as its own item —
+            // `RETE-OPEN-WORK.md` § "The order" item 10 — with these three data points, so
+            // whoever takes it starts from evidence instead of a hunch.
             //
             // ⚠ THIS TRAIL HAD ITSELF GONE STALE: it ended at 25429 while the golden
             // pinned 25695, so at least one recapture updated the .edn and not the note.

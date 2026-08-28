@@ -553,11 +553,31 @@ Every GENERABLE row fires in BOTH positions, 79 of 79 counting the four holon ro
 driven by hand. The column went 16 -> 68 -> 71 -> 75 across the day, and the last four came from
 proving the ledger's own exclusion false.**
 
-⛔ **THE LEDGER IS LYING ABOUT FOUR ROWS — AND SO WAS THE ENTRY THAT SAID SO. Re-driven
-2026-08-28 (LATE); the corrected result is below.** `NOT_YET_GENERABLE` reports the four
-`:wat::rete::holon::*` rows un-drivable because *"a holon has no literal spelling, so the second
-operand cannot be written as a constant."* That reason is **true and beside the point**: the
-refutation is not a literal, it is a SECOND FIELD. With `v` and `w` both `:wat::holon::HolonAST` on
+✅ **THE LEDGER'S FOUR HOLON ROWS ARE GENERATED AND FIRE — `NOT_YET_GENERABLE` IS NOW EMPTY.
+79/79, produced by the instrument rather than claimed by hand.** Its exclusion read *"a holon has
+no literal spelling, so the second operand cannot be written as a constant"* — **and that was
+simply FALSE.** `#holon <form>` is the literal; a holon holds the same data EDN does, so it spells
+the same way (`#holon [1 2 3]`, `#holon {:a 1}`). Builder, on being shown the claim: *"wut… holon
+is just another holder for data like edn is."*
+
+**What the exclusion had actually measured was a MISSING LOWERING ARM.** The reader desugars
+`#holon X` to `(:wat::holon::literal X)`, which arrived at `expr_ir` wearing a call's clothes and
+fell through to *"cannot lower head `:wat::holon::literal`"*. Someone read that refusal as a
+property of holons. **A refusal is evidence about the door you knocked on, not the room behind
+it** — the same lesson the termination doctrine block taught six hours earlier, in the same file.
+
+**The fix is a CONSTANT FOLD, not a row.** There is nothing to dispatch: the enclosed form is data
+captured without evaluation, so its value is fixed by the source text — no environment, no
+bindings, no encoding context. `expr_ir` folds it to `Expr::Lit` like any other literal, which
+keeps it out of the jump table entirely (a row for a constant would be a runtime dispatch that can
+only ever return the same value). Totality is not weakened, it moves EARLIER: `to_holon_inner` is
+partial, but here its input is a quoted literal, so any failure is a located diagnostic at
+rule-compile rather than at fire time.
+
+**And the planned `Cell` extension was never needed.** The prior entry concluded the refutation was
+"a SECOND FIELD" — because one field cannot discriminate a self-comparison. True, and moot: with a
+literal rhs the holon rows need exactly what every scalar row needs, one field and one constant.
+**I had designed an extension to the instrument to work around a defect in the substrate.** With `v` and `w` both `:wat::holon::HolonAST` on
 `:probe::In`:
 
 | row | inline | fence |
@@ -619,9 +639,17 @@ fire inline via `classify_constraint_head`'s NAME-pattern path, which never read
 `coincident?` was the only row in the whole table that genuinely returns bool and sat in neither
 admission path — a population of one, which is why no count would ever have surfaced it.
 
-**Remaining for this item:** generate the holon cells. They need `Cell` to carry an optional SECOND
-field, because one field cannot discriminate a self-comparison (`cosine(h,h)` is 1.0 for every `h`)
-— the ledger's stated reason, "no literal spelling", is true and beside the point.
+**Remaining for this item:** nothing on the ledger — `NOT_YET_GENERABLE` is empty and all four rows
+are generated, driven, and FIRE in both positions. What is still open under item 7 is the SURFACE:
+verify `is-List?`/`is-Tag?` (their confusion-matrix columns are all-false and therefore UNVERIFIED,
+not verified-negative), mint the 11 shape predicates with the nil ⊂ Symbol non-partition written
+down, and rule on the accessors' two partiality conventions (`Bind/left` returns `Option`;
+`Bundle/first` RAISES — core's inconsistency, which rete would inherit).
+
+⚠ **AND `#holon` REOPENS A QUESTION THIS ITEM HAD CLOSED.** The audit concluded rete has "no
+constructor" for holons. It now has the only one that matters for a rule: a literal. That does not
+supply `Bundle`/`Bind` at runtime, but "a rule cannot mention a holon at all" is no longer true,
+and any future holon-surface reasoning should start from the literal rather than from its absence.
 
 > ⛔ **NONE OF THIS WAS A VIGILIA ITEM, AND THAT IS THE FINDING UNDER THE FINDING.** The full watch
 > CONVERGED before any of it: recasts 12 and 13 both `0 L1 + 0 L2`, inward 17/17 plus
@@ -823,6 +851,24 @@ field, because one field cannot discriminate a self-comparison (`cosine(h,h)` is
 
    **Zero programs in the corpus trip the verifier today** (report's measurement, and consistent
    with our own green floor). That is exactly when this class is cheapest to widen.
+
+10. **A GOLDEN THAT PINS AN INTERPRETER LINE NUMBER — three false reds in one day, none of them
+    behaviour.** `tests/diagnostics/probe_diagnostic_value_snapshot_in_errors.rs`'s five goldens
+    pin `:location #wat.core/Span {:file "src/runtime.rs" :line N}`. On 2026-08-28 that `N` moved
+    **three times** — 25722→25793→25799→25802 — and **every move was a COMMENT**
+    (`classify_fallback_outcome` gaining a doc note; `eval_quote` gaining one). Each cost a full
+    375-second floor to discover, and each fix was one integer in five files.
+
+    **The value being pinned is `rust_caller_span!()`** — the sentinel meaning *"no recoverable
+    USER source location"*. What deserves assertion is that the location IS that sentinel (file
+    `src/runtime.rs`), never WHICH LINE of it. A line number there teaches a reader nothing and
+    taxes every edit above it: a gate testing its own accident.
+
+    **The likely cure** is in `assert_edn_matches_file!` — normalise a `src/*.rs` span's `:line` on
+    both sides — but that macro backs every golden in the repo, so it is its own strike and needs
+    its own measurement of what else pins such a line. Not started. The three data points and the
+    reasoning are in the probe file's own staleness trail, which is where someone hitting the red
+    will actually be standing.
 
 ~~1.1 interleaved retract~~ · ~~1.2 generated rules~~ · ~~1.3 query params~~ ·
 ~~1.4 nested combinators~~ · ~~3.1 fixpoint cap~~ · ~~3.2 CI parity~~ · ~~4.2 termination

@@ -362,6 +362,43 @@ fn lower_list(items: &[WatAST], span: &Span, cx: &mut LowerCx) -> Result<Expr, L
             return Err(LowerError::unsupported(span.clone(), "empty list".into()));
         }
     };
+    // ── `#holon <form>` IS A LITERAL, and is folded like one ──────────────────────────────────
+    //
+    // The reader desugars `#holon [1 2 3]` to `(:wat::holon::literal [1 2 3])`, so it arrives here
+    // wearing a call's clothes and fell straight through to "cannot lower head
+    // `:wat::holon::literal`". The reachability ledger recorded that outcome as
+    // *"a holon has no literal spelling, so the second operand cannot be written as a constant"* —
+    // **which is false.** A holon has exactly the spelling EDN has, because it holds the same data;
+    // `#holon {:a 1}` is a constant in every sense that `42` and `"a"` are. The ledger measured a
+    // MISSING ARM and wrote it down as an impossibility, which is the corpus fallacy this table's
+    // own doctrine already refutes: absence of a caller is not evidence of absence of need.
+    // Builder, 2026-08-28: *"holon is just another holder for data like edn is."*
+    //
+    // WHY A FOLD AND NOT A `RETE_OPS` ROW. There is nothing to dispatch. The enclosed form is DATA
+    // captured without evaluation (`check.rs`'s arm says so — it deliberately does not recurse), so
+    // the value is fully determined by the source text and needs no environment, no bindings and no
+    // encoding context. Folding it to `Expr::Lit` at lower time is the same treatment every other
+    // literal gets, and it keeps the op out of the jump table entirely — a row for a constant would
+    // be a runtime dispatch that can only ever return the same value.
+    //
+    // TOTALITY IS NOT WEAKENED, it moves EARLIER. `to_holon_inner` is partial (a base record has no
+    // lift), but here its input is a quoted literal form and any failure lands at RULE-COMPILE with
+    // this span — a located diagnostic where a bad literal belongs — rather than at fire time. The
+    // fence's `total?` conjunct is untouched because no row is added.
+    if head == ":wat::holon::literal" {
+        if items.len() != 2 {
+            return Err(LowerError::unsupported(
+                span.clone(),
+                format!("`#holon` takes exactly one form; got {}", items.len().saturating_sub(1)),
+            ));
+        }
+        let data = crate::runtime::eval_quote(&items[1..], span)
+            .map_err(|e| LowerError::unsupported(span.clone(), format!("{e}")))?;
+        let holon = crate::runtime::to_holon_inner(data, items[1].span())
+            .map_err(|e| LowerError::unsupported(items[1].span().clone(), format!("{e}")))?;
+        return Ok(Expr::Lit(holon));
+    }
+
     let core = resolve_core_name(head);
     if core == ":wat::core::and" {
         return Ok(Expr::And(lower_args(&items[1..], cx)?));

@@ -628,6 +628,23 @@ fn special_for(rete_name: &str) -> Option<(&'static str, &'static str, &'static 
         ":wat::rete::core::Tuple/third" => (":wat::core::i64", "7", "9", "(:wat::rete::core::i64::= (:wat::rete::core::Tuple/third (:wat::rete::core::Tuple 99 99 {f})) 7)", ""),
         ":wat::rete::core::keyword/to-string" => (":wat::core::keyword", ":alpha", ":beta", "(:wat::rete::core::string::= (:wat::rete::core::keyword/to-string {f}) \"alpha\")", ""),
         ":wat::rete::core::keyword/from-string" => (":wat::core::String", "\"alpha\"", "\"beta\"", "(:wat::rete::core::string::= (:wat::rete::core::keyword/to-string (:wat::rete::core::keyword/from-string {f} :undefined :none)) \"alpha\")", ""),
+
+        // ── THE FOUR HOLON ROWS. Excluded until 2026-08-28 on the stated ground that "a holon has
+        // no literal spelling, so the second operand cannot be written as a constant the way every
+        // scalar row's can". THAT WAS FALSE. `#holon <form>` is the literal — a holon holds the
+        // same data EDN does, so it spells the same way — and the exclusion had measured a MISSING
+        // LOWERING ARM (`cannot lower head :wat::holon::literal`) and written it down as an
+        // impossibility. Builder: "holon is just another holder for data like edn is." The arm now
+        // folds `#holon` to a constant at lower time, and these four need NOTHING the scalar rows
+        // do not: one field, one literal rhs.
+        //
+        // THRESHOLDS ARE MEASURED, NOT GUESSED (`probe-holon-rete-cell-values.wat`): cosine is 1.0
+        // for the hit and -0.018 for the miss; dot is 4333.0 and -81.0. `coincident?`/`presence?`
+        // answer bool directly. A guessed threshold is a cell that can pass for the wrong reason.
+        ":wat::rete::holon::coincident?" => (":wat::holon::HolonAST", "#holon [1 2 3]", "#holon [7 8 9]", "(:wat::rete::holon::coincident? {f} #holon [1 2 3])", ""),
+        ":wat::rete::holon::presence?" => (":wat::holon::HolonAST", "#holon [1 2 3]", "#holon [7 8 9]", "(:wat::rete::holon::presence? {f} #holon [1 2 3])", ""),
+        ":wat::rete::holon::cosine" => (":wat::holon::HolonAST", "#holon [1 2 3]", "#holon [7 8 9]", "(:wat::rete::core::f64::> (:wat::rete::holon::cosine {f} #holon [1 2 3] :undefined 0.0) 0.9)", ""),
+        ":wat::rete::holon::dot" => (":wat::holon::HolonAST", "#holon [1 2 3]", "#holon [7 8 9]", "(:wat::rete::core::f64::> (:wat::rete::holon::dot {f} #holon [1 2 3] :undefined 0.0) 1000.0)", ""),
         _ => return None,
     };
     Some(t)
@@ -788,27 +805,7 @@ const COMPILED_EXECUTOR_CANNOT_RUN: &[(&str, &str)] = &[
 /// An exclusion is a claim that a cell cannot be written, which is exactly the kind of claim this
 /// arc has been wrong about twice (see the breadcrumb: "do not trust a grep that found nothing").
 /// So each one names what would refute it.
-const NOT_YET_GENERABLE: &[(&str, &str)] = &[
-    (
-    ":wat::rete::holon::coincident?",
-    "same as `presence?` — two `HolonAST` operands, no literal spelling for the second.",
-    ),
-    (
-    ":wat::rete::holon::cosine",
-    "same as `presence?` — two `HolonAST` operands, no literal spelling for the second.",
-    ),
-    (
-    ":wat::rete::holon::dot",
-    "same as `presence?` — two `HolonAST` operands, no literal spelling for the second.",
-    ),
-    (
-    ":wat::rete::holon::presence?",
-    "takes TWO `:wat::holon::HolonAST` operands; a holon has no literal spelling, so the second \
-     operand cannot be written as a constant the way every scalar row's can. REFUTED BY: any rule \
-     that reaches this op with a constructed holon on both sides — at which point it belongs in \
-     the table above, not here.",
-    ),
-];
+const NOT_YET_GENERABLE: &[(&str, &str)] = &[];
 
 /// The sweep body, run as one SHARD of the row list.
 ///
