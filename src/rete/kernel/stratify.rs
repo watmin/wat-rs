@@ -328,6 +328,26 @@ pub(crate) fn native_rule_stratum(
 //   - An imported Export carries no rule AST (`rules_lack_ast`), so there is nothing to analyse.
 //     That is where the runtime round cap keeps earning its place — the path where static proof is
 //     unavailable, rather than a general apology for not having proof.
+//   - A GUARDED COUNTER is refused THOUGH IT TERMINATES — the third hole, named here 2026-08-28
+//     after an integration-branch report pointed out it was recorded in exactly one place: the
+//     prose header of an unrelated fixture (`probe_arc278_fixpoint_round_cap_deep.wat`), where
+//     nothing would ever find it again.
+//
+//         N(k+1) :- N(k), (where (< ?k 500))      -> REFUSED. Terminates at k=500.
+//
+//     The cyclicity test below is purely STRUCTURAL — reachability over fact-type edges — and does
+//     not read the `where` fence. Proving this one terminates needs monotonicity analysis plus
+//     comparison-direction reasoning against a literal, which the first cut deliberately punted.
+//     The refusal is therefore correct BY THIS VERIFIER'S OWN CLAIM ("proves the absence of ONE
+//     unbounded-derivation shape"), and the cost is that a bounded counter — the first thing most
+//     people write in recursive Datalog-with-arithmetic — meets a hard compile refusal.
+//
+//     ⛔ THE ANSWER IS NOT AN ESCAPE HATCH; both were already refused above, and both rulings
+//     stand. It is a FORM THE VERIFIER CAN CHECK — eBPF's `bpf_loop()` posture, the bound as an
+//     argument it READS rather than a promise it trusts. Tracked, with the open design questions,
+//     at `RETE-OPEN-WORK.md` § "The order" item 9. Zero programs in the corpus trip this today,
+//     which is exactly when the class is cheapest to widen.
+//
 //   - A fn-headed `:then` is opaque: `(:my::mk-fact ?k)` may compute anything inside `mk-fact`,
 //     so a cycle through one is NOT proven terminating. It is nonetheless ADMITTED, and that is a
 //     deliberate narrowing rather than an oversight.
