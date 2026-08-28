@@ -17,7 +17,9 @@ H-1a    holon declares its REAL arity        ✅ STRUCK — 35 verbs, -542 lines
 H-1b    the same for atom.rs               ✅ STRUCK — 52 of 60, -829 lines, 58 doc lies exposed
 Q + Q-2 the value door carries a SPAN,
         and USES it                          ✅ STRUCK — 20 diagnostics move from a Rust line to the caller
-O-iv-c  holon sweep                       ← NEXT: 73 verbs, now unblocked by Q
+O-iv-c-0 the require_* family takes a ref  ← NEXT: 9 sigs + 109 call sites; makes the sweep a DELETION
+O-iv-c-1 holon sweep, the four small files    32 SHELL verbs
+O-iv-c-2 holon sweep, atom.rs                 41 SHELL verbs
 O-iv-c  holon sweep                            73 verbs — ⛔ BLOCKED on Q
 O-iv-d  the remainder sweep                    26 verbs — same
 P5  @yields becomes mandatory at expand time   the top rung; biggest change
@@ -42,7 +44,9 @@ the floor (P1). Adding the population first and the wall second is the wrong ord
 | ~~H-1b~~ | ~~the same for `atom.rs`~~ | | | ✅ **STRUCK** — 52 of 60, 58 doc lies |
 | ~~Q~~ | ~~the value door carries the CALL SPAN~~ | `ValueHandler` type · `dispatch_substrate_impl` + its 1 caller · the macro sniff · 19 twins take an ignored param | `BRIEF-STONE-Q-the-value-door-carries-the-call-span.md` | ✅ **STRUCK** — see Closed |
 | ~~Q-2~~ | ~~the threaded span must be USED~~ | | | ✅ **STRUCK** — 20 sites fixed, 0 runed |
-| **O-iv-c** | holon sweep — `atom` 41 · `subspace` 10 · `engram` 10 · `reckoner` 8 · `hologram` 4 | 73 verbs | *not drawn* | — **UNBLOCKED**: Q landed; the value door now carries the call span |
+| **O-iv-c-0** | the `require_*` family takes `&Value` | 9 signatures + 109 call sites; mechanical | `BRIEF-STONE-O-iv-c-0-the-require-family-takes-a-reference.md` | — **READY** |
+| **O-iv-c-1** | holon sweep — `subspace` 10 · `engram` 10 · `reckoner` 8 · `hologram` 4 | 32 SHELL verbs | *not drawn* | O-iv-c-0 |
+| **O-iv-c-2** | holon sweep — `atom.rs` | 41 SHELL verbs | *not drawn* | O-iv-c-1 proving the shape |
 | **O-iv-d** | the remainder — `uuid` 7 · `ambient` 7 · `string`/`reflect`/`bytes` 2 · six singles | 26 verbs | *not drawn* | same |
 | **P5** | `@yields` mandatory when an `@arg` carries an Fn shape | macro-expand-time rule | *not drawn* | P4's measurement |
 | ~~P6-a~~ | ~~a special form names its implementations~~ | | | ✅ **STRUCK** — see Closed |
