@@ -35,7 +35,7 @@
 ;;     this exact drift, and which missed it by stopping one index short — is widened past the
 ;;     card boundary and now kills a re-introduced hand encoding.
 ;;   ✓ `digit` was a hand-rolled `i - (i/base)*base` justified by "No native i64 mod/rem", false
-;;     since 2026-07-05 (finding G). `digit` IS `:wat::core::i64::rem`, verified equal on
+;;     since 2026-07-05 (finding G). `digit` IS `:wat::i64::rem`, verified equal on
 ;;     (0,3) (7,3) (8,4) (1234,10) before the swap.
 ;;   ✓ five `raise` strings naming retired `gen-` verbs, renamed to the shipping names
 ;;     (finding K). ⚠ THE ROOT IS STILL OPEN — see below.
@@ -180,7 +180,7 @@
 ;;
 ;; ⚠ THIS USED TO SAY "No native i64 mod/rem (only + - * /)", which justified a
 ;; hand-rolled `i - (i/base)*base`. That was FALSE for seven weeks before this file
-;; was promoted: `:wat::core::i64::{mod,rem,quot}` all ship (wat/core.wat:493-501,
+;; was promoted: `:wat::i64::{mod,rem,quot}` all ship (wat/core.wat:493-501,
 ;; src/runtime.rs:5928,5941), landed 2026-07-05 in `720303f46`. The claim was TRUE
 ;; when it was first written in a grid axis two days earlier, was copied forward
 ;; into a scratch probe, and by 2026-08-01 a sibling in the SAME directory had
@@ -188,17 +188,17 @@
 ;; citing the very files where the correction lived. Verified equal on
 ;; (0,3) (7,3) (8,4) (1234,10) before the swap.
 (:wat::core::defn :wat::gen::digit [i <- :wat::core::i64  base <- :wat::core::i64] -> :wat::core::i64
-  (:wat::core::i64::rem i base))
+  (:wat::i64::rem i base))
 
 (:wat::core::defn :wat::gen::shift [i <- :wat::core::i64  base <- :wat::core::i64] -> :wat::core::i64
-  (:wat::core::i64::/ i base))
+  (:wat::i64::/ i base))
 
 ;; ── the primitive generator ──────────────────────────────────────────────────
 (:wat::core::defn :wat::gen::ints [lo <- :wat::core::i64  hi <- :wat::core::i64]
   -> (:wat::gen::Gen :- [:wat::core::i64])
-  (:wat::gen::gen (:wat::core::i64::- hi lo)
+  (:wat::gen::gen (:wat::i64::- hi lo)
               (:wat::core::fn [i <- :wat::core::i64] -> :wat::core::i64
-                      (:wat::core::i64::+ lo i))))
+                      (:wat::i64::+ lo i))))
 
 ;; ── bools — the TOTAL generator, and why it is the only one ─────────────────
 ;;
@@ -261,7 +261,7 @@
   -> :wat::core::i64
   (:wat::core::foldl
     (:wat::core::fn [a <- :wat::core::i64  b <- :wat::core::i64] -> :wat::core::i64
-      (:wat::core::i64::* a b))
+      (:wat::i64::* a b))
     1 bases))
 
 (:wat::core::defn :wat::gen::coords [bases <- (:wat::core::PersistentVector :- [:wat::core::i64])]
@@ -355,7 +355,7 @@
                  (:wat::core::if (prop (at i))
                      a
                      (:wat::gen::CheckAcc
-                       :bad (:wat::core::i64::+ (:wat::gen::CheckAcc/bad a) 1)
+                       :bad (:wat::i64::+ (:wat::gen::CheckAcc/bad a) 1)
                        :first (:wat::core::match (:wat::gen::CheckAcc/first a)
                                 ((:wat::core::Some f) (:wat::core::Some f))
                                 (:wat::core::None (:wat::core::Some i))))))
@@ -441,7 +441,7 @@
   (:wat::gen::gen
     (:wat::core::foldl
             (:wat::core::fn [a <- :wat::core::i64  g <- (:wat::gen::Gen :- [T])] -> :wat::core::i64
-              (:wat::core::i64::+ a (:wat::gen::Gen/card g)))
+              (:wat::i64::+ a (:wat::gen::Gen/card g)))
             0 gs)
     (:wat::core::fn [i <- :wat::core::i64] -> T
           (:wat::core::Option/expect
@@ -454,7 +454,7 @@
                       (:wat::core::if (:wat::core::< (:wat::gen::Pick/rest acc) (:wat::gen::Gen/card g))
                         (:wat::gen::Pick :rest (:wat::gen::Pick/rest acc)
                                      :got (:wat::core::Some ((:wat::gen::Gen/at g) (:wat::gen::Pick/rest acc))))
-                        (:wat::gen::Pick :rest (:wat::core::i64::- (:wat::gen::Pick/rest acc) (:wat::gen::Gen/card g))
+                        (:wat::gen::Pick :rest (:wat::i64::- (:wat::gen::Pick/rest acc) (:wat::gen::Gen/card g))
                                      :got :wat::core::None)))))
                 (:wat::gen::Pick :rest i :got :wat::core::None)
                 gs))
@@ -539,7 +539,7 @@
      ;; The POSITIONAL constructor is the PRIME name: bare-positional construction
      ;; is retired (the bare name is the kwargs macro), so `:user::Point` becomes
      ;; `:user::Point'`. Same node-building idiom `:wat::core::kwargs-lower` uses.
-     ctor  (:wat::core::keyword-node (:wat::core::string::concat (:wat::core::ast-name T) "'"))
+     ctor  (:wat::core::keyword-node (:wat::string::concat (:wat::core::ast-name T) "'"))
      n     (:wat::core::length gens)
      ;; ONE hygienic binder per generator argument — this is what stops the `at`
      ;; copy re-evaluating its whole expression on every generated point.
@@ -679,11 +679,11 @@
       (:wat::core::foldl
         (:wat::core::fn [a <- :wat::gen::GenRev  b <- :wat::core::i64] -> :wat::gen::GenRev
           (:wat::core::let [d  (:wat::gen::digit (:wat::gen::GenRev/rem a) b)
-                            pf (:wat::core::i64::* (:wat::gen::GenRev/pref a) b)]
+                            pf (:wat::i64::* (:wat::gen::GenRev/pref a) b)]
             (:wat::gen::GenRev
               :rem  (:wat::gen::shift (:wat::gen::GenRev/rem a) b)
-              :idx  (:wat::core::i64::+ (:wat::gen::GenRev/idx a)
-                      (:wat::core::i64::* d (:wat::core::i64::/ card pf)))
+              :idx  (:wat::i64::+ (:wat::gen::GenRev/idx a)
+                      (:wat::i64::* d (:wat::i64::/ card pf)))
               :pref pf)))
         (:wat::gen::GenRev :rem k :idx 0 :pref 1)
         bases))))
@@ -838,7 +838,7 @@
     (:wat::gen::gen
       (:wat::core::foldl
               (:wat::core::fn [a <- :wat::core::i64  c <- :wat::core::i64] -> :wat::core::i64
-                (:wat::core::i64::+ a c))
+                (:wat::i64::+ a c))
               0 cards)
       (:wat::core::fn [k <- :wat::core::i64] -> B
             (:wat::core::Option/expect
@@ -857,7 +857,7 @@
                                      ((:wat::gen::Gen/at
                                         (:wat::core::Option/expect (:wat::core::get gens i)
                                           "bind: branch index outside the cached generators")) r)))
-                            (:wat::gen::BindPick :rest (:wat::core::i64::- r c)
+                            (:wat::gen::BindPick :rest (:wat::i64::- r c)
                               :got :wat::core::None))))))
                   (:wat::gen::BindPick :rest k :got :wat::core::None)
                   (:wat::core::range 0 n)))
@@ -894,7 +894,7 @@
 (:wat::core::defn :wat::gen::vector-upto :- [T]
   [g <- (:wat::gen::Gen :- [T])  lo <- :wat::core::i64  hi <- :wat::core::i64]
   -> (:wat::gen::Gen :- [(:wat::core::PersistentVector :- [T])])
-  (:wat::gen::bind (:wat::gen::ints lo (:wat::core::i64::+ hi 1))
+  (:wat::gen::bind (:wat::gen::ints lo (:wat::i64::+ hi 1))
     (:wat::core::fn [n <- :wat::core::i64]
                     -> (:wat::gen::Gen :- [(:wat::core::PersistentVector :- [T])])
       (:wat::gen::vector-of g n))))

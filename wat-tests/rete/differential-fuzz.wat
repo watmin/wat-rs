@@ -95,19 +95,19 @@
             ;; PARAMETERIZED: the threshold is generated, not hardcoded, so the
             ;; gate genuinely changes its mind across the space.
             (:wat::core::quasiquote
-              (:wat::rete::where (:wat::rete::core::i64::>= ?n (:wat::core::unquote fp)))))
+              (:wat::rete::where (:wat::rete::i64::>= ?n (:wat::core::unquote fp)))))
           (:wat::core::if (:wat::core::= f 4)
             (:wat::core::PersistentVector
               (:wat::core::quasiquote
                 (:wat-tests::rete::fuzz::W (?w <- :k)
-                  (:wat::rete::or (:wat::rete::core::i64::> ?w (:wat::core::unquote fp))
-                                  (:wat::rete::core::i64::< ?w 3)))))
+                  (:wat::rete::or (:wat::rete::i64::> ?w (:wat::core::unquote fp))
+                                  (:wat::rete::i64::< ?w 3)))))
             (:wat::core::if (:wat::core::= f 5)
               ;; 5 — intra-condition :not of a CONSTRAINT (not of a condition).
               (:wat::core::PersistentVector
                 (:wat::core::quasiquote
                   (:wat-tests::rete::fuzz::W (?w <- :k)
-                    (:wat::rete::not (:wat::rete::core::i64::> ?w 100)))))
+                    (:wat::rete::not (:wat::rete::i64::> ?w 100)))))
               (:wat::core::if (:wat::core::= f 6)
                 ;; 6 — top-level :or ACROSS conditions: network branches, the
                 ;; first of rete's three `or` engines, and the only one that
@@ -129,7 +129,7 @@
 ;; take the whole batch with it. That gap is real and stated, not hidden.
 (:wat::core::defn :wat-tests::rete::fuzz::where-cond [] -> (:wat::core::PersistentVector :- [:wat::WatAST])
   (:wat::core::PersistentVector
-    (:wat::core::quasiquote (:wat::rete::where (:wat::rete::core::i64::> 1 0)))))
+    (:wat::core::quasiquote (:wat::rete::where (:wat::rete::i64::> 1 0)))))
 
 ;; 0 none · 1 first · 2 last
 (:wat::core::defn :wat-tests::rete::fuzz::build-lhs
@@ -156,7 +156,7 @@
 
 ;; ── the property ─────────────────────────────────────────────────────────────
 (:wat::core::defn :wat-tests::rete::fuzz::prop [c <- :wat-tests::rete::fuzz::Case] -> :wat::core::bool
-  (:wat::core::let [dups   (:wat::core::i64::+ (:wat-tests::rete::fuzz::Case/dups c) 1)
+  (:wat::core::let [dups   (:wat::i64::+ (:wat-tests::rete::fuzz::Case/dups c) 1)
                     wpos   (:wat-tests::rete::fuzz::Case/wpos c)
                     prefix (:wat-tests::rete::fuzz::Case/prefix c)
                     f      (:wat-tests::rete::fuzz::Case/filt c)
@@ -229,7 +229,7 @@
     (:wat::gen::ints 0 3)
     (:wat::gen::ints 0 3)
     (:wat::gen::ints 0 3)
-    (:wat::gen::ints f (:wat::core::i64::+ f 1))
+    (:wat::gen::ints f (:wat::i64::+ f 1))
     (:wat-tests::rete::fuzz::param-space f)
     (:wat::gen::ints 0 4)))
 

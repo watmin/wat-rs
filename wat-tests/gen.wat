@@ -31,11 +31,11 @@
   (:wat::core::let [i  (:wat-tests::gen::at0 c 0)
                     g  (:wat::gen::ints 5 12)
                     at (:wat::gen::Gen/at g)]
-    (:wat::core::if (:wat::core::= (at i) (:wat::core::i64::+ 5 i)) true false)))
+    (:wat::core::if (:wat::core::= (at i) (:wat::i64::+ 5 i)) true false)))
 
 ;; ── L2 — gen-fmap: cardinality preserved, and the mapped value is f(inner) ───
 (:wat::core::defn :wat-tests::gen::dbl [x <- :wat::core::i64] -> :wat::core::i64
-  (:wat::core::i64::* 2 x))
+  (:wat::i64::* 2 x))
 
 (:wat::core::defn :wat-tests::gen::law-fmap [c <- (:wat::core::PersistentVector :- [:wat::core::i64])]
   -> :wat::core::bool
@@ -83,11 +83,11 @@
                     r  (:wat::core::foldl
                          (:wat::core::fn [acc <- :wat-tests::gen::Recon  b <- :wat::core::i64] -> :wat-tests::gen::Recon
                            (:wat-tests::gen::Recon
-                             :idx (:wat::core::i64::+ (:wat-tests::gen::Recon/idx acc)
-                                    (:wat::core::i64::* (:wat-tests::gen::at0 d (:wat-tests::gen::Recon/n acc))
+                             :idx (:wat::i64::+ (:wat-tests::gen::Recon/idx acc)
+                                    (:wat::i64::* (:wat-tests::gen::at0 d (:wat-tests::gen::Recon/n acc))
                                                         (:wat-tests::gen::Recon/place acc)))
-                             :place (:wat::core::i64::* (:wat-tests::gen::Recon/place acc) b)
-                             :n (:wat::core::i64::+ (:wat-tests::gen::Recon/n acc) 1)))
+                             :place (:wat::i64::* (:wat-tests::gen::Recon/place acc) b)
+                             :n (:wat::i64::+ (:wat-tests::gen::Recon/n acc) 1)))
                          (:wat-tests::gen::Recon :idx 0 :place 1 :n 0)
                          bs)]
     (:wat::core::if (:wat::core::= (:wat-tests::gen::Recon/idx r) i) true false)))
@@ -115,7 +115,7 @@
 ;; In `test.check` this is where a retry budget can silently give up; here the
 ;; survivors are exact, so the law is total over the filtered space.
 (:wat::core::defn :wat-tests::gen::even? [x <- :wat::core::i64] -> :wat::core::bool
-  (:wat::core::= x (:wat::core::i64::* 2 (:wat::core::i64::/ x 2))))
+  (:wat::core::= x (:wat::i64::* 2 (:wat::i64::/ x 2))))
 
 (:wat::core::defn :wat-tests::gen::law-such-that [c <- (:wat::core::PersistentVector :- [:wat::core::i64])]
   -> :wat::core::bool
@@ -136,7 +136,7 @@
                     v  ((:wat::gen::Gen/at o) i)
                     ok (:wat::core::if (:wat::core::< i 3)
                          (:wat::core::= v i)
-                         (:wat::core::= v (:wat::core::i64::+ 100 (:wat::core::i64::- i 3))))]
+                         (:wat::core::= v (:wat::i64::+ 100 (:wat::i64::- i 3))))]
     (:wat::core::if (:wat::core::and (:wat::core::= (:wat::gen::Gen/card o) 8) ok) true false)))
 
 
@@ -270,10 +270,10 @@
   (:wat::core::PersistentVector "a" "b" "c"))
 
 (:wat::core::defn :wat-tests::gen::evenp [x <- :wat::core::i64] -> :wat::core::bool
-  (:wat::core::= x (:wat::core::i64::* 2 (:wat::core::i64::/ x 2))))
+  (:wat::core::= x (:wat::i64::* 2 (:wat::i64::/ x 2))))
 
 (:wat::core::defn :wat-tests::gen::dbl2 [x <- :wat::core::i64] -> :wat::core::i64
-  (:wat::core::i64::* 2 x))
+  (:wat::i64::* 2 x))
 
 (:wat::core::defn :wat-tests::gen::nevr [x <- :wat::core::i64] -> :wat::core::bool
   (:wat::core::< x 0))
@@ -316,7 +316,7 @@
                     v  ((:wat::gen::Gen/at g) i)
                     ok (:wat::core::if (:wat::core::< i 5)
                          (:wat-tests::gen::evenp v)
-                         (:wat::core::= v (:wat::core::i64::+ 100 (:wat::core::i64::- i 5))))]
+                         (:wat::core::= v (:wat::i64::+ 100 (:wat::i64::- i 5))))]
     (:wat::core::if (:wat::core::and (:wat::core::= (:wat::gen::Gen/card g) 7) ok) true false)))
 
 ;; ── L14 — fmap AFTER such-that. Order of composition must hold: the mapped value
@@ -344,7 +344,7 @@
     (:wat::core::if
       (:wat::core::and (:wat::core::= (:wat::gen::Gen/card empty) 0)
         (:wat::core::and (:wat::core::= (:wat::gen::Gen/card g) 2)
-                         (:wat::core::= ((:wat::gen::Gen/at g) i) (:wat::core::i64::+ 7 i))))
+                         (:wat::core::= ((:wat::gen::Gen/at g) i) (:wat::i64::+ 7 i))))
       true false)))
 
 
@@ -418,8 +418,8 @@
                     want (:wat::core::if (:wat::core::< k 1)
                            0
                            (:wat::core::if (:wat::core::< k 3)
-                             (:wat::core::i64::- k 1)
-                             (:wat::core::i64::- k 3)))]
+                             (:wat::i64::- k 1)
+                             (:wat::i64::- k 3)))]
     (:wat::core::if
       (:wat::core::and (:wat::core::= (:wat::gen::Gen/card g) 6)
                        (:wat::core::= v want))
@@ -545,7 +545,7 @@
      ;; c, d — IT DOES NOT WRONGLY LOWER when nothing below k still fails.
      c (:wat::core::if (:wat::core::= (:wat::gen::shrink-index g 5 :wat-tests::gen::big?) 5) 0 1)
      d (:wat::core::if (:wat::core::= (:wat::gen::shrink-index g 2 :wat-tests::gen::nonzero?) 2) 0 1)]
-    (:wat::core::i64::+ a (:wat::core::i64::+ b (:wat::core::i64::+ c d)))))
+    (:wat::i64::+ a (:wat::i64::+ b (:wat::i64::+ c d)))))
 
 (:wat::test::deftest :wat-tests::gen::test-ints
   (:wat-tests::gen::held
@@ -688,7 +688,7 @@
                           (:wat::gen::ints 5 2))))
      f (:wat-tests::gen::neg? (:wat::gen::Gen/card
          (:wat::gen::lift2 (:wat::core::fn [x <- :wat::core::i64  y <- :wat::core::i64]
-                             -> :wat::core::i64 (:wat::core::i64::+ x y))
+                             -> :wat::core::i64 (:wat::i64::+ x y))
                            (:wat::gen::ints 5 2)
                            (:wat::gen::ints 0 3))))
      g (:wat-tests::gen::neg? (:wat::gen::Gen/card
@@ -725,15 +725,15 @@
                            (:wat::core::fn [x <- :wat::core::i64] -> :wat::core::bool false))
          ((:wat::gen::CheckOutcome::Checked _pts _v _first) 1)
          (:wat::gen::CheckOutcome::EmptySpace 0))]
-    (:wat::core::i64::+ a
-      (:wat::core::i64::+ b
-        (:wat::core::i64::+ c
-          (:wat::core::i64::+ d
-            (:wat::core::i64::+ e
-              (:wat::core::i64::+ f
-                (:wat::core::i64::+ g
-                  (:wat::core::i64::+ h
-                    (:wat::core::i64::+ i j))))))))))) 
+    (:wat::i64::+ a
+      (:wat::i64::+ b
+        (:wat::i64::+ c
+          (:wat::i64::+ d
+            (:wat::i64::+ e
+              (:wat::i64::+ f
+                (:wat::i64::+ g
+                  (:wat::i64::+ h
+                    (:wat::i64::+ i j))))))))))) 
 
 (:wat::test::deftest :wat-tests::gen::test-no-negative-card
   (:wat::test::assert-eq (:wat-tests::gen::law-no-negative-card) 0))
@@ -791,7 +791,7 @@
     [g (:wat::gen::elements (:wat::core::PersistentVector 10 20 30 40))
      a (:wat-tests::gen::outcome-is (:wat::gen::check g :wat-tests::gen::not-10?) 4 1 0)
      b (:wat-tests::gen::outcome-is (:wat::gen::check g :wat-tests::gen::not-40?) 4 1 3)]
-    (:wat::core::i64::+ a b)))
+    (:wat::i64::+ a b)))
 
 (:wat::test::deftest :wat-tests::gen::test-check-not-vacuous
   (:wat::test::assert-eq (:wat-tests::gen::law-check-not-vacuous) 0))
@@ -875,8 +875,8 @@
      c (:wat::core::if (:wat::core::= (:wat-tests::gen::cover 4 16 0) 1) 0 1)
      d (:wat::core::if (:wat::core::= (:wat-tests::gen::cover 4 64 1) 4) 0 1)
      e (:wat::core::if (:wat::core::= (:wat-tests::gen::cover 4 64 0) 1) 0 1)]
-    (:wat::core::i64::+ a
-      (:wat::core::i64::+ b (:wat::core::i64::+ c (:wat::core::i64::+ d e))))))
+    (:wat::i64::+ a
+      (:wat::i64::+ b (:wat::i64::+ c (:wat::i64::+ d e))))))
 
 (:wat::test::deftest :wat-tests::gen::test-sampling-order
   (:wat::test::assert-eq (:wat-tests::gen::law-sampling-order) 0))
@@ -904,7 +904,7 @@
                                            (:wat::gen::ints 0 3)))
                                        6)
           0 1)]
-    (:wat::core::i64::+ a (:wat::core::i64::+ b (:wat::core::i64::+ c d)))))
+    (:wat::i64::+ a (:wat::i64::+ b (:wat::i64::+ c d)))))
 
 (:wat::test::deftest :wat-tests::gen::test-bools
   (:wat::test::assert-eq (:wat-tests::gen::law-bools) 0))
