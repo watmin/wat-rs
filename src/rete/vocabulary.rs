@@ -938,10 +938,23 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         ret: ParamType::Bool,
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
+    // ── 2026-08-28: `map`/`filter` -> `mapv`/`filterv`, and the reason is the whole point of the
+    // § 4.1 reachability ledger. Both rows were `:wat::core::map`/`:wat::core::filter`, which
+    // return a LAZY `Stream` (`transform.rs`: `Value::wat__stream__Stream(lazy_map_stream(..))`).
+    // A compiled `where` fence has no stream machinery and nothing in a fence can CONSUME a
+    // Stream, so those rows were unreachable in every position — admitted, total, arity- and
+    // type-checked, and unusable. The ledger drove them and they raised `unbound symbol`.
+    //
+    // The fix is NOT an eager compiled arm for the lazy heads: that would make
+    // `:wat::rete::core::map` mean something different from `:wat::core::map`, silently, when the
+    // `Redispatch` contract is "the same routine as `core_name`". wat already ships the eager
+    // materializers under their clojure names — `wat/seq.wat`: *"mapv / filterv — the eager forms:
+    // force `map`/`filter`'s lazy Stream result to a Vector"* — so rete takes THOSE. No invented
+    // semantics, no divergence, and the naming rule derives both rete names unchanged.
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::core::map",
-        core_name: ":wat::core::map",
+        rete_name: ":wat::rete::core::mapv",
+        core_name: ":wat::core::mapv",
         class: OpClass::Redispatch,
         params: &[],
         ret: ParamType::Bool,
@@ -949,8 +962,8 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     },
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::core::filter",
-        core_name: ":wat::core::filter",
+        rete_name: ":wat::rete::core::filterv",
+        core_name: ":wat::core::filterv",
         class: OpClass::Redispatch,
         params: &[],
         ret: ParamType::Bool,
@@ -966,6 +979,58 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // core-spelled `(:wat::core::reduce ...)` call already takes. Genuinely the most literal
     // reading of "re-dispatch to core's existing inference" available for a defclause-backed
     // head — not a second implementation, and not a scheme (STOP-5 untouched).
+    // ── 2026-08-28 — THE TUPLE ACCESSORS. Found by the § 4.1 ledger reporting
+    // `:wat::rete::core::Tuple` unrunnable, and by the builder refusing the conclusion I drew
+    // from it ("no row reads a Tuple, so maybe the row should not exist"). That was the CORPUS
+    // FALLACY this table's own totality gate already refuted: absence of a caller is not evidence
+    // of absence of need.
+    //
+    // Measuring says core serves tuples perfectly well — `first`/`second`/`third` project one
+    // (verified live: a 3-tuple yields 7 / 99 / 512), which is the right idiom for a fixed-arity
+    // heterogeneous product. `get`/`nth` refuse, `Tuple/get` does not exist, and top-level `match`
+    // cannot see a Tuple at all (`MatchShape` carries no Tuple), but none of that matters once the
+    // trio exists. **The gap was RETE'S**: this table had the Tuple CONSTRUCTOR and no accessor
+    // admitting a Tuple, its first-family rows were per-container (`PersistentVector/first` and
+    // siblings), and there was no `second`/`third` row at all — for any container. So a rule could
+    // BUILD a tuple in a fence and never read one element, which is why `Tuple` is one of the three
+    // rows appearing nowhere in the 1569-file corpus. Not neglect: never usable, since genesis.
+    //
+    // `Redispatch`, not `Alias`: a tuple accessor's type is polymorphic over the tuple's ARITY and
+    // its per-position element types, which is precisely what a rank-1 `TypeScheme` cannot state —
+    // the class's own definition. `total: true` is honest because arity is enforced at CHECK time:
+    // `third` on a 2-tuple is a `TypeMismatch` reading "expects tuple with >= 3 element(s)", so no
+    // out-of-range access survives to runtime.
+    //
+    // Per-type names (`Tuple/first`, not a generic `first`) follow BOTH the arc's "the rete surface
+    // is per-type, period" ruling and the existing first-trio precedent; they join the naming-rule
+    // exception list for the same reason those three did — one `core_name` serving several rows.
+    ReteOp {
+        type_params: &[],
+        rete_name: ":wat::rete::core::Tuple/first",
+        core_name: ":wat::core::first",
+        class: OpClass::Redispatch,
+        params: &[],
+        ret: ParamType::Bool,
+        meta: OpMeta { pure: true, deterministic: true, total: true },
+    },
+    ReteOp {
+        type_params: &[],
+        rete_name: ":wat::rete::core::Tuple/second",
+        core_name: ":wat::core::second",
+        class: OpClass::Redispatch,
+        params: &[],
+        ret: ParamType::Bool,
+        meta: OpMeta { pure: true, deterministic: true, total: true },
+    },
+    ReteOp {
+        type_params: &[],
+        rete_name: ":wat::rete::core::Tuple/third",
+        core_name: ":wat::core::third",
+        class: OpClass::Redispatch,
+        params: &[],
+        ret: ParamType::Bool,
+        meta: OpMeta { pure: true, deterministic: true, total: true },
+    },
     ReteOp {
         type_params: &[],
         rete_name: ":wat::rete::core::reduce",
@@ -1149,6 +1214,52 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
         class: OpClass::Alias,
         params: &[ParamType::Keyword, ParamType::Keyword],
         ret: ParamType::Bool,
+        meta: OpMeta { pure: true, deterministic: true, total: true },
+    },
+    // ── 2026-08-28 — THE KEYWORD CONVERTERS. Measured gap, not a guess.
+    //
+    // Before these, `keyword` had TWO rete rows — the fewest of any type in this table — and both
+    // are `=`/`not=`, which fall out of the generic equality family rather than from the keyword
+    // surface. Core ships SEVEN keyword verbs (`from-string`, `to-string`, `to-symbol`,
+    // `to-type-form`, `to-type-form-colon`, `keyword-node`, the type) and rete exposed ZERO of
+    // them. A keyword could be compared to another keyword and nothing else.
+    //
+    // The consequence was concrete, not cosmetic: `ast_literal_value` admits Int/Float/Bool/String
+    // literals in operand position and NOT keyword — deliberately, because a bare keyword there is
+    // a FIELD REFERENCE (`matcher.rs`). Every other scalar can therefore express a constant inline;
+    // keyword could not, and with no constructor in the vocabulary there was no other spelling to
+    // reach for. `from-string` closes that as a SIDE EFFECT of parity rather than as a special
+    // case, and the position grammar is left exactly as documented.
+    //
+    // Found by arc 278's § 4.1 ledger asking why keyword equality was unreachable inline; the
+    // type-map half was fixed the same day (`validate.rs`'s `rete_type_segment_of`).
+    ReteOp {
+        type_params: &[],
+        rete_name: ":wat::rete::core::keyword/to-string",
+        core_name: ":wat::core::keyword/to-string",
+        class: OpClass::Alias,
+        params: &[ParamType::Keyword],
+        ret: ParamType::String,
+        // TOTAL, and audited rather than assumed. `eval_keyword_to_string` has exactly two failure
+        // exits and both are TYPE mismatches — a non-Keyword `WatAST`, and a value that is neither
+        // keyword nor WatAST. This row DECLARES its operand `Keyword`, so the checker refuses both
+        // before runtime: must-never-happen, the identical reasoning this table already applies to
+        // `PersistentMap/contains-key?`'s wrong-receiver exit.
+        meta: OpMeta { pure: true, deterministic: true, total: true },
+    },
+    ReteOp {
+        type_params: &[],
+        rete_name: ":wat::rete::core::keyword/from-string",
+        core_name: ":wat::core::keyword/from-string",
+        // ⛔ `Fallback`, NOT `Alias`, and that is the whole reason this row can exist at all.
+        // `eval_keyword_from_string` is genuinely PARTIAL: it raises on a leading `:` and on an
+        // angle-type head in the name. A partial op cannot be an Alias here — "a jump table over a
+        // partial op is not a thing" — so it buys totality the way this table's own comment says
+        // it must, with a mandatory `:undefined` value. Exactly why partial `i64::/` is
+        // `total: true` two hundred lines up.
+        class: OpClass::Fallback,
+        params: &[ParamType::String, ParamType::Keyword, ParamType::Keyword],
+        ret: ParamType::Keyword,
         meta: OpMeta { pure: true, deterministic: true, total: true },
     },
     // ── BRIEF-f64-fallback-rows.md (2026-08-05) — the f64 arithmetic quartet. Builder's
@@ -1544,7 +1655,7 @@ mod naming_rule_tests {
     use super::*;
     use std::collections::HashSet;
 
-    /// The naming rule's own documented exception (module doc, "The naming rule"): these ELEVEN
+    /// The naming rule's own documented exception (module doc, "The naming rule"): these FOURTEEN
     /// rows' `core_name` is shared by MULTIPLE rows — the `=`/`not=` trio shares
     /// `:wat::core::=`/`:wat::core::not=` across three types; `first`'s trio shares the ONE
     /// polymorphic `:wat::core::first` across three containers (found the same way, by running
@@ -1613,6 +1724,14 @@ mod naming_rule_tests {
         ":wat::rete::core::PersistentVector/first",
         ":wat::rete::core::Vector/first",
         ":wat::rete::core::List/first",
+        // 2026-08-28 — the Tuple accessors. `Tuple/first` makes `:wat::core::first`'s group a
+        // QUARTET (same reason as the trio: one core_name, several rows). `Tuple/second` and
+        // `Tuple/third` are here for the OTHER half of the rule — a per-type rete name that does
+        // not derive literally from its `core_name` — and they are the sole rows on their cores
+        // today. A future `Vector/second` would join them rather than displace them.
+        ":wat::rete::core::Tuple/first",
+        ":wat::rete::core::Tuple/second",
+        ":wat::rete::core::Tuple/third",
     ];
 
     /// ★★ Every row satisfies [`rete_vocabulary_admitted`] over its OWN `rete_name` — the
@@ -1667,8 +1786,8 @@ mod naming_rule_tests {
     /// The exception NAMES are frozen (this list) AND counted. A silent
     /// `+1 new, −1 fixed` fails the equality on the slice, not only the length.
     #[test]
-    fn naming_rule_exceptions_are_exactly_the_documented_eleven() {
-        assert_eq!(NAMING_RULE_EXCEPTIONS.len(), 11);
+    fn naming_rule_exceptions_are_exactly_the_documented_fourteen() {
+        assert_eq!(NAMING_RULE_EXCEPTIONS.len(), 14);
         let mut frozen: Vec<&str> = NAMING_RULE_EXCEPTIONS.to_vec();
         frozen.sort_unstable();
         let mut live: Vec<&str> = NAMING_RULE_EXCEPTIONS

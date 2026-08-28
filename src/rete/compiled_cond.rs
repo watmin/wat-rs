@@ -60,6 +60,7 @@ use std::sync::Arc;
 use rustc_hash::FxHashMap;
 
 use crate::ast::WatAST;
+use crate::span::Span;
 use crate::rete::clause::{
     classify_constraint_head, classify_rete_clause, CmpKind, ConstraintSpelling, ReteClauseShape,
 };
@@ -116,6 +117,17 @@ pub(crate) enum Op {
     /// ([`exec_compiled_with_key_ids`]) skips it so the fact still enters alpha; rematch
     /// ([`exec_compiled_under`]) fills the seed slot and runs the compare.
     SeedCmp { op: CmpKind, lhs: Expr, rhs: Expr },
+    /// **FIX-LIST F** — evaluate a COMPUTED operand into `slot`, before the `Cmp` that reads it.
+    ///
+    /// The same idea as [`Op::Bind`], one level up: `Bind` materialises a FIELD into a slot,
+    /// `Eval` materialises an EXPRESSION into one. Doing it here rather than inside `Op::Cmp`
+    /// keeps `Cmp`'s operands `Slot | Lit` exactly as before, so the per-fact fast path is
+    /// untouched and `eval_cmp_operand` still returns a BORROW instead of cloning per comparison.
+    ///
+    /// `expr` is lowered by the one expression core (`expr_ir::lower_in_frame`) into THIS
+    /// condition's slot numbering, so it reads the very scratch the prologue filled — no copy
+    /// plan, no second frame.
+    Eval { expr: Expr, slot: usize },
     /// `(:wat::rete::or c1 c2 …)` — each branch is its OWN op sequence, tried against a scratch
     /// clone of the current slots (never the live slots): mirrors `eval_clause`'s `Or`, which
     /// always returns the pre-`or` bindings unchanged even on a successful branch.
@@ -162,6 +174,12 @@ pub(crate) struct CompiledCond {
     fact_bind: Option<Value>,
     /// Frozen leftover bit — `join_extend` reads this, never re-walks `ops`.
     has_seed_cmp: bool,
+    /// The condition's own wat span, for `Op::Eval`'s diagnostics. A REAL user span, not
+    /// `rust_caller_span!()` — a computed operand that raises must point at the rule, which is
+    /// exactly the `conformare` class this arc spent a day removing.
+    span: Span,
+    /// Slot index -> name, for the same diagnostics.
+    slot_names: crate::rete::expr_ir::SlotNames,
 }
 
 impl CompiledCond {
@@ -186,6 +204,10 @@ impl CompiledCond {
     pub(crate) fn fact_bind(&self) -> Option<&Value> {
         self.fact_bind.as_ref()
     }
+    // 8 args since fix-list F: `span` and `slot_names` joined so an `Op::Eval` raise can point at
+    // the USER's rule instead of at `rust_caller_span!()` — the `conformare` class this arc spent a
+    // day removing. A builder would be ceremony for a constructor with two call sites.
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn from_parts(
         ops: Vec<Op>,
         slot_keys: Arc<[Value]>,
@@ -193,6 +215,8 @@ impl CompiledCond {
         n_slots: usize,
         seed_reads: Arc<[(Value, usize)]>,
         fact_bind: Option<Value>,
+        span: Span,
+        slot_names: crate::rete::expr_ir::SlotNames,
     ) -> Self {
         let has_seed_cmp = !seed_reads.is_empty() || ops_have_seed_cmp(&ops);
         CompiledCond {
@@ -203,7 +227,19 @@ impl CompiledCond {
             seed_reads,
             fact_bind,
             has_seed_cmp,
+            span,
+            slot_names,
         }
+    }
+
+    /// The condition's wat span — where a computed operand's raise points.
+    pub(crate) fn span(&self) -> &Span {
+        &self.span
+    }
+
+    /// Slot names for diagnostics.
+    pub(crate) fn slot_names(&self) -> &[crate::rete::expr_ir::SlotName] {
+        &self.slot_names
     }
 
     /// Leftover seed: a `?var` this cond does not bind. Populate skipped
@@ -236,6 +272,11 @@ fn ops_have_seed_cmp(ops: &[Op]) -> bool {
 // ─── The compiler ───────────────────────────────────────────────────────────────
 
 struct AlphaCompileCx<'a> {
+    /// Needed to lower a NESTED operand through the one expression core (fix-list F). The alpha
+    /// compile path is otherwise sym-free; this is a borrow, so it costs nothing at runtime.
+    sym: &'a crate::runtime::SymbolTable,
+    /// Slot names for `Op::Eval`'s diagnostics, rebuilt whenever a computed operand lowers.
+    slot_names: crate::rete::expr_ir::SlotNames,
     field_names: &'a [String],
     next_slot: usize,
     defer_unbound: bool,
@@ -256,30 +297,38 @@ struct AlphaCompileCx<'a> {
 /// differential against `alpha_match_inner`. Test-only; wat `compile-condition`
 /// mints network nodes.
 #[cfg(test)]
-pub(crate) fn compile_alpha_ops(cond: &WatAST, field_names: &[String]) -> Option<CompiledCond> {
-    compile_condition_opts(cond, field_names, false)
+pub(crate) fn compile_alpha_ops(
+    cond: &WatAST,
+    field_names: &[String],
+    sym: &crate::runtime::SymbolTable,
+) -> Option<CompiledCond> {
+    compile_condition_opts(cond, field_names, sym, false)
 }
 
 /// Same as [`compile_alpha_ops`], but an unbound constraint `?var` becomes a
-/// seed slot + [`Op::SeedCmp`] (not omitted, not [`Op::Fail`]). Populate skips
+/// seed slot + [`Op::SeedCmp`] (not omitted, not [`Op::Fail`], test_sym()). Populate skips
 /// `SeedCmp`; rematch fills the slot from the token and runs the compare.
 /// One compile for every alpha at fire setup.
 pub(crate) fn compile_condition_local(
     cond: &WatAST,
     field_names: &[String],
+    sym: &crate::runtime::SymbolTable,
 ) -> Option<CompiledCond> {
-    compile_condition_opts(cond, field_names, true)
+    compile_condition_opts(cond, field_names, sym, true)
 }
 
 fn compile_condition_opts(
     cond: &WatAST,
     field_names: &[String],
+    sym: &crate::runtime::SymbolTable,
     defer_unbound: bool,
 ) -> Option<CompiledCond> {
     let pat = crate::rete::matcher::alpha_pattern(cond)?;
     let clauses = pat.clauses;
 
     let mut ctx = AlphaCompileCx {
+        sym,
+        slot_names: Box::from([]),
         field_names,
         next_slot: 0,
         defer_unbound,
@@ -322,6 +371,8 @@ fn compile_condition_opts(
         ctx.next_slot,
         seed_reads,
         fact_bind,
+        cond.span().clone(),
+        ctx.slot_names,
     ))
 }
 
@@ -373,6 +424,20 @@ fn compile_one(
     ops: &mut Vec<Op>,
 ) -> bool {
     match classify_rete_clause(clause) {
+        // A boolean rete expression where a constraint goes. Lowered through the one expression
+        // core and required to be TRUE — which needs no new op: `Op::Eval` materialises the
+        // predicate into a slot and the existing `Op::Cmp` compares it to `true`.
+        ReteClauseShape::Predicate(expr) => {
+            match compile_operand_expr(expr, scope, field_slots, ctx, ops) {
+                OperandLowering::Lowered(e) => {
+                    ops.push(Op::Cmp { op: CmpKind::Eq, lhs: e, rhs: Expr::Lit(Value::bool(true)) });
+                }
+                // Same three-way split the operands use: an unresolvable predicate can never hold
+                // (`Op::Fail`), a refused one is a USER ERROR and refuses the whole condition.
+                OperandLowering::Unresolvable => ops.push(Op::Fail),
+                OperandLowering::Refused => return false,
+            }
+        }
         ReteClauseShape::Bind { var, field } => {
             match ctx.field_names.iter().position(|n| n == field) {
                 // Field not declared on this class: read_fact_field would return None on every
@@ -415,7 +480,10 @@ fn compile_one(
             let lhs_e = compile_operand_expr(lhs, scope, field_slots, ctx, ops);
             let rhs_e = compile_operand_expr(rhs, scope, field_slots, ctx, ops);
             match (lhs_e, rhs_e) {
-                (Some(lhs), Some(rhs)) => {
+                // A form that will not lower is a USER ERROR: refuse the whole condition so
+                // `arm.rs` reports it, instead of compiling a silent never-match.
+                (OperandLowering::Refused, _) | (_, OperandLowering::Refused) => return false,
+                (OperandLowering::Lowered(lhs), OperandLowering::Lowered(rhs)) => {
                     if expr_reads_seed(&lhs, &ctx.seed_reads)
                         || expr_reads_seed(&rhs, &ctx.seed_reads)
                     {
@@ -504,46 +572,244 @@ fn expr_slot(slot: usize) -> Option<Expr> {
 /// (lists are `where`-territory on both sides; do not compile them here alone).
 /// Leftover-as-seed (`defer_unbound`): an unbound `?var` allocates a seed slot and
 /// returns `Expr::Slot` so the Constraint arm can emit [`Op::SeedCmp`].
+/// What compiling one operand produced — and the three cases must NOT collapse.
+///
+/// ⛔ **THIS ENUM IS FIX-LIST F's LESSON APPLIED TO F's OWN FIX.** F was "could not lower" being
+/// reported as `Op::Fail`, a compiled permanent never-match. The first repair lowered nested calls
+/// through the core but kept `Option`, so a nested operand that STILL would not lower — a
+/// non-rete head, which Law A must refuse — fell into the same silent bucket. Measured: a core
+/// `(:wat::core::i64::+ …)` inline compiled and matched nothing, while the identical form in a
+/// `where` fence was refused by name. The defect class re-entered through its own cure.
+///
+/// So the three outcomes are separated by TYPE rather than by discipline:
+///   · `Lowered`      — an expression the executor can run.
+///   · `Unresolvable` — an unbound `?var` or a field this class does not declare. It can NEVER
+///     match, and compiling that as `Op::Fail` is correct and always was.
+///   · `Refused`      — a form that will not lower at all. It is a USER ERROR and must reach the
+///     user as one; the whole condition refuses, which `arm.rs` turns into a located
+///     `MalformedForm`. Never `Op::Fail`, because silence is what F was.
+enum OperandLowering {
+    Lowered(Expr),
+    Unresolvable,
+    Refused,
+}
+
 fn compile_operand_expr(
     operand: &WatAST,
     scope: &mut HashMap<String, usize>,
     field_slots: &mut HashMap<usize, usize>,
     ctx: &mut AlphaCompileCx<'_>,
     ops: &mut Vec<Op>,
-) -> Option<Expr> {
+) -> OperandLowering {
     match operand {
         WatAST::Symbol(ident, _) => {
             let name = ident.as_str();
             if name.starts_with('?') {
                 if let Some(slot) = scope.get(name).copied() {
-                    expr_slot(slot)
+                    lowered(expr_slot(slot))
                 } else if ctx.defer_unbound {
                     let slot = ctx.next_slot;
                     ctx.next_slot += 1;
                     scope.insert(name.to_string(), slot);
                     ctx.seed_reads
                         .push((Value::String(Arc::new(name.to_string())), slot));
-                    expr_slot(slot)
+                    lowered(expr_slot(slot))
                 } else {
-                    None
+                    OperandLowering::Unresolvable
                 }
             } else {
-                None
+                OperandLowering::Unresolvable
             }
         }
         WatAST::Keyword(k, _) => {
             let field_name = k.strip_prefix(':').unwrap_or(k.as_str());
-            let field_idx = ctx.field_names.iter().position(|n| n == field_name)?;
+            let Some(field_idx) = ctx.field_names.iter().position(|n| n == field_name) else {
+                return OperandLowering::Unresolvable;
+            };
             if let Some(&slot) = field_slots.get(&field_idx) {
-                return expr_slot(slot);
+                return lowered(expr_slot(slot));
             }
             let slot = ctx.next_slot;
             ctx.next_slot += 1;
             field_slots.insert(field_idx, slot);
             ops.push(Op::Bind { field_idx, slot });
-            expr_slot(slot)
+            lowered(expr_slot(slot))
         }
-        other => crate::rete::matcher::ast_literal_value(other).map(Expr::Lit),
+        // ── FIX-LIST F: a NESTED CALL operand, lowered through the one expression core ────────
+        //
+        // This arm did not exist. A nested call fell to the literal case below, returned `None`,
+        // and the caller turned that into `Op::Fail` — a compiled, permanent, SILENT never-match.
+        // So `(:wat::rete::core::i64::= (:wat::rete::core::i64::+ :v 2 :undefined 0) 12)` was
+        // accepted at every gate, ran, and matched nothing for every fact, with no diagnostic.
+        //
+        // The builder settled the design question it resembled: *"we made it such that every rete
+        // form can be compiled to a jump table... why is this any exception?"* It is not one. Same
+        // `Expr::Call`, same opcode, same `RETE_OPS` table as the `where` fence — flip 3 gave
+        // `cond` the core's `Expr` TYPE and stopped short of its LOWERING.
+        WatAST::List(..) => {
+            // An operand naming a `?var` this condition does not bind cannot resolve, and that is
+            // the ORIGINAL, correct meaning of `Op::Fail`. Detect it before lowering, because
+            // `lower_in_frame` would happily mint a fresh slot for it and leave it unfilled.
+            if unbound_qvar_in(operand, scope) {
+                return OperandLowering::Unresolvable;
+            }
+            // Field refs are alpha-specific spelling: the core lowers a bare keyword to a keyword
+            // LITERAL, so `:v` must become a slot read first. Each one gets the prologue `Op::Bind`
+            // it would have had as a direct operand, under a reserved name that no user symbol can
+            // collide with.
+            let mut names: HashMap<String, u16> =
+                scope.iter().map(|(k, v)| (k.clone(), *v as u16)).collect();
+            let Some(rewritten) = bind_field_refs(operand, scope, field_slots, ctx, ops, &mut names)
+            else {
+                return OperandLowering::Refused;
+            };
+            let Ok(mut next) = u16::try_from(ctx.next_slot) else {
+                return OperandLowering::Refused;
+            };
+            // ⛔ A LOWERING FAILURE IS A REFUSAL, NEVER `Op::Fail`. `lower_in_frame` rejects a
+            // non-rete head — which is Law A doing its job — and reporting that as "this fact does
+            // not match" is precisely the silence fix-list F was.
+            let Ok(expr) =
+                crate::rete::expr_ir::lower_in_frame(&rewritten, ctx.sym, &mut names, &mut next)
+            else {
+                return OperandLowering::Refused;
+            };
+            ctx.next_slot = next as usize;
+            // Materialise into a slot so `Cmp` keeps its `Slot | Lit` operands.
+            let result = ctx.next_slot;
+            ctx.next_slot += 1;
+            ctx.slot_names = invert_slot_names(&names, ctx.next_slot);
+            ops.push(Op::Eval { expr, slot: result });
+            lowered(expr_slot(result))
+        }
+        other => match crate::rete::matcher::ast_literal_value(other) {
+            Some(v) => OperandLowering::Lowered(Expr::Lit(v)),
+            None => OperandLowering::Unresolvable,
+        },
+    }
+}
+
+/// `expr_slot` yields `Option<Expr>`; a `None` there is an internal slot-index failure, which is
+/// not a user error and not a match outcome.
+fn lowered(e: Option<Expr>) -> OperandLowering {
+    match e {
+        Some(x) => OperandLowering::Lowered(x),
+        None => OperandLowering::Refused,
+    }
+}
+
+/// Slot index -> name, for `Op::Eval`'s runtime diagnostics. Built from the lowering's final
+/// name map so an unfilled slot reports what it was called rather than a bare index.
+fn invert_slot_names(
+    names: &HashMap<String, u16>,
+    len: usize,
+) -> crate::rete::expr_ir::SlotNames {
+    let mut out: Vec<Option<Arc<str>>> = vec![None; len];
+    for (name, &slot) in names {
+        if let Some(cell) = out.get_mut(slot as usize) {
+            *cell = Some(Arc::from(name.as_str()));
+        }
+    }
+    out.into_boxed_slice()
+}
+
+/// True when the operand names a `?var` this condition has not bound.
+///
+/// Kept separate from the lowering so the ORIGINAL meaning of [`Op::Fail`] survives intact: an
+/// operand that can never resolve should still compile to a permanent failure. What changed is
+/// only that a nested CALL no longer counts as unresolvable.
+fn unbound_qvar_in(ast: &WatAST, scope: &HashMap<String, usize>) -> bool {
+    match ast {
+        WatAST::Symbol(id, _) => {
+            let n = id.as_str();
+            n.starts_with('?') && !scope.contains_key(n)
+        }
+        WatAST::List(items, _) => items.iter().any(|i| unbound_qvar_in(i, scope)),
+        _ => false,
+    }
+}
+
+/// Rewrite every FIELD-naming keyword in operand position into a slot-backed symbol, emitting the
+/// prologue `Op::Bind` that fills it.
+///
+/// Only non-head positions are considered, and only keywords that name a DECLARED field of this
+/// class — so a call's head (`:wat::rete::core::i64::+`) and a marker like `:undefined` are left
+/// exactly as they are and reach the core as themselves.
+fn bind_field_refs(
+    ast: &WatAST,
+    scope: &mut HashMap<String, usize>,
+    field_slots: &mut HashMap<usize, usize>,
+    ctx: &mut AlphaCompileCx<'_>,
+    ops: &mut Vec<Op>,
+    names: &mut HashMap<String, u16>,
+) -> Option<WatAST> {
+    match ast {
+        WatAST::Keyword(k, span) => {
+            let field_name = k.strip_prefix(':').unwrap_or(k.as_str());
+            let Some(field_idx) = ctx.field_names.iter().position(|n| n == field_name) else {
+                return Some(ast.clone());
+            };
+            let slot = if let Some(&s) = field_slots.get(&field_idx) {
+                s
+            } else {
+                let s = ctx.next_slot;
+                ctx.next_slot += 1;
+                field_slots.insert(field_idx, s);
+                ops.push(Op::Bind { field_idx, slot: s });
+                s
+            };
+            // `%` cannot begin a user symbol read from source, so this name cannot collide with a
+            // `?var` or a `let` binder inside the operand.
+            let reserved = format!("%alpha-field%{field_name}");
+            names.insert(reserved.clone(), u16::try_from(slot).ok()?);
+            let _ = scope;
+            Some(WatAST::Symbol(crate::scope::Identifier::bare(reserved), span.clone()))
+        }
+        WatAST::List(items, span) => {
+            let mut out = Vec::with_capacity(items.len());
+            for (i, item) in items.iter().enumerate() {
+                if i == 0 {
+                    out.push(item.clone());
+                } else {
+                    out.push(bind_field_refs(item, scope, field_slots, ctx, ops, names)?);
+                }
+            }
+            Some(WatAST::List(out, span.clone()))
+        }
+        // A VECTOR has no head, so every element is an operand position. This is where a `let`
+        // binder lives (`(let [x :v] ...)`), and it was the hole: `Vector` fell to the old
+        // `other => clone` catch-all, so `:v` was never rewritten, stayed a bare keyword, compared
+        // unequal to every i64 forever, and the rule COMPILED, FIRED and MATCHED NOTHING with no
+        // diagnostic. Measured 2026-08-28 against both engines, which shared the defect.
+        WatAST::Vector(items, span) => {
+            let mut out = Vec::with_capacity(items.len());
+            for item in items {
+                out.push(bind_field_refs(item, scope, field_slots, ctx, ops, names)?);
+            }
+            Some(WatAST::Vector(out, span.clone()))
+        }
+        // ⛔ REFUSED, never cloned through. A `{...}` / `#{...}` cannot appear in a rete expression
+        // today — `:wat::rete::lower` rejects both ("cannot lower", measured) — so this arm is
+        // unreachable, and that is exactly why it must not be a silent pass-through. If either
+        // literal ever becomes lowerable, a field ref in a map KEY versus a map VALUE is a real
+        // semantic question, and answering it by accident is the failure this whole strike is
+        // pulling out. `None` here reaches `OperandLowering::Refused` at the call site — a refusal,
+        // never `Op::Fail`.
+        WatAST::Map(..) | WatAST::Set(..) => None,
+        // The leaves, named rather than swept up: each one IS itself and is correct to clone.
+        // ⛔ THE WILDCARD IS DELETED ON PURPOSE. `other => clone` meant two different things at
+        // once — "this node is a leaf, leave it alone" AND "I have no arm for this node" — and the
+        // second meaning is what made `Vector` silent. With every variant named, a new `WatAST`
+        // variant is a COMPILE ERROR here instead of a silent never-match.
+        WatAST::IntLit(..)
+        | WatAST::FloatLit(..)
+        | WatAST::RationalLit(..)
+        | WatAST::BigIntLit(..)
+        | WatAST::BoolLit(..)
+        | WatAST::StringLit(..)
+        | WatAST::CharLit(..)
+        | WatAST::NilLit(..)
+        | WatAST::Symbol(..) => Some(ast.clone()),
     }
 }
 
@@ -572,16 +838,18 @@ fn compile_operand_expr(
 /// `alpha_match_inner` + `attach_fact` (STOP-1).
 #[cfg(test)]
 pub(crate) fn exec_compiled(
+    sym: &crate::runtime::SymbolTable,
     compiled: &CompiledCond,
     fact_fields: &[Value],
     scratch: &mut SlotFrame,
     intern: &mut BindIntern<'_>,
     fact: &Value,
 ) -> Option<(u32, u16)> {
-    exec_compiled_with_key_ids(compiled, fact_fields, scratch, intern, fact, None)
+    exec_compiled_with_key_ids(sym, compiled, fact_fields, scratch, intern, fact, None)
 }
 
 pub(crate) fn exec_compiled_with_key_ids(
+    sym: &crate::runtime::SymbolTable,
     compiled: &CompiledCond,
     fact_fields: &[Value],
     scratch: &mut SlotFrame,
@@ -597,7 +865,8 @@ pub(crate) fn exec_compiled_with_key_ids(
     scratch.clear();
     scratch.resize(compiled.n_slots, None);
 
-    if !exec_ops(&compiled.ops, scratch, fact_fields, true) {
+    let cx = ExecCx { sym, span: compiled.span(), names: compiled.slot_names() };
+    if !exec_ops(&compiled.ops, scratch, fact_fields, true, cx) {
         return None;
     }
     materialize_into(compiled, scratch, intern, fact, key_ids)
@@ -773,13 +1042,14 @@ pub(crate) fn materialize_into(
 /// slot fails the compare (same as `resolve_operand` returning `None`).
 /// Does not increment `match:calls`.
 pub(crate) fn exec_compiled_under(
+    sym: &crate::runtime::SymbolTable,
     compiled: &CompiledCond,
     fact_fields: &[Value],
     scratch: &mut SlotFrame,
     seed: &(impl Bindings + ?Sized),
 ) -> BindPairs {
     crate::rete::kernel::census_count("rematch:compiled");
-    if !exec_compiled_under_holds(compiled, fact_fields, scratch, seed) {
+    if !exec_compiled_under_holds(sym, compiled, fact_fields, scratch, seed) {
         return None;
     }
     materialize(compiled, scratch)
@@ -787,6 +1057,7 @@ pub(crate) fn exec_compiled_under(
 
 /// Seed `seed_reads`, run ops including [`Op::SeedCmp`]. No materialize / no PMap.
 pub(crate) fn exec_compiled_under_holds(
+    sym: &crate::runtime::SymbolTable,
     compiled: &CompiledCond,
     fact_fields: &[Value],
     scratch: &mut SlotFrame,
@@ -797,7 +1068,8 @@ pub(crate) fn exec_compiled_under_holds(
     for (key, slot) in compiled.seed_reads.iter() {
         scratch[*slot] = seed.get(key).cloned();
     }
-    exec_ops(&compiled.ops, scratch, fact_fields, false)
+    let cx = ExecCx { sym, span: compiled.span(), names: compiled.slot_names() };
+    exec_ops(&compiled.ops, scratch, fact_fields, false, cx)
 }
 
 fn materialize(compiled: &CompiledCond, scratch: &[Option<Value>]) -> BindPairs {
@@ -823,26 +1095,89 @@ fn materialize(compiled: &CompiledCond, scratch: &[Option<Value>]) -> BindPairs 
     Some(out.into())
 }
 
+/// A leaked bare `SymbolTable` for tests that compile or execute a condition.
+///
+/// Threading `sym` is what let `Op::Eval` run a computed operand through the one expression core
+/// (fix-list F). Tests that never write a computed operand still need SOME table to pass, and a
+/// bare world is the cheapest honest one — built once, shared, never mutated.
+#[cfg(test)]
+pub(crate) fn test_sym() -> &'static crate::runtime::SymbolTable {
+    use std::sync::OnceLock;
+    static W: OnceLock<crate::freeze::FrozenWorld> = OnceLock::new();
+    W.get_or_init(|| crate::freeze::startup_bare().expect("bare world for tests")).symbols()
+}
+
+/// What `Op::Eval` needs to run a computed operand — bundled so the four `exec_ops` call sites and
+/// the recursive `Or`/`Not` branches take ONE extra parameter rather than three.
+///
+/// It is three borrows: nothing is allocated, nothing is cloned, and the per-fact fast path
+/// (`Bind` / `Cmp` over `Slot | Lit`) never touches it.
+#[derive(Clone, Copy)]
+pub(crate) struct ExecCx<'a> {
+    pub(crate) sym: &'a crate::runtime::SymbolTable,
+    pub(crate) span: &'a Span,
+    pub(crate) names: &'a [crate::rete::expr_ir::SlotName],
+}
+
+/// An `ExecCx` for tests that drive `exec_ops` directly with hand-built ops.
+///
+/// Those tests never contain an `Op::Eval`, so the sym/span/names are never read — but the type
+/// requires them, which is the point: a future test that DOES build an `Op::Eval` gets a working
+/// context for free instead of a reason to weaken the signature.
+#[cfg(test)]
+pub(crate) fn test_exec_cx() -> ExecCx<'static> {
+    use std::sync::OnceLock;
+    static SPAN: OnceLock<Span> = OnceLock::new();
+    ExecCx {
+        sym: test_sym(),
+        span: SPAN.get_or_init(|| crate::rust_caller_span!()),
+        names: &[],
+    }
+}
+
 pub(crate) fn exec_ops(
     ops: &[Op],
     slots: &mut [Option<Value>],
     fact_fields: &[Value],
     skip_seed: bool,
+    cx: ExecCx<'_>,
 ) -> bool {
     for op in ops {
         if skip_seed && matches!(op, Op::SeedCmp { .. }) {
             continue;
         }
-        if !exec_op(op, slots, fact_fields, skip_seed) {
+        if !exec_op(op, slots, fact_fields, skip_seed, cx) {
             return false;
         }
     }
     true
 }
 
-fn exec_op(op: &Op, slots: &mut [Option<Value>], fact_fields: &[Value], skip_seed: bool) -> bool {
+fn exec_op(
+    op: &Op,
+    slots: &mut [Option<Value>],
+    fact_fields: &[Value],
+    skip_seed: bool,
+    cx: ExecCx<'_>,
+) -> bool {
     match op {
         Op::Fail => false,
+        // FIX-LIST F — run a computed operand and materialise it, exactly as `Bind` materialises a
+        // field. A raise fails the clause rather than propagating: every rete row is TOTAL by the
+        // wall, so reaching the Err arm means an engine bug, and failing closed here matches what
+        // an unresolvable operand has always done.
+        Op::Eval { expr, slot } => {
+            match crate::rete::expr_ir::exec(expr, slots, cx.names, cx.sym, cx.span) {
+                Ok(v) => match slots.get_mut(*slot) {
+                    Some(dst) => {
+                        *dst = Some(v);
+                        true
+                    }
+                    None => false,
+                },
+                Err(_) => false,
+            }
+        }
         Op::Bind { field_idx, slot } => match (fact_fields.get(*field_idx), slots.get_mut(*slot)) {
             (Some(v), Some(dst)) => {
                 *dst = Some(v.clone());
@@ -888,7 +1223,7 @@ fn exec_op(op: &Op, slots: &mut [Option<Value>], fact_fields: &[Value], skip_see
             for branch in branches {
                 clone.clear();
                 clone.extend_from_slice(slots);
-                if exec_ops(branch, &mut clone, fact_fields, skip_seed) {
+                if exec_ops(branch, &mut clone, fact_fields, skip_seed, cx) {
                     return true;
                 }
             }
@@ -906,7 +1241,7 @@ fn exec_op(op: &Op, slots: &mut [Option<Value>], fact_fields: &[Value], skip_see
             // reaches. If an axis is ever built for the intra-condition `or`/`not` shape, this
             // is the first place to look, and the arena is then worth the second mechanism.
             let mut clone: SlotFrame = slots.to_vec();
-            !exec_ops(sub, &mut clone, fact_fields, skip_seed)
+            !exec_ops(sub, &mut clone, fact_fields, skip_seed, cx)
         }
     }
 }
@@ -951,7 +1286,7 @@ mod tests {
         let ast = crate::parse_one!("(:wjl::Wind (?w <- :kph) (:wat::rete::i64::> ?w ?c))")
             .expect("parse leftover cond");
         let fields = vec!["kph".to_string()];
-        let compiled = compile_condition_local(&ast, &fields).expect("compile leftover-as-seed");
+        let compiled = compile_condition_local(&ast, &fields, test_sym()).expect("compile leftover-as-seed");
         assert!(
             compiled.seed_reads.iter().any(|(k, _)| *k == qvar("?c")),
             "leftover ?c must be a seed slot, not omitted and not an output bind"
@@ -974,26 +1309,26 @@ mod tests {
             pool: &mut pool,
         };
         assert!(
-            exec_compiled(&compiled, &fact, &mut scratch, &mut intern, &Value::i64(20),).is_some(),
+            exec_compiled(test_sym(), &compiled, &fact, &mut scratch, &mut intern, &Value::i64(20),).is_some(),
             "populate skips SeedCmp so the fact enters alpha"
         );
 
         let seed_ok = PMap::from_pairs([(qvar("?c"), Value::i64(10))]);
-        let rematch_ok = exec_compiled_under(&compiled, &fact, &mut scratch, &seed_ok);
+        let rematch_ok = exec_compiled_under(test_sym(), &compiled, &fact, &mut scratch, &seed_ok);
         assert!(rematch_ok.is_some(), "20 > 10 holds under seed");
 
         let seed_fail = PMap::from_pairs([(qvar("?c"), Value::i64(30))]);
         assert!(
-            exec_compiled_under(&compiled, &fact, &mut scratch, &seed_fail).is_none(),
+            exec_compiled_under(test_sym(), &compiled, &fact, &mut scratch, &seed_fail).is_none(),
             "20 > 30 fails under seed"
         );
         assert!(
-            exec_compiled_under(&compiled, &fact, &mut scratch, &PMap::new()).is_none(),
+            exec_compiled_under(test_sym(), &compiled, &fact, &mut scratch, &PMap::new()).is_none(),
             "unbound leftover seed is no match"
         );
 
         let seed_pairs = vec![(qvar("?c"), Value::i64(10))];
-        let interp = alpha_match_inner_seeded(&ast, "wjl::Wind", &fact, &fields, &seed_pairs);
+        let interp = alpha_match_inner_seeded(Some(test_sym()), &ast, "wjl::Wind", &fact, &fields, &seed_pairs);
         assert_eq!(
             interp.is_some(),
             rematch_ok.is_some(),
@@ -1006,7 +1341,7 @@ mod tests {
         let ast = crate::parse_one!("(:wjl::Wind (?w <- :kph) (:wat::rete::i64::> ?w ?c))")
             .expect("parse leftover cond");
         let fields = vec!["kph".to_string()];
-        let compiled = compile_alpha_ops(&ast, &fields).expect("strict compile");
+        let compiled = compile_alpha_ops(&ast, &fields, test_sym()).expect("strict compile");
         assert!(
             compiled.seed_reads.is_empty(),
             "strict compile must not seed leftover ?vars"
@@ -1024,6 +1359,7 @@ mod tests {
         };
         assert!(
             exec_compiled(
+                test_sym(),
                 &compiled,
                 &[Value::i64(20)],
                 &mut scratch,
@@ -1054,7 +1390,7 @@ mod tests {
                 "alpha_pattern must hold for {src}"
             );
             assert!(
-                compile_condition_local(&ast, &["kph".to_string()]).is_some(),
+                compile_condition_local(&ast, &["kph".to_string()], test_sym()).is_some(),
                 "compile_condition_local must not return None for {src}"
             );
         }
@@ -1070,7 +1406,12 @@ mod tests {
 
     fn lands(op: &Op) -> Lands {
         match op {
-            Op::Bind { .. } => Lands::Driver,
+            // `Eval` is `Bind`'s sibling and lands the same way: both POPULATE a slot, and that is
+            // what Driver means here. They differ only in where the value comes from — `Bind` from
+            // a fact field, `Eval` from an expression. The expression it runs is of course the
+            // core, but the op itself is the driver moving a value in, which is precisely why
+            // `Cmp`'s operands could stay `Slot | Lit` when computed operands arrived.
+            Op::Bind { .. } | Op::Eval { .. } => Lands::Driver,
             Op::BindCheck { .. }
             | Op::Cmp { .. }
             | Op::SeedCmp { .. }

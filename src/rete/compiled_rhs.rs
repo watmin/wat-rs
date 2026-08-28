@@ -164,7 +164,12 @@ pub(crate) fn compile_rhs(
     // Arc 294 item 9a — kwargs `(:Type :field1 v1 :field2 v2)` vs legacy positional
     // `(:Type v1 v2)`, exactly `build_insert_fact`'s detection.
     let args = &fact_items[1..];
-    let value_asts = crate::rete::eval_insert::rete_kwargs_value_asts(args);
+    // BY NAME — `names` is this type's declaration order, already in hand. `None` is a field the
+    // type does not declare, a duplicate, or a missing one: a setup refuse, the same arm the
+    // unrepresentable operand shapes below take.
+    let Some(value_asts) = crate::rete::eval_insert::rete_kwargs_value_asts(args, &names) else {
+        return Ok(None);
+    };
 
     let mut ops: Vec<RhsOp> = Vec::with_capacity(value_asts.len());
     for arg in value_asts {
@@ -172,9 +177,13 @@ pub(crate) fn compile_rhs(
             WatAST::Symbol(ident, _) if ident.as_str().starts_with('?') => RhsOp::Bind(
                 Value::String(Arc::new(ident.as_str().to_string())),
                 // Built once, at compile time — see the `Bind` doc. `build_insert_fact` renders
-                // `format!("{arg:?}")` into its error's `got`; matching it exactly is what keeps
-                // the two paths indistinguishable to a caller who hits the unbound-var case.
-                format!("{arg:?}"),
+                // the SAME way into its error's `got`; matching it exactly is what keeps the two
+                // paths indistinguishable to a caller who hits the unbound-var case. Both were
+                // `format!("{arg:?}")` until 2026-08-27 — Rust `Debug`, which showed a user
+                // `Symbol(Identifier { name: "?nope", scopes: {} }, Span { … })` for a mistake as
+                // ordinary as an unbound `?var`. Changing one without the other would break the
+                // byte-identical contract, so they move together.
+                crate::rete::validate::render_form(arg),
                 arg.span().clone(),
             ),
             // Flip 4 — a fenced call form MUST lower. A LowerError is a fire

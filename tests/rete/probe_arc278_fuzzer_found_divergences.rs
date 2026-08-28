@@ -1,9 +1,10 @@
-//! THREE LIVE native-vs-`$oracle` DIVERGENCES, ALL FOUND BY THE RETE FUZZER.
+//! THREE native-vs-`$oracle` DIVERGENCES, ALL FOUND BY THE RETE FUZZER — ALL NOW FIXED.
 //!
 //! Found 2026-08-25 by `wat-scripts/fuzz/rete-differential.wat` as its grammar widened — 76
 //! mismatches of 828 generated shapes, decomposing into exactly three families. Every one
-//! reproduces minimally and standalone, and every one is SILENT: a caller gets a wrong row count
-//! with no error.
+//! reproduced minimally and standalone, and every one was SILENT: a caller got a wrong row count
+//! with no error. The families are described below in the present tense of the DEFECT, because
+//! the reproduction is the thing worth keeping; see *Status* at the bottom for what closed them.
 //!
 //! The breakdown is clean enough to be a diagnosis rather than a symptom list: 22 at the
 //! accumulate shape (families A and B), 54 at `:not`-over-a-derived-class (family C), the latter
@@ -34,11 +35,27 @@
 //! token passed once or four times. Every query here carries the rule's own LHS, so `query` reads
 //! beta, below the dedup. That is the whole reason the fuzzer was built this way.
 //!
-//! ## Status: RED, deliberately
+//! ## Status: ALL THREE CLOSED — 2026-08-26. This file is now a REGRESSION gate.
 //!
-//! The two failing tests are `#[ignore]`d and assert CORRECT behaviour, so a fix makes them pass
-//! and un-ignoring them is the completion step. The agreeing control is NOT ignored — it guards
-//! the shape that works today, so a fix cannot break it on the way past.
+//! Every test here is live; nothing is `#[ignore]`d. The three families are closed and the
+//! fuzzer's divergence count is **0**, so any red here is a regression with a named shape rather
+//! than a known defect.
+//!
+//! - **B** closed 2026-08-26: a `:where` binding nothing sorts ABOVE the accumulate, and the
+//!   accumulate pass (3.25) ran before the filter pass (3.5), so that leading Test had never
+//!   fired when the accumulate read its parent delta.
+//! - **A and C** closed 2026-08-26, and they turned out to be **ONE root, not two**: a query's
+//!   NON-MONOTONIC condition was evaluated inside the fixpoint instead of once against the closed
+//!   world. A constrained query is harvested from `wm.beta`, which accumulates across rounds and
+//!   is never cleared, so it holds tokens that were only true of the round that produced them —
+//!   one per round for a leading accumulate (A), and a round-0 negation token that nothing
+//!   retracts when a later round derives the fact (C). Fixed at `fire_unstratified`
+//!   (`src/rete/kernel/fire/rules.rs`), which gives the unstratified path the ending the
+//!   stratified path always had.
+//!
+//! The agreeing controls stay non-ignored and are the reason a wrong fix could not have passed
+//! here: they guard the shapes that already worked, so agreement bought by breaking the absent
+//! case or by failing to derive the fact at all fails in this same file.
 
 use wat::freeze::call_beside_value;
 use wat::runtime::Value;
@@ -77,7 +94,6 @@ fn accumulate_after_a_fact_condition_agrees_with_the_oracle() {
 }
 
 #[test]
-#[ignore = "RED: family B is a live defect — a second `where` after an accumulate matches nothing"]
 fn a_second_where_after_an_accumulate_must_not_kill_the_match() {
     let r = rows();
     assert_eq!(
@@ -93,7 +109,6 @@ fn a_second_where_after_an_accumulate_must_not_kill_the_match() {
 }
 
 #[test]
-#[ignore = "RED: family A is a live defect — a leading accumulate emits one row per fixpoint round"]
 fn a_leading_accumulate_passes_once_per_fire_not_once_per_round() {
     let r = rows();
     // Slots 4 and 6 are the SAME query over the SAME facts; only the inert chain's length —
@@ -159,7 +174,6 @@ fn both_engines_derive_the_fact_the_negation_should_see() {
 }
 
 #[test]
-#[ignore = "RED: family C is a live defect — `:not` over a DERIVED class ignores the derivation"]
 fn negation_over_a_derived_class_must_see_the_derivation() {
     let r = rows_c();
     assert_eq!(

@@ -5,6 +5,14 @@ the bridge — what carries over verbatim, what's a small
 departure, and what's wat-specific. Read this first; the rest of
 the docs become navigable in minutes.
 
+**One thing that does NOT carry over:** `clojure.spec` / `test.check`.
+wat has generative testing (`:wat::gen::`) but it is a different animal —
+a generator is a finite indexed set rather than a seeded random source,
+so there is no spec layer, no seeds, no `frequency`, no per-generator
+shrink trees, and `such-that` filters exactly instead of retrying.
+`docs/GENERATIVE-TESTING.md` § "What wat does NOT need that Clojure does"
+is the whole comparison.
+
 ---
 
 ## What carries over from Clojure (read these as identity)

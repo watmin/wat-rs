@@ -23,7 +23,13 @@ use super::super::*;
 /// The main hash-join pass only left-activates from Root/HashJoin, but compile
 /// will parent a HashJoin on a mid-chain `:where`. Returns the child ids that
 /// received tokens — pass 3.7's frontier.
+// 8 args since fix-list F: `sym` joined so a computed inline operand can run through the one
+// expression core (`Op::Eval`). The alternative — a context struct — would have to be built at
+// every call site in the per-fact hot path purely to satisfy a lint, and the parameters here are
+// already the fire pass's working set rather than an accidental pile.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn join_after_filter(
+    sym: &SymbolTable,
     wm: &mut FireSession,
     arm: &InternedNetwork,
     d_beta: &mut BetaMemory,
@@ -86,6 +92,7 @@ pub(crate) fn join_after_filter(
                     indexed_n: right_idx_n,
                 },
                 &mut FireCtx {
+                            sym,
                     compiled_conds: &arm.compiled_conds,
                     scratch: match_scratch,
                     pool: &mut wm.bind_pool,

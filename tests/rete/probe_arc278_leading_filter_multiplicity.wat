@@ -41,7 +41,7 @@
   :when [(:wat::rete::exists (:lf2::Wind (?loc <- :loc)))])
 ;; Ghost is never asserted => the empty world matches with ONE empty token.
 (:wat::rete::defquery :lf2::q-not :params []
-  :when [(:wat::rete::not (:lf2::Ghost (?k <- :k)))])
+  :when [(:wat::rete::not (:lf2::Ghost))])
 
 ;; ── :lf6 — a 6-link chain (6 rounds), otherwise identical ────────────────────
 
@@ -63,7 +63,7 @@
 (:wat::rete::defquery :lf6::q-exists :params []
   :when [(:wat::rete::exists (:lf6::Wind (?loc <- :loc)))])
 (:wat::rete::defquery :lf6::q-not :params []
-  :when [(:wat::rete::not (:lf6::Ghost (?k <- :k)))])
+  :when [(:wat::rete::not (:lf6::Ghost))])
 
 ;; ── the witnesses ────────────────────────────────────────────────────────────
 

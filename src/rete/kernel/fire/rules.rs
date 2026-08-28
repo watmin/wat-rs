@@ -428,6 +428,157 @@ fn harvest_stratified_queries(
         .unwrap_or_else(|| Value::wat__core__PersistentMap(crate::value::pmap::PMap::new())))
 }
 
+/// The UNSTRATIFIED drive: the cascade fixpoint, then constrained queries re-derived against
+/// the CLOSED world.
+///
+/// **Both `max_s == 0` exits go through here** — the AST door (`fire_rules_on_session`) and the
+/// Export door (`fire_rules_from_deps`). That is the point of the function existing at all: the
+/// defect below was present at BOTH, and wrapping each call site would have been a convention
+/// ("remember to requery"), which the second door had already proved does not hold. There is now
+/// no way to take the fast path and skip the requery, because there is no other path.
+fn fire_unstratified(
+    session: &Value,
+    sym: &SymbolTable,
+    support: Option<&mut ExplainSupport>,
+) -> Result<Value, EvalBreak> {
+    let fired = fire_fixpoint_delta(session, sym, support)?;
+    requery_closed_world(session, fired, sym)
+}
+
+/// Re-derive CONSTRAINED queries against the closed world, discarding what the fixpoint's
+/// accumulated beta says about them.
+///
+/// ## The defect this closes — families A and C of `RETE-FIX-LIST.md`, one root
+///
+/// `harvest_query_memory` (`fire/mod.rs`) has two branches. A CLASS-SCAN query reads the closed
+/// bag and is correct. Every other query — which means every `:not` and every accumulate — falls
+/// to the `else` branch and reads `wm.beta[parent]`. Beta memories, by the semi-naive fixpoint's
+/// own design contract, **accumulate across rounds and are never cleared**. So a constrained
+/// query reads a memory holding tokens that were only ever true of the ROUND that produced them:
+///
+/// - **Family A** — a leading accumulate's parent gains a token every round, and the harvest
+///   reads all of them. The row count tracked the fixpoint's round count exactly: a 1-rule inert
+///   chain gave 2, a 2-rule chain gave 3, where the reference gives 1 for both.
+/// - **Family C** — a `:not` propagated its token in round 0, when the negated class did not yet
+///   exist. A later round derives the fact; nothing retracts the token already sitting in beta.
+///   The negation passed while the engine's own query confirmed the fact was present.
+///
+/// They read as two defects and are one sentence: **a query's NON-MONOTONIC condition was
+/// evaluated inside the fixpoint instead of once against the closed world.** Non-monotonic is
+/// exactly the class a later round can invalidate, which is why all 72 fuzzer divergences were
+/// `:not` and accumulate and nothing else.
+///
+/// ## Why this shape, and why it is not new machinery
+///
+/// The STRATIFIED driver never had the defect: it fires the query slice ONCE against the
+/// accumulated closure (`harvest_stratified_queries`), so there is one world and no stale token.
+/// The wat `$oracle` is right for the same reason — its q-seed fires queries once against the
+/// closed facts (`wat/rete/oracle/fire.wat`). Clara 0.24.0 agrees with both. This function simply
+/// gives the unstratified path the ending the stratified path already had; the door it calls is
+/// the proven one, not a second implementation of it.
+///
+/// Proven before it was written, by a probe that changed no engine code: adding an unrelated rule
+/// that negates a type — whose ONLY effect is to push `max_s` above 0 and thus route through the
+/// stratified driver — made both defects disappear with the queries themselves untouched
+/// (A: 3 rows → 1; C: passes → blocks). The path was the variable, not the query.
+///
+/// ## What it deliberately does NOT do
+///
+/// It does not touch the class-scan case: those queries never read beta, `harvest_query_memory`
+/// already answered them from the closed bag in place, and redoing that work would be pure cost.
+/// It also does not stop the fixpoint from DRIVING query nodes each round — that is now wasted
+/// work, but removing it is a perf change and belongs to its own measurement, not to a
+/// correctness fix (`NEXT-STRIKES-theater-hunt.md`, the noise-floor rule).
+fn requery_closed_world(
+    session: &Value,
+    fired: Value,
+    sym: &SymbolTable,
+) -> Result<Value, EvalBreak> {
+    let Some(network) = session_network(session) else {
+        return Ok(fired);
+    };
+    let rules = session_rules(session);
+    let arm = rete_arm_get_or_build(network, &rules, sym)?;
+    if arm.kind_ids.query.is_empty() {
+        return Ok(fired);
+    }
+    let scans = query_class_scans(&arm, network);
+    if class_scans_cover_queries(&arm, &scans) {
+        return Ok(fired);
+    }
+
+    // child-id → parent-ids, the same inversion `fire_rules_stratified` builds for its slice.
+    // `close_upstream` additionally follows the Negation/Exists/Accumulate tested-alpha
+    // REFERENCE field, which is not a children edge — missing it would slice the tested type
+    // out and make every negation vacuously pass, which is the very defect being fixed.
+    let mut rev_children: ParentsOf = HashMap::new();
+    for id in sorted_node_ids(network) {
+        let Some(node) = get_node(network, id) else {
+            continue;
+        };
+        for child in node_children(node) {
+            rev_children.entry(child).or_default().push(id);
+        }
+    }
+
+    // ── ONLY A NON-MONOTONIC QUERY NEEDS THIS, AND THE DIFFERENCE IS 4x ──────────────────────
+    //
+    // The defect is that a later round can INVALIDATE a token already sitting in beta. Only a
+    // NON-MONOTONIC condition can be invalidated that way: an accumulate (its result changes as
+    // its `:from` set grows) and a `:not` (it holds until the negated fact appears). `:exists` is
+    // MONOTONE — once satisfied, no additional fact can unsatisfy it — and its own round-
+    // multiplicity defect was already closed on 2026-08-24 (`leading_emitted`, `71d0e700e`). A
+    // plain join is monotone for the same reason.
+    //
+    // Measured, and this gate is not an optimisation but a REGRESSION FIX: without it,
+    // `leading-exists` — the one grid axis whose query is constrained yet purely monotone — paid a
+    // full extra query-slice fire on every fire, for protection it did not need.
+    // Same-session A/B against `ee1fe443b`, 8 interleaved samples per binary:
+    // `[200]` 177us -> 587us, `[500]` 347us -> 1394us, `[1000]` 658us -> 2777us — 3.3x to 4.2x.
+    // The fuzzer's own evidence agrees that it was never needed: its `:exists` shapes diverged
+    // ZERO times across 1260 shapes, while all 72 real divergences were accumulate and `:not`.
+    //
+    // Cheap by construction: the walk is over the QUERY CLOSURE (network-sized, not fact-sized),
+    // and a session that skips here never builds the closed fact set below at all.
+    let mut q_ids: HashSet<i64> = HashSet::new();
+    let mut q_front: Vec<i64> = Vec::new();
+    for &qid in &arm.kind_ids.query {
+        if q_ids.insert(qid) {
+            q_front.push(qid);
+        }
+    }
+    close_upstream(
+        network,
+        &rev_children,
+        &arm.compiled_drivers,
+        &mut q_ids,
+        &mut q_front,
+    );
+    let feeds_a_non_monotonic_node = q_ids.iter().any(|id| {
+        get_node(network, *id)
+            .is_some_and(|n| matches!(kind_of(n), NodeKind::Negation | NodeKind::Accumulate))
+    });
+    if !feeds_a_non_monotonic_node {
+        return Ok(fired);
+    }
+
+    // The closure this fire produced: input ∪ derived — the same value the stratified driver
+    // carries across strata and hands its own harvest.
+    let production_pm = session_named_field(&fired, "production-memory")
+        .cloned()
+        .unwrap_or_else(|| Value::wat__core__PersistentMap(crate::value::pmap::PMap::new()));
+    let derived = collect_derived(&production_pm);
+    let input_facts = session_named_field(&fired, "facts")
+        .cloned()
+        .unwrap_or_else(|| Value::wat__core__PersistentVector(crate::value::pvec::PVec::new()));
+    let mut present = facts_membership(&input_facts);
+    let closed = merge_facts(&input_facts, &mut present, &derived);
+
+    let qmem = harvest_stratified_queries(session, &arm, &rev_children, &closed, &derived, sym)?;
+    Ok(session_with_fields(&fired, &[("query-memory", qmem)]))
+}
+
+
 // ── Public entry: native fire-rules ──────────────────────────────────────────
 
 /// `(:wat::rete::fire-rules <session>) -> :wat::rete::Session`
@@ -541,7 +692,8 @@ pub(crate) fn fire_rules_on_session(
     if max_s == 0 {
         // Fast path — P4b: semi-naive delta fixpoint (input_facts restore is
         // done inside). Explain threads `Some(support)` through the same door.
-        return fire_fixpoint_delta(session, sym, support);
+        // The requery is INSIDE that door, not around this call — see `fire_unstratified`.
+        return fire_unstratified(session, sym, support);
     }
 
     // Stratified drive — port of fire-stratified-loop, bottom→top.
@@ -701,7 +853,7 @@ fn fire_rules_from_deps(
         }
     }
     if max_s == 0 {
-        return fire_fixpoint_delta(session, sym, support);
+        return fire_unstratified(session, sym, support);
     }
     fire_rules_stratified(session, &parts, &rule_strata, max_s, sym, support)
 }

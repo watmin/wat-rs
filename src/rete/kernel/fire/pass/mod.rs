@@ -42,6 +42,7 @@ pub(crate) struct JoinIdx<'a> {
 /// `where`; with one, the chain is short enough that 3.6 alone finishes it.
 /// Gated by `tests/rete/probe_arc278_where_is_positionally_free`.
 pub(crate) fn left_activate_join(
+    sym: &SymbolTable,
     wm: &mut FireSession,
     arm: &InternedNetwork,
     d_beta: &mut BetaMemory,
@@ -65,6 +66,7 @@ pub(crate) fn left_activate_join(
             indexed_n: idx.right_idx_n,
         },
         &mut FireCtx {
+            sym,
             compiled_conds: &arm.compiled_conds,
             scratch: idx.match_scratch,
             pool: &mut wm.bind_pool,
@@ -111,6 +113,12 @@ pub(crate) struct RoundScratch<'a> {
     pub(crate) seen_ids: &'a mut rustc_hash::FxHashSet<u64>,
     pub(crate) seen_rest: &'a mut rustc_hash::FxHashSet<Value>,
     pub(crate) leaf_aids: &'a LeafAidsByClass,
+    /// Tests the ACCUMULATE pass (3.20) had to dispatch early to feed an accumulate whose parent
+    /// is a Test. The FILTER pass (3.5) must skip them: a Test dispatched twice against one
+    /// parent delta duplicates its tokens all the way into production. Written by 3.20, read by
+    /// 3.5, cleared by 3.20 at the top of every round — per-round scratch, which is what this
+    /// struct is for, and it keeps both passes at their argument budget.
+    pub(crate) pre_dispatched: &'a mut std::collections::HashSet<i64>,
 }
 
 mod accumulate;

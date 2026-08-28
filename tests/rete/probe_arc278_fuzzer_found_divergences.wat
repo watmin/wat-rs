@@ -39,7 +39,7 @@
 ;; (1) — while its OWN query confirms S2 is present. Both engines derive the fact;
 ;; only one of them lets the negation see it.
 (:wat::rete::defquery :user::qC :params []
-  :when [(:wat::rete::not (:user::S2 (?s <- :k)))])
+  :when [(:wat::rete::not (:user::S2))])
 
 ;; The control that makes the claim airtight: is S2 actually there?
 (:wat::rete::defquery :user::qS2 :params []

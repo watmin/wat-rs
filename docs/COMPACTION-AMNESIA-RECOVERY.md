@@ -1087,6 +1087,31 @@ read. The session's whole theme was building gates that prove
 tooling works — while the method used to verify them had the
 identical hole.
 
+
+#### ⛔ RECURRED 2026-08-27, TWICE, BY A NEW DOOR — the trailing `echo`
+
+Not a pipe this time. The shape was:
+
+```bash
+./scripts/floor.sh 2>&1 | grep -E 'Summary' | tail -1; echo "FLOOR_EXIT=${PIPESTATUS[0]}"
+```
+
+`PIPESTATUS[0]` is correct — but the COMMAND's own exit status is the trailing `echo`'s, which is
+always 0. So the harness reported **"completed (exit code 0)"** for a run whose floor was RED, and
+a background-task notification said the same. Both times the real verdict was only in the log.
+
+**The cure is the same one this FM already names, applied to the whole command and not just the
+pipe:** write the gate's output to a file and read `$?` on the very next line, with nothing after
+it.
+
+```bash
+./scripts/floor.sh > /tmp/floor.out 2>&1; echo "FLOOR_EXIT=$?"   # $? is the FLOOR's
+```
+
+**And the deeper tell, which is what makes this worth re-reading:** *a status you did not read
+from the thing itself is not that thing's status.* Twice in one session that took the shape of an
+exit code; three more times it took the shape of a GATE READING ITS OWN PROSE (see FM 29).
+
 ### Failure mode 21 — A blanket edit that lands INSIDE a string literal
 
 **Signature:** a scripted replace keyed on line CONTENT (`line.strip().startswith(...)`,
@@ -1112,6 +1137,32 @@ deletions, byte-identical* proved the fifth site was restored and said NOTHING a
 four I had deliberately targeted. A true statement about one subject, read as
 reassurance about another. The structural check above takes one line and would have
 caught all five.
+
+
+**⛔ THIRD INCIDENT, 2026-08-28 — THE BLANKET EDIT DELETED A TEST, AND THE FLOOR WENT GREEN.**
+Converting a large test fn into a shard helper ran `body.replace("#[test]\n", "")` over a slice of
+the file. Python's `str.replace` has no count by default, so it stripped the attribute from EVERY
+test in that slice — including a sibling test that was never being edited. That test silently
+stopped existing. `scripts/floor.sh` passed at 5136/5136, because **a test that does not exist
+cannot fail**, and the count is not pinned to anything.
+
+**What caught it was `cargo clippy --all-targets -- -D warnings`**, as `dead_code`: the fn was no
+longer called by anything, and neither was the enum only it used. The floor structurally cannot
+see this class; clippy structurally can. **So the two gates are not redundant and neither
+substitutes for the other** — a green floor plus a red clippy is a real state, and it happened
+here. Run both, read both exit codes separately (FM 26 — I put them in one command this time and
+nearly read only the floor's).
+
+**The confirming number, and take it every time:** after restoring the attribute the floor read
+5137. That **+1 IS the proof** the test had been absent — the test-count delta is the cheap
+integrity check that "green" never provides. If a refactor is not supposed to change the number of
+tests, the number is a thing to look at.
+
+**Reality check, in addition to the string-literal one above:** when a scripted edit rewrites a
+region, bound it AND count what it changed. `replace(old, new, 1)` when you mean one site;
+`assert` the occurrence count first when you mean all of them. Silent multiplicity is the whole
+failure — in incident (2) it added text where it should not have, and here it removed text where
+it should not have. Same root, opposite direction.
 
 ### Failure mode 24 — Per-component proofs that never cross a SEAM
 
@@ -1160,6 +1211,238 @@ transcript.
 committable and was not committed. And a destructive step must not sit in the same command as the
 step that justifies it: if generation and removal share an invocation, a failed generation still
 reaches the removal.
+
+**⚠ RECURRED 2026-08-26, IN A NEW GUISE, AFTER THE CURE ABOVE WAS WRITTEN.** The builder REJECTED
+a tool call that bundled `cp` (backup) + a python edit injecting an `eprintln!` + `cargo nextest`
++ `cp` (restore). A rejection stops the call — but the edit had ALREADY WRITTEN. Debug
+instrumentation sat in `src/rete/kernel/fire/pass/filter.rs` through TWO release rebuilds before
+it was noticed, and it would have shipped in a commit.
+
+**The generalisation, which is what this FM is actually about:** *any* command that bundles a file
+edit with the step that consumes it converts a partial failure — or a refusal — into residue on
+disk. Generation + removal was the first instance; edit + run is the second; edit + rejection is
+the third. **Write the edit, run the consumer separately, and let each be individually
+rejectable.** A rejected call must be able to leave the tree exactly as it found it, and it can
+only do that if the call did one thing.
+
+### Failure mode 26 — Two gates in one command, and only the first verdict read
+
+**Signature:** a single Bash invocation runs the floor AND clippy (or any two gates), the first
+prints a big obvious `Summary ... all passed`, the second prints one quiet line — and the commit
+goes out on the strength of the first.
+
+**Real incident, 2026-08-26.** `./scripts/floor.sh; cargo clippy ...; echo "clippy exit=$?"` was
+run as one command. The floor read 5098/5098. **`clippy exit=101` was printed in the same output,
+three lines down, and went unread.** The commit was written, committed AND PUSHED on a red gate.
+The defect was trivial (a parameter pushed a function to 8 args, over clippy's 7) — the failure
+was not the defect, it was reporting green while a gate was red, which `wat-rs/CLAUDE.md` names
+as its first dismissal: *"A rider that reports a floor green while a test went red has reported a
+FALSE result."*
+
+**Why FM 20 does not cover it.** FM 20 is a verdict LOST to a pipe that discards the exit code.
+Here nothing was lost — the verdict was printed, correctly, and simply not looked at. A big green
+Summary immediately above a small red line is a legibility trap, not a plumbing one.
+
+**The cure: one gate per command, and read the LAST line of each before writing anything.** If two
+gates must share an invocation, the command's own last act should be a combined verdict that
+cannot be true while either half is false — not two independent prints where the loud one wins.
+
+### Failure mode 27 — A benchmark figure from too few samples, then reasoned with
+
+**Signature:** a wall-clock measurement is taken 3 times, the median is published as a number, and
+later work is planned against it — including ratios computed from two such medians.
+
+**Real incident, 2026-08-26.** Generator cost on a ~700 ms benchmark with ~5% run-to-run spread.
+Two successive 3-sample reads **of the same binary** gave 265 and 288 µs/point. A ~9% "regression"
+was chased that did not exist, and three figures shipped into five files were wrong: 406 → 437,
+265 → 287, and a nested multiple of 10.7x → 8.7x. The DIRECTION and the −34% delta survived
+re-measurement; the absolutes did not.
+
+**The cure: six samples and a stated mean, or no number.** And never a ratio computed from two
+few-sample medians — the errors compound. If a number is worth putting in a document, it is worth
+six runs; if it is not worth six runs, say "roughly" and give the shape instead of the digits.
+
+**The kin.** This is the same family as the oracle-ratio defect found the same day: a number is a
+CLAIM, and a claim needs the evidence standard of a finding. A figure with no stated method cannot
+be re-verified by anyone, which sits badly beside a document that gates everything else.
+
+### Failure mode 28 — Two engines agreeing, and a COUNT that cannot see the defect
+
+**Signature:** a differential gate reports 0 divergences, the floor is green, three references
+concur — and the engine is returning wrong VALUES. Two distinct blindnesses, and they compound:
+
+1. **A count is blind to a value defect.** A `:then` that writes its kwargs into the wrong fields
+   derives exactly as MANY facts. A query param that transposes selects exactly as MANY rows. Any
+   gate whose readout is `length(query …)` reads identically on a correct engine and on one that
+   has swapped every field it wrote.
+2. **Two engines agreeing proves nothing when they share an assumption.** Native and the `$oracle`
+   consumed `:then` kwargs through the SAME helper, so both transposed identically and agreed
+   perfectly on the wrong answer. A differential can only find what the two sides do DIFFERENTLY.
+
+**Real incident, 2026-08-27 (RETE-FIX-LIST entry E).** `:then` kwargs in a runtime-built `Rule`
+were consumed positionally: `(:Two :a ?x :b ?y)` derived witness 3024, `(:Two :b ?y :a ?x)` derived
+24003 — the same pairs in the wrong fields. Three fuzzers (3168 + 936 + 1372 shapes) had been green
+for a day across that exact code. The fourth found it on its FIRST RUN, because it was the first to
+compare an asymmetric VALUE witness, `sum(a*1000 + b)`, instead of a row count.
+
+**The cure — when designing a property, ask what the defect class LOOKS like:**
+- if a wrong answer has the same CARDINALITY as a right one, the readout must be a VALUE
+- make the witness ASYMMETRIC, so a transposition moves it (`a+b` would have been blind too)
+- PIN the expected value, do not merely assert two sides are equal — if both drift together,
+  "equal" certifies the defect as fixed
+- and where a third, independently-implemented reference exists (Clara), use it: it is the only
+  thing that can see an assumption the two in-tree engines share
+
+**Corollary, 2026-08-27, the same day:** the probe written to check query params for this same
+defect ALSO compared counts, with `(1,2)` and `(2,1)` in the world — where selecting either returns
+one row. It would have certified a transposition as clean, one hour after the lesson. Knowing the
+rule is not applying it; ask the question of every new gate.
+
+---
+
+### Failure mode 29 — A gate that reads its own file, and certifies its own prose
+
+**Signature:** a lint or probe that scans the tree for evidence, and finds the evidence IN ITSELF —
+in its own doc comment, its own exemption table, or the fixture it is asserting about. It passes,
+it looks rigorous, and it proves nothing. Mutation is the only thing that finds it: delete the real
+evidence and watch the gate stay green.
+
+**Three instances in one session, 2026-08-27:**
+
+1. `every_parity_script_is_invoked` concatenated every `.rs` under `tests/` to ask "does anything
+   invoke this script". Its own DOC COMMENT named the scripts. Deleting the real invocation from
+   `ci.yml` left it GREEN.
+2. Comment-stripping fixed that — and it still passed, because its own `SUPERSEDED` table named a
+   script as a STRING LITERAL, which stripping cannot remove.
+3. A probe derived an assertion's expected line number by scanning its fixture for `?nope`. The
+   fixture's HEADER quoted the old error text, which contains `?nope` — so it matched the prose and
+   reported line 6 while the span said 20.
+
+**The cure:**
+- a gate must EXCLUDE ITS OWN FILE from any surface it treats as evidence, and say why at the
+  exclusion — otherwise the next person removes the skip as dead code
+- strip comments before searching, and remember a string literal is not a comment
+- **MUTATION-PROVE every new gate**: break the thing it watches, confirm it goes RED, restore. An
+  assertion that has never failed is a claim, not a gate. All three of these were found that way
+  and by nothing else.
+
+**The family resemblance to FM 20:** *a status you did not read from the thing itself is not that
+thing's status.* There it was an exit code from a trailing `echo`; here it is evidence from the
+gate's own prose. Same error, different costume.
+
+---
+
+### Failure mode 30 — A status recorded in TWO places, so the open list lies about itself
+
+**Signature:** a tracking doc has a section titled "what remains open" and, further down, a
+running narrative of what got closed. Closures are recorded by APPENDING a block below; the open
+list above is never pruned. Both halves are individually truthful. The document as a whole is
+false, and the half that lies is the one people read first — a title is a claim, and a section
+called "WHAT REMAINS OPEN" is asserting that its rows are open.
+
+**Why it survives so long:** every reader who checks a row finds the truth (the closure block is
+right there) and concludes the doc is fine. Every reader who TRUSTS the row does not check, and
+so never learns. The doc is therefore self-reinforcing in exactly the population that matters —
+the hurried one — and it fails silently for a reader who is doing the honest thing: reading the
+section that says it is the list of open work.
+
+**The compounding cost is worse than a wasted pass.** A false-open list is where live items go to
+hide. Real work sits in it looking identical to the dead rows around it, so nobody triages, and
+the one row that IS live is camouflaged by the nine that are not.
+
+**The cure — one row, one place.** Status is edited IN PLACE in the list; narrative blocks below
+are the REASONING that produced a verdict and are POINTED at, never a second copy of the verdict.
+Note the rung honestly: in a prose arc doc this is a **convention written where it is broken**
+(the section's own header bans appending a closure below it), not a gate. A lint over markdown
+prose would be exactly the self-certifying gate FM 29 names, so the material runs out here — say
+so rather than dressing the convention up as a wall.
+
+**Real incident, 2026-08-27.** `NEXT-STRIKES-theater-hunt.md` § "WHAT REMAINS OPEN — the honest
+list" carried four L1 ward rows. **All four had been closed for days**, each closure written
+100–250 lines below in the same file. `RETE-OPEN-WORK.md` and the breadcrumb both inherited the
+false status and told the next instance to go work it. Two audits had already found individual
+rows stale and recorded "this list is 2-for-2 stale, audit before working it" — a warning that
+correctly identified the symptom and left the mechanism running. The full audit came back
+**4-for-4**. And the false-open list had two live items hiding in it: `partire` x7, which was in
+NEITHER the closed tally nor the open roster and so was never re-read at all, and a
+`circumspicere` row whose stated reason had expired (FM 23's second incident).
+
+**The tell, and it generalises past documents:** *a list is not evidence. It is a claim, and it
+ages.* The same instinct that says "do not trust a grep that found nothing" says "do not trust a
+row that says it is open" — in both cases the artifact is reporting a past act of looking, not
+the present state of the world. Check the tree.
+
+### Failure mode 31 — A READING cannot see an EXECUTION defect
+
+**Signature:** every checker you own inspects SOURCE. They hold a file against a spec, a name
+against its referent, a declaration against its use, and report where the two disagree. Then a
+defect ships where source and spec **agree and are jointly wrong** — the declaration promises
+something the implementation cannot do — and every one of them correctly reports harmony.
+
+**The tell:** a clean full audit followed by a defect that was there the whole time. Not one
+checker was lax; they were all answering a different question than the one that mattered.
+
+**Real incident, 2026-08-27/28 (arc 278).** The `vigilia` — 17 inward wards plus `circumspicere` —
+CONVERGED: two consecutive recasts at `0 L1 + 0 L2`, recorded in `REALIZATIONS.md` R68 as the
+milestone. The remaining ward findings were later audited row-by-row and came back **4-for-4
+stale**. By every instrument the watch had, the rete surface was clean.
+
+An instrument that DRIVES each row then found, in one day: **six** rows that pass admission,
+totality, arity and type and cannot execute at all; **39** rows accepted as an inline constraint
+that compile, fire and match nothing with no diagnostic; a first-class type constructible and
+never readable since genesis; and a duplicated accessor silently disagreeing with core about which
+containers exist.
+
+Why no reading could reach it: `:wat::rete::core::Tuple` was declared in the table, the fence
+admitted it, the checker typed it, purity approved it, the naming rule derived it, the totality
+gate passed it. **Source and spec were entirely consistent — and both wrong together.**
+
+**The cure is a different KIND of instrument, not a stricter one.** Synthesize a caller for every
+declared surface, DRIVE it in every position it claims to be usable, and demand a verdict per
+cell. Its evidence is an EVENT, not a source. Two things it must carry, because an executing
+checker can lie in ways a reading one cannot:
+  · a CALIBRATION of known-answer cells with **two of each verdict** — a driver that renders
+    nothing passes an all-refusal control, one that never applies its constraint passes an
+    all-fire control; only a mixed control fails both ways;
+  · a split between "refused, naming the thing under test" (a finding) and "refused, naming
+    something else" (a bug in the driver) — the second must be LOUD, never counted.
+A broken reader finds nothing and empty reads as clean; a broken driver finds a JACKPOT that looks
+exactly like a discovery. That asymmetry is why those two are the price of admission.
+
+**And it does not replace the wards.** Most questions have no runtime — no program tells you
+whether a name lies or prose rings true. This covers exactly one class the others structurally
+cannot. Written up as a proposed ward (`experiri`) at
+`docs/arc/2026/06/278-rules-engine/PROPOSAL-SPELL-experiri.md`, with an honest coverage table
+showing what it would still have missed.
+
+### Failure mode 32 — THE CURE REOPENS THE CLASS IT CURED
+
+**Signature:** you fix a defect by adding a capability, and the new capability has its own failure
+path — which you route into the SAME silent channel the original defect used. The class returns
+one level in, wearing the fix's clothes.
+
+**Real incident, 2026-08-28, and it was caught only by probing my own change.** Fix-list entry F
+was "could not lower" being reported as `Op::Fail` — a compiled, permanent, SILENT never-match. The
+repair lowered nested operands through the expression core. But the lowering returns an `Option`,
+and the caller still turned `None` into `Op::Fail` — so a nested operand that STILL would not
+lower, such as a non-rete head Law A must refuse, fell into the identical silent bucket. Measured:
+a core `(:wat::core::i64::+ …)` inline compiled and matched nothing while the same form in a fence
+was refused BY NAME.
+
+**Why the gate did not catch it:** the class gate banned `MATCHES-NOTHING` for every row in the
+vocabulary, and every vocabulary row is a RETE op. Nothing in the ledger writes a CORE op inline,
+because the ledger enumerates the table. **A gate built from an inventory cannot test what the
+inventory excludes.**
+
+**The cure — separate the outcomes by TYPE, not by discipline.** `Option` was the whole bug: two
+different facts, one `None`. An enum with `Lowered` / `Unresolvable` / `Refused` makes the
+conflation unrepresentable — `Unresolvable` (an unbound var, an undeclared field) still compiles to
+a permanent failure, which was always correct; `Refused` refuses the whole condition so the user
+gets a located error.
+
+**The discipline that found it:** after fixing a defect, take the defect's own shape and ask
+whether the FIX has an instance of it. Do not ask whether the tests pass — they did.
+
 
 ### Failure mode 22 — A rule written in prose that nothing ever runs
 
@@ -1214,6 +1497,27 @@ states that `#[wat_dispatch]` marshals `Result<T, E>` natively via the blanket i
 `Lru::new`'s shape. The stated blocker had been false for some time and the deferral had gone on
 citing it, in two files, tracked nowhere. What actually remained was a design question nobody had
 been asked.
+
+
+**⛔ SECOND INCIDENT, 2026-08-27 — AND THIS TIME THE EXPIRED DEFERRAL WAS ONE OF MINE, WRITTEN
+THE SAME DAY IT DIED.** A `circumspicere` row said the grid's SPEED half "runs in no CI job.
+Correctly scoped: it needs Clara and a JDK the runner lacks." Hours later, on the same day, I
+landed the `parity` job — which installs Temurin 21 and a version-pinned Clojure CLI, exactly the
+toolchain the row called unavailable. Nothing connected the two. The row kept reading as
+"correctly scoped" and I would have re-inherited its dead reason on the next pass.
+
+**What this incident adds to the cure:** the gap between a deferral and its expiry can be HOURS,
+not months, and the strike that kills a premise is usually not the one that wrote it. So the
+re-read cannot be "revisit deferrals periodically" — that is a convention, and it is what already
+failed twice. **The mechanical form: when you land anything that removes a constraint — a
+toolchain, a marshalling path, a missing primitive — grep the record for the constraint's NAME
+before you commit.** `grep -rn "JDK\|Clojure" docs/arc/.../NEXT-STRIKES-*.md` would have taken
+five seconds and caught it in the same commit that caused it.
+
+**And the honest half:** killing the stated reason does not decide the item. A shared CI runner
+IS a noisy instrument for a wall-clock gate — that is a real argument, and it had never been
+written down, because the dead reason was doing its job. An expired premise usually hides a live
+one; find it and write it, or the row just rots again with a fresher-looking excuse.
 
 ### Failure mode 13 — Trusting a DESIGN section without cross-checking memory
 
@@ -1637,6 +1941,29 @@ changes."*
 
 **Cross-reference:** FM 12 (model explicit), Section 7 (delegation).
 Distinct from both: this is about *concurrency of the build itself*.
+
+
+#### ⛔ RECURRED 2026-08-27 — "BACKGROUNDED" READ AS "FINISHED"
+
+No riders, no fan-out: one operator, two floors. A `./scripts/floor.sh` run was backgrounded (the
+tool result said *"Command running in background with ID …"*), I read the absence of output as
+completion, and started a second floor on top of it. Two concurrent 350-second floors thrashing one
+`target/` — and neither is a valid measurement even if both finish. Builder: *"you are running two
+concurrent builds - its dos'ing... i'm killing the procs"*.
+
+**The rule was already known** — it is this FM, and the pre-compaction *"do not run two builds at
+once"*. What was new is the door: a backgrounded command LOOKS finished because nothing is
+printing.
+
+**The cure, mechanical:** `"Command running in background with ID …"` and *"manually backgrounded
+by user"* are a START, not a result. Before launching any build, floor or clippy:
+
+```bash
+pgrep -af 'cargo|nextest|floor.sh'    # empty is the only green light
+```
+
+Wait for the `<task-notification>`, or read the output file. Do not infer completion from a quiet
+log, a partial `tail`, or the passage of time.
 
 ### Failure mode 19 — The rider believes it is the ORCHESTRATOR (the yielded background job)
 

@@ -28,6 +28,7 @@ use crate::rete::compiled_cond::CompiledCond;
 
 /// First round: seed alpha memories from the input facts.
 pub(crate) fn alpha_seed(
+    sym: &SymbolTable,
     wm: &mut FireSession,
     scratch: &mut RoundScratch<'_>,
     input_facts: &crate::value::pvec::PVec,
@@ -45,6 +46,7 @@ pub(crate) fn alpha_seed(
         seen_ids,
         seen_rest,
         leaf_aids,
+        ..
     } = scratch;
     // Two pairs / fire, not per fact (`DESIGN-STONE-alpha-leftover-split`).
     let __seed = phase_start();
@@ -63,6 +65,7 @@ pub(crate) fn alpha_seed(
                     fact,
                     i as u32,
                     &mut AlphaActivateCx {
+                        sym,
                         wm,
                         d_alpha,
                         alpha_tree,
@@ -97,6 +100,7 @@ pub(crate) fn alpha_seed(
             fact,
             i as u32,
             &mut AlphaActivateCx {
+                        sym,
                 wm,
                 d_alpha,
                 alpha_tree,
@@ -141,6 +145,7 @@ pub(crate) fn alpha_seed(
 
 /// Later rounds: activate only the facts derived last round.
 pub(crate) fn alpha_delta(
+    sym: &SymbolTable,
     wm: &mut FireSession,
     scratch: &mut RoundScratch<'_>,
     owned_delta: &[u32],
@@ -162,6 +167,7 @@ pub(crate) fn alpha_delta(
             &fact,
             idx,
             &mut AlphaActivateCx {
+                        sym,
                 wm,
                 d_alpha,
                 alpha_tree,

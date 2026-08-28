@@ -2,7 +2,7 @@
 ;; Beats in, Datamancer or Hollow out.
 #wat.rete/Export {
   :v 1
-  :abi "v1:c27e31f72b0c5931"
+  :abi "v1:075b5ac8b2426d45"
   :classes ["dm::Beat" "dm::Gap" "dm::ReadAfter" "dm::Artifact" "dm::Primer" "dm::Four" "dm::Hollow" "dm::Datamancer"]
   :fields [
     ["t" "kind"]
@@ -113,14 +113,12 @@
       10
       [
         :cond
-        1
+        0
         nil
-        ["?r"]
-        [0]
         []
-        [
-          [:bind 0 0]
-        ]
+        []
+        []
+        []
       ]
     ]
     [
@@ -246,14 +244,12 @@
       42
       [
         :cond
-        1
+        0
         nil
-        ["?h"]
-        [0]
         []
-        [
-          [:bind 0 0]
-        ]
+        []
+        []
+        []
       ]
     ]
     [
@@ -416,7 +412,7 @@
         ]
         [
           :call
-          53
+          56
           [:slot 0]
           [:lit "gap"]
         ]
@@ -434,7 +430,7 @@
         ]
         [
           :call
-          53
+          56
           [:slot 0]
           [:lit "read-log"]
         ]
@@ -471,7 +467,7 @@
         ]
         [
           :call
-          53
+          56
           [:slot 0]
           [:lit "fetch-primer"]
         ]
@@ -489,7 +485,7 @@
         ]
         [
           :call
-          53
+          56
           [:slot 0]
           [:lit "tend-record"]
         ]
@@ -507,7 +503,7 @@
         ]
         [
           :call
-          53
+          56
           [:slot 0]
           [:lit "weigh-disk"]
         ]
@@ -525,7 +521,7 @@
         ]
         [
           :call
-          53
+          56
           [:slot 0]
           [:lit "root-failure"]
         ]
@@ -543,7 +539,7 @@
         ]
         [
           :call
-          53
+          56
           [:slot 0]
           [:lit "recolligere"]
         ]
@@ -561,7 +557,7 @@
         ]
         [
           :call
-          53
+          56
           [:slot 0]
           [:lit "curare"]
         ]
@@ -579,7 +575,7 @@
         ]
         [
           :call
-          53
+          56
           [:slot 0]
           [:lit "examinare"]
         ]
@@ -597,7 +593,7 @@
         ]
         [
           :call
-          53
+          56
           [:slot 0]
           [:lit "extirpare"]
         ]

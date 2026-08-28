@@ -10,6 +10,20 @@
          (:wat::rete::where (:wat::rete::i64::< ?c 20))]
   :then [(:exp::Hit ?c)])
 
+;; ── Op::Eval ACROSS THE WIRE (fix-list F) ─────────────────────────────────────────────────────
+;;
+;; An INLINE constraint with a COMPUTED operand. Every other rule in this fixture uses a `where`
+;; fence over plain operands, so before this rule NOTHING in the tree ever serialized an
+;; `Op::Eval` — its `pack_cond_op` / `unpack` / `check_cond_ops` arms existed and were never
+;; driven. Presence is not aliveness, and an untested serialization arm is exactly the class this
+;; arc keeps finding.
+;;
+;; `(c + 5) < 20` selects the c=10 fact and rejects c=30, the same two seeds the other rules use.
+(:wat::rete::defrule :exp::cool-computed
+  :when [(:exp::Temp (?c <- :c)
+           (:wat::rete::i64::< (:wat::rete::i64::+ :c 5 :undefined 0) 20))]
+  :then [(:exp::Hit ?c)])
+
 (:wat::core::defn :exp::seed [s <- :wat::rete::Session] -> :wat::rete::Session
   (:wat::rete::insert
     (:wat::rete::insert s (:exp::Temp :c 10))
@@ -30,6 +44,27 @@
     (:wat::rete::compile-all
       (:wat::core::PersistentVector (:exp::cool))
       (:wat::core::PersistentVector (:exp::q-Hit)))))
+
+;; Op::Eval across the wire, NATIVE: compile the computed-inline rule, export it, import it, fire.
+;; `(c + 5) < 20` admits c=10 and rejects c=30, so the answer is 1 — and it is 1 only if the
+;; `Op::Eval` survived pack -> unpack -> bounds-check -> exec.
+(:wat::core::defn :user::computed-roundtrip-hits [] -> :wat::core::i64
+  (:wat::core::let [s0 (:wat::rete::compile-all
+                         (:wat::core::PersistentVector (:exp::cool-computed))
+                         (:wat::core::PersistentVector (:exp::q-Hit)))
+                    s1 (:wat::rete::import (:wat::rete::export s0))]
+    (:wat::core::length
+      (:wat::rete::query (:wat::rete::fire-rules (:exp::seed s1)) (:exp::q-Hit)))))
+
+;; The SOURCE answer for the same rule — no export/import at all. The round-trip is only
+;; meaningful against what the un-serialized program says, and pinning both catches a fixture
+;; whose rule stopped discriminating (which would make the round-trip agree at the wrong number).
+(:wat::core::defn :user::computed-source-hits [] -> :wat::core::i64
+  (:wat::core::let [s0 (:wat::rete::compile-all
+                         (:wat::core::PersistentVector (:exp::cool-computed))
+                         (:wat::core::PersistentVector (:exp::q-Hit)))]
+    (:wat::core::length
+      (:wat::rete::query (:wat::rete::fire-rules (:exp::seed s0)) (:exp::q-Hit)))))
 
 (:wat::core::defn :user::import-one [e <- :wat::rete::Export] -> :wat::rete::Session
   (:wat::rete::import e))

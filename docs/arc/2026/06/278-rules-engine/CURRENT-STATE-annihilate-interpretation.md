@@ -5,73 +5,61 @@
 > `wat/rete.wat`. If a stone below disagrees with a dated ruling here,
 > **this file wins** and the stone is stale.
 
-**CURRENT STAMP 2026-08-25 (SECOND) — supersedes every dated block below it, INCLUDING the
-earlier 2026-08-25 stamp. Written against HEAD `e9a5e0156`; the commit carrying this stamp lands
-on top, so a ONE-COMMIT docs-only gap at your wake is expected and is not staleness.**
+**CURRENT STAMP 2026-08-28 — supersedes every dated block below it, INCLUDING both 2026-08-27 ones.
+Written against HEAD `d4fe222c2`; the commit carrying this stamp lands on top, so a ONE-COMMIT
+docs-only gap at your wake is expected and is not staleness.**
 
-**THE WORK MOVED OFF RETE AND ONTO TOOLING, THEN THE TOOLING WAS AUDITED AND FAILED.**
-Read `docs/arc/2026/06/278-rules-engine/GEN-VIGILIA-2026-08-25.md` FIRST — it is the live document, not this one, for anything
-touching `wat/gen.wat`.
+**THE INLINE CONSTRAINT POSITION WAS SILENTLY WRONG FOR THE LIFE OF THE ENGINE. IT IS FIXED.**
 
-**⚠ READ THIS BEFORE ANY GEN WORK: `wat/gen.wat` IS PROMOTED TO STDLIB AND CARRIES DEFECTS THAT
-CAN COMPUTE A WRONG ANSWER.** A negative `card` reaches a `Checked` result as a vacuous pass AND
-silently eats points from a real space in `one-of`/`bind` dispatch (measured: card -2 branch
-beside a card-3 branch yields card 1, and two of three real points vanish). `lift2` and the
-`record`/`coords` path disagree. The `record` macro re-evaluates its generator arguments PER
-POINT, not twice — 52x measured at 800 points. And `test-shrink-index` is passed by an IDENTITY
-implementation. Nothing is fixed. The fix order is at the foot of the vigilia doc; do not start
-with the prose.
+**Ledger: 68 of 79 rows now fire in BOTH positions — it was 16.** Zero silent, zero unrunnable.
+The 7 still refused inline are `cond`/`let`/`match` (polymorphic return; no type check there can
+demand bool) and the four keyword/enum rows (a bare keyword literal is a FIELD REFERENCE in operand
+position — now reachable via `keyword/from-string`). 4 holon rows are not generable.
 
-**WHAT SHIPPED TODAY, AND IT IS REAL DESPITE THE ABOVE.** A finite-generator library
-(`:wat::gen::`, promoted on the `wat/grep.wat` precedent), 23 laws in `wat-tests/gen.wat`, and a
-rete differential fuzzer at `wat-tests/rete/differential-fuzz.wat` — **which found THREE live rete
-defects on its first widened runs**, all reproduced minimally and all tracked in
-`docs/arc/2026/06/278-rules-engine/RETE-FIX-LIST.md` with `#[ignore]`d probes that a fix makes
-pass:
-  A  leading accumulate emits one row per FIXPOINT ROUND (native = depth+1, oracle = 1)
-  B  a SECOND `where` after an accumulate matches NOTHING (native = 0, oracle = 1)
-  C  `:not` over a DERIVED class ignores the derivation (native = 1, oracle = 0) — 54 of the
-     divergences, ALL at depth >= 1 and never depth 0, which is exactly the dependence stratified
-     negation should have. **C is a SEMANTICS question and deserves Clara before a fix**: if a
-     `defquery` is deliberately un-stratified then the ORACLE is wrong, and 54 of the ratchet's
-     120 are not defects.
+**Grid 2026-08-28: 33/33 `:accuracy :match`, 33/33 `:winner :us`, ratios 7.0x–68.8x.** Archived at
+`GRID-native-vs-clara-2026-08-28-post-inline-predicates.txt`. ⚠ Four cells read slower than the
+2026-08-24 baseline, but `neg-consumer [500]`'s own run spans min 5.9 to max 18.1 — a 3x swing
+WIDER than the difference. **Three runs cannot resolve it; it is INCONCLUSIVE, not "no regression".**
 
-**⚠⚠ AND ONE THING OUTRANKS EVERY GEN FINDING.** `excusare` reported `cargo test --test kernel` in
-DEBUG at **569 failed / 16 passed**, all on one `debug_assert!` — `src/types.rs:598`, "builtin leaf
-:wat::core::Option already registered as a structured TypeDef". Release is clean. **`scripts/floor.sh`
-runs `--release`, so the floor that has read GREEN all arc cannot see this by construction.**
-UNVERIFIED by me. Check it FIRST on resumption. CLAUDE.md's own rule: "only in debug" is the same
-dismissal wearing a compiler flag.
+**WHAT WAS FOUND AND FIXED — all by DRIVING, none by reading:**
+- **Fix-list F** — an inline constraint whose operand was a nested call compiled to a permanent
+  SILENT never-match. 39 of 77 rows wide, exit 0, zero bytes on stderr. **The `$oracle` had it too**,
+  which is why five fuzzers and 5612 shapes were blind: the engines did not merely agree, they
+  SHARED the defect. Clara broke the tie, inverting the fix-list's own "native is wrong" rule.
+- **Six rows that could not execute at all** — `PersistentMap/contains-key?`, the `PersistentMap`
+  constructor, `reduce`, `map`, `filter`, `Tuple`. All closed. `map`/`filter` became the EAGER
+  `mapv`/`filterv` (the lazy heads return a Stream a fence cannot consume, and an eager arm under a
+  lazy NAME would have silently diverged from core).
+- **Tuple was constructible and unreadable since genesis** — three accessor rows added. The builder
+  refused my "maybe the row should not exist": that was the corpus fallacy this table's own
+  totality gate had already refuted.
+- **`reduce`'s 2-arity form** raised on empty while its row claimed `total: true`. The rete surface
+  now admits only the total arity.
+- **Keyword equality was unreachable inline** because `rete_type_segment_of` mapped only the
+  UNINHABITABLE capital `Keyword`. Fixed. And `keyword` had the thinnest surface in the table — 2
+  rows, zero of core's seven verbs — so `to-string`/`from-string` were added.
+- **The inline grammar** now admits any PROVABLY boolean rete expression, not a fixed shape set.
 
-**THE VIGILIA'S ONE GENERALISABLE LESSON, now FM 24.** Every gen defect sat at a SEAM between two
-things built separately and tested separately. Nineteen laws, each proving one component, every
-one mutation-proven, and NOT ONE crossed a seam. A law per component proves the components and
-says nothing about the paths between them. The cure is a law per JOIN — build one thing two ways
-and require agreement; assert the SUT's reported denominator instead of re-reading the struct; and
-mutate to the DO-NOTHING implementation, because an identity passes far more gates than a scramble.
-
-**`circumspicere` WAS NEVER CAST.** 17 of 18 inward wards reported; the one aimed at what the whole
-guard walked past is still owed. Cast it first, before fixing anything.
-
-**THE ORACLE-AND-CLARA RULE STILL HOLDS AND EARNED ITS KEEP AGAIN.** When native disagrees with the
-wat `$oracle`, native is wrong and the question is which fixture was missing. Three more times
-today.
-
-**THE READING RULES.** A grid cell is a DISTRIBUTION — compare to its recorded RANGE. Run `uptime`
-first. NEVER PIPE A LONG GATE. And new today: **a mutate/restore script must REBUILD after
-restoring**, or every later measurement runs the mutant — that cost an hour and produced a
-confident, entirely false report of a live defect.
+**⛔ THE THREE LESSONS THAT COST THE MOST, AND TWO ARE NEW FAILURE MODES:**
+- **FM 31 — A READING CANNOT SEE AN EXECUTION DEFECT.** The vigilia CONVERGED (17/17 + circumspicere,
+  two empty recasts) and the ward tail audited 4-for-4 stale, while six rows could not run. Source
+  and spec AGREED and were jointly wrong. Every ward reads; none drives.
+- **FM 32 — THE CURE REOPENED THE CLASS IT CURED.** F's fix routed its own failure path into the
+  same silent `Op::Fail`. Caught only by probing my own change against the defect's own shape.
+- **MY STATED RATIONALE WAS FALSE TWICE, AND I NEARLY SHIPPED BOTH.** I told the builder the inline
+  split was indexability-vs-expressivity; `alpha_tree.rs` indexes only equality discriminators and
+  says orderings "ride the wildcard edge" — and orderings are admitted inline. I also called Tuple
+  unobservable from an absence. **Check the premise before running the four questions on it.**
 
 **⚠⚠ YOU ARE NOT THE INSTANCE THAT WROTE THIS. ⚠⚠**
 Everything above is a cache written by a prior self across a very long session. You did not live
 it. It felt continuous when you woke and that feeling is the failure, not the all-clear. Before you
 propose or move: fetch `recolligere` from the datamancy MCP and run it against the disk —
-`docs/COMPACTION-AMNESIA-RECOVERY.md`, `git log`, this file, `docs/arc/2026/06/278-rules-engine/GEN-VIGILIA-2026-08-25.md`,
-`RETE-FIX-LIST.md`, and the source you are about to touch. The freshness probe is the HEAD named at
-the top of this stamp against `git rev-parse HEAD`; more than the one expected docs-only commit of
-drift means trust the log over every line above. **And this file is the ONLY live breadcrumb — if
-you find another claiming to be, it is lying; that happened four ways here and cost a full audit to
-unpick.**
+`docs/COMPACTION-AMNESIA-RECOVERY.md`, `git log`, this file, `RETE-OPEN-WORK.md`, and the source you
+are about to touch. The freshness probe is the HEAD named at the top of this stamp against
+`git rev-parse HEAD`; more than the one expected docs-only commit of drift means trust the log over
+every line above. **And this file is the ONLY live breadcrumb — if you find another claiming to be,
+it is lying.**
 
 **Right now (2026-08-23 — SUPERSEDED by the stamp above; kept as history):** class-scan query harvest LANDED.
 Fanout `[40000]` wat-ns **58.1 → 42.8**. With-query

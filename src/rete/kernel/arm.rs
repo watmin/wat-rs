@@ -287,7 +287,7 @@ pub(crate) fn compile_alpha_conds_from_index(
             let Some(cond) = alpha_cond.get(aid) else {
                 continue;
             };
-            let compiled = crate::rete::compiled_cond::compile_condition_local(cond, &field_names)
+            let compiled = crate::rete::compiled_cond::compile_condition_local(cond, &field_names, sym)
                 .ok_or_else(|| {
                     RuntimeError::new(
                         cond.span().clone(),
@@ -1058,6 +1058,11 @@ pub(crate) fn eval_arm_session(
         )
         .into());
     }
+    // THE TERMINATION VERIFIER — before the arm is built, and before a fact can be inserted.
+    // Here rather than in the freeze-time `defrule` wall because `compile-all` is the one door
+    // EVERY rule passes: rules built at runtime as `Rule` values (both differential fuzzers do
+    // this) never see that wall. See `stratify::refuse_non_terminating`.
+    crate::rete::kernel::stratify::refuse_non_terminating(rules, sym)?;
     rete_arm_lease_or_build(network, rules, sym)?;
     Ok(session)
 }

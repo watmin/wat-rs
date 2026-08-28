@@ -79,5 +79,13 @@ pub(crate) mod expr_ir;
 // and the generic per-class shapes `check.rs`/`runtime.rs`/`purity.rs` iterate. See the
 // module doc for the full contract (one list, three readers — STOP-2).
 pub(crate) mod vocabulary;
+// Arc 278 § 4.1 — the (row x call-site kind) reachability ledger over `RETE_OPS`. Test-only:
+// it drives synthesized rules through the real load path to answer "can a user actually get
+// here", which the purity/totality/arity/type gates never ask. See the module doc for why the
+// unit is the CELL and not the row.
+#[cfg(test)]
+mod reachability {
+    include!("reachability.rs");
+}
 // `#wat.rete/Export` — compiled program as one EDN value. Native fire only.
 pub(crate) mod export;

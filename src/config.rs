@@ -65,6 +65,27 @@ pub const DEFAULT_CAPACITY_MODE: CapacityMode = CapacityMode::Error;
 /// at dim-count=10000).
 pub const DEFAULT_DIM_COUNT: usize = 10000;
 
+/// Default cascade-fixpoint round cap when `(:wat::config::rete::set-max-fire-rounds!)` is omitted.
+///
+/// `fire-rules` converges when a round derives nothing new. A rule whose `:then` COMPUTES a value
+/// can mint a structurally novel fact every round, so the dedup that bounds a Datalog fixpoint
+/// never bites and the loop does not converge — measured 2026-08-27 as an allocator abort, no wat
+/// error and no rule named (`tests/rete/probe_arc278_fixpoint_round_cap.rs`).
+///
+/// **10_000 is chosen against measurement, not taste:** the deepest axis in the grid is
+/// `deep-cascade` at depth 50, `strat-neg` runs 6 strata, `leading-exists` forces 6 — so this is
+/// 200x the deepest thing the suite runs, while a runaway rule reaches it in ~0.3s and a few MB,
+/// far short of the memory wall.
+///
+/// **Why it is TUNABLE and `dim-count`-shaped rather than a hard constant.** A round count cannot
+/// distinguish DEEP from DIVERGENT. Transitive closure over a 50_000-node path is legitimate
+/// Datalog that derives one level per round, and it would need 50_000 — while the cap must stay
+/// low enough to fire before the allocator does. Those two pressures have no single correct
+/// value, which is exactly the situation `dim_count` exists for: one program, one value, chosen
+/// at startup. Raising it is a claim that YOUR rule set terminates and is merely deep; it is
+/// never the fix for a rule set that diverges.
+pub const DEFAULT_MAX_FIRE_ROUNDS: usize = 10_000;
+
 /// Committed configuration values.
 ///
 /// Arc 037 slice 6: every substrate default is a FUNCTION; users
@@ -85,6 +106,10 @@ pub struct Config {
     /// favor of a router-pick-d-per-form story; arc 077 brings it
     /// back having learned that real programs run at one d.
     pub dim_count: usize,
+    /// Cascade-fixpoint round cap — see [`DEFAULT_MAX_FIRE_ROUNDS`]. Read by
+    /// `fire_fixpoint_delta_armed` via `sym.encoding_ctx()`; user override via
+    /// `(:wat::config::rete::set-max-fire-rounds! n)`.
+    pub max_fire_rounds: usize,
     /// User-supplied presence-sigma function AST. Signature
     /// `:fn(:i64) -> :i64` — takes d, returns sigma count.
     /// `None` → built-in default `floor(sqrt(d)/2) - 1` (arc 024's
@@ -330,6 +355,10 @@ fn collect_entry_file_inner(
     let mut capacity_mode: Option<CapacityMode> = inherit.map(|c| c.capacity_mode);
     let mut global_seed: Option<u64> = inherit.map(|c| c.global_seed);
     let mut dim_count: usize = inherit.map(|c| c.dim_count).unwrap_or(DEFAULT_DIM_COUNT);
+    let mut max_fire_rounds: usize = inherit
+        .map(|c| c.max_fire_rounds)
+        .unwrap_or(DEFAULT_MAX_FIRE_ROUNDS);
+    let mut set_max_fire_rounds = false;
     let mut presence_sigma_ast: Option<WatAST> =
         inherit.and_then(|c| c.presence_sigma_ast.clone());
     let mut coincident_sigma_ast: Option<WatAST> =
@@ -356,7 +385,25 @@ fn collect_entry_file_inner(
         let form_span = form.span().clone();
 
         let setter_head = match setter_head_of(form) {
-            Some(head) if head.starts_with(":wat::config::set-") && head.ends_with('!') => {
+            // NAMESPACED SETTERS (2026-08-27). The predicate was
+            // `head.starts_with(":wat::config::set-")`, which structurally cannot admit
+            // `:wat::config::rete::set-max-fire-rounds!` — the head fell through, ENDED the setter
+            // section, and the form was silently treated as program text. No error, no effect: the
+            // config simply did not apply, which is the worst way for a knob to fail. Found by a
+            // fixture that started passing when it was supposed to be refused.
+            //
+            // The rule is now on the LAST SEGMENT: a config setter is `:wat::config::[<ns>::]set-*!`.
+            // The leaf comes from `identifier::leaf` — the ONE name-grammar door (arc 109's
+            // STONE-one-name-grammar). A hand-rolled `rsplit("::")` here was caught by
+            // `tests/lint/one_name_grammar.rs` on the floor, and rightly: a name is an atom, and
+            // two parsers of it WILL disagree — the arc's census found 33 that already had.
+            // Builder's ruling — config grows per-subsystem namespaces (`::rete::`, and `::holon::`
+            // when holon moves), so the flat prefix was never going to hold.
+            Some(head)
+                if head.starts_with(":wat::config::")
+                    && head.ends_with('!')
+                    && wat_reader::identifier::leaf(head).starts_with("set-") =>
+            {
                 head.to_string()
             }
             _ => {
@@ -427,6 +474,37 @@ fn collect_entry_file_inner(
                 }
                 // Pattern A: arg's own span for type/value errors.
                 global_seed = Some(parse_u64(&args[0], "global-seed", args[0].span().clone())?);
+            }
+            ":wat::config::rete::set-max-fire-rounds!" => {
+                if set_max_fire_rounds {
+                    return Err(ConfigError { span: form_span, kind: ConfigErrorKind::DuplicateField { field: "max-fire-rounds".into() } });
+                }
+                set_max_fire_rounds = true;
+                if args.len() != 1 {
+                    return Err(ConfigError {
+                        span: form_span,
+                        kind: ConfigErrorKind::BadArity {
+                            head: setter_head,
+                            expected: 1,
+                            got: args.len(),
+                        },
+                    });
+                }
+                let arg_span = args[0].span().clone();
+                let n = parse_u64(&args[0], "max-fire-rounds", arg_span.clone())?;
+                // 0 would refuse every cascading rule set, including correct ones — a cap of zero
+                // is not a stricter policy, it is a broken program. Same call `dim-count` makes.
+                if n == 0 {
+                    return Err(ConfigError {
+                        span: arg_span,
+                        kind: ConfigErrorKind::BadValue {
+                            field: "max-fire-rounds".into(),
+                            reason: "must be >= 1 — a cap of 0 refuses every cascade, including \
+                                     terminating ones".into(),
+                        },
+                    });
+                }
+                max_fire_rounds = n as usize;
             }
             ":wat::config::set-dim-count!" => {
                 if set_dim_count {
@@ -559,6 +637,7 @@ fn collect_entry_file_inner(
         coincident_sigma_ast,
         redef_allowed,
         eval_redef_allowed,
+            max_fire_rounds,
     };
 
     let remainder = match remainder_start {
@@ -910,6 +989,7 @@ mod tests {
             capacity_mode: CapacityMode::Panic,
             global_seed: 99,
             dim_count: DEFAULT_DIM_COUNT,
+            max_fire_rounds: DEFAULT_MAX_FIRE_ROUNDS,
             presence_sigma_ast: None,
             coincident_sigma_ast: None,
             redef_allowed: false,

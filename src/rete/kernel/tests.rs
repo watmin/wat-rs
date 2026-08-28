@@ -5822,6 +5822,7 @@ fn accum_alpha_leftover_split() {
                     let compiled =
                         super::rematch_compiled(&arm.compiled_conds, *aid).expect("compiled cond");
                     black_box(crate::rete::compiled_cond::exec_compiled(
+                        crate::rete::compiled_cond::test_sym(),
                         compiled,
                         ag.fields.as_slice(),
                         &mut scratch,
@@ -5849,6 +5850,7 @@ fn accum_alpha_leftover_split() {
                     fact,
                     i as u32,
                     &mut super::AlphaActivateCx {
+            sym: crate::rete::compiled_cond::test_sym(),
                         wm: &mut wm,
                         d_alpha: &mut d_alpha,
                         alpha_tree: &arm.alpha_tree,
@@ -6091,6 +6093,7 @@ fn accum_alpha_seed_after_fold_split() {
                     let compiled =
                         super::rematch_compiled(&arm.compiled_conds, aid).expect("compiled cond");
                     black_box(crate::rete::compiled_cond::exec_compiled_with_key_ids(
+                        crate::rete::compiled_cond::test_sym(),
                         compiled,
                         ag.fields.as_slice(),
                         &mut scratch,
@@ -6122,6 +6125,7 @@ fn accum_alpha_seed_after_fold_split() {
                     let compiled =
                         super::rematch_compiled(&arm.compiled_conds, aid).expect("compiled cond");
                     if let Some((off, len)) = crate::rete::compiled_cond::exec_compiled_with_key_ids(
+                        crate::rete::compiled_cond::test_sym(),
                         compiled,
                         ag.fields.as_slice(),
                         &mut scratch,
@@ -6162,6 +6166,7 @@ fn accum_alpha_seed_after_fold_split() {
                     fact,
                     i as u32,
                     &mut super::AlphaActivateCx {
+            sym: crate::rete::compiled_cond::test_sym(),
                         wm: &mut wm,
                         d_alpha: &mut d_alpha_a,
                         alpha_tree: &arm.alpha_tree,
@@ -6299,6 +6304,7 @@ fn accum_compiled_match_split() {
                     &mut scratch,
                     ag.fields.as_slice(),
                     true,
+                    crate::rete::compiled_cond::test_exec_cx(),
                 ) {
                     n_ops_true += 1;
                 }
@@ -6351,6 +6357,7 @@ fn accum_compiled_match_split() {
                         &mut scratch,
                         ag.fields.as_slice(),
                         true,
+                        crate::rete::compiled_cond::test_exec_cx(),
                     ));
                 }
             }
@@ -6370,6 +6377,7 @@ fn accum_compiled_match_split() {
                     let compiled =
                         super::rematch_compiled(&arm.compiled_conds, *aid).expect("compiled cond");
                     black_box(crate::rete::compiled_cond::exec_compiled(
+                        crate::rete::compiled_cond::test_sym(),
                         compiled,
                         ag.fields.as_slice(),
                         &mut scratch,
@@ -6395,6 +6403,7 @@ fn accum_compiled_match_split() {
                 let compiled =
                     super::rematch_compiled(&arm.compiled_conds, *aid).expect("compiled cond");
                 let _ = crate::rete::compiled_cond::exec_compiled(
+                    crate::rete::compiled_cond::test_sym(),
                     compiled,
                     ag.fields.as_slice(),
                     &mut scratch,
@@ -6419,6 +6428,7 @@ fn accum_compiled_match_split() {
                         let compiled = super::rematch_compiled(&arm.compiled_conds, *aid)
                             .expect("compiled cond");
                         black_box(crate::rete::compiled_cond::exec_compiled(
+                            crate::rete::compiled_cond::test_sym(),
                             compiled,
                             ag.fields.as_slice(),
                             &mut scratch,
@@ -6532,6 +6542,7 @@ fn accum_materialize_split() {
                         &mut scratch,
                         ag.fields.as_slice(),
                         true,
+                        crate::rete::compiled_cond::test_exec_cx(),
                     ));
                 }
             }
@@ -6551,7 +6562,7 @@ fn accum_materialize_split() {
                         super::rematch_compiled(&arm.compiled_conds, *aid).expect("compiled cond");
                     scratch.clear();
                     scratch.resize(compiled.n_slots(), None);
-                    if !exec_ops(compiled.ops(), &mut scratch, ag.fields.as_slice(), true) {
+                    if !exec_ops(compiled.ops(), &mut scratch, ag.fields.as_slice(), true, crate::rete::compiled_cond::test_exec_cx()) {
                         continue;
                     }
                     for &slot in compiled.output_slots() {
@@ -6576,7 +6587,7 @@ fn accum_materialize_split() {
                         super::rematch_compiled(&arm.compiled_conds, *aid).expect("compiled cond");
                     scratch.clear();
                     scratch.resize(compiled.n_slots(), None);
-                    if !exec_ops(compiled.ops(), &mut scratch, ag.fields.as_slice(), true) {
+                    if !exec_ops(compiled.ops(), &mut scratch, ag.fields.as_slice(), true, crate::rete::compiled_cond::test_exec_cx()) {
                         continue;
                     }
                     for &slot in compiled.output_slots() {
@@ -6604,7 +6615,7 @@ fn accum_materialize_split() {
                         super::rematch_compiled(&arm.compiled_conds, *aid).expect("compiled cond");
                     scratch.clear();
                     scratch.resize(compiled.n_slots(), None);
-                    if !exec_ops(compiled.ops(), &mut scratch, ag.fields.as_slice(), true) {
+                    if !exec_ops(compiled.ops(), &mut scratch, ag.fields.as_slice(), true, crate::rete::compiled_cond::test_exec_cx()) {
                         continue;
                     }
                     for (i, &slot) in compiled.output_slots().iter().enumerate() {
@@ -6633,7 +6644,7 @@ fn accum_materialize_split() {
                         super::rematch_compiled(&arm.compiled_conds, *aid).expect("compiled cond");
                     scratch.clear();
                     scratch.resize(compiled.n_slots(), None);
-                    if !exec_ops(compiled.ops(), &mut scratch, ag.fields.as_slice(), true) {
+                    if !exec_ops(compiled.ops(), &mut scratch, ag.fields.as_slice(), true, crate::rete::compiled_cond::test_exec_cx()) {
                         continue;
                     }
                     for (i, &slot) in compiled.output_slots().iter().enumerate() {
@@ -6663,7 +6674,7 @@ fn accum_materialize_split() {
                         super::rematch_compiled(&arm.compiled_conds, *aid).expect("compiled cond");
                     scratch.clear();
                     scratch.resize(compiled.n_slots(), None);
-                    if !exec_ops(compiled.ops(), &mut scratch, ag.fields.as_slice(), true) {
+                    if !exec_ops(compiled.ops(), &mut scratch, ag.fields.as_slice(), true, crate::rete::compiled_cond::test_exec_cx()) {
                         continue;
                     }
                     black_box(materialize_into(
@@ -7029,6 +7040,7 @@ fn accum_alpha_push_split() {
                     let compiled =
                         super::rematch_compiled(&arm.compiled_conds, *aid).expect("compiled cond");
                     black_box(exec_compiled(
+                        crate::rete::compiled_cond::test_sym(),
                         compiled,
                         ag.fields.as_slice(),
                         &mut scratch,
@@ -7054,6 +7066,7 @@ fn accum_alpha_push_split() {
                     let compiled =
                         super::rematch_compiled(&arm.compiled_conds, *aid).expect("compiled cond");
                     if exec_compiled(
+                        crate::rete::compiled_cond::test_sym(),
                         compiled,
                         ag.fields.as_slice(),
                         &mut scratch,
@@ -7083,6 +7096,7 @@ fn accum_alpha_push_split() {
                     let compiled =
                         super::rematch_compiled(&arm.compiled_conds, *aid).expect("compiled cond");
                     if let Some((off, len)) = exec_compiled(
+                        crate::rete::compiled_cond::test_sym(),
                         compiled,
                         ag.fields.as_slice(),
                         &mut scratch,
@@ -7111,6 +7125,7 @@ fn accum_alpha_push_split() {
                     let compiled =
                         super::rematch_compiled(&arm.compiled_conds, *aid).expect("compiled cond");
                     if let Some((off, len)) = exec_compiled(
+                        crate::rete::compiled_cond::test_sym(),
                         compiled,
                         ag.fields.as_slice(),
                         &mut scratch,
@@ -7146,6 +7161,7 @@ fn accum_alpha_push_split() {
                     fact,
                     i as u32,
                     &mut super::AlphaActivateCx {
+            sym: crate::rete::compiled_cond::test_sym(),
                         wm: &mut wm,
                         d_alpha: &mut d_alpha,
                         alpha_tree: &arm.alpha_tree,
@@ -7249,7 +7265,7 @@ fn accum_intern_val_i64_split() {
                     super::rematch_compiled(&arm.compiled_conds, *aid).expect("compiled cond");
                 scratch.clear();
                 scratch.resize(compiled.n_slots(), None);
-                if !exec_ops(compiled.ops(), &mut scratch, ag.fields.as_slice(), true) {
+                if !exec_ops(compiled.ops(), &mut scratch, ag.fields.as_slice(), true, crate::rete::compiled_cond::test_exec_cx()) {
                     continue;
                 }
                 for &slot in compiled.output_slots() {
@@ -7483,6 +7499,7 @@ fn accum_exec_ops_split() {
                         &mut scratch,
                         ag.fields.as_slice(),
                         true,
+                        crate::rete::compiled_cond::test_exec_cx(),
                     ));
                 }
             }
@@ -8492,6 +8509,8 @@ fn probe_gap_cost_split() {
         2,
         Arc::from([]),
         None,
+        crate::rust_caller_span!(),
+        Box::from([]),
     );
     let mut conds: HashMap<i64, CompiledCond> = HashMap::new();
     conds.insert(2, compiled);
@@ -8520,6 +8539,7 @@ fn probe_gap_cost_split() {
                 &el,
                 2,
                 &mut super::FireCtx {
+            sym: crate::rete::compiled_cond::test_sym(),
                     compiled_conds: &conds,
                     scratch: &mut scratch,
                     pool: &mut bp,
@@ -8578,6 +8598,7 @@ fn probe_gap_cost_split() {
                     &el,
                     2,
                     &mut super::FireCtx {
+            sym: crate::rete::compiled_cond::test_sym(),
                         compiled_conds: &conds,
                         scratch: &mut scratch,
                         pool: &mut bp,
@@ -8905,7 +8926,7 @@ fn alpha_tree_candidate_set_is_superset_of_true_matches_at_50_100() {
             .flatten()
             .filter(|aid| {
                 let cond = &alpha_cond[aid];
-                crate::rete::matcher::alpha_match_inner(cond, fact_class, fact_fields, field_names)
+                crate::rete::matcher::alpha_match_inner(Some(crate::rete::compiled_cond::test_sym()), cond, fact_class, fact_fields, field_names)
                     .is_some()
             })
             .copied()
@@ -9023,7 +9044,7 @@ fn compile_all(
         let field_names = class_field_names(sym, class);
         for aid in ids {
             let cond = &alpha_cond[aid];
-            let c = crate::rete::compiled_cond::compile_alpha_ops(cond, &field_names)
+            let c = crate::rete::compiled_cond::compile_alpha_ops(cond, &field_names, crate::rete::compiled_cond::test_sym())
                 .unwrap_or_else(|| {
                     panic!(
                         "STOP-2: compile_alpha_ops returned None for a condition \
@@ -9083,7 +9104,7 @@ fn compiled_cond_bindings_identical_to_interpreter_at_50_100() {
         for aid in alpha_by_type.get(fact_class).into_iter().flatten() {
             let cond = &alpha_cond[aid];
             let interpreted =
-                crate::rete::matcher::alpha_match_inner(cond, fact_class, fact_fields, field_names);
+                crate::rete::matcher::alpha_match_inner(Some(crate::rete::compiled_cond::test_sym()), cond, fact_class, fact_fields, field_names);
             let mut pool = Vec::new();
             let mut bkeys = Vec::new();
             let mut bvals = Vec::new();
@@ -9095,7 +9116,7 @@ fn compiled_cond_bindings_identical_to_interpreter_at_50_100() {
                 pool: &mut pool,
             };
             let via_compiled =
-                exec_compiled(&compiled[aid], fact_fields, &mut scratch, &mut intern, fact);
+                exec_compiled(crate::rete::compiled_cond::test_sym(), &compiled[aid], fact_fields, &mut scratch, &mut intern, fact);
 
             match (interpreted.as_ref(), via_compiled.as_ref()) {
                 (None, None) => {}
@@ -9189,7 +9210,7 @@ fn compiled_cond_failure_path_allocates_no_binding_keys_at_50_100() {
                     ids: &mut ids,
                     pool: &mut pool,
                 };
-                if exec_compiled(&compiled[aid], fact_fields, &mut scratch, &mut intern, fact)
+                if exec_compiled(crate::rete::compiled_cond::test_sym(), &compiled[aid], fact_fields, &mut scratch, &mut intern, fact)
                     .is_none()
                 {
                     fails += 1;
@@ -9215,6 +9236,7 @@ fn compiled_cond_failure_path_allocates_no_binding_keys_at_50_100() {
             for aid in alpha_by_type.get(fact_class).into_iter().flatten() {
                 interp_calls += 1;
                 let _ = crate::rete::matcher::alpha_match_inner(
+                    Some(crate::rete::compiled_cond::test_sym()),
                     &alpha_cond[aid],
                     fact_class,
                     fact_fields,

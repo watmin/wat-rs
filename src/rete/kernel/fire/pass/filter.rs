@@ -56,7 +56,8 @@ let __pt4 = phase_start();
 // (new-this-round, consumed by production in step 4).
 // rune:temperare(simplicity-win) — 3.7 still get_node+node_children; 3.6 already
 // walks arm.children_of. n HashJoin×filter descendants is small vs intern hoist.
-let mut tests_done: HashSet<i64> = HashSet::new();
+// Seeded with what pass 3.20 already dispatched — see `RoundScratch::pre_dispatched`.
+let mut tests_done: HashSet<i64> = scratch.pre_dispatched.clone();
 for node_id in &kind_ids.filter {
     let node = match get_node(&wm.network, *node_id) {
         Some(n) => n,

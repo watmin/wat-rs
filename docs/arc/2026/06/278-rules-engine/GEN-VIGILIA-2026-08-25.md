@@ -4,20 +4,32 @@
 > declared feature-complete and promoted into the stdlib. **17 reported on 2026-08-25;
 > `circumspicere` was cast 2026-08-26** — its report is the last section of this file.
 >
-> **Fix status is tracked per finding.**
+> **Fix status is tracked per finding. As of 2026-08-26 the CODE list is empty.**
 >
-> **CLOSED:** **A**+**B** (negative card) · **C** (`lift2`/`lift3` onto `coords`) · **D** (both
-> gates that could not go red) · **F** (`record`'s per-point re-evaluation) · **G** (`digit` IS
-> `i64::rem` — the code, not just the prose) · **K** (retired `gen-` names in diagnostics, STEMS
-> only — its root is circumspicere 4, still open) · **circumspicere 1** and **2**.
+> **CLOSED IN CODE:** **A**+**B** (negative card, unproducible by any verb) · **C**
+> (`lift2`/`lift3` onto `coords`) · **D** (both gates that could not go red) · **E** (gen half —
+> the false claim; substrate half handed to arc 293 with a proven patch) · **F** (`record`'s
+> per-point re-evaluation) · **G** (`digit` IS `i64::rem` — the code, not just the prose) ·
+> **K** (retired `gen-` names, STEMS; root handed to arc 255) · **every L2** (self-oracle laws ·
+> `prop` → `bool` · `EmptySpace` ruled · `bind`'s discarded generators · nested `bind` ·
+> `one-of`/`bind` one dispatch · `descend` · `nth` one generic · `Coord`/`Bases` ·
+> `coords-scattered`'s first consumer) · **circumspicere 1, 2, 3, 5, 6**.
 >
-> **STILL OPEN:** **E** (the containment claim — a substrate gap gen.wat certifies) · **H**/**I**/
-> **J**/**L** (the prose sweep, deferred by ruling until the CODE is exemplar) · every L2 ·
-> **circumspicere 3, 4, 5, 6**.
+> **HANDED OVER, each with a NOTE in the owning arc:** the substrate half of **E** → arc 293 ·
+> **circumspicere 4** (the retired-name lint is blind to `.wat`) → arc 255 · **circumspicere 5**'s
+> ratchet and the `concat-abuse` message → arc 277.
 >
-> Every closure below is MUTATION-PROVEN: the fix is reverted, the gate must go red, and the
-> file is diffed back to identical. Three of those mutations are recorded because of what they
-> revealed — in each case the pre-existing laws stayed green and exactly ONE law caught it.
+> **CLOSED 2026-08-26:** **H**/**I**/**J**/**L** — the prose sweep, taken last by the builder's
+> ruling *"we polish the gen testing doc — AFTER — the wat-gen tooling is deemed an exemplar.
+> code, then docs."* `GENERATIVE-TESTING.md` was rewritten from a dated build log into a standing
+> reference and moved to `docs/`. **THE LIST IS EMPTY.**
+>
+> Every closure is MUTATION-PROVEN: the fix is reverted, the gate must go red, and the file is
+> diffed back to identical. **Four of those mutations are recorded for what they revealed — in
+> each case the pre-existing laws stayed green and exactly ONE law caught it.** And two entries
+> record a correction to THIS document: `circumspicere`'s "gen.wat is clean" was wrong (finding
+> 5), and several perf figures were published from 3-sample noise (the measurement-discipline
+> note at the foot).
 
 ## Why this document exists
 
@@ -120,7 +132,26 @@ Related: `held`'s `(> pts 0)` is **constant-true** — every deftest passes a li
 card — and `points` is the SUT echoing its own `Gen/card` back. Mutate `check` to report any
 wrong *positive* count, or to enumerate `(range 1 card)`, and all 23 laws stay green.
 
-### E · The containment claim is FALSE — a `Gen` crosses the wire and arrives dead
+### E · CLOSED 2026-08-26 (gen half) / HANDED TO ARC 293 (substrate half) — the containment claim is FALSE
+
+> **The false sentence is gone** and the `Gen` defstruct now states what is and is not caught,
+> both halves measured: a bare function field IS refused; the same function wrapped in
+> `(Gen :- [i64])` LOADS CLEAN.
+>
+> **The substrate half is diagnosed with a PROVEN patch**, in
+> `docs/arc/2026/06/293-struct-record-symmetry/NOTE-a-parametric-struct-passes-the-purity-gate.md`.
+> The root is that `is_pure_type`'s Parametric arm never asks the `TypeEnv` what the head IS —
+> it consults a hardcoded list, then falls through to "pure iff its type args are pure". The
+> arm's OWN comment records this exact failure happening before, to `Peer`/`Thread`/`Process`,
+> and the fix then was to extend the list — the stem, not the root.
+>
+> The patch (consult `nature.is_pure()` before the fallthrough) was implemented, built, and
+> floor-tested here, then **REVERTED**: `src/check.rs` is untouched on `grok-rete`. It refuses
+> the `Gen` case, still admits a pure parametric record (positive control), and the floor goes
+> **5085/5087** — the only two failures being arc 293's own goldens, which pin an internal
+> `check.rs` line that the insertion moved. That pin is a builder overrule from 2026-08-15 with
+> *"Do not re-propose dropping it"* recorded, so re-pinning is the sanctioned cost of landing it,
+> not evidence against it.
 *ward: secare*
 
 `wat/gen.wat:42-45` asserts *"The checker names this itself if you try — it is a good error."*
@@ -214,9 +245,30 @@ it survived the fork it warns about and died of staleness instead. `:467` and `:
   L17 stays green — sampling degrades to a sequential prefix silently. Its only documentation is
   a comment (`:402`) written in the retired `gen-` names.
 - **11 verbs + 3 structs reachable only from their own law** (purgare) — ~200 of 618 lines.
-- **`one-of` and `bind` are one dispatch fold written twice** (solvere); `shrink-dim` and
-  `shrink-index` share one descent fold, comment and all. `nth`/`nth-str` are one generic
-  function at two types.
+- ~~**`one-of` and `bind` are one dispatch fold written twice**~~ — **CLOSED 2026-08-26, and the
+  ORDER is the lesson.** `bind` is now literally `(one-of <materialised branches>)`; `BindPick`
+  is deleted. This dedup was a REGRESSION until the `f`-runs-once fix made it free: `temperare`
+  warned against collapsing `bind` onto `one-of` *because it would materialise every branch* —
+  correct against the old body, and void once that body materialises them anyway. Landing the
+  perf fix first is what turned a warned-against simplification into a free one. `one-of` also
+  gained the hoisted `cards` vector that `bind`'s copy had: it was re-reading `Gen/card` twice
+  per branch per lookup. Measured free — 287 us/point both sides, mean of 6.
+- ~~**`shrink-dim`/`shrink-index` share a descent fold, and `nth`/`nth-str` are one generic at two
+  types**~~ — **BOTH CLOSED 2026-08-26.** `:wat::gen::descend` is now THE search: walk `0..start`,
+  keep the first candidate that still fails, stop. The two callers differ in exactly one thing —
+  what a candidate index MEANS (`Gen/at` vs `with c j v`) — so that difference became a parameter.
+  **Mutation-proven shared:** `descend` → identity reddens BOTH `test-shrink-index` and
+  `test-shrink`. And `nth` is one generic `:- [T]`; `nth-str` is deleted. The `Coord` typing on
+  `nth` was documentation, not a constraint — aliases are transparent and it was already being
+  called on `cards`, a plain `PV<i64>`, where its "coordinate digit out of range" message was
+  simply wrong.
+- ~~**`Coord` is unnamed**~~ — **CLOSED 2026-08-26.** `:wat::gen::Coord` and `:wat::gen::Bases`
+  now name the two nouns across all 25 sites (21 coordinates, 4 bases). ⚠ **Transparent aliases,
+  and the file says so:** `is_pure_type` canonicalizes by expanding aliases, so the two remain the
+  same type and handing a coordinate where bases belong still type-checks — verified by probe.
+  Naming buys legibility, not distinctness. Making the swap unrepresentable needs a wrapper record
+  whose unwrap lands on the hot enumeration path, for a confusion with no recorded instance; not
+  taken, and the note to overturn is at the aliases.
 - ~~**`bind` caches cardinalities but discards the generators**~~ — **CLOSED 2026-08-26.** `f` now
   runs exactly once per branch and the `Gen` it returns is kept, so the dispatch fold indexes a
   cached vector instead of re-calling `f` per lookup. Both vectors kept, per temperare's warning
@@ -478,14 +530,66 @@ name a user can type"* — scans `src/**/*.rs` only, and matches only the prime-
 `gen-` raise strings (finding K) sit outside both axes. The stdlib is now a first-class diagnostic
 surface and no gate reads its user-facing strings.
 
-## 5 · OPEN — `lint-stdlib` exists, gates nothing, reports 91 findings
+## 5 · gen.wat FIXED / the ratchet LEFT TO ARC 277 — `lint-stdlib` gates nothing
+
+> **⚠ THE RECORDED ABSENCE BELOW WAS FALSE.** The ward reported *"filtered to `file ==
+> "wat/gen.wat"` → 0. gen.wat is clean under both shipped rules."* Re-run 2026-08-26: **1
+> finding**, `concat-abuse` on the `record` macro — and that line is BYTE-IDENTICAL at
+> `a20f063a6`, the ward's own HEAD (341 there, 643 now). Tree-wide totals also disagree (ward 91,
+> this session 87); not chased.
+>
+> **That sharpens the ward's point instead of weakening it.** Its argument was "nothing would have
+> said so." The truth is stronger: gen.wat was never clean, nothing said so, and the one cast that
+> looked directly at it got the number wrong. **A gate would have been right where a reading was
+> not.**
+>
+> **FIXED — and my first diagnosis of it was ALSO wrong.** Acting on the rule's advice fails:
+> `:wat::core::format` is a MACRO, refused inside a macro body by arc 249's F5 gate. I recorded
+> that as a false positive in the rule. The builder pushed back — *"format is absolutely a pure
+> func"* — and was right: the refusal is about `format` being a macro, not about purity, and its
+> runtime twin `:wat::core::string::interpolate` IS on the allow-list, documented there (arc 284)
+> as *"the format macro, but interpolates at call time → expand-time-legal in macro bodies"*.
+> `wat/core.wat:704` already uses it in the same position. The site now uses it, tests 27/27, and
+> `lint-stdlib` drops 87 → 86 with **gen.wat at a true 0**.
+>
+> **What survives as a real finding for 277:** the rule's message hardcodes the one spelling that
+> is refused at the only kind of site a macro body offers, with no hint that a legal twin exists —
+> finding it cost a compile failure and a read of `src/macros/eval.rs`. Reported:
+> `docs/arc/2026/06/277-wat-lint-fix-fmt/NOTE-concat-abuse-suggests-a-remedy-refused-in-macro-bodies.md`
+>
+> **The ratchet is now buildable and deliberately NOT built here.** Arc 277 is OPEN (no
+> INSCRIPTION, no SCORE), `lint-stdlib` is its surface, and a gate belongs to the arc that owns the
+> rules it freezes while that rule set is still growing. The builder's caution was well placed:
+> 277's form-level half ships and runs, but its RETE-RULE half is blocked on us —
+> `NOTE-raise-abuse-rete-lint.md` records arc 278 R21's thesis, *"we need rete for writing lints;
+> lints are rete rules."*
 
 `wat/lint.wat`'s `:wat::lint::lint-stdlib` has exactly one consumer in the tree: a scratch script.
 Ward ran it: **91** findings overall, **0** for `wat/gen.wat`. gen.wat is clean — the finding is
 that nothing would have said so. Closure: a ratchet frozen **by file** (per this repo's own
 "a gate freezes names, never a count" doctrine).
 
-## 6 · OPEN — 24 stdlib verbs entered with no purity ruling
+## 6 · CLOSED 2026-08-26 — 24 stdlib verbs entered with no purity ruling
+
+> **The ward flagged its own uncertainty — "whether this has teeth today ... I did not chase it"
+> — so it was chased.** The answer decides the closure, and it is the ward's SECOND option
+> (bound the population), not its first (add a `RULES` row).
+>
+> `where`-admission is namespace-based but has a **composition door**: `sym.functions` recurses
+> through `classify_fn`. Probed: a `where` calling a user fn that calls `:wat::gen::card-of` is
+> analysed **two levels deep** and rejected — on `:wat::core::i64::*` inside `card-of`'s own
+> product fold, which is not total because a checked multiply can raise `IntegerOverflow`:
+>
+> ```
+> compile-condition: where expr is not total — ':wat::core::i64::*' is not total
+> ```
+>
+> So a wat-defined stdlib verb reached from a rete predicate **is** governed — PER-EXPRESSION at
+> where-compile time by the totality analysis, rather than PER-NAMESPACE by the ledger. Two
+> mechanisms, two populations, neither a hole in the other. `src/rete/purity.rs`'s `RULES` doc now
+> records the bound and the probe, and says explicitly not to add a `:wat::gen::` row to close a
+> gap the ledger does not have — that would be the laundering its own `KNOWN_UNREVIEWED` doc
+> forbids, applied to a namespace the scan cannot see.
 
 `src/rete/purity.rs` states *"a verb NOT in this list ⇒ RED"*, but its scan population is Rust
 `#[wat_dispatch]` homes, so a wat-defined stdlib file contributes zero rows. `:wat::gen::` appears
@@ -544,3 +648,26 @@ argument for building them is recorded at `bools` for when one appears.
 correct?"; this needed "what is a caller trying to DO?" — and that came from the builder using the
 thing. It is the same shape as the `check`-has-no-witness and `shrink`-doesn't-compose gaps two
 rounds earlier, which also arrived as questions rather than findings.
+
+---
+
+## ⚠ A MEASUREMENT DISCIPLINE CORRECTION (2026-08-26)
+
+Several figures in this document and in the source were first published from **3-sample medians**.
+On these benchmarks — ~700ms wall-clock, run-to-run spread ~5% — three samples cannot resolve a
+10% difference. Two successive 3-sample reads of the SAME binary gave 265 and 288 us/point, and a
+"regression" was chased on that basis that did not exist.
+
+Re-measured as **mean of six**, with a rebuild on each side:
+
+| | first published | honest (mean of 6) |
+|---|---|---|
+| shipped shape, pre-`bind`-fix | ~406 us/pt | **~437 us/pt** |
+| shipped shape, current | ~265 us/pt | **~287 us/pt** |
+| the `bind` fix's delta | −35% | **−34%** ✓ (the claim survived) |
+| depth-4 nested `bind` | ~17.6s → ~1.94s, ~10.7x | **~14.7s → ~1.98s, ~8.7x** |
+| nested `bind` vs `coords` | ~45x → ~4.3x | **~38x → ~4.3x** |
+
+**The direction and the −34% were right; the absolutes and the nested multiple were not.** All
+five shipped sites are corrected. The rule going forward: **six samples and a stated mean, or no
+number** — and never a ratio computed from two 3-sample medians.

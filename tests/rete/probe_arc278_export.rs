@@ -534,3 +534,35 @@ fn import_refuses_op_outside_rete_ops() {
         "import must name outside RETE_OPS, got {msg}"
     );
 }
+
+/// ★★ `Op::Eval` ACROSS THE WIRE — fix-list F's serialization arms, driven.
+///
+/// Fix-list F added `Op::Eval` so an inline constraint with a COMPUTED operand could run, and gave
+/// it `pack_cond_op` / `unpack` / `check_cond_ops` arms so a compiled program carrying one could
+/// still be exported. Those arms were never DRIVEN: every other rule in this fixture uses a
+/// `where` fence over plain operands, so no test in the tree had ever serialized an `Op::Eval`.
+///
+/// Presence is not aliveness. An untested serialization arm is the same class as the defect F
+/// itself was — something that reads correct and answers wrong — and this arc has been bitten by
+/// exactly that often enough to stop assuming.
+///
+/// The SOURCE row is the control and is not redundant: a fixture whose rule silently stopped
+/// discriminating would make the round-trip agree with itself at the wrong number, which is
+/// entry F's own signature one level up.
+#[test]
+fn an_op_eval_survives_export_and_import() {
+    let src = call_beside_value(file!(), ":user::computed-source-hits").expect("computed source");
+    assert_eq!(
+        src,
+        Value::i64(1),
+        "(c+5)<20 admits c=10 and rejects c=30 — if this is not 1 the fixture stopped \
+         discriminating and the round-trip below proves nothing"
+    );
+    let round = call_beside_value(file!(), ":user::computed-roundtrip-hits").expect("round-trip");
+    assert_eq!(
+        round,
+        src,
+        "export -> import must preserve an `Op::Eval`: the computed operand has to survive \
+         pack, unpack, the slot bounds check, and exec"
+    );
+}

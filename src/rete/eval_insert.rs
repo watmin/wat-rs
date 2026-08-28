@@ -11,14 +11,62 @@ use crate::value::value::AggregateValue;
 use crate::span::Span;
 use std::sync::Arc;
 
-/// Kwargs `(:Type :field v …)` vs positional `(:Type v …)`. Shared by
-/// `build_insert_fact`, `compile_rhs`, `lower_construct`, and the freeze wall.
-pub(crate) fn rete_kwargs_value_asts(args: &[WatAST]) -> Vec<&WatAST> {
-    if rete_is_kwargs(args) {
-        args.iter().skip(1).step_by(2).collect()
-    } else {
-        args.iter().collect()
+/// Kwargs `(:Type :field v …)` vs positional `(:Type v …)` → the field VALUES, in DECLARATION
+/// order. Shared by `build_insert_fact`, `compile_rhs` and `lower_construct`.
+///
+/// ## Resolution is BY NAME, and it did not used to be
+///
+/// This returned `args.iter().skip(1).step_by(2)` — the values in WRITTEN order, field names
+/// discarded — and its own comment stated the consequence: *"Out-of-declaration-order kwargs map
+/// positionally."* That held only because a second mechanism, `reorder_kwargs_by_field_name` in
+/// the freeze-time `defrule` wall, rewrote every declared rule's `:then` into declaration order
+/// first. Two implementations of "kwargs become positional", and only one of them on every path.
+///
+/// A rule built at RUNTIME as a `Rule` value never passes that wall, so its kwargs arrived here in
+/// written order and were consumed positionally — **silently transposing every field**. Measured
+/// 2026-08-27 (`tests/rete/probe_arc278_then_kwargs_positional.rs`): the same rule written
+/// `(:Two :a ?x :b ?y)` and `(:Two :b ?y :a ?x)` derived DIFFERENT facts, 3024 vs 24003, while a
+/// declared `defrule` with those reversed kwargs derived 3024 correctly. Neither a row count nor
+/// an engine-vs-engine differential can see that: both engines transposed identically.
+///
+/// The builder named the mechanism: *"the pattern we use all over is kwargs is default, they are
+/// consumed to call the positional head, which is typically primed"* — so an unreordered kwargs
+/// list lands its values on the primed constructor's slots in written order. The fix is one door
+/// rather than a second reorder: resolve here, where every caller already holds `names`.
+///
+/// `None` means the form names a field this type does not declare, or names one twice. It does NOT
+/// mean under-supply: a short kwargs form yields the fields it did supply, in declaration order,
+/// exactly as before — arity belongs to the freeze wall's `RhsMissingFields`, not here.
+pub(crate) fn rete_kwargs_value_asts<'a>(
+    args: &'a [WatAST],
+    names: &[String],
+) -> Option<Vec<&'a WatAST>> {
+    if !rete_is_kwargs(args) {
+        // Positional is already declaration order BY DEFINITION — that is what positional means.
+        return Some(args.iter().collect());
     }
+    // ORDER ONLY — arity is NOT this function's question. A kwargs `:then` may legitimately
+    // under-supply here: the freeze wall owns that refusal (`RhsMissingFields`), and
+    // `compiled_rhs`'s own interpreter-parity fixture deliberately compiles
+    // `(:fan::Pair :key ?k :lid ?l)` against a three-field record to check that BOTH paths treat
+    // the short form identically. A first cut of this returned `None` for a missing field and
+    // turned that parity case red — fixing order and arity in one change, when only order was
+    // broken.
+    let mut placed: Vec<(usize, &'a WatAST)> = Vec::with_capacity(args.len() / 2);
+    for pair in args.chunks(2) {
+        let WatAST::Keyword(k, _) = &pair[0] else {
+            return None;
+        };
+        let field = k.strip_prefix(':').unwrap_or(k.as_str());
+        let idx = names.iter().position(|n| n == field)?;
+        if placed.iter().any(|(i, _)| *i == idx) {
+            // The same field twice — which value wins is not a question to answer quietly.
+            return None;
+        }
+        placed.push((idx, &pair[1]));
+    }
+    placed.sort_by_key(|(i, _)| *i);
+    Some(placed.into_iter().map(|(_, v)| v).collect())
 }
 
 pub(crate) fn rete_is_kwargs(args: &[WatAST]) -> bool {
@@ -85,7 +133,7 @@ pub(crate) fn build_insert_fact(
             return Err(RuntimeError::new(other.span().clone(), RuntimeErrorKind::TypeMismatch {
                 op: OP.into(),
                 expected: "keyword (record type) as fact-form head",
-                got: Box::new(ValueSnapshot::of(&Value::String(Arc::new(format!("{other:?}"))))),
+                got: Box::new(ValueSnapshot::of(&Value::String(Arc::new(crate::rete::validate::render_form(other))))),
             }).into());
         }
     };
@@ -112,13 +160,28 @@ pub(crate) fn build_insert_fact(
 
     // Arc 294 item 9a — a defrule :then RHS fact-form may be written in KWARGS form
     // `(:Type :field1 v1 :field2 v2)` (the flip's encouraged form, symmetric with the
-    // field-named :when patterns) or the legacy positional `(:Type v1 v2)`. After the
-    // type-vs-fn head split (`sym.types()` above), kwargs skip field names and take VALUES
-    // in written order — fields are authored in the type's declaration order (both the
-    // kwargs migration and the macro companion emit declaration order).
-    // Out-of-declaration-order kwargs map positionally.
+    // field-named :when patterns) or the legacy positional `(:Type v1 v2)`.
+    //
+    // Resolution is BY NAME (2026-08-27). This comment used to end "Out-of-declaration-order
+    // kwargs map positionally", which was true and was a silent field transposition for any rule
+    // that had not passed the freeze wall's reorder — see `rete_kwargs_value_asts`.
     let args = &fact_items[1..];
-    let value_asts = rete_kwargs_value_asts(args);
+    let field_names = match sym.types().and_then(|t| t.get(type_keyword)) {
+        Some(crate::types::TypeDef::Aggregate(a)) => a.names_arc(),
+        _ => std::sync::Arc::new(Vec::new()),
+    };
+    let Some(value_asts) = rete_kwargs_value_asts(args, &field_names) else {
+        return Err(RuntimeError::new(
+            fact_form.span().clone(),
+            RuntimeErrorKind::MalformedForm {
+                head: type_keyword.to_string(),
+                reason: "`:then` kwargs name a field this type does not declare, or name one \
+                         twice — every field must resolve by NAME"
+                    .into(),
+            },
+        )
+        .into());
+    };
     // Resolve each value via `resolve_rhs_value` (fenced Lists + `?var` + literal).
     // RHS has no current fact. None → malformed rule.
     crate::rete::kernel::census_count_n("prod:vec-alloc", 2); // value_asts + fields
@@ -132,7 +195,7 @@ pub(crate) fn build_insert_fact(
                 return Err(RuntimeError::new(arg.span().clone(), RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "resolvable operand (?var, literal, or a fenced expression) in RHS fact-form",
-                    got: Box::new(ValueSnapshot::of(&Value::String(Arc::new(format!("{arg:?}"))))),
+                    got: Box::new(ValueSnapshot::of(&Value::String(Arc::new(crate::rete::validate::render_form(arg))))),
                 }).into());
             }
         }
@@ -187,7 +250,7 @@ fn build_insert_fact_call(
                 return Err(RuntimeError::new(arg.span().clone(), RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "resolvable operand (?var, literal, or a fenced expression) in a RHS fn-call arg",
-                    got: Box::new(ValueSnapshot::of(&Value::String(Arc::new(format!("{arg:?}"))))),
+                    got: Box::new(ValueSnapshot::of(&Value::String(Arc::new(crate::rete::validate::render_form(arg))))),
                 }).into());
             }
         }

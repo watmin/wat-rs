@@ -78,6 +78,30 @@ pub(crate) enum ReteClauseShape<'a> {
         type_head: &'a str,
         clauses: &'a [WatAST],
     },
+    /// **A BOOLEAN-VALUED RETE EXPRESSION, written where a constraint goes.**
+    ///
+    /// Admitted 2026-08-28. Before it, the inline position took a fixed SHAPE SET and refused
+    /// everything else, so `(String/empty? :v)`, `(String/contains? :v "x")`,
+    /// `(PersistentVector/contains? …)`, `core::and/or/not`, `cond`, `let` and `match` were all
+    /// `MalformedClause` inline while working inside a `where` fence — the identical predicate,
+    /// two answers by position.
+    ///
+    /// ⛔ **THE STATED REASON FOR THAT SPLIT WAS FALSE, AND IT WAS MINE.** I argued it as
+    /// indexability: shapes let the alpha discrimination tree pre-filter, expressions do not. The
+    /// disk refutes it — `alpha_tree.rs` indexes ONLY provable equality discriminators, and says
+    /// so: *"(`< > <= >=`) contribute no discriminator and ride the wildcard edge"*. Ordering
+    /// comparisons are admitted inline TODAY and already ride that edge. None of the 14 refused
+    /// shapes could ever have been an equality discriminator either, so admitting them costs
+    /// nothing that admitted forms are not already costing.
+    ///
+    /// What was left was a rule no reader could infer: `(i64::> :v 5)` in, `(String/empty? :v)`
+    /// out, both boolean predicates over a field, neither indexed. One rule replaces the list —
+    /// *an inline constraint is any rete expression returning bool*, which is what the fence
+    /// already says.
+    ///
+    /// Carries the WHOLE clause: the compiler lowers it through the one expression core and the
+    /// interpreter evaluates it the same way, so there is no second grammar to keep in step.
+    Predicate(&'a WatAST),
     /// Not a recognized rete-DSL shape at any level. `eval_clause` maps this to `None`
     /// (Clara no-error); the freeze-time validator maps this to a located
     /// `#wat.rete/MalformedClause` error.
@@ -201,6 +225,39 @@ pub(crate) fn classify_constraint_head(head: &str) -> Option<(CmpKind, Constrain
 
 /// Classify a single rete-DSL form (a `:when` clause OR a top-level `:when`-entry wrapper)
 /// by SHAPE alone — no fact/registry access, no bindings. See [`ReteClauseShape`].
+/// Is this head a rete op whose result is KNOWN to be boolean?
+///
+/// ⛔ **"Known" is the load-bearing word, and getting it wrong would re-open fix-list F.** A clause
+/// admitted here is required to evaluate TRUE; a predicate returning a non-bool would simply fail
+/// that comparison and the rule would silently never fire — the exact silent-wrong-answer shape
+/// this arc has now closed twice. So the test is static knowledge, never optimism:
+///
+///   · `Alias` / `Fallback` rows carry a REAL `ret`, so `ret == Bool` is a fact about the row.
+///   · `Form` / `Redispatch` rows carry `ret: Bool` as a PLACEHOLDER — they have no `TypeScheme`
+///     at all — so their `ret` says nothing and must not be read as if it did. `and`/`or`/`not`
+///     are boolean by definition and are named explicitly; `cond`/`let`/`match` are polymorphic in
+///     their body's type and stay REFUSED, because the inline position has no type check that
+///     could demand bool of them. That refusal is a diagnostic, which is the honest half of the
+///     pair: admit what is provably boolean, refuse the rest BY NAME, never accept-and-go-quiet.
+fn head_is_boolean_rete_predicate(head: &str) -> bool {
+    if matches!(
+        head,
+        ":wat::rete::core::and" | ":wat::rete::core::or" | ":wat::rete::core::not"
+    ) {
+        return true;
+    }
+    match crate::rete::vocabulary::rete_op_for(head) {
+        Some(row) => {
+            matches!(
+                row.class,
+                crate::rete::vocabulary::OpClass::Alias
+                    | crate::rete::vocabulary::OpClass::Fallback
+            ) && matches!(row.ret, crate::rete::vocabulary::ParamType::Bool)
+        }
+        None => false,
+    }
+}
+
 pub(crate) fn classify_rete_clause(clause: &WatAST) -> ReteClauseShape<'_> {
     let items = match clause {
         WatAST::List(items, _) if !items.is_empty() => items.as_slice(),
@@ -277,6 +334,15 @@ pub(crate) fn classify_rete_clause(clause: &WatAST) -> ReteClauseShape<'_> {
             ":wat::rete::where" => {
                 if items.len() == 2 { ReteClauseShape::Where(&items[1]) } else { ReteClauseShape::Unrecognized }
             }
+            // Any other RETE-VOCABULARY head is a PREDICATE — a boolean-valued expression,
+            // admitted here exactly as inside a `where` fence. Reached only AFTER every
+            // structural shape above has declined, so this is strictly additive: a constraint is
+            // still a Constraint, a combinator still a combinator.
+            //
+            // A head outside the vocabulary still falls to `Unrecognized`, so Law A holds: the
+            // rete query language is composed from rete primitives, and a core-spelled head is
+            // refused with the diagnostic that names its per-type twin.
+            k if head_is_boolean_rete_predicate(k) => ReteClauseShape::Predicate(clause),
             // Unknown head keyword → unrecognised clause shape.
             _ => ReteClauseShape::Unrecognized,
         },

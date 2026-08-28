@@ -10517,6 +10517,42 @@ pub(crate) fn eval_keyword_to_string(
     Ok(Value::String(Arc::new(text.to_string())))
 }
 
+/// VALUE-level `keyword::to-string` — the compiled rete executor's door into the same routine the
+/// interpreter runs (arc 278, the keyword converter rows).
+///
+/// Extracted 2026-08-28 rather than reimplemented: rete's `Alias` contract is "the same routine as
+/// `core_name`", and this arc has already paid twice for a second implementation quietly
+/// disagreeing with the first (`first_of` vs `positional_at`).
+///
+/// TOTAL on a value the checker has typed `keyword` — the only failure exits are type mismatches
+/// the row's declared `ParamType::Keyword` makes unreachable.
+pub(crate) fn keyword_to_string_value(v: &Value) -> Option<Value> {
+    let raw: String = match v {
+        Value::wat__core__keyword(k) => k.to_string(),
+        Value::wat__WatAST(ast) => match &**ast {
+            WatAST::Keyword(k, _) => k.clone(),
+            _ => return None,
+        },
+        _ => return None,
+    };
+    let text = raw.strip_prefix(':').unwrap_or(&raw);
+    Some(Value::String(Arc::new(text.to_string())))
+}
+
+/// VALUE-level `keyword::from-string`, and it is PARTIAL — which is exactly why its rete row is
+/// `OpClass::Fallback` and carries a mandatory `:undefined`.
+///
+/// `None` on the two refusals the interpreter raises: a leading ':' (the colon is the sigil, not
+/// payload) and an angle-type head in the name. The caller supplies the fallback value; nothing is
+/// invented here.
+pub(crate) fn keyword_from_string_value(v: &Value) -> Option<Value> {
+    let Value::String(s) = v else { return None };
+    if angle_type_head_in_name(s) || s.starts_with(':') {
+        return None;
+    }
+    Some(Value::wat__core__keyword(Arc::new(format!(":{s}"))))
+}
+
 /// `(:wat::keyword::from-string s)` — construct a keyword Value from
 /// a text string. The text MUST NOT start with ':' (the colon is the sigil,
 /// not part of the payload). Returns a MalformedForm error with a helpful
@@ -14884,6 +14920,22 @@ fn eval_positional_accessor(
         .into());
     }
     let v = eval_inner(&args[0], env, sym)?.value_owned();
+    positional_at(v, index, op, args[0].span())
+}
+
+/// The VALUE-level positional accessor — `first`/`second`/`third` once the argument is evaluated.
+///
+/// Extracted 2026-08-28 so the compiled rete `where` executor calls the SAME routine the
+/// interpreter does instead of growing a second one. `expr_ir.rs`'s `first_of` used to be that
+/// second one, and it matched PersistentVector / Vec / List only — which is why a `Tuple` could be
+/// CONSTRUCTED inside a fence and never read from. Only the span differs between the two callers;
+/// everything below is a property of the value.
+pub(crate) fn positional_at(
+    v: Value,
+    index: usize,
+    op: &'static str,
+    span: &Span,
+) -> Result<Value, EvalBreak> {
     // Classify via the registry — the only Value→container map for sequence ops.
     // Arc-278 strike 4 — inner dispatch is exhaustive over the closed StreamContainer enum (no `_`).
     use crate::collection::seq_container::StreamContainer;
@@ -14898,7 +14950,7 @@ fn eval_positional_accessor(
                     };
                     items.get(index).cloned().ok_or_else(|| {
                         EvalBreak::from(RuntimeError::new(
-                            args[0].span().clone(),
+                            span.clone(),
                             RuntimeErrorKind::MalformedForm {
                                 head: op.into(),
                                 reason: format!(
@@ -14917,7 +14969,7 @@ fn eval_positional_accessor(
                     };
                     items.get(index).cloned().ok_or_else(|| {
                         EvalBreak::from(RuntimeError::new(
-                            args[0].span().clone(),
+                            span.clone(),
                             RuntimeErrorKind::MalformedForm {
                                 head: op.into(),
                                 reason: format!(
@@ -14935,7 +14987,7 @@ fn eval_positional_accessor(
                         unreachable!("of_value⇒List")
                     };
                     items.iter().nth(index).cloned().ok_or_else(|| {
-                        EvalBreak::from(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::MalformedForm {
+                        EvalBreak::from(RuntimeError::new(span.clone(), RuntimeErrorKind::MalformedForm {
                             head: op.into(),
                             reason: format!("{op}: sequence has fewer than {} element(s); no element at index {index}", index + 1)
                         }))
@@ -14948,7 +15000,7 @@ fn eval_positional_accessor(
                         unreachable!("of_value⇒PersistentVector")
                     };
                     pv.get(index).cloned().ok_or_else(|| {
-                        EvalBreak::from(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::MalformedForm {
+                        EvalBreak::from(RuntimeError::new(span.clone(), RuntimeErrorKind::MalformedForm {
                             head: op.into(),
                             reason: format!("{op}: sequence has fewer than {} element(s); no element at index {index}", index + 1)
                         }))
@@ -14965,7 +15017,7 @@ fn eval_positional_accessor(
                         WatAST::List(children, _) => children.get(index)
                             .map(|c| Value::wat__WatAST(Arc::new(c.clone())))
                             .ok_or_else(|| {
-                                EvalBreak::from(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::MalformedForm {
+                                EvalBreak::from(RuntimeError::new(span.clone(), RuntimeErrorKind::MalformedForm {
                                     head: op.into(),
                                     reason: format!("{op}: WatAST List has {} child(ren); no child at index {index}", children.len())
                                 }))
@@ -14990,7 +15042,7 @@ fn eval_positional_accessor(
         // advance it with `:wat::stream::next`, whose `(NextOutcome :- [T]) = Item(value, rest) |
         // Exhausted` is the only door a Stream yields through.
         Some(StreamContainer::Stream) => Err(RuntimeError::new(
-            args[0].span().clone(),
+            span.clone(),
             RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
                 expected: "Tuple, (Vector :- [T]), (List :- [T]), (PersistentVector :- [T]), or WatAST — a lazy (Stream :- [T]) has no first/second/third; advance it with :wat::stream::next ((NextOutcome :- [T]) = Item(value, rest) | Exhausted)",
@@ -14999,7 +15051,7 @@ fn eval_positional_accessor(
         )
         .into()),
         Some(_) => Err(RuntimeError::new(
-            args[0].span().clone(),
+            span.clone(),
             RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
                 expected: "tuple, Vec, List, or PersistentVector",
@@ -15011,7 +15063,7 @@ fn eval_positional_accessor(
         // (a non-List form has no positional children — distinct from a type mismatch).
         None => match v {
             Value::wat__WatAST(_) => Err(EvalBreak::from(RuntimeError::new(
-                args[0].span().clone(),
+                span.clone(),
                 RuntimeErrorKind::MalformedForm {
                     head: op.into(),
                     reason: format!(
@@ -15020,7 +15072,7 @@ fn eval_positional_accessor(
                 },
             ))),
             other => Err(RuntimeError::new(
-                args[0].span().clone(),
+                span.clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: op.into(),
                     expected: "tuple, Vec, List, or PersistentVector",
@@ -29220,6 +29272,7 @@ mod tests {
             capacity_mode: crate::config::CapacityMode::Error,
             global_seed: 42,
             dim_count,
+            max_fire_rounds: crate::config::DEFAULT_MAX_FIRE_ROUNDS,
             presence_sigma_ast: None,
             coincident_sigma_ast: None,
             redef_allowed: false,
@@ -33070,6 +33123,7 @@ mod tests {
             capacity_mode: crate::config::CapacityMode::Error,
             global_seed: 42,
             dim_count: dims,
+            max_fire_rounds: crate::config::DEFAULT_MAX_FIRE_ROUNDS,
             presence_sigma_ast: None,
             coincident_sigma_ast: None,
             redef_allowed: false,
