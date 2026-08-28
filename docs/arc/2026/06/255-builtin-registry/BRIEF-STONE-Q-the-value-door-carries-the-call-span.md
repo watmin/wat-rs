@@ -21,6 +21,28 @@ HELPERS do, and no scan of a handler's body can see that.**
 ★ **A span is not binding state.** It is a location, and `apply` already holds one — it just does
 not thread it.
 
+## ★ AND STONES H-1a / H-1b HAVE NOW SIZED IT — by the compiler, not a pattern
+
+The brief was drawn with its motivating census retracted and no number to replace it. **H has since
+supplied one, and it is the only sizing of this question that came from an instrument that cannot
+lie.** Declaring holon's real arity deleted 89 hand-rolled arity checks, and the compiler then said,
+per verb, whether `list_span` was still needed:
+
+```
+across H-1a + H-1b, 87 holon verbs converted
+  list_span became UNUSED   39    the arity check was its only reader
+  list_span STILL USED      48    require_encoding_ctx · require_numeric · require_subspace ·
+                                  require_engram · require_reckoner · coerce_to_holon_ast ·
+                                  with_mut · the *_from_values family
+```
+
+**48 verbs in one namespace cannot become ALGEBRA without this stone.** That refuted the design's own
+hypothesis (which expected the arity fix to account for most of it) and it is why Q moved from
+*"argument stands, size unknown"* to **REQUIRED**.
+
+⚠ **Still do not put a whole-tree number in this brief.** 48-of-87 is holon, measured. What Q unblocks
+elsewhere gets measured the same way — by converting and reading the compiler — never by a pattern.
+
 ## The ONE CONTRACT DECISION
 
 ```
@@ -40,7 +62,7 @@ value door passes the one `eval_apply` already holds.
 a guard. It was never a ruling about the parameter forever. You are doing the thing that STOP
 forbade, deliberately, and the design records why.
 
-## Rooms — verified against `6d4f43ac0`
+## Rooms — RE-verified against `a295f8a90`
 
 ```
 src/intrinsic/mod.rs        `pub(crate) type ValueHandler` — the type to widen. Its doc comment
@@ -49,6 +71,8 @@ src/intrinsic/mod.rs        `pub(crate) type ValueHandler` — the type to widen
 src/runtime.rs              `pub(crate) fn dispatch_substrate_impl(impl_name, vals)` — the signature,
                             and P1/O-i's arity guard inside it (leave the guard's behaviour alone)
 src/runtime.rs:10773        ★ THE ONLY CALLER, inside eval_apply, which HOLDS `list_span`
+                            (re-verified at a295f8a90; `dispatch_substrate_impl(` matches twice in
+                            runtime.rs — the definition and this call. One caller.)
 crates/wat-macros/src/wat_intrinsic.rs   `sniff_args` (stops at the first non-`&WatAST` param — the
                             same trick for a trailing `&Span`) · the ALGEBRA branch that builds the
                             value door and the AST door

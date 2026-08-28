@@ -156,8 +156,16 @@
            (:wat::core::quote (:wat::core::apply :wat::hashset::contains?
              (:wat::core::HashSet :wat::core::i64 1 2 3)
              (:wat::core::Vector :wat::core::i64 2))))
+     ;; ⚠ ORDER-INDEPENDENT ON PURPOSE (fixed 2026-08-28, Stone Q). This row used to print the
+     ;; conj'd SET itself, and `HashSet`'s iteration order varies run to run — so the probe was
+     ;; NON-DETERMINISTIC while being used as a byte-identical diff instrument. It would have
+     ;; handed a future stone a false RED, or taught someone to ignore a real one. Asking
+     ;; `contains?` proves the conj reached the verb through apply AND renders the same every run.
+     ;; `[[feedback_a_probe_that_recalibrates_under_load_measures_nothing]]`
      _32 (:probe::row ":wat::hashset::conj     "
-           (:wat::core::quote (:wat::core::apply :wat::hashset::conj
-             (:wat::core::HashSet :wat::core::i64 1 2 3)
-             (:wat::core::Vector :wat::core::i64 9))))]
+           (:wat::core::quote (:wat::hashset::contains?
+             (:wat::core::apply :wat::hashset::conj
+               (:wat::core::HashSet :wat::core::i64 1 2 3)
+               (:wat::core::Vector :wat::core::i64 9))
+             9)))]
     nil))

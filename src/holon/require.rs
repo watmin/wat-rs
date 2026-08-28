@@ -12,16 +12,16 @@ use std::sync::Arc;
 
 pub(crate) fn require_hologram(
     op: &str,
-    v: Value,
+    v: &Value,
 ) -> Result<Arc<crate::rust_deps::ThreadOwnedCell<crate::holon::hologram::Hologram>>, EvalBreak> {
     match v {
-        Value::Hologram(h) => Ok(h),
+        Value::Hologram(h) => Ok(h.clone()),
         other => Err(RuntimeError::new(
             crate::rust_caller_span!(),
             RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
                 expected: "wat::holon::Hologram",
-                got: Box::new(ValueSnapshot::of(&other)),
+                got: Box::new(ValueSnapshot::of(other)),
                 // arc 138: no — takes Value, not WatAST; no source coords available
             },
         )
@@ -30,15 +30,15 @@ pub(crate) fn require_hologram(
 }
 
 
-pub(crate) fn require_fn(op: &str, v: Value) -> Result<Arc<Function>, EvalBreak> {
+pub(crate) fn require_fn(op: &str, v: &Value) -> Result<Arc<Function>, EvalBreak> {
     match v {
-        Value::wat__core__fn(f) => Ok(f),
+        Value::wat__core__fn(f) => Ok(f.clone()),
         other => Err(RuntimeError::new(
             crate::rust_caller_span!(),
             RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
                 expected: "fn(f64)->bool",
-                got: Box::new(ValueSnapshot::of(&other)),
+                got: Box::new(ValueSnapshot::of(other)),
                 // arc 138: no — takes Value, not WatAST; no source coords available
             },
         )
@@ -58,15 +58,15 @@ pub(crate) fn match_names() -> Arc<Vec<String>> {
 /// Arc 053 — helper. Extract a `Value::Vector` payload, error on
 /// non-Vector input. Cousin of `require_holon`. Used by the
 /// Vector-tier algebra primitives.
-pub(crate) fn require_vector(op: &str, v: Value) -> Result<Arc<holon::Vector>, EvalBreak> {
+pub(crate) fn require_vector(op: &str, v: &Value) -> Result<Arc<holon::Vector>, EvalBreak> {
     match v {
-        Value::Vector(vec) => Ok(vec),
+        Value::Vector(vec) => Ok(vec.clone()),
         other => Err(RuntimeError::new(
             crate::rust_caller_span!(),
             RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
                 expected: "wat::holon::Vector",
-                got: Box::new(ValueSnapshot::of(&other)),
+                got: Box::new(ValueSnapshot::of(other)),
                 // arc 138: no — takes Value, not WatAST; no source coords available
             },
         )
@@ -78,17 +78,17 @@ pub(crate) fn require_vector(op: &str, v: Value) -> Result<Arc<holon::Vector>, E
 /// Arc 053 — extract a `Value::OnlineSubspace` payload.
 pub(crate) fn require_subspace(
     op: &str,
-    v: Value,
+    v: &Value,
     list_span: &Span,
 ) -> Result<Arc<crate::rust_deps::ThreadOwnedCell<holon::OnlineSubspace>>, EvalBreak> {
     match v {
-        Value::OnlineSubspace(s) => Ok(s),
+        Value::OnlineSubspace(s) => Ok(s.clone()),
         other => Err(RuntimeError::new(
             list_span.clone(),
             RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
                 expected: "wat::holon::OnlineSubspace",
-                got: Box::new(ValueSnapshot::of(&other)),
+                got: Box::new(ValueSnapshot::of(other)),
             },
         )
         .into()),
@@ -105,17 +105,17 @@ pub(crate) fn vec_f64_to_value(xs: Vec<f64>) -> Value {
 /// Arc 053 — extract a `Value::Reckoner` payload.
 pub(crate) fn require_reckoner(
     op: &str,
-    v: Value,
+    v: &Value,
     list_span: &Span,
 ) -> Result<Arc<crate::rust_deps::ThreadOwnedCell<holon::Reckoner>>, EvalBreak> {
     match v {
-        Value::Reckoner(r) => Ok(r),
+        Value::Reckoner(r) => Ok(r.clone()),
         other => Err(RuntimeError::new(
             list_span.clone(),
             RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
                 expected: "wat::holon::Reckoner",
-                got: Box::new(ValueSnapshot::of(&other)),
+                got: Box::new(ValueSnapshot::of(other)),
             },
         )
         .into()),
@@ -126,17 +126,17 @@ pub(crate) fn require_reckoner(
 /// Arc 053 — extract a `Value::Engram` payload.
 pub(crate) fn require_engram(
     op: &str,
-    v: Value,
+    v: &Value,
     list_span: &Span,
 ) -> Result<Arc<crate::rust_deps::ThreadOwnedCell<holon::Engram>>, EvalBreak> {
     match v {
-        Value::Engram(e) => Ok(e),
+        Value::Engram(e) => Ok(e.clone()),
         other => Err(RuntimeError::new(
             list_span.clone(),
             RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
                 expected: "wat::holon::Engram",
-                got: Box::new(ValueSnapshot::of(&other)),
+                got: Box::new(ValueSnapshot::of(other)),
             },
         )
         .into()),
@@ -147,17 +147,17 @@ pub(crate) fn require_engram(
 /// Arc 053 — extract a `Value::EngramLibrary` payload.
 pub(crate) fn require_engram_library(
     op: &str,
-    v: Value,
+    v: &Value,
     list_span: &Span,
 ) -> Result<Arc<crate::rust_deps::ThreadOwnedCell<holon::EngramLibrary>>, EvalBreak> {
     match v {
-        Value::EngramLibrary(l) => Ok(l),
+        Value::EngramLibrary(l) => Ok(l.clone()),
         other => Err(RuntimeError::new(
             list_span.clone(),
             RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
                 expected: "wat::holon::EngramLibrary",
-                got: Box::new(ValueSnapshot::of(&other)),
+                got: Box::new(ValueSnapshot::of(other)),
             },
         )
         .into()),
@@ -166,15 +166,15 @@ pub(crate) fn require_engram_library(
 
 
 /// Arc 053 — extract a String from a Value.
-pub(crate) fn require_string(op: &str, v: Value, list_span: &Span) -> Result<String, EvalBreak> {
+pub(crate) fn require_string(op: &str, v: &Value, list_span: &Span) -> Result<String, EvalBreak> {
     match v {
-        Value::String(s) => Ok((*s).clone()),
+        Value::String(s) => Ok((**s).clone()),
         other => Err(RuntimeError::new(
             list_span.clone(),
             RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
                 expected: "String",
-                got: Box::new(ValueSnapshot::of(&other)),
+                got: Box::new(ValueSnapshot::of(other)),
             },
         )
         .into()),
@@ -182,16 +182,16 @@ pub(crate) fn require_string(op: &str, v: Value, list_span: &Span) -> Result<Str
 }
 
 
-pub(crate) fn require_numeric(op: &str, v: Value, list_span: &Span) -> Result<f64, EvalBreak> {
+pub(crate) fn require_numeric(op: &str, v: &Value, list_span: &Span) -> Result<f64, EvalBreak> {
     match v {
-        Value::i64(n) => Ok(n as f64),
-        Value::f64(x) => Ok(x),
+        Value::i64(n) => Ok(*n as f64),
+        Value::f64(x) => Ok(*x),
         other => Err(RuntimeError::new(
             list_span.clone(),
             RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
                 expected: "numeric",
-                got: Box::new(ValueSnapshot::of(&other)),
+                got: Box::new(ValueSnapshot::of(other)),
             },
         )
         .into()),

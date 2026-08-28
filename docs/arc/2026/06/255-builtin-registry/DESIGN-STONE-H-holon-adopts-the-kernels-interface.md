@@ -177,3 +177,64 @@ because the checker is what a caller actually meets.
 so its Rust signature is 8 params with the `env`/`sym`/`span` tail — one over
 `clippy::too_many_arguments`. Carried as `#[expect(…, reason = …)]`, not `#[allow]`, so it goes red
 if the signature ever shrinks under the limit. `[[feedback_an_exemption_is_earned_when_the_alternative_is_worse]]`
+
+---
+
+## ⛔ H-1b SHIPPED — 58 doc lies in one file, and P4's debt ledger proved itself the same day
+
+**52 of 60 converted, 8 left variadic with reasons. −829/+325.** All 60 reported `:arity -1` before;
+after, the 52 report their real N (36×1, 12×2, 2×3, 2×4) and the 8 correctly still report `-1`.
+
+### The waterfall was 58, not 5
+
+Splitting the collapsed `@arg args… …` line — which every one of the 60 carried, and which left
+`doc_arg_ret_types_match_checker_scheme` with **nothing to compare** — exposed **58 doc/checker
+mismatches**, enumerated in ONE build with the temporary-`println!` technique. The dominant pattern:
+
+```
+:wat::core::Value  ->  :wat::holon::HolonAST                      25    Atom · to-wat · the 8 is-*? · …
+:wat::core::Value  ->  (:wat::core::Vector :- [:wat::holon::HolonAST])  6    Map · Set · Vector · List · Tuple · Bundle
+:wat::core::Value  ->  :wat::core::f64                             9    Thermometer · therm-form · Blend · vector-blend
+:wat::core::Value  ->  :wat::core::i64                             4    presence-floor · coincident-floor · Permute k
+… and six smaller classes
+```
+
+**`:wat::core::Value` — "anything" — was the declared type of 46 arguments whose checker scheme names
+something specific.** That is not a typo repeated 46 times; it is what a collapsed variadic doc line
+degenerates into, because there is no per-argument slot to be wrong in. **The lie was structural.**
+
+### ★ P4's DEBT LEDGER EARNED ITSELF WITHIN HOURS
+
+Seven of atom's verbs are on `FROZEN_CHECKER_DEBT_LEDGER` — absent from the checker, so the gate
+skips them: `coincident-explain · coincident? · cosine · dot · literal · simhash · to-record`.
+**Their new doc types are the rider's best reading of the body, machine-verified by nothing.** The
+rider flagged exactly that, and the ledger names exactly that set.
+
+P4 shipped as an abstract measurement — *"49 names whose declared types are verified by nothing."*
+Hours later it answered a concrete question: **which of these 58 edits can I trust?** Fifty-one,
+because the gate checked them. Seven, because the ledger says so, I cannot.
+`[[feedback_a_gate_freezes_names_never_a_count]]`
+
+### Row 0's answer widened the finding — 6 became 8
+
+The six handlers with no inline arity check all *do* check arity, in a shared `runtime.rs` helper.
+**And the rider found two more the count could not see structurally** — `eval_form_ast_coincident_q`
+and `eval_form_edn_coincident_q` have inline `args.len() != 2` checks that raise
+`RuntimeErrorKind::MalformedForm` with custom text, **not `ArityMismatch`**. Converting any of them
+would swap a descriptive diagnostic for the generated generic one — a real behaviour change, so all
+seven stay variadic alongside `from-holon`.
+
+⚠ **A pre-existing defect, surfaced and deliberately left:** `eval_holon_literal` delegates to
+`eval_quote`, so its wrong-arity error reports `op = :wat::core::quote` — **the wrong verb's name**.
+Converting it would fix the name and change the error kind at once; it is left untouched and recorded
+here rather than fixed inside a stone that promised byte-identical behaviour.
+
+### The span answer, atom's half
+
+`list_span` unused in **34 of 52**; still used in **18** — `require_encoding_ctx`, `require_numeric`,
+`coerce_to_holon_ast`, and the `*_from_values` family that operates on already-evaluated `Value`
+pairs and has no per-argument AST span to fall back on. Atom leans more on per-arg `.span()` than
+the four smaller files did, so its still-used ratio (35%) is well below theirs (86%).
+
+**Holon overall: across H-1a and H-1b, 39 of 87 converted verbs no longer need a call span and
+48 still do. Stone Q remains REQUIRED.**

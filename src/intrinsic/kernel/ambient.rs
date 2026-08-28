@@ -76,7 +76,7 @@
 use wat_macros::wat_intrinsic;
 
 use crate::span::Span;
-use crate::value::{Environment, EvalBreak, SymbolTable, Value};
+use crate::value::{EvalBreak, Value};
 
 /// `(:wat::kernel::stopped?)` → `:wat::core::bool`. Reads the kernel stop
 /// flag (`KERNEL_STOPPED`, set by the wat CLI's SIGINT/SIGTERM handlers).
@@ -89,11 +89,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// @ret     :wat::core::bool true once the kernel stop flag has been set
 /// @example-norun (:wat::kernel::stopped?) #=> false
 #[wat_intrinsic(":wat::kernel::stopped?")]
-pub(crate) fn eval_kernel_stopped(
-    _env: &Environment, // rune:lint(unused-env) — reads/writes an ambient flag only; no bindings needed
-    _sym: &SymbolTable, // rune:lint(unused-sym) — see above
-    list_span: &Span,
-) -> Result<Value, EvalBreak> {
+pub(crate) fn eval_kernel_stopped(list_span: &Span) -> Result<Value, EvalBreak> {
     crate::runtime::eval_kernel_stopped(&[], list_span)
 }
 
@@ -108,11 +104,7 @@ pub(crate) fn eval_kernel_stopped(
 /// @ret     :wat::core::bool the current value of the SIGUSR1 flag
 /// @example-norun (:wat::kernel::sigusr1?) #=> false
 #[wat_intrinsic(":wat::kernel::sigusr1?")]
-pub(crate) fn eval_kernel_sigusr1(
-    _env: &Environment, // rune:lint(unused-env) — reads/writes an ambient flag only; no bindings needed
-    _sym: &SymbolTable, // rune:lint(unused-sym) — see above
-    list_span: &Span,
-) -> Result<Value, EvalBreak> {
+pub(crate) fn eval_kernel_sigusr1(list_span: &Span) -> Result<Value, EvalBreak> {
     crate::runtime::eval_user_signal_query(
         &[], ":wat::kernel::sigusr1?", &crate::runtime::KERNEL_SIGUSR1, list_span,
     )
@@ -128,11 +120,7 @@ pub(crate) fn eval_kernel_sigusr1(
 /// @ret     :wat::core::bool the current value of the SIGUSR2 flag
 /// @example-norun (:wat::kernel::sigusr2?) #=> false
 #[wat_intrinsic(":wat::kernel::sigusr2?")]
-pub(crate) fn eval_kernel_sigusr2(
-    _env: &Environment, // rune:lint(unused-env) — reads/writes an ambient flag only; no bindings needed
-    _sym: &SymbolTable, // rune:lint(unused-sym) — see above
-    list_span: &Span,
-) -> Result<Value, EvalBreak> {
+pub(crate) fn eval_kernel_sigusr2(list_span: &Span) -> Result<Value, EvalBreak> {
     crate::runtime::eval_user_signal_query(
         &[], ":wat::kernel::sigusr2?", &crate::runtime::KERNEL_SIGUSR2, list_span,
     )
@@ -148,11 +136,7 @@ pub(crate) fn eval_kernel_sigusr2(
 /// @ret     :wat::core::bool the current value of the SIGHUP flag
 /// @example-norun (:wat::kernel::sighup?) #=> false
 #[wat_intrinsic(":wat::kernel::sighup?")]
-pub(crate) fn eval_kernel_sighup(
-    _env: &Environment, // rune:lint(unused-env) — reads/writes an ambient flag only; no bindings needed
-    _sym: &SymbolTable, // rune:lint(unused-sym) — see above
-    list_span: &Span,
-) -> Result<Value, EvalBreak> {
+pub(crate) fn eval_kernel_sighup(list_span: &Span) -> Result<Value, EvalBreak> {
     crate::runtime::eval_user_signal_query(
         &[], ":wat::kernel::sighup?", &crate::runtime::KERNEL_SIGHUP, list_span,
     )
@@ -170,11 +154,7 @@ pub(crate) fn eval_kernel_sighup(
 /// @ret     :wat::core::nil always nil
 /// @example-norun (:wat::kernel::reset-sigusr1!) #=> nil
 #[wat_intrinsic(":wat::kernel::reset-sigusr1!")]
-pub(crate) fn eval_kernel_reset_sigusr1(
-    _env: &Environment, // rune:lint(unused-env) — reads/writes an ambient flag only; no bindings needed
-    _sym: &SymbolTable, // rune:lint(unused-sym) — see above
-    list_span: &Span,
-) -> Result<Value, EvalBreak> {
+pub(crate) fn eval_kernel_reset_sigusr1(list_span: &Span) -> Result<Value, EvalBreak> {
     crate::runtime::eval_user_signal_reset(
         &[], ":wat::kernel::reset-sigusr1!", &crate::runtime::KERNEL_SIGUSR1, list_span,
     )
@@ -190,11 +170,7 @@ pub(crate) fn eval_kernel_reset_sigusr1(
 /// @ret     :wat::core::nil always nil
 /// @example-norun (:wat::kernel::reset-sigusr2!) #=> nil
 #[wat_intrinsic(":wat::kernel::reset-sigusr2!")]
-pub(crate) fn eval_kernel_reset_sigusr2(
-    _env: &Environment, // rune:lint(unused-env) — reads/writes an ambient flag only; no bindings needed
-    _sym: &SymbolTable, // rune:lint(unused-sym) — see above
-    list_span: &Span,
-) -> Result<Value, EvalBreak> {
+pub(crate) fn eval_kernel_reset_sigusr2(list_span: &Span) -> Result<Value, EvalBreak> {
     crate::runtime::eval_user_signal_reset(
         &[], ":wat::kernel::reset-sigusr2!", &crate::runtime::KERNEL_SIGUSR2, list_span,
     )
@@ -210,11 +186,7 @@ pub(crate) fn eval_kernel_reset_sigusr2(
 /// @ret     :wat::core::nil always nil
 /// @example-norun (:wat::kernel::reset-sighup!) #=> nil
 #[wat_intrinsic(":wat::kernel::reset-sighup!")]
-pub(crate) fn eval_kernel_reset_sighup(
-    _env: &Environment, // rune:lint(unused-env) — reads/writes an ambient flag only; no bindings needed
-    _sym: &SymbolTable, // rune:lint(unused-sym) — see above
-    list_span: &Span,
-) -> Result<Value, EvalBreak> {
+pub(crate) fn eval_kernel_reset_sighup(list_span: &Span) -> Result<Value, EvalBreak> {
     crate::runtime::eval_user_signal_reset(
         &[], ":wat::kernel::reset-sighup!", &crate::runtime::KERNEL_SIGHUP, list_span,
     )

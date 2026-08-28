@@ -53,11 +53,7 @@ fn is_canonical_uuid_string(s: &str) -> bool {
 /// @example-norun (:wat::uuid::v4) #=> #uuid "a random v4 UUID, different every call"
 /// @see     :wat::uuid::v5
 #[wat_intrinsic(":wat::uuid::v4")]
-pub(crate) fn eval_uuid_v4(
-    _env: &Environment, // rune:lint(unused-env) — 0-arity constructor, no args to evaluate
-    _sym: &SymbolTable, // rune:lint(unused-sym) — see above
-    _span: &Span, // rune:lint(unused-span) — infallible — no error path (always `Ok`)
-) -> Result<Value, EvalBreak> {
+pub(crate) fn eval_uuid_v4() -> Result<Value, EvalBreak> {
     Ok(Value::wat__core__Uuid(wat_edn::new_uuid_v4()))
 }
 
@@ -200,11 +196,7 @@ pub(crate) fn eval_uuid_to_string(
 /// @ret     :wat::core::Uuid the nil UUID (`00000000-0000-0000-0000-000000000000`)
 /// @example (:wat::uuid::nil) #=> (:wat::uuid::nil)
 #[wat_intrinsic(":wat::uuid::nil")]
-pub(crate) fn eval_uuid_nil(
-    _env: &Environment, // rune:lint(unused-env) — 0-arity constructor, no args to evaluate
-    _sym: &SymbolTable, // rune:lint(unused-sym) — see above
-    _span: &Span, // rune:lint(unused-span) — infallible — no error path (always `Ok`)
-) -> Result<Value, EvalBreak> {
+pub(crate) fn eval_uuid_nil() -> Result<Value, EvalBreak> {
     Ok(Value::wat__core__Uuid(uuid::Uuid::nil()))
 }
 

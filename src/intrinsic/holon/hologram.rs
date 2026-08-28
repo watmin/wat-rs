@@ -59,7 +59,7 @@ pub(crate) fn eval_hologram_make(
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::Hologram/make";
-    let filter = require_fn(OP, eval_inner(filter, env, sym)?.value_owned())?;
+    let filter = require_fn(OP, &eval_inner(filter, env, sym)?.value_owned())?;
     let ctx = require_encoding_ctx(OP, sym, list_span)?;
     let h = crate::holon::hologram::Hologram::make(ctx.dim_count, filter);
     Ok(Value::Hologram(Arc::new(
@@ -90,7 +90,7 @@ pub(crate) fn eval_hologram_put(
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::Hologram/put";
-    let store = require_hologram(OP, eval_inner(store, env, sym)?.value_owned())?;
+    let store = require_hologram(OP, &eval_inner(store, env, sym)?.value_owned())?;
     let key = match eval_inner(key, env, sym)?.value_owned() {
         Value::holon__HolonAST(h) => (*h).clone(),
         other => {
@@ -145,7 +145,7 @@ pub(crate) fn eval_hologram_get(
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::Hologram/get";
-    let store = require_hologram(OP, eval_inner(store, env, sym)?.value_owned())?;
+    let store = require_hologram(OP, &eval_inner(store, env, sym)?.value_owned())?;
     let probe = match eval_inner(probe, env, sym)?.value_owned() {
         Value::holon__HolonAST(h) => h,
         other => {
@@ -193,7 +193,7 @@ pub(crate) fn eval_hologram_find(
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::Hologram/find";
-    let store = require_hologram(OP, eval_inner(store, env, sym)?.value_owned())?;
+    let store = require_hologram(OP, &eval_inner(store, env, sym)?.value_owned())?;
     let probe = match eval_inner(probe, env, sym)?.value_owned() {
         Value::holon__HolonAST(h) => h,
         other => {
@@ -248,7 +248,7 @@ pub(crate) fn eval_hologram_remove(
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::Hologram/remove";
-    let store = require_hologram(OP, eval_inner(store, env, sym)?.value_owned())?;
+    let store = require_hologram(OP, &eval_inner(store, env, sym)?.value_owned())?;
     let key = match eval_inner(key, env, sym)?.value_owned() {
         Value::holon__HolonAST(h) => (*h).clone(),
         other => {
@@ -284,14 +284,9 @@ pub(crate) fn eval_hologram_remove(
 /// @ret     :wat::core::i64 the number of entries currently stored
 /// @example (:wat::holon::Hologram/len (:wat::holon::Hologram/make (:wat::core::fn [_x <- :wat::core::f64] -> :wat::core::bool true))) #=> (:wat::holon::Hologram/len (:wat::holon::Hologram/make (:wat::core::fn [_x <- :wat::core::f64] -> :wat::core::bool true)))
 #[wat_intrinsic(":wat::holon::Hologram/len")]
-pub(crate) fn eval_hologram_len(
-    store: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    _span: &Span, // rune:lint(unused-span) — infallible: `require_hologram`'s TypeMismatch locates via `rust_caller_span!()` inside that helper, and `with_ref`'s own `len()` read has no error path
-) -> Result<Value, EvalBreak> {
+pub(crate) fn hologram_len(store: &Value) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::Hologram/len";
-    let store = require_hologram(OP, eval_inner(store, env, sym)?.value_owned())?;
+    let store = require_hologram(OP, store)?;
     let n = store.with_ref(OP, |s| s.len() as i64)?;
     Ok(Value::i64(n))
 }
@@ -308,14 +303,9 @@ pub(crate) fn eval_hologram_len(
 /// @ret     :wat::core::i64 the store's Kanerva capacity
 /// @example (:wat::holon::Hologram/capacity (:wat::holon::Hologram/make (:wat::core::fn [_x <- :wat::core::f64] -> :wat::core::bool true))) #=> (:wat::holon::Hologram/capacity (:wat::holon::Hologram/make (:wat::core::fn [_x <- :wat::core::f64] -> :wat::core::bool true)))
 #[wat_intrinsic(":wat::holon::Hologram/capacity")]
-pub(crate) fn eval_hologram_capacity(
-    store: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    _span: &Span, // rune:lint(unused-span) — infallible: `require_hologram`'s TypeMismatch locates via `rust_caller_span!()` inside that helper, and `with_ref`'s own `capacity()` read has no error path
-) -> Result<Value, EvalBreak> {
+pub(crate) fn hologram_capacity(store: &Value) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::Hologram/capacity";
-    let store = require_hologram(OP, eval_inner(store, env, sym)?.value_owned())?;
+    let store = require_hologram(OP, store)?;
     let cap = store.with_ref(OP, |s| s.capacity() as i64)?;
     Ok(Value::i64(cap))
 }

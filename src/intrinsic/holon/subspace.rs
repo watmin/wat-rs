@@ -26,11 +26,10 @@ use std::sync::Arc;
 
 use wat_macros::wat_intrinsic;
 
-use crate::ast::WatAST;
 use crate::holon::*;
-use crate::runtime::{eval_inner, require_i64};
+use crate::runtime::require_i64;
 use crate::span::Span;
-use crate::value::{Environment, EvalBreak, SymbolTable, Value};
+use crate::value::{EvalBreak, Value};
 
 /// `(:wat::holon::OnlineSubspace/new dim k)` -> a fresh `OnlineSubspace`
 /// tracking a rank-`k` basis over `dim`-dimensional raw vectors.
@@ -44,21 +43,9 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// @ret     :wat::holon::OnlineSubspace a fresh, untrained subspace tracker
 /// @example-norun (:wat::holon::OnlineSubspace/new 4096 8) #=> #wat.holon/OnlineSubspace{}
 #[wat_intrinsic(":wat::holon::OnlineSubspace/new")]
-pub(crate) fn eval_subspace_new(
-    dim: &WatAST,
-    k: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    _span: &Span, // rune:lint(unused-span) — located elsewhere: the only errors (TypeMismatch, from `require_i64`) locate via `rust_caller_span!()` inside that helper, not here
-) -> Result<Value, EvalBreak> {
-    let dim = require_i64(
-        ":wat::holon::OnlineSubspace/new",
-        eval_inner(dim, env, sym)?.value_owned(),
-    )?;
-    let k = require_i64(
-        ":wat::holon::OnlineSubspace/new",
-        eval_inner(k, env, sym)?.value_owned(),
-    )?;
+pub(crate) fn subspace_new(dim: &Value, k: &Value) -> Result<Value, EvalBreak> {
+    let dim = require_i64(":wat::holon::OnlineSubspace/new", dim.clone())?;
+    let k = require_i64(":wat::holon::OnlineSubspace/new", k.clone())?;
     let s = holon::OnlineSubspace::new(dim as usize, k as usize);
     Ok(Value::OnlineSubspace(Arc::new(
         crate::rust_deps::ThreadOwnedCell::new(s),
@@ -77,17 +64,8 @@ pub(crate) fn eval_subspace_new(
 /// @ret     :wat::core::i64 the raw vector dimension
 /// @example (:wat::holon::OnlineSubspace/dim (:wat::holon::OnlineSubspace/new 10000 8)) #=> (:wat::holon::OnlineSubspace/dim (:wat::holon::OnlineSubspace/new 10000 8))
 #[wat_intrinsic(":wat::holon::OnlineSubspace/dim")]
-pub(crate) fn eval_subspace_dim(
-    s: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    list_span: &Span,
-) -> Result<Value, EvalBreak> {
-    let s = require_subspace(
-        ":wat::holon::OnlineSubspace/dim",
-        eval_inner(s, env, sym)?.value_owned(),
-        list_span,
-    )?;
+pub(crate) fn subspace_dim(s: &Value, span: &Span) -> Result<Value, EvalBreak> {
+    let s = require_subspace(":wat::holon::OnlineSubspace/dim", s, span)?;
     let n = s.with_ref(":wat::holon::OnlineSubspace/dim", |s| s.dim())?;
     Ok(Value::i64(n as i64))
 }
@@ -104,17 +82,8 @@ pub(crate) fn eval_subspace_dim(
 /// @ret     :wat::core::i64 the tracked rank
 /// @example (:wat::holon::OnlineSubspace/k (:wat::holon::OnlineSubspace/new 10000 8)) #=> (:wat::holon::OnlineSubspace/k (:wat::holon::OnlineSubspace/new 10000 8))
 #[wat_intrinsic(":wat::holon::OnlineSubspace/k")]
-pub(crate) fn eval_subspace_k(
-    s: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    list_span: &Span,
-) -> Result<Value, EvalBreak> {
-    let s = require_subspace(
-        ":wat::holon::OnlineSubspace/k",
-        eval_inner(s, env, sym)?.value_owned(),
-        list_span,
-    )?;
+pub(crate) fn subspace_k(s: &Value, span: &Span) -> Result<Value, EvalBreak> {
+    let s = require_subspace(":wat::holon::OnlineSubspace/k", s, span)?;
     let n = s.with_ref(":wat::holon::OnlineSubspace/k", |s| s.k())?;
     Ok(Value::i64(n as i64))
 }
@@ -131,17 +100,8 @@ pub(crate) fn eval_subspace_k(
 /// @ret     :wat::core::i64 the number of observations absorbed so far
 /// @example (:wat::holon::OnlineSubspace/n (:wat::holon::OnlineSubspace/new 10000 8)) #=> (:wat::holon::OnlineSubspace/n (:wat::holon::OnlineSubspace/new 10000 8))
 #[wat_intrinsic(":wat::holon::OnlineSubspace/n")]
-pub(crate) fn eval_subspace_n(
-    s: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    list_span: &Span,
-) -> Result<Value, EvalBreak> {
-    let s = require_subspace(
-        ":wat::holon::OnlineSubspace/n",
-        eval_inner(s, env, sym)?.value_owned(),
-        list_span,
-    )?;
+pub(crate) fn subspace_n(s: &Value, span: &Span) -> Result<Value, EvalBreak> {
+    let s = require_subspace(":wat::holon::OnlineSubspace/n", s, span)?;
     let n = s.with_ref(":wat::holon::OnlineSubspace/n", |s| s.n())?;
     Ok(Value::i64(n as i64))
 }
@@ -158,17 +118,8 @@ pub(crate) fn eval_subspace_n(
 /// @ret     :wat::core::f64 the current residual threshold
 /// @example (:wat::holon::OnlineSubspace/threshold (:wat::holon::OnlineSubspace/new 10000 8)) #=> (:wat::holon::OnlineSubspace/threshold (:wat::holon::OnlineSubspace/new 10000 8))
 #[wat_intrinsic(":wat::holon::OnlineSubspace/threshold")]
-pub(crate) fn eval_subspace_threshold(
-    s: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    list_span: &Span,
-) -> Result<Value, EvalBreak> {
-    let s = require_subspace(
-        ":wat::holon::OnlineSubspace/threshold",
-        eval_inner(s, env, sym)?.value_owned(),
-        list_span,
-    )?;
+pub(crate) fn subspace_threshold(s: &Value, span: &Span) -> Result<Value, EvalBreak> {
+    let s = require_subspace(":wat::holon::OnlineSubspace/threshold", s, span)?;
     let t = s.with_ref(":wat::holon::OnlineSubspace/threshold", |s| s.threshold())?;
     Ok(Value::f64(t))
 }
@@ -185,17 +136,8 @@ pub(crate) fn eval_subspace_threshold(
 /// @ret     (:wat::core::Vector :- [:wat::core::f64]) the tracked basis's current eigenvalues
 /// @example (:wat::holon::OnlineSubspace/eigenvalues (:wat::holon::OnlineSubspace/new 10000 8)) #=> (:wat::holon::OnlineSubspace/eigenvalues (:wat::holon::OnlineSubspace/new 10000 8))
 #[wat_intrinsic(":wat::holon::OnlineSubspace/eigenvalues")]
-pub(crate) fn eval_subspace_eigenvalues(
-    s: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    list_span: &Span,
-) -> Result<Value, EvalBreak> {
-    let s = require_subspace(
-        ":wat::holon::OnlineSubspace/eigenvalues",
-        eval_inner(s, env, sym)?.value_owned(),
-        list_span,
-    )?;
+pub(crate) fn subspace_eigenvalues(s: &Value, span: &Span) -> Result<Value, EvalBreak> {
+    let s = require_subspace(":wat::holon::OnlineSubspace/eigenvalues", s, span)?;
     let xs = s.with_ref(":wat::holon::OnlineSubspace/eigenvalues", |s| {
         s.eigenvalues()
     })?;
@@ -216,26 +158,13 @@ pub(crate) fn eval_subspace_eigenvalues(
 /// @ret     :wat::core::f64 `v`'s pre-update residual
 /// @example-norun (:wat::holon::OnlineSubspace/update s v) #=> 0.31
 #[wat_intrinsic(":wat::holon::OnlineSubspace/update")]
-pub(crate) fn eval_subspace_update(
-    s: &WatAST,
-    v: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    list_span: &Span,
-) -> Result<Value, EvalBreak> {
-    let s = require_subspace(
-        ":wat::holon::OnlineSubspace/update",
-        eval_inner(s, env, sym)?.value_owned(),
-        list_span,
-    )?;
-    let v = require_vector(
-        ":wat::holon::OnlineSubspace/update",
-        eval_inner(v, env, sym)?.value_owned(),
-    )?;
+pub(crate) fn subspace_update(s: &Value, v: &Value, span: &Span) -> Result<Value, EvalBreak> {
+    let s = require_subspace(":wat::holon::OnlineSubspace/update", s, span)?;
+    let v = require_vector(":wat::holon::OnlineSubspace/update", v)?;
     let xs = v.to_f64();
     let residual = s.with_mut(
         ":wat::holon::OnlineSubspace/update",
-        list_span.clone(),
+        span.clone(),
         |s| s.update(&xs),
     )?;
     Ok(Value::f64(residual))
@@ -255,22 +184,9 @@ pub(crate) fn eval_subspace_update(
 /// @ret     :wat::core::f64 `v`'s residual against `s`'s current basis
 /// @example (:wat::holon::OnlineSubspace/residual (:wat::holon::OnlineSubspace/new 10000 8) (:wat::holon::encode (:wat::holon::leaf "role"))) #=> (:wat::holon::OnlineSubspace/residual (:wat::holon::OnlineSubspace/new 10000 8) (:wat::holon::encode (:wat::holon::leaf "role")))
 #[wat_intrinsic(":wat::holon::OnlineSubspace/residual")]
-pub(crate) fn eval_subspace_residual(
-    s: &WatAST,
-    v: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    list_span: &Span,
-) -> Result<Value, EvalBreak> {
-    let s = require_subspace(
-        ":wat::holon::OnlineSubspace/residual",
-        eval_inner(s, env, sym)?.value_owned(),
-        list_span,
-    )?;
-    let v = require_vector(
-        ":wat::holon::OnlineSubspace/residual",
-        eval_inner(v, env, sym)?.value_owned(),
-    )?;
+pub(crate) fn subspace_residual(s: &Value, v: &Value, span: &Span) -> Result<Value, EvalBreak> {
+    let s = require_subspace(":wat::holon::OnlineSubspace/residual", s, span)?;
+    let v = require_vector(":wat::holon::OnlineSubspace/residual", v)?;
     let xs = v.to_f64();
     let r = s.with_ref(":wat::holon::OnlineSubspace/residual", |s| s.residual(&xs))?;
     Ok(Value::f64(r))
@@ -289,22 +205,9 @@ pub(crate) fn eval_subspace_residual(
 /// @ret     (:wat::core::Vector :- [:wat::core::f64]) `v`'s coordinates in the rank-`k` basis
 /// @example (:wat::holon::OnlineSubspace/project (:wat::holon::OnlineSubspace/new 10000 8) (:wat::holon::encode (:wat::holon::leaf "role"))) #=> (:wat::holon::OnlineSubspace/project (:wat::holon::OnlineSubspace/new 10000 8) (:wat::holon::encode (:wat::holon::leaf "role")))
 #[wat_intrinsic(":wat::holon::OnlineSubspace/project")]
-pub(crate) fn eval_subspace_project(
-    s: &WatAST,
-    v: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    list_span: &Span,
-) -> Result<Value, EvalBreak> {
-    let s = require_subspace(
-        ":wat::holon::OnlineSubspace/project",
-        eval_inner(s, env, sym)?.value_owned(),
-        list_span,
-    )?;
-    let v = require_vector(
-        ":wat::holon::OnlineSubspace/project",
-        eval_inner(v, env, sym)?.value_owned(),
-    )?;
+pub(crate) fn subspace_project(s: &Value, v: &Value, span: &Span) -> Result<Value, EvalBreak> {
+    let s = require_subspace(":wat::holon::OnlineSubspace/project", s, span)?;
+    let v = require_vector(":wat::holon::OnlineSubspace/project", v)?;
     let xs = v.to_f64();
     let projected = s.with_ref(":wat::holon::OnlineSubspace/project", |s| s.project(&xs))?;
     Ok(vec_f64_to_value(projected))
@@ -324,22 +227,9 @@ pub(crate) fn eval_subspace_project(
 /// @ret     (:wat::core::Vector :- [:wat::core::f64]) `v` projected onto the basis and back
 /// @example (:wat::holon::OnlineSubspace/reconstruct (:wat::holon::OnlineSubspace/new 10000 8) (:wat::holon::encode (:wat::holon::leaf "role"))) #=> (:wat::holon::OnlineSubspace/reconstruct (:wat::holon::OnlineSubspace/new 10000 8) (:wat::holon::encode (:wat::holon::leaf "role")))
 #[wat_intrinsic(":wat::holon::OnlineSubspace/reconstruct")]
-pub(crate) fn eval_subspace_reconstruct(
-    s: &WatAST,
-    v: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    list_span: &Span,
-) -> Result<Value, EvalBreak> {
-    let s = require_subspace(
-        ":wat::holon::OnlineSubspace/reconstruct",
-        eval_inner(s, env, sym)?.value_owned(),
-        list_span,
-    )?;
-    let v = require_vector(
-        ":wat::holon::OnlineSubspace/reconstruct",
-        eval_inner(v, env, sym)?.value_owned(),
-    )?;
+pub(crate) fn subspace_reconstruct(s: &Value, v: &Value, span: &Span) -> Result<Value, EvalBreak> {
+    let s = require_subspace(":wat::holon::OnlineSubspace/reconstruct", s, span)?;
+    let v = require_vector(":wat::holon::OnlineSubspace/reconstruct", v)?;
     let xs = v.to_f64();
     let r = s.with_ref(":wat::holon::OnlineSubspace/reconstruct", |s| {
         s.reconstruct(&xs)

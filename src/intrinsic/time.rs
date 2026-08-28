@@ -68,11 +68,7 @@ use crate::value::{
 /// @ret     :wat::time::Instant the instant sampled at call time
 /// @example-norun (:wat::time::now) #=> #inst "2026-08-13T12:00:00.000000000Z"
 #[wat_intrinsic(":wat::time::now")]
-pub(crate) fn eval_time_now(
-    _env: &Environment, // rune:lint(unused-env) — `now` samples the clock only; no bindings needed
-    _sym: &SymbolTable, // rune:lint(unused-sym) — see above
-    _span: &Span, // rune:lint(unused-span) — `now` is 0-arity; the shim's own arity check owns that failure mode
-) -> Result<Value, EvalBreak> {
+pub(crate) fn eval_time_now() -> Result<Value, EvalBreak> {
     Ok(Value::Instant(Utc::now()))
 }
 

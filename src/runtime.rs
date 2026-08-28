@@ -10806,7 +10806,8 @@ fn eval_apply(
     }
 
     // (c) substrate arithmetic / dispatch-impl verbs (pre-evaluated path).
-    if let Some(result) = dispatch_substrate_impl(head_kw.as_str(), &combined) {
+    // Arc 255 Stone Q — pass the call's own `list_span`, not a synthesized one.
+    if let Some(result) = dispatch_substrate_impl(head_kw.as_str(), &combined, &list_span) {
         return result;
     }
 
@@ -11635,9 +11636,16 @@ pub(crate) fn require_i64(op: &'static str, v: Value) -> Result<i64, EvalBreak> 
 /// split-brain risk was runtime.rs-local and undocumented there). The
 /// `value_handler` registrations above close that risk for all 44 at once,
 /// so it no longer needs a per-arm note now that there is no per-arm table.
+// Arc 255 Stone Q — gained a trailing `&Span` param. `apply` (the one caller, below)
+// already holds `list_span`; this fn simply forwards it to `handler` now that
+// `ValueHandler` has somewhere to put it.
+// Arc 255 Stone Q-2 — the arity-mismatch diagnostic just below now USES `span` instead
+// of synthesizing `rust_caller_span!()`: Q threaded the span, Q-2 is the stone that
+// spends it. A wrong-arity `apply` now points at the user's `.wat` call site.
 pub(crate) fn dispatch_substrate_impl(
     impl_name: &str,
     vals: &[Value],
+    span: &Span,
 ) -> Option<Result<Value, EvalBreak>> {
     // Arc 255 Stone O-i — the value door gets the same arity guard the AST
     // door has always had (`crates/wat-macros/src/wat_intrinsic.rs`'s
@@ -11655,7 +11663,7 @@ pub(crate) fn dispatch_substrate_impl(
     if let crate::intrinsic::Arity::Exact(n) = entry.arity {
         if vals.len() != n {
             return Some(Err(RuntimeError::new(
-                crate::rust_caller_span!(),
+                span.clone(),
                 RuntimeErrorKind::ArityMismatch {
                     op: impl_name.into(),
                     expected: n,
@@ -11665,7 +11673,7 @@ pub(crate) fn dispatch_substrate_impl(
             .into()));
         }
     }
-    Some(handler(vals))
+    Some(handler(vals, span))
 }
 
 /// Arc 148 slice 4 — Value-level arithmetic leaves used by
@@ -11697,7 +11705,16 @@ pub(crate) enum I64ArithErr {
     Overflow(i64, i64),
 }
 
-pub(crate) fn arith_i64_i64_inner<F>(impl_name: &str, vals: &[Value], op: F) -> Result<Value, EvalBreak>
+// Arc 255 Stone Q-2 — gained `span: &Span`. This helper is called ONLY by the 19
+// value-door twins (`src/intrinsic/{i64,f64,bigint,rational}.rs`), never by the AST
+// door's `eval_i64_arith`/`i64_add_op` (STOP-3: those keep their own spans untouched).
+// Every error below now carries the caller's real span instead of a synthesized one.
+pub(crate) fn arith_i64_i64_inner<F>(
+    impl_name: &str,
+    vals: &[Value],
+    span: &Span,
+    op: F,
+) -> Result<Value, EvalBreak>
 where
     F: Fn(i64, i64) -> Result<i64, I64ArithErr>,
 {
@@ -11706,13 +11723,11 @@ where
     match (a, b) {
         (Value::i64(x), Value::i64(y)) => match op(*x, *y) {
             Ok(r) => Ok(Value::i64(r)),
-            Err(I64ArithErr::DivByZero) => Err(RuntimeError::new(
-                crate::rust_caller_span!(),
-                RuntimeErrorKind::DivisionByZero,
-            )
-            .into()),
+            Err(I64ArithErr::DivByZero) => {
+                Err(RuntimeError::new(span.clone(), RuntimeErrorKind::DivisionByZero).into())
+            }
             Err(I64ArithErr::Overflow(a, b)) => Err(RuntimeError::new(
-                crate::rust_caller_span!(),
+                span.clone(),
                 RuntimeErrorKind::IntegerOverflow {
                     op: impl_name.into(),
                     a,
@@ -11722,7 +11737,7 @@ where
             .into()),
         },
         _ => Err(RuntimeError::new(
-            crate::rust_caller_span!(),
+            span.clone(),
             RuntimeErrorKind::TypeMismatch {
                 op: impl_name.into(),
                 expected: "(i64, i64)",
@@ -11733,7 +11748,13 @@ where
     }
 }
 
-pub(crate) fn arith_f64_f64_inner<F>(impl_name: &str, vals: &[Value], op: F) -> Result<Value, EvalBreak>
+// Arc 255 Stone Q-2 — gained `span: &Span`; see `arith_i64_i64_inner`'s comment above.
+pub(crate) fn arith_f64_f64_inner<F>(
+    impl_name: &str,
+    vals: &[Value],
+    span: &Span,
+    op: F,
+) -> Result<Value, EvalBreak>
 where
     F: Fn(f64, f64) -> Result<f64, ()>,
 {
@@ -11742,14 +11763,12 @@ where
     match (a, b) {
         (Value::f64(x), Value::f64(y)) => match op(*x, *y) {
             Ok(r) => Ok(Value::f64(r)),
-            Err(()) => Err(RuntimeError::new(
-                crate::rust_caller_span!(),
-                RuntimeErrorKind::DivisionByZero,
-            )
-            .into()),
+            Err(()) => {
+                Err(RuntimeError::new(span.clone(), RuntimeErrorKind::DivisionByZero).into())
+            }
         },
         _ => Err(RuntimeError::new(
-            crate::rust_caller_span!(),
+            span.clone(),
             RuntimeErrorKind::TypeMismatch {
                 op: impl_name.into(),
                 expected: "(f64, f64)",
@@ -11765,7 +11784,13 @@ where
 /// directly (not a `BigInt`) so `/` can produce EITHER
 /// `Value::wat__core__BigInt` or `Value::wat__core__Rational` — same
 /// two-output-type reason as `eval_bigint_arith`.
-pub(crate) fn arith_bigint_bigint_inner<F>(impl_name: &str, vals: &[Value], op: F) -> Result<Value, EvalBreak>
+// Arc 255 Stone Q-2 — gained `span: &Span`; see `arith_i64_i64_inner`'s comment above.
+pub(crate) fn arith_bigint_bigint_inner<F>(
+    impl_name: &str,
+    vals: &[Value],
+    span: &Span,
+    op: F,
+) -> Result<Value, EvalBreak>
 where
     F: Fn(&BigInt, &BigInt) -> Result<Value, ()>,
 {
@@ -11774,14 +11799,12 @@ where
     match (a, b) {
         (Value::wat__core__BigInt(x), Value::wat__core__BigInt(y)) => match op(x, y) {
             Ok(v) => Ok(v),
-            Err(()) => Err(RuntimeError::new(
-                crate::rust_caller_span!(),
-                RuntimeErrorKind::DivisionByZero,
-            )
-            .into()),
+            Err(()) => {
+                Err(RuntimeError::new(span.clone(), RuntimeErrorKind::DivisionByZero).into())
+            }
         },
         _ => Err(RuntimeError::new(
-            crate::rust_caller_span!(),
+            span.clone(),
             RuntimeErrorKind::TypeMismatch {
                 op: impl_name.into(),
                 expected: "(bigint, bigint)",
@@ -11798,9 +11821,11 @@ where
 /// where only `/` does) — this helper applies `collapse_bigrational`
 /// uniformly after `op`. Operands are coerced via `to_bigrational` (rational
 /// or bigint — see its doc for why bigint is accepted here too).
+// Arc 255 Stone Q-2 — gained `span: &Span`; see `arith_i64_i64_inner`'s comment above.
 pub(crate) fn arith_rational_rational_inner<F>(
     impl_name: &str,
     vals: &[Value],
+    span: &Span,
     op: F,
 ) -> Result<Value, EvalBreak>
 where
@@ -11811,14 +11836,12 @@ where
     match (to_bigrational(a), to_bigrational(b)) {
         (Some(x), Some(y)) => match op(&x, &y) {
             Ok(r) => Ok(collapse_bigrational(r)),
-            Err(()) => Err(RuntimeError::new(
-                crate::rust_caller_span!(),
-                RuntimeErrorKind::DivisionByZero,
-            )
-            .into()),
+            Err(()) => {
+                Err(RuntimeError::new(span.clone(), RuntimeErrorKind::DivisionByZero).into())
+            }
         },
         _ => Err(RuntimeError::new(
-            crate::rust_caller_span!(),
+            span.clone(),
             RuntimeErrorKind::TypeMismatch {
                 op: impl_name.into(),
                 expected: "(rational, rational)",
@@ -18967,8 +18990,8 @@ pub(crate) fn presence_q_from_values(
     list_span: &Span,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    let target = require_holon(":wat::holon::presence?", target)?;
-    let reference = require_holon(":wat::holon::presence?", reference)?;
+    let target = require_holon(":wat::holon::presence?", &target)?;
+    let reference = require_holon(":wat::holon::presence?", &reference)?;
     let ctx = require_encoding_ctx(":wat::holon::presence?", sym, list_span)?;
 
     // Arc 037 slice 3: normalize UP via ambient router. Presence
@@ -19062,8 +19085,8 @@ pub(crate) fn coincident_of_two_values(
     // back to list_span (the call site), which is real user source.
     let atom_a = to_holon_inner(value_a, list_span)?;
     let atom_b = to_holon_inner(value_b, list_span)?;
-    let holon_a = require_holon(op, atom_a)?;
-    let holon_b = require_holon(op, atom_b)?;
+    let holon_a = require_holon(op, &atom_a)?;
+    let holon_b = require_holon(op, &atom_b)?;
     let ctx = require_encoding_ctx(op, sym, list_span)?;
     // Arc 037 slice 3: normalize UP via ambient router. Coincident
     // floor at actual encoding d.

@@ -561,3 +561,171 @@ builder's call, unchanged, and is why the disposition axis is THREE-valued and n
 
 `Q` → then `O-iv-c` (73) → `O-iv-d` (26). Without Q, O-iv-c is impossible and O-iv-d shrinks to the
 ~25 span-free stragglers. With it, **302 handlers become migratable** that are not today.
+
+---
+
+## ★ THE ARG-SPAN CLASS IS `apply`'s PERMANENT FLOOR — 2026-08-28, after O-iv-c-1
+
+O-iv-c-1's rider refused five migrations because the handlers read `<arg>.span()` and `Value` carries
+no span. Applying that test to `atom.rs` before drawing O-iv-c-2 — **a candidate list, verified
+against both known refusals as controls** — the shape is stark:
+
+```
+src/intrinsic/holon/atom.rs, 60 handlers
+  MIGRATABLE                      16
+  ARG-SPAN — cannot migrate       25    reads an argument's own source location
+  BINDING (env/sym or ctx)        19
+```
+
+**In atom, the ARG-SPAN class is larger than the BINDING class.** It is now the dominant blocker on
+the sweep, and it is not a limitation of the ALGEBRA contract that a future stone could widen.
+
+### Why it is permanent, and it is Stone O's own founding fact
+
+Stone Q gave the value door the **call's** span, which was free because `eval_apply` holds one. There
+is no equivalent move for per-argument spans, and the reason is the thing this design opened with:
+
+> **`apply`'s arguments have no syntax.** Proven at Stone O: `(apply :wat::i64::+ (:mk::pair))`
+> evaluates to 42 while the form's AST children are `[apply, the verb, (:mk::pair)]` — **there is no
+> node for `20` or `22` anywhere.** The arity is decided at runtime.
+
+A per-argument span cannot be supplied by a caller whose arguments were never written down. So:
+
+| | can `apply` reach it? | why |
+|---|---|---|
+| span-free algebra | ✅ | nothing needed |
+| call-span algebra | ✅ (Stone Q) | `apply` holds the call span |
+| **ARG-SPAN** | **❌ never** | the arguments have no syntax to have a span *of* |
+| BINDING | ❌ never | needs `env`/`sym`, which imply ASTs |
+
+★ **So the honest end-state of this campaign is not "every verb reachable through apply."** It is
+*"every verb that CAN be reachable is, and the rest say so truthfully"* — which is exactly what
+Stone O-iv-a's diagnostic already does. **The message it prints is not a placeholder awaiting a
+sweep; for the ARG-SPAN and BINDING classes it is the permanent, correct answer.**
+
+⚠ **A verb in the ARG-SPAN class is not thereby correct.** Some may be reading an argument's span
+where the call span would serve just as well — that is a per-verb judgement about diagnostic
+quality, and converting one is a *deliberate trade* (per-element precision for `apply`
+reachability), **the builder's call and never a rider's**. This design records the class; it does
+not rule on any member.
+
+⚠ **The numbers above are a CANDIDATE LIST from a pattern**, controlled against O-iv-c-1's five
+known refusals and no further. Three span classifiers were retracted in one afternoon for this exact
+question. The compiler and a read remain the instruments; treat 16/25/19 as where to look, not what
+is true.
+
+---
+
+## ⛔ A FOURTH DISQUALIFIER — UNEVALUATED-ARGS — and the runtime had it written down all along
+
+O-iv-c-2's rider migrated **15**, not the briefed 16. The one it refused trips **none of the three
+disqualifiers this design had named**: `:wat::holon::literal` reads no argument's span, and its
+`env`/`sym` are literally `_env`/`_sym`, unused.
+
+**It needs its arguments UNEVALUATED.** `eval_holon_literal` delegates to `eval_quote` — quote
+semantics, the body is data. By the time `apply` calls any value-door handler every argument is an
+evaluated `Value`, so there is no unevaluated form left to quote. Migrating it would have silently
+turned `literal` into `to-holon` on a pre-evaluated value.
+
+★ **AND THE RUNTIME ALREADY KNEW — `eval_apply` names it, with the reason, at `runtime.rs:10724`:**
+
+```rust
+// Arc 294.b — holon literal is a special form (body is data, not a callable).
+":wat::holon::literal",
+```
+
+It sits in `eval_apply`'s Step-7 `SPECIAL_FORMS` list, which predates this entire arc. Proven live —
+the two refusals are not even the same error:
+
+```
+(apply :wat::holon::literal …)  →  "cannot apply special form … not declaration or language forms"
+(apply :wat::holon::Atom …)     →  "registered, but no handler taking EVALUATED arguments …"
+```
+
+**The substrate had the answer written down and my disposition axis never read it.** Same shape as
+`runtime.rs:11652`'s `apply` split-brain comment, which would have prevented HOME-13's retraction,
+and as the tail match's own comment naming the `serve-dispatch-op` precedent for P6. *"The tree keeps
+already saying it"* — the 294 seam's lesson 5, earning itself a fourth time.
+
+### The disposition axis is FOUR-valued
+
+| | reachable through `apply`? | |
+|---|---|---|
+| span-free algebra | ✅ | |
+| call-span algebra | ✅ | Stone Q |
+| ARG-SPAN | ❌ never | the arguments have no syntax to have a span *of* |
+| **UNEVALUATED-ARGS** | **❌ never** | the arguments are already evaluated; quote has nothing left to quote |
+| BINDING | ❌ never | needs `env`/`sym`, which imply ASTs |
+
+⚠ **Check `eval_apply`'s `SPECIAL_FORMS` list before classifying any verb.** A name on it is
+already ruled un-dispatchable, for a reason someone wrote down; a sweep that migrates one is
+overturning a ruling it never read.
+
+### Also recorded — the DELEGATE-BINDING class, verified rather than inferred
+
+Seven atom verbs (`cosine`, `presence?`, `coincident?`, `coincident-explain`, `dot`, `encode`,
+`Bundle`) read as plain arg-eval shells; their `sym` need is one level down, inside
+`pair_values_to_vectors` / `cosine_outcome_from_values` / `require_encoding_ctx`. **The rider checked
+every helper's signature instead of trusting the caller's shape** — the discipline the `max-of` /
+`f64_variadic_reduce` retraction bought, applied without being asked.
+
+---
+
+## ⛔ O-iv-d CLOSED THE SWEEP BY FINDING A GENERATOR GAP — and the macro's own comment describes a shape it forbids
+
+**1 of 14 migrated.** `:wat::core::List` — the wave's one variadic verb, and the first variadic
+ALGEBRA migration in the arc. Splat proven: `(apply :wat::core::List [1 2 3])` → `(1 2 3)`,
+`[]` → `()`.
+
+### The gap — `sniff_kind` cannot classify a nullary handler
+
+Eleven 0-arg candidates were migrated to `fn f() -> Result<Value, EvalBreak>` and produced **eleven
+identical `E0061`s**. The cause is one line:
+
+```rust
+let is_algebra = matches!(
+    item.sig.inputs.iter().next(),                       // ← a NULLARY fn has no first param
+    Some(FnArg::Typed(pt)) if is_ref_value(&pt.ty) || is_ref_value_slice(&pt.ty)
+);
+if !is_algebra { return Ok(IntrinsicKind::Binding(sniff_args(item)?)); }
+```
+
+`inputs.iter().next()` on a zero-parameter fn is `None`, so `is_algebra` is unconditionally `false`
+and the handler falls to BINDING — which then emits `#fn_name(env, sym, list_span)` into a fn that
+takes nothing. **A structural, compile-time gap, not a subtle runtime bug.**
+
+★ **And `emit` already believes the shape is legal.** Its own comment, `wat_intrinsic.rs:776`:
+
+> *"…a nullary ALGEBRA fn taking only a span is a legal, if unusual, shape."*
+
+That comment guards a `call_args` build that **can never run**, because `sniff_kind` rejects the
+shape three hundred lines earlier. **The generator documents a capability its own classifier
+forbids** — the day's most-repeated defect, this time inside the tool that writes 380 handlers.
+`[[feedback_a_comment_can_ship_a_gap_as_a_law]]`
+
+The rider held STOP-2: it did not patch the macro, did not invent a workaround signature, reverted
+all eleven to their pre-image and reported. **That is the STOP working — the brief predicted "if n=0
+misbehaves, that is a generator finding," and it was.**
+
+### And a FIFTH and SIXTH UNEVALUATED-ARGS instance — proven, not argued
+
+`:wat::string::declare-acronyms` and `:wat::intrinsic::variadic-args-measurement` **never call
+`eval_inner` on their arguments.** Proven by passing an erroring expression:
+
+```
+(… variadic-args-measurement (:wat::i64::/ 1 0) …)  →  count = 3      the arg was never evaluated
+(… declare-acronyms (:wat::i64::/ 1 0) …)           →  Ok(nil)        same
+```
+
+Migrating either would make the generated AST door evaluate every argument first, so **an argument
+that is silently ignored today would start raising.** ⚠ **My brief called `declare-acronyms`
+"trivial and harmless" to migrate. It is neither**, and the rider proved it with the
+`eval-ast!`+`quote` bypass this sweep established as its evidence method rather than arguing from
+the body's shape.
+
+### Where the sweep ends
+
+O-iv is now closed: **b** (32 collections) · **c-0/c-1/c-2** (holon, 42 of 95) · **d** (1 of 14).
+Everything else is refused for a stated reason on the four-valued axis — and the eleven nullary
+verbs are refused for a *sixth* reason that is not about the verbs at all, but about the generator.
+That one is fixable, and it is the only remaining entry on the axis that is not permanent.

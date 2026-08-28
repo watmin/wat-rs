@@ -195,7 +195,16 @@ pub(crate) struct ExampleSubmission {
 /// That impedance mismatch, not laziness, is why `dispatch_substrate_impl` was a second match table
 /// with no registry lookup (arc 255 Stone N). A verb carrying this slot is served by the REGISTRY on
 /// both paths; one carrying only `handler` still falls through to the legacy match.
-pub(crate) type ValueHandler = fn(&[Value]) -> Result<Value, EvalBreak>;
+///
+/// Arc 255 Stone Q — widened to carry a trailing `&Span`. The ALGEBRA contract (`env`/`sym`
+/// forbidden — binding state a splatted `&Value` handler genuinely cannot use) still holds; a
+/// span is not binding state, it is a location, and `apply` already holds one
+/// (`runtime.rs:10773`, `eval_apply`'s `list_span`) that simply had nowhere to go before this
+/// slot could carry it. The AST door already passes its `list_span` to the `NativeHandler`
+/// above; this widening lets the value door pass the SAME call span, not a synthesized one. An
+/// ALGEBRA fn may ignore it (the 38 already-migrated verbs do — the trailing param is optional
+/// at the Rust-fn level, mandatory only on this fn-pointer type).
+pub(crate) type ValueHandler = fn(&[Value], &Span) -> Result<Value, EvalBreak>;
 
 pub(crate) struct IntrinsicSubmission {
     pub name: &'static str,

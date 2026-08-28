@@ -1,4 +1,4 @@
-# WORKLIST — arc 255's open stones, ordered. As of 2026-08-28, HEAD `517489500`+P1.
+# WORKLIST — arc 255's open stones, ordered. As of 2026-08-28, HEAD `9dd09045a` (P7 struck).
 
 > Builder: *"it sounds like we've got a build list... get them on disk and we begin working on them"*
 >
@@ -14,12 +14,16 @@ P2  the special-form entry stops lying       ✅ STRUCK — show-source honest, 
 P3  the SEVEN ignores are re-diagnosed      ✅ STRUCK — 2 un-ignored, 5 re-pointed, a lint added
 P4  the silent skip is NAMED + FROZEN     ✅ STRUCK — 49 of 382, ward's 96/384 refuted
 H-1a    holon declares its REAL arity        ✅ STRUCK — 35 verbs, -542 lines, 5 doc lies exposed
-H-1b    the same for atom.rs               ← NEXT: 60 verbs; expect a doc-lie waterfall
-Q       the value door carries a SPAN        ⚠ REQUIRED — H-1a measured it: 30 of 35 holon verbs
-                                             still need a call span after the arity fix
-O-iv-c  holon sweep                            73 verbs — ⛔ BLOCKED on Q
-O-iv-d  the remainder sweep                    26 verbs — same
-P5  @yields becomes mandatory at expand time   the top rung; biggest change
+H-1b    the same for atom.rs               ✅ STRUCK — 52 of 60, -829 lines, 58 doc lies exposed
+Q + Q-2 the value door carries a SPAN,
+        and USES it                          ✅ STRUCK — 20 diagnostics move from a Rust line to the caller
+O-iv-c-0 the require_* family takes a ref  ✅ STRUCK — TEN sigs, 75 sites (not 9/109)
+O-iv-c-1 holon sweep, the four small files ✅ STRUCK — 27 migrated (not 32), -377 lines
+O-iv-c-2 holon sweep, atom.rs             ✅ STRUCK — 15 migrated; a FOURTH disqualifier found
+O-iv-d  the remainder sweep               ✅ STRUCK — 1 of 14; found a GENERATOR GAP
+P7      sniff_kind cannot see a NULLARY   ✅ STRUCK — 11 of 11; 25 runes retired; the axis is
+        ALGEBRA handler                          now ENTIRELY PERMANENT
+P5  @yields becomes mandatory at expand time ← NEXT: the top rung; biggest change
 P6-a a special form NAMES its impls        ✅ STRUCK — show-source prints check·eval·tail
 P6-c the two matches collapse to lookups     the megafile: 111 eval arms + 8 tail arms
 ```
@@ -38,11 +42,15 @@ the floor (P1). Adding the population first and the wall second is the wrong ord
 | ~~P3~~ | ~~the ignore ledger re-diagnosed~~ | | | ✅ **STRUCK** — see Closed |
 | ~~P4~~ | ~~the silent skip becomes NAMED+FROZEN~~ | | | ✅ **STRUCK** — 49 of 382, see Closed |
 | ~~H-1a~~ | ~~holon declares its REAL arity~~ | | | ✅ **STRUCK** — see Closed |
-| **H-1b** | the same for `atom.rs` | 60 verbs · 54 hand-rolled checks · **all 60 carry a collapsed `args…` doc line** | `BRIEF-STONE-H-1b-atom-declares-its-real-arity.md` | — **READY** |
-| **Q** | the value door carries the CALL SPAN — a span is not binding state | `ValueHandler` type · `dispatch_substrate_impl` + its 1 caller · the macro sniff · 19 twins take an ignored param | `BRIEF-STONE-Q-the-value-door-carries-the-call-span.md` | ⚠ **REQUIRED, and now sized by the compiler**: 30 of 35 holon verbs still need a call span after the arity fix |
-| **O-iv-c** | holon sweep — `atom` 41 · `subspace` 10 · `engram` 10 · `reckoner` 8 · `hologram` 4 | 73 verbs | *not drawn* | ⛔ **BLOCKED on Q** — holon's handlers use spans (READ, not counted); the value door has none |
-| **O-iv-d** | the remainder — `uuid` 7 · `ambient` 7 · `string`/`reflect`/`bytes` 2 · six singles | 26 verbs | *not drawn* | same |
-| **P5** | `@yields` mandatory when an `@arg` carries an Fn shape | macro-expand-time rule | *not drawn* | P4's measurement |
+| ~~H-1b~~ | ~~the same for `atom.rs`~~ | | | ✅ **STRUCK** — 52 of 60, 58 doc lies |
+| ~~Q~~ | ~~the value door carries the CALL SPAN~~ | `ValueHandler` type · `dispatch_substrate_impl` + its 1 caller · the macro sniff · 19 twins take an ignored param | `BRIEF-STONE-Q-the-value-door-carries-the-call-span.md` | ✅ **STRUCK** — see Closed |
+| ~~Q-2~~ | ~~the threaded span must be USED~~ | | | ✅ **STRUCK** — 20 sites fixed, 0 runed |
+| ~~O-iv-c-0~~ | ~~the `require_*` family takes `&Value`~~ | | | ✅ **STRUCK** — 10 sigs, 75 sites |
+| ~~O-iv-c-1~~ | ~~holon sweep, four files~~ | | | ✅ **STRUCK** — 27 of 32; 5 refused for arg-spans |
+| ~~O-iv-c-2~~ | ~~holon sweep, `atom.rs`~~ | | | ✅ **STRUCK** — 15 of 60; UNEVALUATED-ARGS found |
+| ~~O-iv-d~~ | ~~the remainder~~ | | | ✅ **STRUCK** — 1 of 14 (`core::List`, variadic) |
+| ~~P7~~ | ~~`sniff_kind` cannot classify a NULLARY ALGEBRA handler~~ | | | ✅ **STRUCK** — 11 of 11 |
+| **P5** | `@yields` mandatory when an `@arg` carries an Fn shape | macro-expand-time rule | *not drawn* | — **READY to draw** |
 | ~~P6-a~~ | ~~a special form names its implementations~~ | | | ✅ **STRUCK** — see Closed |
 | **P6-c** | the eval and tail matches collapse into registry lookups | 111 eval arms + 8 tail arms | *not drawn* | P6-a's mechanism + its row-0 census |
 
@@ -50,8 +58,9 @@ the floor (P1). Adding the population first and the wall second is the wrong ord
 
 - **P1** — `mod.rs:348`'s `debug_assert!` is the only thing standing between two homes claiming one
   FQDN and a silent `HashMap` overwrite, and it is compiled out in release, which is the floor.
-- **O-iv-b/c/d** — `:wat::core::apply` reaches 49 of 380 verbs; these migrate the rest that can be
-  migrated. The machine is built and proven (O-iii); each wave is a commit per namespace.
+- **O-iv-b/c/d** — when these rows were written `:wat::core::apply` reached 49 of 380 verbs; they
+  migrated every verb that could be migrated. The machine is built and proven (O-iii); each wave was
+  a commit per namespace. ⚠ The 49 is HISTORICAL — do not read it as today's number.
 - **P2** — `(:wat::core::show-source :wat::core::if)` returns `""` while that verb's own shipped
   prose promises otherwise; `metadata-of` reports `:arity -1` for a form declaring three fixed args.
 - **P3** — three `#[ignore]`s carry one identical reason string covering three different truths; one
@@ -60,6 +69,8 @@ the floor (P1). Adding the population first and the wall second is the wrong ord
   Nobody knows how many. The ward said 96/384 against my anchored 382 — two instruments, two
   populations, so the number is open.
 - **P5** — the `@yields` gate's only measured subject is the fixture written to exercise it.
+- **P7** — eleven verbs were unreachable through `apply` for a reason that was never about them:
+  the generator could not classify a handler with no parameters. ✅ struck.
 
 Full detail and the disk citations: `NOTE-an-absence-recorded-as-an-answer-the-class-behind-the-apply-defect.md`.
 
@@ -81,4 +92,6 @@ blockers turned out not to belong to this arc at all) · `P6-a` (a special form 
 on `if`, buried since arc 258.4) · `P2` (the special-form entry — show-source stops returning "", `if` reports arity 3 not -1) ·
 `O-iv-b` (the collections sweep — 8 new doors, 24 two-fn collapses, 24 `expect("arity-checked")`
 sites deleted, −556 lines) · `P1` (the collision gate —
-proven by planting a real duplicate and watching the floor run 5065/5065 GREEN past it).
+proven by planting a real duplicate and watching the floor run 5065/5065 GREEN past it) ·
+`P7` (the nullary door — 11 of 11, both shapes exercised, 25 lint exemptions retired, and the
+disposition axis left with NO fixable entry: every remaining refusal is a property of the verb).

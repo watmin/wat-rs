@@ -86,8 +86,8 @@ pub(crate) fn eval_i64_add(
 // `eval_i64_arith`/`i64_add_op` above, which would drop apply's ability to
 // ever gain real spans and would risk widening today's `apply`-only
 // synthesized-span behavior onto the direct path instead.
-fn eval_i64_add_value(vals: &[Value]) -> Result<Value, EvalBreak> {
-    crate::runtime::arith_i64_i64_inner(":wat::i64::+", vals, |a, b| {
+fn eval_i64_add_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
+    crate::runtime::arith_i64_i64_inner(":wat::i64::+", vals, span, |a, b| {
         a.checked_add(b).ok_or(I64ArithErr::Overflow(a, b))
     })
 }
@@ -119,8 +119,8 @@ pub(crate) fn eval_i64_sub(
 
 // Arc 255 Stone N — value-level twin; see `eval_i64_add_value`'s comment
 // above for why this is `arith_i64_i64_inner`, not `eval_i64_arith`.
-fn eval_i64_sub_value(vals: &[Value]) -> Result<Value, EvalBreak> {
-    crate::runtime::arith_i64_i64_inner(":wat::i64::-", vals, |a, b| {
+fn eval_i64_sub_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
+    crate::runtime::arith_i64_i64_inner(":wat::i64::-", vals, span, |a, b| {
         a.checked_sub(b).ok_or(I64ArithErr::Overflow(a, b))
     })
 }
@@ -152,8 +152,8 @@ pub(crate) fn eval_i64_mul(
 
 // Arc 255 Stone N — value-level twin; see `eval_i64_add_value`'s comment
 // above for why this is `arith_i64_i64_inner`, not `eval_i64_arith`.
-fn eval_i64_mul_value(vals: &[Value]) -> Result<Value, EvalBreak> {
-    crate::runtime::arith_i64_i64_inner(":wat::i64::*", vals, |a, b| {
+fn eval_i64_mul_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
+    crate::runtime::arith_i64_i64_inner(":wat::i64::*", vals, span, |a, b| {
         a.checked_mul(b).ok_or(I64ArithErr::Overflow(a, b))
     })
 }
@@ -186,8 +186,8 @@ pub(crate) fn eval_i64_div(
 
 // Arc 255 Stone N — value-level twin; see `eval_i64_add_value`'s comment
 // above for why this is `arith_i64_i64_inner`, not `eval_i64_arith`.
-fn eval_i64_div_value(vals: &[Value]) -> Result<Value, EvalBreak> {
-    crate::runtime::arith_i64_i64_inner(":wat::i64::/", vals, |a, b| {
+fn eval_i64_div_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
+    crate::runtime::arith_i64_i64_inner(":wat::i64::/", vals, span, |a, b| {
         if b == 0 {
             Err(I64ArithErr::DivByZero)
         } else {
@@ -224,8 +224,8 @@ pub(crate) fn eval_i64_mod(
 
 // Arc 255 Stone N — value-level twin; see `eval_i64_add_value`'s comment
 // above for why this is `arith_i64_i64_inner`, not `eval_i64_arith`.
-fn eval_i64_mod_value(vals: &[Value]) -> Result<Value, EvalBreak> {
-    crate::runtime::arith_i64_i64_inner(":wat::i64::mod", vals, |a, b| {
+fn eval_i64_mod_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
+    crate::runtime::arith_i64_i64_inner(":wat::i64::mod", vals, span, |a, b| {
         if b == 0 {
             Err(I64ArithErr::DivByZero)
         } else {
@@ -267,8 +267,8 @@ pub(crate) fn eval_i64_quot(
 
 // Arc 255 Stone N — value-level twin; see `eval_i64_add_value`'s comment
 // above for why this is `arith_i64_i64_inner`, not `eval_i64_arith`.
-fn eval_i64_quot_value(vals: &[Value]) -> Result<Value, EvalBreak> {
-    crate::runtime::arith_i64_i64_inner(":wat::i64::quot", vals, |a, b| {
+fn eval_i64_quot_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
+    crate::runtime::arith_i64_i64_inner(":wat::i64::quot", vals, span, |a, b| {
         if b == 0 {
             Err(I64ArithErr::DivByZero)
         } else {
@@ -305,8 +305,8 @@ pub(crate) fn eval_i64_rem(
 
 // Arc 255 Stone N — value-level twin; see `eval_i64_add_value`'s comment
 // above for why this is `arith_i64_i64_inner`, not `eval_i64_arith`.
-fn eval_i64_rem_value(vals: &[Value]) -> Result<Value, EvalBreak> {
-    crate::runtime::arith_i64_i64_inner(":wat::i64::rem", vals, |a, b| {
+fn eval_i64_rem_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
+    crate::runtime::arith_i64_i64_inner(":wat::i64::rem", vals, span, |a, b| {
         if b == 0 {
             Err(I64ArithErr::DivByZero)
         } else {

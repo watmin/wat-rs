@@ -89,7 +89,7 @@ pub(crate) fn eval_reckoner_new_discrete(
         Value::Vec(items) => {
             let mut out = Vec::with_capacity(items.len());
             for item in items.iter() {
-                let h = require_holon(":wat::holon::Reckoner/new-discrete", item.clone())?;
+                let h = require_holon(":wat::holon::Reckoner/new-discrete", &item.clone())?;
                 out.push((*h).clone());
             }
             out
@@ -174,7 +174,7 @@ pub(crate) fn eval_reckoner_new_continuous(
     )?;
     let default_value = require_numeric(
         ":wat::holon::Reckoner/new-continuous",
-        eval_inner(default_value, env, sym)?.value_owned(),
+        &eval_inner(default_value, env, sym)?.value_owned(),
         list_span,
     )?;
     let buckets = require_i64(
@@ -211,34 +211,18 @@ pub(crate) fn eval_reckoner_new_continuous(
 /// @ret     :wat::core::nil always `Unit`
 /// @example-norun (:wat::holon::Reckoner/observe r v 0 1.0) #=> nil
 #[wat_intrinsic(":wat::holon::Reckoner/observe")]
-pub(crate) fn eval_reckoner_observe(
-    r: &WatAST,
-    v: &WatAST,
-    label_idx: &WatAST,
-    weight: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    list_span: &Span,
+pub(crate) fn reckoner_observe(
+    r: &Value,
+    v: &Value,
+    label_idx: &Value,
+    weight: &Value,
+    span: &Span,
 ) -> Result<Value, EvalBreak> {
-    let r = require_reckoner(
-        ":wat::holon::Reckoner/observe",
-        eval_inner(r, env, sym)?.value_owned(),
-        list_span,
-    )?;
-    let v = require_vector(
-        ":wat::holon::Reckoner/observe",
-        eval_inner(v, env, sym)?.value_owned(),
-    )?;
-    let label_idx = require_i64(
-        ":wat::holon::Reckoner/observe",
-        eval_inner(label_idx, env, sym)?.value_owned(),
-    )?;
-    let weight = require_numeric(
-        ":wat::holon::Reckoner/observe",
-        eval_inner(weight, env, sym)?.value_owned(),
-        list_span,
-    )?;
-    r.with_mut(":wat::holon::Reckoner/observe", list_span.clone(), |r| {
+    let r = require_reckoner(":wat::holon::Reckoner/observe", r, span)?;
+    let v = require_vector(":wat::holon::Reckoner/observe", v)?;
+    let label_idx = require_i64(":wat::holon::Reckoner/observe", label_idx.clone())?;
+    let weight = require_numeric(":wat::holon::Reckoner/observe", weight, span)?;
+    r.with_mut(":wat::holon::Reckoner/observe", span.clone(), |r| {
         r.observe(&v, holon::Label::from_index(label_idx as usize), weight)
     })?;
     Ok(Value::Unit)
@@ -259,22 +243,9 @@ pub(crate) fn eval_reckoner_observe(
 /// @ret     (:wat::core::Tuple :- [(:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::f64])]) (:wat::core::Option :- [:wat::core::i64]) :wat::core::f64 :wat::core::f64]) `(scores, direction, conviction, raw-cos)`
 /// @example (:wat::holon::Reckoner/predict (:wat::holon::Reckoner/new-discrete "direction" 10000 100 (:wat::core::Vector :wat::holon::HolonAST (:wat::holon::leaf "up") (:wat::holon::leaf "down"))) (:wat::holon::encode (:wat::holon::leaf "role"))) #=> (:wat::holon::Reckoner/predict (:wat::holon::Reckoner/new-discrete "direction" 10000 100 (:wat::core::Vector :wat::holon::HolonAST (:wat::holon::leaf "up") (:wat::holon::leaf "down"))) (:wat::holon::encode (:wat::holon::leaf "role")))
 #[wat_intrinsic(":wat::holon::Reckoner/predict")]
-pub(crate) fn eval_reckoner_predict(
-    r: &WatAST,
-    v: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    list_span: &Span,
-) -> Result<Value, EvalBreak> {
-    let r = require_reckoner(
-        ":wat::holon::Reckoner/predict",
-        eval_inner(r, env, sym)?.value_owned(),
-        list_span,
-    )?;
-    let v = require_vector(
-        ":wat::holon::Reckoner/predict",
-        eval_inner(v, env, sym)?.value_owned(),
-    )?;
+pub(crate) fn reckoner_predict(r: &Value, v: &Value, span: &Span) -> Result<Value, EvalBreak> {
+    let r = require_reckoner(":wat::holon::Reckoner/predict", r, span)?;
+    let v = require_vector(":wat::holon::Reckoner/predict", v)?;
     let pred = r.with_ref(":wat::holon::Reckoner/predict", |r| r.predict(&v))?;
     // Pack scores as Vec<(i64, f64)> tuples.
     let scores: Vec<Value> = pred
@@ -327,12 +298,12 @@ pub(crate) fn eval_reckoner_resolve(
 ) -> Result<Value, EvalBreak> {
     let r = require_reckoner(
         ":wat::holon::Reckoner/resolve",
-        eval_inner(r, env, sym)?.value_owned(),
+        &eval_inner(r, env, sym)?.value_owned(),
         list_span,
     )?;
     let conviction = require_numeric(
         ":wat::holon::Reckoner/resolve",
-        eval_inner(conviction, env, sym)?.value_owned(),
+        &eval_inner(conviction, env, sym)?.value_owned(),
         list_span,
     )?;
     let correct_val = eval_inner(correct, env, sym)?.value_owned();
@@ -370,18 +341,9 @@ pub(crate) fn eval_reckoner_resolve(
 /// @ret     (:wat::core::Option :- [(:wat::core::Tuple :- [:wat::core::f64 :wat::core::f64])]) the fitted `(slope, intercept)` curve, or `None`
 /// @example-norun (:wat::holon::Reckoner/curve r) #=> (:wat::core::Option (:wat::core::Tuple 1.2 0.1))
 #[wat_intrinsic(":wat::holon::Reckoner/curve")]
-pub(crate) fn eval_reckoner_curve(
-    r: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    list_span: &Span,
-) -> Result<Value, EvalBreak> {
-    let r = require_reckoner(
-        ":wat::holon::Reckoner/curve",
-        eval_inner(r, env, sym)?.value_owned(),
-        list_span,
-    )?;
-    let curve = r.with_mut(":wat::holon::Reckoner/curve", list_span.clone(), |r| {
+pub(crate) fn reckoner_curve(r: &Value, span: &Span) -> Result<Value, EvalBreak> {
+    let r = require_reckoner(":wat::holon::Reckoner/curve", r, span)?;
+    let curve = r.with_mut(":wat::holon::Reckoner/curve", span.clone(), |r| {
         r.curve()
     })?;
     Ok(match curve {
@@ -405,17 +367,8 @@ pub(crate) fn eval_reckoner_curve(
 /// @ret     (:wat::core::Vector :- [:wat::core::i64]) the label indices `r` tracks
 /// @example (:wat::holon::Reckoner/labels (:wat::holon::Reckoner/new-discrete "direction" 10000 100 (:wat::core::Vector :wat::holon::HolonAST (:wat::holon::leaf "up") (:wat::holon::leaf "down")))) #=> (:wat::holon::Reckoner/labels (:wat::holon::Reckoner/new-discrete "direction" 10000 100 (:wat::core::Vector :wat::holon::HolonAST (:wat::holon::leaf "up") (:wat::holon::leaf "down"))))
 #[wat_intrinsic(":wat::holon::Reckoner/labels")]
-pub(crate) fn eval_reckoner_labels(
-    r: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    list_span: &Span,
-) -> Result<Value, EvalBreak> {
-    let r = require_reckoner(
-        ":wat::holon::Reckoner/labels",
-        eval_inner(r, env, sym)?.value_owned(),
-        list_span,
-    )?;
+pub(crate) fn reckoner_labels(r: &Value, span: &Span) -> Result<Value, EvalBreak> {
+    let r = require_reckoner(":wat::holon::Reckoner/labels", r, span)?;
     let labels = r.with_ref(":wat::holon::Reckoner/labels", |r| r.labels())?;
     let xs: Vec<Value> = labels
         .into_iter()
@@ -436,17 +389,8 @@ pub(crate) fn eval_reckoner_labels(
 /// @ret     :wat::core::i64 the raw vector dimension
 /// @example (:wat::holon::Reckoner/dims (:wat::holon::Reckoner/new-discrete "direction" 10000 100 (:wat::core::Vector :wat::holon::HolonAST (:wat::holon::leaf "up") (:wat::holon::leaf "down")))) #=> (:wat::holon::Reckoner/dims (:wat::holon::Reckoner/new-discrete "direction" 10000 100 (:wat::core::Vector :wat::holon::HolonAST (:wat::holon::leaf "up") (:wat::holon::leaf "down"))))
 #[wat_intrinsic(":wat::holon::Reckoner/dims")]
-pub(crate) fn eval_reckoner_dims(
-    r: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    list_span: &Span,
-) -> Result<Value, EvalBreak> {
-    let r = require_reckoner(
-        ":wat::holon::Reckoner/dims",
-        eval_inner(r, env, sym)?.value_owned(),
-        list_span,
-    )?;
+pub(crate) fn reckoner_dims(r: &Value, span: &Span) -> Result<Value, EvalBreak> {
+    let r = require_reckoner(":wat::holon::Reckoner/dims", r, span)?;
     let n = r.with_ref(":wat::holon::Reckoner/dims", |r| r.dims())?;
     Ok(Value::i64(n as i64))
 }

@@ -77,8 +77,8 @@ pub(crate) fn eval_rational_add(
 // -based implementation that fn's own `:wat::rational::+` arm already used
 // before this stone — see `i64.rs`'s `eval_i64_add_value` comment for why
 // this is deliberately not merged with `eval_rational_arith` above.
-fn eval_rational_add_value(vals: &[Value]) -> Result<Value, EvalBreak> {
-    crate::runtime::arith_rational_rational_inner(":wat::rational::+", vals, |a, b| Ok(a + b))
+fn eval_rational_add_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
+    crate::runtime::arith_rational_rational_inner(":wat::rational::+", vals, span, |a, b| Ok(a + b))
 }
 
 /// `(:wat::rational::- a b)` → `a` minus `b`. Collapses to `:wat::core::bigint`
@@ -107,8 +107,8 @@ pub(crate) fn eval_rational_sub(
 }
 
 // Arc 255 Stone N — value-level twin; see `eval_rational_add_value`'s comment above.
-fn eval_rational_sub_value(vals: &[Value]) -> Result<Value, EvalBreak> {
-    crate::runtime::arith_rational_rational_inner(":wat::rational::-", vals, |a, b| Ok(a - b))
+fn eval_rational_sub_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
+    crate::runtime::arith_rational_rational_inner(":wat::rational::-", vals, span, |a, b| Ok(a - b))
 }
 
 /// `(:wat::rational::* a b)` → `a` times `b`. Collapses to `:wat::core::bigint`
@@ -137,8 +137,8 @@ pub(crate) fn eval_rational_mul(
 }
 
 // Arc 255 Stone N — value-level twin; see `eval_rational_add_value`'s comment above.
-fn eval_rational_mul_value(vals: &[Value]) -> Result<Value, EvalBreak> {
-    crate::runtime::arith_rational_rational_inner(":wat::rational::*", vals, |a, b| Ok(a * b))
+fn eval_rational_mul_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
+    crate::runtime::arith_rational_rational_inner(":wat::rational::*", vals, span, |a, b| Ok(a * b))
 }
 
 /// `(:wat::rational::/ a b)` → `a` divided by `b`. `b = 0` raises
@@ -170,8 +170,8 @@ pub(crate) fn eval_rational_div_intrinsic(
 // `:wat::rational::/` arm (`src/runtime.rs`) — NOT the direct path's
 // `crate::runtime::rational_div` (incompatible signature, same reason as
 // `bigint.rs`'s `eval_bigint_div_value`).
-fn eval_rational_div_value(vals: &[Value]) -> Result<Value, EvalBreak> {
-    crate::runtime::arith_rational_rational_inner(":wat::rational::/", vals, |a, b| {
+fn eval_rational_div_value(vals: &[Value], span: &Span) -> Result<Value, EvalBreak> {
+    crate::runtime::arith_rational_rational_inner(":wat::rational::/", vals, span, |a, b| {
         use num_traits::Zero;
         if b.is_zero() {
             return Err(());
