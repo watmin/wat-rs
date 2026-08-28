@@ -20,6 +20,27 @@
 #   NEGATIVE  eval_seq_zip_intrinsic             must classify BINDING (passes env/sym to a helper)
 # `[[feedback_validate_a_search_pattern_before_trusting_its_count]]`
 #
+# ⛔⛔ KNOWN BLIND SPOT — SHELL DOES NOT MEAN MIGRATABLE. Added 2026-08-28 after Stone O-iv-c-1.
+# This script asks ONE question: does the body name `env` or `sym` after the arg-eval is stripped?
+# That is not the whole of "can this become ALGEBRA", because there is a THIRD binding-only
+# capability it cannot see: **`<arg>.span()`** — a `&WatAST` parameter's own source location.
+# `Value`, the ALGEBRA parameter type, carries NO span, so a handler that builds
+# `RuntimeError::new(<arg>.span().clone(), …)` cannot reproduce that location after migration.
+# The best substitute is the call-list span (Stone Q), which is a DIFFERENT location.
+#
+# Measured cost of not knowing this: O-iv-c-1's brief said 32 SHELL verbs were migratable. FIVE
+# of them read an argument's span — reckoner's new-discrete/new-continuous/resolve, hologram's
+# put/remove — and the rider refused them under STOP-3 rather than silently downgrade a
+# diagnostic. 27 migrated, not 32; 8 stayed BINDING, not 3.
+#
+# SO: treat SHELL as a CANDIDATE LIST. Before migrating, also check:
+#     grep -nE '[a-z_]+\.span\(\)' <the handler's body>      -> ARG-SPAN, stays BINDING
+#     grep -n 'require_encoding_ctx'  <the handler's body>     -> takes &SymbolTable, stays BINDING
+# ⚠ Do NOT extend this script to do that check by pattern. Three span classifiers were written
+# for this exact question in one afternoon and all three were retracted, the last after failing a
+# control the orchestrator wrote himself. THE COMPILER AND A READ ARE THE INSTRUMENTS.
+# `[[feedback_a_pass_answers_only_the_question_the_instrument_asks]]`
+#
 # ⛔ 380 IS THE TOTAL, AND THIS INSTRUMENT WAS RIGHT — the "381" it was once measured against
 # was the WRONG number, corrected 2026-08-28 by the Stone O-iii rider. That baseline came from a
 # text grep run over whole files:

@@ -29,11 +29,10 @@ use std::sync::Arc;
 
 use wat_macros::wat_intrinsic;
 
-use crate::ast::WatAST;
 use crate::holon::*;
-use crate::runtime::{eval_inner, require_i64};
+use crate::runtime::require_i64;
 use crate::span::Span;
-use crate::value::{Environment, EvalBreak, SymbolTable, Value};
+use crate::value::{EvalBreak, Value};
 
 /// `(:wat::holon::Engram/name e)` -> `:String`. The engram's name, as
 /// given at `EngramLibrary/add` time.
@@ -59,17 +58,8 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// @ret     :wat::core::String the engram's name
 /// @example (:wat::holon::Engram/name e) #=> "anomaly-a"
 #[wat_intrinsic(":wat::holon::Engram/name")]
-pub(crate) fn eval_engram_name(
-    e: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    list_span: &Span,
-) -> Result<Value, EvalBreak> {
-    let e = require_engram(
-        ":wat::holon::Engram/name",
-        &eval_inner(e, env, sym)?.value_owned(),
-        list_span,
-    )?;
+pub(crate) fn engram_name(e: &Value, span: &Span) -> Result<Value, EvalBreak> {
+    let e = require_engram(":wat::holon::Engram/name", e, span)?;
     let s = e.with_ref(":wat::holon::Engram/name", |e| e.name().to_string())?;
     Ok(Value::String(Arc::new(s)))
 }
@@ -91,17 +81,8 @@ pub(crate) fn eval_engram_name(
 /// @ret     (:wat::core::Vector :- [:wat::core::f64]) the engram's frozen eigenvalue signature
 /// @example (:wat::holon::Engram/eigenvalue-signature e) #=> (:wat::core::Vector 0.9 0.4)
 #[wat_intrinsic(":wat::holon::Engram/eigenvalue-signature")]
-pub(crate) fn eval_engram_eigenvalue_signature(
-    e: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    list_span: &Span,
-) -> Result<Value, EvalBreak> {
-    let e = require_engram(
-        ":wat::holon::Engram/eigenvalue-signature",
-        &eval_inner(e, env, sym)?.value_owned(),
-        list_span,
-    )?;
+pub(crate) fn engram_eigenvalue_signature(e: &Value, span: &Span) -> Result<Value, EvalBreak> {
+    let e = require_engram(":wat::holon::Engram/eigenvalue-signature", e, span)?;
     let xs = e.with_ref(":wat::holon::Engram/eigenvalue-signature", |e| {
         e.eigenvalue_signature().to_vec()
     })?;
@@ -124,17 +105,8 @@ pub(crate) fn eval_engram_eigenvalue_signature(
 /// @ret     :wat::core::i64 the observation count at snapshot time
 /// @example (:wat::holon::Engram/n e) #=> 512
 #[wat_intrinsic(":wat::holon::Engram/n")]
-pub(crate) fn eval_engram_n(
-    e: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    list_span: &Span,
-) -> Result<Value, EvalBreak> {
-    let e = require_engram(
-        ":wat::holon::Engram/n",
-        &eval_inner(e, env, sym)?.value_owned(),
-        list_span,
-    )?;
+pub(crate) fn engram_n(e: &Value, span: &Span) -> Result<Value, EvalBreak> {
+    let e = require_engram(":wat::holon::Engram/n", e, span)?;
     let n = e.with_ref(":wat::holon::Engram/n", |e| e.n())?;
     Ok(Value::i64(n as i64))
 }
@@ -153,24 +125,11 @@ pub(crate) fn eval_engram_n(
 /// @ret     :wat::core::f64 the residual of `v` against `e`'s frozen subspace
 /// @example-norun (:wat::holon::Engram/residual e v) #=> 0.03
 #[wat_intrinsic(":wat::holon::Engram/residual")]
-pub(crate) fn eval_engram_residual(
-    e: &WatAST,
-    v: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    list_span: &Span,
-) -> Result<Value, EvalBreak> {
-    let e = require_engram(
-        ":wat::holon::Engram/residual",
-        &eval_inner(e, env, sym)?.value_owned(),
-        list_span,
-    )?;
-    let v = require_vector(
-        ":wat::holon::Engram/residual",
-        &eval_inner(v, env, sym)?.value_owned(),
-    )?;
+pub(crate) fn engram_residual(e: &Value, v: &Value, span: &Span) -> Result<Value, EvalBreak> {
+    let e = require_engram(":wat::holon::Engram/residual", e, span)?;
+    let v = require_vector(":wat::holon::Engram/residual", v)?;
     let xs = v.to_f64();
-    let r = e.with_mut(":wat::holon::Engram/residual", list_span.clone(), |e| {
+    let r = e.with_mut(":wat::holon::Engram/residual", span.clone(), |e| {
         e.residual(&xs)
     })?;
     Ok(Value::f64(r))
@@ -188,16 +147,8 @@ pub(crate) fn eval_engram_residual(
 /// @ret     :wat::holon::EngramLibrary a fresh, empty library
 /// @example-norun (:wat::holon::EngramLibrary/new 4096) #=> #wat.holon/EngramLibrary{}
 #[wat_intrinsic(":wat::holon::EngramLibrary/new")]
-pub(crate) fn eval_library_new(
-    dim: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    _span: &Span, // rune:lint(unused-span) — located elsewhere: the only error (TypeMismatch, from `require_i64`) locates via `rust_caller_span!()` inside that helper, not here
-) -> Result<Value, EvalBreak> {
-    let dim = require_i64(
-        ":wat::holon::EngramLibrary/new",
-        eval_inner(dim, env, sym)?.value_owned(),
-    )?;
+pub(crate) fn library_new(dim: &Value) -> Result<Value, EvalBreak> {
+    let dim = require_i64(":wat::holon::EngramLibrary/new", dim.clone())?;
     let lib = holon::EngramLibrary::new(dim as usize);
     Ok(Value::EngramLibrary(Arc::new(
         crate::rust_deps::ThreadOwnedCell::new(lib),
@@ -219,32 +170,18 @@ pub(crate) fn eval_library_new(
 /// @ret     :wat::core::nil always `Unit`
 /// @example-norun (:wat::holon::EngramLibrary/add lib "anomaly-a" subspace) #=> nil
 #[wat_intrinsic(":wat::holon::EngramLibrary/add")]
-pub(crate) fn eval_library_add(
-    lib: &WatAST,
-    name: &WatAST,
-    subspace: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    list_span: &Span,
+pub(crate) fn library_add(
+    lib: &Value,
+    name: &Value,
+    subspace: &Value,
+    span: &Span,
 ) -> Result<Value, EvalBreak> {
-    let lib = require_engram_library(
-        ":wat::holon::EngramLibrary/add",
-        &eval_inner(lib, env, sym)?.value_owned(),
-        list_span,
-    )?;
-    let name = require_string(
-        ":wat::holon::EngramLibrary/add",
-        &eval_inner(name, env, sym)?.value_owned(),
-        list_span,
-    )?;
-    let subspace = require_subspace(
-        ":wat::holon::EngramLibrary/add",
-        &eval_inner(subspace, env, sym)?.value_owned(),
-        list_span,
-    )?;
+    let lib = require_engram_library(":wat::holon::EngramLibrary/add", lib, span)?;
+    let name = require_string(":wat::holon::EngramLibrary/add", name, span)?;
+    let subspace = require_subspace(":wat::holon::EngramLibrary/add", subspace, span)?;
     // EngramLibrary::add takes &OnlineSubspace by reference; we have
     // ThreadOwnedCell. Borrow immutably to get the reference.
-    lib.with_mut(":wat::holon::EngramLibrary/add", list_span.clone(), |lib| {
+    lib.with_mut(":wat::holon::EngramLibrary/add", span.clone(), |lib| {
         subspace.with_ref(":wat::holon::EngramLibrary/add", |s| {
             lib.add(&name, s, None, std::collections::HashMap::new());
         })
@@ -269,36 +206,24 @@ pub(crate) fn eval_library_add(
 /// @ret     (:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::String :wat::core::f64])]) `(name, residual)` tuples for the closest matches, best first
 /// @example-norun (:wat::holon::EngramLibrary/match-vec lib probe 3 16) #=> (:wat::core::Vector (:wat::core::Tuple "anomaly-a" 0.02))
 #[wat_intrinsic(":wat::holon::EngramLibrary/match-vec")]
-pub(crate) fn eval_library_match_vec(
-    lib: &WatAST,
-    probe: &WatAST,
-    top_k: &WatAST,
-    prefilter_k: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    list_span: &Span,
+pub(crate) fn library_match_vec(
+    lib: &Value,
+    probe: &Value,
+    top_k: &Value,
+    prefilter_k: &Value,
+    span: &Span,
 ) -> Result<Value, EvalBreak> {
-    let lib = require_engram_library(
-        ":wat::holon::EngramLibrary/match-vec",
-        &eval_inner(lib, env, sym)?.value_owned(),
-        list_span,
-    )?;
-    let probe = require_vector(
-        ":wat::holon::EngramLibrary/match-vec",
-        &eval_inner(probe, env, sym)?.value_owned(),
-    )?;
-    let top_k = require_i64(
-        ":wat::holon::EngramLibrary/match-vec",
-        eval_inner(top_k, env, sym)?.value_owned(),
-    )?;
+    let lib = require_engram_library(":wat::holon::EngramLibrary/match-vec", lib, span)?;
+    let probe = require_vector(":wat::holon::EngramLibrary/match-vec", probe)?;
+    let top_k = require_i64(":wat::holon::EngramLibrary/match-vec", top_k.clone())?;
     let prefilter_k = require_i64(
         ":wat::holon::EngramLibrary/match-vec",
-        eval_inner(prefilter_k, env, sym)?.value_owned(),
+        prefilter_k.clone(),
     )?;
     let xs = probe.to_f64();
     let matches = lib.with_mut(
         ":wat::holon::EngramLibrary/match-vec",
-        list_span.clone(),
+        span.clone(),
         |lib| lib.match_vec(&xs, top_k as usize, prefilter_k as usize),
     )?;
     let elems: Vec<Value> = matches
@@ -325,17 +250,8 @@ pub(crate) fn eval_library_match_vec(
 /// @ret     :wat::core::i64 the number of engrams currently held
 /// @example (:wat::holon::EngramLibrary/len (:wat::holon::EngramLibrary/new 4096)) #=> (:wat::holon::EngramLibrary/len (:wat::holon::EngramLibrary/new 4096))
 #[wat_intrinsic(":wat::holon::EngramLibrary/len")]
-pub(crate) fn eval_library_len(
-    lib: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    list_span: &Span,
-) -> Result<Value, EvalBreak> {
-    let lib = require_engram_library(
-        ":wat::holon::EngramLibrary/len",
-        &eval_inner(lib, env, sym)?.value_owned(),
-        list_span,
-    )?;
+pub(crate) fn library_len(lib: &Value, span: &Span) -> Result<Value, EvalBreak> {
+    let lib = require_engram_library(":wat::holon::EngramLibrary/len", lib, span)?;
     let n = lib.with_ref(":wat::holon::EngramLibrary/len", |lib| lib.len())?;
     Ok(Value::i64(n as i64))
 }
@@ -353,23 +269,9 @@ pub(crate) fn eval_library_len(
 /// @ret     :wat::core::bool true iff `lib` holds an engram named `name`
 /// @example (:wat::holon::EngramLibrary/contains (:wat::holon::EngramLibrary/new 4096) "anomaly-a") #=> (:wat::holon::EngramLibrary/contains (:wat::holon::EngramLibrary/new 4096) "anomaly-a")
 #[wat_intrinsic(":wat::holon::EngramLibrary/contains")]
-pub(crate) fn eval_library_contains(
-    lib: &WatAST,
-    name: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    list_span: &Span,
-) -> Result<Value, EvalBreak> {
-    let lib = require_engram_library(
-        ":wat::holon::EngramLibrary/contains",
-        &eval_inner(lib, env, sym)?.value_owned(),
-        list_span,
-    )?;
-    let name = require_string(
-        ":wat::holon::EngramLibrary/contains",
-        &eval_inner(name, env, sym)?.value_owned(),
-        list_span,
-    )?;
+pub(crate) fn library_contains(lib: &Value, name: &Value, span: &Span) -> Result<Value, EvalBreak> {
+    let lib = require_engram_library(":wat::holon::EngramLibrary/contains", lib, span)?;
+    let name = require_string(":wat::holon::EngramLibrary/contains", name, span)?;
     let b = lib.with_ref(":wat::holon::EngramLibrary/contains", |lib| {
         lib.contains(&name)
     })?;
@@ -388,17 +290,8 @@ pub(crate) fn eval_library_contains(
 /// @ret     (:wat::core::Vector :- [:wat::core::String]) the names of every engram `lib` holds
 /// @example (:wat::holon::EngramLibrary/names (:wat::holon::EngramLibrary/new 4096)) #=> (:wat::holon::EngramLibrary/names (:wat::holon::EngramLibrary/new 4096))
 #[wat_intrinsic(":wat::holon::EngramLibrary/names")]
-pub(crate) fn eval_library_names(
-    lib: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    list_span: &Span,
-) -> Result<Value, EvalBreak> {
-    let lib = require_engram_library(
-        ":wat::holon::EngramLibrary/names",
-        &eval_inner(lib, env, sym)?.value_owned(),
-        list_span,
-    )?;
+pub(crate) fn library_names(lib: &Value, span: &Span) -> Result<Value, EvalBreak> {
+    let lib = require_engram_library(":wat::holon::EngramLibrary/names", lib, span)?;
     let names = lib.with_ref(":wat::holon::EngramLibrary/names", |lib| {
         lib.names()
             .into_iter()
