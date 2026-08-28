@@ -20,7 +20,7 @@ Q + Q-2 the value door carries a SPAN,
 O-iv-c-0 the require_* family takes a ref  ✅ STRUCK — TEN sigs, 75 sites (not 9/109)
 O-iv-c-1 holon sweep, the four small files ✅ STRUCK — 27 migrated (not 32), -377 lines
 O-iv-c-2 holon sweep, atom.rs             ✅ STRUCK — 15 migrated; a FOURTH disqualifier found
-O-iv-d  the remainder sweep               ← NEXT: 26 verbs — classify against all FOUR disqualifiers
+O-iv-d  the remainder sweep               ← NEXT: 14 (not 26) — first VARIADIC + 0-arg ALGEBRA
 P5  @yields becomes mandatory at expand time   the top rung; biggest change
 P6-a a special form NAMES its impls        ✅ STRUCK — show-source prints check·eval·tail
 P6-c the two matches collapse to lookups     the megafile: 111 eval arms + 8 tail arms
