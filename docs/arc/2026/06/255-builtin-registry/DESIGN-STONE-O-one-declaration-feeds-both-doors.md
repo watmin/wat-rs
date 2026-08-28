@@ -447,3 +447,65 @@ static checker** (`MalformedForm`, Doctrine 1 arc 242 — *"a TYPE keyword, not 
 an element and yields length 4. Checker and runtime disagree about the same form. Recorded here
 because it was measured here; it is a checker/runtime divergence, not a registry defect, and folding
 it into Stone O would braid two concerns. It needs its own draw.
+
+---
+
+## ⛔⛔ O-iv-c IS BLOCKED, AND THE MEASUREMENT REFRAMES THE WHOLE SWEEP — 2026-08-28
+
+Drawing O-iv-c (the holon wave, 73 verbs) required the disposition rows this design demanded after
+the builder's `max-of` question. **Every one of the 94 handlers under `src/intrinsic/holon/` uses a
+span.** Not one is the span-free shape O-iii proved. So the wave cannot be struck as drawn — and
+running the same instrument across the whole population shows why that is not a holon problem:
+
+```
+                     of ALL 380 registered handlers
+  CALL-SPAN   302    body names `list_span`/`span` in an error path
+  SPAN-FREE    60    names no span at all          ← the ONLY shape the ALGEBRA contract can serve
+  ARG-SPAN     18    names an ARGUMENT's own span  ← the `max-of` class; a real fidelity cost
+```
+
+**Controlled:** the 14 verbs O-iii and O-iv-b already migrated all classify SPAN-FREE. The
+instrument agrees with what actually shipped.
+
+★ **THE ALGEBRA CONTRACT AS WRITTEN CAN ONLY EVER SERVE 60 OF 380 — and 38 of those are already
+done.** It has **22** left in it. The sweep does not slow down at holon; it stops.
+
+### The cause is a contract decision, not a property of the verbs
+
+This design ruled that an ALGEBRA fn takes `&Value` params and *nothing else* — no `env`, no `sym`,
+**no span**. The first two are right and load-bearing: they are what make a handler need ASTs, and a
+handler that needs them genuinely cannot be splatted. **A span is not binding state.** It is a
+location, and `apply` already has one:
+
+```rust
+// src/runtime.rs:10773 — eval_apply, which HOLDS list_span
+if let Some(result) = dispatch_substrate_impl(head_kw.as_str(), &combined) { return result; }
+```
+
+**One caller. The span is right there and simply is not threaded.** The AST door already passes
+`list_span` to its handler; the value door drops it because `ValueHandler` has no place to put it.
+
+### The stone that follows — Q, and it is a stepping stone
+
+```
+ValueHandler   = fn(&[Value]) -> …            ->  fn(&[Value], &Span) -> …
+ALGEBRA        fn f(a: &Value, b: &Value)     ->  may take a trailing `&Span`
+```
+
+Bounded, mechanical cost: the type, `dispatch_substrate_impl`'s signature, its **one** caller, the
+**19** remaining hand-written value twins each taking an ignored span param, and the macro sniffing a
+trailing `&Span` the way `sniff_args` already stops at the context tail.
+
+⚠ **This reverses O-i's STOP-3** (*"you need a new parameter on `dispatch_substrate_impl` → STOP"*).
+That STOP was right for O-i, whose blast radius was one function and whose job was a guard; it is
+not a ruling about the parameter forever. Recording the reversal here so the next reader meets the
+reason and not a contradiction. `[[feedback_a_rulings_premise_expires_but_the_ruling_stands]]`
+
+**What Q does NOT solve:** the 18 ARG-SPAN handlers. A call span does not restore per-element
+fidelity — `(:wat::f64::max-of 1.0 "x" 3.0)` would point at the call, not at `"x"`. That remains the
+builder's call, unchanged, and is why the disposition axis is THREE-valued and not two.
+
+### Order
+
+`Q` → then `O-iv-c` (73) → `O-iv-d` (26). Without Q, O-iv-c is impossible and O-iv-d shrinks to the
+~25 span-free stragglers. With it, **302 handlers become migratable** that are not today.
