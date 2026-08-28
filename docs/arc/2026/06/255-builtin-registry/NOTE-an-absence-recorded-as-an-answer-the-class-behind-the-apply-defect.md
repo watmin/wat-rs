@@ -107,12 +107,47 @@ file is **0**. `spawn-process` (`resource.rs:400`) is the same shape.
 `doc_arg_ret_types_match_checker_scheme` and the `@yields` gate. An entry absent from
 `register_builtins` is skipped by both, so its `@arg`/`@ret` strings are unverified against anything.
 
-⚠ **The ward measured this population at "96 of 384"; the orchestrator did NOT confirm it and it is
-not quoted as fact here.** Its 384 disagrees with the anchored 382 measured above, so the two
-censuses counted different things — and *"a count whose instrument I have not validated"* is the
-day's most expensive lesson. The SHAPE of the finding (two silent skips, at two sites) is confirmed
-by reading the lines. The SIZE is open.
-`[[feedback_validate_a_search_pattern_before_trusting_its_count]]`
+⛔ **MEASURED AND CLOSED 2026-08-28 by Stone P4 — the ward's number was WRONG.**
+
+```
+49 of 382 registered entries are absent from CheckEnv        (the ward said 96 of 384)
+```
+
+The ward cross-referenced `:wat::` string literals inside `register_builtins`'s body against
+`#[wat_intrinsic]` attributes — two text instruments over two different populations, which is why
+its 384 disagreed with the anchored 382 and why this NOTE refused to publish the figure. **P4 asked
+the gate's own instrument the gate's own question instead:** it builds
+`CheckEnv::with_builtins_and_types(&TypeEnv::new())` and calls `check_env.get(entry.name)` over
+`registry().all_entries()` — the same construction and the same method both gates use, so the
+measurement *cannot* disagree with what they skip.
+
+**The shape this NOTE recorded was right; only its size was open, and the open size was the
+honest state.** By namespace:
+
+| | skipped / total | |
+|---|---|---|
+| `:wat::kernel::` | 23 / 46 | the largest pocket — half the namespace |
+| `:wat::holon::` | 7 / 91 | |
+| `:wat::core::` | 6 / 18 | includes `if` and `let` |
+| `:wat::linkedlist::` | 5 / 5 | **wholly absent** |
+| `:wat::seq::` | 3 / 3 | **wholly absent** |
+| `:wat::string::` · `:wat::time::` | 2 each | |
+| `:wat::edn::` | 1 / 13 | |
+
+The population is now a **frozen DEBT LEDGER by name** in `src/intrinsic/mod.rs`
+(`FROZEN_CHECKER_DEBT_LEDGER` + `checker_skip_debt_is_named_and_frozen`). It goes red in both
+directions — a new unregistered name, or a name that gets registered and must leave the list — and
+its failure text names the FQDN rather than a delta. Verified independently by the orchestrator by
+removing a different name than the rider used.
+`[[feedback_a_gate_freezes_names_never_a_count]]`
+
+★ **The concrete cost the number stands for:** `:wat::core::fresh-symbol` declares
+`@arg base :wat::core::String` and `@ret :wat::WatAST`, has no `register_builtins` entry and no
+bespoke `check.rs` arm at all — **those two doc strings are asserted nowhere.** Several other ledger
+names (`:wat::linkedlist::conj`, `:wat::seq::zip`, `:wat::string::interpolate`) *do* have bespoke
+type-check arms outside `register_builtins`, the same pattern as `spawn-thread`/`spawn-process`;
+they remain on the ledger because **this gate family never cross-checks their docs against those
+arms.** Driving the ledger to zero is a separate, larger stone.
 
 ### 6. `metadata-of` REPORTS `:arity -1` FOR A FIXED-ARITY SPECIAL FORM
 

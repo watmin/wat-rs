@@ -12,8 +12,8 @@ P1  the registry can detect a collision      ✅ STRUCK — the wall stands befo
 O-iv-b  the collections sweep                ✅ STRUCK — 8 new doors + 24 collapses, -556 lines
 P2  the special-form entry stops lying       ✅ STRUCK — show-source honest, `if` reports arity 3
 P3  the SEVEN ignores are re-diagnosed      ✅ STRUCK — 2 un-ignored, 5 re-pointed, a lint added
-P4  the silent skip becomes NAMED+FROZEN  ← NEXT: the instrument IS the deliverable
-O-iv-c  holon sweep                            73 verbs — needs disposition rows (span-carrying)
+P4  the silent skip is NAMED + FROZEN     ✅ STRUCK — 49 of 382, ward's 96/384 refuted
+O-iv-c  holon sweep                        ← NEXT: 73 verbs — needs disposition rows (span-carrying)
 O-iv-d  the remainder sweep                    26 verbs — same
 P5  @yields becomes mandatory at expand time   the top rung; biggest change
 P6-a a special form NAMES its impls        ✅ STRUCK — show-source prints check·eval·tail
@@ -32,7 +32,7 @@ the floor (P1). Adding the population first and the wall second is the wrong ord
 | ~~O-iv-b~~ | ~~the collections sweep~~ | | | ✅ **STRUCK** — see Closed |
 | ~~P2~~ | ~~the special-form entry stops lying~~ | | | ✅ **STRUCK** — see Closed |
 | ~~P3~~ | ~~the ignore ledger re-diagnosed~~ | | | ✅ **STRUCK** — see Closed |
-| **P4** | the silent skip becomes a NAMED, FROZEN one | one `#[cfg(test)]` test; no production code | `BRIEF-STONE-P4-the-silent-skip-becomes-a-named-frozen-one.md` | — **READY** |
+| ~~P4~~ | ~~the silent skip becomes NAMED+FROZEN~~ | | | ✅ **STRUCK** — 49 of 382, see Closed |
 | **O-iv-c** | holon sweep — `atom` 41 · `subspace` 10 · `engram` 10 · `reckoner` 8 · `hologram` 4 | 73 verbs | *not drawn* | disposition rows (span-carrying algebra) |
 | **O-iv-d** | the remainder — `uuid` 7 · `ambient` 7 · `string`/`reflect`/`bytes` 2 · six singles | 26 verbs | *not drawn* | same |
 | **P5** | `@yields` mandatory when an `@arg` carries an Fn shape | macro-expand-time rule | *not drawn* | P4's measurement |
@@ -68,7 +68,8 @@ Full detail and the disk citations: `NOTE-an-absence-recorded-as-an-answer-the-c
 
 `A-i`…`F` (scalars, collections, String) · `HOME-8`…`HOME-13` · `STONE G` (provenance) ·
 `STONE N` (apply's authority) · `O-i` (the arity guard) · `O-ii` (the defclause door) ·
-`O-iii` (one declaration, both doors) · `O-iv-a` (the honest word) · `P3` (the ignore ledger — 2 un-ignored, 5 re-pointed at their REAL blockers, and one of those
+`O-iii` (one declaration, both doors) · `O-iv-a` (the honest word) · `P4` (the checker-skip debt is a NAMED FROZEN ledger — 49 of 382, and the ward’s 96/384 refuted
+by asking the gate’s own instrument the gate’s own question) · `P3` (the ignore ledger — 2 un-ignored, 5 re-pointed at their REAL blockers, and one of those
 blockers turned out not to belong to this arc at all) · `P6-a` (a special form names its impls — and publishing them exposed two INVERTED doc comments
 on `if`, buried since arc 258.4) · `P2` (the special-form entry — show-source stops returning "", `if` reports arity 3 not -1) ·
 `O-iv-b` (the collections sweep — 8 new doors, 24 two-fn collapses, 24 `expect("arity-checked")`

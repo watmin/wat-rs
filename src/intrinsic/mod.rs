@@ -575,6 +575,135 @@ mod time;
 // inline in the tests below.
 #[cfg(test)]
 mod tests {
+    /// Arc 255 Stone P4 — the frozen DEBT LEDGER for the silent skip shared by
+    /// `doc_arg_ret_types_match_checker_scheme` (`None => continue` above, "not yet in
+    /// checker — skip") and `yields_type_matches_fn_arg_param`'s second `None => continue`
+    /// (same reason). Both gates build `CheckEnv::with_builtins_and_types(&TypeEnv::new())`
+    /// and call `check_env.get(entry.name)`; for every name below that returns `None`, so
+    /// **neither gate verifies anything about that entry's `@arg`/`@ret` doc strings against
+    /// the checker.** A registration whose doc types are pure fiction passes both gates today
+    /// by being absent from `register_builtins` (`src/check.rs`) — not by being correct.
+    ///
+    /// ⚠ THIS LIST IS A DEBT LEDGER, NOT AN EXEMPTION LIST. Every name on it is an intrinsic
+    /// or special form whose declared types are checked by nothing. It is not an accusation —
+    /// `spawn-thread`/`spawn-process` (`:wat::kernel::`) are deliberately special-cased through
+    /// `infer_*_prime` elsewhere per the arc's own NOTE — but their absence from `CheckEnv`
+    /// still means THIS gate family verifies nothing for them, so they stay on the ledger like
+    /// everything else here. Driving this list to zero (registering the missing names in
+    /// `register_builtins`) is a separate, larger stone; this test only measures and freezes
+    /// the population so it cannot grow silently.
+    ///
+    /// Measured 2026-08-28 against `check_env.get(entry.name)` over `registry().all_entries()`
+    /// — the SAME construction and SAME method both gates use, so this measurement cannot
+    /// disagree with what the gates actually skip. 49 of 382 registered entries, by namespace:
+    /// - `:wat::kernel::` 23 of 46 — accept, address-wire?, after, allow, close, connect, deny,
+    ///   fn-forms, listener, peer-pid, peer-process, peer-wire?, poll, recv,
+    ///   require-wire-address, retag-op, select, send, serve-dispatch-op, signal,
+    ///   spawn-process, spawn-thread, try-send
+    /// - `:wat::holon::` 7 of 91 — coincident-explain, coincident?, cosine, dot, literal,
+    ///   simhash, to-record
+    /// - `:wat::core::` 6 of 18 — List, fresh-symbol, if, let, type-equal?, type-params-used-in
+    /// - `:wat::linkedlist::` 5 of 5 — WHOLLY ABSENT: conj, contains?, empty?, get, length
+    /// - `:wat::seq::` 3 of 3 — WHOLLY ABSENT: remove-at, window, zip
+    /// - `:wat::string::` 2 of 20 — declare-acronyms, interpolate
+    /// - `:wat::time::` 2 of 41 — +, -
+    /// - `:wat::edn::` 1 of 13 — validate
+    const FROZEN_CHECKER_DEBT_LEDGER: &[&str] = &[
+        ":wat::core::List",
+        ":wat::core::fresh-symbol",
+        ":wat::core::if",
+        ":wat::core::let",
+        ":wat::core::type-equal?",
+        ":wat::core::type-params-used-in",
+        ":wat::edn::validate",
+        ":wat::holon::coincident-explain",
+        ":wat::holon::coincident?",
+        ":wat::holon::cosine",
+        ":wat::holon::dot",
+        ":wat::holon::literal",
+        ":wat::holon::simhash",
+        ":wat::holon::to-record",
+        ":wat::kernel::accept",
+        ":wat::kernel::address-wire?",
+        ":wat::kernel::after",
+        ":wat::kernel::allow",
+        ":wat::kernel::close",
+        ":wat::kernel::connect",
+        ":wat::kernel::deny",
+        ":wat::kernel::fn-forms",
+        ":wat::kernel::listener",
+        ":wat::kernel::peer-pid",
+        ":wat::kernel::peer-process",
+        ":wat::kernel::peer-wire?",
+        ":wat::kernel::poll",
+        ":wat::kernel::recv",
+        ":wat::kernel::require-wire-address",
+        ":wat::kernel::retag-op",
+        ":wat::kernel::select",
+        ":wat::kernel::send",
+        ":wat::kernel::serve-dispatch-op",
+        ":wat::kernel::signal",
+        ":wat::kernel::spawn-process",
+        ":wat::kernel::spawn-thread",
+        ":wat::kernel::try-send",
+        ":wat::linkedlist::conj",
+        ":wat::linkedlist::contains?",
+        ":wat::linkedlist::empty?",
+        ":wat::linkedlist::get",
+        ":wat::linkedlist::length",
+        ":wat::seq::remove-at",
+        ":wat::seq::window",
+        ":wat::seq::zip",
+        ":wat::string::declare-acronyms",
+        ":wat::string::interpolate",
+        ":wat::time::+",
+        ":wat::time::-",
+    ];
+
+    #[test]
+    fn checker_skip_debt_is_named_and_frozen() {
+        use crate::check::CheckEnv;
+        use crate::types::TypeEnv;
+
+        let type_env = TypeEnv::new();
+        // The exact construction both `doc_arg_ret_types_match_checker_scheme` and
+        // `yields_type_matches_fn_arg_param` use — a measurement that cannot disagree with
+        // the thing it measures.
+        let check_env = CheckEnv::with_builtins_and_types(&type_env);
+
+        let mut measured: Vec<&'static str> = super::registry()
+            .all_entries()
+            .filter(|entry| check_env.get(entry.name).is_none())
+            .map(|entry| entry.name)
+            .collect();
+        measured.sort();
+        measured.dedup();
+
+        let frozen: Vec<&'static str> = FROZEN_CHECKER_DEBT_LEDGER.to_vec();
+
+        let newly_unverified: Vec<&&'static str> =
+            measured.iter().filter(|n| !frozen.contains(*n)).collect();
+        let no_longer_unverified: Vec<&&'static str> =
+            frozen.iter().filter(|n| !measured.contains(*n)).collect();
+
+        assert!(
+            newly_unverified.is_empty() && no_longer_unverified.is_empty(),
+            "checker-skip DEBT LEDGER drifted from the measured population.\n\
+             \n\
+             NEW — registered but absent from `CheckEnv` (`check_env.get` returns `None`), \
+             NOT on the frozen ledger — `doc_arg_ret_types_match_checker_scheme` and \
+             `yields_type_matches_fn_arg_param` are silently skipping these and verifying \
+             nothing about their `@arg`/`@ret` docs. Add each to `FROZEN_CHECKER_DEBT_LEDGER` \
+             (or register it in `register_builtins`, `src/check.rs`, to remove it from the \
+             ledger entirely): {:?}\n\
+             \n\
+             STALE — on the frozen ledger but now resolved (`check_env.get` returns `Some` for \
+             these), i.e. `register_builtins` now covers them and both gates verify them for \
+             real — delete each from `FROZEN_CHECKER_DEBT_LEDGER`: {:?}\n",
+            newly_unverified, no_longer_unverified,
+        );
+    }
+
     /// Arc 255.1b-v: every `@see` FQDN in the intrinsic corpus must resolve
     /// to a registered intrinsic. A dangling @see is a broken cross-reference
     /// in the doc system → fail loud.
