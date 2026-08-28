@@ -5833,9 +5833,10 @@ fn dispatch_keyword_head_value(
             crate::collection::transform::eval_vec_find_last_index(args, list_span, env, sym)
         }
         ":wat::core::rest" => crate::collection::eval::eval_rest(args, list_span, env, sym),
-        ":wat::std::list::map-with-index" => {
-            crate::collection::transform::eval_vec_map_with_index(args, list_span, env, sym)
-        }
+        // Arc 255 Stone HOME-9 — `:wat::std::list::map-with-index`'s dispatch arm (which lived
+        // here) is DELETED, not moved. `:wat::core::map-indexed` is its non-drop-in Seqable-
+        // generic replacement (arg order flips, result is a lazy Stream) — see
+        // `src/collection/transform.rs`'s note beside the deleted `eval_vec_map_with_index`.
 
         // :u8 range-checked cast from :i64. Arc 008 slice 1.
         ":wat::core::u8" => eval_u8_cast(args, list_span, env, sym),
@@ -6114,14 +6115,18 @@ fn dispatch_keyword_head_value(
         ":wat::core::filter" => {
             crate::collection::transform::eval_filter(args, list_span, env, sym)
         }
-        ":wat::std::list::zip" => {
-            crate::collection::transform::eval_vec_zip(args, list_span, env, sym)
+        // Arc 255 Stone HOME-9 — moved off the dead `:wat::std::list::` namespace to
+        // `:wat::seq::*`, and made Seqable-generic in the same motion (accepts Vector |
+        // PersistentVector | List | Stream now, not just Value::Vec — see
+        // `eval_seq_zip`/`eval_seq_window`/`eval_seq_remove_at`'s docs).
+        ":wat::seq::zip" => {
+            crate::collection::transform::eval_seq_zip(":wat::seq::zip", args, list_span, env, sym)
         }
-        ":wat::std::list::window" => {
-            crate::collection::transform::eval_vec_window(args, list_span, env, sym)
+        ":wat::seq::window" => {
+            crate::collection::transform::eval_seq_window(":wat::seq::window", args, list_span, env, sym)
         }
-        ":wat::std::list::remove-at" => {
-            crate::collection::transform::eval_vec_remove_at(args, list_span, env, sym)
+        ":wat::seq::remove-at" => {
+            crate::collection::transform::eval_seq_remove_at(":wat::seq::remove-at", args, list_span, env, sym)
         }
         ":wat::core::HashMap" => {
             // Arc 109 step ① Room 3 — accept `(HashMap [K V] …)` alongside the existing
@@ -6378,20 +6383,22 @@ fn dispatch_keyword_head_value(
         ":wat::config::noise-floor" => eval_config_noise_floor_default_shim(args, sym, list_span),
 
         // Stdlib math — single-method Rust calls packaged at
-        // :wat::std::math::* per FOUNDATION-CHANGELOG 2026-04-18.
+        // :wat::math::* (arc 255 Stone HOME-9 — moved off the dead :wat::std:: namespace;
+        // FOUNDATION-CHANGELOG 2026-04-18 is the original packaging decision).
         // Not at :wat::core:: because they're numeric utilities, not
         // Lisp or algebra primitives; only stdlib macros (Log, Circular)
         // need them, and userland picks them up the same way.
-        ":wat::std::math::ln" => eval_math_unary(args, env, sym, "ln", f64::ln, list_span),
-        ":wat::std::math::log" => eval_math_unary(args, env, sym, "log", f64::ln, list_span),
-        ":wat::std::math::exp" => eval_math_unary(args, env, sym, "exp", f64::exp, list_span),
-        ":wat::std::math::sqrt" => eval_math_unary(args, env, sym, "sqrt", f64::sqrt, list_span),
-        ":wat::std::math::sin" => eval_math_unary(args, env, sym, "sin", f64::sin, list_span),
-        ":wat::std::math::cos" => eval_math_unary(args, env, sym, "cos", f64::cos, list_span),
-        ":wat::std::math::pi" => eval_math_pi(args, list_span),
-        ":wat::std::stat::mean" => eval_stat_mean(args, env, sym, list_span),
-        ":wat::std::stat::variance" => eval_stat_variance(args, env, sym, list_span),
-        ":wat::std::stat::stddev" => eval_stat_stddev(args, env, sym, list_span),
+        // `log` is DELETED, not moved: it was wired to the SAME `f64::ln` as `ln` (a level-1
+        // lie), had zero call sites, and does not carry forward under a new address.
+        ":wat::math::ln" => eval_math_unary(args, env, sym, "ln", f64::ln, list_span),
+        ":wat::math::exp" => eval_math_unary(args, env, sym, "exp", f64::exp, list_span),
+        ":wat::math::sqrt" => eval_math_unary(args, env, sym, "sqrt", f64::sqrt, list_span),
+        ":wat::math::sin" => eval_math_unary(args, env, sym, "sin", f64::sin, list_span),
+        ":wat::math::cos" => eval_math_unary(args, env, sym, "cos", f64::cos, list_span),
+        ":wat::math::pi" => eval_math_pi(args, list_span),
+        ":wat::stat::mean" => eval_stat_mean(args, env, sym, list_span),
+        ":wat::stat::variance" => eval_stat_variance(args, env, sym, list_span),
+        ":wat::stat::stddev" => eval_stat_stddev(args, env, sym, list_span),
 
         // Time primitives — arc 056/097, carved to the registry at
         // `src/intrinsic/time.rs` (arc 255.1c-time, home #2). The
@@ -10393,10 +10400,10 @@ pub(crate) fn eval_f64_round(
 
 /// Arc 046 — strict-f64 unary helper for the `:wat::core::f64`
 /// namespace primitives. Mirrors `eval_math_unary`
-/// (`:wat::std::math` namespace) but takes the full op name as a
+/// (`:wat::math::*` namespace, arc 255 Stone HOME-9) but takes the full op name as a
 /// string and rejects `i64` arguments — the `:wat::core::f64`
 /// family is consistently strict (matches `eval_f64_arith`'s
-/// `f64::+/-/*//` discipline), while `:wat::std::math` permits
+/// `f64::+/-/*//` discipline), while `:wat::math::*` permits
 /// `i64 -> f64` promotion for ergonomic transcendental calls.
 pub(crate) fn eval_f64_unary(
     args: &[WatAST],
@@ -21016,7 +21023,9 @@ pub(crate) fn eval_deny_prime(
 }
 
 /// Shared implementation for the unary stdlib math calls —
-/// `:wat::std::math::ln`, `log`, `sin`, `cos`. Arity 1. Argument must
+/// `:wat::math::ln`, `sin`, `cos`, `exp`, `sqrt` (arc 255 Stone HOME-9 — moved off the dead
+/// `:wat::std::` namespace; `log` was deleted here rather than moved, see the dispatch arm's
+/// comment). Arity 1. Argument must
 /// evaluate to `:f64` (or `:i64` auto-promoted). `op_name` is the
 /// wat-facing short name for error messages.
 fn eval_math_unary(
@@ -21031,7 +21040,7 @@ fn eval_math_unary(
         return Err(RuntimeError::new(
             list_span.clone(),
             RuntimeErrorKind::ArityMismatch {
-                op: format!(":wat::std::math::{}", op_name),
+                op: format!(":wat::math::{}", op_name),
                 expected: 1,
                 got: args.len(),
             },
@@ -21045,7 +21054,7 @@ fn eval_math_unary(
             return Err(RuntimeError::new(
                 args[0].span().clone(),
                 RuntimeErrorKind::TypeMismatch {
-                    op: format!(":wat::std::math::{}", op_name),
+                    op: format!(":wat::math::{}", op_name),
                     expected: "f64",
                     got: Box::new(ValueSnapshot::of(&other)),
                 },
@@ -21056,14 +21065,15 @@ fn eval_math_unary(
     Ok(Value::f64(f(x)))
 }
 
-/// `(:wat::std::math::pi)` — the mathematical constant π as `:f64`.
+/// `(:wat::math::pi)` — the mathematical constant π as `:f64` (arc 255 Stone HOME-9 — moved
+/// off the dead `:wat::std::` namespace).
 /// Nullary. Backing: `std::f64::consts::PI`.
 fn eval_math_pi(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBreak> {
     if !args.is_empty() {
         return Err(RuntimeError::new(
             list_span.clone(),
             RuntimeErrorKind::ArityMismatch {
-                op: ":wat::std::math::pi".into(),
+                op: ":wat::math::pi".into(),
                 expected: 0,
                 got: args.len(),
             },
@@ -21073,9 +21083,10 @@ fn eval_math_pi(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBreak> {
     Ok(Value::f64(std::f64::consts::PI))
 }
 
-/// `(:wat::std::stat::mean (:wat::core::Vector :- [f64])) -> (:wat::core::Option :- [f64])`. Population
+/// `(:wat::stat::mean (:wat::core::Vector :- [f64])) -> (:wat::core::Option :- [f64])`. Population
 /// mean. None on empty input — matches `f64::min-of`/`max-of`'s
-/// reduction-empty convention.
+/// reduction-empty convention. Arc 255 Stone HOME-9 — moved off the dead `:wat::std::`
+/// namespace.
 ///
 /// Surfaced by holon-lab-trading arc 026 slice 9 (Hurst's R/S
 /// analysis) and slice 4 (Bollinger's RollingStddev). Universal
@@ -21086,7 +21097,7 @@ fn eval_stat_mean(
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::std::stat::mean";
+    const OP: &str = ":wat::stat::mean";
     if args.len() != 1 {
         return Err(RuntimeError::new(
             list_span.clone(),
@@ -21125,16 +21136,17 @@ fn eval_stat_mean(
     )))))
 }
 
-/// `(:wat::std::stat::variance (:wat::core::Vector :- [f64])) -> (:wat::core::Option :- [f64])`. Population
+/// `(:wat::stat::variance (:wat::core::Vector :- [f64])) -> (:wat::core::Option :- [f64])`. Population
 /// variance (divides by n). Matches numpy default `ddof=0`. None on
 /// empty input. Single-point input returns `Some(0.0)` (no spread).
+/// Arc 255 Stone HOME-9 — moved off the dead `:wat::std::` namespace.
 fn eval_stat_variance(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::std::stat::variance";
+    const OP: &str = ":wat::stat::variance";
     if args.len() != 1 {
         return Err(RuntimeError::new(
             list_span.clone(),
@@ -21180,15 +21192,16 @@ fn eval_stat_variance(
     Ok(Value::Option(Arc::new(Some(Value::f64(sq / n)))))
 }
 
-/// `(:wat::std::stat::stddev (:wat::core::Vector :- [f64])) -> (:wat::core::Option :- [f64])`. Square
-/// root of population variance.
+/// `(:wat::stat::stddev (:wat::core::Vector :- [f64])) -> (:wat::core::Option :- [f64])`. Square
+/// root of population variance. Arc 255 Stone HOME-9 — moved off the dead `:wat::std::`
+/// namespace.
 fn eval_stat_stddev(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    const OP: &str = ":wat::std::stat::stddev";
+    const OP: &str = ":wat::stat::stddev";
     if args.len() != 1 {
         return Err(RuntimeError::new(
             list_span.clone(),
@@ -28703,23 +28716,23 @@ mod tests {
     fn math_exp_round_trips_with_ln() {
         // exp(0) == 1.0 exactly.
         assert_eq!(
-            expect_f64(eval_expr("(:wat::std::math::exp 0.0)").unwrap()),
+            expect_f64(eval_expr("(:wat::math::exp 0.0)").unwrap()),
             1.0
         );
         // exp(1) ≈ e.
-        let v = expect_f64(eval_expr("(:wat::std::math::exp 1.0)").unwrap());
+        let v = expect_f64(eval_expr("(:wat::math::exp 1.0)").unwrap());
         assert!((v - std::f64::consts::E).abs() < 1e-12, "got {}", v);
         // exp(-1) ≈ 1/e.
-        let v = expect_f64(eval_expr("(:wat::std::math::exp -1.0)").unwrap());
+        let v = expect_f64(eval_expr("(:wat::math::exp -1.0)").unwrap());
         assert!((v - (1.0 / std::f64::consts::E)).abs() < 1e-12, "got {}", v);
     }
 
     #[test]
     fn math_exp_accepts_i64_promotion() {
-        // :wat::std::math:: permits i64 → f64 promotion (matches
-        // ln/log/sin/cos siblings); :wat::core::f64 namespace does not.
+        // :wat::math:: permits i64 → f64 promotion (matches
+        // ln/sin/cos siblings); :wat::core::f64 namespace does not.
         assert_eq!(
-            expect_f64(eval_expr("(:wat::std::math::exp 0)").unwrap()),
+            expect_f64(eval_expr("(:wat::math::exp 0)").unwrap()),
             1.0
         );
     }
@@ -30970,13 +30983,39 @@ mod tests {
     #[test]
     fn list_window_builds_sliding_windows() {
         let src = r#"
-            (:wat::std::list::window (:wat::core::Vector :i64 1 2 3 4) 2)
+            (:wat::seq::window (:wat::core::Vector :i64 1 2 3 4) 2)
         "#;
         match eval_expr(src).unwrap() {
             Value::Vec(outer) => {
                 // Expect 3 windows of size 2.
                 assert_eq!(outer.len(), 3);
                 // First window = [1, 2].
+                match &outer[0] {
+                    Value::Vec(w) => {
+                        assert_eq!(w.len(), 2);
+                        match (&w[0], &w[1]) {
+                            (Value::i64(1), Value::i64(2)) => {}
+                            other => panic!("expected [1,2], got {:?}", other),
+                        }
+                    }
+                    v => panic!("expected Vec window, got {:?}", v),
+                }
+            }
+            v => panic!("expected Vec, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn seq_window_accepts_list_too() {
+        // Arc 255 Stone HOME-9, acceptance row 2 — the SEQABLE PROOF: `window` used to call
+        // `require_vec` and REJECT a `List` outright; it accepts one now, same result shape as
+        // the Vector case immediately above.
+        let src = r#"
+            (:wat::seq::window (:wat::core::List 1 2 3 4) 2)
+        "#;
+        match eval_expr(src).unwrap() {
+            Value::Vec(outer) => {
+                assert_eq!(outer.len(), 3);
                 match &outer[0] {
                     Value::Vec(w) => {
                         assert_eq!(w.len(), 2);
@@ -31133,12 +31172,19 @@ mod tests {
     }
 
     #[test]
-    fn map_with_index_attaches_positions() {
+    fn map_indexed_attaches_positions_replacing_deleted_map_with_index() {
+        // Arc 255 Stone HOME-9 — `:wat::std::list::map-with-index` is DELETED;
+        // `:wat::core::map-indexed` is its replacement, migrated deliberately (NOT a drop-in):
+        // the argument order flips ((Vector,fn) -> (fn,coll)), the closure's own params flip
+        // too ((item,index) -> (index,item)), and the result is a lazy Stream, not an eager
+        // Vector — `into []` forces it back to the same shape this test used to assert on.
+        // Same VALUES as the deleted verb's test: 10+0, 20+1, 30+2.
         let src = r#"
-            (:wat::std::list::map-with-index
-              (:wat::core::Vector :i64 10 20 30)
-              (:wat::core::fn [x <- :i64 i <- :i64] -> :i64
-                (:wat::i64::+ x i)))
+            (:wat::core::into []
+              (:wat::core::map-indexed
+                (:wat::core::fn [i <- :i64 x <- :i64] -> :i64
+                  (:wat::i64::+ x i))
+                (:wat::core::Vector :i64 10 20 30)))
         "#;
         match eval_expr(src).unwrap() {
             Value::Vec(items) => {
@@ -31992,7 +32038,7 @@ mod tests {
     #[test]
     fn zip_pairs_shorter_length() {
         let src = r#"
-            (:wat::std::list::zip
+            (:wat::seq::zip
               (:wat::core::Vector :i64 1 2 3)
               (:wat::core::Vector :String "a" "b"))
         "#;
@@ -32017,13 +32063,42 @@ mod tests {
     #[test]
     fn zip_empty_with_nonempty_is_empty() {
         let src = r#"
-            (:wat::std::list::zip
+            (:wat::seq::zip
               (:wat::core::Vector :i64)
               (:wat::core::Vector :i64 1 2 3))
         "#;
         match eval_expr(src).unwrap() {
             Value::Vec(items) => assert!(items.is_empty()),
             v => panic!("expected empty Vec, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn seq_zip_accepts_list_too() {
+        // Arc 255 Stone HOME-9, acceptance row 2 — the SEQABLE PROOF: `zip` used to call
+        // `require_vec` on BOTH inputs and REJECT a `List`; each side accepts one
+        // independently now. Same result shape as `zip_pairs_shorter_length` above, mixed
+        // List + Vector inputs.
+        let src = r#"
+            (:wat::seq::zip
+              (:wat::core::List 1 2 3)
+              (:wat::core::Vector :String "a" "b"))
+        "#;
+        match eval_expr(src).unwrap() {
+            Value::Vec(items) => {
+                assert_eq!(items.len(), 2);
+                match &items[0] {
+                    Value::Tuple(t) => {
+                        assert_eq!(t.len(), 2);
+                        match (&t[0], &t[1]) {
+                            (Value::i64(1), Value::String(s)) => assert_eq!(&**s, "a"),
+                            other => panic!("expected (1,\"a\"); got {:?}", other),
+                        }
+                    }
+                    v => panic!("expected Tuple, got {:?}", v),
+                }
+            }
+            v => panic!("expected Vec, got {:?}", v),
         }
     }
 
@@ -32044,9 +32119,46 @@ mod tests {
 
     #[test]
     fn list_window_bigger_than_length_is_empty() {
-        match eval_expr("(:wat::std::list::window (:wat::core::Vector :i64 1 2) 5)").unwrap() {
+        match eval_expr("(:wat::seq::window (:wat::core::Vector :i64 1 2) 5)").unwrap() {
             Value::Vec(items) => assert!(items.is_empty()),
             v => panic!("expected empty Vec, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn seq_remove_at_on_vector_drops_the_index() {
+        match eval_expr("(:wat::seq::remove-at (:wat::core::Vector :i64 10 20 30) 1)").unwrap() {
+            Value::Vec(items) => {
+                let ns: Vec<i64> = items
+                    .iter()
+                    .map(|v| match v {
+                        Value::i64(n) => *n,
+                        other => panic!("expected i64, got {:?}", other),
+                    })
+                    .collect();
+                assert_eq!(ns, vec![10, 30]);
+            }
+            v => panic!("expected Vec, got {:?}", v),
+        }
+    }
+
+    #[test]
+    fn seq_remove_at_accepts_list_too() {
+        // Arc 255 Stone HOME-9, acceptance row 2 — the SEQABLE PROOF: `remove-at` used to call
+        // `require_vec` and REJECT a `List`; it accepts one now, same result as the Vector case
+        // immediately above.
+        match eval_expr("(:wat::seq::remove-at (:wat::core::List 10 20 30) 1)").unwrap() {
+            Value::Vec(items) => {
+                let ns: Vec<i64> = items
+                    .iter()
+                    .map(|v| match v {
+                        Value::i64(n) => *n,
+                        other => panic!("expected i64, got {:?}", other),
+                    })
+                    .collect();
+                assert_eq!(ns, vec![10, 30]);
+            }
+            v => panic!("expected Vec, got {:?}", v),
         }
     }
 
@@ -33687,30 +33799,21 @@ mod tests {
     #[test]
     fn math_ln_of_e_is_one() {
         // ln(e) = 1.
-        let src = "(:wat::std::math::ln 2.718281828459045)";
+        let src = "(:wat::math::ln 2.718281828459045)";
         match eval_expr(src).unwrap() {
             Value::f64(x) => assert!((x - 1.0).abs() < 1e-10, "got {}", x),
             v => panic!("expected f64, got {:?}", v),
         }
     }
 
-    #[test]
-    fn math_log_is_natural_log() {
-        // `log` is the natural-log alias; matches ln for identical input.
-        let a = match eval_expr("(:wat::std::math::log 2.718281828459045)").unwrap() {
-            Value::f64(x) => x,
-            v => panic!("expected f64, got {:?}", v),
-        };
-        let b = match eval_expr("(:wat::std::math::ln 2.718281828459045)").unwrap() {
-            Value::f64(x) => x,
-            v => panic!("expected f64, got {:?}", v),
-        };
-        assert_eq!(a, b);
-    }
+    // Arc 255 Stone HOME-9 — `math_log_is_natural_log` (which asserted `log` and `ln` agree)
+    // is DELETED along with `log` itself: that test was proving the level-1 lie
+    // (`:wat::std::math::log` was wired to the SAME `f64::ln` as `ln`), not a real feature.
+    // `log` had zero call sites in the corpus and is not carried forward under `:wat::math::`.
 
     #[test]
     fn math_sin_pi_is_zero() {
-        let src = "(:wat::std::math::sin (:wat::std::math::pi))";
+        let src = "(:wat::math::sin (:wat::math::pi))";
         match eval_expr(src).unwrap() {
             Value::f64(x) => assert!(x.abs() < 1e-10, "got {}", x),
             v => panic!("expected f64, got {:?}", v),
@@ -33719,7 +33822,7 @@ mod tests {
 
     #[test]
     fn math_cos_zero_is_one() {
-        match eval_expr("(:wat::std::math::cos 0.0)").unwrap() {
+        match eval_expr("(:wat::math::cos 0.0)").unwrap() {
             Value::f64(x) => assert_eq!(x, 1.0),
             v => panic!("expected f64, got {:?}", v),
         }
@@ -33727,7 +33830,7 @@ mod tests {
 
     #[test]
     fn math_pi_is_std_const() {
-        match eval_expr("(:wat::std::math::pi)").unwrap() {
+        match eval_expr("(:wat::math::pi)").unwrap() {
             Value::f64(x) => assert_eq!(x, std::f64::consts::PI),
             v => panic!("expected f64, got {:?}", v),
         }
@@ -33736,7 +33839,7 @@ mod tests {
     #[test]
     fn math_ln_accepts_i64_promotion() {
         // Integer arg gets promoted to f64 before the call.
-        match eval_expr("(:wat::std::math::ln 1)").unwrap() {
+        match eval_expr("(:wat::math::ln 1)").unwrap() {
             Value::f64(x) => assert_eq!(x, 0.0),
             v => panic!("expected f64, got {:?}", v),
         }
@@ -33744,7 +33847,7 @@ mod tests {
 
     #[test]
     fn math_ln_wrong_arity() {
-        let err = eval_expr("(:wat::std::math::ln 1.0 2.0)").unwrap_err();
+        let err = eval_expr("(:wat::math::ln 1.0 2.0)").unwrap_err();
         assert!(
             matches!(err, EvalBreak::Diagnostic(e) if matches!(e.kind(), RuntimeErrorKind::ArityMismatch { .. }))
         );
@@ -33752,9 +33855,39 @@ mod tests {
 
     #[test]
     fn math_ln_refuses_non_number() {
-        let err = eval_expr(r#"(:wat::std::math::ln "nope")"#).unwrap_err();
+        let err = eval_expr(r#"(:wat::math::ln "nope")"#).unwrap_err();
         assert!(
             matches!(err, EvalBreak::Diagnostic(e) if matches!(e.kind(), RuntimeErrorKind::TypeMismatch { .. }))
+        );
+    }
+
+    #[test]
+    fn math_old_std_spelling_is_retired_not_silently_accepted() {
+        // Arc 255 Stone HOME-9, acceptance row 3 — the OLD spelling names its replacement,
+        // not a bare `unknown function`. `eval_expr` here bypasses `check.rs` (parse +
+        // macro-expand + `eval_inner` only — see its own doc a few dozen lines up), so this
+        // exercises the RUNTIME retirement consult (door 2, `src/value/signal.rs`); the
+        // CHECK-TIME door (door 1) is what `tests/cli/retirement_table_reachable.rs` drives
+        // end-to-end through the real binary for every `RETIREMENT_TABLE` row, this one
+        // included.
+        let err = eval_expr("(:wat::std::math::sqrt 16.0)").unwrap_err();
+        // Arc 255 HOME-9 — assert the MECHANISM, not the rendering. The runtime door's
+        // Display consults `remedies_for` (src/value/signal.rs:598); a `contains("is retired")`
+        // check passes on any error whose text happens to hold that phrase and tripped
+        // `no_loose_string_assert`. Match the discriminant, then ask the remedy table itself
+        // for the replacement — byte-exact, and it fails if the retirement row is ever removed.
+        let EvalBreak::Diagnostic(rt) = err else {
+            panic!("expected a RuntimeError from the retired spelling; got a non-Diagnostic break")
+        };
+        let RuntimeErrorKind::UnknownFunction(path) = rt.kind() else {
+            panic!("expected UnknownFunction; got {:?}", rt.kind())
+        };
+        assert_eq!(path.as_str(), ":wat::std::math::sqrt");
+        let remedies = crate::remedy::remedies_for(path, std::iter::empty());
+        assert_eq!(
+            remedies.first().map(|r| r.form.as_str()),
+            Some(":wat::math::sqrt"),
+            "the retirement table must name the replacement for the retired spelling"
         );
     }
 

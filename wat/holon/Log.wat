@@ -15,6 +15,6 @@
    max   <- :wat::WatAST]
   -> :wat::WatAST
   `(:wat::holon::Thermometer
-     (:wat::std::math::ln ~value)
-     (:wat::std::math::ln ~min)
-     (:wat::std::math::ln ~max)))
+     (:wat::math::ln ~value)
+     (:wat::math::ln ~min)
+     (:wat::math::ln ~max)))

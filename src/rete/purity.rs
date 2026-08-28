@@ -2193,7 +2193,7 @@ mod completeness_gate {
         (":wat::holon::", Disp::Unreviewed, "4 ruled pure 2026-08-01 (cosine/dot/coincident?/presence?). The rest split into threshold siblings (likely pure), LEARNING ops (update/add/put — a semantics question before a purity one), and the eval-* family (purity is the argument's)"),
         (":wat::rete::", Disp::Unreviewed, "engine verbs — insert/query/fire are pure value transforms over a Session, but a rete verb inside a rete predicate wants a ruling on recursion before a ruling on purity"),
         (":wat::stream::", Disp::Unreviewed, "laziness — a Stream's purity is its producer's"),
-        (":wat::std::", Disp::Unreviewed, "arc 109 is annihilating this namespace; classify only what survives"),
+        (":wat::std::", Disp::Unreviewed, "arc 255 Stone HOME-9 (2026-08-27) retired the last 14 dispatched verbs that survived arc 109's sweep (math/stat/list) — this scan currently finds NOTHING under this prefix; the rule is kept as insurance against a stray future re-add, not because anything lives here"),
         (":wat::verify::", Disp::Unreviewed, "signature verification — reads keys; needs review"),
         (":wat::form::", Disp::Unreviewed, "form/AST manipulation; kin to the `:wat::core::ast->*` family"),
         (":wat::stdlib::", Disp::Unreviewed, "single verb; unexamined"),
@@ -2434,6 +2434,16 @@ mod completeness_gate {
     ":wat::keyword::to-symbol",
     ":wat::keyword::to-type-form",
     ":wat::keyword::to-type-form-colon",
+    // Arc 255 Stone HOME-9 — `:wat::std::math::*` moved to `:wat::math::*`. Carries forward
+    // the SAME open ruling under the new spelling (this ledger never classified them either);
+    // `log` (the seventh old verb) is DELETED, not moved, so it drops out of this ledger
+    // rather than being renamed.
+    ":wat::math::cos",
+    ":wat::math::exp",
+    ":wat::math::ln",
+    ":wat::math::pi",
+    ":wat::math::sin",
+    ":wat::math::sqrt",
     ":wat::rete::alpha-match",
     ":wat::rete::alpha-match-local",
     ":wat::rete::alpha-match-under",
@@ -2463,20 +2473,20 @@ mod completeness_gate {
     ":wat::rete::step-payload",
     ":wat::rete::total?",
     ":wat::rete::vocabulary-admitted?",
-    ":wat::std::list::map-with-index",
-    ":wat::std::list::remove-at",
-    ":wat::std::list::window",
-    ":wat::std::list::zip",
-    ":wat::std::math::cos",
-    ":wat::std::math::exp",
-    ":wat::std::math::ln",
-    ":wat::std::math::log",
-    ":wat::std::math::pi",
-    ":wat::std::math::sin",
-    ":wat::std::math::sqrt",
-    ":wat::std::stat::mean",
-    ":wat::std::stat::stddev",
-    ":wat::std::stat::variance",
+    // Arc 255 Stone HOME-9 — `:wat::std::list::{zip,window,remove-at}` moved to
+    // `:wat::seq::*` (and became Seqable-generic in the same motion — a runtime/check
+    // concern, not a purity ruling; they carry forward the SAME open ruling under the new
+    // spelling). `map-with-index` (the fourth old verb) is DELETED, not moved, so it drops
+    // out of this ledger; its replacement `:wat::core::map-indexed` was already classified
+    // (or already unreviewed under its own name) before this stone and is unaffected.
+    ":wat::seq::remove-at",
+    ":wat::seq::window",
+    ":wat::seq::zip",
+    // Arc 255 Stone HOME-9 — `:wat::std::stat::*` moved to `:wat::stat::*`. Carries forward
+    // the SAME open ruling under the new spelling.
+    ":wat::stat::mean",
+    ":wat::stat::stddev",
+    ":wat::stat::variance",
     ":wat::stdlib::sources",
     ":wat::stream::cons",
     ":wat::stream::empty",

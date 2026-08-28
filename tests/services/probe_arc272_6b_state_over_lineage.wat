@@ -24,9 +24,9 @@
                                           (:wat::core::+ (:user::Counter/base state) n)) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) (:wat::kernel::SendOutcome::Stopped nil) ((:wat::kernel::SendOutcome::Lost _c) nil))]
                      (:user::serve self l clients state)))
                  ((:wat::spawn::ServiceEvent::Closed idx)
-                   (:user::serve self l (:wat::std::list::remove-at clients idx) state))
+                   (:user::serve self l (:wat::seq::remove-at clients idx) state))
                  ((:wat::spawn::ServiceEvent::Lost idx _cause)
-                   (:user::serve self l (:wat::std::list::remove-at clients idx) state))
+                   (:user::serve self l (:wat::seq::remove-at clients idx) state))
                  ;; Admin wildcard — arc 291 new variant; not exercised by this probe.
                  (_ nil)))
              ;; the child entry: autobind (no name), hand the capability up (child→parent, proven),

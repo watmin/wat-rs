@@ -12,20 +12,27 @@
 ;; (strict identity; exact sequence match). Two sequences with the
 ;; same items in different order produce different compound vectors.
 ;;
-;; Expansion strategy: use `map-with-index` to attach positions, then
-;; `foldl` to bind-chain over tail from head. Uses existing core +
-;; std::list combinators (no new primitives).
-
+;; Expansion strategy: use `map-indexed` to attach positions, then
+;; `foldl` to bind-chain over tail from head. Uses existing core
+;; combinators (no new primitives).
+;;
+;; Arc 255 Stone HOME-9 — migrated off the deleted `:wat::std::list::map-with-index` to
+;; `:wat::core::map-indexed`. NOT a drop-in: the argument order flips (was `(coll fn)`, now
+;; `(fn coll)`), the closure's own params flip (was `(item, index)`, now `(index, item)`), and
+;; the result is a LAZY Stream, not an eager Vector — `(into [] ...)` forces it back to a
+;; Vector so `get`/`rest` below (both Vector ops) keep working unchanged.
 (:wat::core::defmacro :wat::holon::Sequential
   [items <- :wat::WatAST]
   -> :wat::WatAST
   `(:wat::core::let
      [positioned
-       (:wat::std::list::map-with-index ~items
-         (:wat::core::fn [item <- :wat::holon::HolonAST i <- :wat::core::i64] -> :wat::holon::HolonAST
-           (:wat::core::if (:wat::core::= i 0) 
-             item
-             (:wat::holon::Permute item i))))]
+       (:wat::core::into []
+         (:wat::core::map-indexed
+           (:wat::core::fn [i <- :wat::core::i64 item <- :wat::holon::HolonAST] -> :wat::holon::HolonAST
+             (:wat::core::if (:wat::core::= i 0)
+               item
+               (:wat::holon::Permute item i)))
+           ~items))]
      ;; use get for the Option-returning safe path; arc-278 flipped first to bare-raising.
      ;; Sequential expects non-empty input by contract; the :None arm is defensive.
      (:wat::core::match (:wat::core::get positioned 0) 

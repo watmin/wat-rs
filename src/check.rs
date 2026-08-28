@@ -4474,6 +4474,35 @@ fn infer_list(
                     None => CheckResult::errs(local_errors),
                 };
             }
+            // Arc 255 Stone HOME-9 — `:wat::seq::zip`/`window`/`remove-at` are Seqable-generic
+            // now (accept Vector | PersistentVector | List | Stream, same set as map/take/drop
+            // above), which a static `TypeScheme` cannot express — custom arms, same shape as
+            // take/drop. The static Vector-only schemes that used to live at
+            // `:wat::std::list::{zip,window,remove-at}` are RETIRED (register_builtins).
+            ":wat::seq::zip" => {
+                let (val, mut errs) = crate::collection::infer::infer_zip(args, head_span, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
+            ":wat::seq::window" => {
+                let (val, mut errs) = crate::collection::infer::infer_window(args, head_span, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
+            ":wat::seq::remove-at" => {
+                let (val, mut errs) = crate::collection::infer::infer_remove_at(args, head_span, env, locals, fresh, subst).into_parts();
+                local_errors.append(&mut errs);
+                return match val {
+                    Some(ty) => if local_errors.is_empty() { CheckResult::ok(ty) } else { CheckResult::partial_with(ty, local_errors) },
+                    None => CheckResult::errs(local_errors),
+                };
+            }
             // Arc-278 DESIGN-STONE seq-traversal-one-door, Strike 1 — `seqable->stream` is
             // native now (was a wat `defclause`, `wat/seq.wat`); check-side parity with
             // map/take/drop above (same `extract_lazyable_elem` Seqable set).
@@ -4859,6 +4888,16 @@ fn infer_list(
             }
             _ if (k.starts_with(":wat::kernel::") || k.starts_with(":wat::std::"))
                 && !k.starts_with(":wat::std::math::")
+                // Arc 255 Stone HOME-9 — `math` was already excluded (it kept a registered
+                // scheme until this stone retired it); `stat`/`list` need the SAME exclusion
+                // now that their old spellings are retired too, or a retired
+                // `:wat::std::stat::*`/`:wat::std::list::*` call would be silently
+                // accept-and-recursed HERE instead of reaching Door 1 (the retirement-table
+                // consult a few hundred lines down) — an inert-row regression
+                // `tests/cli/retirement_table_reachable.rs` measures directly. Found by this
+                // stone's own rider, not named in the brief's Rooms list.
+                && !k.starts_with(":wat::std::stat::")
+                && !k.starts_with(":wat::std::list::")
                 && env.get(k).is_none()
                 // Arc 259 S2c-ii-b — stdlib defclauses under :wat::kernel:: have no
                 // scheme (the stub is removed by register_stdlib_defclauses) but DO
@@ -4871,9 +4910,9 @@ fn infer_list(
                 && env.get_defclause_clauses(k).is_none() =>
             {
                 // Unknown kernel / std path with no registered scheme or defclause —
-                // accept and recurse. Math lives at `:wat::std::math::*`
-                // and has registered schemes; exclude it so the normal
-                // scheme lookup below kicks in.
+                // accept and recurse. Math/stat/list (arc 255 Stone HOME-9's three retired
+                // families) are excluded so a retired call reaches Door 1 below instead of
+                // being silently waved through.
                 for arg in args {
                     let _ = infer(arg, env, locals, fresh, subst).drain_errors_into(&mut local_errors);
                 }
@@ -19931,9 +19970,15 @@ fn register_builtins(env: &mut CheckEnv) {
     // Stdlib math — single-method Rust calls per FOUNDATION-CHANGELOG
     // 2026-04-18. All unary :f64 -> :f64 except pi which is :() -> :f64.
     // Packaged here so Log / Circular expansions get proper checking.
-    for name in ["ln", "log", "exp", "sin", "cos", "sqrt"] {
+    //
+    // Arc 255 Stone HOME-9 — moved off the dead `:wat::std::` namespace to `:wat::math::*`.
+    // `log` is DELETED here, not moved: it was wired to the SAME `f64::ln` as `ln` (a level-1
+    // lie — `log(100.0)` = `4.605...` = `ln(100.0)`, not `log10(100.0)` = `2.0`), had zero call
+    // sites in the corpus, and duplicating `ln` under a name that implies a different base is
+    // not a decision worth carrying forward under a new address.
+    for name in ["ln", "exp", "sin", "cos", "sqrt"] {
         env.register(
-            format!(":wat::std::math::{}", name),
+            format!(":wat::math::{}", name),
             TypeScheme {
                 type_params: vec![],
                 params: vec![f64_ty()],
@@ -19943,7 +19988,7 @@ fn register_builtins(env: &mut CheckEnv) {
         );
     }
     env.register(
-        ":wat::std::math::pi".into(),
+        ":wat::math::pi".into(),
         TypeScheme {
             type_params: vec![],
             params: vec![],
@@ -19955,6 +20000,7 @@ fn register_builtins(env: &mut CheckEnv) {
     // Stat reductions over (Vector :- [f64]) — population variance/stddev
     // (matches numpy default ddof=0); all return (:Option :- [f64]) with
     // None on empty input (matches f64::min-of/max-of convention).
+    // Arc 255 Stone HOME-9 — moved off the dead `:wat::std::` namespace to `:wat::stat::*`.
     let opt_f64_ty = || TypeExpr::Parametric {
         head: "wat::core::Option".into(),
         args: vec![f64_ty()],
@@ -19965,7 +20011,7 @@ fn register_builtins(env: &mut CheckEnv) {
     };
     for name in ["mean", "variance", "stddev"] {
         env.register(
-            format!(":wat::std::stat::{}", name),
+            format!(":wat::stat::{}", name),
             TypeScheme {
                 type_params: vec![],
                 params: vec![vec_f64_ty()],
@@ -20135,7 +20181,9 @@ fn register_builtins(env: &mut CheckEnv) {
     //   drop     : ∀T. (Vector :- [T]) × :i64 -> (Vector :- [T])
     //   map      : ∀T,U. (Vector :- [T]) × [T :-> U] -> (Vector :- [U])
     //   foldl    : ∀T,Acc. (Vector :- [T]) × Acc × [Acc T :-> Acc] -> Acc
-    //   window   : ∀T. (Vector :- [T]) × :i64 -> (Vector :- [(Vector :- [T])])   (at :wat::std::list::)
+    //   Arc 255 Stone HOME-9 — zip/window/remove-at moved to :wat::seq::*, and Seqable-generic
+    //   (custom infer_zip/infer_window/infer_remove_at arms, collection/infer.rs, same shape as
+    //   take/drop below — a static TypeScheme cannot express "any Seqable").
     let u_var = || TypeExpr::Path(":U".into());
     let acc_var = || TypeExpr::Path(":Acc".into());
     let vec_of = |inner: TypeExpr| TypeExpr::Parametric {
@@ -20253,38 +20301,17 @@ fn register_builtins(env: &mut CheckEnv) {
             rest_param_type: None,
         },
     );
-    env.register(
-        ":wat::std::list::zip".into(),
-        TypeScheme {
-            type_params: vec!["T".into(), "U".into()],
-            params: vec![vec_of(t_var()), vec_of(u_var())],
-            ret: vec_of(TypeExpr::Tuple(vec![t_var(), u_var()])),
-            rest_param_type: None,
-        },
-    );
+    // Arc 255 Stone HOME-9 — the static Vector-only schemes for `:wat::std::list::{zip,
+    // window, remove-at}` that used to live here are RETIRED. Superseded by
+    // `infer_zip`/`infer_window`/`infer_remove_at` (collection/infer.rs), dispatched from the
+    // keyword-head match above at `:wat::seq::{zip,window,remove-at}` — Seqable-generic
+    // (Vector | PersistentVector | List | Stream), which a static TypeScheme cannot express.
+    //
     // get, assoc, conj, and contains? are all polymorphic over
     // container type — dispatched by the infer_* arms above. No
     // narrow schemes registered here.
     // :wat::std::member? RETIRED in arc 025. Use `:wat::core::contains?`
     // instead — now polymorphic over HashMap / HashSet / Vec.
-    env.register(
-        ":wat::std::list::remove-at".into(),
-        TypeScheme {
-            type_params: vec!["T".into()],
-            params: vec![vec_of(t_var()), i64_ty()],
-            ret: vec_of(t_var()),
-            rest_param_type: None,
-        },
-    );
-    env.register(
-        ":wat::std::list::window".into(),
-        TypeScheme {
-            type_params: vec!["T".into()],
-            params: vec![vec_of(t_var()), i64_ty()],
-            ret: vec_of(vec_of(t_var())),
-            rest_param_type: None,
-        },
-    );
 
     // first/second/third are special-cased (polymorphic over Vec + tuple;
     // see infer_positional_accessor). rest is simple:
@@ -20304,23 +20331,10 @@ fn register_builtins(env: &mut CheckEnv) {
     // pairing). Dispatched by `infer_conj` at check.rs arm above.
     //
     // No narrow scheme registered; handled entirely by infer_conj.
-    // :wat::std::list::map-with-index — needed by Sequential for
-    // indexed fold.
-    env.register(
-        ":wat::std::list::map-with-index".into(),
-        TypeScheme {
-            type_params: vec!["T".into(), "U".into()],
-            params: vec![
-                vec_of(t_var()),
-                TypeExpr::Fn {
-                    args: vec![t_var(), i64_ty()],
-                    ret: Box::new(u_var()),
-                },
-            ],
-            ret: vec_of(u_var()),
-            rest_param_type: None,
-        },
-    );
+    // Arc 255 Stone HOME-9 — `:wat::std::list::map-with-index`'s scheme (registered here) is
+    // DELETED, not moved. `:wat::core::map-indexed` (already registered/type-checked via
+    // `wat/seq.wat`'s own `defn`) is its Seqable-generic, non-drop-in replacement — see
+    // `src/remedy/retirement.rs`'s row for the check-time redirect and its migration note.
 
     // ─── Arc 144 slice 3 — fingerprints for hardcoded callables ─────────────
     //

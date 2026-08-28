@@ -1,4 +1,5 @@
-//! `:wat::std::stat::*` — mean, variance, stddev.
+//! `:wat::stat::*` — mean, variance, stddev (arc 255 Stone HOME-9 — moved off the dead
+//! `:wat::std::` namespace).
 //!
 //! Surfaced by holon-lab-trading arc 026 slice 9 + slice 10 (Hurst
 //! R/S, DFA, variance ratio all want windowed stats). Universal

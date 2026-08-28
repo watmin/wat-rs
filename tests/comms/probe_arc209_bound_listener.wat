@@ -23,9 +23,9 @@
                                  (:wat::core::* n 2)) (:wat::kernel::SendOutcome::Sent nil) (:wat::kernel::SendOutcome::Closed nil) ((:wat::kernel::SendOutcome::Lost _c) nil) (:wat::kernel::SendOutcome::Stopped nil))] ;; arc 278 #73 — fire-and-forget reply; outcome ignored uniformly regardless of cause
             (:user::serve self l clients)))))
     ((:wat::spawn::ServiceEvent::Closed idx)
-      (:user::serve self l (:wat::std::list::remove-at clients idx)))
+      (:user::serve self l (:wat::seq::remove-at clients idx)))
     ((:wat::spawn::ServiceEvent::Lost idx _cause)
-      (:user::serve self l (:wat::std::list::remove-at clients idx)))
+      (:user::serve self l (:wat::seq::remove-at clients idx)))
     (_ nil)))
 
 ;; Spawn the service, connect one client, round-trip a scalar (5*2 = 10), then

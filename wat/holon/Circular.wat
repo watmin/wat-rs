@@ -13,8 +13,8 @@
 ;; `(:wat::core::*` + `:wat::core::/)` calls. Polymorphic forms used;
 ;; the typed-strict `:wat::f64::*` and `:wat::f64::/`
 ;; remain available when callers want the type-guard behavior.
-;; `:wat::std::math::pi` is a nullary primitive called as
-;; `(:wat::std::math::pi)`; let bindings carry explicit
+;; `:wat::math::pi` is a nullary primitive called as
+;; `(:wat::math::pi)`; let bindings carry explicit
 ;; `:wat::core::f64` types.
 
 (:wat::core::defmacro :wat::holon::Circular
@@ -25,11 +25,11 @@
      [frac
        (:wat::core::/ ~value ~period)
       two-pi
-       (:wat::core::* 2.0 (:wat::std::math::pi))
+       (:wat::core::* 2.0 (:wat::math::pi))
       theta
        (:wat::core::* two-pi frac)]
      (:wat::holon::Blend
        (:wat::holon::to-holon :wat::std::circular-cos-basis)
        (:wat::holon::to-holon :wat::std::circular-sin-basis)
-       (:wat::std::math::cos theta)
-       (:wat::std::math::sin theta))))
+       (:wat::math::cos theta)
+       (:wat::math::sin theta))))

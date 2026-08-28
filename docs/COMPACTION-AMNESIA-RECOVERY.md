@@ -807,20 +807,39 @@ orchestrator had run the baseline check pre-spawn.
 claiming a file lives under `wat/std/` (that directory no longer
 exists on disk — arc 109 eliminated it).
 
-**Reality check:** Arc 109 killed `:wat::std::*`. The `wat/std/`
-directory is GONE. Files that lived there moved: `wat/std/stream.wat`
-→ `wat/stream.wat`; `wat/std/hermetic.wat` → `wat/kernel/hermetic.wat`;
-`wat/std/sandbox.wat` → `wat/kernel/sandbox.wat`; `wat/std/test.wat`
-→ `wat/test.wat`; `wat/std/service/Console.wat` DELETED (arc 170
-slice 1f-η). NEVER add to a `wat/std/*` location. New wat-defined
-macros + helpers go in their semantic namespace (e.g.,
-`wat/runtime.wat`, `wat/list.wat`, `wat/kernel/`).
+**Reality check:** Arc 109 killed the `wat/std/` DIRECTORY (deleted it
+and swept the `.wat` stdlib, 2026-04-30/05-01). Files that lived there
+moved: `wat/std/stream.wat` → `wat/stream.wat`; `wat/std/hermetic.wat`
+→ `wat/kernel/hermetic.wat`; `wat/std/sandbox.wat` →
+`wat/kernel/sandbox.wat`; `wat/std/test.wat` → `wat/test.wat`;
+`wat/std/service/Console.wat` DELETED (arc 170 slice 1f-η). NEVER add
+to a `wat/std/*` location. New wat-defined macros + helpers go in
+their semantic namespace (e.g., `wat/runtime.wat`, `wat/list.wat`,
+`wat/kernel/`).
+
+⚠ **CORRECTED 2026-08-27 (arc 255 Stone HOME-9):** the paragraph above
+used to claim Arc 109 killed the `:wat::std::` NAMESPACE too. That was
+FALSE, and had been false since 109 closed: fourteen verbs
+(`:wat::std::math::*` ×7, `:wat::std::stat::*` ×3, `:wat::std::list::*`
+×4) kept dispatching in `src/runtime.rs` for four months — 109 deleted
+the DIRECTORY and swept the `.wat` files that called through it, but
+never swept the Rust dispatch arms themselves. Stone HOME-9 (2026-08-27)
+found and retired all fourteen (`math`→`:wat::math::*`,
+`stat`→`:wat::stat::*`, three of the four `list::` verbs→`:wat::seq::*`,
+`map-with-index` deleted). The general `:wat::std::` RESERVED PREFIX for
+stdlib macros (`src/types.rs`, `src/macros/parse.rs`) is a SEPARATE,
+still-live mechanism, untouched by either arc — do not read its
+survival as another instance of this failure mode. This is the exact
+class FM 8 exists to prevent: a next self reading "Arc 109 killed
+`:wat::std::*`" as still true, this file's own job being to stop that.
 
 **Real incident, 2026-05-02:** Sonnet created `wat/std/ast.wat` with
 the manual reduce define. User: *"remove wat/std/ast.wat — we are
 actively killing the std namespace — 109's purpose is to eliminate
 it."* (Note: as of arc 170 the directory is fully eliminated; any
-reference claiming a file lives at `wat/std/…` is stale.)
+reference claiming a file lives at `wat/std/…` is stale. As of arc 255
+Stone HOME-9, the NAMESPACE is finally gone too — see the correction
+above.)
 
 ### Failure mode 11 — Inscribing deferrals as DONE
 

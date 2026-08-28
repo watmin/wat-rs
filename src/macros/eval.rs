@@ -603,18 +603,20 @@ fn is_pure_total(head: &str) -> bool {
         | ":wat::core::Result/try"
 
         // ── Math (pure functions, deterministic) ─────────────────────
-        | ":wat::std::math::ln"
-        | ":wat::std::math::log"
-        | ":wat::std::math::exp"
-        | ":wat::std::math::sqrt"
-        | ":wat::std::math::sin"
-        | ":wat::std::math::cos"
-        | ":wat::std::math::pi"
+        // Arc 255 Stone HOME-9 — moved off the dead `:wat::std::` namespace to `:wat::math::*`.
+        // `log` is DELETED, not moved (was wired to the SAME `f64::ln` as `ln`; zero call sites).
+        | ":wat::math::ln"
+        | ":wat::math::exp"
+        | ":wat::math::sqrt"
+        | ":wat::math::sin"
+        | ":wat::math::cos"
+        | ":wat::math::pi"
 
         // ── Statistics (pure over closed data) ───────────────────────
-        | ":wat::std::stat::mean"
-        | ":wat::std::stat::variance"
-        | ":wat::std::stat::stddev"
+        // Arc 255 Stone HOME-9 — moved off the dead `:wat::std::` namespace to `:wat::stat::*`.
+        | ":wat::stat::mean"
+        | ":wat::stat::variance"
+        | ":wat::stat::stddev"
 
         // ── Holon AST / form construction (pure; no IO) ──────────────
         | ":wat::holon::Atom"

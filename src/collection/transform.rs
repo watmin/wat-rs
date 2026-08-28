@@ -10,9 +10,17 @@
 //! `mappable()` — no hand-rolled per-container match in the classifier gate.
 //! Per-container element-iteration/rebuild arms remain behind the gate.
 //!
-//! The four ops in the `:wat::std::list::` namespace (zip, window, remove-at,
-//! map-with-index) are named `eval_vec_*` and still enforce `Value::Vec` via
-//! `require_vec` — they are not part of the HOF family migration.
+//! Arc 255 Stone HOME-9 — `zip`/`window`/`remove-at` graduated off the dead
+//! `:wat::std::list::` namespace to `:wat::seq::*` AND became Seqable-generic in the same
+//! motion (`eval_seq_zip`/`eval_seq_window`/`eval_seq_remove_at`, via `require_seqable_vec`):
+//! Vec-only was an accident of a four-month-old implementation (the Rust fns used to be named
+//! `eval_vec_*` specifically to mirror an ENFORCED `Value::Vec`-only contract — a confession,
+//! not a decision), not a deliberate restriction. They accept any `Seqable`
+//! (`Vector`/`PersistentVector`/`List`/`Stream`) now, same set as `map`/`foldl`/`take`/`drop`.
+//! `map-with-index` (the fourth `:wat::std::list::` verb) is DELETED, not moved —
+//! `:wat::core::map-indexed` already does its job, generically; see `wat/holon/Sequential.wat`
+//! for the one real caller's migration (arg order flips, and the result is a lazy Stream, not
+//! an eager Vector — NOT a drop-in).
 //! `rest` lives in `eval.rs` (container-polymorphic; Vec/List/WatAST-form/PersistentVector).
 //! Their dispatch arms in `dispatch_keyword_head_value` redirect here.
 //!
@@ -843,14 +851,58 @@ pub(crate) fn eval_stream_to_pvec(
 // seqable, dispatched through the `StreamContainer` registry exactly like `map`. check.rs's
 // `infer_filter` special-case arm is live again too (`src/collection/infer.rs`).
 
-/// `(:wat::std::list::zip xs ys)` → `Vec<(T,U)>`. Short-circuits at
-/// the shorter input's length (matches Rust's `xs.iter().zip(ys)`).
-///
-/// The wat-level op lives in the `:wat::std::list::` namespace (surface contract, unchanged).
-/// This Rust function is named `eval_vec_zip` to mirror the ENFORCED value type: both inputs
-/// must be `Value::Vec` (enforced by `require_vec`); actual `Value::wat__core__List` values
-/// are rejected at runtime.
-pub(crate) fn eval_vec_zip(
+/// Arc 255 Stone HOME-9 — drain ANY Seqable (`Vector`/`PersistentVector`/`List`/`Stream`) into
+/// an owned `Vec<Value>`, via the same `value_as_stream` + `realize` normalisation
+/// `eval_stream_to_vec`/`eval_vec_foldl`'s Stream arm use. This is what makes
+/// `zip`/`window`/`remove-at` Seqable-generic: before this stone they called `require_vec`
+/// directly and REJECTED a `List` — the ONLY seq ops in the language that did (their siblings
+/// `map`/`foldl`/`take`/`drop`/`map-indexed`/`remove`/`take-while` are all Seqable-generic in
+/// `wat/seq.wat`) — measured and named a bug, not a decision, by the drawing commit
+/// (`ab4417d25`). One pass, one accumulator, matching `eval_stream_to_vec`'s "nothing else held"
+/// discipline.
+fn require_seqable_vec(
+    op: &str,
+    val: Value,
+    val_span: &Span,
+    sym: &SymbolTable,
+    call_span: &Span,
+) -> Result<Vec<Value>, EvalBreak> {
+    let Some(mut cur) = crate::stream::value_as_stream(&val) else {
+        return Err(RuntimeError::new(
+            val_span.clone(),
+            RuntimeErrorKind::TypeMismatch {
+                op: op.into(),
+                expected: "wat::core::Vector, wat::core::PersistentVector, wat::core::List, or wat::stream::Stream",
+                got: Box::new(ValueSnapshot::of(&val)),
+            },
+        )
+        .into());
+    };
+    let mut out = Vec::new();
+    loop {
+        let realized = crate::stream::realize(&cur, sym, call_span)?;
+        match realized.as_ref() {
+            crate::stream::Stream::Empty => return Ok(out),
+            crate::stream::Stream::Cons { head, tail } => {
+                out.push(head.clone());
+                cur = Arc::clone(tail);
+            }
+            crate::stream::Stream::Thunk(_) | crate::stream::Stream::NativeThunk(_) => {
+                unreachable!("crate::stream::realize always returns Empty|Cons")
+            }
+        }
+    }
+}
+
+/// `(zip xs ys)` → `Vec<(T,U)>`. Short-circuits at the shorter input's length (matches Rust's
+/// `xs.iter().zip(ys)`). Lives at `:wat::seq::zip` (arc 255 Stone HOME-9 — moved off the dead
+/// `:wat::std::list::` namespace). Seqable-generic (`require_seqable_vec`): accepts `Vector`,
+/// `PersistentVector`, `List`, or `Stream` for EITHER input, not just `Value::Vec` — the old
+/// `require_vec`-only contract was a bug (the confession this doc used to carry, verbatim,
+/// four times across this file), not a decision. `op` is the caller's own spelling, threaded
+/// through for arity/type-mismatch error messages.
+pub(crate) fn eval_seq_zip(
+    op: &'static str,
     args: &[WatAST],
     call_span: &Span,
     env: &Environment,
@@ -860,20 +912,26 @@ pub(crate) fn eval_vec_zip(
         return Err(RuntimeError::new(
             call_span.clone(),
             RuntimeErrorKind::ArityMismatch {
-                op: ":wat::std::list::zip".into(),
+                op: op.into(),
                 expected: 2,
                 got: args.len(),
             },
         )
         .into());
     }
-    let xs = require_vec(
-        ":wat::std::list::zip",
+    let xs = require_seqable_vec(
+        op,
         eval_inner(&args[0], env, sym)?.value_owned(),
+        args[0].span(),
+        sym,
+        call_span,
     )?;
-    let ys = require_vec(
-        ":wat::std::list::zip",
+    let ys = require_seqable_vec(
+        op,
         eval_inner(&args[1], env, sym)?.value_owned(),
+        args[1].span(),
+        sym,
+        call_span,
     )?;
     let n = xs.len().min(ys.len());
     let mut out = Vec::with_capacity(n);
@@ -883,16 +941,14 @@ pub(crate) fn eval_vec_zip(
     Ok(Value::Vec(Arc::new(out)))
 }
 
-/// `(:wat::std::list::window xs n)` → `Vec<Vec<T>>`. Sliding window
-/// of size `n`; maps to Rust's `slice.windows(n)`. `n <= 0` returns
-/// an empty Vec. `n > xs.len()` returns an empty Vec (no full
-/// window fits) — matches Rust's behavior.
-///
-/// The wat-level op lives in the `:wat::std::list::` namespace (surface contract, unchanged).
-/// This Rust function is named `eval_vec_window` to mirror the ENFORCED value type: input
-/// must be `Value::Vec` (enforced by `require_vec`); actual `Value::wat__core__List` values
-/// are rejected at runtime.
-pub(crate) fn eval_vec_window(
+/// `(window xs n)` → `Vec<Vec<T>>`. Sliding window of size `n`; maps to Rust's
+/// `slice.windows(n)`. `n <= 0` returns an empty Vec. `n > xs.len()` returns an empty Vec (no
+/// full window fits) — matches Rust's behavior. Lives at `:wat::seq::window` (arc 255 Stone
+/// HOME-9 — moved off the dead `:wat::std::list::` namespace; Clojure's `partition`).
+/// Seqable-generic (`require_seqable_vec`): accepts `Vector`, `PersistentVector`, `List`, or
+/// `Stream`, not just `Value::Vec`.
+pub(crate) fn eval_seq_window(
+    op: &'static str,
     args: &[WatAST],
     call_span: &Span,
     env: &Environment,
@@ -902,21 +958,21 @@ pub(crate) fn eval_vec_window(
         return Err(RuntimeError::new(
             call_span.clone(),
             RuntimeErrorKind::ArityMismatch {
-                op: ":wat::std::list::window".into(),
+                op: op.into(),
                 expected: 2,
                 got: args.len(),
             },
         )
         .into());
     }
-    let xs = require_vec(
-        ":wat::std::list::window",
+    let xs = require_seqable_vec(
+        op,
         eval_inner(&args[0], env, sym)?.value_owned(),
+        args[0].span(),
+        sym,
+        call_span,
     )?;
-    let n = require_i64(
-        ":wat::std::list::window",
-        eval_inner(&args[1], env, sym)?.value_owned(),
-    )?;
+    let n = require_i64(op, eval_inner(&args[1], env, sym)?.value_owned())?;
     if n <= 0 {
         return Ok(Value::Vec(Arc::new(Vec::new())));
     }
@@ -928,18 +984,16 @@ pub(crate) fn eval_vec_window(
     Ok(Value::Vec(Arc::new(out)))
 }
 
-/// `(:wat::std::list::remove-at xs i)` → `Vec<T>`. New Vec with
-/// the element at `i` removed. Out-of-range index returns the Vec
-/// unchanged (rather than erroring) — matches the inline select
-/// loop's "drop the disconnected receiver if it happens to be at
-/// index i" idiom without requiring a pre-check. Negative i also
-/// no-ops.
-///
-/// The wat-level op lives in the `:wat::std::list::` namespace (surface contract, unchanged).
-/// This Rust function is named `eval_vec_remove_at` to mirror the ENFORCED value type: input
-/// must be `Value::Vec` (enforced by `require_vec`); actual `Value::wat__core__List` values
-/// are rejected at runtime.
-pub(crate) fn eval_vec_remove_at(
+/// `(remove-at xs i)` → `Vec<T>`. New Vec with the element at `i` removed. Out-of-range index
+/// returns the Vec unchanged (rather than erroring) — matches the inline select loop's "drop
+/// the disconnected receiver if it happens to be at index i" idiom without requiring a
+/// pre-check. Negative i also no-ops. Lives at `:wat::seq::remove-at` (arc 255 Stone HOME-9 —
+/// moved off the dead `:wat::std::list::` namespace; NOT a duplicate of `:wat::core::remove`,
+/// which drops by PREDICATE — this drops by INDEX, and Clojure has no equivalent either).
+/// Seqable-generic (`require_seqable_vec`): accepts `Vector`, `PersistentVector`, `List`, or
+/// `Stream`, not just `Value::Vec`.
+pub(crate) fn eval_seq_remove_at(
+    op: &'static str,
     args: &[WatAST],
     call_span: &Span,
     env: &Environment,
@@ -949,23 +1003,23 @@ pub(crate) fn eval_vec_remove_at(
         return Err(RuntimeError::new(
             call_span.clone(),
             RuntimeErrorKind::ArityMismatch {
-                op: ":wat::std::list::remove-at".into(),
+                op: op.into(),
                 expected: 2,
                 got: args.len(),
             },
         )
         .into());
     }
-    let xs = require_vec(
-        ":wat::std::list::remove-at",
+    let xs = require_seqable_vec(
+        op,
         eval_inner(&args[0], env, sym)?.value_owned(),
+        args[0].span(),
+        sym,
+        call_span,
     )?;
-    let i = require_i64(
-        ":wat::std::list::remove-at",
-        eval_inner(&args[1], env, sym)?.value_owned(),
-    )?;
+    let i = require_i64(op, eval_inner(&args[1], env, sym)?.value_owned())?;
     if i < 0 || (i as usize) >= xs.len() {
-        return Ok(Value::Vec(xs));
+        return Ok(Value::Vec(Arc::new(xs)));
     }
     let target = i as usize;
     let mut out = Vec::with_capacity(xs.len() - 1);
@@ -1062,64 +1116,12 @@ pub(crate) fn eval_vec_find_last_index(
     Ok(Value::Option(Arc::new(last_idx.map(Value::i64))))
 }
 
-/// `(:wat::std::list::map-with-index xs f)` → `Vec<U>`. Per
-/// FOUNDATION-CHANGELOG 2026-04-18 stdlib list surface. `f` takes
-/// `(item, index)` and returns U. Used by Sequential's indexed fold.
-///
-/// The wat-level op lives in the `:wat::std::list::` namespace (surface contract, unchanged).
-/// This Rust function is named `eval_vec_map_with_index` to mirror the ENFORCED value type:
-/// input must be `Value::Vec` (enforced by `require_vec`); actual `Value::wat__core__List`
-/// values are rejected at runtime.
-pub(crate) fn eval_vec_map_with_index(
-    args: &[WatAST],
-    call_span: &Span,
-    env: &Environment,
-    sym: &SymbolTable,
-) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(
-            call_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::std::list::map-with-index".into(),
-                expected: 2,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    // NB: arg order here is (xs f) — the collection leads. This diverges from the fn-first
-    // HOF family (arc 247: map/filter/foldl all take (f xs)). Do NOT copy the extraction
-    // order from sibling HOFs — args[0] is the Vec, args[1] is the function.
-    let xs = require_vec(
-        ":wat::std::list::map-with-index",
-        eval_inner(&args[0], env, sym)?.value_owned(),
-    )?;
-    let f = eval_inner(&args[1], env, sym)?.value_owned();
-    let func = match &f {
-        Value::wat__core__fn(func) => func.clone(),
-        other => {
-            return Err(RuntimeError::new(
-                args[1].span().clone(),
-                RuntimeErrorKind::TypeMismatch {
-                    op: ":wat::std::list::map-with-index".into(),
-                    expected: "wat::core::fn",
-                    got: Box::new(ValueSnapshot::of(other)),
-                },
-            )
-            .into());
-        }
-    };
-    let mut out = Vec::with_capacity(xs.len());
-    for (i, x) in xs.iter().enumerate() {
-        out.push(apply_function(
-            func.clone(),
-            vec![x.clone(), Value::i64(i as i64)],
-            sym,
-            call_span.clone(),
-        )?);
-    }
-    Ok(Value::Vec(Arc::new(out)))
-}
+// Arc 255 Stone HOME-9 — `:wat::std::list::map-with-index` (which lived here as
+// `eval_vec_map_with_index`) is DELETED, not moved. `:wat::core::map-indexed` (`wat/seq.wat`)
+// already does this job, Seqable-generic — but NOT a drop-in: the argument order flips
+// ((Vector,fn) -> (fn,coll)) and the result is a lazy `Stream`, not an eager `Vector`. Its one
+// real caller (`wat/holon/Sequential.wat`) migrated by hand; see `src/remedy/retirement.rs`'s
+// row for the check-time redirect.
 
 /// `(:wat::core::seqable->stream coll)` → `Stream<T>`. Arc-278 DESIGN-STONE
 /// seq-traversal-one-door, Strike 1 — the private eager→lazy normalizer, NATIVE now,

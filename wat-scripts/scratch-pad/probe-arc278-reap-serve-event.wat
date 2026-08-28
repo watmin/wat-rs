@@ -42,9 +42,9 @@
           ((:wat::kernel::SendOutcome::Lost _c) nil))
         (:se::serve self l peers)))
     ((:wat::spawn::ServiceEvent::Closed idx)
-      (:se::serve self l (:wat::std::list::remove-at peers idx)))
+      (:se::serve self l (:wat::seq::remove-at peers idx)))
     ((:wat::spawn::ServiceEvent::Lost idx _cause)
-      (:se::serve self l (:wat::std::list::remove-at peers idx)))
+      (:se::serve self l (:wat::seq::remove-at peers idx)))
     (_ nil)))
 
 (:wat::core::defn :se::try [c <- (:wat::kernel::Peer :- [:wat::core::i64 :wat::core::i64])

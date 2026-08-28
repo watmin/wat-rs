@@ -1241,6 +1241,193 @@ pub(crate) fn infer_seqable_to_stream(
     if local_errors.is_empty() { CheckResult::ok(fallback_ty) } else { CheckResult::partial_with(fallback_ty, local_errors) }
 }
 
+/// Type-check `(:wat::seq::zip xs ys)` — arc 255 Stone HOME-9.
+///
+/// `Seqable<T> × Seqable<U> → Vector<Tuple<T,U>>` — EAGER (unlike `map`/`take`/`drop`, `zip`
+/// keeps its pre-stone eager-Vector return; only the INPUT acceptance widens). Each side is
+/// independently any of `Vector`/`PersistentVector`/`List`/`Stream` (`extract_lazyable_elem`,
+/// the same Seqable set `map`/`take`/`drop`/`foldl` accept) — before this stone `zip` only
+/// accepted `Value::Vec` at runtime (`require_vec`), a bug named and fixed by the drawing
+/// commit (`ab4417d25`), not a decision.
+pub(crate) fn infer_zip(
+    args: &[WatAST],
+    head_span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    const OP: &str = ":wat::seq::zip";
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    let fallback_ty = seq_ty("wat::core::Vector", TypeExpr::Tuple(vec![fresh.fresh(), fresh.fresh()]));
+    if args.len() != 2 {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
+            callee: OP.into(), expected: 2, got: args.len()
+        }});
+        return CheckResult::partial_with(fallback_ty, local_errors);
+    }
+    let a_ty_opt = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+    let b_ty_opt = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+
+    let elem_a = match a_ty_opt {
+        Some(a_ty) => {
+            let reduced = reduce(&a_ty, subst, env.types());
+            match extract_lazyable_elem(&reduced, subst, fresh) {
+                Some(elem_ty) => Some(elem_ty),
+                None if matches!(reduced, TypeExpr::Var(_)) => None,
+                None => {
+                    local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                        callee: OP.into(),
+                        param: "#1".into(),
+                        expected: "(Vector :- [T]), (PersistentVector :- [T]), (List :- [T]), or (Stream :- [T])".into(),
+                        got: format_type(&reduced)
+                    }});
+                    None
+                }
+            }
+        }
+        None => None,
+    };
+    let elem_b = match b_ty_opt {
+        Some(b_ty) => {
+            let reduced = reduce(&b_ty, subst, env.types());
+            match extract_lazyable_elem(&reduced, subst, fresh) {
+                Some(elem_ty) => Some(elem_ty),
+                None if matches!(reduced, TypeExpr::Var(_)) => None,
+                None => {
+                    local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                        callee: OP.into(),
+                        param: "#2".into(),
+                        expected: "(Vector :- [T]), (PersistentVector :- [T]), (List :- [T]), or (Stream :- [T])".into(),
+                        got: format_type(&reduced)
+                    }});
+                    None
+                }
+            }
+        }
+        None => None,
+    };
+
+    if let (Some(elem_a), Some(elem_b)) = (elem_a, elem_b) {
+        let ret_ty = seq_ty("wat::core::Vector", TypeExpr::Tuple(vec![apply_subst(&elem_a, subst), apply_subst(&elem_b, subst)]));
+        return if local_errors.is_empty() { CheckResult::ok(ret_ty) } else { CheckResult::partial_with(ret_ty, local_errors) };
+    }
+    if local_errors.is_empty() { CheckResult::ok(fallback_ty) } else { CheckResult::partial_with(fallback_ty, local_errors) }
+}
+
+/// Type-check `(:wat::seq::window xs n)` — arc 255 Stone HOME-9.
+///
+/// `Seqable<T> × i64 → Vector<Vector<T>>` — EAGER (unlike `map`/`take`/`drop`; only the INPUT
+/// acceptance widens to the `Seqable` set). Clojure's `partition`.
+pub(crate) fn infer_window(
+    args: &[WatAST],
+    head_span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    const OP: &str = ":wat::seq::window";
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    let fallback_ty = seq_ty("wat::core::Vector", seq_ty("wat::core::Vector", fresh.fresh()));
+    if args.len() != 2 {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
+            callee: OP.into(), expected: 2, got: args.len()
+        }});
+        return CheckResult::partial_with(fallback_ty, local_errors);
+    }
+    let coll_ty_opt = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+    let n_ty = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+    let i64_ty = TypeExpr::Path(":wat::core::i64".into());
+
+    if let Some(coll_ty) = coll_ty_opt {
+        let reduced = reduce(&coll_ty, subst, env.types());
+        match extract_lazyable_elem(&reduced, subst, fresh) {
+            Some(elem_ty) => {
+                if let Some(n) = n_ty {
+                    if unify(&n, &i64_ty, subst, env.types()).is_err() {
+                        local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                            callee: OP.into(),
+                            param: "#2".into(),
+                            expected: format_type(&i64_ty),
+                            got: format_type(&apply_subst(&n, subst))
+                        }});
+                    }
+                }
+                let ret_ty = seq_ty("wat::core::Vector", seq_ty("wat::core::Vector", apply_subst(&elem_ty, subst)));
+                return if local_errors.is_empty() { CheckResult::ok(ret_ty) } else { CheckResult::partial_with(ret_ty, local_errors) };
+            }
+            None if matches!(reduced, TypeExpr::Var(_)) => {}
+            None => {
+                local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                    callee: OP.into(),
+                    param: "#1".into(),
+                    expected: "(Vector :- [T]), (PersistentVector :- [T]), (List :- [T]), or (Stream :- [T])".into(),
+                    got: format_type(&reduced)
+                }});
+            }
+        }
+    }
+    if local_errors.is_empty() { CheckResult::ok(fallback_ty) } else { CheckResult::partial_with(fallback_ty, local_errors) }
+}
+
+/// Type-check `(:wat::seq::remove-at xs i)` — arc 255 Stone HOME-9.
+///
+/// `Seqable<T> × i64 → Vector<T>` — EAGER (unlike `map`/`take`/`drop`; only the INPUT
+/// acceptance widens to the `Seqable` set). NOT a duplicate of `:wat::core::remove` (drops by
+/// PREDICATE); this drops by INDEX.
+pub(crate) fn infer_remove_at(
+    args: &[WatAST],
+    head_span: &Span,
+    env: &CheckEnv,
+    locals: &HashMap<String, TypeExpr>,
+    fresh: &mut InferCtx,
+    subst: &mut Subst,
+) -> CheckResult<TypeExpr> {
+    const OP: &str = ":wat::seq::remove-at";
+    let mut local_errors: Vec<CheckError> = Vec::new();
+    let fallback_ty = seq_ty("wat::core::Vector", fresh.fresh());
+    if args.len() != 2 {
+        local_errors.push(CheckError { span: head_span.clone(), kind: CheckErrorKind::ArityMismatch {
+            callee: OP.into(), expected: 2, got: args.len()
+        }});
+        return CheckResult::partial_with(fallback_ty, local_errors);
+    }
+    let coll_ty_opt = infer(&args[0], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+    let n_ty = infer(&args[1], env, locals, fresh, subst).drain_errors_into(&mut local_errors);
+    let i64_ty = TypeExpr::Path(":wat::core::i64".into());
+
+    if let Some(coll_ty) = coll_ty_opt {
+        let reduced = reduce(&coll_ty, subst, env.types());
+        match extract_lazyable_elem(&reduced, subst, fresh) {
+            Some(elem_ty) => {
+                if let Some(n) = n_ty {
+                    if unify(&n, &i64_ty, subst, env.types()).is_err() {
+                        local_errors.push(CheckError { span: args[1].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                            callee: OP.into(),
+                            param: "#2".into(),
+                            expected: format_type(&i64_ty),
+                            got: format_type(&apply_subst(&n, subst))
+                        }});
+                    }
+                }
+                let ret_ty = seq_ty("wat::core::Vector", apply_subst(&elem_ty, subst));
+                return if local_errors.is_empty() { CheckResult::ok(ret_ty) } else { CheckResult::partial_with(ret_ty, local_errors) };
+            }
+            None if matches!(reduced, TypeExpr::Var(_)) => {}
+            None => {
+                local_errors.push(CheckError { span: args[0].span().clone(), kind: CheckErrorKind::TypeMismatch {
+                    callee: OP.into(),
+                    param: "#1".into(),
+                    expected: "(Vector :- [T]), (PersistentVector :- [T]), (List :- [T]), or (Stream :- [T])".into(),
+                    got: format_type(&reduced)
+                }});
+            }
+        }
+    }
+    if local_errors.is_empty() { CheckResult::ok(fallback_ty) } else { CheckResult::partial_with(fallback_ty, local_errors) }
+}
+
 /// Type-check `(:wat::core::concat a b)` — arc 278 stone 0d.
 ///
 /// Projective: `C<T> × C<T> → C<T>` — same-kind-only; mixed Vector+PersistentVector → TypeMismatch.

@@ -31,7 +31,7 @@
         ;; :Item → buffer it; if no flush armed, ARM one (INSERT a fresh Timer' into the set):
         ((:probe::SinkSig::Item v)
           (:wat::core::let
-            [peers0 (:wat::std::list::remove-at peers idx)       ;; drop the fired one-shot item-timer
+            [peers0 (:wat::seq::remove-at peers idx)       ;; drop the fired one-shot item-timer
              buf'   (:wat::core::conj buf v)]
             (:wat::core::if armed
               (:probe::sink-loop peers0 buf' true)

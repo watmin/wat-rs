@@ -1588,10 +1588,10 @@
                              `((~op-variant-kw)
                                 (:wat::core::match (:wat::core::let ~let-bindings ~body) 
                                   ((:wat::service::Outcome::NoReply new-state)
-                                    (~serve-name self l (:wat::std::list::remove-at selectables idx) next-id new-state))
+                                    (~serve-name self l (:wat::seq::remove-at selectables idx) next-id new-state))
                                   ((:wat::service::Outcome::NoReplyAndArm new-state arms)
                                     (~serve-name self l
-                                      (:wat::core::foldl ~arm-fn (:wat::std::list::remove-at selectables idx) arms)
+                                      (:wat::core::foldl ~arm-fn (:wat::seq::remove-at selectables idx) arms)
                                       next-id
                                       new-state))
                                   ((:wat::service::Outcome::Reply new-state resp)
@@ -1914,7 +1914,7 @@
                          (:wat::core::match (:wat::kernel::retag-op op ~proto-op-ty-ann ~service-op-decl-kw-runtime)
                            ~@serve-op-arms)))
                      ((:wat::spawn::ServiceEvent::Closed idx)
-                       (~serve-name self l (:wat::std::list::remove-at selectables idx) next-id state))
+                       (~serve-name self l (:wat::seq::remove-at selectables idx) next-id state))
                      ;; arc 278 no-hidden-failures — a peer that broke abnormally is GONE:
                      ;; evict it. But its `cause` must NOT vanish (the old `_cause` silently
                      ;; swallowed the death reason — the exact masking this arc forbids). There
@@ -1926,7 +1926,7 @@
                      ((:wat::spawn::ServiceEvent::Lost idx cause)
                        (:wat::core::do
                          (:wat::kernel::assertion-failed! (:wat::kernel::Failure/message cause) :wat::core::None :wat::core::None)
-                         (~serve-name self l (:wat::std::list::remove-at selectables idx) next-id state)))
+                         (~serve-name self l (:wat::seq::remove-at selectables idx) next-id state)))
                      ;; arc 278 no-hidden-failures — a peer that sent an UNDECODABLE message is
                      ;; STILL ALIVE (a bad message is not a death). Reply the rich decode reason
                      ;; to THAT client as `Reply::Failed[cause]` (its generated method raises with
@@ -1960,7 +1960,7 @@
                            (:wat::kernel::TrySendOutcome::WouldBlock nil)   ;; client not draining — evict anyway (it learns via EPIPE)
                            (:wat::kernel::TrySendOutcome::Closed     nil)
                            ((:wat::kernel::TrySendOutcome::Lost _c)  nil))
-                         (~serve-name self l (:wat::std::list::remove-at selectables idx) next-id state))))
+                         (~serve-name self l (:wat::seq::remove-at selectables idx) next-id state))))
 
      ;; ── Arc 293 S2: client methods for :impls (over the surface's protocol) ─────────────
      ;; `(defn <fqdn>/<op> [c <- (Peer :- [S::Op S::Reply])  req <- <S>::<Op>Request] -> <S>::<Op>Response

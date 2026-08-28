@@ -70,6 +70,10 @@
 //! | `":wat::core::HashSet/*"` (4 ops)       | 255 Stone E-iii | per-type HashSet verbs, junk-drawer home     | `:wat::hashset::*` (the flavor-marked home; `:wat::set::` stays free for the persistent sibling) |
 //! | `":wat::core::List/*"` (5 ops)          | 255 Stone E-iii | per-type List verbs, junk-drawer home        | `:wat::linkedlist::*` (the flavor-marked home; `:wat::list::` stays free for the persistent sibling) |
 //! | `":wat::core::keyword/*"` (5 ops)       | 255 Stone E-iv | keyword verbs, junk-drawer home; the LAST scalar without a home | `:wat::keyword::*` (the plain, unmarked home — `keyword` has only one flavor) |
+//! | `":wat::std::math::*"` (6 ops)          | 255 Stone HOME-9 | 4-month-old dispatch-arm survivors of arc 109's incomplete "kill-std" sweep | `:wat::math::*` (`log` DELETED, not moved — see the table's own comment) |
+//! | `":wat::std::stat::*"` (3 ops)          | 255 Stone HOME-9 | ditto | `:wat::stat::*` |
+//! | `":wat::std::list::{zip,window,remove-at}"` (3 ops) | 255 Stone HOME-9 | ditto; also made Seqable-generic | `:wat::seq::*` (`:wat::list::` stays reserved, unclaimed) |
+//! | `":wat::std::list::map-with-index"`     | 255 Stone HOME-9 | ditto | `:wat::core::map-indexed` (NOT a drop-in — see the table's own note) |
 
 use super::{Remedy, RemedyKind};
 
@@ -316,6 +320,40 @@ const RETIREMENT_TABLE: &[RetirementEntry] = &[
     RetirementEntry { retired: ":wat::core::String/ends-with?",   replacement: ":wat::string::ends-with?",   note: None },
     RetirementEntry { retired: ":wat::core::String/contains?",    replacement: ":wat::string::contains?",    note: None },
     RetirementEntry { retired: ":wat::core::String/empty?",       replacement: ":wat::string::empty?",       note: None },
+    // Arc 255 Stone HOME-9 — `:wat::std::` FINALLY dies. Arc 109 ("kill-std") deleted the
+    // `wat/std/` DIRECTORY and swept the `.wat` stdlib (2026-04-30/05-01) but never swept these
+    // fourteen Rust dispatch arms in `runtime.rs` — survivors, not growth (all predate 109).
+    // Thirteen move; one (`log`) is deleted outright (see below).
+    RetirementEntry { retired: ":wat::std::math::ln",   replacement: ":wat::math::ln",   note: None },
+    RetirementEntry { retired: ":wat::std::math::exp",  replacement: ":wat::math::exp",  note: None },
+    RetirementEntry { retired: ":wat::std::math::sqrt", replacement: ":wat::math::sqrt", note: None },
+    RetirementEntry { retired: ":wat::std::math::sin",  replacement: ":wat::math::sin",  note: None },
+    RetirementEntry { retired: ":wat::std::math::cos",  replacement: ":wat::math::cos",  note: None },
+    RetirementEntry { retired: ":wat::std::math::pi",   replacement: ":wat::math::pi",   note: None },
+    // `:wat::std::math::log` has NO row here — it is DELETED, not renamed. Measured: it was
+    // wired to the SAME `f64::ln` as `ln` (`log(100.0)` = `4.605...` = `ln(100.0)`, not
+    // `log10(100.0)` = `2.0` — a level-1 lie), had zero call sites in the corpus, and no name
+    // in this table would be honest: `ln` is not what a bare `log` implies, and minting a
+    // fresh `log10` nobody asked for is a new feature this stone does not own.
+    RetirementEntry { retired: ":wat::std::stat::mean",     replacement: ":wat::stat::mean",     note: None },
+    RetirementEntry { retired: ":wat::std::stat::variance", replacement: ":wat::stat::variance", note: None },
+    RetirementEntry { retired: ":wat::std::stat::stddev",   replacement: ":wat::stat::stddev",   note: None },
+    // `:wat::std::list::` dies in favour of `:wat::seq::` (builder-ruled: "`:wat::list::` was
+    // meant to be killed in favor of `:wat::seq::`" — the reserved `:wat::list::` name is NOT
+    // claimed here). `zip`/`window`/`remove-at` are ALSO made Seqable-generic in the same
+    // motion (name-only from the retirement table's point of view; the behavior widening is in
+    // `src/collection/transform.rs`'s `eval_seq_*`, not a caveat a caller needs to migrate
+    // around — a program that only ever passed a Vector still gets exactly the same answer).
+    RetirementEntry { retired: ":wat::std::list::zip",        replacement: ":wat::seq::zip",        note: None },
+    RetirementEntry { retired: ":wat::std::list::window",     replacement: ":wat::seq::window",     note: None },
+    RetirementEntry { retired: ":wat::std::list::remove-at",  replacement: ":wat::seq::remove-at",  note: None },
+    // `map-with-index` is DELETED, not moved — `:wat::core::map-indexed` already does this job,
+    // Seqable-generic, but is NOT a drop-in: the note is the caveat a caller actually needs.
+    RetirementEntry { retired: ":wat::std::list::map-with-index", replacement: ":wat::core::map-indexed",
+        note: Some("NOT a drop-in: the argument order flips from (coll, fn) to (fn, coll), the \
+            closure's own params flip from (item, index) to (index, item), and the result is a \
+            LAZY Stream, not an eager Vector — wrap in `(:wat::core::into [] ...)` to force it \
+            back to a Vector if the caller needs one") },
 ];
 
 /// Look up `needle` in the retirement table.
