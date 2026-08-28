@@ -399,6 +399,9 @@ pub(crate) fn registry() -> &'static IntrinsicRegistry {
 mod bigint;
 mod bytes;
 mod char;
+// Arc 255 Stone HOME-11 — the EDN registry home. Pure re-registration (HOME-5 already carved
+// the file home, `src/edn/`); nothing renamed, no `.wat` corpus touch.
+mod edn;
 mod f64;
 mod hashmap;
 mod hashset;

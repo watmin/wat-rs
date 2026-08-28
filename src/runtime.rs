@@ -5245,24 +5245,10 @@ fn dispatch_keyword_head(
     }
     // Producers + forms that preserve provenance: return TrackedValue directly.
     match head {
-        ":wat::edn::read" => {
-            return crate::edn::render::eval_edn_read(args, list_span, env, sym).map_err(Into::into)
-        }
-        // Arc 278 Stone 1 (`wat --mcp`) — the JSON-input twin of `edn::read`: parses JSON
-        // (not EDN) text and NEVER raises (matchable `ReadJsonOutcome`), because this verb's
-        // input arrives from a remote, untrusted harness over stdio. Producer (returns
-        // TrackedValue with RuntimeBuilt provenance).
-        ":wat::edn::read-json" => {
-            return crate::edn::render::eval_edn_read_json(args, list_span, env, sym)
-                .map_err(Into::into)
-        }
-        // Arc 278 Stone A — the DATA-MODE sibling: unknown tag → self-describing
-        // dynamic value (ForeignRecord/ForeignVariant) instead of UnknownTag.
-        // Producer (returns TrackedValue with RuntimeBuilt provenance).
-        ":wat::edn::read-foreign" => {
-            return crate::edn::render::eval_edn_read_foreign(args, list_span, env, sym)
-                .map_err(Into::into)
-        }
+        // Arc 255 Stone HOME-11 — `:wat::edn::{read,read-json,read-foreign}` RETIRED as literal
+        // arms this stone; registry-routed via `src/intrinsic/edn.rs` (the registry-first door
+        // above already reaches them, same reasoning as `keyword/from-string`'s note in
+        // `src/intrinsic/keyword.rs`).
         // Arc 251.5a-i — the homoiconic `read`: wat SOURCE text → forms-as-data
         // (what `edn::read` can't do — it runs the EDN parser; this runs wat's own).
         ":wat::core::read-string" => {
@@ -5457,12 +5443,11 @@ fn dispatch_keyword_head_value(
         // Signature: (value :TypeExpr) -> :wat::core::bool
         // Error contract: well-formed type + no-match → false; unknown/Fn/Var type → Err.
         ":wat::core::conforms?" => eval_conforms(args, list_span, env, sym),
-        // Arc 278 the REQUEST-MALFORMED wall (Stone 1) — `:wat::edn::validate`, the DEEP
-        // shape check `conforms?` structurally cannot do (its Aggregate arm is nominal-only,
-        // never recursing into fields — the exact gap the wire DoS rode through).
-        // Signature: (value :DeclaredType) -> :wat::edn::Validation
-        // A value mismatch is the matchable `Invalid[path expected got]`, never a raise.
-        ":wat::edn::validate" => eval_edn_validate(args, list_span, env, sym),
+        // Arc 255 Stone HOME-11 — `:wat::edn::validate` RETIRED as a literal arm this stone;
+        // registry-routed via `src/intrinsic/edn.rs` (`eval_edn_validate`'s body — the DEEP
+        // shape check `conforms?` structurally cannot do — is untouched and un-moved; only the
+        // dispatch route changed, plus a visibility widening to `pub(crate) fn` so the registry
+        // handler can reach it).
         // Arc 237 Stone S-A — `:wat::core::subtype?` is-a hierarchy predicate.
         // Directional, transitive, reflexive walk over the `typesub` child→parent registry.
         // Signature: (:TypeKeyword :TypeKeyword) -> :wat::core::bool
@@ -6197,41 +6182,11 @@ fn dispatch_keyword_head_value(
         // Arc 279 — unquoted display: String→itself, i64/f64/bool→digits. Unlike `show`,
         // which wraps strings in `"..."`, `str` renders values as format fills them.
         ":wat::core::str" => eval_str(args, list_span, env, sym),
-        ":wat::edn::write" => {
-            crate::edn::render::eval_edn_write(args, list_span, env, sym).map_err(Into::into)
-        }
-        ":wat::edn::write-pretty" => {
-            crate::edn::render::eval_edn_write_pretty(args, list_span, env, sym).map_err(Into::into)
-        }
-        ":wat::edn::write-json" => {
-            crate::edn::render::eval_edn_write_json(args, list_span, env, sym).map_err(Into::into)
-        }
-        ":wat::edn::write-json-natural" => {
-            crate::edn::render::eval_edn_write_json_natural(args, list_span, env, sym)
-                .map_err(Into::into)
-        }
-        // ":wat::edn::read" is routed by dispatch_keyword_head directly (producer).
-        // Arc 278 Stone A — foreign dynamic-value accessors (navigate DATA, not a
-        // typed value). ":wat::edn::read-foreign" is a producer, routed above.
-        ":wat::edn::ForeignRecord/get" => {
-            crate::edn::render::eval_foreign_record_get(args, list_span, env, sym).map_err(Into::into)
-        }
-        ":wat::edn::ForeignRecord/class" => {
-            crate::edn::render::eval_foreign_record_class(args, list_span, env, sym)
-                .map_err(Into::into)
-        }
-        ":wat::edn::ForeignVariant/variant" => {
-            crate::edn::render::eval_foreign_variant_variant(args, list_span, env, sym)
-                .map_err(Into::into)
-        }
-        ":wat::edn::ForeignVariant/enum-class" => {
-            crate::edn::render::eval_foreign_variant_enum_class(args, list_span, env, sym)
-                .map_err(Into::into)
-        }
-        ":wat::edn::ForeignVariant/fields" => {
-            crate::edn::render::eval_foreign_variant_fields(args, list_span, env, sym)
-                .map_err(Into::into)
-        }
+        // Arc 255 Stone HOME-11 — the remaining 9 `:wat::edn::` verbs (the 4 `write*`
+        // renderers, and the 5 `ForeignRecord`/`ForeignVariant` accessors) RETIRED as literal
+        // arms this stone; registry-routed via `src/intrinsic/edn.rs`. The registry-first door
+        // at the top of `dispatch_keyword_head`/`dispatch_keyword_head_value` reaches them all
+        // (same shape the `:wat::holon::*` carve comment above documents).
 
         // Constrained runtime eval — four forms, matching the load
         // pipeline's discipline on source interface and verification.
@@ -17386,7 +17341,11 @@ fn eval_conforms(
 /// Never raises on a bad *value*: a mismatch is the matchable
 /// `Validation::Invalid[path expected got]`. A bad *type keyword* (unparseable /
 /// no registry) is a programmer error and still raises.
-fn eval_edn_validate(
+///
+/// Arc 255 Stone HOME-11 — widened from a bare `fn` to `pub(crate) fn` so
+/// `src/intrinsic/edn.rs`'s registry handler can call it directly. Visibility-only change; the
+/// body (and its `src/check.rs` special-cased type contract) is untouched.
+pub(crate) fn eval_edn_validate(
     args: &[WatAST],
     list_span: &Span,
     env: &Environment,
