@@ -561,8 +561,8 @@ fn special_for(rete_name: &str) -> Option<(&'static str, &'static str, &'static 
         ":wat::rete::core::Tuple/first" => (":wat::core::i64", "7", "9", "(:wat::rete::i64::= (:wat::rete::core::Tuple/first (:wat::rete::core::Tuple {f} 99)) 7)", ""),
         ":wat::rete::core::Tuple/second" => (":wat::core::i64", "7", "9", "(:wat::rete::i64::= (:wat::rete::core::Tuple/second (:wat::rete::core::Tuple 99 {f})) 7)", ""),
         ":wat::rete::core::Tuple/third" => (":wat::core::i64", "7", "9", "(:wat::rete::i64::= (:wat::rete::core::Tuple/third (:wat::rete::core::Tuple 99 99 {f})) 7)", ""),
-        ":wat::rete::core::keyword/to-string" => (":wat::core::keyword", ":alpha", ":beta", "(:wat::rete::string::= (:wat::rete::core::keyword/to-string {f}) \"alpha\")", ""),
-        ":wat::rete::core::keyword/from-string" => (":wat::core::String", "\"alpha\"", "\"beta\"", "(:wat::rete::string::= (:wat::rete::core::keyword/to-string (:wat::rete::core::keyword/from-string {f} :undefined :none)) \"alpha\")", ""),
+        ":wat::rete::keyword::to-string" => (":wat::core::keyword", ":alpha", ":beta", "(:wat::rete::string::= (:wat::rete::keyword::to-string {f}) \"alpha\")", ""),
+        ":wat::rete::keyword::from-string" => (":wat::core::String", "\"alpha\"", "\"beta\"", "(:wat::rete::string::= (:wat::rete::keyword::to-string (:wat::rete::keyword::from-string {f} :undefined :none)) \"alpha\")", ""),
         _ => return None,
     };
     Some(t)
@@ -1202,7 +1202,7 @@ fn a_keyword_constant_is_writable_in_an_inline_constraint() {
   :when
   [(:probe::In (?k <- :k)
      (:wat::rete::core::keyword::= :v
-       (:wat::rete::core::keyword/from-string "alpha" :undefined :none)))]
+       (:wat::rete::keyword::from-string "alpha" :undefined :none)))]
   :then
   [(:probe::Out :k ?k)])
 

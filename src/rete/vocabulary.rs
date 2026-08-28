@@ -1235,8 +1235,8 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     // type-map half was fixed the same day (`validate.rs`'s `rete_type_segment_of`).
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::core::keyword/to-string",
-        core_name: ":wat::core::keyword/to-string",
+        rete_name: ":wat::rete::keyword::to-string",
+        core_name: ":wat::keyword::to-string",
         class: OpClass::Alias,
         params: &[ParamType::Keyword],
         ret: ParamType::String,
@@ -1249,8 +1249,8 @@ pub(crate) const RETE_OPS: &[ReteOp] = &[
     },
     ReteOp {
         type_params: &[],
-        rete_name: ":wat::rete::core::keyword/from-string",
-        core_name: ":wat::core::keyword/from-string",
+        rete_name: ":wat::rete::keyword::from-string",
+        core_name: ":wat::keyword::from-string",
         // ⛔ `Fallback`, NOT `Alias`, and that is the whole reason this row can exist at all.
         // `eval_keyword_from_string` is genuinely PARTIAL: it raises on a leading `:` and on an
         // angle-type head in the name. A partial op cannot be an Alias here — "a jump table over a
@@ -1546,6 +1546,15 @@ pub(crate) const RETE_MODULES: &[&str] = &[
     ":wat::rete::vector::",
     ":wat::rete::vec::",
     ":wat::rete::linkedlist::",
+    // arc 255 Stone E-iv + grok-rete's keyword-converter rows — FORCED, by the same rule as
+    // E-i/E-ii/E-iii above. E-iv moved `keyword/{to,from}-string`'s core_name onto
+    // `:wat::keyword::*` but PARKED the rete ruling, on the stated grounds that nothing forced
+    // those verbs into a `where` (purity.rs:2450, "same restraint as E-iii's refused
+    // RETE_MODULES entry"). grok-rete then minted rows for exactly those two converters, so the
+    // premise no longer holds and the entry is forced. Measured, not assumed: `=`/`not=` keep
+    // `:wat::core::keyword::`, whose core_name never moved, so this entry serves the two
+    // converters ONLY.
+    ":wat::rete::keyword::",
 ];
 
 /// Look up `head`'s row, if it is a minted rete-vocabulary op. Exact match — never a prefix scan
