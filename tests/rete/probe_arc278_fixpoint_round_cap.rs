@@ -179,6 +179,58 @@ fn a_mint_hidden_inside_a_rete_fn_body_is_refused() {
     );
     let e = rete_error(&stderr, "RuleSetMayNotTerminate");
     assert_eq!(field_str(&e, "rule"), "fm::grow");
+    // `fm::N`, NOT `fm::bump`. This row was the whole reason the diagnostic could lie for as long
+    // as it did: the gate held the wrong value in its hand and only ever looked at `rule`. The
+    // message goes on to say this name "feeds back into this rule's own `:when`" — and the `:when`
+    // reads `:fm::N`, so naming the FUNCTION sent the reader hunting for a fact type that does not
+    // exist. Found by driving, 2026-08-28; `computed` was built from `fact_type_head` (the raw
+    // head) while `produced` beside it resolved through `sym`. One resolver now feeds both.
+    assert_eq!(field_str(&e, "fact-type"), "fm::N");
+}
+
+/// THE GUARDED COUNTER — refused, and it terminates. Both halves are the assertion.
+///
+/// `N(k+1) :- N(k), (where (< ?k 500))` halts at k=500 and is refused anyway, because the
+/// cyclicity test reads the derivation graph and never the fence. Reported 2026-08-28 by
+/// claude-compute; weighed against this tree and confirmed by driving. The refusal is CORRECT by
+/// the verifier's own claim — what was missing was a home for the class that could go red.
+///
+/// Before this, the only record lived in `probe_arc278_fixpoint_round_cap_deep.wat`'s header,
+/// describing a fixture that had been REWRITTEN around the refusal. Prose in a file nobody greps.
+///
+/// If the verifier ever learns to read the fence, this test fails — which is the notification that
+/// the narrowing closed, not a regression.
+#[test]
+fn a_bounded_counter_is_refused_too_and_the_message_does_not_claim_divergence() {
+    let (ok, stdout, stderr) = run("tests/rete/probe_arc278_termination_guarded_counter.wat");
+    assert!(
+        !ok,
+        "the structural cyclicity test does not read the `where` fence, so a guarded counter is \
+         refused like any other computed head in a cycle\n{stdout}{stderr}"
+    );
+    assert_eq!(
+        stdout.trim(),
+        "",
+        "refusal is at COMPILE — nothing in the program body should have run.\n{stderr}"
+    );
+    let e = rete_error(&stderr, "RuleSetMayNotTerminate");
+    assert_eq!(field_str(&e, "rule"), "gc::count-up");
+    assert_eq!(field_str(&e, "fact-type"), "gc::N");
+
+    // THE RETRACTED CLAIM. The message used to assert "the fixpoint can never converge" — false of
+    // the very program in front of the user, which converges at k=500. R29 `RVINA ERVDIT`: the
+    // ruin must teach, and it may not teach something untrue. The verifier computes a derivation
+    // graph; it does not compute convergence, and the diagnostic may not claim what the analysis
+    // never established. A targeted absence is the honest shape here — the message is long and
+    // will keep being reworded; what may never come back is this sentence.
+    // rune:lint(loose-assert) — targeted absence of one retracted phrase in a long, evolving
+    // diagnostic; an exact `assert_eq!` on the whole message would pin prose that is meant to be
+    // improved, and would go red for rewordings that are not the defect.
+    assert!(
+        !stderr.contains("can never converge"),
+        "the diagnostic must not assert non-convergence — it proves the absence of range \
+         restriction in a cycle, which is a refusal to certify, not a proof of divergence\n{stderr}"
+    );
 }
 
 /// THE BOUNDARY, and it is the row that justifies the deep fixture's size.

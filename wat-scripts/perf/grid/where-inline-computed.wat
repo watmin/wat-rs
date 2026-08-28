@@ -36,6 +36,12 @@
 ;;   6 fence-let-gt   (let [x k] x) > 100  fence   => identical    => 109/210
 ;;   7 inline-let-eq  (let [x k] x) = 100  inline  => k = 100      => 1/210
 ;;   8 fence-let-eq   (let [x k] x) = 100  fence   => identical    => 1/210
+;;   9 inline-cond    cond as the HEAD     inline  => k > 100      => 109/210
+;;  10 fence-cond     identical            fence   => identical    => 109/210
+;;  11 inline-let-head let as the HEAD     inline  => k > 100      => 109/210
+;;  12 fence-let-head identical            fence   => identical    => 109/210
+;;  13 inline-match   match as the HEAD    inline  => k = 100      => 1/210
+;;  14 fence-match    identical            fence   => identical    => 1/210
 ;;
 ;; Rows 3/4 and 7/8 are the sharp ones and are not redundant with their `>` partners: n=1 is
 ;; bracketed on BOTH sides, so a silent never-match (n=0, entry F's signature) and an always-match
@@ -50,6 +56,24 @@
 ;; `other => clone`, so `WatAST::Vector` was cloned untouched, `:k` never became a slot read, and
 ;; the rule compiled, fired and matched nothing.
 ;;
+;; ── WHY ROWS 9-14 EXIST — THREE FORMS WE HAD DENIED OURSELVES ────────────────────────
+;;
+;; Rows 1-8 put the field reference in a nested position. Rows 9-14 put `cond`, `let` and `match`
+;; in the HEAD position of an inline constraint, where all three were REFUSED until 2026-08-28 —
+;; on the stated ground that they are "polymorphic in their body's type and the inline position has
+;; no type check that could demand bool of them."
+;;
+;; That ground was wrong twice over. Polymorphic-in-the-body means the type is a FUNCTION of the
+;; body, and the body is right there in the AST. And `cond` was not failing a type test at all: the
+;; macro expander descended into `where` bodies ONLY, so an inline `cond` was never expanded to
+;; nested `if` and reached the compiler as a head with no lowering arm. The builder's ruling:
+;; *"we very carefully crafted rete's DSL to ensure every form a user can express can be
+;; compiled... we just inappropriately denied access, poorly, to tooling we fully intended to
+;; support."*
+;;
+;; Clara has all three natively — `cond`, `let`, and `case` for a match on a boolean — so these
+;; rows are a real comparison, not a claim about our own two engines.
+;;
 ;; ⛔ **AND `$oracle` AND `$native` WERE BOTH WRONG AGAIN.** `matcher.rs`'s `rewrite_field_refs`
 ;; carried the identical two arms and the identical catch-all. Two engines agreeing is not
 ;; evidence when the thing they agree on is the bug — that is the repeat failure mode of this
@@ -58,7 +82,7 @@
 
 (:wat::core::defn :wic::items [] -> :wat::core::i64 210)
 
-(:wat::core::defn :wic::row-count [] -> :wat::core::i64 8)
+(:wat::core::defn :wic::row-count [] -> :wat::core::i64 14)
 
 (:wat::core::defrecord :wic::Req [k <- :wat::core::i64])
 (:wat::core::defrecord :wic::Hit [k <- :wat::core::i64])
@@ -116,6 +140,45 @@
          (:wat::rete::where (:wat::rete::i64::= (:wat::rete::core::let [x ?k] x) 100))]
   :then [(:wic::Hit :k ?k)])
 
+;; ROW 9 — `cond` as the inline HEAD. Refused until 2026-08-28 with `"alpha 0 cond did not
+;; compile"` — a refusal that named nothing, because the expander never reached this position.
+(:wat::rete::defrule :wic::inline-cond
+  :when [(:wic::Req (?k <- :k)
+           (:wat::rete::core::cond ((:wat::rete::core::i64::> :k 100) true) (:else false)))]
+  :then [(:wic::Hit :k ?k)])
+
+;; ROW 10 — FENCE. `cond` ALWAYS worked here, which is precisely how the inline refusal survived.
+(:wat::rete::defrule :wic::fence-cond
+  :when [(:wic::Req (?k <- :k))
+         (:wat::rete::where
+           (:wat::rete::core::cond ((:wat::rete::core::i64::> ?k 100) true) (:else false)))]
+  :then [(:wic::Hit :k ?k)])
+
+;; ROW 11 — `let` as the inline HEAD. Provably bool because its BODY is.
+(:wat::rete::defrule :wic::inline-let-head
+  :when [(:wic::Req (?k <- :k)
+           (:wat::rete::core::let [x :k] (:wat::rete::core::i64::> x 100)))]
+  :then [(:wic::Hit :k ?k)])
+
+;; ROW 12 — FENCE.
+(:wat::rete::defrule :wic::fence-let-head
+  :when [(:wic::Req (?k <- :k))
+         (:wat::rete::where (:wat::rete::core::let [x ?k] (:wat::rete::core::i64::> x 100)))]
+  :then [(:wic::Hit :k ?k)])
+
+;; ROW 13 — `match` as the inline HEAD, on `= 100` so n=1 brackets it from both sides.
+(:wat::rete::defrule :wic::inline-match
+  :when [(:wic::Req (?k <- :k)
+           (:wat::rete::core::match (:wat::rete::core::i64::= :k 100) (true true) (false false)))]
+  :then [(:wic::Hit :k ?k)])
+
+;; ROW 14 — FENCE.
+(:wat::rete::defrule :wic::fence-match
+  :when [(:wic::Req (?k <- :k))
+         (:wat::rete::where
+           (:wat::rete::core::match (:wat::rete::core::i64::= ?k 100) (true true) (false false)))]
+  :then [(:wic::Hit :k ?k)])
+
 (:wat::rete::defquery :wic::q-Hit :params [] :when [(?fact <- :wic::Hit)])
 
 (:wat::core::defn :wic::rule-for [row <- :wat::core::i64] -> :wat::core::String
@@ -127,7 +190,13 @@
     ((:wat::core::= row 5) "inline-let-gt")
     ((:wat::core::= row 6) "fence-let-gt")
     ((:wat::core::= row 7) "inline-let-eq")
-    (:else "fence-let-eq")))
+    ((:wat::core::= row 8) "fence-let-eq")
+    ((:wat::core::= row 9) "inline-cond")
+    ((:wat::core::= row 10) "fence-cond")
+    ((:wat::core::= row 11) "inline-let-head")
+    ((:wat::core::= row 12) "fence-let-head")
+    ((:wat::core::= row 13) "inline-match")
+    (:else "fence-match")))
 
 (:wat::core::defn :wic::rules-for [row <- :wat::core::i64]
   -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
@@ -140,7 +209,13 @@
       ((:wat::core::= row 5) (:wic::inline-let-gt))
       ((:wat::core::= row 6) (:wic::fence-let-gt))
       ((:wat::core::= row 7) (:wic::inline-let-eq))
-      (:else (:wic::fence-let-eq)))))
+      ((:wat::core::= row 8) (:wic::fence-let-eq))
+      ((:wat::core::= row 9) (:wic::inline-cond))
+      ((:wat::core::= row 10) (:wic::fence-cond))
+      ((:wat::core::= row 11) (:wic::inline-let-head))
+      ((:wat::core::= row 12) (:wic::fence-let-head))
+      ((:wat::core::= row 13) (:wic::inline-match))
+      (:else (:wic::fence-match)))))
 
 (:wat::core::defn :wic::seed [session <- :wat::rete::Session  items <- :wat::core::i64]
   -> :wat::rete::Session

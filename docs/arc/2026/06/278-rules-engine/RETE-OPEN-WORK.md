@@ -548,10 +548,80 @@ range-restricted because `z` comes from `edge`.
 
 ## The order, and why
 
-**As of 2026-08-28: 4.1 is COMPLETE — all 77 rows verdicted (74 + the three Tuple accessors it
-forced), and ZERO cannot run. It found SIX rows that passed every static gate and could not
-execute, and all six are FIXED. What remains is one design question and five rulings — none of it
-work, all of it a judgment call.**
+**As of 2026-08-28 (LATE — four commits after the stamp above): the inline position is CLOSED.
+Every GENERABLE row fires in BOTH positions, 79 of 79 counting the four holon rows that were
+driven by hand. The column went 16 -> 68 -> 71 -> 75 across the day, and the last four came from
+proving the ledger's own exclusion false.**
+
+⛔ **THE LEDGER IS LYING ABOUT FOUR ROWS — AND SO WAS THE ENTRY THAT SAID SO. Re-driven
+2026-08-28 (LATE); the corrected result is below.** `NOT_YET_GENERABLE` reports the four
+`:wat::rete::holon::*` rows un-drivable because *"a holon has no literal spelling, so the second
+operand cannot be written as a constant."* That reason is **true and beside the point**: the
+refutation is not a literal, it is a SECOND FIELD. With `v` and `w` both `:wat::holon::HolonAST` on
+`:probe::In`:
+
+| row | inline | fence |
+|---|---|---|
+| `presence?` | FIRES | FIRES |
+| `cosine` (`f64::>` … `0.9`) | FIRES | FIRES |
+| `dot` (`f64::>` … `1000.0`) | FIRES | FIRES |
+| `coincident?` | **was REFUSED — FIXED, now FIRES** | FIRES |
+
+**Seven of eight when measured; eight of eight after the fix below.** The earlier claim on this page and in the breadcrumb —
+*"all four FIRE, inline and fence"* — was WRONG, and it was written from a hand-drive whose exact
+shape was never recorded. Thresholds above are MEASURED, not guessed: `cosine` 1.0 vs −0.018,
+`dot` 4333.0 vs −81.0, `coincident?`/`presence?` return bool directly
+(`wat-scripts/scratch-pad/probe-holon-rete-cell-values.wat`).
+
+✅ **`coincident?` INLINE WAS A LIVE DEFECT — FIXED 2026-08-28, and the fix was the LADDER'S TOP
+RUNG, not the one-liner.** It is now `1` inline and `1` in a fence. It was the **fifth instance of
+the day's pattern**, and the row of the pattern table still holding it.
+
+**The defect.** `coincident?` is `OpClass::Redispatch` (its PARAMS keep core's `HolonAST | Vector`
+polymorphism, so they cannot be a rank-1 scheme) but its RETURN is always `bool`.
+`expr_is_provably_boolean` trusted `row.ret` only for `Alias`/`Fallback`, because on
+`Form`/`Redispatch` rows `ret: ParamType::Bool` was a documented PLACEHOLDER. One value, two facts —
+so the genuinely-boolean row was refused rather than believed, invisibly, because it worked in a
+`where` fence the whole time.
+
+**⛔ THE ONE-LINE WIDENING IS UNSOUND AND WAS DRIVEN BEFORE IT WAS PROPOSED.** Admitting
+`Redispatch` makes `(Tuple/first (Tuple :v 99))` — an `i64` whose row ALSO said `ret: Bool` — a
+legal inline constraint that compiles, fires and returns `Ok(0)`: **silently matches nothing.**
+Fix-list F's class, reopened on a new row. Do not re-propose it.
+
+**THE CURE — the placeholder now has no spelling.** `ret: Ret::Is(ParamType) | Ret::NoScheme`
+(`vocabulary.rs`). 79 rows migrated: 57 `Alias`/`Fallback` → `Is(...)`, 5 → `Is(Bool)`, 17 →
+`NoScheme`. **The compiler then named every reader — seven, not the three I had predicted.** Four
+were invisible to grep because they reach `ret` through a shared helper
+(`classify_fallback_outcome`, called from `expr_ir`, `where_tree` and `runtime`), which is itself
+the argument for the type change: a convention cannot make the compiler find its own violations.
+
+- `clause.rs` and `validate.rs`: the `class` test is **DELETED**. Its absence is the point.
+- `check.rs`: the `class` test **STAYS**, and that is not an inconsistency — that site builds a
+  WHOLE rank-1 scheme, so it is guarding on PARAMS, not on `ret`. `coincident?` is exactly the row
+  that separates the two questions, which is why `ret` got its own enum rather than both folding
+  into one `Scheme`.
+- `params: &[]` keeps the same two-facts shape and is an **AFFIRMATIVE CUT**, stated in `Ret`'s doc:
+  no rete row takes zero operands, so it is unambiguous today. If a zero-arity row is ever minted,
+  `params` needs this treatment and that paragraph is the notice.
+
+**TWO GATES, BOTH MUTATION-PROVEN:**
+1. `a_row_that_declares_bool_is_believed_inline_whatever_its_class` — `coincident?` inline AND
+   fence, plus **the soundness twin**: `Tuple/first` must stay REFUSED. Mutating the table makes
+   each arm fire on its own (`Got: Ok(0)` for the twin — the F-class signature, in the failure text).
+2. `only_the_named_scheme_less_rows_declare_a_return_type` — freezes by NAME which scheme-less rows
+   state a return (`and`, `or`, `enum::=`, `enum::not=`, `coincident?`), asserts every
+   `Alias`/`Fallback` states one, and carries two non-vacuity floors. The mutation prints both
+   offenders in one diff.
+
+**Also learned, and it belongs in the ledger's design:** `enum::=`/`enum::not=` are `Form` rows that
+fire inline via `classify_constraint_head`'s NAME-pattern path, which never reads `ret` at all. So
+`coincident?` was the only row in the whole table that genuinely returns bool and sat in neither
+admission path — a population of one, which is why no count would ever have surfaced it.
+
+**Remaining for this item:** generate the holon cells. They need `Cell` to carry an optional SECOND
+field, because one field cannot discriminate a self-comparison (`cosine(h,h)` is 1.0 for every `h`)
+— the ledger's stated reason, "no literal spelling", is true and beside the point.
 
 > ⛔ **NONE OF THIS WAS A VIGILIA ITEM, AND THAT IS THE FINDING UNDER THE FINDING.** The full watch
 > CONVERGED before any of it: recasts 12 and 13 both `0 L1 + 0 L2`, inward 17/17 plus
@@ -571,12 +641,21 @@ work, all of it a judgment call.**
 1. ~~**4.1 the reachability ledger**~~ — **COMPLETE 2026-08-28**, all 77 rows verdicted, ZERO
    unrunnable. It found six rows that passed every static gate and could not execute (all fixed),
    18 refused inline, and 39 accepted inline that silently match nothing.
-2. **One small ruling.** `reduce`'s 2-arity form raises on an empty collection while its row
-   declares `total: true`, a wall every row must pass. Surfaced only by being able to RUN the row.
-   (Everything else under this number is CLOSED: `map`/`filter` became the eager `mapv`/`filterv`;
-   `Tuple` got its three accessors; the coverage GATE is the ledger.)
-3. ~~**The inline-constraint gap**~~ — **CLOSED 2026-08-28 except for a named residue.** The
-   inline column went **16 -> 68 of 79** rows. The wrong-answer half is gone (fix-list F: 39 rows
+2. ~~**One small ruling** — `reduce`'s 2-arity form raises on an empty collection while its row
+   declares `total: true`.~~ **ALREADY CLOSED, and this row was STALE THE DAY IT WAS WRITTEN.**
+   Shipped `97eac5a38` (2026-08-27) — the rete lowerer refuses the 2-arity form outright
+   (`expr_ir.rs:440`) with a located diagnostic naming the totality reason, and it shipped with a
+   119-line gate plus two fixtures. Driven 2026-08-28 to confirm: the refusal fires, and
+   `total: true` is honest because the partial arity cannot be reached.
+   **This is the SIXTH consecutive inherited row in this arc found stale on audit.** The rate is
+   not noise — treat every unstruck row here as a claim about the past, not a statement about the
+   tree, and check it before you work it.
+   (Everything else under this number was already closed: `map`/`filter` became the eager
+   `mapv`/`filterv`; `Tuple` got its three accessors; the coverage GATE is the ledger.)
+3. ~~**The inline-constraint gap**~~ — **FULLY CLOSED 2026-08-28. The residue this entry once named
+   is gone too, and both of its stated reasons were wrong** (struck below). The inline column went
+   **16 -> 68 -> 71 -> 75 of 79**, and the four not counted are the holon rows the LEDGER cannot
+   generate — driven by hand, they fire in both positions. The wrong-answer half is gone (fix-list F: 39 rows
    that compiled, fired and silently matched nothing, in BOTH engines); the keyword half was a real
    BUG (`rete_type_segment_of` mapped only the uninhabitable capital `Keyword`); and the grammar
    half is admitted — an inline constraint is now any PROVABLY boolean rete expression, replacing a
@@ -587,11 +666,23 @@ work, all of it a judgment call.**
    that `< > <= >=` "ride the wildcard edge" — while being admitted inline. Check the premise
    before running the four questions on it.
 
-   **The residue, each with its reason:** `cond`/`let`/`match` stay refused because they are
-   polymorphic in their body's type and the inline position has no type check that could demand
-   bool — admitting them on a placeholder `ret` would re-open F. And a bare keyword literal is a
-   FIELD REFERENCE in operand position (documented, load-bearing), now reachable through
-   `keyword/from-string`.
+   ~~**The residue**~~ — **ALL OF IT CLOSED 2026-08-28, and BOTH stated reasons were wrong.**
+
+   · `cond`/`let`/`match` were refused for being *"polymorphic in their body's type"*. Polymorphic
+     IN THE BODY means the type is a FUNCTION of the body, and the body is in the AST. The head-only
+     test read `row.ret` — a PLACEHOLDER for `Form` rows — and stopped. It is now
+     `expr_is_provably_boolean`, a structural proof needing no env, which keeps
+     `classify_rete_clause`'s "by SHAPE alone" contract intact. Decidable because rete is closed and
+     every row is total. (`ad2286133`)
+   · `cond` was not failing a type test AT ALL — the macro expander descended into `where` bodies
+     only, so an inline `cond` never expanded to nested `if`. Discriminating probe: wrapping it in a
+     provably-bool head SATISFIES the type objection and it was still refused.
+   · The bare-keyword rule was called a syntactic ambiguity. `:probe::E::A` carries `::` and a field
+     name is a bare identifier, so an enum variant could NEVER have been a field reference — there
+     was nothing to disambiguate. And the engine was already deciding it correctly one level down:
+     the same comparison nested inside another call FIRED. `bind_field_refs` and
+     `compile_operand_expr` ran the same `position(...)` lookup ~120 lines apart in one file and
+     disagreed on the `else`. (`b7f54a17f`)
 
 
 4. **`partire` x7** — needs an owner or an affirmative CUT. It has been tracked in no list at all;
@@ -603,6 +694,135 @@ work, all of it a judgment call.**
    on MANDATE, since the LRU is not rete.
 6. **`circumspicere` 1 (grid SPEED half in CI)** — re-decide on the live constraint (runner noise),
    not the dead one (no JDK). A Clara ratio is the noise-tolerant form.
+
+7. **THE HOLON SURFACE IN RETE — measured 2026-08-28, owned here, nothing started.** rete carries
+   **4 of ~40** data-shaped holon ops and all four are from ONE group (similarity). It can COMPARE
+   two holons handed to it as fields and can do nothing else: no constructor, no accessor, no shape
+   predicate. Same shape as `Tuple` (constructible, unreadable) and `keyword` (thinnest surface, no
+   constructor) — the third instance of one pattern.
+
+   **Working already, driven:** a `:wat::holon::defrecord` record IS a rete fact and matches on its
+   scalar fields. The four similarity rows fire field-to-field in both positions.
+
+   **The queue, in order:**
+   1. **Fix the ledger's false `NOT_YET_GENERABLE`** (see the ⛔ at the top of this section). Small,
+      and the instrument is actively wrong until it lands.
+   2. **Verify `is-List?` and `is-Tag?`** — the confusion matrix ran 9 predicates x 8 shapes and
+      those two columns are ALL FALSE because no List or Tag holon was constructed. All-false means
+      "correct" OR "never fires" and the matrix cannot tell them apart. **Unverified, not
+      verified-negative.**
+   3. **Mint the 11 predicates** (`is?` + `is-*?` x10) — driven pure, total, deterministic, no
+      encoding ctx, bool-returning. `Alias` rows, the cleanest on the table.
+      ⚠ **Document that they do NOT partition.** `holon-rs`: `nil()` is `classified("Symbol","nil")`
+      and `is_nil` is `extract_classified(self,"Symbol") == Some("nil")` — so **nil satisfies BOTH
+      `is-Nil?` and `is-Symbol?`, by construction.** Every other shape has exactly one true. A rule
+      keyed on `is-Symbol?` will catch every nil.
+   4. **Accessors** — `Bind/left`/`Bind/right` are total via `Option`; `Bundle/first`/
+      `Bundle/children` RAISE on the wrong variant. Two accessors, one family, two partiality
+      conventions. That inconsistency is CORE's and rete would inherit it — worth a ruling before
+      minting either.
+
+   **⛔ CLARA CANNOT ARBITRATE ANY OF THIS** (builder, 2026-08-28: *"clara has no such holonic
+   tooling… this is a wat only capability"*). That leaves `$native` vs `$oracle`, which is the exact
+   configuration that failed twice this session. The substitute is **known-answer algebraic law** —
+   `cosine(h,h) == 1.0`, `is-Map?` of a lifted map, `Bind/left(Bind(a,b)) == a` — ground truths
+   independent of any engine, the same instrument the ledger's calibration uses.
+
+8. **`Bundle` and the `:panic` capacity mode — A BUILDER RULING, runtime-wide, not a rete change.**
+   `Bundle` is the ONLY holon op that cannot get a `total: true` row. Under the default `:error`
+   mode it returns `(Result :- [HolonAST CapacityExceeded])` and **the type system forces handling**
+   — proven: `is-Map?: parameter #1 expects HolonAST; got (Result :- [...])`. Under `:panic` it
+   aborts instead.
+
+   ⚠ **A CLAIM I MADE AND THE BUILDER CORRECTED — do not repeat it.** I said
+   `set-capacity-mode!` is callable at runtime, so the mode was non-deterministic. **False.** Driven:
+   inside `:user::main` it is `unknown function` — it is a LOAD-TIME DIRECTIVE collected by the
+   entry-file pass, exactly as the builder said. The determinism objection is void.
+
+   **What the correction buys:** because the mode is fixed BEFORE `compile-all` runs, the rete
+   compiler may READ it — so a `Bundle` row can be `Fallback` under `:error` and refused with a
+   located diagnostic under `:panic`. That is a compiler reading a load-time fact, not legality
+   varying by config.
+
+   **The surviving argument for killing `:panic`**, and it stands without rete: `:error` already
+   forces handling at COMPILE time; `:panic` trades that wall for a runtime crash. Blast radius ~6
+   files (`src/config.rs`, `src/process/boot/mod.rs`, `src/runtime.rs`,
+   `tests/collection/bundle_capacity.rs` + 2 fixtures, and
+   `probe_plain_panic_produces_structured_edn.wat`, which uses the panic as a VEHICLE to test
+   structured-EDN panic rendering and would need another trigger). **Not started. Not mine to
+   rule.**
+
+9. **THE TERMINATION VERIFIER REFUSES A CLASS OF PROVABLY BOUNDED RECURSION.** Reported by
+   claude-compute (the main x grok-rete integration branch) 2026-08-28 as
+   `~/work/NOTE-rete-termination-verifier-refuses-provably-bounded-recursion.md`. **Weighed against
+   this tree and CONFIRMED** — every citation checked, and the refusal reproduced by driving:
+
+   ```
+   N(k+1) :- N(k), (where (< ?k 500))     -> RuleSetMayNotTerminate. It terminates at k=500.
+   ```
+
+   The cyclicity test is structural (reachability over fact-type edges) and does not read the
+   `where` fence. **The refusal is correct by the verifier's own stated claim** — it proves the
+   absence of ONE shape — but a bounded counter is the first thing anyone writes in recursive
+   Datalog-with-arithmetic, and until now the ONLY record that it is refused-though-terminating was
+   prose inside an unrelated fixture's header.
+
+   **DONE: the minimum ask.** The class is now named in `stratify.rs`'s own "WHAT IT CANNOT SEE"
+   block, beside the two holes that were already stated there — which is the model the report itself
+   named.
+
+   ⛔ **DO NOT PROPOSE AN ESCAPE HATCH.** Two were already refused by builder ruling (a `rune:`
+   marker — *"no magic comments"*; and `Termination::Asserted [why <- String]` — *"their strings are
+   their reason for themselves?"*). An author's string is not a proof. The direction the design
+   already names is a FORM THE VERIFIER CAN CHECK — eBPF's `bpf_loop()` posture, the bound as an
+   argument it reads. Open questions belonging to whoever takes it: does a bound interact with or
+   subsume `max_fire_rounds`; is per-rule or per-cycle the right granularity; and an imported Export
+   carries no AST, so a static bound is meaningless there and the round cap stays the only guard.
+
+   **TWO DIAGNOSTIC DEFECTS FOUND WHILE DRIVING IT — BOTH FIXED 2026-08-28, both mutation-proven:**
+   1. ~~The message asserts *"the fixpoint can never converge"*~~ — **FALSE for the guarded
+      counter; it converges at k=500.** R29 `RVINA ERVDIT`. The verifier computes a derivation
+      graph and does not compute convergence, so the diagnostic was asserting what the analysis
+      never established. It now says the rounds are UNBOUNDED and names itself *a refusal to
+      certify, not a proof of divergence* — and volunteers that `(where (< ?k 500))` is refused
+      too, though it terminates, so the reader meets the narrowing instead of discovering it.
+   2. ~~With a fn-headed `:then` the message names the **FUNCTION** as the offending fact type~~ —
+      *"derives `:bc::mk-next` … and `:bc::mk-next` feeds back into this rule's own `:when`"*,
+      where `mk-next` appears nowhere in the `:when`. **The DETECTION was always right**;
+      `computed` was built from `fact_type_head` (the raw head) while `produced` beside it resolved
+      through `sym`. Both now use `produced_type`. One resolver, two fields.
+
+   **⛔ WHY DEFECT 2 SURVIVED, AND IT IS THE REUSABLE PART.** The gate existed —
+   `a_mint_hidden_inside_a_rete_fn_body_is_refused` — and asserted `rule`, never `fact-type`. It
+   **held the wrong value in its hand and only ever looked at the field that was right.** A gate
+   that reads a subset of the structured error it already parsed is FM 28 in a new position: a
+   count cannot see a value defect, and neither can a partial field check. Both fields are asserted
+   now, and the mutation prints `left: "fm::bump" / right: "fm::N"`.
+
+   **The class now has a HOME THAT CAN GO RED**, which prose never could:
+   `tests/rete/probe_arc278_termination_guarded_counter.wat` +
+   `a_bounded_counter_is_refused_too_and_the_message_does_not_claim_divergence`. This is the very
+   fixture the report said had been rewritten around the refusal, restored as a gate. If anyone
+   ever teaches the verifier to read the fence, that test fails — which is the notification the
+   narrowing closed, not a regression.
+
+   **AND THE DOCTRINE BLOCK WAS WORSE THAN "STALE IN OUR FAVOUR" — it CONTRADICTED the function
+   twenty lines below it, and two of its three evidence rows were false.** Struck and rewritten
+   2026-08-28 after driving all three. It concluded *"no exploit found, the shape is guarded by
+   adjacent fences"* while `rete_fn_body_mints`'s own doc-comment says *"THE HOLE THIS CLOSES, and
+   it was demonstrated before it was fixed … it compiled clean and ran to the round cap."* Measured:
+   · row 1 (`i64::+` → "is not total") is TRUE and a genuine body fence.
+   · row 2 (`total fallback` → "is not a rete primitive") is **MIS-ATTRIBUTED** — that refusal names
+     the FN, not the body's op. All three probes used a plain `:wat::core::defn`, so the table
+     measured ONE door (Law A) three times and reported it as three independent fences.
+   · row 3 (`constructs a record at all` → "`kwargs-construct` is not pure") is **FALSE today** — a
+     rete defn whose body is `(:bc::N :k (…::i64::+ k 1 :undefined 0))` declares clean and reaches
+     the cyclicity check.
+   **The lesson, promoted:** *a refusal is evidence about the door you knocked on, not about the
+   room behind it.* Three probes failing for an unrelated reason read as safety for a full day.
+
+   **Zero programs in the corpus trip the verifier today** (report's measurement, and consistent
+   with our own green floor). That is exactly when this class is cheapest to widen.
 
 ~~1.1 interleaved retract~~ · ~~1.2 generated rules~~ · ~~1.3 query params~~ ·
 ~~1.4 nested combinators~~ · ~~3.1 fixpoint cap~~ · ~~3.2 CI parity~~ · ~~4.2 termination

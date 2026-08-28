@@ -17349,7 +17349,16 @@ fn register_builtins(env: &mut CheckEnv) {
     // arm below) does the rest, exactly as it already does for `:wat::i64::>` with zero
     // dedicated match arm. `Form`-class rows (no scheme) are filtered out here — they get the
     // dedicated `infer_boolean_shortcircuit` dispatch near this function's `and`/`or` arm instead.
+    // ⚠ THIS SITE'S `class` TEST IS NOT THE ONE DELETED IN 2026-08-28's `Ret` CHANGE, and the
+    // difference is worth stating because the two look identical. `clause.rs` and `validate.rs`
+    // consulted `class` to decide whether the RETURN type was believable — a question `Ret` now
+    // answers directly, so their guards are gone. This site needs a WHOLE rank-1 scheme, params
+    // included, and `params: &[]` still carries the "no scheme" convention (see `Ret`'s doc, which
+    // states that cut and why). `coincident?` is exactly the row that separates the two: its
+    // return is statable and its params are not, so it is believed inline and still registers no
+    // scheme here. When `params` gets the `Ret` treatment, this test becomes `Params::Rank1`.
     for op in crate::rete::vocabulary::RETE_OPS.iter() {
+        let crate::rete::vocabulary::Ret::Is(declared_ret) = op.ret else { continue };
         if matches!(op.class, crate::rete::vocabulary::OpClass::Alias | crate::rete::vocabulary::OpClass::Fallback) {
             env.register(
                 op.rete_name.to_string(),
@@ -17361,7 +17370,7 @@ fn register_builtins(env: &mut CheckEnv) {
                     // monomorphic row — byte-identical behavior for all 27 pre-existing rows).
                     type_params: op.type_params.iter().map(|s| s.to_string()).collect(),
                     params: op.params.iter().map(|p| p.to_type_expr()).collect(),
-                    ret: op.ret.to_type_expr(),
+                    ret: declared_ret.to_type_expr(),
                     rest_param_type: None,
                 },
             );

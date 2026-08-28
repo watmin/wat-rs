@@ -5,51 +5,141 @@
 > `wat/rete.wat`. If a stone below disagrees with a dated ruling here,
 > **this file wins** and the stone is stale.
 
-**CURRENT STAMP 2026-08-28 — supersedes every dated block below it, INCLUDING both 2026-08-27 ones.
-Written against HEAD `d4fe222c2`; the commit carrying this stamp lands on top, so a ONE-COMMIT
-docs-only gap at your wake is expected and is not staleness.**
+**CURRENT STAMP 2026-08-28 (LATEST) — supersedes every dated block below it, including both
+earlier 2026-08-28 ones. Written against HEAD `3f03b7d33`; the commit carrying this stamp
+lands on top, so a ONE-COMMIT gap at your wake is expected and is not staleness. That commit
+touches `docs/` and ONE `wat-scripts/scratch-pad/` reference file — **no `src/`, no `tests/`**.
+That is the line to check: a gap containing `src/` or `tests/` IS staleness, whatever its size.**
 
-**THE INLINE CONSTRAINT POSITION WAS SILENTLY WRONG FOR THE LIFE OF THE ENGINE. IT IS FIXED.**
+**TWO TERMINATION-DIAGNOSTIC DEFECTS ARE FIXED AND GATED** (`85c87314d`). The message no longer
+claims "the fixpoint can never converge" (false for a guarded counter, which converges at k=500)
+and a fn-headed `:then` no longer names the FUNCTION as the offending fact type. Both mutation-
+proven. The class finally has a home that can go RED —
+`tests/rete/probe_arc278_termination_guarded_counter.wat` — instead of prose in a fixture header.
+Also struck: `stratify.rs`'s doctrine block CONTRADICTED `rete_fn_body_mints` twenty lines below
+it, and two of its three evidence rows were false. **The lesson worth carrying: a refusal is
+evidence about the door you knocked on, not about the room behind it** — three probes failing for
+an unrelated reason read as safety for a full day.
 
-**Ledger: 68 of 79 rows now fire in BOTH positions — it was 16.** Zero silent, zero unrunnable.
-The 7 still refused inline are `cond`/`let`/`match` (polymorphic return; no type check there can
-demand bool) and the four keyword/enum rows (a bare keyword literal is a FIELD REFERENCE in operand
-position — now reachable via `keyword/from-string`). 4 holon rows are not generable.
+**⛔ SIX-FOR-SIX: every inherited row audited in this arc has been stale.** Item 2 (`reduce`'s
+2-arity totality) was closed by `97eac5a38` the day BEFORE the row claiming it open was written —
+gated, with two fixtures. Check every unstruck row against the tree before working it.
 
-**Grid 2026-08-28: 33/33 `:accuracy :match`, 33/33 `:winner :us`, ratios 7.0x–68.8x.** Archived at
-`GRID-native-vs-clara-2026-08-28-post-inline-predicates.txt`. ⚠ Four cells read slower than the
-2026-08-24 baseline, but `neg-consumer [500]`'s own run spans min 5.9 to max 18.1 — a 3x swing
-WIDER than the difference. **Three runs cannot resolve it; it is INCONCLUSIVE, not "no regression".**
+**A BUG REPORT CAME IN AFTER THE CURARE AND IS ANSWERED** —
+`~/work/NOTE-rete-termination-verifier-refuses-provably-bounded-recursion.md`, from claude-compute
+on the main x grok-rete integration branch. Weighed against THIS tree rather than taken on report:
+every citation re-checked, and the claim DRIVEN — `N(k+1) :- N(k), (where (< ?k 500))` is refused
+and does terminate. The refusal is correct by the verifier's own claim; what was missing was a
+HOME for the class, and it now has one in `stratify.rs`'s "WHAT IT CANNOT SEE" block plus
+`RETE-OPEN-WORK` item 9. ⛔ Two escape hatches were already refused by builder ruling — do not
+propose a third. Driving it also turned up TWO diagnostic defects, recorded in item 9 and NOT
+fixed: the message claims "the fixpoint can never converge" (false for the guarded counter), and
+with a fn-headed `:then` it names the FUNCTION as the offending fact type (detection is right;
+only `computed` carries the raw head).
 
-**WHAT WAS FOUND AND FIXED — all by DRIVING, none by reading:**
-- **Fix-list F** — an inline constraint whose operand was a nested call compiled to a permanent
-  SILENT never-match. 39 of 77 rows wide, exit 0, zero bytes on stderr. **The `$oracle` had it too**,
-  which is why five fuzzers and 5612 shapes were blind: the engines did not merely agree, they
-  SHARED the defect. Clara broke the tie, inverting the fix-list's own "native is wrong" rule.
-- **Six rows that could not execute at all** — `PersistentMap/contains-key?`, the `PersistentMap`
-  constructor, `reduce`, `map`, `filter`, `Tuple`. All closed. `map`/`filter` became the EAGER
-  `mapv`/`filterv` (the lazy heads return a Stream a fence cannot consume, and an eager arm under a
-  lazy NAME would have silently diverged from core).
-- **Tuple was constructible and unreadable since genesis** — three accessor rows added. The builder
-  refused my "maybe the row should not exist": that was the corpus fallacy this table's own
-  totality gate had already refuted.
-- **`reduce`'s 2-arity form** raised on empty while its row claimed `total: true`. The rete surface
-  now admits only the total arity.
-- **Keyword equality was unreachable inline** because `rete_type_segment_of` mapped only the
-  UNINHABITABLE capital `Keyword`. Fixed. And `keyword` had the thinnest surface in the table — 2
-  rows, zero of core's seven verbs — so `to-string`/`from-string` were added.
-- **The inline grammar** now admits any PROVABLY boolean rete expression, not a fixed shape set.
+**THE INLINE CONSTRAINT POSITION IS CLOSED. Every generable row fires in BOTH positions.**
+The column went **16 → 68 → 71 → 75 of 79** across one day; the last four are the holon rows, driven
+by hand and NOT yet reflected in the ledger. Four commits: `1a97cf12b` `4c19b9029` `ad2286133`
+`b7f54a17f`. Floor 5147/5147. Clara 38 pairs / 315 rows.
 
-**⛔ THE THREE LESSONS THAT COST THE MOST, AND TWO ARE NEW FAILURE MODES:**
-- **FM 31 — A READING CANNOT SEE AN EXECUTION DEFECT.** The vigilia CONVERGED (17/17 + circumspicere,
-  two empty recasts) and the ward tail audited 4-for-4 stale, while six rows could not run. Source
-  and spec AGREED and were jointly wrong. Every ward reads; none drives.
-- **FM 32 — THE CURE REOPENED THE CLASS IT CURED.** F's fix routed its own failure path into the
-  same silent `Op::Fail`. Caught only by probing my own change against the defect's own shape.
-- **MY STATED RATIONALE WAS FALSE TWICE, AND I NEARLY SHIPPED BOTH.** I told the builder the inline
-  split was indexability-vs-expressivity; `alpha_tree.rs` indexes only equality discriminators and
-  says orderings "ride the wildcard edge" — and orderings are admitted inline. I also called Tuple
-  unobservable from an absence. **Check the premise before running the four questions on it.**
+**✅ `coincident?` INLINE IS FIXED — THE FIFTH INSTANCE OF THE PATTERN IS CLOSED.** `ret` is now
+`Ret::Is(ParamType) | Ret::NoScheme` (`vocabulary.rs`), so a row that has no return type to state
+CANNOT SPELL ONE, and `Ret::Is(Bool)` is a fact from any class. 79 rows migrated (57 `Is`, 5
+`Is(Bool)`, 17 `NoScheme`); **the compiler then named SEVEN readers, not the three I predicted** —
+four reach `ret` through a shared helper and were invisible to grep, which is itself the argument
+for the type over the convention. `clause.rs` and `validate.rs` lost their `class` test entirely;
+`check.rs` KEEPS its, and that is correct — it builds a whole rank-1 scheme, so it guards on
+PARAMS. Two gates, both mutation-proven, including the soundness twin that keeps `Tuple/first`
+refused (mutate it and the failure prints `Got: Ok(0)` — the F-class signature). Floor 5150/5150.
+
+⚠ **`params: &[]` STILL HOLDS THE SAME TWO FACTS — an affirmative cut, not an oversight.** No rete
+row takes zero operands, so it is unambiguous today; `Ret`'s doc carries the notice for whoever
+mints a zero-arity row.
+
+**⛔ THE LEDGER IS STILL LYING ABOUT FOUR ROWS — AND THE ENTRY THAT SAID SO WAS ALSO WRONG.**
+`NOT_YET_GENERABLE` in `src/rete/reachability.rs` reports the four `:wat::rete::holon::*` rows
+un-drivable. Re-driven 2026-08-28 (LATE) with `v` AND `w` both `HolonAST` on one record:
+**SEVEN of eight cells fire, not eight.** `presence?`, `cosine`, `dot` fire in both positions;
+**`coincident?` is REFUSED INLINE** and that is a LIVE DEFECT. The earlier "all four FIRE, inline
+and fence" on this page came from a hand-drive whose shape was never written down — it was wrong,
+and the ledger existing precisely to catch that is the point.
+
+**`coincident?` inline WAS the fifth instance of the pattern below — now FIXED (see the top of
+this stamp). The reproduction is kept here because the ledger still cannot GENERATE these cells.** It is `Redispatch` (its PARAMS are polymorphic) but genuinely returns `bool`;
+`expr_is_provably_boolean` trusts `ret` only for `Alias`/`Fallback`, because on
+`Form`/`Redispatch` rows `ret: Bool` ALSO means "no scheme at all". ⛔ The one-line widening is
+UNSOUND — driven: it admits `Tuple/first` (an `i64`) as an inline constraint that compiles, fires
+and silently matches NOTHING. Do not re-propose it. The cure is the ladder's top rung —
+`ret: Ret::Is(ParamType) | Ret::NoScheme`, after which the placeholder cannot be spelled and the
+same guard clause stops being hand-copied at THREE sites (`clause.rs:266`, `validate.rs:1337`,
+`check.rs:17267`). Full evidence + the measured thresholds: `RETE-OPEN-WORK.md` § "The order"
+item 7.
+
+**★ THE ONE PATTERN UNDER ALL OF IT — FOUR INSTANCES IN ONE DAY.** A representation where ONE value
+means both *"legitimately absent"* and *"I have no arm for this"*:
+
+| site | one value means | and also means |
+|---|---|---|
+| `vocabulary.rs` — `ret: Bool` on 7 `Form` rows | "returns bool" | "has no scheme at all" |
+| `compiled_cond.rs` + `matcher.rs` — `other => clone` | "leaf, leave alone" | "unhandled variant" |
+| `validate.rs` — `_ => UnboundInThisRule` | "unbound `?var`" | "no arm for a nested call" |
+| fix-list F's own cure — `Option`/`None` | "absent" | "lowering failed" |
+
+**★ THE FIFTH INSTANCE, FOUND 2026-08-28 (LATEST) — and it is the FIRST ROW OF THE TABLE, still
+open, now proven to cost a live wrong answer.** `ret: Bool` on `Form`/`Redispatch` rows refuses
+`:wat::rete::holon::coincident?` inline: the row genuinely returns bool, and the representation
+cannot say so without also saying "placeholder". The guard it forces —
+*"believe `ret` only for `Alias`/`Fallback`"* — is hand-copied at THREE sites (`clause.rs:266`,
+`validate.rs:1337`, `check.rs:17267`). Cure: `ret: Ret::Is(ParamType) | Ret::NoScheme`, so the
+placeholder has no spelling. ⛔ The one-line widening is UNSOUND (driven: it admits `Tuple/first`,
+an `i64`, as an inline constraint that silently matches nothing).
+
+Every one produced either a false refusal or a SILENT never-match. **When you meet a catch-all in
+this codebase, ask which two facts it is holding.** **ALL FIVE ARE NOW CLOSED** — the wildcards are
+deleted (a new `WatAST` variant is a compile error in both rewriters and in the operand typer) and
+`ret: Bool` became `Ret::Is | Ret::NoScheme`, so a placeholder has no spelling. The one that
+remains is `params: &[]`, cut affirmatively because no rete row takes zero operands.
+
+**★ AND THE CLOSING TAUGHT SOMETHING THE FIRST FOUR DID NOT.** Fixing the shape made the COMPILER
+enumerate the readers — seven, where I had grepped three. Four of them touch `ret` only through a
+shared helper, so no search for `.ret` could have found them. **That is the argument for the type
+over the convention, in one number: a convention cannot make the compiler find its own violations.**
+
+**⛔⛔ MY STATED RATIONALE WAS FALSE FIVE TIMES ACROSS TWO SESSIONS, AND THE BUILDER CAUGHT TWO OF
+THEM.** This is the single most important line on this page.
+- "cond/let/match are polymorphic so the type is unknowable" — **false**; polymorphic IN THE BODY
+  means the type is a FUNCTION of the body, which is in the AST.
+- "`cond` fails a type test" — **false**; the macro expander never reached the inline position.
+- "the bare-keyword rule is a syntactic ambiguity" — **false**; `:probe::E::A` carries `::` and a
+  field name is a bare identifier, and the engine already decided it correctly one level down.
+- "`set-capacity-mode!` is callable at runtime, so `Bundle` is non-deterministic" — **false**, and
+  the builder said so before I checked: it is a LOAD-TIME DIRECTIVE (`unknown function` inside
+  `:user::main`).
+- (prior session) the indexability argument for the inline split, and calling `Tuple` unobservable.
+
+**Check the premise before running the four questions on it.** Every one of these was settled by ONE
+probe. The builder's steer that unlocked the whole day: *"we very carefully crafted rete's DSL to
+ensure every form a user can express can be compiled… we just inappropriately denied access, poorly,
+to tooling we fully intended to support."*
+
+**TWO NEW FAILURE MODES — full text in `docs/COMPACTION-AMNESIA-RECOVERY.md` § 6:**
+- **FM 33 — a static call-graph audit is wrong in BOTH directions and looks right each time.** Mine
+  was: too narrow (regex missed `pub(crate) fn`, so a raise I had already READ went missing), then
+  too wide (depth-3 swept in `eval_inner`, so a 3-line predicate looked partial). Drive the edges.
+- **FM 34 — a control loses its power without failing.** Closing the keyword asymmetry turned the
+  ledger's calibration from two-of-each-verdict into all-fires. Still green, now half blind. Its
+  refusal is re-sourced from Law A, which no future fix can take away.
+
+**WHERE THE WORK IS, as pointers — this file is a MAP, do not re-narrate it:**
+- `RETE-OPEN-WORK.md` § "The order, and why" — items 4–6 are the inherited rulings (`partire` x7,
+  TRACKED ① ②, `circumspicere` 1); **items 7–8 are new**: the holon surface (rete has 4 of ~40 ops,
+  all from one group) and the `Bundle`/`:panic` builder ruling.
+- ⛔ **Clara cannot arbitrate holon** — builder: *"this is a wat only capability"*. `$native` vs
+  `$oracle` alone is the configuration that failed twice this session. Use known-answer algebraic law.
+- `holon-rs`: `nil()` is `classified("Symbol","nil")`, so **`is-Nil?` and `is-Symbol?` BOTH answer
+  true for nil, by construction.** The 11 shape predicates do not partition and nothing says so.
+- `is-List?` / `is-Tag?` are **UNVERIFIED**, not verified-negative — an all-false column in a
+  confusion matrix means "correct" or "never fires" and cannot tell them apart.
 
 **⚠⚠ YOU ARE NOT THE INSTANCE THAT WROTE THIS. ⚠⚠**
 Everything above is a cache written by a prior self across a very long session. You did not live

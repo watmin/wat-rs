@@ -284,7 +284,7 @@ pub(crate) fn resolve_rhs_value(
     bindings: &crate::value::pmap::PMap,
     sym: &SymbolTable,
 ) -> Result<Option<Value>, EvalBreak> {
-    if let Some(v) = resolve_operand(arg, &[], &[], bindings) {
+    if let Some(v) = resolve_operand(arg, &[], &[], bindings, None) {
         return Ok(Some(v));
     }
     match arg {
