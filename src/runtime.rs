@@ -10665,6 +10665,14 @@ fn eval_apply(
         return apply_function(func.clone(), combined, sym, list_span).map_err(Into::into);
     }
 
+    // Stone O-ii — clause-set head. `dispatch_keyword_head` has had this arm since Stone 237.2
+    // (runtime.rs:6758); `apply` never grew it, so every defclause — `+`, `reduce`, `sort` — was
+    // refused by the keyword gate below. `combined` is already the evaluated args, which is
+    // precisely what the value-level entry wants.
+    if let Value::wat__core__clauses(cs) = &head_val {
+        return eval_call_to_defclause_with_vals(cs.clone(), combined, &list_span, sym);
+    }
+
     // Step 6 — keyword-valued head: extract name + dispatch chain.
     let head_kw = match &head_val {
         Value::wat__core__keyword(k) => k.clone(),
