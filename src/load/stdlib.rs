@@ -90,7 +90,7 @@ const STDLIB_FILES: &[WatSource] = &[
     // further — no holon, no rete, no comms. Design: docs/arc/2026/06/278-rules-engine/GENERATIVE-TESTING.md.
     WatSource {
         path: "wat/gen.wat",
-        source: include_str!("../wat/gen.wat"),
+        source: include_str!("../../wat/gen.wat"),
     },
     WatSource {
         path: "wat/holon/Amplify.wat",
