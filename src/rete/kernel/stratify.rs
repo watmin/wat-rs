@@ -78,6 +78,9 @@ pub(crate) fn rule_negates(lhs: &[WatAST]) -> Vec<String> {
 
 pub(crate) fn negate_types(form: &WatAST, out: &mut Vec<String>, under_not: bool) {
     match classify_rete_clause(form) {
+        // A predicate NEGATES no fact type: it is an expression over bindings, never a pattern,
+        // so it can neither be the thing a `not` excludes nor introduce one.
+        ReteClauseShape::Predicate(_) => {}
         ReteClauseShape::Not(inner) => negate_types(inner, out, true),
         ReteClauseShape::And(xs) | ReteClauseShape::Or(xs) => {
             for x in xs {
@@ -156,6 +159,10 @@ pub(crate) fn bag_types(form: &WatAST, out: &mut Vec<String>) {
 
 pub(crate) fn consume_types(form: &WatAST, out: &mut Vec<String>) {
     match classify_rete_clause(form) {
+        // A predicate CONSUMES no fact type: it is an expression over bindings this condition
+        // already made, never a pattern reaching into another rule's derivations. It contributes
+        // nothing to the produces->consumes graph stratification is built from.
+        ReteClauseShape::Predicate(_) => {}
         ReteClauseShape::Exists(inner) => consume_types(inner, out),
         ReteClauseShape::Accumulate { from, .. } => consume_types(from, out),
         ReteClauseShape::And(xs) | ReteClauseShape::Or(xs) => {

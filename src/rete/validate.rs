@@ -815,6 +815,14 @@ fn validate_clause(
         ReteClauseShape::Bind { field, .. } => {
             check_field(field, clause, rule_name, fact_type, field_names, errors);
         }
+        // A boolean rete expression. Its operand TYPES are the expression's own business — there
+        // is no per-type comparator to validate the way a `Constraint` has — and its field refs
+        // are resolved by the lowering, which refuses (never silently fails) on an unknown one.
+        //
+        // ⚠ That refusal currently arrives as the generic "alpha N cond did not compile", which
+        // teaches less than the located `UnknownField` a `Constraint` gets. Carrying a reason up
+        // from `compile_seq` is tracked as its own strike; it is not made worse here.
+        ReteClauseShape::Predicate(_) => {}
         ReteClauseShape::Constraint { op, lhs, rhs } => {
             check_operand_field_ref(lhs, clause, rule_name, fact_type, field_names, errors);
             check_operand_field_ref(rhs, clause, rule_name, fact_type, field_names, errors);
@@ -1310,6 +1318,8 @@ fn collect_all_declarations<'a>(cond: &'a WatAST, out: &mut Vec<&'a str>) {
         ReteClauseShape::Not(inner) | ReteClauseShape::Exists(inner) => {
             collect_all_declarations(inner, out);
         }
+        // A predicate is an EXPRESSION: it reads bindings, it never declares one.
+        ReteClauseShape::Predicate(_) => {}
         ReteClauseShape::And(arms) | ReteClauseShape::Or(arms) => {
             for a in arms {
                 collect_all_declarations(a, out);
@@ -1352,6 +1362,8 @@ fn collect_wrapper_binds<'a>(
     out: &mut Vec<WrapperBind<'a>>,
 ) {
     match classify_rete_clause(cond) {
+        // An expression binds nothing — it only READS what earlier clauses bound.
+        ReteClauseShape::Predicate(_) => {}
         ReteClauseShape::Not(inner) => {
             collect_wrapper_binds(inner, Some(inner), type_head, out);
         }

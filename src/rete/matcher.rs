@@ -745,6 +745,20 @@ fn eval_clause(
         // Arbitrary-expression eval belongs in a TestNode (stone 6), not here.
         // Reaching this arm means the caller used a `where` clause in a v1 condition.
         // Return None (Clara no-error: unhandled clause = no match).
+        // A boolean rete expression written where a constraint goes. Evaluated through the SAME
+        // core the operands use, and required to answer TRUE.
+        //
+        // A non-bool cannot reach here: `head_is_boolean_rete_predicate` admits only rows whose
+        // `ret` is genuinely known, so `false` below means the predicate answered false — never
+        // "it answered something else and we quietly treated that as no-match", which is the shape
+        // fix-list F was.
+        ReteClauseShape::Predicate(expr) => {
+            match eval_computed_operand(sym, expr, fact_fields, field_names, &bindings) {
+                Some(Value::bool(true)) => Some(bindings),
+                _ => None,
+            }
+        }
+
         ReteClauseShape::Where(_) => None,
 
         // `exists`/`accumulate` are top-level `:when`-entry wrappers, consumed entirely by
