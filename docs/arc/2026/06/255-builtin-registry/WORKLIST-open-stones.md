@@ -11,7 +11,7 @@ P1  the registry can detect a collision      ✅ STRUCK — the wall stands befo
                                                puts ~130 more registrations behind it
 O-iv-b  the collections sweep                ✅ STRUCK — 8 new doors + 24 collapses, -556 lines
 P2  the special-form entry stops lying       ✅ STRUCK — show-source honest, `if` reports arity 3
-P3  the three ignores are re-diagnosed     ← NEXT: arc 255's OWN unlock list
+P3  the SEVEN ignores are re-diagnosed    ← NEXT: arc 255's OWN unlock list — 7, not 3
 P4  the skipped population is MEASURED         a measurement stone; nothing decided until it lands
 O-iv-c  holon sweep                            73 verbs — needs disposition rows (span-carrying)
 O-iv-d  the remainder sweep                    26 verbs — same
@@ -31,7 +31,7 @@ the floor (P1). Adding the population first and the wall second is the wrong ord
 | ~~P1~~ | ~~the registry can detect a collision~~ | | | ✅ **STRUCK** — see Closed |
 | ~~O-iv-b~~ | ~~the collections sweep~~ | | | ✅ **STRUCK** — see Closed |
 | ~~P2~~ | ~~the special-form entry stops lying~~ | | | ✅ **STRUCK** — see Closed |
-| **P3** | the three ignores are re-diagnosed | 1 un-ignore, 1 rewrite, 1 stays | *not drawn* | — |
+| **P3** | the arc's own ignore ledger is re-diagnosed — **7**, not 3 | 7 reasons · 1 un-ignore · 1 rewrite · a new `*_justified` lint | `BRIEF-STONE-P3-the-arcs-own-ignore-ledger-is-re-diagnosed.md` | — **READY** |
 | **P4** | the skipped population is measured | measurement only; no code change | *not drawn* | a VALIDATED instrument |
 | **O-iv-c** | holon sweep — `atom` 41 · `subspace` 10 · `engram` 10 · `reckoner` 8 · `hologram` 4 | 73 verbs | *not drawn* | disposition rows (span-carrying algebra) |
 | **O-iv-d** | the remainder — `uuid` 7 · `ambient` 7 · `string`/`reflect`/`bytes` 2 · six singles | 26 verbs | *not drawn* | same |
