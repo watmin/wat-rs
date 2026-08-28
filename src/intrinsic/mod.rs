@@ -410,9 +410,15 @@ mod keyword;
 mod linkedlist;
 mod list;
 mod map;
+// Arc 255 Stone HOME-10 — math, stat, seq get actual homes. Pure re-registration
+// (HOME-9 already renamed these off `:wat::std::`); shim-only, three files, no
+// `src/math/`/`src/stat/`/`src/seq/` directory (STOP-1 — no algebra worth naming).
+mod math;
 mod rational;
 mod reflect;
 mod regex;
+mod seq;
+mod stat;
 // Arc 255 Stone F — reverted to the default-private shape of its siblings. The
 // `:wat::core::String/*` uppercase alias arms in `runtime.rs` (Stone 237.3) that needed
 // `pub(crate)` to call four of these handlers directly (bypassing the registry) are retired;

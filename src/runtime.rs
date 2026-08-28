@@ -6115,19 +6115,12 @@ fn dispatch_keyword_head_value(
         ":wat::core::filter" => {
             crate::collection::transform::eval_filter(args, list_span, env, sym)
         }
-        // Arc 255 Stone HOME-9 — moved off the dead `:wat::std::list::` namespace to
-        // `:wat::seq::*`, and made Seqable-generic in the same motion (accepts Vector |
-        // PersistentVector | List | Stream now, not just Value::Vec — see
-        // `eval_seq_zip`/`eval_seq_window`/`eval_seq_remove_at`'s docs).
-        ":wat::seq::zip" => {
-            crate::collection::transform::eval_seq_zip(":wat::seq::zip", args, list_span, env, sym)
-        }
-        ":wat::seq::window" => {
-            crate::collection::transform::eval_seq_window(":wat::seq::window", args, list_span, env, sym)
-        }
-        ":wat::seq::remove-at" => {
-            crate::collection::transform::eval_seq_remove_at(":wat::seq::remove-at", args, list_span, env, sym)
-        }
+        // Arc 255 Stone HOME-9 moved `:wat::seq::{zip,window,remove-at}` off the dead
+        // `:wat::std::list::` namespace and made them Seqable-generic (Vector |
+        // PersistentVector | List | Stream). Arc 255 Stone HOME-10 carved their dispatch
+        // arms into `#[wat_intrinsic]` handlers (`src/intrinsic/seq.rs`) — the pre-match
+        // registry check above (arc 255.1c-guard) intercepts all three names before
+        // reaching here, same shape as `:wat::time::*` a few dozen lines up.
         ":wat::core::HashMap" => {
             // Arc 109 step ① Room 3 — accept `(HashMap [K V] …)` alongside the existing
             // positional `(HashMap :K :V …)`; see `crate::check::unwrap_type_param_bracket`.
@@ -6382,23 +6375,14 @@ fn dispatch_keyword_head_value(
         ":wat::config::global-seed" => eval_config_global_seed(args, sym, list_span),
         ":wat::config::noise-floor" => eval_config_noise_floor_default_shim(args, sym, list_span),
 
-        // Stdlib math — single-method Rust calls packaged at
-        // :wat::math::* (arc 255 Stone HOME-9 — moved off the dead :wat::std:: namespace;
-        // FOUNDATION-CHANGELOG 2026-04-18 is the original packaging decision).
-        // Not at :wat::core:: because they're numeric utilities, not
-        // Lisp or algebra primitives; only stdlib macros (Log, Circular)
-        // need them, and userland picks them up the same way.
+        // Stdlib math (:wat::math::ln/exp/sqrt/sin/cos/pi) and stat
+        // (:wat::stat::mean/variance/stddev) — arc 255 Stone HOME-9 moved these off the dead
+        // `:wat::std::` namespace; arc 255 Stone HOME-10 carved their dispatch arms into
+        // `#[wat_intrinsic]` handlers (`src/intrinsic/math.rs`, `src/intrinsic/stat.rs`). The
+        // pre-match registry check above (arc 255.1c-guard) intercepts all 9 names before
+        // reaching here, same shape as `:wat::time::*` a few dozen lines down.
         // `log` is DELETED, not moved: it was wired to the SAME `f64::ln` as `ln` (a level-1
         // lie), had zero call sites, and does not carry forward under a new address.
-        ":wat::math::ln" => eval_math_unary(args, env, sym, "ln", f64::ln, list_span),
-        ":wat::math::exp" => eval_math_unary(args, env, sym, "exp", f64::exp, list_span),
-        ":wat::math::sqrt" => eval_math_unary(args, env, sym, "sqrt", f64::sqrt, list_span),
-        ":wat::math::sin" => eval_math_unary(args, env, sym, "sin", f64::sin, list_span),
-        ":wat::math::cos" => eval_math_unary(args, env, sym, "cos", f64::cos, list_span),
-        ":wat::math::pi" => eval_math_pi(args, list_span),
-        ":wat::stat::mean" => eval_stat_mean(args, env, sym, list_span),
-        ":wat::stat::variance" => eval_stat_variance(args, env, sym, list_span),
-        ":wat::stat::stddev" => eval_stat_stddev(args, env, sym, list_span),
 
         // Time primitives — arc 056/097, carved to the registry at
         // `src/intrinsic/time.rs` (arc 255.1c-time, home #2). The
@@ -21028,7 +21012,7 @@ pub(crate) fn eval_deny_prime(
 /// comment). Arity 1. Argument must
 /// evaluate to `:f64` (or `:i64` auto-promoted). `op_name` is the
 /// wat-facing short name for error messages.
-fn eval_math_unary(
+pub(crate) fn eval_math_unary(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
@@ -21068,7 +21052,7 @@ fn eval_math_unary(
 /// `(:wat::math::pi)` — the mathematical constant π as `:f64` (arc 255 Stone HOME-9 — moved
 /// off the dead `:wat::std::` namespace).
 /// Nullary. Backing: `std::f64::consts::PI`.
-fn eval_math_pi(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBreak> {
+pub(crate) fn eval_math_pi(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBreak> {
     if !args.is_empty() {
         return Err(RuntimeError::new(
             list_span.clone(),
@@ -21091,7 +21075,7 @@ fn eval_math_pi(args: &[WatAST], list_span: &Span) -> Result<Value, EvalBreak> {
 /// Surfaced by holon-lab-trading arc 026 slice 9 (Hurst's R/S
 /// analysis) and slice 4 (Bollinger's RollingStddev). Universal
 /// enough to live in core stdlib.
-fn eval_stat_mean(
+pub(crate) fn eval_stat_mean(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
@@ -21140,7 +21124,7 @@ fn eval_stat_mean(
 /// variance (divides by n). Matches numpy default `ddof=0`. None on
 /// empty input. Single-point input returns `Some(0.0)` (no spread).
 /// Arc 255 Stone HOME-9 — moved off the dead `:wat::std::` namespace.
-fn eval_stat_variance(
+pub(crate) fn eval_stat_variance(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
@@ -21195,7 +21179,7 @@ fn eval_stat_variance(
 /// `(:wat::stat::stddev (:wat::core::Vector :- [f64])) -> (:wat::core::Option :- [f64])`. Square
 /// root of population variance. Arc 255 Stone HOME-9 — moved off the dead `:wat::std::`
 /// namespace.
-fn eval_stat_stddev(
+pub(crate) fn eval_stat_stddev(
     args: &[WatAST],
     env: &Environment,
     sym: &SymbolTable,
