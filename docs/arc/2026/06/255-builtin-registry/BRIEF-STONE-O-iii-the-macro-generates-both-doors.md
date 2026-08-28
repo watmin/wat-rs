@@ -18,6 +18,27 @@ Then you migrate ONE namespace to prove it: `src/intrinsic/vector.rs`, six verbs
 (`concat`) is written today as **two** fns — a shell and a hand-written value twin, both calling the
 same `persistentvector_concat_inner` — and becomes **one**.
 
+
+## ⛔ WHAT CHANGED UNDER THIS BRIEF — read before the sketch
+
+Stones **O-i** (`37dcc392e`) and **O-ii** (`04862864e`) landed after this brief was drafted. Two
+facts it was written without:
+
+**1. `dispatch_substrate_impl` now arity-checks CENTRALLY** — it reads `entry.arity` and returns
+`ArityMismatch` before calling any value handler. **This does NOT make the generated adapter's own
+arity check redundant, and you must still emit it.** The reason is the exact defect O-i fixed: every
+value handler carried `.expect("arity-checked")`, a comment asserting a property that some *other*
+code was responsible for — and it was false on one of two doors, and it panicked. A generated adapter
+that indexes `&vals[0]` because "the registry door checks" is that same comment, re-written in
+generated code. **The adapter must be correct standing alone.** The central guard then becomes
+defence-in-depth for the 19 hand-written value handlers that are out of this strike's scope.
+
+**2. `lookup_value` is RETIRED.** `dispatch_substrate_impl` consults `lookup_entry` once and reads
+both `value_handler` and `arity` off the one entry. The **field** `IntrinsicEntry::value_handler` and
+the **type** `ValueHandler` both survive unchanged — they are what you submit — but do not look for
+an accessor named `lookup_value`; it no longer exists.
+
+Nothing else about this strike moved. The rooms below are re-verified against `04862864e`.
 ## Row 0 — before anything else, name the handler the census cannot see
 
 `wat-scripts/hunt/stone-o-shell-census.awk` classifies **380** handlers. The registry holds **381**
@@ -33,7 +54,7 @@ find src -name '*.rs' -print0 | xargs -0 awk -f wat-scripts/hunt/stone-o-shell-c
 difference between two lists, and it decides whether the census's SHELL/BINDING split has an
 unexamined edge. Report the name and the shape; do not adjust any count until you have it.
 
-## Rooms — verified against `9b25f3bbf`
+## Rooms — RE-verified against `04862864e` (O-i and O-ii landed after this brief was drafted)
 
 ```
 crates/wat-macros/src/wat_intrinsic.rs:90    enum SniffedArgs      — the shape you extend
