@@ -561,3 +561,55 @@ builder's call, unchanged, and is why the disposition axis is THREE-valued and n
 
 `Q` → then `O-iv-c` (73) → `O-iv-d` (26). Without Q, O-iv-c is impossible and O-iv-d shrinks to the
 ~25 span-free stragglers. With it, **302 handlers become migratable** that are not today.
+
+---
+
+## ★ THE ARG-SPAN CLASS IS `apply`'s PERMANENT FLOOR — 2026-08-28, after O-iv-c-1
+
+O-iv-c-1's rider refused five migrations because the handlers read `<arg>.span()` and `Value` carries
+no span. Applying that test to `atom.rs` before drawing O-iv-c-2 — **a candidate list, verified
+against both known refusals as controls** — the shape is stark:
+
+```
+src/intrinsic/holon/atom.rs, 60 handlers
+  MIGRATABLE                      16
+  ARG-SPAN — cannot migrate       25    reads an argument's own source location
+  BINDING (env/sym or ctx)        19
+```
+
+**In atom, the ARG-SPAN class is larger than the BINDING class.** It is now the dominant blocker on
+the sweep, and it is not a limitation of the ALGEBRA contract that a future stone could widen.
+
+### Why it is permanent, and it is Stone O's own founding fact
+
+Stone Q gave the value door the **call's** span, which was free because `eval_apply` holds one. There
+is no equivalent move for per-argument spans, and the reason is the thing this design opened with:
+
+> **`apply`'s arguments have no syntax.** Proven at Stone O: `(apply :wat::i64::+ (:mk::pair))`
+> evaluates to 42 while the form's AST children are `[apply, the verb, (:mk::pair)]` — **there is no
+> node for `20` or `22` anywhere.** The arity is decided at runtime.
+
+A per-argument span cannot be supplied by a caller whose arguments were never written down. So:
+
+| | can `apply` reach it? | why |
+|---|---|---|
+| span-free algebra | ✅ | nothing needed |
+| call-span algebra | ✅ (Stone Q) | `apply` holds the call span |
+| **ARG-SPAN** | **❌ never** | the arguments have no syntax to have a span *of* |
+| BINDING | ❌ never | needs `env`/`sym`, which imply ASTs |
+
+★ **So the honest end-state of this campaign is not "every verb reachable through apply."** It is
+*"every verb that CAN be reachable is, and the rest say so truthfully"* — which is exactly what
+Stone O-iv-a's diagnostic already does. **The message it prints is not a placeholder awaiting a
+sweep; for the ARG-SPAN and BINDING classes it is the permanent, correct answer.**
+
+⚠ **A verb in the ARG-SPAN class is not thereby correct.** Some may be reading an argument's span
+where the call span would serve just as well — that is a per-verb judgement about diagnostic
+quality, and converting one is a *deliberate trade* (per-element precision for `apply`
+reachability), **the builder's call and never a rider's**. This design records the class; it does
+not rule on any member.
+
+⚠ **The numbers above are a CANDIDATE LIST from a pattern**, controlled against O-iv-c-1's five
+known refusals and no further. Three span classifiers were retracted in one afternoon for this exact
+question. The compiler and a read remain the instruments; treat 16/25/19 as where to look, not what
+is true.
