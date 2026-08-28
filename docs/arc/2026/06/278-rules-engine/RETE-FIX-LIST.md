@@ -383,3 +383,96 @@ passed once or four times. 37 of the 57 queries in the where-family corpus have 
 Every query the fuzzer generates carries the rule's own LHS, so `query` reads beta — below the
 dedup. That choice is why these were reachable at all, and it is the first thing to preserve if
 the fuzzer is ever restructured.
+
+---
+
+## F — AN INLINE CONSTRAINT WITH A NESTED-CALL OPERAND IS SILENTLY UNSATISFIABLE
+
+> **Found 2026-08-28 by the § 4.1 reachability ledger, then reduced to the minimal case below.
+> This is a live, user-facing WRONG ANSWER with no diagnostic at any stage.** Not found by the
+> fuzzers (both engines agree on the empty answer), and not findable by any reading ward (every
+> gate the form passes is correct about it).
+
+### The reproduction — three runs of one file, one line different
+
+```wat
+(:wat::core::defrecord :m::In  [k <- :wat::core::String  v <- :wat::core::i64])
+(:wat::core::defrecord :m::Out [k <- :wat::core::String])
+
+(:wat::rete::defrule :m::rule
+  :when
+  [(:m::In (?k <- :k)
+     (:wat::rete::core::i64::= (:wat::rete::core::i64::+ :v 2 :undefined 0) 12))]
+  :then
+  [(:m::Out :k ?k)])
+```
+
+Facts `v = 10` (10+2 = 12, the constraint HOLDS) and `v = 1` (1+2 = 3, it does not).
+
+| form | rows | correct |
+|---|---:|---:|
+| no constraint at all | 2 | 2 — proves the rule installs and fires |
+| the SAME expression inside a `(:wat::rete::where …)` fence | 1 | 1 — proves the expression is valid and the engine can evaluate it |
+| the expression as an INLINE constraint | **0** | **1** |
+
+**Exit code 0. Zero bytes on stderr.** No error, no warning, at freeze, at `compile-all`, or at
+fire.
+
+### It is not "ignored" — it is UNSATISFIABLE, which is the worse failure
+
+A dropped constraint would OVER-match (2 rows). This UNDER-matches to zero: the rule never fires,
+for any input, ever. And no value of the compared-against operand rescues it — expected `12` gives
+0 rows and expected `0` gives 0 rows, which is how the first hypothesis (that the operand resolves
+to its `:undefined` fallback) was REFUTED.
+
+### Scope, stated exactly
+
+Requires BOTH the inline-constraint position AND an operand that is a nested call. Inline
+constraints over a `?var`, a field-ref or a literal are correct — 16 `RETE_OPS` rows fire there.
+**But every inline constraint that COMPUTES anything is silently dead.** In the ledger's inline
+column that is 39 of 77 rows.
+
+### The mechanism, read off the disk
+
+1. `classify_rete_clause` sees head `:wat::rete::core::i64::=` — a real rete comparator — so the
+   clause is a perfectly good `ReteClauseShape::Constraint`. The freeze validator has nothing to
+   object to. (This is why the OTHER 18 rows are honestly refused: unary ops and `Type/method`
+   spellings are not Constraint-shaped, classify as `Unrecognized`, and the validator raises
+   `MalformedClause`. The clause level was walled; the OPERAND level never was.)
+2. `compiled_cond::compile_operand_expr` handles `Symbol` (`?var`), `Keyword` (field) and then
+   `other => ast_literal_value(other).map(Expr::Lit)`. A nested call is a `WatAST::List`, is not a
+   literal, and returns `None` — so the whole condition fails to compile and falls back.
+3. The interpreted fallback `matcher::eval_clause` calls `resolve_operand`, which handles the same
+   three shapes, returns `None`, and hits `_ => return None` (`matcher.rs:678`).
+4. **`None` there means "this fact does not match".** The function's own doc says the quiet part:
+   *"`None` on mismatch **or unresolvable operand**"* — two different facts, one return value.
+
+### The fix is a HALF-FINISHED FLIP, not a new wall and not a new evaluator
+
+`DESIGN-STONE-the-one-expression-core` records *"Flips 3–5 (`cond` / `rhs` / user acc folds)
+LANDED 2026-08-17"*, and `compiled_cond.rs:66` really does `use crate::rete::expr_ir::Expr` —
+`Op::Cmp { lhs: Expr, rhs: Expr }` can hold an `Expr::Call` **today**. What did not land is the
+LOWERING: `compile_operand_expr` never calls `expr_ir::lower()`, the function the `where` fence
+uses to turn a `WatAST` into an `Expr` DAG. So `cond` took the one core's TYPE and kept its own
+three-case mini-lowering that stops at literals. That is the entire difference between the fence
+answering 1 and the inline position answering 0.
+
+⚠ **DO NOT "fix" this by refusing the form at compile time.** That was this instance's first
+proposal and the builder refused it: a diagnostic would cement a limitation that exists only
+because one function does not call another, and the arc has already ruled ONE expression core for
+all four surfaces.
+
+### Open question — answerable by probe, not by argument
+
+Whether the two slot models compose. `compiled_cond` assigns slots against a fact's field list and
+writes them with an `Op::Bind` prologue; `expr_ir::LowerCx` assigns slots by name against a
+`SymbolTable`. A nested operand lowered through the core must have its slot READS line up with the
+alpha prologue's WRITES. There may also be a deliberate reason it was left: alpha match is the
+per-fact hot path, and the stone's zero-allocation gate is measured on exactly these arms.
+
+### The gate that turns green
+
+A probe asserting `rows == 1` for the inline form above, with the fence form and the
+no-constraint form as its controls (they pin 1 and 2, so an over-broad fix that makes everything
+match is caught). Plus a grid axis per the builder's 2026-08-26 ruling — an entry does not leave
+this list until the grid says we are accurate relative to Clara.
