@@ -1,0 +1,256 @@
+# STONE O — one declaration feeds both doors
+
+> Builder, 2026-08-28: *"draw the apply stone - one declaration feeding both doors"* — and, restating
+> the thesis so it could not be lost: *"Two calling conventions are forced by the language. Two
+> registrations are not."*
+
+> Drawn against `9b25f3bbf`. Every number below was produced by an instrument printed here.
+
+## ⛔ THE DEFECT — `apply` ANSWERS FROM ITS OWN PICTURE, NOT THE REGISTRY
+
+`:wat::core::apply` reports **"unknown function"** for verbs the registry knows perfectly well. Not a
+subset of exotic ones — most of them. Measured live against `target/release/wat` at `9b25f3bbf`, by
+the disconfirming probe committed with this design
+(`wat-scripts/scratch-pad/255-stone-o-apply-lies-about-what-exists.wat`):
+
+```
+:wat::i64::+       [HASVAL]  DIRECT=ok:42                    APPLY=ok:42
+:wat::f64::max-of  [no val]  DIRECT=ok:Some [41.0]           APPLY=err:unknown function: :wat::f64::max-of
+:wat::string::to-uppercase   DIRECT=ok:"WAT"                 APPLY=err:unknown function: :wat::string::to-uppercase
+:wat::vector::length         DIRECT=ok:3                     APPLY=err:unknown function: :wat::vector::length
+:wat::math::sqrt             DIRECT=ok:4.0                   APPLY=err:unknown function: :wat::math::sqrt
+```
+
+Four registered, working verbs reported ABSENT. The one that answers is the one carrying a
+`value = <path>` slot from Stone N. **44 of 381 registered names carry that slot** — so `apply` can
+reach 11.5% of the language and calls the other 88.5% nonexistent.
+
+★ **This is `walk.rs:268` wearing the opposite mask.** The blanket-accept says YES to everything
+including what does not exist; `apply` says NO to what does. Both are a dispatch path answering from
+a private picture instead of from the registry, and arc 255 exists to make the registry the sole
+authority for what exists. A registry that two dispatch paths disagree about is not an authority.
+
+⚠ **And it bites hardest exactly where splat matters.** `max-of` is VARIADIC. The verb that most
+wants `apply` is one `apply` cannot see.
+
+
+## ⛔ THE SECOND DEFECT, FOUND WHILE DRAWING THIS — THE VALUE DOOR HAS NO ARITY CHECK, AND PANICS
+
+The 44 verbs `apply` *can* reach are not safe either. **Wrong arity through the value door is a Rust
+panic, not an error.** Measured at `9b25f3bbf`, with the AST door as the control — same verb, same
+wrong arity, two doors:
+
+```
+(:wat::i64::+ 20)                                        →  err: ":wat::i64::+: expected 2 args, got 1"   ← AST door
+(:wat::core::apply :wat::i64::+ [20])                    →  PANIC  runtime.rs:11605  "arity-checked"      ← value door
+(:wat::core::apply :wat::vector::concat [one-vector])    →  PANIC  vector.rs:214     "arity-checked"
+```
+
+`arith_i64_i64_inner` and every hand-written value twin open with the same two lines:
+
+```rust
+let a = vals.first().expect("arity-checked");
+let b = vals.get(1).expect("arity-checked");
+```
+
+**`.expect("arity-checked")` names a check that happens on the OTHER door.** The generated shim
+arity-checks the AST path (`wat_intrinsic.rs:545`, `ArityMismatch`); `dispatch_substrate_impl` calls
+`handler(vals)` with nothing in between. Censused: **25 unchecked-index sites across 5 intrinsic
+files, plus the shared `arith_*_inner` fns — and NO value handler anywhere checks `vals.len()`.**
+So the panic is reachable for **all 44**, from ordinary wat source, with no unsafe, no FFI, no
+misuse — just an `apply` with the wrong number of arguments.
+
+★ **Both defects have ONE root: the value door was bolted on BESIDE the AST door instead of being
+generated WITH it.** It inherited neither the registration (so `apply` cannot see 337 verbs) nor the
+arity check (so the 44 it can see panic). One declaration feeding both doors is not tidiness — it is
+the only shape in which the second door cannot be born missing what the first one has.
+
+`[[feedback_a_slot_with_two_implementations_is_two_slots]]` — this is that lesson's sharpest
+instance yet: the two implementations diverged on a SAFETY property, silently, and the comment on
+each one asserted the property it did not have.
+## ⛔ THE ONE CONTRACT DECISION — THE DECLARATION IS THE ALGEBRA, AND THE MACRO GENERATES THE SHELL
+
+Today a verb that wants both doors is written twice:
+
+```rust
+#[wat_intrinsic(":wat::f64::+", value = eval_f64_add_value)]   // door 1 names door 2
+pub(crate) fn eval_f64_add(a: &WatAST, b: &WatAST, env: …, sym: …, span: …)
+    -> Result<Value, EvalBreak> { … }                          // AST door
+fn eval_f64_add_value(vals: &[Value]) -> Result<Value, EvalBreak> { … }   // value door
+```
+
+Two fns, two registrations, one verb. **After this stone the ALGEBRA is the declaration and the AST
+door is GENERATED:**
+
+```rust
+#[wat_intrinsic(":wat::vector::length")]
+fn vector_length(v: &Value) -> Result<Value, EvalBreak> { … }   // ONE fn. BOTH doors.
+```
+
+The macro already sniffs the argument shape (`sniff_args`: `&WatAST` ⇒ Exact, `&[WatAST]` ⇒ Variadic)
+and the return shape (`sniff_return`, Stone G). **This stone adds the third sniff on the same
+mechanism — the LEADING PARAM TYPE decides the kind:**
+
+| leading params | kind | doors generated | `apply` reaches it |
+|---|---|---|---|
+| `&Value` × N, or `&[Value]` | **ALGEBRA** | value door = the fn itself; AST door = generated shell | **YES** |
+| `&WatAST` × N, or `&[WatAST]` | **BINDING** | AST door only | no — and it SAYS so (O-ii) |
+
+The generated AST shell is exactly the two lines every shell handler writes by hand today —
+`eval_inner` each arg, call the fn:
+
+```rust
+fn __wat_intrinsic_shim_vector_length(args, list_span, env, sym) -> Result<TrackedValue, EvalBreak> {
+    if args.len() != 1 { /* ArityMismatch, as today */ }
+    let a0 = crate::runtime::eval_inner(&args[0], env, sym)?.value_owned();
+    vector_length(&a0).map(TrackedValue::from)
+}
+```
+
+
+★ **AND THE ARITY CHECK IS GENERATED ONCE, FOR BOTH DOORS.** The value adapter the macro emits opens
+with the same `ArityMismatch` the AST shim already raises (`wat_intrinsic.rs:545`) — same error kind,
+same `op` name, same shape — so a wrong-arity `apply` returns the error the direct call returns
+instead of killing the process. `.expect("arity-checked")` stops being a claim about somewhere else
+and becomes true where it is written. **This is the rung above the fix**: the panic is not patched at
+25 sites, it is made unreachable, because a hand-written value door — the only thing that can be born
+without a check — no longer exists for these verbs.
+
+**Two calling conventions survive — they are forced by the language.** `apply`'s arguments have no
+syntax: `(apply :wat::i64::+ (:mk::pair))` evaluates to 42 while the form's AST children are
+`[apply, the verb, (:mk::pair)]`, with no node for `20` or `22` anywhere. The arity is decided at
+runtime; there is no AST to hand a `NativeHandler`. **What does not survive is two REGISTRATIONS.**
+
+## ★ WHY THIS IS SAFE WHERE STONE N SAID "DELIBERATELY NOT MERGED" — read this before doubting it
+
+`i64.rs`'s Stone N comment refuses exactly this merge, and it is RIGHT about what it refuses:
+
+> *"`apply` hands already-evaluated `Value`s with no arg-level `Span`s, so it goes through
+> `arith_i64_i64_inner` … error spans are synthesized there, real argument spans here — a
+> pre-existing difference this stone does not change … deliberately NOT merged into
+> `eval_i64_arith`/`i64_add_op` above, which would drop apply's ability to ever gain real spans."*
+
+That rationale is about the **19 arithmetic verbs** whose native path runs `eval_i64_arith` /
+`eval_f64_arith` — fns that hold real per-argument spans. **It does not describe the shell
+population**, and the disk says so plainly. A shell already delegates to a span-free value fn:
+
+```rust
+pub(crate) fn eval_persistentvector_length_home(v: &WatAST, env, sym, _span) -> Result<Value, EvalBreak> {
+    let v = eval_inner(v, env, sym)?.value_owned();
+    crate::collection::eval::persistentvector_length_inner(&v)     // ← takes &Value. No span.
+}
+pub(crate) fn persistentvector_length_inner(v: &Value) -> Result<Value, EvalBreak> {
+    match v { … other => Err(RuntimeError::new(crate::rust_caller_span!(), TypeMismatch{…})) }
+}
+```
+
+`rust_caller_span!()` is synthesized on **both** doors. Arg-eval failures still raise inside
+`eval_inner`, at the argument's own real span, before the algebra is ever called. **For the shell
+population the two doors already share one implementation and one span behaviour** — the second
+registration buys nothing and costs a lie. Stone N's caution stands, unamended, for its 19.
+
+`[[feedback_read_the_epitaph_before_you_build_on_prior_art]]` — the epitaph was read; it scopes
+itself, and this stone stays outside that scope.
+
+## The population — measured, with the instrument
+
+A handler is a **SHELL** iff, after deleting its argument-eval calls and its comments, its body names
+neither `env` nor `sym`: it is *(eval each arg) → value-fn*, so one declaration can generate both
+doors. The classifier lives at `wat-scripts/hunt/stone-o-shell-census.awk`; it excludes the
+SIGNATURE (which always names `env`/`sym` — the shim forces that) and is controlled both ways.
+
+```
+                        no value door    has value door     total
+SHELL  (collapsible)         112               25            137
+BINDING (AST door only)      224               19            243
+                                                             380  (381 registered; see ⚠)
+```
+
+- **112** verbs gain `apply` for the first time — minus **1** (`eval_holon_from_holon`, the single
+  shell that returns `TrackedValue`; see the contract cut below) = **111**.
+- **25** verbs written today as TWO fns collapse to ONE. This is the builder's *"two registrations"*,
+  literally.
+- **243** stay BINDING and honestly cannot be splatted — they need `env`/`sym`. **They are the reason
+  O-ii exists**: after this stone `apply` still cannot serve them, and it must say the true thing.
+- After O-i + O-iii, `apply` reaches **155 of 381**, and every one of the remaining 226 gets an
+  honest diagnostic instead of a lie.
+
+⚠ **380, not 381.** The classifier reads one fewer than the registry does. The gap is not explained
+and it is not assumed benign — **O-i's row 0 is to name that one handler.** A census whose population
+is one short is a census with an unexamined edge.
+`[[feedback_a_census_without_attribution_is_not_a_census]]`
+
+## The contract's affirmative cuts
+
+- **An ALGEBRA fn returns bare `Result<Value, EvalBreak>`. A provenance-stamping handler
+  (`-> Result<TrackedValue, _>`, Stone G) is BINDING by construction**, and the macro rejects the
+  combination with a `compile_error!` naming the reason. It is not dropped silently and it is not
+  half-supported: `ValueHandler` returns a bare `Value`, `eval_apply` sits below the provenance
+  boundary (`runtime.rs:5360` is the `map(TrackedValue::value_owned)` discard, and the comment above it records why), so an
+  ALGEBRA-with-provenance declaration would promise a stamp that the value door cannot carry.
+  One shell is affected — `eval_holon_from_holon` — and it stays a hand-written BINDING handler.
+- **The 19 arithmetic pairs keep their two implementations** — their span divergence is real,
+  pre-existing, and Stone N's rationale governs it. **But they do NOT keep the panic.** They are
+  the verbs the arity probe actually killed the process on, so O-ii gives `dispatch_substrate_impl`
+  the arity check the registry can derive from `IntrinsicEntry::arity` — one guard in front of every
+  value handler, generated or hand-written, so no door is reachable without one. Their span
+  behaviour is out of Stone O's scope; not tracked elsewhere because nothing is broken there — both
+  doors answer, and after O-ii both refuse the same wrong arity the same way.
+- **`ValueHandler` is NOT widened to `TrackedValue`.** Doing so would lift the provenance boundary
+  through `eval_apply` and every `dispatch_substrate_impl` caller — a different stone about
+  provenance, not about the registry being one authority. Out of Stone O's scope; not tracked
+  elsewhere because no consumer is served worse than today by leaving it.
+- **`walk.rs:268` is untouched.** Stone O makes the registry answer `apply` honestly; it does not
+  make the resolver consult it. That is the campaign's endgame and it is sized at 2,539 tests.
+
+## The three strikes, in order
+
+| | strike | what it delivers | why this order |
+|---|---|---|---|
+| **O-i** | **the machine** | the ALGEBRA sniff + both-door generation with ONE generated arity check, proven on `:wat::vector::` — 6 verbs: 5 gain a door, 1 collapses two hand-written fns into one | the generator must exist and be proven before 136 sites lean on it |
+| **O-ii** | **the honest door** | two things one guard apart: `dispatch_substrate_impl` arity-checks from `IntrinsicEntry::arity` before calling ANY value handler, killing the panic for all 44 including the hand-written ones; and `eval_apply` consults `lookup_entry` before raising, so a registered verb gets *"registered, but not reachable through apply"* and never `unknown function` | both are true no matter how many verbs O-iii migrates, and together they make the residue SAFE and LEGIBLE instead of fatal and silent |
+| **O-iii** | **the migration** | the remaining 130 (105 new doors + 25 collapses) across the other namespaces, one commit per namespace | operates on settled infrastructure: the generator is proven and the failure mode is already legible |
+
+**O-i and O-ii are each small and independently green. O-iii is the sweep.** The stepping-stone test
+answers YES on both cuts: after O-i the generator is proven against a real namespace, and after O-ii
+a mis-migrated verb in O-iii announces itself as a clean error rather than a process death — so the
+sweep's "did it work" is a diff in one probe's output per namespace, not an argument.
+
+⚠ **O-ii could be struck FIRST and it would still be right.** It is ordered second only because O-i
+is what the builder asked for and is the stone's thesis. If O-i stalls for any reason, O-ii ships
+alone: the panic is a live defect on today's tree and does not wait on the generator.
+
+## The four questions
+
+- **Obvious? YES.** One declaration, one implementation, and the signature's leading param says which
+  kind it is. A reader of `fn vector_length(v: &Value)` knows it is algebra without being told.
+- **Simple? YES.** No new registry field, no new table, no new lifecycle. A third sniff on a macro
+  that already sniffs two axes, and a generated shim beside the one it already generates.
+- **Honest? YES**, and it is the point. Today `apply` says a registered verb does not exist. After
+  O-i/O-iii most of them work; after O-ii the rest are named truthfully. The wrong answer stops
+  having a form: an ALGEBRA declaration cannot produce only one door.
+- **Good UX? YES.** `(apply :wat::f64::max-of …)` — splat over a variadic verb — starts working, and
+  a verb author writes ONE fn instead of two-plus-a-cross-reference-comment.
+
+## Rooms
+
+```
+crates/wat-macros/src/wat_intrinsic.rs:102   sniff_args      — the arg-shape sniff to extend
+crates/wat-macros/src/wat_intrinsic.rs:181   sniff_return    — Stone G's precedent for a second axis
+crates/wat-macros/src/wat_intrinsic.rs:531   the shim body   — where the generated AST door is built
+crates/wat-macros/src/wat_intrinsic.rs:371   value_handler_field — the `value = <path>` slot to retire
+src/intrinsic/mod.rs:162,198                 NativeHandler / ValueHandler — the two conventions
+src/intrinsic/vector.rs                      O-i's proof namespace (6 verbs)
+src/collection/eval.rs:829                   persistentvector_length_inner — the value-fn that exists
+src/runtime.rs:11561                         dispatch_substrate_impl — seven lines; unchanged by O-i
+src/runtime.rs:10749                         eval_apply step (c)/(d) — O-ii's room
+```
+
+## The finding this design surfaced and is NOT chasing
+
+While building the probe: `(:wat::core::PersistentVector :wat::core::i64 1 2 3)` is **refused by the
+static checker** (`MalformedForm`, Doctrine 1 arc 242 — *"a TYPE keyword, not a value"*) and
+**accepted by the runtime constructor through `:wat::eval-ast!`**, which counts the type keyword as
+an element and yields length 4. Checker and runtime disagree about the same form. Recorded here
+because it was measured here; it is a checker/runtime divergence, not a registry defect, and folding
+it into Stone O would braid two concerns. It needs its own draw.
