@@ -9,8 +9,26 @@
 2026-08-27 and 2026-08-26 ones. Written against HEAD `48e331135`; the commit carrying this stamp
 lands on top, so a ONE-COMMIT docs-only gap at your wake is expected and is not staleness.**
 
-**RETE-FIX-LIST IS EMPTY AND SO IS PILE 2. THE WARD TAIL WAS AUDITED AND EVERY ROW WAS ALREADY
-CLOSED.**
+**RETE-FIX-LIST IS EMPTY AND SO IS PILE 2. 4.1 — THE REACHABILITY LEDGER — IS BUILT AND PAYING.**
+
+**IT FOUND A ROW THAT PASSES EVERY STATIC GATE AND THEN CANNOT RUN.**
+`:wat::rete::core::PersistentMap/contains-key?` was admitted, total, arity- and type-checked, and
+raised `#wat.runtime/MalformedForm "compiled apply cannot dispatch kind Unknown arity 2"` at
+RUNTIME inside a `where` fence — `expr_ir.rs` had an `OpExec` arm for its sibling and none for it.
+The only trace was a comment INSIDE the gate that would have caught it, saying *"do not widen this
+gate into that hole"*. Fixed. **A comment telling a gate not to look is an unowned deferral, and
+that is FM 23 for the third time this session.**
+
+**AND THE KEYWORD ASYMMETRY IS A THIRD OF THE SURFACE, not one op.** 9 of 25 measured rows are
+refused as an inline constraint while firing in a fence: every unary op, every `Type/method`
+spelling, both keyword rows. Arc 109's NOTE frames it as one type-name defect; that framing is too
+small. It is now item 2 in `RETE-OPEN-WORK`'s order.
+
+**EDN-MIGRATION PREP IS IN THE LEDGER.** Head SPELLING is a third axis for the same reason
+call-site is: reachability is not a property of the row. Baseline measured — bare SYMBOL heads
+(`wat.rete.core/>`, the post-flip shape) ALREADY FIRE inside a `where` fence, with two controls
+proving it is real dispatch and not a Law A bypass. Only the `::` column is asserted, so the test
+MEASURES the flip instead of being deleted at it.
 
 **WHERE THE WORK IS: `RETE-OPEN-WORK.md`** — the single index, and its "The order, and why" now
 holds the whole remaining list. It is four items: **4.1** the `RETE_OPS` reachability ledger (the
