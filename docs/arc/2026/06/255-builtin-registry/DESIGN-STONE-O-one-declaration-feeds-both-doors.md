@@ -296,6 +296,39 @@ attribute-ANCHORED grep returns 380 with a list identical to the awk's, name for
 ⚠ **Each strike is independently green and independently useful.** No strike below is a prerequisite
 for the one above it, so the builder can take them in any order without stranding work.
 
+
+## O-iv DECOMPOSED — 2026-08-28, after O-iii proved the machine
+
+O-i, O-ii and O-iii shipped. What the table above called "O-iv — the migration + the honest word"
+is two independent kinds of work, and the sweep half decomposes cleanly by namespace. Measured with
+`wat-scripts/hunt/stone-o-shell-census.awk` at `dd5494256`:
+
+| | strike | population | why it is its own strike |
+|---|---|---|---|
+| **O-iv-a** | **the honest word** | 331 verbs get a true diagnostic | not a migration at all — one enum variant, one `Display` arm, one raise site. Its truth does not depend on how far the sweep gets, and it makes every later wave's residue legible instead of a lie. |
+| **O-iv-b** | **the collections** | `map` 8 · `hashmap` 8 · `vec` 7 · `linkedlist` 5 · `hashset` 4 = **32** | the SAME shape O-iii already proved on `vector`, in sibling files. Highest-confidence wave; finishes the collection family. |
+| **O-iv-c** | **holon** | `atom` 41 · `subspace` 10 · `engram` 10 · `reckoner` 8 · `hologram` 4 = **73** | over half the remaining population, one coherent domain, and it carries the ONE exception: `eval_holon_from_holon` returns `TrackedValue` and therefore stays BINDING by the contract cut above. |
+| **O-iv-d** | **the remainder** | `uuid` 7 · `kernel/ambient` 7 · `string` 2 · `reflect` 2 · `bytes` 2 · `witness`/`time`/`regex`/`math`/`list`/`char` 1 each = **26** | scattered singles; last because a wave of one-offs is where a generator's edge cases surface, and by then the generator has 105 verbs of evidence behind it. |
+
+**The honest word's ONE CONTRACT DECISION — a new `RuntimeErrorKind` variant, not a reused one.**
+
+`MalformedForm { head, reason }` is the tempting reuse: `eval_apply`'s Step 7 already rejects special
+forms with it. **Rejected on question 1.** The form is not malformed — a reader who sees
+`MalformedForm` goes looking for a syntax error, and there isn't one. The verb is registered, the
+call is well-formed, and the only true statement is *this verb has no value-level door*.
+
+⚠ **And the diagnostic is PERMANENT, not transitional.** 243 handlers are BINDING: they need
+`env`/`sym`, so they can never be splatted, and no amount of sweeping changes that. `apply` holding
+`Value`s cannot manufacture the ASTs a BINDING handler consumes — and a literal AST rebuilt from an
+already-evaluated value would be wrong for anything carrying identity. So this is not a message that
+disappears when the sweep finishes; it is the language telling the truth about a real boundary, and
+it deserves its own variant.
+
+★ **The ripple was MEASURED, not estimated** — a throwaway variant was inserted, the workspace built,
+and the compiler asked: **ONE** non-exhaustive-match site, `src/value/signal.rs:584` (the `Display`
+impl). Reverted. `[[feedback_impose_the_check_and_read_the_screams]]` The EDN rendering needs no arm
+at all — `RuntimeErrorKind` carries `#[derive(wat_edn::ToEdn)]` (`signal.rs:189`), so the wire form
+is generated.
 ## The four questions
 
 - **Obvious? YES.** One declaration, one implementation, and the signature's leading param says which
