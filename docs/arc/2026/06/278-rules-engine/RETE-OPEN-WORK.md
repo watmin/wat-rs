@@ -236,40 +236,66 @@ was added 2026-08-28 for the same reason (below).
 | outcome | rows |
 |---|---:|
 | FIRES inline · FIRES fence | 16 |
-| REFUSED inline · FIRES fence | 17 |
-| **MATCHES-NOTHING inline** · FIRES fence | **32** |
+| REFUSED inline · FIRES fence | 18 |
+| **MATCHES-NOTHING inline** · FIRES fence | **33** |
 | NOT-GENERABLE — every holon row (two `HolonAST` operands, no literal spelling) | 4 |
-| **NO-COMPILED-ARM — a DEFECT** | **5** |
+| **CANNOT RUN — a DEFECT** | **3** (was 5; two fixed 2026-08-28) |
 
-**Of the 65 rows that reach the executor at all, every one fires in a `where` fence. Inline, only
+**Of the 67 rows that reach the executor at all, every one fires in a `where` fence. Inline, only
 16 work.**
 
-#### ⛔ FIVE ROWS PASS EVERY STATIC GATE AND CANNOT RUN — six counting the one already fixed
+#### ⛔ SIX ROWS PASSED EVERY STATIC GATE AND COULD NOT RUN — THREE FIXED, THREE NEED A RULING
 
-- **`PersistentMap`** (the constructor) — `expr_ir.rs` carries `PvNew`/`VecNew`/`ListNew` and no
-  `PmNew`, so a compiled fence raises `cannot dispatch kind Unknown arity 2`. Its sibling accessor
-  `PersistentMap/contains-key?` had the identical hole and was fixed on 2026-08-28.
+**FIXED 2026-08-28:**
+- **`PersistentMap/contains-key?`** — no `OpExec` arm; delegated to
+  `persistentmap_contains_key_q_inner`, the door the interpreter already uses.
+- **`PersistentMap`** (the constructor) — `PmNew`, mirroring `eval_persistentmap_ctor`: even
+  arity, alternating pairs, `value_is_key_hashable` per key, `PMap::from_pairs`. The semantic
+  primitives are CALLED, not re-derived.
+- **`reduce`** — the builder's correction, and the disk agrees: **FOLDL IS REDUCE.**
+  `wat/seq.wat:317-329` states both clauses outright — 3-arity is literally
+  `(:wat::core::foldl f init coll)`; 2-arity seeds from the first element and raises by name on
+  empty. `exec_reduce` mirrors exactly that. It needs an arm at all only because `reduce` is a
+  wat-level `defclause` with no Rust dispatch to re-enter and a fence has no defclause machinery.
+
+> ⚠ **AN INHERITED CONTRADICTION, SURFACED ONLY BY BEING ABLE TO RUN THE ROW.** `reduce`'s 2-arity
+> form RAISES on an empty collection, while `RETE_OPS` declares the row `total: true` — a wall
+> every row must pass (`every_rete_row_is_total`). It went unnoticed precisely because nothing
+> could execute the row to find it. Recorded rather than papered over: answering an empty reduce
+> with an invented value would be the worse bug. **This is a ruling, and it is small.**
+
+**STILL BROKEN — and each needs a RULING, not an arm:**
+
+- **`map` and `filter`** — they return a **LAZY STREAM** at core
+  (`transform.rs`: `Value::wat__stream__Stream(lazy_map_stream(..))`). Giving them eager semantics
+  in the compiled path would make `:wat::rete::core::map` mean something DIFFERENT from
+  `:wat::core::map`, silently, when the whole `Alias`/`Redispatch` contract is "same routine as
+  `core_name`". That fails Honest and was deliberately not invented. Nothing in a fence can consume
+  a Stream either, so an arm producing one would be reachable and useless. **The real question is
+  whether these belong in `RETE_OPS` at all** — and note their `total: true` was asserted on the
+  correct principle that absence of callers is not evidence of partiality, by a ruling that never
+  asked whether they could RUN.
 - **`Tuple`** — same missing arm, and separately UNOBSERVABLE: no rete row reads a Tuple's
   elements, so even with an arm nothing could compare one. One of the three rows appearing nowhere
   in the 1569-file corpus, and now it is clear why nobody could have used it.
-- **`map`, `filter`, `reduce`** — the sharpest of the five. All four HOFs are **lowered** together
-  (`expr_ir.rs:371-374`) and then **executed** by a path that knows exactly one: `exec` routes to
-  `exec_foldl` under `core_name == ":wat::core::foldl"`, and everything else falls through to
-  generic arg-eval plus `apply_op`, where the lambda's parameters were never bound. Driven, they
-  raise `unbound symbol: x` / `acc`. **Recognised in one place, wired in another, and nothing
-  checks that the two agree.**
+All four HOFs are **lowered** together (`expr_ir.rs:371-374`) and then **executed** by a path that
+originally knew exactly one — `exec` routed to `exec_foldl` by name and everything else fell
+through to generic arg-eval, where the lambda's parameters were never bound. **Recognised in one
+place, wired in another, and nothing checked that the two agree.** `reduce` is now routed too.
 
 They are deliberately NOT filed under `NOT_YET_GENERABLE`. That list means "the ledger cannot build
 a cell"; these build fine and then break, and calling a defect a tooling gap is the mislabel this
 ledger exists to prevent. They live in `COMPILED_EXECUTOR_CANNOT_RUN`, and the inventory gate
 accepts either — so a new row still cannot ship unclassified.
 
-> **THE EXTIRPATION IS A GATE, AND IT IS THE NEXT STRIKE.** `RETE_OPS` and `expr_ir`'s executor are
-> two lists that must agree and nothing checks it. `holon_rete_ops_have_opexec` checks it for holon
-> rows ONLY — and its doc used to instruct the reader not to widen it, which is how five rows hid.
-> Widening it needs care rather than a bigger filter: a missing `OpExec` arm is not on its own
-> proof of a hole, since `foldl` also maps to `Unknown` and reaches the executor by its own route.
-> The gate has to encode "reachable by SOME route", which is exactly what the ledger measures.
+> **THE EXTIRPATION IS THE LEDGER ITSELF — already built, 2026-08-28.**
+> `every_rete_ops_row_is_classified` plus the shards require every row to be DRIVEN to a verdict or
+> carry a written reason, which is strictly stronger than the arm-existence check that was
+> proposed. Arm-existence turned out to be the wrong question: not NECESSARY (`foldl` maps to
+> `Unknown` and reaches the executor by its own route) and not SUFFICIENT (an arm can exist while
+> the row is unwritable in every position). `holon_rete_ops_have_opexec` is therefore re-scoped as
+> the cheap holon-specific check it always was — **not widened** — with its doc now pointing at
+> the ledger as the wall.
 
 **⛔ THE SECOND FINDING, and it is the worse one: 27 rows are ACCEPTED inline, compile, fire, and
 are UNSATISFIABLE.** Any row returning a value must be wrapped to sit where a constraint goes —
@@ -521,19 +547,19 @@ range-restricted because `z` comes from `edge`.
 
 ## The order, and why
 
-**As of 2026-08-28: 4.1 is COMPLETE — all 74 rows verdicted. It produced two new items (2 and 3),
-found six rows that pass every static gate and cannot execute, and fixed one of them. Below those,
+**As of 2026-08-28: 4.1 is COMPLETE — all 74 rows verdicted. It found SIX rows that pass every
+static gate and cannot execute; THREE are fixed and three need a ruling. Below those,
 one decomposition ruling and three builder rulings — none of which is work, all of which is a
 judgment call.**
 
 1. ~~**4.1 the reachability ledger**~~ — **COMPLETE 2026-08-28**, all 74 rows verdicted. It found
    six rows that pass every static gate and cannot execute (one fixed), 17 refused inline, and 32
    accepted inline that silently match nothing.
-2. **The `RETE_OPS`-vs-executor coverage gate — NEW, and it is the extirpation of the biggest
-   find.** Five rows advertise a surface the compiled executor cannot run, and the only gate that
-   would have caught them checks holon rows alone while its doc told readers not to widen it. The
-   gate must encode "reachable by SOME route" — a missing `OpExec` arm is not proof of a hole,
-   since `foldl` maps to `Unknown` too and reaches the executor its own way.
+2. **Three rows that cannot run, each needing a BUILDER RULING rather than code.** `map` and
+   `filter` return lazy Streams at core, so eager compiled semantics would silently diverge from
+   `:wat::core::map` — the question is whether they belong in `RETE_OPS` at all. `Tuple` has no
+   arm and no accessor. Plus a small one: `reduce`'s 2-arity form raises on empty while its row
+   declares `total: true`. (The coverage GATE this item used to name is done — the ledger is it.)
 3. **The inline-constraint gap.** Only 16 of 74 rows work as an inline constraint: 17 are refused
    and **32 are accepted and silently match nothing**. Arc 109's NOTE frames this as `keyword::=`'s
    type-mapping bug; the ledger shows it is every unary op, every `Type/method` spelling, every

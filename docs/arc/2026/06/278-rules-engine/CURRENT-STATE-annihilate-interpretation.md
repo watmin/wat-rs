@@ -19,16 +19,24 @@ The only trace was a comment INSIDE the gate that would have caught it, saying *
 gate into that hole"*. Fixed. **A comment telling a gate not to look is an unowned deferral, and
 that is FM 23 for the third time this session.**
 
-**4.1 IS COMPLETE — ALL 74 ROWS VERDICTED — AND FIVE OF THEM CANNOT EXECUTE AT ALL.** Six counting
-the one already fixed. `PersistentMap` (the constructor) and `Tuple` have no `OpExec` arm where
-their siblings do. `map`, `filter` and `reduce` are the sharpest: all four HOFs are LOWERED
-together at `expr_ir.rs:371-374` and then EXECUTED by a path that knows exactly one — `exec` routes
-to `exec_foldl` by name and the rest fall through to a generic path where the lambda's parameters
-were never bound, so they raise `unbound symbol`. **Recognised in one place, wired in another, and
-nothing checks the two agree. That gate is now item 2 in `RETE-OPEN-WORK`'s order.**
+**4.1 IS COMPLETE — ALL 74 ROWS VERDICTED — AND SIX OF THEM COULD NOT EXECUTE AT ALL. THREE ARE
+FIXED.** `PersistentMap/contains-key?`, the `PersistentMap` CONSTRUCTOR (`PmNew`), and `reduce`
+(`exec_reduce`). **FOLDL IS REDUCE** — `wat/seq.wat:317-329` says the 3-arity form is literally
+`(foldl f init coll)`, so the arm is a mirror, not a reimplementation. Three remain and need a
+RULING rather than code: `map`/`filter` return LAZY STREAMS at core, so eager compiled semantics
+would silently diverge from `:wat::core::map`, and `Tuple` has no arm and no accessor. Plus a
+small ruling: `reduce`'s 2-arity form RAISES on empty while its row declares `total: true` — a
+contradiction that went unseen because nothing could run the row. All four HOFs are LOWERED together at `expr_ir.rs:371-374` and were
+EXECUTED by a path that knew exactly one — recognised in one place, wired in another, and nothing
+checked the two agree.
 
-**MATRIX: 16 fire inline · 17 refused inline · 32 accepted-inline-and-match-nothing · 4 holon rows
-non-generable · 5 cannot execute.** Of the 65 rows that reach the executor, every one fires in a
+**THE EXTIRPATION IS THE LEDGER ITSELF, and it is already built.** Arm-existence turned out to be
+the wrong gate: not necessary (`foldl` maps to `Unknown` and reaches the executor its own way) and
+not sufficient (an arm can exist while the row is unwritable everywhere). `holon_rete_ops_have_opexec`
+is re-scoped, NOT widened, and points at the ledger.
+
+**MATRIX: 16 fire inline · 18 refused inline · 33 accepted-inline-and-match-nothing · 4 holon rows
+non-generable · 3 cannot execute.** Of the 67 rows that reach the executor, every one fires in a
 `where` fence.
 
 **AND 32 ROWS ARE ACCEPTED INLINE, COMPILE, FIRE, AND MATCH NOTHING.** Any row returning a value
