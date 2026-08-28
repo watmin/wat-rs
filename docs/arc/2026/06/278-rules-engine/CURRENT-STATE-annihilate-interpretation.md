@@ -6,8 +6,10 @@
 > **this file wins** and the stone is stale.
 
 **CURRENT STAMP 2026-08-28 (LATEST) — supersedes every dated block below it, including both
-earlier 2026-08-28 ones. Written against HEAD `85c87314d`; the commit carrying this stamp lands on
-top, so a ONE-COMMIT docs-only gap at your wake is expected and is not staleness.**
+earlier 2026-08-28 ones. Written against HEAD `85c87314d`; the commit carrying this stamp
+lands on top, so a ONE-COMMIT gap at your wake is expected and is not staleness. That commit
+touches `docs/` and ONE `wat-scripts/scratch-pad/` reference file — **no `src/`, no `tests/`**.
+That is the line to check: a gap containing `src/` or `tests/` IS staleness, whatever its size.**
 
 **TWO TERMINATION-DIAGNOSTIC DEFECTS ARE FIXED AND GATED** (`85c87314d`). The message no longer
 claims "the fixpoint can never converge" (false for a guarded counter, which converges at k=500)
