@@ -20,7 +20,9 @@ Q + Q-2 the value door carries a SPAN,
 O-iv-c-0 the require_* family takes a ref  ✅ STRUCK — TEN sigs, 75 sites (not 9/109)
 O-iv-c-1 holon sweep, the four small files ✅ STRUCK — 27 migrated (not 32), -377 lines
 O-iv-c-2 holon sweep, atom.rs             ✅ STRUCK — 15 migrated; a FOURTH disqualifier found
-O-iv-d  the remainder sweep               ← NEXT: 14 (not 26) — first VARIADIC + 0-arg ALGEBRA
+O-iv-d  the remainder sweep               ✅ STRUCK — 1 of 14; found a GENERATOR GAP
+P7      sniff_kind cannot see a NULLARY   ← NEXT: 11 verbs blocked; the macro's own comment
+        ALGEBRA handler                          calls the shape legal while its classifier forbids it
 P5  @yields becomes mandatory at expand time   the top rung; biggest change
 P6-a a special form NAMES its impls        ✅ STRUCK — show-source prints check·eval·tail
 P6-c the two matches collapse to lookups     the megafile: 111 eval arms + 8 tail arms
@@ -46,7 +48,8 @@ the floor (P1). Adding the population first and the wall second is the wrong ord
 | ~~O-iv-c-0~~ | ~~the `require_*` family takes `&Value`~~ | | | ✅ **STRUCK** — 10 sigs, 75 sites |
 | ~~O-iv-c-1~~ | ~~holon sweep, four files~~ | | | ✅ **STRUCK** — 27 of 32; 5 refused for arg-spans |
 | ~~O-iv-c-2~~ | ~~holon sweep, `atom.rs`~~ | | | ✅ **STRUCK** — 15 of 60; UNEVALUATED-ARGS found |
-| **O-iv-d** | the remainder — `core::List` (variadic) · `uuid` 2 · `kernel` 7 · `string`/`time`/`math`/witness | **14** of 93, four-way classified | `BRIEF-STONE-O-iv-d-the-remainder.md` | — **READY** |
+| ~~O-iv-d~~ | ~~the remainder~~ | | | ✅ **STRUCK** — 1 of 14 (`core::List`, variadic) |
+| **P7** | `sniff_kind` cannot classify a NULLARY ALGEBRA handler — 11 verbs blocked | one `matches!` in `wat_intrinsic.rs`; `emit` already handles n=0 | *not drawn* | — **READY to draw** |
 | **P5** | `@yields` mandatory when an `@arg` carries an Fn shape | macro-expand-time rule | *not drawn* | P4's measurement |
 | ~~P6-a~~ | ~~a special form names its implementations~~ | | | ✅ **STRUCK** — see Closed |
 | **P6-c** | the eval and tail matches collapse into registry lookups | 111 eval arms + 8 tail arms | *not drawn* | P6-a's mechanism + its row-0 census |

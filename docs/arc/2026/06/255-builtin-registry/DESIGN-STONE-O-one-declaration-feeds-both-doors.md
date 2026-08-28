@@ -668,3 +668,64 @@ Seven atom verbs (`cosine`, `presence?`, `coincident?`, `coincident-explain`, `d
 `pair_values_to_vectors` / `cosine_outcome_from_values` / `require_encoding_ctx`. **The rider checked
 every helper's signature instead of trusting the caller's shape** — the discipline the `max-of` /
 `f64_variadic_reduce` retraction bought, applied without being asked.
+
+---
+
+## ⛔ O-iv-d CLOSED THE SWEEP BY FINDING A GENERATOR GAP — and the macro's own comment describes a shape it forbids
+
+**1 of 14 migrated.** `:wat::core::List` — the wave's one variadic verb, and the first variadic
+ALGEBRA migration in the arc. Splat proven: `(apply :wat::core::List [1 2 3])` → `(1 2 3)`,
+`[]` → `()`.
+
+### The gap — `sniff_kind` cannot classify a nullary handler
+
+Eleven 0-arg candidates were migrated to `fn f() -> Result<Value, EvalBreak>` and produced **eleven
+identical `E0061`s**. The cause is one line:
+
+```rust
+let is_algebra = matches!(
+    item.sig.inputs.iter().next(),                       // ← a NULLARY fn has no first param
+    Some(FnArg::Typed(pt)) if is_ref_value(&pt.ty) || is_ref_value_slice(&pt.ty)
+);
+if !is_algebra { return Ok(IntrinsicKind::Binding(sniff_args(item)?)); }
+```
+
+`inputs.iter().next()` on a zero-parameter fn is `None`, so `is_algebra` is unconditionally `false`
+and the handler falls to BINDING — which then emits `#fn_name(env, sym, list_span)` into a fn that
+takes nothing. **A structural, compile-time gap, not a subtle runtime bug.**
+
+★ **And `emit` already believes the shape is legal.** Its own comment, `wat_intrinsic.rs:776`:
+
+> *"…a nullary ALGEBRA fn taking only a span is a legal, if unusual, shape."*
+
+That comment guards a `call_args` build that **can never run**, because `sniff_kind` rejects the
+shape three hundred lines earlier. **The generator documents a capability its own classifier
+forbids** — the day's most-repeated defect, this time inside the tool that writes 380 handlers.
+`[[feedback_a_comment_can_ship_a_gap_as_a_law]]`
+
+The rider held STOP-2: it did not patch the macro, did not invent a workaround signature, reverted
+all eleven to their pre-image and reported. **That is the STOP working — the brief predicted "if n=0
+misbehaves, that is a generator finding," and it was.**
+
+### And a FIFTH and SIXTH UNEVALUATED-ARGS instance — proven, not argued
+
+`:wat::string::declare-acronyms` and `:wat::intrinsic::variadic-args-measurement` **never call
+`eval_inner` on their arguments.** Proven by passing an erroring expression:
+
+```
+(… variadic-args-measurement (:wat::i64::/ 1 0) …)  →  count = 3      the arg was never evaluated
+(… declare-acronyms (:wat::i64::/ 1 0) …)           →  Ok(nil)        same
+```
+
+Migrating either would make the generated AST door evaluate every argument first, so **an argument
+that is silently ignored today would start raising.** ⚠ **My brief called `declare-acronyms`
+"trivial and harmless" to migrate. It is neither**, and the rider proved it with the
+`eval-ast!`+`quote` bypass this sweep established as its evidence method rather than arguing from
+the body's shape.
+
+### Where the sweep ends
+
+O-iv is now closed: **b** (32 collections) · **c-0/c-1/c-2** (holon, 42 of 95) · **d** (1 of 14).
+Everything else is refused for a stated reason on the four-valued axis — and the eleven nullary
+verbs are refused for a *sixth* reason that is not about the verbs at all, but about the generator.
+That one is fixable, and it is the only remaining entry on the axis that is not permanent.
