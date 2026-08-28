@@ -12,7 +12,7 @@ P1  the registry can detect a collision      ✅ STRUCK — the wall stands befo
 O-iv-b  the collections sweep                ✅ STRUCK — 8 new doors + 24 collapses, -556 lines
 P2  the special-form entry stops lying       ✅ STRUCK — show-source honest, `if` reports arity 3
 P3  the SEVEN ignores are re-diagnosed      ✅ STRUCK — 2 un-ignored, 5 re-pointed, a lint added
-P4  the skipped population is MEASURED     ← NEXT: a measurement stone; nothing decided until it lands
+P4  the silent skip becomes NAMED+FROZEN  ← NEXT: the instrument IS the deliverable
 O-iv-c  holon sweep                            73 verbs — needs disposition rows (span-carrying)
 O-iv-d  the remainder sweep                    26 verbs — same
 P5  @yields becomes mandatory at expand time   the top rung; biggest change
@@ -32,7 +32,7 @@ the floor (P1). Adding the population first and the wall second is the wrong ord
 | ~~O-iv-b~~ | ~~the collections sweep~~ | | | ✅ **STRUCK** — see Closed |
 | ~~P2~~ | ~~the special-form entry stops lying~~ | | | ✅ **STRUCK** — see Closed |
 | ~~P3~~ | ~~the ignore ledger re-diagnosed~~ | | | ✅ **STRUCK** — see Closed |
-| **P4** | the skipped population is measured | measurement only; no code change | *not drawn* | a VALIDATED instrument |
+| **P4** | the silent skip becomes a NAMED, FROZEN one | one `#[cfg(test)]` test; no production code | `BRIEF-STONE-P4-the-silent-skip-becomes-a-named-frozen-one.md` | — **READY** |
 | **O-iv-c** | holon sweep — `atom` 41 · `subspace` 10 · `engram` 10 · `reckoner` 8 · `hologram` 4 | 73 verbs | *not drawn* | disposition rows (span-carrying algebra) |
 | **O-iv-d** | the remainder — `uuid` 7 · `ambient` 7 · `string`/`reflect`/`bytes` 2 · six singles | 26 verbs | *not drawn* | same |
 | **P5** | `@yields` mandatory when an `@arg` carries an Fn shape | macro-expand-time rule | *not drawn* | P4's measurement |
