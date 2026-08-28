@@ -311,8 +311,8 @@ impl fmt::Display for ReteCheckErrorKind {
                 rule, fact_type, head, field, op_type, field_type,
             } => write!(
                 f,
-                "defrule `{rule}` (`:{fact_type}`): `{head}` compares at `{op_type}`, but field \
-                 `:{field}` is declared `{field_type}` — use the rete comparator for `{field_type}`"
+                "defrule `{rule}` (`:{fact_type}`): `{head}` compares at `{op_type}`, but operand \
+                 `{field}` has type `{field_type}` — use the rete comparator for `{field_type}`"
             ),
             ReteCheckErrorKind::UnconsumedWrapperBind { rule, var, fact_type } => write!(
                 f,
@@ -1002,15 +1002,26 @@ fn rete_type_segment_of(field_type: &str, types: &TypeEnv) -> Option<&'static st
 /// ★ NOTHING HERE IS GUESSED. An operand's type is always DERIVABLE, and a first draft of this
 /// function defaulted to `i64` whenever it saw a `?var` — which was not a limitation of the
 /// information available, it was the function not looking it up. The builder's cut: *"why is any
-/// of this a guess? we know the type's value from the record def."* Correct — three exhaustive
+/// of this a guess? we know the type's value from the record def."* Correct — FOUR exhaustive
 /// sources, in order, and no fallback after them:
-///   1. a `:field` operand   -> the field's DECLARED type
-///   2. a `?var` operand     -> the field its `(?v <- :field)` bind names, then that field's type
-///   3. a LITERAL operand    -> the literal's own type
+///   1. a `:field` operand      -> the field's DECLARED type
+///   2. a `?var` operand        -> the field its `(?v <- :field)` bind names, then the field's type
+///   3. a LITERAL operand       -> the literal's own type
+///   4. a nested CALL operand   -> its head row's declared `ret` (`Alias`/`Fallback` only)
+///
+/// ⚠ **SOURCE 4 WAS MISSING AND THIS DOC CLAIMED THE LIST WAS EXHAUSTIVE ANYWAY.** The three above
+/// were written before fix-list F made a nested call a legal operand, and nothing came back to
+/// re-read them; a computed operand fell to a `_` arm meaning "an unbound `?var`" and so skipped
+/// the type check outright. Measured 2026-08-28: `(string::= :v "x")` is CAUGHT, and wrapping the
+/// same operand in a call — `(string::= (i64::+ :v 0 :undefined 0) "x")` — was NOT, after which the
+/// rule compiled, fired and matched nothing. The builder's cut applies verbatim to the fourth
+/// source: every rete row is `total`, so its `ret` is a FACT about the row, never a guess.
 ///
 /// If none resolves (a `?var` bound nowhere in the rule), the type is genuinely not knowable — and
 /// then this reports the law-A violation WITHOUT a per-type suggestion rather than inventing one.
-/// A wrong suggestion teaches a wrong fix.
+/// A wrong suggestion teaches a wrong fix. A nested call whose head is `Form`/`Redispatch`, or
+/// whose `ret` is a type variable, is not-knowable-HERE rather than not-knowable — a distinction
+/// `OperandType::ComputedNotDerivableHere` carries so the two cannot be confused again.
 fn check_constraint_head(
     op: &str,
     lhs: &WatAST,
@@ -1092,6 +1103,10 @@ fn check_constraint_head(
                     OperandType::NotComparable(_) => {}
                     // Explicitly out of scope (see the variant's doc), NOT a silent pass.
                     OperandType::UnboundInThisRule => {}
+                    // Also out of scope, for a DIFFERENT reason the variant's doc names: this pass
+                    // holds a `TypeEnv`, not the checker. Same action, separate name — the whole
+                    // point of the variant.
+                    OperandType::ComputedNotDerivableHere => {}
                 }
             }
         }
@@ -1166,6 +1181,28 @@ enum OperandType {
     /// arm binds conditionally, `exists` binds nothing outward). Named so it is visibly out of
     /// scope rather than indistinguishable from a pass.
     UnboundInThisRule,
+    /// A nested CALL operand whose return type THIS PASS cannot derive — not one that has no type.
+    ///
+    /// ⛔ **This variant exists because the alternative was a lie.** Until 2026-08-28 a nested call
+    /// fell to `_ => UnboundInThisRule` — the variant one line above, whose whole doc says it means
+    /// "an unbound `?var`". A computed operand is not an unbound variable, and routing it there
+    /// meant `(string::= (i64::+ :v 0 :undefined 0) "x")` skipped the type check ENTIRELY and then
+    /// compiled, fired and matched nothing. Wrapping an operand in a call made its type error
+    /// disappear (measured). The three sources this function documents as "exhaustive" were written
+    /// before fix-list F made a nested call a legal operand, and nothing re-read them.
+    ///
+    /// Two cases reach here, and NEITHER is derivable from `RETE_OPS` alone:
+    ///   · a `Form`/`Redispatch` head — its `ret` is a PLACEHOLDER (`vocabulary.rs`: those rows
+    ///     carry no `TypeScheme` at all), so reading it would assert a type the table does not
+    ///     know. The real answer is `check.rs`'s `infer_rete_form`, which runs LATER — this wall
+    ///     is hooked into `build_env` and holds only a `TypeEnv`.
+    ///   · a `ret` that is a type VARIABLE or a container (`PersistentVector/first : PV<T> -> T`).
+    ///     The row states a relation, not a type; the type comes from the arguments.
+    ///
+    /// The caller's action is the same as for `UnboundInThisRule` — report nothing — but the REASON
+    /// is different, and collapsing two reasons into one outcome is the exact conflation that has
+    /// now cost this arc four separate defects.
+    ComputedNotDerivableHere,
 }
 
 /// An operand's type — field ref, then bound `?var` (rule-wide), then literal.
@@ -1199,7 +1236,61 @@ fn resolve_operand_type(
         WatAST::FloatLit(..) => return OperandType::Resolved("f64"),
         WatAST::StringLit(..) => return OperandType::Resolved("string"),
         WatAST::BoolLit(..) => return OperandType::Resolved("bool"),
-        _ => return OperandType::UnboundInThisRule,
+        // 4. a nested CALL — its head row's DECLARED return type.
+        //
+        // ★ THE FOURTH SOURCE, and the reason the list above stopped being exhaustive. Rete's ops
+        // are `pure · deterministic · total` — gated for every row by `every_rete_row_is_total` —
+        // so an `Alias`/`Fallback` row's `ret` is a FACT about the row, not a guess. That is the
+        // same standard the three sources above already meet, applied to the operand shape
+        // fix-list F made legal and nobody came back to type.
+        WatAST::List(items, _) => {
+            let Some(WatAST::Keyword(head, _)) = items.first() else {
+                return OperandType::ComputedNotDerivableHere;
+            };
+            let Some(row) = crate::rete::vocabulary::rete_op_for(head) else {
+                // A non-rete head in operand position is LAW A's finding, reported by its own
+                // path. Not a type question, and not this function's to answer.
+                return OperandType::ComputedNotDerivableHere;
+            };
+            // `Form`/`Redispatch` carry `ret` as a PLACEHOLDER — see the variant's doc. Reading it
+            // would assert `bool` for `let`, `match` and `fn`, which is simply false.
+            if !matches!(
+                row.class,
+                crate::rete::vocabulary::OpClass::Alias | crate::rete::vocabulary::OpClass::Fallback
+            ) {
+                return OperandType::ComputedNotDerivableHere;
+            }
+            // A `Var` ret is a type VARIABLE resolved from the ARGUMENTS, never a type this row
+            // states. Rejected BEFORE the path mapping so it cannot accidentally resolve against a
+            // user type that happens to share the variable's spelling.
+            if matches!(row.ret, crate::rete::vocabulary::ParamType::Var(_)) {
+                return OperandType::ComputedNotDerivableHere;
+            }
+            // ONE mapping, not a second copy: the row's `ret` becomes a `TypeExpr` by the same
+            // `to_type_expr` the checker registers schemes with, and the path goes through this
+            // file's own `rete_type_segment_of`. A private ParamType->segment table here would be
+            // a second place for the keyword bug of 2026-08-28 to live.
+            return match row.ret.to_type_expr() {
+                crate::types::TypeExpr::Path(p) => match rete_type_segment_of(&p, types) {
+                    Some(seg) => OperandType::Resolved(seg),
+                    None => OperandType::ComputedNotDerivableHere,
+                },
+                // Parametric — a container. Rete has no comparator for one, which is what
+                // `NotComparable` says for a FIELD; here the operand is computed, so the honest
+                // answer is that this pass cannot derive it.
+                _ => OperandType::ComputedNotDerivableHere,
+            };
+        }
+        // ⛔ THE WILDCARD IS DELETED. `_ => UnboundInThisRule` is what swallowed the nested call
+        // above. Every remaining variant is named, so a new `WatAST` variant is a compile error
+        // here rather than a silent skip of the type check.
+        WatAST::Symbol(..)
+        | WatAST::RationalLit(..)
+        | WatAST::BigIntLit(..)
+        | WatAST::NilLit(..)
+        | WatAST::Vector(..)
+        | WatAST::Map(..)
+        | WatAST::Set(..) => return OperandType::UnboundInThisRule,
     };
     match rete_type_segment_of(&declared, types) {
         Some(seg) => OperandType::Resolved(seg),
@@ -1216,7 +1307,12 @@ fn resolve_operand_type(
 /// exact moment the reader needed to see their own source.
 fn describe_operand(operand: &WatAST) -> String {
     match operand {
-        WatAST::Keyword(k, _) => k.trim_start_matches(':').to_string(),
+        // The operand's REAL spelling, colon included. It used to be stripped here and re-added by
+        // one caller's format string — which was fine while every operand was a field keyword, and
+        // rendered `:(:wat.rete.core.i64/+ :v 0 …)` the moment a nested CALL could reach the same
+        // message (2026-08-28). A diagnostic that misspells the form it is quoting cannot be
+        // pasted back into the source, which is the whole job of quoting it.
+        WatAST::Keyword(k, _) => k.clone(),
         WatAST::Symbol(s, _) => s.as_str().to_string(),
         other => render_form(other),
     }
@@ -2193,5 +2289,91 @@ mod tests {
         let err = reorder_kwargs_by_field_name(&order, &pairs, &crate::rust_caller_span!())
             .expect_err("unknown field must error");
         assert_eq!(err.field, "nope");
+    }
+
+    /// ★★ A COMPUTED OPERAND IS TYPED LIKE ANY OTHER — the fourth source, gated.
+    ///
+    /// ⚠ **WRAPPING AN OPERAND IN A CALL USED TO MAKE ITS TYPE ERROR DISAPPEAR.** Measured
+    /// 2026-08-28: `(string::= :v "x")` on an i64 field was CAUGHT, and
+    /// `(string::= (i64::+ :v 0 :undefined 0) "x")` — the same mismatch, same field, one call
+    /// deeper — was NOT. The rule then compiled, fired and matched nothing, silently.
+    ///
+    /// The mechanism was `resolve_operand_type`'s `_ => UnboundInThisRule` arm. That variant's own
+    /// doc says it means "a `?var` bound NOWHERE in this rule", and it was written to be *"visibly
+    /// out of scope rather than indistinguishable from a pass"* — then a `WatAST::List` fell into
+    /// it and became exactly the indistinguishable pass the doc warns against. The three sources
+    /// the function documents as exhaustive were written before fix-list F made a nested call a
+    /// legal operand, and nothing came back to re-read them.
+    ///
+    /// **Why the type is knowable, which is the whole argument for source 4.** Every `RETE_OPS`
+    /// row is `pure · deterministic · total` — `every_rete_row_is_total` makes a non-total row a
+    /// red build. Totality means an op is defined on its whole domain, so an `Alias`/`Fallback`
+    /// row's `ret` is a FACT about the row, exactly as a field's declared type is a fact about
+    /// the record. The builder's cut against the first draft of this function applies verbatim:
+    /// *"why is any of this a guess? we know the type's value from the record def."*
+    #[test]
+    fn a_computed_operand_is_typed_like_any_other() {
+        const MISMATCH: &str = r#"
+(:wat::core::defrecord :probe::In  [k <- :wat::core::String  v <- :wat::core::i64])
+(:wat::core::defrecord :probe::Out [k <- :wat::core::String])
+(:wat::rete::defrule :probe::rule
+  :when
+  [(:probe::In (?k <- :k)
+     (:wat::rete::core::string::= (:wat::rete::core::i64::+ :v 0 :undefined 0) "x"))]
+  :then
+  [(:probe::Out :k ?k)])
+"#;
+        let forms = crate::parse_all!(MISMATCH).expect("parse");
+        let boxed = match build_env(forms) {
+            Err(crate::freeze::StartupError::Validator(e)) => e,
+            Err(other) => panic!("expected StartupError::Validator; got {other:?}"),
+            Ok(_) => panic!(
+                "an i64-returning call compared by `string::=` must be REFUSED. This compiled, \
+                 fired and matched nothing for the life of the engine"
+            ),
+        };
+        let edn = wat_edn::write(&boxed.to_edn());
+        let e = rete_error(&edn, "ConstraintTypeMismatch");
+        assert_eq!(
+            field_str(&e, "field-type"),
+            "i64",
+            "the operand's type comes from the HEAD ROW's `ret`, which is what source 4 adds"
+        );
+        // The diagnostic must quote the CALL, not a field name — R29 `RVINA ERVDIT`. Asserted
+        // EXACTLY, not by `contains`: this string is `render_form` over a fixed AST, so it is
+        // fully deterministic and a loose check would pass on a mangled rendering. It also pins
+        // the rendering fix — `describe_operand` used to strip a keyword's colon and one caller
+        // re-added it, so a nested call came out as `:(:wat.rete.core.i64/+ …)`, un-pasteable.
+        assert_eq!(
+            field_str(&e, "field"),
+            "(:wat.rete.core.i64/+ :v 0 :undefined 0)",
+            "the message must quote the offending CALL verbatim so it can be pasted back"
+        );
+        assert!(rete_error_is_located(&e), "the wall's errors are LOCATED; got: {edn}");
+
+        // ⛔ THE OVER-REFUSAL CONTROL. A change that refused every computed operand would satisfy
+        // the assertions above and be catastrophically wrong — and this arc has shipped exactly
+        // that mistake before (a termination verifier once refused a legal fn-headed `:then`).
+        // The identical call compared by its CORRECT comparator must validate clean.
+        let ok = MISMATCH
+            .replace(":wat::rete::core::string::=", ":wat::rete::core::i64::=")
+            .replace(r#" "x"))]"#, " 10))]");
+        assert_ne!(MISMATCH, ok, "the rewrite must change the comparator");
+        let forms = crate::parse_all!(&ok).expect("parse");
+        assert!(
+            build_env(forms).is_ok(),
+            "`i64::=` over an i64-returning call is well typed and must pass — source 4 types the \
+             operand, it does not refuse it"
+        );
+
+        // ⛔ THE VACUITY CONTROL. The plain-field spelling of the same mismatch was ALWAYS caught,
+        // so pinning it proves this gate measures the new source rather than the old one.
+        let plain = MISMATCH.replace("(:wat::rete::core::i64::+ :v 0 :undefined 0)", ":v");
+        assert_ne!(MISMATCH, plain, "the rewrite must remove the nesting");
+        let forms = crate::parse_all!(&plain).expect("parse");
+        assert!(
+            build_env(forms).is_err(),
+            "the un-nested mismatch was caught before this strike and must stay caught"
+        );
     }
 }
