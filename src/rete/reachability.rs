@@ -517,6 +517,10 @@ fn special_for(rete_name: &str) -> Option<(&'static str, &'static str, &'static 
         ":wat::rete::core::PersistentMap" => (":wat::core::String", "\"a\"", "\"z\"", "(:wat::rete::core::PersistentMap/contains-key? (:wat::rete::core::PersistentMap {f} 1) \"a\")", ""),
         ":wat::rete::core::mapv" => ("(:wat::core::PersistentVector :- [:wat::core::i64])", "(:wat::core::PersistentVector 1 2)", "(:wat::core::PersistentVector 9)", "(:wat::rete::core::i64::= (:wat::rete::core::Vector/first (:wat::rete::core::mapv (:wat::rete::core::fn [x <- :wat::core::i64] -> :wat::core::i64 (:wat::rete::core::i64::* x 10 :undefined 0)) {f}) :undefined 0) 10)", ""),
         ":wat::rete::core::filterv" => ("(:wat::core::PersistentVector :- [:wat::core::i64])", "(:wat::core::PersistentVector 9)", "(:wat::core::PersistentVector 1)", "(:wat::rete::core::i64::= (:wat::rete::core::Vector/first (:wat::rete::core::filterv (:wat::rete::core::fn [x <- :wat::core::i64] -> :wat::core::bool (:wat::rete::core::i64::> x 5)) {f}) :undefined 0) 9)", ""),
+        ":wat::rete::core::Tuple" => (":wat::core::i64", "7", "9", "(:wat::rete::core::i64::= (:wat::rete::core::Tuple/first (:wat::rete::core::Tuple {f} 99)) 7)", ""),
+        ":wat::rete::core::Tuple/first" => (":wat::core::i64", "7", "9", "(:wat::rete::core::i64::= (:wat::rete::core::Tuple/first (:wat::rete::core::Tuple {f} 99)) 7)", ""),
+        ":wat::rete::core::Tuple/second" => (":wat::core::i64", "7", "9", "(:wat::rete::core::i64::= (:wat::rete::core::Tuple/second (:wat::rete::core::Tuple 99 {f})) 7)", ""),
+        ":wat::rete::core::Tuple/third" => (":wat::core::i64", "7", "9", "(:wat::rete::core::i64::= (:wat::rete::core::Tuple/third (:wat::rete::core::Tuple 99 99 {f})) 7)", ""),
         _ => return None,
     };
     Some(t)
@@ -668,13 +672,6 @@ fn operands_for(rete_name: &'static str) -> Option<Cell> {
 /// for holon rows only, and its own doc used to instruct the reader not to widen it. That widening
 /// is its own strike — see `RETE-OPEN-WORK` § 4.1.
 const COMPILED_EXECUTOR_CANNOT_RUN: &[(&str, &str)] = &[
-    (
-        ":wat::rete::core::Tuple",
-        "same missing-arm shape, AND separately unobservable: no rete row accesses a Tuple's \
-         elements, so even with an arm a constructed Tuple could not be compared to anything from \
-         inside a fence. One of the three rows appearing nowhere in the 1569-file corpus — and \
-         now it is clear why nobody could have used it.",
-    ),
 ];
 
 /// The rows deliberately NOT in the operand table, each with the reason a reader can argue with.

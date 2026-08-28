@@ -737,6 +737,7 @@ fn intrinsic_meta(head: &str) -> Option<OpMeta> {
             // replacement, `(reduce f init (reverse coll))`, is still covered here via `reduce`.
             | ":wat::core::map" | ":wat::core::mapv" | ":wat::core::filter"
             | ":wat::core::filterv" | ":wat::core::reduce"
+            | ":wat::core::second" | ":wat::core::third"
             // ── BRIEF-total-column-honest.md Direction 2 (2026-08-02) — the VSA seam ───────────
             //
             // `:wat::holon::presence?` — TRUE. `eval_algebra_presence_q` (`runtime.rs:18623`)

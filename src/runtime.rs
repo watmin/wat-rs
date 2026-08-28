@@ -15659,6 +15659,22 @@ fn eval_positional_accessor(
         .into());
     }
     let v = eval_inner(&args[0], env, sym)?.value_owned();
+    positional_at(v, index, op, args[0].span())
+}
+
+/// The VALUE-level positional accessor — `first`/`second`/`third` once the argument is evaluated.
+///
+/// Extracted 2026-08-28 so the compiled rete `where` executor calls the SAME routine the
+/// interpreter does instead of growing a second one. `expr_ir.rs`'s `first_of` used to be that
+/// second one, and it matched PersistentVector / Vec / List only — which is why a `Tuple` could be
+/// CONSTRUCTED inside a fence and never read from. Only the span differs between the two callers;
+/// everything below is a property of the value.
+pub(crate) fn positional_at(
+    v: Value,
+    index: usize,
+    op: &'static str,
+    span: &Span,
+) -> Result<Value, EvalBreak> {
     // Classify via the registry — the only Value→container map for sequence ops.
     // Arc-278 strike 4 — inner dispatch is exhaustive over the closed StreamContainer enum (no `_`).
     use crate::collection::seq_container::StreamContainer;
@@ -15673,7 +15689,7 @@ fn eval_positional_accessor(
                     };
                     items.get(index).cloned().ok_or_else(|| {
                         EvalBreak::from(RuntimeError::new(
-                            args[0].span().clone(),
+                            span.clone(),
                             RuntimeErrorKind::MalformedForm {
                                 head: op.into(),
                                 reason: format!(
@@ -15692,7 +15708,7 @@ fn eval_positional_accessor(
                     };
                     items.get(index).cloned().ok_or_else(|| {
                         EvalBreak::from(RuntimeError::new(
-                            args[0].span().clone(),
+                            span.clone(),
                             RuntimeErrorKind::MalformedForm {
                                 head: op.into(),
                                 reason: format!(
@@ -15710,7 +15726,7 @@ fn eval_positional_accessor(
                         unreachable!("of_value⇒List")
                     };
                     items.iter().nth(index).cloned().ok_or_else(|| {
-                        EvalBreak::from(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::MalformedForm {
+                        EvalBreak::from(RuntimeError::new(span.clone(), RuntimeErrorKind::MalformedForm {
                             head: op.into(),
                             reason: format!("{op}: sequence has fewer than {} element(s); no element at index {index}", index + 1)
                         }))
@@ -15723,7 +15739,7 @@ fn eval_positional_accessor(
                         unreachable!("of_value⇒PersistentVector")
                     };
                     pv.get(index).cloned().ok_or_else(|| {
-                        EvalBreak::from(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::MalformedForm {
+                        EvalBreak::from(RuntimeError::new(span.clone(), RuntimeErrorKind::MalformedForm {
                             head: op.into(),
                             reason: format!("{op}: sequence has fewer than {} element(s); no element at index {index}", index + 1)
                         }))
@@ -15740,7 +15756,7 @@ fn eval_positional_accessor(
                         WatAST::List(children, _) => children.get(index)
                             .map(|c| Value::wat__WatAST(Arc::new(c.clone())))
                             .ok_or_else(|| {
-                                EvalBreak::from(RuntimeError::new(args[0].span().clone(), RuntimeErrorKind::MalformedForm {
+                                EvalBreak::from(RuntimeError::new(span.clone(), RuntimeErrorKind::MalformedForm {
                                     head: op.into(),
                                     reason: format!("{op}: WatAST List has {} child(ren); no child at index {index}", children.len())
                                 }))
@@ -15765,7 +15781,7 @@ fn eval_positional_accessor(
         // advance it with `:wat::stream::next`, whose `(NextOutcome :- [T]) = Item(value, rest) |
         // Exhausted` is the only door a Stream yields through.
         Some(StreamContainer::Stream) => Err(RuntimeError::new(
-            args[0].span().clone(),
+            span.clone(),
             RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
                 expected: "Tuple, (Vector :- [T]), (List :- [T]), (PersistentVector :- [T]), or WatAST — a lazy (Stream :- [T]) has no first/second/third; advance it with :wat::stream::next ((NextOutcome :- [T]) = Item(value, rest) | Exhausted)",
@@ -15774,7 +15790,7 @@ fn eval_positional_accessor(
         )
         .into()),
         Some(_) => Err(RuntimeError::new(
-            args[0].span().clone(),
+            span.clone(),
             RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
                 expected: "tuple, Vec, List, or PersistentVector",
@@ -15786,7 +15802,7 @@ fn eval_positional_accessor(
         // (a non-List form has no positional children — distinct from a type mismatch).
         None => match v {
             Value::wat__WatAST(_) => Err(EvalBreak::from(RuntimeError::new(
-                args[0].span().clone(),
+                span.clone(),
                 RuntimeErrorKind::MalformedForm {
                     head: op.into(),
                     reason: format!(
@@ -15795,7 +15811,7 @@ fn eval_positional_accessor(
                 },
             ))),
             other => Err(RuntimeError::new(
-                args[0].span().clone(),
+                span.clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: op.into(),
                     expected: "tuple, Vec, List, or PersistentVector",

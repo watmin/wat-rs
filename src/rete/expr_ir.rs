@@ -1375,7 +1375,7 @@ enum OpExec {
     F64Gt, F64Lt, F64Ge, F64Le, F64Eq, F64NotEq, F64Add, F64Sub, F64Mul, F64Div, F64ToStr,
     BoolToStr, StrEmpty, StrConcat, StrTrim, StrLower, StrSubs,
     PvLen, PvContains, PvGet, VecGet, ListGet, First, PvNew, VecNew, ListNew,
-    PmContainsKey, PmNew,
+    PmContainsKey, PmNew, Second, Third, TupleNew,
     Cosine, Dot, Coincident, Presence,
     Unknown,
 }
@@ -1430,9 +1430,12 @@ impl OpExec {
             ":wat::core::Vector/get" => Self::VecGet,
             ":wat::core::List/get" => Self::ListGet,
             ":wat::core::first" => Self::First,
+            ":wat::core::second" => Self::Second,
+            ":wat::core::third" => Self::Third,
             ":wat::core::PersistentVector" => Self::PvNew,
             ":wat::core::Vector" => Self::VecNew,
             ":wat::core::List" => Self::ListNew,
+            ":wat::core::Tuple" => Self::TupleNew,
             ":wat::core::PersistentMap" => Self::PmNew,
             ":wat::holon::cosine" => Self::Cosine,
             ":wat::holon::dot" => Self::Dot,
@@ -1704,6 +1707,17 @@ fn apply_core_kind(
         (OpExec::VecGet, [v, i]) => crate::collection::eval::vector_get_inner(v, i),
         (OpExec::ListGet, [v, i]) => crate::collection::eval::list_get_inner(v, i),
         (OpExec::First, [v]) => first_of(v, span),
+        // `second`/`third` call the interpreter's own `positional_at`, so every container it
+        // supports — Tuple included — is supported here by construction rather than by a list
+        // someone remembered to keep in step. Arity is enforced at CHECK time
+        // (`third` on a 2-tuple is a TypeMismatch naming "expects tuple with >= 3 element(s)"),
+        // which is what makes these rows honestly `total: true`.
+        (OpExec::Second, [v]) => {
+            crate::runtime::positional_at(v.clone(), 1, ":wat::core::second", span)
+        }
+        (OpExec::Third, [v]) => {
+            crate::runtime::positional_at(v.clone(), 2, ":wat::core::third", span)
+        }
         (OpExec::PvNew, args) => Ok(Value::wat__core__PersistentVector(
             args.iter().cloned().collect(),
         )),
@@ -1711,6 +1725,18 @@ fn apply_core_kind(
         (OpExec::ListNew, args) => Ok(Value::wat__core__List(Arc::new(
             args.iter().cloned().collect(),
         ))),
+        // Mirrors `eval_tuple_ctor` (`runtime.rs`), including its one rule: arity 1+, because the
+        // 0-tuple is the Unit `:()` and not a Tuple. The three sibling constructors above have no
+        // such floor, which is why this is spelled out rather than folded in with them.
+        (OpExec::TupleNew, []) => Err(RuntimeError::new(
+            span.clone(),
+            RuntimeErrorKind::MalformedForm {
+                head: ":wat::core::Tuple".into(),
+                reason: "tuple must have at least one element; the 0-tuple is :() (Unit)".into(),
+            },
+        )
+        .into()),
+        (OpExec::TupleNew, args) => Ok(Value::Tuple(Arc::new(args.to_vec()))),
         // The three sibling constructors above just collect; a map cannot, and the rules it must
         // follow are NOT invented here — every one is read off `eval_persistentmap_ctor`
         // (`collection/eval.rs`), which is what the interpreter runs: even arity, alternating
@@ -1812,32 +1838,14 @@ fn apply_core_kind(
     }
 }
 
+/// `first` — delegates to the interpreter's `positional_at` at index 0.
+///
+/// ⛔ **THIS USED TO BE A SECOND IMPLEMENTATION, AND THAT WAS THE BUG.** It matched
+/// PersistentVector / Vec / List and rejected everything else, so a `Tuple` built inside a `where`
+/// fence could never be read — while core's `first` has always projected a Tuple. Two routines for
+/// one verb, silently disagreeing about which containers exist. Now there is one.
 fn first_of(v: &Value, span: &Span) -> Result<Value, EvalBreak> {
-    let empty = || {
-        RuntimeError::new(
-            span.clone(),
-            RuntimeErrorKind::MalformedForm {
-                head: ":wat::core::first".into(),
-                reason: ":wat::core::first: sequence has 0 element(s); no element at index 0"
-                    .into(),
-            },
-        )
-        .into()
-    };
-    match v {
-        Value::wat__core__PersistentVector(pv) => pv.iter().next().cloned().ok_or_else(empty),
-        Value::Vec(xs) => xs.first().cloned().ok_or_else(empty),
-        Value::wat__core__List(xs) => xs.iter().next().cloned().ok_or_else(empty),
-        other => Err(RuntimeError::new(
-            span.clone(),
-            RuntimeErrorKind::TypeMismatch {
-                op: ":wat::core::first".into(),
-                expected: "sequence",
-                got: Box::new(ValueSnapshot::of(other)),
-            },
-        )
-        .into()),
-    }
+    crate::runtime::positional_at(v.clone(), 0, ":wat::core::first", span)
 }
 
 fn ord(

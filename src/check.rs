@@ -2394,7 +2394,21 @@ fn infer_rete_form(
         // core-spelled `(:wat::core::reduce ...)` call takes (`infer_list`, recursively).
         // Never a second implementation of the defclause-matching algorithm; STOP-5 (no
         // scheme) is untouched — this is a call, not a type.
-        ":wat::core::reduce" => {
+        // `filterv` / `second` / `third` joined 2026-08-28 and take the same head-substitution
+        // route for the same reason. `filterv` is a wat-level `defclause` (`wat/seq.wat`) exactly
+        // like `reduce`; `second`/`third` are native positional accessors polymorphic over every
+        // indexable container INCLUDING `Tuple`, whose arity and element types cannot be stated as
+        // a rank-1 scheme. Re-dispatch reaches the one inference each already has.
+        //
+        // ⚠ `filterv` shipped a few hours earlier WITHOUT a route, and the ledger did not catch
+        // it: a `where` fence type-checks its interior by the rete path, so a row can fire in a
+        // fence while `infer_rete_form` — the route taken when the same op is written in ordinary
+        // wat — has no arm and would refuse it by name. Two surfaces, one row; the fence is not
+        // proof of the other.
+        ":wat::core::reduce"
+        | ":wat::core::filterv"
+        | ":wat::core::second"
+        | ":wat::core::third" => {
             let mut items = Vec::with_capacity(args.len() + 1);
             items.push(WatAST::Keyword(core_name.to_string(), head_span.clone()));
             items.extend_from_slice(args);
