@@ -1,4 +1,4 @@
-# STONE O-i — the macro generates both doors from one declaration
+# STONE O-iii — the macro generates both doors from one declaration
 
 > Read `DESIGN-STONE-O-one-declaration-feeds-both-doors.md` first. It carries the two defects, the
 > measured populations, and the one contract decision. This brief is the strike.
@@ -150,7 +150,7 @@ arithmetic pairs that are out of this strike's scope.
       ./target/release/wat wat-scripts/scratch-pad/255-stone-o-apply-lies-about-what-exists.wat
     The `:wat::vector::length` row must flip  APPLY=err:unknown function  ->  APPLY=ok:3.
     Every other row must be UNCHANGED — including the two that still say `unknown function`
-    (`max-of`, `to-uppercase`, `sqrt`), which are O-iii's, not this strike's.
+    (`max-of`, `to-uppercase`, `sqrt`), which are O-iv's, not this strike's.
 
  2. ★ PROVE IT BY SABOTAGE, ON THE THING ITSELF. Make `persistentvector_length` return a wrong
     constant. Show BOTH doors return the sabotaged value — direct AND apply — then restore.
@@ -158,10 +158,14 @@ arithmetic pairs that are out of this strike's scope.
     and sabotaging anything OTHER than the fn under test answers a different question than the
     one you are asking.
 
- 3. ★ THE ARITY PANIC IS GONE FOR A MIGRATED VERB. Today
+ 3. ★ THE MIGRATED VERB GUARDS ITS OWN ARITY. On today's tree
     `(apply :wat::vector::concat [one-pv])` panics at `src/intrinsic/vector.rs:214`.
-    After the migration it must return an ArityMismatch error whose text matches the direct
-    call's. Show BOTH: the direct wrong-arity call and the apply wrong-arity call, side by side.
+    After the migration it must return an ArityMismatch whose text matches the direct call's.
+    Show BOTH, side by side. ⚠ If Stone O-i (the central guard in `dispatch_substrate_impl`)
+    has already landed, the panic is gone for every verb and this row proves LESS than it
+    looks: say so, and prove the GENERATED check fires by removing the central guard for one
+    run, or by pointing at the generated code. A row that passes for someone else's reason is
+    not evidence.
 
  4. ★ TWO FNS BECAME ONE. `git diff --stat src/intrinsic/vector.rs`, plus the count of
     `expect("arity-checked")` in that file before and after (1 -> 0).

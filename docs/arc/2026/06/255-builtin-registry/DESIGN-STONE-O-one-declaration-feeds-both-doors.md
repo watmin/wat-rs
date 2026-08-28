@@ -4,6 +4,60 @@
 > the thesis so it could not be lost: *"Two calling conventions are forced by the language. Two
 > registrations are not."*
 
+> ## ⛔⛔ CORRECTED 2026-08-28, BEFORE ANY STRIKE — READ THIS BEFORE THE BODY BELOW
+>
+> The builder refused this design's framing:
+>
+> > *"ok but like…. `(+) => 0` / `(+ 1) => 1` / `(+ 1 1) => 2` / `(+ 1 1 1) => 3` right?…..
+> > this "+ needs two args" is baffling"*
+>
+> **He was right, and running the question properly found a THIRD defect bigger than either
+> below.** Two things this design got wrong:
+>
+> **1. `:wat::core::+` is already Clojure-compliant. Measured:**
+> `(+)`→0 · `(+ 1)`→1 · `(+ 1 1)`→2 · `(+ 1 1 1)`→3 · `(*)`→1 · `(- 5)`→-5 · `(- 10 1 2)`→7.
+> Identity element, unary, variadic left-fold — all correct. What the arity probe quoted was
+> **`:wat::i64::+`, a defclause LEAF that is arity-2 by design**. Presenting a leaf's contract as
+> the language's made a correct design read as a broken one, and put a wrong baseline in the
+> acceptance rows. `[[feedback_an_adjacent_implementation_is_not_the_subject]]`
+>
+> **2. There is a THIRD broken door, and it is the whole user-facing surface.**
+> `:wat::core::apply` **cannot apply a defclause at all**:
+> ```
+> (:wat::core::apply :wat::core::+ [1 2 3])  →  err ":wat::core::apply: expected wat::core::keyword,
+>                                                     got wat::core::clauses <clauses::wat::core::+/25>"
+> ```
+> **29 defclauses exist, 22 of them production** — `+ - * / reduce sort sort-by into filterv mod
+> quot rem run! reductions nth-spec` — and **not one can be applied**. `dispatch_keyword_head`
+> HAS a clauses arm (`runtime.rs:6758` → `eval_call_to_defclause`); `eval_apply`'s Step 6 demands
+> `Value::wat__core__keyword` and stops at a `Value::wat__core__clauses`. `(apply reduce …)` and
+> `(apply sort …)` — the reason `apply` exists — are refused.
+>
+> **So `apply` has FOUR doors and THREE are broken.** Probe:
+> `wat-scripts/scratch-pad/255-stone-o-apply-has-three-broken-doors.wat`
+> ```
+> DOOR 1  defclause head                     REFUSED "expected keyword, got clauses"   22 production verbs
+> DOOR 2  registered intrinsic, no value door "unknown function"                       337 of 381
+> DOOR 3  registered intrinsic, value door    works — and wrong arity PANICS            44
+> DOOR 4  plain fn / defn                     correct                                   —
+> ```
+>
+> ★ **The root the body below names is RIGHT and it is now proven three times, not two:** a second
+> dispatch path reimplementing the first from a private picture, and every time the thing it cannot
+> express is *"I hold Values, not ASTs."* Door 1 is that impedance mismatch one layer up — the
+> clauses arm needs an entry that takes `&[Value]`, exactly as the intrinsic arm did.
+>
+> **The strike order below is superseded by "The four strikes" section.** The one-declaration
+> machine — the builder's stone, and still the thesis — is no longer first, because a live panic and
+> the entire user-facing arithmetic surface both outrank it and neither depends on it.
+>
+> ⚠ **A separate compliance finding, surfaced by the same probe, NOT drawn here:**
+> `(:wat::core::/ 1 2)` → `0` and `(:wat::core::/ 4)` → `0`, where Clojure gives `1/2` and `1/4`.
+> `(:wat::core::/ 4.0)` → `0.25` is right. wat HAS rationals (`:wat::rational::`, 4 registered
+> arms), so the type to return exists. Changing integer `/` to produce a rational changes a return
+> type across the corpus — **it is the builder's ruling, not this design's**, and it belongs to
+> road step 5 (EDN/Clojure compliance), not to arc 255.
+
 > Drawn against `9b25f3bbf`. Every number below was produced by an instrument printed here.
 
 ## ⛔ THE DEFECT — `apply` ANSWERS FROM ITS OWN PICTURE, NOT THE REGISTRY
@@ -203,22 +257,31 @@ is one short is a census with an unexamined edge.
 - **`walk.rs:268` is untouched.** Stone O makes the registry answer `apply` honestly; it does not
   make the resolver consult it. That is the campaign's endgame and it is sized at 2,539 tests.
 
-## The three strikes, in order
+## The four strikes — REORDERED 2026-08-28 by what the correction found
 
-| | strike | what it delivers | why this order |
+| | strike | what it delivers | size |
 |---|---|---|---|
-| **O-i** | **the machine** | the ALGEBRA sniff + both-door generation with ONE generated arity check, proven on `:wat::vector::` — 6 verbs: 5 gain a door, 1 collapses two hand-written fns into one | the generator must exist and be proven before 136 sites lean on it |
-| **O-ii** | **the honest door** | two things one guard apart: `dispatch_substrate_impl` arity-checks from `IntrinsicEntry::arity` before calling ANY value handler, killing the panic for all 44 including the hand-written ones; and `eval_apply` consults `lookup_entry` before raising, so a registered verb gets *"registered, but not reachable through apply"* and never `unknown function` | both are true no matter how many verbs O-iii migrates, and together they make the residue SAFE and LEGIBLE instead of fatal and silent |
-| **O-iii** | **the migration** | the remaining 130 (105 new doors + 25 collapses) across the other namespaces, one commit per namespace | operates on settled infrastructure: the generator is proven and the failure mode is already legible |
+| **O-i** | **the guard** | `dispatch_substrate_impl` arity-checks against `IntrinsicEntry::arity` before calling ANY value handler. Kills the panic for all 44, generated and hand-written alike, in ONE place. | one function, ~10 lines |
+| **O-ii** | **the defclause door** | `eval_apply` accepts a `Value::wat__core__clauses` head and routes it into the clause dispatcher through a value-level entry — `(apply + …)`, `(apply reduce …)`, `(apply sort …)` start working. 22 production verbs. | one arm + one value-level entry beside `eval_call_to_defclause` |
+| **O-iii** | **the machine** — *the builder's stone, and still the thesis* | the ALGEBRA sniff: one declaration generates both doors behind one arity check. Proven on `:wat::vector::` (6 verbs; 5 gain a door, 1 collapses two fns into one). | the macro + one namespace |
+| **O-iv** | **the migration + the honest word** | the remaining 130 (105 new doors, 25 collapses), one commit per namespace; and `eval_apply` consults `lookup_entry` so anything still unreachable is told the truth instead of `unknown function`. | a sweep |
 
-**O-i and O-ii are each small and independently green. O-iii is the sweep.** The stepping-stone test
-answers YES on both cuts: after O-i the generator is proven against a real namespace, and after O-ii
-a mis-migrated verb in O-iii announces itself as a clean error rather than a process death — so the
-sweep's "did it work" is a diff in one probe's output per namespace, not an argument.
+**Why this order, and it is a recommendation the builder rules on:**
 
-⚠ **O-ii could be struck FIRST and it would still be right.** It is ordered second only because O-i
-is what the builder asked for and is the stone's thesis. If O-i stalls for any reason, O-ii ships
-alone: the panic is a live defect on today's tree and does not wait on the generator.
+- **O-i is a live panic.** `(apply :wat::i64::+ [20])` kills the process today, from ordinary wat
+  source. Nothing depends on it and it does not wait on the machine. *We do not leave known flaws.*
+- **O-ii is the user-facing surface.** `apply` refusing `+`, `reduce` and `sort` is the gap a person
+  writing wat actually hits; doors 2 and 3 are leaves they rarely name directly. It is also a
+  DIFFERENT mechanism from O-iii — the clauses arm, not the intrinsic registry — so ordering it
+  early costs the machine nothing.
+- **O-iii still carries the thesis** and is unchanged in shape: *two calling conventions are forced
+  by the language, two registrations are not.* It moves to third because two defects outrank it and
+  neither is blocked on it — not because the stone got smaller.
+- **O-iv last**, because a mis-migrated verb should land in a world where the arity is guarded (O-i)
+  and the diagnostic is honest, not in one where it panics silently.
+
+⚠ **Each strike is independently green and independently useful.** No strike below is a prerequisite
+for the one above it, so the builder can take them in any order without stranding work.
 
 ## The four questions
 
