@@ -44,7 +44,7 @@ the floor (P1). Adding the population first and the wall second is the wrong ord
 | ~~Q~~ | ~~the value door carries the CALL SPAN~~ | `ValueHandler` type · `dispatch_substrate_impl` + its 1 caller · the macro sniff · 19 twins take an ignored param | `BRIEF-STONE-Q-the-value-door-carries-the-call-span.md` | ✅ **STRUCK** — see Closed |
 | ~~Q-2~~ | ~~the threaded span must be USED~~ | | | ✅ **STRUCK** — 20 sites fixed, 0 runed |
 | ~~O-iv-c-0~~ | ~~the `require_*` family takes `&Value`~~ | | | ✅ **STRUCK** — 10 sigs, 75 sites |
-| **O-iv-c-1** | holon sweep — `subspace` 10 · `engram` 10 · `reckoner` 8 · `hologram` 4 | 32 SHELL verbs | *not drawn* — copy O-iv-b's brief | — **UNBLOCKED** |
+| **O-iv-c-1** | holon sweep — `subspace` 10 · `engram` 10 · `reckoner` 8 · `hologram` 4 | 32 SHELL verbs; the first sweep to use Q's trailing `&Span` | `BRIEF-STONE-O-iv-c-1-the-holon-sweep-four-files.md` | — **READY** |
 | **O-iv-c-2** | holon sweep — `atom.rs` | 41 SHELL verbs | *not drawn* | O-iv-c-1 proving the shape |
 | **O-iv-d** | the remainder — `uuid` 7 · `ambient` 7 · `string`/`reflect`/`bytes` 2 · six singles | 26 verbs | *not drawn* | same |
 | **P5** | `@yields` mandatory when an `@arg` carries an Fn shape | macro-expand-time rule | *not drawn* | P4's measurement |
