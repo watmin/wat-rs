@@ -5,9 +5,23 @@
 > `wat/rete.wat`. If a stone below disagrees with a dated ruling here,
 > **this file wins** and the stone is stale.
 
-**CURRENT STAMP 2026-08-28 (LATE) — supersedes every dated block below it, including the earlier
-2026-08-28 one. Written against HEAD `7f21de15f`; the commit carrying this stamp lands on top, so a
-ONE-COMMIT docs-only gap at your wake is expected and is not staleness.**
+**CURRENT STAMP 2026-08-28 (LATEST) — supersedes every dated block below it, including both
+earlier 2026-08-28 ones. Written against HEAD `85c87314d`; the commit carrying this stamp lands on
+top, so a ONE-COMMIT docs-only gap at your wake is expected and is not staleness.**
+
+**TWO TERMINATION-DIAGNOSTIC DEFECTS ARE FIXED AND GATED** (`85c87314d`). The message no longer
+claims "the fixpoint can never converge" (false for a guarded counter, which converges at k=500)
+and a fn-headed `:then` no longer names the FUNCTION as the offending fact type. Both mutation-
+proven. The class finally has a home that can go RED —
+`tests/rete/probe_arc278_termination_guarded_counter.wat` — instead of prose in a fixture header.
+Also struck: `stratify.rs`'s doctrine block CONTRADICTED `rete_fn_body_mints` twenty lines below
+it, and two of its three evidence rows were false. **The lesson worth carrying: a refusal is
+evidence about the door you knocked on, not about the room behind it** — three probes failing for
+an unrelated reason read as safety for a full day.
+
+**⛔ SIX-FOR-SIX: every inherited row audited in this arc has been stale.** Item 2 (`reduce`'s
+2-arity totality) was closed by `97eac5a38` the day BEFORE the row claiming it open was written —
+gated, with two fixtures. Check every unstruck row against the tree before working it.
 
 **A BUG REPORT CAME IN AFTER THE CURARE AND IS ANSWERED** —
 `~/work/NOTE-rete-termination-verifier-refuses-provably-bounded-recursion.md`, from claude-compute
@@ -26,11 +40,24 @@ The column went **16 → 68 → 71 → 75 of 79** across one day; the last four 
 by hand and NOT yet reflected in the ledger. Four commits: `1a97cf12b` `4c19b9029` `ad2286133`
 `b7f54a17f`. Floor 5147/5147. Clara 38 pairs / 315 rows.
 
-**⛔ THE LEDGER IS LYING ABOUT FOUR ROWS RIGHT NOW.** `NOT_YET_GENERABLE` in
-`src/rete/reachability.rs` still reports the four `:wat::rete::holon::*` rows un-drivable. Driven
-2026-08-28 with a `HolonAST` field on BOTH sides: all four FIRE, inline and fence. The exclusion's
-own `REFUTED BY` clause named that exact case. **Fix this before minting any holon row** —
-`RETE-OPEN-WORK.md` § "The order" item 7 is the queue.
+**⛔ THE LEDGER IS LYING ABOUT FOUR ROWS — AND THE ENTRY THAT SAID SO WAS ALSO WRONG.**
+`NOT_YET_GENERABLE` in `src/rete/reachability.rs` reports the four `:wat::rete::holon::*` rows
+un-drivable. Re-driven 2026-08-28 (LATE) with `v` AND `w` both `HolonAST` on one record:
+**SEVEN of eight cells fire, not eight.** `presence?`, `cosine`, `dot` fire in both positions;
+**`coincident?` is REFUSED INLINE** and that is a LIVE DEFECT. The earlier "all four FIRE, inline
+and fence" on this page came from a hand-drive whose shape was never written down — it was wrong,
+and the ledger existing precisely to catch that is the point.
+
+**`coincident?` inline is THE FIFTH INSTANCE OF THE PATTERN BELOW, and the one row of the table
+still holding it.** It is `Redispatch` (its PARAMS are polymorphic) but genuinely returns `bool`;
+`expr_is_provably_boolean` trusts `ret` only for `Alias`/`Fallback`, because on
+`Form`/`Redispatch` rows `ret: Bool` ALSO means "no scheme at all". ⛔ The one-line widening is
+UNSOUND — driven: it admits `Tuple/first` (an `i64`) as an inline constraint that compiles, fires
+and silently matches NOTHING. Do not re-propose it. The cure is the ladder's top rung —
+`ret: Ret::Is(ParamType) | Ret::NoScheme`, after which the placeholder cannot be spelled and the
+same guard clause stops being hand-copied at THREE sites (`clause.rs:266`, `validate.rs:1337`,
+`check.rs:17267`). Full evidence + the measured thresholds: `RETE-OPEN-WORK.md` § "The order"
+item 7.
 
 **★ THE ONE PATTERN UNDER ALL OF IT — FOUR INSTANCES IN ONE DAY.** A representation where ONE value
 means both *"legitimately absent"* and *"I have no arm for this"*:
@@ -42,9 +69,19 @@ means both *"legitimately absent"* and *"I have no arm for this"*:
 | `validate.rs` — `_ => UnboundInThisRule` | "unbound `?var`" | "no arm for a nested call" |
 | fix-list F's own cure — `Option`/`None` | "absent" | "lowering failed" |
 
+**★ THE FIFTH INSTANCE, FOUND 2026-08-28 (LATEST) — and it is the FIRST ROW OF THE TABLE, still
+open, now proven to cost a live wrong answer.** `ret: Bool` on `Form`/`Redispatch` rows refuses
+`:wat::rete::holon::coincident?` inline: the row genuinely returns bool, and the representation
+cannot say so without also saying "placeholder". The guard it forces —
+*"believe `ret` only for `Alias`/`Fallback`"* — is hand-copied at THREE sites (`clause.rs:266`,
+`validate.rs:1337`, `check.rs:17267`). Cure: `ret: Ret::Is(ParamType) | Ret::NoScheme`, so the
+placeholder has no spelling. ⛔ The one-line widening is UNSOUND (driven: it admits `Tuple/first`,
+an `i64`, as an inline constraint that silently matches nothing).
+
 Every one produced either a false refusal or a SILENT never-match. **When you meet a catch-all in
-this codebase, ask which two facts it is holding.** Three of the four are closed; the wildcards are
-deleted, so a new `WatAST` variant is now a compile error in both rewriters and in the operand typer.
+this codebase, ask which two facts it is holding.** Three of the five are closed; the wildcards are
+deleted, so a new `WatAST` variant is now a compile error in both rewriters and in the operand
+typer. **The `ret: Bool` row is NOT closed and is the next bug.**
 
 **⛔⛔ MY STATED RATIONALE WAS FALSE FIVE TIMES ACROSS TWO SESSIONS, AND THE BUILDER CAUGHT TWO OF
 THEM.** This is the single most important line on this page.
