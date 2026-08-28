@@ -19,6 +19,13 @@ The only trace was a comment INSIDE the gate that would have caught it, saying *
 gate into that hole"*. Fixed. **A comment telling a gate not to look is an unowned deferral, and
 that is FM 23 for the third time this session.**
 
+**AND 27 ROWS ARE ACCEPTED INLINE, COMPILE, FIRE, AND MATCH NOTHING.** Any row returning a value
+must be wrapped to sit where a constraint goes, and every such clause is unsatisfiable with NO
+diagnostic. Not refused — a refusal teaches. This is the silent-wrong-answer class, and a
+differential cannot see it because both engines agree on the empty answer. All 55 `Alias`+`Fallback`
+rows are measured: 16 fire inline, 9 are refused inline, 27 match nothing inline, and **all 52
+measurable rows fire in a `where` fence**.
+
 **AND THE KEYWORD ASYMMETRY IS A THIRD OF THE SURFACE, not one op.** 9 of 25 measured rows are
 refused as an inline constraint while firing in a fence: every unary op, every `Type/method`
 spelling, both keyword rows. Arc 109's NOTE frames it as one type-name defect; that framing is too

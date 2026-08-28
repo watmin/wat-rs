@@ -1119,6 +1119,32 @@ four I had deliberately targeted. A true statement about one subject, read as
 reassurance about another. The structural check above takes one line and would have
 caught all five.
 
+
+**⛔ THIRD INCIDENT, 2026-08-28 — THE BLANKET EDIT DELETED A TEST, AND THE FLOOR WENT GREEN.**
+Converting a large test fn into a shard helper ran `body.replace("#[test]\n", "")` over a slice of
+the file. Python's `str.replace` has no count by default, so it stripped the attribute from EVERY
+test in that slice — including a sibling test that was never being edited. That test silently
+stopped existing. `scripts/floor.sh` passed at 5136/5136, because **a test that does not exist
+cannot fail**, and the count is not pinned to anything.
+
+**What caught it was `cargo clippy --all-targets -- -D warnings`**, as `dead_code`: the fn was no
+longer called by anything, and neither was the enum only it used. The floor structurally cannot
+see this class; clippy structurally can. **So the two gates are not redundant and neither
+substitutes for the other** — a green floor plus a red clippy is a real state, and it happened
+here. Run both, read both exit codes separately (FM 26 — I put them in one command this time and
+nearly read only the floor's).
+
+**The confirming number, and take it every time:** after restoring the attribute the floor read
+5137. That **+1 IS the proof** the test had been absent — the test-count delta is the cheap
+integrity check that "green" never provides. If a refactor is not supposed to change the number of
+tests, the number is a thing to look at.
+
+**Reality check, in addition to the string-literal one above:** when a scripted edit rewrites a
+region, bound it AND count what it changed. `replace(old, new, 1)` when you mean one site;
+`assert` the occurrence count first when you mean all of them. Silent multiplicity is the whole
+failure — in incident (2) it added text where it should not have, and here it removed text where
+it should not have. Same root, opposite direction.
+
 ### Failure mode 24 — Per-component proofs that never cross a SEAM
 
 **Signature:** every piece has a test, every test is green, every test was mutation-proven — and
