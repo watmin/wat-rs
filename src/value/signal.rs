@@ -193,6 +193,17 @@ pub enum RuntimeErrorKind {
     UnboundSymbol(String),
     #[to_edn(key = "path")]
     UnknownFunction(String),
+    /// Arc 255 Stone O-iv-a — registered in the intrinsic registry (name, arity, doc,
+    /// examples all present; it works when called directly), but with no value-level
+    /// door: it is a BINDING handler that takes `&[WatAST]`/`env`/`sym` and evaluates
+    /// its own arguments, and `:wat::core::apply` has already evaluated its arguments
+    /// into `&[Value]` — there is no AST left to hand it. PERMANENT, not transitional:
+    /// no amount of sweeping the BINDING population (Stones O-iv-b/c/d) empties this,
+    /// because a handler that needs `env`/`sym` can never be splatted. Deliberately its
+    /// own variant rather than a reuse of `MalformedForm` (the call is well-formed) or
+    /// a widened `UnknownFunction` (that tuple variant is pinned narrow — see its own
+    /// comment at the `UnknownFunction` Display arm below; this name plainly IS known).
+    NotValueDispatchable { name: String },
     NotCallable { got: Box<ValueSnapshot> },
     TypeMismatch {
         op: String,
@@ -604,6 +615,15 @@ impl RuntimeErrorKind {
                     ),
                     _ => write!(f, "{}unknown function: {}", prefix, p),
                 }
+            }
+            RuntimeErrorKind::NotValueDispatchable { name } => {
+                write!(
+                    f,
+                    "{}{} is registered but cannot be reached through apply: \
+                     it takes its arguments unevaluated, and apply has already \
+                     evaluated them. Call it directly.",
+                    prefix, name
+                )
             }
             RuntimeErrorKind::NotCallable { got } => {
                 write!(f, "{}not callable: expected Function, got {}", prefix, got)

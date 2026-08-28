@@ -10758,7 +10758,24 @@ fn eval_apply(
         return result;
     }
 
-    // (d) Nothing found — UnknownFunction with the keyword name.
+    // (d) Registered, but with no value-level door. Stone O-iv-a — `apply` used to call
+    // these "unknown function", which is false: the registry holds the name. A BINDING
+    // handler takes `&[WatAST]` and evaluates its own arguments; `apply` has already
+    // evaluated its arguments and holds `&[Value]`, so there is no AST left to hand it.
+    if crate::intrinsic::registry()
+        .lookup_entry(head_kw.as_str())
+        .is_some()
+    {
+        return Err(RuntimeError::new(
+            list_span,
+            RuntimeErrorKind::NotValueDispatchable {
+                name: head_kw.as_str().to_string(),
+            },
+        )
+        .into());
+    }
+
+    // (e) Genuinely not registered anywhere — UnknownFunction, and now it means it.
     Err(RuntimeError::new(
         list_span,
         RuntimeErrorKind::UnknownFunction(head_kw.as_str().to_string()),
@@ -22493,6 +22510,22 @@ fn runtime_error_to_eval_error_value(err: &RuntimeError) -> Value {
         RuntimeErrorKind::NotCallable { got, .. } => {
             ("not-callable", format!("not callable: {}", got))
         }
+        // Arc 255 Stone O-iv-a. This arm is NOT cosmetic: without it the variant falls to the
+        // wildcard below, whose `format!("{}", err)` renders `RuntimeError`'s Display — the full
+        // EDN WIRE FORM, not the prose. So `EvalError/message` would hand a wat program a nested
+        // blob for the one diagnostic this stone exists to make READABLE, while every other error
+        // on the same path returns a sentence. The rider that struck O-iv-a stayed inside its
+        // measured blast radius and reported this rather than widening scope — correctly; the
+        // orchestrator then ruled it part of the deliverable, because a stone about an honest
+        // message that ships an unreadable one has not shipped.
+        RuntimeErrorKind::NotValueDispatchable { name, .. } => (
+            "not-value-dispatchable",
+            format!(
+                "{} is registered but cannot be reached through apply: it takes its arguments \
+                 unevaluated, and apply has already evaluated them. Call it directly.",
+                name
+            ),
+        ),
         // Fallback for variants that don't deserve a dedicated kind.
         _ => ("runtime-error", format!("{}", err)),
     };
