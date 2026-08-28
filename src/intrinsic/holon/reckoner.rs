@@ -19,6 +19,12 @@
 //! None of these eight are among the four rete-classified holon verbs
 //! (`src/rete/purity.rs:647`) — STOP-7 forbids adding to that builder-ruled
 //! set, and this carve does not.
+//!
+//! arc 255 Stone H-1a — each handler declares its real fixed arity
+//! (`&WatAST` per parameter) instead of `args: &[WatAST]`; the
+//! hand-rolled arity checks are gone, replaced by the check
+//! `#[wat_intrinsic]` now generates from the declared parameter count. See
+//! `docs/arc/2026/06/255-builtin-registry/DESIGN-STONE-H-holon-adopts-the-kernels-interface.md`.
 
 use std::sync::Arc;
 
@@ -39,33 +45,28 @@ use holon::HolonAST;
 /// @Purity        Effectful
 /// @Determinism   Deterministic
 /// @Category      Resource
-/// @arg     args… :wat::core::Value the reckoner's name, vector dim, recalibration window, and label HolonASTs, in order
+/// @arg     name :wat::core::String the reckoner's name
+/// @arg     dims :wat::core::i64 the raw vector dimension
+/// @arg     recalib :wat::core::i64 the recalibration window
+/// @arg     labels (:wat::core::Vector :- [:wat::holon::HolonAST]) the label HolonASTs
 /// @ret     :wat::holon::Reckoner a fresh, untrained discrete reckoner
 /// @example-norun (:wat::holon::Reckoner/new-discrete "direction" 4096 100 labels) #=> #wat.holon/Reckoner{}
 #[wat_intrinsic(":wat::holon::Reckoner/new-discrete")]
 pub(crate) fn eval_reckoner_new_discrete(
-    args: &[WatAST],
+    name: &WatAST,
+    dims: &WatAST,
+    recalib: &WatAST,
+    labels: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
-    list_span: &Span,
+    _span: &Span, // rune:lint(unused-span) — located elsewhere: every error (TypeMismatch) locates at its own arg's span (`name`'s or `labels`'s)
 ) -> Result<Value, EvalBreak> {
-    if args.len() != 4 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::Reckoner/new-discrete".into(),
-                expected: 4,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let name_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let name_val = eval_inner(name, env, sym)?.value_owned();
     let name = match name_val {
         Value::String(s) => (*s).clone(),
         other => {
             return Err(RuntimeError::new(
-                args[0].span().clone(),
+                name.span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: ":wat::holon::Reckoner/new-discrete".into(),
                     expected: "String",
@@ -77,13 +78,13 @@ pub(crate) fn eval_reckoner_new_discrete(
     };
     let dims = require_i64(
         ":wat::holon::Reckoner/new-discrete",
-        eval_inner(&args[1], env, sym)?.value_owned(),
+        eval_inner(dims, env, sym)?.value_owned(),
     )?;
     let recalib = require_i64(
         ":wat::holon::Reckoner/new-discrete",
-        eval_inner(&args[2], env, sym)?.value_owned(),
+        eval_inner(recalib, env, sym)?.value_owned(),
     )?;
-    let labels_val = eval_inner(&args[3], env, sym)?.value_owned();
+    let labels_val = eval_inner(labels, env, sym)?.value_owned();
     let label_asts: Vec<HolonAST> = match labels_val {
         Value::Vec(items) => {
             let mut out = Vec::with_capacity(items.len());
@@ -95,7 +96,7 @@ pub(crate) fn eval_reckoner_new_discrete(
         }
         other => {
             return Err(RuntimeError::new(
-                args[3].span().clone(),
+                labels.span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: ":wat::holon::Reckoner/new-discrete".into(),
                     expected: "Vec of HolonAST",
@@ -125,33 +126,35 @@ pub(crate) fn eval_reckoner_new_discrete(
 /// @Purity        Effectful
 /// @Determinism   Deterministic
 /// @Category      Resource
-/// @arg     args… :wat::core::Value the reckoner's name, vector dim, recalibration window, default value, and bucket count, in order
+/// @arg     name :wat::core::String the reckoner's name
+/// @arg     dims :wat::core::i64 the raw vector dimension
+/// @arg     recalib :wat::core::i64 the recalibration window
+/// @arg     default_value :wat::core::f64 the default scale value
+/// @arg     buckets :wat::core::i64 the bucket count
 /// @ret     :wat::holon::Reckoner a fresh, untrained continuous reckoner
 /// @example-norun (:wat::holon::Reckoner/new-continuous "level" 4096 100 0.0 16) #=> #wat.holon/Reckoner{}
 #[wat_intrinsic(":wat::holon::Reckoner/new-continuous")]
+// arc 255 Stone H-1a — five real wat args + the env/sym/span tail is 8, one over clippy's 7.
+// The arity is the VERB's, not a design choice here: collapsing it back to `args: &[WatAST]`
+// is what this stone exists to undo. `expect` rather than `allow` so it goes red if the
+// signature ever shrinks under the limit — an exemption that self-audits.
+#[expect(clippy::too_many_arguments, reason = "declared arity of a 5-arg verb + the env/sym/span tail")]
 pub(crate) fn eval_reckoner_new_continuous(
-    args: &[WatAST],
+    name: &WatAST,
+    dims: &WatAST,
+    recalib: &WatAST,
+    default_value: &WatAST,
+    buckets: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    if args.len() != 5 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::Reckoner/new-continuous".into(),
-                expected: 5,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let name_val = eval_inner(&args[0], env, sym)?.value_owned();
+    let name_val = eval_inner(name, env, sym)?.value_owned();
     let name = match name_val {
         Value::String(s) => (*s).clone(),
         other => {
             return Err(RuntimeError::new(
-                args[0].span().clone(),
+                name.span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: ":wat::holon::Reckoner/new-continuous".into(),
                     expected: "String",
@@ -163,20 +166,20 @@ pub(crate) fn eval_reckoner_new_continuous(
     };
     let dims = require_i64(
         ":wat::holon::Reckoner/new-continuous",
-        eval_inner(&args[1], env, sym)?.value_owned(),
+        eval_inner(dims, env, sym)?.value_owned(),
     )?;
     let recalib = require_i64(
         ":wat::holon::Reckoner/new-continuous",
-        eval_inner(&args[2], env, sym)?.value_owned(),
+        eval_inner(recalib, env, sym)?.value_owned(),
     )?;
     let default_value = require_numeric(
         ":wat::holon::Reckoner/new-continuous",
-        eval_inner(&args[3], env, sym)?.value_owned(),
+        eval_inner(default_value, env, sym)?.value_owned(),
         list_span,
     )?;
     let buckets = require_i64(
         ":wat::holon::Reckoner/new-continuous",
-        eval_inner(&args[4], env, sym)?.value_owned(),
+        eval_inner(buckets, env, sym)?.value_owned(),
     )?;
     let r = holon::Reckoner::new(
         &name,
@@ -201,43 +204,38 @@ pub(crate) fn eval_reckoner_new_continuous(
 /// @Purity        Effectful
 /// @Determinism   Deterministic
 /// @Category      Resource
-/// @arg     args… :wat::core::Value the reckoner, the observed vector, the label index, and the weight, in order
+/// @arg     r :wat::holon::Reckoner the reckoner mutated
+/// @arg     v :wat::holon::Vector the observed vector
+/// @arg     label_idx :wat::core::i64 the label index observed toward
+/// @arg     weight :wat::core::f64 the observation's weight
 /// @ret     :wat::core::nil always `Unit`
 /// @example-norun (:wat::holon::Reckoner/observe r v 0 1.0) #=> nil
 #[wat_intrinsic(":wat::holon::Reckoner/observe")]
 pub(crate) fn eval_reckoner_observe(
-    args: &[WatAST],
+    r: &WatAST,
+    v: &WatAST,
+    label_idx: &WatAST,
+    weight: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    if args.len() != 4 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::Reckoner/observe".into(),
-                expected: 4,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
     let r = require_reckoner(
         ":wat::holon::Reckoner/observe",
-        eval_inner(&args[0], env, sym)?.value_owned(),
+        eval_inner(r, env, sym)?.value_owned(),
         list_span,
     )?;
     let v = require_vector(
         ":wat::holon::Reckoner/observe",
-        eval_inner(&args[1], env, sym)?.value_owned(),
+        eval_inner(v, env, sym)?.value_owned(),
     )?;
     let label_idx = require_i64(
         ":wat::holon::Reckoner/observe",
-        eval_inner(&args[2], env, sym)?.value_owned(),
+        eval_inner(label_idx, env, sym)?.value_owned(),
     )?;
     let weight = require_numeric(
         ":wat::holon::Reckoner/observe",
-        eval_inner(&args[3], env, sym)?.value_owned(),
+        eval_inner(weight, env, sym)?.value_owned(),
         list_span,
     )?;
     r.with_mut(":wat::holon::Reckoner/observe", list_span.clone(), |r| {
@@ -256,35 +254,26 @@ pub(crate) fn eval_reckoner_observe(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Resource
-/// @arg     args… :wat::core::Value the reckoner and the vector to score, in order
+/// @arg     r :wat::holon::Reckoner the reckoner probed
+/// @arg     v :wat::holon::Vector the vector to score
 /// @ret     (:wat::core::Tuple :- [(:wat::core::Vector :- [(:wat::core::Tuple :- [:wat::core::i64 :wat::core::f64])]) (:wat::core::Option :- [:wat::core::i64]) :wat::core::f64 :wat::core::f64]) `(scores, direction, conviction, raw-cos)`
 /// @example (:wat::holon::Reckoner/predict (:wat::holon::Reckoner/new-discrete "direction" 10000 100 (:wat::core::Vector :wat::holon::HolonAST (:wat::holon::leaf "up") (:wat::holon::leaf "down"))) (:wat::holon::encode (:wat::holon::leaf "role"))) #=> (:wat::holon::Reckoner/predict (:wat::holon::Reckoner/new-discrete "direction" 10000 100 (:wat::core::Vector :wat::holon::HolonAST (:wat::holon::leaf "up") (:wat::holon::leaf "down"))) (:wat::holon::encode (:wat::holon::leaf "role")))
 #[wat_intrinsic(":wat::holon::Reckoner/predict")]
 pub(crate) fn eval_reckoner_predict(
-    args: &[WatAST],
+    r: &WatAST,
+    v: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::Reckoner/predict".into(),
-                expected: 2,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
     let r = require_reckoner(
         ":wat::holon::Reckoner/predict",
-        eval_inner(&args[0], env, sym)?.value_owned(),
+        eval_inner(r, env, sym)?.value_owned(),
         list_span,
     )?;
     let v = require_vector(
         ":wat::holon::Reckoner/predict",
-        eval_inner(&args[1], env, sym)?.value_owned(),
+        eval_inner(v, env, sym)?.value_owned(),
     )?;
     let pred = r.with_ref(":wat::holon::Reckoner/predict", |r| r.predict(&v))?;
     // Pack scores as Vec<(i64, f64)> tuples.
@@ -322,43 +311,36 @@ pub(crate) fn eval_reckoner_predict(
 /// @Purity        Effectful
 /// @Determinism   Deterministic
 /// @Category      Resource
-/// @arg     args… :wat::core::Value the reckoner, the prediction's conviction, and whether it was correct, in order
+/// @arg     r :wat::holon::Reckoner the reckoner mutated
+/// @arg     conviction :wat::core::f64 the prediction's conviction
+/// @arg     correct :wat::core::bool whether the prediction was correct
 /// @ret     :wat::core::nil always `Unit`
 /// @example-norun (:wat::holon::Reckoner/resolve r 0.8 true) #=> nil
 #[wat_intrinsic(":wat::holon::Reckoner/resolve")]
 pub(crate) fn eval_reckoner_resolve(
-    args: &[WatAST],
+    r: &WatAST,
+    conviction: &WatAST,
+    correct: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    if args.len() != 3 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::Reckoner/resolve".into(),
-                expected: 3,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
     let r = require_reckoner(
         ":wat::holon::Reckoner/resolve",
-        eval_inner(&args[0], env, sym)?.value_owned(),
+        eval_inner(r, env, sym)?.value_owned(),
         list_span,
     )?;
     let conviction = require_numeric(
         ":wat::holon::Reckoner/resolve",
-        eval_inner(&args[1], env, sym)?.value_owned(),
+        eval_inner(conviction, env, sym)?.value_owned(),
         list_span,
     )?;
-    let correct_val = eval_inner(&args[2], env, sym)?.value_owned();
+    let correct_val = eval_inner(correct, env, sym)?.value_owned();
     let correct = match correct_val {
         Value::bool(b) => b,
         other => {
             return Err(RuntimeError::new(
-                args[2].span().clone(),
+                correct.span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: ":wat::holon::Reckoner/resolve".into(),
                     expected: "bool",
@@ -384,30 +366,19 @@ pub(crate) fn eval_reckoner_resolve(
 /// @Purity        Effectful
 /// @Determinism   Deterministic
 /// @Category      Resource
-/// @arg     args… :wat::core::Value the reckoner, alone
+/// @arg     r :wat::holon::Reckoner the reckoner probed
 /// @ret     (:wat::core::Option :- [(:wat::core::Tuple :- [:wat::core::f64 :wat::core::f64])]) the fitted `(slope, intercept)` curve, or `None`
 /// @example-norun (:wat::holon::Reckoner/curve r) #=> (:wat::core::Option (:wat::core::Tuple 1.2 0.1))
 #[wat_intrinsic(":wat::holon::Reckoner/curve")]
 pub(crate) fn eval_reckoner_curve(
-    args: &[WatAST],
+    r: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::Reckoner/curve".into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
     let r = require_reckoner(
         ":wat::holon::Reckoner/curve",
-        eval_inner(&args[0], env, sym)?.value_owned(),
+        eval_inner(r, env, sym)?.value_owned(),
         list_span,
     )?;
     let curve = r.with_mut(":wat::holon::Reckoner/curve", list_span.clone(), |r| {
@@ -430,30 +401,19 @@ pub(crate) fn eval_reckoner_curve(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Resource
-/// @arg     args… :wat::core::Value the reckoner, alone
+/// @arg     r :wat::holon::Reckoner the reckoner probed
 /// @ret     (:wat::core::Vector :- [:wat::core::i64]) the label indices `r` tracks
 /// @example (:wat::holon::Reckoner/labels (:wat::holon::Reckoner/new-discrete "direction" 10000 100 (:wat::core::Vector :wat::holon::HolonAST (:wat::holon::leaf "up") (:wat::holon::leaf "down")))) #=> (:wat::holon::Reckoner/labels (:wat::holon::Reckoner/new-discrete "direction" 10000 100 (:wat::core::Vector :wat::holon::HolonAST (:wat::holon::leaf "up") (:wat::holon::leaf "down"))))
 #[wat_intrinsic(":wat::holon::Reckoner/labels")]
 pub(crate) fn eval_reckoner_labels(
-    args: &[WatAST],
+    r: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::Reckoner/labels".into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
     let r = require_reckoner(
         ":wat::holon::Reckoner/labels",
-        eval_inner(&args[0], env, sym)?.value_owned(),
+        eval_inner(r, env, sym)?.value_owned(),
         list_span,
     )?;
     let labels = r.with_ref(":wat::holon::Reckoner/labels", |r| r.labels())?;
@@ -472,34 +432,22 @@ pub(crate) fn eval_reckoner_labels(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Resource
-/// @arg     args… :wat::core::Value the reckoner, alone
+/// @arg     r :wat::holon::Reckoner the reckoner probed
 /// @ret     :wat::core::i64 the raw vector dimension
 /// @example (:wat::holon::Reckoner/dims (:wat::holon::Reckoner/new-discrete "direction" 10000 100 (:wat::core::Vector :wat::holon::HolonAST (:wat::holon::leaf "up") (:wat::holon::leaf "down")))) #=> (:wat::holon::Reckoner/dims (:wat::holon::Reckoner/new-discrete "direction" 10000 100 (:wat::core::Vector :wat::holon::HolonAST (:wat::holon::leaf "up") (:wat::holon::leaf "down"))))
 #[wat_intrinsic(":wat::holon::Reckoner/dims")]
 pub(crate) fn eval_reckoner_dims(
-    args: &[WatAST],
+    r: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::Reckoner/dims".into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
     let r = require_reckoner(
         ":wat::holon::Reckoner/dims",
-        eval_inner(&args[0], env, sym)?.value_owned(),
+        eval_inner(r, env, sym)?.value_owned(),
         list_span,
     )?;
     let n = r.with_ref(":wat::holon::Reckoner/dims", |r| r.dims())?;
     Ok(Value::i64(n as i64))
 }
-
 

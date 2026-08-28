@@ -15,6 +15,12 @@
 //! None of these ten are among the four rete-classified holon verbs
 //! (`src/rete/purity.rs:647`) — STOP-7 forbids adding to that builder-ruled
 //! set, and this carve does not.
+//!
+//! arc 255 Stone H-1a — each handler declares its real fixed arity
+//! (`&WatAST` per parameter) instead of `args: &[WatAST]`; the
+//! hand-rolled arity checks are gone, replaced by the check
+//! `#[wat_intrinsic]` now generates from the declared parameter count. See
+//! `docs/arc/2026/06/255-builtin-registry/DESIGN-STONE-H-holon-adopts-the-kernels-interface.md`.
 
 use std::sync::Arc;
 
@@ -24,7 +30,7 @@ use crate::ast::WatAST;
 use crate::holon::*;
 use crate::runtime::{eval_inner, require_i64};
 use crate::span::Span;
-use crate::value::{Environment, EvalBreak, RuntimeError, RuntimeErrorKind, SymbolTable, Value};
+use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 
 /// `(:wat::holon::OnlineSubspace/new dim k)` -> a fresh `OnlineSubspace`
 /// tracking a rank-`k` basis over `dim`-dimensional raw vectors.
@@ -33,34 +39,25 @@ use crate::value::{Environment, EvalBreak, RuntimeError, RuntimeErrorKind, Symbo
 /// @Purity        Effectful
 /// @Determinism   Deterministic
 /// @Category      Resource
-/// @arg     args… :wat::core::Value the ambient vector dimension and the tracked rank, in order
+/// @arg     dim :wat::core::i64 the ambient vector dimension
+/// @arg     k :wat::core::i64 the tracked rank
 /// @ret     :wat::holon::OnlineSubspace a fresh, untrained subspace tracker
 /// @example-norun (:wat::holon::OnlineSubspace/new 4096 8) #=> #wat.holon/OnlineSubspace{}
 #[wat_intrinsic(":wat::holon::OnlineSubspace/new")]
 pub(crate) fn eval_subspace_new(
-    args: &[WatAST],
+    dim: &WatAST,
+    k: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
-    list_span: &Span,
+    _span: &Span, // rune:lint(unused-span) — located elsewhere: the only errors (TypeMismatch, from `require_i64`) locate via `rust_caller_span!()` inside that helper, not here
 ) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::OnlineSubspace/new".into(),
-                expected: 2,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
     let dim = require_i64(
         ":wat::holon::OnlineSubspace/new",
-        eval_inner(&args[0], env, sym)?.value_owned(),
+        eval_inner(dim, env, sym)?.value_owned(),
     )?;
     let k = require_i64(
         ":wat::holon::OnlineSubspace/new",
-        eval_inner(&args[1], env, sym)?.value_owned(),
+        eval_inner(k, env, sym)?.value_owned(),
     )?;
     let s = holon::OnlineSubspace::new(dim as usize, k as usize);
     Ok(Value::OnlineSubspace(Arc::new(
@@ -76,30 +73,19 @@ pub(crate) fn eval_subspace_new(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Resource
-/// @arg     args… :wat::core::Value the subspace, alone
+/// @arg     s :wat::holon::OnlineSubspace the subspace probed
 /// @ret     :wat::core::i64 the raw vector dimension
 /// @example (:wat::holon::OnlineSubspace/dim (:wat::holon::OnlineSubspace/new 10000 8)) #=> (:wat::holon::OnlineSubspace/dim (:wat::holon::OnlineSubspace/new 10000 8))
 #[wat_intrinsic(":wat::holon::OnlineSubspace/dim")]
 pub(crate) fn eval_subspace_dim(
-    args: &[WatAST],
+    s: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::OnlineSubspace/dim".into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
     let s = require_subspace(
         ":wat::holon::OnlineSubspace/dim",
-        eval_inner(&args[0], env, sym)?.value_owned(),
+        eval_inner(s, env, sym)?.value_owned(),
         list_span,
     )?;
     let n = s.with_ref(":wat::holon::OnlineSubspace/dim", |s| s.dim())?;
@@ -114,30 +100,19 @@ pub(crate) fn eval_subspace_dim(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Resource
-/// @arg     args… :wat::core::Value the subspace, alone
+/// @arg     s :wat::holon::OnlineSubspace the subspace probed
 /// @ret     :wat::core::i64 the tracked rank
 /// @example (:wat::holon::OnlineSubspace/k (:wat::holon::OnlineSubspace/new 10000 8)) #=> (:wat::holon::OnlineSubspace/k (:wat::holon::OnlineSubspace/new 10000 8))
 #[wat_intrinsic(":wat::holon::OnlineSubspace/k")]
 pub(crate) fn eval_subspace_k(
-    args: &[WatAST],
+    s: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::OnlineSubspace/k".into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
     let s = require_subspace(
         ":wat::holon::OnlineSubspace/k",
-        eval_inner(&args[0], env, sym)?.value_owned(),
+        eval_inner(s, env, sym)?.value_owned(),
         list_span,
     )?;
     let n = s.with_ref(":wat::holon::OnlineSubspace/k", |s| s.k())?;
@@ -152,30 +127,19 @@ pub(crate) fn eval_subspace_k(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Resource
-/// @arg     args… :wat::core::Value the subspace, alone
+/// @arg     s :wat::holon::OnlineSubspace the subspace probed
 /// @ret     :wat::core::i64 the number of observations absorbed so far
 /// @example (:wat::holon::OnlineSubspace/n (:wat::holon::OnlineSubspace/new 10000 8)) #=> (:wat::holon::OnlineSubspace/n (:wat::holon::OnlineSubspace/new 10000 8))
 #[wat_intrinsic(":wat::holon::OnlineSubspace/n")]
 pub(crate) fn eval_subspace_n(
-    args: &[WatAST],
+    s: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::OnlineSubspace/n".into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
     let s = require_subspace(
         ":wat::holon::OnlineSubspace/n",
-        eval_inner(&args[0], env, sym)?.value_owned(),
+        eval_inner(s, env, sym)?.value_owned(),
         list_span,
     )?;
     let n = s.with_ref(":wat::holon::OnlineSubspace/n", |s| s.n())?;
@@ -190,30 +154,19 @@ pub(crate) fn eval_subspace_n(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Resource
-/// @arg     args… :wat::core::Value the subspace, alone
+/// @arg     s :wat::holon::OnlineSubspace the subspace probed
 /// @ret     :wat::core::f64 the current residual threshold
 /// @example (:wat::holon::OnlineSubspace/threshold (:wat::holon::OnlineSubspace/new 10000 8)) #=> (:wat::holon::OnlineSubspace/threshold (:wat::holon::OnlineSubspace/new 10000 8))
 #[wat_intrinsic(":wat::holon::OnlineSubspace/threshold")]
 pub(crate) fn eval_subspace_threshold(
-    args: &[WatAST],
+    s: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::OnlineSubspace/threshold".into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
     let s = require_subspace(
         ":wat::holon::OnlineSubspace/threshold",
-        eval_inner(&args[0], env, sym)?.value_owned(),
+        eval_inner(s, env, sym)?.value_owned(),
         list_span,
     )?;
     let t = s.with_ref(":wat::holon::OnlineSubspace/threshold", |s| s.threshold())?;
@@ -228,30 +181,19 @@ pub(crate) fn eval_subspace_threshold(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Resource
-/// @arg     args… :wat::core::Value the subspace, alone
+/// @arg     s :wat::holon::OnlineSubspace the subspace probed
 /// @ret     (:wat::core::Vector :- [:wat::core::f64]) the tracked basis's current eigenvalues
 /// @example (:wat::holon::OnlineSubspace/eigenvalues (:wat::holon::OnlineSubspace/new 10000 8)) #=> (:wat::holon::OnlineSubspace/eigenvalues (:wat::holon::OnlineSubspace/new 10000 8))
 #[wat_intrinsic(":wat::holon::OnlineSubspace/eigenvalues")]
 pub(crate) fn eval_subspace_eigenvalues(
-    args: &[WatAST],
+    s: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::OnlineSubspace/eigenvalues".into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
     let s = require_subspace(
         ":wat::holon::OnlineSubspace/eigenvalues",
-        eval_inner(&args[0], env, sym)?.value_owned(),
+        eval_inner(s, env, sym)?.value_owned(),
         list_span,
     )?;
     let xs = s.with_ref(":wat::holon::OnlineSubspace/eigenvalues", |s| {
@@ -269,35 +211,26 @@ pub(crate) fn eval_subspace_eigenvalues(
 /// @Purity        Effectful
 /// @Determinism   Deterministic
 /// @Category      Resource
-/// @arg     args… :wat::core::Value the subspace and the raw `f64` vector observed, in order
+/// @arg     s :wat::holon::OnlineSubspace the subspace mutated
+/// @arg     v :wat::holon::Vector the raw `f64` vector observed
 /// @ret     :wat::core::f64 `v`'s pre-update residual
 /// @example-norun (:wat::holon::OnlineSubspace/update s v) #=> 0.31
 #[wat_intrinsic(":wat::holon::OnlineSubspace/update")]
 pub(crate) fn eval_subspace_update(
-    args: &[WatAST],
+    s: &WatAST,
+    v: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::OnlineSubspace/update".into(),
-                expected: 2,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
     let s = require_subspace(
         ":wat::holon::OnlineSubspace/update",
-        eval_inner(&args[0], env, sym)?.value_owned(),
+        eval_inner(s, env, sym)?.value_owned(),
         list_span,
     )?;
     let v = require_vector(
         ":wat::holon::OnlineSubspace/update",
-        eval_inner(&args[1], env, sym)?.value_owned(),
+        eval_inner(v, env, sym)?.value_owned(),
     )?;
     let xs = v.to_f64();
     let residual = s.with_mut(
@@ -317,35 +250,26 @@ pub(crate) fn eval_subspace_update(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Resource
-/// @arg     args… :wat::core::Value the subspace and the raw `f64` vector scored, in order
+/// @arg     s :wat::holon::OnlineSubspace the subspace probed
+/// @arg     v :wat::holon::Vector the raw `f64` vector scored
 /// @ret     :wat::core::f64 `v`'s residual against `s`'s current basis
 /// @example (:wat::holon::OnlineSubspace/residual (:wat::holon::OnlineSubspace/new 10000 8) (:wat::holon::encode (:wat::holon::leaf "role"))) #=> (:wat::holon::OnlineSubspace/residual (:wat::holon::OnlineSubspace/new 10000 8) (:wat::holon::encode (:wat::holon::leaf "role")))
 #[wat_intrinsic(":wat::holon::OnlineSubspace/residual")]
 pub(crate) fn eval_subspace_residual(
-    args: &[WatAST],
+    s: &WatAST,
+    v: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::OnlineSubspace/residual".into(),
-                expected: 2,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
     let s = require_subspace(
         ":wat::holon::OnlineSubspace/residual",
-        eval_inner(&args[0], env, sym)?.value_owned(),
+        eval_inner(s, env, sym)?.value_owned(),
         list_span,
     )?;
     let v = require_vector(
         ":wat::holon::OnlineSubspace/residual",
-        eval_inner(&args[1], env, sym)?.value_owned(),
+        eval_inner(v, env, sym)?.value_owned(),
     )?;
     let xs = v.to_f64();
     let r = s.with_ref(":wat::holon::OnlineSubspace/residual", |s| s.residual(&xs))?;
@@ -360,35 +284,26 @@ pub(crate) fn eval_subspace_residual(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Resource
-/// @arg     args… :wat::core::Value the subspace and the raw `f64` vector projected, in order
+/// @arg     s :wat::holon::OnlineSubspace the subspace probed
+/// @arg     v :wat::holon::Vector the raw `f64` vector projected
 /// @ret     (:wat::core::Vector :- [:wat::core::f64]) `v`'s coordinates in the rank-`k` basis
 /// @example (:wat::holon::OnlineSubspace/project (:wat::holon::OnlineSubspace/new 10000 8) (:wat::holon::encode (:wat::holon::leaf "role"))) #=> (:wat::holon::OnlineSubspace/project (:wat::holon::OnlineSubspace/new 10000 8) (:wat::holon::encode (:wat::holon::leaf "role")))
 #[wat_intrinsic(":wat::holon::OnlineSubspace/project")]
 pub(crate) fn eval_subspace_project(
-    args: &[WatAST],
+    s: &WatAST,
+    v: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::OnlineSubspace/project".into(),
-                expected: 2,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
     let s = require_subspace(
         ":wat::holon::OnlineSubspace/project",
-        eval_inner(&args[0], env, sym)?.value_owned(),
+        eval_inner(s, env, sym)?.value_owned(),
         list_span,
     )?;
     let v = require_vector(
         ":wat::holon::OnlineSubspace/project",
-        eval_inner(&args[1], env, sym)?.value_owned(),
+        eval_inner(v, env, sym)?.value_owned(),
     )?;
     let xs = v.to_f64();
     let projected = s.with_ref(":wat::holon::OnlineSubspace/project", |s| s.project(&xs))?;
@@ -404,35 +319,26 @@ pub(crate) fn eval_subspace_project(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Resource
-/// @arg     args… :wat::core::Value the subspace and the raw `f64` vector reconstructed, in order
+/// @arg     s :wat::holon::OnlineSubspace the subspace probed
+/// @arg     v :wat::holon::Vector the raw `f64` vector reconstructed
 /// @ret     (:wat::core::Vector :- [:wat::core::f64]) `v` projected onto the basis and back
 /// @example (:wat::holon::OnlineSubspace/reconstruct (:wat::holon::OnlineSubspace/new 10000 8) (:wat::holon::encode (:wat::holon::leaf "role"))) #=> (:wat::holon::OnlineSubspace/reconstruct (:wat::holon::OnlineSubspace/new 10000 8) (:wat::holon::encode (:wat::holon::leaf "role")))
 #[wat_intrinsic(":wat::holon::OnlineSubspace/reconstruct")]
 pub(crate) fn eval_subspace_reconstruct(
-    args: &[WatAST],
+    s: &WatAST,
+    v: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
-    if args.len() != 2 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: ":wat::holon::OnlineSubspace/reconstruct".into(),
-                expected: 2,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
     let s = require_subspace(
         ":wat::holon::OnlineSubspace/reconstruct",
-        eval_inner(&args[0], env, sym)?.value_owned(),
+        eval_inner(s, env, sym)?.value_owned(),
         list_span,
     )?;
     let v = require_vector(
         ":wat::holon::OnlineSubspace/reconstruct",
-        eval_inner(&args[1], env, sym)?.value_owned(),
+        eval_inner(v, env, sym)?.value_owned(),
     )?;
     let xs = v.to_f64();
     let r = s.with_ref(":wat::holon::OnlineSubspace/reconstruct", |s| {
@@ -440,5 +346,4 @@ pub(crate) fn eval_subspace_reconstruct(
     })?;
     Ok(vec_f64_to_value(r))
 }
-
 

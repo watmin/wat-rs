@@ -24,6 +24,12 @@
 //! None of these four are among the four rete-classified holon verbs
 //! (`src/rete/purity.rs:647`) — STOP-7 forbids adding to that builder-ruled
 //! set, and this carve does not.
+//!
+//! arc 255 Stone H-1a — each handler declares its real fixed arity
+//! (`&WatAST` per parameter) instead of `args: &[WatAST]`; the
+//! hand-rolled arity checks are gone, replaced by the check
+//! `#[wat_intrinsic]` now generates from the declared parameter count. See
+//! `docs/arc/2026/06/255-builtin-registry/DESIGN-STONE-H-holon-adopts-the-kernels-interface.md`.
 
 use std::sync::Arc;
 
@@ -42,29 +48,18 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value, ValueSnapshot, Ru
 /// @Purity        Effectful
 /// @Determinism   Deterministic
 /// @Category      Resource
-/// @arg     args… :wat::core::Value the constructor argument: a therm-routing filter function
+/// @arg     filter [:wat::core::f64 :-> :wat::core::bool] a therm-routing filter function
 /// @ret     :wat::holon::Hologram a fresh, empty coordinate-cell store
 /// @example-norun (:wat::holon::Hologram/make (fn (x) true)) #=> #wat.holon/Hologram{}
 #[wat_intrinsic(":wat::holon::Hologram/make")]
 pub(crate) fn eval_hologram_make(
-    args: &[WatAST],
+    filter: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::Hologram/make";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let filter = require_fn(OP, eval_inner(&args[0], env, sym)?.value_owned())?;
+    let filter = require_fn(OP, eval_inner(filter, env, sym)?.value_owned())?;
     let ctx = require_encoding_ctx(OP, sym, list_span)?;
     let h = crate::holon::hologram::Hologram::make(ctx.dim_count, filter);
     Ok(Value::Hologram(Arc::new(
@@ -80,34 +75,27 @@ pub(crate) fn eval_hologram_make(
 /// @Purity        Effectful
 /// @Determinism   Deterministic
 /// @Category      Resource
-/// @arg     args… :wat::core::Value the store, the key HolonAST, and the value HolonAST, in order
+/// @arg     store :wat::holon::Hologram the store mutated
+/// @arg     key :wat::holon::HolonAST the key HolonAST
+/// @arg     val :wat::holon::HolonAST the value HolonAST
 /// @ret     :wat::core::nil always `Unit`
 /// @example-norun (:wat::holon::Hologram/put store key val) #=> nil
 #[wat_intrinsic(":wat::holon::Hologram/put")]
 pub(crate) fn eval_hologram_put(
-    args: &[WatAST],
+    store: &WatAST,
+    key: &WatAST,
+    val: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::Hologram/put";
-    if args.len() != 3 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 3,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let store = require_hologram(OP, eval_inner(&args[0], env, sym)?.value_owned())?;
-    let key = match eval_inner(&args[1], env, sym)?.value_owned() {
+    let store = require_hologram(OP, eval_inner(store, env, sym)?.value_owned())?;
+    let key = match eval_inner(key, env, sym)?.value_owned() {
         Value::holon__HolonAST(h) => (*h).clone(),
         other => {
             return Err(RuntimeError::new(
-                args[1].span().clone(),
+                key.span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "wat::holon::HolonAST",
@@ -117,11 +105,11 @@ pub(crate) fn eval_hologram_put(
             .into());
         }
     };
-    let val = match eval_inner(&args[2], env, sym)?.value_owned() {
+    let val = match eval_inner(val, env, sym)?.value_owned() {
         Value::holon__HolonAST(h) => (*h).clone(),
         other => {
             return Err(RuntimeError::new(
-                args[2].span().clone(),
+                val.span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "wat::holon::HolonAST",
@@ -144,34 +132,25 @@ pub(crate) fn eval_hologram_put(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Resource
-/// @arg     args… :wat::core::Value the store and the probe HolonAST key, in order
+/// @arg     store :wat::holon::Hologram the store probed
+/// @arg     probe :wat::holon::HolonAST the probe key
 /// @ret     (:wat::core::Option :- [:wat::holon::HolonAST]) the matched value, or `None`
 /// @example (:wat::holon::Hologram/get (:wat::holon::Hologram/make (:wat::core::fn [_x <- :wat::core::f64] -> :wat::core::bool true)) (:wat::holon::leaf "role")) #=> (:wat::holon::Hologram/get (:wat::holon::Hologram/make (:wat::core::fn [_x <- :wat::core::f64] -> :wat::core::bool true)) (:wat::holon::leaf "role"))
 #[wat_intrinsic(":wat::holon::Hologram/get")]
 pub(crate) fn eval_hologram_get(
-    args: &[WatAST],
+    store: &WatAST,
+    probe: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::Hologram/get";
-    if args.len() != 2 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 2,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let store = require_hologram(OP, eval_inner(&args[0], env, sym)?.value_owned())?;
-    let probe = match eval_inner(&args[1], env, sym)?.value_owned() {
+    let store = require_hologram(OP, eval_inner(store, env, sym)?.value_owned())?;
+    let probe = match eval_inner(probe, env, sym)?.value_owned() {
         Value::holon__HolonAST(h) => h,
         other => {
             return Err(RuntimeError::new(
-                args[1].span().clone(),
+                probe.span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "wat::holon::HolonAST",
@@ -201,34 +180,25 @@ pub(crate) fn eval_hologram_get(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Resource
-/// @arg     args… :wat::core::Value the store and the probe HolonAST key, in order
+/// @arg     store :wat::holon::Hologram the store probed
+/// @arg     probe :wat::holon::HolonAST the probe key
 /// @ret     (:wat::core::Option :- [:wat::holon::Match]) the matched (key, value) pair as a `wat::holon::Match`, or `None`
 /// @example (:wat::holon::Hologram/find (:wat::holon::Hologram/make (:wat::core::fn [_x <- :wat::core::f64] -> :wat::core::bool true)) (:wat::holon::leaf "role")) #=> (:wat::holon::Hologram/find (:wat::holon::Hologram/make (:wat::core::fn [_x <- :wat::core::f64] -> :wat::core::bool true)) (:wat::holon::leaf "role"))
 #[wat_intrinsic(":wat::holon::Hologram/find")]
 pub(crate) fn eval_hologram_find(
-    args: &[WatAST],
+    store: &WatAST,
+    probe: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::Hologram/find";
-    if args.len() != 2 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 2,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let store = require_hologram(OP, eval_inner(&args[0], env, sym)?.value_owned())?;
-    let probe = match eval_inner(&args[1], env, sym)?.value_owned() {
+    let store = require_hologram(OP, eval_inner(store, env, sym)?.value_owned())?;
+    let probe = match eval_inner(probe, env, sym)?.value_owned() {
         Value::holon__HolonAST(h) => h,
         other => {
             return Err(RuntimeError::new(
-                args[1].span().clone(),
+                probe.span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "wat::holon::HolonAST",
@@ -265,34 +235,25 @@ pub(crate) fn eval_hologram_find(
 /// @Purity        Effectful
 /// @Determinism   Deterministic
 /// @Category      Resource
-/// @arg     args… :wat::core::Value the store and the key HolonAST to remove, in order
+/// @arg     store :wat::holon::Hologram the store mutated
+/// @arg     key :wat::holon::HolonAST the key to remove
 /// @ret     (:wat::core::Option :- [:wat::holon::HolonAST]) the removed value, or `None` if absent
 /// @example-norun (:wat::holon::Hologram/remove store key) #=> (:wat::core::Option :- [wat::holon::HolonAST])
 #[wat_intrinsic(":wat::holon::Hologram/remove")]
 pub(crate) fn eval_hologram_remove(
-    args: &[WatAST],
+    store: &WatAST,
+    key: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::Hologram/remove";
-    if args.len() != 2 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 2,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let store = require_hologram(OP, eval_inner(&args[0], env, sym)?.value_owned())?;
-    let key = match eval_inner(&args[1], env, sym)?.value_owned() {
+    let store = require_hologram(OP, eval_inner(store, env, sym)?.value_owned())?;
+    let key = match eval_inner(key, env, sym)?.value_owned() {
         Value::holon__HolonAST(h) => (*h).clone(),
         other => {
             return Err(RuntimeError::new(
-                args[1].span().clone(),
+                key.span().clone(),
                 RuntimeErrorKind::TypeMismatch {
                     op: OP.into(),
                     expected: "wat::holon::HolonAST",
@@ -319,29 +280,18 @@ pub(crate) fn eval_hologram_remove(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Resource
-/// @arg     args… :wat::core::Value the store, alone
+/// @arg     store :wat::holon::Hologram the store probed
 /// @ret     :wat::core::i64 the number of entries currently stored
 /// @example (:wat::holon::Hologram/len (:wat::holon::Hologram/make (:wat::core::fn [_x <- :wat::core::f64] -> :wat::core::bool true))) #=> (:wat::holon::Hologram/len (:wat::holon::Hologram/make (:wat::core::fn [_x <- :wat::core::f64] -> :wat::core::bool true)))
 #[wat_intrinsic(":wat::holon::Hologram/len")]
 pub(crate) fn eval_hologram_len(
-    args: &[WatAST],
+    store: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
-    list_span: &Span,
+    _span: &Span, // rune:lint(unused-span) — infallible: `require_hologram`'s TypeMismatch locates via `rust_caller_span!()` inside that helper, and `with_ref`'s own `len()` read has no error path
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::Hologram/len";
-    if args.len() != 1 {
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let store = require_hologram(OP, eval_inner(&args[0], env, sym)?.value_owned())?;
+    let store = require_hologram(OP, eval_inner(store, env, sym)?.value_owned())?;
     let n = store.with_ref(OP, |s| s.len() as i64)?;
     Ok(Value::i64(n))
 }
@@ -354,33 +304,19 @@ pub(crate) fn eval_hologram_len(
 /// @Purity        Pure
 /// @Determinism   Deterministic
 /// @Category      Resource
-/// @arg     args… :wat::core::Value the store, alone
+/// @arg     store :wat::holon::Hologram the store probed
 /// @ret     :wat::core::i64 the store's Kanerva capacity
 /// @example (:wat::holon::Hologram/capacity (:wat::holon::Hologram/make (:wat::core::fn [_x <- :wat::core::f64] -> :wat::core::bool true))) #=> (:wat::holon::Hologram/capacity (:wat::holon::Hologram/make (:wat::core::fn [_x <- :wat::core::f64] -> :wat::core::bool true)))
 #[wat_intrinsic(":wat::holon::Hologram/capacity")]
 pub(crate) fn eval_hologram_capacity(
-    args: &[WatAST],
+    store: &WatAST,
     env: &Environment,
     sym: &SymbolTable,
-    list_span: &Span,
+    _span: &Span, // rune:lint(unused-span) — infallible: `require_hologram`'s TypeMismatch locates via `rust_caller_span!()` inside that helper, and `with_ref`'s own `capacity()` read has no error path
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::Hologram/capacity";
-    if args.len() != 1 {
-        // arc 138: no span — leaf helper without list_span; threading
-        // would require touching the entire dispatcher arm chain.
-        return Err(RuntimeError::new(
-            list_span.clone(),
-            RuntimeErrorKind::ArityMismatch {
-                op: OP.into(),
-                expected: 1,
-                got: args.len(),
-            },
-        )
-        .into());
-    }
-    let store = require_hologram(OP, eval_inner(&args[0], env, sym)?.value_owned())?;
+    let store = require_hologram(OP, eval_inner(store, env, sym)?.value_owned())?;
     let cap = store.with_ref(OP, |s| s.capacity() as i64)?;
     Ok(Value::i64(cap))
 }
-
 
