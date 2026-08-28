@@ -19,14 +19,16 @@ The only trace was a comment INSIDE the gate that would have caught it, saying *
 gate into that hole"*. Fixed. **A comment telling a gate not to look is an unowned deferral, and
 that is FM 23 for the third time this session.**
 
-**4.1 IS COMPLETE — ALL 74 ROWS VERDICTED — AND SIX OF THEM COULD NOT EXECUTE AT ALL. THREE ARE
+**4.1 IS COMPLETE — ALL 74 ROWS VERDICTED — AND SIX OF THEM COULD NOT EXECUTE AT ALL. FIVE ARE
 FIXED.** `PersistentMap/contains-key?`, the `PersistentMap` CONSTRUCTOR (`PmNew`), and `reduce`
 (`exec_reduce`). **FOLDL IS REDUCE** — `wat/seq.wat:317-329` says the 3-arity form is literally
-`(foldl f init coll)`, so the arm is a mirror, not a reimplementation. Three remain and need a
-RULING rather than code: `map`/`filter` return LAZY STREAMS at core, so eager compiled semantics
-would silently diverge from `:wat::core::map`, and `Tuple` has no arm and no accessor. Plus a
-small ruling: `reduce`'s 2-arity form RAISES on empty while its row declares `total: true` — a
-contradiction that went unseen because nothing could run the row. All four HOFs are LOWERED together at `expr_ir.rs:371-374` and were
+`(foldl f init coll)`, so the arm is a mirror, not a reimplementation. **AND THE RETE SURFACE NOW TAKES `mapv`/`filterv`, NOT
+`map`/`filter`** — the lazy heads return a Stream a fence cannot consume, and an eager arm under
+the lazy NAME would have silently diverged from core, so the ROWS moved to the eager materializers
+wat already ships. ONE row remains unrunnable: `Tuple`, which has no arm AND no accessor, so the
+question is whether it should exist. Plus a small ruling: `reduce`'s 2-arity form RAISES on empty
+while its row declares `total: true` — a contradiction that went unseen because nothing could run
+the row. All four HOFs are LOWERED together at `expr_ir.rs:371-374` and were
 EXECUTED by a path that knew exactly one — recognised in one place, wired in another, and nothing
 checked the two agree.
 
@@ -35,8 +37,8 @@ the wrong gate: not necessary (`foldl` maps to `Unknown` and reaches the executo
 not sufficient (an arm can exist while the row is unwritable everywhere). `holon_rete_ops_have_opexec`
 is re-scoped, NOT widened, and points at the ledger.
 
-**MATRIX: 16 fire inline · 18 refused inline · 33 accepted-inline-and-match-nothing · 4 holon rows
-non-generable · 3 cannot execute.** Of the 67 rows that reach the executor, every one fires in a
+**MATRIX: 16 fire inline · 18 refused inline · 35 accepted-inline-and-match-nothing · 4 holon rows
+non-generable · 1 cannot execute.** Of the 69 rows that reach the executor, every one fires in a
 `where` fence.
 
 **AND 32 ROWS ARE ACCEPTED INLINE, COMPILE, FIRE, AND MATCH NOTHING.** Any row returning a value
