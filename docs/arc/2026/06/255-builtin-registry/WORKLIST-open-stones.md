@@ -9,8 +9,8 @@
 ```
 P1  the registry can detect a collision      ✅ STRUCK — the wall stands before the sweep
                                                puts ~130 more registrations behind it
-O-iv-b  the collections sweep                ← NEXT: the arc's main thrust, proven shape, 32 verbs
-P2  the special-form entry stops lying         two findings, one reason to change
+O-iv-b  the collections sweep                ✅ STRUCK — 8 new doors + 24 collapses, -556 lines
+P2  the special-form entry stops lying       ← NEXT: two findings, one reason to change
 P3  the three ignores are re-diagnosed         arc 255's OWN unlock list
 P4  the skipped population is MEASURED         a measurement stone; nothing decided until it lands
 O-iv-c  holon sweep                            73 verbs — needs disposition rows (span-carrying)
@@ -27,7 +27,7 @@ the floor (P1). Adding the population first and the wall second is the wrong ord
 | id | stone | size | brief | blocked on |
 |---|---|---|---|---|
 | ~~P1~~ | ~~the registry can detect a collision~~ | | | ✅ **STRUCK** — see Closed |
-| **O-iv-b** | the collections sweep — `map` 8 · `hashmap` 8 · `vec` 7 · `linkedlist` 5 · `hashset` 4 | 32 verbs — 8 new doors + **24 two-fn collapses** | `BRIEF-STONE-O-iv-b-the-collections-sweep.md` | — **READY**; disposition CLOSED, all 32 measured span-free |
+| ~~O-iv-b~~ | ~~the collections sweep~~ | | | ✅ **STRUCK** — see Closed |
 | **P2** | the special-form entry stops lying — `source: ""` and `arity: -1` | 2 sites in `mod.rs`, 1 in `reflect.rs` | *not drawn* | — |
 | **P3** | the three ignores are re-diagnosed | 1 un-ignore, 1 rewrite, 1 stays | *not drawn* | — |
 | **P4** | the skipped population is measured | measurement only; no code change | *not drawn* | a VALIDATED instrument |
@@ -64,5 +64,6 @@ Full detail and the disk citations: `NOTE-an-absence-recorded-as-an-answer-the-c
 
 `A-i`…`F` (scalars, collections, String) · `HOME-8`…`HOME-13` · `STONE G` (provenance) ·
 `STONE N` (apply's authority) · `O-i` (the arity guard) · `O-ii` (the defclause door) ·
-`O-iii` (one declaration, both doors) · `O-iv-a` (the honest word) · `P1` (the collision gate —
+`O-iii` (one declaration, both doors) · `O-iv-a` (the honest word) · `O-iv-b` (the collections sweep — 8 new doors, 24 two-fn collapses, 24 `expect("arity-checked")`
+sites deleted, −556 lines) · `P1` (the collision gate —
 proven by planting a real duplicate and watching the floor run 5065/5065 GREEN past it).

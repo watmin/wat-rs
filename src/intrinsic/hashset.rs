@@ -42,12 +42,16 @@
 
 use wat_macros::wat_intrinsic;
 
-use crate::ast::WatAST;
-use crate::runtime::eval_inner;
-use crate::span::Span;
-use crate::value::{Environment, EvalBreak, SymbolTable, Value};
+use crate::value::{EvalBreak, Value};
 
 // ─── the 4 verbs ────────────────────────────────────────────────────────────
+//
+// arc 255 Stone O-iv-b — migrated to ALGEBRA. Each pair here was, before this stone, a
+// hand-written AST shell PLUS a hand-written value twin (Stone N, named via the `value =` attribute)
+// that each called the same `*_inner` fn, the value twin guarded only by `.expect
+// ("arity-checked")` naming a check that happened on the OTHER door. One declaration now feeds
+// both doors; the arity check is generated, and true on the door that raises it. See
+// `src/intrinsic/vector.rs` (the worked example, O-iii).
 
 /// `(:wat::hashset::length s)` → the number of elements in `s`.
 ///
@@ -60,24 +64,9 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// @example (:wat::hashset::length (:wat::core::HashSet :i64)) #=> 0
 /// @example (:wat::hashset::length (:wat::core::HashSet :i64 1 2 3)) #=> 3
 /// @see     :wat::hashset::empty?
-#[wat_intrinsic(":wat::hashset::length", value = eval_hashset_length_home_value)]
-pub(crate) fn eval_hashset_length_home(
-    s: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    _span: &Span, // rune:lint(unused-span) — the only error (TypeMismatch) locates at `s`'s own eval, not this call's span
-) -> Result<Value, EvalBreak> {
-    let s = eval_inner(s, env, sym)?.value_owned();
-    crate::collection::eval::hashset_length_inner(&s)
-}
-
-// Arc 255 Stone N — value-level twin of `eval_hashset_length_home` (above), for
-// `dispatch_substrate_impl`'s registry-first door (`src/runtime.rs`,
-// `:wat::core::apply`'s substrate fallback). Calls the SAME
-// `hashset_length_inner` fn `eval_hashset_length_home` calls; no new algorithm, a slice-shaped
-// entry point onto it.
-fn eval_hashset_length_home_value(vals: &[Value]) -> Result<Value, EvalBreak> {
-    crate::collection::eval::hashset_length_inner(vals.first().expect("arity-checked"))
+#[wat_intrinsic(":wat::hashset::length")]
+pub(crate) fn hashset_length(s: &Value) -> Result<Value, EvalBreak> {
+    crate::collection::eval::hashset_length_inner(s)
 }
 
 /// `(:wat::hashset::empty? s)` → whether `s` has zero elements.
@@ -91,24 +80,9 @@ fn eval_hashset_length_home_value(vals: &[Value]) -> Result<Value, EvalBreak> {
 /// @example (:wat::hashset::empty? (:wat::core::HashSet :i64)) #=> true
 /// @example (:wat::hashset::empty? (:wat::core::HashSet :i64 1)) #=> false
 /// @see     :wat::hashset::length
-#[wat_intrinsic(":wat::hashset::empty?", value = eval_hashset_empty_q_home_value)]
-pub(crate) fn eval_hashset_empty_q_home(
-    s: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    _span: &Span, // rune:lint(unused-span)
-) -> Result<Value, EvalBreak> {
-    let s = eval_inner(s, env, sym)?.value_owned();
-    crate::collection::eval::hashset_empty_q_inner(&s)
-}
-
-// Arc 255 Stone N — value-level twin of `eval_hashset_empty_q_home` (above), for
-// `dispatch_substrate_impl`'s registry-first door (`src/runtime.rs`,
-// `:wat::core::apply`'s substrate fallback). Calls the SAME
-// `hashset_empty_q_inner` fn `eval_hashset_empty_q_home` calls; no new algorithm, a slice-shaped
-// entry point onto it.
-fn eval_hashset_empty_q_home_value(vals: &[Value]) -> Result<Value, EvalBreak> {
-    crate::collection::eval::hashset_empty_q_inner(vals.first().expect("arity-checked"))
+#[wat_intrinsic(":wat::hashset::empty?")]
+pub(crate) fn hashset_empty_q(s: &Value) -> Result<Value, EvalBreak> {
+    crate::collection::eval::hashset_empty_q_inner(s)
 }
 
 /// `(:wat::hashset::contains? s item)` → whether `item` is a member of `s`.
@@ -125,26 +99,9 @@ fn eval_hashset_empty_q_home_value(vals: &[Value]) -> Result<Value, EvalBreak> {
 /// @example (:wat::hashset::contains? (:wat::core::HashSet :i64 1 2 3) 2) #=> true
 /// @example (:wat::hashset::contains? (:wat::core::HashSet :i64 1 2 3) 9) #=> false
 /// @see     :wat::hashset::conj
-#[wat_intrinsic(":wat::hashset::contains?", value = eval_hashset_contains_q_home_value)]
-pub(crate) fn eval_hashset_contains_q_home(
-    s: &WatAST,
-    item: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    _span: &Span, // rune:lint(unused-span)
-) -> Result<Value, EvalBreak> {
-    let s = eval_inner(s, env, sym)?.value_owned();
-    let item = eval_inner(item, env, sym)?.value_owned();
-    crate::collection::eval::hashset_contains_q_inner(&s, &item)
-}
-
-// Arc 255 Stone N — value-level twin of `eval_hashset_contains_q_home` (above), for
-// `dispatch_substrate_impl`'s registry-first door (`src/runtime.rs`,
-// `:wat::core::apply`'s substrate fallback). Calls the SAME
-// `hashset_contains_q_inner` fn `eval_hashset_contains_q_home` calls; no new algorithm, a slice-shaped
-// entry point onto it.
-fn eval_hashset_contains_q_home_value(vals: &[Value]) -> Result<Value, EvalBreak> {
-    crate::collection::eval::hashset_contains_q_inner(vals.first().expect("arity-checked"), vals.get(1).expect("arity-checked"))
+#[wat_intrinsic(":wat::hashset::contains?")]
+pub(crate) fn hashset_contains_q(s: &Value, item: &Value) -> Result<Value, EvalBreak> {
+    crate::collection::eval::hashset_contains_q_inner(s, item)
 }
 
 /// `(:wat::hashset::conj s item)` → a NEW `HashSet` with `item` inserted;
@@ -160,24 +117,7 @@ fn eval_hashset_contains_q_home_value(vals: &[Value]) -> Result<Value, EvalBreak
 /// @ret     (:wat::core::HashSet :- [T]) `s` with `item` inserted
 /// @example (:wat::hashset::length (:wat::hashset::conj (:wat::core::HashSet :i64) 1)) #=> 1
 /// @see     :wat::hashset::contains?
-#[wat_intrinsic(":wat::hashset::conj", value = eval_hashset_conj_home_value)]
-pub(crate) fn eval_hashset_conj_home(
-    s: &WatAST,
-    item: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    _span: &Span, // rune:lint(unused-span)
-) -> Result<Value, EvalBreak> {
-    let s = eval_inner(s, env, sym)?.value_owned();
-    let item = eval_inner(item, env, sym)?.value_owned();
-    crate::collection::eval::hashset_conj_inner(&s, &item)
-}
-
-// Arc 255 Stone N — value-level twin of `eval_hashset_conj_home` (above), for
-// `dispatch_substrate_impl`'s registry-first door (`src/runtime.rs`,
-// `:wat::core::apply`'s substrate fallback). Calls the SAME
-// `hashset_conj_inner` fn `eval_hashset_conj_home` calls; no new algorithm, a slice-shaped
-// entry point onto it.
-fn eval_hashset_conj_home_value(vals: &[Value]) -> Result<Value, EvalBreak> {
-    crate::collection::eval::hashset_conj_inner(vals.first().expect("arity-checked"), vals.get(1).expect("arity-checked"))
+#[wat_intrinsic(":wat::hashset::conj")]
+pub(crate) fn hashset_conj(s: &Value, item: &Value) -> Result<Value, EvalBreak> {
+    crate::collection::eval::hashset_conj_inner(s, item)
 }

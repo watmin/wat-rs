@@ -45,12 +45,16 @@
 
 use wat_macros::wat_intrinsic;
 
-use crate::ast::WatAST;
-use crate::runtime::eval_inner;
-use crate::span::Span;
-use crate::value::{Environment, EvalBreak, SymbolTable, Value};
+use crate::value::{EvalBreak, Value};
 
 // ─── the 5 verbs ────────────────────────────────────────────────────────────
+//
+// arc 255 Stone O-iv-b — migrated to ALGEBRA. Each pair here was, before this stone, a
+// hand-written AST shell PLUS a hand-written value twin (Stone N, named via the `value =` attribute)
+// that each called the same `*_inner` fn, the value twin guarded only by `.expect
+// ("arity-checked")` naming a check that happened on the OTHER door. One declaration now feeds
+// both doors; the arity check is generated, and true on the door that raises it. See
+// `src/intrinsic/vector.rs` (the worked example, O-iii).
 
 /// `(:wat::linkedlist::length l)` → the number of elements in `l`.
 ///
@@ -63,24 +67,9 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// @example (:wat::linkedlist::length (:wat::core::List)) #=> 0
 /// @example (:wat::linkedlist::length (:wat::core::List 1 2 3)) #=> 3
 /// @see     :wat::linkedlist::empty?
-#[wat_intrinsic(":wat::linkedlist::length", value = eval_list_length_home_value)]
-pub(crate) fn eval_list_length_home(
-    l: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    _span: &Span, // rune:lint(unused-span) — the only error (TypeMismatch) locates at `l`'s own eval, not this call's span
-) -> Result<Value, EvalBreak> {
-    let l = eval_inner(l, env, sym)?.value_owned();
-    crate::collection::eval::list_length_inner(&l)
-}
-
-// Arc 255 Stone N — value-level twin of `eval_list_length_home` (above), for
-// `dispatch_substrate_impl`'s registry-first door (`src/runtime.rs`,
-// `:wat::core::apply`'s substrate fallback). Calls the SAME
-// `list_length_inner` fn `eval_list_length_home` calls; no new algorithm, a slice-shaped
-// entry point onto it.
-fn eval_list_length_home_value(vals: &[Value]) -> Result<Value, EvalBreak> {
-    crate::collection::eval::list_length_inner(vals.first().expect("arity-checked"))
+#[wat_intrinsic(":wat::linkedlist::length")]
+pub(crate) fn list_length(l: &Value) -> Result<Value, EvalBreak> {
+    crate::collection::eval::list_length_inner(l)
 }
 
 /// `(:wat::linkedlist::empty? l)` → whether `l` has zero elements.
@@ -94,24 +83,9 @@ fn eval_list_length_home_value(vals: &[Value]) -> Result<Value, EvalBreak> {
 /// @example (:wat::linkedlist::empty? (:wat::core::List)) #=> true
 /// @example (:wat::linkedlist::empty? (:wat::core::List 1)) #=> false
 /// @see     :wat::linkedlist::length
-#[wat_intrinsic(":wat::linkedlist::empty?", value = eval_list_empty_q_home_value)]
-pub(crate) fn eval_list_empty_q_home(
-    l: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    _span: &Span, // rune:lint(unused-span)
-) -> Result<Value, EvalBreak> {
-    let l = eval_inner(l, env, sym)?.value_owned();
-    crate::collection::eval::list_empty_q_inner(&l)
-}
-
-// Arc 255 Stone N — value-level twin of `eval_list_empty_q_home` (above), for
-// `dispatch_substrate_impl`'s registry-first door (`src/runtime.rs`,
-// `:wat::core::apply`'s substrate fallback). Calls the SAME
-// `list_empty_q_inner` fn `eval_list_empty_q_home` calls; no new algorithm, a slice-shaped
-// entry point onto it.
-fn eval_list_empty_q_home_value(vals: &[Value]) -> Result<Value, EvalBreak> {
-    crate::collection::eval::list_empty_q_inner(vals.first().expect("arity-checked"))
+#[wat_intrinsic(":wat::linkedlist::empty?")]
+pub(crate) fn list_empty_q(l: &Value) -> Result<Value, EvalBreak> {
+    crate::collection::eval::list_empty_q_inner(l)
 }
 
 /// `(:wat::linkedlist::contains? l item)` → whether `item` occurs as an
@@ -127,26 +101,9 @@ fn eval_list_empty_q_home_value(vals: &[Value]) -> Result<Value, EvalBreak> {
 /// @example (:wat::linkedlist::contains? (:wat::core::List 1 2 3) 2) #=> true
 /// @example (:wat::linkedlist::contains? (:wat::core::List 1 2 3) 9) #=> false
 /// @see     :wat::linkedlist::get
-#[wat_intrinsic(":wat::linkedlist::contains?", value = eval_list_contains_q_home_value)]
-pub(crate) fn eval_list_contains_q_home(
-    l: &WatAST,
-    item: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    _span: &Span, // rune:lint(unused-span)
-) -> Result<Value, EvalBreak> {
-    let l = eval_inner(l, env, sym)?.value_owned();
-    let item = eval_inner(item, env, sym)?.value_owned();
-    crate::collection::eval::list_contains_q_inner(&l, &item)
-}
-
-// Arc 255 Stone N — value-level twin of `eval_list_contains_q_home` (above), for
-// `dispatch_substrate_impl`'s registry-first door (`src/runtime.rs`,
-// `:wat::core::apply`'s substrate fallback). Calls the SAME
-// `list_contains_q_inner` fn `eval_list_contains_q_home` calls; no new algorithm, a slice-shaped
-// entry point onto it.
-fn eval_list_contains_q_home_value(vals: &[Value]) -> Result<Value, EvalBreak> {
-    crate::collection::eval::list_contains_q_inner(vals.first().expect("arity-checked"), vals.get(1).expect("arity-checked"))
+#[wat_intrinsic(":wat::linkedlist::contains?")]
+pub(crate) fn list_contains_q(l: &Value, item: &Value) -> Result<Value, EvalBreak> {
+    crate::collection::eval::list_contains_q_inner(l, item)
 }
 
 /// `(:wat::linkedlist::get l i)` → `Some` of the element at index `i` in
@@ -163,26 +120,9 @@ fn eval_list_contains_q_home_value(vals: &[Value]) -> Result<Value, EvalBreak> {
 /// @example (:wat::linkedlist::get (:wat::core::List 1 2 3) 0) #=> (:wat::core::Some 1)
 /// @example (:wat::linkedlist::get (:wat::core::List 1 2 3) 9) #=> :None
 /// @see     :wat::linkedlist::contains?
-#[wat_intrinsic(":wat::linkedlist::get", value = eval_list_get_home_value)]
-pub(crate) fn eval_list_get_home(
-    l: &WatAST,
-    i: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    _span: &Span, // rune:lint(unused-span)
-) -> Result<Value, EvalBreak> {
-    let l = eval_inner(l, env, sym)?.value_owned();
-    let i = eval_inner(i, env, sym)?.value_owned();
-    crate::collection::eval::list_get_inner(&l, &i)
-}
-
-// Arc 255 Stone N — value-level twin of `eval_list_get_home` (above), for
-// `dispatch_substrate_impl`'s registry-first door (`src/runtime.rs`,
-// `:wat::core::apply`'s substrate fallback). Calls the SAME
-// `list_get_inner` fn `eval_list_get_home` calls; no new algorithm, a slice-shaped
-// entry point onto it.
-fn eval_list_get_home_value(vals: &[Value]) -> Result<Value, EvalBreak> {
-    crate::collection::eval::list_get_inner(vals.first().expect("arity-checked"), vals.get(1).expect("arity-checked"))
+#[wat_intrinsic(":wat::linkedlist::get")]
+pub(crate) fn list_get(l: &Value, i: &Value) -> Result<Value, EvalBreak> {
+    crate::collection::eval::list_get_inner(l, i)
 }
 
 /// `(:wat::linkedlist::conj l item)` → a NEW `List` with `item`
@@ -198,24 +138,7 @@ fn eval_list_get_home_value(vals: &[Value]) -> Result<Value, EvalBreak> {
 /// @ret     (:wat::core::List :- [T]) `l` with `item` prepended
 /// @example (:wat::linkedlist::length (:wat::linkedlist::conj (:wat::core::List) 1)) #=> 1
 /// @see     :wat::linkedlist::length
-#[wat_intrinsic(":wat::linkedlist::conj", value = eval_list_conj_home_value)]
-pub(crate) fn eval_list_conj_home(
-    l: &WatAST,
-    item: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    _span: &Span, // rune:lint(unused-span)
-) -> Result<Value, EvalBreak> {
-    let l = eval_inner(l, env, sym)?.value_owned();
-    let item = eval_inner(item, env, sym)?.value_owned();
-    crate::collection::eval::list_conj_inner(&l, &item)
-}
-
-// Arc 255 Stone N — value-level twin of `eval_list_conj_home` (above), for
-// `dispatch_substrate_impl`'s registry-first door (`src/runtime.rs`,
-// `:wat::core::apply`'s substrate fallback). Calls the SAME
-// `list_conj_inner` fn `eval_list_conj_home` calls; no new algorithm, a slice-shaped
-// entry point onto it.
-fn eval_list_conj_home_value(vals: &[Value]) -> Result<Value, EvalBreak> {
-    crate::collection::eval::list_conj_inner(vals.first().expect("arity-checked"), vals.get(1).expect("arity-checked"))
+#[wat_intrinsic(":wat::linkedlist::conj")]
+pub(crate) fn list_conj(l: &Value, item: &Value) -> Result<Value, EvalBreak> {
+    crate::collection::eval::list_conj_inner(l, item)
 }

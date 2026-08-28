@@ -31,12 +31,19 @@
 
 use wat_macros::wat_intrinsic;
 
-use crate::ast::WatAST;
-use crate::runtime::eval_inner;
-use crate::span::Span;
-use crate::value::{Environment, EvalBreak, SymbolTable, Value};
+use crate::value::{EvalBreak, Value};
 
 // ─── the 8 verbs ────────────────────────────────────────────────────────────
+//
+// arc 255 Stone O-iv-b — migrated to ALGEBRA. Each handler's leading params are now `&Value`
+// (not `&WatAST`), so `#[wat_intrinsic]` generates BOTH the AST door (the shim it always
+// generated) and the value door (what `:wat::core::apply` reaches through
+// `dispatch_substrate_impl`) from this ONE declaration, behind one arity check. The `env`/`sym`
+// eval-the-arg step and the `_span: &Span // rune:lint(unused-span)` param both disappear —
+// there is no span to justify and nothing left to hold it — because the macro now does that
+// step itself, once, for both doors. These 8 had no value door before this stone (unlike their
+// 24 siblings in `hashmap.rs`/`vec.rs`/`linkedlist.rs`/`hashset.rs`, which each collapse a
+// hand-written twin); they gain one for the first time.
 
 /// `(:wat::map::length m)` → the number of key/value entries in `m`.
 ///
@@ -49,14 +56,8 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// @example (:wat::map::length (:wat::core::PersistentMap)) #=> 0
 /// @see     :wat::map::empty?
 #[wat_intrinsic(":wat::map::length")]
-pub(crate) fn eval_persistentmap_length_home(
-    m: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    _span: &Span, // rune:lint(unused-span) — the only error (TypeMismatch) locates at `m`'s own eval, not this call's span
-) -> Result<Value, EvalBreak> {
-    let m = eval_inner(m, env, sym)?.value_owned();
-    crate::collection::eval::persistentmap_length_inner(&m)
+pub(crate) fn persistentmap_length(m: &Value) -> Result<Value, EvalBreak> {
+    crate::collection::eval::persistentmap_length_inner(m)
 }
 
 /// `(:wat::map::empty? m)` → whether `m` has zero entries.
@@ -70,14 +71,8 @@ pub(crate) fn eval_persistentmap_length_home(
 /// @example (:wat::map::empty? (:wat::core::PersistentMap)) #=> true
 /// @see     :wat::map::length
 #[wat_intrinsic(":wat::map::empty?")]
-pub(crate) fn eval_persistentmap_empty_q_home(
-    m: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    _span: &Span, // rune:lint(unused-span)
-) -> Result<Value, EvalBreak> {
-    let m = eval_inner(m, env, sym)?.value_owned();
-    crate::collection::eval::persistentmap_empty_q_inner(&m)
+pub(crate) fn persistentmap_empty_q(m: &Value) -> Result<Value, EvalBreak> {
+    crate::collection::eval::persistentmap_empty_q_inner(m)
 }
 
 /// `(:wat::map::contains-key? m k)` → whether `k` is a key in `m`.
@@ -92,16 +87,8 @@ pub(crate) fn eval_persistentmap_empty_q_home(
 /// @example (:wat::map::contains-key? (:wat::map::assoc (:wat::core::PersistentMap) "a" 1) "a") #=> true
 /// @see     :wat::map::get
 #[wat_intrinsic(":wat::map::contains-key?")]
-pub(crate) fn eval_persistentmap_contains_key_q_home(
-    m: &WatAST,
-    k: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    _span: &Span, // rune:lint(unused-span)
-) -> Result<Value, EvalBreak> {
-    let m = eval_inner(m, env, sym)?.value_owned();
-    let k = eval_inner(k, env, sym)?.value_owned();
-    crate::collection::eval::persistentmap_contains_key_q_inner(&m, &k)
+pub(crate) fn persistentmap_contains_key_q(m: &Value, k: &Value) -> Result<Value, EvalBreak> {
+    crate::collection::eval::persistentmap_contains_key_q_inner(m, k)
 }
 
 /// `(:wat::map::get m k)` → `Some` of the value at key `k` in `m`, or `None`
@@ -117,16 +104,8 @@ pub(crate) fn eval_persistentmap_contains_key_q_home(
 /// @example (:wat::map::get (:wat::map::assoc (:wat::core::PersistentMap) "a" 1) "a") #=> (:wat::core::Some 1)
 /// @see     :wat::map::contains-key?
 #[wat_intrinsic(":wat::map::get")]
-pub(crate) fn eval_persistentmap_get_home(
-    m: &WatAST,
-    k: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    _span: &Span, // rune:lint(unused-span)
-) -> Result<Value, EvalBreak> {
-    let m = eval_inner(m, env, sym)?.value_owned();
-    let k = eval_inner(k, env, sym)?.value_owned();
-    crate::collection::eval::persistentmap_get_inner(&m, &k)
+pub(crate) fn persistentmap_get(m: &Value, k: &Value) -> Result<Value, EvalBreak> {
+    crate::collection::eval::persistentmap_get_inner(m, k)
 }
 
 /// `(:wat::map::assoc m k v)` → `m` with key `k` bound to value `v` (inserted
@@ -143,18 +122,8 @@ pub(crate) fn eval_persistentmap_get_home(
 /// @example (:wat::map::length (:wat::map::assoc (:wat::core::PersistentMap) "a" 1)) #=> 1
 /// @see     :wat::map::dissoc
 #[wat_intrinsic(":wat::map::assoc")]
-pub(crate) fn eval_persistentmap_assoc_home(
-    m: &WatAST,
-    k: &WatAST,
-    v: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    _span: &Span, // rune:lint(unused-span)
-) -> Result<Value, EvalBreak> {
-    let m = eval_inner(m, env, sym)?.value_owned();
-    let k = eval_inner(k, env, sym)?.value_owned();
-    let v = eval_inner(v, env, sym)?.value_owned();
-    crate::collection::eval::persistentmap_assoc_inner(&m, &k, &v)
+pub(crate) fn persistentmap_assoc(m: &Value, k: &Value, v: &Value) -> Result<Value, EvalBreak> {
+    crate::collection::eval::persistentmap_assoc_inner(m, k, v)
 }
 
 /// `(:wat::map::dissoc m k)` → `m` with key `k` removed (a no-op if `k` is
@@ -170,16 +139,8 @@ pub(crate) fn eval_persistentmap_assoc_home(
 /// @example (:wat::map::length (:wat::map::dissoc (:wat::map::assoc (:wat::core::PersistentMap) "a" 1) "a")) #=> 0
 /// @see     :wat::map::assoc
 #[wat_intrinsic(":wat::map::dissoc")]
-pub(crate) fn eval_persistentmap_dissoc_home(
-    m: &WatAST,
-    k: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    _span: &Span, // rune:lint(unused-span)
-) -> Result<Value, EvalBreak> {
-    let m = eval_inner(m, env, sym)?.value_owned();
-    let k = eval_inner(k, env, sym)?.value_owned();
-    crate::collection::eval::persistentmap_dissoc_inner(&m, &k)
+pub(crate) fn persistentmap_dissoc(m: &Value, k: &Value) -> Result<Value, EvalBreak> {
+    crate::collection::eval::persistentmap_dissoc_inner(m, k)
 }
 
 /// `(:wat::map::keys m)` → a `Vector` of `m`'s keys. Iteration ORDER is NOT
@@ -195,14 +156,8 @@ pub(crate) fn eval_persistentmap_dissoc_home(
 /// @example-norun (:wat::map::length (:wat::map::keys (:wat::map::assoc (:wat::core::PersistentMap) "a" 1))) #=> 1
 /// @see     :wat::map::values
 #[wat_intrinsic(":wat::map::keys")]
-pub(crate) fn eval_persistentmap_keys_home(
-    m: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    _span: &Span, // rune:lint(unused-span)
-) -> Result<Value, EvalBreak> {
-    let m = eval_inner(m, env, sym)?.value_owned();
-    crate::collection::eval::persistentmap_keys_inner(&m)
+pub(crate) fn persistentmap_keys(m: &Value) -> Result<Value, EvalBreak> {
+    crate::collection::eval::persistentmap_keys_inner(m)
 }
 
 /// `(:wat::map::values m)` → a `Vector` of `m`'s values. Iteration ORDER is
@@ -217,12 +172,6 @@ pub(crate) fn eval_persistentmap_keys_home(
 /// @example-norun (:wat::map::length (:wat::map::values (:wat::map::assoc (:wat::core::PersistentMap) "a" 1))) #=> 1
 /// @see     :wat::map::keys
 #[wat_intrinsic(":wat::map::values")]
-pub(crate) fn eval_persistentmap_values_home(
-    m: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    _span: &Span, // rune:lint(unused-span)
-) -> Result<Value, EvalBreak> {
-    let m = eval_inner(m, env, sym)?.value_owned();
-    crate::collection::eval::persistentmap_values_inner(&m)
+pub(crate) fn persistentmap_values(m: &Value) -> Result<Value, EvalBreak> {
+    crate::collection::eval::persistentmap_values_inner(m)
 }

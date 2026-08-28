@@ -41,12 +41,16 @@
 
 use wat_macros::wat_intrinsic;
 
-use crate::ast::WatAST;
-use crate::runtime::eval_inner;
-use crate::span::Span;
-use crate::value::{Environment, EvalBreak, SymbolTable, Value};
+use crate::value::{EvalBreak, Value};
 
 // ─── the 7 verbs ────────────────────────────────────────────────────────────
+//
+// arc 255 Stone O-iv-b — migrated to ALGEBRA. Each pair here was, before this stone, a
+// hand-written AST shell PLUS a hand-written value twin (Stone N, named via the `value =` attribute)
+// that each called the same `*_inner` fn, the value twin guarded only by `.expect
+// ("arity-checked")` naming a check that happened on the OTHER door. One declaration now feeds
+// both doors; the arity check is generated, and true on the door that raises it. See
+// `src/intrinsic/vector.rs` (the worked example, O-iii).
 
 /// `(:wat::vec::length v)` → the number of elements in `v`.
 ///
@@ -59,24 +63,9 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// @example (:wat::vec::length (:wat::core::Vector)) #=> 0
 /// @example (:wat::vec::length (:wat::core::Vector 1 2 3)) #=> 3
 /// @see     :wat::vec::empty?
-#[wat_intrinsic(":wat::vec::length", value = eval_vector_length_home_value)]
-pub(crate) fn eval_vector_length_home(
-    v: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    _span: &Span, // rune:lint(unused-span) — the only error (TypeMismatch) locates at `v`'s own eval, not this call's span
-) -> Result<Value, EvalBreak> {
-    let v = eval_inner(v, env, sym)?.value_owned();
-    crate::collection::eval::vector_length_inner(&v)
-}
-
-// Arc 255 Stone N — value-level twin of `eval_vector_length_home` (above), for
-// `dispatch_substrate_impl`'s registry-first door (`src/runtime.rs`,
-// `:wat::core::apply`'s substrate fallback). Calls the SAME
-// `vector_length_inner` fn `eval_vector_length_home` calls; no new algorithm, a slice-shaped
-// entry point onto it.
-fn eval_vector_length_home_value(vals: &[Value]) -> Result<Value, EvalBreak> {
-    crate::collection::eval::vector_length_inner(vals.first().expect("arity-checked"))
+#[wat_intrinsic(":wat::vec::length")]
+pub(crate) fn vector_length(v: &Value) -> Result<Value, EvalBreak> {
+    crate::collection::eval::vector_length_inner(v)
 }
 
 /// `(:wat::vec::empty? v)` → whether `v` has zero elements.
@@ -90,24 +79,9 @@ fn eval_vector_length_home_value(vals: &[Value]) -> Result<Value, EvalBreak> {
 /// @example (:wat::vec::empty? (:wat::core::Vector)) #=> true
 /// @example (:wat::vec::empty? (:wat::core::Vector 1)) #=> false
 /// @see     :wat::vec::length
-#[wat_intrinsic(":wat::vec::empty?", value = eval_vector_empty_q_home_value)]
-pub(crate) fn eval_vector_empty_q_home(
-    v: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    _span: &Span, // rune:lint(unused-span)
-) -> Result<Value, EvalBreak> {
-    let v = eval_inner(v, env, sym)?.value_owned();
-    crate::collection::eval::vector_empty_q_inner(&v)
-}
-
-// Arc 255 Stone N — value-level twin of `eval_vector_empty_q_home` (above), for
-// `dispatch_substrate_impl`'s registry-first door (`src/runtime.rs`,
-// `:wat::core::apply`'s substrate fallback). Calls the SAME
-// `vector_empty_q_inner` fn `eval_vector_empty_q_home` calls; no new algorithm, a slice-shaped
-// entry point onto it.
-fn eval_vector_empty_q_home_value(vals: &[Value]) -> Result<Value, EvalBreak> {
-    crate::collection::eval::vector_empty_q_inner(vals.first().expect("arity-checked"))
+#[wat_intrinsic(":wat::vec::empty?")]
+pub(crate) fn vector_empty_q(v: &Value) -> Result<Value, EvalBreak> {
+    crate::collection::eval::vector_empty_q_inner(v)
 }
 
 /// `(:wat::vec::contains? v item)` → whether `item` occurs as an element of
@@ -123,26 +97,9 @@ fn eval_vector_empty_q_home_value(vals: &[Value]) -> Result<Value, EvalBreak> {
 /// @example (:wat::vec::contains? (:wat::core::Vector 1 2 3) 2) #=> true
 /// @example (:wat::vec::contains? (:wat::core::Vector 1 2 3) 9) #=> false
 /// @see     :wat::vec::get
-#[wat_intrinsic(":wat::vec::contains?", value = eval_vector_contains_q_home_value)]
-pub(crate) fn eval_vector_contains_q_home(
-    v: &WatAST,
-    item: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    _span: &Span, // rune:lint(unused-span)
-) -> Result<Value, EvalBreak> {
-    let v = eval_inner(v, env, sym)?.value_owned();
-    let item = eval_inner(item, env, sym)?.value_owned();
-    crate::collection::eval::vector_contains_q_inner(&v, &item)
-}
-
-// Arc 255 Stone N — value-level twin of `eval_vector_contains_q_home` (above), for
-// `dispatch_substrate_impl`'s registry-first door (`src/runtime.rs`,
-// `:wat::core::apply`'s substrate fallback). Calls the SAME
-// `vector_contains_q_inner` fn `eval_vector_contains_q_home` calls; no new algorithm, a slice-shaped
-// entry point onto it.
-fn eval_vector_contains_q_home_value(vals: &[Value]) -> Result<Value, EvalBreak> {
-    crate::collection::eval::vector_contains_q_inner(vals.first().expect("arity-checked"), vals.get(1).expect("arity-checked"))
+#[wat_intrinsic(":wat::vec::contains?")]
+pub(crate) fn vector_contains_q(v: &Value, item: &Value) -> Result<Value, EvalBreak> {
+    crate::collection::eval::vector_contains_q_inner(v, item)
 }
 
 /// `(:wat::vec::get v i)` → `Some` of the element at index `i` in `v`, or
@@ -158,26 +115,9 @@ fn eval_vector_contains_q_home_value(vals: &[Value]) -> Result<Value, EvalBreak>
 /// @example (:wat::vec::get (:wat::core::Vector 1 2 3) 0) #=> (:wat::core::Some 1)
 /// @example (:wat::vec::get (:wat::core::Vector 1 2 3) 9) #=> :None
 /// @see     :wat::vec::contains?
-#[wat_intrinsic(":wat::vec::get", value = eval_vector_get_home_value)]
-pub(crate) fn eval_vector_get_home(
-    v: &WatAST,
-    i: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    _span: &Span, // rune:lint(unused-span)
-) -> Result<Value, EvalBreak> {
-    let v = eval_inner(v, env, sym)?.value_owned();
-    let i = eval_inner(i, env, sym)?.value_owned();
-    crate::collection::eval::vector_get_inner(&v, &i)
-}
-
-// Arc 255 Stone N — value-level twin of `eval_vector_get_home` (above), for
-// `dispatch_substrate_impl`'s registry-first door (`src/runtime.rs`,
-// `:wat::core::apply`'s substrate fallback). Calls the SAME
-// `vector_get_inner` fn `eval_vector_get_home` calls; no new algorithm, a slice-shaped
-// entry point onto it.
-fn eval_vector_get_home_value(vals: &[Value]) -> Result<Value, EvalBreak> {
-    crate::collection::eval::vector_get_inner(vals.first().expect("arity-checked"), vals.get(1).expect("arity-checked"))
+#[wat_intrinsic(":wat::vec::get")]
+pub(crate) fn vector_get(v: &Value, i: &Value) -> Result<Value, EvalBreak> {
+    crate::collection::eval::vector_get_inner(v, i)
 }
 
 /// `(:wat::vec::conj v item)` → a NEW `Vector` with `item` appended; the
@@ -192,26 +132,9 @@ fn eval_vector_get_home_value(vals: &[Value]) -> Result<Value, EvalBreak> {
 /// @ret     (:wat::core::Vector :- [T]) `v` with `item` appended
 /// @example (:wat::vec::length (:wat::vec::conj (:wat::core::Vector) 1)) #=> 1
 /// @see     :wat::vec::concat
-#[wat_intrinsic(":wat::vec::conj", value = eval_vector_conj_home_value)]
-pub(crate) fn eval_vector_conj_home(
-    v: &WatAST,
-    item: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    _span: &Span, // rune:lint(unused-span)
-) -> Result<Value, EvalBreak> {
-    let v = eval_inner(v, env, sym)?.value_owned();
-    let item = eval_inner(item, env, sym)?.value_owned();
-    crate::collection::eval::vector_conj_inner(&v, &item)
-}
-
-// Arc 255 Stone N — value-level twin of `eval_vector_conj_home` (above), for
-// `dispatch_substrate_impl`'s registry-first door (`src/runtime.rs`,
-// `:wat::core::apply`'s substrate fallback). Calls the SAME
-// `vector_conj_inner` fn `eval_vector_conj_home` calls; no new algorithm, a slice-shaped
-// entry point onto it.
-fn eval_vector_conj_home_value(vals: &[Value]) -> Result<Value, EvalBreak> {
-    crate::collection::eval::vector_conj_inner(vals.first().expect("arity-checked"), vals.get(1).expect("arity-checked"))
+#[wat_intrinsic(":wat::vec::conj")]
+pub(crate) fn vector_conj(v: &Value, item: &Value) -> Result<Value, EvalBreak> {
+    crate::collection::eval::vector_conj_inner(v, item)
 }
 
 /// `(:wat::vec::concat left right)` → a NEW `Vector` holding every element
@@ -229,26 +152,9 @@ fn eval_vector_conj_home_value(vals: &[Value]) -> Result<Value, EvalBreak> {
 /// @ret     (:wat::core::Vector :- [T]) `left` followed by `right`
 /// @example (:wat::vec::length (:wat::vec::concat (:wat::core::Vector 1) (:wat::core::Vector 2))) #=> 2
 /// @see     :wat::vec::extend
-#[wat_intrinsic(":wat::vec::concat", value = eval_vector_concat_home_value)]
-pub(crate) fn eval_vector_concat_home(
-    left: &WatAST,
-    right: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    _span: &Span, // rune:lint(unused-span)
-) -> Result<Value, EvalBreak> {
-    let left = eval_inner(left, env, sym)?.value_owned();
-    let right = eval_inner(right, env, sym)?.value_owned();
-    crate::collection::eval::vector_concat_inner(&left, &right)
-}
-
-// Arc 255 Stone N — value-level twin of `eval_vector_concat_home` (above), for
-// `dispatch_substrate_impl`'s registry-first door (`src/runtime.rs`,
-// `:wat::core::apply`'s substrate fallback). Calls the SAME
-// `vector_concat_inner` fn `eval_vector_concat_home` calls; no new algorithm, a slice-shaped
-// entry point onto it.
-fn eval_vector_concat_home_value(vals: &[Value]) -> Result<Value, EvalBreak> {
-    crate::collection::eval::vector_concat_inner(vals.first().expect("arity-checked"), vals.get(1).expect("arity-checked"))
+#[wat_intrinsic(":wat::vec::concat")]
+pub(crate) fn vector_concat(left: &Value, right: &Value) -> Result<Value, EvalBreak> {
+    crate::collection::eval::vector_concat_inner(left, right)
 }
 
 /// `(:wat::vec::extend to from)` — arc 278: a `Vector` extended by every
@@ -267,24 +173,7 @@ fn eval_vector_concat_home_value(vals: &[Value]) -> Result<Value, EvalBreak> {
 /// @ret     (:wat::core::Vector :- [T]) `to` with every element of `from` appended
 /// @example (:wat::vec::length (:wat::vec::extend (:wat::core::Vector 1) (:wat::core::Vector 2 3))) #=> 3
 /// @see     :wat::vec::concat
-#[wat_intrinsic(":wat::vec::extend", value = eval_vector_extend_home_value)]
-pub(crate) fn eval_vector_extend_home(
-    to: &WatAST,
-    from: &WatAST,
-    env: &Environment,
-    sym: &SymbolTable,
-    _span: &Span, // rune:lint(unused-span)
-) -> Result<Value, EvalBreak> {
-    let to = eval_inner(to, env, sym)?.value_owned();
-    let from = eval_inner(from, env, sym)?.value_owned();
-    crate::collection::eval::vector_extend_inner(&to, &from)
-}
-
-// Arc 255 Stone N — value-level twin of `eval_vector_extend_home` (above), for
-// `dispatch_substrate_impl`'s registry-first door (`src/runtime.rs`,
-// `:wat::core::apply`'s substrate fallback). Calls the SAME
-// `vector_extend_inner` fn `eval_vector_extend_home` calls; no new algorithm, a slice-shaped
-// entry point onto it.
-fn eval_vector_extend_home_value(vals: &[Value]) -> Result<Value, EvalBreak> {
-    crate::collection::eval::vector_extend_inner(vals.first().expect("arity-checked"), vals.get(1).expect("arity-checked"))
+#[wat_intrinsic(":wat::vec::extend")]
+pub(crate) fn vector_extend(to: &Value, from: &Value) -> Result<Value, EvalBreak> {
+    crate::collection::eval::vector_extend_inner(to, from)
 }
