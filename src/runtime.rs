@@ -18938,8 +18938,8 @@ pub(crate) fn presence_q_from_values(
     list_span: &Span,
     sym: &SymbolTable,
 ) -> Result<Value, EvalBreak> {
-    let target = require_holon(":wat::holon::presence?", target)?;
-    let reference = require_holon(":wat::holon::presence?", reference)?;
+    let target = require_holon(":wat::holon::presence?", &target)?;
+    let reference = require_holon(":wat::holon::presence?", &reference)?;
     let ctx = require_encoding_ctx(":wat::holon::presence?", sym, list_span)?;
 
     // Arc 037 slice 3: normalize UP via ambient router. Presence
@@ -19033,8 +19033,8 @@ pub(crate) fn coincident_of_two_values(
     // back to list_span (the call site), which is real user source.
     let atom_a = to_holon_inner(value_a, list_span)?;
     let atom_b = to_holon_inner(value_b, list_span)?;
-    let holon_a = require_holon(op, atom_a)?;
-    let holon_b = require_holon(op, atom_b)?;
+    let holon_a = require_holon(op, &atom_a)?;
+    let holon_b = require_holon(op, &atom_b)?;
     let ctx = require_encoding_ctx(op, sym, list_span)?;
     // Arc 037 slice 3: normalize UP via ambient router. Coincident
     // floor at actual encoding d.

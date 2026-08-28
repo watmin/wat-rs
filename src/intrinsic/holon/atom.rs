@@ -723,7 +723,7 @@ pub(crate) fn eval_algebra_map(
     };
     let children: Vec<HolonAST> = list
         .iter()
-        .map(|v| require_holon(OP, v.clone()).map(|h| (*h).clone()))
+        .map(|v| require_holon(OP, &v.clone()).map(|h| (*h).clone()))
         .collect::<Result<Vec<HolonAST>, _>>()?;
     let inner_bundle = HolonAST::bundle(children);
     let classified = HolonAST::bind(
@@ -771,7 +771,7 @@ pub(crate) fn eval_algebra_set(
     };
     let children: Vec<HolonAST> = list
         .iter()
-        .map(|v| require_holon(OP, v.clone()).map(|h| (*h).clone()))
+        .map(|v| require_holon(OP, &v.clone()).map(|h| (*h).clone()))
         .collect::<Result<Vec<HolonAST>, _>>()?;
     let inner_bundle = HolonAST::bundle(children);
     let classified = HolonAST::bind(
@@ -821,7 +821,7 @@ pub(crate) fn eval_algebra_vector(
         .iter()
         .enumerate()
         .map(|(i, v)| {
-            require_holon(OP, v.clone())
+            require_holon(OP, &v.clone())
                 .map(|h| HolonAST::bind(HolonAST::i64(i as i64), (*h).clone()))
         })
         .collect::<Result<Vec<HolonAST>, _>>()?;
@@ -871,7 +871,7 @@ pub(crate) fn eval_algebra_list(
     };
     let children: Vec<HolonAST> = list
         .iter()
-        .map(|v| require_holon(OP, v.clone()).map(|h| (*h).clone()))
+        .map(|v| require_holon(OP, &v.clone()).map(|h| (*h).clone()))
         .collect::<Result<Vec<HolonAST>, _>>()?;
     let inner_bundle = HolonAST::bundle(children);
     let classified = HolonAST::bind(
@@ -921,7 +921,7 @@ pub(crate) fn eval_algebra_tuple(
         .iter()
         .enumerate()
         .map(|(i, v)| {
-            require_holon(OP, v.clone())
+            require_holon(OP, &v.clone())
                 .map(|h| HolonAST::bind(HolonAST::i64(i as i64), (*h).clone()))
         })
         .collect::<Result<Vec<HolonAST>, _>>()?;
@@ -1091,7 +1091,7 @@ pub(crate) fn eval_algebra_permute(
 ) -> Result<Value, EvalBreak> {
     let child = require_holon(
         ":wat::holon::Permute",
-        eval_inner(h, env, sym)?.value_owned(),
+        &eval_inner(h, env, sym)?.value_owned(),
     )?;
     let k = match eval_inner(k, env, sym)?.value_owned() {
         Value::i64(n) => i32::try_from(n).map_err(|_| {
@@ -1148,17 +1148,17 @@ pub(crate) fn eval_algebra_thermometer(
 ) -> Result<Value, EvalBreak> {
     let v = require_numeric(
         ":wat::holon::Thermometer",
-        eval_inner(v, env, sym)?.value_owned(),
+        &eval_inner(v, env, sym)?.value_owned(),
         list_span,
     )?;
     let mn = require_numeric(
         ":wat::holon::Thermometer",
-        eval_inner(min, env, sym)?.value_owned(),
+        &eval_inner(min, env, sym)?.value_owned(),
         list_span,
     )?;
     let mx = require_numeric(
         ":wat::holon::Thermometer",
-        eval_inner(max, env, sym)?.value_owned(),
+        &eval_inner(max, env, sym)?.value_owned(),
         list_span,
     )?;
     Ok(Value::holon__HolonAST(Arc::new(HolonAST::thermometer(
@@ -1193,20 +1193,20 @@ pub(crate) fn eval_algebra_blend(
 ) -> Result<Value, EvalBreak> {
     let a = require_holon(
         ":wat::holon::Blend",
-        eval_inner(a, env, sym)?.value_owned(),
+        &eval_inner(a, env, sym)?.value_owned(),
     )?;
     let b = require_holon(
         ":wat::holon::Blend",
-        eval_inner(b, env, sym)?.value_owned(),
+        &eval_inner(b, env, sym)?.value_owned(),
     )?;
     let w1 = require_numeric(
         ":wat::holon::Blend",
-        eval_inner(w1, env, sym)?.value_owned(),
+        &eval_inner(w1, env, sym)?.value_owned(),
         list_span,
     )?;
     let w2 = require_numeric(
         ":wat::holon::Blend",
-        eval_inner(w2, env, sym)?.value_owned(),
+        &eval_inner(w2, env, sym)?.value_owned(),
         list_span,
     )?;
     Ok(Value::holon__HolonAST(Arc::new(HolonAST::blend(
@@ -2548,7 +2548,7 @@ pub(crate) fn eval_holon_encode(
 ) -> Result<Value, EvalBreak> {
     let target = require_holon(
         ":wat::holon::encode",
-        eval_inner(target, env, sym)?.value_owned(),
+        &eval_inner(target, env, sym)?.value_owned(),
     )?;
     let ctx = require_encoding_ctx(":wat::holon::encode", sym, list_span)?;
     let enc = ctx.encoders.get(ctx.dim_count);
@@ -2577,7 +2577,7 @@ pub(crate) fn eval_holon_vector_bytes(
     list_span: &Span,
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::holon::vector-bytes";
-    let v = require_vector(OP, eval_inner(v, env, sym)?.value_owned())?;
+    let v = require_vector(OP, &eval_inner(v, env, sym)?.value_owned())?;
     let dim = v.dimensions();
     let dim_u32 = u32::try_from(dim).map_err(|_| {
         RuntimeError::new(
@@ -2759,11 +2759,11 @@ pub(crate) fn eval_holon_vector_bind(
 ) -> Result<Value, EvalBreak> {
     let va = require_vector(
         ":wat::holon::vector-bind",
-        eval_inner(a, env, sym)?.value_owned(),
+        &eval_inner(a, env, sym)?.value_owned(),
     )?;
     let vb = require_vector(
         ":wat::holon::vector-bind",
-        eval_inner(b, env, sym)?.value_owned(),
+        &eval_inner(b, env, sym)?.value_owned(),
     )?;
     if va.dimensions() != vb.dimensions() {
         return Ok(combine_outcome_dimension_mismatch(
@@ -2823,7 +2823,7 @@ pub(crate) fn eval_holon_vector_bundle(
     }
     let mut owned: Vec<Arc<holon::Vector>> = Vec::with_capacity(elements.len());
     for elem in elements.iter() {
-        owned.push(require_vector(":wat::holon::vector-bundle", elem.clone())?);
+        owned.push(require_vector(":wat::holon::vector-bundle", elem)?);
     }
     // Verify dim match.
     let d = owned[0].dimensions();
@@ -2867,20 +2867,20 @@ pub(crate) fn eval_holon_vector_blend(
 ) -> Result<Value, EvalBreak> {
     let va = require_vector(
         ":wat::holon::vector-blend",
-        eval_inner(a, env, sym)?.value_owned(),
+        &eval_inner(a, env, sym)?.value_owned(),
     )?;
     let vb = require_vector(
         ":wat::holon::vector-blend",
-        eval_inner(b, env, sym)?.value_owned(),
+        &eval_inner(b, env, sym)?.value_owned(),
     )?;
     let w1 = require_numeric(
         ":wat::holon::vector-blend",
-        eval_inner(w1, env, sym)?.value_owned(),
+        &eval_inner(w1, env, sym)?.value_owned(),
         list_span,
     )?;
     let w2 = require_numeric(
         ":wat::holon::vector-blend",
-        eval_inner(w2, env, sym)?.value_owned(),
+        &eval_inner(w2, env, sym)?.value_owned(),
         list_span,
     )?;
     if va.dimensions() != vb.dimensions() {
@@ -2916,7 +2916,7 @@ pub(crate) fn eval_holon_vector_permute(
 ) -> Result<Value, EvalBreak> {
     let v = require_vector(
         ":wat::holon::vector-permute",
-        eval_inner(v, env, sym)?.value_owned(),
+        &eval_inner(v, env, sym)?.value_owned(),
     )?;
     let k_val = eval_inner(k, env, sym)?.value_owned();
     let k = match k_val {
@@ -2959,7 +2959,7 @@ pub(crate) fn eval_holon_statement_length(
 ) -> Result<Value, EvalBreak> {
     let ast = require_holon(
         ":wat::holon::statement-length",
-        eval_inner(ast, env, sym)?.value_owned(),
+        &eval_inner(ast, env, sym)?.value_owned(),
     )?;
     // Arc 230 — Symbol/Keyword/Tag/Nil are now Bind compositions; intercept before
     // the generic match so they return 1 (conceptual leaf) not 2 (Bind structural count).

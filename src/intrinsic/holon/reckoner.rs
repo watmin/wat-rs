@@ -89,7 +89,7 @@ pub(crate) fn eval_reckoner_new_discrete(
         Value::Vec(items) => {
             let mut out = Vec::with_capacity(items.len());
             for item in items.iter() {
-                let h = require_holon(":wat::holon::Reckoner/new-discrete", item.clone())?;
+                let h = require_holon(":wat::holon::Reckoner/new-discrete", &item.clone())?;
                 out.push((*h).clone());
             }
             out
@@ -174,7 +174,7 @@ pub(crate) fn eval_reckoner_new_continuous(
     )?;
     let default_value = require_numeric(
         ":wat::holon::Reckoner/new-continuous",
-        eval_inner(default_value, env, sym)?.value_owned(),
+        &eval_inner(default_value, env, sym)?.value_owned(),
         list_span,
     )?;
     let buckets = require_i64(
@@ -222,12 +222,12 @@ pub(crate) fn eval_reckoner_observe(
 ) -> Result<Value, EvalBreak> {
     let r = require_reckoner(
         ":wat::holon::Reckoner/observe",
-        eval_inner(r, env, sym)?.value_owned(),
+        &eval_inner(r, env, sym)?.value_owned(),
         list_span,
     )?;
     let v = require_vector(
         ":wat::holon::Reckoner/observe",
-        eval_inner(v, env, sym)?.value_owned(),
+        &eval_inner(v, env, sym)?.value_owned(),
     )?;
     let label_idx = require_i64(
         ":wat::holon::Reckoner/observe",
@@ -235,7 +235,7 @@ pub(crate) fn eval_reckoner_observe(
     )?;
     let weight = require_numeric(
         ":wat::holon::Reckoner/observe",
-        eval_inner(weight, env, sym)?.value_owned(),
+        &eval_inner(weight, env, sym)?.value_owned(),
         list_span,
     )?;
     r.with_mut(":wat::holon::Reckoner/observe", list_span.clone(), |r| {
@@ -268,12 +268,12 @@ pub(crate) fn eval_reckoner_predict(
 ) -> Result<Value, EvalBreak> {
     let r = require_reckoner(
         ":wat::holon::Reckoner/predict",
-        eval_inner(r, env, sym)?.value_owned(),
+        &eval_inner(r, env, sym)?.value_owned(),
         list_span,
     )?;
     let v = require_vector(
         ":wat::holon::Reckoner/predict",
-        eval_inner(v, env, sym)?.value_owned(),
+        &eval_inner(v, env, sym)?.value_owned(),
     )?;
     let pred = r.with_ref(":wat::holon::Reckoner/predict", |r| r.predict(&v))?;
     // Pack scores as Vec<(i64, f64)> tuples.
@@ -327,12 +327,12 @@ pub(crate) fn eval_reckoner_resolve(
 ) -> Result<Value, EvalBreak> {
     let r = require_reckoner(
         ":wat::holon::Reckoner/resolve",
-        eval_inner(r, env, sym)?.value_owned(),
+        &eval_inner(r, env, sym)?.value_owned(),
         list_span,
     )?;
     let conviction = require_numeric(
         ":wat::holon::Reckoner/resolve",
-        eval_inner(conviction, env, sym)?.value_owned(),
+        &eval_inner(conviction, env, sym)?.value_owned(),
         list_span,
     )?;
     let correct_val = eval_inner(correct, env, sym)?.value_owned();
@@ -378,7 +378,7 @@ pub(crate) fn eval_reckoner_curve(
 ) -> Result<Value, EvalBreak> {
     let r = require_reckoner(
         ":wat::holon::Reckoner/curve",
-        eval_inner(r, env, sym)?.value_owned(),
+        &eval_inner(r, env, sym)?.value_owned(),
         list_span,
     )?;
     let curve = r.with_mut(":wat::holon::Reckoner/curve", list_span.clone(), |r| {
@@ -413,7 +413,7 @@ pub(crate) fn eval_reckoner_labels(
 ) -> Result<Value, EvalBreak> {
     let r = require_reckoner(
         ":wat::holon::Reckoner/labels",
-        eval_inner(r, env, sym)?.value_owned(),
+        &eval_inner(r, env, sym)?.value_owned(),
         list_span,
     )?;
     let labels = r.with_ref(":wat::holon::Reckoner/labels", |r| r.labels())?;
@@ -444,7 +444,7 @@ pub(crate) fn eval_reckoner_dims(
 ) -> Result<Value, EvalBreak> {
     let r = require_reckoner(
         ":wat::holon::Reckoner/dims",
-        eval_inner(r, env, sym)?.value_owned(),
+        &eval_inner(r, env, sym)?.value_owned(),
         list_span,
     )?;
     let n = r.with_ref(":wat::holon::Reckoner/dims", |r| r.dims())?;

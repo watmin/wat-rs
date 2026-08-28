@@ -801,15 +801,21 @@ pub(crate) fn capacity_exceeded_names() -> Arc<Vec<String>> {
 }
 
 
-pub(crate) fn require_holon(op: &str, v: Value) -> Result<Arc<HolonAST>, EvalBreak> {
+/// ⚠ TAKES `&Value` (arc 255 Stone O-iv-c-0). It is the TENTH member of the `require_*` family
+/// and the only one living outside `src/holon/require.rs` — which is why the stone's first pass,
+/// whose blast radius was drawn around that FILE rather than around the ROLE, missed it. A
+/// by-value `require_*` forces a `.clone()` at every ALGEBRA call site, which is exactly what
+/// O-iv-c-0 exists to prevent; leaving this one by-value would have left `atom.rs`'s 10 sites
+/// cloning while its siblings did not.
+pub(crate) fn require_holon(op: &str, v: &Value) -> Result<Arc<HolonAST>, EvalBreak> {
     match v {
-        Value::holon__HolonAST(h) => Ok(h),
+        Value::holon__HolonAST(h) => Ok(h.clone()),
         other => Err(RuntimeError::new(
             crate::rust_caller_span!(),
             RuntimeErrorKind::TypeMismatch {
                 op: op.into(),
                 expected: "Holon",
-                got: Box::new(ValueSnapshot::of(&other)),
+                got: Box::new(ValueSnapshot::of(other)),
                 // arc 138: no — takes Value, not WatAST; no source coords available
             },
         )

@@ -67,7 +67,7 @@ pub(crate) fn eval_engram_name(
 ) -> Result<Value, EvalBreak> {
     let e = require_engram(
         ":wat::holon::Engram/name",
-        eval_inner(e, env, sym)?.value_owned(),
+        &eval_inner(e, env, sym)?.value_owned(),
         list_span,
     )?;
     let s = e.with_ref(":wat::holon::Engram/name", |e| e.name().to_string())?;
@@ -99,7 +99,7 @@ pub(crate) fn eval_engram_eigenvalue_signature(
 ) -> Result<Value, EvalBreak> {
     let e = require_engram(
         ":wat::holon::Engram/eigenvalue-signature",
-        eval_inner(e, env, sym)?.value_owned(),
+        &eval_inner(e, env, sym)?.value_owned(),
         list_span,
     )?;
     let xs = e.with_ref(":wat::holon::Engram/eigenvalue-signature", |e| {
@@ -132,7 +132,7 @@ pub(crate) fn eval_engram_n(
 ) -> Result<Value, EvalBreak> {
     let e = require_engram(
         ":wat::holon::Engram/n",
-        eval_inner(e, env, sym)?.value_owned(),
+        &eval_inner(e, env, sym)?.value_owned(),
         list_span,
     )?;
     let n = e.with_ref(":wat::holon::Engram/n", |e| e.n())?;
@@ -162,12 +162,12 @@ pub(crate) fn eval_engram_residual(
 ) -> Result<Value, EvalBreak> {
     let e = require_engram(
         ":wat::holon::Engram/residual",
-        eval_inner(e, env, sym)?.value_owned(),
+        &eval_inner(e, env, sym)?.value_owned(),
         list_span,
     )?;
     let v = require_vector(
         ":wat::holon::Engram/residual",
-        eval_inner(v, env, sym)?.value_owned(),
+        &eval_inner(v, env, sym)?.value_owned(),
     )?;
     let xs = v.to_f64();
     let r = e.with_mut(":wat::holon::Engram/residual", list_span.clone(), |e| {
@@ -229,17 +229,17 @@ pub(crate) fn eval_library_add(
 ) -> Result<Value, EvalBreak> {
     let lib = require_engram_library(
         ":wat::holon::EngramLibrary/add",
-        eval_inner(lib, env, sym)?.value_owned(),
+        &eval_inner(lib, env, sym)?.value_owned(),
         list_span,
     )?;
     let name = require_string(
         ":wat::holon::EngramLibrary/add",
-        eval_inner(name, env, sym)?.value_owned(),
+        &eval_inner(name, env, sym)?.value_owned(),
         list_span,
     )?;
     let subspace = require_subspace(
         ":wat::holon::EngramLibrary/add",
-        eval_inner(subspace, env, sym)?.value_owned(),
+        &eval_inner(subspace, env, sym)?.value_owned(),
         list_span,
     )?;
     // EngramLibrary::add takes &OnlineSubspace by reference; we have
@@ -280,12 +280,12 @@ pub(crate) fn eval_library_match_vec(
 ) -> Result<Value, EvalBreak> {
     let lib = require_engram_library(
         ":wat::holon::EngramLibrary/match-vec",
-        eval_inner(lib, env, sym)?.value_owned(),
+        &eval_inner(lib, env, sym)?.value_owned(),
         list_span,
     )?;
     let probe = require_vector(
         ":wat::holon::EngramLibrary/match-vec",
-        eval_inner(probe, env, sym)?.value_owned(),
+        &eval_inner(probe, env, sym)?.value_owned(),
     )?;
     let top_k = require_i64(
         ":wat::holon::EngramLibrary/match-vec",
@@ -333,7 +333,7 @@ pub(crate) fn eval_library_len(
 ) -> Result<Value, EvalBreak> {
     let lib = require_engram_library(
         ":wat::holon::EngramLibrary/len",
-        eval_inner(lib, env, sym)?.value_owned(),
+        &eval_inner(lib, env, sym)?.value_owned(),
         list_span,
     )?;
     let n = lib.with_ref(":wat::holon::EngramLibrary/len", |lib| lib.len())?;
@@ -362,12 +362,12 @@ pub(crate) fn eval_library_contains(
 ) -> Result<Value, EvalBreak> {
     let lib = require_engram_library(
         ":wat::holon::EngramLibrary/contains",
-        eval_inner(lib, env, sym)?.value_owned(),
+        &eval_inner(lib, env, sym)?.value_owned(),
         list_span,
     )?;
     let name = require_string(
         ":wat::holon::EngramLibrary/contains",
-        eval_inner(name, env, sym)?.value_owned(),
+        &eval_inner(name, env, sym)?.value_owned(),
         list_span,
     )?;
     let b = lib.with_ref(":wat::holon::EngramLibrary/contains", |lib| {
@@ -396,7 +396,7 @@ pub(crate) fn eval_library_names(
 ) -> Result<Value, EvalBreak> {
     let lib = require_engram_library(
         ":wat::holon::EngramLibrary/names",
-        eval_inner(lib, env, sym)?.value_owned(),
+        &eval_inner(lib, env, sym)?.value_owned(),
         list_span,
     )?;
     let names = lib.with_ref(":wat::holon::EngramLibrary/names", |lib| {

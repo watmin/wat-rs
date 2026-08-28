@@ -85,7 +85,7 @@ pub(crate) fn eval_subspace_dim(
 ) -> Result<Value, EvalBreak> {
     let s = require_subspace(
         ":wat::holon::OnlineSubspace/dim",
-        eval_inner(s, env, sym)?.value_owned(),
+        &eval_inner(s, env, sym)?.value_owned(),
         list_span,
     )?;
     let n = s.with_ref(":wat::holon::OnlineSubspace/dim", |s| s.dim())?;
@@ -112,7 +112,7 @@ pub(crate) fn eval_subspace_k(
 ) -> Result<Value, EvalBreak> {
     let s = require_subspace(
         ":wat::holon::OnlineSubspace/k",
-        eval_inner(s, env, sym)?.value_owned(),
+        &eval_inner(s, env, sym)?.value_owned(),
         list_span,
     )?;
     let n = s.with_ref(":wat::holon::OnlineSubspace/k", |s| s.k())?;
@@ -139,7 +139,7 @@ pub(crate) fn eval_subspace_n(
 ) -> Result<Value, EvalBreak> {
     let s = require_subspace(
         ":wat::holon::OnlineSubspace/n",
-        eval_inner(s, env, sym)?.value_owned(),
+        &eval_inner(s, env, sym)?.value_owned(),
         list_span,
     )?;
     let n = s.with_ref(":wat::holon::OnlineSubspace/n", |s| s.n())?;
@@ -166,7 +166,7 @@ pub(crate) fn eval_subspace_threshold(
 ) -> Result<Value, EvalBreak> {
     let s = require_subspace(
         ":wat::holon::OnlineSubspace/threshold",
-        eval_inner(s, env, sym)?.value_owned(),
+        &eval_inner(s, env, sym)?.value_owned(),
         list_span,
     )?;
     let t = s.with_ref(":wat::holon::OnlineSubspace/threshold", |s| s.threshold())?;
@@ -193,7 +193,7 @@ pub(crate) fn eval_subspace_eigenvalues(
 ) -> Result<Value, EvalBreak> {
     let s = require_subspace(
         ":wat::holon::OnlineSubspace/eigenvalues",
-        eval_inner(s, env, sym)?.value_owned(),
+        &eval_inner(s, env, sym)?.value_owned(),
         list_span,
     )?;
     let xs = s.with_ref(":wat::holon::OnlineSubspace/eigenvalues", |s| {
@@ -225,12 +225,12 @@ pub(crate) fn eval_subspace_update(
 ) -> Result<Value, EvalBreak> {
     let s = require_subspace(
         ":wat::holon::OnlineSubspace/update",
-        eval_inner(s, env, sym)?.value_owned(),
+        &eval_inner(s, env, sym)?.value_owned(),
         list_span,
     )?;
     let v = require_vector(
         ":wat::holon::OnlineSubspace/update",
-        eval_inner(v, env, sym)?.value_owned(),
+        &eval_inner(v, env, sym)?.value_owned(),
     )?;
     let xs = v.to_f64();
     let residual = s.with_mut(
@@ -264,12 +264,12 @@ pub(crate) fn eval_subspace_residual(
 ) -> Result<Value, EvalBreak> {
     let s = require_subspace(
         ":wat::holon::OnlineSubspace/residual",
-        eval_inner(s, env, sym)?.value_owned(),
+        &eval_inner(s, env, sym)?.value_owned(),
         list_span,
     )?;
     let v = require_vector(
         ":wat::holon::OnlineSubspace/residual",
-        eval_inner(v, env, sym)?.value_owned(),
+        &eval_inner(v, env, sym)?.value_owned(),
     )?;
     let xs = v.to_f64();
     let r = s.with_ref(":wat::holon::OnlineSubspace/residual", |s| s.residual(&xs))?;
@@ -298,12 +298,12 @@ pub(crate) fn eval_subspace_project(
 ) -> Result<Value, EvalBreak> {
     let s = require_subspace(
         ":wat::holon::OnlineSubspace/project",
-        eval_inner(s, env, sym)?.value_owned(),
+        &eval_inner(s, env, sym)?.value_owned(),
         list_span,
     )?;
     let v = require_vector(
         ":wat::holon::OnlineSubspace/project",
-        eval_inner(v, env, sym)?.value_owned(),
+        &eval_inner(v, env, sym)?.value_owned(),
     )?;
     let xs = v.to_f64();
     let projected = s.with_ref(":wat::holon::OnlineSubspace/project", |s| s.project(&xs))?;
@@ -333,12 +333,12 @@ pub(crate) fn eval_subspace_reconstruct(
 ) -> Result<Value, EvalBreak> {
     let s = require_subspace(
         ":wat::holon::OnlineSubspace/reconstruct",
-        eval_inner(s, env, sym)?.value_owned(),
+        &eval_inner(s, env, sym)?.value_owned(),
         list_span,
     )?;
     let v = require_vector(
         ":wat::holon::OnlineSubspace/reconstruct",
-        eval_inner(v, env, sym)?.value_owned(),
+        &eval_inner(v, env, sym)?.value_owned(),
     )?;
     let xs = v.to_f64();
     let r = s.with_ref(":wat::holon::OnlineSubspace/reconstruct", |s| {
