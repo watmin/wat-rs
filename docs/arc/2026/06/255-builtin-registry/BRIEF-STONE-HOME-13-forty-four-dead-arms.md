@@ -1,3 +1,49 @@
+# ⛔⛔ RETRACTED 2026-08-27 — THE PREMISE IS FALSE. THE 44 ARMS ARE LIVE. DO NOT STRIKE THIS.
+
+> The rider fired **STOP-1** and deleted nothing. It was right, and its refutation is verified
+> independently below. **Nothing shipped; the tree is unchanged.**
+>
+> **Measured after the refusal:**
+> ```
+> of the 44 -> in dispatch_keyword_head_value :  0
+> of the 44 -> in dispatch_substrate_impl     : 44
+> registry lookups inside dispatch_substrate_impl : 0
+> (:wat::core::apply :wat::hashmap::length …)     -> 2   ← the arm SERVES this
+> ```
+> All 44 live in `dispatch_substrate_impl`, which **never consults the registry** and is
+> `eval_apply`'s substrate fallback. Deleting them would have broken `:wat::core::apply` for nine
+> namespaces.
+>
+> ## How the error was made, precisely
+>
+> I ran a **correct** experiment — sabotaged the registered `hashmap::length` handler, saw the verb
+> return `999` — and drew a conclusion it did not support. The experiment showed *which path serves
+> the direct call*. It never showed *that nothing else calls the arm*. A working probe read as a
+> general certificate. `[[feedback_a_pass_answers_only_the_question_the_instrument_asks]]`
+>
+> And the census underneath it had **no function attribution at all**: it grepped arms whole-file,
+> intersected the names with registrations, and called the intersection "shadowed". The intersection
+> was real; "shadowed" was assumed. Two dispatch functions I had not measured were treated as if they
+> behaved like the one I had. **The brief itself named this as "the most likely way this stone goes
+> wrong" — and I walked into it while writing the warning.**
+>
+> ⚠ **And the tree already said so.** `src/runtime.rs:11652` carries a comment explaining that
+> `dispatch_substrate_impl` is `eval_apply`'s fallback and that registering only the keyword-dispatch
+> arm "would leave `apply` unable to reach the new op — an avoidable split-brain." I never read it.
+>
+> ## What this corrects downstream
+>
+> **The remaining carve target is 191 arms, not 147.** The "23% of the arm table is dead" claim in
+> the drawing commit (`65e3b689a`) is FALSE and is superseded by this banner. Any future stone that
+> quotes 147, or treats a name appearing in both the arm table and the registry as evidence of dead
+> code, is inheriting this error.
+>
+> **A real carve target here would be `dispatch_substrate_impl` itself** — 44 arms with no registry
+> gate, reached only through `apply`. That is a genuine split-brain worth closing, and it is the
+> opposite of a deletion: those arms need *registering*, not removing.
+
+---
+
 # STONE HOME-13 — forty-four dead dispatch arms
 
 DRAWN 2026-08-27 against `2648cabd9`.
