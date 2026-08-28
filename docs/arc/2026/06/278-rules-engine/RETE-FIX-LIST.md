@@ -386,12 +386,35 @@ the fuzzer is ever restructured.
 
 ---
 
-## F — AN INLINE CONSTRAINT WITH A NESTED-CALL OPERAND IS SILENTLY UNSATISFIABLE
+## ~~F — AN INLINE CONSTRAINT WITH A NESTED-CALL OPERAND IS SILENTLY UNSATISFIABLE~~ · **CLOSED 2026-08-28**
 
-> **Found 2026-08-28 by the § 4.1 reachability ledger, then reduced to the minimal case below.
-> This is a live, user-facing WRONG ANSWER with no diagnostic at any stage.** Not found by the
-> fuzzers (both engines agree on the empty answer), and not findable by any reading ward (every
-> gate the form passes is correct about it).
+> **CLOSED 2026-08-28 — fixed in BOTH engines, gated at the CLASS, and the grid ruling satisfied.**
+> The account below is kept in full because the mechanism is the lesson, not the line.
+>
+> **What it was:** a live, user-facing WRONG ANSWER with no diagnostic at any stage. Not found by
+> the fuzzers, and not findable by any reading ward.
+>
+> **How it was fixed — and it was NOT a wall.** The first proposal was to refuse the form at
+> compile time; the builder refused that: *"we made it such that every rete form can be compiled
+> to a jump table... why is this any exception?"* It is not one. `compiled_cond` already imported
+> the one core's `Expr`; what never landed with flip 3 was the LOWERING. A nested operand now goes
+> through `expr_ir::lower_in_frame` into the same `Expr::Call`, the same opcode and the same
+> `RETE_OPS` table the `where` fence uses, materialised by a new `Op::Eval` — which keeps
+> `Op::Cmp`'s operands `Slot | Lit` so the per-fact fast path never moved.
+>
+> **THE ORACLE HAD IT TOO, and that is why five fuzzers and 5612 shapes were blind.** The new grid
+> axis went red on its first floor run with the `$oracle` answering `n=0`. Native and the oracle
+> did not merely agree — they SHARED the defect (FM 28 in its purest form), and Clara broke the
+> tie, inverting this file's own rule: here the ORACLE was the stale one. Its fix is the
+> interpreted twin, reusing the same core via `eval_computed_operand`.
+>
+> **THE GATE IS AT THE CLASS.** `rete/reachability.rs` now BANS `MATCHES-NOTHING` for every row in
+> every position: a cell must FIRE or be REFUSED — one works, the other TEACHES; "compiled, ran,
+> matched nothing, said nothing" is a red build. Mutation-proven: restoring the defect reddens all
+> SIX ledger shards plus the specific probe plus the grid axis — eight independent gates.
+>
+> **Ledger after:** 55 rows fire in both positions (was 16), 18 refused inline WITH a diagnostic,
+> 4 holon rows not generable, **ZERO silent**.
 
 ### The reproduction — three runs of one file, one line different
 
@@ -470,9 +493,16 @@ writes them with an `Op::Bind` prologue; `expr_ir::LowerCx` assigns slots by nam
 alpha prologue's WRITES. There may also be a deliberate reason it was left: alpha match is the
 per-fact hot path, and the stone's zero-allocation gate is measured on exactly these arms.
 
-### The gate that turns green
+### ~~The gate that turns green~~ · **ALL GREEN 2026-08-28**
 
-A probe asserting `rows == 1` for the inline form above, with the fence form and the
-no-constraint form as its controls (they pin 1 and 2, so an over-broad fix that makes everything
-match is caught). Plus a grid axis per the builder's 2026-08-26 ruling — an entry does not leave
-this list until the grid says we are accurate relative to Clara.
+- `rete::reachability::an_inline_constraint_that_computes_now_computes` — the three-row
+  reproduction, with the fence and no-constraint forms as controls AND a discrimination control
+  (asking for a value the arithmetic does not produce must select ZERO, or the operand is being
+  evaluated but not compared).
+- The ledger's class gate — `MATCHES-NOTHING` banned surface-wide.
+- **The grid, per the builder's 2026-08-26 ruling.** `where-inline-computed.{wat,clj}`, registered
+  in `WHERE_FAMILY`: one predicate written FOUR ways — inline and fenced, in wat and in Clara —
+  byte-identical across all four. The axis exists because the corpus was structurally blind: the
+  wat half held ZERO inline constraints across all 36 axes, and Clara's used `:test` in 128 rows
+  against 7 in-pattern predicates. A shape corpus one-sided on POSITION cannot see a position
+  defect, however many shapes it holds.

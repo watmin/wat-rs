@@ -37,11 +37,28 @@ the wrong gate: not necessary (`foldl` maps to `Unknown` and reaches the executo
 not sufficient (an arm can exist while the row is unwritable everywhere). `holon_rete_ops_have_opexec`
 is re-scoped, NOT widened, and points at the ledger.
 
-**MATRIX: 16 fire inline · 18 refused inline · 35 accepted-inline-and-match-nothing · 4 holon rows
-non-generable · 1 cannot execute.** Of the 69 rows that reach the executor, every one fires in a
+**MATRIX: 55 fire inline · 18 refused inline WITH a diagnostic · ZERO silent · 4 holon rows
+non-generable · 0 cannot execute.** Of the 69 rows that reach the executor, every one fires in a
 `where` fence.
 
-**AND 32 ROWS ARE ACCEPTED INLINE, COMPILE, FIRE, AND MATCH NOTHING.** Any row returning a value
+**FIX-LIST F — CLOSED 2026-08-28, AND IT WAS THE WORST THING THIS ARC HAS FOUND.** An inline
+constraint whose operand was a nested call was accepted at every gate, compiled, fired, and
+matched NOTHING — every fact, exit 0, zero bytes on stderr. 39 of 77 rows wide, for the life of
+the engine. **THE ORACLE HAD IT TOO**, which is why five fuzzers and 5612 shapes were blind: the
+two engines did not merely agree, they SHARED the defect (FM 28 in its purest form) and only
+CLARA could break the tie — inverting the fix-list's own rule, because here the ORACLE was stale.
+
+**The fix was NOT a wall**, and that was the builder's call: *"we made it such that every rete form
+can be compiled to a jump table... why is this any exception?"* `compiled_cond` already imported
+the one core's `Expr`; only the LOWERING never landed with flip 3. Both engines now route a nested
+operand through the same `Expr::Call`, opcode and `RETE_OPS` table the fence uses.
+
+**THE GATE IS AT THE CLASS:** `MATCHES-NOTHING` is banned for every row in every position — a cell
+must FIRE or be REFUSED; one works, the other TEACHES. Mutation-proven across EIGHT independent
+gates. And the grid gained its first POSITION axis, because the corpus was structurally blind: the
+wat half of all 36 axes held ZERO inline constraints.
+
+**~~AND 32 ROWS ARE ACCEPTED INLINE, COMPILE, FIRE, AND MATCH NOTHING.~~** — the count is now ZERO. Any row returning a value
 must be wrapped to sit where a constraint goes, and every such clause is unsatisfiable with NO
 diagnostic. Not refused — a refusal teaches. This is the silent-wrong-answer class, and a
 differential cannot see it because both engines agree on the empty answer. The inline-literal defect is not keyword-specific
