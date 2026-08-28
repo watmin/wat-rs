@@ -6,8 +6,20 @@
 > **this file wins** and the stone is stale.
 
 **CURRENT STAMP 2026-08-28 (LATE) — supersedes every dated block below it, including the earlier
-2026-08-28 one. Written against HEAD `b7f54a17f`; the commit carrying this stamp lands on top, so a
+2026-08-28 one. Written against HEAD `7f21de15f`; the commit carrying this stamp lands on top, so a
 ONE-COMMIT docs-only gap at your wake is expected and is not staleness.**
+
+**A BUG REPORT CAME IN AFTER THE CURARE AND IS ANSWERED** —
+`~/work/NOTE-rete-termination-verifier-refuses-provably-bounded-recursion.md`, from claude-compute
+on the main x grok-rete integration branch. Weighed against THIS tree rather than taken on report:
+every citation re-checked, and the claim DRIVEN — `N(k+1) :- N(k), (where (< ?k 500))` is refused
+and does terminate. The refusal is correct by the verifier's own claim; what was missing was a
+HOME for the class, and it now has one in `stratify.rs`'s "WHAT IT CANNOT SEE" block plus
+`RETE-OPEN-WORK` item 9. ⛔ Two escape hatches were already refused by builder ruling — do not
+propose a third. Driving it also turned up TWO diagnostic defects, recorded in item 9 and NOT
+fixed: the message claims "the fixpoint can never converge" (false for the guarded counter), and
+with a fn-headed `:then` it names the FUNCTION as the offending fact type (detection is right;
+only `computed` carries the raw head).
 
 **THE INLINE CONSTRAINT POSITION IS CLOSED. Every generable row fires in BOTH positions.**
 The column went **16 → 68 → 71 → 75 of 79** across one day; the last four are the holon rows, driven
