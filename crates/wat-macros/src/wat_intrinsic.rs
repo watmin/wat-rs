@@ -198,10 +198,20 @@ enum IntrinsicKind {
 /// ALGEBRA-leading direction (a later `&WatAST`/`&[WatAST]` param is the other kind's shape,
 /// rejected).
 fn sniff_kind(item: &ItemFn) -> syn::Result<IntrinsicKind> {
-    let is_algebra = matches!(
-        item.sig.inputs.iter().next(),
-        Some(FnArg::Typed(pt)) if is_ref_value(&pt.ty) || is_ref_value_slice(&pt.ty)
-    );
+    let is_algebra = match item.sig.inputs.iter().next() {
+        // A handler with no params — or whose ONLY param is the call span — has NO BINDING
+        // form: `emit`'s Binding arm passes `env, sym, list_span` unconditionally, so such a
+        // signature cannot compile as BINDING. Classifying it ALGEBRA is the only reading
+        // under which it compiles at all (arc 255 Stone P7).
+        None => true,
+        Some(FnArg::Typed(pt)) => {
+            is_ref_value(&pt.ty)
+                || is_ref_value_slice(&pt.ty)
+                || (is_ref_span(&pt.ty) && item.sig.inputs.len() == 1)
+        }
+        // A `self` receiver stays false so `sniff_args` rejects it with its own real message.
+        Some(FnArg::Receiver(_)) => false,
+    };
     if !is_algebra {
         return Ok(IntrinsicKind::Binding(sniff_args(item)?));
     }

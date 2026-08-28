@@ -128,10 +128,6 @@ pub(crate) fn eval_math_cos_intrinsic(
 /// @ret     :wat::core::f64 the mathematical constant π
 /// @example (:wat::math::pi) #=> 3.141592653589793
 #[wat_intrinsic(":wat::math::pi")]
-pub(crate) fn eval_math_pi_intrinsic(
-    _env: &Environment, // rune:lint(unused-env) — `pi` takes no wat-facing args
-    _sym: &SymbolTable, // rune:lint(unused-sym) — see above
-    span: &Span,
-) -> Result<Value, EvalBreak> {
+pub(crate) fn eval_math_pi_intrinsic(span: &Span) -> Result<Value, EvalBreak> {
     crate::runtime::eval_math_pi(&[], span)
 }
