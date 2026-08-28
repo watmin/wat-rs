@@ -117,3 +117,52 @@ taken there because:
 
 The interim fix is not wasted: the paired name correction is right under either design, and
 only the one list entry becomes unnecessary when this lands.
+
+---
+
+## A SECOND instance of the same disease, in the same subsystem
+
+`RETE_MODULES` is not the only list kept in parity with `RETE_OPS` by hand.
+
+`check.rs`'s `infer_rete_form` (`:2357`) is a `match` on `core_name`, one arm per op. A
+`RETE_OPS` row of class `Form`/`Redispatch` needs an arm there or it falls to `other =>`
+(`:2544`), which errors *"infer_rete_form has no inference route registered for it — add one
+before shipping this row"*. Two lists, no gate. Today they agree (21 rows needing a route, 22
+routed) — by luck, not construction.
+
+**It has already fired once.** `filterv` shipped with its row and no arm. It worked inside a
+`where` fence and was refused when the same op was written in ordinary wat. From the note the
+fix carries (`check.rs:2406`):
+
+> ⚠ `filterv` shipped a few hours earlier WITHOUT a route, and the ledger did not catch it: a
+> `where` fence type-checks its interior by the rete path, so a row can fire in a fence while
+> `infer_rete_form` — the route taken when the same op is written in ordinary wat — has no arm
+> and would refuse it by name. **Two surfaces, one row; the fence is not proof of the other.**
+
+And 13 of the 21 need no arm at all: every `OpClass::Redispatch` row does the identical,
+fully derivable thing (swap head to `core_name`, call `infer_list` — nothing row-specific in
+the body). The call site at `check.rs:2596` **already reads `op.class`** to decide to call
+`infer_rete_form`, then passes only `op.core_name` — discarding the field that holds the
+routing answer and forcing the callee to re-derive it from a string. That string-keyed match
+is the second list.
+
+Two rungs, same shape as this note's main proposal:
+- dispatch on `op.class` first — the 13 `Redispatch` rows become routed by construction;
+- key the remaining 9 `Form` rows on an ENUM rather than `&'static str`, so rustc enforces
+  exhaustiveness and an unrouted row is a compile error. (A fn pointer in the row also works
+  and the signatures are uniform, but it inverts the dependency — `rete/vocabulary.rs` would
+  name `check.rs` internals, where today the direction is checker→rete.)
+
+## WHEN — not now, and the trigger is nameable
+
+Measured 2026-08-28: `RETE_MODULES` grew 2 → 9 across the collections campaign (Stones E, B-ii,
+E-i, E-ii, E-iii). **E-iii's own title says "the collections are done."** main's stones since
+(O-iv, P7, Q, H) concern apply doors, generators and exemptions — none mints a type home, so
+none forces an entry. The list is not currently growing, and the keyword case that exposed the
+hole is already fixed on `claude-compute`.
+
+So the pressure that justifies this work is spent for now, and doing it mid-flight buys little.
+The trigger to act on is the **next mass rename** — the pending clojure-syntax flip is exactly
+that shape, and it will force the same hand-maintained parity across both lists again. Do this
+BEFORE that lands, not during: the whole point is that the next campaign should not have to
+remember to measure.
