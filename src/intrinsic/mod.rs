@@ -343,7 +343,12 @@ impl IntrinsicRegistry {
     fn new() -> Self { IntrinsicRegistry { entries: std::collections::HashMap::new() } }
 
     /// Register an intrinsic's full baseline. Duplicate registration is a
-    /// programmer error (two homes claiming the same FQDN).
+    /// programmer error (two homes claiming the same FQDN). This `debug_assert!`
+    /// is compiled out under `cargo nextest run --release` (this repo's only
+    /// trusted floor; `Cargo.toml` has no `[profile.release]`) — it still fires
+    /// fast in a debug build, but the guarantee IN RELEASE is carried by
+    /// `tests::no_two_submissions_claim_the_same_fqdn`, which walks the
+    /// `inventory::iter` submission streams before either collapses into this map.
     fn register(&mut self, entry: IntrinsicEntry) {
         debug_assert!(!self.entries.contains_key(entry.name), "duplicate intrinsic registration: {}", entry.name);
         self.entries.insert(entry.name, entry);
@@ -771,6 +776,42 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// Arc 255 Stone P1 — two homes claiming the same FQDN is a silent
+    /// `HashMap::insert` overwrite inside `IntrinsicRegistry::register` (see its
+    /// `debug_assert!`), and this repo's only trusted floor is `cargo nextest run
+    /// --release`, where `debug_assert!` is compiled out (no `[profile.release]` in
+    /// `Cargo.toml`). By the time `registry().all_entries()` can be called, a
+    /// collision has already collapsed to one entry with no trace — a test over the
+    /// collapsed map cannot fail for the reason this one exists. So this walks the
+    /// SUBMISSION streams directly (`inventory::iter::<IntrinsicSubmission>` and
+    /// `inventory::iter::<SpecialFormSubmission>`), where both halves of a collision
+    /// are still visible, before either ever reaches `register`. Both submission
+    /// kinds fold into the SAME map in `registry()`, so they are checked together
+    /// here — a per-stream-only check would miss an intrinsic colliding with a
+    /// special form.
+    #[test]
+    fn no_two_submissions_claim_the_same_fqdn() {
+        use std::collections::HashMap;
+
+        let mut seen: HashMap<&'static str, usize> = HashMap::new();
+        for s in inventory::iter::<super::IntrinsicSubmission> {
+            *seen.entry(s.name).or_insert(0) += 1;
+        }
+        for s in inventory::iter::<super::SpecialFormSubmission> {
+            *seen.entry(s.name).or_insert(0) += 1;
+        }
+
+        let mut dupes: Vec<(&'static str, usize)> = seen.into_iter().filter(|&(_, n)| n > 1).collect();
+        dupes.sort_by_key(|(name, _)| *name);
+
+        assert!(
+            dupes.is_empty(),
+            "duplicate FQDN registration(s) — two homes claiming the same name, which \
+             IntrinsicRegistry::register silently overwrites via HashMap::insert in release \
+             (its debug_assert! is compiled out there): {dupes:?}"
+        );
     }
 }
 
