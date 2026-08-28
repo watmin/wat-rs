@@ -172,8 +172,28 @@ priority = 99                                             # just below the scrip
 #
 # `accum_fire_phase_census` lives in the lib binary (`binary_id(wat)`), not `wat::rete` —
 # hence the explicit `or`, because a `binary_id(wat::rete)` filter alone silently misses it.
+#
+# `deftest_wat_tests_rete_fuzz_*` is the SECOND instance of that same trap, found by
+# `circumspicere` 2026-08-26. It is the wat-side rete differential fuzzer
+# (`wat-tests/rete/differential-fuzz.wat`) and it compiles into `wat::kernel`, via
+# `tests/kernel/test.rs`'s `wat::test! {}` auto-discovery — so despite being the same
+# workload class as this cohort it received none of this headroom. It measured 17.165s on
+# `.floor/2026-08-26T05-29-30Z` and tripped SLOW, against a DEFAULT-profile kill at 30s:
+# 1.75x headroom on a cohort whose own contention band, recorded above, is 3.5x-4.4x.
+#
+# The file itself argues for a 60s budget at length (`differential-fuzz.wat:262-268`,
+# `(:wat::test::time-limit "60s")`) and that budget was UNREACHABLE — nextest SIGTERMs at
+# 30s, half of it. `excusare` upheld the annotation as sanctioned; no ward checked whether
+# the runner could grant it. A wat-side budget the runner kills through is not a budget.
+#
+# PROOF THIS FILTER MATCHES — by mutation, not by assertion (2026-08-26). Drop THIS rule's
+# period to 1s and the test prints `SLOW [> 1.000s]` once a second under
+# `cargo nextest run --release -E 'test(deftest_wat_tests_rete_fuzz)'`; restore 60s and it
+# goes silent. The NAIVE check does not work and was tried first: run in isolation the test
+# takes ~9.2s, under even the OLD 15s warn, so an absent SLOW line proves nothing either
+# way. 17.165s is its cost on a LOADED floor -- which is the only number the kill sees.
 [[profile.default.overrides]]
-filter = 'binary_id(wat::rete) or test(accum_fire_phase_census)'
+filter = 'binary_id(wat::rete) or test(accum_fire_phase_census) or test(deftest_wat_tests_rete_fuzz)'
 slow-timeout = { period = "60s", terminate-after = 2 }    # warn 60s, kill 120s
 priority = 98                                             # just below the lint binary
 
@@ -196,7 +216,7 @@ priority = 99
 # a deadline only the dev profile can meet is not a deadline (the same reasoning the
 # scripts gate's ci override records).
 [[profile.ci.overrides]]
-filter = 'binary_id(wat::rete) or test(accum_fire_phase_census)'
+filter = 'binary_id(wat::rete) or test(accum_fire_phase_census) or test(deftest_wat_tests_rete_fuzz)'
 slow-timeout = { period = "60s", terminate-after = 2 }
 priority = 98
 
@@ -229,6 +249,6 @@ priority = 99
 
 # raised with [profile.default] 2026-08-17 — same cohort, same box, same argument.
 [[profile.slow.overrides]]
-filter = 'binary_id(wat::rete) or test(accum_fire_phase_census)'
+filter = 'binary_id(wat::rete) or test(accum_fire_phase_census) or test(deftest_wat_tests_rete_fuzz)'
 slow-timeout = { period = "60s", terminate-after = 2 }
 priority = 98

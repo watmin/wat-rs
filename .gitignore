@@ -26,3 +26,7 @@ wat-scripts/hunt/out/
 # arc 278 — preserved pre-change wat binaries for the STASH-DANCE bootstrap
 # (wat/fix.wat:23-53). A 16MB artifact; kept on disk, never committed.
 bootstrap/
+
+# arc 278 — vigilia recast scratch (run dirs + probe output). The LOOP doctrine is
+# tracked at docs/VIGILIA-LOOP.md; only its run output is scratch.
+/tmp/

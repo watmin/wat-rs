@@ -1,5 +1,21 @@
 # DESIGN — wat never hides a failure (the IPC death/error path)
 
+> ⛔ **NONE OF THIS FILE'S "SEAM" BLOCKS IS THE LIVE BREADCRUMB.** Banner added 2026-08-25.
+> This file carries **six** stacked `> **SEAM.**` blocks (lines ~41, ~127, ~152, ~185, ~442,
+> ~571), each written as "the self past this line is NEW … here is where the work stands". They
+> were appended, never replaced, so the present has to be reconstructed from a pile of strata —
+> the exact failure `curare` names, and the newest of them is still weeks stale. Each is accurate
+> about ITS OWN session and about nothing since.
+>
+> **The single live breadcrumb for arc 278 is
+> `docs/arc/2026/06/278-rules-engine/CURRENT-STATE-annihilate-interpretation.md`** — one stamp,
+> replaced in place. Read the seams below for lineage and for the discipline they carry (much of
+> it still good); never for HEAD, floor counts, or what to resume.
+>
+> The LAW this file designs is CLOSED and its content stands. It is the *breadcrumb* claims that
+> were pruned, not the design.
+
+
 > **THE LAW (builder, 2026-07-17):** *"i want wat to never hide failures ever again … this masking of
 > failure is actively hostile against wat's intent."* Every place on the peer/service death path that
 > discards an error, collapses distinct failures into one mute value, writes a reason to a closed pipe,

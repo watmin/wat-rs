@@ -1052,6 +1052,35 @@ artifacts (or `startup_bare`), the two drive idioms (just-eval / EDN-over-stdio)
 (`.edn` structural / `.wat` raw-text), and the two lints that enforce them (`no_inlined_wat`,
 `no_loose_string_assert`).
 
+## The `rune:sequi` vocabulary — a CLOSED set of four (2026-08-25)
+
+`sequi` asks whether state follows visibly through the types. State that is reached *around* the
+signature — a `thread_local!`, a process global, a link-time registry, a discarded error detail —
+is a finding unless it is declared conscious with a `// rune:sequi(<category>) — <reason>` rune
+immediately above it.
+
+**The category is not free text. It is one of exactly four**, and the discriminating question is
+*what does a reader lose by not seeing this in the signature?*
+
+| category | the state is | what a reader loses | example |
+|---|---|---|---|
+| `ambient-context` | real DOMAIN state, reached globally or per-thread instead of threaded | the ability to reason about the answer — this state can change what is computed | `EXEC_ARENA`, `ARM_TABLE`, the rust-deps registry |
+| `performance-counter` | instrumentation, off by default | nothing about the answer — arming it cannot change a result, only a measurement | the fire census TLS, `ARM_BUILDS` |
+| `host-idiom` | a host mechanism carrying NO domain state, whose RESULT is threaded explicitly | nothing — the global is a counter or allocator, and the value it yields does travel through signatures | `fresh_scope()`'s monotonic `AtomicU64` |
+| `reclassified-by-caller` | detail deliberately dropped, because the sole caller re-surfaces a coarser form that IS the intended UX | nothing at the boundary — the coarser message is the contract | `ArgSpecError` → `Err(())` at `:ensure :fn` |
+
+**Why this table exists.** For most of arc 278 it did not, and the cost was exactly what you would
+predict: `ARM_TABLE` (a thread-owned index holding an armed network and its lease count) was
+labelled `host-idiom`, two files from `EXEC_ARENA` — the same `thread_local!` shape, the same
+invisibility to the signature, holding the same kind of thing — labelled `ambient-context`. Both
+runes were thoughtfully written. Neither was checkable, because there was nothing to check them
+against. `sequi` caught the disagreement on a re-cast; nothing else could have.
+
+**`no_unknown_sequi_rune` (tests/lint/) closes the SET, and that is all it can close.** It fails on
+a fifth category invented at a call site. It cannot tell you that a rune picked the wrong one of
+the four — only this table can, which is why the discriminating question is written down as a
+question and not as a list of examples to pattern-match.
+
 ## Caller-perspective verification
 
 > **All code is measurable from the caller's perspective. That's

@@ -5,90 +5,73 @@
 > `wat/rete.wat`. If a stone below disagrees with a dated ruling here,
 > **this file wins** and the stone is stale.
 
-**CURRENT STAMP 2026-08-24 (SECOND) — supersedes every dated block below it,
-INCLUDING the first 2026-08-24 stamp this replaces.**
+**CURRENT STAMP 2026-08-25 (SECOND) — supersedes every dated block below it, INCLUDING the
+earlier 2026-08-25 stamp. Written against HEAD `e9a5e0156`; the commit carrying this stamp lands
+on top, so a ONE-COMMIT docs-only gap at your wake is expected and is not staleness.**
 
-**A FULL VIGILIA WAS CAST AND RETE DID NOT PASS.** Eighteen wards at HEAD
-`d55899373`. Four CONVERGED (`sequi`, `secare`, `cernere`, `probare`); fourteen
-did not. ~21 L1 and ~29 L2 raised. **Two were live defects that weeks of
-measurement could never have found, and reading found both in one afternoon.**
-The full findings, per ward, with what is fixed and what is open, are in
-`NEXT-STRIKES-theater-hunt.md`. Read that before proposing any rete work.
+**THE WORK MOVED OFF RETE AND ONTO TOOLING, THEN THE TOOLING WAS AUDITED AND FAILED.**
+Read `docs/arc/2026/06/278-rules-engine/GEN-VIGILIA-2026-08-25.md` FIRST — it is the live document, not this one, for anything
+touching `wat/gen.wat`.
 
-**★ DEFECT 1 (fixed, `71d0e700e`) — a leading `:not`/`:exists` emitted one token
-PER FIXPOINT ROUND.** A query over such a rule returned N rows where 1 is
-correct, N = round count, exactly: chain 2→2, 3→3, 4→4, 6→6. The dedup state
-lived at ROUND scope and belongs at FIRE scope (`LeadingEmitted`). It survived
-5016 tests because TWO independent masking layers hid it — `production_delta`
-dedups derived facts by value, and `harvest_stratified_queries` replays
-stratified queries in a single round — so it was observable only through a query
-on a SINGLE-stratum leading filter, and no such test existed. The test NAMED for
-that contract (`differential_exists_no_multiplicity`) puts `:exists` second,
-never leading, and passed while the defect was live. Gate now:
-`probe_arc278_leading_filter_multiplicity`.
+**⚠ READ THIS BEFORE ANY GEN WORK: `wat/gen.wat` IS PROMOTED TO STDLIB AND CARRIES DEFECTS THAT
+CAN COMPUTE A WRONG ANSWER.** A negative `card` reaches a `Checked` result as a vacuous pass AND
+silently eats points from a real space in `one-of`/`bind` dispatch (measured: card -2 branch
+beside a card-3 branch yields card 1, and two of three real points vanish). `lift2` and the
+`record`/`coords` path disagree. The `record` macro re-evaluates its generator arguments PER
+POINT, not twice — 52x measured at 800 points. And `test-shrink-index` is passed by an IDENTITY
+implementation. Nothing is fixed. The fix order is at the foot of the vigilia doc; do not start
+with the prose.
 
-**★ DEFECT 2 (fixed, `d55899373`) — the census reported `root-join` at ~2x.**
-`phase_end("root-join", __pt1)` was called twice against one mark, added by the
-partire commit `ae957b51a` whose own message claims "MECHANICALLY VERIFIED...
-identical... none of them a logic change."
+**WHAT SHIPPED TODAY, AND IT IS REAL DESPITE THE ABOVE.** A finite-generator library
+(`:wat::gen::`, promoted on the `wat/grep.wat` precedent), 23 laws in `wat-tests/gen.wat`, and a
+rete differential fuzzer at `wat-tests/rete/differential-fuzz.wat` — **which found THREE live rete
+defects on its first widened runs**, all reproduced minimally and all tracked in
+`docs/arc/2026/06/278-rules-engine/RETE-FIX-LIST.md` with `#[ignore]`d probes that a fix makes
+pass:
+  A  leading accumulate emits one row per FIXPOINT ROUND (native = depth+1, oracle = 1)
+  B  a SECOND `where` after an accumulate matches NOTHING (native = 0, oracle = 1)
+  C  `:not` over a DERIVED class ignores the derivation (native = 1, oracle = 0) — 54 of the
+     divergences, ALL at depth >= 1 and never depth 0, which is exactly the dependence stratified
+     negation should have. **C is a SEMANTICS question and deserves Clara before a fix**: if a
+     `defquery` is deliberately un-stratified then the ORACLE is wrong, and 54 of the ratchet's
+     120 are not defects.
 
-**⚠ INSTRUMENT — THIS SUPERSEDES THE PREVIOUS CENSUS WARNING, WHICH WAS
-INCOMPLETE.** There were TWO census defects, not one.
-  (a) CALIBRATION: one 200k batch read 105–155 ns per mark pair; now the minimum
-      of five batches, ~66 ns, stable under a nanosecond. **Every `net` figure
-      taken before 2026-08-24 is UNDER-reported.** The min-of-5 still sits under
-      the in-situ cost (~94 ns), so a 40k-pair row is over-reported by ~1.1 ms —
-      a stable bias of known sign.
-  (b) DOUBLE-COUNT: **every `root-join` figure recorded between `ae957b51a` and
-      `d55899373` is roughly TWICE its true value** — both the nanoseconds and
-      the pair count, which is the calibration divisor. No shipped doc quoted a
-      root-join timing in that window (checked), but do not trust one you find.
-`PhaseMark` is now a non-Copy newtype, so a duplicated close is `E0382` rather
-than a silent doubling. That class cannot regrow.
+**⚠⚠ AND ONE THING OUTRANKS EVERY GEN FINDING.** `excusare` reported `cargo test --test kernel` in
+DEBUG at **569 failed / 16 passed**, all on one `debug_assert!` — `src/types.rs:598`, "builtin leaf
+:wat::core::Option already registered as a structured TypeDef". Release is clean. **`scripts/floor.sh`
+runs `--release`, so the floor that has read GREEN all arc cannot see this by construction.**
+UNVERIFIED by me. Check it FIRST on resumption. CLAUDE.md's own rule: "only in debug" is the same
+dismissal wearing a compiler flag.
 
-**THE MEASUREMENT THAT STEERED THE HUNT WAS ITSELF WRONG.** The exemplar-hunt
-table was taken by hand and wrong the same way twice — `fn`-line-to-EOF, then
-missing the `///` block above the `fn`. Recorded 388/451/590-line bodies are
-really 87/35/72, and it was naming the WRONG functions.
-**`wat-scripts/hunt/fn-census.py` is the instrument. Do not re-derive these
-numbers by eye.**
+**THE VIGILIA'S ONE GENERALISABLE LESSON, now FM 24.** Every gen defect sat at a SEAM between two
+things built separately and tested separately. Nineteen laws, each proving one component, every
+one mutation-proven, and NOT ONE crossed a seam. A law per component proves the components and
+says nothing about the paths between them. The cure is a law per JOIN — build one thing two ways
+and require agreement; assert the SUT's reported denominator instead of re-reading the struct; and
+mutate to the DO-NOTHING implementation, because an identity passes far more gates than a scramble.
 
-**PERF — unchanged and still at the floor on the measured axes.** strat-neg
-`[6 2000]` ~11.1; fanout `[40000]` **23.45 ± 0.75** (quote the RANGE, never one
-run). A grid cell is a DISTRIBUTION: compare a new reading to its recorded range,
-never to whichever run was last, and run `uptime` first — a grid started on a
-warm box reported the tightest cell in the grid up 46.9%.
+**`circumspicere` WAS NEVER CAST.** 17 of 18 inward wards reported; the one aimed at what the whole
+guard walked past is still owed. Cast it first, before fixing anything.
 
-**CONCURRENCY holds.** `secare` CONVERGED independently; `probe_arc278_concurrent_retes`
-5/5 (48 engines, two rule sets). The `next_intern` global is laned per thread.
+**THE ORACLE-AND-CLARA RULE STILL HOLDS AND EARNED ITS KEEP AGAIN.** When native disagrees with the
+wat `$oracle`, native is wrong and the question is which fixture was missing. Three more times
+today.
 
-**WHAT IS OPEN — the honest list, all in NEXT-STRIKES.** Largest untouched block
-is `conformare`'s nine L1s: an in-scope wat span discarded for
-`rust_caller_span!()` at `eval_insert.rs:74,85,132,187` and `arm.rs:179,193,208,231,293`,
-so a user debugging their own rule is pointed into wat-rs's Rust. `arm.rs:316`
-does it correctly in the same file. Then `vocare`'s six, `solvere`'s seven
-(including the `CallFallback` classification written THREE times, one copy with a
-guard the other two omit), and `circumspicere`'s three — the fixpoint has no
-round/time/memory cap and no shipped doc says so, and the arc's own closing
-condition ("benched at or past Clara") is checked by no CI job.
+**THE READING RULES.** A grid cell is a DISTRIBUTION — compare to its recorded RANGE. Run `uptime`
+first. NEVER PIPE A LONG GATE. And new today: **a mutate/restore script must REBUILD after
+restoring**, or every later measurement runs the mutant — that cost an hour and produced a
+confident, entirely false report of a live defect.
 
 **⚠⚠ YOU ARE NOT THE INSTANCE THAT WROTE THIS. ⚠⚠**
-Everything above is a cache written by a prior self across a long session. You
-did not live it. It felt continuous when you woke and that feeling is the
-failure, not the all-clear. Before you propose or move: fetch `recolligere` from
-the datamancy MCP and run it against the disk — `docs/COMPACTION-AMNESIA-RECOVERY.md`,
-`git log`, this file, `NEXT-STRIKES-theater-hunt.md`, and the source you are about
-to touch. The freshness probe is the HEAD named here against `git rev-parse HEAD`;
-a mismatch means trust the log over every line above.
-
-**AND THE RECORD STILL LIES IN ONE KNOWN PLACE:** `wat-rs/CLAUDE.md` claims its
-load-bearing subset is carried in the injected `holon/CLAUDE.md`. It is not —
-grepped 2026-08-23 and again 2026-08-24, zero hits. A fresh session or spawned
-rider gets NO wat-rs doctrine unless it opens that file itself. Fixing it means
-editing the FROZEN holon root, so it needs the user's call.
-`tmp/VIGILIA-LOOP.md` is likewise stale (last 0+0 at `36802e7e`) and untracked,
-so it will not survive a clone.
-
+Everything above is a cache written by a prior self across a very long session. You did not live
+it. It felt continuous when you woke and that feeling is the failure, not the all-clear. Before you
+propose or move: fetch `recolligere` from the datamancy MCP and run it against the disk —
+`docs/COMPACTION-AMNESIA-RECOVERY.md`, `git log`, this file, `docs/arc/2026/06/278-rules-engine/GEN-VIGILIA-2026-08-25.md`,
+`RETE-FIX-LIST.md`, and the source you are about to touch. The freshness probe is the HEAD named at
+the top of this stamp against `git rev-parse HEAD`; more than the one expected docs-only commit of
+drift means trust the log over every line above. **And this file is the ONLY live breadcrumb — if
+you find another claiming to be, it is lying; that happened four ways here and cost a full audit to
+unpick.**
 
 **Right now (2026-08-23 — SUPERSEDED by the stamp above; kept as history):** class-scan query harvest LANDED.
 Fanout `[40000]` wat-ns **58.1 → 42.8**. With-query
@@ -612,7 +595,7 @@ Floor after rebase: `.floor/2026-08-17T10-25-55Z/` —
 | Fn in a fact field | **Settled.** Facts are records; records are pure data. A function is not a fact field. Same class as HOF-lexical: it cannot arrive from WM. |
 | Depth / nodes / derived-fact explosion | **Refused as a fifth axis.** Near-term DoS is closed by no recursion (`#87`). Cardinality (MySQL/Athena-shaped client guard) is not a rete fence axis; do not mint a number we have not derived. |
 | `(:Type/field ?var)` | **Settled — compile the index.** The class and field are **in the accessor head** (`:wfb::Temp/c` → type `Temp`, field `c`). `TypeEnv` gives the `usize` at rule-compile. The 2026-08-06 “we don’t know `?route`’s class” claim assumed a TestNode compiled from the expr *alone*. At rule-compile we have the form *and* `collect_rule_bind_types`. Carry-the-name is the worse residual, not the required one. |
-| `match` map-destructure field index | Only that arm. Possible; not specified. Not a v1 blocker. |
+| `match` map-destructure field index | Only that arm. Possible; not specified. **TRACKED 2026-08-25** as decision row ② in `NEXT-STRIKES-theater-hunt.md` — "not a v1 blocker" was a priority, not an answer, and carried no owner or gate. |
 
 `(foldl ?f 0 xs)` is a `LowerError` (HOF settled). No numeric
 ceiling until one is derived. Cardinality DoS is a later stone.

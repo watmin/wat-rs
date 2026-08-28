@@ -7,14 +7,14 @@ use std::sync::Arc;
 use crate::ast::WatAST;
 use crate::runtime::{EvalBreak, RuntimeError, RuntimeErrorKind, SymbolTable, Value};
 use crate::span::Span;
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_hash::FxHashMap;
 
 use super::{
     alpha_cond_from_node, alpha_cond_of, cond_text, get_node, kind_of, node_children,
     node_named_ast, session_named_field,
     session_network, rule_asts_field, rule_bag_consumes, rule_consumes, rule_name_of, rule_negates,
     rule_produces, sorted_node_ids,
-    AlphaDelta, AlphasByType, BetaMemory, ChildrenOf, JoinsFedBy, NodeKind, ParentsOf, TestChildren,
+    AlphasByType, ChildrenOf, JoinsFedBy, NodeKind, ParentsOf, TestChildren,
     TestSibs, StratifyView,
 };
 use crate::runtime::ValueSnapshot;
@@ -501,49 +501,6 @@ pub(crate) fn index_network_edges(network: &Value, node_ids: &[i64]) -> NetworkE
     }
 }
 
-/// Seed dirty join-parents: left `d_beta` or a HashJoin child whose
-/// feeding alpha has right-delta. The hash-join pass grows this set as
-/// it emits (middle joins: J1's tokens dirty J1 as parent of J2).
-pub(crate) fn seed_dirty_join_parents(
-    join_parent: &[i64],
-    d_beta: &BetaMemory,
-    d_alpha: &AlphaDelta,
-    packed_full: &HashSet<i64>,
-    joins_fed_by: &JoinsFedBy,
-    parents_of: &ParentsOf,
-) -> FxHashSet<i64> {
-    let mut dirty = FxHashSet::default();
-    for (pid, toks) in d_beta {
-        if !toks.is_empty() && join_parent.binary_search(pid).is_ok() {
-            dirty.insert(*pid);
-        }
-    }
-    let mut dirty_from_alpha = |aid: i64| {
-        let Some(joins) = joins_fed_by.get(&aid) else {
-            return;
-        };
-        for j in joins {
-            let Some(ps) = parents_of.get(j) else {
-                continue;
-            };
-            for p in ps {
-                if join_parent.binary_search(p).is_ok() {
-                    dirty.insert(*p);
-                }
-            }
-        }
-    };
-    for (aid, idxs) in d_alpha {
-        if idxs.is_empty() {
-            continue;
-        }
-        dirty_from_alpha(*aid);
-    }
-    for &aid in packed_full {
-        dirty_from_alpha(aid);
-    }
-    dirty
-}
 
 pub(crate) fn merge_sorted_ids(a: &[i64], b: &[i64]) -> Vec<i64> {
     let mut out = Vec::with_capacity(a.len() + b.len());
@@ -613,11 +570,18 @@ struct InternEntry {
     leases: usize,
 }
 
-// rune:sequi(host-idiom) — ZERO-MUTEX intern index is thread-owned RefCell
+// rune:sequi(ambient-context) — ZERO-MUTEX intern index is thread-owned RefCell
 // (`DESIGN-STONE-intern-zero-mutex` THE ONE CONTRACT: Session stays 8 fields;
 // `DESIGN-STONE-intern-eviction` forbids an intern handle on Session). Circuits
 // are a pure function of network+rules; fire threads `Arc<InternedNetwork>`
 // after `get_or_build`. The table is the worker memo, not a Session overlay.
+// It holds DOMAIN state (the armed network + its lease count) reached by id
+// rather than through any signature, which is what makes it ambient-context and
+// not host-idiom — cf. `EXEC_ARENA` (expr_ir.rs), the same shape, same category.
+// Recategorised 2026-08-25: `sequi` found it labelled `host-idiom` beside an
+// identical `ambient-context` neighbour. See CONVENTIONS.md, "The `rune:sequi`
+// vocabulary" — the categories had no written definition, so nothing could
+// notice the two disagreeing.
 // rune:circumspicere(accepted-by-design) — lease is `arm-session`/`release-session`,
 // not Session Drop (stone 29). Connection-thread affinity is the ZERO-MUTEX
 // contract (DESIGN-STONE-intern-zero-mutex): fire/release on another thread
@@ -739,9 +703,7 @@ pub(crate) fn build_rete_arm(
     let alpha_tree = crate::rete::alpha_tree::AlphaTree::build(&alpha_by_type, &alpha_cond, sym);
     let compiled_conds = compile_alpha_conds_from_index(&alpha_by_type, &alpha_cond, sym)?;
     let compiled_drivers = compile_all_cond_drivers(network, &node_ids, sym)?;
-    let compiled_max_slots = compiled_conds.values().map(|c| c.n_slots()).max().unwrap_or(0);
     let compiled_wheres = compile_test_programs(network, &node_ids, sym)?;
-    let where_tree = crate::rete::where_tree::WhereTree::build(&compiled_wheres);
     let compiled_user_folds = compile_user_fold_programs(network, &node_ids, sym)?;
     let mut compiled_acc_folds: HashMap<i64, AccFold> = HashMap::new();
     for node_id in &node_ids {
@@ -760,12 +722,21 @@ pub(crate) fn build_rete_arm(
         );
     }
 
-    let NetworkEdges {
+    // ONE RECIPE — see `derive_indices`. Both arm builders derive the same ten indices;
+    // the only difference is WHICH NETWORK they are handed, and that is the difference
+    // that must not be gettable wrong.
+    let DerivedIndices {
+        kind_ids,
+        where_tree,
         feeding_alpha_of,
+        joins_fed_by,
         parents_of,
         children_of,
         beta_readers,
-    } = index_network_edges(network, &node_ids);
+        compiled_max_slots,
+        test_sibs,
+        test_children,
+    } = derive_indices(network, &node_ids, &compiled_conds, &compiled_wheres);
 
     let rule_vec: Vec<Value> = match rules {
         Value::wat__core__PersistentVector(pv) => pv.iter().cloned().collect(),
@@ -787,10 +758,6 @@ pub(crate) fn build_rete_arm(
 
     let rule_deps = rule_deps_from_rules(rules, sym);
 
-    let kind_ids = kind_id_lists(network, &node_ids);
-    let joins_fed_by = invert_feeding_alpha(&feeding_alpha_of);
-    let test_sibs = build_test_sibs(network, &node_ids, &parents_of);
-    let test_children = build_test_children(network, &node_ids);
     Ok(InternedNetwork {
         node_ids,
         kind_ids,
@@ -811,6 +778,61 @@ pub(crate) fn build_rete_arm(
         test_children,
         children_of,
     })
+}
+
+/// Everything an [`InternedNetwork`] DERIVES from a network, its node set, and its
+/// compiled maps — as opposed to what it merely CARRIES.
+///
+/// ONE RECIPE. `build_rete_arm` (the whole network) and `subset_rete_arm` (one stratum's
+/// slice) each used to spell out the same ten derivations. The struct literal already
+/// stopped a MISSING field — literals are exhaustive, so a new `InternedNetwork` field
+/// fails to compile on both paths. What it could not stop is the far quieter mistake:
+/// deriving a new index in the slice path from the FULL arm (`arm.foo`) instead of from
+/// the slice, producing a stratum-sliced arm carrying a stale index. That is visible only
+/// under stratified fire, which is the same "wrong only in a configuration nothing
+/// exercises" shape as this arc's other silent defects.
+///
+/// This makes that unrepresentable rather than merely discouraged: the function is handed
+/// a network and cannot reach a prior arm, so every field it produces is derived from the
+/// one source it was given. Adding a derived index means adding it HERE, once, and both
+/// callers get it from the right network by construction.
+pub(crate) struct DerivedIndices {
+    pub(crate) kind_ids: KindIdLists,
+    pub(crate) where_tree: crate::rete::where_tree::WhereTree,
+    pub(crate) feeding_alpha_of: HashMap<i64, i64>,
+    pub(crate) joins_fed_by: JoinsFedBy,
+    pub(crate) parents_of: ParentsOf,
+    pub(crate) children_of: ChildrenOf,
+    pub(crate) beta_readers: HashSet<i64>,
+    pub(crate) compiled_max_slots: usize,
+    pub(crate) test_sibs: TestSibs,
+    pub(crate) test_children: TestChildren,
+}
+
+pub(crate) fn derive_indices(
+    network: &Value,
+    node_ids: &[i64],
+    compiled_conds: &HashMap<i64, crate::rete::compiled_cond::CompiledCond>,
+    compiled_wheres: &HashMap<i64, crate::rete::expr_ir::Program>,
+) -> DerivedIndices {
+    let NetworkEdges {
+        feeding_alpha_of,
+        parents_of,
+        children_of,
+        beta_readers,
+    } = index_network_edges(network, node_ids);
+    DerivedIndices {
+        kind_ids: kind_id_lists(network, node_ids),
+        where_tree: crate::rete::where_tree::WhereTree::build(compiled_wheres),
+        joins_fed_by: invert_feeding_alpha(&feeding_alpha_of),
+        test_sibs: build_test_sibs(network, node_ids, &parents_of),
+        test_children: build_test_children(network, node_ids),
+        compiled_max_slots: compiled_conds.values().map(|c| c.n_slots()).max().unwrap_or(0),
+        feeding_alpha_of,
+        parents_of,
+        children_of,
+        beta_readers,
+    }
 }
 
 /// TestNodes that share a parent-set dispatch together through the where-tree.
@@ -942,23 +964,22 @@ pub(crate) fn subset_rete_arm(
         .collect();
     let alpha_tree = arm.alpha_tree.restrict(active_ids);
 
-    let NetworkEdges {
+    // ONE RECIPE — see `derive_indices`. Both arm builders derive the same ten indices;
+    // the only difference is WHICH NETWORK they are handed, and that is the difference
+    // that must not be gettable wrong.
+    let DerivedIndices {
+        kind_ids,
+        where_tree,
         feeding_alpha_of,
+        joins_fed_by,
         parents_of,
         children_of,
         beta_readers,
-    } = index_network_edges(sliced_network, &node_ids);
-    let compiled_max_slots = compiled_conds
-        .values()
-        .map(|c: &crate::rete::compiled_cond::CompiledCond| c.n_slots())
-        .max()
-        .unwrap_or(0);
-    let where_tree = crate::rete::where_tree::WhereTree::build(&compiled_wheres);
+        compiled_max_slots,
+        test_sibs,
+        test_children,
+    } = derive_indices(sliced_network, &node_ids, &compiled_conds, &compiled_wheres);
 
-    let kind_ids = kind_id_lists(sliced_network, &node_ids);
-    let joins_fed_by = invert_feeding_alpha(&feeding_alpha_of);
-    let test_sibs = build_test_sibs(sliced_network, &node_ids, &parents_of);
-    let test_children = build_test_children(sliced_network, &node_ids);
     Arc::new(InternedNetwork {
         node_ids,
         kind_ids,

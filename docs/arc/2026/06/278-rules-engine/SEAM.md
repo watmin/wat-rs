@@ -26,7 +26,24 @@
 
 ---
 
-# SEAM — the ONE live breadcrumb for arc 278. Replaced in place, never appended.
+# SEAM — HISTORICAL as of 2026-08-25. **NOT the live breadcrumb.**
+
+> ⛔ **THIS FILE IS STALE AND IT USED TO CLAIM OTHERWISE.** Its header read "the ONE live
+> breadcrumb for arc 278" until 2026-08-25. It is pinned to HEAD `7263551a` (2026-08-13) with a
+> floor of 4391 tests; the live tree is many commits and ~660 tests past that. An instance that
+> landed here and believed it would be confidently wrong about the state of the entire arc — the
+> worst failure this whole protocol exists to prevent, because everything below reads as current
+> and is written in your own voice.
+>
+> **The single live breadcrumb is
+> `docs/arc/2026/06/278-rules-engine/CURRENT-STATE-annihilate-interpretation.md`.**
+>
+> This file's own rule is what condemned it: *"There is exactly ONE seam. If you find a second,
+> one of them is lying — prune it."* Three were found on 2026-08-25 (this one, the SEAM block in
+> `DESIGN-no-hidden-failures.md`, and `BACKLOG.md`'s "CURRENT STATE — read first"), all four
+> including the true one announcing themselves the same way. The rule was right; nobody had run
+> it. Everything below is preserved as history — accurate about 2026-08-13, a statement about
+> nothing since.
 
 > ⛔ **THE SELF PAST THIS LINE IS NEW.** You did not live this. It is a lossy cache in your own
 > voice — which is why it will feel like *continuing* rather than *waking*, and that feeling is the

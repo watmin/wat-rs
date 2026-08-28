@@ -2,12 +2,24 @@
 //! LRU cache, core's SECOND default `:rust::` shim (registered from
 //! `with_wat_rs_defaults`, `src/rust_deps/mod.rs`, beside `sqlite`).
 //!
-//! Study-only oracle: `crates/wat-lru/src/shim.rs` (`:rust::lru::LruCache`) —
-//! the distributions-of-wat experiment that proved the shape. This is NOT a
-//! copy of it: the semantics were re-authored here at the final
-//! `:rust::cache::Lru` path, and the wat surface above it (`wat/cache.wat`)
-//! hands the evicted pair back as a NAMED `:wat::cache::Entry` record rather
-//! than the oracle's positional tuple. The crate stays intact until Stone 5.
+//! Study-only oracle (⚠ **GONE — Stone 5 annihilated it**): `crates/wat-lru/src/shim.rs`
+//! (`:rust::lru::LruCache`) — the distributions-of-wat experiment that proved
+//! the shape. This is NOT a copy of it: the semantics were re-authored here at
+//! the final `:rust::cache::Lru` path, and the wat surface above it
+//! (`wat/cache.wat`) hands the evicted pair back as a NAMED
+//! `:wat::cache::Entry` record rather than the oracle's positional tuple.
+//!
+//! This paragraph used to end "the crate stays intact until Stone 5". Stone 5
+//! LANDED — `crates/` holds no `wat-lru`, and the path above resolves to
+//! nothing. The citation is kept because the PROVENANCE is still the honest
+//! answer to "where did this shape come from"; it is marked so no reader burns
+//! time hunting a deleted file. Corrected 2026-08-25.
+//!
+//! ⚠ **"Oracle" here is a STUDY oracle — a prior implementation read for shape
+//! — and has nothing to do with rete's `$oracle`**, which is a live
+//! differential reference under `wat/rete/oracle/`. The two senses were
+//! conflated once already: a reader grepped for the rete convention, found
+//! nothing, and concluded this file's citation was fabricated.
 //!
 //! # Why a newtype
 //!
@@ -35,11 +47,28 @@
 //! `capacity` (the backing `LruCache` requires a `NonZeroUsize`) and a
 //! non-hashable key (an opaque handle — `impl Hash for Value` is
 //! `unreachable!()` there, so the guard turns a substrate `unreachable!` into
-//! a legible message). Behaviour-parity with the oracle is deliberate for this
-//! stone; converting them to matchable VALUES (the no-hidden-failures law) is
-//! a later ruling — unlike sqlite's fallible verbs, these are the two
+//! a legible message). Unlike sqlite's fallible verbs, these are the two
 //! *programming-error* inputs, and the checker already rejects an opaque-typed
 //! key at most call sites.
+//!
+//! **The reason Stone 1 gave for deferring the conversion has EXPIRED, and the
+//! decision is OPEN — it is tracked, not promised.** Stone 1's brief
+//! (`BRIEF-cache-stone-1-primitive.md`) surfaced these panics as a question and
+//! left them to "a later stone", on the ground that the dispatch macro could
+//! not yet marshal a method-internal error back to wat. That is no longer true
+//! at this HEAD: `#[wat_dispatch]` marshals `Result<T, E>` natively via the
+//! blanket `ToWat`/`FromWat` impls, INCLUDING `Result<Self, E>` for a
+//! constructor like `Lru::new` — see `src/rust_deps/sqlite.rs`'s "Errors-as-values
+//! — the exact mechanism". So the conversion is now MECHANICALLY available and
+//! what remains is a genuine design call: does the no-hidden-failures law reach
+//! a programming-error input, or stop at a fallible one? Converting changes a
+//! SHIPPED public surface (`:wat::cache::Lru::new` would return a Result every
+//! caller must match) and must move `wat/cache.wat` in the same breath.
+//!
+//! Tracked as a decision row in
+//! `docs/arc/2026/06/278-rules-engine/NEXT-STRIKES-theater-hunt.md`
+//! ("exigere — the cache panic conversion"). Do not re-defer it in prose here;
+//! the row is the only honest home for it.
 
 use lru::LruCache;
 use std::num::NonZeroUsize;

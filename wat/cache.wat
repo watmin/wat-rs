@@ -2,7 +2,9 @@
 ;; honest wat surface over the fresh `:rust::cache::Lru` shim (src/rust_deps/cache.rs).
 ;;
 ;; A cache is table-stakes substrate, so it lives in CORE (the same call sqlite and telemetry got).
-;; Study oracle: `crates/wat-lru`'s `:wat::lru::LocalCache` — the distributions-of-wat experiment.
+;; Study oracle (⚠ GONE — Stone 5 annihilated the crate; kept as provenance, not a live path):
+;; `crates/wat-lru`'s `:wat::lru::LocalCache` — the distributions-of-wat experiment.
+;; NOTE: a STUDY oracle (a prior impl read for shape), NOT rete's `$oracle` differential.
 ;; This is NOT a copy of it (DESIGN-cache-tooling-to-core.md): the names are the ruled
 ;; `:wat::cache::` ones, and `put` hands back a NAMED record instead of a positional pair.
 ;;
@@ -30,7 +32,13 @@
 ;; ─── failure surface ─────────────────────────────────────────────────────────────────────────
 ;; Unlike `:wat::sqlite::*` (every verb errors-as-values), the two guards on this primitive
 ;; PANIC: a non-positive `capacity` and a non-hashable (opaque-handle) key. That is deliberate
-;; behaviour-parity with the oracle for this stone — see src/rust_deps/cache.rs's module doc.
+;; behaviour-parity with the STUDY oracle for this stone (see `src/rust_deps/cache.rs`'s module
+;; doc — and note the crate itself is gone, annihilated by Stone 5). These are the two
+;; programming-error inputs, and the checker already rejects an opaque-typed key at most call
+;; sites. Whether the no-hidden-failures law should reach them is an OPEN decision, tracked as
+;; a row in docs/arc/2026/06/278-rules-engine/NEXT-STRIKES-theater-hunt.md ("exigere — the cache
+;; panic conversion"); the reason Stone 1 gave for deferring it has since expired. The full
+;; account is src/rust_deps/cache.rs's module doc. Converting moves BOTH files together.
 ;;
 ;; Loads after wat/core.wat (typealias/defrecord/defn + Option are core builtins) and after
 ;; wat/Record.wat is NOT required — `defrecord` is a defmacro, registered in the order-free
@@ -243,7 +251,8 @@
 ;; key-matching — exact-key becomes *hologram similarity*. Concrete over `HolonAST` (the
 ;; Hologram store is HolonAST-keyed, not generic), so unlike Stone 1 this type carries no `:- [K V]`.
 ;;
-;; Study oracle: `crates/wat-holon-lru/wat/holon/lru/HologramCache.wat` — read for the shape
+;; Study oracle (⚠ GONE — Stone 5 annihilated the crate; provenance, not a live path):
+;; `crates/wat-holon-lru/wat/holon/lru/HologramCache.wat` — read for the shape
 ;; (`put`'s eviction → `Hologram/remove` chain, `get`'s `Hologram/find` → LRU-bump), never copied.
 ;; Rebuilt here clean on Stone 1's `(:wat::cache::Lru :- [K V])` primitive (named `Entry`, not the
 ;; oracle's positional tuple) exactly as Stone 1 was rebuilt from its own oracle.

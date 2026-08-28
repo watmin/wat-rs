@@ -90,7 +90,11 @@ You cannot answer the user until you have READ:
 2. The MEMORY.md (already in your prompt — auto-loaded; check for relevant memories)
 3. The CURRENT git status: `git status --short`
 4. The RECENT commits: `git log --oneline | head -20`
-5. The ACTIVE arc(s): `ls docs/arc/2026/$(date +%m)/`
+5. The ACTIVE arc(s) — **do NOT use `$(date +%m)`; the active arc is not
+   necessarily in the current month.** Arc 278 has been live since 2026-06 and
+   `docs/arc/2026/08/` does not exist, so that command exits 2 and a hurried
+   instance reads the error as "no active arcs". Find it by recency instead:
+   `ls -dt docs/arc/2026/*/*/ | head -5`
 6. Each active arc's most recent artifact: DESIGN.md + latest SCORE-* + INSCRIPTION.md if shipped
 
 If you have not read these, you are guessing. Stop. Read them. Then proceed.
@@ -103,10 +107,34 @@ action you took THIS session:
 [ ] recovery file (this doc) ............ read ✓
 [ ] recolligere primer (datamancy MCP) .. fetched + run ✓
 [ ] git status / git log ................ ran ✓   → HEAD <hash>
-[ ] active arcs: ls docs/arc/2026/$(date +%m)/ .. enumerated ✓ → <list>
-[ ] live breadcrumb (CLIFFNOTES "Currently") .... read ✓
-[ ] latest state-of-world artifact ...... read ✓
+[ ] active arcs: ls -dt docs/arc/2026/*/*/ | head -5 .. enumerated ✓ → <list>
+[ ] live breadcrumb (THE ONE below) ..... read ✓
+[ ] FRESHNESS PROBE: breadcrumb's stamped HEAD vs `git rev-parse HEAD` .. checked ✓
+[ ] state-of-world artifact ............. read ✓
 ```
+
+**THE LIVE BREADCRUMB — there is exactly ONE, and this is its path:**
+
+> `docs/arc/2026/06/278-rules-engine/CURRENT-STATE-annihilate-interpretation.md`
+
+Its top stamp supersedes every dated block below it, and it carries the
+**freshness probe**: the HEAD it was written against. Check that against
+`git rev-parse HEAD` BEFORE you trust a line of it. A match licenses nothing; a
+**mismatch is the alarm** — go read the log for what landed since, and trust the
+log over the file. (A one-commit, docs-only gap is normal: the commit that WRITES
+the stamp necessarily lands after it, so the stamp names its own parent. Confirm
+that is what you are looking at; anything more is stale.)
+
+Its companion, and the state-of-world artifact for arc 278, is
+`docs/arc/2026/06/278-rules-engine/NEXT-STRIKES-theater-hunt.md` — the open list,
+the closing tally, and the TRACKED DECISIONS rows.
+
+> ⚠ **This block is here because the ledger above used to say `live breadcrumb
+> (CLIFFNOTES "Currently")`, which is arc 170's cliff notes — a different arc,
+> long superseded.** An instance that filled the ledger honestly would read the
+> WRONG file and still tick every box. Found 2026-08-25 by a recovery that reached
+> the right breadcrumb only via the arc listing, not via this map. If the live
+> breadcrumb ever moves, THIS block is what you change.
 
 Any line you cannot fill with a this-session action means you are still scattered:
 go fill it. A fact already sitting in your context window is NOT your having
@@ -1016,6 +1044,16 @@ fail is not a gate.
     ./scripts/floor.sh > /dev/null 2>&1; echo "FLOOR EXIT=$?"
     grep -aE "Summary|FAIL" .floor/latest/raw.log | tail -4
 
+**⚠ IT IS NOT ONLY THE EXIT CODE — TRUNCATION LOSES CONTENT TOO.** Three times in
+one session: `floor.sh | tail -4` discarded the exit code; the same pipe cut the
+`Summary` line off entirely, leaving epilogue prose that read like a clean finish;
+and `run-all.sh | tail -60` silently dropped the grid's FIRST axis
+(`min-finding`, first in `ORDER`), which then looked like an axis that never ran.
+The habit that fixes all three is not vigilance, it is a redirect:
+
+    <long-running gate> > /path/to/out.txt 2>&1; echo "EXIT=$?"
+    grep -aE "Summary|FAIL|Verdict" /path/to/out.txt
+
 **Real incident, 2026-08-24:** mid-session I ran the floor as
 `./scripts/floor.sh 2>&1 | tail -4` inside a compound command,
 got "exit code 0", and told the user the floor was green. It
@@ -1029,6 +1067,134 @@ this one was not, and the difference was purely how it was
 read. The session's whole theme was building gates that prove
 tooling works — while the method used to verify them had the
 identical hole.
+
+### Failure mode 21 — A blanket edit that lands INSIDE a string literal
+
+**Signature:** a scripted replace keyed on line CONTENT (`line.strip().startswith(...)`,
+a regex over the whole file) with no check of what the line is *inside of*. Rust files
+here carry wat SOURCE in `const X: &str = "\ … "` blocks and quasiquote templates; a
+`//` comment inserted there is not a comment, it is program text. **It compiles** — inside
+a string literal anything is legal — so the failure surfaces as a runtime test failure far
+from the edit, or not at all.
+
+**Reality check:** bound the edit before making it. Either slice the file to one
+function's span and edit inside that, or assert the target is not within a string block:
+
+    awk '/const [A-Z]+: &str/{ins=1} ins&&/<marker>/{print "LEAK at "NR} /^";$/{ins=0}' file.rs
+
+**Real incidents, both 2026-08-24.** (1) A substring replace of `compiled_conds,` turned
+a struct-literal shorthand into `arm.compiled_conds,` — five compiler round-trips.
+(2) Inserting `rune:vocare(...)` above four hand-built `Rule`s put the comment inside the
+wat source of all four, reddening the floor. **The second is the one worth studying**: I
+caught a FIFTH site the same pass had corrupted, fixed that one, and concluded the
+problem was "I matched an extra site" when it was "my insertion point is inside a
+string." Then I verified the wrong property — `git diff --stat` showing *12 insertions, 0
+deletions, byte-identical* proved the fifth site was restored and said NOTHING about the
+four I had deliberately targeted. A true statement about one subject, read as
+reassurance about another. The structural check above takes one line and would have
+caught all five.
+
+### Failure mode 24 — Per-component proofs that never cross a SEAM
+
+**Signature:** every piece has a test, every test is green, every test was mutation-proven — and
+the defects are all in the paths BETWEEN the pieces. A law per component proves the components.
+It says nothing about composition, and a suite built one-law-per-verb will read as exhaustive
+while covering none of the joins.
+
+**Why it is invisible from inside:** the coverage instrument agrees with you. Nineteen laws, 100%
+of the public surface, every one able to go red under mutation — every signal a test suite can
+emit says "covered". The uncovered thing has no name in that vocabulary, because a seam is not a
+component and nothing enumerates it.
+
+**The tell, and it is reliable:** when a defect IS found, ask where it lived. If the answer is
+repeatedly "between two things I built separately", the suite has this shape, and the next defect
+will be in another seam rather than another component.
+
+**Real incident, 2026-08-25.** `wat/gen.wat` was declared feature-complete and promoted to the
+stdlib on 19 mutation-proven laws. An 18-ward vigilia the same day found: `card` and `at` able to
+disagree (two fields of one struct); `one-of`/`bind` trusting an unvalidated sum of other
+generators' cardinalities; a macro re-splicing a caller's expression (52x measured cost against a
+comment claiming 2x); `lift2` and the `coords` path encoding the same radix twice and disagreeing;
+and a law that an IDENTITY implementation passes. **Every one at a seam. Not one law crossed one.**
+Two earlier gaps that session (`check` returning no witness, `shrink` composing with nothing) were
+the same class and were found only because the builder asked a direct question.
+
+**The cure is not more laws.** It is a law per JOIN: build one thing two ways and require them to
+agree (this caught nothing only because the tripwire drove indices 0..5 and the divergence began
+at 6); assert the SUT's own reported denominator rather than re-reading the struct; and mutate to
+the do-nothing implementation, not to a wrong one — an identity passes far more gates than a
+scramble does.
+
+### Failure mode 25 — `git rm` after a failed generator, then `git checkout` eats the work
+
+**Signature:** a script that generates a replacement file fails partway; the surrounding command
+proceeds to `git rm` the originals anyway; the instinctive recovery (`git checkout -- <paths>`)
+restores them from HEAD — discarding every uncommitted change made since.
+
+**Real incident, 2026-08-25.** A python heredoc raised `ValueError: substring not found` before
+writing `wat-tests/rete/differential-fuzz.wat`. The same Bash invocation's `git rm -qf` ran
+regardless. `git checkout --` then restored the pre-edit version from HEAD, silently deleting an
+uncommitted `bind` rewiring that had taken several steps to build. It had to be redone from the
+transcript.
+
+**The cure is ordering, not care.** Commit before restructuring — the work was green and
+committable and was not committed. And a destructive step must not sit in the same command as the
+step that justifies it: if generation and removal share an invocation, a failed generation still
+reaches the removal.
+
+### Failure mode 22 — A rule written in prose that nothing ever runs
+
+**Signature:** a document states a discipline in the imperative — *"there is exactly ONE X; if
+you find a second, one of them is lying — prune it"* — and no test, no script, and no step in
+any checklist ever executes that check. The rule reads as enforced because it is stated
+forcefully. It is a convention, and conventions rot silently.
+
+**Why it is worse than no rule:** the rule's presence *suppresses* the audit. A reader who meets
+it concludes the invariant is being maintained and moves on. The louder and more confident the
+phrasing, the more effectively it prevents anyone from checking.
+
+**The cure is extirpare's ladder, applied to the RULE and not just the code.** When you write a
+rule into a document, ask which rung it is on. Prose = convention (weakest). A test that walks
+the tree and fails = a check at construction. A shape where the second X cannot exist = the top
+rung. If you cannot climb, say in the document *which* rung it is on, so the next reader knows
+it is unenforced rather than assuming otherwise.
+
+**Real incident, 2026-08-25:** arc 278's `SEAM.md` carried exactly that rule about breadcrumbs.
+A recolligere found **four** files in the same arc each announcing itself as the one live
+current-state — `SEAM.md` (pinned to a HEAD 12 days old and a floor 660 tests short),
+`DESIGN-no-hidden-failures.md` (**six** stacked SEAM blocks, oldest five weeks old),
+`BACKLOG.md` ("CURRENT STATE — read first", declaring the arc PARKED when it had been the active
+arc for 55+ commits), and the true one. The rule was correct and had never once been run. Worse:
+the recovery file's own ledger pointed at a *fifth*, wrong, file — a different arc's cliff notes
+— so an instance filling the ledger honestly would read the wrong document and still tick every
+box. A prior self had already recorded that exact defect as OWED in `REALIZATIONS.md:10578`; it
+sat unactioned because an OWED line, too, is a rule nothing runs.
+
+### Failure mode 23 — A deferral whose stated REASON expires, with nothing to re-read it
+
+**Signature:** a comment or brief defers work and names a blocker — *"the macro cannot yet
+marshal errors back"*, *"the checker punts here"*, *"waiting on X"*. The blocker is later fixed,
+by a different strike, for a different purpose. Nothing connects the fix to the deferral, so the
+deferral keeps citing a reason that is no longer true, and every reader who meets it accepts the
+justification without re-testing it.
+
+**The mechanism is the absence of a re-read.** A deferral parked in prose has no owner, no
+review point, and no gate — so its premise is never revisited. This is the same shape as FM 22:
+something is written down forcefully enough to stop inquiry, and nothing ever re-runs the check.
+
+**The cure — exigere's rule, and note that BOUNDING is a real close, not a dodge:** what cannot
+ship either ships now or becomes a row with an owner, a cost, and the open question stated. A row
+gets re-read; a comment does not. When you bound rather than ship, say so plainly and say why —
+"needs a builder's ruling on a shipped surface" is an honest close; "a later stone" is not.
+
+**Real incident, 2026-08-25:** `src/rust_deps/cache.rs` deferred converting two `panic!` guards
+to matchable values because "the dispatch macro cannot yet marshal method-internal errors back to
+wat as a `RuntimeError`". Grounding it took one file read: `src/rust_deps/sqlite.rs`'s module doc
+states that `#[wat_dispatch]` marshals `Result<T, E>` natively via the blanket impls, needing
+**ZERO macro changes**, including `Result<Self, E>` for a constructor — which is exactly
+`Lru::new`'s shape. The stated blocker had been false for some time and the deferral had gone on
+citing it, in two files, tracked nowhere. What actually remained was a design question nobody had
+been asked.
 
 ### Failure mode 13 — Trusting a DESIGN section without cross-checking memory
 

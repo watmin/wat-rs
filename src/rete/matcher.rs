@@ -78,16 +78,71 @@ pub(crate) fn fact_from_value(v: &Value) -> Option<Fact<'_>> {
 
 /// Declared field names for a fact class (colon-free), read from the frozen type registry.
 /// One reader of the registry — matcher, step_payload, alpha_tree, export, and arm compile.
+///
+/// That "one reader" claim used to be false: `validate.rs`'s `lookup_fields` reimplemented
+/// the identical lookup — same key format, same registry `get`, same `TypeDef::Aggregate`
+/// match, same collect — and is not in the list above. Both now go through
+/// [`aggregate_field_names`], so the claim is enforced by there being one body rather than
+/// asserted by a comment. (`solvere` raised this, then RETRACTED it; the retraction was
+/// wrong and the two functions were byte-equivalent on the disk.)
 pub(crate) fn class_field_names(sym: &SymbolTable, class: &str) -> Vec<String> {
-    let type_key = format!(":{}", class);
     sym.types()
-        .and_then(|t| match t.get(&type_key) {
-            Some(crate::types::TypeDef::Aggregate(a)) => {
-                Some(a.field_names().map(|s| s.to_string()).collect())
-            }
-            _ => None,
-        })
+        .and_then(|t| aggregate_field_names(t, class))
         .unwrap_or_default()
+}
+
+/// THE registry read for "what fields does this aggregate declare?", keyed by `&TypeEnv`.
+///
+/// `class` is colon-free (`p::Rec`); the registry keys carry the leading colon, and that
+/// `format!(":{class}")` is the one place the convention is written down. A caller holding a
+/// `&SymbolTable` reaches it through [`class_field_names`]; a caller already holding a
+/// `&TypeEnv` (the validator) calls this directly.
+pub(crate) fn aggregate_field_names(
+    types: &crate::types::TypeEnv,
+    class: &str,
+) -> Option<Vec<String>> {
+    match types.get(&format!(":{class}")) {
+        Some(crate::types::TypeDef::Aggregate(a)) => {
+            Some(a.field_names().map(|s| s.to_string()).collect())
+        }
+        _ => None,
+    }
+}
+
+/// Resolve a bare `{EnumPath}::{Variant}` head against the frozen registry.
+///
+/// ONE COPY. This resolution — `rsplit_once("::")`, registry `get`, match `TypeDef::Enum`,
+/// find the variant by name across `Unit`/`Tagged` — was hand-written at THREE independent
+/// sites: `purity.rs`'s `constructor_meta` (is this head pure/deterministic/total?),
+/// `expr_ir.rs`'s lowerer (what arity must the call match?), and `validate.rs`'s
+/// `walk_nested_constructors` (does the written arity agree?). `validate.rs`'s own comment
+/// admitted it "mirrors `constructor_meta`'s own resolution".
+///
+/// Verified AGREEING before unification, unlike the `CallFallback` triplication earlier in
+/// this arc, which looked identical and was a live native-vs-oracle divergence. Same shape,
+/// different luck — which is the reason to collapse them rather than to trust the next one.
+/// The three callers still differ in what they DO with the answer, and that part stays
+/// theirs: purity returns an `OpMeta`, the lowerer raises `LowerError` on a mismatch, the
+/// validator pushes a `ReteCheckError`.
+/// Returns `(the enum, the variant name, its arity)` — all three, because the three callers
+/// need different parts: the lowerer wants the `EnumDef` to reach `variant_names_arc`, the
+/// validator wants the arity, and the purity classifier only wants to know it resolved.
+pub(crate) fn enum_variant_ctor<'a>(
+    types: &'a crate::types::TypeEnv,
+    head: &'a str,
+) -> Option<(&'a crate::types::EnumDef, &'a str, usize)> {
+    let (enum_path, variant) = head.rsplit_once("::")?;
+    let crate::types::TypeDef::Enum(e) = types.get(enum_path)? else {
+        return None;
+    };
+    let arity = e.variants.iter().find_map(|v| match v {
+        crate::types::EnumVariant::Unit(n) if n == variant => Some(0usize),
+        crate::types::EnumVariant::Tagged { name, fields } if name == variant => {
+            Some(fields.len())
+        }
+        _ => None,
+    })?;
+    Some((e, variant, arity))
 }
 
 // ─── Bindings — read-only accessor over either binding representation ─────────

@@ -1,4 +1,4 @@
-//! Liveness gate — the 18 `wat-scripts/perf/grid/*.wat` rete axes must actually RUN, and RUN
+//! Liveness gate — every `wat-scripts/perf/grid/*.wat` rete axis must actually RUN, and RUN
 //! NON-VACUOUSLY, on the current runtime.
 //!
 //! `every_wat_scripts_file_loads_on_the_current_runtime` (tests/lint/wat_scripts_fixes_load.rs)
@@ -14,33 +14,38 @@
 //!
 //! ## Two populations, two shapes (discovered, never listed)
 //!
-//! 9 axes (accum, asym-join, deep-cascade, fanout, min-finding, negation, node-share, strat-neg,
-//! user-reduce) are the `run-axis.sh` contract: stdin is an i64 size vector, stdout is ONE
-//! `#grid/Result {... :derived #wat.core/PersistentVector [...] ...}` line. Those are asserted
-//! here per axis: (1) exit 0, (2) a `#grid/Result` line present, (3) `:derived` is NOT `[]`.
+//! The SIZED axes — every stem NOT matching `where-*` — are the `run-axis.sh` contract: stdin is
+//! an i64 size vector, stdout is ONE `#grid/Result {... :derived #wat.core/PersistentVector [...]
+//! ...}` line. Those are asserted here per axis: (1) exit 0, (2) a `#grid/Result` line present,
+//! (3) `:derived` is NOT `[]`, (4) `:derived` equals `:oracle-derived`.
 //!
-//! The other 10 are the `where-*.wat` expressivity corpus (`check-where-shapes.sh`'s population
-//! vs Clara; `check-spec-native.sh` / `spec_equals_native_on_every_where_family` vs the oracle):
-//! no stdin, and stdout is N `row ... n=... ->...` lines, not a `#grid/Result`. They get their
-//! own assertion shape (run + produce output) rather than being silently skipped — and the
-//! EXEMPT SET itself is asserted exactly equal to the known 9 names, so a 10th `where-*.wat`
-//! cannot fall into the exemption by accident; it will fail this test until someone deliberately
-//! updates `WHERE_FAMILY` below.
+//! The `where-*.wat` stems are the expressivity corpus (`check-where-shapes.sh`'s population vs
+//! Clara; `check-spec-native.sh` / `spec_equals_native_on_every_where_family` vs the oracle): no
+//! stdin, and stdout is N `row ... n=... ->...` lines, not a `#grid/Result`. They get their own
+//! assertion shape (run + produce output) rather than being silently skipped.
+//!
+//! **Neither population is spelled as a COUNT anywhere in this file, and that is deliberate.**
+//! An earlier version of this header said "9 sized + 10 where-*" and floor-asserted
+//! `len() >= 18`; the disk had drifted to 11 and 32 while all three numbers still read as
+//! current, because nothing could go red when they stopped being true. `conferre` found it.
+//! The cure is that `SIZED_AXES` and `WHERE_FAMILY` are each asserted EXACTLY equal to what the
+//! directory holds — so the arrays ARE the count, an added or removed axis of either kind fails
+//! loudly and names itself, and there is no second place for a number to rot in.
 //!
 //! ## Non-vacuity is the hard part
 //!
 //! A run that derives `[]` proves nothing (e.g. min-finding at [4 100] correctly derives nothing
 //! — see that axis's own header). `SIZED_AXES` below pins ONE small size per axis, chosen (and
 //! justified inline) to GUARANTEE a non-empty `:derived`, grounded by hand against each axis's
-//! own doc-comment usage example and shape description. All nine were run by hand at these sizes
-//! before this file was written; every one derives and completes in well under a second.
+//! own doc-comment usage example and shape description. Each was run by hand at its size when
+//! its entry was added; every one derives and completes in well under a second.
 //!
 //! ## Discovery, not a list
 //!
-//! The directory is walked, not enumerated by name: `entries.len() >= 18` is floor-asserted so
-//! neither an empty glob nor a shrunk corpus can pass vacuously, and every SIZED axis discovered
-//! on disk must have a `SIZED_AXES` entry (a 19th sized axis with no assigned size fails loudly,
-//! naming itself, rather than silently not being run).
+//! The directory is walked, not enumerated by name, and the walk is then held against both
+//! arrays by exact set equality. An empty glob or a moved directory cannot pass vacuously (the
+//! empty set is not equal to either array), a new axis of either kind cannot run unassigned, and
+//! a DELETED axis cannot vanish quietly — the array still naming it is what goes red.
 
 use std::io::Write;
 use std::path::Path;
@@ -292,24 +297,33 @@ fn run_where_axis(stem: &str) -> (bool, String, String) {
 /// `]` after the opening `[` is always the close. Returns `None` if the shape isn't found at all
 /// (a missing `#grid/Result` line, handled separately by the caller).
 fn extract_derived(stdout: &str) -> Option<String> {
-    let key = ":derived";
-    let key_pos = stdout.find(key)?;
-    let after_key = &stdout[key_pos + key.len()..];
+    extract_vector_field(stdout, ":derived").map(|(v, _)| v)
+}
+
+/// Extract one `<key> #wat.core/PersistentVector [...]` bracket, returning its contents and
+/// the byte offset the key matched at.
+///
+/// ⚠ THE KEY MUST BE DELIMITED, and that is not fussiness: `":oracle-derived"` CONTAINS
+/// `":derived"`. A plain `find(":derived")` can land inside the oracle field, and then a
+/// native-vs-oracle comparison built on it degenerates to `X == X` — a gate that passes
+/// forever while proving nothing. Today `:derived` is emitted first so a naive find happens
+/// to be right; that is an ordering coincidence, not a property. Requiring a preceding space
+/// removes the coincidence.
+///
+/// Elements are plain i64s (no nested brackets), so the first `]` after the opening `[` is
+/// always the close.
+fn extract_vector_field(stdout: &str, key: &str) -> Option<(String, usize)> {
+    let delimited = format!(" {key} ");
+    let key_pos = stdout.find(&delimited)?;
+    let after_key = &stdout[key_pos + delimited.len()..];
     let open = after_key.find('[')?;
     let close = after_key[open..].find(']')?;
-    Some(after_key[open + 1..open + close].to_string())
+    Some((after_key[open + 1..open + close].to_string(), key_pos))
 }
 
 #[test]
 fn grid_axes_run_and_derive_nonvacuously() {
     let stems = discover_axis_stems();
-    assert!(
-        stems.len() >= 18,
-        "found only {} .wat files under wat-scripts/perf/grid/ (expected >= 18: 9 sized axes + \
-         10 where-* expressivity files) — the gate is measuring less than the known grid, or the \
-         directory moved: {stems:?}",
-        stems.len()
-    );
 
     let mut where_stems: Vec<&str> = stems
         .iter()
@@ -332,19 +346,29 @@ fn grid_axes_run_and_derive_nonvacuously() {
         .filter(|s| !s.starts_with("where-"))
         .map(String::as_str)
         .collect();
+    let mut sized_on_disk = sized_stems.clone();
+    sized_on_disk.sort();
+    let mut sized_expected: Vec<&str> = SIZED_AXES.iter().map(|(name, _, _)| *name).collect();
+    sized_expected.sort();
+    assert_eq!(
+        sized_on_disk, sized_expected,
+        "the sized (non-`where-*`) axes on disk do not match SIZED_AXES in \
+         tests/rete/wat_scripts_grid_axes_live.rs — a new sized axis must be given a non-vacuous \
+         size deliberately, and a DELETED one must be removed from the array deliberately; \
+         neither may happen silently. This assertion is also what makes an empty glob or a moved \
+         wat-scripts/perf/grid/ fail loudly instead of passing vacuously"
+    );
 
     let mut failures: Vec<String> = Vec::new();
 
-    // ── the 9 sized axes: must RUN and DERIVE non-vacuously ────────────────────────────────
+    // ── the sized axes: must RUN and DERIVE non-vacuously ──────────────────────────────────
     for &stem in &sized_stems {
-        let Some(&(_, size, why)) = SIZED_AXES.iter().find(|(name, _, _)| *name == stem) else {
-            failures.push(format!(
-                "  {stem}: discovered on disk under wat-scripts/perf/grid/ but has NO entry in \
-                 SIZED_AXES (tests/rete/wat_scripts_grid_axes_live.rs) — a new sized axis must be \
-                 given a non-vacuous size deliberately, it cannot run unassigned"
-            ));
-            continue;
-        };
+        // Total by construction: the exact-set assertion above proved every disk stem has an
+        // entry (and that no entry names an absent file), so this lookup cannot miss.
+        let &(_, size, why) = SIZED_AXES
+            .iter()
+            .find(|(name, _, _)| *name == stem)
+            .expect("sized stem asserted present in SIZED_AXES above");
 
         let (ok, stdout, stderr) = run_sized_axis(stem, size);
         if !ok {
@@ -370,7 +394,43 @@ fn grid_axes_run_and_derive_nonvacuously() {
                 "  {stem} (size {size:?}, justification: {why}): DIED — ran and exited 0, but \
                  :derived is EMPTY ([]). Full line: {stdout:?}\n      stderr: {stderr:?}"
             )),
-            Some(_) => {} // non-empty — this axis is alive.
+            Some(derived) => {
+                // The axis ALREADY fires the `$oracle` on the same staged session and emits
+                // its answer; nothing read it. `conferre` found that four sized axes
+                // (fanout, min-finding, node-share, user-reduce) had NO oracle differential
+                // anywhere — the comparison lived only in `run-axis.sh`, which no test
+                // invokes and which CI cannot run (the Clara half needs a JDK the runner
+                // lacks). So a native-vs-oracle regression on those axes could merge fully
+                // green. The data was being computed and discarded; this reads it.
+                match extract_vector_field(&stdout, ":oracle-derived") {
+                    None => failures.push(format!(
+                        "  {stem} (size {size:?}): #grid/Result carries :derived but no \
+                         :oracle-derived — every sized axis fires the $oracle on the same \
+                         staged session and must emit its answer, or this differential is \
+                         silently not running.\n      stdout: {stdout:?}"
+                    )),
+                    Some((oracle, oracle_at)) => {
+                        // Guard the guard: if both keys matched the same span the comparison
+                        // below is `X == X`.
+                        let derived_at = extract_vector_field(&stdout, ":derived")
+                            .map(|(_, at)| at)
+                            .unwrap_or(usize::MAX);
+                        if derived_at == oracle_at {
+                            failures.push(format!(
+                                "  {stem}: :derived and :oracle-derived resolved to the SAME \
+                                 span — the comparison would be vacuous"
+                            ));
+                        } else if derived.trim() != oracle.trim() {
+                            failures.push(format!(
+                                "  {stem} (size {size:?}): NATIVE AND $ORACLE DISAGREE.\n      \
+                                 native: [{}]\n      oracle: [{}]",
+                                derived.trim(),
+                                oracle.trim()
+                            ));
+                        }
+                    }
+                }
+            }
         }
     }
 
