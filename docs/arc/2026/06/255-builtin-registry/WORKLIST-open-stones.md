@@ -16,7 +16,8 @@ P4  the skipped population is MEASURED         a measurement stone; nothing deci
 O-iv-c  holon sweep                            73 verbs — needs disposition rows (span-carrying)
 O-iv-d  the remainder sweep                    26 verbs — same
 P5  @yields becomes mandatory at expand time   the top rung; biggest change
-P6  a special form NAMES its impls           ← NEW, the builder's question; may unlock the others
+P6-a a special form NAMES its impls        ← NEXT: RULED — "we finish it"; mechanism on if+let
+P6-c the two matches collapse to lookups     the megafile: 111 eval arms + 8 tail arms
 ```
 
 **P1 goes before the sweep on a dependency argument, not a preference.** O-iv-b/c/d add roughly 130
@@ -35,7 +36,8 @@ the floor (P1). Adding the population first and the wall second is the wrong ord
 | **O-iv-c** | holon sweep — `atom` 41 · `subspace` 10 · `engram` 10 · `reckoner` 8 · `hologram` 4 | 73 verbs | *not drawn* | disposition rows (span-carrying algebra) |
 | **O-iv-d** | the remainder — `uuid` 7 · `ambient` 7 · `string`/`reflect`/`bytes` 2 · six singles | 26 verbs | *not drawn* | same |
 | **P5** | `@yields` mandatory when an `@arg` carries an Fn shape | macro-expand-time rule | *not drawn* | P4's measurement |
-| **P6** | a special form NAMES its implementations — `show-source` prints check + eval + tail | new `#[wat_special_form_impl]`; touches `SpecialFormSubmission` and `entry.source`'s shape | *not drawn* — `NOTE-a-special-form-declaration-names-none-of-its-three-implementations.md` | the builder's ruling; ★ may be the route to registering the OTHER special forms |
+| **P6-a** | a special form NAMES its implementations — `#[wat_special_form_impl]`, show-source prints check·eval·tail | new macro + 3rd inventory stream + a wall; **6 annotation lines** | `BRIEF-STONE-P6-a-a-special-form-names-its-implementations.md` | — **READY** (builder ruled: *"we finish it"*) |
+| **P6-c** | the eval and tail matches collapse into registry lookups | 111 eval arms + 8 tail arms | *not drawn* | P6-a's mechanism + its row-0 census |
 
 ## What each row is FOR — one line, so a fresh reader does not need the NOTE
 
