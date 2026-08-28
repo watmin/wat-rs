@@ -215,10 +215,10 @@ pub fn wat_dispatch(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// `crates/wat-macros/src/wat_intrinsic.rs` for the full design.
 #[proc_macro_attribute]
 pub fn wat_intrinsic(attr: TokenStream, item: TokenStream) -> TokenStream {
-    let fqdn = parse_macro_input!(attr as LitStr);
+    let attr = parse_macro_input!(attr as wat_intrinsic::WatIntrinsicAttr);
     let parsed_fn = parse_macro_input!(item as syn::ItemFn);
 
-    match wat_intrinsic::emit(&fqdn, &parsed_fn) {
+    match wat_intrinsic::emit(&attr.fqdn, attr.value_fn.as_ref(), &parsed_fn) {
         Ok(ts) => ts.into(),
         Err(e) => e.to_compile_error().into(),
     }

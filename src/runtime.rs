@@ -11529,13 +11529,28 @@ pub(crate) fn require_i64(op: &'static str, v: Value) -> Result<i64, EvalBreak> 
 /// 36 arms; now that the old spelling is retired, the fold has nothing left to
 /// fold onto, so the arms are the new spelling's ONLY implementation and the fold
 /// is gone. Reached via `apply` of a BOUND keyword — `(let [plus :wat::i64::+]
-/// (apply plus [2 3]))` — which arrives at this table directly, NOT through the
-/// registry-first door in `dispatch_keyword_head_value`
-/// (`probe_diagnostic_dynamic_keyword_invocation::probe_1`).
+/// (apply plus [2 3]))` — which arrives at this table directly.
+///
+/// Arc 255 Stone N — **the registry is consulted FIRST.** HOME-13 (retracted)
+/// found this fn was the second of two dispatch tables — `apply`'s substrate
+/// fallback, entirely registry-blind. Every one of the 44 named arms below
+/// now ALSO carries a `value_handler` registered under the SAME fqdn
+/// (`IntrinsicSubmission::value_handler`, `src/intrinsic/mod.rs`) — the exact
+/// value-level implementation each literal arm below already called (the
+/// SAME `*_inner` / `arith_*_inner` fn; no new arithmetic or algorithm). So
+/// for all 44, the registry lookup below fires and the literal match never
+/// runs; the match is kept, byte-for-byte, as the fallback for any name NOT
+/// (yet) registered with a `value_handler` — this stone makes the 44 arms
+/// **removable**, it does not remove them (STOP-2). A verb whose
+/// `value_handler` is sabotaged and whose result changes under `apply` is
+/// the proof the registry — not this match — now serves that verb.
 pub(crate) fn dispatch_substrate_impl(
     impl_name: &str,
     vals: &[Value],
 ) -> Option<Result<Value, EvalBreak>> {
+    if let Some(handler) = crate::intrinsic::registry().lookup_value(impl_name) {
+        return Some(handler(vals));
+    }
     use crate::collection::eval as ceval;
     match impl_name {
         // arc 255 Stone E-ii — `:wat::core::Vector/length` RETIRED this stone.
@@ -11815,14 +11830,19 @@ pub(crate) fn dispatch_substrate_impl(
 /// `checked_*` overflow (`None`); `f64`/`bigint`/`rational` are
 /// unaffected and keep the plain `Result<T, ()>` divide-by-zero-only
 /// channel.
-enum I64ArithErr {
+// Arc 255 Stone N — widened `pub(crate)` (both were private): the 19
+// arithmetic verbs' `value_handler` adapters (`src/intrinsic/{i64,f64,
+// bigint,rational}.rs`) call these SAME fns — the exact op this table's own
+// arms already used — from a different module, so the registry can serve
+// `apply` with no new arithmetic implementation.
+pub(crate) enum I64ArithErr {
     DivByZero,
     /// `checked_add/sub/mul/div` returned `None` — carries the operands
     /// so the error names the exact overflowing expression.
     Overflow(i64, i64),
 }
 
-fn arith_i64_i64_inner<F>(impl_name: &str, vals: &[Value], op: F) -> Result<Value, EvalBreak>
+pub(crate) fn arith_i64_i64_inner<F>(impl_name: &str, vals: &[Value], op: F) -> Result<Value, EvalBreak>
 where
     F: Fn(i64, i64) -> Result<i64, I64ArithErr>,
 {
@@ -11858,7 +11878,7 @@ where
     }
 }
 
-fn arith_f64_f64_inner<F>(impl_name: &str, vals: &[Value], op: F) -> Result<Value, EvalBreak>
+pub(crate) fn arith_f64_f64_inner<F>(impl_name: &str, vals: &[Value], op: F) -> Result<Value, EvalBreak>
 where
     F: Fn(f64, f64) -> Result<f64, ()>,
 {
@@ -11890,7 +11910,7 @@ where
 /// directly (not a `BigInt`) so `/` can produce EITHER
 /// `Value::wat__core__BigInt` or `Value::wat__core__Rational` — same
 /// two-output-type reason as `eval_bigint_arith`.
-fn arith_bigint_bigint_inner<F>(impl_name: &str, vals: &[Value], op: F) -> Result<Value, EvalBreak>
+pub(crate) fn arith_bigint_bigint_inner<F>(impl_name: &str, vals: &[Value], op: F) -> Result<Value, EvalBreak>
 where
     F: Fn(&BigInt, &BigInt) -> Result<Value, ()>,
 {
@@ -11923,7 +11943,7 @@ where
 /// where only `/` does) — this helper applies `collapse_bigrational`
 /// uniformly after `op`. Operands are coerced via `to_bigrational` (rational
 /// or bigint — see its doc for why bigint is accepted here too).
-fn arith_rational_rational_inner<F>(
+pub(crate) fn arith_rational_rational_inner<F>(
     impl_name: &str,
     vals: &[Value],
     op: F,

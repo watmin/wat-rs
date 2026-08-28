@@ -53,7 +53,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// @arg     b :wat::core::bigint the right addend
 /// @ret     :wat::core::bigint the sum of `a` and `b`
 /// @example (:wat::bigint::+ (:wat::i64::to-bigint 1) (:wat::i64::to-bigint 2)) #=> (:wat::i64::to-bigint 3)
-#[wat_intrinsic(":wat::bigint::+")]
+#[wat_intrinsic(":wat::bigint::+", value = eval_bigint_add_value)]
 pub(crate) fn eval_bigint_add(
     a: &WatAST,
     b: &WatAST,
@@ -64,6 +64,17 @@ pub(crate) fn eval_bigint_add(
     const OP: &str = ":wat::bigint::+";
     crate::runtime::eval_bigint_arith(OP, &[a.clone(), b.clone()], span, env, sym, |x, y, _| {
         Ok(Value::wat__core__BigInt(Box::new(x + y)))
+    })
+}
+
+// Arc 255 Stone N — value-level twin, for `dispatch_substrate_impl`'s
+// registry-first door (`src/runtime.rs`). Same `arith_bigint_bigint_inner`-
+// based implementation that fn's own `:wat::bigint::+` arm already used
+// before this stone — see `i64.rs`'s `eval_i64_add_value` comment for why
+// this is deliberately not merged with `eval_bigint_arith` above.
+fn eval_bigint_add_value(vals: &[Value]) -> Result<Value, EvalBreak> {
+    crate::runtime::arith_bigint_bigint_inner(":wat::bigint::+", vals, |a, b| {
+        Ok(Value::wat__core__BigInt(Box::new(a + b)))
     })
 }
 
@@ -78,7 +89,7 @@ pub(crate) fn eval_bigint_add(
 /// @arg     b :wat::core::bigint the subtrahend
 /// @ret     :wat::core::bigint `a` minus `b`
 /// @example (:wat::bigint::- (:wat::i64::to-bigint 5) (:wat::i64::to-bigint 3)) #=> (:wat::i64::to-bigint 2)
-#[wat_intrinsic(":wat::bigint::-")]
+#[wat_intrinsic(":wat::bigint::-", value = eval_bigint_sub_value)]
 pub(crate) fn eval_bigint_sub(
     a: &WatAST,
     b: &WatAST,
@@ -89,6 +100,13 @@ pub(crate) fn eval_bigint_sub(
     const OP: &str = ":wat::bigint::-";
     crate::runtime::eval_bigint_arith(OP, &[a.clone(), b.clone()], span, env, sym, |x, y, _| {
         Ok(Value::wat__core__BigInt(Box::new(x - y)))
+    })
+}
+
+// Arc 255 Stone N — value-level twin; see `eval_bigint_add_value`'s comment above.
+fn eval_bigint_sub_value(vals: &[Value]) -> Result<Value, EvalBreak> {
+    crate::runtime::arith_bigint_bigint_inner(":wat::bigint::-", vals, |a, b| {
+        Ok(Value::wat__core__BigInt(Box::new(a - b)))
     })
 }
 
@@ -103,7 +121,7 @@ pub(crate) fn eval_bigint_sub(
 /// @arg     b :wat::core::bigint the second factor
 /// @ret     :wat::core::bigint `a` times `b`
 /// @example (:wat::bigint::* (:wat::i64::to-bigint 3) (:wat::i64::to-bigint 4)) #=> (:wat::i64::to-bigint 12)
-#[wat_intrinsic(":wat::bigint::*")]
+#[wat_intrinsic(":wat::bigint::*", value = eval_bigint_mul_value)]
 pub(crate) fn eval_bigint_mul(
     a: &WatAST,
     b: &WatAST,
@@ -114,6 +132,13 @@ pub(crate) fn eval_bigint_mul(
     const OP: &str = ":wat::bigint::*";
     crate::runtime::eval_bigint_arith(OP, &[a.clone(), b.clone()], span, env, sym, |x, y, _| {
         Ok(Value::wat__core__BigInt(Box::new(x * y)))
+    })
+}
+
+// Arc 255 Stone N — value-level twin; see `eval_bigint_add_value`'s comment above.
+fn eval_bigint_mul_value(vals: &[Value]) -> Result<Value, EvalBreak> {
+    crate::runtime::arith_bigint_bigint_inner(":wat::bigint::*", vals, |a, b| {
+        Ok(Value::wat__core__BigInt(Box::new(a * b)))
     })
 }
 
@@ -130,7 +155,7 @@ pub(crate) fn eval_bigint_mul(
 /// @arg     b :wat::core::bigint the divisor
 /// @ret     :wat::core::bigint `a` divided by `b` (bigint if divisible, rational otherwise)
 /// @example (:wat::bigint::/ (:wat::i64::to-bigint 6) (:wat::i64::to-bigint 2)) #=> (:wat::i64::to-bigint 3)
-#[wat_intrinsic(":wat::bigint::/")]
+#[wat_intrinsic(":wat::bigint::/", value = eval_bigint_div_value)]
 pub(crate) fn eval_bigint_div_intrinsic(
     a: &WatAST,
     b: &WatAST,
@@ -140,6 +165,29 @@ pub(crate) fn eval_bigint_div_intrinsic(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::bigint::/";
     crate::runtime::eval_bigint_arith(OP, &[a.clone(), b.clone()], span, env, sym, crate::runtime::bigint_div)
+}
+
+// Arc 255 Stone N — value-level twin; see `eval_bigint_add_value`'s comment
+// above. Body copied verbatim from `dispatch_substrate_impl`'s own
+// `:wat::bigint::/` arm (`src/runtime.rs`) — NOT the direct path's
+// `crate::runtime::bigint_div` (a different fn, `(&BigInt,&BigInt,&Span) ->
+// Result<Value, EvalBreak>`, incompatible with `arith_bigint_bigint_inner`'s
+// `Fn(&BigInt,&BigInt) -> Result<Value, ()>`).
+fn eval_bigint_div_value(vals: &[Value]) -> Result<Value, EvalBreak> {
+    crate::runtime::arith_bigint_bigint_inner(":wat::bigint::/", vals, |a, b| {
+        use num_traits::Zero;
+        if b.is_zero() {
+            return Err(());
+        }
+        let (q, r) = (a / b, a % b);
+        if r.is_zero() {
+            Ok(Value::wat__core__BigInt(Box::new(q)))
+        } else {
+            Ok(Value::wat__core__Rational(Box::new(
+                num_rational::BigRational::new(a.clone(), b.clone()),
+            )))
+        }
+    })
 }
 
 // ─── unary conversions: to-f64 to-rational ─────────────────────────────────

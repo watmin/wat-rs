@@ -58,7 +58,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// @arg     b :wat::core::rational the right addend
 /// @ret     :wat::core::rational the sum of `a` and `b`
 /// @example (:wat::rational::+ (:wat::i64::to-rational 1) (:wat::i64::to-rational 2)) #=> (:wat::i64::to-rational 3)
-#[wat_intrinsic(":wat::rational::+")]
+#[wat_intrinsic(":wat::rational::+", value = eval_rational_add_value)]
 pub(crate) fn eval_rational_add(
     a: &WatAST,
     b: &WatAST,
@@ -72,6 +72,15 @@ pub(crate) fn eval_rational_add(
     })
 }
 
+// Arc 255 Stone N — value-level twin, for `dispatch_substrate_impl`'s
+// registry-first door (`src/runtime.rs`). Same `arith_rational_rational_inner`
+// -based implementation that fn's own `:wat::rational::+` arm already used
+// before this stone — see `i64.rs`'s `eval_i64_add_value` comment for why
+// this is deliberately not merged with `eval_rational_arith` above.
+fn eval_rational_add_value(vals: &[Value]) -> Result<Value, EvalBreak> {
+    crate::runtime::arith_rational_rational_inner(":wat::rational::+", vals, |a, b| Ok(a + b))
+}
+
 /// `(:wat::rational::- a b)` → `a` minus `b`. Collapses to `:wat::core::bigint`
 /// when the result is integer-valued.
 ///
@@ -83,7 +92,7 @@ pub(crate) fn eval_rational_add(
 /// @arg     b :wat::core::rational the subtrahend
 /// @ret     :wat::core::rational `a` minus `b`
 /// @example (:wat::rational::- (:wat::i64::to-rational 5) (:wat::i64::to-rational 3)) #=> (:wat::i64::to-rational 2)
-#[wat_intrinsic(":wat::rational::-")]
+#[wat_intrinsic(":wat::rational::-", value = eval_rational_sub_value)]
 pub(crate) fn eval_rational_sub(
     a: &WatAST,
     b: &WatAST,
@@ -97,6 +106,11 @@ pub(crate) fn eval_rational_sub(
     })
 }
 
+// Arc 255 Stone N — value-level twin; see `eval_rational_add_value`'s comment above.
+fn eval_rational_sub_value(vals: &[Value]) -> Result<Value, EvalBreak> {
+    crate::runtime::arith_rational_rational_inner(":wat::rational::-", vals, |a, b| Ok(a - b))
+}
+
 /// `(:wat::rational::* a b)` → `a` times `b`. Collapses to `:wat::core::bigint`
 /// when the result is integer-valued.
 ///
@@ -108,7 +122,7 @@ pub(crate) fn eval_rational_sub(
 /// @arg     b :wat::core::rational the second factor
 /// @ret     :wat::core::rational `a` times `b`
 /// @example (:wat::rational::* (:wat::i64::to-rational 3) (:wat::i64::to-rational 4)) #=> (:wat::i64::to-rational 12)
-#[wat_intrinsic(":wat::rational::*")]
+#[wat_intrinsic(":wat::rational::*", value = eval_rational_mul_value)]
 pub(crate) fn eval_rational_mul(
     a: &WatAST,
     b: &WatAST,
@@ -120,6 +134,11 @@ pub(crate) fn eval_rational_mul(
     crate::runtime::eval_rational_arith(OP, &[a.clone(), b.clone()], span, env, sym, |x, y, _| {
         Ok(x * y)
     })
+}
+
+// Arc 255 Stone N — value-level twin; see `eval_rational_add_value`'s comment above.
+fn eval_rational_mul_value(vals: &[Value]) -> Result<Value, EvalBreak> {
+    crate::runtime::arith_rational_rational_inner(":wat::rational::*", vals, |a, b| Ok(a * b))
 }
 
 /// `(:wat::rational::/ a b)` → `a` divided by `b`. `b = 0` raises
@@ -134,7 +153,7 @@ pub(crate) fn eval_rational_mul(
 /// @arg     b :wat::core::rational the divisor
 /// @ret     :wat::core::rational `a` divided by `b`
 /// @example (:wat::rational::/ (:wat::i64::to-rational 6) (:wat::i64::to-rational 2)) #=> (:wat::i64::to-rational 3)
-#[wat_intrinsic(":wat::rational::/")]
+#[wat_intrinsic(":wat::rational::/", value = eval_rational_div_value)]
 pub(crate) fn eval_rational_div_intrinsic(
     a: &WatAST,
     b: &WatAST,
@@ -144,6 +163,21 @@ pub(crate) fn eval_rational_div_intrinsic(
 ) -> Result<Value, EvalBreak> {
     const OP: &str = ":wat::rational::/";
     crate::runtime::eval_rational_arith(OP, &[a.clone(), b.clone()], span, env, sym, crate::runtime::rational_div)
+}
+
+// Arc 255 Stone N — value-level twin; see `eval_rational_add_value`'s
+// comment above. Body copied verbatim from `dispatch_substrate_impl`'s own
+// `:wat::rational::/` arm (`src/runtime.rs`) — NOT the direct path's
+// `crate::runtime::rational_div` (incompatible signature, same reason as
+// `bigint.rs`'s `eval_bigint_div_value`).
+fn eval_rational_div_value(vals: &[Value]) -> Result<Value, EvalBreak> {
+    crate::runtime::arith_rational_rational_inner(":wat::rational::/", vals, |a, b| {
+        use num_traits::Zero;
+        if b.is_zero() {
+            return Err(());
+        }
+        Ok(a / b)
+    })
 }
 
 // ─── to-f64 + accessors: to-f64 numerator denominator ─────────────────────

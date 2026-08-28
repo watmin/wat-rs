@@ -187,9 +187,31 @@ pub(crate) struct ExampleSubmission {
 /// `args`, `examples`, and `see` are carried for iv-b2's verifier seam.
 /// Arc 255.1b-v — `source` carries the handler's restringified token source
 /// (via `quote!(#item).to_string()` in the macro), consumed by `show-source`.
+/// The pre-evaluated dispatch handler — what `:wat::core::apply` needs.
+///
+/// ⛔ THE SHAPE DIFFERENCE IS THE WHOLE REASON A SECOND SLOT EXISTS. [`NativeHandler`] takes
+/// UNEVALUATED `&[WatAST]` and evaluates them itself; `apply` has ALREADY evaluated its arguments
+/// and holds `&[Value]`, so it cannot call a `NativeHandler` — there is no AST left to hand it.
+/// That impedance mismatch, not laziness, is why `dispatch_substrate_impl` was a second match table
+/// with no registry lookup (arc 255 Stone N). A verb carrying this slot is served by the REGISTRY on
+/// both paths; one carrying only `handler` still falls through to the legacy match.
+pub(crate) type ValueHandler = fn(&[Value]) -> Result<Value, EvalBreak>;
+
 pub(crate) struct IntrinsicSubmission {
     pub name: &'static str,
     pub handler: NativeHandler,
+    /// Arc 255 Stone N — the value-level handler `:wat::core::apply` needs.
+    /// `handler` takes UNEVALUATED `&[WatAST]` (it evaluates its own args);
+    /// `apply` has already evaluated its args down to `&[Value]` by the time
+    /// it needs to dispatch, so `handler` cannot serve it directly — there is
+    /// no AST left to hand it. `None` (the default the `#[wat_intrinsic]`
+    /// macro emits when no `value = <path>` is named) for the ~250
+    /// pre-existing handlers, unchanged (STOP-1). `Some(f)` for a handler
+    /// that also has a value-level implementation, letting
+    /// `dispatch_substrate_impl` (`src/runtime.rs`) — `apply`'s substrate
+    /// fallback, previously a second, registry-blind dispatch table — serve
+    /// that verb from THIS registry instead.
+    pub value_handler: Option<ValueHandler>,
     /// Exact(N) for fixed-arity handlers; Variadic for `&[WatAST]` handlers.
     pub arity: Arity,
     /// GFM prose body (everything before the first `@`-tag line).
@@ -259,6 +281,11 @@ pub(crate) struct IntrinsicEntry {
     /// `Kind::SpecialForm` (special forms are dispatched by the runtime engine,
     /// not by a registered Rust fn).
     pub handler: Option<NativeHandler>,
+    /// Arc 255 Stone N — mirrors `IntrinsicSubmission::value_handler`; `None`
+    /// for `Kind::SpecialForm` and for any `Kind::Intrinsic` that hasn't
+    /// named one. Read by `lookup_value`, `dispatch_substrate_impl`'s
+    /// registry-first door (`src/runtime.rs`).
+    pub value_handler: Option<ValueHandler>,
     /// What kind of callable this is (`Intrinsic` or `SpecialForm`).
     pub kind: Kind,
     /// `@syntax (...)` grammar string; empty for regular intrinsics.
@@ -326,6 +353,14 @@ impl IntrinsicRegistry {
         self.entries.get(name).and_then(|e| e.handler)
     }
 
+    /// Arc 255 Stone N — the value-level dispatch route, read by
+    /// `dispatch_substrate_impl`'s registry-first door (`src/runtime.rs`),
+    /// `:wat::core::apply`'s substrate fallback. `None` = not registered, or
+    /// registered with no value-level implementation.
+    pub(crate) fn lookup_value(&self, name: &str) -> Option<ValueHandler> {
+        self.entries.get(name).and_then(|e| e.value_handler)
+    }
+
     /// The reflection route — the full baseline entry for `name` (255.1b-iii),
     /// read by `metadata-of`'s intrinsic branch. `None` = not registered.
     pub(crate) fn lookup_entry(&self, name: &str) -> Option<&IntrinsicEntry> {
@@ -350,6 +385,7 @@ pub(crate) fn registry() -> &'static IntrinsicRegistry {
             r.register(IntrinsicEntry {
                 name: submission.name,
                 handler: Some(submission.handler),
+                value_handler: submission.value_handler,
                 kind: Kind::Intrinsic,
                 syntax: "",
                 arity: submission.arity,
@@ -374,6 +410,7 @@ pub(crate) fn registry() -> &'static IntrinsicRegistry {
             r.register(IntrinsicEntry {
                 name: submission.name,
                 handler: None,
+                value_handler: None,
                 kind: Kind::SpecialForm,
                 syntax: submission.syntax,
                 arity: Arity::Variadic, // special forms handle their own arity

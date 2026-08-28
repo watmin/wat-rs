@@ -50,6 +50,42 @@ use quote::{format_ident, quote};
 use syn::{Error, Expr, ExprLit, FnArg, GenericArgument, ItemFn, Lit, LitStr, Meta, Pat,
     PathArguments, ReturnType, Type};
 
+/// The parsed `#[wat_intrinsic(...)]` attribute payload (arc 255 Stone N).
+///
+/// The ~250 pre-existing call sites are a bare FQDN string literal —
+/// `#[wat_intrinsic(":wat::hashmap::length")]` — and parse exactly as
+/// before, with `value_fn: None`. A handler that ALSO has a value-level
+/// implementation reachable from `:wat::core::apply`'s substrate-impl
+/// fallback (`dispatch_substrate_impl`, `src/runtime.rs`) may additionally
+/// name it: `#[wat_intrinsic(":wat::hashmap::length", value = eval_hashmap_length_value)]`.
+/// `value_fn` must name a fn matching `fn(&[Value]) -> Result<Value, EvalBreak>`
+/// in scope at the call site — the macro does not check the signature itself;
+/// a mismatch is a normal Rust type error at the `IntrinsicSubmission` literal.
+pub(crate) struct WatIntrinsicAttr {
+    pub(crate) fqdn: LitStr,
+    pub(crate) value_fn: Option<syn::Path>,
+}
+
+impl syn::parse::Parse for WatIntrinsicAttr {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let fqdn: LitStr = input.parse()?;
+        let mut value_fn = None;
+        if input.peek(syn::Token![,]) {
+            input.parse::<syn::Token![,]>()?;
+            let key: syn::Ident = input.parse()?;
+            if key != "value" {
+                return Err(Error::new_spanned(
+                    &key,
+                    "wat_intrinsic: expected `value = <path>` as the only optional argument",
+                ));
+            }
+            input.parse::<syn::Token![=]>()?;
+            value_fn = Some(input.parse()?);
+        }
+        Ok(WatIntrinsicAttr { fqdn, value_fn })
+    }
+}
+
 /// Result of sniffing the handler signature's arg structure.
 enum SniffedArgs {
     /// N leading `&WatAST` params — fixed arity.
@@ -318,9 +354,24 @@ fn render_doc_error(e: &wat_doc::DocError) -> String {
     }
 }
 
-pub(crate) fn emit(fqdn: &LitStr, item: &ItemFn) -> syn::Result<TokenStream2> {
+pub(crate) fn emit(
+    fqdn: &LitStr,
+    value_fn: Option<&syn::Path>,
+    item: &ItemFn,
+) -> syn::Result<TokenStream2> {
     let sniffed = sniff_args(item)?;
     let sniffed_return = sniff_return(item)?;
+
+    // Arc 255 Stone N — `value_handler` slot. `None` for every call site that
+    // doesn't name a `value = <path>` (the ~250 pre-existing handlers,
+    // untouched — STOP-1); `Some(<path>)` for the ones that do. The macro
+    // does not inspect `<path>`'s signature — a mismatch against
+    // `fn(&[Value]) -> Result<Value, EvalBreak>` surfaces as an ordinary
+    // Rust type error at the `IntrinsicSubmission` struct literal below.
+    let value_handler_field = match value_fn {
+        Some(path) => quote! { ::std::option::Option::Some(#path) },
+        None => quote! { ::std::option::Option::None },
+    };
 
     // Require a doc comment; parse it through wat_doc.
     let raw_doc = match sniff_doc(item) {
@@ -525,6 +576,7 @@ pub(crate) fn emit(fqdn: &LitStr, item: &ItemFn) -> syn::Result<TokenStream2> {
             ::wat::intrinsic::IntrinsicSubmission {
                 name: #fqdn,
                 handler: #shim_ident,
+                value_handler: #value_handler_field,
                 arity: #arity_lit,
                 prose: #prose_lit,
                 added: #added_lit,

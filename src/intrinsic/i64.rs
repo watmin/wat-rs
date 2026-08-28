@@ -35,6 +35,7 @@
 use wat_macros::wat_intrinsic;
 
 use crate::ast::WatAST;
+use crate::runtime::I64ArithErr;
 use crate::span::Span;
 use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 
@@ -59,7 +60,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// @arg     b :wat::core::i64 the right addend
 /// @ret     :wat::core::i64 the sum of `a` and `b`
 /// @example (:wat::i64::+ 1 2) #=> 3
-#[wat_intrinsic(":wat::i64::+")]
+#[wat_intrinsic(":wat::i64::+", value = eval_i64_add_value)]
 pub(crate) fn eval_i64_add(
     a: &WatAST,
     b: &WatAST,
@@ -70,6 +71,24 @@ pub(crate) fn eval_i64_add(
     const OP: &str = ":wat::i64::+";
     crate::runtime::eval_i64_arith(OP, &[a.clone(), b.clone()], span, env, sym, |x, y, b_span| {
         crate::runtime::i64_add_op(OP, x, y, b_span)
+    })
+}
+
+// Arc 255 Stone N — value-level twin, for `dispatch_substrate_impl`'s
+// registry-first door (`src/runtime.rs`, `:wat::core::apply`'s substrate
+// fallback). NOT the same Rust fn as `eval_i64_add` above — `apply` hands
+// already-evaluated `Value`s with no arg-level `Span`s, so it goes through
+// `arith_i64_i64_inner` (the SAME fn `dispatch_substrate_impl`'s own
+// `:wat::i64::+` arm already called before this stone; error spans are
+// synthesized there, real argument spans here — a pre-existing difference
+// this stone does not change). See BRIEF-STONE-N's "two parallel
+// implementations" note: this is deliberately NOT merged into
+// `eval_i64_arith`/`i64_add_op` above, which would drop apply's ability to
+// ever gain real spans and would risk widening today's `apply`-only
+// synthesized-span behavior onto the direct path instead.
+fn eval_i64_add_value(vals: &[Value]) -> Result<Value, EvalBreak> {
+    crate::runtime::arith_i64_i64_inner(":wat::i64::+", vals, |a, b| {
+        a.checked_add(b).ok_or(I64ArithErr::Overflow(a, b))
     })
 }
 
@@ -84,7 +103,7 @@ pub(crate) fn eval_i64_add(
 /// @arg     b :wat::core::i64 the subtrahend
 /// @ret     :wat::core::i64 `a` minus `b`
 /// @example (:wat::i64::- 5 3) #=> 2
-#[wat_intrinsic(":wat::i64::-")]
+#[wat_intrinsic(":wat::i64::-", value = eval_i64_sub_value)]
 pub(crate) fn eval_i64_sub(
     a: &WatAST,
     b: &WatAST,
@@ -95,6 +114,14 @@ pub(crate) fn eval_i64_sub(
     const OP: &str = ":wat::i64::-";
     crate::runtime::eval_i64_arith(OP, &[a.clone(), b.clone()], span, env, sym, |x, y, b_span| {
         crate::runtime::i64_sub_op(OP, x, y, b_span)
+    })
+}
+
+// Arc 255 Stone N — value-level twin; see `eval_i64_add_value`'s comment
+// above for why this is `arith_i64_i64_inner`, not `eval_i64_arith`.
+fn eval_i64_sub_value(vals: &[Value]) -> Result<Value, EvalBreak> {
+    crate::runtime::arith_i64_i64_inner(":wat::i64::-", vals, |a, b| {
+        a.checked_sub(b).ok_or(I64ArithErr::Overflow(a, b))
     })
 }
 
@@ -109,7 +136,7 @@ pub(crate) fn eval_i64_sub(
 /// @arg     b :wat::core::i64 the second factor
 /// @ret     :wat::core::i64 `a` times `b`
 /// @example (:wat::i64::* 3 4) #=> 12
-#[wat_intrinsic(":wat::i64::*")]
+#[wat_intrinsic(":wat::i64::*", value = eval_i64_mul_value)]
 pub(crate) fn eval_i64_mul(
     a: &WatAST,
     b: &WatAST,
@@ -120,6 +147,14 @@ pub(crate) fn eval_i64_mul(
     const OP: &str = ":wat::i64::*";
     crate::runtime::eval_i64_arith(OP, &[a.clone(), b.clone()], span, env, sym, |x, y, b_span| {
         crate::runtime::i64_mul_op(OP, x, y, b_span)
+    })
+}
+
+// Arc 255 Stone N — value-level twin; see `eval_i64_add_value`'s comment
+// above for why this is `arith_i64_i64_inner`, not `eval_i64_arith`.
+fn eval_i64_mul_value(vals: &[Value]) -> Result<Value, EvalBreak> {
+    crate::runtime::arith_i64_i64_inner(":wat::i64::*", vals, |a, b| {
+        a.checked_mul(b).ok_or(I64ArithErr::Overflow(a, b))
     })
 }
 
@@ -135,7 +170,7 @@ pub(crate) fn eval_i64_mul(
 /// @arg     b :wat::core::i64 the divisor
 /// @ret     :wat::core::i64 `a` divided by `b`, truncated toward zero
 /// @example (:wat::i64::/ 6 2) #=> 3
-#[wat_intrinsic(":wat::i64::/")]
+#[wat_intrinsic(":wat::i64::/", value = eval_i64_div_value)]
 pub(crate) fn eval_i64_div(
     a: &WatAST,
     b: &WatAST,
@@ -146,6 +181,18 @@ pub(crate) fn eval_i64_div(
     const OP: &str = ":wat::i64::/";
     crate::runtime::eval_i64_arith(OP, &[a.clone(), b.clone()], span, env, sym, |x, y, b_span| {
         crate::runtime::i64_div_op(OP, x, y, b_span)
+    })
+}
+
+// Arc 255 Stone N — value-level twin; see `eval_i64_add_value`'s comment
+// above for why this is `arith_i64_i64_inner`, not `eval_i64_arith`.
+fn eval_i64_div_value(vals: &[Value]) -> Result<Value, EvalBreak> {
+    crate::runtime::arith_i64_i64_inner(":wat::i64::/", vals, |a, b| {
+        if b == 0 {
+            Err(I64ArithErr::DivByZero)
+        } else {
+            a.checked_div(b).ok_or(I64ArithErr::Overflow(a, b))
+        }
     })
 }
 
@@ -161,7 +208,7 @@ pub(crate) fn eval_i64_div(
 /// @arg     b :wat::core::i64 the divisor
 /// @ret     :wat::core::i64 `a` modulo `b`, sign of `b`
 /// @example (:wat::i64::mod -7 3) #=> 2
-#[wat_intrinsic(":wat::i64::mod")]
+#[wat_intrinsic(":wat::i64::mod", value = eval_i64_mod_value)]
 pub(crate) fn eval_i64_mod(
     a: &WatAST,
     b: &WatAST,
@@ -172,6 +219,23 @@ pub(crate) fn eval_i64_mod(
     const OP: &str = ":wat::i64::mod";
     crate::runtime::eval_i64_arith(OP, &[a.clone(), b.clone()], span, env, sym, |x, y, b_span| {
         crate::runtime::i64_mod_op(OP, x, y, b_span)
+    })
+}
+
+// Arc 255 Stone N — value-level twin; see `eval_i64_add_value`'s comment
+// above for why this is `arith_i64_i64_inner`, not `eval_i64_arith`.
+fn eval_i64_mod_value(vals: &[Value]) -> Result<Value, EvalBreak> {
+    crate::runtime::arith_i64_i64_inner(":wat::i64::mod", vals, |a, b| {
+        if b == 0 {
+            Err(I64ArithErr::DivByZero)
+        } else {
+            let r = a.checked_rem(b).unwrap_or(0);
+            Ok(if r != 0 && (r < 0) != (b < 0) {
+                r + b
+            } else {
+                r
+            })
+        }
     })
 }
 
@@ -187,7 +251,7 @@ pub(crate) fn eval_i64_mod(
 /// @arg     b :wat::core::i64 the divisor
 /// @ret     :wat::core::i64 `a` divided by `b`, truncated toward zero
 /// @example (:wat::i64::quot -7 3) #=> -2
-#[wat_intrinsic(":wat::i64::quot")]
+#[wat_intrinsic(":wat::i64::quot", value = eval_i64_quot_value)]
 pub(crate) fn eval_i64_quot(
     a: &WatAST,
     b: &WatAST,
@@ -198,6 +262,18 @@ pub(crate) fn eval_i64_quot(
     const OP: &str = ":wat::i64::quot";
     crate::runtime::eval_i64_arith(OP, &[a.clone(), b.clone()], span, env, sym, |x, y, b_span| {
         crate::runtime::i64_quot_op(OP, x, y, b_span)
+    })
+}
+
+// Arc 255 Stone N — value-level twin; see `eval_i64_add_value`'s comment
+// above for why this is `arith_i64_i64_inner`, not `eval_i64_arith`.
+fn eval_i64_quot_value(vals: &[Value]) -> Result<Value, EvalBreak> {
+    crate::runtime::arith_i64_i64_inner(":wat::i64::quot", vals, |a, b| {
+        if b == 0 {
+            Err(I64ArithErr::DivByZero)
+        } else {
+            a.checked_div(b).ok_or(I64ArithErr::Overflow(a, b))
+        }
     })
 }
 
@@ -213,7 +289,7 @@ pub(crate) fn eval_i64_quot(
 /// @arg     b :wat::core::i64 the divisor
 /// @ret     :wat::core::i64 the remainder of `a` divided by `b`, sign of `a`
 /// @example (:wat::i64::rem -7 3) #=> -1
-#[wat_intrinsic(":wat::i64::rem")]
+#[wat_intrinsic(":wat::i64::rem", value = eval_i64_rem_value)]
 pub(crate) fn eval_i64_rem(
     a: &WatAST,
     b: &WatAST,
@@ -224,6 +300,18 @@ pub(crate) fn eval_i64_rem(
     const OP: &str = ":wat::i64::rem";
     crate::runtime::eval_i64_arith(OP, &[a.clone(), b.clone()], span, env, sym, |x, y, b_span| {
         crate::runtime::i64_rem_op(OP, x, y, b_span)
+    })
+}
+
+// Arc 255 Stone N — value-level twin; see `eval_i64_add_value`'s comment
+// above for why this is `arith_i64_i64_inner`, not `eval_i64_arith`.
+fn eval_i64_rem_value(vals: &[Value]) -> Result<Value, EvalBreak> {
+    crate::runtime::arith_i64_i64_inner(":wat::i64::rem", vals, |a, b| {
+        if b == 0 {
+            Err(I64ArithErr::DivByZero)
+        } else {
+            Ok(a.checked_rem(b).unwrap_or(0))
+        }
     })
 }
 

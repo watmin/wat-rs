@@ -46,7 +46,7 @@ use crate::value::{Environment, EvalBreak, SymbolTable, Value};
 /// @ret     :wat::core::i64 the number of entries in `m`
 /// @example (:wat::hashmap::length (:wat::core::HashMap)) #=> 0
 /// @see     :wat::hashmap::empty?
-#[wat_intrinsic(":wat::hashmap::length")]
+#[wat_intrinsic(":wat::hashmap::length", value = eval_hashmap_length_home_value)]
 pub(crate) fn eval_hashmap_length_home(
     m: &WatAST,
     env: &Environment,
@@ -55,6 +55,15 @@ pub(crate) fn eval_hashmap_length_home(
 ) -> Result<Value, EvalBreak> {
     let m = eval_inner(m, env, sym)?.value_owned();
     crate::collection::eval::hashmap_length_inner(&m)
+}
+
+// Arc 255 Stone N — value-level twin of `eval_hashmap_length_home` (above), for
+// `dispatch_substrate_impl`'s registry-first door (`src/runtime.rs`,
+// `:wat::core::apply`'s substrate fallback). Calls the SAME
+// `hashmap_length_inner` fn `eval_hashmap_length_home` calls; no new algorithm, a slice-shaped
+// entry point onto it.
+fn eval_hashmap_length_home_value(vals: &[Value]) -> Result<Value, EvalBreak> {
+    crate::collection::eval::hashmap_length_inner(vals.first().expect("arity-checked"))
 }
 
 /// `(:wat::hashmap::empty? m)` → whether `m` has zero entries.
@@ -67,7 +76,7 @@ pub(crate) fn eval_hashmap_length_home(
 /// @ret     :wat::core::bool true iff `m` has zero entries
 /// @example (:wat::hashmap::empty? (:wat::core::HashMap)) #=> true
 /// @see     :wat::hashmap::length
-#[wat_intrinsic(":wat::hashmap::empty?")]
+#[wat_intrinsic(":wat::hashmap::empty?", value = eval_hashmap_empty_q_home_value)]
 pub(crate) fn eval_hashmap_empty_q_home(
     m: &WatAST,
     env: &Environment,
@@ -76,6 +85,15 @@ pub(crate) fn eval_hashmap_empty_q_home(
 ) -> Result<Value, EvalBreak> {
     let m = eval_inner(m, env, sym)?.value_owned();
     crate::collection::eval::hashmap_empty_q_inner(&m)
+}
+
+// Arc 255 Stone N — value-level twin of `eval_hashmap_empty_q_home` (above), for
+// `dispatch_substrate_impl`'s registry-first door (`src/runtime.rs`,
+// `:wat::core::apply`'s substrate fallback). Calls the SAME
+// `hashmap_empty_q_inner` fn `eval_hashmap_empty_q_home` calls; no new algorithm, a slice-shaped
+// entry point onto it.
+fn eval_hashmap_empty_q_home_value(vals: &[Value]) -> Result<Value, EvalBreak> {
+    crate::collection::eval::hashmap_empty_q_inner(vals.first().expect("arity-checked"))
 }
 
 /// `(:wat::hashmap::contains-key? m k)` → whether `k` is a key in `m`.
@@ -89,7 +107,7 @@ pub(crate) fn eval_hashmap_empty_q_home(
 /// @ret     :wat::core::bool true iff `k` occurs as a key in `m`
 /// @example (:wat::hashmap::contains-key? (:wat::hashmap::assoc (:wat::core::HashMap) "a" 1) "a") #=> true
 /// @see     :wat::hashmap::get
-#[wat_intrinsic(":wat::hashmap::contains-key?")]
+#[wat_intrinsic(":wat::hashmap::contains-key?", value = eval_hashmap_contains_key_q_home_value)]
 pub(crate) fn eval_hashmap_contains_key_q_home(
     m: &WatAST,
     k: &WatAST,
@@ -100,6 +118,15 @@ pub(crate) fn eval_hashmap_contains_key_q_home(
     let m = eval_inner(m, env, sym)?.value_owned();
     let k = eval_inner(k, env, sym)?.value_owned();
     crate::collection::eval::hashmap_contains_key_q_inner(&m, &k)
+}
+
+// Arc 255 Stone N — value-level twin of `eval_hashmap_contains_key_q_home` (above), for
+// `dispatch_substrate_impl`'s registry-first door (`src/runtime.rs`,
+// `:wat::core::apply`'s substrate fallback). Calls the SAME
+// `hashmap_contains_key_q_inner` fn `eval_hashmap_contains_key_q_home` calls; no new algorithm, a slice-shaped
+// entry point onto it.
+fn eval_hashmap_contains_key_q_home_value(vals: &[Value]) -> Result<Value, EvalBreak> {
+    crate::collection::eval::hashmap_contains_key_q_inner(vals.first().expect("arity-checked"), vals.get(1).expect("arity-checked"))
 }
 
 /// `(:wat::hashmap::get m k)` → `Some` of the value at key `k` in `m`, or
@@ -114,7 +141,7 @@ pub(crate) fn eval_hashmap_contains_key_q_home(
 /// @ret     (:wat::core::Option :- [V]) `Some` the value at `k`, or `None` on a miss
 /// @example (:wat::hashmap::get (:wat::hashmap::assoc (:wat::core::HashMap) "a" 1) "a") #=> (:wat::core::Some 1)
 /// @see     :wat::hashmap::contains-key?
-#[wat_intrinsic(":wat::hashmap::get")]
+#[wat_intrinsic(":wat::hashmap::get", value = eval_hashmap_get_home_value)]
 pub(crate) fn eval_hashmap_get_home(
     m: &WatAST,
     k: &WatAST,
@@ -125,6 +152,15 @@ pub(crate) fn eval_hashmap_get_home(
     let m = eval_inner(m, env, sym)?.value_owned();
     let k = eval_inner(k, env, sym)?.value_owned();
     crate::collection::eval::hashmap_get_inner(&m, &k)
+}
+
+// Arc 255 Stone N — value-level twin of `eval_hashmap_get_home` (above), for
+// `dispatch_substrate_impl`'s registry-first door (`src/runtime.rs`,
+// `:wat::core::apply`'s substrate fallback). Calls the SAME
+// `hashmap_get_inner` fn `eval_hashmap_get_home` calls; no new algorithm, a slice-shaped
+// entry point onto it.
+fn eval_hashmap_get_home_value(vals: &[Value]) -> Result<Value, EvalBreak> {
+    crate::collection::eval::hashmap_get_inner(vals.first().expect("arity-checked"), vals.get(1).expect("arity-checked"))
 }
 
 /// `(:wat::hashmap::assoc m k v)` → `m` with key `k` bound to value `v`
@@ -140,7 +176,7 @@ pub(crate) fn eval_hashmap_get_home(
 /// @ret     (:wat::core::HashMap :- [K V]) `m` with `k` bound to `v`
 /// @example (:wat::hashmap::length (:wat::hashmap::assoc (:wat::core::HashMap) "a" 1)) #=> 1
 /// @see     :wat::hashmap::dissoc
-#[wat_intrinsic(":wat::hashmap::assoc")]
+#[wat_intrinsic(":wat::hashmap::assoc", value = eval_hashmap_assoc_home_value)]
 pub(crate) fn eval_hashmap_assoc_home(
     m: &WatAST,
     k: &WatAST,
@@ -155,6 +191,15 @@ pub(crate) fn eval_hashmap_assoc_home(
     crate::collection::eval::hashmap_assoc_inner(&m, &k, &v)
 }
 
+// Arc 255 Stone N — value-level twin of `eval_hashmap_assoc_home` (above), for
+// `dispatch_substrate_impl`'s registry-first door (`src/runtime.rs`,
+// `:wat::core::apply`'s substrate fallback). Calls the SAME
+// `hashmap_assoc_inner` fn `eval_hashmap_assoc_home` calls; no new algorithm, a slice-shaped
+// entry point onto it.
+fn eval_hashmap_assoc_home_value(vals: &[Value]) -> Result<Value, EvalBreak> {
+    crate::collection::eval::hashmap_assoc_inner(vals.first().expect("arity-checked"), vals.get(1).expect("arity-checked"), vals.get(2).expect("arity-checked"))
+}
+
 /// `(:wat::hashmap::dissoc m k)` → `m` with key `k` removed (a no-op if `k`
 /// is absent).
 ///
@@ -167,7 +212,7 @@ pub(crate) fn eval_hashmap_assoc_home(
 /// @ret     (:wat::core::HashMap :- [K V]) `m` with `k` removed
 /// @example (:wat::hashmap::length (:wat::hashmap::dissoc (:wat::hashmap::assoc (:wat::core::HashMap) "a" 1) "a")) #=> 0
 /// @see     :wat::hashmap::assoc
-#[wat_intrinsic(":wat::hashmap::dissoc")]
+#[wat_intrinsic(":wat::hashmap::dissoc", value = eval_hashmap_dissoc_home_value)]
 pub(crate) fn eval_hashmap_dissoc_home(
     m: &WatAST,
     k: &WatAST,
@@ -178,6 +223,15 @@ pub(crate) fn eval_hashmap_dissoc_home(
     let m = eval_inner(m, env, sym)?.value_owned();
     let k = eval_inner(k, env, sym)?.value_owned();
     crate::collection::eval::hashmap_dissoc_inner(&m, &k)
+}
+
+// Arc 255 Stone N — value-level twin of `eval_hashmap_dissoc_home` (above), for
+// `dispatch_substrate_impl`'s registry-first door (`src/runtime.rs`,
+// `:wat::core::apply`'s substrate fallback). Calls the SAME
+// `hashmap_dissoc_inner` fn `eval_hashmap_dissoc_home` calls; no new algorithm, a slice-shaped
+// entry point onto it.
+fn eval_hashmap_dissoc_home_value(vals: &[Value]) -> Result<Value, EvalBreak> {
+    crate::collection::eval::hashmap_dissoc_inner(vals.first().expect("arity-checked"), vals.get(1).expect("arity-checked"))
 }
 
 /// `(:wat::hashmap::keys m)` → a `Vector` of `m`'s keys. Iteration ORDER is
@@ -192,7 +246,7 @@ pub(crate) fn eval_hashmap_dissoc_home(
 /// @ret     (:wat::core::Vector :- [K]) `m`'s keys, order unspecified
 /// @example-norun (:wat::hashmap::length (:wat::hashmap::keys (:wat::hashmap::assoc (:wat::core::HashMap) "a" 1))) #=> 1
 /// @see     :wat::hashmap::values
-#[wat_intrinsic(":wat::hashmap::keys")]
+#[wat_intrinsic(":wat::hashmap::keys", value = eval_hashmap_keys_home_value)]
 pub(crate) fn eval_hashmap_keys_home(
     m: &WatAST,
     env: &Environment,
@@ -201,6 +255,15 @@ pub(crate) fn eval_hashmap_keys_home(
 ) -> Result<Value, EvalBreak> {
     let m = eval_inner(m, env, sym)?.value_owned();
     crate::collection::eval::hashmap_keys_inner(&m)
+}
+
+// Arc 255 Stone N — value-level twin of `eval_hashmap_keys_home` (above), for
+// `dispatch_substrate_impl`'s registry-first door (`src/runtime.rs`,
+// `:wat::core::apply`'s substrate fallback). Calls the SAME
+// `hashmap_keys_inner` fn `eval_hashmap_keys_home` calls; no new algorithm, a slice-shaped
+// entry point onto it.
+fn eval_hashmap_keys_home_value(vals: &[Value]) -> Result<Value, EvalBreak> {
+    crate::collection::eval::hashmap_keys_inner(vals.first().expect("arity-checked"))
 }
 
 /// `(:wat::hashmap::values m)` → a `Vector` of `m`'s values. Iteration ORDER
@@ -214,7 +277,7 @@ pub(crate) fn eval_hashmap_keys_home(
 /// @ret     (:wat::core::Vector :- [V]) `m`'s values, order unspecified
 /// @example-norun (:wat::hashmap::length (:wat::hashmap::values (:wat::hashmap::assoc (:wat::core::HashMap) "a" 1))) #=> 1
 /// @see     :wat::hashmap::keys
-#[wat_intrinsic(":wat::hashmap::values")]
+#[wat_intrinsic(":wat::hashmap::values", value = eval_hashmap_values_home_value)]
 pub(crate) fn eval_hashmap_values_home(
     m: &WatAST,
     env: &Environment,
@@ -223,4 +286,13 @@ pub(crate) fn eval_hashmap_values_home(
 ) -> Result<Value, EvalBreak> {
     let m = eval_inner(m, env, sym)?.value_owned();
     crate::collection::eval::hashmap_values_inner(&m)
+}
+
+// Arc 255 Stone N — value-level twin of `eval_hashmap_values_home` (above), for
+// `dispatch_substrate_impl`'s registry-first door (`src/runtime.rs`,
+// `:wat::core::apply`'s substrate fallback). Calls the SAME
+// `hashmap_values_inner` fn `eval_hashmap_values_home` calls; no new algorithm, a slice-shaped
+// entry point onto it.
+fn eval_hashmap_values_home_value(vals: &[Value]) -> Result<Value, EvalBreak> {
+    crate::collection::eval::hashmap_values_inner(vals.first().expect("arity-checked"))
 }

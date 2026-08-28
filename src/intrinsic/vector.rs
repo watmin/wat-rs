@@ -192,7 +192,7 @@ pub(crate) fn eval_persistentvector_conj_home(
 /// @ret     (:wat::core::PersistentVector :- [T]) `to` with every element of `from` appended
 /// @example (:wat::vector::length (:wat::vector::concat (:wat::core::PersistentVector 1) (:wat::core::PersistentVector 2))) #=> 2
 /// @see     :wat::vector::conj
-#[wat_intrinsic(":wat::vector::concat")]
+#[wat_intrinsic(":wat::vector::concat", value = eval_persistentvector_concat_home_value)]
 pub(crate) fn eval_persistentvector_concat_home(
     to: &WatAST,
     from: &WatAST,
@@ -203,4 +203,13 @@ pub(crate) fn eval_persistentvector_concat_home(
     let to = eval_inner(to, env, sym)?.value_owned();
     let from = eval_inner(from, env, sym)?.value_owned();
     crate::collection::eval::persistentvector_concat_inner(&to, &from)
+}
+
+// Arc 255 Stone N — value-level twin of `eval_persistentvector_concat_home` (above), for
+// `dispatch_substrate_impl`'s registry-first door (`src/runtime.rs`,
+// `:wat::core::apply`'s substrate fallback). Calls the SAME
+// `persistentvector_concat_inner` fn `eval_persistentvector_concat_home` calls; no new algorithm, a slice-shaped
+// entry point onto it.
+fn eval_persistentvector_concat_home_value(vals: &[Value]) -> Result<Value, EvalBreak> {
+    crate::collection::eval::persistentvector_concat_inner(vals.first().expect("arity-checked"), vals.get(1).expect("arity-checked"))
 }
