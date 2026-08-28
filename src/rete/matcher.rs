@@ -312,9 +312,9 @@ fn eval_alpha_match_kind(
 
     // Pure match: no environment, no eval, bindings as an array (element-side — see `Bindings`).
     let matched = if local {
-        alpha_match_inner_local(&cond_ast, fact.class_fqdn, fact.fields, &field_names)
+        alpha_match_inner_local(Some(sym), &cond_ast, fact.class_fqdn, fact.fields, &field_names)
     } else {
-        alpha_match_inner(&cond_ast, fact.class_fqdn, fact.fields, &field_names)
+        alpha_match_inner(Some(sym), &cond_ast, fact.class_fqdn, fact.fields, &field_names)
     };
     let result = matched.map(|b| attach_fact_bind(&cond_ast, &fact_val, b));
     pack_alpha_match_option(result)
@@ -398,6 +398,7 @@ pub(crate) fn eval_alpha_match_under(
     let field_names = class_field_names(sym, fact.class_fqdn);
 
     let result = alpha_match_inner_seeded(
+        Some(sym),
         &cond_ast,
         fact.class_fqdn,
         fact.fields,
@@ -471,12 +472,13 @@ pub(crate) fn attach_fact_bind(
 /// `Vec<(Value, Value)>` (cheap: elements bind 1-2 vars in practice) rather than
 /// folding an `rpds` trie — most of that stone's win on the oracle side.
 pub(crate) fn alpha_match_inner(
+    sym: Option<&SymbolTable>,
     cond: &WatAST,
     fact_class: &str,
     fact_fields: &[Value],
     field_names: &[String],
 ) -> BindPairs {
-    alpha_match_inner_opts(cond, fact_class, fact_fields, field_names, &[], false)
+    alpha_match_inner_opts(sym, cond, fact_class, fact_fields, field_names, &[], false)
 }
 
 /// Empty-seed match that **defers** a constraint whose `?var` is not bound in
@@ -485,12 +487,13 @@ pub(crate) fn alpha_match_inner(
 /// Join alphas must not use this — a deferred join constraint would be lost
 /// at `token_element_compatible`.
 pub(crate) fn alpha_match_inner_local(
+    sym: Option<&SymbolTable>,
     cond: &WatAST,
     fact_class: &str,
     fact_fields: &[Value],
     field_names: &[String],
 ) -> BindPairs {
-    alpha_match_inner_opts(cond, fact_class, fact_fields, field_names, &[], true)
+    alpha_match_inner_opts(sym, cond, fact_class, fact_fields, field_names, &[], true)
 }
 
 /// Alpha-match with a seed binding map (token bindings already accumulated on the left).
@@ -502,16 +505,18 @@ pub(crate) fn alpha_match_inner_local(
 /// against the token. Seed the left bindings so the same cond is honest at
 /// beta time. `alpha_match_inner` stays the empty-seed path.
 pub(crate) fn alpha_match_inner_seeded(
+    sym: Option<&SymbolTable>,
     cond: &WatAST,
     fact_class: &str,
     fact_fields: &[Value],
     field_names: &[String],
     seed: &[(Value, Value)],
 ) -> BindPairs {
-    alpha_match_inner_opts(cond, fact_class, fact_fields, field_names, seed, false)
+    alpha_match_inner_opts(sym, cond, fact_class, fact_fields, field_names, seed, false)
 }
 
 fn alpha_match_inner_opts(
+    sym: Option<&SymbolTable>,
     cond: &WatAST,
     fact_class: &str,
     fact_fields: &[Value],
@@ -526,6 +531,7 @@ fn alpha_match_inner_opts(
         return None;
     }
     eval_clauses(
+        sym,
         pat.clauses,
         fact_fields,
         field_names,
@@ -604,6 +610,7 @@ fn operand_is_qvar(operand: &WatAST) -> bool {
 /// Walk a slice of top-level condition clauses, threading bindings left→right.
 /// Returns `None` on the first failure (short-circuit AND).
 fn eval_clauses(
+    sym: Option<&SymbolTable>,
     clauses: &[WatAST],
     fact_fields: &[Value],
     field_names: &[String],
@@ -613,7 +620,7 @@ fn eval_clauses(
     let mut current = bindings;
     for clause in clauses {
         crate::rete::kernel::census_count("match:clause");
-        current = eval_clause(clause, fact_fields, field_names, current, defer_unbound)?;
+        current = eval_clause(sym, clause, fact_fields, field_names, current, defer_unbound)?;
     }
     Some(current)
 }
@@ -626,6 +633,7 @@ fn eval_clauses(
 /// actually reach this fn at fire time (compile-condition consumes them earlier), so mapping
 /// them to `None` here matches the prior default-arm outcome exactly.
 fn eval_clause(
+    sym: Option<&SymbolTable>,
     clause: &WatAST,
     fact_fields: &[Value],
     field_names: &[String],
@@ -668,8 +676,10 @@ fn eval_clause(
         // (`:wat::core::<op>`) is freeze-walled and compile_condition_local-refused.
         // Operands resolved from {bindings, field, literal}.
         ReteClauseShape::Constraint { op, lhs, rhs } => {
-            let a = resolve_operand(lhs, fact_fields, field_names, &bindings);
-            let b = resolve_operand(rhs, fact_fields, field_names, &bindings);
+            let a = resolve_operand(lhs, fact_fields, field_names, &bindings)
+                .or_else(|| eval_computed_operand(sym, lhs, fact_fields, field_names, &bindings));
+            let b = resolve_operand(rhs, fact_fields, field_names, &bindings)
+                .or_else(|| eval_computed_operand(sym, rhs, fact_fields, field_names, &bindings));
             let (a, b) = match (a, b) {
                 (Some(a), Some(b)) => (a, b),
                 _ if defer_unbound && (operand_is_qvar(lhs) || operand_is_qvar(rhs)) => {
@@ -696,7 +706,7 @@ fn eval_clause(
         // ── combinators ──────────────────────────────────────────────────────
         // :wat::rete::and — every sub-clause holds (thread bindings left→right).
         ReteClauseShape::And(subs) => {
-            eval_clauses(subs, fact_fields, field_names, bindings, defer_unbound)
+            eval_clauses(sym, subs, fact_fields, field_names, bindings, defer_unbound)
         }
         // :wat::rete::or — ≥1 sub-clause holds. Bindings from a branch
         // do NOT survive past the `or` (which branch won is ambiguous).
@@ -704,6 +714,7 @@ fn eval_clause(
             let entry = bindings;
             for sub in subs {
                 if eval_clause(
+                    sym,
                     sub,
                     fact_fields,
                     field_names,
@@ -721,7 +732,7 @@ fn eval_clause(
         // the negated branch are discarded (no values to bind from a failed match).
         ReteClauseShape::Not(sub) => {
             let sub_matched =
-                eval_clause(sub, fact_fields, field_names, bindings.clone(), defer_unbound)
+                eval_clause(sym, sub, fact_fields, field_names, bindings.clone(), defer_unbound)
                     .is_some();
             if sub_matched {
                 None
@@ -761,6 +772,73 @@ fn eval_clause(
 /// `eval_clause`'s `Constraint` arm, mid-fold), the token-side trie (`build_insert_fact`,
 /// `eval_step_payload`), or in principle either (see the `Bindings` doc). Monomorphised per
 /// call site — no vtable, no dispatch cost.
+/// Evaluate an operand that is a NESTED CALL, through the one expression core.
+///
+/// ⛔ **THE ORACLE HAD FIX-LIST ENTRY F TOO, AND THAT IS WHY THE FUZZERS WERE BLIND.** Entry F was
+/// fixed first in the COMPILED path (`compiled_cond`'s `Op::Eval`), and the new grid axis
+/// immediately showed the `$oracle` still answering `n=0` where Clara and native both said 111.
+/// Native and the oracle did not merely agree — they SHARED the defect, which is FM 28 in its
+/// purest form: two engines agreeing proves nothing when the thing they agree on is the bug.
+/// Clara broke the tie, which is the whole reason a third reference exists.
+///
+/// This is the interpreted twin of the compiled fix and it reuses the SAME core rather than
+/// growing a second evaluator: field refs become reserved `?`-names bound to their values, the
+/// operand lowers through `expr_ir::lower`, and `exec_value` runs it against those bindings —
+/// the identical `Expr::Call`, opcode and `RETE_OPS` table the fence and the compiled path use.
+///
+/// `None` when there is no `SymbolTable` (no caller lacks one today) or when the operand is not a
+/// call at all — in which case `resolve_operand` has already answered and this is never reached.
+fn eval_computed_operand(
+    sym: Option<&SymbolTable>,
+    operand: &WatAST,
+    fact_fields: &[Value],
+    field_names: &[String],
+    bindings: &BindAcc,
+) -> Option<Value> {
+    let WatAST::List(..) = operand else { return None };
+    let sym = sym?;
+    let mut binds: BindAcc = bindings.clone();
+    let rewritten = rewrite_field_refs(operand, fact_fields, field_names, &mut binds)?;
+    let program = crate::rete::expr_ir::lower(&rewritten, sym).ok()?;
+    crate::rete::expr_ir::exec_value(&program, &binds, sym, operand.span()).ok()
+}
+
+/// Rewrite each FIELD-naming keyword in operand position into a reserved `?`-name, binding it to
+/// that field's value. Only non-head positions, and only declared fields — so a call's head and a
+/// marker like `:undefined` reach the core untouched.
+fn rewrite_field_refs(
+    ast: &WatAST,
+    fact_fields: &[Value],
+    field_names: &[String],
+    binds: &mut BindAcc,
+) -> Option<WatAST> {
+    match ast {
+        WatAST::Keyword(k, span) => {
+            let name = k.strip_prefix(':').unwrap_or(k.as_str());
+            let Some(idx) = field_names.iter().position(|n| n == name) else {
+                return Some(ast.clone());
+            };
+            let v = fact_fields.get(idx)?.clone();
+            // `%` cannot start a user symbol, so this cannot collide with a real `?var`.
+            let reserved = format!("?%fld%{name}");
+            binds.push((Value::String(Arc::new(reserved.clone())), v));
+            Some(WatAST::Symbol(crate::scope::Identifier::bare(reserved), span.clone()))
+        }
+        WatAST::List(items, span) => {
+            let mut out = Vec::with_capacity(items.len());
+            for (i, it) in items.iter().enumerate() {
+                out.push(if i == 0 {
+                    it.clone()
+                } else {
+                    rewrite_field_refs(it, fact_fields, field_names, binds)?
+                });
+            }
+            Some(WatAST::List(out, span.clone()))
+        }
+        other => Some(other.clone()),
+    }
+}
+
 pub(crate) fn resolve_operand<B: Bindings>(
     operand: &WatAST,
     fact_fields: &[Value],

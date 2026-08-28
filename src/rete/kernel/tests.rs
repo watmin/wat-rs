@@ -8926,7 +8926,7 @@ fn alpha_tree_candidate_set_is_superset_of_true_matches_at_50_100() {
             .flatten()
             .filter(|aid| {
                 let cond = &alpha_cond[aid];
-                crate::rete::matcher::alpha_match_inner(cond, fact_class, fact_fields, field_names)
+                crate::rete::matcher::alpha_match_inner(Some(crate::rete::compiled_cond::test_sym()), cond, fact_class, fact_fields, field_names)
                     .is_some()
             })
             .copied()
@@ -9104,7 +9104,7 @@ fn compiled_cond_bindings_identical_to_interpreter_at_50_100() {
         for aid in alpha_by_type.get(fact_class).into_iter().flatten() {
             let cond = &alpha_cond[aid];
             let interpreted =
-                crate::rete::matcher::alpha_match_inner(cond, fact_class, fact_fields, field_names);
+                crate::rete::matcher::alpha_match_inner(Some(crate::rete::compiled_cond::test_sym()), cond, fact_class, fact_fields, field_names);
             let mut pool = Vec::new();
             let mut bkeys = Vec::new();
             let mut bvals = Vec::new();
@@ -9236,6 +9236,7 @@ fn compiled_cond_failure_path_allocates_no_binding_keys_at_50_100() {
             for aid in alpha_by_type.get(fact_class).into_iter().flatten() {
                 interp_calls += 1;
                 let _ = crate::rete::matcher::alpha_match_inner(
+                    Some(crate::rete::compiled_cond::test_sym()),
                     &alpha_cond[aid],
                     fact_class,
                     fact_fields,
