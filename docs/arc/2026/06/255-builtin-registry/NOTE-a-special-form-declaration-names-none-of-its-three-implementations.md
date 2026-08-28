@@ -87,6 +87,72 @@ this is not only a `show-source` fix, it is a route to making the remaining spec
 Counting them with a validated instrument is step one of any stone that follows.
 `[[feedback_validate_a_search_pattern_before_trusting_its_count]]`
 
+
+## ⛔ THE BUILDER'S FOLLOW-UP — is there a higher-order entrypoint that calls the three?
+
+> *"is this hinting that we need a higher order intrinsic entrypoint who calls these three?..
+> otherwise..... the (check, eval, tail) /feels/ ok... but idk.."*
+
+**No — and the reason is precise. The three do not compose, so there is nothing for an entrypoint to
+call.** They are not three steps of one operation; they are the same form's rule under three
+regimes:
+
+```
+check   runs ONCE, statically, before any evaluation exists      (src/check.rs)
+eval    runs per-invocation                                       ┐ MUTUALLY EXCLUSIVE —
+tail    runs per-invocation, in tail position only                ┘ selected by POSITION, never both
+```
+
+A fn calling all three would have to run at two different times and pick between two of them. There
+is no such call. **The triple is right; the builder's instinct that it "feels ok" is correct.**
+
+## ★ WHAT THE INSTINCT IS ACTUALLY POINTING AT — one record, not one call
+
+What is wrong is not the decomposition, it is that **the triple lives in three hand-maintained
+places** and a form must be added to each independently:
+
+```
+src/check.rs      the infer_* match          ← rule 1
+src/runtime.rs    the eval match             111 arms
+src/runtime.rs    the tail match             8 arms — if · match · let · do · and · or · ann-form · rete::insert
+```
+
+The unifying shape is not a function. It is **a record — which is what a registry entry already
+is**:
+
+```
+special form = { check: Rule, eval: Rule, tail: Option<Rule> }
+```
+
+Two parallel hand-written matches collapse into one lookup, and the (FQDN, role) submissions
+proposed above are exactly the rows of that record.
+
+★ **AND THE PRECEDENT IS ALREADY ON DISK, IN THE TAIL MATCH'S OWN COMMENT.**
+`:wat::kernel::serve-dispatch-op` used to be a hardcoded arm in the tail match. Arc 255's kernel
+home moved it into the intrinsic registry, and the tail match's fallthrough —
+`_ => eval_inner(ast, env, sym)` — now reaches it by registry lookup, calling the same tail delegate
+and preserving the `serve` trampoline. **One special form already lives the way this note proposes.**
+The question is not whether the shape works; it is whether to finish it.
+
+## ⚠ AND `tail: Option<Rule>` IS AN HONEST `None` — the contrast is the class's discriminator
+
+This whole NOTE family is about absences recorded as answers, so the `Option` deserves the test —
+and it **passes**, which is worth writing down because it shows where the line is:
+
+| | what `None` means | what it produces |
+|---|---|---|
+| `value_handler: None` | *nobody wrote one* | **a LIE** — `apply` reported 331 registered verbs absent |
+| `tail: None` | *no tail rule* | falls through to `eval_inner`: **correct, just not tail-optimized** |
+
+**The discriminator: does the absence produce a WRONG answer, or a slower-but-right one?** A missing
+tail rule costs stack depth on deep tail recursion; it never gives the wrong value. That is a real,
+safe default — the kind an `Option` is allowed to carry.
+
+⚠ **The residual question this note does NOT answer:** nothing records whether a form *needs* a tail
+rule. 8 of the forms have one; a ninth that recurses in tail position without one will consume the
+Rust stack at depth. There IS a TCO gate (`tests/rete/probe_arc278_55_slice_one_vocabulary.rs`, cited
+in the tail match's comment, with a measured 200,000-deep case) — whether it covers the population or
+only its own subject is **unmeasured here**, and is the same question P4 asks of the checker gates.
 ## What this note does NOT decide
 
 Whether to build it, what the captured shape is, whether `role` is the right axis (a form with no
