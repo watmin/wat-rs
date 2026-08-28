@@ -287,7 +287,7 @@ pub(crate) fn compile_alpha_conds_from_index(
             let Some(cond) = alpha_cond.get(aid) else {
                 continue;
             };
-            let compiled = crate::rete::compiled_cond::compile_condition_local(cond, &field_names)
+            let compiled = crate::rete::compiled_cond::compile_condition_local(cond, &field_names, sym)
                 .ok_or_else(|| {
                     RuntimeError::new(
                         cond.span().clone(),

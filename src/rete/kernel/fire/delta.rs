@@ -21,6 +21,9 @@ pub(crate) type AccGroupOrder<'a> = Vec<(crate::value::pmap::PMap, Vec<&'a Eleme
 /// the refs one fact-activate needs. The P4b/P6 round loop lives on
 /// [`fire_fixpoint_delta_armed`].
 pub(crate) struct AlphaActivateCx<'a> {
+    /// Needed by `Op::Eval` (fix-list F) — a computed inline operand runs through the one
+    /// expression core.
+    pub(crate) sym: &'a SymbolTable,
     pub(crate) wm: &'a mut FireSession,
     pub(crate) d_alpha: &'a mut AlphaDelta,
     pub(crate) alpha_tree: &'a crate::rete::alpha_tree::AlphaTree,
@@ -77,6 +80,7 @@ pub(crate) fn alpha_activate_fact(
                 pool: &mut cx.wm.bind_pool,
             };
             crate::rete::compiled_cond::exec_compiled_with_key_ids(
+                cx.sym,
                 compiled,
                 fact_fields,
                 cx.match_scratch,
@@ -454,6 +458,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
         let __pt0 = phase_start();
         if seed_round {
             crate::rete::kernel::fire::pass::alpha_seed(
+                sym,
                 &mut wm,
                 &mut crate::rete::kernel::fire::pass::RoundScratch {
                     d_alpha: &mut d_alpha,
@@ -475,6 +480,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
             seed_round = false;
         } else {
             crate::rete::kernel::fire::pass::alpha_delta(
+                sym,
                 &mut wm,
                 &mut crate::rete::kernel::fire::pass::RoundScratch {
                     d_alpha: &mut d_alpha,
@@ -507,6 +513,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
         );
 
         crate::rete::kernel::fire::pass::hash_join_delta(
+            sym,
             &mut wm,
             &arm,
             &mut crate::rete::kernel::fire::pass::RoundScratch {
@@ -569,6 +576,7 @@ pub(crate) fn fire_fixpoint_delta_armed(
         )?;
 
         let after_join_frontier = crate::rete::kernel::fire::pass::join_after_filter(
+            sym,
             &mut wm,
             &arm,
             &mut d_beta,

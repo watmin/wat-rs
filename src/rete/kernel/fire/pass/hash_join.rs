@@ -31,7 +31,13 @@ use super::RoundScratch;
 use crate::rete::compiled_cond::CompiledCond;
 
 /// Join this round's new tokens and elements, ascending node id (topological).
+// 8 args since fix-list F: `sym` joined so a computed inline operand can run through the one
+// expression core (`Op::Eval`). The alternative — a context struct — would have to be built at
+// every call site in the per-fact hot path purely to satisfy a lint, and the parameters here are
+// already the fire pass's working set rather than an accidental pile.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn hash_join_delta(
+    sym: &SymbolTable,
     wm: &mut FireSession,
     arm: &InternedNetwork,
     scratch: &mut RoundScratch<'_>,
@@ -217,6 +223,7 @@ for node_id in &kind_ids.join_parent {
                                 el,
                                 alpha_id,
                                 &mut FireCtx {
+                            sym,
                                     compiled_conds,
                                     scratch: match_scratch,
                                     pool: &mut wm.bind_pool,
@@ -316,6 +323,7 @@ for node_id in &kind_ids.join_parent {
         phase_end("  ├ hj:step2-right-idx", __s2);
 
         let mut new_tokens = hj_step3_term1(
+            sym,
             wm,
             compiled_conds,
             match_scratch,
@@ -327,6 +335,7 @@ for node_id in &kind_ids.join_parent {
         )?;
 
         hj_step4_term2(
+            sym,
             wm,
             compiled_conds,
             match_scratch,
@@ -393,6 +402,7 @@ phase_end("hash-join", __pt2);
 /// than a thirteen-parameter explosion. See `AlphaNews::of`.
 #[allow(clippy::too_many_arguments)]
 fn hj_step4_term2(
+    sym: &SymbolTable,
     wm: &mut FireSession,
     compiled_conds: &HashMap<i64, CompiledCond>,
     match_scratch: &mut SlotFrame,
@@ -427,6 +437,7 @@ if !dr.is_empty() {
                         &el,
                         alpha_id,
                         &mut FireCtx {
+                            sym,
                             compiled_conds,
                             scratch: match_scratch,
                             pool: &mut wm.bind_pool,
@@ -462,6 +473,7 @@ phase_end("  ├ hj:step4-term2", __s4);
 /// step 4 then extends and step 6 drains.
 #[allow(clippy::too_many_arguments)]
 fn hj_step3_term1(
+    sym: &SymbolTable,
     wm: &mut FireSession,
     compiled_conds: &HashMap<i64, CompiledCond>,
     match_scratch: &mut SlotFrame,
@@ -490,6 +502,7 @@ if !dl.is_empty() {
                         el,
                         alpha_id,
                         &mut FireCtx {
+                            sym,
                             compiled_conds,
                             scratch: match_scratch,
                             pool: &mut wm.bind_pool,

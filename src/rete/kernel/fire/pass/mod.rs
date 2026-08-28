@@ -42,6 +42,7 @@ pub(crate) struct JoinIdx<'a> {
 /// `where`; with one, the chain is short enough that 3.6 alone finishes it.
 /// Gated by `tests/rete/probe_arc278_where_is_positionally_free`.
 pub(crate) fn left_activate_join(
+    sym: &SymbolTable,
     wm: &mut FireSession,
     arm: &InternedNetwork,
     d_beta: &mut BetaMemory,
@@ -65,6 +66,7 @@ pub(crate) fn left_activate_join(
             indexed_n: idx.right_idx_n,
         },
         &mut FireCtx {
+            sym,
             compiled_conds: &arm.compiled_conds,
             scratch: idx.match_scratch,
             pool: &mut wm.bind_pool,

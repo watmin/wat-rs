@@ -287,6 +287,18 @@ fn check_cond_ops(ops: &[Op], n_slots: usize, span: &Span) -> Result<(), EvalBre
                     ));
                 }
             }
+            // FIX-LIST F — a COMPUTED operand materialised into a slot. Same two checks as any
+            // other slot writer plus the expression's own reads.
+            Op::Eval { expr, slot } => {
+                if *slot >= n_slots {
+                    return Err(malformed(
+                        span,
+                        IMPORT_OP,
+                        format!("cond eval slot {slot} >= n_slots {n_slots}"),
+                    ));
+                }
+                check_expr_slots(expr, frame_len, span)?;
+            }
             Op::Cmp { lhs, rhs, .. } | Op::SeedCmp { lhs, rhs, .. } => {
                 check_expr_slots(lhs, frame_len, span)?;
                 check_expr_slots(rhs, frame_len, span)?;
@@ -917,6 +929,9 @@ fn pack_cond_op(op: &Op) -> Value {
             Value::i64(*field_idx as i64),
             Value::i64(*slot as i64),
         ]),
+        Op::Eval { expr, slot } => {
+            pv([kw(":eval"), pack_expr(expr), Value::i64(*slot as i64)])
+        }
         Op::Cmp { op, lhs, rhs } => {
             pv([kw(":cmp"), pack_cmp(*op), pack_expr(lhs), pack_expr(rhs)])
         }
@@ -953,6 +968,10 @@ fn unpack_cond_op(v: &Value, span: &Span) -> Result<Op, EvalBreak> {
         ":bchk" => Ok(Op::BindCheck {
             field_idx: expect_idx(expect_at(&items, 1, span, "bchk field_idx")?, span, "bchk field_idx")?,
             slot: expect_idx(expect_at(&items, 2, span, "bchk slot")?, span, "bchk slot")?,
+        }),
+        ":eval" => Ok(Op::Eval {
+            expr: unpack_expr(expect_at(&items, 1, span, "eval expr")?, span)?,
+            slot: expect_idx(expect_at(&items, 2, span, "eval slot")?, span, "eval slot")?,
         }),
         ":cmp" => Ok(Op::Cmp {
             op: unpack_cmp(expect_at(&items, 1, span, "cmp op")?, span)?,
@@ -1073,6 +1092,10 @@ fn unpack_compiled_cond(v: &Value, span: &Span) -> Result<CompiledCond, EvalBrea
         ));
     }
     check_cond_ops(&ops, n_slots, span)?;
+    // An imported program carries no source. The span is the IMPORT's — honest, and the same
+    // answer `rules_lack_ast` already gives elsewhere — and slot NAMES are diagnostics that were
+    // never on the wire, so an `Op::Eval` raise in an imported cond reports a slot index rather
+    // than a name. Deliberate: putting names on the wire would grow the ABI for a message.
     Ok(CompiledCond::from_parts(
         ops,
         slot_keys,
@@ -1080,6 +1103,8 @@ fn unpack_compiled_cond(v: &Value, span: &Span) -> Result<CompiledCond, EvalBrea
         n_slots,
         seed_reads.into(),
         fact_bind,
+        span.clone(),
+        Box::from([]),
     ))
 }
 

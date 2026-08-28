@@ -742,6 +742,7 @@ fn sweep_shard(shard: usize, of: usize) {
 
     let mut unclassified: Vec<&str> = Vec::new();
     let mut defects: Vec<String> = Vec::new();
+    let mut silent: Vec<String> = Vec::new();
     let mut matrix: Vec<String> = Vec::new();
 
     for row in &rows {
@@ -816,7 +817,25 @@ fn sweep_shard(shard: usize, of: usize) {
             match adjudicated {
                 Verdict::Fires => verdicts.push(format!("{label}=FIRES")),
                 Verdict::Refused(_) => verdicts.push(format!("{label}=REFUSED")),
-                Verdict::MatchesNothing => verdicts.push(format!("{label}=MATCHES-NOTHING")),
+                // ⛔⛔ THE CLASS GATE — fix-list entry **F** made structural.
+                //
+                // A cell must FIRE or be REFUSED. Those are the only two honest answers: one
+                // works, the other TEACHES. "Compiled, ran, matched nothing, said nothing" is the
+                // third, and it is the defect class this ledger exists to make impossible — a
+                // wrong answer no fuzzer can see (both engines agree on the empty result) and no
+                // reading ward can find (every gate the form passes is correct about it).
+                //
+                // It is asserted for EVERY row in EVERY position rather than for the one operand
+                // shape that was broken, because the next instance of this will not be a nested
+                // call. Entry F was 39 rows wide and nobody noticed for the life of the engine.
+                Verdict::MatchesNothing => {
+                    verdicts.push(format!("{label}=MATCHES-NOTHING"));
+                    silent.push(format!(
+                        "  {} @ {label} — compiled, fired, matched NOTHING, and said nothing.\n\
+                         ─── the program driven ───\n{src}",
+                        cell.op
+                    ));
+                }
                 Verdict::TemplateDefect(kind, detail) => {
                     verdicts.push(format!("{label}=DEFECT"));
                     defects.push(format!(
@@ -840,6 +859,14 @@ fn sweep_shard(shard: usize, of: usize) {
         "these rete rows have NO reachability verdict — a row that no cell exercises is a row \
          nobody has shown a user can reach. Add an operand entry, or an argued exclusion in \
          NOT_YET_GENERABLE: {unclassified:#?}"
+    );
+    assert!(
+        silent.is_empty(),
+        "SILENT WRONG ANSWER — a user form was accepted, compiled, fired, and matched nothing with \
+         no diagnostic. This is fix-list entry F's class and it must never return: make the form \
+         WORK (lower it through the one expression core, as `Op::Eval` does) or make it REFUSE by \
+         name. Never neither.\n{}",
+        silent.join("\n\n")
     );
     assert!(
         defects.is_empty(),
@@ -1056,48 +1083,52 @@ fn raw_count(src: &str) -> Result<i64, String> {
     }
 }
 
-/// ★★ AN INLINE CONSTRAINT WITH A NESTED CALL SILENTLY MATCHES NOTHING.
+/// ★★ AN INLINE CONSTRAINT THAT COMPUTES NOW COMPUTES — fix-list entry **F**, closed.
 ///
-/// All 27 wrapped rows report `selected 0 rows` in the inline position. Not refused: COMPILED,
-/// FIRED, matched nothing, no diagnostic. This pins the mechanism instead of leaving it as
-/// "inline is weird".
+/// ⚠ **THIS TEST USED TO ASSERT THE OPPOSITE, AND THAT IS WHY IT IS HERE.** It was written on
+/// 2026-08-28 to pin a live defect: an inline constraint whose operand was a nested call was
+/// accepted at every gate, compiled, fired, and matched NOTHING — for every fact, at exit code 0,
+/// with zero bytes on stderr. The engine answered "no rows" to a rule whose correct answer was
+/// one row, and no diagnostic was emitted anywhere.
 ///
-/// ⚠ **THE FIRST HYPOTHESIS WAS WRONG AND IS KEPT HERE, because the refutation is what makes the
-/// finding precise.** The guess was that the nested call's field reference never resolves and the
-/// `:undefined` fallback answers for every fact — which would predict that asking for the FALLBACK
-/// value selects BOTH rows. The disk says otherwise: expected `12` gives 0 rows and expected `0`
-/// ALSO gives 0 rows. No value of the outer operand makes it match, so nothing is "answering with
-/// the fallback" — the clause simply never passes.
+/// The mechanism was four conspiring bails, and the last one is the one that mattered:
+/// `compile_operand_expr` had a three-case mini-lowering that stopped at literals, so a nested
+/// operand returned `None`, and `compiled_cond.rs`'s
+/// `match (lhs_e, rhs_e) { (Some,Some) => Cmp, _ => ops.push(Op::Fail) }` turned that into a
+/// COMPILED, PERMANENT, SILENT never-match. `Op::Fail` is correct for an operand that genuinely
+/// cannot resolve — an unbound `?var`, a field the class does not declare — and a nested call was
+/// falling into that bucket only because the lowering could not build one.
 ///
-/// That is worse than the guess, not better. A fallback answer is at least a value a user could
-/// reason about; this is a constraint that is accepted, runs, and is unsatisfiable by construction.
-/// The identical comparison in a `where` fence discriminates correctly, which is the control that
-/// makes this a defect rather than a property of the operands.
+/// **The fix was not a wall.** The first proposal was to refuse the form at compile time, and the
+/// builder refused that: *"we made it such that every rete form can be compiled to a jump table...
+/// why is this any exception?"* It is not one. `compiled_cond` already imported the one core's
+/// `Expr`; what never landed with flip 3 was the LOWERING. Now a nested operand goes through
+/// `expr_ir::lower_in_frame` into the same `Expr::Call`, the same opcode, the same `RETE_OPS`
+/// table the `where` fence uses, materialised by `Op::Eval`.
 #[test]
-fn an_inline_constraint_with_a_nested_call_matches_nothing_whatever_it_is_compared_to() {
+fn an_inline_constraint_that_computes_now_computes() {
     let cell = operands_for(":wat::rete::core::i64::+").expect("row must be in the table");
-    let real = synth(&cell, CallSite::InlineConstraint);
-    let other = real.replace(":undefined 0) 12", ":undefined 0) 0");
-    assert_ne!(real, other, "the rewrite must change the expected value");
 
     assert_eq!(
-        raw_count(&real),
-        Ok(0),
-        "10+2=12 is the TRUE answer for the hit fact and it still selects nothing inline"
+        raw_count(&synth(&cell, CallSite::InlineConstraint)),
+        Ok(1),
+        "10+2=12 selects exactly the hit fact. This read 0 before the fix — the whole of entry F"
     );
-    assert_eq!(
-        raw_count(&other),
-        Ok(0),
-        "and neither does the `:undefined` fallback value — so this is not the operand resolving \
-         to the fallback, it is a clause that cannot be satisfied at all"
-    );
-
-    // ⛔ THE CONTROL, and without it this test proves only that my operands are bad. The SAME op,
-    // the SAME operands, the SAME facts, moved into a `where` fence: exactly one row.
     assert_eq!(
         raw_count(&synth(&cell, CallSite::WhereFence)),
         Ok(1),
-        "the fence position must discriminate on identical inputs — if it does not, the operand \
-         table is wrong and the inline result says nothing about the inline position"
+        "and the fence, which always worked, still answers the same. The two positions agreeing on \
+         identical input is the property; they disagreed for the entire life of the engine"
+    );
+
+    // ⛔ THE DISCRIMINATION CONTROL. Without it this passes against a change that makes the
+    // constraint always TRUE — which would also stop it 'matching nothing' while being just as
+    // wrong. Asking for a value the arithmetic does NOT produce must select zero rows.
+    let never = synth(&cell, CallSite::InlineConstraint).replace(":undefined 0) 12", ":undefined 0) 99");
+    assert_eq!(
+        raw_count(&never),
+        Ok(0),
+        "expecting 99 from 10+2 must select NOTHING — otherwise the operand is not being compared, \
+         only evaluated, and the cell would pass while proving nothing"
     );
 }

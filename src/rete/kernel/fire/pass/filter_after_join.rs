@@ -74,6 +74,7 @@ while !frontier.is_empty() {
                     _ => continue,
                 };
                 if super::left_activate_join(
+                    sym,
                     wm,
                     arm,
                     d_beta,
@@ -204,6 +205,7 @@ while !frontier.is_empty() {
                                 indexed_n: right_idx_n,
                             },
                             &mut FireCtx {
+                            sym,
                                 compiled_conds,
                                 scratch: match_scratch,
                                 pool: &mut wm.bind_pool,

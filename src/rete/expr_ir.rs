@@ -194,6 +194,42 @@ impl<'a> LowerCx<'a> {
     }
 }
 
+/// Lower an expression into a slot frame the CALLER owns — the entry `compiled_cond` needs to
+/// finish flip 3.
+///
+/// [`lower`] builds a self-contained `Program` with its own frame numbered from zero. An inline
+/// alpha constraint cannot use that: its operands must read the SAME scratch the `Op::Bind`
+/// prologue writes fields into, so the slot numbering has to be the alpha's, not ours. This lowers
+/// into a caller-supplied name->slot map and next-slot counter, and hands back the bare `Expr`.
+///
+/// **Why this exists at all, and it is the whole of fix-list entry F.** `compiled_cond` already
+/// imports this module's `Expr`, and `Op::Cmp { lhs: Expr, rhs: Expr }` could always hold an
+/// `Expr::Call`. What never landed with flip 3 was the LOWERING: `compile_operand_expr` had its
+/// own three-case mini-lowering that stopped at literals, so a nested operand produced `None`, the
+/// whole condition failed to compile, and the interpreted fallback answered "no match" for every
+/// fact — silently. The builder's framing settles the design question it looked like: *"we made it
+/// such that every rete form can be compiled to a jump table... why is this any exception?"* It is
+/// not one. Same `Expr::Call`, same opcode, same `RETE_OPS` table.
+pub(crate) fn lower_in_frame(
+    expr: &WatAST,
+    sym: &SymbolTable,
+    slots: &mut HashMap<String, u16>,
+    next: &mut u16,
+) -> Result<Expr, LowerError> {
+    let mut cx = LowerCx {
+        sym,
+        slots: std::mem::take(slots),
+        next: *next,
+        hof_fn_pos: false,
+    };
+    let out = lower_expr(expr, &mut cx);
+    // Write the counter and map back WHATEVER the outcome: a failed lowering may still have
+    // allocated slots, and leaving the caller's counter behind would alias them to later ones.
+    *slots = std::mem::take(&mut cx.slots);
+    *next = cx.next;
+    out
+}
+
 pub(crate) fn lower(expr: &WatAST, sym: &SymbolTable) -> Result<Program, LowerError> {
     let mut cx = LowerCx {
         sym,
@@ -905,7 +941,7 @@ fn with_exec_frame<R>(len: usize, f: impl FnOnce(&mut [Option<Value>]) -> R) -> 
     })
 }
 
-fn exec(
+pub(crate) fn exec(
     e: &Expr,
     frame: &mut [Option<Value>],
     names: &[SlotName],
@@ -1980,3 +2016,64 @@ mod rete_ops_native_coverage {
     }
 }
 
+
+/// DISCONFIRMING PROBE for fix-list entry **F** — can a lowered `Expr::Call` be evaluated against
+/// an ALPHA slot frame?
+///
+/// Entry F is: an inline constraint whose operand is a nested call is accepted everywhere, runs,
+/// and matches nothing — silently. Three places conspire, and the fix hinges on ONE assumption:
+/// that `compiled_cond`'s slot frame and this module's `exec` are the same thing. If they are, the
+/// fix is to finish flip 3 (lower the operand through the core); if they are not, the whole
+/// approach dies here and a different one is needed.
+///
+/// `compiled_cond::SlotFrame` is `Vec<Option<Value>>`; `exec` takes `&mut [Option<Value>]`. This
+/// probe asserts they compose in fact and not merely in type: lower a nested call whose operand is
+/// a `?var`, put a value in that slot by hand the way an `Op::Bind` prologue would, and demand the
+/// arithmetic.
+///
+/// ⚠ What it does NOT settle, deliberately: `exec` requires a `&SymbolTable` and NO alpha executor
+/// signature carries one — the per-fact hot path is sym-free on purpose. That is the real obstacle
+/// and it is a separate decision (thread it, or refuse the sym-needing ops at compile time). This
+/// probe uses a bare world's symbols to isolate the frame question from the sym question.
+#[cfg(test)]
+mod entry_f_frame_composition {
+    use super::*;
+
+    #[test]
+    fn a_lowered_call_evaluates_against_a_bare_alpha_style_slot_frame() {
+        let world = crate::freeze::startup_bare().expect("bare world");
+        let sym = world.symbols();
+
+        // `(:wat::rete::core::i64::+ ?x 2 :undefined 0)` — the exact shape an inline constraint
+        // operand takes: a Fallback row with the mandatory `:undefined` marker pair.
+        let src = "(:wat::rete::core::i64::+ ?x 2 :undefined 0)";
+        let forms = crate::parser::parse_all_with_file(src, "<entry-f-probe>")
+            .expect("the probe expression must parse");
+        let expr_ast = forms.first().expect("one form");
+
+        let program = lower(expr_ast, sym).expect("a nested rete call must lower through the core");
+
+        // The alpha prologue's job, done by hand: `?x`'s slot holds 10, exactly as `Op::Bind`
+        // would have written a field value into `scratch`.
+        let slot = program
+            .reads
+            .iter()
+            .find_map(|(name, s)| match name {
+                Value::String(n) if n.as_str() == "?x" => Some(*s),
+                _ => None,
+            })
+            .expect("the lowered program must read `?x` from a slot");
+        let mut frame: Vec<Option<Value>> = vec![None; program.frame_len as usize];
+        frame[slot as usize] = Some(Value::i64(10));
+
+        let got = exec(&program.root, &mut frame, &program.names, sym, &expr_ast.span().clone())
+            .expect("exec must evaluate the call against the frame");
+
+        assert_eq!(
+            got,
+            Value::i64(12),
+            "10 + 2 = 12. If this fails, `compiled_cond`'s slot frame and this module's `exec` do \
+             NOT compose, and entry F's fix cannot be 'finish flip 3' — it needs a different shape"
+        );
+    }
+}
