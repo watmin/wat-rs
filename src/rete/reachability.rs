@@ -1235,3 +1235,119 @@ fn a_keyword_constant_is_writable_in_an_inline_constraint() {
         "constructing :zeta must match NEITHER fact — otherwise the comparison is not comparing"
     );
 }
+
+/// ★★ A FIELD REFERENCE INSIDE A VECTOR BINDS LIKE ANY OTHER OPERAND — the `let` half of F's class.
+///
+/// ⚠ **THIS TEST WOULD HAVE FAILED THE DAY FIX-LIST F WAS DECLARED CLOSED**, and finding that is
+/// the whole reason it exists. F closed the case where the OPERAND was a nested call. It did not
+/// close the case where the field reference sits inside a `[...]` — which is exactly where a `let`
+/// binder lives — because `bind_field_refs` walked only `Keyword` and `List` and ended in
+/// `other => Some(other.clone())`. `WatAST::Vector` fell into that catch-all and was cloned
+/// UNTOUCHED, so `:v` never became a slot read, stayed a bare keyword, compared unequal to every
+/// i64 forever, and the rule compiled, fired and matched NOTHING with no diagnostic.
+///
+/// **Both engines shared it**, exactly as they shared F: `matcher.rs`'s `rewrite_field_refs` is
+/// the same two arms and the same catch-all. That is why 5612 fuzzed shapes were blind — the two
+/// engines did not merely agree, they agreed on the same wrong answer. So this gate drives BOTH.
+///
+/// **The extirpation is the deleted wildcard, not this test.** `other => clone` meant two things
+/// at once — "this node is a leaf, leave it alone" AND "I have no arm for this node" — and the
+/// second meaning is what went silent. Every variant is now named in both functions, so a new
+/// `WatAST` variant is a COMPILE ERROR rather than a silent never-match. That is rung three of the
+/// ladder; this test is the worked example that proves the rung was climbed in the right place.
+///
+/// ⛔ **WHAT THIS GATE CANNOT REACH, stated rather than implied.** The new `Map | Set => None`
+/// arms refuse, and nothing here drives them: `:wat::rete::lower` rejects both literals upstream
+/// ("cannot lower", measured 2026-08-28), so no rete source can reach those arms. A gate built
+/// from what the language admits cannot test what the language excludes. The arms are named
+/// anyway, because the alternative is the catch-all that caused this.
+#[test]
+fn a_field_reference_inside_a_vector_binds_like_any_other_operand() {
+    const SRC: &str = r#"(:wat::core::defrecord :probe::In  [k <- :wat::core::String  v <- :wat::core::i64])
+(:wat::core::defrecord :probe::Out [k <- :wat::core::String])
+
+(:wat::rete::defrule :probe::rule
+  :when
+  [(:probe::In (?k <- :k)
+     (:wat::rete::core::i64::= (:wat::rete::core::let [x :v] x) 10))]
+  :then
+  [(:probe::Out :k ?k)])
+
+(:wat::rete::defquery :probe::q :params [] :when [(?fact <- :probe::Out)])
+
+(:wat::core::defn :probe::run [] -> :wat::core::i64
+  (:wat::core::let
+    [rules   (:wat::rete::collect-rules :probe)
+     session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:probe::q)))
+     session (:wat::rete::insert session (:probe::In :k "hit"  :v 10))
+     session (:wat::rete::insert session (:probe::In :k "miss" :v 1))
+     fired   (:wat::rete::fire-rules session)]
+    (:wat::core::length (:wat::rete::query fired (:probe::q)))))
+"#;
+
+    // `Ok(1)` is the assertion AND the discrimination in one: the defect read 0 (matched nothing),
+    // and a constraint made vacuously TRUE would read 2 (matched the miss as well). Only a binder
+    // that actually resolves to the field's value can select exactly the hit.
+    assert_eq!(
+        raw_count(SRC),
+        Ok(1),
+        "a `let` binding a FIELD must select exactly the hit. This read 0 for the life of the \
+         engine — compiled, fired, silent"
+    );
+
+    // ⛔ THE ORACLE CARRIES THE IDENTICAL DEFECT, so a native-only gate would have watched this
+    // class walk straight back in through the reference engine — which is the surface every
+    // differential fuzzer scores against.
+    let oracle = SRC.replace(":wat::rete::fire-rules ", ":wat::rete::fire-rules$oracle ");
+    assert_ne!(SRC, oracle, "the rewrite must actually select the oracle");
+    assert_eq!(
+        raw_count(&oracle),
+        Ok(1),
+        "the $oracle must agree. Before this strike both engines answered 0 — agreement on a wrong \
+         answer, which is what made 5612 fuzzed shapes blind to it"
+    );
+
+    // ⛔ THE POSITION CONTROL — the same expression in a `where` fence, which ALWAYS worked. Its
+    // job is to keep the two positions pinned to each other: they disagreed here for the life of
+    // the engine, and a regression that breaks the fence instead would otherwise read as green.
+    const FENCE: &str = r#"(:wat::core::defrecord :probe::In  [k <- :wat::core::String  v <- :wat::core::i64])
+(:wat::core::defrecord :probe::Out [k <- :wat::core::String])
+
+(:wat::rete::defrule :probe::rule
+  :when
+  [(:probe::In (?k <- :k) (?v <- :v))
+   (:wat::rete::where
+     (:wat::rete::core::i64::= (:wat::rete::core::let [x ?v] x) 10))]
+  :then
+  [(:probe::Out :k ?k)])
+
+(:wat::rete::defquery :probe::q :params [] :when [(?fact <- :probe::Out)])
+
+(:wat::core::defn :probe::run [] -> :wat::core::i64
+  (:wat::core::let
+    [rules   (:wat::rete::collect-rules :probe)
+     session (:wat::rete::compile-all rules (:wat::core::PersistentVector (:probe::q)))
+     session (:wat::rete::insert session (:probe::In :k "hit"  :v 10))
+     session (:wat::rete::insert session (:probe::In :k "miss" :v 1))
+     fired   (:wat::rete::fire-rules session)]
+    (:wat::core::length (:wat::rete::query fired (:probe::q)))))
+"#;
+    assert_eq!(
+        raw_count(FENCE),
+        Ok(1),
+        "the fence answer is unchanged — the two positions must agree on identical input"
+    );
+
+    // ⛔ THE VACUITY CONTROL. A `let` that binds a CONSTANT never touches the rewriter at all, so
+    // it passed even while the defect was live. Pinning it proves this gate is not measuring
+    // "inline `let` works" — which was already true — but specifically that the FIELD reference
+    // inside the binder vector now resolves.
+    let constant_binder = SRC.replace("[x :v] x) 10", "[x 7] x) 7");
+    assert_ne!(SRC, constant_binder, "the rewrite must change the binder");
+    assert_eq!(
+        raw_count(&constant_binder),
+        Ok(2),
+        "a constant binder matches BOTH facts and did so before the fix — if this reads 1, the \
+         gate above is passing for a reason other than the one it claims"
+    );
+}

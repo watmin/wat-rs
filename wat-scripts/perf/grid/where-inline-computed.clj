@@ -20,7 +20,20 @@
 ;; on both engines at once, which is exactly how a position-specific defect survives 36 axes.
 ;;
 ;; `mk-session` takes an EXPLICIT production list per row — never the namespace symbol — so the
-;; four rules do not collapse into one session and union their derived sets.
+;; eight rules do not collapse into one session and union their derived sets.
+;;
+;; ── ROWS 5-8: THE BINDER VECTOR, AND WHY CLARA IS LOAD-BEARING HERE ──────────────────────────
+;;
+;; Rows 1-4 nest the field reference in a CALL. Rows 5-8 nest it in a `let` BINDER — and on
+;; 2026-08-28 that was a second live silent never-match, still open on the day entry F was
+;; declared closed, because our rewriter walked `Keyword` and `List` and swept `Vector` into an
+;; `other => clone` catch-all.
+;;
+;; ⛔ BOTH OUR ENGINES WERE WRONG, AGAIN. `$native` and `$oracle` share that rewriter's shape, so
+;; they returned the same wrong answer and every differential gate we own was satisfied. That is
+;; the repeat failure of this arc — the two engines do not merely agree, they inherit one mistake.
+;; Clara is the only party here that did not, which is the entire reason these rows are written
+;; against it rather than as a Rust probe alone. A probe we own cannot arbitrate a defect we own.
 
 (ns where-inline-computed
   (:require [clara.rules :refer [mk-session insert fire-rules query defrule defquery insert!]]))
@@ -52,13 +65,40 @@
   [:test (= (+ ?k 2) 100)]
   => (insert! (->Hit ?k)))
 
+;; ROW 5 — INLINE, the field reference inside a `let` binder. Our side read n=0 here in BOTH
+;; engines; Clara is what makes that a diff instead of a consensus.
+(defrule inline-let-gt
+  [Req (= ?k k) (> (let [x k] x) 100)]
+  => (insert! (->Hit ?k)))
+
+;; ROW 6 — FENCE, the identical predicate via :test. This position always worked on our side.
+(defrule fence-let-gt
+  [Req (= ?k k)]
+  [:test (> (let [x ?k] x) 100)]
+  => (insert! (->Hit ?k)))
+
+;; ROW 7 — INLINE, exact equality. n=1 brackets never-match and always-match from both sides.
+(defrule inline-let-eq
+  [Req (= ?k k) (= (let [x k] x) 100)]
+  => (insert! (->Hit ?k)))
+
+;; ROW 8 — FENCE, exact equality.
+(defrule fence-let-eq
+  [Req (= ?k k)]
+  [:test (= (let [x ?k] x) 100)]
+  => (insert! (->Hit ?k)))
+
 (defquery hit-q [] [?fact <- Hit])
 
 (def rows
-  [[1 "inline-gt" inline-gt]
-   [2 "fence-gt"  fence-gt]
-   [3 "inline-eq" inline-eq]
-   [4 "fence-eq"  fence-eq]])
+  [[1 "inline-gt"     inline-gt]
+   [2 "fence-gt"      fence-gt]
+   [3 "inline-eq"     inline-eq]
+   [4 "fence-eq"      fence-eq]
+   [5 "inline-let-gt" inline-let-gt]
+   [6 "fence-let-gt"  fence-let-gt]
+   [7 "inline-let-eq" inline-let-eq]
+   [8 "fence-let-eq"  fence-let-eq]])
 
 (def seeds (mapv (fn [i] (->Req i)) (range items)))
 

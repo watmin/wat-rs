@@ -849,7 +849,34 @@ fn rewrite_field_refs(
             }
             Some(WatAST::List(out, span.clone()))
         }
-        other => Some(other.clone()),
+        // The oracle's twin of `compiled_cond::bind_field_refs`'s `Vector` arm — a vector has no
+        // head, so every element is an operand position. Both engines shared the missing arm, which
+        // is why five fuzzers and 5612 shapes were blind: they did not merely agree, they agreed on
+        // the SAME wrong answer, exactly as in fix-list F.
+        WatAST::Vector(items, span) => {
+            let mut out = Vec::with_capacity(items.len());
+            for it in items {
+                out.push(rewrite_field_refs(it, fact_fields, field_names, binds)?);
+            }
+            Some(WatAST::Vector(out, span.clone()))
+        }
+        // Unreachable — `:wat::rete::lower` refuses both literals — and named rather than swept up
+        // for the same reason as the compiled twin. ⚠ ASYMMETRY, recorded rather than papered over:
+        // a `None` here becomes NO MATCH at `eval_clause` (line ~688), while the compiled path
+        // turns its `None` into a REFUSAL. If a map or set ever becomes lowerable, that difference
+        // is a live divergence and this arm is where to fix it.
+        WatAST::Map(..) | WatAST::Set(..) => None,
+        // ⛔ THE WILDCARD IS DELETED ON PURPOSE — see the compiled twin. `other => clone` conflated
+        // "leaf, leave it alone" with "no arm for this node"; naming every variant makes a new
+        // `WatAST` variant a compile error here rather than a silent never-match.
+        WatAST::IntLit(..)
+        | WatAST::FloatLit(..)
+        | WatAST::RationalLit(..)
+        | WatAST::BigIntLit(..)
+        | WatAST::BoolLit(..)
+        | WatAST::StringLit(..)
+        | WatAST::NilLit(..)
+        | WatAST::Symbol(..) => Some(ast.clone()),
     }
 }
 

@@ -776,7 +776,39 @@ fn bind_field_refs(
             }
             Some(WatAST::List(out, span.clone()))
         }
-        other => Some(other.clone()),
+        // A VECTOR has no head, so every element is an operand position. This is where a `let`
+        // binder lives (`(let [x :v] ...)`), and it was the hole: `Vector` fell to the old
+        // `other => clone` catch-all, so `:v` was never rewritten, stayed a bare keyword, compared
+        // unequal to every i64 forever, and the rule COMPILED, FIRED and MATCHED NOTHING with no
+        // diagnostic. Measured 2026-08-28 against both engines, which shared the defect.
+        WatAST::Vector(items, span) => {
+            let mut out = Vec::with_capacity(items.len());
+            for item in items {
+                out.push(bind_field_refs(item, scope, field_slots, ctx, ops, names)?);
+            }
+            Some(WatAST::Vector(out, span.clone()))
+        }
+        // ⛔ REFUSED, never cloned through. A `{...}` / `#{...}` cannot appear in a rete expression
+        // today — `:wat::rete::lower` rejects both ("cannot lower", measured) — so this arm is
+        // unreachable, and that is exactly why it must not be a silent pass-through. If either
+        // literal ever becomes lowerable, a field ref in a map KEY versus a map VALUE is a real
+        // semantic question, and answering it by accident is the failure this whole strike is
+        // pulling out. `None` here reaches `OperandLowering::Refused` at the call site — a refusal,
+        // never `Op::Fail`.
+        WatAST::Map(..) | WatAST::Set(..) => None,
+        // The leaves, named rather than swept up: each one IS itself and is correct to clone.
+        // ⛔ THE WILDCARD IS DELETED ON PURPOSE. `other => clone` meant two different things at
+        // once — "this node is a leaf, leave it alone" AND "I have no arm for this node" — and the
+        // second meaning is what made `Vector` silent. With every variant named, a new `WatAST`
+        // variant is a COMPILE ERROR here instead of a silent never-match.
+        WatAST::IntLit(..)
+        | WatAST::FloatLit(..)
+        | WatAST::RationalLit(..)
+        | WatAST::BigIntLit(..)
+        | WatAST::BoolLit(..)
+        | WatAST::StringLit(..)
+        | WatAST::NilLit(..)
+        | WatAST::Symbol(..) => Some(ast.clone()),
     }
 }
 

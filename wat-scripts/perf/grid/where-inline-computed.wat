@@ -28,19 +28,37 @@
 ;; k ranges 0..209. The predicate always contains a COMPUTED operand — `(k + 2)` — because that is
 ;; the exact shape `compile_operand_expr` could not lower.
 ;;
-;;   1 inline-gt   (k+2) > 100  inline  => k >= 99          => 111/210
-;;   2 fence-gt    (k+2) > 100  fence   => identical         => 111/210
-;;   3 inline-eq   (k+2) = 100  inline  => k = 98 exactly    => 1/210
-;;   4 fence-eq    (k+2) = 100  fence   => identical         => 1/210
+;;   1 inline-gt      (k+2) > 100        inline  => k >= 99        => 111/210
+;;   2 fence-gt       (k+2) > 100        fence   => identical      => 111/210
+;;   3 inline-eq      (k+2) = 100        inline  => k = 98 exactly => 1/210
+;;   4 fence-eq       (k+2) = 100        fence   => identical      => 1/210
+;;   5 inline-let-gt  (let [x k] x) > 100  inline  => k >= 101     => 109/210
+;;   6 fence-let-gt   (let [x k] x) > 100  fence   => identical    => 109/210
+;;   7 inline-let-eq  (let [x k] x) = 100  inline  => k = 100      => 1/210
+;;   8 fence-let-eq   (let [x k] x) = 100  fence   => identical    => 1/210
 ;;
-;; Rows 3 and 4 are the sharp ones and are not redundant with 1 and 2: n=1 is bracketed on BOTH
-;; sides, so a silent never-match (n=0, entry F's signature) and an always-match (n=210, the
-;; opposite failure a naive fix could introduce) are each one row away from the truth. A row that
-;; can only be wrong in one direction is half an instrument.
+;; Rows 3/4 and 7/8 are the sharp ones and are not redundant with their `>` partners: n=1 is
+;; bracketed on BOTH sides, so a silent never-match (n=0, entry F's signature) and an always-match
+;; (n=210, the opposite failure a naive fix could introduce) are each one row away from the truth.
+;; A row that can only be wrong in one direction is half an instrument.
+;;
+;; ── WHY ROWS 5-8 EXIST — A SECOND DEFECT OF THE SAME CLASS, FOUND 2026-08-28 ──────────────────
+;;
+;; Rows 1-4 put the field reference inside a nested CALL. Rows 5-8 put it inside a `[...]` — a
+;; `let` binder — and that was a SEPARATE live silent never-match, still open on the day entry F
+;; was declared closed. `bind_field_refs` walked only `Keyword` and `List` and ended in
+;; `other => clone`, so `WatAST::Vector` was cloned untouched, `:k` never became a slot read, and
+;; the rule compiled, fired and matched nothing.
+;;
+;; ⛔ **AND `$oracle` AND `$native` WERE BOTH WRONG AGAIN.** `matcher.rs`'s `rewrite_field_refs`
+;; carried the identical two arms and the identical catch-all. Two engines agreeing is not
+;; evidence when the thing they agree on is the bug — that is the repeat failure mode of this
+;; arc, and it is why these rows exist HERE, against Clara, rather than only as a Rust probe.
+;; Clara is the only party to this comparison that did not inherit our mistake.
 
 (:wat::core::defn :wic::items [] -> :wat::core::i64 210)
 
-(:wat::core::defn :wic::row-count [] -> :wat::core::i64 4)
+(:wat::core::defn :wic::row-count [] -> :wat::core::i64 8)
 
 (:wat::core::defrecord :wic::Req [k <- :wat::core::i64])
 (:wat::core::defrecord :wic::Hit [k <- :wat::core::i64])
@@ -70,6 +88,34 @@
          (:wat::rete::where (:wat::rete::core::i64::= (:wat::rete::core::i64::+ ?k 2 :undefined 0) 100))]
   :then [(:wic::Hit :k ?k)])
 
+;; ROW 5 — INLINE, the field reference inside a `let` BINDER VECTOR. `[x :k]` is a
+;; `WatAST::Vector`, which the rewriter's `other => clone` catch-all passed through untouched:
+;; `:k` stayed a bare keyword, compared unequal to every i64, and this row read n=0 in BOTH
+;; engines while every gate was green.
+(:wat::rete::defrule :wic::inline-let-gt
+  :when [(:wic::Req (?k <- :k)
+           (:wat::rete::core::i64::> (:wat::rete::core::let [x :k] x) 100))]
+  :then [(:wic::Hit :k ?k)])
+
+;; ROW 6 — FENCE, the identical predicate. This position always worked, which is exactly what made
+;; row 5's silence invisible: the same expression answered correctly two lines away.
+(:wat::rete::defrule :wic::fence-let-gt
+  :when [(:wic::Req (?k <- :k))
+         (:wat::rete::where (:wat::rete::core::i64::> (:wat::rete::core::let [x ?k] x) 100))]
+  :then [(:wic::Hit :k ?k)])
+
+;; ROW 7 — INLINE, exact equality. n=1 brackets a never-match and an always-match from both sides.
+(:wat::rete::defrule :wic::inline-let-eq
+  :when [(:wic::Req (?k <- :k)
+           (:wat::rete::core::i64::= (:wat::rete::core::let [x :k] x) 100))]
+  :then [(:wic::Hit :k ?k)])
+
+;; ROW 8 — FENCE, exact equality.
+(:wat::rete::defrule :wic::fence-let-eq
+  :when [(:wic::Req (?k <- :k))
+         (:wat::rete::where (:wat::rete::core::i64::= (:wat::rete::core::let [x ?k] x) 100))]
+  :then [(:wic::Hit :k ?k)])
+
 (:wat::rete::defquery :wic::q-Hit :params [] :when [(?fact <- :wic::Hit)])
 
 (:wat::core::defn :wic::rule-for [row <- :wat::core::i64] -> :wat::core::String
@@ -77,7 +123,11 @@
     ((:wat::core::= row 1) "inline-gt")
     ((:wat::core::= row 2) "fence-gt")
     ((:wat::core::= row 3) "inline-eq")
-    (:else "fence-eq")))
+    ((:wat::core::= row 4) "fence-eq")
+    ((:wat::core::= row 5) "inline-let-gt")
+    ((:wat::core::= row 6) "fence-let-gt")
+    ((:wat::core::= row 7) "inline-let-eq")
+    (:else "fence-let-eq")))
 
 (:wat::core::defn :wic::rules-for [row <- :wat::core::i64]
   -> (:wat::core::PersistentVector :- [:wat::rete::Rule])
@@ -86,7 +136,11 @@
       ((:wat::core::= row 1) (:wic::inline-gt))
       ((:wat::core::= row 2) (:wic::fence-gt))
       ((:wat::core::= row 3) (:wic::inline-eq))
-      (:else (:wic::fence-eq)))))
+      ((:wat::core::= row 4) (:wic::fence-eq))
+      ((:wat::core::= row 5) (:wic::inline-let-gt))
+      ((:wat::core::= row 6) (:wic::fence-let-gt))
+      ((:wat::core::= row 7) (:wic::inline-let-eq))
+      (:else (:wic::fence-let-eq)))))
 
 (:wat::core::defn :wic::seed [session <- :wat::rete::Session  items <- :wat::core::i64]
   -> :wat::rete::Session
